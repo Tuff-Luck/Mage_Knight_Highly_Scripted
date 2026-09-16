@@ -15991,7 +15991,12 @@ function portalSwap(state, playerIndex)
 		end
 	end
 
-	local avatarDestination={-24.03, 1.11, -16.08}--wedge portal hex location
+	local avatarDestination={-24.03, 1.11, -16.08}--fallback wedge portal hex location
+	local startTile=getObjectFromGUID(startTerrain.wedge) or getObjectFromGUID(startTerrain.open)
+	if startTile~=nil then
+		local startPos=startTile.getPosition()
+		avatarDestination={startPos[1],1.11,startPos[3]}
+	end
 	if state=="startOfTurn" then
 		if player.avatarLocation=="portal" then
 			--Only the active Mage Knight belongs on the physical portal hex. Park every other
@@ -15999,7 +16004,6 @@ function portalSwap(state, playerIndex)
 			for otherIndex, other in pairs(turnOrder) do
 				if otherIndex~=playerIndex and other.avatarLocation=="portal" then moveAvatar(otherIndex,portalParking(otherIndex)) end
 			end
-			if getObjectFromGUID(startTerrain.wedge)==nil then avatarDestination={-36.03, 1.11, -11.93} end--flipped portal hex location
 		elseif horsemenGlade==true then
 			--Country01's centre is a shared space in this scenario. Inactive occupants remain parked
 			--on the Portal card; only the active Mage Knight is represented on the Glade itself.
@@ -37469,10 +37473,10 @@ function renderMoveDisplay(id)
 		-- 	end
 		-- end
 
-		--work out players hex grid position
-		local playerPos={-36.03, 0.97, -11.93}
-		if startTileGUID==startTerrain.wedge then playerPos={-24.03, 0.97, -16.08}
-		elseif gStates.gameScenario=="Against the Horsemen Blitz" then
+		--work out players hex grid position from the actual start tile; Fury's four-player
+		--predefined map deliberately relocates the open start tile.
+		local playerPos={startTilePosition[1],0.97,startTilePosition[3]}
+		if gStates.gameScenario=="Against the Horsemen Blitz" then
 			local gladePos=againstHorsemenCentralGladePosition(0.97)
 			if gladePos~=nil then playerPos=gladePos end
 		end
