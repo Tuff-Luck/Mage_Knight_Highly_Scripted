@@ -8553,6 +8553,9 @@ end
 local firstTile=nil
 local startingMapSetup=false
 local startingMapTiles={}
+--The Dragon data table is assigned later in the file, but Fury map setup needs its GUIDs here.
+local apocalypseDragon
+
 -- Apocalypse Dragon Hero Challenges play variant.
 -- The variant overlays the selected scenario; the scenario's own end condition remains authoritative.
 function heroChallengeCountryGUID(number)
@@ -8840,6 +8843,102 @@ function refreshHeroChallengeOptionLocks()
 	end
 end
 
+--Fury of the Apocalypse Dragon uses the small one-space Dragon marker rather than the normal
+--three-space figure. The marker (42b581) is an attachment inside the Dragon model in the Apocalypse
+--component bag, so pull the model out long enough to detach the marker before that setup bag is deleted.
+function furyDragonExtractMarker(target)
+	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" or apocalypseDragon==nil then return nil end
+	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
+	if marker==nil then
+		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+		if bag==nil then return nil end
+		local dragon=bag.takeObject({guid=apocalypseDragon.model,position={-65.5,4,22},rotation={0,180,180},smooth=false})
+		if dragon~=nil then
+			local function attachmentParent(parent)
+				for _,attachment in ipairs(parent.getAttachments() or {}) do
+					if attachment.guid==apocalypseDragon.furyMarker then return parent end
+					local found=attachmentParent(attachment)
+					if found~=nil then return found end
+				end
+				return nil
+			end
+			local parent=attachmentParent(dragon)
+			if parent~=nil then
+				for _,detached in ipairs(parent.removeAttachments() or {}) do
+					if detached.guid==apocalypseDragon.furyMarker then marker=detached
+					else parent.addAttachment(detached) end
+				end
+			end
+			bag.putObject(dragon)
+		end
+	end
+	if marker~=nil then
+		marker.unlock()
+		marker.setRotation({0,180,0})
+		marker.setPosition(target)
+	end
+	return marker
+end
+
+function furyDragonSetupLair()
+	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" then return false end
+	local tile=getObjectFromGUID(GUID.tile.core01)
+	if tile==nil then return false end
+	local bearing="240"
+	local xy=angleToXY(tile,bearing)
+	local hexPos={xy[1],1.00,xy[2]}
+	local markerPos={xy[1],1.18,xy[2]}
+	gStates.apocalypseDragonLairRevealed=true
+	gStates.apocalypseDragonLair={tileGUID=tile.guid,hexes={{bearing=bearing,position=hexPos}},position=markerPos,rotation={0,180,0},fury=true,cityHexKey=tile.guid.."|"..bearing}
+	--Core tile 1's Tomb is the Dragon Lair in Fury and no longer counts as a Tomb.
+	terrainTiles[tile.guid].hexFeature[bearing]=""
+	gStates.hexOverideSave=gStates.hexOverideSave or {}
+	gStates.hexOverideSave[tile.guid]=gStates.hexOverideSave[tile.guid] or {}
+	gStates.hexOverideSave[tile.guid][bearing]=""
+	local marker=furyDragonExtractMarker(markerPos)
+	if marker==nil then
+		broadcastToAll("Fury setup could not deploy the single-space Apocalypse Dragon marker (42b581).",warningColor)
+		return false
+	end
+	return true
+end
+
+--Fury begins with Regular Units even though all Core tiles are already face up. Elite Units only
+--join subsequent Round offers after a Countryside tile adjacent to a City has been revealed, or after
+--a Hero has entered either City at least once.
+function furyDragonEliteConditionMet()
+	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" then return false end
+	if gStates.furyHeroEnteredCity==true then return true end
+	local map=getObjectFromGUID(mapArea)
+	if map==nil then return false end
+	local countries,cities={},{}
+	for _,obj in ipairs(map.getObjects() or {}) do
+		local data=terrainTiles[obj.guid]
+		if data~=nil and obj.is_face_down==false then
+			if data.tileType=="country" then countries[#countries+1]=obj
+			elseif data.tileType=="core" and data.hexFeature~=nil and tostring(data.hexFeature.center or ""):sub(1,4)=="city" then cities[#cities+1]=obj end
+		end
+	end
+	for _,city in ipairs(cities) do
+		local cp=city.getPosition()
+		for _,country in ipairs(countries) do
+			local pp=country.getPosition()
+			local distance=((cp[1]-pp[1])^2)+((cp[3]-pp[3])^2)
+			--Adjacent map-tile centres are 6.35 units apart (40.32 squared).
+			if distance>36 and distance<45 then return true end
+		end
+	end
+	return false
+end
+
+function furyDragonPrepareEliteUnits()
+	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" or gStates.eliteUnitsUsed==true then return false end
+	if furyDragonEliteConditionMet()~=true then return false end
+	gStates.eliteUnitsUsed=true
+	broadcastToAll("Fury of the Apocalypse Dragon: Elite Units are included in this Round's Unit Offer.",{1,1,0.5})
+	return true
+end
+
 function mapSetup()
 	startingMapSetup=true
 	startingMapTiles={}
@@ -8851,10 +8950,51 @@ function mapSetup()
 	CoreTileStack.shuffle()
 	CountryTileStack.shuffle()
 	local againstHorsemenMap=gStates.gameScenario=="Against the Horsemen Blitz"
+	local furyMap=gStates.gameScenario=="Fury of the Apocalypse Dragon"
 	local againstHorsemenCountryTilePos={}
 	local againstHorsemenCoreTilePos={}
 	local againstHorsemenCityTilePos={}
 	local againstHorsemenCoreTileGUIDs={}
+	local furyCountrySlots={}
+	local furyCoreTilePos={}
+	local furyCityTilePos={}
+	if furyMap then
+		--Exact predefined layouts from the Fury scenario sheet. All selected tiles are placed now;
+		--only the marked Countryside slots begin face up. Core/City tiles always begin face up.
+		local start={-36.0305,1.15,-11.9267}
+		local basisA,basisB,countryCoords,faceUpCoords,coreCoords,cityCoords
+		if gStates.playerCount<=2 then
+			basisA=terrainPlacementNeighbourOffsets[1] basisB=terrainPlacementNeighbourOffsets[2]
+			countryCoords={{0,1},{1,0},{1,1},{2,0},{0,2},{0,3},{3,0}}
+			faceUpCoords={{0,1},{1,0}}
+			coreCoords={{2,2},{1,2},{2,1}}
+			cityCoords={{1,3},{3,1}}
+		elseif gStates.playerCount==3 then
+			basisA=terrainPlacementNeighbourOffsets[1] basisB=terrainPlacementNeighbourOffsets[2]
+			countryCoords={{0,1},{1,0},{1,-1},{1,1},{2,0},{2,-1},{3,-1},{4,-1},{0,2},{1,2}}
+			faceUpCoords={{0,1},{1,0},{1,-1}}
+			coreCoords={{3,1},{2,1},{3,0}}
+			cityCoords={{2,2},{4,0}}
+		else
+			basisA=terrainPlacementNeighbourOffsets[6] basisB=terrainPlacementNeighbourOffsets[5]
+			countryCoords={{0,-1},{1,-1},{1,0},{1,-4},{1,-3},{0,-3},{4,-3},{0,-2},{1,-2},{2,-2},{3,-2},{2,-1}}
+			faceUpCoords={{0,-1},{1,-1},{1,0}}
+			coreCoords={{3,-4},{2,-3},{3,-3}}
+			cityCoords={{2,-4},{4,-4}}
+		end
+		local function key(coord) return tostring(coord[1])..","..tostring(coord[2]) end
+		local faceUp={} for _,coord in ipairs(faceUpCoords) do faceUp[key(coord)]=true end
+		local function furyPos(coord) return {start[1]+coord[1]*basisA[1]+coord[2]*basisB[1],start[2],start[3]+coord[1]*basisA[2]+coord[2]*basisB[2]} end
+		for _,coord in ipairs(countryCoords) do furyCountrySlots[#furyCountrySlots+1]={position=furyPos(coord),faceUp=faceUp[key(coord)]==true} end
+		for _,coord in ipairs(coreCoords) do furyCoreTilePos[#furyCoreTilePos+1]=furyPos(coord) end
+		for _,coord in ipairs(cityCoords) do furyCityTilePos[#furyCityTilePos+1]=furyPos(coord) end
+		gStates.furyHeroEnteredCity=false
+		--Suppress the Tomb before Core 1 enters the map zone, so setup never treats the Fury Lair as a Tomb.
+		terrainTiles[GUID.tile.core01].hexFeature["240"]=""
+		gStates.hexOverideSave=gStates.hexOverideSave or {}
+		gStates.hexOverideSave[GUID.tile.core01]=gStates.hexOverideSave[GUID.tile.core01] or {}
+		gStates.hexOverideSave[GUID.tile.core01]["240"]=""
+	end
 	if againstHorsemenMap then
 		--Radius-two predefined map from the Apocalypse rulebook. Use the existing terrain-placement
 		--vectors so these positions stay on exactly the same lattice as every other scripted map.
@@ -8991,6 +9131,11 @@ function mapSetup()
 		if (gStates.gameScenario=="Volkare's Return" and i==1) or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="The Chaos Rift" then params.position={pos.x, pos.y+tUp, pos.z} tUp=tUp+0.5 noShuffle=1 end--puts city at bottom of stack
 		if gStates.gameScenario=="The Gauntlet" and i==1 then params.guid=GUID.tile.city08 params.position={4.7708, 0.96, 8.8586} noShuffle=1 end
 		if againstHorsemenMap then params.position=againstHorsemenCityTilePos[i] noShuffle=1 end
+		if furyMap then
+			params.position=furyCityTilePos[i]
+			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,0}
+			noShuffle=1
+		end
 		if gStates.gameScenario=="The War of Four" then
 			local randPos=math.random(1,#warOfFourCityTilePos)
 			if warOfFourCityTilePos[randPos][1]==-28.8303 or warOfFourCityTilePos[randPos][1]==-15.6299 then
@@ -9042,6 +9187,11 @@ function mapSetup()
 			local coreTile=CoreTileStack.takeObject(params)
 			if coreTile==nil then print("HORSEMEN SETUP ERROR: Core tile "..tostring(i).." was not available") startingMapSetup=false return end
 			againstHorsemenCoreTileGUIDs[i]=coreTile.guid
+		elseif furyMap then
+			params.position=furyCoreTilePos[i]
+			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,0}
+			local coreTile=CoreTileStack.takeObject(params)
+			if coreTile==nil then print("FURY SETUP ERROR: Core tile "..tostring(i).." was not available") startingMapSetup=false return end
 		else
 			TileShuffler.putObject(CoreTileStack.takeObject(params))--Core Tile Shuffler
 		end
@@ -9186,6 +9336,10 @@ function mapSetup()
 					Wait.time(function() gStates.firstStarted=true firstTile=obj.guid obj.flip() end,1)
 				end
 			end
+		elseif furyMap then
+			local slot=furyCountrySlots[i]
+			params.position=slot.position
+			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,slot.faceUp==true and 0 or 180}
 		end
 		local countryTile=CountryTileStack.takeObject(params)
 		if countryTile==nil then
@@ -9193,7 +9347,14 @@ function mapSetup()
 			startingMapSetup=false
 			return
 		end
-		if not againstHorsemenMap then TileShuffler.putObject(countryTile) end
+		if not againstHorsemenMap and not furyMap then TileShuffler.putObject(countryTile) end
+	end
+
+	if furyMap then
+		--Everything in Fury is already on the table. Core 1's former Tomb is the one-space Dragon Lair.
+		if furyDragonSetupLair()~=true then print("FURY SETUP ERROR: could not establish the Dragon Lair") end
+		Wait.time(function() startingMapSetup=false fakeDropAvatar() end,4)
+		return
 	end
 
 	--The predefined terrain is now complete. Keep Mage Knights physically parked on the Portal card,
@@ -9506,25 +9667,9 @@ local function refreshEndRoundState(playerAreaCardCount)
 	UI.setAttribute("EndRoundButtonImage", "image", "Sliced Button/Button New Deactive")
 	UI.setAttribute("EndRoundButtonText", "text", joinLang({"{en}Call End of Round {ru}Объявить конец Раунда {zh-tw}聲明結束輪次 {zh-cn}声明结束轮次 {ko}라운드 종료 선언 {es}Llamar a Fin de Ronda {fr}Appel fin de Round{pt-br}Fim da Rodada {de}Ende der Runde Einläuten ", gStates.currentRound, "{en} of {ru} из {zh-tw} / {zh-cn} / {ko} / {es} / {fr} de {pt-br} de {de} von ", gStates.rounds}))
 	if gStates.currentRound>=gStates.rounds then UI.setAttribute("EndRoundButtonText", "text", "{en}Call End of Game{ru}Объявить конец игры{zh-tw}宣告遊戲結束{zh-cn}宣布游戏结束{ko}게임 종료 선언{es}Declarar Fin del Juego{fr}Déclarer la Fin de la Partie{pt-br}Declarar Fim do Jogo{de}Spielende Ausrufen") end
-	if hasDeedCards==false then
-		if playerStats.mage==gStates.positionMageKnight[5] then
-			if gStates.positionMageKnight[5]=="Volkare" and gStates.volkareWon==false and gStates.volkareFrenzied==true then
-				if gStates.volkareState=="Start" then
-					UI.setAttribute("DummyNotes", "Text", "{en}Volkare's Deck is Empty.\n-< FRENZY >-\nVolkare acts as if he drew a Blue Spell and doesn't Reroll any Die.{ru}Колода Волкара пуста.\n-< ЯРОСТЬ >-\nВолкар действует так, как будто он вытащил Синее Заклинание, и не перебрасывает кубики.{zh-tw}沃卡里牌的牌庫已空。\n-<狂暴>-\n接下來的每一回合，\n沃卡里視為翻開一張藍色法術卡\n來行動。（即移動或攻擊兩次）\n此次行動不重擲任何骰子。{zh-cn}沃卡里牌的牌库已空。\n-<狂暴>-\n接下来的每一回合，\n沃卡里视为翻开一张蓝色法术卡\n来行动。（即移动或攻击两次）\n此次行动不重掷任何骰子。{ko}볼케어의 더미가 비었습니다.\n-< 광폭 >-\n이제 볼케어는 파란색 마법을 뽑은 것처럼 행동하며, 주사위를 굴리지 않습니다.{es}El mazo de Volkare está vacío.\n-< FRENESÍ >-\nVolkare actúa como si hubiera robado un Hechizo Azul, y no vuelve a lanzar ningún dado.{fr}Le Deck de Volkare est vide.\n-< FRÈSIE >-\nVolkare agit comme s'il avait pioché un sort bleu et ne relance aucun dé.{pt-br}Deck do Volkare está vazio.\n-< FRENESI >-\nVolkare age como se ele tirasse um Feitiço azul e não re-rola nenhum dado.{de}Volkare Deck ist leer.\n-< FRENZY >-\nVolkare tut so, als ob er einen blauen Zauberspruch gezogen hätte und würfelt nicht neu.")
-					UI.setAttribute("DummyButtonText", "Text", "{en}Process Frenzied Volkare{ru}Ход Волкара в состоянии Ярости{zh-tw}狂暴沃卡里行動{zh-cn}狂暴沃卡里行动{ko}볼케어(광폭) 진행{es}Procesar Volkare en Frenesí{fr}Processus Volkare Frénétique{pt-br}Processar Volkare em Frenesi{de}Rasender Volkare wird verarbeitet")
-				else
-					UI.setAttribute("DummyButtonText", "Text", "{en}Frenzied Volkare Processed{ru}Волкар в состоянии Ярости сходил{zh-tw}狂暴沃卡里行動結束{zh-cn}狂暴沃卡里行动结束{ko}진행 완료{es}Volkare en Frenesí Procesado{fr}Volkare Frénétique Traité{pt-br}Volkare em Frenesi Processado{de}Rasender Volkare verarbeitet")
-				end
-			end
-			if gStates.positionMageKnight[5]~="Volkare" and playerStats.dummyProcessedThisTurn~=true and gStates.endRoundCalled==false and gStates.endGameAchieved=="false" then
-				UI.setAttribute("DummyButtonText", "Text", joinLang({"{en}Call End of Round {ru}Объявить конец Раунда {zh-tw}聲明結束輪次 {zh-cn}声明结束轮次 {ko}라운드 종료 선언 {es}Llamar a Fin de Ronda {fr}Appel fin de Round{pt-br}Fim da Rodada {de}Ende der Runde Einläuten ", gStates.currentRound, "{en} of {ru} из {zh-tw} / {zh-cn} / {ko} / {es} / {fr} de {pt-br} de {de} von ", gStates.rounds}))
-				if gStates.currentRound>=gStates.rounds then UI.setAttribute("DummyButtonText", "text", "{en}Call End of Game{ru}Объявить конец игры{zh-tw}宣告遊戲結束{zh-cn}宣布游戏结束{ko}게임 종료 선언{es}Declarar Fin del Juego{fr}Déclarer la Fin de la Partie{pt-br}Declarar Fim do Jogo{de}Spielende Ausrufen") end
-				UI.setAttribute("DummyButton", "onClick", "PreEndRound")
-			end
-		elseif tokenFaceDown==false and gStates.tacticShown==false and gStates.tacticRemove==false and gStates.endRoundCalled==false and gStates.endGameAchieved=="false" and playerAreaCardCount<1 then
-			UI.setAttribute("EndRoundButton", "interactable", "True")
-			UI.setAttribute("EndRoundButtonImage", "image", "Sliced Button/Button New Active")
-		end
+	if hasDeedCards==false and playerStats.mage~=gStates.positionMageKnight[5] and tokenFaceDown==false and gStates.tacticShown==false and gStates.tacticRemove==false and gStates.endRoundCalled==false and gStates.endGameAchieved=="false" and playerAreaCardCount<1 then
+		UI.setAttribute("EndRoundButton", "interactable", "True")
+		UI.setAttribute("EndRoundButtonImage", "image", "Sliced Button/Button New Active")
 	end
 	if gStates.endRoundCalled==true then
 		UI.setAttribute("EndRoundButtonText", "text", joinLang({"{en}Ending Round {ru}Завершение Раунда {zh-tw}正在結束輪次 {zh-cn}正在结束轮次 {ko}라운드 종료 중 {es}Terminando Ronda {fr}Fin du Round {pt-br}Terminando Rodada {de}Runde wird beendet ", gStates.currentRound, "{en} of {ru} из {zh-tw} / {zh-cn} / {ko} / {es} de {fr} sur {pt-br} de {de} von ", gStates.rounds}))
@@ -10068,6 +10213,185 @@ function separateCombinedUnitsInArea(seatPos)
 	end
 end
 
+--Shared presentation layer for every scripted/non-player turn that borrows the centre Dummy panel.
+--Gameplay stays in the owning system; these helpers only decide and render the current UI state.
+function automatedAttackResponseButton(id,textId,imageId,spec)
+	if spec==nil then UI.setAttribute(id,"active","false") return end
+	local visible=spec.active~=false
+	local enabled=visible and spec.interactable~=false
+	UI.setAttribute(id,"active",visible and "true" or "false")
+	if spec.onClick~=nil then UI.setAttribute(id,"onClick",spec.onClick) end
+	if spec.text~=nil then UI.setAttribute(textId,"text",spec.text) end
+	UI.setAttribute(id,"tooltip",spec.tooltip or "")
+	UI.setAttribute(id,"interactable",enabled and "true" or "false")
+	UI.setAttribute(imageId,"image",enabled and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+end
+
+function automatedAttackResponseUI(spec)
+	if spec==nil then UI.setAttribute("VolkareAttacked","active","false") return false end
+	if spec.visible~=nil then UI.setAttribute("VolkareAttacked","active",spec.visible and "true" or "false") end
+	automatedAttackResponseButton("VolkareAttackedFull","VolkareAttackedFullText","VolkareAttackedFullImage",spec.full)
+	automatedAttackResponseButton("VolkareAttackedPartial","VolkareAttackedPartialText","VolkareAttackedPartialImage",spec.partial)
+	automatedAttackResponseButton("VolkareRetreat","VolkareRetreatText","VolkareRetreatImage",spec.retreat)
+	return spec.visible~=false
+end
+
+function automatedPanelHasDeedCards(stats)
+	if stats==nil or stats.seatPos==nil then return false end
+	local cached=endRoundDeedHasCards[stats.seatPos]
+	if cached~=nil then return cached end
+	local count=readDeedPileCardCount(stats.seatPos)
+	deedPileCardCount[stats.seatPos]=count
+	endRoundDeedHasCards[stats.seatPos]=count>0
+	return count>0
+end
+
+function automatedPanelEndRoundText()
+	if gStates.currentRound>=gStates.rounds then return "{en}Call End of Game{ru}Объявить конец игры{zh-tw}宣告遊戲結束{zh-cn}宣布游戏结束{ko}게임 종료 선언{es}Declarar Fin del Juego{fr}Déclarer la Fin de la Partie{pt-br}Declarar Fim do Jogo{de}Spielende Ausrufen" end
+	return joinLang({"{en}Call End of Round {ru}Объявить конец Раунда {zh-tw}聲明結束輪次 {zh-cn}声明结束轮次 {ko}라운드 종료 선언 {es}Llamar a Fin de Ronda {fr}Appel fin de Round{pt-br}Fim da Rodada {de}Ende der Runde Einläuten ",gStates.currentRound,"{en} of {ru} из {zh-tw} / {zh-cn} / {ko} / {es} / {fr} de {pt-br} de {de} von ",gStates.rounds})
+end
+
+function automatedProxyPanelSpec(stats,stateOverride)
+	local state=stateOverride or gStates.proxyState or "Start"
+	local spec={actor="proxy",onClick="proxyTurn",interactable=true,label="{en}Process Proxy{ru}Ход прокси{zh-tw}代理玩家行動{zh-cn}代理玩家行动{ko}프록시 진행{es}Procesar Proxy{fr}Traiter le Proxy{pt-br}Processar Proxy{de}Proxy aktivieren"}
+	local atStart=stateOverride==nil and stats.dummyProcessedThisTurn~=true
+	if atStart and automatedPanelHasDeedCards(stats)==false and gStates.endRoundCalled==false and gStates.endGameAchieved=="false" then
+		spec.onClick="PreEndRound"
+		spec.label=automatedPanelEndRoundText()
+		spec.notes="{en}The Proxy's Deed deck is empty. Call End of Round.{ru}Колода действий Прокси пуста. Объявите конец Раунда.{zh-tw}代理玩家的行動牌庫已空。請宣告輪次結束。{zh-cn}代理玩家的行动牌库已空。请宣布轮次结束。{ko}프록시의 액션 덱이 비었습니다. 라운드 종료를 선언하세요.{es}El mazo de acciones del Proxy está vacío. Llama al Fin de Ronda.{fr}Le deck d'actions du Proxy est vide. Appelez la Fin du Round.{pt-br}O baralho de ações do Proxy está vazio. Declare o Fim da Rodada.{de}Das Aktionsdeck des Proxy ist leer. Ruft das Rundenende aus."
+		return spec
+	end
+	if state=="Processing" then
+		spec.label="{en}Processing Proxy...{ru}Обработка прокси...{zh-tw}代理玩家行動處理中...{zh-cn}代理玩家行动处理中...{ko}프록시 처리 중...{es}Procesando Proxy...{fr}Traitement du Proxy...{pt-br}Processando Proxy...{de}Proxy wird verarbeitet...}"
+		if stateOverride==nil then
+			spec.notes=gStates.proxyTurnReport~=nil and proxyTurnReportText() or "Proxy is preparing their movement."
+		end
+		spec.interactable=false
+	elseif state=="PickDestination" or state=="PickRoute" or state=="PickCard" or state=="PickEnemy" or state=="PickMana" then
+		local pending=gStates.proxyPendingChoice
+		spec.label=proxyChoiceWaitingText~=nil and proxyChoiceWaitingText(pending~=nil and pending.type or nil) or "Make Proxy Choice"
+		spec.notes=proxyTurnReportText~=nil and proxyTurnReportText() or ""
+		spec.interactable=false
+		if pending~=nil and pending.type=="mana" then spec.proxyManaChoice=pending end
+	elseif state=="ReadyToEnd" then
+		spec.label="{en}Proxy Processed{ru}Прокси обработан{zh-tw}代理玩家行動結束{zh-cn}代理玩家行动结束{ko}프록시 처리 완료{es}Proxy Procesado{fr}Proxy traité{pt-br}Proxy Processado{de}Proxy verarbeitet"
+		spec.notes=proxyTurnReportText~=nil and proxyTurnReportText() or ""
+	else
+		if stats.dummyProcessedThisTurn==true then
+			spec.label="{en}Dummy Processed{ru}Виртуальный игрок сходил{zh-tw}虛擬玩家行動結束{zh-cn}虚拟玩家行动结束{ko}진행 완료{es}Jugador Virtual Procesado{fr}Fantôme préparé{pt-br}Jog.Fictício Processado{de}Dummy verarbeitet"
+			spec.interactable=false
+		else
+			spec.notes="{en}Proxy reveals its objective, calculates movement, then moves across the map and resolves its action. If a legal destination, card, or enemy choice is tied, the lowest-Fame player chooses using the highlighted board buttons.{ru}Прокси раскрывает цель, рассчитывает движение, затем перемещается по карте и выполняет действие.{zh-tw}代理玩家會揭示目標、計算移動，然後在地圖上移動並執行行動。{zh-cn}代理玩家会揭示目标、计算移动，然后在地图上移动并执行行动。{ko}프록시는 목표를 공개하고 이동력을 계산한 뒤 지도에서 이동하고 행동을 해결합니다.{es}El Proxy revela su objetivo, calcula el movimiento, se desplaza por el mapa y resuelve su acción.{fr}Le Proxy révèle son objectif, calcule son déplacement, se déplace sur la carte puis résout son action.{pt-br}O Proxy revela seu objetivo, calcula o movimento, percorre o mapa e resolve sua ação.{de}Der Proxy deckt sein Ziel auf, berechnet seine Bewegung, bewegt sich über die Karte und führt seine Aktion aus."
+		end
+	end
+	if gStates.tacticRemove==true or gStates.tacticShown==true then
+		spec.notes="{en}Click the button in the Center to claim a random tactic.{ru}Нажмите кнопку в центре, чтобы выбрать случайную Тактику.{zh-tw}點擊中間的按鈕來隨機選擇戰術卡。{zh-cn}点击中间的按钮来随机选择战术卡。{ko}중앙에 있는 버튼을 클릭하여 무작위 전략 카드를 고르세요.{es}Pulsar el Botón del Centro para Robar una Táctica al Azar.{fr}Cliquez sur le bouton dans le Centre pour réclamer une tactique aléatoire.{pt-br}Clique no botão no centro para pegar uma tática aleatória.{de}Klicken Sie auf die Schaltfläche in der Mitte, um eine zufällige Taktik zu fordern."
+		if gStates.tacticRemove==true then spec.interactable=false end
+	end
+	return spec
+end
+
+function automatedDummyPanelSpec(stats)
+	local spec={actor="dummy",onClick="dummyTurn",interactable=true,label="{en}Process Dummy{ru}Ход виртуального игрока{zh-tw}虛擬玩家行動{zh-cn}虚拟玩家行动{ko}가상 플레이어 진행{es}Procesar Jugador Virtual{fr}Processus fantôme{pt-br}Processar Jog.Fictício{de}Dummy aktivieren"}
+	if stats.dummyProcessedThisTurn~=true and automatedPanelHasDeedCards(stats)==false and gStates.endRoundCalled==false and gStates.endGameAchieved=="false" then
+		spec.onClick="PreEndRound"
+		spec.label=automatedPanelEndRoundText()
+		spec.notes="{en}The Dummy's Deed deck is empty. Call End of Round.{ru}Колода действий виртуального игрока пуста. Объявите конец Раунда.{zh-tw}虛擬玩家的行動牌庫已空。請宣告輪次結束。{zh-cn}虚拟玩家的行动牌库已空。请宣布轮次结束。{ko}가상 플레이어의 액션 덱이 비었습니다. 라운드 종료를 선언하세요.{es}El mazo de acciones del Jugador Virtual está vacío. Llama al Fin de Ronda.{fr}Le deck d'actions du fantôme est vide. Appelez la Fin du Round.{pt-br}O baralho de ações do Jogador Fictício está vazio. Declare o Fim da Rodada.{de}Das Aktionsdeck des Dummys ist leer. Ruft das Rundenende aus."
+		return spec
+	end
+	if stats.dummyProcessedThisTurn==true then
+		spec.label="{en}Dummy Processed{ru}Виртуальный игрок сходил{zh-tw}虛擬玩家行動結束{zh-cn}虚拟玩家行动结束{ko}진행 완료{es}Jugador Virtual Procesado{fr}Fantôme préparé{pt-br}Jog.Fictício Processado{de}Dummy verarbeitet"
+		spec.interactable=false
+	else
+		spec.notes="{en}Dummy will draw three cards.\nHe then draws cards up to the amount of Crystals that match the third card.{ru}Виртуальный игрок вытащит три карты.\nЗатем он вытащит дополнительно столько карт, сколько он имеет Кристаллов цвета последней перевернутой карты.{zh-tw}虛擬玩家將抽三張牌。\n\n如果它有與第三張牌相同顏色的\n魔晶，則會再抽取等同於該顏色\n魔晶數量的卡牌。{zh-cn}虚拟玩家将抽三张牌。\n\n如果它有与第三张牌相同颜色的\n魔晶，则会再抽取等同于该颜色\n魔晶数量的卡牌。{ko}가상 플레이어의 더미에서\n카드 세 장을 뒤집습니다.\n가상 플레이어의 저장 칸에서, 마지막으로 뒤집힌 카드 색상과 동일한 수정의 개수 만큼 더 뒤집습니다.{es}El Jugador Virtual robará tres cartas\nDespués robará una carta más por cada cristal del color de la última carta robada.{fr}Le fantôme piochera trois cartes.\nIl pioche ensuite des cartes jusqu'à concurrence du nombre de cristaux correspondant à la troisième carte.{pt-br}Jog. Fictício comprará 3 cartas.\nEle então compra cartas equivalentes ao número de cristais que possui da cor da terceira carta.{de}Der Dummy zieht drei Karten.\nEr zieht dann Karten bis zu der Menge an Kristallen, die zur dritten Karte passen."
+	end
+	if gStates.tacticRemove==true or gStates.tacticShown==true then
+		spec.notes="{en}Click the button in the Center to claim a random tactic.{ru}Нажмите кнопку в центре, чтобы выбрать случайную Тактику.{zh-tw}點擊中間的按鈕來隨機選擇戰術卡。{zh-cn}点击中间的按钮来随机选择战术卡。{ko}중앙에 있는 버튼을 클릭하여 무작위 전략 카드를 고르세요.{es}Pulsar el Botón del Centro para Robar una Táctica al Azar.{fr}Cliquez sur le bouton dans le Centre pour réclamer une tactique aléatoire.{pt-br}Clique no botão no centro para pegar uma tática aleatória.{de}Klicken Sie auf die Schaltfläche in der Mitte, um eine zufällige Taktik zu fordern."
+		if gStates.tacticRemove==true then spec.interactable=false end
+	end
+	return spec
+end
+
+function automatedVolkarePanelSpec(stats)
+	local state=gStates.volkareState or "Start"
+	local spec={actor="volkare",onClick="volkareTurn",interactable=true,preserveResponse=true,label="{en}Process Volkare{ru}Ход Волкара{zh-tw}沃卡里行動{zh-cn}沃卡里行动{ko}볼케어 진행{es}Procesar Volkare{fr}Processus Volkare{pt-br}Processar Volkare{de}Volkare Aktivieren"}
+	if state=="Start" then
+		spec.notes="{en}Volkare is close to fully programmed.<size=6>\n\n</size>If you feel he has moved incorrectly, unlock and move him where he should have gone.{ru}Волкар почти полностью заскриптован.<size=6>\n\n</size>Если вы считаете, что он двигается неправильно, разблокируйте его и переместите туда, куда он должен был пойти.{zh-tw}沃卡里會完全按照腳本移動。<size=6>\n\n</size>如果你發現他走錯位置的話，\n將他解鎖並移動到正確的位置。{zh-cn}沃卡里会完全按照脚本移动。<size=6>\n\n</size>如果你发现他走错位置的话，\n将他解锁并移动到正确的位置。{ko}볼케어의 스크립트는 거의 문제을 일으키지 않으나,<size=6>\n\n</size>만약 잘못된다면 볼케어의 고정을 풀고 직접 원하는 곳에 놓으세요.{es}Volkare está cerca de estar completamente programado.\nSi crees que se ha movido incorrectamente, desbloquealo y muévelo a donde debería haberse movido.{fr}Volkare est presque entièrement programmé.<size=6>\n\n</size>Si vous pensez qu'il a mal bougé, déverrouillez-le et déplacez-le là où il aurait dû aller.{pt-br}Volkare está perto de ser completamente programado.<size=6>\n\n</size>Se você sentir que ele está morrendo de forma incorreta, desbloqueie-o e o mova para aonde ele deveria ter ido.{de}Volkare ist so gut wie fertig programmiert.<size=6>\n\n</size>Wenn Sie das Gefühl haben, dass er sich falsch bewegt hat, entsperren Sie ihn und bewegen Sie ihn dorthin, wo er hingehört."
+	elseif state=="ReadyToEnd" then
+		spec.label="{en}Volkare Processed{ru}Волкар сходил{zh-tw}沃卡里行動結束{zh-cn}沃卡里行动结束{ko}진행 완료{es}Volkare Procesado{fr}Volkare Traité{pt-br}Volkare Processado{de}Volkare Verarbeitet"
+		spec.notes=gStates.blurb
+	else
+		spec.label="{en}Processing Volkare...{ru}Обработка Волкара...{zh-tw}沃卡里行動處理中...{zh-cn}沃卡里行动处理中...{ko}볼케어 처리 중...{es}Procesando Volkare...{fr}Traitement de Volkare...{pt-br}Processando Volkare...{de}Volkare wird verarbeitet..."
+		spec.notes=gStates.blurb
+		spec.interactable=false
+	end
+	if automatedPanelHasDeedCards(stats)==false and gStates.volkareWon==false and gStates.volkareFrenzied==true then
+		if state=="Start" then
+			spec.label="{en}Process Frenzied Volkare{ru}Ход Волкара в состоянии Ярости{zh-tw}狂暴沃卡里行動{zh-cn}狂暴沃卡里行动{ko}볼케어(광폭) 진행{es}Procesar Volkare en Frenesí{fr}Processus Volkare Frénétique{pt-br}Processar Volkare em Frenesi{de}Rasender Volkare wird verarbeitet"
+			spec.notes="{en}Volkare's Deck is Empty.\n-< FRENZY >-\nVolkare acts as if he drew a Blue Spell and doesn't Reroll any Die.{ru}Колода Волкара пуста.\n-< ЯРОСТЬ >-\nВолкар действует так, как будто он вытащил Синее Заклинание, и не перебрасывает кубики.{zh-tw}沃卡里牌的牌庫已空。\n-<狂暴>-\n接下來的每一回合，\n沃卡里視為翻開一張藍色法術卡\n來行動。（即移動或攻擊兩次）\n此次行動不重擲任何骰子。{zh-cn}沃卡里牌的牌库已空。\n-<狂暴>-\n接下来的每一回合，\n沃卡里视为翻开一张蓝色法术卡\n来行动。（即移动或攻击两次）\n此次行动不重掷任何骰子。{ko}볼케어의 더미가 비었습니다.\n-< 광폭 >-\n이제 볼케어는 파란색 마법을 뽑은 것처럼 행동하며, 주사위를 굴리지 않습니다.{es}El mazo de Volkare está vacío.\n-< FRENESÍ >-\nVolkare actúa como si hubiera robado un Hechizo Azul, y no vuelve a lanzar ningún dado.{fr}Le Deck de Volkare est vide.\n-< FRÈSIE >-\nVolkare agit comme s'il avait pioché un sort bleu et ne relance aucun dé.{pt-br}Deck do Volkare está vazio.\n-< FRENESI >-\nVolkare age como se ele tirasse um Feitiço azul e não re-rola nenhum dado.{de}Volkare Deck ist leer.\n-< FRENZY >-\nVolkare tut so, als ob er einen blauen Zauberspruch gezogen hätte und würfelt nicht neu."
+		else
+			spec.label="{en}Frenzied Volkare Processed{ru}Волкар в состоянии Ярости сходил{zh-tw}狂暴沃卡里行動結束{zh-cn}狂暴沃卡里行动结束{ko}진행 완료{es}Volkare en Frenesí Procesado{fr}Volkare Frénétique Traité{pt-br}Volkare em Frenesi Processado{de}Rasender Volkare verarbeitet"
+		end
+	end
+	if gStates.tacticRemove==true or gStates.tacticShown==true then
+		spec.notes="{en}Click the button in the Center to claim a random tactic.{ru}Нажмите кнопку в центре, чтобы выбрать случайную Тактику.{zh-tw}點擊中間的按鈕來隨機選擇戰術卡。{zh-cn}点击中间的按钮来随机选择战术卡。{ko}중앙에 있는 버튼을 클릭하여 무작위 전략 카드를 고르세요.{es}Pulsar el Botón del Centro para Robar una Táctica al Azar.{fr}Cliquez sur le bouton dans le Centre pour réclamer une tactique aléatoire.{pt-br}Clique no botão no centro para pegar uma tática aleatória.{de}Klicken Sie auf die Schaltfläche in der Mitte, um eine zufällige Taktik zu fordern."
+		if gStates.tacticRemove==true then spec.interactable=false end
+	end
+	if ((gStates.endRoundCalled==true and gStates.currentRound>=gStates.rounds) or gStates.volkareWon==true) and state=="Start" then
+		spec.notes="{en}Final round of turns is complete. For most players this would have meant just flipping your Turn Order token back upright.{ru}Завершен последний круг ходов. Для большинства игроков это означало бы просто перевернуть жетон очередности хода обратно в вертикальное положение.{zh-tw}最後一輪的最終回合已結束。\n對於大多數玩家只需將你的順位\n標記翻轉回來即可。{zh-cn}最后一轮的最终回合已結束。\n對於大多数玩家只需将你的順位\n标记翻转回来即可。{ko}차례의 마지막 순서가 끝났습니다. 대부분의 플레이어들은 라운드 순서 토큰을 앞면으로 뒤집었을겁니다.{es}La Última Ronda de Turnos se ha completado. Para la mayoría de jugadores esto significa simplemente poner boca arriba el marcador de turno.{fr}Le dernier tour est terminé. Pour la plupart des joueurs, cela aurait signifié simplement retourner votre jeton Ordre du tour à la verticale.{pt-br}Rodada Final de turnos está completa. Para a maioria dos jogadores isso significa apenas virar sua ficha de ordem de turno de volta para cima.{de}Die letzte Zugrundelegung ist abgeschlossen. Für die meisten Spieler würde dies bedeuten, dass sie ihr Zugreihenfolgeplättchen einfach wieder umdrehen."
+		if gStates.volkareReturnTimeoutLoss==true then spec.notes=gStates.blurb end
+	end
+	return spec
+end
+
+function automatedCurrentPlayerPanelSpec()
+	if gStates==nil or gStates.turnNumber==nil or turnOrder[gStates.turnNumber]==nil or gStates.positionMageKnight==nil then return nil end
+	local stats=turnOrder[gStates.turnNumber]
+	if stats.mage~=gStates.positionMageKnight[5] then return nil end
+	if gStates.positionMageKnight[5]=="Volkare" then return automatedVolkarePanelSpec(stats) end
+	if proxyPlayerActive~=nil and proxyPlayerActive()==true then return automatedProxyPanelSpec(stats) end
+	return automatedDummyPanelSpec(stats)
+end
+
+function automatedMainPanelApply(spec)
+	if spec==nil then
+		UI.setAttribute("DummyTurn","active","false")
+		UI.setAttribute("ExtraTurnTactic","active","false")
+		UI.setAttribute("DummyChoiceButtons","active","false")
+		automatedAttackResponseUI(nil)
+		return false
+	end
+	if spec.preserveResponse~=true then
+		if spec.responseSpec~=nil then automatedAttackResponseUI(spec.responseSpec) else automatedAttackResponseUI(nil) end
+	end
+	UI.setAttribute("ExtraTurnTactic","active","false")
+	if spec.panelActive==false then
+		UI.setAttribute("DummyTurn","active","false")
+		UI.setAttribute("DummyChoiceButtons","active","false")
+		return true
+	end
+	UI.setAttribute("DummyTurn","active","true")
+	if spec.mainText~=nil then UI.setAttribute("MainGameNotes","text",spec.mainText) UI.setAttribute("MainGameNotes","color","white") end
+	if spec.notes~=nil then UI.setAttribute("DummyNotes","Text",spec.notes) end
+	if spec.actor=="proxy" and proxyManaChoiceUI~=nil then proxyManaChoiceUI(nil) else UI.setAttribute("DummyChoiceButtons","active","false") end
+	UI.setAttribute("DummyButton","active",spec.buttonVisible==false and "false" or "true")
+	if spec.onClick~=nil then UI.setAttribute("DummyButton","onClick",spec.onClick) end
+	if spec.label~=nil then UI.setAttribute("DummyButtonText","Text",spec.label) end
+	local enabled=spec.interactable~=false
+	UI.setAttribute("DummyButton","interactable",enabled and "True" or "False")
+	UI.setAttribute("DummyButtonImage","image",enabled and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	if spec.proxyManaChoice~=nil and proxyManaChoiceUI~=nil then proxyManaChoiceUI(spec.proxyManaChoice) end
+	return true
+end
+
+function automatedMainPanelRefresh(overrideSpec)
+	local spec=overrideSpec
+	if spec==nil and gStates~=nil and gStates.apocalypseDragonTurnActive==true and againstDragonMainUIPanelSpec~=nil then spec=againstDragonMainUIPanelSpec() end
+	if spec==nil and gStates~=nil and gStates.apocalypseHereHorsemenTurnActive==true and apocalypseIsHereMainUIPanelSpec~=nil then spec=apocalypseIsHereMainUIPanelSpec() end
+	if spec==nil then spec=automatedCurrentPlayerPanelSpec() end
+	return automatedMainPanelApply(spec)
+end
+
 function mainUIUpdate(source)
 	if gStates.firstStarted==true then
 		if mainUIPause~=nil then Wait.stop(mainUIPause) end
@@ -10122,85 +10446,10 @@ function mainUIUpdate(source)
 			UI.setAttribute("EndTurnButtonAltText", "text", endText)
 
 
-			--If dummy turn activate his menu else setup the players menu
+			--Automated-player presentation is centralized in automatedMainPanelRefresh().
+			--Keep only the gameplay branch split here so normal-player Fame/Rep work is never run for the automated seat.
 			local fameForUp=0
-			UI.setAttribute("DummyButton", "onClick", automatedPlayerTurnFunction())
-			UI.setAttribute("DummyButtonText", "Text", proxyPlayerActive()==true and "{en}Process Proxy{ru}Ход прокси{zh-tw}代理玩家行動{zh-cn}代理玩家行动{ko}프록시 진행{es}Procesar Proxy{fr}Traiter le Proxy{pt-br}Processar Proxy{de}Proxy aktivieren" or "{en}Process Dummy{ru}Ход виртуального игрока{zh-tw}虛擬玩家行動{zh-cn}虚拟玩家行动{ko}가상 플레이어 진행{es}Procesar Jugador Virtual{fr}Processus fantôme{pt-br}Processar Jog.Fictício{de}Dummy aktivieren")
-			--A standard Dummy with an empty Deed pile calls End of Round instead of processing a turn.
-			--Set the button correctly here as well as in refreshEndRoundState so cached UI refreshes cannot leave the old "Process Dummy" text behind.
-			local automatedDeckEmpty=turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] and gStates.positionMageKnight[5]~="Volkare" and gStates.endRoundCalled==false and gStates.endGameAchieved=="false" and turnOrder[gStates.turnNumber].dummyProcessedThisTurn~=true and readDeedPileCardCount(turnOrder[gStates.turnNumber].seatPos)==0
-			if automatedDeckEmpty==true then
-				UI.setAttribute("DummyButton", "onClick", "PreEndRound")
-				UI.setAttribute("DummyButtonText", "Text", joinLang({"{en}Call End of Round {ru}Объявить конец Раунда {zh-tw}聲明結束輪次 {zh-cn}声明结束轮次 {ko}라운드 종료 선언 {es}Llamar a Fin de Ronda {fr}Appel fin de Round{pt-br}Fim da Rodada {de}Ende der Runde Einläuten ", gStates.currentRound, "{en} of {ru} из {zh-tw} / {zh-cn} / {ko} / {es} / {fr} de {pt-br} de {de} von ", gStates.rounds}))
-				if gStates.currentRound>=gStates.rounds then UI.setAttribute("DummyButtonText", "Text", "{en}Call End of Game{ru}Объявить конец игры{zh-tw}宣告遊戲結束{zh-cn}宣布游戏结束{ko}게임 종료 선언{es}Declarar Fin del Juego{fr}Déclarer la Fin de la Partie{pt-br}Declarar Fim do Jogo{de}Spielende Ausrufen") end
-				if proxyPlayerActive()==true then
-					UI.setAttribute("DummyNotes","Text","{en}The Proxy's Deed deck is empty. Call End of Round.{ru}Колода действий Прокси пуста. Объявите конец Раунда.{zh-tw}代理玩家的行動牌庫已空。請宣告輪次結束。{zh-cn}代理玩家的行动牌库已空。请宣布轮次结束。{ko}프록시의 액션 덱이 비었습니다. 라운드 종료를 선언하세요.{es}El mazo de acciones del Proxy está vacío. Llama al Fin de Ronda.{fr}Le deck d'actions du Proxy est vide. Appelez la Fin du Round.{pt-br}O baralho de ações do Proxy está vazio. Declare o Fim da Rodada.{de}Das Aktionsdeck des Proxy ist leer. Ruft das Rundenende aus.")
-				else
-					UI.setAttribute("DummyNotes","Text","{en}The Dummy's Deed deck is empty. Call End of Round.{ru}Колода действий виртуального игрока пуста. Объявите конец Раунда.{zh-tw}虛擬玩家的行動牌庫已空。請宣告輪次結束。{zh-cn}虚拟玩家的行动牌库已空。请宣布轮次结束。{ko}가상 플레이어의 액션 덱이 비었습니다. 라운드 종료를 선언하세요.{es}El mazo de acciones del Jugador Virtual está vacío. Llama al Fin de Ronda.{fr}Le deck d'actions du fantôme est vide. Appelez la Fin du Round.{pt-br}O baralho de ações do Jogador Fictício está vazio. Declare o Fim da Rodada.{de}Das Aktionsdeck des Dummys ist leer. Ruft das Rundenende aus.")
-				end
-			end
-			proxyManaChoiceUI(nil)
-			UI.setAttribute("DummyButton", "interactable", "True")
-			UI.setAttribute("DummyButtonImage", "image", "Sliced Button/Button New Active")
-			UI.setAttribute("DummyTurn", "active", "false")
-			UI.setAttribute("ExtraTurnTactic", "active", "false")
 			if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
-				UI.setAttribute("DummyTurn", "active", "true")
-				if gStates.positionMageKnight[5]~="Volkare" then
-					if turnOrder[gStates.turnNumber].dummyProcessedThisTurn==true then
-						local proxyActive=proxyPlayerActive()==true
-						local proxyReady=proxyActive and gStates.proxyState=="ReadyToEnd"
-						local proxyProcessing=proxyActive and gStates.proxyState=="Processing"
-						local proxyWaiting=proxyActive and (gStates.proxyState=="PickDestination" or gStates.proxyState=="PickRoute" or gStates.proxyState=="PickCard" or gStates.proxyState=="PickEnemy" or gStates.proxyState=="PickMana")
-						if proxyReady then UI.setAttribute("DummyNotes","Text",proxyTurnReportText()) end
-						if proxyWaiting then
-							local pending=gStates.proxyPendingChoice
-							proxyManaChoiceUI(pending~=nil and pending.type=="mana" and pending or nil)
-							UI.setAttribute("DummyButtonText","Text",proxyChoiceWaitingText(pending~=nil and pending.type or nil))
-						elseif proxyProcessing then
-							proxyManaChoiceUI(nil)
-							UI.setAttribute("DummyButtonText","Text","{en}Processing Proxy...{ru}Обработка прокси...{zh-tw}代理玩家行動處理中...{zh-cn}代理玩家行动处理中...{ko}프록시 처리 중...{es}Procesando Proxy...{fr}Traitement du Proxy...{pt-br}Processando Proxy...{de}Proxy wird verarbeitet...}")
-						elseif proxyReady then
-							UI.setAttribute("DummyButtonText","Text","{en}Proxy Processed{ru}Прокси обработан{zh-tw}代理玩家行動結束{zh-cn}代理玩家行动结束{ko}프록시 처리 완료{es}Proxy Procesado{fr}Proxy traité{pt-br}Proxy Processado{de}Proxy verarbeitet")
-						else
-							UI.setAttribute("DummyButtonText","Text","{en}Dummy Processed{ru}Виртуальный игрок сходил{zh-tw}虛擬玩家行動結束{zh-cn}虚拟玩家行动结束{ko}진행 완료{es}Jugador Virtual Procesado{fr}Fantôme préparé{pt-br}Jog.Fictício Processado{de}Dummy verarbeitet")
-						end
-						UI.setAttribute("DummyButton", "interactable", proxyReady==true and "True" or "False")
-						UI.setAttribute("DummyButtonImage", "image", proxyReady==true and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
-					elseif proxyPlayerActive()==true and automatedDeckEmpty~=true then
-						UI.setAttribute("DummyButtonText", "Text", "{en}Process Proxy{ru}Ход прокси{zh-tw}代理玩家行動{zh-cn}代理玩家行动{ko}프록시 진행{es}Procesar Proxy{fr}Traiter le Proxy{pt-br}Processar Proxy{de}Proxy aktivieren")
-						UI.setAttribute("DummyNotes", "Text", "{en}Proxy reveals its objective, calculates movement, then moves across the map and resolves its action. If a legal destination, card, or enemy choice is tied, the lowest-Fame player chooses using the highlighted board buttons.{ru}Прокси раскрывает цель, рассчитывает движение, затем перемещается по карте и выполняет действие.{zh-tw}代理玩家會揭示目標、計算移動，然後在地圖上移動並執行行動。{zh-cn}代理玩家会揭示目标、计算移动，然后在地图上移动并执行行动。{ko}프록시는 목표를 공개하고 이동력을 계산한 뒤 지도에서 이동하고 행동을 해결합니다.{es}El Proxy revela su objetivo, calcula el movimiento, se desplaza por el mapa y resuelve su acción.{fr}Le Proxy révèle son objectif, calcule son déplacement, se déplace sur la carte puis résout son action.{pt-br}O Proxy revela seu objetivo, calcula o movimento, percorre o mapa e resolve sua ação.{de}Der Proxy deckt sein Ziel auf, berechnet seine Bewegung, bewegt sich über die Karte und führt seine Aktion aus.")
-					elseif automatedDeckEmpty~=true then
-						UI.setAttribute("DummyNotes", "Text", "{en}Dummy will draw three cards.\nHe then draws cards up to the amount of Crystals that match the third card.{ru}Виртуальный игрок вытащит три карты.\nЗатем он вытащит дополнительно столько карт, сколько он имеет Кристаллов цвета последней перевернутой карты.{zh-tw}虛擬玩家將抽三張牌。\n\n如果它有與第三張牌相同顏色的\n魔晶，則會再抽取等同於該顏色\n魔晶數量的卡牌。{zh-cn}虚拟玩家将抽三张牌。\n\n如果它有与第三张牌相同颜色的\n魔晶，则会再抽取等同于该颜色\n魔晶数量的卡牌。{ko}가상 플레이어의 더미에서\n카드 세 장을 뒤집습니다.\n가상 플레이어의 저장 칸에서, 마지막으로 뒤집힌 카드 색상과 동일한 수정의 개수 만큼 더 뒤집습니다.{es}El Jugador Virtual robará tres cartas\nDespués robará una carta más por cada cristal del color de la última carta robada.{fr}Le fantôme piochera trois cartes.\nIl pioche ensuite des cartes jusqu'à concurrence du nombre de cristaux correspondant à la troisième carte.{pt-br}Jog. Fictício comprará 3 cartas.\nEle então compra cartas equivalentes ao número de cristais que possui da cor da terceira carta.{de}Der Dummy zieht drei Karten.\nEr zieht dann Karten bis zu der Menge an Kristallen, die zur dritten Karte passen.")
-					end
-				end
-				if gStates.positionMageKnight[5]=="Volkare" and gStates.volkareState=="Start" then
-					UI.setAttribute("DummyButtonText", "Text", "{en}Process Volkare{ru}Ход Волкара{zh-tw}沃卡里行動{zh-cn}沃卡里行动{ko}볼케어 진행{es}Procesar Volkare{fr}Processus Volkare{pt-br}Processar Volkare{de}Volkare Aktivieren")
-					UI.setAttribute("DummyNotes", "Text", "{en}Volkare is close to fully programmed.<size=6>\n\n</size>If you feel he has moved incorrectly, unlock and move him where he should have gone.{ru}Волкар почти полностью заскриптован.<size=6>\n\n</size>Если вы считаете, что он двигается неправильно, разблокируйте его и переместите туда, куда он должен был пойти.{zh-tw}沃卡里會完全按照腳本移動。<size=6>\n\n</size>如果你發現他走錯位置的話，\n將他解鎖並移動到正確的位置。{zh-cn}沃卡里会完全按照脚本移动。<size=6>\n\n</size>如果你发现他走错位置的话，\n将他解锁并移动到正确的位置。{ko}볼케어의 스크립트는 거의 문제을 일으키지 않으나,<size=6>\n\n</size>만약 잘못된다면 볼케어의 고정을 풀고 직접 원하는 곳에 놓으세요.{es}Volkare está cerca de estar completamente programado.\nSi crees que se ha movido incorrectamente, desbloquealo y muévelo a donde debería haberse movido.{fr}Volkare est presque entièrement programmé.<size=6>\n\n</size>Si vous pensez qu'il a mal bougé, déverrouillez-le et déplacez-le là où il aurait dû aller.{pt-br}Volkare está perto de ser completamente programado.<size=6>\n\n</size>Se você sentir que ele está morrendo de forma incorreta, desbloqueie-o e o mova para aonde ele deveria ter ido.{de}Volkare ist so gut wie fertig programmiert.<size=6>\n\n</size>Wenn Sie das Gefühl haben, dass er sich falsch bewegt hat, entsperren Sie ihn und bewegen Sie ihn dorthin, wo er hingehört.")
-				end
-				if gStates.positionMageKnight[5]=="Volkare" and gStates.volkareState~="Start" then
-					UI.setAttribute("DummyNotes", "Text", gStates.blurb)
-					if gStates.volkareState=="ReadyToEnd" then
-						UI.setAttribute("DummyButtonText", "Text", "{en}Volkare Processed{ru}Волкар сходил{zh-tw}沃卡里行動結束{zh-cn}沃卡里行动结束{ko}진행 완료{es}Volkare Procesado{fr}Volkare Traité{pt-br}Volkare Processado{de}Volkare Verarbeitet")
-					else
-						UI.setAttribute("DummyButtonText", "Text", "{en}Processing Volkare...{ru}Обработка Волкара...{zh-tw}沃卡里行動處理中...{zh-cn}沃卡里行动处理中...{ko}볼케어 처리 중...{es}Procesando Volkare...{fr}Traitement de Volkare...{pt-br}Processando Volkare...{de}Volkare wird verarbeitet...")
-						UI.setAttribute("DummyButton", "interactable", "False")
-						UI.setAttribute("DummyButtonImage", "image", "Sliced Button/Button New Deactive")
-					end
-				end
-				if gStates.tacticRemove==true or gStates.tacticShown==true then
-					if gStates.tacticRemove==true then
-						UI.setAttribute("DummyButton", "interactable", "False")
-						UI.setAttribute("DummyButtonImage", "image", "Sliced Button/Button New Deactive")
-					end
-					UI.setAttribute("DummyNotes", "Text", "{en}Click the button in the Center to claim a random tactic.{ru}Нажмите кнопку в центре, чтобы выбрать случайную Тактику.{zh-tw}點擊中間的按鈕來隨機選擇戰術卡。{zh-cn}点击中间的按钮来随机选择战术卡。{ko}중앙에 있는 버튼을 클릭하여 무작위 전략 카드를 고르세요.{es}Pulsar el Botón del Centro para Robar una Táctica al Azar.{fr}Cliquez sur le bouton dans le Centre pour réclamer une tactique aléatoire.{pt-br}Clique no botão no centro para pegar uma tática aleatória.{de}Klicken Sie auf die Schaltfläche in der Mitte, um eine zufällige Taktik zu fordern.")
-				end
-				if (gStates.endRoundCalled==true and gStates.currentRound>=gStates.rounds) or gStates.volkareWon==true then
-					if gStates.positionMageKnight[5]=="Volkare" and gStates.volkareState=="Start" then
-						UI.setAttribute("DummyNotes", "Text", "{en}Final round of turns is complete. For most players this would have meant just flipping your Turn Order token back upright.{ru}Завершен последний круг ходов. Для большинства игроков это означало бы просто перевернуть жетон очередности хода обратно в вертикальное положение.{zh-tw}最後一輪的最終回合已結束。\n對於大多數玩家只需將你的順位\n標記翻轉回來即可。{zh-cn}最后一轮的最终回合已結束。\n對於大多数玩家只需将你的順位\n标记翻转回来即可。{ko}차례의 마지막 순서가 끝났습니다. 대부분의 플레이어들은 라운드 순서 토큰을 앞면으로 뒤집었을겁니다.{es}La Última Ronda de Turnos se ha completado. Para la mayoría de jugadores esto significa simplemente poner boca arriba el marcador de turno.{fr}Le dernier tour est terminé. Pour la plupart des joueurs, cela aurait signifié simplement retourner votre jeton Ordre du tour à la verticale.{pt-br}Rodada Final de turnos está completa. Para a maioria dos jogadores isso significa apenas virar sua ficha de ordem de turno de volta para cima.{de}Die letzte Zugrundelegung ist abgeschlossen. Für die meisten Spieler würde dies bedeuten, dass sie ihr Zugreihenfolgeplättchen einfach wieder umdrehen.")
-						if gStates.volkareReturnTimeoutLoss==true then UI.setAttribute("DummyNotes", "Text", gStates.blurb) end
-					end
-				end
 				if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then turnOrder[gStates.turnNumber].fame=-1 else turnOrder[gStates.turnNumber].fame=999 end
 			else--normal players
 				if againstDragonAttendanceUIRefresh==nil or againstDragonAttendanceUIRefresh()~=true then UI.setAttribute("VolkareAttacked", "active", "false") end
@@ -10801,6 +11050,8 @@ function mainUIUpdate(source)
 			end
 
 
+			automatedMainPanelRefresh()
+
 			UI.setAttribute("PreEndTurn", "onClick", "endTurn")
 			if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==false then
 				UI.setAttribute("EndTurnButtonText", "text", "{en}Combat Complete{ru}Бой завершён{zh-tw}戰鬥完成{zh-cn}战斗完成{ko}전투 완료{es}Combate Completo{fr}Combat Terminé{pt-br}Combate Concluído{de}Kampf Abgeschlossen")
@@ -10832,8 +11083,6 @@ function mainUIUpdate(source)
 
 
 			refreshGladeDiscardHealButton()
-			if againstDragonMainUIRefresh~=nil then againstDragonMainUIRefresh() end
-			if apocalypseIsHereMainUIRefresh~=nil then apocalypseIsHereMainUIRefresh() end
 			UI.show("MainGame")
 			mainUIPause=nil
 		end, 0.1)
@@ -13299,15 +13548,8 @@ function proxyChoiceSetWaiting(pending)
 	elseif pending.type=="enemy" then gStates.proxyState="PickEnemy"
 	elseif pending.type=="mana" then gStates.proxyState="PickMana"
 	else gStates.proxyState="Processing" end
-	--Now that the waiting state is known, refresh Proxy Info with the action plus any decision-support
-	--details. The button/broadcast still carries the instruction about who must make the choice.
-	UI.setAttribute("DummyNotes","Text",proxyTurnReportText())
-	proxyManaChoiceUI(pending.type=="mana" and pending or nil)
-	UI.setAttribute("DummyButton","interactable","False")
-	UI.setAttribute("DummyButtonImage","image","Sliced Button/Button New Deactive")
-	UI.setAttribute("DummyButtonText","Text",proxyChoiceWaitingText(pending.type))
-	--Leave DummyNotes/Proxy Info showing the action report. The waiting state is communicated by
-	--the center button and the existing choice broadcast instead of replacing the useful action text.
+	--Now that the waiting state is known, the shared renderer publishes the action plus choice state.
+	automatedMainPanelRefresh()
 	mainUIUpdate("Proxy waiting for choice")
 	--A Proxy choice is a human decision and may take a while. Release the automated-turn rewind guard,
 	--then start a fresh protected transaction when the authorised player actually clicks an option.
@@ -13317,10 +13559,7 @@ end
 
 function proxyChoiceResumeProcessing()
 	gStates.proxyState="Processing"
-	proxyManaChoiceUI(nil)
-	UI.setAttribute("DummyButton","interactable","False")
-	UI.setAttribute("DummyButtonImage","image","Sliced Button/Button New Deactive")
-	UI.setAttribute("DummyButtonText","Text","{en}Processing Proxy...{ru}Обработка прокси...{zh-tw}代理玩家行動處理中...{zh-cn}代理玩家行动处理中...{ko}프록시 처리 중...{es}Procesando Proxy...{fr}Traitement du Proxy...{pt-br}Processando Proxy...{de}Proxy wird verarbeitet...}")
+	automatedMainPanelRefresh()
 end
 
 function proxyBeginDestinationChoice(targets,proxyIndex,move,reason)
@@ -14003,11 +14242,7 @@ function proxyFinishTurn(hexes,mapObjects,proxyIndex)
 	if stats~=nil then stats.dummyProcessedThisTurn=true dummyRefreshDeedState(stats.seatPos) end
 	gStates.proxyState="ReadyToEnd"
 	gStates.proxyPendingChoice=nil
-	proxyManaChoiceUI(nil)
-	UI.setAttribute("DummyNotes","Text",proxyTurnReportText())
-	UI.setAttribute("DummyButtonText","Text","{en}Proxy Processed{ru}Прокси обработан{zh-tw}代理玩家行動結束{zh-cn}代理玩家行动结束{ko}프록시 처리 완료{es}Proxy Procesado{fr}Proxy traité{pt-br}Proxy Processado{de}Proxy verarbeitet")
-	UI.setAttribute("DummyButton","interactable","True")
-	UI.setAttribute("DummyButtonImage","image","Sliced Button/Button New Active")
+	automatedMainPanelRefresh()
 	mainUIUpdate("Proxy ready to end")
 	automatedTurnRewindRelease()
 end
@@ -14123,7 +14358,7 @@ function proxyContinueTowardTarget(target,proxyIndex,move,preserveMoved)
 	proxyTurnReportSetTarget(target)
 	if preserveMoved~=true then proxyTurnReportSetMoved(0) end
 	--Publish the intended destination and full allowance before physical movement begins.
-	UI.setAttribute("DummyNotes","Text",proxyTurnReportText())
+	automatedMainPanelRefresh()
 	local routeChoice,routeContext=proxyFindRouteChoice(startHex,target,hexes,mapObjects,proxyIndex,move or 0)
 	if routeChoice~=nil and proxyBeginRouteChoice(routeChoice,target,proxyIndex,move)==true then return end
 	local route,hazard,lastSafe=proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move or 0,nil,routeContext)
@@ -14195,9 +14430,7 @@ function proxyProcessTurn(proxyIndex)
 	gStates.proxyState="Processing"
 	gStates.proxyTurnReport=nil
 	proxyClearPendingChoice()
-	UI.setAttribute("DummyButton","interactable","False")
-	UI.setAttribute("DummyButtonImage","image","Sliced Button/Button New Deactive")
-	UI.setAttribute("DummyButtonText","Text","{en}Processing Proxy...{ru}Обработка прокси...{zh-tw}代理玩家行動處理中...{zh-cn}代理玩家行动处理中...{ko}프록시 처리 중...{es}Procesando Proxy...{fr}Traitement du Proxy...{pt-br}Processando Proxy...{de}Proxy wird verarbeitet...}")
+	automatedMainPanelRefresh()
 	local avatar=proxyAvatarObject()
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local portal=proxyPortalHex(hexes)
@@ -14264,12 +14497,9 @@ function proxyTurn(player,mouseButton,id)
 	if gStates.proxyState=="Processing" or gStates.proxyState=="PickDestination" or gStates.proxyState=="PickRoute" or gStates.proxyState=="PickCard" or gStates.proxyState=="PickEnemy" or gStates.proxyState=="PickMana" then return end
 	if readDeedPileCardCount(stats.seatPos)==0 then dummyRefreshDeedState(stats.seatPos) PreEndRound({color="Black"},"-1","DummyButton") return end
 	if stats.dummyProcessedThisTurn==true then return end
-	--Give immediate visual feedback before the rewind transaction callback starts. mainUIUpdate will
-	--then keep this same disabled Processing state until proxyFinishTurn exposes Proxy Processed.
-	proxyManaChoiceUI(nil)
-	UI.setAttribute("DummyButton","interactable","False")
-	UI.setAttribute("DummyButtonImage","image","Sliced Button/Button New Deactive")
-	UI.setAttribute("DummyButtonText","Text","{en}Processing Proxy...{ru}Обработка прокси...{zh-tw}代理玩家行動處理中...{zh-cn}代理玩家行动处理中...{ko}프록시 처리 중...{es}Procesando Proxy...{fr}Traitement du Proxy...{pt-br}Processando Proxy...{de}Proxy wird verarbeitet...}")
+	--Give immediate visual feedback before the rewind transaction callback starts without mutating
+	--the saved Proxy state until the protected transaction begins.
+	automatedMainPanelRefresh(automatedProxyPanelSpec(stats,"Processing"))
 	automatedTurnRewindStart(function() proxyProcessTurn(proxyIndex) end)
 end
 --Standard Dummy only. It deliberately advances immediately; bonus flips may finish during the next player's turn.
@@ -14278,9 +14508,7 @@ function dummyProcessTurn(dummyIndex,dummySeat)
 	local dummyStats=turnOrder[dummyIndex]
 	if dummyStats==nil or dummyStats.mage~=gStates.positionMageKnight[5] then automatedTurnRewindRelease() return end
 	dummyStats.dummyProcessedThisTurn=true
-	UI.setAttribute("DummyButton", "interactable", "False")
-	UI.setAttribute("DummyButtonImage", "image", "Sliced Button/Button New Deactive")
-	UI.setAttribute("DummyButtonText", "Text", "{en}Dummy Processed{ru}Виртуальный игрок сходил{zh-tw}虛擬玩家行動結束{zh-cn}虚拟玩家行动结束{ko}진행 완료{es}Jugador Virtual Procesado{fr}Fantôme préparé{pt-br}Jog.Fictício Processado{de}Dummy verarbeitet")
+	automatedMainPanelRefresh()
 
 	--Snapshot the physical crystals now so delayed bonus flips never depend on whichever player is current later.
 	local crystalSnapshot={Red=0,White=0,Green=0,Blue=0}
@@ -14368,18 +14596,11 @@ function volkareTurn(player, mouseButton, id)
 		gStates.volkareMovementStepPending=false
 		gStates.volkarePendingCombatMage=nil
 		gStates.volkareAdvanceAfterMovement=false
-		UI.setAttribute("VolkareAttackedFull", "interactable", "true")
-		UI.setAttribute("VolkareAttackedFull", "onClick", "volkareTurn")
-		UI.setAttribute("VolkareAttackedFullText", "text", "{en}Fully Attend the Battle{ru}Долгая подготовка к битве{zh-tw}完全參戰{zh-cn}完全参战{ko}전투 완전 참여{es}Participar en la Batalla por Completo{fr}Assistez pleinement à la bataille{pt-br}Participar Totalmente do Combate{de}Vollständig an der Schlacht teilnehmen")
-		UI.setAttribute("VolkareAttackedFullImage", "image", "Sliced Button/Button New Active")
-		UI.setAttribute("VolkareAttackedPartial", "interactable", "true")
-		UI.setAttribute("VolkareAttackedPartial", "onClick", "volkarePartial")
-		UI.setAttribute("VolkareAttackedPartialText", "text", "{en}Partially Attend the Battle{ru}Быстрая подготовка к битве{zh-tw}部分參戰{zh-cn}部分参战{ko}전투 부분 참여{es}Asiste Parcialmente a la Batalla{fr}Participez Partiellement à la Bataille{pt-br}Participe Parcialmente da Batalha{de}Teilweise an der Schlacht teilnehmen")
-		UI.setAttribute("VolkareAttackedPartialImage", "image", "Sliced Button/Button New Active")
-		UI.setAttribute("VolkareRetreat", "interactable", "true")
-		UI.setAttribute("VolkareRetreat", "onClick", "volkareRetreat")
-		UI.setAttribute("VolkareRetreatText", "text", "{en}Retreat from the Battle{ru}Отступить с поля битвы{zh-tw}退出戰鬥{zh-cn}退出战斗{ko}전투 후퇴{es}Retirarse de la Batalla{fr}Retraite de la bataille{pt-br}Recuar da Batalha{de}Rückzug von der Schlacht")
-		UI.setAttribute("VolkareRetreatImage", "image", "Sliced Button/Button New Active")
+		automatedAttackResponseUI({visible=false,
+			full={active=true,interactable=true,onClick="volkareTurn",text="{en}Fully Attend the Battle{ru}Долгая подготовка к битве{zh-tw}完全參戰{zh-cn}完全参战{ko}전투 완전 참여{es}Participar en la Batalla por Completo{fr}Assistez pleinement à la bataille{pt-br}Participar Totalmente do Combate{de}Vollständig an der Schlacht teilnehmen"},
+			partial={active=true,interactable=true,onClick="volkarePartial",text="{en}Partially Attend the Battle{ru}Быстрая подготовка к битве{zh-tw}部分參戰{zh-cn}部分参战{ko}전투 부분 참여{es}Asiste Parcialmente a la Batalla{fr}Participez Partiellement à la Bataille{pt-br}Participe Parcialmente da Batalha{de}Teilweise an der Schlacht teilnehmen"},
+			retreat={active=true,interactable=true,onClick="volkareRetreat",text="{en}Retreat from the Battle{ru}Отступить с поля битвы{zh-tw}退出戰鬥{zh-cn}退出战斗{ko}전투 후퇴{es}Retirarse de la Batalla{fr}Retraite de la bataille{pt-br}Recuar da Batalha{de}Rückzug von der Schlacht"}
+		})
 
 		local volkareTurnSuffix="{en}."
 		gStates.blurb="{en}Processing...{ru}Обработка...{zh-tw}處理中...{zh-cn}处理中...{ko}처리 중...{es}Procesando...{fr}Traitement...{pt-br}Processando...{de}Verarbeitung..."
@@ -14599,24 +14820,13 @@ function volkareTurn(player, mouseButton, id)
 												UI.setAttribute("CoopAssaultMainTableText3", "text", "")
 												UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 												UI.setAttribute("startAssaultText", "text", "{en}Begin Defense{ru}Начать защиту{zh-tw}開始防守{zh-cn}开始防守{ko}수비 시작{es}Comenzar Defensa{fr}Commencer la Défense{pt-br}Comece a Defesa{de}Verteidigung Starten")
-												UI.setAttribute("VolkareAttacked", "active", "true")
-												--These buttons are shared with other Volkare prompts, so restore the
-												--single-defender callbacks before optionally replacing Full with co-op.
-												UI.setAttribute("VolkareAttackedFull", "onClick", "volkareTurn")
-												UI.setAttribute("VolkareAttackedPartial", "onClick", "volkarePartial")
-												UI.setAttribute("VolkareRetreat", "onClick", "volkareRetreat")
-												UI.setAttribute("VolkareAttackedFullText", "text", "{en}Fully Defend the City{ru}Полностью Защитить город{zh-tw}全力保衛城市{zh-cn}全力保卫城市{ko}도시 완전 방어{es}Defiende Completamente la Ciudad{fr}Défendre Pleinement la Ville{pt-br}Defenda Totalmente a Cidade{de}Die Stadt vollständig verteidigen")
-												UI.setAttribute("VolkareAttackedPartialText", "text", "{en}Partially Defend the City{ru}Частично Защитить город{zh-tw}部分保衛城市{zh-cn}部分保卫城市{ko}도시 부분 방어{es}Defiende Parcialmente la Ciudad{fr}Défendre Partiellement la Ville{pt-br}Defenda Parcialmente a Cidade{de}Teilweise die Stadt verteidigen")
-												UI.setAttribute("VolkareRetreatText", "text", "{en}Don't Defend the City{ru}Не Защищать город{zh-tw}不要保衛城市{zh-cn}不要保卫城市{ko}도시 방어 안함{es}No Defiendas la Ciudad{fr}Ne Défendez pas la Ville{pt-br}Não Defenda a Cidade{de}Die Stadt nicht verteidigen")
-												if gStates.volkareRaisedCity==true then UI.setAttribute("VolkareRetreat", "tooltip", "Volkare will conquer the City. You lose.")
-												else UI.setAttribute("VolkareRetreat", "tooltip", "Volkare will raise the city (it provides no Interaction or Hand Size bonus from then on)") end
-												if #gStates.volkareAttacked>=2 then
-													UI.setAttribute("VolkareAttackedFullText", "text", "{en}Coop Defend the City{ru}Совместно Защитить город{zh-tw}合作保衛城市{zh-cn}合作保卫城市{ko}협력 도시 방어{es}Cooperativa Defiende la Ciudad{fr}Coopérative Défendre la Ville{pt-br}Cooperativa Defenda a Cidade{de}Coop Verteidigen Sie die Stadt")
-													UI.setAttribute("VolkareAttackedPartial", "active", "false")
-													UI.setAttribute("VolkareAttackedFull", "onClick", "volkareCoopDefense")
-													dropoutCoopDefensePrompt=true
-													applyColorBarButtons()
-												end
+												local coopVolkareDefense=#gStates.volkareAttacked>=2
+												automatedAttackResponseUI({visible=true,
+													full={active=true,interactable=true,onClick=coopVolkareDefense and "volkareCoopDefense" or "volkareTurn",text=coopVolkareDefense and "{en}Coop Defend the City{ru}Совместно Защитить город{zh-tw}合作保衛城市{zh-cn}合作保卫城市{ko}협력 도시 방어{es}Cooperativa Defiende la Ciudad{fr}Coopérative Défendre la Ville{pt-br}Cooperativa Defenda a Cidade{de}Coop Verteidigen Sie die Stadt" or "{en}Fully Defend the City{ru}Полностью Защитить город{zh-tw}全力保衛城市{zh-cn}全力保卫城市{ko}도시 완전 방어{es}Defiende Completamente la Ciudad{fr}Défendre Pleinement la Ville{pt-br}Defenda Totalmente a Cidade{de}Die Stadt vollständig verteidigen"},
+													partial={active=coopVolkareDefense~=true,interactable=true,onClick="volkarePartial",text="{en}Partially Defend the City{ru}Частично Защитить город{zh-tw}部分保衛城市{zh-cn}部分保卫城市{ko}도시 부분 방어{es}Defiende Parcialmente la Ciudad{fr}Défendre Partiellement la Ville{pt-br}Defenda Parcialmente a Cidade{de}Teilweise die Stadt verteidigen"},
+													retreat={active=true,interactable=true,onClick="volkareRetreat",text="{en}Don't Defend the City{ru}Не Защищать город{zh-tw}不要保衛城市{zh-cn}不要保卫城市{ko}도시 방어 안함{es}No Defiendas la Ciudad{fr}Ne Défendez pas la Ville{pt-br}Não Defenda a Cidade{de}Die Stadt nicht verteidigen",tooltip=gStates.volkareRaisedCity==true and "Volkare will conquer the City. You lose." or "Volkare will raise the city (it provides no Interaction or Hand Size bonus from then on)"}
+												})
+												if coopVolkareDefense then dropoutCoopDefensePrompt=true applyColorBarButtons() end
 												doubleAttack=true
 											else
 												if gStates.gameScenario~="The War of Four" then
@@ -16912,6 +17122,7 @@ end
 --Cities (including Volkare's Camp when used as a city) move successful assistants into the city.
 --Moving Volkare and Shades of Tezla faction leaders return assisting players to their original spaces;
 --the player who initiated the assault is already on the assaulted space and remains there on victory.
+--The Dragon data is forward-declared with the map-setup helpers above.
 function coopAssaultTargetType()
 	local target=gStates.coopAssaultCityGUID
 	if target==apocalypseDragon.model and apocalypseDragonScenario~=nil and apocalypseDragonScenario()==true then return "dragon" end
@@ -19055,6 +19266,9 @@ function __endRound_raw(rewindReady)
 			standardDeckCycleMarkReturned("Spell", discard[1])
 			MainDeck[1].putObject(discard[1])
 		end
+
+		--Fury delays Elite Units until exploration reaches a City or a Hero has entered one.
+		if furyDragonPrepareEliteUnits~=nil then furyDragonPrepareEliteUnits() end
 
 		--Turn on advanced units for last half of game in "Conquer and Hold"
 		if gStates.currentRound > gStates.rounds/2 and gStates.gameScenario=="Conquer and Hold" then
@@ -21579,9 +21793,16 @@ function apocalypseIsHereSetup()
 	for i,name in ipairs(names) do
 		local data=horsemanData[name]
 		gStates.horsemen[name]={level=level,tokenGUID=data.tokenGUID,revealed=false,defeated=false,retired=false,sitesDestroyed=0,mapSlot=i,revealIndex=i}
-		--Keep all unrevealed Horsemen inside the component bag until their reveal condition fires.
+		--The Apocalypse component bag is deleted after setup, so park every Horseman token on the
+		--table now. Keep them face down, locked, and unnamed until their reveal condition fires.
+		local tokenPosition={-69.80+((i-1)*5.90),0.98,24.25}
 		local token=getObjectFromGUID(data.tokenGUID)
-		if token~=nil and componentBag~=nil then token.unlock() componentBag.putObject(token) end
+		if token==nil and componentBag~=nil then
+			token=componentBag.takeObject({guid=data.tokenGUID,position=tokenPosition,rotation={0,180,180},smooth=false})
+		elseif token~=nil then
+			token.unlock() token.setPosition(tokenPosition) token.setRotation({0,180,180})
+		end
+		if token~=nil then token.setName("") token.lock() end
 		--The physical Horseman cards form the shuffled face-down scenario stack in the same order.
 		local card=getObjectFromGUID(data.cardGUID)
 		if card==nil and componentBag~=nil then
@@ -21990,25 +22211,21 @@ function apocalypseIsHereBeginHorsemenTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	return true
 end
 
-function apocalypseIsHereMainUIRefresh()
-	if apocalypseIsHereActive()~=true or gStates.apocalypseHereHorsemenTurnActive~=true then return false end
-	UI.setAttribute("MainGameNotes","text","<size=25>Horsemen's Turn</size><size=6>\n\n</size>The Horsemen act in the order they were revealed.")
-	UI.setAttribute("MainGameNotes","color","white")
-	UI.setAttribute("DummyTurn","active","true")
-	UI.setAttribute("ExtraTurnTactic","active","false")
-	UI.setAttribute("DummyChoiceButtons","active","false")
-	UI.setAttribute("DummyNotes","Text",gStates.apocalypseHereHorsemenTurnReport or "Process the Horsemen.")
-	UI.setAttribute("DummyButton","onClick","apocalypseIsHereProcessHorsemenUI")
+function apocalypseIsHereMainUIPanelSpec()
+	if apocalypseIsHereActive()~=true or gStates.apocalypseHereHorsemenTurnActive~=true then return nil end
 	local state=gStates.apocalypseHereHorsemenUIState
 	local label="{en}Processing Horsemen...{ru}Processing Horsemen...{zh-tw}Processing Horsemen...{zh-cn}Processing Horsemen...{ko}Processing Horsemen...{es}Processing Horsemen...{fr}Processing Horsemen...{pt-br}Processing Horsemen...{de}Processing Horsemen..."
 	local active=false
 	if state=="ReadyToProcess" then label="{en}Process Horsemen{ru}Process Horsemen{zh-tw}Process Horsemen{zh-cn}Process Horsemen{ko}Process Horsemen{es}Process Horsemen{fr}Process Horsemen{pt-br}Process Horsemen{de}Process Horsemen" active=true
 	elseif state=="ReadyToEnd" then label="{en}Horsemen Processed{ru}Horsemen Processed{zh-tw}Horsemen Processed{zh-cn}Horsemen Processed{ko}Horsemen Processed{es}Horsemen Processed{fr}Horsemen Processed{pt-br}Horsemen Processed{de}Horsemen Processed" active=true
 	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Pick Target{zh-tw}Pick Target{zh-cn}Pick Target{ko}Pick Target{es}Pick Target{fr}Pick Target{pt-br}Pick Target{de}Pick Target" end
-	UI.setAttribute("DummyButtonText","Text",label)
-	UI.setAttribute("DummyButton","interactable",active and "True" or "False")
-	UI.setAttribute("DummyButtonImage","image",active and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
-	return true
+	return {actor="horsemen",mainText="<size=25>Horsemen's Turn</size><size=6>\n\n</size>The Horsemen act in the order they were revealed.",notes=gStates.apocalypseHereHorsemenTurnReport or "Process the Horsemen.",onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
+end
+
+function apocalypseIsHereMainUIRefresh()
+	local spec=apocalypseIsHereMainUIPanelSpec()
+	if spec==nil then return false end
+	return automatedMainPanelApply(spec)
 end
 
 function apocalypseIsHereProcessHorsemenUI(player,mouseButton,id)
@@ -24901,7 +25118,8 @@ function attachEnemy(player, mouseButton, id, obj, zone)
 						if gStates.apocalypsePossessedEnemyByToken==nil then gStates.apocalypsePossessedEnemyByToken={} end
 						gStates.apocalypsePossessedEnemyByToken[obj.guid]=nearEnemy.guid
 						nearEnemy.addAttachment(obj)
-						if zone~=nil and (zone.guid==playerPlayAreas[2] or zone.guid==playerPlayAreas[3] or zone.guid==playerPlayAreas[1] or zone.guid==playerPlayAreas[4]) then
+						local summonedPossessed=gStates.summonStates~=nil and (gStates.summonStates[nearEnemy.guid]=="summoned" or gStates.summonStates[obj.guid]=="summoned")
+						if summonedPossessed~=true and zone~=nil and (zone.guid==playerPlayAreas[2] or zone.guid==playerPlayAreas[3] or zone.guid==playerPlayAreas[1] or zone.guid==playerPlayAreas[4]) then
 							turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+gStates.monsterPerks[nearEnemy.guid].fame
 							if factionRewardUsesJustFame(possessedFaction)==true then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1 end
 						end
@@ -26352,6 +26570,11 @@ function apocalypseDragonPossessSummonedEnemy(enemyGUID,target)
 	if possessed==nil then return false end
 	gStates.apocalypsePossessedFactionByToken=gStates.apocalypsePossessedFactionByToken or {}
 	gStates.apocalypsePossessedFactionByToken[possessed.guid]="Apoc"
+	--Control-head summons are temporary enemies: neither the summoned monster nor its Possessed
+	--token may award Fame or a Faction Reward. Mark the attachment with the same summoned state
+	--used by ordinary monster cleanup so every reward path treats both pieces consistently.
+	gStates.summonStates=gStates.summonStates or {}
+	gStates.summonStates[possessed.guid]="summoned"
 	return true
 end
 
@@ -27524,7 +27747,6 @@ end
 --City-card positions are arranged in rings around the City. EXPLORE refreshes use the complete current
 --EXPLORE set, then choose the closest legal position once instead of first pushing a card away and immediately
 --trying to compact it while setPositionSmooth is still moving it.
-local 
 apocalypseDragon={
 	model="105141",
 	furyMarker="42b581",
@@ -29005,55 +29227,42 @@ end
 --The Dragon stays outside turnOrder, but borrows the Dummy/Proxy panel while its interstitial turn is active.
 --A fully attending Mage Knight temporarily gets the normal player UI back; once that advanced turn ends,
 --the Dragon panel returns with Dragon Processed so the table can acknowledge the result and continue.
-function againstDragonMainUIRefresh()
-	if gStates==nil or gStates.apocalypseDragonTurnActive~=true then return false end
+function againstDragonAttendanceResponseSpec()
+	local pending=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
+	if pending==nil or pending.playerIndex==nil or pending.phase~="choose" then return nil end
+	local fullAllowed=againstDragonFullAttendAllowed(pending.playerIndex)
+	return {visible=true,
+		full={active=true,interactable=fullAllowed,onClick="againstDragonAttendFull",text="{en}Fully Defend{ru}Fully Defend{zh-tw}Fully Defend{zh-cn}Fully Defend{ko}Fully Defend{es}Fully Defend{fr}Fully Defend{pt-br}Fully Defend{de}Fully Defend",tooltip="Take your full turn in advance while resolving the Dragon attack."},
+		partial={active=true,interactable=true,onClick="againstDragonFinishPartial",text="{en}Partial Complete{ru}Partial Complete{zh-tw}Partial Complete{zh-cn}Partial Complete{ko}Partial Complete{es}Partial Complete{fr}Partial Complete{pt-br}Partial Complete{de}Partial Complete",tooltip="Finish the Dragon attack without taking your full turn."},
+		retreat={active=false}
+	}
+end
+
+function againstDragonMainUIPanelSpec()
+	if gStates==nil or gStates.apocalypseDragonTurnActive~=true then return nil end
 	local pending=gStates.apocalypseDragonPendingAttack
-	--Once an attack target has been selected, leave the Process Dragon panel entirely and use
-	--the same two-button combat-response panel as Volkare. The Dragon main panel is only for
-	--Process Dragon -> Dragon Processed actions (destroy/no-action and target selection).
-	if pending~=nil then
-		--Match Volkare's attacked-player presentation only while choosing how to attend.
-		--Once Fully Attack is selected the player is taking a normal turn in advance, so the
-		--DummyTurn cover must disappear and stay off.
-		if pending.phase=="choose" then
-			UI.setAttribute("DummyTurn","active","true")
-			UI.setAttribute("ExtraTurnTactic","active","false")
-			UI.setAttribute("DummyChoiceButtons","active","false")
-			UI.setAttribute("DummyNotes","Text",gStates.apocalypseDragonTurnReport or "Resolve the Apocalypse Dragon attack.")
-			UI.setAttribute("DummyButton","interactable","False")
-			UI.setAttribute("DummyButtonImage","image","Sliced Button/Button New Deactive")
-		else
-			UI.setAttribute("DummyTurn","active","false")
-		end
-		return false
-	end
 	local turnNumber=tonumber(gStates.apocalypseDragonTurn) or 1
 	local ordinal=againstDragonTurnOrdinal(turnNumber)
-	UI.setAttribute("MainGameNotes","text","<size=25>Apocalypse Dragon's Turn</size><size=6>\n\n</size>Round "..tostring(gStates.currentRound or 1).." — "..ordinal.." Dragon turn")
-	UI.setAttribute("MainGameNotes","color","white")
-	UI.setAttribute("DummyTurn","active","true")
-	UI.setAttribute("ExtraTurnTactic","active","false")
-	UI.setAttribute("DummyChoiceButtons","active","false")
-	UI.setAttribute("DummyNotes","Text",gStates.apocalypseDragonTurnReport or ("The Apocalypse Dragon is preparing its "..ordinal.." turn."))
-	UI.setAttribute("DummyButton","onClick","againstDragonProcessUI")
-	local state=gStates.apocalypseDragonUIState
-	local text="{en}Processing Dragon...{ru}Дракон действует...{zh-tw}巨龍行動處理中...{zh-cn}巨龙行动处理中...{ko}드래곤 처리 중...{es}Procesando Dragón...{fr}Traitement du Dragon...{pt-br}Processando Dragão...{de}Drache wird verarbeitet..."
-	local active=false
-	if state=="ReadyToProcess" then
-		text="{en}Process Dragon{ru}Ход Дракона{zh-tw}執行巨龍行動{zh-cn}执行巨龙行动{ko}드래곤 진행{es}Procesar Dragón{fr}Traiter le Dragon{pt-br}Processar Dragão{de}Drache aktivieren"
-		active=true
-	elseif state=="ReadyToEnd" then
-		text="{en}Dragon Processed{ru}Дракон обработан{zh-tw}巨龍行動結束{zh-cn}巨龙行动结束{ko}드래곤 처리 완료{es}Dragón Procesado{fr}Dragon traité{pt-br}Dragão Processado{de}Drache verarbeitet"
-		active=true
-	elseif state=="WaitingChoice" then
-		text="{en}Pick Target{ru}Выберите цель{zh-tw}選擇目標{zh-cn}选择目标{ko}대상 선택{es}Elige Objetivo{fr}Choisir la Cible{pt-br}Escolha o Alvo{de}Ziel wählen"
-	elseif state=="WaitingAttendance" then
-		text="{en}Resolve Dragon Attack{ru}Разрешите атаку Дракона{zh-tw}處理巨龍攻擊{zh-cn}处理巨龙攻击{ko}드래곤 공격 해결{es}Resolver Ataque del Dragón{fr}Résoudre l'Attaque du Dragon{pt-br}Resolver Ataque do Dragão{de}Drachenangriff abhandeln"
+	local mainText="<size=25>Apocalypse Dragon's Turn</size><size=6>\n\n</size>Round "..tostring(gStates.currentRound or 1).." — "..ordinal.." Dragon turn"
+	if pending~=nil then
+		if pending.phase=="choose" then
+			return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or "Resolve the Apocalypse Dragon attack.",onClick="againstDragonProcessUI",label="{en}Resolve Dragon Attack{ru}Разрешите атаку Дракона{zh-tw}處理巨龍攻擊{zh-cn}处理巨龙攻击{ko}드래곤 공격 해결{es}Resolver Ataque del Dragón{fr}Résoudre l'Attaque du Dragon{pt-br}Resolver Ataque do Dragão{de}Drachenangriff abhandeln",interactable=false,responseSpec=againstDragonAttendanceResponseSpec()}
+		end
+		return {actor="dragon",panelActive=false}
 	end
-	UI.setAttribute("DummyButtonText","Text",text)
-	UI.setAttribute("DummyButton","interactable",active and "True" or "False")
-	UI.setAttribute("DummyButtonImage","image",active and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
-	return true
+	local state=gStates.apocalypseDragonUIState
+	local label="{en}Processing Dragon...{ru}Дракон действует...{zh-tw}巨龍行動處理中...{zh-cn}巨龙行动处理中...{ko}드래곤 처리 중...{es}Procesando Dragón...{fr}Traitement du Dragon...{pt-br}Processando Dragão...{de}Drache wird verarbeitet..."
+	local active=false
+	if state=="ReadyToProcess" then label="{en}Process Dragon{ru}Ход Дракона{zh-tw}執行巨龍行動{zh-cn}执行巨龙行动{ko}드래곤 진행{es}Procesar Dragón{fr}Traiter le Dragon{pt-br}Processar Dragão{de}Drache aktivieren" active=true
+	elseif state=="ReadyToEnd" then label="{en}Dragon Processed{ru}Дракон обработан{zh-tw}巨龍行動結束{zh-cn}巨龙行动结束{ko}드래곤 처리 완료{es}Dragón Procesado{fr}Dragon traité{pt-br}Dragão Processado{de}Drache verarbeitet" active=true
+	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Выберите цель{zh-tw}選擇目標{zh-cn}选择目标{ko}대상 선택{es}Elige Objetivo{fr}Choisir la Cible{pt-br}Escolha o Alvo{de}Ziel wählen" end
+	return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or ("The Apocalypse Dragon is preparing its "..ordinal.." turn."),onClick="againstDragonProcessUI",label=label,interactable=active}
+end
+
+function againstDragonMainUIRefresh()
+	local spec=againstDragonMainUIPanelSpec()
+	if spec==nil then return false end
+	return automatedMainPanelApply(spec)
 end
 
 function againstDragonProcessUI(player,mouseButton,id)
@@ -29212,31 +29421,9 @@ function againstDragonFullAttendAllowed(playerIndex)
 end
 
 function againstDragonAttendanceUIRefresh()
-	local pending=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
-	if pending==nil or pending.playerIndex==nil or pending.phase~="choose" then return false end
-	--Attack-a-player becomes the same layered response used by Volkare: DummyTurn covers the
-	--normal player controls while VolkareAttacked supplies the two response buttons.
-	UI.setAttribute("DummyTurn","active","true")
-	UI.setAttribute("ExtraTurnTactic","active","false")
-	UI.setAttribute("DummyChoiceButtons","active","false")
-	UI.setAttribute("DummyNotes","Text",gStates.apocalypseDragonTurnReport or "Resolve the Apocalypse Dragon attack.")
-	UI.setAttribute("DummyButton","interactable","False")
-	UI.setAttribute("DummyButtonImage","image","Sliced Button/Button New Deactive")
-	UI.setAttribute("VolkareAttacked","active","true")
-	UI.setAttribute("VolkareRetreat","active","false")
-	UI.setAttribute("VolkareAttackedFull","active","true")
-	UI.setAttribute("VolkareAttackedPartial","active","true")
-	UI.setAttribute("VolkareAttackedFull","onClick","againstDragonAttendFull")
-	UI.setAttribute("VolkareAttackedPartial","onClick","againstDragonFinishPartial")
-	UI.setAttribute("VolkareAttackedFullText","text","{en}Fully Defend{ru}Fully Defend{zh-tw}Fully Defend{zh-cn}Fully Defend{ko}Fully Defend{es}Fully Defend{fr}Fully Defend{pt-br}Fully Defend{de}Fully Defend")
-	UI.setAttribute("VolkareAttackedPartialText","text","{en}Partial Complete{ru}Partial Complete{zh-tw}Partial Complete{zh-cn}Partial Complete{ko}Partial Complete{es}Partial Complete{fr}Partial Complete{pt-br}Partial Complete{de}Partial Complete")
-	UI.setAttribute("VolkareAttackedFull","tooltip","Take your full turn in advance while resolving the Dragon attack.")
-	UI.setAttribute("VolkareAttackedPartial","tooltip","Finish the Dragon attack without taking your full turn.")
-	local fullAllowed=againstDragonFullAttendAllowed(pending.playerIndex)
-	UI.setAttribute("VolkareAttackedFull","interactable",fullAllowed and "true" or "false")
-	UI.setAttribute("VolkareAttackedFullImage","image",fullAllowed and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
-	UI.setAttribute("VolkareAttackedPartial","interactable","true")
-	UI.setAttribute("VolkareAttackedPartialImage","image","Sliced Button/Button New Active")
+	local spec=againstDragonAttendanceResponseSpec()
+	if spec==nil then return false end
+	automatedAttackResponseUI(spec)
 	return true
 end
 
@@ -29304,6 +29491,28 @@ function againstDragonAirborneProtectionLocation(playerIndex)
 	local terrain,bearing,_,feature=terrainHexAtPosition(avatar.getPosition())
 	if terrain==nil or bearing==nil or feature==nil then return nil end
 	return {terrainGUID=terrain.guid,bearing=bearing,feature=feature}
+end
+
+function againstDragonAirborneProtectionReminder(location)
+	if location==nil then return "No Dragon-head protection from this space." end
+	local feature=string.lower(tostring(location.feature or ""))
+	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(location.feature) or tostring(location.feature or "space")
+	if feature:sub(1,4)=="city" then
+		return "Fortified City: protect against 2 heads. Flip those heads face down. The City is not destroyed."
+	end
+	if feature=="keep" or feature=="mage tower" then
+		return "Fortified "..tostring(label)..": protect against 2 heads. Flip those heads face down; the site is destroyed after combat."
+	end
+	if feature=="mine" then
+		return "Crystal Mine: protect against 2 heads. Flip those heads face down; the Mine is destroyed after combat."
+	end
+	if feature=="village" or feature=="monastery" or feature=="oasis" or feature=="camp" or feature=="refugee camp" then
+		return tostring(label)..": protect against 1 head. Flip that head face down; the site is destroyed after combat."
+	end
+	if feature=="glade" or feature=="magical glade" then
+		return "Glade: spend matching-colour mana to protect against a head, then flip it face down. The Glade is destroyed after combat."
+	end
+	return "No Dragon-head protection from this "..tostring(label).."."
 end
 
 function againstDragonAirborneProtectionDestroysSite(feature)
@@ -29454,7 +29663,7 @@ function againstDragonAttendFull(player,mouseButton,id)
 	--a normal out-of-turn turn; their end-turn cleanup resolves the Dragon reward and resumes play
 	--directly, without returning to Dragon Processed.
 	UI.setAttribute("DummyTurn","active","false")
-	UI.setAttribute("VolkareAttacked","active","false")
+	automatedAttackResponseUI(nil)
 	local token=getObjectFromGUID(details.turnOrderTokenGUID)
 	if token~=nil and token.is_face_down==false then token.flip() end
 	local function beginAdvancedTurn()
@@ -29479,7 +29688,8 @@ function againstDragonBeginManualAttack(playerIndex)
 	againstDragonAttackControlUI(false)
 	againstDragonDeployAirborneHeads(playerIndex)
 	local fullText=againstDragonFullAttendAllowed(playerIndex) and "Choose Fully Defend or resolve the restricted combat and click Partial Complete." or "Their Round Order token is already face down, so resolve the restricted combat and click Partial Complete."
-	againstDragonSetTurnReport("The Dragon is attacking "..tostring(details.mage).." at level "..tostring(gStates.currentRound)..".\n"..fullText.." Flip the chosen heads face down if you are site fortified.","WaitingAttendance")
+	local protectionText=againstDragonAirborneProtectionReminder(gStates.apocalypseDragonPendingAttack.protectionLocation)
+	againstDragonSetTurnReport("The Dragon is attacking "..tostring(details.mage).." at level "..tostring(gStates.currentRound)..".\n"..fullText.."\n"..protectionText,"WaitingAttendance")
 	againstDragonAttendanceUIRefresh()
 	combatCameraFocus(playerIndex)
 	return true
@@ -29635,8 +29845,7 @@ function againstDragonRoundStart()
 	gStates.apocalypseDragonTurnReport=nil
 	gStates.apocalypseDragonTurnReportPrefix=nil
 	UI.setAttribute("DummyTurn","active","false")
-	UI.setAttribute("VolkareAttacked","active","false")
-	UI.setAttribute("VolkareRetreat","active","true")
+	automatedAttackResponseUI(nil)
 	againstDragonChoiceClearButtons()
 	againstDragonAttackControlUI(false)
 	againstDragonClearBlackManaMarkers()
@@ -29667,8 +29876,7 @@ function againstDragonCompleteTurn()
 	if againstDragonActive()~=true then return false end
 	againstDragonChoiceClearButtons()
 	againstDragonAttackControlUI(false)
-	UI.setAttribute("VolkareAttacked","active","false")
-	UI.setAttribute("VolkareRetreat","active","true")
+	automatedAttackResponseUI(nil)
 	gStates.apocalypseDragonPendingChoice=nil
 	gStates.apocalypseDragonPendingAttack=nil
 	gStates.apocalypseDragonTurnAction=nil
@@ -29687,8 +29895,7 @@ function againstDragonFinishTurn(force)
 	againstDragonChoiceClearButtons()
 	againstDragonAttackControlUI(false)
 	UI.setAttribute("DummyTurn","active","false")
-	UI.setAttribute("VolkareAttacked","active","false")
-	UI.setAttribute("VolkareRetreat","active","true")
+	automatedAttackResponseUI(nil)
 	gStates.apocalypseDragonTurnActive=false
 	local resume=gStates.apocalypseDragonResumeTurn
 	local fullAttendPlayer=gStates.apocalypseDragonFullAttendPlayer
@@ -30530,11 +30737,9 @@ function __onLoad_raw(saved_data)
 		else
 			UI.setAttribute("ScoreButtonReal", "interactable", "True")
 			UI.setAttribute("ScoreButtonRealImage", "image", "Sliced Button/Button New Active")
-		 	UI.setAttribute("DummyButton", "interactable", "True")
-			UI.setAttribute("DummyButtonImage", "image", "Sliced Button/Button New Active")
-		 	UI.setAttribute("DummyButtonText", "Text", "{en}Dummy Processed{ru}Виртуальный игрок сходил{zh-tw}虛擬玩家行動結束{zh-cn}虚拟玩家行动结束{ko}진행 완료{es}Jugador Virtual Procesado{fr}Fantôme préparé{pt-br}Jog.Fictício Processado{de}Dummy verarbeitet")
-		 	UI.setAttribute("DummyButton", "onClick", automatedPlayerTurnFunction())
 		end
+		--Restore the centre panel through the same owner/state renderer used during live play.
+		automatedMainPanelRefresh()
 		for terrainGUID, hexOveride in pairs(gStates.hexOverideSave) do
 			for location, hexFeature in pairs(hexOveride) do
 				terrainTiles[terrainGUID].hexFeature[location]=hexFeature
@@ -31290,6 +31495,10 @@ function __onObjectDrop_raw(player_color, dropped_object)
 									if terrain==locatedTerrain then
 										if keepSearch==1 then
 											playerDetails.avatarLocation=hexFeature
+											if gStates.gameScenario=="Fury of the Apocalypse Dragon" and avatarChangedHex==true and playerDetails.mage~="Volkare" and
+												turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and playerDetails.avatarLocation:sub(1,4)=="city" then
+												gStates.furyHeroEnteredCity=true
+											end
 											if againstHorsemenCentralGladeHex(locatedTerrain,bearing)==true then
 												if gStates.againstHorsemenRitualStarted~=true then playerDetails.avatarSharedHex=againstHorsemenSharedHexKey
 												elseif playerDetails.mage~="Volkare" and turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and avatarChangedHex==true then horsemenGladeAssault=true end
@@ -31714,7 +31923,7 @@ function __onObjectEnterZone_raw(zone, obj)
 				--Against the Horsemen uses a completely predefined map. Its face-down tiles are already in
 				--their legal positions, so ordinary wedge/open/neighbour placement rules must never reject
 				--a tile when it is revealed. Keep face-down tiles dormant; once revealed, always populate them.
-				if gStates.gameScenario=="Against the Horsemen Blitz" then
+				if gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then
 					if obj.faceDown==true then faceDownTerrain=true return false end
 					return true
 				end
@@ -31803,7 +32012,7 @@ function __onObjectEnterZone_raw(zone, obj)
 			end
 
 			--make predefined maps highlight red
-			if gStates.mapShape:sub(5,5)=="P" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" then--predefined
+			if gStates.mapShape:sub(5,5)=="P" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then--predefined
 				for _, mightBeMap in pairs(playAreaObjects) do
 					if terrainTiles[mightBeMap.guid]~=nil then
 						if positionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}})==false then
@@ -31820,7 +32029,7 @@ function __onObjectEnterZone_raw(zone, obj)
 				againstDragonRevealLair(obj)
 				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
 				--Check if the object is a core tile and unlock elite units
-				if terrainTiles[obj.guid].tileType=="core" and (obj.guid~="835c91" or (obj.guid=="835c91" and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" then
+				if terrainTiles[obj.guid].tileType=="core" and (obj.guid~="835c91" or (obj.guid=="835c91" and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
 					gStates.playedCoreTiles=gStates.playedCoreTiles+1
 					gStates.eliteUnitsUsed=true
 					if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
@@ -31828,7 +32037,7 @@ function __onObjectEnterZone_raw(zone, obj)
 				end
 
 				--Highlight legal tile plays
-				if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" then
+				if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
 					local gridType=""
 					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049111266/7BC768B7CD64E6018EBEC720559690409F4BA555/" end--4
 					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049110361/978D612A44ADDE6E1630965A311722114BA28AE5/" end--3
@@ -35935,7 +36144,7 @@ automaticLuaErrorReporting=false
 automaticLuaErrorLastReport=0
 automaticLuaErrorCooldown=10
 automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-automaticLuaErrorReporterVersion="403"
+automaticLuaErrorReporterVersion="408"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -37055,6 +37264,20 @@ function renderMoveDisplay(id)
 	local startTilePos=startTile.getPosition()
 	local playAreaObjects=mapObject.getObjects()
 	local hexMap=moveDisplayBaseHexMap(playAreaObjects, startTileGUID, startTilePos)
+	--The Dragon's three lair spaces keep their printed terrain Move cost, but entering any of them
+	--starts the Dragon assault. Mark them as combat-only destinations so the movement helper shows
+	--the cost in orange and never routes onward through the Lair as though it were a safe space.
+	if gStates.gameScenario=="Against the Dragon Blitz" and gStates.apocalypseDragonLairRevealed==true and gStates.apocalypseDragonDefeated~=true and gStates.apocalypseDragonLair~=nil then
+		for _,lairHex in ipairs(gStates.apocalypseDragonLair.hexes or {}) do
+			local p=lairHex.position
+			if p~=nil then
+				local lairHor=tostring(math.floor(((p[3]-startTilePos[3])/2.0785)+0.5))
+				local lairHorNumber=tonumber(lairHor)
+				local lairVec=tostring(math.floor(((p[1]-startTilePos[1])/2.4)+(lairHorNumber/2)+0.5))
+				if hexMap[lairHor]~=nil and hexMap[lairHor][lairVec]~=nil then hexMap[lairHor][lairVec].dragonLair=true end
+			end
+		end
+	end
 	local rampagerHexes={}
 	local cityGUIDs=moveDisplayCityGUIDLookup()
 	for _, mightBeMap in pairs(playAreaObjects) do
@@ -37322,19 +37545,21 @@ function renderMoveDisplay(id)
 							local normalRampager=(hexMap[rampageHor[1]]~=nil and hexMap[rampageHor[1]][rampageVec[1]]~=nil and hexMap[rampageHor[1]][rampageVec[1]].hexType=="rampager" and (hexMap[rampageWallHor[1]]==nil or hexMap[rampageWallHor[1]][rampageWallVec[1]]==nil)) or
 								(hexMap[rampageHor[2]]~=nil and hexMap[rampageHor[2]][rampageVec[2]]~=nil and hexMap[rampageHor[2]][rampageVec[2]].hexType=="rampager" and (hexMap[rampageWallHor[2]]==nil or hexMap[rampageWallHor[2]][rampageWallVec[2]]==nil))
 							local rampageNeighbor=normalRampager or ambusherProvoked(hexDetail.coord[1], hexDetail.coord[2], hor, vec)
+							local dragonLairDestination=hexMap[tostring(hor)][tostring(vec)].dragonLair==true
+							local forcedCombatDestination=rampageNeighbor or dragonLairDestination
 							local destinationMove=moveMap[tostring(hor)][tostring(vec)]
 							local predecessor={hor=hexDetail.coord[1], vec=hexDetail.coord[2], state=sourceState, teleport=false}
 							if hexCost==recordedMoveTotal then
 								--Equal-cost safe routes do not change reachability, but a cleaner predecessor can
 								--remove an otherwise unnecessary dual-cost label from the displayed route tree.
-								if rampageNeighbor==false then
+								if forcedCombatDestination==false then
 									local existingPrev=destinationMove.tricky~=nil and destinationMove.trickyPrev or destinationMove.mainPrev
 									if existingPrev~=nil and continuationPenalty(predecessor.hor,predecessor.vec,predecessor.state)<continuationPenalty(existingPrev.hor,existingPrev.vec,existingPrev.state) then
 										if destinationMove.tricky~=nil then destinationMove.trickyPrev=predecessor else destinationMove.mainPrev=predecessor end
 									end
 								end
 							else
-								if rampageNeighbor==true then
+								if forcedCombatDestination==true then
 									if destinationMove.main~=nil then
 										destinationMove.tricky=destinationMove.main
 										destinationMove.trickyPrev=destinationMove.mainPrev
@@ -37361,8 +37586,8 @@ function renderMoveDisplay(id)
 										destinationMove.trickyCombat=false
 									end
 								end
-								--if hex is a fortified site don't record as a fringe hex
-								if rampageNeighbor==false and hexMap[tostring(hor)][tostring(vec)].hexType~="explore" and (hexMap[tostring(hor)][tostring(vec)].fortified==nil or hexMap[tostring(hor)][tostring(vec)].fortified=="shield") then
+								--Fortified sites and forced-combat destinations may be reached but never used as onward fringe.
+								if forcedCombatDestination==false and hexMap[tostring(hor)][tostring(vec)].hexType~="explore" and (hexMap[tostring(hor)][tostring(vec)].fortified==nil or hexMap[tostring(hor)][tostring(vec)].fortified=="shield") then
 									local fringeKey=tostring(hor)..":"..tostring(vec)
 									if tempFringeSet[fringeKey]~=true then
 										tempFringeSet[fringeKey]=true
@@ -37538,7 +37763,7 @@ function renderMoveDisplay(id)
 				local multipleCosts=false
 				local dualCosts=nil
 				local destinationHex=hexMap[tostring(hor)]~=nil and hexMap[tostring(hor)][tostring(vec)] or nil
-				local destinationCombat=destinationHex~=nil and destinationHex.hexType~="explore" and destinationHex.fortified~=nil and destinationHex.fortified~="shield"
+				local destinationCombat=destinationHex~=nil and (destinationHex.dragonLair==true or (destinationHex.hexType~="explore" and destinationHex.fortified~=nil and destinationHex.fortified~="shield"))
 				local combatMove=destinationCombat or (lowestState=="main" and hexCost.mainCombat==true) or (lowestState=="tricky" and hexCost.trickyCombat==true)
 				if hexCost.main~=nil and hexCost.main<99 and hexCost.tricky~=nil and hexCost.tricky<99 and hexCost.main~=hexCost.tricky then
 					local higherHex=math.max(hexCost.main, hexCost.tricky)
