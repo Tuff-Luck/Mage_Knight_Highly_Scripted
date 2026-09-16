@@ -1,0 +1,57 @@
+{
+  "GUID": "a000a4",
+  "Name": "Custom_Tile",
+  "Transform": {
+    "posX": -8.5,
+    "posY": -3,
+    "posZ": -14,
+    "rotX": -5.07328e-8,
+    "rotY": 179.998077,
+    "rotZ": -8.412054e-8,
+    "scaleX": 2.3,
+    "scaleY": 1,
+    "scaleZ": 2.3
+  },
+  "Nickname": "Day Tactic 2",
+  "Description": "",
+  "GMNotes": "",
+  "AltLookAngle": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "ColorDiffuse": {
+    "r": 0.249995112,
+    "g": 0.249995112,
+    "b": 0.249995112
+  },
+  "LayoutGroupSortIndex": 0,
+  "Value": 0,
+  "Locked": true,
+  "Grid": false,
+  "Snap": true,
+  "IgnoreFoW": false,
+  "MeasureMovement": false,
+  "DragSelectable": true,
+  "Autoraise": true,
+  "Sticky": false,
+  "Tooltip": false,
+  "GridProjection": false,
+  "HideWhenFaceDown": false,
+  "Hands": false,
+  "CustomImage": {
+    "ImageURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1833528185910152697/ED2A3E43BAC496F9AD88A86D17925C38DF7CCA43/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632558778/E5922E2265A72D71CEC20A819E418DE2B0A5CEF1/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593903875/CA71F4BCED53F056CEA437F310E6B404D1A59C81/{ko}https://steamusercontent-a.akamaihd.net/ugc/2482121240824352105/6142CCBF7CF9C853BE59BBE0864E91C733FC1EDB/{es}https://steamusercontent-a.akamaihd.net/ugc/1028454670706579796/6C8810894A3C3E7DD9C46995A7964A67078EC5F2/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350875925392839/DD5154602F706F67FCBF617134155C1EE2E95E07/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1789597494121888828/567A8E89408F097C6ACD9BA7EEF983B444ECBB3E/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191603501/CEC77EADE78528FB50D76178CD9AE4A76643CEF7/",
+    "ImageSecondaryURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777571511469113/4916B2C08612AC6F938D7430E5BE6E1A843C0DD4/",
+    "ImageScalar": 1,
+    "WidthScale": 0,
+    "CustomTile": {
+      "Type": 3,
+      "Thickness": 0.1,
+      "Stackable": false,
+      "Stretch": true
+    }
+  },
+  "LuaScript": "local discardedButton={label=\"{en}Day Tactic 2\\nClick after Card(s)\\nhave been discarded{ru}Тактика дня 2\\nЩелкните после\\nсброса карт{zh-cn}白天战术卡2\\n弃牌后单击此处{ko}낮 전략 2\\n버릴 카드를 놓고\\n클릭하세요.{es}Táctica del día 2\\nHaga clic después de Tarjeta (s)\\nhan sido descartados{fr}Jour Tactique 2\\nCliquez après Carte(s)\\n ont été jetés{pt-br}Dia Tática 2\\nClique depois do (s) cartão (ões)\\nforam descartados{de}Tag Taktik 2\\nKlicken Sie, nachdem die Karte(n)\\nabgeworfen worden sind\", font_size=65, color={0.7, 0.7, 0.7},\r\n\t\t\tposition={3.1, 0, -1.4}, width=650, height=300, rotation={0, 0, 0},\r\n\t\t\tfunction_owner=self, click_function=\"discardedCards\"}\r\n\r\nfunction onLoad()\r\n\tif Global.getTable(\"gStates\").firstStarted==1 then\r\n\t\tbuttonActivate()\r\n\tend\r\nend\r\n\r\nfunction buttonActivate()\r\n\t--remove any existing buttons\r\n\tif self.getButtons()~=nil then\r\n\t\tfor i=1, #self.getButtons(), 1 do self.removeButton(i-1) end\r\n\tend\r\n\t--see if dummy has this tactic\r\n\tlocal dummyHasTactic=false\r\n\tfor a=1, #Global.getTable(\"turnOrder\"), 1 do\r\n\t\tif Global.getTable(\"turnOrder\")[a].tactic==2 then\r\n\t\t\tif Global.getTable(\"turnOrder\")[a].mage==Global.getTable(\"gStates\").positionMageKnight[5] then dummyHasTactic=true end\r\n\t\t\tbreak\r\n\t\tend\r\n\tend\r\n\t--Add button\r\n\tWait.frames(function()\r\n\t\tif self.getPosition()[3]<-15 and Global.getTable(\"gStates\").tacticTwoState~=\"Used\" and Global.getTable(\"gStates\").tacticRemove==false and dummyHasTactic==false and Global.getTable(\"gStates\").dayRound==true then\r\n\t\t\tself.createButton(discardedButton)\r\n\t\tend\r\n\tend, 50)\r\nend\r\n\r\n--Give new cards and shuffle discard back in to deck.\r\nfunction discardedCards(notUsed, playerColor)\r\n\t--converts the color of the player who clicked the button into a position they are sitting at\r\n\tlocal playerPosition=0\r\n\tfor a, findPlayerPosition in pairs(Global.getTable(\"turnOrder\")) do\r\n\t\tif findPlayerPosition.tactic==2 then playerPosition=findPlayerPosition.seatPos break end\r\n\tend\r\n\tif Player[playerColor].seated==true and playerColor~=\"Black\" and Player[playerColor].getHandTransform()~=nil then playerPosition=math.ceil((Player[playerColor].getHandTransform().position[1] + 97.59)/40) end\r\n\t--make sure it's the player who has Day Tactic 2\r\n\tif playerPosition==math.ceil((self.getPosition()[1]+78)/40) then\r\n\t\t--clean play area of cards in case player discarded there.\r\n\t\tlocal cardDestination=nil\r\n\t\tlocal waitTime=0\r\n\t\tfor _, playAreaObj in pairs(getObjectFromGUID(Global.getTable(\"playerPlayAreas\")[Global.getTable(\"turnOrder\")[Global.getTable(\"gStates\").turnNumber].seatPos]).getObjects()) do\r\n\t\t\tif playAreaObj.tag==\"Card\" then\r\n\t\t\t\t--Check for and leave banner Cards\r\n\t\t\t\tlocal found=false\r\n\t\t\t\tfor _, bannerGUID in pairs({\"596cfa\", \"986216\", \"0b5b32\", \"e48e44\", \"8dbce4\", \"8e4b92\", \"75a627\"}) do\r\n\t\t\t\t\tif playAreaObj.guid==bannerGUID then found=true break end\r\n\t\t\t\tend\r\n\t\t\t\tif playAreaObj.getDescription()==\"Quest\" then found=true end\r\n\t\t\t\t--Check if the card is registered to the player and place on deed pile\r\n\t\t\t\tif found==false then\r\n\t\t\t\t\twaitTime=1\r\n\t\t\t\t\tif cardDestination==nil then\r\n\t\t\t\t\t\tplayAreaObj.setRotation({0.0, 180.0, 0.0})\r\n\t\t\t\t\t\tplayAreaObj.setPosition({(Global.getTable(\"turnOrder\")[Global.getTable(\"gStates\").turnNumber].seatPos*40)-110.32, 1.12, -43.20})\r\n\t\t\t\t\t\tcardDestination=playAreaObj\r\n\t\t\t\t\telse\r\n\t\t\t\t\t\tplayAreaObj.setPosition({playAreaObj.getPosition()[1], 1.9, playAreaObj.getPosition()[3]})\r\n\t\t\t\t\t\tcardDestination=cardDestination.putObject(playAreaObj)\r\n\t\t\t\t\tend\r\n\t\t\t\tend\r\n\t\t\tend\r\n\t\tend\r\n\r\n\t\tWait.time(function()\r\n\t\t\t--Check there are not more than three discarded cards\r\n\t\t\tlocal deedDeckDiscardZones={\"3ec23f\", \"07c9e2\", \"b3fe99\", \"2e1a7a\", \"88fb5d\"}\r\n\t\t\tlocal fail=false\r\n\t\t\tfor a, discards in pairs(getObjectFromGUID(deedDeckDiscardZones[playerPosition]).getObjects()) do\r\n\t\t\t\tif discards.tag==\"Deck\" or discards.tag==\"Card\" then\r\n\t\t\t\t\tif discards.getQuantity()<=3 then\r\n\t\t\t\t\t\t--Draw new cards\r\n\t\t\t\t\t\tlocal deedDeck=nil\r\n\t\t\t\t\t\tlocal deedDeckZones={\"af0360\", \"22b532\", \"c10770\", \"aa1121\", \"b29524\"}\r\n\t\t\t\t\t\tfor _, possibleDeck in pairs(getObjectFromGUID(deedDeckZones[playerPosition]).getObjects()) do\r\n\t\t\t\t\t\t\tif possibleDeck.tag==\"Deck\" or possibleDeck.tag==\"Card\" then deedDeck=possibleDeck break end\r\n\t\t\t\t\t\tend\r\n\t\t\t\t\t\tfor a=1, math.abs(discards.getQuantity()), 1 do\r\n\t\t\t\t\t\t\tdeedDeck.takeObject({position={(playerPosition*40)-100, 4.59, -47.55}, rotation={0, 180, 0}})\r\n\t\t\t\t\t\tend\r\n\t\t\t\t\t\t--Move discard(s) back to Deed Deck\r\n\t\t\t\t\t\tWait.time(function() deedDeck.putObject(discards) end, 1)\r\n\t\t\t\t\t\t--Shuffle Deed Deck\r\n\t\t\t\t\t\tWait.time(function() deedDeck.shuffle() end, 2)\r\n\t\t\t\t\telse\r\n\t\t\t\t\t\tfail=true\r\n\t\t\t\t\t\tbroadcastToAll(\"You have discarded too many cards\",{1,0,0})\r\n\t\t\t\t\tend\r\n\t\t\t\t\tbreak\r\n\t\t\t\tend\r\n\t\t\tend\r\n\t\t\tif fail==false then\r\n\t\t\t\t--flip Tactic face down\r\n\t\t\t\tif self.getRotation()[3]~=180 then self.flip() end\r\n\t\t\t\t--Update states and buttons\r\n\t\t\t\tlocal temp=Global.getTable(\"gStates\")\r\n\t\t\t\ttemp.tacticTwoState=\"Used\"\r\n\t\t\t\tGlobal.setTable(\"gStates\", temp)\r\n\t\t\t\tbuttonActivate()\r\n\t\t\tend\r\n\t\tend, waitTime)\r\n\telse\r\n\t\tbroadcastToAll(\"That's not for you to decide\",{1,0,0})\r\n\tend\r\nend",
+  "LuaScriptState": "",
+  "XmlUI": ""
+}

@@ -1,0 +1,1136 @@
+{
+  "GUID": "ac75c4",
+  "Name": "Deck",
+  "Transform": {
+    "posX": 46.8744164,
+    "posY": 1.06794882,
+    "posZ": 2.45755887,
+    "rotX": 0.000009661421,
+    "rotY": 180.033554,
+    "rotZ": 180,
+    "scaleX": 1.5,
+    "scaleY": 1,
+    "scaleZ": 1.5
+  },
+  "Nickname": "{en}Artifacts{ru}Артефакты{zh-cn}神器卡{ko}유물{es}Artefactos{fr}Artefacts{pt-br}Artefatos{de}Artefakte",
+  "Description": "",
+  "GMNotes": "",
+  "AltLookAngle": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "ColorDiffuse": {
+    "r": 0.7,
+    "g": 0.7,
+    "b": 0.7
+  },
+  "LayoutGroupSortIndex": 0,
+  "Value": 0,
+  "Locked": false,
+  "Grid": false,
+  "Snap": true,
+  "IgnoreFoW": false,
+  "MeasureMovement": false,
+  "DragSelectable": true,
+  "Autoraise": true,
+  "Sticky": false,
+  "Tooltip": true,
+  "GridProjection": false,
+  "HideWhenFaceDown": false,
+  "Hands": false,
+  "SidewaysCard": false,
+  "DeckIDs": [
+    167006,
+    167007,
+    167004,
+    167005,
+    167003,
+    167001,
+    167002,
+    167000,
+    167013,
+    167011,
+    167015,
+    167014,
+    167010,
+    167008,
+    167009,
+    167012
+  ],
+  "CustomDeck": {
+    "1670": {
+      "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337431287/9BC10A0B0BAE8ED827D9F90C6E87A433FBAA6E48/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632536670/9A228E04047B37156D75D4479346BE5E8083D729/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593617516/D1094F7BC9A1BB28827144C8FD13AC2EF8334B31/{ko}https://steamusercontent-a.akamaihd.net/ugc/1028455403164997675/223A6807EB318147A21CF5892C1806DDC60E5E78/{es}https://steamusercontent-a.akamaihd.net/ugc/793135795981752285/B265892270F00B42A1DA6134DDD8576E27DD3326/{fr}https://steamusercontent-a.akamaihd.net/ugc/1666861730511944448/9D5B972B725AAA5D7436ADBED867BEEE2E036BFD/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1789597475252185447/2FBE55A63D9F310D4AC5D7BE70631F98FA136083/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191542937/09CADAD4807E03616C330700789806B0B9ECAEB9/",
+      "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+      "NumWidth": 5,
+      "NumHeight": 5,
+      "BackIsHidden": true,
+      "UniqueBack": false,
+      "Type": 0
+    }
+  },
+  "LuaScript": "",
+  "LuaScriptState": "{\"claimed\":[],\"dealtArtifacts\":[],\"reward\":1}",
+  "XmlUI": "<Button id=\"ac75c4ArtifactDown\" active=\"false\" onMouseDown=\"global/ButtonClickDownOverkill\" onMouseUp=\"global/ButtonClickUpOverkill\" onClick=\"global/artifactAdjust\"\r\n    height=\"150\" width=\"150\" color=\"rgba(0,0,0,0.0)\" position=\"-120 190 5\" rotation=\"0 180 180\" scale=\"0.32 0.32\">\r\n    <Image id=\"ac75c4ArtifactDownImage\" image=\"Overkill Down\"></Image>\r\n</Button>\r\n<Button id=\"ac75c4ArtifactOffer\" active=\"false\" onMouseDown=\"global/ButtonClickDown\" onMouseUp=\"global/ButtonClickUp\" onClick=\"global/offerArtifacts\"\r\n    height=\"150\" width=\"540\" color=\"rgba(0,0,0,0.0)\" position=\"0 190 5\" rotation=\"0 180 180\" scale=\"0.32 0.32\">\r\n    <Image id=\"ac75c4ArtifactOfferImage\" image=\"Sliced Button/Button Object Active\" type=\"Sliced\"></Image>\r\n    <Text id=\"ac75c4ArtifactOfferText\" font=\"Fonts/MKCardText\" fontSize=\"90\" color=\"black\" fontStyle=\"Normal\" alignment=\"MiddleCenter\">{en}Reward 1{zh-cn}奖励1{ko}보상 1{pt-br}Recompensa 1</Text>\r\n</Button>\r\n<Button id=\"ac75c4ArtifactUp\" active=\"false\" onMouseDown=\"global/ButtonClickDownOverkill\" onMouseUp=\"global/ButtonClickUpOverkill\" onClick=\"global/artifactAdjust\"\r\n    height=\"150\" width=\"150\" color=\"rgba(0,0,0,0.0)\" position=\"120 190 5\" rotation=\"0 180 180\" scale=\"0.32 0.32\">\r\n    <Image id=\"ac75c4ArtifactUpImage\" image=\"Overkill Up\"></Image>\r\n</Button>",
+  "ContainedObjects": [
+    {
+      "GUID": "085e53",
+      "Name": "Card",
+      "Transform": {
+        "posX": 92.6761551,
+        "posY": 2.04285359,
+        "posZ": -2.88449073,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Diamond Ring{ru}Алмазное кольцо{zh-tw}鑽石戒指{zh-cn}钻石戒指{ko}다이아몬드 반지{es}Anillo de diamante{fr}Anneau de diamant{pt-br}Anel de Diamante{de}Diamantring",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167006,
+      "SidewaysCard": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "085e54",
+      "Name": "Card",
+      "Transform": {
+        "posX": 92.41679,
+        "posY": 2.04284835,
+        "posZ": -1.80461407,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Emerald Ring{ru}Изумрудное кольцо{zh-tw}祖母綠戒指{zh-cn}祖母绿戒指{ko}에메랄드 반지{es}Anillo de esmeralda{fr}Anneau d'émeraude{pt-br}Anel de Esmeralda{de}Smaragdring",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167007,
+      "SidewaysCard": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "085e51",
+      "Name": "Card",
+      "Transform": {
+        "posX": 92.07176,
+        "posY": 2.04284859,
+        "posZ": -0.975252032,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Ruby Ring{ru}Рубиновое кольцо{zh-tw}紅寶石戒指{zh-cn}红宝石戒指{ko}루비 반지{es}Anillo de rubí{fr}Anneau de rubis{pt-br}Anel de Rubi{de}Rubinring",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167004,
+      "SidewaysCard": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "085e52",
+      "Name": "Card",
+      "Transform": {
+        "posX": 93.83816,
+        "posY": 2.042853,
+        "posZ": 0.351231635,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Sapphire Ring{ru}Сапфировое кольцо{zh-tw}藍寶石戒指{zh-cn}蓝宝石戒指{ko}사파이어 반지{es}Anillo de zafiro{fr}Anneau de saphir{pt-br}Anel de Safira{de}Saphirring",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167005,
+      "SidewaysCard": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "6b4654",
+      "Name": "Card",
+      "Transform": {
+        "posX": 108.965073,
+        "posY": 2.85059381,
+        "posZ": 3.64284539,
+        "rotX": -3.07329742e-7,
+        "rotY": 180.033539,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Banner of Courage{ru}Знамя отваги{zh-tw}勇氣旗幟{zh-cn}勇气旗帜{ko}용기의 깃발{es}Estandarte del valor{fr}Bannière du courage{pt-br}Estandarte da Coragem{de}Banner des Mutes",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "Tags": [
+        "Banner"
+      ],
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": false,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167003,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1670": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337431287/9BC10A0B0BAE8ED827D9F90C6E87A433FBAA6E48/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632536670/9A228E04047B37156D75D4479346BE5E8083D729/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593617516/D1094F7BC9A1BB28827144C8FD13AC2EF8334B31/{ko}https://steamusercontent-a.akamaihd.net/ugc/1028455403164997675/223A6807EB318147A21CF5892C1806DDC60E5E78/{es}https://steamusercontent-a.akamaihd.net/ugc/793135795981752285/B265892270F00B42A1DA6134DDD8576E27DD3326/{fr}https://steamusercontent-a.akamaihd.net/ugc/1666861730511944448/9D5B972B725AAA5D7436ADBED867BEEE2E036BFD/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1789597475252185447/2FBE55A63D9F310D4AC5D7BE70631F98FA136083/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191542937/09CADAD4807E03616C330700789806B0B9ECAEB9/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 5,
+          "NumHeight": 5,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "States": {
+        "2": {
+          "GUID": "986216",
+          "Name": "Card",
+          "Transform": {
+            "posX": 75.67137,
+            "posY": 1.0514214,
+            "posZ": -18.2516518,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 0.75,
+            "scaleY": 1,
+            "scaleZ": 0.75
+          },
+          "Nickname": "{en}Banner of Courage{ru}Знамя отваги{zh-tw}勇氣旗幟{zh-cn}勇气旗帜{ko}용기의 깃발{es}Estandarte del valor{fr}Bannière du courage{pt-br}Estandarte da Coragem{de}Banner des Mutes",
+          "Description": "",
+          "GMNotes": "Artifact",
+          "AltLookAngle": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "ColorDiffuse": {
+            "r": 0.713235259,
+            "g": 0.713235259,
+            "b": 0.713235259
+          },
+          "LayoutGroupSortIndex": 0,
+          "Value": 0,
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": false,
+          "Hands": true,
+          "CardID": 167604,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "1676": {
+              "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777571511483004/573AB8652E312559A8143E2ABED2A2CA99F4FA3A/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632589323/FB7858928E24181F5E0F3FC9F070FE457348922E/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/23180409666255125/D6A0A9FD8AD1703808993C565ECB2B82C744DCD5/{ko}https://steamusercontent-a.akamaihd.net/ugc/1746813479228073065/92126D41F334F8E7951FF27AAF61D1C21CD5CA08/{es}https://steamusercontent-a.akamaihd.net/ugc/23179956500587339/D5997488B179609E47267D1F9C406DFDADB35348/{fr}https://steamusercontent-a.akamaihd.net/ugc/1746813479228074950/28E3EF2F519895A0312478BB36FFAA32A7046F91/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1746813479228076942/39F963770E07065E9E9DCEA885011302DA1980BA/{de}https://steamusercontent-a.akamaihd.net/ugc/23179956500596086/AF21F3C8DF8C9C7DA5613381D8B30F829FF8A656/",
+              "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334268216/66D5DE3D4B7BAEB8D40F9B7C7F7F291BA8243D9F/",
+              "NumWidth": 3,
+              "NumHeight": 2,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          },
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": ""
+        }
+      }
+    },
+    {
+      "GUID": "7b9ec1",
+      "Name": "Card",
+      "Transform": {
+        "posX": 112.043335,
+        "posY": 2.85059381,
+        "posZ": 4.61894464,
+        "rotX": -2.5414769e-8,
+        "rotY": 180.033646,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Banner of Fear{ru}Знамя страха{zh-tw}恐懼旗幟{zh-cn}恐惧旗帜{ko}공포의 깃발{es}Estandarte del miedo{fr}Bannière de la peur{pt-br}Estandarte do Medo{de}Banner der Furcht",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "Tags": [
+        "Banner"
+      ],
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": false,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167001,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1670": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337431287/9BC10A0B0BAE8ED827D9F90C6E87A433FBAA6E48/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632536670/9A228E04047B37156D75D4479346BE5E8083D729/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593617516/D1094F7BC9A1BB28827144C8FD13AC2EF8334B31/{ko}https://steamusercontent-a.akamaihd.net/ugc/1028455403164997675/223A6807EB318147A21CF5892C1806DDC60E5E78/{es}https://steamusercontent-a.akamaihd.net/ugc/793135795981752285/B265892270F00B42A1DA6134DDD8576E27DD3326/{fr}https://steamusercontent-a.akamaihd.net/ugc/1666861730511944448/9D5B972B725AAA5D7436ADBED867BEEE2E036BFD/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1789597475252185447/2FBE55A63D9F310D4AC5D7BE70631F98FA136083/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191542937/09CADAD4807E03616C330700789806B0B9ECAEB9/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 5,
+          "NumHeight": 5,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "States": {
+        "2": {
+          "GUID": "8e4b92",
+          "Name": "Card",
+          "Transform": {
+            "posX": 74.36565,
+            "posY": 1.0514214,
+            "posZ": -24.2493629,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 0.75,
+            "scaleY": 1,
+            "scaleZ": 0.75
+          },
+          "Nickname": "{en}Banner of Fear{ru}Знамя страха{zh-tw}恐懼旗幟{zh-cn}恐惧旗帜{ko}공포의 깃발{es}Estandarte del miedo{fr}Bannière de la peur{pt-br}Estandarte do Medo{de}Banner der Furcht",
+          "Description": "",
+          "GMNotes": "Artifact",
+          "AltLookAngle": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "ColorDiffuse": {
+            "r": 0.713235259,
+            "g": 0.713235259,
+            "b": 0.713235259
+          },
+          "LayoutGroupSortIndex": 0,
+          "Value": 0,
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": false,
+          "Hands": true,
+          "CardID": 167601,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "1676": {
+              "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777571511483004/573AB8652E312559A8143E2ABED2A2CA99F4FA3A/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632589323/FB7858928E24181F5E0F3FC9F070FE457348922E/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/23180409666255125/D6A0A9FD8AD1703808993C565ECB2B82C744DCD5/{ko}https://steamusercontent-a.akamaihd.net/ugc/1746813479228073065/92126D41F334F8E7951FF27AAF61D1C21CD5CA08/{es}https://steamusercontent-a.akamaihd.net/ugc/23179956500587339/D5997488B179609E47267D1F9C406DFDADB35348/{fr}https://steamusercontent-a.akamaihd.net/ugc/1746813479228074950/28E3EF2F519895A0312478BB36FFAA32A7046F91/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1746813479228076942/39F963770E07065E9E9DCEA885011302DA1980BA/{de}https://steamusercontent-a.akamaihd.net/ugc/23179956500596086/AF21F3C8DF8C9C7DA5613381D8B30F829FF8A656/",
+              "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334268216/66D5DE3D4B7BAEB8D40F9B7C7F7F291BA8243D9F/",
+              "NumWidth": 3,
+              "NumHeight": 2,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          },
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": ""
+        }
+      }
+    },
+    {
+      "GUID": "df2eae",
+      "Name": "Card",
+      "Transform": {
+        "posX": 115.301292,
+        "posY": 2.85059381,
+        "posZ": 3.369444,
+        "rotX": 3.125053e-8,
+        "rotY": 180.033646,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Banner of Protection{ru}Знамя защиты{zh-tw}防護旗幟{zh-cn}防护旗帜{ko}보호의 깃발{es}Estandarte de protección{fr}Bannière de protection{pt-br}Estandarte da Proteção{de}Banner des Schutzes",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "Tags": [
+        "Banner"
+      ],
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": false,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167002,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1670": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337431287/9BC10A0B0BAE8ED827D9F90C6E87A433FBAA6E48/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632536670/9A228E04047B37156D75D4479346BE5E8083D729/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593617516/D1094F7BC9A1BB28827144C8FD13AC2EF8334B31/{ko}https://steamusercontent-a.akamaihd.net/ugc/1028455403164997675/223A6807EB318147A21CF5892C1806DDC60E5E78/{es}https://steamusercontent-a.akamaihd.net/ugc/793135795981752285/B265892270F00B42A1DA6134DDD8576E27DD3326/{fr}https://steamusercontent-a.akamaihd.net/ugc/1666861730511944448/9D5B972B725AAA5D7436ADBED867BEEE2E036BFD/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1789597475252185447/2FBE55A63D9F310D4AC5D7BE70631F98FA136083/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191542937/09CADAD4807E03616C330700789806B0B9ECAEB9/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 5,
+          "NumHeight": 5,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "States": {
+        "2": {
+          "GUID": "e48e44",
+          "Name": "Card",
+          "Transform": {
+            "posX": 69.58101,
+            "posY": 1.0514214,
+            "posZ": -19.57581,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 0.75,
+            "scaleY": 1,
+            "scaleZ": 0.75
+          },
+          "Nickname": "{en}Banner of Protection{ru}Знамя защиты{zh-tw}防護旗幟{zh-cn}防护旗帜{ko}보호의 깃발{es}Estandarte de protección{fr}Bannière de protection{pt-br}Estandarte da Proteção{de}Banner des Schutzes",
+          "Description": "",
+          "GMNotes": "Artifact",
+          "AltLookAngle": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "ColorDiffuse": {
+            "r": 0.713235259,
+            "g": 0.713235259,
+            "b": 0.713235259
+          },
+          "LayoutGroupSortIndex": 0,
+          "Value": 0,
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": false,
+          "Hands": true,
+          "CardID": 167603,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "1676": {
+              "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777571511483004/573AB8652E312559A8143E2ABED2A2CA99F4FA3A/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632589323/FB7858928E24181F5E0F3FC9F070FE457348922E/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/23180409666255125/D6A0A9FD8AD1703808993C565ECB2B82C744DCD5/{ko}https://steamusercontent-a.akamaihd.net/ugc/1746813479228073065/92126D41F334F8E7951FF27AAF61D1C21CD5CA08/{es}https://steamusercontent-a.akamaihd.net/ugc/23179956500587339/D5997488B179609E47267D1F9C406DFDADB35348/{fr}https://steamusercontent-a.akamaihd.net/ugc/1746813479228074950/28E3EF2F519895A0312478BB36FFAA32A7046F91/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1746813479228076942/39F963770E07065E9E9DCEA885011302DA1980BA/{de}https://steamusercontent-a.akamaihd.net/ugc/23179956500596086/AF21F3C8DF8C9C7DA5613381D8B30F829FF8A656/",
+              "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334268216/66D5DE3D4B7BAEB8D40F9B7C7F7F291BA8243D9F/",
+              "NumWidth": 3,
+              "NumHeight": 2,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          },
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": ""
+        }
+      }
+    },
+    {
+      "GUID": "085e50",
+      "Name": "Card",
+      "Transform": {
+        "posX": 118.54274,
+        "posY": 2.85059381,
+        "posZ": 2.87709332,
+        "rotX": -7.6832066e-8,
+        "rotY": 180.033524,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Banner of Glory{ru}Знамя славы{zh-tw}榮耀旗幟{zh-cn}荣耀旗帜{ko}영광의 깃발{es}Estandarte de gloria{fr}Bannière de gloire{pt-br}Estandarte da Glória{de}Banner des Ruhms",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "Tags": [
+        "Banner"
+      ],
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": false,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167000,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1670": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337431287/9BC10A0B0BAE8ED827D9F90C6E87A433FBAA6E48/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632536670/9A228E04047B37156D75D4479346BE5E8083D729/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593617516/D1094F7BC9A1BB28827144C8FD13AC2EF8334B31/{ko}https://steamusercontent-a.akamaihd.net/ugc/1028455403164997675/223A6807EB318147A21CF5892C1806DDC60E5E78/{es}https://steamusercontent-a.akamaihd.net/ugc/793135795981752285/B265892270F00B42A1DA6134DDD8576E27DD3326/{fr}https://steamusercontent-a.akamaihd.net/ugc/1666861730511944448/9D5B972B725AAA5D7436ADBED867BEEE2E036BFD/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1789597475252185447/2FBE55A63D9F310D4AC5D7BE70631F98FA136083/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191542937/09CADAD4807E03616C330700789806B0B9ECAEB9/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 5,
+          "NumHeight": 5,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "States": {
+        "2": {
+          "GUID": "0b5b32",
+          "Name": "Card",
+          "Transform": {
+            "posX": 55.4961929,
+            "posY": 1.0514214,
+            "posZ": -19.2488365,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 0.75,
+            "scaleY": 1,
+            "scaleZ": 0.75
+          },
+          "Nickname": "{en}Banner of Glory{ru}Знамя славы{zh-tw}榮耀旗幟{zh-cn}荣耀旗帜{ko}영광의 깃발{es}Estandarte de gloria{fr}Bannière de gloire{pt-br}Estandarte da Glória{de}Banner des Ruhms",
+          "Description": "",
+          "GMNotes": "Artifact",
+          "AltLookAngle": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "ColorDiffuse": {
+            "r": 0.713235259,
+            "g": 0.713235259,
+            "b": 0.713235259
+          },
+          "LayoutGroupSortIndex": 0,
+          "Value": 0,
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": false,
+          "Hands": true,
+          "CardID": 167600,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "1676": {
+              "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777571511483004/573AB8652E312559A8143E2ABED2A2CA99F4FA3A/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632589323/FB7858928E24181F5E0F3FC9F070FE457348922E/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/23180409666255125/D6A0A9FD8AD1703808993C565ECB2B82C744DCD5/{ko}https://steamusercontent-a.akamaihd.net/ugc/1746813479228073065/92126D41F334F8E7951FF27AAF61D1C21CD5CA08/{es}https://steamusercontent-a.akamaihd.net/ugc/23179956500587339/D5997488B179609E47267D1F9C406DFDADB35348/{fr}https://steamusercontent-a.akamaihd.net/ugc/1746813479228074950/28E3EF2F519895A0312478BB36FFAA32A7046F91/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1746813479228076942/39F963770E07065E9E9DCEA885011302DA1980BA/{de}https://steamusercontent-a.akamaihd.net/ugc/23179956500596086/AF21F3C8DF8C9C7DA5613381D8B30F829FF8A656/",
+              "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334268216/66D5DE3D4B7BAEB8D40F9B7C7F7F291BA8243D9F/",
+              "NumWidth": 3,
+              "NumHeight": 2,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          },
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": ""
+        }
+      }
+    },
+    {
+      "GUID": "085e60",
+      "Name": "Card",
+      "Transform": {
+        "posX": 46.3961067,
+        "posY": 1.1915952,
+        "posZ": 5.158014,
+        "rotX": 0.000189731043,
+        "rotY": 179.999954,
+        "rotZ": 180.000443,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Book of Wisdom{ru}Книга мудрости{zh-tw}智慧之書{zh-cn}智慧之书{ko}지혜의 책{es}Libro de sabiduría{fr}Livre de sagesse{pt-br}Livro da Sabedoria{de}Buch der Weisheit",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": false,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167013,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1670": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337431287/9BC10A0B0BAE8ED827D9F90C6E87A433FBAA6E48/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632536670/9A228E04047B37156D75D4479346BE5E8083D729/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593617516/D1094F7BC9A1BB28827144C8FD13AC2EF8334B31/{ko}https://steamusercontent-a.akamaihd.net/ugc/1028455403164997675/223A6807EB318147A21CF5892C1806DDC60E5E78/{es}https://steamusercontent-a.akamaihd.net/ugc/793135795981752285/B265892270F00B42A1DA6134DDD8576E27DD3326/{fr}https://steamusercontent-a.akamaihd.net/ugc/1666861730511944448/9D5B972B725AAA5D7436ADBED867BEEE2E036BFD/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1789597475252185447/2FBE55A63D9F310D4AC5D7BE70631F98FA136083/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191542937/09CADAD4807E03616C330700789806B0B9ECAEB9/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 5,
+          "NumHeight": 5,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "085e58",
+      "Name": "Card",
+      "Transform": {
+        "posX": 82.175,
+        "posY": 2.05860066,
+        "posZ": 0.234440088,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Endless Gem Pouch{ru}Бездонный мешочек самоцветов{zh-tw}無盡寶石袋{zh-cn}无尽宝石袋{ko}끝없는 보석 주머니{es}Bolsa de gemas sin fin{fr}Bourse de gemmes sans fin{pt-br}Bolsa de Gemas Sem Fim{de}Endloser Edelsteinbeutel",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167011,
+      "SidewaysCard": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "085e62",
+      "Name": "Card",
+      "Transform": {
+        "posX": 90.88046,
+        "posY": 2.04284835,
+        "posZ": -5.71353865,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Amulet of Darkness{ru}Амулет тьмы{zh-tw}黑暗護符{zh-cn}黑暗护符{ko}어둠의 부적{es}Amuleto de oscuridad{fr}Amulette des ténèbres{pt-br}Amuleto da Escuridão{de}Amulett der Dunkelheit",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167015,
+      "SidewaysCard": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "085e61",
+      "Name": "Card",
+      "Transform": {
+        "posX": 92.78612,
+        "posY": 2.04285288,
+        "posZ": -5.117113,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Amulet of The Sun{ru}Амулет солнца{zh-tw}太陽護符{zh-cn}太阳护符{ko}태양의 부적{es}Amuleto del sol{fr}Amulette du soleil{pt-br}Amuleto do Sol{de}Amulett der Sonne",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167014,
+      "SidewaysCard": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "085e57",
+      "Name": "Card",
+      "Transform": {
+        "posX": 95.4176254,
+        "posY": 2.04284883,
+        "posZ": -9.278257,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Endless Bag of Gold{ru}Бездонный мешок золота{zh-tw}無盡金袋{zh-cn}无尽金袋{ko}끝없는 금 자루{es}Bolsa de oro sin fin{fr}Sac d'or sans fin{pt-br}Saco de Ouro Sem Fim{de}Endloser Goldbeutel",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167010,
+      "SidewaysCard": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "085e55",
+      "Name": "Card",
+      "Transform": {
+        "posX": 76.7467,
+        "posY": 2.05860066,
+        "posZ": -0.499275923,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Sword of Justice{ru}Меч правосудия{zh-tw}正義之劍{zh-cn}正义之剑{ko}정의의 검{es}Espada de justicia{fr}Épée de justice{pt-br}Espada da Justiça{de}Schwert der Gerechtigkeit",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167008,
+      "SidewaysCard": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "085e56",
+      "Name": "Card",
+      "Transform": {
+        "posX": 46.8744164,
+        "posY": 1.13053143,
+        "posZ": 2.45755482,
+        "rotX": 0.000009599097,
+        "rotY": 180.033691,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Horn of Wrath{ru}Рог гнева{zh-tw}憤怒號角{zh-cn}愤怒号角{ko}분노의 뿔피리{es}Cuerno de ira{fr}Cor de colère{pt-br}Chifre da Ira{de}Horn des Zorns",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": false,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167009,
+      "SidewaysCard": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "085e59",
+      "Name": "Card",
+      "Transform": {
+        "posX": 46.8744164,
+        "posY": 1.13053143,
+        "posZ": 2.45755482,
+        "rotX": 0.000009599097,
+        "rotY": 180.033691,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Golden Grail{ru}Золотой Грааль{zh-tw}黃金聖杯{zh-cn}黄金圣杯{ko}황금 성배{es}Grial dorado{fr}Graal d'or{pt-br}Graal Dourado{de}Goldener Gral",
+      "Description": "",
+      "GMNotes": "Artifact",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": false,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 167012,
+      "SidewaysCard": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    }
+  ]
+}

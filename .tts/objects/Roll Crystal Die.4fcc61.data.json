@@ -1,0 +1,194 @@
+{
+  "GUID": "4fcc61",
+  "Name": "Custom_Model_Infinite_Bag",
+  "Transform": {
+    "posX": -70.19076,
+    "posY": 1.03000879,
+    "posZ": -26.0339642,
+    "rotX": 0.00000955600353,
+    "rotY": 180.9744,
+    "rotZ": 0.000009980365,
+    "scaleX": 1,
+    "scaleY": 1,
+    "scaleZ": 1
+  },
+  "Nickname": "Roll Crystal Die",
+  "Description": "",
+  "GMNotes": "",
+  "AltLookAngle": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "ColorDiffuse": {
+    "r": 1,
+    "g": 1,
+    "b": 1
+  },
+  "LayoutGroupSortIndex": 0,
+  "Value": 0,
+  "Locked": false,
+  "Grid": true,
+  "Snap": true,
+  "IgnoreFoW": false,
+  "MeasureMovement": false,
+  "DragSelectable": true,
+  "Autoraise": true,
+  "Sticky": true,
+  "Tooltip": true,
+  "GridProjection": false,
+  "HideWhenFaceDown": false,
+  "Hands": false,
+  "MaterialIndex": -1,
+  "MeshIndex": -1,
+  "CustomMesh": {
+    "MeshURL": "https://steamusercontent-a.akamaihd.net/ugc/868485988860654056/9B524E42B8156E3E84AF1A98BE92A2CE72E66E91/",
+    "DiffuseURL": "https://steamusercontent-a.akamaihd.net/ugc/868485988860654124/96A6AF31560ACB2CAEAC7C1909477B452D0F3CB2/",
+    "NormalURL": "",
+    "ColliderURL": "https://steamusercontent-a.akamaihd.net/ugc/868485988860654056/9B524E42B8156E3E84AF1A98BE92A2CE72E66E91/",
+    "Convex": true,
+    "MaterialIndex": 2,
+    "TypeIndex": 7,
+    "CustomShader": {
+      "SpecularColor": {
+        "r": 1,
+        "g": 1,
+        "b": 1
+      },
+      "SpecularIntensity": 0,
+      "SpecularSharpness": 2,
+      "FresnelStrength": 0
+    },
+    "CastShadows": true
+  },
+  "LuaScript": "--Clicker Roller Universal      by: MrStump\r\nsetting = {print={}} --Don't edit this line\r\n\r\n--To change the die that this tool rolls, right click it and hit reset\r\n--Then drop the die you want onto the tool (it is an infinite bag)\r\n--Die must have rotation values! (from the Gizmo Tool)\r\n\r\n--Edit the below variables to modify the functionality of this device\r\n\r\n--Disables the button, places indicator of roll locations (true or false)\r\nsetting.setup = false\r\n\r\n--How far from the center of the device the dice are spawned\r\nsetting.radius = 2\r\n--How wide of an arch the dice are placed on, in degrees (1-360)\r\nsetting.arc = 120\r\n--Where center of the arc is around the tool is placed (0=bottom, 180=top)\r\nsetting.rotation = 180\r\n--Height above tool die is spawned\r\nsetting.height = 1.5\r\n--Scaling factor for die being spawned (1 is normal, 0.5 is 1/2 size, 2 is 2x)\r\nsetting.scale = 1\r\n\r\n--Maximum dice that can be spawned by this tool (-1 is infinite)\r\nsetting.maxCount = 1\r\n--Delay (seconds) after a click that the roll is done (0.5 or more)\r\nsetting.rollDelay = 1.2\r\n--Time before dice are cleaned up (0 is instant, -1 won't clean them)\r\nsetting.cleanupDelay = 15\r\n\r\n--If it dyes the die the color of the player clicking (true or false)\r\nsetting.colorDie = false\r\n\r\n--Turn on/off printing of the player who rolled (true or false)\r\nsetting.print.player = true\r\n--Turn on/off printing of individual results\r\nsetting.print.individual = true\r\n--Turn on/off printing of \"total\" results (adding them together)\r\nsetting.print.total = false\r\n--Use player color when printing roll results:\r\nsetting.print.playerColor = true\r\n\r\n--If this tool will work with other copies of itself (true or false)\r\n--Any roller clicked by the same color player will be treated as the same\r\nsetting.coop = true\r\n\r\n\r\n\r\n--Edit beyond this point only if you have accepted Lua into your heart, amen\r\n\r\n\r\n\r\n--Save function (triggered when adding a die or clearing the dice)\r\nfunction onSave()\r\n    local tableToSave = {}\r\n    for _, die in ipairs(spawnedDice) do\r\n        if die ~= nil then\r\n            table.insert(tableToSave, die.getGUID())\r\n        end\r\n    end\r\n    saved_data = JSON.encode(tableToSave)\r\n    return saved_data\r\nend\r\n\r\nfunction onLoad(saved_data)\r\n    if saved_data ~= \"\" then\r\n        --Remove any old dice from the table\r\n        local loaded_data = JSON.decode(saved_data)\r\n        for _, dieGUID in ipairs(loaded_data) do\r\n            local die = getObjectFromGUID(dieGUID)\r\n            if die ~= nil then\r\n                destroyObject(die)\r\n            end\r\n        end\r\n        spawnedDice = {}\r\n    else\r\n        spawnedDice = {}\r\n    end\r\n\r\n    math.randomseed(os.time())\r\n    createButtons()\r\nend\r\n\r\n\r\n\r\n--Spawn dice for rolling\r\n\r\n\r\n\r\nfunction click_roll(_, color)\r\n    --Dice spam protection check\r\n    local denyRoll = false\r\n    if setting.maxCount > 0 and #spawnedDice >= setting.maxCount then\r\n        denyRoll = true\r\n    end\r\n    if rollInProgress==nil and denyRoll==false and anyRollInProgress(color)==false then\r\n        --Find dice positions, moving previously spawned dice if needed\r\n        --local angleStep = arcTotalLength / (#currentDice+1)\r\n        for i, die in ipairs(spawnedDice) do\r\n            local pos_local = getLocalPointOnArc(i, #spawnedDice+1)\r\n            local pos = self.positionToWorld(pos_local)\r\n            die.setPositionSmooth(pos)\r\n        end\r\n\r\n        --Spawns dice\r\n        local pos_local = getLocalPointOnArc(#spawnedDice+1, #spawnedDice+1)\r\n        local spawnedDie = self.takeObject({\r\n            position = self.positionToWorld(pos_local),\r\n            rotation = randomRotation(),\r\n        })\r\n\r\n        --Setup die that was just spawned\r\n        spawnedDie.setScale({setting.scale,setting.scale,setting.scale})\r\n        spawnedDie.setLock(true)\r\n        if setting.colorDie == true then\r\n            spawnedDie.setColorTint(stringColorToRGB(color))\r\n        end\r\n        --This line stops the die from re-entering the bag\r\n        spawnedDie.script_state = \" \"\r\n\r\n        rollTimerUpdate({color=color})\r\n\r\n        --Update data\r\n        table.insert(spawnedDice, spawnedDie)\r\n        updateGlobalTable(color)\r\n        updateRollTimers(color)\r\n\r\n    elseif rollInProgress == false then\r\n        --If after roll but before cleanup\r\n        cleanupDice()\r\n        click_roll(_, color)\r\n    else\r\n        --If button click is denied due to roll (or 2 many dice)\r\n        Player[color].broadcast(\"Roll in progress.\", {0.8, 0.2, 0.2})\r\n    end\r\nend\r\n\r\nfunction rollTimerUpdate(param)\r\n    --Timer starting\r\n    Timer.destroy(\"clickRoller_\"..self.getGUID())\r\n    Timer.create({\r\n        identifier=\"clickRoller_\"..self.getGUID(), delay=setting.rollDelay,\r\n        function_name=\"timer_rollDice\", function_owner=self,\r\n        parameters = param\r\n    })\r\nend\r\n\r\n\r\n\r\n--Rolling activation and in-progress monitoring\r\n\r\n\r\n\r\n--Rolls all the dice and then launches monitoring\r\nfunction timer_rollDice(p)\r\n    rollInProgress = true\r\n    function coroutine_rollDice()\r\n        for _, die in ipairs(spawnedDice) do\r\n            die.setLock(false)\r\n            die.randomize()\r\n            wait(0.1)\r\n        end\r\n\r\n        monitorDice(p.color,true)\r\n\r\n        return 1\r\n    end\r\n    startLuaCoroutine(self, \"coroutine_rollDice\")\r\nend\r\n\r\n\r\n--Monitors dice to come to rest\r\nfunction monitorDice(color,roll)\r\n    function coroutine_monitorDice()\r\n        repeat\r\n            local allRest = true\r\n            for _, die in ipairs(spawnedDice) do\r\n                if die ~= nil and die.resting == false then\r\n                    allRest = false\r\n                end\r\n            end\r\n            coroutine.yield(0)\r\n        until allRest == true\r\n        --[[ tragic hack to add 2nd roll]]\r\n        if roll then\r\n            for _, die in ipairs(spawnedDice) do\r\n                die.roll()\r\n            end\r\n            monitorDice(color,false)\r\n            return 1\r\n        else\r\n            if areOtherRollersRolling(color)==true and setting.coop==true then\r\n                --If other coop rollers are rolling\r\n                rollingHasStopped = true\r\n                return 1\r\n            else\r\n                --If roll is complete and no further waiting is required\r\n                if setting.print.individual==true or setting.print.total==true then\r\n                    displayResults(color)\r\n                end\r\n                finalizeRoll({color=color})\r\n                if setting.coop == true then finalizeCoopRolls(color) end\r\n            end\r\n        end\r\n\r\n        return 1\r\n    end\r\n    startLuaCoroutine(self, \"coroutine_monitorDice\")\r\nend\r\n\r\nfunction finalizeRoll(p)\r\n    local color = p.color\r\n    rollingHasStopped = nil --Used for coop communication\r\n    rollInProgress = false --Used for button lockout\r\n    updateGlobalTable(nil)\r\n\r\n    tragicHack()\r\n\r\n    --Auto die removal\r\n    if setting.cleanupDelay > -1 then\r\n        --Timer starting\r\n        Timer.destroy(\"clickRoller_cleanup_\"..self.getGUID())\r\n        Timer.create({\r\n            identifier=\"clickRoller_cleanup_\"..self.getGUID(),\r\n            function_name=\"cleanupDice\", function_owner=self,\r\n            delay=setting.cleanupDelay,\r\n        })\r\n    end\r\nend\r\n\r\nfunction tragicHack()\r\n    --print(\"TRAGIC HACK\")\r\n    local value = {{270.00, 0.00, 0.00}, {0.00, 90.00, 0.00}, {0.00, 270.00, 270.00}, {0.00, 180.00, 90.00}, {0.00, 270.00, 180.00}, {90.00, 180.00, 0.00}}\r\n    --print(logString(spawnedDice))\r\n    local die = spawnedDice[1]\r\n    die.setLock(true)\r\n    local pos = self.getPosition()\r\n    local rot = die.getPosition()\r\n    local v = die.getValue()\r\n    --print(v)\r\n    die.setScale(Vector(3,3,3))\r\n\r\n    local posOff = math.floor((self.getBounds().size.z/2)+(die.getBounds().size.z/2)+0.5)\r\n\r\n    die.setPositionSmooth(pos+Vector(0,2,0+posOff))\r\n    die.setRotationSmooth(value[v])\r\nend\r\n\r\n--After roll actions (printing/cleanup)\r\n\r\n\r\n\r\n--Removes the dice\r\nfunction cleanupDice()\r\n    for _, die in ipairs(spawnedDice) do\r\n        if die ~= nil then\r\n            destroyObject(die)\r\n        end\r\n    end\r\n\r\n    rollInProgress = nil\r\n    spawnedDice = {}\r\n\r\n    Timer.destroy(\"clickRoller_cleanup_\"..self.getGUID())\r\nend\r\n\r\nfunction displayResults(color)\r\n    local s, valueTable = \"\", {}\r\n\r\n    addAllSpawnedDice(color)\r\n\r\n    --Player name\r\n    if setting.print.player == true then\r\n        s = Player[color].steam_name\r\n        if setting.print.individual==true or setting.print.total==true then\r\n            s = s .. \"    \" .. string.char(9679) .. \"    \"\r\n        end\r\n    end\r\n\r\n    --Assemble values into table and order\r\n    if setting.print.individual==true or setting.print.total==true then\r\n        --Get values in table\r\n        for _, die in ipairs(spawnedDice) do\r\n            if die ~= nil then\r\n                table.insert(valueTable, tostring(die.getRotationValue()))\r\n            end\r\n        end\r\n        --Order them\r\n        alphanumsort(valueTable)\r\n    end\r\n\r\n    --Individual values\r\n    if setting.print.individual == true then\r\n        --Add values to string\r\n        for i, value in ipairs(valueTable) do\r\n            s = s .. value\r\n            if i < #valueTable then\r\n                s = s .. \", \"\r\n            end\r\n        end\r\n        if setting.print.total==true then\r\n            s = s .. \"    \" .. string.char(9679) .. \"    \"\r\n        end\r\n    end\r\n\r\n    --Total (will be void if there are no numbers)\r\n    if setting.print.total == true then\r\n        local total, hadNumber = 0, false\r\n        for _, value in ipairs(valueTable) do\r\n            if tonumber(value) ~= nil then\r\n                total = total + tonumber(value)\r\n                hadNumber = true\r\n            end\r\n        end\r\n        if hadNumber == true then\r\n            s = s .. tostring(total)\r\n        else\r\n            s = s .. \"---\"\r\n        end\r\n    end\r\n\r\n    --Establish color\r\n    local stringColor = {1,1,1}\r\n    if setting.print.playerColor == true then\r\n        stringColor = stringColorToRGB(color)\r\n    end\r\n    --Broadcast result\r\n    broadcastToAll(s, stringColor)\r\nend\r\n\r\n\r\n\r\n--Coop communication\r\n\r\n\r\n\r\n--Updates global rolling table with its information\r\nfunction updateGlobalTable(color)\r\n    if setting.coop==true then\r\n        local currentTable = Global.getTable(\"UCR_communication\")\r\n        if currentTable == nil then\r\n            Global.setTable(\"UCR_communication\", {[self]=color})\r\n        else\r\n            currentTable[self] = color\r\n            Global.setTable(\"UCR_communication\", currentTable)\r\n        end\r\n    end\r\nend\r\n\r\n--Updates roll timers for all devices currently rolling\r\nfunction updateRollTimers(color)\r\n    if setting.coop==true then\r\n        local currentTable = Global.getTable(\"UCR_communication\")\r\n        if currentTable ~= nil then\r\n            for who, c in pairs(currentTable) do\r\n                if who~=self and c==color then\r\n                    who.call(\"rollTimerUpdate\", {color=color})\r\n                end\r\n            end\r\n        end\r\n    end\r\nend\r\n\r\n--Check if any other roller is rolling\r\nfunction areOtherRollersRolling(color)\r\n    if setting.coop==true then\r\n        local currentTable = Global.getTable(\"UCR_communication\")\r\n        if currentTable == nil then\r\n            --If there is no table in global\r\n            return false\r\n        else\r\n            --If there is, check the contents\r\n            for who, c in pairs(currentTable) do\r\n                --Check if the entry is for this color (and not self)\r\n                if who~=self and c==color then\r\n                    --Check for if the other object is still rolling\r\n                    if who.getVar(\"rollingHasStopped\") ~= true then\r\n                        return true\r\n                    end\r\n                end\r\n            end\r\n        end\r\n        return false\r\n    else\r\n        return false\r\n    end\r\nend\r\n\r\n--Check if any other roller is rolling\r\nfunction anyRollInProgress(color)\r\n    if setting.coop==true then\r\n        local currentTable = Global.getTable(\"UCR_communication\")\r\n        if currentTable == nil then\r\n            --If there is no table in global\r\n            return false\r\n        else\r\n            --If there is, check the contents\r\n            for who, c in pairs(currentTable) do\r\n                --Check if the entry is for this color (and not self)\r\n                if who~=self and c==color then\r\n                    --Check for if the other object is still rolling\r\n                    if who.getVar(\"rollInProgress\") ~= nil then\r\n                        return true\r\n                    end\r\n                end\r\n            end\r\n        end\r\n        return false\r\n    else\r\n        return false\r\n    end\r\nend\r\n\r\n--Activate the finalize step on all dice of this color\r\nfunction finalizeCoopRolls(color)\r\n    if setting.coop==true then\r\n        local currentTable = Global.getTable(\"UCR_communication\")\r\n        if currentTable ~= nil then\r\n            for who, c in pairs(currentTable) do\r\n                if c==color then\r\n                    who.call(\"finalizeRoll\", {color=color})\r\n                end\r\n            end\r\n        end\r\n    end\r\nend\r\n\r\n--Combines all spawnedDice tables from all coop rollers\r\nfunction addAllSpawnedDice(color)\r\n    if setting.coop==true then\r\n        local currentTable = Global.getTable(\"UCR_communication\")\r\n        if currentTable ~= nil then\r\n            for who, c in pairs(currentTable) do\r\n                if who~=self and c==color then\r\n                    theirSpawnedDice = who.getTable(\"spawnedDice\")\r\n                    if theirSpawnedDice ~= nil then\r\n                        for _, die in ipairs(theirSpawnedDice) do\r\n                            table.insert(spawnedDice, die)\r\n                        end\r\n                    end\r\n                end\r\n            end\r\n        end\r\n    end\r\nend\r\n\r\n\r\n\r\n--Utility functions\r\n\r\n\r\n\r\n--Finds a local point an an arc, given which point and the total # of points\r\nfunction getLocalPointOnArc(i, points)\r\n    --This evens it out\r\n    i = i - 0.5\r\n    --What the length of arc this points at (how far along an arc)\r\n    local angle = setting.arc/(points)\r\n    --How much to rotate the angle around the tool\r\n    local offset = -setting.arc/2 + setting.rotation\r\n    --Converting those 2 elements into a local position\r\n    local x = math.sin( math.rad(angle*i+offset) ) * setting.radius\r\n    local y = setting.height\r\n    local z = math.cos( math.rad(angle*i+offset) ) * setting.radius\r\n    return {x=x,y=y,z=z}\r\nend\r\n\r\n--Gets a random rotation vector\r\nfunction randomRotation()\r\n    --Credit for this function goes to Revinor (forums)\r\n    --Get 3 random numbers\r\n    local u1 = math.random();\r\n    local u2 = math.random();\r\n    local u3 = math.random();\r\n    --Convert them into quats to avoid gimbal lock\r\n    local u1sqrt = math.sqrt(u1);\r\n    local u1m1sqrt = math.sqrt(1-u1);\r\n    local qx = u1m1sqrt *math.sin(2*math.pi*u2);\r\n    local qy = u1m1sqrt *math.cos(2*math.pi*u2);\r\n    local qz = u1sqrt *math.sin(2*math.pi*u3);\r\n    local qw = u1sqrt *math.cos(2*math.pi*u3);\r\n    --Apply rotation\r\n    local ysqr = qy * qy;\r\n    local t0 = -2.0 * (ysqr + qz * qz) + 1.0;\r\n    local t1 = 2.0 * (qx * qy - qw * qz);\r\n    local t2 = -2.0 * (qx * qz + qw * qy);\r\n    local t3 = 2.0 * (qy * qz - qw * qx);\r\n    local t4 = -2.0 * (qx * qx + ysqr) + 1.0;\r\n    --Correct\r\n    if t2 > 1.0 then t2 = 1.0 end\r\n    if t2 < -1.0 then ts = -1.0 end\r\n    --Convert back to X/Y/Z\r\n    local xr = math.asin(t2);\r\n    local yr = math.atan2(t3, t4);\r\n    local zr = math.atan2(t1, t0);\r\n\r\n    return {math.deg(xr),math.deg(yr),math.deg(zr)}\r\nend\r\n\r\n--Coroutine delay, in seconds\r\nfunction wait(time)\r\n    local start = os.time()\r\n    repeat coroutine.yield(0) until os.time() > start + time\r\nend\r\n\r\n--Sorts numbers/strings alphabeticall (does not handle decimals or leading 0s)\r\nfunction alphanumsort(o)\r\n    local function padnum(d) return (\"%03d%s\"):format(#d, d) end\r\n    table.sort(o, function(a,b)\r\n    return tostring(a):gsub(\"%d+\",padnum) < tostring(b):gsub(\"%d+\",padnum) end)\r\n    return o\r\nend\r\n\r\n\r\n\r\n--Button creation\r\n\r\n\r\n\r\n--Spawns the roll button or the \"display roll locations\" for setup mode\r\nfunction createButtons()\r\n    if setting.setup ~= true then\r\n        self.createButton({\r\n            click_function=\"click_roll\", function_owner=self,\r\n            position={0,0.05,0}, height=650, width=650, color={1,1,1,0}\r\n        })\r\n    else\r\n        for i=1, math.ceil(setting.arc/30) do\r\n            local pos_local = getLocalPointOnArc(i, math.ceil(setting.arc/30))\r\n            self.createButton({\r\n                click_function=\"none\", function_owner=self,\r\n                position=pos_local, height=0, width=0, label=string.char(9673),\r\n                font_size=1000, font_color={0.5,0.5,0.5}\r\n            })\r\n        end\r\n    end\r\nend",
+  "LuaScriptState": "[]",
+  "XmlUI": "",
+  "ContainedObjects": [
+    {
+      "GUID": "9a686a",
+      "Name": "Custom_Dice",
+      "Transform": {
+        "posX": -21.6056118,
+        "posY": 1.41622019,
+        "posZ": -27.0500431,
+        "rotX": 270.161926,
+        "rotY": 124.670052,
+        "rotZ": 55.34967,
+        "scaleX": 1,
+        "scaleY": 1,
+        "scaleZ": 1
+      },
+      "Nickname": "Spare Die",
+      "Description": "",
+      "GMNotes": "",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 1,
+        "g": 1,
+        "b": 1
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": false,
+      "Snap": false,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": false,
+      "CustomImage": {
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/784120584200175043/CB8B1721E51418B1A76DEBAB73BBF6C3F99C3362/",
+        "ImageSecondaryURL": "",
+        "ImageScalar": 1,
+        "WidthScale": 0,
+        "CustomDice": {
+          "Type": 1
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "RotationValues": [
+        {
+          "Value": "Black",
+          "Rotation": {
+            "x": -90,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "Value": "Blue",
+          "Rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "Value": "White",
+          "Rotation": {
+            "x": 0,
+            "y": 0,
+            "z": -90
+          }
+        },
+        {
+          "Value": "Green",
+          "Rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 90
+          }
+        },
+        {
+          "Value": "Red",
+          "Rotation": {
+            "x": 0,
+            "y": 0,
+            "z": -180
+          }
+        },
+        {
+          "Value": "Gold",
+          "Rotation": {
+            "x": 90,
+            "y": 0,
+            "z": 0
+          }
+        }
+      ]
+    }
+  ],
+  "AttachedDecals": [
+    {
+      "Transform": {
+        "posX": -0.00291812024,
+        "posY": 0.06999993,
+        "posZ": 0.0142203318,
+        "rotX": 90,
+        "rotY": 180.015869,
+        "rotZ": 0,
+        "scaleX": 1.30456877,
+        "scaleY": 1.29999971,
+        "scaleZ": 1.29999983
+      },
+      "CustomDecal": {
+        "Name": "Mana",
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/2259185675917995327/95F24F9BD2FD13B8E6DA5D9CE173EB30FD60D244/",
+        "Size": 1.3
+      },
+      "OwnerSteamID": 0
+    }
+  ]
+}

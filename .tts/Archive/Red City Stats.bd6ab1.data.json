@@ -1,0 +1,366 @@
+{
+  "GUID": "bd6ab1",
+  "Name": "Card",
+  "Transform": {
+    "posX": -50.15935,
+    "posY": 0.983450055,
+    "posZ": -17.5033131,
+    "rotX": 0.00145810493,
+    "rotY": 179.994675,
+    "rotZ": 180.004959,
+    "scaleX": 1.1,
+    "scaleY": 1,
+    "scaleZ": 1.1
+  },
+  "Nickname": "Red City Stats",
+  "Description": "When Assaulting\n-------------------\nAll defenders that have physical Attack gain the Brutal ability.\n\nWhile Conquered\n---------------------\nYou can buy Artifacts for 12 Influence points each. The Artifact is drawn at the end of the turn, as if you won them in combat.\n\nGain +1 Influence for each Shield you have here.",
+  "GMNotes": "",
+  "AltLookAngle": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "ColorDiffuse": {
+    "r": 0.713235259,
+    "g": 0.713235259,
+    "b": 0.713235259
+  },
+  "LayoutGroupSortIndex": 0,
+  "Value": 0,
+  "Locked": false,
+  "Grid": false,
+  "Snap": false,
+  "IgnoreFoW": false,
+  "MeasureMovement": false,
+  "DragSelectable": true,
+  "Autoraise": true,
+  "Sticky": true,
+  "Tooltip": false,
+  "GridProjection": false,
+  "HideWhenFaceDown": true,
+  "Hands": false,
+  "CardID": 165622,
+  "SidewaysCard": false,
+  "CustomDeck": {
+    "1656": {
+      "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1717534454687639837/CAF95E6E318BADA68D2D12772295512788F9A68C/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632949595/3E8F7477C5F14A24550BA80E0780A8F5BA094119/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593622484/FC5DD896A6C6182E39D904F3D63849E61143D866/{ko}https://steamusercontent-a.akamaihd.net/ugc/1028455403164987153/7917B0B81825733A6FE10A87110800E36ED34C08/{es}https://steamusercontent-a.akamaihd.net/ugc/794259134309419834/ACF3B0D02A11EC059E1734F9926456989C88E8D7/{fr}https://steamusercontent-a.akamaihd.net/ugc/1666861730512076540/521F68240FC886F1C9E4DFE28AA8288E419C0B63/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553961609665/F2546690FF290C3B22815DCE34CDA0E21C5234CB/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191637302/7592E07BF1757296F42E916F7C8EE60D29A7C9E6/",
+      "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1688270643043488776/CBD16F277A9D1C4F4375ED397FEF49B0FDD42D8C/",
+      "NumWidth": 4,
+      "NumHeight": 7,
+      "BackIsHidden": false,
+      "UniqueBack": false,
+      "Type": 0
+    }
+  },
+  "LuaScript": "terainTiles = {\"1d7790\",\"7a5675\",\"05397d\",\"0d07e6\",\"776072\",\"1a2e36\",\"ba453e\",\"16e545\",\"f6eaed\",\"b402c6\",\"22ff9a\",\"d0acb2\"}--all the level states of the city\r\nplayArea = \"ded4d3\" -- where all the terain tiles will be played\r\n\r\nfunction onObjectEnterScriptingZone(zone, obj)\r\n\t-- Check if the scripting zone is the play area\r\n\tif zone.guid == playArea then\r\n\t\t-- Check if the object is a core tile and unlock elite units\r\n\t\tfor i=1, #terainTiles, 1 do\r\n\t\t\tif obj.guid == terainTiles[i] then\r\n\t\t\t\tif obj.getRotation()[3] <= 5 or obj.getRotation()[3] >= 355 then\r\n\t\t\t\t\tself.setRotationSmooth({0.00, 180.00, 0.00})\r\n\t\t\t\tend\r\n\t\t\tend\r\n\t\tend\r\n\tend\r\nend",
+  "LuaScriptState": "",
+  "XmlUI": "",
+  "AttachedSnapPoints": [
+    {
+      "Position": {
+        "x": 0.42,
+        "y": 0.15,
+        "z": 0.6
+      },
+      "Tags": [
+        "Mage Knight"
+      ]
+    },
+    {
+      "Position": {
+        "x": 1.25,
+        "y": 0.15,
+        "z": 0.6
+      },
+      "Tags": [
+        "Mage Knight"
+      ]
+    },
+    {
+      "Position": {
+        "x": -0.42,
+        "y": 0.15,
+        "z": 0.6
+      },
+      "Tags": [
+        "Mage Knight"
+      ]
+    },
+    {
+      "Position": {
+        "x": -1.25,
+        "y": 0.15,
+        "z": 0.6
+      },
+      "Tags": [
+        "Mage Knight"
+      ]
+    }
+  ],
+  "States": {
+    "2": {
+      "GUID": "7a56fa",
+      "Name": "Card",
+      "Transform": {
+        "posX": -59.7525826,
+        "posY": 0.983617365,
+        "posZ": 5.61674643,
+        "rotX": 0.000009666444,
+        "rotY": 179.951248,
+        "rotZ": 0.000009830393,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "Red White Megapolis",
+      "Description": "When Assaulting\r\n-------------------\r\nAll defenders that have physical Attack gain the Brutal ability.\r\n\r\nAll Defenders have +1 Armour\r\n\r\nWhile Conquered\r\n---------------------\r\nYou can buy Artifacts for 12 Influence points each. The Artifact is drawn at the end of the turn, as if you won them in combat.\r\n\r\nYou can recruit Units of all types. Also, you can pay 2 Influence points to add one Elite (Gold) Unit card to the Unit offer.\r\n\r\nGain +1 Influence for each Shield you have here.",
+      "GMNotes": "",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.713235259,
+        "g": 0.713235259,
+        "b": 0.713235259
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": false,
+      "Snap": false,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": true,
+      "Hands": false,
+      "CardID": 239003,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "2390": {
+          "FaceURL": "https://steamusercontent-a.akamaihd.net/ugc/1833527325293243227/CF6A4285C6F1BB131D9C6F36699DFBFD84AABD15/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1688270643043488776/CBD16F277A9D1C4F4375ED397FEF49B0FDD42D8C/",
+          "NumWidth": 3,
+          "NumHeight": 4,
+          "BackIsHidden": false,
+          "UniqueBack": false,
+          "Type": 1
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "AttachedSnapPoints": [
+        {
+          "Position": {
+            "x": 0.42,
+            "y": 0.15,
+            "z": 0.85
+          }
+        },
+        {
+          "Position": {
+            "x": 1.25,
+            "y": 0.15,
+            "z": 0.85
+          }
+        },
+        {
+          "Position": {
+            "x": -0.42,
+            "y": 0.15,
+            "z": 0.85
+          }
+        },
+        {
+          "Position": {
+            "x": -1.25,
+            "y": 0.15,
+            "z": 0.85
+          }
+        }
+      ]
+    },
+    "3": {
+      "GUID": "19c6ce",
+      "Name": "Card",
+      "Transform": {
+        "posX": -65.7124,
+        "posY": 0.9836183,
+        "posZ": 5.476076,
+        "rotX": 0.00000967933,
+        "rotY": 180.013229,
+        "rotZ": 0.00000983137852,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "Red Blue Megapolis",
+      "Description": "When Assaulting\r\n-------------------\r\nAll defenders that have physical Attack gain the Brutal ability.\r\n\r\nAll defenders get +2 Attack if they have Ice Attack or Fire Attack, and +1 Attack if they have Cold Fire Attack.\r\n\r\nWhile Conquered\r\n---------------------\r\nYou can buy Artifacts for 12 Influence points each. The Artifact is drawn at the end of the turn, as if you won them in combat.\r\n\r\nYou can buy Spells as if you are in a mage tower.\r\n\r\nGain +1 Influence for each Shield you have here.",
+      "GMNotes": "",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.713235259,
+        "g": 0.713235259,
+        "b": 0.713235259
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": false,
+      "Snap": false,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": true,
+      "Hands": false,
+      "CardID": 239004,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "2390": {
+          "FaceURL": "https://steamusercontent-a.akamaihd.net/ugc/1833527325293243227/CF6A4285C6F1BB131D9C6F36699DFBFD84AABD15/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1688270643043488776/CBD16F277A9D1C4F4375ED397FEF49B0FDD42D8C/",
+          "NumWidth": 3,
+          "NumHeight": 4,
+          "BackIsHidden": false,
+          "UniqueBack": false,
+          "Type": 1
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "AttachedSnapPoints": [
+        {
+          "Position": {
+            "x": 0.42,
+            "y": 0.15,
+            "z": 0.85
+          }
+        },
+        {
+          "Position": {
+            "x": 1.25,
+            "y": 0.15,
+            "z": 0.85
+          }
+        },
+        {
+          "Position": {
+            "x": -0.42,
+            "y": 0.15,
+            "z": 0.85
+          }
+        },
+        {
+          "Position": {
+            "x": -1.25,
+            "y": 0.15,
+            "z": 0.85
+          }
+        }
+      ]
+    },
+    "4": {
+      "GUID": "aa6c1d",
+      "Name": "Card",
+      "Transform": {
+        "posX": -71.76753,
+        "posY": 0.9836196,
+        "posZ": 6.76581764,
+        "rotX": 0.00000965643,
+        "rotY": 179.992828,
+        "rotZ": 0.000009811051,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "Red Green Megapolis",
+      "Description": "When Assaulting\r\n-------------------\r\nAll defenders that have physical Attack gain the Brutal ability.\r\n\r\nAll defenders that have physical Attack gain the Poison ability.\r\n\r\nWhile Conquered\r\n---------------------\r\nYou can buy Artifacts for 12 Influence points each. The Artifact is drawn at the end of the turn, as if you won them in combat.\r\n\r\nYou may pay 6 Influence points to gain a card from the Advanced Action Offer, or gain a Random Card from the top of the Advanced Action Deck. Put the gained card on top of your Deed Deck.\r\n\r\nGain +1 Influence for each Shield you have here.",
+      "GMNotes": "",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.713235259,
+        "g": 0.713235259,
+        "b": 0.713235259
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": false,
+      "Snap": false,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": true,
+      "Hands": false,
+      "CardID": 239005,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "2390": {
+          "FaceURL": "https://steamusercontent-a.akamaihd.net/ugc/1833527325293243227/CF6A4285C6F1BB131D9C6F36699DFBFD84AABD15/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1688270643043488776/CBD16F277A9D1C4F4375ED397FEF49B0FDD42D8C/",
+          "NumWidth": 3,
+          "NumHeight": 4,
+          "BackIsHidden": false,
+          "UniqueBack": false,
+          "Type": 1
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "AttachedSnapPoints": [
+        {
+          "Position": {
+            "x": 0.42,
+            "y": 0.15,
+            "z": 0.85
+          }
+        },
+        {
+          "Position": {
+            "x": 1.25,
+            "y": 0.15,
+            "z": 0.85
+          }
+        },
+        {
+          "Position": {
+            "x": -0.42,
+            "y": 0.15,
+            "z": 0.85
+          }
+        },
+        {
+          "Position": {
+            "x": -1.25,
+            "y": 0.15,
+            "z": 0.85
+          }
+        }
+      ]
+    }
+  }
+}

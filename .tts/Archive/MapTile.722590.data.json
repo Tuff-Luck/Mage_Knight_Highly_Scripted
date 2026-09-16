@@ -1,0 +1,200 @@
+{
+  "GUID": "722590",
+  "Name": "Custom_Model",
+  "Transform": {
+    "posX": -24.0301,
+    "posY": 0.976884961,
+    "posZ": -16.0837,
+    "rotX": 0,
+    "rotY": 180,
+    "rotZ": 0,
+    "scaleX": 2.25,
+    "scaleY": 2.25,
+    "scaleZ": 2.25
+  },
+  "Nickname": "MapTile",
+  "Description": "",
+  "GMNotes": "",
+  "AltLookAngle": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "ColorDiffuse": {
+    "r": 1,
+    "g": 1,
+    "b": 1
+  },
+  "LayoutGroupSortIndex": 0,
+  "Value": 0,
+  "Locked": true,
+  "Grid": true,
+  "Snap": true,
+  "IgnoreFoW": false,
+  "MeasureMovement": false,
+  "DragSelectable": true,
+  "Autoraise": true,
+  "Sticky": true,
+  "Tooltip": false,
+  "GridProjection": false,
+  "HideWhenFaceDown": false,
+  "Hands": false,
+  "CustomMesh": {
+    "MeshURL": "https://steamusercontent-a.akamaihd.net/ugc/775099536456608791/FA073D602D0E2C38A9A24DF6BACE0E9AC6283E17/",
+    "DiffuseURL": "https://steamusercontent-a.akamaihd.net/ugc/1688270780823787595/E6394F4BC3FF49F059AFDED78CF90A1B95368FD4/",
+    "NormalURL": "",
+    "ColliderURL": "https://steamusercontent-a.akamaihd.net/ugc/938341811900336693/3D352B5DF6601FDA126DE87D21E375132F2C2F0E/",
+    "Convex": true,
+    "MaterialIndex": 3,
+    "TypeIndex": 0,
+    "CastShadows": true
+  },
+  "LuaScript": "playedAllready=\"true\"\r\ntileConfig={{'portal',-1}}",
+  "LuaScriptState": "",
+  "XmlUI": "",
+  "AttachedSnapPoints": [
+    {
+      "Position": {
+        "x": 1.06,
+        "y": 0.05,
+        "z": 0
+      }
+    },
+    {
+      "Position": {
+        "x": 0.53,
+        "y": 0.05,
+        "z": -0.91
+      }
+    },
+    {
+      "Position": {
+        "x": -0.53,
+        "y": 0.05,
+        "z": -0.91
+      }
+    },
+    {
+      "Position": {
+        "x": -1.06,
+        "y": 0.05,
+        "z": 0
+      }
+    },
+    {
+      "Position": {
+        "x": -0.53,
+        "y": 0.05,
+        "z": 0.91
+      }
+    },
+    {
+      "Position": {
+        "x": 0.53,
+        "y": 0.05,
+        "z": 0.91
+      }
+    }
+  ],
+  "States": {
+    "2": {
+      "GUID": "5d0bac",
+      "Name": "Custom_Model",
+      "Transform": {
+        "posX": -24.0301,
+        "posY": 0.976884961,
+        "posZ": -16.0837,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 2.25,
+        "scaleY": 2.25,
+        "scaleZ": 2.25
+      },
+      "Nickname": "MapTile",
+      "Description": "",
+      "GMNotes": "",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 1,
+        "g": 1,
+        "b": 1
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": false,
+      "CustomMesh": {
+        "MeshURL": "https://steamusercontent-a.akamaihd.net/ugc/775099536456608791/FA073D602D0E2C38A9A24DF6BACE0E9AC6283E17/",
+        "DiffuseURL": "https://steamusercontent-a.akamaihd.net/ugc/1714157636130478161/5B6FBC6BCB82029E1144ABABBA7D8BCA964F8D0D/",
+        "NormalURL": "",
+        "ColliderURL": "https://steamusercontent-a.akamaihd.net/ugc/938341811900336693/3D352B5DF6601FDA126DE87D21E375132F2C2F0E/",
+        "Convex": true,
+        "MaterialIndex": 3,
+        "TypeIndex": 0,
+        "CastShadows": true
+      },
+      "LuaScript": "playedAllready=\"true\"\r\ntileConfig={{'portal',-1}}\r\n",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "AttachedSnapPoints": [
+        {
+          "Position": {
+            "x": 1.06,
+            "y": 0.05,
+            "z": 0
+          }
+        },
+        {
+          "Position": {
+            "x": 0.53,
+            "y": 0.05,
+            "z": -0.91
+          }
+        },
+        {
+          "Position": {
+            "x": -0.53,
+            "y": 0.05,
+            "z": -0.91
+          }
+        },
+        {
+          "Position": {
+            "x": -1.06,
+            "y": 0.05,
+            "z": 0
+          }
+        },
+        {
+          "Position": {
+            "x": -0.53,
+            "y": 0.05,
+            "z": 0.91
+          }
+        },
+        {
+          "Position": {
+            "x": 0.53,
+            "y": 0.05,
+            "z": 0.91
+          }
+        }
+      ]
+    }
+  }
+}

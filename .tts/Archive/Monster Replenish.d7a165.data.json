@@ -1,0 +1,45 @@
+{
+  "GUID": "d7a165",
+  "Name": "go_game_piece_white",
+  "Transform": {
+    "posX": -43,
+    "posY": 0.150427222,
+    "posZ": 7,
+    "rotX": -0.0000166497048,
+    "rotY": 0.02789114,
+    "rotZ": 0.000013157427,
+    "scaleX": 1,
+    "scaleY": 1,
+    "scaleZ": 1
+  },
+  "Nickname": "Monster Replenish",
+  "Description": "This is done automaticaly, but Is left here just in case",
+  "GMNotes": "",
+  "AltLookAngle": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "ColorDiffuse": {
+    "r": 0.6627451,
+    "g": 0.6627451,
+    "b": 0.6627451
+  },
+  "LayoutGroupSortIndex": 0,
+  "Value": 0,
+  "Locked": true,
+  "Grid": false,
+  "Snap": false,
+  "IgnoreFoW": false,
+  "MeasureMovement": false,
+  "DragSelectable": true,
+  "Autoraise": false,
+  "Sticky": false,
+  "Tooltip": true,
+  "GridProjection": false,
+  "HideWhenFaceDown": false,
+  "Hands": false,
+  "LuaScript": "function onLoad(save_state)\r\n\t-- self.UI.setAttribute(\"d7a165swapMonsterImageImage\", \"image\", \"Sliced Button/Button Object Active\")\r\n\t-- self.UI.setAttribute(\"d7a165swapMonsterImageText\", \"font\", \"Fonts/MKCardText\")\r\n\tself.UI.setAttribute(\"d7a165replenishMonsterPilesImage\", \"image\", \"Sliced Button/Button Object Active\")\r\n\tself.UI.setAttribute(\"d7a165replenishMonsterPilesText\", \"font\", \"Fonts/MKCardText\")\r\n\t-- self.UI.setAttribute(\"d7a165swapTableImage\", \"image\", \"Sliced Button/Button Object Active\")\r\n\t-- self.UI.setAttribute(\"d7a165swapTableText\", \"font\", \"Fonts/MKCardText\")\r\nend\r\n\r\n-- Moves discared token to empty piles\r\nfunction returnPugs(player, mouseButton, id)\r\n\tif mouseButton==\"-1\" then\r\n\t\tlocal transfer=\"noneed\"\r\n\t\tlocal tokenPileLink={\t{discard=\"6ae8c3\", destination=\"c03e08\"},--Mage Towers Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"b336a7\", destination=\"7a85f5\"},--Keeps Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"730898\", destination=\"baac01\"},--Cities Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"869a0f\", destination=\"cf4631\"},--Ruins Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"b23c77\", destination=\"4537fa\"},--Draconum Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"763c2d\", destination=\"e4b016\"},--Dungeon Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"ed0ec9\", destination=\"c8e6e4\"},--Ork Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"9860ce\", destination=\"bc9d0e\"},--Dark Crusader Draconum Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"e9b18c\", destination=\"0fde4d\"},--Dark Crusader Dungeon Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"61ba30\", destination=\"cfef57\"},--Dark Crusader Ork Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"f9d3a4\", destination=\"f469f4\"},--Dark Crusader Reward Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"80c10d\", destination=\"54c45b\"},--Elementalist Draconum Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"236555\", destination=\"30bbae\"},--Elementalist Dungeon Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"4aecb4\", destination=\"0596bd\"},--Elementalist Ork Discard-->Main\r\n\t\t\t\t\t\t\t\t{discard=\"076ab9\", destination=\"33de41\"}}--Elementalist Reward Discard-->Main\r\n\t\tfor a=1, #tokenPileLink, 1 do\r\n\t\t\tlocal discardPug = tokenPileLink[a].discard\r\n\t\t\tlocal destinationPug = tokenPileLink[a].destination\r\n\t\t\tif getObjectFromGUID(destinationPug)~=nil and getObjectFromGUID(discardPug)~=nil then\r\n\t\t\t\tif #getObjectFromGUID(destinationPug).getObjects() == 0 then\r\n\t\t\t\t\tif transfer~=\"didtransfer\" then transfer=\"DestinationEmpty\" end\r\n\t\t\t\t\tif #getObjectFromGUID(discardPug).getObjects() > 0 then\r\n\t\t\t\t\t\tgetObjectFromGUID(discardPug).shuffle()\r\n\t\t\t\t\t\tlocal params = {position = getObjectFromGUID(destinationPug).getPosition(), rotation = { 0, 180, 180 } }\r\n\t\t\t\t\t\tparams.position.y = params.position.y + 3.0\r\n\t\t\t\t\t\tlocal temp=Global.getTable(\"gStates\")\r\n\t\t\t\t\t\tfor _, take in pairs(getObjectFromGUID(discardPug).getObjects()) do\r\n\t\t\t\t\t\t\tlocal obj=getObjectFromGUID(discardPug).takeObject(params)\r\n\t\t\t\t\t\t\ttemp.monsterPlayLocation[obj.guid]=nil\r\n\t\t\t\t\t\t\tparams.position.y = params.position.y + 0.5\r\n\t\t\t\t\t\tend\r\n\t\t\t\t\t\tGlobal.setTable(\"gStates\", temp)\r\n\t\t\t\t\t\ttransfer=\"didtransfer\"\r\n\t\t\t\t\tend\r\n\t\t\t\tend\r\n\t\t\tend\r\n\t\tend\r\n\t\tif transfer==\"noneed\" then broadcastToAll(\"{en}All token piles still have tokens to play{ru}Во всех стопках жетонов все еще есть жетоны для игры.{zh-cn}所有标记都还够用呢，先不用返还{ko}빈 토큰 더미가 없습니다.{es}Todas las pilas de fichas todavía tienen fichas para jugar.{fr}Toutes les piles de jetons ont encore des jetons à jouer{pt-br}Todas as pilhas de fichas ainda tem fichas para jogar{de}Alle Spielsteinstapel haben noch Spielsteine zum Spielen\", {0, 0.5, 1}) end\r\n\t\tif transfer==\"DestinationEmpty\" then broadcastToAll(\"{en}Sorry, I have no discard tokens to fill those empty stacks{ru}Извините, у меня нет жетонов в сбросе, чтобы заполнить эти пустые стопки.{zh-cn}抱歉，我没有废弃标记来填充那些空的标记堆{ko}버린 토큰을 찾을 수 없어 더미를 채우지 못했습니다.{es}Lo siento, no tengo tokens de descarte para llenar esas pilas vacías{fr}Désolé, je n'ai pas de jetons de défausse pour remplir ces piles vides{pt-br}Desculpe, Eu tenho nenhuma ficha de descarte para preencher as estas pilhas vazias{de}Leider habe ich keine Abwurfmarken, um diese leeren Stapel zu füllen.\", {0, 0.5, 1}) end\r\n\tend\r\nend\r\n\r\n-- function lowerTable(player, mouseButton, id)\r\n-- \tif mouseButton==\"-1\" then\r\n-- \t\tif getObjectFromGUID(\"3d4319\").getPosition()[2]==0 then\r\n-- \t\t\tgetObjectFromGUID(\"3d4319\").setPosition({0.00, -0.2, -5.00})\r\n-- \t\t\tgetObjectFromGUID(\"519f96\").setScale({200, 1, 200})\r\n-- \t\t\tgetObjectFromGUID(\"519f96\").setPosition({0.00, 0.77, -5.00})\r\n-- \t\t\tGlobal.call(\"skillButtonActivate\")\r\n-- \t\t\treturn\r\n-- \t\tend\r\n-- \t\tif getObjectFromGUID(\"3d4319\").getPosition()[2]<0 then\r\n-- \t\t\tgetObjectFromGUID(\"3d4319\").setPosition({0.00, 0.0, -5.00})\r\n-- \t\t\tgetObjectFromGUID(\"519f96\").setScale({1, 1, 1})\r\n-- \t\t\tgetObjectFromGUID(\"519f96\").setPosition({0.00, -0.2, -5.00})\r\n-- \t\t\tGlobal.call(\"skillButtonActivate\")\r\n-- \t\tend\r\n-- \tend\r\n-- end",
+  "LuaScriptState": "",
+  "XmlUI": "<!-- <Button id=\"d7a165swapMonsterImage\" interactable=\"true\"\r\n\tonClick=\"global/monsterImageSwap\" onMouseDown=\"global/ButtonClicked\" onMouseUp=\"global/ButtonClicked\"\r\n\ttooltipPosition=\"Left\" tooltipBackgroundColor=\"clear\" tooltipOffset=\"20\"\r\n\twidth=\"900\" height=\"300\" color=\"#7F7F7F\" textColor=\"#FFFFFF\"\r\n\tposition=\"200 -100 -100\" rotation=\"0 0 0\" scale=\"0.48 0.48\"\r\n\tshadow=\"rgb(0, 0, 0)\" shadowDistance=\"0 -0\">\r\n\t<Image id=\"d7a165swapMonsterImageImage\" image=\"Sliced Button/Button Object Active\" type=\"Sliced\"/>\r\n\t<Text id=\"d7a165swapMonsterImageText\" fontSize=\"90\" font=\"Fonts/MKCardText\" fontStyle=\"Normal\" textColor=\"rgb(0, 0, 0)\" offsetXY=\"0 1\" alignment=\"MiddleCenter\">Stefano Colombo's Monster Tokens - OFF</Text>\r\n</Button> -->\r\n\r\n<Button id=\"d7a165replenishMonsterPiles\" interactable=\"true\"\r\n\tonClick=\"returnPugs\" onMouseDown=\"global/ButtonClicked\" onMouseUp=\"global/ButtonClicked\"\r\n\ttooltipPosition=\"Left\" tooltipBackgroundColor=\"clear\" tooltipOffset=\"20\"\r\n\twidth=\"900\" height=\"200\" color=\"#7F7F7F\" textColor=\"#FFFFFF\"\r\n\tposition=\"200 270 -100\" rotation=\"0 0 0\" scale=\"0.48 0.48\"\r\n\tshadow=\"rgb(0, 0, 0)\" shadowDistance=\"0 -0\">\r\n\t<Image id=\"d7a165replenishMonsterPilesImage\" image=\"Sliced Button/Button Object Active\" type=\"Sliced\"/>\r\n\t<HorizontalLayout padding=\"30 30 30 30\"><Text id=\"d7a165replenishMonsterPilesText\" fontSize=\"90\" font=\"Fonts/MKCardText\" fontStyle=\"Normal\" textColor=\"rgb(0, 0, 0)\" offsetXY=\"0 1\" alignment=\"MiddleCenter\" resizeTextForBestFit=\"true\" resizeTextMaxSize=\"90\">{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen</Text></HorizontalLayout>\r\n</Button>\r\n\r\n<!-- <Button id=\"d7a165swapTable\" interactable=\"true\"\r\n\tonClick=\"lowerTable\" onMouseDown=\"global/ButtonClicked\" onMouseUp=\"global/ButtonClicked\"\r\n\ttooltipPosition=\"Left\" tooltipBackgroundColor=\"clear\" tooltipOffset=\"20\"\r\n\twidth=\"900\" height=\"200\" color=\"#7F7F7F\" textColor=\"#FFFFFF\"\r\n\tposition=\"200 100 -100\" rotation=\"0 0 0\" scale=\"0.48 0.48\"\r\n\tshadow=\"rgb(0, 0, 0)\" shadowDistance=\"0 -0\">\r\n\t<Image id=\"d7a165swapTableImage\" image=\"Sliced Button/Button Object Active\" type=\"Sliced\"/>\r\n\t<Text id=\"d7a165swapTableText\" fontSize=\"90\" font=\"Fonts/MKCardText\" fontStyle=\"Normal\" textColor=\"rgb(0, 0, 0)\" offsetXY=\"0 1\" alignment=\"MiddleCenter\">{en}Use Other Table{ru}Другой вид стола{zh-cn}使用其他表{ko}다른 테이블 사용{es}Usar otra tabla{fr}Utiliser un autre tableau{pt-br}Usar outra tabela{de}Andere Tabelle verwenden</Text>\r\n</Button> -->"
+}

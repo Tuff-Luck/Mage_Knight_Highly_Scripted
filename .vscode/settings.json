@@ -1,0 +1,14 @@
+{
+    "Lua.diagnostics.disable": [
+        "undefined-global",
+        "lowercase-global",
+        "undefined-field",
+        "param-type-mismatch"
+    ]
+    "Lua.workspace.ignoreDir": [
+        ".tts/bundled"
+    ]
+    "search.exclude": {
+        ".tts/bundled": true
+    }
+}

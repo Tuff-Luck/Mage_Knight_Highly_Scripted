@@ -1,0 +1,265 @@
+{
+  "GUID": "d0acb2",
+  "Name": "Custom_Model",
+  "Transform": {
+    "posX": -51.2387352,
+    "posY": 0.996772349,
+    "posZ": -17.5046158,
+    "rotX": 0.0004907636,
+    "rotY": 179.999832,
+    "rotZ": 359.9899,
+    "scaleX": 1,
+    "scaleY": 1,
+    "scaleZ": 1
+  },
+  "Nickname": "{en}Red City{ru}Красный город{zh-cn}红色城市{ko}빨간색 도시{es}Ciudad Roja{fr}Ville Rouge{pt-br}Cidade Vermelha{de}Rote Stadt",
+  "Description": "",
+  "GMNotes": "Red City",
+  "AltLookAngle": {
+    "x": 90,
+    "y": 0,
+    "z": 0
+  },
+  "ColorDiffuse": {
+    "r": 1,
+    "g": 1,
+    "b": 1
+  },
+  "LayoutGroupSortIndex": 0,
+  "Value": 0,
+  "Locked": true,
+  "Grid": true,
+  "Snap": true,
+  "IgnoreFoW": false,
+  "MeasureMovement": false,
+  "DragSelectable": true,
+  "Autoraise": true,
+  "Sticky": true,
+  "Tooltip": true,
+  "GridProjection": false,
+  "HideWhenFaceDown": false,
+  "Hands": false,
+  "CustomMesh": {
+    "MeshURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188090334/DCDDEE37DA9FC05B686D7133D48B34BEC677F89C/",
+    "DiffuseURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188758588/C8D378D84A7A07E5E0E93D04CD6DC65DCCF6B547/",
+    "NormalURL": "",
+    "ColliderURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111183202855/DDC7782448B59C47808600DDCC70466D161BE4EE/",
+    "Convex": true,
+    "MaterialIndex": 3,
+    "TypeIndex": 1,
+    "CustomShader": {
+      "SpecularColor": {
+        "r": 1,
+        "g": 1,
+        "b": 1
+      },
+      "SpecularIntensity": 0,
+      "SpecularSharpness": 2,
+      "FresnelStrength": 0
+    },
+    "CastShadows": true
+  },
+  "LuaScript": "function onLoad(save_state)\r\n    self.alt_view_angle={90, 0, 0}\r\nend",
+  "LuaScriptState": "",
+  "XmlUI": "",
+  "AttachedDecals": [
+    {
+      "Transform": {
+        "posX": 0.310195863,
+        "posY": -0.009999552,
+        "posZ": -0.739709854,
+        "rotX": 270,
+        "rotY": 0.0000150026626,
+        "rotZ": 0,
+        "scaleX": 0.1,
+        "scaleY": 0.100000009,
+        "scaleZ": 0.100000009
+      },
+      "CustomDecal": {
+        "Name": "Temp",
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188760998/F027C0A2B82FC5A50D4DDD0A8809B910BA7C195B/",
+        "Size": 0.1
+      }
+    },
+    {
+      "Transform": {
+        "posX": 0.6924514,
+        "posY": -0.009999569,
+        "posZ": -0.428505,
+        "rotX": 270,
+        "rotY": 0.0000150026626,
+        "rotZ": 0,
+        "scaleX": 0.1,
+        "scaleY": 0.100000009,
+        "scaleZ": 0.100000009
+      },
+      "CustomDecal": {
+        "Name": "Temp",
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188761782/9D35CD69BD2214F108A053661601780EAAF26BE0/",
+        "Size": 0.1
+      }
+    },
+    {
+      "Transform": {
+        "posX": 0.863781,
+        "posY": -0.009999554,
+        "posZ": 0.0421332642,
+        "rotX": 270,
+        "rotY": 0.0000150026626,
+        "rotZ": 0,
+        "scaleX": 0.1,
+        "scaleY": 0.100000009,
+        "scaleZ": 0.100000009
+      },
+      "CustomDecal": {
+        "Name": "Temp",
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188762812/3A9C4BD457570447597C76A61D8F4FBBBF06E182/",
+        "Size": 0.1
+      }
+    },
+    {
+      "Transform": {
+        "posX": 0.6838494,
+        "posY": -0.009999072,
+        "posZ": 0.464942873,
+        "rotX": 270,
+        "rotY": 0.0000150026626,
+        "rotZ": 0,
+        "scaleX": 0.1,
+        "scaleY": 0.100000009,
+        "scaleZ": 0.100000009
+      },
+      "CustomDecal": {
+        "Name": "Temp",
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188763687/E279CE087C4D4DE14BE1D51372794369F00886A4/",
+        "Size": 0.1
+      }
+    },
+    {
+      "Transform": {
+        "posX": 0.3846131,
+        "posY": -0.0100000072,
+        "posZ": 0.7478408,
+        "rotX": 270,
+        "rotY": 0.0000150026626,
+        "rotZ": 0,
+        "scaleX": 0.1,
+        "scaleY": 0.100000009,
+        "scaleZ": 0.100000009
+      },
+      "CustomDecal": {
+        "Name": "Temp",
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188764638/29AD12454BA9AB5511B4C065AEAD0A7F98B5BF34/",
+        "Size": 0.1
+      }
+    },
+    {
+      "Transform": {
+        "posX": -0.008476182,
+        "posY": -0.009999509,
+        "posZ": 0.8766327,
+        "rotX": 270,
+        "rotY": 0.0000150026626,
+        "rotZ": 0,
+        "scaleX": 0.1,
+        "scaleY": 0.100000158,
+        "scaleZ": 0.100000158
+      },
+      "CustomDecal": {
+        "Name": "Temp",
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188765205/71FC935CA88293C7D34C3B825BFD043B0E640CE3/",
+        "Size": 0.1
+      }
+    },
+    {
+      "Transform": {
+        "posX": -0.4407615,
+        "posY": -0.009999999,
+        "posZ": 0.669689238,
+        "rotX": 270,
+        "rotY": 0.0000150026626,
+        "rotZ": 0,
+        "scaleX": 0.1,
+        "scaleY": 0.100000009,
+        "scaleZ": 0.100000009
+      },
+      "CustomDecal": {
+        "Name": "Temp",
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188766118/6F4FCE66343155CB96653750761152E28693CE91/",
+        "Size": 0.1
+      }
+    },
+    {
+      "Transform": {
+        "posX": -0.732997835,
+        "posY": -0.009999513,
+        "posZ": 0.3575192,
+        "rotX": 270,
+        "rotY": 0.0000150026626,
+        "rotZ": 0,
+        "scaleX": 0.1,
+        "scaleY": 0.100000009,
+        "scaleZ": 0.100000009
+      },
+      "CustomDecal": {
+        "Name": "Temp",
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188767253/AD74F0AE29B0038636831D226D103816EB1E40B2/",
+        "Size": 0.1
+      }
+    },
+    {
+      "Transform": {
+        "posX": -0.8435745,
+        "posY": -0.009999025,
+        "posZ": 0.06992158,
+        "rotX": 270,
+        "rotY": 0.0000150026626,
+        "rotZ": 0,
+        "scaleX": 0.1,
+        "scaleY": 0.100000009,
+        "scaleZ": 0.100000009
+      },
+      "CustomDecal": {
+        "Name": "Temp",
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188768783/1001A3CA33D2E6010C3F49BF762D7644891D2EF9/",
+        "Size": 0.1
+      }
+    },
+    {
+      "Transform": {
+        "posX": -0.701198637,
+        "posY": -0.009999536,
+        "posZ": -0.3921203,
+        "rotX": 270,
+        "rotY": 0.0000150026626,
+        "rotZ": 0,
+        "scaleX": 0.1,
+        "scaleY": 0.100000009,
+        "scaleZ": 0.100000009
+      },
+      "CustomDecal": {
+        "Name": "Temp",
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188769549/D30F2C63833BD02E997C8BACFCFFACA9C855512B/",
+        "Size": 0.1
+      }
+    },
+    {
+      "Transform": {
+        "posX": -0.281406462,
+        "posY": -0.009999972,
+        "posZ": -0.7322273,
+        "rotX": 270,
+        "rotY": 0.0000150026626,
+        "rotZ": 0,
+        "scaleX": 0.1,
+        "scaleY": 0.100000009,
+        "scaleZ": 0.100000009
+      },
+      "CustomDecal": {
+        "Name": "Temp",
+        "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/766100111188770314/D3F8D1ED68E6CD1D5D4F554B2169DF324ACF019F/",
+        "Size": 0.1
+      }
+    }
+  ]
+}
