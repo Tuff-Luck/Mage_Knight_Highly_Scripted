@@ -8958,12 +8958,16 @@ function mapSetup()
 	local furyCountrySlots={}
 	local furyCoreTilePos={}
 	local furyCityTilePos={}
+	local furyRevealGUIDs={}
 	if furyMap then
-		--Exact predefined layouts from the Fury scenario sheet. All selected tiles are placed now;
-		--only the marked Countryside slots begin face up. Core/City tiles always begin face up.
+		--Exact predefined layouts from the Fury scenario sheet. Place every selected tile face down first;
+		--the slots that begin revealed are flipped later in a stepped sequence so normal terrain-entry
+		--population logic gets a clean event for each tile.
 		local start={-36.0305,1.15,-11.9267}
 		local basisA,basisB,countryCoords,faceUpCoords,coreCoords,cityCoords
 		if gStates.playerCount<=2 then
+			--Solo/two-player Fury uses the normal Wedge start tile and its recorded grid position.
+			start={-24.0301,1.15,-16.0837}
 			basisA=terrainPlacementNeighbourOffsets[1] basisB=terrainPlacementNeighbourOffsets[2]
 			countryCoords={{0,1},{1,0},{1,1},{2,0},{0,2},{0,3},{3,0}}
 			faceUpCoords={{0,1},{1,0}}
@@ -8976,6 +8980,8 @@ function mapSetup()
 			coreCoords={{3,1},{2,1},{3,0}}
 			cityCoords={{2,2},{4,0}}
 		else
+			--Four-player Fury uses the open start on the nearest recorded grid point to {-30.03,-13.99}.
+			start={-30.0303,1.15,-14.0052}
 			basisA=terrainPlacementNeighbourOffsets[6] basisB=terrainPlacementNeighbourOffsets[5]
 			countryCoords={{0,-1},{1,-1},{1,0},{1,-4},{1,-3},{0,-3},{4,-3},{0,-2},{1,-2},{2,-2},{3,-2},{2,-1}}
 			faceUpCoords={{0,-1},{1,-1},{1,0}}
@@ -9040,11 +9046,14 @@ function mapSetup()
 	--Layout Starting map tile. The Horsemen predefined map temporarily keeps this normal reference
 	--during terrain-entry setup, then removes it once every real map tile has settled.
 	local a=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)
-	if a=="O" or a=="F" or a=="P" then
+	local furyWedgeStart=furyMap and gStates.playerCount<=2
+	if (a=="O" or a=="F" or a=="P") and furyWedgeStart~=true then
+		local openStartPos={-36.0305,0.98,-11.9267}
+		if furyMap and gStates.playerCount>=4 then openStartPos={-30.0303,0.98,-14.0052} end
 		getObjectFromGUID(startTerrain.wedge).unlock()
 		getObjectFromGUID(portal.terrainHex).unlock()
-		getObjectFromGUID(startTerrain.wedge).setPosition({-36.0305, 0.98, -11.9267})--start terrain tile gets moved and state changed
-		getObjectFromGUID(portal.terrainHex).setPosition({-36.0305, 1.1, -11.9267})--start terrain tile gets moved and state changed
+		getObjectFromGUID(startTerrain.wedge).setPosition(openStartPos)--start terrain tile gets moved and state changed
+		getObjectFromGUID(portal.terrainHex).setPosition({openStartPos[1],1.1,openStartPos[3]})--portal overlay follows the start tile
 		getObjectFromGUID(startTerrain.wedge).setState(2)
 		Wait.frames(function() getObjectFromGUID(startTerrain.open).lock() getObjectFromGUID(portal.terrainHex).lock() end, 5)
 	end
@@ -9133,7 +9142,7 @@ function mapSetup()
 		if againstHorsemenMap then params.position=againstHorsemenCityTilePos[i] noShuffle=1 end
 		if furyMap then
 			params.position=furyCityTilePos[i]
-			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,0}
+			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,180}
 			noShuffle=1
 		end
 		if gStates.gameScenario=="The War of Four" then
@@ -9153,6 +9162,7 @@ function mapSetup()
 			end
 		end
 		local obj=CityTileStack.takeObject(params)--take from the City Tile Bag
+		if furyMap and obj~=nil then furyRevealGUIDs[#furyRevealGUIDs+1]=obj.guid end
 		if noShuffle==0 then TileShuffler.putObject(obj) end--Place in the Core Tile Shuffler if it is shuffled
 		if gStates.gameScenario=="Ultimate Conquest" and i==4 then break end
 	end
@@ -9189,9 +9199,10 @@ function mapSetup()
 			againstHorsemenCoreTileGUIDs[i]=coreTile.guid
 		elseif furyMap then
 			params.position=furyCoreTilePos[i]
-			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,0}
+			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,180}
 			local coreTile=CoreTileStack.takeObject(params)
 			if coreTile==nil then print("FURY SETUP ERROR: Core tile "..tostring(i).." was not available") startingMapSetup=false return end
+			furyRevealGUIDs[#furyRevealGUIDs+1]=coreTile.guid
 		else
 			TileShuffler.putObject(CoreTileStack.takeObject(params))--Core Tile Shuffler
 		end
@@ -9339,7 +9350,7 @@ function mapSetup()
 		elseif furyMap then
 			local slot=furyCountrySlots[i]
 			params.position=slot.position
-			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,slot.faceUp==true and 0 or 180}
+			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,180}
 		end
 		local countryTile=CountryTileStack.takeObject(params)
 		if countryTile==nil then
@@ -9347,13 +9358,23 @@ function mapSetup()
 			startingMapSetup=false
 			return
 		end
+		if furyMap and furyCountrySlots[i].faceUp==true then furyRevealGUIDs[#furyRevealGUIDs+1]=countryTile.guid end
 		if not againstHorsemenMap and not furyMap then TileShuffler.putObject(countryTile) end
 	end
 
 	if furyMap then
 		--Everything in Fury is already on the table. Core 1's former Tomb is the one-space Dragon Lair.
 		if furyDragonSetupLair()~=true then print("FURY SETUP ERROR: could not establish the Dragon Lair") end
-		Wait.time(function() startingMapSetup=false fakeDropAvatar() end,4)
+		--Like the Volkare's Quest opening tiles, reveal from a settled face-down state in steps. This makes
+		--each reveal re-enter the normal terrain population path instead of arriving already face up.
+		for revealIndex,revealGUID in ipairs(furyRevealGUIDs) do
+			local guid=revealGUID
+			Wait.time(function()
+				local tile=getObjectFromGUID(guid)
+				if tile~=nil and tile.is_face_down==true then tile.flip() end
+			end,revealIndex)
+		end
+		Wait.time(function() startingMapSetup=false fakeDropAvatar() end,#furyRevealGUIDs+2)
 		return
 	end
 
@@ -36144,7 +36165,7 @@ automaticLuaErrorReporting=false
 automaticLuaErrorLastReport=0
 automaticLuaErrorCooldown=10
 automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-automaticLuaErrorReporterVersion="408"
+automaticLuaErrorReporterVersion="409"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
