@@ -21210,7 +21210,7 @@ function againstHorsemenMarkDefeatedToken(token,name,playerIndex,smooth)
 	token.setGMNotes("Defeated Horseman")
 	token.setRotation({0,180,0})
 	local destination=againstHorsemenDefeatedInventoryPosition(playerIndex,name)
-	if smooth==false then token.setPosition(destination) else token.setPositionSmooth(destination,false,true) end
+	if smooth==false then token.setPosition(destination) else token.setPositionSmooth(destination,false) end
 	return true
 end
 
@@ -21269,7 +21269,7 @@ function againstHorsemenRestoreRuntimeState()
 			local token=getObjectFromGUID(entry.guid)
 			if token~=nil and layout[i]~=nil then
 				token.setRotation({0,180,0})
-				token.setPositionSmooth(layout[i],false,true)
+				token.setPositionSmooth(layout[i],false)
 			end
 		end
 	end
@@ -21598,7 +21598,7 @@ function againstHorsemenAnimateMoveWave(targets)
 	for name,target in pairs(targets) do
 		local data=horsemanData~=nil and horsemanData[name] or nil
 		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-		if token~=nil and target.position~=nil then token.setPositionSmooth(target.position,false,true) end
+		if token~=nil and target.position~=nil then token.setPositionSmooth(target.position,false) end
 	end
 	Wait.frames(function()
 		local function allSettled()
@@ -21877,7 +21877,7 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	token=getObjectFromGUID(data.tokenGUID) or token
 	token.unlock()
 	token.setRotation({0,180,0})
-	token.setPositionSmooth(target,false,true)
+	token.setPositionSmooth(target,false)
 	gStates.apocalypseHereNextHorseman=index+1
 	local card=getObjectFromGUID(data.cardGUID)
 	if card~=nil then
@@ -22174,7 +22174,7 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 	local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 	if token==nil or destination==nil then apocalypseIsHereContinueHorsemenTurn() return false end
 	state.terrainGUID=destination.terrainGUID state.bearing=destination.bearing
-	token.unlock() token.setRotation({0,180,0}) token.setPositionSmooth({destination.position[1],1.42,destination.position[3]},false,true)
+	token.unlock() token.setRotation({0,180,0}) token.setPositionSmooth({destination.position[1],1.42,destination.position[3]},false)
 	Wait.condition(function()
 		local reached=apocalypseQuestMapHexKey(destination)==apocalypseQuestMapHexKey(target)
 		if reached then apocalypseIsHereHorsemanDestroyTarget(name,target)
@@ -22851,7 +22851,7 @@ function cityLeaderDeployOrder(cityGUID, ultimateCitiesPlayed, leaderLevel)
 	return leaderOrder, leaderLevel
 end
 
-function deployFriendlyCityShields(cityGUID,includeStandardDummy)
+function deployFriendlyCityShields(cityGUID)
 	if gStates.friendlyCity==nil then gStates.friendlyCity={} end
 	gStates.friendlyCity[cityGUID]=true
 	local cityObj=getObjectFromGUID(cityGUID)
@@ -22869,14 +22869,7 @@ function deployFriendlyCityShields(cityGUID,includeStandardDummy)
 				local mage=mageKnightsByName~=nil and mageKnightsByName[mageName] or nil
 				if mage~=nil and mageName~="nobody" then getObjectFromGUID(mage.shieldContainer).takeObject({position={tempPos[1]-2.5+seatPos,2,tempPos[3]}}) end
 			end
-			if includeStandardDummy==true and proxyPlayerActive()~=true then
-				local dummyName=gStates.positionMageKnight[5]
-				local dummy=mageKnightsByName~=nil and mageKnightsByName[dummyName] or nil
-				if dummy~=nil and dummyName~="nobody" and dummyName~="Volkare" then
-					getObjectFromGUID(dummy.shieldContainer).takeObject({position={tempPos[1]+2.5,2,tempPos[3]}})
-				end
-			end
-			--The Proxy is a map player and should share friendly cities.
+			--Standard Dummies never place friendly-City shields. The Proxy is a map player and does.
 			if proxyPlayerActive()==true then proxyTakeShield({tempPos[1]+2.5,2,tempPos[3]},false) end
 		end, function() return cityObj==nil or cityObj.resting==true end)
 	end,10)
@@ -22970,11 +22963,11 @@ function playCity(obj, hexFeature, dropped)
 			local playedCities=cityRegisterDeployOrder(cityGUID,ultimateCitiesPlayed)
 			local level=gStates.cityLevels~=nil and gStates.cityLevels[playedCities] or nil
 			if level~=nil and level>0 and gStates.gameScenario~="The Lost Relic Blitz" and gStates.gameScenario~="The Realm of the Dead Blitz" and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Hidden Valley Blitz" then
-				if gStates.gameScenario=="Fury of the Apocalypse Dragon" then deployFriendlyCityShields(cityGUID,gStates.playerCount==1) end
+				if gStates.gameScenario=="Fury of the Apocalypse Dragon" then deployFriendlyCityShields(cityGUID) end
 				Wait.frames(function() rebuildCityGarrison(cityGUID,obj.guid) end,10)
 			elseif level~=nil then
 				if cityGUID~=darkCrusader.terrainHex and cityGUID~=elementalist.terrainHex then table.insert(gStates.cityLevels,#gStates.citiesPlayed,0) table.remove(gStates.cityLevels,#gStates.cityLevels) end
-				deployFriendlyCityShields(cityGUID,gStates.gameScenario=="Apocalypse is Here" and gStates.playerCount==1)
+				deployFriendlyCityShields(cityGUID)
 			end
 		end
 		local cardGUID=gStates.cityCard[cityGUID]
@@ -36172,7 +36165,7 @@ automaticLuaErrorReporting=false
 automaticLuaErrorLastReport=0
 automaticLuaErrorCooldown=10
 automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-automaticLuaErrorReporterVersion="411"
+automaticLuaErrorReporterVersion="412"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
