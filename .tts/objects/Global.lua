@@ -8855,6 +8855,7 @@ function furyDragonExtractMarker(target)
 		local dragon=bag.takeObject({guid=apocalypseDragon.model,position={-65.5,4,22},rotation={0,180,180},smooth=false})
 		if dragon~=nil then
 			local function attachmentParent(parent)
+				if parent==nil or parent.getAttachments==nil then return nil end
 				for _,attachment in ipairs(parent.getAttachments() or {}) do
 					if attachment.guid==apocalypseDragon.furyMarker then return parent end
 					local found=attachmentParent(attachment)
@@ -36171,7 +36172,7 @@ automaticLuaErrorReporting=false
 automaticLuaErrorLastReport=0
 automaticLuaErrorCooldown=10
 automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-automaticLuaErrorReporterVersion="410"
+automaticLuaErrorReporterVersion="411"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
