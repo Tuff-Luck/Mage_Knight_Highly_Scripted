@@ -2099,7 +2099,7 @@
 			<Row id="ApocalypseIsHereRow">
 				<Button id="ApocalypseIsHereSelection" onClick="scenarioSelection">
 					<Image id="ApocalypseIsHereSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="ApocalypseIsHereSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Apocalypse is Here{ru}Apocalypse is Here{zh-tw}Apocalypse is Here{zh-cn}Apocalypse is Here{ko}Apocalypse is Here{es}Apocalypse is Here{fr}Apocalypse is Here{pt-br}Apocalypse is Here{de}Apocalypse is Here</Text>
+					<Text id="ApocalypseIsHereSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Gray">{en}Apocalypse is Here{ru}Apocalypse is Here{zh-tw}Apocalypse is Here{zh-cn}Apocalypse is Here{ko}Apocalypse is Here{es}Apocalypse is Here{fr}Apocalypse is Here{pt-br}Apocalypse is Here{de}Apocalypse is Here</Text>
 				</Button>
 			</Row>
 			<Row id="FuryOfTheApocalypseDragonRow">
