@@ -21819,7 +21819,8 @@ function apocalypseIsHereSetup()
 		local data=horsemanData[name]
 		gStates.horsemen[name]={level=level,tokenGUID=data.tokenGUID,revealed=false,defeated=false,retired=false,sitesDestroyed=0,mapSlot=i,revealIndex=i}
 		--The Apocalypse component bag is deleted after setup, so park every Horseman token on the
-		--table now. Keep them face down, locked, and unnamed until their reveal condition fires.
+		--table now. Keep them face down and unnamed until their reveal condition fires, but leave
+		--both the tokens and cards unlocked while this scenario flow is being tuned.
 		local tokenPosition={-69.80+((i-1)*5.90),0.98,24.25}
 		local token=getObjectFromGUID(data.tokenGUID)
 		if token==nil and componentBag~=nil then
@@ -21827,7 +21828,7 @@ function apocalypseIsHereSetup()
 		elseif token~=nil then
 			token.unlock() token.setPosition(tokenPosition) token.setRotation({0,180,180})
 		end
-		if token~=nil then token.setName("") token.lock() end
+		if token~=nil then token.setName("") token.unlock() end
 		--The physical Horseman cards form the shuffled face-down scenario stack in the same order.
 		local card=getObjectFromGUID(data.cardGUID)
 		if card==nil and componentBag~=nil then
@@ -21835,7 +21836,7 @@ function apocalypseIsHereSetup()
 		elseif card~=nil then
 			card.unlock() card.setPosition({-58.70,1.00+(i*0.035),26.30}) card.setRotation({0,180,180})
 		end
-		if card~=nil then card.lock() end
+		if card~=nil then card.unlock() end
 	end
 	apocalypseIsHerePositionRoundOrderToken()
 	return true
@@ -21857,10 +21858,13 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	local state=name~=nil and gStates.horsemen[name] or nil
 	if data==nil or state==nil then return false end
 	local xy=angleToXY(tile,"center")
-	local target={xy[1],1.42,xy[2]}
+	local tilePos=tile.getPosition()
+	--Bring the Horseman in above the settled terrain instead of teleporting him onto the tile.
+	--One unit of clearance lets the smooth move finish cleanly; physics then drops him onto the map.
+	local target={xy[1],tilePos[2]+1.0,xy[2]}
 	local token=getObjectFromGUID(data.tokenGUID)
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	if token==nil and bag~=nil then token=bag.takeObject({guid=data.tokenGUID,position=target,rotation={0,180,0},smooth=false}) end
+	if token==nil and bag~=nil then token=bag.takeObject({guid=data.tokenGUID,position={target[1],target[2]+1.0,target[3]},rotation={0,180,0},smooth=false}) end
 	if token==nil then return false end
 	state.revealed=true
 	state.retired=false
@@ -21879,8 +21883,6 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 		card.unlock()
 		card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,28.10},false,true)
 		if card.is_face_down==true then card.flip() end
-		Wait.condition(function() local c=getObjectFromGUID(data.cardGUID) if c~=nil then c.lock() end end,
-			function() local c=getObjectFromGUID(data.cardGUID) return c==nil or c.isSmoothMoving()==false end,3)
 	end
 	if gStates.apocalypseHereForcedRevealPending==true then
 		gStates.apocalypseHereForcedRevealCount=math.max(0,(tonumber(gStates.apocalypseHereForcedRevealCount) or 1)-1)
@@ -36169,7 +36171,7 @@ automaticLuaErrorReporting=false
 automaticLuaErrorLastReport=0
 automaticLuaErrorCooldown=10
 automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-automaticLuaErrorReporterVersion="409"
+automaticLuaErrorReporterVersion="410"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
