@@ -2,10 +2,7 @@
 -- Loaded after the gameplay modules so these wrappers can coordinate setup/runtime helpers
 -- without putting the same implementation back into multiple source files.
 
--- UI.lua still declares DisplayHelp as a chunk-local function. Because Integration.lua is bundled
--- after UI.lua in the same Global chunk, that local is visible here. Export the exact function to
--- the Global callback table so earlier modules (SetupGame/mainUIUpdate) and XML can call it.
-if type(DisplayHelp)=="function" then _G.DisplayHelp=DisplayHelp end
+-- DisplayHelp is provided by PlayingGame.Help because setup, gameplay UI and XML call it across modules.
 
 -- Fury of the Apocalypse Dragon: deploy its scenario manual beside the other rulebooks while
 -- the rules bag still exists. The first setupGame call only stores the rewind point; deploy on
