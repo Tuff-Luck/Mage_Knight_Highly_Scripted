@@ -2,31 +2,10 @@
 -- Loaded after the gameplay modules so these wrappers can coordinate setup/runtime helpers
 -- without putting the same implementation back into multiple source files.
 
--- UI.lua accidentally retained `local function DisplayHelp` during the modular split, while SetupGame
--- and the Global UI still call DisplayHelp as a public callback. Recover that exact function from
--- mainUIUpdate's upvalues and publish it again instead of duplicating the large Help implementation.
-local function integrationFindFunctionUpvalue(fn,target,seen,depth)
-    if type(fn)~="function" or debug==nil or debug.getupvalue==nil then return nil end
-    seen=seen or {}
-    depth=depth or 0
-    if seen[fn]==true or depth>3 then return nil end
-    seen[fn]=true
-    for index=1,80 do
-        local name,value=debug.getupvalue(fn,index)
-        if name==nil then break end
-        if name==target and type(value)=="function" then return value end
-        if type(value)=="function" then
-            local found=integrationFindFunctionUpvalue(value,target,seen,depth+1)
-            if found~=nil then return found end
-        end
-    end
-    return nil
-end
-
-if type(DisplayHelp)~="function" and type(mainUIUpdate)=="function" then
-    local displayHelp=integrationFindFunctionUpvalue(mainUIUpdate,"DisplayHelp")
-    if displayHelp~=nil then DisplayHelp=displayHelp end
-end
+-- UI.lua still declares DisplayHelp as a chunk-local function. Because Integration.lua is bundled
+-- after UI.lua in the same Global chunk, that local is visible here. Export the exact function to
+-- the Global callback table so earlier modules (SetupGame/mainUIUpdate) and XML can call it.
+if type(DisplayHelp)=="function" then _G.DisplayHelp=DisplayHelp end
 
 -- Fury of the Apocalypse Dragon: deploy its scenario manual beside the other rulebooks while
 -- the rules bag still exists. The first setupGame call only stores the rewind point; deploy on
