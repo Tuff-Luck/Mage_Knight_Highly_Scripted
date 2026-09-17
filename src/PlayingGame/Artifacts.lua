@@ -23,18 +23,9 @@ local function installArtifactUI(attempt)
         artifacts.UI.setXml(ARTIFACT_UI)
         return
     end
-
-    if attempt < 60 then
-        Wait.frames(function()
-            installArtifactUI(attempt + 1)
-        end, 1)
-    end
+    if attempt < 60 then Wait.frames(function() installArtifactUI(attempt + 1) end, 1) end
 end
 
-local previousOnLoad = onLoad
-function onLoad(saved_data)
+function artifactOnLoad()
     installArtifactUI(1)
-    if previousOnLoad ~= nil then
-        return previousOnLoad(saved_data)
-    end
 end

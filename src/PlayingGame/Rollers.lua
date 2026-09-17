@@ -58,22 +58,13 @@ local function randomRotation()
     local t2 = -2.0 * (qx * qz + qw * qy)
     local t3 = 2.0 * (qy * qz - qw * qx)
     local t4 = -2.0 * (qx * qx + ysqr) + 1.0
-
     if t2 > 1.0 then t2 = 1.0 end
     if t2 < -1.0 then t2 = -1.0 end
-
-    return {
-        math.deg(math.asin(t2)),
-        math.deg(math.atan2(t3, t4)),
-        math.deg(math.atan2(t1, t0)),
-    }
+    return {math.deg(math.asin(t2)), math.deg(math.atan2(t3, t4)), math.deg(math.atan2(t1, t0))}
 end
 
 local function alphanumSort(values)
-    local function padnum(d)
-        return ("%03d%s"):format(#d, d)
-    end
-
+    local function padnum(d) return ("%03d%s"):format(#d, d) end
     table.sort(values, function(a, b)
         return tostring(a):gsub("%d+", padnum) < tostring(b):gsub("%d+", padnum)
     end)
@@ -81,11 +72,8 @@ end
 
 local function cleanupRoller(state)
     for _, die in ipairs(state.dice) do
-        if die ~= nil then
-            destroyObject(die)
-        end
+        if die ~= nil then destroyObject(die) end
     end
-
     state.dice = {}
     state.phase = nil
     state.rollToken = state.rollToken + 1
@@ -95,12 +83,9 @@ end
 local function displayResults(state, color)
     local values = {}
     for _, die in ipairs(state.dice) do
-        if die ~= nil then
-            table.insert(values, tostring(die.getRotationValue()))
-        end
+        if die ~= nil then table.insert(values, tostring(die.getRotationValue())) end
     end
     alphanumSort(values)
-
     local text = Player[color].steam_name .. "    " .. string.char(9679) .. "    " .. table.concat(values, ", ")
     broadcastToAll(text, stringColorToRGB(color))
 end
@@ -108,12 +93,10 @@ end
 local function layoutResults(state)
     local roller = state.roller
     local count = #state.dice
-
     for index, die in ipairs(state.dice) do
         local result = die.getValue()
         die.setLock(true)
         die.setScale(Vector(3, 3, 3))
-
         local zOffset = math.floor((roller.getBounds().size.z / 2) + (die.getBounds().size.z / 2) + 0.5)
         local xOffset = state.config.layout == "single" and 0 or ROW_X[count][index]
         die.setPositionSmooth(roller.getPosition() + Vector(xOffset, 2, zOffset))
@@ -125,96 +108,65 @@ local function finalizeRoll(state, color)
     displayResults(state, color)
     layoutResults(state)
     state.phase = "done"
-
     state.cleanupToken = state.cleanupToken + 1
     local cleanupToken = state.cleanupToken
     local guid = state.guid
     Wait.time(function()
         local current = rollerState[guid]
-        if current ~= nil and current.cleanupToken == cleanupToken and current.phase == "done" then
-            cleanupRoller(current)
-        end
+        if current ~= nil and current.cleanupToken == cleanupToken and current.phase == "done" then cleanupRoller(current) end
     end, CLEANUP_DELAY)
 end
 
 local function waitForDiceToRest(guid, rollToken, color)
     local state = rollerState[guid]
-    if state == nil or state.rollToken ~= rollToken or state.phase ~= "rolling" then
-        return
-    end
-
+    if state == nil or state.rollToken ~= rollToken or state.phase ~= "rolling" then return end
     for _, die in ipairs(state.dice) do
         if die ~= nil and not die.resting then
-            Wait.frames(function()
-                waitForDiceToRest(guid, rollToken, color)
-            end, 1)
+            Wait.frames(function() waitForDiceToRest(guid, rollToken, color) end, 1)
             return
         end
     end
-
     -- One physical roll only. The old object scripts rolled every die a second time here.
     finalizeRoll(state, color)
 end
 
 local function beginRoll(guid, rollToken, color)
     local state = rollerState[guid]
-    if state == nil or state.rollToken ~= rollToken or state.phase ~= "waiting" then
-        return
-    end
-
+    if state == nil or state.rollToken ~= rollToken or state.phase ~= "waiting" then return end
     state.phase = "rolling"
     for _, die in ipairs(state.dice) do
         die.setLock(false)
         die.randomize()
     end
-
-    -- Give physics one frame to register the randomize before testing resting state.
-    Wait.frames(function()
-        waitForDiceToRest(guid, rollToken, color)
-    end, 1)
+    Wait.frames(function() waitForDiceToRest(guid, rollToken, color) end, 1)
 end
 
 local function queueRoll(state, color)
     state.rollToken = state.rollToken + 1
     local rollToken = state.rollToken
     local guid = state.guid
-
-    Wait.time(function()
-        beginRoll(guid, rollToken, color)
-    end, ROLL_DELAY)
+    Wait.time(function() beginRoll(guid, rollToken, color) end, ROLL_DELAY)
 end
 
 function MKRollDieButton(roller, color)
     local state = rollerState[roller.getGUID()]
-    if state == nil then
-        return
-    end
-
+    if state == nil then return end
     if state.phase == "done" then
         cleanupRoller(state)
     elseif state.phase == "rolling" then
         Player[color].broadcast("Roll in progress.", {0.8, 0.2, 0.2})
         return
     end
-
     if #state.dice >= state.config.maxCount then
         Player[color].broadcast("Roll in progress.", {0.8, 0.2, 0.2})
         return
     end
-
     local newCount = #state.dice + 1
-    for index, die in ipairs(state.dice) do
-        die.setPositionSmooth(pointOnArc(roller, index, newCount))
-    end
-
-    local die = roller.takeObject({
-        position = pointOnArc(roller, newCount, newCount),
-        rotation = randomRotation(),
-    })
+    for index, die in ipairs(state.dice) do die.setPositionSmooth(pointOnArc(roller, index, newCount)) end
+    local die = roller.takeObject({position = pointOnArc(roller, newCount, newCount), rotation = randomRotation()})
     die.setScale({1, 1, 1})
     die.setLock(true)
     die.script_state = " "
-
     table.insert(state.dice, die)
     state.phase = "waiting"
     queueRoll(state, color)
@@ -222,51 +174,47 @@ end
 
 local function installRoller(guid)
     local roller = getObjectFromGUID(guid)
-    if roller == nil then
-        return false
-    end
-
-    rollerState[guid] = {
-        guid = guid,
-        roller = roller,
-        config = ROLLER_CONFIG[guid],
-        dice = {},
-        phase = nil,
-        rollToken = 0,
-        cleanupToken = 0,
-    }
-
+    if roller == nil then return false end
+    rollerState[guid] = {guid = guid, roller = roller, config = ROLLER_CONFIG[guid], dice = {}, phase = nil, rollToken = 0, cleanupToken = 0}
     roller.clearButtons()
-    roller.createButton({
-        click_function = "MKRollDieButton",
-        function_owner = Global,
-        position = {0, 0.05, 0},
-        height = 650,
-        width = 650,
-        color = {1, 1, 1, 0},
-    })
+    roller.createButton({click_function = "MKRollDieButton", function_owner = Global, position = {0, 0.05, 0}, height = 650, width = 650, color = {1, 1, 1, 0}})
     return true
 end
 
 local function installRollers(attempt)
     local missing = false
     for guid in pairs(ROLLER_CONFIG) do
-        if rollerState[guid] == nil and not installRoller(guid) then
-            missing = true
-        end
+        if rollerState[guid] == nil and not installRoller(guid) then missing = true end
     end
+    if missing and attempt < 60 then Wait.frames(function() installRollers(attempt + 1) end, 1) end
+end
 
-    if missing and attempt < 60 then
-        Wait.frames(function()
-            installRollers(attempt + 1)
-        end, 1)
+local function destroySavedRollerDice(savedState)
+    if type(savedState) ~= "table" then return end
+    for _, dice in pairs(savedState) do
+        if type(dice) == "table" then
+            for _, dieGUID in ipairs(dice) do
+                local die = getObjectFromGUID(dieGUID)
+                if die ~= nil then destroyObject(die) end
+            end
+        end
     end
 end
 
-local previousOnLoad = onLoad
-function onLoad(saved_data)
-    installRollers(1)
-    if previousOnLoad ~= nil then
-        return previousOnLoad(saved_data)
+function rollerOnSave()
+    local savedState = {}
+    for guid, state in pairs(rollerState) do
+        local dice = {}
+        for _, die in ipairs(state.dice or {}) do
+            if die ~= nil then dice[#dice + 1] = die.getGUID() end
+        end
+        savedState[guid] = dice
     end
+    return savedState
+end
+
+function rollerOnLoad(savedState)
+    destroySavedRollerDice(savedState)
+    rollerState = {}
+    installRollers(1)
 end
