@@ -1,0 +1,111 @@
+name: Refactor shared helpers
+
+on:
+  push:
+    branches:
+      - modular-refactor
+    paths:
+      - .github/workflows/refactor-shared.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out modular refactor branch
+        uses: actions/checkout@v4
+        with:
+          ref: modular-refactor
+
+      - name: Move shared language helper and verify module definitions
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          playing_path = Path('src/PlayingGame.lua')
+          shared_path = Path('src/Shared.lua')
+          global_path = Path('.tts/objects/Global.lua')
+
+          playing = playing_path.read_text(encoding='utf-8')
+          start_marker = '--Used to join a table of strings with translation brackets'
+          start = playing.find(start_marker)
+          assert start >= 0, 'joinLang shared block start was not found'
+          assert playing.find(start_marker, start + 1) < 0, 'joinLang shared block start is not unique'
+
+          function_marker = 'function joinLang(full_string)'
+          function_start = playing.find(function_marker, start)
+          assert function_start >= 0, 'joinLang function was not found after its helper block'
+          assert playing.find(function_marker, function_start + 1) < 0, 'joinLang function is not unique'
+
+          end_marker = '\n\treturn table.concat(output)\nend'
+          end_start = playing.find(end_marker, function_start)
+          assert end_start >= 0, 'joinLang function end was not found'
+          end = end_start + len(end_marker)
+          while end < len(playing) and playing[end] in '\r\n':
+              end += 1
+
+          shared_block = playing[start:end].rstrip() + '\n'
+          assert 'function joinLangParse(text)' in shared_block, 'joinLangParse was not captured'
+          assert function_marker in shared_block, 'joinLang was not captured'
+          assert 'JOIN_LANG_ORDER=' in shared_block, 'language order data was not captured'
+          assert 'JOIN_LANG_TAGS=' in shared_block, 'language tag data was not captured'
+
+          shared = (
+              '-- Shared helpers used by more than one Global source module.\n'
+              '-- Keep subsystem-owned game logic in its owning module.\n\n'
+              + shared_block
+          )
+          shared_path.write_text(shared, encoding='utf-8')
+
+          playing = playing[:start] + playing[end:]
+          assert 'function joinLang(full_string)' not in playing, 'joinLang remained in PlayingGame.lua'
+          assert 'function joinLangParse(text)' not in playing, 'joinLangParse remained in PlayingGame.lua'
+          playing_path.write_text(playing, encoding='utf-8')
+
+          entry = global_path.read_text(encoding='utf-8')
+          assert 'require("Shared")' not in entry, 'Global.lua already requires Shared unexpectedly'
+          needle = 'require("Data")\n'
+          assert entry.count(needle) == 1, 'Data require was not found exactly once'
+          entry = entry.replace(needle, needle + 'require("Shared")\n', 1)
+          global_path.write_text(entry, encoding='utf-8')
+
+          modules = [
+              Path('src/Shared.lua'),
+              Path('src/SetupInterface.lua'),
+              Path('src/SetupGame.lua'),
+              Path('src/PlayingGame.lua'),
+          ]
+          definitions = {}
+          definition_re = re.compile(r'^function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(', re.M)
+          for module in modules:
+              text = module.read_text(encoding='utf-8')
+              for name in definition_re.findall(text):
+                  definitions.setdefault(name, []).append(module.as_posix())
+
+          duplicates = {name: paths for name, paths in definitions.items() if len(paths) > 1}
+          if duplicates:
+              print('Existing duplicate global function definitions across modules:')
+              for name, paths in sorted(duplicates.items()):
+                  print(f'  {name}: {", ".join(paths)}')
+          else:
+              print('No duplicate global function definitions found across source modules.')
+
+          all_source = '\n'.join(p.read_text(encoding='utf-8') for p in modules)
+          assert all_source.count('function joinLang(full_string)') == 1, 'joinLang is not defined exactly once after refactor'
+          assert global_path.read_text(encoding='utf-8').count('require("Shared")') == 1, 'Shared require is not present exactly once'
+          PY
+
+      - name: Commit refactor and remove one-off workflow
+        shell: bash
+        run: |
+          rm .github/workflows/refactor-shared.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/Shared.lua src/PlayingGame.lua .tts/objects/Global.lua .github/workflows/refactor-shared.yml
+          git diff --cached --check
+          git commit -m "Extract shared Global helpers"
+          git push origin HEAD:modular-refactor
