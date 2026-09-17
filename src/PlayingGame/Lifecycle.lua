@@ -2,6 +2,7 @@
 -- Required last so TTS sees one active onLoad/onSave pair after all modules are defined.
 
 local baseOnSave = onSave
+local MONSTER_RESTOCK_TEXT = "{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen"
 
 local function savedRollerState(saved_data)
     if type(saved_data) ~= "string" or saved_data == "" then return nil end
@@ -11,7 +12,7 @@ local function savedRollerState(saved_data)
 end
 
 --Monster Replenish no longer carries its own Lua/XML. Rebuild its physical Restock button from
---Global, and keep the old monster-image status id as a hidden target for the existing swap helper.
+--Global, and keep the old status ids as hidden targets for legacy onLoad/swap helpers.
 local function monsterReplenishObjectOnLoad()
     local obj=getObjectFromGUID("d7a165")
     if obj==nil then return end
@@ -26,11 +27,17 @@ local function monsterReplenishObjectOnLoad()
     <HorizontalLayout padding="30 30 30 30">
         <Text id="d7a165replenishMonsterPilesText" fontSize="90" font="Fonts/MKCardText" fontStyle="Normal"
             textColor="rgb(0, 0, 0)" offsetXY="0 1" alignment="MiddleCenter"
-            resizeTextForBestFit="true" resizeTextMaxSize="90">{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen</Text>
+            resizeTextForBestFit="true" resizeTextMaxSize="90">{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen</Text>
     </HorizontalLayout>
 </Button>
 <Text id="d7a165swapMonsterImageText" active="false"></Text>
+<Text id="d7a165swapTableText" active="false"></Text>
 ]=])
+    --Object UI finishes loading after setXml; repeat the translated text on the next frame so TTS
+    --resolves the language tags during onLoad. The legacy hidden ids also keep the old refresh block safe.
+    safeWaitFrames("Lifecycle",function()
+        if obj~=nil then obj.UI.setAttribute("d7a165replenishMonsterPilesText", "text", MONSTER_RESTOCK_TEXT) end
+    end,1)
 end
 
 function onLoad(saved_data)
