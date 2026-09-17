@@ -17,22 +17,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: modular-refactor
-      - name: Locate shared helper candidates
+      - name: Show shared helper candidates
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          names = {
-              'angleToXY','positionToColor','legalPlayerCheck','terrainHexAtPosition',
-              'rewindTransactionStart','rewindTransactionFinish','rewindTransactionOwnerActive',
-              'tableCopy','gameCardType','isTacticCard','takeManaCrystal','shieldLocation',
-              'mageKnightAvatarPosition','avatarHexIdentity','straightenCrooked','dayNight'
-          }
-          for p in [Path('src/SetupInterface.lua'),Path('src/SetupGame.lua'),Path('src/PlayingGame.lua'),Path('src/Shared.lua')]:
-              lines=p.read_text(encoding='utf-8').splitlines()
-              for i,line in enumerate(lines,1):
-                  m=re.match(r'^function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(', line)
-                  if m and m.group(1) in names:
-                      print(f'{p}:{i}:{m.group(1)}')
-          PY
+          echo '=== Playing 1650-1705 ==='
+          nl -ba src/PlayingGame.lua | sed -n '1650,1705p'
+          echo '=== Playing 2425-2525 ==='
+          nl -ba src/PlayingGame.lua | sed -n '2425,2525p'
+          echo '=== Playing 10765-10845 ==='
+          nl -ba src/PlayingGame.lua | sed -n '10765,10845p'
+          echo '=== Playing 15135-15175 ==='
+          nl -ba src/PlayingGame.lua | sed -n '15135,15175p'
+          echo '=== Playing 27145-27225 ==='
+          nl -ba src/PlayingGame.lua | sed -n '27145,27225p'
+          echo '=== SetupGame 7670-7700 ==='
+          nl -ba src/SetupGame.lua | sed -n '7670,7700p'
