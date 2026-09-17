@@ -67,11 +67,11 @@ function onObjectDestroy(destroyedObj)
 end
 
 function onObjectEnterZone(zone, obj)
-	return safeHotCallback("onObjectEnterZone", function() __onObjectEnterZone_raw(zone, obj) end, function() return automaticLuaZoneContext(zone, obj) end)
+	return safeZoneCallback("onObjectEnterZone", __onObjectEnterZone_raw, zone, obj)
 end
 
 function onObjectLeaveZone(zone, obj)
-	return safeHotCallback("onObjectLeaveZone", function() __onObjectLeaveZone_raw(zone, obj) end, function() return automaticLuaZoneContext(zone, obj) end)
+	return safeZoneCallback("onObjectLeaveZone", __onObjectLeaveZone_raw, zone, obj)
 end
 
 function onObjectCollisionEnter(registered_object, info)
