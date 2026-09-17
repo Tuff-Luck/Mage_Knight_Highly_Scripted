@@ -9,22 +9,36 @@
 -- the rewind-ready pass so rewinding setup restores the pre-setup state cleanly.
 local baseSetupGame=setupGame
 function setupGame(player, mouseButton, id, rewindReady)
-    if mouseButton=="-1" and rewindReady==true and gStates~=nil and gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
-        local ruleBag=getObjectFromGUID("d4a866")
-        if ruleBag~=nil then
-            local manual=safeTakeObject("Integration",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
-            if manual~=nil then
-                --Match the normal rulebook setup: give TTS a few frames to place the book, then
-                --lock it only after the physical object has come to rest.
-                safeWaitFrames("Integration",function()
-                    safeWaitCondition("Integration",function()
-                        local current=getObjectFromGUID("8d7fb9")
-                        if current~=nil then current.lock() end
-                    end,function()
-                        local current=getObjectFromGUID("8d7fb9")
-                        return current==nil or current.resting==true
+    if mouseButton=="-1" and rewindReady==true and gStates~=nil then
+        --Book.setPage expects a CLR Int32. Keep all scenario rule-page values numeric before the
+        --delayed rulebook setup callback runs; this also tolerates a value restored as a string.
+        local scenario=scenarioList~=nil and scenarioList[gStates.scenarioRef] or nil
+        local details=scenario~=nil and scenario.scenarioDetails or nil
+        local ruleStates=details~=nil and details.ruleStates or nil
+        if type(ruleStates)=="table" then
+            for key,page in pairs(ruleStates) do
+                local numeric=tonumber(page)
+                if numeric~=nil then ruleStates[key]=math.floor(numeric) end
+            end
+        end
+
+        if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
+            local ruleBag=getObjectFromGUID("d4a866")
+            if ruleBag~=nil then
+                local manual=safeTakeObject("Integration",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
+                if manual~=nil then
+                    --Do not treat a momentarily-unregistered object as success. Wait until the actual
+                    --rulebook exists and is resting, then lock it exactly once.
+                    safeWaitFrames("Integration",function()
+                        safeWaitCondition("Integration",function()
+                            local current=getObjectFromGUID("8d7fb9")
+                            if current~=nil then current.lock() end
+                        end,function()
+                            local current=getObjectFromGUID("8d7fb9")
+                            return current~=nil and current.resting==true
+                        end)
                     end,5)
-                end,5)
+                end
             end
         end
     end
@@ -82,6 +96,14 @@ function apocalypseIsHereResolveHorsemanTarget(name,targetHex)
         end
     end
     return result
+end
+
+-- The stats/bug sheet should receive an explicit FALSE for Apocalypse Quest just like the other
+-- setup toggles. Older/default states can leave this field nil until the option is touched.
+local baseSendDataRequest=SendDataRequest
+function SendDataRequest(...)
+    if gStates~=nil then gStates.apocalypseQuestCards=(gStates.apocalypseQuestCards==true) end
+    return baseSendDataRequest(...)
 end
 
 -- Starting-hand setup already waits for the physical Deed Decks. Keep a final idempotent retry as
