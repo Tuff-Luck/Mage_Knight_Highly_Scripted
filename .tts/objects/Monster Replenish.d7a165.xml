@@ -9,7 +9,7 @@
 </Button> -->
 
 <Button id="d7a165replenishMonsterPiles" interactable="true"
-	onClick="returnPugs" onMouseDown="global/ButtonClicked" onMouseUp="global/ButtonClicked"
+	onClick="global/returnPugs" onMouseDown="global/ButtonClicked" onMouseUp="global/ButtonClicked"
 	tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
 	width="900" height="200" color="#7F7F7F" textColor="#FFFFFF"
 	position="200 270 -100" rotation="0 0 0" scale="0.48 0.48"

@@ -614,7 +614,7 @@ function fakeDropAvatar()
 end
 
 --refill empty token piles. Both onObjectEnterScriptingZone and endRound call this routine
-function tokenRefill()
+function tokenRefill(reportResult)
 	local tokenPileLink={	{discard=GUID.bag.discard.towerGarrison, destination=monsterPiles.purple},--Mage Towers Discard-->Main
 							{discard=GUID.bag.discard.keepGarrison, destination=monsterPiles.gray},--Keeps Discard-->Main
 							{discard=GUID.bag.discard.cityGarrison, destination=monsterPiles.white},--Cities Discard-->Main
@@ -634,11 +634,13 @@ function tokenRefill()
 							{discard=GUID.bag.discard.apocReward, destination=monsterPiles.rewardApoc},--Apocalypse Cult Reward Discard-->Main
 							{discard=GUID.bag.discard.councilReward, destination=monsterPiles.rewardCouncil}}--Council of the Void Reward Discard-->Main
 	local noWait=true
+	local emptyPile=false
 	for a=1, #tokenPileLink, 1 do
 		local discardObj=getObjectFromGUID(tokenPileLink[a].discard)
 		local destinationObj=getObjectFromGUID(tokenPileLink[a].destination)
 		if destinationObj~=nil and discardObj~=nil then
 			if #destinationObj.getObjects()==0 then
+				emptyPile=true
 				local discardObjects=discardObj.getObjects()
 				if #discardObjects>0 then
 					discardObj.shuffle()
@@ -652,7 +654,19 @@ function tokenRefill()
 			end
 		end
 	end
+	if reportResult==true and noWait==true then
+		if emptyPile==true then
+			broadcastToAll("{en}Sorry, I have no discard tokens to fill those empty stacks{ru}Извините, у меня нет жетонов в сбросе, чтобы заполнить эти пустые стопки.{zh-cn}抱歉，我没有废弃标记来填充那些空的标记堆{ko}버린 토큰을 찾을 수 없어 더미를 채우지 못했습니다.{es}Lo siento, no tengo tokens de descarte para llenar esas pilas vacías{fr}Désolé, je n'ai pas de jetons de défausse pour remplir ces piles vides{pt-br}Desculpe, Eu tenho nenhuma ficha de descarte para preencher as estas pilhas vazias{de}Leider habe ich keine Abwurfmarken, um diese leeren Stapel zu füllen.", {0, 0.5, 1})
+		else
+			broadcastToAll("{en}All token piles still have tokens to play{ru}Во всех стопках жетонов все еще есть жетоны для игры.{zh-cn}所有标记都还够用呢，先不用返还{ko}빈 토큰 더미가 없습니다.{es}Todas las pilas de fichas todavía tienen fichas para jugar.{fr}Toutes les piles de jetons ont encore des jetons à jouer{pt-br}Todas as pilhas de fichas ainda tem fichas para jogar{de}Alle Spielsteinstapel haben noch Spielsteine zum Spielen", {0, 0.5, 1})
+		end
+	end
 	return noWait
+end
+
+--Object UI callback for the Monster Replenish panel. The refill logic itself is shared with automatic refills.
+function returnPugs(player, mouseButton, id)
+	if mouseButton=="-1" then tokenRefill(true) end
 end
 
 --Terrain placement geometry is constant. Keep it out of the hot positionLegal() path.
