@@ -79,7 +79,6 @@ __bundle_register("PlayingGame.Lifecycle", function(require, _LOADED, __bundle_r
 -- Required last so TTS sees one active onLoad/onSave pair after all modules are defined.
 
 local baseOnSave = onSave
-local MONSTER_RESTOCK_TEXT = "{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen"
 
 local function savedRollerState(saved_data)
     if type(saved_data) ~= "string" or saved_data == "" then return nil end
@@ -110,11 +109,8 @@ local function monsterReplenishObjectOnLoad()
 <Text id="d7a165swapMonsterImageText" active="false"></Text>
 <Text id="d7a165swapTableText" active="false"></Text>
 ]=])
-    --Object UI finishes loading after setXml; repeat the translated text on the next frame so TTS
-    --resolves the language tags during onLoad. The legacy hidden ids also keep the old refresh block safe.
-    safeWaitFrames("Lifecycle",function()
-        if obj~=nil then obj.UI.setAttribute("d7a165replenishMonsterPilesText", "text", MONSTER_RESTOCK_TEXT) end
-    end,1)
+    --Do not rewrite the Text value after setXml. Localization tags are resolved while TTS loads
+    --the object XML; setAttribute with the tagged string bypasses that localization pass.
 end
 
 function onLoad(saved_data)
@@ -139,7 +135,6 @@ function onSave()
         return JSON.encode(data)
     end)
 end
-
 end)
 __bundle_register("PlayingGame.Integration", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Final cross-module gameplay integration.
@@ -152,98 +147,67 @@ __bundle_register("PlayingGame.Integration", function(require, _LOADED, __bundle
 -- the rules bag still exists. The first setupGame call only stores the rewind point; deploy on
 -- the rewind-ready pass so rewinding setup restores the pre-setup state cleanly.
 local baseSetupGame=setupGame
+local function setupGameErrorContext(player,id,rewindReady)
+    local playerColor=player~=nil and (player.color or player) or ""
+    return "Scenario: "..tostring(gStates~=nil and gStates.gameScenario or "")..
+        "\nScenario Ref: "..tostring(gStates~=nil and gStates.scenarioRef or "")..
+        "\nPlayers Ref: "..tostring(gStates~=nil and gStates.playersRef or "")..
+        "\nPlayer: "..tostring(playerColor)..
+        "\nStart ID: "..tostring(id or "")..
+        "\nRewind Ready: "..tostring(rewindReady==true)
+end
 function setupGame(player, mouseButton, id, rewindReady)
-    if mouseButton=="-1" and rewindReady==true and gStates~=nil and gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
-        local ruleBag=getObjectFromGUID("d4a866")
-        if ruleBag~=nil then
-            local manual=safeTakeObject("Integration",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
-            if manual~=nil then
-                safeWaitCondition("Integration",function()
-                    local current=getObjectFromGUID("8d7fb9")
-                    if current~=nil then current.lock() end
-                end,function()
-                    local current=getObjectFromGUID("8d7fb9")
-                    return current==nil or current.resting==true
-                end,5)
+    return safeCallback("setupGame",function()
+        if mouseButton=="-1" and rewindReady==true and gStates~=nil then
+            --Book.setPage expects a CLR Int32. Keep all scenario rule-page values numeric before the
+            --delayed rulebook setup callback runs; this also tolerates a value restored as a string.
+            local scenario=scenarioList~=nil and scenarioList[gStates.scenarioRef] or nil
+            local details=scenario~=nil and scenario.scenarioDetails or nil
+            local ruleStates=details~=nil and details.ruleStates or nil
+            if type(ruleStates)=="table" then
+                for key,page in pairs(ruleStates) do
+                    local numeric=tonumber(page)
+                    if numeric~=nil then ruleStates[key]=math.floor(numeric) end
+                end
+            end
+
+            if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
+                local ruleBag=getObjectFromGUID("d4a866")
+                if ruleBag~=nil then
+                    local manual=safeTakeObject("Integration",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
+                    if manual~=nil then
+                        --The takeObject return is already the live book. Use that handle instead of waiting
+                        --for getObjectFromGUID() registration, then lock only after physics reports it resting.
+                        safeWaitFrames("Integration",function()
+                            safeWaitCondition("Integration",function()
+                                if manual~=nil then manual.lock() end
+                            end,function()
+                                return manual~=nil and manual.resting==true
+                            end)
+                        end,5)
+                    end
+                end
             end
         end
-    end
-    return baseSetupGame(player,mouseButton,id,rewindReady)
+        return baseSetupGame(player,mouseButton,id,rewindReady)
+    end,function() return setupGameErrorContext(player,id,rewindReady) end)
 end
 
--- Fury's one-hex Dragon footprint (42b581) is attached inside the normal Dragon model (105141).
--- Immediately after takeObject, TTS can expose the model before its attachment hierarchy is ready.
--- Retry for a short period instead of deciding synchronously that the marker is missing.
+-- Fury's one-hex Dragon footprint (42b581) is its own object in the Apocalypse Dragon bag.
+-- Pull that token directly; do not disturb the normal three-hex Dragon model.
 function furyDragonExtractMarker(target)
     if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" then return nil end
     local marker=getObjectFromGUID("42b581")
-    if marker~=nil then
-        marker.unlock()
-        marker.setRotation({0,180,0})
-        marker.setPosition(target)
-        return marker
+    if marker==nil then
+        local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+        if bag==nil then return nil end
+        marker=bag.takeObject({guid="42b581",position=target,rotation={0,180,0},smooth=false})
+        if marker==nil then return nil end
     end
-
-    local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-    if bag==nil then return nil end
-    local dragon=bag.takeObject({guid="105141",position={-65.5,4,22},rotation={0,180,180},smooth=false})
-    if dragon==nil then return nil end
-
-    local dragonGUID=dragon.guid
-    local attempts=0
-    local function attachmentParent(parent)
-        if parent==nil or parent.getAttachments==nil then return nil end
-        for _,attachment in ipairs(parent.getAttachments() or {}) do
-            if attachment.guid=="42b581" then return parent end
-            local found=attachmentParent(attachment)
-            if found~=nil then return found end
-        end
-        return nil
-    end
-
-    local function returnDragon(liveDragon)
-        if liveDragon==nil then return end
-        local liveBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-        if liveBag~=nil then liveBag.putObject(liveDragon) else liveDragon.destruct() end
-    end
-
-    local function tryExtract()
-        attempts=attempts+1
-        local liveDragon=getObjectFromGUID(dragonGUID) or dragon
-        if liveDragon==nil then return end
-        local parent=attachmentParent(liveDragon)
-        if parent==nil then
-            if attempts<60 then safeWaitFrames("Integration",tryExtract,1)
-            else
-                returnDragon(liveDragon)
-                broadcastToAll("Fury setup could not detach the single-space Apocalypse Dragon marker (42b581).",warningColor)
-            end
-            return
-        end
-
-        local found=nil
-        for _,detached in ipairs(parent.removeAttachments() or {}) do
-            if detached.guid=="42b581" then found=detached else parent.addAttachment(detached) end
-        end
-        if found==nil then
-            if attempts<60 then safeWaitFrames("Integration",tryExtract,1)
-            else
-                returnDragon(liveDragon)
-                broadcastToAll("Fury setup found the Dragon attachment group but not marker 42b581.",warningColor)
-            end
-            return
-        end
-
-        found.unlock()
-        found.setRotation({0,180,0})
-        found.setPosition(target)
-        returnDragon(liveDragon)
-    end
-    safeWaitFrames("Integration",tryExtract,1)
-
-    -- furyDragonSetupLair only uses the return value as a success/failure signal. The physical marker
-    -- is placed by tryExtract as soon as TTS exposes the attachment hierarchy.
-    return dragon
+    marker.unlock()
+    marker.setRotation({0,180,0})
+    marker.setPosition(target)
+    return marker
 end
 
 -- Destroyed Site markers must finish their scripted move and then actually fall onto the terrain
@@ -280,6 +244,14 @@ function apocalypseIsHereResolveHorsemanTarget(name,targetHex)
         end
     end
     return result
+end
+
+-- The stats/bug sheet should receive an explicit FALSE for Apocalypse Quest just like the other
+-- setup toggles. Older/default states can leave this field nil until the option is touched.
+local baseSendDataRequest=SendDataRequest
+function SendDataRequest(...)
+    if gStates~=nil then gStates.apocalypseQuestCards=(gStates.apocalypseQuestCards==true) end
+    return baseSendDataRequest(...)
 end
 
 -- Starting-hand setup already waits for the physical Deed Decks. Keep a final idempotent retry as
@@ -349,7 +321,6 @@ function afterLoad()
     end,5)
     return result
 end
-
 end)
 __bundle_register("PlayingGame.Callbacks", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Public error-wrapped gameplay and TTS callback boundaries.
@@ -6501,7 +6472,6 @@ __bundle_register("PlayingGame.Artifacts", function(require, _LOADED, __bundle_r
 -- Artifact deck object UI moved out of the object and into the Global source structure.
 
 local ARTIFACT_GUID = "ac75c4"
-local ARTIFACT_REWARD_TEXT = "{en}Reward 1{ru}Награда 1{zh-tw}獎勵1{zh-cn}奖励1{ko}보상 1{es}Recompensa 1{fr}Récompense 1{pt-br}Recompensa 1{de}Belohnung 1"
 local ARTIFACT_UI = [=[
 <Button id="ac75c4ArtifactDown" active="false" onMouseDown="global/ButtonClickDownOverkill" onMouseUp="global/ButtonClickUpOverkill" onClick="global/artifactAdjust"
     height="150" width="150" color="rgba(0,0,0,0.0)" position="-120 190 5" rotation="0 180 180" scale="0.32 0.32">
@@ -6518,18 +6488,12 @@ local ARTIFACT_UI = [=[
 </Button>
 ]=]
 
-local function refreshArtifactTranslation(artifacts)
-    if artifacts==nil then return end
-    artifacts.UI.setAttribute("ac75c4ArtifactOfferText", "text", ARTIFACT_REWARD_TEXT)
-end
-
 local function installArtifactUI(attempt)
     local artifacts = getObjectFromGUID(ARTIFACT_GUID)
     if artifacts ~= nil then
+        --Keep the localization tags in the XML itself. TTS resolves those when setXml loads the
+        --object UI; reapplying the same tagged string through setAttribute displays every language.
         artifacts.UI.setXml(ARTIFACT_UI)
-        --Object UI finishes loading after setXml; repeat the translated text on the next frame so
-        --TTS resolves the language tags just like the old object onLoad path did.
-        safeWaitFrames("Artifacts",function() refreshArtifactTranslation(artifacts) end,1)
         return
     end
     if attempt < 60 then safeWaitFrames("Artifacts",function() installArtifactUI(attempt + 1) end, 1) end
@@ -6538,7 +6502,6 @@ end
 function artifactOnLoad()
     installArtifactUI(1)
 end
-
 end)
 __bundle_register("PlayingGame.Rollers", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Centralised dice-roller logic for the Roll Crystal Die / Roll Dungeon Die bags.
@@ -39218,9 +39181,16 @@ function safeObjectCallbackParams(scope, params)
 	return params
 end
 
+---@overload fun(scope: "SetupGame", container: any, params: table): any
 function safeTakeObject(scope, container, params)
-	if container==nil then return nil end
-	return container.takeObject(safeObjectCallbackParams(scope,params))
+	local ref=type(params)=="table" and (params.guid or params.index) or "unknown"
+	if container==nil then
+		if scope=="SetupGame" then error("SetupGame missing required container while taking "..tostring(ref),2) end
+		return nil
+	end
+	local obj=container.takeObject(safeObjectCallbackParams(scope,params))
+	if scope=="SetupGame" then return assert(obj,"SetupGame failed to take required object "..tostring(ref)) end
+	return obj
 end
 
 function safeSpawnObject(scope, params)
@@ -39481,7 +39451,6 @@ function isTacticCard(obj)
 	for i=1, #tacticCard do if obj.guid==tacticCard[i] then return true end end
 	return false
 end
-
 end)
 __bundle_register("Data", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Static game data only: GUIDs, scenarios, cards, terrain, monsters, Mage Knights and related configuration.
