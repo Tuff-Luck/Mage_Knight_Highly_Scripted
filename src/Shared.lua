@@ -1,6 +1,79 @@
 -- Shared helpers used by more than one Global source module.
 -- Keep subsystem-owned game logic in its owning module.
 
+-- Error-report boundaries for callbacks that TTS invokes after the originating function has returned.
+-- These helpers deliberately keep the native Wait signatures so existing timing/return behaviour is unchanged.
+function automaticLuaTraceback(errorText)
+	if debug and debug.traceback then return debug.traceback(tostring(errorText),2) end
+	return tostring(errorText)
+end
+
+function automaticLuaAsyncLabel(scope, kind)
+	local label=tostring(scope or "Async").." / "..tostring(kind or "callback")
+	local ok,info=pcall(function() if debug and debug.getinfo then return debug.getinfo(3,"l") end end)
+	if ok==true and info~=nil and info.currentline~=nil and info.currentline>0 then label=label.." @"..tostring(info.currentline) end
+	return label
+end
+
+function safeAsyncCallback(label, callback, contextCallback)
+	if type(callback)~="function" then return callback end
+	return function(...)
+		local args={n=select("#",...),...}
+		return safeCallback(label,function() return callback(table.unpack(args,1,args.n)) end,contextCallback)
+	end
+end
+
+function safeObjectCallbackParams(scope, params)
+	if type(params)~="table" or type(params.callback_function)~="function" then return params end
+	params.callback_function=safeAsyncCallback(automaticLuaAsyncLabel(scope,"callback_function"),params.callback_function)
+	return params
+end
+
+function safeTakeObject(scope, container, params)
+	if container==nil then return nil end
+	return container.takeObject(safeObjectCallbackParams(scope,params))
+end
+
+function safeSpawnObject(scope, params)
+	return spawnObject(safeObjectCallbackParams(scope,params))
+end
+
+function safeSpawnObjectData(scope, params)
+	return spawnObjectData(safeObjectCallbackParams(scope,params))
+end
+
+function safeWaitFrames(scope, callback, frames)
+	local label=automaticLuaAsyncLabel(scope,"Wait.frames")
+	return Wait.frames(safeAsyncCallback(label,callback),frames)
+end
+
+function safeWaitTime(scope, callback, seconds, repetitions)
+	local label=automaticLuaAsyncLabel(scope,"Wait.time")
+	if repetitions==nil then return Wait.time(safeAsyncCallback(label,callback),seconds) end
+	return Wait.time(safeAsyncCallback(label,callback),seconds,repetitions)
+end
+
+function safeWaitCondition(scope, callback, condition, timeout, timeoutCallback)
+	local label=automaticLuaAsyncLabel(scope,"Wait.condition")
+	local predicateFailed=false
+	local safeCondition=function(...)
+		if predicateFailed==true then return true end
+		local args={n=select("#",...),...}
+		local ok,result=xpcall(function() return condition(table.unpack(args,1,args.n)) end,automaticLuaTraceback)
+		if ok~=true then
+			predicateFailed=true
+			reportAutomaticLuaError(label.." predicate",result)
+			return true --terminate the Wait without running the success callback
+		end
+		return result
+	end
+	local safeCallbackRun=safeAsyncCallback(label,function(...) if predicateFailed~=true then return callback(...) end end)
+	local safeTimeout=timeoutCallback~=nil and safeAsyncCallback(label.." timeout",timeoutCallback) or nil
+	if timeout==nil then return Wait.condition(safeCallbackRun,safeCondition) end
+	if safeTimeout==nil then return Wait.condition(safeCallbackRun,safeCondition,timeout) end
+	return Wait.condition(safeCallbackRun,safeCondition,timeout,safeTimeout)
+end
+
 --Used to join a table of strings with translation brackets
 JOIN_LANG_ORDER={"en", "ru", "zh-tw", "zh-cn", "ko", "es", "fr", "pt-br", "de"}
 JOIN_LANG_TAGS={"{en}", "{ru}", "{zh-tw}", "{zh-cn}", "{ko}", "{es}", "{fr}", "{pt-br}", "{de}"}
@@ -111,7 +184,7 @@ function rewindTransactionStart(andThen,owner,onFailure)
 		for _,entry in ipairs(pending) do rewindTransactionOwners[entry.owner]=true end
 		--TTS automatically lifts block_further_stores after 60 seconds. Mirror that expiry so the Lua
 		--owner table cannot remain stuck if a protected sequence hands control to a long human decision.
-		Wait.time(function()
+		safeWaitTime("Shared",function()
 			if rewindTransactionBlocked==true and rewindTransactionGeneration==rewindGeneration then rewindTransactionForceRelease() end
 		end,59)
 		for _,entry in ipairs(pending) do entry.run() end

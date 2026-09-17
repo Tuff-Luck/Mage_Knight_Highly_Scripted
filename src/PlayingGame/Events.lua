@@ -42,7 +42,7 @@ function __onLoad_raw(saved_data)
 	if apocalypseQuestScoresRequired()==true then gStates.apocalypseQuestScoringDisabled=false end
 	--Older Quest saves predate the permanent Quest-area scripting zone. Create it once after load so
 	--all subsequent offer/card scans use the small local object set instead of getAllObjects().
-	Wait.frames(function() if apocalypseQuestsUsed()==true then apocalypseQuestAreaZone() end end,1)
+	safeWaitFrames("Events",function() if apocalypseQuestsUsed()==true then apocalypseQuestAreaZone() end end,1)
 	--Follow Enemy is a global Camera Control option, enabled by default. Migrate the earlier per-player table state.
 	if type(gStates.cameraFollowEnemy)~="boolean" then gStates.cameraFollowEnemy=true end
 	--Hero Challenge reservations used to be keyed by turnOrder index, but turnOrder is re-sorted during play.
@@ -62,25 +62,25 @@ function __onLoad_raw(saved_data)
 	if gStates.tomeSkillSwapPending==nil then gStates.tomeSkillSwapPending={} end
 	if type(gStates.puppetMasterPuppets)~="table" then gStates.puppetMasterPuppets={} end
 	--Refresh saved Puppets so presentation changes (decal/hover data) also apply to existing accepted Puppets.
-	Wait.frames(function() for guid,record in pairs(gStates.puppetMasterPuppets) do puppetMasterRefreshPresentation(getObjectFromGUID(guid),record) end end,2)
+	safeWaitFrames("Events",function() for guid,record in pairs(gStates.puppetMasterPuppets) do puppetMasterRefreshPresentation(getObjectFromGUID(guid),record) end end,2)
 	--Goblin Warrens enemies come from an Infinite Bag and therefore receive new GUIDs. Restore their
 	--runtime monster registration before a saved mid-combat game can inspect or clean them up.
-	Wait.frames(function() apocalypseQuestRestoreGoblinEnemies() end,2)
+	safeWaitFrames("Events",function() apocalypseQuestRestoreGoblinEnemies() end,2)
 	--Proxy Heroes are normal movable figures between automated moves; migrate older saves that left them locked.
-	Wait.frames(function()
+	safeWaitFrames("Events",function()
 		if proxyPlayerActive()==true then local avatar=proxyAvatarObject() if avatar~=nil then avatar.unlock() end end
 	end,2)
 	--Restore any saved live Proxy choice, including terrain, offer-card, enemy, and Source-mana controls.
-	Wait.frames(function() proxyRestorePendingChoiceUI() end,4)
+	safeWaitFrames("Events",function() proxyRestorePendingChoiceUI() end,4)
 	local legacyMineLocation={["mine red"]=true,["mine green"]=true,["mine blue"]=true,["mine white"]=true}
 	for _, details in pairs(turnOrder or {}) do if legacyMineLocation[details.avatarLocation]==true then details.avatarLocation="mine" end end
-	Wait.frames(function() refreshMineClaimPanel() end, 1)
+	safeWaitFrames("Events",function() refreshMineClaimPanel() end, 1)
 	--Reapply explicit ALT zoom directions to any City/avatar objects already out on the table.
-	Wait.frames(function() refreshAltViewAngles() end, 2)
+	safeWaitFrames("Events",function() refreshAltViewAngles() end, 2)
 	--Remove TTS's multi-digit typing delay from existing player Deed Decks after load.
-	Wait.frames(function() for seatPos, _ in pairs(deedDeckZones) do setDeedDeckImmediateNumberTyping(seatPos) end end, 1)
+	safeWaitFrames("Events",function() for seatPos, _ in pairs(deedDeckZones) do setDeedDeckImmediateNumberTyping(seatPos) end end, 1)
 	if gStates.finalTurnReason~=nil then ensureFinalTurnBoundary() end
-	Wait.frames(function() againstHorsemenRestoreRuntimeState() end,2)
+	safeWaitFrames("Events",function() againstHorsemenRestoreRuntimeState() end,2)
 	startMaintenanceTick()
 	--Updated already saved variable by putting a copy here, delete after saving one time.
 
@@ -275,7 +275,7 @@ function __onLoad_raw(saved_data)
 	UI.setAttribute("DusceniaSelectionText", "text", "{en}Duscenia{ru}Дусцения{zh-tw}達塞尼亞{zh-cn}达塞尼亚{ko}Duscenia{es}Duscenia{fr}Duscenia{pt-br}Duscenia{de}Duscenia")
 	--UI.setAttribute("GameOverText", "text", "{en}Game over<size=6>\n\n</size>You have gone past the Round Limit and incurred the wrath of the Council of the Void.<size=6>\n\n</size>Check your Score if you still feel worthy, then grovel for a second chance if you dare!{ru}Игра окончена<size=6>\n\n</size>Вы превысили лимит Раундов и навлекли на себя гнев Совета Пустоты.<size=6>\n\n</size>Проверьте свой счет, если вы все еще чувствуете себя достойным, а затем пресмыкайтесь ради второго шанса, если осмелитесь!{zh-tw}遊戲結束\n\n你已經超出了時間限制，\n並因此觸怒了虛空議會。<size=6>\n\n</size>若你仍感覺自己表現還算不錯，\n那麼就去看看你的分數吧。\n接著提起勇氣去乞求虛空議會，\n能給予機會再挑戰一次。{zh-cn}游戏结束\n\n你已经超出了时间限制，\n并因此触怒了虚空议会。<size=6>\n\n</size>若你仍感觉自己表现还算不错，\n那么就去看看你的分数吧。\n然后提起勇气去乞求虚空议会，\n能给予机会再挑战一次。{ko}게임 종료<size=6>\n\n</size>정해진 라운드 제한을 넘겨버려 공허 위원회의 분노를 사버렸네요.<size=6>\n\n</size>점수를 계산해보거나, 그들에게 두 번째 기회를 요청해보세요, 자신 있다면 말이죠!{es}Fin de Partida<size=6>\n\n</size>Has superado el límite de Rondas y provocado la Ira del Concilio del Vacío.<size=6>\n\n</size>Comprueba tu Puntuación Final si crees que lo mereces, y arrástrate a una segunda oportunidad si te atreves!{fr}Jeu terminé<size=6>\n\n</size>Vous avez dépassé la limite de round et encouru la colère du Conseil du Vide.<size=6>\n\n</size>Vérifiez votre score si vous vous sentez toujours digne, que gravissez pour une seconde chance si vous l'osez !{pt-br}Jogo encerrado<size=6>\n\n</size>Você passou do limite de Rodadas e causou a ira do Conselho do Vácuo.<size=6>\n\n</size>Cheque sua pontuação se você ainda se acha merecedor, então chore por uma segunda chance se ousar!{de}Spiel vorbei<size=6>\n\n</size>Du hast das Rundenlimit überschritten und dir den Zorn des Rates der Leere zugezogen.<size=6>\n\n</size>Überprüfe deinen Punktestand, wenn du dich noch würdig fühlst, und bitte dann um eine zweite Chance, wenn du dich traust!")
 	--Object UIs can finish loading after Global onLoad. Refresh them on the next frame without aborting the rest of onLoad if either object is unavailable.
-	Wait.frames(function()
+	safeWaitFrames("Events",function()
 		local artifactDeck=getObjectFromGUID(GUID.deck.artifact)
 		if artifactDeck~=nil then artifactDeck.UI.setAttribute("ac75c4ArtifactOfferText", "text", "{en}Reward 1{ru}Награда 1{zh-cn}奖励1{ko}보상 1{es}Premiar 1{fr}Reward 1{pt-br}Premiar 1{de}Belohnung 1") end
 		local monsterReplenish=getObjectFromGUID("d7a165")
@@ -402,15 +402,15 @@ function __onLoad_raw(saved_data)
 			local data=horsemanData[horsemanName]
 			if data~=nil and horsemanState.level~=nil then monsterPugs[data.tokenGUID]=horsemanMonsterData(horsemanName,horsemanState.level) end
 		end
-		Wait.frames(function() againstHorsemenRefreshReveals() end,4)
+		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,4)
 		--Rewind/load restores the Leader token and saved overkill value, but not its object UI.
-		Wait.frames(function() refreshLeaderOverkillButtons() end, 3)
+		safeWaitFrames("Events",function() refreshLeaderOverkillButtons() end, 3)
 		getObjectFromGUID("f2291a").UI.setXmlTable(gStates.exploreButtons)
 		skillButtonActivate()
 		refreshCoopCompSkillXs()
 		claimButtonRefresh()
 		dayTactic2ButtonActivate()
-		Wait.frames(function() refreshMeditationTrance() steadyTempoRefreshAll() end, 3)
+		safeWaitFrames("Events",function() refreshMeditationTrance() steadyTempoRefreshAll() end, 3)
 		refreshCityScriptZones()
 		refreshAllPlayerFameReputationFromShields()
 		refreshTactic4HandBonus(false)
@@ -436,7 +436,7 @@ function __onLoad_raw(saved_data)
 		--A rewind taken immediately before the round reset restores this checkpoint, but not the callback
 		--that originally entered endRound(). Resume it once the loaded table and UI have finished rebuilding.
 		if gStates.endRoundResetPending==true then
-			Wait.frames(function() if gStates.endRoundResetPending==true then endRound() end end,10)
+			safeWaitFrames("Events",function() if gStates.endRoundResetPending==true then endRound() end end,10)
 		end
 	end
 end
@@ -914,7 +914,7 @@ end
 function __onObjectDrop_raw(player_color, dropped_object)
 	local droppedGUID=dropped_object.guid
 	if gStates.gameScenario=="Against the Horsemen Blitz" and (terrainTiles[droppedGUID]~=nil or (horsemanTokenToName~=nil and horsemanTokenToName[droppedGUID]~=nil)) then
-		Wait.frames(function() againstHorsemenRefreshReveals() end,2)
+		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,2)
 	end
 	puppetMasterDropped(dropped_object)
 	puppetMasterCheckManualCopyWhenResting(dropped_object)
@@ -922,24 +922,24 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		attachEnemy(nil,nil,"attach",dropped_object,nil)
 	end
 	if dropped_object~=nil and dropped_object.getName()=="Shield" and apocalypseQuestsUsed()==true then
-		Wait.frames(function() apocalypseQuestRefreshOfferButtons() end, 2)
+		safeWaitFrames("Events",function() apocalypseQuestRefreshOfferButtons() end, 2)
 	end
 	if dropped_object~=nil and gStates.apocalypseQuestTokenGUIDs~=nil and gStates.apocalypseQuestTokenGUIDs[droppedGUID]==true then
-		Wait.frames(function() apocalypseQuestRefreshOfferButtons() end, 2)
+		safeWaitFrames("Events",function() apocalypseQuestRefreshOfferButtons() end, 2)
 	end
 	if droppedGUID~=nil and gStates.apocalypseQuestGoblinEnemies~=nil and gStates.apocalypseQuestGoblinEnemies[droppedGUID]~=nil then
-		Wait.frames(function() apocalypseQuestRefreshOfferButtons() end,2)
+		safeWaitFrames("Events",function() apocalypseQuestRefreshOfferButtons() end,2)
 	end
 	--Avatar Quest eligibility is refreshed after the avatar has settled and its new hex has been
 	--recorded in avatarlocationDetails(). Do not do an earlier full-offer refresh against the old hex.
 	if dropped_object~=nil and dropped_object.type=="Card" then
-		Wait.frames(function() local card=getObjectFromGUID(droppedGUID) if card~=nil then refreshCardRemoveDecal(card) end end, 2)
+		safeWaitFrames("Events",function() local card=getObjectFromGUID(droppedGUID) if card~=nil then refreshCardRemoveDecal(card) end end, 2)
 	end
 	if droppedGUID==meditationTranceCardGUID or gStates.meditationTranceState~=nil then
-		Wait.frames(function() if droppedGUID~=nil then meditationTranceCheckLooseCard(droppedGUID) end refreshMeditationTrance() end, 2)
+		safeWaitFrames("Events",function() if droppedGUID~=nil then meditationTranceCheckLooseCard(droppedGUID) end refreshMeditationTrance() end, 2)
 	end
 	if droppedGUID~=nil and isSteadyTempoGUID(droppedGUID)==true and gStates.steadyTempoPending~=nil and gStates.steadyTempoPending[droppedGUID]~=nil then
-		Wait.frames(function() steadyTempoRefreshCard(droppedGUID) end, 2)
+		safeWaitFrames("Events",function() steadyTempoRefreshCard(droppedGUID) end, 2)
 	end
 	--Update skill Locations
 	if skillTokens[dropped_object.guid]~=nil then
@@ -949,7 +949,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		if gStates.firstStarted~=true and gStates.mageKnightLevels==true and gStates.magesSetup==true then
 			local originalSkillPos=gStates.mageSkills[dropped_object.guid]
 			local wasAlreadyClaimed=higherLevelSkillAreaPlayer(originalSkillPos)~=nil
-			Wait.frames(function() Wait.condition(function()
+			safeWaitFrames("Events",function() safeWaitCondition("Events",function()
 				local skill=getObjectFromGUID(dropped_object.guid)
 				if skill~=nil then
 					local playerPosition=higherLevelSkillAreaPlayer(skill.getPosition())
@@ -967,7 +967,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		local coopCompSkill=(skillTokens[dropped_object.guid].skillType=="Coop" or skillTokens[dropped_object.guid].skillType=="Comp")
 		if coopCompSkill==true then coopCompSkillDropped(dropped_object.guid, dropped_object.getPosition()) end
 		local coopCompLockedAtDrop=coopCompSkill==true and coopCompSkillPlayLocked()==true
-		Wait.frames(function() Wait.condition(function()
+		safeWaitFrames("Events",function() safeWaitCondition("Events",function()
 			if getObjectFromGUID(dropped_object.guid)~=nil then
 				if coopCompSkill==true then
 					local playAreaPlayer=coopCompSkillPlayAreaPlayer(dropped_object.guid)
@@ -1044,11 +1044,11 @@ function __onObjectDrop_raw(player_color, dropped_object)
 						gStates.proxyAvatarOffMap=apocalypseQuestHexForPosition(proxyHexes,dropped_object.getPosition(),proxyMapObjects)==nil
 					end
 				end
-				Wait.condition(finishProxyManualDrop,function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end,1.5,finishProxyManualDrop)
+				safeWaitCondition("Events",finishProxyManualDrop,function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end,1.5,finishProxyManualDrop)
 				return
 			end
 			if player_color~=nil and gStates.firstStarted==true and avatar.mage~="Volkare" and avatarPlayerIndex~=nil and currentMage~=avatar.mage then
-				Wait.condition(function() if coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end, function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end, 1.5, function() if getObjectFromGUID(dropped_object.guid)~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end)
+				safeWaitCondition("Events",function() if coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end, function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end, 1.5, function() if getObjectFromGUID(dropped_object.guid)~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end)
 				return
 			end
 			function avatarlocationDetails()
@@ -1290,7 +1290,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 					if gStates.rampagePursuit==true and gStates.preEndTurn==false then pursuingRampagers(nil, "-1", nil) end
 				end
 			end
-			Wait.condition(function() avatarlocationDetails() end, function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end, 1.5, function() avatarlocationDetails() end)
+			safeWaitCondition("Events",function() avatarlocationDetails() end, function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end, 1.5, function() avatarlocationDetails() end)
 			return
 		end
 	end
@@ -1305,7 +1305,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 			local questScoreMoved=dropped_object.guid==turnOrder[a].questScoreGUID
 			if fameMoved or reputationMoved or questScoreMoved then
 				local playerIndex=a
-				Wait.condition(function()
+				safeWaitCondition("Events",function()
 					if fameMoved then refreshPlayerFameFromShield(playerIndex)
 					elseif reputationMoved then refreshPlayerReputationFromShield(playerIndex)
 					else refreshPlayerQuestScoreFromMarker(playerIndex) end
@@ -1333,10 +1333,10 @@ function __onObjectSpawn_raw(spawn_object)
 	--code stops objects getting a GUID of a registered object.
 	if spawn_object.getGMNotes()=="Wound" or spawn_object.type=="Figurine" or spawn_object.type=="Deck" then
 		if gameCards[spawn_object.guid]~=nil or terrainTiles[spawn_object.guid]~=nil or monsterPugs[spawn_object.guid]~=nil or skillTokens[spawn_object.guid]~=nil then
-			Wait.frames(function()
+			safeWaitFrames("Events",function()
 				if getObjectFromGUID(spawn_object.guid)~=nil then
 					spawn_object.clone({position={spawn_object.getPosition()[1], spawn_object.getPosition()[2]+1, spawn_object.getPosition()[3]}})
-					Wait.frames(function() spawn_object.destruct() end, 2)
+					safeWaitFrames("Events",function() spawn_object.destruct() end, 2)
 				end
 			end, 50)
 		end
@@ -1358,14 +1358,14 @@ function __onObjectSpawn_raw(spawn_object)
 		gStates.volkareModel=spawn_object.guid
 		local scale=spawn_object.getScale()
 		if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-			Wait.frames(function() getObjectFromGUID(gStates.volkareModel).addDecal({name="Volkare's Return Guide", url="https://steamusercontent-a.akamaihd.net/ugc/1617311764022517379/17F0D137572FE6672A880B1865AF9D7B66D8061F/",
+			safeWaitFrames("Events",function() getObjectFromGUID(gStates.volkareModel).addDecal({name="Volkare's Return Guide", url="https://steamusercontent-a.akamaihd.net/ugc/1617311764022517379/17F0D137572FE6672A880B1865AF9D7B66D8061F/",
 				position={-1.7, 0.05, 0.0}, rotation={90, 180, 0}, scale={3.24/scale[1], 5.508/scale[3], 1}}) end, 20)
 		end
 		if gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
-			Wait.frames(function() getObjectFromGUID(gStates.volkareModel).addDecal({name="Volkare's Quest Guide", url="https://steamusercontent-a.akamaihd.net/ugc/1617311764022517042/4160839B27C5F84E3D4D860408AE19780E48AEC4/",
+			safeWaitFrames("Events",function() getObjectFromGUID(gStates.volkareModel).addDecal({name="Volkare's Quest Guide", url="https://steamusercontent-a.akamaihd.net/ugc/1617311764022517042/4160839B27C5F84E3D4D860408AE19780E48AEC4/",
 				position={1.6, 0.05, 1.4}, rotation={90, 180, 0}, scale={3.6/scale[1], 3.5/scale[3], 1}}) end, 20)
 		end
-		Wait.time(function() getObjectFromGUID(gStates.volkareModel).lock() getObjectFromGUID(gStates.volkareModel).setRotation({0, 180, 0}) end, 3)
+		safeWaitTime("Events",function() getObjectFromGUID(gStates.volkareModel).lock() getObjectFromGUID(gStates.volkareModel).setRotation({0, 180, 0}) end, 3)
 		cityLevelButtons(gStates.volkareModel, "Volkar")
 	end
 
@@ -1376,7 +1376,7 @@ function __onObjectSpawn_raw(spawn_object)
 		gStates.mageSkills[spawn_object.guid]={spawn_object.getPosition()[1], spawn_object.getPosition()[2], spawn_object.getPosition()[3]}
 		if gStates.firstStarted==true then skillButtonActivate() else higherLevelSkillClaimButons() end
 	end
-	if skillTokens[spawn_object.guid]~=nil and (skillTokens[spawn_object.guid].skillType=="Coop" or skillTokens[spawn_object.guid].skillType=="Comp") and coopCompSkillPlayLocked()==true then Wait.frames(function() refreshCoopCompSkillXs() end, 2) end
+	if skillTokens[spawn_object.guid]~=nil and (skillTokens[spawn_object.guid].skillType=="Coop" or skillTokens[spawn_object.guid].skillType=="Comp") and coopCompSkillPlayLocked()==true then safeWaitFrames("Events",function() refreshCoopCompSkillXs() end, 2) end
 end
 
 --Alter Fame board Values, Skill register, and Add icons when changing avatar **This script runs when exiting the game**
@@ -1387,10 +1387,10 @@ function __onObjectDestroy_raw(destroyedObj)
 	if questScorePlayer~=nil then
 		if apocalypseQuestScoresRequired()==true then
 			broadcastToAll("This scenario can't be run without Quest Scores",{1,1,0.5})
-			Wait.frames(function() apocalypseQuestRestoreScoreMarker(questScorePlayer,false) end,1)
+			safeWaitFrames("Events",function() apocalypseQuestRestoreScoreMarker(questScorePlayer,false) end,1)
 		elseif gStates.apocalypseQuestScoringDisabled~=true then
 			if gStates.apocalypseQuestScoringChoiceLocked==true then
-				Wait.frames(function() apocalypseQuestRestoreScoreMarker(questScorePlayer,false) end,1)
+				safeWaitFrames("Events",function() apocalypseQuestRestoreScoreMarker(questScorePlayer,false) end,1)
 			else
 				apocalypseQuestDisableScoring()
 			end
@@ -1428,7 +1428,7 @@ masterOfChaosWait=nil
 function __onObjectEnterZone_raw(zone, obj)
 	if obj~=nil and apocalypseDragonGroundCombatToken~=nil then
 		local active,headName,owner=apocalypseDragonGroundCombatToken(obj.guid)
-		if active==true and headName~="Control" and owner~=nil then Wait.frames(function() apocalypseDragonRefreshGroundFameGain(owner) end,1) end
+		if active==true and headName~="Control" and owner~=nil then safeWaitFrames("Events",function() apocalypseDragonRefreshGroundFameGain(owner) end,1) end
 	end
 	--A scripted Deed transfer may physically cross unrelated scripting zones. Only its destination Deed zone
 	--is allowed to react while the card is travelling.
@@ -1447,12 +1447,12 @@ function __onObjectEnterZone_raw(zone, obj)
 	--when it returns to that player's play area, or accept a manual move to Deed/discard as resolution.
 	if obj~=nil and isSteadyTempoGUID(obj.guid)==true and gStates.steadyTempoPending~=nil and gStates.steadyTempoPending[obj.guid]~=nil then
 		local seatPos=gStates.steadyTempoPending[obj.guid]
-		if zone.guid==playerPlayAreas[seatPos] then Wait.frames(function() steadyTempoRefreshCard(obj.guid) end, 2)
+		if zone.guid==playerPlayAreas[seatPos] then safeWaitFrames("Events",function() steadyTempoRefreshCard(obj.guid) end, 2)
 		elseif zone.guid==deedDeckZones[seatPos] or zone.guid==deedDeckDiscardZones[seatPos] then steadyTempoClearPending(obj.guid) end
 	end
 	--Meditation / Trance needs its object UI as soon as the played card reaches a player area.
 	if obj~=nil and obj.guid==meditationTranceCardGUID and playerZoneLookup[zone.guid]~=nil and playerZoneLookup[zone.guid].kind=="play" then
-		Wait.frames(function() refreshMeditationTrance() end, 2)
+		safeWaitFrames("Events",function() refreshMeditationTrance() end, 2)
 	end
 	if gStates.firstStarted==true then
 		apocalypseQuestUnderSiegeCardPlayed(zone,obj)
@@ -1469,7 +1469,7 @@ function __onObjectEnterZone_raw(zone, obj)
 		if zone.guid==turnOrderArea then
 			for c, d in pairs(turnOrder) do
 				if obj.guid==d.turnOrderTokenGUID then
-					Wait.frames(function() Wait.condition(function()
+					safeWaitFrames("Events",function() safeWaitCondition("Events",function()
 						local turnOrderTokens=getObjectFromGUID(turnOrderArea).getObjects()
 						table.sort(turnOrderTokens, function (k1, k2) return k1.getPosition()[3]>k2.getPosition()[3] end)
 						--check if all turn order tokens are present
@@ -1504,7 +1504,7 @@ function __onObjectEnterZone_raw(zone, obj)
 		if zone.guid==mapArea and terrainTiles[obj.guid]~=nil and workingOnTerrain[obj.guid]~=true then
 			if startingMapSetup==true then startingMapTiles[obj.guid]=true end
 			workingOnTerrain[obj.guid]=true
-				Wait.time(function() addAvatarButtons() end, 1.5)
+				safeWaitTime("Events",function() addAvatarButtons() end, 1.5)
 				local playAreaObjects=getObjectFromGUID(mapArea).getObjects()
 				local faceUpTerrain={}
 				local mapObjectPositions={}
@@ -1722,8 +1722,8 @@ function __onObjectEnterZone_raw(zone, obj)
 					if tileRotation>=360 then tileRotation=tileRotation-360 end
 					for hexLocation, hexFeature in pairs(terrainTiles[obj.guid].hexFeature) do
 						--Only run the all-pile refill once at each deployment step. Several hexes often share the same tokenWait.
-						if tokenRefillFrame~=tokenWait+2 then tokenRefillFrame=tokenWait+2 Wait.frames(function() tokenRefill() end, tokenRefillFrame) end
-					Wait.frames(function()
+						if tokenRefillFrame~=tokenWait+2 then tokenRefillFrame=tokenWait+2 safeWaitFrames("Events",function() tokenRefill() end, tokenRefillFrame) end
+					safeWaitFrames("Events",function()
 						local params={}
 						--don't deploy token if megapolis is being played
 						local free=true
@@ -1923,8 +1923,8 @@ function __onObjectEnterZone_raw(zone, obj)
 					end
 				end
 				--lock terrain tile if succesfuly deployed all tokens
-				Wait.condition(function() obj.lock() end, function() return obj.resting end)
-				Wait.frames(function()
+				safeWaitCondition("Events",function() obj.lock() end, function() return obj.resting end)
+				safeWaitFrames("Events",function()
 					gStates.playedAllready[obj.guid]=true
 					workingOnTerrain[obj.guid]=false
 					--Terrain deployment changes the movement graph directly. Refresh it here instead of relying on
@@ -2005,7 +2005,7 @@ function __onObjectEnterZone_raw(zone, obj)
 		if zone.guid==mapArea or zone.guid==GUID.zone.blueCity or zone.guid==GUID.zone.redCity or zone.guid==GUID.zone.greenCity or zone.guid==GUID.zone.whiteCity or zone.guid==volkare.discZone or zone.guid==darkCrusader.discZone or zone.guid==elementalist.discZone then
 			if (obj.getName()=="Shield" or obj.getGMNotes()=="Burned Monastery" or obj.getName()=="Secret Dungeon" or obj.getName()=="Secret Tomb") and obj.getLock()==false then
 				if shieldLocationWait==nil then
-					shieldLocationWait=Wait.frames(function()
+					shieldLocationWait=safeWaitFrames("Events",function()
 						shieldLocation(obj, zone, "enter")
 						mainUIUpdate("Shield Dropped")
 						if apocalypseQuestsUsed()==true then apocalypseQuestRefreshOfferButtons() end
@@ -2132,7 +2132,7 @@ function __onObjectEnterZone_raw(zone, obj)
 			end
 			--City Bonus
 			cityBonusDecals(obj, obj)
-			Wait.frames(function() addAvatarButtons() end, 5)
+			safeWaitFrames("Events",function() addAvatarButtons() end, 5)
 		end
 
 		--Day Tactic 4 hand bonus only changes when the current player's hand changes.
@@ -2174,7 +2174,7 @@ function __onObjectEnterZone_raw(zone, obj)
 		--protect skill zone from passing through objects
 		if zone.guid==GUID.zone.skillOffer then
 			zoneEntered=true
-			Wait.frames(function() zoneEntered=false end, 50)
+			safeWaitFrames("Events",function() zoneEntered=false end, 50)
 		end
 
 		--tactic zone claim buttons
@@ -2217,7 +2217,7 @@ function __onObjectEnterZone_raw(zone, obj)
 					--Wait.frames(function()
 					getObjectFromGUID("1ff34f").reload()
 					--end, 50)
-					Wait.frames(function() masterOfChaosPause=false end, 10)
+					safeWaitFrames("Events",function() masterOfChaosPause=false end, 10)
 				end
 				return
 			end
@@ -2271,7 +2271,7 @@ function __onObjectEnterZone_raw(zone, obj)
 					local pass=obj.getPosition()[1]
 					obj.setState(2)
 					local bannerSeat=playerZoneLookup[zone.guid].seatPos
-					Wait.frames(function()
+					safeWaitFrames("Events",function()
 						if getObjectFromGUID(gameCards[obj.guid].half)~=nil then
 							getObjectFromGUID(gameCards[obj.guid].half).setScale({0.65, 1, 0.65})
 							getObjectFromGUID(gameCards[obj.guid].half).setPosition({pass, 1.2, -38.12})
@@ -2283,7 +2283,7 @@ function __onObjectEnterZone_raw(zone, obj)
 
 			--Add/remove the Card Remove decal when a normal card enters the player play area.
 			if obj~=nil and obj.type=="Card" and (gameCards[obj.guid]==nil or gameCards[obj.guid].full==nil) then
-				Wait.frames(function() local card=getObjectFromGUID(obj.guid) if card~=nil then refreshCardRemoveDecal(card) end end, 2)
+				safeWaitFrames("Events",function() local card=getObjectFromGUID(obj.guid) if card~=nil then refreshCardRemoveDecal(card) end end, 2)
 			end
 
 			--Add command decal to banner of Command
@@ -2295,8 +2295,8 @@ function __onObjectEnterZone_raw(zone, obj)
 			--if object is a crystal then alter it's animation.
 			local crystalGlow={["Red Mana"]={1, 0, 0}, ["Green Mana"]={0, 1, 0}, ["Blue Mana"]={0, 0, 1}, ["White Mana"]={1, 1, 1}, ["Black Mana"]={0.3, 0.0, 0.6}, ["Gold Mana"]={1, 0.9, 0}}
 			if crystalGlow[obj.getName()]~=nil then
-				Wait.time(function() if getObjectFromGUID(obj.guid)~=nil then obj.AssetBundle.playTriggerEffect(0) end end, 0.1)
-				Wait.time(function() if getObjectFromGUID(obj.guid)~=nil then obj.AssetBundle.playLoopingEffect(1) end end, 1)
+				safeWaitTime("Events",function() if getObjectFromGUID(obj.guid)~=nil then obj.AssetBundle.playTriggerEffect(0) end end, 0.1)
+				safeWaitTime("Events",function() if getObjectFromGUID(obj.guid)~=nil then obj.AssetBundle.playLoopingEffect(1) end end, 1)
 			end
 		end
 
@@ -2304,12 +2304,12 @@ function __onObjectEnterZone_raw(zone, obj)
 		local unitZoneInfo=playerZoneLookup[zone.guid]
 		if unitZoneInfo~=nil and unitZoneInfo.kind=="unit" then
 			local unitSeatPos=unitZoneInfo.seatPos
-			if obj.type=="Card" or obj.type=="Deck" then Wait.frames(function() separateCombinedUnitsInArea(unitSeatPos) end, 2) end
+			if obj.type=="Card" or obj.type=="Deck" then safeWaitFrames("Events",function() separateCombinedUnitsInArea(unitSeatPos) end, 2) end
 			scheduleUnitLayoutRefresh(unitSeatPos)
 			--Monster tokens may be dropped directly on Units. Give them the same combat controls and reward refresh as Play Area monsters.
 			if monsterPugs[obj.guid]~=nil then
 				local monsterGUID=obj.guid
-				Wait.frames(function()
+				safeWaitFrames("Events",function()
 					local monster=getObjectFromGUID(monsterGUID)
 					if monster~=nil and objectInPlayerCombatArea(monsterGUID)==true then
 						local addedButtons=monsterObjectButtons(monster)
@@ -2373,7 +2373,7 @@ function __onObjectEnterZone_raw(zone, obj)
 	--Mirror dice in source and Start of rounds should have half or more standard color Mana Dice
 	if zone.guid==GUID.zone.mana and obj.type=="Dice" then
 		if dieRollEnterPause~=nil then Wait.stop(dieRollEnterPause) end
-		dieRollEnterPause=Wait.condition(function()
+		dieRollEnterPause=safeWaitCondition("Events",function()
 			--Start of rounds should have half or more standard color Mana Dice
 			local safe=true
 			if gStates.tacticRemove==true or gStates.tacticShown==true or gStates.firstStarted~=true then
@@ -2406,7 +2406,7 @@ dieRollExitPause=nil
 function __onObjectLeaveZone_raw(zone, obj)
 	if obj~=nil and apocalypseDragonGroundCombatToken~=nil then
 		local active,headName,owner=apocalypseDragonGroundCombatToken(obj.guid)
-		if active==true and headName~="Control" and owner~=nil then Wait.frames(function() apocalypseDragonRefreshGroundFameGain(owner) end,1) end
+		if active==true and headName~="Control" and owner~=nil then safeWaitFrames("Events",function() apocalypseDragonRefreshGroundFameGain(owner) end,1) end
 	end
 	--Ignore unrelated zone exits caused solely by a scripted Deed transfer crossing the table.
 	if zone~=nil and obj~=nil and deedTransferState~=nil and deedTransferState.transit[obj.guid]~=nil and zone.guid~=deedTransferState.transit[obj.guid] then return end
@@ -2425,19 +2425,19 @@ function __onObjectLeaveZone_raw(zone, obj)
 			--Only remove the face-down card decal once the card is confirmed outside all player play areas.
 			if obj.type=="Card" then
 				local cardGUID=obj.guid
-				Wait.frames(function() local card=getObjectFromGUID(cardGUID) if card~=nil and cardInPlayerPlayArea(cardGUID)==false then removeCardRemoveDecal(card) end end, 2)
+				safeWaitFrames("Events",function() local card=getObjectFromGUID(cardGUID) if card~=nil and cardInPlayerPlayArea(cardGUID)==false then removeCardRemoveDecal(card) end end, 2)
 			end
 
 			--restore card size, except Unit cards still owned by the overlapping Unit Area layout.
 			if ((gameCards[obj.guid]~=nil and gameCards[obj.guid].full==nil) or obj.getGMNotes()=="Wound")
 				and not (unitLayoutIsUnit(obj) and unitLayoutObjectInAnyUnitArea(obj.guid)) then obj.setScale({1.5,1,1.5}) end
 
-			Wait.time(function()
+			safeWaitTime("Events",function()
 				--Toggle half cards when picked up.
 				if getObjectFromGUID(obj.guid)~=nil then
 					if gameCards[obj.guid]~=nil and gameCards[obj.guid].full~=nil and obj.getPosition()[2]>2 then
 						obj.setState(1)
-						Wait.frames(function() if getObjectFromGUID(gameCards[obj.guid].full)~=nil then getObjectFromGUID(gameCards[obj.guid].full).setScale({1.5, 1, 1.5}) end end, 1)
+						safeWaitFrames("Events",function() if getObjectFromGUID(gameCards[obj.guid].full)~=nil then getObjectFromGUID(gameCards[obj.guid].full).setScale({1.5, 1, 1.5}) end end, 1)
 					end
 
 					--if object is a crystal then remove highlight.
@@ -2450,7 +2450,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 			--Decrement Master of chaos skill
 			if obj.guid=="1ff34f" and masterOfChaosPause==false then
 				if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
-				Wait.frames(function() masterOfChaosWait=Wait.condition(function()
+				safeWaitFrames("Events",function() masterOfChaosWait=safeWaitCondition("Events",function()
 					for a=1, #turnOrder, 1 do
 						if turnOrder[a].masterOfChaos~=nil and turnOrder[a].masterOfChaos~="incrementented in turn" then turnOrder[a].masterOfChaos="available" break end
 					end
@@ -2489,7 +2489,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 			if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(leftUnitSeat,obj.guid) else scheduleUnitLayoutRefresh(leftUnitSeat) end
 			if unitLayoutIsUnit(obj) then
 				local unitGUID=obj.guid
-				Wait.frames(function()
+				safeWaitFrames("Events",function()
 					local unit=getObjectFromGUID(unitGUID)
 					if unit~=nil and unitLayoutObjectInAnyUnitArea(unitGUID)==false then unit.setScale({unitLayoutConfig.cardScale,1,unitLayoutConfig.cardScale}) end
 				end,2)
@@ -2497,7 +2497,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 		end
 		if leftUnitArea==true and monsterPugs[obj.guid]~=nil then
 			local monsterGUID=obj.guid
-			Wait.frames(function()
+			safeWaitFrames("Events",function()
 				local monster=getObjectFromGUID(monsterGUID)
 				if monster~=nil and objectInPlayerCombatArea(monsterGUID)==false then monster.UI.setXmlTable({{}}) end
 				mainUIUpdate("Monster removed from unit area")
@@ -2544,7 +2544,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 		if (zone.guid==mapArea)--or zone.guid==GUID.zone.blueCity or zone.guid==GUID.zone.redCity or zone.guid==GUID.zone.greenCity or zone.guid==GUID.zone.whiteCity or zone.guid==volkare.discZone or zone.guid==darkCrusader.discZone or zone.guid==elementalist.discZone)
 			and (obj.getName()=="Shield" or obj.getGMNotes()=="Burned Monastery" or obj.getName()=="Secret Dungeon" or obj.getName()=="Secret Tomb") and obj.getLock()==false then
 			if shieldLocationWait==nil then
-				shieldLocationWait=Wait.frames(function() if getObjectFromGUID(obj.guid)~=nil then shieldLocation(obj, zone, "remove") mainUIUpdate("Shield Removed") end shieldLocationWait=nil end, 2)
+				shieldLocationWait=safeWaitFrames("Events",function() if getObjectFromGUID(obj.guid)~=nil then shieldLocation(obj, zone, "remove") mainUIUpdate("Shield Removed") end shieldLocationWait=nil end, 2)
 			else
 				Wait.stop(shieldLocationWait)
 				shieldLocationWait=nil
@@ -2559,7 +2559,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 		--updata Mirrored source
 		if zone.guid==GUID.zone.mana and obj.type=="Dice" then
 			if dieRollEnterPause~=nil then Wait.stop(dieRollEnterPause) end
-			dieRollEnterPause=Wait.time(function()
+			dieRollEnterPause=safeWaitTime("Events",function()
 				mirrorSourceUpdate("object left zone")
 			end, 0.5)
 		end
@@ -2611,7 +2611,7 @@ function __onObjectEnterContainer_raw(bag, obj)
 		if gStates.apocalypseQuestTokenGUIDs==nil or gStates.apocalypseQuestTokenInBag==nil then apocalypseQuestTokenBagSetup() end
 		if gStates.apocalypseQuestTokenGUIDs[obj.guid]==true then
 			gStates.apocalypseQuestTokenInBag[obj.guid]=true
-			Wait.frames(function() apocalypseQuestRefreshReminderCards() end,2)
+			safeWaitFrames("Events",function() apocalypseQuestRefreshReminderCards() end,2)
 		end
 	end
 	if obj~=nil and monsterPugs[obj.guid]~=nil and monsterPugs[obj.guid].pugType=="possessed" and gStates.apocalypsePossessedEnemyByToken~=nil then
@@ -2645,7 +2645,7 @@ function __onObjectEnterContainer_raw(bag, obj)
 		gStates.rampagingMonsters[obj.guid]=nil
 		for mage, monster in pairs(gStates.pursuingMonsters) do monster[obj.guid]=nil end
 		gStates.ambushingMonsters[obj.guid]=nil
-		if fracturedRampagePos~=nil then Wait.frames(function() refreshFracturedLandsTeleportHighlights() end, 1) end
+		if fracturedRampagePos~=nil then safeWaitFrames("Events",function() refreshFracturedLandsTeleportHighlights() end, 1) end
 	end
 	--A Ruin monster stops belonging to that Ruin once it is returned to a container.
 	if gStates.ruinMonsters~=nil and gStates.ruinMonsters[obj.guid]~=nil then gStates.ruinMonsters[obj.guid]=nil end
@@ -2669,7 +2669,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 		if playerIndex~=nil then
 			local seatPos=turnOrder[playerIndex].seatPos
 			local deckGuid=bag.guid
-			Wait.frames(function()
+			safeWaitFrames("Events",function()
 				if obj==nil or obj.isDestroyed() then return end
 				local playerColor=obj.held_by_color
 				if playerColor~=nil and playerColor~="" and coralDrawPending==nil then
@@ -2684,13 +2684,13 @@ function __onObjectLeaveContainer_raw(bag, obj)
 		obj.guid=="55e5e5" or obj.guid=="818aea" or obj.guid=="564392" or obj.guid=="784a07" or obj.guid=="ebbbfc" or obj.guid=="b13d5f" or obj.guid=="9d866a") then
 		if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.firstStarted==true then
 			local coopGUID=obj.guid
-			Wait.frames(function() Wait.condition(function()
+			safeWaitFrames("Events",function() safeWaitCondition("Events",function()
 				local locking=obj.setState(2)
 				if locking~=nil and gStates.mageSkills~=nil and gStates.mageSkills[coopGUID]~=nil then
 					gStates.mageSkills[locking.guid]=gStates.mageSkills[coopGUID]
 					gStates.mageSkills[coopGUID]=nil
 				end
-				Wait.frames(function()
+				safeWaitFrames("Events",function()
 					if locking~=nil then locking.lock() end
 					--setState replaces the object/GUID and clears its object UI. Rebuild reward Claim buttons on the live state.
 					if gStates.skillButtons~=nil and gStates.skillButtons>0 then skillButtonActivate() end
@@ -2748,7 +2748,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 		local randomTrap=math.random(6)
 		local damageAdjust=0
 		if bag.guid==monsterPiles.pyramidTrap then damageAdjust=1 end
-		Wait.frames(function() Wait.condition(function()
+		safeWaitFrames("Events",function() safeWaitCondition("Events",function()
 			if obj~=nil then
 				obj.setCustomObject({image=trapImage[bag.guid][randomTrap]})
 				obj.reload()
@@ -2786,7 +2786,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 end
 
 function __onObjectSearchStart_raw(object, player_color)
-	Wait.frames(function() bagSearch=object.guid end, 5)
+	safeWaitFrames("Events",function() bagSearch=object.guid end, 5)
 end
 function __onObjectSearchEnd_raw(object, player_color)
 	bagSearch=nil
@@ -2794,7 +2794,7 @@ end
 
 randomizePause=nil
 function __onObjectRandomize_raw(randomize_object, player_color)
-	if randomize_object.type=="Bag" or randomize_object.type=="Deck" then Wait.frames(function() scaleBags(randomize_object, "dud", "shuffle") end, 5) end
+	if randomize_object.type=="Bag" or randomize_object.type=="Deck" then safeWaitFrames("Events",function() scaleBags(randomize_object, "dud", "shuffle") end, 5) end
 	if randomize_object.type=="Deck" and gStates~=nil and gStates.firstStarted==true then standardDeckCycleClearIfDeckShuffled(randomize_object) end
 	--If Coral's Deed Deck is manually shuffled, restore Quick Witted to the bottom after the shuffle settles.
 	if randomize_object.type=="Deck" then
@@ -2828,7 +2828,7 @@ function __onObjectRandomize_raw(randomize_object, player_color)
 			if fence~=nil then fence.setScale({0.10, 20.00, fenceDetails[2]}) end
 		end
 		if randomizePause~=nil then Wait.stop(randomizePause) end
-		randomizePause=Wait.time(function()
+		randomizePause=safeWaitTime("Events",function()
 			for _, fenceDetails in ipairs(randomizeFences) do
 				local fence=getObjectFromGUID(fenceDetails[1])
 				if fence~=nil then fence.setScale({0.10, 0.1, fenceDetails[2]}) end
@@ -2844,10 +2844,10 @@ function refreshCardEffectAfterRotation(cardGUID)
 	local generation=cardEffectRotationGeneration[cardGUID]
 	--onObjectRotate can fire before TTS has finished applying a Q/E rotation. Give the
 	--transform a frame to start, then read the actual card angle once the object is resting.
-	Wait.frames(function()
+	safeWaitFrames("Events",function()
 		local card=getObjectFromGUID(cardGUID)
 		if card==nil or cardEffectRotationGeneration[cardGUID]~=generation then return end
-		Wait.condition(function()
+		safeWaitCondition("Events",function()
 			if cardEffectRotationGeneration[cardGUID]~=generation then return end
 			local settledCard=getObjectFromGUID(cardGUID)
 			if settledCard==nil then return end
@@ -2878,14 +2878,14 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	if apocalypseDragonGroundHeadToken~=nil and select(1,apocalypseDragonGroundHeadToken(object.guid))==true then
 		local _,dragonHeadName=apocalypseDragonGroundHeadToken(object.guid)
 		local dragonHeadOwner=dragonHeadName~=nil and apocalypseDragonGroundHeadOwner(dragonHeadName) or nil
-		Wait.frames(function()
+		safeWaitFrames("Events",function()
 			apocalypseDragonRefreshGroundAttackSuppression()
 			if dragonHeadOwner~=nil then apocalypseDragonRefreshGroundFameGain(dragonHeadOwner) end
 			mainUIUpdate("Dragon Head Flipped")
 		end,1)
 	end
 	if gStates.gameScenario=="Against the Horsemen Blitz" and terrainTiles[object.guid]~=nil then
-		Wait.frames(function() againstHorsemenRefreshReveals() end,2)
+		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,2)
 	end
 	--Quest enemy tokens can be manually flipped while waiting on a Quest card. Refresh only
 	--an existing Quest Attack control after TTS has applied the new face.
@@ -2895,7 +2895,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	end
 	if object.guid=="02f996" or object.guid=="a4777c" or object.guid=="963031" then
 		local tokenGUID=object.guid
-		Wait.frames(function()
+		safeWaitFrames("Events",function()
 			local token=getObjectFromGUID(tokenGUID)
 			if token~=nil then apocalypseQuestSiteTokenDropped(token) end
 		end, 2)
@@ -2939,7 +2939,7 @@ function __onObjectNumberTyped_raw(object, player_color, number, alt)
 	if object.getGMNotes()=="Wound Cards" or object.getGMNotes()=="Poison Cards" then
 		local conversion={["Poison Cards"]="DealPoison", ["Wound Cards"]="DealWound"}
 		for a=1, number, 1 do
-			Wait.time(function() DealWound({guid=object.guid, player={color=player_color}, id=conversion[object.getGMNotes()]}) end, a/10)
+			safeWaitTime("Events",function() DealWound({guid=object.guid, player={color=player_color}, id=conversion[object.getGMNotes()]}) end, a/10)
 		end
 		return true
 	end
@@ -2973,12 +2973,12 @@ end
 
 function maintenanceTick()
 	safeCallback("maintenanceTick", function() __maintenanceTick_raw() end)
-	maintenanceWait=Wait.time(maintenanceTick, 2)
+	maintenanceWait=safeWaitTime("Events",maintenanceTick, 2)
 end
 
 function startMaintenanceTick()
 	if maintenanceWait~=nil then Wait.stop(maintenanceWait) end
-	maintenanceWait=Wait.time(maintenanceTick, 2)
+	maintenanceWait=safeWaitTime("Events",maintenanceTick, 2)
 end
 
 --stop crystal entering command token bag
@@ -2990,8 +2990,11 @@ end
 
 -- Automatic Lua error reporting
 automaticLuaErrorReporting=false
-automaticLuaErrorLastReport=0
+automaticLuaErrorLastReport=0 --kept for the manual test hook / compatibility
 automaticLuaErrorCooldown=10
+automaticLuaErrorSignatures={}
+automaticLuaErrorBreadcrumbs={}
+automaticLuaErrorBreadcrumbLimit=10
 automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
 automaticLuaErrorReporterVersion="412"
 
@@ -3120,14 +3123,44 @@ function sendAutomaticLuaErrorRequest(comment)
 	end)
 end
 
+function automaticLuaBreadcrumb(label)
+	label=tostring(label or "")
+	if label=="" or label=="maintenanceTick" or label=="onObjectHover" or label:find(" / Wait.",1,true)~=nil then return end
+	if automaticLuaErrorBreadcrumbs[#automaticLuaErrorBreadcrumbs]==label then return end
+	automaticLuaErrorBreadcrumbs[#automaticLuaErrorBreadcrumbs+1]=label
+	while #automaticLuaErrorBreadcrumbs>automaticLuaErrorBreadcrumbLimit do table.remove(automaticLuaErrorBreadcrumbs,1) end
+end
+
+function automaticLuaBreadcrumbText()
+	if #automaticLuaErrorBreadcrumbs==0 then return "" end
+	return table.concat(automaticLuaErrorBreadcrumbs," -> ")
+end
+
+function automaticLuaErrorSignature(functionName,errorText)
+	local firstLine=tostring(errorText or ""):match("[^\n]+") or ""
+	return tostring(functionName).."|"..firstLine
+end
+
 function reportAutomaticLuaError(functionName, errorText, context)
 	if automaticLuaErrorReporting then return end
 	local now=os.time()
-	if now-automaticLuaErrorLastReport<automaticLuaErrorCooldown then return end
-	automaticLuaErrorReporting=true
+	local signature=automaticLuaErrorSignature(functionName,errorText)
+	local last=automaticLuaErrorSignatures[signature]
+	if last~=nil and now-last<automaticLuaErrorCooldown then return end
+	automaticLuaErrorSignatures[signature]=now
 	automaticLuaErrorLastReport=now
+	--Keep the signature table bounded during very long sessions.
+	local signatureCount=0
+	for key,when in pairs(automaticLuaErrorSignatures) do
+		signatureCount=signatureCount+1
+		if now-when>300 then automaticLuaErrorSignatures[key]=nil end
+	end
+	if signatureCount>100 then automaticLuaErrorSignatures={} automaticLuaErrorSignatures[signature]=now end
+	automaticLuaErrorReporting=true
 	local comment="AUTOMATIC LUA ERROR\nReporter Version: "..tostring(automaticLuaErrorReporterVersion).."\nFunction: "..tostring(functionName)
 	if context~=nil and context~="" then comment=comment.."\n"..tostring(context) end
+	local breadcrumbs=automaticLuaBreadcrumbText()
+	if breadcrumbs~="" then comment=comment.."\nRecent script actions: "..breadcrumbs end
 	comment=comment.."\n\n"..tostring(errorText)
 	pcall(function() UI.setAttribute("SendBugComment", "text", comment) end)
 	local ok, reportError=pcall(function() sendAutomaticLuaErrorRequest(comment) end)
@@ -3136,10 +3169,8 @@ function reportAutomaticLuaError(functionName, errorText, context)
 end
 
 function safeCallback(functionName, callback, contextCallback)
-	local ok, result=xpcall(callback, function(e)
-		if debug and debug.traceback then return debug.traceback(tostring(e), 2) end
-		return tostring(e)
-	end)
+	automaticLuaBreadcrumb(functionName)
+	local ok, result=xpcall(callback, automaticLuaTraceback)
 	if not ok then
 		local context=nil
 		if contextCallback~=nil then
@@ -3165,8 +3196,14 @@ function testAutomaticLuaError()
 	end)
 	if ok==true then return end
 	automaticLuaErrorLastReport=0
+	automaticLuaErrorSignatures={}
 	reportAutomaticLuaError("TEST - automatic Lua error reporting", err, "Intentional test error triggered with !testerror")
 	error(rawError or "Intentional automatic Lua error reporting test", 0)
+end
+
+function testAutomaticLuaAsyncError()
+	automaticLuaErrorSignatures={}
+	safeWaitFrames("TEST async",function() error("Intentional asynchronous automatic Lua error reporting test",0) end,1)
 end
 
 function automaticLuaZoneContext(zone, obj)

@@ -111,7 +111,7 @@ local function finalizeRoll(state, color)
     state.cleanupToken = state.cleanupToken + 1
     local cleanupToken = state.cleanupToken
     local guid = state.guid
-    Wait.time(function()
+    safeWaitTime("Rollers",function()
         local current = rollerState[guid]
         if current ~= nil and current.cleanupToken == cleanupToken and current.phase == "done" then cleanupRoller(current) end
     end, CLEANUP_DELAY)
@@ -122,7 +122,7 @@ local function waitForDiceToRest(guid, rollToken, color)
     if state == nil or state.rollToken ~= rollToken or state.phase ~= "rolling" then return end
     for _, die in ipairs(state.dice) do
         if die ~= nil and not die.resting then
-            Wait.frames(function() waitForDiceToRest(guid, rollToken, color) end, 1)
+            safeWaitFrames("Rollers",function() waitForDiceToRest(guid, rollToken, color) end, 1)
             return
         end
     end
@@ -138,14 +138,14 @@ local function beginRoll(guid, rollToken, color)
         die.setLock(false)
         die.randomize()
     end
-    Wait.frames(function() waitForDiceToRest(guid, rollToken, color) end, 1)
+    safeWaitFrames("Rollers",function() waitForDiceToRest(guid, rollToken, color) end, 1)
 end
 
 local function queueRoll(state, color)
     state.rollToken = state.rollToken + 1
     local rollToken = state.rollToken
     local guid = state.guid
-    Wait.time(function() beginRoll(guid, rollToken, color) end, ROLL_DELAY)
+    safeWaitTime("Rollers",function() beginRoll(guid, rollToken, color) end, ROLL_DELAY)
 end
 
 function MKRollDieButton(roller, color)
@@ -186,7 +186,7 @@ local function installRollers(attempt)
     for guid in pairs(ROLLER_CONFIG) do
         if rollerState[guid] == nil and not installRoller(guid) then missing = true end
     end
-    if missing and attempt < 60 then Wait.frames(function() installRollers(attempt + 1) end, 1) end
+    if missing and attempt < 60 then safeWaitFrames("Rollers",function() installRollers(attempt + 1) end, 1) end
 end
 
 local function destroySavedRollerDice(savedState)

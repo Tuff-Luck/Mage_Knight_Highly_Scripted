@@ -24,9 +24,9 @@ function dummyProcessTurn(dummyIndex,dummySeat)
 	local thirdCard=automatedDeedDraw(dummySeat,3,1)
 	local bonusDraw=0
 	if thirdCard~=nil then for _, color in ipairs(dummyCardColors(thirdCard)) do bonusDraw=bonusDraw+(crystalSnapshot[color] or 0) end end
-	Wait.time(function()
+	safeWaitTime("AI.Dummy",function()
 		automatedDeedDraw(dummySeat,bonusDraw,2)
-		Wait.time(function()
+		safeWaitTime("AI.Dummy",function()
 			dummyRefreshDeedState(dummySeat)
 			automatedTurnRewindRelease()
 		end,0.25)

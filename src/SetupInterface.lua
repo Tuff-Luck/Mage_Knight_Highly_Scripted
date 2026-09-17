@@ -104,7 +104,7 @@ function randomSetup(player, value, id)
 	local value=scenarioList[math.random(2, #scenarioList-1)][1]
 	if value:reverse():sub(1, 5)=="ztilB" then scenarioSelection(nil, "-1", value:sub(1, string.len(value)-6)) else scenarioSelection(nil, "-1", value) end
 	if (value=="Conquest Blitz" or value=="Volkare's Return Blitz") then BlitzSelection(nil, "True", "BlitzSelection") end
-	Wait.frames(function()
+	safeWaitFrames("SetupInterface",function()
 		local randomOptions={"volkareCampAsCity", "randomTileOrientation", "randomCities", "removeShadesOfTezlaMonsters", "removeApocalypseTerrain",	"startAtNight", "darknessComing", "heroChallenges", "useCustomMageKnights", "weatherMod", "questMod", "apocalypseQuestCards", "proxyPlayer", "itemShopMod", "rampageAmbush", "rampagePursuit", "removeTerrain"}
 		for a=1, #randomOptions, 1 do
 			if UI.getAttribute(randomOptions[a], "interactable")=="True" then

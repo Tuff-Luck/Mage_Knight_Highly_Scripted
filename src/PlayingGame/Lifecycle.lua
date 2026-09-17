@@ -19,12 +19,14 @@ function onLoad(saved_data)
 end
 
 function onSave()
-    local saved_data = baseOnSave()
-    if type(saved_data) ~= "string" or saved_data == "" then return saved_data end
+    return safeCallback("onSave", function()
+        local saved_data = baseOnSave()
+        if type(saved_data) ~= "string" or saved_data == "" then return saved_data end
 
-    local ok, data = pcall(JSON.decode, saved_data)
-    if not ok or type(data) ~= "table" then return saved_data end
+        local ok, data = pcall(JSON.decode, saved_data)
+        if not ok or type(data) ~= "table" then return saved_data end
 
-    data.rollerDice = rollerOnSave()
-    return JSON.encode(data)
+        data.rollerDice = rollerOnSave()
+        return JSON.encode(data)
+    end)
 end

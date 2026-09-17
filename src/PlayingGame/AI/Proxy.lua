@@ -44,8 +44,8 @@ function proxySetupReferenceCards()
 
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 	if bag==nil then return end
-	bag.takeObject({guid="0e855c",position={x1,0.98,z},rotation={0,180,0},smooth=false,callback_function=function(obj) obj.lock() end})
-	bag.takeObject({guid="dbf566",position={x2,0.98,z},rotation={0,180,0},smooth=false,callback_function=function(obj) obj.lock() end})
+	safeTakeObject("AI.Proxy",bag,{guid="0e855c",position={x1,0.98,z},rotation={0,180,0},smooth=false,callback_function=function(obj) obj.lock() end})
+	safeTakeObject("AI.Proxy",bag,{guid="dbf566",position={x2,0.98,z},rotation={0,180,0},smooth=false,callback_function=function(obj) obj.lock() end})
 end
 
 function proxySetupAvatarPosition()
@@ -1515,10 +1515,10 @@ function proxyLockShieldWhenResting(shield)
 	if shield==nil then return end
 	local guid=shield.guid
 	--Match normal shield placement: let physics complete first, then lock only after the token rests.
-	Wait.time(function()
+	safeWaitTime("AI.Proxy",function()
 		local current=getObjectFromGUID(guid)
 		if current==nil then return end
-		Wait.condition(function()
+		safeWaitCondition("AI.Proxy",function()
 			local settled=getObjectFromGUID(guid)
 			if settled~=nil then settled.lock() end
 		end,function()
@@ -1619,8 +1619,8 @@ function proxyRestoreAvatarAfterSiteObjects(lift,objectGUIDs)
 			avatar.setPositionSmooth({lift.position[1],lift.position[2]+1.0,lift.position[3]})
 		end
 	end
-	Wait.frames(function()
-		Wait.condition(restore,function()
+	safeWaitFrames("AI.Proxy",function()
+		safeWaitCondition("AI.Proxy",restore,function()
 			for _,guid in ipairs(objectGUIDs or {}) do
 				local obj=getObjectFromGUID(guid)
 				if obj~=nil and obj.resting~=true then return false end
@@ -1769,7 +1769,7 @@ function proxyResolveEnemyChoice(pending,selectedGUID)
 		proxyClearObjective(true)
 		broadcastToAll("Proxy resolved the tied City defender choice.",{1,0.75,0.2})
 	end
-	Wait.time(function()
+	safeWaitTime("AI.Proxy",function()
 		local freshHexes,freshObjects=apocalypseQuestMapHexes()
 		proxyFinishTurn(freshHexes,freshObjects,pending.proxyIndex)
 	end,1.1)
@@ -1938,7 +1938,7 @@ function proxyTakeInteractionChoice(choice)
 	local kind=choice.kind=="unit" and "Unit" or (choice.kind=="spell" and "Spell" or "Advanced Action")
 	proxyTurnReportSetAction("took "..cardName.." ("..kind..") from the offer")
 	proxyReturnOfferCard(choice.card)
-	if choice.kind~="unit" then Wait.frames(function() fillSlide() end,2) end
+	if choice.kind~="unit" then safeWaitFrames("AI.Proxy",function() fillSlide() end,2) end
 	proxyClearObjective(true)
 	broadcastToAll("Proxy took "..cardName.." from the offer.",{1,0.75,0.2})
 	return true
@@ -1980,7 +1980,7 @@ function proxyInteractionChoiceSelect(player,mouseButton,id)
 		local card=getObjectFromGUID(guid)
 		if card~=nil then proxyTakeInteractionChoice({card=card,kind=snap.kind,cost=snap.cost})
 		else proxyTurnReportSetAction("could not find the selected offer card") proxyClearObjective(true) end
-		Wait.time(function()
+		safeWaitTime("AI.Proxy",function()
 			local hexes,mapObjects=apocalypseQuestMapHexes()
 			proxyFinishTurn(hexes,mapObjects,pending.proxyIndex)
 		end,1.1)
@@ -2061,7 +2061,7 @@ function proxyResolveArrival(target,hazard,lastSafe,hexes,mapObjects,proxyIndex)
 			completed=proxyResolveInteraction(choices[1],choices,proxyIndex)
 		elseif target.action=="explore" then completed=proxyResolveExplore(target) end
 	end
-	if completed~=false then Wait.time(function() proxyFinishTurn(hexes,mapObjects,proxyIndex) end,1.1) end
+	if completed~=false then safeWaitTime("AI.Proxy",function() proxyFinishTurn(hexes,mapObjects,proxyIndex) end,1.1) end
 end
 
 function proxyRevealGarrisonsAtHex(hex,hexes,mapObjects,proxyIndex)
@@ -2105,7 +2105,7 @@ function proxyAnimateStep(hex,hexes,mapObjects,proxyIndex,callback)
 	if avatar==nil or hex==nil then if callback~=nil then callback() end return end
 	avatar.unlock()
 	avatar.setPositionSmooth({hex.position[1],1.5,hex.position[3]})
-	Wait.frames(function()
+	safeWaitFrames("AI.Proxy",function()
 		local finished=false
 		local function complete()
 			if finished==true then return end
@@ -2115,7 +2115,7 @@ function proxyAnimateStep(hex,hexes,mapObjects,proxyIndex,callback)
 			proxyRevealGarrisonsAtHex(hex,hexes,mapObjects,proxyIndex)
 			if callback~=nil then callback() end
 		end
-		Wait.condition(complete,function() return avatar==nil or avatar.isSmoothMoving()==false end,3.5,complete)
+		safeWaitCondition("AI.Proxy",complete,function() return avatar==nil or avatar.isSmoothMoving()==false end,3.5,complete)
 	end,2)
 end
 
@@ -2239,7 +2239,7 @@ function proxyProcessTurn(proxyIndex)
 	end
 	local bonus=0
 	if lastCard~=nil then for _,color in ipairs(dummyCardColors(lastCard)) do bonus=bonus+(crystals[color] or 0) end end
-	Wait.time(function()
+	safeWaitTime("AI.Proxy",function()
 		if bonus>0 then automatedDeedDraw(stats.seatPos,bonus,2) end
 		local objectiveNow=proxyObjectiveObject()
 		if objectiveNow==nil then proxyFinishTurn(hexes,mapObjects,proxyIndex) return end

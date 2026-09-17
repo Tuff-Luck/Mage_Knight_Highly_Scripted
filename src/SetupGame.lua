@@ -214,7 +214,7 @@ function setupGame(player, mouseButton, id, rewindReady)
 			print("SETUP WARNING: rules bag d4a866 was unavailable; continuing setup without deploying rulebooks.")
 		end
 		if ruleBag~=nil then
-			Wait.time(function() Wait.condition(function()
+			safeWaitTime("SetupGame",function() safeWaitCondition("SetupGame",function()
 				local mainRules=getObjectFromGUID(r.main)
 				local expansionRules=getObjectFromGUID(r.expansion)
 				local apocalypseRules=getObjectFromGUID(r.apocalypse)
@@ -317,11 +317,11 @@ function setupGame(player, mouseButton, id, rewindReady)
 			end
 			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={-57.75, 0.98, -2.95}, smooth=false, guid=volkare.disc})--Volkares Mat
 			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={-62.2, 0.98, 0.5}, smooth=false, guid=volkare.terrainHex})--Volkare's Camp Hex
-			Wait.time(function()
+			safeWaitTime("SetupGame",function()
 				getObjectFromGUID(volkare.terrainHex).lock()
 				getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={getObjectFromGUID(cityScriptZones[volkare.discZone].cityCard).getPosition()[1]+2.2, 1.5, getObjectFromGUID(cityScriptZones[volkare.discZone].cityCard).getPosition()[3]+2.2}, smooth=false, guid=GUID.bag.volkareReminder})
 			end, 1)
-			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={39.16, 0.97, 35.00}, callback_function=function(spawnedObject) spawnedObject.setScale({7.05, 1.00, 6.51}) end, smooth=false, guid="b2ec85"})--Volkare Level Chart
+			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.volkare),{rotation={0.0, 180.0, 0.0}, position={39.16, 0.97, 35.00}, callback_function=function(spawnedObject) spawnedObject.setScale({7.05, 1.00, 6.51}) end, smooth=false, guid="b2ec85"})--Volkare Level Chart
 			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0,  45.0, 0.0}, position={-57.60, 1.57, -2.45}, smooth=false, guid="9a686a"})--Volker Dice
 		end
 
@@ -331,14 +331,14 @@ function setupGame(player, mouseButton, id, rewindReady)
 
 		--Add or destroy the 4 competitive spell cards
 		if gStates.coop==0 or gStates.WarOfFourComp==true then
-			getObjectFromGUID(GUID.bag.common).takeObject({position={getObjectFromGUID(GUID.deck.spell).getPosition()[1], -2, getObjectFromGUID(GUID.deck.spell).getPosition()[3]},
-				guid="9b3c8c", smooth=false, callback_function=function(obj) Wait.frames(function() getObjectFromGUID(GUID.deck.spell).putObject(obj) end) end})--Spells
+			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.common),{position={getObjectFromGUID(GUID.deck.spell).getPosition()[1], -2, getObjectFromGUID(GUID.deck.spell).getPosition()[3]},
+				guid="9b3c8c", smooth=false, callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.spell).putObject(obj) end) end})--Spells
 		end
 
 		--Add or destroy the Advanced action Cards removed for First Reconnaissance
 		if gStates.gameScenario~="First Reconnaissance" then
-			getObjectFromGUID(GUID.bag.common).takeObject({position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
-				guid="268194", smooth=false, callback_function=function(obj) Wait.frames(function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
+			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.common),{position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
+				guid="268194", smooth=false, callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
 		end
 
 		--Merge Lost Legion Components
@@ -346,8 +346,8 @@ function setupGame(player, mouseButton, id, rewindReady)
 								--12 Advanced Actions, 4 Spells, 8 Artifacts, 8 Regular Units, 8 Elite Units
 		if gStates.removeLostLegionExpansion==false then
 			for mainDeck, lostLegionDeck in pairs(lostLegionDecks) do
-				getObjectFromGUID(GUID.bag.lostLegion).takeObject({position={getObjectFromGUID(mainDeck).getPosition()[1], -2, getObjectFromGUID(mainDeck).getPosition()[3]},
-					guid=lostLegionDeck, smooth=false, callback_function=function(obj) Wait.frames(function() getObjectFromGUID(mainDeck).putObject(obj) end) end})
+				safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.lostLegion),{position={getObjectFromGUID(mainDeck).getPosition()[1], -2, getObjectFromGUID(mainDeck).getPosition()[3]},
+					guid=lostLegionDeck, smooth=false, callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(mainDeck).putObject(obj) end) end})
 			end
 			for a=1, 3, 1 do getObjectFromGUID(GUID.bag.terrain.leftCountry).putObject(getObjectFromGUID(GUID.bag.terrain.lostLegionCountry).takeObject({position={getObjectFromGUID(GUID.bag.terrain.leftCountry).getPosition()[1], -2, getObjectFromGUID(GUID.bag.terrain.leftCountry).getPosition()[3]}, smooth=false})) end--3 Country Tiles
 			for a=1, 2, 1 do getObjectFromGUID(GUID.bag.terrain.leftCore).putObject(getObjectFromGUID(GUID.bag.terrain.lostLegionCore).takeObject({position={getObjectFromGUID(GUID.bag.terrain.leftCore).getPosition()[1], -2, getObjectFromGUID(GUID.bag.terrain.leftCore).getPosition()[3]}, smooth=false})) end--2 Core Tiles
@@ -409,30 +409,30 @@ function setupGame(player, mouseButton, id, rewindReady)
 
 		--Merge Ultimate Edition Components
 		if gStates.removeBonusCards==false then
-			getObjectFromGUID(GUID.bag.common).takeObject({position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
-				guid="96f761", smooth=false, callback_function=function(obj) Wait.frames(function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
-			getObjectFromGUID(GUID.bag.common).takeObject({position={getObjectFromGUID(GUID.deck.artifact).getPosition()[1], -2, getObjectFromGUID(GUID.deck.artifact).getPosition()[3]},
-				guid="085e69", smooth=false, callback_function=function(obj) Wait.frames(function() getObjectFromGUID(GUID.deck.artifact).putObject(obj) end) end})--artifacts
+			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.common),{position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
+				guid="96f761", smooth=false, callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
+			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.common),{position={getObjectFromGUID(GUID.deck.artifact).getPosition()[1], -2, getObjectFromGUID(GUID.deck.artifact).getPosition()[3]},
+				guid="085e69", smooth=false, callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.artifact).putObject(obj) end) end})--artifacts
 		end
 
 		--include or remove Rise of the Forgemaster
 		if gStates.riseOfTheForgemasters>=1 then
-			getObjectFromGUID(GUID.bag.forgemaster).takeObject({position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
-				smooth=false, guid="db5f9f", callback_function=function(obj) Wait.frames(function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
-			getObjectFromGUID(GUID.bag.forgemaster).takeObject({position={getObjectFromGUID(GUID.deck.artifact).getPosition()[1], -2, getObjectFromGUID(GUID.deck.artifact).getPosition()[3]},
-				smooth=false, guid="c48f76", callback_function=function(obj) Wait.frames(function() getObjectFromGUID(GUID.deck.artifact).putObject(obj) end) end})--artifacts
-			getObjectFromGUID(GUID.bag.forgemaster).takeObject({position={getObjectFromGUID(GUID.deck.spell).getPosition()[1], -2, getObjectFromGUID(GUID.deck.spell).getPosition()[3]},
-				smooth=false, guid="cfe630", callback_function=function(obj) Wait.frames(function() getObjectFromGUID(GUID.deck.spell).putObject(obj) end) end})--Spells
+			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.forgemaster),{position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
+				smooth=false, guid="db5f9f", callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
+			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.forgemaster),{position={getObjectFromGUID(GUID.deck.artifact).getPosition()[1], -2, getObjectFromGUID(GUID.deck.artifact).getPosition()[3]},
+				smooth=false, guid="c48f76", callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.artifact).putObject(obj) end) end})--artifacts
+			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.forgemaster),{position={getObjectFromGUID(GUID.deck.spell).getPosition()[1], -2, getObjectFromGUID(GUID.deck.spell).getPosition()[3]},
+				smooth=false, guid="cfe630", callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.spell).putObject(obj) end) end})--Spells
 			getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={54.25, 0.98, 18.86}, guid="0a657b", smooth=false}) getObjectFromGUID("0a657b").lock()
 			if gStates.riseOfTheForgemasters>=2 then
-				getObjectFromGUID(GUID.bag.forgemaster).takeObject({position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
-					smooth=false, guid="c89aea", callback_function=function(obj) Wait.frames(function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
+				safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.forgemaster),{position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
+					smooth=false, guid="c89aea", callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
 				getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -16.00}, guid="5ad84f", smooth=false}) getObjectFromGUID("5ad84f").lock()
 				if gStates.riseOfTheForgemasters==3 then
-					getObjectFromGUID(GUID.bag.forgemaster).takeObject({position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
-						smooth=false, guid="3b0ed8", callback_function=function(obj) Wait.frames(function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
-					getObjectFromGUID(GUID.bag.forgemaster).takeObject({position={getObjectFromGUID(GUID.deck.spell).getPosition()[1], -2, getObjectFromGUID(GUID.deck.spell).getPosition()[3]},
-						smooth=false, guid="09fd8d", callback_function=function(obj) Wait.frames(function() getObjectFromGUID(GUID.deck.spell).putObject(obj) end) end})--Spells
+					safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.forgemaster),{position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
+						smooth=false, guid="3b0ed8", callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
+					safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.forgemaster),{position={getObjectFromGUID(GUID.deck.spell).getPosition()[1], -2, getObjectFromGUID(GUID.deck.spell).getPosition()[3]},
+						smooth=false, guid="09fd8d", callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.spell).putObject(obj) end) end})--Spells
 					getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -19.50}, guid="bbec6b", smooth=false}) getObjectFromGUID("bbec6b").lock()
 					getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -23.00}, guid="786414", smooth=false}) getObjectFromGUID("786414").lock()
 					getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -12.50}, guid="a28a71", smooth=false}) getObjectFromGUID("a28a71").lock()
@@ -450,7 +450,7 @@ function setupGame(player, mouseButton, id, rewindReady)
 		--stagered setup
 		local delay=0.5--was 1.6
 		if gStates.playerCount==1 then delay=0.5 end
-		Wait.time(function()
+		safeWaitTime("SetupGame",function()
 			--Setup all the decks and shuffles everything
 			deckSetup()
 
@@ -458,7 +458,7 @@ function setupGame(player, mouseButton, id, rewindReady)
 			local allSkills=getObjectFromGUID(GUID.bag.allSkills)
 			if gStates.dummyAllSkills==true then
 				if gStates.playersRef==5 then
-					Wait.time(function()
+					safeWaitTime("SetupGame",function()
 						allSkills.setPosition({getObjectFromGUID(dummyBoard).getPosition()[1]-5.62, 1.25, getObjectFromGUID(dummyBoard).getPosition()[3]+6.97})
 						for skillGUID, skillDetails in pairs(skillTokens) do
 							if (skillDetails.mage==turnOrder[1].mage or (customMages[skillDetails.mage]~=nil and gStates.useCustomMageKnights==false) or (skillDetails.mage=="Jormund" and gStates.riseOfTheForgemasters<3)) and
@@ -474,7 +474,7 @@ function setupGame(player, mouseButton, id, rewindReady)
 				allSkills.destruct()
 			end
 
-			Wait.time(function()
+			safeWaitTime("SetupGame",function()
 				--Add wounds to decks to allow allow max cards to be pooled
 				local Wounds={[GUID.deck.spell]={"5c38e4", "ab778d"}, [GUID.deck.regularUnit]={"b5048c", "718f39"}}
 				if gStates.mageKnightLevels==false then
@@ -501,7 +501,7 @@ end
 function monsterSetup()
 	function mergeBags(source, destination, container)
 		local temp=getObjectFromGUID(container).takeObject({position={getObjectFromGUID(destination).getPosition()[1], -2, getObjectFromGUID(destination).getPosition()[3]}, smooth=false, guid=source})
-		Wait.frames(function()
+		safeWaitFrames("SetupGame",function()
 			for b=1, #temp.getObjects(), 1 do
 				getObjectFromGUID(destination).putObject(temp.takeObject())
 			end
@@ -552,7 +552,7 @@ function monsterSetup()
 	end
 	--set faction leader levels
 	local leaderLevel=gStates.cityLevels[1]
-	Wait.frames(function()
+	safeWaitFrames("SetupGame",function()
 		if gStates.gameScenario~="Ultimate Conquest" then
 			if getObjectFromGUID(elementalist.disc)~=nil then
 				getObjectFromGUID(elementalist.disc).setCustomObject({image=leaderData[elementalist.terrainHex][leaderLevel].discImg})
@@ -584,7 +584,7 @@ function monsterSetup()
 	end, 5)
 
 	--shuffle all monster piles
-	Wait.time(function()
+	safeWaitTime("SetupGame",function()
 		local ToBeShuffled={monsterPiles.redElem, monsterPiles.tanElem, monsterPiles.greenElem, monsterPiles.rewardElem,								 --Dragons Ele,  Dungeon Ele,  Orcs Ele,  Rewards Ele
 							monsterPiles.redDark, monsterPiles.tanDark, monsterPiles.greenDark, monsterPiles.rewardDark,								 --Dragons Dark, Dungeon Dark, Orcs Dark, Rewards Dark
 							monsterPiles.rewardApoc, monsterPiles.rewardCouncil, monsterPiles.possessed,								 --Apocalypse Cult Rewards, Council of the Void Rewards, Possessed Tokens
@@ -675,7 +675,7 @@ function playerSetup()
 					if (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) and ((i>=2 and gStates.positionMageKnight[5]=="Volkare") or (i>=8 and gStates.positionMageKnight[5]~="nobody")) then DummyPlayed=1 break end--just dummy board for Volkare
 					if i>=11 and gStates.riseOfTheForgemasters<=1 then break end
 					if i>=15 and gStates.riseOfTheForgemasters<=2 then break end
-					if skip==0 then local obj=CommonBag.takeObject(params).lock() end
+					if skip==0 then local obj=safeTakeObject("SetupGame",CommonBag,params).lock() end
 				end
 				CommonBag.destruct()
 
@@ -683,7 +683,7 @@ function playerSetup()
 				if (gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]~=5) then
 					local obj=getObjectFromGUID("b5a6ce").clone()
 					obj.setPosition({-58.25+offsetPosition, 0.98, -28.53})
-					Wait.time(function() Wait.condition(function()
+					safeWaitTime("SetupGame",function() safeWaitCondition("SetupGame",function()
 						obj.lock()
 						obj.setRotation({0, 180, 0})
 						obj.registerCollisions()
@@ -752,7 +752,7 @@ function playerSetup()
 					end
 
 					--Dummy Invetory Card
-					if i==3 and (gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<5) then local destr=PlayerBag.takeObject(params) destr.destruct() skip=1 end--Delete Dummy Inventory when this is a player
+					if i==3 and (gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<5) then local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1 end--Delete Dummy Inventory when this is a player
 
 					--Skills Container or Volkare's Level Chart
 					if i==4 then
@@ -764,7 +764,7 @@ function playerSetup()
 								if gStates.playerCount==1 and gStates.dummyAllSkills==false then
 									params.position={-78.12+offsetPosition, 1.6, -31.03}--Skills container Position
 								else
-									local destr=PlayerBag.takeObject(params) destr.destruct() skip=1
+									local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
 								end
 							end
 						end
@@ -772,13 +772,13 @@ function playerSetup()
 
 					--Skill Refernce Card 1
 					if i==5 and (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) and ((gStates.positionMageKnight[5]=="Volkare" or gStates.playerCount~=1) or gStates.dummyAllSkills==true) then
-						local destr=PlayerBag.takeObject(params) destr.destruct() skip=1
+						local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
 					end
 
 					--Skill Refernce Card 2
 					if i==6 then
 						if (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) and ((gStates.positionMageKnight[5]=="Volkare" or gStates.playerCount~=1) or gStates.dummyAllSkills==true) then
-							local destr=PlayerBag.takeObject(params) destr.destruct() skip=1
+							local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
 						else
 							params.callback_function=function(obj) obj.lock() end
 							if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.positionMageKnight[positionOrder[a]]~="Ymirgh" and gStates.positionMageKnight[positionOrder[a]]~="Malek" and gStates.positionMageKnight[positionOrder[a]]~="Duscenia" and gStates.positionMageKnight[positionOrder[a]]~="Mevok"then--"Mevok"
@@ -806,7 +806,7 @@ function playerSetup()
 									if proxyIndex~=nil and turnOrder[proxyIndex]~=nil then turnOrder[proxyIndex].avatarLocation=onPortal==true and "portal" or nil end
 								end
 							else
-								local destr=PlayerBag.takeObject(params) destr.destruct() skip=1
+								local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
 							end
 						else
 							--params.position[1]=params.position[1]-(offsetPosition/1.07)--Avatar
@@ -831,7 +831,7 @@ function playerSetup()
 								terrainTiles["835c91"].hexFeature.center=""
 								gStates.hexOverideSave["835c91"]={center=""}
 								if gStates.randomTileOrientation==false then params.rotation={0, 180, 180} else params.rotation={0, math.random(1, 6)*60, 180} end
-								local obj=PlayerBag.takeObject(params)
+								local obj=safeTakeObject("SetupGame",PlayerBag,params)
 								skip=1
 							else
 								local params={position={-69.4, 1.41, -36.5}, rotation={0, 30, 0}, smooth=false, index=0}
@@ -839,7 +839,7 @@ function playerSetup()
 								params.position[1]=params.position[1]+offsetPosition
 								for a=1, 3, 1 do
 									params.position[1]=params.position[1]-(1.7)
-									local obj=PlayerBag.takeObject(params)
+									local obj=safeTakeObject("SetupGame",PlayerBag,params)
 								 	obj.lock()
 									local b=obj.getDescription()
 									if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
@@ -867,7 +867,7 @@ function playerSetup()
 							else
 								params.position={-12.0297, 1.6, 8.8586}--Volkare's Quest Avatar position
 							end
-							local obj=PlayerBag.takeObject(params)
+							local obj=safeTakeObject("SetupGame",PlayerBag,params)
 							skip=1
 						else
 							local blitzSub=gStates.blitz
@@ -909,11 +909,11 @@ function playerSetup()
 							if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
 								params.position={-37.23, 2.5, -5.69}
 								params.rotation={0.0, 210.0, 0.0}--Volkare's Return Guide position
-								params.callback_function=function() Wait.frames(function() getObjectFromGUID("bc4dcc").jointTo(getObjectFromGUID(volkare.model), {["type"]="Fixed"}) end, 5) end
+								params.callback_function=function() safeWaitFrames("SetupGame",function() getObjectFromGUID("bc4dcc").jointTo(getObjectFromGUID(volkare.model), {["type"]="Fixed"}) end, 5) end
 							else
 								params.position={-12.03, 2.5, 8.86}--Volkare's Quest Guide position
 								params.rotation={0.0, 210.0, 0.0}
-								params.callback_function=function() Wait.frames(function() getObjectFromGUID("bc4dcc").setState(2) Wait.frames(function() getObjectFromGUID("be2dc2").jointTo(getObjectFromGUID(volkare.model), {["type"]="Fixed"}) end, 5) end, 5) end
+								params.callback_function=function() safeWaitFrames("SetupGame",function() getObjectFromGUID("bc4dcc").setState(2) safeWaitFrames("SetupGame",function() getObjectFromGUID("be2dc2").jointTo(getObjectFromGUID(volkare.model), {["type"]="Fixed"}) end, 5) end, 5) end
 							end
 							skip=1
 						end
@@ -924,7 +924,7 @@ function playerSetup()
 
 					if positionOrder[a]==5 and i~=1 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
 					if skip==0 then
-						local obj=PlayerBag.takeObject(params)
+						local obj=safeTakeObject("SetupGame",PlayerBag,params)
 						if (i==4 or i==5 or i==10 or i==11 or i==13) and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<5 then obj.lock() end--lock player board components
 						if (i==1 or i==3 or i==4 or i==5 or i==11) and (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) then obj.lock() end--lock dummy board components
 						if i==1 then turnOrder[turnRef].turnOrderTokenGUID=obj.guid end
@@ -971,8 +971,8 @@ function playerSetup()
 					end
 				end
 				if gStates.positionMageKnight[positionOrder[a]]=="Mevok" then
-					local obj=PlayerBag.takeObject({guid="32bc89", position={-77.30+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
-					local obj=PlayerBag.takeObject({guid="2dbfde", position={-73.90+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
+					local obj=safeTakeObject("SetupGame",PlayerBag,{guid="32bc89", position={-77.30+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
+					local obj=safeTakeObject("SetupGame",PlayerBag,{guid="2dbfde", position={-73.90+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
 				end
 				PlayerBag.destruct()
 			else
@@ -996,7 +996,7 @@ function playerSetup()
 	--plus the two Apocalypse Proxy reference cards immediately to the right of the Skill reference cards.
 	if proxyPlayerActive()==true then
 		proxySetupReferenceCards()
-		Wait.frames(function() proxySetupShieldBag() end,10)
+		safeWaitFrames("SetupGame",function() proxySetupShieldBag() end,10)
 	end
 end
 
@@ -1070,7 +1070,7 @@ function volkareSetup()
 	--add unit tokens based on Volkare's Level
 	gStates.volkareLevel=gStates.cityLevels[#gStates.cityLevels]
 	table.remove(gStates.cityLevels, #gStates.cityLevels)
-	Wait.time(function() volkareArmy() end, 5)--time for monster stacks to fill
+	safeWaitTime("SetupGame",function() volkareArmy() end, 5)--time for monster stacks to fill
 
 	--Move reminder Tokens
 	getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={getObjectFromGUID(cityScriptZones[volkare.discZone].cityCard).getPosition()[1]+2.2, 1.5, getObjectFromGUID(cityScriptZones[volkare.discZone].cityCard).getPosition()[3]+2.2}, guid=GUID.bag.volkareReminder})
@@ -1110,7 +1110,7 @@ function volkareArmy()
 		--Change his models level
 		getObjectFromGUID(volkare.model).setCustomObject({diffuse=cityLevelImage[volkare.model][math.floor(gStates.volkareLevel/math.ceil(gStates.volkareLevel/15))]})
 		getObjectFromGUID(volkare.model).reload()
-		Wait.time(function() getObjectFromGUID(volkare.model).lock() end, 3)
+		safeWaitTime("SetupGame",function() getObjectFromGUID(volkare.model).lock() end, 3)
 		cityLevelButtons(volkare.model, "Volkar")
 	end
 end
@@ -1131,7 +1131,7 @@ function deckSetup()
 		local apocalypseBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 		if apocalypseBag~=nil then
 			apocalypseQuestScoreMarkerSetup(apocalypseBag)
-			apocalypseBag.takeObject({guid=GUID.bag.apocalypseQuestTokens, position={46.84, 1.00, 13.61}, rotation={0, 180, 0}, smooth=true, callback_function=function(_) apocalypseQuestTokenBagSetup() end})
+			safeTakeObject("SetupGame",apocalypseBag,{guid=GUID.bag.apocalypseQuestTokens, position={46.84, 1.00, 13.61}, rotation={0, 180, 0}, smooth=true, callback_function=function(_) apocalypseQuestTokenBagSetup() end})
 			apocalypseBag.takeObject({guid="b26e9b", position={51.04, 0.98, 13.61}, rotation={0, 180, 0}, smooth=true})
 			apocalypseBag.takeObject({guid="4ce329", position={55.24, 0.98, 13.61}, rotation={0, 180, 0}, smooth=true})
 			if getObjectFromGUID(GUID.bag.neutralShield)==nil then apocalypseBag.takeObject({guid=GUID.bag.neutralShield,position={8.00,1.03,16.00},rotation={0,180,0},smooth=true}) end--Infinite neutral Shield bag for Quest progress/abandonment
@@ -1174,7 +1174,7 @@ function deckSetup()
 				local questSetupDie=spareDice.takeObject({position={69.00,1.47,15.30},rotation={0,180,0},smooth=true})
 				if questSetupDie~=nil then gStates.apocalypseQuestSetupDieGUID=questSetupDie.guid end
 			end
-			apocalypseBag.takeObject({guid=GUID.deck.apocalypseQuest, position={46.84, 1.14, 8.06}, rotation={0, 180, 180}, smooth=true, callback_function=function(obj) Wait.frames(function() apocalypseQuestDeckSetup(obj) end, 2) end})
+			safeTakeObject("SetupGame",apocalypseBag,{guid=GUID.deck.apocalypseQuest, position={46.84, 1.14, 8.06}, rotation={0, 180, 180}, smooth=true, callback_function=function(obj) safeWaitFrames("SetupGame",function() apocalypseQuestDeckSetup(obj) end, 2) end})
 		end
 	end
 
@@ -1541,7 +1541,7 @@ end
 function scheduleUnitLayoutRefresh(seatPos)
 	if seatPos==nil then return end
 	if unitLayoutWait[seatPos]~=nil then Wait.stop(unitLayoutWait[seatPos]) end
-	unitLayoutWait[seatPos]=Wait.time(function()
+	unitLayoutWait[seatPos]=safeWaitTime("SetupGame",function()
 		unitLayoutWait[seatPos]=nil
 		refreshUnitLayout(seatPos)
 	end,0.2)
@@ -1557,8 +1557,8 @@ end
 --Unit layout while a permanent Command source is in their hand; only resize if it is actually dropped away.
 function scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,commandGUID)
 	if seatPos==nil or commandGUID==nil then return end
-	Wait.condition(function()
-		Wait.frames(function()
+	safeWaitCondition("SetupGame",function()
+		safeWaitFrames("SetupGame",function()
 			if unitLayoutObjectInUnitArea(commandGUID,seatPos)==false then scheduleUnitLayoutRefresh(seatPos) end
 		end,2)
 	end,function()
@@ -1598,7 +1598,7 @@ end
 --Create and Update Level Interface for Player count
 local higherLevelUIPause=true
 function mageLevelBoard()
-	if higherLevelUIPause==true then Wait.frames(function()
+	if higherLevelUIPause==true then safeWaitFrames("SetupGame",function()
 		if gStates.magesSetup==true then
 			--Create an interface for all players in the game
 			for a=1, #turnOrder, 1 do
@@ -1629,7 +1629,7 @@ function mageLevelBoard()
 						for b, c in pairs(stats) do
 							turnOrder[a].levelingStats[c]=0
 						end
-						Wait.frames(function()
+						safeWaitFrames("SetupGame",function()
 							--Count Everything in the player's play area
 							local spellColors={}
 							local crystalColors={}
@@ -1825,7 +1825,7 @@ function cardPool(player, mouseButton, id)
 						end
 					end
 					--Add claim buttons
-					Wait.frames(function() Wait.condition(function()
+					safeWaitFrames("SetupGame",function() safeWaitCondition("SetupGame",function()
 						higherLevelSkillClaimButons()
 					end, function() return obj==nil or obj.resting end) end, 5)
 					--Deploy Command Token(s). Slot 1 is the printed starting token already on the board.
@@ -2029,7 +2029,7 @@ function startHigherLevel(player, mouseButton, id)
 				end
 				--Return to regular setup
 				UI.hide("LevelUpRules")
-				Wait.time(afterLoad, 0.1)
+				safeWaitTime("SetupGame",afterLoad, 0.1)
 			end
 		end
 	end
@@ -2042,8 +2042,8 @@ end
 function afterLoad()
 	--Deploy the scenario map
 	mapSetup()
-	if apocalypseDragonScenario()==true then Wait.time(function() positionApocalypseDragonHeads() end,2) end
-	Wait.time(function()
+	if apocalypseDragonScenario()==true then safeWaitTime("SetupGame",function() positionApocalypseDragonHeads() end,2) end
+	safeWaitTime("SetupGame",function()
 		if gStates.startAtNight==true then gStates.dayRound=true end
 		dayNight()--dayNight need to be after map setup to change the tile tint
 		gStates.firstStarted=true
@@ -2114,11 +2114,11 @@ function afterLoad()
 														children={	{tag="Image", attributes={id="e4372aOfferDownImage", image="Sliced Button/Button Object Active", type="Sliced"}},
 																	{tag="Text", attributes={font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text="<"}}}}})
 		--record data
-		Wait.time(function()
+		safeWaitTime("SetupGame",function()
             if getObjectFromGUID("e7de55")~=nil then SendDataRequest("skip", "-1", "SendDataRequestYes") end
 			--UI.setAttribute("SendDataRequest", "active", "true")
 		end, 400)--time in seconds, 1800=1/2 hour, 3600=1 hour 400
-		Wait.time(function() straightenCrooked() end, 10)
+		safeWaitTime("SetupGame",function() straightenCrooked() end, 10)
 		dealStartingHandsWhenReady()
 	end, 0.7)
 end
@@ -2630,7 +2630,7 @@ function mapSetup()
 		getObjectFromGUID(startTerrain.wedge).setPosition(openStartPos)--start terrain tile gets moved and state changed
 		getObjectFromGUID(portal.terrainHex).setPosition({openStartPos[1],1.1,openStartPos[3]})--portal overlay follows the start tile
 		getObjectFromGUID(startTerrain.wedge).setState(2)
-		Wait.frames(function() getObjectFromGUID(startTerrain.open).lock() getObjectFromGUID(portal.terrainHex).lock() end, 5)
+		safeWaitFrames("SetupGame",function() getObjectFromGUID(startTerrain.open).lock() getObjectFromGUID(portal.terrainHex).lock() end, 5)
 	end
 
 	--Add Grid
@@ -2736,7 +2736,7 @@ function mapSetup()
 				table.remove(warOfFourCityTilePos, randPos)
 			end
 		end
-		local obj=CityTileStack.takeObject(params)--take from the City Tile Bag
+		local obj=safeTakeObject("SetupGame",CityTileStack,params)--take from the City Tile Bag
 		if furyMap and obj~=nil then furyRevealGUIDs[#furyRevealGUIDs+1]=obj.guid end
 		if noShuffle==0 then TileShuffler.putObject(obj) end--Place in the Core Tile Shuffler if it is shuffled
 		if gStates.gameScenario=="Ultimate Conquest" and i==4 then break end
@@ -2769,17 +2769,17 @@ function mapSetup()
 		if gStates.gameScenario=="Fury of the Apocalypse Dragon" and i>=2 then params.guid=CoreNotFuryLairTiles[i-1] end
 		if againstHorsemenMap then
 			params.position=againstHorsemenCoreTilePos[i]
-			local coreTile=CoreTileStack.takeObject(params)
+			local coreTile=safeTakeObject("SetupGame",CoreTileStack,params)
 			if coreTile==nil then print("HORSEMEN SETUP ERROR: Core tile "..tostring(i).." was not available") startingMapSetup=false return end
 			againstHorsemenCoreTileGUIDs[i]=coreTile.guid
 		elseif furyMap then
 			params.position=furyCoreTilePos[i]
 			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,180}
-			local coreTile=CoreTileStack.takeObject(params)
+			local coreTile=safeTakeObject("SetupGame",CoreTileStack,params)
 			if coreTile==nil then print("FURY SETUP ERROR: Core tile "..tostring(i).." was not available") startingMapSetup=false return end
 			furyRevealGUIDs[#furyRevealGUIDs+1]=coreTile.guid
 		else
-			TileShuffler.putObject(CoreTileStack.takeObject(params))--Core Tile Shuffler
+			TileShuffler.putObject(safeTakeObject("SetupGame",CoreTileStack,params))--Core Tile Shuffler
 		end
 	end
 	--Ultimate Conquest Country mix. With Hero Challenges, move only tiles that are not reserved
@@ -2804,7 +2804,7 @@ function mapSetup()
 		else
 			for i=1, megaCountry, 1 do
 				local params={rotation={0, 180, 180}, smooth=false}
-				TileShuffler.putObject(CountryTileStack.takeObject(params))
+				TileShuffler.putObject(safeTakeObject("SetupGame",CountryTileStack,params))
 			end
 		end
 	end
@@ -2830,7 +2830,7 @@ function mapSetup()
 		if gStates.gameScenario=="Conquer and Hold" then params.position=ConquerAndHoldTilePos[i] end
 		if gStates.gameScenario=="The Gauntlet" then params.position=GauntletTilePos[i] end
 		if params.position==nil then params.position={pos.x, pos.y+tUp, pos.z} tUp=tUp+0.5 end
-		TileShuffler.takeObject(params)
+		safeTakeObject("SetupGame",TileShuffler,params)
 	end
 
 	--Pull Country Tiles
@@ -2919,7 +2919,7 @@ function mapSetup()
 			params.position=againstHorsemenCountryTilePos[i]
 			if i==1 then
 				params.callback_function=function(obj)
-					Wait.time(function() gStates.firstStarted=true firstTile=obj.guid obj.flip() end,1)
+					safeWaitTime("SetupGame",function() gStates.firstStarted=true firstTile=obj.guid obj.flip() end,1)
 				end
 			end
 		elseif furyMap then
@@ -2927,7 +2927,7 @@ function mapSetup()
 			params.position=slot.position
 			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,180}
 		end
-		local countryTile=CountryTileStack.takeObject(params)
+		local countryTile=safeTakeObject("SetupGame",CountryTileStack,params)
 		if countryTile==nil then
 			print("COUNTRYSIDE SETUP ERROR: tile "..tostring(params.guid).." was not available for slot "..tostring(i))
 			startingMapSetup=false
@@ -2944,12 +2944,12 @@ function mapSetup()
 		--each reveal re-enter the normal terrain population path instead of arriving already face up.
 		for revealIndex,revealGUID in ipairs(furyRevealGUIDs) do
 			local guid=revealGUID
-			Wait.time(function()
+			safeWaitTime("SetupGame",function()
 				local tile=getObjectFromGUID(guid)
 				if tile~=nil and tile.is_face_down==true then tile.flip() end
 			end,revealIndex)
 		end
-		Wait.time(function() startingMapSetup=false fakeDropAvatar() end,#furyRevealGUIDs+2)
+		safeWaitTime("SetupGame",function() startingMapSetup=false fakeDropAvatar() end,#furyRevealGUIDs+2)
 		return
 	end
 
@@ -2958,7 +2958,7 @@ function mapSetup()
 	if againstHorsemenMap then
 		againstHorsemenSetStartingAvatarLocations()
 		againstHorsemenSetupTokens(againstHorsemenCoreTileGUIDs,againstHorsemenCoreTilePos)
-		Wait.time(function()
+		safeWaitTime("SetupGame",function()
 			--Country01's central Magical Glade replaces the normal starting terrain in this scenario.
 			--Remove either state of the start tile plus only its map Portal overlay; the Portal card stays
 			--in place as the shared-avatar parking area.
@@ -2976,28 +2976,29 @@ function mapSetup()
 	--When Apocalypse Dragon Quests are in use, explicitly draw the selected Village as the first Countryside tile.
 	--This is done after the scenario has built its terrain set, so its selection scheme remains intact.
 	local function takeStartingCountry(params)
+	params=safeObjectCallbackParams("SetupGame",params)
 		if questVillageGUID~=nil then params.guid=questVillageGUID questVillageGUID=nil end
-		return TileShuffler.takeObject(params)
+		return safeTakeObject("SetupGame",TileShuffler,params)
 	end
 	local rot={}
 	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)=="W" then
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
-		takeStartingCountry({position={-25.2302, 1.07, -9.8482}, rotation=rot, smooth=false, callback_function=function(obj) Wait.time(function() gStates.firstStarted=true firstTile=obj.guid obj.flip() end, 1) end})
+		takeStartingCountry({position={-25.2302, 1.07, -9.8482}, rotation=rot, smooth=false, callback_function=function(obj) safeWaitTime("SetupGame",function() gStates.firstStarted=true firstTile=obj.guid obj.flip() end, 1) end})
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
-		takeStartingCountry({position={-19.2300, 1.07, -11.9267}, rotation=rot, smooth=false, callback_function=function(obj) Wait.time(function() obj.flip() end, 2) end})
+		takeStartingCountry({position={-19.2300, 1.07, -11.9267}, rotation=rot, smooth=false, callback_function=function(obj) safeWaitTime("SetupGame",function() obj.flip() end, 2) end})
 		if gStates.gameScenario=="The Chaos Rift" then
 			if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
 			takeStartingCountry({position={-20.4300, 1.09, -5.6911}, rotation=rot, smooth=false})
 		end
 	else
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
-		if gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="Volkare's Return Blitz" then takeStartingCountry({position={-37.2305, 1.07, -5.6911}, rotation=rot, smooth=false, callback_function=function(obj) tile1=obj Wait.time(function() gStates.firstStarted=true firstTile=tile1.guid tile1.flip() end, 1) end}) end
-		if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then Wait.time(function() getObjectFromGUID("835c91").setPosition({-37.2305, 1.15, -5.6911}) getObjectFromGUID("835c91").flip() end, 1) end
+		if gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="Volkare's Return Blitz" then takeStartingCountry({position={-37.2305, 1.07, -5.6911}, rotation=rot, smooth=false, callback_function=function(obj) tile1=obj safeWaitTime("SetupGame",function() gStates.firstStarted=true firstTile=tile1.guid tile1.flip() end, 1) end}) end
+		if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then safeWaitTime("SetupGame",function() getObjectFromGUID("835c91").setPosition({-37.2305, 1.15, -5.6911}) getObjectFromGUID("835c91").flip() end, 1) end
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
-		takeStartingCountry({position={-31.2303, 1.07, -7.7696}, rotation=rot, smooth=false, callback_function=function(obj) Wait.time(function() obj.flip() end, 2) end})
+		takeStartingCountry({position={-31.2303, 1.07, -7.7696}, rotation=rot, smooth=false, callback_function=function(obj) safeWaitTime("SetupGame",function() obj.flip() end, 2) end})
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
-		if gStates.gameScenario~="The Gauntlet" then takeStartingCountry({position={-30.0303, 1.07, -14.0000}, rotation=rot, smooth=false, callback_function=function(obj) Wait.time(function() obj.flip() end, 3) end}) end
-		if gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then Wait.time(function() getObjectFromGUID("835c91").setPosition({-12.0297, 1.15, 8.8586}) getObjectFromGUID("835c91").flip() end, 3) end
+		if gStates.gameScenario~="The Gauntlet" then takeStartingCountry({position={-30.0303, 1.07, -14.0000}, rotation=rot, smooth=false, callback_function=function(obj) safeWaitTime("SetupGame",function() obj.flip() end, 3) end}) end
+		if gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then safeWaitTime("SetupGame",function() getObjectFromGUID("835c91").setPosition({-12.0297, 1.15, 8.8586}) getObjectFromGUID("835c91").flip() end, 3) end
 	end
 	local VolQuestTilePos=		  {{-32.4304, 1.15, -1.5341}, {-27.6302, 1.15,   2.6230}, {-26.4302, 1.15, -3.6126}, {-25.2302, 1.15, -9.8482}, {-20.4300, 1.15,  -5.6911}, {-21.6300, 1.15,   0.5445}, {-24.0301, 1.15, -16.0837}, {-19.2300, 1.15, -11.9267}, {-14.4298, 0.15, -7.7696}}
 	local warOfFourCountryTilePos={{-38.4306, 1.15,  0.5445}, {-27.6302, 1.15,   2.6230}, {-26.4302, 1.15, -3.6126}, {-33.6304, 1.15, 4.7015},  {-20.4300, 1.15,  -5.6911}, {-21.6300, 1.15,   0.5445}, {-24.0301, 1.15, -16.0837}, {-19.2300, 1.15, -11.9267}, {-18.0299, 1.15, 10.9371}, {-10.8297, 1.15, 2.6230}}
@@ -3011,8 +3012,8 @@ function mapSetup()
 		if gStates.gameScenario=="The War of Four" then params.position=warOfFourCountryTilePos[i] end
 		if gStates.gameScenario=="The Gauntlet" then params.position=GauntletTilePos[i] end
 		if params.position==nil then params.position={pos.x, pos.y+tUp, pos.z} tUp=tUp+0.5 end
-		TileShuffler.takeObject(params)
+		safeTakeObject("SetupGame",TileShuffler,params)
 	end
 	--Starting country tiles reveal on 1/2/3 second timers. They are part of setup, not newly explored terrain.
-	Wait.time(function() startingMapSetup=false end, 4)
+	safeWaitTime("SetupGame",function() startingMapSetup=false end, 4)
 end

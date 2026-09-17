@@ -226,7 +226,7 @@ function puppetMasterRegisterClone(enemy,pickup)
 	puppet.setRotation(dropRot)
 	if puppetMasterRegisterPuppet(puppet,enemy,pickup.player,pickup.color)~=true then puppet.destruct() return false end
 	local puppetGUID=puppet.guid
-	Wait.frames(function()
+	safeWaitFrames("PlayerBoard.PuppetMaster",function()
 		local live=getObjectFromGUID(puppetGUID)
 		if live~=nil then
 			live.setPosition(dropPos)
@@ -318,7 +318,7 @@ end
 function puppetMasterCheckManualCopyWhenResting(obj)
 	if obj==nil or obj.guid==nil then return end
 	local guid=obj.guid
-	Wait.condition(function()
+	safeWaitCondition("PlayerBoard.PuppetMaster",function()
 		local live=getObjectFromGUID(guid)
 		if live~=nil then puppetMasterResolveManualCopy(live) end
 	end,function()
@@ -383,7 +383,7 @@ function puppetMasterDropped(obj)
 	local pickup=puppetMasterPickup[obj.guid]
 	if pickup==nil then return false end
 	local guid=obj.guid
-	Wait.condition(function()
+	safeWaitCondition("PlayerBoard.PuppetMaster",function()
 		local live=getObjectFromGUID(guid)
 		if live==nil or puppetMasterPickup[guid]~=pickup then return end
 		if pickup.kind=="enemy" then puppetMasterResolveEnemyDrop(live,pickup)

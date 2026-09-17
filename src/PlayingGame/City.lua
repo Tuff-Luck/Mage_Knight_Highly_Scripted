@@ -219,7 +219,7 @@ function setCityDisplayLevel(cityGUID, level)
 	if cityObj==nil or images==nil or images[imageLevel]==nil then return false end
 	cityObj.setCustomObject({diffuse=images[imageLevel]})
 	cityObj.reload()
-	Wait.frames(function()
+	safeWaitFrames("City",function()
 		local currentCity=getObjectFromGUID(cityGUID)
 		if currentCity~=nil then applyAltViewAngle(currentCity) end
 	end, 2)
@@ -331,8 +331,8 @@ function cityArmyPlace(cityGUID, cityLevel, basePosition, rotation, startDelay, 
 			stack=stack+1
 			local tokenDelay=delay
 			local tokenStack=stack
-			Wait.frames(function() tokenRefill() end, math.max(1, tokenDelay-4))
-			Wait.frames(function()
+			safeWaitFrames("City",function() tokenRefill() end, math.max(1, tokenDelay-4))
+			safeWaitFrames("City",function()
 				local pos={basePosition[1], basePosition[2]+(0.2*tokenStack), basePosition[3]+(0.4*tokenStack)}
 				local token=takeCityDefender(cityGUID, tokenType, pos, rotation)
 				if token~=nil and gStates.cityMonsterQty[ownerGUID]~=nil then gStates.cityMonsterQty[ownerGUID][token.guid]="alive" end
@@ -445,7 +445,7 @@ function rebuildCityGarrisonNow(cityGUID, terrainGUID)
 			delay, stack=cityArmyPlace(cityGUID, level, basePos, rotation, delay, stack, cityGUID)
 		end
 	end
-	Wait.frames(function()
+	safeWaitFrames("City",function()
 		refreshCityScriptZones()
 		mainUIUpdate("City garrison rebuilt")
 		addCityButtons()
@@ -453,12 +453,12 @@ function rebuildCityGarrisonNow(cityGUID, terrainGUID)
 end
 
 function rebuildCityGarrison(cityGUID, terrainGUID)
-	Wait.condition(function() rebuildCityGarrisonNow(cityGUID, terrainGUID) end, function() return cityObjectsReady(cityGUID) end)
+	safeWaitCondition("City",function() rebuildCityGarrisonNow(cityGUID, terrainGUID) end, function() return cityObjectsReady(cityGUID) end)
 end
 
 function scheduleCityRebuild(cityGUID, terrainGUID)
 	if cityRebuildPause[cityGUID]~=nil then Wait.stop(cityRebuildPause[cityGUID]) end
-	cityRebuildPause[cityGUID]=Wait.time(function()
+	cityRebuildPause[cityGUID]=safeWaitTime("City",function()
 		cityRebuildPause[cityGUID]=nil
 		disableCityControls(cityGUID, terrainGUID)
 		rebuildCityGarrison(cityGUID, terrainGUID)
@@ -660,8 +660,8 @@ function createCityMegapolisPair(cityGUID, terrainObj)
 	local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
 	local state=CITY_MEGAPOLIS_MATRIX[cityGUID]~=nil and CITY_MEGAPOLIS_MATRIX[cityGUID][pair] or nil
 	if card==nil or state==nil then data.extra.megapolisPending=nil return true end
-	Wait.frames(function()
-		Wait.condition(function()
+	safeWaitFrames("City",function()
+		safeWaitCondition("City",function()
 			local currentCard=getObjectFromGUID(gStates.cityCard[cityGUID])
 			if currentCard==nil then data.extra.megapolisPending=nil return end
 			local pos=currentCard.getPosition()
@@ -723,7 +723,7 @@ function removeCityMegapolis(cityGUID, terrainGUID)
 	data.extra.megapolisPair=nil
 	data.extra.megapolisPending=nil
 	data.extra.megapolisOriginalFeature=nil
-	if terrain~=nil and terrainTiles[terrainGUID]~=nil then Wait.frames(function() megapolisRestoreTerrainHex(terrain,originalFeature) end,5) end
+	if terrain~=nil and terrainTiles[terrainGUID]~=nil then safeWaitFrames("City",function() megapolisRestoreTerrainHex(terrain,originalFeature) end,5) end
 	resetCityGarrisonData(cityGUID)
 	refreshUltimateConquestCityCounts()
 	refreshCityScriptZones()
@@ -771,8 +771,8 @@ function deployFriendlyCityShields(cityGUID)
 	if gStates.friendlyCity==nil then gStates.friendlyCity={} end
 	gStates.friendlyCity[cityGUID]=true
 	local cityObj=getObjectFromGUID(cityGUID)
-	Wait.frames(function()
-		Wait.condition(function()
+	safeWaitFrames("City",function()
+		safeWaitCondition("City",function()
 			refreshCityScriptZones()
 			mainUIUpdate("City card move")
 			if cityGUID==darkCrusader.terrainHex or cityGUID==elementalist.terrainHex then return end
@@ -872,7 +872,7 @@ function playCity(obj, hexFeature, dropped)
 			end
 			local basePos, rotation=cityGarrisonBasePosition(cityGUID,cityGUID,false)
 			local delay=cityArmyPlace(cityGUID,leaderLevel,basePos,rotation,0,0,cityGUID)
-			Wait.frames(function() refreshCityScriptZones() mainUIUpdate("City card move") addCityButtons() end, delay+5)
+			safeWaitFrames("City",function() refreshCityScriptZones() mainUIUpdate("City card move") addCityButtons() end, delay+5)
 		else
 			if cityShouldCreateMegapolis(cityGUID,ultimateCitiesPlayed)==true then createCityMegapolisPair(cityGUID,obj) end
 			ultimateCitiesPlayed=refreshUltimateConquestCityCounts()
@@ -880,7 +880,7 @@ function playCity(obj, hexFeature, dropped)
 			local level=gStates.cityLevels~=nil and gStates.cityLevels[playedCities] or nil
 			if level~=nil and level>0 and gStates.gameScenario~="The Lost Relic Blitz" and gStates.gameScenario~="The Realm of the Dead Blitz" and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Hidden Valley Blitz" then
 				if gStates.gameScenario=="Fury of the Apocalypse Dragon" then deployFriendlyCityShields(cityGUID) end
-				Wait.frames(function() rebuildCityGarrison(cityGUID,obj.guid) end,10)
+				safeWaitFrames("City",function() rebuildCityGarrison(cityGUID,obj.guid) end,10)
 			elseif level~=nil then
 				if cityGUID~=darkCrusader.terrainHex and cityGUID~=elementalist.terrainHex then table.insert(gStates.cityLevels,#gStates.citiesPlayed,0) table.remove(gStates.cityLevels,#gStates.cityLevels) end
 				deployFriendlyCityShields(cityGUID)
@@ -888,8 +888,8 @@ function playCity(obj, hexFeature, dropped)
 		end
 		local cardGUID=gStates.cityCard[cityGUID]
 		if cardGUID~=nil then
-			Wait.frames(function()
-				Wait.condition(function() local card=getObjectFromGUID(gStates.cityCard[cityGUID]) if card~=nil then card.lock() end end,
+			safeWaitFrames("City",function()
+				safeWaitCondition("City",function() local card=getObjectFromGUID(gStates.cityCard[cityGUID]) if card~=nil then card.lock() end end,
 					function() local card=getObjectFromGUID(gStates.cityCard[cityGUID]) return card==nil or card.resting==true end)
 			end,10)
 		end
@@ -915,7 +915,7 @@ end
 
 --Add arrows to City models. UI visibility and click validation use the same control-state function.
 function cityLevelButtons(cityGUID, terrainGUID)
-	Wait.time(function()
+	safeWaitTime("City",function()
 		local cityObj=getObjectFromGUID(cityGUID)
 		if cityObj==nil then return end
 		local state=cityControlState(cityGUID,terrainGUID)
@@ -1272,7 +1272,7 @@ end
 --for defeated tokens, leader movement and unusual TTS interactions.
 function refreshCityRevealForMonster(monsterGUID)
 	if monsterGUID==nil then return end
-	Wait.frames(function()
+	safeWaitFrames("City",function()
 		for city, monsterList in pairs(gStates.cityMonsterQty or {}) do
 			if type(monsterList)=="table" and rawget(monsterList,monsterGUID)~=nil then refreshLockedCityControl(city, monsterList, true) return end
 		end

@@ -101,7 +101,7 @@ function volkarePursuitDropShield(playerIndex,combat)
 	shield.setGMNotes("Volkare Pursuit")
 	if gStates.volkarePursuitShields==nil then gStates.volkarePursuitShields={} end
 	gStates.volkarePursuitShields[shield.guid]=combat.hexKey
-	Wait.time(function() if getObjectFromGUID(shield.guid)~=nil then Wait.condition(function() shield.lock() end,function() return shield.resting end) end end,1.0)
+	safeWaitTime("Scenario",function() if getObjectFromGUID(shield.guid)~=nil then safeWaitCondition("Scenario",function() shield.lock() end,function() return shield.resting end) end end,1.0)
 	broadcastToAll(joinLang({translateWord[player.mage],"{en} marked a Volkare Pursuit hex.{ru} отметил гекс преследования Волкара.{zh-cn}标记了一个沃卡里追击格。{ko}: 볼케어 추격 칸을 표시했습니다.{es} marcó un hexágono de Persecución de Volkare.{fr} a marqué un hexagone de Poursuite de Volkare.{pt-br} marcou um hexágono de Perseguição de Volkare.{de} hat ein Feld für die Verfolgung Volkares markiert."}),positionToColor(playerIndex))
 	return shield
 end
@@ -1434,7 +1434,7 @@ function againstHorsemenFinalizeMoveWave()
 	for name,_ in pairs(pending.movingTargets) do againstHorsemenRefreshHorseman(name) end
 	pending.movingTargets=nil
 	pending.stepsRemaining=math.max(0,(pending.stepsRemaining or 1)-1)
-	Wait.frames(function() againstHorsemenContinueEndRoundMovement() end,4)
+	safeWaitFrames("Scenario",function() againstHorsemenContinueEndRoundMovement() end,4)
 end
 
 function againstHorsemenAnimateMoveWave(targets)
@@ -1446,7 +1446,7 @@ function againstHorsemenAnimateMoveWave(targets)
 		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 		if token~=nil and target.position~=nil then token.setPositionSmooth(target.position,false) end
 	end
-	Wait.frames(function()
+	safeWaitFrames("Scenario",function()
 		local function allSettled()
 			for name,_ in pairs(targets) do
 				local data=horsemanData~=nil and horsemanData[name] or nil
@@ -1455,7 +1455,7 @@ function againstHorsemenAnimateMoveWave(targets)
 			end
 			return true
 		end
-		Wait.condition(function() againstHorsemenFinalizeMoveWave() end, allSettled, 3, function()
+		safeWaitCondition("Scenario",function() againstHorsemenFinalizeMoveWave() end, allSettled, 3, function()
 			for name,target in pairs(targets) do
 				local data=horsemanData~=nil and horsemanData[name] or nil
 				local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
@@ -1474,7 +1474,7 @@ function againstHorsemenContinueEndRoundMovement()
 	if (pending.stepsRemaining or 0)<=0 then
 		gStates.againstHorsemenEndRoundMovedRound=pending.round
 		gStates.againstHorsemenMovePending=nil
-		Wait.frames(function() endRound(true) end,4)
+		safeWaitFrames("Scenario",function() endRound(true) end,4)
 		return
 	end
 
@@ -1630,7 +1630,7 @@ function apocalypseIsHerePositionRoundOrderToken()
 	token.unlock()
 	token.setRotation({0,180,0})
 	token.setPositionSmooth(target,false,true)
-	Wait.condition(function() local current=getObjectFromGUID("9ba54f") if current~=nil then current.lock() end end,
+	safeWaitCondition("Scenario",function() local current=getObjectFromGUID("9ba54f") if current~=nil then current.lock() end end,
 		function() local current=getObjectFromGUID("9ba54f") return current==nil or current.isSmoothMoving()==false end)
 	return true
 end
@@ -1772,7 +1772,7 @@ function apocalypseIsHerePossessEnemy(enemy)
 	token.setDescription(enemy.guid)
 	local enemyGUID=enemy.guid
 	local tokenGUID=token.guid
-	Wait.frames(function()
+	safeWaitFrames("Scenario",function()
 		local currentToken=getObjectFromGUID(tokenGUID)
 		local currentEnemy=getObjectFromGUID(enemyGUID)
 		if currentToken~=nil and currentEnemy~=nil then
@@ -1830,8 +1830,8 @@ function apocalypseIsHereRevealDragonCity(tile)
 	if dragon==nil and bag~=nil then dragon=bag.takeObject({guid="105141",position=target,rotation={0,180,180},smooth=false})
 	elseif dragon~=nil then dragon.unlock() dragon.setRotationSmooth({0,180,180},false,true) dragon.setPositionSmooth(target,false,true) end
 	if dragon~=nil then apocalypseDragonLockModelWhenSettled() end
-	Wait.frames(function() apocalypseIsHerePossessRampagersOnTile(tile.guid) end,35)
-	Wait.frames(function() apocalypseIsHerePossessRampagersOnTile(tile.guid) end,75)
+	safeWaitFrames("Scenario",function() apocalypseIsHerePossessRampagersOnTile(tile.guid) end,35)
+	safeWaitFrames("Scenario",function() apocalypseIsHerePossessRampagersOnTile(tile.guid) end,75)
 	broadcastToAll("The second City has been destroyed by the Apocalypse Dragon. The City space is now Plains, and the Dragon has landed across the three spaces.",{1,0.75,0.2})
 	return true
 end
@@ -2021,7 +2021,7 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 	if token==nil or destination==nil then apocalypseIsHereContinueHorsemenTurn() return false end
 	state.terrainGUID=destination.terrainGUID state.bearing=destination.bearing
 	token.unlock() token.setRotation({0,180,0}) token.setPositionSmooth({destination.position[1],1.42,destination.position[3]},false)
-	Wait.condition(function()
+	safeWaitCondition("Scenario",function()
 		local reached=apocalypseQuestMapHexKey(destination)==apocalypseQuestMapHexKey(target)
 		if reached then apocalypseIsHereHorsemanDestroyTarget(name,target)
 		else
@@ -2049,7 +2049,7 @@ function apocalypseIsHereProcessNextHorseman()
 	if #options<1 then
 		local line=name.." found no preferred undestroyed target and did not move."
 		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
-		Wait.frames(apocalypseIsHereProcessNextHorseman,1)
+		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
 	elseif #options>1 then apocalypseIsHereShowTargetChoice(name,options)
 	else apocalypseIsHereResolveHorsemanTarget(name,options[1]) end
 end
@@ -2057,7 +2057,7 @@ end
 function apocalypseIsHereContinueHorsemenTurn()
 	if gStates.apocalypseHereHorsemenTurnActive~=true then return end
 	gStates.apocalypseHereHorsemenUIState="Processing"
-	Wait.frames(apocalypseIsHereProcessNextHorseman,2)
+	safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,2)
 end
 
 function apocalypseIsHereActiveHorsemen()
@@ -2176,7 +2176,7 @@ function volkarePursuitAction(playerDud,mouseButton,id)
 	turnOrder[playerIndex].combatIconHide="Avatar"
 	gStates.monsterOffsetX=0 gStates.monsterOffsetZ=0
 	if choice=="Green" or choice=="Both" then drawMonster(monsterPiles.green,turnOrder[playerIndex],"VPDraw|Green") end
-	if choice=="Red" or choice=="Both" then local delay=choice=="Both" and 7 or 0 Wait.frames(function() drawMonster(monsterPiles.red,turnOrder[playerIndex],"VPDraw|Red") end,delay) end
+	if choice=="Red" or choice=="Both" then local delay=choice=="Both" and 7 or 0 safeWaitFrames("Scenario",function() drawMonster(monsterPiles.red,turnOrder[playerIndex],"VPDraw|Red") end,delay) end
 	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage],"{en} pursues Volkare's fleeing army.{ru} преследует отступающую армию Волкара.{zh-cn}追击沃卡里的溃军。{ko}: 볼케어의 패주하는 군대를 추격합니다.{es} persigue al ejército en fuga de Volkare.{fr} poursuit l'armée de Volkare en fuite.{pt-br} persegue o exército em fuga de Volkare.{de} verfolgt Volkares fliehende Armee."}),positionToColor(playerIndex))
 	addAvatarButtons()
 end
@@ -2224,9 +2224,9 @@ function druidNightsRitualAction(playerDud, mouseButton, id)
 	gStates.druidNightsSummon=ritualCount
 	gStates.druidNightsCrystalReward=ritualCount*crystalMultiple
 	local monsterSummoned=gStates.currentRound>=3 and monsterPiles.red or monsterPiles.tan
-	for _=1, ritualCount do Wait.frames(function() drawMonster(monsterSummoned,player,id) end,10) end
+	for _=1, ritualCount do safeWaitFrames("Scenario",function() drawMonster(monsterSummoned,player,id) end,10) end
 	if gStates.currentRound>=5 then
-		for _=1, ritualCount do Wait.frames(function() drawMonster(monsterPiles.tan,player,id) end,10) end
+		for _=1, ritualCount do safeWaitFrames("Scenario",function() drawMonster(monsterPiles.tan,player,id) end,10) end
 	end
 	--Activated Glade shields remain on the map until the end of the Night; round reset removes them.
 	addAvatarButtons()
@@ -2236,9 +2236,9 @@ end
 function lockDestroyedSiteWhenSettled(token)
 	if token==nil then return end
 	local tokenGUID=token.guid
-	Wait.condition(function()
-		Wait.frames(function()
-			Wait.condition(function()
+	safeWaitCondition("Scenario",function()
+		safeWaitFrames("Scenario",function()
+			safeWaitCondition("Scenario",function()
 				local obj=getObjectFromGUID(tokenGUID)
 				if obj~=nil then obj.lock() end
 			end, function()
@@ -2293,8 +2293,8 @@ function destroyedSiteStackShields(token,terrain,bearing)
 				shield.setPosition({details.x,markerPos[2]+0.17+((index-1)*0.12),details.z})
 				if details.locked==true then
 					local shieldGUID=details.guid
-					Wait.frames(function()
-						Wait.condition(function()
+					safeWaitFrames("Scenario",function()
+						safeWaitCondition("Scenario",function()
 							local settled=getObjectFromGUID(shieldGUID)
 							if settled~=nil then settled.lock() end
 						end,function()
@@ -2309,7 +2309,7 @@ function destroyedSiteStackShields(token,terrain,bearing)
 			end
 		end
 	end
-	Wait.condition(stack,function()
+	safeWaitCondition("Scenario",stack,function()
 		local marker=getObjectFromGUID(tokenGUID)
 		return marker==nil or marker.getLock()==true or (marker.isSmoothMoving()==false and marker.resting==true)
 	end,5,stack)
@@ -2334,7 +2334,7 @@ function destroySite(token, terrain, bearing, positionToken)
 	if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 	gStates.hexOverideSave[terrain.guid][bearing]="destroyed"
 	broadcastToAll(feature.." Destroyed")
-	Wait.frames(function() apocalypseQuestRefreshOfferButtons() end, 2)
+	safeWaitFrames("Scenario",function() apocalypseQuestRefreshOfferButtons() end, 2)
 	return true
 end
 
@@ -2346,7 +2346,7 @@ function undoDestroyedSitePlacement(destroyed)
 	terrainTiles[data.terrainTile].hexFeature[data.hexAngle]=data.hexFeature
 	if gStates.hexOverideSave[data.terrainTile]~=nil then gStates.hexOverideSave[data.terrainTile][data.hexAngle]=nil end
 	gStates.destroyedSites[destroyed.guid]=nil
-	Wait.frames(function() apocalypseQuestRefreshOfferButtons() end, 2)
+	safeWaitFrames("Scenario",function() apocalypseQuestRefreshOfferButtons() end, 2)
 	return true
 end
 
@@ -2387,7 +2387,7 @@ function destroyRestoreLocation(playerDud, mouseButton, id, type, obj)
 						local hexPos=angleToXY(obj, searchOrder[i])
 						local terrainGUID=obj.guid
 						local hexAngle=searchOrder[i]
-						local drawnToken=getObjectFromGUID(GUID.bag.destroyedSite).takeObject({
+						local drawnToken=safeTakeObject("Scenario",getObjectFromGUID(GUID.bag.destroyedSite),{
 							position={hexPos[1], 2, hexPos[2]}, smooth=true,
 							callback_function=function(spawnedToken)
 								spawnedToken.unlock()
@@ -2599,7 +2599,7 @@ function apocalypseDragonApplyHeadLevel(headName,level)
 		if type(image)=="string" and image~="" then token.setCustomObject({image=image}) end
 		token.setName(level>0 and (headName.." Dragon Head Level "..tostring(level)) or (headName.." Dragon Head Defeated"))
 		token.reload()
-		Wait.frames(function()
+		safeWaitFrames("Scenario",function()
 			local current=getObjectFromGUID(headData.tokenGUID)
 			if current~=nil then apocalypseDragonPositionHeadToken(headData) end
 		end,1)
@@ -2852,7 +2852,7 @@ function setupApocalypseDragonHeads()
 		if head~=nil then head.lock() end
 		apocalypseDragonDeployHeadToken(headData,bag)
 	end
-	Wait.frames(function()
+	safeWaitFrames("Scenario",function()
 		for _,headData in ipairs(apocalypseDragon.heads) do apocalypseDragonSetHeadLevel(headData.name,startingLevel) end
 	end,2)
 	if gStates.gameScenario~="Fury of the Apocalypse Dragon" then
@@ -2873,7 +2873,7 @@ function apocalypseDragonLockModelWhenSettled()
 		local dragon=getObjectFromGUID(guid)
 		if dragon~=nil then dragon.lock() end
 	end
-	Wait.condition(lockDragon,function()
+	safeWaitCondition("Scenario",lockDragon,function()
 		local dragon=getObjectFromGUID(guid)
 		return dragon==nil or dragon.resting==true
 	end,5,lockDragon)
@@ -2954,7 +2954,7 @@ function againstDragonRevealLair(tile)
 		end
 	end
 
-	Wait.condition(placeDragon,function()
+	safeWaitCondition("Scenario",placeDragon,function()
 		local currentTile=getObjectFromGUID(tileGUID)
 		return currentTile==nil or currentTile.resting
 	end,8,placeDragon)
@@ -3208,7 +3208,7 @@ function apocalypseDragonGroundPrepareControl(combat,playerIndex,slot,useOrigina
 	token.setLock(false)
 	token.setRotation({0,180,0})
 	if useOriginal~=true and target~=nil then token.setPosition(target) end
-	Wait.frames(function() local current=getObjectFromGUID(token.guid) if current~=nil then setMonsterObjectButtons(current) end end,2)
+	safeWaitFrames("Scenario",function() local current=getObjectFromGUID(token.guid) if current~=nil then setMonsterObjectButtons(current) end end,2)
 	return token
 end
 
@@ -3408,7 +3408,7 @@ function apocalypseDragonGroundResolveToken(obj)
 			local cloneGUID=obj.guid
 			if combat.controlClones~=nil then combat.controlClones[cloneGUID]=nil end
 			obj.setPosition({0,-20,0})
-			Wait.frames(function()
+			safeWaitFrames("Scenario",function()
 				local clone=getObjectFromGUID(cloneGUID)
 				if clone~=nil then clone.destruct() end
 				if gStates.monsterPerks~=nil then gStates.monsterPerks[cloneGUID]=nil end
@@ -3587,7 +3587,7 @@ function againstDragonPositionRoundOrderToken()
 	token.unlock()
 	token.setRotation({0,180,0})
 	token.setPositionSmooth(target)
-	Wait.condition(function()
+	safeWaitCondition("Scenario",function()
 		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
 		if current~=nil then current.lock() end
 	end,function()
@@ -3663,7 +3663,7 @@ function againstDragonMarkPlayer(playerIndex)
 			gStates.apocalypseDragonBlackMana[details.mage]=token.guid
 			token.setDescription("Apocalypse Dragon attacked "..tostring(details.mage).." this Round")
 			local guid=token.guid
-			Wait.condition(function()
+			safeWaitCondition("Scenario",function()
 				local current=getObjectFromGUID(guid)
 				if current~=nil then current.lock() end
 			end,function()
@@ -3983,7 +3983,7 @@ function againstDragonProcessUI(player,mouseButton,id)
 	else
 		local ordinal=againstDragonTurnOrdinal(gStates.apocalypseDragonTurn)
 		againstDragonSetTurnReport("The Apocalypse Dragon took no action on its "..ordinal.." turn.","Processing")
-		Wait.frames(function() againstDragonCompleteTurn() end,1)
+		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 	end
 end
 
@@ -3993,7 +3993,7 @@ function againstDragonResolveDestroyOption(option)
 	if hex==nil then
 		broadcastToAll("The Apocalypse Dragon's selected destruction target could no longer be found.",warningColor)
 		againstDragonSetTurnReport(againstDragonFinalReport("The selected destruction target could no longer be found."),"Processing")
-		Wait.frames(function() againstDragonCompleteTurn() end,1)
+		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return false
 	end
 
@@ -4010,7 +4010,7 @@ function againstDragonResolveDestroyOption(option)
 			broadcastToAll("The Apocalypse Dragon's Rampaging Enemy target was no longer present.",warningColor)
 			againstDragonSetTurnReport(againstDragonFinalReport("The selected Rampaging Enemy was no longer present."),"Processing")
 		end
-		Wait.frames(function() againstDragonCompleteTurn() end,3)
+		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,3)
 		return true
 	end
 
@@ -4018,7 +4018,7 @@ function againstDragonResolveDestroyOption(option)
 	if bag==nil then
 		broadcastToAll("The Destroyed Site token bag could not be found. The Apocalypse Dragon cannot destroy this site.",warningColor)
 		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon could not destroy the selected site because the Destroyed Site token bag was unavailable."),"Processing")
-		Wait.frames(function() againstDragonCompleteTurn() end,1)
+		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return false
 	end
 
@@ -4035,7 +4035,7 @@ function againstDragonResolveDestroyOption(option)
 	else
 		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon could not draw a Destroyed Site token for the "..tostring(label).."."),"Processing")
 	end
-	Wait.frames(function() againstDragonCompleteTurn() end,4)
+	safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,4)
 	return true
 end
 
@@ -4052,14 +4052,14 @@ function againstDragonBeginDestroy()
 			result="The Dragon had no legal site or Rampaging Enemy to destroy."
 		end
 		againstDragonSetTurnReport(againstDragonFinalReport(result),"Processing")
-		Wait.frames(function() againstDragonCompleteTurn() end,1)
+		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return true
 	end
 	local tied,distance=againstDragonDistanceChoices(candidates,hexes,mapObjects)
 	if #tied<1 then
 		broadcastToAll("The Apocalypse Dragon could not measure a revealed-space route to a destruction target.",warningColor)
 		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon could not measure a route to a legal destruction target."),"Processing")
-		Wait.frames(function() againstDragonCompleteTurn() end,1)
+		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return true
 	end
 	if #tied==1 then return againstDragonResolveDestroyOption(tied[1]) end
@@ -4163,7 +4163,7 @@ function againstDragonDeployAirborneHeads(playerIndex)
 			token.setName(headName.." Dragon Head — Airborne Round "..tostring(round))
 			token.reload()
 			local guid=headData.tokenGUID
-			Wait.frames(function()
+			safeWaitFrames("Scenario",function()
 				local current=getObjectFromGUID(guid)
 				if current~=nil then
 					--Airborne attacks use only the printed Round-level attack. Any Control bonus decal
@@ -4320,7 +4320,7 @@ function againstDragonFinishAttackForPlayer(playerIndex,finishDragonImmediately)
 		--Partial Complete is equivalent to acknowledging Dragon Processed. A fully-attending player
 		--does the same only after their advanced normal turn has actually finished. Delay one frame
 		--so any current end-turn cleanup can finish before the next normal turn is committed.
-		Wait.frames(function() againstDragonFinishTurn(true) end,1)
+		safeWaitFrames("Scenario",function() againstDragonFinishTurn(true) end,1)
 	else
 		againstDragonCompleteTurn()
 	end
@@ -4369,14 +4369,14 @@ function againstDragonAttendFull(player,mouseButton,id)
 		combatCameraFocus(playerIndex)
 		mainUIUpdate("Dragon Full Attack")
 	end
-	if token~=nil then Wait.condition(beginAdvancedTurn,function() return token==nil or token.resting end,4,beginAdvancedTurn) else beginAdvancedTurn() end
+	if token~=nil then safeWaitCondition("Scenario",beginAdvancedTurn,function() return token==nil or token.resting end,4,beginAdvancedTurn) else beginAdvancedTurn() end
 end
 
 function againstDragonBeginManualAttack(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil then
 		againstDragonSetTurnReport("The Dragon's selected player could no longer be found.","Processing")
-		Wait.frames(function() againstDragonCompleteTurn() end,1)
+		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return false
 	end
 	local attackFame=math.max(1,tonumber(gStates.currentRound) or 1)
@@ -4397,7 +4397,7 @@ function againstDragonResolveOffMapPlayer(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil then
 		againstDragonSetTurnReport("The Dragon's selected Portal player could no longer be found.","Processing")
-		Wait.frames(function() againstDragonCompleteTurn() end,1)
+		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return false
 	end
 	againstDragonMarkPlayer(playerIndex)
@@ -4439,7 +4439,7 @@ function againstDragonBeginAttack()
 			return true
 		end
 		againstDragonSetTurnReport("The Dragon had no eligible player left to attack this Round.","Processing")
-		Wait.frames(function() againstDragonCompleteTurn() end,1)
+		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return true
 	end
 
@@ -4447,7 +4447,7 @@ function againstDragonBeginAttack()
 	if #tied<1 then
 		broadcastToAll("The Apocalypse Dragon could not measure a revealed-space route to an eligible player.",warningColor)
 		againstDragonSetTurnReport("The Dragon could not measure a route to an eligible player.","Processing")
-		Wait.frames(function() againstDragonCompleteTurn() end,1)
+		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return true
 	end
 	if #tied==1 then return againstDragonBeginManualAttack(tied[1].playerIndex) end

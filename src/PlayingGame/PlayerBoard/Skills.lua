@@ -157,7 +157,7 @@ function beginRewardSkillChoiceHighlights()
 		end
 	end
 	alternateHighlights()
-	rewardSkillHighlightWait=Wait.time(alternateHighlights, 2, -1)
+	rewardSkillHighlightWait=safeWaitTime("PlayerBoard.Skills",alternateHighlights, 2, -1)
 end
 
 function startRewardSkillChoiceHighlights()
@@ -165,7 +165,7 @@ function startRewardSkillChoiceHighlights()
 	--On the first Skill claim there are no foreign Skills, so the reminder has nothing useful to explain.
 	if rewardSkillChoiceForeignSkillExists()==false then return end
 	if rewardSkillChoiceHighlightsReady()==true then beginRewardSkillChoiceHighlights() return end
-	rewardSkillHighlightReadyWait=Wait.condition(function()
+	rewardSkillHighlightReadyWait=safeWaitCondition("PlayerBoard.Skills",function()
 		rewardSkillHighlightReadyWait=nil
 		if rewardSkillChoiceHighlightsReady()==true then beginRewardSkillChoiceHighlights() end
 	end, function()
@@ -270,8 +270,8 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 						remainingSkill.unlock()
 						remainingSkill.setPositionSmooth(gStates.mageSkills[skillGUID])
 						local remainingGUID=skillGUID
-						Wait.time(function()
-							Wait.condition(function()
+						safeWaitTime("PlayerBoard.Skills",function()
+							safeWaitCondition("PlayerBoard.Skills",function()
 								local obj=getObjectFromGUID(remainingGUID)
 								if obj~=nil then obj.unlock() end
 							end, function()
@@ -307,7 +307,7 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 						if dummySkillBag~=nil then b=dummySkillBag.takeObject({position=pos, rotation={0, 180, 0}}) end
 					end
 					if b~=nil then
-						Wait.condition(function() if b~=nil then b.lock() end end, function() return b==nil or b.resting end)
+						safeWaitCondition("PlayerBoard.Skills",function() if b~=nil then b.lock() end end, function() return b==nil or b.resting end)
 						gStates.mageSkills[b.guid]=pos
 					end
 				end
@@ -320,14 +320,14 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 			if found==false then
 				gStates.skillButtons=0
 				stopRewardSkillChoiceHighlights()
-				Wait.frames(function()
+				safeWaitFrames("PlayerBoard.Skills",function()
 					for skillGUID, _ in pairs(gStates.mageSkills) do
 						local skill=getObjectFromGUID(skillGUID)
 						if skill~=nil then skill.UI.setXmlTable({{}}) end
 					end
 				end, 5)
 			end
-			Wait.time(function() rewindTransactionFinish(skillRewindOwner) end,2.0)
+			safeWaitTime("PlayerBoard.Skills",function() rewindTransactionFinish(skillRewindOwner) end,2.0)
 		else
 			if rewindReady==true then rewindTransactionFinish("Skill claim "..tostring(gStates.skillButtons)) end
 			if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
@@ -351,7 +351,7 @@ function claimButtonRefresh()
 		end
 	end
 	--Add buttons
-	Wait.time(function()
+	safeWaitTime("PlayerBoard.Skills",function()
 		if gStates.tacticShown==true then
 			--Tactic card claim buttons
 			if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
@@ -727,7 +727,7 @@ local function lockCompetitiveSkillCloneWhenSettled(clone)
 	if clone==nil then return end
 	local cloneGUID=clone.guid
 	clone.unlock()
-	Wait.frames(function() Wait.condition(function()
+	safeWaitFrames("PlayerBoard.Skills",function() safeWaitCondition("PlayerBoard.Skills",function()
 		local obj=getObjectFromGUID(cloneGUID)
 		if obj~=nil then obj.lock() end
 	end, function()
@@ -1191,7 +1191,7 @@ function levelUp(playerTurnSequence)
 					end
 					--activate claim buttons only after every newly dealt Skill has actually settled.
 					gStates.skillButtons=turnOrder[playerTurnSequence].seatPos
-					Wait.condition(function()
+					safeWaitCondition("PlayerBoard.Skills",function()
 						for _, guid in ipairs(drawnSkillGUIDs) do local skill=getObjectFromGUID(guid) if skill~=nil then skill.unlock() end end
 						skillButtonActivate()
 					end, function()
@@ -1232,7 +1232,7 @@ function skillButtonActivate()
 	refreshMageSkillLocations()
 	unlockCommonSkillPoolTokens()
 	if gStates.skillButtons~=nil and gStates.skillButtons>0 then startRewardSkillChoiceHighlights() end
-	Wait.time(function()
+	safeWaitTime("PlayerBoard.Skills",function()
 		--blank existing claim buttons
 		for skillGUID, x in pairs(gStates.mageSkills) do
 			if getObjectFromGUID(skillGUID)~=nil then getObjectFromGUID(skillGUID).UI.setXmlTable({{}}) end
@@ -1288,8 +1288,8 @@ function masterOfChaosSetup(position)
 			break
 		end
 	end
-	Wait.frames(function() masterOfChaosPause=false end, 80)
-	Wait.frames(function() Wait.condition(function()
+	safeWaitFrames("PlayerBoard.Skills",function() masterOfChaosPause=false end, 80)
+	safeWaitFrames("PlayerBoard.Skills",function() safeWaitCondition("PlayerBoard.Skills",function()
 		gStates.masterOfChaos=math.random(1,6)
 		getObjectFromGUID("1ff34f").setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
 		getObjectFromGUID("1ff34f").setDescription(masterOfChaosData[gStates.masterOfChaos].description)

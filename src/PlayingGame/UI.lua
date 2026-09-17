@@ -88,7 +88,7 @@ end
 function scheduleEndRoundDeedStateRefresh(seatPos)
 	if seatPos==nil or deedDeckZones[seatPos]==nil then return end
 	if endRoundDeedStateWait[seatPos]~=nil then Wait.stop(endRoundDeedStateWait[seatPos]) end
-	endRoundDeedStateWait[seatPos]=Wait.time(function()
+	endRoundDeedStateWait[seatPos]=safeWaitTime("UI",function()
 		endRoundDeedStateWait[seatPos]=nil
 		local oldCount=deedPileCardCount[seatPos]
 		local newCount=readDeedPileCardCount(seatPos)
@@ -334,7 +334,7 @@ end
 function schedulePlayAreaCardScale(seatPos)
 	if seatPos==nil then return end
 	if playAreaScaleWait[seatPos]~=nil then Wait.stop(playAreaScaleWait[seatPos]) end
-	playAreaScaleWait[seatPos]=Wait.time(function()
+	playAreaScaleWait[seatPos]=safeWaitTime("UI",function()
 		playAreaScaleWait[seatPos]=nil
 		refreshPlayAreaCardScale(seatPos)
 	end, 0.2)
@@ -654,7 +654,7 @@ end
 function mainUIUpdate(source)
 	if gStates.firstStarted==true then
 		if mainUIPause~=nil then Wait.stop(mainUIPause) end
-		mainUIPause=Wait.time(function()
+		mainUIPause=safeWaitTime("UI",function()
 			local playerAreaCardCount=0
 			local playerAreaSkillCount=0
 			local nextPlayer=nextTurnMerged("nextMage")
@@ -1392,7 +1392,7 @@ function applyAvatarButtonXml(obj, xml, signature)
 end
 
 function addAvatarButtons()
-	if addAvatarPause==true then Wait.frames(function()
+	if addAvatarPause==true then safeWaitFrames("UI",function()
 		--Snapshot relevant map objects once. Nearby shield/marker/ruin checks use spatial buckets;
 		--rampager/destroyed-site controls remain a small dedicated list because stale remote buttons must be cleared.
 		local mapButtonBuckets={}
@@ -2273,7 +2273,7 @@ function buttonClicked(player, mouseButton, ButtonPressed)
 	buttonImageResetGeneration[ButtonPressed]=(buttonImageResetGeneration[ButtonPressed] or 0)+1
 	local resetGeneration=buttonImageResetGeneration[ButtonPressed]
 	local objectGUID=obj~=nil and obj.guid or nil
-	Wait.time(function()
+	safeWaitTime("UI",function()
 		if buttonImageResetGeneration[ButtonPressed]~=resetGeneration then return end
 		local resetUI=UI
 		if objectGUID~=nil then

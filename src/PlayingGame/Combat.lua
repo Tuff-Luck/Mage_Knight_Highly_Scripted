@@ -336,7 +336,7 @@ function showCoopReward()
 		entry.factionRewardsGiven=true
 	end
 	claimButtonRefresh()
-	Wait.frames(function() mainUIUpdate("Co-op Rewards") end, 2)
+	safeWaitFrames("Combat",function() mainUIUpdate("Co-op Rewards") end, 2)
 end
 
 function coopAssaultAvatarsSettled()
@@ -413,7 +413,7 @@ function startCoopRewardPhase()
 	end
 	gStates.coopRewardIndex=1
 	local function beginRewards() gStates.coopAssaultPhase="rewards" showCoopReward() end
-	Wait.frames(function() Wait.condition(beginRewards, coopAssaultAvatarsSettled, 3, beginRewards) end, 2)
+	safeWaitFrames("Combat",function() safeWaitCondition("Combat",beginRewards, coopAssaultAvatarsSettled, 3, beginRewards) end, 2)
 end
 
 function advanceCoopRewardPhase()
@@ -512,7 +512,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
 		UI.setAttribute("PreEndTurn", "interactable", "false")
 		UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Deactive")
-		rewardClaimDelayWait=Wait.time(function()
+		rewardClaimDelayWait=safeWaitTime("Combat",function()
 			rewardClaimDelayWait=nil
 			local function finishRewardDelay()
 				rewardClaimDelayActive=false
@@ -527,7 +527,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			end
 			local dragonCombat=gStates.apocalypseDragonGroundCombat
 			if dragonCombat~=nil and dragonCombat.coop~=true and dragonCombat.playerIndex==gStates.turnNumber and dragonCombat.levelsApplied~=true then
-				Wait.condition(finishRewardDelay,function()
+				safeWaitCondition("Combat",finishRewardDelay,function()
 					local current=gStates.apocalypseDragonGroundCombat
 					return current==nil or current.levelsApplied==true
 				end,5,finishRewardDelay)
@@ -642,7 +642,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			tokenWait=40
 		end
 
-		Wait.frames(function()
+		safeWaitFrames("Combat",function()
 			--Get objects from player area to clean them up
 			local objectAvoidance=1
 			local volkareCityShield=0
@@ -655,8 +655,8 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			--face up, so checking them here would incorrectly count an untouched/failed fight as success.
 			for _, playAreaObj in pairs(playerCombatObjects(turnOrder[gStates.turnNumber].seatPos)) do
 				local cleanupObjectGUID=playAreaObj.guid
-				Wait.frames(function() tokenRefill() end, tokenWait+1)
-				Wait.frames(function()
+				safeWaitFrames("Combat",function() tokenRefill() end, tokenWait+1)
+				safeWaitFrames("Combat",function()
 					--Returning an airborne Dragon head restores its real image with reload(), which invalidates
 					--the old TTS Object userdata for all four captured head objects. Identify them by GUID before
 					--touching that userdata, return the set once, and stop this object's ordinary cleanup here.
@@ -720,7 +720,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 								playAreaObj.setRotation({0, 180, 0})
 								broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} Stunned the Pursuing Rampager (Skips next turns Movement){ru} «оглушает» преследователя (тот пропускает одно Движение){zh-cn}晕眩了狂暴追击者(它跳过下次行动){ko}: 추적하는 적 기절시킴. (다음 추적 단계 건너뜀.){es} Aturdido al agresor que lo persigue (se salta el movimiento del siguiente turno){fr} Étourdi le saccageur à la poursuite (ignore le mouvement des tours suivants){pt-br} Atordoou o Irascível Perseguidor (Pule próximos turnos de movimento).{de} hat den Verfolger betäubt (überspringt die Bewegung des nächsten Zuges)"}), positionToColor(gStates.turnNumber))
 							else
-								Wait.time(function() if  getObjectFromGUID(playAreaObj.guid)~=nil then playAreaObj.setRotation({0, 180, 0}) end end, 3)--long enough to have traveled back to the board.
+								safeWaitTime("Combat",function() if  getObjectFromGUID(playAreaObj.guid)~=nil then playAreaObj.setRotation({0, 180, 0}) end end, 3)--long enough to have traveled back to the board.
 							end
 							if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="horsemen" and horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
 								--Each Horseman is assigned to exactly one participant; a survivor returns to its Portal-card slot.
@@ -955,14 +955,14 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 									gStates.cityMonsterQty[currentLeader.terrainHex][currentLeader.token]="dead"
 									getObjectFromGUID(currentLeader.disc).setCustomObject({image=leaderData[currentLeader.terrainHex]["dead"].discImg})
 									getObjectFromGUID(currentLeader.disc).reload()
-									Wait.time(function()
+									safeWaitTime("Combat",function()
 										for monsterGUID, state in pairs(gStates.cityMonsterQty[currentLeader.terrainHex]) do
 											if getObjectFromGUID(monsterGUID)~=nil and getObjectFromGUID(monsterGUID).getRotationValues()[2]~=nil then discardMonster(getObjectFromGUID(monsterGUID), false) end
 										end
 									end, 2)
 								else
 									playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid])
-									Wait.frames(function()
+									safeWaitFrames("Combat",function()
 										getObjectFromGUID(currentLeader.disc).setCustomObject({image=leaderData[currentLeader.terrainHex][currenLeaderLevel].discImg})
 										getObjectFromGUID(currentLeader.disc).reload()
 										getObjectFromGUID(currentLeader.token).setCustomObject({image=leaderData[currentLeader.terrainHex][currenLeaderLevel].tokenImg})
@@ -1082,7 +1082,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			--two-second settle check expires (Quest failures make this common). The old wait had no timeout
 			--handler, so the avatar could remain locked at +2 height forever. Run the same finish routine on
 			--either a normal settle or timeout.
-			Wait.frames(function()
+			safeWaitFrames("Combat",function()
 				local avatarDropFinished=false
 				local function finishAvatarDrop()
 					if avatarDropFinished==true then return end
@@ -1109,7 +1109,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 						avatarModel.setPositionSmooth({avatarPos[1], avatarPos[2]+1.0, avatarPos[3]})
 					end
 				end
-				Wait.condition(finishAvatarDrop, function()
+				safeWaitCondition("Combat",finishAvatarDrop, function()
 					if tokenRaised<=0 or (lastObject~=nil and lastObject.resting~=true) then return false end
 					local pendingDragonAttack=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
 					local destroyedGUID=pendingDragonAttack~=nil and pendingDragonAttack.destroyedSiteTokenGUID or nil
@@ -1127,7 +1127,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			--A completed City assault has just changed both monster state and physical shields. Rebuild ownership once,
 			--at this settled cleanup boundary, before fakeDropAvatar reads Lead/Assist for the new hand limit.
 			--Other cleanup only needs the cheaper defeat-state refresh; co-op combat rebuilds ownership in its reward phase.
-			Wait.frames(function() Wait.condition(function()
+			safeWaitFrames("Combat",function() safeWaitCondition("Combat",function()
 				if gStates.coopAssaultPhase~="combat" and (turnOrder[gStates.turnNumber].avatarLocation:sub(1,4)=="city" or turnOrder[gStates.turnNumber].avatarLocation:sub(1,6)=="raised") then cityBeatCheck()
 				else refreshCityDefeatState() end
 		 		fakeDropAvatar()
@@ -1238,7 +1238,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 					end
 					--Combat Complete is the only confirmation during the combat stage. Advance as soon as cleanup is finished.
 					if gStates.coopAssaultPhase=="combat" then
-						Wait.frames(function()
+						safeWaitFrames("Combat",function()
 							if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then endTurn(player, "-1", "CoopCombatComplete") end
 						end, 2)
 					end
@@ -1258,7 +1258,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			end
 
 			--Skills doing the rounds
-			Wait.frames(function()
+			safeWaitFrames("Combat",function()
 				registerDetachedCoopCompSkills(gStates.turnNumber)
 				for skillGUID, skillDetails in pairs(skillTokens) do
 					if getObjectFromGUID(skillGUID)~=nil then
@@ -1469,7 +1469,7 @@ end
 --Smooth movement can trigger zone decal cleanup after fortification was assigned. Re-apply the visual once the defender settles.
 function settleAssaultWallFortified(monsterGUID, fortified)
 	local function apply() local monster=getObjectFromGUID(monsterGUID) if monster~=nil then setAssaultWallFortified(monster, fortified) end end
-	Wait.frames(function() Wait.condition(apply, function() local monster=getObjectFromGUID(monsterGUID) return monster==nil or monster.resting==true end, 3, apply) end, 2)
+	safeWaitFrames("Combat",function() safeWaitCondition("Combat",apply, function() local monster=getObjectFromGUID(monsterGUID) return monster==nil or monster.resting==true end, 3, apply) end, 2)
 end
 
 --A monster dragged directly from the map to a player area may not have a legal adjacent avatar position.
@@ -1594,7 +1594,7 @@ local justDetached={}
 function attachEnemy(player, mouseButton, id, obj, zone)
 	--find nearest monster
 	if id=="attach" and obj~=nil then
-		Wait.frames(function() Wait.condition(function()
+		safeWaitFrames("Combat",function() safeWaitCondition("Combat",function()
 			if getObjectFromGUID(obj.guid)~=nil then
 				if gStates.apocalypsePossessedEnemyByToken~=nil and gStates.apocalypsePossessedEnemyByToken[obj.guid]~=nil then return end
 				local zoneObj=zone~=nil and zone.guid~=nil and getObjectFromGUID(zone.guid) or nil
@@ -1655,8 +1655,8 @@ function attachEnemy(player, mouseButton, id, obj, zone)
 						end
 						--Refresh the monster UI now that Possessed is attached.
 						setMonsterObjectButtons(nearEnemy, true)
-						if apocalypseQuestsUsed()==true then Wait.frames(function() apocalypseQuestRefreshOfferButtons() end,2) end
-						Wait.frames(function() mainUIUpdate("possessed") end, 5)
+						if apocalypseQuestsUsed()==true then safeWaitFrames("Combat",function() apocalypseQuestRefreshOfferButtons() end,2) end
+						safeWaitFrames("Combat",function() mainUIUpdate("possessed") end, 5)
 						broadcastToAll("Enemy Possessed")
 						break
 					end
@@ -1670,7 +1670,7 @@ function attachEnemy(player, mouseButton, id, obj, zone)
 		if obj==nil then obj=getObjectFromGUID(id:sub(7, 13)) end
 		justDetached[obj.guid]=true
 		clearPossessedEnemy(obj)
-		Wait.time(function() justDetached[obj.guid]=false end, 2)
+		safeWaitTime("Combat",function() justDetached[obj.guid]=false end, 2)
 		broadcastToAll("Enemy Seperated")
 	end
 end
@@ -1895,8 +1895,8 @@ function attackLocation(playerDud, mouseButton, id)
 						broadcastToAll("{en}Monster Drawn to Player Board{ru}Жетон врага был помещен на стол игрока{zh-cn}怪物被抽到玩家面板了{ko}몬스터와 전투합니다{es}Monstruo Dibujado al Tablero del Jugador{fr}Monstre Dessiné sur le Plateau du Joueur{pt-br}Monstro Puxado para o Tabuleiro do Jogador{de}Monster auf das Spielerbrett gezogen", positionToColor(gStates.turnNumber))
 						local tokenWait=0
 						for _, monsterColor in pairs(monsterPugs[ruinGUID].monsters) do
-							Wait.frames(function() tokenRefill() end, tokenWait+1)
-							Wait.frames(function()
+							safeWaitFrames("Combat",function() tokenRefill() end, tokenWait+1)
+							safeWaitFrames("Combat",function()
 								local monster=getObjectFromGUID(monsterPiles[monsterColor]).takeObject({position={(player.seatPos*40)-96+gStates.monsterOffsetX, 2.5, -39-gStates.monsterOffsetZ}, rotation={0.00, 180.00, 0.00}})--brown
 								combatCameraFocus(playerIndex)
 								gStates.attackedMonsters[monster.guid]={{getObjectFromGUID(monsterPiles[monsterColor]).getPosition()[1], 2+((tokenWait/5)/10), getObjectFromGUID(monsterPiles[monsterColor]).getPosition()[3]}, {0.00, 0.00, 0.00}}
@@ -2013,7 +2013,7 @@ function attackLocation(playerDud, mouseButton, id)
 									or player.avatarLocation=="spawning grounds") and id:sub(1, 6)=="Attack" then--two browns
 									broadcastToAll("Monster Drawn to Player Board", positionToColor(gStates.turnNumber))
 									drawMonster(monsterPiles.tan, player, id)
-									if player.avatarLocation=="spawning grounds" then Wait.frames(function() drawMonster(monsterPiles.tan, player, id) end, 10)	end
+									if player.avatarLocation=="spawning grounds" then safeWaitFrames("Combat",function() drawMonster(monsterPiles.tan, player, id) end, 10)	end
 								end
 								if player.avatarLocation=="monastery" and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.purple, player, id) broadcastToAll("{en}Monastery Defender Drawn to Player Board{ru}Жетон защитника Монастыря был помещен на стол игрока{zh-cn}修道院驻军移到玩家面板上{ko}수도원의 수비자와 전투합니다{es}Defensor del Monasterio dibujado en el tablero del jugador{fr}Défenseur du Monastère dessiné sur le plateau du joueur{pt-br}Defensor do Monastério puxado para o tabuleiro do joador{de}Verteidiger des Klosters auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
 								if (player.avatarLocation=="tomb" or player.avatarLocation=="labyrinth") and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.red, player, id) broadcastToAll("{en}Dragon Drawn to Player Board{ru}Жетон Драконума был помещен на стол игрока{zh-cn}将龙放到玩家面板{ko}드래곤과 전투하세요{es}Dragón dibujado al tablero del jugador{fr}Dragon dessiné sur le plateau du joueur{pt-br}Dragão Puxado para o tabuleiro do jogador{de}Drache auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
@@ -2082,8 +2082,8 @@ function attackLocation(playerDud, mouseButton, id)
 									local trapBag=monsterPiles.pyramidTrap
 									if player.avatarLocation=="ziggurat" then trapBag=monsterPiles.zigguratTrap end
 									drawMonster(trapBag, player, id)
-									Wait.frames(function() drawMonster(trapBag, player, id) end, 10)
-									Wait.frames(function() drawMonster(trapBag, player, id) end, 10)
+									safeWaitFrames("Combat",function() drawMonster(trapBag, player, id) end, 10)
+									safeWaitFrames("Combat",function() drawMonster(trapBag, player, id) end, 10)
 								end
 							end
 							--Hide button
@@ -2091,7 +2091,7 @@ function attackLocation(playerDud, mouseButton, id)
 							locationAttacked=true
 							if gStates.coopAssaultCityGUID==nil and assaultTargetHasWall(assaultTargetPosition)==true then
 								local wallFortified=resolveAssaultWallFortified(assaultTargetPosition, assaultApproachOrigin, true)
-								Wait.frames(function() applyCurrentAssaultWallFortified(wallFortified) end, 15)
+								safeWaitFrames("Combat",function() applyCurrentAssaultWallFortified(wallFortified) end, 15)
 							end
 						else
 							--Rampager attacks are not assaults: the avatar stays put, so adjacent wall crossing is always known.
@@ -2107,7 +2107,7 @@ function attackLocation(playerDud, mouseButton, id)
 							rampager.setPositionSmooth({(player.seatPos*40)-96+gStates.monsterOffsetX, 2.5, -39-gStates.monsterOffsetZ})
 							settleAssaultWallFortified(rampagerGUID, wallFortified)
 							rampager.setRotation({0.00, 180.00, 0.00})
-							Wait.frames(function() local obj=getObjectFromGUID(rampagerGUID) if obj~=nil then obj.UI.setXmlTable({{}}) end end, 10)
+							safeWaitFrames("Combat",function() local obj=getObjectFromGUID(rampagerGUID) if obj~=nil then obj.UI.setXmlTable({{}}) end end, 10)
 							gStates.monsterOffsetX=gStates.monsterOffsetX+2.5
 							locationAttacked=false
 							clearWallAssaultChoice()
@@ -2128,7 +2128,7 @@ function drawMonster(color, player, id, possessedFaction)
 	local drawID=tostring(id or "")
 	local volkarePursuitDraw=drawID:sub(1,7)=="VPDraw|"
 	tokenRefill()
-	Wait.frames(function()
+	safeWaitFrames("Combat",function()
 		local monsterDrawn=getObjectFromGUID(color).takeObject({position={(player.seatPos*40)-96+gStates.monsterOffsetX, 2.5, -39-gStates.monsterOffsetZ}, rotation={0.00, 180.00, 0.00}})
 		if color==monsterPiles.possessed and possessedFaction~=nil then
 			if gStates.apocalypsePossessedFactionByToken==nil then gStates.apocalypsePossessedFactionByToken={} end
@@ -2155,7 +2155,7 @@ function drawMonster(color, player, id, possessedFaction)
 			if gStates.monsterOffsetX>12 then gStates.monsterOffsetX=0 gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5 end
 
 			--add no units and night rules Decals
-			Wait.time(function()
+			safeWaitTime("Combat",function()
 				if drawID:sub(1,6)~="Incant" and volkarePursuitDraw~=true then
 					if player.avatarLocation=="dungeon" or player.avatarLocation=="tomb" or player.avatarLocation=="monastery" or player.avatarLocation=="ziggurat" or player.avatarLocation=="pyramid" then
 						monsterDrawn.addDecal({name="NoUnits", position={-0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.4, 0.6, 1}, url="https://steamusercontent-a.akamaihd.net/ugc/12623966286982295316/7CFECB9A34CA9DBEBB8A04DC44B488E56360781B/"})
@@ -2345,7 +2345,7 @@ function attackCity(player, mouseButton, id)
 		if coopStart==true then gStates.againstHorsemenAssaultOrigin=nil gStates.apocalypseDragonAssaultOrigin=nil end
 		if UI.getAttribute("CoopAssaultMainTableText1", "text")=="{en}Combined Defense Possible{ru}Доступна Совместная защита города{zh-tw}可以進行合作防守{zh-cn}可以进行合作防守{ko}협력 수비 가능{es}Defensa Combinada Posible{fr}Défense Combinée Possible{pt-br}Defesa Combinada Possível{de}Gemeinsame Verteidigung möglich" then
 			if token~=nil then
-				Wait.condition(function()
+				safeWaitCondition("Combat",function()
 					nextTurnMerged("incrementTurn")
 				end, function() return token.resting end)
 			end
@@ -2635,8 +2635,8 @@ function summonMonster(player, mouseButton, id)
 		local tokenWait=0
 		local cameraFocused=false
 		for order, monsterColor in pairs(search) do
-			Wait.frames(function() tokenRefill() end, tokenWait+1)
-			Wait.frames(function()
+			safeWaitFrames("Combat",function() tokenRefill() end, tokenWait+1)
+			safeWaitFrames("Combat",function()
 				local summonTarget={location[1]-(2.5*order),2.5,location[3]}
 				local summonedMonster, summonPileGUID=takeFactionMonster(monsterColor, summonerFaction, {position=summonTarget, rotation={0.00, 180.00, 0.00}})
 				if summonedMonster~=nil then
@@ -2931,7 +2931,7 @@ function pursuingRampagers(player, mouseButton, id)
 					mainUIUpdate("pursuit")
 				end
 			end
-			Wait.frames(function() addAvatarButtons() end, 60)
+			safeWaitFrames("Combat",function() addAvatarButtons() end, 60)
 		end
 	end
 end

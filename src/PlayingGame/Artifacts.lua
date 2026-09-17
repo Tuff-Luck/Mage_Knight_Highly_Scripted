@@ -23,7 +23,7 @@ local function installArtifactUI(attempt)
         artifacts.UI.setXml(ARTIFACT_UI)
         return
     end
-    if attempt < 60 then Wait.frames(function() installArtifactUI(attempt + 1) end, 1) end
+    if attempt < 60 then safeWaitFrames("Artifacts",function() installArtifactUI(attempt + 1) end, 1) end
 end
 
 function artifactOnLoad()

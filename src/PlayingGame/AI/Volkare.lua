@@ -58,7 +58,7 @@ function volkareTurn(player, mouseButton, id)
 				gStates.volkareState="Resting"
 				local volkareDice=getObjectFromGUID("9a686a")
 				volkareDice.randomize()
-				Wait.condition(function()
+				safeWaitCondition("AI.Volkare",function()
 					if gStates.volkareUnitCrystals[volkareDice.getRotationValue()]~=nil and getObjectFromGUID(gStates.volkareUnitCrystals[volkareDice.getRotationValue()]).getObjects()[1]~=nil then
 						local unitCard=getObjectFromGUID(gStates.volkareUnitCrystals[volkareDice.getRotationValue()]).getObjects()[1]
 						unitCard.destruct()
@@ -169,7 +169,7 @@ function volkareTurn(player, mouseButton, id)
 								local newtile=terrainStack.takeObject({position=terrainSpot, smooth=true})
 								terrainPlayed=true
 								gStates.blurb=joinLang({gStates.blurb, "{en} New Terrain explored.{ru} Исследована новая территория.{zh-tw}\n新地形被探索了。{zh-cn}\n新地形被探索了。{ko} 새 지도 타일 공개{es} Nuevo Terreno explorado.{fr} Nouveau Terrain exploré.{pt-br} Novo Terreno explorado.{de} Neues Terrain erkundet."})
-								Wait.frames(function() Wait.condition(function() if newtile~=nil then newtile.flip() end end, function() return newtile==nil or newtile.resting end,8,function() if newtile~=nil then newtile.flip() end end) end, 5)
+								safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",function() if newtile~=nil then newtile.flip() end end, function() return newtile==nil or newtile.resting end,8,function() if newtile~=nil then newtile.flip() end end) end, 5)
 							end
 						end
 					end
@@ -180,7 +180,7 @@ function volkareTurn(player, mouseButton, id)
 					local doubleAttack=false
 					for z=1, volkareDrew.spell, 1 do
 						local stepNumber=z
-						Wait.time(function() Wait.condition(function()
+						safeWaitTime("AI.Volkare",function() safeWaitCondition("AI.Volkare",function()
 							if movementSequence~=gStates.volkareMovementSequence or gStates.volkareWon==true then return end
 							pass=stepNumber
 							if stepNumber>1 then gStates.volkareMovementStepPending=false end
@@ -335,13 +335,13 @@ function volkareTurn(player, mouseButton, id)
 								local volkareNewPos={volkarePOS[1]-(2.39*math.cos(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color]))), 3.5, volkarePOS[3]-(2.39*math.sin(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color])))}
 								getObjectFromGUID(gStates.volkareModel).unlock()
 								getObjectFromGUID(gStates.volkareModel).setPositionSmooth(volkareNewPos)
-								Wait.frames(function() Wait.condition(function() local v=getObjectFromGUID(gStates.volkareModel) if v~=nil and gStates.volkareLock~=false then v.lock() end end, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.isSmoothMoving()==false and v.getPosition()[2]<1.5) end,8,function() local v=getObjectFromGUID(gStates.volkareModel) if v~=nil then v.setVelocity({0,0,0}) v.setAngularVelocity({0,0,0}) if gStates.volkareLock~=false then v.lock() end end end) end, 5)
+								safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",function() local v=getObjectFromGUID(gStates.volkareModel) if v~=nil and gStates.volkareLock~=false then v.lock() end end, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.isSmoothMoving()==false and v.getPosition()[2]<1.5) end,8,function() local v=getObjectFromGUID(gStates.volkareModel) if v~=nil then v.setVelocity({0,0,0}) v.setAngularVelocity({0,0,0}) if gStates.volkareLock~=false then v.lock() end end end) end, 5)
 								local arrow=getObjectFromGUID("6647eb").clone({position={volkarePOS[1]-(1.1*math.cos(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color]))), 1.11, volkarePOS[3]-(1.1*math.sin(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color])))}})
 								local convert={[0]=270, [60]=210, [120]=150, [180]=90, [240]=30, [300]=330}
 								arrow.setRotation({90.00, convert[volkareVector[gStates.gameScenario][volkareDrew.color]], 0.00})
 								arrow.setColorTint(arrowColor)
 								arrow.unlock()
-								Wait.frames(function() arrow.lock() end, 50)
+								safeWaitFrames("AI.Volkare",function() arrow.lock() end, 50)
 
 								--initiate fight if location has mage knights,
 								local magesInRange=findNearbyMages(volkareNewPos, 1.5)
@@ -378,7 +378,7 @@ function volkareTurn(player, mouseButton, id)
 									getObjectFromGUID(gStates.volkareModel).setDecals({})
 								end
 								if (volkareDrew.spell==2 and pass==2) or volkareDrew.spell==1 then UI.setAttribute("DummyNotes", "Text", gStates.blurb) end
-								Wait.condition(function()
+								safeWaitCondition("AI.Volkare",function()
 									if movementSequence~=gStates.volkareMovementSequence then return end
 									volkareQuestPortalStatus()
 									if #magesInRange==0 and stepNumber==volkareDrew.spell and gStates.volkareWon~=true then
@@ -464,7 +464,7 @@ function volkareTurn(player, mouseButton, id)
 					--Flip turn order token
 					if getObjectFromGUID(mageDetails.turnOrderTokenGUID).is_face_down==false then getObjectFromGUID(mageDetails.turnOrderTokenGUID).flip() end
 					--place Volkare's Army
-					Wait.frames(function() Wait.condition(function()
+					safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",function()
 						nextTurnMerged("incrementTurn")
 						attackLocation("", "-1", "Volkar"..mageDetails.mage)
 					end, function() local token=getObjectFromGUID(mageDetails.turnOrderTokenGUID) return token==nil or token.resting end,6,function()
@@ -563,12 +563,12 @@ function volkareReturnCityDefenseMove()
 		if obj==nil then gStates.volkareCityDefenseMove=nil return end
 		if move.secondMove==true then
 			obj.setPositionSmooth({move.attackPos[1], 3.5, move.attackPos[3]})
-			Wait.frames(function() Wait.condition(lockAndFinish, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.getPosition()[2]<1.5) end, 3, lockAndFinish) end, 3)
+			safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",lockAndFinish, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.getPosition()[2]<1.5) end, 3, lockAndFinish) end, 3)
 		else lockAndFinish() end
 	end
 	volkareObj.unlock()
 	volkareObj.setPositionSmooth(retreatPos)
-	Wait.frames(function() Wait.condition(finishRetreat, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.getPosition()[2]<1.5) end, 3, finishRetreat) end, 3)
+	safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",finishRetreat, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.getPosition()[2]<1.5) end, 3, finishRetreat) end, 3)
 	return true
 end
 

@@ -74,7 +74,7 @@ function scheduleDeedPileDescriptionRefresh(seatPos, zoneType)
 	local zoneGUID=zoneType=="deed" and deedDeckZones[seatPos] or deedDeckDiscardZones[seatPos]
 	if zoneGUID==nil then return end
 	if deckDescriptionWait[zoneGUID]~=nil then Wait.stop(deckDescriptionWait[zoneGUID]) end
-	deckDescriptionWait[zoneGUID]=Wait.time(function()
+	deckDescriptionWait[zoneGUID]=safeWaitTime("PlayerBoard.Deeds",function()
 		deckDescriptionWait[zoneGUID]=nil
 		refreshDeedPileDescription(seatPos, zoneType)
 	end, 0.75)
@@ -146,7 +146,7 @@ function deedTransferComplete(seatPos,entry,placed)
 	if placed==true and turnOrder[entry.playerIndex]~=nil then
 		turnOrder[entry.playerIndex].deedCount=(turnOrder[entry.playerIndex].deedCount or 0)+1
 	end
-	Wait.frames(function() deedTransferProcess(seatPos) end,2)
+	safeWaitFrames("PlayerBoard.Deeds",function() deedTransferProcess(seatPos) end,2)
 end
 
 function deedTransferFinishHover(seatPos,entry)
@@ -167,7 +167,7 @@ function deedTransferFinishHover(seatPos,entry)
 	local home=deedTransferHomePosition(seatPos)
 	card.setRotationSmooth({0,180,180})
 	card.setPositionSmooth(home)
-	Wait.condition(function()
+	safeWaitCondition("PlayerBoard.Deeds",function()
 		deedTransferComplete(seatPos,entry,true)
 	end,function()
 		local moving=getObjectFromGUID(entry.guid)
@@ -197,7 +197,7 @@ function deedTransferProcess(seatPos)
 	local hover={target[1],target[2]+2.0,target[3]}
 	card.setRotationSmooth(rotation)
 	card.setPositionSmooth(hover)
-	Wait.condition(function()
+	safeWaitCondition("PlayerBoard.Deeds",function()
 		deedTransferFinishHover(seatPos,entry)
 	end,function()
 		local moving=getObjectFromGUID(entry.guid)
@@ -234,7 +234,7 @@ function queueCardToDeedDeck(playerIndex,card,rewindReady)
 	--during the short lift delay. Horizontal transit does not begin until the source zone has had two frames.
 	deedTransferState.queues[seatPos]=deedTransferState.queues[seatPos] or {}
 	deedTransferState.queues[seatPos][#deedTransferState.queues[seatPos]+1]={guid=guid,playerIndex=playerIndex}
-	Wait.frames(function() deedTransferProcess(seatPos) end,2)
+	safeWaitFrames("PlayerBoard.Deeds",function() deedTransferProcess(seatPos) end,2)
 	return true
 end
 
@@ -266,13 +266,13 @@ function claimMove(player, mouseButton, id, rewindReady)
 						claimedCard.setPosition({claimedCard.getPosition()[1], claimedCard.getPosition()[2]+3, claimedCard.getPosition()[3]})
 					end
 					cardClaim=true
-					Wait.time(function() cardClaim=false end, 2)
+					safeWaitTime("PlayerBoard.Deeds",function() cardClaim=false end, 2)
 					--add decal to tactic if playing Ultimate Conquest
 					if gStates.gameScenario=="Ultimate Conquest" then
 						for _, mage2 in pairs(mageKnights) do
 							if mage2.mage==turnOrder[gStates.turnNumber].mage then
 								local posX=-1*((turnOrder[gStates.turnNumber].seatPos*0.34)-0.85)
-								Wait.time(function()
+								safeWaitTime("PlayerBoard.Deeds",function()
 									claimedCard.addDecal({name="Used Already Shield", url=mage2.shieldImage,
 									position={posX, 0.11, -0.9}, rotation={90.0, 180.0, 0.0}, scale={0.4, 0.4, 1}})
 								end, 1)
@@ -287,7 +287,7 @@ function claimMove(player, mouseButton, id, rewindReady)
 						claimedCard.flip()
 						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-114.19 , 3.0, -43.16})
 					end
-					if source=="offer" and fillWait==false then fillWait=true Wait.time(function() fillSlide() fillWait=false end, 1.2) end
+					if source=="offer" and fillWait==false then fillWait=true safeWaitTime("PlayerBoard.Deeds",function() fillSlide() fillWait=false end, 1.2) end
 					if source=="artifactReward" then
 						if turnOrder[gStates.turnNumber].avatarLocation:sub(1, 4)=="city" then gStates.theGauntletArtifactClaimed=true end
 						gStates.dealtArtifacts[id:sub(1, 6)]=false
@@ -327,7 +327,7 @@ function claimMove(player, mouseButton, id, rewindReady)
 							claimedCard.setScale({scale,1,scale})
 							claimedCard.setPositionSmooth({unitX,2.0,-34.74})
 							fillWait=true
-							Wait.frames(function() Wait.condition(function() fillWait=false scheduleUnitLayoutRefresh(seatPos) end, function() return claimedCard.resting end) end,5)
+							safeWaitFrames("PlayerBoard.Deeds",function() safeWaitCondition("PlayerBoard.Deeds",function() fillWait=false scheduleUnitLayoutRefresh(seatPos) end, function() return claimedCard.resting end) end,5)
 							if gameCards[claimedCard.guid]~=nil then
 								broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} gained {ru} получает {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ", gameCards[claimedCard.guid].name[1], "."}), positionToColor(gStates.turnNumber))
 							end
@@ -348,11 +348,11 @@ function claimMove(player, mouseButton, id, rewindReady)
 						drawExactDeedCards(gStates.turnNumber, 2, "DrawOne")
 					end
 					if gStates.dayRound==true and turnOrder[gStates.turnNumber].tactic==2 then
-						Wait.time(function() dayTactic2ButtonActivate() end, 2)--activate after the tactic card finishes moving to the player area
+						safeWaitTime("PlayerBoard.Deeds",function() dayTactic2ButtonActivate() end, 2)--activate after the tactic card finishes moving to the player area
 					end
 					nextTurnMerged("incrementTurn")
 				end
-				if rewindReady==true then Wait.time(function() rewindTransactionFinish(cardClaimRewindOwner) end,1.5) end
+				if rewindReady==true then safeWaitTime("PlayerBoard.Deeds",function() rewindTransactionFinish(cardClaimRewindOwner) end,1.5) end
 			end
 		else
 			if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
@@ -424,7 +424,7 @@ end
 --A Coral draw can turn a Deck into a lone Card or rebuild it after a manual draw is intercepted.
 --Refresh from the scripting zone after TTS has settled so hover text/counts describe the final physical pile.
 local function coralScheduleDeedRefresh(seatPos, delayFrames)
-	Wait.frames(function()
+	safeWaitFrames("PlayerBoard.Deeds",function()
 		scheduleDeedPileDescriptionRefresh(seatPos, "deed")
 		scheduleEndRoundDeedStateRefresh(seatPos)
 	end, delayFrames or 4)
@@ -470,7 +470,7 @@ function coralRestoreManualDraw(playerIndex, deckGuid, card, showChoice)
 	if playerIndex==nil or card==nil or card.isDestroyed() then return end
 	local seatPos=turnOrder[playerIndex].seatPos
 	card.drop()
-	Wait.frames(function()
+	safeWaitFrames("PlayerBoard.Deeds",function()
 		if card==nil or card.isDestroyed() then return end
 		local destination=getObjectFromGUID(deckGuid)
 		if destination==nil or destination.type~="Deck" then
@@ -487,7 +487,7 @@ function coralRestoreManualDraw(playerIndex, deckGuid, card, showChoice)
 		if destination==nil or destination.isDestroyed() then return end
 		destination.putObject(card)
 		coralScheduleDeedRefresh(seatPos, 3)
-		if showChoice~=false then Wait.frames(function()
+		if showChoice~=false then safeWaitFrames("PlayerBoard.Deeds",function()
 			local currentPlayerIndex=coralDrawPlayerIndex(seatPos)
 			if currentPlayerIndex~=nil and coralDrawPending==nil then showCoralDrawChoice(currentPlayerIndex, 1, "DrawOne") end
 		end, 5) end
@@ -512,7 +512,7 @@ local coralExternalDrawFinishPause=nil
 local function coralFinishExternalDraw(seatPos, delayFrames)
 	if coralExternalDrawSeat~=seatPos then return end
 	if coralExternalDrawFinishPause~=nil then Wait.stop(coralExternalDrawFinishPause) end
-	coralExternalDrawFinishPause=Wait.frames(function()
+	coralExternalDrawFinishPause=safeWaitFrames("PlayerBoard.Deeds",function()
 		coralExternalDrawFinishPause=nil
 		if coralExternalDrawSeat==seatPos then coralExternalDrawSeat=nil end
 	end, delayFrames or 10)
@@ -564,7 +564,7 @@ local function coralTakeQuickWitted(playerIndex)
 	local deedDeck=coralQuickWittedSetAside(playerIndex)
 	if deedDeck==nil then return false end
 	local playerPosition=turnOrder[playerIndex].seatPos
-	deedDeck.takeObject({guid="6ecbc6", position={(playerPosition*40)-105, 4.59, -47.55}, rotation={0, 180, 0}, smooth=false, callback_function=function(card) card.setScale({1.5, 1, 1.5}) end})
+	safeTakeObject("PlayerBoard.Deeds",deedDeck,{guid="6ecbc6", position={(playerPosition*40)-105, 4.59, -47.55}, rotation={0, 180, 0}, smooth=false, callback_function=function(card) card.setScale({1.5, 1, 1.5}) end})
 	turnOrder[playerIndex].deedCount=math.max(0,(turnOrder[playerIndex].deedCount or 0)-1)
 	coralScheduleDeedRefresh(playerPosition, 4)
 	return true
@@ -581,7 +581,7 @@ function coralDrawChoice(player, mouseButton, id)
 		coralDrawPending=nil
 		if coralTakeQuickWitted(playerIndex)==true then
 			pending.remaining=pending.remaining-1
-			if pending.remaining>0 then Wait.frames(function()
+			if pending.remaining>0 then safeWaitFrames("PlayerBoard.Deeds",function()
 				local currentIndex=coralDrawPlayerIndex(pending.seatPos)
 				if currentIndex~=nil then coralRunNormalDraw(currentIndex, pending.sourceId, pending.remaining) end
 			end, 2) end
@@ -597,7 +597,7 @@ function coralDrawChoice(player, mouseButton, id)
 		pending.remaining=pending.remaining-1
 		if pending.remaining>0 then
 			--A few frames is enough for TTS to remove the drawn card from the Deck and update zone contents.
-			Wait.frames(function()
+			safeWaitFrames("PlayerBoard.Deeds",function()
 				local currentIndex=coralDrawPlayerIndex(pending.seatPos)
 				if currentIndex==nil then UI.hide("CoralDrawChoice") return end
 				--If the last normal card was just drawn, Quick Witted has become the physical Deed Deck and the remaining draw is mandatory.
@@ -630,7 +630,7 @@ function drawUpTo(player, mouseButton, id)
 		local playerPosition=turnOrder[gStates.turnNumber].seatPos
 		if legalPlayerCheck(player.color, playerPosition)==true then
 			if deedTransferBusy(playerPosition)==true then
-				Wait.condition(function() drawUpTo(player,mouseButton,id) end,function() return deedTransferBusy(playerPosition)~=true end,10,function() drawUpTo(player,mouseButton,id) end)
+				safeWaitCondition("PlayerBoard.Deeds",function() drawUpTo(player,mouseButton,id) end,function() return deedTransferBusy(playerPosition)~=true end,10,function() drawUpTo(player,mouseButton,id) end)
 				return
 			end
 			local meditationBonus=0
@@ -638,7 +638,7 @@ function drawUpTo(player, mouseButton, id)
 				meditationBonus=gStates.meditationDrawBonus[gStates.turnNumber] or 0
 				if meditationBonus>0 then
 					gStates.meditationDrawBonus[gStates.turnNumber]=nil
-					Wait.frames(function() mainUIUpdate("Meditation Draw Bonus Used") end, 1)
+					safeWaitFrames("PlayerBoard.Deeds",function() mainUIUpdate("Meditation Draw Bonus Used") end, 1)
 				end
 			end
 			local deedDeck=nil
@@ -678,7 +678,7 @@ function drawUpTo(player, mouseButton, id)
 									if drawn~=nil then turnOrder[turnAffected].deedCount=math.max(0,(turnOrder[turnAffected].deedCount or 0)-1) end
 								end
 								if takeRemainder==true then
-									Wait.frames(function()
+									safeWaitFrames("PlayerBoard.Deeds",function()
 										local deedZone=getObjectFromGUID(deedDeckZones[turnOrder[turnAffected].seatPos])
 										if deedZone==nil then return end
 										for _, remainder in pairs(deedZone.getObjects()) do
@@ -703,18 +703,18 @@ function drawUpTo(player, mouseButton, id)
 							coralScheduleDeedRefresh(turnOrder[turnAffected].seatPos, 4)
 						end
 						cardClaim=false
-						Wait.frames(function()
-							Wait.time(function()
+						safeWaitFrames("PlayerBoard.Deeds",function()
+							safeWaitTime("PlayerBoard.Deeds",function()
 								--Night tactic 2 grab three random discards back to deck if draw will reduce to 0.
 								if id=="DrawHand" and excess>0 and gStates.endRoundCalled==false and turnOrder[turnAffected].tactic==2 and gStates.dayRound==false and gStates.tacticTwoState~="Used" and turnOrder[turnAffected].mage~=gStates.positionMageKnight[5] then
 									for _, discards in pairs(getObjectFromGUID(deedDeckDiscardZones[playerPosition]).getObjects()) do
 										if discards.type=="Deck" then
 											discards.shuffle()
-											Wait.time(function()
+											safeWaitTime("PlayerBoard.Deeds",function()
 												discards.takeObject({position=deckPos, smooth=true, rotation={0, 180, 180}})
 												discards.takeObject({position=deckPos, smooth=true, rotation={0, 180, 180}})
 												discards.takeObject({position=deckPos, smooth=true, rotation={0, 180, 180}})
-												Wait.time(function()
+												safeWaitTime("PlayerBoard.Deeds",function()
 													for _, possibleDeck in pairs(getObjectFromGUID(deedDeckZones[playerPosition]).getObjects()) do
 														if possibleDeck.type=="Deck" then
 															for x=1, excess, 1 do possibleDeck.takeObject({position={(playerPosition*40)-105-(x*0.2), 4.59, -47.55}, rotation={0, 180, 0}}) end
@@ -733,7 +733,7 @@ function drawUpTo(player, mouseButton, id)
 							end, 0.5)
 						end, 2)
 					end
-					if cardClaim==true then Wait.time(function() drawCardstoHand() end, 1.5) else drawCardstoHand() end--make sure the card has entered the deck
+					if cardClaim==true then safeWaitTime("PlayerBoard.Deeds",function() drawCardstoHand() end, 1.5) else drawCardstoHand() end--make sure the card has entered the deck
 				end
 		    end
 		end
@@ -783,9 +783,9 @@ function dealStartingHandsWhenReady()
 	local function finishStartingHandsDeal()
 		dealAllHands()
 		--Give the dealt cards a few frames to leave their Deck objects before automatic rewind snapshots resume.
-		Wait.frames(function() rewindTransactionFinish("Game setup") end,15)
+		safeWaitFrames("PlayerBoard.Deeds",function() rewindTransactionFinish("Game setup") end,15)
 	end
-	Wait.condition(finishStartingHandsDeal, function()
+	safeWaitCondition("PlayerBoard.Deeds",finishStartingHandsDeal, function()
 		if startingDeedDecksReadyForDraw()==false then return false end
 		if coralPrepared==false then
 			coralPrepared=true
@@ -795,7 +795,7 @@ function dealStartingHandsWhenReady()
 		return coralQuickWittedReadyForDraw()
 	end, 10, function()
 		coralSetAsideQuickWitted()
-		Wait.frames(finishStartingHandsDeal, 5)
+		safeWaitFrames("PlayerBoard.Deeds",finishStartingHandsDeal, 5)
 	end)
 end
 
@@ -909,7 +909,7 @@ local function meditationAcceptTranceCard(cardGUID)
 	if state.acceptedSet==nil then state.acceptedSet={} end
 	state.mode="trance" state.accepted[#state.accepted+1]=cardGUID state.acceptedSet[cardGUID]=true
 	broadcastToAll("Trance Card Accepted ("..tostring(#state.accepted).."/"..tostring(state.required)..")", positionToColor(state.player))
-	Wait.frames(function() refreshMeditationTrance() end, 2)
+	safeWaitFrames("PlayerBoard.Deeds",function() refreshMeditationTrance() end, 2)
 	return true
 end
 function meditationTranceContainerEnter(container, obj)
@@ -933,7 +933,7 @@ local function meditationTakeCard(zone, cardGUID, position, callback)
 		if pile.type=="Card" and pile.guid==cardGUID then pile.setPosition(position) pile.setRotation({0,180,0}) callback(pile) return true end
 		if pile.type=="Deck" then
 			for _, data in pairs(pile.getObjects()) do
-				if data.guid==cardGUID then pile.takeObject({guid=cardGUID, position=position, rotation={0,180,0}, smooth=false, callback_function=callback}) return true end
+				if data.guid==cardGUID then safeTakeObject("PlayerBoard.Deeds",pile,{guid=cardGUID, position=position, rotation={0,180,0}, smooth=false, callback_function=callback}) return true end
 			end
 		end
 	end
@@ -946,16 +946,16 @@ local function meditationInsertDeedCard(playerIndex, card, destination, callback
 	for _, obj in pairs(zone.getObjects()) do if obj.guid~=card.guid then if obj.type=="Deck" then pile=obj break elseif obj.type=="Card" then pile=obj end end end
 	if pile==nil then
 		local pos=zone.getPosition() card.setRotation({0,180,180}) card.setPosition({pos[1],1.50,pos[3]})
-		Wait.frames(function() if callback~=nil then callback(true) end end, 2) return
+		safeWaitFrames("PlayerBoard.Deeds",function() if callback~=nil then callback(true) end end, 2) return
 	end
 	local pos=pile.getPosition()
 	if pile.type=="Deck" then
 		card.setScale({1.5,1,1.5}) card.setRotation(pile.getRotation()) card.setPosition({pos[1]+3,pos[2]+(destination=="top" and 0.5 or -0.5),pos[3]})
-		Wait.frames(function() if pile~=nil and not pile.isDestroyed() and card~=nil and not card.isDestroyed() then pile.putObject(card) end Wait.frames(function() if callback~=nil then callback(true) end end, 1) end, 1)
+		safeWaitFrames("PlayerBoard.Deeds",function() if pile~=nil and not pile.isDestroyed() and card~=nil and not card.isDestroyed() then pile.putObject(card) end safeWaitFrames("PlayerBoard.Deeds",function() if callback~=nil then callback(true) end end, 1) end, 1)
 	else
 		local rotation=pile.getRotation() card.setScale({1.5,1,1.5}) card.setRotation(rotation)
 		if destination=="top" then card.setPosition({pos[1],pos[2]+0.28,pos[3]}) else pile.setPosition({pos[1],pos[2]+0.28,pos[3]}) card.setPosition({pos[1],pos[2],pos[3]}) end
-		Wait.frames(function() if callback~=nil then callback(true) end end, 4)
+		safeWaitFrames("PlayerBoard.Deeds",function() if callback~=nil then callback(true) end end, 4)
 	end
 end
 local function meditationMoveCards(playerIndex, sourceType, cardGUIDs, destination, done)
@@ -967,21 +967,21 @@ local function meditationMoveCards(playerIndex, sourceType, cardGUIDs, destinati
 		local deckPos=deckZone~=nil and deckZone.getPosition() or {turnOrder[playerIndex].seatPos*40-114,1.5,-43}
 		local staging={deckPos[1]+4,3.0,deckPos[3]}
 		local found=meditationTakeCard(sourceZone, cardGUIDs[index], staging, function(card)
-			meditationInsertDeedCard(playerIndex, card, destination, function(success) if success==true then moved=moved+1 end Wait.frames(function() moveNext(index+1) end, 2) end)
+			meditationInsertDeedCard(playerIndex, card, destination, function(success) if success==true then moved=moved+1 end safeWaitFrames("PlayerBoard.Deeds",function() moveNext(index+1) end, 2) end)
 		end)
-		if found==false then Wait.frames(function() moveNext(index+1) end, 1) end
+		if found==false then safeWaitFrames("PlayerBoard.Deeds",function() moveNext(index+1) end, 1) end
 	end
 	moveNext(1)
 end
 local function meditationGrantDrawBonus(playerIndex)
 	if gStates.meditationDrawBonus==nil then gStates.meditationDrawBonus={} end
 	gStates.meditationDrawBonus[playerIndex]=2
-	if playerIndex==gStates.turnNumber then Wait.frames(function() if gStates.turnNumber==playerIndex then mainUIUpdate("Meditation Draw Bonus") end end, 1) end
+	if playerIndex==gStates.turnNumber then safeWaitFrames("PlayerBoard.Deeds",function() if gStates.turnNumber==playerIndex then mainUIUpdate("Meditation Draw Bonus") end end, 1) end
 end
 local function meditationFinish(playerIndex, destination, moved, expected, name)
 	if moved~=expected then broadcastToAll(name.." could not find all selected discard cards.", positionToColor(playerIndex)) return end
 	turnOrder[playerIndex].deedCount=(turnOrder[playerIndex].deedCount or 0)+moved
-	if destination=="bottom" and turnOrder[playerIndex].mage=="Coral" then Wait.frames(function() coralSetAsideQuickWitted() end, 8) end
+	if destination=="bottom" and turnOrder[playerIndex].mage=="Coral" then safeWaitFrames("PlayerBoard.Deeds",function() coralSetAsideQuickWitted() end, 8) end
 end
 local function meditationResolve(destination, buttonPlayerColor)
 	local card=getObjectFromGUID(meditationTranceCardGUID)
@@ -1116,9 +1116,9 @@ local function steadyTempoMoveToDiscard(playerIndex, card)
 		local pos=zone.getPosition() card.setPosition({pos[1],1.50,pos[3]})
 	else
 		local pos=pile.getPosition() card.setPosition({pos[1]+3,pos[2]+0.5,pos[3]})
-		Wait.frames(function() if pile~=nil and not pile.isDestroyed() and card~=nil and not card.isDestroyed() then pile.putObject(card) end end, 1)
+		safeWaitFrames("PlayerBoard.Deeds",function() if pile~=nil and not pile.isDestroyed() and card~=nil and not card.isDestroyed() then pile.putObject(card) end end, 1)
 	end
-	Wait.frames(function() scheduleDeedPileDescriptionRefresh(details.seatPos, "discard") end, 6)
+	safeWaitFrames("PlayerBoard.Deeds",function() scheduleDeedPileDescriptionRefresh(details.seatPos, "discard") end, 6)
 	return true
 end
 function steadyTempoChoice(player, mouseButton, id)
@@ -1135,7 +1135,7 @@ function steadyTempoChoice(player, mouseButton, id)
 	--Rewards Claimed therefore cannot race a Top insertion and draw the old top card first.
 	steadyTempoRemoveButtons(card)
 	if choice=="steadyTempoDiscard" then
-		if steadyTempoMoveToDiscard(playerIndex, card)==true then Wait.frames(function() steadyTempoClearPending(cardGUID) end, 2)
+		if steadyTempoMoveToDiscard(playerIndex, card)==true then safeWaitFrames("PlayerBoard.Deeds",function() steadyTempoClearPending(cardGUID) end, 2)
 		else steadyTempoAddButtons(card, playerIndex) end
 		return
 	end
@@ -1148,7 +1148,7 @@ function steadyTempoChoice(player, mouseButton, id)
 		--Quick Witted remains Coral's actual set-aside bottom card; Steady Tempo sits immediately above it.
 		if destination=="bottom" and turnOrder[playerIndex].mage=="Coral" then
 			scheduleCoralQuickWittedBottom(6)
-			Wait.frames(function() steadyTempoClearPending(cardGUID) end, 8)
+			safeWaitFrames("PlayerBoard.Deeds",function() steadyTempoClearPending(cardGUID) end, 8)
 		else steadyTempoClearPending(cardGUID) end
 	end)
 end
@@ -1168,8 +1168,8 @@ function coralSetAsideQuickWitted()
 					for _, cardData in pairs(obj.getObjects()) do
 						if cardData.guid==cardGUID then
 							local deckPos=obj.getPosition()
-							obj.takeObject({guid=cardGUID, position={deckPos[1]+3, deckPos[2], deckPos[3]}, rotation={0, 180, 180}, smooth=false, callback_function=function(card)
-								Wait.frames(function()
+							safeTakeObject("PlayerBoard.Deeds",obj,{guid=cardGUID, position={deckPos[1]+3, deckPos[2], deckPos[3]}, rotation={0, 180, 180}, smooth=false, callback_function=function(card)
+								safeWaitFrames("PlayerBoard.Deeds",function()
 									local currentDeck=nil
 									for _, currentObj in pairs(deedZone.getObjects()) do if currentObj.type=="Deck" then currentDeck=currentObj break end end
 									if currentDeck~=nil then
@@ -1199,7 +1199,7 @@ function coralSetAsideQuickWitted()
 				looseCard.setScale({1.5, 1, 1.5})
 				looseCard.setRotation({0, 180, 180})
 				looseCard.setPosition({deckPos[1]+3, deckPos[2]-0.5, deckPos[3]})
-				Wait.frames(function() if deedDeck~=nil then deedDeck.putObject(looseCard) end end, 1)
+				safeWaitFrames("PlayerBoard.Deeds",function() if deedDeck~=nil then deedDeck.putObject(looseCard) end end, 1)
 			elseif looseCard~=nil and looseInDeedZone==true and deedDeck==nil then
 				local deckPos=deedZone.getPosition()
 				looseCard.setScale({1.5, 1, 1.5})
@@ -1219,7 +1219,7 @@ function dealAllHands()
 		if turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] and playerDropoutInactive(gStates.turnNumber)==false then drawUpTo({color="Black"}, "-1", "DrawHand") end--color is only there to stop error
 	end
 	gStates.turnNumber=temp
-	Wait.time(function()
+	safeWaitTime("PlayerBoard.Deeds",function()
 		for x=1, #turnOrder, 1 do
 			--Records current amount of cards in deed deck
 			turnOrder[x].deedCount=0
@@ -1253,7 +1253,7 @@ function fillSlide()
 							cardMove.unlock()
 							cardMove.setPositionSmooth({(column*4.8)+21.6, 1.5, -((row*6)+10.2)})
 							cardMove.setRotationSmooth({0, 180, 0})
-							Wait.condition(function() Wait.time(function() cardMove.lock() end, 1) end, function() return cardMove.resting end)
+							safeWaitCondition("PlayerBoard.Deeds",function() safeWaitTime("PlayerBoard.Deeds",function() cardMove.lock() end, 1) end, function() return cardMove.resting end)
 							offerList[row][column]=offerList[row][replaceColumn]
 							offerList[row][replaceColumn]=nil
 							break
@@ -1267,7 +1267,7 @@ function fillSlide()
 							if MainDeck[1].type=="Deck" then
 								local newcard=MainDeck[1].takeObject({position={((column*4.8)+21.6), 1.5, -((row*6)+10.2)}, rotation={0, 180, 0}})
 								offerList[row][column]=newcard.guid
-								Wait.condition(function() Wait.time(function() newcard.lock() end, 1) end, function() return newcard.resting end)
+								safeWaitCondition("PlayerBoard.Deeds",function() safeWaitTime("PlayerBoard.Deeds",function() newcard.lock() end, 1) end, function() return newcard.resting end)
 							else
 								MainDeck[1].setPositionSmooth({(column*4.8)+21.6, 1.5, -((row*6)+10.2)})
 								MainDeck[1].setRotationSmooth({0, 180, 0})

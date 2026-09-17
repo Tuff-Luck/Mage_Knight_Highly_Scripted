@@ -314,7 +314,7 @@ function moveDisplayApplyTextMarker(marker, request, slot, delayPosition)
 	end
 	if delayPosition==true then
 		local markerGUID=marker.guid
-		Wait.frames(function()
+		safeWaitFrames("Movement",function()
 			local liveMarker=getObjectFromGUID(markerGUID)
 			local latest=moveDisplayTextSlotRequests[slot]
 			if liveMarker==nil then return end
@@ -334,7 +334,7 @@ function moveDisplayRequestTextMarker(slot, request)
 	if marker~=nil then moveDisplayApplyTextMarker(marker, request, slot, false) return end
 	if moveDisplayTextSpawning[slot]==true then return end
 	moveDisplayTextSpawning[slot]=true
-	spawnObject({type="3DText", position={request.position[1], -10, request.position[3]}, rotation={90,0,0}, scale={0.70,0.70,0.70}, sound=false, callback_function=function(newMarker)
+	safeSpawnObject("Movement",{type="3DText", position={request.position[1], -10, request.position[3]}, rotation={90,0,0}, scale={0.70,0.70,0.70}, sound=false, callback_function=function(newMarker)
 		moveDisplayTextSpawning[slot]=nil
 		gStates.moveDisplayTextGUIDs=gStates.moveDisplayTextGUIDs or {}
 		gStates.moveDisplayTextGUIDs[slot]=newMarker.guid
@@ -377,7 +377,7 @@ function updateMoveDisplay(id)
 		return
 	end
 	if moveDisplayAutoPause~=nil then Wait.stop(moveDisplayAutoPause) end
-	moveDisplayAutoPause=Wait.time(function() moveDisplayAutoPause=nil renderMoveDisplay() end, moveDisplayRefreshDelay)
+	moveDisplayAutoPause=safeWaitTime("Movement",function() moveDisplayAutoPause=nil renderMoveDisplay() end, moveDisplayRefreshDelay)
 end
 
 function renderMoveDisplay(id)

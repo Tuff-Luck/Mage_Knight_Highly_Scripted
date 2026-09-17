@@ -18,14 +18,14 @@ function automatedTurnRewindRelease() rewindTransactionFinish("Automated turn") 
 
 function automatedTacticRewindRelease()
 	--The tactic itself moves smoothly after the turn advances, so keep rewind storage blocked briefly.
-	Wait.time(automatedTurnRewindRelease,1.5)
+	safeWaitTime("AI.Common",automatedTurnRewindRelease,1.5)
 end
 
 function volkareReleaseRewindWhenStable()
 	if rewindTransactionOwnerActive("Automated turn")~=true then return end
 	local v=getObjectFromGUID(gStates.volkareModel)
 	if v==nil or (v.resting and v.isSmoothMoving()==false) then automatedTurnRewindRelease() return end
-	Wait.condition(automatedTurnRewindRelease,function()
+	safeWaitCondition("AI.Common",automatedTurnRewindRelease,function()
 		local current=getObjectFromGUID(gStates.volkareModel)
 		return current==nil or (current.resting and current.isSmoothMoving()==false)
 	end,8,function()

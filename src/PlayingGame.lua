@@ -82,7 +82,7 @@ function gladeDiscardHeal(obj, playerColor, altClick)
 		wound.setScale({1.5,1,1.5})
 	end
 	if source.type=="Deck" then
-		source.takeObject({guid=woundGUID, position=destination, rotation={0,180,0}, smooth=true, callback_function=finishHeal})
+		safeTakeObject("PlayingGame",source,{guid=woundGUID, position=destination, rotation={0,180,0}, smooth=true, callback_function=finishHeal})
 	else
 		source.setScale({1.5,1,1.5})
 		source.setRotationSmooth({0,180,0})
@@ -208,13 +208,13 @@ function dropShield(location, lockToken, rotation)
 		if details.mage==turnOrder[gStates.turnNumber].mage then
 			local shield=getObjectFromGUID(details.shieldContainer).takeObject({position=location, rotation=rotation, smooth=false})
 			if lockToken==true then
-				Wait.time(function() Wait.condition(function()
+				safeWaitTime("PlayingGame",function() safeWaitCondition("PlayingGame",function()
 					shield.lock()
 				end, function() return shield.resting end) end, 1.5)
 			end
 			UI.setAttribute("PreEndTurn", "interactable", "false")
 			UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Deactive")
-			Wait.time(function()
+			safeWaitTime("PlayingGame",function()
 				UI.setAttribute("PreEndTurn", "interactable", "true")
 				UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Active")
 			end, 2.1)
@@ -285,7 +285,7 @@ function layoutClaimedCards()
 					for _, card in pairs(c.getObjects()) do
 						if c.remainder~=nil and (card.gm_notes=="Advanced Action" or card.gm_notes=="Spell" or card.gm_notes=="Artifact" or card.gm_notes=="Wound") then
 							local lastCard=c.remainder
-							Wait.frames(function()
+							safeWaitFrames("PlayingGame",function()
 								lastCard.setPosition({(turnDetails.seatPos*40)+OffsetStart[card.gm_notes]+OffsetX[card.gm_notes], 1.1+OffsetY[card.gm_notes], -39.4-OffsetZ[card.gm_notes]})
 								OffsetX[card.gm_notes]=OffsetX[card.gm_notes]+xOffset
 								OffsetY[card.gm_notes]=OffsetY[card.gm_notes]+yOffset
@@ -463,11 +463,11 @@ function shieldLocation(obj, zone, status)
 				end
 			end
 			addAvatarButtons()
-			if gStates.gameScenario=="The Fractured Lands Blitz" and obj.getGMNotes()=="Burned Monastery" then Wait.frames(function() refreshFracturedLandsTeleportHighlights() end, 1) end
+			if gStates.gameScenario=="The Fractured Lands Blitz" and obj.getGMNotes()=="Burned Monastery" then safeWaitFrames("PlayingGame",function() refreshFracturedLandsTeleportHighlights() end, 1) end
 		end
 	end
 	if zone.guid~=mapArea then
-		if pause==false then pause=true Wait.frames(function()
+		if pause==false then pause=true safeWaitFrames("PlayingGame",function()
 			for b, mageSearch in pairs(turnOrder) do
 				if mageSearch.mage==obj.getDescription() then
 					if zone.guid~=elementalist.discZone and zone.guid~=darkCrusader.discZone and (gStates.gameScenario=="The Gauntlet"
@@ -591,7 +591,7 @@ function fakeDropAvatar()
 		return
 	end
 	if adjustHandSizePause~=nil then Wait.stop(adjustHandSizePause) end
-	adjustHandSizePause=Wait.time(function()
+	adjustHandSizePause=safeWaitTime("PlayingGame",function()
 		local found=false
 		for _, avatar in pairs(mageKnights) do
 			if turnOrder[gStates.turnNumber].mage==avatar.mage and avatar.mage~="Volkare" then
@@ -599,7 +599,7 @@ function fakeDropAvatar()
 				local avatarObj=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
 				if avatarObj~=nil then
 					found=true
-					Wait.frames(function()
+					safeWaitFrames("PlayingGame",function()
 						--The active avatar representation can be replaced while this delayed fake drop is waiting.
 						--Resolve all three forms again so we never deliberately call onObjectDrop with a stale nil object.
 						local currentAvatar=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
@@ -868,11 +868,11 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 		if gStates.rampage==1 then dice=getObjectFromGUID("95ca17").clone(params) end
 		if gStates.rampage==2 then dice=getObjectFromGUID("48089f").clone(params) end
 	end
-	if dice~=nil then Wait.time(function() dice.destruct() end, 10) end
-	Wait.frames(function()--wait for clone to spawn
+	if dice~=nil then safeWaitTime("PlayingGame",function() dice.destruct() end, 10) end
+	safeWaitFrames("PlayingGame",function()--wait for clone to spawn
 		if dice~=nil then dice.unlock() dice.shuffle() end
-		Wait.frames(function()
-			Wait.condition(function()
+		safeWaitFrames("PlayingGame",function()
+			safeWaitCondition("PlayingGame",function()
 				if dice~=nil then
 					dice.setPosition({params.position[1], 3.0, params.position[3]})
 					dice.lock()
@@ -1010,7 +1010,7 @@ end
 local coralQuickWittedShufflePause=nil
 function scheduleCoralQuickWittedBottom(delayFrames)
 	if coralQuickWittedShufflePause~=nil then Wait.stop(coralQuickWittedShufflePause) end
-	coralQuickWittedShufflePause=Wait.frames(function() coralQuickWittedShufflePause=nil coralSetAsideQuickWitted() end, delayFrames or 5)
+	coralQuickWittedShufflePause=safeWaitFrames("PlayingGame",function() coralQuickWittedShufflePause=nil coralSetAsideQuickWitted() end, delayFrames or 5)
 end
 
 function motivation(player, mouseButton, id)
@@ -1114,7 +1114,7 @@ function offerArtifacts(player, mouseButton, id)
 					local dealtArtifact=artifactDeck.takeObject({position={artifactDeck.getPosition()[1]+(((artifactDeck.getScale()[1]/1.5)*4.8)*a), 2.0, artifactDeck.getPosition()[3]}, rotation={0, 180, 0}, smooth=true})
 					dealtArtifact.setHiddenFrom(hide)
 					dealtArtifact.UI.setXmlTable({createClaimButton(dealtArtifact.guid, "artifactReward")})
-					Wait.condition(function() dealtArtifact.lock() end, function() return dealtArtifact.resting end)
+					safeWaitCondition("PlayingGame",function() dealtArtifact.lock() end, function() return dealtArtifact.resting end)
 					gStates.dealtArtifacts[dealtArtifact.guid]=true
 				end
 				--remove reward and arrow buttons.
@@ -1217,13 +1217,13 @@ function unitOffer()
 		end
 		local unitDrawList=getUnitDrawList(drawDecks)
 		for a, draw in ipairs(unitDrawList) do
-			draw.deck.takeObject({
+			draw.safeTakeObject("PlayingGame",deck,{
 				guid=draw.guid,
 				position=unitPlace[a],
 				rotation={0,180,0},
 				smooth=true,
 				callback_function=function(drawnCard)
-					Wait.condition(function()
+					safeWaitCondition("PlayingGame",function()
 						drawnCard.lock()
 					end, function() return drawnCard.resting end)
 				end
@@ -1234,7 +1234,7 @@ function unitOffer()
 			params.position=monasteryPlace[i]
 			standardDeckCycleShuffleIfReached("Advanced Action")
 			local drawnCard=getObjectFromGUID(getObjectFromGUID(drawDecks["Advanced Action"]).getObjects()[1].guid).takeObject(params)
-			Wait.condition(function() drawnCard.lock() end, function() return drawnCard.resting end)
+			safeWaitCondition("PlayingGame",function() drawnCard.lock() end, function() return drawnCard.resting end)
 		end
 	end
 end
@@ -1274,7 +1274,7 @@ function shieldDrop(player, mouseButton, id)
 						mainUIUpdate("Graveyard sealed")
 					end
 				end
-				Wait.frames(function() Wait.condition(function()
+				safeWaitFrames("PlayingGame",function() safeWaitCondition("PlayingGame",function()
 					shield.lock()
 					addAvatarButtons()
 				end, function() return shield.resting end) end, 10)
@@ -1282,7 +1282,7 @@ function shieldDrop(player, mouseButton, id)
 			end
 			if details.markerContainer==id:sub(1, 6) then
 				local marker=getObjectFromGUID(details.markerContainer).takeObject({position={tempPos[1], 3, tempPos[3]}})
-				Wait.frames(function() Wait.condition(function()
+				safeWaitFrames("PlayingGame",function() safeWaitCondition("PlayingGame",function()
 					marker.lock()
 					addAvatarButtons()
 				end, function() return marker.resting end) end, 10)
@@ -1387,9 +1387,9 @@ function playMonastery()
 		--Play an advanced action card
 		standardDeckCycleShuffleIfReached("Advanced Action")
 		local MonasteryDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects()
-		while MonasteryDeck==nil do Wait.frames(function() MonasteryDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects() end, 10) end
+		while MonasteryDeck==nil do safeWaitFrames("PlayingGame",function() MonasteryDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects() end, 10) end
 		local drawnCard=getObjectFromGUID(MonasteryDeck[1].guid).takeObject(params)
-		Wait.condition(function() drawnCard.lock() end, function() return drawnCard.resting end)
+		safeWaitCondition("PlayingGame",function() drawnCard.lock() end, function() return drawnCard.resting end)
 		broadcastToAll("{en}Monastery is teaching a new Advanced Action{ru}Монастырь обучает новому Особому действию{zh-cn}修道院现在传授新的高级行动{ko}수도원에 새로운 상급 액션이 추가되었습니다{es}El Monasterio está enseñando una nueva Acción Avanzada{fr}Le Monastère enseigne une nouvelle Action Avancée{pt-br}Monastério está encinsando uma nova Ação Avançada{de}Das Kloster lehrt eine neue fortgeschrittene Aktion", {1,1,0.5})
 	end
 end
@@ -1434,7 +1434,7 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			drawMonster(trapBag, turnOrder[gStates.turnNumber], id)
 			gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5
 			gStates.monsterOffsetX=0
-			Wait.frames(function() drawMonster(trapBag, turnOrder[gStates.turnNumber], id) end, 10)
+			safeWaitFrames("PlayingGame",function() drawMonster(trapBag, turnOrder[gStates.turnNumber], id) end, 10)
 		end
 		if id=="zigguratPyramidInteractClimb2" then
 			UI.setAttribute("zigguratPyramidInteractClimb2Image", "color", "Gray")
@@ -1504,7 +1504,7 @@ function offerAdjust(player, mouseButton, id)
 				end
 			end
 		end
-		Wait.frames(function()
+		safeWaitFrames("PlayingGame",function()
 			OfferPause=false
 			getObjectFromGUID(GUID.deck.spell).UI.setXmlTable({	{tag="Button", attributes={id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=240, position="60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
 															children={	{tag="Image", attributes={id="e4372aOfferUpImage", image="Sliced Button/Button Object Active", type="Sliced"}},
@@ -1605,7 +1605,7 @@ function changePositionColor(player, mouseButton, id)
 		refreshPlayerSeatColors()
 		outOfTurnUIStateKey=nil
 		mainUIUpdate("Player Changed Colour")
-		Wait.frames(function() Player[newColor].lookAt({position={getObjectFromGUID(barGUID).getPosition()[1], getObjectFromGUID(barGUID).getPosition()[2], getObjectFromGUID(barGUID).getPosition()[3]-10}, pitch=75, yaw=0, distance=30}) end, 2)
+		safeWaitFrames("PlayingGame",function() Player[newColor].lookAt({position={getObjectFromGUID(barGUID).getPosition()[1], getObjectFromGUID(barGUID).getPosition()[2], getObjectFromGUID(barGUID).getPosition()[3]-10}, pitch=75, yaw=0, distance=30}) end, 2)
 	end
 end
 
@@ -1653,7 +1653,7 @@ function changeMatImage(player, mouseButton, id)
 			end
 		end
 		board.reload()
-		Wait.time(function() getObjectFromGUID(convert[id:sub(1, 6)]).interactable=false end, 0.2)
+		safeWaitTime("PlayingGame",function() getObjectFromGUID(convert[id:sub(1, 6)]).interactable=false end, 0.2)
 	end
 end
 
@@ -1761,7 +1761,7 @@ function scaleBags(bag, obj, state)
 		end
 		bag.setScale({x=bag.getScale()[1], y=bagScaleY, z=bag.getScale()[3]})
 		if possessedStack then
-			Wait.frames(function()
+			safeWaitFrames("PlayingGame",function()
 				if bag==nil or bag.isDestroyed() then return end
 				local bounds=bag.getBoundsNormalized()
 				local newBottom=bounds.center[2]-(bounds.size[2]/2)
@@ -1831,12 +1831,12 @@ function scaleBags(bag, obj, state)
 		if #bagContents==0 then discardFace[bag.guid]=faceUpdateBags[bag.guid].empty end
 
 		if delayFaceChange~=nil then Wait.stop(delayFaceChange) end
-		delayFaceChange=Wait.frames(function()
+		delayFaceChange=safeWaitFrames("PlayingGame",function()
 			for guid, image in pairs(discardFace) do
 				getObjectFromGUID(guid).setCustomObject({diffuse=image})
 				getObjectFromGUID(guid).reload()
 				local bagGUID=guid
-				Wait.frames(function() applyAltViewAngle(getObjectFromGUID(bagGUID)) end, 1)
+				safeWaitFrames("PlayingGame",function() applyAltViewAngle(getObjectFromGUID(bagGUID)) end, 1)
 			end
 			discardFace={}
 			delayFaceChange=nil
@@ -1855,7 +1855,7 @@ function volkareTokenRandomize(token)--9a686a
 	--roll volkares dice and read result
 	local volkareDice=getObjectFromGUID("9a686a")
 	if volkareDiceRolled==false then volkareDice.randomize() volkareDiceRolled=true end
-	Wait.frames(function() Wait.condition(function()
+	safeWaitFrames("PlayingGame",function() safeWaitCondition("PlayingGame",function()
 		if token~=nil then
 			token.setCustomObject({image=VolkareReminder[volkareDice.getRotationValue()]})
 			token.reload()
@@ -1908,11 +1908,11 @@ function scheduleReturnedSourceMirror(sourceDie)
 	local sourceGUID=sourceDie.guid
 	--Do not make mirror restoration depend solely on the generic zone-enter callback. As soon as this exact
 	--returned die is physically inside the real Source, rebuild the missing copies; correct its face again after settling.
-	Wait.condition(function()
+	safeWaitCondition("PlayingGame",function()
 		local die=getObjectFromGUID(sourceGUID)
 		if die==nil then return end
 		mirrorSourceUpdate("returned die entered real Source")
-		Wait.condition(function()
+		safeWaitCondition("PlayingGame",function()
 			if getObjectFromGUID(sourceGUID)~=nil then mirrorSourceUpdate("returned die settled in real Source") end
 		end, function()
 			local current=getObjectFromGUID(sourceGUID)
@@ -1924,10 +1924,10 @@ function scheduleReturnedSourceMirror(sourceDie)
 end
 function scheduleMirrorSourceUpdate(from, delay)
 	if mirrorSourceRefreshWait~=nil then Wait.stop(mirrorSourceRefreshWait) end
-	mirrorSourceRefreshWait=Wait.time(function()
+	mirrorSourceRefreshWait=safeWaitTime("PlayingGame",function()
 		mirrorSourceRefreshWait=nil
 		if mirrorSourceBusy()==true then
-			mirrorSourceRefreshWait=Wait.condition(function()
+			mirrorSourceRefreshWait=safeWaitCondition("PlayingGame",function()
 				mirrorSourceRefreshWait=nil
 				mirrorSourceUpdate(from)
 			end, function() return mirrorSourceBusy()==false end)
@@ -2011,7 +2011,7 @@ function mirrorSourceSyncExisting(sourceDice, colorRotate, seperate)
 			local p=best.getPosition()
 			if math.abs(p[1]-target[1])>0.02 or math.abs(p[2]-target[2])>0.08 or math.abs(p[3]-target[3])>0.02 then best.setPosition(target) end
 			local mirrorGUID=best.guid
-			Wait.frames(function() mirrorRepositionIgnore[mirrorGUID]=nil end, 3)
+			safeWaitFrames("PlayingGame",function() mirrorRepositionIgnore[mirrorGUID]=nil end, 3)
 		end
 	end
 	gStates.manaSource=sourceDice
@@ -2038,7 +2038,7 @@ function mirrorSourceUpdate(from)
 			local oldDie=getObjectFromGUID(dieDel)
 			if oldDie~=nil then oldDie.destruct() end
 			local oldGUID=dieDel
-			Wait.frames(function() mirrorDestroyIgnore[oldGUID]=nil end, 3)
+			safeWaitFrames("PlayingGame",function() mirrorDestroyIgnore[oldGUID]=nil end, 3)
 		end
 	end
 	gStates.manaMirror={}
@@ -2058,7 +2058,7 @@ function mirrorSourceUpdate(from)
 			gStates.manaMirror[mirrorDie.guid]=die.manaDie
 			mirrorSpawnEnterIgnore[mirrorDie.guid]=true
 			local mirrorGUID=mirrorDie.guid
-			Wait.frames(function() mirrorSpawnEnterIgnore[mirrorGUID]=nil end, 3)
+			safeWaitFrames("PlayingGame",function() mirrorSpawnEnterIgnore[mirrorGUID]=nil end, 3)
 		end
 	end
 end
@@ -2080,7 +2080,7 @@ function scheduleMirrorFaceSync(dice, from)
 	if mirrorSourceClaim[sourceGUID]~=nil then return true end
 	if mirrorFaceWaitID[dice.guid]~=nil then Wait.stop(mirrorFaceWaitID[dice.guid]) end
 	local diceGUID=dice.guid
-	mirrorFaceWaitID[diceGUID]=Wait.frames(function() mirrorSourceFaceSync(diceGUID, sourceGUID, from) end, 2)
+	mirrorFaceWaitID[diceGUID]=safeWaitFrames("PlayingGame",function() mirrorSourceFaceSync(diceGUID, sourceGUID, from) end, 2)
 	return true
 end
 function scheduleMirrorRandomizeSync(dice, from)
@@ -2098,8 +2098,8 @@ function scheduleMirrorRandomizeSync(dice, from)
 		mirrorManualRandomize[diceGUID]=nil
 		mirrorSourceFaceSync(diceGUID, sourceGUID, from)
 	end
-	mirrorFaceWaitID[diceGUID]=Wait.frames(function()
-		mirrorFaceWaitID[diceGUID]=Wait.condition(finishRandomize, function()
+	mirrorFaceWaitID[diceGUID]=safeWaitFrames("PlayingGame",function()
+		mirrorFaceWaitID[diceGUID]=safeWaitCondition("PlayingGame",finishRandomize, function()
 			local die=getObjectFromGUID(diceGUID)
 			return die==nil or die.resting
 		end, 10, finishRandomize)
@@ -2115,14 +2115,14 @@ function scheduleRealSourceRefresh(dice, from, waitForRest)
 		if getObjectFromGUID(diceGUID)~=nil then mirrorSourceUpdate(from) end
 	end
 	if waitForRest==true then
-		mirrorFaceWaitID[diceGUID]=Wait.frames(function()
-			mirrorFaceWaitID[diceGUID]=Wait.condition(refresh, function()
+		mirrorFaceWaitID[diceGUID]=safeWaitFrames("PlayingGame",function()
+			mirrorFaceWaitID[diceGUID]=safeWaitCondition("PlayingGame",refresh, function()
 				local die=getObjectFromGUID(diceGUID)
 				return die==nil or die.resting
 			end, 10, refresh)
 		end, 2)
 	else
-		mirrorFaceWaitID[diceGUID]=Wait.frames(refresh, 2)
+		mirrorFaceWaitID[diceGUID]=safeWaitFrames("PlayingGame",refresh, 2)
 	end
 	return true
 end
@@ -2155,7 +2155,7 @@ function diceResting(dice, state)
 			onObjectRandomize({type="Dice"})
 			currentDice.destruct()
 		end
-		exitWaitID[diceGUID]=Wait.condition(returnDieToSource, function()
+		exitWaitID[diceGUID]=safeWaitCondition("PlayingGame",returnDieToSource, function()
 			local currentDice=getObjectFromGUID(diceGUID)
 			return currentDice==nil or currentDice.resting
 		end, 10, returnDieToSource)
@@ -2190,7 +2190,7 @@ function diceResting(dice, state)
 		for _, waitfunction in pairs(exitWaitID) do if waitfunction~=nil then moreDice=true break end end
 		if moreDice==false then exitWaitID={} scheduleMirrorSourceUpdate("last dice resting in mirror", 0.05) end
 	end
-	exitWaitID[diceGUID]=Wait.condition(updateDice, function()
+	exitWaitID[diceGUID]=safeWaitCondition("PlayingGame",updateDice, function()
 		local currentDice=getObjectFromGUID(diceGUID)
 		return currentDice==nil or currentDice.resting
 	end, 10, updateDice)
@@ -2251,9 +2251,9 @@ local function fracturedLandsRotate(player, direction)
 		currentTile.UI.setAttribute(tileGUID.."FracturedRotationPlane", "rotation", "0 0 "..tostring(currentRotation-180))
 		local difference=math.abs(((currentRotation-targetRotation+180)%360)-180)
 		if difference<0.5 or followFrames>=60 then current.busy=false return end
-		Wait.frames(followRotation, 1)
+		safeWaitFrames("PlayingGame",followRotation, 1)
 	end
-	Wait.frames(followRotation, 1)
+	safeWaitFrames("PlayingGame",followRotation, 1)
 end
 function fracturedLandsRotateLeft(player, value, id) fracturedLandsRotate(player, -1) end
 function fracturedLandsRotateRight(player, value, id) fracturedLandsRotate(player, 1) end
@@ -2326,7 +2326,7 @@ function exploreMap(player, mouseButton, id)
 					rewindTransactionFinish("Explore map")
 				else
 					drawnTile.setPositionSmooth({pos[1], 0.97, pos[2]})
-					Wait.frames(function() Wait.condition(function()
+					safeWaitFrames("PlayingGame",function() safeWaitCondition("PlayingGame",function()
 						mainUIUpdate("Moved city card")
 						explorePause=false
 						rewindTransactionFinish("Explore map")

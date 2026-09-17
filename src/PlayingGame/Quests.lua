@@ -357,7 +357,7 @@ function apocalypseQuestStageIntoContainer(obj,container)
 	--Teleport clear of the Quest first. Direct putObject while a tucked object is still physically under
 	--the Quest lets the Quest collider carry it when the Quest card moves in the same cleanup frame.
 	obj.setPosition({target[1],target[2]+2.2,target[3]})
-	Wait.frames(function()
+	safeWaitFrames("Quests",function()
 		local live=getObjectFromGUID(objectGUID)
 		local liveContainer=getObjectFromGUID(containerGUID)
 		if live~=nil and liveContainer~=nil then liveContainer.putObject(live) end
@@ -387,7 +387,7 @@ local function apocalypseQuestReturnTuckedCard(card, questName)
 	--First detach the tucked card from the Quest physically; only then merge it with its real deck.
 	card.setRotation(destinationRotation)
 	card.setPosition({target[1],target[2]+2.2,target[3]})
-	Wait.frames(function()
+	safeWaitFrames("Quests",function()
 		local liveCard=getObjectFromGUID(cardGUID)
 		local liveDestination=standardDeckCycleObject(destinationName) or getObjectFromGUID(destinationGUID)
 		if liveCard==nil then return end
@@ -463,8 +463,8 @@ function apocalypseQuestRevealSetup(card)
 	local function scheduleRevealWait()
 		if apocalypseQuestRevealWaitScheduled[cardGUID]==true then return end
 		apocalypseQuestRevealWaitScheduled[cardGUID]=true
-		Wait.frames(function()
-			Wait.condition(function() finishReveal(true) end,function()
+		safeWaitFrames("Quests",function()
+			safeWaitCondition("Quests",function() finishReveal(true) end,function()
 				return pendingReady(gStates.apocalypseQuestRevealPending[cardGUID])
 			end,5,function() finishReveal(true) end)
 		end,1)
@@ -513,7 +513,7 @@ function apocalypseQuestRevealSetup(card)
 			track(liveBag)
 		else
 			local tokenBag=getObjectFromGUID(GUID.bag.apocalypseQuestTokens)
-			local taken=tokenBag~=nil and tokenBag.takeObject({guid=revealGUID,position=revealPos,rotation={0,180,0},smooth=false,callback_function=function(obj) if obj~=nil then obj.unlock() end end}) or nil
+			local taken=tokenBag~=nil and safeTakeObject("Quests",tokenBag,{guid=revealGUID,position=revealPos,rotation={0,180,0},smooth=false,callback_function=function(obj) if obj~=nil then obj.unlock() end end}) or nil
 			track(taken)
 			if taken==nil then broadcastToAll("Quest setup: "..apocalypseQuestName(card).." could not find its reward-token bag.",{1,0.55,0.2}) end
 		end
@@ -534,7 +534,7 @@ function apocalypseQuestRevealSetup(card)
 			local tuckPos={cardPos[1], cardPos[2]-0.06, cardPos[3]+1.10}
 			if unitGUID~=nil then
 				if deck.type=="Deck" then
-					track(deck.takeObject({guid=unitGUID,position=tuckPos,rotation={0,180,0},smooth=false,callback_function=function(obj) if obj~=nil then obj.lock() end end}))
+					track(safeTakeObject("Quests",deck,{guid=unitGUID,position=tuckPos,rotation={0,180,0},smooth=false,callback_function=function(obj) if obj~=nil then obj.lock() end end}))
 				else
 					deck.setRotationSmooth({0,180,0})
 					deck.setPosition(tuckPos)
@@ -551,7 +551,7 @@ function apocalypseQuestRevealSetup(card)
 			standardDeckCycleShuffleIfReached("Spell", deck)
 			local tuckPos={cardPos[1], cardPos[2]-0.06, cardPos[3]+1.10}
 			if deck.type=="Deck" then
-				track(deck.takeObject({position=tuckPos,rotation={0,180,0},smooth=false,callback_function=function(obj) if obj~=nil then obj.lock() end end}))
+				track(safeTakeObject("Quests",deck,{position=tuckPos,rotation={0,180,0},smooth=false,callback_function=function(obj) if obj~=nil then obj.lock() end end}))
 			elseif deck.type=="Card" then
 				deck.setRotationSmooth({0,180,0})
 				deck.setPosition(tuckPos)
@@ -807,7 +807,7 @@ end
 function apocalypseQuestFinalizeEnemyFacing(enemy, faceUp)
 	if enemy==nil then return end
 	local enemyGUID=enemy.guid
-	Wait.frames(function()
+	safeWaitFrames("Quests",function()
 		local placed=getObjectFromGUID(enemyGUID)
 		if placed~=nil and ((faceUp==true and placed.is_face_down==true) or (faceUp~=true and placed.is_face_down~=true)) then placed.flip() end
 	end,2)
@@ -917,7 +917,7 @@ function apocalypseQuestGiveProveYourselfReward(card, playerIndex)
 	local questPos=card.getPosition()
 	unit.setPosition({unitPos[1],math.max(unitPos[2]+1.2,questPos[2]+1.25),unitPos[3]})
 	unit.setRotation({0,180,0})
-	Wait.frames(function()
+	safeWaitFrames("Quests",function()
 		local rewardUnit=getObjectFromGUID(unitGUID)
 		if rewardUnit~=nil then
 			rewardUnit.setRotationSmooth({0,180,0})
@@ -1000,8 +1000,8 @@ function apocalypseQuestPhysicalDiceRoll(dieGUIDs,onSettled,onFailure)
 		end
 		--resting can remain true for the first frame of a randomize impulse. Give the R-style throw time
 		--to start before testing for the final resting state.
-		Wait.frames(function()
-			Wait.condition(function()
+		safeWaitFrames("Quests",function()
+			safeWaitCondition("Quests",function()
 				if finished==true then return end
 				finished=true
 				if onSettled~=nil then onSettled() end
@@ -1010,7 +1010,7 @@ function apocalypseQuestPhysicalDiceRoll(dieGUIDs,onSettled,onFailure)
 	end
 	--A freshly cloned die may still be in its creation/fall physics. Roll from rest when possible; the
 	--timeout still throws it rather than ever leaving a Quest transaction stuck.
-	Wait.frames(function() Wait.condition(throwDice,allResting,1.5,throwDice) end,2)
+	safeWaitFrames("Quests",function() safeWaitCondition("Quests",throwDice,allResting,1.5,throwDice) end,2)
 	return true
 end
 
@@ -1057,7 +1057,7 @@ function apocalypseQuestRollVisibleManaDie(card,playerIndex,reason,callback,spaw
 			return
 		end
 		--Leave the face visible briefly before removing the temporary die and applying the result.
-		Wait.time(function()
+		safeWaitTime("Quests",function()
 			clearRollDie()
 			if callback~=nil then callback(rolled,getObjectFromGUID(cardGUID)) end
 		end,0.8)
@@ -1096,7 +1096,7 @@ function apocalypseQuestGuardDutyRollRandomCrystals(card,playerIndex,count,callb
 		local started=apocalypseQuestRollVisibleManaDie(questCard,playerIndex,"Guard Duty",function(rolled,liveCard)
 			if liveCard==nil or rolled==nil then finish(false) return end
 			results[#results+1]=rolled
-			if #results>=count then finish(true) else Wait.frames(rollNext,2) end
+			if #results>=count then finish(true) else safeWaitFrames("Quests",rollNext,2) end
 		end)
 		if started~=true then finish(false) end
 		return started
@@ -1157,7 +1157,7 @@ function apocalypseQuestGoblinRecordCleanup(enemyGUID,defeated)
 				apocalypseQuestAdvanceProgress(card,state,option)
 			end
 			warrens[enemyRecord.mage]=nil
-			Wait.frames(function()
+			safeWaitFrames("Quests",function()
 				local live=getObjectFromGUID("72099f")
 				if live~=nil then apocalypseQuestUpdateProgressButtons(live) end
 			end,2)
@@ -1386,7 +1386,7 @@ function apocalypseQuestGiveHerbalistReward(card, playerIndex, callback)
 			return
 		end
 		--Leave the settled face visible briefly before removing the temporary copy and moving the reward.
-		Wait.time(function()
+		safeWaitTime("Quests",function()
 			clearHerbalistRoll()
 			local liveCard=getObjectFromGUID(cardGUID)
 			local success=liveCard~=nil and apocalypseQuestResolveHerbalistReward(liveCard,player,rolled,crystalGUID,crystalColor)==true
@@ -1430,7 +1430,7 @@ function apocalypseQuestFlipSiteToken(tokenGUID)
 	token.unlock()
 	token.setRotationSmooth({0,180,180})
 	local tokenGUID=token.guid
-	Wait.condition(function()
+	safeWaitCondition("Quests",function()
 		local live=getObjectFromGUID(tokenGUID)
 		if live~=nil then apocalypseQuestSiteTokenDropped(live) end
 	end,function()
@@ -1758,9 +1758,9 @@ function apocalypseQuestScheduleEnemyAttackButtonOrientation(enemyGUID)
 	if hasQuestButton~=true then return false end
 	apocalypseQuestEnemyAttackRotationGeneration[enemyGUID]=(apocalypseQuestEnemyAttackRotationGeneration[enemyGUID] or 0)+1
 	local generation=apocalypseQuestEnemyAttackRotationGeneration[enemyGUID]
-	Wait.frames(function()
+	safeWaitFrames("Quests",function()
 		if apocalypseQuestEnemyAttackRotationGeneration[enemyGUID]~=generation then return end
-		Wait.condition(function()
+		safeWaitCondition("Quests",function()
 			if apocalypseQuestEnemyAttackRotationGeneration[enemyGUID]~=generation then return end
 			apocalypseQuestRefreshEnemyAttackButtonOrientation(enemyGUID)
 		end, function()
@@ -1995,7 +1995,7 @@ function apocalypseQuestSpawnEnemyToCombat(card,playerIndex,pileName,possessed,o
 	local enemyGUID=enemy.guid
 	if possessed==true then
 		local refillImmediate=tokenRefill()
-		Wait.frames(function()
+		safeWaitFrames("Quests",function()
 			local possessedBag=getObjectFromGUID(GUID.bag.possessed)
 			if possessedBag~=nil and possessedBag.getQuantity()~=0 then
 				--Send the Possessed token from 9677da to the same X/Z, slightly above the moving enemy.
@@ -2007,11 +2007,11 @@ function apocalypseQuestSpawnEnemyToCombat(card,playerIndex,pileName,possessed,o
 				end
 			end
 			if attackBonus~=nil and attackBonus~=0 then
-				Wait.frames(function() apocalypseQuestAddEnemyAttackBonus(enemyGUID,attackBonus) end,24)
+				safeWaitFrames("Quests",function() apocalypseQuestAddEnemyAttackBonus(enemyGUID,attackBonus) end,24)
 			end
 		end,refillImmediate and 3 or 15)
 	elseif attackBonus~=nil and attackBonus~=0 then
-		Wait.frames(function() apocalypseQuestAddEnemyAttackBonus(enemyGUID,attackBonus) end,8)
+		safeWaitFrames("Quests",function() apocalypseQuestAddEnemyAttackBonus(enemyGUID,attackBonus) end,8)
 	end
 	return enemy
 end
@@ -2091,8 +2091,8 @@ function apocalypseQuestPossessExistingEnemy(card,enemy,faction)
 			local live=getObjectFromGUID(tokenGUID)
 			if live~=nil then attachEnemy(nil,nil,"attach",live,nil) end
 		end
-		Wait.frames(function()
-			Wait.condition(attachPossessed,function()
+		safeWaitFrames("Quests",function()
+			safeWaitCondition("Quests",attachPossessed,function()
 				checks=checks+1
 				local live=getObjectFromGUID(tokenGUID)
 				local liveEnemy=getObjectFromGUID(enemyGUID)
@@ -2269,7 +2269,7 @@ function apocalypseQuestEnemyAttack(player,mouseButton,id)
 	if card~=nil and card.isSmoothMoving()==true then
 		local queuedPlayer,queuedButton,queuedID=player,mouseButton,id
 		local function retry() apocalypseQuestEnemyAttack(queuedPlayer,queuedButton,queuedID) end
-		Wait.condition(retry,function()
+		safeWaitCondition("Quests",retry,function()
 			local live=getObjectFromGUID(cardGUID)
 			return live==nil or live.isSmoothMoving()==false
 		end,5,retry)
@@ -2346,7 +2346,7 @@ function apocalypseQuestAddAdvancedActionToUnitOffer()
 		card.setPositionSmooth(pos)
 		card.setRotationSmooth({0,180,0})
 	end
-	if card~=nil then Wait.condition(function() if getObjectFromGUID(card.guid)~=nil then card.lock() end end,function() return card==nil or card.resting end) end
+	if card~=nil then safeWaitCondition("Quests",function() if getObjectFromGUID(card.guid)~=nil then card.lock() end end,function() return card==nil or card.resting end) end
 	return card~=nil
 end
 
@@ -2379,7 +2379,7 @@ function apocalypseQuestFinishNobleGold(card,playerIndex)
 	apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 	broadcastToAll(tostring(turnOrder[playerIndex].mage).." completed Noble Warrior (3A).",positionToColor(playerIndex))
 	apocalypseQuestFinishCompletedCard(card)
-	Wait.time(function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
+	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
 end
 
 function apocalypseQuestFinishGuardDutyChoice(card,playerIndex,distance)
@@ -2388,7 +2388,7 @@ function apocalypseQuestFinishGuardDutyChoice(card,playerIndex,distance)
 	apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 	broadcastToAll(tostring(turnOrder[playerIndex].mage).." completed Guard Duty: distance "..tostring(distance or "?")..", two chosen mana crystals.",positionToColor(playerIndex))
 	apocalypseQuestFinishCompletedCard(card)
-	Wait.time(function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
+	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
 end
 
 function apocalypseQuestFinishGuardDutyGold(card,playerIndex,distance)
@@ -2397,7 +2397,7 @@ function apocalypseQuestFinishGuardDutyGold(card,playerIndex,distance)
 	apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 	broadcastToAll(tostring(turnOrder[playerIndex].mage).." completed Guard Duty: distance "..tostring(distance or "?")..", random mana reward resolved.",positionToColor(playerIndex))
 	apocalypseQuestFinishCompletedCard(card)
-	Wait.time(function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
+	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
 end
 
 function apocalypseQuestNobleWarriorRollReward(card,playerIndex,callback)
@@ -2464,7 +2464,7 @@ function apocalypseQuestNobleWarriorRollReward(card,playerIndex,callback)
 			results[#results+1]=color
 		end
 		finished=true
-		Wait.time(function()
+		safeWaitTime("Quests",function()
 			clearDice()
 			if callback~=nil then callback(true,getObjectFromGUID(cardGUID),results) end
 		end,0.8)
@@ -2575,7 +2575,7 @@ function apocalypseQuestRichMerchantStartTurn()
 	if gStates.apocalypseQuestCombatLaunches==nil then gStates.apocalypseQuestCombatLaunches={} end
 	gStates.apocalypseQuestCombatLaunches[card.guid]=apocalypseQuestCombatLaunchKey(card,state)
 	broadcastToAll("A Rich Merchant: the hidden ally attacks at the start of "..tostring(turnOrder[playerIndex].mage).."'s turn.",positionToColor(playerIndex))
-	Wait.frames(function() if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end end,2)
+	safeWaitFrames("Quests",function() if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end end,2)
 	return true
 end
 
@@ -2830,7 +2830,7 @@ function apocalypseQuestEndRoundCleanup()
 			end
 			--Only now may the next retiring Quest begin its deck return. This prevents the two loose
 			--cards from combining with each other and becoming a stray two-card deck beside the real deck.
-			Wait.frames(function() cleanNext(index+1) end,1)
+			safeWaitFrames("Quests",function() cleanNext(index+1) end,1)
 		end)
 	end
 	cleanNext(1)
@@ -2876,7 +2876,7 @@ function apocalypseQuestScoreMarkerSetup(apocalypseBag)
 				--Quest Score markers share the physical Fame board with the normal Fame/Reputation shields.
 				--Do not smooth-move them across other colliders: an impact can knock an unlocked score marker
 				--off (or through) the board without anybody noticing. Normal Fame shields also use direct placement.
-				apocalypseBag.takeObject({guid=marker.guid, position=apocalypseQuestScorePosition(0, seatPos), rotation={0, 180, 0}, smooth=false, callback_function=function(obj)
+				safeTakeObject("Quests",apocalypseBag,{guid=marker.guid, position=apocalypseQuestScorePosition(0, seatPos), rotation={0, 180, 0}, smooth=false, callback_function=function(obj)
 					if obj==nil then return end
 					--If another player's marker was deleted while setup callbacks were still resolving, honor that choice.
 					if gStates.apocalypseQuestScoringDisabled==true and apocalypseQuestScoresRequired()~=true then obj.destruct() return end
@@ -3331,8 +3331,8 @@ function apocalypseQuestTrackMarkerMove(token,target,terrainGUID,bearing)
 		if gStates.apocalypseQuestMarkerTransit~=nil then gStates.apocalypseQuestMarkerTransit[tokenGUID]=nil end
 		apocalypseQuestRefreshOfferButtons()
 	end
-	Wait.frames(function()
-		Wait.condition(finish,function()
+	safeWaitFrames("Quests",function()
+		safeWaitCondition("Quests",finish,function()
 			local marker=getObjectFromGUID(tokenGUID)
 			if marker==nil then return true end
 			local pos=marker.getPosition()
@@ -3536,7 +3536,7 @@ function apocalypseQuestFreeWineStartAssault(card,playerIndex)
 				local dz=current[3]-targets[1].position[3]
 				if (dx*dx)+(dz*dz)<1.5 then onObjectDrop(color,movedAvatar) end
 			end
-			Wait.frames(function() Wait.condition(finishMove,function() local obj=getObjectFromGUID(avatarGUID) return obj==nil or obj.resting end,4.0,finishMove) end,2)
+			safeWaitFrames("Quests",function() safeWaitCondition("Quests",finishMove,function() local obj=getObjectFromGUID(avatarGUID) return obj==nil or obj.resting end,4.0,finishMove) end,2)
 			broadcastToAll("Free Wine!: one eligible Keep was found; "..tostring(turnOrder[playerIndex].mage).." is moving there to begin the assault.",positionToColor(playerIndex))
 		end
 	elseif #targets>1 then
@@ -3643,7 +3643,7 @@ function apocalypseQuestUnderSiegeCardPlayed(zone,obj)
 	if (gStates.apocalypseQuestTurnSerial or 0)<= (ready.serial or 0) then return false end
 	gStates.apocalypseQuestUnderSiegeReady=nil
 	local card=getObjectFromGUID("a6d5cc")
-	if card~=nil then Wait.frames(function() local live=getObjectFromGUID("a6d5cc") if live~=nil then apocalypseQuestInterfaceAdd(live,true) end end,2) end
+	if card~=nil then safeWaitFrames("Quests",function() local live=getObjectFromGUID("a6d5cc") if live~=nil then apocalypseQuestInterfaceAdd(live,true) end end,2) end
 	return true
 end
 
@@ -3896,8 +3896,8 @@ function apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)
 	token.setPositionSmooth({target[1],1.22,target[3]})
 	if avatar~=nil and avatarPos~=nil then
 		local tokenGUID=token.guid
-		Wait.frames(function()
-			Wait.condition(function() apocalypseQuestRestoreRaisedAvatar(playerIndex) end,function()
+		safeWaitFrames("Quests",function()
+			safeWaitCondition("Quests",function() apocalypseQuestRestoreRaisedAvatar(playerIndex) end,function()
 				local marker=getObjectFromGUID(tokenGUID)
 				return marker==nil or marker.resting
 			end,1.5,function() apocalypseQuestRestoreRaisedAvatar(playerIndex) end)
@@ -4260,8 +4260,8 @@ end
 function apocalypseQuestRefreshAfterMarkerChange()
 	--Bag returns are effectively immediate, while reward/relocation markers may still be smooth-moving.
 	--Refresh once now and once after the motion has had time to clear its old hex.
-	Wait.frames(function() apocalypseQuestRefreshOfferButtons() end,3)
-	Wait.frames(function() apocalypseQuestRefreshOfferButtons() end,60)
+	safeWaitFrames("Quests",function() apocalypseQuestRefreshOfferButtons() end,3)
+	safeWaitFrames("Quests",function() apocalypseQuestRefreshOfferButtons() end,60)
 end
 
 function apocalypseQuestPlayerMayAct(card, playerIndex)
@@ -4760,7 +4760,7 @@ function apocalypseQuestUpdateProgressButtons(card)
 	card.UI.setAttribute(prefix.."FailText", "color", state.fail and "#000000" or "#777777")
 	if rebuild==true then
 		local cardGUID=card.guid
-		Wait.condition(function()
+		safeWaitCondition("Quests",function()
 			local live=getObjectFromGUID(cardGUID)
 			if live~=nil then apocalypseQuestInterfaceAdd(live,true) end
 		end,function()
@@ -4776,7 +4776,7 @@ function apocalypseQuestWhenResting(objectGUID,callback,timeout)
 	local obj=objectGUID~=nil and getObjectFromGUID(objectGUID) or nil
 	if obj==nil then return false end
 	if obj.resting==true then callback(obj) return true end
-	Wait.condition(function()
+	safeWaitCondition("Quests",function()
 		local live=getObjectFromGUID(objectGUID)
 		if live~=nil then callback(live) end
 	end,function()
@@ -4805,7 +4805,7 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 	end
 	if card.isSmoothMoving()==true then
 		local cardGUID=card.guid
-		Wait.condition(function()
+		safeWaitCondition("Quests",function()
 			local live=getObjectFromGUID(cardGUID)
 			if live~=nil then apocalypseQuestInterfaceAdd(live,forceRebuild) end
 		end,function()
@@ -4844,7 +4844,7 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 	local questDetails=apocalypseQuestData[card.guid]
 	if questDetails~=nil and questDetails.questTokens~=nil and #questDetails.questTokens>0 and getObjectFromGUID(GUID.bag.apocalypseQuestTokens)==nil then
 		local cardGUID=card.guid
-		Wait.frames(function() local questCard=getObjectFromGUID(cardGUID) if questCard~=nil then apocalypseQuestInterfaceAdd(questCard) end end, 3)
+		safeWaitFrames("Quests",function() local questCard=getObjectFromGUID(cardGUID) if questCard~=nil then apocalypseQuestInterfaceAdd(questCard) end end, 3)
 		return
 	end
 	if apocalypseQuestRevealSetup(card)~=true then return end
@@ -5013,15 +5013,15 @@ function apocalypseQuestOfferMoveToLeft(card,onSettled)
 		if offerRefresh==true then gStates.apocalypseQuestOfferRefreshPending=nil end
 		if onSettled==nil or buttonRefresh==true then apocalypseQuestRefreshOfferButtons() end
 		if onSettled~=nil then
-			Wait.frames(function()
+			safeWaitFrames("Quests",function()
 				local live=getObjectFromGUID(cardGUID)
 				if live~=nil then onSettled(live) end
 			end,1)
 		end
-		if offerRefresh==true then Wait.frames(function() apocalypseQuestOfferRefresh() end,1) end
+		if offerRefresh==true then safeWaitFrames("Quests",function() apocalypseQuestOfferRefresh() end,1) end
 	end
-	Wait.frames(function()
-		Wait.condition(finishMove,function()
+	safeWaitFrames("Quests",function()
+		safeWaitCondition("Quests",finishMove,function()
 			settleChecks=settleChecks+1
 			for guid,_ in pairs(movedGUIDs) do
 				local obj=getObjectFromGUID(guid)
@@ -5225,7 +5225,7 @@ function apocalypseQuestParkReminder(card)
 	card.setRotationSmooth({0,180,0})
 	card.setPositionSmooth(apocalypseQuestReminderPosition(slot))
 	broadcastToAll("Quest reminder: \""..apocalypseQuestName(card).."\" moved beside the Quest Shield bags until its Quest marker(s) are discarded.", {1,1,0.5})
-	Wait.frames(function() apocalypseQuestRefreshReminderCards() end, 3)
+	safeWaitFrames("Quests",function() apocalypseQuestRefreshReminderCards() end, 3)
 	apocalypseQuestRefreshAfterMarkerChange()
 	return true
 end
@@ -5393,7 +5393,7 @@ function apocalypseQuestBottomDeck(card,onComplete)
 		--and beside the Quest deck so TTS deterministically inserts it at the bottom, not the top.
 		liveCard.setRotation(liveDeck.getRotation())
 		liveCard.setPosition({pos[1]+3.0,math.max(0.2,pos[2]-0.6),pos[3]})
-		Wait.frames(function()
+		safeWaitFrames("Quests",function()
 			local stagedCard=getObjectFromGUID(cardGUID)
 			local stagedDeck=getObjectFromGUID(deckGUID) or apocalypseQuestLiveDeck()
 			if stagedCard==nil or stagedDeck==nil or stagedDeck.guid==stagedCard.guid then
@@ -5407,12 +5407,12 @@ function apocalypseQuestBottomDeck(card,onComplete)
 			apocalypseQuestRefreshAfterMarkerChange()
 			if onComplete~=nil then
 				--The caller may start the next return only after TTS has produced the resulting live deck.
-				Wait.frames(function() onComplete(liveDeck~=nil) end,1)
+				safeWaitFrames("Quests",function() onComplete(liveDeck~=nil) end,1)
 			end
 		end,2)
 	end
 	if attachmentsClear()==true then finishBottomDeck()
-	else Wait.condition(finishBottomDeck,attachmentsClear,2.0,finishBottomDeck) end
+	else safeWaitCondition("Quests",finishBottomDeck,attachmentsClear,2.0,finishBottomDeck) end
 	return true
 end
 function apocalypseQuestClaimAbandonedPersonal(card, playerIndex)
@@ -5441,7 +5441,7 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 	if card==nil or option==nil or turnOrder[playerIndex]==nil then return false end
 	if card.isSmoothMoving()==true then
 		local cardGUID=card.guid
-		Wait.condition(function()
+		safeWaitCondition("Quests",function()
 			local live=getObjectFromGUID(cardGUID)
 			if live~=nil then apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
 		end,function()
@@ -5495,7 +5495,7 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 		return true
 	end
 	local function finishQuestResolution(delay)
-		if delay~=nil and delay>0 then Wait.time(function() rewindTransactionFinish(questRewindOwner) end,delay)
+		if delay~=nil and delay>0 then safeWaitTime("Quests",function() rewindTransactionFinish(questRewindOwner) end,delay)
 		else rewindTransactionFinish(questRewindOwner) end
 	end
 	local guardDutyDistance=nil
@@ -5826,7 +5826,7 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 				apocalypseQuestCardActionRestWait[guid]=nil
 				apocalypseQuestCardAction(queuedPlayer,queuedButton,queuedID)
 			end
-			Wait.condition(retry,function()
+			safeWaitCondition("Quests",retry,function()
 				local live=getObjectFromGUID(guid)
 				return live==nil or (gStates.apocalypseQuestOfferMoving~=true and gStates.apocalypseQuestOfferRefilling~=true and live.isSmoothMoving()==false)
 			end,5,retry)
@@ -5959,7 +5959,7 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 				apocalypseQuestResolveSpecialEffect(card,playerIndex,selected,true)
 				broadcastToAll(tostring(turnOrder[playerIndex].mage).." chose a "..tostring(color).." crystal for The Execution.",positionToColor(playerIndex))
 				apocalypseQuestFinishCompletedCard(card)
-				Wait.time(function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
+				safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
 			else
 				--If the chosen crystal cannot be taken (for example the Inventory already has 3), keep the
 				--Gold choice open so the player may choose another basic colour.
@@ -6195,7 +6195,7 @@ function apocalypseQuestOfferRefresh(attempt)
 		attempt=attempt or 1
 		if attempt<12 then
 			local refreshTurn=gStates.turnNumber
-			Wait.frames(function() if gStates.turnNumber==refreshTurn then apocalypseQuestOfferRefresh(attempt+1) end end,3)
+			safeWaitFrames("Quests",function() if gStates.turnNumber==refreshTurn then apocalypseQuestOfferRefresh(attempt+1) end end,3)
 		else print("QUEST REFILL ERROR: Quest deck could not be reacquired at start of turn.") end
 		return false
 	end
@@ -6240,7 +6240,7 @@ function apocalypseQuestOfferRefresh(attempt)
 		if offerSettled()~=true and refillTimedOut~=true then
 			if refillWaiting~=true then
 				refillWaiting=true
-				Wait.condition(function() refillWaiting=false finishQuestOfferRefill() end,offerSettled,15,function()
+				safeWaitCondition("Quests",function() refillWaiting=false finishQuestOfferRefill() end,offerSettled,15,function()
 					refillWaiting=false
 					refillTimedOut=true
 					gStates.apocalypseQuestOfferRefreshPending=true
@@ -6266,7 +6266,7 @@ function apocalypseQuestOfferRefresh(attempt)
 		refreshOutOfTurnActions(nil,nil,true)
 		rewindTransactionFinish("Quest offer refill")
 		--A deferred start-of-turn request may re-enter this helper, but the draw serial prevents a second draw.
-		if deferredRefresh==true then Wait.frames(function() apocalypseQuestOfferRefresh() end,1) end
+		if deferredRefresh==true then safeWaitFrames("Quests",function() apocalypseQuestOfferRefresh() end,1) end
 	end
 
 	local shuffled=apocalypseQuestShuffleIfCycleReached(deck)
@@ -6283,7 +6283,7 @@ function apocalypseQuestOfferRefresh(attempt)
 		attempt=attempt or 1
 		local liveDeck=apocalypseQuestLiveDeck()
 		if liveDeck==nil then
-			if attempt<12 then Wait.frames(function() drawQuestReplacement(attempt+1) end, 3)
+			if attempt<12 then safeWaitFrames("Quests",function() drawQuestReplacement(attempt+1) end, 3)
 			else print("QUEST REFILL ERROR: Quest deck could not be found after manual re-stack.") finishQuestOfferRefill() end
 			return
 		end
@@ -6294,18 +6294,18 @@ function apocalypseQuestOfferRefresh(attempt)
 			liveDeck.setRotationSmooth({0,180,0})
 			liveDeck.setPositionSmooth(pos)
 			refillMovedGUIDs[cardGUID]=true
-			Wait.frames(function() finishQuestOfferRefill() end,2)
+			safeWaitFrames("Quests",function() finishQuestOfferRefill() end,2)
 			return
 		end
 		if liveDeck.resting==false or liveDeck.spawning==true then
-			if attempt<12 then Wait.frames(function() drawQuestReplacement(attempt+1) end, 3)
+			if attempt<12 then safeWaitFrames("Quests",function() drawQuestReplacement(attempt+1) end, 3)
 			else print("QUEST REFILL ERROR: Quest deck did not settle after manual re-stack.") finishQuestOfferRefill() end
 			return
 		end
 		local okObjects,objects=pcall(function() return liveDeck.getObjects() end)
 		local topGUID=okObjects==true and objects~=nil and objects[1]~=nil and objects[1].guid or nil
 		if topGUID==nil then
-			if attempt<12 then Wait.frames(function() drawQuestReplacement(attempt+1) end, 3)
+			if attempt<12 then safeWaitFrames("Quests",function() drawQuestReplacement(attempt+1) end, 3)
 			else print("QUEST REFILL ERROR: Quest deck had no readable top card.") finishQuestOfferRefill() end
 			return
 		end
@@ -6314,7 +6314,7 @@ function apocalypseQuestOfferRefresh(attempt)
 		end)
 		local taken=okTake==true and takenOrErr or nil
 		if taken==nil then
-			if attempt<20 then Wait.frames(function() drawQuestReplacement(attempt+1) end,3)
+			if attempt<20 then safeWaitFrames("Quests",function() drawQuestReplacement(attempt+1) end,3)
 			else
 				print("QUEST REFILL ERROR: takeObject returned no Quest card after retries: "..tostring(okTake==true and "nil" or takenOrErr))
 				gStates.apocalypseQuestOfferRefreshPending=true
@@ -6324,13 +6324,13 @@ function apocalypseQuestOfferRefresh(attempt)
 			gStates.apocalypseQuestOfferDrawSerial=currentQuestTurnSerial
 			taken.lock()
 			refillMovedGUIDs[taken.guid]=true
-			Wait.frames(function() finishQuestOfferRefill() end,2)
+			safeWaitFrames("Quests",function() finishQuestOfferRefill() end,2)
 		end
 	end
 	--A shuffle rebuilds the same internal collection, so always give it a few frames before drawing.
-	if shuffled==true then Wait.frames(function() drawQuestReplacement(1) end, 3) else drawQuestReplacement(1) end
+	if shuffled==true then safeWaitFrames("Quests",function() drawQuestReplacement(1) end, 3) else drawQuestReplacement(1) end
 	--Failsafe only: normal completion is driven by the tracked smooth-move set above.
-	Wait.frames(function()
+	safeWaitFrames("Quests",function()
 		if refillFinished~=true then finishQuestOfferRefill() end
 	end,360)
 	end,"Quest offer refill")
@@ -6379,21 +6379,21 @@ function apocalypseQuestDeckSetup(questDeck)
 		if deck==nil then return end
 		for offer=1,2 do
 			local slot=offer
-			deck.takeObject({position=apocalypseQuestOfferPosition(offer),rotation={0,180,0},smooth=false,callback_function=function(card)
+			safeTakeObject("Quests",deck,{position=apocalypseQuestOfferPosition(offer),rotation={0,180,0},smooth=false,callback_function=function(card)
 				if card~=nil then card.lock() print("QUEST SETUP DRAW: slot "..tostring(slot).." <- "..tostring(apocalypseQuestName(card)).." ["..tostring(card.guid).."].") end
-				Wait.frames(function() apocalypseQuestInterfaceAdd(card) end,2)
+				safeWaitFrames("Quests",function() apocalypseQuestInterfaceAdd(card) end,2)
 			end})
 		end
 	end
 	local returnReserved
 	returnReserved=function(index)
-		if index>#reserved then Wait.frames(dealQuestOffer,2) return end
+		if index>#reserved then safeWaitFrames("Quests",dealQuestOffer,2) return end
 		local deck=currentQuestDeck()
 		local card=reserved[index]
 		if deck==nil or card==nil or (card.isDestroyed~=nil and card.isDestroyed()==true) then return end
 		card.unlock()
 		deck.putObject(card)
-		Wait.frames(function() returnReserved(index+1) end,1)
+		safeWaitFrames("Quests",function() returnReserved(index+1) end,1)
 	end
 	--Instant movement is fast, but serialize each extraction so TTS always has a stable Quest Deck object.
 	local takeReserved
@@ -6402,16 +6402,16 @@ function apocalypseQuestDeckSetup(questDeck)
 			local deck=currentQuestDeck()
 			if deck==nil then return end
 			deck.shuffle()--Shuffle the unreserved starting Quests in with all other Quests
-			Wait.frames(function() returnReserved(1) end,2)
+			safeWaitFrames("Quests",function() returnReserved(1) end,2)
 			return
 		end
 		local deck=currentQuestDeck()
 		if deck==nil then return end
-		deck.takeObject({guid=startingQuests[index],position={questDeckPosition[1],4.00+(index*0.10),questDeckPosition[3]},rotation={0,180,180},smooth=false,callback_function=function(card)
+		safeTakeObject("Quests",deck,{guid=startingQuests[index],position={questDeckPosition[1],4.00+(index*0.10),questDeckPosition[3]},rotation={0,180,180},smooth=false,callback_function=function(card)
 			if card==nil then return end
 			card.lock()
 			reserved[#reserved+1]=card
-			Wait.frames(function() takeReserved(index+1) end,1)
+			safeWaitFrames("Quests",function() takeReserved(index+1) end,1)
 		end})
 	end
 	takeReserved(1)

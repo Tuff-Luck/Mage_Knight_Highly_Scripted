@@ -18,7 +18,7 @@ function tacticToggle()
 	if gStates.tacticShown==true then
 		broadcastToAll("{en}Turn order Re-Organised based on tactic card selection{ru}Порядок хода игроков изменился в соответствии с выбранными Тактиками{zh-cn}玩家行动顺序基于战术卡的选择改变了{ko}라운드 순서가 전략 카드에 따라 배치되었습니다{es}Orden de turnos reorganizado según la selección de la tarjeta de táctica{fr}Ordre de tour réorganisé en fonction de la sélection de la carte tactique{pt-br}Ordem de Turno re-organizada baseada nas seleções de táticas{de}Zugreihenfolge neu organisiert basierend auf der Auswahl der Taktikkarten", {1,1,0.5})
 		turnOrderSort()
-		Wait.time(function()
+		safeWaitTime("Turn",function()
 			local depth=-8
 			if gStates.dayRound==true then depth=-4 end
 			for a=1, 6, 1 do
@@ -38,7 +38,7 @@ function tacticToggle()
 		refreshTactic4HandBonus(true)
 		--Day Tactic 2's button cannot replace the central tactic UI while tactics are being chosen.
 		--Refresh it now that tactic selection has fully closed.
-		Wait.frames(function()
+		safeWaitFrames("Turn",function()
 			dayTactic2ButtonActivate()
 		end, 5)
 		--remove note about re-areanging turn tokens
@@ -115,14 +115,14 @@ function startOfTurn()
 		if gStates.apocalypseQuestConqueredThisTurn==nil then gStates.apocalypseQuestConqueredThisTurn={} end
 		--Do Object-UI XML work after the turn-advance click callback has fully unwound.
 		local questRefreshTurn=gStates.turnNumber
-		Wait.frames(function()
+		safeWaitFrames("Turn",function()
 			if gStates.turnNumber==questRefreshTurn then
 				apocalypseQuestRichMerchantStartTurn()
 				apocalypseQuestOfferRefresh()
 			end
 		end, 1)
 	end
-	Wait.frames(function() refreshFracturedLandsTeleportHighlights() end, 1)
+	safeWaitFrames("Turn",function() refreshFracturedLandsTeleportHighlights() end, 1)
 	if gStates.gladeDiscardHealUsed==nil then gStates.gladeDiscardHealUsed={} end
 	if virtualCoopCombat==false and turnOrder[gStates.turnNumber]~=nil then gStates.gladeDiscardHealUsed[turnOrder[gStates.turnNumber].seatPos]=nil end
 	--Records current amount of discarded cards
@@ -260,10 +260,10 @@ function reclaimTimeBending(callback)
 	end
 	timeBendingRecoveryPending=true
 	local pos=discardZone.getPosition()
-	local recovered=trash.takeObject({guid=timeBendingGUID, position={pos[1], pos[2]+1.5, pos[3]}, rotation={0,180,0}, smooth=false, callback_function=function()
+	local recovered=safeTakeObject("Turn",trash,{guid=timeBendingGUID, position={pos[1], pos[2]+1.5, pos[3]}, rotation={0,180,0}, smooth=false, callback_function=function()
 		gStates.timeBendingRemovedSeat=nil
 		timeBendingRecoveryPending=false
-		Wait.frames(function() if callback~=nil then callback() end end, 2)
+		safeWaitFrames("Turn",function() if callback~=nil then callback() end end, 2)
 	end})
 	if recovered==nil then
 		timeBendingRecoveryPending=false
@@ -348,13 +348,13 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 				end
 				local function finishCoopRewardAdvance()
 					advanceCoopRewardPhase()
-					Wait.frames(function() rewindTransactionFinish("End turn") end,10)
+					safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
 				end
 				--Co-op hand draw is delayed until Rewards Claimed, after the city result has set the final hand limit.
 				if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then drawUpTo(player, "-1", "DrawHand") end
 				--Don't switch reward players while a visible Deed transfer is still travelling or queued.
 				if cardClaim==true or deedTransferAnyBusy()==true then
-					Wait.condition(finishCoopRewardAdvance,function() return cardClaim~=true and deedTransferAnyBusy()~=true end,10,finishCoopRewardAdvance)
+					safeWaitCondition("Turn",finishCoopRewardAdvance,function() return cardClaim~=true and deedTransferAnyBusy()~=true end,10,finishCoopRewardAdvance)
 				else
 					finishCoopRewardAdvance()
 				end
@@ -460,7 +460,7 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 			recourceTrackerReset()
 			if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
 			addAvatarButtons()
-			Wait.frames(function() rewindTransactionFinish("End turn") end,10)
+			safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
 		else
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			rewardReminderCameraFocus(player.color,"offerView")
@@ -820,7 +820,7 @@ function __endRound_raw(rewindReady)
 		getObjectFromGUID("fbd7fd").registerCollisions()
 		getObjectFromGUID("fbd7fd").lock()
 	end
-	Wait.frames(function()
+	safeWaitFrames("Turn",function()
 		if getObjectFromGUID("fbd7fd")~=nil then getObjectFromGUID("fbd7fd").unregisterCollisions() end
 
 		--Reroll all mana dice
@@ -855,7 +855,7 @@ function __endRound_raw(rewindReady)
 	end
 
 	--Update Dummy Player
-	Wait.time(function()
+	safeWaitTime("Turn",function()
 		if gStates.positionMageKnight[5]~="nobody" and gStates.positionMageKnight[5]~="Volkare" then
 			--Put advanced action in dummy deck
 			broadcastToAll(proxyPlayerActive()==true and "{en}Proxy Collected The First Advanced Action Card{ru}Прокси получил первую карту Продвинутого действия{zh-cn}代理玩家拿到了第一张高级行动卡{ko}프록시가 첫 번째 상급 액션 카드를 가져갔습니다{es}Proxy consiguió la primera carta de Acción Avanzada.{fr}Le Proxy a récupéré la première carte d’Action Avancée{pt-br}Proxy pegou a primeira Carta de Ação Avançada{de}Proxy hat die erste Fortgeschrittene Aktionskarte genommen" or "{en}Dummy Collected The First Advance Action Card{ru}Нижняя карта из доступных Особых действий, добавлена в колоду деяний виртуального игрока{zh-cn}虚拟玩家拿到了第一张行动卡{ko}마지막 상급 액션이 가상 플레이어 더미에 추가되었습니다{es}El muñeco ha conseguido la Primera carta de Acción Avanzada.{fr}Mannequin a récupéré la Première carte d'Action Avancée{pt-br}Jog. Fictício Clamou a primeira Carta de Ação{de}Dummy hat die erste Vorstoß-Aktionskarte gesammelt", {1,1,0.5})
@@ -930,7 +930,7 @@ function __endRound_raw(rewindReady)
 		end
 
 		--Cycle all the offers
-		Wait.time(function()
+		safeWaitTime("Turn",function()
 			broadcastToAll("{en}Unit Offer Refreshed{ru}Доступные отряды обновлены{zh-cn}部队供应区刷新了{ko}유닛 공급처가 갱신되었습니다{es}Oferta de Unidad Actualizada{fr}Offre Unitaire Rafraîchie{pt-br}Oferta de Unidades Atualizadas{de}Einheitenangebot aufgefrischt", {1,1,0.5})
 			broadcastToAll("{en}Advanced Actions and Spells cycled.{ru}Особые действия и Заклинания обновлены.{zh-cn}高级动作卡和法术卡供应区更新了{ko}상급 액션과 마법 카드 공급처가 갱신되었습니다.{es}Acciones Avanzadas y Hechizos ciclados.{fr}Actions Avancées et Sorts cyclés.{pt-br}Ações Avançadas e Feitiços reciclados.{de}Fortgeschrittene Aktionen und Zaubersprüche gewirkt.", {1,1,0.5})
 			broadcastToAll("-------------------", {1,1,0.5})
@@ -984,7 +984,7 @@ function __endRound_raw(rewindReady)
 		if getObjectFromGUID(bannerGUID)~=nil then getObjectFromGUID(bannerGUID).setRotationSmooth({0, 180, 0}) end
 	end
 	if getObjectFromGUID("8dbce4")~=nil then
-		Wait.frames(function() Wait.condition(function()
+		safeWaitFrames("Turn",function() safeWaitCondition("Turn",function()
 			bannerOfCommandDecal()
 		end, function() return getObjectFromGUID("8dbce4").resting end) end, 10)
 	end
@@ -1077,7 +1077,7 @@ function __endRound_raw(rewindReady)
 	refreshCoopCompSkillXs()
 
 	--Lay out tactics for removal
-	Wait.frames(function()
+	safeWaitFrames("Turn",function()
 		--No tactics removed Scenarios
 		if gStates.darknessComing==true or gStates.discardTactics==0 or gStates.currentRound>gStates.rounds-1 then
 			tacticToggle()
@@ -1109,7 +1109,7 @@ function __endRound_raw(rewindReady)
 	end, 20)--long enough for dice collision on mana steal to complete
 
 	--shuffles, deals cards
-	Wait.time(function()
+	safeWaitTime("Turn",function()
 		--shuffle and scale decks down for more room
 		for a=1, #turnOrder, 1 do
 			if getObjectFromGUID(deedDeckZones[turnOrder[a].seatPos])~=nil and turnOrder[a].mage~="Volkare" then
@@ -1125,9 +1125,9 @@ function __endRound_raw(rewindReady)
 		coralSetAsideQuickWitted()
 
 		--deal once Quick Witted is definitely back inside Coral's Deed Deck.
-		Wait.condition(function()
+		safeWaitCondition("Turn",function()
 			dealAllHands()
-			Wait.time(function()
+			safeWaitTime("Turn",function()
 				--Records current amount of cards in deed deck
 				for a=1, #turnOrder, 1 do
 					turnOrder[a].deedCount=0
@@ -1167,7 +1167,7 @@ function dayNight()
 			if getObjectFromGUID(ruinGUID)~=nil and getObjectFromGUID(ruinGUID).is_face_down==true then getObjectFromGUID(ruinGUID).flip() found=true end
 		end
 		if found==true then broadcastToAll("{en}Ruins are revealed{ru}Все руины были раскрыты{zh-cn}废墟被探索了{ko}유적 공개됨{es}Las Ruinas se Revelan{fr}Les Ruines sont Révélées{pt-br}Ruinas são Reveladas{de}Ruinen werden aufgedeckt", {1,1,0.5}) end
-		Wait.frames(function()
+		safeWaitFrames("Turn",function()
 			if getObjectFromGUID(GUID.deck.dayWeather)~=nil then getObjectFromGUID(GUID.deck.dayWeather).shuffle() end
 			if getObjectFromGUID("a02b0f")~=nil then getObjectFromGUID("a02b0f").interactable=false end
 		end, 5)--shuffle day weather
@@ -1186,7 +1186,7 @@ function dayNight()
 		for i=1, #dayObject, 1 do
 			if getObjectFromGUID(dayObject[i])~=nil then getObjectFromGUID(dayObject[i]).setState(2) end
 		end
-		Wait.frames(function()
+		safeWaitFrames("Turn",function()
 			if getObjectFromGUID(GUID.deck.nightWeather)~=nil then getObjectFromGUID(GUID.deck.nightWeather).shuffle() end
 			if getObjectFromGUID("43fa2e")~=nil then
 				getObjectFromGUID("43fa2e").UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
@@ -1233,7 +1233,7 @@ function removeTactic(player, mouseButton, id)
 			getObjectFromGUID(trashCan).putObject(getObjectFromGUID(testTactic))
 		end
 		gStates.tacticRemove=false
-		Wait.condition(function() tacticToggle() end, function() return getObjectFromGUID(testTactic)==nil end)
+		safeWaitCondition("Turn",function() tacticToggle() end, function() return getObjectFromGUID(testTactic)==nil end)
 	end
 end
 
@@ -1266,7 +1266,7 @@ function dayTactic2ButtonActivate()
 		return
 	end
 	tactic.UI.setXmlTable({{}})
-	Wait.frames(function()
+	safeWaitFrames("Turn",function()
 		local card=getObjectFromGUID("a000a4")
 		local currentOwner=dayTactic2Owner()
 		if card==nil or currentOwner==nil then return end
@@ -1338,7 +1338,7 @@ function dayTactic2Discarded(player, mouseButton, id)
 		end
 	end
 
-	Wait.time(function()
+	safeWaitTime("Turn",function()
 		local discards=nil
 		for _, possibleDiscards in pairs(getObjectFromGUID(deedDeckDiscardZones[playerPosition]).getObjects()) do
 			if possibleDiscards.tag=="Deck" or possibleDiscards.tag=="Card" then discards=possibleDiscards break end
@@ -1354,22 +1354,22 @@ function dayTactic2Discarded(player, mouseButton, id)
 			local deedDeck=nil
 			for _, possibleDeck in pairs(getObjectFromGUID(deedDeckZones[playerPosition]).getObjects()) do if possibleDeck.tag=="Deck" or possibleDeck.tag=="Card" then deedDeck=possibleDeck break end end
 			if deedDeck~=nil then
-				Wait.time(function()
+				safeWaitTime("Turn",function()
 					if deedDeck~=nil and discards~=nil then deedDeck.putObject(discards) end
-					Wait.time(function()
+					safeWaitTime("Turn",function()
 						local currentDeck=nil
 						for _, possibleDeck in pairs(getObjectFromGUID(deedDeckZones[playerPosition]).getObjects()) do if possibleDeck.tag=="Deck" then currentDeck=possibleDeck break end end
 						if currentDeck~=nil then currentDeck.shuffle() end
-						if playerMage=="Coral" then Wait.time(function() coralSetAsideQuickWitted() end, 0.5) end
+						if playerMage=="Coral" then safeWaitTime("Turn",function() coralSetAsideQuickWitted() end, 0.5) end
 					end, 1)
 				end, 0.5)
 			else
 				local deckPos=getObjectFromGUID(deedDeckZones[playerPosition]).getPosition()
 				discards.setRotation({0,180,180})
 				discards.setPosition({deckPos[1],1.5,deckPos[3]})
-				Wait.time(function()
+				safeWaitTime("Turn",function()
 					if discards~=nil and discards.tag=="Deck" then discards.shuffle() end
-					if playerMage=="Coral" then Wait.time(function() coralSetAsideQuickWitted() end, 0.5) end
+					if playerMage=="Coral" then safeWaitTime("Turn",function() coralSetAsideQuickWitted() end, 0.5) end
 				end, 1)
 			end
 			mainUIUpdate("Day Tactic 2 Used")
@@ -1377,7 +1377,7 @@ function dayTactic2Discarded(player, mouseButton, id)
 
 		if playerMage=="Coral" then
 			coralExternalQuickWittedDraw({seatPos=playerPosition, count=drawCount, sourceId="DrawOne"})
-			Wait.condition(function() Wait.time(finishDayTactic2, 0.5) end, function() return coralExternalDrawPending({seatPos=playerPosition})~=true end)
+			safeWaitCondition("Turn",function() safeWaitTime("Turn",finishDayTactic2, 0.5) end, function() return coralExternalDrawPending({seatPos=playerPosition})~=true end)
 		else
 			local deedDeck=nil
 			for _, possibleDeck in pairs(getObjectFromGUID(deedDeckZones[playerPosition]).getObjects()) do if possibleDeck.tag=="Deck" or possibleDeck.tag=="Card" then deedDeck=possibleDeck break end end
@@ -1385,7 +1385,7 @@ function dayTactic2Discarded(player, mouseButton, id)
 				if deedDeck.tag=="Deck" then for a=1, drawCount, 1 do deedDeck.takeObject({position={(playerPosition*40)-100-(a*0.2), 4.59, -47.55}, rotation={0,180,0}}) end
 				elseif drawCount>0 then deedDeck.setPositionSmooth({(playerPosition*40)-100, 4.59, -47.55}) deedDeck.setRotationSmooth({0,180,0}) end
 			end
-			Wait.time(finishDayTactic2, 0.5)
+			safeWaitTime("Turn",finishDayTactic2, 0.5)
 		end
 	end, waitTime)
 end
@@ -1401,7 +1401,7 @@ function nightTactic2(player, mouseButton, id)
 							--shuffle discard
 							discards.shuffle()
 							--put three discards in deed deck
-							Wait.time(function()
+							safeWaitTime("Turn",function()
 								local deckPos={-74.19+(40*(turnOrder[a].seatPos-1)), 1.50, -43.16}
 								discards.takeObject({position=deckPos, smooth=true, rotation={0, 180, 180}})
 								discards.takeObject({position=deckPos, smooth=true, rotation={0, 180, 180}})
@@ -1441,7 +1441,7 @@ function nightTactic4(player, mouseButton, id)
 						local redrawCount=math.max(0, deckQuantity-turnOrder[a].deedCount)
 						deedDeck.shuffle()
 						if turnOrder[a].mage=="Coral" then scheduleCoralQuickWittedBottom(5) end
-						Wait.time(function()
+						safeWaitTime("Turn",function()
 							--Run one redraw request for the full amount. For Coral this opens the Quick Witted choice
 							--with the correct remaining count and keeps the Draw Full button available.
 							if redrawCount>0 then coralTactic4Draw(a, redrawCount) end
@@ -1476,7 +1476,7 @@ local function claimNightTactic6StoredCards(seatPos, callback)
 		local card=getObjectFromGUID(guid)
 		if card~=nil and card.type=="Card" then
 			moveCard(card, index)
-			Wait.frames(function() resolve(index+1) end, 1)
+			safeWaitFrames("Turn",function() resolve(index+1) end, 1)
 			return
 		end
 
@@ -1485,9 +1485,9 @@ local function claimNightTactic6StoredCards(seatPos, callback)
 			if object.type=="Deck" then
 				for _, cardData in pairs(object.getObjects()) do
 					if cardData.guid==guid then
-						object.takeObject({guid=guid, position={destination[1]+((index-1)*0.15), destination[2], destination[3]}, rotation={0,180,0}, smooth=false, callback_function=function(taken)
+						safeTakeObject("Turn",object,{guid=guid, position={destination[1]+((index-1)*0.15), destination[2], destination[3]}, rotation={0,180,0}, smooth=false, callback_function=function(taken)
 							moveCard(taken, index)
-							Wait.frames(function() resolve(index+1) end, 1)
+							safeWaitFrames("Turn",function() resolve(index+1) end, 1)
 						end})
 						return
 					end
@@ -1549,7 +1549,7 @@ function nightTactic6(player, mouseButton, id)
 				end
 
 				--Let Coral's physical set-aside card settle back on the bottom before taking the top card.
-				if turnOrder[playerIndex].mage=="Coral" then coralSetAsideQuickWitted() Wait.frames(storeTopCard, 5)
+				if turnOrder[playerIndex].mage=="Coral" then coralSetAsideQuickWitted() safeWaitFrames("Turn",storeTopCard, 5)
 				else storeTopCard() end
 				tactic.setPositionSmooth({tactic.getPosition()[1], 4, tactic.getPosition()[3]})
 			end
@@ -1599,7 +1599,7 @@ function refreshTactic4HandBonus(updateUI)
 end
 function scheduleTactic4HandBonusRefresh()
 	if tactic4HandBonusPause~=nil then Wait.stop(tactic4HandBonusPause) end
-	tactic4HandBonusPause=Wait.time(function()
+	tactic4HandBonusPause=safeWaitTime("Turn",function()
 		tactic4HandBonusPause=nil
 		refreshTactic4HandBonus(true)
 	end, 0.05)

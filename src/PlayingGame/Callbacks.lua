@@ -116,8 +116,8 @@ end
 
 
 function onChat(message, player)
-	if message=="!testerror" and player~=nil and player.admin==true then
-		testAutomaticLuaError()
-		return false
+	if player~=nil and player.admin==true then
+		if message=="!testerror" then testAutomaticLuaError() return false end
+		if message=="!testasyncerror" then testAutomaticLuaAsyncError() return false end
 	end
 end
