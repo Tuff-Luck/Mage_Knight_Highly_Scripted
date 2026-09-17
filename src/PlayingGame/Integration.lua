@@ -142,7 +142,5 @@ end
 local baseDealStartingHandsWhenReady=dealStartingHandsWhenReady
 function dealStartingHandsWhenReady()
     baseDealStartingHandsWhenReady()
-    safeWaitTime("Integration",function()
-        if gStates~=nil and gStates.firstStarted~=true then dealAllHands() end
-    end,11)
+    safeWaitTime("Integration",function() dealAllHands() end,11)
 end
