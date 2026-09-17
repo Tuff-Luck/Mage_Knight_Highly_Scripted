@@ -37,7 +37,7 @@ function safeTakeObject(scope, container, params)
 		return nil
 	end
 	local obj=container.takeObject(safeObjectCallbackParams(scope,params))
-	if scope=="SetupGame" then return assert(obj,"SetupGame failed to take required object "..tostring(ref)) end
+	if scope=="SetupGame" then assert(obj,"SetupGame failed to take required object "..tostring(ref)) end
 	return obj
 end
 
