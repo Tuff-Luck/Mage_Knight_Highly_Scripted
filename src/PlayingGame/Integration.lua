@@ -144,3 +144,42 @@ function dealStartingHandsWhenReady()
     baseDealStartingHandsWhenReady()
     safeWaitTime("Integration",function() dealAllHands() end,11)
 end
+
+-- Setup creates the Unit offer before the Action/Spell offers and before the starting-hand deal.
+-- A single error in either offer helper used to abort the rest of that delayed setup callback, which
+-- explains the combined symptom of no offers and no hand. Report an offer error, but do not let it
+-- prevent the remaining setup systems from running.
+local baseUnitOffer=unitOffer
+function unitOffer()
+    return safeCallback("unitOffer",function() return baseUnitOffer() end)
+end
+
+local baseFillSlide=fillSlide
+function fillSlide()
+    return safeCallback("fillSlide",function() return baseFillSlide() end)
+end
+
+-- Also repair a completely empty setup offer if TTS missed the first population pass. Only a zero-card
+-- offer is retried, so this cannot add a second set on top of a successful initial deal.
+local baseAfterLoad=afterLoad
+function afterLoad()
+    local result=baseAfterLoad()
+    safeWaitTime("Integration",function()
+        if gStates==nil or gStates.firstStarted~=true then return end
+
+        local unitArea=getObjectFromGUID("a3d99b")
+        local unitCards=0
+        if unitArea~=nil then
+            for _,obj in pairs(unitArea.getObjects()) do if obj.type=="Card" then unitCards=unitCards+1 end end
+        end
+        if unitCards==0 then unitOffer() end
+
+        local deedOffer=getObjectFromGUID(GUID.zone.offer)
+        local offerCards=0
+        if deedOffer~=nil then
+            for _,obj in pairs(deedOffer.getObjects()) do if obj.type=="Card" then offerCards=offerCards+1 end end
+        end
+        if offerCards==0 then fillSlide() end
+    end,5)
+    return result
+end
