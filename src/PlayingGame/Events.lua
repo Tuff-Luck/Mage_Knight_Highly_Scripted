@@ -3183,6 +3183,22 @@ function safeCallback(functionName, callback, contextCallback)
 	return result
 end
 
+--Lighter boundary for high-frequency events. Avoid breadcrumbs and traceback collection on the normal path;
+--the event still reports its error and optional context if it fails.
+function safeHotCallback(functionName, callback, contextCallback)
+	local ok, result=pcall(callback)
+	if not ok then
+		local context=nil
+		if contextCallback~=nil then
+			local contextOK, contextText=pcall(contextCallback)
+			if contextOK==true then context=contextText end
+		end
+		reportAutomaticLuaError(functionName, tostring(result), context)
+		return false
+	end
+	return result
+end
+
 -- Temporary test hook: type !testerror in chat as an admin.
 -- Reports the captured traceback, then rethrows the same error so TTS also shows the player-facing error.
 function testAutomaticLuaError()
