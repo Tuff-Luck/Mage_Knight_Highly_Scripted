@@ -2093,9 +2093,12 @@ horsemanData={
 		priorities={A={"village","monastery","oasis","camp"},B={"keep","mage tower","mine"},C={"rampaging","draconum"}},
 		priorityText={A="Village, Monastery, Oasis, Refugee Camp",B="Keep, Mage Tower, Crystal Mine",C="Marauding Orcs, Draconum"},
 		levels={
-			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/14003181622559512719/686739110832F4B7402EA61AA412B305C01564B9/",attack=6,armour=6,fame=4}, [2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/18072437518060638864/876603820F70E5605122FE852F7577DAE9DF746E/",attack=7,armour=7,fame=5},
-			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/14912093175967847496/A19442EF1450B4B18613ECB9C58F25E883897864/",attack=8,armour=8,fame=6}, [4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13509072763918585342/FD4D4242D8C5CDFF6E7DFE275654360BCB49EAE0/",attack=9,armour=9,fame=7},
-			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13805398986275881131/04D8C1CC14E6A84A31193155C079EB50AA70A7E8/",attack=10,armour=10,fame=8},[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/15317310895332502954/414FD4F2437DEBE4F917E0DFE9F9D0D08E1CE60A/",attack=11,armour=11,fame=9},
+			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/14003181622559512719/686739110832F4B7402EA61AA412B305C01564B9/",attack=6,armour=6,fame=4},
+			[2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/18072437518060638864/876603820F70E5605122FE852F7577DAE9DF746E/",attack=7,armour=7,fame=5},
+			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/14912093175967847496/A19442EF1450B4B18613ECB9C58F25E883897864/",attack=8,armour=8,fame=6},
+			[4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13509072763918585342/FD4D4242D8C5CDFF6E7DFE275654360BCB49EAE0/",attack=9,armour=9,fame=7},
+			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13805398986275881131/04D8C1CC14E6A84A31193155C079EB50AA70A7E8/",attack=10,armour=10,fame=8},
+			[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/15317310895332502954/414FD4F2437DEBE4F917E0DFE9F9D0D08E1CE60A/",attack=11,armour=11,fame=9},
 		},
 	},
 	Pestilence={
@@ -2105,9 +2108,12 @@ horsemanData={
 		priorities={A={"keep","mage tower","mine"},B={"village","monastery","oasis","camp"},C={"rampaging","draconum"}},
 		priorityText={A="Keep, Mage Tower, Crystal Mine",B="Village, Monastery, Oasis, Refugee Camp",C="Marauding Orcs, Draconum"},
 		levels={
-			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17232453246901051245/C51BAD0DEEDC2944C27BFE62CE6F2B64E5E6DE19/",attack=5,armour=5,fame=4}, [2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/14446858715897465322/F13E926B65A05916C526DDEDB13A3C6CFD613CD3/",attack=5,armour=7,fame=5},
-			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17387683693630615125/5BDF2E0BF4118B9E3BE22E84443CDB08B0AAFBC8/",attack=6,armour=8,fame=6}, [4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/10088216769527189445/399E5F8407D0FB465E8042C9334002659AC7F47F/",attack=7,armour=9,fame=7},
-			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/10118528550296916969/41121D7279DDF13FD0EC0AC792743D91F2D9B801/",attack=8,armour=10,fame=8},[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/10787017002404034448/08154298CC0C306D662BC6DB23C5F5DB9521F4F2/",attack=9,armour=11,fame=9},
+			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17232453246901051245/C51BAD0DEEDC2944C27BFE62CE6F2B64E5E6DE19/",attack=5,armour=5,fame=4},
+			[2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/14446858715897465322/F13E926B65A05916C526DDEDB13A3C6CFD613CD3/",attack=5,armour=7,fame=5},
+			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17387683693630615125/5BDF2E0BF4118B9E3BE22E84443CDB08B0AAFBC8/",attack=6,armour=8,fame=6},
+			[4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/10088216769527189445/399E5F8407D0FB465E8042C9334002659AC7F47F/",attack=7,armour=9,fame=7},
+			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/10118528550296916969/41121D7279DDF13FD0EC0AC792743D91F2D9B801/",attack=8,armour=10,fame=8},
+			[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/10787017002404034448/08154298CC0C306D662BC6DB23C5F5DB9521F4F2/",attack=9,armour=11,fame=9},
 		},
 	},
 	Death={
@@ -2117,9 +2123,12 @@ horsemanData={
 		priorities={A={"keep","mage tower","mine"},B={"rampaging","draconum"},C={"village","monastery","oasis","camp"}},
 		priorityText={A="Keep, Mage Tower, Crystal Mine",B="Marauding Orcs, Draconum",C="Village, Monastery, Oasis, Refugee Camp"},
 		levels={
-			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/11654141818874534905/B2E1B4F45CC08931FC5F2BB524013EF9AB172A5D/",attack=4,armour=4,fame=4}, [2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/9838796574970255280/A1AE0DC2D89B82ABA08A87A66121655072019EFB/",attack=4,armour=6,fame=5},
-			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12193037444225572389/A36DACDAF52219F2001DC75483B59049BD80869C/",attack=5,armour=7,fame=6}, [4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17857954840385715058/662C3A7D9C7CA7E67041EBADF6EA98A68FDFDBBA/",attack=6,armour=8,fame=7},
-			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12472417285560424057/61C9CF9AF0600B8CCB27FCF61987F180DB1374C2/",attack=6,armour=10,fame=8},[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/9394441226871462265/6F18EDAC06F6D1A31D97A8F2C1683E5D75B66E72/",attack=7,armour=11,fame=9},
+			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/11654141818874534905/B2E1B4F45CC08931FC5F2BB524013EF9AB172A5D/",attack=4,armour=4,fame=4},
+			[2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/9838796574970255280/A1AE0DC2D89B82ABA08A87A66121655072019EFB/",attack=4,armour=6,fame=5},
+			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12193037444225572389/A36DACDAF52219F2001DC75483B59049BD80869C/",attack=5,armour=7,fame=6},
+			[4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17857954840385715058/662C3A7D9C7CA7E67041EBADF6EA98A68FDFDBBA/",attack=6,armour=8,fame=7},
+			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12472417285560424057/61C9CF9AF0600B8CCB27FCF61987F180DB1374C2/",attack=6,armour=10,fame=8},
+			[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/9394441226871462265/6F18EDAC06F6D1A31D97A8F2C1683E5D75B66E72/",attack=7,armour=11,fame=9},
 		},
 	},
 	War={
@@ -2129,9 +2138,12 @@ horsemanData={
 		priorities={A={"rampaging","draconum"},B={"keep","mage tower","mine"},C={"village","monastery","oasis","camp"}},
 		priorityText={A="Marauding Orcs, Draconum",B="Keep, Mage Tower, Crystal Mine",C="Village, Monastery, Oasis, Refugee Camp"},
 		levels={
-			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17329164802223776821/12BE58CF6596B8A8384A06C89AC8948F3CFFB35C/",attack=4,armour=4,fame=4}, [2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/9642668520878713462/033934B09D5183469D85CA5E9EF178CB3F2FC244/",attack=5,armour=5,fame=5},
-			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/15737604875402465041/7352148CC6D3649A6B94A43AEC990E5B6F1500CE/",attack=6,armour=6,fame=6}, [4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13634618262624579082/C2E2C1F007FB674EC578BB78875E2083A942DA8F/",attack=7,armour=7,fame=7},
-			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12570376187599322274/3CC6B8216D07ED6011802EA12DA7197823540A86/",attack=8,armour=8,fame=8}, [6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/15481912540424558512/1CF2122A1380B2611CC5F132F9FA71E0D93A5697/",attack=9,armour=9,fame=9},
+			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17329164802223776821/12BE58CF6596B8A8384A06C89AC8948F3CFFB35C/",attack=4,armour=4,fame=4},
+			[2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/9642668520878713462/033934B09D5183469D85CA5E9EF178CB3F2FC244/",attack=5,armour=5,fame=5},
+			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/15737604875402465041/7352148CC6D3649A6B94A43AEC990E5B6F1500CE/",attack=6,armour=6,fame=6},
+			[4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13634618262624579082/C2E2C1F007FB674EC578BB78875E2083A942DA8F/",attack=7,armour=7,fame=7},
+			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12570376187599322274/3CC6B8216D07ED6011802EA12DA7197823540A86/",attack=8,armour=8,fame=8},
+			[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/15481912540424558512/1CF2122A1380B2611CC5F132F9FA71E0D93A5697/",attack=9,armour=9,fame=9},
 		},
 	},
 }
