@@ -7675,18 +7675,6 @@ end
 -- Start at a Higher Level
 --------------------------
 --Move Higher Level Regular Unit selections from the main play area to an available command-token slot.
---Card identity helpers. Object Nicknames are display/search text and may be translated,
---so script logic must use stable GUID-backed card data instead.
-function gameCardType(obj)
-	if obj==nil or gameCards[obj.guid]==nil then return nil end
-	return gameCards[obj.guid].cardType
-end
-function isTacticCard(obj)
-	if obj==nil then return false end
-	for i=1, #tacticCard do if obj.guid==tacticCard[i] then return true end end
-	return false
-end
-
 --The printed player board has six native Unit columns. Extra Command sources compress the same width instead of creating a hard seventh/eighth layout.
 unitLayoutConfig={nativeSlots=6, firstOffset=-103.57, nativeSpacing=3.84, cardScale=1.5, associationRadius=2.05}
 unitLayoutWait=unitLayoutWait or {}
