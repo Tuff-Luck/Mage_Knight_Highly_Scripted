@@ -1,0 +1,21 @@
+name: Lua 5.2 validation
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Install Lua 5.2
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lua5.2
+      - name: Parse all source modules
+        run: find src -name '*.lua' -print0 | xargs -0 -n1 luac5.2 -p
+      - name: Check whitespace errors
+        run: git diff --check HEAD^

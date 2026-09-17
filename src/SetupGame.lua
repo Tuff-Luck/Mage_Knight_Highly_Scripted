@@ -1857,7 +1857,7 @@ function higherLevelSkillClaimButons()
 	end
 end
 
-local function higherLevelSkillAreaPlayer(position)
+function higherLevelSkillAreaPlayer(position)
 	if position==nil or position[3]>=-35 then return nil end
 	for playerPosition=1, 4, 1 do
 		local skillAreaX=(playerPosition*40)-107
@@ -2124,9 +2124,9 @@ function afterLoad()
 end
 
 --Layout starting map tiles
-local firstTile=nil
-local startingMapSetup=false
-local startingMapTiles={}
+firstTile=nil
+startingMapSetup=false
+startingMapTiles={}
 --The Dragon data table is assigned later in the file, but Fury map setup needs its GUIDs here.
 local apocalypseDragon
 
