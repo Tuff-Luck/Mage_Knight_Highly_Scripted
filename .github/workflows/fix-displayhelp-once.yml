@@ -1,0 +1,55 @@
+name: One-off DisplayHelp source fix
+
+on:
+  push:
+    branches:
+      - modular-refactor
+
+permissions:
+  contents: write
+
+jobs:
+  fix-display-help:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: modular-refactor
+          fetch-depth: 0
+
+      - name: Make DisplayHelp a real cross-module callback
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          ui = Path('src/PlayingGame/UI.lua')
+          text = ui.read_text(encoding='utf-8')
+          old = '\nlocal\n\nfunction DisplayHelp(player, mouseButton, id)'
+          new = '\nfunction DisplayHelp(player, mouseButton, id)'
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected exactly one local DisplayHelp declaration, found {text.count(old)}')
+          ui.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          integration = Path('src/PlayingGame/Integration.lua')
+          text = integration.read_text(encoding='utf-8')
+          old = '''-- UI.lua still declares DisplayHelp as a chunk-local function. Because Integration.lua is bundled
+-- after UI.lua in the same Global chunk, that local is visible here. Export the exact function to
+-- the Global callback table so earlier modules (SetupGame/mainUIUpdate) and XML can call it.
+if type(DisplayHelp)=="function" then _G.DisplayHelp=DisplayHelp end
+
+'''
+          new = '''-- DisplayHelp is intentionally global in UI.lua because setup, gameplay UI and XML callbacks use it across modules.\n\n'''
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected exactly one stale DisplayHelp export block, found {text.count(old)}')
+          integration.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Remove this one-off workflow and commit the source fix
+        run: |
+          rm .github/workflows/fix-displayhelp-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Make DisplayHelp global after modular split"
+          git push origin HEAD:modular-refactor
