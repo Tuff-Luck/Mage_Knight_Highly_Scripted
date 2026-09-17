@@ -14,12 +14,16 @@ function setupGame(player, mouseButton, id, rewindReady)
         if ruleBag~=nil then
             local manual=safeTakeObject("Integration",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
             if manual~=nil then
-                safeWaitCondition("Integration",function()
-                    local current=getObjectFromGUID("8d7fb9")
-                    if current~=nil then current.lock() end
-                end,function()
-                    local current=getObjectFromGUID("8d7fb9")
-                    return current==nil or current.resting==true
+                --Match the normal rulebook setup: give TTS a few frames to place the book, then
+                --lock it only after the physical object has come to rest.
+                safeWaitFrames("Integration",function()
+                    safeWaitCondition("Integration",function()
+                        local current=getObjectFromGUID("8d7fb9")
+                        if current~=nil then current.lock() end
+                    end,function()
+                        local current=getObjectFromGUID("8d7fb9")
+                        return current==nil or current.resting==true
+                    end,5)
                 end,5)
             end
         end
@@ -27,79 +31,21 @@ function setupGame(player, mouseButton, id, rewindReady)
     return baseSetupGame(player,mouseButton,id,rewindReady)
 end
 
--- Fury's one-hex Dragon footprint (42b581) is attached inside the normal Dragon model (105141).
--- Immediately after takeObject, TTS can expose the model before its attachment hierarchy is ready.
--- Retry for a short period instead of deciding synchronously that the marker is missing.
+-- Fury's one-hex Dragon footprint (42b581) is its own object in the Apocalypse Dragon bag.
+-- Pull that token directly; do not disturb the normal three-hex Dragon model.
 function furyDragonExtractMarker(target)
     if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" then return nil end
     local marker=getObjectFromGUID("42b581")
-    if marker~=nil then
-        marker.unlock()
-        marker.setRotation({0,180,0})
-        marker.setPosition(target)
-        return marker
+    if marker==nil then
+        local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+        if bag==nil then return nil end
+        marker=bag.takeObject({guid="42b581",position=target,rotation={0,180,0},smooth=false})
+        if marker==nil then return nil end
     end
-
-    local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-    if bag==nil then return nil end
-    local dragon=bag.takeObject({guid="105141",position={-65.5,4,22},rotation={0,180,180},smooth=false})
-    if dragon==nil then return nil end
-
-    local dragonGUID=dragon.guid
-    local attempts=0
-    local function attachmentParent(parent)
-        if parent==nil or parent.getAttachments==nil then return nil end
-        for _,attachment in ipairs(parent.getAttachments() or {}) do
-            if attachment.guid=="42b581" then return parent end
-            local found=attachmentParent(attachment)
-            if found~=nil then return found end
-        end
-        return nil
-    end
-
-    local function returnDragon(liveDragon)
-        if liveDragon==nil then return end
-        local liveBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-        if liveBag~=nil then liveBag.putObject(liveDragon) else liveDragon.destruct() end
-    end
-
-    local function tryExtract()
-        attempts=attempts+1
-        local liveDragon=getObjectFromGUID(dragonGUID) or dragon
-        if liveDragon==nil then return end
-        local parent=attachmentParent(liveDragon)
-        if parent==nil then
-            if attempts<60 then safeWaitFrames("Integration",tryExtract,1)
-            else
-                returnDragon(liveDragon)
-                broadcastToAll("Fury setup could not detach the single-space Apocalypse Dragon marker (42b581).",warningColor)
-            end
-            return
-        end
-
-        local found=nil
-        for _,detached in ipairs(parent.removeAttachments() or {}) do
-            if detached.guid=="42b581" then found=detached else parent.addAttachment(detached) end
-        end
-        if found==nil then
-            if attempts<60 then safeWaitFrames("Integration",tryExtract,1)
-            else
-                returnDragon(liveDragon)
-                broadcastToAll("Fury setup found the Dragon attachment group but not marker 42b581.",warningColor)
-            end
-            return
-        end
-
-        found.unlock()
-        found.setRotation({0,180,0})
-        found.setPosition(target)
-        returnDragon(liveDragon)
-    end
-    safeWaitFrames("Integration",tryExtract,1)
-
-    -- furyDragonSetupLair only uses the return value as a success/failure signal. The physical marker
-    -- is placed by tryExtract as soon as TTS exposes the attachment hierarchy.
-    return dragon
+    marker.unlock()
+    marker.setRotation({0,180,0})
+    marker.setPosition(target)
+    return marker
 end
 
 -- Destroyed Site markers must finish their scripted move and then actually fall onto the terrain
