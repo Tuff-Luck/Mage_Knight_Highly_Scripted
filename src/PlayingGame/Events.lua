@@ -3183,17 +3183,12 @@ function safeCallback(functionName, callback, contextCallback)
 	return result
 end
 
---Lighter boundary for high-frequency events. Avoid breadcrumbs and traceback collection on the normal path;
---the event still reports its error and optional context if it fails.
-function safeHotCallback(functionName, callback, contextCallback)
-	local ok, result=pcall(callback)
+--Lighter boundary for high-frequency zone events. Pass arguments directly so successful movement events
+--do not allocate breadcrumb/context closures; detailed zone context is built only after an actual failure.
+function safeZoneCallback(functionName, callback, zone, obj)
+	local ok, result=pcall(callback,zone,obj)
 	if not ok then
-		local context=nil
-		if contextCallback~=nil then
-			local contextOK, contextText=pcall(contextCallback)
-			if contextOK==true then context=contextText end
-		end
-		reportAutomaticLuaError(functionName, tostring(result), context)
+		reportAutomaticLuaError(functionName,tostring(result),automaticLuaZoneContext(zone,obj))
 		return false
 	end
 	return result
