@@ -31,6 +31,10 @@ local function installArtifactUI(attempt)
     end
 end
 
-Wait.frames(function()
+local previousOnLoad = onLoad
+function onLoad(saved_data)
     installArtifactUI(1)
-end, 1)
+    if previousOnLoad ~= nil then
+        return previousOnLoad(saved_data)
+    end
+end
