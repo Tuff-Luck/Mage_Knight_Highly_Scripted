@@ -1,0 +1,61 @@
+name: Audit shared helpers
+
+on:
+  push:
+    branches:
+      - modular-refactor
+    paths:
+      - .github/workflows/audit-shared.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: modular-refactor
+      - name: Report cross-module global function use
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          paths = [
+              Path('src/Shared.lua'),
+              Path('src/SetupInterface.lua'),
+              Path('src/SetupGame.lua'),
+              Path('src/PlayingGame.lua'),
+          ]
+          texts = {p.as_posix(): p.read_text(encoding='utf-8') for p in paths}
+          def_re = re.compile(r'^function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(', re.M)
+          definitions = {}
+          for path, text in texts.items():
+              for name in def_re.findall(text):
+                  definitions.setdefault(name, []).append(path)
+
+          print('CROSS_MODULE_FUNCTION_USE_BEGIN')
+          for name in sorted(definitions):
+              owners = definitions[name]
+              refs = []
+              call_re = re.compile(r'(?<![.:A-Za-z0-9_])' + re.escape(name) + r'\s*\(')
+              for path, text in texts.items():
+                  count = len(call_re.findall(text))
+                  if path in owners:
+                      count -= len(re.findall(r'^function\s+' + re.escape(name) + r'\s*\(', text, re.M))
+                  if count > 0:
+                      refs.append((path, count))
+              external = [(p, c) for p, c in refs if p not in owners]
+              if external:
+                  print(f'{name}|defined={",".join(owners)}|used=' + ','.join(f'{p}:{c}' for p,c in refs))
+          print('CROSS_MODULE_FUNCTION_USE_END')
+
+          print('DUPLICATE_GLOBAL_DEFINITIONS_BEGIN')
+          for name, owners in sorted(definitions.items()):
+              if len(owners) > 1:
+                  print(f'{name}|defined={",".join(owners)}')
+          print('DUPLICATE_GLOBAL_DEFINITIONS_END')
+          PY
