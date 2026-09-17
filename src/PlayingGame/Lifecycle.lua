@@ -2,7 +2,6 @@
 -- Required last so TTS sees one active onLoad/onSave pair after all modules are defined.
 
 local baseOnSave = onSave
-local MONSTER_RESTOCK_TEXT = "{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen"
 
 local function savedRollerState(saved_data)
     if type(saved_data) ~= "string" or saved_data == "" then return nil end
@@ -33,11 +32,8 @@ local function monsterReplenishObjectOnLoad()
 <Text id="d7a165swapMonsterImageText" active="false"></Text>
 <Text id="d7a165swapTableText" active="false"></Text>
 ]=])
-    --Object UI finishes loading after setXml; repeat the translated text on the next frame so TTS
-    --resolves the language tags during onLoad. The legacy hidden ids also keep the old refresh block safe.
-    safeWaitFrames("Lifecycle",function()
-        if obj~=nil then obj.UI.setAttribute("d7a165replenishMonsterPilesText", "text", MONSTER_RESTOCK_TEXT) end
-    end,1)
+    --Do not rewrite the Text value after setXml. Localization tags are resolved while TTS loads
+    --the object XML; setAttribute with the tagged string bypasses that localization pass.
 end
 
 function onLoad(saved_data)
