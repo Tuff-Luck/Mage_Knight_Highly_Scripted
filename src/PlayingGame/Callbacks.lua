@@ -51,7 +51,7 @@ function onObjectPickUp(player_color, picked_up_object)
 end
 
 function onObjectHover(player_color, hover_object)
-	return safeCallback("onObjectHover", function() __onObjectHover_raw(player_color, hover_object) end)
+	return __onObjectHover_raw(player_color, hover_object)
 end
 
 function onObjectDrop(player_color, dropped_object)
@@ -67,19 +67,19 @@ function onObjectDestroy(destroyedObj)
 end
 
 function onObjectEnterZone(zone, obj)
-	return safeCallback("onObjectEnterZone", function() __onObjectEnterZone_raw(zone, obj) end, function() return automaticLuaZoneContext(zone, obj) end)
+	return safeHotCallback("onObjectEnterZone", function() __onObjectEnterZone_raw(zone, obj) end, function() return automaticLuaZoneContext(zone, obj) end)
 end
 
 function onObjectLeaveZone(zone, obj)
-	return safeCallback("onObjectLeaveZone", function() __onObjectLeaveZone_raw(zone, obj) end, function() return automaticLuaZoneContext(zone, obj) end)
+	return safeHotCallback("onObjectLeaveZone", function() __onObjectLeaveZone_raw(zone, obj) end, function() return automaticLuaZoneContext(zone, obj) end)
 end
 
 function onObjectCollisionEnter(registered_object, info)
-	return safeCallback("onObjectCollisionEnter", function() __onObjectCollisionEnter_raw(registered_object, info) end)
+	return __onObjectCollisionEnter_raw(registered_object, info)
 end
 
 function onObjectCollisionExit(registered_object, info)
-	return safeCallback("onObjectCollisionExit", function() __onObjectCollisionExit_raw(registered_object, info) end)
+	return __onObjectCollisionExit_raw(registered_object, info)
 end
 
 function onObjectEnterContainer(bag, obj)
