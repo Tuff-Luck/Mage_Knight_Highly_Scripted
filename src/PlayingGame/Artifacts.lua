@@ -1,7 +1,6 @@
 -- Artifact deck object UI moved out of the object and into the Global source structure.
 
 local ARTIFACT_GUID = "ac75c4"
-local ARTIFACT_REWARD_TEXT = "{en}Reward 1{ru}Награда 1{zh-tw}獎勵1{zh-cn}奖励1{ko}보상 1{es}Recompensa 1{fr}Récompense 1{pt-br}Recompensa 1{de}Belohnung 1"
 local ARTIFACT_UI = [=[
 <Button id="ac75c4ArtifactDown" active="false" onMouseDown="global/ButtonClickDownOverkill" onMouseUp="global/ButtonClickUpOverkill" onClick="global/artifactAdjust"
     height="150" width="150" color="rgba(0,0,0,0.0)" position="-120 190 5" rotation="0 180 180" scale="0.32 0.32">
@@ -18,18 +17,12 @@ local ARTIFACT_UI = [=[
 </Button>
 ]=]
 
-local function refreshArtifactTranslation(artifacts)
-    if artifacts==nil then return end
-    artifacts.UI.setAttribute("ac75c4ArtifactOfferText", "text", ARTIFACT_REWARD_TEXT)
-end
-
 local function installArtifactUI(attempt)
     local artifacts = getObjectFromGUID(ARTIFACT_GUID)
     if artifacts ~= nil then
+        --Keep the localization tags in the XML itself. TTS resolves those when setXml loads the
+        --object UI; reapplying the same tagged string through setAttribute displays every language.
         artifacts.UI.setXml(ARTIFACT_UI)
-        --Object UI finishes loading after setXml; repeat the translated text on the next frame so
-        --TTS resolves the language tags just like the old object onLoad path did.
-        safeWaitFrames("Artifacts",function() refreshArtifactTranslation(artifacts) end,1)
         return
     end
     if attempt < 60 then safeWaitFrames("Artifacts",function() installArtifactUI(attempt + 1) end, 1) end
