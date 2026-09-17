@@ -18325,20 +18325,6 @@ end
 --City-card positions are arranged in rings around the City. EXPLORE refreshes use the complete current
 --EXPLORE set, then choose the closest legal position once instead of first pushing a card away and immediately
 --trying to compact it while setPositionSmooth is still moving it.
-apocalypseDragon={
-	model="105141",
-	furyMarker="42b581",
-	roundOrder="9ba54f",
-	modelPosition={-65.53,1.07,22.09},
-	levelMarkerRadius=2.9,
-	heads={
-		{guid="a977d8",tokenGUID="198da8",name="Famine",position={-69.93,0.97,7.00}},
-		{guid="92fed8",tokenGUID="44f36b",name="Death",position={-69.93,0.97,16.00}},
-		{guid="c7e80f",tokenGUID="726090",name="Control",position={-60.93,0.97,7.00}},
-		{guid="819bba",tokenGUID="3c4daf",name="Pestilence",position={-60.93,0.97,16.00}},
-		{guid="51e2b1",tokenGUID="977f51",name="War",position={-51.93,0.97,7.00}}
-	}
-}
 
 function apocalypseDragonScenario()
 	return gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon")
@@ -18519,7 +18505,6 @@ function apocalypseDragonLockLevelMarker(marker,target)
 	marker.setLock(true)
 end
 
-apocalypseDragonColoredHeads={"Famine","Death","Pestilence","War"}
 
 function apocalypseDragonColoredHeadsDefeated()
 	if gStates==nil or type(gStates.apocalypseDragonHeadLevels)~="table" then return false end
@@ -19964,7 +19949,6 @@ end
 
 --The four coloured head tokens double as the physical airborne attackers. Their actual Dragon levels
 --never change here: only their temporary image/monster data changes to the current Round, then they return home.
-apocalypseDragonAirborneHeads={"War","Death","Famine","Pestilence"}
 
 function againstDragonAirborneHeadGUID(guid)
 	if guid==nil then return false end
