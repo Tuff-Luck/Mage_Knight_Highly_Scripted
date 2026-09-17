@@ -29,9 +29,16 @@ function safeObjectCallbackParams(scope, params)
 	return params
 end
 
+---@overload fun(scope: "SetupGame", container: any, params: table): any
 function safeTakeObject(scope, container, params)
-	if container==nil then return nil end
-	return container.takeObject(safeObjectCallbackParams(scope,params))
+	local ref=type(params)=="table" and (params.guid or params.index) or "unknown"
+	if container==nil then
+		if scope=="SetupGame" then error("SetupGame missing required container while taking "..tostring(ref),2) end
+		return nil
+	end
+	local obj=container.takeObject(safeObjectCallbackParams(scope,params))
+	if scope=="SetupGame" then return assert(obj,"SetupGame failed to take required object "..tostring(ref)) end
+	return obj
 end
 
 function safeSpawnObject(scope, params)
