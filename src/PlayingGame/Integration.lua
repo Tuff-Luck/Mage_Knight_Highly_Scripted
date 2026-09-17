@@ -8,39 +8,50 @@
 -- the rules bag still exists. The first setupGame call only stores the rewind point; deploy on
 -- the rewind-ready pass so rewinding setup restores the pre-setup state cleanly.
 local baseSetupGame=setupGame
+local function setupGameErrorContext(player,id,rewindReady)
+    local playerColor=player~=nil and (player.color or player) or ""
+    return "Scenario: "..tostring(gStates~=nil and gStates.gameScenario or "")..
+        "\nScenario Ref: "..tostring(gStates~=nil and gStates.scenarioRef or "")..
+        "\nPlayers Ref: "..tostring(gStates~=nil and gStates.playersRef or "")..
+        "\nPlayer: "..tostring(playerColor)..
+        "\nStart ID: "..tostring(id or "")..
+        "\nRewind Ready: "..tostring(rewindReady==true)
+end
 function setupGame(player, mouseButton, id, rewindReady)
-    if mouseButton=="-1" and rewindReady==true and gStates~=nil then
-        --Book.setPage expects a CLR Int32. Keep all scenario rule-page values numeric before the
-        --delayed rulebook setup callback runs; this also tolerates a value restored as a string.
-        local scenario=scenarioList~=nil and scenarioList[gStates.scenarioRef] or nil
-        local details=scenario~=nil and scenario.scenarioDetails or nil
-        local ruleStates=details~=nil and details.ruleStates or nil
-        if type(ruleStates)=="table" then
-            for key,page in pairs(ruleStates) do
-                local numeric=tonumber(page)
-                if numeric~=nil then ruleStates[key]=math.floor(numeric) end
+    return safeCallback("setupGame",function()
+        if mouseButton=="-1" and rewindReady==true and gStates~=nil then
+            --Book.setPage expects a CLR Int32. Keep all scenario rule-page values numeric before the
+            --delayed rulebook setup callback runs; this also tolerates a value restored as a string.
+            local scenario=scenarioList~=nil and scenarioList[gStates.scenarioRef] or nil
+            local details=scenario~=nil and scenario.scenarioDetails or nil
+            local ruleStates=details~=nil and details.ruleStates or nil
+            if type(ruleStates)=="table" then
+                for key,page in pairs(ruleStates) do
+                    local numeric=tonumber(page)
+                    if numeric~=nil then ruleStates[key]=math.floor(numeric) end
+                end
             end
-        end
 
-        if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
-            local ruleBag=getObjectFromGUID("d4a866")
-            if ruleBag~=nil then
-                local manual=safeTakeObject("Integration",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
-                if manual~=nil then
-                    --The takeObject return is already the live book. Use that handle instead of waiting
-                    --for getObjectFromGUID() registration, then lock only after physics reports it resting.
-                    safeWaitFrames("Integration",function()
-                        safeWaitCondition("Integration",function()
-                            if manual~=nil then manual.lock() end
-                        end,function()
-                            return manual~=nil and manual.resting==true
-                        end)
-                    end,5)
+            if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
+                local ruleBag=getObjectFromGUID("d4a866")
+                if ruleBag~=nil then
+                    local manual=safeTakeObject("Integration",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
+                    if manual~=nil then
+                        --The takeObject return is already the live book. Use that handle instead of waiting
+                        --for getObjectFromGUID() registration, then lock only after physics reports it resting.
+                        safeWaitFrames("Integration",function()
+                            safeWaitCondition("Integration",function()
+                                if manual~=nil then manual.lock() end
+                            end,function()
+                                return manual~=nil and manual.resting==true
+                            end)
+                        end,5)
+                    end
                 end
             end
         end
-    end
-    return baseSetupGame(player,mouseButton,id,rewindReady)
+        return baseSetupGame(player,mouseButton,id,rewindReady)
+    end,function() return setupGameErrorContext(player,id,rewindReady) end)
 end
 
 -- Fury's one-hex Dragon footprint (42b581) is its own object in the Apocalypse Dragon bag.
