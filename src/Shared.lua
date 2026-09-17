@@ -9,10 +9,7 @@ function automaticLuaTraceback(errorText)
 end
 
 function automaticLuaAsyncLabel(scope, kind)
-	local label=tostring(scope or "Async").." / "..tostring(kind or "callback")
-	local ok,info=pcall(function() if debug and debug.getinfo then return debug.getinfo(3,"l") end end)
-	if ok==true and info~=nil and info.currentline~=nil and info.currentline>0 then label=label.." @"..tostring(info.currentline) end
-	return label
+	return tostring(scope or "Async").." / "..tostring(kind or "callback")
 end
 
 function safeAsyncCallback(label, callback, contextCallback)
@@ -62,23 +59,13 @@ end
 
 function safeWaitCondition(scope, callback, condition, timeout, timeoutCallback)
 	local label=automaticLuaAsyncLabel(scope,"Wait.condition")
-	local predicateFailed=false
-	local safeCondition=function(...)
-		if predicateFailed==true then return true end
-		local args={n=select("#",...),...}
-		local ok,result=xpcall(function() return condition(table.unpack(args,1,args.n)) end,automaticLuaTraceback)
-		if ok~=true then
-			predicateFailed=true
-			reportAutomaticLuaError(label.." predicate",result)
-			return true --terminate the Wait without running the success callback
-		end
-		return result
-	end
-	local safeCallbackRun=safeAsyncCallback(label,function(...) if predicateFailed~=true then return callback(...) end end)
+	--Wait.condition predicates can run every frame while objects are moving. Keep that hot poll native;
+	--only the one-shot success/timeout callbacks need the automatic error boundary.
+	local safeCallbackRun=safeAsyncCallback(label,callback)
 	local safeTimeout=timeoutCallback~=nil and safeAsyncCallback(label.." timeout",timeoutCallback) or nil
-	if timeout==nil then return Wait.condition(safeCallbackRun,safeCondition) end
-	if safeTimeout==nil then return Wait.condition(safeCallbackRun,safeCondition,timeout) end
-	return Wait.condition(safeCallbackRun,safeCondition,timeout,safeTimeout)
+	if timeout==nil then return Wait.condition(safeCallbackRun,condition) end
+	if safeTimeout==nil then return Wait.condition(safeCallbackRun,condition,timeout) end
+	return Wait.condition(safeCallbackRun,condition,timeout,safeTimeout)
 end
 
 --Used to join a table of strings with translation brackets
