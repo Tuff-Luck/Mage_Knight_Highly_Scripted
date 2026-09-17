@@ -15,7 +15,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua5.2
-      - name: Parse all source modules
-        run: find src -name '*.lua' -print0 | xargs -0 -n1 luac5.2 -p
-      - name: Check whitespace errors
+      - name: Validate project structure and Lua
+        shell: pwsh
+        run: ./tools/validate-project.ps1 -RequireLua52
+      - name: Check commit whitespace
         run: git diff --check HEAD^

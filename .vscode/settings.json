@@ -1,14 +1,18 @@
 {
+    "Lua.runtime.version": "Lua 5.2",
     "Lua.diagnostics.disable": [
         "undefined-global",
         "lowercase-global",
         "undefined-field",
         "param-type-mismatch"
-    ]
+    ],
     "Lua.workspace.ignoreDir": [
         ".tts/bundled"
-    ]
+    ],
     "search.exclude": {
-        ".tts/bundled": true
+        "**/.tts/bundled/**": true
+    },
+    "files.watcherExclude": {
+        "**/.tts/bundled/**": true
     }
 }
