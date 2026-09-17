@@ -27,15 +27,13 @@ function setupGame(player, mouseButton, id, rewindReady)
             if ruleBag~=nil then
                 local manual=safeTakeObject("Integration",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
                 if manual~=nil then
-                    --Do not treat a momentarily-unregistered object as success. Wait until the actual
-                    --rulebook exists and is resting, then lock it exactly once.
+                    --The takeObject return is already the live book. Use that handle instead of waiting
+                    --for getObjectFromGUID() registration, then lock only after physics reports it resting.
                     safeWaitFrames("Integration",function()
                         safeWaitCondition("Integration",function()
-                            local current=getObjectFromGUID("8d7fb9")
-                            if current~=nil then current.lock() end
+                            if manual~=nil then manual.lock() end
                         end,function()
-                            local current=getObjectFromGUID("8d7fb9")
-                            return current~=nil and current.resting==true
+                            return manual~=nil and manual.resting==true
                         end)
                     end,5)
                 end
