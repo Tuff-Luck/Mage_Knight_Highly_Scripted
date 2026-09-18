@@ -1,6 +1,6 @@
 -- TTS persistence, raw event handling, maintenance and runtime event dispatch.
 
-function tryObjectEnterContainer(container, object)
+function __tryObjectEnterContainer_raw(container, object)
     if gStates.preEndTurn==false and container.type=="Card" and object.type=="Card" then
 		for _, turnDetails in pairs(turnOrder) do
 			if turnDetails.seatPos~=nil then
@@ -2883,7 +2883,7 @@ end
 
 --Picking up or long-clicking Coral's whole Deed Deck is not a draw.
 --Manual single-card draws are detected only when an actual Card leaves the Deed Deck container.
-function onPlayerAction(player, action, targets) return true end
+function __onPlayerAction_raw(player, action, targets) return true end
 
 function __onObjectNumberTyped_raw(object, player_color, number, alt)
 	--Number keys directly choose a die face without a collision event.
@@ -2907,9 +2907,8 @@ function __onObjectNumberTyped_raw(object, player_color, number, alt)
 	end
 end
 
---Globals intentionally avoid consuming the main-chunk local limit.
-maintenanceWait=nil
-liftHeightLowDetected=false
+local maintenanceWait=nil
+local liftHeightLowDetected=false
 
 function refreshLiftHeightWarning()
 	local lowDetected=false
@@ -2944,7 +2943,7 @@ function startMaintenanceTick()
 end
 
 --stop crystal entering command token bag
-function filterObjectEnterContainer(container, enter_object)
+function __filterObjectEnterContainer_raw(container, enter_object)
 	if container.getGMNotes()=="Command Tokens" and enter_object.getGMNotes()~="Command Token" then return false end
 	if container.getGMNotes()=="Skills" and skillTokens[enter_object.guid]==nil then return false end
 	return true -- Allows object to enter.

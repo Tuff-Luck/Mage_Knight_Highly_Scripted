@@ -3,14 +3,11 @@
 ---------------
 -- UI Functions
 ---------------
---Global intentionally avoids consuming the main-chunk local limit.
-
-
 --Keep a pristine copy of the Optional Scenario Tweaks so changing scenario can
 --return the selected scenario to the correct defaults for the current Mage Knight count.
-scenarioTweakDefaults=scenarioTweakDefaults or nil
+local scenarioTweakDefaults=nil
 
-function copyScenarioCityLevels(source)
+local function copyScenarioCityLevels(source)
 	local result={}
 	for a,value in ipairs(source or {}) do result[a]=value end
 	return result

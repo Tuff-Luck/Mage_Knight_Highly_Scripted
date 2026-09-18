@@ -65,11 +65,11 @@ function onObjectLeaveZone(zone, obj)
 end
 
 function onObjectCollisionEnter(registered_object, info)
-	return __onObjectCollisionEnter_raw(registered_object, info)
+	return safeDirectCallback("onObjectCollisionEnter", __onObjectCollisionEnter_raw, registered_object, info)
 end
 
 function onObjectCollisionExit(registered_object, info)
-	return __onObjectCollisionExit_raw(registered_object, info)
+	return safeDirectCallback("onObjectCollisionExit", __onObjectCollisionExit_raw, registered_object, info)
 end
 
 function onObjectEnterContainer(bag, obj)
@@ -102,6 +102,18 @@ end
 
 function onObjectNumberTyped(object, player_color, number, alt)
 	return safeCallback("onObjectNumberTyped", function() return __onObjectNumberTyped_raw(object, player_color, number, alt) end)
+end
+
+function tryObjectEnterContainer(container, object)
+	return safeDirectCallback("tryObjectEnterContainer", __tryObjectEnterContainer_raw, container, object)
+end
+
+function filterObjectEnterContainer(container, enter_object)
+	return safeDirectCallback("filterObjectEnterContainer", __filterObjectEnterContainer_raw, container, enter_object)
+end
+
+function onPlayerAction(player, action, targets)
+	return safeCallback("onPlayerAction", function() return __onPlayerAction_raw(player, action, targets) end)
 end
 
 

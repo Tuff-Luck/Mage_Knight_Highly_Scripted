@@ -233,6 +233,17 @@ function safeZoneCallback(functionName, callback, zone, obj)
 	return result
 end
 
+-- Lightweight boundary for hot TTS callbacks where allocating the normal safeCallback closure/breadcrumb
+-- path on every event is unnecessary. Detailed context can be added by the callback itself if needed.
+function safeDirectCallback(functionName, callback, first, second)
+	local ok, result=pcall(callback,first,second)
+	if not ok then
+		reportAutomaticLuaError(functionName,tostring(result))
+		return false
+	end
+	return result
+end
+
 -- Temporary test hook: type !testerror in chat as an admin.
 -- Reports the captured traceback, then rethrows the same error so TTS also shows the player-facing error.
 function testAutomaticLuaError()

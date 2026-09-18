@@ -32,7 +32,7 @@ function ensureSetupMegapolisMinimumLevels()
 end
 
 --Layout everything needed for the game
-setupRewindRequestPending=false
+local setupRewindRequestPending=false
 local function setupGameRaw(player, mouseButton, id, rewindReady)
 	if mouseButton=="-1" then
 		if rewindReady~=true then
