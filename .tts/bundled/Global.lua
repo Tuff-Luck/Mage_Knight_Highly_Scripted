@@ -46,6 +46,7 @@ __bundle_register("__root", function(require, _LOADED, __bundle_register, __bund
 -- Sebastian's TTS Editor bundles these modules into the single Global.lua sent to Tabletop Simulator.
 
 require("Data")
+require("ErrorReporting")
 require("Shared")
 require("SetupInterface")
 require("PlayingGame.Help")
@@ -66,284 +67,13 @@ require("PlayingGame.AI.Dummy")
 require("PlayingGame.AI.Volkare")
 require("PlayingGame.Movement")
 require("PlayingGame.Rollers")
-require("PlayingGame.Artifacts")
 require("PlayingGame.UI")
 require("PlayingGame.Events")
 require("PlayingGame.Callbacks")
-require("PlayingGame.Integration")
-require("PlayingGame.Lifecycle")
 
-end)
-__bundle_register("PlayingGame.Lifecycle", function(require, _LOADED, __bundle_register, __bundle_modules)
--- Final Global lifecycle integration for subsystem helpers moved out of object scripts.
--- Required last so TTS sees one active onLoad/onSave pair after all modules are defined.
-
-local baseOnSave = onSave
-
-local function savedRollerState(saved_data)
-    if type(saved_data) ~= "string" or saved_data == "" then return nil end
-    local ok, data = pcall(JSON.decode, saved_data)
-    if ok and type(data) == "table" then return data.rollerDice end
-    return nil
-end
-
---Monster Replenish no longer carries its own Lua/XML. Rebuild its physical Restock button from
---Global, and keep the old status ids as hidden targets for legacy onLoad/swap helpers.
-local function monsterReplenishObjectOnLoad()
-    local obj=getObjectFromGUID("d7a165")
-    if obj==nil then return end
-    obj.UI.setXml([=[
-<Button id="d7a165replenishMonsterPiles" interactable="true"
-    onClick="global/returnPugs"
-    tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
-    width="900" height="200" color="#7F7F7F" textColor="#FFFFFF"
-    position="200 270 -100" rotation="0 0 0" scale="0.48 0.48"
-    shadow="rgb(0, 0, 0)" shadowDistance="0 -0">
-    <Image id="d7a165replenishMonsterPilesImage" image="Sliced Button/Button Object Active" type="Sliced"/>
-    <HorizontalLayout padding="30 30 30 30">
-        <Text id="d7a165replenishMonsterPilesText" fontSize="90" font="Fonts/MKCardText" fontStyle="Normal"
-            textColor="rgb(0, 0, 0)" offsetXY="0 1" alignment="MiddleCenter"
-            resizeTextForBestFit="true" resizeTextMaxSize="90">{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen</Text>
-    </HorizontalLayout>
-</Button>
-<Text id="d7a165swapMonsterImageText" active="false"></Text>
-<Text id="d7a165swapTableText" active="false"></Text>
-]=])
-    --Do not rewrite the Text value after setXml. Localization tags are resolved while TTS loads
-    --the object XML; setAttribute with the tagged string bypasses that localization pass.
-end
-
-function onLoad(saved_data)
-    return safeCallback("onLoad", function()
-        --Install this before the main load path in case saved setup state invokes monsterImageSwap().
-        monsterReplenishObjectOnLoad()
-        artifactOnLoad()
-        rollerOnLoad(savedRollerState(saved_data))
-        return __onLoad_raw(saved_data)
-    end)
-end
-
-function onSave()
-    return safeCallback("onSave", function()
-        local saved_data = baseOnSave()
-        if type(saved_data) ~= "string" or saved_data == "" then return saved_data end
-
-        local ok, data = pcall(JSON.decode, saved_data)
-        if not ok or type(data) ~= "table" then return saved_data end
-
-        data.rollerDice = rollerOnSave()
-        return JSON.encode(data)
-    end)
-end
-end)
-__bundle_register("PlayingGame.Integration", function(require, _LOADED, __bundle_register, __bundle_modules)
--- Final cross-module gameplay integration.
--- Loaded after the gameplay modules so these wrappers can coordinate setup/runtime helpers
--- without putting the same implementation back into multiple source files.
-
--- DisplayHelp is provided by PlayingGame.Help because setup, gameplay UI and XML call it across modules.
-
--- Fury of the Apocalypse Dragon: deploy its scenario manual beside the other rulebooks while
--- the rules bag still exists. The first setupGame call only stores the rewind point; deploy on
--- the rewind-ready pass so rewinding setup restores the pre-setup state cleanly.
-local baseSetupGame=setupGame
-local function setupGameErrorContext(player,id,rewindReady)
-    local playerColor=player~=nil and (player.color or player) or ""
-    return "Scenario: "..tostring(gStates~=nil and gStates.gameScenario or "")..
-        "\nScenario Ref: "..tostring(gStates~=nil and gStates.scenarioRef or "")..
-        "\nPlayers Ref: "..tostring(gStates~=nil and gStates.playersRef or "")..
-        "\nPlayer: "..tostring(playerColor)..
-        "\nStart ID: "..tostring(id or "")..
-        "\nRewind Ready: "..tostring(rewindReady==true)
-end
-function setupGame(player, mouseButton, id, rewindReady)
-    return safeCallback("setupGame",function()
-        if mouseButton=="-1" and rewindReady==true and gStates~=nil then
-            --Book.setPage expects a CLR Int32. Keep all scenario rule-page values numeric before the
-            --delayed rulebook setup callback runs; this also tolerates a value restored as a string.
-            local scenario=scenarioList~=nil and scenarioList[gStates.scenarioRef] or nil
-            local details=scenario~=nil and scenario.scenarioDetails or nil
-            local ruleStates=details~=nil and details.ruleStates or nil
-            if type(ruleStates)=="table" then
-                for key,page in pairs(ruleStates) do
-                    local numeric=tonumber(page)
-                    if numeric~=nil then ruleStates[key]=math.floor(numeric) end
-                end
-            end
-
-            if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
-                local ruleBag=getObjectFromGUID("d4a866")
-                if ruleBag~=nil then
-                    local manual=safeTakeObject("Integration",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
-                    if manual~=nil then
-                        --The takeObject return is already the live book. Use that handle instead of waiting
-                        --for getObjectFromGUID() registration, then lock only after physics reports it resting.
-                        safeWaitFrames("Integration",function()
-                            safeWaitCondition("Integration",function()
-                                if manual~=nil then manual.lock() end
-                            end,function()
-                                return manual~=nil and manual.resting==true
-                            end)
-                        end,5)
-                    end
-                end
-            end
-        end
-        return baseSetupGame(player,mouseButton,id,rewindReady)
-    end,function() return setupGameErrorContext(player,id,rewindReady) end)
-end
-
--- Fury's one-hex Dragon footprint (42b581) is its own object in the Apocalypse Dragon bag.
--- Pull that token directly; do not disturb the normal three-hex Dragon model.
-function furyDragonExtractMarker(target)
-    if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" then return nil end
-    local marker=getObjectFromGUID("42b581")
-    if marker==nil then
-        local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-        if bag==nil then return nil end
-        marker=bag.takeObject({guid="42b581",position=target,rotation={0,180,0},smooth=false})
-        if marker==nil then return nil end
-    end
-    marker.unlock()
-    marker.setRotation({0,180,0})
-    marker.setPosition(target)
-    return marker
-end
-
--- Destroyed Site markers must finish their scripted move and then actually fall onto the terrain
--- before being locked. In particular, Apocalypse is Here previously locked a newly drawn marker
--- immediately after destroySite(), leaving it suspended at its spawn Y position.
-function lockDestroyedSiteWhenSettled(token)
-    if token==nil then return end
-    local guid=token.guid
-    token.unlock()
-    safeWaitFrames("Integration",function()
-        safeWaitCondition("Integration",function()
-            local current=getObjectFromGUID(guid)
-            if current~=nil then current.lock() end
-        end,function()
-            local current=getObjectFromGUID(guid)
-            if current==nil then return true end
-            local pos=current.getPosition()
-            local velocity=current.getVelocity()
-            local vy=velocity~=nil and (velocity.y or velocity[2]) or 0
-            return current.resting==true and math.abs(vy)<0.01 and pos[2]<1.50
-        end,6)
-    end,1)
-end
-
-local baseApocalypseIsHereResolveHorsemanTarget=apocalypseIsHereResolveHorsemanTarget
-function apocalypseIsHereResolveHorsemanTarget(name,targetHex)
-    local before={}
-    for guid in pairs((gStates~=nil and gStates.destroyedSites) or {}) do before[guid]=true end
-    local result=baseApocalypseIsHereResolveHorsemanTarget(name,targetHex)
-    for guid in pairs((gStates~=nil and gStates.destroyedSites) or {}) do
-        if before[guid]~=true then
-            local token=getObjectFromGUID(guid)
-            if token~=nil then lockDestroyedSiteWhenSettled(token) end
-        end
-    end
-    return result
-end
-
--- The stats/bug sheet should receive an explicit FALSE for Apocalypse Quest just like the other
--- setup toggles. Older/default states can leave this field nil until the option is touched.
-local baseSendDataRequest=SendDataRequest
-function SendDataRequest(...)
-    if gStates~=nil then gStates.apocalypseQuestCards=(gStates.apocalypseQuestCards==true) end
-    return baseSendDataRequest(...)
-end
-
--- Starting-hand setup already waits for the physical Deed Decks. Keep a final idempotent retry as
--- protection against a TTS zone/resting event being missed during the large setup burst: drawUpTo()
--- counts cards already in hand, so a successful first deal is unchanged by this retry.
-local baseDealStartingHandsWhenReady=dealStartingHandsWhenReady
-function dealStartingHandsWhenReady()
-    baseDealStartingHandsWhenReady()
-    safeWaitTime("Integration",function() dealAllHands() end,11)
-end
-
--- Setup creates the Unit offer before the Action/Spell offers and before the starting-hand deal.
--- The split exposed a typo in PlayingGame.unitOffer(): draw.safeTakeObject(...,deck,...) is called on
--- each {deck=...,guid=...} draw record. Adapt only that short synchronous loop so it uses the record's
--- real Deck with the shared safeTakeObject helper. This keeps the existing Unit-offer algorithm intact.
-local baseUnitOffer=unitOffer
-function unitOffer()
-    return safeCallback("unitOffer",function()
-        local normalIpairs=ipairs
-        local function unitOfferIpairs(value)
-            if type(value)=="table" and type(value[1])=="table" and value[1].deck~=nil and value[1].guid~=nil then
-                for _,entry in normalIpairs(value) do
-                    if type(entry)=="table" and entry.deck~=nil and entry.guid~=nil and entry.safeTakeObject==nil then
-                        entry.safeTakeObject=function(scope,unusedDeck,params)
-                            return safeTakeObject(scope,entry.deck,params)
-                        end
-                    end
-                end
-            end
-            return normalIpairs(value)
-        end
-
-        ipairs=unitOfferIpairs
-        local ok,result=pcall(baseUnitOffer)
-        ipairs=normalIpairs
-        if ok~=true then error(result,0) end
-        return result
-    end)
-end
-
-local baseFillSlide=fillSlide
-function fillSlide()
-    return safeCallback("fillSlide",function() return baseFillSlide() end)
-end
-
--- Also repair a completely empty setup offer if TTS missed the first population pass. Only a zero-card
--- offer is retried, so this cannot add a second set on top of a successful initial deal.
-local baseAfterLoad=afterLoad
-function afterLoad()
-    local result=baseAfterLoad()
-    safeWaitTime("Integration",function()
-        if gStates==nil or gStates.firstStarted~=true then return end
-
-        local unitArea=getObjectFromGUID("a3d99b")
-        local unitCards=0
-        if unitArea~=nil then
-            for _,obj in pairs(unitArea.getObjects()) do if obj.type=="Card" then unitCards=unitCards+1 end end
-        end
-        if unitCards==0 then unitOffer() end
-
-        local deedOffer=getObjectFromGUID(GUID.zone.offer)
-        local offerCards=0
-        if deedOffer~=nil then
-            for _,obj in pairs(deedOffer.getObjects()) do if obj.type=="Card" then offerCards=offerCards+1 end end
-        end
-        if offerCards==0 then fillSlide() end
-    end,5)
-    return result
-end
 end)
 __bundle_register("PlayingGame.Callbacks", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Public error-wrapped gameplay and TTS callback boundaries.
-
-function automaticLuaTurnPhaseContext(player, id)
-	local context="Turn: "..tostring(automaticLuaErrorStateValue("turnNumber", "")).." / Round: "..tostring(automaticLuaErrorStateValue("currentRound", ""))
-	if player~=nil then context=context.."\nPlayer: "..tostring(player.color or player) end
-	if id~=nil then context=context.."\nAction: "..tostring(id) end
-	return context
-end
-
-function automaticLuaSkillClaimContext(player, id)
-	local guid=id~=nil and tostring(id):sub(1,6) or ""
-	local context=automaticLuaTurnPhaseContext(player,id).."\nSkill buttons: "..tostring(automaticLuaErrorStateValue("skillButtons","")).."\nSkill GUID: "..tostring(guid)
-	local skill=getObjectFromGUID(guid)
-	if skill~=nil then
-		local p=skill.getPosition()
-		context=context.."\nLive position: "..tostring(p[1])..", "..tostring(p[2])..", "..tostring(p[3])
-	end
-	local home=automaticLuaErrorValue(function() return gStates.mageSkills[guid] end,nil)
-	if home~=nil then context=context.."\nRecorded position: "..tostring(home[1])..", "..tostring(home[2])..", "..tostring(home[3]) end
-	return context
-end
 
 --Object-UI Skill claims are not TTS event callbacks, so give them the same automatic error-report boundary.
 function skillMove(player, mouseButton, id, rewindReady)
@@ -368,7 +98,17 @@ end
 
 -- Wrap TTS event callbacks so unexpected Lua errors are reported automatically.
 function onLoad(saved_data)
-	return safeCallback("onLoad", function() __onLoad_raw(saved_data) end)
+	return safeCallback("onLoad",function()
+		monsterReplenishObjectOnLoad()
+		artifactOnLoad()
+		rollerOnLoad(rollerSavedState(saved_data))
+		local result=__onLoad_raw(saved_data)
+		safeWaitFrames("Callbacks",function()
+			monsterReplenishObjectOnLoad()
+			artifactOnLoad()
+		end,2)
+		return result
+	end)
 end
 
 function onObjectPickUp(player_color, picked_up_object)
@@ -400,11 +140,11 @@ function onObjectLeaveZone(zone, obj)
 end
 
 function onObjectCollisionEnter(registered_object, info)
-	return __onObjectCollisionEnter_raw(registered_object, info)
+	return safeDirectCallback("onObjectCollisionEnter", __onObjectCollisionEnter_raw, registered_object, info)
 end
 
 function onObjectCollisionExit(registered_object, info)
-	return __onObjectCollisionExit_raw(registered_object, info)
+	return safeDirectCallback("onObjectCollisionExit", __onObjectCollisionExit_raw, registered_object, info)
 end
 
 function onObjectEnterContainer(bag, obj)
@@ -439,6 +179,18 @@ function onObjectNumberTyped(object, player_color, number, alt)
 	return safeCallback("onObjectNumberTyped", function() return __onObjectNumberTyped_raw(object, player_color, number, alt) end)
 end
 
+function tryObjectEnterContainer(container, object)
+	return safeDirectCallback("tryObjectEnterContainer", __tryObjectEnterContainer_raw, container, object)
+end
+
+function filterObjectEnterContainer(container, enter_object)
+	return safeDirectCallback("filterObjectEnterContainer", __filterObjectEnterContainer_raw, container, enter_object)
+end
+
+function onPlayerAction(player, action, targets)
+	return safeCallback("onPlayerAction", function() return __onPlayerAction_raw(player, action, targets) end)
+end
+
 
 function onChat(message, player)
 	if player~=nil and player.admin==true then
@@ -449,9 +201,9 @@ end
 
 end)
 __bundle_register("PlayingGame.Events", function(require, _LOADED, __bundle_register, __bundle_modules)
--- TTS persistence, raw event handling, maintenance and automatic error-report infrastructure.
+-- TTS persistence, raw event handling, maintenance and runtime event dispatch.
 
-function tryObjectEnterContainer(container, object)
+function __tryObjectEnterContainer_raw(container, object)
     if gStates.preEndTurn==false and container.type=="Card" and object.type=="Card" then
 		for _, turnDetails in pairs(turnOrder) do
 			if turnDetails.seatPos~=nil then
@@ -487,44 +239,13 @@ function __onLoad_raw(saved_data)
 		turnOrder=loaded_data.turnOrder
 		gStates=loaded_data.gStates
 	end
-	--Quest scoring was previously inseparable from Apocalypse Quest Cards. Old in-progress saves keep it enabled.
-	if type(gStates.apocalypseQuestScoringDisabled)~="boolean" then gStates.apocalypseQuestScoringDisabled=false end
-	if type(gStates.apocalypseQuestScoringChoiceLocked)~="boolean" then gStates.apocalypseQuestScoringChoiceLocked=gStates.firstStarted==true end
-	if apocalypseQuestScoresRequired()==true then gStates.apocalypseQuestScoringDisabled=false end
-	--Older Quest saves predate the permanent Quest-area scripting zone. Create it once after load so
-	--all subsequent offer/card scans use the small local object set instead of getAllObjects().
-	safeWaitFrames("Events",function() if apocalypseQuestsUsed()==true then apocalypseQuestAreaZone() end end,1)
-	--Follow Enemy is a global Camera Control option, enabled by default. Migrate the earlier per-player table state.
-	if type(gStates.cameraFollowEnemy)~="boolean" then gStates.cameraFollowEnemy=true end
-	--Hero Challenge reservations used to be keyed by turnOrder index, but turnOrder is re-sorted during play.
-	--Rebuild them from each Hero's prescribed Skill GUID so old saves cannot hand one Hero another Hero's Skill.
-	if gStates.heroChallenges==true then
-		local stableHeroChallengeSkills={}
-		for _,details in pairs(turnOrder or {}) do
-			local challenge=heroChallengesData[details.mage]
-			if challenge~=nil and getObjectFromGUID(challenge.skillGUID)~=nil then stableHeroChallengeSkills[details.mage]=challenge.skillGUID end
-		end
-		gStates.heroChallengeReservedSkills=stableHeroChallengeSkills
-	elseif type(gStates.heroChallengeReservedSkills)~="table" then gStates.heroChallengeReservedSkills={} end
-	--Fractured Lands always uses Blitz rules. Migrate saves made before its internal scenario name carried the Blitz suffix.
-	if gStates.gameScenario=="The Fractured Lands" then gStates.gameScenario="The Fractured Lands Blitz" gStates.blitz=1 end
-	if gStates.competitiveSkillReminders==nil then gStates.competitiveSkillReminders={} end
-	if gStates.coopCompSkillActivation==nil then gStates.coopCompSkillActivation={} end
-	if gStates.tomeSkillSwapPending==nil then gStates.tomeSkillSwapPending={} end
-	if type(gStates.puppetMasterPuppets)~="table" then gStates.puppetMasterPuppets={} end
 	--Refresh saved Puppets so presentation changes (decal/hover data) also apply to existing accepted Puppets.
-	safeWaitFrames("Events",function() for guid,record in pairs(gStates.puppetMasterPuppets) do puppetMasterRefreshPresentation(getObjectFromGUID(guid),record) end end,2)
+	safeWaitFrames("Events",function() for guid,record in pairs(gStates.puppetMasterPuppets or {}) do puppetMasterRefreshPresentation(getObjectFromGUID(guid),record) end end,2)
 	--Goblin Warrens enemies come from an Infinite Bag and therefore receive new GUIDs. Restore their
 	--runtime monster registration before a saved mid-combat game can inspect or clean them up.
 	safeWaitFrames("Events",function() apocalypseQuestRestoreGoblinEnemies() end,2)
-	--Proxy Heroes are normal movable figures between automated moves; migrate older saves that left them locked.
-	safeWaitFrames("Events",function()
-		if proxyPlayerActive()==true then local avatar=proxyAvatarObject() if avatar~=nil then avatar.unlock() end end
-	end,2)
 	--Restore any saved live Proxy choice, including terrain, offer-card, enemy, and Source-mana controls.
 	safeWaitFrames("Events",function() proxyRestorePendingChoiceUI() end,4)
-	local legacyMineLocation={["mine red"]=true,["mine green"]=true,["mine blue"]=true,["mine white"]=true}
-	for _, details in pairs(turnOrder or {}) do if legacyMineLocation[details.avatarLocation]==true then details.avatarLocation="mine" end end
 	safeWaitFrames("Events",function() refreshMineClaimPanel() end, 1)
 	--Reapply explicit ALT zoom directions to any City/avatar objects already out on the table.
 	safeWaitFrames("Events",function() refreshAltViewAngles() end, 2)
@@ -533,8 +254,6 @@ function __onLoad_raw(saved_data)
 	if gStates.finalTurnReason~=nil then ensureFinalTurnBoundary() end
 	safeWaitFrames("Events",function() againstHorsemenRestoreRuntimeState() end,2)
 	startMaintenanceTick()
-	--Updated already saved variable by putting a copy here, delete after saving one time.
-
 	-----------
 	UI.setAttribute("sendBugReportButtonRealText", "text", "{en}Feedback{ru}Обратная связь{zh-tw}回饋意見{zh-cn}反馈{ko}피드백{es}Realimentación{fr}Retour{pt-br}Comentários{de}Feedback")
 	UI.setAttribute("AutoFlipButtonRealText", "text", "{en}Auto Flip{ru}Авто-переворот{zh-cn}自动翻转{ko}자동 공개{es}Volteo Automático{fr}Retournement auto{pt-br}Auto-Virar{de}Auto-Flip")
@@ -725,16 +444,7 @@ function __onLoad_raw(saved_data)
 	UI.setAttribute("MalekSelectionText", "text", "{en}Malek{ru}Malek{zh-tw}馬萊克{zh-cn}马莱克{ko}Malek{es}Malek{fr}Malek{pt-br}Malek{de}Malek")
 	UI.setAttribute("DusceniaSelectionText", "text", "{en}Duscenia{ru}Дусцения{zh-tw}達塞尼亞{zh-cn}达塞尼亚{ko}Duscenia{es}Duscenia{fr}Duscenia{pt-br}Duscenia{de}Duscenia")
 	--UI.setAttribute("GameOverText", "text", "{en}Game over<size=6>\n\n</size>You have gone past the Round Limit and incurred the wrath of the Council of the Void.<size=6>\n\n</size>Check your Score if you still feel worthy, then grovel for a second chance if you dare!{ru}Игра окончена<size=6>\n\n</size>Вы превысили лимит Раундов и навлекли на себя гнев Совета Пустоты.<size=6>\n\n</size>Проверьте свой счет, если вы все еще чувствуете себя достойным, а затем пресмыкайтесь ради второго шанса, если осмелитесь!{zh-tw}遊戲結束\n\n你已經超出了時間限制，\n並因此觸怒了虛空議會。<size=6>\n\n</size>若你仍感覺自己表現還算不錯，\n那麼就去看看你的分數吧。\n接著提起勇氣去乞求虛空議會，\n能給予機會再挑戰一次。{zh-cn}游戏结束\n\n你已经超出了时间限制，\n并因此触怒了虚空议会。<size=6>\n\n</size>若你仍感觉自己表现还算不错，\n那么就去看看你的分数吧。\n然后提起勇气去乞求虚空议会，\n能给予机会再挑战一次。{ko}게임 종료<size=6>\n\n</size>정해진 라운드 제한을 넘겨버려 공허 위원회의 분노를 사버렸네요.<size=6>\n\n</size>점수를 계산해보거나, 그들에게 두 번째 기회를 요청해보세요, 자신 있다면 말이죠!{es}Fin de Partida<size=6>\n\n</size>Has superado el límite de Rondas y provocado la Ira del Concilio del Vacío.<size=6>\n\n</size>Comprueba tu Puntuación Final si crees que lo mereces, y arrástrate a una segunda oportunidad si te atreves!{fr}Jeu terminé<size=6>\n\n</size>Vous avez dépassé la limite de round et encouru la colère du Conseil du Vide.<size=6>\n\n</size>Vérifiez votre score si vous vous sentez toujours digne, que gravissez pour une seconde chance si vous l'osez !{pt-br}Jogo encerrado<size=6>\n\n</size>Você passou do limite de Rodadas e causou a ira do Conselho do Vácuo.<size=6>\n\n</size>Cheque sua pontuação se você ainda se acha merecedor, então chore por uma segunda chance se ousar!{de}Spiel vorbei<size=6>\n\n</size>Du hast das Rundenlimit überschritten und dir den Zorn des Rates der Leere zugezogen.<size=6>\n\n</size>Überprüfe deinen Punktestand, wenn du dich noch würdig fühlst, und bitte dann um eine zweite Chance, wenn du dich traust!")
-	--Object UIs can finish loading after Global onLoad. Refresh them on the next frame without aborting the rest of onLoad if either object is unavailable.
-	safeWaitFrames("Events",function()
-		local artifactDeck=getObjectFromGUID(GUID.deck.artifact)
-		if artifactDeck~=nil then artifactDeck.UI.setAttribute("ac75c4ArtifactOfferText", "text", "{en}Reward 1{ru}Награда 1{zh-cn}奖励1{ko}보상 1{es}Premiar 1{fr}Reward 1{pt-br}Premiar 1{de}Belohnung 1") end
-		local monsterReplenish=getObjectFromGUID("d7a165")
-		if monsterReplenish~=nil then
-			monsterReplenish.UI.setAttribute("d7a165replenishMonsterPilesText", "text", "{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen")
-			monsterReplenish.UI.setAttribute("d7a165swapTableText", "text", "{en}Use Other Table{ru}Другой вид стола{zh-cn}使用其他表{ko}다른 테이블 사용{es}Usar otra tabla{fr}Utiliser un autre tableau{pt-br}Usar outra tabela{de}Andere Tabelle verwenden")
-		end
-	end, 1)
+	--Dynamic object UIs are refreshed by PlayingGame.Lifecycle after the complete Global load path returns.
 
 	UI.show("ScoreButton")
 	UI.show("HelpButton")
@@ -893,13 +603,16 @@ function __onLoad_raw(saved_data)
 end
 
 function onSave()
-	saveZigguratPyramidUI()
-	saveSetupState()
-	local data_to_save={
-		turnOrder=turnOrder,
-		gStates=gStates}
-	saved_data=JSON.encode(data_to_save)
-	return saved_data
+	return safeCallback("onSave",function()
+		saveZigguratPyramidUI()
+		saveSetupState()
+		local data_to_save={
+			turnOrder=turnOrder,
+			gStates=gStates,
+			rollerDice=rollerOnSave()}
+		saved_data=JSON.encode(data_to_save)
+		return saved_data
+	end)
 end
 
 
@@ -1171,7 +884,7 @@ function __onObjectHover_raw(player_color, hover_object)
 			end
 			--Horseman priorities. Combat stats/abilities below continue through the normal monster hover renderer.
 			local horsemanName=horsemanTokenToName~=nil and horsemanTokenToName[hover_object.guid] or nil
-			if horsemanName~=nil then monsterDescription=joinLang({monsterDescription,"{en}"..horsemanPriorityDescription(horsemanName)}) end
+			if horsemanName~=nil and gStates.gameScenario~="Against the Horsemen Blitz" then monsterDescription=joinLang({monsterDescription,"{en}"..horsemanPriorityDescription(horsemanName)}) end
 			--Night Rules
 			if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].nightRules~=nil and gStates.summonStates[hover_object.guid]~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]NIGHT RULES[-][i] - For this fight, Gold mana can't be used, Black mana can be used, and affected Skills use their night version.[/i]\n\n{ru}[00ff00]НОЧНЫЕ ПРАВИЛА[-][i] - Считайте, что битва проходит ночью: нельзя использовать золотую ману, можно использовать черную ману, а навыки используют свою ночную версию.[/i]\n\n{zh-cn}[00ff00]夜晚規則[-][i] - 在這場戰鬥中，金色法力不能使用，黑色法力可以使用，受影響的技能使用其夜間版本。[/i]\n\n{ko}[00ff00]밤 규칙[-][i] - 이 전투에서 금색 마나를 사용할 수 없고, 흑색 마나를 사용할 수 있으며, 스킬 또한 밤 효과로 사용합니다.[/i]\n\n{es}[00ff00]REGLAS NOCTURNAS[-][i] - Para este combate, no se puede usar Maná Dorado, se puede usar Maná Negro y las Habilidades afectadas usan su versión nocturna.[/i]\n\n{fr}[00ff00]RÈGLES DE LA NUIT[-][i] - Pour ce combat, le mana d'or ne peut pas être utilisé, le mana noir peut être utilisé et les compétences affectées utilisent leur version nocturne.[/i]\n\n{pt-br}[00ff00]REGRAS NOTURNAS[-][i] - Nesta luta, a mana dourada não pode ser usada, a mana preta pode ser usada e as habilidades afetadas usam sua versão noturna.[/i]\n\n{de}[00ff00]REGELN FÜR DIE NACHT[-][i] - Für diesen Kampf kann kein Goldmana verwendet werden, Schwarzmana kann verwendet werden, und die betroffenen Fertigkeiten verwenden ihre Nachtversion.[/i]\n\n"}) end
 			--No Units
@@ -2384,7 +2097,8 @@ function __onObjectEnterZone_raw(zone, obj)
 						moveDisplayTerrainCache={signature=nil,hexMap=nil}
 						updateMoveDisplay()
 					end
-					if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals() end
+					if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals()
+					elseif gStates.gameScenario=="Apocalypse is Here" then horsemanArrangeOccupiedTokenStacks() end
 					fakeDropAvatar()
 					apocalypseQuestRefreshOfferButtons()
 				end, tokenWait+10)
@@ -3372,7 +3086,7 @@ end
 
 --Picking up or long-clicking Coral's whole Deed Deck is not a draw.
 --Manual single-card draws are detected only when an actual Card leaves the Deed Deck container.
-function onPlayerAction(player, action, targets) return true end
+function __onPlayerAction_raw(player, action, targets) return true end
 
 function __onObjectNumberTyped_raw(object, player_color, number, alt)
 	--Number keys directly choose a die face without a collision event.
@@ -3396,9 +3110,8 @@ function __onObjectNumberTyped_raw(object, player_color, number, alt)
 	end
 end
 
---Globals intentionally avoid consuming the main-chunk local limit.
-maintenanceWait=nil
-liftHeightLowDetected=false
+local maintenanceWait=nil
+local liftHeightLowDetected=false
 
 function refreshLiftHeightWarning()
 	local lowDetected=false
@@ -3433,253 +3146,15 @@ function startMaintenanceTick()
 end
 
 --stop crystal entering command token bag
-function filterObjectEnterContainer(container, enter_object)
+function __filterObjectEnterContainer_raw(container, enter_object)
 	if container.getGMNotes()=="Command Tokens" and enter_object.getGMNotes()~="Command Token" then return false end
 	if container.getGMNotes()=="Skills" and skillTokens[enter_object.guid]==nil then return false end
 	return true -- Allows object to enter.
 end
 
--- Automatic Lua error reporting
-automaticLuaErrorReporting=false
-automaticLuaErrorLastReport=0 --kept for the manual test hook / compatibility
-automaticLuaErrorCooldown=10
-automaticLuaErrorSignatures={}
-automaticLuaErrorBreadcrumbs={}
-automaticLuaErrorBreadcrumbLimit=10
-automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-automaticLuaErrorReporterVersion="414"
-
-function automaticLuaErrorValue(callback, fallback)
-	local ok, value=pcall(callback)
-	if ok==true and value~=nil then return value end
-	return fallback
-end
-
-function automaticLuaErrorStateValue(key, fallback)
-	return automaticLuaErrorValue(function()
-		if gStates==nil then return nil end
-		return gStates[key]
-	end, fallback)
-end
-
-function automaticLuaErrorScenarioValue(key, fallback)
-	return automaticLuaErrorValue(function()
-		return scenarioList[gStates.scenarioRef][gStates.playersRef][key]
-	end, fallback)
-end
-
-function automaticLuaErrorMageValue(position)
-	local value=automaticLuaErrorValue(function() return gStates.positionMageKnight[position] end, "")
-	local randomChoice=automaticLuaErrorValue(function() return gStates.originalChoiceMageKnights[position] end, "")
-	if value~="" and (randomChoice=="Random" or randomChoice=="All Skills") then value=tostring(value).." [R]" end
-	return value
-end
-
-function automaticLuaErrorMapShape()
-	local mapShape=automaticLuaErrorScenarioValue("mapShape", "")
-	if mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then return "4 Columns" end
-	if mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then return "3 Columns" end
-	if mapShape=="{en}Wedge with No Limitations{ru}Клиновидное поле без ограничений{zh-tw}錐形無限制地圖{zh-cn}锥形无限制地图{ko}쐐기형(무제한){es}En Cuña sin Límites{fr}Coin sans Limites{pt-br}Cônico sem Limitações{de}Keil ohne Begrenzungen" then return "Wedge" end
-	if mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then return "Wedge" end
-	if mapShape=="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen" then return "Fully Open" end
-	if mapShape=="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert" then return "Predefined" end
-	return mapShape
-end
-
-function automaticLuaErrorCityLevel()
-	return automaticLuaErrorValue(function()
-		local text="[ "
-		for _, level in pairs(gStates.cityLevels) do text=text..tostring(level).." " end
-		return text.."]"
-	end, "")
-end
-
-function automaticLuaErrorGameType()
-	return automaticLuaErrorValue(function()
-		if gStates.playerCount==1 then return "Solo" end
-		if gStates.playerCount>1 and (gStates.coop==0 or gStates.WarOfFourComp==true) then return "Comp" end
-		if gStates.playerCount>1 and gStates.coop==1 and gStates.WarOfFourComp==false then return "Coop" end
-	end, "")
-end
-
-function automaticLuaErrorMultiHand()
-	return automaticLuaErrorValue(function()
-		local count=0
-		for _, color in pairs(Player.getAvailableColors()) do if Player[color].seated==true then count=count+1 end end
-		if Player["Black"].seated==true then count=count+1 end
-		return count==1 and gStates.playerCount>1
-	end, "")
-end
-
-function sendAutomaticLuaErrorRequest(comment)
-	-- Build the normal bug-report context, but protect every lookup independently.
-	-- A broken game-state field must never be able to stop the emergency report.
-	local gameRecord={Comment=comment, reporter="Automatic Lua Error", reporterVersion=automaticLuaErrorReporterVersion,
-		gameScenario=automaticLuaErrorStateValue("gameScenario", ""),
-		gameType=automaticLuaErrorGameType(),
-		blitz=automaticLuaErrorStateValue("blitz", ""),
-		rounds=automaticLuaErrorScenarioValue("rounds", ""),
-		mapShape=automaticLuaErrorMapShape(),
-		countryTiles=automaticLuaErrorScenarioValue("countryTiles", ""),
-		coreTiles=automaticLuaErrorScenarioValue("coreTiles", ""),
-		cityTiles=automaticLuaErrorScenarioValue("cityTiles", ""),
-		cityLevel=automaticLuaErrorCityLevel(),
-		randomTileOrientation=automaticLuaErrorStateValue("randomTileOrientation", ""),
-		volkareCampAsCity=automaticLuaErrorStateValue("volkareCampAsCity", ""),
-		megapolis=automaticLuaErrorStateValue("megapolis", ""),
-		randomCities=automaticLuaErrorStateValue("randomCities", ""),
-		positionMageKnight1=automaticLuaErrorMageValue(1),
-		positionMageKnight2=automaticLuaErrorMageValue(2),
-		positionMageKnight3=automaticLuaErrorMageValue(3),
-		positionMageKnight4=automaticLuaErrorMageValue(4),
-		positionMageKnight5=automaticLuaErrorMageValue(5),
-		proxyPlayer=automaticLuaErrorStateValue("proxyPlayer", false),
-		multihand=automaticLuaErrorMultiHand(),
-		includeYmirgh=automaticLuaErrorStateValue("useCustomMageKnights", ""),
-		dummyAllSkills=automaticLuaErrorStateValue("dummyAllSkills", ""),
-		mageKnightLevels=automaticLuaErrorStateValue("mageKnightLevels", ""),
-		rampagePursuit=automaticLuaErrorStateValue("rampagePursuit", ""),
-		rampageAmbush=automaticLuaErrorStateValue("rampageAmbush", ""),
-		rampage=automaticLuaErrorStateValue("rampage", ""),
-		removeLostLegionExpansion=automaticLuaErrorStateValue("removeLostLegionExpansion", ""),
-		removeShadesOfTezlaMonsters=automaticLuaErrorStateValue("removeShadesOfTezlaMonsters", ""),
-		removeApocalypseTerrain=automaticLuaErrorStateValue("removeApocalypseTerrain", ""),
-		removeBonusCards=automaticLuaErrorStateValue("removeBonusCards", ""),
-		volkareCombatLevel=" ", volkareRaceLevel=" ",
-		darknessComing=automaticLuaErrorStateValue("darknessComing", ""),
-		startAtNight=automaticLuaErrorStateValue("startAtNight", ""),
-		heroChallenges=automaticLuaErrorStateValue("heroChallenges", ""),
-		questMod=automaticLuaErrorStateValue("questMod", ""),
-		weatherMod=automaticLuaErrorStateValue("weatherMod", ""),
-		itemShopMod=automaticLuaErrorStateValue("itemShopMod", ""),
-		removeTerrain=automaticLuaErrorStateValue("removeTerrain", ""),
-		useAlternatePugs=automaticLuaErrorStateValue("useAlternatePugs", ""),
-		riseOfTheForgemasters=automaticLuaErrorStateValue("riseOfTheForgemasters", ""),
-		autoFlip=automaticLuaErrorStateValue("autoFlip", ""),
-		offerSize=automaticLuaErrorStateValue("offerSize", ""),
-		table=automaticLuaErrorValue(function()
-			local obj=getObjectFromGUID("519f96")
-			if obj~=nil and obj.getScale().x==1 then return "Original" end
-			if obj~=nil then return "New" end
-		end, "")}
-	if automaticLuaErrorValue(function() return gStates.positionMageKnight[5]=="Volkare" end, false)==true then
-		gameRecord.volkareCombatLevel=automaticLuaErrorStateValue("volkareCombatLevel", " ")
-		gameRecord.volkareRaceLevel=automaticLuaErrorStateValue("volkareRaceLevel", " ")
-	end
-	--WebRequest.post form tables require string keys and values. Preserve boolean false/true explicitly;
-	--nil/error lookups have already been converted to their fallback (normally an empty string).
-	for key, value in pairs(gameRecord) do gameRecord[tostring(key)]=tostring(value) end
-	WebRequest.post(automaticLuaErrorURL, gameRecord, function(w)
-		log("Automatic Lua error report response: "..tostring(w.text))
-	end)
-end
-
-function automaticLuaBreadcrumb(label)
-	label=tostring(label or "")
-	if label=="" or label=="maintenanceTick" or label=="onObjectHover" or label:find(" / Wait.",1,true)~=nil then return end
-	if automaticLuaErrorBreadcrumbs[#automaticLuaErrorBreadcrumbs]==label then return end
-	automaticLuaErrorBreadcrumbs[#automaticLuaErrorBreadcrumbs+1]=label
-	while #automaticLuaErrorBreadcrumbs>automaticLuaErrorBreadcrumbLimit do table.remove(automaticLuaErrorBreadcrumbs,1) end
-end
-
-function automaticLuaBreadcrumbText()
-	if #automaticLuaErrorBreadcrumbs==0 then return "" end
-	return table.concat(automaticLuaErrorBreadcrumbs," -> ")
-end
-
-function automaticLuaErrorSignature(functionName,errorText)
-	local firstLine=tostring(errorText or ""):match("[^\n]+") or ""
-	return tostring(functionName).."|"..firstLine
-end
-
-function reportAutomaticLuaError(functionName, errorText, context)
-	if automaticLuaErrorReporting then return end
-	local now=os.time()
-	local signature=automaticLuaErrorSignature(functionName,errorText)
-	local last=automaticLuaErrorSignatures[signature]
-	if last~=nil and now-last<automaticLuaErrorCooldown then return end
-	automaticLuaErrorSignatures[signature]=now
-	automaticLuaErrorLastReport=now
-	--Keep the signature table bounded during very long sessions.
-	local signatureCount=0
-	for key,when in pairs(automaticLuaErrorSignatures) do
-		signatureCount=signatureCount+1
-		if now-when>300 then automaticLuaErrorSignatures[key]=nil end
-	end
-	if signatureCount>100 then automaticLuaErrorSignatures={} automaticLuaErrorSignatures[signature]=now end
-	automaticLuaErrorReporting=true
-	local comment="AUTOMATIC LUA ERROR\nReporter Version: "..tostring(automaticLuaErrorReporterVersion).."\nFunction: "..tostring(functionName)
-	if context~=nil and context~="" then comment=comment.."\n"..tostring(context) end
-	local breadcrumbs=automaticLuaBreadcrumbText()
-	if breadcrumbs~="" then comment=comment.."\nRecent script actions: "..breadcrumbs end
-	comment=comment.."\n\n"..tostring(errorText)
-	pcall(function() UI.setAttribute("SendBugComment", "text", comment) end)
-	local ok, reportError=pcall(function() sendAutomaticLuaErrorRequest(comment) end)
-	if not ok then log("Automatic Lua error report failed: "..tostring(reportError).."\n"..comment) end
-	automaticLuaErrorReporting=false
-end
-
-function safeCallback(functionName, callback, contextCallback)
-	automaticLuaBreadcrumb(functionName)
-	local ok, result=xpcall(callback, automaticLuaTraceback)
-	if not ok then
-		local context=nil
-		if contextCallback~=nil then
-			local contextOK, contextText=pcall(contextCallback)
-			if contextOK==true then context=contextText end
-		end
-		reportAutomaticLuaError(functionName, result, context)
-		return false
-	end
-	return result
-end
-
---Lighter boundary for high-frequency zone events. Pass arguments directly so successful movement events
---do not allocate breadcrumb/context closures; detailed zone context is built only after an actual failure.
-function safeZoneCallback(functionName, callback, zone, obj)
-	local ok, result=pcall(callback,zone,obj)
-	if not ok then
-		reportAutomaticLuaError(functionName,tostring(result),automaticLuaZoneContext(zone,obj))
-		return false
-	end
-	return result
-end
-
--- Temporary test hook: type !testerror in chat as an admin.
--- Reports the captured traceback, then rethrows the same error so TTS also shows the player-facing error.
-function testAutomaticLuaError()
-	local rawError=nil
-	local ok, err=xpcall(function()
-		error("Intentional automatic Lua error reporting test", 0)
-	end, function(e)
-		rawError=tostring(e)
-		if debug and debug.traceback then return debug.traceback(rawError, 2) end
-		return rawError
-	end)
-	if ok==true then return end
-	automaticLuaErrorLastReport=0
-	automaticLuaErrorSignatures={}
-	reportAutomaticLuaError("TEST - automatic Lua error reporting", err, "Intentional test error triggered with !testerror")
-	error(rawError or "Intentional automatic Lua error reporting test", 0)
-end
-
-function testAutomaticLuaAsyncError()
-	automaticLuaErrorSignatures={}
-	safeWaitFrames("TEST async",function() error("Intentional asynchronous automatic Lua error reporting test",0) end,1)
-end
-
-function automaticLuaZoneContext(zone, obj)
-	local objectGUID=obj~=nil and obj.guid or "nil"
-	local zoneGUID=zone~=nil and zone.guid or "nil"
-	local objectName=""
-	if obj~=nil then
-		local ok, name=pcall(function() return obj.getName() end)
-		if ok==true and name~=nil then objectName=tostring(name) end
-	end
-	return "Object: "..tostring(objectGUID)..(objectName~="" and " ("..objectName..")" or "").."\nZone: "..tostring(zoneGUID)
-end
-
 function SendDataRequest(player, mouseButton, id)
+	--Send an explicit false for Apocalypse Quest when the option was never touched.
+	if gStates~=nil then gStates.apocalypseQuestCards=(gStates.apocalypseQuestCards==true) end
 	if mouseButton=="-1" and (player=="skip" or player=="auto" or (player.color~=nil and Player[player.color].admin==true)) then
 		UI.setAttribute("SendDataRequest", "active", "false")
 		UI.setAttribute("SendBugRequest", "active", "false")
@@ -5575,176 +5050,33 @@ function applyColorBarButtons()
 	end
 end
 
-dropoutMatImage="https://steamusercontent-a.akamaihd.net/ugc/9970617178500111609/C9D8D7517B7FAF114F10D8195AC38269F0504E37/"
 
-local
+function bugReport(player, value, id)
+	UI.setAttribute("SendBugRequest", "active", true)
+end
 
-function DisplayHelp(player, mouseButton, id)
+function updateComment(player, value, id)
+	UI.setAttribute(id, "text", value)
+end
+
+function lowerTable(player, mouseButton, id)
 	if mouseButton=="-1" then
-		--update Game Reminder text scenarioList[gStates.gameScenario][scenarioEnd]
-		local gameReminderText=joinLang({translateWord[gStates.gameScenario], "{en} Scenario{ru} Сценарий{zh-cn}剧本{ko} 시나리오{es} Guión{fr} Scénario{pt-br} Cenário{de} Szenario"})
-		local gameReminderHeight=48
-		local lineFeed=18
-		--if gStates.gameScenario:reverse():sub(1, 5)=="ztilB" then gameReminderText=gStates.gameScenario:sub(1, string.len(gStates.gameScenario)-6).." Scenario" end
-		if gStates.blitz==1 then gameReminderText=joinLang({gameReminderText, "{en}\nBlitz Rules{ru}\nСокращенный (Блиц){zh-cn}\n快速规则{ko}\n기습 규칙{es}\nReglas de Blitz{fr}\nRègles du Blitz{pt-br}\nRegras Relâmpago{de}\nBlitz-Regeln"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.removeLostLegionExpansion==false then gameReminderText=joinLang({gameReminderText, "{en}\nLost Legion Monsters and Cards Included{ru}\nПотерянный Легион включен{zh-cn}\n使用失落军团怪物和卡牌{ko}\n사라진 군단 확장 포함{es}\nMonstruos y Cartas de Lost Legion Incluidos{fr}\nMonstres et Cartes de la Légion Perdue Incluses{pt-br}\nMonstros e Cartas da Legião Perdida são incluídos{de}\nLost Legion-Monster und -Karten enthalten"}) gameReminderHeight=gameReminderHeight+lineFeed 	end
-		-- else
-		-- 	gameReminderText=joinLang({gameReminderText, "{en}\nLost Legion Monsters and Cards Removed{ru}\nПотерянный Легион не включен{zh-cn}\n移除失落军团怪物和卡牌{ko}\n사라진 군단 확장 제외{es}\nMonstruos y Cartas de Lost Legion Eliminados{fr}\nMonstres et Cartes de la Légion Perdue Retirés{pt-br}\nMonstros e Cartas da Legião Perdidão são removidos{de}\nEntfernte Monster und Karten der verlorenen Legion"}) gameReminderHeight=gameReminderHeight+lineFeed
-		-- end
-		if gStates.removeShadesOfTezlaMonsters==true then
-			gameReminderText=joinLang({gameReminderText, "{en}\nShades of Tezla Monsters Removed{ru}\nВраги из «Теней Тезлы» убраны{zh-tw}\n已移除「特茲拉之影」怪物{zh-cn}\n已移除“特兹拉之影”怪物{ko}\n'테즐라의 그림자' 적 토큰 제거{es}\nMonstruos de 'Sombras de Tezla' eliminados{fr}\nMonstres de 'Ombres de Tezla' retirés{pt-br}\nMonstros de 'Sombras de Tezla' removidos{de}\n'Shades of Tezla'-Monster entfernt"})
-		else
-			gameReminderText=joinLang({gameReminderText, "{en}\nShades of Tezla Monsters Included{ru}\nВраги из «Теней Тезлы» включены{zh-tw}\n使用「特茲拉之影」怪物{zh-cn}\n使用“特兹拉之影”怪物{ko}\n'테즐라의 그림자' 적 토큰 포함{es}\nMonstruos de 'Sombras de Tezla' incluidos{fr}\nMonstres de 'Ombres de Tezla' inclus{pt-br}\nMonstros de 'Sombras de Tezla' incluídos{de}\n'Shades of Tezla'-Monster enthalten"})
+		if getObjectFromGUID("3d4319").getPosition()[2]==0 then
+			getObjectFromGUID("3d4319").setPosition({0.00, -0.2, -5.00})
+			getObjectFromGUID("519f96").setScale({200, 1, 200})
+			getObjectFromGUID("519f96").setPosition({0.00, 0.77, -5.00})
+			skillButtonActivate()
+			return
 		end
-		gameReminderHeight=gameReminderHeight+lineFeed
-		--else gameReminderText=joinLang({gameReminderText, "{en}\nShades of Tezla Monsters Removed{ru}\nТени Тезлы не включены{zh-cn}\n移除特兹拉之影怪物{ko}\n테즐라의 그림자 확장 포함{es}\nSe han Eliminado las Sombras de los Monstruos de Tezla{fr}\nMonstres Shades of Tezla Supprimés{pt-br}\nMonstros de Sombras de Tezla Removidos{de}\nSchatten von Tezla-Monster entfernt"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.removeApocalypseTerrain==true then
-			gameReminderText=joinLang({gameReminderText, "{en}\nApocalypse Dragon Terrain Removed{ru}\nЛандшафт «Апокалиптический дракон» удалён{zh-tw}\n已移除末日巨龍地形{zh-cn}\n已移除末日巨龙地形{ko}\n아포칼립스 드래곤 지형 제거{es}\nTerreno del Dragón del Apocalipsis eliminado{fr}\nTerrain Apocalypse Dragon supprimé{pt-br}\nTerreno do Dragão do Apocalipse removido{de}\nApocalypse-Dragon-Gelände entfernt"})
-		else
-			gameReminderText=joinLang({gameReminderText, "{en}\nApocalypse Dragon Terrain Included{ru}\nЛандшафт «Апокалиптический дракон» включён{zh-tw}\n使用末日巨龍地形{zh-cn}\n使用末日巨龙地形{ko}\n아포칼립스 드래곤 지형 포함{es}\nTerreno del Dragón del Apocalipsis incluido{fr}\nTerrain Apocalypse Dragon inclus{pt-br}\nTerreno do Dragão do Apocalipse incluído{de}\nApocalypse-Dragon-Gelände enthalten"})
-		end
-		gameReminderHeight=gameReminderHeight+lineFeed
-		if gStates.removeBonusCards==true then gameReminderText=joinLang({gameReminderText, "{en}\nUltimate Edition Cards Removed{ru}\nПолное издание не включено{zh-cn}\n移除终极版的额外卡牌{ko}\nUE 카드 제외{es}\nTarjetas de Ultimate Edition Eliminadas{fr}\nCartes Ultimate Edition Supprimées{pt-br}\nCartas da Edição Definitiva Removidas{de}\nUltimate Edition Karten entfernt"}) gameReminderHeight=gameReminderHeight+lineFeed else
-			gameReminderText=joinLang({gameReminderText, "{en}\nUltimate Edition Cards Included{ru}\nПолное издание включено{zh-cn}\n使用终极版的额外卡牌{ko}\nUE 카드 포함{es}\nTarjetas de Ultimate Edition Incluidas{fr}Cartes Ultimate Edition incluses{pt-br}\nCartas da Edição Definitiva Incluídas{de}\nUltimate Edition Karten enthalten"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.rampage==1 then gameReminderText=joinLang({gameReminderText, "{en}\nRampage Variant{ru}\nТемные времена!{zh-cn}\n怪物肆虐{ko}\n광분하라!{es}\nVariante de Rampage{fr}Variante Rampage{pt-br}\nVariante Tempos de Violência{de}\nRampage-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.rampage==2 then gameReminderText=joinLang({gameReminderText, "{en}\nMore Rampage Variant{ru}\nТьма сгущается!{zh-cn}\n怪物横行{ko}\n더욱더 광분하라!{es}\nMás Variante de Rampage{fr}Plus de variante Rampage{pt-br}\nVariante Mais Violência{de}\nMehr Rampage-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.rampageAmbush==true then gameReminderText=joinLang({gameReminderText, "{en}\nAmbushing Rampagers Variant{ru}\nВраги в Засаде{zh-cn}\n怪物伏击{ko}\n매복하는 적{es}\nVariante Emboscada de Rampagers{fr}\nVariante de Rampagers Embusqués{pt-br}\nVariante Irascíveis Emboscadores{de}\nAmbushing Rampagers-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.rampagePursuit==true then gameReminderText=joinLang({gameReminderText, "{en}\nPursuing Rampagers Variant{ru}\nПреследующие враги{zh-cn}\n怪物追击{ko}\n추적하는 적{es}\nPersiguiendo la Variante de Violentos{fr}\nVariante Poursuite des Rampagers{pt-br}\nVariante Irascíveis Perseguidores{de}\nVerfolgende Rampager-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		--gameReminderText=joinLang({gameReminderText, "\n", gStates.mapShape, "{en} Map{ru} {zh-cn}{ko} 지도 모양{es} Mapa{fr} Carte{pt-br} Mapa{de} Karte"}) gameReminderHeight=gameReminderHeight+lineFeed
-		if gStates.randomTileOrientation==true then gameReminderText=joinLang({gameReminderText, "{en}\nRandom Terrain Tile Orientation Variant{ru}\nСлучайная ориентация Земель{zh-cn}\n随机地图方向{ko}\n타일 방향 무작위로 놓기{es}\nVariante de Orientación de Mosaico de Terreno Aleatorio{fr}\nVariante d'Orientation des Tuiles de Terrain Aléatoire{pt-br}\nVariante Orientação aleatória de Terreno{de}\nVariante mit zufälliger Ausrichtung der Geländekacheln"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.removeTerrain==true then gameReminderText=joinLang({gameReminderText, "\nRemoved Easier Terrain Tiles"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Realm of the Dead Blitz" and gStates.gameScenario~="The Hidden Valley Blitz" then
-			if gStates.cityTiles-gStates.megapolis>0 then gameReminderText=joinLang({gameReminderText, "\n"..gStates.cityTiles-gStates.megapolis, "{en} City(s){ru} Город(а){zh-cn} 城市{ko} 도시{es} Ciudad(s){fr} Ville(s){pt-br} Cidade(s){de} Stadt(en)"}) gameReminderHeight=gameReminderHeight+lineFeed end
-			if gStates.cityTiles-gStates.megapolis==0 and gStates.megapolis>0 then gameReminderText=joinLang({gameReminderText, "\n"}) gameReminderHeight=gameReminderHeight+lineFeed end
-			if gStates.cityTiles-gStates.megapolis>0 and gStates.megapolis>0 then gameReminderText=joinLang({gameReminderText, " & "}) end
-			if gStates.megapolis>0 then gameReminderText=joinLang({gameReminderText, gStates.megapolis, "{en} Megapolis{ru} Мегаполис{zh-cn} 大型城市{ko} 거대도시{es} Megapolis{fr} Megapolis{pt-br} Megalópole{de} Megapolis"}) end
-		else
-			gameReminderText=joinLang({gameReminderText, "{en}\n1 Friendly City(s){ru}\n1 Дружелюбный(х) город(а){zh-cn}\n1 友方势力城市{ko}\n1 우호적인 도시{es}\n1 Ciudad(s) Amiga{fr}\n1 Ville(s) Amie{pt-br}\n1 Cidade Amigável{de}\n1 Befreundete Stadt(en)"}) gameReminderHeight=gameReminderHeight+lineFeed
-			gameReminderText=joinLang({gameReminderText, "\n"..(gStates.cityTiles-1), "{en} Leader(s){ru} Лидер(ы){zh-cn} 领袖{ko} 지도자{es} Líder(s){fr} Leader(s){pt-br} Líder(es){de} Anführer(n)"}) gameReminderHeight=gameReminderHeight+lineFeed
-		end
-		if gStates.cityTiles>0 and gStates.cityLevels[1]>0 then
-			gameReminderText=joinLang({gameReminderText, "{en} at Level(s): {ru} с уровнем(ями): {zh-cn}起始等级：{ko} 의 레벨: {es} en el Nivel(s):{fr} aux Niveaux:{pt-br} no Nível: {de} auf Stufe(n):"})
-			for a, b in pairs(gStates.cityLevels) do
-				if a==1 and b~=0 then gameReminderText=joinLang({gameReminderText, tostring(b)}) end
-				if a~=1 and b~=0 then gameReminderText=joinLang({gameReminderText, ", "..b}) end
-			end
-			gameReminderHeight=gameReminderHeight+lineFeed
-		end
-		if gStates.cityLevels[1]==0 and gStates.gameScenario~="The Lost Relic Blitz" then gameReminderText=joinLang({gameReminderText, "{en} Friendly{ru} Дружелюбный(ых){zh-cn} 友方势力{ko} 우호적{es} Simpático{fr} Amical{pt-br} Amigável{de} Freundlich"}) end
-		if gStates.cityLevels[1]==0 and gStates.gameScenario=="The Lost Relic Blitz" then gameReminderText=joinLang({gameReminderText, "{en} Destroyed{ru} Уничтоженный(ые){zh-cn} 被摧毁{ko} 파괴됨{es} Destruido{fr} Détruit{pt-br} Destruído{de}Zerstört"}) end
-		if gStates.gameScenario=="Ultimate Conquest" and gStates.removeShadesOfTezlaMonsters~=true then gameReminderText=joinLang({gameReminderText, "{en}\n2 Leaders - Level of last City revealed{ru}\n2 Лидеры - Уровень последнего раскрытого города{zh-cn}\n2 领袖 - 最后揭示的城市等级{ko}\n2 지도자 - 마지막 도시 레벨 공개{es}\n2 líderes - Nivel de la última Ciudad Revelada{fr}\n2 Leaders - Niveau de la Dernière Ville Révélé{pt-br}\n2 Líderes - Nível da última cidade revelada{de}\n2 Anführer - Level der letzten aufgedeckten Stadt"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		--need leader and frindly city notes
-		if gStates.positionMageKnight[5]=="Volkare" then
-			local volkareRaceLevel={"Fair", "Tight", "Thrilling"}
-			gameReminderText=joinLang({gameReminderText, "\n", translateWord[volkareRaceLevel[gStates.volkareRaceLevel]], "{en} Volkare Race Level{ru} Уровень гонки Волкара{zh-cn} - 沃卡里竞速等级{ko} 볼케어 레이스 레벨{es} Nivel de Carrera Volkare{fr} Niveau de Course Volkare{pt-br} Nível de Corrida de Volkare{de} Volkare Ethnie Stufe"}) gameReminderHeight=gameReminderHeight+lineFeed
-			local volkareCombatLevel={"Daring", "Heroic", "Legendary"}
-			gameReminderText=joinLang({gameReminderText, "\n", translateWord[volkareCombatLevel[gStates.volkareCombatLevel]], "{en} Volkare Combat Level{ru} Уровень битвы Волкара{zh-cn} - 沃卡里战斗等级{ko} 볼케어 전투 레벨{es} Nivel de Combate Volkare{fr} Volkare Niveau de Combat{pt-br} Nível de Combate de Volkare{de} Volkare Kampfstufe"}) gameReminderHeight=gameReminderHeight+lineFeed
-		end
-		if gStates.volkareCampAsCity==true then gameReminderText=joinLang({gameReminderText, "{en}\nVolkare's Camp as a City Variant{ru}\nЛагерь Волкара как возможный город{zh-cn}\n沃卡里军营作为城市{ko}\n볼케어 진형을 도시 중 하나로 추가{es}\nEl Campamento de Volkare como Variante de la Ciudad{fr}\nLe camp de Volkare Comme Variante de la Ville{pt-br}\nVariante Acampamento de Volkare como uma Cidade{de}\nVolkare's Camp als Stadtvariante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.randomCities==true then gameReminderText=joinLang({gameReminderText, "{en}\nRandom Cities Variant{ru}\nСлучайные города{zh-cn}\n随机城市{ko}\n무작위의 도시들{es}\nVariante de ciudades Aleatorias{fr}\nVariante de Villes Aléatoires{pt-br}\nVariante Cidades Aleatórias{de}\nZufallsstädte-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.startAtNight==true then gameReminderText=joinLang({gameReminderText, "{en}\nStart at Night Variant{ru}\nНочное прибытие{zh-cn}\n黑夜降临{ko}\n야간 도착{es}\nComience en la Variante Nocturna{fr}\nVariante de Démarrage de Nuit{pt-br}\nVariante Início a Noite{de}\nStart bei Nacht Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.darknessComing==true then
-			if gStates.dayRound==true then gameReminderText=joinLang({gameReminderText, "{en}\nDarkness is Comming Variant{ru}\nНадвигается тьма{zh-cn}\n黑夜侵袭{ko}\n어둠의 도래{es}\nLa oscuridad se Acerca Variante{fr}\nVariante des Ténèbres à Venir{pt-br}\nVariante Trevas estão Vindo{de}\nDunkelheit kommt Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-			if gStates.dayRound==false then gameReminderText=joinLang({gameReminderText, "{en}\nDaylight is Comming Variant{ru}\nНадвигается рассвет{zh-cn}\n白昼侵袭{ko}\n빛의 도래{es}\nLa luz del día está llegando Varian{fr}\nLa Lumière du Jour Arrive Varian{pt-br}\nVariante Luz do dia está vindo{de}\nVariante „Tageslicht kommt"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		end
-		if gStates.questMod==true then gameReminderText=joinLang({gameReminderText, "{en}\nQuest Cards Variant{ru}\nМод Квест карт{zh-cn}\n自制任务卡{ko}\n퀘스트 카드{es}\nVariante de Cartas de Misión{fr}\nVariante de Cartes de Quête{pt-br}\nVariante Cartas de Missões{de}\nQuest-Karten-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.apocalypseQuestCards==true then gameReminderText=joinLang({gameReminderText, "{en}\nApocalypse Dragon Quest Cards{ru}\nApocalypse Dragon Quest Cards{zh-tw}\nApocalypse Dragon Quest Cards{zh-cn}\nApocalypse Dragon Quest Cards{ko}\nApocalypse Dragon Quest Cards{es}\nApocalypse Dragon Quest Cards{fr}\nApocalypse Dragon Quest Cards{pt-br}\nApocalypse Dragon Quest Cards{de}\nApocalypse Dragon Quest Cards"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.heroChallenges==true then gameReminderText=joinLang({gameReminderText, "{en}\nHero Challenges Variant{ru}\nHero Challenges Variant{zh-tw}\nHero Challenges Variant{zh-cn}\nHero Challenges Variant{ko}\nHero Challenges Variant{es}\nHero Challenges Variant{fr}\nHero Challenges Variant{pt-br}\nHero Challenges Variant{de}\nHero Challenges Variant"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.proxyPlayer==true then gameReminderText=joinLang({gameReminderText, "{en}\nProxy Player Variant{ru}\nВариант Прокси-игрока{zh-tw}\n代理玩家變體{zh-cn}\n代理玩家变体{ko}\n프록시 플레이어 변형{es}\nVariante Jugador Proxy{fr}\nVariante Joueur Proxy{pt-br}\nVariante Jogador Proxy{de}\nProxy-Spieler-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.itemShopMod==true then gameReminderText=joinLang({gameReminderText, "{en}\nItem Shop Cards Variant{ru}\nМод магазина предметов{zh-cn}\n物品商店{ko}\n아이템 상점 카드{es}\nVariante de las tarjetas de la tienda de artículos{fr}\nVariante des cartes de la boutique d'articles{pt-br}\nVariante de Cartões da Loja de Itens{de}\nArtikel-Shop-Karten-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.weatherMod==true then gameReminderText=joinLang({gameReminderText, "{en}\nAtlantean Weather Variant{ru}\nМод Погоды Атлантиды{zh-cn}\n亚特兰蒂斯天气{ko}\n아틀란티스 날씨{es}\nVariante Meteorológica Atlante{fr}\nVariante Météo Atlante{pt-br}\nVariante Clima Atlântico{de}\nAtlantische Wettervariante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.riseOfTheForgemasters==1 then gameReminderText=joinLang({gameReminderText, "{en}\nRise of the Forgemaster - 1 New Beginning{ru}\nВосхождение мастера-кузнеца — 1. Новое начало{zh-cn}\n锻造师崛起 - 新的开始{ko}\n대장장이의 부상 - 1 새로운 시작{es}\nEl ascenso del maestro forjador - 1 Un nuevo comienzo{fr}\nRise of the Forgemaster - 1 Un nouveau départ{pt-br}\nA Ascensão do Mestre da Forja - 1 Um Novo Começo{de}\nRise of the Forgemaster – 1 Neuanfang"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.riseOfTheForgemasters==2 then gameReminderText=joinLang({gameReminderText, "{en}\nRise of the Forgemaster - 2 Spoils of War{ru}\nВосхождение мастера-кузнеца — 2. Военные трофеи{zh-cn}\n锻造师崛起 - 战争犒赏{ko}\n대장장이의 부상 - 2 전리품{es}\nEl ascenso del maestro forjador - 2 El botín de guerra{fr}\nRise of the Forgemaster - 2 Le butin de guerre{pt-br}\nA Ascensão do Mestre da Forja - 2 Despojos de Guerra{de}\nRise of the Forgemaster – 2 Kriegsbeute"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.riseOfTheForgemasters==3 then gameReminderText=joinLang({gameReminderText, "{en}\nRise of the Forgemaster - 3 Elixir of Life{ru}\nВосхождение мастера-кузнеца — 3. Эликсир жизни{zh-cn}\n锻造师崛起 - ⽣命灵药{ko}\n대장장이의 부상 - 3 생명의 엘릭서{es}\nEl ascenso del maestro forjador - 3 El elixir de la vida{fr}\nRise of the Forgemaster - 3 L'élixir de vie{pt-br}\nA Ascensão do Mestre da Forja - 3 Elixir da Vida{de}\nRise of the Forgemaster – 3 Elixier des Lebens"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		UI.setAttribute("GameReminderText", "text", gameReminderText)
-		UI.setAttribute("GameReminder", "height", gameReminderHeight)
-		for _, scenarioFull in pairs(scenarioList) do
-			if scenarioFull[1]==gStates.gameScenario then
-				local endReminderText=heroChallengeScenarioEndText(scenarioFull.scenarioDetails.scenarioEnd)
-				UI.setAttribute("EndReminderText", "text", endReminderText)
-
-				-- Estimate the rendered height from the largest translation rather than
-				-- the combined raw translation string. Explicit line feeds are preserved,
-				-- and long lines are estimated to wrap at roughly charsPerLine characters.
-				local function utf8Length(value)
-					local count=0
-					for i=1, #value do
-						local byte=value:byte(i)
-						if byte<128 or byte>=192 then count=count+1 end
-					end
-					return count
-				end
-
-				local function estimateTranslationLines(value, charsPerLine)
-					local totalLines=0
-					local lineStart=1
-					while true do
-						local lineEnd=string.find(value, "\n", lineStart, true)
-						local line
-						if lineEnd~=nil then line=string.sub(value, lineStart, lineEnd-1) else line=string.sub(value, lineStart) end
-						local length=utf8Length(line)
-						if length==0 then totalLines=totalLines+1 else totalLines=totalLines+math.ceil(length/charsPerLine) end
-						if lineEnd==nil then break end
-						lineStart=lineEnd+1
-					end
-					return math.max(totalLines, 1)
-				end
-
-				local charsPerLine=106
-				local maxLines=1
-				local maxLanguage="unknown"
-				local translatedText=endReminderText or ""
-				local pos=1
-				while true do
-					local tagStart, tagEnd, language=translatedText:find("{([%a%-]+)}", pos)
-					if tagStart==nil then break end
-					local nextTagStart=translatedText:find("{([%a%-]+)}", tagEnd+1)
-					local translation
-					if nextTagStart~=nil then translation=translatedText:sub(tagEnd+1, nextTagStart-1) else translation=translatedText:sub(tagEnd+1) end
-					local estimatedLines=estimateTranslationLines(translation, charsPerLine)
-					if estimatedLines>maxLines or maxLanguage=="unknown" then
-						maxLines=estimatedLines
-						maxLanguage=language
-					end
-					if nextTagStart==nil then break end
-					pos=nextTagStart
-				end
-
-				local boxSize=math.max(117, (lineFeed*1.43)*maxLines) --30% more vertical room so translated/Hero Challenge text does not shrink excessively
-				UI.setAttribute("EndReminder", "height", boxSize)
-				break
-			end
-		end
-		local height=0
-		if gStates.help==false then
-			UI.show("PlayerSeating")
-			UI.show("ObjectRotating")
-			UI.show("PlayAreaRules")
-			UI.show("GameReminder")
-			UI.show("EndReminder")
-			height=3
-			gStates.help=true
-		else
-			UI.hide("PlayerSeating")
-			UI.hide("ObjectRotating")
-			UI.hide("PlayAreaRules")
-			UI.hide("GameReminder")
-			UI.hide("EndReminder")
-			height=-2
-			gStates.help=false
-		end
-		local helpNotes={	"0b2a31", "a3d667", --Fame and Reputaion
-							playAreaGuideBackground[1], playAreaGuideText[1], --Player Area 1
-							playAreaGuideBackground[2], playAreaGuideText[2], --Player Area 2
-							playAreaGuideBackground[3], playAreaGuideText[3], --Player Area 3
-							playAreaGuideBackground[4], playAreaGuideText[4]} --Player Area 4
-		for a, b in pairs(helpNotes) do
-			if getObjectFromGUID(b)~=nil then
-				getObjectFromGUID(b).setPosition({getObjectFromGUID(b).getPosition()[1], height, getObjectFromGUID(b).getPosition()[3]})
-			end
+		if getObjectFromGUID("3d4319").getPosition()[2]<0 then
+			getObjectFromGUID("3d4319").setPosition({0.00, 0.0, -5.00})
+			getObjectFromGUID("519f96").setScale({1, 1, 1})
+			getObjectFromGUID("519f96").setPosition({0.00, -0.2, -5.00})
+			skillButtonActivate()
 		end
 	end
 end
+
 
 cameraControlViewing=cameraControlViewing or {}
 function cameraControl(player, mouseButton, id)
@@ -6234,253 +5566,33 @@ function refreshAltViewAngles()
 	for _, bagGUID in pairs(GUID.bag.discard) do applyAltViewAngle(getObjectFromGUID(bagGUID)) end
 end
 
---This will store all the information about the Mage Knights playing.
---It will be sorted by diferent criterea to work out turn orders
---It is populated during Player Setup, but needs to be initiated here
-turnOrder={}
-
---This will store all the information about the game being played
---All these variable are reminders of the saved defaults only.
---They are overwritten during "onLoad" by the previously saved variables.
---if a change is needed, a copy must be put after the onLoad, to overwrite the overwrite, then a save performed, then the copy deleted.
-gStates={}
-turnRecord={[0]={firstStarted=false,
-			playerCount=0,
-			positionMageKnight={[1]="nobody", [2]="nobody", [3]="nobody", [4]="nobody", [5]="nobody"},--Which mage knight is at which position
-			setupDummyMageChoice="nobody",--Remember the dummy Mage Knight while scenarios temporarily replace/disable position 5.
-			blitz=0,
-			removeLostLegionExpansion=false,
-			removeShadesOfTezlaMonsters=false,
-			removeApocalypseTerrain=false,
-			removeBonusCards=false,
-			itemShopMod=false,
-			useAlternatePugs=false,
-			riseOfTheForgemasters=0,
-			rampageAmbush=false,
-			removeTerrain=false,
-			rampagePursuit=false,--Game State Variales.
-			rampage=0,
-			bondsOfLoyalty={0,0,0,0,0},
-			coop=0,
-			cityCard={[cityModel.white]="a37b57", [cityModel.green]="8de450", [cityModel.blue]="79a723", [cityModel.red]="bd6ab1"},
-			cityLevels={},
-			coopAssaultDice={},
-			coopAssaultPhase=nil,
-			coopRewardQueue={},
-			coopRewardIndex=1,
-			coopAssaultParticipants={},
-			coopAssaultCityGUID=nil,
-			coopAssaultLocation=nil,
-			coopAssaultType=nil,
-			coopAssaultInitiator=nil,
-			coopAssaultConquered=nil,
-			coopAssaultScenarioEndPending=false,
-			exploreButtons={{}},
-			friendlyCity={},
-			handColors={["Blue"]=4, ["Green"]=1, ["Orange"]=3, ["White"]=2},
-			hiddenValleyKeep={[1]="123456", [2]="123456"},
-			gameScenario="Conquest",
-			autoFlip=true,
-			offerSize=3,
-			originalChoiceMageKnights={},
-			scoreRecorded=false,
-			playersRef=2,
-			scenarioRef=3,--Used to find data in the scenarioList Table
-			pursuingMonsters={},
-			ambushingMonsters={},
-			attackedMonsters={},
-			arrowDelete={},
-			monsterPerks={},
-			pursuitTwoOption=false,
-			skippedMove=false,
-			monsterPlayLocation={},
-			mineMonsterQty={},
-			rampagingMonsters={},
-			summonStates={},
-			monsterOffsetZ=0,--Monster Variables
-			tacticShown=false,
-			tacticRemove=false,
-			tacticTwoState="notUsed",
-			tacticFourState="",
-			tacticSixState="notClaimed",
-			powerStored={},
-			tactic4HandBonus=0,--Tactic Variables
-			turnNumber=1,
-			currentRound=1,
-			endRoundCalled=false,
-			finalTurnReason=nil,
-			finalTurnOwnerMage=nil,
-			finalTurnOwnerGetsTurn=nil,
-			finalTurnOwnerTurnStarted=false,
-			preEndTurn=false,
-			rounds=6,
-			realTurn=1,
-			skipTurn={},
-			endGameAchieved="false",--Turn and Round Variables
-			artifactRewards=1,
-			megapolis=0,
-			megapolisPlayed=0,
-			randomCities=false,
-			cityVolkareTile="835c91",
-			volkareCampAsCity=false,
-			citiesPlayed={},
-			cityDeployOrder={},
-			cityMonsterQty={},
-			volkareCombatLevel=1,
-			volkareRaceLevel=1,
-			volkareUnitCrystals={},
-			volkareRecruit=0,
-			cityRevealed={},
-			volkareModel="",
-			volkareWon=false,
-			volkareRaisedCity=false,
-			volkarePortalClosed=false,
-			volkarePortalWarningShown=false,
-			volkareMovementPaused=false,
-			volkareMovementStepPending=false,
-			volkareMovementSequence=0,
-			volkareAdvanceAfterMovement=false,
-			volkareArmyDefeated=0,
-			volkareLevel=0,
-			volkareLevelLocked=false,--Volkare Variables
-			elementalistLevel=1,
-			darkCrusaderLevel=1,
-			horsemen={},
-			horsemenDefeatedBy={},
-			apocalypseDragonTurn=0,
-			apocalypseDragonRoundPrepared=nil,
-			apocalypseDragonTurnActive=false,
-			apocalypseDragonResumeTurn=nil,
-			apocalypseDragonPendingChoice=nil,
-			apocalypseDragonPendingAttack=nil,
-			apocalypseDragonUIState=nil,
-			apocalypseDragonTurnAction=nil,
-			apocalypseDragonTurnReport=nil,
-			apocalypseDragonTurnReportPrefix=nil,
-			apocalypseDragonAttackedThisRound={},
-			apocalypseDragonBlackMana={},
-			apocalypseHereHorsemanOrder={},
-			apocalypseHereNextHorseman=1,
-			apocalypseHereTilesRevealed=0,
-			apocalypseHereRevealedTiles={},
-			apocalypseHereCityTilesSeen=0,
-			apocalypseHereHorsemenEnded=false,
-			apocalypseHereForcedRevealPending=false,
-			apocalypseHereForcedRevealCount=0,
-			apocalypseHereForcedRevealCheckedRound=nil,
-			apocalypseHereHorsemenTurnActive=false,
-			apocalypseHereHorsemenResumeTurn=nil,
-			apocalypseHereHorsemenUIState=nil,
-			apocalypseHereHorsemenTurnReport=nil,
-			apocalypseHereHorsemenQueue={},
-			apocalypseHereHorsemenQueueIndex=1,
-			apocalypseHereHorsemanPendingChoice=nil,
-			apocalypseHerePossessedPending={},
-			apocalypseHereDragonCityRevealed=false,
-			apocalypseDragonAssaultFortifiedInitiator=false,
-			apocalypseDragonLairAttacked=false,
-			apocalypseDragonDefeated=false,
-			apocalypseDragonDefeatedRound=nil,
-			againstHorsemenCoreTiles={},
-			againstHorsemenRitualStarted=false,
-			againstHorsemenAssaultOrigin=nil,
-			againstHorsemenSoloAssault=nil,
-			leaderReduction=0,
-			leaderOverkill=1,--Tezla Leaders
-			eliteUnitsUsed=false,
-			totalUnitCount=0,--Unit Variables
-			rowLengthGainPerLevel=1.82,
-			normalRowLength=15.7,
-			rowsOnBoard=10,
-			scoreIfLooped=120,--Fame board stats
-			soloCoop={},
-			doingTheRounds={},
-			coopCompSkillPaused={},
-			coopCompSkillLegalThisRound={},
-			coopCompSkillActivation={},
-			tomeSkillSwapPending={},
-			competitiveSkillReminders={},
-			mageSkills={},
-			puppetMasterPuppets={},
-			locationPlace={},--skill variables
-			dungeonLordsSecretSiteOrigins={},
-			dayRound=false,
-			darknessComing=false,
-			timeChanged=false,
-			startAtNight=false,--Day Night Variables
-			questMod=false,
-			apocalypseQuestCards=false,
-			apocalypseQuestScoringDisabled=false,
-			apocalypseQuestScoringChoiceLocked=false,
-			proxyPlayer=false,
-			proxyObjectiveGUID=nil,
-			proxyObjectiveShieldGUIDs={},
-			proxyShieldBagGUID=nil,
-			proxySkillBagPosition=nil,
-			proxyAvatarOffMap=false,
-			proxyParkingSeat=nil,
-			proxyState="Start",
-			weatherMod=false,
-			useCustomMageKnights=false,
-			heroChallenges=false,
-			heroChallengeReservedSkills={},
-			mageKnightLevels=false,
-			dummyAllSkills=false,--Options Variables
-			noticeShown=false,
-			help=true,
-			skillButtons=0,
-			gainList={},
-			shieldsDropped={},
-			levelingUp=false,--UI Variables
-			diceNeeded=0,
-			timeBending="notUsed",
-			bannercard={},--Mana Pool Variables
-			allPlayersFoughtAFactionLeaderCheck=false,
-			allPlayersFoughtBothFactionLeaderCheck=false,--Scoring variables
-			allLeaderCheck=false,
-			defeatedFaction=0,
-			defeatedCities={amount=0},
-			defeatedFactionTest={},
-			volkareCityDefeat=false,--Scoring variables
-			volkareLock=true,
-			randomTileOrientation=false,
-			playedCoreTiles=0,
-			playedGladeTiles=0,
-			masterOfChaos=0,
-			mirrorSource={},
-			monsterOffsetX=0,
-			monasteryCount=0,
-			monasteryBurned={},
-			monasteryBurnedBy={},
-			turnForfeited=true,
-			showboards={true, true, true, true, true},
-			startingHigherLevelCrystal={},
-			playedAllready={},
-			hexOverideSave={},--Terrain Variables
-			motivationSkill={	["3d8336"]={state="notClaimed", pos=0, bonus=" & Gain a Red Mana Token."}, --Arythea
-								["171244"]={state="notClaimed", pos=0, bonus=" & Gain a Green Mana Token."}, --Goldyx
-								["14399f"]={state="notClaimed", pos=0, bonus=" & Gain a White Mana Token."}, --Norowas
-								["ba4df5"]={state="notClaimed", pos=0, bonus=" & Gain a Blue Mana Token."}, --Tovak
-								["527b47"]={state="notClaimed", pos=0, bonus=" & Gain a Fame."}},--Wolfhawk
-			hexMap={},
-			moveCost={["plains"]=2, ["hills"]=3, ["forest"]=3, ["wasteland"]=4, ["desert"]=5, ["swamp"]=5, ["lake"]=999, ["mountain"]=999, ["city"]=2, ["explore"]=2, ["rampager"]=999},
-			resourceTracker={move=		{move=0},
-							siege=		{physical=0, fire=0, ice=0, iceFire=0},
-							ranged=		{physical=0, fire=0, ice=0, iceFire=0},
-							block=		{physical=0, fire=0, ice=0, iceFire=0},
-							attack=		{physical=0, fire=0, ice=0, iceFire=0},
-							influence=	{generated=0, reputation=0, cityShields=0},
-							healing=	{healing=0}}
-			}}
-
-
 -- End-turn/end-round entry points are also callback boundaries. Most cleanup is synchronous, so wrapping
 -- these catches errors from nested cleanup such as monster/Quest disposal that TTS UI callbacks would
 -- otherwise report only locally. Keep the public names unchanged for XML and internal callers.
 
-end)
-__bundle_register("PlayingGame.Artifacts", function(require, _LOADED, __bundle_register, __bundle_modules)
--- Artifact deck object UI moved out of the object and into the Global source structure.
+--Monster Replenish no longer carries its own Lua/XML. Rebuild its physical Restock button from
+--Global, and keep the old status ids as hidden targets for existing swap/status helpers.
+function monsterReplenishObjectOnLoad()
+	local obj=getObjectFromGUID("d7a165")
+	if obj==nil then return end
+	obj.UI.setXml([=[
+<Button id="d7a165replenishMonsterPiles" interactable="true"
+    onClick="global/returnPugs"
+    tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
+    width="900" height="200" color="#7F7F7F" textColor="#FFFFFF"
+    position="200 270 -100" rotation="0 0 0" scale="0.48 0.48"
+    shadow="rgb(0, 0, 0)" shadowDistance="0 -0">
+    <Image id="d7a165replenishMonsterPilesImage" image="Sliced Button/Button Object Active" type="Sliced"/>
+    <HorizontalLayout padding="30 30 30 30">
+        <Text id="d7a165replenishMonsterPilesText" fontSize="90" font="Fonts/MKCardText" fontStyle="Normal"
+            textColor="rgb(0, 0, 0)" offsetXY="0 1" alignment="MiddleCenter"
+            resizeTextForBestFit="true" resizeTextMaxSize="90">{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen</Text>
+    </HorizontalLayout>
+</Button>
+<Text id="d7a165swapMonsterImageText" active="false"></Text>
+<Text id="d7a165swapTableText" active="false"></Text>
+]=])
+end
 
 local ARTIFACT_GUID = "ac75c4"
 local ARTIFACT_UI = [=[
@@ -6507,12 +5619,13 @@ local function installArtifactUI(attempt)
         artifacts.UI.setXml(ARTIFACT_UI)
         return
     end
-    if attempt < 60 then safeWaitFrames("Artifacts",function() installArtifactUI(attempt + 1) end, 1) end
+    if attempt < 60 then safeWaitFrames("UI",function() installArtifactUI(attempt + 1) end, 1) end
 end
 
 function artifactOnLoad()
     installArtifactUI(1)
 end
+
 end)
 __bundle_register("PlayingGame.Rollers", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Centralised dice-roller logic for the Roll Crystal Die / Roll Dungeon Die bags.
@@ -6734,6 +5847,13 @@ function rollerOnLoad(savedState)
     destroySavedRollerDice(savedState)
     rollerState = {}
     installRollers(1)
+end
+
+function rollerSavedState(saved_data)
+	if type(saved_data)~="string" or saved_data=="" then return nil end
+	local ok,data=pcall(JSON.decode,saved_data)
+	if ok and type(data)=="table" then return data.rollerDice end
+	return nil
 end
 
 end)
@@ -7717,6 +6837,70 @@ end
 end)
 __bundle_register("PlayingGame.AI.Volkare", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Volkare automated turn and combat-response runtime.
+
+--Return the legal top-tile exploration position that contains a world hex.
+--This deliberately reuses the normal EXPLORE set, so Volkare obeys the same tile-placement rules as players.
+local function volkareLegalExploreSpot(pos)
+	if pos==nil or gStates.exploreButtons==nil then return end
+	local best=nil
+	local bestDist=999
+	for _, button in pairs(gStates.exploreButtons) do
+		local attributes=button.attributes
+		if attributes~=nil then
+			local x=tonumber(attributes.tilePosX)
+			local z=tonumber(attributes.tilePosZ)
+			if x~=nil and z~=nil then
+				local dist=math.sqrt(((pos[1]-x)^2)+((pos[3]-z)^2))
+				if dist<3.1 and dist<bestDist then best={x, 2.0, z} bestDist=dist end
+			end
+		end
+	end
+	return best
+end
+
+local function normalizeVolkareBearing(bearing)
+	bearing=bearing%360
+	if bearing<0 then bearing=bearing+360 end
+	return bearing
+end
+
+--Plan each first-phase Volkare step from the card's original direction.
+--If that step needs an illegal tile, try the closest neighbouring direction and test the movement again.
+local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, objectsInPlay)
+	local bearings={}
+	local plannedTile=nil
+	local simPos={volkarePos[1], volkarePos[2], volkarePos[3]}
+	local offsets={0, -60, 60, -120, 120, 180}
+	for step=1, moveCount do
+		local chosenBearing=nil
+		local chosenPos=nil
+		for _, offset in ipairs(offsets) do
+			local bearing=normalizeVolkareBearing(originalBearing+offset)
+			local testPos={simPos[1]-(2.39*math.cos(math.rad(bearing))), 3.5, simPos[3]-(2.39*math.sin(math.rad(bearing)))}
+			local explored=terrainHexAtPosition(testPos, objectsInPlay)~=nil
+			if explored==false and plannedTile~=nil then explored=math.sqrt(((testPos[1]-plannedTile[1])^2)+((testPos[3]-plannedTile[3])^2))<3.1 end
+			if explored==true then
+				chosenBearing=bearing
+				chosenPos=testPos
+				break
+			end
+			if plannedTile==nil then
+				local legalSpot=volkareLegalExploreSpot(testPos)
+				if legalSpot~=nil then
+					plannedTile=legalSpot
+					chosenBearing=bearing
+					chosenPos=testPos
+					break
+				end
+			end
+		end
+		if chosenBearing==nil then return bearings, plannedTile end
+		bearings[step]=chosenBearing
+		simPos=chosenPos
+	end
+	return bearings, plannedTile
+end
+
 
 --Volkare only. Keep his existing slower state/prompt sequence independent from the fast standard Dummy.
 function volkareTurn(player, mouseButton, id)
@@ -12073,6 +11257,71 @@ end)
 __bundle_register("PlayingGame.Scenario", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Scenario and variant runtime systems. Setup/menu construction remains in SetupGame.
 
+-- Fractured Lands terrain-orientation controls used by the generic exploration flow.
+local function fracturedLandsOrientationButtons(tile)
+	if tile==nil then return end
+	--Use the same counter-rotation plane as Avatar controls so this strip stays at the visual bottom of the tile.
+	--The three controls deliberately copy the Artifact deck's arrow / centre button / arrow layout.
+	tile.clearButtons()--clear any createButton controls before installing the XML strip
+	local tileRotation=tile.getRotation()[2] or 180
+	local rotationPlane=tostring(tileRotation-180)
+	local prefix=tile.guid
+	local buttonY=175--position offsets are not scaled; keep the strip close beneath the terrain tile
+	local buttonZ=-25
+	local buttonScale="0.18144 0.18144"--locked-in visual scale
+	local xml={{tag="Panel", attributes={id=prefix.."FracturedRotationPlane", height=800, width=900, position="0 0 -25", rotation="0 0 "..rotationPlane, color="rgba(0,0,0,0.0)"}, children={
+		{tag="Button", attributes={id=prefix.."ArtifactUp", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateLeft", height=150, width=150, color="rgba(0,0,0,0.0)", position="-54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactUpImage", image="Overkill Up"}}}},
+		{tag="Button", attributes={id=prefix.."FracturedDone", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsOrientationDone", height=150, width=400, color="rgba(0,0,0,0.0)", position="0 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."FracturedDoneImage", image="Sliced Button/Button Object Active", type="Sliced"}}, {tag="Text", attributes={font="Fonts/MKCardText", fontSize=90, color="black", fontStyle="Normal", alignment="MiddleCenter", text="Done"}}}},
+		{tag="Button", attributes={id=prefix.."ArtifactDown", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateRight", height=150, width=150, color="rgba(0,0,0,0.0)", position="54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactDownImage", image="Overkill Down"}}}}
+	}}}
+	tile.UI.setXmlTable(xml)
+end
+local function fracturedLandsOrientationPlayerLegal(playerColor)
+	return gStates.fracturedLandsOrientation~=nil and playerColor~=nil and legalPlayerCheck(playerColor, gStates.fracturedLandsOrientation.seatPos)==true
+end
+local function fracturedLandsRotate(player, direction)
+	local pending=gStates.fracturedLandsOrientation
+	local tile=pending~=nil and getObjectFromGUID(pending.guid) or nil
+	if pending==nil or tile==nil or pending.busy==true or player==nil or fracturedLandsOrientationPlayerLegal(player.color)~=true then return end
+	pending.busy=true
+	local rotation=tile.getRotation()
+	rotation[2]=(math.floor((rotation[2]/60)+0.5)*60+(60*direction))%360
+	local targetRotation=rotation[2]
+	local tileGUID=tile.guid
+	tile.setRotationSmooth(rotation, false, true)
+	--Follow the smooth turn by changing only the transparent rotation plane, not rebuilding the three buttons.
+	--This keeps the controls visually beneath the tile throughout the animation, the same principle used by Avatar buttons.
+	local followFrames=0
+	local function followRotation()
+		local current=gStates.fracturedLandsOrientation
+		local currentTile=current~=nil and getObjectFromGUID(current.guid) or nil
+		if current==nil or current.guid~=tileGUID or currentTile==nil then return end
+		followFrames=followFrames+1
+		local currentRotation=currentTile.getRotation()[2] or targetRotation
+		currentTile.UI.setAttribute(tileGUID.."FracturedRotationPlane", "rotation", "0 0 "..tostring(currentRotation-180))
+		local difference=math.abs(((currentRotation-targetRotation+180)%360)-180)
+		if difference<0.5 or followFrames>=60 then current.busy=false return end
+		safeWaitFrames("Scenario",followRotation, 1)
+	end
+	safeWaitFrames("Scenario",followRotation, 1)
+end
+function fracturedLandsRotateLeft(player, value, id) fracturedLandsRotate(player, -1) end
+function fracturedLandsRotateRight(player, value, id) fracturedLandsRotate(player, 1) end
+function fracturedLandsOrientationDone(player, value, id)
+	local pending=gStates.fracturedLandsOrientation
+	local tile=pending~=nil and getObjectFromGUID(pending.guid) or nil
+	if pending==nil or tile==nil or pending.busy==true or player==nil or fracturedLandsOrientationPlayerLegal(player.color)~=true then return end
+	--The orientation height is above the map scripting zone. Done only releases the tile;
+	--its real entry into the map zone performs every normal terrain setup step.
+	tile.unlock()
+end
+function startFracturedLandsOrientation(tile, position)
+	tile.setPosition({position[1], 2.20, position[3]})
+	tile.lock()
+	gStates.fracturedLandsOrientation={guid=tile.guid, seatPos=turnOrder[gStates.turnNumber].seatPos, position={position[1],0.97,position[3]}, busy=false}
+	fracturedLandsOrientationButtons(tile)
+end
+
 --Volkare's Camp-as-City rules are proximity based. Keep the real avatarLocation intact so any
 --printed site on one of the six surrounding hexes can still use its normal rules.
 function volkareCampAsCityConquered()
@@ -13011,6 +12260,96 @@ function horsemanPriorityDescription(ref)
 		"Priority C: "..data.priorityText.C.."\n\n"
 end
 
+--When a Horseman shares a map hex with a round enemy/site token, keep both readable and make
+--the Horseman physically topmost. Ruins are hexagonal and can safely remain centred underneath.
+--The paired round tokens use the same +/-0.1 X/Z split used elsewhere.
+function horsemanArrangeOccupiedTokenStack(name)
+	if gStates==nil or (gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Apocalypse is Here") then return false end
+	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	local data=horsemanData~=nil and horsemanData[name] or nil
+	local horseman=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
+	if state==nil or data==nil or horseman==nil or state.revealed~=true or state.defeated==true or state.retired==true then return false end
+
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hex=apocalypseQuestHexForPosition(hexes,horseman.getPosition(),mapObjects)
+	if hex==nil and state.terrainGUID~=nil and state.bearing~=nil then
+		for _,candidate in ipairs(hexes or {}) do
+			if candidate.terrainGUID==state.terrainGUID and tostring(candidate.bearing)==tostring(state.bearing) then hex=candidate break end
+		end
+	end
+	if hex==nil then return false end
+
+	local siteToken=nil
+	for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
+		local details=monsterPugs[enemy.guid]
+		--proxyMonstersOnHex already omits Ruins. Ignore Possessed overlays and other Horsemen:
+		--the physical conflict we are correcting is the round base enemy/site token.
+		if enemy.guid~=horseman.guid and
+			(horsemanTokenToName==nil or horsemanTokenToName[enemy.guid]==nil) and
+			(details==nil or details.pugType~="possessed") then
+			siteToken=enemy
+			break
+		end
+	end
+	if siteToken==nil then return false end
+
+	local horsePos=horseman.getPosition()
+	local sitePos=siteToken.getPosition()
+	local horseX,horseZ=hex.position[1]+0.1,hex.position[3]+0.1
+	local siteX,siteZ=hex.position[1]-0.1,hex.position[3]-0.1
+	if math.abs(horsePos[1]-horseX)<0.05 and math.abs(horsePos[3]-horseZ)<0.05 and
+		math.abs(sitePos[1]-siteX)<0.05 and math.abs(sitePos[3]-siteZ)<0.05 and horsePos[2]>sitePos[2]+0.08 then return false end
+
+	local horseLocked=horseman.getLock()==true
+	local siteLocked=siteToken.getLock()==true
+	local horseGUID=horseman.guid
+	local siteGUID=siteToken.guid
+	horseman.unlock()
+	siteToken.unlock()
+	--Park the Horseman high while the underlying round token establishes the bottom of the pair.
+	horseman.setPosition({horseX,3.0,horseZ})
+	siteToken.setPosition({siteX,2.0,siteZ})
+	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[siteGUID]={siteX,2.0,siteZ} end
+
+	local placed=false
+	local function placeHorseman()
+		if placed==true then return end
+		placed=true
+		local currentSite=getObjectFromGUID(siteGUID)
+		local currentHorseman=getObjectFromGUID(horseGUID)
+		if currentSite~=nil and siteLocked==true then currentSite.lock() end
+		if currentHorseman~=nil then
+			currentHorseman.unlock()
+			local baseY=currentSite~=nil and currentSite.getPosition()[2] or 1.30
+			currentHorseman.setPosition({horseX,baseY+0.35,horseZ})
+			if horseLocked==true then
+				safeWaitFrames("Scenario",function()
+					safeWaitCondition("Scenario",function()
+						local settled=getObjectFromGUID(horseGUID)
+						if settled~=nil then settled.lock() end
+					end,function()
+						local settling=getObjectFromGUID(horseGUID)
+						return settling==nil or settling.resting==true
+					end,3)
+				end,1)
+			end
+		end
+	end
+
+	safeWaitFrames("Scenario",function()
+		safeWaitCondition("Scenario",placeHorseman,function()
+			local currentSite=getObjectFromGUID(siteGUID)
+			return currentSite==nil or currentSite.resting==true
+		end,3,placeHorseman)
+	end,1)
+	return true
+end
+
+function horsemanArrangeOccupiedTokenStacks()
+	if gStates==nil then return end
+	for name,_ in pairs(gStates.horsemen or {}) do horsemanArrangeOccupiedTokenStack(name) end
+end
+
 function setHorsemanLevel(ref, level, hideIdentity)
 	local data,name=horsemanDataFor(ref)
 	level=math.max(1,math.min(6,tonumber(level) or 1))
@@ -13324,7 +12663,10 @@ end
 
 function againstHorsemenRefreshReveals()
 	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return end
-	for name,_ in pairs(gStates.horsemen or {}) do againstHorsemenRefreshHorseman(name) end
+	for name,_ in pairs(gStates.horsemen or {}) do
+		againstHorsemenRefreshHorseman(name)
+		horsemanArrangeOccupiedTokenStack(name)
+	end
 end
 
 --Before the ritual, a Horseman is a same-space action rather than a Rampaging-style adjacent attack.
@@ -13504,7 +12846,10 @@ end
 function againstHorsemenFinalizeMoveWave()
 	local pending=gStates~=nil and gStates.againstHorsemenMovePending or nil
 	if pending==nil or pending.movingTargets==nil then return end
-	for name,_ in pairs(pending.movingTargets) do againstHorsemenRefreshHorseman(name) end
+	for name,_ in pairs(pending.movingTargets) do
+		againstHorsemenRefreshHorseman(name)
+		horsemanArrangeOccupiedTokenStack(name)
+	end
 	pending.movingTargets=nil
 	pending.stepsRemaining=math.max(0,(pending.stepsRemaining or 1)-1)
 	safeWaitFrames("Scenario",function() againstHorsemenContinueEndRoundMovement() end,4)
@@ -13797,6 +13142,9 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	token.unlock()
 	token.setRotation({0,180,0})
 	token.setPositionSmooth(target,false)
+	--Terrain population can finish after the Horseman itself arrives, so check once during and once after that window.
+	safeWaitFrames("Scenario",function() horsemanArrangeOccupiedTokenStack(name) end,12)
+	safeWaitFrames("Scenario",function() horsemanArrangeOccupiedTokenStack(name) end,30)
 	gStates.apocalypseHereNextHorseman=index+1
 	local card=getObjectFromGUID(data.cardGUID)
 	if card~=nil then
@@ -14059,8 +13407,8 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 	end
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
 	if bag~=nil and bag.getQuantity()~=0 then
-		local token=bag.takeObject({position={targetHex.position[1],1.12,targetHex.position[3]},rotation={0,180,0},smooth=false})
-		if token~=nil then destroySite(token,targetHex.terrain,targetHex.bearing,targetHex.position) token.lock() end
+		local token=bag.takeObject({position={targetHex.position[1],2,targetHex.position[3]},rotation={0,180,0},smooth=true})
+		if token~=nil then destroySite(token,targetHex.terrain,targetHex.bearing) end
 	end
 	local oldHead=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[name] or 0) or 0
 	if oldHead>0 and oldHead<12 then apocalypseDragonSetHeadLevel(name,oldHead+1) end
@@ -14101,6 +13449,7 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 			local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
 			gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
 		end
+		horsemanArrangeOccupiedTokenStack(name)
 		apocalypseIsHereContinueHorsemenTurn()
 	end,function() local current=getObjectFromGUID(data.tokenGUID) return current==nil or current.isSmoothMoving()==false end,5,function() apocalypseIsHereContinueHorsemenTurn() end)
 	return true
@@ -14306,108 +13655,111 @@ function druidNightsRitualAction(playerDud, mouseButton, id)
 end
 
 --Lock a Destroyed Site token only after any scripted smooth move has finished and physics has had time to settle it.
-function lockDestroyedSiteWhenSettled(token)
+--An optional callback runs after the marker is locked so objects lifted off the hex can be released back above it.
+function lockDestroyedSiteWhenSettled(token,afterLock)
 	if token==nil then return end
 	local tokenGUID=token.guid
+	local finished=false
+	local function finish()
+		if finished==true then return end
+		finished=true
+		local obj=getObjectFromGUID(tokenGUID)
+		if obj~=nil then obj.lock() end
+		if afterLock~=nil then afterLock(obj) end
+	end
 	safeWaitCondition("Scenario",function()
 		safeWaitFrames("Scenario",function()
-			safeWaitCondition("Scenario",function()
+			safeWaitCondition("Scenario",finish,function()
 				local obj=getObjectFromGUID(tokenGUID)
-				if obj~=nil then obj.lock() end
-			end, function()
-				local obj=getObjectFromGUID(tokenGUID)
-				return obj==nil or obj.resting
+				return obj==nil or obj.resting==true
 			end)
-		end, 2)
-	end, function()
+		end,1)
+	end,function()
 		local obj=getObjectFromGUID(tokenGUID)
 		return obj==nil or obj.isSmoothMoving()==false
 	end)
 end
 
---Destroyed Site tokens visually replace the site but do not erase conquest Shields.
---Lift Shields out of the way while the Destroyed marker settles, then place them on top.
-function destroyedSiteStackShields(token,terrain,bearing)
+--A Destroyed Site marker is always the bottom object on its hex. Lift every existing physical object
+--off that hex, settle and lock the marker first, then drop the lifted objects back at their original X/Z.
+--This path is shared by scripted draws and human-dropped Destroyed Site tokens.
+function arrangeDestroyedSiteHex(token,terrain,bearing)
 	if token==nil or terrain==nil or bearing==nil then return false end
 	local map=getObjectFromGUID(mapArea)
-	if map==nil then return false end
 	local center=angleToXY(terrain,bearing)
-	if center==nil then return false end
-	local shields={}
+	if map==nil or center==nil then return false end
+
+	local lifted={}
 	for _,obj in pairs(map.getObjects()) do
-		if obj.getName()=="Shield" and (volkarePursuitShieldRegistered==nil or volkarePursuitShieldRegistered(obj)~=true) then
+		if obj.guid~=token.guid and obj.guid~=terrain.guid and terrainTiles[obj.guid]==nil then
 			local pos=obj.getPosition()
 			if ((pos[1]-center[1])^2)+((pos[3]-center[2])^2)<1.0 then
-				shields[#shields+1]={guid=obj.guid,locked=obj.getLock()==true,x=pos[1],z=pos[3]}
+				lifted[#lifted+1]={guid=obj.guid,locked=obj.getLock()==true,x=pos[1],y=pos[2],z=pos[3]}
 			end
 		end
 	end
-	if #shields==0 then return false end
+	table.sort(lifted,function(a,b)
+		if math.abs(a.y-b.y)>0.01 then return a.y<b.y end
+		return a.guid<b.guid
+	end)
 
-	for index,details in ipairs(shields) do
-		local shield=getObjectFromGUID(details.guid)
-		if shield~=nil then
-			shield.unlock()
-			shield.setPosition({details.x,2.7+((index-1)*0.12),details.z})
+	--Clear the whole hex before moving the marker into its exact centre.
+	for index,details in ipairs(lifted) do
+		local obj=getObjectFromGUID(details.guid)
+		if obj~=nil then
+			obj.unlock()
+			obj.setPosition({details.x,3.2+((index-1)*0.55),details.z})
 		end
 	end
 
+	token.unlock()
+	token.setRotation({0,180,0})
+	token.setPositionSmooth({center[1],2,center[2]},false)
+
 	local tokenGUID=token.guid
-	local function stack()
-		local marker=getObjectFromGUID(tokenGUID)
-		if marker==nil then return end
-		local markerPos=marker.getPosition()
-		for index,details in ipairs(shields) do
-			local shield=getObjectFromGUID(details.guid)
-			if shield~=nil then
-				shield.unlock()
-				--Place slightly high, then let physics settle the Shield onto the Destroyed marker.
-				--Do not test resting in the same frame: TTS can preserve the old resting=true until physics starts.
-				shield.setPosition({details.x,markerPos[2]+0.17+((index-1)*0.12),details.z})
+	lockDestroyedSiteWhenSettled(token,function(marker)
+		local markerY=marker~=nil and marker.getPosition()[2] or 1.13
+		for index,details in ipairs(lifted) do
+			local obj=getObjectFromGUID(details.guid)
+			if obj~=nil then
+				obj.unlock()
+				--Return above the settled marker and let gravity rebuild the physical stack naturally.
+				obj.setPosition({details.x,markerY+0.55+((index-1)*0.35),details.z})
 				if details.locked==true then
-					local shieldGUID=details.guid
+					local objectGUID=details.guid
 					safeWaitFrames("Scenario",function()
 						safeWaitCondition("Scenario",function()
-							local settled=getObjectFromGUID(shieldGUID)
+							local settled=getObjectFromGUID(objectGUID)
 							if settled~=nil then settled.lock() end
 						end,function()
-							local settling=getObjectFromGUID(shieldGUID)
+							local settling=getObjectFromGUID(objectGUID)
 							return settling==nil or settling.resting==true
 						end,3,function()
-							local settled=getObjectFromGUID(shieldGUID)
+							local settled=getObjectFromGUID(objectGUID)
 							if settled~=nil then settled.lock() end
 						end)
 					end,1)
 				end
 			end
 		end
-	end
-	safeWaitCondition("Scenario",stack,function()
-		local marker=getObjectFromGUID(tokenGUID)
-		return marker==nil or marker.getLock()==true or (marker.isSmoothMoving()==false and marker.resting==true)
-	end,5,stack)
+	end)
 	return true
 end
 
---Apply Destroyed Site state from one authoritative path. positionToken=false is used when takeObject is already moving the token from its bag.
-function destroySite(token, terrain, bearing, positionToken)
+--Apply Destroyed Site state from one authoritative path. The helper owns the physical placement,
+--so callers only need to obtain a Destroyed Site token and identify the target hex.
+function destroySite(token,terrain,bearing)
 	if token==nil or terrain==nil or bearing==nil or terrainTiles[terrain.guid]==nil then return false end
 	local feature=terrainTiles[terrain.guid].hexFeature[bearing]
 	if feature==nil or feature=="" or feature=="portal" or feature=="destroyed" or feature:sub(1,7)=="raised " then return false end
-	if positionToken~=false then
-		local hexPos=angleToXY(terrain, bearing)
-		token.unlock()
-		token.setPosition({hexPos[1], 2, hexPos[2]})
-		lockDestroyedSiteWhenSettled(token)
-	end
-	destroyedSiteStackShields(token,terrain,bearing)
+	arrangeDestroyedSiteHex(token,terrain,bearing)
 	if gStates.destroyedSites==nil then gStates.destroyedSites={} end
 	gStates.destroyedSites[token.guid]={hexFeature=feature, terrainTile=terrain.guid, hexAngle=bearing}
 	terrainTiles[terrain.guid].hexFeature[bearing]="destroyed"
 	if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 	gStates.hexOverideSave[terrain.guid][bearing]="destroyed"
 	broadcastToAll(feature.." Destroyed")
-	safeWaitFrames("Scenario",function() apocalypseQuestRefreshOfferButtons() end, 2)
+	safeWaitFrames("Scenario",function() apocalypseQuestRefreshOfferButtons() end,2)
 	return true
 end
 
@@ -14461,12 +13813,8 @@ function destroyRestoreLocation(playerDud, mouseButton, id, type, obj)
 						local terrainGUID=obj.guid
 						local hexAngle=searchOrder[i]
 						local drawnToken=safeTakeObject("Scenario",getObjectFromGUID(GUID.bag.destroyedSite),{
-							position={hexPos[1], 2, hexPos[2]}, smooth=true,
-							callback_function=function(spawnedToken)
-								spawnedToken.unlock()
-								lockDestroyedSiteWhenSettled(spawnedToken)
-							end})
-						found=destroySite(drawnToken, getObjectFromGUID(terrainGUID), hexAngle, false)
+							position={hexPos[1],2,hexPos[2]},smooth=true})
+						found=destroySite(drawnToken,getObjectFromGUID(terrainGUID),hexAngle)
 						if found==true then break end
 					end
 					if gStates.againstTheApocSitePosition==7 and (hexFeature==featureSearch[7][1] or hexFeature==featureSearch[7][2]) then
@@ -16102,8 +15450,7 @@ function againstDragonResolveDestroyOption(option)
 	local token=bag.takeObject({position={hex.position[1],2,hex.position[3]},rotation={0,180,0},smooth=true})
 	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(hex.feature) or tostring(hex.feature)
 	if token~=nil then
-		destroySite(token,hex.terrain,hex.bearing,false)
-		lockDestroyedSiteWhenSettled(token)
+		destroySite(token,hex.terrain,hex.bearing)
 		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon destroyed the "..tostring(label).."."),"Processing")
 	else
 		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon could not draw a Destroyed Site token for the "..tostring(label).."."),"Processing")
@@ -16327,16 +15674,10 @@ function againstDragonResolveAirborneProtection(pending)
 		return false
 	end
 	local hexPos=angleToXY(terrain,location.bearing)
-	local token=bag.takeObject({position={hexPos[1],1.13,hexPos[2]},rotation={0,180,0},smooth=false})
+	local token=bag.takeObject({position={hexPos[1],2,hexPos[2]},rotation={0,180,0},smooth=true})
 	if token==nil then return false end
 	pending.destroyedSiteTokenGUID=token.guid
-	--1.13 is the settled Destroyed Site height on the map. Put it there and lock immediately
-	--while the avatar is raised so physics cannot leave it floating or collide with the avatar.
-	token.unlock()
-	token.setPosition({hexPos[1],1.13,hexPos[2]})
-	token.setRotation({0,180,0})
-	token.lock()
-	destroySite(token,terrain,location.bearing,false)
+	destroySite(token,terrain,location.bearing)
 	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(location.feature) or tostring(location.feature)
 	broadcastToAll("The Apocalypse Dragon destroys the "..tostring(label).." after its protection was used.",{1,0.75,0.2})
 	return true
@@ -16737,6 +16078,71 @@ end)
 __bundle_register("PlayingGame.Turn", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Turn, round, tactic and final-turn runtime.
 
+local dropoutMatImage="https://steamusercontent-a.akamaihd.net/ugc/9970617178500111609/C9D8D7517B7FAF114F10D8195AC38269F0504E37/"
+
+--Player seat colors only change during setup/load or when a player uses the color controls.
+--Keep physical tinting out of mainUIUpdate so ordinary card play never recolors unchanged objects.
+local function setDropoutMatImage(playerData, droppingOut)
+	if playerData==nil or playerData.playerBoardGUID==nil then return end
+	local board=getObjectFromGUID(playerData.playerBoardGUID)
+	if board==nil then return end
+	if droppingOut==true then
+		local custom=board.getCustomObject()
+		if playerData.preDropoutMatImage==nil and custom~=nil and custom.image~=nil then playerData.preDropoutMatImage=custom.image end
+		board.setCustomObject({image=dropoutMatImage})
+	elseif playerData.preDropoutMatImage~=nil then
+		board.setCustomObject({image=playerData.preDropoutMatImage})
+		playerData.preDropoutMatImage=nil
+	else
+		return
+	end
+	board.reload()
+end
+
+function dropOutPlayer(player, mouseButton, id)
+	if mouseButton~="-1" then return end
+	local barGUID=id:sub(1,6)
+	local playerIndex=nil
+	local playerData=nil
+	for position, testGUID in pairs(colorBand) do
+		if testGUID==barGUID then
+			for a, details in pairs(turnOrder) do
+				if details.seatPos==position and details.mage~=gStates.positionMageKnight[5] then playerIndex=a playerData=details break end
+			end
+			break
+		end
+	end
+	if playerData==nil or legalPlayerCheck(player.color, playerData.seatPos, "NoDummyException")~=true then return end
+	if dropoutCoopLocked()==true then
+		broadcastToAll("Players cannot drop out while a cooperative assault or defense is being resolved.", positionToColor(playerIndex))
+		applyColorBarButtons()
+		return
+	end
+	if gStates.firstStarted==true and playerIndex==gStates.turnNumber then
+		broadcastToAll("You cannot drop out during your own turn.", positionToColor(playerIndex))
+		applyColorBarButtons()
+		return
+	end
+	if playerData.dropoutState=="dropped" then return end
+	if playerData.dropoutState=="pending" then
+		playerData.dropoutState=nil
+		setDropoutMatImage(playerData, false)
+		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} cancelled dropping out.{ru} отменил выход из игры.{zh-tw} 取消了退出遊戲。{zh-cn} 取消了退出游戏。{ko} 게임 나가기를 취소했습니다.{es} canceló su abandono de la partida.{fr} a annulé son départ de la partie.{pt-br} cancelou a saída do jogo.{de} hat das Verlassen des Spiels abgebrochen."}), positionToColor(playerIndex))
+	else
+		--Never allow dropouts to reduce the game below two active Mage Knights.
+		if activeMageKnightCount()<3 then
+			broadcastToAll("At least two Mage Knights must remain in the game.", positionToColor(playerIndex))
+			applyColorBarButtons()
+			return
+		end
+		playerData.dropoutState="pending"
+		setDropoutMatImage(playerData, true)
+		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} will drop out when turn order next advances. Press Undo Drop Out before then to cancel.{ru} выйдет из игры при следующем переходе хода. До этого можно отменить выход.{zh-tw} 將在下一次推進回合順序時退出遊戲；在此之前可按撤銷退出。{zh-cn} 将在下一次推进回合顺序时退出游戏；在此之前可按撤销退出。{ko} 다음 차례 진행 시 게임에서 나갑니다. 그 전까지 나가기 취소를 누를 수 있습니다.{es} abandonará la partida cuando avance el orden de turno. Puede deshacerlo antes de entonces.{fr} quittera la partie au prochain changement de tour. Vous pouvez annuler avant cela.{pt-br} sairá do jogo quando a ordem de turno avançar. Você pode desfazer antes disso.{de} verlässt das Spiel beim nächsten Zugwechsel. Bis dahin kann der Austritt rückgängig gemacht werden."}), positionToColor(playerIndex))
+	end
+	applyColorBarButtons()
+end
+
+
 --Tactic Showing and Hiding
 function tacticToggle()
 	--rearanges the turn order tokens
@@ -16810,8 +16216,6 @@ function tacticToggle()
 	cameraControl(nil, "-1", "tacticChanged")
 end
 
---Magical Glade reward: during the Rewards Claimed stage, offer one scripted Wound heal from the discard pile.
-gladeDiscardHealButtonGUID=nil
 
 function startOfTurn()
 	if apocalypseQuestsUsed()==true then gStates.apocalypseQuestScoringChoiceLocked=true end
@@ -17974,8 +17378,6 @@ function removeTactic(player, mouseButton, id)
 	end
 end
 
---adjust hand Size
-adjustHandSizePause=nil
 
 --Day Tactic 2 is fully Global-owned. The physical tactic card only hosts this XML-style button.
 --Use the tactic card's actual board position to identify its owner. During tactic selection,
@@ -23037,6 +22439,8 @@ __bundle_register("PlayingGame", function(require, _LOADED, __bundle_register, _
 ------------------
 -- During the Game
 ------------------
+local gladeDiscardHealButtonGUID=nil
+
 function removeGladeDiscardHealButton(obj)
 	if obj==nil then return end
 	local remove={}
@@ -23619,6 +23023,8 @@ function createClaimButton(objGUID, source)
 				  children={{tag="Text", attributes={id=objGUID..source.."Text", font="Fonts/MKCardText", fontSize=fontSize, fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize=fontSize, text=text}}}}}}
 end
 
+local adjustHandSizePause=nil
+
 function fakeDropAvatar()
 	if coopAssaultVirtualPlayer(gStates.turnNumber)==true then
 		if gStates.preEndTurn~=true then mainUIUpdate("Co-op virtual city location") end
@@ -23761,69 +23167,6 @@ function avatarLocationRelevantObjects(locatedTerrain, pos, buckets)
 		end
 	end
 	return result
-end
-
---Return the legal top-tile exploration position that contains a world hex.
---This deliberately reuses the normal EXPLORE set, so Volkare obeys the same tile-placement rules as players.
-function volkareLegalExploreSpot(pos)
-	if pos==nil or gStates.exploreButtons==nil then return end
-	local best=nil
-	local bestDist=999
-	for _, button in pairs(gStates.exploreButtons) do
-		local attributes=button.attributes
-		if attributes~=nil then
-			local x=tonumber(attributes.tilePosX)
-			local z=tonumber(attributes.tilePosZ)
-			if x~=nil and z~=nil then
-				local dist=math.sqrt(((pos[1]-x)^2)+((pos[3]-z)^2))
-				if dist<3.1 and dist<bestDist then best={x, 2.0, z} bestDist=dist end
-			end
-		end
-	end
-	return best
-end
-
-function normalizeVolkareBearing(bearing)
-	bearing=bearing%360
-	if bearing<0 then bearing=bearing+360 end
-	return bearing
-end
-
---Plan each first-phase Volkare step from the card's original direction.
---If that step needs an illegal tile, try the closest neighbouring direction and test the movement again.
-function planVolkareExploreMove(volkarePos, originalBearing, moveCount, objectsInPlay)
-	local bearings={}
-	local plannedTile=nil
-	local simPos={volkarePos[1], volkarePos[2], volkarePos[3]}
-	local offsets={0, -60, 60, -120, 120, 180}
-	for step=1, moveCount do
-		local chosenBearing=nil
-		local chosenPos=nil
-		for _, offset in ipairs(offsets) do
-			local bearing=normalizeVolkareBearing(originalBearing+offset)
-			local testPos={simPos[1]-(2.39*math.cos(math.rad(bearing))), 3.5, simPos[3]-(2.39*math.sin(math.rad(bearing)))}
-			local explored=terrainHexAtPosition(testPos, objectsInPlay)~=nil
-			if explored==false and plannedTile~=nil then explored=math.sqrt(((testPos[1]-plannedTile[1])^2)+((testPos[3]-plannedTile[3])^2))<3.1 end
-			if explored==true then
-				chosenBearing=bearing
-				chosenPos=testPos
-				break
-			end
-			if plannedTile==nil then
-				local legalSpot=volkareLegalExploreSpot(testPos)
-				if legalSpot~=nil then
-					plannedTile=legalSpot
-					chosenBearing=bearing
-					chosenPos=testPos
-					break
-				end
-			end
-		end
-		if chosenBearing==nil then return bearings, plannedTile end
-		bearings[step]=chosenBearing
-		simPos=chosenPos
-	end
-	return bearings, plannedTile
 end
 
 --Refresh only the stored location of a manually moved off-turn Mage Knight.
@@ -24265,7 +23608,7 @@ function unitOffer()
 		end
 		local unitDrawList=getUnitDrawList(drawDecks)
 		for a, draw in ipairs(unitDrawList) do
-			draw.safeTakeObject("PlayingGame",deck,{
+			safeTakeObject("PlayingGame",draw.deck,{
 				guid=draw.guid,
 				position=unitPlace[a],
 				rotation={0,180,0},
@@ -24562,68 +23905,6 @@ function offerAdjust(player, mouseButton, id)
 																		{tag="Text", attributes={fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text="<"}}}}})
 		end, 60)
 	end
-end
-
---Player seat colors only change during setup/load or when a player uses the color controls.
---Keep physical tinting out of mainUIUpdate so ordinary card play never recolors unchanged objects.
-function setDropoutMatImage(playerData, droppingOut)
-	if playerData==nil or playerData.playerBoardGUID==nil then return end
-	local board=getObjectFromGUID(playerData.playerBoardGUID)
-	if board==nil then return end
-	if droppingOut==true then
-		local custom=board.getCustomObject()
-		if playerData.preDropoutMatImage==nil and custom~=nil and custom.image~=nil then playerData.preDropoutMatImage=custom.image end
-		board.setCustomObject({image=dropoutMatImage})
-	elseif playerData.preDropoutMatImage~=nil then
-		board.setCustomObject({image=playerData.preDropoutMatImage})
-		playerData.preDropoutMatImage=nil
-	else
-		return
-	end
-	board.reload()
-end
-
-function dropOutPlayer(player, mouseButton, id)
-	if mouseButton~="-1" then return end
-	local barGUID=id:sub(1,6)
-	local playerIndex=nil
-	local playerData=nil
-	for position, testGUID in pairs(colorBand) do
-		if testGUID==barGUID then
-			for a, details in pairs(turnOrder) do
-				if details.seatPos==position and details.mage~=gStates.positionMageKnight[5] then playerIndex=a playerData=details break end
-			end
-			break
-		end
-	end
-	if playerData==nil or legalPlayerCheck(player.color, playerData.seatPos, "NoDummyException")~=true then return end
-	if dropoutCoopLocked()==true then
-		broadcastToAll("Players cannot drop out while a cooperative assault or defense is being resolved.", positionToColor(playerIndex))
-		applyColorBarButtons()
-		return
-	end
-	if gStates.firstStarted==true and playerIndex==gStates.turnNumber then
-		broadcastToAll("You cannot drop out during your own turn.", positionToColor(playerIndex))
-		applyColorBarButtons()
-		return
-	end
-	if playerData.dropoutState=="dropped" then return end
-	if playerData.dropoutState=="pending" then
-		playerData.dropoutState=nil
-		setDropoutMatImage(playerData, false)
-		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} cancelled dropping out.{ru} отменил выход из игры.{zh-tw} 取消了退出遊戲。{zh-cn} 取消了退出游戏。{ko} 게임 나가기를 취소했습니다.{es} canceló su abandono de la partida.{fr} a annulé son départ de la partie.{pt-br} cancelou a saída do jogo.{de} hat das Verlassen des Spiels abgebrochen."}), positionToColor(playerIndex))
-	else
-		--Never allow dropouts to reduce the game below two active Mage Knights.
-		if activeMageKnightCount()<3 then
-			broadcastToAll("At least two Mage Knights must remain in the game.", positionToColor(playerIndex))
-			applyColorBarButtons()
-			return
-		end
-		playerData.dropoutState="pending"
-		setDropoutMatImage(playerData, true)
-		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} will drop out when turn order next advances. Press Undo Drop Out before then to cancel.{ru} выйдет из игры при следующем переходе хода. До этого можно отменить выход.{zh-tw} 將在下一次推進回合順序時退出遊戲；在此之前可按撤銷退出。{zh-cn} 将在下一次推进回合顺序时退出游戏；在此之前可按撤销退出。{ko} 다음 차례 진행 시 게임에서 나갑니다. 그 전까지 나가기 취소를 누를 수 있습니다.{es} abandonará la partida cuando avance el orden de turno. Puede deshacerlo antes de entonces.{fr} quittera la partie au prochain changement de tour. Vous pouvez annuler avant cela.{pt-br} sairá do jogo quando a ordem de turno avançar. Você pode desfazer antes disso.{de} verlässt das Spiel beim nächsten Zugwechsel. Bis dahin kann der Austritt rückgängig gemacht werden."}), positionToColor(playerIndex))
-	end
-	applyColorBarButtons()
 end
 
 --Change a hand's color and refresh.
@@ -25256,69 +24537,6 @@ function DealWound(paramaters)
 end
 
 explorePause=false
-local function fracturedLandsOrientationButtons(tile)
-	if tile==nil then return end
-	--Use the same counter-rotation plane as Avatar controls so this strip stays at the visual bottom of the tile.
-	--The three controls deliberately copy the Artifact deck's arrow / centre button / arrow layout.
-	tile.clearButtons()--remove any legacy createButton controls from an in-progress older save
-	local tileRotation=tile.getRotation()[2] or 180
-	local rotationPlane=tostring(tileRotation-180)
-	local prefix=tile.guid
-	local buttonY=175--position offsets are not scaled; keep the strip close beneath the terrain tile
-	local buttonZ=-25
-	local buttonScale="0.18144 0.18144"--locked-in visual scale
-	local xml={{tag="Panel", attributes={id=prefix.."FracturedRotationPlane", height=800, width=900, position="0 0 -25", rotation="0 0 "..rotationPlane, color="rgba(0,0,0,0.0)"}, children={
-		{tag="Button", attributes={id=prefix.."ArtifactUp", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateLeft", height=150, width=150, color="rgba(0,0,0,0.0)", position="-54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactUpImage", image="Overkill Up"}}}},
-		{tag="Button", attributes={id=prefix.."FracturedDone", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsOrientationDone", height=150, width=400, color="rgba(0,0,0,0.0)", position="0 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."FracturedDoneImage", image="Sliced Button/Button Object Active", type="Sliced"}}, {tag="Text", attributes={font="Fonts/MKCardText", fontSize=90, color="black", fontStyle="Normal", alignment="MiddleCenter", text="Done"}}}},
-		{tag="Button", attributes={id=prefix.."ArtifactDown", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateRight", height=150, width=150, color="rgba(0,0,0,0.0)", position="54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactDownImage", image="Overkill Down"}}}}
-	}}}
-	tile.UI.setXmlTable(xml)
-end
-local function fracturedLandsOrientationPlayerLegal(playerColor)
-	return gStates.fracturedLandsOrientation~=nil and playerColor~=nil and legalPlayerCheck(playerColor, gStates.fracturedLandsOrientation.seatPos)==true
-end
-local function fracturedLandsRotate(player, direction)
-	local pending=gStates.fracturedLandsOrientation
-	local tile=pending~=nil and getObjectFromGUID(pending.guid) or nil
-	if pending==nil or tile==nil or pending.busy==true or player==nil or fracturedLandsOrientationPlayerLegal(player.color)~=true then return end
-	pending.busy=true
-	local rotation=tile.getRotation()
-	rotation[2]=(math.floor((rotation[2]/60)+0.5)*60+(60*direction))%360
-	local targetRotation=rotation[2]
-	local tileGUID=tile.guid
-	tile.setRotationSmooth(rotation, false, true)
-	--Follow the smooth turn by changing only the transparent rotation plane, not rebuilding the three buttons.
-	--This keeps the controls visually beneath the tile throughout the animation, the same principle used by Avatar buttons.
-	local followFrames=0
-	local function followRotation()
-		local current=gStates.fracturedLandsOrientation
-		local currentTile=current~=nil and getObjectFromGUID(current.guid) or nil
-		if current==nil or current.guid~=tileGUID or currentTile==nil then return end
-		followFrames=followFrames+1
-		local currentRotation=currentTile.getRotation()[2] or targetRotation
-		currentTile.UI.setAttribute(tileGUID.."FracturedRotationPlane", "rotation", "0 0 "..tostring(currentRotation-180))
-		local difference=math.abs(((currentRotation-targetRotation+180)%360)-180)
-		if difference<0.5 or followFrames>=60 then current.busy=false return end
-		safeWaitFrames("PlayingGame",followRotation, 1)
-	end
-	safeWaitFrames("PlayingGame",followRotation, 1)
-end
-function fracturedLandsRotateLeft(player, value, id) fracturedLandsRotate(player, -1) end
-function fracturedLandsRotateRight(player, value, id) fracturedLandsRotate(player, 1) end
-function fracturedLandsOrientationDone(player, value, id)
-	local pending=gStates.fracturedLandsOrientation
-	local tile=pending~=nil and getObjectFromGUID(pending.guid) or nil
-	if pending==nil or tile==nil or pending.busy==true or player==nil or fracturedLandsOrientationPlayerLegal(player.color)~=true then return end
-	--The orientation height is above the map scripting zone. Done only releases the tile;
-	--its real entry into the map zone performs every normal terrain setup step.
-	tile.unlock()
-end
-local function startFracturedLandsOrientation(tile, position)
-	tile.setPosition({position[1], 2.20, position[3]})
-	tile.lock()
-	gStates.fracturedLandsOrientation={guid=tile.guid, seatPos=turnOrder[gStates.turnNumber].seatPos, position={position[1],0.97,position[3]}, busy=false}
-	fracturedLandsOrientationButtons(tile)
-end
 function exploreMap(player, mouseButton, id)
 	if mouseButton=="-1" and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true and explorePause==false and gStates.fracturedLandsOrientation==nil then
 		explorePause=true
@@ -25449,32 +24667,6 @@ function autoflip()
 	end
 end
 
-function bugReport(player, value, id)
-	UI.setAttribute("SendBugRequest", "active", true)
-end
-
-function updateComment(player, value, id)
-	UI.setAttribute(id, "text", value)
-end
-
-function lowerTable(player, mouseButton, id)
-	if mouseButton=="-1" then
-		if getObjectFromGUID("3d4319").getPosition()[2]==0 then
-			getObjectFromGUID("3d4319").setPosition({0.00, -0.2, -5.00})
-			getObjectFromGUID("519f96").setScale({200, 1, 200})
-			getObjectFromGUID("519f96").setPosition({0.00, 0.77, -5.00})
-			skillButtonActivate()
-			return
-		end
-		if getObjectFromGUID("3d4319").getPosition()[2]<0 then
-			getObjectFromGUID("3d4319").setPosition({0.00, 0.0, -5.00})
-			getObjectFromGUID("519f96").setScale({1, 1, 1})
-			getObjectFromGUID("519f96").setPosition({0.00, -0.2, -5.00})
-			skillButtonActivate()
-		end
-	end
-end
-
 function tableCopy(obj, seen)
 	local seen=seen or {}
 	if type(obj)~='table' then return obj end
@@ -25551,7 +24743,7 @@ function initializeCityStaticData()
 		[cityModel.green]={[cityModel.white]=2, [cityModel.blue]=3, [cityModel.red]=4}
 	}
 	CITY_PERK={[cityModel.blue]="Elemental", [cityModel.red]="Brutal", [cityModel.green]="Poison", [cityModel.white]="Defense"}
-	CITY_ARMY_DATA={
+	CITY_ARMY_DATA={--White, Purple, Tan, Gray, Red, Green
 		[cityModel.red]={{1,0,0,0,0,0},{0,1,1,0,0,0},{1,0,1,0,0,0},{0,2,1,0,0,0},{1,1,1,0,0,0},{0,2,2,0,0,0},{1,2,1,0,0,0},{2,1,1,0,0,0},{1,2,2,0,0,0},{2,1,2,0,0,0},{3,1,1,0,0,0}},
 		[cityModel.green]={{0,0,1,1,0,0},{0,0,2,0,0,0},{0,0,1,2,0,0},{1,0,1,1,0,0},{1,0,2,0,0,0},{1,0,1,2,0,0},{1,0,2,1,0,0},{2,0,2,0,0,0},{1,0,3,1,0,0},{2,0,2,1,0,0},{3,0,2,0,0,0}},
 		[cityModel.blue]={{0,1,0,1,0,0},{0,2,0,0,0,0},{1,1,0,0,0,0},{1,1,0,1,0,0},{1,2,0,0,0,0},{2,1,0,0,0,0},{1,2,0,1,0,0},{2,2,0,0,0,0},{3,1,0,0,0,0},{2,2,0,1,0,0},{3,2,0,0,0,0}},
@@ -33390,8 +32582,6 @@ __bundle_register("SetupGame", function(require, _LOADED, __bundle_register, __b
 -----------------
 -- Setup the Game
 -----------------
-warningColor={1,0.8,0.2}
-
 function randomCitiesAllowedForScenario(scenario)
 	scenario=scenario or gStates.gameScenario
 	return scenario~="First Reconnaissance" and scenario~="The Lost Relic" and scenario~="The Lost Relic Blitz" and scenario~="The Gauntlet"
@@ -33421,8 +32611,8 @@ function ensureSetupMegapolisMinimumLevels()
 end
 
 --Layout everything needed for the game
-setupRewindRequestPending=false
-function setupGame(player, mouseButton, id, rewindReady)
+local setupRewindRequestPending=false
+local function setupGameRaw(player, mouseButton, id, rewindReady)
 	if mouseButton=="-1" then
 		if rewindReady~=true then
 			if setupRewindRequestPending==true then return end
@@ -33605,12 +32795,14 @@ function setupGame(player, mouseButton, id, rewindReady)
 				local mainRules=getObjectFromGUID(r.main)
 				local expansionRules=getObjectFromGUID(r.expansion)
 				local apocalypseRules=getObjectFromGUID(r.apocalypse)
+				local furyRules=gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9") or nil
 				if scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.main~=nil and mainRules~=nil then mainRules.book.setPage(scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.main-1) end
 				if scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.expansion~=nil and expansionRules~=nil then expansionRules.book.setPage(scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.expansion-1) end
 				if scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.apocalypse~=nil and apocalypseRules~=nil then apocalypseRules.book.setPage(scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.apocalypse-1) end
 				if mainRules~=nil then mainRules.lock() end
 				if expansionRules~=nil then expansionRules.lock() end
 				if apocalypseRules~=nil then apocalypseRules.lock() end
+				if furyRules~=nil then furyRules.lock() end
 				if extraRules~=nil then extraRules.lock() end
 			end, function() local mainRules=getObjectFromGUID(r.main) return mainRules~=nil and mainRules.resting end) end, 5)
 		ruleBag.destruct()
@@ -35804,47 +34996,12 @@ function refreshHeroChallengeOptionLocks()
 	end
 end
 
---Fury of the Apocalypse Dragon uses the small one-space Dragon marker rather than the normal
---three-space figure. The marker (42b581) is an attachment inside the Dragon model in the Apocalypse
---component bag, so pull the model out long enough to detach the marker before that setup bag is deleted.
-function furyDragonExtractMarker(target)
-	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" or apocalypseDragon==nil then return nil end
-	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
-	if marker==nil then
-		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-		if bag==nil then return nil end
-		local dragon=bag.takeObject({guid=apocalypseDragon.model,position={-65.5,4,22},rotation={0,180,180},smooth=false})
-		if dragon~=nil then
-			local function attachmentParent(parent)
-				if parent==nil or parent.getAttachments==nil then return nil end
-				for _,attachment in ipairs(parent.getAttachments() or {}) do
-					if attachment.guid==apocalypseDragon.furyMarker then return parent end
-					local found=attachmentParent(attachment)
-					if found~=nil then return found end
-				end
-				return nil
-			end
-			local parent=attachmentParent(dragon)
-			if parent~=nil then
-				for _,detached in ipairs(parent.removeAttachments() or {}) do
-					if detached.guid==apocalypseDragon.furyMarker then marker=detached
-					else parent.addAttachment(detached) end
-				end
-			end
-			bag.putObject(dragon)
-		end
-	end
-	if marker~=nil then
-		marker.unlock()
-		marker.setRotation({0,180,0})
-		marker.setPosition(target)
-	end
-	return marker
-end
-
-function furyDragonSetupLair()
+--Fury of the Apocalypse Dragon uses the standalone single-hex Dragon token (42b581)
+--stored directly in the Apocalypse Dragon bag. Keep the Core 1 object returned by takeObject()
+--rather than relying on an immediate GUID lookup while TTS is still registering the deployed tile.
+function furyDragonSetupLair(tile)
 	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" then return false end
-	local tile=getObjectFromGUID(GUID.tile.core01)
+	tile=tile or getObjectFromGUID(GUID.tile.core01)
 	if tile==nil then return false end
 	local bearing="240"
 	local xy=angleToXY(tile,bearing)
@@ -35857,11 +35014,21 @@ function furyDragonSetupLair()
 	gStates.hexOverideSave=gStates.hexOverideSave or {}
 	gStates.hexOverideSave[tile.guid]=gStates.hexOverideSave[tile.guid] or {}
 	gStates.hexOverideSave[tile.guid][bearing]=""
-	local marker=furyDragonExtractMarker(markerPos)
+
+	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
+	if marker==nil then
+		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+		if bag~=nil then
+			local tilePos=tile.getPosition()
+			marker=safeTakeObject("SetupGame",bag,{guid=apocalypseDragon.furyMarker,position={xy[1],tilePos[2]+1.0,xy[2]},rotation={0,180,0},smooth=false})
+		end
+	end
 	if marker==nil then
 		broadcastToAll("Fury setup could not deploy the single-space Apocalypse Dragon marker (42b581).",warningColor)
 		return false
 	end
+	marker.unlock()
+	marker.setRotation({0,180,0})
 	return true
 end
 
@@ -35921,6 +35088,7 @@ function mapSetup()
 	local furyCoreTilePos={}
 	local furyCityTilePos={}
 	local furyRevealGUIDs={}
+	local furyLairTile=nil
 	if furyMap then
 		--Exact predefined layouts from the Fury scenario sheet. Place every selected tile face down first;
 		--the slots that begin revealed are flipped later in a stepped sequence so normal terrain-entry
@@ -36164,6 +35332,7 @@ function mapSetup()
 			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,180}
 			local coreTile=safeTakeObject("SetupGame",CoreTileStack,params)
 			if coreTile==nil then print("FURY SETUP ERROR: Core tile "..tostring(i).." was not available") startingMapSetup=false return end
+			if i==1 then furyLairTile=coreTile end
 			furyRevealGUIDs[#furyRevealGUIDs+1]=coreTile.guid
 		else
 			TileShuffler.putObject(safeTakeObject("SetupGame",CoreTileStack,params))--Core Tile Shuffler
@@ -36326,7 +35495,7 @@ function mapSetup()
 
 	if furyMap then
 		--Everything in Fury is already on the table. Core 1's former Tomb is the one-space Dragon Lair.
-		if furyDragonSetupLair()~=true then print("FURY SETUP ERROR: could not establish the Dragon Lair") end
+		if furyDragonSetupLair(furyLairTile)~=true then print("FURY SETUP ERROR: could not establish the Dragon Lair") end
 		--Like the Volkare's Quest opening tiles, reveal from a settled face-down state in steps. This makes
 		--each reveal re-enter the normal terrain population path instead of arriving already face up.
 		for revealIndex,revealGUID in ipairs(furyRevealGUIDs) do
@@ -36363,7 +35532,6 @@ function mapSetup()
 	--When Apocalypse Dragon Quests are in use, explicitly draw the selected Village as the first Countryside tile.
 	--This is done after the scenario has built its terrain set, so its selection scheme remains intact.
 	local function takeStartingCountry(params)
-	params=safeObjectCallbackParams("SetupGame",params)
 		if questVillageGUID~=nil then params.guid=questVillageGUID questVillageGUID=nil end
 		return safeTakeObject("SetupGame",TileShuffler,params)
 	end
@@ -36403,6 +35571,34 @@ function mapSetup()
 	end
 	--Starting country tiles reveal on 1/2/3 second timers. They are part of setup, not newly explored terrain.
 	safeWaitTime("SetupGame",function() startingMapSetup=false end, 4)
+end
+
+--Keep setup-specific validation and rulebook deployment with the setup owner rather than a late wrapper module.
+function setupGame(player, mouseButton, id, rewindReady)
+	return safeCallback("setupGame",function()
+		if mouseButton=="-1" and rewindReady==true and gStates~=nil then
+			--Book.setPage expects a CLR Int32. Normalize scenario rule-page values before the delayed
+			--rulebook callback runs, including values restored from a string.
+			local scenario=scenarioList~=nil and scenarioList[gStates.scenarioRef] or nil
+			local details=scenario~=nil and scenario.scenarioDetails or nil
+			local ruleStates=details~=nil and details.ruleStates or nil
+			if type(ruleStates)=="table" then
+				for key,page in pairs(ruleStates) do
+					local numeric=tonumber(page)
+					if numeric~=nil then ruleStates[key]=math.floor(numeric) end
+				end
+			end
+			--Fury's manual comes from the Apocalypse Dragon rules bag and is locked by the normal
+			--delayed rulebook pass alongside the other manuals.
+			if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
+				local ruleBag=getObjectFromGUID("d4a866")
+				if ruleBag~=nil then
+					safeTakeObject("SetupGame",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
+				end
+			end
+		end
+		return setupGameRaw(player,mouseButton,id,rewindReady)
+	end,function() return setupGameErrorContext(player,id,rewindReady) end)
 end
 
 end)
@@ -37641,7 +36837,7 @@ function dealAllHands()
 end
 
 --Fill any gaps in the offer by sliding more cards down the line
-function fillSlide()
+local function fillSlideRaw()
 	local offerList={{}, {}}
 	local sourceDeck={GUID.zone.actionDeck, GUID.zone.spellDeck}
 	for _, obj in pairs(getObjectFromGUID(GUID.zone.offer).getObjects()) do
@@ -37688,6 +36884,10 @@ function fillSlide()
 			end
 		end
 	end
+end
+
+function fillSlide()
+	return safeCallback("fillSlide",function() return fillSlideRaw() end)
 end
 
 end)
@@ -37869,14 +37069,11 @@ __bundle_register("SetupInterface", function(require, _LOADED, __bundle_register
 ---------------
 -- UI Functions
 ---------------
---Global intentionally avoids consuming the main-chunk local limit.
-
-
 --Keep a pristine copy of the Optional Scenario Tweaks so changing scenario can
 --return the selected scenario to the correct defaults for the current Mage Knight count.
-scenarioTweakDefaults=scenarioTweakDefaults or nil
+local scenarioTweakDefaults=nil
 
-function copyScenarioCityLevels(source)
+local function copyScenarioCityLevels(source)
 	local result={}
 	for a,value in ipairs(source or {}) do result[a]=value end
 	return result
@@ -39164,30 +38361,10 @@ __bundle_register("Shared", function(require, _LOADED, __bundle_register, __bund
 -- Shared helpers used by more than one Global source module.
 -- Keep subsystem-owned game logic in its owning module.
 
--- Error-report boundaries for callbacks that TTS invokes after the originating function has returned.
--- These helpers deliberately keep the native Wait signatures so existing timing/return behaviour is unchanged.
-function automaticLuaTraceback(errorText)
-	if debug and debug.traceback then return debug.traceback(tostring(errorText),2) end
-	return tostring(errorText)
-end
-
-function automaticLuaAsyncLabel(scope, kind)
-	return tostring(scope or "Async").." / "..tostring(kind or "callback")
-end
-
-function safeAsyncCallback(label, callback, contextCallback)
-	if type(callback)~="function" then return callback end
-	return function(...)
-		local args={n=select("#",...),...}
-		return safeCallback(label,function() return callback(table.unpack(args,1,args.n)) end,contextCallback)
-	end
-end
-
-function safeObjectCallbackParams(scope, params)
-	if type(params)~="table" or type(params.callback_function)~="function" then return params end
-	params.callback_function=safeAsyncCallback(automaticLuaAsyncLabel(scope,"callback_function"),params.callback_function)
-	return params
-end
+-- Core runtime state. Current saved data replaces these tables during onLoad.
+turnOrder={}
+gStates={}
+warningColor={1,0.8,0.2}
 
 ---@overload fun(scope: "SetupGame", container: any, params: table): any
 function safeTakeObject(scope, container, params)
@@ -39196,9 +38373,7 @@ function safeTakeObject(scope, container, params)
 		if scope=="SetupGame" then error("SetupGame missing required container while taking "..tostring(ref),2) end
 		return nil
 	end
-	local obj=container.takeObject(safeObjectCallbackParams(scope,params))
-	if scope=="SetupGame" then assert(obj,"SetupGame failed to take required object "..tostring(ref)) end
-	return obj
+	return container.takeObject(safeObjectCallbackParams(scope,params))
 end
 
 function safeSpawnObject(scope, params)
@@ -39232,11 +38407,11 @@ function safeWaitCondition(scope, callback, condition, timeout, timeoutCallback)
 end
 
 --Used to join a table of strings with translation brackets
-JOIN_LANG_ORDER={"en", "ru", "zh-tw", "zh-cn", "ko", "es", "fr", "pt-br", "de"}
-JOIN_LANG_TAGS={"{en}", "{ru}", "{zh-tw}", "{zh-cn}", "{ko}", "{es}", "{fr}", "{pt-br}", "{de}"}
-joinLangParseCache={}
-joinLangCacheCount=0
-JOIN_LANG_CACHE_LIMIT=2048
+local JOIN_LANG_ORDER={"en", "ru", "zh-tw", "zh-cn", "ko", "es", "fr", "pt-br", "de"}
+local JOIN_LANG_TAGS={"{en}", "{ru}", "{zh-tw}", "{zh-cn}", "{ko}", "{es}", "{fr}", "{pt-br}", "{de}"}
+local joinLangParseCache={}
+local joinLangCacheCount=0
+local JOIN_LANG_CACHE_LIMIT=2048
 
 function joinLangParse(text)
 	local cached=joinLangParseCache[text]
@@ -39298,13 +38473,13 @@ end
 --for one seat can share the same rewind transaction without releasing the outer transaction early.
 --TTS storeRewindState captures a full engine rewind snapshot and can visibly hitch this large mod.
 --Keep the transaction ownership/sequencing, but leave engine snapshots disabled unless explicitly re-enabled.
-rewindTransactionStoreEnabled=false
-rewindTransactionStorePending=false
-rewindTransactionBlocked=false
-rewindTransactionGeneration=0
-rewindTransactionOwners={}
-rewindTransactionPending={}
-rewindTransactionPendingOwners={}
+local rewindTransactionStoreEnabled=false
+local rewindTransactionStorePending=false
+local rewindTransactionBlocked=false
+local rewindTransactionGeneration=0
+local rewindTransactionOwners={}
+local rewindTransactionPending={}
+local rewindTransactionPendingOwners={}
 
 function rewindTransactionOwnerActive(owner)
 	owner=owner or "Automated turn"
@@ -39452,6 +38627,319 @@ function isTacticCard(obj)
 	for i=1, #tacticCard do if obj.guid==tacticCard[i] then return true end end
 	return false
 end
+
+end)
+__bundle_register("ErrorReporting", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
+
+-- Error-report boundaries for callbacks that TTS invokes after the originating function has returned.
+-- These helpers deliberately keep the native Wait signatures so existing timing/return behaviour is unchanged.
+function automaticLuaTraceback(errorText)
+	if debug and debug.traceback then return debug.traceback(tostring(errorText),2) end
+	return tostring(errorText)
+end
+
+function automaticLuaAsyncLabel(scope, kind)
+	return tostring(scope or "Async").." / "..tostring(kind or "callback")
+end
+
+function safeAsyncCallback(label, callback, contextCallback)
+	if type(callback)~="function" then return callback end
+	return function(...)
+		local args={n=select("#",...),...}
+		return safeCallback(label,function() return callback(table.unpack(args,1,args.n)) end,contextCallback)
+	end
+end
+
+function safeObjectCallbackParams(scope, params)
+	if type(params)~="table" or type(params.callback_function)~="function" then return params end
+	local safeParams={}
+	for key,value in pairs(params) do safeParams[key]=value end
+	safeParams.callback_function=safeAsyncCallback(automaticLuaAsyncLabel(scope,"callback_function"),params.callback_function)
+	return safeParams
+end
+
+-- Automatic Lua error reporting
+local automaticLuaErrorReporting=false
+local automaticLuaErrorLastReport=0 --kept for the manual test hook / compatibility
+local automaticLuaErrorCooldown=10
+local automaticLuaErrorSignatures={}
+local automaticLuaErrorBreadcrumbs={}
+local automaticLuaErrorBreadcrumbLimit=10
+local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
+local automaticLuaErrorReporterVersion="414"
+
+function automaticLuaErrorValue(callback, fallback)
+	local ok, value=pcall(callback)
+	if ok==true and value~=nil then return value end
+	return fallback
+end
+
+function automaticLuaErrorStateValue(key, fallback)
+	return automaticLuaErrorValue(function()
+		if gStates==nil then return nil end
+		return gStates[key]
+	end, fallback)
+end
+
+function automaticLuaErrorScenarioValue(key, fallback)
+	return automaticLuaErrorValue(function()
+		return scenarioList[gStates.scenarioRef][gStates.playersRef][key]
+	end, fallback)
+end
+
+function automaticLuaErrorMageValue(position)
+	local value=automaticLuaErrorValue(function() return gStates.positionMageKnight[position] end, "")
+	local randomChoice=automaticLuaErrorValue(function() return gStates.originalChoiceMageKnights[position] end, "")
+	if value~="" and (randomChoice=="Random" or randomChoice=="All Skills") then value=tostring(value).." [R]" end
+	return value
+end
+
+function automaticLuaErrorMapShape()
+	local mapShape=automaticLuaErrorScenarioValue("mapShape", "")
+	if mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then return "4 Columns" end
+	if mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then return "3 Columns" end
+	if mapShape=="{en}Wedge with No Limitations{ru}Клиновидное поле без ограничений{zh-tw}錐形無限制地圖{zh-cn}锥形无限制地图{ko}쐐기형(무제한){es}En Cuña sin Límites{fr}Coin sans Limites{pt-br}Cônico sem Limitações{de}Keil ohne Begrenzungen" then return "Wedge" end
+	if mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then return "Wedge" end
+	if mapShape=="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen" then return "Fully Open" end
+	if mapShape=="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert" then return "Predefined" end
+	return mapShape
+end
+
+function automaticLuaErrorCityLevel()
+	return automaticLuaErrorValue(function()
+		local text="[ "
+		for _, level in pairs(gStates.cityLevels) do text=text..tostring(level).." " end
+		return text.."]"
+	end, "")
+end
+
+function automaticLuaErrorGameType()
+	return automaticLuaErrorValue(function()
+		if gStates.playerCount==1 then return "Solo" end
+		if gStates.playerCount>1 and (gStates.coop==0 or gStates.WarOfFourComp==true) then return "Comp" end
+		if gStates.playerCount>1 and gStates.coop==1 and gStates.WarOfFourComp==false then return "Coop" end
+	end, "")
+end
+
+function automaticLuaErrorMultiHand()
+	return automaticLuaErrorValue(function()
+		local count=0
+		for _, color in pairs(Player.getAvailableColors()) do if Player[color].seated==true then count=count+1 end end
+		if Player["Black"].seated==true then count=count+1 end
+		return count==1 and gStates.playerCount>1
+	end, "")
+end
+
+function sendAutomaticLuaErrorRequest(comment)
+	-- Build the normal bug-report context, but protect every lookup independently.
+	-- A broken game-state field must never be able to stop the emergency report.
+	local gameRecord={Comment=comment, reporter="Automatic Lua Error", reporterVersion=automaticLuaErrorReporterVersion,
+		gameScenario=automaticLuaErrorStateValue("gameScenario", ""),
+		gameType=automaticLuaErrorGameType(),
+		blitz=automaticLuaErrorStateValue("blitz", ""),
+		rounds=automaticLuaErrorScenarioValue("rounds", ""),
+		mapShape=automaticLuaErrorMapShape(),
+		countryTiles=automaticLuaErrorScenarioValue("countryTiles", ""),
+		coreTiles=automaticLuaErrorScenarioValue("coreTiles", ""),
+		cityTiles=automaticLuaErrorScenarioValue("cityTiles", ""),
+		cityLevel=automaticLuaErrorCityLevel(),
+		randomTileOrientation=automaticLuaErrorStateValue("randomTileOrientation", ""),
+		volkareCampAsCity=automaticLuaErrorStateValue("volkareCampAsCity", ""),
+		megapolis=automaticLuaErrorStateValue("megapolis", ""),
+		randomCities=automaticLuaErrorStateValue("randomCities", ""),
+		positionMageKnight1=automaticLuaErrorMageValue(1),
+		positionMageKnight2=automaticLuaErrorMageValue(2),
+		positionMageKnight3=automaticLuaErrorMageValue(3),
+		positionMageKnight4=automaticLuaErrorMageValue(4),
+		positionMageKnight5=automaticLuaErrorMageValue(5),
+		proxyPlayer=automaticLuaErrorStateValue("proxyPlayer", false),
+		multihand=automaticLuaErrorMultiHand(),
+		includeYmirgh=automaticLuaErrorStateValue("useCustomMageKnights", ""),
+		dummyAllSkills=automaticLuaErrorStateValue("dummyAllSkills", ""),
+		mageKnightLevels=automaticLuaErrorStateValue("mageKnightLevels", ""),
+		rampagePursuit=automaticLuaErrorStateValue("rampagePursuit", ""),
+		rampageAmbush=automaticLuaErrorStateValue("rampageAmbush", ""),
+		rampage=automaticLuaErrorStateValue("rampage", ""),
+		removeLostLegionExpansion=automaticLuaErrorStateValue("removeLostLegionExpansion", ""),
+		removeShadesOfTezlaMonsters=automaticLuaErrorStateValue("removeShadesOfTezlaMonsters", ""),
+		removeApocalypseTerrain=automaticLuaErrorStateValue("removeApocalypseTerrain", ""),
+		removeBonusCards=automaticLuaErrorStateValue("removeBonusCards", ""),
+		volkareCombatLevel=" ", volkareRaceLevel=" ",
+		darknessComing=automaticLuaErrorStateValue("darknessComing", ""),
+		startAtNight=automaticLuaErrorStateValue("startAtNight", ""),
+		heroChallenges=automaticLuaErrorStateValue("heroChallenges", ""),
+		questMod=automaticLuaErrorStateValue("questMod", ""),
+		weatherMod=automaticLuaErrorStateValue("weatherMod", ""),
+		itemShopMod=automaticLuaErrorStateValue("itemShopMod", ""),
+		removeTerrain=automaticLuaErrorStateValue("removeTerrain", ""),
+		useAlternatePugs=automaticLuaErrorStateValue("useAlternatePugs", ""),
+		riseOfTheForgemasters=automaticLuaErrorStateValue("riseOfTheForgemasters", ""),
+		autoFlip=automaticLuaErrorStateValue("autoFlip", ""),
+		offerSize=automaticLuaErrorStateValue("offerSize", ""),
+		table=automaticLuaErrorValue(function()
+			local obj=getObjectFromGUID("519f96")
+			if obj~=nil and obj.getScale().x==1 then return "Original" end
+			if obj~=nil then return "New" end
+		end, "")}
+	if automaticLuaErrorValue(function() return gStates.positionMageKnight[5]=="Volkare" end, false)==true then
+		gameRecord.volkareCombatLevel=automaticLuaErrorStateValue("volkareCombatLevel", " ")
+		gameRecord.volkareRaceLevel=automaticLuaErrorStateValue("volkareRaceLevel", " ")
+	end
+	--WebRequest.post form tables require string keys and values. Preserve boolean false/true explicitly;
+	--nil/error lookups have already been converted to their fallback (normally an empty string).
+	for key, value in pairs(gameRecord) do gameRecord[tostring(key)]=tostring(value) end
+	WebRequest.post(automaticLuaErrorURL, gameRecord, function(w)
+		log("Automatic Lua error report response: "..tostring(w.text))
+	end)
+end
+
+function automaticLuaBreadcrumb(label)
+	label=tostring(label or "")
+	if label=="" or label=="maintenanceTick" or label=="onObjectHover" or label:find(" / Wait.",1,true)~=nil then return end
+	if automaticLuaErrorBreadcrumbs[#automaticLuaErrorBreadcrumbs]==label then return end
+	automaticLuaErrorBreadcrumbs[#automaticLuaErrorBreadcrumbs+1]=label
+	while #automaticLuaErrorBreadcrumbs>automaticLuaErrorBreadcrumbLimit do table.remove(automaticLuaErrorBreadcrumbs,1) end
+end
+
+function automaticLuaBreadcrumbText()
+	if #automaticLuaErrorBreadcrumbs==0 then return "" end
+	return table.concat(automaticLuaErrorBreadcrumbs," -> ")
+end
+
+function automaticLuaErrorSignature(functionName,errorText)
+	local firstLine=tostring(errorText or ""):match("[^\n]+") or ""
+	return tostring(functionName).."|"..firstLine
+end
+
+function reportAutomaticLuaError(functionName, errorText, context)
+	if automaticLuaErrorReporting then return end
+	local now=os.time()
+	local signature=automaticLuaErrorSignature(functionName,errorText)
+	local last=automaticLuaErrorSignatures[signature]
+	if last~=nil and now-last<automaticLuaErrorCooldown then return end
+	automaticLuaErrorSignatures[signature]=now
+	automaticLuaErrorLastReport=now
+	--Keep the signature table bounded during very long sessions.
+	local signatureCount=0
+	for key,when in pairs(automaticLuaErrorSignatures) do
+		signatureCount=signatureCount+1
+		if now-when>300 then automaticLuaErrorSignatures[key]=nil end
+	end
+	if signatureCount>100 then automaticLuaErrorSignatures={} automaticLuaErrorSignatures[signature]=now end
+	automaticLuaErrorReporting=true
+	local comment="AUTOMATIC LUA ERROR\nReporter Version: "..tostring(automaticLuaErrorReporterVersion).."\nFunction: "..tostring(functionName)
+	if context~=nil and context~="" then comment=comment.."\n"..tostring(context) end
+	local breadcrumbs=automaticLuaBreadcrumbText()
+	if breadcrumbs~="" then comment=comment.."\nRecent script actions: "..breadcrumbs end
+	comment=comment.."\n\n"..tostring(errorText)
+	pcall(function() UI.setAttribute("SendBugComment", "text", comment) end)
+	local ok, reportError=pcall(function() sendAutomaticLuaErrorRequest(comment) end)
+	if not ok then log("Automatic Lua error report failed: "..tostring(reportError).."\n"..comment) end
+	automaticLuaErrorReporting=false
+end
+
+function safeCallback(functionName, callback, contextCallback)
+	automaticLuaBreadcrumb(functionName)
+	local ok, result=xpcall(callback, automaticLuaTraceback)
+	if not ok then
+		local context=nil
+		if contextCallback~=nil then
+			local contextOK, contextText=pcall(contextCallback)
+			if contextOK==true then context=contextText end
+		end
+		reportAutomaticLuaError(functionName, result, context)
+		return false
+	end
+	return result
+end
+
+--Lighter boundary for high-frequency zone events. Pass arguments directly so successful movement events
+--do not allocate breadcrumb/context closures; detailed zone context is built only after an actual failure.
+function safeZoneCallback(functionName, callback, zone, obj)
+	local ok, result=pcall(callback,zone,obj)
+	if not ok then
+		reportAutomaticLuaError(functionName,tostring(result),automaticLuaZoneContext(zone,obj))
+		return false
+	end
+	return result
+end
+
+-- Lightweight boundary for hot TTS callbacks where allocating the normal safeCallback closure/breadcrumb
+-- path on every event is unnecessary. Detailed context can be added by the callback itself if needed.
+function safeDirectCallback(functionName, callback, first, second)
+	local ok, result=pcall(callback,first,second)
+	if not ok then
+		reportAutomaticLuaError(functionName,tostring(result))
+		return false
+	end
+	return result
+end
+
+-- Temporary test hook: type !testerror in chat as an admin.
+-- Reports the captured traceback, then rethrows the same error so TTS also shows the player-facing error.
+function testAutomaticLuaError()
+	local rawError=nil
+	local ok, err=xpcall(function()
+		error("Intentional automatic Lua error reporting test", 0)
+	end, function(e)
+		rawError=tostring(e)
+		if debug and debug.traceback then return debug.traceback(rawError, 2) end
+		return rawError
+	end)
+	if ok==true then return end
+	automaticLuaErrorLastReport=0
+	automaticLuaErrorSignatures={}
+	reportAutomaticLuaError("TEST - automatic Lua error reporting", err, "Intentional test error triggered with !testerror")
+	error(rawError or "Intentional automatic Lua error reporting test", 0)
+end
+
+function testAutomaticLuaAsyncError()
+	automaticLuaErrorSignatures={}
+	safeWaitFrames("TEST async",function() error("Intentional asynchronous automatic Lua error reporting test",0) end,1)
+end
+
+function automaticLuaZoneContext(zone, obj)
+	local objectGUID=obj~=nil and obj.guid or "nil"
+	local zoneGUID=zone~=nil and zone.guid or "nil"
+	local objectName=""
+	if obj~=nil then
+		local ok, name=pcall(function() return obj.getName() end)
+		if ok==true and name~=nil then objectName=tostring(name) end
+	end
+	return "Object: "..tostring(objectGUID)..(objectName~="" and " ("..objectName..")" or "").."\nZone: "..tostring(zoneGUID)
+end
+
+function automaticLuaTurnPhaseContext(player, id)
+	local context="Turn: "..tostring(automaticLuaErrorStateValue("turnNumber", "")).." / Round: "..tostring(automaticLuaErrorStateValue("currentRound", ""))
+	if player~=nil then context=context.."\nPlayer: "..tostring(player.color or player) end
+	if id~=nil then context=context.."\nAction: "..tostring(id) end
+	return context
+end
+
+function automaticLuaSkillClaimContext(player, id)
+	local guid=id~=nil and tostring(id):sub(1,6) or ""
+	local context=automaticLuaTurnPhaseContext(player,id).."\nSkill buttons: "..tostring(automaticLuaErrorStateValue("skillButtons","")).."\nSkill GUID: "..tostring(guid)
+	local skill=getObjectFromGUID(guid)
+	if skill~=nil then
+		local p=skill.getPosition()
+		context=context.."\nLive position: "..tostring(p[1])..", "..tostring(p[2])..", "..tostring(p[3])
+	end
+	local home=automaticLuaErrorValue(function() return gStates.mageSkills[guid] end,nil)
+	if home~=nil then context=context.."\nRecorded position: "..tostring(home[1])..", "..tostring(home[2])..", "..tostring(home[3]) end
+	return context
+end
+
+function setupGameErrorContext(player,id,rewindReady)
+	local playerColor=player~=nil and (player.color or player) or ""
+	return "Scenario: "..tostring(gStates~=nil and gStates.gameScenario or "")..
+		"\nScenario Ref: "..tostring(gStates~=nil and gStates.scenarioRef or "")..
+		"\nPlayers Ref: "..tostring(gStates~=nil and gStates.playersRef or "")..
+		"\nPlayer: "..tostring(playerColor)..
+		"\nStart ID: "..tostring(id or "")..
+		"\nRewind Ready: "..tostring(rewindReady==true)
+end
+
 end)
 __bundle_register("Data", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Static game data only: GUIDs, scenarios, cards, terrain, monsters, Mage Knights and related configuration.
