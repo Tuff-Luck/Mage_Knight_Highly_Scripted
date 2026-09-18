@@ -51,6 +51,7 @@ apocalypseQuestMarkerPlacementRules={
 	--The step-location test decides whether that Mage Knight is standing somewhere legal.
 	["08ffcf"]={["1"]={tokens={"518afd"}, atPlayer=true}},
 	["58a826"]={["1"]={tokens={"fb29ad"}, atPlayer=true}},
+	["734740"]={["1"]={tokens={"c48454"}, atPlayer=true}},
 	["72099f"]={["1"]={tokens={"02f996"}, atPlayer=true}},
 	["11d244"]={
 		["1"]={tokens={"cef3a2"}, atPlayer=true},
