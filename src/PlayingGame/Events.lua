@@ -433,13 +433,16 @@ function __onLoad_raw(saved_data)
 end
 
 function onSave()
-	saveZigguratPyramidUI()
-	saveSetupState()
-	local data_to_save={
-		turnOrder=turnOrder,
-		gStates=gStates}
-	saved_data=JSON.encode(data_to_save)
-	return saved_data
+	return safeCallback("onSave",function()
+		saveZigguratPyramidUI()
+		saveSetupState()
+		local data_to_save={
+			turnOrder=turnOrder,
+			gStates=gStates,
+			rollerDice=rollerOnSave()}
+		saved_data=JSON.encode(data_to_save)
+		return saved_data
+	end)
 end
 
 

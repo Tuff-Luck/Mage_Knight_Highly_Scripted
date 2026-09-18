@@ -2428,26 +2428,7 @@ function furyDragonExtractMarker(target)
 	if marker==nil then
 		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 		if bag==nil then return nil end
-		local dragon=bag.takeObject({guid=apocalypseDragon.model,position={-65.5,4,22},rotation={0,180,180},smooth=false})
-		if dragon~=nil then
-			local function attachmentParent(parent)
-				if parent==nil or parent.getAttachments==nil then return nil end
-				for _,attachment in ipairs(parent.getAttachments() or {}) do
-					if attachment.guid==apocalypseDragon.furyMarker then return parent end
-					local found=attachmentParent(attachment)
-					if found~=nil then return found end
-				end
-				return nil
-			end
-			local parent=attachmentParent(dragon)
-			if parent~=nil then
-				for _,detached in ipairs(parent.removeAttachments() or {}) do
-					if detached.guid==apocalypseDragon.furyMarker then marker=detached
-					else parent.addAttachment(detached) end
-				end
-			end
-			bag.putObject(dragon)
-		end
+		marker=bag.takeObject({guid=apocalypseDragon.furyMarker,position=target,rotation={0,180,0},smooth=false})
 	end
 	if marker~=nil then
 		marker.unlock()

@@ -1231,7 +1231,7 @@ function unitOffer()
 		end
 		local unitDrawList=getUnitDrawList(drawDecks)
 		for a, draw in ipairs(unitDrawList) do
-			draw.safeTakeObject("PlayingGame",deck,{
+			safeTakeObject("PlayingGame",draw.deck,{
 				guid=draw.guid,
 				position=unitPlace[a],
 				rotation={0,180,0},

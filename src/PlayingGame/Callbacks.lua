@@ -43,7 +43,17 @@ end
 
 -- Wrap TTS event callbacks so unexpected Lua errors are reported automatically.
 function onLoad(saved_data)
-	return safeCallback("onLoad", function() __onLoad_raw(saved_data) end)
+	return safeCallback("onLoad",function()
+		monsterReplenishObjectOnLoad()
+		artifactOnLoad()
+		rollerOnLoad(rollerSavedState(saved_data))
+		local result=__onLoad_raw(saved_data)
+		safeWaitFrames("Callbacks",function()
+			monsterReplenishObjectOnLoad()
+			artifactOnLoad()
+		end,2)
+		return result
+	end)
 end
 
 function onObjectPickUp(player_color, picked_up_object)

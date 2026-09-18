@@ -218,3 +218,11 @@ function rollerOnLoad(savedState)
     rollerState = {}
     installRollers(1)
 end
+
+function rollerSavedState(saved_data)
+	if type(saved_data)~="string" or saved_data=="" then return nil end
+	local ok,data=pcall(JSON.decode,saved_data)
+	if ok and type(data)=="table" then return data.rollerDice end
+	return nil
+end
+

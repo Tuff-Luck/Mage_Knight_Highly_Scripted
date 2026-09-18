@@ -2664,3 +2664,28 @@ turnRecord={[0]={firstStarted=false,
 -- End-turn/end-round entry points are also callback boundaries. Most cleanup is synchronous, so wrapping
 -- these catches errors from nested cleanup such as monster/Quest disposal that TTS UI callbacks would
 -- otherwise report only locally. Keep the public names unchanged for XML and internal callers.
+
+--Monster Replenish no longer carries its own Lua/XML. Rebuild its physical Restock button from
+--Global, and keep the old status ids as hidden targets for existing swap/status helpers.
+function monsterReplenishObjectOnLoad()
+	local obj=getObjectFromGUID("d7a165")
+	if obj==nil then return end
+	obj.UI.setXml([=[
+<Button id="d7a165replenishMonsterPiles" interactable="true"
+    onClick="global/returnPugs"
+    tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
+    width="900" height="200" color="#7F7F7F" textColor="#FFFFFF"
+    position="200 270 -100" rotation="0 0 0" scale="0.48 0.48"
+    shadow="rgb(0, 0, 0)" shadowDistance="0 -0">
+    <Image id="d7a165replenishMonsterPilesImage" image="Sliced Button/Button Object Active" type="Sliced"/>
+    <HorizontalLayout padding="30 30 30 30">
+        <Text id="d7a165replenishMonsterPilesText" fontSize="90" font="Fonts/MKCardText" fontStyle="Normal"
+            textColor="rgb(0, 0, 0)" offsetXY="0 1" alignment="MiddleCenter"
+            resizeTextForBestFit="true" resizeTextMaxSize="90">{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen</Text>
+    </HorizontalLayout>
+</Button>
+<Text id="d7a165swapMonsterImageText" active="false"></Text>
+<Text id="d7a165swapTableText" active="false"></Text>
+]=])
+end
+
