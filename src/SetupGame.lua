@@ -2127,9 +2127,6 @@ end
 firstTile=nil
 startingMapSetup=false
 startingMapTiles={}
---The Dragon data table is assigned later in the file, but Fury map setup needs its GUIDs here.
-local apocalypseDragon
-
 -- Apocalypse Dragon Hero Challenges play variant.
 -- The variant overlays the selected scenario; the scenario's own end condition remains authoritative.
 function heroChallengeCountryGUID(number)
