@@ -3981,12 +3981,12 @@ function againstDragonDestroyCandidates(hexes,mapObjects)
 	local destroyedBag=getObjectFromGUID(GUID.bag.destroyedSite)
 	local siteTokensAvailable=destroyedBag~=nil
 	for _,hex in ipairs(hexes or {}) do
-		local siteToken=nil
+		local rampager=nil
 		for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
-			if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[enemy.guid]==true then siteToken=enemy break end
+			if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[enemy.guid]==true then rampager=enemy break end
 		end
-		if siteToken~=nil then
-			candidates[#candidates+1]={kind="siteToken",key=apocalypseQuestMapHexKey(hex),enemyGUID=siteToken.guid}
+		if rampager~=nil then
+			candidates[#candidates+1]={kind="rampager",key=apocalypseQuestMapHexKey(hex),enemyGUID=rampager.guid}
 		elseif siteTokensAvailable==true and againstDragonSiteEligible(hex)==true then
 			candidates[#candidates+1]={kind="site",key=apocalypseQuestMapHexKey(hex),feature=hex.feature}
 		end
@@ -4096,7 +4096,7 @@ function againstDragonResolveDestroyOption(option)
 		return false
 	end
 
-	if option.kind=="siteToken" then
+	if option.kind=="rampager" then
 		local target=nil
 		for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
 			if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[enemy.guid]==true then target=enemy break end
