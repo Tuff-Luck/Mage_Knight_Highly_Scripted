@@ -1924,7 +1924,8 @@ function __onObjectEnterZone_raw(zone, obj)
 						moveDisplayTerrainCache={signature=nil,hexMap=nil}
 						updateMoveDisplay()
 					end
-					if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals() end
+					if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals()
+					elseif gStates.gameScenario=="Apocalypse is Here" then horsemanArrangeRampagingStacks() end
 					fakeDropAvatar()
 					apocalypseQuestRefreshOfferButtons()
 				end, tokenWait+10)

@@ -938,6 +938,90 @@ function horsemanPriorityDescription(ref)
 		"Priority C: "..data.priorityText.C.."\n\n"
 end
 
+--When a Horseman shares a map hex with a Rampaging Enemy, keep both readable and make
+--the Horseman physically topmost. The paired tokens use the same +/-0.1 X/Z split used elsewhere.
+function horsemanArrangeRampagingStack(name)
+	if gStates==nil or (gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Apocalypse is Here") then return false end
+	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	local data=horsemanData~=nil and horsemanData[name] or nil
+	local horseman=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
+	if state==nil or data==nil or horseman==nil or state.revealed~=true or state.defeated==true or state.retired==true then return false end
+
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hex=apocalypseQuestHexForPosition(hexes,horseman.getPosition(),mapObjects)
+	if hex==nil and state.terrainGUID~=nil and state.bearing~=nil then
+		for _,candidate in ipairs(hexes or {}) do
+			if candidate.terrainGUID==state.terrainGUID and tostring(candidate.bearing)==tostring(state.bearing) then hex=candidate break end
+		end
+	end
+	if hex==nil then return false end
+
+	local rampager=nil
+	for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
+		if enemy.guid~=horseman.guid and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[enemy.guid]==true then
+			rampager=enemy
+			break
+		end
+	end
+	if rampager==nil then return false end
+
+	local horsePos=horseman.getPosition()
+	local rampPos=rampager.getPosition()
+	local horseX,horseZ=hex.position[1]+0.1,hex.position[3]+0.1
+	local rampX,rampZ=hex.position[1]-0.1,hex.position[3]-0.1
+	if math.abs(horsePos[1]-horseX)<0.05 and math.abs(horsePos[3]-horseZ)<0.05 and
+		math.abs(rampPos[1]-rampX)<0.05 and math.abs(rampPos[3]-rampZ)<0.05 and horsePos[2]>rampPos[2]+0.08 then return false end
+
+	local horseLocked=horseman.getLock()==true
+	local rampLocked=rampager.getLock()==true
+	local horseGUID=horseman.guid
+	local rampGUID=rampager.guid
+	horseman.unlock()
+	rampager.unlock()
+	--Park the Horseman high while the Rampaging Enemy establishes the bottom of the pair.
+	horseman.setPosition({horseX,3.0,horseZ})
+	rampager.setPosition({rampX,2.0,rampZ})
+	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[rampGUID]={rampX,2.0,rampZ} end
+
+	local placed=false
+	local function placeHorseman()
+		if placed==true then return end
+		placed=true
+		local currentRamp=getObjectFromGUID(rampGUID)
+		local currentHorseman=getObjectFromGUID(horseGUID)
+		if currentRamp~=nil and rampLocked==true then currentRamp.lock() end
+		if currentHorseman~=nil then
+			currentHorseman.unlock()
+			local baseY=currentRamp~=nil and currentRamp.getPosition()[2] or 1.30
+			currentHorseman.setPosition({horseX,baseY+0.35,horseZ})
+			if horseLocked==true then
+				safeWaitFrames("Scenario",function()
+					safeWaitCondition("Scenario",function()
+						local settled=getObjectFromGUID(horseGUID)
+						if settled~=nil then settled.lock() end
+					end,function()
+						local settling=getObjectFromGUID(horseGUID)
+						return settling==nil or settling.resting==true
+					end,3)
+				end,1)
+			end
+		end
+	end
+
+	safeWaitFrames("Scenario",function()
+		safeWaitCondition("Scenario",placeHorseman,function()
+			local currentRamp=getObjectFromGUID(rampGUID)
+			return currentRamp==nil or currentRamp.resting==true
+		end,3,placeHorseman)
+	end,1)
+	return true
+end
+
+function horsemanArrangeRampagingStacks()
+	if gStates==nil then return end
+	for name,_ in pairs(gStates.horsemen or {}) do horsemanArrangeRampagingStack(name) end
+end
+
 function setHorsemanLevel(ref, level, hideIdentity)
 	local data,name=horsemanDataFor(ref)
 	level=math.max(1,math.min(6,tonumber(level) or 1))
@@ -1251,7 +1335,10 @@ end
 
 function againstHorsemenRefreshReveals()
 	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return end
-	for name,_ in pairs(gStates.horsemen or {}) do againstHorsemenRefreshHorseman(name) end
+	for name,_ in pairs(gStates.horsemen or {}) do
+		againstHorsemenRefreshHorseman(name)
+		horsemanArrangeRampagingStack(name)
+	end
 end
 
 --Before the ritual, a Horseman is a same-space action rather than a Rampaging-style adjacent attack.
@@ -1431,7 +1518,10 @@ end
 function againstHorsemenFinalizeMoveWave()
 	local pending=gStates~=nil and gStates.againstHorsemenMovePending or nil
 	if pending==nil or pending.movingTargets==nil then return end
-	for name,_ in pairs(pending.movingTargets) do againstHorsemenRefreshHorseman(name) end
+	for name,_ in pairs(pending.movingTargets) do
+		againstHorsemenRefreshHorseman(name)
+		horsemanArrangeRampagingStack(name)
+	end
 	pending.movingTargets=nil
 	pending.stepsRemaining=math.max(0,(pending.stepsRemaining or 1)-1)
 	safeWaitFrames("Scenario",function() againstHorsemenContinueEndRoundMovement() end,4)
@@ -1724,6 +1814,9 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	token.unlock()
 	token.setRotation({0,180,0})
 	token.setPositionSmooth(target,false)
+	--Terrain population can finish after the Horseman itself arrives, so check once during and once after that window.
+	safeWaitFrames("Scenario",function() horsemanArrangeRampagingStack(name) end,12)
+	safeWaitFrames("Scenario",function() horsemanArrangeRampagingStack(name) end,30)
 	gStates.apocalypseHereNextHorseman=index+1
 	local card=getObjectFromGUID(data.cardGUID)
 	if card~=nil then
@@ -1986,8 +2079,8 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 	end
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
 	if bag~=nil and bag.getQuantity()~=0 then
-		local token=bag.takeObject({position={targetHex.position[1],1.12,targetHex.position[3]},rotation={0,180,0},smooth=false})
-		if token~=nil then destroySite(token,targetHex.terrain,targetHex.bearing,targetHex.position) end
+		local token=bag.takeObject({position={targetHex.position[1],2,targetHex.position[3]},rotation={0,180,0},smooth=true})
+		if token~=nil then destroySite(token,targetHex.terrain,targetHex.bearing) end
 	end
 	local oldHead=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[name] or 0) or 0
 	if oldHead>0 and oldHead<12 then apocalypseDragonSetHeadLevel(name,oldHead+1) end
@@ -2028,6 +2121,7 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 			local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
 			gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
 		end
+		horsemanArrangeRampagingStack(name)
 		apocalypseIsHereContinueHorsemenTurn()
 	end,function() local current=getObjectFromGUID(data.tokenGUID) return current==nil or current.isSmoothMoving()==false end,5,function() apocalypseIsHereContinueHorsemenTurn() end)
 	return true
@@ -2233,108 +2327,111 @@ function druidNightsRitualAction(playerDud, mouseButton, id)
 end
 
 --Lock a Destroyed Site token only after any scripted smooth move has finished and physics has had time to settle it.
-function lockDestroyedSiteWhenSettled(token)
+--An optional callback runs after the marker is locked so objects lifted off the hex can be released back above it.
+function lockDestroyedSiteWhenSettled(token,afterLock)
 	if token==nil then return end
 	local tokenGUID=token.guid
+	local finished=false
+	local function finish()
+		if finished==true then return end
+		finished=true
+		local obj=getObjectFromGUID(tokenGUID)
+		if obj~=nil then obj.lock() end
+		if afterLock~=nil then afterLock(obj) end
+	end
 	safeWaitCondition("Scenario",function()
 		safeWaitFrames("Scenario",function()
-			safeWaitCondition("Scenario",function()
+			safeWaitCondition("Scenario",finish,function()
 				local obj=getObjectFromGUID(tokenGUID)
-				if obj~=nil then obj.lock() end
-			end, function()
-				local obj=getObjectFromGUID(tokenGUID)
-				return obj==nil or obj.resting
+				return obj==nil or obj.resting==true
 			end)
-		end, 2)
-	end, function()
+		end,1)
+	end,function()
 		local obj=getObjectFromGUID(tokenGUID)
 		return obj==nil or obj.isSmoothMoving()==false
 	end)
 end
 
---Destroyed Site tokens visually replace the site but do not erase conquest Shields.
---Lift Shields out of the way while the Destroyed marker settles, then place them on top.
-function destroyedSiteStackShields(token,terrain,bearing)
+--A Destroyed Site marker is always the bottom object on its hex. Lift every existing physical object
+--off that hex, settle and lock the marker first, then drop the lifted objects back at their original X/Z.
+--This path is shared by scripted draws and human-dropped Destroyed Site tokens.
+function arrangeDestroyedSiteHex(token,terrain,bearing)
 	if token==nil or terrain==nil or bearing==nil then return false end
 	local map=getObjectFromGUID(mapArea)
-	if map==nil then return false end
 	local center=angleToXY(terrain,bearing)
-	if center==nil then return false end
-	local shields={}
+	if map==nil or center==nil then return false end
+
+	local lifted={}
 	for _,obj in pairs(map.getObjects()) do
-		if obj.getName()=="Shield" and (volkarePursuitShieldRegistered==nil or volkarePursuitShieldRegistered(obj)~=true) then
+		if obj.guid~=token.guid and obj.guid~=terrain.guid and terrainTiles[obj.guid]==nil then
 			local pos=obj.getPosition()
 			if ((pos[1]-center[1])^2)+((pos[3]-center[2])^2)<1.0 then
-				shields[#shields+1]={guid=obj.guid,locked=obj.getLock()==true,x=pos[1],z=pos[3]}
+				lifted[#lifted+1]={guid=obj.guid,locked=obj.getLock()==true,x=pos[1],y=pos[2],z=pos[3]}
 			end
 		end
 	end
-	if #shields==0 then return false end
+	table.sort(lifted,function(a,b)
+		if math.abs(a.y-b.y)>0.01 then return a.y<b.y end
+		return a.guid<b.guid
+	end)
 
-	for index,details in ipairs(shields) do
-		local shield=getObjectFromGUID(details.guid)
-		if shield~=nil then
-			shield.unlock()
-			shield.setPosition({details.x,2.7+((index-1)*0.12),details.z})
+	--Clear the whole hex before moving the marker into its exact centre.
+	for index,details in ipairs(lifted) do
+		local obj=getObjectFromGUID(details.guid)
+		if obj~=nil then
+			obj.unlock()
+			obj.setPosition({details.x,3.2+((index-1)*0.55),details.z})
 		end
 	end
 
+	token.unlock()
+	token.setRotation({0,180,0})
+	token.setPositionSmooth({center[1],2,center[2]},false)
+
 	local tokenGUID=token.guid
-	local function stack()
-		local marker=getObjectFromGUID(tokenGUID)
-		if marker==nil then return end
-		local markerPos=marker.getPosition()
-		for index,details in ipairs(shields) do
-			local shield=getObjectFromGUID(details.guid)
-			if shield~=nil then
-				shield.unlock()
-				--Place slightly high, then let physics settle the Shield onto the Destroyed marker.
-				--Do not test resting in the same frame: TTS can preserve the old resting=true until physics starts.
-				shield.setPosition({details.x,markerPos[2]+0.17+((index-1)*0.12),details.z})
+	lockDestroyedSiteWhenSettled(token,function(marker)
+		local markerY=marker~=nil and marker.getPosition()[2] or 1.13
+		for index,details in ipairs(lifted) do
+			local obj=getObjectFromGUID(details.guid)
+			if obj~=nil then
+				obj.unlock()
+				--Return above the settled marker and let gravity rebuild the physical stack naturally.
+				obj.setPosition({details.x,markerY+0.55+((index-1)*0.35),details.z})
 				if details.locked==true then
-					local shieldGUID=details.guid
+					local objectGUID=details.guid
 					safeWaitFrames("Scenario",function()
 						safeWaitCondition("Scenario",function()
-							local settled=getObjectFromGUID(shieldGUID)
+							local settled=getObjectFromGUID(objectGUID)
 							if settled~=nil then settled.lock() end
 						end,function()
-							local settling=getObjectFromGUID(shieldGUID)
+							local settling=getObjectFromGUID(objectGUID)
 							return settling==nil or settling.resting==true
 						end,3,function()
-							local settled=getObjectFromGUID(shieldGUID)
+							local settled=getObjectFromGUID(objectGUID)
 							if settled~=nil then settled.lock() end
 						end)
 					end,1)
 				end
 			end
 		end
-	end
-	safeWaitCondition("Scenario",stack,function()
-		local marker=getObjectFromGUID(tokenGUID)
-		return marker==nil or marker.getLock()==true or (marker.isSmoothMoving()==false and marker.resting==true)
-	end,5,stack)
+	end)
 	return true
 end
 
---Apply Destroyed Site state from one authoritative path. positionToken=false is used when takeObject is already moving the token from its bag.
-function destroySite(token, terrain, bearing, positionToken)
+--Apply Destroyed Site state from one authoritative path. The helper owns the physical placement,
+--so callers only need to obtain a Destroyed Site token and identify the target hex.
+function destroySite(token,terrain,bearing)
 	if token==nil or terrain==nil or bearing==nil or terrainTiles[terrain.guid]==nil then return false end
 	local feature=terrainTiles[terrain.guid].hexFeature[bearing]
 	if feature==nil or feature=="" or feature=="portal" or feature=="destroyed" or feature:sub(1,7)=="raised " then return false end
-	if positionToken~=false then
-		local hexPos=angleToXY(terrain, bearing)
-		token.unlock()
-		token.setPosition({hexPos[1], 2, hexPos[2]})
-		lockDestroyedSiteWhenSettled(token)
-	end
-	destroyedSiteStackShields(token,terrain,bearing)
+	arrangeDestroyedSiteHex(token,terrain,bearing)
 	if gStates.destroyedSites==nil then gStates.destroyedSites={} end
 	gStates.destroyedSites[token.guid]={hexFeature=feature, terrainTile=terrain.guid, hexAngle=bearing}
 	terrainTiles[terrain.guid].hexFeature[bearing]="destroyed"
 	if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 	gStates.hexOverideSave[terrain.guid][bearing]="destroyed"
 	broadcastToAll(feature.." Destroyed")
-	safeWaitFrames("Scenario",function() apocalypseQuestRefreshOfferButtons() end, 2)
+	safeWaitFrames("Scenario",function() apocalypseQuestRefreshOfferButtons() end,2)
 	return true
 end
 
@@ -2388,12 +2485,8 @@ function destroyRestoreLocation(playerDud, mouseButton, id, type, obj)
 						local terrainGUID=obj.guid
 						local hexAngle=searchOrder[i]
 						local drawnToken=safeTakeObject("Scenario",getObjectFromGUID(GUID.bag.destroyedSite),{
-							position={hexPos[1], 2, hexPos[2]}, smooth=true,
-							callback_function=function(spawnedToken)
-								spawnedToken.unlock()
-								lockDestroyedSiteWhenSettled(spawnedToken)
-							end})
-						found=destroySite(drawnToken, getObjectFromGUID(terrainGUID), hexAngle, false)
+							position={hexPos[1],2,hexPos[2]},smooth=true})
+						found=destroySite(drawnToken,getObjectFromGUID(terrainGUID),hexAngle)
 						if found==true then break end
 					end
 					if gStates.againstTheApocSitePosition==7 and (hexFeature==featureSearch[7][1] or hexFeature==featureSearch[7][2]) then
@@ -4029,8 +4122,7 @@ function againstDragonResolveDestroyOption(option)
 	local token=bag.takeObject({position={hex.position[1],2,hex.position[3]},rotation={0,180,0},smooth=true})
 	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(hex.feature) or tostring(hex.feature)
 	if token~=nil then
-		destroySite(token,hex.terrain,hex.bearing,false)
-		lockDestroyedSiteWhenSettled(token)
+		destroySite(token,hex.terrain,hex.bearing)
 		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon destroyed the "..tostring(label).."."),"Processing")
 	else
 		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon could not draw a Destroyed Site token for the "..tostring(label).."."),"Processing")
@@ -4254,16 +4346,10 @@ function againstDragonResolveAirborneProtection(pending)
 		return false
 	end
 	local hexPos=angleToXY(terrain,location.bearing)
-	local token=bag.takeObject({position={hexPos[1],1.13,hexPos[2]},rotation={0,180,0},smooth=false})
+	local token=bag.takeObject({position={hexPos[1],2,hexPos[2]},rotation={0,180,0},smooth=true})
 	if token==nil then return false end
 	pending.destroyedSiteTokenGUID=token.guid
-	--1.13 is the settled Destroyed Site height on the map. Put it there and lock immediately
-	--while the avatar is raised so physics cannot leave it floating or collide with the avatar.
-	token.unlock()
-	token.setPosition({hexPos[1],1.13,hexPos[2]})
-	token.setRotation({0,180,0})
-	token.lock()
-	destroySite(token,terrain,location.bearing,false)
+	destroySite(token,terrain,location.bearing)
 	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(location.feature) or tostring(location.feature)
 	broadcastToAll("The Apocalypse Dragon destroys the "..tostring(label).." after its protection was used.",{1,0.75,0.2})
 	return true
