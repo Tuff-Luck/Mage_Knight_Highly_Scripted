@@ -140,8 +140,14 @@ function proxySetupShieldBag(skillBagObj)
 	--Normal Dummy Skill-bag home; only used when no live/saved Skill bag position exists.
 	if skillPos==nil then skillPos={56.68,1.6,-9.93} end
 	gStates.proxySkillBagPosition={skillPos[1],skillPos[2],skillPos[3]}
-	--Keep the Proxy Shield supply at its dedicated table position rather than offsetting from the Skill bag.
+	--Keep the Proxy Shield supply in the same place relative to whichever player slot owns the Dummy board.
+	--The old absolute {1.88,1.14,-33.53} was only correct when that board happened to occupy seat 3.
 	local destination={1.88,1.14,-33.53}
+	local board=getObjectFromGUID(dummyBoard)
+	if board~=nil then
+		local p=board.getPosition()
+		destination={p[1]-5.62,p[2]+0.16,p[3]+4.47}
+	end
 	bag.setPosition(destination)
 	bag.setRotation({0,180,0})
 	bag.lock()
