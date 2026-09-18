@@ -109,11 +109,11 @@ function puppetMasterWarn(playerIndex,message,controllerColor)
 		color=playerIndex~=nil and positionToColor(playerIndex) or nil
 	end
 	if color~=nil and Player[color]~=nil and Player[color].seated==true then
-		broadcastToColor(text,color,{1,0.65,0.2})
+		broadcastToColor(text,color,warningColor)
 	elseif Player["Black"]~=nil and Player["Black"].seated==true then
-		broadcastToColor(text,"Black",{1,0.65,0.2})
+		broadcastToColor(text,"Black",warningColor)
 	else
-		broadcastToAll(text,{1,0.65,0.2})
+		broadcastToAll(text,warningColor)
 	end
 end
 
@@ -174,16 +174,9 @@ end
 function puppetMasterRefreshPresentation(puppet,record)
 	if puppet==nil then return end
 	puppetMasterApplyDecal(puppet)
-	local data=record~=nil and record.data or nil --0152/0153 save migration.
-	if data==nil and record~=nil and record.sourceGUID~=nil then
-		local _, sourceData=puppetMasterDataForSourceGUID(record.sourceGUID)
-		data=sourceData
-	end
+	local _,data=puppetMasterDataForSourceGUID(record~=nil and record.sourceGUID or nil)
 	if gStates.monsterPerks==nil then gStates.monsterPerks={} end
 	gStates.monsterPerks[puppet.guid]=puppetMasterPerksForData(data)
-	--Old Puppet records stored a full enemy copy for a bespoke tooltip. The hover system now owns all
-	--combat presentation, so discard those legacy fields after using them once for migration.
-	if record~=nil then record.data=nil record.fame=nil end
 	puppet.setDescription("")
 end
 
@@ -286,6 +279,16 @@ function puppetMasterUndoFreshClaim(puppetGUID,controllerColor)
 	return true
 end
 
+function puppetMasterUseReason(playerIndex)
+	local playerData=turnOrder[playerIndex]
+	if playerData==nil then return puppetMasterText.ownerUnknown end
+	if gStates.turnNumber~=playerIndex then return puppetMasterText.duringTurn end
+	if gStates.preEndTurn==true then return puppetMasterText.turnCleanup end
+	if puppetMasterOwnsSkill(playerIndex)~=true then return joinLang({puppetMasterDisplayName(playerData.mage,tostring(playerData.mage)),puppetMasterText.doesNotOwn}) end
+	if playerData.puppetMasterUsed==true then return joinLang({puppetMasterText.skill,puppetMasterText.alreadyUsed}) end
+	return nil
+end
+
 function puppetMasterClaimReason(enemy,pickup,destinationPlayer)
 	local playerData=pickup~=nil and turnOrder[pickup.player] or nil
 	if playerData==nil or destinationPlayer~=pickup.player then return puppetMasterText.ownerInventory end
@@ -296,11 +299,7 @@ function puppetMasterClaimReason(enemy,pickup,destinationPlayer)
 		local leaderLevel=enemy.guid==darkCrusader.token and gStates.darkCrusaderLevel or gStates.elementalistLevel
 		if leaderLevel~=nil and ((gStates.leaderReduction or 0)+(gStates.leaderOverkill or 0))<leaderLevel then return puppetMasterText.leaderDefeated end
 	end
-	if gStates.turnNumber~=pickup.player then return puppetMasterText.duringTurn end
-	if gStates.preEndTurn==true then return puppetMasterText.turnCleanup end
-	if puppetMasterOwnsSkill(pickup.player)~=true then return joinLang({puppetMasterDisplayName(playerData.mage,tostring(playerData.mage)),puppetMasterText.doesNotOwn}) end
-	if playerData.puppetMasterUsed==true then return joinLang({puppetMasterText.skill,puppetMasterText.alreadyUsed}) end
-	return nil
+	return puppetMasterUseReason(pickup.player)
 end
 
 function puppetMasterResolveEnemyDrop(enemy,pickup)
@@ -345,7 +344,9 @@ function puppetMasterResolveManualCopy(copy)
 end
 
 function puppetMasterCheckManualCopyWhenResting(obj)
-	if obj==nil or obj.guid==nil then return end
+	if obj==nil or obj.guid==nil or monsterPugs[obj.guid]~=nil then return end
+	if gStates.puppetMasterPuppets~=nil and gStates.puppetMasterPuppets[obj.guid]~=nil then return end
+	if puppetMasterObjectImage(obj)==nil then return end
 	local guid=obj.guid
 	safeWaitCondition("PlayerBoard.PuppetMaster",function()
 		local live=getObjectFromGUID(guid)
@@ -379,10 +380,8 @@ function puppetMasterResolvePuppetDrop(puppet,pickup)
 	local combatPlayer=puppetMasterCombatAreaPlayer(puppet.guid)
 	if combatPlayer~=owner then puppetMasterReturnToPickup(puppet,pickup,puppetMasterText.ownerCombat) return end
 	local playerData=turnOrder[owner]
-	if gStates.turnNumber~=owner then puppetMasterReturnToPickup(puppet,pickup,puppetMasterText.duringTurn) return end
-	if gStates.preEndTurn==true then puppetMasterReturnToPickup(puppet,pickup,puppetMasterText.turnCleanup) return end
-	if puppetMasterOwnsSkill(owner)~=true then puppetMasterReturnToPickup(puppet,pickup,joinLang({puppetMasterDisplayName(playerData.mage,tostring(playerData.mage)),puppetMasterText.doesNotOwn})) return end
-	if playerData.puppetMasterUsed==true then puppetMasterReturnToPickup(puppet,pickup,joinLang({puppetMasterText.skill,puppetMasterText.alreadyUsed})) return end
+	local reason=puppetMasterUseReason(owner)
+	if reason~=nil then puppetMasterReturnToPickup(puppet,pickup,reason) return end
 	playerData.puppetMasterUsed=true
 	record.played=true
 	record.location="played"
@@ -439,4 +438,3 @@ function puppetMasterCleanupPlayedPuppets(playerIndex)
 	end
 end
 
---give mana token if starting on a Glade

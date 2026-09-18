@@ -33,7 +33,8 @@ function heroChallengePuppetFame(obj)
 	if obj==nil or gStates.puppetMasterPuppets==nil then return nil end
 	local record=gStates.puppetMasterPuppets[obj.guid]
 	if record==nil or record.played==true then return nil end
-	local fame=record.fame or (record.data~=nil and record.data.fame) or 0
+	local source=record.sourceGUID~=nil and monsterPugs[record.sourceGUID] or nil
+	local fame=source~=nil and tonumber(source.fame) or 0
 	if fame>0 then return fame end
 	return nil
 end
