@@ -2996,7 +2996,7 @@ automaticLuaErrorSignatures={}
 automaticLuaErrorBreadcrumbs={}
 automaticLuaErrorBreadcrumbLimit=10
 automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-automaticLuaErrorReporterVersion="413"
+automaticLuaErrorReporterVersion="414"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
