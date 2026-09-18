@@ -49,6 +49,29 @@ try {
         }
     }
 
+    Write-Host "Checking duplicate global function definitions..."
+    $functionOwners = @{}
+    $sourceLuaFiles = Get-ChildItem -Path "src" -Recurse -File -Filter *.lua
+    foreach ($file in $sourceLuaFiles) {
+        $content = Get-Content -Raw -LiteralPath $file.FullName
+        # Lua treats "local" followed by line breaks and "function" as a local-function declaration.
+        # Normalize that form before scanning so it is not mistaken for a global.
+        $scanContent = [regex]::Replace($content, '(?m)^[ \t]*local[ \t]*(?:\r?\n[ \t]*)+function[ \t]+', 'local function ')
+        $matches = [regex]::Matches($scanContent, '(?m)^[ \t]*(local[ \t]+)?function[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*\(')
+        foreach ($match in $matches) {
+            if ($match.Groups[1].Success) { continue }
+            $name = $match.Groups[2].Value
+            $relative = $file.FullName.Substring($root.Length + 1)
+            if (-not $functionOwners.ContainsKey($name)) { $functionOwners[$name] = @() }
+            if ($functionOwners[$name] -notcontains $relative) { $functionOwners[$name] += $relative }
+        }
+    }
+    $duplicateGlobals = @($functionOwners.GetEnumerator() | Where-Object { $_.Value.Count -gt 1 } | Sort-Object Name)
+    if ($duplicateGlobals.Count -gt 0) {
+        $details = ($duplicateGlobals | ForEach-Object { "$($_.Key): $($_.Value -join ', ')" }) -join "`n"
+        throw "Duplicate global function definitions found across source modules:`n$details"
+    }
+
     Write-Host "Checking Lua 5.2 syntax..."
     $compiler = Get-Command "luac5.2" -ErrorAction SilentlyContinue
     if ($null -eq $compiler) {

@@ -26,7 +26,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/Movement.lua` | Movement calculator, route/terrain costs and teleport movement assistance. |
 | `src/PlayingGame/Rollers.lua` | Centralized Roll Crystal Die/object roller behaviour. |
 | `src/PlayingGame/UI.lua` | Runtime presentation, camera controls, ALT views, resource/UI helpers and object UI installers. |
-| `src/PlayingGame/Events.lua` | TTS event handling, maintenance/persistence support and automatic Lua error reporting. |
+| `src/PlayingGame/Events.lua` | TTS event handling, maintenance/persistence support and runtime event dispatch. |
 | `src/PlayingGame/Callbacks.lua` | Public/safe callback boundaries exposed to TTS/UI entry points, including final `onLoad` composition. |
 
 ## Dependency shape

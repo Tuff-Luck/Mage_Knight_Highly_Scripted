@@ -1,4 +1,4 @@
--- TTS persistence, raw event handling, maintenance and automatic error-report infrastructure.
+-- TTS persistence, raw event handling, maintenance and runtime event dispatch.
 
 function tryObjectEnterContainer(container, object)
     if gStates.preEndTurn==false and container.type=="Card" and object.type=="Card" then

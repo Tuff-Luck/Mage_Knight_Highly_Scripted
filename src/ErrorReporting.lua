@@ -21,8 +21,10 @@ end
 
 function safeObjectCallbackParams(scope, params)
 	if type(params)~="table" or type(params.callback_function)~="function" then return params end
-	params.callback_function=safeAsyncCallback(automaticLuaAsyncLabel(scope,"callback_function"),params.callback_function)
-	return params
+	local safeParams={}
+	for key,value in pairs(params) do safeParams[key]=value end
+	safeParams.callback_function=safeAsyncCallback(automaticLuaAsyncLabel(scope,"callback_function"),params.callback_function)
+	return safeParams
 end
 
 -- Automatic Lua error reporting

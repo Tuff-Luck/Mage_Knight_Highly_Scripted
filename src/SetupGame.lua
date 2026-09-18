@@ -2959,7 +2959,6 @@ function mapSetup()
 	--When Apocalypse Dragon Quests are in use, explicitly draw the selected Village as the first Countryside tile.
 	--This is done after the scenario has built its terrain set, so its selection scheme remains intact.
 	local function takeStartingCountry(params)
-	params=safeObjectCallbackParams("SetupGame",params)
 		if questVillageGUID~=nil then params.guid=questVillageGUID questVillageGUID=nil end
 		return safeTakeObject("SetupGame",TileShuffler,params)
 	end
