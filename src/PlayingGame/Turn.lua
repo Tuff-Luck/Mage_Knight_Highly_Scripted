@@ -1,5 +1,70 @@
 -- Turn, round, tactic and final-turn runtime.
 
+local dropoutMatImage="https://steamusercontent-a.akamaihd.net/ugc/9970617178500111609/C9D8D7517B7FAF114F10D8195AC38269F0504E37/"
+
+--Player seat colors only change during setup/load or when a player uses the color controls.
+--Keep physical tinting out of mainUIUpdate so ordinary card play never recolors unchanged objects.
+local function setDropoutMatImage(playerData, droppingOut)
+	if playerData==nil or playerData.playerBoardGUID==nil then return end
+	local board=getObjectFromGUID(playerData.playerBoardGUID)
+	if board==nil then return end
+	if droppingOut==true then
+		local custom=board.getCustomObject()
+		if playerData.preDropoutMatImage==nil and custom~=nil and custom.image~=nil then playerData.preDropoutMatImage=custom.image end
+		board.setCustomObject({image=dropoutMatImage})
+	elseif playerData.preDropoutMatImage~=nil then
+		board.setCustomObject({image=playerData.preDropoutMatImage})
+		playerData.preDropoutMatImage=nil
+	else
+		return
+	end
+	board.reload()
+end
+
+function dropOutPlayer(player, mouseButton, id)
+	if mouseButton~="-1" then return end
+	local barGUID=id:sub(1,6)
+	local playerIndex=nil
+	local playerData=nil
+	for position, testGUID in pairs(colorBand) do
+		if testGUID==barGUID then
+			for a, details in pairs(turnOrder) do
+				if details.seatPos==position and details.mage~=gStates.positionMageKnight[5] then playerIndex=a playerData=details break end
+			end
+			break
+		end
+	end
+	if playerData==nil or legalPlayerCheck(player.color, playerData.seatPos, "NoDummyException")~=true then return end
+	if dropoutCoopLocked()==true then
+		broadcastToAll("Players cannot drop out while a cooperative assault or defense is being resolved.", positionToColor(playerIndex))
+		applyColorBarButtons()
+		return
+	end
+	if gStates.firstStarted==true and playerIndex==gStates.turnNumber then
+		broadcastToAll("You cannot drop out during your own turn.", positionToColor(playerIndex))
+		applyColorBarButtons()
+		return
+	end
+	if playerData.dropoutState=="dropped" then return end
+	if playerData.dropoutState=="pending" then
+		playerData.dropoutState=nil
+		setDropoutMatImage(playerData, false)
+		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} cancelled dropping out.{ru} отменил выход из игры.{zh-tw} 取消了退出遊戲。{zh-cn} 取消了退出游戏。{ko} 게임 나가기를 취소했습니다.{es} canceló su abandono de la partida.{fr} a annulé son départ de la partie.{pt-br} cancelou a saída do jogo.{de} hat das Verlassen des Spiels abgebrochen."}), positionToColor(playerIndex))
+	else
+		--Never allow dropouts to reduce the game below two active Mage Knights.
+		if activeMageKnightCount()<3 then
+			broadcastToAll("At least two Mage Knights must remain in the game.", positionToColor(playerIndex))
+			applyColorBarButtons()
+			return
+		end
+		playerData.dropoutState="pending"
+		setDropoutMatImage(playerData, true)
+		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} will drop out when turn order next advances. Press Undo Drop Out before then to cancel.{ru} выйдет из игры при следующем переходе хода. До этого можно отменить выход.{zh-tw} 將在下一次推進回合順序時退出遊戲；在此之前可按撤銷退出。{zh-cn} 将在下一次推进回合顺序时退出游戏；在此之前可按撤销退出。{ko} 다음 차례 진행 시 게임에서 나갑니다. 그 전까지 나가기 취소를 누를 수 있습니다.{es} abandonará la partida cuando avance el orden de turno. Puede deshacerlo antes de entonces.{fr} quittera la partie au prochain changement de tour. Vous pouvez annuler avant cela.{pt-br} sairá do jogo quando a ordem de turno avançar. Você pode desfazer antes disso.{de} verlässt das Spiel beim nächsten Zugwechsel. Bis dahin kann der Austritt rückgängig gemacht werden."}), positionToColor(playerIndex))
+	end
+	applyColorBarButtons()
+end
+
+
 --Tactic Showing and Hiding
 function tacticToggle()
 	--rearanges the turn order tokens
@@ -73,8 +138,6 @@ function tacticToggle()
 	cameraControl(nil, "-1", "tacticChanged")
 end
 
---Magical Glade reward: during the Rewards Claimed stage, offer one scripted Wound heal from the discard pile.
-gladeDiscardHealButtonGUID=nil
 
 function startOfTurn()
 	if apocalypseQuestsUsed()==true then gStates.apocalypseQuestScoringChoiceLocked=true end
@@ -1237,8 +1300,6 @@ function removeTactic(player, mouseButton, id)
 	end
 end
 
---adjust hand Size
-adjustHandSizePause=nil
 
 --Day Tactic 2 is fully Global-owned. The physical tactic card only hosts this XML-style button.
 --Use the tactic card's actual board position to identify its owner. During tactic selection,

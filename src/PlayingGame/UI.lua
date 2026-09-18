@@ -1762,7 +1762,33 @@ function applyColorBarButtons()
 	end
 end
 
-dropoutMatImage="https://steamusercontent-a.akamaihd.net/ugc/9970617178500111609/C9D8D7517B7FAF114F10D8195AC38269F0504E37/"
+
+function bugReport(player, value, id)
+	UI.setAttribute("SendBugRequest", "active", true)
+end
+
+function updateComment(player, value, id)
+	UI.setAttribute(id, "text", value)
+end
+
+function lowerTable(player, mouseButton, id)
+	if mouseButton=="-1" then
+		if getObjectFromGUID("3d4319").getPosition()[2]==0 then
+			getObjectFromGUID("3d4319").setPosition({0.00, -0.2, -5.00})
+			getObjectFromGUID("519f96").setScale({200, 1, 200})
+			getObjectFromGUID("519f96").setPosition({0.00, 0.77, -5.00})
+			skillButtonActivate()
+			return
+		end
+		if getObjectFromGUID("3d4319").getPosition()[2]<0 then
+			getObjectFromGUID("3d4319").setPosition({0.00, 0.0, -5.00})
+			getObjectFromGUID("519f96").setScale({1, 1, 1})
+			getObjectFromGUID("519f96").setPosition({0.00, -0.2, -5.00})
+			skillButtonActivate()
+		end
+	end
+end
+
 
 cameraControlViewing=cameraControlViewing or {}
 function cameraControl(player, mouseButton, id)
@@ -2251,246 +2277,6 @@ function refreshAltViewAngles()
 	for _, bagGUID in pairs(monsterPiles) do applyAltViewAngle(getObjectFromGUID(bagGUID)) end
 	for _, bagGUID in pairs(GUID.bag.discard) do applyAltViewAngle(getObjectFromGUID(bagGUID)) end
 end
-
---This will store all the information about the Mage Knights playing.
---It will be sorted by diferent criterea to work out turn orders
---It is populated during Player Setup, but needs to be initiated here
-turnOrder={}
-
---This will store all the information about the game being played
---All these variable are reminders of the saved defaults only.
---They are overwritten during "onLoad" by the previously saved variables.
---if a change is needed, a copy must be put after the onLoad, to overwrite the overwrite, then a save performed, then the copy deleted.
-gStates={}
-turnRecord={[0]={firstStarted=false,
-			playerCount=0,
-			positionMageKnight={[1]="nobody", [2]="nobody", [3]="nobody", [4]="nobody", [5]="nobody"},--Which mage knight is at which position
-			setupDummyMageChoice="nobody",--Remember the dummy Mage Knight while scenarios temporarily replace/disable position 5.
-			blitz=0,
-			removeLostLegionExpansion=false,
-			removeShadesOfTezlaMonsters=false,
-			removeApocalypseTerrain=false,
-			removeBonusCards=false,
-			itemShopMod=false,
-			useAlternatePugs=false,
-			riseOfTheForgemasters=0,
-			rampageAmbush=false,
-			removeTerrain=false,
-			rampagePursuit=false,--Game State Variales.
-			rampage=0,
-			bondsOfLoyalty={0,0,0,0,0},
-			coop=0,
-			cityCard={[cityModel.white]="a37b57", [cityModel.green]="8de450", [cityModel.blue]="79a723", [cityModel.red]="bd6ab1"},
-			cityLevels={},
-			coopAssaultDice={},
-			coopAssaultPhase=nil,
-			coopRewardQueue={},
-			coopRewardIndex=1,
-			coopAssaultParticipants={},
-			coopAssaultCityGUID=nil,
-			coopAssaultLocation=nil,
-			coopAssaultType=nil,
-			coopAssaultInitiator=nil,
-			coopAssaultConquered=nil,
-			coopAssaultScenarioEndPending=false,
-			exploreButtons={{}},
-			friendlyCity={},
-			handColors={["Blue"]=4, ["Green"]=1, ["Orange"]=3, ["White"]=2},
-			hiddenValleyKeep={[1]="123456", [2]="123456"},
-			gameScenario="Conquest",
-			autoFlip=true,
-			offerSize=3,
-			originalChoiceMageKnights={},
-			scoreRecorded=false,
-			playersRef=2,
-			scenarioRef=3,--Used to find data in the scenarioList Table
-			pursuingMonsters={},
-			ambushingMonsters={},
-			attackedMonsters={},
-			arrowDelete={},
-			monsterPerks={},
-			pursuitTwoOption=false,
-			skippedMove=false,
-			monsterPlayLocation={},
-			mineMonsterQty={},
-			rampagingMonsters={},
-			summonStates={},
-			monsterOffsetZ=0,--Monster Variables
-			tacticShown=false,
-			tacticRemove=false,
-			tacticTwoState="notUsed",
-			tacticFourState="",
-			tacticSixState="notClaimed",
-			powerStored={},
-			tactic4HandBonus=0,--Tactic Variables
-			turnNumber=1,
-			currentRound=1,
-			endRoundCalled=false,
-			finalTurnReason=nil,
-			finalTurnOwnerMage=nil,
-			finalTurnOwnerGetsTurn=nil,
-			finalTurnOwnerTurnStarted=false,
-			preEndTurn=false,
-			rounds=6,
-			realTurn=1,
-			skipTurn={},
-			endGameAchieved="false",--Turn and Round Variables
-			artifactRewards=1,
-			megapolis=0,
-			megapolisPlayed=0,
-			randomCities=false,
-			cityVolkareTile="835c91",
-			volkareCampAsCity=false,
-			citiesPlayed={},
-			cityDeployOrder={},
-			cityMonsterQty={},
-			volkareCombatLevel=1,
-			volkareRaceLevel=1,
-			volkareUnitCrystals={},
-			volkareRecruit=0,
-			cityRevealed={},
-			volkareModel="",
-			volkareWon=false,
-			volkareRaisedCity=false,
-			volkarePortalClosed=false,
-			volkarePortalWarningShown=false,
-			volkareMovementPaused=false,
-			volkareMovementStepPending=false,
-			volkareMovementSequence=0,
-			volkareAdvanceAfterMovement=false,
-			volkareArmyDefeated=0,
-			volkareLevel=0,
-			volkareLevelLocked=false,--Volkare Variables
-			elementalistLevel=1,
-			darkCrusaderLevel=1,
-			horsemen={},
-			horsemenDefeatedBy={},
-			apocalypseDragonTurn=0,
-			apocalypseDragonRoundPrepared=nil,
-			apocalypseDragonTurnActive=false,
-			apocalypseDragonResumeTurn=nil,
-			apocalypseDragonPendingChoice=nil,
-			apocalypseDragonPendingAttack=nil,
-			apocalypseDragonUIState=nil,
-			apocalypseDragonTurnAction=nil,
-			apocalypseDragonTurnReport=nil,
-			apocalypseDragonTurnReportPrefix=nil,
-			apocalypseDragonAttackedThisRound={},
-			apocalypseDragonBlackMana={},
-			apocalypseHereHorsemanOrder={},
-			apocalypseHereNextHorseman=1,
-			apocalypseHereTilesRevealed=0,
-			apocalypseHereRevealedTiles={},
-			apocalypseHereCityTilesSeen=0,
-			apocalypseHereHorsemenEnded=false,
-			apocalypseHereForcedRevealPending=false,
-			apocalypseHereForcedRevealCount=0,
-			apocalypseHereForcedRevealCheckedRound=nil,
-			apocalypseHereHorsemenTurnActive=false,
-			apocalypseHereHorsemenResumeTurn=nil,
-			apocalypseHereHorsemenUIState=nil,
-			apocalypseHereHorsemenTurnReport=nil,
-			apocalypseHereHorsemenQueue={},
-			apocalypseHereHorsemenQueueIndex=1,
-			apocalypseHereHorsemanPendingChoice=nil,
-			apocalypseHerePossessedPending={},
-			apocalypseHereDragonCityRevealed=false,
-			apocalypseDragonAssaultFortifiedInitiator=false,
-			apocalypseDragonLairAttacked=false,
-			apocalypseDragonDefeated=false,
-			apocalypseDragonDefeatedRound=nil,
-			againstHorsemenCoreTiles={},
-			againstHorsemenRitualStarted=false,
-			againstHorsemenAssaultOrigin=nil,
-			againstHorsemenSoloAssault=nil,
-			leaderReduction=0,
-			leaderOverkill=1,--Tezla Leaders
-			eliteUnitsUsed=false,
-			totalUnitCount=0,--Unit Variables
-			rowLengthGainPerLevel=1.82,
-			normalRowLength=15.7,
-			rowsOnBoard=10,
-			scoreIfLooped=120,--Fame board stats
-			soloCoop={},
-			doingTheRounds={},
-			coopCompSkillPaused={},
-			coopCompSkillLegalThisRound={},
-			coopCompSkillActivation={},
-			tomeSkillSwapPending={},
-			competitiveSkillReminders={},
-			mageSkills={},
-			puppetMasterPuppets={},
-			locationPlace={},--skill variables
-			dungeonLordsSecretSiteOrigins={},
-			dayRound=false,
-			darknessComing=false,
-			timeChanged=false,
-			startAtNight=false,--Day Night Variables
-			questMod=false,
-			apocalypseQuestCards=false,
-			apocalypseQuestScoringDisabled=false,
-			apocalypseQuestScoringChoiceLocked=false,
-			proxyPlayer=false,
-			proxyObjectiveGUID=nil,
-			proxyObjectiveShieldGUIDs={},
-			proxyShieldBagGUID=nil,
-			proxySkillBagPosition=nil,
-			proxyAvatarOffMap=false,
-			proxyParkingSeat=nil,
-			proxyState="Start",
-			weatherMod=false,
-			useCustomMageKnights=false,
-			heroChallenges=false,
-			heroChallengeReservedSkills={},
-			mageKnightLevels=false,
-			dummyAllSkills=false,--Options Variables
-			noticeShown=false,
-			help=true,
-			skillButtons=0,
-			gainList={},
-			shieldsDropped={},
-			levelingUp=false,--UI Variables
-			diceNeeded=0,
-			timeBending="notUsed",
-			bannercard={},--Mana Pool Variables
-			allPlayersFoughtAFactionLeaderCheck=false,
-			allPlayersFoughtBothFactionLeaderCheck=false,--Scoring variables
-			allLeaderCheck=false,
-			defeatedFaction=0,
-			defeatedCities={amount=0},
-			defeatedFactionTest={},
-			volkareCityDefeat=false,--Scoring variables
-			volkareLock=true,
-			randomTileOrientation=false,
-			playedCoreTiles=0,
-			playedGladeTiles=0,
-			masterOfChaos=0,
-			mirrorSource={},
-			monsterOffsetX=0,
-			monasteryCount=0,
-			monasteryBurned={},
-			monasteryBurnedBy={},
-			turnForfeited=true,
-			showboards={true, true, true, true, true},
-			startingHigherLevelCrystal={},
-			playedAllready={},
-			hexOverideSave={},--Terrain Variables
-			motivationSkill={	["3d8336"]={state="notClaimed", pos=0, bonus=" & Gain a Red Mana Token."}, --Arythea
-								["171244"]={state="notClaimed", pos=0, bonus=" & Gain a Green Mana Token."}, --Goldyx
-								["14399f"]={state="notClaimed", pos=0, bonus=" & Gain a White Mana Token."}, --Norowas
-								["ba4df5"]={state="notClaimed", pos=0, bonus=" & Gain a Blue Mana Token."}, --Tovak
-								["527b47"]={state="notClaimed", pos=0, bonus=" & Gain a Fame."}},--Wolfhawk
-			hexMap={},
-			moveCost={["plains"]=2, ["hills"]=3, ["forest"]=3, ["wasteland"]=4, ["desert"]=5, ["swamp"]=5, ["lake"]=999, ["mountain"]=999, ["city"]=2, ["explore"]=2, ["rampager"]=999},
-			resourceTracker={move=		{move=0},
-							siege=		{physical=0, fire=0, ice=0, iceFire=0},
-							ranged=		{physical=0, fire=0, ice=0, iceFire=0},
-							block=		{physical=0, fire=0, ice=0, iceFire=0},
-							attack=		{physical=0, fire=0, ice=0, iceFire=0},
-							influence=	{generated=0, reputation=0, cityShields=0},
-							healing=	{healing=0}}
-			}}
-
 
 -- End-turn/end-round entry points are also callback boundaries. Most cleanup is synchronous, so wrapping
 -- these catches errors from nested cleanup such as monster/Quest disposal that TTS UI callbacks would

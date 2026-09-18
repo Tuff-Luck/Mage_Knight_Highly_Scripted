@@ -1,5 +1,70 @@
 -- Scenario and variant runtime systems. Setup/menu construction remains in SetupGame.
 
+-- Fractured Lands terrain-orientation controls used by the generic exploration flow.
+local function fracturedLandsOrientationButtons(tile)
+	if tile==nil then return end
+	--Use the same counter-rotation plane as Avatar controls so this strip stays at the visual bottom of the tile.
+	--The three controls deliberately copy the Artifact deck's arrow / centre button / arrow layout.
+	tile.clearButtons()--clear any createButton controls before installing the XML strip
+	local tileRotation=tile.getRotation()[2] or 180
+	local rotationPlane=tostring(tileRotation-180)
+	local prefix=tile.guid
+	local buttonY=175--position offsets are not scaled; keep the strip close beneath the terrain tile
+	local buttonZ=-25
+	local buttonScale="0.18144 0.18144"--locked-in visual scale
+	local xml={{tag="Panel", attributes={id=prefix.."FracturedRotationPlane", height=800, width=900, position="0 0 -25", rotation="0 0 "..rotationPlane, color="rgba(0,0,0,0.0)"}, children={
+		{tag="Button", attributes={id=prefix.."ArtifactUp", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateLeft", height=150, width=150, color="rgba(0,0,0,0.0)", position="-54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactUpImage", image="Overkill Up"}}}},
+		{tag="Button", attributes={id=prefix.."FracturedDone", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsOrientationDone", height=150, width=400, color="rgba(0,0,0,0.0)", position="0 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."FracturedDoneImage", image="Sliced Button/Button Object Active", type="Sliced"}}, {tag="Text", attributes={font="Fonts/MKCardText", fontSize=90, color="black", fontStyle="Normal", alignment="MiddleCenter", text="Done"}}}},
+		{tag="Button", attributes={id=prefix.."ArtifactDown", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateRight", height=150, width=150, color="rgba(0,0,0,0.0)", position="54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactDownImage", image="Overkill Down"}}}}
+	}}}
+	tile.UI.setXmlTable(xml)
+end
+local function fracturedLandsOrientationPlayerLegal(playerColor)
+	return gStates.fracturedLandsOrientation~=nil and playerColor~=nil and legalPlayerCheck(playerColor, gStates.fracturedLandsOrientation.seatPos)==true
+end
+local function fracturedLandsRotate(player, direction)
+	local pending=gStates.fracturedLandsOrientation
+	local tile=pending~=nil and getObjectFromGUID(pending.guid) or nil
+	if pending==nil or tile==nil or pending.busy==true or player==nil or fracturedLandsOrientationPlayerLegal(player.color)~=true then return end
+	pending.busy=true
+	local rotation=tile.getRotation()
+	rotation[2]=(math.floor((rotation[2]/60)+0.5)*60+(60*direction))%360
+	local targetRotation=rotation[2]
+	local tileGUID=tile.guid
+	tile.setRotationSmooth(rotation, false, true)
+	--Follow the smooth turn by changing only the transparent rotation plane, not rebuilding the three buttons.
+	--This keeps the controls visually beneath the tile throughout the animation, the same principle used by Avatar buttons.
+	local followFrames=0
+	local function followRotation()
+		local current=gStates.fracturedLandsOrientation
+		local currentTile=current~=nil and getObjectFromGUID(current.guid) or nil
+		if current==nil or current.guid~=tileGUID or currentTile==nil then return end
+		followFrames=followFrames+1
+		local currentRotation=currentTile.getRotation()[2] or targetRotation
+		currentTile.UI.setAttribute(tileGUID.."FracturedRotationPlane", "rotation", "0 0 "..tostring(currentRotation-180))
+		local difference=math.abs(((currentRotation-targetRotation+180)%360)-180)
+		if difference<0.5 or followFrames>=60 then current.busy=false return end
+		safeWaitFrames("Scenario",followRotation, 1)
+	end
+	safeWaitFrames("Scenario",followRotation, 1)
+end
+function fracturedLandsRotateLeft(player, value, id) fracturedLandsRotate(player, -1) end
+function fracturedLandsRotateRight(player, value, id) fracturedLandsRotate(player, 1) end
+function fracturedLandsOrientationDone(player, value, id)
+	local pending=gStates.fracturedLandsOrientation
+	local tile=pending~=nil and getObjectFromGUID(pending.guid) or nil
+	if pending==nil or tile==nil or pending.busy==true or player==nil or fracturedLandsOrientationPlayerLegal(player.color)~=true then return end
+	--The orientation height is above the map scripting zone. Done only releases the tile;
+	--its real entry into the map zone performs every normal terrain setup step.
+	tile.unlock()
+end
+function startFracturedLandsOrientation(tile, position)
+	tile.setPosition({position[1], 2.20, position[3]})
+	tile.lock()
+	gStates.fracturedLandsOrientation={guid=tile.guid, seatPos=turnOrder[gStates.turnNumber].seatPos, position={position[1],0.97,position[3]}, busy=false}
+	fracturedLandsOrientationButtons(tile)
+end
+
 --Volkare's Camp-as-City rules are proximity based. Keep the real avatarLocation intact so any
 --printed site on one of the six surrounding hexes can still use its normal rules.
 function volkareCampAsCityConquered()

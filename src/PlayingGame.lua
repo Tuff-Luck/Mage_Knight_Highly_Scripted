@@ -3,6 +3,8 @@
 ------------------
 -- During the Game
 ------------------
+local gladeDiscardHealButtonGUID=nil
+
 function removeGladeDiscardHealButton(obj)
 	if obj==nil then return end
 	local remove={}
@@ -585,6 +587,8 @@ function createClaimButton(objGUID, source)
 				  children={{tag="Text", attributes={id=objGUID..source.."Text", font="Fonts/MKCardText", fontSize=fontSize, fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize=fontSize, text=text}}}}}}
 end
 
+local adjustHandSizePause=nil
+
 function fakeDropAvatar()
 	if coopAssaultVirtualPlayer(gStates.turnNumber)==true then
 		if gStates.preEndTurn~=true then mainUIUpdate("Co-op virtual city location") end
@@ -727,69 +731,6 @@ function avatarLocationRelevantObjects(locatedTerrain, pos, buckets)
 		end
 	end
 	return result
-end
-
---Return the legal top-tile exploration position that contains a world hex.
---This deliberately reuses the normal EXPLORE set, so Volkare obeys the same tile-placement rules as players.
-function volkareLegalExploreSpot(pos)
-	if pos==nil or gStates.exploreButtons==nil then return end
-	local best=nil
-	local bestDist=999
-	for _, button in pairs(gStates.exploreButtons) do
-		local attributes=button.attributes
-		if attributes~=nil then
-			local x=tonumber(attributes.tilePosX)
-			local z=tonumber(attributes.tilePosZ)
-			if x~=nil and z~=nil then
-				local dist=math.sqrt(((pos[1]-x)^2)+((pos[3]-z)^2))
-				if dist<3.1 and dist<bestDist then best={x, 2.0, z} bestDist=dist end
-			end
-		end
-	end
-	return best
-end
-
-function normalizeVolkareBearing(bearing)
-	bearing=bearing%360
-	if bearing<0 then bearing=bearing+360 end
-	return bearing
-end
-
---Plan each first-phase Volkare step from the card's original direction.
---If that step needs an illegal tile, try the closest neighbouring direction and test the movement again.
-function planVolkareExploreMove(volkarePos, originalBearing, moveCount, objectsInPlay)
-	local bearings={}
-	local plannedTile=nil
-	local simPos={volkarePos[1], volkarePos[2], volkarePos[3]}
-	local offsets={0, -60, 60, -120, 120, 180}
-	for step=1, moveCount do
-		local chosenBearing=nil
-		local chosenPos=nil
-		for _, offset in ipairs(offsets) do
-			local bearing=normalizeVolkareBearing(originalBearing+offset)
-			local testPos={simPos[1]-(2.39*math.cos(math.rad(bearing))), 3.5, simPos[3]-(2.39*math.sin(math.rad(bearing)))}
-			local explored=terrainHexAtPosition(testPos, objectsInPlay)~=nil
-			if explored==false and plannedTile~=nil then explored=math.sqrt(((testPos[1]-plannedTile[1])^2)+((testPos[3]-plannedTile[3])^2))<3.1 end
-			if explored==true then
-				chosenBearing=bearing
-				chosenPos=testPos
-				break
-			end
-			if plannedTile==nil then
-				local legalSpot=volkareLegalExploreSpot(testPos)
-				if legalSpot~=nil then
-					plannedTile=legalSpot
-					chosenBearing=bearing
-					chosenPos=testPos
-					break
-				end
-			end
-		end
-		if chosenBearing==nil then return bearings, plannedTile end
-		bearings[step]=chosenBearing
-		simPos=chosenPos
-	end
-	return bearings, plannedTile
 end
 
 --Refresh only the stored location of a manually moved off-turn Mage Knight.
@@ -1530,68 +1471,6 @@ function offerAdjust(player, mouseButton, id)
 	end
 end
 
---Player seat colors only change during setup/load or when a player uses the color controls.
---Keep physical tinting out of mainUIUpdate so ordinary card play never recolors unchanged objects.
-function setDropoutMatImage(playerData, droppingOut)
-	if playerData==nil or playerData.playerBoardGUID==nil then return end
-	local board=getObjectFromGUID(playerData.playerBoardGUID)
-	if board==nil then return end
-	if droppingOut==true then
-		local custom=board.getCustomObject()
-		if playerData.preDropoutMatImage==nil and custom~=nil and custom.image~=nil then playerData.preDropoutMatImage=custom.image end
-		board.setCustomObject({image=dropoutMatImage})
-	elseif playerData.preDropoutMatImage~=nil then
-		board.setCustomObject({image=playerData.preDropoutMatImage})
-		playerData.preDropoutMatImage=nil
-	else
-		return
-	end
-	board.reload()
-end
-
-function dropOutPlayer(player, mouseButton, id)
-	if mouseButton~="-1" then return end
-	local barGUID=id:sub(1,6)
-	local playerIndex=nil
-	local playerData=nil
-	for position, testGUID in pairs(colorBand) do
-		if testGUID==barGUID then
-			for a, details in pairs(turnOrder) do
-				if details.seatPos==position and details.mage~=gStates.positionMageKnight[5] then playerIndex=a playerData=details break end
-			end
-			break
-		end
-	end
-	if playerData==nil or legalPlayerCheck(player.color, playerData.seatPos, "NoDummyException")~=true then return end
-	if dropoutCoopLocked()==true then
-		broadcastToAll("Players cannot drop out while a cooperative assault or defense is being resolved.", positionToColor(playerIndex))
-		applyColorBarButtons()
-		return
-	end
-	if gStates.firstStarted==true and playerIndex==gStates.turnNumber then
-		broadcastToAll("You cannot drop out during your own turn.", positionToColor(playerIndex))
-		applyColorBarButtons()
-		return
-	end
-	if playerData.dropoutState=="dropped" then return end
-	if playerData.dropoutState=="pending" then
-		playerData.dropoutState=nil
-		setDropoutMatImage(playerData, false)
-		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} cancelled dropping out.{ru} отменил выход из игры.{zh-tw} 取消了退出遊戲。{zh-cn} 取消了退出游戏。{ko} 게임 나가기를 취소했습니다.{es} canceló su abandono de la partida.{fr} a annulé son départ de la partie.{pt-br} cancelou a saída do jogo.{de} hat das Verlassen des Spiels abgebrochen."}), positionToColor(playerIndex))
-	else
-		--Never allow dropouts to reduce the game below two active Mage Knights.
-		if activeMageKnightCount()<3 then
-			broadcastToAll("At least two Mage Knights must remain in the game.", positionToColor(playerIndex))
-			applyColorBarButtons()
-			return
-		end
-		playerData.dropoutState="pending"
-		setDropoutMatImage(playerData, true)
-		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} will drop out when turn order next advances. Press Undo Drop Out before then to cancel.{ru} выйдет из игры при следующем переходе хода. До этого можно отменить выход.{zh-tw} 將在下一次推進回合順序時退出遊戲；在此之前可按撤銷退出。{zh-cn} 将在下一次推进回合顺序时退出游戏；在此之前可按撤销退出。{ko} 다음 차례 진행 시 게임에서 나갑니다. 그 전까지 나가기 취소를 누를 수 있습니다.{es} abandonará la partida cuando avance el orden de turno. Puede deshacerlo antes de entonces.{fr} quittera la partie au prochain changement de tour. Vous pouvez annuler avant cela.{pt-br} sairá do jogo quando a ordem de turno avançar. Você pode desfazer antes disso.{de} verlässt das Spiel beim nächsten Zugwechsel. Bis dahin kann der Austritt rückgängig gemacht werden."}), positionToColor(playerIndex))
-	end
-	applyColorBarButtons()
-end
-
 --Change a hand's color and refresh.
 function changePositionColor(player, mouseButton, id)
 	local barConversion={[colorBand[1]]=1, [colorBand[2]]=2, [colorBand[3]]=3, [colorBand[4]]=4}
@@ -2222,69 +2101,6 @@ function DealWound(paramaters)
 end
 
 explorePause=false
-local function fracturedLandsOrientationButtons(tile)
-	if tile==nil then return end
-	--Use the same counter-rotation plane as Avatar controls so this strip stays at the visual bottom of the tile.
-	--The three controls deliberately copy the Artifact deck's arrow / centre button / arrow layout.
-	tile.clearButtons()--remove any legacy createButton controls from an in-progress older save
-	local tileRotation=tile.getRotation()[2] or 180
-	local rotationPlane=tostring(tileRotation-180)
-	local prefix=tile.guid
-	local buttonY=175--position offsets are not scaled; keep the strip close beneath the terrain tile
-	local buttonZ=-25
-	local buttonScale="0.18144 0.18144"--locked-in visual scale
-	local xml={{tag="Panel", attributes={id=prefix.."FracturedRotationPlane", height=800, width=900, position="0 0 -25", rotation="0 0 "..rotationPlane, color="rgba(0,0,0,0.0)"}, children={
-		{tag="Button", attributes={id=prefix.."ArtifactUp", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateLeft", height=150, width=150, color="rgba(0,0,0,0.0)", position="-54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactUpImage", image="Overkill Up"}}}},
-		{tag="Button", attributes={id=prefix.."FracturedDone", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsOrientationDone", height=150, width=400, color="rgba(0,0,0,0.0)", position="0 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."FracturedDoneImage", image="Sliced Button/Button Object Active", type="Sliced"}}, {tag="Text", attributes={font="Fonts/MKCardText", fontSize=90, color="black", fontStyle="Normal", alignment="MiddleCenter", text="Done"}}}},
-		{tag="Button", attributes={id=prefix.."ArtifactDown", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateRight", height=150, width=150, color="rgba(0,0,0,0.0)", position="54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactDownImage", image="Overkill Down"}}}}
-	}}}
-	tile.UI.setXmlTable(xml)
-end
-local function fracturedLandsOrientationPlayerLegal(playerColor)
-	return gStates.fracturedLandsOrientation~=nil and playerColor~=nil and legalPlayerCheck(playerColor, gStates.fracturedLandsOrientation.seatPos)==true
-end
-local function fracturedLandsRotate(player, direction)
-	local pending=gStates.fracturedLandsOrientation
-	local tile=pending~=nil and getObjectFromGUID(pending.guid) or nil
-	if pending==nil or tile==nil or pending.busy==true or player==nil or fracturedLandsOrientationPlayerLegal(player.color)~=true then return end
-	pending.busy=true
-	local rotation=tile.getRotation()
-	rotation[2]=(math.floor((rotation[2]/60)+0.5)*60+(60*direction))%360
-	local targetRotation=rotation[2]
-	local tileGUID=tile.guid
-	tile.setRotationSmooth(rotation, false, true)
-	--Follow the smooth turn by changing only the transparent rotation plane, not rebuilding the three buttons.
-	--This keeps the controls visually beneath the tile throughout the animation, the same principle used by Avatar buttons.
-	local followFrames=0
-	local function followRotation()
-		local current=gStates.fracturedLandsOrientation
-		local currentTile=current~=nil and getObjectFromGUID(current.guid) or nil
-		if current==nil or current.guid~=tileGUID or currentTile==nil then return end
-		followFrames=followFrames+1
-		local currentRotation=currentTile.getRotation()[2] or targetRotation
-		currentTile.UI.setAttribute(tileGUID.."FracturedRotationPlane", "rotation", "0 0 "..tostring(currentRotation-180))
-		local difference=math.abs(((currentRotation-targetRotation+180)%360)-180)
-		if difference<0.5 or followFrames>=60 then current.busy=false return end
-		safeWaitFrames("PlayingGame",followRotation, 1)
-	end
-	safeWaitFrames("PlayingGame",followRotation, 1)
-end
-function fracturedLandsRotateLeft(player, value, id) fracturedLandsRotate(player, -1) end
-function fracturedLandsRotateRight(player, value, id) fracturedLandsRotate(player, 1) end
-function fracturedLandsOrientationDone(player, value, id)
-	local pending=gStates.fracturedLandsOrientation
-	local tile=pending~=nil and getObjectFromGUID(pending.guid) or nil
-	if pending==nil or tile==nil or pending.busy==true or player==nil or fracturedLandsOrientationPlayerLegal(player.color)~=true then return end
-	--The orientation height is above the map scripting zone. Done only releases the tile;
-	--its real entry into the map zone performs every normal terrain setup step.
-	tile.unlock()
-end
-local function startFracturedLandsOrientation(tile, position)
-	tile.setPosition({position[1], 2.20, position[3]})
-	tile.lock()
-	gStates.fracturedLandsOrientation={guid=tile.guid, seatPos=turnOrder[gStates.turnNumber].seatPos, position={position[1],0.97,position[3]}, busy=false}
-	fracturedLandsOrientationButtons(tile)
-end
 function exploreMap(player, mouseButton, id)
 	if mouseButton=="-1" and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true and explorePause==false and gStates.fracturedLandsOrientation==nil then
 		explorePause=true
@@ -2412,32 +2228,6 @@ function autoflip()
 		gStates.autoFlip=true
 		UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Deactive")
 		broadcastToAll("{en}Script will flip monster tokens for you.{ru}Скрипт будет переворачивать жетоны врагов за вас.{zh-cn}脚本将为你翻转怪物标记. {ko}스크립트가 자동으로 토큰을 뒤집습니다.{es}Script le dará la vuelta a las fichas de monstruos.{fr}Le script retournera les jetons monstre pour vous.{pt-br}O Script virará as fichas de monstros por você.{de}Das Skript dreht die Monsterplättchen für dich um.", {1,1,0.5})
-	end
-end
-
-function bugReport(player, value, id)
-	UI.setAttribute("SendBugRequest", "active", true)
-end
-
-function updateComment(player, value, id)
-	UI.setAttribute(id, "text", value)
-end
-
-function lowerTable(player, mouseButton, id)
-	if mouseButton=="-1" then
-		if getObjectFromGUID("3d4319").getPosition()[2]==0 then
-			getObjectFromGUID("3d4319").setPosition({0.00, -0.2, -5.00})
-			getObjectFromGUID("519f96").setScale({200, 1, 200})
-			getObjectFromGUID("519f96").setPosition({0.00, 0.77, -5.00})
-			skillButtonActivate()
-			return
-		end
-		if getObjectFromGUID("3d4319").getPosition()[2]<0 then
-			getObjectFromGUID("3d4319").setPosition({0.00, 0.0, -5.00})
-			getObjectFromGUID("519f96").setScale({1, 1, 1})
-			getObjectFromGUID("519f96").setPosition({0.00, -0.2, -5.00})
-			skillButtonActivate()
-		end
 	end
 end
 

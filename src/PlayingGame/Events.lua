@@ -36,44 +36,13 @@ function __onLoad_raw(saved_data)
 		turnOrder=loaded_data.turnOrder
 		gStates=loaded_data.gStates
 	end
-	--Quest scoring was previously inseparable from Apocalypse Quest Cards. Old in-progress saves keep it enabled.
-	if type(gStates.apocalypseQuestScoringDisabled)~="boolean" then gStates.apocalypseQuestScoringDisabled=false end
-	if type(gStates.apocalypseQuestScoringChoiceLocked)~="boolean" then gStates.apocalypseQuestScoringChoiceLocked=gStates.firstStarted==true end
-	if apocalypseQuestScoresRequired()==true then gStates.apocalypseQuestScoringDisabled=false end
-	--Older Quest saves predate the permanent Quest-area scripting zone. Create it once after load so
-	--all subsequent offer/card scans use the small local object set instead of getAllObjects().
-	safeWaitFrames("Events",function() if apocalypseQuestsUsed()==true then apocalypseQuestAreaZone() end end,1)
-	--Follow Enemy is a global Camera Control option, enabled by default. Migrate the earlier per-player table state.
-	if type(gStates.cameraFollowEnemy)~="boolean" then gStates.cameraFollowEnemy=true end
-	--Hero Challenge reservations used to be keyed by turnOrder index, but turnOrder is re-sorted during play.
-	--Rebuild them from each Hero's prescribed Skill GUID so old saves cannot hand one Hero another Hero's Skill.
-	if gStates.heroChallenges==true then
-		local stableHeroChallengeSkills={}
-		for _,details in pairs(turnOrder or {}) do
-			local challenge=heroChallengesData[details.mage]
-			if challenge~=nil and getObjectFromGUID(challenge.skillGUID)~=nil then stableHeroChallengeSkills[details.mage]=challenge.skillGUID end
-		end
-		gStates.heroChallengeReservedSkills=stableHeroChallengeSkills
-	elseif type(gStates.heroChallengeReservedSkills)~="table" then gStates.heroChallengeReservedSkills={} end
-	--Fractured Lands always uses Blitz rules. Migrate saves made before its internal scenario name carried the Blitz suffix.
-	if gStates.gameScenario=="The Fractured Lands" then gStates.gameScenario="The Fractured Lands Blitz" gStates.blitz=1 end
-	if gStates.competitiveSkillReminders==nil then gStates.competitiveSkillReminders={} end
-	if gStates.coopCompSkillActivation==nil then gStates.coopCompSkillActivation={} end
-	if gStates.tomeSkillSwapPending==nil then gStates.tomeSkillSwapPending={} end
-	if type(gStates.puppetMasterPuppets)~="table" then gStates.puppetMasterPuppets={} end
 	--Refresh saved Puppets so presentation changes (decal/hover data) also apply to existing accepted Puppets.
-	safeWaitFrames("Events",function() for guid,record in pairs(gStates.puppetMasterPuppets) do puppetMasterRefreshPresentation(getObjectFromGUID(guid),record) end end,2)
+	safeWaitFrames("Events",function() for guid,record in pairs(gStates.puppetMasterPuppets or {}) do puppetMasterRefreshPresentation(getObjectFromGUID(guid),record) end end,2)
 	--Goblin Warrens enemies come from an Infinite Bag and therefore receive new GUIDs. Restore their
 	--runtime monster registration before a saved mid-combat game can inspect or clean them up.
 	safeWaitFrames("Events",function() apocalypseQuestRestoreGoblinEnemies() end,2)
-	--Proxy Heroes are normal movable figures between automated moves; migrate older saves that left them locked.
-	safeWaitFrames("Events",function()
-		if proxyPlayerActive()==true then local avatar=proxyAvatarObject() if avatar~=nil then avatar.unlock() end end
-	end,2)
 	--Restore any saved live Proxy choice, including terrain, offer-card, enemy, and Source-mana controls.
 	safeWaitFrames("Events",function() proxyRestorePendingChoiceUI() end,4)
-	local legacyMineLocation={["mine red"]=true,["mine green"]=true,["mine blue"]=true,["mine white"]=true}
-	for _, details in pairs(turnOrder or {}) do if legacyMineLocation[details.avatarLocation]==true then details.avatarLocation="mine" end end
 	safeWaitFrames("Events",function() refreshMineClaimPanel() end, 1)
 	--Reapply explicit ALT zoom directions to any City/avatar objects already out on the table.
 	safeWaitFrames("Events",function() refreshAltViewAngles() end, 2)
@@ -82,8 +51,6 @@ function __onLoad_raw(saved_data)
 	if gStates.finalTurnReason~=nil then ensureFinalTurnBoundary() end
 	safeWaitFrames("Events",function() againstHorsemenRestoreRuntimeState() end,2)
 	startMaintenanceTick()
-	--Updated already saved variable by putting a copy here, delete after saving one time.
-
 	-----------
 	UI.setAttribute("sendBugReportButtonRealText", "text", "{en}Feedback{ru}Обратная связь{zh-tw}回饋意見{zh-cn}反馈{ko}피드백{es}Realimentación{fr}Retour{pt-br}Comentários{de}Feedback")
 	UI.setAttribute("AutoFlipButtonRealText", "text", "{en}Auto Flip{ru}Авто-переворот{zh-cn}自动翻转{ko}자동 공개{es}Volteo Automático{fr}Retournement auto{pt-br}Auto-Virar{de}Auto-Flip")

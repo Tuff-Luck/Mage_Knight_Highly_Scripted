@@ -1,5 +1,69 @@
 -- Volkare automated turn and combat-response runtime.
 
+--Return the legal top-tile exploration position that contains a world hex.
+--This deliberately reuses the normal EXPLORE set, so Volkare obeys the same tile-placement rules as players.
+local function volkareLegalExploreSpot(pos)
+	if pos==nil or gStates.exploreButtons==nil then return end
+	local best=nil
+	local bestDist=999
+	for _, button in pairs(gStates.exploreButtons) do
+		local attributes=button.attributes
+		if attributes~=nil then
+			local x=tonumber(attributes.tilePosX)
+			local z=tonumber(attributes.tilePosZ)
+			if x~=nil and z~=nil then
+				local dist=math.sqrt(((pos[1]-x)^2)+((pos[3]-z)^2))
+				if dist<3.1 and dist<bestDist then best={x, 2.0, z} bestDist=dist end
+			end
+		end
+	end
+	return best
+end
+
+local function normalizeVolkareBearing(bearing)
+	bearing=bearing%360
+	if bearing<0 then bearing=bearing+360 end
+	return bearing
+end
+
+--Plan each first-phase Volkare step from the card's original direction.
+--If that step needs an illegal tile, try the closest neighbouring direction and test the movement again.
+local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, objectsInPlay)
+	local bearings={}
+	local plannedTile=nil
+	local simPos={volkarePos[1], volkarePos[2], volkarePos[3]}
+	local offsets={0, -60, 60, -120, 120, 180}
+	for step=1, moveCount do
+		local chosenBearing=nil
+		local chosenPos=nil
+		for _, offset in ipairs(offsets) do
+			local bearing=normalizeVolkareBearing(originalBearing+offset)
+			local testPos={simPos[1]-(2.39*math.cos(math.rad(bearing))), 3.5, simPos[3]-(2.39*math.sin(math.rad(bearing)))}
+			local explored=terrainHexAtPosition(testPos, objectsInPlay)~=nil
+			if explored==false and plannedTile~=nil then explored=math.sqrt(((testPos[1]-plannedTile[1])^2)+((testPos[3]-plannedTile[3])^2))<3.1 end
+			if explored==true then
+				chosenBearing=bearing
+				chosenPos=testPos
+				break
+			end
+			if plannedTile==nil then
+				local legalSpot=volkareLegalExploreSpot(testPos)
+				if legalSpot~=nil then
+					plannedTile=legalSpot
+					chosenBearing=bearing
+					chosenPos=testPos
+					break
+				end
+			end
+		end
+		if chosenBearing==nil then return bearings, plannedTile end
+		bearings[step]=chosenBearing
+		simPos=chosenPos
+	end
+	return bearings, plannedTile
+end
+
+
 --Volkare only. Keep his existing slower state/prompt sequence independent from the fast standard Dummy.
 function volkareTurn(player, mouseButton, id)
 	if mouseButton~="-1" or gStates.positionMageKnight[5]~="Volkare" then return end

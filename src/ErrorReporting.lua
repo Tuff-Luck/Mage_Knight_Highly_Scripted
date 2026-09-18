@@ -28,14 +28,14 @@ function safeObjectCallbackParams(scope, params)
 end
 
 -- Automatic Lua error reporting
-automaticLuaErrorReporting=false
-automaticLuaErrorLastReport=0 --kept for the manual test hook / compatibility
-automaticLuaErrorCooldown=10
-automaticLuaErrorSignatures={}
-automaticLuaErrorBreadcrumbs={}
-automaticLuaErrorBreadcrumbLimit=10
-automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-automaticLuaErrorReporterVersion="414"
+local automaticLuaErrorReporting=false
+local automaticLuaErrorLastReport=0 --kept for the manual test hook / compatibility
+local automaticLuaErrorCooldown=10
+local automaticLuaErrorSignatures={}
+local automaticLuaErrorBreadcrumbs={}
+local automaticLuaErrorBreadcrumbLimit=10
+local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
+local automaticLuaErrorReporterVersion="414"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)

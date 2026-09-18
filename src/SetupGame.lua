@@ -3,8 +3,6 @@
 -----------------
 -- Setup the Game
 -----------------
-warningColor={1,0.8,0.2}
-
 function randomCitiesAllowedForScenario(scenario)
 	scenario=scenario or gStates.gameScenario
 	return scenario~="First Reconnaissance" and scenario~="The Lost Relic" and scenario~="The Lost Relic Blitz" and scenario~="The Gauntlet"

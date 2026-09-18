@@ -1,6 +1,11 @@
 -- Shared helpers used by more than one Global source module.
 -- Keep subsystem-owned game logic in its owning module.
 
+-- Core runtime state. Current saved data replaces these tables during onLoad.
+turnOrder={}
+gStates={}
+warningColor={1,0.8,0.2}
+
 ---@overload fun(scope: "SetupGame", container: any, params: table): any
 function safeTakeObject(scope, container, params)
 	local ref=type(params)=="table" and (params.guid or params.index) or "unknown"
@@ -8,9 +13,7 @@ function safeTakeObject(scope, container, params)
 		if scope=="SetupGame" then error("SetupGame missing required container while taking "..tostring(ref),2) end
 		return nil
 	end
-	local obj=container.takeObject(safeObjectCallbackParams(scope,params))
-	if scope=="SetupGame" then assert(obj,"SetupGame failed to take required object "..tostring(ref)) end
-	return obj
+	return container.takeObject(safeObjectCallbackParams(scope,params))
 end
 
 function safeSpawnObject(scope, params)
@@ -44,11 +47,11 @@ function safeWaitCondition(scope, callback, condition, timeout, timeoutCallback)
 end
 
 --Used to join a table of strings with translation brackets
-JOIN_LANG_ORDER={"en", "ru", "zh-tw", "zh-cn", "ko", "es", "fr", "pt-br", "de"}
-JOIN_LANG_TAGS={"{en}", "{ru}", "{zh-tw}", "{zh-cn}", "{ko}", "{es}", "{fr}", "{pt-br}", "{de}"}
-joinLangParseCache={}
-joinLangCacheCount=0
-JOIN_LANG_CACHE_LIMIT=2048
+local JOIN_LANG_ORDER={"en", "ru", "zh-tw", "zh-cn", "ko", "es", "fr", "pt-br", "de"}
+local JOIN_LANG_TAGS={"{en}", "{ru}", "{zh-tw}", "{zh-cn}", "{ko}", "{es}", "{fr}", "{pt-br}", "{de}"}
+local joinLangParseCache={}
+local joinLangCacheCount=0
+local JOIN_LANG_CACHE_LIMIT=2048
 
 function joinLangParse(text)
 	local cached=joinLangParseCache[text]
@@ -110,13 +113,13 @@ end
 --for one seat can share the same rewind transaction without releasing the outer transaction early.
 --TTS storeRewindState captures a full engine rewind snapshot and can visibly hitch this large mod.
 --Keep the transaction ownership/sequencing, but leave engine snapshots disabled unless explicitly re-enabled.
-rewindTransactionStoreEnabled=false
-rewindTransactionStorePending=false
-rewindTransactionBlocked=false
-rewindTransactionGeneration=0
-rewindTransactionOwners={}
-rewindTransactionPending={}
-rewindTransactionPendingOwners={}
+local rewindTransactionStoreEnabled=false
+local rewindTransactionStorePending=false
+local rewindTransactionBlocked=false
+local rewindTransactionGeneration=0
+local rewindTransactionOwners={}
+local rewindTransactionPending={}
+local rewindTransactionPendingOwners={}
 
 function rewindTransactionOwnerActive(owner)
 	owner=owner or "Automated turn"
