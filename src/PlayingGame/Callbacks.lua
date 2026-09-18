@@ -29,7 +29,7 @@ function onLoad(saved_data)
 		rollerOnLoad(rollerSavedState(saved_data))
 		local result=__onLoad_raw(saved_data)
 		safeWaitFrames("Callbacks",function()
-			monsterReplenishObjectOnLoad()
+			getObjectFromGUID("d7a165").UI.setAttribute("d7a165replenishMonsterPilesText", "text", "{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen")
 			artifactOnLoad()
 		end,2)
 		return result

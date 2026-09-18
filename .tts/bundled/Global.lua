@@ -104,7 +104,7 @@ function onLoad(saved_data)
 		rollerOnLoad(rollerSavedState(saved_data))
 		local result=__onLoad_raw(saved_data)
 		safeWaitFrames("Callbacks",function()
-			monsterReplenishObjectOnLoad()
+			getObjectFromGUID("d7a165").UI.setAttribute("d7a165replenishMonsterPilesText", "text", "{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen")
 			artifactOnLoad()
 		end,2)
 		return result
@@ -7628,25 +7628,12 @@ end
 --as the existing Skill reference cards, including the central position-5 Dummy-board adjustment.
 function proxySetupReferenceCards()
 	if proxyPlayerActive()~=true then return end
-	local proxyIndex=proxyPlayerIndex()
-	if proxyIndex==nil or turnOrder[proxyIndex]==nil then return end
-	local setupPosition=turnOrder[proxyIndex].seatPos
-	if setupPosition==nil then return end
-
-	local offsetPosition=(setupPosition*40)-40
-	local z=-49.00
-	local x1=-70.58+offsetPosition --9.42 when the Proxy occupies setup position 3
-	local x2=-67.26+offsetPosition --12.74 when the Proxy occupies setup position 3
-	if setupPosition==5 then
-		x1=x1-25.2
-		x2=x2-25.2
-		z=z+21.1
-	end
-
+	local board=getObjectFromGUID(dummyBoard)
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	if bag==nil then return end
-	safeTakeObject("AI.Proxy",bag,{guid="0e855c",position={x1,0.98,z},rotation={0,180,0},smooth=false,callback_function=function(obj) obj.lock() end})
-	safeTakeObject("AI.Proxy",bag,{guid="dbf566",position={x2,0.98,z},rotation={0,180,0},smooth=false,callback_function=function(obj) obj.lock() end})
+	if board==nil or bag==nil then return end
+	local p=board.getPosition()
+	safeTakeObject("AI.Proxy",bag,{guid="0e855c",position={p[1]+9.44,p[2],p[3]-5.17},rotation={0,180,0},smooth=false,callback_function=function(obj) obj.lock() end})
+	safeTakeObject("AI.Proxy",bag,{guid="dbf566",position={p[1]+12.91,p[2],p[3]-5.17},rotation={0,180,0},smooth=false,callback_function=function(obj) obj.lock() end})
 end
 
 function proxySetupAvatarPosition()
@@ -7741,8 +7728,14 @@ function proxySetupShieldBag(skillBagObj)
 	--Normal Dummy Skill-bag home; only used when no live/saved Skill bag position exists.
 	if skillPos==nil then skillPos={56.68,1.6,-9.93} end
 	gStates.proxySkillBagPosition={skillPos[1],skillPos[2],skillPos[3]}
-	--Keep the Proxy Shield supply at its dedicated table position rather than offsetting from the Skill bag.
+	--Keep the Proxy Shield supply in the same place relative to whichever player slot owns the Dummy board.
+	--The old absolute {1.88,1.14,-33.53} was only correct when that board happened to occupy seat 3.
 	local destination={1.88,1.14,-33.53}
+	local board=getObjectFromGUID(dummyBoard)
+	if board~=nil then
+		local p=board.getPosition()
+		destination={p[1]-5.62,p[2]+0.16,p[3]+4.47}
+	end
 	bag.setPosition(destination)
 	bag.setRotation({0,180,0})
 	bag.lock()
@@ -23501,7 +23494,7 @@ function offerArtifacts(player, mouseButton, id)
 				end
 				for a=1, gStates.artifactRewards+1, 1 do
 					standardDeckCycleShuffleIfReached("Artifact", artifactDeck)
-					artifactDeck=getObjectFromGUID(GUID.deck.artifact)
+					--artifactDeck=getObjectFromGUID(GUID.deck.artifact)
 					local dealtArtifact=artifactDeck.takeObject({position={artifactDeck.getPosition()[1]+(((artifactDeck.getScale()[1]/1.5)*4.8)*a), 2.0, artifactDeck.getPosition()[3]}, rotation={0, 180, 0}, smooth=true})
 					dealtArtifact.setHiddenFrom(hide)
 					dealtArtifact.UI.setXmlTable({createClaimButton(dealtArtifact.guid, "artifactReward")})
@@ -26209,6 +26202,7 @@ apocalypseQuestMarkerPlacementRules={
 	--The step-location test decides whether that Mage Knight is standing somewhere legal.
 	["08ffcf"]={["1"]={tokens={"518afd"}, atPlayer=true}},
 	["58a826"]={["1"]={tokens={"fb29ad"}, atPlayer=true}},
+	["734740"]={["1"]={tokens={"c48454"}, atPlayer=true}},
 	["72099f"]={["1"]={tokens={"02f996"}, atPlayer=true}},
 	["11d244"]={
 		["1"]={tokens={"cef3a2"}, atPlayer=true},
@@ -34672,6 +34666,7 @@ function afterLoad()
 		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "true")
 		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOffer", "active", "true")
 		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUp", "active", "true")
+		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferText", "text", joinLang({"{en}Reward {ru}Награда {zh-tw}獎勵{zh-cn}奖励{ko}보상 {es}Premiar {fr}Reward {pt-br}Premiar {de}Belohnung ", gStates.artifactRewards}))
 		UI.setAttribute("ResourceTracker", "active", "true")
 		UI.setAttribute("cameraControl", "active", "true")
 		if gStates.gameScenario=="One to Return" then UI.hide("ScoreButton") end
@@ -34706,9 +34701,6 @@ end
 firstTile=nil
 startingMapSetup=false
 startingMapTiles={}
---The Dragon data table is assigned later in the file, but Fury map setup needs its GUIDs here.
-local apocalypseDragon
-
 -- Apocalypse Dragon Hero Challenges play variant.
 -- The variant overlays the selected scenario; the scenario's own end condition remains authoritative.
 function heroChallengeCountryGUID(number)
@@ -38471,9 +38463,9 @@ end
 --before the first mutation, then suppress TTS automatic rewind snapshots until every nested transaction is stable.
 --Owners make the guard nestable: a Quest refill can safely run inside End of Round, and several queued card claims
 --for one seat can share the same rewind transaction without releasing the outer transaction early.
---TTS storeRewindState captures a full engine rewind snapshot and can visibly hitch this large mod.
---Keep the transaction ownership/sequencing, but leave engine snapshots disabled unless explicitly re-enabled.
-local rewindTransactionStoreEnabled=false
+--TTS storeRewindState captures a full engine rewind snapshot before protected scripted actions.
+--Keep the transaction ownership/sequencing and store the safe rewind point before mutations begin.
+local rewindTransactionStoreEnabled=true
 local rewindTransactionStorePending=false
 local rewindTransactionBlocked=false
 local rewindTransactionGeneration=0
