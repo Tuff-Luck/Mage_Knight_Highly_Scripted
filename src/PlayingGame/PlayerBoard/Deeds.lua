@@ -799,12 +799,6 @@ function dealStartingHandsWhenReady()
 	end)
 end
 
-
-local fillSlideRaw=fillSlide
-function fillSlide()
-	return safeCallback("fillSlide",function() return fillSlideRaw() end)
-end
-
 --Meditation / Trance card smarts. Top/Bot starts as Meditation; adding discard cards to the Deed Deck tells the script Trance was powered.
 meditationTranceCardGUID="2eb8d0"
 local function meditationPlayerIndex(card)
@@ -1286,3 +1280,9 @@ function fillSlide()
 		end
 	end
 end
+
+local fillSlideRaw=fillSlide
+function fillSlide()
+	return safeCallback("fillSlide",function() return fillSlideRaw() end)
+end
+

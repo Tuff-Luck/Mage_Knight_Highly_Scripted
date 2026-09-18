@@ -3038,4 +3038,3 @@ function setupGame(player, mouseButton, id, rewindReady)
 		return setupGameRaw(player,mouseButton,id,rewindReady)
 	end,function() return setupGameErrorContext(player,id,rewindReady) end)
 end
-
