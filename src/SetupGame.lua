@@ -3000,3 +3000,42 @@ function mapSetup()
 	--Starting country tiles reveal on 1/2/3 second timers. They are part of setup, not newly explored terrain.
 	safeWaitTime("SetupGame",function() startingMapSetup=false end, 4)
 end
+
+--Keep setup-specific validation and rulebook deployment with the setup owner rather than a late wrapper module.
+local setupGameRaw=setupGame
+local function setupGameErrorContext(player,id,rewindReady)
+	local playerColor=player~=nil and (player.color or player) or ""
+	return "Scenario: "..tostring(gStates~=nil and gStates.gameScenario or "")..
+		"\nScenario Ref: "..tostring(gStates~=nil and gStates.scenarioRef or "")..
+		"\nPlayers Ref: "..tostring(gStates~=nil and gStates.playersRef or "")..
+		"\nPlayer: "..tostring(playerColor)..
+		"\nStart ID: "..tostring(id or "")..
+		"\nRewind Ready: "..tostring(rewindReady==true)
+end
+function setupGame(player, mouseButton, id, rewindReady)
+	return safeCallback("setupGame",function()
+		if mouseButton=="-1" and rewindReady==true and gStates~=nil then
+			--Book.setPage expects a CLR Int32. Normalize scenario rule-page values before the delayed
+			--rulebook callback runs, including values restored from a string.
+			local scenario=scenarioList~=nil and scenarioList[gStates.scenarioRef] or nil
+			local details=scenario~=nil and scenario.scenarioDetails or nil
+			local ruleStates=details~=nil and details.ruleStates or nil
+			if type(ruleStates)=="table" then
+				for key,page in pairs(ruleStates) do
+					local numeric=tonumber(page)
+					if numeric~=nil then ruleStates[key]=math.floor(numeric) end
+				end
+			end
+			--Fury's manual comes from the Apocalypse Dragon rules bag and is locked by the normal
+			--delayed rulebook pass alongside the other manuals.
+			if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
+				local ruleBag=getObjectFromGUID("d4a866")
+				if ruleBag~=nil then
+					safeTakeObject("SetupGame",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
+				end
+			end
+		end
+		return setupGameRaw(player,mouseButton,id,rewindReady)
+	end,function() return setupGameErrorContext(player,id,rewindReady) end)
+end
+

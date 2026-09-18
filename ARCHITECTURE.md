@@ -27,11 +27,10 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/UI.lua` | Runtime presentation, camera controls, ALT views, resource/UI helpers and object UI installers. |
 | `src/PlayingGame/Events.lua` | TTS event handling, maintenance/persistence support and automatic Lua error reporting. |
 | `src/PlayingGame/Callbacks.lua` | Public/safe callback boundaries exposed to TTS/UI entry points, including final `onLoad` composition. |
-| `src/PlayingGame/Integration.lua` | Final cross-module wrappers/integration, intentionally loaded after the gameplay/event/callback modules. |
 
 ## Dependency shape
 
-`Data` and `Shared` load first. Setup modules then define setup-facing globals. Gameplay modules load after setup, with specialized modules defining their systems before the final UI/event/callback/integration layers.
+`Data` and `Shared` load first. Setup modules then define setup-facing globals. Gameplay modules load after setup, with specialized modules defining their systems before the final UI/event/callback layers.
 
 Modules have separate lexical scope for `local` declarations. Globals are shared in the final bundled Global environment. A helper needed by multiple modules should therefore be intentionally global/shared or otherwise exposed once; copying a local helper into several files does not consolidate it.
 

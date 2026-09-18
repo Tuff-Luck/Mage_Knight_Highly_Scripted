@@ -3224,6 +3224,8 @@ function automaticLuaZoneContext(zone, obj)
 end
 
 function SendDataRequest(player, mouseButton, id)
+	--Send an explicit false for Apocalypse Quest when the option was never touched.
+	if gStates~=nil then gStates.apocalypseQuestCards=(gStates.apocalypseQuestCards==true) end
 	if mouseButton=="-1" and (player=="skip" or player=="auto" or (player.color~=nil and Player[player.color].admin==true)) then
 		UI.setAttribute("SendDataRequest", "active", "false")
 		UI.setAttribute("SendBugRequest", "active", "false")

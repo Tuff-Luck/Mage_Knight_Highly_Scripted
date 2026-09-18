@@ -22,7 +22,7 @@ Keep shared helpers defined once. Cross-system helpers belong in `src/Shared.lua
 
 Respect module ownership documented in `ARCHITECTURE.md`. When a feature already has a module, make the change there rather than adding another implementation to `PlayingGame.lua`.
 
-Require order in `.tts/objects/Global.lua` matters. `PlayingGame.Integration` intentionally loads after the gameplay/event/callback modules because it wraps previously defined cross-module handlers.
+Require order in `.tts/objects/Global.lua` matters. `PlayingGame.Callbacks` loads after UI and Events because its public lifecycle callbacks compose helpers defined by those modules.
 
 Functional object Lua should be moved into Global modules where practical. Placeholder object Lua files may remain so Sebastian's TTS extension clears old object-side scripts when compiling.
 
