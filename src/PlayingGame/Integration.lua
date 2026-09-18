@@ -35,18 +35,8 @@ function setupGame(player, mouseButton, id, rewindReady)
             if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
                 local ruleBag=getObjectFromGUID("d4a866")
                 if ruleBag~=nil then
-                    local manual=safeTakeObject("Integration",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
-                    if manual~=nil then
-                        --The takeObject return is already the live book. Use that handle instead of waiting
-                        --for getObjectFromGUID() registration, then lock only after physics reports it resting.
-                        safeWaitFrames("Integration",function()
-                            safeWaitCondition("Integration",function()
-                                if manual~=nil then manual.lock() end
-                            end,function()
-                                return manual~=nil and manual.resting==true
-                            end)
-                        end,5)
-                    end
+                    --SetupGame's normal delayed rulebook pass locks this beside the other manuals.
+                    safeTakeObject("Integration",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
                 end
             end
         end
@@ -69,42 +59,6 @@ function furyDragonExtractMarker(target)
     marker.setRotation({0,180,0})
     marker.setPosition(target)
     return marker
-end
-
--- Destroyed Site markers must finish their scripted move and then actually fall onto the terrain
--- before being locked. In particular, Apocalypse is Here previously locked a newly drawn marker
--- immediately after destroySite(), leaving it suspended at its spawn Y position.
-function lockDestroyedSiteWhenSettled(token)
-    if token==nil then return end
-    local guid=token.guid
-    token.unlock()
-    safeWaitFrames("Integration",function()
-        safeWaitCondition("Integration",function()
-            local current=getObjectFromGUID(guid)
-            if current~=nil then current.lock() end
-        end,function()
-            local current=getObjectFromGUID(guid)
-            if current==nil then return true end
-            local pos=current.getPosition()
-            local velocity=current.getVelocity()
-            local vy=velocity~=nil and (velocity.y or velocity[2]) or 0
-            return current.resting==true and math.abs(vy)<0.01 and pos[2]<1.50
-        end,6)
-    end,1)
-end
-
-local baseApocalypseIsHereResolveHorsemanTarget=apocalypseIsHereResolveHorsemanTarget
-function apocalypseIsHereResolveHorsemanTarget(name,targetHex)
-    local before={}
-    for guid in pairs((gStates~=nil and gStates.destroyedSites) or {}) do before[guid]=true end
-    local result=baseApocalypseIsHereResolveHorsemanTarget(name,targetHex)
-    for guid in pairs((gStates~=nil and gStates.destroyedSites) or {}) do
-        if before[guid]~=true then
-            local token=getObjectFromGUID(guid)
-            if token~=nil then lockDestroyedSiteWhenSettled(token) end
-        end
-    end
-    return result
 end
 
 -- The stats/bug sheet should receive an explicit FALSE for Apocalypse Quest just like the other

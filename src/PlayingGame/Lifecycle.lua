@@ -42,7 +42,14 @@ function onLoad(saved_data)
         monsterReplenishObjectOnLoad()
         artifactOnLoad()
         rollerOnLoad(savedRollerState(saved_data))
-        return __onLoad_raw(saved_data)
+        local result=__onLoad_raw(saved_data)
+        --TTS finishes its language setup after the early object-UI install. Reapply the XML after
+        --the complete Global load path returns so localization tags are filtered normally.
+        safeWaitFrames("Lifecycle",function()
+            monsterReplenishObjectOnLoad()
+            artifactOnLoad()
+        end,2)
+        return result
     end)
 end
 

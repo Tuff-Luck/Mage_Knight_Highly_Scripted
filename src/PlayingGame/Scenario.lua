@@ -1987,7 +1987,7 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
 	if bag~=nil and bag.getQuantity()~=0 then
 		local token=bag.takeObject({position={targetHex.position[1],1.12,targetHex.position[3]},rotation={0,180,0},smooth=false})
-		if token~=nil then destroySite(token,targetHex.terrain,targetHex.bearing,targetHex.position) token.lock() end
+		if token~=nil then destroySite(token,targetHex.terrain,targetHex.bearing,targetHex.position) end
 	end
 	local oldHead=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[name] or 0) or 0
 	if oldHead>0 and oldHead<12 then apocalypseDragonSetHeadLevel(name,oldHead+1) end

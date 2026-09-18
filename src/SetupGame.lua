@@ -218,12 +218,14 @@ function setupGame(player, mouseButton, id, rewindReady)
 				local mainRules=getObjectFromGUID(r.main)
 				local expansionRules=getObjectFromGUID(r.expansion)
 				local apocalypseRules=getObjectFromGUID(r.apocalypse)
+				local furyRules=gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9") or nil
 				if scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.main~=nil and mainRules~=nil then mainRules.book.setPage(scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.main-1) end
 				if scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.expansion~=nil and expansionRules~=nil then expansionRules.book.setPage(scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.expansion-1) end
 				if scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.apocalypse~=nil and apocalypseRules~=nil then apocalypseRules.book.setPage(scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.apocalypse-1) end
 				if mainRules~=nil then mainRules.lock() end
 				if expansionRules~=nil then expansionRules.lock() end
 				if apocalypseRules~=nil then apocalypseRules.lock() end
+				if furyRules~=nil then furyRules.lock() end
 				if extraRules~=nil then extraRules.lock() end
 			end, function() local mainRules=getObjectFromGUID(r.main) return mainRules~=nil and mainRules.resting end) end, 5)
 		ruleBag.destruct()
