@@ -116,7 +116,7 @@ function onObjectPickUp(player_color, picked_up_object)
 end
 
 function onObjectHover(player_color, hover_object)
-	return __onObjectHover_raw(player_color, hover_object)
+	return safeCallback("onObjectHover", function() return __onObjectHover_raw(player_color, hover_object) end)
 end
 
 function onObjectDrop(player_color, dropped_object)
@@ -202,6 +202,13 @@ end
 end)
 __bundle_register("PlayingGame.Events", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- TTS persistence, raw event handling, maintenance and runtime event dispatch.
+
+--Terrain placement geometry is constant and only used by positionLegal() in this module.
+local terrainPlacementEdgeCoordinates={
+	{-30.03, 15.09}, {-25.23, 19.25}, {-31.23, 21.34},
+	{-38.43, 0.54}, {-33.63, 4.70}, {-28.83, 8.86}, {-24.03, 13.02}, {-19.23, 17.17},
+	{-24.03, -16.08}, {-19.23, -11.93}, {-14.43, -7.77}, {-9.63, -3.61}, {-4.82, 0.55}, {-0.02, 4.71}, {4.78, 8.87}
+}
 
 function __tryObjectEnterContainer_raw(container, object)
     if gStates.preEndTurn==false and container.type=="Card" and object.type=="Card" then
@@ -3287,6 +3294,8 @@ end
 end)
 __bundle_register("PlayingGame.UI", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Gameplay presentation, cached interface state and camera/object UI helpers.
+
+local volkarePursuitButtonImageURL="https://steamusercontent-a.akamaihd.net/ugc/13293042467654760772/E72DCC400EC451ABB80DC722F3657A631FC30C70/"
 
 --Repair the saved home locations for live skill tokens. This is skill bookkeeping, not UI bookkeeping,
 --so only run it when skill state is being initialized/refreshed rather than on every main UI update.
@@ -7623,9 +7632,8 @@ function refreshProxySetupLabel()
 	end
 end
 
---Deploy the two Apocalypse Proxy reference cards beside whichever setup slot the Proxy actually occupies.
---The supplied reference positions are for setup position 3; use the same 40-unit player-layout offset
---as the existing Skill reference cards, including the central position-5 Dummy-board adjustment.
+--Deploy the two Apocalypse Proxy reference cards relative to the live Dummy board so they follow
+--whichever setup slot the Proxy actually occupies.
 function proxySetupReferenceCards()
 	if proxyPlayerActive()~=true then return end
 	local board=getObjectFromGUID(dummyBoard)
@@ -7705,38 +7713,18 @@ function proxyStageShieldBag()
 	return bag
 end
 
-function proxySetupShieldBag(skillBagObj)
+function proxySetupShieldBag()
 	if proxyPlayerActive()~=true then return nil end
 	local bag=nil
 	if gStates.proxyShieldBagGUID~=nil then bag=getObjectFromGUID(gStates.proxyShieldBagGUID) end
 	if bag==nil then bag=proxyStageShieldBag() end
 	if bag==nil then return nil end
 
-	--Use the actual Proxy Skill bag position when available. Preserve it so reloads can restore the supply.
-	local skillPos=nil
-	if skillBagObj~=nil then
-		skillPos=skillBagObj.getPosition()
-	elseif gStates.proxySkillBagPosition~=nil then
-		skillPos=gStates.proxySkillBagPosition
-	else
-		local proxyIndex=proxyPlayerIndex()
-		if proxyIndex~=nil and turnOrder[proxyIndex]~=nil and turnOrder[proxyIndex].skillBagGUID~=nil then
-			local skillBag=getObjectFromGUID(turnOrder[proxyIndex].skillBagGUID)
-			if skillBag~=nil then skillPos=skillBag.getPosition() end
-		end
-	end
-	--Normal Dummy Skill-bag home; only used when no live/saved Skill bag position exists.
-	if skillPos==nil then skillPos={56.68,1.6,-9.93} end
-	gStates.proxySkillBagPosition={skillPos[1],skillPos[2],skillPos[3]}
 	--Keep the Proxy Shield supply in the same place relative to whichever player slot owns the Dummy board.
-	--The old absolute {1.88,1.14,-33.53} was only correct when that board happened to occupy seat 3.
-	local destination={1.88,1.14,-33.53}
 	local board=getObjectFromGUID(dummyBoard)
-	if board~=nil then
-		local p=board.getPosition()
-		destination={p[1]-5.62,p[2]+0.16,p[3]+4.47}
-	end
-	bag.setPosition(destination)
+	if board==nil then return bag end
+	local p=board.getPosition()
+	bag.setPosition({p[1]-5.62,p[2]+0.16,p[3]+4.47})
 	bag.setRotation({0,180,0})
 	bag.lock()
 	return bag
@@ -11392,8 +11380,6 @@ function volkarePursuitHexUsed(hexKey)
 	end
 	return false
 end
-
-volkarePursuitButtonImageURL="https://steamusercontent-a.akamaihd.net/ugc/13293042467654760772/E72DCC400EC451ABB80DC722F3657A631FC30C70/"
 
 function volkarePursuitAvailable(playerIndex)
 	local player=turnOrder[playerIndex]
@@ -15662,7 +15648,7 @@ function againstDragonResolveAirborneProtection(pending)
 	local currentFeature=terrainTiles[location.terrainGUID].hexFeature[location.bearing]
 	if currentFeature==nil or string.lower(tostring(currentFeature))~=feature then return false end
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
-	if bag==nil or (bag.getQuantity~=nil and bag.getQuantity()==0) then
+	if bag==nil then
 		broadcastToAll("A Dragon head was suppressed by the site, but no Destroyed Site token was available.",warningColor)
 		return false
 	end
@@ -20693,6 +20679,35 @@ puppetMasterSkillGUID="893537"
 puppetMasterDecalURL="https://steamusercontent-a.akamaihd.net/ugc/9238819073352977936/805A3875C8D1AD843302CC3E9AE3307EAC961883/" --Permanent Puppet Master marker applied to every registered Puppet.
 puppetMasterPickup={}
 
+local puppetMasterText={
+	skill="{en}Puppet Master{ru}Кукловод{zh-tw}傀儡大師{zh-cn}傀儡大师{ko}꼭두각시 조종자{es}Maestro de Marionetas{fr}Maître des Marionnettes{pt-br}Mestre dos Fantoches{de}Puppenmeister",
+	enemy="{en}Enemy{ru}Враг{zh-tw}敵人{zh-cn}敌人{ko}적{es}Enemigo{fr}Ennemi{pt-br}Inimigo{de}Gegner",
+	puppet="{en}Puppet{ru}Марионетка{zh-tw}傀儡{zh-cn}傀儡{ko}꼭두각시{es}Marioneta{fr}Marionnette{pt-br}Fantoche{de}Marionette",
+	kept="{en} was kept as a Puppet.{ru} сохранён как Марионетка.{zh-tw}被保留為傀儡。{zh-cn}被保留为傀儡。{ko}을(를) 꼭두각시로 보관했습니다.{es} se guardó como Marioneta.{fr} a été conservé comme Marionnette.{pt-br} foi mantido como Fantoche.{de} wurde als Marionette behalten.",
+	undo="{en} Puppet claim was undone.{ru}: получение Марионетки отменено.{zh-tw}的傀儡取得已撤銷。{zh-cn}的傀儡获取已撤销。{ko}의 꼭두각시 획득을 취소했습니다.{es}: se deshizo la reclamación de Marioneta.{fr} : la récupération de la Marionnette a été annulée.{pt-br}: a obtenção do Fantoche foi desfeita.{de}: Das Beanspruchen als Marionette wurde rückgängig gemacht.",
+	ownerInventory="{en}That Enemy must be dropped into its owner's Inventory.{ru}Этого Врага нужно поместить в Инвентарь его владельца.{zh-tw}必須將該敵人放入其擁有者的物品欄。{zh-cn}必须将该敌人放入其拥有者的物品栏。{ko}그 적은 소유자의 인벤토리에 놓아야 합니다.{es}Ese Enemigo debe colocarse en el Inventario de su propietario.{fr}Cet Ennemi doit être déposé dans l'Inventaire de son propriétaire.{pt-br}Esse Inimigo deve ser colocado no Inventário do seu dono.{de}Dieser Gegner muss im Inventar seines Besitzers abgelegt werden.",
+	fromCombat="{en}Only an Enemy taken directly from your combat area can be kept.{ru}Можно сохранить только Врага, взятого прямо из вашей боевой зоны.{zh-tw}只能保留直接從你的戰鬥區拿取的敵人。{zh-cn}只能保留直接从你的战斗区拿取的敌人。{ko}전투 영역에서 직접 가져온 적만 보관할 수 있습니다.{es}Solo se puede guardar un Enemigo tomado directamente de tu zona de combate.{fr}Seul un Ennemi pris directement dans votre zone de combat peut être conservé.{pt-br}Somente um Inimigo retirado diretamente da sua área de combate pode ser mantido.{de}Nur ein Gegner, der direkt aus deinem Kampfbereich genommen wurde, kann behalten werden.",
+	eligible="{en}That object is not an eligible Enemy token.{ru}Этот объект не является подходящим жетоном Врага.{zh-tw}該物件不是可用的敵人標記。{zh-cn}该物件不是可用的敌人标记。{ko}그 물체는 사용할 수 있는 적 토큰이 아닙니다.{es}Ese objeto no es una ficha de Enemigo válida.{fr}Cet objet n'est pas un jeton Ennemi valide.{pt-br}Esse objeto não é uma ficha de Inimigo válida.{de}Dieses Objekt ist kein zulässiger Gegnermarker.",
+	defeatedFaceUp="{en}Only a defeated, face-up Enemy can be kept.{ru}Можно сохранить только побеждённого Врага, лежащего лицом вверх.{zh-tw}只能保留已被擊敗且正面朝上的敵人。{zh-cn}只能保留已被击败且正面朝上的敌人。{ko}패배하여 앞면으로 놓인 적만 보관할 수 있습니다.{es}Solo se puede guardar un Enemigo derrotado y boca arriba.{fr}Seul un Ennemi vaincu et face visible peut être conservé.{pt-br}Somente um Inimigo derrotado e com a face para cima pode ser mantido.{de}Nur ein besiegter, offen liegender Gegner kann behalten werden.",
+	leaderDefeated="{en}A Faction Leader can only be kept after it is completely defeated.{ru}Лидера фракции можно сохранить только после его полного поражения.{zh-tw}派系首領只有在被完全擊敗後才能保留。{zh-cn}派系首领只有在被完全击败后才能保留。{ko}진영 지도자는 완전히 패배시킨 뒤에만 보관할 수 있습니다.{es}Un Líder de Facción solo puede guardarse después de ser derrotado por completo.{fr}Un Chef de Faction ne peut être conservé qu'après avoir été complètement vaincu.{pt-br}Um Líder de Facção só pode ser mantido depois de ser completamente derrotado.{de}Ein Fraktionsanführer kann erst behalten werden, nachdem er vollständig besiegt wurde.",
+	duringTurn="{en}You can only use the Skill during this Mage Knight's turn.{ru}Навык можно использовать только во время хода этого Рыцаря-мага.{zh-tw}只有在這名魔法騎士的回合中才能使用此技能。{zh-cn}只有在这名魔法骑士的回合中才能使用此技能。{ko}이 메이지 나이트의 차례에만 이 스킬을 사용할 수 있습니다.{es}Solo puedes usar la Habilidad durante el turno de este Caballero Mago.{fr}Vous ne pouvez utiliser la Compétence que pendant le tour de ce Mage Knight.{pt-br}Você só pode usar a Habilidade durante o turno deste Cavaleiro Mago.{de}Du kannst die Fähigkeit nur während des Zuges dieses Mage Knights benutzen.",
+	turnCleanup="{en}The turn is already being cleaned up.{ru}Ход уже завершается.{zh-tw}本回合已經在進行結束處理。{zh-cn}本回合已经在进行结束处理。{ko}이미 차례 종료 처리가 진행 중입니다.{es}El turno ya se está cerrando.{fr}La fin du tour est déjà en cours.{pt-br}O turno já está sendo encerrado.{de}Der Zug wird bereits beendet.",
+	doesNotOwn="{en} does not own Puppet Master.{ru} не владеет навыком «Кукловод».{zh-tw}沒有「傀儡大師」技能。{zh-cn}没有“傀儡大师”技能。{ko}에게 꼭두각시 조종자 스킬이 없습니다.{es} no posee Maestro de Marionetas.{fr} ne possède pas Maître des Marionnettes.{pt-br} não possui Mestre dos Fantoches.{de} besitzt Puppenmeister nicht.",
+	alreadyUsed="{en} has already been used this turn.{ru} уже использован в этом ходу.{zh-tw}本回合已經使用過。{zh-cn}本回合已经使用过。{ko}은(는) 이번 차례에 이미 사용했습니다.{es} ya se ha usado este turno.{fr} a déjà été utilisé ce tour-ci.{pt-br} já foi usado neste turno.{de} wurde in diesem Zug bereits benutzt.",
+	copyFailed="{en}The Puppet copy could not be created; the Enemy was returned.{ru}Не удалось создать копию Марионетки; Враг был возвращён.{zh-tw}無法建立傀儡副本；敵人已被放回。{zh-cn}无法创建傀儡副本；敌人已被放回。{ko}꼭두각시 복사본을 만들 수 없어 적을 원래 위치로 돌려놓았습니다.{es}No se pudo crear la copia de la Marioneta; se devolvió el Enemigo.{fr}La copie de la Marionnette n'a pas pu être créée ; l'Ennemi a été remis en place.{pt-br}Não foi possível criar a cópia do Fantoche; o Inimigo foi devolvido.{de}Die Marionettenkopie konnte nicht erstellt werden; der Gegner wurde zurückgelegt.",
+	pastedRemoved="{en} The pasted copy was removed.{ru} Вставленная копия удалена.{zh-tw} 已移除貼上的副本。{zh-cn} 已移除粘贴的副本。{ko} 붙여넣은 복사본을 제거했습니다.{es} Se eliminó la copia pegada.{fr} La copie collée a été supprimée.{pt-br} A cópia colada foi removida.{de} Die eingefügte Kopie wurde entfernt.",
+	pastedRegisterFailed="{en}The pasted Enemy could not be registered as a Puppet and was removed.{ru}Не удалось зарегистрировать вставленного Врага как Марионетку, поэтому он был удалён.{zh-tw}無法將貼上的敵人登記為傀儡，因此已將其移除。{zh-cn}无法将粘贴的敌人登记为傀儡，因此已将其移除。{ko}붙여넣은 적을 꼭두각시로 등록할 수 없어 제거했습니다.{es}No se pudo registrar el Enemigo pegado como Marioneta y se eliminó.{fr}L'Ennemi collé n'a pas pu être enregistré comme Marionnette et a été supprimé.{pt-br}O Inimigo colado não pôde ser registrado como Fantoche e foi removido.{de}Der eingefügte Gegner konnte nicht als Marionette registriert werden und wurde entfernt.",
+	ownerUnknown="{en}The Puppet's owner could not be identified.{ru}Не удалось определить владельца Марионетки.{zh-tw}無法確定傀儡的擁有者。{zh-cn}无法确定傀儡的拥有者。{ko}꼭두각시의 소유자를 확인할 수 없습니다.{es}No se pudo identificar al propietario de la Marioneta.{fr}Le propriétaire de la Marionnette n'a pas pu être identifié.{pt-br}Não foi possível identificar o dono do Fantoche.{de}Der Besitzer der Marionette konnte nicht ermittelt werden.",
+	ownerCombat="{en}A stored Puppet can only be played into its owner's combat area.{ru}Сохранённую Марионетку можно разыграть только в боевую зону её владельца.{zh-tw}已保留的傀儡只能打出到其擁有者的戰鬥區。{zh-cn}已保留的傀儡只能打出到其拥有者的战斗区。{ko}보관한 꼭두각시는 소유자의 전투 영역에만 사용할 수 있습니다.{es}Una Marioneta guardada solo puede jugarse en la zona de combate de su propietario.{fr}Une Marionnette conservée ne peut être jouée que dans la zone de combat de son propriétaire.{pt-br}Um Fantoche guardado só pode ser jogado na área de combate do seu dono.{de}Eine aufbewahrte Marionette kann nur in den Kampfbereich ihres Besitzers gespielt werden.",
+	played="{en} was played; no Enemy can be kept with Puppet Master this turn.{ru} разыграна; в этом ходу с помощью «Кукловода» больше нельзя сохранить Врага.{zh-tw}已打出；本回合不能再用「傀儡大師」保留敵人。{zh-cn}已打出；本回合不能再用“傀儡大师”保留敌人。{ko}을(를) 사용했습니다. 이번 차례에는 꼭두각시 조종자로 적을 보관할 수 없습니다.{es} se jugó; este turno no se puede guardar ningún Enemigo con Maestro de Marionetas.{fr} a été jouée ; aucun Ennemi ne peut être conservé avec Maître des Marionnettes pendant ce tour.{pt-br} foi jogado; nenhum Inimigo pode ser mantido com Mestre dos Fantoches neste turno.{de} wurde gespielt; in diesem Zug kann mit Puppenmeister kein Gegner behalten werden."
+}
+
+local function puppetMasterDisplayName(name,fallback)
+	if name~=nil and translateWord~=nil and translateWord[name]~=nil then return translateWord[name] end
+	if name~=nil and tostring(name)~="" then return tostring(name) end
+	return fallback
+end
+
 function puppetMasterPlayerIndexForSeat(seatPos)
 	if seatPos==nil then return nil end
 	for playerIndex, details in pairs(turnOrder or {}) do
@@ -20759,7 +20774,7 @@ function puppetMasterEnemyEligible(enemy)
 end
 
 function puppetMasterWarn(playerIndex,message,controllerColor)
-	local text="Puppet Master: "..tostring(message)
+	local text=joinLang({puppetMasterText.skill,": ",message})
 	local color=controllerColor
 	if color==nil or Player[color]==nil or Player[color].seated~=true then
 		color=playerIndex~=nil and positionToColor(playerIndex) or nil
@@ -20887,7 +20902,7 @@ function puppetMasterRegisterPuppet(puppet,enemy,playerIndex,controllerColor)
 	gStates.puppetMasterPuppets[puppet.guid]={ownerMage=playerData.mage,ownerSeat=playerData.seatPos,sourceGUID=enemy.guid,name=puppetData.name or details.name,location="inventory",played=false}
 	puppetMasterRefreshPresentation(puppet,gStates.puppetMasterPuppets[puppet.guid])
 	playerData.puppetMasterUsed=true
-	puppetMasterWarn(playerIndex,tostring(details.name or "Enemy").." was kept as a Puppet.",controllerColor)
+	puppetMasterWarn(playerIndex,joinLang({puppetMasterDisplayName(details.name,puppetMasterText.enemy),puppetMasterText.kept}),controllerColor)
 	return true
 end
 
@@ -20938,24 +20953,24 @@ function puppetMasterUndoFreshClaim(puppetGUID,controllerColor)
 	if gStates.monsterPerks~=nil then gStates.monsterPerks[puppetGUID]=nil end
 	puppetMasterPickup[puppetGUID]=nil
 	if turnOrder[owner]~=nil then turnOrder[owner].puppetMasterUsed=false end
-	puppetMasterWarn(owner,tostring(record.name or "Puppet").." Puppet claim was undone.",controllerColor)
+	puppetMasterWarn(owner,joinLang({puppetMasterDisplayName(record.name,puppetMasterText.puppet),puppetMasterText.undo}),controllerColor)
 	return true
 end
 
 function puppetMasterClaimReason(enemy,pickup,destinationPlayer)
 	local playerData=pickup~=nil and turnOrder[pickup.player] or nil
-	if playerData==nil or destinationPlayer~=pickup.player then return "That Enemy must be dropped into its owner's Inventory." end
-	if pickup.fromCombat~=true then return "Only an Enemy taken directly from your combat area can be kept." end
-	if puppetMasterEnemyEligible(enemy)~=true then return "That object is not an eligible Enemy token." end
-	if pickup.faceUp~=true or enemy.is_face_down==true then return "Only a defeated, face-up Enemy can be kept." end
+	if playerData==nil or destinationPlayer~=pickup.player then return puppetMasterText.ownerInventory end
+	if pickup.fromCombat~=true then return puppetMasterText.fromCombat end
+	if puppetMasterEnemyEligible(enemy)~=true then return puppetMasterText.eligible end
+	if pickup.faceUp~=true or enemy.is_face_down==true then return puppetMasterText.defeatedFaceUp end
 	if enemy.guid==darkCrusader.token or enemy.guid==elementalist.token then
 		local leaderLevel=enemy.guid==darkCrusader.token and gStates.darkCrusaderLevel or gStates.elementalistLevel
-		if leaderLevel~=nil and ((gStates.leaderReduction or 0)+(gStates.leaderOverkill or 0))<leaderLevel then return "A Faction Leader can only be kept after it is completely defeated." end
+		if leaderLevel~=nil and ((gStates.leaderReduction or 0)+(gStates.leaderOverkill or 0))<leaderLevel then return puppetMasterText.leaderDefeated end
 	end
-	if gStates.turnNumber~=pickup.player then return "You can only use the Skill during this Mage Knight's turn." end
-	if gStates.preEndTurn==true then return "The turn is already being cleaned up." end
-	if puppetMasterOwnsSkill(pickup.player)~=true then return tostring(playerData.mage).." does not own Puppet Master." end
-	if playerData.puppetMasterUsed==true then return "Puppet Master has already been used this turn." end
+	if gStates.turnNumber~=pickup.player then return puppetMasterText.duringTurn end
+	if gStates.preEndTurn==true then return puppetMasterText.turnCleanup end
+	if puppetMasterOwnsSkill(pickup.player)~=true then return joinLang({puppetMasterDisplayName(playerData.mage,tostring(playerData.mage)),puppetMasterText.doesNotOwn}) end
+	if playerData.puppetMasterUsed==true then return joinLang({puppetMasterText.skill,puppetMasterText.alreadyUsed}) end
 	return nil
 end
 
@@ -20964,7 +20979,7 @@ function puppetMasterResolveEnemyDrop(enemy,pickup)
 	if inventoryPlayer==nil then puppetMasterPickup[enemy.guid]=nil return end
 	local reason=puppetMasterClaimReason(enemy,pickup,inventoryPlayer)
 	if reason~=nil then puppetMasterReturnToPickup(enemy,pickup,reason) return end
-	if puppetMasterRegisterClone(enemy,pickup)~=true then puppetMasterReturnToPickup(enemy,pickup,"The Puppet copy could not be created; the Enemy was returned.") end
+	if puppetMasterRegisterClone(enemy,pickup)~=true then puppetMasterReturnToPickup(enemy,pickup,puppetMasterText.copyFailed) end
 end
 
 --Manual copy/paste remains a supported Puppet Master interaction. A pasted token has a new GUID,
@@ -20989,12 +21004,12 @@ function puppetMasterResolveManualCopy(copy)
 	local pickup={kind="manualCopy",player=owner,fromCombat=true,faceUp=enemy.is_face_down==false}
 	local reason=puppetMasterClaimReason(enemy,pickup,owner)
 	if reason~=nil then
-		puppetMasterWarn(owner,reason.." The pasted copy was removed.")
+		puppetMasterWarn(owner,joinLang({reason,puppetMasterText.pastedRemoved}))
 		copy.destruct()
 		return true
 	end
 	if puppetMasterRegisterPuppet(copy,enemy,owner)~=true then
-		puppetMasterWarn(owner,"The pasted Enemy could not be registered as a Puppet and was removed.")
+		puppetMasterWarn(owner,puppetMasterText.pastedRegisterFailed)
 		copy.destruct()
 	end
 	return true
@@ -21023,7 +21038,7 @@ function puppetMasterResolvePuppetDrop(puppet,pickup)
 	local record=gStates.puppetMasterPuppets~=nil and gStates.puppetMasterPuppets[puppet.guid] or nil
 	if record==nil then puppetMasterPickup[puppet.guid]=nil return end
 	local owner=puppetMasterRecordOwnerIndex(record)
-	if owner==nil then puppetMasterReturnToPickup(puppet,pickup,"The Puppet's owner could not be identified.") return end
+	if owner==nil then puppetMasterReturnToPickup(puppet,pickup,puppetMasterText.ownerUnknown) return end
 	local inventoryPlayer=puppetMasterInventoryPlayer(puppet.guid)
 	if inventoryPlayer==owner then
 		record.location="inventory"
@@ -21033,17 +21048,17 @@ function puppetMasterResolvePuppetDrop(puppet,pickup)
 		return
 	end
 	local combatPlayer=puppetMasterCombatAreaPlayer(puppet.guid)
-	if combatPlayer~=owner then puppetMasterReturnToPickup(puppet,pickup,"A stored Puppet can only be played into its owner's combat area.") return end
+	if combatPlayer~=owner then puppetMasterReturnToPickup(puppet,pickup,puppetMasterText.ownerCombat) return end
 	local playerData=turnOrder[owner]
-	if gStates.turnNumber~=owner then puppetMasterReturnToPickup(puppet,pickup,"You can only use the Skill during this Mage Knight's turn.") return end
-	if gStates.preEndTurn==true then puppetMasterReturnToPickup(puppet,pickup,"The turn is already being cleaned up.") return end
-	if puppetMasterOwnsSkill(owner)~=true then puppetMasterReturnToPickup(puppet,pickup,tostring(playerData.mage).." does not own Puppet Master.") return end
-	if playerData.puppetMasterUsed==true then puppetMasterReturnToPickup(puppet,pickup,"Puppet Master has already been used this turn.") return end
+	if gStates.turnNumber~=owner then puppetMasterReturnToPickup(puppet,pickup,puppetMasterText.duringTurn) return end
+	if gStates.preEndTurn==true then puppetMasterReturnToPickup(puppet,pickup,puppetMasterText.turnCleanup) return end
+	if puppetMasterOwnsSkill(owner)~=true then puppetMasterReturnToPickup(puppet,pickup,joinLang({puppetMasterDisplayName(playerData.mage,tostring(playerData.mage)),puppetMasterText.doesNotOwn})) return end
+	if playerData.puppetMasterUsed==true then puppetMasterReturnToPickup(puppet,pickup,joinLang({puppetMasterText.skill,puppetMasterText.alreadyUsed})) return end
 	playerData.puppetMasterUsed=true
 	record.played=true
 	record.location="played"
 	puppetMasterPickup[puppet.guid]=nil
-	puppetMasterWarn(owner,tostring(record.name or "Puppet").." was played; no Enemy can be kept with Puppet Master this turn.",pickup.color)
+	puppetMasterWarn(owner,joinLang({puppetMasterDisplayName(record.name,puppetMasterText.puppet),puppetMasterText.played}),pickup.color)
 end
 
 function puppetMasterTrackPickup(playerColor,obj)
@@ -23102,12 +23117,6 @@ function returnPugs(player, mouseButton, id)
 	if mouseButton=="-1" then tokenRefill(true) end
 end
 
---Terrain placement geometry is constant. Keep it out of the hot positionLegal() path.
-terrainPlacementEdgeCoordinates={
-	{-30.03, 15.09}, {-25.23, 19.25}, {-31.23, 21.34},
-	{-38.43, 0.54}, {-33.63, 4.70}, {-28.83, 8.86}, {-24.03, 13.02}, {-19.23, 17.17},
-	{-24.03, -16.08}, {-19.23, -11.93}, {-14.43, -7.77}, {-9.63, -3.61}, {-4.82, 0.55}, {-0.02, 4.71}, {4.78, 8.87}
-}
 terrainPlacementNeighbourOffsets={
 	{math.cos(math.rad(41))*6.35, math.sin(math.rad(41))*6.35},
 	{math.cos(math.rad(101))*6.35, math.sin(math.rad(101))*6.35},
@@ -26656,7 +26665,9 @@ function apocalypseQuestRevealSetup(card)
 	--Some Quests keep a small reusable reward supply on the card while they are active.
 	if quest.revealBag~=nil then
 		local revealGUID=quest.revealBag
-		local revealPos={cardPos[1],cardPos[2]+0.62,cardPos[3]+1.35}
+		local revealPos
+		if card.guid=="72099f" then revealPos={cardPos[1],cardPos[2]+0.42,cardPos[3]-1.18}
+		else revealPos={cardPos[1],cardPos[2]+0.62,cardPos[3]+1.35} end
 		local liveBag=getObjectFromGUID(revealGUID)
 		if liveBag~=nil then
 			liveBag.unlock()
@@ -27307,6 +27318,7 @@ function apocalypseQuestGoblinRecordCleanup(enemyGUID,defeated)
 				--Step 1 either way. A win earns the green-check point; a loss simply advances without it.
 				if allDefeated==true then apocalypseQuestAwardStepPoint(card,playerIndex,option,state,questState) end
 				apocalypseQuestAdvanceProgress(card,state,option)
+				apocalypseQuestGoblinWarrensRemoveBagIfReady(card)
 			end
 			warrens[enemyRecord.mage]=nil
 			safeWaitFrames("Quests",function()
@@ -29192,6 +29204,25 @@ function apocalypseQuestPlayerShield(card, playerIndex)
 	end
 	return nil
 end
+
+function apocalypseQuestGoblinWarrensAllPlayerShields(card)
+	if card==nil or card.guid~="72099f" then return false end
+	local active=0
+	for playerIndex,details in ipairs(turnOrder or {}) do
+		if details.mage~=nil and details.mage~="nobody" and details.mage~=gStates.positionMageKnight[5] and details.dropoutState==nil then
+			active=active+1
+			if apocalypseQuestPlayerShield(card,playerIndex)==nil then return false end
+		end
+	end
+	return active>0
+end
+
+function apocalypseQuestGoblinWarrensRemoveBagIfReady(card)
+	if apocalypseQuestGoblinWarrensAllPlayerShields(card)~=true then return false end
+	local bag=getObjectFromGUID("f021d8")
+	if bag~=nil then bag.destruct() end
+	return true
+end
 function apocalypseQuestPlayerHasOtherPersonalQuest(playerIndex, excludeGUID)
 	if turnOrder[playerIndex]==nil then return false end
 	local mage=turnOrder[playerIndex].mage
@@ -30627,22 +30658,22 @@ function apocalypseQuestRaisedPiecePosition(position,height)
 	if position==nil then return nil end
 	return {position[1],position[2]+(height or 0.20),position[3]}
 end
+function apocalypseQuestShieldSupplyBag(owner)
+	local bags=gStates.apocalypseQuestShieldBagGUIDs
+	if bags==nil then return nil end
+	local guid=bags[owner]
+	if guid==nil then return nil end
+	return getObjectFromGUID(guid)
+end
 function apocalypseQuestTakePlayerShield(playerIndex, position)
 	local playerDetails=turnOrder[playerIndex]
 	if playerDetails==nil then return nil end
-	for _, mageDetails in pairs(mageKnights) do
-		if mageDetails.mage==playerDetails.mage then
-			local shieldBag=getObjectFromGUID(mageDetails.shieldContainer)
-			if shieldBag~=nil then
-				return shieldBag.takeObject({position=apocalypseQuestRaisedPiecePosition(position),rotation={0,180,0},smooth=true})
-			end
-			break
-		end
-	end
-	return nil
+	local shieldBag=apocalypseQuestShieldSupplyBag(playerDetails.mage)
+	if shieldBag==nil then return nil end
+	return shieldBag.takeObject({position=apocalypseQuestRaisedPiecePosition(position),rotation={0,180,0},smooth=true})
 end
 function apocalypseQuestTakeNeutralShield(position)
-	local shieldBag=getObjectFromGUID(GUID.bag.neutralShield)
+	local shieldBag=apocalypseQuestShieldSupplyBag("Neutral")
 	if shieldBag==nil then return nil end
 	return shieldBag.takeObject({position=apocalypseQuestRaisedPiecePosition(position),rotation={0,180,0},smooth=true})
 end
@@ -32238,8 +32269,7 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 			apocalypseQuestUpdateProgressButtons(card)
 			return
 		end
-		local neutralBag=getObjectFromGUID(GUID.bag.neutralShield)
-		if neutralBag==nil then
+		if apocalypseQuestShieldSupplyBag("Neutral")==nil then
 			broadcastToColor("The neutral Quest Shield bag could not be found.", player.color, {1,0.55,0.2})
 			return
 		end
@@ -33355,7 +33385,7 @@ function playerSetup()
 						else
 							params.callback_function=function(obj) obj.lock() end
 							if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.positionMageKnight[positionOrder[a]]~="Ymirgh" and gStates.positionMageKnight[positionOrder[a]]~="Malek" and gStates.positionMageKnight[positionOrder[a]]~="Duscenia" and gStates.positionMageKnight[positionOrder[a]]~="Mevok"then--"Mevok"
-								params.callback_function=function(ob) obj=ob.setState(1) obj.lock() end
+								params.callback_function=function(ob) local obj=ob.setState(1) obj.lock() end
 							end
 						end
 					end
@@ -33462,7 +33492,7 @@ function playerSetup()
 							params.position={-72.5+offsetPosition, 1.06, -48.23}
 							params.callback_function=function(obj) obj.lock() end
 							if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-								params.callback_function=function(ob) obj=ob.setState(2) obj.lock() end
+								params.callback_function=function(ob) local obj=ob.setState(2) obj.lock() end
 							end
 						end
 					end
@@ -33503,11 +33533,6 @@ function playerSetup()
 						if i==1 then turnOrder[turnRef].turnOrderTokenGUID=obj.guid end
 						if (i==4 and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4) or (i==4 and gStates.playerCount==1) then
 							turnOrder[turnRef].skillBagGUID=obj.guid
-							if proxyPlayerActive()==true and turnOrder[turnRef].mage==gStates.positionMageKnight[5] then
-								local p=obj.getPosition()
-								gStates.proxySkillBagPosition={p[1],p[2],p[3]}
-								proxySetupShieldBag(obj)
-							end
 							--Hero Challenges reserve the prescribed first Skill before the Hero's remaining Skill bag is shuffled.
 							if gStates.heroChallenges==true and positionOrder[a]<=4 and gStates.positionMageKnight[positionOrder[a]]~="nobody" then
 								local challenge=heroChallengesData[turnOrder[turnRef].mage]
@@ -33568,8 +33593,10 @@ function playerSetup()
 	--The Proxy uses a visible copy of their Mage Knight's infinite Shield bag beside the Dummy setup,
 	--plus the two Apocalypse Proxy reference cards immediately to the right of the Skill reference cards.
 	if proxyPlayerActive()==true then
-		proxySetupReferenceCards()
-		safeWaitFrames("SetupGame",function() proxySetupShieldBag() end,10)
+		safeWaitFrames("SetupGame",function()
+			proxySetupReferenceCards()
+			proxySetupShieldBag()
+		end,10)
 	end
 end
 
@@ -33707,10 +33734,22 @@ function deckSetup()
 			safeTakeObject("SetupGame",apocalypseBag,{guid=GUID.bag.apocalypseQuestTokens, position={46.84, 1.00, 13.61}, rotation={0, 180, 0}, smooth=true, callback_function=function(_) apocalypseQuestTokenBagSetup() end})
 			apocalypseBag.takeObject({guid="b26e9b", position={51.04, 0.98, 13.61}, rotation={0, 180, 0}, smooth=true})
 			apocalypseBag.takeObject({guid="4ce329", position={55.24, 0.98, 13.61}, rotation={0, 180, 0}, smooth=true})
-			if getObjectFromGUID(GUID.bag.neutralShield)==nil then apocalypseBag.takeObject({guid=GUID.bag.neutralShield,position={8.00,1.03,16.00},rotation={0,180,0},smooth=true}) end--Infinite neutral Shield bag for Quest progress/abandonment
+			--Dedicated Quest Shield supplies. Keep the normal Neutral / player-board bags untouched:
+			--all shields created by Apocalypse Quests are drawn from these clones instead.
+			gStates.apocalypseQuestShieldBagGUIDs={}
+			local neutralSource=getObjectFromGUID(GUID.bag.neutralShield)
+			if neutralSource==nil then
+				neutralSource=apocalypseBag.takeObject({guid=GUID.bag.neutralShield,position={8.00,1.03,16.00},rotation={0,180,0},smooth=false})
+			end
+			if neutralSource~=nil then
+				local neutralBag=neutralSource.clone()
+				neutralBag.setPositionSmooth({59.55,1.03,13.60})
+				neutralBag.setRotationSmooth({0,180,0})
+				neutralBag.lock()
+				gStates.apocalypseQuestShieldBagGUIDs.Neutral=neutralBag.guid
+			end
 			--Clone each active Mage Knight's existing infinite Shield bag immediately to the right of Neutral.
-			--Neutral is x=59.55; active players pack left-to-right at +1.70 x with no gaps for empty seats.
-			--The player-board copies survive setup, so this does not depend on the temporary Mage Knight setup bags.
+			--Active players pack left-to-right at +1.70 x with no gaps for empty seats.
 			local questShieldSlot=1
 			for seatPos=1, 4, 1 do
 				local mage=gStates.positionMageKnight[seatPos]
@@ -33720,9 +33759,10 @@ function deckSetup()
 							local source=getObjectFromGUID(details.shieldContainer)
 							if source~=nil then
 								local bag=source.clone()
-								bag.setPositionSmooth({59.55+(questShieldSlot*1.70), 1.03, 13.60})
-								bag.setRotationSmooth({0, 180, 0})
+								bag.setPositionSmooth({59.55+(questShieldSlot*1.70),1.03,13.60})
+								bag.setRotationSmooth({0,180,0})
 								bag.lock()
+								gStates.apocalypseQuestShieldBagGUIDs[mage]=bag.guid
 								questShieldSlot=questShieldSlot+1
 							end
 							break
@@ -37115,7 +37155,7 @@ function resetCurrentScenarioTweaks()
 	local scenarioRef=nil
 	for a=1,#scenarioList do if scenarioList[a][1]==gStates.gameScenario then scenarioRef=a break end end
 	local playersRef=setupPlayersRef()
-	if scenarioRef==nil or scenarioTweakDefaults[scenarioRef]==nil or scenarioTweakDefaults[scenarioRef][playersRef]==nil then return end
+	if scenarioRef==nil or scenarioTweakDefaults==nil or scenarioTweakDefaults[scenarioRef]==nil or scenarioTweakDefaults[scenarioRef][playersRef]==nil then return end
 	local defaults=scenarioTweakDefaults[scenarioRef][playersRef]
 	local target=scenarioList[scenarioRef][playersRef]
 	target.rounds=defaults.rounds

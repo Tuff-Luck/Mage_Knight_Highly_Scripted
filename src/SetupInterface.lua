@@ -57,7 +57,7 @@ function resetCurrentScenarioTweaks()
 	local scenarioRef=nil
 	for a=1,#scenarioList do if scenarioList[a][1]==gStates.gameScenario then scenarioRef=a break end end
 	local playersRef=setupPlayersRef()
-	if scenarioRef==nil or scenarioTweakDefaults[scenarioRef]==nil or scenarioTweakDefaults[scenarioRef][playersRef]==nil then return end
+	if scenarioRef==nil or scenarioTweakDefaults==nil or scenarioTweakDefaults[scenarioRef]==nil or scenarioTweakDefaults[scenarioRef][playersRef]==nil then return end
 	local defaults=scenarioTweakDefaults[scenarioRef][playersRef]
 	local target=scenarioList[scenarioRef][playersRef]
 	target.rounds=defaults.rounds
