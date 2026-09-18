@@ -505,7 +505,9 @@ function apocalypseQuestRevealSetup(card)
 	--Some Quests keep a small reusable reward supply on the card while they are active.
 	if quest.revealBag~=nil then
 		local revealGUID=quest.revealBag
-		local revealPos={cardPos[1],cardPos[2]+0.62,cardPos[3]+1.35}
+		local revealPos
+		if card.guid=="72099f" then revealPos={cardPos[1],cardPos[2]+0.42,cardPos[3]-1.18}
+		else revealPos={cardPos[1],cardPos[2]+0.62,cardPos[3]+1.35} end
 		local liveBag=getObjectFromGUID(revealGUID)
 		if liveBag~=nil then
 			liveBag.unlock()
@@ -1156,6 +1158,7 @@ function apocalypseQuestGoblinRecordCleanup(enemyGUID,defeated)
 				--Step 1 either way. A win earns the green-check point; a loss simply advances without it.
 				if allDefeated==true then apocalypseQuestAwardStepPoint(card,playerIndex,option,state,questState) end
 				apocalypseQuestAdvanceProgress(card,state,option)
+				apocalypseQuestGoblinWarrensRemoveBagIfReady(card)
 			end
 			warrens[enemyRecord.mage]=nil
 			safeWaitFrames("Quests",function()
@@ -3040,6 +3043,25 @@ function apocalypseQuestPlayerShield(card, playerIndex)
 		if obj.getName()=="Shield" and obj.getDescription()==mage then return obj end
 	end
 	return nil
+end
+
+function apocalypseQuestGoblinWarrensAllPlayerShields(card)
+	if card==nil or card.guid~="72099f" then return false end
+	local active=0
+	for playerIndex,details in ipairs(turnOrder or {}) do
+		if details.mage~=nil and details.mage~="nobody" and details.mage~=gStates.positionMageKnight[5] and details.dropoutState==nil then
+			active=active+1
+			if apocalypseQuestPlayerShield(card,playerIndex)==nil then return false end
+		end
+	end
+	return active>0
+end
+
+function apocalypseQuestGoblinWarrensRemoveBagIfReady(card)
+	if apocalypseQuestGoblinWarrensAllPlayerShields(card)~=true then return false end
+	local bag=getObjectFromGUID("f021d8")
+	if bag~=nil then bag.destruct() end
+	return true
 end
 function apocalypseQuestPlayerHasOtherPersonalQuest(playerIndex, excludeGUID)
 	if turnOrder[playerIndex]==nil then return false end
