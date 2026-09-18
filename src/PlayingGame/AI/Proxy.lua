@@ -22,9 +22,8 @@ function refreshProxySetupLabel()
 	end
 end
 
---Deploy the two Apocalypse Proxy reference cards beside whichever setup slot the Proxy actually occupies.
---The supplied reference positions are for setup position 3; use the same 40-unit player-layout offset
---as the existing Skill reference cards, including the central position-5 Dummy-board adjustment.
+--Deploy the two Apocalypse Proxy reference cards relative to the live Dummy board so they follow
+--whichever setup slot the Proxy actually occupies.
 function proxySetupReferenceCards()
 	if proxyPlayerActive()~=true then return end
 	local board=getObjectFromGUID(dummyBoard)
@@ -104,38 +103,18 @@ function proxyStageShieldBag()
 	return bag
 end
 
-function proxySetupShieldBag(skillBagObj)
+function proxySetupShieldBag()
 	if proxyPlayerActive()~=true then return nil end
 	local bag=nil
 	if gStates.proxyShieldBagGUID~=nil then bag=getObjectFromGUID(gStates.proxyShieldBagGUID) end
 	if bag==nil then bag=proxyStageShieldBag() end
 	if bag==nil then return nil end
 
-	--Use the actual Proxy Skill bag position when available. Preserve it so reloads can restore the supply.
-	local skillPos=nil
-	if skillBagObj~=nil then
-		skillPos=skillBagObj.getPosition()
-	elseif gStates.proxySkillBagPosition~=nil then
-		skillPos=gStates.proxySkillBagPosition
-	else
-		local proxyIndex=proxyPlayerIndex()
-		if proxyIndex~=nil and turnOrder[proxyIndex]~=nil and turnOrder[proxyIndex].skillBagGUID~=nil then
-			local skillBag=getObjectFromGUID(turnOrder[proxyIndex].skillBagGUID)
-			if skillBag~=nil then skillPos=skillBag.getPosition() end
-		end
-	end
-	--Normal Dummy Skill-bag home; only used when no live/saved Skill bag position exists.
-	if skillPos==nil then skillPos={56.68,1.6,-9.93} end
-	gStates.proxySkillBagPosition={skillPos[1],skillPos[2],skillPos[3]}
 	--Keep the Proxy Shield supply in the same place relative to whichever player slot owns the Dummy board.
-	--The old absolute {1.88,1.14,-33.53} was only correct when that board happened to occupy seat 3.
-	local destination={1.88,1.14,-33.53}
 	local board=getObjectFromGUID(dummyBoard)
-	if board~=nil then
-		local p=board.getPosition()
-		destination={p[1]-5.62,p[2]+0.16,p[3]+4.47}
-	end
-	bag.setPosition(destination)
+	if board==nil then return bag end
+	local p=board.getPosition()
+	bag.setPosition({p[1]-5.62,p[2]+0.16,p[3]+4.47})
 	bag.setRotation({0,180,0})
 	bag.lock()
 	return bag

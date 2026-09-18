@@ -1,5 +1,7 @@
 -- Gameplay presentation, cached interface state and camera/object UI helpers.
 
+local volkarePursuitButtonImageURL="https://steamusercontent-a.akamaihd.net/ugc/13293042467654760772/E72DCC400EC451ABB80DC722F3657A631FC30C70/"
+
 --Repair the saved home locations for live skill tokens. This is skill bookkeeping, not UI bookkeeping,
 --so only run it when skill state is being initialized/refreshed rather than on every main UI update.
 --Cache play-area membership from zone enter/leave events so mainUIUpdate never has to rescan the physical zone just to count cards/skills.

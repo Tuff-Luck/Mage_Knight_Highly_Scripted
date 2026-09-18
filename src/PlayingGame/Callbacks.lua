@@ -41,7 +41,7 @@ function onObjectPickUp(player_color, picked_up_object)
 end
 
 function onObjectHover(player_color, hover_object)
-	return __onObjectHover_raw(player_color, hover_object)
+	return safeCallback("onObjectHover", function() return __onObjectHover_raw(player_color, hover_object) end)
 end
 
 function onObjectDrop(player_color, dropped_object)

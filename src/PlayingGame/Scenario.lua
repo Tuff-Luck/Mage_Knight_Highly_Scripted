@@ -143,8 +143,6 @@ function volkarePursuitHexUsed(hexKey)
 	return false
 end
 
-volkarePursuitButtonImageURL="https://steamusercontent-a.akamaihd.net/ugc/13293042467654760772/E72DCC400EC451ABB80DC722F3657A631FC30C70/"
-
 function volkarePursuitAvailable(playerIndex)
 	local player=turnOrder[playerIndex]
 	if player==nil or gStates.preEndTurn==true or playerIndex~=gStates.turnNumber or player.combatIconHide~="None" then return nil end
@@ -4412,7 +4410,7 @@ function againstDragonResolveAirborneProtection(pending)
 	local currentFeature=terrainTiles[location.terrainGUID].hexFeature[location.bearing]
 	if currentFeature==nil or string.lower(tostring(currentFeature))~=feature then return false end
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
-	if bag==nil or (bag.getQuantity~=nil and bag.getQuantity()==0) then
+	if bag==nil then
 		broadcastToAll("A Dragon head was suppressed by the site, but no Destroyed Site token was available.",warningColor)
 		return false
 	end

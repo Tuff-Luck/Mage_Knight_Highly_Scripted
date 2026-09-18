@@ -782,7 +782,7 @@ function playerSetup()
 						else
 							params.callback_function=function(obj) obj.lock() end
 							if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.positionMageKnight[positionOrder[a]]~="Ymirgh" and gStates.positionMageKnight[positionOrder[a]]~="Malek" and gStates.positionMageKnight[positionOrder[a]]~="Duscenia" and gStates.positionMageKnight[positionOrder[a]]~="Mevok"then--"Mevok"
-								params.callback_function=function(ob) obj=ob.setState(1) obj.lock() end
+								params.callback_function=function(ob) local obj=ob.setState(1) obj.lock() end
 							end
 						end
 					end
@@ -889,7 +889,7 @@ function playerSetup()
 							params.position={-72.5+offsetPosition, 1.06, -48.23}
 							params.callback_function=function(obj) obj.lock() end
 							if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-								params.callback_function=function(ob) obj=ob.setState(2) obj.lock() end
+								params.callback_function=function(ob) local obj=ob.setState(2) obj.lock() end
 							end
 						end
 					end
@@ -930,11 +930,6 @@ function playerSetup()
 						if i==1 then turnOrder[turnRef].turnOrderTokenGUID=obj.guid end
 						if (i==4 and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4) or (i==4 and gStates.playerCount==1) then
 							turnOrder[turnRef].skillBagGUID=obj.guid
-							if proxyPlayerActive()==true and turnOrder[turnRef].mage==gStates.positionMageKnight[5] then
-								local p=obj.getPosition()
-								gStates.proxySkillBagPosition={p[1],p[2],p[3]}
-								proxySetupShieldBag(obj)
-							end
 							--Hero Challenges reserve the prescribed first Skill before the Hero's remaining Skill bag is shuffled.
 							if gStates.heroChallenges==true and positionOrder[a]<=4 and gStates.positionMageKnight[positionOrder[a]]~="nobody" then
 								local challenge=heroChallengesData[turnOrder[turnRef].mage]
@@ -995,8 +990,10 @@ function playerSetup()
 	--The Proxy uses a visible copy of their Mage Knight's infinite Shield bag beside the Dummy setup,
 	--plus the two Apocalypse Proxy reference cards immediately to the right of the Skill reference cards.
 	if proxyPlayerActive()==true then
-		proxySetupReferenceCards()
-		safeWaitFrames("SetupGame",function() proxySetupShieldBag() end,10)
+		safeWaitFrames("SetupGame",function()
+			proxySetupReferenceCards()
+			proxySetupShieldBag()
+		end,10)
 	end
 end
 

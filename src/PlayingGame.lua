@@ -673,12 +673,6 @@ function returnPugs(player, mouseButton, id)
 	if mouseButton=="-1" then tokenRefill(true) end
 end
 
---Terrain placement geometry is constant. Keep it out of the hot positionLegal() path.
-terrainPlacementEdgeCoordinates={
-	{-30.03, 15.09}, {-25.23, 19.25}, {-31.23, 21.34},
-	{-38.43, 0.54}, {-33.63, 4.70}, {-28.83, 8.86}, {-24.03, 13.02}, {-19.23, 17.17},
-	{-24.03, -16.08}, {-19.23, -11.93}, {-14.43, -7.77}, {-9.63, -3.61}, {-4.82, 0.55}, {-0.02, 4.71}, {4.78, 8.87}
-}
 terrainPlacementNeighbourOffsets={
 	{math.cos(math.rad(41))*6.35, math.sin(math.rad(41))*6.35},
 	{math.cos(math.rad(101))*6.35, math.sin(math.rad(101))*6.35},
