@@ -2417,28 +2417,12 @@ function refreshHeroChallengeOptionLocks()
 	end
 end
 
---Fury of the Apocalypse Dragon uses the small one-space Dragon marker rather than the normal
---three-space figure. The marker (42b581) is an attachment inside the Dragon model in the Apocalypse
---component bag, so pull the model out long enough to detach the marker before that setup bag is deleted.
-function furyDragonExtractMarker(target)
-	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" or apocalypseDragon==nil then return nil end
-	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
-	if marker==nil then
-		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-		if bag==nil then return nil end
-		marker=bag.takeObject({guid=apocalypseDragon.furyMarker,position=target,rotation={0,180,0},smooth=false})
-	end
-	if marker~=nil then
-		marker.unlock()
-		marker.setRotation({0,180,0})
-		marker.setPosition(target)
-	end
-	return marker
-end
-
-function furyDragonSetupLair()
+--Fury of the Apocalypse Dragon uses the standalone single-hex Dragon token (42b581)
+--stored directly in the Apocalypse Dragon bag. Keep the Core 1 object returned by takeObject()
+--rather than relying on an immediate GUID lookup while TTS is still registering the deployed tile.
+function furyDragonSetupLair(tile)
 	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" then return false end
-	local tile=getObjectFromGUID(GUID.tile.core01)
+	tile=tile or getObjectFromGUID(GUID.tile.core01)
 	if tile==nil then return false end
 	local bearing="240"
 	local xy=angleToXY(tile,bearing)
@@ -2451,11 +2435,21 @@ function furyDragonSetupLair()
 	gStates.hexOverideSave=gStates.hexOverideSave or {}
 	gStates.hexOverideSave[tile.guid]=gStates.hexOverideSave[tile.guid] or {}
 	gStates.hexOverideSave[tile.guid][bearing]=""
-	local marker=furyDragonExtractMarker(markerPos)
+
+	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
+	if marker==nil then
+		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+		if bag~=nil then
+			local tilePos=tile.getPosition()
+			marker=safeTakeObject("SetupGame",bag,{guid=apocalypseDragon.furyMarker,position={xy[1],tilePos[2]+1.0,xy[2]},rotation={0,180,0},smooth=false})
+		end
+	end
 	if marker==nil then
 		broadcastToAll("Fury setup could not deploy the single-space Apocalypse Dragon marker (42b581).",warningColor)
 		return false
 	end
+	marker.unlock()
+	marker.setRotation({0,180,0})
 	return true
 end
 
@@ -2515,6 +2509,7 @@ function mapSetup()
 	local furyCoreTilePos={}
 	local furyCityTilePos={}
 	local furyRevealGUIDs={}
+	local furyLairTile=nil
 	if furyMap then
 		--Exact predefined layouts from the Fury scenario sheet. Place every selected tile face down first;
 		--the slots that begin revealed are flipped later in a stepped sequence so normal terrain-entry
@@ -2758,6 +2753,7 @@ function mapSetup()
 			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,180}
 			local coreTile=safeTakeObject("SetupGame",CoreTileStack,params)
 			if coreTile==nil then print("FURY SETUP ERROR: Core tile "..tostring(i).." was not available") startingMapSetup=false return end
+			if i==1 then furyLairTile=coreTile end
 			furyRevealGUIDs[#furyRevealGUIDs+1]=coreTile.guid
 		else
 			TileShuffler.putObject(safeTakeObject("SetupGame",CoreTileStack,params))--Core Tile Shuffler
@@ -2920,7 +2916,7 @@ function mapSetup()
 
 	if furyMap then
 		--Everything in Fury is already on the table. Core 1's former Tomb is the one-space Dragon Lair.
-		if furyDragonSetupLair()~=true then print("FURY SETUP ERROR: could not establish the Dragon Lair") end
+		if furyDragonSetupLair(furyLairTile)~=true then print("FURY SETUP ERROR: could not establish the Dragon Lair") end
 		--Like the Volkare's Quest opening tiles, reveal from a settled face-down state in steps. This makes
 		--each reveal re-enter the normal terrain population path instead of arriving already face up.
 		for revealIndex,revealGUID in ipairs(furyRevealGUIDs) do
