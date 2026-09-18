@@ -376,7 +376,7 @@ function onObjectPickUp(player_color, picked_up_object)
 end
 
 function onObjectHover(player_color, hover_object)
-	return safeCallback("onObjectHover", function() __onObjectHover_raw(player_color, hover_object) end)
+	return __onObjectHover_raw(player_color, hover_object)
 end
 
 function onObjectDrop(player_color, dropped_object)
@@ -392,19 +392,19 @@ function onObjectDestroy(destroyedObj)
 end
 
 function onObjectEnterZone(zone, obj)
-	return safeCallback("onObjectEnterZone", function() __onObjectEnterZone_raw(zone, obj) end, function() return automaticLuaZoneContext(zone, obj) end)
+	return safeZoneCallback("onObjectEnterZone", __onObjectEnterZone_raw, zone, obj)
 end
 
 function onObjectLeaveZone(zone, obj)
-	return safeCallback("onObjectLeaveZone", function() __onObjectLeaveZone_raw(zone, obj) end, function() return automaticLuaZoneContext(zone, obj) end)
+	return safeZoneCallback("onObjectLeaveZone", __onObjectLeaveZone_raw, zone, obj)
 end
 
 function onObjectCollisionEnter(registered_object, info)
-	return safeCallback("onObjectCollisionEnter", function() __onObjectCollisionEnter_raw(registered_object, info) end)
+	return __onObjectCollisionEnter_raw(registered_object, info)
 end
 
 function onObjectCollisionExit(registered_object, info)
-	return safeCallback("onObjectCollisionExit", function() __onObjectCollisionExit_raw(registered_object, info) end)
+	return __onObjectCollisionExit_raw(registered_object, info)
 end
 
 function onObjectEnterContainer(bag, obj)
@@ -3447,7 +3447,7 @@ automaticLuaErrorSignatures={}
 automaticLuaErrorBreadcrumbs={}
 automaticLuaErrorBreadcrumbLimit=10
 automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-automaticLuaErrorReporterVersion="412"
+automaticLuaErrorReporterVersion="414"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -3629,6 +3629,17 @@ function safeCallback(functionName, callback, contextCallback)
 			if contextOK==true then context=contextText end
 		end
 		reportAutomaticLuaError(functionName, result, context)
+		return false
+	end
+	return result
+end
+
+--Lighter boundary for high-frequency zone events. Pass arguments directly so successful movement events
+--do not allocate breadcrumb/context closures; detailed zone context is built only after an actual failure.
+function safeZoneCallback(functionName, callback, zone, obj)
+	local ok, result=pcall(callback,zone,obj)
+	if not ok then
+		reportAutomaticLuaError(functionName,tostring(result),automaticLuaZoneContext(zone,obj))
 		return false
 	end
 	return result
@@ -39161,10 +39172,7 @@ function automaticLuaTraceback(errorText)
 end
 
 function automaticLuaAsyncLabel(scope, kind)
-	local label=tostring(scope or "Async").." / "..tostring(kind or "callback")
-	local ok,info=pcall(function() if debug and debug.getinfo then return debug.getinfo(3,"l") end end)
-	if ok==true and info~=nil and info.currentline~=nil and info.currentline>0 then label=label.." @"..tostring(info.currentline) end
-	return label
+	return tostring(scope or "Async").." / "..tostring(kind or "callback")
 end
 
 function safeAsyncCallback(label, callback, contextCallback)
@@ -39214,23 +39222,13 @@ end
 
 function safeWaitCondition(scope, callback, condition, timeout, timeoutCallback)
 	local label=automaticLuaAsyncLabel(scope,"Wait.condition")
-	local predicateFailed=false
-	local safeCondition=function(...)
-		if predicateFailed==true then return true end
-		local args={n=select("#",...),...}
-		local ok,result=xpcall(function() return condition(table.unpack(args,1,args.n)) end,automaticLuaTraceback)
-		if ok~=true then
-			predicateFailed=true
-			reportAutomaticLuaError(label.." predicate",result)
-			return true --terminate the Wait without running the success callback
-		end
-		return result
-	end
-	local safeCallbackRun=safeAsyncCallback(label,function(...) if predicateFailed~=true then return callback(...) end end)
+	--Wait.condition predicates can run every frame while objects are moving. Keep that hot poll native;
+	--only the one-shot success/timeout callbacks need the automatic error boundary.
+	local safeCallbackRun=safeAsyncCallback(label,callback)
 	local safeTimeout=timeoutCallback~=nil and safeAsyncCallback(label.." timeout",timeoutCallback) or nil
-	if timeout==nil then return Wait.condition(safeCallbackRun,safeCondition) end
-	if safeTimeout==nil then return Wait.condition(safeCallbackRun,safeCondition,timeout) end
-	return Wait.condition(safeCallbackRun,safeCondition,timeout,safeTimeout)
+	if timeout==nil then return Wait.condition(safeCallbackRun,condition) end
+	if safeTimeout==nil then return Wait.condition(safeCallbackRun,condition,timeout) end
+	return Wait.condition(safeCallbackRun,condition,timeout,safeTimeout)
 end
 
 --Used to join a table of strings with translation brackets
@@ -39298,6 +39296,9 @@ end
 --before the first mutation, then suppress TTS automatic rewind snapshots until every nested transaction is stable.
 --Owners make the guard nestable: a Quest refill can safely run inside End of Round, and several queued card claims
 --for one seat can share the same rewind transaction without releasing the outer transaction early.
+--TTS storeRewindState captures a full engine rewind snapshot and can visibly hitch this large mod.
+--Keep the transaction ownership/sequencing, but leave engine snapshots disabled unless explicitly re-enabled.
+rewindTransactionStoreEnabled=false
 rewindTransactionStorePending=false
 rewindTransactionBlocked=false
 rewindTransactionGeneration=0
@@ -39318,7 +39319,7 @@ function rewindTransactionStart(andThen,owner,onFailure)
 		andThen()
 		return true
 	end
-	if type(storeRewindState)~="function" then
+	if rewindTransactionStoreEnabled~=true or type(storeRewindState)~="function" then
 		rewindTransactionOwners[owner]=true
 		andThen()
 		return true
