@@ -938,9 +938,10 @@ function horsemanPriorityDescription(ref)
 		"Priority C: "..data.priorityText.C.."\n\n"
 end
 
---When a Horseman shares a map hex with a Rampaging Enemy, keep both readable and make
---the Horseman physically topmost. The paired tokens use the same +/-0.1 X/Z split used elsewhere.
-function horsemanArrangeRampagingStack(name)
+--When a Horseman shares a map hex with a round enemy/site token, keep both readable and make
+--the Horseman physically topmost. Ruins are hexagonal and can safely remain centred underneath.
+--The paired round tokens use the same +/-0.1 X/Z split used elsewhere.
+function horsemanArrangeOccupiedTokenStack(name)
 	if gStates==nil or (gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Apocalypse is Here") then return false end
 	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
 	local data=horsemanData~=nil and horsemanData[name] or nil
@@ -956,43 +957,48 @@ function horsemanArrangeRampagingStack(name)
 	end
 	if hex==nil then return false end
 
-	local rampager=nil
+	local siteToken=nil
 	for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
-		if enemy.guid~=horseman.guid and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[enemy.guid]==true then
-			rampager=enemy
+		local details=monsterPugs[enemy.guid]
+		--proxyMonstersOnHex already omits Ruins. Ignore Possessed overlays and other Horsemen:
+		--the physical conflict we are correcting is the round base enemy/site token.
+		if enemy.guid~=horseman.guid and
+			(horsemanTokenToName==nil or horsemanTokenToName[enemy.guid]==nil) and
+			(details==nil or details.pugType~="possessed") then
+			siteToken=enemy
 			break
 		end
 	end
-	if rampager==nil then return false end
+	if siteToken==nil then return false end
 
 	local horsePos=horseman.getPosition()
-	local rampPos=rampager.getPosition()
+	local sitePos=siteToken.getPosition()
 	local horseX,horseZ=hex.position[1]+0.1,hex.position[3]+0.1
-	local rampX,rampZ=hex.position[1]-0.1,hex.position[3]-0.1
+	local siteX,siteZ=hex.position[1]-0.1,hex.position[3]-0.1
 	if math.abs(horsePos[1]-horseX)<0.05 and math.abs(horsePos[3]-horseZ)<0.05 and
-		math.abs(rampPos[1]-rampX)<0.05 and math.abs(rampPos[3]-rampZ)<0.05 and horsePos[2]>rampPos[2]+0.08 then return false end
+		math.abs(sitePos[1]-siteX)<0.05 and math.abs(sitePos[3]-siteZ)<0.05 and horsePos[2]>sitePos[2]+0.08 then return false end
 
 	local horseLocked=horseman.getLock()==true
-	local rampLocked=rampager.getLock()==true
+	local siteLocked=siteToken.getLock()==true
 	local horseGUID=horseman.guid
-	local rampGUID=rampager.guid
+	local siteGUID=siteToken.guid
 	horseman.unlock()
-	rampager.unlock()
-	--Park the Horseman high while the Rampaging Enemy establishes the bottom of the pair.
+	siteToken.unlock()
+	--Park the Horseman high while the underlying round token establishes the bottom of the pair.
 	horseman.setPosition({horseX,3.0,horseZ})
-	rampager.setPosition({rampX,2.0,rampZ})
-	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[rampGUID]={rampX,2.0,rampZ} end
+	siteToken.setPosition({siteX,2.0,siteZ})
+	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[siteGUID]={siteX,2.0,siteZ} end
 
 	local placed=false
 	local function placeHorseman()
 		if placed==true then return end
 		placed=true
-		local currentRamp=getObjectFromGUID(rampGUID)
+		local currentSite=getObjectFromGUID(siteGUID)
 		local currentHorseman=getObjectFromGUID(horseGUID)
-		if currentRamp~=nil and rampLocked==true then currentRamp.lock() end
+		if currentSite~=nil and siteLocked==true then currentSite.lock() end
 		if currentHorseman~=nil then
 			currentHorseman.unlock()
-			local baseY=currentRamp~=nil and currentRamp.getPosition()[2] or 1.30
+			local baseY=currentSite~=nil and currentSite.getPosition()[2] or 1.30
 			currentHorseman.setPosition({horseX,baseY+0.35,horseZ})
 			if horseLocked==true then
 				safeWaitFrames("Scenario",function()
@@ -1010,16 +1016,16 @@ function horsemanArrangeRampagingStack(name)
 
 	safeWaitFrames("Scenario",function()
 		safeWaitCondition("Scenario",placeHorseman,function()
-			local currentRamp=getObjectFromGUID(rampGUID)
-			return currentRamp==nil or currentRamp.resting==true
+			local currentSite=getObjectFromGUID(siteGUID)
+			return currentSite==nil or currentSite.resting==true
 		end,3,placeHorseman)
 	end,1)
 	return true
 end
 
-function horsemanArrangeRampagingStacks()
+function horsemanArrangeOccupiedTokenStacks()
 	if gStates==nil then return end
-	for name,_ in pairs(gStates.horsemen or {}) do horsemanArrangeRampagingStack(name) end
+	for name,_ in pairs(gStates.horsemen or {}) do horsemanArrangeOccupiedTokenStack(name) end
 end
 
 function setHorsemanLevel(ref, level, hideIdentity)
@@ -1337,7 +1343,7 @@ function againstHorsemenRefreshReveals()
 	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return end
 	for name,_ in pairs(gStates.horsemen or {}) do
 		againstHorsemenRefreshHorseman(name)
-		horsemanArrangeRampagingStack(name)
+		horsemanArrangeOccupiedTokenStack(name)
 	end
 end
 
@@ -1520,7 +1526,7 @@ function againstHorsemenFinalizeMoveWave()
 	if pending==nil or pending.movingTargets==nil then return end
 	for name,_ in pairs(pending.movingTargets) do
 		againstHorsemenRefreshHorseman(name)
-		horsemanArrangeRampagingStack(name)
+		horsemanArrangeOccupiedTokenStack(name)
 	end
 	pending.movingTargets=nil
 	pending.stepsRemaining=math.max(0,(pending.stepsRemaining or 1)-1)
@@ -1815,8 +1821,8 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	token.setRotation({0,180,0})
 	token.setPositionSmooth(target,false)
 	--Terrain population can finish after the Horseman itself arrives, so check once during and once after that window.
-	safeWaitFrames("Scenario",function() horsemanArrangeRampagingStack(name) end,12)
-	safeWaitFrames("Scenario",function() horsemanArrangeRampagingStack(name) end,30)
+	safeWaitFrames("Scenario",function() horsemanArrangeOccupiedTokenStack(name) end,12)
+	safeWaitFrames("Scenario",function() horsemanArrangeOccupiedTokenStack(name) end,30)
 	gStates.apocalypseHereNextHorseman=index+1
 	local card=getObjectFromGUID(data.cardGUID)
 	if card~=nil then
@@ -2121,7 +2127,7 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 			local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
 			gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
 		end
-		horsemanArrangeRampagingStack(name)
+		horsemanArrangeOccupiedTokenStack(name)
 		apocalypseIsHereContinueHorsemenTurn()
 	end,function() local current=getObjectFromGUID(data.tokenGUID) return current==nil or current.isSmoothMoving()==false end,5,function() apocalypseIsHereContinueHorsemenTurn() end)
 	return true
@@ -3975,12 +3981,12 @@ function againstDragonDestroyCandidates(hexes,mapObjects)
 	local destroyedBag=getObjectFromGUID(GUID.bag.destroyedSite)
 	local siteTokensAvailable=destroyedBag~=nil
 	for _,hex in ipairs(hexes or {}) do
-		local rampager=nil
+		local siteToken=nil
 		for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
-			if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[enemy.guid]==true then rampager=enemy break end
+			if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[enemy.guid]==true then siteToken=enemy break end
 		end
-		if rampager~=nil then
-			candidates[#candidates+1]={kind="rampager",key=apocalypseQuestMapHexKey(hex),enemyGUID=rampager.guid}
+		if siteToken~=nil then
+			candidates[#candidates+1]={kind="siteToken",key=apocalypseQuestMapHexKey(hex),enemyGUID=siteToken.guid}
 		elseif siteTokensAvailable==true and againstDragonSiteEligible(hex)==true then
 			candidates[#candidates+1]={kind="site",key=apocalypseQuestMapHexKey(hex),feature=hex.feature}
 		end
@@ -4090,7 +4096,7 @@ function againstDragonResolveDestroyOption(option)
 		return false
 	end
 
-	if option.kind=="rampager" then
+	if option.kind=="siteToken" then
 		local target=nil
 		for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
 			if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[enemy.guid]==true then target=enemy break end
