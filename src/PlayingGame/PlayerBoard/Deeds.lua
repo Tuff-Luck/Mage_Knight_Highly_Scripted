@@ -10,6 +10,7 @@ function setDeedDeckImmediateNumberTyping(seatPos)
 	if zone==nil then return end
 	for _, obj in pairs(zone.getObjects()) do if obj.type=="Deck" then obj.max_typed_number=1 end end
 end
+
 local function refreshDeedPileDescription(seatPos, zoneType)
 	local playerStats=nil
 	for _, details in pairs(turnOrder) do if details.seatPos==seatPos then playerStats=details break end end
@@ -22,54 +23,55 @@ local function refreshDeedPileDescription(seatPos, zoneType)
 			if playerStats.mage~=gStates.positionMageKnight[5] then
 				for color, playerZone in pairs(gStates.handColors) do if playerZone==seatPos then deck.setGMNotes(color) break end end
 			end
-		local deckStats={	["Red"]={0, "{en}Red Card(s){ru}Красная(ых) карточка(и){zh-tw}紅色卡{zh-cn}红色卡{ko}빨간색 카드{es}Tarjeta(s) Roja{fr}Carte(s) Rouge{pt-br}Cartas Vermelhas{de}Rote Karten"},
-														["Green"]={0, "{en}Green Card(s){ru}Зеленая(ых) карточка(и){zh-tw}綠色卡{zh-cn}绿色卡{ko}녹색 카드{es}Tarjeta(s) Verde{fr}Carte(s) Verte{pt-br}Cartas Verdes{de}Grüne Karten"},
-														["Blue"]={0, "{en}Blue Card(s){ru}Синяя(ых) карточка(и){zh-tw}藍色卡{zh-cn}蓝色卡{ko}파란색 카드{es}Tarjeta(s) Azul{fr}Carte(s) Bleue{pt-br}Cartas Azuis{de}Blaue Karten"},
-														["White"]={0, "{en}White Card(s){ru}Белая(ых) карточка(и){zh-tw}白色卡{zh-cn}白色卡{ko}흰색 카드{es}Tarjeta(s) Blanca{fr}Carte(s) Blanche{pt-br}Cartas Brancas{de}Weiße Karten"},
-														["Starting"]={0, "{en}Basic Action(s){ru}Базовое(ых) действие(я){zh-tw}基本行動卡{zh-cn}基本行动卡{ko}기본 액션 카드{es}Acciones Básicas{fr}Action(s) de Base{pt-br}Ações Básicas{de}Basis Aktionen"},
-														["Advanced Action"]={0, "{en}Advanced Action(s){ru}Особое(ые) действие(я){zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션 카드{es}Acciones Avanzadas{fr}Action(s) Avancée{pt-br}Ações Avançadas{de}Erweiterte Aktionen"},
-														["Spell"]={0, "{en}Spell(s){ru}Заклинание(я){zh-tw}法術卡{zh-cn}法术卡{ko}마법 카드{es}Hechizo(s){fr}Sort(s){pt-br}Feitiços{de}Zauber"},
-														["Wound"]={0, "{en}Wound(s){ru}Рана(ы){zh-tw}創傷卡{zh-cn}创伤卡{ko}부상{es}Herida(s){fr}Blessure(s){pt-br}Ferimentos{de}Wunde(n)"},
-														["Artifact"]={0, "{en}Artifact(s){ru}Артефакт(а){zh-tw}神器卡{zh-cn}神器卡{ko}유물{es}Artefacto(s){fr}Artefact(s){pt-br}Artefatos{de}Artefakt(e)"},
-														["Move"]={0, "{en}Card(s) are Move{ru}Карта(ы) - это Движение{zh-tw}移動類卡牌{zh-cn}移动类卡牌{ko}장의 이동 카드{es}Las Cartas se Mueven{fr}Les cartes sont Mouvements{pt-br}Cartas são Movimento{de}Karte(n) sind Bewegung"},
-														["Combat"]={0, "{en}Card(s) are Combat{ru}Карта(ы) - это Боевые{zh-tw}戰鬥類卡牌{zh-cn}战斗类卡牌{ko}장의 전투 카드{es}Las Cartas son de Combate{fr}Les cartes sont Combat{pt-br}Cartas são Combate{de}Karte(n) sind Angriff"},
-														["Influence"]={0, "{en}Card(s) are Influence{ru}Карта(ы) - это Влияние{zh-tw}影響力卡牌{zh-cn}影响力卡牌{ko}장의 영향력 카드{es}Las Cartas tienen Influencia{fr}Les cartes sont Influence{pt-br}Cartas são Influência{de}Karte(n) sind Einfluss"},
-														["Special"]={0, "{en}Card(s) are Special{ru}Карта(ы) - это Особая{zh-tw}特殊類卡牌{zh-cn}特殊类卡牌{ko}장의 특수효과 카드{es}Las Cartas son Especiales{fr}Les cartes sont Spéciales{pt-br}Cartas são Especiais{de}Karte(n) sind Spezial"},
-														["Heal"]={0, "{en}Card(s) are Heal{ru}Карта(ы) - это Лечение{zh-tw}治療類卡牌{zh-cn}治疗类卡牌{ko}장의 치유 카드{es}Las Cartas se Curan{fr}Les cartes sont Guéries{pt-br}Cartas são Cura{de}Karte(n) sind Heilung"},
-														["Action"]={0, "{en}Card(s) are Action{ru}Карта(ы) - это Действие{zh-tw}行動類卡牌{zh-cn}行动类卡牌{ko}장의 행동 카드{es}Las Cartas son Acción{fr}Les cartes sont des Actions{pt-br}Cartas são Ações{de}Karte(n) sind Aktionen"}}
-									--count card types colours, and abilities
-									local deedCards=deck.type=="Deck" and deck.getObjects() or {{guid=deck.guid}}
-									local cardSearch={["deed"]=deedCards}
-									deck.setName("{en}Deed Cards{ru}Колода Деяний{zh-tw}功能卡牌{zh-cn}功能卡牌{ko}행동 카드{es}Tarjetas de Escritura{fr}Cartes D'acte{pt-br}Cartas de Façanha{de}Handlungskarten")
-									if zoneType=="deed" and playerStats.tactic==6 and gStates.dayRound==false and #gStates.powerStored>0 then
-										cardSearch={["deed"]=deedCards, ["stored"]=gStates.powerStored}
-										deck.setName(joinLang({"{en}Deed Cards +{ru}Карты Деяний +{zh-tw}功能卡牌 +{zh-cn}功能卡牌 +{ko}행동 카드 +{es}Tarjetas de Escritura +{fr}Cartes D'acte +{pt-br}Cartas de Façanha +{de}Handlungskarten +", #gStates.powerStored, "{en} Stored{ru} Сбережено{zh-tw} 已儲存{zh-cn} 已储存{ko} 장 저장됨{es} Almacenado{fr} Stockée{pt-br} Armazenada{de} Gelagert"}))
-									end
-									for _, cardpile in pairs(cardSearch) do
-										for _, deedCard in pairs(cardpile) do
-											if gameCards[deedCard.guid]~=nil and gameCards[deedCard.guid].cardType~="Regular Unit" and gameCards[deedCard.guid].cardType~="Elite Unit" then
-												deckStats[gameCards[deedCard.guid].cardType][1]=deckStats[gameCards[deedCard.guid].cardType][1]+1
-												for _, cardColor in pairs(gameCards[deedCard.guid].color) do deckStats[cardColor][1]=deckStats[cardColor][1]+1 end
-												for _, cardAction in pairs(gameCards[deedCard.guid].action) do if cardAction~="Banner" then deckStats[cardAction][1]=deckStats[cardAction][1]+1 end end
-											else
-												deckStats["Wound"][1]=deckStats["Wound"][1]+1
-											end
-										end
-									end
-									--write a description
-									local deckDescription=""
-									for statName, statValue in pairs(deckStats) do
-										if statValue[1]>0 then
-											deckDescription=joinLang({deckDescription, statValue[1], " ", statValue[2], "\n"})
-										end
-										if statName=="White" or statName=="Artifact" then deckDescription=joinLang({deckDescription, "----------\n"}) end
-									end
-									deckDescription=joinLang({deckDescription, "----------"})
-									deck.setDescription(deckDescription)
+			local deckStats={	["Red"]={0, "{en}Red Card(s){ru}Красная(ых) карточка(и){zh-tw}紅色卡{zh-cn}红色卡{ko}빨간색 카드{es}Tarjeta(s) Roja{fr}Carte(s) Rouge{pt-br}Cartas Vermelhas{de}Rote Karten"},
+								["Green"]={0, "{en}Green Card(s){ru}Зеленая(ых) карточка(и){zh-tw}綠色卡{zh-cn}绿色卡{ko}녹색 카드{es}Tarjeta(s) Verde{fr}Carte(s) Verte{pt-br}Cartas Verdes{de}Grüne Karten"},
+								["Blue"]={0, "{en}Blue Card(s){ru}Синяя(ых) карточка(и){zh-tw}藍色卡{zh-cn}蓝色卡{ko}파란색 카드{es}Tarjeta(s) Azul{fr}Carte(s) Bleue{pt-br}Cartas Azuis{de}Blaue Karten"},
+								["White"]={0, "{en}White Card(s){ru}Белая(ых) карточка(и){zh-tw}白色卡{zh-cn}白色卡{ko}흰색 카드{es}Tarjeta(s) Blanca{fr}Carte(s) Blanche{pt-br}Cartas Brancas{de}Weiße Karten"},
+								["Starting"]={0, "{en}Basic Action(s){ru}Базовое(ых) действие(я){zh-tw}基本行動卡{zh-cn}基本行动卡{ko}기본 액션 카드{es}Acciones Básicas{fr}Action(s) de Base{pt-br}Ações Básicas{de}Basis Aktionen"},
+								["Advanced Action"]={0, "{en}Advanced Action(s){ru}Особое(ые) действие(я){zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션 카드{es}Acciones Avanzadas{fr}Action(s) Avancée{pt-br}Ações Avançadas{de}Erweiterte Aktionen"},
+								["Spell"]={0, "{en}Spell(s){ru}Заклинание(я){zh-tw}法術卡{zh-cn}法术卡{ko}마법 카드{es}Hechizo(s){fr}Sort(s){pt-br}Feitiços{de}Zauber"},
+								["Wound"]={0, "{en}Wound(s){ru}Рана(ы){zh-tw}創傷卡{zh-cn}创伤卡{ko}부상{es}Herida(s){fr}Blessure(s){pt-br}Ferimentos{de}Wunde(n)"},
+								["Artifact"]={0, "{en}Artifact(s){ru}Артефакт(а){zh-tw}神器卡{zh-cn}神器卡{ko}유물{es}Artefacto(s){fr}Artefact(s){pt-br}Artefatos{de}Artefakt(e)"},
+								["Move"]={0, "{en}Card(s) are Move{ru}Карта(ы) - это Движение{zh-tw}移動類卡牌{zh-cn}移动类卡牌{ko}장의 이동 카드{es}Las Cartas se Mueven{fr}Les cartes sont Mouvements{pt-br}Cartas são Movimento{de}Karte(n) sind Bewegung"},
+								["Combat"]={0, "{en}Card(s) are Combat{ru}Карта(ы) - это Боевые{zh-tw}戰鬥類卡牌{zh-cn}战斗类卡牌{ko}장의 전투 카드{es}Las Cartas son de Combate{fr}Les cartes sont Combat{pt-br}Cartas são Combate{de}Karte(n) sind Angriff"},
+								["Influence"]={0, "{en}Card(s) are Influence{ru}Карта(ы) - это Влияние{zh-tw}影響力卡牌{zh-cn}影响力卡牌{ko}장의 영향력 카드{es}Las Cartas tienen Influencia{fr}Les cartes sont Influence{pt-br}Cartas são Influência{de}Karte(n) sind Einfluss"},
+								["Special"]={0, "{en}Card(s) are Special{ru}Карта(ы) - это Особая{zh-tw}特殊類卡牌{zh-cn}特殊类卡牌{ko}장의 특수효과 카드{es}Las Cartas son Especiales{fr}Les cartes sont Spéciales{pt-br}Cartas são Especiais{de}Karte(n) sind Spezial"},
+								["Heal"]={0, "{en}Card(s) are Heal{ru}Карта(ы) - это Лечение{zh-tw}治療類卡牌{zh-cn}治疗类卡牌{ko}장의 치유 카드{es}Las Cartas se Curan{fr}Les cartes sont Guéries{pt-br}Cartas são Cura{de}Karte(n) sind Heilung"},
+								["Action"]={0, "{en}Card(s) are Action{ru}Карта(ы) - это Действие{zh-tw}行動類卡牌{zh-cn}行动类卡牌{ko}장의 행동 카드{es}Las Cartas son Acción{fr}Les cartes sont des Actions{pt-br}Cartas são Ações{de}Karte(n) sind Aktionen"}}
+			--count card types colours, and abilities
+			local deedCards=deck.type=="Deck" and deck.getObjects() or {{guid=deck.guid}}
+			local cardSearch={["deed"]=deedCards}
+			deck.setName("{en}Deed Cards{ru}Колода Деяний{zh-tw}功能卡牌{zh-cn}功能卡牌{ko}행동 카드{es}Tarjetas de Escritura{fr}Cartes D'acte{pt-br}Cartas de Façanha{de}Handlungskarten")
+			if zoneType=="deed" and playerStats.tactic==6 and gStates.dayRound==false and #gStates.powerStored>0 then
+				cardSearch={["deed"]=deedCards, ["stored"]=gStates.powerStored}
+				deck.setName(joinLang({"{en}Deed Cards +{ru}Карты Деяний +{zh-tw}功能卡牌 +{zh-cn}功能卡牌 +{ko}행동 카드 +{es}Tarjetas de Escritura +{fr}Cartes D'acte +{pt-br}Cartas de Façanha +{de}Handlungskarten +", #gStates.powerStored, "{en} Stored{ru} Сбережено{zh-tw} 已儲存{zh-cn} 已储存{ko} 장 저장됨{es} Almacenado{fr} Stockée{pt-br} Armazenada{de} Gelagert"}))
+			end
+			for _, cardpile in pairs(cardSearch) do
+				for _, deedCard in pairs(cardpile) do
+					if gameCards[deedCard.guid]~=nil and gameCards[deedCard.guid].cardType~="Regular Unit" and gameCards[deedCard.guid].cardType~="Elite Unit" then
+						deckStats[gameCards[deedCard.guid].cardType][1]=deckStats[gameCards[deedCard.guid].cardType][1]+1
+						for _, cardColor in pairs(gameCards[deedCard.guid].color) do deckStats[cardColor][1]=deckStats[cardColor][1]+1 end
+						for _, cardAction in pairs(gameCards[deedCard.guid].action) do if cardAction~="Banner" then deckStats[cardAction][1]=deckStats[cardAction][1]+1 end end
+					else
+						deckStats["Wound"][1]=deckStats["Wound"][1]+1
+					end
+				end
+			end
+			--write a description
+			local deckDescription=""
+			for statName, statValue in pairs(deckStats) do
+				if statValue[1]>0 then
+					deckDescription=joinLang({deckDescription, statValue[1], " ", statValue[2], "\n"})
+				end
+				if statName=="White" or statName=="Artifact" then deckDescription=joinLang({deckDescription, "----------\n"}) end
+			end
+			deckDescription=joinLang({deckDescription, "----------"})
+			deck.setDescription(deckDescription)
 			break
 		end
 	end
 end
+
 function scheduleDeedPileDescriptionRefresh(seatPos, zoneType)
 	local zoneGUID=zoneType=="deed" and deedDeckZones[seatPos] or deedDeckDiscardZones[seatPos]
 	if zoneGUID==nil then return end
@@ -79,6 +81,7 @@ function scheduleDeedPileDescriptionRefresh(seatPos, zoneType)
 		refreshDeedPileDescription(seatPos, zoneType)
 	end, 0.75)
 end
+
 function containerInsideDeckZone(container, zone)
 	if container==nil or zone==nil then return false end
 	for _, zoneObj in pairs(zone.getObjects()) do if zoneObj.guid==container.guid then return true end end
@@ -88,6 +91,7 @@ function containerInsideDeckZone(container, zone)
 	local zoneScale=zone.getScale()
 	return math.abs(pos[1]-zonePos[1])<=zoneScale[1]/2 and math.abs(pos[3]-zonePos[3])<=zoneScale[3]/2
 end
+
 function scheduleContainerDeckDescriptionRefresh(container)
 	if container==nil or container.type~="Deck" then return end
 	for _, details in pairs(turnOrder) do
@@ -102,7 +106,6 @@ end
 --Move cards visibly to a player's Deed deck without allowing two cards to converge on the same pile.
 --Each seat owns its own queue, so different players can receive cards simultaneously.
 deedTransferState={queues={},active={},transit={}}
-
 function deedTransferBusy(seatPos)
 	local queue=deedTransferState.queues[seatPos]
 	return deedTransferState.active[seatPos]~=nil or (queue~=nil and #queue>0)
@@ -809,6 +812,7 @@ local function meditationPlayerIndex(card)
 	end
 	return nil
 end
+
 local function meditationDiscardSnapshot(playerIndex)
 	local cards={}
 	local zone=turnOrder[playerIndex]~=nil and getObjectFromGUID(deedDeckDiscardZones[turnOrder[playerIndex].seatPos]) or nil
@@ -819,6 +823,7 @@ local function meditationDiscardSnapshot(playerIndex)
 	end
 	return cards
 end
+
 local function meditationCardCount(cards)
 	local count=0
 	for _, _ in pairs(cards or {}) do count=count+1 end
@@ -833,6 +838,7 @@ function cardEffectIsVertical(card)
 	local y=((rotation~=nil and rotation[2]) or 0)%180
 	return math.min(y,180-y)<=10
 end
+
 local function meditationStripXmlButtons(card)
 	local xml=card.UI.getXmlTable() or {}
 	for a=#xml, 1, -1 do
@@ -841,6 +847,7 @@ local function meditationStripXmlButtons(card)
 	end
 	return xml
 end
+
 local function meditationRemoveButtons(card)
 	if card==nil then return end
 	--Clean up old 3D buttons left by saves from before the XML conversion.
@@ -857,6 +864,7 @@ local function meditationRemoveButtons(card)
 		if #xml>0 then card.UI.setXmlTable(xml) else card.UI.setXml("") end
 	end
 end
+
 local function meditationAddButtons(card, tranceReady)
 	if card==nil then return end
 	if cardEffectIsVertical(card)==false then meditationRemoveButtons(card) return end
@@ -869,16 +877,19 @@ local function meditationAddButtons(card, tranceReady)
 	end
 	card.UI.setXmlTable(xml)
 end
+
 local function meditationNewState(playerIndex)
 	local discard=meditationDiscardSnapshot(playerIndex)
 	local required=math.min(2, meditationCardCount(discard))
 	return {player=playerIndex, mode="waiting", discard=discard, required=required, accepted={}, acceptedSet={}, resolved=false}
 end
+
 function resetMeditationTranceState()
 	local card=getObjectFromGUID(meditationTranceCardGUID)
 	if card~=nil then meditationRemoveButtons(card) end
 	gStates.meditationTranceState=nil
 end
+
 function refreshMeditationTrance()
 	local card=getObjectFromGUID(meditationTranceCardGUID)
 	if card==nil then return end
@@ -894,6 +905,7 @@ function refreshMeditationTrance()
 		if #state.accepted>=(state.required or 2) then meditationAddButtons(card, true) else meditationRemoveButtons(card) end
 	else meditationAddButtons(card, false) end
 end
+
 local function meditationContainerIsDeedDeck(container, playerIndex)
 	if container==nil or turnOrder[playerIndex]==nil then return false end
 	local zone=getObjectFromGUID(deedDeckZones[turnOrder[playerIndex].seatPos])
@@ -902,6 +914,7 @@ local function meditationContainerIsDeedDeck(container, playerIndex)
 	local a,b=container.getPosition(),zone.getPosition()
 	return ((a[1]-b[1])^2)+((a[3]-b[3])^2)<6.25
 end
+
 local function meditationAcceptTranceCard(cardGUID)
 	local state=gStates.meditationTranceState
 	if state==nil or state.resolved==true or #state.accepted>=(state.required or 2) or state.discard==nil or state.discard[cardGUID]~=true or (state.acceptedSet~=nil and state.acceptedSet[cardGUID]==true) then return false end
@@ -912,12 +925,14 @@ local function meditationAcceptTranceCard(cardGUID)
 	safeWaitFrames("PlayerBoard.Deeds",function() refreshMeditationTrance() end, 2)
 	return true
 end
+
 function meditationTranceContainerEnter(container, obj)
 	if obj==nil then return end
 	if obj.guid==meditationTranceCardGUID then meditationRemoveButtons(obj) gStates.meditationTranceState=nil return end
 	local state=gStates.meditationTranceState
 	if state~=nil and state.resolved~=true and meditationContainerIsDeedDeck(container, state.player)==true then meditationAcceptTranceCard(obj.guid) end
 end
+
 function meditationTranceCheckLooseCard(cardGUID)
 	local state=gStates.meditationTranceState
 	if state==nil or state.resolved==true or state.discard==nil or state.discard[cardGUID]~=true then return end
@@ -927,6 +942,7 @@ function meditationTranceCheckLooseCard(cardGUID)
 	if zone==nil then return end
 	for _, obj in pairs(zone.getObjects()) do if obj.guid==cardGUID then meditationAcceptTranceCard(cardGUID) return end end
 end
+
 local function meditationTakeCard(zone, cardGUID, position, callback)
 	if zone==nil then return false end
 	for _, pile in pairs(zone.getObjects()) do
@@ -939,6 +955,7 @@ local function meditationTakeCard(zone, cardGUID, position, callback)
 	end
 	return false
 end
+
 local function meditationInsertDeedCard(playerIndex, card, destination, callback)
 	local zone=turnOrder[playerIndex]~=nil and getObjectFromGUID(deedDeckZones[turnOrder[playerIndex].seatPos]) or nil
 	if zone==nil or card==nil then if callback~=nil then callback(false) end return end
@@ -958,6 +975,7 @@ local function meditationInsertDeedCard(playerIndex, card, destination, callback
 		safeWaitFrames("PlayerBoard.Deeds",function() if callback~=nil then callback(true) end end, 4)
 	end
 end
+
 local function meditationMoveCards(playerIndex, sourceType, cardGUIDs, destination, done)
 	local moved=0
 	local function moveNext(index)
@@ -973,16 +991,19 @@ local function meditationMoveCards(playerIndex, sourceType, cardGUIDs, destinati
 	end
 	moveNext(1)
 end
+
 local function meditationGrantDrawBonus(playerIndex)
 	if gStates.meditationDrawBonus==nil then gStates.meditationDrawBonus={} end
 	gStates.meditationDrawBonus[playerIndex]=2
 	if playerIndex==gStates.turnNumber then safeWaitFrames("PlayerBoard.Deeds",function() if gStates.turnNumber==playerIndex then mainUIUpdate("Meditation Draw Bonus") end end, 1) end
 end
+
 local function meditationFinish(playerIndex, destination, moved, expected, name)
 	if moved~=expected then broadcastToAll(name.." could not find all selected discard cards.", positionToColor(playerIndex)) return end
 	turnOrder[playerIndex].deedCount=(turnOrder[playerIndex].deedCount or 0)+moved
 	if destination=="bottom" and turnOrder[playerIndex].mage=="Coral" then safeWaitFrames("PlayerBoard.Deeds",function() coralSetAsideQuickWitted() end, 8) end
 end
+
 local function meditationResolve(destination, buttonPlayerColor)
 	local card=getObjectFromGUID(meditationTranceCardGUID)
 	local playerIndex=meditationPlayerIndex(card)
@@ -1015,7 +1036,9 @@ local function meditationResolve(destination, buttonPlayerColor)
 		if moved==amount then broadcastToAll("Meditation returned "..tostring(amount).." random discard card"..(amount==1 and "" or "s").." to the "..destination.." of the Deed deck.", positionToColor(playerIndex)) end
 	end)
 end
+
 function meditationTranceTop(player, mouseButton, id) if mouseButton~="-3" then meditationResolve("top", player.color) end end
+
 function meditationTranceBot(player, mouseButton, id) if mouseButton~="-3" then meditationResolve("bottom", player.color) end end
 
 --Steady Tempo end-of-turn choice. The card deliberately remains in the play area
@@ -1026,11 +1049,13 @@ local function steadyTempoPlayerIndex(seatPos)
 	for playerIndex, details in pairs(turnOrder) do if details.seatPos==seatPos then return playerIndex end end
 	return nil
 end
+
 function steadyTempoPendingForSeat(seatPos)
 	if seatPos==nil or gStates.steadyTempoPending==nil then return false end
 	for _, pendingSeat in pairs(gStates.steadyTempoPending) do if pendingSeat==seatPos then return true end end
 	return false
 end
+
 function steadyTempoUpdateRewardGate(seatPos)
 	if seatPos==nil or gStates.preEndTurn~=true or turnOrder[gStates.turnNumber]==nil or turnOrder[gStates.turnNumber].seatPos~=seatPos then return end
 	--Quest resolution uses a soft gate: Rewards Claimed remains clickable, and __endTurn_raw refreshes
@@ -1040,6 +1065,7 @@ function steadyTempoUpdateRewardGate(seatPos)
 	UI.setAttribute("PreEndTurn", "interactable", blocked and "false" or "true")
 	UI.setAttribute("PreEndTurnImage", "image", blocked and "Sliced Button/Button New Deactive" or "Sliced Button/Button New Active")
 end
+
 local function steadyTempoStripButtons(card)
 	local xml=card~=nil and (card.UI.getXmlTable() or {}) or {}
 	for a=#xml, 1, -1 do
@@ -1048,12 +1074,14 @@ local function steadyTempoStripButtons(card)
 	end
 	return xml
 end
+
 function steadyTempoRemoveButtons(card)
 	if card==nil then return end
 	local before=card.UI.getXmlTable() or {}
 	local xml=steadyTempoStripButtons(card)
 	if #xml~=#before then if #xml>0 then card.UI.setXmlTable(xml) else card.UI.setXml("") end end
 end
+
 local function steadyTempoHasDeedPile(playerIndex)
 	local details=turnOrder[playerIndex]
 	local zone=details~=nil and getObjectFromGUID(deedDeckZones[details.seatPos]) or nil
@@ -1061,12 +1089,14 @@ local function steadyTempoHasDeedPile(playerIndex)
 	for _, obj in pairs(zone.getObjects()) do if obj.type=="Deck" or obj.type=="Card" then return true end end
 	return false
 end
+
 local function steadyTempoCardInPlayArea(card, seatPos)
 	local zone=card~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
 	if zone==nil then return false end
 	for _, obj in pairs(zone.getObjects()) do if obj.guid==card.guid then return true end end
 	return false
 end
+
 local function steadyTempoAddButtons(card, playerIndex)
 	if card==nil or turnOrder[playerIndex]==nil then return end
 	if cardEffectIsVertical(card)==false then steadyTempoRemoveButtons(card) return end
@@ -1077,6 +1107,7 @@ local function steadyTempoAddButtons(card, playerIndex)
 	xml[#xml+1]=createClaimButton(card.guid, "steadyTempoTop")
 	card.UI.setXmlTable(xml)
 end
+
 function steadyTempoPrepare(card, playerIndex)
 	if card==nil or isSteadyTempoGUID(card.guid)==false or turnOrder[playerIndex]==nil then return end
 	if cardEffectIsVertical(card)==false then steadyTempoRemoveButtons(card) return end
@@ -1086,6 +1117,7 @@ function steadyTempoPrepare(card, playerIndex)
 	steadyTempoAddButtons(card, playerIndex)
 	steadyTempoUpdateRewardGate(seatPos)
 end
+
 function steadyTempoClearPending(cardGUID)
 	local seatPos=gStates.steadyTempoPending~=nil and gStates.steadyTempoPending[cardGUID] or nil
 	if gStates.steadyTempoPending~=nil then gStates.steadyTempoPending[cardGUID]=nil end
@@ -1093,6 +1125,7 @@ function steadyTempoClearPending(cardGUID)
 	if card~=nil then steadyTempoRemoveButtons(card) end
 	if seatPos~=nil then steadyTempoUpdateRewardGate(seatPos) end
 end
+
 function steadyTempoRefreshCard(cardGUID)
 	if gStates.steadyTempoPending==nil then return end
 	local seatPos=gStates.steadyTempoPending[cardGUID]
@@ -1101,10 +1134,12 @@ function steadyTempoRefreshCard(cardGUID)
 	if card==nil or playerIndex==nil then return end
 	if steadyTempoCardInPlayArea(card, seatPos)==true and card.is_face_down==false and cardEffectIsVertical(card)==true then steadyTempoAddButtons(card, playerIndex) else steadyTempoRemoveButtons(card) end
 end
+
 function steadyTempoRefreshAll()
 	if gStates.steadyTempoPending==nil then return end
 	for cardGUID, _ in pairs(gStates.steadyTempoPending) do steadyTempoRefreshCard(cardGUID) end
 end
+
 local function steadyTempoMoveToDiscard(playerIndex, card)
 	local details=turnOrder[playerIndex]
 	local zone=details~=nil and getObjectFromGUID(deedDeckDiscardZones[details.seatPos]) or nil
@@ -1121,6 +1156,7 @@ local function steadyTempoMoveToDiscard(playerIndex, card)
 	safeWaitFrames("PlayerBoard.Deeds",function() scheduleDeedPileDescriptionRefresh(details.seatPos, "discard") end, 6)
 	return true
 end
+
 function steadyTempoChoice(player, mouseButton, id)
 	if mouseButton=="-3" or player==nil or id==nil then return end
 	local cardGUID=id:sub(1,6)
