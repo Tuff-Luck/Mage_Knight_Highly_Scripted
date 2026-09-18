@@ -1081,9 +1081,97 @@ function offerArtifacts(player, mouseButton, id)
 	end
 end
 
+--Unit Offer uses eight printed snap/claim positions spanning X=36.0 to X=2.4.
+--Overflow (normally Bonds of Loyalty) compresses extra cards inside those fixed endpoints so the
+--existing eight scripting zones still cover the whole offer, just like extra Unit columns on player boards.
+unitOfferLayoutConfig={nativeSlots=8,firstX=36.0,lastX=2.4,y=0.98,z=-4.2,cardScale=1.5}
+
+function unitOfferLayoutX(slot,count)
+	local displayCount=math.max(unitOfferLayoutConfig.nativeSlots,count or unitOfferLayoutConfig.nativeSlots)
+	local spacing=(unitOfferLayoutConfig.firstX-unitOfferLayoutConfig.lastX)/(displayCount-1)
+	return unitOfferLayoutConfig.firstX-((slot-1)*spacing)
+end
+
+function unitOfferCardScale(count)
+	if count==nil or count<=unitOfferLayoutConfig.nativeSlots then return unitOfferLayoutConfig.cardScale end
+	return unitOfferLayoutConfig.cardScale*((unitOfferLayoutConfig.nativeSlots-1)/(count-1))
+end
+
+function unitOfferPosition(slot,count,y)
+	return {unitOfferLayoutX(slot,count),y or unitOfferLayoutConfig.y,unitOfferLayoutConfig.z}
+end
+
+function unitOfferCards()
+	local cards={}
+	local zone=getObjectFromGUID("a3d99b")
+	if zone~=nil then
+		for _,obj in pairs(zone.getObjects()) do
+			local cardType=gameCardType(obj)
+			if obj.type=="Card" and (cardType=="Regular Unit" or cardType=="Elite Unit") then cards[#cards+1]=obj end
+		end
+	end
+	table.sort(cards,function(a,b) return a.getPosition()[1]>b.getPosition()[1] end)
+	return cards
+end
+
+local function moveUnitOfferCard(obj,slot,count)
+	if obj==nil then return end
+	local guid=obj.guid
+	local pos=obj.getPosition()
+	local scale=unitOfferCardScale(count)
+	obj.unlock()
+	obj.setScale({scale,1,scale})
+	obj.setPositionSmooth(unitOfferPosition(slot,count,pos[2]))
+	safeWaitCondition("PlayingGame",function()
+		local card=getObjectFromGUID(guid)
+		if card~=nil then card.lock() end
+	end,function()
+		local card=getObjectFromGUID(guid)
+		return card==nil or card.resting
+	end)
+end
+
+function reflowUnitOffer(targetCount)
+	local cards=unitOfferCards()
+	local displayCount=math.max(targetCount or #cards,#cards)
+	for slot,obj in ipairs(cards) do moveUnitOfferCard(obj,slot,displayCount) end
+	return #cards,displayCount
+end
+
+function addRegularUnitsToOffer(amount)
+	amount=math.max(0,math.floor(amount or 0))
+	if amount==0 then return 0 end
+	local cards=unitOfferCards()
+	local existing=#cards
+	local finalCount=existing+amount
+	for slot,obj in ipairs(cards) do moveUnitOfferCard(obj,slot,finalCount) end
+	local added=0
+	for slot=existing+1,finalCount do
+		standardDeckCycleShuffleIfReached("Regular Unit")
+		local zone=getObjectFromGUID(GUID.zone.regularUnit)
+		local deck=nil
+		if zone~=nil then
+			for _,obj in pairs(zone.getObjects()) do if obj.type=="Deck" or obj.type=="Card" then deck=obj break end end
+		end
+		if deck~=nil then
+			local scale=unitOfferCardScale(finalCount)
+			safeTakeObject("PlayingGame",deck,{
+				position=unitOfferPosition(slot,finalCount,1.25),
+				rotation={0,180,0},
+				smooth=true,
+				callback_function=function(drawnCard)
+					drawnCard.setScale({scale,1,scale})
+					safeWaitCondition("PlayingGame",function() if drawnCard~=nil then drawnCard.lock() end end,function() return drawnCard==nil or drawnCard.resting end)
+				end
+			})
+			added=added+1
+		end
+	end
+	return added
+end
+
 --Unit and Monastery Offer update
 function unitOffer()
-	local unitPlace=		{{36.0, 0.98,  -4.2}, {31.2, 0.98,  -4.2}, {26.4, 0.98,  -4.2}, {21.6, 0.98,  -4.2}, {16.8, 0.98,  -4.2}, {12.0, 0.98,  -4.2}, {7.2, 0.98, -4.2}, {2.4, 0.98, -4.2}}
 	local monasteryPlace=	{{36.0, 0.98, -10.2}, {31.2, 0.98, -10.2}, {26.4, 0.98, -10.2}, {21.6, 0.98, -10.2}, {16.8, 0.98, -10.2}, {12.0, 0.98, -10.2}}
 	local drawDecks=		{["Regular Unit"]=GUID.zone.regularUnit, ["Elite Unit"]=GUID.zone.eliteUnit, ["Advanced Action"]=GUID.zone.actionDeck}--Zone covering Regular units draw deck, Elite Units Draw Deck, Advanced Actions Draw Deck
 	local skip=false
@@ -1092,6 +1180,7 @@ function unitOffer()
 		local offerCardType=gameCardType(offerCards)
 		if offerCards.type=="Card" and drawDecks[offerCardType]~=nil then
 			offerCards.unlock()
+			if offerCardType=="Regular Unit" or offerCardType=="Elite Unit" then offerCards.setScale({unitOfferLayoutConfig.cardScale,1,unitOfferLayoutConfig.cardScale}) end
 			standardDeckCycleMarkReturned(offerCardType, offerCards)
 			getObjectFromGUID(getObjectFromGUID(drawDecks[offerCardType]).getObjects()[1].guid).putObject(offerCards)
 		end
@@ -1168,10 +1257,12 @@ function unitOffer()
 		for a, draw in ipairs(unitDrawList) do
 			safeTakeObject("PlayingGame",draw.deck,{
 				guid=draw.guid,
-				position=unitPlace[a],
+				position=unitOfferPosition(a,gStates.totalUnitCount),
 				rotation={0,180,0},
 				smooth=true,
 				callback_function=function(drawnCard)
+					local scale=unitOfferCardScale(gStates.totalUnitCount)
+					drawnCard.setScale({scale,1,scale})
 					safeWaitCondition("PlayingGame",function()
 						drawnCard.lock()
 					end, function() return drawnCard.resting end)

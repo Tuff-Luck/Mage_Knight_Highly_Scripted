@@ -96,6 +96,15 @@ translateWord={	["Red"]="{en}Red{ru}Красный{zh-cn}红色的{ko}빨간색{
 				["Gold"]="{en}Gold{ru}Золотой{zh-cn}金色的{ko}금색{es}Oro{fr}Or{pt-br}Ouro{de}Gold",
 				["Black"]="{en}Black{ru}Черный{zh-cn}黑色的{ko}흑색{es}Negro{fr}Noir{pt-br}Preto{de}Schwarz",
 
+				["Power of Pain"]="{en}Power of Pain{ru}Сила боли{zh-tw}痛苦之力{zh-cn}痛苦之力{ko}고통의 힘{es}Poder del Dolor{fr}Pouvoir de la Douleur{pt-br}Poder da Dor{de}Macht des Schmerzes",
+				["Glittering Fortune"]="{en}Glittering Fortune{ru}Сверкающая удача{zh-tw}閃耀財富{zh-cn}闪耀财富{ko}빛나는 행운{es}Fortuna Reluciente{fr}Fortune Scintillante{pt-br}Fortuna Brilhante{de}Glitzerndes Glück",
+				["Bonds of Loyalty"]="{en}Bonds of Loyalty{ru}Узы верности{zh-tw}忠誠之絆{zh-cn}忠诚之绊{ko}충성의 유대{es}Lazos de Lealtad{fr}Liens de Loyauté{pt-br}Laços de Lealdade{de}Bande der Loyalität",
+				["Shield Mastery"]="{en}Shield Mastery{ru}Мастерство щита{zh-tw}盾牌精通{zh-cn}盾牌精通{ko}방패 숙련{es}Maestría con el Escudo{fr}Maîtrise du Bouclier{pt-br}Maestria com Escudo{de}Schildbeherrschung",
+				["Know Your Prey"]="{en}Know Your Prey{ru}Знай свою добычу{zh-tw}了解你的獵物{zh-cn}了解你的猎物{ko}사냥감을 파악하라{es}Conoce a tu Presa{fr}Connaissez votre Proie{pt-br}Conheça sua Presa{de}Kenne deine Beute",
+				["Puppet Master"]="{en}Puppet Master{ru}Кукловод{zh-tw}傀儡大師{zh-cn}傀儡大师{ko}인형술사{es}Maestro de Marionetas{fr}Maître des Marionnettes{pt-br}Mestre das Marionetes{de}Puppenspieler",
+				["Shapeshift"]="{en}Shapeshift{ru}Изменение формы{zh-tw}變形{zh-cn}变形{ko}변신{es}Cambio de Forma{fr}Métamorphose{pt-br}Metamorfose{de}Gestaltwandlung",
+				["Treasure Hunter"]="{en}Treasure Hunter{ru}Охотник за сокровищами{zh-tw}尋寶者{zh-cn}寻宝者{ko}보물 사냥꾼{es}Cazador de Tesoros{fr}Chasseur de Trésors{pt-br}Caçador de Tesouros{de}Schatzjäger",
+
 				["Secret Dungeon"]="{en}Secret Dungeon{ru}Тайное подземелье{zh-cn}地下城标记{ko}숨겨진 던전{es}Mazmorra Secreta{fr}Donjon Secret{pt-br}Masmorra Secreta{de}Geheimer Kerker",
 				["Secret Tomb"]="{en}Secret Tomb{ru}Тайная гробница{zh-cn}怪物巢穴标记{ko}숨겨진 무덤{es}Tumba Secreta{fr}Tombeau Secret{pt-br}Tumba Secreta{de}Geheimes Grabmal",
 
