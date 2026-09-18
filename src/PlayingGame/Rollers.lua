@@ -225,4 +225,3 @@ function rollerSavedState(saved_data)
 	if ok and type(data)=="table" then return data.rollerDice end
 	return nil
 end
-

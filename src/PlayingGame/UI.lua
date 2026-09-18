@@ -2688,4 +2688,3 @@ function monsterReplenishObjectOnLoad()
 <Text id="d7a165swapTableText" active="false"></Text>
 ]=])
 end
-
