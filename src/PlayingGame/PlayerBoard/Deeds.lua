@@ -1232,7 +1232,7 @@ function dealAllHands()
 end
 
 --Fill any gaps in the offer by sliding more cards down the line
-function fillSlide()
+local function fillSlideRaw()
 	local offerList={{}, {}}
 	local sourceDeck={GUID.zone.actionDeck, GUID.zone.spellDeck}
 	for _, obj in pairs(getObjectFromGUID(GUID.zone.offer).getObjects()) do
@@ -1281,7 +1281,6 @@ function fillSlide()
 	end
 end
 
-local fillSlideRaw=fillSlide
 function fillSlide()
 	return safeCallback("fillSlide",function() return fillSlideRaw() end)
 end

@@ -1,31 +1,6 @@
 -- Shared helpers used by more than one Global source module.
 -- Keep subsystem-owned game logic in its owning module.
 
--- Error-report boundaries for callbacks that TTS invokes after the originating function has returned.
--- These helpers deliberately keep the native Wait signatures so existing timing/return behaviour is unchanged.
-function automaticLuaTraceback(errorText)
-	if debug and debug.traceback then return debug.traceback(tostring(errorText),2) end
-	return tostring(errorText)
-end
-
-function automaticLuaAsyncLabel(scope, kind)
-	return tostring(scope or "Async").." / "..tostring(kind or "callback")
-end
-
-function safeAsyncCallback(label, callback, contextCallback)
-	if type(callback)~="function" then return callback end
-	return function(...)
-		local args={n=select("#",...),...}
-		return safeCallback(label,function() return callback(table.unpack(args,1,args.n)) end,contextCallback)
-	end
-end
-
-function safeObjectCallbackParams(scope, params)
-	if type(params)~="table" or type(params.callback_function)~="function" then return params end
-	params.callback_function=safeAsyncCallback(automaticLuaAsyncLabel(scope,"callback_function"),params.callback_function)
-	return params
-end
-
 ---@overload fun(scope: "SetupGame", container: any, params: table): any
 function safeTakeObject(scope, container, params)
 	local ref=type(params)=="table" and (params.guid or params.index) or "unknown"

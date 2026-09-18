@@ -35,7 +35,7 @@ end
 
 --Layout everything needed for the game
 setupRewindRequestPending=false
-function setupGame(player, mouseButton, id, rewindReady)
+local function setupGameRaw(player, mouseButton, id, rewindReady)
 	if mouseButton=="-1" then
 		if rewindReady~=true then
 			if setupRewindRequestPending==true then return end
@@ -3002,16 +3002,6 @@ function mapSetup()
 end
 
 --Keep setup-specific validation and rulebook deployment with the setup owner rather than a late wrapper module.
-local setupGameRaw=setupGame
-local function setupGameErrorContext(player,id,rewindReady)
-	local playerColor=player~=nil and (player.color or player) or ""
-	return "Scenario: "..tostring(gStates~=nil and gStates.gameScenario or "")..
-		"\nScenario Ref: "..tostring(gStates~=nil and gStates.scenarioRef or "")..
-		"\nPlayers Ref: "..tostring(gStates~=nil and gStates.playersRef or "")..
-		"\nPlayer: "..tostring(playerColor)..
-		"\nStart ID: "..tostring(id or "")..
-		"\nRewind Ready: "..tostring(rewindReady==true)
-end
 function setupGame(player, mouseButton, id, rewindReady)
 	return safeCallback("setupGame",function()
 		if mouseButton=="-1" and rewindReady==true and gStates~=nil then

@@ -5,6 +5,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | Path | Primary responsibility |
 | --- | --- |
 | `src/Data.lua` | Static game data: cards, monsters, scenarios, GUID mappings and other large lookup tables. |
+| `src/ErrorReporting.lua` | Automatic Lua error reporting, protected callback helpers, breadcrumbs and diagnostic context builders. |
 | `src/Shared.lua` | Shared helpers used across setup/runtime modules, including protected asynchronous/callback helpers. |
 | `src/SetupInterface.lua` | Setup menu/UI state, scenario/variant option presentation and setup-facing controls. |
 | `src/SetupGame.lua` | Physical game setup: map, decks, bags, boards, avatars and scenario setup execution. |
@@ -30,7 +31,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 
 ## Dependency shape
 
-`Data` and `Shared` load first. Setup modules then define setup-facing globals. Gameplay modules load after setup, with specialized modules defining their systems before the final UI/event/callback layers.
+`Data`, `ErrorReporting` and `Shared` load first. Error reporting loads before Shared because the shared async/object helpers use its protected callback machinery. Setup modules then define setup-facing globals. Gameplay modules load after setup, with specialized modules defining their systems before the final UI/event/callback layers.
 
 Modules have separate lexical scope for `local` declarations. Globals are shared in the final bundled Global environment. A helper needed by multiple modules should therefore be intentionally global/shared or otherwise exposed once; copying a local helper into several files does not consolidate it.
 

@@ -1,25 +1,5 @@
 -- Public error-wrapped gameplay and TTS callback boundaries.
 
-function automaticLuaTurnPhaseContext(player, id)
-	local context="Turn: "..tostring(automaticLuaErrorStateValue("turnNumber", "")).." / Round: "..tostring(automaticLuaErrorStateValue("currentRound", ""))
-	if player~=nil then context=context.."\nPlayer: "..tostring(player.color or player) end
-	if id~=nil then context=context.."\nAction: "..tostring(id) end
-	return context
-end
-
-function automaticLuaSkillClaimContext(player, id)
-	local guid=id~=nil and tostring(id):sub(1,6) or ""
-	local context=automaticLuaTurnPhaseContext(player,id).."\nSkill buttons: "..tostring(automaticLuaErrorStateValue("skillButtons","")).."\nSkill GUID: "..tostring(guid)
-	local skill=getObjectFromGUID(guid)
-	if skill~=nil then
-		local p=skill.getPosition()
-		context=context.."\nLive position: "..tostring(p[1])..", "..tostring(p[2])..", "..tostring(p[3])
-	end
-	local home=automaticLuaErrorValue(function() return gStates.mageSkills[guid] end,nil)
-	if home~=nil then context=context.."\nRecorded position: "..tostring(home[1])..", "..tostring(home[2])..", "..tostring(home[3]) end
-	return context
-end
-
 --Object-UI Skill claims are not TTS event callbacks, so give them the same automatic error-report boundary.
 function skillMove(player, mouseButton, id, rewindReady)
 	return safeCallback("skillMove", function() return __skillMove_raw(player, mouseButton, id, rewindReady) end, function() return automaticLuaSkillClaimContext(player,id) end)
