@@ -1131,10 +1131,22 @@ function deckSetup()
 			safeTakeObject("SetupGame",apocalypseBag,{guid=GUID.bag.apocalypseQuestTokens, position={46.84, 1.00, 13.61}, rotation={0, 180, 0}, smooth=true, callback_function=function(_) apocalypseQuestTokenBagSetup() end})
 			apocalypseBag.takeObject({guid="b26e9b", position={51.04, 0.98, 13.61}, rotation={0, 180, 0}, smooth=true})
 			apocalypseBag.takeObject({guid="4ce329", position={55.24, 0.98, 13.61}, rotation={0, 180, 0}, smooth=true})
-			if getObjectFromGUID(GUID.bag.neutralShield)==nil then apocalypseBag.takeObject({guid=GUID.bag.neutralShield,position={8.00,1.03,16.00},rotation={0,180,0},smooth=true}) end--Infinite neutral Shield bag for Quest progress/abandonment
+			--Dedicated Quest Shield supplies. Keep the normal Neutral / player-board bags untouched:
+			--all shields created by Apocalypse Quests are drawn from these clones instead.
+			gStates.apocalypseQuestShieldBagGUIDs={}
+			local neutralSource=getObjectFromGUID(GUID.bag.neutralShield)
+			if neutralSource==nil then
+				neutralSource=apocalypseBag.takeObject({guid=GUID.bag.neutralShield,position={8.00,1.03,16.00},rotation={0,180,0},smooth=false})
+			end
+			if neutralSource~=nil then
+				local neutralBag=neutralSource.clone()
+				neutralBag.setPositionSmooth({59.55,1.03,13.60})
+				neutralBag.setRotationSmooth({0,180,0})
+				neutralBag.lock()
+				gStates.apocalypseQuestShieldBagGUIDs.Neutral=neutralBag.guid
+			end
 			--Clone each active Mage Knight's existing infinite Shield bag immediately to the right of Neutral.
-			--Neutral is x=59.55; active players pack left-to-right at +1.70 x with no gaps for empty seats.
-			--The player-board copies survive setup, so this does not depend on the temporary Mage Knight setup bags.
+			--Active players pack left-to-right at +1.70 x with no gaps for empty seats.
 			local questShieldSlot=1
 			for seatPos=1, 4, 1 do
 				local mage=gStates.positionMageKnight[seatPos]
@@ -1144,9 +1156,10 @@ function deckSetup()
 							local source=getObjectFromGUID(details.shieldContainer)
 							if source~=nil then
 								local bag=source.clone()
-								bag.setPositionSmooth({59.55+(questShieldSlot*1.70), 1.03, 13.60})
-								bag.setRotationSmooth({0, 180, 0})
+								bag.setPositionSmooth({59.55+(questShieldSlot*1.70),1.03,13.60})
+								bag.setRotationSmooth({0,180,0})
 								bag.lock()
+								gStates.apocalypseQuestShieldBagGUIDs[mage]=bag.guid
 								questShieldSlot=questShieldSlot+1
 							end
 							break

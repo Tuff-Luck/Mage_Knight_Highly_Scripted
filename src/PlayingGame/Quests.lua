@@ -4476,22 +4476,22 @@ function apocalypseQuestRaisedPiecePosition(position,height)
 	if position==nil then return nil end
 	return {position[1],position[2]+(height or 0.20),position[3]}
 end
+function apocalypseQuestShieldSupplyBag(owner)
+	local bags=gStates.apocalypseQuestShieldBagGUIDs
+	if bags==nil then return nil end
+	local guid=bags[owner]
+	if guid==nil then return nil end
+	return getObjectFromGUID(guid)
+end
 function apocalypseQuestTakePlayerShield(playerIndex, position)
 	local playerDetails=turnOrder[playerIndex]
 	if playerDetails==nil then return nil end
-	for _, mageDetails in pairs(mageKnights) do
-		if mageDetails.mage==playerDetails.mage then
-			local shieldBag=getObjectFromGUID(mageDetails.shieldContainer)
-			if shieldBag~=nil then
-				return shieldBag.takeObject({position=apocalypseQuestRaisedPiecePosition(position),rotation={0,180,0},smooth=true})
-			end
-			break
-		end
-	end
-	return nil
+	local shieldBag=apocalypseQuestShieldSupplyBag(playerDetails.mage)
+	if shieldBag==nil then return nil end
+	return shieldBag.takeObject({position=apocalypseQuestRaisedPiecePosition(position),rotation={0,180,0},smooth=true})
 end
 function apocalypseQuestTakeNeutralShield(position)
-	local shieldBag=getObjectFromGUID(GUID.bag.neutralShield)
+	local shieldBag=apocalypseQuestShieldSupplyBag("Neutral")
 	if shieldBag==nil then return nil end
 	return shieldBag.takeObject({position=apocalypseQuestRaisedPiecePosition(position),rotation={0,180,0},smooth=true})
 end
@@ -6087,8 +6087,7 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 			apocalypseQuestUpdateProgressButtons(card)
 			return
 		end
-		local neutralBag=getObjectFromGUID(GUID.bag.neutralShield)
-		if neutralBag==nil then
+		if apocalypseQuestShieldSupplyBag("Neutral")==nil then
 			broadcastToColor("The neutral Quest Shield bag could not be found.", player.color, {1,0.55,0.2})
 			return
 		end
