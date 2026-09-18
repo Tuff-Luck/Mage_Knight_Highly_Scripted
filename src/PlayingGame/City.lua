@@ -61,7 +61,7 @@ function initializeCityStaticData()
 		[cityModel.green]={[cityModel.white]=2, [cityModel.blue]=3, [cityModel.red]=4}
 	}
 	CITY_PERK={[cityModel.blue]="Elemental", [cityModel.red]="Brutal", [cityModel.green]="Poison", [cityModel.white]="Defense"}
-	CITY_ARMY_DATA={
+	CITY_ARMY_DATA={--White, Purple, Tan, Gray, Red, Green
 		[cityModel.red]={{1,0,0,0,0,0},{0,1,1,0,0,0},{1,0,1,0,0,0},{0,2,1,0,0,0},{1,1,1,0,0,0},{0,2,2,0,0,0},{1,2,1,0,0,0},{2,1,1,0,0,0},{1,2,2,0,0,0},{2,1,2,0,0,0},{3,1,1,0,0,0}},
 		[cityModel.green]={{0,0,1,1,0,0},{0,0,2,0,0,0},{0,0,1,2,0,0},{1,0,1,1,0,0},{1,0,2,0,0,0},{1,0,1,2,0,0},{1,0,2,1,0,0},{2,0,2,0,0,0},{1,0,3,1,0,0},{2,0,2,1,0,0},{3,0,2,0,0,0}},
 		[cityModel.blue]={{0,1,0,1,0,0},{0,2,0,0,0,0},{1,1,0,0,0,0},{1,1,0,1,0,0},{1,2,0,0,0,0},{2,1,0,0,0,0},{1,2,0,1,0,0},{2,2,0,0,0,0},{3,1,0,0,0,0},{2,2,0,1,0,0},{3,2,0,0,0,0}},
