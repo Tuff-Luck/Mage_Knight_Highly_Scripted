@@ -27,25 +27,12 @@ end
 --as the existing Skill reference cards, including the central position-5 Dummy-board adjustment.
 function proxySetupReferenceCards()
 	if proxyPlayerActive()~=true then return end
-	local proxyIndex=proxyPlayerIndex()
-	if proxyIndex==nil or turnOrder[proxyIndex]==nil then return end
-	local setupPosition=turnOrder[proxyIndex].seatPos
-	if setupPosition==nil then return end
-
-	local offsetPosition=(setupPosition*40)-40
-	local z=-49.00
-	local x1=-70.58+offsetPosition --9.42 when the Proxy occupies setup position 3
-	local x2=-67.26+offsetPosition --12.74 when the Proxy occupies setup position 3
-	if setupPosition==5 then
-		x1=x1-25.2
-		x2=x2-25.2
-		z=z+21.1
-	end
-
+	local board=getObjectFromGUID(dummyBoard)
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	if bag==nil then return end
-	safeTakeObject("AI.Proxy",bag,{guid="0e855c",position={x1,0.98,z},rotation={0,180,0},smooth=false,callback_function=function(obj) obj.lock() end})
-	safeTakeObject("AI.Proxy",bag,{guid="dbf566",position={x2,0.98,z},rotation={0,180,0},smooth=false,callback_function=function(obj) obj.lock() end})
+	if board==nil or bag==nil then return end
+	local p=board.getPosition()
+	safeTakeObject("AI.Proxy",bag,{guid="0e855c",position={p[1]+9.44,p[2],p[3]-5.17},rotation={0,180,0},smooth=false,callback_function=function(obj) obj.lock() end})
+	safeTakeObject("AI.Proxy",bag,{guid="dbf566",position={p[1]+12.91,p[2],p[3]-5.17},rotation={0,180,0},smooth=false,callback_function=function(obj) obj.lock() end})
 end
 
 function proxySetupAvatarPosition()
