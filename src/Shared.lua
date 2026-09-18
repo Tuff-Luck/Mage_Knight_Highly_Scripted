@@ -111,9 +111,9 @@ end
 --before the first mutation, then suppress TTS automatic rewind snapshots until every nested transaction is stable.
 --Owners make the guard nestable: a Quest refill can safely run inside End of Round, and several queued card claims
 --for one seat can share the same rewind transaction without releasing the outer transaction early.
---TTS storeRewindState captures a full engine rewind snapshot and can visibly hitch this large mod.
---Keep the transaction ownership/sequencing, but leave engine snapshots disabled unless explicitly re-enabled.
-local rewindTransactionStoreEnabled=false
+--TTS storeRewindState captures a full engine rewind snapshot before protected scripted actions.
+--Keep the transaction ownership/sequencing and store the safe rewind point before mutations begin.
+local rewindTransactionStoreEnabled=true
 local rewindTransactionStorePending=false
 local rewindTransactionBlocked=false
 local rewindTransactionGeneration=0
