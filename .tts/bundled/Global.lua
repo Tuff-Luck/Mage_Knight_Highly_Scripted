@@ -18858,9 +18858,10 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			--at this settled cleanup boundary, before fakeDropAvatar reads Lead/Assist for the new hand limit.
 			--Other cleanup only needs the cheaper defeat-state refresh; co-op combat rebuilds ownership in its reward phase.
 			safeWaitFrames("Combat",function() safeWaitCondition("Combat",function()
-				if gStates.coopAssaultPhase~="combat" and (turnOrder[gStates.turnNumber].avatarLocation:sub(1,4)=="city" or turnOrder[gStates.turnNumber].avatarLocation:sub(1,6)=="raised") then cityBeatCheck()
+				local cleanupLocation=turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation or ""
+				if gStates.coopAssaultPhase~="combat" and (cleanupLocation:sub(1,4)=="city" or cleanupLocation:sub(1,6)=="raised") then cityBeatCheck()
 				else refreshCityDefeatState() end
-		 		fakeDropAvatar()
+		 		fakeDropAvatar(cleanupPlayer)
 				--Check for scenario completion to Start the final round of turns.
 				if gStates.endGameAchieved=="false" and gStates.tacticShown==false then
 					--local gladeCount=0
@@ -18920,8 +18921,8 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 						end
 					end
 					local cardInHand=false
-					if gStates.gameScenario=="Quest for the Golden Grail" then
-						for _, handobject in pairs(getObjectFromGUID(handZones[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
+					if gStates.gameScenario=="Quest for the Golden Grail" and turnOrder[cleanupPlayer]~=nil then
+						for _, handobject in pairs(getObjectFromGUID(handZones[turnOrder[cleanupPlayer].seatPos]).getObjects()) do
 							if handobject.guid=="085e59" then cardInHand=true break end
 						end
 					end
@@ -18941,7 +18942,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 						(gStates.gameScenario=="Dungeon Lords" and getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()==0 and dungeonCount==dungeonHexCount-2) or
 						(gStates.gameScenario=="The Realm of the Dead Blitz" and gStates.defeatedFaction==1 and graveYardCount==graveYardTileCount) or
 						(gStates.gameScenario=="The Lost Relic Blitz" and relicCount==gStates.cityTiles) or
-						(gStates.gameScenario=="Quest for the Golden Grail" and turnOrder[gStates.turnNumber].avatarLocation=="portal" and cardInHand==true) or
+						(gStates.gameScenario=="Quest for the Golden Grail" and cleanupLocation=="portal" and cardInHand==true) or
 						(gStates.gameScenario=="The Gauntlet" and gStates.theGauntletArtifactClaimed==true) or
 						(gStates.gameScenario=="Druid Nights" and gStates.currentRound==gStates.rounds and allRituals==true) or
 						(gStates.gameScenario=="Life and Death" and gStates.defeatedFaction==2) or
@@ -23032,16 +23033,19 @@ end
 
 local adjustHandSizePause=nil
 
-function fakeDropAvatar()
-	if coopAssaultVirtualPlayer(gStates.turnNumber)==true then
+function fakeDropAvatar(playerIndex)
+	local dropPlayer=playerIndex or gStates.turnNumber
+	if turnOrder[dropPlayer]==nil then return end
+	if coopAssaultVirtualPlayer(dropPlayer)==true then
 		if gStates.preEndTurn~=true then mainUIUpdate("Co-op virtual city location") end
 		return
 	end
 	if adjustHandSizePause~=nil then Wait.stop(adjustHandSizePause) end
 	adjustHandSizePause=safeWaitTime("PlayingGame",function()
+		if turnOrder[dropPlayer]==nil then return end
 		local found=false
 		for _, avatar in pairs(mageKnights) do
-			if turnOrder[gStates.turnNumber].mage==avatar.mage and avatar.mage~="Volkare" then
+			if turnOrder[dropPlayer].mage==avatar.mage and avatar.mage~="Volkare" then
 				local modelGUID, tokenGUID, standeeGUID=avatar.model, avatar.token, avatar.standee
 				local avatarObj=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
 				if avatarObj~=nil then

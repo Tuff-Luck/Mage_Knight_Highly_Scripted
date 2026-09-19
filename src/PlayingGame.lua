@@ -589,16 +589,19 @@ end
 
 local adjustHandSizePause=nil
 
-function fakeDropAvatar()
-	if coopAssaultVirtualPlayer(gStates.turnNumber)==true then
+function fakeDropAvatar(playerIndex)
+	local dropPlayer=playerIndex or gStates.turnNumber
+	if turnOrder[dropPlayer]==nil then return end
+	if coopAssaultVirtualPlayer(dropPlayer)==true then
 		if gStates.preEndTurn~=true then mainUIUpdate("Co-op virtual city location") end
 		return
 	end
 	if adjustHandSizePause~=nil then Wait.stop(adjustHandSizePause) end
 	adjustHandSizePause=safeWaitTime("PlayingGame",function()
+		if turnOrder[dropPlayer]==nil then return end
 		local found=false
 		for _, avatar in pairs(mageKnights) do
-			if turnOrder[gStates.turnNumber].mage==avatar.mage and avatar.mage~="Volkare" then
+			if turnOrder[dropPlayer].mage==avatar.mage and avatar.mage~="Volkare" then
 				local modelGUID, tokenGUID, standeeGUID=avatar.model, avatar.token, avatar.standee
 				local avatarObj=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
 				if avatarObj~=nil then
