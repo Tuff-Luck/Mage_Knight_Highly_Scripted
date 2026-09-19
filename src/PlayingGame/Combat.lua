@@ -1879,7 +1879,7 @@ function attackLocation(playerDud, mouseButton, id)
 					--player decides which fight they actually want. Adventure Site combat cannot pull in
 					--neighbouring enemies, so once that fight starts always follow its enemies to the board.
 					local sameHexAttack=id:sub(1,6)=="Attack"
-					local adventureSiteAttack=sameHexAttack and ({["monster den"]=true,["spawning grounds"]=true,maze=true,labyrinth=true,ruin=true,dungeon=true,tomb=true,ziggurat=true,pyramid=true})[player.avatarLocation]==true
+					local adventureSiteAttack=sameHexAttack and ({["monster den"]=true,["spawning grounds"]=true,maze=true,labyrinth=true,ruin=true,dungeon=true,tomb=true,ziggurat=true,pyramid=true,monastery=true})[player.avatarLocation]==true
 					local nearbyRampagerChoice=sameHexAttack and adventureSiteAttack~=true and combatNearbyRampagerChoice(playerIndex)
 					combatCameraChoiceSuppressedPlayer=adventureSiteAttack~=true and (combatAttackOptionCount(playerIndex)>1 or nearbyRampagerChoice==true) and playerIndex or nil
 					--Work out clicking avatar location
