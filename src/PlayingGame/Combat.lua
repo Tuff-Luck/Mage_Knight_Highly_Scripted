@@ -1636,8 +1636,12 @@ local justDetached={}
 function attachEnemy(player, mouseButton, id, obj, zone)
 	--find nearest monster
 	if id=="attach" and obj~=nil then
-		local possessedGUID=possessedGUID
+		local possessedGUID=obj.guid
 		local attachZoneGUID=zone~=nil and zone.guid or nil
+		local attachPlayer=nil
+		for playerIndex, details in pairs(turnOrder) do
+			if details.seatPos~=nil and playerPlayAreas[details.seatPos]==attachZoneGUID then attachPlayer=playerIndex break end
+		end
 		safeWaitFrames("Combat",function() safeWaitCondition("Combat",function()
 			local possessed=getObjectFromGUID(possessedGUID)
 			if possessed~=nil then
@@ -1694,9 +1698,9 @@ function attachEnemy(player, mouseButton, id, obj, zone)
 						gStates.apocalypsePossessedEnemyByToken[possessedGUID]=nearEnemy.guid
 						nearEnemy.addAttachment(possessed)
 						local summonedPossessed=gStates.summonStates~=nil and (gStates.summonStates[nearEnemy.guid]=="summoned" or gStates.summonStates[possessedGUID]=="summoned")
-						if summonedPossessed~=true and attachZoneGUID~=nil and (attachZoneGUID==playerPlayAreas[2] or attachZoneGUID==playerPlayAreas[3] or attachZoneGUID==playerPlayAreas[1] or attachZoneGUID==playerPlayAreas[4]) then
-							turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+gStates.monsterPerks[nearEnemy.guid].fame
-							if factionRewardUsesJustFame(possessedFaction)==true then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1 end
+						if summonedPossessed~=true and attachPlayer~=nil and turnOrder[attachPlayer]~=nil then
+							turnOrder[attachPlayer].fameGain=turnOrder[attachPlayer].fameGain+gStates.monsterPerks[nearEnemy.guid].fame
+							if factionRewardUsesJustFame(possessedFaction)==true then turnOrder[attachPlayer].fameGain=turnOrder[attachPlayer].fameGain+1 end
 						end
 						--Refresh the monster UI now that Possessed is attached.
 						setMonsterObjectButtons(nearEnemy, true)
@@ -1712,7 +1716,8 @@ function attachEnemy(player, mouseButton, id, obj, zone)
 	--Unlink Object
 	--seperate possessed tokens
 	if id:sub(1, 6)=="detach" then
-		if obj==nil then obj=getObjectFromGUID(id:sub(7, 13)) end
+		if obj==nil then obj=getObjectFromGUID(id:sub(7,13)) end
+		if obj==nil then return end
 		local detachedGUID=obj.guid
 		justDetached[detachedGUID]=true
 		clearPossessedEnemy(obj)
