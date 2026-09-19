@@ -1001,19 +1001,20 @@ function horsemanPriorityDescription(ref)
 		"Priority C: "..data.priorityText.C.."\n\n"
 end
 
---When a Horseman shares a map hex with a round enemy/site token, keep both readable and make
---the Horseman physically topmost. Ruins are hexagonal and can safely remain centred underneath.
+--Whenever a Horseman shares a map hex with a round enemy/site token, keep both readable and make
+--the Horseman physically topmost. This is a physical map rule, not a scenario rule: it also applies
+--when a Horseman is drawn manually from a random stack. Ruins can safely remain centred underneath.
 --The paired round tokens use the same +/-0.1 X/Z split used elsewhere.
 function horsemanArrangeOccupiedTokenStack(name)
-	if gStates==nil or (gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Apocalypse is Here") then return false end
+	if gStates==nil then return false end
 	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
 	local data=horsemanData~=nil and horsemanData[name] or nil
 	local horseman=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-	if state==nil or data==nil or horseman==nil or state.revealed~=true or state.defeated==true or state.retired==true then return false end
+	if data==nil or horseman==nil or (state~=nil and (state.defeated==true or state.retired==true)) then return false end
 
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local hex=apocalypseQuestHexForPosition(hexes,horseman.getPosition(),mapObjects)
-	if hex==nil and state.terrainGUID~=nil and state.bearing~=nil then
+	if hex==nil and state~=nil and state.terrainGUID~=nil and state.bearing~=nil then
 		for _,candidate in ipairs(hexes or {}) do
 			if candidate.terrainGUID==state.terrainGUID and tostring(candidate.bearing)==tostring(state.bearing) then hex=candidate break end
 		end
@@ -1088,7 +1089,7 @@ end
 
 function horsemanArrangeOccupiedTokenStacks()
 	if gStates==nil then return end
-	for name,_ in pairs(gStates.horsemen or {}) do horsemanArrangeOccupiedTokenStack(name) end
+	for name,_ in pairs(horsemanData or {}) do horsemanArrangeOccupiedTokenStack(name) end
 end
 
 function setHorsemanLevel(ref, level, hideIdentity)

@@ -881,8 +881,12 @@ end
 --Update skill Locations, Update Players Location details, and Update the UI and trigger a Level up if a mage shield was moved manually
 function __onObjectDrop_raw(player_color, dropped_object)
 	local droppedGUID=dropped_object.guid
-	if gStates.gameScenario=="Against the Horsemen Blitz" and (terrainTiles[droppedGUID]~=nil or (horsemanTokenToName~=nil and horsemanTokenToName[droppedGUID]~=nil)) then
+	local droppedHorseman=horsemanTokenToName~=nil and horsemanTokenToName[droppedGUID] or nil
+	if gStates.gameScenario=="Against the Horsemen Blitz" and (terrainTiles[droppedGUID]~=nil or droppedHorseman~=nil) then
 		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,2)
+	end
+	if droppedHorseman~=nil then
+		safeWaitFrames("Events",function() horsemanArrangeOccupiedTokenStack(droppedHorseman) end,2)
 	end
 	puppetMasterDropped(dropped_object)
 	puppetMasterCheckManualCopyWhenResting(dropped_object)
@@ -1902,7 +1906,7 @@ function __onObjectEnterZone_raw(zone, obj)
 						updateMoveDisplay()
 					end
 					if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals()
-					elseif gStates.gameScenario=="Apocalypse is Here" then horsemanArrangeOccupiedTokenStacks() end
+					else horsemanArrangeOccupiedTokenStacks() end
 					fakeDropAvatar()
 					apocalypseQuestRefreshOfferButtons()
 				end, tokenWait+10)
