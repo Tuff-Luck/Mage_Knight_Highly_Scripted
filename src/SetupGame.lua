@@ -399,6 +399,18 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			end
 		end
 
+		--Dragon scenarios use Possessed enemies and Apocalypse faction rewards even when the optional
+		--Apocalypse terrain mix is removed. Keep both discard cycles available independently of terrain.
+		if apocalypseDragonScenario()==true then
+			local apocalypseBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+			if apocalypseBag~=nil and getObjectFromGUID(GUID.bag.discard.apocReward)==nil then
+				apocalypseBag.takeObject({guid=GUID.bag.discard.apocReward, position={2.00,0.98,16.00}, rotation={0,180,0}, smooth=false}).lock()
+			end
+			if apocalypseBag~=nil and getObjectFromGUID(GUID.bag.discard.possessed)==nil then
+				apocalypseBag.takeObject({guid=GUID.bag.discard.possessed, position={-1.00,1.07,19.00}, rotation={0,180,0}, smooth=false}).lock()
+			end
+		end
+
 		--Dragon scenarios destroy sites even when the optional Apocalypse terrain mix is off.
 		if apocalypseDragonScenario()==true and getObjectFromGUID(GUID.bag.destroyedSite)==nil then
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.destroyedSite,position={-43.00,1.02,26.00},rotation={0,180,0},smooth=false}).lock()
