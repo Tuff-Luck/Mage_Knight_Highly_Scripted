@@ -634,7 +634,7 @@ function renderMoveDisplay(id)
 
 		--work out players hex grid position from the actual start tile; Fury's four-player
 		--predefined map deliberately relocates the open start tile.
-		local playerPos={startTilePosition[1],0.97,startTilePosition[3]}
+		local playerPos={startTilePos[1],0.97,startTilePos[3]}
 		if gStates.gameScenario=="Against the Horsemen Blitz" then
 			local gladePos=againstHorsemenCentralGladePosition(0.97)
 			if gladePos~=nil then playerPos=gladePos end

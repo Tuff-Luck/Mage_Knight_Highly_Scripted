@@ -252,7 +252,7 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 					UI.setAttribute("NightTactic6Store"..tostring(turnOrder[a].seatPos).."Text", "text", joinLang({translateWord[turnOrder[a].mage], "{en} Tactic 6 - Store a Card{ru} Тактика 6 — Сберечь карту{zh-tw} 戰術卡 6 - 儲存一張卡牌{zh-cn} 战术卡 6 - 储存一张卡牌{ko} 전략 6 - 카드 비축{es} Táctica 6 - Almacenar Carta{fr} Tactique 6 - Stocker une Carte{pt-br} Tática 6 - Guardar uma Carta{de} Taktik 6 - Eine Karte aufbewahren"}))
 					UI.setAttribute("NightTactic6Store"..tostring(turnOrder[a].seatPos).."Image", "color", positionToColor(a))
 					count=count+1
-				else nightTactic6({color="Black"}, "-1", "NightTactic6Claim") end
+				else nightTactic6({color="Black"}, "-1", "NightTactic6Claim"..tostring(turnOrder[a].seatPos)) end
 				if #gStates.powerStored>0 then
 					UI.setAttribute("NightTactic6Claim"..tostring(turnOrder[a].seatPos), "active", "true")
 					UI.setAttribute("NightTactic6Claim"..tostring(turnOrder[a].seatPos).."Text", "text", joinLang({translateWord[turnOrder[a].mage], "{en} Tactic 6 - Claim {ru} Тактика 6 - Забрать {zh-tw} 戰術卡 6 - 拿取 {zh-cn} 战术卡 6 - 拿取 {ko} 전략 6 사용 - {es} Táctica 6 - Reclamar {fr} Tactique 6 - Réclamation {pt-br} Tática 6 - Clamar {de} Taktik 6 – Anspruch ", tostring(#gStates.powerStored), "{en} Card(s){ru} Карт(у/ы){zh-tw} 張卡{zh-cn} 张卡{ko} 장의 카드 {es} Carta(s){fr} Cartes){pt-br} Carta(s){de} Karte(n)"}))
