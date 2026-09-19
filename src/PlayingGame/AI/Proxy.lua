@@ -1206,6 +1206,45 @@ function proxyDestinationChoiceActionText(saved)
 	return "Proxy\n"..tostring(action or "Choose")
 end
 
+--Temporary diagnostic: render the exact same Proxy Route Object UI on the two standalone
+--start tiles and the original stateful start tile. This intentionally applies no host-specific
+--scale correction so any visual size difference comes from TTS/the object itself.
+function proxyStartTileUIButtonTest()
+	local guids={"9901f5","5d0bac","722590"}
+	for _,guid in ipairs(guids) do
+		local terrain=getObjectFromGUID(guid)
+		if terrain~=nil then
+			local xml=terrain.UI.getXmlTable() or {}
+			for i=#xml,1,-1 do
+				local attributes=xml[i].attributes
+				local id=attributes~=nil and tostring(attributes.id or "") or ""
+				if id:find("ProxyStartTileUITest",1,true)~=nil then table.remove(xml,i) end
+			end
+			local id=guid.."ProxyStartTileUITest"
+			xml[#xml+1]={tag="Button",attributes={id=id,height=320,width=320,color="rgba(0,0,0,0.0)",position="0 0 -40",rotation="0 0 180",scale="0.38 0.38"},
+				children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
+					{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize="76",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="76",text="Proxy\nRoute"}}}}}}
+			terrain.UI.setXmlTable(xml)
+		end
+	end
+end
+
+function proxyStartTileUIButtonTestClear()
+	for _,guid in ipairs({"9901f5","5d0bac","722590"}) do
+		local terrain=getObjectFromGUID(guid)
+		if terrain~=nil then
+			local xml=terrain.UI.getXmlTable() or {}
+			local changed=false
+			for i=#xml,1,-1 do
+				local attributes=xml[i].attributes
+				local id=attributes~=nil and tostring(attributes.id or "") or ""
+				if id:find("ProxyStartTileUITest",1,true)~=nil then table.remove(xml,i) changed=true end
+			end
+			if changed==true then if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end end
+		end
+	end
+end
+
 function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 	if saved==nil or saved.key==nil then return nil,xml end
 	local terrainGUID,bearing=tostring(saved.key):match("^([^|]+)|(.+)$")
