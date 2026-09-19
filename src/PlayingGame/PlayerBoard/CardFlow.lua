@@ -168,8 +168,8 @@ function deedTransferFinishHover(seatPos,entry)
 	--An empty Deed zone has no container to receive putObject. Smooth the first card down to the normal
 	--deck home, then let the next queued card use that card as its pile.
 	local home=deedTransferHomePosition(seatPos)
-	card.setRotationSmooth({0,180,180})
-	card.setPositionSmooth(home)
+	card.setRotationSmooth({0,180,180},false,false)
+	card.setPositionSmooth(home,false,false)
 	safeWaitCondition("PlayerBoard.CardFlow",function()
 		deedTransferComplete(seatPos,entry,true)
 	end,function()
@@ -198,8 +198,8 @@ function deedTransferProcess(seatPos)
 	local target=pile~=nil and pile.getPosition() or deedTransferHomePosition(seatPos)
 	local rotation=pile~=nil and pile.getRotation() or {0,180,180}
 	local hover={target[1],target[2]+2.0,target[3]}
-	card.setRotationSmooth(rotation)
-	card.setPositionSmooth(hover)
+	card.setRotationSmooth(rotation,false,false)
+	card.setPositionSmooth(hover,false,false)
 	safeWaitCondition("PlayerBoard.CardFlow",function()
 		deedTransferFinishHover(seatPos,entry)
 	end,function()
@@ -262,7 +262,7 @@ function claimMove(player, mouseButton, id, rewindReady)
 				if source~="unit" then
 					local tacticSource=source:sub(1, string.len(source)-1)=="tactic"
 					if tacticSource==true then
-						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-117.83 , 3.0, -43.16})
+						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-117.83 , 3.0, -43.16},false,false)
 					elseif mouseButton=="-1" then
 						queueCardToDeedDeck(gStates.turnNumber,claimedCard)
 					else
@@ -285,10 +285,10 @@ function claimMove(player, mouseButton, id, rewindReady)
 					--Left-click Deed claims are handled by the serialized smooth-transfer queue above. Preserve the
 					--existing alternate claim action and tactic destination exactly as before.
 					if mouseButton=="-2" and tacticSource~=true then
-						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-105.0 , 4.59, -47.55})
+						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-105.0 , 4.59, -47.55},false,false)
 					elseif mouseButton~="-1" and tacticSource~=true then
 						claimedCard.flip()
-						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-114.19 , 3.0, -43.16})
+						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-114.19 , 3.0, -43.16},false,false)
 					end
 					if source=="offer" and fillWait==false then fillWait=true safeWaitTime("PlayerBoard.CardFlow",function() fillSlide() fillWait=false end, 1.2) end
 					if source=="artifactReward" then
@@ -300,11 +300,11 @@ function claimMove(player, mouseButton, id, rewindReady)
 						if #remainingGUID==1 then
 							--return last card
 							local PosOrigin=getObjectFromGUID(GUID.deck.artifact).getPosition()
-							getObjectFromGUID(GUID.deck.artifact).setPositionSmooth({getObjectFromGUID(GUID.deck.artifact).getPosition()[1], getObjectFromGUID(GUID.deck.artifact).getPosition()[2]+2, getObjectFromGUID(GUID.deck.artifact).getPosition()[3]})
+							getObjectFromGUID(GUID.deck.artifact).setPositionSmooth({getObjectFromGUID(GUID.deck.artifact).getPosition()[1], getObjectFromGUID(GUID.deck.artifact).getPosition()[2]+2, getObjectFromGUID(GUID.deck.artifact).getPosition()[3]},false,false)
 							standardDeckCycleMarkReturned("Artifact", getObjectFromGUID(remainingGUID[1]))
 							getObjectFromGUID(remainingGUID[1]).unlock()
 							getObjectFromGUID(remainingGUID[1]).setRotation({0, 180, 180})
-							getObjectFromGUID(remainingGUID[1]).setPositionSmooth(PosOrigin)
+							getObjectFromGUID(remainingGUID[1]).setPositionSmooth(PosOrigin,false,false)
 							getObjectFromGUID(remainingGUID[1]).UI.setXmlTable({{}})
 							--reset buttons
 							getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "true")
@@ -328,7 +328,7 @@ function claimMove(player, mouseButton, id, rewindReady)
 						if found==true then
 							local scale=unitLayoutCardScale(#layout.commands)
 							claimedCard.setScale({scale,1,scale})
-							claimedCard.setPositionSmooth({unitX,2.0,-34.74})
+							claimedCard.setPositionSmooth({unitX,2.0,-34.74},false,false)
 							fillWait=true
 							safeWaitFrames("PlayerBoard.CardFlow",function() safeWaitCondition("PlayerBoard.CardFlow",function() fillWait=false scheduleUnitLayoutRefresh(seatPos) end, function() return claimedCard.resting end) end,5)
 							if gameCards[claimedCard.guid]~=nil then

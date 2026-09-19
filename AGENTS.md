@@ -30,6 +30,8 @@ Use the existing protected asynchronous boundaries (`safeWaitFrames`, `safeWaitT
 
 Prefer compact Lua and direct changes. Add nil guards when they prevent a real runtime problem or improve diagnosis; do not blanket the code with defensive guards.
 
+For visible scripted movement, use Tabletop Simulator\'s normal/slow smooth movement by default. Pass `fast=false` explicitly (`setPositionSmooth(..., false, false)` / `setRotationSmooth(..., false, false)`) when touching movement code so the intent is unambiguous. Do not use the fast smooth-move mode unless the user explicitly asks for it. Container `takeObject({smooth=true})` is fine when extracting an object; do not replace normal visible movement with fast smooth movement.
+
 Do not add backwards-compatibility or old-save recovery code unless the user explicitly requests it.
 
 The script does not manage a player's internal Move/Combat/Interact phases. Do not classify missing phase enforcement as a bug unless a scripted helper gives incorrect guidance or changes game state incorrectly.
