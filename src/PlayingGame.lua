@@ -1131,8 +1131,7 @@ function unitOfferIsUnit(obj)
 end
 
 function monasteryOfferIsCard(obj)
-	if obj==nil or obj.type~="Card" or gameCardType(obj)~="Advanced Action" then return false end
-	return math.abs(obj.getPosition()[3]+10.2)<=1
+	return obj~=nil and obj.type=="Card" and gameCardType(obj)=="Advanced Action"
 end
 
 function monasteryOfferCards()
@@ -1140,7 +1139,9 @@ function monasteryOfferCards()
 	local zone=getObjectFromGUID(GUID.zone.unitOffer)
 	if zone~=nil then
 		for _,obj in pairs(zone.getObjects()) do
-			if monasteryOfferIsCard(obj) then cards[#cards+1]=obj end
+			--The enter-zone callback can fire before a smooth-moving card reaches z=-10.2, so card
+			--classification is type-only. Settled Monastery scans still filter to the printed row.
+			if monasteryOfferIsCard(obj) and math.abs(obj.getPosition()[3]+10.2)<=1 then cards[#cards+1]=obj end
 		end
 	end
 	--Smallest X is the highest-numbered printed slot, matching the old reverse zone scan.
