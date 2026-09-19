@@ -2244,7 +2244,12 @@ end
 
 function apocalypseIsHereShowTargetChoice(name,options)
 	apocalypseIsHereClearChoiceButtons()
-	local pending={name=name,options=options,playerIndex=againstDragonChoicePlayerIndex()}
+	local targetKeys={}
+	for _,option in ipairs(options or {}) do
+		local key=option~=nil and option.hex~=nil and apocalypseQuestMapHexKey(option.hex) or nil
+		if key~=nil then targetKeys[#targetKeys+1]=key end
+	end
+	local pending={name=name,targetKeys=targetKeys,playerIndex=againstDragonChoicePlayerIndex()}
 	gStates.apocalypseHereHorsemanPendingChoice=pending
 	local grouped={}
 	for index,option in ipairs(options or {}) do
@@ -2274,7 +2279,13 @@ function apocalypseIsHereHorsemanTargetSelect(player,mouseButton,id)
 	local pending=gStates.apocalypseHereHorsemanPendingChoice
 	if pending==nil or againstDragonChoiceAuthorized(player,pending)~=true then return end
 	local index=tonumber(tostring(id or ""):match("ApocalypseHorsemanTarget(%d+)$"))
-	local option=index~=nil and pending.options[index] or nil
+	local targetKey=index~=nil and pending.targetKeys~=nil and pending.targetKeys[index] or nil
+	if targetKey==nil then return end
+	local liveOptions=apocalypseIsHereHorsemanTargetOptions(pending.name)
+	local option=nil
+	for _,candidate in ipairs(liveOptions or {}) do
+		if candidate.key==targetKey then option=candidate break end
+	end
 	if option==nil then return end
 	apocalypseIsHereClearChoiceButtons()
 	gStates.apocalypseHereHorsemanPendingChoice=nil
