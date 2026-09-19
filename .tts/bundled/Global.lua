@@ -8833,11 +8833,10 @@ function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 	local tileScale=terrain.getScale()
 	local scaleX=tileScale.x or tileScale[1] or 2.25
 	local scaleZ=tileScale.z or tileScale[3] or 2.25
-	local uiFactor=terrainTiles[terrain.guid].tileType=="starting" and 1 or (0.16/0.38)
-	local uiX=(localHex.x or localHex[1])*scaleX*110*uiFactor
-	local uiY=(localHex.z or localHex[3])*scaleZ*110*uiFactor
-	local uiDepth=-40*uiFactor
-	local buttonScale=0.38*uiFactor
+	local uiX=(localHex.x or localHex[1])*scaleX*110
+	local uiY=(localHex.z or localHex[3])*scaleZ*110
+	local uiDepth=-40
+	local buttonScale=0.38
 	local uiRotation=terrain.getRotation()[2] or 180
 	local count=math.max(1,tonumber(splitCount) or 1)
 	local slot=math.max(1,tonumber(splitIndex) or 1)
@@ -13351,12 +13350,11 @@ function apocalypseIsHereShowTargetChoice(name,options)
 			grouped[terrain.guid]=group
 			local localPos=terrain.positionToLocal({hex.position[1],terrain.getPosition()[2],hex.position[3]})
 			local tileScale=terrain.getScale()
-			local uiFactor=terrainTiles[terrain.guid].tileType=="starting" and 1 or (0.16/0.38)
-			local uiX=(localPos.x or localPos[1])*(tileScale.x or tileScale[1] or 2.25)*110*uiFactor
-			local uiY=(localPos.z or localPos[3])*(tileScale.z or tileScale[3] or 2.25)*110*uiFactor
-			local scale=0.38*uiFactor
+			local uiX=(localPos.x or localPos[1])*(tileScale.x or tileScale[1] or 2.25)*110
+			local uiY=(localPos.z or localPos[3])*(tileScale.z or tileScale[3] or 2.25)*110
+			local scale=0.38
 			local id=terrain.guid.."ApocalypseHorsemanTarget"..tostring(index)
-			group.xml[#group.xml+1]={tag="Button",attributes={id=id,onClick="global/apocalypseIsHereHorsemanTargetSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",height=300,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..(-40*uiFactor),rotation="0 0 "..tostring(terrain.getRotation()[2] or 180),scale=scale.." "..scale},children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},{tag="Text",attributes={font="Fonts/MKCardText",fontSize="65",alignment="MiddleCenter",text=name.."\nTarget"}}}}
+			group.xml[#group.xml+1]={tag="Button",attributes={id=id,onClick="global/apocalypseIsHereHorsemanTargetSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",height=300,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..(-40),rotation="0 0 "..tostring(terrain.getRotation()[2] or 180),scale=scale.." "..scale},children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},{tag="Text",attributes={font="Fonts/MKCardText",fontSize="65",alignment="MiddleCenter",text=name.."\nTarget"}}}}
 		end
 	end
 	for _,group in pairs(grouped) do group.terrain.UI.setXmlTable(group.xml) end
@@ -15146,10 +15144,9 @@ function againstDragonTargetChoiceButton(option,index,xml,splitIndex,splitCount)
 	local tileScale=terrain.getScale()
 	local scaleX=tileScale.x or tileScale[1] or 2.25
 	local scaleZ=tileScale.z or tileScale[3] or 2.25
-	local uiFactor=terrainTiles[terrain.guid].tileType=="starting" and 1 or (0.16/0.38)
-	local uiX=(localHex.x or localHex[1])*scaleX*110*uiFactor
-	local uiY=(localHex.z or localHex[3])*scaleZ*110*uiFactor
-	local buttonScale=0.38*uiFactor
+	local uiX=(localHex.x or localHex[1])*scaleX*110
+	local uiY=(localHex.z or localHex[3])*scaleZ*110
+	local buttonScale=0.38
 	local uiRotation=terrain.getRotation()[2] or 180
 	local count=math.max(1,tonumber(splitCount) or 1)
 	local slot=math.max(1,tonumber(splitIndex) or 1)
@@ -15160,7 +15157,7 @@ function againstDragonTargetChoiceButton(option,index,xml,splitIndex,splitCount)
 	local id=terrain.guid.."DragonTargetChoice"..tostring(index)
 	xml=xml or terrain.UI.getXmlTable() or {}
 	xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/againstDragonTargetChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-		height=height,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..(-40*uiFactor),rotation="0 0 "..tostring(uiRotation),scale=buttonScale.." "..buttonScale},
+		height=height,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..(-40),rotation="0 0 "..tostring(uiRotation),scale=buttonScale.." "..buttonScale},
 		children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
 			{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize=count>1 and "60" or "72",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=count>1 and "60" or "72",text=label}}}}}}
 	return terrain,xml
