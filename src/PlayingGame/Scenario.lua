@@ -2561,8 +2561,8 @@ function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 				end
 			end
 		end
+		if afterArrange~=nil then afterArrange() end
 	end)
-	if afterArrange~=nil then afterArrange() end
 	return true
 end
 
