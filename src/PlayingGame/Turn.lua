@@ -1617,14 +1617,16 @@ function nightTactic6(player, mouseButton, id)
 				tactic.setPositionSmooth({tactic.getPosition()[1], 4, tactic.getPosition()[3]})
 			end
 			if id:sub(1,17)=="NightTactic6Claim" then
-				local seatPos=tonumber(id:sub(18,18))\n\t\t\t\tif seatPos==nil then return end
+				local seatPos=tonumber(id:sub(18,18))
+				if seatPos==nil then return end
 				claimNightTactic6StoredCards(seatPos, function(failed)
 					if #failed>0 then
 						broadcastToAll("Night Tactic 6 could not find "..tostring(#failed).." stored card(s).", warningColor)
 						return
 					end
 					--Only finish the tactic after every recorded stored card has actually been returned.
-					local tactic=getObjectFromGUID("e2af14")\n\t\t\t\t\tif tactic~=nil and tactic.is_face_down==false then tactic.flip() end
+					local tactic=getObjectFromGUID("e2af14")
+					if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
 					gStates.powerStored={}
 					gStates.tacticSixState="Used"
 					scheduleDeedPileDescriptionRefresh(seatPos, "deed")
