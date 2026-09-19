@@ -2858,6 +2858,12 @@ function __onObjectLeaveContainer_raw(bag, obj)
 			local coopGUID=obj.guid
 			safeWaitFrames("Events",function() safeWaitCondition("Events",function()
 				local locking=obj.setState(2)
+				if locking~=nil then
+					--setState destroys the old Coop object and creates the competitive-state GUID. Combat cleanup
+					--may already have captured the old GUID, so retain the live replacement for that delayed callback.
+					skillStateReplacement=skillStateReplacement or {}
+					skillStateReplacement[coopGUID]=locking.guid
+				end
 				if locking~=nil and gStates.mageSkills~=nil and gStates.mageSkills[coopGUID]~=nil then
 					gStates.mageSkills[locking.guid]=gStates.mageSkills[coopGUID]
 					gStates.mageSkills[coopGUID]=nil
@@ -18041,6 +18047,184 @@ function giveQueuedFactionReward(playerIndex, pileGUID)
 	if claimed~=true and reason~="justFame" then broadcastToAll("No faction reward tokens remain to claim.", positionToColor(playerIndex)) end
 end
 
+local combatMonsterDiscardTokens={
+	"Dark Crusader Draconum", GUID.bag.discard.darkDraconum,
+	"Dark Crusader Dungeon Monster", GUID.bag.discard.darkDungeon,
+	"Marauding Dark Crusader", GUID.bag.discard.darkMarauders,
+	"Elementalist Draconum", GUID.bag.discard.elementalistDraconum,
+	"Elementalist Dungeon Monster", GUID.bag.discard.elementalistDungeon,
+	"Marauding Elementalist", GUID.bag.discard.elementalistOrcs,
+	"Draconum", GUID.bag.discard.draconum,
+	"Dungeon Monster", GUID.bag.discard.dungeon,
+	"Marauding Orcs", GUID.bag.discard.orcs,
+	"City Garrison", GUID.bag.discard.cityGarrison,
+	"Ruin", GUID.bag.discard.ruin,
+	"Mage Tower Garrison", GUID.bag.discard.towerGarrison,
+	"Keep Garrison", GUID.bag.discard.keepGarrison,
+	"Possessed", GUID.bag.discard.possessed
+}
+
+local function combatMonsterDiscardDestination(playAreaObj)
+	if playAreaObj==nil then return nil,nil end
+	local rotationValues=playAreaObj.getRotationValues()
+	local selected=rotationValues~=nil and rotationValues[2] or nil
+	local value=selected~=nil and selected.value or nil
+	if value==nil then return nil,nil end
+	for x=1,#combatMonsterDiscardTokens,2 do
+		if value==combatMonsterDiscardTokens[x] then
+			local discardGUID=combatMonsterDiscardTokens[x+1]
+			if x<=6 and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Realm of the Dead Blitz" then
+				discardGUID=combatMonsterDiscardTokens[x+13]
+			elseif x>=7 and x<=12 and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Hidden Valley Blitz" then
+				discardGUID=combatMonsterDiscardTokens[x+7]
+			end
+			return discardGUID~=nil and getObjectFromGUID(discardGUID) or nil,x
+		end
+	end
+	return nil,nil
+end
+
+local function combatDiscardMonster(playAreaObj, giveRewards, context)
+	if playAreaObj==nil then return false end
+	context=context or {}
+	local cleanupPlayer=context.player or gStates.turnNumber
+	if cleanupPlayer==nil or turnOrder[cleanupPlayer]==nil then return false end
+	local monsterGUID=playAreaObj.guid
+	local monsterData=monsterPugs[monsterGUID]
+	if monsterData==nil then return false end
+
+	if gStates.apocalypseQuestGoblinEnemies~=nil and gStates.apocalypseQuestGoblinEnemies[monsterGUID]~=nil then
+		--Goblin Warrens enemies come from an Infinite Bag and are not members of a normal discard cycle.
+		apocalypseQuestGoblinRecordCleanup(monsterGUID,playAreaObj.is_face_down==false)
+		gStates.apocalypseQuestGoblinEnemies[monsterGUID]=nil
+		if gStates.monsterPerks~=nil then gStates.monsterPerks[monsterGUID]=nil end
+		if gStates.attackedMonsters~=nil then gStates.attackedMonsters[monsterGUID]=nil end
+		if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[monsterGUID]=nil end
+		if gStates.summonStates~=nil then gStates.summonStates[monsterGUID]=nil end
+		monsterPugs[monsterGUID]=nil
+		playAreaObj.destruct()
+		return true
+	end
+
+	local discardBag,x=combatMonsterDiscardDestination(playAreaObj)
+	if discardBag==nil or x==nil then return false end
+	playAreaObj.setRotation({0,180,0})
+	local summoned=gStates.summonStates~=nil and gStates.summonStates[monsterGUID]=="summoned"
+
+	if x<=6 then
+		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
+			local claimed,reason=awardFactionRewardToken(cleanupPlayer,monsterPiles.rewardDark,context.coopCombatReward,"dark")
+			if claimed~=true and reason=="empty" then broadcastToAll("Sorry, there are no more Dark Crusader Faction Reward Tokens to claim.",positionToColor(cleanupPlayer)) end
+		end
+	elseif x>=7 and x<=12 then
+		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
+			local claimed,reason=awardFactionRewardToken(cleanupPlayer,monsterPiles.rewardElem,context.coopCombatReward,"elementalist")
+			if claimed~=true and reason=="empty" then broadcastToAll("Sorry, there are no more Elementalist Faction Reward Tokens to claim.",positionToColor(cleanupPlayer)) end
+		end
+	elseif x==27 then
+		local possessedFaction=(gStates.apocalypsePossessedFactionByToken~=nil and gStates.apocalypsePossessedFactionByToken[monsterGUID]) or "Apoc"
+		local possessedRewards={Dark={pile=monsterPiles.rewardDark,key="dark"},Elem={pile=monsterPiles.rewardElem,key="elementalist"},Apoc={pile=monsterPiles.rewardApoc,key="apocalypse"},Coun={pile=monsterPiles.rewardCouncil,key="council"}}
+		local rewardData=possessedRewards[possessedFaction] or possessedRewards.Apoc
+		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
+			local claimed,reason=awardFactionRewardToken(cleanupPlayer,rewardData.pile,context.coopCombatReward,rewardData.key)
+			if claimed~=true and reason=="empty" then broadcastToAll("Sorry, there are no more Faction Reward Tokens to claim.",positionToColor(cleanupPlayer)) end
+		end
+		if gStates.apocalypsePossessedFactionByToken~=nil then gStates.apocalypsePossessedFactionByToken[monsterGUID]=nil end
+	end
+
+	for cityguid, monsters in pairs(gStates.cityMonsterQty) do
+		if monsters[monsterGUID]~=nil then
+			monsters[monsterGUID]="dead"
+			if monsters.extra~=nil and (monsters.extra.megapolisPair==nil or monsters.extra.megapolisPair~=cityguid) then
+				local cityZone={[cityModel.blue]=GUID.zone.blueCity,[cityModel.red]=GUID.zone.redCity,[cityModel.green]=GUID.zone.greenCity,[cityModel.white]=GUID.zone.whiteCity,[volkare.terrainHex]=volkare.discZone}
+				local cityZoneObj=cityZone[cityguid]~=nil and getObjectFromGUID(cityZone[cityguid]) or nil
+				if cityZoneObj~=nil then
+					local zonePos=cityZoneObj.getPosition()
+					local location={zonePos[1]+(-2+monsters.extra.shieldsThere),1.13,zonePos[3]+1}
+					if monsters.extra.shieldsThere>4 then location[1]=location[1]-5 location[3]=location[3]-0.5 end
+					local volkareCityShield=context.volkareCityShield or 0
+					if cityguid==volkare.terrainHex and (monsterData.pugType=="green" or monsterData.pugType=="gray") then volkareCityShield=volkareCityShield+0.5 end
+					if cityguid~=volkare.terrainHex or (monsterData.pugType=="red" or monsterData.pugType=="white") or volkareCityShield==1 then
+						if volkareCityShield==1 then volkareCityShield=0 end
+						monsters.extra.shieldsThere=monsters.extra.shieldsThere+1
+						dropShield(location,true)
+					end
+					context.volkareCityShield=volkareCityShield
+				end
+			end
+			if cityguid==volkare.model then
+				gStates.volkareArmyDefeated=gStates.volkareArmyDefeated+1
+				gStates.volkareArmyReduced=true
+				if gStates.gameScenario=="Volkare's Quest" and context.volkarePaused~=true and volkareQuestCheckSkipTurn()==true then context.volkarePaused=true end
+			end
+		end
+	end
+
+	if monsterData.pugType=="yellow" and monsterData.fame>0 then gStates.crytalRuin=true end
+	local cleanupLocation=turnOrder[cleanupPlayer].avatarLocation or ""
+	local avatarPos=context.avatarPos or {}
+	if playAreaObj.is_face_down==false and gStates.druidNightsSummon==nil and
+		(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[monsterGUID]~=true) and (
+		(monsterData.pugType=="gray" and cleanupLocation=="keep") or
+		(monsterData.pugType=="yellow" and cleanupLocation=="ruin") or
+		(monsterData.pugType=="red" and (cleanupLocation=="tomb" or cleanupLocation=="labyrinth" or ((cleanupLocation:sub(1,4)=="city" or cleanupLocation=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz"))) or
+		(monsterData.pugType=="tan" and (cleanupLocation=="maze" or cleanupLocation=="monster den" or cleanupLocation=="dungeon")) or
+		(monsterData.pugType=="possessed" and (cleanupLocation=="ziggurat" or cleanupLocation=="pyramid")) or
+		(monsterData.pugType=="purple" and (cleanupLocation=="mage tower" or cleanupLocation=="monastery"))) then
+		local shieldExists=false
+		if cleanupLocation~="ziggurat" and cleanupLocation~="pyramid" and cleanupLocation~="maze" and cleanupLocation~="labyrinth" and avatarPos[1]~=nil and avatarPos[3]~=nil then
+			local map=getObjectFromGUID(mapArea)
+			if map~=nil then
+				for _, shield in pairs(map.getObjects()) do
+					if shield.getName()=="Shield" and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shield.getPosition()[1]-avatarPos[1])^2)+((shield.getPosition()[3]-avatarPos[3])^2))<1 then
+						shieldExists=true
+						if cleanupLocation=="keep" and shield.getDescription()~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
+						if cleanupLocation=="dungeon" or cleanupLocation=="tomb" then gStates.shieldsDropped[shield.guid]=true end
+						break
+					end
+				end
+			end
+		end
+		if shieldExists==false then
+			if gStates.monsterPlayLocation[monsterGUID]~=nil then
+				dropShield(gStates.monsterPlayLocation[monsterGUID],true)
+				coralTalesSiteShield(cleanupLocation)
+			elseif avatarPos[1]~=nil and avatarPos[3]~=nil then
+				local shieldPos={avatarPos[1],2,avatarPos[3]}
+				local shieldRotation=nil
+				if cleanupLocation=="ziggurat" or cleanupLocation=="pyramid" then
+					local floor=nil
+					if UI.getAttribute("zigguratPyramidInteractFight1Image","color")=="Yellow" then floor=1 end
+					if UI.getAttribute("zigguratPyramidInteractFight2Image","color")=="Yellow" then floor=2 end
+					if UI.getAttribute("zigguratPyramidInteractFight3Image","color")=="Yellow" then floor=3 end
+					local terrain,_,sitePos=terrainHexAtPosition(avatarPos)
+					if terrain~=nil then shieldRotation={0,terrain.getRotation()[2],0} end
+					if floor~=nil then shieldPos=zigguratPyramidFloorPosition(terrain,sitePos or avatarPos,floor) end
+				end
+				dropShield(shieldPos,true,shieldRotation)
+				coralTalesSiteShield(cleanupLocation)
+			end
+		end
+	end
+
+	if playAreaObj.is_face_down==false and monsterData.pugType=="tan" and cleanupLocation=="spawning grounds" then
+		context.spawningGroundMonstersBeat=(context.spawningGroundMonstersBeat or 0)+1
+	end
+	if gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Hidden Valley Blitz" then
+		for _, monsters in pairs(gStates.mineMonsterQty) do
+			if monsters[monsterGUID]~=nil then
+				for otherGUID, monsterState in pairs(monsters) do
+					if otherGUID~=monsterGUID and monsterState=="dead" and avatarPos[1]~=nil and avatarPos[3]~=nil then dropShield({avatarPos[1],2,avatarPos[3]},true) break end
+				end
+				break
+			end
+		end
+	end
+	if gStates.monsterPerks~=nil then gStates.monsterPerks[monsterGUID]=nil end
+	discardBag.putObject(playAreaObj)
+	return true
+end
+
 function showCoopReward()
 	local entry=gStates.coopRewardQueue[gStates.coopRewardIndex]
 	if entry==nil then return end
@@ -18103,7 +18287,7 @@ function finalizeCoopLeaderCombat()
 			for monsterGUID, state in pairs(gStates.cityMonsterQty[currentLeader.terrainHex]) do
 				if monsterGUID~="extra" and monsterGUID~=currentLeader.token and state~="dead" then
 					local monster=getObjectFromGUID(monsterGUID)
-					if monster~=nil and monster.getRotationValues()[2]~=nil then discardMonster(monster, false) end
+					if monster~=nil and monster.getRotationValues()[2]~=nil then combatDiscardMonster(monster,false,{player=gStates.turnNumber,avatarPos=mageKnightAvatarPosition(gStates.turnNumber) or {}}) end
 				end
 			end
 		end
@@ -18216,7 +18400,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		apocalypseQuestRestoreRaisedAvatar(cleanupPlayer,true)
 		local coopCombatReward=nil
 		if gStates.coopAssaultPhase=="combat" then
-			coopCombatReward={player=gStates.turnNumber, mage=turnOrder[gStates.turnNumber].mage, fame=turnOrder[gStates.turnNumber].fameGain, reputation=turnOrder[gStates.turnNumber].repGain, factionRewards={dark=0, elementalist=0, apocalypse=0, council=0}}
+			coopCombatReward={player=cleanupPlayer, mage=turnOrder[cleanupPlayer].mage, fame=turnOrder[cleanupPlayer].fameGain, reputation=turnOrder[cleanupPlayer].repGain, factionRewards={dark=0, elementalist=0, apocalypse=0, council=0}}
 			gStates.coopRewardQueue[#gStates.coopRewardQueue+1]=coopCombatReward
 			UI.setAttribute("EndTurnButton", "interactable", "false")
 			UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
@@ -18238,8 +18422,8 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		gStates.monsterOffsetZ=0
 		gStates.attackedMonsters={}
 		combatCameraChoiceSuppressedPlayer=nil
-		turnOrder[gStates.turnNumber].combatIconHide="Both"
-		if turnOrder[gStates.turnNumber].masterOfChaos~=nil then turnOrder[gStates.turnNumber].masterOfChaos="available" end
+		turnOrder[cleanupPlayer].combatIconHide="Both"
+		if turnOrder[cleanupPlayer].masterOfChaos~=nil then turnOrder[cleanupPlayer].masterOfChaos="available" end
 		addAvatarButtons()
 		if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
 		UI.setAttribute("PreEndTurn", "interactable", "false")
@@ -18248,8 +18432,8 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			rewardClaimDelayWait=nil
 			local function finishRewardDelay()
 				rewardClaimDelayActive=false
-				if gStates.preEndTurn==true and turnOrder[gStates.turnNumber]~=nil then
-					if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[gStates.turnNumber].seatPos)
+				if gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
+					if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[cleanupPlayer].seatPos)
 					else
 						UI.setAttribute("PreEndTurn", "interactable", "true")
 						UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Active")
@@ -18258,7 +18442,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 				rewindTransactionFinish("Pre-end-turn cleanup")
 			end
 			local dragonCombat=gStates.apocalypseDragonGroundCombat
-			if dragonCombat~=nil and dragonCombat.coop~=true and dragonCombat.playerIndex==gStates.turnNumber and dragonCombat.levelsApplied~=true then
+			if dragonCombat~=nil and dragonCombat.coop~=true and dragonCombat.playerIndex==cleanupPlayer and dragonCombat.levelsApplied~=true then
 				safeWaitCondition("Combat",finishRewardDelay,function()
 					local current=gStates.apocalypseDragonGroundCombat
 					return current==nil or current.levelsApplied==true
@@ -18269,53 +18453,53 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		end, 2.0)
 
 		if id=="ExtraTurnTacticButton" or id=="ExtraTurnChoiceTactic6" or id=="ExtraTurnChoiceTimeBending" then
-			local tacticSixAvailable, timeBendingAvailable=extraTurnOptions(gStates.turnNumber)
+			local tacticSixAvailable, timeBendingAvailable=extraTurnOptions(cleanupPlayer)
 			local useTactic=id=="ExtraTurnChoiceTactic6" or (id=="ExtraTurnTacticButton" and tacticSixAvailable and timeBendingAvailable==false)
 			local useTimeBending=id=="ExtraTurnChoiceTimeBending" or (id=="ExtraTurnTacticButton" and timeBendingAvailable and tacticSixAvailable==false)
 			--flip Day tactic six if using the second turn
 			if useTactic then
 				gStates.tacticSixState="Started"
 				getObjectFromGUID("2404f1").setRotationSmooth({0.00, 180.00, 180.00})
-				if getObjectFromGUID(turnOrder[gStates.turnNumber].turnOrderTokenGUID).is_face_down==true then
-					getObjectFromGUID(turnOrder[gStates.turnNumber].turnOrderTokenGUID).flip()
+				if getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID).is_face_down==true then
+					getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID).flip()
 					gStates.tacticSixState="Used"
-					gStates.skipTurn[gStates.turnNumber]=nil
+					gStates.skipTurn[cleanupPlayer]=nil
 				end
 			end
 			--Change clean up if Time Bending used
 			if useTimeBending then
 				gStates.timeBending="Started"
-				if getObjectFromGUID(turnOrder[gStates.turnNumber].turnOrderTokenGUID).is_face_down==true then
-					getObjectFromGUID(turnOrder[gStates.turnNumber].turnOrderTokenGUID).flip()
+				if getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID).is_face_down==true then
+					getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID).flip()
 					gStates.timeBending="Used"
-					gStates.skipTurn[gStates.turnNumber]=nil
+					gStates.skipTurn[cleanupPlayer]=nil
 				end
 			end
 		end
 		mainUIUpdate("Pre End Turn")
 		--Mine rewards are chosen alongside the normal Rewards Claimed stage. The turn cannot advance until resolved.
-		local mineTurnEligible=turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] and turnOrder[gStates.turnNumber].endCalled~=true
-		if mineTurnEligible and gStates.coopAssaultPhase~="combat" then beginMineCrystalClaim(gStates.turnNumber, player.color) end
+		local mineTurnEligible=turnOrder[cleanupPlayer].mage~=gStates.positionMageKnight[5] and turnOrder[cleanupPlayer].endCalled~=true
+		if mineTurnEligible and gStates.coopAssaultPhase~="combat" then beginMineCrystalClaim(cleanupPlayer, player.color) end
 
 		--lift player Avatar for token(s) to go under
 		local tokenRaised=0
 		local avatarPos={}
 		local avatarModel=nil
-		if (turnOrder[gStates.turnNumber].avatarLocation=="mine" and gStates.gameScenario=="Mines Liberation")
-			or (turnOrder[gStates.turnNumber].avatarLocation:sub(1, 4)=="city" and gStates.gameScenario=="The Lost Relic Blitz")
-			or (turnOrder[gStates.turnNumber].avatarLocation=="glade" and gStates.gameScenario=="Life and Death")
-			or turnOrder[gStates.turnNumber].avatarLocation=="graveyard"
-			or turnOrder[gStates.turnNumber].avatarLocation=="keep"	or turnOrder[gStates.turnNumber].avatarLocation=="mage tower"
-			or turnOrder[gStates.turnNumber].avatarLocation=="tomb"	or turnOrder[gStates.turnNumber].avatarLocation=="dungeon"
-			or turnOrder[gStates.turnNumber].avatarLocation=="labyrinth" or turnOrder[gStates.turnNumber].avatarLocation=="maze"
-			or turnOrder[gStates.turnNumber].avatarLocation=="ziggurat" or turnOrder[gStates.turnNumber].avatarLocation=="pyramid"
-			or turnOrder[gStates.turnNumber].avatarLocation=="ruin"
-			or turnOrder[gStates.turnNumber].avatarLocation=="monster den" or turnOrder[gStates.turnNumber].avatarLocation=="spawning grounds"
-			or turnOrder[gStates.turnNumber].avatarLocation=="monastery"
-			or (againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(gStates.turnNumber)==true
-				and againstDragonAirborneProtectionDestroysSite~=nil and againstDragonAirborneProtectionDestroysSite(turnOrder[gStates.turnNumber].avatarLocation)==true) then
+		if (turnOrder[cleanupPlayer].avatarLocation=="mine" and gStates.gameScenario=="Mines Liberation")
+			or (turnOrder[cleanupPlayer].avatarLocation:sub(1, 4)=="city" and gStates.gameScenario=="The Lost Relic Blitz")
+			or (turnOrder[cleanupPlayer].avatarLocation=="glade" and gStates.gameScenario=="Life and Death")
+			or turnOrder[cleanupPlayer].avatarLocation=="graveyard"
+			or turnOrder[cleanupPlayer].avatarLocation=="keep"	or turnOrder[cleanupPlayer].avatarLocation=="mage tower"
+			or turnOrder[cleanupPlayer].avatarLocation=="tomb"	or turnOrder[cleanupPlayer].avatarLocation=="dungeon"
+			or turnOrder[cleanupPlayer].avatarLocation=="labyrinth" or turnOrder[cleanupPlayer].avatarLocation=="maze"
+			or turnOrder[cleanupPlayer].avatarLocation=="ziggurat" or turnOrder[cleanupPlayer].avatarLocation=="pyramid"
+			or turnOrder[cleanupPlayer].avatarLocation=="ruin"
+			or turnOrder[cleanupPlayer].avatarLocation=="monster den" or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds"
+			or turnOrder[cleanupPlayer].avatarLocation=="monastery"
+			or (againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(cleanupPlayer)==true
+				and againstDragonAirborneProtectionDestroysSite~=nil and againstDragonAirborneProtectionDestroysSite(turnOrder[cleanupPlayer].avatarLocation)==true) then
 			for _, b in pairs(mageKnights) do
-				if b.mage==turnOrder[gStates.turnNumber].mage then
+				if b.mage==turnOrder[cleanupPlayer].mage then
 					if getObjectFromGUID(b.model)~=nil then avatarModel=getObjectFromGUID(b.model) end
 					if getObjectFromGUID(b.token)~=nil then avatarModel=getObjectFromGUID(b.token) end
 					if getObjectFromGUID(b.standee)~=nil then avatarModel=getObjectFromGUID(b.standee) end
@@ -18324,14 +18508,14 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 						avatarModel.setPosition({avatarPos[1], avatarPos[2]+2, avatarPos[3]})
 						avatarModel.lock()
 					end
-					tokenRaised=gStates.turnNumber
+					tokenRaised=cleanupPlayer
 					break
 				end
 			end
 		end
 
 		--return dice function needed twice
-		function returnDice(diceGUID)
+		local function returnDice(diceGUID)
 			--make sure coop assault isn't happening before returning dice.
 			gStates.coopAssaultDice[#gStates.coopAssaultDice+1]=diceGUID
 			if getObjectFromGUID(turnOrder[nextTurnMerged("nextMageSkipDummy")].turnOrderTokenGUID).is_face_down==false or #turnOrder<=2 then
@@ -18348,13 +18532,13 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 
 		--locate discard deck
 		local cardDestination=nil
-		for _, deckSearch in pairs(getObjectFromGUID(deedDeckDiscardZones[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
+		for _, deckSearch in pairs(getObjectFromGUID(deedDeckDiscardZones[turnOrder[cleanupPlayer].seatPos]).getObjects()) do
 			if deckSearch.type=="Card" or deckSearch.type=="Deck" then cardDestination=deckSearch break end
 		end
 
 		--seperate any decks and possessed tokens found. Unit Area monsters use the same combat cleanup path.
 		local tokenWait=0
-		for _, playAreaObj in pairs(playerCombatObjects(turnOrder[gStates.turnNumber].seatPos)) do
+		for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
 			--seperate decks
 			if playAreaObj.type=="Deck" then
 				for count=1, #playAreaObj.getObjects()-1, 1 do
@@ -18366,8 +18550,8 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			if playAreaObj.getAttachments()[1]~=nil and playAreaObj.is_face_down==false then
 				if gStates.gameScenario=="Against the Apocalypse Blitz" and UI.getAttribute("zigguratPyramidInteract", "active")=="false" and (monsterPugs[playAreaObj.guid].pugType=="red" or monsterPugs[playAreaObj.guid].pugType=="green") then
 					--Award Destroyed Site tokens only for defeated possessed rampagers.
-					getObjectFromGUID(GUID.bag.destroyedSite).takeObject({position={(turnOrder[gStates.turnNumber].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}})
-					if monsterPugs[playAreaObj.guid].pugType=="red" then getObjectFromGUID(GUID.bag.destroyedSite).takeObject({position={(turnOrder[gStates.turnNumber].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}}) end
+					getObjectFromGUID(GUID.bag.destroyedSite).takeObject({position={(turnOrder[cleanupPlayer].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}})
+					if monsterPugs[playAreaObj.guid].pugType=="red" then getObjectFromGUID(GUID.bag.destroyedSite).takeObject({position={(turnOrder[cleanupPlayer].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}}) end
 				end
 				attachEnemy(nil, nil, "detach", playAreaObj, nil)
 			end
@@ -18376,23 +18560,21 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 
 		safeWaitFrames("Combat",function()
 			--Get objects from player area to clean them up
-			local objectAvoidance=1
-			local volkareCityShield=0
 			local lastObject=nil
-			local VolkarePaused=false
 			local spawningGroundMonstersReturned=0
 			local spawningGroundMonstersBeat=0
+			local cleanupContext={player=cleanupPlayer,coopCombatReward=coopCombatReward,avatarPos=avatarPos,volkareCityShield=0,volkarePaused=false,spawningGroundMonstersBeat=0}
 			gStates.turnForfeited=true
 			--Goblin Warrens is resolved by the normal monster-cleanup result below. Fresh Goblins begin
 			--face up, so checking them here would incorrectly count an untouched/failed fight as success.
-			for _, playAreaObj in pairs(playerCombatObjects(turnOrder[gStates.turnNumber].seatPos)) do
+			for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
 				local cleanupObjectGUID=playAreaObj.guid
 				safeWaitFrames("Combat",function() tokenRefill() end, tokenWait+1)
 				safeWaitFrames("Combat",function()
 					--Returning an airborne Dragon head restores its real image with reload(), which invalidates
 					--the old TTS Object userdata for all four captured head objects. Identify them by GUID before
 					--touching that userdata, return the set once, and stop this object's ordinary cleanup here.
-					local dragonAirborneCleanup=againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(gStates.turnNumber)==true and againstDragonAirborneHeadGUID~=nil and againstDragonAirborneHeadGUID(cleanupObjectGUID)==true
+					local dragonAirborneCleanup=againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(cleanupPlayer)==true and againstDragonAirborneHeadGUID~=nil and againstDragonAirborneHeadGUID(cleanupObjectGUID)==true
 					if dragonAirborneCleanup==true then
 						againstDragonReturnAirborneHeads()
 						--The avatar is still raised at this cleanup boundary. Resolve site protection now so
@@ -18430,29 +18612,33 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 						end
 					end
 
-					local dragonGroundCleanup=apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(gStates.turnNumber)==true and apocalypseDragonGroundCombatToken~=nil and select(1,apocalypseDragonGroundCombatToken(playAreaObj.guid))==true
+					local dragonGroundCleanup=apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(cleanupPlayer)==true and apocalypseDragonGroundCombatToken~=nil and select(1,apocalypseDragonGroundCombatToken(playAreaObj.guid))==true
 					if dragonGroundCleanup==true then
 						apocalypseDragonGroundResolveToken(playAreaObj)
-						apocalypseDragonGroundTryApplyLevelsBeforeRewards(gStates.turnNumber)
+						apocalypseDragonGroundTryApplyLevelsBeforeRewards(cleanupPlayer)
 						return
 					end
 
 					--Return undefeated face down tokens
 					if monsterPugs[playAreaObj.guid]~=nil and playAreaObj.is_face_down==true and dragonGroundCleanup~=true then
-						if gStates.monsterPlayLocation[playAreaObj.guid]==nil or turnOrder[gStates.turnNumber].avatarLocation=="spawning grounds" then
+						if gStates.monsterPlayLocation[playAreaObj.guid]==nil or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
 							--if manual drawn assign the avatar location as return spot.
-							if (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) and gStates.summonStates[playAreaObj.guid]~="summoned" and (turnOrder[gStates.turnNumber].avatarLocation=="monster den" or turnOrder[gStates.turnNumber].avatarLocation=="spawning grounds" or turnOrder[gStates.turnNumber].avatarLocation=="ruin") then
+							if (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) and gStates.summonStates[playAreaObj.guid]~="summoned" and (turnOrder[cleanupPlayer].avatarLocation=="monster den" or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" or turnOrder[cleanupPlayer].avatarLocation=="ruin") then
 								gStates.monsterPlayLocation[playAreaObj.guid]={avatarPos[1], 2.5, avatarPos[3]}
 							end
 						end
 						if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then
-							if gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]~=nil and gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage][playAreaObj.guid]~=nil then
-								local pursuit=gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage][playAreaObj.guid]
+							if gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage]~=nil and gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]~=nil then
+								local pursuit=gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]
 								pursuit.state="Stunned" pursuit.stunned=true
 								playAreaObj.setRotation({0, 180, 0})
-								broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} Stunned the Pursuing Rampager (Skips next turns Movement){ru} «оглушает» преследователя (тот пропускает одно Движение){zh-cn}晕眩了狂暴追击者(它跳过下次行动){ko}: 추적하는 적 기절시킴. (다음 추적 단계 건너뜀.){es} Aturdido al agresor que lo persigue (se salta el movimiento del siguiente turno){fr} Étourdi le saccageur à la poursuite (ignore le mouvement des tours suivants){pt-br} Atordoou o Irascível Perseguidor (Pule próximos turnos de movimento).{de} hat den Verfolger betäubt (überspringt die Bewegung des nächsten Zuges)"}), positionToColor(gStates.turnNumber))
+								broadcastToAll(joinLang({translateWord[turnOrder[cleanupPlayer].mage],"{en} Stunned the Pursuing Rampager (Skips next turns Movement){ru} «оглушает» преследователя (тот пропускает одно Движение){zh-cn}晕眩了狂暴追击者(它跳过下次行动){ko}: 추적하는 적 기절시킴. (다음 추적 단계 건너뜀.){es} Aturdido al agresor que lo persigue (se salta el movimiento del siguiente turno){fr} Étourdi le saccageur à la poursuite (ignore le mouvement des tours suivants){pt-br} Atordoou o Irascível Perseguidor (Pule próximos turnos de movimento).{de} hat den Verfolger betäubt (überspringt die Bewegung des nächsten Zuges)"}), positionToColor(cleanupPlayer))
 							else
-								safeWaitTime("Combat",function() if  getObjectFromGUID(playAreaObj.guid)~=nil then playAreaObj.setRotation({0, 180, 0}) end end, 3)--long enough to have traveled back to the board.
+								local returningMonsterGUID=playAreaObj.guid
+								safeWaitTime("Combat",function()
+									local returningMonster=getObjectFromGUID(returningMonsterGUID)
+									if returningMonster~=nil then returningMonster.setRotation({0,180,0}) end
+								end,3)--long enough to have traveled back to the board.
 							end
 							if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="horsemen" and horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
 								--Each Horseman is assigned to exactly one participant; a survivor returns to its Portal-card slot.
@@ -18474,7 +18660,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 								--Move to next players play area.
 								playAreaObj.setPositionSmooth({turnOrder[nextTurnMerged("nextMage")].seatPos*40-100, 1.5, -39.41})
 							else
-								if turnOrder[gStates.turnNumber].avatarLocation=="spawning grounds" and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) then
+								if turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) then
 									gStates.monsterPlayLocation[playAreaObj.guid][1]=gStates.monsterPlayLocation[playAreaObj.guid][1]-0.22+(spawningGroundMonstersReturned*0.44)
 									gStates.monsterPlayLocation[playAreaObj.guid][2]=gStates.monsterPlayLocation[playAreaObj.guid][2]+(spawningGroundMonstersReturned*0.12)
 									spawningGroundMonstersReturned=spawningGroundMonstersReturned+1
@@ -18486,178 +18672,26 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 						end
 					end
 
-					function discardMonster(playAreaObj, giveRewards)
-						if gStates.apocalypseQuestGoblinEnemies~=nil and gStates.apocalypseQuestGoblinEnemies[playAreaObj.guid]~=nil then
-							--Goblin Warrens enemies come from an Infinite Bag and are not members of a normal
-							--monster discard cycle. Record the same face-up/face-down result normal cleanup uses
-							--before deleting the temporary enemy; only an all-face-up cleanup earns Step 1.
-							apocalypseQuestGoblinRecordCleanup(playAreaObj.guid,playAreaObj.is_face_down==false)
-							objectAvoidance=objectAvoidance+1
-							gStates.apocalypseQuestGoblinEnemies[playAreaObj.guid]=nil
-							if gStates.monsterPerks~=nil then gStates.monsterPerks[playAreaObj.guid]=nil end
-							if gStates.attackedMonsters~=nil then gStates.attackedMonsters[playAreaObj.guid]=nil end
-							if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[playAreaObj.guid]=nil end
-							if gStates.summonStates~=nil then gStates.summonStates[playAreaObj.guid]=nil end
-							monsterPugs[playAreaObj.guid]=nil
-							playAreaObj.destruct()
-							return
-						end
-						local tokens={"Dark Crusader Draconum", GUID.bag.discard.darkDraconum, "Dark Crusader Dungeon Monster", GUID.bag.discard.darkDungeon, "Marauding Dark Crusader", GUID.bag.discard.darkMarauders	--Dark Crusader Pugs
-									,"Elementalist Draconum", GUID.bag.discard.elementalistDraconum, "Elementalist Dungeon Monster", GUID.bag.discard.elementalistDungeon, "Marauding Elementalist", GUID.bag.discard.elementalistOrcs	--Elementalist Faction
-									,"Draconum", GUID.bag.discard.draconum, "Dungeon Monster", GUID.bag.discard.dungeon, "Marauding Orcs", GUID.bag.discard.orcs, "City Garrison", GUID.bag.discard.cityGarrison, "Ruin", GUID.bag.discard.ruin, "Mage Tower Garrison", GUID.bag.discard.towerGarrison, "Keep Garrison", GUID.bag.discard.keepGarrison, "Possessed", GUID.bag.discard.possessed}--General Pug
-						for x=1, #tokens, 2 do
-							if playAreaObj.getRotationValues()[2].value==tokens[x] then
-								playAreaObj.setRotation({0, 180, 0})
-								local discardBag={}
-								if getObjectFromGUID(tokens[x+1])~=nil then
-									discardBag=getObjectFromGUID(tokens[x+1])
-								end
-								if x<=6 then
-									if gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Realm of the Dead Blitz" then
-										discardBag=getObjectFromGUID(tokens[x+13])
-									end
-									--Put Dark Crusader reward in player inventory. A missing pile means Just Fame; an empty
-									--existing pile refills from its discard before the reward is declared unavailable.
-									if giveRewards==true and gStates.summonStates[playAreaObj.guid]~="summoned" and playAreaObj.is_face_down==false then
-										local claimed,reason=awardFactionRewardToken(gStates.turnNumber,monsterPiles.rewardDark,coopCombatReward,"dark")
-										if claimed~=true and reason=="empty" then broadcastToAll("Sorry, there are no more Dark Crusader Faction Reward Tokens to claim.",positionToColor(gStates.turnNumber)) end
-									end
-								end
-								if x>=7 and x<=12 then
-									if gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Hidden Valley Blitz" then
-										discardBag=getObjectFromGUID(tokens[x+7])
-									end
-									--Put Elementalist reward in player inventory.
-									if giveRewards==true and gStates.summonStates[playAreaObj.guid]~="summoned" and playAreaObj.is_face_down==false then
-										local claimed,reason=awardFactionRewardToken(gStates.turnNumber,monsterPiles.rewardElem,coopCombatReward,"elementalist")
-										if claimed~=true and reason=="empty" then broadcastToAll("Sorry, there are no more Elementalist Faction Reward Tokens to claim.",positionToColor(gStates.turnNumber)) end
-									end
-								end
-								if x==27 then--possessed token
-									local possessedFaction=(gStates.apocalypsePossessedFactionByToken~=nil and gStates.apocalypsePossessedFactionByToken[playAreaObj.guid]) or "Apoc"
-									local possessedRewards={Dark={pile=monsterPiles.rewardDark,key="dark"}, Elem={pile=monsterPiles.rewardElem,key="elementalist"}, Apoc={pile=monsterPiles.rewardApoc,key="apocalypse"}, Coun={pile=monsterPiles.rewardCouncil,key="council"}}
-									local rewardData=possessedRewards[possessedFaction] or possessedRewards.Apoc
-									if giveRewards==true and gStates.summonStates[playAreaObj.guid]~="summoned" and playAreaObj.is_face_down==false then
-										local claimed,reason=awardFactionRewardToken(gStates.turnNumber,rewardData.pile,coopCombatReward,rewardData.key)
-										if claimed~=true and reason=="empty" then broadcastToAll("Sorry, there are no more Faction Reward Tokens to claim.",positionToColor(gStates.turnNumber)) end
-									end
-									--Faction identity belongs to this use of the Possessed token only. Clear it after its reward is resolved,
-									--not when it is detached from the enemy, so Quest faction rewards survive end-turn separation.
-									if gStates.apocalypsePossessedFactionByToken~=nil then gStates.apocalypsePossessedFactionByToken[playAreaObj.guid]=nil end
-								end
-								--mark city monsters defeated
-								for cityguid, monsters in pairs(gStates.cityMonsterQty) do
-									if monsters[playAreaObj.guid]~=nil then
-										--mark monster dead
-										monsters[playAreaObj.guid]="dead"
-										--drop shield
-										if monsters.extra~=nil and (monsters.extra.megapolisPair==nil or monsters.extra.megapolisPair~=cityguid) then
-											local cityZone={[cityModel.blue]=GUID.zone.blueCity, [cityModel.red]=GUID.zone.redCity, [cityModel.green]=GUID.zone.greenCity, [cityModel.white]=GUID.zone.whiteCity, [volkare.terrainHex]=volkare.discZone}
-											if cityZone[cityguid]~=nil then
-												local location={getObjectFromGUID(cityZone[cityguid]).getPosition()[1]+(-2+monsters.extra.shieldsThere), 1.13, getObjectFromGUID(cityZone[cityguid]).getPosition()[3]+1}
-												if monsters.extra.shieldsThere>4 then location[1]=location[1]-5 location[3]=location[3]-0.5 end
-												--Volkares camp gives only half shields to green and gray rounded down.
-												if cityguid==volkare.terrainHex and (monsterPugs[playAreaObj.guid].pugType=="green" or monsterPugs[playAreaObj.guid].pugType=="gray") then
-													volkareCityShield=volkareCityShield+0.5
-												end
-												if cityguid~=volkare.terrainHex or (cityguid==volkare.terrainHex and (monsterPugs[playAreaObj.guid].pugType=="red" or monsterPugs[playAreaObj.guid].pugType=="white")) or volkareCityShield==1 then
-													if volkareCityShield==1 then volkareCityShield=0 end
-													monsters.extra.shieldsThere=monsters.extra.shieldsThere+1
-													dropShield(location, true)
-												end
-											end
-										end
-										--count volkares army defeat
-										if cityguid==volkare.model then
-											gStates.volkareArmyDefeated=gStates.volkareArmyDefeated+1
-											gStates.volkareArmyReduced=true
-											if gStates.gameScenario=="Volkare's Quest" and VolkarePaused==false and volkareQuestCheckSkipTurn()==true then VolkarePaused=true end
-										end
-									end
-								end
-								--record if ruin is just an offering ruin.
-								if monsterPugs[playAreaObj.guid].pugType=="yellow" and monsterPugs[playAreaObj.guid].fame>0 then gStates.crytalRuin=true end
-								--Add shields to known victory Locations
-								if playAreaObj.is_face_down==false and gStates.druidNightsSummon==nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) and (
-									(monsterPugs[playAreaObj.guid].pugType=="gray" 	 and turnOrder[gStates.turnNumber].avatarLocation=="keep") or
-									(monsterPugs[playAreaObj.guid].pugType=="yellow" and turnOrder[gStates.turnNumber].avatarLocation=="ruin") or
-									(monsterPugs[playAreaObj.guid].pugType=="red" 	 and (turnOrder[gStates.turnNumber].avatarLocation=="tomb" or turnOrder[gStates.turnNumber].avatarLocation=="labyrinth" or ((turnOrder[gStates.turnNumber].avatarLocation:sub(1,4)=="city" or turnOrder[gStates.turnNumber].avatarLocation=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz"))) or
-									(monsterPugs[playAreaObj.guid].pugType=="tan" 	 and (turnOrder[gStates.turnNumber].avatarLocation=="maze" or turnOrder[gStates.turnNumber].avatarLocation=="monster den" or turnOrder[gStates.turnNumber].avatarLocation=="dungeon")) or
-									(monsterPugs[playAreaObj.guid].pugType=="possessed" and (turnOrder[gStates.turnNumber].avatarLocation=="ziggurat" or turnOrder[gStates.turnNumber].avatarLocation=="pyramid")) or
-									(monsterPugs[playAreaObj.guid].pugType=="purple" and (turnOrder[gStates.turnNumber].avatarLocation=="mage tower" or turnOrder[gStates.turnNumber].avatarLocation=="monastery"))) then
-									local shieldExists=false
-									if turnOrder[gStates.turnNumber].avatarLocation~="ziggurat" and turnOrder[gStates.turnNumber].avatarLocation~="pyramid" and turnOrder[gStates.turnNumber].avatarLocation~="maze" and turnOrder[gStates.turnNumber].avatarLocation~="labyrinth" then
-										for _, shield in pairs(getObjectFromGUID(mapArea).getObjects()) do
-											if shield.getName()=="Shield" and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shield.getPosition()[1]-avatarPos[1])^2)+((shield.getPosition()[3]-avatarPos[3])^2))<1 then
-												shieldExists=true
-												if (turnOrder[gStates.turnNumber].avatarLocation=="keep" and shield.getDescription()~=turnOrder[gStates.turnNumber].mage) then shield.destruct() shieldExists=false end
-												if (turnOrder[gStates.turnNumber].avatarLocation=="dungeon" or turnOrder[gStates.turnNumber].avatarLocation=="tomb") then gStates.shieldsDropped[shield.guid]=true end
-												break
-											end
-										end
-									end
-									if shieldExists==false then
-										if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then
-											dropShield(gStates.monsterPlayLocation[playAreaObj.guid], true)
-											coralTalesSiteShield(turnOrder[gStates.turnNumber].avatarLocation)
-										else
-											local shieldPos={avatarPos[1], 2, avatarPos[3]}
-											local shieldRotation=nil
-											if turnOrder[gStates.turnNumber].avatarLocation=="ziggurat" or turnOrder[gStates.turnNumber].avatarLocation=="pyramid" then
-												local floor=nil
-												if UI.getAttribute("zigguratPyramidInteractFight1Image", "color")=="Yellow" then floor=1 end
-												if UI.getAttribute("zigguratPyramidInteractFight2Image", "color")=="Yellow" then floor=2 end
-												if UI.getAttribute("zigguratPyramidInteractFight3Image", "color")=="Yellow" then floor=3 end
-												local terrain, _, sitePos=terrainHexAtPosition(avatarPos)
-												if terrain~=nil then shieldRotation={0, terrain.getRotation()[2], 0} end
-												if floor~=nil then shieldPos=zigguratPyramidFloorPosition(terrain, sitePos or avatarPos, floor) end
-											end
-											dropShield(shieldPos, true, shieldRotation)
-											coralTalesSiteShield(turnOrder[gStates.turnNumber].avatarLocation)
-										end
-									end
-								end
-								if playAreaObj.is_face_down==false and monsterPugs[playAreaObj.guid].pugType=="tan" and turnOrder[gStates.turnNumber].avatarLocation=="spawning grounds" then spawningGroundMonstersBeat=spawningGroundMonstersBeat+1 end
-
-								--drop shield for mines liberation and "Life and Death"
-								if gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Hidden Valley Blitz" then
-									for _, monsters in pairs(gStates.mineMonsterQty) do
-										if monsters[playAreaObj.guid]~=nil then
-											for monsterGUID, monsterState in pairs(monsters) do
-												if monsterGUID~=playAreaObj.guid and monsterState=="dead" then
-													dropShield({avatarPos[1], 2, avatarPos[3]}, true)
-													break
-												end
-											end
-											break
-										end
-									end
-								end
-								objectAvoidance=objectAvoidance+1
-								gStates.monsterPerks[playAreaObj.guid]=nil
-								discardBag.putObject(playAreaObj)
-								break
-							end
-						end
-					end
-
 					--Process and Discard Face up monsters. Horsemen are persistent Custom Tiles, so identify
 					--them before any generic rotation-value discard route can mistake them for a normal token.
 					if monsterPugs[playAreaObj.guid]~=nil and dragonGroundCleanup~=true and (playAreaObj.is_face_down==false or gStates.monsterPlayLocation[playAreaObj.guid]==nil) then
 						if horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
-							againstHorsemenResolveDefeat(playAreaObj,gStates.turnNumber,coopCombatReward)
+							againstHorsemenResolveDefeat(playAreaObj,cleanupPlayer,coopCombatReward)
 						elseif playAreaObj.getRotationValues()[2]~=nil then
-							discardMonster(playAreaObj, true)
+							combatDiscardMonster(playAreaObj,true,cleanupContext)
 						else--process leaders
 							local currentLeader=elementalist
 							if playAreaObj.guid==darkCrusader.token then currentLeader=darkCrusader end
 							--drop shield(s) on leader disc
 							for b=1, gStates.leaderOverkill, 1 do
-								local obj=getObjectFromGUID(currentLeader.disc)
-								local hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.elementalistLevel-gStates.leaderReduction-(b-1)))))
-								if playAreaObj.guid==darkCrusader.token then hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.darkCrusaderLevel-gStates.leaderReduction-(b-1))))) end
-								local location={obj.getPosition()[1]+(math.cos(hexRotationRad)*2.9), 2+(b*1.5), obj.getPosition()[3]+(math.sin(hexRotationRad)*2.9)}
-								dropShield(location, false)
+								local leaderDisc=getObjectFromGUID(currentLeader.disc)
+								if leaderDisc~=nil then
+									local hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.elementalistLevel-gStates.leaderReduction-(b-1)))))
+									if playAreaObj.guid==darkCrusader.token then hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.darkCrusaderLevel-gStates.leaderReduction-(b-1))))) end
+									local discPos=leaderDisc.getPosition()
+									local location={discPos[1]+(math.cos(hexRotationRad)*2.9),2+(b*1.5),discPos[3]+(math.sin(hexRotationRad)*2.9)}
+									dropShield(location,false)
+								end
 							end
 							--Record damage to the faction leader, but during a cooperative assault do not move its
 							--actual level marker/state until every participating player has finished combat.
@@ -18685,23 +18719,29 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 								if currenLeaderLevel==0 then
 									getObjectFromGUID(trashCan).putObject(playAreaObj)
 									gStates.cityMonsterQty[currentLeader.terrainHex][currentLeader.token]="dead"
-									getObjectFromGUID(currentLeader.disc).setCustomObject({image=leaderData[currentLeader.terrainHex]["dead"].discImg})
-									getObjectFromGUID(currentLeader.disc).reload()
+									local leaderDisc=getObjectFromGUID(currentLeader.disc)
+									if leaderDisc~=nil then leaderDisc.setCustomObject({image=leaderData[currentLeader.terrainHex]["dead"].discImg}) leaderDisc.reload() end
 									safeWaitTime("Combat",function()
 										for monsterGUID, state in pairs(gStates.cityMonsterQty[currentLeader.terrainHex]) do
-											if getObjectFromGUID(monsterGUID)~=nil and getObjectFromGUID(monsterGUID).getRotationValues()[2]~=nil then discardMonster(getObjectFromGUID(monsterGUID), false) end
+											local monster=getObjectFromGUID(monsterGUID)
+										if monster~=nil and monster.getRotationValues()[2]~=nil then combatDiscardMonster(monster,false,cleanupContext) end
 										end
 									end, 2)
 								else
 									playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid])
 									safeWaitFrames("Combat",function()
-										getObjectFromGUID(currentLeader.disc).setCustomObject({image=leaderData[currentLeader.terrainHex][currenLeaderLevel].discImg})
-										getObjectFromGUID(currentLeader.disc).reload()
-										getObjectFromGUID(currentLeader.token).setCustomObject({image=leaderData[currentLeader.terrainHex][currenLeaderLevel].tokenImg})
-										getObjectFromGUID(currentLeader.token).setName(currentLeader==darkCrusader and "Dark Crusader Leader Level "..currenLeaderLevel or "Elementalist Leader Level "..currenLeaderLevel)
-										getObjectFromGUID(currentLeader.token).reload()
-										monsterPugs[currentLeader.token]=leaderData[currentLeader.terrainHex][currenLeaderLevel].abilities
-									end, 100)
+										local levelData=leaderData[currentLeader.terrainHex]~=nil and leaderData[currentLeader.terrainHex][currenLeaderLevel] or nil
+										if levelData==nil then return end
+										local leaderDisc=getObjectFromGUID(currentLeader.disc)
+										if leaderDisc~=nil then leaderDisc.setCustomObject({image=levelData.discImg}) leaderDisc.reload() end
+										local leaderToken=getObjectFromGUID(currentLeader.token)
+										if leaderToken~=nil then
+											leaderToken.setCustomObject({image=levelData.tokenImg})
+											leaderToken.setName(currentLeader==darkCrusader and "Dark Crusader Leader Level "..currenLeaderLevel or "Elementalist Leader Level "..currenLeaderLevel)
+											leaderToken.reload()
+										end
+										monsterPugs[currentLeader.token]=levelData.abilities
+									end,100)
 								end
 							end
 						end
@@ -18723,7 +18763,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 						--Discard / bottom of Deed deck / top of Deed deck. Cover both physical copies.
 						if (playAreaObj.guid=="1f362f" or playAreaObj.guid=="6e506a") and cardEffectIsVertical(playAreaObj)==true then
 							found=true gStates.turnForfeited=false
-							if playAreaObj.is_face_down==false then steadyTempoPrepare(playAreaObj, gStates.turnNumber) end
+							if playAreaObj.is_face_down==false then steadyTempoPrepare(playAreaObj, cleanupPlayer) end
 						elseif playAreaObj.guid=="085e69" or playAreaObj.guid=="7ebe5e"
 							and playAreaObj.getRotation()[2]>175 and playAreaObj.getRotation()[2]<185
 							and (playAreaObj.is_face_down==false) then found=true gStates.turnForfeited=false end--Mysterious Box and Crystal Joy
@@ -18735,21 +18775,21 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 							if playAreaObj.is_face_down==true then
 								getObjectFromGUID(trashCan).putObject(playAreaObj)
 							else
-								for x=1,#turnOrder[gStates.turnNumber].deadDeckInventory, 1 do
-									if playAreaObj.guid==turnOrder[gStates.turnNumber].deadDeckInventory[x] then
-										if gStates.timeBending=="Started" and gStates.turnNumber==gStates.realTurn then
+								for x=1,#turnOrder[cleanupPlayer].deadDeckInventory, 1 do
+									if playAreaObj.guid==turnOrder[cleanupPlayer].deadDeckInventory[x] then
+										if gStates.timeBending=="Started" and cleanupPlayer==gStates.realTurn then
 											if playAreaObj.guid==timeBendingGUID then
-												gStates.timeBendingRemovedSeat=turnOrder[gStates.turnNumber].seatPos
+												gStates.timeBendingRemovedSeat=turnOrder[cleanupPlayer].seatPos
 												getObjectFromGUID(trashCan).putObject(playAreaObj)
-												broadcastToAll("Time Bend Left Play", positionToColor(gStates.turnNumber))
+												broadcastToAll("Time Bend Left Play", positionToColor(cleanupPlayer))
 											else
 												playAreaObj.setRotation({0.0, 180.0, 0.0})
-												playAreaObj.setPosition({(turnOrder[gStates.turnNumber].seatPos*40)-100, 4, -48.40})
+												playAreaObj.setPosition({(turnOrder[cleanupPlayer].seatPos*40)-100, 4, -48.40})
 											end
 										else
 											if cardDestination==nil then
 												playAreaObj.setRotation({0.0, 180.0, 0.0})
-												playAreaObj.setPosition({(turnOrder[gStates.turnNumber].seatPos*40)-110.54, 1.12, -43.20})
+												playAreaObj.setPosition({(turnOrder[cleanupPlayer].seatPos*40)-110.54, 1.12, -43.20})
 												cardDestination=playAreaObj
 											else
 												playAreaObj.setPosition({playAreaObj.getPosition()[1], 1.9, playAreaObj.getPosition()[3]})
@@ -18763,45 +18803,51 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 						end
 					end
 
-					--Cleanup Skills
-					if skillTokens[playAreaObj.guid]~=nil then
-						--Flip all per round skills in current play area face down
-						if skillTokens[playAreaObj.guid].skillType=="Round" then
-							getObjectFromGUID(playAreaObj.guid).setRotationSmooth({0.0, 180.0, 180.0})
+					--Cleanup Skills. A Coop Skill can change state/GUID shortly after leaving its container in
+					--competitive play. Resolve that replacement before touching the object or its saved home.
+					local originalSkillGUID=playAreaObj.guid
+					local cleanupSkillGUID=(skillStateReplacement~=nil and skillStateReplacement[originalSkillGUID]) or originalSkillGUID
+					local cleanupSkillDetails=skillTokens[cleanupSkillGUID] or skillTokens[originalSkillGUID]
+					if cleanupSkillDetails~=nil then
+						local cleanupSkill=getObjectFromGUID(cleanupSkillGUID)
+						local cleanupSkillHome=gStates.mageSkills~=nil and gStates.mageSkills[cleanupSkillGUID] or nil
+						--Flip all per round skills in current play area face down.
+						if cleanupSkill~=nil and cleanupSkillDetails.skillType=="Round" then
+							cleanupSkill.setRotationSmooth({0.0, 180.0, 180.0})
 						end
-						--Return all non coop and comp skills to their recorded position
-						if skillTokens[playAreaObj.guid].skillType=="Round" or skillTokens[playAreaObj.guid].skillType=="Turn" then
-							getObjectFromGUID(playAreaObj.guid).setPositionSmooth({gStates.mageSkills[playAreaObj.guid][1], 1.5, gStates.mageSkills[playAreaObj.guid][3]})
+						--Return all non Coop/Comp Skills only when both the live object and its recorded home still exist.
+						if cleanupSkill~=nil and cleanupSkillHome~=nil and (cleanupSkillDetails.skillType=="Round" or cleanupSkillDetails.skillType=="Turn") then
+							cleanupSkill.setPositionSmooth({cleanupSkillHome[1], 1.5, cleanupSkillHome[3]})
 						end
 						--stop motivation Skills
-						if gStates.mageSkills[playAreaObj.guid]~=nil and gStates.motivationSkill[playAreaObj.guid]~=nil then
-							gStates.motivationSkill[playAreaObj.guid].state="used"
+						if cleanupSkillHome~=nil and gStates.motivationSkill[cleanupSkillGUID]~=nil then
+							gStates.motivationSkill[cleanupSkillGUID].state="used"
 						end
 						--increment master of Chaos
-						if playAreaObj.guid=="1ff34f" then
+						if cleanupSkillGUID=="1ff34f" and cleanupSkill~=nil then
 							gStates.masterOfChaos=gStates.masterOfChaos+1
 							if gStates.masterOfChaos==7 then gStates.masterOfChaos=1 end
-							getObjectFromGUID("1ff34f").setDescription(masterOfChaosData[gStates.masterOfChaos].description)
-							turnOrder[gStates.turnNumber].masterOfChaos="incrementented in turn"
+							cleanupSkill.setDescription(masterOfChaosData[gStates.masterOfChaos].description)
+							if turnOrder[cleanupPlayer]~=nil then turnOrder[cleanupPlayer].masterOfChaos="incrementented in turn" end
 						end
 						--Coop and Comp Skills
-						if skillTokens[playAreaObj.guid].skillType=="Coop" or skillTokens[playAreaObj.guid].skillType=="Comp" then
-							local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[playAreaObj.guid]~=nil
-							local playedBeforeLock=gStates.coopCompSkillLegalThisRound~=nil and gStates.coopCompSkillLegalThisRound[playAreaObj.guid]==true
-							local inRotation=gStates.doingTheRounds[playAreaObj.guid]~=nil and paused==false
-							if paused==false and coopCompSkillPlayLocked()==true and playedBeforeLock==false and inRotation==false then paused=pauseLateCoopCompSkill(playAreaObj.guid, gStates.turnNumber) end
+						if cleanupSkillDetails.skillType=="Coop" or cleanupSkillDetails.skillType=="Comp" then
+							local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[cleanupSkillGUID]~=nil
+							local playedBeforeLock=gStates.coopCompSkillLegalThisRound~=nil and gStates.coopCompSkillLegalThisRound[cleanupSkillGUID]==true
+							local inRotation=gStates.doingTheRounds[cleanupSkillGUID]~=nil and paused==false
+							if paused==false and coopCompSkillPlayLocked()==true and playedBeforeLock==false and inRotation==false then paused=pauseLateCoopCompSkill(cleanupSkillGUID, cleanupPlayer) end
 							if paused==false then
-								if gStates.doingTheRounds[playAreaObj.guid]==nil then
+								if gStates.doingTheRounds[cleanupSkillGUID]==nil then
 									--The real Coop skill starts its circuit; a Comp skill creates reminders and only its owner-reward exceptions stay played.
-									gStates.doingTheRounds[playAreaObj.guid]=gStates.turnNumber
-									if skillTokens[playAreaObj.guid].skillType=="Comp" then createCompetitiveSkillReminders(playAreaObj.guid, gStates.turnNumber)
+									gStates.doingTheRounds[cleanupSkillGUID]=cleanupPlayer
+									if cleanupSkillDetails.skillType=="Comp" then createCompetitiveSkillReminders(cleanupSkillGUID, cleanupPlayer)
 									else
 										if gStates.doingTheRoundsVisited==nil then gStates.doingTheRoundsVisited={} end
-										gStates.doingTheRoundsVisited[playAreaObj.guid]={[gStates.turnNumber]=true}
+										gStates.doingTheRoundsVisited[cleanupSkillGUID]={[cleanupPlayer]=true}
 									end
-								elseif skillTokens[playAreaObj.guid].skillType=="Coop" then
+								elseif cleanupSkillDetails.skillType=="Coop" then
 									--A Coop skill already doing the rounds has now been used, so its circuit ends here.
-									gStates.doingTheRounds[playAreaObj.guid]=nextTurnMerged("nextMageSkipDummy")
+									gStates.doingTheRounds[cleanupSkillGUID]=nextTurnMerged("nextMageSkipDummy")
 								end
 							end
 						end
@@ -18827,6 +18873,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 							gStates.monsterPlayLocation[newMonster.guid]={avatarPos[1]+0.22, 2.12, avatarPos[3]}
 						end
 					end
+					spawningGroundMonstersBeat=cleanupContext.spawningGroundMonstersBeat or spawningGroundMonstersBeat
 					local horsemenReturn=againstHorsemenFinishSoloAssault(cleanupPlayer)
 					if horsemenReturn~=nil then
 						if avatarModel~=nil then
@@ -18992,7 +19039,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 
 			--Skills doing the rounds
 			safeWaitFrames("Combat",function()
-				registerDetachedCoopCompSkills(gStates.turnNumber)
+				registerDetachedCoopCompSkills(cleanupPlayer)
 				for skillGUID, skillDetails in pairs(skillTokens) do
 					if getObjectFromGUID(skillGUID)~=nil then
 						--Flip up per turn skills
@@ -19000,7 +19047,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 
 						--Comp and Unplayed coop skills that are doing the rounds.
 						if gStates.doingTheRounds[skillGUID]~=nil and (gStates.coopCompSkillPaused==nil or gStates.coopCompSkillPaused[skillGUID]==nil) then
-							data=doingTheRounds(skillGUID, nextPlayer, count)
+							local data=doingTheRounds(skillGUID, nextPlayer, count)
 							count=data[2]
 							for saveObjGuid, _ in pairs(data[1]) do
 								keepSafe[saveObjGuid]=true
@@ -19012,7 +19059,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 				if coopCompSkillPlayLocked()==true then refreshCoopCompSkillXs() end
 
 				--Delete Crystals and wound tokens Unit Wound
-				for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
+				for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[turnOrder[cleanupPlayer].seatPos]).getObjects()) do
 					if (playAreaObj.type=="Figurine" and keepSafe[playAreaObj.guid]~=true)
 					or playAreaObj.getName()=="Blue Defender Bonus Reminder" or playAreaObj.getName()=="Green Defender Bonus Reminder"
 					or playAreaObj.getName()=="White Defender Bonus Reminder" or playAreaObj.getName()=="Red Defender Bonus Reminder" then
@@ -19023,7 +19070,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 
 			--Remove crystals and dice used to power Units
 			local crystalsToDestroy={}
-			local unitAreaObjects=getObjectFromGUID(playerUnitAreas[turnOrder[gStates.turnNumber].seatPos]).getObjects()
+			local unitAreaObjects=getObjectFromGUID(playerUnitAreas[turnOrder[cleanupPlayer].seatPos]).getObjects()
 			for _, unitAreaObj in pairs(unitAreaObjects) do
 				--Return any Mana dice
 				if unitAreaObj.type=="Dice" then
@@ -19035,14 +19082,14 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 					local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[unitAreaObj.guid]~=nil
 					local playedBeforeLock=gStates.coopCompSkillLegalThisRound~=nil and gStates.coopCompSkillLegalThisRound[unitAreaObj.guid]==true
 					local inRotation=gStates.doingTheRounds[unitAreaObj.guid]~=nil and paused==false
-					if paused==false and coopCompSkillPlayLocked()==true and playedBeforeLock==false and inRotation==false then paused=pauseLateCoopCompSkill(unitAreaObj.guid, gStates.turnNumber) end
+					if paused==false and coopCompSkillPlayLocked()==true and playedBeforeLock==false and inRotation==false then paused=pauseLateCoopCompSkill(unitAreaObj.guid, cleanupPlayer) end
 					if paused==false then
 						if gStates.doingTheRounds[unitAreaObj.guid]==nil then
-							gStates.doingTheRounds[unitAreaObj.guid]=gStates.turnNumber
-							if skillTokens[unitAreaObj.guid].skillType=="Comp" then createCompetitiveSkillReminders(unitAreaObj.guid, gStates.turnNumber)
+							gStates.doingTheRounds[unitAreaObj.guid]=cleanupPlayer
+							if skillTokens[unitAreaObj.guid].skillType=="Comp" then createCompetitiveSkillReminders(unitAreaObj.guid, cleanupPlayer)
 							else
 								if gStates.doingTheRoundsVisited==nil then gStates.doingTheRoundsVisited={} end
-								gStates.doingTheRoundsVisited[unitAreaObj.guid]={[gStates.turnNumber]=true}
+								gStates.doingTheRoundsVisited[unitAreaObj.guid]={[cleanupPlayer]=true}
 							end
 						elseif skillTokens[unitAreaObj.guid].skillType=="Coop" then
 							--A Coop skill already doing the rounds has now been used, so its circuit ends here.
@@ -19073,7 +19120,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			end
 
 			--Fame and Reputation are held until every participant has finished a co-op assault.
-			if gStates.coopAssaultPhase~="combat" then applyPlayerFameReputation(gStates.turnNumber) end
+			if gStates.coopAssaultPhase~="combat" then applyPlayerFameReputation(cleanupPlayer) end
 
 			--Use the player whose cleanup started, not whatever turn happens to be current when
 			--this delayed callback fires. This prevents two Mage Knights being left on the portal.
@@ -19327,26 +19374,33 @@ local justDetached={}
 function attachEnemy(player, mouseButton, id, obj, zone)
 	--find nearest monster
 	if id=="attach" and obj~=nil then
+		local possessedGUID=obj.guid
+		local attachZoneGUID=zone~=nil and zone.guid or nil
+		local attachPlayer=nil
+		for playerIndex, details in pairs(turnOrder) do
+			if details.seatPos~=nil and playerPlayAreas[details.seatPos]==attachZoneGUID then attachPlayer=playerIndex break end
+		end
 		safeWaitFrames("Combat",function() safeWaitCondition("Combat",function()
-			if getObjectFromGUID(obj.guid)~=nil then
-				if gStates.apocalypsePossessedEnemyByToken~=nil and gStates.apocalypsePossessedEnemyByToken[obj.guid]~=nil then return end
-				local zoneObj=zone~=nil and zone.guid~=nil and getObjectFromGUID(zone.guid) or nil
+			local possessed=getObjectFromGUID(possessedGUID)
+			if possessed~=nil then
+				if gStates.apocalypsePossessedEnemyByToken~=nil and gStates.apocalypsePossessedEnemyByToken[possessedGUID]~=nil then return end
+				local zoneObj=attachZoneGUID~=nil and getObjectFromGUID(attachZoneGUID) or nil
 				local candidates=zoneObj~=nil and zoneObj.getObjects() or getAllObjects()
 				for _, nearEnemy in pairs(candidates) do
-					if nearEnemy.guid~=obj.guid and monsterPugs[nearEnemy.guid]~=nil and monsterPugs[nearEnemy.guid].pugType~="possessed" and justDetached[nearEnemy.guid]~=true and
-						nearEnemy.getPosition()[1]-obj.getPosition()[1]>-0.5 and nearEnemy.getPosition()[1]-obj.getPosition()[1]<0.5 and nearEnemy.getPosition()[3]-obj.getPosition()[3]>-0.5 and nearEnemy.getPosition()[3]-obj.getPosition()[3]<0.5 then
+					if nearEnemy.guid~=possessedGUID and monsterPugs[nearEnemy.guid]~=nil and monsterPugs[nearEnemy.guid].pugType~="possessed" and justDetached[nearEnemy.guid]~=true and
+						nearEnemy.getPosition()[1]-possessed.getPosition()[1]>-0.5 and nearEnemy.getPosition()[1]-possessed.getPosition()[1]<0.5 and nearEnemy.getPosition()[3]-possessed.getPosition()[3]>-0.5 and nearEnemy.getPosition()[3]-possessed.getPosition()[3]<0.5 then
 						--Assign perks to monster token
 						local perkToCheck={"fame", "attack", "reward", "boost", "armour"}
 						for _, perk in pairs(perkToCheck) do
 							if not (perk=="attack" and monsterPugs[nearEnemy.guid].monsters~=nil) then
-								if monsterPugs[obj.guid][perk]~=nil then
+								if monsterPugs[possessedGUID][perk]~=nil then
 									if gStates.monsterPerks[nearEnemy.guid]==nil then
-										gStates.monsterPerks[nearEnemy.guid]={[perk]=monsterPugs[obj.guid][perk]}
+										gStates.monsterPerks[nearEnemy.guid]={[perk]=monsterPugs[possessedGUID][perk]}
 									else if gStates.monsterPerks[nearEnemy.guid][perk]==nil then
-										gStates.monsterPerks[nearEnemy.guid][perk]=monsterPugs[obj.guid][perk]
+										gStates.monsterPerks[nearEnemy.guid][perk]=monsterPugs[possessedGUID][perk]
 									else
 										local current=gStates.monsterPerks[nearEnemy.guid][perk]
-										local added=monsterPugs[obj.guid][perk]
+										local added=monsterPugs[possessedGUID][perk]
 										if perk=="attack" and type(current)=="table" and type(added)=="table" then
 											--Attack perks are tables of damage-type lists, not numbers. Preserve every attack instead
 											--of trying to add the tables (which caused the second Possessed token to error).
@@ -19363,7 +19417,7 @@ function attachEnemy(player, mouseButton, id, obj, zone)
 								end
 							end
 						end
-						local possessedFaction=(gStates.apocalypsePossessedFactionByToken~=nil and gStates.apocalypsePossessedFactionByToken[obj.guid]) or "Apoc"
+						local possessedFaction=(gStates.apocalypsePossessedFactionByToken~=nil and gStates.apocalypsePossessedFactionByToken[possessedGUID]) or "Apoc"
 						gStates.monsterPerks[nearEnemy.guid].faction=possessedFaction
 						if gStates.apocalypsePossessedFactionByEnemy==nil then gStates.apocalypsePossessedFactionByEnemy={} end
 						gStates.apocalypsePossessedFactionByEnemy[nearEnemy.guid]=possessedFaction
@@ -19376,15 +19430,15 @@ function attachEnemy(player, mouseButton, id, obj, zone)
 						end
 						nearEnemy.setRotationValues(tokenValues)
 						--Link Enemy and possessed token
-						obj.setPosition({nearEnemy.getPosition()[1],nearEnemy.getPosition()[2]+0.05,nearEnemy.getPosition()[3]})
-						obj.setRotation({0.00, 180.00, 0.00})
+						possessed.setPosition({nearEnemy.getPosition()[1],nearEnemy.getPosition()[2]+0.05,nearEnemy.getPosition()[3]})
+						possessed.setRotation({0.00, 180.00, 0.00})
 						if gStates.apocalypsePossessedEnemyByToken==nil then gStates.apocalypsePossessedEnemyByToken={} end
-						gStates.apocalypsePossessedEnemyByToken[obj.guid]=nearEnemy.guid
-						nearEnemy.addAttachment(obj)
-						local summonedPossessed=gStates.summonStates~=nil and (gStates.summonStates[nearEnemy.guid]=="summoned" or gStates.summonStates[obj.guid]=="summoned")
-						if summonedPossessed~=true and zone~=nil and (zone.guid==playerPlayAreas[2] or zone.guid==playerPlayAreas[3] or zone.guid==playerPlayAreas[1] or zone.guid==playerPlayAreas[4]) then
-							turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+gStates.monsterPerks[nearEnemy.guid].fame
-							if factionRewardUsesJustFame(possessedFaction)==true then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1 end
+						gStates.apocalypsePossessedEnemyByToken[possessedGUID]=nearEnemy.guid
+						nearEnemy.addAttachment(possessed)
+						local summonedPossessed=gStates.summonStates~=nil and (gStates.summonStates[nearEnemy.guid]=="summoned" or gStates.summonStates[possessedGUID]=="summoned")
+						if summonedPossessed~=true and attachPlayer~=nil and turnOrder[attachPlayer]~=nil then
+							turnOrder[attachPlayer].fameGain=turnOrder[attachPlayer].fameGain+gStates.monsterPerks[nearEnemy.guid].fame
+							if factionRewardUsesJustFame(possessedFaction)==true then turnOrder[attachPlayer].fameGain=turnOrder[attachPlayer].fameGain+1 end
 						end
 						--Refresh the monster UI now that Possessed is attached.
 						setMonsterObjectButtons(nearEnemy, true)
@@ -19395,15 +19449,17 @@ function attachEnemy(player, mouseButton, id, obj, zone)
 					end
 				end
 			end
-		end, function() return obj==nil or obj.resting end) end, 5)
+		end, function() local possessed=getObjectFromGUID(possessedGUID) return possessed==nil or possessed.resting end) end,5)
 	end
 	--Unlink Object
 	--seperate possessed tokens
 	if id:sub(1, 6)=="detach" then
-		if obj==nil then obj=getObjectFromGUID(id:sub(7, 13)) end
-		justDetached[obj.guid]=true
+		if obj==nil then obj=getObjectFromGUID(id:sub(7,13)) end
+		if obj==nil then return end
+		local detachedGUID=obj.guid
+		justDetached[detachedGUID]=true
 		clearPossessedEnemy(obj)
-		safeWaitTime("Combat",function() justDetached[obj.guid]=false end, 2)
+		safeWaitTime("Combat",function() justDetached[detachedGUID]=false end,2)
 		broadcastToAll("Enemy Seperated")
 	end
 end
@@ -38900,7 +38956,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="414"
+local automaticLuaErrorReporterVersion="416"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
