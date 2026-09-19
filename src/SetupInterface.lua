@@ -1016,7 +1016,8 @@ function baseValueTweak(player, mouseButton, id)
 							if gStates.megapolis==2 or (gStates.megapolis==1 and scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles==a) then max=22 end
 							if gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or
 								(gStates.gameScenario=="Custom" and scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles==0) then max=12 end
-							if a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 then max=80 end
+							if a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 and
+								(gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then max=80 end
 							if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]<max then
 								scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]=scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]+1
 							else
