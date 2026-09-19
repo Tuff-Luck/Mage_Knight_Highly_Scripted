@@ -1280,7 +1280,9 @@ function againstHorsemenDefeatSummary()
 	return summary
 end
 
---The cooperative +6 bonus refers to the scoring Mage Knights, not the standard Dummy/optional Proxy.
+--The all-players-Horseman cooperative bonus is scenario-specific: +6 in Against the Horsemen and
+--+5 in Apocalypse is Here. This helper only checks whether the scoring Mage Knights qualify;
+--the standard Dummy/optional Proxy never counts toward that requirement.
 function againstHorsemenEveryScoringPlayerDefeatedOne(summary)
 	if gStates==nil or (gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Apocalypse is Here") or gStates.playerCount<=1 then return false end
 	summary=summary or againstHorsemenDefeatSummary()
@@ -2329,7 +2331,7 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 end
 
 function apocalypseIsHereResolveHorsemanTarget(name,option)
-	local options,startHex,hexes=apocalypseIsHereHorsemanTargetOptions(name)
+	local options,startHex,hexes,mapObjects=apocalypseIsHereHorsemanTargetOptions(name)
 	local target=option~=nil and option.hex or nil
 	if startHex==nil or target==nil then apocalypseIsHereContinueHorsemenTurn() return false end
 	local destination=apocalypseIsHereHorsemanDestination(startHex,target,hexes,name,mapObjects)
@@ -3638,10 +3640,10 @@ end
 
 function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
 	if apocalypseDragonScenario()~=true or gStates.apocalypseDragonLairRevealed~=true or gStates.apocalypseDragonDefeated==true then return false end
-	if gStates.gameScenario=="Apocalypse is Here" and gStates.apocalypseDragonLairAttacked~=true and apocalypseIsHereEndHorsemen~=nil then apocalypseIsHereEndHorsemen() end
 	if gStates.coopAssaultPhase~=nil or gStates.apocalypseDragonGroundCombat~=nil then return false end
 	local player=turnOrder[playerIndex]
 	if player==nil or playerIndex~=gStates.turnNumber or playerDropoutInactive(playerIndex)==true then return false end
+	local endHorsemenOnStart=gStates.gameScenario=="Apocalypse is Here" and gStates.apocalypseDragonLairAttacked~=true and apocalypseIsHereEndHorsemen~=nil
 	gStates.apocalypseDragonAssaultFortifiedInitiator=gStates.gameScenario=="Apocalypse is Here" and apocalypseIsHereDragonCitySpacePlayer~=nil and apocalypseIsHereDragonCitySpacePlayer(playerIndex)==true
 	local liveHeads={}
 	for _,headName in ipairs(apocalypseDragonColoredHeads) do
@@ -3651,7 +3653,11 @@ function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
 	end
 	if #liveHeads<1 then return false end
 	local nearby=apocalypseDragonCoopAdjacentPlayers(playerIndex)
-	if #liveHeads<2 or #nearby<1 then return apocalypseDragonBeginGroundCombat(playerIndex) end
+	if #liveHeads<2 or #nearby<1 then
+		local started=apocalypseDragonBeginGroundCombat(playerIndex)
+		if started==true and endHorsemenOnStart==true then apocalypseIsHereEndHorsemen() end
+		return started
+	end
 
 	gStates.apocalypseDragonAssaultOrigin=apocalypseDragonAssaultOriginData(approachPosition)
 	gStates.assaultData={[player.mage]={primary={},secondary={},UIPos={1},joined=true}}
@@ -3675,6 +3681,7 @@ function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
 	locationAttacked=true
 	applyColorBarButtons()
 	coopAssaultUIUpdate()
+	if endHorsemenOnStart==true then apocalypseIsHereEndHorsemen() end
 	return true
 end
 
