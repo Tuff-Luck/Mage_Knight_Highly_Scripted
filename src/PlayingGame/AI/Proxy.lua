@@ -1182,7 +1182,6 @@ function proxyDestinationChoiceClearButtons()
 	local map=getObjectFromGUID(mapArea)
 	if map==nil then return end
 	local marker="ProxyDestinationChoice"
-	local oldTest="ProxyDestinationTest"
 	for _,terrain in pairs(map.getObjects()) do
 		if terrainTiles[terrain.guid]~=nil then
 			local xml=terrain.UI.getXmlTable() or {}
@@ -1191,7 +1190,7 @@ function proxyDestinationChoiceClearButtons()
 				local attributes=xml[i].attributes
 				local id=attributes~=nil and tostring(attributes.id or "") or ""
 				local suffix=id:sub(7)
-				if suffix:sub(1,#marker)==marker or suffix:sub(1,#oldTest)==oldTest or id==oldTest then table.remove(xml,i) changed=true end
+				if suffix:sub(1,#marker)==marker then table.remove(xml,i) changed=true end
 			end
 			if changed==true then
 				if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end
@@ -1209,61 +1208,6 @@ end
 --Temporary diagnostic: render the exact same Proxy Route Object UI on the two standalone
 --start tiles and the original stateful start tile. This intentionally applies no host-specific
 --scale correction so any visual size difference comes from TTS/the object itself.
-function proxyStartTileUIButtonTest()
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return end
-	local bearings={"center","0","60","120","180","240","300"}
-	local buttonScale=0.16
-	local uiFactor=0.16/0.38
-	for _,terrain in pairs(map.getObjects()) do
-		if terrainTiles[terrain.guid]~=nil then
-			local xml=terrain.UI.getXmlTable() or {}
-			for i=#xml,1,-1 do
-				local attributes=xml[i].attributes
-				local id=attributes~=nil and tostring(attributes.id or "") or ""
-				if id:find("ProxyStartTileUITest",1,true)~=nil then table.remove(xml,i) end
-			end
-			local tilePos=terrain.getPosition()
-			local tileScale=terrain.getScale()
-			local scaleX=tileScale.x or tileScale[1] or 2.25
-			local scaleZ=tileScale.z or tileScale[3] or 2.25
-			local uiRotation=terrain.getRotation()[2] or 180
-			for index,bearing in ipairs(bearings) do
-				local hexXY=angleToXY(terrain,bearing)
-				local localHex=terrain.positionToLocal({hexXY[1],tilePos[2],hexXY[2]})
-				local uiX=(localHex.x or localHex[1])*scaleX*110*uiFactor
-				local uiY=(localHex.z or localHex[3])*scaleZ*110*uiFactor
-				local uiDepth=-40*uiFactor
-				local id=terrain.guid.."ProxyStartTileUITest"..tostring(index)
-				xml[#xml+1]={tag="Button",attributes={id=id,height=320,width=320,color="rgba(0,0,0,0.0)",
-					position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(uiRotation),scale=buttonScale.." "..buttonScale},
-					children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
-						{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",
-							offsetXY="0 1",fontSize="62",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="62",
-							text=bearing=="center" and "C" or bearing}}}}}}
-			end
-			terrain.UI.setXmlTable(xml)
-		end
-	end
-end
-
-function proxyStartTileUIButtonTestClear()
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return end
-	for _,terrain in pairs(map.getObjects()) do
-		if terrainTiles[terrain.guid]~=nil then
-			local xml=terrain.UI.getXmlTable() or {}
-			local changed=false
-			for i=#xml,1,-1 do
-				local attributes=xml[i].attributes
-				local id=attributes~=nil and tostring(attributes.id or "") or ""
-				if id:find("ProxyStartTileUITest",1,true)~=nil then table.remove(xml,i) changed=true end
-			end
-			if changed==true then if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end end
-		end
-	end
-end
-
 function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 	if saved==nil or saved.key==nil then return nil,xml end
 	local terrainGUID,bearing=tostring(saved.key):match("^([^|]+)|(.+)$")
@@ -1275,10 +1219,11 @@ function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 	local tileScale=terrain.getScale()
 	local scaleX=tileScale.x or tileScale[1] or 2.25
 	local scaleZ=tileScale.z or tileScale[3] or 2.25
-	local uiX=(localHex.x or localHex[1])*scaleX*110
-	local uiY=(localHex.z or localHex[3])*scaleZ*110
-	local uiDepth=-40
-	local buttonScale=0.38
+	local uiFactor=0.16/0.38
+	local uiX=(localHex.x or localHex[1])*scaleX*110*uiFactor
+	local uiY=(localHex.z or localHex[3])*scaleZ*110*uiFactor
+	local uiDepth=-40*uiFactor
+	local buttonScale=0.16
 	local uiRotation=terrain.getRotation()[2] or 180
 	local count=math.max(1,tonumber(splitCount) or 1)
 	local slot=math.max(1,tonumber(splitIndex) or 1)
