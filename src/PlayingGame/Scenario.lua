@@ -2399,7 +2399,7 @@ function apocalypseIsHereBeginHorsemenTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	gStates.apocalypseHereHorsemenResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn,sameTurn=sameTurn}
 	gStates.apocalypseHereHorsemenQueue=queue
 	gStates.apocalypseHereHorsemenQueueIndex=1
-	gStates.apocalypseHereHorsemenTurnReport="The revealed Horsemen are preparing to move in reveal order."
+	gStates.apocalypseHereHorsemenTurnReport="The Horsemen act in the order they were revealed."
 	gStates.apocalypseHereHorsemenUIState="ReadyToProcess"
 	mainUIUpdate("Horsemen Turn")
 	return true
@@ -2413,7 +2413,7 @@ function apocalypseIsHereMainUIPanelSpec()
 	if state=="ReadyToProcess" then label="{en}Process Horsemen{ru}Process Horsemen{zh-tw}Process Horsemen{zh-cn}Process Horsemen{ko}Process Horsemen{es}Process Horsemen{fr}Process Horsemen{pt-br}Process Horsemen{de}Process Horsemen" active=true
 	elseif state=="ReadyToEnd" then label="{en}Horsemen Processed{ru}Horsemen Processed{zh-tw}Horsemen Processed{zh-cn}Horsemen Processed{ko}Horsemen Processed{es}Horsemen Processed{fr}Horsemen Processed{pt-br}Horsemen Processed{de}Horsemen Processed" active=true
 	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Pick Target{zh-tw}Pick Target{zh-cn}Pick Target{ko}Pick Target{es}Pick Target{fr}Pick Target{pt-br}Pick Target{de}Pick Target" end
-	return {actor="horsemen",mainText="<size=25>Horsemen's Turn</size><size=6>\n\n</size>The Horsemen act in the order they were revealed.",notes=gStates.apocalypseHereHorsemenTurnReport or "Process the Horsemen.",onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
+	return {actor="horsemen",mainText="<size=25>Horsemen's Turn</size>",notes=gStates.apocalypseHereHorsemenTurnReport or "Process the Horsemen.",onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
 end
 
 function apocalypseIsHereMainUIRefresh()
