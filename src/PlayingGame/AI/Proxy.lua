@@ -431,17 +431,13 @@ function proxyInteractionOfferCache(crystals)
 			end
 		end
 	end
-	local spellZone=getObjectFromGUID(GUID.zone.spellOffer)
-	if spellZone~=nil then
-		for _,card in pairs(spellZone.getObjects()) do
-			if card.type=="Card" then
-				for _,color in ipairs(dummyCardColors(card)) do
-					if (crystals[color] or 0)>0 then
-						if cache["mage tower"]==nil then cache["mage tower"]={} end
-						cache["mage tower"][#cache["mage tower"]+1]={kind="spell",card=card,cost=7}
-						break
-					end
-				end
+	local card=mainOfferFirstCard("Spell")
+	if card~=nil then
+		for _,color in ipairs(dummyCardColors(card)) do
+			if (crystals[color] or 0)>0 then
+				if cache["mage tower"]==nil then cache["mage tower"]={} end
+				cache["mage tower"][#cache["mage tower"]+1]={kind="spell",card=card,cost=7}
+				break
 			end
 		end
 	end

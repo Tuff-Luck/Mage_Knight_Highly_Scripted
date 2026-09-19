@@ -31,8 +31,8 @@ rewardSkillHighlightColor={1,0.9,0}
 function clearRewardSkillChoiceHighlights(keepFirstAction)
 	local keepGUID=nil
 	if keepFirstAction==true then
-		local zone=getObjectFromGUID(GUID.zone.actionOffer)
-		if zone~=nil then for _, obj in pairs(zone.getObjects()) do if obj.type=="Card" then keepGUID=obj.guid break end end end
+		local firstAction=mainOfferFirstCard("Advanced Action")
+		if firstAction~=nil then keepGUID=firstAction.guid end
 	end
 	local kept={}
 	for guid, _ in pairs(rewardSkillHighlighted) do
@@ -53,24 +53,15 @@ function addRewardSkillChoiceHighlight(obj)
 end
 
 function rewardSkillChoiceActionCards()
-	local zone=getObjectFromGUID(GUID.zone.offer)
-	local cards={}
-	if zone~=nil then
-		for _, obj in pairs(zone.getObjects()) do
-			if obj.type=="Card" and obj.getGMNotes()=="Advanced Action" then cards[#cards+1]=obj end
-		end
-	end
-	table.sort(cards, function(a,b) return a.getPosition()[1]<b.getPosition()[1] end)
-	return cards
+	return mainOfferCards("Advanced Action")
 end
 
 function rewardSkillChoiceActionHighlights(allCards)
+	local actionCards=rewardSkillChoiceActionCards()
 	if allCards==true then
-		for _, card in ipairs(rewardSkillChoiceActionCards()) do addRewardSkillChoiceHighlight(card) end
-	else
-		--The dedicated actionOffer zone is the first Advanced Action slot only.
-		local zone=getObjectFromGUID(GUID.zone.actionOffer)
-		if zone~=nil then for _, obj in pairs(zone.getObjects()) do if obj.type=="Card" then addRewardSkillChoiceHighlight(obj) return end end end
+		for _,card in ipairs(actionCards) do addRewardSkillChoiceHighlight(card) end
+	elseif actionCards[1]~=nil then
+		addRewardSkillChoiceHighlight(actionCards[1])
 	end
 end
 

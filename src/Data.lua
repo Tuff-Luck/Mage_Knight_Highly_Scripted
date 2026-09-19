@@ -22,7 +22,7 @@ apocalypseDragonAirborneHeads={"War","Death","Famine","Pestilence"}
 ------------
 GUID={
 	deck={artifact="ac75c4", spell="e4372a", action="e926ba", regularUnit="75745b", eliteUnit="c15e86", dayWeather="a822f8", nightWeather="d951b8", krang="bee7bd", goldyx="514e15", volkare="95765b", villageQuest="cabd7d", monasteryQuest="5073ec", cityQuest="4a5525", uniqueQuest="9dffb3", apocalypseQuest="e41b86"},
-	zone={mana="2cd825", regularUnit="4fa2f2", eliteUnit="715b48", unitOffer="a3d99b", actionDeck="7ce69e", spellDeck="f752bb", offer="45cc44", actionOffer="b4f60a", spellOffer="67ca95", skillOffer="d20c01", blueCity="8a7266", redCity="648da8", greenCity="213d78", whiteCity="d2d65e"},
+	zone={mana="2cd825", regularUnit="4fa2f2", eliteUnit="715b48", unitOffer="a3d99b", actionDeck="7ce69e", spellDeck="f752bb", offer="45cc44", skillOffer="d20c01", blueCity="8a7266", redCity="648da8", greenCity="213d78", whiteCity="d2d65e"},
 	tile={country01="e2ecf8", country02="ca8ad3", country03="a501d6", country04="a26c4f", country05="184fb7", country06="208d84", country07="20607e", country08="78fc79", country09="05b612", country10="6510ac", country11="d21095", country12="29a93c", country13="0bf020", country14="7ce33f", country15="b5d212", country16="ab4202", country17="228469", core01="584237", core02="155a31", core03="be86ec", core04="264fa0", city05="314081", city06="63f201", city07="a3ce11", city08="53d847", core09="cff250", core10="de7fad", core11="ed651c", core12="a33586"},
 	bag={forgemaster="11128e", apocalypseDragon="e4b8f4", apocalypseQuestTokens="f7bd64", neutralShield="bdc03e", tezla="96878f", volkare="63f203", volkareReminder="758fb3", common="77b3fd", allSkills="219c37", cemetery="651583", destroyedSite="9d4a53", spareDice="5cf042", possessed="9677da", itemShop="70f4fe", lostLegion="aff5f6", quest="bffdc0", weatherMod="a1e972",
 		terrain={stack="966e0e", leftCore="c87444", leftCountry="37d9b4", leftCity="a0ba93", shuffler="089e71", apocCore="d46331", lostLegionCore="0f4736", apocCountry="54db7d", lostLegionCountry="8f9e0e"},
@@ -1969,9 +1969,8 @@ skillTokens={	["1906f4"]={skillType="Turn", mage="Arythea"},				  	["33d341"]={s
 
 tacticClaimingZones={["9e319e"]="tactic1", ["32172f"]="tactic2", ["bc2046"]="tactic3", ["8363fc"]="tactic4", ["01ac7e"]="tactic5", ["582d2b"]="tactic6"}--Tactic Zones
 
-cardClaimingZones={	[GUID.zone.offer]="offer", --Advanced Actions and Spell Zones
-					[GUID.zone.unitOffer]="unitOffer", --Broad Unit Offer zone; individual Unit slot zones are no longer needed
-					["7700a8"]="monastery", ["d51391"]="monastery", ["5c4c6d"]="monastery", ["caf03e"]="monastery", ["d925e4"]="monastery", ["b7cb3b"]="monastery"}--Monastery Zones
+cardClaimingZones={	[GUID.zone.offer]="offer", --Broad Advanced Action + Spell offer zone
+					[GUID.zone.unitOffer]="unitOffer"}--Broad Unit + Monastery offer zone
 
 reputationTable={	[-7]={repZone="8cab8a", reputationPos={30.03, 1.15, 24.06}, repDisplay="No Interaction"},
 					[-6]={repZone="3c3dd6", reputationPos={31.30, 1.15, 22.84}, repDisplay="-5"},

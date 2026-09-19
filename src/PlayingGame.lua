@@ -1106,18 +1106,55 @@ function unitOfferPosition(slot,count,y)
 	return {unitOfferLayoutX(slot,count),y or unitOfferLayoutConfig.y,unitOfferLayoutConfig.z}
 end
 
+--Advanced Action and Spell rows share one resizable scripting zone. Derive slot order from the
+--cards themselves so expanding/shrinking the offer never needs matching per-slot zones.
+function mainOfferCards(cardType)
+	local cards={}
+	local zone=getObjectFromGUID(GUID.zone.offer)
+	if zone~=nil then
+		for _,obj in pairs(zone.getObjects()) do
+			if obj.type=="Card" and gameCardType(obj)==cardType then cards[#cards+1]=obj end
+		end
+	end
+	table.sort(cards,function(a,b) return a.getPosition()[1]<b.getPosition()[1] end)
+	return cards
+end
+
+function mainOfferFirstCard(cardType)
+	return mainOfferCards(cardType)[1]
+end
+
 function unitOfferIsUnit(obj)
 	if obj==nil or obj.type~="Card" then return false end
 	local cardType=gameCardType(obj)
 	return cardType=="Regular Unit" or cardType=="Elite Unit"
 end
 
---The broad Unit Offer zone also covers the Monastery row. Only Unit cards use its Claim source;
---Monastery cards still use their own row zones.
+function monasteryOfferIsCard(obj)
+	if obj==nil or obj.type~="Card" or gameCardType(obj)~="Advanced Action" then return false end
+	return math.abs(obj.getPosition()[3]+10.2)<=1
+end
+
+function monasteryOfferCards()
+	local cards={}
+	local zone=getObjectFromGUID(GUID.zone.unitOffer)
+	if zone~=nil then
+		for _,obj in pairs(zone.getObjects()) do
+			if monasteryOfferIsCard(obj) then cards[#cards+1]=obj end
+		end
+	end
+	--Smallest X is the highest-numbered printed slot, matching the old reverse zone scan.
+	table.sort(cards,function(a,b) return a.getPosition()[1]<b.getPosition()[1] end)
+	return cards
+end
+
+--Offer claims use two broad scripting zones. The upper zone distinguishes Units from Monastery
+--Advanced Actions by card type/row; the lower zone already covers both Advanced Actions and Spells.
 function offerClaimSource(zoneGUID,obj)
 	local source=cardClaimingZones[zoneGUID]
 	if source~="unitOffer" then return source end
 	if unitOfferIsUnit(obj) then return "unit" end
+	if monasteryOfferIsCard(obj) then return "monastery" end
 	return nil
 end
 
@@ -1185,7 +1222,7 @@ end
 
 function unitOfferCards()
 	local cards={}
-	local zone=getObjectFromGUID("a3d99b")
+	local zone=getObjectFromGUID(GUID.zone.unitOffer)
 	if zone~=nil then
 		for _,obj in pairs(zone.getObjects()) do
 			if unitOfferIsUnit(obj) then cards[#cards+1]=obj end
@@ -1495,21 +1532,32 @@ function leaveAvatarSite(player)
 	gStates.zigguratPyramidUI=nil
 end
 
+function monasteryOfferFirstEmptySlot()
+	local occupied={}
+	local zone=getObjectFromGUID(GUID.zone.unitOffer)
+	if zone~=nil then
+		for _,obj in pairs(zone.getObjects()) do
+			if obj.type=="Card" or obj.type=="Deck" then
+				local pos=obj.getPosition()
+				if math.abs(pos[3]+10.2)<=1 then
+					local slot=math.floor(((40.8-pos[1])/4.8)+0.5)
+					if slot>=1 and slot<=6 then occupied[slot]=true end
+				end
+			end
+		end
+	end
+	for slot=1,6 do if occupied[slot]~=true then return slot end end
+	return nil
+end
+
 function playMonastery()
 	gStates.monasteryCount=gStates.monasteryCount+1
 	if gStates.monasteryCount>=0 then
-		--Look for an empty spot in advanced action offer location
-		local params={rotation ={0, 180, 0}}
-		local monasteryOffer={"b7cb3b", "d925e4", "caf03e", "5c4c6d", "d51391", "7700a8"} --advanced action monastery offer zones
+		--Find the first free printed Monastery slot directly from the broad offer zone.
+		local slot=monasteryOfferFirstEmptySlot()
+		if slot==nil then return end
+		local params={rotation={0,180,0},position={40.8-slot*4.8,0.98,-10.2}}
 		local drawDecks={GUID.zone.regularUnit,GUID.zone.eliteUnit,GUID.zone.actionDeck} --Zone covering Regular units draw deck, Elite Units Draw Deck, Advanced Actions Draw Deck
-		for i=1, #monasteryOffer, 1 do
-			local objCard=getObjectFromGUID(monasteryOffer[i]).getObjects()
-			local found=false
-			for j=1, #objCard, 1 do
-				if objCard[j].type=="Card" or objCard[j].type=="Deck" then found=true break end
-			end
-			if found==false then params.position={40.8-i*4.8, 0.98, -10.2} break end
-		end
 		--Play an advanced action card
 		standardDeckCycleShuffleIfReached("Advanced Action")
 		local MonasteryDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects()

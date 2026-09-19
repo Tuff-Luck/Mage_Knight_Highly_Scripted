@@ -924,21 +924,17 @@ function __endRound_raw(rewindReady)
 		if gStates.positionMageKnight[5]~="nobody" and gStates.positionMageKnight[5]~="Volkare" then
 			--Put advanced action in dummy deck
 			broadcastToAll(proxyPlayerActive()==true and "{en}Proxy Collected The First Advanced Action Card{ru}Прокси получил первую карту Продвинутого действия{zh-cn}代理玩家拿到了第一张高级行动卡{ko}프록시가 첫 번째 상급 액션 카드를 가져갔습니다{es}Proxy consiguió la primera carta de Acción Avanzada.{fr}Le Proxy a récupéré la première carte d’Action Avancée{pt-br}Proxy pegou a primeira Carta de Ação Avançada{de}Proxy hat die erste Fortgeschrittene Aktionskarte genommen" or "{en}Dummy Collected The First Advance Action Card{ru}Нижняя карта из доступных Особых действий, добавлена в колоду деяний виртуального игрока{zh-cn}虚拟玩家拿到了第一张行动卡{ko}마지막 상급 액션이 가상 플레이어 더미에 추가되었습니다{es}El muñeco ha conseguido la Primera carta de Acción Avanzada.{fr}Mannequin a récupéré la Première carte d'Action Avancée{pt-br}Jog. Fictício Clamou a primeira Carta de Ação{de}Dummy hat die erste Vorstoß-Aktionskarte gesammelt", {1,1,0.5})
-			local objCard=getObjectFromGUID(GUID.zone.actionOffer).getObjects()
-			for i=1, #objCard, 1 do
-				if objCard[i].type=="Card" then
-					getObjectFromGUID(objCard[i].guid).unlock()
-					getObjectFromGUID(objCard[i].guid).setRotationSmooth({0,180,180})
-					getObjectFromGUID(objCard[i].guid).setPositionSmooth({getObjectFromGUID(dummyBoard).getPosition()[1]+4.5, 1.17, getObjectFromGUID(dummyBoard).getPosition()[3]-5.2})
-					break
-				end
+			local firstAction=mainOfferFirstCard("Advanced Action")
+			if firstAction~=nil then
+				firstAction.unlock()
+				firstAction.setRotationSmooth({0,180,180})
+				firstAction.setPositionSmooth({getObjectFromGUID(dummyBoard).getPosition()[1]+4.5,1.17,getObjectFromGUID(dummyBoard).getPosition()[3]-5.2})
 			end
 			--Put spell colored crystal in the automated player's inventory. A damaged/empty Spell offer
 			--must not leave obj pointing at a mana bag and then try to count the bag as a crystal.
 			local spellColor=""--read information from the card in the first spell position
-			for _, card in pairs(getObjectFromGUID(GUID.zone.spellOffer).getObjects()) do
-				if card.type=="Card" then spellColor=card.getDescription() break end
-			end
+			local firstSpell=mainOfferFirstCard("Spell")
+			if firstSpell~=nil then spellColor=firstSpell.getDescription() end
 			if spellColor=="Red" or spellColor=="Blue" or spellColor=="Green" or spellColor=="White" then
 				broadcastToAll(joinLang({proxyPlayerActive()==true and "{en}Proxy added a {ru}Прокси получил {zh-cn}代理玩家添加了一个{ko}프록시 저장 칸에 {es}Proxy agregó un cristal de maná {fr}Le Proxy a ajouté un cristal de mana {pt-br}Proxy adicionou um(a) {de}Der Proxy hat einen " or "{en}Dummy added a {ru}Виртуальный игрок получил {zh-cn}虚拟玩家添加了一个{ko}가상 플레이어 저장 칸에 {es}Dummy agregó un cristal de maná {fr}Le mannequin a ajouté un cristal de mana {pt-br}Jog. Fictício adicionou um(a) {de}Die Puppe hat einen ", translateWord[spellColor], "{en} mana crystal to its inventory.{ru} кристалл маны{zh-cn}魔晶到他的装备区. {ko}수정을 추가했습니다{es} a su inventario.{fr} à son inventaire.{pt-br} Cristal de Mana para seu inventário.{de} manakristall in sein Inventar aufgenommen."}), {1,1,0.5})
 				local params={position={0, 1.65, 0}, rotation={0, 30, 0}, smooth=false}
@@ -969,20 +965,20 @@ function __endRound_raw(rewindReady)
 		else
 			--Discards an Advance Action
 			local MainDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects()
-			local discard=getObjectFromGUID(GUID.zone.actionOffer).getObjects()
-			if discard[1]~=nil and MainDeck[1]~=nil then
-				discard[1].unlock()
-				standardDeckCycleMarkReturned("Advanced Action", discard[1])
-				MainDeck[1].putObject(discard[1])
+			local discard=mainOfferFirstCard("Advanced Action")
+			if discard~=nil and MainDeck[1]~=nil then
+				discard.unlock()
+				standardDeckCycleMarkReturned("Advanced Action",discard)
+				MainDeck[1].putObject(discard)
 			end
 		end
 		--Discards the last Spell
 		local MainDeck=getObjectFromGUID(GUID.zone.spellDeck).getObjects()
-		local discard=getObjectFromGUID(GUID.zone.spellOffer).getObjects()
-		if discard[1]~=nil and MainDeck[1]~=nil then
-			discard[1].unlock()
-			standardDeckCycleMarkReturned("Spell", discard[1])
-			MainDeck[1].putObject(discard[1])
+		local discard=mainOfferFirstCard("Spell")
+		if discard~=nil and MainDeck[1]~=nil then
+			discard.unlock()
+			standardDeckCycleMarkReturned("Spell",discard)
+			MainDeck[1].putObject(discard)
 		end
 
 		--Fury delays Elite Units until exploration reaches a City or a Hero has entered one.

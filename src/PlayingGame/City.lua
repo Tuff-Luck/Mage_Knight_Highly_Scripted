@@ -512,19 +512,10 @@ end
 
 function megapolisRemoveMonasteryOffer()
 	if (gStates.monasteryCount or 0)<=0 then return end
-	local monasteryOffer={"b7cb3b","d925e4","caf03e","5c4c6d","d51391","7700a8"}
-	for i=#monasteryOffer,1,-1 do
-		local zone=getObjectFromGUID(monasteryOffer[i])
-		if zone~=nil then
-			for _,card in pairs(zone.getObjects()) do
-				if card.type=="Card" and gameCardType(card)=="Advanced Action" then
-					local deck=standardDeckCycleObject("Advanced Action")
-					if deck~=nil then standardDeckCycleMarkReturned("Advanced Action",card) putCardAtBottom(deck,card) else card.destruct() end
-					gStates.monasteryCount=math.max(0,(gStates.monasteryCount or 0)-1)
-					return
-				end
-			end
-		end
+	local card=monasteryOfferCards()[1]
+	if card~=nil then
+		local deck=standardDeckCycleObject("Advanced Action")
+		if deck~=nil then standardDeckCycleMarkReturned("Advanced Action",card) putCardAtBottom(deck,card) else card.destruct() end
 	end
 	gStates.monasteryCount=math.max(0,(gStates.monasteryCount or 0)-1)
 end
