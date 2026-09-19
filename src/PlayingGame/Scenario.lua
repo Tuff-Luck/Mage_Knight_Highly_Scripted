@@ -1163,7 +1163,7 @@ function horsemanScheduleOccupiedTokenStack(name)
 	end
 end
 
-function horsemanArrangeOccupiedTokenStacksfunction horsemanArrangeOccupiedTokenStacks()
+function horsemanArrangeOccupiedTokenStacks()
 	if gStates==nil then return end
 	for name,_ in pairs(horsemanData or {}) do horsemanScheduleOccupiedTokenStack(name) end
 end
@@ -1920,7 +1920,7 @@ function apocalypseIsHereSetup()
 		end
 		if token~=nil then token.setName("") token.unlock() end
 	end
-	apocalypseIsHerePositionRoundOrderToken()	apocalypseIsHerePositionRoundOrderToken()
+	apocalypseIsHerePositionRoundOrderToken()
 	return true
 end
 
