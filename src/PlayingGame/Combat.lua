@@ -306,7 +306,7 @@ end
 
 function giveQueuedFactionReward(playerIndex, pileGUID)
 	local claimed, reason=takeFactionRewardToken(playerIndex, pileGUID)
-	if claimed~=true and reason~="justFame" then broadcastToAll("No faction reward tokens remain to claim.", positionToColor(playerIndex)) end
+	if claimed~=true and reason~="justFame" then broadcastToAll("{en}No faction reward tokens remain to claim.{ru}Жетонов наград фракции для получения больше не осталось.{zh-tw}沒有剩餘的派系獎勵標記可供領取。{zh-cn}没有剩余的派系奖励标记可供领取。{ko}획득할 수 있는 세력 보상 토큰이 더 이상 없습니다.{es}No quedan fichas de recompensa de facción por reclamar.{fr}Il ne reste plus de jetons de récompense de faction à réclamer.{pt-br}Não restam fichas de recompensa de facção para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker mehr zum Beanspruchen übrig.", positionToColor(playerIndex)) end
 end
 
 local combatMonsterDiscardTokens={
@@ -376,12 +376,12 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	if x<=6 then
 		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
 			local claimed,reason=awardFactionRewardToken(cleanupPlayer,monsterPiles.rewardDark,context.coopCombatReward,"dark")
-			if claimed~=true and reason=="empty" then broadcastToAll("Sorry, there are no more Dark Crusader Faction Reward Tokens to claim.",positionToColor(cleanupPlayer)) end
+			if claimed~=true and reason=="empty" then broadcastToAll("{en}Sorry, there are no more Dark Crusader Faction Reward Tokens to claim.{ru}Извините, жетонов наград фракции Тёмных крестоносцев больше не осталось.{zh-tw}抱歉，沒有更多黑暗十字軍派系獎勵標記可供領取。{zh-cn}抱歉，没有更多黑暗十字军派系奖励标记可供领取。{ko}죄송합니다. 획득할 수 있는 다크 크루세이더 세력 보상 토큰이 더 이상 없습니다.{es}Lo sentimos, no quedan fichas de recompensa de la facción Cruzados Oscuros por reclamar.{fr}Désolé, il ne reste plus de jetons de récompense de la faction Croisés Sombres à réclamer.{pt-br}Desculpe, não restam fichas de recompensa da facção Cruzados Sombrios para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker der Dunklen Kreuzritter mehr zum Beanspruchen übrig.",positionToColor(cleanupPlayer)) end
 		end
 	elseif x>=7 and x<=12 then
 		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
 			local claimed,reason=awardFactionRewardToken(cleanupPlayer,monsterPiles.rewardElem,context.coopCombatReward,"elementalist")
-			if claimed~=true and reason=="empty" then broadcastToAll("Sorry, there are no more Elementalist Faction Reward Tokens to claim.",positionToColor(cleanupPlayer)) end
+			if claimed~=true and reason=="empty" then broadcastToAll("{en}Sorry, there are no more Elementalist Faction Reward Tokens to claim.{ru}Извините, жетонов наград фракции Элементалистов больше не осталось.{zh-tw}抱歉，沒有更多元素使派系獎勵標記可供領取。{zh-cn}抱歉，没有更多元素使派系奖励标记可供领取。{ko}죄송합니다. 획득할 수 있는 엘리멘탈리스트 세력 보상 토큰이 더 이상 없습니다.{es}Lo sentimos, no quedan fichas de recompensa de la facción Elementalista por reclamar.{fr}Désolé, il ne reste plus de jetons de récompense de la faction Élémentaliste à réclamer.{pt-br}Desculpe, não restam fichas de recompensa da facção Elementalista para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker der Elementalisten mehr zum Beanspruchen übrig.",positionToColor(cleanupPlayer)) end
 		end
 	elseif x==27 then
 		local possessedFaction=(gStates.apocalypsePossessedFactionByToken~=nil and gStates.apocalypsePossessedFactionByToken[monsterGUID]) or "Apoc"
@@ -389,7 +389,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		local rewardData=possessedRewards[possessedFaction] or possessedRewards.Apoc
 		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
 			local claimed,reason=awardFactionRewardToken(cleanupPlayer,rewardData.pile,context.coopCombatReward,rewardData.key)
-			if claimed~=true and reason=="empty" then broadcastToAll("Sorry, there are no more Faction Reward Tokens to claim.",positionToColor(cleanupPlayer)) end
+			if claimed~=true and reason=="empty" then broadcastToAll("{en}Sorry, there are no more Faction Reward Tokens to claim.{ru}Извините, жетонов наград фракции больше не осталось.{zh-tw}抱歉，沒有更多派系獎勵標記可供領取。{zh-cn}抱歉，没有更多派系奖励标记可供领取。{ko}죄송합니다. 획득할 수 있는 세력 보상 토큰이 더 이상 없습니다.{es}Lo sentimos, no quedan fichas de recompensa de facción por reclamar.{fr}Désolé, il ne reste plus de jetons de récompense de faction à réclamer.{pt-br}Desculpe, não restam fichas de recompensa de facção para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker mehr zum Beanspruchen übrig.",positionToColor(cleanupPlayer)) end
 		end
 		if gStates.apocalypsePossessedFactionByToken~=nil then gStates.apocalypsePossessedFactionByToken[monsterGUID]=nil end
 	end
@@ -557,7 +557,7 @@ function finalizeCoopLeaderCombat()
 		if leaderObj~=nil then
 			if gStates.monsterPlayLocation[leaderObj.guid]~=nil then leaderObj.setPositionSmooth(gStates.monsterPlayLocation[leaderObj.guid]) end
 			leaderObj.setCustomObject({image=leaderData[currentLeader.terrainHex][finalLevel].tokenImg})
-			leaderObj.setName(currentLeader==darkCrusader and "Dark Crusader Leader Level "..finalLevel or "Elementalist Leader Level "..finalLevel)
+			leaderObj.setName(joinLang({currentLeader==darkCrusader and "{en}Dark Crusader Leader Level {ru}Уровень лидера Тёмных крестоносцев: {zh-tw}黑暗十字軍領袖等級 {zh-cn}黑暗十字军领袖等级 {ko}다크 크루세이더 지도자 레벨 {es}Nivel del líder Cruzado Oscuro {fr}Niveau du chef Croisé Sombre {pt-br}Nível do líder Cruzado Sombrio {de}Stufe des Anführers der Dunklen Kreuzritter " or "{en}Elementalist Leader Level {ru}Уровень лидера Элементалистов: {zh-tw}元素使領袖等級 {zh-cn}元素使领袖等级 {ko}엘리멘탈리스트 지도자 레벨 {es}Nivel del líder Elementalista {fr}Niveau du chef Élémentaliste {pt-br}Nível do líder Elementalista {de}Stufe des Elementalisten-Anführers ", finalLevel}))
 			leaderObj.reload()
 			monsterPugs[currentLeader.token]=leaderData[currentLeader.terrainHex][finalLevel].abilities
 		end
@@ -639,13 +639,13 @@ local rewardClaimDelayWait=nil
 --local slightPause=true
 function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 	if gStates.apocalypseDragonTurnActive==true and (againstDragonFullAttendInProgress==nil or againstDragonFullAttendInProgress(gStates.turnNumber)~=true) then
-		if player~=nil and player.color~=nil then broadcastToColor("Finish the Apocalypse Dragon turn first.",player.color,warningColor) end
+		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Apocalypse Dragon turn first.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 차례를 끝내세요.{es}Primero termina el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
 		return
 	end
 	--Wait.time(function() slightPause=false end, 1)
 	if mouseButton=="-1" and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
 		if gStates.mineClaimPending~=nil then
-			broadcastToColor("Resolve the pending crystal choice before ending the turn.", player.color, warningColor)
+			broadcastToColor("{en}Resolve the pending crystal choice before ending the turn.{ru}Завершите ожидающий выбор кристалла, прежде чем заканчивать ход.{zh-tw}結束回合前，請先完成尚未處理的魔晶選擇。{zh-cn}结束回合前，请先完成尚未处理的魔晶选择。{ko}턴을 끝내기 전에 대기 중인 수정 선택을 완료하세요.{es}Resuelve la elección de cristal pendiente antes de terminar el turno.{fr}Résolvez le choix de cristal en attente avant de terminer le tour.{pt-br}Resolva a escolha de cristal pendente antes de encerrar o turno.{de}Schließe die ausstehende Kristallauswahl ab, bevor du den Zug beendest.", player.color, warningColor)
 			if rewindReady==true then rewindTransactionFinish("Pre-end-turn cleanup") end
 			return
 		end
@@ -894,7 +894,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 								local pursuit=gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]
 								pursuit.state="Stunned" pursuit.stunned=true
 								playAreaObj.setRotation({0, 180, 0})
-								broadcastToAll(joinLang({translateWord[turnOrder[cleanupPlayer].mage],"{en} Stunned the Pursuing Rampager (Skips next turns Movement){ru} «оглушает» преследователя (тот пропускает одно Движение){zh-cn}晕眩了狂暴追击者(它跳过下次行动){ko}: 추적하는 적 기절시킴. (다음 추적 단계 건너뜀.){es} Aturdido al agresor que lo persigue (se salta el movimiento del siguiente turno){fr} Étourdi le saccageur à la poursuite (ignore le mouvement des tours suivants){pt-br} Atordoou o Irascível Perseguidor (Pule próximos turnos de movimento).{de} hat den Verfolger betäubt (überspringt die Bewegung des nächsten Zuges)"}), positionToColor(cleanupPlayer))
+								broadcastToAll(joinLang({translateWord[turnOrder[cleanupPlayer].mage],"{en} Stunned the Pursuing Rampager (Skips next turns Movement){ru} «оглушает» преследователя (тот пропускает одно Движение){zh-tw} 暈眩了狂暴追擊者（它會跳過下次移動）{zh-cn}晕眩了狂暴追击者(它跳过下次行动){ko}: 추적하는 적 기절시킴. (다음 추적 단계 건너뜀.){es} Aturdido al agresor que lo persigue (se salta el movimiento del siguiente turno){fr} Étourdi le saccageur à la poursuite (ignore le mouvement des tours suivants){pt-br} Atordoou o Irascível Perseguidor (Pule próximos turnos de movimento).{de} hat den Verfolger betäubt (überspringt die Bewegung des nächsten Zuges)"}), positionToColor(cleanupPlayer))
 							else
 								local returningMonsterGUID=playAreaObj.guid
 								safeWaitTime("Combat",function()
@@ -999,7 +999,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 										local leaderToken=getObjectFromGUID(currentLeader.token)
 										if leaderToken~=nil then
 											leaderToken.setCustomObject({image=levelData.tokenImg})
-											leaderToken.setName(currentLeader==darkCrusader and "Dark Crusader Leader Level "..currenLeaderLevel or "Elementalist Leader Level "..currenLeaderLevel)
+											leaderToken.setName(joinLang({currentLeader==darkCrusader and "{en}Dark Crusader Leader Level {ru}Уровень лидера Тёмных крестоносцев: {zh-tw}黑暗十字軍領袖等級 {zh-cn}黑暗十字军领袖等级 {ko}다크 크루세이더 지도자 레벨 {es}Nivel del líder Cruzado Oscuro {fr}Niveau du chef Croisé Sombre {pt-br}Nível do líder Cruzado Sombrio {de}Stufe des Anführers der Dunklen Kreuzritter " or "{en}Elementalist Leader Level {ru}Уровень лидера Элементалистов: {zh-tw}元素使領袖等級 {zh-cn}元素使领袖等级 {ko}엘리멘탈리스트 지도자 레벨 {es}Nivel del líder Elementalista {fr}Niveau du chef Élémentaliste {pt-br}Nível do líder Elementalista {de}Stufe des Elementalisten-Anführers ", currenLeaderLevel}))
 											leaderToken.reload()
 										end
 										monsterPugs[currentLeader.token]=levelData.abilities
@@ -1043,7 +1043,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 											if playAreaObj.guid==timeBendingGUID then
 												gStates.timeBendingRemovedSeat=turnOrder[cleanupPlayer].seatPos
 												getObjectFromGUID(trashCan).putObject(playAreaObj)
-												broadcastToAll("Time Bend Left Play", positionToColor(cleanupPlayer))
+												broadcastToAll("{en}Time Bend Left Play{ru}«Изгиб времени» покинул игру{zh-tw}「時間彎曲」離開遊戲區{zh-cn}“时间弯曲”离开游戏区{ko}시간 왜곡이 플레이 영역을 떠났습니다{es}Curvatura Temporal salió del juego{fr}Courbure du Temps a quitté le jeu{pt-br}Dobra Temporal saiu de jogo{de}Zeitkrümmung hat das Spiel verlassen", positionToColor(cleanupPlayer))
 											else
 												playAreaObj.setRotation({0.0, 180.0, 0.0})
 												playAreaObj.setPosition({(turnOrder[cleanupPlayer].seatPos*40)-100, 4, -48.40})
@@ -1706,7 +1706,7 @@ function attachEnemy(player, mouseButton, id, obj, zone)
 						setMonsterObjectButtons(nearEnemy, true)
 						if apocalypseQuestsUsed()==true then safeWaitFrames("Combat",function() apocalypseQuestRefreshOfferButtons() end,2) end
 						safeWaitFrames("Combat",function() mainUIUpdate("possessed") end, 5)
-						broadcastToAll("Enemy Possessed")
+						broadcastToAll("{en}Enemy Possessed{ru}Враг одержим{zh-tw}敵人已被附身{zh-cn}敌人已被附身{ko}적이 빙의되었습니다{es}Enemigo poseído{fr}Ennemi possédé{pt-br}Inimigo possuído{de}Gegner besessen}")
 						break
 					end
 				end
@@ -1722,7 +1722,7 @@ function attachEnemy(player, mouseButton, id, obj, zone)
 		justDetached[detachedGUID]=true
 		clearPossessedEnemy(obj)
 		safeWaitTime("Combat",function() justDetached[detachedGUID]=false end,2)
-		broadcastToAll("Enemy Seperated")
+		broadcastToAll("{en}Enemy Separated{ru}Враг отделён{zh-tw}敵人已分離{zh-cn}敌人已分离{ko}적이 분리되었습니다{es}Enemigo separado{fr}Ennemi séparé{pt-br}Inimigo separado{de}Gegner getrennt}")
 	end
 end
 
@@ -1943,7 +1943,7 @@ function attackLocation(playerDud, mouseButton, id)
 					gStates.againstHorsemenAttackSelection=nil
 					--draw monsters for ruin token if undefeated tokens don't exist.
 					if ruinGUID~="" and gStates.monsterOffsetX==2.5 then
-						broadcastToAll("{en}Monster Drawn to Player Board{ru}Жетон врага был помещен на стол игрока{zh-cn}怪物被抽到玩家面板了{ko}몬스터와 전투합니다{es}Monstruo Dibujado al Tablero del Jugador{fr}Monstre Dessiné sur le Plateau du Joueur{pt-br}Monstro Puxado para o Tabuleiro do Jogador{de}Monster auf das Spielerbrett gezogen", positionToColor(gStates.turnNumber))
+						broadcastToAll("{en}Monster Drawn to Player Board{ru}Жетон врага был помещен на стол игрока{zh-tw}怪物已移到玩家面板{zh-cn}怪物被抽到玩家面板了{ko}몬스터와 전투합니다{es}Monstruo Dibujado al Tablero del Jugador{fr}Monstre Dessiné sur le Plateau du Joueur{pt-br}Monstro Puxado para o Tabuleiro do Jogador{de}Monster auf das Spielerbrett gezogen", positionToColor(gStates.turnNumber))
 						local tokenWait=0
 						for _, monsterColor in pairs(monsterPugs[ruinGUID].monsters) do
 							safeWaitFrames("Combat",function() tokenRefill() end, tokenWait+1)
@@ -2062,18 +2062,18 @@ function attackLocation(playerDud, mouseButton, id)
 							if gStates.monsterOffsetX==0 then
 								if (player.avatarLocation=="dungeon" or player.avatarLocation=="monster den" or player.avatarLocation=="maze"--brown
 									or player.avatarLocation=="spawning grounds") and id:sub(1, 6)=="Attack" then--two browns
-									broadcastToAll("Monster Drawn to Player Board", positionToColor(gStates.turnNumber))
+									broadcastToAll("{en}Monster Drawn to Player Board{ru}Жетон врага был помещен на стол игрока{zh-tw}怪物已移到玩家面板{zh-cn}怪物被抽到玩家面板了{ko}몬스터와 전투합니다{es}Monstruo Dibujado al Tablero del Jugador{fr}Monstre Dessiné sur le Plateau du Joueur{pt-br}Monstro Puxado para o Tabuleiro do Jogador{de}Monster auf das Spielerbrett gezogen", positionToColor(gStates.turnNumber))
 									drawMonster(monsterPiles.tan, player, id)
 									if player.avatarLocation=="spawning grounds" then safeWaitFrames("Combat",function() drawMonster(monsterPiles.tan, player, id) end, 10)	end
 								end
-								if player.avatarLocation=="monastery" and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.purple, player, id) broadcastToAll("{en}Monastery Defender Drawn to Player Board{ru}Жетон защитника Монастыря был помещен на стол игрока{zh-cn}修道院驻军移到玩家面板上{ko}수도원의 수비자와 전투합니다{es}Defensor del Monasterio dibujado en el tablero del jugador{fr}Défenseur du Monastère dessiné sur le plateau du joueur{pt-br}Defensor do Monastério puxado para o tabuleiro do joador{de}Verteidiger des Klosters auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
-								if (player.avatarLocation=="tomb" or player.avatarLocation=="labyrinth") and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.red, player, id) broadcastToAll("{en}Dragon Drawn to Player Board{ru}Жетон Драконума был помещен на стол игрока{zh-cn}将龙放到玩家面板{ko}드래곤과 전투하세요{es}Dragón dibujado al tablero del jugador{fr}Dragon dessiné sur le plateau du joueur{pt-br}Dragão Puxado para o tabuleiro do jogador{de}Drache auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
+								if player.avatarLocation=="monastery" and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.purple, player, id) broadcastToAll("{en}Monastery Defender Drawn to Player Board{ru}Жетон защитника Монастыря был помещен на стол игрока{zh-tw}修道院守軍已移到玩家面板{zh-cn}修道院驻军移到玩家面板上{ko}수도원의 수비자와 전투합니다{es}Defensor del Monasterio dibujado en el tablero del jugador{fr}Défenseur du Monastère dessiné sur le plateau du joueur{pt-br}Defensor do Monastério puxado para o tabuleiro do joador{de}Verteidiger des Klosters auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
+								if (player.avatarLocation=="tomb" or player.avatarLocation=="labyrinth") and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.red, player, id) broadcastToAll("{en}Dragon Drawn to Player Board{ru}Жетон Драконума был помещен на стол игрока{zh-tw}巨龍已移到玩家面板{zh-cn}将龙放到玩家面板{ko}드래곤과 전투하세요{es}Dragón dibujado al tablero del jugador{fr}Dragon dessiné sur le plateau du joueur{pt-br}Dragão Puxado para o tabuleiro do jogador{de}Drache auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
 								if player.avatarLocation=="keep" and id:sub(1, 6)=="Attack" then
 									local found=false
 									for _, shield in pairs(getObjectFromGUID(mapArea).getObjects()) do
 										if shield.getName()=="Shield" and volkarePursuitShieldRegistered(shield)~=true and (shield.getDescription()==player.mage or gStates.coop==1) and math.sqrt(((shield.getPosition()[1]-avPos[1])^2)+((shield.getPosition()[3]-avPos[3])^2))<1 then found=true break end
 									end
-									if found==false then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{ru}Защитник крепости был помещен на стол игрока{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
+									if found==false then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
 								end
 								if (player.avatarLocation=="ziggurat" or player.avatarLocation=="pyramid") then
 									--update Interface to be fresh and match the location.
@@ -2170,7 +2170,7 @@ function attackLocation(playerDud, mouseButton, id)
 				end
 			end
 		else
-			broadcastToAll("{en}Flip the the Turn Order token of the Mage Knight who Volkare is attacking, and finish Volkare's turn.\n(If not fully Attending the battle, manually move his tokens){ru}Переверните жетон порядка хода Героя, которого атакует Волкар, и завершите ход Волкара\n(Если вы не используете долгую подготовку к битве, вручную переместите его жетоны){zh-cn}翻转沃卡里正在攻击的玩家的顺位板，并完成沃卡里的回合\n（如果没有完成，请手动移动他的标记）{ko}볼케어가 공격하는 플레이어의 라운드 순서 토큰을 뒤집고, 볼케어의 차례를 종료합니다.\n(부분적인 전투 참여의 경우 직접 뒤집으세요.){es}Da la vuelta a la ficha de Orden de turno del Caballero mago que Volkare está atacando y termina el turno de Volkare.\n(Si no asiste por completo a la batalla, mueva manualmente sus fichas){fr}Retournez le jeton Ordre du Tour du Chevalier Mage que Volkare attaque et terminez le tour de Volkare\n(Si vous n'assistez pas complètement à la bataille, déplacez manuellement ses jetons){pt-br}Vire a ficha de ordem de turno do Mage Knight que Volkare está atacando, e termine o Turno de Volkare\n(Se não estiver Atendendo por completo a batalha, então manualmente mova suas fichas{de}Drehe das Zugreihenfolgeplättchen des Magierritters, den Volkare angreift, um und beende Volkares Zug.\n(Wenn er nicht vollständig am Kampf teilnimmt, verschiebe seine Spielsteine manuell)", warningColor)
+			broadcastToAll("{en}Flip the the Turn Order token of the Mage Knight who Volkare is attacking, and finish Volkare's turn.\n(If not fully Attending the battle, manually move his tokens){ru}Переверните жетон порядка хода Героя, которого атакует Волкар, и завершите ход Волкара\n(Если вы не используете долгую подготовку к битве, вручную переместите его жетоны){zh-tw}翻轉沃卡里正在攻擊的魔法騎士之回合順序標記，並完成沃卡里的回合。\n（若未完整參與戰鬥，請手動移動他的標記）{zh-cn}翻转沃卡里正在攻击的玩家的顺位板，并完成沃卡里的回合\n（如果没有完成，请手动移动他的标记）{ko}볼케어가 공격하는 플레이어의 라운드 순서 토큰을 뒤집고, 볼케어의 차례를 종료합니다.\n(부분적인 전투 참여의 경우 직접 뒤집으세요.){es}Da la vuelta a la ficha de Orden de turno del Caballero mago que Volkare está atacando y termina el turno de Volkare.\n(Si no asiste por completo a la batalla, mueva manualmente sus fichas){fr}Retournez le jeton Ordre du Tour du Chevalier Mage que Volkare attaque et terminez le tour de Volkare\n(Si vous n'assistez pas complètement à la bataille, déplacez manuellement ses jetons){pt-br}Vire a ficha de ordem de turno do Mage Knight que Volkare está atacando, e termine o Turno de Volkare\n(Se não estiver Atendendo por completo a batalha, então manualmente mova suas fichas){de}Drehe das Zugreihenfolgeplättchen des Magierritters, den Volkare angreift, um und beende Volkares Zug.\n(Wenn er nicht vollständig am Kampf teilnimmt, verschiebe seine Spielsteine manuell)", warningColor)
 		end
 	end
 end
@@ -2386,8 +2386,8 @@ function attackCity(player, mouseButton, id)
 			end
 		end
 		if played==true then
-			if coopStart==true and gStates.coopAssaultType=="dragon" then broadcastToAll("The Apocalypse Dragon heads have been distributed to the participating Mage Knights.",{1,0.75,0.2})
-			else broadcastToAll("{en}Garrison moved to Player Board.{ru}Гарнизон был помещен на стол игрока{zh-cn}守军移动到玩家面板{ko}수비자와 전투합니다{es}Garrison se movió al tablero de jugador.{fr}La garnison a été transférée au plateau des joueurs.{pt-br}Guarnição mvida para o tabuleiro do jogador{de}Garrison wird auf die Spielertafel verschoben.", positionToColor(gStates.turnNumber)) end
+			if coopStart==true and gStates.coopAssaultType=="dragon" then broadcastToAll("{en}The Apocalypse Dragon heads have been distributed to the participating Mage Knights.{ru}Головы Дракона Апокалипсиса распределены между участвующими Рыцарями-магами.{zh-tw}末日巨龍的龍首已分配給參與的魔法騎士。{zh-cn}末日巨龙的龙首已分配给参与的魔法骑士。{ko}아포칼립스 드래곤 머리가 참여한 메이지 나이트들에게 분배되었습니다.{es}Las cabezas del Dragón del Apocalipsis se han repartido entre los Caballeros Mago participantes.{fr}Les têtes du Dragon de l’Apocalypse ont été réparties entre les Chevaliers-Mages participants.{pt-br}As cabeças do Dragão do Apocalipse foram distribuídas entre os Mage Knights participantes.{de}Die Köpfe des Apokalypse-Drachen wurden unter den teilnehmenden Mage Knights verteilt.",{1,0.75,0.2})
+			else broadcastToAll("{en}Garrison moved to Player Board.{ru}Гарнизон был помещен на стол игрока{zh-tw}守軍已移到玩家面板。{zh-cn}守军移动到玩家面板{ko}수비자와 전투합니다{es}Garrison se movió al tablero de jugador.{fr}La garnison a été transférée au plateau des joueurs.{pt-br}Guarnição mvida para o tabuleiro do jogador{de}Garrison wird auf die Spielertafel verschoben.", positionToColor(gStates.turnNumber)) end
 		end
 		--Give later faction-leader participants an unlocked, buttonless copy now so they can plan their combat.
 		if coopStart==true and gStates.coopAssaultPhase=="combat" and gStates.coopAssaultType=="leader" then createCoopLeaderPreviewClones() end
@@ -2472,6 +2472,9 @@ function coopAssaultUIUpdate()
 	local assaultType=coopAssaultTargetType()
 	local defense=UI.getAttribute("CoopAssaultMainTableText1", "text")=="{en}Combined Defense Possible{ru}Доступна Совместная защита города{zh-tw}可以進行合作防守{zh-cn}可以进行合作防守{ko}협력 수비 가능{es}Defensa Combinada Posible{fr}Défense Combinée Possible{pt-br}Defesa Combinada Possível{de}Gemeinsame Verteidigung möglich"
 	local notParticipating=defense and "{en}not Defending{ru}не защищается{zh-tw}不防守{zh-cn}不防守{ko}수비 안함{es}no Defendiendo{fr}ne pas Défendre{pt-br}não Defendendo{de}nicht verteidigend" or "{en}not Assaulting{ru}не нападает{zh-tw}不突襲{zh-cn}不突袭{ko}강습 안함{es}no Agredir{fr}ne pas Agresser{pt-br}não Agredindo{de}nicht angreifend"
+	local noneText="{en}No{ru}Нет{zh-tw}無{zh-cn}无{ko}없음{es}No{fr}Non{pt-br}Não{de}Nein"
+	local normalAssaultText="{en}Nearby Mage Knights can choose to join this assault by skipping their next turn. This tool randomly gives the amount of defenders chosen to each player. (Remember to pay movement costs){ru}Герои, находящиеся на соседней с городом клетке, могут присоединиться к штурму. Этот инструмент случайным образом выдаст каждому игроку защитников согласно выбранному количеству, а также перевернет их Жетоны Порядка хода лицом вниз.{zh-tw}附近的魔法騎士可以選擇加入突襲。此工具會依據數量隨機分配守軍給每位參與者。（記得支付移動點數）{zh-cn}附近的魔法骑士可以选择加入突袭。此工具会依据数量随机分配守军给每位参与者。（记得支付移动点数）{ko}근처의 메이지 나이트들은 다음 차례를 건너뛰고 이 강습에 참여할 수 있습니다. 이 도구는 선택한 수의 수비자를 각 플레이어에게 무작위로 배정합니다. (이동 비용을 지불하는 것을 잊지 마세요){es}Los Caballeros Mago cercanos pueden unirse a este asalto saltándose su próximo turno. Esta herramienta reparte al azar entre los jugadores la cantidad de defensores elegida. (Recuerda pagar los costes de movimiento){fr}Les Chevaliers-Mages proches peuvent rejoindre cet assaut en sautant leur prochain tour. Cet outil répartit aléatoirement entre les joueurs le nombre de défenseurs choisi. (N’oubliez pas de payer les coûts de mouvement){pt-br}Mage Knights próximos podem participar deste ataque pulando o próximo turno. Esta ferramenta distribui aleatoriamente entre os jogadores a quantidade escolhida de defensores. (Lembre-se de pagar os custos de movimento){de}Mage Knights in der Nähe können sich diesem Angriff anschließen, indem sie ihren nächsten Zug aussetzen. Dieses Werkzeug verteilt die gewählte Anzahl Verteidiger zufällig auf die Spieler. (Denke daran, die Bewegungskosten zu bezahlen)"
+	local defenseText="{en}The City is under attack. Players must skip their next turn and Defend. This tool randomly gives the amount of attackers chosen to each player. All must face Volkare{ru}Город атакован. Игроки должны пропустить свой следующий ход и защищаться. Этот инструмент случайным образом распределяет выбранное число нападающих между игроками. Все должны сражаться с Волкаром.{zh-tw}城市正遭受攻擊。玩家必須跳過下一回合並進行防守。此工具會將選定數量的攻擊者隨機分配給每位玩家。所有人都必須面對沃卡里。{zh-cn}城市正遭受攻击。玩家必须跳过下一回合并进行防守。此工具会将选定数量的攻击者随机分配给每位玩家。所有人都必须面对沃卡里。{ko}도시가 공격받고 있습니다. 플레이어들은 다음 차례를 건너뛰고 방어해야 합니다. 이 도구는 선택한 수의 공격자를 각 플레이어에게 무작위로 배정합니다. 모두 볼케어와 맞서야 합니다.{es}La Ciudad está bajo ataque. Los jugadores deben saltarse su próximo turno y defender. Esta herramienta reparte al azar entre los jugadores la cantidad de atacantes elegida. Todos deben enfrentarse a Volkare.{fr}La Cité est attaquée. Les joueurs doivent sauter leur prochain tour et défendre. Cet outil répartit aléatoirement entre les joueurs le nombre d’attaquants choisi. Tous doivent affronter Volkare.{pt-br}A Cidade está sob ataque. Os jogadores devem pular o próximo turno e defender. Esta ferramenta distribui aleatoriamente entre os jogadores a quantidade escolhida de atacantes. Todos devem enfrentar Volkare.{de}Die Stadt wird angegriffen. Die Spieler müssen ihren nächsten Zug aussetzen und verteidigen. Dieses Werkzeug verteilt die gewählte Anzahl Angreifer zufällig auf die Spieler. Alle müssen sich Volkare stellen."
 	for _, assignedMonsters in pairs(gStates.assaultData) do if #assignedMonsters.secondary>=1 then size="full" break end end
 	if assaultType=="volkare" and gStates.coopAssaultUnassigned~=nil and #gStates.coopAssaultUnassigned.secondary>=1 then size="full" end
 	UI.setAttribute("Mage3Assault", "active", "false")
@@ -2489,11 +2492,11 @@ function coopAssaultUIUpdate()
 		if entry>=3 then UI.setAttribute("Mage"..entry.."Assault", "active", "true") end
 		UI.setAttribute("Mage"..entry.."AssaultJoin", "interactable", (defense or entry==1) and "false" or "true")
 		UI.setAttribute("Mage"..entry.."AssaultJoinImage", "image", joined and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
-		UI.setAttribute("Mage"..entry.."AssaulterMageName", "text", joinLang({translateWord[mage], joined and "{en} ✓" or "{en} - Join"}))
+		UI.setAttribute("Mage"..entry.."AssaulterMageName", "text", joinLang({translateWord[mage], joined and " ✓" or "{en} - Join{ru} - Присоединиться{zh-tw} - 加入{zh-cn} - 加入{ko} - 참가{es} - Unirse{fr} - Rejoindre{pt-br} - Participar{de} - Beitreten"}))
 		if size=="half" then
 			UI.setAttribute("Mage"..entry.."VolkareCellOne", "active", "false")
 			UI.setAttribute("Mage"..entry.."VolkareCellTwo", "active", "false")
-			local opponentText=assaultType=="dragon" and "{en}Dragon Heads" or "{en}Defenders{ru}Защитником(ами){zh-tw}守軍{zh-cn}守军{ko}수비자{es}Defensores{fr}Défenseurs{pt-br}Defensores{de}Verteidiger"
+			local opponentText=assaultType=="dragon" and "{en}Dragon Heads{ru}Головы Дракона{zh-tw}龍首{zh-cn}龙首{ko}드래곤 머리{es}Cabezas de Dragón{fr}Têtes de Dragon{pt-br}Cabeças do Dragão{de}Drachenköpfe" or "{en}Defenders{ru}Защитником(ами){zh-tw}守軍{zh-cn}守军{ko}수비자{es}Defensores{fr}Défenseurs{pt-br}Defensores{de}Verteidiger"
 			UI.setAttribute("Mage"..entry.."AssaulterOpponentType", "text", joined and opponentText or notParticipating)
 			UI.setAttribute("Mage"..entry.."AssaulterOpponentType", "alignment", "MiddleLeft")
 		else
@@ -2503,7 +2506,7 @@ function coopAssaultUIUpdate()
 			UI.setAttribute("Mage"..entry.."AssaulterOpponentType", "alignment", "MiddleCenter")
 			UI.setAttribute("Mage"..entry.."AssaulterOpponentTypeTwo", "text", joined and "{en}Elite Units{ru}Элитные отряды{zh-tw}精英部隊{zh-cn}精英部队{ko}엘리트 유닛{es}Unidades de Elite{fr}Unités d'élite{pt-br}Unidades Elites{de}Elite-Einheiten" or notParticipating)
 		end
-		if primaryCount>=1 then UI.setAttribute("Mage"..entry.."AssaulterAmountOne", "text", tostring(primaryCount)) elseif joined then UI.setAttribute("Mage"..entry.."AssaulterAmountOne", "text", "No") else UI.setAttribute("Mage"..entry.."AssaulterAmountOne", "text", "") end
+		if primaryCount>=1 then UI.setAttribute("Mage"..entry.."AssaulterAmountOne", "text", tostring(primaryCount)) elseif joined then UI.setAttribute("Mage"..entry.."AssaulterAmountOne", "text", noneText) else UI.setAttribute("Mage"..entry.."AssaulterAmountOne", "text", "") end
 		local canAdjust=entry~=1 or assaultType=="volkare"
 		local cityMinimum=coopAssaultCityMinimumEnemyRule()
 		local assignedTotal=primaryCount+secondaryCount
@@ -2514,7 +2517,7 @@ function coopAssaultUIUpdate()
 		else UI.setAttribute("Mage"..entry.."AssaultAdjustPrimDo", "interactable", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustPrimDoImage", "image", "Sliced Button/Button New Deactive") end
 		if coopAssaultDividableCount(sourcePrimary)>=1 and canAdjust and canTakeFromSource then UI.setAttribute("Mage"..entry.."AssaultAdjustPrimUp", "interactable", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustPrimUpImage", "image", "Sliced Button/Button New Active")
 		else UI.setAttribute("Mage"..entry.."AssaultAdjustPrimUp", "interactable", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustPrimUpImage", "image", "Sliced Button/Button New Deactive") end
-		if secondaryCount>=1 then UI.setAttribute("Mage"..entry.."AssaulterAmountTwo", "text", tostring(secondaryCount)) elseif joined then UI.setAttribute("Mage"..entry.."AssaulterAmountTwo", "text", "No") else UI.setAttribute("Mage"..entry.."AssaulterAmountTwo", "text", "") end
+		if secondaryCount>=1 then UI.setAttribute("Mage"..entry.."AssaulterAmountTwo", "text", tostring(secondaryCount)) elseif joined then UI.setAttribute("Mage"..entry.."AssaulterAmountTwo", "text", noneText) else UI.setAttribute("Mage"..entry.."AssaulterAmountTwo", "text", "") end
 		if secondaryCount>=1 and canAdjust and canGiveBack then UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDo", "interactable", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDoImage", "image", "Sliced Button/Button New Active")
 		else UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDo", "interactable", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDoImage", "image", "Sliced Button/Button New Deactive") end
 		if coopAssaultDividableCount(sourceSecondary)>=1 and canAdjust and canTakeFromSource then UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUp", "interactable", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUpImage", "image", "Sliced Button/Button New Active")
@@ -2522,19 +2525,19 @@ function coopAssaultUIUpdate()
 		if size=="full" then UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUp", "active", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDo", "active", "true") else UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUp", "active", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDo", "active", "false") end
 	end
 	if assaultType=="dragon" then
-		UI.setAttribute("CoopAssaultMainTableText2", "text", "{en}Mage Knights adjacent to any Dragon space can join by skipping their next turn. Divide every undefeated coloured Dragon head between the participants. The Control head attacks every participant and is not divided.")
+		UI.setAttribute("CoopAssaultMainTableText2", "text", "{en}Mage Knights adjacent to any Dragon space can join by skipping their next turn. Divide every undefeated coloured Dragon head between the participants. The Control head attacks every participant and is not divided.{ru}Рыцари-маги, находящиеся рядом с любой клеткой Дракона, могут присоединиться, пропустив свой следующий ход. Распределите все непобеждённые цветные головы Дракона между участниками. Контрольная голова атакует каждого участника и не распределяется.{zh-tw}與任一巨龍空間相鄰的魔法騎士可以跳過下一回合加入。將所有尚未擊敗的彩色龍首分配給參與者。控制龍首會攻擊每位參與者，不進行分配。{zh-cn}与任一巨龙空间相邻的魔法骑士可以跳过下一回合加入。将所有尚未击败的彩色龙首分配给参与者。控制龙首会攻击每位参与者，不进行分配。{ko}드래곤 칸에 인접한 메이지 나이트는 다음 차례를 건너뛰고 참여할 수 있습니다. 아직 쓰러뜨리지 않은 모든 색상 드래곤 머리를 참가자들에게 나누어 배정하세요. 컨트롤 머리는 모든 참가자를 공격하며 배분하지 않습니다.{es}Los Caballeros Mago adyacentes a cualquier espacio del Dragón pueden unirse saltándose su próximo turno. Reparte entre los participantes todas las cabezas de Dragón de color no derrotadas. La cabeza de Control ataca a todos los participantes y no se reparte.{fr}Les Chevaliers-Mages adjacents à n’importe quel espace du Dragon peuvent participer en sautant leur prochain tour. Répartissez entre les participants toutes les têtes colorées du Dragon encore invaincues. La tête de Contrôle attaque chaque participant et n’est pas répartie.{pt-br}Mage Knights adjacentes a qualquer espaço do Dragão podem participar pulando o próximo turno. Divida entre os participantes todas as cabeças coloridas do Dragão ainda não derrotadas. A cabeça de Controle ataca todos os participantes e não é dividida.{de}Mage Knights neben einem beliebigen Drachenfeld können teilnehmen, indem sie ihren nächsten Zug aussetzen. Verteilt alle noch unbesiegten farbigen Drachenköpfe auf die Teilnehmer. Der Kontrollkopf greift jeden Teilnehmer an und wird nicht verteilt.")
 		UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	elseif assaultType=="horsemen" then
-		UI.setAttribute("CoopAssaultMainTableText2", "text", "{en}Nearby Mage Knights can join the assault on the Magical Glade by skipping their next turn. Divide the surviving Horsemen between all participating Mage Knights.")
+		UI.setAttribute("CoopAssaultMainTableText2", "text", "{en}Nearby Mage Knights can join the assault on the Magical Glade by skipping their next turn. Divide the surviving Horsemen between all participating Mage Knights.{ru}Ближайшие Рыцари-маги могут присоединиться к штурму Волшебной поляны, пропустив свой следующий ход. Распределите выживших Всадников между всеми участвующими Рыцарями-магами.{zh-tw}附近的魔法騎士可以跳過下一回合加入對魔法林地的突襲。將存活的天啟騎士分配給所有參與的魔法騎士。{zh-cn}附近的魔法骑士可以跳过下一回合加入对魔法林地的突袭。将存活的天启骑士分配给所有参与的魔法骑士。{ko}근처의 메이지 나이트는 다음 차례를 건너뛰고 마법의 숲 공터 강습에 참여할 수 있습니다. 살아남은 묵시록의 기사들을 모든 참가 메이지 나이트에게 나누어 배정하세요.{es}Los Caballeros Mago cercanos pueden unirse al asalto de la Arboleda Mágica saltándose su próximo turno. Reparte los Jinetes supervivientes entre todos los Caballeros Mago participantes.{fr}Les Chevaliers-Mages proches peuvent rejoindre l’assaut de la Clairière Magique en sautant leur prochain tour. Répartissez les Cavaliers survivants entre tous les Chevaliers-Mages participants.{pt-br}Mage Knights próximos podem participar do ataque à Clareira Mágica pulando o próximo turno. Divida os Cavaleiros sobreviventes entre todos os Mage Knights participantes.{de}Mage Knights in der Nähe können sich dem Angriff auf die Magische Lichtung anschließen, indem sie ihren nächsten Zug aussetzen. Verteilt die überlebenden Reiter auf alle teilnehmenden Mage Knights.")
 		UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	elseif assaultType=="volkare" then
 		local unassignedPrimary=coopAssaultDividableCount(sourcePrimary)
 		local unassignedSecondary=coopAssaultDividableCount(sourceSecondary)
-		UI.setAttribute("CoopAssaultMainTableText2", "text", defense and "{en}The City is under attack. Players must skip their next turn and Defend. This tool randomly gives the amount of attackers chosen to each player. All must face Volkare" or "{en}Nearby Mage Knights can choose to join this assault by skipping their next turn. This tool randomly gives the amount of defenders chosen to each player. (Remember to pay movement costs)")
+		UI.setAttribute("CoopAssaultMainTableText2", "text", defense and defenseText or normalAssaultText)
 		UI.setAttribute("CoopAssaultMainTableText3", "active", "true")
-		UI.setAttribute("CoopAssaultMainTableText3", "text", "{en}Unassigned Volkare army enemies: Regular "..tostring(unassignedPrimary).." | Elite "..tostring(unassignedSecondary))
+		UI.setAttribute("CoopAssaultMainTableText3", "text", joinLang({"{en}Unassigned Volkare army enemies: Regular {ru}Нераспределённые враги армии Волкара: обычные {zh-tw}未分配的沃卡里軍隊敵人：一般 {zh-cn}未分配的沃卡里军队敌人：普通 {ko}배정되지 않은 볼케어 군대 적: 일반 {es}Enemigos sin asignar del ejército de Volkare: Regulares {fr}Ennemis non assignés de l’armée de Volkare : réguliers {pt-br}Inimigos não atribuídos do exército de Volkare: Regulares {de}Nicht zugewiesene Gegner aus Volkares Armee: Regulär ", tostring(unassignedPrimary), "{en} | Elite {ru} | элитные {zh-tw} | 菁英 {zh-cn} | 精英 {ko} | 정예 {es} | Élite {fr} | élites {pt-br} | Elite {de} | Elite ", tostring(unassignedSecondary)}))
 	else
-		UI.setAttribute("CoopAssaultMainTableText2", "text", defense and "{en}The City is under attack. Players must skip their next turn and Defend. This tool randomly gives the amount of attackers chosen to each player. All must face Volkare" or "{en}Nearby Mage Knights can choose to join this assault by skipping their next turn. This tool randomly gives the amount of defenders chosen to each player. (Remember to pay movement costs)")
+		UI.setAttribute("CoopAssaultMainTableText2", "text", defense and defenseText or normalAssaultText)
 		UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	end
 	local ready=coopAssaultReadyToBegin()
@@ -2581,7 +2584,7 @@ function coopAssaultJoin(player, mouseButton, id)
 					local sourceSecondary=coopAssaultAssignmentSource("secondary") or {}
 					local sourceTotal=coopAssaultDividableCount(sourcePrimary)+coopAssaultDividableCount(sourceSecondary)
 					if sourceTotal<=1 then
-						broadcastToAll("Each Mage Knight joining a combined assault must have at least one defender assigned.", positionToColor(playerIndex))
+						broadcastToAll("{en}Each Mage Knight joining a combined assault must have at least one defender assigned.{ru}Каждому Рыцарю-магу, участвующему в совместном штурме, должен быть назначен как минимум один защитник.{zh-tw}每位加入合作突襲的魔法騎士至少必須分配一名守軍。{zh-cn}每位加入合作突袭的魔法骑士至少必须分配一名守军。{ko}협력 강습에 참가하는 각 메이지 나이트에게 최소 한 명의 수비자가 배정되어야 합니다.{es}Cada Caballero Mago que se una a un asalto combinado debe tener al menos un defensor asignado.{fr}Chaque Chevalier-Mage participant à un assaut combiné doit avoir au moins un défenseur assigné.{pt-br}Cada Mage Knight que participar de um ataque combinado deve ter pelo menos um defensor atribuído.{de}Jedem Mage Knight, der an einem gemeinsamen Angriff teilnimmt, muss mindestens ein Verteidiger zugewiesen sein.", positionToColor(playerIndex))
 						break
 					end
 					local choices={}
@@ -2679,7 +2682,7 @@ end
 function summonMonster(player, mouseButton, id)
 	if mouseButton=="-1" then
 		--draw tokens to the left of summoners token
-		broadcastToAll("{en}Monster Summoned some support{ru}Враг призвал подмогу{zh-cn}怪物叫了些同谋{ko}몬스터가 소환되었습니다{es}Monster convocó algo de apoyo{fr}Monstre a invoqué du soutien{pt-br}Monstro Invocou algum suporte.{de}Monster beschwört etwas Unterstützung", positionToColor(gStates.turnNumber))
+		broadcastToAll("{en}Monster Summoned some support{ru}Враг призвал подмогу{zh-tw}怪物召喚了支援{zh-cn}怪物叫了些同谋{ko}몬스터가 소환되었습니다{es}Monster convocó algo de apoyo{fr}Monstre a invoqué du soutien{pt-br}Monstro Invocou algum suporte.{de}Monster beschwört etwas Unterstützung", positionToColor(gStates.turnNumber))
 		local location=getObjectFromGUID(id).getPosition()
 		local search=monsterPugs[id].monsters
 		local summonerFaction=monsterEffectiveFaction(id)
@@ -2718,7 +2721,7 @@ function summonMonster(player, mouseButton, id)
 						if monsterPugs[possessedToken].boost~=nil then if gStates.monsterPerks[summonedMonster.guid]==nil then gStates.monsterPerks[summonedMonster.guid]={[boost]=monsterPugs[possessedToken].boost} else gStates.monsterPerks[summonedMonster.guid].boost=monsterPugs[possessedToken].boost end end
 					end
 				else
-					broadcastToAll("{en}Sorry, there are no tokens left to deploy{zh-cn}抱歉，没有token可供部署{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan tokens para implementar{fr}Désolé, il n'y a plus de jetons à déployer{pt-br}Desculpe, Não tem Fichas sobrando para distribuir", warningColor)
+					broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения больше не осталось.{zh-tw}抱歉，沒有可部署的標記了。{zh-cn}抱歉，没有token可供部署{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan tokens para implementar{fr}Désolé, il n'y a plus de jetons à déployer{pt-br}Desculpe, Não tem Fichas sobrando para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig.", warningColor)
 				end
 			end, tokenWait+5)
 			tokenWait=tokenWait+5
@@ -2944,9 +2947,9 @@ function pursuingRampagers(player, mouseButton, id)
 							rampageNewPos=monsterDetails.location
 							noMove=true
 							if count<4 and canAttack==false then
-								if protection=="Interaction" or protection=="City" then broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} avoids pursuit at an Interaction site.{ru} избегает преследования в месте взаимодействия.{zh-cn}避免在有交涉的板块追击{ko}: 교류 장소에선 추적을 회피합니다.{es} evita la persecución en un sitio de Interacción.{fr} évite les poursuites sur un site d'Interaction.{pt-br} Evita perseguir em um lugar de interação.{de} vermeidet die Verfolgung an einem Interaktionsort."}), positionToColor(gStates.turnNumber)) end
-								if protection=="Wall" then broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} avoids pursuit behind the wall.{ru} избегает преследования, находясь за стеной.{zh-cn}避免在有城墙的板块追击{ko}: 벽 뒤에선 추적을 회피합니다.{es} evita la persecución detrás de la pared.{fr} évite les poursuites derrière le mur.{pt-br} Evita perseguir atrás de um Muro.{de} vermeidet die Verfolgung hinter einer Mauer."}), positionToColor(gStates.turnNumber)) end
-								if protection=="Fortified" then broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} avoids pursuit at a Fortified site.{ru} избегает преследования в укрепленном месте.{zh-cn}避免在有城防的板块追击{ko}: 요새화된 장소에선 추적을 회피합니다.{es} evita la persecución en un sitio Fortificado.{fr} évite les poursuites sur un site Fortifié.{pt-br} Evita perseguir em um local Fortificado.{de} vermeidet die Verfolgung an einem befestigten Ort."}), positionToColor(gStates.turnNumber)) end
+								if protection=="Interaction" or protection=="City" then broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} avoids pursuit at an Interaction site.{ru} избегает преследования в месте взаимодействия.{zh-tw} 在互動地點避開追擊。{zh-cn}避免在有交涉的板块追击{ko}: 교류 장소에선 추적을 회피합니다.{es} evita la persecución en un sitio de Interacción.{fr} évite les poursuites sur un site d'Interaction.{pt-br} Evita perseguir em um lugar de interação.{de} vermeidet die Verfolgung an einem Interaktionsort."}), positionToColor(gStates.turnNumber)) end
+								if protection=="Wall" then broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} avoids pursuit behind the wall.{ru} избегает преследования, находясь за стеной.{zh-tw} 在城牆後避開追擊。{zh-cn}避免在有城墙的板块追击{ko}: 벽 뒤에선 추적을 회피합니다.{es} evita la persecución detrás de la pared.{fr} évite les poursuites derrière le mur.{pt-br} Evita perseguir atrás de um Muro.{de} vermeidet die Verfolgung hinter einer Mauer."}), positionToColor(gStates.turnNumber)) end
+								if protection=="Fortified" then broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} avoids pursuit at a Fortified site.{ru} избегает преследования в укрепленном месте.{zh-tw} 在要塞地點避開追擊。{zh-cn}避免在有城防的板块追击{ko}: 요새화된 장소에선 추적을 회피합니다.{es} evita la persecución en un sitio Fortificado.{fr} évite les poursuites sur un site Fortifié.{pt-br} Evita perseguir em um local Fortificado.{de} vermeidet die Verfolgung an einem befestigten Ort."}), positionToColor(gStates.turnNumber)) end
 							end
 						end
 						if canAttack==true then
@@ -2957,7 +2960,7 @@ function pursuingRampagers(player, mouseButton, id)
 							noMove=false
 							 gStates.monsterPlayLocation[monsterGUID]=monsterDetails.location
 							getObjectFromGUID(monsterGUID).UI.setXmlTable({{}})
-							broadcastToAll(joinLang({"{en}Pursuing Monster Attacked {ru}Преследующие враги напали на {zh-cn}被追击怪物所攻击{ko}추적 중인 몬스터의 공격: {es}Persecución de Monstruos Atacados por {fr}Poursuivant le Monstre Attaqué {pt-br}Monstro Perseguidor Atacado {de}Verfolgtes Monster angegriffen ", translateWord[turnOrder[gStates.turnNumber].mage]}), positionToColor(gStates.turnNumber))
+							broadcastToAll(joinLang({"{en}Pursuing Monster Attacked {ru}Преследующие враги напали на {zh-tw}追擊怪物攻擊了 {zh-cn}被追击怪物所攻击{ko}추적 중인 몬스터의 공격: {es}Persecución de Monstruos Atacados por {fr}Poursuivant le Monstre Attaqué {pt-br}Monstro Perseguidor Atacado {de}Verfolgtes Monster angegriffen ", translateWord[turnOrder[gStates.turnNumber].mage]}), positionToColor(gStates.turnNumber))
 						end
 					end
 					getObjectFromGUID(monsterGUID).setPositionSmooth(rampageNewPos)
