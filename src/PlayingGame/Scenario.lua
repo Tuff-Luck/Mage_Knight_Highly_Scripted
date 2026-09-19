@@ -1822,28 +1822,25 @@ function apocalypseIsHereSetup()
 	gStates.horsemenDefeatedBy={}
 	local level=apocalypseIsHereHorsemanStartingLevel()
 	local componentBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+	--The scenario starts with two separate random Horseman stacks. The cards fall together at the
+	--requested deck position; the tokens form their own independently-randomized stack nine X-units
+	--to the right. Nothing is dealt onto the Dragon head discs during setup.
 	for i,name in ipairs(names) do
 		local data=horsemanData[name]
 		gStates.horsemen[name]={level=level,tokenGUID=data.tokenGUID,revealed=false,defeated=false,retired=false,sitesDestroyed=0,mapSlot=i,revealIndex=i}
-		--The Apocalypse component bag is deleted after setup, so park every Horseman token on the
-		--table now. Keep them face down and unnamed until their reveal condition fires, but leave
-		--both the tokens and cards unlocked while this scenario flow is being tuned.
-		local tokenPosition={-69.80+((i-1)*5.90),0.98,24.25}
-		local token=getObjectFromGUID(data.tokenGUID)
-		if token==nil and componentBag~=nil then
-			token=componentBag.takeObject({guid=data.tokenGUID,position=tokenPosition,rotation={0,180,180},smooth=false})
-		elseif token~=nil then
-			token.unlock() token.setPosition(tokenPosition) token.setRotation({0,180,180})
+		if componentBag~=nil then
+			componentBag.takeObject({guid=data.cardGUID,position={-65.43,1.01+((i-1)*0.18),11.50},rotation={0,180,180},smooth=false})
+		end
+	end
+	local tokenNames={"Famine","Pestilence","Death","War"}
+	for i=#tokenNames,2,-1 do local j=math.random(i) tokenNames[i],tokenNames[j]=tokenNames[j],tokenNames[i] end
+	for i,name in ipairs(tokenNames) do
+		local data=horsemanData[name]
+		local token=nil
+		if componentBag~=nil then
+			token=componentBag.takeObject({guid=data.tokenGUID,position={-56.43,1.01+((i-1)*0.18),11.50},rotation={0,180,180},smooth=false})
 		end
 		if token~=nil then token.setName("") token.unlock() end
-		--The physical Horseman cards form the shuffled face-down scenario stack in the same order.
-		local card=getObjectFromGUID(data.cardGUID)
-		if card==nil and componentBag~=nil then
-			card=componentBag.takeObject({guid=data.cardGUID,position={-58.70,1.00+(i*0.035),26.30},rotation={0,180,180},smooth=false})
-		elseif card~=nil then
-			card.unlock() card.setPosition({-58.70,1.00+(i*0.035),26.30}) card.setRotation({0,180,180})
-		end
-		if card~=nil then card.unlock() end
 	end
 	apocalypseIsHerePositionRoundOrderToken()
 	return true
