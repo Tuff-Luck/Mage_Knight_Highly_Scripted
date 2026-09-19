@@ -1217,11 +1217,10 @@ function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 	local tileScale=terrain.getScale()
 	local scaleX=tileScale.x or tileScale[1] or 2.25
 	local scaleZ=tileScale.z or tileScale[3] or 2.25
-	local uiFactor=terrainTiles[terrain.guid].tileType=="starting" and 1 or (0.16/0.38)
-	local uiX=(localHex.x or localHex[1])*scaleX*110*uiFactor
-	local uiY=(localHex.z or localHex[3])*scaleZ*110*uiFactor
-	local uiDepth=-40*uiFactor
-	local buttonScale=0.38*uiFactor
+	local uiX=(localHex.x or localHex[1])*scaleX*110
+	local uiY=(localHex.z or localHex[3])*scaleZ*110
+	local uiDepth=-40
+	local buttonScale=0.38
 	local uiRotation=terrain.getRotation()[2] or 180
 	local count=math.max(1,tonumber(splitCount) or 1)
 	local slot=math.max(1,tonumber(splitIndex) or 1)
