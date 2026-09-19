@@ -156,6 +156,7 @@ function deedTransferFinishHover(seatPos,entry)
 	local card=getObjectFromGUID(entry.guid)
 	local zone=getObjectFromGUID(deedDeckZones[seatPos])
 	if card==nil or zone==nil then deedTransferComplete(seatPos,entry,false) return end
+	card.unlock()
 	local pile=deedTransferPile(zone,entry.guid)
 	if pile~=nil then
 		local pilePos=pile.getPosition()
@@ -184,23 +185,42 @@ function deedTransferFinishHover(seatPos,entry)
 	end)
 end
 
-function deedTransferPositionReached(guid,target)
+function deedTransferHoverPosition(seatPos,queueIndex)
+	local home=deedTransferHomePosition(seatPos)
+	return {home[1],home[2]+2.0+((queueIndex-1)*0.1),home[3]}
+end
+
+function deedTransferHoverReached(guid,target)
 	local moving=getObjectFromGUID(guid)
 	if moving==nil then return true end
 	local pos=moving.getPosition()
-	return math.abs(pos[1]-target[1])<0.45 and math.abs(pos[2]-target[2])<0.55 and math.abs(pos[3]-target[3])<0.45
+	return math.abs(pos[1]-target[1])<0.18 and math.abs(pos[2]-target[2])<0.18 and math.abs(pos[3]-target[3])<0.18
 end
 
-function deedTransferMoveFinalLeg(seatPos,entry,hover)
+function deedTransferSendToHover(seatPos,entry,queueIndex)
+	if entry==nil or entry.hoverStarted==true then return end
 	local card=getObjectFromGUID(entry.guid)
-	if card==nil then deedTransferComplete(seatPos,entry,false) return end
-	card.setPositionSmooth(hover,false,false)
+	local zone=getObjectFromGUID(deedDeckZones[seatPos])
+	if card==nil or zone==nil then return end
+	entry.hoverStarted=true
+	entry.hover=deedTransferHoverPosition(seatPos,queueIndex)
+	deedTransferState.transit[entry.guid]=zone.guid
+	local pile=deedTransferPile(zone,entry.guid)
+	local rotation=pile~=nil and pile.getRotation() or {0,180,180}
+	card.setRotationSmooth(rotation,false,false)
+	card.setPositionSmooth(entry.hover,false,false)
 	safeWaitCondition("PlayerBoard.CardFlow",function()
-		deedTransferFinishHover(seatPos,entry)
+		local moving=getObjectFromGUID(entry.guid)
+		if moving~=nil then moving.lock() end
+		entry.arrived=true
+		deedTransferProcess(seatPos)
 	end,function()
-		return deedTransferPositionReached(entry.guid,hover)
-	end,3.0,function()
-		deedTransferFinishHover(seatPos,entry)
+		return deedTransferHoverReached(entry.guid,entry.hover)
+	end,4.0,function()
+		local moving=getObjectFromGUID(entry.guid)
+		if moving~=nil then moving.setPosition(entry.hover) moving.lock() end
+		entry.arrived=true
+		deedTransferProcess(seatPos)
 	end)
 end
 
@@ -212,25 +232,10 @@ function deedTransferProcess(seatPos)
 	local card=getObjectFromGUID(entry.guid)
 	local zone=getObjectFromGUID(deedDeckZones[seatPos])
 	if card==nil or zone==nil then deedTransferComplete(seatPos,entry,false) return end
+	if entry.hoverStarted~=true then deedTransferSendToHover(seatPos,entry,1) return end
+	if entry.arrived~=true then return end
 	deedTransferState.active[seatPos]=entry.guid
-	deedTransferState.transit[entry.guid]=zone.guid
-	local pile=deedTransferPile(zone,entry.guid)
-	local target=pile~=nil and pile.getPosition() or deedTransferHomePosition(seatPos)
-	local rotation=pile~=nil and pile.getRotation() or {0,180,180}
-	local hover={target[1],target[2]+2.0,target[3]}
-	local start=card.getPosition()
-	local midpoint={(start[1]+hover[1])/2,(start[2]+hover[2])/2,(start[3]+hover[3])/2}
-	card.setRotationSmooth(rotation,false,false)
-	--TTS smooth movement speeds up visually over long cross-table distances. Unit claims already have
-	--the pace we want, so Deed-card claims travel in two normal-smooth legs instead of one long leg.
-	card.setPositionSmooth(midpoint,false,false)
-	safeWaitCondition("PlayerBoard.CardFlow",function()
-		deedTransferMoveFinalLeg(seatPos,entry,hover)
-	end,function()
-		return deedTransferPositionReached(entry.guid,midpoint)
-	end,3.0,function()
-		deedTransferMoveFinalLeg(seatPos,entry,hover)
-	end)
+	deedTransferFinishHover(seatPos,entry)
 end
 
 function queueCardToDeedDeck(playerIndex,card,rewindReady)
@@ -254,11 +259,17 @@ function queueCardToDeedDeck(playerIndex,card,rewindReady)
 	--ordinary source-zone leave callback a chance to resolve before transit suppression begins.
 	local pos=card.getPosition()
 	card.setPosition({pos[1],pos[2]+3.0,pos[3]})
-	--Register immediately so closely spaced claims keep click order and other systems see this seat as busy
-	--during the short lift delay. Horizontal transit does not begin until the source zone has had two frames.
 	deedTransferState.queues[seatPos]=deedTransferState.queues[seatPos] or {}
-	deedTransferState.queues[seatPos][#deedTransferState.queues[seatPos]+1]={guid=guid,playerIndex=playerIndex}
-	safeWaitFrames("PlayerBoard.CardFlow",function() deedTransferProcess(seatPos) end,2)
+	local entry={guid=guid,playerIndex=playerIndex}
+	deedTransferState.queues[seatPos][#deedTransferState.queues[seatPos]+1]=entry
+	local queueIndex=#deedTransferState.queues[seatPos]
+	--Every claimed Deed card starts its normal smooth move immediately after the source-zone leave settles.
+	--Cards wait directly above the Deed deck, separated vertically by 0.1 so simultaneous claims stay visible
+	--and cannot collide. They are then inserted into the deck in original claim order.
+	safeWaitFrames("PlayerBoard.CardFlow",function()
+		deedTransferSendToHover(seatPos,entry,queueIndex)
+		deedTransferProcess(seatPos)
+	end,2)
 	return true
 end
 
