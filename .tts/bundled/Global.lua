@@ -1408,11 +1408,12 @@ function __onObjectDrop_raw(player_color, dropped_object)
 					if turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and avatarChangedHex==true and
 						apocalypseDragonLairContainsPosition~=nil and apocalypseDragonLairContainsPosition(dropped_object.getPosition())==true and
 						gStates.apocalypseDragonDefeated~=true then
-						turnOrder[gStates.turnNumber].avatarLocation="apocalypse dragon"
 						attackedLocation=nil
 						local dragonApproach=nil
 						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then dragonApproach={playerPickedUpPos[1],playerPickedUpPos[2],playerPickedUpPos[3]} end
-						apocalypseDragonBeginLairAssault(gStates.turnNumber,dragonApproach)
+						if apocalypseDragonBeginLairAssault(gStates.turnNumber,dragonApproach)==true then
+							turnOrder[gStates.turnNumber].avatarLocation="apocalypse dragon"
+						end
 					end
 					if horsemenGladeAssault==true then
 						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then assaultApproachOrigin={playerPickedUpPos[1],playerPickedUpPos[2],playerPickedUpPos[3]} end
@@ -12550,7 +12551,9 @@ function againstHorsemenDefeatSummary()
 	return summary
 end
 
---The cooperative +6 bonus refers to the scoring Mage Knights, not the standard Dummy/optional Proxy.
+--The all-players-Horseman cooperative bonus is scenario-specific: +6 in Against the Horsemen and
+--+5 in Apocalypse is Here. This helper only checks whether the scoring Mage Knights qualify;
+--the standard Dummy/optional Proxy never counts toward that requirement.
 function againstHorsemenEveryScoringPlayerDefeatedOne(summary)
 	if gStates==nil or (gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Apocalypse is Here") or gStates.playerCount<=1 then return false end
 	summary=summary or againstHorsemenDefeatSummary()
@@ -13599,7 +13602,7 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 end
 
 function apocalypseIsHereResolveHorsemanTarget(name,option)
-	local options,startHex,hexes=apocalypseIsHereHorsemanTargetOptions(name)
+	local options,startHex,hexes,mapObjects=apocalypseIsHereHorsemanTargetOptions(name)
 	local target=option~=nil and option.hex or nil
 	if startHex==nil or target==nil then apocalypseIsHereContinueHorsemenTurn() return false end
 	local destination=apocalypseIsHereHorsemanDestination(startHex,target,hexes,name,mapObjects)
@@ -13669,7 +13672,7 @@ function apocalypseIsHereBeginHorsemenTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	gStates.apocalypseHereHorsemenResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn,sameTurn=sameTurn}
 	gStates.apocalypseHereHorsemenQueue=queue
 	gStates.apocalypseHereHorsemenQueueIndex=1
-	gStates.apocalypseHereHorsemenTurnReport="The revealed Horsemen are preparing to move in reveal order."
+	gStates.apocalypseHereHorsemenTurnReport="The Horsemen act in the order they were revealed."
 	gStates.apocalypseHereHorsemenUIState="ReadyToProcess"
 	mainUIUpdate("Horsemen Turn")
 	return true
@@ -13683,7 +13686,7 @@ function apocalypseIsHereMainUIPanelSpec()
 	if state=="ReadyToProcess" then label="{en}Process Horsemen{ru}Process Horsemen{zh-tw}Process Horsemen{zh-cn}Process Horsemen{ko}Process Horsemen{es}Process Horsemen{fr}Process Horsemen{pt-br}Process Horsemen{de}Process Horsemen" active=true
 	elseif state=="ReadyToEnd" then label="{en}Horsemen Processed{ru}Horsemen Processed{zh-tw}Horsemen Processed{zh-cn}Horsemen Processed{ko}Horsemen Processed{es}Horsemen Processed{fr}Horsemen Processed{pt-br}Horsemen Processed{de}Horsemen Processed" active=true
 	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Pick Target{zh-tw}Pick Target{zh-cn}Pick Target{ko}Pick Target{es}Pick Target{fr}Pick Target{pt-br}Pick Target{de}Pick Target" end
-	return {actor="horsemen",mainText="<size=25>Horsemen's Turn</size><size=6>\n\n</size>The Horsemen act in the order they were revealed.",notes=gStates.apocalypseHereHorsemenTurnReport or "Process the Horsemen.",onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
+	return {actor="horsemen",mainText="<size=25>Horsemen's Turn</size>",notes=gStates.apocalypseHereHorsemenTurnReport or "Process the Horsemen.",onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
 end
 
 function apocalypseIsHereMainUIRefresh()
@@ -14908,10 +14911,10 @@ end
 
 function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
 	if apocalypseDragonScenario()~=true or gStates.apocalypseDragonLairRevealed~=true or gStates.apocalypseDragonDefeated==true then return false end
-	if gStates.gameScenario=="Apocalypse is Here" and gStates.apocalypseDragonLairAttacked~=true and apocalypseIsHereEndHorsemen~=nil then apocalypseIsHereEndHorsemen() end
 	if gStates.coopAssaultPhase~=nil or gStates.apocalypseDragonGroundCombat~=nil then return false end
 	local player=turnOrder[playerIndex]
 	if player==nil or playerIndex~=gStates.turnNumber or playerDropoutInactive(playerIndex)==true then return false end
+	local endHorsemenOnStart=gStates.gameScenario=="Apocalypse is Here" and gStates.apocalypseDragonLairAttacked~=true and apocalypseIsHereEndHorsemen~=nil
 	gStates.apocalypseDragonAssaultFortifiedInitiator=gStates.gameScenario=="Apocalypse is Here" and apocalypseIsHereDragonCitySpacePlayer~=nil and apocalypseIsHereDragonCitySpacePlayer(playerIndex)==true
 	local liveHeads={}
 	for _,headName in ipairs(apocalypseDragonColoredHeads) do
@@ -14921,7 +14924,11 @@ function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
 	end
 	if #liveHeads<1 then return false end
 	local nearby=apocalypseDragonCoopAdjacentPlayers(playerIndex)
-	if #liveHeads<2 or #nearby<1 then return apocalypseDragonBeginGroundCombat(playerIndex) end
+	if #liveHeads<2 or #nearby<1 then
+		local started=apocalypseDragonBeginGroundCombat(playerIndex)
+		if started==true and endHorsemenOnStart==true then apocalypseIsHereEndHorsemen() end
+		return started
+	end
 
 	gStates.apocalypseDragonAssaultOrigin=apocalypseDragonAssaultOriginData(approachPosition)
 	gStates.assaultData={[player.mage]={primary={},secondary={},UIPos={1},joined=true}}
@@ -14945,6 +14952,7 @@ function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
 	locationAttacked=true
 	applyColorBarButtons()
 	coopAssaultUIUpdate()
+	if endHorsemenOnStart==true then apocalypseIsHereEndHorsemen() end
 	return true
 end
 
@@ -16636,6 +16644,14 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 			rewardReminderCameraFocus(player.color,"questView")
 			local questGateMessage=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "Complete/Fail the Quest First" or "Complete/Progress the Quest First"
 			broadcastToColor(questGateMessage,player.color,warningColor)
+			if rewindReady==true then rewindTransactionFinish("End turn") end
+			return
+		end
+		if gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
+			local overdue=math.max(1,tonumber(gStates.apocalypseHereForcedRevealCount) or 1)
+			cameraControl(player,"-1","mapView")
+			local message=overdue==1 and "Reveal the overdue Map tile before claiming rewards." or ("Reveal "..tostring(overdue).." overdue Map tiles before claiming rewards.")
+			broadcastToColor(message,player.color,warningColor)
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
@@ -33442,6 +33458,18 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="e735d3", position={-40.87, 1.05, 21.50+2.895-(0.685*gStates.againstTheApocSitePosition)}, rotation={0, 90, 0}, smooth=false}).lock()--Neutral pointer shield token measured offf center of card.
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.destroyedSite, position={-43.00, 1.02, 26.00}, rotation={0, 180, 0}, smooth=false}).lock()--Destroyed Site Bag
 
+			end
+		end
+
+		--Dragon scenarios use Possessed enemies and Apocalypse faction rewards even when the optional
+		--Apocalypse terrain mix is removed. Keep both discard cycles available independently of terrain.
+		if apocalypseDragonScenario()==true then
+			local apocalypseBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+			if apocalypseBag~=nil and getObjectFromGUID(GUID.bag.discard.apocReward)==nil then
+				apocalypseBag.takeObject({guid=GUID.bag.discard.apocReward, position={2.00,0.98,16.00}, rotation={0,180,0}, smooth=false}).lock()
+			end
+			if apocalypseBag~=nil and getObjectFromGUID(GUID.bag.discard.possessed)==nil then
+				apocalypseBag.takeObject({guid=GUID.bag.discard.possessed, position={-1.00,1.07,19.00}, rotation={0,180,0}, smooth=false}).lock()
 			end
 		end
 
