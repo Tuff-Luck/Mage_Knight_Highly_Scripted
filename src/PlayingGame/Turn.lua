@@ -393,6 +393,14 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
+		if gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
+			local overdue=math.max(1,tonumber(gStates.apocalypseHereForcedRevealCount) or 1)
+			cameraControl(player,"-1","mapView")
+			local message=overdue==1 and "Reveal the overdue Map tile before claiming rewards." or ("Reveal "..tostring(overdue).." overdue Map tiles before claiming rewards.")
+			broadcastToColor(message,player.color,warningColor)
+			if rewindReady==true then rewindTransactionFinish("End turn") end
+			return
+		end
 		if steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(rewardSeat)==true then
 			steadyTempoRefreshAll() steadyTempoUpdateRewardGate(rewardSeat)
 			broadcastToAll("Resolve Steady Tempo before claiming rewards.", positionToColor(gStates.turnNumber))
