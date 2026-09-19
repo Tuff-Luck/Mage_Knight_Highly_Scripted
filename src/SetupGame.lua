@@ -396,21 +396,6 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="e735d3", position={-40.87, 1.05, 21.50+2.895-(0.685*gStates.againstTheApocSitePosition)}, rotation={0, 90, 0}, smooth=false}).lock()--Neutral pointer shield token measured offf center of card.
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.destroyedSite, position={-43.00, 1.02, 26.00}, rotation={0, 180, 0}, smooth=false}).lock()--Destroyed Site Bag
 
-				--Against the Apocalypse uses two independent random Horseman stacks. Drop the four cards
-				--onto one spot so TTS forms the physical deck naturally, then do the same with the tokens
-				--nine X-units to the right. Do not pair or deal either stack onto the Dragon head discs.
-				local componentBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-				local horsemen={"Famine","Pestilence","Death","War"}
-				for i=#horsemen,2,-1 do local j=math.random(i) horsemen[i],horsemen[j]=horsemen[j],horsemen[i] end
-				for i,name in ipairs(horsemen) do
-					local data=horsemanData[name]
-					componentBag.takeObject({guid=data.cardGUID,position={-65.43,1.01+((i-1)*0.18),11.50},rotation={0,180,180},smooth=false})
-				end
-				for i=#horsemen,2,-1 do local j=math.random(i) horsemen[i],horsemen[j]=horsemen[j],horsemen[i] end
-				for i,name in ipairs(horsemen) do
-					local data=horsemanData[name]
-					componentBag.takeObject({guid=data.tokenGUID,position={-56.43,1.01+((i-1)*0.18),11.50},rotation={0,180,180},smooth=false})
-				end
 			end
 		end
 
