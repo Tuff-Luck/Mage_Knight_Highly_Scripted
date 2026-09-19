@@ -1205,9 +1205,6 @@ function proxyDestinationChoiceActionText(saved)
 	return "Proxy\n"..tostring(action or "Choose")
 end
 
---Temporary diagnostic: render the exact same Proxy Route Object UI on the two standalone
---start tiles and the original stateful start tile. This intentionally applies no host-specific
---scale correction so any visual size difference comes from TTS/the object itself.
 function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 	if saved==nil or saved.key==nil then return nil,xml end
 	local terrainGUID,bearing=tostring(saved.key):match("^([^|]+)|(.+)$")
