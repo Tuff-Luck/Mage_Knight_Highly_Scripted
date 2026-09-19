@@ -1002,13 +1002,21 @@ function horsemanPriorityDescription(ref)
 end
 
 --Horsemen and map tokens share the same hex centre, so keep the two pieces slightly offset when
---both are present. This includes Ruins; the Ruin exclusion belongs to Proxy combat targeting, not to
---physical map layout. The split is deliberately small (+/-0.1 X/Z).
-local horsemanStackArrangePending={}
+--both are present. This includes Ruins and Destroyed Site markers; the Ruin exclusion belongs to
+--Proxy combat targeting, not to physical map layout. The split is deliberately small (+/-0.1 X/Z).
+local horsemanStackArrangeGeneration={}
 
 local function horsemanStackBaseTokenOnHex(hex,mapObjects,horsemanGUID)
-	--A Ruin is the base site token on a Ruin hex. Check it first because proxyMonstersOnHex()
-	--intentionally excludes Ruins for gameplay reasons.
+	--Destroyed Site markers and Ruins are both physical base tokens on their hex. Check these first
+	--because proxyMonstersOnHex() intentionally excludes Ruins and Destroyed Site markers.
+	for _,obj in pairs(mapObjects or {}) do
+		if obj.guid~=horsemanGUID and obj.getGMNotes~=nil and obj.getGMNotes()=="Destroyed" then
+			local pos=obj.getPosition()
+			local dx=pos[1]-hex.position[1]
+			local dz=pos[3]-hex.position[3]
+			if (dx*dx)+(dz*dz)<1.5 then return obj end
+		end
+	end
 	local ruin=proxyRuinOnHex(hex,mapObjects)
 	if ruin~=nil and ruin.guid~=horsemanGUID then return ruin end
 	for _,obj in pairs(mapObjects or {}) do
@@ -1140,23 +1148,22 @@ function horsemanArrangeOccupiedTokenStack(name)
 	return true
 end
 
---A fresh terrain reveal can drop the Horseman and its existing token onto the hex in the same physics
---window. Three deduplicated checks cover that race. Once the pair is already at +/-0.1 the later checks
---are no-ops, so they do not produce the previous second "hop".
+--A fresh terrain reveal or manual move can put the Horseman and its base token on the hex in
+--different physics windows. Each new schedule gets its own generation, so a second manual move
+--cannot be swallowed by retries from the previous move. Older retries simply become stale.
 function horsemanScheduleOccupiedTokenStack(name)
 	if name==nil then return end
-	if horsemanStackArrangePending[name]==true then return end
-	horsemanStackArrangePending[name]=true
-	for index,delay in ipairs({2,12,30}) do
-		local final=index==3
+	local generation=(horsemanStackArrangeGeneration[name] or 0)+1
+	horsemanStackArrangeGeneration[name]=generation
+	for _,delay in ipairs({2,12,30}) do
 		safeWaitFrames("Scenario",function()
+			if horsemanStackArrangeGeneration[name]~=generation then return end
 			horsemanArrangeOccupiedTokenStack(name)
-			if final==true then horsemanStackArrangePending[name]=nil end
 		end,delay)
 	end
 end
 
-function horsemanArrangeOccupiedTokenStacks()
+function horsemanArrangeOccupiedTokenStacksfunction horsemanArrangeOccupiedTokenStacks()
 	if gStates==nil then return end
 	for name,_ in pairs(horsemanData or {}) do horsemanScheduleOccupiedTokenStack(name) end
 end
@@ -1895,27 +1902,25 @@ function apocalypseIsHereSetup()
 	gStates.horsemenDefeatedBy={}
 	local level=apocalypseIsHereHorsemanStartingLevel()
 	local componentBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	--The scenario starts with two separate random Horseman stacks. The cards fall together at the
-	--requested deck position; the tokens form their own independently-randomized stack nine X-units
-	--to the right. Nothing is dealt onto the Dragon head discs during setup.
+	--The scenario starts with two separate Horseman stacks using the same randomized order. The cards
+	--form the requested deck; the tokens form a matching stack nine X-units to the right. Nothing is
+	--dealt onto the Dragon head discs during setup.
 	for i,name in ipairs(names) do
 		local data=horsemanData[name]
 		gStates.horsemen[name]={level=level,tokenGUID=data.tokenGUID,revealed=false,defeated=false,retired=false,sitesDestroyed=0,mapSlot=i,revealIndex=i}
 		if componentBag~=nil then
-			componentBag.takeObject({guid=data.cardGUID,position={-65.43,1.01+((i-1)*0.18),11.50},rotation={0,180,180},smooth=false})
+			componentBag.takeObject({guid=data.cardGUID,position={-65.43,1.01+((#names-i)*0.18),11.50},rotation={0,180,180},smooth=false})
 		end
 	end
-	local tokenNames={"Famine","Pestilence","Death","War"}
-	for i=#tokenNames,2,-1 do local j=math.random(i) tokenNames[i],tokenNames[j]=tokenNames[j],tokenNames[i] end
-	for i,name in ipairs(tokenNames) do
+	for i,name in ipairs(names) do
 		local data=horsemanData[name]
 		local token=nil
 		if componentBag~=nil then
-			token=componentBag.takeObject({guid=data.tokenGUID,position={-56.43,1.01+((i-1)*0.18),11.50},rotation={0,180,180},smooth=false})
+			token=componentBag.takeObject({guid=data.tokenGUID,position={-56.43,1.01+((#names-i)*0.18),11.50},rotation={0,180,180},smooth=false})
 		end
 		if token~=nil then token.setName("") token.unlock() end
 	end
-	apocalypseIsHerePositionRoundOrderToken()
+	apocalypseIsHerePositionRoundOrderToken()	apocalypseIsHerePositionRoundOrderToken()
 	return true
 end
 
@@ -1961,7 +1966,7 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	local card=getObjectFromGUID(data.cardGUID)
 	if card~=nil then
 		card.unlock()
-		card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,28.10},false,true)
+		card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,0.40},false,true)
 		if card.is_face_down==true then card.flip() end
 	end
 	if gStates.apocalypseHereForcedRevealPending==true then
@@ -2497,7 +2502,7 @@ end
 --A Destroyed Site marker is always the bottom object on its hex. Lift every existing physical object
 --off that hex, settle and lock the marker first, then drop the lifted objects back at their original X/Z.
 --This path is shared by scripted draws and human-dropped Destroyed Site tokens.
-function arrangeDestroyedSiteHex(token,terrain,bearing)
+function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	if token==nil or terrain==nil or bearing==nil then return false end
 	local map=getObjectFromGUID(mapArea)
 	local center=angleToXY(terrain,bearing)
@@ -2557,6 +2562,7 @@ function arrangeDestroyedSiteHex(token,terrain,bearing)
 			end
 		end
 	end)
+	if afterArrange~=nil then afterArrange() end
 	return true
 end
 
@@ -2566,7 +2572,7 @@ function destroySite(token,terrain,bearing)
 	if token==nil or terrain==nil or bearing==nil or terrainTiles[terrain.guid]==nil then return false end
 	local feature=terrainTiles[terrain.guid].hexFeature[bearing]
 	if feature==nil or feature=="" or feature=="portal" or feature=="destroyed" or feature:sub(1,7)=="raised " then return false end
-	arrangeDestroyedSiteHex(token,terrain,bearing)
+	arrangeDestroyedSiteHex(token,terrain,bearing,function() horsemanArrangeOccupiedTokenStacks() end)
 	if gStates.destroyedSites==nil then gStates.destroyedSites={} end
 	gStates.destroyedSites[token.guid]={hexFeature=feature, terrainTile=terrain.guid, hexAngle=bearing}
 	terrainTiles[terrain.guid].hexFeature[bearing]="destroyed"
