@@ -1211,6 +1211,9 @@ end
 --scale correction so any visual size difference comes from TTS/the object itself.
 function proxyStartTileUIButtonTest()
 	local guids={"9901f5","5d0bac","722590","7ce33f"}
+	local bearings={"center","0","60","120","180","240","300"}
+	local buttonScale=0.16
+	local uiFactor=0.16/0.38
 	for _,guid in ipairs(guids) do
 		local terrain=getObjectFromGUID(guid)
 		if terrain~=nil then
@@ -1220,10 +1223,25 @@ function proxyStartTileUIButtonTest()
 				local id=attributes~=nil and tostring(attributes.id or "") or ""
 				if id:find("ProxyStartTileUITest",1,true)~=nil then table.remove(xml,i) end
 			end
-			local id=guid.."ProxyStartTileUITest"
-			xml[#xml+1]={tag="Button",attributes={id=id,height=320,width=320,color="rgba(0,0,0,0.0)",position="0 0 -40",rotation="0 0 180",scale="0.38 0.38"},
-				children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
-					{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize="76",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="76",text="Proxy\nRoute"}}}}}}
+			local tilePos=terrain.getPosition()
+			local tileScale=terrain.getScale()
+			local scaleX=tileScale.x or tileScale[1] or 2.25
+			local scaleZ=tileScale.z or tileScale[3] or 2.25
+			local uiRotation=terrain.getRotation()[2] or 180
+			for index,bearing in ipairs(bearings) do
+				local hexXY=angleToXY(terrain,bearing)
+				local localHex=terrain.positionToLocal({hexXY[1],tilePos[2],hexXY[2]})
+				local uiX=(localHex.x or localHex[1])*scaleX*110*uiFactor
+				local uiY=(localHex.z or localHex[3])*scaleZ*110*uiFactor
+				local uiDepth=-40*uiFactor
+				local id=guid.."ProxyStartTileUITest"..tostring(index)
+				xml[#xml+1]={tag="Button",attributes={id=id,height=320,width=320,color="rgba(0,0,0,0.0)",
+					position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(uiRotation),scale=buttonScale.." "..buttonScale},
+					children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
+						{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",
+							offsetXY="0 1",fontSize="62",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="62",
+							text=bearing=="center" and "C" or bearing}}}}}}
+			end
 			terrain.UI.setXmlTable(xml)
 		end
 	end
