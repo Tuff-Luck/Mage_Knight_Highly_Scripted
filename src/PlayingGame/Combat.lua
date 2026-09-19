@@ -1031,45 +1031,51 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 						end
 					end
 
-					--Cleanup Skills
-					if skillTokens[playAreaObj.guid]~=nil then
-						--Flip all per round skills in current play area face down
-						if skillTokens[playAreaObj.guid].skillType=="Round" then
-							getObjectFromGUID(playAreaObj.guid).setRotationSmooth({0.0, 180.0, 180.0})
+					--Cleanup Skills. A Coop Skill can change state/GUID shortly after leaving its container in
+					--competitive play. Resolve that replacement before touching the object or its saved home.
+					local originalSkillGUID=playAreaObj.guid
+					local cleanupSkillGUID=(skillStateReplacement~=nil and skillStateReplacement[originalSkillGUID]) or originalSkillGUID
+					local cleanupSkillDetails=skillTokens[cleanupSkillGUID] or skillTokens[originalSkillGUID]
+					if cleanupSkillDetails~=nil then
+						local cleanupSkill=getObjectFromGUID(cleanupSkillGUID)
+						local cleanupSkillHome=gStates.mageSkills~=nil and gStates.mageSkills[cleanupSkillGUID] or nil
+						--Flip all per round skills in current play area face down.
+						if cleanupSkill~=nil and cleanupSkillDetails.skillType=="Round" then
+							cleanupSkill.setRotationSmooth({0.0, 180.0, 180.0})
 						end
-						--Return all non coop and comp skills to their recorded position
-						if skillTokens[playAreaObj.guid].skillType=="Round" or skillTokens[playAreaObj.guid].skillType=="Turn" then
-							getObjectFromGUID(playAreaObj.guid).setPositionSmooth({gStates.mageSkills[playAreaObj.guid][1], 1.5, gStates.mageSkills[playAreaObj.guid][3]})
+						--Return all non Coop/Comp Skills only when both the live object and its recorded home still exist.
+						if cleanupSkill~=nil and cleanupSkillHome~=nil and (cleanupSkillDetails.skillType=="Round" or cleanupSkillDetails.skillType=="Turn") then
+							cleanupSkill.setPositionSmooth({cleanupSkillHome[1], 1.5, cleanupSkillHome[3]})
 						end
 						--stop motivation Skills
-						if gStates.mageSkills[playAreaObj.guid]~=nil and gStates.motivationSkill[playAreaObj.guid]~=nil then
-							gStates.motivationSkill[playAreaObj.guid].state="used"
+						if cleanupSkillHome~=nil and gStates.motivationSkill[cleanupSkillGUID]~=nil then
+							gStates.motivationSkill[cleanupSkillGUID].state="used"
 						end
 						--increment master of Chaos
-						if playAreaObj.guid=="1ff34f" then
+						if cleanupSkillGUID=="1ff34f" and cleanupSkill~=nil then
 							gStates.masterOfChaos=gStates.masterOfChaos+1
 							if gStates.masterOfChaos==7 then gStates.masterOfChaos=1 end
-							getObjectFromGUID("1ff34f").setDescription(masterOfChaosData[gStates.masterOfChaos].description)
-							turnOrder[gStates.turnNumber].masterOfChaos="incrementented in turn"
+							cleanupSkill.setDescription(masterOfChaosData[gStates.masterOfChaos].description)
+							if turnOrder[cleanupPlayer]~=nil then turnOrder[cleanupPlayer].masterOfChaos="incrementented in turn" end
 						end
 						--Coop and Comp Skills
-						if skillTokens[playAreaObj.guid].skillType=="Coop" or skillTokens[playAreaObj.guid].skillType=="Comp" then
-							local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[playAreaObj.guid]~=nil
-							local playedBeforeLock=gStates.coopCompSkillLegalThisRound~=nil and gStates.coopCompSkillLegalThisRound[playAreaObj.guid]==true
-							local inRotation=gStates.doingTheRounds[playAreaObj.guid]~=nil and paused==false
-							if paused==false and coopCompSkillPlayLocked()==true and playedBeforeLock==false and inRotation==false then paused=pauseLateCoopCompSkill(playAreaObj.guid, gStates.turnNumber) end
+						if cleanupSkillDetails.skillType=="Coop" or cleanupSkillDetails.skillType=="Comp" then
+							local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[cleanupSkillGUID]~=nil
+							local playedBeforeLock=gStates.coopCompSkillLegalThisRound~=nil and gStates.coopCompSkillLegalThisRound[cleanupSkillGUID]==true
+							local inRotation=gStates.doingTheRounds[cleanupSkillGUID]~=nil and paused==false
+							if paused==false and coopCompSkillPlayLocked()==true and playedBeforeLock==false and inRotation==false then paused=pauseLateCoopCompSkill(cleanupSkillGUID, cleanupPlayer) end
 							if paused==false then
-								if gStates.doingTheRounds[playAreaObj.guid]==nil then
+								if gStates.doingTheRounds[cleanupSkillGUID]==nil then
 									--The real Coop skill starts its circuit; a Comp skill creates reminders and only its owner-reward exceptions stay played.
-									gStates.doingTheRounds[playAreaObj.guid]=gStates.turnNumber
-									if skillTokens[playAreaObj.guid].skillType=="Comp" then createCompetitiveSkillReminders(playAreaObj.guid, gStates.turnNumber)
+									gStates.doingTheRounds[cleanupSkillGUID]=cleanupPlayer
+									if cleanupSkillDetails.skillType=="Comp" then createCompetitiveSkillReminders(cleanupSkillGUID, cleanupPlayer)
 									else
 										if gStates.doingTheRoundsVisited==nil then gStates.doingTheRoundsVisited={} end
-										gStates.doingTheRoundsVisited[playAreaObj.guid]={[gStates.turnNumber]=true}
+										gStates.doingTheRoundsVisited[cleanupSkillGUID]={[cleanupPlayer]=true}
 									end
-								elseif skillTokens[playAreaObj.guid].skillType=="Coop" then
+								elseif cleanupSkillDetails.skillType=="Coop" then
 									--A Coop skill already doing the rounds has now been used, so its circuit ends here.
-									gStates.doingTheRounds[playAreaObj.guid]=nextTurnMerged("nextMageSkipDummy")
+									gStates.doingTheRounds[cleanupSkillGUID]=nextTurnMerged("nextMageSkipDummy")
 								end
 							end
 						end
