@@ -1205,11 +1205,12 @@ function __onObjectDrop_raw(player_color, dropped_object)
 					if turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and avatarChangedHex==true and
 						apocalypseDragonLairContainsPosition~=nil and apocalypseDragonLairContainsPosition(dropped_object.getPosition())==true and
 						gStates.apocalypseDragonDefeated~=true then
-						turnOrder[gStates.turnNumber].avatarLocation="apocalypse dragon"
 						attackedLocation=nil
 						local dragonApproach=nil
 						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then dragonApproach={playerPickedUpPos[1],playerPickedUpPos[2],playerPickedUpPos[3]} end
-						apocalypseDragonBeginLairAssault(gStates.turnNumber,dragonApproach)
+						if apocalypseDragonBeginLairAssault(gStates.turnNumber,dragonApproach)==true then
+							turnOrder[gStates.turnNumber].avatarLocation="apocalypse dragon"
+						end
 					end
 					if horsemenGladeAssault==true then
 						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then assaultApproachOrigin={playerPickedUpPos[1],playerPickedUpPos[2],playerPickedUpPos[3]} end
