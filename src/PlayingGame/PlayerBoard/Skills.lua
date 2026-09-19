@@ -373,12 +373,16 @@ function claimButtonRefresh()
 		end
 		if gStates.tacticRemove==false and gStates.tacticShown==false then
 			--offer buttons
-			for zoneGUID, cardSource in pairs(cardClaimingZones) do
-				for _, card in pairs(getObjectFromGUID(zoneGUID).getObjects()) do
-					if card.type=="Card" and gameCards[card.guid]~=nil then
-						card.UI.setXmlTable({{}})
-						if gStates.preEndTurn==false or (cardSource~="monastery" and gStates.preEndTurn==true) then
-							card.UI.setXmlTable({createClaimButton(card.guid, cardSource)})
+			for zoneGUID, _ in pairs(cardClaimingZones) do
+				local zone=getObjectFromGUID(zoneGUID)
+				if zone~=nil then
+					for _, card in pairs(zone.getObjects()) do
+						local cardSource=offerClaimSource(zoneGUID,card)
+						if card.type=="Card" and gameCards[card.guid]~=nil and cardSource~=nil then
+							card.UI.setXmlTable({{}})
+							if gStates.preEndTurn==false or cardSource~="monastery" then
+								card.UI.setXmlTable({createClaimButton(card.guid, cardSource)})
+							end
 						end
 					end
 				end

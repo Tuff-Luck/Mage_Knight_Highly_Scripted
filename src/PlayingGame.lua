@@ -1086,9 +1086,9 @@ function offerArtifacts(player, mouseButton, id)
 	end
 end
 
---Unit Offer uses eight printed snap/claim positions spanning X=36.0 to X=2.4.
---Overflow (normally Bonds of Loyalty) compresses extra cards inside those fixed endpoints so the
---existing eight scripting zones still cover the whole offer, just like extra Unit columns on player boards.
+--Unit Offer uses eight printed positions spanning X=36.0 to X=2.4.
+--Overflow (normally Bonds of Loyalty) compresses extra cards inside those fixed endpoints. The
+--snap points are rebuilt to the same centres, while one broad scripting zone handles every Unit card.
 unitOfferLayoutConfig={nativeSlots=8,firstX=36.0,lastX=2.4,y=0.98,z=-4.2,cardScale=1.5}
 
 function unitOfferLayoutX(slot,count)
@@ -1106,13 +1106,89 @@ function unitOfferPosition(slot,count,y)
 	return {unitOfferLayoutX(slot,count),y or unitOfferLayoutConfig.y,unitOfferLayoutConfig.z}
 end
 
+function unitOfferIsUnit(obj)
+	if obj==nil or obj.type~="Card" then return false end
+	local cardType=gameCardType(obj)
+	return cardType=="Regular Unit" or cardType=="Elite Unit"
+end
+
+--The broad Unit Offer zone also covers the Monastery row. Only Unit cards use its Claim source;
+--Monastery cards still use their own row zones.
+function offerClaimSource(zoneGUID,obj)
+	local source=cardClaimingZones[zoneGUID]
+	if source~="unitOffer" then return source end
+	if unitOfferIsUnit(obj) then return "unit" end
+	return nil
+end
+
+local function unitOfferSnapWorld(owner,point,isGlobal)
+	if point==nil or point.position==nil then return nil end
+	if isGlobal==true then return point.position end
+	return owner.positionToWorld(point.position)
+end
+
+local function unitOfferSnapInRow(worldPos)
+	if worldPos==nil then return false end
+	local x=worldPos.x or worldPos[1]
+	local z=worldPos.z or worldPos[3]
+	if x==nil or z==nil then return false end
+	return x>=unitOfferLayoutConfig.lastX-0.4 and x<=unitOfferLayoutConfig.firstX+0.4 and math.abs(z-unitOfferLayoutConfig.z)<=0.5
+end
+
+--The eight offer snaps may be global table snaps or attached to the offer mat. Find whichever owns
+--the row, preserve every unrelated snap, then rebuild this row at the same dynamic centres as the cards.
+local function unitOfferSnapTarget()
+	local snaps=Global.getSnapPoints() or {}
+	local matches=0
+	for _,point in ipairs(snaps) do if unitOfferSnapInRow(point.position) then matches=matches+1 end end
+	if matches>=unitOfferLayoutConfig.nativeSlots then return Global,snaps,true end
+	for _,obj in ipairs(getAllObjects()) do
+		local objSnaps=obj.getSnapPoints() or {}
+		if #objSnaps>=unitOfferLayoutConfig.nativeSlots then
+			matches=0
+			for _,point in ipairs(objSnaps) do
+				if unitOfferSnapInRow(unitOfferSnapWorld(obj,point,false)) then matches=matches+1 end
+			end
+			if matches>=unitOfferLayoutConfig.nativeSlots then return obj,objSnaps,false end
+		end
+	end
+	return nil,nil,nil
+end
+
+function refreshUnitOfferSnapPoints(count)
+	local displayCount=math.max(unitOfferLayoutConfig.nativeSlots,count or unitOfferLayoutConfig.nativeSlots)
+	local owner,snaps,isGlobal=unitOfferSnapTarget()
+	if owner==nil then return false end
+	local kept={}
+	local template=nil
+	local templateWorld=nil
+	for _,point in ipairs(snaps) do
+		local world=unitOfferSnapWorld(owner,point,isGlobal)
+		if unitOfferSnapInRow(world) then
+			if template==nil then template=point templateWorld=world end
+		else
+			kept[#kept+1]=point
+		end
+	end
+	if template==nil or templateWorld==nil then return false end
+	local y=templateWorld.y or templateWorld[2] or 0
+	local z=templateWorld.z or templateWorld[3] or unitOfferLayoutConfig.z
+	for slot=1,displayCount do
+		local world={unitOfferLayoutX(slot,displayCount),y,z}
+		local position=world
+		if isGlobal~=true then position=owner.positionToLocal(world) end
+		kept[#kept+1]={position=position,rotation=template.rotation,rotation_snap=template.rotation_snap,tags=template.tags}
+	end
+	owner.setSnapPoints(kept)
+	return true
+end
+
 function unitOfferCards()
 	local cards={}
 	local zone=getObjectFromGUID("a3d99b")
 	if zone~=nil then
 		for _,obj in pairs(zone.getObjects()) do
-			local cardType=gameCardType(obj)
-			if obj.type=="Card" and (cardType=="Regular Unit" or cardType=="Elite Unit") then cards[#cards+1]=obj end
+			if unitOfferIsUnit(obj) then cards[#cards+1]=obj end
 		end
 	end
 	table.sort(cards,function(a,b) return a.getPosition()[1]>b.getPosition()[1] end)
@@ -1139,7 +1215,9 @@ end
 function reflowUnitOffer(targetCount)
 	local cards=unitOfferCards()
 	local displayCount=math.max(targetCount or #cards,#cards)
+	refreshUnitOfferSnapPoints(displayCount)
 	for slot,obj in ipairs(cards) do moveUnitOfferCard(obj,slot,displayCount) end
+	safeWaitTime("PlayingGame",function() if claimButtonRefresh~=nil then claimButtonRefresh() end end,0.5)
 	return #cards,displayCount
 end
 
@@ -1149,6 +1227,7 @@ function addRegularUnitsToOffer(amount)
 	local cards=unitOfferCards()
 	local existing=#cards
 	local finalCount=existing+amount
+	refreshUnitOfferSnapPoints(finalCount)
 	for slot,obj in ipairs(cards) do moveUnitOfferCard(obj,slot,finalCount) end
 	local added=0
 	for slot=existing+1,finalCount do
@@ -1172,11 +1251,13 @@ function addRegularUnitsToOffer(amount)
 			added=added+1
 		end
 	end
+	safeWaitTime("PlayingGame",function() if claimButtonRefresh~=nil then claimButtonRefresh() end end,0.5)
 	return added
 end
 
 --Unit and Monastery Offer update
 function unitOffer()
+	refreshUnitOfferSnapPoints(gStates.totalUnitCount)
 	local monasteryPlace=	{{36.0, 0.98, -10.2}, {31.2, 0.98, -10.2}, {26.4, 0.98, -10.2}, {21.6, 0.98, -10.2}, {16.8, 0.98, -10.2}, {12.0, 0.98, -10.2}}
 	local drawDecks=		{["Regular Unit"]=GUID.zone.regularUnit, ["Elite Unit"]=GUID.zone.eliteUnit, ["Advanced Action"]=GUID.zone.actionDeck}--Zone covering Regular units draw deck, Elite Units Draw Deck, Advanced Actions Draw Deck
 	local skip=false

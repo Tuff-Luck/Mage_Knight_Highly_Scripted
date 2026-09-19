@@ -2124,8 +2124,8 @@ function __onObjectEnterZone_raw(zone, obj)
 		end
 
 		--Offer zone claim buttons and ownership removal
-		if obj.guid~=nil and gameCards[obj.guid]~=nil and cardClaimingZones[zone.guid]~=nil then
-			local cardSource=cardClaimingZones[zone.guid]
+		local cardSource=offerClaimSource(zone.guid,obj)
+		if obj.guid~=nil and gameCards[obj.guid]~=nil and cardSource~=nil then
 			--Remove card ownership if returned to offer
 			for b=1, #turnOrder, 1 do
 				local found=false
@@ -2474,11 +2474,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 		end
 
 		--Remove offer claim buttons
-		for zoneGUID, cardSource in pairs(cardClaimingZones) do
-			if zone.guid==zoneGUID then
-				obj.UI.setXmlTable({{}})
-			end
-		end
+		if offerClaimSource(zone.guid,obj)~=nil then obj.UI.setXmlTable({{}}) end
 
 		--Remove tactic claim buttons
 		for zoneGUID, cardSource in pairs(tacticClaimingZones) do
