@@ -2655,6 +2655,12 @@ function __onObjectLeaveContainer_raw(bag, obj)
 			local coopGUID=obj.guid
 			safeWaitFrames("Events",function() safeWaitCondition("Events",function()
 				local locking=obj.setState(2)
+				if locking~=nil then
+					--setState destroys the old Coop object and creates the competitive-state GUID. Combat cleanup
+					--may already have captured the old GUID, so retain the live replacement for that delayed callback.
+					skillStateReplacement=skillStateReplacement or {}
+					skillStateReplacement[coopGUID]=locking.guid
+				end
 				if locking~=nil and gStates.mageSkills~=nil and gStates.mageSkills[coopGUID]~=nil then
 					gStates.mageSkills[locking.guid]=gStates.mageSkills[coopGUID]
 					gStates.mageSkills[coopGUID]=nil
