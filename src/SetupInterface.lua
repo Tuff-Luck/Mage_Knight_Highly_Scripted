@@ -959,20 +959,32 @@ function baseValueTweak(player, mouseButton, id)
 			end
 
 			if (id=="CityDown" or id=="CityUp") and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="First Conquest" and gStates.gameScenario~="Conquer and Hold" then
-				local cityTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles
+				local setup=scenarioList[gStates.scenarioRef][gStates.playersRef]
+				local cityTiles=setup.cityTiles
+				local minimum=gStates.gameScenario=="Custom" and 0 or 1
 				if id=="CityDown" then
-					if cityTiles>1 then
-						scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles=cityTiles-1
-						table.remove(scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels)
+					if cityTiles>minimum then
+						setup.cityTiles=cityTiles-1
+						--Custom keeps one hidden level value at zero cities because it also sets the
+						--Shades of Tezla faction leaders. Other scenarios remove the final city level normally.
+						if gStates.gameScenario=="Custom" and setup.cityTiles==0 then
+							if setup.cityLevels[1]~=nil and setup.cityLevels[1]>12 then setup.cityLevels[1]=12 end
+						else
+							table.remove(setup.cityLevels)
+						end
 						gStates.megapolis=0
 					end
 				else
 					local max=5
 					if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then max=4 end
 					if cityTiles<max then
-						scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles=cityTiles+1
-						if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels]>22 then scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels]=22 end
-						table.insert(scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels, scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels])
+						setup.cityTiles=cityTiles+1
+						--At zero cities Custom's remaining value is the faction-leader level. The
+						--first city reuses that same value; later cities duplicate the last city level.
+						if not (gStates.gameScenario=="Custom" and cityTiles==0) then
+							if setup.cityLevels[#setup.cityLevels]>22 then setup.cityLevels[#setup.cityLevels]=22 end
+							table.insert(setup.cityLevels, setup.cityLevels[#setup.cityLevels])
+						end
 						gStates.megapolis=0
 					end
 				end
@@ -1002,7 +1014,8 @@ function baseValueTweak(player, mouseButton, id)
 						else
 							local max=22
 							if gStates.megapolis==2 or (gStates.megapolis==1 and scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles==a) then max=22 end
-							if gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" then max=12 end
+							if gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or
+								(gStates.gameScenario=="Custom" and scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles==0) then max=12 end
 							if a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 then max=80 end
 							if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]<max then
 								scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]=scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]+1
@@ -1168,7 +1181,9 @@ function scenarioInfoUpdate()
 	local megapolisMaximum=megapolisMaximumForSetup(gStates.scenarioRef,gStates.playersRef)
 	if gStates.megapolis>megapolisMaximum then gStates.megapolis=megapolisMaximum end
 	ensureSetupMegapolisMinimumLevels()
-	if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[1]>0 then
+	local currentCitySetup=scenarioList[gStates.scenarioRef][gStates.playersRef]
+	local customLeaderOnly=gStates.gameScenario=="Custom" and currentCitySetup.cityTiles==0 and gStates.removeShadesOfTezlaMonsters~=true
+	if currentCitySetup.cityLevels[1]~=nil and currentCitySetup.cityLevels[1]>0 and (currentCitySetup.cityTiles>0 or customLeaderOnly) then
 		UI.setAttribute("CityNote", "active", "false")
 		UI.setAttribute("CityLevelsRow", "active", "true")
 		UI.setAttribute("CityDescriptionRow", "active", "false")
@@ -1184,7 +1199,7 @@ function scenarioInfoUpdate()
 					if (gStates.megapolis==1 and a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles) or (gStates.megapolis==2) and not (a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
 						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Megapolis, Lvl {ru}Мегаполис, ур. {zh-tw}大型城市，等級 {zh-cn}大型城市，等级 {ko}거대도시, 레벨 {es}Megapolis, Niv {fr}Megapolis, Niv {pt-br}Megápolis, Nvl {de}Metropoe, Lvl ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
 					else
-						if (a==1 and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The War of Four")) or (a==2 and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four")) then
+						if (customLeaderOnly and a==1) or (a==1 and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The War of Four")) or (a==2 and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four")) then
 							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader, Level {ru}Лидер, ур. {zh-tw}領袖，等級 {zh-cn}领袖，等级 {ko}지도자, 레벨 {es}Líder, Nivel {fr}Chef, Niveau {pt-br}Líder, Nível {de}Leiter, Level ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
 						else
 							if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]==0 then
@@ -1231,6 +1246,12 @@ function scenarioInfoUpdate()
 		if #scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels<=3 then layout=layout.." 28" end
 		UI.setAttribute("CityLevelschange", "columnWidths", layout)
 		UI.setAttribute("CityLevelschange", "active", "true")
+	elseif currentCitySetup.cityTiles==0 then
+		--With no cities and no Tezla faction leaders there is no city-level information to show.
+		UI.setAttribute("CityLevelschange", "active", "false")
+		UI.setAttribute("CityLevelsRow", "active", "false")
+		UI.setAttribute("CityDescriptionRow", "active", "false")
+		UI.setAttribute("CityNote", "active", "false")
 	else
 		UI.setAttribute("CityLevelschange", "active", "false")
 		UI.setAttribute("CityLevelsRow", "active", "false")
