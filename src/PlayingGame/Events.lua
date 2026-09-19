@@ -2123,21 +2123,37 @@ function __onObjectEnterZone_raw(zone, obj)
 			end
 		end
 
-		--Offer zone claim buttons and ownership removal
-		local cardSource=offerClaimSource(zone.guid,obj)
-		if obj.guid~=nil and gameCards[obj.guid]~=nil and cardSource~=nil then
-			--Remove card ownership if returned to offer
-			for b=1, #turnOrder, 1 do
-				local found=false
-				for c=1, #turnOrder[b].deadDeckInventory, 1 do
-					if obj.guid==turnOrder[b].deadDeckInventory[c] then table.remove(turnOrder[b].deadDeckInventory, c) found=true break end
+		--Offer cards can enter a broad zone while still moving toward their final row. Wait until the
+		--card is resting before deciding whether it is a Unit, Monastery AA, normal AA, or Spell.
+		if obj.guid~=nil and cardClaimingZones[zone.guid]~=nil then
+			local offerZoneGUID=zone.guid
+			local offerCardGUID=obj.guid
+			safeWaitCondition("Events",function()
+				local offerZone=getObjectFromGUID(offerZoneGUID)
+				local offerCard=getObjectFromGUID(offerCardGUID)
+				if offerZone==nil or offerCard==nil then return end
+				local stillInZone=false
+				for _,zoneObj in pairs(offerZone.getObjects()) do
+					if zoneObj.guid==offerCardGUID then stillInZone=true break end
 				end
-				if found==true then break end
-			end
-			--add claim buttons
-			if gStates.tacticShown==false and gStates.tacticRemove==false then
-				obj.UI.setXmlTable({createClaimButton(obj.guid, cardSource)})
-			end
+				if stillInZone~=true then return end
+				local cardSource=offerClaimSource(offerZoneGUID,offerCard)
+				if gameCards[offerCardGUID]==nil or cardSource==nil then return end
+				--Remove card ownership if returned to an offer.
+				for b=1,#turnOrder do
+					local found=false
+					for c=1,#turnOrder[b].deadDeckInventory do
+						if offerCardGUID==turnOrder[b].deadDeckInventory[c] then table.remove(turnOrder[b].deadDeckInventory,c) found=true break end
+					end
+					if found==true then break end
+				end
+				if gStates.tacticShown==false and gStates.tacticRemove==false then
+					offerCard.UI.setXmlTable({createClaimButton(offerCardGUID,cardSource)})
+				end
+			end,function()
+				local offerCard=getObjectFromGUID(offerCardGUID)
+				return offerCard==nil or offerCard.resting
+			end)
 		end
 
 		--protect skill zone from passing through objects
