@@ -620,6 +620,8 @@ end
 
 --city pickup warning.
 function __onObjectPickUp_raw(player_color, picked_up_object)
+	local pickedHorseman=picked_up_object~=nil and horsemanTokenToName~=nil and horsemanTokenToName[picked_up_object.guid] or nil
+	if pickedHorseman~=nil then horsemanReleaseOccupiedToken(pickedHorseman) end
 	puppetMasterTrackPickup(player_color,picked_up_object)
 	--Unlocking and lifting an active Destroyed token undoes that placement without awarding a restoration.
 	if player_color~=nil and picked_up_object.getGMNotes()=="Destroyed" and gStates.destroyedSites~=nil and gStates.destroyedSites[picked_up_object.guid]~=nil then
@@ -886,7 +888,10 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,2)
 	end
 	if droppedHorseman~=nil then
-		safeWaitFrames("Events",function() horsemanArrangeOccupiedTokenStack(droppedHorseman) end,2)
+		horsemanScheduleOccupiedTokenStack(droppedHorseman)
+	elseif monsterPugs[droppedGUID]~=nil then
+		--The ordinary enemy/site token can arrive after the Horseman on a freshly revealed hex.
+		horsemanArrangeOccupiedTokenStacks()
 	end
 	puppetMasterDropped(dropped_object)
 	puppetMasterCheckManualCopyWhenResting(dropped_object)
@@ -1355,6 +1360,8 @@ end
 function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
 	local destroyedGuid=destroyedObj.guid
+	local destroyedHorseman=horsemanTokenToName~=nil and horsemanTokenToName[destroyedGuid] or nil
+	if destroyedHorseman~=nil then horsemanReleaseOccupiedToken(destroyedHorseman) end
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
 	if questScorePlayer~=nil then
 		if apocalypseQuestScoresRequired()==true then
@@ -1398,6 +1405,11 @@ workingOnTerrain={}
 shieldLocationWait=nil
 masterOfChaosWait=nil
 function __onObjectEnterZone_raw(zone, obj)
+	if zone~=nil and obj~=nil and zone.guid==mapArea and monsterPugs[obj.guid]~=nil then
+		local enteredHorseman=horsemanTokenToName~=nil and horsemanTokenToName[obj.guid] or nil
+		if enteredHorseman~=nil then horsemanScheduleOccupiedTokenStack(enteredHorseman)
+		else horsemanArrangeOccupiedTokenStacks() end
+	end
 	if obj~=nil and apocalypseDragonGroundCombatToken~=nil then
 		local active,headName,owner=apocalypseDragonGroundCombatToken(obj.guid)
 		if active==true and headName~="Control" and owner~=nil then safeWaitFrames("Events",function() apocalypseDragonRefreshGroundFameGain(owner) end,1) end
@@ -2587,6 +2599,8 @@ end
 
 --Container Shuffling, Image Updating and size changing
 function __onObjectEnterContainer_raw(bag, obj)
+	local containedHorseman=obj~=nil and horsemanTokenToName~=nil and horsemanTokenToName[obj.guid] or nil
+	if containedHorseman~=nil then horsemanReleaseOccupiedToken(containedHorseman) end
 	--Putting a just-created Puppet in the Trash chest is the physical undo gesture for Puppet Master.
 	if bag~=nil and obj~=nil and bag.guid==trashCan then
 		local puppetPickup=puppetMasterPickup[obj.guid]
