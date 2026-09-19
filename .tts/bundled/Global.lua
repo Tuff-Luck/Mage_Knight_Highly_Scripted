@@ -823,6 +823,8 @@ end
 
 --city pickup warning.
 function __onObjectPickUp_raw(player_color, picked_up_object)
+	local pickedHorseman=picked_up_object~=nil and horsemanTokenToName~=nil and horsemanTokenToName[picked_up_object.guid] or nil
+	if pickedHorseman~=nil then horsemanReleaseOccupiedToken(pickedHorseman) end
 	puppetMasterTrackPickup(player_color,picked_up_object)
 	--Unlocking and lifting an active Destroyed token undoes that placement without awarding a restoration.
 	if player_color~=nil and picked_up_object.getGMNotes()=="Destroyed" and gStates.destroyedSites~=nil and gStates.destroyedSites[picked_up_object.guid]~=nil then
@@ -1084,8 +1086,15 @@ end
 --Update skill Locations, Update Players Location details, and Update the UI and trigger a Level up if a mage shield was moved manually
 function __onObjectDrop_raw(player_color, dropped_object)
 	local droppedGUID=dropped_object.guid
-	if gStates.gameScenario=="Against the Horsemen Blitz" and (terrainTiles[droppedGUID]~=nil or (horsemanTokenToName~=nil and horsemanTokenToName[droppedGUID]~=nil)) then
+	local droppedHorseman=horsemanTokenToName~=nil and horsemanTokenToName[droppedGUID] or nil
+	if gStates.gameScenario=="Against the Horsemen Blitz" and (terrainTiles[droppedGUID]~=nil or droppedHorseman~=nil) then
 		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,2)
+	end
+	if droppedHorseman~=nil then
+		horsemanScheduleOccupiedTokenStack(droppedHorseman)
+	elseif monsterPugs[droppedGUID]~=nil then
+		--The ordinary enemy/site token can arrive after the Horseman on a freshly revealed hex.
+		horsemanArrangeOccupiedTokenStacks()
 	end
 	puppetMasterDropped(dropped_object)
 	puppetMasterCheckManualCopyWhenResting(dropped_object)
@@ -1554,6 +1563,8 @@ end
 function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
 	local destroyedGuid=destroyedObj.guid
+	local destroyedHorseman=horsemanTokenToName~=nil and horsemanTokenToName[destroyedGuid] or nil
+	if destroyedHorseman~=nil then horsemanReleaseOccupiedToken(destroyedHorseman) end
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
 	if questScorePlayer~=nil then
 		if apocalypseQuestScoresRequired()==true then
@@ -1597,6 +1608,11 @@ workingOnTerrain={}
 shieldLocationWait=nil
 masterOfChaosWait=nil
 function __onObjectEnterZone_raw(zone, obj)
+	if zone~=nil and obj~=nil and zone.guid==mapArea and monsterPugs[obj.guid]~=nil then
+		local enteredHorseman=horsemanTokenToName~=nil and horsemanTokenToName[obj.guid] or nil
+		if enteredHorseman~=nil then horsemanScheduleOccupiedTokenStack(enteredHorseman)
+		else horsemanArrangeOccupiedTokenStacks() end
+	end
 	if obj~=nil and apocalypseDragonGroundCombatToken~=nil then
 		local active,headName,owner=apocalypseDragonGroundCombatToken(obj.guid)
 		if active==true and headName~="Control" and owner~=nil then safeWaitFrames("Events",function() apocalypseDragonRefreshGroundFameGain(owner) end,1) end
@@ -2105,7 +2121,7 @@ function __onObjectEnterZone_raw(zone, obj)
 						updateMoveDisplay()
 					end
 					if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals()
-					elseif gStates.gameScenario=="Apocalypse is Here" then horsemanArrangeOccupiedTokenStacks() end
+					else horsemanArrangeOccupiedTokenStacks() end
 					fakeDropAvatar()
 					apocalypseQuestRefreshOfferButtons()
 				end, tokenWait+10)
@@ -2326,21 +2342,37 @@ function __onObjectEnterZone_raw(zone, obj)
 			end
 		end
 
-		--Offer zone claim buttons and ownership removal
-		local cardSource=offerClaimSource(zone.guid,obj)
-		if obj.guid~=nil and gameCards[obj.guid]~=nil and cardSource~=nil then
-			--Remove card ownership if returned to offer
-			for b=1, #turnOrder, 1 do
-				local found=false
-				for c=1, #turnOrder[b].deadDeckInventory, 1 do
-					if obj.guid==turnOrder[b].deadDeckInventory[c] then table.remove(turnOrder[b].deadDeckInventory, c) found=true break end
+		--Offer cards can enter a broad zone while still moving toward their final row. Wait until the
+		--card is resting before deciding whether it is a Unit, Monastery AA, normal AA, or Spell.
+		if obj.guid~=nil and cardClaimingZones[zone.guid]~=nil then
+			local offerZoneGUID=zone.guid
+			local offerCardGUID=obj.guid
+			safeWaitCondition("Events",function()
+				local offerZone=getObjectFromGUID(offerZoneGUID)
+				local offerCard=getObjectFromGUID(offerCardGUID)
+				if offerZone==nil or offerCard==nil then return end
+				local stillInZone=false
+				for _,zoneObj in pairs(offerZone.getObjects()) do
+					if zoneObj.guid==offerCardGUID then stillInZone=true break end
 				end
-				if found==true then break end
-			end
-			--add claim buttons
-			if gStates.tacticShown==false and gStates.tacticRemove==false then
-				obj.UI.setXmlTable({createClaimButton(obj.guid, cardSource)})
-			end
+				if stillInZone~=true then return end
+				local cardSource=offerClaimSource(offerZoneGUID,offerCard)
+				if gameCards[offerCardGUID]==nil or cardSource==nil then return end
+				--Remove card ownership if returned to an offer.
+				for b=1,#turnOrder do
+					local found=false
+					for c=1,#turnOrder[b].deadDeckInventory do
+						if offerCardGUID==turnOrder[b].deadDeckInventory[c] then table.remove(turnOrder[b].deadDeckInventory,c) found=true break end
+					end
+					if found==true then break end
+				end
+				if gStates.tacticShown==false and gStates.tacticRemove==false then
+					offerCard.UI.setXmlTable({createClaimButton(offerCardGUID,cardSource)})
+				end
+			end,function()
+				local offerCard=getObjectFromGUID(offerCardGUID)
+				return offerCard==nil or offerCard.resting
+			end)
 		end
 
 		--protect skill zone from passing through objects
@@ -2770,6 +2802,8 @@ end
 
 --Container Shuffling, Image Updating and size changing
 function __onObjectEnterContainer_raw(bag, obj)
+	local containedHorseman=obj~=nil and horsemanTokenToName~=nil and horsemanTokenToName[obj.guid] or nil
+	if containedHorseman~=nil then horsemanReleaseOccupiedToken(containedHorseman) end
 	--Putting a just-created Puppet in the Trash chest is the physical undo gesture for Puppet Master.
 	if bag~=nil and obj~=nil and bag.guid==trashCan then
 		local puppetPickup=puppetMasterPickup[obj.guid]
@@ -8043,17 +8077,13 @@ function proxyInteractionOfferCache(crystals)
 			end
 		end
 	end
-	local spellZone=getObjectFromGUID(GUID.zone.spellOffer)
-	if spellZone~=nil then
-		for _,card in pairs(spellZone.getObjects()) do
-			if card.type=="Card" then
-				for _,color in ipairs(dummyCardColors(card)) do
-					if (crystals[color] or 0)>0 then
-						if cache["mage tower"]==nil then cache["mage tower"]={} end
-						cache["mage tower"][#cache["mage tower"]+1]={kind="spell",card=card,cost=7}
-						break
-					end
-				end
+	local card=mainOfferFirstCard("Spell")
+	if card~=nil then
+		for _,color in ipairs(dummyCardColors(card)) do
+			if (crystals[color] or 0)>0 then
+				if cache["mage tower"]==nil then cache["mage tower"]={} end
+				cache["mage tower"][#cache["mage tower"]+1]={kind="spell",card=card,cost=7}
+				break
 			end
 		end
 	end
@@ -12241,94 +12271,223 @@ function horsemanPriorityDescription(ref)
 		"Priority C: "..data.priorityText.C.."\n\n"
 end
 
---When a Horseman shares a map hex with a round enemy/site token, keep both readable and make
---the Horseman physically topmost. Ruins are hexagonal and can safely remain centred underneath.
---The paired round tokens use the same +/-0.1 X/Z split used elsewhere.
-function horsemanArrangeOccupiedTokenStack(name)
-	if gStates==nil or (gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Apocalypse is Here") then return false end
-	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+--Horsemen and map tokens share the same hex centre, so keep the pieces slightly offset when
+--they share a hex. The base token always uses slot 1; Horsemen use slots 2-4. Existing Horsemen
+--keep their current slots when another Horseman arrives, so a new arrival is the only piece that moves.
+local horsemanStackArrangeGeneration={}
+local horsemanSeparationSlots={
+	[1]={x=-0.1,z=-0.1},
+	[2]={x=0.1,z=0.1},
+	[3]={x=0.1,z=-0.1},
+	[4]={x=-0.1,z=0.1}
+}
+
+local function horsemanStackBaseTokenOnHex(hex,mapObjects,horsemanGUID)
+	--Destroyed Site markers and Ruins are both physical base tokens on their hex. Check these first
+	--because proxyMonstersOnHex() intentionally excludes Ruins and Destroyed Site markers.
+	for _,obj in pairs(mapObjects or {}) do
+		if obj.guid~=horsemanGUID and obj.getGMNotes~=nil and obj.getGMNotes()=="Destroyed" then
+			local pos=obj.getPosition()
+			local dx=pos[1]-hex.position[1]
+			local dz=pos[3]-hex.position[3]
+			if (dx*dx)+(dz*dz)<1.5 then return obj end
+		end
+	end
+	local ruin=proxyRuinOnHex(hex,mapObjects)
+	if ruin~=nil and ruin.guid~=horsemanGUID then return ruin end
+	for _,obj in pairs(mapObjects or {}) do
+		local details=monsterPugs[obj.guid]
+		if details~=nil and obj.guid~=horsemanGUID and
+			(horsemanTokenToName==nil or horsemanTokenToName[obj.guid]==nil) and
+			details.pugType~="possessed" then
+			local pos=obj.getPosition()
+			local dx=pos[1]-hex.position[1]
+			local dz=pos[3]-hex.position[3]
+			if (dx*dx)+(dz*dz)<1.5 then return obj end
+		end
+	end
+	return nil
+end
+
+local function horsemanRelockWhenResting(guid,wasLocked)
+	if wasLocked~=true then return end
+	safeWaitFrames("Scenario",function()
+		safeWaitCondition("Scenario",function()
+			local obj=getObjectFromGUID(guid)
+			if obj~=nil then obj.lock() end
+		end,function()
+			local obj=getObjectFromGUID(guid)
+			return obj==nil or obj.resting==true
+		end,3)
+	end,1)
+end
+
+local function horsemanOtherTokenStillOnSeparatedHex(record,ignoreGUID)
+	local map=getObjectFromGUID(mapArea)
+	if map==nil or record==nil then return false end
+	for _,obj in pairs(map.getObjects()) do
+		if obj.guid~=ignoreGUID and horsemanTokenToName~=nil and horsemanTokenToName[obj.guid]~=nil then
+			local pos=obj.getPosition()
+			local dx=pos[1]-record.x
+			local dz=pos[3]-record.z
+			if (dx*dx)+(dz*dz)<1.5 then return true end
+		end
+	end
+	return false
+end
+
+--Restore the token that a Horseman had displaced when that Horseman leaves the hex.
+function horsemanReleaseOccupiedToken(name)
+	if gStates==nil or name==nil then return false end
 	local data=horsemanData~=nil and horsemanData[name] or nil
-	local horseman=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-	if state==nil or data==nil or horseman==nil or state.revealed~=true or state.defeated==true or state.retired==true then return false end
+	if data==nil then return false end
+	gStates.horsemanSeparatedTokens=gStates.horsemanSeparatedTokens or {}
+	local record=gStates.horsemanSeparatedTokens[data.tokenGUID]
+	if record==nil then return false end
+	gStates.horsemanSeparatedTokens[data.tokenGUID]=nil
+	if horsemanOtherTokenStillOnSeparatedHex(record,data.tokenGUID)==true then return false end
+	local token=getObjectFromGUID(record.tokenGUID)
+	if token==nil then return false end
+	local pos=token.getPosition()
+	local dx=pos[1]-record.x
+	local dz=pos[3]-record.z
+	if (dx*dx)+(dz*dz)>=1.5 then return false end
+	if math.abs(pos[1]-record.x)<0.035 and math.abs(pos[3]-record.z)<0.035 then return false end
+	local wasLocked=token.getLock()==true
+	token.unlock()
+	token.setPosition({record.x,pos[2],record.z})
+	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[token.guid]={record.x,pos[2],record.z} end
+	horsemanRelockWhenResting(token.guid,wasLocked)
+	return true
+end
 
-	local hexes,mapObjects=apocalypseQuestMapHexes()
-	local hex=apocalypseQuestHexForPosition(hexes,horseman.getPosition(),mapObjects)
-	if hex==nil and state.terrainGUID~=nil and state.bearing~=nil then
-		for _,candidate in ipairs(hexes or {}) do
-			if candidate.terrainGUID==state.terrainGUID and tostring(candidate.bearing)==tostring(state.bearing) then hex=candidate break end
-		end
-	end
-	if hex==nil then return false end
-
-	local siteToken=nil
-	for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
-		local details=monsterPugs[enemy.guid]
-		--proxyMonstersOnHex already omits Ruins. Ignore Possessed overlays and other Horsemen:
-		--the physical conflict we are correcting is the round base enemy/site token.
-		if enemy.guid~=horseman.guid and
-			(horsemanTokenToName==nil or horsemanTokenToName[enemy.guid]==nil) and
-			(details==nil or details.pugType~="possessed") then
-			siteToken=enemy
-			break
-		end
-	end
-	if siteToken==nil then return false end
-
-	local horsePos=horseman.getPosition()
-	local sitePos=siteToken.getPosition()
-	local horseX,horseZ=hex.position[1]+0.1,hex.position[3]+0.1
-	local siteX,siteZ=hex.position[1]-0.1,hex.position[3]-0.1
-	if math.abs(horsePos[1]-horseX)<0.05 and math.abs(horsePos[3]-horseZ)<0.05 and
-		math.abs(sitePos[1]-siteX)<0.05 and math.abs(sitePos[3]-siteZ)<0.05 and horsePos[2]>sitePos[2]+0.08 then return false end
-
-	local horseLocked=horseman.getLock()==true
-	local siteLocked=siteToken.getLock()==true
-	local horseGUID=horseman.guid
-	local siteGUID=siteToken.guid
-	horseman.unlock()
-	siteToken.unlock()
-	--Park the Horseman high while the underlying round token establishes the bottom of the pair.
-	horseman.setPosition({horseX,3.0,horseZ})
-	siteToken.setPosition({siteX,2.0,siteZ})
-	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[siteGUID]={siteX,2.0,siteZ} end
-
-	local placed=false
-	local function placeHorseman()
-		if placed==true then return end
-		placed=true
-		local currentSite=getObjectFromGUID(siteGUID)
-		local currentHorseman=getObjectFromGUID(horseGUID)
-		if currentSite~=nil and siteLocked==true then currentSite.lock() end
-		if currentHorseman~=nil then
-			currentHorseman.unlock()
-			local baseY=currentSite~=nil and currentSite.getPosition()[2] or 1.30
-			currentHorseman.setPosition({horseX,baseY+0.35,horseZ})
-			if horseLocked==true then
-				safeWaitFrames("Scenario",function()
-					safeWaitCondition("Scenario",function()
-						local settled=getObjectFromGUID(horseGUID)
-						if settled~=nil then settled.lock() end
-					end,function()
-						local settling=getObjectFromGUID(horseGUID)
-						return settling==nil or settling.resting==true
-					end,3)
-				end,1)
+local function horsemanObjectsOnHex(hex,mapObjects)
+	local result={}
+	for _,obj in pairs(mapObjects or {}) do
+		local name=horsemanTokenToName~=nil and horsemanTokenToName[obj.guid] or nil
+		if name~=nil then
+			local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+			if state==nil or (state.defeated~=true and state.retired~=true) then
+				local pos=obj.getPosition()
+				local dx=pos[1]-hex.position[1]
+				local dz=pos[3]-hex.position[3]
+				if (dx*dx)+(dz*dz)<1.5 then result[#result+1]={name=name,obj=obj} end
 			end
 		end
 	end
+	return result
+end
 
-	safeWaitFrames("Scenario",function()
-		safeWaitCondition("Scenario",placeHorseman,function()
-			local currentSite=getObjectFromGUID(siteGUID)
-			return currentSite==nil or currentSite.resting==true
-		end,3,placeHorseman)
-	end,1)
-	return true
+local function horsemanSeparationSlotForNewArrival(used)
+	for slot=2,4 do if used[slot]~=true then return slot end end
+	return 4
+end
+
+local function horsemanArrangeOccupiedTokenHex(hex,mapObjects,siteToken)
+	if hex==nil or siteToken==nil then return false end
+	local horses=horsemanObjectsOnHex(hex,mapObjects)
+	if #horses<1 then return false end
+	gStates.horsemanSeparatedTokens=gStates.horsemanSeparatedTokens or {}
+	local used={}
+	local centerX,centerZ=hex.position[1],hex.position[3]
+
+	--Preserve slots already assigned on this hex.
+	for _,entry in ipairs(horses) do
+		local record=gStates.horsemanSeparatedTokens[entry.obj.guid]
+		if record~=nil and record.slot~=nil and math.abs(record.x-centerX)<0.05 and math.abs(record.z-centerZ)<0.05 then
+			used[record.slot]=true
+			entry.slot=record.slot
+		end
+	end
+	--New arrivals take the first free Horseman slot.
+	table.sort(horses,function(a,b) return a.name<b.name end)
+	for _,entry in ipairs(horses) do
+		if entry.slot==nil then
+			entry.slot=horsemanSeparationSlotForNewArrival(used)
+			used[entry.slot]=true
+		end
+	end
+
+	--A freshly arrived base token may still be moving. Wait for smooth movement to finish, but do not
+	--require resting: manual drops can be settled/locked without resting reporting true immediately.
+	if siteToken.isSmoothMoving()==true then return false end
+	for _,entry in ipairs(horses) do if entry.obj.isSmoothMoving()==true then return false end end
+
+	local sitePos=siteToken.getPosition()
+	local baseSlot=horsemanSeparationSlots[1]
+	local baseX,baseZ=centerX+baseSlot.x,centerZ+baseSlot.z
+	local siteLocked=siteToken.getLock()==true
+	local baseAlready=math.abs(sitePos[1]-baseX)<0.035 and math.abs(sitePos[3]-baseZ)<0.035
+	if baseAlready==false then
+		siteToken.unlock()
+		siteToken.setPosition({baseX,sitePos[2],baseZ})
+		if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[siteToken.guid]={baseX,sitePos[2],baseZ} end
+		horsemanRelockWhenResting(siteToken.guid,siteLocked)
+	end
+
+	local moved=false
+	for _,entry in ipairs(horses) do
+		local record=gStates.horsemanSeparatedTokens[entry.obj.guid]
+		local slot=horsemanSeparationSlots[entry.slot]
+		local obj=entry.obj
+		local pos=obj.getPosition()
+		local targetX,targetZ=centerX+slot.x,centerZ+slot.z
+		local already=math.abs(pos[1]-targetX)<0.035 and math.abs(pos[3]-targetZ)<0.035
+		gStates.horsemanSeparatedTokens[obj.guid]={tokenGUID=siteToken.guid,x=centerX,z=centerZ,slot=entry.slot}
+		if already==false then
+			local locked=obj.getLock()==true
+			local y=pos[2]
+			if y<=sitePos[2]+0.08 then y=sitePos[2]+0.12 end
+			obj.unlock()
+			obj.setPosition({targetX,y,targetZ})
+			horsemanRelockWhenResting(obj.guid,locked)
+			moved=true
+		end
+	end
+	return moved or baseAlready==false
+end
+
+function horsemanArrangeOccupiedTokenStack(name)
+	if gStates==nil then return false end
+	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	local data=horsemanData~=nil and horsemanData[name] or nil
+	local horseman=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
+	if data==nil or horseman==nil or (state~=nil and (state.defeated==true or state.retired==true)) then
+		horsemanReleaseOccupiedToken(name)
+		return false
+	end
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hex=apocalypseQuestHexForPosition(hexes,horseman.getPosition(),mapObjects)
+	if hex==nil then
+		horsemanReleaseOccupiedToken(name)
+		return false
+	end
+	local siteToken=horsemanStackBaseTokenOnHex(hex,mapObjects,horseman.guid)
+	if siteToken==nil then
+		horsemanReleaseOccupiedToken(name)
+		return false
+	end
+	return horsemanArrangeOccupiedTokenHex(hex,mapObjects,siteToken)
+end
+
+--A fresh terrain reveal or manual move can put the Horseman and its base token on the hex in different
+--physics windows. Each new schedule gets its own generation, so a second manual move cannot be swallowed
+--by retries from the previous move. Longer retries cover a player drop while physics settles.
+function horsemanScheduleOccupiedTokenStack(name)
+	if name==nil then return end
+	local generation=(horsemanStackArrangeGeneration[name] or 0)+1
+	horsemanStackArrangeGeneration[name]=generation
+	for _,delay in ipairs({2,10,25,50}) do
+		safeWaitFrames("Scenario",function()
+			if horsemanStackArrangeGeneration[name]~=generation then return end
+			horsemanArrangeOccupiedTokenStack(name)
+		end,delay)
+	end
 end
 
 function horsemanArrangeOccupiedTokenStacks()
 	if gStates==nil then return end
-	for name,_ in pairs(gStates.horsemen or {}) do horsemanArrangeOccupiedTokenStack(name) end
+	for name,_ in pairs(horsemanData or {}) do horsemanScheduleOccupiedTokenStack(name) end
 end
 
 function setHorsemanLevel(ref, level, hideIdentity)
@@ -12444,6 +12603,7 @@ function againstHorsemenMarkDefeatedToken(token,name,playerIndex,smooth)
 	local player=turnOrder[playerIndex]
 	if token==nil or state==nil or player==nil then return false end
 	local level=math.max(1,math.min(6,tonumber(state.level) or 1))
+	horsemanReleaseOccupiedToken(name)
 	token.setName("DEFEATED - "..name.." Level "..tostring(level))
 	token.setDescription("Defeated by "..tostring(player.mage))
 	token.setGMNotes("Defeated Horseman")
@@ -12646,7 +12806,7 @@ function againstHorsemenRefreshReveals()
 	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return end
 	for name,_ in pairs(gStates.horsemen or {}) do
 		againstHorsemenRefreshHorseman(name)
-		horsemanArrangeOccupiedTokenStack(name)
+		horsemanScheduleOccupiedTokenStack(name)
 	end
 end
 
@@ -12843,7 +13003,10 @@ function againstHorsemenAnimateMoveWave(targets)
 	for name,target in pairs(targets) do
 		local data=horsemanData~=nil and horsemanData[name] or nil
 		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-		if token~=nil and target.position~=nil then token.setPositionSmooth(target.position,false) end
+		if token~=nil and target.position~=nil then
+			horsemanReleaseOccupiedToken(name)
+			token.setPositionSmooth(target.position,false)
+		end
 	end
 	safeWaitFrames("Scenario",function()
 		local function allSettled()
@@ -13061,28 +13224,17 @@ function apocalypseIsHereSetup()
 	gStates.horsemenDefeatedBy={}
 	local level=apocalypseIsHereHorsemanStartingLevel()
 	local componentBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+	--The four Horsemen are randomized into four face-down matched stacks. Each stack has its
+	--Horseman card underneath its matching face-down token.
 	for i,name in ipairs(names) do
 		local data=horsemanData[name]
+		local x=-56.50-((i-1)*3)
 		gStates.horsemen[name]={level=level,tokenGUID=data.tokenGUID,revealed=false,defeated=false,retired=false,sitesDestroyed=0,mapSlot=i,revealIndex=i}
-		--The Apocalypse component bag is deleted after setup, so park every Horseman token on the
-		--table now. Keep them face down and unnamed until their reveal condition fires, but leave
-		--both the tokens and cards unlocked while this scenario flow is being tuned.
-		local tokenPosition={-69.80+((i-1)*5.90),0.98,24.25}
-		local token=getObjectFromGUID(data.tokenGUID)
-		if token==nil and componentBag~=nil then
-			token=componentBag.takeObject({guid=data.tokenGUID,position=tokenPosition,rotation={0,180,180},smooth=false})
-		elseif token~=nil then
-			token.unlock() token.setPosition(tokenPosition) token.setRotation({0,180,180})
+		if componentBag~=nil then
+			componentBag.takeObject({guid=data.cardGUID,position={x,0.98,0.40},rotation={0,180,180},smooth=false})
+			local token=componentBag.takeObject({guid=data.tokenGUID,position={x,1.12,0.40},rotation={0,180,180},smooth=false})
+			if token~=nil then token.setName("") token.unlock() end
 		end
-		if token~=nil then token.setName("") token.unlock() end
-		--The physical Horseman cards form the shuffled face-down scenario stack in the same order.
-		local card=getObjectFromGUID(data.cardGUID)
-		if card==nil and componentBag~=nil then
-			card=componentBag.takeObject({guid=data.cardGUID,position={-58.70,1.00+(i*0.035),26.30},rotation={0,180,180},smooth=false})
-		elseif card~=nil then
-			card.unlock() card.setPosition({-58.70,1.00+(i*0.035),26.30}) card.setRotation({0,180,180})
-		end
-		if card~=nil then card.unlock() end
 	end
 	apocalypseIsHerePositionRoundOrderToken()
 	return true
@@ -13123,14 +13275,14 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	token.unlock()
 	token.setRotation({0,180,0})
 	token.setPositionSmooth(target,false)
-	--Terrain population can finish after the Horseman itself arrives, so check once during and once after that window.
-	safeWaitFrames("Scenario",function() horsemanArrangeOccupiedTokenStack(name) end,12)
-	safeWaitFrames("Scenario",function() horsemanArrangeOccupiedTokenStack(name) end,30)
+	--Terrain population can finish after the Horseman itself arrives, so let the generic settle-aware
+	--scheduler catch whichever of the Horseman or existing map token finishes last.
+	horsemanScheduleOccupiedTokenStack(name)
 	gStates.apocalypseHereNextHorseman=index+1
 	local card=getObjectFromGUID(data.cardGUID)
 	if card~=nil then
 		card.unlock()
-		card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,28.10},false,true)
+		card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,0.40},false,true)
 		if card.is_face_down==true then card.flip() end
 	end
 	if gStates.apocalypseHereForcedRevealPending==true then
@@ -13306,7 +13458,7 @@ function apocalypseIsHereHorsemanTargetOptions(name)
 	return {},startHex,hexes,mapObjects
 end
 
-function apocalypseIsHereHorsemanDestination(startHex,targetHex,hexes)
+function apocalypseIsHereHorsemanDestination(startHex,targetHex,hexes,horsemanName,mapObjects)
 	if startHex==nil or targetHex==nil then return startHex end
 	local fromTarget=apocalypseQuestHexDistanceMap(hexes,{targetHex})
 	local current=startHex
@@ -13314,8 +13466,31 @@ function apocalypseIsHereHorsemanDestination(startHex,targetHex,hexes)
 		local currentDistance=fromTarget[apocalypseQuestMapHexKey(current)]
 		if currentDistance==nil or currentDistance<=0 then break end
 		local choices={}
+		local occupied={}
+		for _,obj in pairs(mapObjects or {}) do
+			local other=horsemanTokenToName~=nil and horsemanTokenToName[obj.guid] or nil
+			if other~=nil and other~=horsemanName then
+				local pos=obj.getPosition()
+				for _,candidate in ipairs(hexes) do
+					local key=apocalypseQuestMapHexKey(candidate)
+					if occupied[key]~=true then
+						local dx=pos[1]-candidate.position[1]
+						local dz=pos[3]-candidate.position[3]
+						if (dx*dx)+(dz*dz)<1.5 then occupied[key]=true break end
+					end
+				end
+			end
+		end
 		for _,candidate in ipairs(hexes) do
-			if apocalypseQuestHexesAdjacent(current,candidate)==true and fromTarget[apocalypseQuestMapHexKey(candidate)]==currentDistance-1 then choices[#choices+1]=candidate end
+			if apocalypseQuestHexesAdjacent(current,candidate)==true and fromTarget[apocalypseQuestMapHexKey(candidate)]==currentDistance-1 and occupied[apocalypseQuestMapHexKey(candidate)]~=true then
+				choices[#choices+1]=candidate
+			end
+		end
+		--If every shortest path is occupied, preserve the normal shortest-path rule rather than stopping.
+		if #choices<1 then
+			for _,candidate in ipairs(hexes) do
+				if apocalypseQuestHexesAdjacent(current,candidate)==true and fromTarget[apocalypseQuestMapHexKey(candidate)]==currentDistance-1 then choices[#choices+1]=candidate end
+			end
 		end
 		if #choices<1 then break end
 		table.sort(choices,function(a,b) return apocalypseQuestMapHexKey(a)<apocalypseQuestMapHexKey(b) end)
@@ -13398,6 +13573,7 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 		state.retired=true state.revealed=false state.removedAfterFour=true
 		local token=getObjectFromGUID(data.tokenGUID)
 		local apocBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+		horsemanReleaseOccupiedToken(name)
 		if token~=nil then token.unlock() if apocBag~=nil then apocBag.putObject(token) else token.setPosition({0,-20,0}) end end
 		monsterPugs[data.tokenGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end
@@ -13415,11 +13591,12 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 	local options,startHex,hexes=apocalypseIsHereHorsemanTargetOptions(name)
 	local target=option~=nil and option.hex or nil
 	if startHex==nil or target==nil then apocalypseIsHereContinueHorsemenTurn() return false end
-	local destination=apocalypseIsHereHorsemanDestination(startHex,target,hexes)
+	local destination=apocalypseIsHereHorsemanDestination(startHex,target,hexes,name,mapObjects)
 	local data=horsemanData[name]
 	local state=gStates.horsemen[name]
 	local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 	if token==nil or destination==nil then apocalypseIsHereContinueHorsemenTurn() return false end
+	horsemanReleaseOccupiedToken(name)
 	state.terrainGUID=destination.terrainGUID state.bearing=destination.bearing
 	token.unlock() token.setRotation({0,180,0}) token.setPositionSmooth({destination.position[1],1.42,destination.position[3]},false)
 	safeWaitCondition("Scenario",function()
@@ -13429,7 +13606,7 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 			local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
 			gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
 		end
-		horsemanArrangeOccupiedTokenStack(name)
+		horsemanScheduleOccupiedTokenStack(name)
 		apocalypseIsHereContinueHorsemenTurn()
 	end,function() local current=getObjectFromGUID(data.tokenGUID) return current==nil or current.isSmoothMoving()==false end,5,function() apocalypseIsHereContinueHorsemenTurn() end)
 	return true
@@ -13663,7 +13840,7 @@ end
 --A Destroyed Site marker is always the bottom object on its hex. Lift every existing physical object
 --off that hex, settle and lock the marker first, then drop the lifted objects back at their original X/Z.
 --This path is shared by scripted draws and human-dropped Destroyed Site tokens.
-function arrangeDestroyedSiteHex(token,terrain,bearing)
+function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	if token==nil or terrain==nil or bearing==nil then return false end
 	local map=getObjectFromGUID(mapArea)
 	local center=angleToXY(terrain,bearing)
@@ -13722,6 +13899,7 @@ function arrangeDestroyedSiteHex(token,terrain,bearing)
 				end
 			end
 		end
+		if afterArrange~=nil then afterArrange() end
 	end)
 	return true
 end
@@ -13732,7 +13910,7 @@ function destroySite(token,terrain,bearing)
 	if token==nil or terrain==nil or bearing==nil or terrainTiles[terrain.guid]==nil then return false end
 	local feature=terrainTiles[terrain.guid].hexFeature[bearing]
 	if feature==nil or feature=="" or feature=="portal" or feature=="destroyed" or feature:sub(1,7)=="raised " then return false end
-	arrangeDestroyedSiteHex(token,terrain,bearing)
+	arrangeDestroyedSiteHex(token,terrain,bearing,function() horsemanArrangeOccupiedTokenStacks() end)
 	if gStates.destroyedSites==nil then gStates.destroyedSites={} end
 	gStates.destroyedSites[token.guid]={hexFeature=feature, terrainTile=terrain.guid, hexAngle=bearing}
 	terrainTiles[terrain.guid].hexFeature[bearing]="destroyed"
@@ -16981,21 +17159,17 @@ function __endRound_raw(rewindReady)
 		if gStates.positionMageKnight[5]~="nobody" and gStates.positionMageKnight[5]~="Volkare" then
 			--Put advanced action in dummy deck
 			broadcastToAll(proxyPlayerActive()==true and "{en}Proxy Collected The First Advanced Action Card{ru}Прокси получил первую карту Продвинутого действия{zh-cn}代理玩家拿到了第一张高级行动卡{ko}프록시가 첫 번째 상급 액션 카드를 가져갔습니다{es}Proxy consiguió la primera carta de Acción Avanzada.{fr}Le Proxy a récupéré la première carte d’Action Avancée{pt-br}Proxy pegou a primeira Carta de Ação Avançada{de}Proxy hat die erste Fortgeschrittene Aktionskarte genommen" or "{en}Dummy Collected The First Advance Action Card{ru}Нижняя карта из доступных Особых действий, добавлена в колоду деяний виртуального игрока{zh-cn}虚拟玩家拿到了第一张行动卡{ko}마지막 상급 액션이 가상 플레이어 더미에 추가되었습니다{es}El muñeco ha conseguido la Primera carta de Acción Avanzada.{fr}Mannequin a récupéré la Première carte d'Action Avancée{pt-br}Jog. Fictício Clamou a primeira Carta de Ação{de}Dummy hat die erste Vorstoß-Aktionskarte gesammelt", {1,1,0.5})
-			local objCard=getObjectFromGUID(GUID.zone.actionOffer).getObjects()
-			for i=1, #objCard, 1 do
-				if objCard[i].type=="Card" then
-					getObjectFromGUID(objCard[i].guid).unlock()
-					getObjectFromGUID(objCard[i].guid).setRotationSmooth({0,180,180})
-					getObjectFromGUID(objCard[i].guid).setPositionSmooth({getObjectFromGUID(dummyBoard).getPosition()[1]+4.5, 1.17, getObjectFromGUID(dummyBoard).getPosition()[3]-5.2})
-					break
-				end
+			local firstAction=mainOfferFirstCard("Advanced Action")
+			if firstAction~=nil then
+				firstAction.unlock()
+				firstAction.setRotationSmooth({0,180,180})
+				firstAction.setPositionSmooth({getObjectFromGUID(dummyBoard).getPosition()[1]+4.5,1.17,getObjectFromGUID(dummyBoard).getPosition()[3]-5.2})
 			end
 			--Put spell colored crystal in the automated player's inventory. A damaged/empty Spell offer
 			--must not leave obj pointing at a mana bag and then try to count the bag as a crystal.
 			local spellColor=""--read information from the card in the first spell position
-			for _, card in pairs(getObjectFromGUID(GUID.zone.spellOffer).getObjects()) do
-				if card.type=="Card" then spellColor=card.getDescription() break end
-			end
+			local firstSpell=mainOfferFirstCard("Spell")
+			if firstSpell~=nil then spellColor=firstSpell.getDescription() end
 			if spellColor=="Red" or spellColor=="Blue" or spellColor=="Green" or spellColor=="White" then
 				broadcastToAll(joinLang({proxyPlayerActive()==true and "{en}Proxy added a {ru}Прокси получил {zh-cn}代理玩家添加了一个{ko}프록시 저장 칸에 {es}Proxy agregó un cristal de maná {fr}Le Proxy a ajouté un cristal de mana {pt-br}Proxy adicionou um(a) {de}Der Proxy hat einen " or "{en}Dummy added a {ru}Виртуальный игрок получил {zh-cn}虚拟玩家添加了一个{ko}가상 플레이어 저장 칸에 {es}Dummy agregó un cristal de maná {fr}Le mannequin a ajouté un cristal de mana {pt-br}Jog. Fictício adicionou um(a) {de}Die Puppe hat einen ", translateWord[spellColor], "{en} mana crystal to its inventory.{ru} кристалл маны{zh-cn}魔晶到他的装备区. {ko}수정을 추가했습니다{es} a su inventario.{fr} à son inventaire.{pt-br} Cristal de Mana para seu inventário.{de} manakristall in sein Inventar aufgenommen."}), {1,1,0.5})
 				local params={position={0, 1.65, 0}, rotation={0, 30, 0}, smooth=false}
@@ -17026,20 +17200,20 @@ function __endRound_raw(rewindReady)
 		else
 			--Discards an Advance Action
 			local MainDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects()
-			local discard=getObjectFromGUID(GUID.zone.actionOffer).getObjects()
-			if discard[1]~=nil and MainDeck[1]~=nil then
-				discard[1].unlock()
-				standardDeckCycleMarkReturned("Advanced Action", discard[1])
-				MainDeck[1].putObject(discard[1])
+			local discard=mainOfferFirstCard("Advanced Action")
+			if discard~=nil and MainDeck[1]~=nil then
+				discard.unlock()
+				standardDeckCycleMarkReturned("Advanced Action",discard)
+				MainDeck[1].putObject(discard)
 			end
 		end
 		--Discards the last Spell
 		local MainDeck=getObjectFromGUID(GUID.zone.spellDeck).getObjects()
-		local discard=getObjectFromGUID(GUID.zone.spellOffer).getObjects()
-		if discard[1]~=nil and MainDeck[1]~=nil then
-			discard[1].unlock()
-			standardDeckCycleMarkReturned("Spell", discard[1])
-			MainDeck[1].putObject(discard[1])
+		local discard=mainOfferFirstCard("Spell")
+		if discard~=nil and MainDeck[1]~=nil then
+			discard.unlock()
+			standardDeckCycleMarkReturned("Spell",discard)
+			MainDeck[1].putObject(discard)
 		end
 
 		--Fury delays Elite Units until exploration reaches a City or a Hero has entered one.
@@ -21203,8 +21377,8 @@ rewardSkillHighlightColor={1,0.9,0}
 function clearRewardSkillChoiceHighlights(keepFirstAction)
 	local keepGUID=nil
 	if keepFirstAction==true then
-		local zone=getObjectFromGUID(GUID.zone.actionOffer)
-		if zone~=nil then for _, obj in pairs(zone.getObjects()) do if obj.type=="Card" then keepGUID=obj.guid break end end end
+		local firstAction=mainOfferFirstCard("Advanced Action")
+		if firstAction~=nil then keepGUID=firstAction.guid end
 	end
 	local kept={}
 	for guid, _ in pairs(rewardSkillHighlighted) do
@@ -21225,24 +21399,15 @@ function addRewardSkillChoiceHighlight(obj)
 end
 
 function rewardSkillChoiceActionCards()
-	local zone=getObjectFromGUID(GUID.zone.offer)
-	local cards={}
-	if zone~=nil then
-		for _, obj in pairs(zone.getObjects()) do
-			if obj.type=="Card" and obj.getGMNotes()=="Advanced Action" then cards[#cards+1]=obj end
-		end
-	end
-	table.sort(cards, function(a,b) return a.getPosition()[1]<b.getPosition()[1] end)
-	return cards
+	return mainOfferCards("Advanced Action")
 end
 
 function rewardSkillChoiceActionHighlights(allCards)
+	local actionCards=rewardSkillChoiceActionCards()
 	if allCards==true then
-		for _, card in ipairs(rewardSkillChoiceActionCards()) do addRewardSkillChoiceHighlight(card) end
-	else
-		--The dedicated actionOffer zone is the first Advanced Action slot only.
-		local zone=getObjectFromGUID(GUID.zone.actionOffer)
-		if zone~=nil then for _, obj in pairs(zone.getObjects()) do if obj.type=="Card" then addRewardSkillChoiceHighlight(obj) return end end end
+		for _,card in ipairs(actionCards) do addRewardSkillChoiceHighlight(card) end
+	elseif actionCards[1]~=nil then
+		addRewardSkillChoiceHighlight(actionCards[1])
 	end
 end
 
@@ -23601,18 +23766,55 @@ function unitOfferPosition(slot,count,y)
 	return {unitOfferLayoutX(slot,count),y or unitOfferLayoutConfig.y,unitOfferLayoutConfig.z}
 end
 
+--Advanced Action and Spell rows share one resizable scripting zone. Derive slot order from the
+--cards themselves so expanding/shrinking the offer never needs matching per-slot zones.
+function mainOfferCards(cardType)
+	local cards={}
+	local zone=getObjectFromGUID(GUID.zone.offer)
+	if zone~=nil then
+		for _,obj in pairs(zone.getObjects()) do
+			if obj.type=="Card" and gameCardType(obj)==cardType then cards[#cards+1]=obj end
+		end
+	end
+	table.sort(cards,function(a,b) return a.getPosition()[1]<b.getPosition()[1] end)
+	return cards
+end
+
+function mainOfferFirstCard(cardType)
+	return mainOfferCards(cardType)[1]
+end
+
 function unitOfferIsUnit(obj)
 	if obj==nil or obj.type~="Card" then return false end
 	local cardType=gameCardType(obj)
 	return cardType=="Regular Unit" or cardType=="Elite Unit"
 end
 
---The broad Unit Offer zone also covers the Monastery row. Only Unit cards use its Claim source;
---Monastery cards still use their own row zones.
+function monasteryOfferIsCard(obj)
+	if obj==nil or obj.type~="Card" or gameCardType(obj)~="Advanced Action" then return false end
+	return math.abs(obj.getPosition()[3]+10.2)<=1
+end
+
+function monasteryOfferCards()
+	local cards={}
+	local zone=getObjectFromGUID(GUID.zone.unitOffer)
+	if zone~=nil then
+		for _,obj in pairs(zone.getObjects()) do
+			if monasteryOfferIsCard(obj) then cards[#cards+1]=obj end
+		end
+	end
+	--Smallest X is the highest-numbered printed slot, matching the old reverse zone scan.
+	table.sort(cards,function(a,b) return a.getPosition()[1]<b.getPosition()[1] end)
+	return cards
+end
+
+--Offer claims use two broad scripting zones. The upper zone distinguishes Units from Monastery
+--Advanced Actions by card type/row; the lower zone already covers both Advanced Actions and Spells.
 function offerClaimSource(zoneGUID,obj)
 	local source=cardClaimingZones[zoneGUID]
 	if source~="unitOffer" then return source end
 	if unitOfferIsUnit(obj) then return "unit" end
+	if monasteryOfferIsCard(obj) then return "monastery" end
 	return nil
 end
 
@@ -23680,7 +23882,7 @@ end
 
 function unitOfferCards()
 	local cards={}
-	local zone=getObjectFromGUID("a3d99b")
+	local zone=getObjectFromGUID(GUID.zone.unitOffer)
 	if zone~=nil then
 		for _,obj in pairs(zone.getObjects()) do
 			if unitOfferIsUnit(obj) then cards[#cards+1]=obj end
@@ -23990,21 +24192,32 @@ function leaveAvatarSite(player)
 	gStates.zigguratPyramidUI=nil
 end
 
+function monasteryOfferFirstEmptySlot()
+	local occupied={}
+	local zone=getObjectFromGUID(GUID.zone.unitOffer)
+	if zone~=nil then
+		for _,obj in pairs(zone.getObjects()) do
+			if obj.type=="Card" or obj.type=="Deck" then
+				local pos=obj.getPosition()
+				if math.abs(pos[3]+10.2)<=1 then
+					local slot=math.floor(((40.8-pos[1])/4.8)+0.5)
+					if slot>=1 and slot<=6 then occupied[slot]=true end
+				end
+			end
+		end
+	end
+	for slot=1,6 do if occupied[slot]~=true then return slot end end
+	return nil
+end
+
 function playMonastery()
 	gStates.monasteryCount=gStates.monasteryCount+1
 	if gStates.monasteryCount>=0 then
-		--Look for an empty spot in advanced action offer location
-		local params={rotation ={0, 180, 0}}
-		local monasteryOffer={"b7cb3b", "d925e4", "caf03e", "5c4c6d", "d51391", "7700a8"} --advanced action monastery offer zones
+		--Find the first free printed Monastery slot directly from the broad offer zone.
+		local slot=monasteryOfferFirstEmptySlot()
+		if slot==nil then return end
+		local params={rotation={0,180,0},position={40.8-slot*4.8,0.98,-10.2}}
 		local drawDecks={GUID.zone.regularUnit,GUID.zone.eliteUnit,GUID.zone.actionDeck} --Zone covering Regular units draw deck, Elite Units Draw Deck, Advanced Actions Draw Deck
-		for i=1, #monasteryOffer, 1 do
-			local objCard=getObjectFromGUID(monasteryOffer[i]).getObjects()
-			local found=false
-			for j=1, #objCard, 1 do
-				if objCard[j].type=="Card" or objCard[j].type=="Deck" then found=true break end
-			end
-			if found==false then params.position={40.8-i*4.8, 0.98, -10.2} break end
-		end
 		--Play an advanced action card
 		standardDeckCycleShuffleIfReached("Advanced Action")
 		local MonasteryDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects()
@@ -25424,19 +25637,10 @@ end
 
 function megapolisRemoveMonasteryOffer()
 	if (gStates.monasteryCount or 0)<=0 then return end
-	local monasteryOffer={"b7cb3b","d925e4","caf03e","5c4c6d","d51391","7700a8"}
-	for i=#monasteryOffer,1,-1 do
-		local zone=getObjectFromGUID(monasteryOffer[i])
-		if zone~=nil then
-			for _,card in pairs(zone.getObjects()) do
-				if card.type=="Card" and gameCardType(card)=="Advanced Action" then
-					local deck=standardDeckCycleObject("Advanced Action")
-					if deck~=nil then standardDeckCycleMarkReturned("Advanced Action",card) putCardAtBottom(deck,card) else card.destruct() end
-					gStates.monasteryCount=math.max(0,(gStates.monasteryCount or 0)-1)
-					return
-				end
-			end
-		end
+	local card=monasteryOfferCards()[1]
+	if card~=nil then
+		local deck=standardDeckCycleObject("Advanced Action")
+		if deck~=nil then standardDeckCycleMarkReturned("Advanced Action",card) putCardAtBottom(deck,card) else card.destruct() end
 	end
 	gStates.monasteryCount=math.max(0,(gStates.monasteryCount or 0)-1)
 end
@@ -33226,6 +33430,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				gStates.againstTheApocSitePosition=startPosition[math.random(1,6)]
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="e735d3", position={-40.87, 1.05, 21.50+2.895-(0.685*gStates.againstTheApocSitePosition)}, rotation={0, 90, 0}, smooth=false}).lock()--Neutral pointer shield token measured offf center of card.
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.destroyedSite, position={-43.00, 1.02, 26.00}, rotation={0, 180, 0}, smooth=false}).lock()--Destroyed Site Bag
+
 			end
 		end
 
@@ -36021,6 +36226,7 @@ function deedTransferFinishHover(seatPos,entry)
 	local card=getObjectFromGUID(entry.guid)
 	local zone=getObjectFromGUID(deedDeckZones[seatPos])
 	if card==nil or zone==nil then deedTransferComplete(seatPos,entry,false) return end
+	card.unlock()
 	local pile=deedTransferPile(zone,entry.guid)
 	if pile~=nil then
 		local pilePos=pile.getPosition()
@@ -36033,8 +36239,8 @@ function deedTransferFinishHover(seatPos,entry)
 	--An empty Deed zone has no container to receive putObject. Smooth the first card down to the normal
 	--deck home, then let the next queued card use that card as its pile.
 	local home=deedTransferHomePosition(seatPos)
-	card.setRotationSmooth({0,180,180})
-	card.setPositionSmooth(home)
+	card.setRotationSmooth({0,180,180},false,false)
+	card.setPositionSmooth(home,false,false)
 	safeWaitCondition("PlayerBoard.CardFlow",function()
 		deedTransferComplete(seatPos,entry,true)
 	end,function()
@@ -36049,6 +36255,45 @@ function deedTransferFinishHover(seatPos,entry)
 	end)
 end
 
+function deedTransferHoverPosition(seatPos,queueIndex)
+	local home=deedTransferHomePosition(seatPos)
+	return {home[1],home[2]+2.0+((queueIndex-1)*0.1),home[3]}
+end
+
+function deedTransferHoverReached(guid,target)
+	local moving=getObjectFromGUID(guid)
+	if moving==nil then return true end
+	local pos=moving.getPosition()
+	return math.abs(pos[1]-target[1])<0.18 and math.abs(pos[2]-target[2])<0.18 and math.abs(pos[3]-target[3])<0.18
+end
+
+function deedTransferSendToHover(seatPos,entry,queueIndex)
+	if entry==nil or entry.hoverStarted==true then return end
+	local card=getObjectFromGUID(entry.guid)
+	local zone=getObjectFromGUID(deedDeckZones[seatPos])
+	if card==nil or zone==nil then return end
+	entry.hoverStarted=true
+	entry.hover=deedTransferHoverPosition(seatPos,queueIndex)
+	deedTransferState.transit[entry.guid]=zone.guid
+	local pile=deedTransferPile(zone,entry.guid)
+	local rotation=pile~=nil and pile.getRotation() or {0,180,180}
+	card.setRotationSmooth(rotation,false,false)
+	card.setPositionSmooth(entry.hover,false,false)
+	safeWaitCondition("PlayerBoard.CardFlow",function()
+		local moving=getObjectFromGUID(entry.guid)
+		if moving~=nil then moving.lock() end
+		entry.arrived=true
+		deedTransferProcess(seatPos)
+	end,function()
+		return deedTransferHoverReached(entry.guid,entry.hover)
+	end,4.0,function()
+		local moving=getObjectFromGUID(entry.guid)
+		if moving~=nil then moving.setPosition(entry.hover) moving.lock() end
+		entry.arrived=true
+		deedTransferProcess(seatPos)
+	end)
+end
+
 function deedTransferProcess(seatPos)
 	if deedTransferState.active[seatPos]~=nil then return end
 	local queue=deedTransferState.queues[seatPos]
@@ -36057,24 +36302,10 @@ function deedTransferProcess(seatPos)
 	local card=getObjectFromGUID(entry.guid)
 	local zone=getObjectFromGUID(deedDeckZones[seatPos])
 	if card==nil or zone==nil then deedTransferComplete(seatPos,entry,false) return end
+	if entry.hoverStarted~=true then deedTransferSendToHover(seatPos,entry,1) return end
+	if entry.arrived~=true then return end
 	deedTransferState.active[seatPos]=entry.guid
-	deedTransferState.transit[entry.guid]=zone.guid
-	local pile=deedTransferPile(zone,entry.guid)
-	local target=pile~=nil and pile.getPosition() or deedTransferHomePosition(seatPos)
-	local rotation=pile~=nil and pile.getRotation() or {0,180,180}
-	local hover={target[1],target[2]+2.0,target[3]}
-	card.setRotationSmooth(rotation)
-	card.setPositionSmooth(hover)
-	safeWaitCondition("PlayerBoard.CardFlow",function()
-		deedTransferFinishHover(seatPos,entry)
-	end,function()
-		local moving=getObjectFromGUID(entry.guid)
-		if moving==nil then return true end
-		local pos=moving.getPosition()
-		return math.abs(pos[1]-hover[1])<0.35 and math.abs(pos[2]-hover[2])<0.5 and math.abs(pos[3]-hover[3])<0.35
-	end,3.0,function()
-		deedTransferFinishHover(seatPos,entry)
-	end)
+	deedTransferFinishHover(seatPos,entry)
 end
 
 function queueCardToDeedDeck(playerIndex,card,rewindReady)
@@ -36098,11 +36329,17 @@ function queueCardToDeedDeck(playerIndex,card,rewindReady)
 	--ordinary source-zone leave callback a chance to resolve before transit suppression begins.
 	local pos=card.getPosition()
 	card.setPosition({pos[1],pos[2]+3.0,pos[3]})
-	--Register immediately so closely spaced claims keep click order and other systems see this seat as busy
-	--during the short lift delay. Horizontal transit does not begin until the source zone has had two frames.
 	deedTransferState.queues[seatPos]=deedTransferState.queues[seatPos] or {}
-	deedTransferState.queues[seatPos][#deedTransferState.queues[seatPos]+1]={guid=guid,playerIndex=playerIndex}
-	safeWaitFrames("PlayerBoard.CardFlow",function() deedTransferProcess(seatPos) end,2)
+	local entry={guid=guid,playerIndex=playerIndex}
+	deedTransferState.queues[seatPos][#deedTransferState.queues[seatPos]+1]=entry
+	local queueIndex=#deedTransferState.queues[seatPos]
+	--Every claimed Deed card starts its normal smooth move immediately after the source-zone leave settles.
+	--Cards wait directly above the Deed deck, separated vertically by 0.1 so simultaneous claims stay visible
+	--and cannot collide. They are then inserted into the deck in original claim order.
+	safeWaitFrames("PlayerBoard.CardFlow",function()
+		deedTransferSendToHover(seatPos,entry,queueIndex)
+		deedTransferProcess(seatPos)
+	end,2)
 	return true
 end
 
@@ -36127,7 +36364,7 @@ function claimMove(player, mouseButton, id, rewindReady)
 				if source~="unit" then
 					local tacticSource=source:sub(1, string.len(source)-1)=="tactic"
 					if tacticSource==true then
-						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-117.83 , 3.0, -43.16})
+						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-117.83 , 3.0, -43.16},false,false)
 					elseif mouseButton=="-1" then
 						queueCardToDeedDeck(gStates.turnNumber,claimedCard)
 					else
@@ -36150,10 +36387,10 @@ function claimMove(player, mouseButton, id, rewindReady)
 					--Left-click Deed claims are handled by the serialized smooth-transfer queue above. Preserve the
 					--existing alternate claim action and tactic destination exactly as before.
 					if mouseButton=="-2" and tacticSource~=true then
-						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-105.0 , 4.59, -47.55})
+						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-105.0 , 4.59, -47.55},false,false)
 					elseif mouseButton~="-1" and tacticSource~=true then
 						claimedCard.flip()
-						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-114.19 , 3.0, -43.16})
+						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-114.19 , 3.0, -43.16},false,false)
 					end
 					if source=="offer" and fillWait==false then fillWait=true safeWaitTime("PlayerBoard.CardFlow",function() fillSlide() fillWait=false end, 1.2) end
 					if source=="artifactReward" then
@@ -36165,11 +36402,11 @@ function claimMove(player, mouseButton, id, rewindReady)
 						if #remainingGUID==1 then
 							--return last card
 							local PosOrigin=getObjectFromGUID(GUID.deck.artifact).getPosition()
-							getObjectFromGUID(GUID.deck.artifact).setPositionSmooth({getObjectFromGUID(GUID.deck.artifact).getPosition()[1], getObjectFromGUID(GUID.deck.artifact).getPosition()[2]+2, getObjectFromGUID(GUID.deck.artifact).getPosition()[3]})
+							getObjectFromGUID(GUID.deck.artifact).setPositionSmooth({getObjectFromGUID(GUID.deck.artifact).getPosition()[1], getObjectFromGUID(GUID.deck.artifact).getPosition()[2]+2, getObjectFromGUID(GUID.deck.artifact).getPosition()[3]},false,false)
 							standardDeckCycleMarkReturned("Artifact", getObjectFromGUID(remainingGUID[1]))
 							getObjectFromGUID(remainingGUID[1]).unlock()
 							getObjectFromGUID(remainingGUID[1]).setRotation({0, 180, 180})
-							getObjectFromGUID(remainingGUID[1]).setPositionSmooth(PosOrigin)
+							getObjectFromGUID(remainingGUID[1]).setPositionSmooth(PosOrigin,false,false)
 							getObjectFromGUID(remainingGUID[1]).UI.setXmlTable({{}})
 							--reset buttons
 							getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "true")
@@ -36193,7 +36430,7 @@ function claimMove(player, mouseButton, id, rewindReady)
 						if found==true then
 							local scale=unitLayoutCardScale(#layout.commands)
 							claimedCard.setScale({scale,1,scale})
-							claimedCard.setPositionSmooth({unitX,2.0,-34.74})
+							claimedCard.setPositionSmooth({unitX,2.0,-34.74},false,false)
 							fillWait=true
 							safeWaitFrames("PlayerBoard.CardFlow",function() safeWaitCondition("PlayerBoard.CardFlow",function() fillWait=false scheduleUnitLayoutRefresh(seatPos) end, function() return claimedCard.resting end) end,5)
 							if gameCards[claimedCard.guid]~=nil then
@@ -39338,7 +39575,7 @@ apocalypseDragonAirborneHeads={"War","Death","Famine","Pestilence"}
 ------------
 GUID={
 	deck={artifact="ac75c4", spell="e4372a", action="e926ba", regularUnit="75745b", eliteUnit="c15e86", dayWeather="a822f8", nightWeather="d951b8", krang="bee7bd", goldyx="514e15", volkare="95765b", villageQuest="cabd7d", monasteryQuest="5073ec", cityQuest="4a5525", uniqueQuest="9dffb3", apocalypseQuest="e41b86"},
-	zone={mana="2cd825", regularUnit="4fa2f2", eliteUnit="715b48", unitOffer="a3d99b", actionDeck="7ce69e", spellDeck="f752bb", offer="45cc44", actionOffer="b4f60a", spellOffer="67ca95", skillOffer="d20c01", blueCity="8a7266", redCity="648da8", greenCity="213d78", whiteCity="d2d65e"},
+	zone={mana="2cd825", regularUnit="4fa2f2", eliteUnit="715b48", unitOffer="a3d99b", actionDeck="7ce69e", spellDeck="f752bb", offer="45cc44", skillOffer="d20c01", blueCity="8a7266", redCity="648da8", greenCity="213d78", whiteCity="d2d65e"},
 	tile={country01="e2ecf8", country02="ca8ad3", country03="a501d6", country04="a26c4f", country05="184fb7", country06="208d84", country07="20607e", country08="78fc79", country09="05b612", country10="6510ac", country11="d21095", country12="29a93c", country13="0bf020", country14="7ce33f", country15="b5d212", country16="ab4202", country17="228469", core01="584237", core02="155a31", core03="be86ec", core04="264fa0", city05="314081", city06="63f201", city07="a3ce11", city08="53d847", core09="cff250", core10="de7fad", core11="ed651c", core12="a33586"},
 	bag={forgemaster="11128e", apocalypseDragon="e4b8f4", apocalypseQuestTokens="f7bd64", neutralShield="bdc03e", tezla="96878f", volkare="63f203", volkareReminder="758fb3", common="77b3fd", allSkills="219c37", cemetery="651583", destroyedSite="9d4a53", spareDice="5cf042", possessed="9677da", itemShop="70f4fe", lostLegion="aff5f6", quest="bffdc0", weatherMod="a1e972",
 		terrain={stack="966e0e", leftCore="c87444", leftCountry="37d9b4", leftCity="a0ba93", shuffler="089e71", apocCore="d46331", lostLegionCore="0f4736", apocCountry="54db7d", lostLegionCountry="8f9e0e"},
@@ -41285,9 +41522,8 @@ skillTokens={	["1906f4"]={skillType="Turn", mage="Arythea"},				  	["33d341"]={s
 
 tacticClaimingZones={["9e319e"]="tactic1", ["32172f"]="tactic2", ["bc2046"]="tactic3", ["8363fc"]="tactic4", ["01ac7e"]="tactic5", ["582d2b"]="tactic6"}--Tactic Zones
 
-cardClaimingZones={	[GUID.zone.offer]="offer", --Advanced Actions and Spell Zones
-					[GUID.zone.unitOffer]="unitOffer", --Broad Unit Offer zone; individual Unit slot zones are no longer needed
-					["7700a8"]="monastery", ["d51391"]="monastery", ["5c4c6d"]="monastery", ["caf03e"]="monastery", ["d925e4"]="monastery", ["b7cb3b"]="monastery"}--Monastery Zones
+cardClaimingZones={	[GUID.zone.offer]="offer", --Broad Advanced Action + Spell offer zone
+					[GUID.zone.unitOffer]="unitOffer"}--Broad Unit + Monastery offer zone
 
 reputationTable={	[-7]={repZone="8cab8a", reputationPos={30.03, 1.15, 24.06}, repDisplay="No Interaction"},
 					[-6]={repZone="3c3dd6", reputationPos={31.30, 1.15, 22.84}, repDisplay="-5"},
