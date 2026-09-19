@@ -1210,7 +1210,7 @@ end
 --start tiles and the original stateful start tile. This intentionally applies no host-specific
 --scale correction so any visual size difference comes from TTS/the object itself.
 function proxyStartTileUIButtonTest()
-	local guids={"9901f5","5d0bac","722590"}
+	local guids={"9901f5","5d0bac","722590","7ce33f"}
 	for _,guid in ipairs(guids) do
 		local terrain=getObjectFromGUID(guid)
 		if terrain~=nil then
@@ -1230,7 +1230,7 @@ function proxyStartTileUIButtonTest()
 end
 
 function proxyStartTileUIButtonTestClear()
-	for _,guid in ipairs({"9901f5","5d0bac","722590"}) do
+	for _,guid in ipairs({"9901f5","5d0bac","722590","7ce33f"}) do
 		local terrain=getObjectFromGUID(guid)
 		if terrain~=nil then
 			local xml=terrain.UI.getXmlTable() or {}
