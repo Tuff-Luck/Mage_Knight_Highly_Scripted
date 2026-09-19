@@ -1210,13 +1210,13 @@ end
 --start tiles and the original stateful start tile. This intentionally applies no host-specific
 --scale correction so any visual size difference comes from TTS/the object itself.
 function proxyStartTileUIButtonTest()
-	local guids={"9901f5","5d0bac","722590","7ce33f"}
+	local map=getObjectFromGUID(mapArea)
+	if map==nil then return end
 	local bearings={"center","0","60","120","180","240","300"}
 	local buttonScale=0.16
 	local uiFactor=0.16/0.38
-	for _,guid in ipairs(guids) do
-		local terrain=getObjectFromGUID(guid)
-		if terrain~=nil then
+	for _,terrain in pairs(map.getObjects()) do
+		if terrainTiles[terrain.guid]~=nil then
 			local xml=terrain.UI.getXmlTable() or {}
 			for i=#xml,1,-1 do
 				local attributes=xml[i].attributes
@@ -1234,7 +1234,7 @@ function proxyStartTileUIButtonTest()
 				local uiX=(localHex.x or localHex[1])*scaleX*110*uiFactor
 				local uiY=(localHex.z or localHex[3])*scaleZ*110*uiFactor
 				local uiDepth=-40*uiFactor
-				local id=guid.."ProxyStartTileUITest"..tostring(index)
+				local id=terrain.guid.."ProxyStartTileUITest"..tostring(index)
 				xml[#xml+1]={tag="Button",attributes={id=id,height=320,width=320,color="rgba(0,0,0,0.0)",
 					position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(uiRotation),scale=buttonScale.." "..buttonScale},
 					children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
@@ -1248,9 +1248,10 @@ function proxyStartTileUIButtonTest()
 end
 
 function proxyStartTileUIButtonTestClear()
-	for _,guid in ipairs({"9901f5","5d0bac","722590","7ce33f"}) do
-		local terrain=getObjectFromGUID(guid)
-		if terrain~=nil then
+	local map=getObjectFromGUID(mapArea)
+	if map==nil then return end
+	for _,terrain in pairs(map.getObjects()) do
+		if terrainTiles[terrain.guid]~=nil then
 			local xml=terrain.UI.getXmlTable() or {}
 			local changed=false
 			for i=#xml,1,-1 do
