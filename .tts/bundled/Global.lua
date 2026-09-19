@@ -8828,7 +8828,6 @@ function proxyDestinationChoiceClearButtons()
 	local map=getObjectFromGUID(mapArea)
 	if map==nil then return end
 	local marker="ProxyDestinationChoice"
-	local oldTest="ProxyDestinationTest"
 	for _,terrain in pairs(map.getObjects()) do
 		if terrainTiles[terrain.guid]~=nil then
 			local xml=terrain.UI.getXmlTable() or {}
@@ -8837,7 +8836,7 @@ function proxyDestinationChoiceClearButtons()
 				local attributes=xml[i].attributes
 				local id=attributes~=nil and tostring(attributes.id or "") or ""
 				local suffix=id:sub(7)
-				if suffix:sub(1,#marker)==marker or suffix:sub(1,#oldTest)==oldTest or id==oldTest then table.remove(xml,i) changed=true end
+				if suffix:sub(1,#marker)==marker then table.remove(xml,i) changed=true end
 			end
 			if changed==true then
 				if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end
@@ -8863,10 +8862,11 @@ function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 	local tileScale=terrain.getScale()
 	local scaleX=tileScale.x or tileScale[1] or 2.25
 	local scaleZ=tileScale.z or tileScale[3] or 2.25
-	local uiX=(localHex.x or localHex[1])*scaleX*110
-	local uiY=(localHex.z or localHex[3])*scaleZ*110
-	local uiDepth=-40
-	local buttonScale=0.38
+	local uiFactor=0.16/0.38
+	local uiX=(localHex.x or localHex[1])*scaleX*110*uiFactor
+	local uiY=(localHex.z or localHex[3])*scaleZ*110*uiFactor
+	local uiDepth=-40*uiFactor
+	local buttonScale=0.16
 	local uiRotation=terrain.getRotation()[2] or 180
 	local count=math.max(1,tonumber(splitCount) or 1)
 	local slot=math.max(1,tonumber(splitIndex) or 1)
@@ -13514,7 +13514,12 @@ end
 
 function apocalypseIsHereShowTargetChoice(name,options)
 	apocalypseIsHereClearChoiceButtons()
-	local pending={name=name,options=options,playerIndex=againstDragonChoicePlayerIndex()}
+	local targetKeys={}
+	for _,option in ipairs(options or {}) do
+		local key=option~=nil and option.hex~=nil and apocalypseQuestMapHexKey(option.hex) or nil
+		if key~=nil then targetKeys[#targetKeys+1]=key end
+	end
+	local pending={name=name,targetKeys=targetKeys,playerIndex=againstDragonChoicePlayerIndex()}
 	gStates.apocalypseHereHorsemanPendingChoice=pending
 	local grouped={}
 	for index,option in ipairs(options or {}) do
@@ -13544,7 +13549,13 @@ function apocalypseIsHereHorsemanTargetSelect(player,mouseButton,id)
 	local pending=gStates.apocalypseHereHorsemanPendingChoice
 	if pending==nil or againstDragonChoiceAuthorized(player,pending)~=true then return end
 	local index=tonumber(tostring(id or ""):match("ApocalypseHorsemanTarget(%d+)$"))
-	local option=index~=nil and pending.options[index] or nil
+	local targetKey=index~=nil and pending.targetKeys~=nil and pending.targetKeys[index] or nil
+	if targetKey==nil then return end
+	local liveOptions=apocalypseIsHereHorsemanTargetOptions(pending.name)
+	local option=nil
+	for _,candidate in ipairs(liveOptions or {}) do
+		if candidate.key==targetKey then option=candidate break end
+	end
 	if option==nil then return end
 	apocalypseIsHereClearChoiceButtons()
 	gStates.apocalypseHereHorsemanPendingChoice=nil
@@ -39276,7 +39287,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="418"
+local automaticLuaErrorReporterVersion="419"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
