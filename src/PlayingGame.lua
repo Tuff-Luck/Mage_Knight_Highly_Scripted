@@ -622,6 +622,8 @@ end
 
 --refill empty token piles. Both onObjectEnterScriptingZone and endRound call this routine
 function tokenRefill(reportResult)
+	--Token piles cannot need refilling during initial setup, and some Apocalypse piles are still being extracted then.
+	if gStates==nil or gStates.tokenRefillEnabled~=true then return true end
 	local tokenPileLink={	{discard=GUID.bag.discard.towerGarrison, destination=monsterPiles.purple},--Mage Towers Discard-->Main
 							{discard=GUID.bag.discard.keepGarrison, destination=monsterPiles.gray},--Keeps Discard-->Main
 							{discard=GUID.bag.discard.cityGarrison, destination=monsterPiles.white},--Cities Discard-->Main

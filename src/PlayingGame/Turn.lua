@@ -140,6 +140,8 @@ end
 
 
 function startOfTurn()
+	--Setup is complete once the first real turn begins; token pile maintenance is safe from this point onward.
+	gStates.tokenRefillEnabled=true
 	if apocalypseQuestsUsed()==true then gStates.apocalypseQuestScoringChoiceLocked=true end
 	local currentPlayer=turnOrder[gStates.turnNumber]
 	if currentPlayer~=nil then currentPlayer.puppetMasterUsed=false end
