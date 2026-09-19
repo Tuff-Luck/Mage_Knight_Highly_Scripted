@@ -1001,95 +1001,164 @@ function horsemanPriorityDescription(ref)
 		"Priority C: "..data.priorityText.C.."\n\n"
 end
 
---Whenever a Horseman shares a map hex with a round enemy/site token, keep both readable and make
---the Horseman physically topmost. This is a physical map rule, not a scenario rule: it also applies
---when a Horseman is drawn manually from a random stack. Ruins can safely remain centred underneath.
---The paired round tokens use the same +/-0.1 X/Z split used elsewhere.
+--Horsemen and map tokens share the same hex centre, so keep the two pieces slightly offset when
+--both are present. This includes Ruins; the Ruin exclusion belongs to Proxy combat targeting, not to
+--physical map layout. The split is deliberately small (+/-0.1 X/Z).
+local horsemanStackArrangePending={}
+
+local function horsemanStackBaseTokenOnHex(hex,mapObjects,horsemanGUID)
+	--A Ruin is the base site token on a Ruin hex. Check it first because proxyMonstersOnHex()
+	--intentionally excludes Ruins for gameplay reasons.
+	local ruin=proxyRuinOnHex(hex,mapObjects)
+	if ruin~=nil and ruin.guid~=horsemanGUID then return ruin end
+	for _,obj in pairs(mapObjects or {}) do
+		local details=monsterPugs[obj.guid]
+		if details~=nil and obj.guid~=horsemanGUID and
+			(horsemanTokenToName==nil or horsemanTokenToName[obj.guid]==nil) and
+			details.pugType~="possessed" then
+			local pos=obj.getPosition()
+			local dx=pos[1]-hex.position[1]
+			local dz=pos[3]-hex.position[3]
+			if (dx*dx)+(dz*dz)<1.5 then return obj end
+		end
+	end
+	return nil
+end
+
+local function horsemanRelockWhenResting(guid,wasLocked)
+	if wasLocked~=true then return end
+	safeWaitFrames("Scenario",function()
+		safeWaitCondition("Scenario",function()
+			local obj=getObjectFromGUID(guid)
+			if obj~=nil then obj.lock() end
+		end,function()
+			local obj=getObjectFromGUID(guid)
+			return obj==nil or obj.resting==true
+		end,3)
+	end,1)
+end
+
+local function horsemanOtherTokenStillOnSeparatedHex(record,ignoreGUID)
+	local map=getObjectFromGUID(mapArea)
+	if map==nil or record==nil then return false end
+	for _,obj in pairs(map.getObjects()) do
+		if obj.guid~=ignoreGUID and horsemanTokenToName~=nil and horsemanTokenToName[obj.guid]~=nil then
+			local pos=obj.getPosition()
+			local dx=pos[1]-record.x
+			local dz=pos[3]-record.z
+			if (dx*dx)+(dz*dz)<1.5 then return true end
+		end
+	end
+	return false
+end
+
+--Restore the token that a Horseman had displaced when that Horseman leaves the hex. This is called
+--before scripted movement and on manual pickup/container/destruction, so the old hex returns to its
+--normal centred layout immediately instead of waiting for another map event.
+function horsemanReleaseOccupiedToken(name)
+	if gStates==nil or name==nil then return false end
+	local data=horsemanData~=nil and horsemanData[name] or nil
+	if data==nil then return false end
+	gStates.horsemanSeparatedTokens=gStates.horsemanSeparatedTokens or {}
+	local record=gStates.horsemanSeparatedTokens[data.tokenGUID]
+	if record==nil then return false end
+	gStates.horsemanSeparatedTokens[data.tokenGUID]=nil
+
+	--If another Horseman still occupies the same hex, leave the shared base token offset for it.
+	if horsemanOtherTokenStillOnSeparatedHex(record,data.tokenGUID)==true then return false end
+	local token=getObjectFromGUID(record.tokenGUID)
+	if token==nil then return false end
+	local pos=token.getPosition()
+	local dx=pos[1]-record.x
+	local dz=pos[3]-record.z
+	--Only recenter the token if it is still on the hex we separated. A player may already have moved it.
+	if (dx*dx)+(dz*dz)>=1.5 then return false end
+	if math.abs(pos[1]-record.x)<0.035 and math.abs(pos[3]-record.z)<0.035 then return false end
+
+	local wasLocked=token.getLock()==true
+	token.unlock()
+	token.setPosition({record.x,pos[2],record.z})
+	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[token.guid]={record.x,pos[2],record.z} end
+	horsemanRelockWhenResting(token.guid,wasLocked)
+	return true
+end
+
 function horsemanArrangeOccupiedTokenStack(name)
 	if gStates==nil then return false end
 	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
 	local data=horsemanData~=nil and horsemanData[name] or nil
 	local horseman=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-	if data==nil or horseman==nil or (state~=nil and (state.defeated==true or state.retired==true)) then return false end
+	if data==nil or horseman==nil or (state~=nil and (state.defeated==true or state.retired==true)) then
+		horsemanReleaseOccupiedToken(name)
+		return false
+	end
 
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local hex=apocalypseQuestHexForPosition(hexes,horseman.getPosition(),mapObjects)
-	if hex==nil and state~=nil and state.terrainGUID~=nil and state.bearing~=nil then
-		for _,candidate in ipairs(hexes or {}) do
-			if candidate.terrainGUID==state.terrainGUID and tostring(candidate.bearing)==tostring(state.bearing) then hex=candidate break end
-		end
+	if hex==nil then
+		horsemanReleaseOccupiedToken(name)
+		return false
 	end
-	if hex==nil then return false end
+	local siteToken=horsemanStackBaseTokenOnHex(hex,mapObjects,horseman.guid)
+	if siteToken==nil then
+		horsemanReleaseOccupiedToken(name)
+		return false
+	end
 
-	local siteToken=nil
-	for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
-		local details=monsterPugs[enemy.guid]
-		--proxyMonstersOnHex already omits Ruins. Ignore Possessed overlays and other Horsemen:
-		--the physical conflict we are correcting is the round base enemy/site token.
-		if enemy.guid~=horseman.guid and
-			(horsemanTokenToName==nil or horsemanTokenToName[enemy.guid]==nil) and
-			(details==nil or details.pugType~="possessed") then
-			siteToken=enemy
-			break
-		end
+	gStates.horsemanSeparatedTokens=gStates.horsemanSeparatedTokens or {}
+	local oldRecord=gStates.horsemanSeparatedTokens[horseman.guid]
+	if oldRecord~=nil and (oldRecord.tokenGUID~=siteToken.guid or math.abs(oldRecord.x-hex.position[1])>0.05 or math.abs(oldRecord.z-hex.position[3])>0.05) then
+		horsemanReleaseOccupiedToken(name)
 	end
-	if siteToken==nil then return false end
+
+	--Both pieces can be arriving on a freshly revealed tile at the same time. Do not fight either
+	--object while physics is still moving it; scheduled retries below will perform one final placement.
+	if horseman.resting~=true or siteToken.resting~=true or horseman.isSmoothMoving()==true or siteToken.isSmoothMoving()==true then return false end
 
 	local horsePos=horseman.getPosition()
 	local sitePos=siteToken.getPosition()
 	local horseX,horseZ=hex.position[1]+0.1,hex.position[3]+0.1
 	local siteX,siteZ=hex.position[1]-0.1,hex.position[3]-0.1
-	if math.abs(horsePos[1]-horseX)<0.05 and math.abs(horsePos[3]-horseZ)<0.05 and
-		math.abs(sitePos[1]-siteX)<0.05 and math.abs(sitePos[3]-siteZ)<0.05 and horsePos[2]>sitePos[2]+0.08 then return false end
+	local alreadyPlaced=math.abs(horsePos[1]-horseX)<0.035 and math.abs(horsePos[3]-horseZ)<0.035 and
+		math.abs(sitePos[1]-siteX)<0.035 and math.abs(sitePos[3]-siteZ)<0.035
+	gStates.horsemanSeparatedTokens[horseman.guid]={tokenGUID=siteToken.guid,x=hex.position[1],z=hex.position[3]}
+	if alreadyPlaced==true then return false end
 
 	local horseLocked=horseman.getLock()==true
 	local siteLocked=siteToken.getLock()==true
-	local horseGUID=horseman.guid
-	local siteGUID=siteToken.guid
+	--One small settled reposition replaces the old y=3/y=2 restack. Preserve the lower token's
+	--current height and only lift the Horseman enough to keep its physical ordering if necessary.
+	local horseY=horsePos[2]
+	if horseY<=sitePos[2]+0.08 then horseY=sitePos[2]+0.12 end
 	horseman.unlock()
 	siteToken.unlock()
-	--Park the Horseman high while the underlying round token establishes the bottom of the pair.
-	horseman.setPosition({horseX,3.0,horseZ})
-	siteToken.setPosition({siteX,2.0,siteZ})
-	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[siteGUID]={siteX,2.0,siteZ} end
-
-	local placed=false
-	local function placeHorseman()
-		if placed==true then return end
-		placed=true
-		local currentSite=getObjectFromGUID(siteGUID)
-		local currentHorseman=getObjectFromGUID(horseGUID)
-		if currentSite~=nil and siteLocked==true then currentSite.lock() end
-		if currentHorseman~=nil then
-			currentHorseman.unlock()
-			local baseY=currentSite~=nil and currentSite.getPosition()[2] or 1.30
-			currentHorseman.setPosition({horseX,baseY+0.35,horseZ})
-			if horseLocked==true then
-				safeWaitFrames("Scenario",function()
-					safeWaitCondition("Scenario",function()
-						local settled=getObjectFromGUID(horseGUID)
-						if settled~=nil then settled.lock() end
-					end,function()
-						local settling=getObjectFromGUID(horseGUID)
-						return settling==nil or settling.resting==true
-					end,3)
-				end,1)
-			end
-		end
-	end
-
-	safeWaitFrames("Scenario",function()
-		safeWaitCondition("Scenario",placeHorseman,function()
-			local currentSite=getObjectFromGUID(siteGUID)
-			return currentSite==nil or currentSite.resting==true
-		end,3,placeHorseman)
-	end,1)
+	siteToken.setPosition({siteX,sitePos[2],siteZ})
+	horseman.setPosition({horseX,horseY,horseZ})
+	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[siteToken.guid]={siteX,sitePos[2],siteZ} end
+	horsemanRelockWhenResting(siteToken.guid,siteLocked)
+	horsemanRelockWhenResting(horseman.guid,horseLocked)
 	return true
+end
+
+--A fresh terrain reveal can drop the Horseman and its existing token onto the hex in the same physics
+--window. Three deduplicated checks cover that race. Once the pair is already at +/-0.1 the later checks
+--are no-ops, so they do not produce the previous second "hop".
+function horsemanScheduleOccupiedTokenStack(name)
+	if name==nil then return end
+	if horsemanStackArrangePending[name]==true then return end
+	horsemanStackArrangePending[name]=true
+	for index,delay in ipairs({2,12,30}) do
+		local final=index==3
+		safeWaitFrames("Scenario",function()
+			horsemanArrangeOccupiedTokenStack(name)
+			if final==true then horsemanStackArrangePending[name]=nil end
+		end,delay)
+	end
 end
 
 function horsemanArrangeOccupiedTokenStacks()
 	if gStates==nil then return end
-	for name,_ in pairs(horsemanData or {}) do horsemanArrangeOccupiedTokenStack(name) end
+	for name,_ in pairs(horsemanData or {}) do horsemanScheduleOccupiedTokenStack(name) end
 end
 
 function setHorsemanLevel(ref, level, hideIdentity)
@@ -1205,6 +1274,7 @@ function againstHorsemenMarkDefeatedToken(token,name,playerIndex,smooth)
 	local player=turnOrder[playerIndex]
 	if token==nil or state==nil or player==nil then return false end
 	local level=math.max(1,math.min(6,tonumber(state.level) or 1))
+	horsemanReleaseOccupiedToken(name)
 	token.setName("DEFEATED - "..name.." Level "..tostring(level))
 	token.setDescription("Defeated by "..tostring(player.mage))
 	token.setGMNotes("Defeated Horseman")
@@ -1407,7 +1477,7 @@ function againstHorsemenRefreshReveals()
 	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return end
 	for name,_ in pairs(gStates.horsemen or {}) do
 		againstHorsemenRefreshHorseman(name)
-		horsemanArrangeOccupiedTokenStack(name)
+		horsemanScheduleOccupiedTokenStack(name)
 	end
 end
 
@@ -1604,7 +1674,10 @@ function againstHorsemenAnimateMoveWave(targets)
 	for name,target in pairs(targets) do
 		local data=horsemanData~=nil and horsemanData[name] or nil
 		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-		if token~=nil and target.position~=nil then token.setPositionSmooth(target.position,false) end
+		if token~=nil and target.position~=nil then
+			horsemanReleaseOccupiedToken(name)
+			token.setPositionSmooth(target.position,false)
+		end
 	end
 	safeWaitFrames("Scenario",function()
 		local function allSettled()
@@ -1881,9 +1954,9 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	token.unlock()
 	token.setRotation({0,180,0})
 	token.setPositionSmooth(target,false)
-	--Terrain population can finish after the Horseman itself arrives, so check once during and once after that window.
-	safeWaitFrames("Scenario",function() horsemanArrangeOccupiedTokenStack(name) end,12)
-	safeWaitFrames("Scenario",function() horsemanArrangeOccupiedTokenStack(name) end,30)
+	--Terrain population can finish after the Horseman itself arrives, so let the generic settle-aware
+	--scheduler catch whichever of the Horseman or existing map token finishes last.
+	horsemanScheduleOccupiedTokenStack(name)
 	gStates.apocalypseHereNextHorseman=index+1
 	local card=getObjectFromGUID(data.cardGUID)
 	if card~=nil then
@@ -2157,6 +2230,7 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 		state.retired=true state.revealed=false state.removedAfterFour=true
 		local token=getObjectFromGUID(data.tokenGUID)
 		local apocBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+		horsemanReleaseOccupiedToken(name)
 		if token~=nil then token.unlock() if apocBag~=nil then apocBag.putObject(token) else token.setPosition({0,-20,0}) end end
 		monsterPugs[data.tokenGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end
@@ -2179,6 +2253,7 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 	local state=gStates.horsemen[name]
 	local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 	if token==nil or destination==nil then apocalypseIsHereContinueHorsemenTurn() return false end
+	horsemanReleaseOccupiedToken(name)
 	state.terrainGUID=destination.terrainGUID state.bearing=destination.bearing
 	token.unlock() token.setRotation({0,180,0}) token.setPositionSmooth({destination.position[1],1.42,destination.position[3]},false)
 	safeWaitCondition("Scenario",function()
@@ -2188,7 +2263,7 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 			local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
 			gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
 		end
-		horsemanArrangeOccupiedTokenStack(name)
+		horsemanScheduleOccupiedTokenStack(name)
 		apocalypseIsHereContinueHorsemenTurn()
 	end,function() local current=getObjectFromGUID(data.tokenGUID) return current==nil or current.isSmoothMoving()==false end,5,function() apocalypseIsHereContinueHorsemenTurn() end)
 	return true
