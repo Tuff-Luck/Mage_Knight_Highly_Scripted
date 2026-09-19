@@ -184,6 +184,26 @@ function deedTransferFinishHover(seatPos,entry)
 	end)
 end
 
+function deedTransferPositionReached(guid,target)
+	local moving=getObjectFromGUID(guid)
+	if moving==nil then return true end
+	local pos=moving.getPosition()
+	return math.abs(pos[1]-target[1])<0.45 and math.abs(pos[2]-target[2])<0.55 and math.abs(pos[3]-target[3])<0.45
+end
+
+function deedTransferMoveFinalLeg(seatPos,entry,hover)
+	local card=getObjectFromGUID(entry.guid)
+	if card==nil then deedTransferComplete(seatPos,entry,false) return end
+	card.setPositionSmooth(hover,false,false)
+	safeWaitCondition("PlayerBoard.CardFlow",function()
+		deedTransferFinishHover(seatPos,entry)
+	end,function()
+		return deedTransferPositionReached(entry.guid,hover)
+	end,3.0,function()
+		deedTransferFinishHover(seatPos,entry)
+	end)
+end
+
 function deedTransferProcess(seatPos)
 	if deedTransferState.active[seatPos]~=nil then return end
 	local queue=deedTransferState.queues[seatPos]
@@ -198,17 +218,18 @@ function deedTransferProcess(seatPos)
 	local target=pile~=nil and pile.getPosition() or deedTransferHomePosition(seatPos)
 	local rotation=pile~=nil and pile.getRotation() or {0,180,180}
 	local hover={target[1],target[2]+2.0,target[3]}
+	local start=card.getPosition()
+	local midpoint={(start[1]+hover[1])/2,(start[2]+hover[2])/2,(start[3]+hover[3])/2}
 	card.setRotationSmooth(rotation,false,false)
-	card.setPositionSmooth(hover,false,false)
+	--TTS smooth movement speeds up visually over long cross-table distances. Unit claims already have
+	--the pace we want, so Deed-card claims travel in two normal-smooth legs instead of one long leg.
+	card.setPositionSmooth(midpoint,false,false)
 	safeWaitCondition("PlayerBoard.CardFlow",function()
-		deedTransferFinishHover(seatPos,entry)
+		deedTransferMoveFinalLeg(seatPos,entry,hover)
 	end,function()
-		local moving=getObjectFromGUID(entry.guid)
-		if moving==nil then return true end
-		local pos=moving.getPosition()
-		return math.abs(pos[1]-hover[1])<0.35 and math.abs(pos[2]-hover[2])<0.5 and math.abs(pos[3]-hover[3])<0.35
+		return deedTransferPositionReached(entry.guid,midpoint)
 	end,3.0,function()
-		deedTransferFinishHover(seatPos,entry)
+		deedTransferMoveFinalLeg(seatPos,entry,hover)
 	end)
 end
 
