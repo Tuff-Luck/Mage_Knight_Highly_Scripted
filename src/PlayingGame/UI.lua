@@ -1000,6 +1000,27 @@ function mainUIUpdate(source)
 					local count=1
 					local rewardText="{en}Have you:-\n{ru}Проверьте, что вы:-\n{zh-tw}你是否已經：\n{zh-cn}你是否已经：\n{ko}차례 종료 과정 진행:-\n{es}Has:-\n{fr}Avez-vous:-\n{pt-br}Você já:-\n{de}Hast du:-\n"
 					local linefeed=false
+					local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
+					if questRewardPending==true then
+						local questReminder=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and ". Completed/Failed the Quest." or ". Completed/Progressed the Quest."
+						rewardText=joinLang({rewardText,count,questReminder})
+						count=count+1 linefeed=true
+					end
+					if apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
+						rewardText=joinLang({rewardText,count,". Explored for horsemen."})
+						count=count+1 linefeed=true
+					end
+					if steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(currentPlayer.seatPos)==true then
+						rewardText=joinLang({rewardText,count,". Resolved Steady Tempo."})
+						count=count+1 linefeed=true
+					end
+					local pendingCrystal=gStates.mineClaimPending
+					if pendingCrystal~=nil and pendingCrystal.playerIndex==gStates.turnNumber then
+						local crystalSource=pendingCrystal.source=="Quest" and "Quest" or "Mine"
+						rewardText=joinLang({rewardText,count,". Claimed your "..crystalSource.." Crystal."})
+						count=count+1 linefeed=true
+					end
+					if linefeed==true then rewardText=joinLang({rewardText,"\n"}) linefeed=false end
 					if gStates.gameScenario=="Mines Liberation" and gStates.endRoundCalled==true and gStates.turnForfeited==false then
 						rewardText=joinLang({rewardText, count, "{en}. Collected 1 Crystal from your Liberated Mine(s){ru}. Получили 1 кристалл из ваших освобожденных шахт{zh-tw}. 從你解放的礦山獲得 1 顆魔晶{zh-cn}. 从你解放的矿山获得 1 块魔晶{ko}. 해방한 광산에서 수정 1개 획득{es}. Obtenido 1 Cristal de tus Minas liberadas{fr}. Obtenu 1 cristal de vos Mines libérées{pt-br}. Ganhou 1 Cristal das suas Minas libertadas{de}. 1 Kristall aus deinen befreiten Minen erhalten"})
 						count=count+1 linefeed=true
@@ -1015,39 +1036,7 @@ function mainUIUpdate(source)
 					end
 					if avatarLocation~=nil then
 						--see if a matching shield is near the avatar
-						local function findNearOwnShield()
-							local nearOwnShield="false"
-							local avPos=mageKnightAvatarPosition(gStates.turnNumber) or {}
-							if (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and
-								gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel)~=nil and math.sqrt(((getObjectFromGUID(gStates.volkareModel).getPosition()[1]-avPos[1])^2)+((getObjectFromGUID(gStates.volkareModel).getPosition()[3]-avPos[3])^2))<1 then
-								return volkare.model
-							end
-							if avatarLocation:sub(1, 4)=="city" or avatarLocation=="Volkare's Camp" or avatarLocation=="necropolis" or avatarLocation=="hidden valley" then
-								refreshCityDefeatState()
-								--check if avatar dropped on city card, then use the city model as the avatar location
-								for zone, citySearch in pairs(cityScriptZones) do
-									for obj, detail in pairs(getObjectFromGUID(zone).getObjects()) do
-										for _, avatar in pairs(mageKnights) do
-											if detail.guid==avatar.model or detail.guid==avatar.standee or detail.guid==avatar.token then
-												if zone==volkare.discZone and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-													return volkare.model
-												else
-													return citySearch.cityGUID
-												end
-											end
-										end
-									end
-								end
-							end
-							for _, shieldCheck in pairs(getObjectFromGUID(mapArea).getObjects()) do
-								if ((shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and shieldCheck.getDescription()==turnOrder[gStates.turnNumber].mage) or shieldCheck.getName()=="Hidden Valley" or shieldCheck.getName()=="Necropolis" or shieldCheck.getName()=="Volkare's Camp" or shieldCheck.getName()=="Volkare" or shieldCheck.getGMNotes()=="White City" or shieldCheck.getGMNotes()=="Red City" or shieldCheck.getGMNotes()=="Green City" or shieldCheck.getGMNotes()=="Blue City") and
-									math.sqrt(((shieldCheck.getPosition()[1]-avPos[1])^2)+((shieldCheck.getPosition()[3]-avPos[3])^2))<1 then
-									nearOwnShield=shieldCheck.guid break
-								end
-							end
-							return nearOwnShield
-						end
-						local nearbyOwnShield=findNearOwnShield()
+						local nearbyOwnShield=rewardNearbyOwnShield(gStates.turnNumber,avatarLocation)
 
 						--Victory Shield
 						if (avatarLocation=="glade" and gStates.gameScenario=="Druid Nights") then
@@ -1062,33 +1051,7 @@ function mainUIUpdate(source)
 							count=count+1 linefeed=true
 						end
 						if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-						--The retreat checklist can run before faction-state bookkeeping finishes. Use the real leader state,
-						--and also detect a defeat already committed by the current combat but still waiting for cleanup.
-						local coopLeaderCombat=gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader"
-						local leaderDefeatedPendingCleanup=false
-						local factionLeaderDefeated=false
-						if avatarLocation=="necropolis" or avatarLocation=="hidden valley" then
-							local currentLeader=avatarLocation=="necropolis" and darkCrusader or elementalist
-							local leaderLevel=avatarLocation=="necropolis" and gStates.darkCrusaderLevel or gStates.elementalistLevel
-							factionLeaderDefeated=(leaderLevel or 1)<=0 or (gStates.cityMonsterQty[currentLeader.terrainHex]~=nil and gStates.cityMonsterQty[currentLeader.terrainHex][currentLeader.token]=="dead") or (gStates.defeatedFactionTest~=nil and gStates.defeatedFactionTest[currentLeader.terrainHex]=="Beat")
-							local leaderObj=getObjectFromGUID(currentLeader.token)
-							if factionLeaderDefeated==false and leaderObj~=nil and leaderObj.is_face_down==false and leaderLevel~=nil and ((gStates.leaderReduction or 0)+(gStates.leaderOverkill or 0))>=leaderLevel then
-								for _, obj in pairs(getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
-									if obj.guid==currentLeader.token then leaderDefeatedPendingCleanup=true break end
-								end
-							end
-						end
-						local dragonRetreatRequired=false
-						if gStates.apocalypseDragonDefeated~=true and apocalypseDragonLairContainsPosition~=nil then
-							local dragonAvatarPos=mageKnightAvatarPosition(gStates.turnNumber)
-							dragonRetreatRequired=dragonAvatarPos~=nil and apocalypseDragonLairContainsPosition(dragonAvatarPos)==true
-						end
-						if gStates.turnForfeited==false and
-							(dragonRetreatRequired==true or
-							((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false") or
-							((avatarLocation:sub(1, 4)=="city" or avatarLocation=="Volkare's Camp") and gStates.friendlyCity[nearbyOwnShield]~=true and ((gStates.gameScenario~="The Lost Relic Blitz" and gStates.defeatedCities[nearbyOwnShield]~=true) or (gStates.gameScenario=="The Lost Relic Blitz" and nearbyOwnShield=="false"))) or
-							((avatarLocation=="necropolis" or avatarLocation=="hidden valley") and coopLeaderCombat==false and leaderDefeatedPendingCleanup==false and factionLeaderDefeated==false) or
-							(nearbyOwnShield==volkare.model)) then
+						if rewardRetreatRequired(gStates.turnNumber,avatarLocation,nearbyOwnShield)==true then
 							rewardText=joinLang({rewardText, count, "{en}. Retreated to a Safe space{ru}. Отступили в Безопасное место{zh-tw}. 撤離到一個安全位置{zh-cn}. 撤离到一个安全位置{ko}. 안전한 칸으로 후퇴{es}. Acabado en un Espacio Seguro{fr}. Retraité dans un espace sûr{pt-br}. Recuou para um espaço seguro{de}. Dich in ein sicheres Feld zurückgezogen"})
 							count=count+1 linefeed=true
 						end
