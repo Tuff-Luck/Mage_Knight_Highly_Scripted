@@ -1185,7 +1185,8 @@ end
 --shares its hex it participates in one centred WORLD-space diagonal spread. Adjacent tokens are 0.2
 --world units apart along that line. Token rotation/face state never affects direction.
 --lateralOnly is used when a piece leaves the hex so the survivors never visibly hop in Y.
---Ordering along the line comes only from each token's current physical Y height.
+--For a fresh stack, physical Y defines low-to-high order. Already-separated pieces preserve their
+--world-space diagonal order, and a newly dropped/arriving token is always appended at the top end.
 function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,arrivalGUID)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
@@ -1211,11 +1212,22 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 		end
 	end
 	table.sort(enemies,function(a,b)
-		--The physical stack defines the order along the world-space diagonal: lowest Y goes to the
-		--bottom-left end, then progressively higher pieces move toward the upper-right end.
-		local ay=a.getPosition()[2]
-		local by=b.getPosition()[2]
-		if math.abs(ay-by)>0.01 then return ay<by end
+		--A newly dropped/arriving token is conceptually the top of the stack, regardless of tiny
+		--collider/resting-height differences. Existing pieces keep their current diagonal order when
+		--already separated; if they are still stacked at the same X/Z, physical Y decides low-to-high.
+		if arrivalGUID~=nil then
+			if a.guid==arrivalGUID and b.guid~=arrivalGUID then return false end
+			if b.guid==arrivalGUID and a.guid~=arrivalGUID then return true end
+		end
+		local ap=a.getPosition()
+		local bp=b.getPosition()
+		local aProjection=ap[1]+ap[3]
+		local bProjection=bp[1]+bp[3]
+		if math.abs(aProjection-bProjection)>0.05 then
+			--+X/+Z is the user's visual bottom-left end of the world-space diagonal.
+			return aProjection>bProjection
+		end
+		if math.abs(ap[2]-bp[2])>0.01 then return ap[2]<bp[2] end
 		return tostring(a.guid)<tostring(b.guid)
 	end)
 
@@ -1301,8 +1313,8 @@ function mapTokenArrangeDroppedObject(guid)
 		--Claim the entire physical stack before moving any member. Otherwise moving the lower loose
 		--token can fire its own map-zone event and a later retry re-sorts the now-separated pieces.
 		local claims=mapTokenClaimHexParticipants(guid,generation)
-		--This is the only arrangement pass for this manual drop.
-		mapTokenArrangeObject(guid,true)
+		--This is the only arrangement pass for this manual drop. The dropped token is the top arrival.
+		mapTokenArrangeObject(guid,true,guid)
 		mapTokenReleaseParticipantClaims(claims)
 	end)
 end
@@ -1329,7 +1341,7 @@ function mapTokenFinishSingleArrival(guid,generation)
 	--The scripted move has already settled. Claim every token sharing the hex before moving any of
 	--them, then read final physical Y once and spread only X/Z once.
 	local claims=mapTokenClaimHexParticipants(guid,generation)
-	mapTokenArrangeObject(guid,true)
+	mapTokenArrangeObject(guid,true,guid)
 	mapTokenReleaseParticipantClaims(claims)
 	return true
 end
