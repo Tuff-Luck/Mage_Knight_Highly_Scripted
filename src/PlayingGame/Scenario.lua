@@ -1319,9 +1319,8 @@ function mapTokenArrangeObject(guid)
 end
 
 --All loose map-token arrivals use this one ownership path. The arriving token claims its
---settle/spread before it can cross the map zone, waits until its own movement/physics is finished,
---then claims every token sharing the final hex and performs one lateral spread. This replaces the
---old overlapping zone retries, scripted-arrival finish pass and manual-drop pass.
+--settle/layout before it can cross the map zone, waits until its own movement/physics is finished,
+--then claims every token sharing the final hex and assigns the ordered X/Z/Y slots once.
 function mapTokenSettleArrival(guid,target,options,callback)
 	options=options or {}
 	if guid==nil then return false end
@@ -1444,7 +1443,8 @@ function mapTokenArrangeAllOccupiedHexes()
 						break
 					end
 				end
-				--This is only a maintenance sweep; never lift/drop settled pieces here.
+				--This is only a maintenance sweep; reapply the deterministic X/Z/Y slots directly,
+				--without starting another physics drop.
 				if arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects,nil,nil) end
 			end
 		end
@@ -2830,16 +2830,15 @@ function takeDestroyedSiteToken(terrain,bearing)
 	return bag.takeObject({position={center[1],mapTokenBaseY,center[2]},rotation={0,180,0},smooth=false})
 end
 
---A Destroyed Site has a known physical resting height. Put it straight onto the map surface rather
---than dropping it onto whatever is already on the hex. The generic token arranger then moves enemy
---tokens into their slight offsets and lets those pieces fall/relock above the marker.
+--A Destroyed Site is always slot 1. Put it straight onto the map at Y 1.08, then let the generic
+--arranger assign every other participant its matching diagonal position and +0.20 stack height.
 function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	if token==nil or terrain==nil or bearing==nil then return false end
 	local center=angleToXY(terrain,bearing)
 	if center==nil then return false end
 
-	--Destroyed has a known floor height, so place it there directly and let the same single-arrival
-	--helper perform the one lateral spread with any enemy/Horseman already occupying the hex.
+	--Destroyed starts at the slot-1 floor height; the shared arrival helper owns the complete X/Z/Y
+	--layout when an enemy, Horseman or other spread token shares the hex.
 	token.unlock()
 	token.setRotation({0,180,0})
 	token.setPosition({center[1],mapTokenBaseY,center[2]})
