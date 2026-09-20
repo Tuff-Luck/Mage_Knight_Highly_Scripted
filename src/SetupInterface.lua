@@ -874,7 +874,8 @@ end
 function scenarioMapIsPredefined()
 	local scenario=gStates~=nil and scenarioList[gStates.scenarioRef] or nil
 	local setup=scenario~=nil and scenario[gStates.playersRef] or nil
-	return setup~=nil and type(setup.mapShape)=="string" and setup.mapShape:sub(5,5)=="P"
+	--Custom Predefined is a player-built sandbox, so only scenario-owned predefined maps lock these setup controls.
+	return setup~=nil and type(setup.mapShape)=="string" and setup.mapShape:sub(5,5)=="P" and gStates.gameScenario~="Custom"
 end
 
 function refreshScenarioTerrainTweakLocks()
@@ -908,6 +909,9 @@ function baseValueTweak(player, mouseButton, id)
 								"{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten",
 								"{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",
 								"{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen"}
+				if gStates.gameScenario=="Custom" then
+					mapShapes[#mapShapes+1]="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert"
+				end
 				for a=1, #mapShapes, 1 do
 					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape==mapShapes[a] then
 						local b=nil
