@@ -4284,7 +4284,7 @@ function againstDragonMainUIPanelSpec()
 	if state=="ReadyToProcess" then label="{en}Process Dragon{ru}Ход Дракона{zh-tw}執行巨龍行動{zh-cn}执行巨龙行动{ko}드래곤 진행{es}Procesar Dragón{fr}Traiter le Dragon{pt-br}Processar Dragão{de}Drache aktivieren" active=true
 	elseif state=="ReadyToEnd" then label="{en}Dragon Processed{ru}Дракон обработан{zh-tw}巨龍行動結束{zh-cn}巨龙行动结束{ko}드래곤 처리 완료{es}Dragón Procesado{fr}Dragon traité{pt-br}Dragão Processado{de}Drache verarbeitet" active=true
 	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Выберите цель{zh-tw}選擇目標{zh-cn}选择目标{ko}대상 선택{es}Elige Objetivo{fr}Choisir la Cible{pt-br}Escolha o Alvo{de}Ziel wählen"
-	elseif state=="WaitingCombat" then label="{en}Combat Resolved{ru}Combat Resolved{zh-tw}Combat Resolved{zh-cn}Combat Resolved{ko}Combat Resolved{es}Combat Resolved{fr}Combat Resolved{pt-br}Combat Resolved{de}Combat Resolved" active=true end
+	elseif state=="WaitingCombat" then label="{en}Combat Resolved{ru}Бой завершён{zh-tw}戰鬥已解決{zh-cn}战斗已解决{ko}전투 해결 완료{es}Combate resuelto{fr}Combat résolu{pt-br}Combate resolvido{de}Kampf beendet" active=true end
 	return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or ("The Apocalypse Dragon is preparing its "..ordinal.." turn."),onClick="againstDragonProcessUI",label=label,interactable=active}
 end
 
@@ -5407,8 +5407,6 @@ function furyDragonBeginInFlightTurn()
 	local spare=getObjectFromGUID(GUID.bag.spareDice)
 	if die~=nil and spare~=nil then die.unlock() spare.putObject(die) end
 	gStates.furyDragonManaDieGUID=nil
-	gStates.furyDragonFlightTarget=nil
-	gStates.furyDragonCurrentHexKey=target.key
 
 	marker.unlock()
 	marker.setRotation({0,180,0})
@@ -5417,6 +5415,8 @@ function furyDragonBeginInFlightTurn()
 	safeWaitCondition("Scenario",function()
 		local landed=getObjectFromGUID(markerGUID)
 		if landed~=nil then landed.lock() end
+		gStates.furyDragonCurrentHexKey=target.key
+		gStates.furyDragonFlightTarget=nil
 		local currentHexes,currentMapObjects=apocalypseQuestMapHexes()
 		local currentHex=againstDragonMapHexByKey(currentHexes,target.key)
 		if currentHex==nil then
