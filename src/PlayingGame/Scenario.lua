@@ -1133,10 +1133,11 @@ local function mapTokenMoveLaterally(obj,targetX,targetZ)
 end
 
 --Arrange one resolved map hex. A Destroyed Site remains the floor marker, but when another token
---shares its hex it participates in the spread: the lower marker sits down-left and the first token
---above it sits up-right. A Ruin remains an ordinary centred base marker. A lone enemy recentres.
+--shares its hex it participates in the spread: slot 1 is always the same down-left WORLD position,
+--slot 2 is always the same up-right WORLD position. Token rotation/face state never affects direction.
 --lateralOnly is used when a piece leaves the hex so the survivors never visibly hop in Y.
-function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly)
+--arrivalGUID, when supplied for a manual drop, is assigned after the tokens already on that hex.
+function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,arrivalGUID)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
 	local seen={}
@@ -1164,9 +1165,12 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly)
 		end
 	end
 	table.sort(enemies,function(a,b)
-		local ay=a.getPosition()[2]
-		local by=b.getPosition()[2]
-		if math.abs(ay-by)>0.025 then return ay<by end
+		--Never derive slot direction from Y/rotation: face-up and face-down tokens can have different
+		--centre heights. On a manual drop the newcomer is deliberately last, after existing pieces.
+		if arrivalGUID~=nil then
+			if a.guid==arrivalGUID and b.guid~=arrivalGUID then return false end
+			if b.guid==arrivalGUID and a.guid~=arrivalGUID then return true end
+		end
 		return tostring(a.guid)<tostring(b.guid)
 	end)
 
@@ -1217,8 +1221,8 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly)
 	--Enemy assignment therefore begins at slot 2, whose offset is up-right.
 	local firstEnemySlot=destroyed~=nil and 2 or 1
 	local assigned={}
-	--Read the actual physical stack and assign slots from bottom to top. This makes a drop deterministic:
-	--the lowest piece is down-left, the next is up-right, regardless of tiny differences in drop position.
+	--Assign fixed WORLD slots. Existing tokens come first; a manually dropped arrival comes last.
+	--No local rotation, face state or Y height participates in choosing the direction.
 	for index,obj in ipairs(enemies) do
 		assigned[obj.guid]=math.min(firstEnemySlot+index-1,#mapTokenSpreadSlots)
 	end
@@ -1236,13 +1240,13 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly)
 	return changed
 end
 
-function mapTokenArrangeObject(guid,lateralOnly)
+function mapTokenArrangeObject(guid,lateralOnly,arrivalGUID)
 	local obj=guid~=nil and getObjectFromGUID(guid) or nil
 	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
 	if hex==nil then return false end
-	return mapTokenArrangeHex(hex,mapObjects,nil,obj,lateralOnly==true)
+	return mapTokenArrangeHex(hex,mapObjects,nil,obj,lateralOnly==true,arrivalGUID)
 end
 
 --A human drop is already responsible for the token's vertical physics. Cancel any scripted-arrival
@@ -1251,7 +1255,7 @@ function mapTokenArrangeDroppedObject(guid)
 	if guid==nil then return end
 	mapTokenArrangeGeneration[guid]=(mapTokenArrangeGeneration[guid] or 0)+1
 	safeWaitFrames("Scenario",function()
-		mapTokenArrangeObject(guid,true)
+		mapTokenArrangeObject(guid,true,guid)
 	end,1)
 end
 
