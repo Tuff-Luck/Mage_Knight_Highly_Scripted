@@ -1132,23 +1132,6 @@ local function mapTokenMoveLaterally(obj,targetX,targetZ)
 	return true
 end
 
-local function mapTokenNearestFreeSlot(obj,centerX,centerZ,used,maxSlots)
-	if obj==nil then return nil end
-	local pos=obj.getPosition()
-	local nearest=nil
-	local nearestDistance=0.0065
-	for slot=1,maxSlots do
-		if used[slot]~=true then
-			local offset=mapTokenSpreadSlots[slot]
-			local dx=pos[1]-(centerX+offset.x)
-			local dz=pos[3]-(centerZ+offset.z)
-			local d=(dx*dx)+(dz*dz)
-			if d<nearestDistance then nearest=slot nearestDistance=d end
-		end
-	end
-	return nearest
-end
-
 --Arrange one resolved map hex. A Destroyed Site remains the floor marker, but when another token
 --shares its hex it participates in the spread: the lower marker sits down-left and the first token
 --above it sits up-right. A Ruin remains an ordinary centred base marker. A lone enemy recentres.
@@ -1180,7 +1163,12 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly)
 			enemies[#enemies+1]=obj
 		end
 	end
-	table.sort(enemies,function(a,b) return tostring(a.guid)<tostring(b.guid) end)
+	table.sort(enemies,function(a,b)
+		local ay=a.getPosition()[2]
+		local by=b.getPosition()[2]
+		if math.abs(ay-by)>0.025 then return ay<by end
+		return tostring(a.guid)<tostring(b.guid)
+	end)
 
 	local centerX,centerZ=hex.position[1],hex.position[3]
 	local base=destroyed or ordinaryBase
@@ -1227,26 +1215,16 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly)
 
 	--Destroyed occupies slot 1 itself when the hex is shared, putting the physical bottom down-left.
 	--Enemy assignment therefore begins at slot 2, whose offset is up-right.
-	local slotCount=math.min(#mapTokenSpreadSlots,math.max(#enemies+(destroyed~=nil and 1 or 0),1))
-	local used={}
-	if destroyed~=nil then used[1]=true end
+	local firstEnemySlot=destroyed~=nil and 2 or 1
 	local assigned={}
-	--Keep an already-separated token in its current slot when possible so a new arrival does not
-	--shuffle every existing piece around the hex.
-	for _,obj in ipairs(enemies) do
-		local slot=mapTokenNearestFreeSlot(obj,centerX,centerZ,used,slotCount)
-		if slot~=nil then used[slot]=true assigned[obj.guid]=slot end
-	end
-	for _,obj in ipairs(enemies) do
-		if assigned[obj.guid]==nil then
-			for slot=1,slotCount do
-				if used[slot]~=true then assigned[obj.guid]=slot used[slot]=true break end
-			end
-		end
+	--Read the actual physical stack and assign slots from bottom to top. This makes a drop deterministic:
+	--the lowest piece is down-left, the next is up-right, regardless of tiny differences in drop position.
+	for index,obj in ipairs(enemies) do
+		assigned[obj.guid]=math.min(firstEnemySlot+index-1,#mapTokenSpreadSlots)
 	end
 
 	for _,obj in ipairs(enemies) do
-		local slot=assigned[obj.guid] or (destroyed~=nil and 2 or 1)
+		local slot=assigned[obj.guid] or firstEnemySlot
 		local offset=mapTokenSpreadSlots[slot]
 		local minY=(baseY~=nil and baseY+0.55 or 1.45)
 		if lateralOnly==true then
@@ -1258,13 +1236,23 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly)
 	return changed
 end
 
-function mapTokenArrangeObject(guid)
+function mapTokenArrangeObject(guid,lateralOnly)
 	local obj=guid~=nil and getObjectFromGUID(guid) or nil
 	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
 	if hex==nil then return false end
-	return mapTokenArrangeHex(hex,mapObjects,nil,obj)
+	return mapTokenArrangeHex(hex,mapObjects,nil,obj,lateralOnly==true)
+end
+
+--A human drop is already responsible for the token's vertical physics. Cancel any scripted-arrival
+--retries and, once the drop event has registered, read the whole hex once and change X/Z only.
+function mapTokenArrangeDroppedObject(guid)
+	if guid==nil then return end
+	mapTokenArrangeGeneration[guid]=(mapTokenArrangeGeneration[guid] or 0)+1
+	safeWaitFrames("Scenario",function()
+		mapTokenArrangeObject(guid,true)
+	end,1)
 end
 
 function mapTokenScheduleObject(guid)
