@@ -865,6 +865,36 @@ function apocalypseQuestPlaceEnemy(card, pileName, faceUp, offsetX)
 	return enemy
 end
 
+function apocalypseQuestPlaceFistfulEnemies(card, callback)
+	if card==nil then
+		if callback~=nil then callback(false) end
+		return false
+	end
+	local cardGUID=card.guid
+	local offsets={-0.55,0.55}
+	local index=1
+	local success=true
+	local function finish()
+		local live=getObjectFromGUID(cardGUID)
+		if live~=nil then apocalypseQuestInterfaceAdd(live,true) end
+		if callback~=nil then callback(success) end
+	end
+	local function drawNext()
+		local live=getObjectFromGUID(cardGUID)
+		if live==nil then
+			success=false
+			finish()
+			return
+		end
+		if apocalypseQuestPlaceEnemy(live,"gray",true,offsets[index])==nil then success=false end
+		index=index+1
+		if index<=#offsets then safeWaitFrames("Quests",drawNext,2)
+		else safeWaitFrames("Quests",finish,2) end
+	end
+	drawNext()
+	return true
+end
+
 function apocalypseQuestCardHasEnemyType(card, pugType)
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
 		if monsterPugs[obj.guid]~=nil and monsterPugs[obj.guid].pugType==pugType then return true end
@@ -2615,9 +2645,9 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			apocalypseQuestGiveTuckedCard(playerIndex,card,"Spell")
 		end
 	elseif card.guid=="66ea80" and key=="1" then
-		--These enemies are created directly at the card's known future offer position while the card moves.
-		apocalypseQuestPlaceEnemy(card,"gray",true,-0.55)
-		apocalypseQuestPlaceEnemy(card,"gray",true,0.55)
+		--Fistful's two gray enemies are placed after the Quest offer finishes moving. Drawing both from the
+		--same bag while the card is also relocating can lose a spawn/attachment race in TTS.
+		return
 	elseif card.guid=="37e2ce" and key=="1a" then
 		apocalypseQuestFreeWineStartAssault(card,playerIndex)
 	elseif card.guid=="485cc5" and key=="1" then
@@ -5588,6 +5618,7 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 		end
 		apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
 		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+		local fistfulSetup=card.guid=="66ea80" and tostring(option.key)=="1"
 		local launchedNext=(card.guid=="485cc5" and tostring(option.key)=="1") or (card.guid=="d70436" and tostring(option.key)=="2")
 		--Resolve the step immediately, as before. Anything leaving the Quest card moves away now. New objects
 		--created on the card are explicitly captured for the imminent offer move, so they travel with the card
@@ -5603,9 +5634,20 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 		--Commit before the offer snapshot. A Quest marker may still be travelling to the map and must not be
 		--mistaken for an attachment that should follow the card left.
 		apocalypseQuestCommitStepMarker(card, option)
-		apocalypseQuestOfferMoveToLeft(card)
+		if fistfulSetup==true then
+			--Let the card reach slot 1 before drawing from the same gray bag twice. The short gap also
+			--ensures the first takeObject has fully left the container before the second extraction.
+			apocalypseQuestOfferMoveToLeft(card,function(liveCard)
+				apocalypseQuestPlaceFistfulEnemies(liveCard,function()
+					apocalypseQuestRefreshOfferButtons()
+					finishQuestResolution(0.5)
+				end)
+			end)
+		else
+			apocalypseQuestOfferMoveToLeft(card)
+			finishQuestResolution(1.0)
+		end
 		broadcastToAll(tostring(turnOrder[playerIndex].mage).." progressed a Quest ("..tostring(option.key)..").", positionToColor(playerIndex))
-		finishQuestResolution(1.0)
 		return true
 	elseif action=="Complete" then
 		if not (card.guid=="6175e8" and tostring(option.key)=="3") and apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)~=true then finishQuestResolution(0.5) return false end
