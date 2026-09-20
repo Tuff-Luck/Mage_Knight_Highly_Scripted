@@ -691,6 +691,7 @@ function beginMineCrystalClaim(playerIndex, messageColor)
 	end
 	gStates.mineClaimPending={source="Mine", playerIndex=playerIndex, terrainGUID=data.terrainGUID, bearing=data.bearing, colors=available}
 	refreshMineClaimPanel()
+	if mainUIUpdate~=nil then mainUIUpdate("Mine crystal pending") end
 	return true
 end
 
@@ -723,6 +724,7 @@ function mineClaimChoice(player, mouseButton, id)
 	gStates.mineClaimPending=nil
 	UI.hide("MineClaimChoice")
 	if questCardGUID~=nil and getObjectFromGUID(questCardGUID)~=nil then apocalypseQuestUpdateProgressButtons(getObjectFromGUID(questCardGUID)) end
+	if mainUIUpdate~=nil then mainUIUpdate("Mine crystal claimed") end
 end
 
 function scenarioEnd(endImmediately)
