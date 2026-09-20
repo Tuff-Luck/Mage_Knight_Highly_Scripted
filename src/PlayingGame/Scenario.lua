@@ -4294,7 +4294,7 @@ function againstDragonMainUIPanelSpec()
 	local pending=gStates.apocalypseDragonPendingAttack
 	local turnNumber=tonumber(gStates.apocalypseDragonTurn) or 1
 	local ordinal=againstDragonTurnOrdinal(turnNumber)
-	local mainText="<size=25>Apocalypse Dragon's Turn</size><size=6>\n\n</size><size=18>Round "..tostring(gStates.currentRound or 1).." — "..ordinal.." Dragon turn</size>"
+	local mainText="<size=25>Apocalypse Dragon's Turn</size><size=6>\n\n</size><size=18>Round "..tostring(gStates.currentRound or 1).." - Dragon turn "..tostring(dragonTurn).."</size><size=4>\n</size>"
 	if pending~=nil then
 		if pending.phase=="choose" then
 			return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or "Resolve the Apocalypse Dragon attack.",onClick="againstDragonProcessUI",label="{en}Resolve Dragon Attack{ru}Разрешите атаку Дракона{zh-tw}處理巨龍攻擊{zh-cn}处理巨龙攻击{ko}드래곤 공격 해결{es}Resolver Ataque del Dragón{fr}Résoudre l'Attaque du Dragon{pt-br}Resolver Ataque do Dragão{de}Drachenangriff abhandeln",interactable=false,responseSpec=againstDragonAttendanceResponseSpec()}
