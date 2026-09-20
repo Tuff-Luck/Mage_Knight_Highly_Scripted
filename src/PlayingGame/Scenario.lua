@@ -1407,7 +1407,8 @@ function mapTokenArrangeAllOccupiedHexes()
 						break
 					end
 				end
-				if arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects) end
+				--This is only a maintenance sweep; never lift/drop settled pieces here.
+				if arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects,nil,nil,true) end
 			end
 		end
 	end
@@ -2227,7 +2228,8 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	end
 
 	if workingOnTerrain~=nil and workingOnTerrain[tileGUID]==true then
-		safeWaitCondition("Scenario",deploy,function() return workingOnTerrain[tileGUID]~=true end,8,deploy)
+		--Do not time this out: the Horseman must remain the final arrival even on a slow machine.
+		safeWaitCondition("Scenario",deploy,function() return workingOnTerrain[tileGUID]~=true end)
 	else
 		deploy()
 	end
