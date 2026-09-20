@@ -1017,13 +1017,13 @@ local destroyedSiteRestingY=1.13
 
 --Return an evenly spaced WORLD-space point on one diagonal through the hex centre.
 --The group is always centred: 3 tokens are -1/0/+1 steps, 4 are -1.5/-0.5/+0.5/+1.5.
---On the normal table view +X/+Z is the visual bottom-left end of this diagonal; -X/-Z is upper-right.
---That makes index 1 the lower/older token and the last index the higher/newest arrival.
+--The tested table orientation is -X/-Z for the lower/older (visual bottom-left) end and
+--+X/+Z for the higher/newest (visual upper-right) end.
 local function mapTokenSpreadOffset(index,count)
 	count=math.max(1,tonumber(count) or 1)
 	index=math.max(1,math.min(count,tonumber(index) or 1))
 	local steps=((count+1)/2)-index
-	local component=steps*mapTokenSpreadDiagonalComponent
+	local component=-steps*mapTokenSpreadDiagonalComponent
 	return {x=component,z=component}
 end
 
@@ -1224,8 +1224,8 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 		local aProjection=ap[1]+ap[3]
 		local bProjection=bp[1]+bp[3]
 		if math.abs(aProjection-bProjection)>0.05 then
-			--+X/+Z is the visual bottom-left end, so preserve existing pieces in bottom-left to upper-right order.
-			return aProjection>bProjection
+			---X/-Z is the tested visual bottom-left end; preserve that order for already-separated pieces.
+			return aProjection<bProjection
 		end
 		if math.abs(ap[2]-bp[2])>0.01 then return ap[2]<bp[2] end
 		return tostring(a.guid)<tostring(b.guid)
@@ -2478,11 +2478,17 @@ function apocalypseIsHereShowTargetChoice(name,options)
 			grouped[terrain.guid]=group
 			local localPos=terrain.positionToLocal({hex.position[1],terrain.getPosition()[2],hex.position[3]})
 			local tileScale=terrain.getScale()
-			local uiX=(localPos.x or localPos[1])*(tileScale.x or tileScale[1] or 2.25)*110
-			local uiY=(localPos.z or localPos[3])*(tileScale.z or tileScale[3] or 2.25)*110
-			local scale=0.38
+			local scaleX=tileScale.x or tileScale[1] or 2.25
+			local scaleZ=tileScale.z or tileScale[3] or 2.25
+			--Match the Proxy map-choice buttons. TTS scales the button but not its object-UI position,
+			--so shrink the coordinates/depth by the same ratio as the 0.38 -> 0.16 visual scale.
+			local uiFactor=0.16/0.38
+			local uiX=(localPos.x or localPos[1])*scaleX*110*uiFactor
+			local uiY=(localPos.z or localPos[3])*scaleZ*110*uiFactor
+			local uiDepth=-40*uiFactor
+			local buttonScale=0.16
 			local id=terrain.guid.."ApocalypseHorsemanTarget"..tostring(index)
-			group.xml[#group.xml+1]={tag="Button",attributes={id=id,onClick="global/apocalypseIsHereHorsemanTargetSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",height=300,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..(-40),rotation="0 0 "..tostring(terrain.getRotation()[2] or 180),scale=scale.." "..scale},children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},{tag="Text",attributes={font="Fonts/MKCardText",fontSize="65",alignment="MiddleCenter",text=name.."\nTarget"}}}}
+			group.xml[#group.xml+1]={tag="Button",attributes={id=id,onClick="global/apocalypseIsHereHorsemanTargetSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",height=300,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(terrain.getRotation()[2] or 180),scale=buttonScale.." "..buttonScale},children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},{tag="Text",attributes={font="Fonts/MKCardText",fontSize="65",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="65",text=name.."\nTarget"}}}}
 		end
 	end
 	for _,group in pairs(grouped) do group.terrain.UI.setXmlTable(group.xml) end
