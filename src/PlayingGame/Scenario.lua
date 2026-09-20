@@ -5218,16 +5218,14 @@ end
 function furyDragonMoveMarkerOffMap()
 	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
 	if marker==nil then return false end
+	--Leaving a shared map hex may let the pieces left behind collapse back toward the centre.
+	if mapTokenReleaseObject~=nil then mapTokenReleaseObject(marker) end
 	marker.unlock()
 	marker.setRotation({0,180,0})
 	marker.setPositionSmooth(apocalypseDragon.furyHoldingPosition,false)
 	local guid=marker.guid
-	safeWaitCondition("Scenario",function()
-		local current=getObjectFromGUID(guid)
+	mapTokenAfterSettled(guid,function(current)
 		if current~=nil then current.lock() end
-	end,function()
-		local current=getObjectFromGUID(guid)
-		return current==nil or current.resting==true
 	end)
 	return true
 end
@@ -5442,9 +5440,11 @@ function furyDragonBeginInFlightTurn()
 	marker.setRotation({0,180,0})
 	marker.setPositionSmooth(destination,false)
 	local markerGUID=marker.guid
-	safeWaitCondition("Scenario",function()
-		local landed=getObjectFromGUID(markerGUID)
-		if landed~=nil then landed.lock() end
+	mapTokenAfterSettled(markerGUID,function(landed)
+		if landed==nil then
+			furyDragonCompleteTurn("The Apocalypse Dragon marker disappeared while landing.")
+			return
+		end
 		gStates.furyDragonCurrentHexKey=target.key
 		gStates.furyDragonFlightTarget=nil
 		local currentHexes,currentMapObjects=apocalypseQuestMapHexes()
@@ -5457,6 +5457,8 @@ function furyDragonBeginInFlightTurn()
 		if #players>0 then
 			local names={}
 			for _,playerIndex in ipairs(players) do names[#names+1]=tostring(turnOrder[playerIndex].mage) end
+			if mapTokenScheduleObject~=nil then mapTokenScheduleObject(markerGUID) end
+			mapTokenRelockWhenSettled(markerGUID,true)
 			gStates.furyDragonAwaitingCombat={players=players,target=target}
 			gStates.apocalypseDragonUIState="WaitingCombat"
 			gStates.apocalypseDragonTurnReport="The Apocalypse Dragon attacks "..table.concat(names,", ")..". Resolve combat against the landed Dragon. When combat is finished, click Combat Resolved; the Dragon will immediately take its required landed turn."
@@ -5465,10 +5467,9 @@ function furyDragonBeginInFlightTurn()
 			return
 		end
 		local result=furyDragonResolveArrivalEffect(target,currentHex,currentMapObjects)
+		if mapTokenScheduleObject~=nil then mapTokenScheduleObject(markerGUID) end
+		mapTokenRelockWhenSettled(markerGUID,true)
 		furyDragonCompleteTurn(result)
-	end,function()
-		local current=getObjectFromGUID(markerGUID)
-		return current==nil or current.resting==true
 	end)
 	return true
 end
