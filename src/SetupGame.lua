@@ -2521,6 +2521,20 @@ function mapSetup()
 	local customPredefined=gStates.gameScenario=="Custom" and scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)=="P"
 	if customPredefined then
 		--Predefined Custom maps are built by the players. Leave all three selected terrain pools untouched.
+		--Store every available tile face down so manual pulls from these bags begin hidden.
+		local function faceDownTerrainPool(bag)
+			if bag==nil then return end
+			local pos=bag.getPosition()
+			local guids={}
+			for _,contained in ipairs(bag.getObjects()) do guids[#guids+1]=contained.guid end
+			for _,guid in ipairs(guids) do
+				local tile=bag.takeObject({guid=guid,position={pos.x,pos.y+2,pos.z},rotation={0,180,180},smooth=false})
+				if tile~=nil then bag.putObject(tile) end
+			end
+		end
+		faceDownTerrainPool(CityTileStack)
+		faceDownTerrainPool(CoreTileStack)
+		faceDownTerrainPool(CountryTileStack)
 		local openStartPos={-36.0305,0.98,-11.9267}
 		local startTile=getObjectFromGUID(startTerrain.wedge)
 		local portalObj=getObjectFromGUID(portal.terrainHex)
