@@ -1003,46 +1003,61 @@ function horsemanPriorityDescription(ref)
 		"Priority C: "..data.priorityText.C.."\n\n"
 end
 
---Horsemen and map tokens share the same hex centre, so keep the pieces slightly offset when
---they share a hex. The base token always uses slot 1; Horsemen use slots 2-4. Existing Horsemen
---keep their current slots when another Horseman arrives, so a new arrival is the only piece that moves.
-local horsemanStackArrangeGeneration={}
-local horsemanSeparationSlots={
-	[1]={x=-0.1,z=-0.1},
-	[2]={x=0.1,z=0.1},
-	[3]={x=0.1,z=-0.1},
-	[4]={x=-0.1,z=0.1}
+--Small map tokens can legitimately share one hex. Keep enemy-like tokens slightly separated so
+--each remains visible/clickable, while a physical site marker stays at the centre underneath them.
+--Destroyed Site tokens are special: their known settled table height is 1.13, so scripted/manual
+--placement pins them directly there instead of asking physics to discover the bottom of an existing stack.
+local mapTokenArrangeGeneration={}
+local mapTokenSpreadSlots={
+	[1]={x=-0.10,z=-0.10},
+	[2]={x= 0.10,z= 0.10},
+	[3]={x= 0.10,z=-0.10},
+	[4]={x=-0.10,z= 0.10},
+	[5]={x=-0.17,z= 0.00},
+	[6]={x= 0.17,z= 0.00},
+	[7]={x= 0.00,z=-0.17},
+	[8]={x= 0.00,z= 0.17}
 }
+local destroyedSiteRestingY=1.13
 
-local function horsemanStackBaseTokenOnHex(hex,mapObjects,horsemanGUID)
-	--Destroyed Site markers and Ruins are both physical base tokens on their hex. Check these first
-	--because proxyMonstersOnHex() intentionally excludes Ruins and Destroyed Site markers.
-	for _,obj in pairs(mapObjects or {}) do
-		if obj.guid~=horsemanGUID and obj.getGMNotes~=nil and obj.getGMNotes()=="Destroyed" then
-			local pos=obj.getPosition()
-			local dx=pos[1]-hex.position[1]
-			local dz=pos[3]-hex.position[3]
-			if (dx*dx)+(dz*dz)<1.5 then return obj end
-		end
-	end
-	local ruin=proxyRuinOnHex(hex,mapObjects)
-	if ruin~=nil and ruin.guid~=horsemanGUID then return ruin end
-	for _,obj in pairs(mapObjects or {}) do
-		local details=monsterPugs[obj.guid]
-		if details~=nil and obj.guid~=horsemanGUID and
-			(horsemanTokenToName==nil or horsemanTokenToName[obj.guid]==nil) and
-			details.pugType~="possessed" then
-			local pos=obj.getPosition()
-			local dx=pos[1]-hex.position[1]
-			local dz=pos[3]-hex.position[3]
-			if (dx*dx)+(dz*dz)<1.5 then return obj end
-		end
-	end
-	return nil
+function mapTokenIsDestroyedSite(obj)
+	return obj~=nil and obj.getGMNotes~=nil and obj.getGMNotes()=="Destroyed"
 end
 
-local function horsemanRelockWhenResting(guid,wasLocked)
-	if wasLocked~=true then return end
+function mapTokenIsBaseSite(obj)
+	if obj==nil then return false end
+	if mapTokenIsDestroyedSite(obj)==true then return true end
+	local details=monsterPugs~=nil and monsterPugs[obj.guid] or nil
+	return details~=nil and details.name=="Ruin"
+end
+
+function mapTokenIsSpreadEnemy(obj)
+	if obj==nil then return false end
+	if apocalypseDragon~=nil and obj.guid==apocalypseDragon.furyMarker then return true end
+	local details=monsterPugs~=nil and monsterPugs[obj.guid] or nil
+	if details==nil then return false end
+	--Possessed markers are physically linked overlays, not independent enemies. Ruins are site markers.
+	if details.pugType=="possessed" or details.name=="Ruin" then return false end
+	return true
+end
+
+function mapTokenNeedsArrangement(obj)
+	return mapTokenIsSpreadEnemy(obj)==true or mapTokenIsBaseSite(obj)==true
+end
+
+local function mapTokenOnHex(obj,hex)
+	if obj==nil or hex==nil or hex.position==nil then return false end
+	local pos=obj.getPosition()
+	local dx=pos[1]-hex.position[1]
+	local dz=pos[3]-hex.position[3]
+	return (dx*dx)+(dz*dz)<1.5
+end
+
+--Any token that was locked before the arranger touched it is locked again only after one physics
+--frame has elapsed and the moved piece reports resting. This avoids locking a token in mid-air just
+--because a smooth move has ended with resting still carrying its previous value for that frame.
+function mapTokenRelockWhenSettled(guid,shouldLock)
+	if shouldLock~=true or guid==nil then return end
 	safeWaitFrames("Scenario",function()
 		safeWaitCondition("Scenario",function()
 			local obj=getObjectFromGUID(guid)
@@ -1050,176 +1065,240 @@ local function horsemanRelockWhenResting(guid,wasLocked)
 		end,function()
 			local obj=getObjectFromGUID(guid)
 			return obj==nil or obj.resting==true
-		end,3)
+		end,4,function()
+			local obj=getObjectFromGUID(guid)
+			if obj~=nil then obj.lock() end
+		end)
 	end,1)
 end
 
-local function horsemanOtherTokenStillOnSeparatedHex(record,ignoreGUID)
-	local map=getObjectFromGUID(mapArea)
-	if map==nil or record==nil then return false end
-	for _,obj in pairs(map.getObjects()) do
-		if obj.guid~=ignoreGUID and horsemanTokenToName~=nil and horsemanTokenToName[obj.guid]~=nil then
-			local pos=obj.getPosition()
-			local dx=pos[1]-record.x
-			local dz=pos[3]-record.z
-			if (dx*dx)+(dz*dz)<1.5 then return true end
-		end
-	end
-	return false
+function mapTokenAfterSettled(guid,callback)
+	if guid==nil or callback==nil then return end
+	safeWaitCondition("Scenario",function()
+		safeWaitFrames("Scenario",function()
+			safeWaitCondition("Scenario",function()
+				callback(getObjectFromGUID(guid))
+			end,function()
+				local obj=getObjectFromGUID(guid)
+				return obj==nil or obj.resting==true
+			end,5,function()
+				callback(getObjectFromGUID(guid))
+			end)
+		end,1)
+	end,function()
+		local obj=getObjectFromGUID(guid)
+		return obj==nil or obj.isSmoothMoving()==false
+	end,5,function()
+		callback(getObjectFromGUID(guid))
+	end)
 end
 
---Restore the token that a Horseman had displaced when that Horseman leaves the hex.
-function horsemanReleaseOccupiedToken(name)
-	if gStates==nil or name==nil then return false end
-	local data=horsemanData~=nil and horsemanData[name] or nil
-	if data==nil then return false end
-	gStates.horsemanSeparatedTokens=gStates.horsemanSeparatedTokens or {}
-	local record=gStates.horsemanSeparatedTokens[data.tokenGUID]
-	if record==nil then return false end
-	gStates.horsemanSeparatedTokens[data.tokenGUID]=nil
-	if horsemanOtherTokenStillOnSeparatedHex(record,data.tokenGUID)==true then return false end
-	local token=getObjectFromGUID(record.tokenGUID)
-	if token==nil then return false end
-	local pos=token.getPosition()
-	local dx=pos[1]-record.x
-	local dz=pos[3]-record.z
-	if (dx*dx)+(dz*dz)>=1.5 then return false end
-	if math.abs(pos[1]-record.x)<0.035 and math.abs(pos[3]-record.z)<0.035 then return false end
-	local wasLocked=token.getLock()==true
-	token.unlock()
-	token.setPosition({record.x,pos[2],record.z})
-	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[token.guid]={record.x,pos[2],record.z} end
-	horsemanRelockWhenResting(token.guid,wasLocked)
+local function mapTokenUpdatePlayLocation(obj,pos)
+	if obj==nil or pos==nil or gStates==nil or gStates.monsterPlayLocation==nil then return end
+	if gStates.monsterPlayLocation[obj.guid]~=nil then
+		gStates.monsterPlayLocation[obj.guid]={pos[1],pos[2],pos[3]}
+	end
+end
+
+local function mapTokenMoveAndDrop(obj,targetX,targetZ,minY)
+	if obj==nil then return false end
+	local pos=obj.getPosition()
+	if obj.isSmoothMoving()==true then return false end
+	local already=math.abs(pos[1]-targetX)<0.035 and math.abs(pos[3]-targetZ)<0.035
+	if already==true then return false end
+	local wasLocked=obj.getLock()==true
+	local targetY=math.max(tonumber(minY) or 1.45,pos[2]+0.10)
+	obj.unlock()
+	obj.setPosition({targetX,targetY,targetZ})
+	mapTokenUpdatePlayLocation(obj,{targetX,targetY,targetZ})
+	mapTokenRelockWhenSettled(obj.guid,wasLocked)
 	return true
 end
 
-local function horsemanObjectsOnHex(hex,mapObjects)
-	local result={}
+local function mapTokenNearestFreeSlot(obj,centerX,centerZ,used,maxSlots)
+	if obj==nil then return nil end
+	local pos=obj.getPosition()
+	local nearest=nil
+	local nearestDistance=0.0065
+	for slot=1,maxSlots do
+		if used[slot]~=true then
+			local offset=mapTokenSpreadSlots[slot]
+			local dx=pos[1]-(centerX+offset.x)
+			local dz=pos[3]-(centerZ+offset.z)
+			local d=(dx*dx)+(dz*dz)
+			if d<nearestDistance then nearest=slot nearestDistance=d end
+		end
+	end
+	return nearest
+end
+
+--Arrange one resolved map hex. Destroyed Site is always the floor marker at the exact centre.
+--A Ruin can act as the ordinary centre/base marker when no Destroyed Site is present. Enemy tokens
+--are only spread when there is a base marker or more than one enemy; a lone enemy otherwise recentres.
+function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
+	if hex==nil or hex.position==nil then return false end
+	local objects={}
+	local seen={}
 	for _,obj in pairs(mapObjects or {}) do
-		local name=horsemanTokenToName~=nil and horsemanTokenToName[obj.guid] or nil
-		if name~=nil then
-			local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
-			if state==nil or (state.defeated~=true and state.retired~=true) then
-				local pos=obj.getPosition()
-				local dx=pos[1]-hex.position[1]
-				local dz=pos[3]-hex.position[3]
-				if (dx*dx)+(dz*dz)<1.5 then result[#result+1]={name=name,obj=obj} end
+		if obj~=nil and obj.guid~=ignoreGUID and mapTokenOnHex(obj,hex)==true and mapTokenNeedsArrangement(obj)==true then
+			objects[#objects+1]=obj
+			seen[obj.guid]=true
+		end
+	end
+	if extraObject~=nil and extraObject.guid~=ignoreGUID and seen[extraObject.guid]~=true and mapTokenNeedsArrangement(extraObject)==true then
+		objects[#objects+1]=extraObject
+		seen[extraObject.guid]=true
+	end
+
+	local destroyed=nil
+	local ordinaryBase=nil
+	local enemies={}
+	for _,obj in ipairs(objects) do
+		if mapTokenIsDestroyedSite(obj)==true then
+			if destroyed==nil then destroyed=obj end
+		elseif mapTokenIsBaseSite(obj)==true then
+			if ordinaryBase==nil then ordinaryBase=obj end
+		elseif mapTokenIsSpreadEnemy(obj)==true then
+			enemies[#enemies+1]=obj
+		end
+	end
+	table.sort(enemies,function(a,b) return tostring(a.guid)<tostring(b.guid) end)
+
+	local centerX,centerZ=hex.position[1],hex.position[3]
+	local base=destroyed or ordinaryBase
+	local baseY=nil
+	local changed=false
+
+	if destroyed~=nil then
+		local pos=destroyed.getPosition()
+		local needsMove=math.abs(pos[1]-centerX)>0.025 or math.abs(pos[2]-destroyedSiteRestingY)>0.025 or math.abs(pos[3]-centerZ)>0.025
+		if needsMove==true or destroyed.getLock()~=true then
+			destroyed.unlock()
+			destroyed.setRotation({0,180,0})
+			--Known exact resting height: place directly under the stack, with no fall/smooth-move race.
+			destroyed.setPosition({centerX,destroyedSiteRestingY,centerZ})
+			destroyed.lock()
+			changed=true
+		end
+		baseY=destroyedSiteRestingY
+	elseif ordinaryBase~=nil then
+		local pos=ordinaryBase.getPosition()
+		baseY=pos[2]
+		if #enemies>0 and ordinaryBase.isSmoothMoving()~=true and (math.abs(pos[1]-centerX)>0.035 or math.abs(pos[3]-centerZ)>0.035) then
+			changed=mapTokenMoveAndDrop(ordinaryBase,centerX,centerZ,math.max(1.35,pos[2]+0.10)) or changed
+		end
+	end
+
+	if #enemies<1 then return changed end
+	for _,obj in ipairs(enemies) do if obj.isSmoothMoving()==true then return changed end end
+
+	local shouldSpread=base~=nil or #enemies>1
+	if shouldSpread~=true then
+		local obj=enemies[1]
+		local pos=obj.getPosition()
+		if math.abs(pos[1]-centerX)>0.035 or math.abs(pos[3]-centerZ)>0.035 then
+			changed=mapTokenMoveAndDrop(obj,centerX,centerZ,math.max(1.45,pos[2]+0.10)) or changed
+		end
+		return changed
+	end
+
+	local slotCount=math.min(#mapTokenSpreadSlots,math.max(#enemies,1))
+	local used={}
+	local assigned={}
+	--Keep an already-separated token in its current slot when possible so a new arrival does not
+	--shuffle every existing piece around the hex.
+	for _,obj in ipairs(enemies) do
+		local slot=mapTokenNearestFreeSlot(obj,centerX,centerZ,used,slotCount)
+		if slot~=nil then used[slot]=true assigned[obj.guid]=slot end
+	end
+	for _,obj in ipairs(enemies) do
+		if assigned[obj.guid]==nil then
+			for slot=1,slotCount do
+				if used[slot]~=true then assigned[obj.guid]=slot used[slot]=true break end
 			end
 		end
 	end
-	return result
+
+	for _,obj in ipairs(enemies) do
+		local slot=assigned[obj.guid] or 1
+		local offset=mapTokenSpreadSlots[slot]
+		local minY=(baseY~=nil and baseY+0.55 or 1.45)
+		changed=mapTokenMoveAndDrop(obj,centerX+offset.x,centerZ+offset.z,minY) or changed
+	end
+	return changed
 end
 
-local function horsemanSeparationSlotForNewArrival(used)
-	for slot=2,4 do if used[slot]~=true then return slot end end
-	return 4
-end
-
-local function horsemanArrangeOccupiedTokenHex(hex,mapObjects,siteToken)
-	if hex==nil or siteToken==nil then return false end
-	local horses=horsemanObjectsOnHex(hex,mapObjects)
-	if #horses<1 then return false end
-	gStates.horsemanSeparatedTokens=gStates.horsemanSeparatedTokens or {}
-	local used={}
-	local centerX,centerZ=hex.position[1],hex.position[3]
-
-	--Preserve slots already assigned on this hex.
-	for _,entry in ipairs(horses) do
-		local record=gStates.horsemanSeparatedTokens[entry.obj.guid]
-		if record~=nil and record.slot~=nil and math.abs(record.x-centerX)<0.05 and math.abs(record.z-centerZ)<0.05 then
-			used[record.slot]=true
-			entry.slot=record.slot
-		end
-	end
-	--New arrivals take the first free Horseman slot.
-	table.sort(horses,function(a,b) return a.name<b.name end)
-	for _,entry in ipairs(horses) do
-		if entry.slot==nil then
-			entry.slot=horsemanSeparationSlotForNewArrival(used)
-			used[entry.slot]=true
-		end
-	end
-
-	--A freshly arrived base token may still be moving. Wait for smooth movement to finish, but do not
-	--require resting: manual drops can be settled/locked without resting reporting true immediately.
-	if siteToken.isSmoothMoving()==true then return false end
-	for _,entry in ipairs(horses) do if entry.obj.isSmoothMoving()==true then return false end end
-
-	local sitePos=siteToken.getPosition()
-	local baseSlot=horsemanSeparationSlots[1]
-	local baseX,baseZ=centerX+baseSlot.x,centerZ+baseSlot.z
-	local siteLocked=siteToken.getLock()==true
-	local baseAlready=math.abs(sitePos[1]-baseX)<0.035 and math.abs(sitePos[3]-baseZ)<0.035
-	if baseAlready==false then
-		siteToken.unlock()
-		siteToken.setPosition({baseX,sitePos[2],baseZ})
-		if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[siteToken.guid]={baseX,sitePos[2],baseZ} end
-		horsemanRelockWhenResting(siteToken.guid,siteLocked)
-	end
-
-	local moved=false
-	for _,entry in ipairs(horses) do
-		local record=gStates.horsemanSeparatedTokens[entry.obj.guid]
-		local slot=horsemanSeparationSlots[entry.slot]
-		local obj=entry.obj
-		local pos=obj.getPosition()
-		local targetX,targetZ=centerX+slot.x,centerZ+slot.z
-		local already=math.abs(pos[1]-targetX)<0.035 and math.abs(pos[3]-targetZ)<0.035
-		gStates.horsemanSeparatedTokens[obj.guid]={tokenGUID=siteToken.guid,x=centerX,z=centerZ,slot=entry.slot}
-		if already==false then
-			local locked=obj.getLock()==true
-			local y=pos[2]
-			if y<=sitePos[2]+0.08 then y=sitePos[2]+0.12 end
-			obj.unlock()
-			obj.setPosition({targetX,y,targetZ})
-			horsemanRelockWhenResting(obj.guid,locked)
-			moved=true
-		end
-	end
-	return moved or baseAlready==false
-end
-
-function horsemanArrangeOccupiedTokenStack(name)
-	if gStates==nil then return false end
-	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
-	local data=horsemanData~=nil and horsemanData[name] or nil
-	local horseman=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-	if data==nil or horseman==nil or (state~=nil and (state.defeated==true or state.retired==true)) then
-		horsemanReleaseOccupiedToken(name)
-		return false
-	end
+function mapTokenArrangeObject(guid)
+	local obj=guid~=nil and getObjectFromGUID(guid) or nil
+	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
 	local hexes,mapObjects=apocalypseQuestMapHexes()
-	local hex=apocalypseQuestHexForPosition(hexes,horseman.getPosition(),mapObjects)
-	if hex==nil then
-		horsemanReleaseOccupiedToken(name)
-		return false
-	end
-	local siteToken=horsemanStackBaseTokenOnHex(hex,mapObjects,horseman.guid)
-	if siteToken==nil then
-		horsemanReleaseOccupiedToken(name)
-		return false
-	end
-	return horsemanArrangeOccupiedTokenHex(hex,mapObjects,siteToken)
+	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
+	if hex==nil then return false end
+	return mapTokenArrangeHex(hex,mapObjects,nil,obj)
 end
 
---A fresh terrain reveal or manual move can put the Horseman and its base token on the hex in different
---physics windows. Each new schedule gets its own generation, so a second manual move cannot be swallowed
---by retries from the previous move. Longer retries cover a player drop while physics settles.
-function horsemanScheduleOccupiedTokenStack(name)
-	if name==nil then return end
-	local generation=(horsemanStackArrangeGeneration[name] or 0)+1
-	horsemanStackArrangeGeneration[name]=generation
-	for _,delay in ipairs({2,10,25,50}) do
+function mapTokenScheduleObject(guid)
+	if guid==nil then return end
+	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
+	mapTokenArrangeGeneration[guid]=generation
+	for _,delay in ipairs({2,8,20,45}) do
 		safeWaitFrames("Scenario",function()
-			if horsemanStackArrangeGeneration[name]~=generation then return end
-			horsemanArrangeOccupiedTokenStack(name)
+			if mapTokenArrangeGeneration[guid]~=generation then return end
+			mapTokenArrangeObject(guid)
 		end,delay)
 	end
 end
 
+--Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
+--remaining lone enemy and keeps a Destroyed Site marker fixed underneath anything still on the hex.
+function mapTokenReleaseObject(obj)
+	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
+	local position=obj.getPosition()
+	local ignoreGUID=obj.guid
+	safeWaitFrames("Scenario",function()
+		local hexes,mapObjects=apocalypseQuestMapHexes()
+		local hex=apocalypseQuestHexForPosition(hexes,position,mapObjects)
+		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID) end
+	end,1)
+	return true
+end
+
+function mapTokenArrangeAllOccupiedHexes()
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local touched={}
+	for _,obj in pairs(mapObjects or {}) do
+		if mapTokenNeedsArrangement(obj)==true then
+			local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
+			local key=hex~=nil and apocalypseQuestMapHexKey(hex) or nil
+			if key~=nil and touched[key]~=true then
+				touched[key]=true
+				mapTokenArrangeHex(hex,mapObjects)
+			end
+		end
+	end
+end
+
+--Horseman callers now use the generic map-token arranger. These small wrappers keep the scenario
+--movement code readable while ensuring Horsemen, ordinary enemies and the Fury Dragon all share
+--exactly the same physical-hex behaviour.
+function horsemanReleaseOccupiedToken(name)
+	local data=horsemanData~=nil and horsemanData[name] or nil
+	local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
+	return mapTokenReleaseObject(token)
+end
+
+function horsemanArrangeOccupiedTokenStack(name)
+	local data=horsemanData~=nil and horsemanData[name] or nil
+	return data~=nil and mapTokenArrangeObject(data.tokenGUID) or false
+end
+
+function horsemanScheduleOccupiedTokenStack(name)
+	local data=horsemanData~=nil and horsemanData[name] or nil
+	if data~=nil then mapTokenScheduleObject(data.tokenGUID) end
+end
+
 function horsemanArrangeOccupiedTokenStacks()
-	if gStates==nil then return end
-	for name,_ in pairs(horsemanData or {}) do horsemanScheduleOccupiedTokenStack(name) end
+	mapTokenArrangeAllOccupiedHexes()
 end
 
 function setHorsemanLevel(ref, level, hideIdentity)
