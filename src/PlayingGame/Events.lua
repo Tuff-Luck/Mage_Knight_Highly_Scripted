@@ -889,7 +889,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,2)
 	end
 	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(dropped_object)==true then
-		mapTokenScheduleObject(droppedGUID)
+		mapTokenArrangeDroppedObject(droppedGUID)
 	end
 	puppetMasterDropped(dropped_object)
 	puppetMasterCheckManualCopyWhenResting(dropped_object)
@@ -1404,7 +1404,8 @@ shieldLocationWait=nil
 masterOfChaosWait=nil
 function __onObjectEnterZone_raw(zone, obj)
 	if zone~=nil and obj~=nil and zone.guid==mapArea and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(obj)==true then
-		mapTokenScheduleObject(obj.guid)
+		--A held object will be handled once by onObjectDrop; retries here are only for scripted arrivals.
+		if obj.held_by_color==nil then mapTokenScheduleObject(obj.guid) end
 	end
 	if obj~=nil and apocalypseDragonGroundCombatToken~=nil then
 		local active,headName,owner=apocalypseDragonGroundCombatToken(obj.guid)
