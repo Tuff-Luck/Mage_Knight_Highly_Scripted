@@ -673,7 +673,6 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		end
 		--reset variables for next turn
 		gStates.preEndTurn=true
-		rewardClaimSoftLockStart()
 		--Before combat cleanup moves/discards Quest enemies, remember successful combat-gated Quest
 		--resolutions. This keeps Rewards Claimed unavailable until the player presses Progress/Complete.
 		apocalypseQuestCaptureRewardCompletionGate(cleanupPlayer)
@@ -698,6 +697,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			local function finishRewardDelay()
 				rewardClaimDelayActive=false
 				if gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
+					rewardClaimSoftLockStart()
 					if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[cleanupPlayer].seatPos)
 					else
 						UI.setAttribute("PreEndTurn", "interactable", "true")
