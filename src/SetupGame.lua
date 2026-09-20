@@ -3061,16 +3061,9 @@ function mapSetup()
 		if params.position==nil then params.position={pos.x, pos.y+tUp, pos.z} tUp=tUp+0.5 end
 		safeTakeObject("SetupGame",TileShuffler,params)
 	end
-	--Starting country tiles reveal on 1/2/3 second timers. Apocalypse is Here counts those revealed
-	--tiles for its Horseman thresholds, but keeps the setup phase active until all opening terrain
-	--population has finished before deploying any Horsemen.
-	safeWaitTime("SetupGame",function()
-		if apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and apocalypseIsHereFinishInitialTerrainSetup~=nil then
-			apocalypseIsHereFinishInitialTerrainSetup()
-		else
-			startingMapSetup=false
-		end
-	end, 4)
+	--Starting country tiles reveal on 1/2/3 second timers. They are part of setup and do not
+	--count toward Apocalypse is Here Horseman reveal thresholds.
+	safeWaitTime("SetupGame",function() startingMapSetup=false end, 4)
 end
 
 --Keep setup-specific validation and rulebook deployment with the setup owner rather than a late wrapper module.
