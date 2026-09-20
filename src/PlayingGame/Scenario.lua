@@ -2629,7 +2629,7 @@ function apocalypseIsHereBeginHorsemenTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	gStates.apocalypseHereHorsemenResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn,sameTurn=sameTurn}
 	gStates.apocalypseHereHorsemenQueue=queue
 	gStates.apocalypseHereHorsemenQueueIndex=1
-	gStates.apocalypseHereHorsemenTurnReport=""
+	gStates.apocalypseHereHorsemenTurnReport="The Horsemen act in the order they were revealed."
 	gStates.apocalypseHereHorsemenUIState="ReadyToProcess"
 	mainUIUpdate("Horsemen Turn")
 	return true
