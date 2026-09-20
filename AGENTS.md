@@ -36,6 +36,18 @@ Do not add backwards-compatibility or old-save recovery code unless the user exp
 
 The script does not manage a player's internal Move/Combat/Interact phases. Do not classify missing phase enforcement as a bug unless a scripted helper gives incorrect guidance or changes game state incorrectly.
 
+## Rewards Claimed lock rules
+
+“Use the Rewards Claimed lock” means a soft player-action safeguard, not a disabled button. Keep **Rewards Claimed** clickable; while the lock is active, clicking it should explain the unresolved action and leave the turn at the reward stage.
+
+Add a short matching reminder to the reward checklist above the button so it completes **“Have you:-”**. Move the clicking player's camera to the problem area when there is a useful physical target (for example the map, Quest area, offer, or play area). If there is no useful camera target, leave the camera alone.
+
+A Rewards Claimed soft lock lasts **12 seconds** from the start of that player's Rewards Claimed stage. After that window expires, the button must allow progression even if the reminder condition is still unresolved. The reminder may remain visible while the condition remains true.
+
+Only use a Rewards Claimed lock when the script has authoritative state that the required action is outstanding. Do not infer a mandatory action from ambiguous card movement or from rewards that may have multiple reasons for being claimed.
+
+Hard-disable **Rewards Claimed** only for short asynchronous/script-settling safety windows where player input cannot resolve the condition; those are not Rewards Claimed locks and do not need a **“Have you:-”** reminder.
+
 ## Build/version conventions
 
 When producing numbered release files, keep the Global Lua and Global XML build numbers matched whenever both change. The automatic Lua Error Reporter version must match the Global Lua build number in brackets.
