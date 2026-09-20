@@ -1008,6 +1008,9 @@ end
 --Destroyed Site tokens are special: their known settled table height is 1.13, so scripted/manual
 --placement pins them directly there instead of asking physics to discover the bottom of an existing stack.
 local mapTokenArrangeGeneration={}
+--While a manually dropped loose token is settling/re-spreading, it owns arrangement for that object.
+--Map-zone physics events during this window must not start the scripted multi-retry arranger.
+local mapTokenManualDropPending={}
 local mapTokenSpreadSpacing=0.20
 local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
 local destroyedSiteRestingY=1.13
@@ -1250,16 +1253,30 @@ end
 --retries and, once the drop event has registered, read the whole hex once and change X/Z only.
 function mapTokenArrangeDroppedObject(guid)
 	if guid==nil then return end
-	--Cancel any scripted-arrival retries, then let normal TTS drop physics finish before doing one
-	--horizontal-only layout. Sorting after settling also gives a stable physical Y order.
-	mapTokenArrangeGeneration[guid]=(mapTokenArrangeGeneration[guid] or 0)+1
+	--Cancel any scripted-arrival retries and claim this token for the manual-drop path. The map zone
+	--can fire again while a loose token bounces/settles; those events are ignored until the one final
+	--lateral spread has itself settled.
+	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
+	mapTokenArrangeGeneration[guid]=generation
+	mapTokenManualDropPending[guid]=generation
 	mapTokenAfterSettled(guid,function(obj)
-		if obj~=nil then mapTokenArrangeObject(guid,true) end
+		if mapTokenManualDropPending[guid]~=generation then return end
+		if obj==nil then
+			mapTokenManualDropPending[guid]=nil
+			return
+		end
+		--This is the only arrangement pass for this manual drop.
+		mapTokenArrangeObject(guid,true)
+		--The X/Z setPosition can wake a loose stack for another instant. Keep zone-triggered retries
+		--suppressed until that lateral move has finished settling too, but do not arrange a second time.
+		mapTokenAfterSettled(guid,function()
+			if mapTokenManualDropPending[guid]==generation then mapTokenManualDropPending[guid]=nil end
+		end)
 	end)
 end
 
 function mapTokenScheduleObject(guid)
-	if guid==nil then return end
+	if guid==nil or mapTokenManualDropPending[guid]~=nil then return end
 	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
 	mapTokenArrangeGeneration[guid]=generation
 	for _,delay in ipairs({2,8,20,45}) do
@@ -1276,7 +1293,8 @@ function mapTokenReleaseObject(obj)
 	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
 	local position=obj.getPosition()
 	local ignoreGUID=obj.guid
-	--Invalidate any delayed arrival retries for the object now being carried away.
+	--Invalidate delayed arrival/manual-drop work for the object now being carried away.
+	mapTokenManualDropPending[ignoreGUID]=nil
 	mapTokenArrangeGeneration[ignoreGUID]=(mapTokenArrangeGeneration[ignoreGUID] or 0)+1
 	safeWaitFrames("Scenario",function()
 		local hexes,mapObjects=apocalypseQuestMapHexes()
