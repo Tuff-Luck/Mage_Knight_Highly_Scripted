@@ -1730,6 +1730,12 @@ function __onObjectEnterZone_raw(zone, obj)
 					return true
 				end
 
+				--Custom Predefined is deliberately unrestricted: players may arrange any face-up terrain anywhere.
+				if gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P" then
+					if obj.faceDown==true then faceDownTerrain=true return false end
+					return true
+				end
+
 				--Check if a core tile is on the coast of a wedge map
 				if terrainTiles[obj.guid].tileType=="core" and northBearing==70 and (obj.bearing<=41 or obj.bearing>=99) and gStates.gameScenario~="Fast Forwarded Conquest" then errorBroadcast="{en}Core Terrain Tiles aren't allowed on the coast{ru}Плитки Развитых земель не могут располагаться на берегу{zh-cn}海岸边不可以部署核心城市板块{ko}중심부 타일은 해안선에 놓일 수 없습니다{es}Las baldosas de terreno del núcleo no están permitidas en la costa{fr}Les tuiles de terrain de base ne sont pas autorisées sur la côte{pt-br}Peças Mapa Centrais não são permitidas na Costa{de}Kernterrainplättchen sind an der Küste nicht erlaubt" return false end
 
@@ -1839,7 +1845,7 @@ function __onObjectEnterZone_raw(zone, obj)
 				end
 
 				--Highlight legal tile plays
-				if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
+				if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" and not (gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P") then
 					local gridType=""
 					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049111266/7BC768B7CD64E6018EBEC720559690409F4BA555/" end--4
 					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049110361/978D612A44ADDE6E1630965A311722114BA28AE5/" end--3
@@ -4432,7 +4438,10 @@ function mainUIUpdate(source)
 				--lock end turn button if no cards are played or discarded
 				--discard object detection
 				local discardAreaCards=0
-				for _, b in pairs(getObjectFromGUID(deedDeckDiscardZones[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
+				local discardZoneGUID=deedDeckDiscardZones[turnOrder[gStates.turnNumber].seatPos]
+				local discardZone=discardZoneGUID~=nil and getObjectFromGUID(discardZoneGUID) or nil
+				if discardZone==nil then return end
+				for _, b in pairs(discardZone.getObjects()) do
 					if b.type=="Card" then discardAreaCards=1 break end
 					if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
 				end
@@ -33700,11 +33709,11 @@ function monsterSetup()
 		local workingOn=darkCrusaderLocations
 		for a=1, 2, 1 do
 			for objGuid, location in pairs(workingOn) do
-				if mergeDestination[objGuid]~=nil and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="Custom" and gStates.gameScenario~="The War of Four" and
+				if mergeDestination[objGuid]~=nil and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The War of Four" and
 					((a==1 and gStates.gameScenario~="The Realm of the Dead Blitz") or (a==2 and gStates.gameScenario~="The Hidden Valley Blitz")) then
 					mergeBags(objGuid, mergeDestination[objGuid], GUID.bag.tezla)
 				else
-					if allowed[objGuid]~=nil or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Custom" or gStates.gameScenario=="The War of Four" or gStates.gameScenario=="Ultimate Conquest" or
+					if allowed[objGuid]~=nil or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four" or gStates.gameScenario=="Ultimate Conquest" or
 						(a==1 and gStates.gameScenario=="The Realm of the Dead Blitz") or (a==2 and gStates.gameScenario=="The Hidden Valley Blitz") then
 						local flip=0
 						if mergeDestination[objGuid]~=nil or objGuid==GUID.bag.cemetery then flip=180 end
@@ -35677,6 +35686,48 @@ function mapSetup()
 	local CityTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCity)
 	local CoreTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCore)
 	local CountryTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCountry)
+	local customPredefined=gStates.gameScenario=="Custom" and scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)=="P"
+	if customPredefined then
+		--Predefined Custom maps are built by the players. Leave all three selected terrain pools untouched.
+		--Store every available tile face down so manual pulls from these bags begin hidden.
+		local function faceDownTerrainPool(bag)
+			if bag==nil then return end
+			local pos=bag.getPosition()
+			local guids={}
+			for _,contained in ipairs(bag.getObjects()) do guids[#guids+1]=contained.guid end
+			for _,guid in ipairs(guids) do
+				local tile=bag.takeObject({guid=guid,position={pos.x,pos.y+2,pos.z},rotation={0,180,180},smooth=false})
+				if tile~=nil then bag.putObject(tile) end
+			end
+		end
+		faceDownTerrainPool(CityTileStack)
+		faceDownTerrainPool(CoreTileStack)
+		faceDownTerrainPool(CountryTileStack)
+		local openStartPos={-36.0305,0.98,-11.9267}
+		local startTile=getObjectFromGUID(startTerrain.wedge)
+		local portalObj=getObjectFromGUID(portal.terrainHex)
+		if startTile~=nil then
+			startTile.unlock()
+			if portalObj~=nil then portalObj.unlock() end
+			startTile.setPosition(openStartPos)
+			if portalObj~=nil then portalObj.setPosition({openStartPos[1],1.1,openStartPos[3]}) end
+			startTile.setState(2)
+			safeWaitFrames("SetupGame",function()
+				local openStart=getObjectFromGUID(startTerrain.open)
+				if openStart~=nil then openStart.unlock() end
+				local currentPortal=getObjectFromGUID(portal.terrainHex)
+				if currentPortal~=nil then currentPortal.unlock() end
+			end,5)
+		else
+			local openStart=getObjectFromGUID(startTerrain.open)
+			if openStart~=nil then openStart.unlock() end
+			if portalObj~=nil then portalObj.unlock() end
+		end
+		if TileShuffler~=nil then TileShuffler.destruct() end
+		Global.setDecals({})
+		startingMapSetup=false
+		return
+	end
 	CityTileStack.shuffle()
 	CoreTileStack.shuffle()
 	CountryTileStack.shuffle()
@@ -38665,7 +38716,8 @@ end
 function scenarioMapIsPredefined()
 	local scenario=gStates~=nil and scenarioList[gStates.scenarioRef] or nil
 	local setup=scenario~=nil and scenario[gStates.playersRef] or nil
-	return setup~=nil and type(setup.mapShape)=="string" and setup.mapShape:sub(5,5)=="P"
+	--Custom Predefined is a player-built sandbox, so only scenario-owned predefined maps lock these setup controls.
+	return setup~=nil and type(setup.mapShape)=="string" and setup.mapShape:sub(5,5)=="P" and gStates.gameScenario~="Custom"
 end
 
 function refreshScenarioTerrainTweakLocks()
@@ -38699,6 +38751,9 @@ function baseValueTweak(player, mouseButton, id)
 								"{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten",
 								"{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",
 								"{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen"}
+				if gStates.gameScenario=="Custom" then
+					mapShapes[#mapShapes+1]="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert"
+				end
 				for a=1, #mapShapes, 1 do
 					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape==mapShapes[a] then
 						local b=nil
