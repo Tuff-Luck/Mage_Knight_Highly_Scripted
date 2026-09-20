@@ -541,11 +541,11 @@ function monsterSetup()
 		local workingOn=darkCrusaderLocations
 		for a=1, 2, 1 do
 			for objGuid, location in pairs(workingOn) do
-				if mergeDestination[objGuid]~=nil and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="Custom" and gStates.gameScenario~="The War of Four" and
+				if mergeDestination[objGuid]~=nil and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The War of Four" and
 					((a==1 and gStates.gameScenario~="The Realm of the Dead Blitz") or (a==2 and gStates.gameScenario~="The Hidden Valley Blitz")) then
 					mergeBags(objGuid, mergeDestination[objGuid], GUID.bag.tezla)
 				else
-					if allowed[objGuid]~=nil or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Custom" or gStates.gameScenario=="The War of Four" or gStates.gameScenario=="Ultimate Conquest" or
+					if allowed[objGuid]~=nil or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four" or gStates.gameScenario=="Ultimate Conquest" or
 						(a==1 and gStates.gameScenario=="The Realm of the Dead Blitz") or (a==2 and gStates.gameScenario=="The Hidden Valley Blitz") then
 						local flip=0
 						if mergeDestination[objGuid]~=nil or objGuid==GUID.bag.cemetery then flip=180 end
