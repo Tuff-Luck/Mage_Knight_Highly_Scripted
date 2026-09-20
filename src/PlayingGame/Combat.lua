@@ -671,6 +671,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		end
 		--reset variables for next turn
 		gStates.preEndTurn=true
+		rewardClaimSoftLockStart()
 		--Before combat cleanup moves/discards Quest enemies, remember successful combat-gated Quest
 		--resolutions. This keeps Rewards Claimed unavailable until the player presses Progress/Complete.
 		apocalypseQuestCaptureRewardCompletionGate(cleanupPlayer)
@@ -1827,6 +1828,87 @@ function combatAttackOptionCount(playerIndex)
 	local count=0
 	for _ in pairs(seen) do count=count+1 end
 	return count
+end
+
+--Resolve the current player's nearby conquest/ownership marker for Rewards Claimed checks.
+function rewardNearbyOwnShield(playerIndex,avatarLocation)
+	local details=turnOrder[playerIndex]
+	if details==nil then return "false" end
+	avatarLocation=avatarLocation or details.avatarLocation or ""
+	local avPos=mageKnightAvatarPosition(playerIndex) or {}
+	if avPos[1]==nil or avPos[3]==nil then return "false" end
+	if (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and
+		gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel)~=nil then
+		local volkarePos=getObjectFromGUID(gStates.volkareModel).getPosition()
+		if math.sqrt(((volkarePos[1]-avPos[1])^2)+((volkarePos[3]-avPos[3])^2))<1 then return volkare.model end
+	end
+	if avatarLocation:sub(1,4)=="city" or avatarLocation=="Volkare's Camp" or avatarLocation=="necropolis" or avatarLocation=="hidden valley" then
+		refreshCityDefeatState()
+		for zone,citySearch in pairs(cityScriptZones) do
+			local scriptZone=getObjectFromGUID(zone)
+			if scriptZone~=nil then
+				for _,detail in pairs(scriptZone.getObjects()) do
+					for _,avatar in pairs(mageKnights) do
+						if detail.guid==avatar.model or detail.guid==avatar.standee or detail.guid==avatar.token then
+							if zone==volkare.discZone and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
+								return volkare.model
+							end
+							return citySearch.cityGUID
+						end
+					end
+				end
+			end
+		end
+	end
+	local map=getObjectFromGUID(mapArea)
+	if map~=nil then
+		for _,shieldCheck in pairs(map.getObjects()) do
+			if ((shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and shieldCheck.getDescription()==details.mage) or
+				shieldCheck.getName()=="Hidden Valley" or shieldCheck.getName()=="Necropolis" or shieldCheck.getName()=="Volkare's Camp" or shieldCheck.getName()=="Volkare" or
+				shieldCheck.getGMNotes()=="White City" or shieldCheck.getGMNotes()=="Red City" or shieldCheck.getGMNotes()=="Green City" or shieldCheck.getGMNotes()=="Blue City") then
+				local shieldPos=shieldCheck.getPosition()
+				if math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then return shieldCheck.guid end
+			end
+		end
+	end
+	return "false"
+end
+
+--Mandatory retreat is a soft Rewards Claimed lock. Keep this detection shared with the checklist so
+--the warning and reminder cannot disagree about whether the player still needs to leave an unsafe site.
+function rewardRetreatRequired(playerIndex,avatarLocation,nearbyOwnShield)
+	local details=turnOrder[playerIndex]
+	if details==nil or gStates.turnForfeited==true then return false end
+	avatarLocation=avatarLocation or details.avatarLocation or ""
+	nearbyOwnShield=nearbyOwnShield or rewardNearbyOwnShield(playerIndex,avatarLocation)
+	local coopLeaderCombat=gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader"
+	local leaderDefeatedPendingCleanup=false
+	local factionLeaderDefeated=false
+	if avatarLocation=="necropolis" or avatarLocation=="hidden valley" then
+		local currentLeader=avatarLocation=="necropolis" and darkCrusader or elementalist
+		local leaderLevel=avatarLocation=="necropolis" and gStates.darkCrusaderLevel or gStates.elementalistLevel
+		factionLeaderDefeated=(leaderLevel or 1)<=0 or
+			(gStates.cityMonsterQty[currentLeader.terrainHex]~=nil and gStates.cityMonsterQty[currentLeader.terrainHex][currentLeader.token]=="dead") or
+			(gStates.defeatedFactionTest~=nil and gStates.defeatedFactionTest[currentLeader.terrainHex]=="Beat")
+		local leaderObj=getObjectFromGUID(currentLeader.token)
+		if factionLeaderDefeated==false and leaderObj~=nil and leaderObj.is_face_down==false and leaderLevel~=nil and ((gStates.leaderReduction or 0)+(gStates.leaderOverkill or 0))>=leaderLevel then
+			local playArea=getObjectFromGUID(playerPlayAreas[details.seatPos])
+			if playArea~=nil then
+				for _,obj in pairs(playArea.getObjects()) do if obj.guid==currentLeader.token then leaderDefeatedPendingCleanup=true break end end
+			end
+		end
+	end
+	local dragonRetreatRequired=false
+	if gStates.apocalypseDragonDefeated~=true and apocalypseDragonLairContainsPosition~=nil then
+		local dragonAvatarPos=mageKnightAvatarPosition(playerIndex)
+		dragonRetreatRequired=dragonAvatarPos~=nil and apocalypseDragonLairContainsPosition(dragonAvatarPos)==true
+	end
+	return dragonRetreatRequired==true or
+		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false") or
+		((avatarLocation:sub(1,4)=="city" or avatarLocation=="Volkare's Camp") and gStates.friendlyCity[nearbyOwnShield]~=true and
+			((gStates.gameScenario~="The Lost Relic Blitz" and gStates.defeatedCities[nearbyOwnShield]~=true) or (gStates.gameScenario=="The Lost Relic Blitz" and nearbyOwnShield=="false"))) or
+		((avatarLocation=="necropolis" or avatarLocation=="hidden valley") and coopLeaderCombat==false and leaderDefeatedPendingCleanup==false and factionLeaderDefeated==false) or
+		(nearbyOwnShield==volkare.model)
 end
 
 function cameraControlPresetView(id)
