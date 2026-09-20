@@ -2131,6 +2131,10 @@ function apocalypseIsHereSetup()
 	gStates.apocalypseHereNextHorseman=1
 	gStates.apocalypseHereTilesRevealed=0
 	gStates.apocalypseHereRevealedTiles={}
+	--Opening terrain reveals are recorded in order, but Horsemen are not placed until the
+	--initial map has finished populating all of those tiles.
+	gStates.apocalypseHereInitialTerrainQueue={}
+	gStates.apocalypseHereInitialTerrainQueued={}
 	gStates.apocalypseHereCityTilesSeen=0
 	gStates.apocalypseHereHorsemenEnded=false
 	gStates.apocalypseHereForcedRevealPending=false
@@ -2321,6 +2325,20 @@ function apocalypseIsHereTerrainRevealed(tile)
 	if apocalypseIsHereActive()~=true or tile==nil or tile.is_face_down==true then return false end
 	local details=terrainTiles[tile.guid]
 	if details==nil or details.tileType=="starting" or details.tileType=="tilePile" then return false end
+
+	--The initial Countryside tiles are revealed one at a time while their sites/enemies are still
+	--being populated. Preserve that reveal order, but do not deploy Horsemen onto the map until
+	--the complete opening terrain setup has finished.
+	if startingMapSetup==true then
+		gStates.apocalypseHereInitialTerrainQueue=gStates.apocalypseHereInitialTerrainQueue or {}
+		gStates.apocalypseHereInitialTerrainQueued=gStates.apocalypseHereInitialTerrainQueued or {}
+		if gStates.apocalypseHereInitialTerrainQueued[tile.guid]~=true then
+			gStates.apocalypseHereInitialTerrainQueued[tile.guid]=true
+			gStates.apocalypseHereInitialTerrainQueue[#gStates.apocalypseHereInitialTerrainQueue+1]=tile.guid
+		end
+		return true
+	end
+
 	gStates.apocalypseHereRevealedTiles=gStates.apocalypseHereRevealedTiles or {}
 	if gStates.apocalypseHereRevealedTiles[tile.guid]==true then return false end
 	gStates.apocalypseHereRevealedTiles[tile.guid]=true
@@ -2336,6 +2354,32 @@ function apocalypseIsHereTerrainRevealed(tile)
 	local forced=gStates.apocalypseHereForcedRevealPending==true
 	local threshold=apocalypseIsHereRevealThreshold(nextIndex)
 	if forced==true or (threshold~=nil and gStates.apocalypseHereTilesRevealed>=threshold) then apocalypseIsHereRevealNextHorseman(tile,forced) end
+	return true
+end
+
+function apocalypseIsHereFinishInitialTerrainSetup()
+	if apocalypseIsHereActive()~=true then return false end
+	local queue=gStates.apocalypseHereInitialTerrainQueue or {}
+	if #queue==0 then return false end
+
+	--Do not just wait for the 1/2/3-second flip timers. Terrain population can continue after a
+	--tile flips, so wait until every queued opening tile has finished the normal terrain handler.
+	local queuedGUIDs={}
+	for _,guid in ipairs(queue) do queuedGUIDs[#queuedGUIDs+1]=guid end
+	safeWaitCondition("Scenario",function()
+		gStates.apocalypseHereInitialTerrainQueue={}
+		gStates.apocalypseHereInitialTerrainQueued={}
+		for _,guid in ipairs(queuedGUIDs) do
+			local tile=getObjectFromGUID(guid)
+			if tile~=nil and tile.is_face_down~=true then apocalypseIsHereTerrainRevealed(tile) end
+		end
+	end,function()
+		if startingMapSetup==true then return false end
+		for _,guid in ipairs(queuedGUIDs) do
+			if workingOnTerrain~=nil and workingOnTerrain[guid]==true then return false end
+		end
+		return true
+	end)
 	return true
 end
 
