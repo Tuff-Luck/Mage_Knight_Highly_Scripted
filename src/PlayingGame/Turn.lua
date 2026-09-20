@@ -384,8 +384,9 @@ end
 function __endTurn_raw(player, mouseButton, id, rewindReady)
 	if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then --and slightPause==false
 		local rewardSeat=turnOrder[gStates.turnNumber].seatPos
+		local rewardSoftLock=rewardClaimSoftLockActive()
 		local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
-		if questRewardPending==true then
+		if rewardSoftLock==true and questRewardPending==true then
 			apocalypseQuestRefreshOfferButtons()
 			rewardReminderCameraFocus(player.color,"questView")
 			local questGateMessage=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "Complete/Fail the Quest First" or "Complete/Progress the Quest First"
@@ -393,7 +394,7 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
-		if gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
+		if rewardSoftLock==true and gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
 			local overdue=math.max(1,tonumber(gStates.apocalypseHereForcedRevealCount) or 1)
 			cameraControl(player,"-1","mapView")
 			local message=overdue==1 and "Reveal the overdue Map tile before claiming rewards." or ("Reveal "..tostring(overdue).." overdue Map tiles before claiming rewards.")
@@ -401,20 +402,27 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
-		if steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(rewardSeat)==true then
+		if rewardSoftLock==true and steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(rewardSeat)==true then
 			steadyTempoRefreshAll() steadyTempoUpdateRewardGate(rewardSeat)
+			cameraControl(player,"-1","playAreaView")
 			broadcastToAll("Resolve Steady Tempo before claiming rewards.", positionToColor(gStates.turnNumber))
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
-		if gStates.mineClaimPending~=nil then
+		if rewardSoftLock==true and gStates.mineClaimPending~=nil and (gStates.mineClaimPending.playerIndex==nil or gStates.mineClaimPending.playerIndex==gStates.turnNumber) then
 			broadcastToColor("Resolve the pending crystal choice before proceeding to the next player.", player.color, warningColor)
+			if rewindReady==true then rewindTransactionFinish("End turn") end
+			return
+		end
+		if rewardSoftLock==true and rewardRetreatRequired~=nil and rewardRetreatRequired(gStates.turnNumber)==true then
+			cameraControl(player,"-1","mapView")
+			broadcastToColor("Retreat to a safe space before claiming rewards.",player.color,warningColor)
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
 		if rewindReady~=true and rewindTransactionOwnerActive("End turn")==true then return end
 		if gStates.coopAssaultPhase=="rewards" then
-			if gStates.skillButtons==0 then
+			if gStates.skillButtons==0 or rewardSoftLock~=true then
 				if rewindReady~=true then
 					rewindTransactionStart(function() endTurn(player,mouseButton,id,true) end,"End turn")
 					return
@@ -439,7 +447,7 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 			return
 		end
 		--slightPause=true
-		if gStates.skillButtons==0 then--must choose from offered skill to proceed
+		if gStates.skillButtons==0 or rewardSoftLock~=true then--skill reward soft-lock expires with the shared Rewards Claimed window
 			if rewindReady~=true then
 				rewindTransactionStart(function() endTurn(player,mouseButton,id,true) end,"End turn")
 				return
@@ -450,6 +458,7 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 			UI.setAttribute("NightTacticSix", "active", "false")
 			UI.setAttribute("zigguratPyramidInteract", "active", "false")
 			gStates.preEndTurn=false
+			rewardClaimSoftLockClear()
 			gStates.levelingUp=false
 			gStates.crytalRuin=false
 			gStates.volkareArmyReduced=false
