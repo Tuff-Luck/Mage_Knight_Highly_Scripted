@@ -2022,6 +2022,7 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	if gStates.apocalypseHereForcedRevealPending==true then
 		gStates.apocalypseHereForcedRevealCount=math.max(0,(tonumber(gStates.apocalypseHereForcedRevealCount) or 1)-1)
 		gStates.apocalypseHereForcedRevealPending=gStates.apocalypseHereForcedRevealCount>0
+		if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Horseman exploration resolved") end
 	end
 	broadcastToAll(name.." has been revealed at Level "..tostring(state.level)..(forced==true and " by the Round deadline." or "."),{1,0.75,0.2})
 	return true
