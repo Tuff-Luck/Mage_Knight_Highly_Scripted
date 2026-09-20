@@ -3062,11 +3062,14 @@ function mapSetup()
 		safeTakeObject("SetupGame",TileShuffler,params)
 	end
 	--Starting country tiles reveal on 1/2/3 second timers. Apocalypse is Here counts those revealed
-	--tiles for its Horseman thresholds, but deploys the Horsemen only after all opening terrain
-	--population has finished.
+	--tiles for its Horseman thresholds, but keeps the setup phase active until all opening terrain
+	--population has finished before deploying any Horsemen.
 	safeWaitTime("SetupGame",function()
-		startingMapSetup=false
-		if apocalypseIsHereFinishInitialTerrainSetup~=nil then apocalypseIsHereFinishInitialTerrainSetup() end
+		if apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and apocalypseIsHereFinishInitialTerrainSetup~=nil then
+			apocalypseIsHereFinishInitialTerrainSetup()
+		else
+			startingMapSetup=false
+		end
 	end, 4)
 end
 
