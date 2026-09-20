@@ -1919,8 +1919,8 @@ function __onObjectEnterZone_raw(zone, obj)
 						moveDisplayTerrainCache={signature=nil,hexMap=nil}
 						updateMoveDisplay()
 					end
-					if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals()
-					else mapTokenArrangeAllOccupiedHexes() end
+					if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals() end
+					mapTokenArrangeAllOccupiedHexes()
 					fakeDropAvatar()
 					apocalypseQuestRefreshOfferButtons()
 				end, tokenWait+10)
