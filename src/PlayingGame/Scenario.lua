@@ -2467,7 +2467,7 @@ function apocalypseIsHereShowTargetChoice(name,options)
 		local key=option~=nil and option.hex~=nil and apocalypseQuestMapHexKey(option.hex) or nil
 		if key~=nil then targetKeys[#targetKeys+1]=key end
 	end
-	local pending={name=name,targetKeys=targetKeys,playerIndex=againstDragonChoicePlayerIndex()}
+	local pending={name=name,targetKeys=targetKeys,playerIndex=againstDragonChoicePlayerIndex(),previousReport=gStates.apocalypseHereHorsemenTurnReport or ""}
 	gStates.apocalypseHereHorsemanPendingChoice=pending
 	local grouped={}
 	for index,option in ipairs(options or {}) do
@@ -2493,7 +2493,8 @@ function apocalypseIsHereShowTargetChoice(name,options)
 	end
 	for _,group in pairs(grouped) do group.terrain.UI.setXmlTable(group.xml) end
 	gStates.apocalypseHereHorsemenUIState="WaitingChoice"
-	gStates.apocalypseHereHorsemenTurnReport=name.." has tied preferred targets. "..againstDragonChoicePlayerLabel(pending.playerIndex).." must choose which site it moves toward."
+	local choiceText=name.." has tied preferred targets. "..againstDragonChoicePlayerLabel(pending.playerIndex).." must choose which site it moves toward."
+	gStates.apocalypseHereHorsemenTurnReport=pending.previousReport..(pending.previousReport~="" and "\n" or "")..choiceText
 	mainUIUpdate("Horseman target choice")
 	return true
 end
@@ -2512,6 +2513,8 @@ function apocalypseIsHereHorsemanTargetSelect(player,mouseButton,id)
 	end
 	if option==nil then return end
 	apocalypseIsHereClearChoiceButtons()
+	--The choice prompt is temporary UI guidance, not part of the completed Horsemen action log.
+	gStates.apocalypseHereHorsemenTurnReport=pending.previousReport or ""
 	gStates.apocalypseHereHorsemanPendingChoice=nil
 	gStates.apocalypseHereHorsemenUIState="Processing"
 	apocalypseIsHereResolveHorsemanTarget(pending.name,option)
@@ -2528,9 +2531,11 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 	local token=takeDestroyedSiteToken(targetHex.terrain,targetHex.bearing)
 	if token~=nil then destroySite(token,targetHex.terrain,targetHex.bearing) end
 	local oldHead=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[name] or 0) or 0
-	if oldHead>0 and oldHead<12 then apocalypseDragonSetHeadLevel(name,oldHead+1) end
+	local newHead=math.min(12,oldHead+1)
+	if oldHead>0 and oldHead<12 then apocalypseDragonSetHeadLevel(name,newHead) end
 	state.sitesDestroyed=(tonumber(state.sitesDestroyed) or 0)+1
-	local report=name.." destroyed "..proxyFeatureDisplayName(targetHex.feature).." and raised the "..name.." Dragon head from Level "..tostring(oldHead).." to Level "..tostring(math.min(12,oldHead+1)).."."
+	local destroyedName=proxyFeatureDisplayName(targetHex.feature)
+	local report=nil
 	if state.sitesDestroyed>=4 then
 		state.retired=true state.revealed=false state.removedAfterFour=true
 		local token=getObjectFromGUID(data.tokenGUID)
@@ -2542,11 +2547,13 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 		end
 		monsterPugs[data.tokenGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end
-		report=report.." It has destroyed four sites and leaves the map."
+		report=name.." destroyed "..destroyedName..", raising the Dragon's head level ("..tostring(newHead).."), then left the map after destroying four sites."
 	elseif (tonumber(state.level) or 1)>1 then
 		state.level=state.level-1
 		setHorsemanLevel(name,state.level,false)
-		report=report.." "..name.." drops to Level "..tostring(state.level).."."
+		report=name.." destroyed "..destroyedName..", losing a level ("..tostring(state.level).."), while raising the Dragon's head level ("..tostring(newHead)..")."
+	else
+		report=name.." destroyed "..destroyedName..", while raising the Dragon's head level ("..tostring(newHead)..")."
 	end
 	gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..report
 	return true
