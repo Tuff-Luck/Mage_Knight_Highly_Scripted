@@ -1059,19 +1059,20 @@ function volkareSetup()
 		PlayerBag.destruct()
 	end
 
-	--Add Volkare unit crystals based on Player count and Race Level
+	--Add Volkare unit crystals based on Player count and Race Level.
+	--Each die face owns a physical Unit-offer slot; the broad offer zone replaces the old slot zones.
+	gStates.volkareUnitCrystals={}
 	if gStates.gameScenario~="The War of Four" then
 		local VolkareUnits=gStates.playerCount+(gStates.volkareRaceLevel-1)
 		local PlayerBag=getObjectFromGUID(GUID.bag.volkare).clone()
 		local obj=PlayerBag.takeObject({position={37, 1.29, -1.14}, guid="1212f3"})--Crystal Container
-		local unitZone={"c75fb0", "f25213", "e393d7", "1821db", "5c85c9", "ff65ef"}
 		obj.shuffle()
 		for i=1, VolkareUnits, 1 do
 			local obj2=obj.takeObject()
 			obj2.lock()
 			obj2.setPosition({36.0-(4.8*(i-1)), 1.29, -1.15})
 			obj2.setRotation({0, 30, 0})
-			gStates.volkareUnitCrystals[obj2.getName()]=unitZone[i]
+			gStates.volkareUnitCrystals[obj2.getName()]={slot=i,crystalGUID=obj2.guid}
 		end
 		PlayerBag.destruct()
 		obj.destruct()
