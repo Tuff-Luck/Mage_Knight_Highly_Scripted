@@ -1100,7 +1100,10 @@ function mainUIUpdate(source)
 				--lock end turn button if no cards are played or discarded
 				--discard object detection
 				local discardAreaCards=0
-				for _, b in pairs(getObjectFromGUID(deedDeckDiscardZones[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
+				local discardZoneGUID=deedDeckDiscardZones[turnOrder[gStates.turnNumber].seatPos]
+				local discardZone=discardZoneGUID~=nil and getObjectFromGUID(discardZoneGUID) or nil
+				if discardZone==nil then return end
+				for _, b in pairs(discardZone.getObjects()) do
 					if b.type=="Card" then discardAreaCards=1 break end
 					if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
 				end
