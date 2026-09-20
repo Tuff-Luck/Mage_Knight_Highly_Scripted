@@ -74,10 +74,12 @@ function tacticToggle()
 			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)})
 		end
 		if againstDragonPositionRoundOrderToken~=nil then againstDragonPositionRoundOrderToken() end
+		if furyDragonPositionRoundOrderToken~=nil then furyDragonPositionRoundOrderToken() end
 		if apocalypseIsHerePositionRoundOrderToken~=nil then apocalypseIsHerePositionRoundOrderToken() end
 	end
 
 	if againstDragonRoundStart~=nil then againstDragonRoundStart() end
+	if furyDragonRoundStart~=nil then furyDragonRoundStart() end
 
 	--Show all tactics available
 	if gStates.tacticShown==true then
@@ -775,6 +777,9 @@ function nextTurnMerged(type)--"nextMage", "nextMageSkipDummy", "incrementTurn",
 	--not create extra Dragon turns, and End of Round / first lair attack suppresses them in the helper.
 	if type=="incrementTurn" and sameTurn==false and newOutOfTurn==false and wrappedCircuit==true and startedDuringTacticSelection==false and gStates.tacticShown==false and againstDragonBeginTurn~=nil then
 		if againstDragonBeginTurn(nextTurnNumber,newOutOfTurn,sameTurn)==true then return nextTurnNumber end
+	end
+	if type=="incrementTurn" and sameTurn==false and newOutOfTurn==false and wrappedCircuit==true and startedDuringTacticSelection==false and gStates.tacticShown==false and furyDragonBeginTurn~=nil then
+		if furyDragonBeginTurn(nextTurnNumber,newOutOfTurn,sameTurn)==true then return nextTurnNumber end
 	end
 	if type=="incrementTurn" and sameTurn==false and newOutOfTurn==false and wrappedCircuit==true and startedDuringTacticSelection==false and gStates.tacticShown==false and apocalypseIsHereBeginHorsemenTurn~=nil then
 		if apocalypseIsHereBeginHorsemenTurn(nextTurnNumber,newOutOfTurn,sameTurn)==true then return nextTurnNumber end
