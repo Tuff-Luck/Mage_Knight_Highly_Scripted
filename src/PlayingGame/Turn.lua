@@ -821,13 +821,12 @@ function __PreEndRound_raw(player, mouseButton, id)
 		end
 		refreshCoopCompSkillXs()
 
-		--unlock second action for control over the offer.
-		for _, object in pairs(getObjectFromGUID("109d8e").getObjects()) do
-			if object.type=="Card" then object.unlock() break end
-		end
-		for _, object in pairs(getObjectFromGUID("e88f19").getObjects()) do
-			if object.type=="Card" then object.unlock() break end
-		end
+		--Unlock the second card in each broad offer row for manual offer control.
+		--The former per-slot scripting zones no longer exist.
+		local actionCards=mainOfferCards("Advanced Action")
+		if actionCards[2]~=nil then actionCards[2].unlock() end
+		local spellCards=mainOfferCards("Spell")
+		if spellCards[2]~=nil then spellCards[2].unlock() end
 
 		if activeMageKnightCount()>1 or turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
 			broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} called End of Round. Everyone else has one final turn.{ru} объявил конец Раунда. Остальные делают по одному ходу.{zh-cn}宣布结束轮次, 所有其他玩家还有最后一回合{ko}: 라운드 종료 선언. 모두 마지막 차례를 한 번씩 더 갖습니다.{es} llamado Fin de Ronda. Todos los demás tienen un turno final.{fr} appelé la Fin de Rounde. Tout le monde a un dernier tour.{pt-br} chamado o fim de Rodada. Todos outros tem um turno final.{de} ende der Runde ausgerufen. Alle anderen haben einen letzten Zug."}), positionToColor(gStates.turnNumber))
