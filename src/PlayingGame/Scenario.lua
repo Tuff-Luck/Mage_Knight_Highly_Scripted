@@ -1008,9 +1008,10 @@ end
 --Destroyed Site tokens are special: their known settled table height is 1.13, so scripted/manual
 --placement pins them directly there instead of asking physics to discover the bottom of an existing stack.
 local mapTokenArrangeGeneration={}
---While a manually dropped loose token is settling/re-spreading, it owns arrangement for that object.
---Map-zone physics events during this window must not start the scripted multi-retry arranger.
+--Every arrival has one settle generation. Explicit/manual arrivals also mark themselves authoritative
+--so a late passive map-zone callback from another token cannot steal ownership of the same hex.
 local mapTokenManualDropPending={}
+local mapTokenExplicitArrivalPending={}
 local mapTokenSpreadSpacing=0.20
 local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
 local destroyedSiteRestingY=1.13
@@ -1099,8 +1100,28 @@ local function mapTokenReleaseParticipantClaims(claims)
 			if mapTokenManualDropPending[claim.guid]==claim.generation then
 				mapTokenManualDropPending[claim.guid]=nil
 			end
+			if mapTokenExplicitArrivalPending[claim.guid]==claim.generation then
+				mapTokenExplicitArrivalPending[claim.guid]=nil
+			end
 		end)
 	end
+end
+
+--Passive map-zone arrivals are allowed to tidy a hex only when no explicit/manual mover currently
+--owns that same hex. This prevents a late enemy-zone callback from reversing a Horseman/Dragon move.
+local function mapTokenHexHasExplicitArrival(guid)
+	local obj=guid~=nil and getObjectFromGUID(guid) or nil
+	if obj==nil then return false end
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
+	if hex==nil then return false end
+	for ownerGUID,generation in pairs(mapTokenExplicitArrivalPending) do
+		if ownerGUID~=guid and mapTokenManualDropPending[ownerGUID]==generation then
+			local owner=getObjectFromGUID(ownerGUID)
+			if owner~=nil and mapTokenOnHex(owner,hex)==true then return true end
+		end
+	end
+	return false
 end
 
 --Any token that was locked before the arranger touched it is locked again only after one physics
@@ -1310,6 +1331,7 @@ function mapTokenSettleArrival(guid,target,options,callback)
 		mapTokenReleaseObject(obj)
 	elseif options.force==true then
 		mapTokenManualDropPending[guid]=nil
+		mapTokenExplicitArrivalPending[guid]=nil
 		mapTokenArrangeGeneration[guid]=(mapTokenArrangeGeneration[guid] or 0)+1
 	end
 	if mapTokenManualDropPending[guid]~=nil then return false end
@@ -1317,6 +1339,7 @@ function mapTokenSettleArrival(guid,target,options,callback)
 	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
 	mapTokenArrangeGeneration[guid]=generation
 	mapTokenManualDropPending[guid]=generation
+	if options.passive~=true then mapTokenExplicitArrivalPending[guid]=generation end
 
 	if target~=nil then
 		obj.unlock()
@@ -1328,17 +1351,27 @@ function mapTokenSettleArrival(guid,target,options,callback)
 		--Another arrival on the same hex may legitimately take ownership of this token. Its spread then
 		--wins, but the movement callback still fires so scenario turn flow cannot stall.
 		if mapTokenManualDropPending[guid]~=generation then
+			if mapTokenExplicitArrivalPending[guid]==generation then mapTokenExplicitArrivalPending[guid]=nil end
 			if callback~=nil then callback(current,false) end
 			return
 		end
 		if current==nil then
 			mapTokenManualDropPending[guid]=nil
+			if mapTokenExplicitArrivalPending[guid]==generation then mapTokenExplicitArrivalPending[guid]=nil end
 			if callback~=nil then callback(nil,false) end
 			return
 		end
 
+		--A generic zone event is deliberately passive. If a Horseman, Dragon or human drop currently
+		--owns this hex, leave the layout entirely to that authoritative arrival.
+		if options.passive==true and mapTokenHexHasExplicitArrival(guid)==true then
+			mapTokenManualDropPending[guid]=nil
+			if callback~=nil then callback(current,false) end
+			return
+		end
+
 		local claims=mapTokenClaimHexParticipants(guid,generation)
-		local arrivalGUID=options.arrivalTop==false and nil or guid
+		local arrivalGUID=options.arrivalTop==true and guid or nil
 		local arranged=false
 		if #claims>0 then
 			arranged=mapTokenArrangeObject(guid,true,arrivalGUID)
@@ -1347,6 +1380,7 @@ function mapTokenSettleArrival(guid,target,options,callback)
 			--The object may have moved somewhere outside the map (for example the Horsemen ritual
 			--layout). There is no physical hex to spread, so simply release this arrival claim.
 			mapTokenManualDropPending[guid]=nil
+			if mapTokenExplicitArrivalPending[guid]==generation then mapTokenExplicitArrivalPending[guid]=nil end
 		end
 		if options.relock==true then mapTokenRelockWhenSettled(guid,true) end
 
@@ -1364,10 +1398,10 @@ function mapTokenArrangeDroppedObject(guid)
 	mapTokenSettleArrival(guid,nil,{force=true,arrivalTop=true})
 end
 
---Unheld objects entering the map (enemy draws, scripted tokens, etc.) also get exactly one settle
---pass. Scripted movers that call mapTokenSettleArrival before crossing the zone suppress this call.
+--Unheld objects entering the map get one passive settle pass. They use physical/existing order and
+--must never override a known Horseman/Dragon/manual arrival that owns the same hex.
 function mapTokenScheduleObject(guid)
-	mapTokenSettleArrival(guid,nil,{arrivalTop=true})
+	mapTokenSettleArrival(guid,nil,{passive=true,arrivalTop=false})
 end
 
 --Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
@@ -1378,6 +1412,7 @@ function mapTokenReleaseObject(obj)
 	local ignoreGUID=obj.guid
 	--Invalidate delayed arrival/manual-drop work for the object now being carried away.
 	mapTokenManualDropPending[ignoreGUID]=nil
+	mapTokenExplicitArrivalPending[ignoreGUID]=nil
 	mapTokenArrangeGeneration[ignoreGUID]=(mapTokenArrangeGeneration[ignoreGUID] or 0)+1
 	safeWaitFrames("Scenario",function()
 		local hexes,mapObjects=apocalypseQuestMapHexes()
