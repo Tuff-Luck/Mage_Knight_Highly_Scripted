@@ -493,6 +493,7 @@ function showCoopReward()
 	gStates.turnNumber=entry.player
 	refreshTactic4HandBonus(false)
 	gStates.preEndTurn=true
+	rewardClaimSoftLockStart()
 	gStates.levelingUp=false
 	--The conquered city hand bonus is known now, before this player claims rewards and draws their new hand.
 	if gStates.coopAssaultType=="city" and gStates.coopAssaultConquered==true and gStates.coopAssaultCityGUID~=nil then
@@ -617,6 +618,7 @@ function advanceCoopRewardPhase()
 		gStates.coopAssaultConquered=nil
 		gStates.coopAssaultScenarioEndPending=false
 		gStates.preEndTurn=false
+		rewardClaimSoftLockClear()
 		if scenarioEndPending then
 			--Victory is registered here, but gameOver waits for nextTurnMerged.
 			--That lets an assister's skipped turn flip their token upright and lets
