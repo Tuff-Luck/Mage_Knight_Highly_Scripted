@@ -4988,7 +4988,7 @@ function furyDragonPositionRoundOrderToken()
 		if current~=nil then current.lock() end
 	end,function()
 		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
-		return current==nil or current.isSmoothMoving()==false
+		return current==nil or current.resting==true
 	end)
 	return true
 end
@@ -5124,6 +5124,8 @@ function furyDragonTargetWouldOverflow(target)
 end
 
 function furyDragonChooseTarget(color,hexes,mapObjects)
+	--The mod's Destroyed Site supply is an Infinite Bag, so Fury intentionally omits the printed
+	--"all 16 Destroyed Site tokens used" redirect and only applies the no-target / level-12 redirects.
 	local current=furyDragonCurrentHex(hexes)
 	local lair=furyDragonLairTarget(hexes)
 	if current==nil then return lair end
@@ -5209,7 +5211,7 @@ function furyDragonMoveMarkerOffMap()
 		if current~=nil then current.lock() end
 	end,function()
 		local current=getObjectFromGUID(guid)
-		return current==nil or current.isSmoothMoving()==false
+		return current==nil or current.resting==true
 	end)
 	return true
 end
@@ -5256,16 +5258,28 @@ function furyDragonBeginLandedTurn()
 			gStates.furyDragonFlightTarget=target
 			currentDie.unlock()
 			currentDie.setPositionSmooth(destination,false)
-			furyDragonMoveMarkerOffMap()
+			if furyDragonMoveMarkerOffMap()~=true then
+				local spare=getObjectFromGUID(GUID.bag.spareDice)
+				if spare~=nil then currentDie.unlock() spare.putObject(currentDie) end
+				gStates.furyDragonManaDieGUID=nil
+				gStates.furyDragonFlightTarget=nil
+				furyDragonCompleteTurn("The Fury Apocalypse Dragon marker is missing; the flight target was cancelled.")
+				return
+			end
 			local targetText=furyDragonTargetLabel(target)
 			local colorText=color~=nil and color:gsub("^%l",string.upper) or "Unknown"
 			safeWaitCondition("Scenario",function()
 				local settled=getObjectFromGUID(dieGUID)
 				if settled~=nil then settled.lock() end
+				local dragon=getObjectFromGUID(apocalypseDragon.furyMarker)
+				if dragon~=nil then dragon.lock() end
 				furyDragonCompleteTurn("The Apocalypse Dragon rolled "..colorText.." and is now in flight toward "..targetText..".")
 			end,function()
 				local settling=getObjectFromGUID(dieGUID)
-				return settling==nil or settling.isSmoothMoving()==false
+				local dragon=getObjectFromGUID(apocalypseDragon.furyMarker)
+				local dieReady=settling==nil or settling.resting==true
+				local dragonReady=dragon==nil or dragon.resting==true
+				return dieReady and dragonReady
 			end)
 		end,function()
 			local current=getObjectFromGUID(dieGUID)
@@ -5438,7 +5452,7 @@ function furyDragonBeginInFlightTurn()
 		furyDragonCompleteTurn(result)
 	end,function()
 		local current=getObjectFromGUID(markerGUID)
-		return current==nil or current.isSmoothMoving()==false
+		return current==nil or current.resting==true
 	end)
 	return true
 end
