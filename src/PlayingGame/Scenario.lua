@@ -1008,17 +1008,21 @@ end
 --Destroyed Site tokens are special: their known settled table height is 1.13, so scripted/manual
 --placement pins them directly there instead of asking physics to discover the bottom of an existing stack.
 local mapTokenArrangeGeneration={}
-local mapTokenSpreadSlots={
-	[1]={x=-0.10,z=-0.10},
-	[2]={x= 0.10,z= 0.10},
-	[3]={x= 0.10,z=-0.10},
-	[4]={x=-0.10,z= 0.10},
-	[5]={x=-0.17,z= 0.00},
-	[6]={x= 0.17,z= 0.00},
-	[7]={x= 0.00,z=-0.17},
-	[8]={x= 0.00,z= 0.17}
-}
+local mapTokenSpreadSpacing=0.20
+local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
 local destroyedSiteRestingY=1.13
+
+--Return an evenly spaced WORLD-space point on one diagonal through the hex centre.
+--The group is always centred: 3 tokens are -1/0/+1 steps, 4 are -1.5/-0.5/+0.5/+1.5.
+--The direction is intentionally +X/+Z for the first token because that is the user's visual
+--bottom-left orientation; the last token runs toward -X/-Z (visual upper-right).
+local function mapTokenSpreadOffset(index,count)
+	count=math.max(1,tonumber(count) or 1)
+	index=math.max(1,math.min(count,tonumber(index) or 1))
+	local steps=((count+1)/2)-index
+	local component=steps*mapTokenSpreadDiagonalComponent
+	return {x=component,z=component}
+end
 
 function mapTokenIsDestroyedSite(obj)
 	return obj~=nil and obj.getGMNotes~=nil and obj.getGMNotes()=="Destroyed"
@@ -1133,8 +1137,8 @@ local function mapTokenMoveLaterally(obj,targetX,targetZ)
 end
 
 --Arrange one resolved map hex. A Destroyed Site remains the floor marker, but when another token
---shares its hex it participates in the spread: slot 1 is always the same down-left WORLD position,
---slot 2 is always the same up-right WORLD position. Token rotation/face state never affects direction.
+--shares its hex it participates in one centred WORLD-space diagonal spread. Adjacent tokens are 0.2
+--world units apart along that line. Token rotation/face state never affects direction.
 --lateralOnly is used when a piece leaves the hex so the survivors never visibly hop in Y.
 --arrivalGUID, when supplied for a manual drop, is assigned after the tokens already on that hex.
 function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,arrivalGUID)
@@ -1181,7 +1185,8 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 
 	if destroyed~=nil then
 		local pos=destroyed.getPosition()
-		local destroyedOffset=#enemies>0 and mapTokenSpreadSlots[1] or {x=0,z=0}
+		local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
+		local destroyedOffset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
 		local targetX,targetZ=centerX+destroyedOffset.x,centerZ+destroyedOffset.z
 		local targetY=lateralOnly==true and pos[2] or destroyedSiteRestingY
 		local needsMove=math.abs(pos[1]-targetX)>0.025 or math.abs(pos[2]-targetY)>0.025 or math.abs(pos[3]-targetZ)>0.025
@@ -1217,19 +1222,13 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 		return changed
 	end
 
-	--Destroyed occupies slot 1 itself when the hex is shared, putting the physical bottom down-left.
-	--Enemy assignment therefore begins at slot 2, whose offset is up-right.
-	local firstEnemySlot=destroyed~=nil and 2 or 1
-	local assigned={}
-	--Assign fixed WORLD slots. Existing tokens come first; a manually dropped arrival comes last.
-	--No local rotation, face state or Y height participates in choosing the direction.
+	--Lay every participant on one straight WORLD-space diagonal, evenly spaced and centred.
+	--Destroyed (when present) is participant 1; existing enemies follow; a manual arrival is sorted last.
+	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
+	local firstEnemyIndex=destroyed~=nil and 2 or 1
 	for index,obj in ipairs(enemies) do
-		assigned[obj.guid]=math.min(firstEnemySlot+index-1,#mapTokenSpreadSlots)
-	end
-
-	for _,obj in ipairs(enemies) do
-		local slot=assigned[obj.guid] or firstEnemySlot
-		local offset=mapTokenSpreadSlots[slot]
+		local spreadIndex=firstEnemyIndex+index-1
+		local offset=mapTokenSpreadOffset(spreadIndex,spreadCount)
 		local minY=(baseY~=nil and baseY+0.55 or 1.45)
 		if lateralOnly==true then
 			changed=mapTokenMoveLaterally(obj,centerX+offset.x,centerZ+offset.z) or changed
