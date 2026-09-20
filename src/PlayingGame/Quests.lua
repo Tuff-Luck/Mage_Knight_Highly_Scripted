@@ -3438,8 +3438,8 @@ function apocalypseQuestFreeWineMarkAssaultStarted(playerIndex)
 	local card=getObjectFromGUID("37e2ce")
 	local state=card~=nil and apocalypseQuestProgressState(card,playerIndex,false) or nil
 	if card==nil or state==nil or state.step~=2 or turnOrder[playerIndex]==nil then return false end
-	--Once this branch has an outcome, keep it until Complete/Fail is actually pressed. The 30-second
-	--Rewards Claimed gate is only a fail-safe and must not erase which assault Quest 10 is resolving.
+	--Once this branch has an outcome, keep it until Complete/Fail is actually pressed. The shared
+	--Rewards Claimed soft-lock timeout must not erase which assault Quest 10 is resolving.
 	local existing=apocalypseQuestFreeWineAssaultRecord(playerIndex)
 	if existing~=nil then return true end
 	local hex=apocalypseQuestCurrentPlayerHex(playerIndex)
@@ -3509,8 +3509,8 @@ function apocalypseQuestCaptureFreeWineResolutionGate(playerIndex)
 	if card==nil or state==nil or state.step~=2 or record==nil then return false end
 	local action=apocalypseQuestFreeWineCombatOutcome(playerIndex)
 	if action==nil then return false end
-	--Start the normal 30-second fail-safe when the combat outcome is known, not when 1A first sends the
-	--Hero toward the Keep. A real Keep assault normally takes far longer than 30 seconds to play.
+	--Create the normal pending reward resolution when the combat outcome is known, not when 1A first
+	--sends the Hero toward the Keep. The 12-second soft-lock window starts later at Rewards Claimed.
 	apocalypseQuestSetRewardCompletionGate(card,playerIndex,action)
 	apocalypseQuestUpdateProgressButtons(card)
 	return true
@@ -3525,9 +3525,9 @@ function apocalypseQuestFreeWineStartAssault(card,playerIndex)
 	local shield=apocalypseQuestTakePlayerShield(playerIndex,surface)
 	apocalypseQuestRegisterMoveAttachment(card,shield,target)
 	if shield~=nil then shield.unlock() end
-	--1A commits the player to resolving this Keep assault. Do not start the 30-second Rewards Claimed
-	--fail-safe yet: the combat itself can easily take longer than that. The outcome gate is created at
-	--the rewards boundary after success/failure can actually be determined.
+	--1A commits the player to resolving this Keep assault. Do not create the Rewards Claimed resolution
+	--gate yet: the combat itself can take as long as needed. The outcome gate is created at the rewards
+	--boundary after success/failure can actually be determined.
 	gStates.apocalypseQuestFreeWineAssault=nil
 	local targets=apocalypseQuestFreeWineKeepTargets(playerIndex)
 	if #targets==1 then
