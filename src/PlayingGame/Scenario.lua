@@ -1295,68 +1295,80 @@ function mapTokenArrangeObject(guid,lateralOnly,arrivalGUID)
 	return mapTokenArrangeHex(hex,mapObjects,nil,obj,lateralOnly==true,arrivalGUID)
 end
 
---A human drop is already responsible for the token's vertical physics. Cancel any scripted-arrival
---retries and, once the drop event has registered, read the whole hex once and change X/Z only.
-function mapTokenArrangeDroppedObject(guid)
-	if guid==nil then return end
-	--Cancel any scripted-arrival retries and claim this token for the manual-drop path. The map zone
-	--can fire again while a loose token bounces/settles; those events are ignored until the one final
-	--lateral spread has itself settled.
+--All loose map-token arrivals use this one ownership path. The arriving token claims its
+--settle/spread before it can cross the map zone, waits until its own movement/physics is finished,
+--then claims every token sharing the final hex and performs one lateral spread. This replaces the
+--old overlapping zone retries, scripted-arrival finish pass and manual-drop pass.
+function mapTokenSettleArrival(guid,target,options,callback)
+	options=options or {}
+	if guid==nil then return false end
+	local obj=getObjectFromGUID(guid)
+	if obj==nil then return false end
+
+	--A scripted move first releases the old hex so the pieces left behind can close up. A manual drop
+	--can forcibly take ownership away from an earlier map-zone arrival that fired while it was falling.
+	if options.releaseOrigin==true then
+		mapTokenReleaseObject(obj)
+	elseif options.force==true then
+		mapTokenManualDropPending[guid]=nil
+		mapTokenArrangeGeneration[guid]=(mapTokenArrangeGeneration[guid] or 0)+1
+	end
+	if mapTokenManualDropPending[guid]~=nil then return false end
+
 	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
 	mapTokenArrangeGeneration[guid]=generation
 	mapTokenManualDropPending[guid]=generation
-	mapTokenAfterSettled(guid,function(obj)
-		if mapTokenManualDropPending[guid]~=generation then return end
-		if obj==nil then
-			mapTokenManualDropPending[guid]=nil
+
+	if target~=nil then
+		obj.unlock()
+		if options.rotation~=nil then obj.setRotation(options.rotation) end
+		obj.setPositionSmooth(target,false)
+	end
+
+	mapTokenAfterSettled(guid,function(current)
+		--Another arrival on the same hex may legitimately take ownership of this token. Its spread then
+		--wins, but the movement callback still fires so scenario turn flow cannot stall.
+		if mapTokenManualDropPending[guid]~=generation then
+			if callback~=nil then callback(current,false) end
 			return
 		end
-		--Claim the entire physical stack before moving any member. Otherwise moving the lower loose
-		--token can fire its own map-zone event and a later retry re-sorts the now-separated pieces.
+		if current==nil then
+			mapTokenManualDropPending[guid]=nil
+			if callback~=nil then callback(nil,false) end
+			return
+		end
+
 		local claims=mapTokenClaimHexParticipants(guid,generation)
-		--This is the only arrangement pass for this manual drop. The dropped token is the top arrival.
-		mapTokenArrangeObject(guid,true,guid)
-		mapTokenReleaseParticipantClaims(claims)
+		local arrivalGUID=options.arrivalTop==false and nil or guid
+		local arranged=false
+		if #claims>0 then
+			arranged=mapTokenArrangeObject(guid,true,arrivalGUID)
+			mapTokenReleaseParticipantClaims(claims)
+		else
+			--The object may have moved somewhere outside the map (for example the Horsemen ritual
+			--layout). There is no physical hex to spread, so simply release this arrival claim.
+			mapTokenManualDropPending[guid]=nil
+		end
+		if options.relock==true then mapTokenRelockWhenSettled(guid,true) end
+
+		if callback~=nil then
+			--If this spread moved the arriving token laterally, wait for that final physics settle too.
+			mapTokenAfterSettled(guid,function(finalObj) callback(finalObj,arranged) end)
+		end
 	end)
-end
-
---Scripted smooth moves such as the Fury Dragon need the same one-pass behaviour, but suppression
---must begin BEFORE the object crosses into the map zone so onObjectEnterZone cannot queue retries.
-function mapTokenBeginSingleArrival(guid)
-	if guid==nil then return nil end
-	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
-	mapTokenArrangeGeneration[guid]=generation
-	mapTokenManualDropPending[guid]=generation
-	return generation
-end
-
-function mapTokenFinishSingleArrival(guid,generation)
-	if guid==nil then return false end
-	generation=generation or mapTokenManualDropPending[guid]
-	if generation==nil or mapTokenManualDropPending[guid]~=generation then return false end
-	local obj=getObjectFromGUID(guid)
-	if obj==nil then
-		mapTokenManualDropPending[guid]=nil
-		return false
-	end
-	--The scripted move has already settled. Claim every token sharing the hex before moving any of
-	--them, then read final physical Y once and spread only X/Z once.
-	local claims=mapTokenClaimHexParticipants(guid,generation)
-	mapTokenArrangeObject(guid,true,guid)
-	mapTokenReleaseParticipantClaims(claims)
 	return true
 end
 
+--A human drop already owns the vertical fall. Replace any zone-entry claim with one final lateral
+--spread and treat the dropped token as the newest/top participant.
+function mapTokenArrangeDroppedObject(guid)
+	mapTokenSettleArrival(guid,nil,{force=true,arrivalTop=true})
+end
+
+--Unheld objects entering the map (enemy draws, scripted tokens, etc.) also get exactly one settle
+--pass. Scripted movers that call mapTokenSettleArrival before crossing the zone suppress this call.
 function mapTokenScheduleObject(guid)
-	if guid==nil or mapTokenManualDropPending[guid]~=nil then return end
-	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
-	mapTokenArrangeGeneration[guid]=generation
-	for _,delay in ipairs({2,8,20,45}) do
-		safeWaitFrames("Scenario",function()
-			if mapTokenArrangeGeneration[guid]~=generation or mapTokenManualDropPending[guid]~=nil then return end
-			mapTokenArrangeObject(guid)
-		end,delay)
-	end
+	mapTokenSettleArrival(guid,nil,{arrivalTop=true})
 end
 
 --Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
@@ -1385,33 +1397,20 @@ function mapTokenArrangeAllOccupiedHexes()
 			local key=hex~=nil and apocalypseQuestMapHexKey(hex) or nil
 			if key~=nil and touched[key]~=true then
 				touched[key]=true
-				mapTokenArrangeHex(hex,mapObjects)
+				--An arrival already owns this hex until its one final spread is complete. The terrain
+				--completion sweep must not start a second layout pass underneath it.
+				local arrivalPending=false
+				for _,candidate in pairs(mapObjects or {}) do
+					if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true
+						and mapTokenManualDropPending[candidate.guid]~=nil then
+						arrivalPending=true
+						break
+					end
+				end
+				if arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects) end
 			end
 		end
 	end
-end
-
---Horseman callers now use the generic map-token arranger. These small wrappers keep the scenario
---movement code readable while ensuring Horsemen, ordinary enemies and the Fury Dragon all share
---exactly the same physical-hex behaviour.
-function horsemanReleaseOccupiedToken(name)
-	local data=horsemanData~=nil and horsemanData[name] or nil
-	local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-	return mapTokenReleaseObject(token)
-end
-
-function horsemanArrangeOccupiedTokenStack(name)
-	local data=horsemanData~=nil and horsemanData[name] or nil
-	return data~=nil and mapTokenArrangeObject(data.tokenGUID) or false
-end
-
-function horsemanScheduleOccupiedTokenStack(name)
-	local data=horsemanData~=nil and horsemanData[name] or nil
-	if data~=nil then mapTokenScheduleObject(data.tokenGUID) end
-end
-
-function horsemanArrangeOccupiedTokenStacks()
-	mapTokenArrangeAllOccupiedHexes()
 end
 
 function setHorsemanLevel(ref, level, hideIdentity)
@@ -1529,7 +1528,7 @@ function againstHorsemenMarkDefeatedToken(token,name,playerIndex,smooth)
 	local player=turnOrder[playerIndex]
 	if token==nil or state==nil or player==nil then return false end
 	local level=math.max(1,math.min(6,tonumber(state.level) or 1))
-	horsemanReleaseOccupiedToken(name)
+	mapTokenReleaseObject(token)
 	token.setName("DEFEATED - "..name.." Level "..tostring(level))
 	token.setDescription("Defeated by "..tostring(player.mage))
 	token.setGMNotes("Defeated Horseman")
@@ -1730,10 +1729,7 @@ end
 
 function againstHorsemenRefreshReveals()
 	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return end
-	for name,_ in pairs(gStates.horsemen or {}) do
-		againstHorsemenRefreshHorseman(name)
-		horsemanScheduleOccupiedTokenStack(name)
-	end
+	for name,_ in pairs(gStates.horsemen or {}) do againstHorsemenRefreshHorseman(name) end
 end
 
 --Before the ritual, a Horseman is a same-space action rather than a Rampaging-style adjacent attack.
@@ -1913,10 +1909,7 @@ end
 function againstHorsemenFinalizeMoveWave()
 	local pending=gStates~=nil and gStates.againstHorsemenMovePending or nil
 	if pending==nil or pending.movingTargets==nil then return end
-	for name,_ in pairs(pending.movingTargets) do
-		againstHorsemenRefreshHorseman(name)
-		horsemanArrangeOccupiedTokenStack(name)
-	end
+	for name,_ in pairs(pending.movingTargets) do againstHorsemenRefreshHorseman(name) end
 	pending.movingTargets=nil
 	pending.stepsRemaining=math.max(0,(pending.stepsRemaining or 1)-1)
 	safeWaitFrames("Scenario",function() againstHorsemenContinueEndRoundMovement() end,4)
@@ -1926,32 +1919,28 @@ function againstHorsemenAnimateMoveWave(targets)
 	local pending=gStates~=nil and gStates.againstHorsemenMovePending or nil
 	if pending==nil or targets==nil then return end
 	pending.movingTargets=targets
+
+	local remaining=0
+	local allStarted=false
+	local function oneSettled()
+		remaining=math.max(0,remaining-1)
+		if allStarted==true and remaining==0 then againstHorsemenFinalizeMoveWave() end
+	end
+
 	for name,target in pairs(targets) do
 		local data=horsemanData~=nil and horsemanData[name] or nil
 		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 		if token~=nil and target.position~=nil then
-			horsemanReleaseOccupiedToken(name)
-			token.setPositionSmooth(target.position,false)
+			remaining=remaining+1
+			local started=mapTokenSettleArrival(token.guid,target.position,{releaseOrigin=true,arrivalTop=true},function() oneSettled() end)
+			if started~=true then
+				token.setPositionSmooth(target.position,false)
+				mapTokenAfterSettled(token.guid,function() oneSettled() end)
+			end
 		end
 	end
-	safeWaitFrames("Scenario",function()
-		local function allSettled()
-			for name,_ in pairs(targets) do
-				local data=horsemanData~=nil and horsemanData[name] or nil
-				local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-				if token~=nil and token.resting~=true then return false end
-			end
-			return true
-		end
-		safeWaitCondition("Scenario",function() againstHorsemenFinalizeMoveWave() end, allSettled, 3, function()
-			for name,target in pairs(targets) do
-				local data=horsemanData~=nil and horsemanData[name] or nil
-				local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-				if token~=nil and target.position~=nil then token.setPosition(target.position) end
-			end
-			againstHorsemenFinalizeMoveWave()
-		end)
-	end,2)
+	allStarted=true
+	if remaining==0 then againstHorsemenFinalizeMoveWave() end
 end
 
 function againstHorsemenContinueEndRoundMovement()
@@ -2181,42 +2170,67 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	local data=name~=nil and horsemanData[name] or nil
 	local state=name~=nil and gStates.horsemen[name] or nil
 	if data==nil or state==nil then return false end
-	local xy=angleToXY(tile,"center")
-	local tilePos=tile.getPosition()
-	--Bring the Horseman in above the settled terrain instead of teleporting him onto the tile.
-	--One unit of clearance lets the smooth move finish cleanly; physics then drops him onto the map.
-	local target={xy[1],tilePos[2]+1.0,xy[2]}
-	local token=getObjectFromGUID(data.tokenGUID)
-	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	if token==nil and bag~=nil then token=bag.takeObject({guid=data.tokenGUID,position={target[1],target[2]+1.0,target[3]},rotation={0,180,0},smooth=false}) end
-	if token==nil then return false end
-	state.revealed=true
+
+	--Reserve this reveal immediately so another rapidly explored tile cannot queue the same Horseman.
+	--The physical move waits for this terrain tile's ordinary site/enemy population to finish; that
+	--makes the Horseman the final moving token on the hex, so the one arrival spread keeps it on top.
+	local tileGUID=tile.guid
+	state.revealPending=true
 	state.retired=false
-	state.terrainGUID=tile.guid
+	state.terrainGUID=tileGUID
 	state.bearing="center"
-	state.revealTileGUID=tile.guid
+	state.revealTileGUID=tileGUID
 	state.revealCount=gStates.apocalypseHereTilesRevealed
-	setHorsemanLevel(name,state.level,false)
-	token=getObjectFromGUID(data.tokenGUID) or token
-	token.unlock()
-	token.setRotation({0,180,0})
-	token.setPositionSmooth(target,false)
-	--Terrain population can finish after the Horseman itself arrives, so let the generic settle-aware
-	--scheduler catch whichever of the Horseman or existing map token finishes last.
-	horsemanScheduleOccupiedTokenStack(name)
 	gStates.apocalypseHereNextHorseman=index+1
-	local card=getObjectFromGUID(data.cardGUID)
-	if card~=nil then
-		card.unlock()
-		card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,0.40},false,true)
-		if card.is_face_down==true then card.flip() end
-	end
+
 	if gStates.apocalypseHereForcedRevealPending==true then
 		gStates.apocalypseHereForcedRevealCount=math.max(0,(tonumber(gStates.apocalypseHereForcedRevealCount) or 1)-1)
 		gStates.apocalypseHereForcedRevealPending=gStates.apocalypseHereForcedRevealCount>0
 		if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Horseman exploration resolved") end
 	end
-	broadcastToAll(name.." has been revealed at Level "..tostring(state.level)..(forced==true and " by the Round deadline." or "."),{1,0.75,0.2})
+
+	local deployed=false
+	local function deploy()
+		if deployed==true then return end
+		deployed=true
+		local currentTile=getObjectFromGUID(tileGUID)
+		if currentTile==nil then
+			state.revealPending=nil
+			print("HORSEMAN REVEAL ERROR: terrain tile "..tostring(tileGUID).." disappeared before "..tostring(name).." could deploy")
+			return
+		end
+		local xy=angleToXY(currentTile,"center")
+		local tilePos=currentTile.getPosition()
+		local target={xy[1],tilePos[2]+1.0,xy[2]}
+		local token=getObjectFromGUID(data.tokenGUID)
+		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+		if token==nil and bag~=nil then token=bag.takeObject({guid=data.tokenGUID,position={target[1],target[2]+1.0,target[3]},rotation={0,180,0},smooth=false}) end
+		if token==nil then
+			state.revealPending=nil
+			print("HORSEMAN REVEAL ERROR: "..tostring(name).." token is missing")
+			return
+		end
+
+		setHorsemanLevel(name,state.level,false)
+		token=getObjectFromGUID(data.tokenGUID) or token
+		state.revealPending=nil
+		state.revealed=true
+		mapTokenSettleArrival(token.guid,target,{force=true,arrivalTop=true,rotation={0,180,0}})
+
+		local card=getObjectFromGUID(data.cardGUID)
+		if card~=nil then
+			card.unlock()
+			card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,0.40},false,true)
+			if card.is_face_down==true then card.flip() end
+		end
+		broadcastToAll(name.." has been revealed at Level "..tostring(state.level)..(forced==true and " by the Round deadline." or "."),{1,0.75,0.2})
+	end
+
+	if workingOnTerrain~=nil and workingOnTerrain[tileGUID]==true then
+		safeWaitCondition("Scenario",deploy,function() return workingOnTerrain[tileGUID]~=true end,8,deploy)
+	else
+		deploy()
+	end
 	return true
 end
 
@@ -2514,8 +2528,11 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 		state.retired=true state.revealed=false state.removedAfterFour=true
 		local token=getObjectFromGUID(data.tokenGUID)
 		local apocBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-		horsemanReleaseOccupiedToken(name)
-		if token~=nil then token.unlock() if apocBag~=nil then apocBag.putObject(token) else token.setPosition({0,-20,0}) end end
+		if token~=nil then
+			mapTokenReleaseObject(token)
+			token.unlock()
+			if apocBag~=nil then apocBag.putObject(token) else token.setPosition({0,-20,0}) end
+		end
 		monsterPugs[data.tokenGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end
 		report=report.." It has destroyed four sites and leaves the map."
@@ -2537,19 +2554,18 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 	local state=gStates.horsemen[name]
 	local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 	if token==nil or destination==nil then apocalypseIsHereContinueHorsemenTurn() return false end
-	horsemanReleaseOccupiedToken(name)
 	state.terrainGUID=destination.terrainGUID state.bearing=destination.bearing
-	token.unlock() token.setRotation({0,180,0}) token.setPositionSmooth({destination.position[1],1.42,destination.position[3]},false)
-	safeWaitCondition("Scenario",function()
-		local reached=apocalypseQuestMapHexKey(destination)==apocalypseQuestMapHexKey(target)
-		if reached then apocalypseIsHereHorsemanDestroyTarget(name,target)
-		else
-			local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
-			gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
-		end
-		horsemanScheduleOccupiedTokenStack(name)
-		apocalypseIsHereContinueHorsemenTurn()
-	end,function() local current=getObjectFromGUID(data.tokenGUID) return current==nil or current.isSmoothMoving()==false end,5,function() apocalypseIsHereContinueHorsemenTurn() end)
+	local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
+		{releaseOrigin=true,arrivalTop=true,rotation={0,180,0}},function()
+			local reached=apocalypseQuestMapHexKey(destination)==apocalypseQuestMapHexKey(target)
+			if reached then apocalypseIsHereHorsemanDestroyTarget(name,target)
+			else
+				local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
+				gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
+			end
+			apocalypseIsHereContinueHorsemenTurn()
+		end)
+	if started~=true then apocalypseIsHereContinueHorsemenTurn() return false end
 	return true
 end
 
@@ -2767,28 +2783,19 @@ end
 --tokens into their slight offsets and lets those pieces fall/relock above the marker.
 function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	if token==nil or terrain==nil or bearing==nil then return false end
-	local map=getObjectFromGUID(mapArea)
 	local center=angleToXY(terrain,bearing)
-	if map==nil or center==nil then return false end
+	if center==nil then return false end
 
+	--Destroyed has a known floor height, so place it there directly and let the same single-arrival
+	--helper perform the one lateral spread with any enemy/Horseman already occupying the hex.
 	token.unlock()
 	token.setRotation({0,180,0})
 	token.setPosition({center[1],destroyedSiteRestingY,center[2]})
 	token.lock()
-
-	local details=terrainTiles[terrain.guid]
-	local hex={
-		terrain=terrain,terrainGUID=terrain.guid,bearing=bearing,
-		position={center[1],destroyedSiteRestingY,center[2]},
-		hexType=details~=nil and details.hexType~=nil and details.hexType[bearing] or "",
-		feature=details~=nil and details.hexFeature~=nil and details.hexFeature[bearing] or ""
-	}
-	local mapObjects=map.getObjects() or {}
-	mapTokenArrangeHex(hex,mapObjects,nil,token)
-	--A scripted enemy/site token can enter the map zone in a different physics frame. Recheck this
-	--same base token several times so either arrival order converges to the same final arrangement.
-	mapTokenScheduleObject(token.guid)
-	if afterArrange~=nil then afterArrange() end
+	local started=mapTokenSettleArrival(token.guid,nil,{force=true,arrivalTop=false},function()
+		if afterArrange~=nil then afterArrange() end
+	end)
+	if started~=true and afterArrange~=nil then afterArrange() end
 	return true
 end
 
@@ -5562,13 +5569,8 @@ function furyDragonBeginInFlightTurn()
 	gStates.furyDragonManaDieGUID=nil
 
 	local markerGUID=marker.guid
-	local mapArrivalGeneration=mapTokenBeginSingleArrival~=nil and mapTokenBeginSingleArrival(markerGUID) or nil
-	marker.unlock()
-	marker.setRotation({0,180,0})
-	marker.setPositionSmooth(destination,false)
-	mapTokenAfterSettled(markerGUID,function(landed)
+	local started=mapTokenSettleArrival(markerGUID,destination,{force=true,arrivalTop=true,rotation={0,180,0},relock=true},function(landed)
 		if landed==nil then
-			mapTokenManualDropPending[markerGUID]=nil
 			furyDragonCompleteTurn("The Apocalypse Dragon marker disappeared while landing.")
 			return
 		end
@@ -5577,7 +5579,6 @@ function furyDragonBeginInFlightTurn()
 		local currentHexes,currentMapObjects=apocalypseQuestMapHexes()
 		local currentHex=againstDragonMapHexByKey(currentHexes,target.key)
 		if currentHex==nil then
-			mapTokenManualDropPending[markerGUID]=nil
 			furyDragonCompleteTurn("The Apocalypse Dragon landed, but the destination space could no longer be resolved.")
 			return
 		end
@@ -5585,8 +5586,6 @@ function furyDragonBeginInFlightTurn()
 		if #players>0 then
 			local names={}
 			for _,playerIndex in ipairs(players) do names[#names+1]=tostring(turnOrder[playerIndex].mage) end
-			if mapTokenFinishSingleArrival~=nil then mapTokenFinishSingleArrival(markerGUID,mapArrivalGeneration) end
-			mapTokenRelockWhenSettled(markerGUID,true)
 			gStates.furyDragonAwaitingCombat={players=players,target=target}
 			gStates.apocalypseDragonUIState="WaitingCombat"
 			gStates.apocalypseDragonTurnReport="The Apocalypse Dragon attacks "..table.concat(names,", ")..". Resolve combat against the landed Dragon. When combat is finished, click Combat Resolved; the Dragon will immediately take its required landed turn."
@@ -5595,10 +5594,9 @@ function furyDragonBeginInFlightTurn()
 			return
 		end
 		local result=furyDragonResolveArrivalEffect(target,currentHex,currentMapObjects)
-		if mapTokenFinishSingleArrival~=nil then mapTokenFinishSingleArrival(markerGUID,mapArrivalGeneration) end
-		mapTokenRelockWhenSettled(markerGUID,true)
 		furyDragonCompleteTurn(result)
 	end)
+	if started~=true then return furyDragonCompleteTurn("The Apocalypse Dragon could not begin its landing move.") end
 	return true
 end
 
