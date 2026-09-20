@@ -12251,25 +12251,32 @@ end
 
 --Small map tokens can legitimately share one hex. Keep enemy-like tokens slightly separated so
 --each remains visible/clickable, while a physical site marker stays at the centre underneath them.
---Destroyed Site tokens are special: their known settled table height is 1.13, so scripted/manual
---placement pins them directly there instead of asking physics to discover the bottom of an existing stack.
+--Shared map-token slots encode both horizontal order and vertical stack order. Slot 1 sits directly
+--on the map at Y 1.08; every later slot is 0.20 higher, matching one token thickness.
 local mapTokenArrangeGeneration={}
---While a manually dropped loose token is settling/re-spreading, it owns arrangement for that object.
---Map-zone physics events during this window must not start the scripted multi-retry arranger.
+--Every arrival has one settle generation. Explicit/manual arrivals also mark themselves authoritative
+--so a late passive map-zone callback from another token cannot steal ownership of the same hex.
 local mapTokenManualDropPending={}
+local mapTokenExplicitArrivalPending={}
 local mapTokenSpreadSpacing=0.20
 local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
-local destroyedSiteRestingY=1.13
+local mapTokenBaseY=1.08
+local mapTokenStackStepY=0.20
+
+local function mapTokenSlotY(index)
+	index=math.max(1,tonumber(index) or 1)
+	return mapTokenBaseY+((index-1)*mapTokenStackStepY)
+end
 
 --Return an evenly spaced WORLD-space point on one diagonal through the hex centre.
 --The group is always centred: 3 tokens are -1/0/+1 steps, 4 are -1.5/-0.5/+0.5/+1.5.
---On the normal table view +X/+Z is the visual bottom-left end of this diagonal; -X/-Z is upper-right.
---That makes index 1 the lower/older token and the last index the higher/newest arrival.
+--The tested table orientation is -X/-Z for the lower/older (visual bottom-left) end and
+--+X/+Z for the higher/newest (visual upper-right) end.
 local function mapTokenSpreadOffset(index,count)
 	count=math.max(1,tonumber(count) or 1)
 	index=math.max(1,math.min(count,tonumber(index) or 1))
 	local steps=((count+1)/2)-index
-	local component=steps*mapTokenSpreadDiagonalComponent
+	local component=-steps*mapTokenSpreadDiagonalComponent
 	return {x=component,z=component}
 end
 
@@ -12294,6 +12301,34 @@ end
 
 function mapTokenNeedsArrangement(obj)
 	return mapTokenIsSpreadEnemy(obj)==true or mapTokenIsBaseSite(obj)==true
+end
+
+--Horsemen, the single-hex Fury Dragon and Pursuit monsters are always the moving/top group.
+--Their own arrival order still matters when more than one moving token shares a hex.
+function mapTokenIsMovingPriority(obj)
+	if obj==nil or obj.guid==nil then return false end
+	if horsemanTokenToName~=nil and horsemanTokenToName[obj.guid]~=nil then return true end
+	if apocalypseDragon~=nil and obj.guid==apocalypseDragon.furyMarker then return true end
+	for _,monsters in pairs(gStates~=nil and gStates.pursuingMonsters or {}) do
+		if monsters~=nil and monsters[obj.guid]~=nil then return true end
+	end
+	return false
+end
+
+--Arrival order is gameplay state, not physics state. Every genuine arrival/move/drop receives the next
+--sequence number. This lets later maintenance passes reproduce the same diagonal without reading tiny
+--collider-height differences or depending on callback order.
+local function mapTokenRecordArrival(guid)
+	if guid==nil or gStates==nil then return nil end
+	gStates.mapTokenArrivalOrder=gStates.mapTokenArrivalOrder or {}
+	gStates.mapTokenArrivalCounter=(tonumber(gStates.mapTokenArrivalCounter) or 0)+1
+	gStates.mapTokenArrivalOrder[guid]=gStates.mapTokenArrivalCounter
+	return gStates.mapTokenArrivalCounter
+end
+
+local function mapTokenArrivalOrder(guid)
+	if guid==nil or gStates==nil or gStates.mapTokenArrivalOrder==nil then return nil end
+	return tonumber(gStates.mapTokenArrivalOrder[guid])
 end
 
 local function mapTokenOnHex(obj,hex)
@@ -12345,8 +12380,28 @@ local function mapTokenReleaseParticipantClaims(claims)
 			if mapTokenManualDropPending[claim.guid]==claim.generation then
 				mapTokenManualDropPending[claim.guid]=nil
 			end
+			if mapTokenExplicitArrivalPending[claim.guid]==claim.generation then
+				mapTokenExplicitArrivalPending[claim.guid]=nil
+			end
 		end)
 	end
+end
+
+--Passive map-zone arrivals are allowed to tidy a hex only when no explicit/manual mover currently
+--owns that same hex. This prevents a late enemy-zone callback from reversing a Horseman/Dragon move.
+local function mapTokenHexHasExplicitArrival(guid)
+	local obj=guid~=nil and getObjectFromGUID(guid) or nil
+	if obj==nil then return false end
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
+	if hex==nil then return false end
+	for ownerGUID,generation in pairs(mapTokenExplicitArrivalPending) do
+		if ownerGUID~=guid and mapTokenManualDropPending[ownerGUID]==generation then
+			local owner=getObjectFromGUID(ownerGUID)
+			if owner~=nil and mapTokenOnHex(owner,hex)==true then return true end
+		end
+	end
+	return false
 end
 
 --Any token that was locked before the arranger touched it is locked again only after one physics
@@ -12396,44 +12451,25 @@ local function mapTokenUpdatePlayLocation(obj,pos)
 	end
 end
 
-local function mapTokenMoveAndDrop(obj,targetX,targetZ,minY)
+--Move one token directly to its final shared-hex slot. X/Z and Y are one piece of state:
+--changing the diagonal order must also change stack height. Do not unlock/relock here; setPosition can
+--move locked tokens directly, while loose tokens retain their normal physics after the correction.
+local function mapTokenMoveToSlot(obj,targetX,targetY,targetZ)
 	if obj==nil then return false end
 	local pos=obj.getPosition()
 	if obj.isSmoothMoving()==true then return false end
-	local already=math.abs(pos[1]-targetX)<0.035 and math.abs(pos[3]-targetZ)<0.035
+	local already=math.abs(pos[1]-targetX)<0.025 and math.abs(pos[2]-targetY)<0.025 and math.abs(pos[3]-targetZ)<0.025
 	if already==true then return false end
-	local wasLocked=obj.getLock()==true
-	local targetY=math.max(tonumber(minY) or 1.45,pos[2]+0.10)
-	obj.unlock()
 	obj.setPosition({targetX,targetY,targetZ})
 	mapTokenUpdatePlayLocation(obj,{targetX,targetY,targetZ})
-	mapTokenRelockWhenSettled(obj.guid,wasLocked)
 	return true
 end
 
---When a token is picked up, pieces left behind still need to close/rebalance their horizontal
---spacing, but lifting them again makes the stack visibly hop. Preserve the exact current Y and
---move only across the table surface; previously locked pieces can be relocked immediately.
-local function mapTokenMoveLaterally(obj,targetX,targetZ)
-	if obj==nil then return false end
-	local pos=obj.getPosition()
-	if obj.isSmoothMoving()==true then return false end
-	local already=math.abs(pos[1]-targetX)<0.035 and math.abs(pos[3]-targetZ)<0.035
-	if already==true then return false end
-	--Scripted setPosition can move a locked token directly. Do not unlock/relock here: toggling the
-	--physics lock was causing visible little hops when an otherwise settled stack was re-spread.
-	obj.setPosition({targetX,pos[2],targetZ})
-	mapTokenUpdatePlayLocation(obj,{targetX,pos[2],targetZ})
-	return true
-end
-
---Arrange one resolved map hex. A Destroyed Site remains the floor marker, but when another token
---shares its hex it participates in one centred WORLD-space diagonal spread. Adjacent tokens are 0.2
---world units apart along that line. Token rotation/face state never affects direction.
---lateralOnly is used when a piece leaves the hex so the survivors never visibly hop in Y.
---For a fresh stack, physical Y defines low-to-high order. Already-separated pieces preserve their
---world-space diagonal order, and a newly dropped/arriving token is always appended at the top end.
-function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,arrivalGUID)
+--Arrange one resolved map hex. Horizontal and vertical positions use the same ordered slot:
+--slot 1 is bottom-left at Y 1.08, slot 2 is the next diagonal position at Y 1.28, and so on.
+--Destroyed is always first. Ordinary tokens follow in arrival order. Horsemen, the single-hex
+--Dragon and pursuing enemies form the moving group at the top-right end, also in arrival order.
+function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
 	local seen={}
@@ -12458,92 +12494,79 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 		end
 	end
 	table.sort(enemies,function(a,b)
-		--A newly dropped/arriving token is conceptually the top of the stack, regardless of tiny
-		--collider/resting-height differences. Existing pieces keep their current diagonal order when
-		--already separated; if they are still stacked at the same X/Z, physical Y decides low-to-high.
-		if arrivalGUID~=nil then
-			if a.guid==arrivalGUID and b.guid~=arrivalGUID then return false end
-			if b.guid==arrivalGUID and a.guid~=arrivalGUID then return true end
+		local aMoving=mapTokenIsMovingPriority(a)
+		local bMoving=mapTokenIsMovingPriority(b)
+		--Ordinary/site enemies always precede the moving group, regardless of which one physically
+		--arrived later. This keeps a pre-deployed Horseman above a site token revealed afterward.
+		if aMoving~=bMoving then return aMoving~=true end
+
+		local aOrder=mapTokenArrivalOrder(a.guid)
+		local bOrder=mapTokenArrivalOrder(b.guid)
+		if aOrder~=bOrder then
+			--An unrecorded token is necessarily older than a newly recorded arrival in this game.
+			if aOrder==nil then return true end
+			if bOrder==nil then return false end
+			return aOrder<bOrder
 		end
+
+		--Fallback only for tokens with no distinct recorded arrival (for example pieces already present
+		--when this layout first runs). Preserve an existing diagonal, then physical low-to-high stack order.
 		local ap=a.getPosition()
 		local bp=b.getPosition()
 		local aProjection=ap[1]+ap[3]
 		local bProjection=bp[1]+bp[3]
-		if math.abs(aProjection-bProjection)>0.05 then
-			--+X/+Z is the visual bottom-left end, so preserve existing pieces in bottom-left to upper-right order.
-			return aProjection>bProjection
-		end
+		if math.abs(aProjection-bProjection)>0.05 then return aProjection<bProjection end
 		if math.abs(ap[2]-bp[2])>0.01 then return ap[2]<bp[2] end
 		return tostring(a.guid)<tostring(b.guid)
 	end)
 
 	local centerX,centerZ=hex.position[1],hex.position[3]
-	local base=destroyed
-	local baseY=nil
 	local changed=false
+	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
 
+	--Destroyed is always slot 1 and therefore always sits directly on the map at Y 1.08.
 	if destroyed~=nil then
-		local pos=destroyed.getPosition()
-		local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
-		local destroyedOffset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
-		local targetX,targetZ=centerX+destroyedOffset.x,centerZ+destroyedOffset.z
-		local targetY=lateralOnly==true and pos[2] or destroyedSiteRestingY
-		local needsMove=math.abs(pos[1]-targetX)>0.025 or math.abs(pos[2]-targetY)>0.025 or math.abs(pos[3]-targetZ)>0.025
-		if needsMove==true or destroyed.getLock()~=true then
-			destroyed.unlock()
-			destroyed.setRotation({0,180,0})
-			--Destroyed stays physically underneath, but shares the same horizontal spread as the pieces above.
-			destroyed.setPosition({targetX,targetY,targetZ})
-			destroyed.lock()
-			changed=true
-		end
-		baseY=targetY
+		local offset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
+		local targetX,targetZ=centerX+offset.x,centerZ+offset.z
+		local targetY=mapTokenSlotY(1)
+		local wasLocked=destroyed.getLock()==true
+		destroyed.unlock()
+		destroyed.setRotation({0,180,0})
+		changed=mapTokenMoveToSlot(destroyed,targetX,targetY,targetZ) or changed
+		if wasLocked==true or destroyed.getLock()~=true then destroyed.lock() end
 	end
 
 	if #enemies<1 then return changed end
 	for _,obj in ipairs(enemies) do if obj.isSmoothMoving()==true then return changed end end
 
-	local shouldSpread=base~=nil or #enemies>1
-	if shouldSpread~=true then
-		local obj=enemies[1]
-		local pos=obj.getPosition()
-		if math.abs(pos[1]-centerX)>0.035 or math.abs(pos[3]-centerZ)>0.035 then
-			if lateralOnly==true then changed=mapTokenMoveLaterally(obj,centerX,centerZ) or changed
-			else changed=mapTokenMoveAndDrop(obj,centerX,centerZ,math.max(1.45,pos[2]+0.10)) or changed end
-		end
+	--A lone enemy is slot 1 at the hex centre/Y 1.08. Shared tokens use the same index for diagonal
+	--position and stack height, so the visible bottom-left -> top-right order also rises by 0.20 each.
+	if destroyed==nil and #enemies==1 then
+		changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenSlotY(1),centerZ) or changed
 		return changed
 	end
 
-	--Lay every participant on one straight WORLD-space diagonal, evenly spaced and centred.
-	--Destroyed (when present) is participant 1; enemies then follow their physical low-to-high Y order.
-	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
 	local firstEnemyIndex=destroyed~=nil and 2 or 1
 	for index,obj in ipairs(enemies) do
 		local spreadIndex=firstEnemyIndex+index-1
 		local offset=mapTokenSpreadOffset(spreadIndex,spreadCount)
-		local minY=(baseY~=nil and baseY+0.55 or 1.45)
-		if lateralOnly==true then
-			changed=mapTokenMoveLaterally(obj,centerX+offset.x,centerZ+offset.z) or changed
-		else
-			changed=mapTokenMoveAndDrop(obj,centerX+offset.x,centerZ+offset.z,minY) or changed
-		end
+		changed=mapTokenMoveToSlot(obj,centerX+offset.x,mapTokenSlotY(spreadIndex),centerZ+offset.z) or changed
 	end
 	return changed
 end
 
-function mapTokenArrangeObject(guid,lateralOnly,arrivalGUID)
+function mapTokenArrangeObject(guid)
 	local obj=guid~=nil and getObjectFromGUID(guid) or nil
 	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
 	if hex==nil then return false end
-	return mapTokenArrangeHex(hex,mapObjects,nil,obj,lateralOnly==true,arrivalGUID)
+	return mapTokenArrangeHex(hex,mapObjects,nil,obj)
 end
 
 --All loose map-token arrivals use this one ownership path. The arriving token claims its
---settle/spread before it can cross the map zone, waits until its own movement/physics is finished,
---then claims every token sharing the final hex and performs one lateral spread. This replaces the
---old overlapping zone retries, scripted-arrival finish pass and manual-drop pass.
+--settle/layout before it can cross the map zone, waits until its own movement/physics is finished,
+--then claims every token sharing the final hex and assigns the ordered X/Z/Y slots once.
 function mapTokenSettleArrival(guid,target,options,callback)
 	options=options or {}
 	if guid==nil then return false end
@@ -12556,6 +12579,7 @@ function mapTokenSettleArrival(guid,target,options,callback)
 		mapTokenReleaseObject(obj)
 	elseif options.force==true then
 		mapTokenManualDropPending[guid]=nil
+		mapTokenExplicitArrivalPending[guid]=nil
 		mapTokenArrangeGeneration[guid]=(mapTokenArrangeGeneration[guid] or 0)+1
 	end
 	if mapTokenManualDropPending[guid]~=nil then return false end
@@ -12563,6 +12587,8 @@ function mapTokenSettleArrival(guid,target,options,callback)
 	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
 	mapTokenArrangeGeneration[guid]=generation
 	mapTokenManualDropPending[guid]=generation
+	if options.passive~=true then mapTokenExplicitArrivalPending[guid]=generation end
+	mapTokenRecordArrival(guid)
 
 	if target~=nil then
 		obj.unlock()
@@ -12574,25 +12600,35 @@ function mapTokenSettleArrival(guid,target,options,callback)
 		--Another arrival on the same hex may legitimately take ownership of this token. Its spread then
 		--wins, but the movement callback still fires so scenario turn flow cannot stall.
 		if mapTokenManualDropPending[guid]~=generation then
+			if mapTokenExplicitArrivalPending[guid]==generation then mapTokenExplicitArrivalPending[guid]=nil end
 			if callback~=nil then callback(current,false) end
 			return
 		end
 		if current==nil then
 			mapTokenManualDropPending[guid]=nil
+			if mapTokenExplicitArrivalPending[guid]==generation then mapTokenExplicitArrivalPending[guid]=nil end
 			if callback~=nil then callback(nil,false) end
 			return
 		end
 
+		--A generic zone event is deliberately passive. If a Horseman, Dragon or human drop currently
+		--owns this hex, leave the layout entirely to that authoritative arrival.
+		if options.passive==true and mapTokenHexHasExplicitArrival(guid)==true then
+			mapTokenManualDropPending[guid]=nil
+			if callback~=nil then callback(current,false) end
+			return
+		end
+
 		local claims=mapTokenClaimHexParticipants(guid,generation)
-		local arrivalGUID=options.arrivalTop==false and nil or guid
 		local arranged=false
 		if #claims>0 then
-			arranged=mapTokenArrangeObject(guid,true,arrivalGUID)
+			arranged=mapTokenArrangeObject(guid)
 			mapTokenReleaseParticipantClaims(claims)
 		else
 			--The object may have moved somewhere outside the map (for example the Horsemen ritual
 			--layout). There is no physical hex to spread, so simply release this arrival claim.
 			mapTokenManualDropPending[guid]=nil
+			if mapTokenExplicitArrivalPending[guid]==generation then mapTokenExplicitArrivalPending[guid]=nil end
 		end
 		if options.relock==true then mapTokenRelockWhenSettled(guid,true) end
 
@@ -12607,13 +12643,13 @@ end
 --A human drop already owns the vertical fall. Replace any zone-entry claim with one final lateral
 --spread and treat the dropped token as the newest/top participant.
 function mapTokenArrangeDroppedObject(guid)
-	mapTokenSettleArrival(guid,nil,{force=true,arrivalTop=true})
+	mapTokenSettleArrival(guid,nil,{force=true})
 end
 
---Unheld objects entering the map (enemy draws, scripted tokens, etc.) also get exactly one settle
---pass. Scripted movers that call mapTokenSettleArrival before crossing the zone suppress this call.
+--Unheld objects entering the map get one passive settle pass. They use physical/existing order and
+--must never override a known Horseman/Dragon/manual arrival that owns the same hex.
 function mapTokenScheduleObject(guid)
-	mapTokenSettleArrival(guid,nil,{arrivalTop=true})
+	mapTokenSettleArrival(guid,nil,{passive=true})
 end
 
 --Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
@@ -12624,11 +12660,12 @@ function mapTokenReleaseObject(obj)
 	local ignoreGUID=obj.guid
 	--Invalidate delayed arrival/manual-drop work for the object now being carried away.
 	mapTokenManualDropPending[ignoreGUID]=nil
+	mapTokenExplicitArrivalPending[ignoreGUID]=nil
 	mapTokenArrangeGeneration[ignoreGUID]=(mapTokenArrangeGeneration[ignoreGUID] or 0)+1
 	safeWaitFrames("Scenario",function()
 		local hexes,mapObjects=apocalypseQuestMapHexes()
 		local hex=apocalypseQuestHexForPosition(hexes,position,mapObjects)
-		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID,nil,true) end
+		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID,nil) end
 	end,1)
 	return true
 end
@@ -12652,8 +12689,9 @@ function mapTokenArrangeAllOccupiedHexes()
 						break
 					end
 				end
-				--This is only a maintenance sweep; never lift/drop settled pieces here.
-				if arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects,nil,nil,true) end
+				--This is only a maintenance sweep; reapply the deterministic X/Z/Y slots directly,
+				--without starting another physics drop.
+				if arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects,nil,nil) end
 			end
 		end
 	end
@@ -13178,7 +13216,7 @@ function againstHorsemenAnimateMoveWave(targets)
 		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 		if token~=nil and target.position~=nil then
 			remaining=remaining+1
-			local started=mapTokenSettleArrival(token.guid,target.position,{releaseOrigin=true,arrivalTop=true},function() oneSettled() end)
+			local started=mapTokenSettleArrival(token.guid,target.position,{releaseOrigin=true},function() oneSettled() end)
 			if started~=true then
 				token.setPositionSmooth(target.position,false)
 				mapTokenAfterSettled(token.guid,function() oneSettled() end)
@@ -13461,7 +13499,7 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 		token=getObjectFromGUID(data.tokenGUID) or token
 		state.revealPending=nil
 		state.revealed=true
-		mapTokenSettleArrival(token.guid,target,{force=true,arrivalTop=true,rotation={0,180,0}})
+		mapTokenSettleArrival(token.guid,target,{force=true,rotation={0,180,0}})
 
 		local card=getObjectFromGUID(data.cardGUID)
 		if card~=nil then
@@ -13713,7 +13751,7 @@ function apocalypseIsHereShowTargetChoice(name,options)
 		local key=option~=nil and option.hex~=nil and apocalypseQuestMapHexKey(option.hex) or nil
 		if key~=nil then targetKeys[#targetKeys+1]=key end
 	end
-	local pending={name=name,targetKeys=targetKeys,playerIndex=againstDragonChoicePlayerIndex()}
+	local pending={name=name,targetKeys=targetKeys,playerIndex=againstDragonChoicePlayerIndex(),previousReport=gStates.apocalypseHereHorsemenTurnReport or ""}
 	gStates.apocalypseHereHorsemanPendingChoice=pending
 	local grouped={}
 	for index,option in ipairs(options or {}) do
@@ -13724,16 +13762,23 @@ function apocalypseIsHereShowTargetChoice(name,options)
 			grouped[terrain.guid]=group
 			local localPos=terrain.positionToLocal({hex.position[1],terrain.getPosition()[2],hex.position[3]})
 			local tileScale=terrain.getScale()
-			local uiX=(localPos.x or localPos[1])*(tileScale.x or tileScale[1] or 2.25)*110
-			local uiY=(localPos.z or localPos[3])*(tileScale.z or tileScale[3] or 2.25)*110
-			local scale=0.38
+			local scaleX=tileScale.x or tileScale[1] or 2.25
+			local scaleZ=tileScale.z or tileScale[3] or 2.25
+			--Match the Proxy map-choice buttons. TTS scales the button but not its object-UI position,
+			--so shrink the coordinates/depth by the same ratio as the 0.38 -> 0.16 visual scale.
+			local uiFactor=0.16/0.38
+			local uiX=(localPos.x or localPos[1])*scaleX*110*uiFactor
+			local uiY=(localPos.z or localPos[3])*scaleZ*110*uiFactor
+			local uiDepth=-40*uiFactor
+			local buttonScale=0.16
 			local id=terrain.guid.."ApocalypseHorsemanTarget"..tostring(index)
-			group.xml[#group.xml+1]={tag="Button",attributes={id=id,onClick="global/apocalypseIsHereHorsemanTargetSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",height=300,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..(-40),rotation="0 0 "..tostring(terrain.getRotation()[2] or 180),scale=scale.." "..scale},children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},{tag="Text",attributes={font="Fonts/MKCardText",fontSize="65",alignment="MiddleCenter",text=name.."\nTarget"}}}}
+			group.xml[#group.xml+1]={tag="Button",attributes={id=id,onClick="global/apocalypseIsHereHorsemanTargetSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",height=300,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(terrain.getRotation()[2] or 180),scale=buttonScale.." "..buttonScale},children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},{tag="Text",attributes={font="Fonts/MKCardText",fontSize="65",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="65",text=name.."\nTarget"}}}}
 		end
 	end
 	for _,group in pairs(grouped) do group.terrain.UI.setXmlTable(group.xml) end
 	gStates.apocalypseHereHorsemenUIState="WaitingChoice"
-	gStates.apocalypseHereHorsemenTurnReport=name.." has tied preferred targets. "..againstDragonChoicePlayerLabel(pending.playerIndex).." must choose which site it moves toward."
+	local choiceText=name.." has tied preferred targets. "..againstDragonChoicePlayerLabel(pending.playerIndex).." must choose which site it moves toward."
+	gStates.apocalypseHereHorsemenTurnReport=pending.previousReport..(pending.previousReport~="" and "<size=6>\n\n</size>" or "")..choiceText
 	mainUIUpdate("Horseman target choice")
 	return true
 end
@@ -13752,6 +13797,8 @@ function apocalypseIsHereHorsemanTargetSelect(player,mouseButton,id)
 	end
 	if option==nil then return end
 	apocalypseIsHereClearChoiceButtons()
+	--The choice prompt is temporary UI guidance, not part of the completed Horsemen action log.
+	gStates.apocalypseHereHorsemenTurnReport=pending.previousReport or ""
 	gStates.apocalypseHereHorsemanPendingChoice=nil
 	gStates.apocalypseHereHorsemenUIState="Processing"
 	apocalypseIsHereResolveHorsemanTarget(pending.name,option)
@@ -13768,9 +13815,11 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 	local token=takeDestroyedSiteToken(targetHex.terrain,targetHex.bearing)
 	if token~=nil then destroySite(token,targetHex.terrain,targetHex.bearing) end
 	local oldHead=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[name] or 0) or 0
-	if oldHead>0 and oldHead<12 then apocalypseDragonSetHeadLevel(name,oldHead+1) end
+	local newHead=math.min(12,oldHead+1)
+	if oldHead>0 and oldHead<12 then apocalypseDragonSetHeadLevel(name,newHead) end
 	state.sitesDestroyed=(tonumber(state.sitesDestroyed) or 0)+1
-	local report=name.." destroyed "..proxyFeatureDisplayName(targetHex.feature).." and raised the "..name.." Dragon head from Level "..tostring(oldHead).." to Level "..tostring(math.min(12,oldHead+1)).."."
+	local destroyedName=proxyFeatureDisplayName(targetHex.feature)
+	local report=nil
 	if state.sitesDestroyed>=4 then
 		state.retired=true state.revealed=false state.removedAfterFour=true
 		local token=getObjectFromGUID(data.tokenGUID)
@@ -13782,13 +13831,15 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 		end
 		monsterPugs[data.tokenGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end
-		report=report.." It has destroyed four sites and leaves the map."
+		report=name.." destroyed "..destroyedName..", raising the Dragon's head level ("..tostring(newHead).."), then left the map after destroying four sites."
 	elseif (tonumber(state.level) or 1)>1 then
 		state.level=state.level-1
 		setHorsemanLevel(name,state.level,false)
-		report=report.." "..name.." drops to Level "..tostring(state.level).."."
+		report=name.." destroyed "..destroyedName..", losing a level ("..tostring(state.level).."), while raising the Dragon's head level ("..tostring(newHead)..")."
+	else
+		report=name.." destroyed "..destroyedName..", while raising the Dragon's head level ("..tostring(newHead)..")."
 	end
-	gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..report
+	gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..report
 	return true
 end
 
@@ -13803,12 +13854,12 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 	if token==nil or destination==nil then apocalypseIsHereContinueHorsemenTurn() return false end
 	state.terrainGUID=destination.terrainGUID state.bearing=destination.bearing
 	local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
-		{releaseOrigin=true,arrivalTop=true,rotation={0,180,0}},function()
+		{releaseOrigin=true,rotation={0,180,0}},function()
 			local reached=apocalypseQuestMapHexKey(destination)==apocalypseQuestMapHexKey(target)
 			if reached then apocalypseIsHereHorsemanDestroyTarget(name,target)
 			else
 				local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
-				gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
+				gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
 			end
 			apocalypseIsHereContinueHorsemenTurn()
 		end)
@@ -13831,7 +13882,7 @@ function apocalypseIsHereProcessNextHorseman()
 	local options=apocalypseIsHereHorsemanTargetOptions(name)
 	if #options<1 then
 		local line=name.." found no preferred undestroyed target and did not move."
-		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
+		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
 		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
 	elseif #options>1 then apocalypseIsHereShowTargetChoice(name,options)
 	else apocalypseIsHereResolveHorsemanTarget(name,options[1]) end
@@ -14022,24 +14073,23 @@ function takeDestroyedSiteToken(terrain,bearing)
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
 	local center=angleToXY(terrain,bearing)
 	if bag==nil or center==nil then return nil end
-	return bag.takeObject({position={center[1],destroyedSiteRestingY,center[2]},rotation={0,180,0},smooth=false})
+	return bag.takeObject({position={center[1],mapTokenBaseY,center[2]},rotation={0,180,0},smooth=false})
 end
 
---A Destroyed Site has a known physical resting height. Put it straight onto the map surface rather
---than dropping it onto whatever is already on the hex. The generic token arranger then moves enemy
---tokens into their slight offsets and lets those pieces fall/relock above the marker.
+--A Destroyed Site is always slot 1. Put it straight onto the map at Y 1.08, then let the generic
+--arranger assign every other participant its matching diagonal position and +0.20 stack height.
 function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	if token==nil or terrain==nil or bearing==nil then return false end
 	local center=angleToXY(terrain,bearing)
 	if center==nil then return false end
 
-	--Destroyed has a known floor height, so place it there directly and let the same single-arrival
-	--helper perform the one lateral spread with any enemy/Horseman already occupying the hex.
+	--Destroyed starts at the slot-1 floor height; the shared arrival helper owns the complete X/Z/Y
+	--layout when an enemy, Horseman or other spread token shares the hex.
 	token.unlock()
 	token.setRotation({0,180,0})
-	token.setPosition({center[1],destroyedSiteRestingY,center[2]})
+	token.setPosition({center[1],mapTokenBaseY,center[2]})
 	token.lock()
-	local started=mapTokenSettleArrival(token.guid,nil,{force=true,arrivalTop=false},function()
+	local started=mapTokenSettleArrival(token.guid,nil,{force=true},function()
 		if afterArrange~=nil then afterArrange() end
 	end)
 	if started~=true and afterArrange~=nil then afterArrange() end
@@ -16816,7 +16866,7 @@ function furyDragonBeginInFlightTurn()
 	gStates.furyDragonManaDieGUID=nil
 
 	local markerGUID=marker.guid
-	local started=mapTokenSettleArrival(markerGUID,destination,{force=true,arrivalTop=true,rotation={0,180,0},relock=true},function(landed)
+	local started=mapTokenSettleArrival(markerGUID,destination,{force=true,rotation={0,180,0},relock=true},function(landed)
 		if landed==nil then
 			furyDragonCompleteTurn("The Apocalypse Dragon marker disappeared while landing.")
 			return
@@ -21638,7 +21688,20 @@ function pursuingRampagers(player, mouseButton, id)
 							broadcastToAll(joinLang({"{en}Pursuing Monster Attacked {ru}Преследующие враги напали на {zh-tw}追擊怪物攻擊了 {zh-cn}被追击怪物所攻击{ko}추적 중인 몬스터의 공격: {es}Persecución de Monstruos Atacados por {fr}Poursuivant le Monstre Attaqué {pt-br}Monstro Perseguidor Atacado {de}Verfolgtes Monster angegriffen ", translateWord[turnOrder[gStates.turnNumber].mage]}), positionToColor(gStates.turnNumber))
 						end
 					end
-					getObjectFromGUID(monsterGUID).setPositionSmooth(rampageNewPos)
+					local movingMonster=getObjectFromGUID(monsterGUID)
+					if movingMonster~=nil then
+						if noMove==false and canAttack==false and mapTokenSettleArrival~=nil then
+							--Pursuit movement stays inside the map zone, so explicitly register this as a
+							--new moving-token arrival and let the shared hex arranger keep it top-right.
+							mapTokenSettleArrival(monsterGUID,rampageNewPos,{releaseOrigin=true})
+						elseif canAttack==true then
+							--The Pursuer is leaving the map for the combat grid; close up its old hex only.
+							if mapTokenReleaseObject~=nil then mapTokenReleaseObject(movingMonster) end
+							movingMonster.setPositionSmooth(rampageNewPos)
+						else
+							movingMonster.setPositionSmooth(rampageNewPos)
+						end
+					end
 
 					if canAttack==false then gStates.monsterPlayLocation[monsterGUID]=rampageNewPos end
 					height=height+0.2
@@ -40219,7 +40282,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="422"
+local automaticLuaErrorReporterVersion="423"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
