@@ -123,12 +123,15 @@ function volkareTurn(player, mouseButton, id)
 				local volkareDice=getObjectFromGUID("9a686a")
 				volkareDice.randomize()
 				safeWaitCondition("AI.Volkare",function()
-					if gStates.volkareUnitCrystals[volkareDice.getRotationValue()]~=nil and getObjectFromGUID(gStates.volkareUnitCrystals[volkareDice.getRotationValue()]).getObjects()[1]~=nil then
-						local unitCard=getObjectFromGUID(gStates.volkareUnitCrystals[volkareDice.getRotationValue()]).getObjects()[1]
+					local crystalData=gStates.volkareUnitCrystals~=nil and gStates.volkareUnitCrystals[volkareDice.getRotationValue()] or nil
+					local unitCard=crystalData~=nil and unitOfferCardAtSlot(crystalData.slot) or nil
+					if unitCard~=nil then
+						local unitData=gameCards[unitCard.guid]
+						local unitName=unitData~=nil and unitData.name~=nil and unitData.name[1] or unitCard.getName()
 						unitCard.destruct()
 						--add a gray unit to Volkare's Army
 						if gStates.gameScenario~="Volkare's Quest" then
-							gStates.blurb=joinLang({gStates.blurb, "{en}, and removes the {ru}, и удаляет {zh-tw}\n移除了 {zh-cn}\n移除了 {ko}, 다음 유닛 제거: {es}, y quita el {fr}, et supprime le {pt-br}, e remove a {de}, und beseitigt die ", gameCards[unitCard.guid].name[1], "{en} to recruit another unit to his army.{ru}, чтобы нанять еще один отряд в свою армию.{zh-tw}\n來加入他的軍隊。{zh-cn}\n来加入他的军队。{ko} 볼케어 군대에 적 하나 추가.{es} para reclutar otra unidad para su ejército.{fr} recruter une autre unité dans son armée.{pt-br} para recrutar outra unidade para este exército.{de} um eine weitere Einheit für seine Armee zu rekrutieren."})
+							gStates.blurb=joinLang({gStates.blurb, "{en}, and removes the {ru}, и удаляет {zh-tw}\n移除了 {zh-cn}\n移除了 {ko}, 다음 유닛 제거: {es}, y quita el {fr}, et supprime le {pt-br}, e remove a {de}, und beseitigt die ", unitName, "{en} to recruit another unit to his army.{ru}, чтобы нанять еще один отряд в свою армию.{zh-tw}\n來加入他的軍隊。{zh-cn}\n来加入他的军队。{ko} 볼케어 군대에 적 하나 추가.{es} para reclutar otra unidad para su ejército.{fr} recruter une autre unité dans son armée.{pt-br} para recrutar outra unidade para este exército.{de} um eine weitere Einheit für seine Armee zu rekrutieren."})
 							local params={position={0, 0, 0}, rotation={0, 180, 180}}
 						 	params.position[1]=getObjectFromGUID(dummyBoard).getPosition()[1]+5.1+(0.2*gStates.volkareRecruit)
 						 	params.position[2]=getObjectFromGUID(dummyBoard).getPosition()[2]+1.0+(0.2*gStates.volkareRecruit)
@@ -138,7 +141,7 @@ function volkareTurn(player, mouseButton, id)
 						 	gStates.monsterPlayLocation[monster.guid]={params.position[1], params.position[2], params.position[3]}
 							gStates.cityMonsterQty[volkare.model][monster.guid]="alive"
 						else
-							gStates.blurb=joinLang({gStates.blurb, "{en}, and intimidates the {ru}, и запугивает {zh-tw}\n嚇跑了 {zh-cn}\n吓跑了 {ko}, 다음 유닛: {es}, e intimida el {fr}, et intimide le {pt-br}, e intimida a {de}, und schüchtert die ", gameCards[unitCard.guid].name[1], "{en} to flee the area.{ru}, и те сбегают.{zh-tw}\n讓他逃離此地區。{zh-cn}\n让他逃离此地区。{ko} 제거됩니다.{es} para huir de la zona.{fr} de fuir la région.{pt-br}para fugir da área.{de} aus dem Gebiet zu fliehen."})
+							gStates.blurb=joinLang({gStates.blurb, "{en}, and intimidates the {ru}, и запугивает {zh-tw}\n嚇跑了 {zh-cn}\n吓跑了 {ko}, 다음 유닛: {es}, e intimida el {fr}, et intimide le {pt-br}, e intimida a {de}, und schüchtert die ", unitName, "{en} to flee the area.{ru}, и те сбегают.{zh-tw}\n讓他逃離此地區。{zh-cn}\n让他逃离此地区。{ko} 제거됩니다.{es} para huir de la zona.{fr} de fuir la région.{pt-br}para fugir da área.{de} aus dem Gebiet zu fliehen."})
 						end
 					else
 						if gStates.gameScenario~="The War of Four" then
