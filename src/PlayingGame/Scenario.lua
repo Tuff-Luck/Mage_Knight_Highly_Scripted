@@ -1115,6 +1115,23 @@ local function mapTokenMoveAndDrop(obj,targetX,targetZ,minY)
 	return true
 end
 
+--When a token is picked up, pieces left behind still need to close/rebalance their horizontal
+--spacing, but lifting them again makes the stack visibly hop. Preserve the exact current Y and
+--move only across the table surface; previously locked pieces can be relocked immediately.
+local function mapTokenMoveLaterally(obj,targetX,targetZ)
+	if obj==nil then return false end
+	local pos=obj.getPosition()
+	if obj.isSmoothMoving()==true then return false end
+	local already=math.abs(pos[1]-targetX)<0.035 and math.abs(pos[3]-targetZ)<0.035
+	if already==true then return false end
+	local wasLocked=obj.getLock()==true
+	obj.unlock()
+	obj.setPosition({targetX,pos[2],targetZ})
+	mapTokenUpdatePlayLocation(obj,{targetX,pos[2],targetZ})
+	if wasLocked==true then obj.lock() end
+	return true
+end
+
 local function mapTokenNearestFreeSlot(obj,centerX,centerZ,used,maxSlots)
 	if obj==nil then return nil end
 	local pos=obj.getPosition()
@@ -1132,10 +1149,11 @@ local function mapTokenNearestFreeSlot(obj,centerX,centerZ,used,maxSlots)
 	return nearest
 end
 
---Arrange one resolved map hex. Destroyed Site is always the floor marker at the exact centre.
---A Ruin can act as the ordinary centre/base marker when no Destroyed Site is present. Enemy tokens
---are only spread when there is a base marker or more than one enemy; a lone enemy otherwise recentres.
-function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
+--Arrange one resolved map hex. A Destroyed Site remains the floor marker, but when another token
+--shares its hex it participates in the spread: the lower marker sits down-left and the first token
+--above it sits up-right. A Ruin remains an ordinary centred base marker. A lone enemy recentres.
+--lateralOnly is used when a piece leaves the hex so the survivors never visibly hop in Y.
+function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
 	local seen={}
@@ -1171,21 +1189,25 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 
 	if destroyed~=nil then
 		local pos=destroyed.getPosition()
-		local needsMove=math.abs(pos[1]-centerX)>0.025 or math.abs(pos[2]-destroyedSiteRestingY)>0.025 or math.abs(pos[3]-centerZ)>0.025
+		local destroyedOffset=#enemies>0 and mapTokenSpreadSlots[1] or {x=0,z=0}
+		local targetX,targetZ=centerX+destroyedOffset.x,centerZ+destroyedOffset.z
+		local targetY=lateralOnly==true and pos[2] or destroyedSiteRestingY
+		local needsMove=math.abs(pos[1]-targetX)>0.025 or math.abs(pos[2]-targetY)>0.025 or math.abs(pos[3]-targetZ)>0.025
 		if needsMove==true or destroyed.getLock()~=true then
 			destroyed.unlock()
 			destroyed.setRotation({0,180,0})
-			--Known exact resting height: place directly under the stack, with no fall/smooth-move race.
-			destroyed.setPosition({centerX,destroyedSiteRestingY,centerZ})
+			--Destroyed stays physically underneath, but shares the same horizontal spread as the pieces above.
+			destroyed.setPosition({targetX,targetY,targetZ})
 			destroyed.lock()
 			changed=true
 		end
-		baseY=destroyedSiteRestingY
+		baseY=targetY
 	elseif ordinaryBase~=nil then
 		local pos=ordinaryBase.getPosition()
 		baseY=pos[2]
 		if #enemies>0 and ordinaryBase.isSmoothMoving()~=true and (math.abs(pos[1]-centerX)>0.035 or math.abs(pos[3]-centerZ)>0.035) then
-			changed=mapTokenMoveAndDrop(ordinaryBase,centerX,centerZ,math.max(1.35,pos[2]+0.10)) or changed
+			if lateralOnly==true then changed=mapTokenMoveLaterally(ordinaryBase,centerX,centerZ) or changed
+			else changed=mapTokenMoveAndDrop(ordinaryBase,centerX,centerZ,math.max(1.35,pos[2]+0.10)) or changed end
 		end
 	end
 
@@ -1197,13 +1219,17 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 		local obj=enemies[1]
 		local pos=obj.getPosition()
 		if math.abs(pos[1]-centerX)>0.035 or math.abs(pos[3]-centerZ)>0.035 then
-			changed=mapTokenMoveAndDrop(obj,centerX,centerZ,math.max(1.45,pos[2]+0.10)) or changed
+			if lateralOnly==true then changed=mapTokenMoveLaterally(obj,centerX,centerZ) or changed
+			else changed=mapTokenMoveAndDrop(obj,centerX,centerZ,math.max(1.45,pos[2]+0.10)) or changed end
 		end
 		return changed
 	end
 
-	local slotCount=math.min(#mapTokenSpreadSlots,math.max(#enemies,1))
+	--Destroyed occupies slot 1 itself when the hex is shared, putting the physical bottom down-left.
+	--Enemy assignment therefore begins at slot 2, whose offset is up-right.
+	local slotCount=math.min(#mapTokenSpreadSlots,math.max(#enemies+(destroyed~=nil and 1 or 0),1))
 	local used={}
+	if destroyed~=nil then used[1]=true end
 	local assigned={}
 	--Keep an already-separated token in its current slot when possible so a new arrival does not
 	--shuffle every existing piece around the hex.
@@ -1220,10 +1246,14 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	end
 
 	for _,obj in ipairs(enemies) do
-		local slot=assigned[obj.guid] or 1
+		local slot=assigned[obj.guid] or (destroyed~=nil and 2 or 1)
 		local offset=mapTokenSpreadSlots[slot]
 		local minY=(baseY~=nil and baseY+0.55 or 1.45)
-		changed=mapTokenMoveAndDrop(obj,centerX+offset.x,centerZ+offset.z,minY) or changed
+		if lateralOnly==true then
+			changed=mapTokenMoveLaterally(obj,centerX+offset.x,centerZ+offset.z) or changed
+		else
+			changed=mapTokenMoveAndDrop(obj,centerX+offset.x,centerZ+offset.z,minY) or changed
+		end
 	end
 	return changed
 end
@@ -1255,10 +1285,12 @@ function mapTokenReleaseObject(obj)
 	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
 	local position=obj.getPosition()
 	local ignoreGUID=obj.guid
+	--Invalidate any delayed arrival retries for the object now being carried away.
+	mapTokenArrangeGeneration[ignoreGUID]=(mapTokenArrangeGeneration[ignoreGUID] or 0)+1
 	safeWaitFrames("Scenario",function()
 		local hexes,mapObjects=apocalypseQuestMapHexes()
 		local hex=apocalypseQuestHexForPosition(hexes,position,mapObjects)
-		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID) end
+		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID,nil,true) end
 	end,1)
 	return true
 end
