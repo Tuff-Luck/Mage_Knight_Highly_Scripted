@@ -2385,11 +2385,8 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 	for _,enemy in ipairs(proxyMonstersOnHex(targetHex,mapObjects)) do
 		if horsemanTokenToName[enemy.guid]==nil then proxyDiscardMonster(enemy) end
 	end
-	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
-	if bag~=nil and bag.getQuantity()~=0 then
-		local token=bag.takeObject({position={targetHex.position[1],2,targetHex.position[3]},rotation={0,180,0},smooth=true})
-		if token~=nil then destroySite(token,targetHex.terrain,targetHex.bearing) end
-	end
+	local token=takeDestroyedSiteToken(targetHex.terrain,targetHex.bearing)
+	if token~=nil then destroySite(token,targetHex.terrain,targetHex.bearing) end
 	local oldHead=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[name] or 0) or 0
 	if oldHead>0 and oldHead<12 then apocalypseDragonSetHeadLevel(name,oldHead+1) end
 	state.sitesDestroyed=(tonumber(state.sitesDestroyed) or 0)+1
@@ -2636,6 +2633,16 @@ function druidNightsRitualAction(playerDud, mouseButton, id)
 	addAvatarButtons()
 end
 
+--Draw a Destroyed Site directly at its final table height. The supply is an Infinite Bag, so callers
+--only need to handle a genuinely missing bag/object rather than token exhaustion.
+function takeDestroyedSiteToken(terrain,bearing)
+	if terrain==nil or bearing==nil then return nil end
+	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
+	local center=angleToXY(terrain,bearing)
+	if bag==nil or center==nil then return nil end
+	return bag.takeObject({position={center[1],destroyedSiteRestingY,center[2]},rotation={0,180,0},smooth=false})
+end
+
 --A Destroyed Site has a known physical resting height. Put it straight onto the map surface rather
 --than dropping it onto whatever is already on the hex. The generic token arranger then moves enemy
 --tokens into their slight offsets and lets those pieces fall/relock above the marker.
@@ -2732,8 +2739,7 @@ function destroyRestoreLocation(playerDud, mouseButton, id, type, obj)
 						local hexPos=angleToXY(obj, searchOrder[i])
 						local terrainGUID=obj.guid
 						local hexAngle=searchOrder[i]
-						local drawnToken=safeTakeObject("Scenario",getObjectFromGUID(GUID.bag.destroyedSite),{
-							position={hexPos[1],2,hexPos[2]},smooth=true})
+						local drawnToken=takeDestroyedSiteToken(getObjectFromGUID(terrainGUID),hexAngle)
 						found=destroySite(drawnToken,getObjectFromGUID(terrainGUID),hexAngle)
 						if found==true then break end
 					end
@@ -4376,7 +4382,7 @@ function againstDragonResolveDestroyOption(option)
 	for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
 		if getObjectFromGUID(enemy.guid)~=nil then proxyDiscardMonster(enemy) end
 	end
-	local token=bag.takeObject({position={hex.position[1],2,hex.position[3]},rotation={0,180,0},smooth=true})
+	local token=takeDestroyedSiteToken(hex.terrain,hex.bearing)
 	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(hex.feature) or tostring(hex.feature)
 	if token~=nil then
 		destroySite(token,hex.terrain,hex.bearing)
@@ -4602,8 +4608,7 @@ function againstDragonResolveAirborneProtection(pending)
 		broadcastToAll("A Dragon head was suppressed by the site, but no Destroyed Site token was available.",warningColor)
 		return false
 	end
-	local hexPos=angleToXY(terrain,location.bearing)
-	local token=bag.takeObject({position={hexPos[1],2,hexPos[2]},rotation={0,180,0},smooth=true})
+	local token=takeDestroyedSiteToken(terrain,location.bearing)
 	if token==nil then return false end
 	pending.destroyedSiteTokenGUID=token.guid
 	destroySite(token,terrain,location.bearing)
@@ -5334,7 +5339,7 @@ function furyDragonDestroyHex(hex,mapObjects,removeEnemies)
 		broadcastToAll("The Destroyed Site bag is missing; Fury could not mark "..furyDragonTargetLabel({feature=hex.feature}).." as destroyed.",warningColor)
 		return false
 	end
-	local token=bag.takeObject({position={hex.position[1],2,hex.position[3]},rotation={0,180,0},smooth=true})
+	local token=takeDestroyedSiteToken(hex.terrain,hex.bearing)
 	if token==nil then return false end
 	return destroySite(token,hex.terrain,hex.bearing)
 end
