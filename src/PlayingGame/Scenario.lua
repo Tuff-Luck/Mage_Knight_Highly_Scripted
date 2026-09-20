@@ -1032,10 +1032,8 @@ function mapTokenIsDestroyedSite(obj)
 end
 
 function mapTokenIsBaseSite(obj)
-	if obj==nil then return false end
-	if mapTokenIsDestroyedSite(obj)==true then return true end
-	local details=monsterPugs~=nil and monsterPugs[obj.guid] or nil
-	return details~=nil and details.name=="Ruin"
+	--Destroyed is the only special floor token. Ruins participate in the same diagonal spread as enemies.
+	return mapTokenIsDestroyedSite(obj)==true
 end
 
 function mapTokenIsSpreadEnemy(obj)
@@ -1043,8 +1041,8 @@ function mapTokenIsSpreadEnemy(obj)
 	if apocalypseDragon~=nil and obj.guid==apocalypseDragon.furyMarker then return true end
 	local details=monsterPugs~=nil and monsterPugs[obj.guid] or nil
 	if details==nil then return false end
-	--Possessed markers are physically linked overlays, not independent enemies. Ruins are site markers.
-	if details.pugType=="possessed" or details.name=="Ruin" then return false end
+	--Possessed markers are physically linked overlays, not independent tokens. Ruins are spread normally.
+	if details.pugType=="possessed" then return false end
 	return true
 end
 
@@ -1159,13 +1157,10 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 	end
 
 	local destroyed=nil
-	local ordinaryBase=nil
 	local enemies={}
 	for _,obj in ipairs(objects) do
 		if mapTokenIsDestroyedSite(obj)==true then
 			if destroyed==nil then destroyed=obj end
-		elseif mapTokenIsBaseSite(obj)==true then
-			if ordinaryBase==nil then ordinaryBase=obj end
 		elseif mapTokenIsSpreadEnemy(obj)==true then
 			enemies[#enemies+1]=obj
 		end
@@ -1180,7 +1175,7 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 	end)
 
 	local centerX,centerZ=hex.position[1],hex.position[3]
-	local base=destroyed or ordinaryBase
+	local base=destroyed
 	local baseY=nil
 	local changed=false
 
@@ -1200,13 +1195,6 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 			changed=true
 		end
 		baseY=targetY
-	elseif ordinaryBase~=nil then
-		local pos=ordinaryBase.getPosition()
-		baseY=pos[2]
-		if #enemies>0 and ordinaryBase.isSmoothMoving()~=true and (math.abs(pos[1]-centerX)>0.035 or math.abs(pos[3]-centerZ)>0.035) then
-			if lateralOnly==true then changed=mapTokenMoveLaterally(ordinaryBase,centerX,centerZ) or changed
-			else changed=mapTokenMoveAndDrop(ordinaryBase,centerX,centerZ,math.max(1.35,pos[2]+0.10)) or changed end
-		end
 	end
 
 	if #enemies<1 then return changed end
@@ -1273,6 +1261,34 @@ function mapTokenArrangeDroppedObject(guid)
 			if mapTokenManualDropPending[guid]==generation then mapTokenManualDropPending[guid]=nil end
 		end)
 	end)
+end
+
+--Scripted smooth moves such as the Fury Dragon need the same one-pass behaviour, but suppression
+--must begin BEFORE the object crosses into the map zone so onObjectEnterZone cannot queue retries.
+function mapTokenBeginSingleArrival(guid)
+	if guid==nil then return nil end
+	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
+	mapTokenArrangeGeneration[guid]=generation
+	mapTokenManualDropPending[guid]=generation
+	return generation
+end
+
+function mapTokenFinishSingleArrival(guid,generation)
+	if guid==nil then return false end
+	generation=generation or mapTokenManualDropPending[guid]
+	if generation==nil or mapTokenManualDropPending[guid]~=generation then return false end
+	local obj=getObjectFromGUID(guid)
+	if obj==nil then
+		mapTokenManualDropPending[guid]=nil
+		return false
+	end
+	--The scripted move has already settled. Read final physical Y once, spread only X/Z once,
+	--then keep zone retries suppressed until that sideways adjustment settles.
+	mapTokenArrangeObject(guid,true)
+	mapTokenAfterSettled(guid,function()
+		if mapTokenManualDropPending[guid]==generation then mapTokenManualDropPending[guid]=nil end
+	end)
+	return true
 end
 
 function mapTokenScheduleObject(guid)
@@ -5483,12 +5499,14 @@ function furyDragonBeginInFlightTurn()
 	if die~=nil and spare~=nil then die.unlock() spare.putObject(die) end
 	gStates.furyDragonManaDieGUID=nil
 
+	local markerGUID=marker.guid
+	local mapArrivalGeneration=mapTokenBeginSingleArrival~=nil and mapTokenBeginSingleArrival(markerGUID) or nil
 	marker.unlock()
 	marker.setRotation({0,180,0})
 	marker.setPositionSmooth(destination,false)
-	local markerGUID=marker.guid
 	mapTokenAfterSettled(markerGUID,function(landed)
 		if landed==nil then
+			mapTokenManualDropPending[markerGUID]=nil
 			furyDragonCompleteTurn("The Apocalypse Dragon marker disappeared while landing.")
 			return
 		end
@@ -5497,6 +5515,7 @@ function furyDragonBeginInFlightTurn()
 		local currentHexes,currentMapObjects=apocalypseQuestMapHexes()
 		local currentHex=againstDragonMapHexByKey(currentHexes,target.key)
 		if currentHex==nil then
+			mapTokenManualDropPending[markerGUID]=nil
 			furyDragonCompleteTurn("The Apocalypse Dragon landed, but the destination space could no longer be resolved.")
 			return
 		end
@@ -5504,7 +5523,7 @@ function furyDragonBeginInFlightTurn()
 		if #players>0 then
 			local names={}
 			for _,playerIndex in ipairs(players) do names[#names+1]=tostring(turnOrder[playerIndex].mage) end
-			if mapTokenScheduleObject~=nil then mapTokenScheduleObject(markerGUID) end
+			if mapTokenFinishSingleArrival~=nil then mapTokenFinishSingleArrival(markerGUID,mapArrivalGeneration) end
 			mapTokenRelockWhenSettled(markerGUID,true)
 			gStates.furyDragonAwaitingCombat={players=players,target=target}
 			gStates.apocalypseDragonUIState="WaitingCombat"
@@ -5514,7 +5533,7 @@ function furyDragonBeginInFlightTurn()
 			return
 		end
 		local result=furyDragonResolveArrivalEffect(target,currentHex,currentMapObjects)
-		if mapTokenScheduleObject~=nil then mapTokenScheduleObject(markerGUID) end
+		if mapTokenFinishSingleArrival~=nil then mapTokenFinishSingleArrival(markerGUID,mapArrivalGeneration) end
 		mapTokenRelockWhenSettled(markerGUID,true)
 		furyDragonCompleteTurn(result)
 	end)
