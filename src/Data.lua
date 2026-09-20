@@ -4,6 +4,21 @@
 apocalypseDragon={
 	model="105141",
 	furyMarker="42b581",
+	furyHoldingPosition={-65.53,1.35,22.09},
+	furyDieRollPosition={-4.50,2.50,-22.20},
+	furyTargetCategories={
+		fortified={"keep","mage tower","city"},
+		adventure={"monster den","dungeon","maze","ziggurat","spawning grounds","tomb","labyrinth","pyramid","ruin"},
+		rampager={"rampaging","draconum"},
+		inhabited={"village","camp","oasis","monastery"},
+		mana={"mine","glade"}
+	},
+	furyColorCategories={
+		blue={"fortified"}, green={"adventure"}, red={"rampager"}, white={"inhabited"}, gold={"mana"},
+		black={"fortified","adventure","rampager","inhabited","mana"}
+	},
+	furyCategoryHead={fortified="Death",adventure="Pestilence",rampager="War",inhabited="Famine"},
+	furyLowestHeadOrder={"Famine","War","Pestilence","Death"},
 	roundOrder="9ba54f",
 	modelPosition={-65.53,1.07,22.09},
 	levelMarkerRadius=2.9,
