@@ -3047,7 +3047,20 @@ function pursuingRampagers(player, mouseButton, id)
 							broadcastToAll(joinLang({"{en}Pursuing Monster Attacked {ru}Преследующие враги напали на {zh-tw}追擊怪物攻擊了 {zh-cn}被追击怪物所攻击{ko}추적 중인 몬스터의 공격: {es}Persecución de Monstruos Atacados por {fr}Poursuivant le Monstre Attaqué {pt-br}Monstro Perseguidor Atacado {de}Verfolgtes Monster angegriffen ", translateWord[turnOrder[gStates.turnNumber].mage]}), positionToColor(gStates.turnNumber))
 						end
 					end
-					getObjectFromGUID(monsterGUID).setPositionSmooth(rampageNewPos)
+					local movingMonster=getObjectFromGUID(monsterGUID)
+					if movingMonster~=nil then
+						if noMove==false and canAttack==false and mapTokenSettleArrival~=nil then
+							--Pursuit movement stays inside the map zone, so explicitly register this as a
+							--new moving-token arrival and let the shared hex arranger keep it top-right.
+							mapTokenSettleArrival(monsterGUID,rampageNewPos,{releaseOrigin=true})
+						elseif canAttack==true then
+							--The Pursuer is leaving the map for the combat grid; close up its old hex only.
+							if mapTokenReleaseObject~=nil then mapTokenReleaseObject(movingMonster) end
+							movingMonster.setPositionSmooth(rampageNewPos)
+						else
+							movingMonster.setPositionSmooth(rampageNewPos)
+						end
+					end
 
 					if canAttack==false then gStates.monsterPlayLocation[monsterGUID]=rampageNewPos end
 					height=height+0.2
