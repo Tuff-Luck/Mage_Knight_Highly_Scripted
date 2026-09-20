@@ -4332,6 +4332,27 @@ function mainUIUpdate(source)
 					local count=1
 					local rewardText="{en}Have you:-\n{ru}Проверьте, что вы:-\n{zh-tw}你是否已經：\n{zh-cn}你是否已经：\n{ko}차례 종료 과정 진행:-\n{es}Has:-\n{fr}Avez-vous:-\n{pt-br}Você já:-\n{de}Hast du:-\n"
 					local linefeed=false
+					local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
+					if questRewardPending==true then
+						local questReminder=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and ". Completed/Failed the Quest." or ". Completed/Progressed the Quest."
+						rewardText=joinLang({rewardText,count,questReminder})
+						count=count+1 linefeed=true
+					end
+					if apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
+						rewardText=joinLang({rewardText,count,". Explored for horsemen."})
+						count=count+1 linefeed=true
+					end
+					if steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(currentPlayer.seatPos)==true then
+						rewardText=joinLang({rewardText,count,". Resolved Steady Tempo."})
+						count=count+1 linefeed=true
+					end
+					local pendingCrystal=gStates.mineClaimPending
+					if pendingCrystal~=nil and pendingCrystal.playerIndex==gStates.turnNumber then
+						local crystalSource=pendingCrystal.source=="Quest" and "Quest" or "Mine"
+						rewardText=joinLang({rewardText,count,". Claimed your "..crystalSource.." Crystal."})
+						count=count+1 linefeed=true
+					end
+					if linefeed==true then rewardText=joinLang({rewardText,"\n"}) linefeed=false end
 					if gStates.gameScenario=="Mines Liberation" and gStates.endRoundCalled==true and gStates.turnForfeited==false then
 						rewardText=joinLang({rewardText, count, "{en}. Collected 1 Crystal from your Liberated Mine(s){ru}. Получили 1 кристалл из ваших освобожденных шахт{zh-tw}. 從你解放的礦山獲得 1 顆魔晶{zh-cn}. 从你解放的矿山获得 1 块魔晶{ko}. 해방한 광산에서 수정 1개 획득{es}. Obtenido 1 Cristal de tus Minas liberadas{fr}. Obtenu 1 cristal de vos Mines libérées{pt-br}. Ganhou 1 Cristal das suas Minas libertadas{de}. 1 Kristall aus deinen befreiten Minen erhalten"})
 						count=count+1 linefeed=true
@@ -4347,39 +4368,7 @@ function mainUIUpdate(source)
 					end
 					if avatarLocation~=nil then
 						--see if a matching shield is near the avatar
-						local function findNearOwnShield()
-							local nearOwnShield="false"
-							local avPos=mageKnightAvatarPosition(gStates.turnNumber) or {}
-							if (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and
-								gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel)~=nil and math.sqrt(((getObjectFromGUID(gStates.volkareModel).getPosition()[1]-avPos[1])^2)+((getObjectFromGUID(gStates.volkareModel).getPosition()[3]-avPos[3])^2))<1 then
-								return volkare.model
-							end
-							if avatarLocation:sub(1, 4)=="city" or avatarLocation=="Volkare's Camp" or avatarLocation=="necropolis" or avatarLocation=="hidden valley" then
-								refreshCityDefeatState()
-								--check if avatar dropped on city card, then use the city model as the avatar location
-								for zone, citySearch in pairs(cityScriptZones) do
-									for obj, detail in pairs(getObjectFromGUID(zone).getObjects()) do
-										for _, avatar in pairs(mageKnights) do
-											if detail.guid==avatar.model or detail.guid==avatar.standee or detail.guid==avatar.token then
-												if zone==volkare.discZone and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-													return volkare.model
-												else
-													return citySearch.cityGUID
-												end
-											end
-										end
-									end
-								end
-							end
-							for _, shieldCheck in pairs(getObjectFromGUID(mapArea).getObjects()) do
-								if ((shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and shieldCheck.getDescription()==turnOrder[gStates.turnNumber].mage) or shieldCheck.getName()=="Hidden Valley" or shieldCheck.getName()=="Necropolis" or shieldCheck.getName()=="Volkare's Camp" or shieldCheck.getName()=="Volkare" or shieldCheck.getGMNotes()=="White City" or shieldCheck.getGMNotes()=="Red City" or shieldCheck.getGMNotes()=="Green City" or shieldCheck.getGMNotes()=="Blue City") and
-									math.sqrt(((shieldCheck.getPosition()[1]-avPos[1])^2)+((shieldCheck.getPosition()[3]-avPos[3])^2))<1 then
-									nearOwnShield=shieldCheck.guid break
-								end
-							end
-							return nearOwnShield
-						end
-						local nearbyOwnShield=findNearOwnShield()
+						local nearbyOwnShield=rewardNearbyOwnShield(gStates.turnNumber,avatarLocation)
 
 						--Victory Shield
 						if (avatarLocation=="glade" and gStates.gameScenario=="Druid Nights") then
@@ -4394,33 +4383,7 @@ function mainUIUpdate(source)
 							count=count+1 linefeed=true
 						end
 						if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-						--The retreat checklist can run before faction-state bookkeeping finishes. Use the real leader state,
-						--and also detect a defeat already committed by the current combat but still waiting for cleanup.
-						local coopLeaderCombat=gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader"
-						local leaderDefeatedPendingCleanup=false
-						local factionLeaderDefeated=false
-						if avatarLocation=="necropolis" or avatarLocation=="hidden valley" then
-							local currentLeader=avatarLocation=="necropolis" and darkCrusader or elementalist
-							local leaderLevel=avatarLocation=="necropolis" and gStates.darkCrusaderLevel or gStates.elementalistLevel
-							factionLeaderDefeated=(leaderLevel or 1)<=0 or (gStates.cityMonsterQty[currentLeader.terrainHex]~=nil and gStates.cityMonsterQty[currentLeader.terrainHex][currentLeader.token]=="dead") or (gStates.defeatedFactionTest~=nil and gStates.defeatedFactionTest[currentLeader.terrainHex]=="Beat")
-							local leaderObj=getObjectFromGUID(currentLeader.token)
-							if factionLeaderDefeated==false and leaderObj~=nil and leaderObj.is_face_down==false and leaderLevel~=nil and ((gStates.leaderReduction or 0)+(gStates.leaderOverkill or 0))>=leaderLevel then
-								for _, obj in pairs(getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
-									if obj.guid==currentLeader.token then leaderDefeatedPendingCleanup=true break end
-								end
-							end
-						end
-						local dragonRetreatRequired=false
-						if gStates.apocalypseDragonDefeated~=true and apocalypseDragonLairContainsPosition~=nil then
-							local dragonAvatarPos=mageKnightAvatarPosition(gStates.turnNumber)
-							dragonRetreatRequired=dragonAvatarPos~=nil and apocalypseDragonLairContainsPosition(dragonAvatarPos)==true
-						end
-						if gStates.turnForfeited==false and
-							(dragonRetreatRequired==true or
-							((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false") or
-							((avatarLocation:sub(1, 4)=="city" or avatarLocation=="Volkare's Camp") and gStates.friendlyCity[nearbyOwnShield]~=true and ((gStates.gameScenario~="The Lost Relic Blitz" and gStates.defeatedCities[nearbyOwnShield]~=true) or (gStates.gameScenario=="The Lost Relic Blitz" and nearbyOwnShield=="false"))) or
-							((avatarLocation=="necropolis" or avatarLocation=="hidden valley") and coopLeaderCombat==false and leaderDefeatedPendingCleanup==false and factionLeaderDefeated==false) or
-							(nearbyOwnShield==volkare.model)) then
+						if rewardRetreatRequired(gStates.turnNumber,avatarLocation,nearbyOwnShield)==true then
 							rewardText=joinLang({rewardText, count, "{en}. Retreated to a Safe space{ru}. Отступили в Безопасное место{zh-tw}. 撤離到一個安全位置{zh-cn}. 撤离到一个安全位置{ko}. 안전한 칸으로 후퇴{es}. Acabado en un Espacio Seguro{fr}. Retraité dans un espace sûr{pt-br}. Recuou para um espaço seguro{de}. Dich in ein sicheres Feld zurückgezogen"})
 							count=count+1 linefeed=true
 						end
@@ -7007,12 +6970,15 @@ function volkareTurn(player, mouseButton, id)
 				local volkareDice=getObjectFromGUID("9a686a")
 				volkareDice.randomize()
 				safeWaitCondition("AI.Volkare",function()
-					if gStates.volkareUnitCrystals[volkareDice.getRotationValue()]~=nil and getObjectFromGUID(gStates.volkareUnitCrystals[volkareDice.getRotationValue()]).getObjects()[1]~=nil then
-						local unitCard=getObjectFromGUID(gStates.volkareUnitCrystals[volkareDice.getRotationValue()]).getObjects()[1]
+					local crystalData=gStates.volkareUnitCrystals~=nil and gStates.volkareUnitCrystals[volkareDice.getRotationValue()] or nil
+					local unitCard=crystalData~=nil and unitOfferCardAtSlot(crystalData.slot) or nil
+					if unitCard~=nil then
+						local unitData=gameCards[unitCard.guid]
+						local unitName=unitData~=nil and unitData.name~=nil and unitData.name[1] or unitCard.getName()
 						unitCard.destruct()
 						--add a gray unit to Volkare's Army
 						if gStates.gameScenario~="Volkare's Quest" then
-							gStates.blurb=joinLang({gStates.blurb, "{en}, and removes the {ru}, и удаляет {zh-tw}\n移除了 {zh-cn}\n移除了 {ko}, 다음 유닛 제거: {es}, y quita el {fr}, et supprime le {pt-br}, e remove a {de}, und beseitigt die ", gameCards[unitCard.guid].name[1], "{en} to recruit another unit to his army.{ru}, чтобы нанять еще один отряд в свою армию.{zh-tw}\n來加入他的軍隊。{zh-cn}\n来加入他的军队。{ko} 볼케어 군대에 적 하나 추가.{es} para reclutar otra unidad para su ejército.{fr} recruter une autre unité dans son armée.{pt-br} para recrutar outra unidade para este exército.{de} um eine weitere Einheit für seine Armee zu rekrutieren."})
+							gStates.blurb=joinLang({gStates.blurb, "{en}, and removes the {ru}, и удаляет {zh-tw}\n移除了 {zh-cn}\n移除了 {ko}, 다음 유닛 제거: {es}, y quita el {fr}, et supprime le {pt-br}, e remove a {de}, und beseitigt die ", unitName, "{en} to recruit another unit to his army.{ru}, чтобы нанять еще один отряд в свою армию.{zh-tw}\n來加入他的軍隊。{zh-cn}\n来加入他的军队。{ko} 볼케어 군대에 적 하나 추가.{es} para reclutar otra unidad para su ejército.{fr} recruter une autre unité dans son armée.{pt-br} para recrutar outra unidade para este exército.{de} um eine weitere Einheit für seine Armee zu rekrutieren."})
 							local params={position={0, 0, 0}, rotation={0, 180, 180}}
 						 	params.position[1]=getObjectFromGUID(dummyBoard).getPosition()[1]+5.1+(0.2*gStates.volkareRecruit)
 						 	params.position[2]=getObjectFromGUID(dummyBoard).getPosition()[2]+1.0+(0.2*gStates.volkareRecruit)
@@ -7022,7 +6988,7 @@ function volkareTurn(player, mouseButton, id)
 						 	gStates.monsterPlayLocation[monster.guid]={params.position[1], params.position[2], params.position[3]}
 							gStates.cityMonsterQty[volkare.model][monster.guid]="alive"
 						else
-							gStates.blurb=joinLang({gStates.blurb, "{en}, and intimidates the {ru}, и запугивает {zh-tw}\n嚇跑了 {zh-cn}\n吓跑了 {ko}, 다음 유닛: {es}, e intimida el {fr}, et intimide le {pt-br}, e intimida a {de}, und schüchtert die ", gameCards[unitCard.guid].name[1], "{en} to flee the area.{ru}, и те сбегают.{zh-tw}\n讓他逃離此地區。{zh-cn}\n让他逃离此地区。{ko} 제거됩니다.{es} para huir de la zona.{fr} de fuir la région.{pt-br}para fugir da área.{de} aus dem Gebiet zu fliehen."})
+							gStates.blurb=joinLang({gStates.blurb, "{en}, and intimidates the {ru}, и запугивает {zh-tw}\n嚇跑了 {zh-cn}\n吓跑了 {ko}, 다음 유닛: {es}, e intimida el {fr}, et intimide le {pt-br}, e intimida a {de}, und schüchtert die ", unitName, "{en} to flee the area.{ru}, и те сбегают.{zh-tw}\n讓他逃離此地區。{zh-cn}\n让他逃离此地区。{ko} 제거됩니다.{es} para huir de la zona.{fr} de fuir la région.{pt-br}para fugir da área.{de} aus dem Gebiet zu fliehen."})
 						end
 					else
 						if gStates.gameScenario~="The War of Four" then
@@ -11962,6 +11928,7 @@ function beginMineCrystalClaim(playerIndex, messageColor)
 	end
 	gStates.mineClaimPending={source="Mine", playerIndex=playerIndex, terrainGUID=data.terrainGUID, bearing=data.bearing, colors=available}
 	refreshMineClaimPanel()
+	if mainUIUpdate~=nil then mainUIUpdate("Mine crystal pending") end
 	return true
 end
 
@@ -11994,6 +11961,7 @@ function mineClaimChoice(player, mouseButton, id)
 	gStates.mineClaimPending=nil
 	UI.hide("MineClaimChoice")
 	if questCardGUID~=nil and getObjectFromGUID(questCardGUID)~=nil then apocalypseQuestUpdateProgressButtons(getObjectFromGUID(questCardGUID)) end
+	if mainUIUpdate~=nil then mainUIUpdate("Mine crystal claimed") end
 end
 
 function scenarioEnd(endImmediately)
@@ -13291,6 +13259,7 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	if gStates.apocalypseHereForcedRevealPending==true then
 		gStates.apocalypseHereForcedRevealCount=math.max(0,(tonumber(gStates.apocalypseHereForcedRevealCount) or 1)-1)
 		gStates.apocalypseHereForcedRevealPending=gStates.apocalypseHereForcedRevealCount>0
+		if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Horseman exploration resolved") end
 	end
 	broadcastToAll(name.." has been revealed at Level "..tostring(state.level)..(forced==true and " by the Round deadline." or "."),{1,0.75,0.2})
 	return true
@@ -16638,8 +16607,9 @@ end
 function __endTurn_raw(player, mouseButton, id, rewindReady)
 	if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then --and slightPause==false
 		local rewardSeat=turnOrder[gStates.turnNumber].seatPos
+		local rewardSoftLock=rewardClaimSoftLockActive()
 		local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
-		if questRewardPending==true then
+		if rewardSoftLock==true and questRewardPending==true then
 			apocalypseQuestRefreshOfferButtons()
 			rewardReminderCameraFocus(player.color,"questView")
 			local questGateMessage=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "Complete/Fail the Quest First" or "Complete/Progress the Quest First"
@@ -16647,7 +16617,7 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
-		if gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
+		if rewardSoftLock==true and gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
 			local overdue=math.max(1,tonumber(gStates.apocalypseHereForcedRevealCount) or 1)
 			cameraControl(player,"-1","mapView")
 			local message=overdue==1 and "Reveal the overdue Map tile before claiming rewards." or ("Reveal "..tostring(overdue).." overdue Map tiles before claiming rewards.")
@@ -16655,20 +16625,27 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
-		if steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(rewardSeat)==true then
+		if rewardSoftLock==true and steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(rewardSeat)==true then
 			steadyTempoRefreshAll() steadyTempoUpdateRewardGate(rewardSeat)
+			cameraControl(player,"-1","playAreaView")
 			broadcastToAll("Resolve Steady Tempo before claiming rewards.", positionToColor(gStates.turnNumber))
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
-		if gStates.mineClaimPending~=nil then
+		if rewardSoftLock==true and gStates.mineClaimPending~=nil and (gStates.mineClaimPending.playerIndex==nil or gStates.mineClaimPending.playerIndex==gStates.turnNumber) then
 			broadcastToColor("Resolve the pending crystal choice before proceeding to the next player.", player.color, warningColor)
+			if rewindReady==true then rewindTransactionFinish("End turn") end
+			return
+		end
+		if rewardSoftLock==true and rewardRetreatRequired~=nil and rewardRetreatRequired(gStates.turnNumber)==true then
+			cameraControl(player,"-1","mapView")
+			broadcastToColor("Retreat to a safe space before claiming rewards.",player.color,warningColor)
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
 		if rewindReady~=true and rewindTransactionOwnerActive("End turn")==true then return end
 		if gStates.coopAssaultPhase=="rewards" then
-			if gStates.skillButtons==0 then
+			if gStates.skillButtons==0 or rewardSoftLock~=true then
 				if rewindReady~=true then
 					rewindTransactionStart(function() endTurn(player,mouseButton,id,true) end,"End turn")
 					return
@@ -16693,7 +16670,7 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 			return
 		end
 		--slightPause=true
-		if gStates.skillButtons==0 then--must choose from offered skill to proceed
+		if gStates.skillButtons==0 or rewardSoftLock~=true then--skill reward soft-lock expires with the shared Rewards Claimed window
 			if rewindReady~=true then
 				rewindTransactionStart(function() endTurn(player,mouseButton,id,true) end,"End turn")
 				return
@@ -16704,6 +16681,7 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 			UI.setAttribute("NightTacticSix", "active", "false")
 			UI.setAttribute("zigguratPyramidInteract", "active", "false")
 			gStates.preEndTurn=false
+			rewardClaimSoftLockClear()
 			gStates.levelingUp=false
 			gStates.crytalRuin=false
 			gStates.volkareArmyReduced=false
@@ -17066,13 +17044,12 @@ function __PreEndRound_raw(player, mouseButton, id)
 		end
 		refreshCoopCompSkillXs()
 
-		--unlock second action for control over the offer.
-		for _, object in pairs(getObjectFromGUID("109d8e").getObjects()) do
-			if object.type=="Card" then object.unlock() break end
-		end
-		for _, object in pairs(getObjectFromGUID("e88f19").getObjects()) do
-			if object.type=="Card" then object.unlock() break end
-		end
+		--Unlock the second card in each broad offer row for manual offer control.
+		--The former per-slot scripting zones no longer exist.
+		local actionCards=mainOfferCards("Advanced Action")
+		if actionCards[2]~=nil then actionCards[2].unlock() end
+		local spellCards=mainOfferCards("Spell")
+		if spellCards[2]~=nil then spellCards[2].unlock() end
 
 		if activeMageKnightCount()>1 or turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
 			broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} called End of Round. Everyone else has one final turn.{ru} объявил конец Раунда. Остальные делают по одному ходу.{zh-cn}宣布结束轮次, 所有其他玩家还有最后一回合{ko}: 라운드 종료 선언. 모두 마지막 차례를 한 번씩 더 갖습니다.{es} llamado Fin de Ronda. Todos los demás tienen un turno final.{fr} appelé la Fin de Rounde. Tout le monde a un dernier tour.{pt-br} chamado o fim de Rodada. Todos outros tem um turno final.{de} ende der Runde ausgerufen. Alle anderen haben einen letzten Zug."}), positionToColor(gStates.turnNumber))
@@ -18427,6 +18404,7 @@ function showCoopReward()
 	gStates.turnNumber=entry.player
 	refreshTactic4HandBonus(false)
 	gStates.preEndTurn=true
+	rewardClaimSoftLockStart()
 	gStates.levelingUp=false
 	--The conquered city hand bonus is known now, before this player claims rewards and draws their new hand.
 	if gStates.coopAssaultType=="city" and gStates.coopAssaultConquered==true and gStates.coopAssaultCityGUID~=nil then
@@ -18551,6 +18529,7 @@ function advanceCoopRewardPhase()
 		gStates.coopAssaultConquered=nil
 		gStates.coopAssaultScenarioEndPending=false
 		gStates.preEndTurn=false
+		rewardClaimSoftLockClear()
 		if scenarioEndPending then
 			--Victory is registered here, but gameOver waits for nextTurnMerged.
 			--That lets an assister's skipped turn flip their token upright and lets
@@ -18606,7 +18585,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		--reset variables for next turn
 		gStates.preEndTurn=true
 		--Before combat cleanup moves/discards Quest enemies, remember successful combat-gated Quest
-		--resolutions. This keeps Rewards Claimed unavailable until the player presses Progress/Complete.
+		--resolutions. This gives Rewards Claimed its soft warning gate while that Quest action is pending.
 		apocalypseQuestCaptureRewardCompletionGate(cleanupPlayer)
 		--Free Wine uses a normal Keep assault rather than a Quest-spawned combat, so capture its outcome
 		--separately now that the rewards boundary has been reached.
@@ -18629,6 +18608,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			local function finishRewardDelay()
 				rewardClaimDelayActive=false
 				if gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
+					rewardClaimSoftLockStart()
 					if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[cleanupPlayer].seatPos)
 					else
 						UI.setAttribute("PreEndTurn", "interactable", "true")
@@ -18673,7 +18653,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			end
 		end
 		mainUIUpdate("Pre End Turn")
-		--Mine rewards are chosen alongside the normal Rewards Claimed stage. The turn cannot advance until resolved.
+		--Mine rewards are chosen alongside the normal Rewards Claimed stage and use its shared soft-lock window.
 		local mineTurnEligible=turnOrder[cleanupPlayer].mage~=gStates.positionMageKnight[5] and turnOrder[cleanupPlayer].endCalled~=true
 		if mineTurnEligible and gStates.coopAssaultPhase~="combat" then beginMineCrystalClaim(cleanupPlayer, player.color) end
 
@@ -19761,6 +19741,87 @@ function combatAttackOptionCount(playerIndex)
 	local count=0
 	for _ in pairs(seen) do count=count+1 end
 	return count
+end
+
+--Resolve the current player's nearby conquest/ownership marker for Rewards Claimed checks.
+function rewardNearbyOwnShield(playerIndex,avatarLocation)
+	local details=turnOrder[playerIndex]
+	if details==nil then return "false" end
+	avatarLocation=avatarLocation or details.avatarLocation or ""
+	local avPos=mageKnightAvatarPosition(playerIndex) or {}
+	if avPos[1]==nil or avPos[3]==nil then return "false" end
+	if (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and
+		gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel)~=nil then
+		local volkarePos=getObjectFromGUID(gStates.volkareModel).getPosition()
+		if math.sqrt(((volkarePos[1]-avPos[1])^2)+((volkarePos[3]-avPos[3])^2))<1 then return volkare.model end
+	end
+	if avatarLocation:sub(1,4)=="city" or avatarLocation=="Volkare's Camp" or avatarLocation=="necropolis" or avatarLocation=="hidden valley" then
+		refreshCityDefeatState()
+		for zone,citySearch in pairs(cityScriptZones) do
+			local scriptZone=getObjectFromGUID(zone)
+			if scriptZone~=nil then
+				for _,detail in pairs(scriptZone.getObjects()) do
+					for _,avatar in pairs(mageKnights) do
+						if detail.guid==avatar.model or detail.guid==avatar.standee or detail.guid==avatar.token then
+							if zone==volkare.discZone and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
+								return volkare.model
+							end
+							return citySearch.cityGUID
+						end
+					end
+				end
+			end
+		end
+	end
+	local map=getObjectFromGUID(mapArea)
+	if map~=nil then
+		for _,shieldCheck in pairs(map.getObjects()) do
+			if ((shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and shieldCheck.getDescription()==details.mage) or
+				shieldCheck.getName()=="Hidden Valley" or shieldCheck.getName()=="Necropolis" or shieldCheck.getName()=="Volkare's Camp" or shieldCheck.getName()=="Volkare" or
+				shieldCheck.getGMNotes()=="White City" or shieldCheck.getGMNotes()=="Red City" or shieldCheck.getGMNotes()=="Green City" or shieldCheck.getGMNotes()=="Blue City") then
+				local shieldPos=shieldCheck.getPosition()
+				if math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then return shieldCheck.guid end
+			end
+		end
+	end
+	return "false"
+end
+
+--Mandatory retreat is a soft Rewards Claimed lock. Keep this detection shared with the checklist so
+--the warning and reminder cannot disagree about whether the player still needs to leave an unsafe site.
+function rewardRetreatRequired(playerIndex,avatarLocation,nearbyOwnShield)
+	local details=turnOrder[playerIndex]
+	if details==nil or gStates.turnForfeited==true then return false end
+	avatarLocation=avatarLocation or details.avatarLocation or ""
+	nearbyOwnShield=nearbyOwnShield or rewardNearbyOwnShield(playerIndex,avatarLocation)
+	local coopLeaderCombat=gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader"
+	local leaderDefeatedPendingCleanup=false
+	local factionLeaderDefeated=false
+	if avatarLocation=="necropolis" or avatarLocation=="hidden valley" then
+		local currentLeader=avatarLocation=="necropolis" and darkCrusader or elementalist
+		local leaderLevel=avatarLocation=="necropolis" and gStates.darkCrusaderLevel or gStates.elementalistLevel
+		factionLeaderDefeated=(leaderLevel or 1)<=0 or
+			(gStates.cityMonsterQty[currentLeader.terrainHex]~=nil and gStates.cityMonsterQty[currentLeader.terrainHex][currentLeader.token]=="dead") or
+			(gStates.defeatedFactionTest~=nil and gStates.defeatedFactionTest[currentLeader.terrainHex]=="Beat")
+		local leaderObj=getObjectFromGUID(currentLeader.token)
+		if factionLeaderDefeated==false and leaderObj~=nil and leaderObj.is_face_down==false and leaderLevel~=nil and ((gStates.leaderReduction or 0)+(gStates.leaderOverkill or 0))>=leaderLevel then
+			local playArea=getObjectFromGUID(playerPlayAreas[details.seatPos])
+			if playArea~=nil then
+				for _,obj in pairs(playArea.getObjects()) do if obj.guid==currentLeader.token then leaderDefeatedPendingCleanup=true break end end
+			end
+		end
+	end
+	local dragonRetreatRequired=false
+	if gStates.apocalypseDragonDefeated~=true and apocalypseDragonLairContainsPosition~=nil then
+		local dragonAvatarPos=mageKnightAvatarPosition(playerIndex)
+		dragonRetreatRequired=dragonAvatarPos~=nil and apocalypseDragonLairContainsPosition(dragonAvatarPos)==true
+	end
+	return dragonRetreatRequired==true or
+		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false") or
+		((avatarLocation:sub(1,4)=="city" or avatarLocation=="Volkare's Camp") and gStates.friendlyCity[nearbyOwnShield]~=true and
+			((gStates.gameScenario~="The Lost Relic Blitz" and gStates.defeatedCities[nearbyOwnShield]~=true) or (gStates.gameScenario=="The Lost Relic Blitz" and nearbyOwnShield=="false"))) or
+		((avatarLocation=="necropolis" or avatarLocation=="hidden valley") and coopLeaderCombat==false and leaderDefeatedPendingCleanup==false and factionLeaderDefeated==false) or
+		(nearbyOwnShield==volkare.model)
 end
 
 function cameraControlPresetView(id)
@@ -23793,6 +23854,19 @@ function unitOfferPosition(slot,count,y)
 	return {unitOfferLayoutX(slot,count),y or unitOfferLayoutConfig.y,unitOfferLayoutConfig.z}
 end
 
+function volkareUnitCrystalRefreshPositions(count)
+	if gStates==nil or gStates.volkareUnitCrystals==nil then return end
+	local displayCount=math.max(unitOfferLayoutConfig.nativeSlots,tonumber(count) or tonumber(gStates.unitOfferDisplayCount) or tonumber(gStates.totalUnitCount) or unitOfferLayoutConfig.nativeSlots)
+	for _,details in pairs(gStates.volkareUnitCrystals) do
+		if type(details)=="table" and details.slot~=nil and details.crystalGUID~=nil then
+			local crystal=getObjectFromGUID(details.crystalGUID)
+			if crystal~=nil then
+				crystal.setPositionSmooth({unitOfferLayoutX(details.slot,displayCount),1.29,-1.15})
+			end
+		end
+	end
+end
+
 --Advanced Action and Spell rows share one resizable scripting zone. Derive slot order from the
 --cards themselves so expanding/shrinking the offer never needs matching per-slot zones.
 function mainOfferCards(cardType)
@@ -23881,6 +23955,8 @@ end
 
 function refreshUnitOfferSnapPoints(count)
 	local displayCount=math.max(unitOfferLayoutConfig.nativeSlots,count or unitOfferLayoutConfig.nativeSlots)
+	gStates.unitOfferDisplayCount=displayCount
+	volkareUnitCrystalRefreshPositions(displayCount)
 	local owner,snaps,isGlobal=unitOfferSnapTarget()
 	if owner==nil then return false end
 	local kept={}
@@ -23917,6 +23993,33 @@ function unitOfferCards()
 	end
 	table.sort(cards,function(a,b) return a.getPosition()[1]>b.getPosition()[1] end)
 	return cards
+end
+
+--Resolve a physical Unit-offer slot without collapsing gaps left by claimed or removed cards.
+--This also follows the compressed spacing used when more than eight Units are displayed.
+function unitOfferCardAtSlot(slot,count)
+	slot=tonumber(slot)
+	if slot==nil then return nil end
+	local displayCount=math.max(unitOfferLayoutConfig.nativeSlots,tonumber(count) or tonumber(gStates.unitOfferDisplayCount) or tonumber(gStates.totalUnitCount) or unitOfferLayoutConfig.nativeSlots)
+	if slot<1 or slot>displayCount then return nil end
+	local spacing=(unitOfferLayoutConfig.firstX-unitOfferLayoutConfig.lastX)/(displayCount-1)
+	local targetX=unitOfferLayoutX(slot,displayCount)
+	local tolerance=math.max(0.45,spacing*0.45)
+	local best=nil
+	local bestDistance=nil
+	for _,card in ipairs(unitOfferCards()) do
+		local pos=card.getPosition()
+		local x=pos.x or pos[1]
+		local z=pos.z or pos[3]
+		if x~=nil and z~=nil and math.abs(z-unitOfferLayoutConfig.z)<=0.8 then
+			local distance=math.abs(x-targetX)
+			if distance<=tolerance and (bestDistance==nil or distance<bestDistance) then
+				best=card
+				bestDistance=distance
+			end
+		end
+	end
+	return best
 end
 
 local function moveUnitOfferCard(obj,slot,count)
@@ -28436,31 +28539,24 @@ function apocalypseQuestCombatStartedThisTurn(card,stepNumber)
 end
 
 --A combat-gated Complete or Progress can become available during end-turn cleanup, after the player
---has already pressed End Turn. Keep Rewards Claimed locked for a successfully resolved Quest fight
---until that Quest action is pressed, but only for 30 seconds. This is deliberately a fail-safe: if a
---Quest state or scripted reward gets stuck, the players can eventually continue the turn manually.
+--has already pressed End Turn. Keep the Quest action pending until it is resolved; the shared
+--Rewards Claimed soft-lock window decides how long that pending action may block turn progression.
 --Ordinary failed fights must never create this gate: undefeated enemies are face down. The Fog step 2
 --is the deliberate exception because its spectral monster cannot be attacked or defeated; completing
 --that combat itself is what unlocks Progress.
 function apocalypseQuestSetRewardCompletionGate(card,playerIndex,action)
 	if card==nil or turnOrder[playerIndex]==nil then return false end
 	if gStates.apocalypseQuestRewardCompletionPending==nil then gStates.apocalypseQuestRewardCompletionPending={} end
-	gStates.apocalypseQuestRewardCompletionPending[card.guid]={player=playerIndex,serial=gStates.apocalypseQuestTurnSerial or 0,action=action or "Complete",expiresAt=os.time()+30}
+	gStates.apocalypseQuestRewardCompletionPending[card.guid]={player=playerIndex,serial=gStates.apocalypseQuestTurnSerial or 0,action=action or "Complete"}
 	return true
 end
 
 function apocalypseQuestRewardCompletionPendingForPlayer(playerIndex)
 	if gStates.apocalypseQuestRewardCompletionPending==nil or turnOrder[playerIndex]==nil then return false,nil,nil end
 	local serial=gStates.apocalypseQuestTurnSerial or 0
-	local now=os.time()
 	for cardGUID, record in pairs(gStates.apocalypseQuestRewardCompletionPending) do
 		if record~=nil and record.player==playerIndex and record.serial==serial then
-			--Compatibility with saves made before the timeout existed: give an old pending gate one final
-			--30-second window from the first time it is checked after loading.
-			if record.expiresAt==nil then record.expiresAt=now+30 end
-			if now>=record.expiresAt then
-				gStates.apocalypseQuestRewardCompletionPending[cardGUID]=nil
-			elseif getObjectFromGUID(cardGUID)~=nil then
+			if getObjectFromGUID(cardGUID)~=nil then
 				return true,cardGUID,record.action or "Complete"
 			else
 				gStates.apocalypseQuestRewardCompletionPending[cardGUID]=nil
@@ -28527,8 +28623,9 @@ function apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 	if record==nil or playerIndex==nil or record.player==playerIndex then
 		gStates.apocalypseQuestRewardCompletionPending[card.guid]=nil
 	end
-	if gStates.preEndTurn==true and turnOrder[gStates.turnNumber]~=nil and steadyTempoUpdateRewardGate~=nil then
-		steadyTempoUpdateRewardGate(turnOrder[gStates.turnNumber].seatPos)
+	if gStates.preEndTurn==true then
+		if turnOrder[gStates.turnNumber]~=nil and steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[gStates.turnNumber].seatPos) end
+		if mainUIUpdate~=nil then mainUIUpdate("Quest reward gate cleared") end
 	end
 end
 
@@ -30063,8 +30160,8 @@ function apocalypseQuestFreeWineMarkAssaultStarted(playerIndex)
 	local card=getObjectFromGUID("37e2ce")
 	local state=card~=nil and apocalypseQuestProgressState(card,playerIndex,false) or nil
 	if card==nil or state==nil or state.step~=2 or turnOrder[playerIndex]==nil then return false end
-	--Once this branch has an outcome, keep it until Complete/Fail is actually pressed. The 30-second
-	--Rewards Claimed gate is only a fail-safe and must not erase which assault Quest 10 is resolving.
+	--Once this branch has an outcome, keep it until Complete/Fail is actually pressed. The shared
+	--Rewards Claimed soft-lock timeout must not erase which assault Quest 10 is resolving.
 	local existing=apocalypseQuestFreeWineAssaultRecord(playerIndex)
 	if existing~=nil then return true end
 	local hex=apocalypseQuestCurrentPlayerHex(playerIndex)
@@ -30134,8 +30231,8 @@ function apocalypseQuestCaptureFreeWineResolutionGate(playerIndex)
 	if card==nil or state==nil or state.step~=2 or record==nil then return false end
 	local action=apocalypseQuestFreeWineCombatOutcome(playerIndex)
 	if action==nil then return false end
-	--Start the normal 30-second fail-safe when the combat outcome is known, not when 1A first sends the
-	--Hero toward the Keep. A real Keep assault normally takes far longer than 30 seconds to play.
+	--Create the normal pending reward resolution when the combat outcome is known, not when 1A first
+	--sends the Hero toward the Keep. The 12-second soft-lock window starts later at Rewards Claimed.
 	apocalypseQuestSetRewardCompletionGate(card,playerIndex,action)
 	apocalypseQuestUpdateProgressButtons(card)
 	return true
@@ -30150,9 +30247,9 @@ function apocalypseQuestFreeWineStartAssault(card,playerIndex)
 	local shield=apocalypseQuestTakePlayerShield(playerIndex,surface)
 	apocalypseQuestRegisterMoveAttachment(card,shield,target)
 	if shield~=nil then shield.unlock() end
-	--1A commits the player to resolving this Keep assault. Do not start the 30-second Rewards Claimed
-	--fail-safe yet: the combat itself can easily take longer than that. The outcome gate is created at
-	--the rewards boundary after success/failure can actually be determined.
+	--1A commits the player to resolving this Keep assault. Do not create the Rewards Claimed resolution
+	--gate yet: the combat itself can take as long as needed. The outcome gate is created at the rewards
+	--boundary after success/failure can actually be determined.
 	gStates.apocalypseQuestFreeWineAssault=nil
 	local targets=apocalypseQuestFreeWineKeepTargets(playerIndex)
 	if #targets==1 then
@@ -34121,19 +34218,20 @@ function volkareSetup()
 		PlayerBag.destruct()
 	end
 
-	--Add Volkare unit crystals based on Player count and Race Level
+	--Add Volkare unit crystals based on Player count and Race Level.
+	--Each die face owns a physical Unit-offer slot; the broad offer zone replaces the old slot zones.
+	gStates.volkareUnitCrystals={}
 	if gStates.gameScenario~="The War of Four" then
 		local VolkareUnits=gStates.playerCount+(gStates.volkareRaceLevel-1)
 		local PlayerBag=getObjectFromGUID(GUID.bag.volkare).clone()
 		local obj=PlayerBag.takeObject({position={37, 1.29, -1.14}, guid="1212f3"})--Crystal Container
-		local unitZone={"c75fb0", "f25213", "e393d7", "1821db", "5c85c9", "ff65ef"}
 		obj.shuffle()
 		for i=1, VolkareUnits, 1 do
 			local obj2=obj.takeObject()
 			obj2.lock()
 			obj2.setPosition({36.0-(4.8*(i-1)), 1.29, -1.15})
 			obj2.setRotation({0, 30, 0})
-			gStates.volkareUnitCrystals[obj2.getName()]=unitZone[i]
+			gStates.volkareUnitCrystals[obj2.getName()]={slot=i,crystalGUID=obj2.guid}
 		end
 		PlayerBag.destruct()
 		obj.destruct()
@@ -37272,10 +37370,9 @@ end
 
 function steadyTempoUpdateRewardGate(seatPos)
 	if seatPos==nil or gStates.preEndTurn~=true or turnOrder[gStates.turnNumber]==nil or turnOrder[gStates.turnNumber].seatPos~=seatPos then return end
-	--Quest resolution uses a soft gate: Rewards Claimed remains clickable, and __endTurn_raw refreshes
-	--the Quest controls plus explains what must be resolved. Only genuinely asynchronous cleanup/Steady
-	--Tempo physically disables this button. Free Wine now follows the same Quest behavior.
-	local blocked=rewardClaimDelayActive==true or steadyTempoPendingForSeat(seatPos)
+	--Only asynchronous cleanup physically disables Rewards Claimed. Steady Tempo is a normal
+	--Rewards Claimed soft lock: the button stays clickable, explains the problem, and times out.
+	local blocked=rewardClaimDelayActive==true
 	UI.setAttribute("PreEndTurn", "interactable", blocked and "false" or "true")
 	UI.setAttribute("PreEndTurnImage", "image", blocked and "Sliced Button/Button New Deactive" or "Sliced Button/Button New Active")
 end
@@ -37330,6 +37427,7 @@ function steadyTempoPrepare(card, playerIndex)
 	gStates.steadyTempoPending[card.guid]=seatPos
 	steadyTempoAddButtons(card, playerIndex)
 	steadyTempoUpdateRewardGate(seatPos)
+	if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Steady Tempo pending") end
 end
 
 function steadyTempoClearPending(cardGUID)
@@ -37338,6 +37436,7 @@ function steadyTempoClearPending(cardGUID)
 	local card=getObjectFromGUID(cardGUID)
 	if card~=nil then steadyTempoRemoveButtons(card) end
 	if seatPos~=nil then steadyTempoUpdateRewardGate(seatPos) end
+	if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Steady Tempo resolved") end
 end
 
 function steadyTempoRefreshCard(cardGUID)
@@ -39114,6 +39213,25 @@ function positionToColor(turnNumber)
 	return color
 end
 
+--Rewards Claimed soft locks are player reminders, not hard disables. They share one short window
+--from the moment the Rewards Claimed stage begins, then allow the player to continue manually.
+REWARD_CLAIM_SOFT_LOCK_SECONDS=12
+
+function rewardClaimSoftLockStart()
+	if gStates==nil then return end
+	gStates.rewardClaimSoftLockStartedAt=os.time()
+end
+
+function rewardClaimSoftLockActive()
+	if gStates==nil or gStates.preEndTurn~=true then return false end
+	local started=tonumber(gStates.rewardClaimSoftLockStartedAt)
+	return started~=nil and os.time()<started+REWARD_CLAIM_SOFT_LOCK_SECONDS
+end
+
+function rewardClaimSoftLockClear()
+	if gStates~=nil then gStates.rewardClaimSoftLockStartedAt=nil end
+end
+
 -- Rewind transaction helpers
 --Short scripted transactions can span several delayed/physics callbacks. Store one known-good rewind point
 --before the first mutation, then suppress TTS automatic rewind snapshots until every nested transaction is stable.
@@ -39315,7 +39433,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="419"
+local automaticLuaErrorReporterVersion="420"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
