@@ -1106,6 +1106,19 @@ function unitOfferPosition(slot,count,y)
 	return {unitOfferLayoutX(slot,count),y or unitOfferLayoutConfig.y,unitOfferLayoutConfig.z}
 end
 
+function volkareUnitCrystalRefreshPositions(count)
+	if gStates==nil or gStates.volkareUnitCrystals==nil then return end
+	local displayCount=math.max(unitOfferLayoutConfig.nativeSlots,tonumber(count) or tonumber(gStates.unitOfferDisplayCount) or tonumber(gStates.totalUnitCount) or unitOfferLayoutConfig.nativeSlots)
+	for _,details in pairs(gStates.volkareUnitCrystals) do
+		if type(details)=="table" and details.slot~=nil and details.crystalGUID~=nil then
+			local crystal=getObjectFromGUID(details.crystalGUID)
+			if crystal~=nil then
+				crystal.setPositionSmooth({unitOfferLayoutX(details.slot,displayCount),1.29,-1.15})
+			end
+		end
+	end
+end
+
 --Advanced Action and Spell rows share one resizable scripting zone. Derive slot order from the
 --cards themselves so expanding/shrinking the offer never needs matching per-slot zones.
 function mainOfferCards(cardType)
@@ -1194,6 +1207,8 @@ end
 
 function refreshUnitOfferSnapPoints(count)
 	local displayCount=math.max(unitOfferLayoutConfig.nativeSlots,count or unitOfferLayoutConfig.nativeSlots)
+	gStates.unitOfferDisplayCount=displayCount
+	volkareUnitCrystalRefreshPositions(displayCount)
 	local owner,snaps,isGlobal=unitOfferSnapTarget()
 	if owner==nil then return false end
 	local kept={}
@@ -1230,6 +1245,33 @@ function unitOfferCards()
 	end
 	table.sort(cards,function(a,b) return a.getPosition()[1]>b.getPosition()[1] end)
 	return cards
+end
+
+--Resolve a physical Unit-offer slot without collapsing gaps left by claimed or removed cards.
+--This also follows the compressed spacing used when more than eight Units are displayed.
+function unitOfferCardAtSlot(slot,count)
+	slot=tonumber(slot)
+	if slot==nil then return nil end
+	local displayCount=math.max(unitOfferLayoutConfig.nativeSlots,tonumber(count) or tonumber(gStates.unitOfferDisplayCount) or tonumber(gStates.totalUnitCount) or unitOfferLayoutConfig.nativeSlots)
+	if slot<1 or slot>displayCount then return nil end
+	local spacing=(unitOfferLayoutConfig.firstX-unitOfferLayoutConfig.lastX)/(displayCount-1)
+	local targetX=unitOfferLayoutX(slot,displayCount)
+	local tolerance=math.max(0.45,spacing*0.45)
+	local best=nil
+	local bestDistance=nil
+	for _,card in ipairs(unitOfferCards()) do
+		local pos=card.getPosition()
+		local x=pos.x or pos[1]
+		local z=pos.z or pos[3]
+		if x~=nil and z~=nil and math.abs(z-unitOfferLayoutConfig.z)<=0.8 then
+			local distance=math.abs(x-targetX)
+			if distance<=tolerance and (bestDistance==nil or distance<bestDistance) then
+				best=card
+				bestDistance=distance
+			end
+		end
+	end
+	return best
 end
 
 local function moveUnitOfferCard(obj,slot,count)
