@@ -2452,6 +2452,13 @@ function furyDragonSetupLair(tile)
 	local markerPos={xy[1],1.18,xy[2]}
 	gStates.apocalypseDragonLairRevealed=true
 	gStates.apocalypseDragonLair={tileGUID=tile.guid,hexes={{bearing=bearing,position=hexPos}},position=markerPos,rotation={0,180,0},fury=true,cityHexKey=tile.guid.."|"..bearing}
+	--Fury alternates Landed/In Flight for the entire game. The selected flight target is the state
+	--that makes the Dragon "in flight"; do not reset it at the start of later Rounds.
+	gStates.furyDragonCurrentHexKey=tile.guid.."|"..bearing
+	gStates.furyDragonFlightTarget=nil
+	gStates.furyDragonManaDieGUID=nil
+	gStates.furyDragonAwaitingCombat=nil
+	gStates.furyDragonRoundPrepared=nil
 	--Core tile 1's Tomb is the Dragon Lair in Fury and no longer counts as a Tomb.
 	terrainTiles[tile.guid].hexFeature[bearing]=""
 	gStates.hexOverideSave=gStates.hexOverideSave or {}
