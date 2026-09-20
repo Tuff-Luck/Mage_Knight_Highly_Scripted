@@ -1058,6 +1058,51 @@ local function mapTokenOnHex(obj,hex)
 	return (dx*dx)+(dz*dz)<1.5
 end
 
+--A spread can move several loose tokens at once. Claim every participant before changing any X/Z so
+--their own map-zone physics events cannot queue a competing arrangement. Incrementing each generation
+--also invalidates retries that may already have been queued before this spread began.
+local function mapTokenClaimHexParticipants(guid,primaryGeneration)
+	local obj=guid~=nil and getObjectFromGUID(guid) or nil
+	if obj==nil then return {} end
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
+	if hex==nil then return {} end
+	local participants={}
+	local seen={}
+	for _,candidate in pairs(mapObjects or {}) do
+		if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true then
+			participants[#participants+1]=candidate
+			seen[candidate.guid]=true
+		end
+	end
+	if seen[obj.guid]~=true and mapTokenNeedsArrangement(obj)==true then participants[#participants+1]=obj end
+
+	local claims={}
+	for _,candidate in ipairs(participants) do
+		local candidateGUID=candidate.guid
+		local generation=nil
+		if candidateGUID==guid and primaryGeneration~=nil and mapTokenManualDropPending[candidateGUID]==primaryGeneration then
+			generation=primaryGeneration
+		else
+			generation=(mapTokenArrangeGeneration[candidateGUID] or 0)+1
+			mapTokenArrangeGeneration[candidateGUID]=generation
+			mapTokenManualDropPending[candidateGUID]=generation
+		end
+		claims[#claims+1]={guid=candidateGUID,generation=generation}
+	end
+	return claims
+end
+
+local function mapTokenReleaseParticipantClaims(claims)
+	for _,claim in ipairs(claims or {}) do
+		mapTokenAfterSettled(claim.guid,function()
+			if mapTokenManualDropPending[claim.guid]==claim.generation then
+				mapTokenManualDropPending[claim.guid]=nil
+			end
+		end)
+	end
+end
+
 --Any token that was locked before the arranger touched it is locked again only after one physics
 --frame has elapsed and the moved piece reports resting. This avoids locking a token in mid-air just
 --because a smooth move has ended with resting still carrying its previous value for that frame.
@@ -1253,13 +1298,12 @@ function mapTokenArrangeDroppedObject(guid)
 			mapTokenManualDropPending[guid]=nil
 			return
 		end
+		--Claim the entire physical stack before moving any member. Otherwise moving the lower loose
+		--token can fire its own map-zone event and a later retry re-sorts the now-separated pieces.
+		local claims=mapTokenClaimHexParticipants(guid,generation)
 		--This is the only arrangement pass for this manual drop.
 		mapTokenArrangeObject(guid,true)
-		--The X/Z setPosition can wake a loose stack for another instant. Keep zone-triggered retries
-		--suppressed until that lateral move has finished settling too, but do not arrange a second time.
-		mapTokenAfterSettled(guid,function()
-			if mapTokenManualDropPending[guid]==generation then mapTokenManualDropPending[guid]=nil end
-		end)
+		mapTokenReleaseParticipantClaims(claims)
 	end)
 end
 
@@ -1282,12 +1326,11 @@ function mapTokenFinishSingleArrival(guid,generation)
 		mapTokenManualDropPending[guid]=nil
 		return false
 	end
-	--The scripted move has already settled. Read final physical Y once, spread only X/Z once,
-	--then keep zone retries suppressed until that sideways adjustment settles.
+	--The scripted move has already settled. Claim every token sharing the hex before moving any of
+	--them, then read final physical Y once and spread only X/Z once.
+	local claims=mapTokenClaimHexParticipants(guid,generation)
 	mapTokenArrangeObject(guid,true)
-	mapTokenAfterSettled(guid,function()
-		if mapTokenManualDropPending[guid]==generation then mapTokenManualDropPending[guid]=nil end
-	end)
+	mapTokenReleaseParticipantClaims(claims)
 	return true
 end
 
@@ -1297,7 +1340,7 @@ function mapTokenScheduleObject(guid)
 	mapTokenArrangeGeneration[guid]=generation
 	for _,delay in ipairs({2,8,20,45}) do
 		safeWaitFrames("Scenario",function()
-			if mapTokenArrangeGeneration[guid]~=generation then return end
+			if mapTokenArrangeGeneration[guid]~=generation or mapTokenManualDropPending[guid]~=nil then return end
 			mapTokenArrangeObject(guid)
 		end,delay)
 	end
