@@ -1128,11 +1128,10 @@ local function mapTokenMoveLaterally(obj,targetX,targetZ)
 	if obj.isSmoothMoving()==true then return false end
 	local already=math.abs(pos[1]-targetX)<0.035 and math.abs(pos[3]-targetZ)<0.035
 	if already==true then return false end
-	local wasLocked=obj.getLock()==true
-	obj.unlock()
+	--Scripted setPosition can move a locked token directly. Do not unlock/relock here: toggling the
+	--physics lock was causing visible little hops when an otherwise settled stack was re-spread.
 	obj.setPosition({targetX,pos[2],targetZ})
 	mapTokenUpdatePlayLocation(obj,{targetX,pos[2],targetZ})
-	if wasLocked==true then obj.lock() end
 	return true
 end
 
@@ -1140,7 +1139,7 @@ end
 --shares its hex it participates in one centred WORLD-space diagonal spread. Adjacent tokens are 0.2
 --world units apart along that line. Token rotation/face state never affects direction.
 --lateralOnly is used when a piece leaves the hex so the survivors never visibly hop in Y.
---arrivalGUID, when supplied for a manual drop, is assigned after the tokens already on that hex.
+--Ordering along the line comes only from each token's current physical Y height.
 function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,arrivalGUID)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
@@ -1169,12 +1168,11 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 		end
 	end
 	table.sort(enemies,function(a,b)
-		--Never derive slot direction from Y/rotation: face-up and face-down tokens can have different
-		--centre heights. On a manual drop the newcomer is deliberately last, after existing pieces.
-		if arrivalGUID~=nil then
-			if a.guid==arrivalGUID and b.guid~=arrivalGUID then return false end
-			if b.guid==arrivalGUID and a.guid~=arrivalGUID then return true end
-		end
+		--The physical stack defines the order along the world-space diagonal: lowest Y goes to the
+		--bottom-left end, then progressively higher pieces move toward the upper-right end.
+		local ay=a.getPosition()[2]
+		local by=b.getPosition()[2]
+		if math.abs(ay-by)>0.01 then return ay<by end
 		return tostring(a.guid)<tostring(b.guid)
 	end)
 
@@ -1223,7 +1221,7 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 	end
 
 	--Lay every participant on one straight WORLD-space diagonal, evenly spaced and centred.
-	--Destroyed (when present) is participant 1; existing enemies follow; a manual arrival is sorted last.
+	--Destroyed (when present) is participant 1; enemies then follow their physical low-to-high Y order.
 	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
 	local firstEnemyIndex=destroyed~=nil and 2 or 1
 	for index,obj in ipairs(enemies) do
@@ -1252,10 +1250,12 @@ end
 --retries and, once the drop event has registered, read the whole hex once and change X/Z only.
 function mapTokenArrangeDroppedObject(guid)
 	if guid==nil then return end
+	--Cancel any scripted-arrival retries, then let normal TTS drop physics finish before doing one
+	--horizontal-only layout. Sorting after settling also gives a stable physical Y order.
 	mapTokenArrangeGeneration[guid]=(mapTokenArrangeGeneration[guid] or 0)+1
-	safeWaitFrames("Scenario",function()
-		mapTokenArrangeObject(guid,true,guid)
-	end,1)
+	mapTokenAfterSettled(guid,function(obj)
+		if obj~=nil then mapTokenArrangeObject(guid,true) end
+	end)
 end
 
 function mapTokenScheduleObject(guid)
