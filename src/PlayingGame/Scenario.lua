@@ -2494,7 +2494,7 @@ function apocalypseIsHereShowTargetChoice(name,options)
 	for _,group in pairs(grouped) do group.terrain.UI.setXmlTable(group.xml) end
 	gStates.apocalypseHereHorsemenUIState="WaitingChoice"
 	local choiceText=name.." has tied preferred targets. "..againstDragonChoicePlayerLabel(pending.playerIndex).." must choose which site it moves toward."
-	gStates.apocalypseHereHorsemenTurnReport=pending.previousReport..(pending.previousReport~="" and "\n" or "")..choiceText
+	gStates.apocalypseHereHorsemenTurnReport=pending.previousReport..(pending.previousReport~="" and "<size=6>\n\n</size>" or "")..choiceText
 	mainUIUpdate("Horseman target choice")
 	return true
 end
@@ -2555,7 +2555,7 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 	else
 		report=name.." destroyed "..destroyedName..", while raising the Dragon's head level ("..tostring(newHead)..")."
 	end
-	gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..report
+	gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..report
 	return true
 end
 
@@ -2575,7 +2575,7 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 			if reached then apocalypseIsHereHorsemanDestroyTarget(name,target)
 			else
 				local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
-				gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
+				gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
 			end
 			apocalypseIsHereContinueHorsemenTurn()
 		end)
@@ -2598,7 +2598,7 @@ function apocalypseIsHereProcessNextHorseman()
 	local options=apocalypseIsHereHorsemanTargetOptions(name)
 	if #options<1 then
 		local line=name.." found no preferred undestroyed target and did not move."
-		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
+		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
 		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
 	elseif #options>1 then apocalypseIsHereShowTargetChoice(name,options)
 	else apocalypseIsHereResolveHorsemanTarget(name,options[1]) end
@@ -2629,7 +2629,7 @@ function apocalypseIsHereBeginHorsemenTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	gStates.apocalypseHereHorsemenResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn,sameTurn=sameTurn}
 	gStates.apocalypseHereHorsemenQueue=queue
 	gStates.apocalypseHereHorsemenQueueIndex=1
-	gStates.apocalypseHereHorsemenTurnReport="The Horsemen act in the order they were revealed."
+	gStates.apocalypseHereHorsemenTurnReport=""
 	gStates.apocalypseHereHorsemenUIState="ReadyToProcess"
 	mainUIUpdate("Horsemen Turn")
 	return true
