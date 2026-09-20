@@ -674,7 +674,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		--reset variables for next turn
 		gStates.preEndTurn=true
 		--Before combat cleanup moves/discards Quest enemies, remember successful combat-gated Quest
-		--resolutions. This keeps Rewards Claimed unavailable until the player presses Progress/Complete.
+		--resolutions. This gives Rewards Claimed its soft warning gate while that Quest action is pending.
 		apocalypseQuestCaptureRewardCompletionGate(cleanupPlayer)
 		--Free Wine uses a normal Keep assault rather than a Quest-spawned combat, so capture its outcome
 		--separately now that the rewards boundary has been reached.
@@ -742,7 +742,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			end
 		end
 		mainUIUpdate("Pre End Turn")
-		--Mine rewards are chosen alongside the normal Rewards Claimed stage. The turn cannot advance until resolved.
+		--Mine rewards are chosen alongside the normal Rewards Claimed stage and use its shared soft-lock window.
 		local mineTurnEligible=turnOrder[cleanupPlayer].mage~=gStates.positionMageKnight[5] and turnOrder[cleanupPlayer].endCalled~=true
 		if mineTurnEligible and gStates.coopAssaultPhase~="combat" then beginMineCrystalClaim(cleanupPlayer, player.color) end
 
