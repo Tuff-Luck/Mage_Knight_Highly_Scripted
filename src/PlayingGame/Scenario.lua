@@ -4283,7 +4283,8 @@ function againstDragonMainUIPanelSpec()
 	local active=false
 	if state=="ReadyToProcess" then label="{en}Process Dragon{ru}Ход Дракона{zh-tw}執行巨龍行動{zh-cn}执行巨龙行动{ko}드래곤 진행{es}Procesar Dragón{fr}Traiter le Dragon{pt-br}Processar Dragão{de}Drache aktivieren" active=true
 	elseif state=="ReadyToEnd" then label="{en}Dragon Processed{ru}Дракон обработан{zh-tw}巨龍行動結束{zh-cn}巨龙行动结束{ko}드래곤 처리 완료{es}Dragón Procesado{fr}Dragon traité{pt-br}Dragão Processado{de}Drache verarbeitet" active=true
-	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Выберите цель{zh-tw}選擇目標{zh-cn}选择目标{ko}대상 선택{es}Elige Objetivo{fr}Choisir la Cible{pt-br}Escolha o Alvo{de}Ziel wählen" end
+	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Выберите цель{zh-tw}選擇目標{zh-cn}选择目标{ko}대상 선택{es}Elige Objetivo{fr}Choisir la Cible{pt-br}Escolha o Alvo{de}Ziel wählen"
+	elseif state=="WaitingCombat" then label="{en}Combat Resolved{ru}Combat Resolved{zh-tw}Combat Resolved{zh-cn}Combat Resolved{ko}Combat Resolved{es}Combat Resolved{fr}Combat Resolved{pt-br}Combat Resolved{de}Combat Resolved" active=true end
 	return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or ("The Apocalypse Dragon is preparing its "..ordinal.." turn."),onClick="againstDragonProcessUI",label=label,interactable=active}
 end
 
@@ -4298,6 +4299,10 @@ function againstDragonProcessUI(player,mouseButton,id)
 	local state=gStates.apocalypseDragonUIState
 	if state=="ReadyToEnd" then
 		againstDragonFinishTurn()
+		return
+	end
+	if furyDragonActive~=nil and furyDragonActive()==true then
+		furyDragonProcessTurn()
 		return
 	end
 	if state~="ReadyToProcess" then return end
@@ -4956,6 +4961,497 @@ function againstDragonFinishTurn(force)
 		mainUIUpdate("Dragon Turn Complete")
 	end
 	return true
+end
+
+
+--Fury of the Apocalypse Dragon turn system --------------------------------------
+--Fury uses the same interstitial turn shell as Against the Dragon, but its physical state alternates
+--between Landed and In Flight. A stored flight target means the Dragon is in flight; nil means landed.
+--This is intentionally new-game state only: Fury setup initializes the current Lair hex and no
+--old-save recovery is attempted.
+function furyDragonActive()
+	return gStates~=nil and gStates.gameScenario=="Fury of the Apocalypse Dragon"
+end
+
+function furyDragonPositionRoundOrderToken()
+	if furyDragonActive()~=true then return false end
+	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
+	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+	local target={-1.90,0.97,-18.00-(1.4*((#turnOrder or 0)+1))}
+	if token==nil and bag~=nil then token=bag.takeObject({guid=apocalypseDragon.roundOrder,position=target,rotation={0,180,0},smooth=false}) end
+	if token==nil then return false end
+	token.unlock()
+	token.setRotation({0,180,0})
+	token.setPositionSmooth(target,false)
+	safeWaitCondition("Scenario",function()
+		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
+		if current~=nil then current.lock() end
+	end,function()
+		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
+		return current==nil or current.isSmoothMoving()==false
+	end)
+	return true
+end
+
+function furyDragonRoundStart()
+	if furyDragonActive()~=true then return false end
+	if gStates.furyDragonRoundPrepared==gStates.currentRound then
+		furyDragonPositionRoundOrderToken()
+		return false
+	end
+	gStates.furyDragonRoundPrepared=gStates.currentRound
+	gStates.apocalypseDragonTurn=0
+	gStates.apocalypseDragonTurnActive=false
+	gStates.apocalypseDragonResumeTurn=nil
+	gStates.apocalypseDragonPendingChoice=nil
+	gStates.apocalypseDragonPendingAttack=nil
+	gStates.apocalypseDragonFullAttendPlayer=nil
+	gStates.apocalypseDragonUIState=nil
+	gStates.apocalypseDragonTurnAction=nil
+	gStates.apocalypseDragonTurnReport=nil
+	gStates.apocalypseDragonTurnReportPrefix=nil
+	UI.setAttribute("DummyTurn","active","false")
+	automatedAttackResponseUI(nil)
+	againstDragonChoiceClearButtons()
+	againstDragonAttackControlUI(false)
+	furyDragonPositionRoundOrderToken()
+	return true
+end
+
+function furyDragonBeginTurn(nextTurnNumber,newOutOfTurn,sameTurn)
+	if furyDragonActive()~=true or gStates.tacticShown==true or gStates.tacticRemove==true then return false end
+	if gStates.endRoundCalled==true or gStates.gameOver==true or gStates.apocalypseDragonDefeated==true then return false end
+	if gStates.apocalypseDragonTurnActive==true then return true end
+	gStates.apocalypseDragonTurnActive=true
+	gStates.apocalypseDragonResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn==true,sameTurn=sameTurn==true}
+	gStates.apocalypseDragonTurn=(gStates.apocalypseDragonTurn or 0)+1
+	local dragonTurn=gStates.apocalypseDragonTurn
+	local ordinal=againstDragonTurnOrdinal(dragonTurn)
+	local state=gStates.furyDragonFlightTarget~=nil and "in flight" or "landed"
+	gStates.apocalypseDragonTurnAction="fury"
+	gStates.apocalypseDragonUIState="ReadyToProcess"
+	gStates.apocalypseDragonTurnReportPrefix=nil
+	gStates.apocalypseDragonTurnReport="The Apocalypse Dragon is "..state.." for its "..ordinal.." turn.\nClick Process Dragon to continue."
+	againstDragonMainUIRefresh()
+	mainUIUpdate("Fury Dragon Turn Ready")
+	return true
+end
+
+function furyDragonCompleteTurn(text)
+	if furyDragonActive()~=true then return false end
+	gStates.apocalypseDragonUIState="ReadyToEnd"
+	gStates.apocalypseDragonTurnReport=text or "The Apocalypse Dragon finished its turn."
+	againstDragonMainUIRefresh()
+	mainUIUpdate("Dragon Processed")
+	return true
+end
+
+function furyDragonFeatureMatches(feature,wanted)
+	local name=string.lower(tostring(feature or ""))
+	if wanted=="city" then return name:sub(1,4)=="city" end
+	return name==wanted
+end
+
+function furyDragonHexHasLiveRampager(hex,mapObjects)
+	if hex==nil then return false end
+	for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
+		if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[enemy.guid]==true then return true end
+	end
+	return false
+end
+
+function furyDragonTargetCategory(hex,color,mapObjects)
+	local categoryOrder=apocalypseDragon.furyColorCategories[color] or {}
+	for categoryIndex,category in ipairs(categoryOrder) do
+		for featureIndex,wanted in ipairs(apocalypseDragon.furyTargetCategories[category] or {}) do
+			if furyDragonFeatureMatches(hex.feature,wanted)==true then
+				if category~="rampager" or furyDragonHexHasLiveRampager(hex,mapObjects)==true then
+					return category,(categoryIndex*100)+featureIndex,wanted
+				end
+			end
+		end
+	end
+	return nil,nil,nil
+end
+
+function furyDragonMapTilesAdjacent(a,b)
+	if a==nil or b==nil then return false end
+	if a.guid==b.guid then return true end
+	local ap=a.getPosition()
+	local bp=b.getPosition()
+	local d=((ap[1]-bp[1])^2)+((ap[3]-bp[3])^2)
+	return d>36 and d<45
+end
+
+function furyDragonCurrentHex(hexes)
+	if gStates.furyDragonCurrentHexKey==nil then return nil end
+	return againstDragonMapHexByKey(hexes,gStates.furyDragonCurrentHexKey)
+end
+
+function furyDragonLairTarget(hexes)
+	local lair=gStates.apocalypseDragonLair
+	if lair==nil then return nil end
+	local key=lair.cityHexKey
+	if key==nil and lair.tileGUID~=nil and lair.hexes~=nil and lair.hexes[1]~=nil then key=lair.tileGUID.."|"..tostring(lair.hexes[1].bearing) end
+	local hex=key~=nil and againstDragonMapHexByKey(hexes,key) or nil
+	if hex==nil then return nil end
+	return {key=key,terrainGUID=hex.terrainGUID,bearing=hex.bearing,feature="",category="lair",isLair=true}
+end
+
+function furyDragonLowestHead()
+	local chosen=nil
+	local chosenLevel=nil
+	for _,headName in ipairs(apocalypseDragon.furyLowestHeadOrder or {}) do
+		local level=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or 0) or 0
+		if chosenLevel==nil or level<chosenLevel then chosen=headName chosenLevel=level end
+	end
+	return chosen,chosenLevel
+end
+
+function furyDragonTargetHead(target)
+	if target==nil then return nil end
+	local fixed=apocalypseDragon.furyCategoryHead[target.category]
+	if fixed~=nil then return fixed end
+	if target.category=="mana" or target.category=="lair" then return furyDragonLowestHead() end
+	return nil
+end
+
+function furyDragonTargetWouldOverflow(target)
+	local head=furyDragonTargetHead(target)
+	if head==nil then return false end
+	local level=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[head] or 0) or 0
+	return level>=12
+end
+
+function furyDragonChooseTarget(color,hexes,mapObjects)
+	local current=furyDragonCurrentHex(hexes)
+	local lair=furyDragonLairTarget(hexes)
+	if current==nil then return lair end
+	local allowed={}
+	for _,hex in ipairs(hexes or {}) do
+		if hex.terrain~=nil and current.terrain~=nil and furyDragonMapTilesAdjacent(current.terrain,hex.terrain)==true then allowed[#allowed+1]=hex end
+	end
+	local distances=apocalypseQuestHexDistanceMap(allowed,{current})
+	local currentKey=apocalypseQuestMapHexKey(current)
+	local bestDistance=nil
+	local bestPriority=nil
+	local candidates={}
+	for _,hex in ipairs(allowed) do
+		local key=apocalypseQuestMapHexKey(hex)
+		if key~=currentKey then
+			local category,priority,wanted=furyDragonTargetCategory(hex,color,mapObjects)
+			local distance=distances[key]
+			if category~=nil and distance~=nil then
+				local option={key=key,terrainGUID=hex.terrainGUID,bearing=hex.bearing,feature=hex.feature,category=category,wanted=wanted,isLair=false}
+				if bestDistance==nil or distance<bestDistance or (distance==bestDistance and priority<bestPriority) then
+					bestDistance=distance
+					bestPriority=priority
+					candidates={option}
+				elseif distance==bestDistance and priority==bestPriority then
+					candidates[#candidates+1]=option
+				end
+			end
+		end
+	end
+	if #candidates<1 then return lair end
+	local target=candidates[math.random(1,#candidates)]
+	if furyDragonTargetWouldOverflow(target)==true then return lair end
+	return target
+end
+
+function furyDragonCityModelGUID(feature)
+	local color=string.lower(tostring(feature or "")):match("^city%s+(%a+)")
+	return color~=nil and cityModel[color] or nil
+end
+
+function furyDragonCityCard(feature)
+	local cityGUID=furyDragonCityModelGUID(feature)
+	local cardGUID=cityGUID~=nil and gStates.cityCard~=nil and gStates.cityCard[cityGUID] or nil
+	return cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
+end
+
+function furyDragonTargetPosition(target,hexes,forDragon)
+	if target==nil then return nil end
+	if furyDragonCityModelGUID(target.feature)~=nil then
+		local card=furyDragonCityCard(target.feature)
+		if card~=nil then
+			local p=card.getPosition()
+			return {p[1],p[2]+(forDragon==true and 1.30 or 0.85),p[3]}
+		end
+	end
+	local hex=againstDragonMapHexByKey(hexes,target.key)
+	if hex==nil then return nil end
+	return {hex.position[1],forDragon==true and 1.45 or 1.65,hex.position[3]}
+end
+
+function furyDragonManaColor(die)
+	if die==nil then return nil end
+	local value=string.lower(tostring(die.getRotationValue() or ""))
+	return value:match("^(%a+)")
+end
+
+function furyDragonTargetLabel(target)
+	if target==nil then return "the Lair" end
+	if target.isLair==true then return "the Lair" end
+	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(target.feature) or tostring(target.feature or "space")
+	return tostring(label)
+end
+
+function furyDragonMoveMarkerOffMap()
+	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
+	if marker==nil then return false end
+	marker.unlock()
+	marker.setRotation({0,180,0})
+	marker.setPositionSmooth(apocalypseDragon.furyHoldingPosition,false)
+	local guid=marker.guid
+	safeWaitCondition("Scenario",function()
+		local current=getObjectFromGUID(guid)
+		if current~=nil then current.lock() end
+	end,function()
+		local current=getObjectFromGUID(guid)
+		return current==nil or current.isSmoothMoving()==false
+	end)
+	return true
+end
+
+function furyDragonBeginLandedTurn()
+	if furyDragonActive()~=true then return false end
+	gStates.apocalypseDragonUIState="Processing"
+	gStates.apocalypseDragonTurnReport="The landed Apocalypse Dragon is rolling its mana die."
+	againstDragonMainUIRefresh()
+	local bag=getObjectFromGUID(GUID.bag.spareDice)
+	if bag==nil then return furyDragonCompleteTurn("The spare mana-die bag is missing; the Apocalypse Dragon could not choose a flight target.") end
+	local die=bag.takeObject({position=apocalypseDragon.furyDieRollPosition,rotation={0,180,0},smooth=false})
+	if die==nil then return furyDragonCompleteTurn("The Apocalypse Dragon could not draw its mana die.") end
+	gStates.furyDragonManaDieGUID=die.guid
+	die.unlock()
+	die.randomize()
+	local dieGUID=die.guid
+	safeWaitFrames("Scenario",function()
+		safeWaitCondition("Scenario",function()
+			local currentDie=getObjectFromGUID(dieGUID)
+			if currentDie==nil then
+				gStates.furyDragonManaDieGUID=nil
+				furyDragonCompleteTurn("The Apocalypse Dragon's mana die disappeared before a target could be chosen.")
+				return
+			end
+			local color=furyDragonManaColor(currentDie)
+			local hexes,mapObjects=apocalypseQuestMapHexes()
+			local target=furyDragonChooseTarget(color,hexes,mapObjects)
+			if target==nil then
+				local spare=getObjectFromGUID(GUID.bag.spareDice)
+				if spare~=nil then currentDie.unlock() spare.putObject(currentDie) end
+				gStates.furyDragonManaDieGUID=nil
+				furyDragonCompleteTurn("The Apocalypse Dragon could not resolve its Lair or a legal flight target.")
+				return
+			end
+			local destination=furyDragonTargetPosition(target,hexes,false)
+			if destination==nil then
+				local spare=getObjectFromGUID(GUID.bag.spareDice)
+				if spare~=nil then currentDie.unlock() spare.putObject(currentDie) end
+				gStates.furyDragonManaDieGUID=nil
+				furyDragonCompleteTurn("The Apocalypse Dragon's chosen flight target could not be located.")
+				return
+			end
+			gStates.furyDragonFlightTarget=target
+			currentDie.unlock()
+			currentDie.setPositionSmooth(destination,false)
+			furyDragonMoveMarkerOffMap()
+			local targetText=furyDragonTargetLabel(target)
+			local colorText=color~=nil and color:gsub("^%l",string.upper) or "Unknown"
+			safeWaitCondition("Scenario",function()
+				local settled=getObjectFromGUID(dieGUID)
+				if settled~=nil then settled.lock() end
+				furyDragonCompleteTurn("The Apocalypse Dragon rolled "..colorText.." and is now in flight toward "..targetText..".")
+			end,function()
+				local settling=getObjectFromGUID(dieGUID)
+				return settling==nil or settling.isSmoothMoving()==false
+			end)
+		end,function()
+			local current=getObjectFromGUID(dieGUID)
+			return current==nil or current.resting==true
+		end)
+	end,2)
+	return true
+end
+
+function furyDragonPlayersOnTarget(target,hexes,mapObjects)
+	local players={}
+	for playerIndex,details in ipairs(turnOrder or {}) do
+		if details~=nil and details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then
+			local onTarget=false
+			if furyDragonCityModelGUID(target.feature)~=nil and details.avatarLocation==target.feature then
+				onTarget=true
+			else
+				local playerHex=againstDragonPlayerHex(hexes,mapObjects,playerIndex)
+				onTarget=playerHex~=nil and apocalypseQuestMapHexKey(playerHex)==target.key
+			end
+			if onTarget==true then players[#players+1]=playerIndex end
+		end
+	end
+	return players
+end
+
+function furyDragonDiscardHexEnemies(hex,mapObjects)
+	for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
+		if getObjectFromGUID(enemy.guid)~=nil then proxyDiscardMonster(enemy) end
+	end
+end
+
+function furyDragonDestroyHex(hex,mapObjects,removeEnemies)
+	if hex==nil then return false end
+	if removeEnemies==true then furyDragonDiscardHexEnemies(hex,mapObjects) end
+	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
+	if bag==nil then
+		broadcastToAll("The Destroyed Site bag is missing; Fury could not mark "..furyDragonTargetLabel({feature=hex.feature}).." as destroyed.",warningColor)
+		return false
+	end
+	local token=bag.takeObject({position={hex.position[1],2,hex.position[3]},rotation={0,180,0},smooth=true})
+	if token==nil then return false end
+	return destroySite(token,hex.terrain,hex.bearing)
+end
+
+function furyDragonRemoveCityDefender(feature)
+	local cityGUID=furyDragonCityModelGUID(feature)
+	local defenders=cityGUID~=nil and gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID] or nil
+	if defenders==nil then return false,nil end
+	local lowest=nil
+	local tied={}
+	for guid,state in pairs(defenders) do
+		if guid~="extra" and state=="alive" then
+			local obj=getObjectFromGUID(guid)
+			if obj~=nil then
+				local fame=tonumber((monsterPugs[guid] or {}).fame) or 0
+				if lowest==nil or fame<lowest then lowest=fame tied={{guid=guid,obj=obj}}
+				elseif fame==lowest then tied[#tied+1]={guid=guid,obj=obj} end
+			end
+		end
+	end
+	if #tied<1 then return false,nil end
+	local chosen=tied[math.random(1,#tied)]
+	defenders[chosen.guid]="dead"
+	local name=(monsterPugs[chosen.guid] or {}).name or "City defender"
+	proxyDiscardMonster(chosen.obj)
+	return true,name
+end
+
+function furyDragonIncreaseHead(headName)
+	if headName==nil then return false end
+	local current=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or 0) or 0
+	if current>=12 then return false end
+	return apocalypseDragonSetHeadLevel(headName,current+1)
+end
+
+function furyDragonResolveArrivalEffect(target,hex,mapObjects)
+	if target==nil or hex==nil then return "The Dragon landed, but its target could not be resolved." end
+	if target.isLair==true or target.category=="lair" then
+		local head=furyDragonLowestHead()
+		local raised=furyDragonIncreaseHead(head)
+		return "The Apocalypse Dragon returned to its Lair."..(raised==true and " "..tostring(head).." increased by 1 level." or "")
+	end
+	local head=furyDragonTargetHead(target)
+	local action=""
+	if target.category=="fortified" then
+		if furyDragonCityModelGUID(target.feature)~=nil then
+			local removed,name=furyDragonRemoveCityDefender(target.feature)
+			if removed==true then action="The Dragon destroyed "..tostring(name).." in the City."
+			else
+				furyDragonDestroyHex(hex,mapObjects,false)
+				action="The undefended City space was destroyed."
+			end
+		else
+			furyDragonDestroyHex(hex,mapObjects,true)
+			action="The "..furyDragonTargetLabel(target).." was destroyed."
+		end
+	elseif target.category=="adventure" then
+		furyDragonDestroyHex(hex,mapObjects,true)
+		action="The "..furyDragonTargetLabel(target).." was destroyed."
+	elseif target.category=="rampager" then
+		local victim=nil
+		for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
+			if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[enemy.guid]==true then victim=enemy break end
+		end
+		if victim~=nil then
+			local name=(monsterPugs[victim.guid] or {}).name or "Rampaging Enemy"
+			proxyDiscardMonster(victim)
+			action="The Dragon destroyed "..tostring(name).."."
+		else
+			head=nil
+			action="The Dragon landed where its Rampaging Enemy target had been, but that enemy was no longer present."
+		end
+	elseif target.category=="inhabited" or target.category=="mana" then
+		furyDragonDestroyHex(hex,mapObjects,false)
+		action="The "..furyDragonTargetLabel(target).." was destroyed."
+	end
+	local raised=head~=nil and furyDragonIncreaseHead(head) or false
+	if raised==true then action=action.." "..tostring(head).." increased by 1 level." end
+	return action
+end
+
+function furyDragonBeginInFlightTurn()
+	if furyDragonActive()~=true then return false end
+	local target=gStates.furyDragonFlightTarget
+	if target==nil then return furyDragonBeginLandedTurn() end
+	gStates.apocalypseDragonUIState="Processing"
+	gStates.apocalypseDragonTurnReport="The Apocalypse Dragon is flying to "..furyDragonTargetLabel(target).."."
+	againstDragonMainUIRefresh()
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hex=againstDragonMapHexByKey(hexes,target.key)
+	local destination=furyDragonTargetPosition(target,hexes,true)
+	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
+	if hex==nil or destination==nil or marker==nil then
+		return furyDragonCompleteTurn("The Apocalypse Dragon could not locate its marked flight destination.")
+	end
+
+	local die=gStates.furyDragonManaDieGUID~=nil and getObjectFromGUID(gStates.furyDragonManaDieGUID) or nil
+	local spare=getObjectFromGUID(GUID.bag.spareDice)
+	if die~=nil and spare~=nil then die.unlock() spare.putObject(die) end
+	gStates.furyDragonManaDieGUID=nil
+	gStates.furyDragonFlightTarget=nil
+	gStates.furyDragonCurrentHexKey=target.key
+
+	marker.unlock()
+	marker.setRotation({0,180,0})
+	marker.setPositionSmooth(destination,false)
+	local markerGUID=marker.guid
+	safeWaitCondition("Scenario",function()
+		local landed=getObjectFromGUID(markerGUID)
+		if landed~=nil then landed.lock() end
+		local currentHexes,currentMapObjects=apocalypseQuestMapHexes()
+		local currentHex=againstDragonMapHexByKey(currentHexes,target.key)
+		if currentHex==nil then
+			furyDragonCompleteTurn("The Apocalypse Dragon landed, but the destination space could no longer be resolved.")
+			return
+		end
+		local players=furyDragonPlayersOnTarget(target,currentHexes,currentMapObjects)
+		if #players>0 then
+			local names={}
+			for _,playerIndex in ipairs(players) do names[#names+1]=tostring(turnOrder[playerIndex].mage) end
+			gStates.furyDragonAwaitingCombat={players=players,target=target}
+			gStates.apocalypseDragonUIState="WaitingCombat"
+			gStates.apocalypseDragonTurnReport="The Apocalypse Dragon attacks "..table.concat(names,", ")..". Resolve combat against the landed Dragon. When combat is finished, click Combat Resolved; the Dragon will immediately take its required landed turn."
+			againstDragonMainUIRefresh()
+			mainUIUpdate("Fury Dragon Combat")
+			return
+		end
+		local result=furyDragonResolveArrivalEffect(target,currentHex,currentMapObjects)
+		furyDragonCompleteTurn(result)
+	end,function()
+		local current=getObjectFromGUID(markerGUID)
+		return current==nil or current.isSmoothMoving()==false
+	end)
+	return true
+end
+
+function furyDragonProcessTurn()
+	if furyDragonActive()~=true or gStates.apocalypseDragonTurnActive~=true then return false end
+	if gStates.apocalypseDragonUIState=="WaitingCombat" then
+		gStates.furyDragonAwaitingCombat=nil
+		return furyDragonBeginLandedTurn()
+	end
+	if gStates.apocalypseDragonUIState~="ReadyToProcess" then return false end
+	if gStates.furyDragonFlightTarget~=nil then return furyDragonBeginInFlightTurn() end
+	return furyDragonBeginLandedTurn()
 end
 
 function positionApocalypseDragonHeads()
