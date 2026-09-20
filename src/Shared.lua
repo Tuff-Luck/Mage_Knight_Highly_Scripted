@@ -106,6 +106,25 @@ function positionToColor(turnNumber)
 	return color
 end
 
+--Rewards Claimed soft locks are player reminders, not hard disables. They share one short window
+--from the moment the Rewards Claimed stage begins, then allow the player to continue manually.
+REWARD_CLAIM_SOFT_LOCK_SECONDS=12
+
+function rewardClaimSoftLockStart()
+	if gStates==nil then return end
+	gStates.rewardClaimSoftLockStartedAt=os.time()
+end
+
+function rewardClaimSoftLockActive()
+	if gStates==nil or gStates.preEndTurn~=true then return false end
+	local started=tonumber(gStates.rewardClaimSoftLockStartedAt)
+	return started~=nil and os.time()<started+REWARD_CLAIM_SOFT_LOCK_SECONDS
+end
+
+function rewardClaimSoftLockClear()
+	if gStates~=nil then gStates.rewardClaimSoftLockStartedAt=nil end
+end
+
 -- Rewind transaction helpers
 --Short scripted transactions can span several delayed/physics callbacks. Store one known-good rewind point
 --before the first mutation, then suppress TTS automatic rewind snapshots until every nested transaction is stable.
