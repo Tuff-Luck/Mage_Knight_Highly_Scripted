@@ -2717,6 +2717,7 @@ function restoreDestroyedSite(destroyed, player)
 		player.repGain=player.repGain+1
 		broadcastToAll("and Reputation Gained")
 	end
+	mapTokenReleaseObject(destroyed)
 	undoDestroyedSitePlacement(destroyed)
 	destroyed.unlock()
 	destroyed.setPositionSmooth({(player.seatPos*40)-117.2+(math.random()*6.5), 3, -35+(math.random()*3.2)})
