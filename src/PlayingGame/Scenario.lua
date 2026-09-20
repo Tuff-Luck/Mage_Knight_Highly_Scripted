@@ -2636,96 +2636,33 @@ function druidNightsRitualAction(playerDud, mouseButton, id)
 	addAvatarButtons()
 end
 
---Lock a Destroyed Site token only after any scripted smooth move has finished and physics has had time to settle it.
---An optional callback runs after the marker is locked so objects lifted off the hex can be released back above it.
-function lockDestroyedSiteWhenSettled(token,afterLock)
-	if token==nil then return end
-	local tokenGUID=token.guid
-	local finished=false
-	local function finish()
-		if finished==true then return end
-		finished=true
-		local obj=getObjectFromGUID(tokenGUID)
-		if obj~=nil then obj.lock() end
-		if afterLock~=nil then afterLock(obj) end
-	end
-	safeWaitCondition("Scenario",function()
-		safeWaitFrames("Scenario",function()
-			safeWaitCondition("Scenario",finish,function()
-				local obj=getObjectFromGUID(tokenGUID)
-				return obj==nil or obj.resting==true
-			end)
-		end,1)
-	end,function()
-		local obj=getObjectFromGUID(tokenGUID)
-		return obj==nil or obj.isSmoothMoving()==false
-	end)
-end
-
---A Destroyed Site marker is always the bottom object on its hex. Lift every existing physical object
---off that hex, settle and lock the marker first, then drop the lifted objects back at their original X/Z.
---This path is shared by scripted draws and human-dropped Destroyed Site tokens.
+--A Destroyed Site has a known physical resting height. Put it straight onto the map surface rather
+--than dropping it onto whatever is already on the hex. The generic token arranger then moves enemy
+--tokens into their slight offsets and lets those pieces fall/relock above the marker.
 function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	if token==nil or terrain==nil or bearing==nil then return false end
 	local map=getObjectFromGUID(mapArea)
 	local center=angleToXY(terrain,bearing)
 	if map==nil or center==nil then return false end
 
-	local lifted={}
-	for _,obj in pairs(map.getObjects()) do
-		if obj.guid~=token.guid and obj.guid~=terrain.guid and terrainTiles[obj.guid]==nil then
-			local pos=obj.getPosition()
-			if ((pos[1]-center[1])^2)+((pos[3]-center[2])^2)<1.0 then
-				lifted[#lifted+1]={guid=obj.guid,locked=obj.getLock()==true,x=pos[1],y=pos[2],z=pos[3]}
-			end
-		end
-	end
-	table.sort(lifted,function(a,b)
-		if math.abs(a.y-b.y)>0.01 then return a.y<b.y end
-		return a.guid<b.guid
-	end)
-
-	--Clear the whole hex before moving the marker into its exact centre.
-	for index,details in ipairs(lifted) do
-		local obj=getObjectFromGUID(details.guid)
-		if obj~=nil then
-			obj.unlock()
-			obj.setPosition({details.x,3.2+((index-1)*0.55),details.z})
-		end
-	end
-
 	token.unlock()
 	token.setRotation({0,180,0})
-	token.setPositionSmooth({center[1],2,center[2]},false)
+	token.setPosition({center[1],destroyedSiteRestingY,center[2]})
+	token.lock()
 
-	local tokenGUID=token.guid
-	lockDestroyedSiteWhenSettled(token,function(marker)
-		local markerY=marker~=nil and marker.getPosition()[2] or 1.13
-		for index,details in ipairs(lifted) do
-			local obj=getObjectFromGUID(details.guid)
-			if obj~=nil then
-				obj.unlock()
-				--Return above the settled marker and let gravity rebuild the physical stack naturally.
-				obj.setPosition({details.x,markerY+0.55+((index-1)*0.35),details.z})
-				if details.locked==true then
-					local objectGUID=details.guid
-					safeWaitFrames("Scenario",function()
-						safeWaitCondition("Scenario",function()
-							local settled=getObjectFromGUID(objectGUID)
-							if settled~=nil then settled.lock() end
-						end,function()
-							local settling=getObjectFromGUID(objectGUID)
-							return settling==nil or settling.resting==true
-						end,3,function()
-							local settled=getObjectFromGUID(objectGUID)
-							if settled~=nil then settled.lock() end
-						end)
-					end,1)
-				end
-			end
-		end
-		if afterArrange~=nil then afterArrange() end
-	end)
+	local details=terrainTiles[terrain.guid]
+	local hex={
+		terrain=terrain,terrainGUID=terrain.guid,bearing=bearing,
+		position={center[1],destroyedSiteRestingY,center[2]},
+		hexType=details~=nil and details.hexType~=nil and details.hexType[bearing] or "",
+		feature=details~=nil and details.hexFeature~=nil and details.hexFeature[bearing] or ""
+	}
+	local mapObjects=map.getObjects() or {}
+	mapTokenArrangeHex(hex,mapObjects,nil,token)
+	--A scripted enemy/site token can enter the map zone in a different physics frame. Recheck this
+	--same base token several times so either arrival order converges to the same final arrangement.
+	mapTokenScheduleObject(token.guid)
+	if afterArrange~=nil then afterArrange() end
 	return true
 end
 
@@ -2735,7 +2672,7 @@ function destroySite(token,terrain,bearing)
 	if token==nil or terrain==nil or bearing==nil or terrainTiles[terrain.guid]==nil then return false end
 	local feature=terrainTiles[terrain.guid].hexFeature[bearing]
 	if feature==nil or feature=="" or feature=="portal" or feature=="destroyed" or feature:sub(1,7)=="raised " then return false end
-	arrangeDestroyedSiteHex(token,terrain,bearing,function() horsemanArrangeOccupiedTokenStacks() end)
+	arrangeDestroyedSiteHex(token,terrain,bearing)
 	if gStates.destroyedSites==nil then gStates.destroyedSites={} end
 	gStates.destroyedSites[token.guid]={hexFeature=feature, terrainTile=terrain.guid, hexAngle=bearing}
 	terrainTiles[terrain.guid].hexFeature[bearing]="destroyed"
