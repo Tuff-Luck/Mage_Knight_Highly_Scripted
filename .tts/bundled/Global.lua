@@ -1092,7 +1092,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,2)
 	end
 	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(dropped_object)==true then
-		mapTokenScheduleObject(droppedGUID)
+		mapTokenArrangeDroppedObject(droppedGUID)
 	end
 	puppetMasterDropped(dropped_object)
 	puppetMasterCheckManualCopyWhenResting(dropped_object)
@@ -1607,7 +1607,8 @@ shieldLocationWait=nil
 masterOfChaosWait=nil
 function __onObjectEnterZone_raw(zone, obj)
 	if zone~=nil and obj~=nil and zone.guid==mapArea and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(obj)==true then
-		mapTokenScheduleObject(obj.guid)
+		--A held object will be handled once by onObjectDrop; retries here are only for scripted arrivals.
+		if obj.held_by_color==nil then mapTokenScheduleObject(obj.guid) end
 	end
 	if obj~=nil and apocalypseDragonGroundCombatToken~=nil then
 		local active,headName,owner=apocalypseDragonGroundCombatToken(obj.guid)
@@ -12253,27 +12254,32 @@ end
 --Destroyed Site tokens are special: their known settled table height is 1.13, so scripted/manual
 --placement pins them directly there instead of asking physics to discover the bottom of an existing stack.
 local mapTokenArrangeGeneration={}
-local mapTokenSpreadSlots={
-	[1]={x=-0.10,z=-0.10},
-	[2]={x= 0.10,z= 0.10},
-	[3]={x= 0.10,z=-0.10},
-	[4]={x=-0.10,z= 0.10},
-	[5]={x=-0.17,z= 0.00},
-	[6]={x= 0.17,z= 0.00},
-	[7]={x= 0.00,z=-0.17},
-	[8]={x= 0.00,z= 0.17}
-}
+--While a manually dropped loose token is settling/re-spreading, it owns arrangement for that object.
+--Map-zone physics events during this window must not start the scripted multi-retry arranger.
+local mapTokenManualDropPending={}
+local mapTokenSpreadSpacing=0.20
+local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
 local destroyedSiteRestingY=1.13
+
+--Return an evenly spaced WORLD-space point on one diagonal through the hex centre.
+--The group is always centred: 3 tokens are -1/0/+1 steps, 4 are -1.5/-0.5/+0.5/+1.5.
+--On the normal table view +X/+Z is the visual bottom-left end of this diagonal; -X/-Z is upper-right.
+--That makes index 1 the lower/older token and the last index the higher/newest arrival.
+local function mapTokenSpreadOffset(index,count)
+	count=math.max(1,tonumber(count) or 1)
+	index=math.max(1,math.min(count,tonumber(index) or 1))
+	local steps=((count+1)/2)-index
+	local component=steps*mapTokenSpreadDiagonalComponent
+	return {x=component,z=component}
+end
 
 function mapTokenIsDestroyedSite(obj)
 	return obj~=nil and obj.getGMNotes~=nil and obj.getGMNotes()=="Destroyed"
 end
 
 function mapTokenIsBaseSite(obj)
-	if obj==nil then return false end
-	if mapTokenIsDestroyedSite(obj)==true then return true end
-	local details=monsterPugs~=nil and monsterPugs[obj.guid] or nil
-	return details~=nil and details.name=="Ruin"
+	--Destroyed is the only special floor token. Ruins participate in the same diagonal spread as enemies.
+	return mapTokenIsDestroyedSite(obj)==true
 end
 
 function mapTokenIsSpreadEnemy(obj)
@@ -12281,8 +12287,8 @@ function mapTokenIsSpreadEnemy(obj)
 	if apocalypseDragon~=nil and obj.guid==apocalypseDragon.furyMarker then return true end
 	local details=monsterPugs~=nil and monsterPugs[obj.guid] or nil
 	if details==nil then return false end
-	--Possessed markers are physically linked overlays, not independent enemies. Ruins are site markers.
-	if details.pugType=="possessed" or details.name=="Ruin" then return false end
+	--Possessed markers are physically linked overlays, not independent tokens. Ruins are spread normally.
+	if details.pugType=="possessed" then return false end
 	return true
 end
 
@@ -12296,6 +12302,51 @@ local function mapTokenOnHex(obj,hex)
 	local dx=pos[1]-hex.position[1]
 	local dz=pos[3]-hex.position[3]
 	return (dx*dx)+(dz*dz)<1.5
+end
+
+--A spread can move several loose tokens at once. Claim every participant before changing any X/Z so
+--their own map-zone physics events cannot queue a competing arrangement. Incrementing each generation
+--also invalidates retries that may already have been queued before this spread began.
+local function mapTokenClaimHexParticipants(guid,primaryGeneration)
+	local obj=guid~=nil and getObjectFromGUID(guid) or nil
+	if obj==nil then return {} end
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
+	if hex==nil then return {} end
+	local participants={}
+	local seen={}
+	for _,candidate in pairs(mapObjects or {}) do
+		if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true then
+			participants[#participants+1]=candidate
+			seen[candidate.guid]=true
+		end
+	end
+	if seen[obj.guid]~=true and mapTokenNeedsArrangement(obj)==true then participants[#participants+1]=obj end
+
+	local claims={}
+	for _,candidate in ipairs(participants) do
+		local candidateGUID=candidate.guid
+		local generation=nil
+		if candidateGUID==guid and primaryGeneration~=nil and mapTokenManualDropPending[candidateGUID]==primaryGeneration then
+			generation=primaryGeneration
+		else
+			generation=(mapTokenArrangeGeneration[candidateGUID] or 0)+1
+			mapTokenArrangeGeneration[candidateGUID]=generation
+			mapTokenManualDropPending[candidateGUID]=generation
+		end
+		claims[#claims+1]={guid=candidateGUID,generation=generation}
+	end
+	return claims
+end
+
+local function mapTokenReleaseParticipantClaims(claims)
+	for _,claim in ipairs(claims or {}) do
+		mapTokenAfterSettled(claim.guid,function()
+			if mapTokenManualDropPending[claim.guid]==claim.generation then
+				mapTokenManualDropPending[claim.guid]=nil
+			end
+		end)
+	end
 end
 
 --Any token that was locked before the arranger touched it is locked again only after one physics
@@ -12360,27 +12411,29 @@ local function mapTokenMoveAndDrop(obj,targetX,targetZ,minY)
 	return true
 end
 
-local function mapTokenNearestFreeSlot(obj,centerX,centerZ,used,maxSlots)
-	if obj==nil then return nil end
+--When a token is picked up, pieces left behind still need to close/rebalance their horizontal
+--spacing, but lifting them again makes the stack visibly hop. Preserve the exact current Y and
+--move only across the table surface; previously locked pieces can be relocked immediately.
+local function mapTokenMoveLaterally(obj,targetX,targetZ)
+	if obj==nil then return false end
 	local pos=obj.getPosition()
-	local nearest=nil
-	local nearestDistance=0.0065
-	for slot=1,maxSlots do
-		if used[slot]~=true then
-			local offset=mapTokenSpreadSlots[slot]
-			local dx=pos[1]-(centerX+offset.x)
-			local dz=pos[3]-(centerZ+offset.z)
-			local d=(dx*dx)+(dz*dz)
-			if d<nearestDistance then nearest=slot nearestDistance=d end
-		end
-	end
-	return nearest
+	if obj.isSmoothMoving()==true then return false end
+	local already=math.abs(pos[1]-targetX)<0.035 and math.abs(pos[3]-targetZ)<0.035
+	if already==true then return false end
+	--Scripted setPosition can move a locked token directly. Do not unlock/relock here: toggling the
+	--physics lock was causing visible little hops when an otherwise settled stack was re-spread.
+	obj.setPosition({targetX,pos[2],targetZ})
+	mapTokenUpdatePlayLocation(obj,{targetX,pos[2],targetZ})
+	return true
 end
 
---Arrange one resolved map hex. Destroyed Site is always the floor marker at the exact centre.
---A Ruin can act as the ordinary centre/base marker when no Destroyed Site is present. Enemy tokens
---are only spread when there is a base marker or more than one enemy; a lone enemy otherwise recentres.
-function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
+--Arrange one resolved map hex. A Destroyed Site remains the floor marker, but when another token
+--shares its hex it participates in one centred WORLD-space diagonal spread. Adjacent tokens are 0.2
+--world units apart along that line. Token rotation/face state never affects direction.
+--lateralOnly is used when a piece leaves the hex so the survivors never visibly hop in Y.
+--For a fresh stack, physical Y defines low-to-high order. Already-separated pieces preserve their
+--world-space diagonal order, and a newly dropped/arriving token is always appended at the top end.
+function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,arrivalGUID)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
 	local seen={}
@@ -12396,42 +12449,55 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	end
 
 	local destroyed=nil
-	local ordinaryBase=nil
 	local enemies={}
 	for _,obj in ipairs(objects) do
 		if mapTokenIsDestroyedSite(obj)==true then
 			if destroyed==nil then destroyed=obj end
-		elseif mapTokenIsBaseSite(obj)==true then
-			if ordinaryBase==nil then ordinaryBase=obj end
 		elseif mapTokenIsSpreadEnemy(obj)==true then
 			enemies[#enemies+1]=obj
 		end
 	end
-	table.sort(enemies,function(a,b) return tostring(a.guid)<tostring(b.guid) end)
+	table.sort(enemies,function(a,b)
+		--A newly dropped/arriving token is conceptually the top of the stack, regardless of tiny
+		--collider/resting-height differences. Existing pieces keep their current diagonal order when
+		--already separated; if they are still stacked at the same X/Z, physical Y decides low-to-high.
+		if arrivalGUID~=nil then
+			if a.guid==arrivalGUID and b.guid~=arrivalGUID then return false end
+			if b.guid==arrivalGUID and a.guid~=arrivalGUID then return true end
+		end
+		local ap=a.getPosition()
+		local bp=b.getPosition()
+		local aProjection=ap[1]+ap[3]
+		local bProjection=bp[1]+bp[3]
+		if math.abs(aProjection-bProjection)>0.05 then
+			--+X/+Z is the visual bottom-left end, so preserve existing pieces in bottom-left to upper-right order.
+			return aProjection>bProjection
+		end
+		if math.abs(ap[2]-bp[2])>0.01 then return ap[2]<bp[2] end
+		return tostring(a.guid)<tostring(b.guid)
+	end)
 
 	local centerX,centerZ=hex.position[1],hex.position[3]
-	local base=destroyed or ordinaryBase
+	local base=destroyed
 	local baseY=nil
 	local changed=false
 
 	if destroyed~=nil then
 		local pos=destroyed.getPosition()
-		local needsMove=math.abs(pos[1]-centerX)>0.025 or math.abs(pos[2]-destroyedSiteRestingY)>0.025 or math.abs(pos[3]-centerZ)>0.025
+		local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
+		local destroyedOffset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
+		local targetX,targetZ=centerX+destroyedOffset.x,centerZ+destroyedOffset.z
+		local targetY=lateralOnly==true and pos[2] or destroyedSiteRestingY
+		local needsMove=math.abs(pos[1]-targetX)>0.025 or math.abs(pos[2]-targetY)>0.025 or math.abs(pos[3]-targetZ)>0.025
 		if needsMove==true or destroyed.getLock()~=true then
 			destroyed.unlock()
 			destroyed.setRotation({0,180,0})
-			--Known exact resting height: place directly under the stack, with no fall/smooth-move race.
-			destroyed.setPosition({centerX,destroyedSiteRestingY,centerZ})
+			--Destroyed stays physically underneath, but shares the same horizontal spread as the pieces above.
+			destroyed.setPosition({targetX,targetY,targetZ})
 			destroyed.lock()
 			changed=true
 		end
-		baseY=destroyedSiteRestingY
-	elseif ordinaryBase~=nil then
-		local pos=ordinaryBase.getPosition()
-		baseY=pos[2]
-		if #enemies>0 and ordinaryBase.isSmoothMoving()~=true and (math.abs(pos[1]-centerX)>0.035 or math.abs(pos[3]-centerZ)>0.035) then
-			changed=mapTokenMoveAndDrop(ordinaryBase,centerX,centerZ,math.max(1.35,pos[2]+0.10)) or changed
-		end
+		baseY=targetY
 	end
 
 	if #enemies<1 then return changed end
@@ -12442,56 +12508,112 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 		local obj=enemies[1]
 		local pos=obj.getPosition()
 		if math.abs(pos[1]-centerX)>0.035 or math.abs(pos[3]-centerZ)>0.035 then
-			changed=mapTokenMoveAndDrop(obj,centerX,centerZ,math.max(1.45,pos[2]+0.10)) or changed
+			if lateralOnly==true then changed=mapTokenMoveLaterally(obj,centerX,centerZ) or changed
+			else changed=mapTokenMoveAndDrop(obj,centerX,centerZ,math.max(1.45,pos[2]+0.10)) or changed end
 		end
 		return changed
 	end
 
-	local slotCount=math.min(#mapTokenSpreadSlots,math.max(#enemies,1))
-	local used={}
-	local assigned={}
-	--Keep an already-separated token in its current slot when possible so a new arrival does not
-	--shuffle every existing piece around the hex.
-	for _,obj in ipairs(enemies) do
-		local slot=mapTokenNearestFreeSlot(obj,centerX,centerZ,used,slotCount)
-		if slot~=nil then used[slot]=true assigned[obj.guid]=slot end
-	end
-	for _,obj in ipairs(enemies) do
-		if assigned[obj.guid]==nil then
-			for slot=1,slotCount do
-				if used[slot]~=true then assigned[obj.guid]=slot used[slot]=true break end
-			end
-		end
-	end
-
-	for _,obj in ipairs(enemies) do
-		local slot=assigned[obj.guid] or 1
-		local offset=mapTokenSpreadSlots[slot]
+	--Lay every participant on one straight WORLD-space diagonal, evenly spaced and centred.
+	--Destroyed (when present) is participant 1; enemies then follow their physical low-to-high Y order.
+	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
+	local firstEnemyIndex=destroyed~=nil and 2 or 1
+	for index,obj in ipairs(enemies) do
+		local spreadIndex=firstEnemyIndex+index-1
+		local offset=mapTokenSpreadOffset(spreadIndex,spreadCount)
 		local minY=(baseY~=nil and baseY+0.55 or 1.45)
-		changed=mapTokenMoveAndDrop(obj,centerX+offset.x,centerZ+offset.z,minY) or changed
+		if lateralOnly==true then
+			changed=mapTokenMoveLaterally(obj,centerX+offset.x,centerZ+offset.z) or changed
+		else
+			changed=mapTokenMoveAndDrop(obj,centerX+offset.x,centerZ+offset.z,minY) or changed
+		end
 	end
 	return changed
 end
 
-function mapTokenArrangeObject(guid)
+function mapTokenArrangeObject(guid,lateralOnly,arrivalGUID)
 	local obj=guid~=nil and getObjectFromGUID(guid) or nil
 	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
 	if hex==nil then return false end
-	return mapTokenArrangeHex(hex,mapObjects,nil,obj)
+	return mapTokenArrangeHex(hex,mapObjects,nil,obj,lateralOnly==true,arrivalGUID)
 end
 
-function mapTokenScheduleObject(guid)
-	if guid==nil then return end
+--All loose map-token arrivals use this one ownership path. The arriving token claims its
+--settle/spread before it can cross the map zone, waits until its own movement/physics is finished,
+--then claims every token sharing the final hex and performs one lateral spread. This replaces the
+--old overlapping zone retries, scripted-arrival finish pass and manual-drop pass.
+function mapTokenSettleArrival(guid,target,options,callback)
+	options=options or {}
+	if guid==nil then return false end
+	local obj=getObjectFromGUID(guid)
+	if obj==nil then return false end
+
+	--A scripted move first releases the old hex so the pieces left behind can close up. A manual drop
+	--can forcibly take ownership away from an earlier map-zone arrival that fired while it was falling.
+	if options.releaseOrigin==true then
+		mapTokenReleaseObject(obj)
+	elseif options.force==true then
+		mapTokenManualDropPending[guid]=nil
+		mapTokenArrangeGeneration[guid]=(mapTokenArrangeGeneration[guid] or 0)+1
+	end
+	if mapTokenManualDropPending[guid]~=nil then return false end
+
 	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
 	mapTokenArrangeGeneration[guid]=generation
-	for _,delay in ipairs({2,8,20,45}) do
-		safeWaitFrames("Scenario",function()
-			if mapTokenArrangeGeneration[guid]~=generation then return end
-			mapTokenArrangeObject(guid)
-		end,delay)
+	mapTokenManualDropPending[guid]=generation
+
+	if target~=nil then
+		obj.unlock()
+		if options.rotation~=nil then obj.setRotation(options.rotation) end
+		obj.setPositionSmooth(target,false)
 	end
+
+	mapTokenAfterSettled(guid,function(current)
+		--Another arrival on the same hex may legitimately take ownership of this token. Its spread then
+		--wins, but the movement callback still fires so scenario turn flow cannot stall.
+		if mapTokenManualDropPending[guid]~=generation then
+			if callback~=nil then callback(current,false) end
+			return
+		end
+		if current==nil then
+			mapTokenManualDropPending[guid]=nil
+			if callback~=nil then callback(nil,false) end
+			return
+		end
+
+		local claims=mapTokenClaimHexParticipants(guid,generation)
+		local arrivalGUID=options.arrivalTop==false and nil or guid
+		local arranged=false
+		if #claims>0 then
+			arranged=mapTokenArrangeObject(guid,true,arrivalGUID)
+			mapTokenReleaseParticipantClaims(claims)
+		else
+			--The object may have moved somewhere outside the map (for example the Horsemen ritual
+			--layout). There is no physical hex to spread, so simply release this arrival claim.
+			mapTokenManualDropPending[guid]=nil
+		end
+		if options.relock==true then mapTokenRelockWhenSettled(guid,true) end
+
+		if callback~=nil then
+			--If this spread moved the arriving token laterally, wait for that final physics settle too.
+			mapTokenAfterSettled(guid,function(finalObj) callback(finalObj,arranged) end)
+		end
+	end)
+	return true
+end
+
+--A human drop already owns the vertical fall. Replace any zone-entry claim with one final lateral
+--spread and treat the dropped token as the newest/top participant.
+function mapTokenArrangeDroppedObject(guid)
+	mapTokenSettleArrival(guid,nil,{force=true,arrivalTop=true})
+end
+
+--Unheld objects entering the map (enemy draws, scripted tokens, etc.) also get exactly one settle
+--pass. Scripted movers that call mapTokenSettleArrival before crossing the zone suppress this call.
+function mapTokenScheduleObject(guid)
+	mapTokenSettleArrival(guid,nil,{arrivalTop=true})
 end
 
 --Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
@@ -12500,10 +12622,13 @@ function mapTokenReleaseObject(obj)
 	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
 	local position=obj.getPosition()
 	local ignoreGUID=obj.guid
+	--Invalidate delayed arrival/manual-drop work for the object now being carried away.
+	mapTokenManualDropPending[ignoreGUID]=nil
+	mapTokenArrangeGeneration[ignoreGUID]=(mapTokenArrangeGeneration[ignoreGUID] or 0)+1
 	safeWaitFrames("Scenario",function()
 		local hexes,mapObjects=apocalypseQuestMapHexes()
 		local hex=apocalypseQuestHexForPosition(hexes,position,mapObjects)
-		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID) end
+		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID,nil,true) end
 	end,1)
 	return true
 end
@@ -12517,33 +12642,21 @@ function mapTokenArrangeAllOccupiedHexes()
 			local key=hex~=nil and apocalypseQuestMapHexKey(hex) or nil
 			if key~=nil and touched[key]~=true then
 				touched[key]=true
-				mapTokenArrangeHex(hex,mapObjects)
+				--An arrival already owns this hex until its one final spread is complete. The terrain
+				--completion sweep must not start a second layout pass underneath it.
+				local arrivalPending=false
+				for _,candidate in pairs(mapObjects or {}) do
+					if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true
+						and mapTokenManualDropPending[candidate.guid]~=nil then
+						arrivalPending=true
+						break
+					end
+				end
+				--This is only a maintenance sweep; never lift/drop settled pieces here.
+				if arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects,nil,nil,true) end
 			end
 		end
 	end
-end
-
---Horseman callers now use the generic map-token arranger. These small wrappers keep the scenario
---movement code readable while ensuring Horsemen, ordinary enemies and the Fury Dragon all share
---exactly the same physical-hex behaviour.
-function horsemanReleaseOccupiedToken(name)
-	local data=horsemanData~=nil and horsemanData[name] or nil
-	local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-	return mapTokenReleaseObject(token)
-end
-
-function horsemanArrangeOccupiedTokenStack(name)
-	local data=horsemanData~=nil and horsemanData[name] or nil
-	return data~=nil and mapTokenArrangeObject(data.tokenGUID) or false
-end
-
-function horsemanScheduleOccupiedTokenStack(name)
-	local data=horsemanData~=nil and horsemanData[name] or nil
-	if data~=nil then mapTokenScheduleObject(data.tokenGUID) end
-end
-
-function horsemanArrangeOccupiedTokenStacks()
-	mapTokenArrangeAllOccupiedHexes()
 end
 
 function setHorsemanLevel(ref, level, hideIdentity)
@@ -12661,7 +12774,7 @@ function againstHorsemenMarkDefeatedToken(token,name,playerIndex,smooth)
 	local player=turnOrder[playerIndex]
 	if token==nil or state==nil or player==nil then return false end
 	local level=math.max(1,math.min(6,tonumber(state.level) or 1))
-	horsemanReleaseOccupiedToken(name)
+	mapTokenReleaseObject(token)
 	token.setName("DEFEATED - "..name.." Level "..tostring(level))
 	token.setDescription("Defeated by "..tostring(player.mage))
 	token.setGMNotes("Defeated Horseman")
@@ -12862,10 +12975,7 @@ end
 
 function againstHorsemenRefreshReveals()
 	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return end
-	for name,_ in pairs(gStates.horsemen or {}) do
-		againstHorsemenRefreshHorseman(name)
-		horsemanScheduleOccupiedTokenStack(name)
-	end
+	for name,_ in pairs(gStates.horsemen or {}) do againstHorsemenRefreshHorseman(name) end
 end
 
 --Before the ritual, a Horseman is a same-space action rather than a Rampaging-style adjacent attack.
@@ -13045,10 +13155,7 @@ end
 function againstHorsemenFinalizeMoveWave()
 	local pending=gStates~=nil and gStates.againstHorsemenMovePending or nil
 	if pending==nil or pending.movingTargets==nil then return end
-	for name,_ in pairs(pending.movingTargets) do
-		againstHorsemenRefreshHorseman(name)
-		horsemanArrangeOccupiedTokenStack(name)
-	end
+	for name,_ in pairs(pending.movingTargets) do againstHorsemenRefreshHorseman(name) end
 	pending.movingTargets=nil
 	pending.stepsRemaining=math.max(0,(pending.stepsRemaining or 1)-1)
 	safeWaitFrames("Scenario",function() againstHorsemenContinueEndRoundMovement() end,4)
@@ -13058,32 +13165,28 @@ function againstHorsemenAnimateMoveWave(targets)
 	local pending=gStates~=nil and gStates.againstHorsemenMovePending or nil
 	if pending==nil or targets==nil then return end
 	pending.movingTargets=targets
+
+	local remaining=0
+	local allStarted=false
+	local function oneSettled()
+		remaining=math.max(0,remaining-1)
+		if allStarted==true and remaining==0 then againstHorsemenFinalizeMoveWave() end
+	end
+
 	for name,target in pairs(targets) do
 		local data=horsemanData~=nil and horsemanData[name] or nil
 		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 		if token~=nil and target.position~=nil then
-			horsemanReleaseOccupiedToken(name)
-			token.setPositionSmooth(target.position,false)
+			remaining=remaining+1
+			local started=mapTokenSettleArrival(token.guid,target.position,{releaseOrigin=true,arrivalTop=true},function() oneSettled() end)
+			if started~=true then
+				token.setPositionSmooth(target.position,false)
+				mapTokenAfterSettled(token.guid,function() oneSettled() end)
+			end
 		end
 	end
-	safeWaitFrames("Scenario",function()
-		local function allSettled()
-			for name,_ in pairs(targets) do
-				local data=horsemanData~=nil and horsemanData[name] or nil
-				local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-				if token~=nil and token.resting~=true then return false end
-			end
-			return true
-		end
-		safeWaitCondition("Scenario",function() againstHorsemenFinalizeMoveWave() end, allSettled, 3, function()
-			for name,target in pairs(targets) do
-				local data=horsemanData~=nil and horsemanData[name] or nil
-				local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
-				if token~=nil and target.position~=nil then token.setPosition(target.position) end
-			end
-			againstHorsemenFinalizeMoveWave()
-		end)
-	end,2)
+	allStarted=true
+	if remaining==0 then againstHorsemenFinalizeMoveWave() end
 end
 
 function againstHorsemenContinueEndRoundMovement()
@@ -13313,42 +13416,68 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 	local data=name~=nil and horsemanData[name] or nil
 	local state=name~=nil and gStates.horsemen[name] or nil
 	if data==nil or state==nil then return false end
-	local xy=angleToXY(tile,"center")
-	local tilePos=tile.getPosition()
-	--Bring the Horseman in above the settled terrain instead of teleporting him onto the tile.
-	--One unit of clearance lets the smooth move finish cleanly; physics then drops him onto the map.
-	local target={xy[1],tilePos[2]+1.0,xy[2]}
-	local token=getObjectFromGUID(data.tokenGUID)
-	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	if token==nil and bag~=nil then token=bag.takeObject({guid=data.tokenGUID,position={target[1],target[2]+1.0,target[3]},rotation={0,180,0},smooth=false}) end
-	if token==nil then return false end
-	state.revealed=true
+
+	--Reserve this reveal immediately so another rapidly explored tile cannot queue the same Horseman.
+	--The physical move waits for this terrain tile's ordinary site/enemy population to finish; that
+	--makes the Horseman the final moving token on the hex, so the one arrival spread keeps it on top.
+	local tileGUID=tile.guid
+	state.revealPending=true
 	state.retired=false
-	state.terrainGUID=tile.guid
+	state.terrainGUID=tileGUID
 	state.bearing="center"
-	state.revealTileGUID=tile.guid
+	state.revealTileGUID=tileGUID
 	state.revealCount=gStates.apocalypseHereTilesRevealed
-	setHorsemanLevel(name,state.level,false)
-	token=getObjectFromGUID(data.tokenGUID) or token
-	token.unlock()
-	token.setRotation({0,180,0})
-	token.setPositionSmooth(target,false)
-	--Terrain population can finish after the Horseman itself arrives, so let the generic settle-aware
-	--scheduler catch whichever of the Horseman or existing map token finishes last.
-	horsemanScheduleOccupiedTokenStack(name)
 	gStates.apocalypseHereNextHorseman=index+1
-	local card=getObjectFromGUID(data.cardGUID)
-	if card~=nil then
-		card.unlock()
-		card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,0.40},false,true)
-		if card.is_face_down==true then card.flip() end
-	end
+
 	if gStates.apocalypseHereForcedRevealPending==true then
 		gStates.apocalypseHereForcedRevealCount=math.max(0,(tonumber(gStates.apocalypseHereForcedRevealCount) or 1)-1)
 		gStates.apocalypseHereForcedRevealPending=gStates.apocalypseHereForcedRevealCount>0
 		if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Horseman exploration resolved") end
 	end
-	broadcastToAll(name.." has been revealed at Level "..tostring(state.level)..(forced==true and " by the Round deadline." or "."),{1,0.75,0.2})
+
+	local deployed=false
+	local function deploy()
+		if deployed==true then return end
+		deployed=true
+		local currentTile=getObjectFromGUID(tileGUID)
+		if currentTile==nil then
+			state.revealPending=nil
+			print("HORSEMAN REVEAL ERROR: terrain tile "..tostring(tileGUID).." disappeared before "..tostring(name).." could deploy")
+			return
+		end
+		local xy=angleToXY(currentTile,"center")
+		local tilePos=currentTile.getPosition()
+		local target={xy[1],tilePos[2]+1.0,xy[2]}
+		local token=getObjectFromGUID(data.tokenGUID)
+		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+		if token==nil and bag~=nil then token=bag.takeObject({guid=data.tokenGUID,position={target[1],target[2]+1.0,target[3]},rotation={0,180,0},smooth=false}) end
+		if token==nil then
+			state.revealPending=nil
+			print("HORSEMAN REVEAL ERROR: "..tostring(name).." token is missing")
+			return
+		end
+
+		setHorsemanLevel(name,state.level,false)
+		token=getObjectFromGUID(data.tokenGUID) or token
+		state.revealPending=nil
+		state.revealed=true
+		mapTokenSettleArrival(token.guid,target,{force=true,arrivalTop=true,rotation={0,180,0}})
+
+		local card=getObjectFromGUID(data.cardGUID)
+		if card~=nil then
+			card.unlock()
+			card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,0.40},false,true)
+			if card.is_face_down==true then card.flip() end
+		end
+		broadcastToAll(name.." has been revealed at Level "..tostring(state.level)..(forced==true and " by the Round deadline." or "."),{1,0.75,0.2})
+	end
+
+	if workingOnTerrain~=nil and workingOnTerrain[tileGUID]==true then
+		--Do not time this out: the Horseman must remain the final arrival even on a slow machine.
+		safeWaitCondition("Scenario",deploy,function() return workingOnTerrain[tileGUID]~=true end)
+	else
+		deploy()
+	end
 	return true
 end
 
@@ -13453,6 +13582,12 @@ function apocalypseIsHereTerrainRevealed(tile)
 	if apocalypseIsHereActive()~=true or tile==nil or tile.is_face_down==true then return false end
 	local details=terrainTiles[tile.guid]
 	if details==nil or details.tileType=="starting" or details.tileType=="tilePile" then return false end
+
+	--Terrain placed as part of the initial map setup does not count as revealed terrain for
+	--Horsemen. Use the persistent setup tile marker rather than timing so a slow callback cannot
+	--accidentally count an opening tile after startingMapSetup has ended.
+	if startingMapTiles~=nil and startingMapTiles[tile.guid]==true then return true end
+
 	gStates.apocalypseHereRevealedTiles=gStates.apocalypseHereRevealedTiles or {}
 	if gStates.apocalypseHereRevealedTiles[tile.guid]==true then return false end
 	gStates.apocalypseHereRevealedTiles[tile.guid]=true
@@ -13640,8 +13775,11 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 		state.retired=true state.revealed=false state.removedAfterFour=true
 		local token=getObjectFromGUID(data.tokenGUID)
 		local apocBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-		horsemanReleaseOccupiedToken(name)
-		if token~=nil then token.unlock() if apocBag~=nil then apocBag.putObject(token) else token.setPosition({0,-20,0}) end end
+		if token~=nil then
+			mapTokenReleaseObject(token)
+			token.unlock()
+			if apocBag~=nil then apocBag.putObject(token) else token.setPosition({0,-20,0}) end
+		end
 		monsterPugs[data.tokenGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end
 		report=report.." It has destroyed four sites and leaves the map."
@@ -13663,19 +13801,18 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 	local state=gStates.horsemen[name]
 	local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 	if token==nil or destination==nil then apocalypseIsHereContinueHorsemenTurn() return false end
-	horsemanReleaseOccupiedToken(name)
 	state.terrainGUID=destination.terrainGUID state.bearing=destination.bearing
-	token.unlock() token.setRotation({0,180,0}) token.setPositionSmooth({destination.position[1],1.42,destination.position[3]},false)
-	safeWaitCondition("Scenario",function()
-		local reached=apocalypseQuestMapHexKey(destination)==apocalypseQuestMapHexKey(target)
-		if reached then apocalypseIsHereHorsemanDestroyTarget(name,target)
-		else
-			local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
-			gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
-		end
-		horsemanScheduleOccupiedTokenStack(name)
-		apocalypseIsHereContinueHorsemenTurn()
-	end,function() local current=getObjectFromGUID(data.tokenGUID) return current==nil or current.isSmoothMoving()==false end,5,function() apocalypseIsHereContinueHorsemenTurn() end)
+	local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
+		{releaseOrigin=true,arrivalTop=true,rotation={0,180,0}},function()
+			local reached=apocalypseQuestMapHexKey(destination)==apocalypseQuestMapHexKey(target)
+			if reached then apocalypseIsHereHorsemanDestroyTarget(name,target)
+			else
+				local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
+				gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "\n" or "")..line
+			end
+			apocalypseIsHereContinueHorsemenTurn()
+		end)
+	if started~=true then apocalypseIsHereContinueHorsemenTurn() return false end
 	return true
 end
 
@@ -13893,28 +14030,19 @@ end
 --tokens into their slight offsets and lets those pieces fall/relock above the marker.
 function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	if token==nil or terrain==nil or bearing==nil then return false end
-	local map=getObjectFromGUID(mapArea)
 	local center=angleToXY(terrain,bearing)
-	if map==nil or center==nil then return false end
+	if center==nil then return false end
 
+	--Destroyed has a known floor height, so place it there directly and let the same single-arrival
+	--helper perform the one lateral spread with any enemy/Horseman already occupying the hex.
 	token.unlock()
 	token.setRotation({0,180,0})
 	token.setPosition({center[1],destroyedSiteRestingY,center[2]})
 	token.lock()
-
-	local details=terrainTiles[terrain.guid]
-	local hex={
-		terrain=terrain,terrainGUID=terrain.guid,bearing=bearing,
-		position={center[1],destroyedSiteRestingY,center[2]},
-		hexType=details~=nil and details.hexType~=nil and details.hexType[bearing] or "",
-		feature=details~=nil and details.hexFeature~=nil and details.hexFeature[bearing] or ""
-	}
-	local mapObjects=map.getObjects() or {}
-	mapTokenArrangeHex(hex,mapObjects,nil,token)
-	--A scripted enemy/site token can enter the map zone in a different physics frame. Recheck this
-	--same base token several times so either arrival order converges to the same final arrangement.
-	mapTokenScheduleObject(token.guid)
-	if afterArrange~=nil then afterArrange() end
+	local started=mapTokenSettleArrival(token.guid,nil,{force=true,arrivalTop=false},function()
+		if afterArrange~=nil then afterArrange() end
+	end)
+	if started~=true and afterArrange~=nil then afterArrange() end
 	return true
 end
 
@@ -16687,11 +16815,8 @@ function furyDragonBeginInFlightTurn()
 	if die~=nil and spare~=nil then die.unlock() spare.putObject(die) end
 	gStates.furyDragonManaDieGUID=nil
 
-	marker.unlock()
-	marker.setRotation({0,180,0})
-	marker.setPositionSmooth(destination,false)
 	local markerGUID=marker.guid
-	mapTokenAfterSettled(markerGUID,function(landed)
+	local started=mapTokenSettleArrival(markerGUID,destination,{force=true,arrivalTop=true,rotation={0,180,0},relock=true},function(landed)
 		if landed==nil then
 			furyDragonCompleteTurn("The Apocalypse Dragon marker disappeared while landing.")
 			return
@@ -16708,8 +16833,6 @@ function furyDragonBeginInFlightTurn()
 		if #players>0 then
 			local names={}
 			for _,playerIndex in ipairs(players) do names[#names+1]=tostring(turnOrder[playerIndex].mage) end
-			if mapTokenScheduleObject~=nil then mapTokenScheduleObject(markerGUID) end
-			mapTokenRelockWhenSettled(markerGUID,true)
 			gStates.furyDragonAwaitingCombat={players=players,target=target}
 			gStates.apocalypseDragonUIState="WaitingCombat"
 			gStates.apocalypseDragonTurnReport="The Apocalypse Dragon attacks "..table.concat(names,", ")..". Resolve combat against the landed Dragon. When combat is finished, click Combat Resolved; the Dragon will immediately take its required landed turn."
@@ -16718,10 +16841,9 @@ function furyDragonBeginInFlightTurn()
 			return
 		end
 		local result=furyDragonResolveArrivalEffect(target,currentHex,currentMapObjects)
-		if mapTokenScheduleObject~=nil then mapTokenScheduleObject(markerGUID) end
-		mapTokenRelockWhenSettled(markerGUID,true)
 		furyDragonCompleteTurn(result)
 	end)
+	if started~=true then return furyDragonCompleteTurn("The Apocalypse Dragon could not begin its landing move.") end
 	return true
 end
 
@@ -36820,7 +36942,8 @@ function mapSetup()
 		if params.position==nil then params.position={pos.x, pos.y+tUp, pos.z} tUp=tUp+0.5 end
 		safeTakeObject("SetupGame",TileShuffler,params)
 	end
-	--Starting country tiles reveal on 1/2/3 second timers. They are part of setup, not newly explored terrain.
+	--Starting country tiles reveal on 1/2/3 second timers. They are part of setup and do not
+	--count toward Apocalypse is Here Horseman reveal thresholds.
 	safeWaitTime("SetupGame",function() startingMapSetup=false end, 4)
 end
 
@@ -42488,12 +42611,12 @@ horsemanData={
 		priorities={A={"village","monastery","oasis","camp"},B={"keep","mage tower","mine"},C={"rampaging","draconum"}},
 		priorityText={A="Village, Monastery, Oasis, Refugee Camp",B="Keep, Mage Tower, Crystal Mine",C="Marauding Orcs, Draconum"},
 		levels={
-			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/14003181622559512719/686739110832F4B7402EA61AA412B305C01564B9/",attack=6,armour=6,fame=4},
-			[2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/18072437518060638864/876603820F70E5605122FE852F7577DAE9DF746E/",attack=7,armour=7,fame=5},
-			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/14912093175967847496/A19442EF1450B4B18613ECB9C58F25E883897864/",attack=8,armour=8,fame=6},
-			[4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13509072763918585342/FD4D4242D8C5CDFF6E7DFE275654360BCB49EAE0/",attack=9,armour=9,fame=7},
-			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13805398986275881131/04D8C1CC14E6A84A31193155C079EB50AA70A7E8/",attack=10,armour=10,fame=8},
-			[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/15317310895332502954/414FD4F2437DEBE4F917E0DFE9F9D0D08E1CE60A/",attack=11,armour=11,fame=9},
+			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17931883533645469792/3FF6FA53DFF94B00F0C9A6141C957BDDDFCBEB9C/",attack=6,armour=6,fame=4},
+			[2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13425074098139315767/C412C89863672501BF55B11481A7EA6ACBD8DE15/",attack=7,armour=7,fame=5},
+			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12304474543339204728/69475F2C72ADA21341E99DF8F05A316672DC9AC3/",attack=8,armour=8,fame=6},
+			[4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/10859578900809291933/8C3F061B6BB348853E608E9E3723EF9DF1A02F22/",attack=9,armour=9,fame=7},
+			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12317465995716364264/A0009C15509B8A7A16C586A26B61FF2B7EE2F4C4/",attack=10,armour=10,fame=8},
+			[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/9601925882659159405/1F6E3726969C882532178870DB7C0693969ACAD3/",attack=11,armour=11,fame=9},
 		},
 	},
 	Pestilence={
@@ -42503,12 +42626,12 @@ horsemanData={
 		priorities={A={"keep","mage tower","mine"},B={"village","monastery","oasis","camp"},C={"rampaging","draconum"}},
 		priorityText={A="Keep, Mage Tower, Crystal Mine",B="Village, Monastery, Oasis, Refugee Camp",C="Marauding Orcs, Draconum"},
 		levels={
-			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17232453246901051245/C51BAD0DEEDC2944C27BFE62CE6F2B64E5E6DE19/",attack=5,armour=5,fame=4},
-			[2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/14446858715897465322/F13E926B65A05916C526DDEDB13A3C6CFD613CD3/",attack=5,armour=7,fame=5},
-			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17387683693630615125/5BDF2E0BF4118B9E3BE22E84443CDB08B0AAFBC8/",attack=6,armour=8,fame=6},
-			[4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/10088216769527189445/399E5F8407D0FB465E8042C9334002659AC7F47F/",attack=7,armour=9,fame=7},
-			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/10118528550296916969/41121D7279DDF13FD0EC0AC792743D91F2D9B801/",attack=8,armour=10,fame=8},
-			[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/10787017002404034448/08154298CC0C306D662BC6DB23C5F5DB9521F4F2/",attack=9,armour=11,fame=9},
+			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17485758241763955657/713AE03E4704C5FB3AD3FD39F10750013AF0FF79/",attack=5,armour=5,fame=4},
+			[2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/16569820910385520880/D2F21E1F83FBFD338384890C71632BFE3C8F1D3E/",attack=5,armour=7,fame=5},
+			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17839184033659786346/AABF33B2E20358B064304408F5DC9A6091E0D2F3/",attack=6,armour=8,fame=6},
+			[4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/11262154545180476590/9FDCCDD99819D8172A704BE1C67BCF2B5F8471E1/",attack=7,armour=9,fame=7},
+			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/10843361237533028522/0A11A2059D29995451DEC51C368F1D015B86897D/",attack=8,armour=10,fame=8},
+			[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/18433915488878765507/6EEF8F4A5D3F8E2AD53D43C2E0D6F1B282C7EB53/",attack=9,armour=11,fame=9},
 		},
 	},
 	Death={
@@ -42518,12 +42641,12 @@ horsemanData={
 		priorities={A={"keep","mage tower","mine"},B={"rampaging","draconum"},C={"village","monastery","oasis","camp"}},
 		priorityText={A="Keep, Mage Tower, Crystal Mine",B="Marauding Orcs, Draconum",C="Village, Monastery, Oasis, Refugee Camp"},
 		levels={
-			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/11654141818874534905/B2E1B4F45CC08931FC5F2BB524013EF9AB172A5D/",attack=4,armour=4,fame=4},
-			[2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/9838796574970255280/A1AE0DC2D89B82ABA08A87A66121655072019EFB/",attack=4,armour=6,fame=5},
-			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12193037444225572389/A36DACDAF52219F2001DC75483B59049BD80869C/",attack=5,armour=7,fame=6},
-			[4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17857954840385715058/662C3A7D9C7CA7E67041EBADF6EA98A68FDFDBBA/",attack=6,armour=8,fame=7},
-			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12472417285560424057/61C9CF9AF0600B8CCB27FCF61987F180DB1374C2/",attack=6,armour=10,fame=8},
-			[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/9394441226871462265/6F18EDAC06F6D1A31D97A8F2C1683E5D75B66E72/",attack=7,armour=11,fame=9},
+			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13780367510526653682/928986F92F1737BF4B5CE2FA25EE3BE542EB0DF5/",attack=4,armour=4,fame=4},
+			[2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13796759538357145115/AB313AFAEFFC50326E8FC28011EC91C796914E7A/",attack=4,armour=6,fame=5},
+			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/15093008197605978286/E04ED2FC9698C57CE2D4E40FDC6F9AE0A33FAA3C/",attack=5,armour=7,fame=6},
+			[4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/11880008398690875567/58FBE9C295357D63EDE83BC4CF07CFBA2E125724/",attack=6,armour=8,fame=7},
+			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13123581982724871089/805C3649EE13F79F44F0FB3DFAB37AD4424A59BC/",attack=6,armour=10,fame=8},
+			[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12042109974803558170/6BE8258A35C73D9C3D05BAA1B9BD76DEA18F825F/",attack=7,armour=11,fame=9},
 		},
 	},
 	War={
@@ -42533,12 +42656,12 @@ horsemanData={
 		priorities={A={"rampaging","draconum"},B={"keep","mage tower","mine"},C={"village","monastery","oasis","camp"}},
 		priorityText={A="Marauding Orcs, Draconum",B="Keep, Mage Tower, Crystal Mine",C="Village, Monastery, Oasis, Refugee Camp"},
 		levels={
-			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/17329164802223776821/12BE58CF6596B8A8384A06C89AC8948F3CFFB35C/",attack=4,armour=4,fame=4},
-			[2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/9642668520878713462/033934B09D5183469D85CA5E9EF178CB3F2FC244/",attack=5,armour=5,fame=5},
-			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/15737604875402465041/7352148CC6D3649A6B94A43AEC990E5B6F1500CE/",attack=6,armour=6,fame=6},
-			[4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/13634618262624579082/C2E2C1F007FB674EC578BB78875E2083A942DA8F/",attack=7,armour=7,fame=7},
-			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12570376187599322274/3CC6B8216D07ED6011802EA12DA7197823540A86/",attack=8,armour=8,fame=8},
-			[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/15481912540424558512/1CF2122A1380B2611CC5F132F9FA71E0D93A5697/",attack=9,armour=9,fame=9},
+			[1]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12217514978070297727/41E5AD85A52DA7AB543DBC764ED6154C6F1B245A/",attack=4,armour=4,fame=4},
+			[2]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/10754129658903339316/C79DAD3AB6E03857073109B3E34002F50DD2DB88/",attack=5,armour=5,fame=5},
+			[3]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/12783628991595188720/DEB372B10101C4728E1B98BA2AEDDB651FBA1EBC/",attack=6,armour=6,fame=6},
+			[4]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/14435698790556209731/0C1E24C485378B345680131E2D30F3170F0D2316/",attack=7,armour=7,fame=7},
+			[5]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/16903015555700428840/6D56ACF9A43CA6580A5445FEA95FB77F44D6E4FF/",attack=8,armour=8,fame=8},
+			[6]={tokenImg="https://steamusercontent-a.akamaihd.net/ugc/14955361674695270429/5608DD1526A16D346E1B21ECC6822F5B73C8ECBF/",attack=9,armour=9,fame=9},
 		},
 	},
 }

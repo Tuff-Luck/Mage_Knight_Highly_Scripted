@@ -2105,7 +2105,7 @@
 			<Row id="FuryOfTheApocalypseDragonRow">
 				<Button id="FuryOfTheApocalypseDragonSelection" onClick="scenarioSelection">
 					<Image id="FuryOfTheApocalypseDragonSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="FuryOfTheApocalypseDragonSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Fury of the Apocalypse Dragon{ru}Ярость Дракона Апокалипсиса{zh-tw}末日巨龍之怒{zh-cn}末日巨龙之怒{ko}아포칼립스 드래곤의 분노{es}La Furia del Dragón del Apocalipsis{fr}La Fureur du Dragon de l'Apocalypse{pt-br}A Fúria do Dragão do Apocalipse{de}Der Zorn des Apokalypse-Drachen</Text>
+					<Text id="FuryOfTheApocalypseDragonSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Gray">{en}Fury of the Apocalypse Dragon{ru}Ярость Дракона Апокалипсиса{zh-tw}末日巨龍之怒{zh-cn}末日巨龙之怒{ko}아포칼립스 드래곤의 분노{es}La Furia del Dragón del Apocalipsis{fr}La Fureur du Dragon de l'Apocalypse{pt-br}A Fúria do Dragão do Apocalipse{de}Der Zorn des Apokalypse-Drachen</Text>
 				</Button>
 			</Row>
 			<Row id="TheFracturedLandsRow">
