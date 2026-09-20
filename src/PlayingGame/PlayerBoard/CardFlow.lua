@@ -1163,10 +1163,9 @@ end
 
 function steadyTempoUpdateRewardGate(seatPos)
 	if seatPos==nil or gStates.preEndTurn~=true or turnOrder[gStates.turnNumber]==nil or turnOrder[gStates.turnNumber].seatPos~=seatPos then return end
-	--Quest resolution uses a soft gate: Rewards Claimed remains clickable, and __endTurn_raw refreshes
-	--the Quest controls plus explains what must be resolved. Only genuinely asynchronous cleanup/Steady
-	--Tempo physically disables this button. Free Wine now follows the same Quest behavior.
-	local blocked=rewardClaimDelayActive==true or steadyTempoPendingForSeat(seatPos)
+	--Only asynchronous cleanup physically disables Rewards Claimed. Steady Tempo is a normal
+	--Rewards Claimed soft lock: the button stays clickable, explains the problem, and times out.
+	local blocked=rewardClaimDelayActive==true
 	UI.setAttribute("PreEndTurn", "interactable", blocked and "false" or "true")
 	UI.setAttribute("PreEndTurnImage", "image", blocked and "Sliced Button/Button New Deactive" or "Sliced Button/Button New Active")
 end
@@ -1221,6 +1220,7 @@ function steadyTempoPrepare(card, playerIndex)
 	gStates.steadyTempoPending[card.guid]=seatPos
 	steadyTempoAddButtons(card, playerIndex)
 	steadyTempoUpdateRewardGate(seatPos)
+	if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Steady Tempo pending") end
 end
 
 function steadyTempoClearPending(cardGUID)
@@ -1229,6 +1229,7 @@ function steadyTempoClearPending(cardGUID)
 	local card=getObjectFromGUID(cardGUID)
 	if card~=nil then steadyTempoRemoveButtons(card) end
 	if seatPos~=nil then steadyTempoUpdateRewardGate(seatPos) end
+	if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Steady Tempo resolved") end
 end
 
 function steadyTempoRefreshCard(cardGUID)
