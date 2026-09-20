@@ -1817,31 +1817,24 @@ function apocalypseQuestCombatStartedThisTurn(card,stepNumber)
 end
 
 --A combat-gated Complete or Progress can become available during end-turn cleanup, after the player
---has already pressed End Turn. Keep Rewards Claimed locked for a successfully resolved Quest fight
---until that Quest action is pressed, but only for 30 seconds. This is deliberately a fail-safe: if a
---Quest state or scripted reward gets stuck, the players can eventually continue the turn manually.
+--has already pressed End Turn. Keep the Quest action pending until it is resolved; the shared
+--Rewards Claimed soft-lock window decides how long that pending action may block turn progression.
 --Ordinary failed fights must never create this gate: undefeated enemies are face down. The Fog step 2
 --is the deliberate exception because its spectral monster cannot be attacked or defeated; completing
 --that combat itself is what unlocks Progress.
 function apocalypseQuestSetRewardCompletionGate(card,playerIndex,action)
 	if card==nil or turnOrder[playerIndex]==nil then return false end
 	if gStates.apocalypseQuestRewardCompletionPending==nil then gStates.apocalypseQuestRewardCompletionPending={} end
-	gStates.apocalypseQuestRewardCompletionPending[card.guid]={player=playerIndex,serial=gStates.apocalypseQuestTurnSerial or 0,action=action or "Complete",expiresAt=os.time()+30}
+	gStates.apocalypseQuestRewardCompletionPending[card.guid]={player=playerIndex,serial=gStates.apocalypseQuestTurnSerial or 0,action=action or "Complete"}
 	return true
 end
 
 function apocalypseQuestRewardCompletionPendingForPlayer(playerIndex)
 	if gStates.apocalypseQuestRewardCompletionPending==nil or turnOrder[playerIndex]==nil then return false,nil,nil end
 	local serial=gStates.apocalypseQuestTurnSerial or 0
-	local now=os.time()
 	for cardGUID, record in pairs(gStates.apocalypseQuestRewardCompletionPending) do
 		if record~=nil and record.player==playerIndex and record.serial==serial then
-			--Compatibility with saves made before the timeout existed: give an old pending gate one final
-			--30-second window from the first time it is checked after loading.
-			if record.expiresAt==nil then record.expiresAt=now+30 end
-			if now>=record.expiresAt then
-				gStates.apocalypseQuestRewardCompletionPending[cardGUID]=nil
-			elseif getObjectFromGUID(cardGUID)~=nil then
+			if getObjectFromGUID(cardGUID)~=nil then
 				return true,cardGUID,record.action or "Complete"
 			else
 				gStates.apocalypseQuestRewardCompletionPending[cardGUID]=nil
@@ -1908,8 +1901,9 @@ function apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 	if record==nil or playerIndex==nil or record.player==playerIndex then
 		gStates.apocalypseQuestRewardCompletionPending[card.guid]=nil
 	end
-	if gStates.preEndTurn==true and turnOrder[gStates.turnNumber]~=nil and steadyTempoUpdateRewardGate~=nil then
-		steadyTempoUpdateRewardGate(turnOrder[gStates.turnNumber].seatPos)
+	if gStates.preEndTurn==true then
+		if turnOrder[gStates.turnNumber]~=nil and steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[gStates.turnNumber].seatPos) end
+		if mainUIUpdate~=nil then mainUIUpdate("Quest reward gate cleared") end
 	end
 end
 
