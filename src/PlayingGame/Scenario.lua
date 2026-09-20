@@ -1005,8 +1005,8 @@ end
 
 --Small map tokens can legitimately share one hex. Keep enemy-like tokens slightly separated so
 --each remains visible/clickable, while a physical site marker stays at the centre underneath them.
---Destroyed Site tokens are special: their known settled table height is 1.13, so scripted/manual
---placement pins them directly there instead of asking physics to discover the bottom of an existing stack.
+--Shared map-token slots encode both horizontal order and vertical stack order. Slot 1 sits directly
+--on the map at Y 1.08; every later slot is 0.20 higher, matching one token thickness.
 local mapTokenArrangeGeneration={}
 --Every arrival has one settle generation. Explicit/manual arrivals also mark themselves authoritative
 --so a late passive map-zone callback from another token cannot steal ownership of the same hex.
@@ -1014,7 +1014,13 @@ local mapTokenManualDropPending={}
 local mapTokenExplicitArrivalPending={}
 local mapTokenSpreadSpacing=0.20
 local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
-local destroyedSiteRestingY=1.13
+local mapTokenBaseY=1.08
+local mapTokenStackStepY=0.20
+
+local function mapTokenSlotY(index)
+	index=math.max(1,tonumber(index) or 1)
+	return mapTokenBaseY+((index-1)*mapTokenStackStepY)
+end
 
 --Return an evenly spaced WORLD-space point on one diagonal through the hex centre.
 --The group is always centred: 3 tokens are -1/0/+1 steps, 4 are -1.5/-0.5/+0.5/+1.5.
@@ -1199,44 +1205,25 @@ local function mapTokenUpdatePlayLocation(obj,pos)
 	end
 end
 
-local function mapTokenMoveAndDrop(obj,targetX,targetZ,minY)
+--Move one token directly to its final shared-hex slot. X/Z and Y are one piece of state:
+--changing the diagonal order must also change stack height. Do not unlock/relock here; setPosition can
+--move locked tokens directly, while loose tokens retain their normal physics after the correction.
+local function mapTokenMoveToSlot(obj,targetX,targetY,targetZ)
 	if obj==nil then return false end
 	local pos=obj.getPosition()
 	if obj.isSmoothMoving()==true then return false end
-	local already=math.abs(pos[1]-targetX)<0.035 and math.abs(pos[3]-targetZ)<0.035
+	local already=math.abs(pos[1]-targetX)<0.025 and math.abs(pos[2]-targetY)<0.025 and math.abs(pos[3]-targetZ)<0.025
 	if already==true then return false end
-	local wasLocked=obj.getLock()==true
-	local targetY=math.max(tonumber(minY) or 1.45,pos[2]+0.10)
-	obj.unlock()
 	obj.setPosition({targetX,targetY,targetZ})
 	mapTokenUpdatePlayLocation(obj,{targetX,targetY,targetZ})
-	mapTokenRelockWhenSettled(obj.guid,wasLocked)
 	return true
 end
 
---When a token is picked up, pieces left behind still need to close/rebalance their horizontal
---spacing, but lifting them again makes the stack visibly hop. Preserve the exact current Y and
---move only across the table surface; previously locked pieces can be relocked immediately.
-local function mapTokenMoveLaterally(obj,targetX,targetZ)
-	if obj==nil then return false end
-	local pos=obj.getPosition()
-	if obj.isSmoothMoving()==true then return false end
-	local already=math.abs(pos[1]-targetX)<0.035 and math.abs(pos[3]-targetZ)<0.035
-	if already==true then return false end
-	--Scripted setPosition can move a locked token directly. Do not unlock/relock here: toggling the
-	--physics lock was causing visible little hops when an otherwise settled stack was re-spread.
-	obj.setPosition({targetX,pos[2],targetZ})
-	mapTokenUpdatePlayLocation(obj,{targetX,pos[2],targetZ})
-	return true
-end
-
---Arrange one resolved map hex. A Destroyed Site remains the floor marker, but when another token
---shares its hex it participates in one centred WORLD-space diagonal spread. Adjacent tokens are 0.2
---world units apart along that line. Token rotation/face state never affects direction.
---lateralOnly is used when a piece leaves the hex so the survivors never visibly hop in Y.
+--Arrange one resolved map hex. Horizontal and vertical positions use the same ordered slot:
+--slot 1 is bottom-left at Y 1.08, slot 2 is the next diagonal position at Y 1.28, and so on.
 --Destroyed is always first. Ordinary tokens follow in arrival order. Horsemen, the single-hex
 --Dragon and pursuing enemies form the moving group at the top-right end, also in arrival order.
-function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly)
+function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
 	local seen={}
@@ -1288,66 +1275,47 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly)
 	end)
 
 	local centerX,centerZ=hex.position[1],hex.position[3]
-	local base=destroyed
-	local baseY=nil
 	local changed=false
+	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
 
+	--Destroyed is always slot 1 and therefore always sits directly on the map at Y 1.08.
 	if destroyed~=nil then
-		local pos=destroyed.getPosition()
-		local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
-		local destroyedOffset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
-		local targetX,targetZ=centerX+destroyedOffset.x,centerZ+destroyedOffset.z
-		local targetY=lateralOnly==true and pos[2] or destroyedSiteRestingY
-		local needsMove=math.abs(pos[1]-targetX)>0.025 or math.abs(pos[2]-targetY)>0.025 or math.abs(pos[3]-targetZ)>0.025
-		if needsMove==true or destroyed.getLock()~=true then
-			destroyed.unlock()
-			destroyed.setRotation({0,180,0})
-			--Destroyed stays physically underneath, but shares the same horizontal spread as the pieces above.
-			destroyed.setPosition({targetX,targetY,targetZ})
-			destroyed.lock()
-			changed=true
-		end
-		baseY=targetY
+		local offset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
+		local targetX,targetZ=centerX+offset.x,centerZ+offset.z
+		local targetY=mapTokenSlotY(1)
+		local wasLocked=destroyed.getLock()==true
+		destroyed.unlock()
+		destroyed.setRotation({0,180,0})
+		changed=mapTokenMoveToSlot(destroyed,targetX,targetY,targetZ) or changed
+		if wasLocked==true or destroyed.getLock()~=true then destroyed.lock() end
 	end
 
 	if #enemies<1 then return changed end
 	for _,obj in ipairs(enemies) do if obj.isSmoothMoving()==true then return changed end end
 
-	local shouldSpread=base~=nil or #enemies>1
-	if shouldSpread~=true then
-		local obj=enemies[1]
-		local pos=obj.getPosition()
-		if math.abs(pos[1]-centerX)>0.035 or math.abs(pos[3]-centerZ)>0.035 then
-			if lateralOnly==true then changed=mapTokenMoveLaterally(obj,centerX,centerZ) or changed
-			else changed=mapTokenMoveAndDrop(obj,centerX,centerZ,math.max(1.45,pos[2]+0.10)) or changed end
-		end
+	--A lone enemy is slot 1 at the hex centre/Y 1.08. Shared tokens use the same index for diagonal
+	--position and stack height, so the visible bottom-left -> top-right order also rises by 0.20 each.
+	if destroyed==nil and #enemies==1 then
+		changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenSlotY(1),centerZ) or changed
 		return changed
 	end
 
-	--Lay every participant on one straight WORLD-space diagonal, evenly spaced and centred.
-	--Destroyed (when present) is participant 1; enemies then follow their physical low-to-high Y order.
-	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
 	local firstEnemyIndex=destroyed~=nil and 2 or 1
 	for index,obj in ipairs(enemies) do
 		local spreadIndex=firstEnemyIndex+index-1
 		local offset=mapTokenSpreadOffset(spreadIndex,spreadCount)
-		local minY=(baseY~=nil and baseY+0.55 or 1.45)
-		if lateralOnly==true then
-			changed=mapTokenMoveLaterally(obj,centerX+offset.x,centerZ+offset.z) or changed
-		else
-			changed=mapTokenMoveAndDrop(obj,centerX+offset.x,centerZ+offset.z,minY) or changed
-		end
+		changed=mapTokenMoveToSlot(obj,centerX+offset.x,mapTokenSlotY(spreadIndex),centerZ+offset.z) or changed
 	end
 	return changed
 end
 
-function mapTokenArrangeObject(guid,lateralOnly)
+function mapTokenArrangeObject(guid)
 	local obj=guid~=nil and getObjectFromGUID(guid) or nil
 	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
 	if hex==nil then return false end
-	return mapTokenArrangeHex(hex,mapObjects,nil,obj,lateralOnly==true)
+	return mapTokenArrangeHex(hex,mapObjects,nil,obj)
 end
 
 --All loose map-token arrivals use this one ownership path. The arriving token claims its
@@ -1409,7 +1377,7 @@ function mapTokenSettleArrival(guid,target,options,callback)
 		local claims=mapTokenClaimHexParticipants(guid,generation)
 		local arranged=false
 		if #claims>0 then
-			arranged=mapTokenArrangeObject(guid,true)
+			arranged=mapTokenArrangeObject(guid)
 			mapTokenReleaseParticipantClaims(claims)
 		else
 			--The object may have moved somewhere outside the map (for example the Horsemen ritual
@@ -1452,7 +1420,7 @@ function mapTokenReleaseObject(obj)
 	safeWaitFrames("Scenario",function()
 		local hexes,mapObjects=apocalypseQuestMapHexes()
 		local hex=apocalypseQuestHexForPosition(hexes,position,mapObjects)
-		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID,nil,true) end
+		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID,nil) end
 	end,1)
 	return true
 end
@@ -1477,7 +1445,7 @@ function mapTokenArrangeAllOccupiedHexes()
 					end
 				end
 				--This is only a maintenance sweep; never lift/drop settled pieces here.
-				if arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects,nil,nil,true) end
+				if arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects,nil,nil) end
 			end
 		end
 	end
@@ -2859,7 +2827,7 @@ function takeDestroyedSiteToken(terrain,bearing)
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
 	local center=angleToXY(terrain,bearing)
 	if bag==nil or center==nil then return nil end
-	return bag.takeObject({position={center[1],destroyedSiteRestingY,center[2]},rotation={0,180,0},smooth=false})
+	return bag.takeObject({position={center[1],mapTokenBaseY,center[2]},rotation={0,180,0},smooth=false})
 end
 
 --A Destroyed Site has a known physical resting height. Put it straight onto the map surface rather
@@ -2874,7 +2842,7 @@ function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	--helper perform the one lateral spread with any enemy/Horseman already occupying the hex.
 	token.unlock()
 	token.setRotation({0,180,0})
-	token.setPosition({center[1],destroyedSiteRestingY,center[2]})
+	token.setPosition({center[1],mapTokenBaseY,center[2]})
 	token.lock()
 	local started=mapTokenSettleArrival(token.guid,nil,{force=true},function()
 		if afterArrange~=nil then afterArrange() end
