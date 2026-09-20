@@ -1017,14 +1017,13 @@ local destroyedSiteRestingY=1.13
 
 --Return an evenly spaced WORLD-space point on one diagonal through the hex centre.
 --The group is always centred: 3 tokens are -1/0/+1 steps, 4 are -1.5/-0.5/+0.5/+1.5.
---The direction is intentionally -X/-Z for the first token because that is the user's visual
---bottom-left orientation; the last token runs toward +X/+Z (visual upper-right).
+--On the normal table view +X/+Z is the visual bottom-left end of this diagonal; -X/-Z is upper-right.
+--That makes index 1 the lower/older token and the last index the higher/newest arrival.
 local function mapTokenSpreadOffset(index,count)
 	count=math.max(1,tonumber(count) or 1)
 	index=math.max(1,math.min(count,tonumber(index) or 1))
 	local steps=((count+1)/2)-index
-	--Reverse the world-space diagonal while preserving all ordering/spacing behaviour.
-	local component=-steps*mapTokenSpreadDiagonalComponent
+	local component=steps*mapTokenSpreadDiagonalComponent
 	return {x=component,z=component}
 end
 
@@ -1225,8 +1224,8 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 		local aProjection=ap[1]+ap[3]
 		local bProjection=bp[1]+bp[3]
 		if math.abs(aProjection-bProjection)>0.05 then
-			---X/-Z is the user's visual bottom-left end of the world-space diagonal.
-			return aProjection<bProjection
+			--+X/+Z is the visual bottom-left end, so preserve existing pieces in bottom-left to upper-right order.
+			return aProjection>bProjection
 		end
 		if math.abs(ap[2]-bp[2])>0.01 then return ap[2]<bp[2] end
 		return tostring(a.guid)<tostring(b.guid)
