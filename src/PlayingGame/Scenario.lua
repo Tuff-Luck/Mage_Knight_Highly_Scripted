@@ -2359,23 +2359,37 @@ end
 
 function apocalypseIsHereFinishInitialTerrainSetup()
 	if apocalypseIsHereActive()~=true then return false end
-	local queue=gStates.apocalypseHereInitialTerrainQueue or {}
-	if #queue==0 then return false end
 
-	--Do not just wait for the 1/2/3-second flip timers. Terrain population can continue after a
-	--tile flips, so wait until every queued opening tile has finished the normal terrain handler.
-	local queuedGUIDs={}
-	for _,guid in ipairs(queue) do queuedGUIDs[#queuedGUIDs+1]=guid end
+	--Use the setup-owned tile list rather than the four-second timer as the source of truth. On a
+	--slower machine a tile can flip before its terrain handler has finished (or even started), so
+	--keep startingMapSetup active until every opening terrain tile has been seen and populated.
+	local openingGUIDs={}
+	for guid in pairs(startingMapTiles or {}) do
+		local details=terrainTiles[guid]
+		if details~=nil and details.tileType~="starting" and details.tileType~="tilePile" then
+			openingGUIDs[#openingGUIDs+1]=guid
+		end
+	end
+	if #openingGUIDs==0 then startingMapSetup=false return false end
+
 	safeWaitCondition("Scenario",function()
+		local queue=gStates.apocalypseHereInitialTerrainQueue or {}
+		startingMapSetup=false
 		gStates.apocalypseHereInitialTerrainQueue={}
 		gStates.apocalypseHereInitialTerrainQueued={}
-		for _,guid in ipairs(queuedGUIDs) do
+		--Process in the original reveal order so the existing 1/2/3/4-player Horseman thresholds
+		--still select exactly the same opening tiles; only the physical deployment timing changes.
+		for _,guid in ipairs(queue) do
 			local tile=getObjectFromGUID(guid)
 			if tile~=nil and tile.is_face_down~=true then apocalypseIsHereTerrainRevealed(tile) end
 		end
 	end,function()
-		if startingMapSetup==true then return false end
-		for _,guid in ipairs(queuedGUIDs) do
+		for _,guid in ipairs(openingGUIDs) do
+			local tile=getObjectFromGUID(guid)
+			if tile~=nil then
+				if tile.is_face_down==true then return false end
+				if (gStates.apocalypseHereInitialTerrainQueued or {})[guid]~=true then return false end
+			end
 			if workingOnTerrain~=nil and workingOnTerrain[guid]==true then return false end
 		end
 		return true
