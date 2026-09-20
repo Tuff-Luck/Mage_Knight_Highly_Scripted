@@ -1240,6 +1240,11 @@ function mainUIUpdate(source)
 			end
 			--Steady Tempo must resolve before Rewards Claimed can refresh the hand, because Top can be the next card drawn.
 			if steadyTempoUpdateRewardGate~=nil and turnOrder[gStates.turnNumber]~=nil then steadyTempoUpdateRewardGate(turnOrder[gStates.turnNumber].seatPos) end
+			--Rewards Claimed remains clickable during a soft lock; a faint orange tint shows that clicking it
+			--will currently produce a reminder instead of advancing. The tint clears when the requirement is
+			--resolved or when the shared soft-lock window expires.
+			local rewardSoftLockTint=rewardClaimSoftLockPending~=nil and rewardClaimSoftLockPending(gStates.turnNumber)
+			UI.setAttribute("PreEndTurnImage","color",rewardSoftLockTint and "rgb(1,0.86,0.68)" or "white")
 			if UIColor=="Black" then UIColor="rgb(0,0,0)" end
 			UI.setAttribute("MainGameNotes", "color", UIColor)
 			UI.setAttribute("RewardNotes", "color", UIColor)

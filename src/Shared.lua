@@ -108,11 +108,21 @@ end
 
 --Rewards Claimed soft locks are player reminders, not hard disables. They share one short window
 --from the moment the Rewards Claimed stage begins, then allow the player to continue manually.
-REWARD_CLAIM_SOFT_LOCK_SECONDS=12
+REWARD_CLAIM_SOFT_LOCK_SECONDS=30
 
 function rewardClaimSoftLockStart()
 	if gStates==nil then return end
 	gStates.rewardClaimSoftLockStartedAt=os.time()
+	gStates.rewardClaimSoftLockGeneration=(gStates.rewardClaimSoftLockGeneration or 0)+1
+	local generation=gStates.rewardClaimSoftLockGeneration
+	--Refresh once when the soft lock starts so any outstanding requirement can tint Rewards Claimed,
+	--and once at expiry so the tint clears even if the player is still reading the reward checklist.
+	if mainUIUpdate~=nil then safeWaitFrames("Shared",function() mainUIUpdate("Rewards Claimed soft lock started") end,1) end
+	safeWaitTime("Shared",function()
+		if gStates~=nil and gStates.rewardClaimSoftLockGeneration==generation and gStates.preEndTurn==true and mainUIUpdate~=nil then
+			mainUIUpdate("Rewards Claimed soft lock expired")
+		end
+	end,REWARD_CLAIM_SOFT_LOCK_SECONDS)
 end
 
 function rewardClaimSoftLockActive()

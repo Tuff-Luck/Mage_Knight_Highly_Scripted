@@ -42,7 +42,7 @@ The script does not manage a player's internal Move/Combat/Interact phases. Do n
 
 Add a short matching reminder to the reward checklist above the button so it completes **“Have you:-”**. Move the clicking player's camera to the problem area when there is a useful physical target (for example the map, Quest area, offer, or play area). If there is no useful camera target, leave the camera alone.
 
-A Rewards Claimed soft lock lasts **12 seconds** from when **Rewards Claimed becomes available after any short scripted cleanup/settling delay**. After that window expires, the button must allow progression even if the reminder condition is still unresolved. The reminder may remain visible while the condition remains true.
+A Rewards Claimed soft lock lasts **30 seconds** from when **Rewards Claimed becomes available after any short scripted cleanup/settling delay**. While an authoritative reminder condition is still outstanding during that window, give the **Rewards Claimed** button a faint orange tint so the player can see that it is in the soft-locked state. After that window expires, the button must allow progression even if the reminder condition is still unresolved, and the tint must clear. The reminder may remain visible while the condition remains true.
 
 Only use a Rewards Claimed lock when the script has authoritative state that the required action is outstanding. Do not infer a mandatory action from ambiguous card movement or from rewards that may have multiple reasons for being claimed.
 

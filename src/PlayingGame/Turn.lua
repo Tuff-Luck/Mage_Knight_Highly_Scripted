@@ -382,6 +382,18 @@ function extraTurnChoice(player, mouseButton, id)
 	end
 end
 
+function rewardClaimSoftLockPending(playerIndex)
+	if rewardClaimSoftLockActive()~=true or turnOrder[playerIndex]==nil then return false end
+	local rewardSeat=turnOrder[playerIndex].seatPos
+	local questRewardPending=apocalypseQuestRewardCompletionPendingForPlayer(playerIndex)
+	if questRewardPending==true then return true end
+	if gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then return true end
+	if steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(rewardSeat)==true then return true end
+	if gStates.mineClaimPending~=nil and (gStates.mineClaimPending.playerIndex==nil or gStates.mineClaimPending.playerIndex==playerIndex) then return true end
+	if rewardRetreatRequired~=nil and rewardRetreatRequired(playerIndex)==true then return true end
+	return (gStates.skillButtons or 0)>0
+end
+
 --Deals player Hand then increments turn
 function __endTurn_raw(player, mouseButton, id, rewindReady)
 	if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then --and slightPause==false
