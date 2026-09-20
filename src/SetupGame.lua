@@ -2518,6 +2518,34 @@ function mapSetup()
 	local CityTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCity)
 	local CoreTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCore)
 	local CountryTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCountry)
+	local customPredefined=gStates.gameScenario=="Custom" and scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)=="P"
+	if customPredefined then
+		--Predefined Custom maps are built by the players. Leave all three selected terrain pools untouched.
+		local openStartPos={-36.0305,0.98,-11.9267}
+		local startTile=getObjectFromGUID(startTerrain.wedge)
+		local portalObj=getObjectFromGUID(portal.terrainHex)
+		if startTile~=nil then
+			startTile.unlock()
+			if portalObj~=nil then portalObj.unlock() end
+			startTile.setPosition(openStartPos)
+			if portalObj~=nil then portalObj.setPosition({openStartPos[1],1.1,openStartPos[3]}) end
+			startTile.setState(2)
+			safeWaitFrames("SetupGame",function()
+				local openStart=getObjectFromGUID(startTerrain.open)
+				if openStart~=nil then openStart.unlock() end
+				local currentPortal=getObjectFromGUID(portal.terrainHex)
+				if currentPortal~=nil then currentPortal.unlock() end
+			end,5)
+		else
+			local openStart=getObjectFromGUID(startTerrain.open)
+			if openStart~=nil then openStart.unlock() end
+			if portalObj~=nil then portalObj.unlock() end
+		end
+		if TileShuffler~=nil then TileShuffler.destruct() end
+		Global.setDecals({})
+		startingMapSetup=false
+		return
+	end
 	CityTileStack.shuffle()
 	CoreTileStack.shuffle()
 	CountryTileStack.shuffle()
