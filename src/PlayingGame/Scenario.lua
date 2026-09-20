@@ -1051,6 +1051,34 @@ function mapTokenNeedsArrangement(obj)
 	return mapTokenIsSpreadEnemy(obj)==true or mapTokenIsBaseSite(obj)==true
 end
 
+--Horsemen, the single-hex Fury Dragon and Pursuit monsters are always the moving/top group.
+--Their own arrival order still matters when more than one moving token shares a hex.
+function mapTokenIsMovingPriority(obj)
+	if obj==nil or obj.guid==nil then return false end
+	if horsemanTokenToName~=nil and horsemanTokenToName[obj.guid]~=nil then return true end
+	if apocalypseDragon~=nil and obj.guid==apocalypseDragon.furyMarker then return true end
+	for _,monsters in pairs(gStates~=nil and gStates.pursuingMonsters or {}) do
+		if monsters~=nil and monsters[obj.guid]~=nil then return true end
+	end
+	return false
+end
+
+--Arrival order is gameplay state, not physics state. Every genuine arrival/move/drop receives the next
+--sequence number. This lets later maintenance passes reproduce the same diagonal without reading tiny
+--collider-height differences or depending on callback order.
+local function mapTokenRecordArrival(guid)
+	if guid==nil or gStates==nil then return nil end
+	gStates.mapTokenArrivalOrder=gStates.mapTokenArrivalOrder or {}
+	gStates.mapTokenArrivalCounter=(tonumber(gStates.mapTokenArrivalCounter) or 0)+1
+	gStates.mapTokenArrivalOrder[guid]=gStates.mapTokenArrivalCounter
+	return gStates.mapTokenArrivalCounter
+end
+
+local function mapTokenArrivalOrder(guid)
+	if guid==nil or gStates==nil or gStates.mapTokenArrivalOrder==nil then return nil end
+	return tonumber(gStates.mapTokenArrivalOrder[guid])
+end
+
 local function mapTokenOnHex(obj,hex)
 	if obj==nil or hex==nil or hex.position==nil then return false end
 	local pos=obj.getPosition()
@@ -1206,9 +1234,9 @@ end
 --shares its hex it participates in one centred WORLD-space diagonal spread. Adjacent tokens are 0.2
 --world units apart along that line. Token rotation/face state never affects direction.
 --lateralOnly is used when a piece leaves the hex so the survivors never visibly hop in Y.
---For a fresh stack, physical Y defines low-to-high order. Already-separated pieces preserve their
---world-space diagonal order, and a newly dropped/arriving token is always appended at the top end.
-function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,arrivalGUID)
+--Destroyed is always first. Ordinary tokens follow in arrival order. Horsemen, the single-hex
+--Dragon and pursuing enemies form the moving group at the top-right end, also in arrival order.
+function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
 	local seen={}
@@ -1233,21 +1261,28 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 		end
 	end
 	table.sort(enemies,function(a,b)
-		--A newly dropped/arriving token is conceptually the top of the stack, regardless of tiny
-		--collider/resting-height differences. Existing pieces keep their current diagonal order when
-		--already separated; if they are still stacked at the same X/Z, physical Y decides low-to-high.
-		if arrivalGUID~=nil then
-			if a.guid==arrivalGUID and b.guid~=arrivalGUID then return false end
-			if b.guid==arrivalGUID and a.guid~=arrivalGUID then return true end
+		local aMoving=mapTokenIsMovingPriority(a)
+		local bMoving=mapTokenIsMovingPriority(b)
+		--Ordinary/site enemies always precede the moving group, regardless of which one physically
+		--arrived later. This keeps a pre-deployed Horseman above a site token revealed afterward.
+		if aMoving~=bMoving then return aMoving~=true end
+
+		local aOrder=mapTokenArrivalOrder(a.guid)
+		local bOrder=mapTokenArrivalOrder(b.guid)
+		if aOrder~=bOrder then
+			--An unrecorded token is necessarily older than a newly recorded arrival in this game.
+			if aOrder==nil then return true end
+			if bOrder==nil then return false end
+			return aOrder<bOrder
 		end
+
+		--Fallback only for tokens with no distinct recorded arrival (for example pieces already present
+		--when this layout first runs). Preserve an existing diagonal, then physical low-to-high stack order.
 		local ap=a.getPosition()
 		local bp=b.getPosition()
 		local aProjection=ap[1]+ap[3]
 		local bProjection=bp[1]+bp[3]
-		if math.abs(aProjection-bProjection)>0.05 then
-			---X/-Z is the tested visual bottom-left end; preserve that order for already-separated pieces.
-			return aProjection<bProjection
-		end
+		if math.abs(aProjection-bProjection)>0.05 then return aProjection<bProjection end
 		if math.abs(ap[2]-bp[2])>0.01 then return ap[2]<bp[2] end
 		return tostring(a.guid)<tostring(b.guid)
 	end)
@@ -1306,13 +1341,13 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,lateralOnly,ar
 	return changed
 end
 
-function mapTokenArrangeObject(guid,lateralOnly,arrivalGUID)
+function mapTokenArrangeObject(guid,lateralOnly)
 	local obj=guid~=nil and getObjectFromGUID(guid) or nil
 	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
 	if hex==nil then return false end
-	return mapTokenArrangeHex(hex,mapObjects,nil,obj,lateralOnly==true,arrivalGUID)
+	return mapTokenArrangeHex(hex,mapObjects,nil,obj,lateralOnly==true)
 end
 
 --All loose map-token arrivals use this one ownership path. The arriving token claims its
@@ -1340,6 +1375,7 @@ function mapTokenSettleArrival(guid,target,options,callback)
 	mapTokenArrangeGeneration[guid]=generation
 	mapTokenManualDropPending[guid]=generation
 	if options.passive~=true then mapTokenExplicitArrivalPending[guid]=generation end
+	mapTokenRecordArrival(guid)
 
 	if target~=nil then
 		obj.unlock()
@@ -1371,10 +1407,9 @@ function mapTokenSettleArrival(guid,target,options,callback)
 		end
 
 		local claims=mapTokenClaimHexParticipants(guid,generation)
-		local arrivalGUID=options.arrivalTop==true and guid or nil
 		local arranged=false
 		if #claims>0 then
-			arranged=mapTokenArrangeObject(guid,true,arrivalGUID)
+			arranged=mapTokenArrangeObject(guid,true)
 			mapTokenReleaseParticipantClaims(claims)
 		else
 			--The object may have moved somewhere outside the map (for example the Horsemen ritual
@@ -1395,13 +1430,13 @@ end
 --A human drop already owns the vertical fall. Replace any zone-entry claim with one final lateral
 --spread and treat the dropped token as the newest/top participant.
 function mapTokenArrangeDroppedObject(guid)
-	mapTokenSettleArrival(guid,nil,{force=true,arrivalTop=true})
+	mapTokenSettleArrival(guid,nil,{force=true})
 end
 
 --Unheld objects entering the map get one passive settle pass. They use physical/existing order and
 --must never override a known Horseman/Dragon/manual arrival that owns the same hex.
 function mapTokenScheduleObject(guid)
-	mapTokenSettleArrival(guid,nil,{passive=true,arrivalTop=false})
+	mapTokenSettleArrival(guid,nil,{passive=true})
 end
 
 --Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
@@ -1967,7 +2002,7 @@ function againstHorsemenAnimateMoveWave(targets)
 		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 		if token~=nil and target.position~=nil then
 			remaining=remaining+1
-			local started=mapTokenSettleArrival(token.guid,target.position,{releaseOrigin=true,arrivalTop=true},function() oneSettled() end)
+			local started=mapTokenSettleArrival(token.guid,target.position,{releaseOrigin=true},function() oneSettled() end)
 			if started~=true then
 				token.setPositionSmooth(target.position,false)
 				mapTokenAfterSettled(token.guid,function() oneSettled() end)
@@ -2250,7 +2285,7 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 		token=getObjectFromGUID(data.tokenGUID) or token
 		state.revealPending=nil
 		state.revealed=true
-		mapTokenSettleArrival(token.guid,target,{force=true,arrivalTop=true,rotation={0,180,0}})
+		mapTokenSettleArrival(token.guid,target,{force=true,rotation={0,180,0}})
 
 		local card=getObjectFromGUID(data.cardGUID)
 		if card~=nil then
@@ -2605,7 +2640,7 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 	if token==nil or destination==nil then apocalypseIsHereContinueHorsemenTurn() return false end
 	state.terrainGUID=destination.terrainGUID state.bearing=destination.bearing
 	local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
-		{releaseOrigin=true,arrivalTop=true,rotation={0,180,0}},function()
+		{releaseOrigin=true,rotation={0,180,0}},function()
 			local reached=apocalypseQuestMapHexKey(destination)==apocalypseQuestMapHexKey(target)
 			if reached then apocalypseIsHereHorsemanDestroyTarget(name,target)
 			else
@@ -2841,7 +2876,7 @@ function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	token.setRotation({0,180,0})
 	token.setPosition({center[1],destroyedSiteRestingY,center[2]})
 	token.lock()
-	local started=mapTokenSettleArrival(token.guid,nil,{force=true,arrivalTop=false},function()
+	local started=mapTokenSettleArrival(token.guid,nil,{force=true},function()
 		if afterArrange~=nil then afterArrange() end
 	end)
 	if started~=true and afterArrange~=nil then afterArrange() end
@@ -5618,7 +5653,7 @@ function furyDragonBeginInFlightTurn()
 	gStates.furyDragonManaDieGUID=nil
 
 	local markerGUID=marker.guid
-	local started=mapTokenSettleArrival(markerGUID,destination,{force=true,arrivalTop=true,rotation={0,180,0},relock=true},function(landed)
+	local started=mapTokenSettleArrival(markerGUID,destination,{force=true,rotation={0,180,0},relock=true},function(landed)
 		if landed==nil then
 			furyDragonCompleteTurn("The Apocalypse Dragon marker disappeared while landing.")
 			return
