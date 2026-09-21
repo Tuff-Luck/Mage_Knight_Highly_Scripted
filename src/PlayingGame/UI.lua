@@ -272,7 +272,7 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 					if test==false then
 						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "active", "true")
 						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos).."Text", "text", joinLang({"{en}Use {ru}{zh-tw}使用{zh-cn}使用{ko}{es}Usa la Habilidad Motivación de {fr}Utilisez la compétence de motivation de {pt-br}Habilidade Motivacional de {de}Verwenden ", translateWord[skillTokens[skillGUID].mage], "{en}'s Motivation Skill{ru} использует навык Мотивация{zh-tw}的激勵技能{zh-cn}的激励技能{ko}의 동기부여 스킬 사용{es}.{fr}.{pt-br}.{de}'s Motivations Fähigkeit"}))
-						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "tooltip", "Draw two cards")
+						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "tooltip", "{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten")
 						local lowestFame=1
 						--Work out lowest fame
 						for b=2, #turnOrder, 1 do
@@ -283,7 +283,7 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 						for b=1, #turnOrder, 1 do if turnOrder[b].fame==turnOrder[lowestFame].fame and b~=lowestFame then lowestFame=0 break end end--find tied lowest fame
 						if a==lowestFame then
 							UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos).."Text", "text", joinLang({"{en}Use {ru}{zh-tw}使用{zh-cn}使用{ko}{es}Usa la Habilidad Motivación de {fr}Utilisez la compétence de motivation de {pt-br}Habilidade Motivacional de {de}Verwenden ", translateWord[skillTokens[skillGUID].mage], "{en}'s Motivation Skill (+){ru} использует навык Мотивация (+){zh-tw}的激勵技能（+）{zh-cn}的激励技能（+）{ko}의 동기부여 스킬 사용 (+){es}. (+){fr}. (+){pt-br}. (+){de}'s Motivations Fähigkeit (+)"}))
-							UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "tooltip", "Draw 2 Cards"..stats.bonus)
+							UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "tooltip", joinLang({"{en}Draw 2 Cards{ru}Возьмите 2 карты{zh-tw}抽 2 張牌{zh-cn}抽 2 张牌{ko}카드 2장 뽑기{es}Roba 2 cartas{fr}Piochez 2 cartes{pt-br}Compre 2 cartas{de}Ziehe 2 Karten",stats.bonus}))
 						end
 						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos).."Image", "color", positionToColor(a))
 						count=count+1
@@ -688,7 +688,7 @@ function mainUIUpdate(source)
 
 			--change End turn button to say End Round on the last player turn
 			UI.setAttribute("EndTurnButton", "interactable", "True")
-			UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
+			UI.setAttribute("EndTurnButton", "tooltip", "{en}At least one card must be played or discarded to 'End Your Turn'.{ru}Чтобы завершить ход, нужно сыграть или сбросить хотя бы одну карту.{zh-tw}要「結束你的回合」，至少必須打出或棄掉一張牌。{zh-cn}要“结束你的回合”，至少必须打出或弃掉一张牌。{ko}'차례 종료'를 하려면 최소 1장의 카드를 사용하거나 버려야 합니다.{es}Debes jugar o descartar al menos una carta para «Finalizar tu turno».{fr}Au moins une carte doit être jouée ou défaussée pour « terminer votre tour ».{pt-br}É necessário jogar ou descartar pelo menos uma carta para 'Encerrar seu turno'.{de}Mindestens eine Karte muss gespielt oder abgeworfen werden, um deinen Zug zu beenden.")
 			UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Active")
 			UI.setAttribute("EndTurnButtonAlt", "interactable", "True")
 			UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Active")
@@ -1002,22 +1002,22 @@ function mainUIUpdate(source)
 					local linefeed=false
 					local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
 					if questRewardPending==true then
-						local questReminder=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and ". Completed/Failed the Quest." or ". Completed/Progressed the Quest."
+						local questReminder=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "{en}. Completed/Failed the Quest.{ru}. Завершили/провалили задание.{zh-tw}. 完成／失敗任務。{zh-cn}. 完成/失败任务。{ko}. 퀘스트를 완료/실패 처리했습니다.{es}. Completaste/Fallaste la Misión.{fr}. Terminé/Échoué la Quête.{pt-br}. Concluiu/Falhou a Missão.{de}. Die Quest abgeschlossen/fehlgeschlagen." or "{en}. Completed/Progressed the Quest.{ru}. Завершили/продвинули задание.{zh-tw}. 完成／推進任務。{zh-cn}. 完成/推进任务。{ko}. 퀘스트를 완료/진행했습니다.{es}. Completaste/Avanzaste la Misión.{fr}. Terminé/Progressé dans la Quête.{pt-br}. Concluiu/Avançou a Missão.{de}. Die Quest abgeschlossen/fortgesetzt."
 						rewardText=joinLang({rewardText,count,questReminder})
 						count=count+1 linefeed=true
 					end
 					if apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
-						rewardText=joinLang({rewardText,count,". Explored for horsemen."})
+						rewardText=joinLang({rewardText,count,"{en}. Explored for Horsemen.{ru}. Исследовали местность для Всадников.{zh-tw}. 為騎士探索了地圖。{zh-cn}. 为骑士探索了地图。{ko}. 기마병을 위해 탐험했습니다.{es}. Exploraste para los Jinetes.{fr}. Exploré pour les Cavaliers.{pt-br}. Explorou para os Cavaleiros.{de}. Für die Reiter erkundet."})
 						count=count+1 linefeed=true
 					end
 					if steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(currentPlayer.seatPos)==true then
-						rewardText=joinLang({rewardText,count,". Resolved Steady Tempo."})
+						rewardText=joinLang({rewardText,count,"{en}. Resolved Steady Tempo.{ru}. Разыграли «Ровный темп».{zh-tw}. 已處理「穩定節奏」。{zh-cn}. 已处理“稳定节奏”。{ko}. 'Steady Tempo'를 처리했습니다.{es}. Resolviste Ritmo Constante.{fr}. Résolu Rythme Régulier.{pt-br}. Resolveu Ritmo Constante.{de}. Gleichmäßiges Tempo abgehandelt."})
 						count=count+1 linefeed=true
 					end
 					local pendingCrystal=gStates.mineClaimPending
 					if pendingCrystal~=nil and pendingCrystal.playerIndex==gStates.turnNumber then
-						local crystalSource=pendingCrystal.source=="Quest" and "Quest" or "Mine"
-						rewardText=joinLang({rewardText,count,". Claimed your "..crystalSource.." Crystal."})
+						local crystalSource=pendingCrystal.source=="Quest" and "{en}Quest{ru}задания{zh-tw}任務{zh-cn}任务{ko}퀘스트{es}Misión{fr}Quête{pt-br}Missão{de}Quest" or "{en}Mine{ru}шахты{zh-tw}礦山{zh-cn}矿山{ko}광산{es}Mina{fr}Mine{pt-br}Mina{de}Mine"
+						rewardText=joinLang({rewardText,count,"{en}. Claimed your {ru}. Получили кристалл {zh-tw}. 已領取你的{zh-cn}. 已领取你的{ko}. {es}. Reclamaste tu Cristal de {fr}. Récupéré votre Cristal de {pt-br}. Coletou seu Cristal de {de}. Deinen ",crystalSource,"{en} Crystal.{ru}.{zh-tw}水晶。{zh-cn}水晶。{ko} 크리스털을 획득했습니다.{es}.{fr}.{pt-br}.{de}-Kristall genommen."})
 						count=count+1 linefeed=true
 					end
 					if linefeed==true then rewardText=joinLang({rewardText,"\n"}) linefeed=false end
@@ -1031,7 +1031,7 @@ function mainUIUpdate(source)
 						count=count+1 linefeed=true
 					end
 					if defeatedElementalistRampagerThisTurn()==true then
-						rewardText=joinLang({rewardText, count, ". Explored (Defeated Elementalist)"})
+						rewardText=joinLang({rewardText, count, "{en}. Explored (Defeated Elementalist){ru}. Исследовали (победили Элементалиста){zh-tw}. 已探索（擊敗元素使）{zh-cn}. 已探索（击败元素使）{ko}. 탐험 완료 (원소술사 처치){es}. Exploraste (Elementalista derrotado){fr}. Exploré (Élémentaliste vaincu){pt-br}. Explorou (Elementalista derrotado){de}. Erkundet (Elementarmagier besiegt)"})
 						count=count+1 linefeed=true
 					end
 					if avatarLocation~=nil then
