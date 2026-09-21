@@ -36,12 +36,12 @@ function dropOutPlayer(player, mouseButton, id)
 	end
 	if playerData==nil or legalPlayerCheck(player.color, playerData.seatPos, "NoDummyException")~=true then return end
 	if dropoutCoopLocked()==true then
-		broadcastToAll("Players cannot drop out while a cooperative assault or defense is being resolved.", positionToColor(playerIndex))
+		broadcastToAll("{en}Players cannot drop out while a cooperative assault or defense is being resolved.{ru}Игроки не могут выйти из игры, пока разрешается совместный штурм или защита.{zh-tw}合作攻城或防禦結算期間，玩家不能退出。{zh-cn}合作攻城或防御结算期间，玩家不能退出。{ko}협동 공격 또는 방어를 해결하는 동안에는 플레이어가 이탈할 수 없습니다.{es}Los jugadores no pueden abandonar mientras se resuelve un asalto o defensa cooperativos.{fr}Les joueurs ne peuvent pas abandonner pendant la résolution d’un assaut ou d’une défense coopératifs.{pt-br}Os jogadores não podem sair enquanto um assalto ou defesa cooperativos estiverem sendo resolvidos.{de}Spieler können während der Abwicklung eines kooperativen Angriffs oder einer kooperativen Verteidigung nicht aussteigen.", positionToColor(playerIndex))
 		applyColorBarButtons()
 		return
 	end
 	if gStates.firstStarted==true and playerIndex==gStates.turnNumber then
-		broadcastToAll("You cannot drop out during your own turn.", positionToColor(playerIndex))
+		broadcastToAll("{en}You cannot drop out during your own turn.{ru}Нельзя выйти из игры во время собственного хода.{zh-tw}你不能在自己的回合中退出。{zh-cn}你不能在自己的回合中退出。{ko}자신의 턴에는 이탈할 수 없습니다.{es}No puedes abandonar durante tu propio turno.{fr}Vous ne pouvez pas abandonner pendant votre propre tour.{pt-br}Você não pode sair durante o seu próprio turno.{de}Du kannst während deines eigenen Zuges nicht aussteigen.", positionToColor(playerIndex))
 		applyColorBarButtons()
 		return
 	end
@@ -53,7 +53,7 @@ function dropOutPlayer(player, mouseButton, id)
 	else
 		--Never allow dropouts to reduce the game below two active Mage Knights.
 		if activeMageKnightCount()<3 then
-			broadcastToAll("At least two Mage Knights must remain in the game.", positionToColor(playerIndex))
+			broadcastToAll("{en}At least two Mage Knights must remain in the game.{ru}В игре должны остаться как минимум два Рыцаря-мага.{zh-tw}遊戲中至少必須保留兩名魔法騎士。{zh-cn}游戏中至少必须保留两名魔法骑士。{ko}게임에는 최소 두 명의 마법 기사가 남아 있어야 합니다.{es}Deben permanecer al menos dos Caballeros Mago en la partida.{fr}Au moins deux Chevaliers-Mages doivent rester dans la partie.{pt-br}Pelo menos dois Cavaleiros-Magos devem permanecer na partida.{de}Mindestens zwei Magieritter müssen im Spiel bleiben.", positionToColor(playerIndex))
 			applyColorBarButtons()
 			return
 		end
@@ -419,18 +419,18 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 		if rewardSoftLock==true and steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(rewardSeat)==true then
 			steadyTempoRefreshAll() steadyTempoUpdateRewardGate(rewardSeat)
 			cameraControl(player,"-1","playAreaView")
-			broadcastToAll("Resolve Steady Tempo before claiming rewards.", positionToColor(gStates.turnNumber))
+			broadcastToAll("{en}Resolve Steady Tempo before claiming rewards.{ru}Разрешите «Steady Tempo» перед получением наград.{zh-tw}領取獎勵前先結算「Steady Tempo」。{zh-cn}领取奖励前先结算“Steady Tempo”。{ko}보상을 받기 전에 Steady Tempo를 해결하십시오.{es}Resuelve Steady Tempo antes de reclamar recompensas.{fr}Résolvez Steady Tempo avant de réclamer les récompenses.{pt-br}Resolva Steady Tempo antes de receber as recompensas.{de}Führe Steady Tempo aus, bevor du Belohnungen beanspruchst.", positionToColor(gStates.turnNumber))
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
 		if rewardSoftLock==true and gStates.mineClaimPending~=nil and (gStates.mineClaimPending.playerIndex==nil or gStates.mineClaimPending.playerIndex==gStates.turnNumber) then
-			broadcastToColor("Resolve the pending crystal choice before proceeding to the next player.", player.color, warningColor)
+			broadcastToColor("{en}Resolve the pending crystal choice before proceeding to the next player.{ru}Сначала выберите ожидающий кристалл, прежде чем переходить к следующему игроку.{zh-tw}前往下一位玩家前，先完成尚未處理的水晶選擇。{zh-cn}前往下一位玩家前，先完成尚未处理的水晶选择。{ko}다음 플레이어로 넘어가기 전에 대기 중인 크리스털 선택을 해결하십시오.{es}Resuelve la elección de cristal pendiente antes de pasar al siguiente jugador.{fr}Résolvez le choix de cristal en attente avant de passer au joueur suivant.{pt-br}Resolva a escolha de cristal pendente antes de passar para o próximo jogador.{de}Schließe die ausstehende Kristallauswahl ab, bevor du zum nächsten Spieler wechselst.", player.color, warningColor)
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
 		if rewardSoftLock==true and rewardRetreatRequired~=nil and rewardRetreatRequired(gStates.turnNumber)==true then
 			cameraControl(player,"-1","mapView")
-			broadcastToColor("Retreat to a safe space before claiming rewards.",player.color,warningColor)
+			broadcastToColor("{en}Retreat to a safe space before claiming rewards.{ru}Отступите на безопасное поле перед получением наград.{zh-tw}領取獎勵前先撤退到安全空間。{zh-cn}领取奖励前先撤退到安全空间。{ko}보상을 받기 전에 안전한 칸으로 후퇴하십시오.{es}Retírate a un espacio seguro antes de reclamar recompensas.{fr}Retirez-vous vers un espace sûr avant de réclamer les récompenses.{pt-br}Recue para um espaço seguro antes de receber as recompensas.{de}Ziehe dich auf ein sicheres Feld zurück, bevor du Belohnungen beanspruchst.",player.color,warningColor)
 			if rewindReady==true then rewindTransactionFinish("End turn") end
 			return
 		end
@@ -805,11 +805,11 @@ end
 --record the player who called end of round
 function __PreEndRound_raw(player, mouseButton, id)
 	if gStates.apocalypseHereHorsemenTurnActive==true then
-		if player~=nil and player.color~=nil then broadcastToColor("Finish the Horsemen turn first.",player.color,warningColor) end
+		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Horsemen turn first.{ru}Сначала завершите ход Всадников.{zh-tw}請先完成騎士的回合。{zh-cn}请先完成骑士的回合。{ko}먼저 기사들의 턴을 끝내십시오.{es}Termina primero el turno de los Jinetes.{fr}Terminez d’abord le tour des Cavaliers.{pt-br}Termine primeiro o turno dos Cavaleiros.{de}Beende zuerst den Zug der Reiter.",player.color,warningColor) end
 		return
 	end
 	if gStates.apocalypseDragonTurnActive==true then
-		if player~=nil and player.color~=nil then broadcastToColor("Finish the Apocalypse Dragon turn first.",player.color,warningColor) end
+		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Apocalypse Dragon turn first.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 턴을 끝내십시오.{es}Termina primero el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
 		return
 	end
 	if gStates.endGameAchieved~="false" then return end
@@ -993,7 +993,7 @@ function __endRound_raw(rewindReady)
 					end
 				end
 			else
-				broadcastToAll("Automated player found no valid Spell card during round preparation; no crystal was added.",{1,0.65,0.2})
+				broadcastToAll("{en}Automated player found no valid Spell card during round preparation; no crystal was added.{ru}Автоматический игрок не нашёл подходящей карты Заклинания при подготовке раунда; кристалл не добавлен.{zh-tw}自動玩家在回合輪準備期間找不到有效的法術牌；未加入水晶。{zh-cn}自动玩家在回合轮准备期间找不到有效的法术牌；未加入水晶。{ko}자동 플레이어가 라운드 준비 중 유효한 주문 카드를 찾지 못해 크리스털을 추가하지 않았습니다.{es}El jugador automático no encontró una carta de Hechizo válida durante la preparación de la Ronda; no se añadió ningún cristal.{fr}Le joueur automatique n’a trouvé aucune carte Sort valide pendant la préparation de la Manche ; aucun cristal n’a été ajouté.{pt-br}O jogador automático não encontrou uma carta de Feitiço válida durante a preparação da Rodada; nenhum cristal foi adicionado.{de}Der automatisierte Spieler fand bei der Rundenvorbereitung keine gültige Zauberkarte; es wurde kein Kristall hinzugefügt.",{1,0.65,0.2})
 			end
 		else
 			--Discards an Advance Action
@@ -1269,8 +1269,8 @@ function dayNight()
 		gStates.nightTint=false
 		gStates.moveCost["forest"]=3
 		gStates.moveCost["desert"]=5
-		UI.setAttribute("MoveCostDeserText", "text", "Deserts : 5")
-		UI.setAttribute("MoveCostForesText", "text", "Forests : 3")
+		UI.setAttribute("MoveCostDeserText", "text", "{en}Deserts : 5{ru}Пустыни : 5{zh-tw}沙漠：5{zh-cn}沙漠：5{ko}사막 : 5{es}Desiertos : 5{fr}Déserts : 5{pt-br}Desertos : 5{de}Wüsten : 5")
+		UI.setAttribute("MoveCostForesText", "text", "{en}Forests : 3{ru}Леса : 3{zh-tw}森林：3{zh-cn}森林：3{ko}숲 : 3{es}Bosques : 3{fr}Forêts : 3{pt-br}Florestas : 3{de}Wälder : 3")
 		fakeDropAvatar()
 	else
 		tileColor={r=0.6, g=0.6, b=0.6}
@@ -1293,8 +1293,8 @@ function dayNight()
 		gStates.nightTint=true
 		gStates.moveCost["forest"]=5
 		gStates.moveCost["desert"]=3
-		UI.setAttribute("MoveCostDeserText", "text", "Deserts : 3")
-		UI.setAttribute("MoveCostForesText", "text", "Forests : 5")
+		UI.setAttribute("MoveCostDeserText", "text", "{en}Deserts : 3{ru}Пустыни : 3{zh-tw}沙漠：3{zh-cn}沙漠：3{ko}사막 : 3{es}Desiertos : 3{fr}Déserts : 3{pt-br}Desertos : 3{de}Wüsten : 3")
+		UI.setAttribute("MoveCostForesText", "text", "{en}Forests : 5{ru}Леса : 5{zh-tw}森林：5{zh-cn}森林：5{ko}숲 : 5{es}Bosques : 5{fr}Forêts : 5{pt-br}Florestas : 5{de}Wälder : 5")
 	end
 
 	--Make terrain tile light or dark
@@ -1402,7 +1402,7 @@ function dayTactic2Discarded(player, mouseButton, id)
 	local playerPosition=math.ceil((tactic.getPosition()[1]+78)/40)
 	if Player[playerColor]~=nil and Player[playerColor].seated==true and playerColor~="Black" and Player[playerColor].getHandTransform()~=nil then playerPosition=math.ceil((Player[playerColor].getHandTransform().position[1]+97.59)/40) end
 	local tacticPosition=math.ceil((tactic.getPosition()[1]+78)/40)
-	if playerPosition~=tacticPosition then broadcastToAll("That's not for you to decide", warningColor) return end
+	if playerPosition~=tacticPosition then broadcastToAll("{en}That’s not for you to decide.{ru}Это решаете не вы.{zh-tw}這不是由你決定的。{zh-cn}这不是由你决定的。{ko}당신이 결정할 일이 아닙니다.{es}Eso no te corresponde decidirlo.{fr}Ce n’est pas à vous de décider.{pt-br}Isso não cabe a você decidir.{de}Das entscheidest nicht du.", warningColor) return end
 	local playerIndex=nil
 	local playerMage=nil
 	for a, details in pairs(turnOrder) do if details.seatPos==playerPosition then playerIndex=a playerMage=details.mage break end end
@@ -1437,7 +1437,7 @@ function dayTactic2Discarded(player, mouseButton, id)
 		end
 		if discards==nil then return end
 		local drawCount=discards.tag=="Deck" and discards.getQuantity() or 1
-		if drawCount>3 then broadcastToAll("You have discarded too many cards", warningColor) return end
+		if drawCount>3 then broadcastToAll("{en}You have discarded too many cards.{ru}Вы сбросили слишком много карт.{zh-tw}你棄掉了太多牌。{zh-cn}你弃掉了太多牌。{ko}카드를 너무 많이 버렸습니다.{es}Has descartado demasiadas cartas.{fr}Vous avez défaussé trop de cartes.{pt-br}Você descartou cartas demais.{de}Du hast zu viele Karten abgeworfen.", warningColor) return end
 		--The use is committed once a valid discard pile has been found. Remove the button now
 		--rather than leaving a second click available while the replacement draws are resolving.
 		dayTactic2SetUsed()
@@ -1628,7 +1628,7 @@ function nightTactic6(player, mouseButton, id)
 						end
 					end
 					if drawn==nil then
-						if turnOrder[playerIndex].mage=="Coral" then broadcastToAll("Night Tactic 6: Coral has no normal Deed card available to store.", positionToColor(playerIndex)) end
+						if turnOrder[playerIndex].mage=="Coral" then broadcastToAll("{en}Night Tactic 6: Coral has no normal Deed card available to store.{ru}Ночная тактика 6: у Coral нет обычной карты Действия, которую можно сохранить.{zh-tw}夜間戰術 6：Coral 沒有可儲存的一般行動牌。{zh-cn}夜间战术 6：Coral 没有可储存的一般行动牌。{ko}야간 전술 6: Coral에게 저장할 수 있는 일반 행동 카드가 없습니다.{es}Táctica Nocturna 6: Coral no tiene ninguna carta de Acción normal disponible para guardar.{fr}Tactique Nocturne 6 : Coral n’a aucune carte Action normale à conserver.{pt-br}Tática Noturna 6: Coral não tem nenhuma carta de Ação normal disponível para guardar.{de}Nachttaktik 6: Coral hat keine normale Aktionskarte zum Speichern.", positionToColor(playerIndex)) end
 						return
 					end
 
@@ -1650,7 +1650,7 @@ function nightTactic6(player, mouseButton, id)
 				if seatPos==nil then return end
 				claimNightTactic6StoredCards(seatPos, function(failed)
 					if #failed>0 then
-						broadcastToAll("Night Tactic 6 could not find "..tostring(#failed).." stored card(s).", warningColor)
+						broadcastToAll(joinLang({"{en}Night Tactic 6 could not find {ru}Ночная тактика 6 не смогла найти {zh-tw}夜間戰術 6 找不到 {zh-cn}夜间战术 6 找不到 {ko}야간 전술 6에서 저장한 카드 {es}Táctica Nocturna 6 no pudo encontrar {fr}Tactique Nocturne 6 n’a pas pu retrouver {pt-br}Tática Noturna 6 não conseguiu encontrar {de}Nachttaktik 6 konnte ",tostring(#failed),"{en} stored card(s).{ru} сохранённых карт(ы).{zh-tw} 張已儲存的牌。{zh-cn} 张已储存的牌。{ko}장을 찾지 못했습니다.{es} carta(s) guardada(s).{fr} carte(s) conservée(s).{pt-br} carta(s) guardada(s).{de} gespeicherte Karte(n) nicht finden."}), warningColor)
 						return
 					end
 					--Only finish the tactic after every recorded stored card has actually been returned.
