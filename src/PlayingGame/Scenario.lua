@@ -165,7 +165,7 @@ function volkarePursuitDropShield(playerIndex,combat)
 	if gStates.volkarePursuitShields==nil then gStates.volkarePursuitShields={} end
 	gStates.volkarePursuitShields[shield.guid]=combat.hexKey
 	safeWaitTime("Scenario",function() if getObjectFromGUID(shield.guid)~=nil then safeWaitCondition("Scenario",function() shield.lock() end,function() return shield.resting end) end end,1.0)
-	broadcastToAll(joinLang({translateWord[player.mage],"{en} marked a Volkare Pursuit hex.{ru} отметил гекс преследования Волкара.{zh-cn}标记了一个沃卡里追击格。{ko}: 볼케어 추격 칸을 표시했습니다.{es} marcó un hexágono de Persecución de Volkare.{fr} a marqué un hexagone de Poursuite de Volkare.{pt-br} marcou um hexágono de Perseguição de Volkare.{de} hat ein Feld für die Verfolgung Volkares markiert."}),positionToColor(playerIndex))
+	broadcastToAll(joinLang({translateWord[player.mage],"{en} marked a Volkare Pursuit hex.{ru} отметил гекс преследования Волкара.{zh-tw}标记了一个沃卡里追击格。{zh-cn}标记了一个沃卡里追击格。{ko}: 볼케어 추격 칸을 표시했습니다.{es} marcó un hexágono de Persecución de Volkare.{fr} a marqué un hexagone de Poursuite de Volkare.{pt-br} marcou um hexágono de Perseguição de Volkare.{de} hat ein Feld für die Verfolgung Volkares markiert."}),positionToColor(playerIndex))
 	return shield
 end
 
@@ -481,7 +481,7 @@ function volkareQuestCheckSkipTurn()
 	if threshold<=0 or gStates.volkareArmyDefeated<threshold or reminder==nil or reminder.is_face_down==true then return false end
 	gStates.volkareQuestSkipThreshold=threshold
 	reminder.flip()
-	broadcastToAll(joinLang({"{en}At Least {ru}Как минимум {zh-cn}至少{ko}최소 {es}Al menos {fr}Au moins {pt-br}Pelo menos {de}Zumindest ", tostring(threshold), "{en} of Volkare's Army defeated, he skips his next turn.{ru} отряда из армии Волкара побеждено, он пропускает следующий ход{zh-cn}个敌人被击败了, 沃里卡跳过了他的回合. {ko}개의 볼케어 군대 적 토큰을 제거했기에, 볼케어의 차례를 건너뜁니다{es} de los ejércitos de Volkare derrotados, se salta su siguiente turno.{fr} de l'armée de Volkare vaincus, il saute son prochain tour.{pt-br} do exército de Volkare derrotado, ele pulará seu próximo turno.{de} von Volkare's Armee besiegt, überspringt er seinen nächsten Zug."}), {1,1,0.5})
+	broadcastToAll(joinLang({"{en}At Least {ru}Как минимум {zh-tw}至少{zh-cn}至少{ko}최소 {es}Al menos {fr}Au moins {pt-br}Pelo menos {de}Zumindest ", tostring(threshold), "{en} of Volkare's Army defeated, he skips his next turn.{ru} отряда из армии Волкара побеждено, он пропускает следующий ход{zh-tw}个敌人被击败了, 沃里卡跳过了他的回合. {zh-cn}个敌人被击败了, 沃里卡跳过了他的回合. {ko}개의 볼케어 군대 적 토큰을 제거했기에, 볼케어의 차례를 건너뜁니다{es} de los ejércitos de Volkare derrotados, se salta su siguiente turno.{fr} de l'armée de Volkare vaincus, il saute son prochain tour.{pt-br} do exército de Volkare derrotado, ele pulará seu próximo turno.{de} von Volkare's Armee besiegt, überspringt er seinen nächsten Zug."}), {1,1,0.5})
 	return true
 end
 
@@ -736,7 +736,7 @@ function scenarioEnd(endImmediately)
 		turnOrder[gStates.realTurn].gameEnder=true
 		establishFinalTurnBoundary("victory", gStates.realTurn)
 		if gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Quest for the Golden Grail" then
-			broadcastToAll("{en}Congratulations{ru}Поздравляем{zh-cn}恭喜{ko}축하합니다{es}Felicidades{fr}Toutes nos félicitations{pt-br}Parabéns{de}Glückwunsch", {1,1,0.5})
+			broadcastToAll("{en}Congratulations{ru}Поздравляем{zh-tw}恭喜{zh-cn}恭喜{ko}축하합니다{es}Felicidades{fr}Toutes nos félicitations{pt-br}Parabéns{de}Glückwunsch", {1,1,0.5})
 			gStates.endGameAchieved="true"
 			gStates.gameOver=true
 			mainUIUpdate("Scenario End")
@@ -745,7 +745,7 @@ function scenarioEnd(endImmediately)
 			gStates.gameOver=true
 			mainUIUpdate("Game Over")
 		else
-			broadcastToAll("{en}Final Round of Turns Started{ru}Начался последний круг ходов{zh-cn}最终轮的回合开始了{ko}마지막 턴 시작{es}Inicio de la Ultima Ronda de Turnos{fr}Dernier Rounde de Tours Commencé{pt-br}Rodada Final de Turnos começou{de}Die letzte Runde hat begonnen", {1,1,0.5})
+			broadcastToAll("{en}Final Round of Turns Started{ru}Начался последний круг ходов{zh-tw}最终轮的回合开始了{zh-cn}最终轮的回合开始了{ko}마지막 턴 시작{es}Inicio de la Ultima Ronda de Turnos{fr}Dernier Rounde de Tours Commencé{pt-br}Rodada Final de Turnos começou{de}Die letzte Runde hat begonnen", {1,1,0.5})
 		end
 	else
 		UI.setAttribute("EndGameButtonText", "text", "{en}Scenario End Achieved - No{ru}Конец сценария достигнут - Нет{zh-tw}達成劇本結束 - 否{zh-cn}達成剧本结束 - 否{ko}시나리오 종료 조건 충족 전{es}Escenario Fin Realizados - No{fr}Scénario Fin Atteint - Non{pt-br}Fim do Cenário Alcançado - Não{de}Szenarioziel Erreicht – Nein")
@@ -757,7 +757,7 @@ function scenarioEnd(endImmediately)
 		for _, turnDetails in pairs(turnOrder) do turnDetails.gameEnder=false end
 		if gStates.finalTurnReason=="victory" then clearFinalTurnBoundary() else ensureFinalTurnBoundary() end
 		gStates.endGameAchieved=(gStates.finalTurnReason=="endRound" and gStates.currentRound==gStates.rounds) and "true" or "false"
-		broadcastToAll("{en}Turn order resumed{ru}Порядок хода восстановлен{zh-cn}回合顺序恢复了{ko}턴 순서가 재개되었습니다{es}Se reanudó el orden de turno{fr}L'ordre des tours a repris{pt-br}Ordem de Turno retomada{de}Reihenfolge der Drehung wieder aufgenommen", {1,1,0.5})
+		broadcastToAll("{en}Turn order resumed{ru}Порядок хода восстановлен{zh-tw}回合顺序恢复了{zh-cn}回合顺序恢复了{ko}턴 순서가 재개되었습니다{es}Se reanudó el orden de turno{fr}L'ordre des tours a repris{pt-br}Ordem de Turno retomada{de}Reihenfolge der Drehung wieder aufgenommen", {1,1,0.5})
 		mainUIUpdate("Scenario End")
 	end
 	refreshCoopCompSkillXs()
@@ -925,7 +925,7 @@ function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature
 		normalized.destinationBearing=tostring(bearing)
 		gStates.dungeonLordsSecretSiteOrigins[obj.guid]=normalized
 		obj.lock()
-		broadcastToAll(joinLang({translateWord[secretName], "{en} located.{ru} размещена(о).{zh-cn} 坐落于{ko} 설치됨{es} situado.{fr} situé.{pt-br} localizado.{de} liegt."}), {1,1,0.5})
+		broadcastToAll(joinLang({translateWord[secretName], "{en} located.{ru} размещена(о).{zh-tw} 坐落于{zh-cn} 坐落于{ko} 설치됨{es} situado.{fr} situé.{pt-br} localizado.{de} liegt."}), {1,1,0.5})
 		table.remove(gStates.locationPlace)
 		dungeonLordsPruneImpossibleSecretRequests()
 		mainUIUpdate("Need Token")
@@ -946,7 +946,7 @@ function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature
 		if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 		gStates.hexOverideSave[terrain.guid][tostring(bearing)]=""
 		gStates.dungeonLordsSecretSiteOrigins[obj.guid]=nil
-		broadcastToAll(joinLang({translateWord[secretName], "{en} removed.{ru} удалена(о).{zh-cn} 移除的{ko} 제거됨{es} remoto.{fr} supprimé.{pt-br} removido.{de} entfernt."}), {1,1,0.5})
+		broadcastToAll(joinLang({translateWord[secretName], "{en} removed.{ru} удалена(о).{zh-tw} 移除的{zh-cn} 移除的{ko} 제거됨{es} remoto.{fr} supprimé.{pt-br} removido.{de} entfernt."}), {1,1,0.5})
 		dungeonLordsQueueSecretRequest(origin,true)
 		dungeonLordsPruneImpossibleSecretRequests()
 		mainUIUpdate("Need Token")
@@ -991,16 +991,26 @@ function horsemanMonsterData(ref, level)
 	return abilities
 end
 
+local function horsemanPriorityLocalizedList(text)
+	local parts={}
+	for term in tostring(text or ""):gmatch("[^,]+") do
+		term=term:match("^%s*(.-)%s*$")
+		if #parts>0 then parts[#parts+1]=", " end
+		parts[#parts+1]=translateWord[term] or term
+	end
+	return joinLang(parts)
+end
+
 function horsemanPriorityDescription(ref)
 	local data,name=horsemanDataFor(ref)
 	if data==nil then return "" end
 	local state=gStates~=nil and gStates.horsemen~=nil and gStates.horsemen[name] or nil
 	local level=state~=nil and state.level or nil
-	local heading="[00ff00]HORSEMAN - "..string.upper(name)..(level~=nil and " (LEVEL "..tostring(level)..")" or "").."[-]\n"
-	return heading..
-		"Priority A: "..data.priorityText.A.."\n"..
-		"Priority B: "..data.priorityText.B.."\n"..
-		"Priority C: "..data.priorityText.C.."\n\n"
+	local heading=joinLang({"{en}[00ff00]HORSEMAN - {ru}[00ff00]ВСАДНИК - {zh-tw}[00ff00]騎士 - {zh-cn}[00ff00]骑士 - {ko}[00ff00]기사 - {es}[00ff00]JINETE - {fr}[00ff00]CAVALIER - {pt-br}[00ff00]CAVALEIRO - {de}[00ff00]REITER - ",string.upper(name),level~=nil and joinLang({"{en} (LEVEL {ru} (УРОВЕНЬ {zh-tw}（等級 {zh-cn}（等级 {ko} (레벨 {es} (NIVEL {fr} (NIVEAU {pt-br} (NÍVEL {de} (STUFE ",tostring(level),"{en}){ru}){zh-tw}）{zh-cn}）{ko}){es}){fr}){pt-br}){de})"}) or "","[-]\n"})
+	return joinLang({heading,
+		"{en}Priority A: {ru}Приоритет A: {zh-tw}優先級 A：{zh-cn}优先级 A：{ko}우선순위 A: {es}Prioridad A: {fr}Priorité A : {pt-br}Prioridade A: {de}Priorität A: ",horsemanPriorityLocalizedList(data.priorityText.A),"\n",
+		"{en}Priority B: {ru}Приоритет B: {zh-tw}優先級 B：{zh-cn}优先级 B：{ko}우선순위 B: {es}Prioridad B: {fr}Priorité B : {pt-br}Prioridade B: {de}Priorität B: ",horsemanPriorityLocalizedList(data.priorityText.B),"\n",
+		"{en}Priority C: {ru}Приоритет C: {zh-tw}優先級 C：{zh-cn}优先级 C：{ko}우선순위 C: {es}Prioridad C: {fr}Priorité C : {pt-br}Prioridade C: {de}Priorität C: ",horsemanPriorityLocalizedList(data.priorityText.C),"\n\n"})
 end
 
 --Small map tokens can legitimately share one hex. Keep enemy-like tokens slightly separated so
@@ -2765,7 +2775,7 @@ function volkarePursuitAction(playerDud,mouseButton,id)
 	gStates.monsterOffsetX=0 gStates.monsterOffsetZ=0
 	if choice=="Green" or choice=="Both" then drawMonster(monsterPiles.green,turnOrder[playerIndex],"VPDraw|Green") end
 	if choice=="Red" or choice=="Both" then local delay=choice=="Both" and 7 or 0 safeWaitFrames("Scenario",function() drawMonster(monsterPiles.red,turnOrder[playerIndex],"VPDraw|Red") end,delay) end
-	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage],"{en} pursues Volkare's fleeing army.{ru} преследует отступающую армию Волкара.{zh-cn}追击沃卡里的溃军。{ko}: 볼케어의 패주하는 군대를 추격합니다.{es} persigue al ejército en fuga de Volkare.{fr} poursuit l'armée de Volkare en fuite.{pt-br} persegue o exército em fuga de Volkare.{de} verfolgt Volkares fliehende Armee."}),positionToColor(playerIndex))
+	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage],"{en} pursues Volkare's fleeing army.{ru} преследует отступающую армию Волкара.{zh-tw}追击沃卡里的溃军。{zh-cn}追击沃卡里的溃军。{ko}: 볼케어의 패주하는 군대를 추격합니다.{es} persigue al ejército en fuga de Volkare.{fr} poursuit l'armée de Volkare en fuite.{pt-br} persegue o exército em fuga de Volkare.{de} verfolgt Volkares fliehende Armee."}),positionToColor(playerIndex))
 	addAvatarButtons()
 end
 
@@ -2805,7 +2815,7 @@ function druidNightsRitualAction(playerDud, mouseButton, id)
 	player.combatIconHide="Both"
 	player.druidNightsLastRitualRound=gStates.currentRound
 	player.druidNightsRitualCount=(player.druidNightsRitualCount or 0)+1
-	broadcastToAll("{en}Performed Incantation to summon Monster(s) to your Player Board{ru}Прочтено заклинание, чтобы призвать Монстра(ов) на вашу игровую доску.{zh-cn}执行了咒语召唤怪物到你的玩家板{ko}주문을 시전하여 몬스터를 소환합니다{es}Encantamiento realizado para convocar Monstruos a tu Tablero de Jugador{fr}Incantation exécutée pour invoquer des monstres sur votre plateau de joueur{pt-br}Realizou um Encantamento para invocar Monstro(S) para seu Tabuleiro de Jogador{de}Beschwörung durchgeführt, um Monster auf dein Spielerbrett zu beschwören", positionToColor(playerIndex))
+	broadcastToAll("{en}Performed Incantation to summon Monster(s) to your Player Board{ru}Прочтено заклинание, чтобы призвать Монстра(ов) на вашу игровую доску.{zh-tw}执行了咒语召唤怪物到你的玩家板{zh-cn}执行了咒语召唤怪物到你的玩家板{ko}주문을 시전하여 몬스터를 소환합니다{es}Encantamiento realizado para convocar Monstruos a tu Tablero de Jugador{fr}Incantation exécutée pour invoquer des monstres sur votre plateau de joueur{pt-br}Realizou um Encantamento para invocar Monstro(S) para seu Tabuleiro de Jogador{de}Beschwörung durchgeführt, um Monster auf dein Spielerbrett zu beschwören", positionToColor(playerIndex))
 	if gStates.currentRound==gStates.rounds then player.druidNightsFinalRitual=true end
 	local ritualCount=#player.gladesMarked
 	local crystalMultiple=gStates.currentRound>=5 and 3 or (gStates.currentRound>=3 and 2 or 1)
@@ -4191,7 +4201,7 @@ function againstDragonMarkPlayer(playerIndex)
 		local token=blackBag.takeObject({position={p[1],1.35,p[3]},rotation={0,180,0},smooth=true})
 		if token~=nil then
 			gStates.apocalypseDragonBlackMana[details.mage]=token.guid
-			token.setDescription("Apocalypse Dragon attacked "..tostring(details.mage).." this Round")
+			token.setDescription(joinLang({"{en}Apocalypse Dragon attacked {ru}Дракон Апокалипсиса атаковал {zh-tw}末日巨龍本回合攻擊了 {zh-cn}末日巨龙本回合攻击了 {ko}아포칼립스 드래곤이 이번 라운드에 {es}El Dragón del Apocalipsis atacó a {fr}Le Dragon de l’Apocalypse a attaqué {pt-br}O Dragão do Apocalipse atacou {de}Der Apokalypse-Drache griff ",tostring(details.mage),"{en} this Round{ru} в этом раунде{zh-tw}{zh-cn}{ko}을(를) 공격했습니다{es} esta ronda{fr} ce round{pt-br} nesta rodada{de} in dieser Runde an"}))
 			local guid=token.guid
 			safeWaitCondition("Scenario",function()
 				local current=getObjectFromGUID(guid)
@@ -4217,7 +4227,7 @@ function againstDragonAttackControlUI(show)
 		xml[#xml+1]={tag="Button",attributes={id="AgainstDragonAttackComplete",onClick="global/againstDragonAttackComplete",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
 			height=210,width=620,position="0 235 -12",rotation="0 0 180",scale="0.30 0.30",color="rgba(0,0,0,0.0)"},
 			children={{tag="Image",attributes={id="AgainstDragonAttackCompleteImage",image="Sliced Button/Button Object Active",type="Sliced"}},
-				{tag="HorizontalLayout",attributes={padding="28 28 20 20"},children={{tag="Text",attributes={id="AgainstDragonAttackCompleteText",font="Fonts/MKCardText",fontSize="78",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="78",text="COMPLETE\nDRAGON ATTACK"}}}}}}
+				{tag="HorizontalLayout",attributes={padding="28 28 20 20"},children={{tag="Text",attributes={id="AgainstDragonAttackCompleteText",font="Fonts/MKCardText",fontSize="78",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="78",text="{en}COMPLETE\nDRAGON ATTACK{ru}ЗАВЕРШИТЬ\nАТАКУ ДРАКОНА{zh-tw}完成\n巨龍攻擊{zh-cn}完成\n巨龙攻击{ko}드래곤 공격\n완료{es}COMPLETAR\nATAQUE DEL DRAGÓN{fr}TERMINER\nL’ATTAQUE DU DRAGON{pt-br}CONCLUIR\nATAQUE DO DRAGÃO{de}DRACHENANGRIFF\nABSCHLIESSEN"}}}}}}
 	end
 	if #xml>0 then token.UI.setXmlTable(xml) else token.UI.setXml("") end
 end
@@ -4282,7 +4292,7 @@ function againstDragonTargetChoiceButton(option,index,xml,splitIndex,splitCount)
 	local height=320/count
 	if count>1 then uiY=uiY+(((count+1)/2)-slot)*height*buttonScale end
 	local label="{en}Dragon\nDestroy{ru}Дракон\nУничтожает{zh-tw}巨龍\n摧毀{zh-cn}巨龙\n摧毁{ko}드래곤\n파괴{es}Dragón\nDestruir{fr}Dragon\nDétruire{pt-br}Dragão\nDestruir{de}Drache\nZerstört"
-	if option.kind=="attack" then label="Attack\n"..tostring(option.mage or "Player") end
+	if option.kind=="attack" then label=joinLang({"{en}Attack\n{ru}Атака\n{zh-tw}攻擊\n{zh-cn}攻击\n{ko}공격\n{es}Atacar\n{fr}Attaquer\n{pt-br}Atacar\n{de}Angriff\n",tostring(option.mage or joinLang({"{en}Player{ru}Игрок{zh-tw}玩家{zh-cn}玩家{ko}플레이어{es}Jugador{fr}Joueur{pt-br}Jogador{de}Spieler"}))}) end
 	local id=terrain.guid.."DragonTargetChoice"..tostring(index)
 	xml=xml or terrain.UI.getXmlTable() or {}
 	xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/againstDragonTargetChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
@@ -4327,7 +4337,7 @@ function againstDragonShowOffMapChoice(pending)
 			xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/againstDragonOffMapChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
 				height=150,width=470,position="0 185 -10",rotation="0 0 180",scale="0.30 0.30",color="rgba(0,0,0,0.0)"},
 				children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
-					{tag="HorizontalLayout",attributes={padding="20 20 15 15"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",fontSize="76",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="76",text="MARK\n"..tostring(option.mage)}}}}}}
+					{tag="HorizontalLayout",attributes={padding="20 20 15 15"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",fontSize="76",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="76",text=joinLang({"{en}MARK\n{ru}ОТМЕТИТЬ\n{zh-tw}標記\n{zh-cn}标记\n{ko}표시\n{es}MARCAR\n{fr}MARQUER\n{pt-br}MARCAR\n{de}MARKIEREN\n",tostring(option.mage)})}}}}}}
 			token.UI.setXmlTable(xml)
 		end
 	end
