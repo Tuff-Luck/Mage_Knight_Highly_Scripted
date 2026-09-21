@@ -392,7 +392,7 @@ function scenarioSelection(player, mouseButton, id)
 			UI.setAttribute("VolkareLevelSelection", "text", "{en}Daring{zh-cn}大胆{ko}대담한{es}Atrevido{fr}Audacieux{pt-br}Ousado")
 			gStates.volkareCombatLevel=1
 			UI.setAttribute("VolkareRaceSelection", "interactable", "True")
-			UI.setAttribute("VolkareRaceSelection", "text", "Fair")
+			UI.setAttribute("VolkareRaceSelection", "text", translateWord["Fair"])
 			gStates.volkareRaceLevel=1
 		else
 			UI.setAttribute("VolkareLevelSelection", "interactable", "False")
@@ -1110,7 +1110,7 @@ function refreshSetupStartButton()
 	elseif heroChallengeLegal~=true then
 		UI.setAttribute("StartButton", "interactable", "False")
 		UI.setAttribute("StartButtonImage", "image", "Sliced Button/Button New Deactive")
-		UI.setAttribute("StartButtonText", "text", heroChallengeReason or "Hero Challenges: Invalid setup")
+		UI.setAttribute("StartButtonText", "text", heroChallengeReason or "{en}Hero Challenges: Invalid setup{ru}Испытания героев: недопустимая настройка{zh-tw}英雄挑戰：無效設置{zh-cn}英雄挑战：无效设置{ko}영웅 도전: 잘못된 설정{es}Desafíos de Héroes: configuración no válida{fr}Défis des Héros : configuration invalide{pt-br}Desafios de Heróis: configuração inválida{de}Heldenherausforderungen: ungültiger Aufbau")
 		UI.setAttribute("StartButton", "active", "true")
 	elseif gStates.playerCount>=2 or (gStates.playerCount>=1 and gStates.positionMageKnight[5]~="nobody") then
 		UI.setAttribute("StartButton", "interactable", "True")
