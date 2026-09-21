@@ -128,6 +128,32 @@ end
 local setupFinalizationStarted=false
 local setupMapStarted=false
 
+--Configure each deployed rulebook independently. A single book that keeps moving must not block
+--the page/lock state of every other manual.
+local function setupConfigureRulebook(rulebook,page)
+	if rulebook==nil then return end
+	local configured=false
+	local function apply()
+		if configured==true or rulebook==nil then return end
+		configured=true
+		local numeric=tonumber(page)
+		if numeric~=nil and rulebook.book~=nil then rulebook.book.setPage(math.floor(numeric)-1) end
+		rulebook.lock()
+	end
+	if rulebook.resting==true then
+		apply()
+	else
+		safeWaitCondition("SetupGame",apply,function()
+			return rulebook~=nil and rulebook.resting==true
+		end,10,function()
+			--Reference manuals are not setup dependencies. Apply their final state even if TTS never
+			--reports resting, rather than leaving every manual unconfigured.
+			apply()
+			print("SETUP WARNING: rulebook "..tostring(rulebook.guid).." did not report resting within 10 seconds; configured anyway.")
+		end)
+	end
+end
+
 local function setupCoreSystemsReady()
 	if gStates.monsterSetupReady~=true then return false end
 	if setupPlayersReady~=nil and setupPlayersReady()~=true then return false end
@@ -305,75 +331,35 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			fameBoard.reload()
 		end
 
-		--switch rules to the matching page for scenario. The rules bag is ancillary to setup; a rare
-		--rewind/load timing miss must not abort setup before terrain/decks are built.
+		--switch rules to the matching page for scenario. Rulebooks are presentation/reference objects,
+		--so configure each returned object independently rather than making them a chained setup dependency.
 		local ruleBag=getObjectFromGUID("d4a866")
 		local r={main="b850ab", expansion="700e93", apocalypse="65f2b6"}
 		local scenarioRuleStates=scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates or {}
 		local needExpansionRules=scenarioRuleStates.expansion~=nil or gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false
 		local needApocalypseRules=scenarioRuleStates.apocalypse~=nil or gStates.removeApocalypseTerrain~=true
-		local extraRules=nil
 		if ruleBag~=nil then
-			ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={52.13, 0.98, 35.00}, guid=r.main, smooth=false})
-			if needExpansionRules then ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={63.12, 0.96, 35.00}, guid=r.expansion, smooth=false}) end
-			if needApocalypseRules then ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={73.60, 0.97, 35.00}, guid=r.apocalypse, smooth=false}) end
-			if gStates.gameScenario=="First Reconnaissance" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="9ea4ed", smooth=false}) end
-			if gStates.gameScenario=="Quest for the Golden Grail" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="826bf9", smooth=false}) end
-			if gStates.gameScenario=="The Chaos Rift" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="fd700f", smooth=false}) end
-			if gStates.gameScenario=="The Gauntlet" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="a7aa4a", smooth=false}) end
-			if gStates.gameScenario=="Ultimate Conquest" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="7c7e53", smooth=false}) end
-			if gStates.gameScenario=="The War of Four" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="bf27ee", smooth=false}) end
+			local mainRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={52.13,0.98,35.00},guid=r.main,smooth=false})
+			setupConfigureRulebook(mainRules,scenarioRuleStates.main)
+			if needExpansionRules then
+				local expansionRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={63.12,0.96,35.00},guid=r.expansion,smooth=false})
+				setupConfigureRulebook(expansionRules,scenarioRuleStates.expansion)
+			end
+			if needApocalypseRules then
+				local apocalypseRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={73.60,0.97,35.00},guid=r.apocalypse,smooth=false})
+				setupConfigureRulebook(apocalypseRules,scenarioRuleStates.apocalypse)
+			end
+			local extraRules=nil
+			if gStates.gameScenario=="First Reconnaissance" then extraRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={41.00,0.96,35.00},guid="9ea4ed",smooth=false}) end
+			if gStates.gameScenario=="Quest for the Golden Grail" then extraRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={41.00,0.96,35.00},guid="826bf9",smooth=false}) end
+			if gStates.gameScenario=="The Chaos Rift" then extraRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={41.00,0.96,35.00},guid="fd700f",smooth=false}) end
+			if gStates.gameScenario=="The Gauntlet" then extraRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={41.00,0.96,35.00},guid="a7aa4a",smooth=false}) end
+			if gStates.gameScenario=="Ultimate Conquest" then extraRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={41.00,0.96,35.00},guid="7c7e53",smooth=false}) end
+			if gStates.gameScenario=="The War of Four" then extraRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={41.00,0.96,35.00},guid="bf27ee",smooth=false}) end
+			setupConfigureRulebook(extraRules,nil)
+			ruleBag.destruct()
 		else
 			print("SETUP WARNING: rules bag d4a866 was unavailable; continuing setup without deploying rulebooks.")
-		end
-		if ruleBag~=nil then
-			safeWaitCondition("SetupGame",function()
-				local mainRules=getObjectFromGUID(r.main)
-				local expansionRules=getObjectFromGUID(r.expansion)
-				local apocalypseRules=getObjectFromGUID(r.apocalypse)
-				local furyRules=gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9") or nil
-				if scenarioRuleStates.main~=nil and mainRules~=nil then mainRules.book.setPage(scenarioRuleStates.main-1) end
-				if scenarioRuleStates.expansion~=nil and expansionRules~=nil then expansionRules.book.setPage(scenarioRuleStates.expansion-1) end
-				if scenarioRuleStates.apocalypse~=nil and apocalypseRules~=nil then apocalypseRules.book.setPage(scenarioRuleStates.apocalypse-1) end
-				if mainRules~=nil then mainRules.lock() end
-				if expansionRules~=nil then expansionRules.lock() end
-				if apocalypseRules~=nil then apocalypseRules.lock() end
-				if furyRules~=nil then furyRules.lock() end
-				if extraRules~=nil then extraRules.lock() end
-			end,function()
-				local mainRules=getObjectFromGUID(r.main)
-				if mainRules==nil or mainRules.resting~=true then return false end
-				if needExpansionRules then
-					local expansionRules=getObjectFromGUID(r.expansion)
-					if expansionRules==nil or expansionRules.resting~=true then return false end
-				end
-				if needApocalypseRules then
-					local apocalypseRules=getObjectFromGUID(r.apocalypse)
-					if apocalypseRules==nil or apocalypseRules.resting~=true then return false end
-				end
-				if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
-					local furyRules=getObjectFromGUID("8d7fb9")
-					if furyRules==nil or furyRules.resting~=true then return false end
-				end
-				return extraRules==nil or extraRules.resting==true
-			end,10,function()
-				--Rulebooks are reference material, not a setup dependency. If physics never reports one as
-				--resting, leave the game setup running rather than turning an ancillary object into a failure.
-				local mainRules=getObjectFromGUID(r.main)
-				local expansionRules=getObjectFromGUID(r.expansion)
-				local apocalypseRules=getObjectFromGUID(r.apocalypse)
-				local furyRules=gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9") or nil
-				if scenarioRuleStates.main~=nil and mainRules~=nil then mainRules.book.setPage(scenarioRuleStates.main-1) end
-				if scenarioRuleStates.expansion~=nil and expansionRules~=nil then expansionRules.book.setPage(scenarioRuleStates.expansion-1) end
-				if scenarioRuleStates.apocalypse~=nil and apocalypseRules~=nil then apocalypseRules.book.setPage(scenarioRuleStates.apocalypse-1) end
-				if mainRules~=nil then mainRules.lock() end
-				if expansionRules~=nil then expansionRules.lock() end
-				if apocalypseRules~=nil then apocalypseRules.lock() end
-				if furyRules~=nil then furyRules.lock() end
-				if extraRules~=nil then extraRules.lock() end
-				print("SETUP WARNING: scenario rulebooks did not report resting within 10 seconds; continuing setup.")
-			end)
-		ruleBag.destruct()
 		end
 
 		--Add Weather Mod if being used
@@ -801,7 +787,8 @@ function setupGame(player, mouseButton, id, rewindReady)
 			if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
 				local ruleBag=getObjectFromGUID("d4a866")
 				if ruleBag~=nil then
-					safeTakeObject("SetupGame",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
+					local furyRules=safeTakeObject("SetupGame",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
+					setupConfigureRulebook(furyRules,nil)
 				end
 			end
 		end
