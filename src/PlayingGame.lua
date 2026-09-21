@@ -322,11 +322,11 @@ function nightTint(player, mouseButton, id)
 	if mouseButton=="-1" then
 		local tileColor={}
 		if getObjectFromGUID("43fa2e").UI.getAttribute("43fa2eNightTintText", "text")=="No Tint" then
-			getObjectFromGUID("43fa2e").UI.setAttribute("43fa2eNightTintText", "text", "Add Tint")
+			getObjectFromGUID("43fa2e").UI.setAttribute("43fa2eNightTintText", "text", "{en}Add Tint{ru}Добавить оттенок{zh-tw}加入色調{zh-cn}加入色调{ko}색조 추가{es}Añadir Tinte{fr}Ajouter une Teinte{pt-br}Adicionar Tonalidade{de}Tönung hinzufügen")
 			tileColor={r=1.0, g=1.0, b=1.0}
 			gStates.nightTint=false
 		else
-			getObjectFromGUID("43fa2e").UI.setAttribute("43fa2eNightTintText", "text", "No Tint")
+			getObjectFromGUID("43fa2e").UI.setAttribute("43fa2eNightTintText", "text", "{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin Tinte{fr}Sans Teinte{pt-br}Sem Tonalidade{de}Keine Tönung")
 			tileColor={r=0.6, g=0.6, b=0.6}
 			gStates.nightTint=true
 		end
@@ -1414,7 +1414,7 @@ function unitOffer()
 				if gStates.eliteUnitsUsed==true	and (a==1 or a==3 or a==5 or a==7 or a==9) then drawDeckName="Elite Unit" end
 				local drawDeckType=drawDecks[drawDeckName]
 				local chosenUnit=getNextUniqueUnit(drawDeckType, drawDeckName)
-				if chosenUnit~=nil then drawList[a]=chosenUnit else broadcastToAll("Could not find enough unique units for the offer.",	warningColor) break end
+				if chosenUnit~=nil then drawList[a]=chosenUnit else broadcastToAll("{en}Could not find enough unique units for the offer.{ru}Не удалось найти достаточно уникальных отрядов для предложения.{zh-tw}找不到足夠不同的部隊來填滿供應。{zh-cn}找不到足够不同的部队来填满供应。{ko}제안에 필요한 서로 다른 유닛을 충분히 찾지 못했습니다.{es}No se pudieron encontrar suficientes unidades diferentes para la oferta.{fr}Impossible de trouver suffisamment d’unités différentes pour l’offre.{pt-br}Não foi possível encontrar unidades diferentes suficientes para a oferta.{de}Es konnten nicht genügend unterschiedliche Einheiten für das Angebot gefunden werden.",	warningColor) break end
 			end
 			return drawList, deckInfo
 		end
@@ -1456,17 +1456,17 @@ function shieldDrop(player, mouseButton, id)
 				local sitePlayerIndex=nil
 				for playerIndex,candidate in pairs(turnOrder) do if candidate.mage==details.mage then sitePlayer=candidate sitePlayerIndex=playerIndex break end end
 				if gStates.gameScenario=="The Lost Relic Blitz" and sitePlayer~=nil and (sitePlayer.avatarLocation:sub(1,4)=="city" or sitePlayer.avatarLocation=="Volkare's Camp") then
-					broadcastToAll("Defeat the Draconum to recover this Relic piece.", warningColor)
+					broadcastToAll("{en}Defeat the Draconum to recover this Relic piece.{ru}Победите драконида, чтобы вернуть эту часть Реликвии.{zh-tw}擊敗龍人以取回這塊聖物碎片。{zh-cn}击败龙人以取回这块圣物碎片。{ko}드라코넘을 쓰러뜨려 이 유물 조각을 되찾으십시오.{es}Derrota al Draconum para recuperar esta pieza de la Reliquia.{fr}Vainquez le Draconum pour récupérer ce morceau de Relique.{pt-br}Derrote o Draconum para recuperar esta parte da Relíquia.{de}Besiegt das Draconum, um dieses Reliktstück zurückzuerlangen.", warningColor)
 					addAvatarButtons()
 					return
 				end
 				if gStates.gameScenario=="The Realm of the Dead Blitz" and sitePlayer~=nil and sitePlayer.avatarLocation=="graveyard" and realmDeadEnemiesAtPosition(tempPos)==true then
-					broadcastToAll("Defeat the Graveyard enemies before sealing it.", warningColor)
+					broadcastToAll("{en}Defeat the Graveyard enemies before sealing it.{ru}Победите врагов на Кладбище, прежде чем запечатать его.{zh-tw}封印墓地前先擊敗其中的敵人。{zh-cn}封印墓地前先击败其中的敌人。{ko}묘지를 봉인하기 전에 그곳의 적을 쓰러뜨리십시오.{es}Derrota a los enemigos del Cementerio antes de sellarlo.{fr}Vainquez les ennemis du Cimetière avant de le sceller.{pt-br}Derrote os inimigos do Cemitério antes de selá-lo.{de}Besiegt die Gegner auf dem Friedhof, bevor ihr ihn versiegelt.", warningColor)
 					addAvatarButtons()
 					return
 				end
 				if gStates.gameScenario=="Dungeon Lords" and sitePlayer~=nil and (sitePlayer.avatarLocation=="dungeon" or sitePlayer.avatarLocation=="tomb") then
-					broadcastToAll("Dungeon Lords: Dungeons and Tombs are marked only after their combat is won.",positionToColor(gStates.turnNumber))
+					broadcastToAll("{en}Dungeon Lords: Dungeons and Tombs are marked only after their combat is won.{ru}Владыки Подземелий: Подземелья и Гробницы отмечаются только после победы в их бою.{zh-tw}地下城領主：只有在戰鬥獲勝後才標記地下城與墓穴。{zh-cn}地下城领主：只有在战斗获胜后才标记地下城与墓穴。{ko}던전 로드: 던전과 무덤은 전투에서 승리한 뒤에만 표시됩니다.{es}Señores de las Mazmorras: las Mazmorras y Tumbas solo se marcan después de ganar su combate.{fr}Seigneurs des Donjons : les Donjons et Tombeaux ne sont marqués qu’après avoir remporté leur combat.{pt-br}Senhores das Masmorras: Masmorras e Tumbas só são marcadas após vencer o combate.{de}Kerkerfürsten: Kerker und Gräber werden erst markiert, nachdem ihr Kampf gewonnen wurde.",positionToColor(gStates.turnNumber))
 					addAvatarButtons()
 					return
 				end
@@ -2464,10 +2464,10 @@ function monsterImageSwap(player, mouseButton, id)
 		end
 		if gStates.useAlternatePugs==false then
 			gStates.useAlternatePugs=true
-			getObjectFromGUID("d7a165").UI.setAttribute("d7a165swapMonsterImageText", "text", "Stefano Colombo's Monster Tokens - ON")
+			getObjectFromGUID("d7a165").UI.setAttribute("d7a165swapMonsterImageText", "text", "{en}Stefano Colombo's Monster Tokens - ON{ru}Жетоны монстров Stefano Colombo — ВКЛ.{zh-tw}Stefano Colombo 的怪物標記－開{zh-cn}Stefano Colombo 的怪物标记－开{ko}Stefano Colombo 몬스터 토큰 - 켬{es}Fichas de Monstruo de Stefano Colombo - ACTIVADAS{fr}Jetons de Monstre de Stefano Colombo - ACTIVÉS{pt-br}Fichas de Monstro de Stefano Colombo - ATIVADAS{de}Stefano Colombos Monstermarker - AN")
 		else
 			gStates.useAlternatePugs=false
-			getObjectFromGUID("d7a165").UI.setAttribute("d7a165swapMonsterImageText", "text", "Stefano Colombo's Monster Tokens - OFF")
+			getObjectFromGUID("d7a165").UI.setAttribute("d7a165swapMonsterImageText", "text", "{en}Stefano Colombo's Monster Tokens - OFF{ru}Жетоны монстров Stefano Colombo — ВЫКЛ.{zh-tw}Stefano Colombo 的怪物標記－關{zh-cn}Stefano Colombo 的怪物标记－关{ko}Stefano Colombo 몬스터 토큰 - 끔{es}Fichas de Monstruo de Stefano Colombo - DESACTIVADAS{fr}Jetons de Monstre de Stefano Colombo - DÉSACTIVÉS{pt-br}Fichas de Monstro de Stefano Colombo - DESATIVADAS{de}Stefano Colombos Monstermarker - AUS")
 		end
 		--discard containers
 		local discardContainers={GUID.bag.discard.towerGarrison, GUID.bag.discard.keepGarrison, GUID.bag.discard.cityGarrison, GUID.bag.discard.ruin, GUID.bag.discard.draconum, GUID.bag.discard.dungeon, GUID.bag.discard.orcs, GUID.bag.discard.darkDraconum, GUID.bag.discard.darkDungeon, GUID.bag.discard.darkMarauders, GUID.bag.discard.darkReward, GUID.bag.discard.elementalistDraconum, GUID.bag.discard.elementalistDungeon, GUID.bag.discard.elementalistOrcs, GUID.bag.discard.elementalistReward, GUID.bag.discard.apocReward, GUID.bag.discard.councilReward}
