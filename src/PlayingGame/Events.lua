@@ -846,7 +846,7 @@ function __onObjectHover_raw(player_color, hover_object)
 				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fame~=nil and monsterPugs[hover_object.guid].fame>0 then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]FAME: [-]{ru}[00ff00]СЛАВА: [-]{zh-tw}[00ff00]名望：[-]{zh-cn}[00ff00]名望：[-]{ko}[00ff00]명성: [-]{es}[00ff00]FAMA: [-]{fr}[00ff00]FAME : [-]{pt-br}[00ff00]FAMA: [-]{de}[00ff00]RUHM: [-]", tostring(monsterPugs[hover_object.guid].fame+reward+bonus)}) end
 				if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].dragonGround==true then
 					local headName=apocalypseDragonGroundHeadNameForGUID(hover_object.guid)
-					if headName=="Control" then monsterDescription=joinLang({monsterDescription,"\n[00ff00]CONTROL HEAD[-] - This head may never be attacked."}) end
+					if headName=="Control" then monsterDescription=joinLang({monsterDescription,"{en}\n[00ff00]CONTROL HEAD[-] - This head may never be attacked.{ru}\n[00ff00]ГОЛОВА КОНТРОЛЯ[-] - Эту голову нельзя атаковать.{zh-tw}\n[00ff00]控制龍首[-] - 此龍首永遠不能被攻擊。{zh-cn}\n[00ff00]控制龙首[-] - 此龙首永远不能被攻击。{ko}\n[00ff00]통제 머리[-] - 이 머리는 공격할 수 없습니다.{es}\n[00ff00]CABEZA DE CONTROL[-] - Esta cabeza nunca puede ser atacada.{fr}\n[00ff00]TÊTE DE CONTRÔLE[-] - Cette tête ne peut jamais être attaquée.{pt-br}\n[00ff00]CABEÇA DE CONTROLE[-] - Esta cabeça nunca pode ser atacada.{de}\n[00ff00]KONTROLLKOPF[-] - Dieser Kopf kann niemals angegriffen werden."}) end
 				end
 			end
 		end
