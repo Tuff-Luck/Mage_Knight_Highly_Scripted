@@ -1246,7 +1246,7 @@ function proxyChoiceAuthorized(player,pending)
 	--lowest-Fame player's normal seat colour. Everyone else is rejected with a table-wide reminder.
 	if color==allowed or color=="Black" then return true end
 	if color~=nil then
-		broadcastToAll(proxyChoicePlayerLabel(pending.playerIndex).." has the lowest Fame and must make this Proxy choice. A player seated Black may also choose.",{1,0.65,0.2})
+		broadcastToAll(joinLang({proxyChoicePlayerLabel(pending.playerIndex),"{en} has the lowest Fame and must make this Proxy choice. A player seated Black may also choose.{ru} имеет наименьшую Славу и должен сделать этот выбор за Прокси. Игрок на чёрном месте также может выбрать.{zh-tw} 的聲望值最低，必須替代理玩家做出此選擇。坐在黑色席位的玩家也可以選擇。{zh-cn} 的声望值最低，必须替代理玩家做出此选择。坐在黑色席位的玩家也可以选择。{ko}의 명성이 가장 낮아 이 프록시 선택을 해야 합니다. 검은색 자리에 앉은 플레이어도 선택할 수 있습니다.{es} tiene la Fama más baja y debe tomar esta decisión del Proxy. Un jugador sentado en Negro también puede elegir.{fr} possède la Renommée la plus faible et doit faire ce choix pour le Proxy. Un joueur assis en Noir peut également choisir.{pt-br} tem a menor Fama e deve fazer esta escolha do Proxy. Um jogador sentado no Preto também pode escolher.{de} hat den niedrigsten Ruhm und muss diese Proxy-Auswahl treffen. Ein Spieler auf Schwarz darf ebenfalls wählen."}),{1,0.65,0.2})
 	end
 	return false
 end
@@ -1406,8 +1406,8 @@ function proxyManaChoiceUI(pending)
 	if show then
 		local left=pending.options[1]
 		local right=pending.options[2]
-		UI.setAttribute("DummyChoiceLeftText","text","Reroll "..tostring(left.color or "Mana"))
-		UI.setAttribute("DummyChoiceRightText","text","Reroll "..tostring(right.color or "Mana"))
+		UI.setAttribute("DummyChoiceLeftText","text",joinLang({"{en}Reroll {ru}Перебросить {zh-tw}重擲 {zh-cn}重掷 {ko}다시 굴리기: {es}Relanzar {fr}Relancer {pt-br}Rerrolar {de}Neu würfeln: ",translateWord[left.color] or tostring(left.color or "{en}Mana{ru}Мана{zh-tw}魔力{zh-cn}魔力{ko}마나{es}Maná{fr}Mana{pt-br}Mana{de}Mana")}))
+		UI.setAttribute("DummyChoiceRightText","text",joinLang({"{en}Reroll {ru}Перебросить {zh-tw}重擲 {zh-cn}重掷 {ko}다시 굴리기: {es}Relanzar {fr}Relancer {pt-br}Rerrolar {de}Neu würfeln: ",translateWord[right.color] or tostring(right.color or "{en}Mana{ru}Мана{zh-tw}魔力{zh-cn}魔力{ko}마나{es}Maná{fr}Mana{pt-br}Mana{de}Mana")}))
 		UI.setAttribute("DummyChoiceLeft","interactable","true")
 		UI.setAttribute("DummyChoiceRight","interactable","true")
 		UI.setAttribute("DummyChoiceLeftImage","image","Sliced Button/Button New Active")
@@ -1449,7 +1449,7 @@ function proxyBeginDestinationChoice(targets,proxyIndex,move,reason)
 		local saved=proxyTargetSave(target)
 		if saved~=nil and saved.choicePosition~=nil then
 			pending.options[#pending.options+1]=saved
-			local label=target.action=="explore" and "Explore" or proxyFeatureDisplayName(target.hex~=nil and target.hex.feature or nil)
+			local label=target.action=="explore" and "{en}Explore{ru}Исследовать{zh-tw}探索{zh-cn}探索{ko}탐험{es}Explorar{fr}Explorer{pt-br}Explorar{de}Erkunden" or proxyLocalizedTerm(proxyFeatureDisplayName(target.hex~=nil and target.hex.feature or nil))
 			if target.choiceObjectiveColor~=nil then label=label.." ("..tostring(target.choiceObjectiveColor).." "..proxyDestinationChoiceActionText(saved):match("\n(.+)$")..")" end
 			names[#names+1]=label
 		end
@@ -1515,7 +1515,7 @@ function proxyBeginManaChoice(options,proxyIndex,move,crystals)
 	local pending={type="mana",proxyIndex=proxyIndex,move=move,crystals=crystals,playerIndex=chooser,playerColor=proxyChoicePlayerColor(chooser),options={}}
 	for _,option in ipairs(options) do pending.options[#pending.options+1]={color=option.color,guid=option.guid} end
 	if #pending.options<2 then return false end
-	broadcastToAll("Proxy can use more than one matching basic Source die. "..proxyChoicePlayerLabel(chooser).." must choose which colour to reroll.",{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}Proxy can use more than one matching basic Source die. {ru}Прокси может использовать несколько подходящих базовых кубиков Источника. {zh-tw}代理玩家可以使用多個符合條件的基本源泉骰。{zh-cn}代理玩家可以使用多个符合条件的基本源泉骰。{ko}프록시는 일치하는 기본 원천 주사위를 둘 이상 사용할 수 있습니다. {es}El Proxy puede usar más de un dado básico de la Fuente que coincida. {fr}Le Proxy peut utiliser plusieurs dés de Source de base correspondants. {pt-br}O Proxy pode usar mais de um dado básico da Fonte correspondente. {de}Der Proxy kann mehr als einen passenden Basis-Quellenwürfel verwenden. ",proxyChoicePlayerLabel(chooser),"{en} must choose which colour to reroll.{ru} должен выбрать, какой цвет перебросить.{zh-tw} 必須選擇要重擲的顏色。{zh-cn} 必须选择要重掷的颜色。{ko}이(가) 다시 굴릴 색을 선택해야 합니다.{es} debe elegir qué color relanzar.{fr} doit choisir quelle couleur relancer.{pt-br} deve escolher qual cor rerrolar.{de} muss wählen, welche Farbe neu gewürfelt wird."}),{1,0.75,0.2})
 	return proxyChoiceSetWaiting(pending)
 end
 
@@ -1623,7 +1623,7 @@ function proxyTakeShield(location,lockToken,rotation)
 	if bag==nil then
 		if gStates.proxyShieldSupplyWarned~=true then
 			gStates.proxyShieldSupplyWarned=true
-			broadcastToAll("Proxy Shield supply is missing; no Proxy Shield was placed.",{1,0.25,0.25})
+			broadcastToAll("{en}Proxy Shield supply is missing; no Proxy Shield was placed.{ru}Запас щитов Прокси отсутствует; щит Прокси не размещён.{zh-tw}找不到代理玩家盾牌供應；未放置代理玩家盾牌。{zh-cn}找不到代理玩家盾牌供应；未放置代理玩家盾牌。{ko}프록시 방패 공급이 없어 프록시 방패를 배치하지 않았습니다.{es}Falta la reserva de Escudos del Proxy; no se colocó ningún Escudo del Proxy.{fr}La réserve de Boucliers du Proxy est manquante ; aucun Bouclier du Proxy n’a été placé.{pt-br}A reserva de Escudos do Proxy está ausente; nenhum Escudo do Proxy foi colocado.{de}Der Vorrat an Proxy-Schilden fehlt; es wurde kein Proxy-Schild platziert.",{1,0.25,0.25})
 		end
 		return nil
 	end
@@ -1852,12 +1852,12 @@ function proxyResolveEnemyChoice(pending,selectedGUID)
 		proxyRestoreAvatarAfterSiteObjects(lift,{})
 		proxyTurnReportSetAction("defeated "..tostring(enemyName).." at the Ruins")
 		proxyClearObjective(true)
-		broadcastToAll("Proxy resolved the tied Ruins enemy choice.",{1,0.75,0.2})
+		broadcastToAll("{en}Proxy resolved the tied Ruins enemy choice.{ru}Прокси разрешил ничью при выборе врага в Руинах.{zh-tw}代理玩家已解決遺跡敵人選擇的平手。{zh-cn}代理玩家已解决遗迹敌人选择的平手。{ko}프록시가 유적 적 선택의 동률을 해결했습니다.{es}El Proxy resolvió el empate en la elección de enemigo de las Ruinas.{fr}Le Proxy a résolu l’égalité du choix d’ennemi des Ruines.{pt-br}O Proxy resolveu o empate na escolha de inimigo das Ruínas.{de}Der Proxy hat den Gleichstand bei der Gegnerwahl in den Ruinen aufgelöst.",{1,0.75,0.2})
 	elseif pending.context.kind=="city" then
 		local lastSafe=proxyHexByKey(hexes,pending.context.lastSafeKey)
 		proxyResolveCitySelectedEnemy(hex,mapObjects,pending.proxyIndex,lastSafe,selectedGUID)
 		proxyClearObjective(true)
-		broadcastToAll("Proxy resolved the tied City defender choice.",{1,0.75,0.2})
+		broadcastToAll("{en}Proxy resolved the tied City defender choice.{ru}Прокси разрешил ничью при выборе защитника Города.{zh-tw}代理玩家已解決城市防守者選擇的平手。{zh-cn}代理玩家已解决城市防守者选择的平手。{ko}프록시가 도시 수비자 선택의 동률을 해결했습니다.{es}El Proxy resolvió el empate en la elección de defensor de la Ciudad.{fr}Le Proxy a résolu l’égalité du choix de défenseur de la Cité.{pt-br}O Proxy resolveu o empate na escolha de defensor da Cidade.{de}Der Proxy hat den Gleichstand bei der Verteidigerwahl der Stadt aufgelöst.",{1,0.75,0.2})
 	end
 	safeWaitTime("AI.Proxy",function()
 		local freshHexes,freshObjects=apocalypseQuestMapHexes()
@@ -1950,7 +1950,7 @@ function proxyResolveAdventure(hex,mapObjects,proxyIndex)
 	end
 	proxyRestoreAvatarAfterSiteObjects(lift,settleGUIDs)
 	proxyTurnReportSetAction(reportAction or ("resolved the "..proxyFeatureDisplayName(hex.feature)))
-	broadcastToAll("Proxy resolved an adventure site.",{1,0.75,0.2})
+	broadcastToAll("{en}Proxy resolved an adventure site.{ru}Прокси разрешил место приключения.{zh-tw}代理玩家已完成一個冒險地點。{zh-cn}代理玩家已完成一个冒险地点。{ko}프록시가 모험 장소를 해결했습니다.{es}El Proxy resolvió un lugar de aventura.{fr}Le Proxy a résolu un site d’aventure.{pt-br}O Proxy resolveu um local de aventura.{de}Der Proxy hat einen Abenteuerort abgewickelt.",{1,0.75,0.2})
 	proxyClearObjective(true)
 	return true
 end
@@ -1972,7 +1972,7 @@ function proxyResolveFortified(hex,mapObjects,proxyIndex,lastSafe)
 		proxyRestoreAvatarAfterSiteObjects(lift,shield~=nil and {shield.guid} or {})
 		proxyTurnReportSetAction("conquered the "..proxyFeatureDisplayName(fortified))
 	end
-	broadcastToAll("Proxy resolved a fortified site.",{1,0.75,0.2})
+	broadcastToAll("{en}Proxy resolved a fortified site.{ru}Прокси разрешил укреплённое место.{zh-tw}代理玩家已完成一個要塞地點。{zh-cn}代理玩家已完成一个要塞地点。{ko}프록시가 요새 장소를 해결했습니다.{es}El Proxy resolvió un lugar fortificado.{fr}Le Proxy a résolu un site fortifié.{pt-br}O Proxy resolveu um local fortificado.{de}Der Proxy hat einen befestigten Ort abgewickelt.",{1,0.75,0.2})
 	proxyClearObjective(true)
 	return true
 end
@@ -2095,13 +2095,13 @@ function proxyResolveExplore(target)
 			--so the ordinary terrain-entry handler remains the single authority for population/reveal logic.
 			tile.flip()
 			proxyTurnReportSetAction("explored a predefined tile")
-			broadcastToAll("Proxy explored a predefined terrain tile.",{1,0.75,0.2})
+			broadcastToAll("{en}Proxy explored a predefined terrain tile.{ru}Прокси исследовал предопределённую плитку местности.{zh-tw}代理玩家探索了一個預設地形板塊。{zh-cn}代理玩家探索了一个预设地形板块。{ko}프록시가 미리 정해진 지형 타일을 탐험했습니다.{es}El Proxy exploró una loseta de terreno predefinida.{fr}Le Proxy a exploré une tuile de terrain prédéfinie.{pt-br}O Proxy explorou uma peça de terreno predefinida.{de}Der Proxy hat ein vordefiniertes Geländeplättchen erkundet.",{1,0.75,0.2})
 			proxyClearObjective(true)
 		end
 	elseif target~=nil and target.button~=nil and target.button.attributes~=nil and target.button.attributes.id~=nil then
 		exploreMap({color="Black"},"-1",target.button.attributes.id)
 		proxyTurnReportSetAction("explored a new tile")
-		broadcastToAll("Proxy explored a new tile.",{1,0.75,0.2})
+		broadcastToAll("{en}Proxy explored a new tile.{ru}Прокси исследовал новую плитку.{zh-tw}代理玩家探索了一個新板塊。{zh-cn}代理玩家探索了一个新板块。{ko}프록시가 새 타일을 탐험했습니다.{es}El Proxy exploró una nueva loseta.{fr}Le Proxy a exploré une nouvelle tuile.{pt-br}O Proxy explorou uma nova peça.{de}Der Proxy hat ein neues Plättchen erkundet.",{1,0.75,0.2})
 		proxyClearObjective(true)
 	end
 	return true
@@ -2130,7 +2130,7 @@ function proxyResolveBurn(hex,mapObjects)
 	proxyRestoreAvatarAfterSiteObjects(lift,shield~=nil and {shield.guid} or {})
 	proxyTurnReportSetAction("burned the Monastery")
 	proxyClearObjective(true)
-	broadcastToAll("Proxy burned a monastery.",{1,0.75,0.2})
+	broadcastToAll("{en}Proxy burned a monastery.{ru}Прокси сжёг Монастырь.{zh-tw}代理玩家焚毀了一座修道院。{zh-cn}代理玩家焚毁了一座修道院。{ko}프록시가 수도원을 불태웠습니다.{es}El Proxy quemó un monasterio.{fr}Le Proxy a brûlé un monastère.{pt-br}O Proxy queimou um mosteiro.{de}Der Proxy hat ein Kloster niedergebrannt.",{1,0.75,0.2})
 	return true
 end
 
@@ -2281,7 +2281,7 @@ function proxyContinueAfterMovementSetup(proxyIndex,move,crystals)
 	if target==nil then
 		proxyTurnReportSetAction("had no legal objective or exploration destination")
 		if gStates.proxyTurnReport~=nil then gStates.proxyTurnReport.reason="No legal target or exploration point was available." end
-		broadcastToAll("Proxy has no legal objective or exploration destination.",{1,0.65,0.2})
+		broadcastToAll("{en}Proxy has no legal objective or exploration destination.{ru}У Прокси нет допустимой цели или места исследования.{zh-tw}代理玩家沒有合法目標或探索目的地。{zh-cn}代理玩家没有合法目标或探索目的地。{ko}프록시에게 합법적인 목표나 탐험 목적지가 없습니다.{es}El Proxy no tiene objetivo legal ni destino de exploración.{fr}Le Proxy n’a aucun objectif légal ni destination d’exploration.{pt-br}O Proxy não tem objetivo válido nem destino de exploração.{de}Der Proxy hat kein gültiges Ziel oder Erkundungsziel.",{1,0.65,0.2})
 		proxyFinishTurn(hexes,mapObjects,proxyIndex)
 		return
 	end
@@ -2310,7 +2310,7 @@ function proxyProcessTurn(proxyIndex)
 	local avatar=proxyAvatarObject()
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local portal=proxyPortalHex(hexes)
-	if avatar==nil or portal==nil then gStates.proxyTurnReport={moved=0,action="could not find their Hero or Portal",reason="Setup could not provide both required objects.",allowance=0} broadcastToAll("Proxy Player could not find its Hero or Portal.",{1,0.25,0.25}) proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
+	if avatar==nil or portal==nil then gStates.proxyTurnReport={moved=0,action="could not find their Hero or Portal",reason="Setup could not provide both required objects.",allowance=0} broadcastToAll("{en}Proxy Player could not find its Hero or Portal.{ru}Прокси-игрок не смог найти своего Героя или Портал.{zh-tw}代理玩家找不到英雄或傳送門。{zh-cn}代理玩家找不到英雄或传送门。{ko}프록시 플레이어가 영웅 또는 포털을 찾지 못했습니다.{es}El jugador Proxy no pudo encontrar su Héroe o Portal.{fr}Le joueur Proxy n’a pas pu trouver son Héros ou le Portail.{pt-br}O jogador Proxy não conseguiu encontrar seu Herói ou o Portal.{de}Der Proxy-Spieler konnte seinen Helden oder das Portal nicht finden.",{1,0.25,0.25}) proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
 	local physicalStartHex=apocalypseQuestHexForPosition(hexes,avatar.getPosition(),mapObjects)
 	if physicalStartHex==nil then
 		avatar.unlock() avatar.setPosition({portal.position[1],1.5,portal.position[3]}) gStates.proxyAvatarOffMap=false
