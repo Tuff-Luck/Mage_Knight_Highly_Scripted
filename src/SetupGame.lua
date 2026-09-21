@@ -304,11 +304,13 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		local ruleBag=getObjectFromGUID("d4a866")
 		local r={main="b850ab", expansion="700e93", apocalypse="65f2b6"}
 		local scenarioRuleStates=scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates or {}
+		local needExpansionRules=scenarioRuleStates.expansion~=nil or gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false
+		local needApocalypseRules=scenarioRuleStates.apocalypse~=nil or gStates.removeApocalypseTerrain~=true
 		local extraRules=nil
 		if ruleBag~=nil then
 			ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={52.13, 0.98, 35.00}, guid=r.main, smooth=false})
-			if scenarioRuleStates.expansion~=nil or gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false then ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={63.12, 0.96, 35.00}, guid=r.expansion, smooth=false}) end
-			if scenarioRuleStates.apocalypse~=nil or gStates.removeApocalypseTerrain~=true then ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={73.60, 0.97, 35.00}, guid=r.apocalypse, smooth=false}) end
+			if needExpansionRules then ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={63.12, 0.96, 35.00}, guid=r.expansion, smooth=false}) end
+			if needApocalypseRules then ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={73.60, 0.97, 35.00}, guid=r.apocalypse, smooth=false}) end
 			if gStates.gameScenario=="First Reconnaissance" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="9ea4ed", smooth=false}) end
 			if gStates.gameScenario=="Quest for the Golden Grail" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="826bf9", smooth=false}) end
 			if gStates.gameScenario=="The Chaos Rift" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="fd700f", smooth=false}) end
@@ -332,8 +334,25 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				if apocalypseRules~=nil then apocalypseRules.lock() end
 				if furyRules~=nil then furyRules.lock() end
 				if extraRules~=nil then extraRules.lock() end
-			end,function() local mainRules=getObjectFromGUID(r.main) return mainRules~=nil and mainRules.resting end,10,function()
-				error("SetupGame timed out waiting for the scenario rulebook to settle.",2)
+			end,function()
+				local mainRules=getObjectFromGUID(r.main)
+				if mainRules==nil or mainRules.resting~=true then return false end
+				if needExpansionRules then
+					local expansionRules=getObjectFromGUID(r.expansion)
+					if expansionRules==nil or expansionRules.resting~=true then return false end
+				end
+				if needApocalypseRules then
+					local apocalypseRules=getObjectFromGUID(r.apocalypse)
+					if apocalypseRules==nil or apocalypseRules.resting~=true then return false end
+				end
+				if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
+					local furyRules=getObjectFromGUID("8d7fb9")
+					if furyRules==nil or furyRules.resting~=true then return false end
+				end
+				return extraRules==nil or extraRules.resting==true
+			end,10,function()
+				setupReleaseRewind()
+				error("SetupGame timed out waiting for the scenario rulebooks to settle.",2)
 			end)
 		ruleBag.destruct()
 		end
