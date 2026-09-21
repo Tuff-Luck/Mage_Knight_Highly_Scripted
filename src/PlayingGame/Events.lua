@@ -1619,7 +1619,8 @@ function __onObjectEnterZone_raw(zone, obj)
 						if positionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}})==false then
 							mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
 						else
-							if gStates.nightTint==true then mightBeMap.setColorTint({r=0.6, g=0.6, b=0.6}) else mightBeMap.setColorTint({r=1.0, g=1.0, b=1.0}) end--colour off
+							local nightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
+							if nightTint then mightBeMap.setColorTint({r=0.6, g=0.6, b=0.6}) else mightBeMap.setColorTint({r=1.0, g=1.0, b=1.0}) end--colour off
 						end
 					end
 				end
