@@ -43,6 +43,15 @@ end
 --actual outstanding merges instead so fast machines continue immediately and slower machines wait
 --only for the objects they really need.
 local setupDeckMergesPending=0
+local setupDeckExpectedQuantity={}
+local setupRewindRequestPending=false
+
+local function setupReleaseRewind()
+	setupRewindRequestPending=false
+	if rewindTransactionOwnerActive~=nil and rewindTransactionOwnerActive("Game setup")==true then
+		rewindTransactionFinish("Game setup")
+	end
+end
 
 local function setupQueueDeckMerge(container,deckGUID,objectGUID)
 	local deck=getObjectFromGUID(deckGUID)
@@ -54,6 +63,10 @@ local function setupQueueDeckMerge(container,deckGUID,objectGUID)
 		position={p[1],-2,p[3]},
 		smooth=false,
 		callback_function=function(obj)
+			local added=(obj~=nil and obj.type=="Deck") and obj.getQuantity() or 1
+			local expected=setupDeckExpectedQuantity[deckGUID]
+			if expected==nil then expected=deck.getQuantity() end
+			setupDeckExpectedQuantity[deckGUID]=expected+math.max(tonumber(added) or 1,1)
 			deck.putObject(obj)
 			setupDeckMergesPending=setupDeckMergesPending-1
 		end})
@@ -66,6 +79,10 @@ end
 
 local function setupMainDecksSettled()
 	if setupDeckMergesPending~=0 then return false end
+	for guid,expected in pairs(setupDeckExpectedQuantity) do
+		local deck=getObjectFromGUID(guid)
+		if deck==nil or deck.getQuantity()<expected then return false end
+	end
 	for _,guid in ipairs({GUID.deck.action,GUID.deck.artifact,GUID.deck.regularUnit,GUID.deck.eliteUnit,GUID.deck.spell}) do
 		local deck=getObjectFromGUID(guid)
 		if deck==nil or deck.resting~=true then return false end
@@ -88,12 +105,16 @@ local function setupFinishDeckStage()
 		gStates.magesSetup=true
 		mageLevelBoard()
 		UI.show("LevelUpRules")
+		--Automated setup has handed control to the players. Do not hold the rewind transaction
+		--open while they spend an arbitrary amount of time choosing their higher-level start.
+		setupReleaseRewind()
 	end
 end
 
 local function setupStartDeckStage()
 	deckSetup()
 	safeWaitCondition("SetupGame",setupFinishDeckStage,setupMainDecksSettled,10,function()
+		setupReleaseRewind()
 		error("SetupGame timed out waiting for the main decks to settle after deck setup.",2)
 	end)
 end
@@ -111,7 +132,6 @@ local function setupCoreSystemsReady()
 end
 
 --Layout everything needed for the game
-local setupRewindRequestPending=false
 local function setupGameRaw(player, mouseButton, id, rewindReady)
 	if mouseButton=="-1" then
 		if rewindReady~=true then
@@ -124,6 +144,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			return
 		end
 		setupDeckMergesPending=0
+		setupDeckExpectedQuantity={}
 		setupFinalizationStarted=false
 		setupMapStarted=false
 		gStates.volkareCampSupportReady=true
@@ -282,11 +303,12 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		--rewind/load timing miss must not abort setup before terrain/decks are built.
 		local ruleBag=getObjectFromGUID("d4a866")
 		local r={main="b850ab", expansion="700e93", apocalypse="65f2b6"}
+		local scenarioRuleStates=scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates or {}
 		local extraRules=nil
 		if ruleBag~=nil then
 			ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={52.13, 0.98, 35.00}, guid=r.main, smooth=false})
-			if scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates[2]~=1 or gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false then ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={63.12, 0.96, 35.00}, guid=r.expansion, smooth=false}) end
-			if scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.apocalypse~=nil or gStates.removeApocalypseTerrain~=true then ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={73.60, 0.97, 35.00}, guid=r.apocalypse, smooth=false}) end
+			if scenarioRuleStates.expansion~=nil or gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false then ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={63.12, 0.96, 35.00}, guid=r.expansion, smooth=false}) end
+			if scenarioRuleStates.apocalypse~=nil or gStates.removeApocalypseTerrain~=true then ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={73.60, 0.97, 35.00}, guid=r.apocalypse, smooth=false}) end
 			if gStates.gameScenario=="First Reconnaissance" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="9ea4ed", smooth=false}) end
 			if gStates.gameScenario=="Quest for the Golden Grail" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="826bf9", smooth=false}) end
 			if gStates.gameScenario=="The Chaos Rift" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="fd700f", smooth=false}) end
@@ -302,9 +324,9 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				local expansionRules=getObjectFromGUID(r.expansion)
 				local apocalypseRules=getObjectFromGUID(r.apocalypse)
 				local furyRules=gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9") or nil
-				if scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.main~=nil and mainRules~=nil then mainRules.book.setPage(scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.main-1) end
-				if scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.expansion~=nil and expansionRules~=nil then expansionRules.book.setPage(scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.expansion-1) end
-				if scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.apocalypse~=nil and apocalypseRules~=nil then apocalypseRules.book.setPage(scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates.apocalypse-1) end
+				if scenarioRuleStates.main~=nil and mainRules~=nil then mainRules.book.setPage(scenarioRuleStates.main-1) end
+				if scenarioRuleStates.expansion~=nil and expansionRules~=nil then expansionRules.book.setPage(scenarioRuleStates.expansion-1) end
+				if scenarioRuleStates.apocalypse~=nil and apocalypseRules~=nil then apocalypseRules.book.setPage(scenarioRuleStates.apocalypse-1) end
 				if mainRules~=nil then mainRules.lock() end
 				if expansionRules~=nil then expansionRules.lock() end
 				if apocalypseRules~=nil then apocalypseRules.lock() end
@@ -318,25 +340,34 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 
 		--Add Weather Mod if being used
 		if gStates.weatherMod==true then
+			local weatherBag=getObjectFromGUID(GUID.bag.weatherMod)
 			local weatherObjs={[GUID.deck.dayWeather]={-25.90, 1.08, -23.95}, [GUID.bag.weather.blazingSun]={-30.84, 1.04, -22.49}, [GUID.bag.weather.overcast]={-28.84, 1.04, -22.49}, [GUID.bag.weather.snowfall]={-32.84, 1.13, -24.49}, [GUID.bag.weather.rain]={-30.84, 1.04, -24.49}, [GUID.bag.weather.thunder]={-28.84, 1.04, -24.49}}
-			for weatherObj, location in pairs(weatherObjs) do
-				getObjectFromGUID(GUID.bag.weatherMod).takeObject({rotation={0.0, 180.0, 180.0}, position=location, guid=weatherObj, smooth=false})
-				getObjectFromGUID(weatherObj).lock()
+			local deployedWeather={}
+			for weatherGUID, location in pairs(weatherObjs) do
+				local obj=safeTakeObject("SetupGame",weatherBag,{rotation={0.0, 180.0, 180.0}, position=location, guid=weatherGUID, smooth=false})
+				if obj==nil then error("SetupGame could not deploy Weather object "..tostring(weatherGUID),2) end
+				obj.lock()
+				deployedWeather[weatherGUID]=obj
 			end
-			getObjectFromGUID(GUID.bag.weatherMod).takeObject({rotation={0.0, 180.0, 0.0}, position={64.46, 0.98, 18.89}, guid="e03548", smooth=false})
-			getObjectFromGUID("e03548").lock()
-			getObjectFromGUID(GUID.deck.dayWeather).unlock()
+			local weatherRules=safeTakeObject("SetupGame",weatherBag,{rotation={0.0, 180.0, 0.0}, position={64.46, 0.98, 18.89}, guid="e03548", smooth=false})
+			if weatherRules==nil then error("SetupGame could not deploy the Weather rules.",2) end
+			weatherRules.lock()
+			deployedWeather[GUID.deck.dayWeather].unlock()
 		end
 		if getObjectFromGUID(GUID.bag.weatherMod)~=nil then getObjectFromGUID(GUID.bag.weatherMod).destruct() end
 
 		--Add Quest Mod if being used
 		if gStates.questMod==true then
+			local questBag=getObjectFromGUID(GUID.bag.quest)
 			local questObjs={[GUID.deck.villageQuest]={46.84, 1.14, 8.06}, [GUID.deck.monasteryQuest]={46.91, 1.14, 13.61}, [GUID.deck.cityQuest]={46.84, 1.08, 19.07}, [GUID.deck.uniqueQuest]={46.84, 1.09, 24.57}}
-			for questObj, location in pairs(questObjs) do
-				getObjectFromGUID(GUID.bag.quest).takeObject({rotation={0.0, 180.0, 180.0}, position=location, guid=questObj, smooth=false})
+			for questGUID, location in pairs(questObjs) do
+				if safeTakeObject("SetupGame",questBag,{rotation={0.0, 180.0, 180.0}, position=location, guid=questGUID, smooth=false})==nil then
+					error("SetupGame could not deploy Quest object "..tostring(questGUID),2)
+				end
 			end
-			getObjectFromGUID(GUID.bag.quest).takeObject({rotation={0.0, 180.0, 0.0}, position={74.77, 1.00, 18.89}, guid="1f65f1", smooth=false})
-			getObjectFromGUID("1f65f1").lock()
+			local questRules=safeTakeObject("SetupGame",questBag,{rotation={0.0, 180.0, 0.0}, position={74.77, 1.00, 18.89}, guid="1f65f1", smooth=false})
+			if questRules==nil then error("SetupGame could not deploy the Quest rules.",2) end
+			questRules.lock()
 		end
 		if getObjectFromGUID(GUID.bag.quest)~=nil then getObjectFromGUID(GUID.bag.quest).destruct() end
 
@@ -499,17 +530,28 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			setupQueueDeckMerge(getObjectFromGUID(GUID.bag.forgemaster),GUID.deck.action,"db5f9f")--Advanced Actions
 			setupQueueDeckMerge(getObjectFromGUID(GUID.bag.forgemaster),GUID.deck.artifact,"c48f76")--artifacts
 			setupQueueDeckMerge(getObjectFromGUID(GUID.bag.forgemaster),GUID.deck.spell,"cfe630")--Spells
-			getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={54.25, 0.98, 18.86}, guid="0a657b", smooth=false}) getObjectFromGUID("0a657b").lock()
+			local forgemasterBag=getObjectFromGUID(GUID.bag.forgemaster)
+			local forgemasterRules=safeTakeObject("SetupGame",forgemasterBag,{rotation={0.0, 180.0, 0.0}, position={54.25, 0.98, 18.86}, guid="0a657b", smooth=false})
+			if forgemasterRules==nil then error("SetupGame could not deploy Rise of the Forgemasters rules.",2) end
+			forgemasterRules.lock()
 			if gStates.riseOfTheForgemasters>=2 then
-				setupQueueDeckMerge(getObjectFromGUID(GUID.bag.forgemaster),GUID.deck.action,"c89aea")--Advanced Actions
-				getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -16.00}, guid="5ad84f", smooth=false}) getObjectFromGUID("5ad84f").lock()
+				setupQueueDeckMerge(forgemasterBag,GUID.deck.action,"c89aea")--Advanced Actions
+				local forgemasterTwo=safeTakeObject("SetupGame",forgemasterBag,{rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -16.00}, guid="5ad84f", smooth=false})
+				if forgemasterTwo==nil then error("SetupGame could not deploy Rise of the Forgemasters level 2 component.",2) end
+				forgemasterTwo.lock()
 				if gStates.riseOfTheForgemasters==3 then
-					setupQueueDeckMerge(getObjectFromGUID(GUID.bag.forgemaster),GUID.deck.action,"3b0ed8")--Advanced Actions
-					setupQueueDeckMerge(getObjectFromGUID(GUID.bag.forgemaster),GUID.deck.spell,"09fd8d")--Spells
-					getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -19.50}, guid="bbec6b", smooth=false}) getObjectFromGUID("bbec6b").lock()
-					getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -23.00}, guid="786414", smooth=false}) getObjectFromGUID("786414").lock()
-					getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -12.50}, guid="a28a71", smooth=false}) getObjectFromGUID("a28a71").lock()
-					getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -9.00}, guid="c14096", smooth=false}) getObjectFromGUID("c14096").lock()
+					setupQueueDeckMerge(forgemasterBag,GUID.deck.action,"3b0ed8")--Advanced Actions
+					setupQueueDeckMerge(forgemasterBag,GUID.deck.spell,"09fd8d")--Spells
+					for _,details in ipairs({
+						{guid="bbec6b",position={-75.16,0.99,-19.50}},
+						{guid="786414",position={-75.16,0.99,-23.00}},
+						{guid="a28a71",position={-75.16,0.99,-12.50}},
+						{guid="c14096",position={-75.16,0.99,-9.00}}
+					}) do
+						local component=safeTakeObject("SetupGame",forgemasterBag,{rotation={0.0,180.0,0.0},position=details.position,guid=details.guid,smooth=false})
+						if component==nil then error("SetupGame could not deploy Rise of the Forgemasters component "..details.guid,2) end
+						component.lock()
+					end
 				end
 			end
 		end
@@ -669,6 +711,9 @@ local function finalizeSetup()
 	end, 400)--time in seconds, 1800=1/2 hour, 3600=1 hour 400
 	safeWaitTime("SetupGame",function() straightenCrooked() end, 10)
 	dealStartingHandsWhenReady()
+	--All automated setup dependencies have completed. Any remaining smooth movement is presentation-only,
+	--so release the setup rewind guard immediately rather than relying on its 59-second failsafe.
+	setupReleaseRewind()
 end
 
 --Build the map only after monster/player/component setup has reached its real readiness conditions.
@@ -680,7 +725,10 @@ function afterLoad()
 		removeUnselectedTerrain()
 		if apocalypseDragonScenario()==true then positionApocalypseDragonHeads() end
 		mapSetup(function(success,reason)
-			if success~=true then error(reason or "SetupGame map setup failed.",2) end
+			if success~=true then
+				setupReleaseRewind()
+				error(reason or "SetupGame map setup failed.",2)
+			end
 			finalizeSetup()
 		end)
 	end
@@ -688,6 +736,7 @@ function afterLoad()
 		beginMap()
 	else
 		safeWaitCondition("SetupGame",beginMap,setupCoreSystemsReady,20,function()
+			setupReleaseRewind()
 			error("SetupGame timed out waiting for setup components before map construction.",2)
 		end)
 	end
