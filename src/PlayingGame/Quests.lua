@@ -4186,28 +4186,28 @@ function apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)
 	if rule==nil then return true end
 	local token=apocalypseQuestMarkerObject(rule)
 	if token==nil then
-		if playerColor~=nil then broadcastToColor("The required Quest marker could not be found.", playerColor, {1,0.55,0.2}) end
+		if playerColor~=nil then broadcastToColor("{en}The required Quest marker could not be found.{ru}Не удалось найти требуемый жетон задания.{zh-tw}找不到所需的任務標記。{zh-cn}找不到所需的任务标记。{ko}필요한 퀘스트 마커를 찾지 못했습니다.{es}No se pudo encontrar el marcador de Misión requerido.{fr}Le marqueur de Quête requis est introuvable.{pt-br}O marcador de Missão necessário não foi encontrado.{de}Der erforderliche Questmarker wurde nicht gefunden.", playerColor, {1,0.55,0.2}) end
 		return false
 	end
 	if rule.relocate~=true and apocalypseQuestMarkerPlacementCommitted(rule)==true then return true end
 	if rule.atPlayer==true then
 		if apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then
-			if playerColor~=nil then broadcastToColor("Your Mage Knight is not at a valid location for this Quest step.", playerColor, warningColor) end
+			if playerColor~=nil then broadcastToColor("{en}Your Mage Knight is not at a valid location for this Quest step.{ru}Ваш Рыцарь-маг находится не в допустимом месте для этого шага задания.{zh-tw}你的魔法騎士不在此任務步驟的合法地點。{zh-cn}你的魔法骑士不在此任务步骤的合法地点。{ko}마법 기사가 이 퀘스트 단계에 유효한 장소에 있지 않습니다.{es}Tu Caballero Mago no está en un lugar válido para este paso de Misión.{fr}Votre Chevalier-Mage ne se trouve pas sur un lieu valide pour cette étape de Quête.{pt-br}Seu Cavaleiro-Mago não está em um local válido para esta etapa da Missão.{de}Dein Magieritter befindet sich nicht an einem gültigen Ort für diesen Quest-Schritt.", playerColor, warningColor) end
 			return false
 		end
 		local playerHex=apocalypseQuestCurrentPlayerHex(playerIndex)
 		if playerHex==nil or apocalypseQuestHexHasOtherQuestMarker(playerHex,token.guid)==true then
-			if playerColor~=nil then broadcastToColor("That map space already contains a Quest marker. Only one Quest marker may be placed in a map space.", playerColor, warningColor) end
+			if playerColor~=nil then broadcastToColor("{en}That map space already contains a Quest marker. Only one Quest marker may be placed in a map space.{ru}На этой клетке карты уже есть жетон задания. На одной клетке может находиться только один жетон задания.{zh-tw}該地圖空間已有任務標記。每個地圖空間只能放置一個任務標記。{zh-cn}该地图空间已有任务标记。每个地图空间只能放置一个任务标记。{ko}해당 지도 칸에 이미 퀘스트 마커가 있습니다. 한 지도 칸에는 퀘스트 마커를 하나만 놓을 수 있습니다.{es}Ese espacio del mapa ya contiene un marcador de Misión. Solo puede colocarse un marcador de Misión en cada espacio.{fr}Cette case de carte contient déjà un marqueur de Quête. Un seul marqueur de Quête peut être placé par case.{pt-br}Esse espaço do mapa já contém um marcador de Missão. Apenas um marcador de Missão pode ser colocado em cada espaço.{de}Dieses Kartenfeld enthält bereits einen Questmarker. Pro Kartenfeld darf nur ein Questmarker platziert werden.", playerColor, warningColor) end
 			return false
 		end
 		local placed=apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)
-		if placed~=true and playerColor~=nil then broadcastToColor("The Quest marker could not be placed at your Mage Knight.", playerColor, {1,0.55,0.2}) end
+		if placed~=true and playerColor~=nil then broadcastToColor("{en}The Quest marker could not be placed at your Mage Knight.{ru}Жетон задания не удалось разместить у вашего Рыцаря-мага.{zh-tw}無法在你的魔法騎士位置放置任務標記。{zh-cn}无法在你的魔法骑士位置放置任务标记。{ko}마법 기사 위치에 퀘스트 마커를 놓지 못했습니다.{es}No se pudo colocar el marcador de Misión junto a tu Caballero Mago.{fr}Le marqueur de Quête n’a pas pu être placé sur votre Chevalier-Mage.{pt-br}O marcador de Missão não pôde ser colocado em seu Cavaleiro-Mago.{de}Der Questmarker konnte nicht bei deinem Magieritter platziert werden.", playerColor, {1,0.55,0.2}) end
 		return placed==true
 	end
 	local candidates,hexes,mapObjects=apocalypseQuestMarkerLegalHexes(card,playerIndex,rule,token)
 	if #candidates==0 then
 		apocalypseQuestClearMarkerHighlight(token)
-		if playerColor~=nil then broadcastToColor("There is no legal map space for this Quest marker yet.", playerColor, warningColor) end
+		if playerColor~=nil then broadcastToColor("{en}There is no legal map space for this Quest marker yet.{ru}Для этого жетона задания пока нет допустимой клетки карты.{zh-tw}目前沒有可合法放置此任務標記的地圖空間。{zh-cn}目前没有可合法放置此任务标记的地图空间。{ko}아직 이 퀘스트 마커를 놓을 수 있는 합법적인 지도 칸이 없습니다.{es}Todavía no hay un espacio legal en el mapa para este marcador de Misión.{fr}Il n’existe pas encore de case de carte légale pour ce marqueur de Quête.{pt-br}Ainda não há espaço válido no mapa para este marcador de Missão.{de}Es gibt noch kein gültiges Kartenfeld für diesen Questmarker.", playerColor, warningColor) end
 		apocalypseQuestUpdateProgressButtons(card)
 		return false
 	end
@@ -4792,7 +4792,7 @@ function apocalypseQuestUpdateProgressButtons(card)
 	card.UI.setAttribute(prefix.."Fight", "interactable", state.fight and "true" or "false")
 	card.UI.setAttribute(prefix.."Progress", "interactable", state.progress and "true" or "false")
 	card.UI.setAttribute(prefix.."Progress", "color", state.progress and "#d8c79d" or "#b5b5b5")
-	card.UI.setAttribute(prefix.."ProgressText", "text", state.progressLabel or "Progress")
+	card.UI.setAttribute(prefix.."ProgressText", "text", state.progressLabel or "{en}Progress{ru}Продолжить{zh-tw}進行{zh-cn}进行{ko}진행{es}Progresar{fr}Progresser{pt-br}Progredir{de}Fortschritt")
 	card.UI.setAttribute(prefix.."ProgressText", "color", state.progress and "#000000" or "#777777")
 	card.UI.setAttribute(prefix.."Complete", "interactable", state.complete and "true" or "false")
 	card.UI.setAttribute(prefix.."Complete", "color", state.complete and "#a8c99a" or "#b5b5b5")
@@ -4803,7 +4803,7 @@ function apocalypseQuestUpdateProgressButtons(card)
 	card.UI.setAttribute(prefix.."AbandonText", "color", state.abandon and "#000000" or "#777777")
 	card.UI.setAttribute(prefix.."Fail", "interactable", state.fail and "true" or "false")
 	card.UI.setAttribute(prefix.."Fail", "color", state.fail and "#c99090" or "#b5b5b5")
-	card.UI.setAttribute(prefix.."FailText", "text", state.failLabel or "Fail")
+	card.UI.setAttribute(prefix.."FailText", "text", state.failLabel or "{en}Fail{ru}Провал{zh-tw}失敗{zh-cn}失败{ko}실패{es}Fallar{fr}Échouer{pt-br}Falhar{de}Scheitern")
 	card.UI.setAttribute(prefix.."FailText", "color", state.fail and "#000000" or "#777777")
 	if rebuild==true then
 		local cardGUID=card.guid
@@ -4920,7 +4920,7 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 		local colors={Blue="#779bd1",Red="#cf7777",Green="#82b982",White="#eeeeee",Gold="#e4c869",Black="#666666",NoInventory="#b5b5b5",["2a"]="#d8c79d",["2b"]="#d8c79d"}
 		for index, color in ipairs(combatPending.colors or {}) do
 			if spots[index]~=nil then
-				local label=color=="NoInventory" and "No Inventory" or color
+				local label=color=="NoInventory" and "{en}No Inventory{ru}Нет места в Инвентаре{zh-tw}庫存已滿{zh-cn}库存已满{ko}인벤토리 공간 없음{es}Sin espacio en Inventario{fr}Inventaire plein{pt-br}Sem espaço no Inventário{de}Kein Inventarplatz" or (translateWord[color] or color)
 				xml[#xml+1]=questButton("CombatColor_"..color,label,spots[index][1],spots[index][2],colors[color] or "#d8c79d",true)
 			end
 		end
@@ -5123,7 +5123,7 @@ function apocalypseQuestRestoreScoreMarker(playerIndex, announce)
 		marker=source.clone({position=target, rotation={0,180,0}})
 		if marker==nil then return nil end
 		marker.setName(mage)
-		marker.setDescription("Quest Score")
+		marker.setDescription("{en}Quest Score{ru}Очки задания{zh-tw}任務分數{zh-cn}任务分数{ko}퀘스트 점수{es}Puntuación de Misión{fr}Score de Quête{pt-br}Pontuação de Missão{de}Quest-Punkte")
 		marker.setGMNotes("")
 		local scale=source.getScale()
 		marker.setScale({scale[1]*1.25, scale[2]*1.25, scale[3]*1.25})
@@ -5528,7 +5528,7 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 		end
 	end
 	if action=="Fail" and apocalypseQuestFailureReady(card,option,playerIndex)~=true then
-		if playerColor~=nil then broadcastToColor("Start this Quest combat before resolving Fail.",playerColor,warningColor) end
+		if playerColor~=nil then broadcastToColor("{en}Start this Quest combat before resolving Fail.{ru}Начните бой задания перед разрешением Провала.{zh-tw}在結算失敗前先開始此任務戰鬥。{zh-cn}在结算失败前先开始此任务战斗。{ko}실패를 처리하기 전에 이 퀘스트 전투를 시작하십시오.{es}Inicia este combate de Misión antes de resolver Fallar.{fr}Commencez ce combat de Quête avant de résoudre Échouer.{pt-br}Inicie este combate da Missão antes de resolver Falhar.{de}Beginne diesen Quest-Kampf, bevor du Scheitern abwickelst.",playerColor,warningColor) end
 		return false
 	end
 	if action~="Fail" and apocalypseQuestStepSpecialLegal(card,playerIndex,option)~=true then
@@ -5549,7 +5549,7 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 	if action=="Complete" and card.guid=="08ffcf" and tostring(option.key)=="2" then
 		guardDutyDistance=apocalypseQuestGuardDutyDistance(playerIndex)
 		if guardDutyDistance==nil then
-			if playerColor~=nil then broadcastToColor("Guard Duty could not measure a revealed-space path back to the merchant marker.",playerColor,{1,0.55,0.2}) end
+			if playerColor~=nil then broadcastToColor("{en}Guard Duty could not measure a revealed-space path back to the merchant marker.{ru}Guard Duty не смог определить путь по открытым клеткам обратно к жетону торговца.{zh-tw}Guard Duty 無法計算沿已揭示空間返回商人標記的路徑。{zh-cn}Guard Duty 无法计算沿已揭示空间返回商人标记的路径。{ko}Guard Duty에서 공개된 칸을 따라 상인 마커로 돌아가는 경로를 계산하지 못했습니다.{es}Guard Duty no pudo calcular una ruta por espacios revelados hasta el marcador del mercader.{fr}Guard Duty n’a pas pu calculer un trajet par les cases révélées jusqu’au marqueur du marchand.{pt-br}Guard Duty não conseguiu calcular uma rota por espaços revelados até o marcador do mercador.{de}Guard Duty konnte keinen Weg über aufgedeckte Felder zurück zum Händlermarker bestimmen.",playerColor,{1,0.55,0.2}) end
 			finishQuestResolution(0.5)
 			return false
 		end
@@ -5560,14 +5560,14 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 	if action=="Progress" and card.guid=="8cff07" and tostring(option.key)=="1" then
 		if apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
 		if apocalypseQuestClaimAbandonedPersonal(card,playerIndex)~=true then
-			if playerColor~=nil then broadcastToColor("The Personal Quest Shield could not be claimed.",playerColor,{1,0.55,0.2}) end
+			if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.",playerColor,{1,0.55,0.2}) end
 			finishQuestResolution(0.5)
 			return false
 		end
 		apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
 		if apocalypseQuestPositionProgressShield(card,playerIndex,option)~=true then
 			apocalypseQuestEndMoveAttachmentCapture(card)
-			if playerColor~=nil then broadcastToColor("Quest progress could not place the required Shield.",playerColor,{1,0.55,0.2}) end
+			if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.",playerColor,{1,0.55,0.2}) end
 			finishQuestResolution(0.5)
 			return false
 		end
@@ -5606,13 +5606,13 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 		apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
 		if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
 			apocalypseQuestEndMoveAttachmentCapture(card)
-			if playerColor~=nil then broadcastToColor("The Personal Quest Shield could not be claimed.", playerColor, {1,0.55,0.2}) end
+			if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
 			finishQuestResolution(0.5)
 			return false
 		end
 		if apocalypseQuestPositionProgressShield(card, playerIndex, option)~=true then
 			apocalypseQuestEndMoveAttachmentCapture(card)
-			if playerColor~=nil then broadcastToColor("Quest progress could not place the required Shield.", playerColor, {1,0.55,0.2}) end
+			if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.", playerColor, {1,0.55,0.2}) end
 			finishQuestResolution(0.5)
 			return false
 		end
@@ -5652,7 +5652,7 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 	elseif action=="Complete" then
 		if not (card.guid=="6175e8" and tostring(option.key)=="3") and apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)~=true then finishQuestResolution(0.5) return false end
 		if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-			if playerColor~=nil then broadcastToColor("The Personal Quest Shield could not be claimed.", playerColor, {1,0.55,0.2}) end
+			if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
 			finishQuestResolution(0.5)
 			return false
 		end
@@ -5853,7 +5853,7 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 		return true
 	elseif action=="Fail" then
 		if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-			if playerColor~=nil then broadcastToColor("The Personal Quest Shield could not be claimed.", playerColor, {1,0.55,0.2}) end
+			if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
 			finishQuestResolution(0.5)
 			return false
 		end
@@ -6120,7 +6120,7 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 
 	if action=="Abandon" then
 		if card.guid=="a6d5cc" and apocalypseQuestPersonalShieldOwner(card)~=nil then
-			broadcastToColor("Under Siege must be resolved with 2A or 2B; it cannot be abandoned after Step 1.",player.color,warningColor)
+			broadcastToColor("{en}Under Siege must be resolved with 2A or 2B; it cannot be abandoned after Step 1.{ru}Under Siege должно быть разрешено через 2A или 2B; после шага 1 его нельзя покинуть.{zh-tw}Under Siege 必須以 2A 或 2B 結算；步驟 1 後不能放棄。{zh-cn}Under Siege 必须以 2A 或 2B 结算；步骤 1 后不能放弃。{ko}Under Siege는 2A 또는 2B로 해결해야 하며 1단계 이후에는 포기할 수 없습니다.{es}Under Siege debe resolverse con 2A o 2B; no puede abandonarse después del Paso 1.{fr}Under Siege doit être résolu avec 2A ou 2B ; il ne peut pas être abandonné après l’Étape 1.{pt-br}Under Siege deve ser resolvido com 2A ou 2B; não pode ser abandonado após a Etapa 1.{de}Under Siege muss mit 2A oder 2B abgewickelt werden; nach Schritt 1 kann es nicht aufgegeben werden.",player.color,warningColor)
 			apocalypseQuestInterfaceAdd(card,true)
 			return
 		end
@@ -6128,12 +6128,12 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 		local neutralShield=apocalypseQuestNeutralShield(card)
 		if quest.questType=="Personal" and ownerIndex==nil and neutralShield~=nil then
 			if apocalypseQuestPlayerMayAct(card, playerIndex)~=true then
-				broadcastToColor("You cannot resume this Personal Quest while you have another Personal Quest.", player.color, warningColor)
+				broadcastToColor("{en}You cannot resume this Personal Quest while you have another Personal Quest.{ru}Нельзя возобновить это личное задание, пока у вас есть другое личное задание.{zh-tw}當你有另一個個人任務時，不能恢復此個人任務。{zh-cn}当你有另一个个人任务时，不能恢复此个人任务。{ko}다른 개인 퀘스트를 보유한 동안에는 이 개인 퀘스트를 재개할 수 없습니다.{es}No puedes reanudar esta Misión Personal mientras tengas otra Misión Personal.{fr}Vous ne pouvez pas reprendre cette Quête Personnelle tant que vous en avez une autre.{pt-br}Você não pode retomar esta Missão Pessoal enquanto tiver outra Missão Pessoal.{de}Du kannst diese persönliche Quest nicht fortsetzen, solange du eine andere persönliche Quest hast.", player.color, warningColor)
 				apocalypseQuestUpdateProgressButtons(card)
 				return
 			end
 			if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-				broadcastToColor("The Personal Quest Shield could not be resumed.", player.color, {1,0.55,0.2})
+				broadcastToColor("{en}The Personal Quest Shield could not be resumed.{ru}Щит личного задания не удалось восстановить.{zh-tw}無法恢復個人任務盾牌。{zh-cn}无法恢复个人任务盾牌。{ko}개인 퀘스트 방패를 재개하지 못했습니다.{es}No se pudo reanudar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être repris.{pt-br}O Escudo de Missão Pessoal não pôde ser retomado.{de}Der Schild der persönlichen Quest konnte nicht wieder aufgenommen werden.", player.color, {1,0.55,0.2})
 				return
 			end
 			apocalypseQuestUpdateProgressButtons(card)
@@ -6141,12 +6141,12 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 			return
 		end
 		if quest.questType~="Personal" or ownerIndex~=playerIndex or ownerShield==nil then
-			broadcastToColor("You can only abandon a Personal Quest marked with your own Shield.", player.color, warningColor)
+			broadcastToColor("{en}You can only abandon a Personal Quest marked with your own Shield.{ru}Вы можете отказаться только от личного задания, отмеченного вашим собственным Щитом.{zh-tw}你只能放棄以自己盾牌標記的個人任務。{zh-cn}你只能放弃以自己盾牌标记的个人任务。{ko}자신의 방패로 표시된 개인 퀘스트만 포기할 수 있습니다.{es}Solo puedes abandonar una Misión Personal marcada con tu propio Escudo.{fr}Vous ne pouvez abandonner qu’une Quête Personnelle marquée de votre propre Bouclier.{pt-br}Você só pode abandonar uma Missão Pessoal marcada com seu próprio Escudo.{de}Du kannst nur eine persönliche Quest aufgeben, die mit deinem eigenen Schild markiert ist.", player.color, warningColor)
 			apocalypseQuestUpdateProgressButtons(card)
 			return
 		end
 		if apocalypseQuestShieldSupplyBag("Neutral")==nil then
-			broadcastToColor("The neutral Quest Shield bag could not be found.", player.color, {1,0.55,0.2})
+			broadcastToColor("{en}The neutral Quest Shield bag could not be found.{ru}Мешок нейтральных Щитов задания не найден.{zh-tw}找不到中立任務盾牌袋。{zh-cn}找不到中立任务盾牌袋。{ko}중립 퀘스트 방패 주머니를 찾지 못했습니다.{es}No se encontró la bolsa de Escudos de Misión neutrales.{fr}Le sac de Boucliers de Quête neutres est introuvable.{pt-br}A bolsa de Escudos de Missão neutros não foi encontrada.{de}Der Beutel mit neutralen Quest-Schilden wurde nicht gefunden.", player.color, {1,0.55,0.2})
 			return
 		end
 		local shieldPos=ownerShield.getPosition()
@@ -6157,7 +6157,7 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 		local neutralShield=apocalypseQuestTakeNeutralShield(surface)
 		if neutralShield==nil then
 			apocalypseQuestEndMoveAttachmentCapture(card)
-			broadcastToColor("A neutral Quest Shield could not be placed.", player.color, {1,0.55,0.2})
+			broadcastToColor("{en}A neutral Quest Shield could not be placed.{ru}Нейтральный Щит задания не удалось разместить.{zh-tw}無法放置中立任務盾牌。{zh-cn}无法放置中立任务盾牌。{ko}중립 퀘스트 방패를 놓지 못했습니다.{es}No se pudo colocar un Escudo de Misión neutral.{fr}Un Bouclier de Quête neutre n’a pas pu être placé.{pt-br}Um Escudo de Missão neutro não pôde ser colocado.{de}Ein neutraler Quest-Schild konnte nicht platziert werden.", player.color, {1,0.55,0.2})
 			return
 		end
 		neutralShield.setRotationSmooth(shieldRot)
