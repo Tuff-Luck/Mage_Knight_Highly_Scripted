@@ -541,9 +541,9 @@ function createClaimButton(objGUID, source)
 	if source=="steadyTempoDiscard" or source=="steadyTempoBot" or source=="steadyTempoTop" then
 		width=250
 		onClick="global/steadyTempoChoice"
-		if source=="steadyTempoDiscard" then text="Dis" position="155 -130 -10" end
-		if source=="steadyTempoBot" then text="Bot" position="155 0 -10" end
-		if source=="steadyTempoTop" then text="Top" position="155 130 -10" end
+		if source=="steadyTempoDiscard" then text="{en}Dis{ru}Сбр{zh-tw}棄{zh-cn}弃{ko}버림{es}Des{fr}Déf{pt-br}Des{de}Abl" position="155 -130 -10" end
+		if source=="steadyTempoBot" then text="{en}Bot{ru}Низ{zh-tw}底{zh-cn}底{ko}아래{es}Inf{fr}Bas{pt-br}Inf{de}Unt" position="155 0 -10" end
+		if source=="steadyTempoTop" then text="{en}Top{ru}Верх{zh-tw}頂{zh-cn}顶{ko}위{es}Sup{fr}Haut{pt-br}Sup{de}Oben" position="155 130 -10" end
 	end
 	for a=1, 32, 1 do
 		if source==tostring(a) or source=="higherLevelSkill" then
