@@ -68,8 +68,8 @@ function __onLoad_raw(saved_data)
 	UI.hide("ExtraTurnChoice")
 	refreshProxySetupLabel()
 	UI.setAttribute("followEnemyView", "isOn", gStates.cameraFollowEnemy and "true" or "false")
-	UI.setAttribute("questViewText", "color", "Black")
-	UI.setAttribute("questView", "active", "false")
+	--UI.setAttribute("questViewText", "color", "Black")
+	--UI.setAttribute("questView", "active", "false")
 	--Restore the visible setup selections from saved state. Previously these labels were always reset to "nobody" on load,
 	--which could make a saved Mage Knight appear missing because the dropdown correctly hides already-selected characters.
 	local setupMageText={"firstMKSelectionText", "secondMKSelectionText", "thirdMKSelectionText", "fourthMKSelectionText"}
@@ -80,9 +80,7 @@ function __onLoad_raw(saved_data)
 	local savedDummy=(gStates.positionMageKnight~=nil and gStates.positionMageKnight[5]) or "nobody"
 	if savedDummy=="Volkare" then savedDummy=gStates.volkareSkills or "Random" end
 	UI.setAttribute("dummyMKSelectionText", "text", translateWord[savedDummy] or translateWord["nobody"])
-	--UI.setAttribute("GameOverText", "text", "{en}Game over<size=6>\n\n</size>You have gone past the Round Limit and incurred the wrath of the Council of the Void.<size=6>\n\n</size>Check your Score if you still feel worthy, then grovel for a second chance if you dare!{ru}Игра окончена<size=6>\n\n</size>Вы превысили лимит Раундов и навлекли на себя гнев Совета Пустоты.<size=6>\n\n</size>Проверьте свой счет, если вы все еще чувствуете себя достойным, а затем пресмыкайтесь ради второго шанса, если осмелитесь!{zh-tw}遊戲結束\n\n你已經超出了時間限制，\n並因此觸怒了虛空議會。<size=6>\n\n</size>若你仍感覺自己表現還算不錯，\n那麼就去看看你的分數吧。\n接著提起勇氣去乞求虛空議會，\n能給予機會再挑戰一次。{zh-cn}游戏结束\n\n你已经超出了时间限制，\n并因此触怒了虚空议会。<size=6>\n\n</size>若你仍感觉自己表现还算不错，\n那么就去看看你的分数吧。\n然后提起勇气去乞求虚空议会，\n能给予机会再挑战一次。{ko}게임 종료<size=6>\n\n</size>정해진 라운드 제한을 넘겨버려 공허 위원회의 분노를 사버렸네요.<size=6>\n\n</size>점수를 계산해보거나, 그들에게 두 번째 기회를 요청해보세요, 자신 있다면 말이죠!{es}Fin de Partida<size=6>\n\n</size>Has superado el límite de Rondas y provocado la Ira del Concilio del Vacío.<size=6>\n\n</size>Comprueba tu Puntuación Final si crees que lo mereces, y arrástrate a una segunda oportunidad si te atreves!{fr}Jeu terminé<size=6>\n\n</size>Vous avez dépassé la limite de round et encouru la colère du Conseil du Vide.<size=6>\n\n</size>Vérifiez votre score si vous vous sentez toujours digne, que gravissez pour une seconde chance si vous l'osez !{pt-br}Jogo encerrado<size=6>\n\n</size>Você passou do limite de Rodadas e causou a ira do Conselho do Vácuo.<size=6>\n\n</size>Cheque sua pontuação se você ainda se acha merecedor, então chore por uma segunda chance se ousar!{de}Spiel vorbei<size=6>\n\n</size>Du hast das Rundenlimit überschritten und dir den Zorn des Rates der Leere zugezogen.<size=6>\n\n</size>Überprüfe deinen Punktestand, wenn du dich noch würdig fühlst, und bitte dann um eine zweite Chance, wenn du dich traust!")
 	--Dynamic object UIs are refreshed by PlayingGame.Lifecycle after the complete Global load path returns.
-
 	UI.show("ScoreButton")
 	UI.show("HelpButton")
 	UI.show("AutoFlipButton")
