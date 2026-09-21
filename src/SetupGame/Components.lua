@@ -68,6 +68,18 @@ local function destroyMonsterBags(guids)
 	end
 end
 
+local function configurePreloadedTokenBags(guids,keep,label)
+	for _,guid in ipairs(guids) do
+		local bag=getObjectFromGUID(guid)
+		if keep==true then
+			if bag==nil then error("SetupGame missing preloaded "..tostring(label).." bag "..tostring(guid),2) end
+			bag.lock()
+		elseif bag~=nil then
+			bag.destruct()
+		end
+	end
+end
+
 local function monsterPoolConfigurationReady()
 	for _,move in ipairs(monsterSetupMoves) do
 		local source=getObjectFromGUID(move.source)
@@ -124,13 +136,17 @@ function monsterSetup()
 	local elemFactionEnemies=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="The Hidden Valley Blitz"
 	local darkBags={monsterPiles.greenDark,monsterPiles.tanDark,monsterPiles.redDark}
 	local elemBags={monsterPiles.greenElem,monsterPiles.tanElem,monsterPiles.redElem}
+	local tezlaRewardsNeeded=gStates.removeShadesOfTezlaMonsters~=true or gStates.useCustomMageKnights==true
+	configurePreloadedTokenBags({
+		monsterPiles.rewardDark,GUID.bag.discard.darkReward,
+		monsterPiles.rewardElem,GUID.bag.discard.elementalistReward
+	},tezlaRewardsNeeded,"Shades of Tezla reward")
 	local darkComponents={
 		{guid=darkCrusader.disc,position={-52.00,0.97,6.50}},
 		{guid=darkCrusader.token,position={-55.30,0.97,10.20}},
 		{guid=darkCrusader.terrainHex,position={-34.70,0.98,-27.00}},
 		{guid="f8c83e",position={-65.16,0.98,-5.50}},
 		{guid=GUID.bag.cemetery,position={-36.09,0.97,-24.87},flip=180},
-		{guid=monsterPiles.rewardDark,position={-46.13,0.98,13.99},always=true},
 		{guid="2ca34f",position={-53.50,0.98,15.50},always=true}
 	}
 	local elemComponents={
@@ -138,7 +154,6 @@ function monsterSetup()
 		{guid=elementalist.token,position={-67.00,0.97,10.20}},
 		{guid=elementalist.terrainHex,position={-37.49,0.98,-27.00}},
 		{guid="7121c7",position={-70.16,0.98,-5.50}},
-		{guid=monsterPiles.rewardElem,position={-46.13,0.98,16.99},always=true},
 		{guid="8fe07e",position={-49.50,0.98,15.50},always=true}
 	}
 

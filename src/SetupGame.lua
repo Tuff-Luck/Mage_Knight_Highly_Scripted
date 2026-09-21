@@ -493,15 +493,26 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		if gStates.removeLostLegionExpansion==false then
 			for mainDeck,lostLegionDeck in pairs(lostLegionDecks) do setupQueueDeckMerge(getObjectFromGUID(GUID.bag.lostLegion),mainDeck,lostLegionDeck) end
 		end
-		--Apocalypse Quest cards can call the Apocalypse/Council reward systems and Possessed enemies even
-		--even when Apocalypse terrain itself is removed. Put the five shared support objects in their
-		--normal Apocalypse locations whenever either system is in use.
-		if gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or gStates.gameScenario=="Against the Horsemen Blitz" or apocalypseDragonScenario()==true then
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.rewardApoc, position={-46.13, 0.97, 20.00}, rotation={0, 180, 0}, smooth=false}).lock()--Apocalypse Cult Reward
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.rewardCouncil, position={-46.13, 0.97, 23.00}, rotation={0, 180, 0}, smooth=false}).lock()--Council of the Void Reward
+		--Apocalypse/Council rewards and Possessed tokens are preloaded in their normal table positions.
+		--Keep complete source/discard cycles when any enabled system can use them; otherwise remove them.
+		local apocalypseTokenSupportNeeded=gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or
+			gStates.gameScenario=="Against the Horsemen Blitz" or apocalypseDragonScenario()==true
+		for _,guid in ipairs({
+			monsterPiles.rewardApoc,GUID.bag.discard.apocReward,
+			monsterPiles.rewardCouncil,GUID.bag.discard.councilReward,
+			monsterPiles.possessed,GUID.bag.discard.possessed
+		}) do
+			local bag=getObjectFromGUID(guid)
+			if apocalypseTokenSupportNeeded==true then
+				if bag==nil then error("SetupGame missing preloaded Apocalypse token bag "..tostring(guid),2) end
+				bag.lock()
+			elseif bag~=nil then
+				bag.destruct()
+			end
+		end
+		if apocalypseTokenSupportNeeded==true then
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="c584ff", position={-53.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Apocalypse Cult Reward Card
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="071cc6", position={-49.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Council of the Void Reward Card
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.possessed, position={-46.13, 2.12, 11.50}, rotation={0, 180, 0}, smooth=false}).lock()--Possessed tokens
 		end
 
 		--The Apocalypse systems share the same infinite Neutral Shield bag.
@@ -511,11 +522,8 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 
 		--The remaining Apocalypse components belong to the terrain/scenario package rather than the Quest deck.
 		if gStates.removeApocalypseTerrain~=true then
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.discard.apocReward, position={2.00, 0.98, 16.00}, rotation={0, 180, 0}, smooth=false}).lock()--Apocalypse Cult Reward Discard
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.discard.councilReward, position={2.00, 0.97, 19.00}, rotation={0, 180, 0}, smooth=false}).lock()--Council of the Void Reward Discard
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.pyramidTrap, position={-43.00, 1.30, 20.00}, rotation={0, 180, 0}, smooth=false}).lock()--Pyramid Trap Tokens
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.zigguratTrap, position={-43.00, 1.30, 23.00}, rotation={0, 180, 0}, smooth=false}).lock()--Zigurat Trap Tokens
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.discard.possessed, position={-1.00, 1.07, 19.00}, rotation={0, 180, 0}, smooth=false}).lock()--Possessed token discard Bag
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="a8bf9c", position={-51.63, 0.97, 45.88}, rotation={0, 180, 0}, smooth=false}).lock()--Oasis Reminder token
 			if gStates.gameScenario=="Against the Apocalypse Blitz" then
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="f64a50", position={-38.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Against the Apocalypse Reminder Card
@@ -524,18 +532,6 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="e735d3", position={-40.87, 1.05, 21.50+2.895-(0.685*gStates.againstTheApocSitePosition)}, rotation={0, 90, 0}, smooth=false}).lock()--Neutral pointer shield token measured offf center of card.
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.destroyedSite, position={-43.00, 1.02, 26.00}, rotation={0, 180, 0}, smooth=false}).lock()--Destroyed Site Bag
 
-			end
-		end
-
-		--Dragon scenarios use Possessed enemies and Apocalypse faction rewards even when the optional
-		--Apocalypse terrain mix is removed. Keep both discard cycles available independently of terrain.
-		if apocalypseDragonScenario()==true then
-			local apocalypseBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-			if apocalypseBag~=nil and getObjectFromGUID(GUID.bag.discard.apocReward)==nil then
-				apocalypseBag.takeObject({guid=GUID.bag.discard.apocReward, position={2.00,0.98,16.00}, rotation={0,180,0}, smooth=false}).lock()
-			end
-			if apocalypseBag~=nil and getObjectFromGUID(GUID.bag.discard.possessed)==nil then
-				apocalypseBag.takeObject({guid=GUID.bag.discard.possessed, position={-1.00,1.07,19.00}, rotation={0,180,0}, smooth=false}).lock()
 			end
 		end
 
