@@ -2269,15 +2269,15 @@ function apocalypseQuestLaunchCombat(card,playerIndex,playerColor,chosenColor,cl
 			if choice=="2b" then
 				if gStates.monsterPerks[traitorEnemy.guid]==nil then gStates.monsterPerks[traitorEnemy.guid]={} end
 				gStates.monsterPerks[traitorEnemy.guid].questHalfFame=true
-				broadcastToAll("Traitor 2b: this enemy's Fame reward will be halved, rounded up.",positionToColor(playerIndex))
+				broadcastToAll("{en}Traitor 2b: this enemy's Fame reward will be halved, rounded up.{ru}Traitor 2b: награда Славы за этого врага уменьшается вдвое с округлением вверх.{zh-tw}Traitor 2b：此敵人的聲望值獎勵減半並向上取整。{zh-cn}Traitor 2b：此敌人的声望值奖励减半并向上取整。{ko}Traitor 2b: 이 적의 명성 보상은 절반으로 줄이고 올림합니다.{es}Traitor 2b: la recompensa de Fama de este enemigo se reduce a la mitad, redondeando hacia arriba.{fr}Traitor 2b : la récompense de Renommée de cet ennemi est divisée par deux, arrondie au supérieur.{pt-br}Traitor 2b: a recompensa de Fama deste inimigo é reduzida pela metade, arredondando para cima.{de}Traitor 2b: Die Ruhmbelohnung dieses Gegners wird halbiert und aufgerundet.",positionToColor(playerIndex))
 			end
 		end
 	elseif card.guid=="dd35bb" then
-		broadcastToAll("The Fog: skip the Ranged and Siege Attack phase during this Quest combat.",positionToColor(playerIndex))
+		broadcastToAll("{en}The Fog: skip the Ranged and Siege Attack phase during this Quest combat.{ru}The Fog: пропустите фазу Дальней и Осадной атаки в этом бою задания.{zh-tw}The Fog：此任務戰鬥跳過遠程與攻城攻擊階段。{zh-cn}The Fog：此任务战斗跳过远程与攻城攻击阶段。{ko}The Fog: 이 퀘스트 전투에서는 원거리 및 공성 공격 단계를 건너뜁니다.{es}The Fog: omite la fase de Ataque a Distancia y de Asedio durante este combate de Misión.{fr}The Fog : ignorez la phase d’Attaque à Distance et de Siège pendant ce combat de Quête.{pt-br}The Fog: pule a fase de Ataque à Distância e de Cerco durante este combate da Missão.{de}The Fog: Überspringe in diesem Quest-Kampf die Fern- und Belagerungsangriffsphase.",positionToColor(playerIndex))
 		moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
 	elseif card.guid=="783076" then
 		moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
-		if moved>0 and apocalypseQuestCardManaColor(card)=="Black" and gStates.dayRound==true then broadcastToAll("Hunter's Moon: during Day, the black mana token removes Swift from the werewolf for this combat.",positionToColor(playerIndex)) end
+		if moved>0 and apocalypseQuestCardManaColor(card)=="Black" and gStates.dayRound==true then broadcastToAll("{en}Hunter's Moon: during Day, the black mana token removes Swift from the werewolf for this combat.{ru}Hunter's Moon: Днём чёрный жетон маны убирает Быстроту у оборотня на этот бой.{zh-tw}Hunter's Moon：白天時，黑色魔力標記在此戰鬥中移除狼人身上的迅捷。{zh-cn}Hunter's Moon：白天时，黑色魔力标记在此战斗中移除狼人身上的迅捷。{ko}Hunter's Moon: 낮에는 검은 마나 토큰이 이 전투 동안 늑대인간의 신속을 제거합니다.{es}Hunter's Moon: durante el Día, la ficha de maná negra elimina Veloz del hombre lobo para este combate.{fr}Hunter's Moon : pendant le Jour, le jeton de mana noir retire Rapide au loup-garou pour ce combat.{pt-br}Hunter's Moon: durante o Dia, a ficha de mana preta remove Rápido do lobisomem neste combate.{de}Hunter's Moon: Am Tag entfernt der schwarze Manamarker für diesen Kampf Schnell vom Werwolf.",positionToColor(playerIndex)) end
 	end
 	if moved==0 then
 		gStates.apocalypseQuestCombatLaunches[card.guid]=nil
@@ -2360,7 +2360,7 @@ function apocalypseQuestAddAdvancedActionToUnitOffer()
 	local slot=1
 	while slot<=6 and occupied[slot]==true do slot=slot+1 end
 	if slot>6 then
-		broadcastToAll("Quest effect: the Monastery Advanced Action offer is full; add one Advanced Action manually.",{1,0.55,0.2})
+		broadcastToAll("{en}Quest effect: the Monastery Advanced Action offer is full; add one Advanced Action manually.{ru}Эффект задания: предложение Продвинутых действий Монастыря заполнено; добавьте одно Продвинутое действие вручную.{zh-tw}任務效果：修道院進階行動供應已滿；請手動加入一張進階行動。{zh-cn}任务效果：修道院进阶行动供应已满；请手动加入一张进阶行动。{ko}퀘스트 효과: 수도원의 고급 행동 제안이 가득 찼습니다. 고급 행동 한 장을 수동으로 추가하십시오.{es}Efecto de Misión: la oferta de Acciones Avanzadas del Monasterio está llena; añade una Acción Avanzada manualmente.{fr}Effet de Quête : l’offre d’Actions Avancées du Monastère est pleine ; ajoutez-en une manuellement.{pt-br}Efeito da Missão: a oferta de Ações Avançadas do Mosteiro está cheia; adicione uma Ação Avançada manualmente.{de}Quest-Effekt: Das Angebot an Fortgeschrittenen Aktionen des Klosters ist voll; füge eine Fortgeschrittene Aktion manuell hinzu.",{1,0.55,0.2})
 		return false
 	end
 	standardDeckCycleShuffleIfReached("Advanced Action")
@@ -2660,16 +2660,16 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			if launched==true then apocalypseQuestMarkCombatStarted(card,2) end
 		end
 	elseif card.guid=="485cc5" and key=="2" and finalCompletion==true then
-		broadcastToAll("Mine of Doom reward: gain an Artifact.",positionToColor(playerIndex))
+		broadcastToAll("{en}Mine of Doom reward: gain an Artifact.{ru}Награда Mine of Doom: получите Артефакт.{zh-tw}Mine of Doom 獎勵：獲得一件神器。{zh-cn}Mine of Doom 奖励：获得一件神器。{ko}Mine of Doom 보상: 유물 하나를 얻습니다.{es}Recompensa de Mine of Doom: gana un Artefacto.{fr}Récompense de Mine of Doom : gagnez un Artefact.{pt-br}Recompensa de Mine of Doom: ganhe um Artefato.{de}Belohnung für Mine of Doom: Erhalte ein Artefakt.",positionToColor(playerIndex))
 	elseif card.guid=="b401dc" then
 		if key=="1" then
 			local token=getObjectFromGUID("7e4e4c")
 			if token~=nil then apocalypseQuestHighlightMarker(token) end
-			broadcastToAll("A Very Personal Quest: recruit an eligible Unit here for free and place the highlighted Quest token on that Unit.",positionToColor(playerIndex))
+			broadcastToAll("{en}A Very Personal Quest: recruit an eligible Unit here for free and place the highlighted Quest token on that Unit.{ru}A Very Personal Quest: бесплатно наймите здесь подходящий отряд и поместите выделенный жетон задания на этот отряд.{zh-tw}A Very Personal Quest：在此免費招募符合條件的部隊，並將高亮任務標記放在該部隊上。{zh-cn}A Very Personal Quest：在此免费招募符合条件的部队，并将高亮任务标记放在该部队上。{ko}A Very Personal Quest: 여기서 조건에 맞는 유닛 하나를 무료로 모집하고 강조된 퀘스트 토큰을 그 유닛 위에 놓으십시오.{es}A Very Personal Quest: recluta aquí gratis una Unidad válida y coloca la ficha de Misión resaltada sobre esa Unidad.{fr}A Very Personal Quest : recrutez gratuitement ici une Unité éligible et placez le jeton de Quête surligné sur cette Unité.{pt-br}A Very Personal Quest: recrute aqui gratuitamente uma Unidade elegível e coloque a ficha de Missão destacada nessa Unidade.{de}A Very Personal Quest: Rekrutiere hier kostenlos eine geeignete Einheit und lege den hervorgehobenen Questmarker auf diese Einheit.",positionToColor(playerIndex))
 		elseif key=="2" then
 			if gStates.apocalypseQuestVeryPersonalSuccess==nil then gStates.apocalypseQuestVeryPersonalSuccess={} end
 			gStates.apocalypseQuestVeryPersonalSuccess[card.guid]=true
-			broadcastToAll("A Very Personal Quest: the protected Unit survived the Mage Tower rescue; its Quest marker will be returned.",positionToColor(playerIndex))
+			broadcastToAll("{en}A Very Personal Quest: the protected Unit survived the Mage Tower rescue; its Quest marker will be returned.{ru}A Very Personal Quest: защищаемый отряд пережил спасение Башни мага; его жетон задания будет возвращён.{zh-tw}A Very Personal Quest：受保護部隊在法師塔救援中存活；其任務標記將被歸還。{zh-cn}A Very Personal Quest：受保护部队在法师塔救援中存活；其任务标记将被归还。{ko}A Very Personal Quest: 보호 대상 유닛이 마법사 탑 구출에서 살아남았습니다. 퀘스트 토큰을 반환합니다.{es}A Very Personal Quest: la Unidad protegida sobrevivió al rescate de la Torre de Mago; se devolverá su ficha de Misión.{fr}A Very Personal Quest : l’Unité protégée a survécu au sauvetage de la Tour de Mage ; son jeton de Quête sera rendu.{pt-br}A Very Personal Quest: a Unidade protegida sobreviveu ao resgate da Torre de Mago; sua ficha de Missão será devolvida.{de}A Very Personal Quest: Die geschützte Einheit hat die Rettung am Magierturm überlebt; ihr Questmarker wird zurückgegeben.",positionToColor(playerIndex))
 		end
 	elseif card.guid=="82a935" and key=="2a" then
 		apocalypseQuestRestoreBurnedMonastery(card,playerIndex)
@@ -2677,16 +2677,16 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 		apocalypseQuestGainReputation(playerIndex,"The Burned Monastery")
 	elseif card.guid=="8455b5" then
 		if key=="1" then
-			broadcastToAll("The Admiring Bard: defeat an enemy token to continue. Non-Red/non-Tan = 2a (Green), Tan = 2b (Blue), Red = 2c (Red).",positionToColor(playerIndex))
+			broadcastToAll("{en}The Admiring Bard: defeat an enemy token to continue. Non-Red/non-Tan = 2a (Green), Tan = 2b (Blue), Red = 2c (Red).{ru}The Admiring Bard: победите жетон врага, чтобы продолжить. Не красный/не бежевый = 2a (зелёный), бежевый = 2b (синий), красный = 2c (красный).{zh-tw}The Admiring Bard：擊敗一個敵人標記以繼續。非紅／非棕 = 2a（綠），棕 = 2b（藍），紅 = 2c（紅）。{zh-cn}The Admiring Bard：击败一个敌人标记以继续。非红／非棕 = 2a（绿），棕 = 2b（蓝），红 = 2c（红）。{ko}The Admiring Bard: 계속하려면 적 토큰 하나를 처치하십시오. 빨강/황갈색 아님 = 2a(녹색), 황갈색 = 2b(파란색), 빨강 = 2c(빨간색).{es}The Admiring Bard: derrota una ficha de enemigo para continuar. No Rojo/no Canela = 2a (Verde), Canela = 2b (Azul), Rojo = 2c (Rojo).{fr}The Admiring Bard : vainquez un jeton Ennemi pour continuer. Ni Rouge ni Fauve = 2a (Vert), Fauve = 2b (Bleu), Rouge = 2c (Rouge).{pt-br}The Admiring Bard: derrote uma ficha de inimigo para continuar. Não Vermelho/não Bege = 2a (Verde), Bege = 2b (Azul), Vermelho = 2c (Vermelho).{de}The Admiring Bard: Besiege einen Gegnermarker, um fortzufahren. Nicht Rot/nicht Hellbraun = 2a (Grün), Hellbraun = 2b (Blau), Rot = 2c (Rot).",positionToColor(playerIndex))
 		elseif key=="2a" then
 			apocalypseQuestPlaceCrystalOnCard(card,"Green",0,-0.55,"The Admiring Bard")
-			broadcastToAll("The Admiring Bard: return to a Village, Monastery, City or Oasis to finish the song.",positionToColor(playerIndex))
+			broadcastToAll("{en}The Admiring Bard: return to a Village, Monastery, City or Oasis to finish the song.{ru}The Admiring Bard: вернитесь в Деревню, Монастырь, Город или Оазис, чтобы закончить песню.{zh-tw}The Admiring Bard：返回村莊、修道院、城市或綠洲以完成歌曲。{zh-cn}The Admiring Bard：返回村庄、修道院、城市或绿洲以完成歌曲。{ko}The Admiring Bard: 노래를 마치려면 마을, 수도원, 도시 또는 오아시스로 돌아가십시오.{es}The Admiring Bard: regresa a una Aldea, Monasterio, Ciudad u Oasis para terminar la canción.{fr}The Admiring Bard : retournez dans un Village, Monastère, Cité ou Oasis pour terminer la chanson.{pt-br}The Admiring Bard: volte a uma Vila, Mosteiro, Cidade ou Oásis para terminar a canção.{de}The Admiring Bard: Kehre in ein Dorf, Kloster, eine Stadt oder Oase zurück, um das Lied zu beenden.",positionToColor(playerIndex))
 		elseif key=="2b" then
 			apocalypseQuestPlaceCrystalOnCard(card,"Blue",0,-0.55,"The Admiring Bard")
-			broadcastToAll("The Admiring Bard: return to a Village, Monastery, City or Oasis to finish the song.",positionToColor(playerIndex))
+			broadcastToAll("{en}The Admiring Bard: return to a Village, Monastery, City or Oasis to finish the song.{ru}The Admiring Bard: вернитесь в Деревню, Монастырь, Город или Оазис, чтобы закончить песню.{zh-tw}The Admiring Bard：返回村莊、修道院、城市或綠洲以完成歌曲。{zh-cn}The Admiring Bard：返回村庄、修道院、城市或绿洲以完成歌曲。{ko}The Admiring Bard: 노래를 마치려면 마을, 수도원, 도시 또는 오아시스로 돌아가십시오.{es}The Admiring Bard: regresa a una Aldea, Monasterio, Ciudad u Oasis para terminar la canción.{fr}The Admiring Bard : retournez dans un Village, Monastère, Cité ou Oasis pour terminer la chanson.{pt-br}The Admiring Bard: volte a uma Vila, Mosteiro, Cidade ou Oásis para terminar a canção.{de}The Admiring Bard: Kehre in ein Dorf, Kloster, eine Stadt oder Oase zurück, um das Lied zu beenden.",positionToColor(playerIndex))
 		elseif key=="2c" then
 			apocalypseQuestPlaceCrystalOnCard(card,"Red",0,-0.55,"The Admiring Bard")
-			broadcastToAll("The Admiring Bard: return to a Village, Monastery, City or Oasis to finish the song.",positionToColor(playerIndex))
+			broadcastToAll("{en}The Admiring Bard: return to a Village, Monastery, City or Oasis to finish the song.{ru}The Admiring Bard: вернитесь в Деревню, Монастырь, Город или Оазис, чтобы закончить песню.{zh-tw}The Admiring Bard：返回村莊、修道院、城市或綠洲以完成歌曲。{zh-cn}The Admiring Bard：返回村庄、修道院、城市或绿洲以完成歌曲。{ko}The Admiring Bard: 노래를 마치려면 마을, 수도원, 도시 또는 오아시스로 돌아가십시오.{es}The Admiring Bard: regresa a una Aldea, Monasterio, Ciudad u Oasis para terminar la canción.{fr}The Admiring Bard : retournez dans un Village, Monastère, Cité ou Oasis pour terminer la chanson.{pt-br}The Admiring Bard: volte a uma Vila, Mosteiro, Cidade ou Oásis para terminar a canção.{de}The Admiring Bard: Kehre in ein Dorf, Kloster, eine Stadt oder Oase zurück, um das Lied zu beenden.",positionToColor(playerIndex))
 		elseif key=="3" then
 			apocalypseQuestGiveBardReward(card,playerIndex)
 		end
@@ -2709,7 +2709,7 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 				gStates.apocalypseQuestCursedHero[card.guid]=turnOrder[targetIndex].mage
 				broadcastToAll(tostring(turnOrder[targetIndex].mage).." is now the cursed Hero. The enemy +1 Armor/+1 Attack effect remains player-managed.",positionToColor(targetIndex))
 			else
-				broadcastToAll("Cursed: place the chosen adjacent Hero's Shield on this Quest before using Pass the curse on.",positionToColor(playerIndex))
+				broadcastToAll("{en}Cursed: place the chosen adjacent Hero's Shield on this Quest before using Pass the curse on.{ru}Cursed: поместите щит выбранного соседнего Героя на это задание перед использованием Pass the curse on.{zh-tw}Cursed：使用 Pass the curse on 前，先將所選相鄰英雄的盾牌放到此任務上。{zh-cn}Cursed：使用 Pass the curse on 前，先将所选相邻英雄的盾牌放到此任务上。{ko}Cursed: Pass the curse on을 사용하기 전에 선택한 인접 영웅의 방패를 이 퀘스트에 놓으십시오.{es}Cursed: coloca el Escudo del Héroe adyacente elegido sobre esta Misión antes de usar Pass the curse on.{fr}Cursed : placez le Bouclier du Héros adjacent choisi sur cette Quête avant d’utiliser Pass the curse on.{pt-br}Cursed: coloque o Escudo do Herói adjacente escolhido nesta Missão antes de usar Pass the curse on.{de}Cursed: Lege den Schild des gewählten benachbarten Helden auf diese Quest, bevor du Pass the curse on verwendest.",positionToColor(playerIndex))
 			end
 		elseif key=="2b" then
 			apocalypseQuestGainReputation(playerIndex,"Cursed")
@@ -2735,9 +2735,9 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			broadcastToAll("A Mysterious Island reward: gain "..reward..".",positionToColor(playerIndex))
 		end
 	elseif card.guid=="c73a1f" and key=="3" and finalCompletion==true then
-		broadcastToAll("Tomb of the Lost King reward: gain an Artifact.",positionToColor(playerIndex))
+		broadcastToAll("{en}Tomb of the Lost King reward: gain an Artifact.{ru}Награда Tomb of the Lost King: получите Артефакт.{zh-tw}Tomb of the Lost King 獎勵：獲得一件神器。{zh-cn}Tomb of the Lost King 奖励：获得一件神器。{ko}Tomb of the Lost King 보상: 유물 하나를 얻습니다.{es}Recompensa de Tomb of the Lost King: gana un Artefacto.{fr}Récompense de Tomb of the Lost King : gagnez un Artefact.{pt-br}Recompensa de Tomb of the Lost King: ganhe um Artefato.{de}Belohnung für Tomb of the Lost King: Erhalte ein Artefakt.",positionToColor(playerIndex))
 	elseif card.guid=="77bbac" and key=="2" then
-		broadcastToAll("The Child Seer: resolve the destiny matching the mana token on your Shield (or pay matching mana to choose another destiny).",positionToColor(playerIndex))
+		broadcastToAll("{en}The Child Seer: resolve the destiny matching the mana token on your Shield (or pay matching mana to choose another destiny).{ru}The Child Seer: разрешите судьбу, соответствующую жетону маны на вашем Щите (или заплатите совпадающую ману, чтобы выбрать другую судьбу).{zh-tw}The Child Seer：結算與你盾牌上魔力標記相符的命運（或支付相符魔力以選擇另一個命運）。{zh-cn}The Child Seer：结算与你盾牌上魔力标记相符的命运（或支付相符魔力以选择另一个命运）。{ko}The Child Seer: 방패 위의 마나 토큰과 일치하는 운명을 해결하십시오(또는 일치하는 마나를 지불해 다른 운명을 선택하십시오).{es}The Child Seer: resuelve el destino que coincida con la ficha de maná de tu Escudo (o paga maná coincidente para elegir otro destino).{fr}The Child Seer : résolvez le destin correspondant au jeton de mana sur votre Bouclier (ou payez le mana correspondant pour choisir un autre destin).{pt-br}The Child Seer: resolva o destino correspondente à ficha de mana em seu Escudo (ou pague mana correspondente para escolher outro destino).{de}The Child Seer: Führe das Schicksal aus, das dem Manamarker auf deinem Schild entspricht (oder zahle passendes Mana, um ein anderes Schicksal zu wählen).",positionToColor(playerIndex))
 	elseif card.guid=="8cff07" and key=="1" and finalCompletion~=true then
 		--A Rich Merchant Step 1 is resolved by the visible physical mana-die path in ResolveStepAction.
 		return
@@ -2756,10 +2756,10 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			local enemy=apocalypseQuestFogEnemy(card)
 			if enemy~=nil and apocalypseQuestFogPossessedReady(card)~=true then apocalypseQuestPossessExistingEnemy(card,enemy,"Apoc") end
 		elseif key=="3" and finalCompletion==true then
-			broadcastToAll("The Fog reward: gain an Artifact.",positionToColor(playerIndex))
+			broadcastToAll("{en}The Fog reward: gain an Artifact.{ru}Награда The Fog: получите Артефакт.{zh-tw}The Fog 獎勵：獲得一件神器。{zh-cn}The Fog 奖励：获得一件神器。{ko}The Fog 보상: 유물 하나를 얻습니다.{es}Recompensa de The Fog: gana un Artefacto.{fr}Récompense de The Fog : gagnez un Artefact.{pt-br}Recompensa de The Fog: ganhe um Artefato.{de}Belohnung für The Fog: Erhalte ein Artefakt.",positionToColor(playerIndex))
 		end
 	elseif card.guid=="783076" and key=="2" and finalCompletion==true then
-		broadcastToAll("Hunter's Moon reward: gain an Artifact.",positionToColor(playerIndex))
+		broadcastToAll("{en}Hunter's Moon reward: gain an Artifact.{ru}Награда Hunter's Moon: получите Артефакт.{zh-tw}Hunter's Moon 獎勵：獲得一件神器。{zh-cn}Hunter's Moon 奖励：获得一件神器。{ko}Hunter's Moon 보상: 유물 하나를 얻습니다.{es}Recompensa de Hunter's Moon: gana un Artefacto.{fr}Récompense de Hunter's Moon : gagnez un Artefact.{pt-br}Recompensa de Hunter's Moon: ganhe um Artefato.{de}Belohnung für Hunter's Moon: Erhalte ein Artefakt.",positionToColor(playerIndex))
 	elseif card.guid=="a6d5cc" and key=="1" then
 		gStates.apocalypseQuestUnderSiegeReady=nil
 		gStates.apocalypseQuestUnderSiegeStep2={player=playerIndex,mage=turnOrder[playerIndex].mage,serial=gStates.apocalypseQuestTurnSerial or 0,movedSerial=nil}
@@ -2767,7 +2767,7 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 		apocalypseQuestPlaceEnemy(card,"purple",true,0.45)
 	elseif card.guid=="bbd087" then
 		if key=="1" then
-			broadcastToAll("Noble Warrior: the companion Quest marker is now at this site.",positionToColor(playerIndex))
+			broadcastToAll("{en}Noble Warrior: the companion Quest marker is now at this site.{ru}Noble Warrior: сопровождающий жетон задания теперь находится в этом месте.{zh-tw}Noble Warrior：同伴任務標記現在位於此地點。{zh-cn}Noble Warrior：同伴任务标记现在位于此地点。{ko}Noble Warrior: 동료 퀘스트 마커가 이제 이 장소에 있습니다.{es}Noble Warrior: la ficha de Misión compañera está ahora en este lugar.{fr}Noble Warrior : le marqueur de Quête compagnon se trouve maintenant sur ce site.{pt-br}Noble Warrior: o marcador de Missão companheiro agora está neste local.{de}Noble Warrior: Der begleitende Questmarker befindet sich jetzt an diesem Ort.",positionToColor(playerIndex))
 		elseif key=="3a" or key=="3b" then
 			apocalypseQuestNobleWarriorFinalReward(card,playerIndex,key)
 		end
@@ -2806,7 +2806,7 @@ function apocalypseQuestRefreshStrayToken()
 	if token==nil then return false end
 	token.unlock()
 	token.setRotationSmooth({0,180,180})
-	broadcastToAll("Stray: its once-per-round Quest token refreshed for the new round.",{1,1,0.5})
+	broadcastToAll("{en}Stray: its once-per-round Quest token refreshed for the new round.{ru}Stray: жетон задания, используемый раз за раунд, обновлён для нового раунда.{zh-tw}Stray：每回合輪一次的任務標記已為新回合輪重置。{zh-cn}Stray：每回合轮一次的任务标记已为新回合轮重置。{ko}Stray: 라운드당 한 번 사용하는 퀘스트 토큰이 새 라운드에 맞춰 갱신되었습니다.{es}Stray: su ficha de Misión de una vez por Ronda se ha renovado para la nueva Ronda.{fr}Stray : son jeton de Quête utilisable une fois par Manche a été réinitialisé pour la nouvelle Manche.{pt-br}Stray: sua ficha de Missão de uma vez por Rodada foi renovada para a nova Rodada.{de}Stray: Sein einmal pro Runde verwendbarer Questmarker wurde für die neue Runde erneuert.",{1,1,0.5})
 	return true
 end
 
@@ -2823,7 +2823,7 @@ function apocalypseQuestEndRoundCleanup()
 
 	local function cleanNext(index)
 		if index>#queue then
-			broadcastToAll("Quest cleanup complete. The Quest offer will refill normally as player turns begin.",{1,1,0.5})
+			broadcastToAll("{en}Quest cleanup complete. The Quest offer will refill normally as player turns begin.{ru}Очистка заданий завершена. Предложение заданий будет пополняться обычным образом с началом ходов игроков.{zh-tw}任務清理完成。玩家回合開始後，任務供應將正常補充。{zh-cn}任务清理完成。玩家回合开始后，任务供应将正常补充。{ko}퀘스트 정리가 완료되었습니다. 플레이어 턴이 시작되면 퀘스트 제안이 정상적으로 보충됩니다.{es}Limpieza de Misiones completada. La oferta de Misiones se rellenará normalmente al comenzar los turnos de los jugadores.{fr}Nettoyage des Quêtes terminé. L’offre de Quêtes se remplira normalement au début des tours des joueurs.{pt-br}Limpeza das Missões concluída. A oferta de Missões será reabastecida normalmente quando os turnos dos jogadores começarem.{de}Quest-Bereinigung abgeschlossen. Das Quest-Angebot wird zu Beginn der Spielerzüge normal aufgefüllt.",{1,1,0.5})
 			return
 		end
 		local card=queue[index]
@@ -3785,7 +3785,7 @@ function apocalypseQuestDisbandVeryPersonalUnit(card)
 	if deck~=nil then
 		unit.unlock()
 		deck.putObject(unit)
-		broadcastToAll("A Very Personal Quest: the marked Unit was disbanded when the Quest left play.",{1,1,0.5})
+		broadcastToAll("{en}A Very Personal Quest: the marked Unit was disbanded when the Quest left play.{ru}A Very Personal Quest: отмеченный отряд был распущен, когда задание покинуло игру.{zh-tw}A Very Personal Quest：任務離場時，帶有標記的部隊已被解散。{zh-cn}A Very Personal Quest：任务离场时，带有标记的部队已被解散。{ko}A Very Personal Quest: 퀘스트가 플레이에서 제거될 때 표시된 유닛이 해산되었습니다.{es}A Very Personal Quest: la Unidad marcada fue disuelta cuando la Misión salió del juego.{fr}A Very Personal Quest : l’Unité marquée a été dissoute lorsque la Quête a quitté le jeu.{pt-br}A Very Personal Quest: a Unidade marcada foi dispensada quando a Missão saiu de jogo.{de}A Very Personal Quest: Die markierte Einheit wurde aufgelöst, als die Quest das Spiel verließ.",{1,1,0.5})
 		return true
 	end
 	return false
