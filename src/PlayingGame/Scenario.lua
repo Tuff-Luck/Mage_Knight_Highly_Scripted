@@ -3443,14 +3443,32 @@ function setupApocalypseDragonHeads()
 		if gStates.gameScenario~="Fury of the Apocalypse Dragon" and getObjectFromGUID(apocalypseDragon.model)==nil then return false end
 		return true
 	end
+	local function dragonHeadLevelsSettled()
+		for _,headData in ipairs(apocalypseDragon.heads) do
+			local head=getObjectFromGUID(headData.guid)
+			local token=getObjectFromGUID(headData.tokenGUID)
+			local target=apocalypseDragonHeadTokenPosition(headData)
+			if head==nil or token==nil or target==nil or head.spawning==true or token.spawning==true or head.resting~=true or token.resting~=true then return false end
+			local pos=token.getPosition()
+			if math.abs(pos[1]-target[1])>0.03 or math.abs(pos[2]-target[2])>0.03 or math.abs(pos[3]-target[3])>0.03 then return false end
+		end
+		return true
+	end
+	local function markDragonHeadSetupReady()
+		positionApocalypseDragonHeads()
+		gStates.apocalypseDragonHeadsSetupReady=true
+	end
 	local function finishDragonHeadSetup()
 		for _,headData in ipairs(apocalypseDragon.heads) do
 			if apocalypseDragonSetHeadLevel(headData.name,startingLevel)~=true then
 				error("SetupGame could not set the initial level for Apocalypse Dragon head "..tostring(headData.name)..".",2)
 			end
 		end
-		positionApocalypseDragonHeads()
-		gStates.apocalypseDragonHeadsSetupReady=true
+		--Each level change reloads the small head token and repositions it one frame later. Do not let
+		--the setup coordinator continue until those replacement objects are genuinely usable.
+		safeWaitCondition("Scenario",markDragonHeadSetupReady,dragonHeadLevelsSettled,10,function()
+			error("SetupGame timed out waiting for Apocalypse Dragon head reloads to settle.",2)
+		end)
 	end
 	if dragonHeadSetupObjectsReady()==true then
 		finishDragonHeadSetup()
