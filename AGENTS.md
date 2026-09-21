@@ -36,6 +36,12 @@ For visible scripted movement, use Tabletop Simulator\'s normal/slow smooth move
 
 Do not add backwards-compatibility or old-save recovery code unless the user explicitly requests it.
 
+## UI localization
+
+In the current Tabletop Simulator version targeted by this project, XML/UI `tooltip` attributes do **not** process the `{en}`, `{ru}`, `{zh-tw}`, etc. translation-tag format. Tagged tooltip strings are shown literally. Keep tooltips as plain English unless Tabletop Simulator adds working tooltip localization in a later version and it is explicitly re-tested.
+
+This limitation applies both to tooltips declared in `Global.xml` and tooltips assigned at runtime with `UI.setAttribute(..., "tooltip", ...)`. Do not add translation tags to either form.
+
 The script does not manage a player's internal Move/Combat/Interact phases. Do not classify missing phase enforcement as a bug unless a scripted helper gives incorrect guidance or changes game state incorrectly.
 
 ## Rewards Claimed lock rules
