@@ -2187,7 +2187,7 @@ function proxyRevealGarrisonsAtHex(hex,hexes,mapObjects,proxyIndex)
 			end
 		end
 	end
-	if revealed==true then broadcastToAll("{en}Site Garrison Revealed{ru}Гарнизон Укрепленного места раскрыт{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt",{1,1,0.5}) end
+	if revealed==true then broadcastToAll("{en}Site Garrison Revealed{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt",{1,1,0.5}) end
 end
 
 function proxyAnimateStep(hex,hexes,mapObjects,proxyIndex,callback)
