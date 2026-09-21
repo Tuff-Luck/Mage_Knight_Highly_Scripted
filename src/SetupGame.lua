@@ -56,6 +56,10 @@ end
 local function setupQueueDeckMerge(container,deckGUID,objectGUID)
 	local deck=getObjectFromGUID(deckGUID)
 	if deck==nil then error("SetupGame missing destination deck "..tostring(deckGUID).." while merging "..tostring(objectGUID),2) end
+	--Capture the destination quantity before any asynchronous merge callbacks can modify it. Several
+	--expansions may target the same deck, so deriving this baseline inside the first callback can count
+	--an earlier completed merge twice.
+	if setupDeckExpectedQuantity[deckGUID]==nil then setupDeckExpectedQuantity[deckGUID]=deck.getQuantity() end
 	setupDeckMergesPending=setupDeckMergesPending+1
 	local p=deck.getPosition()
 	local extracted=safeTakeObject("SetupGame",container,{
@@ -64,9 +68,7 @@ local function setupQueueDeckMerge(container,deckGUID,objectGUID)
 		smooth=false,
 		callback_function=function(obj)
 			local added=(obj~=nil and obj.type=="Deck") and obj.getQuantity() or 1
-			local expected=setupDeckExpectedQuantity[deckGUID]
-			if expected==nil then expected=deck.getQuantity() end
-			setupDeckExpectedQuantity[deckGUID]=expected+math.max(tonumber(added) or 1,1)
+			setupDeckExpectedQuantity[deckGUID]=setupDeckExpectedQuantity[deckGUID]+math.max(tonumber(added) or 1,1)
 			deck.putObject(obj)
 			setupDeckMergesPending=setupDeckMergesPending-1
 		end})
@@ -77,12 +79,16 @@ local function setupQueueDeckMerge(container,deckGUID,objectGUID)
 	return extracted
 end
 
-local function setupMainDecksSettled()
+local function setupQueuedDeckMergesComplete()
 	if setupDeckMergesPending~=0 then return false end
 	for guid,expected in pairs(setupDeckExpectedQuantity) do
 		local deck=getObjectFromGUID(guid)
 		if deck==nil or deck.getQuantity()<expected then return false end
 	end
+	return true
+end
+
+local function setupMainDecksSettled()
 	for _,guid in ipairs({GUID.deck.action,GUID.deck.artifact,GUID.deck.regularUnit,GUID.deck.eliteUnit,GUID.deck.spell}) do
 		local deck=getObjectFromGUID(guid)
 		if deck==nil or deck.resting~=true then return false end
@@ -604,12 +610,13 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			allSkills.destruct()
 		end
 
-		--Deck setup can begin as soon as the expansion/deck objects above have actually finished merging.
-		--This replaces the old 0.5s pre-shuffle sleep and 1.5s post-shuffle sleep.
-		if setupDeckMergesPending==0 then
+		--Deck setup can begin as soon as every queued expansion card has actually joined its destination
+		--deck. Check the merged quantities here, before deckSetup intentionally removes scenario cards
+		--(for example Chaos Rift's Time Bending and Rift artifact).
+		if setupQueuedDeckMergesComplete()==true then
 			setupStartDeckStage()
 		else
-			safeWaitCondition("SetupGame",setupStartDeckStage,function() return setupDeckMergesPending==0 end,10,function()
+			safeWaitCondition("SetupGame",setupStartDeckStage,setupQueuedDeckMergesComplete,10,function()
 				error("SetupGame timed out waiting for expansion cards to merge into the main decks.",2)
 			end)
 		end
