@@ -290,8 +290,10 @@ function claimMove(player, mouseButton, id, rewindReady)
 					rewindTransactionStart(function() claimMove(player,mouseButton,id,true) end,cardClaimRewindOwner)
 					return
 				end
-				claimedCard.unlock()
+				--Unit cards remain locked in the offer until recruitment is actually approved.
+				--Other claim types keep their existing behaviour.
 				if source~="unit" then
+					claimedCard.unlock()
 					local tacticSource=source:sub(1, string.len(source)-1)=="tactic"
 					if tacticSource==true then
 						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-117.83 , 3.0, -43.16},false,false)
@@ -358,6 +360,7 @@ function claimMove(player, mouseButton, id, rewindReady)
 						local slot, unitX, commandSource, layout=unitLayoutFirstFreeCommand(seatPos)
 						local found=slot~=nil
 						if found==true then
+							claimedCard.unlock()
 							local scale=unitLayoutCardScale(#layout.commands)
 							claimedCard.setScale({scale,1,scale})
 							claimedCard.setPositionSmooth({unitX,2.0,-34.74},false,false)
