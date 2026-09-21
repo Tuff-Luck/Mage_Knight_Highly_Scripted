@@ -1,0 +1,371 @@
+name: One-shot subtractive enemy migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/subtractive-enemy-migration.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Apply source and save migration
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from json.encoder import encode_basestring, encode_basestring_ascii, _make_iterencode, INFINITY
+
+          class RawFloat(float):
+              def __new__(cls, raw):
+                  obj = float.__new__(cls, raw)
+                  obj.raw = raw
+                  return obj
+
+          class PreserveFloatEncoder(json.JSONEncoder):
+              def iterencode(self, o, _one_shot=False):
+                  markers = {} if self.check_circular else None
+                  _encoder = encode_basestring_ascii if self.ensure_ascii else encode_basestring
+
+                  def floatstr(value, allow_nan=self.allow_nan):
+                      if isinstance(value, RawFloat):
+                          return value.raw
+                      if value != value:
+                          text = 'NaN'
+                      elif value == INFINITY:
+                          text = 'Infinity'
+                      elif value == -INFINITY:
+                          text = '-Infinity'
+                      else:
+                          return float.__repr__(value)
+                      if not allow_nan:
+                          raise ValueError("Out of range float values are not JSON compliant: " + repr(value))
+                      return text
+
+                  _iterencode = _make_iterencode(
+                      markers, self.default, _encoder, self.indent, floatstr,
+                      self.key_separator, self.item_separator, self.sort_keys,
+                      self.skipkeys, _one_shot)
+                  return _iterencode(o, 0)
+
+          component_path = Path("src/SetupGame/Components.lua")
+          current = component_path.read_text(encoding="utf-8")
+          leader_marker = "\t--Set faction leader levels when the physical leader pieces have actually registered."
+          leader_index = current.find(leader_marker)
+          if leader_index < 0:
+              raise RuntimeError("Components.lua leader setup marker not found")
+          suffix = current[leader_index:].replace(
+              "monsterMergeContentsReady()==true",
+              "monsterPoolConfigurationReady()==true",
+              1)
+
+          prefix = r'''-- Physical setup for monster pools and Tezla scenario components.
+          -- The save starts with the ordinary monster pools already containing all Lost Legion and Tezla
+          -- enemy tokens. Setup only removes excluded expansion tokens or moves Tezla tokens into the
+          -- dedicated faction pools required by a scenario.
+
+          local monsterSetupMoves={}
+          local monsterSetupLeadersReady=false
+
+          local lostLegionEnemyPools={
+          \t{source=monsterPiles.green,tokens={"643901","30df98","f0d27a","994ee9","e17886","8ffd9e","28bc08","0cc1e5"}},
+          \t{source=monsterPiles.tan,tokens={"013cb1","16d47c","ce794a","863ba1","558de1","277cd2"}},
+          \t{source=monsterPiles.red,tokens={"be5c5e","9156c4","80d998","17bcd9","09ec72","b7dca2"}},
+          \t{source=monsterPiles.yellow,tokens={"58c5ab","2f9a1f","28cc9c"}},
+          \t{source=monsterPiles.gray,tokens={"3f4b5e","88ecaa","bc5065","808631","8ea708","f11b70","7e72a2","90755e"}},
+          \t{source=monsterPiles.purple,tokens={"490a69","b8f920","23fe94","8a3f72"}},
+          \t{source=monsterPiles.white,tokens={"c0c315","eae753","e9a281","e6859f","864fe1","729056"}}
+          }
+
+          local darkCrusaderEnemyPools={
+          \t{source=monsterPiles.green,destination=monsterPiles.greenDark,tokens={"0c5f4d","698829","f87e33","565ecd","f85b1e","d549a5","39d58e","8efc22"}},
+          \t{source=monsterPiles.tan,destination=monsterPiles.tanDark,tokens={"863ba2","558de0","013cb2","61eb06"}},
+          \t{source=monsterPiles.red,destination=monsterPiles.redDark,tokens={"c77902","f87e32","342ed4","0d0645"}}
+          }
+
+          local elementalistEnemyPools={
+          \t{source=monsterPiles.green,destination=monsterPiles.greenElem,tokens={"8efc20","64b218","698828","adec2a","e9911f","60e427","a04726","f87e31"}},
+          \t{source=monsterPiles.tan,destination=monsterPiles.tanElem,tokens={"00c4da","863bab","013cb3","61eb07"}},
+          \t{source=monsterPiles.red,destination=monsterPiles.redElem,tokens={"c77901","6cad42","5d4e06","f87e39"}}
+          }
+
+          local function monsterBagContainsGUID(bag,guid)
+          \tif bag==nil then return false end
+          \tfor _,entry in ipairs(bag.getObjects()) do
+          \t\tif entry.guid==guid then return true end
+          \tend
+          \treturn false
+          end
+
+          local function moveMonsterToken(sourceGUID,tokenGUID,destinationGUID)
+          \tlocal source=getObjectFromGUID(sourceGUID)
+          \tif source==nil then error("SetupGame missing monster source bag "..tostring(sourceGUID),2) end
+          \tlocal token=safeTakeObject("SetupGame",source,{guid=tokenGUID,smooth=false})
+          \tif token==nil then error("SetupGame could not extract monster token "..tostring(tokenGUID).." from "..tostring(sourceGUID),2) end
+          \tif destinationGUID~=nil then
+          \t\tlocal destination=getObjectFromGUID(destinationGUID)
+          \t\tif destination==nil then error("SetupGame missing monster destination bag "..tostring(destinationGUID),2) end
+          \t\tdestination.putObject(token)
+          \telse
+          \t\tlocal trash=getObjectFromGUID(trashCan)
+          \t\tif trash==nil then error("SetupGame missing trash chest while removing monster token "..tostring(tokenGUID),2) end
+          \t\ttrash.putObject(token)
+          \tend
+          \tmonsterSetupMoves[#monsterSetupMoves+1]={source=sourceGUID,destination=destinationGUID,guid=tokenGUID}
+          end
+
+          local function moveMonsterPoolSet(poolSet,toFaction)
+          \tfor _,pool in ipairs(poolSet) do
+          \t\tfor _,tokenGUID in ipairs(pool.tokens) do
+          \t\t\tmoveMonsterToken(pool.source,tokenGUID,toFaction==true and pool.destination or nil)
+          \t\tend
+          \tend
+          end
+
+          local function destroyMonsterBags(guids)
+          \tfor _,guid in ipairs(guids) do
+          \t\tlocal bag=getObjectFromGUID(guid)
+          \t\tif bag~=nil then bag.destruct() end
+          \tend
+          end
+
+          local function monsterPoolConfigurationReady()
+          \tfor _,move in ipairs(monsterSetupMoves) do
+          \t\tlocal source=getObjectFromGUID(move.source)
+          \t\tif source==nil or monsterBagContainsGUID(source,move.guid)==true then return false end
+          \t\tif move.destination~=nil then
+          \t\t\tlocal destination=getObjectFromGUID(move.destination)
+          \t\t\tif destination==nil or monsterBagContainsGUID(destination,move.guid)~=true then return false end
+          \t\tend
+          \tend
+          \treturn true
+          end
+
+          local function shuffleMonsterPiles()
+          \tlocal toBeShuffled={monsterPiles.redElem,monsterPiles.tanElem,monsterPiles.greenElem,monsterPiles.rewardElem,
+          \t\tmonsterPiles.redDark,monsterPiles.tanDark,monsterPiles.greenDark,monsterPiles.rewardDark,
+          \t\tmonsterPiles.rewardApoc,monsterPiles.rewardCouncil,monsterPiles.possessed,
+          \t\tmonsterPiles.tan,monsterPiles.green,monsterPiles.red,monsterPiles.purple,monsterPiles.white,monsterPiles.gray,monsterPiles.yellow}
+          \tfor _,guid in ipairs(toBeShuffled) do
+          \t\tlocal pile=getObjectFromGUID(guid)
+          \t\tif pile~=nil then pile.shuffle() end
+          \tend
+          \tgStates.monsterSetupReady=true
+          end
+
+          local function deployTezlaComponents(entries,includeScenarioComponents)
+          \tlocal tezlaBag=getObjectFromGUID(GUID.bag.tezla)
+          \tif tezlaBag==nil then error("SetupGame missing Shades of Tezla component bag.",2) end
+          \tfor _,entry in ipairs(entries) do
+          \t\tif entry.always==true or includeScenarioComponents==true then
+          \t\t\tlocal obj=safeTakeObject("SetupGame",tezlaBag,{
+          \t\t\t\tguid=entry.guid,
+          \t\t\t\tposition=entry.position,
+          \t\t\t\trotation={0,180,entry.flip or 0},
+          \t\t\t\tsmooth=false})
+          \t\t\tif obj==nil then error("SetupGame could not deploy Shades of Tezla component "..tostring(entry.guid),2) end
+          \t\t\tobj.lock()
+          \t\tend
+          \tend
+          end
+
+          --Monster Pool Setup
+          function monsterSetup()
+          \tmonsterSetupMoves={}
+          \tmonsterSetupLeadersReady=false
+          \tgStates.monsterSetupReady=false
+
+          \t--Lost Legion enemies are already in the seven normal pools. Removing the expansion is subtractive.
+          \tif gStates.removeLostLegionExpansion==true then moveMonsterPoolSet(lostLegionEnemyPools,false) end
+
+          \tlocal scenario=gStates.gameScenario
+          \tlocal darkSupport=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="Ultimate Conquest" or scenario=="The Realm of the Dead Blitz"
+          \tlocal elemSupport=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="Ultimate Conquest" or scenario=="The Hidden Valley Blitz"
+          \tlocal darkFactionEnemies=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="The Realm of the Dead Blitz"
+          \tlocal elemFactionEnemies=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="The Hidden Valley Blitz"
+          \tlocal darkBags={monsterPiles.greenDark,monsterPiles.tanDark,monsterPiles.redDark}
+          \tlocal elemBags={monsterPiles.greenElem,monsterPiles.tanElem,monsterPiles.redElem}
+          \tlocal darkComponents={
+          \t\t{guid=darkCrusader.disc,position={-52.00,0.97,6.50}},
+          \t\t{guid=darkCrusader.token,position={-55.30,0.97,10.20}},
+          \t\t{guid=darkCrusader.terrainHex,position={-34.70,0.98,-27.00}},
+          \t\t{guid="f8c83e",position={-65.16,0.98,-5.50}},
+          \t\t{guid=GUID.bag.cemetery,position={-36.09,0.97,-24.87},flip=180},
+          \t\t{guid=monsterPiles.rewardDark,position={-46.13,0.98,13.99},always=true},
+          \t\t{guid="2ca34f",position={-53.50,0.98,15.50},always=true}
+          \t}
+          \tlocal elemComponents={
+          \t\t{guid=elementalist.disc,position={-63.50,0.97,6.50}},
+          \t\t{guid=elementalist.token,position={-67.00,0.97,10.20}},
+          \t\t{guid=elementalist.terrainHex,position={-37.49,0.98,-27.00}},
+          \t\t{guid="7121c7",position={-70.16,0.98,-5.50}},
+          \t\t{guid=monsterPiles.rewardElem,position={-46.13,0.98,16.99},always=true},
+          \t\t{guid="8fe07e",position={-49.50,0.98,15.50},always=true}
+          \t}
+
+          \tif gStates.removeShadesOfTezlaMonsters~=true then
+          \t\tdeployTezlaComponents(darkComponents,darkSupport)
+          \t\tdeployTezlaComponents(elemComponents,elemSupport)
+
+          \t\t--The six faction bags load empty in their table positions. Fill only the faction pools used by
+          \t\t--this scenario; otherwise delete those bags and leave their enemies in the normal pools.
+          \t\tif darkFactionEnemies==true then moveMonsterPoolSet(darkCrusaderEnemyPools,true) else destroyMonsterBags(darkBags) end
+          \t\tif elemFactionEnemies==true then moveMonsterPoolSet(elementalistEnemyPools,true) else destroyMonsterBags(elemBags) end
+          \telse
+          \t\tmoveMonsterPoolSet(darkCrusaderEnemyPools,false)
+          \t\tmoveMonsterPoolSet(elementalistEnemyPools,false)
+          \t\tdestroyMonsterBags(darkBags)
+          \t\tdestroyMonsterBags(elemBags)
+          \t\t--Custom Mage Knights can still use Tezla rewards even when the Tezla enemies are removed.
+          \t\tif gStates.useCustomMageKnights==true then
+          \t\t\tdeployTezlaComponents(darkComponents,false)
+          \t\t\tdeployTezlaComponents(elemComponents,false)
+          \t\tend
+          \tend
+
+          \tif scenario=="Life and Death" then
+          \t\tlocal factionDie=safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.tezla),{guid="27911e",smooth=false,position={-50.63,1.47,1.16}})
+          \t\tif factionDie==nil then error("SetupGame could not deploy the Life and Death faction die.",2) end
+          \tend
+          '''
+
+          new_component = prefix + suffix
+          if "mergeMonsterBag" in new_component or "monsterSetupPendingMerges" in new_component or "monsterSetupExpectedQuantity" in new_component:
+              raise RuntimeError("Old additive merge code remains in Components.lua")
+          if "monsterPoolConfigurationReady()==true" not in new_component:
+              raise RuntimeError("Monster setup readiness was not converted")
+          component_path.write_text(new_component, encoding="utf-8")
+
+          save_path = Path("Mage Knight Highly Scripted.json")
+          root = json.loads(save_path.read_text(encoding="utf-8"), parse_float=RawFloat)
+
+          def find_in(items, guid):
+              for obj in items or []:
+                  if obj.get("GUID") == guid:
+                      return obj
+                  found = find_in(obj.get("ContainedObjects", []), guid)
+                  if found is not None:
+                      return found
+              return None
+
+          def find(guid):
+              return find_in(root.get("ObjectStates", []), guid)
+
+          normal = {
+              "green": find("c8e6e4"),
+              "tan": find("e4b016"),
+              "red": find("4537fa"),
+              "gray": find("7a85f5"),
+              "purple": find("c03e08"),
+              "white": find("baac01"),
+              "yellow": find("cf4631"),
+          }
+          if any(v is None for v in normal.values()):
+              raise RuntimeError("A normal monster bag is missing from the save")
+
+          high_alt = dict(normal["green"].get("AltLookAngle", {}))
+          low_alt = dict(normal["tan"].get("AltLookAngle", {}))
+          lost_legion = find("aff5f6")
+          tezla = find("96878f")
+          if lost_legion is None or tezla is None:
+              raise RuntimeError("Expansion component container missing")
+
+          lost_legion_map = {
+              "89a23e":"green", "77e1c6":"tan", "143108":"red", "b65694":"yellow",
+              "88ff48":"gray", "bf4140":"purple", "fe25be":"white",
+          }
+          for source_guid, destination in lost_legion_map.items():
+              source = find_in(lost_legion.get("ContainedObjects", []), source_guid)
+              if source is None:
+                  raise RuntimeError("Missing Lost Legion enemy bag " + source_guid)
+              normal[destination].setdefault("ContainedObjects", []).extend(source.get("ContainedObjects", []))
+              source["ContainedObjects"] = []
+
+          tezla_map = {
+              "0596bd":"green", "30bbae":"tan", "54c45b":"red",
+              "cfef57":"green", "0fde4d":"tan", "bc9d0e":"red",
+          }
+          positions = {
+              "0596bd":(-51.13,0.98,-6.00), "30bbae":(-51.13,0.98,-3.50), "54c45b":(-51.13,0.98,-1.00),
+              "cfef57":(-48.63,0.98,-6.00), "0fde4d":(-48.63,0.98,-3.50), "bc9d0e":(-48.63,0.98,-1.00),
+          }
+          moved = []
+          kept = []
+          for obj in tezla.get("ContainedObjects", []):
+              destination = tezla_map.get(obj.get("GUID"))
+              if destination is None:
+                  kept.append(obj)
+                  continue
+              normal[destination].setdefault("ContainedObjects", []).extend(obj.get("ContainedObjects", []))
+              obj["ContainedObjects"] = []
+              x, y, z = positions[obj["GUID"]]
+              transform = obj["Transform"]
+              transform["posX"], transform["posY"], transform["posZ"] = x, y, z
+              transform["rotX"], transform["rotY"], transform["rotZ"] = 0, 180, 180
+              transform["scaleY"] = 1
+              obj["Locked"] = True
+              obj["ColorDiffuse"] = {"r":0.4, "g":0.4, "b":0.4}
+              obj["AltLookAngle"] = dict(low_alt)
+              moved.append(obj)
+          tezla["ContainedObjects"] = kept
+          if len(moved) != 6:
+              raise RuntimeError(f"Expected six Tezla faction bags, found {len(moved)}")
+          root["ObjectStates"].extend(moved)
+
+          expected = {"green":36, "tan":24, "red":22, "gray":18, "purple":14, "white":16, "yellow":15}
+          for name, bag in normal.items():
+              count = len(bag.get("ContainedObjects", []))
+              if count != expected[name]:
+                  raise RuntimeError(f"Unexpected {name} pool count {count}; expected {expected[name]}")
+              bag["Transform"]["scaleY"] = count
+              bag["ColorDiffuse"] = {"r":1, "g":1, "b":1}
+              if name != "yellow":
+                  bag["AltLookAngle"] = dict(high_alt)
+
+          for source_guid in lost_legion_map:
+              source = find_in(lost_legion.get("ContainedObjects", []), source_guid)
+              if source is None or source.get("ContainedObjects", []):
+                  raise RuntimeError("Lost Legion source bag was not emptied: " + source_guid)
+          if any(o.get("GUID") in tezla_map for o in tezla.get("ContainedObjects", [])):
+              raise RuntimeError("A Tezla faction bag remained inside the Tezla container")
+          if any(o.get("ContainedObjects", []) for o in moved):
+              raise RuntimeError("A deployed Tezla faction bag is not empty")
+
+          encoded = PreserveFloatEncoder(ensure_ascii=False, indent=2).encode(root) + "\n"
+          save_path.write_text(encoded, encoding="utf-8")
+          PY
+
+          changes=$(git diff --numstat -- "Mage Knight Highly Scripted.json" | awk '{print $1+$2}')
+          echo "Save JSON changed lines: $changes"
+          if [ -z "$changes" ] || [ "$changes" -gt 50000 ]; then
+            echo "Unexpectedly large/empty save rewrite; refusing to commit."
+            exit 1
+          fi
+
+      - name: Install Lua 5.2
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lua5.2
+
+      - name: Validate migrated project
+        shell: pwsh
+        run: ./tools/validate-project.ps1 -RequireLua52
+
+      - name: Replace trigger commit with final migration
+        shell: bash
+        run: |
+          rm ".github/workflows/subtractive-enemy-migration.yml"
+          git add -A
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --amend -m "Make enemy token setup subtractive"
+          git push --force-with-lease origin HEAD:main
