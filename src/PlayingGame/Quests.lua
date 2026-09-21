@@ -4689,7 +4689,7 @@ function apocalypseQuestDirectChoices(card,playerIndex)
 			choices={{key="3a",action="Complete",label="3A"},{key="3b",action="Complete",label="3B"}}
 		end
 	elseif card.guid=="37e2ce" and state.step==1 then choices={{key="1a",action="Progress"},{key="1b",action="Complete"}}
-	elseif card.guid=="a6d5cc" and state.step==2 and apocalypseQuestCombatStartedThisTurn(card,2)~=true then choices={{key="2a",action="Combat",label="2A"},{key="2b",action="Fail",label="2B - Fail"}}
+	elseif card.guid=="a6d5cc" and state.step==2 and apocalypseQuestCombatStartedThisTurn(card,2)~=true then choices={{key="2a",action="Combat",label="2A"},{key="2b",action="Fail",label="{en}2B - Fail{ru}2B - Провал{zh-tw}2B - 失敗{zh-cn}2B - 失败{ko}2B - 실패{es}2B - Fallar{fr}2B - Échouer{pt-br}2B - Falhar{de}2B - Scheitern"}}
 	elseif card.guid=="82a935" and state.step==2 then choices={{key="2a",action="Complete"},{key="2b",action="Complete"},{key="2c",action="Combat"}}
 	elseif card.guid=="8455b5" and state.step==2 and apocalypseQuestPersonalShieldOwner(card)==playerIndex then
 		--The Admiring Bard's defeated-enemy branch is player-declared. Combat cleanup removes defeated
@@ -5830,7 +5830,7 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 					if questCard==nil then finishQuestResolution(0.5) return end
 					if success==true then
 						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						broadcastToAll(tostring(turnOrder[playerIndex].mage).." completed a Quest ("..tostring(option.key)..").", positionToColor(playerIndex))
+						broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}), positionToColor(playerIndex))
 						apocalypseQuestFinishCompletedCard(questCard)
 					else
 						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
@@ -5846,7 +5846,7 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 				return started
 			end
 			apocalypseQuestResolveSpecialEffect(card, playerIndex, option, true)
-			broadcastToAll(tostring(turnOrder[playerIndex].mage).." completed a Quest ("..tostring(option.key)..").", positionToColor(playerIndex))
+			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}), positionToColor(playerIndex))
 			apocalypseQuestFinishCompletedCard(card)
 		end
 		finishQuestResolution(1.0)
