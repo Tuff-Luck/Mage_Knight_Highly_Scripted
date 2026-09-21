@@ -2002,8 +2002,10 @@ function __onObjectEnterZone_raw(zone, obj)
 					safeWaitFrames("Events",finishTerrainPopulation,tokenWait+10)
 				end
 
-				--fame gain for played tiles in First Reconnaissance, Lost Relic and The Fractured Lands
-				if (gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
+				--Fame is awarded only for terrain actually explored during play. Initial setup terrain is
+				--tagged when it enters the map and never counts as exploration in these scenarios.
+				if startingMapTiles[obj.guid]~=true and
+					(gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
 					turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
 					local centerFeature=terrainTiles[obj.guid].hexFeature["center"] or ""
 					if gStates.gameScenario=="The Lost Relic Blitz" and (centerFeature:sub(1,4)=="city" or centerFeature=="Volkare's Camp") then
@@ -34120,6 +34122,37 @@ end
 local setupFinalizationStarted=false
 local setupMapStarted=false
 
+--Configure each deployed rulebook independently. A single book that keeps moving must not block
+--the page/lock state of every other manual.
+local function setupConfigureRulebook(rulebook,page)
+	if rulebook==nil then return end
+	local configured=false
+	local function apply()
+		if configured==true or rulebook==nil then return end
+		configured=true
+		local numeric=tonumber(page)
+		if numeric~=nil and rulebook.book~=nil then rulebook.book.setPage(math.floor(numeric)-1) end
+		rulebook.lock()
+	end
+	--TTS can report a Book taken from a bag as resting before its Book component has finished
+	--initialising. The old setup deliberately gave manuals five seconds before touching page/lock
+	--state. Keep that asynchronous grace period; it does not hold up any other setup stage.
+	safeWaitTime("SetupGame",function()
+		if rulebook~=nil and rulebook.resting==true then
+			apply()
+			return
+		end
+		safeWaitCondition("SetupGame",apply,function()
+			return rulebook~=nil and rulebook.resting==true
+		end,10,function()
+			--Reference manuals are not setup dependencies. Apply their final state even if TTS never
+			--reports resting, rather than leaving every manual unconfigured.
+			apply()
+			print("SETUP WARNING: rulebook "..tostring(rulebook.guid).." did not report resting within 10 seconds after its initialization delay; configured anyway.")
+		end)
+	end,5)
+end
+
 local function setupCoreSystemsReady()
 	if gStates.monsterSetupReady~=true then return false end
 	if setupPlayersReady~=nil and setupPlayersReady()~=true then return false end
@@ -34297,75 +34330,35 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			fameBoard.reload()
 		end
 
-		--switch rules to the matching page for scenario. The rules bag is ancillary to setup; a rare
-		--rewind/load timing miss must not abort setup before terrain/decks are built.
+		--switch rules to the matching page for scenario. Rulebooks are presentation/reference objects,
+		--so configure each returned object independently rather than making them a chained setup dependency.
 		local ruleBag=getObjectFromGUID("d4a866")
 		local r={main="b850ab", expansion="700e93", apocalypse="65f2b6"}
 		local scenarioRuleStates=scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates or {}
 		local needExpansionRules=scenarioRuleStates.expansion~=nil or gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false
 		local needApocalypseRules=scenarioRuleStates.apocalypse~=nil or gStates.removeApocalypseTerrain~=true
-		local extraRules=nil
 		if ruleBag~=nil then
-			ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={52.13, 0.98, 35.00}, guid=r.main, smooth=false})
-			if needExpansionRules then ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={63.12, 0.96, 35.00}, guid=r.expansion, smooth=false}) end
-			if needApocalypseRules then ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={73.60, 0.97, 35.00}, guid=r.apocalypse, smooth=false}) end
-			if gStates.gameScenario=="First Reconnaissance" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="9ea4ed", smooth=false}) end
-			if gStates.gameScenario=="Quest for the Golden Grail" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="826bf9", smooth=false}) end
-			if gStates.gameScenario=="The Chaos Rift" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="fd700f", smooth=false}) end
-			if gStates.gameScenario=="The Gauntlet" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="a7aa4a", smooth=false}) end
-			if gStates.gameScenario=="Ultimate Conquest" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="7c7e53", smooth=false}) end
-			if gStates.gameScenario=="The War of Four" then extraRules=ruleBag.takeObject({rotation={0.0, 180.0, 0.0}, position={41.00, 0.96, 35.00}, guid="bf27ee", smooth=false}) end
+			local mainRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={52.13,0.98,35.00},guid=r.main,smooth=false})
+			setupConfigureRulebook(mainRules,scenarioRuleStates.main)
+			if needExpansionRules then
+				local expansionRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={63.12,0.96,35.00},guid=r.expansion,smooth=false})
+				setupConfigureRulebook(expansionRules,scenarioRuleStates.expansion)
+			end
+			if needApocalypseRules then
+				local apocalypseRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={73.60,0.97,35.00},guid=r.apocalypse,smooth=false})
+				setupConfigureRulebook(apocalypseRules,scenarioRuleStates.apocalypse)
+			end
+			local extraRules=nil
+			if gStates.gameScenario=="First Reconnaissance" then extraRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={41.00,0.96,35.00},guid="9ea4ed",smooth=false}) end
+			if gStates.gameScenario=="Quest for the Golden Grail" then extraRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={41.00,0.96,35.00},guid="826bf9",smooth=false}) end
+			if gStates.gameScenario=="The Chaos Rift" then extraRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={41.00,0.96,35.00},guid="fd700f",smooth=false}) end
+			if gStates.gameScenario=="The Gauntlet" then extraRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={41.00,0.96,35.00},guid="a7aa4a",smooth=false}) end
+			if gStates.gameScenario=="Ultimate Conquest" then extraRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={41.00,0.96,35.00},guid="7c7e53",smooth=false}) end
+			if gStates.gameScenario=="The War of Four" then extraRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={41.00,0.96,35.00},guid="bf27ee",smooth=false}) end
+			setupConfigureRulebook(extraRules,nil)
+			ruleBag.destruct()
 		else
 			print("SETUP WARNING: rules bag d4a866 was unavailable; continuing setup without deploying rulebooks.")
-		end
-		if ruleBag~=nil then
-			safeWaitCondition("SetupGame",function()
-				local mainRules=getObjectFromGUID(r.main)
-				local expansionRules=getObjectFromGUID(r.expansion)
-				local apocalypseRules=getObjectFromGUID(r.apocalypse)
-				local furyRules=gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9") or nil
-				if scenarioRuleStates.main~=nil and mainRules~=nil then mainRules.book.setPage(scenarioRuleStates.main-1) end
-				if scenarioRuleStates.expansion~=nil and expansionRules~=nil then expansionRules.book.setPage(scenarioRuleStates.expansion-1) end
-				if scenarioRuleStates.apocalypse~=nil and apocalypseRules~=nil then apocalypseRules.book.setPage(scenarioRuleStates.apocalypse-1) end
-				if mainRules~=nil then mainRules.lock() end
-				if expansionRules~=nil then expansionRules.lock() end
-				if apocalypseRules~=nil then apocalypseRules.lock() end
-				if furyRules~=nil then furyRules.lock() end
-				if extraRules~=nil then extraRules.lock() end
-			end,function()
-				local mainRules=getObjectFromGUID(r.main)
-				if mainRules==nil or mainRules.resting~=true then return false end
-				if needExpansionRules then
-					local expansionRules=getObjectFromGUID(r.expansion)
-					if expansionRules==nil or expansionRules.resting~=true then return false end
-				end
-				if needApocalypseRules then
-					local apocalypseRules=getObjectFromGUID(r.apocalypse)
-					if apocalypseRules==nil or apocalypseRules.resting~=true then return false end
-				end
-				if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
-					local furyRules=getObjectFromGUID("8d7fb9")
-					if furyRules==nil or furyRules.resting~=true then return false end
-				end
-				return extraRules==nil or extraRules.resting==true
-			end,10,function()
-				--Rulebooks are reference material, not a setup dependency. If physics never reports one as
-				--resting, leave the game setup running rather than turning an ancillary object into a failure.
-				local mainRules=getObjectFromGUID(r.main)
-				local expansionRules=getObjectFromGUID(r.expansion)
-				local apocalypseRules=getObjectFromGUID(r.apocalypse)
-				local furyRules=gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9") or nil
-				if scenarioRuleStates.main~=nil and mainRules~=nil then mainRules.book.setPage(scenarioRuleStates.main-1) end
-				if scenarioRuleStates.expansion~=nil and expansionRules~=nil then expansionRules.book.setPage(scenarioRuleStates.expansion-1) end
-				if scenarioRuleStates.apocalypse~=nil and apocalypseRules~=nil then apocalypseRules.book.setPage(scenarioRuleStates.apocalypse-1) end
-				if mainRules~=nil then mainRules.lock() end
-				if expansionRules~=nil then expansionRules.lock() end
-				if apocalypseRules~=nil then apocalypseRules.lock() end
-				if furyRules~=nil then furyRules.lock() end
-				if extraRules~=nil then extraRules.lock() end
-				print("SETUP WARNING: scenario rulebooks did not report resting within 10 seconds; continuing setup.")
-			end)
-		ruleBag.destruct()
 		end
 
 		--Add Weather Mod if being used
@@ -34494,15 +34487,26 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		if gStates.removeLostLegionExpansion==false then
 			for mainDeck,lostLegionDeck in pairs(lostLegionDecks) do setupQueueDeckMerge(getObjectFromGUID(GUID.bag.lostLegion),mainDeck,lostLegionDeck) end
 		end
-		--Apocalypse Quest cards can call the Apocalypse/Council reward systems and Possessed enemies even
-		--even when Apocalypse terrain itself is removed. Put the five shared support objects in their
-		--normal Apocalypse locations whenever either system is in use.
-		if gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or gStates.gameScenario=="Against the Horsemen Blitz" or apocalypseDragonScenario()==true then
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.rewardApoc, position={-46.13, 0.97, 20.00}, rotation={0, 180, 0}, smooth=false}).lock()--Apocalypse Cult Reward
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.rewardCouncil, position={-46.13, 0.97, 23.00}, rotation={0, 180, 0}, smooth=false}).lock()--Council of the Void Reward
+		--Apocalypse/Council rewards and Possessed tokens are preloaded in their normal table positions.
+		--Keep complete source/discard cycles when any enabled system can use them; otherwise remove them.
+		local apocalypseTokenSupportNeeded=gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or
+			gStates.gameScenario=="Against the Horsemen Blitz" or apocalypseDragonScenario()==true
+		for _,guid in ipairs({
+			monsterPiles.rewardApoc,GUID.bag.discard.apocReward,
+			monsterPiles.rewardCouncil,GUID.bag.discard.councilReward,
+			monsterPiles.possessed,GUID.bag.discard.possessed
+		}) do
+			local bag=getObjectFromGUID(guid)
+			if apocalypseTokenSupportNeeded==true then
+				if bag==nil then error("SetupGame missing preloaded Apocalypse token bag "..tostring(guid),2) end
+				bag.lock()
+			elseif bag~=nil then
+				bag.destruct()
+			end
+		end
+		if apocalypseTokenSupportNeeded==true then
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="c584ff", position={-53.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Apocalypse Cult Reward Card
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="071cc6", position={-49.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Council of the Void Reward Card
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.possessed, position={-46.13, 2.12, 11.50}, rotation={0, 180, 0}, smooth=false}).lock()--Possessed tokens
 		end
 
 		--The Apocalypse systems share the same infinite Neutral Shield bag.
@@ -34512,11 +34516,8 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 
 		--The remaining Apocalypse components belong to the terrain/scenario package rather than the Quest deck.
 		if gStates.removeApocalypseTerrain~=true then
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.discard.apocReward, position={2.00, 0.98, 16.00}, rotation={0, 180, 0}, smooth=false}).lock()--Apocalypse Cult Reward Discard
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.discard.councilReward, position={2.00, 0.97, 19.00}, rotation={0, 180, 0}, smooth=false}).lock()--Council of the Void Reward Discard
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.pyramidTrap, position={-43.00, 1.30, 20.00}, rotation={0, 180, 0}, smooth=false}).lock()--Pyramid Trap Tokens
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.zigguratTrap, position={-43.00, 1.30, 23.00}, rotation={0, 180, 0}, smooth=false}).lock()--Zigurat Trap Tokens
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.discard.possessed, position={-1.00, 1.07, 19.00}, rotation={0, 180, 0}, smooth=false}).lock()--Possessed token discard Bag
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="a8bf9c", position={-51.63, 0.97, 45.88}, rotation={0, 180, 0}, smooth=false}).lock()--Oasis Reminder token
 			if gStates.gameScenario=="Against the Apocalypse Blitz" then
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="f64a50", position={-38.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Against the Apocalypse Reminder Card
@@ -34525,18 +34526,6 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="e735d3", position={-40.87, 1.05, 21.50+2.895-(0.685*gStates.againstTheApocSitePosition)}, rotation={0, 90, 0}, smooth=false}).lock()--Neutral pointer shield token measured offf center of card.
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.destroyedSite, position={-43.00, 1.02, 26.00}, rotation={0, 180, 0}, smooth=false}).lock()--Destroyed Site Bag
 
-			end
-		end
-
-		--Dragon scenarios use Possessed enemies and Apocalypse faction rewards even when the optional
-		--Apocalypse terrain mix is removed. Keep both discard cycles available independently of terrain.
-		if apocalypseDragonScenario()==true then
-			local apocalypseBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-			if apocalypseBag~=nil and getObjectFromGUID(GUID.bag.discard.apocReward)==nil then
-				apocalypseBag.takeObject({guid=GUID.bag.discard.apocReward, position={2.00,0.98,16.00}, rotation={0,180,0}, smooth=false}).lock()
-			end
-			if apocalypseBag~=nil and getObjectFromGUID(GUID.bag.discard.possessed)==nil then
-				apocalypseBag.takeObject({guid=GUID.bag.discard.possessed, position={-1.00,1.07,19.00}, rotation={0,180,0}, smooth=false}).lock()
 			end
 		end
 
@@ -34793,7 +34782,8 @@ function setupGame(player, mouseButton, id, rewindReady)
 			if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
 				local ruleBag=getObjectFromGUID("d4a866")
 				if ruleBag~=nil then
-					safeTakeObject("SetupGame",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
+					local furyRules=safeTakeObject("SetupGame",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
+					setupConfigureRulebook(furyRules,nil)
 				end
 			end
 		end
@@ -34813,6 +34803,16 @@ startingMapTiles={}
 local function setupMapObjectSettled(guid)
 	local obj=guid~=nil and getObjectFromGUID(guid) or nil
 	return obj~=nil and obj.resting==true and obj.isSmoothMoving()==false
+end
+
+local function setupTintStartingTerrain(guid)
+	local obj=guid~=nil and getObjectFromGUID(guid) or nil
+	if obj==nil then return end
+	if gStates.startAtNight==true then
+		obj.setColorTint({r=0.6,g=0.6,b=0.6})
+	else
+		obj.setColorTint({r=1.0,g=1.0,b=1.0})
+	end
 end
 
 --Initial map reveals used to be spaced on one-second timers. Preserve their ordering, but advance each
@@ -34979,6 +34979,7 @@ function mapSetup(onComplete)
 			safeWaitCondition("SetupGame",function()
 				getObjectFromGUID(startTerrain.open).unlock()
 				getObjectFromGUID(portal.terrainHex).unlock()
+				setupTintStartingTerrain(startTerrain.open)
 				finishMapSetup(true)
 			end,function()
 				return getObjectFromGUID(startTerrain.open)~=nil and getObjectFromGUID(portal.terrainHex)~=nil
@@ -34987,6 +34988,7 @@ function mapSetup(onComplete)
 			local openStart=getObjectFromGUID(startTerrain.open)
 			if openStart~=nil then openStart.unlock() end
 			if portalObj~=nil then portalObj.unlock() end
+			setupTintStartingTerrain(startTerrain.open)
 			finishMapSetup(true)
 		end
 		return
@@ -35428,9 +35430,15 @@ function mapSetup(onComplete)
 		local startGUID=(shape=="O" or shape=="F" or shape=="P") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
 		return setupMapObjectSettled(startGUID) and setupMapObjectSettled(portal.terrainHex)
 	end
+	local function tintAndReveal(batches,callback)
+		local shape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)
+		local startGUID=(shape=="O" or shape=="F" or shape=="P") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
+		if againstHorsemenMap~=true then setupTintStartingTerrain(startGUID) end
+		revealSetupTerrainBatches(batches,callback)
+	end
 	local function revealWhenStartReady(batches,callback)
-		if startReferenceReady()==true then revealSetupTerrainBatches(batches,callback) return end
-		safeWaitCondition("SetupGame",function() revealSetupTerrainBatches(batches,callback) end,startReferenceReady,10,function()
+		if startReferenceReady()==true then tintAndReveal(batches,callback) return end
+		safeWaitCondition("SetupGame",function() tintAndReveal(batches,callback) end,startReferenceReady,10,function()
 			finishMapSetup(false,"SetupGame timed out waiting for the starting terrain reference.")
 		end)
 	end
@@ -36849,6 +36857,18 @@ local function destroyMonsterBags(guids)
 	end
 end
 
+local function configurePreloadedTokenBags(guids,keep,label)
+	for _,guid in ipairs(guids) do
+		local bag=getObjectFromGUID(guid)
+		if keep==true then
+			if bag==nil then error("SetupGame missing preloaded "..tostring(label).." bag "..tostring(guid),2) end
+			bag.lock()
+		elseif bag~=nil then
+			bag.destruct()
+		end
+	end
+end
+
 local function monsterPoolConfigurationReady()
 	for _,move in ipairs(monsterSetupMoves) do
 		local source=getObjectFromGUID(move.source)
@@ -36905,13 +36925,17 @@ function monsterSetup()
 	local elemFactionEnemies=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="The Hidden Valley Blitz"
 	local darkBags={monsterPiles.greenDark,monsterPiles.tanDark,monsterPiles.redDark}
 	local elemBags={monsterPiles.greenElem,monsterPiles.tanElem,monsterPiles.redElem}
+	local tezlaRewardsNeeded=gStates.removeShadesOfTezlaMonsters~=true or gStates.useCustomMageKnights==true
+	configurePreloadedTokenBags({
+		monsterPiles.rewardDark,GUID.bag.discard.darkReward,
+		monsterPiles.rewardElem,GUID.bag.discard.elementalistReward
+	},tezlaRewardsNeeded,"Shades of Tezla reward")
 	local darkComponents={
 		{guid=darkCrusader.disc,position={-52.00,0.97,6.50}},
 		{guid=darkCrusader.token,position={-55.30,0.97,10.20}},
 		{guid=darkCrusader.terrainHex,position={-34.70,0.98,-27.00}},
 		{guid="f8c83e",position={-65.16,0.98,-5.50}},
 		{guid=GUID.bag.cemetery,position={-36.09,0.97,-24.87},flip=180},
-		{guid=monsterPiles.rewardDark,position={-46.13,0.98,13.99},always=true},
 		{guid="2ca34f",position={-53.50,0.98,15.50},always=true}
 	}
 	local elemComponents={
@@ -36919,7 +36943,6 @@ function monsterSetup()
 		{guid=elementalist.token,position={-67.00,0.97,10.20}},
 		{guid=elementalist.terrainHex,position={-37.49,0.98,-27.00}},
 		{guid="7121c7",position={-70.16,0.98,-5.50}},
-		{guid=monsterPiles.rewardElem,position={-46.13,0.98,16.99},always=true},
 		{guid="8fe07e",position={-49.50,0.98,15.50},always=true}
 	}
 
@@ -37642,8 +37665,10 @@ function claimMove(player, mouseButton, id, rewindReady)
 					rewindTransactionStart(function() claimMove(player,mouseButton,id,true) end,cardClaimRewindOwner)
 					return
 				end
-				claimedCard.unlock()
+				--Unit cards remain locked in the offer until recruitment is actually approved.
+				--Other claim types keep their existing behaviour.
 				if source~="unit" then
+					claimedCard.unlock()
 					local tacticSource=source:sub(1, string.len(source)-1)=="tactic"
 					if tacticSource==true then
 						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-117.83 , 3.0, -43.16},false,false)
@@ -37710,6 +37735,7 @@ function claimMove(player, mouseButton, id, rewindReady)
 						local slot, unitX, commandSource, layout=unitLayoutFirstFreeCommand(seatPos)
 						local found=slot~=nil
 						if found==true then
+							claimedCard.unlock()
 							local scale=unitLayoutCardScale(#layout.commands)
 							claimedCard.setScale({scale,1,scale})
 							claimedCard.setPositionSmooth({unitX,2.0,-34.74},false,false)
@@ -41038,7 +41064,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="423"
+local automaticLuaErrorReporterVersion="425"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
