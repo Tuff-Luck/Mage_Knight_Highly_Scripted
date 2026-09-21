@@ -662,7 +662,13 @@ function mapSetup(onComplete)
 		end
 		if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
 			local camp=getObjectFromGUID("835c91")
-			if camp~=nil then camp.setPosition({-37.2305,1.15,-5.6911}) standardRevealBatches[1][#standardRevealBatches[1]+1]={guid=camp.guid} end
+			if camp~=nil then
+				--Player setup stages the Camp off-map. Bring it into its opening hex face down, then let
+				--the normal reveal coordinator flip and populate it like every other starting terrain tile.
+				camp.setRotation(rot)
+				camp.setPosition({-37.2305,1.15,-5.6911})
+				standardRevealBatches[1][#standardRevealBatches[1]+1]={guid=camp.guid}
+			end
 		end
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
 		local secondStart=takeStartingCountry({position={-31.2303,1.07,-7.7696},rotation=rot,smooth=false})

@@ -248,8 +248,12 @@ function playerSetup()
 								getObjectFromGUID(deedDeckDiscardZones[positionOrder[a]]).setPosition({offsetPosition-77.21, 1.15, -43.20})
 							end
 							if gStates.positionMageKnight[5]=="Volkare" then
+								local cityBag=getObjectFromGUID(GUID.bag.terrain.leftCity)
+								if cityBag==nil then error("Volkare setup missing City terrain bag",2) end
 								if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-									params.position={-37.2305, 2.0, -5.6911}--Volkare's Return camp tile position
+									--Keep the Camp out of the map zone until mapSetup is ready to reveal it.
+									local bagPos=cityBag.getPosition()
+									params.position={bagPos.x,bagPos.y+2,bagPos.z}
 								else
 									params.position={-12.0297, 2.0,  8.8586}--Volkare's Quest and The War of Four camp tile position
 								end
@@ -257,7 +261,7 @@ function playerSetup()
 								gStates.hexOverideSave["835c91"]={center=""}
 								if gStates.randomTileOrientation==false then params.rotation={0, 180, 180} else params.rotation={0, math.random(1, 6)*60, 180} end
 								params.guid="835c91"
-								local obj=safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.terrain.leftCity),params)
+								local obj=safeTakeObject("SetupGame",cityBag,params)
 								if obj==nil then error("Volkare setup missing Camp terrain tile 835c91 from City terrain bag",2) end
 								skip=1
 							else
