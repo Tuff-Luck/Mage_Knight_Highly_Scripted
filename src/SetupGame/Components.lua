@@ -111,6 +111,23 @@ function monsterSetup()
 		return true
 	end
 
+	--reload() destroys and recreates the physical object. Existence alone is not a completion signal:
+	--wait for the replacement leader pieces to be registered and settled before advertising setup readiness.
+	local function leaderObjectsSettled()
+		for _,guid in ipairs({
+			expectDark and darkCrusader.disc or nil,
+			expectDark and darkCrusader.token or nil,
+			expectElem and elementalist.disc or nil,
+			expectElem and elementalist.token or nil
+		}) do
+			if guid~=nil then
+				local obj=getObjectFromGUID(guid)
+				if obj==nil or obj.spawning==true or obj.resting~=true then return false end
+			end
+		end
+		return true
+	end
+
 	local function finishLeaderSetup()
 		local darkToken=getObjectFromGUID(darkCrusader.token)
 		if darkToken~=nil then
@@ -150,8 +167,8 @@ function monsterSetup()
 			end
 		end
 		if expectDark or expectElem then
-			safeWaitCondition("SetupGame",finishLeaderSetup,leaderObjectsReady,10,function()
-				error("SetupGame timed out waiting for faction leaders to reload.",2)
+			safeWaitCondition("SetupGame",finishLeaderSetup,leaderObjectsSettled,10,function()
+				error("SetupGame timed out waiting for faction leaders to reload and settle.",2)
 			end)
 		else
 			finishLeaderSetup()
