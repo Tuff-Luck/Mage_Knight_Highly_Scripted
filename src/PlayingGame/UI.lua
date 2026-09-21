@@ -530,7 +530,7 @@ function automatedProxyPanelSpec(stats,stateOverride)
 		spec.interactable=false
 	elseif state=="PickDestination" or state=="PickRoute" or state=="PickCard" or state=="PickEnemy" or state=="PickMana" then
 		local pending=gStates.proxyPendingChoice
-		spec.label=proxyChoiceWaitingText~=nil and proxyChoiceWaitingText(pending~=nil and pending.type or nil) or "Make Proxy Choice"
+		spec.label=proxyChoiceWaitingText~=nil and proxyChoiceWaitingText(pending~=nil and pending.type or nil) or "{en}Make Proxy Choice{ru}Сделать выбор за Прокси{zh-tw}進行代理玩家選擇{zh-cn}进行代理玩家选择{ko}프록시 선택하기{es}Elegir por el Proxy{fr}Faire le choix du Proxy{pt-br}Fazer escolha do Proxy{de}Proxy-Auswahl treffen"
 		spec.notes=proxyTurnReportText~=nil and proxyTurnReportText() or ""
 		spec.interactable=false
 		if pending~=nil and pending.type=="mana" then spec.proxyManaChoice=pending end
@@ -976,8 +976,8 @@ function mainUIUpdate(source)
 						UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
 					end
 					if nextPlayerEndCalled==true then
-						UI.setAttribute("EndTurnButtonText", "text", "End Turn, Rnd & Lev Up")
-						UI.setAttribute("EndTurnButtonAltText", "text", "End Turn, Rnd & Lev Up")
+						UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
+						UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
 						if excessLevels>1 then
 							UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
 							UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
@@ -1711,14 +1711,14 @@ function applyColorBarButtons()
 				end
 			end
 			if barPlayerData~=nil then
-				local dropText="DROP OUT"
+				local dropText="{en}DROP OUT{ru}ВЫЙТИ{zh-tw}退出{zh-cn}退出{ko}이탈{es}ABANDONAR{fr}ABANDONNER{pt-br}SAIR{de}AUSSTEIGEN"
 				local dropVisible=false
 				local dropInteractable=false
 				local dropImage="Sliced Button/Button Object Active"
 				if barPlayerData.dropoutState=="dropped" then
-					dropText="DROPPED OUT" dropVisible=true dropImage="Sliced Button/Button Object Deactive"
+					dropText="{en}DROPPED OUT{ru}ВЫШЕЛ{zh-tw}已退出{zh-cn}已退出{ko}이탈함{es}ABANDONÓ{fr}ABANDONNÉ{pt-br}SAIU{de}AUSGESTIEGEN" dropVisible=true dropImage="Sliced Button/Button Object Deactive"
 				elseif barPlayerData.dropoutState=="pending" then
-					dropText="UNDO DROP OUT" dropVisible=dropoutCoopLocked()==false dropInteractable=dropVisible
+					dropText="{en}UNDO DROP OUT{ru}ОТМЕНИТЬ ВЫХОД{zh-tw}取消退出{zh-cn}取消退出{ko}이탈 취소{es}DESHACER ABANDONO{fr}ANNULER L’ABANDON{pt-br}DESFAZER SAÍDA{de}AUSSTIEG RÜCKGÄNGIG" dropVisible=dropoutCoopLocked()==false dropInteractable=dropVisible
 				elseif gStates.firstStarted==true and barPlayerIndex~=gStates.turnNumber and dropoutCoopLocked()==false and activeMageKnightCount()>=3 then
 					dropVisible=true dropInteractable=true
 				end
