@@ -226,7 +226,7 @@ function playerSetup()
 							if positionOrder[a]<5 then
 								getObjectFromGUID(deedDeckZones[positionOrder[a]]).setPosition({offsetPosition-68, 1.15, -43.20})
 								getObjectFromGUID(deedDeckDiscardZones[positionOrder[a]]).setPosition({offsetPosition-77.21, 1.15, -43.20})
-						 	end
+							end
 							if gStates.positionMageKnight[5]=="Volkare" then
 								if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
 									params.position={-37.2305, 2.0, -5.6911}--Volkare's Return camp tile position
@@ -247,7 +247,7 @@ function playerSetup()
 								for a=1, 3, 1 do
 									params.position[1]=params.position[1]-(1.7)
 									local obj=safeTakeObject("SetupGame",PlayerBag,params)
-								 	obj.lock()
+									obj.lock()
 									local b=obj.getDescription()
 									if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
 										turnOrder[1].dummyCrystals[b]=turnOrder[1].dummyCrystals[b]+1

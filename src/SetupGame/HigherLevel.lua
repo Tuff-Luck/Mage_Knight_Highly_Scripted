@@ -215,7 +215,7 @@ function cardPool(player, mouseButton, id)
 					--Create Card Pool
 					mageDetails.poolCreated=true
 					local poolDraw={[GUID.deck.action]={ 2, 100},--Advanced Actions
-					 				[GUID.deck.regularUnit]={ 1, 96 },--Regular Units
+									[GUID.deck.regularUnit]={ 1, 96 },--Regular Units
 									[GUID.deck.spell]={ 0, 92 },--Spells
 									[GUID.deck.artifact]={-1, 88 }}--Artifacts
 					for deck, numbers in pairs(poolDraw) do

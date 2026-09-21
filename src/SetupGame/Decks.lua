@@ -123,10 +123,10 @@ function deckSetup()
 		if gStates.riseOfTheForgemasters>=level and gStates.riseOfTheForgemasters~=0 then getObjectFromGUID(GUID.deck.artifact).takeObject({guid=card}).destruct() end
 	end
 	local cardsReplaced={["65a1d5"]=1, ["05ef61"]=1, ["474418"]=1, ["6fdeb0"]=1, ["878d85"]=1, ["878d93"]=1, ["878d90"]=1, ["35aee6"]=1,
- 						 ["3d832c"]=1, ["1f362f"]=1, ["9de475"]=1, ["20cb85"]=1, ["d75285"]=2, ["141527"]=2, ["409fe8"]=2, ["1a1c02"]=2, ["8fac50"]=1}--advanced actions
+						 ["3d832c"]=1, ["1f362f"]=1, ["9de475"]=1, ["20cb85"]=1, ["d75285"]=2, ["141527"]=2, ["409fe8"]=2, ["1a1c02"]=2, ["8fac50"]=1}--advanced actions
 	for card, level in pairs(cardsReplaced) do
- 		if gStates.riseOfTheForgemasters>=level and gStates.riseOfTheForgemasters~=0 then getObjectFromGUID(GUID.deck.action).takeObject({guid=card}).destruct() end
- 	end
+		if gStates.riseOfTheForgemasters>=level and gStates.riseOfTheForgemasters~=0 then getObjectFromGUID(GUID.deck.action).takeObject({guid=card}).destruct() end
+	end
 	if gStates.riseOfTheForgemasters>1 then
 		offerAdjust(player, "-1", "e4372aOfferUp")
 		if getObjectFromGUID(GUID.deck.goldyx)~=nil then--Goldyx modified Starting Card
