@@ -14,7 +14,7 @@ local function fracturedLandsOrientationButtons(tile)
 	local buttonScale="0.18144 0.18144"--locked-in visual scale
 	local xml={{tag="Panel", attributes={id=prefix.."FracturedRotationPlane", height=800, width=900, position="0 0 -25", rotation="0 0 "..rotationPlane, color="rgba(0,0,0,0.0)"}, children={
 		{tag="Button", attributes={id=prefix.."ArtifactUp", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateLeft", height=150, width=150, color="rgba(0,0,0,0.0)", position="-54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactUpImage", image="Overkill Up"}}}},
-		{tag="Button", attributes={id=prefix.."FracturedDone", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsOrientationDone", height=150, width=400, color="rgba(0,0,0,0.0)", position="0 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."FracturedDoneImage", image="Sliced Button/Button Object Active", type="Sliced"}}, {tag="Text", attributes={font="Fonts/MKCardText", fontSize=90, color="black", fontStyle="Normal", alignment="MiddleCenter", text="Done"}}}},
+		{tag="Button", attributes={id=prefix.."FracturedDone", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsOrientationDone", height=150, width=400, color="rgba(0,0,0,0.0)", position="0 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."FracturedDoneImage", image="Sliced Button/Button Object Active", type="Sliced"}}, {tag="Text", attributes={font="Fonts/MKCardText", fontSize=90, color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}Done{ru}Готово{zh-tw}完成{zh-cn}完成{ko}완료{es}Listo{fr}Terminé{pt-br}Concluído{de}Fertig"}}}},
 		{tag="Button", attributes={id=prefix.."ArtifactDown", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateRight", height=150, width=150, color="rgba(0,0,0,0.0)", position="54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactDownImage", image="Overkill Down"}}}}
 	}}}
 	tile.UI.setXmlTable(xml)
@@ -197,7 +197,7 @@ function volkareRazesCity(cityKey)
 	if gStates.hexOverideSave[city.terrain]==nil then gStates.hexOverideSave[city.terrain]={} end
 	gStates.hexOverideSave[city.terrain].center="raised "..cityColor[city.model]
 	local cityZone={[cityModel.blue]=GUID.zone.blueCity, [cityModel.red]=GUID.zone.redCity, [cityModel.green]=GUID.zone.greenCity, [cityModel.white]=GUID.zone.whiteCity}
-	getObjectFromGUID(cityScriptZones[cityZone[city.model]].cityCard).setDescription("Raised City - Provides no Interaction")
+	getObjectFromGUID(cityScriptZones[cityZone[city.model]].cityCard).setDescription("{en}Raised City - Provides no Interaction{ru}Поднятый город — взаимодействие недоступно{zh-tw}升起的城市－無法互動{zh-cn}升起的城市－无法互动{ko}상승한 도시 - 상호작용 불가{es}Ciudad Elevada - No permite Interacción{fr}Cité Élevée - Aucune Interaction{pt-br}Cidade Elevada - Sem Interação{de}Erhöhte Stadt - Keine Interaktion")
 	getObjectFromGUID(cityScriptZones[cityZone[city.model]].cityCard).addDecal({name="City Raised", url="https://steamusercontent-a.akamaihd.net/ugc/938341811903683200/0910E72610C36BACDEF44CB3BA2A909BA4AFC12E/",
 		position={0.0,0.5,0.0}, rotation={90.0,180.0,0.0}, scale={1,2,2}})
 	gStates.volkareRaisedCity=true
