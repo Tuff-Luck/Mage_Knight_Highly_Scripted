@@ -152,7 +152,7 @@ function __onLoad_raw(saved_data)
 	UI.setAttribute("RandomGameButtonText", "text", "{en}Give me a Mystery Solo Setup{ru}Дайте мне одиночный сценарий со случайными параметрами{zh-tw}幫我設置一場神秘的單人遊戲{zh-cn}帮我设置一局神秘的单人游戏{ko}랜덤 솔로 시나리오 빠른 시작{es}Dame una preparación misteriosa en Solitario{fr}Donnez-moi une configuration aléatoire Solo{pt-br}Me dê um Cenário Misterioso Aleatório{de}Gib mir ein Mystery-Solo-Setup")
 	UI.setAttribute("newPlayerText", "text", "{en}I'm a new Player and want the Walkthrough Scenario{ru}Я новый игрок и хочу пройти Обучающий сценарий{zh-tw}我是一名新玩家，開始“首次勘察”劇本{zh-cn}我是一名新玩家，开始“首次勘察”剧本{ko}입문자를 위한 튜토리얼 시나리오{es}Soy un jugador novel y quiero el escenario de introducción{fr}Je suis un nouveau joueur et je veux le scénario pas à pas{pt-br}Sou um jogador novo e quero o Cenário Tutorial{de}Ich bin ein neuer Spieler und möchte das Walkthrough-Szenario")
 	UI.setAttribute("ROTFText", "text", "{en}Rise of the Forgemasters -{ru}<size=16>Восстание Мастеров Кузни -</size>{zh-tw}鍛造師崛起{zh-cn}锻造师崛起{ko}라이즈 오브 포지마스터{es}El Ascenso de los Forjadores - {fr}L'essor des Maîtres de Forge -{pt-br}Ascensão dos Forjadores -{de}Aufstieg der Schmiedemeister -")
-	UI.setAttribute("heroChallenges", "text", "Hero Challenges")
+	UI.setAttribute("heroChallenges", "text", "{en}Hero Challenges{ru}Испытания героев{zh-tw}英雄挑戰{zh-cn}英雄挑战{ko}영웅 도전{es}Desafíos de Héroes{fr}Défis des Héros{pt-br}Desafios de Heróis{de}Heldenherausforderungen")
 	UI.setAttribute("proxyPlayer", "text", "{en}Proxy Player [BETA]{ru}Прокси-игрок [BETA]{zh-tw}代理玩家 [BETA]{zh-cn}代理玩家 [BETA]{ko}프록시 플레이어 [BETA]{es}Jugador Proxy [BETA]{fr}Joueur Proxy [BETA]{pt-br}Jogador Proxy [BETA]{de}Proxy-Spieler [BETA]")
 	UI.setAttribute("ScenarioPlayerLimitText", "text", "{en}Scenario Player Limit{ru}Ограничение количества игроков в сценарии{zh-tw}劇本人數限制{zh-cn}剧本人数限制{ko}시나리오 플레이어 수{es}Escenario Límite de Jugadores{fr}Scénario Limite de Joueurs{pt-br}Limite de Jogadores do Cenário{de}Szenario Spielerlimit")
 	UI.setAttribute("DaringSelectionText", "text", "{en}Daring{ru}Смельчак{zh-tw}勇者{zh-cn}勇者{ko}웅장한{es}Atrevido{fr}Audacieux{pt-br}Ousado{de}Gewagt")
@@ -627,7 +627,7 @@ function __onObjectPickUp_raw(player_color, picked_up_object)
 	--Unlocking and lifting an active Destroyed token undoes that placement without awarding a restoration.
 	if player_color~=nil and picked_up_object.getGMNotes()=="Destroyed" and gStates.destroyedSites~=nil and gStates.destroyedSites[picked_up_object.guid]~=nil then
 		if undoDestroyedSitePlacement(picked_up_object)==true then
-			broadcastToAll("Destroyed Site placement undone")
+			broadcastToAll("{en}Destroyed Site placement undone.{ru}Размещение жетона разрушенного места отменено.{zh-tw}已撤銷「被摧毀地點」標記的放置。{zh-cn}已撤销“被摧毁地点”标记的放置。{ko}파괴된 장소 토큰 배치를 취소했습니다.{es}Se deshizo la colocación del Sitio Destruido.{fr}Le placement du Site Détruit a été annulé.{pt-br}A colocação do Local Destruído foi desfeita.{de}Die Platzierung des zerstörten Ortes wurde rückgängig gemacht.")
 			fakeDropAvatar()
 		end
 	end
@@ -661,7 +661,7 @@ function __onObjectHover_raw(player_color, hover_object)
 	--Make deck dsecription unreadable to other players
 	if hover_object~=nil and hover_object.type=="Deck" and hover_object.getGMNotes()~=nil and hover_object.getGMNotes()~="" then
 		if hover_object.getGMNotes()~=player_color and player_color~="Black" and gStates.coop==0 then
-			hover_object.setDescription("Deck contents are only visible for this player.")
+			hover_object.setDescription("{en}Deck contents are only visible for this player.{ru}Содержимое колоды видно только этому игроку.{zh-tw}牌庫內容僅此玩家可見。{zh-cn}牌库内容仅此玩家可见。{ko}덱 내용은 이 플레이어에게만 보입니다.{es}El contenido del mazo solo es visible para este jugador.{fr}Le contenu du paquet n’est visible que par ce joueur.{pt-br}O conteúdo do baralho só é visível para este jogador.{de}Der Inhalt des Decks ist nur für diesen Spieler sichtbar.")
 		end
 	end
 
@@ -987,7 +987,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		local terrain, bearing=terrainHexAtPosition(dropped_object.getPosition())
 		if terrain~=nil then
 			if destroySite(dropped_object, terrain, bearing)==true then fakeDropAvatar()
-			else broadcastToAll("That location cannot be destroyed", {1,1,0.5}) end
+			else broadcastToAll("{en}That location cannot be destroyed.{ru}Это место нельзя уничтожить.{zh-tw}該地點不能被摧毀。{zh-cn}该地点不能被摧毁。{ko}그 장소는 파괴할 수 없습니다.{es}Ese lugar no puede ser destruido.{fr}Ce lieu ne peut pas être détruit.{pt-br}Esse local não pode ser destruído.{de}Dieser Ort kann nicht zerstört werden.", {1,1,0.5}) end
 		end
 		return
 	end
@@ -1183,7 +1183,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 											if terrain.is_face_down==true then
 												terrain.flip()
 												if playerDetails.avatarLocation=="ruin" then broadcastToAll("{en}Ruin Site Revealed{ru}Руины были раскрыты{zh-cn}废墟板块被揭示了{ko}유적 장소 공개됨{es}Sitio de Ruinas Revelado{fr}Site de Ruines Révélé{pt-br}Lugar de Ruinas Revelado{de}Ruinenstätte aufgedeckt", {1,1,0.5}) end
-												if playerDetails.avatarLocation~="ruin" then broadcastToAll("Draconum Revealed", {1,1,0.5}) end
+												if playerDetails.avatarLocation~="ruin" then broadcastToAll("{en}Draconum Revealed{ru}Драконид раскрыт{zh-tw}龍人已揭示{zh-cn}龙人已揭示{ko}드라코넘 공개됨{es}Draconum Revelado{fr}Draconum Révélé{pt-br}Draconum Revelado{de}Draconum aufgedeckt", {1,1,0.5}) end
 											end
 										end
 									end
@@ -1363,7 +1363,7 @@ function __onObjectDestroy_raw(destroyedObj)
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
 	if questScorePlayer~=nil then
 		if apocalypseQuestScoresRequired()==true then
-			broadcastToAll("This scenario can't be run without Quest Scores",{1,1,0.5})
+			broadcastToAll("{en}This scenario can't be run without Quest Scores.{ru}Этот сценарий нельзя запустить без очков заданий.{zh-tw}此劇本必須啟用任務分數。{zh-cn}此剧本必须启用任务分数。{ko}이 시나리오는 퀘스트 점수 없이 진행할 수 없습니다.{es}Este escenario no puede jugarse sin Puntuación de Misiones.{fr}Ce scénario ne peut pas être joué sans Scores de Quête.{pt-br}Este cenário não pode ser jogado sem Pontuação de Missões.{de}Dieses Szenario kann nicht ohne Quest-Punkte gespielt werden.",{1,1,0.5})
 			safeWaitFrames("Events",function() apocalypseQuestRestoreScoreMarker(questScorePlayer,false) end,1)
 		elseif gStates.apocalypseQuestScoringDisabled~=true then
 			if gStates.apocalypseQuestScoringChoiceLocked==true then
@@ -2961,7 +2961,7 @@ function refreshLiftHeightWarning()
 		if Player[color].lift_height~=-1 and Player[color].lift_height<0.1 then lowDetected=true break end
 	end
 	if lowDetected==true and liftHeightLowDetected~=true then
-		UI.setAttribute("NoticeText", "Text", "'Lift Height' needs to be higher to avoid the scripting zones.          (Top Right Icon of a Man Lifting Weights)")
+		UI.setAttribute("NoticeText", "Text", "{en}'Lift Height' needs to be higher to avoid the scripting zones.          (Top Right Icon of a Man Lifting Weights){ru}Параметр 'Lift Height' нужно увеличить, чтобы не задевать скриптовые зоны.          (значок человека с гирей справа вверху){zh-tw}需要提高「Lift Height」，以避開腳本區域。          （右上角舉重人物圖示）{zh-cn}需要提高“Lift Height”，以避开脚本区域。          （右上角举重人物图标）{ko}스크립팅 영역을 피하려면 'Lift Height'를 더 높여야 합니다.          (오른쪽 위 역기를 드는 사람 아이콘){es}'Lift Height' debe estar más alto para evitar las zonas de script.          (Icono superior derecho de una persona levantando pesas){fr}'Lift Height' doit être plus élevé pour éviter les zones de script.          (Icône en haut à droite d’une personne soulevant des poids){pt-br}'Lift Height' precisa estar mais alto para evitar as zonas de script.          (Ícone no canto superior direito de uma pessoa levantando pesos){de}'Lift Height' muss höher eingestellt sein, damit die Skriptzonen nicht berührt werden.          (Symbol oben rechts mit einer gewichthebenden Person)")
 		UI.setAttribute("NoticeBoard", "visibility", "")
 		UI.setAttribute("NoticeBoard", "height", "50")
 		UI.show("NoticeBoard")
