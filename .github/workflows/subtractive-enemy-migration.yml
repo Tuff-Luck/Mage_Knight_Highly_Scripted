@@ -22,6 +22,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json
+          import re
           from pathlib import Path
           from json.encoder import encode_basestring, encode_basestring_ascii, _make_iterencode, INFINITY
 
