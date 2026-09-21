@@ -50,10 +50,11 @@ local function revealSetupTerrainBatches(batches,onComplete)
 				for _,entry in ipairs(batch) do
 					if gStates.playedAllready[entry.guid]~=true then
 						local tile=getObjectFromGUID(entry.guid)
+						local faceDown=tile~=nil and tostring(tile.is_face_down) or "missing"
+						local resting=tile~=nil and tostring(tile.resting) or "missing"
 						unresolved[#unresolved+1]=tostring(entry.guid)..
 							"(working="..tostring(workingOnTerrain[entry.guid])..
-							", faceDown="..tostring(tile~=nil and tile.is_face_down or "missing")..
-							", resting="..tostring(tile~=nil and tile.resting or "missing")..")"
+							", faceDown="..faceDown..", resting="..resting..")"
 					end
 				end
 				error("SetupGame timed out waiting for terrain population during initial map reveal: "..table.concat(unresolved,", "),2)
