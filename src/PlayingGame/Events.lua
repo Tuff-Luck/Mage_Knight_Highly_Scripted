@@ -1627,6 +1627,11 @@ function __onObjectEnterZone_raw(zone, obj)
 
 			--deploy monster token if terrain tile is deployed correctly
 			if positionLegal({guid=obj.guid, faceDown=obj.is_face_down, bearing=startBearing, objName=obj.getName(), position={obj.getPosition()[1], 0, obj.getPosition()[3]}})==true then
+				--Before the first round, dayRound is intentionally still false so dayNight() can perform
+				--the first transition. Do not let that sentinel make setup terrain look like night.
+				if startingMapSetup==true then
+					if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
+				end
 				againstDragonRevealLair(obj)
 				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
 				--Check if the object is a core tile and unlock elite units
@@ -2579,7 +2584,13 @@ function __onObjectLeaveZone_raw(zone, obj)
 
 		--remove red tint when lifting out terrain tile.
 		if zone.guid==mapArea and terrainTiles[obj.guid]~=nil then
-			if gStates.dayRound==false then obj.setColorTint({r=0.6, g=0.6, b=0.6}) else obj.setColorTint({r=1.0, g=1.0, b=1.0}) end
+			if startingMapSetup==true then
+				if gStates.startAtNight==true then obj.setColorTint({r=0.6, g=0.6, b=0.6}) else obj.setColorTint({r=1.0, g=1.0, b=1.0}) end
+			elseif gStates.dayRound==false then
+				obj.setColorTint({r=0.6, g=0.6, b=0.6})
+			else
+				obj.setColorTint({r=1.0, g=1.0, b=1.0})
+			end
 		end
 
 		--updata Mirrored source
