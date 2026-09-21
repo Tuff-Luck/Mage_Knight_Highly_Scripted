@@ -616,10 +616,10 @@ function displayScore(player, mouseButton, id)
 						local textCol="rgb(0, 0, 0)"
 						if coopKey.lFame~=a and gStates.coop==1 then textCol="rgb(0.2, 0.2, 0.4)" end
 						UI.setAttribute("Reward"..pannel.."ScoreText", "Color", textCol)
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{translateWord[turnOrder[a].mage], "{en}'s Base Fame: {ru}имеет Славы: {zh-cn}的基础名望: {ko} 의 기본 명성: {es} Fama Base: {fr} Gloire Base: {pt-br} Fama Base: {de}Basis-Ruhm: ", turnOrder[a].fame})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{translateWord[turnOrder[a].mage], "{en}'s Base Fame: {ru}имеет Славы: {zh-tw}的基础名望: {zh-cn}的基础名望: {ko} 의 기본 명성: {es} Fama Base: {fr} Gloire Base: {pt-br} Fama Base: {de}Basis-Ruhm: ", turnOrder[a].fame})
 						totalScore=turnOrder[a].fame
 						if turnOrder[a].score.Reward>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Reward, "{en} Faction Reward(s): +{ru} Жетон фракций: +{zh-cn}派系奖励: +{ko} 세력 보상: +{es} Recompensas Facción: +{fr} Récompenses Faction: +{pt-br} Recompensas de Facção: +{de} Fraktions-Belohnung(en): +", turnOrder[a].score.Reward})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Reward, "{en} Faction Reward(s): +{ru} Жетон фракций: +{zh-tw}派系奖励: +{zh-cn}派系奖励: +{ko} 세력 보상: +{es} Recompensas Facción: +{fr} Récompenses Faction: +{pt-br} Recompensas de Facção: +{de} Fraktions-Belohnung(en): +", turnOrder[a].score.Reward})
 							totalScore=totalScore+turnOrder[a].score.Reward
 						end
 						updateScorePannel("Reward", lineFeed, assembledText)
@@ -665,17 +665,17 @@ function displayScore(player, mouseButton, id)
 						local aaRate=heroChallengeActive(a)==true and turnOrder[a].mage=="Braevalar" and 2 or 1
 						local spellRate=heroChallengeActive(a)==true and turnOrder[a].mage=="Goldyx" and 3 or 2
 						if turnOrder[a].score.AdvanceAction>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.AdvanceAction, "{en} Advanced Action(s): +{ru} Особое действие: +{zh-cn}张高级行动卡: +{ko} 상급 액션: +{es} Acciones Avanzadas: +{fr} Actions Avancées: +{pt-br} Ações Avançadas: +{de} Fortgeschrittene Aktion(en): +", turnOrder[a].score.AdvanceAction*aaRate})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.AdvanceAction, "{en} Advanced Action(s): +{ru} Особое действие: +{zh-tw}张高级行动卡: +{zh-cn}张高级行动卡: +{ko} 상급 액션: +{es} Acciones Avanzadas: +{fr} Actions Avancées: +{pt-br} Ações Avançadas: +{de} Fortgeschrittene Aktion(en): +", turnOrder[a].score.AdvanceAction*aaRate})
 							totalScore=totalScore+(turnOrder[a].score.AdvanceAction*aaRate)
 						end
 						if turnOrder[a].score.Spell>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Spell, "{en} Spell(s): +{ru} Заклинание: +{zh-cn}张法术卡: +{ko} 마법: +{es} Hechizos: +{fr} Sorts: +{pt-br} Feitiços: +{de} Zauberspruch(e): +", (turnOrder[a].score.Spell*spellRate)})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Spell, "{en} Spell(s): +{ru} Заклинание: +{zh-tw}张法术卡: +{zh-cn}张法术卡: +{ko} 마법: +{es} Hechizos: +{fr} Sorts: +{pt-br} Feitiços: +{de} Zauberspruch(e): +", (turnOrder[a].score.Spell*spellRate)})
 							totalScore=totalScore+(turnOrder[a].score.Spell*spellRate)
 						end
 
 					end
 					if turnOrder[a].score.gKnowledge>0 then
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Knowledge: +{ru}Великий мудрец: +{zh-cn}博古通今： +{ko}위대한 지식: +{es}Mayor Conocimiento: +{fr}Plus Grand Connaissance: +{pt-br}Mais Conhecimento: +{de}Größtes Wissen: +", turnOrder[a].score.gKnowledge})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Knowledge: +{ru}Великий мудрец: +{zh-tw}博古通今： +{zh-cn}博古通今： +{ko}위대한 지식: +{es}Mayor Conocimiento: +{fr}Plus Grand Connaissance: +{pt-br}Mais Conhecimento: +{de}Größtes Wissen: +", turnOrder[a].score.gKnowledge})
 						totalScore=totalScore+turnOrder[a].score.gKnowledge
 					end
 					updateScorePannel("Knowledge", lineFeed, assembledText)
@@ -687,21 +687,21 @@ function displayScore(player, mouseButton, id)
 						local artifactRate=heroChallengeActive(a)==true and turnOrder[a].mage=="Coral" and 4 or 2
 						local crystalScore=(heroChallengeActive(a)==true and (turnOrder[a].mage=="Goldyx" or turnOrder[a].mage=="Coral")) and turnOrder[a].score.Crystal or math.floor(turnOrder[a].score.Crystal/2)
 						if turnOrder[a].score.Artifact>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Artifact, "{en} Artifact(s): +{ru} Артефакт: +{zh-cn}张圣器卡: +{ko} 유물: +{es} Artefactos: +{fr} Artefacts: +{pt-br} Artefatos: +{de} Artefakt(e): +", (turnOrder[a].score.Artifact*artifactRate)})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Artifact, "{en} Artifact(s): +{ru} Артефакт: +{zh-tw}张圣器卡: +{zh-cn}张圣器卡: +{ko} 유물: +{es} Artefactos: +{fr} Artefacts: +{pt-br} Artefatos: +{de} Artefakt(e): +", (turnOrder[a].score.Artifact*artifactRate)})
 							totalScore=totalScore+(turnOrder[a].score.Artifact*artifactRate)
 						end
 						if turnOrder[a].score.Crystal>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Crystal, "{en} Mana Crystal(s): +{ru} Кристалл маны: +{zh-cn}个未使用的魔晶: +{ko} 마나 수정: +{es} Cristales de Maná: +{fr} Cristaux de Mana: +{pt-br} Cristais de Mana: +{de} Manakristall(e): +", crystalScore})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Crystal, "{en} Mana Crystal(s): +{ru} Кристалл маны: +{zh-tw}个未使用的魔晶: +{zh-cn}个未使用的魔晶: +{ko} 마나 수정: +{es} Cristales de Maná: +{fr} Cristaux de Mana: +{pt-br} Cristais de Mana: +{de} Manakristall(e): +", crystalScore})
 							totalScore=totalScore+crystalScore
 						end
 						if turnOrder[a].score.Potion>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Potion, "{en} Potion(s): +{ru} Зелье: +{zh-cn}瓶药剂： +{ko} 포션: +{es} Pociones: +{fr} Potion: +{pt-br} Poções: +{de} Trank(e): +", turnOrder[a].score.Potion})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Potion, "{en} Potion(s): +{ru} Зелье: +{zh-tw}瓶药剂： +{zh-cn}瓶药剂： +{ko} 포션: +{es} Pociones: +{fr} Potion: +{pt-br} Poções: +{de} Trank(e): +", turnOrder[a].score.Potion})
 							totalScore=totalScore+turnOrder[a].score.Potion
 						end
 
 					end
 					if turnOrder[a].score.gLoot>0 then
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Loot: +{ru}Великая добыча: +{zh-cn}至多战利品： +{ko}위대한 전리품: +{es}Mayor Botín: +{fr}Plus Grand Butin: +{pt-br}Maior Saque: +{de}Größte Beute: +", turnOrder[a].score.gLoot})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Loot: +{ru}Великая добыча: +{zh-tw}至多战利品： +{zh-cn}至多战利品： +{ko}위대한 전리품: +{es}Mayor Botín: +{fr}Plus Grand Butin: +{pt-br}Maior Saque: +{de}Größte Beute: +", turnOrder[a].score.gLoot})
 						totalScore=totalScore+turnOrder[a].score.gLoot
 					end
 					updateScorePannel("Loot", lineFeed, assembledText)
@@ -713,17 +713,17 @@ function displayScore(player, mouseButton, id)
 						local healthyScore=heroChallengeActive(a)==true and turnOrder[a].mage=="Norowas" and turnOrder[a].score.UnitsLevel*2 or turnOrder[a].score.UnitsLevel
 						local woundedScore=heroChallengeActive(a)==true and turnOrder[a].mage=="Arythea" and turnOrder[a].score.WoundedUnitsRawLevel or turnOrder[a].score.WoundedUnitsLevel
 						if turnOrder[a].score.Units>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Units, "{en} Healthy Unit(s): +{ru} Здоровый отряд: +{zh-cn}个健康的部队: +{ko} 보유 유닛: +{es} Unidades Saludables: +{fr} Unités Saines: +{pt-br} Unidades Saudáveis: +{de} Gesunde Einheit(en): +", healthyScore})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Units, "{en} Healthy Unit(s): +{ru} Здоровый отряд: +{zh-tw}个健康的部队: +{zh-cn}个健康的部队: +{ko} 보유 유닛: +{es} Unidades Saludables: +{fr} Unités Saines: +{pt-br} Unidades Saudáveis: +{de} Gesunde Einheit(en): +", healthyScore})
 							totalScore=totalScore+healthyScore
 						end
 						if turnOrder[a].score.WoundedUnits>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.WoundedUnits, "{en} Wounded Unit(s): +{ru} Раненный отряд: +{zh-cn}个受伤的部队: +{ko} 부상받은 유닛: +{es} Unidades Heridas: +{fr} Unités Blessées: +{pt-br} Unidades Feridas: +{de} Verwundete Einheit(en): +", woundedScore})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.WoundedUnits, "{en} Wounded Unit(s): +{ru} Раненный отряд: +{zh-tw}个受伤的部队: +{zh-cn}个受伤的部队: +{ko} 부상받은 유닛: +{es} Unidades Heridas: +{fr} Unités Blessées: +{pt-br} Unidades Feridas: +{de} Verwundete Einheit(en): +", woundedScore})
 							totalScore=totalScore+woundedScore
 						end
 
 					end
 					if turnOrder[a].score.gLeader>0 then
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Leader: +{ru}Великий лидер: +{zh-cn}至高领袖： +{ko}위대한 지도자: +{es}Mayor Líder: +{fr}Plus Grand Chef: +{pt-br}Maior Líder: +{de}Größter Anführer: +", turnOrder[a].score.gLeader})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Leader: +{ru}Великий лидер: +{zh-tw}至高领袖： +{zh-cn}至高领袖： +{ko}위대한 지도자: +{es}Mayor Líder: +{fr}Plus Grand Chef: +{pt-br}Maior Líder: +{de}Größter Anführer: +", turnOrder[a].score.gLeader})
 						totalScore=totalScore+turnOrder[a].score.gLeader
 					end
 					updateScorePannel("Leader", lineFeed, assembledText)
@@ -734,21 +734,21 @@ function displayScore(player, mouseButton, id)
 					if forTheCouncil~=true then
 						local adventurerRate=heroChallengeActive(a)==true and turnOrder[a].mage=="Wolfhawk" and 4 or 2
 						if turnOrder[a].score.Ruin>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Ruin, "{en} Ruin(s): +{ru} Руины: +{zh-cn}个远古遗迹已探索: +{ko} 유적: +{es} Ruinas: +{fr} Ruines: +{pt-br} Ruínas: +{de} Ruine(n): +", turnOrder[a].score.Ruin*adventurerRate})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Ruin, "{en} Ruin(s): +{ru} Руины: +{zh-tw}个远古遗迹已探索: +{zh-cn}个远古遗迹已探索: +{ko} 유적: +{es} Ruinas: +{fr} Ruines: +{pt-br} Ruínas: +{de} Ruine(n): +", turnOrder[a].score.Ruin*adventurerRate})
 							totalScore=totalScore+(turnOrder[a].score.Ruin*adventurerRate)
 						end
 						if turnOrder[a].score.DungeonTomb>0 then
 							local b=turnOrder[a].score.DungeonTomb*adventurerRate
 							if gStates.gameScenario=="Dungeon Lords" then b=turnOrder[a].score.DungeonTomb*4 end
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.DungeonTomb, "{en} Dungeon / Tomb(s): +{ru} Подземелье / Гробница: +{zh-cn}个地下城或墓穴已征服: +{ko} 던전과 무덤: +{es} Mazmorras / Tumbas: +{fr} Donjons / Tombeaux: +{pt-br} Masmorras / Tumbas: +{de} Verlies / Grabmal(e): +", b})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.DungeonTomb, "{en} Dungeon / Tomb(s): +{ru} Подземелье / Гробница: +{zh-tw}个地下城或墓穴已征服: +{zh-cn}个地下城或墓穴已征服: +{ko} 던전과 무덤: +{es} Mazmorras / Tumbas: +{fr} Donjons / Tombeaux: +{pt-br} Masmorras / Tumbas: +{de} Verlies / Grabmal(e): +", b})
 							totalScore=totalScore+b
 						end
 						if turnOrder[a].score.SpawningDen>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.SpawningDen, "{en} Den / Spawn Grnd(s): +{ru} Логово / Проклятые земли: +{zh-cn}个怪物巢穴或孵化领地已征服： +{ko} 은신처와 산란지: +{es} Den / Zonas Desove: +{fr} Tanière / Frayère: +{pt-br} Covil / Nascedouro: +{de} Höhle(n) / Laichplatz(e): +", turnOrder[a].score.SpawningDen*adventurerRate})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.SpawningDen, "{en} Den / Spawn Grnd(s): +{ru} Логово / Проклятые земли: +{zh-tw}个怪物巢穴或孵化领地已征服： +{zh-cn}个怪物巢穴或孵化领地已征服： +{ko} 은신처와 산란지: +{es} Den / Zonas Desove: +{fr} Tanière / Frayère: +{pt-br} Covil / Nascedouro: +{de} Höhle(n) / Laichplatz(e): +", turnOrder[a].score.SpawningDen*adventurerRate})
 							totalScore=totalScore+(turnOrder[a].score.SpawningDen*adventurerRate)
 						end
 						if turnOrder[a].score.Maze>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Maze, "{en} Maze / Labyrinth(s): +{ru} Катакомбы / Лабиринт: +{zh-cn}个迷宫或迷城已征服: +{ko} 미로와 미궁: +{es} Maze / Laberintos: +{fr} Maze / Labyrinthes: +{pt-br} Labirintos / Dédalos: +{de} Irrgarten / Labyrinth(e): +", turnOrder[a].score.Maze*adventurerRate})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Maze, "{en} Maze / Labyrinth(s): +{ru} Катакомбы / Лабиринт: +{zh-tw}个迷宫或迷城已征服: +{zh-cn}个迷宫或迷城已征服: +{ko} 미로와 미궁: +{es} Maze / Laberintos: +{fr} Maze / Labyrinthes: +{pt-br} Labirintos / Dédalos: +{de} Irrgarten / Labyrinth(e): +", turnOrder[a].score.Maze*adventurerRate})
 							totalScore=totalScore+(turnOrder[a].score.Maze*adventurerRate)
 						end
 						if turnOrder[a].score.ZigguratPyramid>0 and (gStates.gameScenario~="Against the Apocalypse Blitz" or (gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.coop==1)) then
@@ -816,17 +816,17 @@ function displayScore(player, mouseButton, id)
 					assembledText="" lineFeed=0
 					if forTheCouncil~=true then
 						if turnOrder[a].score.CountryMine>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CountryMine, "{en} Country Mine(s): +{ru} Шахта на дикой земле: +{zh-cn}个深层矿山已解放: +{ko} 교외 광산: +{es} Minas del País: +{fr} Mines de Pays: +{pt-br} Minas de Campo: +{de} Landmine(n): +", (turnOrder[a].score.CountryMine*4)})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CountryMine, "{en} Country Mine(s): +{ru} Шахта на дикой земле: +{zh-tw}个深层矿山已解放: +{zh-cn}个深层矿山已解放: +{ko} 교외 광산: +{es} Minas del País: +{fr} Mines de Pays: +{pt-br} Minas de Campo: +{de} Landmine(n): +", (turnOrder[a].score.CountryMine*4)})
 							totalScore=totalScore+(turnOrder[a].score.CountryMine*4)
 						end
 						if turnOrder[a].score.CoreMine>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CoreMine, "{en} Core Mine(s): +{ru} Шахта на развитой земле: +{zh-cn}个魔晶矿山已解放: +{ko} 중심부 광산: +{es} Minas Centrales: +{fr} Mines de Base: +{pt-br} Minas Centrais: +{de} Kernmine(n): +", (turnOrder[a].score.CoreMine*7)})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CoreMine, "{en} Core Mine(s): +{ru} Шахта на развитой земле: +{zh-tw}个魔晶矿山已解放: +{zh-cn}个魔晶矿山已解放: +{ko} 중심부 광산: +{es} Minas Centrales: +{fr} Mines de Base: +{pt-br} Minas Centrais: +{de} Kernmine(n): +", (turnOrder[a].score.CoreMine*7)})
 							totalScore=totalScore+(turnOrder[a].score.CoreMine*7)
 						end
 
 					end
 					if turnOrder[a].score.gLiberator>0 then
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Liberator: +{ru}Великий исследователь подземелий: +{zh-cn}至善解放者： +{ko}위대한 해방자: +{es}Mayor Libertador: +{fr}Plus Grand Libérateur: +{pt-br}Maior Libertador: +{de}Größter Befreier: +", turnOrder[a].score.gLiberator})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Liberator: +{ru}Великий исследователь подземелий: +{zh-tw}至善解放者： +{zh-cn}至善解放者： +{ko}위대한 해방자: +{es}Mayor Libertador: +{fr}Plus Grand Libérateur: +{pt-br}Maior Libertador: +{de}Größter Befreier: +", turnOrder[a].score.gLiberator})
 						totalScore=totalScore+turnOrder[a].score.gLiberator
 					end
 					updateScorePannel("Liberator", lineFeed, assembledText)
@@ -836,13 +836,13 @@ function displayScore(player, mouseButton, id)
 						assembledText="" lineFeed=0
 						if forTheCouncil~=true then
 							if turnOrder[a].score.Relic>0 then
-								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Relic, "{en} Relic(s) Found: +{ru} Реликвия найдена: +{zh-cn}个圣器已收集: +{ko} 발견한 유물: +{es} Reliquias Encontradas: +{fr} Reliques Trouvées: +{pt-br} Relíquias Encontradas: +{de} Relikt(e) gefunden: +", (turnOrder[a].score.Relic*4)})
+								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Relic, "{en} Relic(s) Found: +{ru} Реликвия найдена: +{zh-tw}个圣器已收集: +{zh-cn}个圣器已收集: +{ko} 발견한 유물: +{es} Reliquias Encontradas: +{fr} Reliques Trouvées: +{pt-br} Relíquias Encontradas: +{de} Relikt(e) gefunden: +", (turnOrder[a].score.Relic*4)})
 								totalScore=totalScore+(turnOrder[a].score.Relic*4)
 							end
 
 						end
 					if turnOrder[a].score.gRelic>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Relic Hunter: +{ru}Великий охотник за древностями: +{zh-cn}至高圣器猎手： +{ko}위대한 유물 사냥꾼: +{es}Mayor Relic Hunter: +{fr}Plus Grand Chasseur de Reliques: +{pt-br}Maior Caçador de Relíquias: +{de}Größter Reliquienjäger: +", turnOrder[a].score.gRelic})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Relic Hunter: +{ru}Великий охотник за древностями: +{zh-tw}至高圣器猎手： +{zh-cn}至高圣器猎手： +{ko}위대한 유물 사냥꾼: +{es}Mayor Relic Hunter: +{fr}Plus Grand Chasseur de Reliques: +{pt-br}Maior Caçador de Relíquias: +{de}Größter Reliquienjäger: +", turnOrder[a].score.gRelic})
 							totalScore=totalScore+turnOrder[a].score.gRelic
 						end
 						updateScorePannel("Relic", lineFeed, assembledText)
@@ -853,13 +853,13 @@ function displayScore(player, mouseButton, id)
 					appendHeroChallenge("Beating")
 					if forTheCouncil~=true then
 						if turnOrder[a].score.Wound>0 and not (heroChallengeActive(a)==true and turnOrder[a].mage=="Arythea") then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Wound, "{en} Wound(s): -{ru} Рана: -{zh-cn}张创伤卡: -{ko} 부상: -{es} Heridas: -{fr} Blessures: -{pt-br} Ferimentos: -{de} Wunde(n): -", (turnOrder[a].score.Wound*2)})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Wound, "{en} Wound(s): -{ru} Рана: -{zh-tw}张创伤卡: -{zh-cn}张创伤卡: -{ko} 부상: -{es} Heridas: -{fr} Blessures: -{pt-br} Ferimentos: -{de} Wunde(n): -", (turnOrder[a].score.Wound*2)})
 							totalScore=totalScore-(turnOrder[a].score.Wound*2)
 						end
 
 					end
 					if turnOrder[a].score.gBeating>0 then
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Beating: -{ru}Великое поражение: -{zh-cn}受伤最多的: -{ko}위대한 패배자: -{es}Mayor Paliza: -{fr}Plus Grandr Battement: -{pt-br}Mais Espancado: -{de}Größter Prügler: -", turnOrder[a].score.gBeating})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Beating: -{ru}Великое поражение: -{zh-tw}受伤最多的: -{zh-cn}受伤最多的: -{ko}위대한 패배자: -{es}Mayor Paliza: -{fr}Plus Grandr Battement: -{pt-br}Mais Espancado: -{de}Größter Prügler: -", turnOrder[a].score.gBeating})
 						totalScore=totalScore-turnOrder[a].score.gBeating
 					end
 					updateScorePannel("Beating", lineFeed, assembledText)
@@ -869,15 +869,15 @@ function displayScore(player, mouseButton, id)
 						if fracturedLandsNoCityScore~=true then
 							assembledText="" lineFeed=0
 							if turnOrder[a].score.CityLead>0 and gStates.defeatedCities.amount>0 then
-								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CityLead, "{en} Conquered City(s): +{ru} Захваченный Город: +{zh-cn}个城市已征服: +{ko} 정복한 도시: +{es} Ciudades Conquistadas: +{fr} Villes Conquises: +{pt-br} Cidades Conquistadas: +{de} Eroberte Stadt(en): +", (turnOrder[a].score.CityLead*7)})
+								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CityLead, "{en} Conquered City(s): +{ru} Захваченный Город: +{zh-tw}个城市已征服: +{zh-cn}个城市已征服: +{ko} 정복한 도시: +{es} Ciudades Conquistadas: +{fr} Villes Conquises: +{pt-br} Cidades Conquistadas: +{de} Eroberte Stadt(en): +", (turnOrder[a].score.CityLead*7)})
 								totalScore=totalScore+(turnOrder[a].score.CityLead*7)
 							end
 							if turnOrder[a].score.CityAssist>0 and gStates.defeatedCities.amount>0 then
-								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CityAssist, "{en} Assisted City(s): +{ru} Помощь с Городом: +{zh-cn}个城市已援助: +{ko} 도와준 도시: +{es} Ciudades Asistidas: +{fr} Villes Aidées: +{pt-br} Cidades Assistidas: +{de} Unterstützte Stadt(en): +", (turnOrder[a].score.CityAssist*4)})
+								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CityAssist, "{en} Assisted City(s): +{ru} Помощь с Городом: +{zh-tw}个城市已援助: +{zh-cn}个城市已援助: +{ko} 도와준 도시: +{es} Ciudades Asistidas: +{fr} Villes Aidées: +{pt-br} Cidades Assistidas: +{de} Unterstützte Stadt(en): +", (turnOrder[a].score.CityAssist*4)})
 								totalScore=totalScore+(turnOrder[a].score.CityAssist*4)
 							end
 							if turnOrder[a].score.gCityLead>0 and gStates.defeatedCities.amount>0 then
-								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest City Leader: +{ru}Великий завоеватель городов: +{zh-cn}至强城市领袖： +{ko}위대한 도시 정복자: +{es}Mayor Líder de la Ciudad: +{fr}Plus Grand Chef de la Ville: +{pt-br}Maior Líder de Cidade: +{de}Größter Stadtführer: +", turnOrder[a].score.gCityLead})
+								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest City Leader: +{ru}Великий завоеватель городов: +{zh-tw}至强城市领袖： +{zh-cn}至强城市领袖： +{ko}위대한 도시 정복자: +{es}Mayor Líder de la Ciudad: +{fr}Plus Grand Chef de la Ville: +{pt-br}Maior Líder de Cidade: +{de}Größter Stadtführer: +", turnOrder[a].score.gCityLead})
 								totalScore=totalScore+turnOrder[a].score.gCityLead
 							end
 							updateScorePannel("City", lineFeed, assembledText)
@@ -886,11 +886,11 @@ function displayScore(player, mouseButton, id)
 						--Tezla Faction Leaders
 						assembledText="" lineFeed=0
 						if (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="Ultimate Conquest") and turnOrder[a].score.DarkFactionLead>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Dark Crusader Enemy: +5{ru}Враг Темного легиона: +5{zh-cn}黑暗十字军敌人: +5{ko}암흑 십자군 적: +5{es}Enemigo del Cruzado Oscuro: +5{fr}Ennemi Noir Croisé: +5{pt-br}Inimigo dos Cruzados Sombrios: +5{de}Feind des dunklen Kreuzfahrers: +5"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Dark Crusader Enemy: +5{ru}Враг Темного легиона: +5{zh-tw}黑暗十字军敌人: +5{zh-cn}黑暗十字军敌人: +5{ko}암흑 십자군 적: +5{es}Enemigo del Cruzado Oscuro: +5{fr}Ennemi Noir Croisé: +5{pt-br}Inimigo dos Cruzados Sombrios: +5{de}Feind des dunklen Kreuzfahrers: +5"})
 							totalScore=totalScore+5
 						end
 						if (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="Ultimate Conquest") and turnOrder[a].score.ElemFactionLead>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Elementalist Enemy: +5{ru}Враг Элементалистов: +5{zh-cn}元素敌人: +5{ko}원소술사 적: +5{es}Enemigo Elementalista: +5{fr}Ennemi Elémentaliste: +5{pt-br}Inimigo dos Elementaristas: +5{de}Elementarmagier-Feind: +5"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Elementalist Enemy: +5{ru}Враг Элементалистов: +5{zh-tw}元素敌人: +5{zh-cn}元素敌人: +5{ko}원소술사 적: +5{es}Enemigo Elementalista: +5{fr}Ennemi Elémentaliste: +5{pt-br}Inimigo dos Elementaristas: +5{de}Elementarmagier-Feind: +5"})
 							totalScore=totalScore+5
 						end
 						updateScorePannel("Tezla", lineFeed, assembledText)
@@ -905,26 +905,26 @@ function displayScore(player, mouseButton, id)
 						local b=2
 						if gStates.gameScenario=="Conquer and Hold" then b=3 end
 						if heroChallengeActive(a)==true and turnOrder[a].mage=="Tovak" then b=4 end
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Keep, "{en} Keep(s): +{ru} Крепость: +{zh-cn}个要塞已占领: +{ko} 성: +{es} Mantiene: +{fr} Garde: +{pt-br} Fortes: +{de} Bergfried(e): +", turnOrder[a].score.Keep*b})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Keep, "{en} Keep(s): +{ru} Крепость: +{zh-tw}个要塞已占领: +{zh-cn}个要塞已占领: +{ko} 성: +{es} Mantiene: +{fr} Garde: +{pt-br} Fortes: +{de} Bergfried(e): +", turnOrder[a].score.Keep*b})
 						if gStates.gameScenario=="Conquer and Hold" then totalScore=turnOrder[a].score.Keep*b else totalScore=totalScore+(turnOrder[a].score.Keep*b) end
 					end
 					if turnOrder[a].score.MageTower>0 and forTheCouncil~=true then
 						local towerRate=heroChallengeActive(a)==true and turnOrder[a].mage=="Tovak" and 4 or 2
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.MageTower, "{en} Mage Tower(s): +{ru} Башня мага: +{zh-cn}个法师塔已征服: +{ko} 마법사의 탑: +{es} Torres de Magos: +{fr} Tours des Mages: +{pt-br} Torres de Mago: +{de} Magierturm(e): +", turnOrder[a].score.MageTower*towerRate})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.MageTower, "{en} Mage Tower(s): +{ru} Башня мага: +{zh-tw}个法师塔已征服: +{zh-cn}个法师塔已征服: +{ko} 마법사의 탑: +{es} Torres de Magos: +{fr} Tours des Mages: +{pt-br} Torres de Mago: +{de} Magierturm(e): +", turnOrder[a].score.MageTower*towerRate})
 						totalScore=totalScore+(turnOrder[a].score.MageTower*towerRate)
 					end
 					if gStates.gameScenario~="Conquer and Hold" then
 						if turnOrder[a].score.Monastery>0 and forTheCouncil~=true then
 							local monasteryRate=heroChallengeActive(a)==true and turnOrder[a].mage=="Tovak" and 4 or 2
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Monastery, "{en} Monastery(s): +{ru} Монастырь: +{zh-cn}个修道院已焚毁: +{ko} 수도원: +{es} Monasterios: +{fr} Monastères: +{pt-br} Monastérios: +{de} Kloster(s): +", turnOrder[a].score.Monastery*monasteryRate})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.Monastery, "{en} Monastery(s): +{ru} Монастырь: +{zh-tw}个修道院已焚毁: +{zh-cn}个修道院已焚毁: +{ko} 수도원: +{es} Monasterios: +{fr} Monastères: +{pt-br} Monastérios: +{de} Kloster(s): +", turnOrder[a].score.Monastery*monasteryRate})
 							totalScore=totalScore+(turnOrder[a].score.Monastery*monasteryRate)
 						end
 						if turnOrder[a].score.VolkareCamp>0 and forTheCouncil~=true then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.VolkareCamp, "{en} Volkare Pursuits: +{ru} Охоты на Волкара: +{zh-cn}沃卡里追击： +{ko} 볼케어 진영 추적: +{es} Persecuciones de Volkare: +{fr} Volkare Poursuites: +{pt-br} Volkare Persegue: +{de} Volkare Verfolgungen: +", turnOrder[a].score.VolkareCamp})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.VolkareCamp, "{en} Volkare Pursuits: +{ru} Охоты на Волкара: +{zh-tw}沃卡里追击： +{zh-cn}沃卡里追击： +{ko} 볼케어 진영 추적: +{es} Persecuciones de Volkare: +{fr} Volkare Poursuites: +{pt-br} Volkare Persegue: +{de} Volkare Verfolgungen: +", turnOrder[a].score.VolkareCamp})
 							totalScore=totalScore+turnOrder[a].score.VolkareCamp
 						end
 						if turnOrder[a].score.gConqueror>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Conqueror: +{ru}Великий завоеватель: +{zh-cn}至高征服者： +{ko}위대한 정복자: +{es}Mayor Conquistador: +{fr}Plus Grand Conquérant: +{pt-br}Maior Conquistador: +{de}Größter Eroberer: +", turnOrder[a].score.gConqueror})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Conqueror: +{ru}Великий завоеватель: +{zh-tw}至高征服者： +{zh-cn}至高征服者： +{ko}위대한 정복자: +{es}Mayor Conquistador: +{fr}Plus Grand Conquérant: +{pt-br}Maior Conquistador: +{de}Größter Eroberer: +", turnOrder[a].score.gConqueror})
 							totalScore=totalScore+turnOrder[a].score.gConqueror
 						end
 					end
@@ -974,9 +974,9 @@ function displayScore(player, mouseButton, id)
 						local resultSuffix=councilMissionResult~="" and joinLang({"\n", councilMissionResult}) or ""
 						UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final Score: {ru}'s Final Score: {zh-tw}'s Final Score: {zh-cn}'s Final Score: {ko}'s Final Score: {es}'s Final Score: {fr}'s Final Score: {pt-br}'s Final Score: {de}'s Final Score: ", totalScore, resultSuffix}))
 					else
-						UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final Fame: {ru} имеет итого Славы: {zh-cn}的最终名望： {ko} 의 최종 명성: {es} Fama Final: {fr} Gloire Finale: {pt-br} Fama Final: {de}End-Ruhm: ", totalScore}))
+						UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final Fame: {ru} имеет итого Славы: {zh-tw}的最终名望： {zh-cn}的最终名望： {ko} 의 최종 명성: {es} Fama Final: {fr} Gloire Finale: {pt-br} Fama Final: {de}End-Ruhm: ", totalScore}))
 					end
-					if gStates.gameScenario=="Conquer and Hold" then UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final VP: {ru} имеет итого ПО: {zh-cn}的最终分数： {ko} 의 최종 승점: {es} Vicepresidente Final: {fr} Vice-Président Final de: {pt-br} Pontos de Vitória Final: {de}s End-VP: ", totalScore})) end
+					if gStates.gameScenario=="Conquer and Hold" then UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final VP: {ru} имеет итого ПО: {zh-tw}的最终分数： {zh-cn}的最终分数： {ko} 의 최종 승점: {es} Vicepresidente Final: {fr} Vice-Président Final de: {pt-br} Pontos de Vitória Final: {de}s End-VP: ", totalScore})) end
 					turnOrder[a].score.finalScore=totalScore
 				end
 				pannel=pannel+1
@@ -990,17 +990,17 @@ function displayScore(player, mouseButton, id)
 						if gStates.currentRound<gStates.rounds and gStates.gameScenario~="The Lost Relic Blitz" then
 							local c=30
 							if gStates.gameScenario=="The Gauntlet" then c=40 end
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{gStates.rounds-gStates.currentRound, "{en} Round(s) still to go: +{ru} Оставшиеся Раунды: +{zh-cn}个未开始的轮次： +{ko} 남은 라운드: +{es} Rondas Aún por Hacer: +{fr} Rounds Encore à Faire: +{pt-br} Rodadas ainda a completar: +{de} Noch ausstehende Runde(n): +", ((gStates.rounds-gStates.currentRound)*c)})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{gStates.rounds-gStates.currentRound, "{en} Round(s) still to go: +{ru} Оставшиеся Раунды: +{zh-tw}个未开始的轮次： +{zh-cn}个未开始的轮次： +{ko} 남은 라운드: +{es} Rondas Aún por Hacer: +{fr} Rounds Encore à Faire: +{pt-br} Rodadas ainda a completar: +{de} Noch ausstehende Runde(n): +", ((gStates.rounds-gStates.currentRound)*c)})
 							coopScore=coopScore+((gStates.rounds-gStates.currentRound)*c)
 						end
 						if turnOrder[a].score.CardsLeft>0 then
 							local c=1
 							if gStates.gameScenario=="The Gauntlet" then c=2 end
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CardsLeft, "{en} Dummy Card(s) Left: +{ru} Карт у виртуального игрока: +{zh-cn}虚拟玩家剩余牌池量： +{ko} 남은 가상 플레이어의 카드: + {es} Cartas Falsas Restantes: +{fr} Cartes Factices Restantes: +{pt-br} Cartas Restantes do Jog. Fic.: +{de} Dummy-Karte(n) links: +", turnOrder[a].score.CardsLeft*c})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CardsLeft, "{en} Dummy Card(s) Left: +{ru} Карт у виртуального игрока: +{zh-tw}虚拟玩家剩余牌池量： +{zh-cn}虚拟玩家剩余牌池量： +{ko} 남은 가상 플레이어의 카드: + {es} Cartas Falsas Restantes: +{fr} Cartes Factices Restantes: +{pt-br} Cartas Restantes do Jog. Fic.: +{de} Dummy-Karte(n) links: +", turnOrder[a].score.CardsLeft*c})
 							coopScore=coopScore+turnOrder[a].score.CardsLeft*c
 						end
 						if gStates.endRoundCalled==false then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Round End Not Called: +5{ru}Конец последнего Раунда не был объявлен: +5{zh-cn}最后一轮中没有声明本轮结束： +5{ko}라운드 종료 선언되지 않음: +5{es}Final de Ronda no Llamado: +5{fr}Fin de Manche non Appelée: +5{pt-br}Rodada final Não chamada: +5{de}Rundenende nicht ausgerufen: +5"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Round End Not Called: +5{ru}Конец последнего Раунда не был объявлен: +5{zh-tw}最后一轮中没有声明本轮结束： +5{zh-cn}最后一轮中没有声明本轮结束： +5{ko}라운드 종료 선언되지 않음: +5{es}Final de Ronda no Llamado: +5{fr}Fin de Manche non Appelée: +5{pt-br}Rodada final Não chamada: +5{de}Rundenende nicht ausgerufen: +5"})
 							coopScore=coopScore+5
 						end
 						if gStates.gameScenario=="Druid Nights" and gStates.playerCount==1 then
@@ -1022,9 +1022,9 @@ function displayScore(player, mouseButton, id)
 						if gStates.volkareWon~=true then
 							local volkareCombatLevel={"Daring", "Heroic", "Legendary"}
 							local volkareRaceLevel={"Fair", "Tight", "Thrilling"}
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{translateWord[volkareCombatLevel[gStates.volkareCombatLevel]], "{en} Volkare Combat Level: +(({ru} Уровень битвы Волкара: +(({zh-cn}沃卡里战斗等级： +（（{ko} 볼케어 전투 레벨: +(({es} Nivel de Combate Volkare: +(({fr} Niveau de Combat Volkare: +(({pt-br} Nível de Combate de Volkare: +(({de} Volkare Kampfstufe: +((", (gStates.volkareCombatLevel*10)+20})
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CardsLeft, "{en} Volkare Card(s) Left: +{ru} Карт у Волкара: +{zh-cn}沃卡里卡池剩余： +{ko} 남은 볼케어 카드: +{es} Cartas Volkare Restantes: +{fr} Cartes Volkare Restantes: +{pt-br} Cartas de Volkare Restantes: +{de} Volkare Karte(n) übrig: +", (turnOrder[a].score.CardsLeft*2), ")"})
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{translateWord[volkareRaceLevel[gStates.volkareRaceLevel]], "{en} Volkare Race Level: x{ru} Уровень гонки Волкара: x{zh-cn}沃卡里移动等级： x{ko} 볼케어 레이스 레벨: x{es} Nivel de Carrera Volkare: x{fr} Niveau de Course Volkare: x{pt-br} Nível de Corrida de Volkare: +{de} Volkare Ethnie Stufe: x", (((gStates.volkareRaceLevel-1)/2)+1), ")"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{translateWord[volkareCombatLevel[gStates.volkareCombatLevel]], "{en} Volkare Combat Level: +(({ru} Уровень битвы Волкара: +(({zh-tw}沃卡里战斗等级： +（（{zh-cn}沃卡里战斗等级： +（（{ko} 볼케어 전투 레벨: +(({es} Nivel de Combate Volkare: +(({fr} Niveau de Combat Volkare: +(({pt-br} Nível de Combate de Volkare: +(({de} Volkare Kampfstufe: +((", (gStates.volkareCombatLevel*10)+20})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CardsLeft, "{en} Volkare Card(s) Left: +{ru} Карт у Волкара: +{zh-tw}沃卡里卡池剩余： +{zh-cn}沃卡里卡池剩余： +{ko} 남은 볼케어 카드: +{es} Cartas Volkare Restantes: +{fr} Cartes Volkare Restantes: +{pt-br} Cartas de Volkare Restantes: +{de} Volkare Karte(n) übrig: +", (turnOrder[a].score.CardsLeft*2), ")"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{translateWord[volkareRaceLevel[gStates.volkareRaceLevel]], "{en} Volkare Race Level: x{ru} Уровень гонки Волкара: x{zh-tw}沃卡里移动等级： x{zh-cn}沃卡里移动等级： x{ko} 볼케어 레이스 레벨: x{es} Nivel de Carrera Volkare: x{fr} Niveau de Course Volkare: x{pt-br} Nível de Corrida de Volkare: +{de} Volkare Ethnie Stufe: x", (((gStates.volkareRaceLevel-1)/2)+1), ")"})
 							coopScore=coopScore+((((gStates.volkareCombatLevel*10)+20)+(turnOrder[a].score.CardsLeft*2))*(((gStates.volkareRaceLevel-1)/2)+1))
 							updateScorePannel("Volkare", lineFeed, assembledText)
 						end
@@ -1089,7 +1089,7 @@ function displayScore(player, mouseButton, id)
 					if gStates.gameScenario=="The Lost Relic Blitz" then
 						assembledText="" lineFeed=0
 						if foundRelic>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{foundRelic, "{en} Relic(s) Found: +{ru} Реликвия найдена: +{zh-cn}个圣器已收集: +{ko} 발견한 유물: +{es} Reliquias Encontradas: +{fr} Reliques Trouvées: +{pt-br} Relíquias Encontradas: +{de} Relikt(e) gefunden: +", (foundRelic*5)})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{foundRelic, "{en} Relic(s) Found: +{ru} Реликвия найдена: +{zh-tw}个圣器已收集: +{zh-cn}个圣器已收集: +{ko} 발견한 유물: +{es} Reliquias Encontradas: +{fr} Reliques Trouvées: +{pt-br} Relíquias Encontradas: +{de} Relikt(e) gefunden: +", (foundRelic*5)})
 							coopScore=coopScore+(foundRelic*5)
 						end
 						if gStates.playersRef~=5 then
@@ -1100,12 +1100,12 @@ function displayScore(player, mouseButton, id)
 								end
 							end
 							if EveryRelic==true then
-								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Every player collected a Relic: +5{ru}Каждый игрок собрал реликвию: +5{zh-cn}每位玩家收集一件圣器: +5{ko}모든 플레이어 유물 수집: +5{es}Cada Jugador Recogió una Reliquia: +5{fr}Chaque Joueur a Récupéré une Relique: +5{pt-br}Cada Jogador coletou uma Relíquia: +5{de}Jeder Spieler hat eine Reliquie gesammelt: +5"})
+								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Every player collected a Relic: +5{ru}Каждый игрок собрал реликвию: +5{zh-tw}每位玩家收集一件圣器: +5{zh-cn}每位玩家收集一件圣器: +5{ko}모든 플레이어 유물 수집: +5{es}Cada Jugador Recogió una Reliquia: +5{fr}Chaque Joueur a Récupéré une Relique: +5{pt-br}Cada Jogador coletou uma Relíquia: +5{de}Jeder Spieler hat eine Reliquie gesammelt: +5"})
 								coopScore=coopScore+5
 							end
 						end
 						if foundRelic==gStates.cityTiles then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All relics collected: +10{ru}Все реликвии собраны: +10{zh-cn}收集所有圣器: +10{ko}모든 유물 수집됨: +10{es}Todas las Reliquias Recolectadas: +10{fr}Toutes les Reliques Collectées: +10{pt-br}Todas Relíquias Coletadas: +10{de}Alle gesammelten Reliquien: +10"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All relics collected: +10{ru}Все реликвии собраны: +10{zh-tw}收集所有圣器: +10{zh-cn}收集所有圣器: +10{ko}모든 유물 수집됨: +10{es}Todas las Reliquias Recolectadas: +10{fr}Toutes les Reliques Collectées: +10{pt-br}Todas Relíquias Coletadas: +10{de}Alle gesammelten Reliquien: +10"})
 							coopScore=coopScore+10
 						end
 						local temp=pannel
@@ -1123,21 +1123,21 @@ function displayScore(player, mouseButton, id)
 						if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then cityValue=20 end
 						if gStates.gameScenario=="Volkare's Quest" then cityValue=5 end
 						if gStates.gameScenario~="The Gauntlet" then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{gStates.defeatedCities.amount, "{en} Conquered City(s): +{ru} Захваченный Город: +{zh-cn}个城市已征服: +{ko} 정복한 도시: +{es} Ciudades Conquistadas: +{fr} Villes Conquises: +{pt-br} Cidades Conquistadas: +{de} Eroberte Stadt(en): +", (gStates.defeatedCities.amount*cityValue)})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{gStates.defeatedCities.amount, "{en} Conquered City(s): +{ru} Захваченный Город: +{zh-tw}个城市已征服: +{zh-cn}个城市已征服: +{ko} 정복한 도시: +{es} Ciudades Conquistadas: +{fr} Villes Conquises: +{pt-br} Cidades Conquistadas: +{de} Eroberte Stadt(en): +", (gStates.defeatedCities.amount*cityValue)})
 							coopScore=coopScore+(gStates.defeatedCities.amount*cityValue)
 						end
 						if gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest" then
 							if gStates.playersRef~=5 and gStates.allLeaderCheck==true then
-								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Each Player is a Leader of a City: +10{ru}Каждый игрок владеет Городом: +10{zh-cn}每个玩家都是一个城市的领袖: +10{ko}각 플레이어가 도시 지도자: +10{es}Cada Jugador es un Líder de una Ciudad: +10{fr}Chaque Joueur est un Chef de Ville: +10{pt-br}Cada jogador é um líder de uma cidade: +10{de}Jeder Spieler ist ein Anführer einer Stadt: +10"})
+								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Each Player is a Leader of a City: +10{ru}Каждый игрок владеет Городом: +10{zh-tw}每个玩家都是一个城市的领袖: +10{zh-cn}每个玩家都是一个城市的领袖: +10{ko}각 플레이어가 도시 지도자: +10{es}Cada Jugador es un Líder de una Ciudad: +10{fr}Chaque Joueur est un Chef de Ville: +10{pt-br}Cada jogador é um líder de uma cidade: +10{de}Jeder Spieler ist ein Anführer einer Stadt: +10"})
 								coopScore=coopScore+10
 							end
 							if gStates.defeatedCities.amount==gStates.cityTiles then--+gStates.megapolis
-								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All Cities are Conquered: +15{ru}Все города захвачены: +15{zh-cn}征服了所有城市: +15{ko}모든 도시 정복됨: +15{es}Todas las Ciudades son Conquistadas: +15{fr}Toutes les Villes Sont Conquises: +15{pt-br}Todas Cidades Conquistadas: +15{de}Alle Städte sind erobert: +15"})
+								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All Cities are Conquered: +15{ru}Все города захвачены: +15{zh-tw}征服了所有城市: +15{zh-cn}征服了所有城市: +15{ko}모든 도시 정복됨: +15{es}Todas las Ciudades son Conquistadas: +15{fr}Toutes les Villes Sont Conquises: +15{pt-br}Todas Cidades Conquistadas: +15{de}Alle Städte sind erobert: +15"})
 								coopScore=coopScore+15
 							end
 						end
 						if gStates.gameScenario=="The Gauntlet" and gStates.endGameAchieved=="true" then
-							assembledText="{en}Entered the Red City: +10\nBought the Artifact: +10{ru}Красный город посещен: +10\nАртефакт куплен: +10{zh-cn}进入红色城市： +10\n购买圣器： +10{ko}적색 도시 입장: +10\n유물 구입: +10{es}Entró en la Ciudad Roja: +10\nCompró la Reliquia: +10{fr}Entrée dans la Ville Rouge: +10\nAcheté la Relique: +10{pt-br}Entrou na Cidade Vermelha:+10\nComprou a Relíquia: +10{de}Die Rote Stadt betreten: +10\nKaufte das Artefakt: +10"
+							assembledText="{en}Entered the Red City: +10\nBought the Artifact: +10{ru}Красный город посещен: +10\nАртефакт куплен: +10{zh-tw}进入红色城市： +10\n购买圣器： +10{zh-cn}进入红色城市： +10\n购买圣器： +10{ko}적색 도시 입장: +10\n유물 구입: +10{es}Entró en la Ciudad Roja: +10\nCompró la Reliquia: +10{fr}Entrée dans la Ville Rouge: +10\nAcheté la Relique: +10{pt-br}Entrou na Cidade Vermelha:+10\nComprou a Relíquia: +10{de}Die Rote Stadt betreten: +10\nKaufte das Artefakt: +10"
 							lineFeed=2
 							coopScore=coopScore+20
 						end
@@ -1155,18 +1155,18 @@ function displayScore(player, mouseButton, id)
 					if againstHorsemen~=true and againstDragon~=true then
 					assembledText="" lineFeed=0
 					if (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Ultimate Conquest") and gStates.coop==1 and gStates.defeatedFaction>0 then
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{gStates.defeatedFaction, "{en} Leader(s) Defeated: +{ru} Лидер побежден: +{zh-cn}个领袖已击败: +{ko} 처치한 지도자: +{es} Líderes Derrotados: +{fr} Chefs Vaincus: +{pt-br} Líderes Derrotados: +{de} Anführer besiegt: +", (gStates.defeatedFaction*10)})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{gStates.defeatedFaction, "{en} Leader(s) Defeated: +{ru} Лидер побежден: +{zh-tw}个领袖已击败: +{zh-cn}个领袖已击败: +{ko} 처치한 지도자: +{es} Líderes Derrotados: +{fr} Chefs Vaincus: +{pt-br} Líderes Derrotados: +{de} Anführer besiegt: +", (gStates.defeatedFaction*10)})
 						coopScore=coopScore+(gStates.defeatedFaction*10)
 						if gStates.defeatedFaction==2 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Both Leaders are defeated: +15{ru}Оба Лидера побеждены: +15{zh-cn}两位领袖都被击败: +15{ko}모든 지도자 처치됨: +15{es}Ambos Líderes son Derrotados: +15{fr}Les deux Chefs sont Vaincus: +15{pt-br}Ambos líderes derrotados: +15{de}Beide Anführer sind besiegt: +15"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Both Leaders are defeated: +15{ru}Оба Лидера побеждены: +15{zh-tw}两位领袖都被击败: +15{zh-cn}两位领袖都被击败: +15{ko}모든 지도자 처치됨: +15{es}Ambos Líderes son Derrotados: +15{fr}Les deux Chefs sont Vaincus: +15{pt-br}Ambos líderes derrotados: +15{de}Beide Anführer sind besiegt: +15"})
 							coopScore=coopScore+15
 							if gStates.playersRef~=5 then
 								if gStates.allPlayersFoughtAFactionLeaderCheck==true then
-									assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Every player helped defeat a Leader: +10{ru}Каждый игрок помог победить Лидера: +10{zh-cn}每个玩家都帮助击败了一个领袖: +10{ko}모든 플레이어가 지도자 처치에 참여: +10{es}Cada Jugador Ayudó a Derrotar a un Líder: +10{fr}Chaque Joueur a Aidé à Vaincre un Leader: +10{pt-br}Cada Jogador ajudou a derrotar um Líder: +10{de}Jeder Spieler hat geholfen, einen Anführer zu besiegen: +10"})
+									assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Every player helped defeat a Leader: +10{ru}Каждый игрок помог победить Лидера: +10{zh-tw}每个玩家都帮助击败了一个领袖: +10{zh-cn}每个玩家都帮助击败了一个领袖: +10{ko}모든 플레이어가 지도자 처치에 참여: +10{es}Cada Jugador Ayudó a Derrotar a un Líder: +10{fr}Chaque Joueur a Aidé à Vaincre un Leader: +10{pt-br}Cada Jogador ajudou a derrotar um Líder: +10{de}Jeder Spieler hat geholfen, einen Anführer zu besiegen: +10"})
 									coopScore=coopScore+10
 								end
 								if gStates.allPlayersFoughtBothFactionLeaderCheck==true then
-									assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Every player helped defeat Both Leaders: +10{ru}Каждый игрок помог победить обоих Лидеров: +10{zh-cn}每个玩家都帮助击败了两个领袖: +10{ko}모든 플레이어가 두 지도차 처치에 참여: +10{es}Cada Jugador Ayudó a Derrotar a Ambos Líderes: +10{fr}Chaque Joueur a Aidé à Vaincre les Deux Leaders: +10{pt-br}Cada Jogador ajudou a derrotar ambos Líderes: +10{de}Jeder Spieler hat geholfen, beide Anführer zu besiegen: +10"})
+									assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Every player helped defeat Both Leaders: +10{ru}Каждый игрок помог победить обоих Лидеров: +10{zh-tw}每个玩家都帮助击败了两个领袖: +10{zh-cn}每个玩家都帮助击败了两个领袖: +10{ko}모든 플레이어가 두 지도차 처치에 참여: +10{es}Cada Jugador Ayudó a Derrotar a Ambos Líderes: +10{fr}Chaque Joueur a Aidé à Vaincre les Deux Leaders: +10{pt-br}Cada Jogador ajudou a derrotar ambos Líderes: +10{de}Jeder Spieler hat geholfen, beide Anführer zu besiegen: +10"})
 									coopScore=coopScore+10
 								end
 							end
@@ -1174,29 +1174,29 @@ function displayScore(player, mouseButton, id)
 					end
 					if gStates.gameScenario=="The Realm of the Dead Blitz" and gStates.coop==1 then
 						if gStates.defeatedFaction>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Necromancer is Defeated: +10{ru}Некромант побежден: +10{zh-cn}亡灵法师被击败: +10{ko}네크로맨서 처치됨: +10{es}Nigromante es Derrotado: +10{fr}Nécromancien est Vaincu: +10{pt-br}Necromante derrotado: +10{de}Nekromant ist besiegt: +10"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Necromancer is Defeated: +10{ru}Некромант побежден: +10{zh-tw}亡灵法师被击败: +10{zh-cn}亡灵法师被击败: +10{ko}네크로맨서 처치됨: +10{es}Nigromante es Derrotado: +10{fr}Nécromancien est Vaincu: +10{pt-br}Necromante derrotado: +10{de}Nekromant ist besiegt: +10"})
 							coopScore=coopScore+10
 						end
 						if coopGraveYard>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{coopGraveYard, "{en} Graveyard(s) sealed: +{ru} Кладбище запечатано: +{zh-cn}个墓穴已封印: +{ko} 봉인된 묘지: +{es} Cementerios Sellados: +{fr} Cimetières Scellés: +{pt-br} Cemitérios Selados: +{de} Friedhof(e) versiegelt: +", (coopGraveYard*5)})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{coopGraveYard, "{en} Graveyard(s) sealed: +{ru} Кладбище запечатано: +{zh-tw}个墓穴已封印: +{zh-cn}个墓穴已封印: +{ko} 봉인된 묘지: +{es} Cementerios Sellados: +{fr} Cimetières Scellés: +{pt-br} Cemitérios Selados: +{de} Friedhof(e) versiegelt: +", (coopGraveYard*5)})
 							coopScore=coopScore+(coopGraveYard*5)
 						end
 						if gStates.defeatedFaction>0 and coopGraveYard>=gStates.playerCount+1 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Necromancer defeated & Graveyards sealed: +10{ru}Некромант побежден & Кладбища запечатаны: +10{zh-cn}亡灵法师被击败并封印墓穴: +10{ko}네크로맨서 처치 & 묘지 봉인됨: +10{es}Nigromante derrotado y Cementerios sellados: +10{fr}Nécromancien vaincu & Cimetières scellés: +10{pt-br}Necromante derrotado e Cemitérios Selados: +10{de}Nekromant besiegt & Friedhöfe versiegelt: +10"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Necromancer defeated & Graveyards sealed: +10{ru}Некромант побежден & Кладбища запечатаны: +10{zh-tw}亡灵法师被击败并封印墓穴: +10{zh-cn}亡灵法师被击败并封印墓穴: +10{ko}네크로맨서 처치 & 묘지 봉인됨: +10{es}Nigromante derrotado y Cementerios sellados: +10{fr}Nécromancien vaincu & Cimetières scellés: +10{pt-br}Necromante derrotado e Cemitérios Selados: +10{de}Nekromant besiegt & Friedhöfe versiegelt: +10"})
 							coopScore=coopScore+10
 						end
 					end
 					if (gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz") and gStates.coop==1 and gStates.playersRef~=5 and gStates.allPlayersFoughtAFactionLeaderCheck==true and gStates.defeatedFaction>0 then
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Every player helped defeat the Leader: +20{ru}Каждый игрок помог победить Лидера: +20{zh-cn}所有玩家都帮助击败了首领: +20{ko}모든 플레이어가 지도자 처치에 참여: +20{es}Todos los Jugadores Ayudaron a Derrotar al Líder: +20{fr}Chaque Joueur a Aidé à Vaincre le Leader: +20{pt-br}Cada Jogador ajudou a derrotar o Líder: +20{de}Jeder Spieler hat geholfen, den Anführer zu besiegen: +20"})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Every player helped defeat the Leader: +20{ru}Каждый игрок помог победить Лидера: +20{zh-tw}所有玩家都帮助击败了首领: +20{zh-cn}所有玩家都帮助击败了首领: +20{ko}모든 플레이어가 지도자 처치에 참여: +20{es}Todos los Jugadores Ayudaron a Derrotar al Líder: +20{fr}Chaque Joueur a Aidé à Vaincre le Leader: +20{pt-br}Cada Jogador ajudou a derrotar o Líder: +20{de}Jeder Spieler hat geholfen, den Anführer zu besiegen: +20"})
 						coopScore=coopScore+20
 					end
 					if gStates.gameScenario=="The Hidden Valley Blitz" and gStates.coop==1 and gStates.defeatedFaction>0 then
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Defeated the High Priestess: +20{ru}Верховная Жрица побеждена: +20{zh-cn}击败高阶祭司: +20{ko}하이 프리스트 처치됨: +20{es}Derrota a la Suma Sacerdotisa: +20{fr}Vaincre la Grande Prêtresse: +20{pt-br}Derrotou a Alta Sacerdotiza: +20{de}Die Hohepriesterin besiegt: +20"})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Defeated the High Priestess: +20{ru}Верховная Жрица побеждена: +20{zh-tw}击败高阶祭司: +20{zh-cn}击败高阶祭司: +20{ko}하이 프리스트 처치됨: +20{es}Derrota a la Suma Sacerdotisa: +20{fr}Vaincre la Grande Prêtresse: +20{pt-br}Derrotou a Alta Sacerdotiza: +20{de}Die Hohepriesterin besiegt: +20"})
 						coopScore=coopScore+20
 					end
 					local temp=pannel
 					pannel=1
-					UI.setAttribute("TezlaScoreHeadingText", "text", "{en}Faction Scoring{ru}Подсчет очков фракций{zh-cn}派系得分{ko}세력 점수{es}Puntuación de Facción{fr}Décompte des Factions{pt-br}Pontuação de Facção{de}Faction-Wertung")
+					UI.setAttribute("TezlaScoreHeadingText", "text", "{en}Faction Scoring{ru}Подсчет очков фракций{zh-tw}派系得分{zh-cn}派系得分{ko}세력 점수{es}Puntuación de Facción{fr}Décompte des Factions{pt-br}Pontuação de Facção{de}Faction-Wertung")
 					UI.setAttribute("Tezla1ScoreCell", "columnSpan", "4")
 					UI.setAttribute("Tezla1ScoreText", "alignment", "MiddleCenter")
 					updateScorePannel("Tezla", lineFeed, assembledText)
@@ -1209,7 +1209,7 @@ function displayScore(player, mouseButton, id)
 					local resultSuffix=councilMissionResult~="" and joinLang({"\n", councilMissionResult}) or ""
 					UI.setAttribute("CoopScoreText", "text", joinLang({"{en}Final Score: {ru}Final Score: {zh-tw}Final Score: {zh-cn}Final Score: {ko}Final Score: {es}Final Score: {fr}Final Score: {pt-br}Final Score: {de}Final Score: ", coopScore, resultSuffix}))
 				else
-					UI.setAttribute("CoopScoreText", "text", joinLang({"{en}Final Fame: {ru}Итого Славы: {zh-cn}最终名望: {ko}최종 명성: {es}Fama Final: {fr}Gloire Finale: {pt-br}Fama Final: {de}Endgültiger Ruhm: ", coopScore}))
+					UI.setAttribute("CoopScoreText", "text", joinLang({"{en}Final Fame: {ru}Итого Славы: {zh-tw}最终名望: {zh-cn}最终名望: {ko}최종 명성: {es}Fama Final: {fr}Gloire Finale: {pt-br}Fama Final: {de}Endgültiger Ruhm: ", coopScore}))
 				end
 				for count=1, #turnOrder-1 ,1 do
 					turnOrder[count].score.finalScore=coopScore
