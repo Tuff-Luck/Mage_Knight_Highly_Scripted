@@ -10,6 +10,16 @@ local function setupMapObjectSettled(guid)
 	return obj~=nil and obj.resting==true and obj.isSmoothMoving()==false
 end
 
+local function setupTintStartingTerrain(guid)
+	local obj=guid~=nil and getObjectFromGUID(guid) or nil
+	if obj==nil then return end
+	if gStates.startAtNight==true then
+		obj.setColorTint({r=0.6,g=0.6,b=0.6})
+	else
+		obj.setColorTint({r=1.0,g=1.0,b=1.0})
+	end
+end
+
 --Initial map reveals used to be spaced on one-second timers. Preserve their ordering, but advance each
 --batch as soon as the previous terrain-entry/population work has genuinely completed.
 local function revealSetupTerrainBatches(batches,onComplete)
@@ -174,6 +184,7 @@ function mapSetup(onComplete)
 			safeWaitCondition("SetupGame",function()
 				getObjectFromGUID(startTerrain.open).unlock()
 				getObjectFromGUID(portal.terrainHex).unlock()
+				setupTintStartingTerrain(startTerrain.open)
 				finishMapSetup(true)
 			end,function()
 				return getObjectFromGUID(startTerrain.open)~=nil and getObjectFromGUID(portal.terrainHex)~=nil
@@ -182,6 +193,7 @@ function mapSetup(onComplete)
 			local openStart=getObjectFromGUID(startTerrain.open)
 			if openStart~=nil then openStart.unlock() end
 			if portalObj~=nil then portalObj.unlock() end
+			setupTintStartingTerrain(startTerrain.open)
 			finishMapSetup(true)
 		end
 		return
@@ -623,9 +635,15 @@ function mapSetup(onComplete)
 		local startGUID=(shape=="O" or shape=="F" or shape=="P") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
 		return setupMapObjectSettled(startGUID) and setupMapObjectSettled(portal.terrainHex)
 	end
+	local function tintAndReveal(batches,callback)
+		local shape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)
+		local startGUID=(shape=="O" or shape=="F" or shape=="P") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
+		if againstHorsemenMap~=true then setupTintStartingTerrain(startGUID) end
+		revealSetupTerrainBatches(batches,callback)
+	end
 	local function revealWhenStartReady(batches,callback)
-		if startReferenceReady()==true then revealSetupTerrainBatches(batches,callback) return end
-		safeWaitCondition("SetupGame",function() revealSetupTerrainBatches(batches,callback) end,startReferenceReady,10,function()
+		if startReferenceReady()==true then tintAndReveal(batches,callback) return end
+		safeWaitCondition("SetupGame",function() tintAndReveal(batches,callback) end,startReferenceReady,10,function()
 			finishMapSetup(false,"SetupGame timed out waiting for the starting terrain reference.")
 		end)
 	end
