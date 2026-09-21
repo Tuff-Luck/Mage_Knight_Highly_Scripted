@@ -1323,9 +1323,9 @@ function apocalypseQuestResolveRichMerchantRoll(card,playerIndex,roll)
 	if roll=="Black" then
 		if gStates.apocalypseQuestRichMerchantHidden==nil then gStates.apocalypseQuestRichMerchantHidden={} end
 		gStates.apocalypseQuestRichMerchantHidden[card.guid]={mage=turnOrder[playerIndex].mage,spawned=false}
-		broadcastToAll("A Rich Merchant rolled Black; Step 2 will attack at the start of this Hero's next turn.",positionToColor(playerIndex))
+		broadcastToAll("{en}A Rich Merchant rolled Black; Step 2 will attack at the start of this Hero's next turn.{ru}A Rich Merchant выбросил чёрный; шаг 2 атакует в начале следующего хода этого Героя.{zh-tw}A Rich Merchant 擲出黑色；步驟 2 將在此英雄下個回合開始時發動攻擊。{zh-cn}A Rich Merchant 掷出黑色；步骤 2 将在此英雄下个回合开始时发动攻击。{ko}A Rich Merchant가 검정을 굴렸습니다. 2단계는 이 영웅의 다음 턴 시작에 공격합니다.{es}A Rich Merchant sacó Negro; el Paso 2 atacará al comienzo del próximo turno de este Héroe.{fr}A Rich Merchant a obtenu Noir ; l’Étape 2 attaquera au début du prochain tour de ce Héros.{pt-br}A Rich Merchant rolou Preto; a Etapa 2 atacará no início do próximo turno deste Herói.{de}A Rich Merchant würfelte Schwarz; Schritt 2 greift zu Beginn des nächsten Zuges dieses Helden an.",positionToColor(playerIndex))
 	else
-		broadcastToAll("A Rich Merchant rolled "..tostring(roll)..". Press Complete to finish the Quest.",positionToColor(playerIndex))
+		broadcastToAll(joinLang({"{en}A Rich Merchant rolled {ru}A Rich Merchant выбросил {zh-tw}A Rich Merchant 擲出 {zh-cn}A Rich Merchant 掷出 {ko}A Rich Merchant가 {es}A Rich Merchant sacó {fr}A Rich Merchant a obtenu {pt-br}A Rich Merchant rolou {de}A Rich Merchant würfelte ",translateWord[roll] or tostring(roll),"{en}. Press Complete to finish the Quest.{ru}. Нажмите Complete, чтобы завершить задание.{zh-tw}。按「完成」結束任務。{zh-cn}。按“完成”结束任务。{ko}. 퀘스트를 끝내려면 완료를 누르십시오.{es}. Pulsa Completar para terminar la Misión.{fr}. Appuyez sur Terminer pour achever la Quête.{pt-br}. Pressione Concluir para terminar a Missão.{de}. Drücke Abschließen, um die Quest zu beenden."}),positionToColor(playerIndex))
 	end
 	return true
 end
@@ -1353,9 +1353,9 @@ function apocalypseQuestResolveHerbalistReward(card, playerIndex, rolled, crysta
 	end
 	if mineCrystalBagKey[rolled]~=nil and rolled~=crystalColor then
 		apocalypseQuestPlaceCrystalAt({target[1]+0.60,target[2]+0.36,target[3]},rolled,"The Eager Herbalist")
-		broadcastToAll("The Eager Herbalist rolled "..rolled.."; a second crystal was added to the reward token.",positionToColor(playerIndex))
+		broadcastToAll(joinLang({"{en}The Eager Herbalist rolled {ru}The Eager Herbalist выбросил {zh-tw}The Eager Herbalist 擲出 {zh-cn}The Eager Herbalist 掷出 {ko}The Eager Herbalist가 {es}The Eager Herbalist sacó {fr}The Eager Herbalist a obtenu {pt-br}The Eager Herbalist rolou {de}The Eager Herbalist würfelte ",translateWord[rolled] or rolled,"{en}; a second crystal was added to the reward token.{ru}; второй кристалл добавлен на жетон награды.{zh-tw}；第二顆水晶已加入獎勵標記。{zh-cn}；第二颗水晶已加入奖励标记。{ko}. 두 번째 크리스털을 보상 토큰에 추가했습니다.{es}; se añadió un segundo cristal a la ficha de recompensa.{fr} ; un second cristal a été ajouté au jeton de récompense.{pt-br}; um segundo cristal foi adicionado à ficha de recompensa.{de}; ein zweiter Kristall wurde dem Belohnungsmarker hinzugefügt."}),positionToColor(playerIndex))
 	else
-		broadcastToAll("The Eager Herbalist rolled "..tostring(rolled).."; no second crystal was added.",positionToColor(playerIndex))
+		broadcastToAll(joinLang({"{en}The Eager Herbalist rolled {ru}The Eager Herbalist выбросил {zh-tw}The Eager Herbalist 擲出 {zh-cn}The Eager Herbalist 掷出 {ko}The Eager Herbalist가 {es}The Eager Herbalist sacó {fr}The Eager Herbalist a obtenu {pt-br}The Eager Herbalist rolou {de}The Eager Herbalist würfelte ",translateWord[rolled] or tostring(rolled),"{en}; no second crystal was added.{ru}; второй кристалл не добавлен.{zh-tw}；未加入第二顆水晶。{zh-cn}；未加入第二颗水晶。{ko}. 두 번째 크리스털은 추가되지 않았습니다.{es}; no se añadió un segundo cristal.{fr} ; aucun second cristal n’a été ajouté.{pt-br}; nenhum segundo cristal foi adicionado.{de}; es wurde kein zweiter Kristall hinzugefügt."}),positionToColor(playerIndex))
 	end
 	return true
 end
@@ -1396,7 +1396,7 @@ function apocalypseQuestGiveHerbalistReward(card, playerIndex, callback)
 	gStates.apocalypseQuestRollDice[rollDie.guid]=true
 	gStates.apocalypseQuestHerbalistRolls[cardGUID]={dieGUID=rollDie.guid,player=player}
 	apocalypseQuestInterfaceRemove(card)
-	broadcastToAll("The Eager Herbalist is rolling the Quest mana die for its second crystal.",positionToColor(player))
+	broadcastToAll("{en}The Eager Herbalist is rolling the Quest mana die for its second crystal.{ru}The Eager Herbalist бросает кубик маны задания для второго кристалла.{zh-tw}The Eager Herbalist 正在為第二顆水晶擲任務魔力骰。{zh-cn}The Eager Herbalist 正在为第二颗水晶掷任务魔力骰。{ko}The Eager Herbalist가 두 번째 크리스털을 위해 퀘스트 마나 주사위를 굴립니다.{es}The Eager Herbalist está tirando el dado de maná de Misión para su segundo cristal.{fr}The Eager Herbalist lance le dé de mana de Quête pour son second cristal.{pt-br}The Eager Herbalist está rolando o dado de mana da Missão para seu segundo cristal.{de}The Eager Herbalist würfelt den Quest-Manawürfel für seinen zweiten Kristall.",positionToColor(player))
 	local dieGUID=rollDie.guid
 	local function clearHerbalistRoll()
 		local die=getObjectFromGUID(dieGUID)
@@ -1447,7 +1447,7 @@ function apocalypseQuestGiveBardReward(card, playerIndex)
 	apocalypseQuestGainReputation(playerIndex,"The Admiring Bard")
 	if fame>0 then
 		turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+fame
-		broadcastToAll("Quest reward: "..tostring(turnOrder[playerIndex].mage).." gains "..tostring(fame).." Fame from The Admiring Bard's "..tostring(crystalColor).." crystal.", positionToColor(playerIndex))
+		broadcastToAll(joinLang({"{en}Quest reward: {ru}Награда задания: {zh-tw}任務獎勵：{zh-cn}任务奖励：{ko}퀘스트 보상: {es}Recompensa de Misión: {fr}Récompense de Quête : {pt-br}Recompensa da Missão: {de}Quest-Belohnung: ",translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} gains {ru} получает {zh-tw} 從 The Admiring Bard 的 {zh-cn} 从 The Admiring Bard 的 {ko}이(가) The Admiring Bard의 {es} gana {fr} gagne {pt-br} ganha {de} erhält ",tostring(fame),"{en} Fame from The Admiring Bard's {ru} Славы от кристалла The Admiring Bard: {zh-tw}{zh-cn}{ko} 크리스털에서 명성 {es} de Fama por el cristal {fr} de Renommée grâce au cristal {pt-br} de Fama pelo cristal {de} Ruhm durch den ",translateWord[crystalColor] or tostring(crystalColor),"{en} crystal.{ru}.{zh-tw} 水晶獲得聲望值。{zh-cn} 水晶获得声望值。{ko}을(를) 얻습니다.{es} de The Admiring Bard.{fr} de The Admiring Bard.{pt-br} de The Admiring Bard.{de}-Kristall von The Admiring Bard."}), positionToColor(playerIndex))
 		mainUIUpdate("Quest Fame reward")
 	else
 		broadcastToAll("{en}Quest reward: The Admiring Bard had no Green, Blue or Red crystal on the card, so no Fame was gained.{ru}Награда задания: на карте The Admiring Bard нет зелёного, синего или красного кристалла, поэтому Слава не получена.{zh-tw}任務獎勵：The Admiring Bard 牌上沒有綠色、藍色或紅色水晶，因此沒有獲得聲望值。{zh-cn}任务奖励：The Admiring Bard 牌上没有绿色、蓝色或红色水晶，因此没有获得声望值。{ko}퀘스트 보상: The Admiring Bard 카드에 녹색, 파란색 또는 빨간색 크리스털이 없어 명성을 얻지 못했습니다.{es}Recompensa de Misión: The Admiring Bard no tenía cristal Verde, Azul ni Rojo en la carta, por lo que no se ganó Fama.{fr}Récompense de Quête : The Admiring Bard n’avait aucun cristal Vert, Bleu ou Rouge sur la carte ; aucune Renommée n’a donc été gagnée.{pt-br}Recompensa da Missão: The Admiring Bard não tinha cristal Verde, Azul ou Vermelho na carta, então nenhuma Fama foi ganha.{de}Quest-Belohnung: Auf der Karte von The Admiring Bard lag kein grüner, blauer oder roter Kristall; daher wurde kein Ruhm erhalten.", {1,0.55,0.2})
@@ -1485,11 +1485,11 @@ function apocalypseQuestPlaceRandomCrystalOnShield(card, playerIndex)
 			local target={pos[1],pos[2]+0.34,pos[3]}
 			local crystal=takeManaCrystal(bag,{position=target,smooth=false})
 			apocalypseQuestRegisterMoveAttachment(card,crystal,target)
-			broadcastToAll("The Child Seer rolled "..color.."; the matching mana token was placed on the Quest Shield.",positionToColor(playerIndex))
+			broadcastToAll(joinLang({"{en}The Child Seer rolled {ru}The Child Seer выбросил {zh-tw}The Child Seer 擲出 {zh-cn}The Child Seer 掷出 {ko}The Child Seer가 {es}The Child Seer sacó {fr}The Child Seer a obtenu {pt-br}The Child Seer rolou {de}The Child Seer würfelte ",translateWord[color] or color,"{en}; the matching mana token was placed on the Quest Shield.{ru}; соответствующий жетон маны помещён на Щит задания.{zh-tw}；相符的魔力標記已放到任務盾牌上。{zh-cn}；相符的魔力标记已放到任务盾牌上。{ko}. 일치하는 마나 토큰을 퀘스트 방패 위에 놓았습니다.{es}; la ficha de maná correspondiente se colocó sobre el Escudo de Misión.{fr} ; le jeton de mana correspondant a été placé sur le Bouclier de Quête.{pt-br}; a ficha de mana correspondente foi colocada no Escudo da Missão.{de}; der passende Manamarker wurde auf den Quest-Schild gelegt."}),positionToColor(playerIndex))
 			return true
 		end
 	end
-	broadcastToAll("The Child Seer rolled "..tostring(color)..". Place the matching mana token on your Quest Shield manually.",positionToColor(playerIndex))
+	broadcastToAll(joinLang({"{en}The Child Seer rolled {ru}The Child Seer выбросил {zh-tw}The Child Seer 擲出 {zh-cn}The Child Seer 掷出 {ko}The Child Seer가 {es}The Child Seer sacó {fr}The Child Seer a obtenu {pt-br}The Child Seer rolou {de}The Child Seer würfelte ",translateWord[color] or tostring(color),"{en}. Place the matching mana token on your Quest Shield manually.{ru}. Вручную поместите соответствующий жетон маны на свой Щит задания.{zh-tw}。請手動將相符的魔力標記放到你的任務盾牌上。{zh-cn}。请手动将相符的魔力标记放到你的任务盾牌上。{ko}. 일치하는 마나 토큰을 퀘스트 방패 위에 수동으로 놓으십시오.{es}. Coloca manualmente la ficha de maná correspondiente sobre tu Escudo de Misión.{fr}. Placez manuellement le jeton de mana correspondant sur votre Bouclier de Quête.{pt-br}. Coloque manualmente a ficha de mana correspondente em seu Escudo da Missão.{de}. Lege den passenden Manamarker manuell auf deinen Quest-Schild."}),positionToColor(playerIndex))
 	return true
 end
 
@@ -1528,7 +1528,7 @@ function apocalypseQuestPlaceCrystalAt(position,color,reason)
 	if position==nil or mineCrystalBagKey[color]==nil then return nil end
 	local bag=getObjectFromGUID(GUID.bag.mana[mineCrystalBagKey[color]])
 	if bag==nil or bag.getQuantity()==0 then
-		broadcastToAll("Quest effect: no "..tostring(color).." mana crystal is available for "..tostring(reason or "this Quest")..".", {1,0.55,0.2})
+		broadcastToAll(joinLang({"{en}Quest effect: no {ru}Эффект задания: нет доступного кристалла маны {zh-tw}任務效果：沒有可用的 {zh-cn}任务效果：没有可用的 {ko}퀘스트 효과: 사용할 수 있는 {es}Efecto de Misión: no hay cristal de maná {fr}Effet de Quête : aucun cristal de mana {pt-br}Efeito da Missão: não há cristal de mana {de}Quest-Effekt: Es ist kein ",translateWord[color] or tostring(color),"{en} mana crystal is available for {ru} для {zh-tw} 魔力水晶供 {zh-cn} 魔力水晶供 {ko} 마나 크리스털이 없습니다: {es} disponible para {fr} disponible pour {pt-br} disponível para {de}-Manakristall verfügbar für ",tostring(reason or "this Quest"),"."}), {1,0.55,0.2})
 		return nil
 	end
 	return takeManaCrystal(bag,{position=position,smooth=true})
@@ -2004,7 +2004,7 @@ function apocalypseQuestSpawnEnemyToCombat(card,playerIndex,pileName,possessed,o
 	if card==nil or turnOrder[playerIndex]==nil or monsterPiles[pileName]==nil then return nil end
 	local bag=getObjectFromGUID(monsterPiles[pileName])
 	if bag==nil or bag.getQuantity()==0 then
-		broadcastToAll("Quest combat: no "..tostring(pileName).." enemy token is available.", {1,0.55,0.2})
+		broadcastToAll(joinLang({"{en}Quest combat: no {ru}Бой задания: нет доступного жетона врага из {zh-tw}任務戰鬥：沒有可用的 {zh-cn}任务战斗：没有可用的 {ko}퀘스트 전투: 사용할 수 있는 {es}Combate de Misión: no hay ficha de enemigo de {fr}Combat de Quête : aucun jeton Ennemi de {pt-br}Combate da Missão: não há ficha de inimigo de {de}Quest-Kampf: Es ist kein Gegnermarker aus ",tostring(pileName),"{en} enemy token is available.{ru}.{zh-tw} 敵人標記。{zh-cn} 敌人标记。{ko} 적 토큰이 없습니다.{es} disponible.{fr} disponible.{pt-br} disponível.{de} verfügbar."}), {1,0.55,0.2})
 		return nil
 	end
 	local target=apocalypseQuestNextCombatTarget(playerIndex)
@@ -2382,7 +2382,7 @@ function apocalypseQuestNobleWarriorFinalReward(card,playerIndex,key)
 	local color=apocalypseQuestCardCrystalColor(card)
 	if key=="3b" then
 		local levelText={Green="level I",White="level I-II",Blue="level I-III",Red="level I-IV"}
-		broadcastToAll("Noble Warrior: recruit one "..tostring(levelText[color] or "eligible").." Unit for free.",positionToColor(playerIndex))
+		broadcastToAll(joinLang({"{en}Noble Warrior: recruit one {ru}Noble Warrior: бесплатно наймите один отряд уровня {zh-tw}Noble Warrior：免費招募一個 {zh-cn}Noble Warrior：免费招募一个 {ko}Noble Warrior: {es}Noble Warrior: recluta gratis una Unidad {fr}Noble Warrior : recrutez gratuitement une Unité {pt-br}Noble Warrior: recrute gratuitamente uma Unidade {de}Noble Warrior: Rekrutiere kostenlos eine ",tostring(levelText[color] or "eligible"),"{en} Unit for free.{ru}.{zh-tw} 部隊。{zh-cn} 部队。{ko} 유닛 하나를 무료로 모집하십시오.{es}.{fr}.{pt-br}.{de}-Einheit."}),positionToColor(playerIndex))
 	end
 end
 
@@ -2405,7 +2405,7 @@ function apocalypseQuestFinishNobleGold(card,playerIndex)
 	if card==nil or turnOrder[playerIndex]==nil then return end
 	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
 	apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-	broadcastToAll(tostring(turnOrder[playerIndex].mage).." completed Noble Warrior (3A).",positionToColor(playerIndex))
+	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Noble Warrior (3A).{ru} завершил Noble Warrior (3A).{zh-tw} 完成 Noble Warrior（3A）。{zh-cn} 完成 Noble Warrior（3A）。{ko}이(가) Noble Warrior (3A)를 완료했습니다.{es} completó Noble Warrior (3A).{fr} a terminé Noble Warrior (3A).{pt-br} concluiu Noble Warrior (3A).{de} schloss Noble Warrior (3A) ab."}),positionToColor(playerIndex))
 	apocalypseQuestFinishCompletedCard(card)
 	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
 end
@@ -2414,7 +2414,7 @@ function apocalypseQuestFinishGuardDutyChoice(card,playerIndex,distance)
 	if card==nil or turnOrder[playerIndex]==nil then return end
 	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
 	apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-	broadcastToAll(tostring(turnOrder[playerIndex].mage).." completed Guard Duty: distance "..tostring(distance or "?")..", two chosen mana crystals.",positionToColor(playerIndex))
+	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Guard Duty: distance {ru} завершил Guard Duty: расстояние {zh-tw} 完成 Guard Duty：距離 {zh-cn} 完成 Guard Duty：距离 {ko}이(가) Guard Duty를 완료했습니다: 거리 {es} completó Guard Duty: distancia {fr} a terminé Guard Duty : distance {pt-br} concluiu Guard Duty: distância {de} schloss Guard Duty ab: Entfernung ",tostring(distance or "?"),"{en}, two chosen mana crystals.{ru}, два выбранных кристалла маны.{zh-tw}，兩顆自選魔力水晶。{zh-cn}，两颗自选魔力水晶。{ko}, 선택한 마나 크리스털 2개.{es}, dos cristales de maná elegidos.{fr}, deux cristaux de mana choisis.{pt-br}, dois cristais de mana escolhidos.{de}, zwei gewählte Manakristalle."}),positionToColor(playerIndex))
 	apocalypseQuestFinishCompletedCard(card)
 	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
 end
@@ -2423,7 +2423,7 @@ function apocalypseQuestFinishGuardDutyGold(card,playerIndex,distance)
 	if card==nil or turnOrder[playerIndex]==nil then return end
 	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
 	apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-	broadcastToAll(tostring(turnOrder[playerIndex].mage).." completed Guard Duty: distance "..tostring(distance or "?")..", random mana reward resolved.",positionToColor(playerIndex))
+	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Guard Duty: distance {ru} завершил Guard Duty: расстояние {zh-tw} 完成 Guard Duty：距離 {zh-cn} 完成 Guard Duty：距离 {ko}이(가) Guard Duty를 완료했습니다: 거리 {es} completó Guard Duty: distancia {fr} a terminé Guard Duty : distance {pt-br} concluiu Guard Duty: distância {de} schloss Guard Duty ab: Entfernung ",tostring(distance or "?"),"{en}, random mana reward resolved.{ru}, случайная награда маны разрешена.{zh-tw}，隨機魔力獎勵已結算。{zh-cn}，随机魔力奖励已结算。{ko}, 무작위 마나 보상 해결 완료.{es}, recompensa aleatoria de maná resuelta.{fr}, récompense de mana aléatoire résolue.{pt-br}, recompensa aleatória de mana resolvida.{de}, zufällige Manabelohnung abgewickelt."}),positionToColor(playerIndex))
 	apocalypseQuestFinishCompletedCard(card)
 	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
 end
@@ -2463,7 +2463,7 @@ function apocalypseQuestNobleWarriorRollReward(card,playerIndex,callback)
 		return false
 	end
 	apocalypseQuestInterfaceRemove(card)
-	broadcastToAll("Noble Warrior is rolling "..tostring(count).." random crystal "..(count==1 and "die." or "dice."),positionToColor(playerIndex))
+	broadcastToAll(joinLang({"{en}Noble Warrior is rolling {ru}Noble Warrior бросает {zh-tw}Noble Warrior 正在擲 {zh-cn}Noble Warrior 正在掷 {ko}Noble Warrior가 무작위 크리스털 주사위 {es}Noble Warrior está tirando {fr}Noble Warrior lance {pt-br}Noble Warrior está rolando {de}Noble Warrior würfelt ",tostring(count),count==1 and "{en} random crystal die.{ru} случайный кубик кристалла.{zh-tw} 顆隨機水晶骰。{zh-cn} 颗随机水晶骰。{ko}개를 굴립니다.{es} dado aleatorio de cristal.{fr} dé de cristal aléatoire.{pt-br} dado aleatório de cristal.{de} zufälligen Kristallwürfel." or "{en} random crystal dice.{ru} случайных кубика кристалла.{zh-tw} 顆隨機水晶骰。{zh-cn} 颗随机水晶骰。{ko}개를 굴립니다.{es} dados aleatorios de cristal.{fr} dés de cristal aléatoires.{pt-br} dados aleatórios de cristal.{de} zufällige Kristallwürfel."}),positionToColor(playerIndex))
 
 	local finished=false
 	local function clearDice()
@@ -5708,7 +5708,7 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 							return
 						end
 						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						broadcastToAll(tostring(turnOrder[playerIndex].mage).." completed Noble Warrior (3A).",positionToColor(playerIndex))
+						broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Noble Warrior (3A).{ru} завершил Noble Warrior (3A).{zh-tw} 完成 Noble Warrior（3A）。{zh-cn} 完成 Noble Warrior（3A）。{ko}이(가) Noble Warrior (3A)를 완료했습니다.{es} completó Noble Warrior (3A).{fr} a terminé Noble Warrior (3A).{pt-br} concluiu Noble Warrior (3A).{de} schloss Noble Warrior (3A) ab."}),positionToColor(playerIndex))
 						apocalypseQuestFinishCompletedCard(questCard)
 					else
 						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
