@@ -284,7 +284,7 @@ function mapSetup(onComplete)
 	if gridType~="" then Global.addDecal({name="Terrain Grid", url=gridType, position={-16.825, 0.99, 0.55}, rotation={90.0, 0.0, 0.0}, scale={60, 60, 1}}) end
 
 	--shuffle the order of data in a table
-	function listShuffle(array)
+	local function listShuffle(array)
 		--Remove lost legion GUIDs
 		if gStates.removeLostLegionExpansion==true then
 			local tempArray={}
@@ -367,7 +367,11 @@ function mapSetup(onComplete)
 			end
 		end
 		local obj=safeTakeObject("SetupGame",CityTileStack,params)--take from the City Tile Bag
-		if furyMap and obj~=nil then furyRevealGUIDs[#furyRevealGUIDs+1]=obj.guid end
+		if obj==nil then
+			finishMapSetup(false,"CITY SETUP ERROR: tile "..tostring(params.guid or i).." was not available for slot "..tostring(i))
+			return
+		end
+		if furyMap then furyRevealGUIDs[#furyRevealGUIDs+1]=obj.guid end
 		if noShuffle==0 then TileShuffler.putObject(obj) end--Place in the Core Tile Shuffler if it is shuffled
 	end
 
@@ -409,7 +413,12 @@ function mapSetup(onComplete)
 			if i==1 then furyLairTile=coreTile end
 			furyRevealGUIDs[#furyRevealGUIDs+1]=coreTile.guid
 		else
-			TileShuffler.putObject(safeTakeObject("SetupGame",CoreTileStack,params))--Core Tile Shuffler
+			local coreTile=safeTakeObject("SetupGame",CoreTileStack,params)
+			if coreTile==nil then
+				finishMapSetup(false,"CORE SETUP ERROR: tile "..tostring(params.guid or i).." was not available for slot "..tostring(i))
+				return
+			end
+			TileShuffler.putObject(coreTile)--Core Tile Shuffler
 		end
 	end
 	--Ultimate Conquest Country mix. With Hero Challenges, move only tiles that are not reserved
@@ -434,7 +443,12 @@ function mapSetup(onComplete)
 		else
 			for i=1, megaCountry, 1 do
 				local params={rotation={0, 180, 180}, smooth=false}
-				TileShuffler.putObject(safeTakeObject("SetupGame",CountryTileStack,params))
+				local countryTile=safeTakeObject("SetupGame",CountryTileStack,params)
+				if countryTile==nil then
+					finishMapSetup(false,"ULTIMATE CONQUEST SETUP ERROR: could not move surplus Countryside tile "..tostring(i).." into the mixed stack")
+					return
+				end
+				TileShuffler.putObject(countryTile)
 			end
 		end
 	end
@@ -460,7 +474,10 @@ function mapSetup(onComplete)
 		if gStates.gameScenario=="Conquer and Hold" then params.position=ConquerAndHoldTilePos[i] end
 		if gStates.gameScenario=="The Gauntlet" then params.position=GauntletTilePos[i] end
 		if params.position==nil then params.position={pos.x, pos.y+tUp, pos.z} tUp=tUp+0.5 end
-		safeTakeObject("SetupGame",TileShuffler,params)
+		if safeTakeObject("SetupGame",TileShuffler,params)==nil then
+			finishMapSetup(false,"CORE/CITY STACK SETUP ERROR: could not place mixed terrain tile "..tostring(i))
+			return
+		end
 	end
 
 	--Pull Country Tiles
@@ -659,7 +676,10 @@ function mapSetup(onComplete)
 		if gStates.gameScenario=="The War of Four" then params.position=warOfFourCountryTilePos[i] end
 		if gStates.gameScenario=="The Gauntlet" then params.position=GauntletTilePos[i] end
 		if params.position==nil then params.position={pos.x, pos.y+tUp, pos.z} tUp=tUp+0.5 end
-		safeTakeObject("SetupGame",TileShuffler,params)
+		if safeTakeObject("SetupGame",TileShuffler,params)==nil then
+			finishMapSetup(false,"COUNTRYSIDE STACK SETUP ERROR: could not place terrain tile "..tostring(i))
+			return
+		end
 	end
 	--Initial tiles remain excluded from Apocalypse is Here reveal thresholds until their real population
 	--callbacks finish; there is no longer a fixed four-second setup tail.
