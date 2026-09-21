@@ -256,6 +256,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/SetupGame.lua src/SetupGame/Components.lua "Mage Knight Highly Scripted.json"
-          git diff --cached --check
           git commit -m "Make reward and possessed token setup subtractive"
           git push origin HEAD:main
