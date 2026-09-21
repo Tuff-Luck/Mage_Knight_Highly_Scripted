@@ -263,6 +263,9 @@ function playerSetup()
 								params.guid="835c91"
 								local obj=safeTakeObject("SetupGame",cityBag,params)
 								if obj==nil then error("Volkare setup missing Camp terrain tile 835c91 from City terrain bag",2) end
+								--The Camp originated as a special Volkare component and historically had no Terrain tag.
+								--Now that it lives in the City terrain pool, normalize it before it ever reaches the map.
+								if obj.hasTag("Terrain")~=true then obj.addTag("Terrain") end
 								skip=1
 							else
 								local params={position={-69.4, 1.41, -36.5}, rotation={0, 30, 0}, smooth=false, index=0}
