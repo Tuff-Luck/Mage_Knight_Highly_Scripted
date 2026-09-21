@@ -92,7 +92,8 @@ end
 
 --Reapply translated static UI text once at load so TTS resolves language tags.
 --Use TTS's parsed XML table instead of pattern-matching the whole raw XML string.
---The table gives us the Text/Toggle value directly and avoids Lua 5.2's pattern complexity limit.
+--Only Text/Toggle contents need this workaround. Leave tooltip attributes in XML: TTS localizes
+--them correctly when XML loads, while setAttribute() would expose the raw {en}/{ru}/... tags.
 function reapplyXmlText()
 	local xml=UI.getXmlTable() or {}
 	local reapplied=0
@@ -108,11 +109,6 @@ function reapplyXmlText()
 					UI.setAttribute(id,"text",value)
 					reapplied=reapplied+1
 				end
-			end
-			local tooltip=attributes.tooltip
-			if type(tooltip)=="string" and tooltip:find("{en}",1,true)~=nil then
-				UI.setAttribute(id,"tooltip",tooltip)
-				reapplied=reapplied+1
 			end
 		end
 		for _,child in ipairs(node.children or {}) do visit(child) end
