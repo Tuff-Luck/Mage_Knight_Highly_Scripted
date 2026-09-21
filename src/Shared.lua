@@ -90,25 +90,39 @@ function joinLang(full_string)
 	return table.concat(output)
 end
 
---Reapply static XML Text values at runtime so TTS resolves translation tags.
---Pass a container id to limit the refresh to that subtree, or nil to refresh every id'd Text element.
-function reapplyXmlText(rootId)
-	local xml=UI.getXmlTable() or {}
+--Reapply translated static UI text once at load so TTS resolves language tags.
+--Read the raw XML rather than the XML table so rich-text markup such as <b> and <size> survives intact.
+local function decodeXmlUiText(value)
+	return value
+		:gsub("&lt;", "<")
+		:gsub("&gt;", ">")
+		:gsub("&#60;", "<")
+		:gsub("&#62;", ">")
+		:gsub("&#10;", "\n")
+		:gsub("&#13;", "\r")
+		:gsub("&quot;", '"')
+		:gsub("&#34;", '"')
+		:gsub("&apos;", "'")
+		:gsub("&#39;", "'")
+		:gsub("&amp;", "&")
+end
+
+function reapplyXmlText()
+	local xml=UI.getXml()
+	if type(xml)~="string" or xml=="" then return 0 end
 	local reapplied=0
-	local function visit(node, inScope)
-		local attributes=node.attributes or {}
-		local scoped=rootId==nil or inScope or attributes.id==rootId
-		if scoped and node.tag=="Text" and attributes.id~=nil then
-			local text=attributes.text
-			if text==nil then text=node.value end
-			if text~=nil then
-				UI.setAttribute(attributes.id, "text", text)
+	local function reapplyTag(tag)
+		local pattern="<"..tag.."%s+([^>]-)>(.-)</"..tag..">"
+		for attributes,value in xml:gmatch(pattern) do
+			local id=attributes:match('id%s*=%s*"([^"]+)"')
+			if id~=nil and value:find("{en}",1,true)~=nil then
+				UI.setAttribute(id,"text",decodeXmlUiText(value))
 				reapplied=reapplied+1
 			end
 		end
-		for _, child in ipairs(node.children or {}) do visit(child, scoped) end
 	end
-	for _, node in ipairs(xml) do visit(node, false) end
+	reapplyTag("Text")
+	reapplyTag("Toggle")
 	return reapplied
 end
 
