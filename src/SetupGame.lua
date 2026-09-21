@@ -357,8 +357,21 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				end
 				return extraRules==nil or extraRules.resting==true
 			end,10,function()
-				setupReleaseRewind()
-				error("SetupGame timed out waiting for the scenario rulebooks to settle.",2)
+				--Rulebooks are reference material, not a setup dependency. If physics never reports one as
+				--resting, leave the game setup running rather than turning an ancillary object into a failure.
+				local mainRules=getObjectFromGUID(r.main)
+				local expansionRules=getObjectFromGUID(r.expansion)
+				local apocalypseRules=getObjectFromGUID(r.apocalypse)
+				local furyRules=gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9") or nil
+				if scenarioRuleStates.main~=nil and mainRules~=nil then mainRules.book.setPage(scenarioRuleStates.main-1) end
+				if scenarioRuleStates.expansion~=nil and expansionRules~=nil then expansionRules.book.setPage(scenarioRuleStates.expansion-1) end
+				if scenarioRuleStates.apocalypse~=nil and apocalypseRules~=nil then apocalypseRules.book.setPage(scenarioRuleStates.apocalypse-1) end
+				if mainRules~=nil then mainRules.lock() end
+				if expansionRules~=nil then expansionRules.lock() end
+				if apocalypseRules~=nil then apocalypseRules.lock() end
+				if furyRules~=nil then furyRules.lock() end
+				if extraRules~=nil then extraRules.lock() end
+				print("SETUP WARNING: scenario rulebooks did not report resting within 10 seconds; continuing setup.")
 			end)
 		ruleBag.destruct()
 		end
