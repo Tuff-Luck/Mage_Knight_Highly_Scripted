@@ -602,7 +602,7 @@ local function finalizeSetup()
 	--Delete Player Bags could this be done during setup
 	local ToBeDeleted={	GUID.bag.component.arythea,--Arythea
 						GUID.bag.component.norowas,--Norowas
-					 	GUID.bag.component.goldyx,--Goldyx
+						GUID.bag.component.goldyx,--Goldyx
 						GUID.bag.component.tovak,--Tovak
 						GUID.bag.component.krang,--Krang
 						GUID.bag.component.braevalar,--Braevalar
