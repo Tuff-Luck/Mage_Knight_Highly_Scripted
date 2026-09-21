@@ -179,7 +179,7 @@ function rewindTransactionStart(andThen,owner,onFailure)
 		rewindTransactionStorePending=false
 		if success~=true then
 			for _,entry in ipairs(pending) do if type(entry.fail)=="function" then entry.fail() end end
-			broadcastToAll("Could not store a safe rewind point. The scripted action was not started.",{1,0.25,0.25})
+			broadcastToAll("{en}Could not store a safe rewind point. The scripted action was not started.{ru}Не удалось сохранить безопасную точку перемотки. Скриптовое действие не было запущено.{zh-tw}無法儲存安全的回溯點。腳本動作未開始。{zh-cn}无法储存安全的回溯点。脚本动作未开始。{ko}안전한 되돌리기 지점을 저장하지 못했습니다. 스크립트 동작이 시작되지 않았습니다.{es}No se pudo guardar un punto de rebobinado seguro. La acción del script no se inició.{fr}Impossible d’enregistrer un point de retour sûr. L’action scriptée n’a pas été lancée.{pt-br}Não foi possível salvar um ponto de retorno seguro. A ação do script não foi iniciada.{de}Es konnte kein sicherer Rückspulpunkt gespeichert werden. Die Skriptaktion wurde nicht gestartet.",{1,0.25,0.25})
 			return
 		end
 		rewindTransactionBlocked=true
