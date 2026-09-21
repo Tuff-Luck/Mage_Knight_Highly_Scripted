@@ -31,6 +31,14 @@ function ensureSetupMegapolisMinimumLevels()
 	end
 end
 
+--Volkare's Camp terrain now lives permanently in the City tile bag. Keep one authoritative
+--eligibility check so terrain filtering and the visible support setup cannot disagree.
+local function setupUsesVolkareCampCity()
+	return gStates~=nil and gStates.volkareCampAsCity==true and gStates.removeLostLegionExpansion~=true and
+		gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Volkare's Return" and
+		gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest"
+end
+
 --Layout everything needed for the game
 local setupRewindRequestPending=false
 local function setupGameRaw(player, mouseButton, id, rewindReady)
@@ -308,13 +316,8 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			onObjectRandomize({type="Dice"})
 		end
 
-		--Include Volkare's Camp as a City
-		if gStates.volkareCampAsCity==true and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest" then
-			if gStates.gameScenario=="Ultimate Conquest" then
-				getObjectFromGUID(GUID.bag.terrain.shuffler).putObject(getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 180.0}, smooth=false, position={-42.0, 3.0, -17.2}, guid="835c91"}))
-			else
-				getObjectFromGUID(GUID.bag.terrain.leftCity).putObject(getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 180.0}, smooth=false, position={-42.0, 3.0, -17.2}, guid="835c91"}))
-			end
+		--Deploy Volkare City support pieces whenever the Camp is eligible. These stay visible even if the hidden terrain draw does not select the Camp tile.
+		if setupUsesVolkareCampCity() then
 			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={-57.75, 0.98, -2.95}, smooth=false, guid=volkare.disc})--Volkares Mat
 			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={-62.2, 0.98, 0.5}, smooth=false, guid=volkare.terrainHex})--Volkare's Camp Hex
 			safeWaitTime("SetupGame",function()
@@ -349,22 +352,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.lostLegion),{position={getObjectFromGUID(mainDeck).getPosition()[1], -2, getObjectFromGUID(mainDeck).getPosition()[3]},
 					guid=lostLegionDeck, smooth=false, callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(mainDeck).putObject(obj) end) end})
 			end
-			for a=1, 3, 1 do getObjectFromGUID(GUID.bag.terrain.leftCountry).putObject(getObjectFromGUID(GUID.bag.terrain.lostLegionCountry).takeObject({position={getObjectFromGUID(GUID.bag.terrain.leftCountry).getPosition()[1], -2, getObjectFromGUID(GUID.bag.terrain.leftCountry).getPosition()[3]}, smooth=false})) end--3 Country Tiles
-			for a=1, 2, 1 do getObjectFromGUID(GUID.bag.terrain.leftCore).putObject(getObjectFromGUID(GUID.bag.terrain.lostLegionCore).takeObject({position={getObjectFromGUID(GUID.bag.terrain.leftCore).getPosition()[1], -2, getObjectFromGUID(GUID.bag.terrain.leftCore).getPosition()[3]}, smooth=false})) end--2 Core Tiles
 		end
-		--Delete Lost Legion terrain bags
-		getObjectFromGUID(GUID.bag.terrain.lostLegionCountry).destruct()--3 Country Tiles
-		getObjectFromGUID(GUID.bag.terrain.lostLegionCore).destruct()--2 Core Tiles
-
-		--Apocalypse Dragon terrain is part of the normal pool unless explicitly removed
-		if gStates.removeApocalypseTerrain~=true then
-			for a=1, 3, 1 do getObjectFromGUID(GUID.bag.terrain.leftCountry).putObject(getObjectFromGUID(GUID.bag.terrain.apocCountry).takeObject({position={getObjectFromGUID(GUID.bag.terrain.leftCountry).getPosition()[1], -2, getObjectFromGUID(GUID.bag.terrain.leftCountry).getPosition()[3]}, smooth=false})) end--3 Country Tiles
-			for a=1, 2, 1 do getObjectFromGUID(GUID.bag.terrain.leftCore).putObject(getObjectFromGUID(GUID.bag.terrain.apocCore).takeObject({position={getObjectFromGUID(GUID.bag.terrain.leftCore).getPosition()[1], -2, getObjectFromGUID(GUID.bag.terrain.leftCore).getPosition()[3]}, smooth=false})) end--2 Core Tiles
-		end
-		--Delete Apocalypse Dragon Terrain bags
-		getObjectFromGUID(GUID.bag.terrain.apocCountry).destruct()--3 Country Tiles
-		getObjectFromGUID(GUID.bag.terrain.apocCore).destruct()--2 Core Tiles
-
 		--Apocalypse Quest cards can call the Apocalypse/Council reward systems and Possessed enemies even
 		--even when Apocalypse terrain itself is removed. Put the five shared support objects in their
 		--normal Apocalypse locations whenever either system is in use.
@@ -844,7 +832,9 @@ function playerSetup()
 								terrainTiles["835c91"].hexFeature.center=""
 								gStates.hexOverideSave["835c91"]={center=""}
 								if gStates.randomTileOrientation==false then params.rotation={0, 180, 180} else params.rotation={0, math.random(1, 6)*60, 180} end
-								local obj=safeTakeObject("SetupGame",PlayerBag,params)
+								params.guid="835c91"
+								local obj=safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.terrain.leftCity),params)
+								if obj==nil then error("Volkare setup missing Camp terrain tile 835c91 from City terrain bag",2) end
 								skip=1
 							else
 								local params={position={-69.4, 1.41, -36.5}, rotation={0, 30, 0}, smooth=false, index=0}
@@ -2062,9 +2052,40 @@ end
 ----------------
 -- Delayed Setup
 ----------------
+local function sendTerrainTileToTrash(bag,tileGUID)
+	if bag==nil or tileGUID==nil then return end
+	local trash=getObjectFromGUID(trashCan)
+	if trash==nil then return end
+	local tile=safeTakeObject("SetupGame",bag,{guid=tileGUID,smooth=false})
+	if tile~=nil then trash.putObject(tile) end
+end
+
+--All normal terrain now starts in the three Country/Core/City bags. Remove anything excluded by
+--the finalized setup options before mapSetup reads bag quantities or selects scenario-specific GUIDs.
+local function removeUnselectedTerrain()
+	local countryBag=getObjectFromGUID(GUID.bag.terrain.leftCountry)
+	local coreBag=getObjectFromGUID(GUID.bag.terrain.leftCore)
+	local cityBag=getObjectFromGUID(GUID.bag.terrain.leftCity)
+	if gStates.removeLostLegionExpansion==true then
+		for _,guid in ipairs({GUID.tile.country12,GUID.tile.country13,GUID.tile.country14}) do sendTerrainTileToTrash(countryBag,guid) end
+		for _,guid in ipairs({GUID.tile.core09,GUID.tile.core10}) do sendTerrainTileToTrash(coreBag,guid) end
+	end
+	if gStates.removeApocalypseTerrain==true then
+		for _,guid in ipairs({GUID.tile.country15,GUID.tile.country16,GUID.tile.country17}) do sendTerrainTileToTrash(countryBag,guid) end
+		for _,guid in ipairs({GUID.tile.core11,GUID.tile.core12}) do sendTerrainTileToTrash(coreBag,guid) end
+	end
+	--Against the Horsemen requires Countryside 1 as its centre even if stale saved/random state says otherwise.
+	if gStates.removeTerrain==true and gStates.gameScenario~="Against the Horsemen Blitz" then
+		for _,guid in ipairs({GUID.tile.country01,GUID.tile.country02}) do sendTerrainTileToTrash(countryBag,guid) end
+	end
+	--When Volkare is the automated opponent, their scenario setup has already pulled this same tile from the City bag.
+	if gStates.positionMageKnight[5]~="Volkare" and setupUsesVolkareCampCity()~=true then sendTerrainTileToTrash(cityBag,"835c91") end
+end
+
 --destroy all the setup bags
 function afterLoad()
-	--Deploy the scenario map
+	removeUnselectedTerrain()
+	--Deploy the scenario map from the already-filtered terrain bags.
 	mapSetup()
 	if apocalypseDragonScenario()==true then safeWaitTime("SetupGame",function() positionApocalypseDragonHeads() end,2) end
 	safeWaitTime("SetupGame",function()
@@ -2739,15 +2760,6 @@ function mapSetup()
 		end
 		return tReturn
 	end
-	--Remove easier terrain before Ultimate Conquest moves the remaining country tiles into its mixed stack.
-	--Against the Horsemen requires Countryside 1 as its central tile, so a stale/random saved flag is ignored here too.
-	if gStates.removeTerrain==true and not againstHorsemenMap then
-		for _, easyTileGUID in ipairs({GUID.tile.country01, GUID.tile.country02}) do
-			local easyTile=CountryTileStack.takeObject({guid=easyTileGUID})
-			if easyTile~=nil then getObjectFromGUID(trashCan).putObject(easyTile) end
-		end
-	end
-
 	--Pull City Tiles
 	local warOfFourCityTilePos={{-32.4304, 1.15, -1.5341}, {-25.2302, 1.15, -9.8482}, {-28.8303, 1.15, 8.8586}, {-22.8301, 1.15, 6.7794}, {-15.6299, 1.15, -1.5341}, {-14.4298, 1.15, -7.7696}}
 	local warOfFourCoreTilePos={{-24.0301, 1.15, 13.0156}, {-16.8299, 1.15,  4.7015}, {-9.6297, 1.15, -3.6126}}
