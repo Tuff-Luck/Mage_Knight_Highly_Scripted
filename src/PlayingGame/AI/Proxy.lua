@@ -1457,7 +1457,7 @@ function proxyBeginDestinationChoice(targets,proxyIndex,move,reason)
 	if #pending.options<2 then return false end
 	gStates.proxyPendingChoice=pending
 	proxyChoiceMapRefresh(pending)
-	broadcastToAll("Proxy has "..tostring(#pending.options).." equally close legal choices: "..table.concat(names,", ")..". "..proxyChoicePlayerLabel(chooser).." must choose one.",{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}Proxy has {ru}У Прокси есть {zh-tw}代理玩家有 {zh-cn}代理玩家有 {ko}프록시에게 {es}El Proxy tiene {fr}Le Proxy a {pt-br}O Proxy tem {de}Der Proxy hat ",tostring(#pending.options),"{en} equally close legal choices: {ru} равноудалённых допустимых вариантов: {zh-tw} 個距離相同的合法選擇：{zh-cn} 个距离相同的合法选择：{ko}개의 동일 거리 합법 선택지가 있습니다: {es} opciones legales igualmente cercanas: {fr} choix légaux à égale distance : {pt-br} escolhas válidas igualmente próximas: {de} gleich nahe gültige Optionen: ",table.concat(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать один.{zh-tw} 必須選擇一個。{zh-cn} 必须选择一个。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir una.{fr} doit en choisir une.{pt-br} deve escolher uma.{de} muss eine auswählen."}),{1,0.75,0.2})
 	return proxyChoiceSetWaiting(pending)
 end
 
@@ -1474,7 +1474,7 @@ function proxyBeginRouteChoice(routeChoice,target,proxyIndex,move)
 	if #pending.options<2 then return false end
 	gStates.proxyPendingChoice=pending
 	proxyChoiceMapRefresh(pending)
-	broadcastToAll("Proxy has "..tostring(#pending.options).." equally direct routes toward the "..proxyTargetDisplayName(target)..". "..proxyChoicePlayerLabel(chooser).." must choose the next route branch.",{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}Proxy has {ru}У Прокси есть {zh-tw}代理玩家有 {zh-cn}代理玩家有 {ko}프록시에게 {es}El Proxy tiene {fr}Le Proxy a {pt-br}O Proxy tem {de}Der Proxy hat ",tostring(#pending.options),"{en} equally direct routes toward the {ru} одинаково прямых маршрута к {zh-tw} 條同樣直接的路線通往 {zh-cn} 条同样直接的路线通往 {ko}개의 동일하게 직접적인 경로가 있습니다: {es} rutas igualmente directas hacia {fr} itinéraires tout aussi directs vers {pt-br} rotas igualmente diretas em direção a {de} gleich direkte Routen in Richtung ",proxyLocalizedTerm(proxyTargetDisplayName(target)),". ",proxyChoicePlayerLabel(chooser),"{en} must choose the next route branch.{ru} должен выбрать следующую ветвь маршрута.{zh-tw} 必須選擇下一條路線分支。{zh-cn} 必须选择下一条路线分支。{ko}이(가) 다음 경로 분기를 선택해야 합니다.{es} debe elegir la siguiente rama de la ruta.{fr} doit choisir la prochaine branche de l’itinéraire.{pt-br} deve escolher o próximo ramo da rota.{de} muss den nächsten Routenzweig wählen."}),{1,0.75,0.2})
 	return proxyChoiceSetWaiting(pending)
 end
 
@@ -1804,7 +1804,7 @@ function proxyBeginEnemyChoice(enemies,context,proxyIndex)
 	if #pending.order<2 then return false end
 	gStates.proxyPendingChoice=pending
 	for _,guid in ipairs(pending.order) do local enemy=getObjectFromGUID(guid) if enemy~=nil then proxyEnemyChoiceButton(enemy) end end
-	broadcastToAll("Proxy must choose between tied lowest-Fame enemies: "..table.concat(names,", ")..". "..proxyChoicePlayerLabel(chooser).." must choose one.",{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}Proxy must choose between tied lowest-Fame enemies: {ru}Прокси должен выбрать между врагами с одинаковой наименьшей Славой: {zh-tw}代理玩家必須在聲望值同為最低的敵人中選擇：{zh-cn}代理玩家必须在声望值同为最低的敌人中选择：{ko}프록시는 명성이 공동 최저인 적 중 선택해야 합니다: {es}El Proxy debe elegir entre los enemigos empatados con la Fama más baja: {fr}Le Proxy doit choisir parmi les ennemis à égalité pour la Renommée la plus faible : {pt-br}O Proxy deve escolher entre os inimigos empatados com a menor Fama: {de}Der Proxy muss zwischen den Gegnern mit gleich niedrigstem Ruhm wählen: ",table.concat(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать одного.{zh-tw} 必須選擇一個。{zh-cn} 必须选择一个。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir uno.{fr} doit en choisir un.{pt-br} deve escolher um.{de} muss einen auswählen."}),{1,0.75,0.2})
 	return proxyChoiceSetWaiting(pending)
 end
 
@@ -1895,7 +1895,7 @@ function proxyResolveRampager(target,mapObjects)
 	end
 	if #names<=1 then proxyTurnReportSetAction("defeated the rampaging "..tostring(names[1] or "enemy"))
 	else proxyTurnReportSetAction("defeated "..tostring(#names).." rampaging enemies") end
-	broadcastToAll(#names<=1 and "Proxy discarded a rampaging enemy." or ("Proxy discarded "..tostring(#names).." rampaging enemies."),{1,0.75,0.2})
+	broadcastToAll(#names<=1 and "{en}Proxy discarded a rampaging enemy.{ru}Прокси сбросил Бродячего врага.{zh-tw}代理玩家棄掉了一個遊蕩敵人。{zh-cn}代理玩家弃掉了一个游荡敌人。{ko}프록시가 방랑 적 하나를 버렸습니다.{es}El Proxy descartó un enemigo arrasador.{fr}Le Proxy a défaussé un ennemi ravageur.{pt-br}O Proxy descartou um inimigo errante.{de}Der Proxy hat einen streunenden Gegner abgeworfen." or joinLang({"{en}Proxy discarded {ru}Прокси сбросил {zh-tw}代理玩家棄掉了 {zh-cn}代理玩家弃掉了 {ko}프록시가 방랑 적 {es}El Proxy descartó {fr}Le Proxy a défaussé {pt-br}O Proxy descartou {de}Der Proxy hat ",tostring(#names),"{en} rampaging enemies.{ru} Бродячих врагов.{zh-tw} 個遊蕩敵人。{zh-cn} 个游荡敌人。{ko}명을 버렸습니다.{es} enemigos arrasadores.{fr} ennemis ravageurs.{pt-br} inimigos errantes.{de} streunende Gegner abgeworfen."}),{1,0.75,0.2})
 	proxyClearObjective(true)
 	return true
 end
@@ -2030,7 +2030,7 @@ function proxyTakeInteractionChoice(choice)
 	proxyReturnOfferCard(choice.card)
 	if choice.kind~="unit" then safeWaitFrames("AI.Proxy",function() fillSlide() end,2) end
 	proxyClearObjective(true)
-	broadcastToAll("Proxy took "..cardName.." from the offer.",{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}Proxy took {ru}Прокси взял {zh-tw}代理玩家從供應中取得 {zh-cn}代理玩家从供应中取得 {ko}프록시가 제안에서 {es}El Proxy tomó {fr}Le Proxy a pris {pt-br}O Proxy pegou {de}Der Proxy nahm ",cardName,"{en} from the offer.{ru} из предложения.{zh-tw}。{zh-cn}。{ko}을(를) 가져갔습니다.{es} de la oferta.{fr} dans l’offre.{pt-br} da oferta.{de} aus dem Angebot."}),{1,0.75,0.2})
 	return true
 end
 
@@ -2051,7 +2051,7 @@ function proxyBeginCardChoice(choices,proxyIndex)
 	if #pending.order<2 then return false end
 	gStates.proxyPendingChoice=pending
 	for _,guid in ipairs(pending.order) do local card=getObjectFromGUID(guid) if card~=nil then proxyInteractionChoiceButton(card) end end
-	broadcastToAll("Proxy has "..tostring(#pending.order).." equally valid lowest-cost cards: "..table.concat(names,", ")..". "..proxyChoicePlayerLabel(chooser).." must choose one.",{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}Proxy has {ru}У Прокси есть {zh-tw}代理玩家有 {zh-cn}代理玩家有 {ko}프록시에게 {es}El Proxy tiene {fr}Le Proxy a {pt-br}O Proxy tem {de}Der Proxy hat ",tostring(#pending.order),"{en} equally valid lowest-cost cards: {ru} равно допустимых карт с наименьшей стоимостью: {zh-tw} 張同樣有效且費用最低的牌：{zh-cn} 张同样有效且费用最低的牌：{ko}개의 동일하게 유효한 최저 비용 카드가 있습니다: {es} cartas de coste mínimo igualmente válidas: {fr} cartes de coût minimal également valides : {pt-br} cartas de menor custo igualmente válidas: {de} gleich gültige Karten mit den niedrigsten Kosten: ",table.concat(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать одну.{zh-tw} 必須選擇一張。{zh-cn} 必须选择一张。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir una.{fr} doit en choisir une.{pt-br} deve escolher uma.{de} muss eine auswählen."}),{1,0.75,0.2})
 	return proxyChoiceSetWaiting(pending)
 end
 
