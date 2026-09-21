@@ -5,6 +5,11 @@ firstTile=nil
 startingMapSetup=false
 startingMapTiles={}
 
+local function setupMapObjectSettled(guid)
+	local obj=guid~=nil and getObjectFromGUID(guid) or nil
+	return obj~=nil and obj.resting==true and obj.isSmoothMoving()==false
+end
+
 --Initial map reveals used to be spaced on one-second timers. Preserve their ordering, but advance each
 --batch as soon as the previous terrain-entry/population work has genuinely completed.
 local function revealSetupTerrainBatches(batches,onComplete)
@@ -41,7 +46,17 @@ local function revealSetupTerrainBatches(batches,onComplete)
 				end
 			end
 			safeWaitCondition("SetupGame",nextBatch,batchPopulationFinished,15,function()
-				error("SetupGame timed out waiting for terrain population during initial map reveal.",2)
+				local unresolved={}
+				for _,entry in ipairs(batch) do
+					if gStates.playedAllready[entry.guid]~=true then
+						local tile=getObjectFromGUID(entry.guid)
+						unresolved[#unresolved+1]=tostring(entry.guid)..
+							"(working="..tostring(workingOnTerrain[entry.guid])..
+							", faceDown="..tostring(tile~=nil and tile.is_face_down or "missing")..
+							", resting="..tostring(tile~=nil and tile.resting or "missing")..")"
+					end
+				end
+				error("SetupGame timed out waiting for terrain population during initial map reveal: "..table.concat(unresolved,", "),2)
 			end)
 		end
 		safeWaitCondition("SetupGame",function()
@@ -280,8 +295,10 @@ function mapSetup(onComplete)
 		safeWaitCondition("SetupGame",function()
 			getObjectFromGUID(startTerrain.open).lock()
 			getObjectFromGUID(portal.terrainHex).lock()
-		end,function() return getObjectFromGUID(startTerrain.open)~=nil and getObjectFromGUID(portal.terrainHex)~=nil end,10,function()
-			error("SetupGame timed out waiting for the Open start tile state.",2)
+		end,function()
+			return setupMapObjectSettled(startTerrain.open) and setupMapObjectSettled(portal.terrainHex)
+		end,10,function()
+			error("SetupGame timed out waiting for the Open start tile state to settle.",2)
 		end)
 	end
 
@@ -596,10 +613,10 @@ function mapSetup(onComplete)
 	end
 
 	local function startReferenceReady()
-		if againstHorsemenMap then return againstHorsemenStartGUID~=nil and getObjectFromGUID(againstHorsemenStartGUID)~=nil end
+		if againstHorsemenMap then return againstHorsemenStartGUID~=nil and setupMapObjectSettled(againstHorsemenStartGUID) end
 		local shape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)
 		local startGUID=(shape=="O" or shape=="F" or shape=="P") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
-		return getObjectFromGUID(startGUID)~=nil and getObjectFromGUID(portal.terrainHex)~=nil
+		return setupMapObjectSettled(startGUID) and setupMapObjectSettled(portal.terrainHex)
 	end
 	local function revealWhenStartReady(batches,callback)
 		if startReferenceReady()==true then revealSetupTerrainBatches(batches,callback) return end
