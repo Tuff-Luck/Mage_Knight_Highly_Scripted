@@ -2474,7 +2474,7 @@ function furyDragonSetupLair(tile)
 		end
 	end
 	if marker==nil then
-		broadcastToAll("Fury setup could not deploy the single-space Apocalypse Dragon marker (42b581).",warningColor)
+		broadcastToAll("{en}Fury setup could not deploy the single-space Apocalypse Dragon marker (42b581).{ru}При подготовке «Ярости Дракона Апокалипсиса» не удалось разместить одиночный маркер Дракона Апокалипсиса (42b581).{zh-tw}「末日巨龍之怒」設置無法部署單格末日巨龍標記（42b581）。{zh-cn}“末日巨龙之怒”设置无法部署单格末日巨龙标记（42b581）。{ko}아포칼립스 드래곤의 분노 설정에서 단일 칸 아포칼립스 드래곤 마커(42b581)를 배치하지 못했습니다.{es}La preparación de Furia del Dragón del Apocalipsis no pudo desplegar el marcador de un espacio del Dragón del Apocalipsis (42b581).{fr}La mise en place de la Fureur du Dragon de l’Apocalypse n’a pas pu déployer le marqueur d’une case du Dragon de l’Apocalypse (42b581).{pt-br}A preparação de Fúria do Dragão do Apocalipse não conseguiu posicionar o marcador de um espaço do Dragão do Apocalipse (42b581).{de}Beim Aufbau von Zorn des Apokalypse-Drachen konnte der einfeldrige Apokalypse-Drachenmarker (42b581) nicht eingesetzt werden.",warningColor)
 		return false
 	end
 	marker.unlock()
@@ -2514,7 +2514,7 @@ function furyDragonPrepareEliteUnits()
 	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" or gStates.eliteUnitsUsed==true then return false end
 	if furyDragonEliteConditionMet()~=true then return false end
 	gStates.eliteUnitsUsed=true
-	broadcastToAll("Fury of the Apocalypse Dragon: Elite Units are included in this Round's Unit Offer.",{1,1,0.5})
+	broadcastToAll("{en}Fury of the Apocalypse Dragon: Elite Units are included in this Round's Unit Offer.{ru}Ярость Дракона Апокалипсиса: элитные отряды включены в предложение отрядов этого раунда.{zh-tw}末日巨龍之怒：本回合輪的部隊供應包含精英部隊。{zh-cn}末日巨龙之怒：本回合轮的部队供应包含精英部队。{ko}아포칼립스 드래곤의 분노: 이번 라운드의 유닛 제안에 정예 유닛이 포함됩니다.{es}Furia del Dragón del Apocalipsis: las Unidades de Élite están incluidas en la Oferta de Unidades de esta Ronda.{fr}Fureur du Dragon de l’Apocalypse : les Unités d’Élite sont incluses dans l’Offre d’Unités de cette Manche.{pt-br}Fúria do Dragão do Apocalipse: Unidades de Elite estão incluídas na Oferta de Unidades desta Rodada.{de}Zorn des Apokalypse-Drachen: Eliteeinheiten sind in diesem Einheitenangebot der Runde enthalten.",{1,1,0.5})
 	return true
 end
 
