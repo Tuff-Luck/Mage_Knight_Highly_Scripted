@@ -36,6 +36,10 @@ local function revealSetupTerrainBatches(batches,onComplete)
 		local function startBatchPopulation()
 			local mapZone=getObjectFromGUID(mapArea)
 			if mapZone==nil then error("SetupGame lost the map scripting zone during initial terrain reveal.",2) end
+			--Standard maps mark their first reveal explicitly. Predefined layouts such as Fury and
+			--Against the Horsemen do not have a special first terrain tile, but the normal terrain-entry
+			--handler is still gated by firstStarted. Enable it when real setup population begins.
+			if gStates.firstStarted~=true then gStates.firstStarted=true end
 			for _,entry in ipairs(batch) do
 				if gStates.playedAllready[entry.guid]~=true and workingOnTerrain[entry.guid]~=true then
 					local tile=getObjectFromGUID(entry.guid)
