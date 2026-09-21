@@ -290,7 +290,7 @@ function scenarioSelection(player, mouseButton, id)
 		--Day Night Menu Access
 		UI.setAttribute("startAtNight", "interactable", "True")
 		UI.setAttribute("startAtNight", "isOn", "False")
-		UI.setAttribute("darknessComing", "text", "{en}Darkness is Coming{ru}Надвигается тьма{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel")
+		UI.setAttribute("darknessComing", "text", "{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵袭{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel")
 		gStates.startAtNight=false
 		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Fast Forwarded Conquest" then
 			UI.setAttribute("startAtNight", "interactable", "False")
@@ -389,7 +389,7 @@ function scenarioSelection(player, mouseButton, id)
 		--Volkare's Race and Combat Level Menu Access
 		if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
 			UI.setAttribute("VolkareLevelSelection", "interactable", "True")
-			UI.setAttribute("VolkareLevelSelection", "text", "{en}Daring{zh-cn}大胆{ko}대담한{es}Atrevido{fr}Audacieux{pt-br}Ousado")
+			UI.setAttribute("VolkareLevelSelection", "text", "{en}Daring{ru}Смелый{zh-tw}大膽{zh-cn}大胆{ko}대담한{es}Atrevido{fr}Audacieux{pt-br}Ousado{de}Wagemutig")
 			gStates.volkareCombatLevel=1
 			UI.setAttribute("VolkareRaceSelection", "interactable", "True")
 			UI.setAttribute("VolkareRaceSelection", "text", translateWord["Fair"])
