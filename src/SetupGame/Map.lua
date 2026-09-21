@@ -384,6 +384,9 @@ function mapSetup(onComplete)
 			finishMapSetup(false,"CITY SETUP ERROR: tile "..tostring(params.guid or i).." was not available for slot "..tostring(i))
 			return
 		end
+		--Volkare's Camp used to live in the special Volkare component bag without the Terrain tag.
+		--Any City-pool object is real terrain now, so normalize that legacy object as soon as it is drawn.
+		if obj.hasTag("Terrain")~=true then obj.addTag("Terrain") end
 		if furyMap then furyRevealGUIDs[#furyRevealGUIDs+1]=obj.guid end
 		if noShuffle==0 then TileShuffler.putObject(obj) end--Place in the Core Tile Shuffler if it is shuffled
 	end
