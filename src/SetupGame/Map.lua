@@ -5,6 +5,48 @@ firstTile=nil
 startingMapSetup=false
 startingMapTiles={}
 
+--Initial map reveals used to be spaced on one-second timers. Preserve their ordering, but advance each
+--batch as soon as the previous terrain-entry/population work has genuinely completed.
+local function revealSetupTerrainBatches(batches,onComplete)
+	local index=1
+	local function nextBatch()
+		while index<=#batches and #batches[index]==0 do index=index+1 end
+		if index>#batches then
+			if onComplete~=nil then onComplete() end
+			return
+		end
+		local batch=batches[index]
+		index=index+1
+		safeWaitCondition("SetupGame",function()
+			for _,entry in ipairs(batch) do
+				local tile=getObjectFromGUID(entry.guid)
+				if entry.first==true then firstTile=entry.guid gStates.firstStarted=true end
+				if tile~=nil and tile.is_face_down==true then tile.flip() end
+			end
+			--Give onObjectEnterZone one frame to claim workingOnTerrain before testing completion.
+			safeWaitFrames("SetupGame",function()
+				safeWaitCondition("SetupGame",nextBatch,function()
+					for _,entry in ipairs(batch) do
+						if gStates.playedAllready[entry.guid]~=true then return false end
+					end
+					return true
+				end,15,function()
+					error("SetupGame timed out waiting for terrain population during initial map reveal.",2)
+				end)
+			end,1)
+		end,function()
+			for _,entry in ipairs(batch) do
+				local tile=getObjectFromGUID(entry.guid)
+				if tile==nil or tile.resting~=true or workingOnTerrain[entry.guid]==true then return false end
+			end
+			return true
+		end,10,function()
+			error("SetupGame timed out waiting for initial terrain tiles to settle before reveal.",2)
+		end)
+	end
+	nextBatch()
+end
+
 --Fury of the Apocalypse Dragon uses the standalone single-hex Dragon token (42b581)
 --stored directly in the Apocalypse Dragon bag. Keep the Core 1 object returned by takeObject()
 --rather than relying on an immediate GUID lookup while TTS is still registering the deployed tile.
@@ -111,6 +153,8 @@ function mapSetup()
 	local furyCityTilePos={}
 	local furyRevealGUIDs={}
 	local furyLairTile=nil
+	local standardRevealBatches={{},{},{}}
+	local againstHorsemenStartGUID=nil
 	if furyMap then
 		--Exact predefined layouts from the Fury scenario sheet. Place every selected tile face down first;
 		--the slots that begin revealed are flipped later in a stepped sequence so normal terrain-entry
@@ -485,11 +529,6 @@ function mapSetup()
 		end
 		if againstHorsemenMap then
 			params.position=againstHorsemenCountryTilePos[i]
-			if i==1 then
-				params.callback_function=function(obj)
-					safeWaitTime("SetupGame",function() gStates.firstStarted=true firstTile=obj.guid obj.flip() end,1)
-				end
-			end
 		elseif furyMap then
 			local slot=furyCountrySlots[i]
 			params.position=slot.position
@@ -501,6 +540,7 @@ function mapSetup()
 			startingMapSetup=false
 			return
 		end
+		if againstHorsemenMap and i==1 then againstHorsemenStartGUID=countryTile.guid end
 		if furyMap and furyCountrySlots[i].faceUp==true then furyRevealGUIDs[#furyRevealGUIDs+1]=countryTile.guid end
 		if not againstHorsemenMap and not furyMap then TileShuffler.putObject(countryTile) end
 	end
@@ -508,16 +548,10 @@ function mapSetup()
 	if furyMap then
 		--Everything in Fury is already on the table. Core 1's former Tomb is the one-space Dragon Lair.
 		if furyDragonSetupLair(furyLairTile)~=true then print("FURY SETUP ERROR: could not establish the Dragon Lair") end
-		--Like the Volkare's Quest opening tiles, reveal from a settled face-down state in steps. This makes
-		--each reveal re-enter the normal terrain population path instead of arriving already face up.
-		for revealIndex,revealGUID in ipairs(furyRevealGUIDs) do
-			local guid=revealGUID
-			safeWaitTime("SetupGame",function()
-				local tile=getObjectFromGUID(guid)
-				if tile~=nil and tile.is_face_down==true then tile.flip() end
-			end,revealIndex)
-		end
-		safeWaitTime("SetupGame",function() startingMapSetup=false fakeDropAvatar() end,#furyRevealGUIDs+2)
+		--Reveal one tile at a time, but continue immediately when its normal terrain population finishes.
+		local batches={}
+		for _,guid in ipairs(furyRevealGUIDs) do batches[#batches+1]={{guid=guid}} end
+		revealSetupTerrainBatches(batches,function() startingMapSetup=false fakeDropAvatar() end)
 		return
 	end
 
@@ -526,7 +560,8 @@ function mapSetup()
 	if againstHorsemenMap then
 		againstHorsemenSetStartingAvatarLocations()
 		againstHorsemenSetupTokens(againstHorsemenCoreTileGUIDs,againstHorsemenCoreTilePos)
-		safeWaitTime("SetupGame",function()
+		local batches=againstHorsemenStartGUID~=nil and {{{guid=againstHorsemenStartGUID}}} or {}
+		revealSetupTerrainBatches(batches,function()
 			--Country01's central Magical Glade replaces the normal starting terrain in this scenario.
 			--Remove either state of the start tile plus only its map Portal overlay; the Portal card stays
 			--in place as the shared-avatar parking area.
@@ -535,7 +570,7 @@ function mapSetup()
 			if startObj~=nil then startObj.destruct() end
 			if portalObj~=nil then portalObj.destruct() end
 			startingMapSetup=false
-		end,4)
+		end)
 		return
 	end
 
@@ -550,22 +585,37 @@ function mapSetup()
 	local rot={}
 	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)=="W" then
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
-		takeStartingCountry({position={-25.2302, 1.07, -9.8482}, rotation=rot, smooth=false, callback_function=function(obj) safeWaitTime("SetupGame",function() gStates.firstStarted=true firstTile=obj.guid obj.flip() end, 1) end})
+		local firstStart=takeStartingCountry({position={-25.2302,1.07,-9.8482},rotation=rot,smooth=false})
+		if firstStart~=nil then standardRevealBatches[1][#standardRevealBatches[1]+1]={guid=firstStart.guid,first=true} end
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
-		takeStartingCountry({position={-19.2300, 1.07, -11.9267}, rotation=rot, smooth=false, callback_function=function(obj) safeWaitTime("SetupGame",function() obj.flip() end, 2) end})
+		local secondStart=takeStartingCountry({position={-19.2300,1.07,-11.9267},rotation=rot,smooth=false})
+		if secondStart~=nil then standardRevealBatches[2][#standardRevealBatches[2]+1]={guid=secondStart.guid} end
 		if gStates.gameScenario=="The Chaos Rift" then
 			if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
 			takeStartingCountry({position={-20.4300, 1.09, -5.6911}, rotation=rot, smooth=false})
 		end
 	else
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
-		if gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="Volkare's Return Blitz" then takeStartingCountry({position={-37.2305, 1.07, -5.6911}, rotation=rot, smooth=false, callback_function=function(obj) tile1=obj safeWaitTime("SetupGame",function() gStates.firstStarted=true firstTile=tile1.guid tile1.flip() end, 1) end}) end
-		if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then safeWaitTime("SetupGame",function() getObjectFromGUID("835c91").setPosition({-37.2305, 1.15, -5.6911}) getObjectFromGUID("835c91").flip() end, 1) end
+		if gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="Volkare's Return Blitz" then
+			local firstStart=takeStartingCountry({position={-37.2305,1.07,-5.6911},rotation=rot,smooth=false})
+			if firstStart~=nil then standardRevealBatches[1][#standardRevealBatches[1]+1]={guid=firstStart.guid,first=true} end
+		end
+		if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
+			local camp=getObjectFromGUID("835c91")
+			if camp~=nil then camp.setPosition({-37.2305,1.15,-5.6911}) standardRevealBatches[1][#standardRevealBatches[1]+1]={guid=camp.guid} end
+		end
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
-		takeStartingCountry({position={-31.2303, 1.07, -7.7696}, rotation=rot, smooth=false, callback_function=function(obj) safeWaitTime("SetupGame",function() obj.flip() end, 2) end})
+		local secondStart=takeStartingCountry({position={-31.2303,1.07,-7.7696},rotation=rot,smooth=false})
+		if secondStart~=nil then standardRevealBatches[2][#standardRevealBatches[2]+1]={guid=secondStart.guid} end
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
-		if gStates.gameScenario~="The Gauntlet" then takeStartingCountry({position={-30.0303, 1.07, -14.0000}, rotation=rot, smooth=false, callback_function=function(obj) safeWaitTime("SetupGame",function() obj.flip() end, 3) end}) end
-		if gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then safeWaitTime("SetupGame",function() getObjectFromGUID("835c91").setPosition({-12.0297, 1.15, 8.8586}) getObjectFromGUID("835c91").flip() end, 3) end
+		if gStates.gameScenario~="The Gauntlet" then
+			local thirdStart=takeStartingCountry({position={-30.0303,1.07,-14.0000},rotation=rot,smooth=false})
+			if thirdStart~=nil then standardRevealBatches[3][#standardRevealBatches[3]+1]={guid=thirdStart.guid} end
+		end
+		if gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
+			local camp=getObjectFromGUID("835c91")
+			if camp~=nil then camp.setPosition({-12.0297,1.15,8.8586}) standardRevealBatches[3][#standardRevealBatches[3]+1]={guid=camp.guid} end
+		end
 	end
 	local VolQuestTilePos=		  {{-32.4304, 1.15, -1.5341}, {-27.6302, 1.15,   2.6230}, {-26.4302, 1.15, -3.6126}, {-25.2302, 1.15, -9.8482}, {-20.4300, 1.15,  -5.6911}, {-21.6300, 1.15,   0.5445}, {-24.0301, 1.15, -16.0837}, {-19.2300, 1.15, -11.9267}, {-14.4298, 0.15, -7.7696}}
 	local warOfFourCountryTilePos={{-38.4306, 1.15,  0.5445}, {-27.6302, 1.15,   2.6230}, {-26.4302, 1.15, -3.6126}, {-33.6304, 1.15, 4.7015},  {-20.4300, 1.15,  -5.6911}, {-21.6300, 1.15,   0.5445}, {-24.0301, 1.15, -16.0837}, {-19.2300, 1.15, -11.9267}, {-18.0299, 1.15, 10.9371}, {-10.8297, 1.15, 2.6230}}
@@ -581,7 +631,7 @@ function mapSetup()
 		if params.position==nil then params.position={pos.x, pos.y+tUp, pos.z} tUp=tUp+0.5 end
 		safeTakeObject("SetupGame",TileShuffler,params)
 	end
-	--Starting country tiles reveal on 1/2/3 second timers. They are part of setup and do not
-	--count toward Apocalypse is Here Horseman reveal thresholds.
-	safeWaitTime("SetupGame",function() startingMapSetup=false end, 4)
+	--Initial tiles remain excluded from Apocalypse is Here reveal thresholds until their real population
+	--callbacks finish; there is no longer a fixed four-second setup tail.
+	revealSetupTerrainBatches(standardRevealBatches,function() startingMapSetup=false end)
 end

@@ -19,7 +19,10 @@ local function finishMonsterSetupWhenReady()
 	if monsterSetupPendingMerges~=0 or monsterSetupFinalizeQueued==true then return end
 	monsterSetupFinalizeQueued=true
 	--One frame lets destination containers absorb the final putObject calls; no fixed one-second sleep.
-	safeWaitFrames("SetupGame",shuffleMonsterPiles,1)
+	safeWaitFrames("SetupGame",function()
+		monsterSetupFinalizeQueued=false
+		if monsterSetupPendingMerges==0 then shuffleMonsterPiles() else finishMonsterSetupWhenReady() end
+	end,1)
 end
 
 local function mergeMonsterBag(source,destination,container)
