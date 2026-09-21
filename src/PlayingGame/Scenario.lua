@@ -225,7 +225,7 @@ function volkareQuestPortalStatus()
 	local warningDistance=2.39*4.20
 	if distance>closeDistance and distance<=warningDistance and gStates.volkarePortalWarningShown~=true then
 		gStates.volkarePortalWarningShown=true
-		broadcastToAll("WARNING: Volkare is four spaces from the Portal. If he moves within three spaces, the Council of the Void will close it.", {1,0.65,0.15})
+		broadcastToAll("{en}WARNING: Volkare is four spaces from the Portal. If he moves within three spaces, the Council of the Void will close it.{ru}ВНИМАНИЕ: Волкар находится в четырёх клетках от Портала. Если он приблизится на три клетки, Совет Пустоты закроет Портал.{zh-tw}警告：沃卡里距離傳送門四格。若他進入三格範圍內，虛空議會將關閉傳送門。{zh-cn}警告：沃卡里距离传送门四格。若他进入三格范围内，虚空议会将关闭传送门。{ko}경고: 볼케어가 포털에서 4칸 떨어져 있습니다. 3칸 이내로 이동하면 공허의 의회가 포털을 닫습니다.{es}ADVERTENCIA: Volkare está a cuatro espacios del Portal. Si se acerca a tres espacios, el Consejo del Vacío lo cerrará.{fr}ATTENTION : Volkare se trouve à quatre cases du Portail. S’il s’approche à trois cases, le Conseil du Vide le fermera.{pt-br}AVISO: Volkare está a quatro espaços do Portal. Se ele chegar a três espaços, o Conselho do Vácuo fechará o Portal.{de}WARNUNG: Volkare ist vier Felder vom Portal entfernt. Kommt er auf drei Felder heran, wird der Rat der Leere das Portal schließen.", {1,0.65,0.15})
 	end
 	if distance>closeDistance then return false end
 	gStates.volkarePortalClosed=true
@@ -234,7 +234,7 @@ function volkareQuestPortalStatus()
 	local marked=false
 	for _, decal in pairs(decals) do if decal.name=="Portal Closed" then marked=true break end end
 	if marked==false then portalTile.addDecal({name="Portal Closed",url=volkarePortalClosedDecalURL,position={0,0.15,0},rotation={90,180,0},scale={0.88,0.88,1}}) end
-	broadcastToAll("The Council of the Void has closed the Portal. From now on it is an ordinary space, and Volkare may be attacked there.", {1,0.45,0.15})
+	broadcastToAll("{en}The Council of the Void has closed the Portal. From now on it is an ordinary space, and Volkare may be attacked there.{ru}Совет Пустоты закрыл Портал. Теперь это обычная клетка, и Волкара можно атаковать там.{zh-tw}虛空議會已關閉傳送門。從現在起它視為一般空間，沃卡里可在此被攻擊。{zh-cn}虚空议会已关闭传送门。从现在起它视为一般空间，沃卡里可在此被攻击。{ko}공허의 의회가 포털을 닫았습니다. 이제 일반 칸으로 취급하며 그곳에서 볼케어를 공격할 수 있습니다.{es}El Consejo del Vacío ha cerrado el Portal. A partir de ahora es un espacio normal y Volkare puede ser atacado allí.{fr}Le Conseil du Vide a fermé le Portail. Désormais, il s’agit d’une case ordinaire et Volkare peut y être attaqué.{pt-br}O Conselho do Vácuo fechou o Portal. A partir de agora ele é um espaço comum, e Volkare pode ser atacado ali.{de}Der Rat der Leere hat das Portal geschlossen. Von nun an ist es ein normales Feld, und Volkare kann dort angegriffen werden.", {1,0.45,0.15})
 	for playerIndex, details in pairs(turnOrder) do
 		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false and details.avatarLocation=="portal" then
 			details.dropoutState="dropped"
@@ -280,7 +280,7 @@ function oneToReturnClosePortal()
 	if gStates.gameScenario~="One to Return" or gStates.oneToReturnPortalClosed==true then return false end
 	gStates.oneToReturnPortalClosed=true
 	oneToReturnSetPortalClosedDecal(true)
-	broadcastToAll("The Portal has closed. From now on it is an ordinary plains space until the end of the second Night.", warningColor)
+	broadcastToAll("{en}The Portal has closed. From now on it is an ordinary plains space until the end of the second Night.{ru}Портал закрылся. До конца второй Ночи это обычная клетка Равнины.{zh-tw}傳送門已關閉。從現在起直到第二個夜晚結束，它視為一般平原空間。{zh-cn}传送门已关闭。从现在起直到第二个夜晚结束，它视为一般平原空间。{ko}포털이 닫혔습니다. 두 번째 밤이 끝날 때까지 일반 평원 칸으로 취급합니다.{es}El Portal se ha cerrado. Hasta el final de la segunda Noche es un espacio normal de Llanura.{fr}Le Portail s’est fermé. Jusqu’à la fin de la deuxième Nuit, il s’agit d’une case de Plaine ordinaire.{pt-br}O Portal se fechou. Até o fim da segunda Noite ele é um espaço comum de Planície.{de}Das Portal hat sich geschlossen. Bis zum Ende der zweiten Nacht ist es ein normales Ebenenfeld.", warningColor)
 	for playerIndex, details in pairs(turnOrder) do
 		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false and details.avatarLocation=="portal" then
 			details.dropoutState="dropped"
@@ -668,7 +668,7 @@ end
 function refreshMineClaimPanel()
 	local pending=gStates.mineClaimPending
 	if pending==nil or turnOrder[pending.playerIndex]==nil then UI.hide("MineClaimChoice") return end
-	UI.setAttribute("MineClaimChoiceTitle", "text", pending.source=="Quest" and "Quest Crystal" or "Mined Crystal")
+	UI.setAttribute("MineClaimChoiceTitle", "text", pending.source=="Quest" and "{en}Quest Crystal{ru}Кристалл задания{zh-tw}任務水晶{zh-cn}任务水晶{ko}퀘스트 크리스털{es}Cristal de Misión{fr}Cristal de Quête{pt-br}Cristal de Missão{de}Quest-Kristall" or "{en}Mined Crystal{ru}Добытый кристалл{zh-tw}開採水晶{zh-cn}开采水晶{ko}채굴한 크리스털{es}Cristal Extraído{fr}Cristal Extrait{pt-br}Cristal Minerado{de}Abgebauter Kristall")
 	for i=1, 4 do
 		local color=pending.colors[i]
 		UI.setAttribute("MineClaimButton"..i, "active", color~=nil and "true" or "false")
@@ -1678,7 +1678,7 @@ function againstHorsemenPrepareRitual()
 			if monsterPugs[data.tokenGUID]~=nil and monsterPugs[data.tokenGUID].unfortified==nil then monsterPugs[data.tokenGUID].fortified=true end
 		end
 	end
-	broadcastToAll("The ritual has begun. The central Magical Glade is now a fortified assault site defended by every surviving Horseman.",{1,0.35,0.15})
+	broadcastToAll("{en}The ritual has begun. The central Magical Glade is now a fortified assault site defended by every surviving Horseman.{ru}Ритуал начался. Центральная Магическая поляна теперь является укреплённым местом штурма, которое защищают все оставшиеся Всадники.{zh-tw}儀式已開始。中央魔法林地現在是由所有倖存騎士防守的要塞攻城地點。{zh-cn}仪式已开始。中央魔法林地现在是由所有幸存骑士防守的要塞攻城地点。{ko}의식이 시작되었습니다. 중앙의 마법의 숲은 이제 살아남은 모든 기수가 방어하는 요새화된 공격 장소입니다.{es}El ritual ha comenzado. El Claro Mágico central es ahora un lugar fortificado de asalto defendido por todos los Jinetes supervivientes.{fr}Le rituel a commencé. La Clairière Magique centrale est désormais un site d’assaut fortifié défendu par tous les Cavaliers survivants.{pt-br}O ritual começou. A Clareira Mágica central agora é um local fortificado de assalto defendido por todos os Cavaleiros sobreviventes.{de}Das Ritual hat begonnen. Die zentrale Magische Lichtung ist nun ein befestigter Angriffsort, der von allen überlebenden Reitern verteidigt wird.",{1,0.35,0.15})
 	addAvatarButtons()
 end
 
@@ -1995,7 +1995,7 @@ function againstHorsemenContinueEndRoundMovement()
 
 	local center=againstHorsemenGladePosition()
 	if center==nil then
-		broadcastToAll("Horsemen movement could not locate the central Magical Glade on the map.",{1,0.3,0.2})
+		broadcastToAll("{en}Horsemen movement could not locate the central Magical Glade on the map.{ru}Движение Всадников не смогло найти центральную Магическую поляну на карте.{zh-tw}騎士移動無法在地圖上找到中央魔法林地。{zh-cn}骑士移动无法在地图上找到中央魔法林地。{ko}기사 이동에서 맵 중앙의 마법의 숲을 찾지 못했습니다.{es}El movimiento de los Jinetes no pudo localizar el Claro Mágico central en el mapa.{fr}Le déplacement des Cavaliers n’a pas pu localiser la Clairière Magique centrale sur la carte.{pt-br}O movimento dos Cavaleiros não conseguiu localizar a Clareira Mágica central no mapa.{de}Die Bewegung der Reiter konnte die zentrale Magische Lichtung auf der Karte nicht finden.",{1,0.3,0.2})
 		pending.stepsRemaining=0
 		againstHorsemenContinueEndRoundMovement()
 		return
@@ -2058,7 +2058,7 @@ function againstHorsemenBeginEndRoundMovement()
 	if #queue<1 then return false end
 	if gStates.currentRound==3 then
 		gStates.againstHorsemenMovePending={round=gStates.currentRound,queue=queue,stepsRemaining=1,finalGlade=true}
-		broadcastToAll("End of Round 3: the surviving Horsemen move into the central Magical Glade and begin the ritual.",{1,0.3,0.2})
+		broadcastToAll("{en}End of Round 3: the surviving Horsemen move into the central Magical Glade and begin the ritual.{ru}Конец раунда 3: оставшиеся Всадники перемещаются на центральную Магическую поляну и начинают ритуал.{zh-tw}第 3 回合輪結束：倖存騎士移入中央魔法林地並開始儀式。{zh-cn}第 3 回合轮结束：幸存骑士移入中央魔法林地并开始仪式。{ko}3라운드 종료: 살아남은 기사들이 중앙 마법의 숲으로 이동해 의식을 시작합니다.{es}Fin de la Ronda 3: los Jinetes supervivientes se mueven al Claro Mágico central y comienzan el ritual.{fr}Fin de la Manche 3 : les Cavaliers survivants se déplacent dans la Clairière Magique centrale et commencent le rituel.{pt-br}Fim da Rodada 3: os Cavaleiros sobreviventes se movem para a Clareira Mágica central e iniciam o ritual.{de}Ende von Runde 3: Die überlebenden Reiter ziehen auf die zentrale Magische Lichtung und beginnen das Ritual.",{1,0.3,0.2})
 	else
 		gStates.againstHorsemenMovePending={round=gStates.currentRound,queue=queue,stepsRemaining=2}
 		broadcastToAll("End of Round "..tostring(gStates.currentRound)..": each surviving Horseman moves two spaces closer to the central Magical Glade.",{1,0.75,0.2})
@@ -2366,7 +2366,7 @@ function apocalypseIsHereRevealDragonCity(tile)
 	if dragon~=nil then apocalypseDragonLockModelWhenSettled() end
 	safeWaitFrames("Scenario",function() apocalypseIsHerePossessRampagersOnTile(tile.guid) end,35)
 	safeWaitFrames("Scenario",function() apocalypseIsHerePossessRampagersOnTile(tile.guid) end,75)
-	broadcastToAll("The second City has been destroyed by the Apocalypse Dragon. The City space is now Plains, and the Dragon has landed across the three spaces.",{1,0.75,0.2})
+	broadcastToAll("{en}The second City has been destroyed by the Apocalypse Dragon. The City space is now Plains, and the Dragon has landed across the three spaces.{ru}Второй Город уничтожен Драконом Апокалипсиса. Клетка Города теперь считается Равниной, а Дракон приземлился на трёх клетках.{zh-tw}第二座城市已被末日巨龍摧毀。城市空間現在視為平原，巨龍已橫跨三個空間降落。{zh-cn}第二座城市已被末日巨龙摧毁。城市空间现在视为平原，巨龙已横跨三个空间降落。{ko}두 번째 도시가 아포칼립스 드래곤에게 파괴되었습니다. 도시 칸은 이제 평원이며 드래곤은 세 칸에 걸쳐 착륙했습니다.{es}La segunda Ciudad ha sido destruida por el Dragón del Apocalipsis. El espacio de Ciudad ahora es Llanura y el Dragón ha aterrizado ocupando tres espacios.{fr}La deuxième Cité a été détruite par le Dragon de l’Apocalypse. La case de Cité est désormais une Plaine et le Dragon a atterri sur les trois cases.{pt-br}A segunda Cidade foi destruída pelo Dragão do Apocalipse. O espaço da Cidade agora é Planície, e o Dragão pousou ocupando os três espaços.{de}Die zweite Stadt wurde vom Apokalypse-Drachen zerstört. Das Stadtfeld ist nun Ebene, und der Drache ist über drei Felder hinweg gelandet.",{1,0.75,0.2})
 	return true
 end
 
@@ -2728,7 +2728,7 @@ function apocalypseIsHereEndHorsemen()
 			if data~=nil then monsterPugs[data.tokenGUID]=nil if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end end
 		end
 	end
-	broadcastToAll("The Apocalypse Dragon has been attacked. Every Horseman still on the map is removed; this does not count as defeating them.",{1,0.75,0.2})
+	broadcastToAll("{en}The Apocalypse Dragon has been attacked. Every Horseman still on the map is removed; this does not count as defeating them.{ru}Дракон Апокалипсиса атакован. Все Всадники, оставшиеся на карте, удаляются; это не считается их победой.{zh-tw}末日巨龍已被攻擊。地圖上所有剩餘騎士都被移除；這不算擊敗他們。{zh-cn}末日巨龙已被攻击。地图上所有剩余骑士都被移除；这不算击败他们。{ko}아포칼립스 드래곤이 공격받았습니다. 맵에 남은 모든 기수를 제거합니다. 이들은 처치한 것으로 계산하지 않습니다.{es}El Dragón del Apocalipsis ha sido atacado. Retira a todos los Jinetes que sigan en el mapa; esto no cuenta como derrotarlos.{fr}Le Dragon de l’Apocalypse a été attaqué. Retirez tous les Cavaliers encore présents sur la carte ; cela ne compte pas comme les avoir vaincus.{pt-br}O Dragão do Apocalipse foi atacado. Remova todos os Cavaleiros que ainda estiverem no mapa; isso não conta como derrotá-los.{de}Der Apokalypse-Drache wurde angegriffen. Alle noch auf der Karte befindlichen Reiter werden entfernt; dies zählt nicht als Besiegen.",{1,0.75,0.2})
 	return true
 end
 
@@ -3913,7 +3913,7 @@ function apocalypseDragonBeginCoopGroundCombat()
 	end
 	apocalypseDragonRefreshGroundAttackSuppression()
 	for playerIndex,_ in pairs(combat.players or {}) do apocalypseDragonRefreshGroundFameGain(playerIndex) end
-	broadcastToAll("The cooperative assault on the Apocalypse Dragon begins. The coloured heads have been divided between the participating Mage Knights; every participant also faces the Control head.",{1,0.75,0.2})
+	broadcastToAll("{en}The cooperative assault on the Apocalypse Dragon begins. The coloured heads have been divided between the participating Mage Knights; every participant also faces the Control head.{ru}Начинается совместный штурм Дракона Апокалипсиса. Цветные головы распределены между участвующими Рыцарями-магами; каждый участник также сражается с головой Контроля.{zh-tw}對末日巨龍的合作攻城開始。彩色龍首已分配給參戰的魔法騎士；每名參戰者也都要面對控制龍首。{zh-cn}对末日巨龙的合作攻城开始。彩色龙首已分配给参战的魔法骑士；每名参战者也都要面对控制龙首。{ko}아포칼립스 드래곤 협동 공격이 시작됩니다. 색깔 머리는 참가한 마법 기사들에게 나뉘어 배정되며, 모든 참가자는 제어 머리도 상대합니다.{es}Comienza el asalto cooperativo al Dragón del Apocalipsis. Las cabezas de colores se han repartido entre los Caballeros Mago participantes; cada participante también se enfrenta a la cabeza de Control.{fr}L’assaut coopératif contre le Dragon de l’Apocalypse commence. Les têtes colorées ont été réparties entre les Chevaliers-Mages participants ; chacun affronte également la tête de Contrôle.{pt-br}Começa o assalto cooperativo ao Dragão do Apocalipse. As cabeças coloridas foram divididas entre os Cavaleiros-Magos participantes; cada participante também enfrenta a cabeça de Controle.{de}Der kooperative Angriff auf den Apokalypse-Drachen beginnt. Die farbigen Köpfe wurden auf die teilnehmenden Magieritter verteilt; jeder Teilnehmer stellt sich außerdem dem Kontrollkopf.",{1,0.75,0.2})
 	return true
 end
 
@@ -4525,7 +4525,7 @@ function againstDragonResolveDestroyOption(option)
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local hex=option~=nil and againstDragonMapHexByKey(hexes,option.key) or nil
 	if hex==nil then
-		broadcastToAll("The Apocalypse Dragon's selected destruction target could no longer be found.",warningColor)
+		broadcastToAll("{en}The Apocalypse Dragon's selected destruction target could no longer be found.{ru}Выбранная цель уничтожения Дракона Апокалипсиса больше не найдена.{zh-tw}找不到末日巨龍先前選定的摧毀目標。{zh-cn}找不到末日巨龙先前选定的摧毁目标。{ko}아포칼립스 드래곤이 선택한 파괴 대상을 더 이상 찾을 수 없습니다.{es}Ya no se pudo encontrar el objetivo de destrucción elegido por el Dragón del Apocalipsis.{fr}La cible de destruction choisie par le Dragon de l’Apocalypse est introuvable.{pt-br}O alvo de destruição escolhido pelo Dragão do Apocalipse não pôde mais ser encontrado.{de}Das ausgewählte Zerstörungsziel des Apokalypse-Drachen konnte nicht mehr gefunden werden.",warningColor)
 		againstDragonSetTurnReport(againstDragonFinalReport("The selected destruction target could no longer be found."),"Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return false
@@ -4541,7 +4541,7 @@ function againstDragonResolveDestroyOption(option)
 			proxyDiscardMonster(target)
 			againstDragonSetTurnReport(againstDragonFinalReport("The Dragon destroyed "..tostring(name).."."),"Processing")
 		else
-			broadcastToAll("The Apocalypse Dragon's Rampaging Enemy target was no longer present.",warningColor)
+			broadcastToAll("{en}The Apocalypse Dragon's Rampaging Enemy target was no longer present.{ru}Цель Дракона Апокалипсиса — Бродячий враг — больше отсутствует.{zh-tw}末日巨龍的遊蕩敵人目標已不存在。{zh-cn}末日巨龙的游荡敌人目标已不存在。{ko}아포칼립스 드래곤의 방랑 적 대상이 더 이상 존재하지 않습니다.{es}El objetivo de Enemigo Arrasador del Dragón del Apocalipsis ya no estaba presente.{fr}La cible Ennemi Ravageur du Dragon de l’Apocalypse n’était plus présente.{pt-br}O alvo de Inimigo Errante do Dragão do Apocalipse não estava mais presente.{de}Das Ziel „Streunender Gegner“ des Apokalypse-Drachen war nicht mehr vorhanden.",warningColor)
 			againstDragonSetTurnReport(againstDragonFinalReport("The selected Rampaging Enemy was no longer present."),"Processing")
 		end
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,3)
@@ -4550,7 +4550,7 @@ function againstDragonResolveDestroyOption(option)
 
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
 	if bag==nil then
-		broadcastToAll("The Destroyed Site token bag could not be found. The Apocalypse Dragon cannot destroy this site.",warningColor)
+		broadcastToAll("{en}The Destroyed Site token bag could not be found. The Apocalypse Dragon cannot destroy this site.{ru}Мешок жетонов разрушенных мест не найден. Дракон Апокалипсиса не может уничтожить это место.{zh-tw}找不到「被摧毀地點」標記袋。末日巨龍無法摧毀此地點。{zh-cn}找不到“被摧毁地点”标记袋。末日巨龙无法摧毁此地点。{ko}파괴된 장소 토큰 주머니를 찾을 수 없습니다. 아포칼립스 드래곤이 이 장소를 파괴할 수 없습니다.{es}No se encontró la bolsa de fichas de Sitio Destruido. El Dragón del Apocalipsis no puede destruir este lugar.{fr}Le sac de jetons Site Détruit est introuvable. Le Dragon de l’Apocalypse ne peut pas détruire ce lieu.{pt-br}A bolsa de fichas de Local Destruído não foi encontrada. O Dragão do Apocalipse não pode destruir este local.{de}Der Beutel mit Markern für zerstörte Orte wurde nicht gefunden. Der Apokalypse-Drache kann diesen Ort nicht zerstören.",warningColor)
 		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon could not destroy the selected site because the Destroyed Site token bag was unavailable."),"Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return false
@@ -4590,7 +4590,7 @@ function againstDragonBeginDestroy()
 	end
 	local tied,distance=againstDragonDistanceChoices(candidates,hexes,mapObjects)
 	if #tied<1 then
-		broadcastToAll("The Apocalypse Dragon could not measure a revealed-space route to a destruction target.",warningColor)
+		broadcastToAll("{en}The Apocalypse Dragon could not measure a revealed-space route to a destruction target.{ru}Дракон Апокалипсиса не смог определить путь по открытым клеткам до цели уничтожения.{zh-tw}末日巨龍無法計算沿已揭示空間前往摧毀目標的路線。{zh-cn}末日巨龙无法计算沿已揭示空间前往摧毁目标的路线。{ko}아포칼립스 드래곤이 공개된 칸을 따라 파괴 대상까지의 경로를 계산하지 못했습니다.{es}El Dragón del Apocalipsis no pudo calcular una ruta por espacios revelados hasta un objetivo de destrucción.{fr}Le Dragon de l’Apocalypse n’a pas pu calculer un trajet par les cases révélées jusqu’à une cible de destruction.{pt-br}O Dragão do Apocalipse não conseguiu calcular uma rota por espaços revelados até um alvo de destruição.{de}Der Apokalypse-Drache konnte keinen Weg über aufgedeckte Felder zu einem Zerstörungsziel bestimmen.",warningColor)
 		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon could not measure a route to a legal destruction target."),"Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return true
@@ -4783,7 +4783,7 @@ function againstDragonResolveAirborneProtection(pending)
 	if currentFeature==nil or string.lower(tostring(currentFeature))~=feature then return false end
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
 	if bag==nil then
-		broadcastToAll("A Dragon head was suppressed by the site, but no Destroyed Site token was available.",warningColor)
+		broadcastToAll("{en}A Dragon head was suppressed by the site, but no Destroyed Site token was available.{ru}Голова Дракона была подавлена местом, но жетон разрушенного места недоступен.{zh-tw}此地點壓制了一個龍首，但沒有可用的「被摧毀地點」標記。{zh-cn}此地点压制了一个龙首，但没有可用的“被摧毁地点”标记。{ko}장소가 드래곤 머리 하나를 억제했지만 사용할 파괴된 장소 토큰이 없습니다.{es}El lugar suprimió una cabeza del Dragón, pero no había ninguna ficha de Sitio Destruido disponible.{fr}Le site a neutralisé une tête du Dragon, mais aucun jeton Site Détruit n’était disponible.{pt-br}O local suprimiu uma cabeça do Dragão, mas não havia ficha de Local Destruído disponível.{de}Ein Drachenkopf wurde durch den Ort unterdrückt, aber es war kein Marker für einen zerstörten Ort verfügbar.",warningColor)
 		return false
 	end
 	local token=takeDestroyedSiteToken(terrain,location.bearing)
@@ -4873,7 +4873,7 @@ function againstDragonAttendFull(player,mouseButton,id)
 	if againstDragonFullAttendAllowed(pending.playerIndex)~=true then
 		againstDragonAttendanceUIRefresh()
 		local color=player~=nil and player.color or positionToColor(pending.playerIndex)
-		if color~=nil then broadcastToColor("Fully Defend is unavailable because this Mage Knight's Round Order token is already face down.",color,warningColor) end
+		if color~=nil then broadcastToColor("{en}Fully Defend is unavailable because this Mage Knight's Round Order token is already face down.{ru}Полная защита недоступна, потому что жетон порядка хода этого Рыцаря-мага уже лежит лицом вниз.{zh-tw}無法完全防禦，因為此魔法騎士的回合順位標記已經翻面。{zh-cn}无法完全防御，因为此魔法骑士的回合顺序标记已经翻面。{ko}이 마법 기사의 라운드 순서 토큰이 이미 뒷면이어서 완전 방어를 사용할 수 없습니다.{es}Defender por Completo no está disponible porque la ficha de Orden de Ronda de este Caballero Mago ya está boca abajo.{fr}La Défense Complète est indisponible car le jeton d’Ordre de Manche de ce Chevalier-Mage est déjà face cachée.{pt-br}Defender por Completo não está disponível porque a ficha de Ordem da Rodada deste Cavaleiro-Mago já está virada para baixo.{de}Vollständige Verteidigung ist nicht möglich, da der Rundenreihenfolgemarker dieses Magieritters bereits verdeckt liegt.",color,warningColor) end
 		return
 	end
 	local playerIndex=pending.playerIndex
@@ -4971,7 +4971,7 @@ function againstDragonBeginAttack()
 
 	local tied,distance=againstDragonDistanceChoices(attackable,hexes,mapObjects)
 	if #tied<1 then
-		broadcastToAll("The Apocalypse Dragon could not measure a revealed-space route to an eligible player.",warningColor)
+		broadcastToAll("{en}The Apocalypse Dragon could not measure a revealed-space route to an eligible player.{ru}Дракон Апокалипсиса не смог определить путь по открытым клеткам до подходящего игрока.{zh-tw}末日巨龍無法計算沿已揭示空間前往合資格玩家的路線。{zh-cn}末日巨龙无法计算沿已揭示空间前往合资格玩家的路线。{ko}아포칼립스 드래곤이 공개된 칸을 따라 공격 가능한 플레이어까지의 경로를 계산하지 못했습니다.{es}El Dragón del Apocalipsis no pudo calcular una ruta por espacios revelados hasta un jugador válido.{fr}Le Dragon de l’Apocalypse n’a pas pu calculer un trajet par les cases révélées jusqu’à un joueur éligible.{pt-br}O Dragão do Apocalipse não conseguiu calcular uma rota por espaços revelados até um jogador elegível.{de}Der Apokalypse-Drache konnte keinen Weg über aufgedeckte Felder zu einem berechtigten Spieler bestimmen.",warningColor)
 		againstDragonSetTurnReport("The Dragon could not measure a route to an eligible player.","Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return true
