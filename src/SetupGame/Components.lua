@@ -1,20 +1,58 @@
 -- Physical setup for monster pools and expansion bag merging.
 
+local monsterSetupPendingMerges=0
+local monsterSetupFinalizeQueued=false
+
+local function shuffleMonsterPiles()
+	local toBeShuffled={monsterPiles.redElem,monsterPiles.tanElem,monsterPiles.greenElem,monsterPiles.rewardElem,
+		monsterPiles.redDark,monsterPiles.tanDark,monsterPiles.greenDark,monsterPiles.rewardDark,
+		monsterPiles.rewardApoc,monsterPiles.rewardCouncil,monsterPiles.possessed,
+		monsterPiles.tan,monsterPiles.green,monsterPiles.red,monsterPiles.purple,monsterPiles.white,monsterPiles.gray,monsterPiles.yellow}
+	for _,guid in ipairs(toBeShuffled) do
+		local pile=getObjectFromGUID(guid)
+		if pile~=nil then pile.shuffle() end
+	end
+	gStates.monsterSetupReady=true
+end
+
+local function finishMonsterSetupWhenReady()
+	if monsterSetupPendingMerges~=0 or monsterSetupFinalizeQueued==true then return end
+	monsterSetupFinalizeQueued=true
+	--One frame lets destination containers absorb the final putObject calls; no fixed one-second sleep.
+	safeWaitFrames("SetupGame",shuffleMonsterPiles,1)
+end
+
+local function mergeMonsterBag(source,destination,container)
+	local destinationBag=getObjectFromGUID(destination)
+	if destinationBag==nil then error("SetupGame missing monster destination bag "..tostring(destination),2) end
+	monsterSetupPendingMerges=monsterSetupPendingMerges+1
+	local p=destinationBag.getPosition()
+	local temp=safeTakeObject("SetupGame",getObjectFromGUID(container),{
+		position={p[1],-2,p[3]},
+		smooth=false,
+		guid=source,
+		callback_function=function(sourceBag)
+			local count=#sourceBag.getObjects()
+			for _=1,count do destinationBag.putObject(sourceBag.takeObject({smooth=false})) end
+			sourceBag.destruct()
+			monsterSetupPendingMerges=monsterSetupPendingMerges-1
+			finishMonsterSetupWhenReady()
+		end})
+	if temp==nil then
+		monsterSetupPendingMerges=monsterSetupPendingMerges-1
+		error("SetupGame could not extract monster bag "..tostring(source),2)
+	end
+end
+
 --Monster Pug Setup
 function monsterSetup()
-	function mergeBags(source, destination, container)
-		local temp=getObjectFromGUID(container).takeObject({position={getObjectFromGUID(destination).getPosition()[1], -2, getObjectFromGUID(destination).getPosition()[3]}, smooth=false, guid=source})
-		safeWaitFrames("SetupGame",function()
-			for b=1, #temp.getObjects(), 1 do
-				getObjectFromGUID(destination).putObject(temp.takeObject())
-			end
-			getObjectFromGUID(source).destruct()
-		end, 5)
-	end
+	monsterSetupPendingMerges=0
+	monsterSetupFinalizeQueued=false
+	gStates.monsterSetupReady=false
 	if gStates.removeLostLegionExpansion==false then
 		local LostLegion={["89a23e"]=monsterPiles.green, ["77e1c6"]=monsterPiles.tan, ["143108"]=monsterPiles.red, ["88ff48"]=monsterPiles.gray, ["bf4140"]=monsterPiles.purple, ["fe25be"]=monsterPiles.white, ["b65694"]=monsterPiles.yellow}
 		for mergeBag, destinationBag in pairs(LostLegion) do
-			mergeBags(mergeBag, destinationBag, GUID.bag.lostLegion)
+			mergeMonsterBag(mergeBag, destinationBag, GUID.bag.lostLegion)
 		end
 	end
 	if gStates.removeShadesOfTezlaMonsters~=true then
@@ -33,7 +71,7 @@ function monsterSetup()
 			for objGuid, location in pairs(workingOn) do
 				if mergeDestination[objGuid]~=nil and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The War of Four" and
 					((a==1 and gStates.gameScenario~="The Realm of the Dead Blitz") or (a==2 and gStates.gameScenario~="The Hidden Valley Blitz")) then
-					mergeBags(objGuid, mergeDestination[objGuid], GUID.bag.tezla)
+					mergeMonsterBag(objGuid, mergeDestination[objGuid], GUID.bag.tezla)
 				else
 					if allowed[objGuid]~=nil or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four" or gStates.gameScenario=="Ultimate Conquest" or
 						(a==1 and gStates.gameScenario=="The Realm of the Dead Blitz") or (a==2 and gStates.gameScenario=="The Hidden Valley Blitz") then
@@ -86,14 +124,5 @@ function monsterSetup()
 		end
 	end, 5)
 
-	--shuffle all monster piles
-	safeWaitTime("SetupGame",function()
-		local ToBeShuffled={monsterPiles.redElem, monsterPiles.tanElem, monsterPiles.greenElem, monsterPiles.rewardElem,								 --Dragons Ele,  Dungeon Ele,  Orcs Ele,  Rewards Ele
-							monsterPiles.redDark, monsterPiles.tanDark, monsterPiles.greenDark, monsterPiles.rewardDark,								 --Dragons Dark, Dungeon Dark, Orcs Dark, Rewards Dark
-							monsterPiles.rewardApoc, monsterPiles.rewardCouncil, monsterPiles.possessed,								 --Apocalypse Cult Rewards, Council of the Void Rewards, Possessed Tokens
-							monsterPiles.tan, monsterPiles.green, monsterPiles.red, monsterPiles.purple, monsterPiles.white, monsterPiles.gray, monsterPiles.yellow}--Dungeon, Orcs, Dragons, Mage Tower, City, Keep, Ruins
-		for a=1, #ToBeShuffled, 1 do
-			if getObjectFromGUID(ToBeShuffled[a])~=nil then getObjectFromGUID(ToBeShuffled[a]).shuffle() end
-		end
-	end, 1)--same as the deck shuffling
+	finishMonsterSetupWhenReady()
 end

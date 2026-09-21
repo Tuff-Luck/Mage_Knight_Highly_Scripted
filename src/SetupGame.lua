@@ -39,6 +39,65 @@ local function setupUsesVolkareCampCity()
 		gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest"
 end
 
+--Setup used to sleep for fixed periods while expansion cards moved between containers. Track the
+--actual outstanding merges instead so fast machines continue immediately and slower machines wait
+--only for the objects they really need.
+local setupDeckMergesPending=0
+
+local function setupQueueDeckMerge(container,deckGUID,objectGUID)
+	local deck=getObjectFromGUID(deckGUID)
+	if deck==nil then error("SetupGame missing destination deck "..tostring(deckGUID).." while merging "..tostring(objectGUID),2) end
+	setupDeckMergesPending=setupDeckMergesPending+1
+	local p=deck.getPosition()
+	local extracted=safeTakeObject("SetupGame",container,{
+		guid=objectGUID,
+		position={p[1],-2,p[3]},
+		smooth=false,
+		callback_function=function(obj)
+			deck.putObject(obj)
+			setupDeckMergesPending=setupDeckMergesPending-1
+		end})
+	if extracted==nil then
+		setupDeckMergesPending=setupDeckMergesPending-1
+		error("SetupGame could not extract "..tostring(objectGUID).." for deck "..tostring(deckGUID),2)
+	end
+	return extracted
+end
+
+local function setupMainDecksSettled()
+	if setupDeckMergesPending~=0 then return false end
+	for _,guid in ipairs({GUID.deck.action,GUID.deck.artifact,GUID.deck.regularUnit,GUID.deck.eliteUnit,GUID.deck.spell}) do
+		local deck=getObjectFromGUID(guid)
+		if deck==nil or deck.resting~=true then return false end
+	end
+	return true
+end
+
+local function setupFinishDeckStage()
+	local Wounds={[GUID.deck.spell]={"5c38e4","ab778d"},[GUID.deck.regularUnit]={"b5048c","718f39"}}
+	if gStates.mageKnightLevels==false then
+		afterLoad()
+		for _,woundCard in pairs(Wounds) do getObjectFromGUID(woundCard[1]).destruct() getObjectFromGUID(woundCard[2]).destruct() end
+	else
+		for destDeck,woundCards in pairs(Wounds) do
+			for a=1,2 do
+				getObjectFromGUID(woundCards[a]).unlock()
+				getObjectFromGUID(destDeck).putObject(getObjectFromGUID(woundCards[a]))
+			end
+		end
+		gStates.magesSetup=true
+		mageLevelBoard()
+		UI.show("LevelUpRules")
+	end
+end
+
+local function setupStartDeckStage()
+	deckSetup()
+	safeWaitCondition("SetupGame",setupFinishDeckStage,setupMainDecksSettled,10,function()
+		error("SetupGame timed out waiting for the main decks to settle after deck setup.",2)
+	end)
+end
+
 --Layout everything needed for the game
 local setupRewindRequestPending=false
 local function setupGameRaw(player, mouseButton, id, rewindReady)
@@ -52,6 +111,8 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			end,"Game setup",function() setupRewindRequestPending=false end)
 			return
 		end
+		setupDeckMergesPending=0
+
 		--Close the setup menu and update the Help button
 		UI.setAttribute("Setup", "active", "false")
 		UI.setAttribute("helpButtonRealText", "Text", "{en}Help{ru}Помощь{zh-tw}帮  助{zh-cn}帮  助{ko}도움말{es}Ayudar{fr}Aider{pt-br}Ajuda{de}Hilfe")
@@ -220,7 +281,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			print("SETUP WARNING: rules bag d4a866 was unavailable; continuing setup without deploying rulebooks.")
 		end
 		if ruleBag~=nil then
-			safeWaitTime("SetupGame",function() safeWaitCondition("SetupGame",function()
+			safeWaitCondition("SetupGame",function()
 				local mainRules=getObjectFromGUID(r.main)
 				local expansionRules=getObjectFromGUID(r.expansion)
 				local apocalypseRules=getObjectFromGUID(r.apocalypse)
@@ -233,7 +294,9 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				if apocalypseRules~=nil then apocalypseRules.lock() end
 				if furyRules~=nil then furyRules.lock() end
 				if extraRules~=nil then extraRules.lock() end
-			end, function() local mainRules=getObjectFromGUID(r.main) return mainRules~=nil and mainRules.resting end) end, 5)
+			end,function() local mainRules=getObjectFromGUID(r.main) return mainRules~=nil and mainRules.resting end,10,function()
+				error("SetupGame timed out waiting for the scenario rulebook to settle.",2)
+			end)
 		ruleBag.destruct()
 		end
 
@@ -333,25 +396,16 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		gStates.help=false
 
 		--Add or destroy the 4 competitive spell cards
-		if gStates.coop==0 or gStates.WarOfFourComp==true then
-			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.common),{position={getObjectFromGUID(GUID.deck.spell).getPosition()[1], -2, getObjectFromGUID(GUID.deck.spell).getPosition()[3]},
-				guid="9b3c8c", smooth=false, callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.spell).putObject(obj) end) end})--Spells
-		end
+		if gStates.coop==0 or gStates.WarOfFourComp==true then setupQueueDeckMerge(getObjectFromGUID(GUID.bag.common),GUID.deck.spell,"9b3c8c") end
 
 		--Add or destroy the Advanced action Cards removed for First Reconnaissance
-		if gStates.gameScenario~="First Reconnaissance" then
-			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.common),{position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
-				guid="268194", smooth=false, callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
-		end
+		if gStates.gameScenario~="First Reconnaissance" then setupQueueDeckMerge(getObjectFromGUID(GUID.bag.common),GUID.deck.action,"268194") end
 
 		--Merge Lost Legion Components
 		local lostLegionDecks={[GUID.deck.action]="d7f7a5", [GUID.deck.spell]="8edf39", [GUID.deck.artifact]="00e7f4", [GUID.deck.regularUnit]="892e01", [GUID.deck.eliteUnit]="6d42f9"}
 								--12 Advanced Actions, 4 Spells, 8 Artifacts, 8 Regular Units, 8 Elite Units
 		if gStates.removeLostLegionExpansion==false then
-			for mainDeck, lostLegionDeck in pairs(lostLegionDecks) do
-				safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.lostLegion),{position={getObjectFromGUID(mainDeck).getPosition()[1], -2, getObjectFromGUID(mainDeck).getPosition()[3]},
-					guid=lostLegionDeck, smooth=false, callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(mainDeck).putObject(obj) end) end})
-			end
+			for mainDeck,lostLegionDeck in pairs(lostLegionDecks) do setupQueueDeckMerge(getObjectFromGUID(GUID.bag.lostLegion),mainDeck,lostLegionDeck) end
 		end
 		--Apocalypse Quest cards can call the Apocalypse/Council reward systems and Possessed enemies even
 		--even when Apocalypse terrain itself is removed. Put the five shared support objects in their
@@ -410,30 +464,22 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 
 		--Merge Ultimate Edition Components
 		if gStates.removeBonusCards==false then
-			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.common),{position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
-				guid="96f761", smooth=false, callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
-			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.common),{position={getObjectFromGUID(GUID.deck.artifact).getPosition()[1], -2, getObjectFromGUID(GUID.deck.artifact).getPosition()[3]},
-				guid="085e69", smooth=false, callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.artifact).putObject(obj) end) end})--artifacts
+			setupQueueDeckMerge(getObjectFromGUID(GUID.bag.common),GUID.deck.action,"96f761")--Advanced Actions
+			setupQueueDeckMerge(getObjectFromGUID(GUID.bag.common),GUID.deck.artifact,"085e69")--artifacts
 		end
 
 		--include or remove Rise of the Forgemaster
 		if gStates.riseOfTheForgemasters>=1 then
-			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.forgemaster),{position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
-				smooth=false, guid="db5f9f", callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
-			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.forgemaster),{position={getObjectFromGUID(GUID.deck.artifact).getPosition()[1], -2, getObjectFromGUID(GUID.deck.artifact).getPosition()[3]},
-				smooth=false, guid="c48f76", callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.artifact).putObject(obj) end) end})--artifacts
-			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.forgemaster),{position={getObjectFromGUID(GUID.deck.spell).getPosition()[1], -2, getObjectFromGUID(GUID.deck.spell).getPosition()[3]},
-				smooth=false, guid="cfe630", callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.spell).putObject(obj) end) end})--Spells
+			setupQueueDeckMerge(getObjectFromGUID(GUID.bag.forgemaster),GUID.deck.action,"db5f9f")--Advanced Actions
+			setupQueueDeckMerge(getObjectFromGUID(GUID.bag.forgemaster),GUID.deck.artifact,"c48f76")--artifacts
+			setupQueueDeckMerge(getObjectFromGUID(GUID.bag.forgemaster),GUID.deck.spell,"cfe630")--Spells
 			getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={54.25, 0.98, 18.86}, guid="0a657b", smooth=false}) getObjectFromGUID("0a657b").lock()
 			if gStates.riseOfTheForgemasters>=2 then
-				safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.forgemaster),{position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
-					smooth=false, guid="c89aea", callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
+				setupQueueDeckMerge(getObjectFromGUID(GUID.bag.forgemaster),GUID.deck.action,"c89aea")--Advanced Actions
 				getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -16.00}, guid="5ad84f", smooth=false}) getObjectFromGUID("5ad84f").lock()
 				if gStates.riseOfTheForgemasters==3 then
-					safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.forgemaster),{position={getObjectFromGUID(GUID.deck.action).getPosition()[1], -2, getObjectFromGUID(GUID.deck.action).getPosition()[3]},
-						smooth=false, guid="3b0ed8", callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.action).putObject(obj) end) end})--Advanced Actions
-					safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.forgemaster),{position={getObjectFromGUID(GUID.deck.spell).getPosition()[1], -2, getObjectFromGUID(GUID.deck.spell).getPosition()[3]},
-						smooth=false, guid="09fd8d", callback_function=function(obj) safeWaitFrames("SetupGame",function() getObjectFromGUID(GUID.deck.spell).putObject(obj) end) end})--Spells
+					setupQueueDeckMerge(getObjectFromGUID(GUID.bag.forgemaster),GUID.deck.action,"3b0ed8")--Advanced Actions
+					setupQueueDeckMerge(getObjectFromGUID(GUID.bag.forgemaster),GUID.deck.spell,"09fd8d")--Spells
 					getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -19.50}, guid="bbec6b", smooth=false}) getObjectFromGUID("bbec6b").lock()
 					getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -23.00}, guid="786414", smooth=false}) getObjectFromGUID("786414").lock()
 					getObjectFromGUID(GUID.bag.forgemaster).takeObject({rotation={0.0, 180.0, 0.0}, position={-75.16, 0.99, -12.50}, guid="a28a71", smooth=false}) getObjectFromGUID("a28a71").lock()
@@ -448,53 +494,38 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		--Go through the five player positions and put out pieces based on the game settings
 		playerSetup()
 
-		--stagered setup
-		local delay=0.5--was 1.6
-		if gStates.playerCount==1 then delay=0.5 end
-		safeWaitTime("SetupGame",function()
-			--Setup all the decks and shuffles everything
-			deckSetup()
-
-			--Cleans up the "All skills" bag
-			local allSkills=getObjectFromGUID(GUID.bag.allSkills)
-			if gStates.dummyAllSkills==true then
-				if gStates.playersRef==5 then
-					safeWaitTime("SetupGame",function()
-						allSkills.setPosition({getObjectFromGUID(dummyBoard).getPosition()[1]-5.62, 1.25, getObjectFromGUID(dummyBoard).getPosition()[3]+6.97})
-						for skillGUID, skillDetails in pairs(skillTokens) do
-							if (skillDetails.mage==turnOrder[1].mage or (customMages[skillDetails.mage]~=nil and gStates.useCustomMageKnights==false) or (skillDetails.mage=="Jormund" and gStates.riseOfTheForgemasters<3)) and
-								skillDetails.skillType~="Comp" and skillGUID~="d90de4" and skillGUID~="9f5dc0" and skillGUID~="bfd0c5" then
-								local obj=allSkills.takeObject({guid=skillGUID})
-								obj.destruct()
-							end
-						end
-						allSkills.shuffle()
-					end, 1)
-				end
-			else
-				allSkills.destruct()
-			end
-
-			safeWaitTime("SetupGame",function()
-				--Add wounds to decks to allow allow max cards to be pooled
-				local Wounds={[GUID.deck.spell]={"5c38e4", "ab778d"}, [GUID.deck.regularUnit]={"b5048c", "718f39"}}
-				if gStates.mageKnightLevels==false then
-					afterLoad()
-					for _, woundCard in pairs(Wounds) do getObjectFromGUID(woundCard[1]).destruct() getObjectFromGUID(woundCard[2]).destruct() end
-				else
-					for destDeck, woundCards in pairs(Wounds) do
-						for a=1, 2, 1 do
-							getObjectFromGUID(woundCards[a]).unlock()
-							getObjectFromGUID(destDeck).putObject(getObjectFromGUID(woundCards[a]))
+		--Clean up the All Skills bag independently; only its Dummy-board placement needs to wait.
+		local allSkills=getObjectFromGUID(GUID.bag.allSkills)
+		if gStates.dummyAllSkills==true then
+			if gStates.playersRef==5 then
+				safeWaitCondition("SetupGame",function()
+					local board=getObjectFromGUID(dummyBoard)
+					allSkills.setPosition({board.getPosition()[1]-5.62,1.25,board.getPosition()[3]+6.97})
+					for skillGUID,skillDetails in pairs(skillTokens) do
+						if (skillDetails.mage==turnOrder[1].mage or (customMages[skillDetails.mage]~=nil and gStates.useCustomMageKnights==false) or (skillDetails.mage=="Jormund" and gStates.riseOfTheForgemasters<3)) and
+							skillDetails.skillType~="Comp" and skillGUID~="d90de4" and skillGUID~="9f5dc0" and skillGUID~="bfd0c5" then
+							local obj=allSkills.takeObject({guid=skillGUID})
+							obj.destruct()
 						end
 					end
-					gStates.magesSetup=true
-					mageLevelBoard()
-					UI.show("LevelUpRules")
-				end
-				--Deal out Weather Cards
-			end, 1.5)
-		end, (delay))--*(gStates.playerCount+gStates.coop)
+					allSkills.shuffle()
+				end,function() return getObjectFromGUID(dummyBoard)~=nil end,5,function()
+					error("SetupGame timed out waiting for the Dummy board before positioning All Skills.",2)
+				end)
+			end
+		else
+			allSkills.destruct()
+		end
+
+		--Deck setup can begin as soon as the expansion/deck objects above have actually finished merging.
+		--This replaces the old 0.5s pre-shuffle sleep and 1.5s post-shuffle sleep.
+		if setupDeckMergesPending==0 then
+			setupStartDeckStage()
+		else
+			safeWaitCondition("SetupGame",setupStartDeckStage,function() return setupDeckMergesPending==0 end,10,function()
+				error("SetupGame timed out waiting for expansion cards to merge into the main decks.",2)
+			end)
+		end
 	end
 end
 

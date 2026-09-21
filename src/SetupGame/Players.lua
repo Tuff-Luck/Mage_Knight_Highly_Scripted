@@ -475,7 +475,13 @@ function volkareSetup()
 	--add unit tokens based on Volkare's Level
 	gStates.volkareLevel=gStates.cityLevels[#gStates.cityLevels]
 	table.remove(gStates.cityLevels, #gStates.cityLevels)
-	safeWaitTime("SetupGame",function() volkareArmy() end, 5)--time for monster stacks to fill
+	if gStates.monsterSetupReady==true then
+		volkareArmy()
+	else
+		safeWaitCondition("SetupGame",volkareArmy,function() return gStates.monsterSetupReady==true end,10,function()
+			error("SetupGame timed out waiting for monster piles before building Volkare's Army.",2)
+		end)
+	end
 
 	--Move reminder Tokens
 	getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={getObjectFromGUID(cityScriptZones[volkare.discZone].cityCard).getPosition()[1]+2.2, 1.5, getObjectFromGUID(cityScriptZones[volkare.discZone].cityCard).getPosition()[3]+2.2}, guid=GUID.bag.volkareReminder})
@@ -515,7 +521,10 @@ function volkareArmy()
 		--Change his models level
 		getObjectFromGUID(volkare.model).setCustomObject({diffuse=cityLevelImage[volkare.model][math.floor(gStates.volkareLevel/math.ceil(gStates.volkareLevel/15))]})
 		getObjectFromGUID(volkare.model).reload()
-		safeWaitTime("SetupGame",function() getObjectFromGUID(volkare.model).lock() end, 3)
+		safeWaitCondition("SetupGame",function() getObjectFromGUID(volkare.model).lock() end,function()
+			local model=getObjectFromGUID(volkare.model)
+			return model~=nil and model.resting==true
+		end,10,function() error("SetupGame timed out waiting for Volkare's model to reload.",2) end)
 		cityLevelButtons(volkare.model, "Volkar")
 	end
 end
