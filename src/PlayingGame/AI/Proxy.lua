@@ -650,15 +650,45 @@ function proxyPortalHex(hexes)
 	return nil
 end
 
+--Green objectives must still be legally conquerable, not merely unclaimed by the Proxy.
+--Ordinary Adventure Sites close as soon as any Mage Knight has conquered them. Maze/Labyrinth
+--and Ziggurat/Pyramid use three shield slots; mirror the normal player controls by leaving the
+--site available while fewer than three slots are claimed, but never send the same Proxy back to
+--a multi-shield site they have already conquered.
+function proxyAdventureSiteAvailable(hex,mapObjects,proxyIndex)
+	if hex==nil then return false end
+	local feature=string.lower(tostring(hex.feature or ""))
+	local multiShield=feature=="maze" or feature=="labyrinth" or feature=="ziggurat" or feature=="pyramid"
+	if multiShield~=true then return apocalypseQuestHexHasShield(hex,mapObjects,proxyIndex,true)~=true end
+
+	local mage=turnOrder[proxyIndex]~=nil and turnOrder[proxyIndex].mage or nil
+	local shieldCount=0
+	local proxyShield=false
+	local radiusSquared=(feature=="ziggurat" or feature=="pyramid") and 2.25 or 1.44
+	for _,obj in pairs(mapObjects or {}) do
+		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+			local pos=obj.getPosition()
+			local dx=pos[1]-hex.position[1]
+			local dz=pos[3]-hex.position[3]
+			if (dx*dx)+(dz*dz)<radiusSquared then
+				shieldCount=shieldCount+1
+				if mage~=nil and obj.getDescription()==mage then proxyShield=true end
+			end
+		end
+	end
+	if shieldCount>=3 or proxyShield==true then return false end
+	if feature=="ziggurat" or feature=="pyramid" then return proxyMultiFloorNext(hex,mapObjects)~=nil end
+	return true
+end
+
 function proxyTargetCandidatesForColor(color,hexes,mapObjects,proxyIndex,crystals,fartherOnly,portalDistances,currentPortalDistance,offerCache)
 	local candidates={}
 	for _,hex in ipairs(hexes or {}) do
 		local feature=string.lower(tostring(hex.feature or ""))
 		local validFarther=fartherOnly~=true or ((portalDistances[apocalypseQuestMapHexKey(hex)] or -1)>currentPortalDistance)
 		if validFarther and feature~="destroyed" then
-			if color=="Green" and apocalypseQuestHexAdventureSite(hex)==true and apocalypseQuestHexHasShield(hex,mapObjects,proxyIndex,false)~=true then
-				local multiOpen=(feature~="ziggurat" and feature~="pyramid") or proxyMultiFloorNext(hex,mapObjects)~=nil
-				if multiOpen==true and not (gStates.gameScenario=="Against the Apocalypse Blitz" and (feature=="ziggurat" or feature=="pyramid")) then candidates[#candidates+1]={hex=hex,action="adventure",objectiveColor=color} end
+			if color=="Green" and apocalypseQuestHexAdventureSite(hex)==true and proxyAdventureSiteAvailable(hex,mapObjects,proxyIndex)==true then
+				if not (gStates.gameScenario=="Against the Apocalypse Blitz" and (feature=="ziggurat" or feature=="pyramid")) then candidates[#candidates+1]={hex=hex,action="adventure",objectiveColor=color} end
 			elseif color=="Red" then
 				local fortified=proxyFortifiedType(hex,mapObjects,proxyIndex)
 				--Another player's Keep is already conquered, so it is not a Red objective.
