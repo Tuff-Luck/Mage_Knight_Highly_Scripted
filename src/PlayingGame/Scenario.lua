@@ -864,7 +864,7 @@ function dungeonLordsQueueSecretRequest(request,quiet)
 	if dungeonLordsSecretLegalDestinationCount(request)==0 then
 		if quiet~=true then
 			local source=dungeonLordsSecretSourceFeature(dungeonLordsPendingSecretName(request)) or "site"
-			broadcastToAll("Dungeon Lords: no legal space exists next to the revealed "..source.."; no secret entrance is placed.",{1,0.75,0.2})
+			broadcastToAll(joinLang({"{en}Dungeon Lords: no legal space exists next to the revealed {ru}Владыки Подземелий: рядом с открытым объектом нет подходящей клетки: {zh-tw}地下城領主：新揭示的 {zh-cn}地下城领主：新揭示的 {ko}던전 로드: 공개된 {es}Señores de las Mazmorras: no existe ningún espacio legal junto a {fr}Seigneurs des Donjons : aucune case légale n’existe à côté de {pt-br}Senhores das Masmorras: não existe espaço válido ao lado de {de}Kerkerfürsten: Neben dem aufgedeckten ",source,"{en}; no secret entrance is placed.{ru}; тайный вход не размещается.{zh-tw} 旁沒有合法空間；不放置秘密入口。{zh-cn} 旁没有合法空间；不放置秘密入口。{ko} 옆에 합법적인 칸이 없어 비밀 입구를 배치하지 않습니다.{es}; no se coloca ninguna entrada secreta.{fr} ; aucune entrée secrète n’est placée.{pt-br}; nenhuma entrada secreta é colocada.{de} gibt es kein gültiges Feld; es wird kein Geheimeingang platziert."}),{1,0.75,0.2})
 		end
 		return false
 	end
@@ -879,7 +879,7 @@ function dungeonLordsPruneImpossibleSecretRequests()
 		local request=gStates.locationPlace[i]
 		if dungeonLordsSecretLegalDestinationCount(request)==0 then
 			local source=dungeonLordsSecretSourceFeature(dungeonLordsPendingSecretName(request)) or "site"
-			broadcastToAll("Dungeon Lords: no legal space remains next to the revealed "..source.."; that secret entrance is skipped.",{1,0.75,0.2})
+			broadcastToAll(joinLang({"{en}Dungeon Lords: no legal space remains next to the revealed {ru}Владыки Подземелий: рядом с открытым объектом больше нет подходящей клетки: {zh-tw}地下城領主：新揭示的 {zh-cn}地下城领主：新揭示的 {ko}던전 로드: 공개된 {es}Señores de las Mazmorras: ya no queda ningún espacio legal junto a {fr}Seigneurs des Donjons : aucune case légale ne reste à côté de {pt-br}Senhores das Masmorras: não resta espaço válido ao lado de {de}Kerkerfürsten: Neben dem aufgedeckten ",source,"{en}; that secret entrance is skipped.{ru}; этот тайный вход пропускается.{zh-tw} 旁已無合法空間；跳過該秘密入口。{zh-cn} 旁已无合法空间；跳过该秘密入口。{ko} 옆에 합법적인 칸이 남아 있지 않아 그 비밀 입구를 건너뜁니다.{es}; se omite esa entrada secreta.{fr} ; cette entrée secrète est ignorée.{pt-br}; essa entrada secreta é ignorada.{de} ist kein gültiges Feld mehr frei; dieser Geheimeingang wird übersprungen."}),{1,0.75,0.2})
 			table.remove(gStates.locationPlace,i)
 			removed=true
 		end
@@ -909,7 +909,7 @@ function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature
 		local pending=gStates.locationPlace[#gStates.locationPlace]
 		local pendingName=dungeonLordsPendingSecretName(pending)
 		if pendingName~=secretName then
-			if pendingName~=nil then broadcastToAll("Dungeon Lords: place the requested "..tostring(pendingName).." first.",{1,0.55,0.2})
+			if pendingName~=nil then broadcastToAll(joinLang({"{en}Dungeon Lords: place the requested {ru}Владыки Подземелий: сначала разместите требуемый {zh-tw}地下城領主：請先放置要求的 {zh-cn}地下城领主：请先放置要求的 {ko}던전 로드: 먼저 요청된 {es}Señores de las Mazmorras: coloca primero la entrada solicitada {fr}Seigneurs des Donjons : placez d’abord l’entrée demandée {pt-br}Senhores das Masmorras: coloque primeiro a entrada solicitada {de}Kerkerfürsten: Platziere zuerst den angeforderten ",tostring(pendingName),"{en} first.{ru}.{zh-tw}。{zh-cn}。{ko}을(를) 배치하십시오.{es}.{fr}.{pt-br}.{de}."}),{1,0.55,0.2})
 			else broadcastToAll("{en}Dungeon Lords: that secret entrance has not been requested by a newly revealed Village or Monastery.{ru}Владыки Подземелий: этот тайный вход не был запрошен недавно открытой Деревней или Монастырём.{zh-tw}地下城領主：新揭示的村莊或修道院並未要求放置此秘密入口。{zh-cn}地下城领主：新揭示的村庄或修道院并未要求放置此秘密入口。{ko}던전 로드: 새로 공개된 마을이나 수도원이 이 비밀 입구를 요청하지 않았습니다.{es}Señores de las Mazmorras: esta entrada secreta no fue solicitada por una Aldea o Monasterio recién revelados.{fr}Seigneurs des Donjons : cette entrée secrète n’a pas été demandée par un Village ou un Monastère récemment révélé.{pt-br}Senhores das Masmorras: esta entrada secreta não foi solicitada por uma Vila ou Mosteiro recém-revelado.{de}Kerkerfürsten: Dieser Geheimeingang wurde nicht von einem neu aufgedeckten Dorf oder Kloster angefordert.",{1,0.55,0.2}) end
 			return true
 		end
@@ -1653,7 +1653,7 @@ function againstHorsemenEliminateCentralPlayers()
 			--eliminated figure beside its own board rather than deleting a Mage Knight object.
 			local avatar=coopAssaultAvatarObject(playerIndex)
 			if avatar~=nil then avatar.setPosition({(details.seatPos*40)-100,1.5,-51.2}) end
-			broadcastToAll(details.mage.." was in the Magical Glade when the ritual began and is out of the game.",positionToColor(playerIndex))
+			broadcastToAll(joinLang({translateWord[details.mage] or details.mage,"{en} was in the Magical Glade when the ritual began and is out of the game.{ru} находился на Магической поляне, когда начался ритуал, и выбывает из игры.{zh-tw} 在儀式開始時位於魔法林地，因此退出遊戲。{zh-cn} 在仪式开始时位于魔法林地，因此退出游戏。{ko}은(는) 의식이 시작될 때 마법의 숲에 있었으므로 게임에서 제외됩니다.{es} estaba en el Claro Mágico cuando comenzó el ritual y queda fuera de la partida.{fr} se trouvait dans la Clairière Magique lorsque le rituel a commencé et est éliminé de la partie.{pt-br} estava na Clareira Mágica quando o ritual começou e está fora da partida.{de} befand sich auf der Magischen Lichtung, als das Ritual begann, und scheidet aus dem Spiel aus."}),positionToColor(playerIndex))
 		end
 	end
 	applyColorBarButtons()
@@ -1761,7 +1761,7 @@ function againstHorsemenRefreshHorseman(name)
 	state.revealed=true
 	token.setName(name.." Level "..tostring(state.level or 1))
 	if token.is_face_down==true then token.flip() end
-	broadcastToAll(name.." has been revealed at Level "..tostring(state.level or 1)..".",{1,0.75,0.2})
+	broadcastToAll(joinLang({name,"{en} has been revealed at Level {ru} раскрыт на уровне {zh-tw} 已揭示，等級 {zh-cn} 已揭示，等级 {ko} 공개됨. 레벨 {es} ha sido revelado en Nivel {fr} a été révélé au Niveau {pt-br} foi revelado no Nível {de} wurde auf Stufe ",tostring(state.level or 1),"."}),{1,0.75,0.2})
 	return true
 end
 
@@ -1879,7 +1879,7 @@ function againstHorsemenResolveDefeat(token,playerIndex,coopCombatReward)
 	if gStates.attackedMonsters~=nil then gStates.attackedMonsters[token.guid]=nil end
 	monsterPugs[token.guid]=nil
 	againstHorsemenMarkDefeatedToken(token,name,playerIndex,true)
-	broadcastToAll(player.mage.." defeated "..name..". The Horseman has been placed in their Inventory.",positionToColor(playerIndex))
+	broadcastToAll(joinLang({translateWord[player.mage] or player.mage,"{en} defeated {ru} победил {zh-tw} 擊敗了 {zh-cn} 击败了 {ko}이(가) {es} derrotó a {fr} a vaincu {pt-br} derrotou {de} besiegte ",name,"{en}. The Horseman has been placed in their Inventory.{ru}. Жетон Всадника помещён в его Инвентарь.{zh-tw}。騎士已放入其庫存。{zh-cn}。骑士已放入其库存。{ko}을(를) 쓰러뜨렸습니다. 기사 토큰이 인벤토리에 놓였습니다.{es}. El Jinete se ha colocado en su Inventario.{fr}. Le Cavalier a été placé dans son Inventaire.{pt-br}. O Cavaleiro foi colocado no Inventário.{de}. Der Reiter wurde in das Inventar gelegt."}),positionToColor(playerIndex))
 	return true
 end
 
@@ -2061,7 +2061,7 @@ function againstHorsemenBeginEndRoundMovement()
 		broadcastToAll("{en}End of Round 3: the surviving Horsemen move into the central Magical Glade and begin the ritual.{ru}Конец раунда 3: оставшиеся Всадники перемещаются на центральную Магическую поляну и начинают ритуал.{zh-tw}第 3 回合輪結束：倖存騎士移入中央魔法林地並開始儀式。{zh-cn}第 3 回合轮结束：幸存骑士移入中央魔法林地并开始仪式。{ko}3라운드 종료: 살아남은 기사들이 중앙 마법의 숲으로 이동해 의식을 시작합니다.{es}Fin de la Ronda 3: los Jinetes supervivientes se mueven al Claro Mágico central y comienzan el ritual.{fr}Fin de la Manche 3 : les Cavaliers survivants se déplacent dans la Clairière Magique centrale et commencent le rituel.{pt-br}Fim da Rodada 3: os Cavaleiros sobreviventes se movem para a Clareira Mágica central e iniciam o ritual.{de}Ende von Runde 3: Die überlebenden Reiter ziehen auf die zentrale Magische Lichtung und beginnen das Ritual.",{1,0.3,0.2})
 	else
 		gStates.againstHorsemenMovePending={round=gStates.currentRound,queue=queue,stepsRemaining=2}
-		broadcastToAll("End of Round "..tostring(gStates.currentRound)..": each surviving Horseman moves two spaces closer to the central Magical Glade.",{1,0.75,0.2})
+		broadcastToAll(joinLang({"{en}End of Round {ru}Конец раунда {zh-tw}第 {zh-cn}第 {ko}라운드 {es}Fin de la Ronda {fr}Fin de la Manche {pt-br}Fim da Rodada {de}Ende von Runde ",tostring(gStates.currentRound),"{en}: each surviving Horseman moves two spaces closer to the central Magical Glade.{ru}: каждый оставшийся Всадник перемещается на две клетки ближе к центральной Магической поляне.{zh-tw} 回合輪結束：每名倖存騎士向中央魔法林地移動兩格。{zh-cn} 回合轮结束：每名幸存骑士向中央魔法林地移动两格。{ko} 종료: 살아남은 각 기수는 중앙 마법의 숲 쪽으로 2칸 이동합니다.{es}: cada Jinete superviviente se mueve dos espacios hacia el Claro Mágico central.{fr} : chaque Cavalier survivant se déplace de deux cases vers la Clairière Magique centrale.{pt-br}: cada Cavaleiro sobrevivente se move dois espaços em direção à Clareira Mágica central.{de}: Jeder überlebende Reiter bewegt sich zwei Felder näher zur zentralen Magischen Lichtung."}),{1,0.75,0.2})
 	end
 	againstHorsemenContinueEndRoundMovement()
 	return true
@@ -2286,7 +2286,7 @@ function apocalypseIsHereRoundStart()
 	gStates.apocalypseHereForcedRevealCount=deadlineIndex-nextIndex+1
 	gStates.apocalypseHereForcedRevealPending=true
 	local chooser=againstDragonChoicePlayerIndex~=nil and againstDragonChoicePlayerIndex() or nil
-	broadcastToAll("A Horseman reveal deadline has been reached. Reveal the top Map tile and place it in a legal position as far as possible from every Mage Knight. "..againstDragonChoicePlayerLabel(chooser).." breaks a tied placement. The next placed Map tile will automatically reveal the overdue Horseman.",warningColor)
+	broadcastToAll(joinLang({"{en}A Horseman reveal deadline has been reached. Reveal the top Map tile and place it in a legal position as far as possible from every Mage Knight. {ru}Наступил срок раскрытия Всадника. Откройте верхнюю плитку карты и разместите её в допустимом месте как можно дальше от всех Рыцарей-магов. {zh-tw}已到騎士揭示期限。揭示最上方地圖板塊，並合法放置在距所有魔法騎士盡可能遠的位置。{zh-cn}已到骑士揭示期限。揭示最上方地图板块，并合法放置在距所有魔法骑士尽可能远的位置。{ko}기사 공개 기한에 도달했습니다. 맨 위 지도 타일을 공개하고 모든 마법 기사에게서 가능한 한 멀리 떨어진 합법적인 위치에 배치하십시오. {es}Se alcanzó el límite para revelar un Jinete. Revela la loseta superior del Mapa y colócala legalmente lo más lejos posible de todos los Caballeros Mago. {fr}La limite de révélation d’un Cavalier est atteinte. Révélez la tuile de Carte supérieure et placez-la légalement aussi loin que possible de tous les Chevaliers-Mages. {pt-br}O limite para revelar um Cavaleiro foi atingido. Revele a peça de Mapa do topo e coloque-a legalmente o mais longe possível de todos os Cavaleiros-Magos. {de}Die Frist zum Aufdecken eines Reiters ist erreicht. Decke das oberste Kartenteil auf und platziere es regelkonform so weit wie möglich von allen Magierittern entfernt. ",againstDragonChoicePlayerLabel(chooser),"{en} breaks a tied placement. The next placed Map tile will automatically reveal the overdue Horseman.{ru} разрешает ничью при размещении. Следующая размещённая плитка карты автоматически раскроет просроченного Всадника.{zh-tw} 負責打破放置平手。下一個放置的地圖板塊會自動揭示逾期的騎士。{zh-cn} 负责打破放置平手。下一个放置的地图板块会自动揭示逾期的骑士。{ko}이(가) 배치 동률을 결정합니다. 다음에 배치되는 지도 타일이 기한이 지난 기사를 자동으로 공개합니다.{es} decide cualquier empate de colocación. La siguiente loseta de Mapa colocada revelará automáticamente al Jinete atrasado.{fr} tranche toute égalité de placement. La prochaine tuile de Carte placée révélera automatiquement le Cavalier en retard.{pt-br} desempata qualquer colocação. A próxima peça de Mapa colocada revelará automaticamente o Cavaleiro atrasado.{de} entscheidet bei einem Gleichstand der Platzierung. Das nächste platzierte Kartenteil deckt den überfälligen Reiter automatisch auf."}),warningColor)
 	return true
 end
 
@@ -2883,16 +2883,16 @@ function restoreDestroyedSite(destroyed, player)
 	if destroyed==nil or player==nil or gStates.destroyedSites==nil then return false end
 	local data=gStates.destroyedSites[destroyed.guid]
 	if data==nil or terrainTiles[data.terrainTile]==nil then return false end
-	broadcastToAll("Site Restored")
+	broadcastToAll("{en}Site Restored{ru}Место восстановлено{zh-tw}地點已恢復{zh-cn}地点已恢复{ko}장소 복구됨{es}Lugar Restaurado{fr}Site Restauré{pt-br}Local Restaurado{de}Ort wiederhergestellt")
 	if data.hexFeature=="keep" or data.hexFeature=="mage tower" then
 		dropShield({destroyed.getPosition()[1], 2, destroyed.getPosition()[3]}, true)
 		player.fameGain=player.fameGain+1
-		broadcastToAll("and Fame Gained")
+		broadcastToAll("{en}and Fame Gained{ru}и получена Слава{zh-tw}並獲得聲望值{zh-cn}并获得声望值{ko}및 명성 획득{es}y Fama Ganada{fr}et Renommée Gagnée{pt-br}e Fama Ganha{de}und Ruhm erhalten")
 	end
 	if data.hexFeature=="monastery" then playMonastery() end
 	if data.hexFeature=="village" or data.hexFeature=="oasis" or data.hexFeature=="camp" then
 		player.repGain=player.repGain+1
-		broadcastToAll("and Reputation Gained")
+		broadcastToAll("{en}and Reputation Gained{ru}и получена Репутация{zh-tw}並獲得聲望{zh-cn}并获得声望{ko}및 평판 획득{es}y Reputación Ganada{fr}et Réputation Gagnée{pt-br}e Reputação Ganha{de}und Ansehen erhalten")
 	end
 	mapTokenReleaseObject(destroyed)
 	undoDestroyedSitePlacement(destroyed)
@@ -4281,7 +4281,7 @@ function againstDragonTargetChoiceButton(option,index,xml,splitIndex,splitCount)
 	local slot=math.max(1,tonumber(splitIndex) or 1)
 	local height=320/count
 	if count>1 then uiY=uiY+(((count+1)/2)-slot)*height*buttonScale end
-	local label="Dragon\nDestroy"
+	local label="{en}Dragon\nDestroy{ru}Дракон\nУничтожает{zh-tw}巨龍\n摧毀{zh-cn}巨龙\n摧毁{ko}드래곤\n파괴{es}Dragón\nDestruir{fr}Dragon\nDétruire{pt-br}Dragão\nDestruir{de}Drache\nZerstört"
 	if option.kind=="attack" then label="Attack\n"..tostring(option.mage or "Player") end
 	local id=terrain.guid.."DragonTargetChoice"..tostring(index)
 	xml=xml or terrain.UI.getXmlTable() or {}
@@ -4947,7 +4947,7 @@ function againstDragonBeginAttack()
 				if hex~=nil then
 					attackable[#attackable+1]={kind="attack",mage=details.mage,playerIndex=index,key=apocalypseQuestMapHexKey(hex)}
 				else
-					broadcastToAll("Could not locate "..tostring(details.mage).."'s map space for the Apocalypse Dragon attack.",warningColor)
+					broadcastToAll(joinLang({"{en}Could not locate the map space for {ru}Не удалось найти клетку карты для {zh-tw}找不到 {zh-cn}找不到 {ko}아포칼립스 드래곤 공격을 위한 {es}No se pudo localizar el espacio de mapa de {fr}Impossible de localiser la case de carte de {pt-br}Não foi possível localizar o espaço do mapa de {de}Das Kartenfeld von ",translateWord[details.mage] or tostring(details.mage),"{en} for the Apocalypse Dragon attack.{ru} для атаки Дракона Апокалипсиса.{zh-tw} 的地圖空間以進行末日巨龍攻擊。{zh-cn} 的地图空间以进行末日巨龙攻击。{ko}의 지도 칸을 찾지 못했습니다.{es} para el ataque del Dragón del Apocalipsis.{fr} pour l’attaque du Dragon de l’Apocalypse.{pt-br} para o ataque do Dragão do Apocalipse.{de} für den Angriff des Apokalypse-Drachen konnte nicht gefunden werden."}),warningColor)
 				end
 			end
 		end
@@ -5514,7 +5514,7 @@ function furyDragonDestroyHex(hex,mapObjects,removeEnemies)
 	if removeEnemies==true then furyDragonDiscardHexEnemies(hex,mapObjects) end
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
 	if bag==nil then
-		broadcastToAll("The Destroyed Site bag is missing; Fury could not mark "..furyDragonTargetLabel({feature=hex.feature}).." as destroyed.",warningColor)
+		broadcastToAll(joinLang({"{en}The Destroyed Site bag is missing; Fury could not mark {ru}Мешок жетонов разрушенных мест отсутствует; Ярость не смогла отметить {zh-tw}缺少「被摧毀地點」標記袋；巨龍之怒無法將 {zh-cn}缺少“被摧毁地点”标记袋；巨龙之怒无法将 {ko}파괴된 장소 주머니가 없습니다. 분노가 {es}Falta la bolsa de Sitio Destruido; Furia no pudo marcar {fr}Le sac Site Détruit est manquant ; la Fureur n’a pas pu marquer {pt-br}A bolsa de Local Destruído está ausente; Fúria não pôde marcar {de}Der Beutel für zerstörte Orte fehlt; Zorn konnte ",furyDragonTargetLabel({feature=hex.feature}),"{en} as destroyed.{ru} как разрушенное.{zh-tw} 標記為被摧毀。{zh-cn} 标记为被摧毁。{ko}을(를) 파괴됨으로 표시하지 못했습니다.{es} como destruido.{fr} comme détruit.{pt-br} como destruído.{de} nicht als zerstört markieren."}),warningColor)
 		return false
 	end
 	local token=takeDestroyedSiteToken(hex.terrain,hex.bearing)
