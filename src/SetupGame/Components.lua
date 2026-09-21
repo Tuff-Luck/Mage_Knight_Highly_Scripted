@@ -113,18 +113,13 @@ function monsterSetup()
 
 	--reload() destroys and recreates the physical object. Existence alone is not a completion signal:
 	--wait for the replacement leader pieces to be registered and settled before advertising setup readiness.
+	local function leaderObjectSettled(guid)
+		local obj=getObjectFromGUID(guid)
+		return obj~=nil and obj.spawning~=true and obj.resting==true
+	end
 	local function leaderObjectsSettled()
-		for _,guid in ipairs({
-			expectDark and darkCrusader.disc or nil,
-			expectDark and darkCrusader.token or nil,
-			expectElem and elementalist.disc or nil,
-			expectElem and elementalist.token or nil
-		}) do
-			if guid~=nil then
-				local obj=getObjectFromGUID(guid)
-				if obj==nil or obj.spawning==true or obj.resting~=true then return false end
-			end
-		end
+		if expectDark and (leaderObjectSettled(darkCrusader.disc)~=true or leaderObjectSettled(darkCrusader.token)~=true) then return false end
+		if expectElem and (leaderObjectSettled(elementalist.disc)~=true or leaderObjectSettled(elementalist.token)~=true) then return false end
 		return true
 	end
 
