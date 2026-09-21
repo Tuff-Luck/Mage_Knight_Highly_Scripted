@@ -580,61 +580,154 @@ function proxyTurnReportSetAction(action)
 	if gStates.proxyTurnReport~=nil then gStates.proxyTurnReport.action=action end
 end
 
+function proxyLocalizedTerm(value)
+	local text=tostring(value or "")
+	local terms={
+		["objective"]="{en}objective{ru}цель{zh-tw}目標{zh-cn}目标{ko}목표{es}objetivo{fr}objectif{pt-br}objetivo{de}Ziel",
+		["recruitable Unit"]="{en}recruitable Unit{ru}доступный для найма отряд{zh-tw}可招募部隊{zh-cn}可招募部队{ko}모집 가능한 유닛{es}Unidad reclutable{fr}Unité recrutable{pt-br}Unidade recrutável{de}rekrutierbare Einheit",
+		["Advanced Action"]="{en}Advanced Action{ru}Продвинутое действие{zh-tw}進階行動{zh-cn}进阶行动{ko}고급 행동{es}Acción Avanzada{fr}Action Avancée{pt-br}Ação Avançada{de}Fortgeschrittene Aktion",
+		["Spell"]="{en}Spell{ru}Заклинание{zh-tw}法術{zh-cn}法术{ko}주문{es}Hechizo{fr}Sort{pt-br}Feitiço{de}Zauber",
+		["exploration point"]="{en}exploration point{ru}точка исследования{zh-tw}探索點{zh-cn}探索点{ko}탐험 지점{es}punto de exploración{fr}point d’exploration{pt-br}ponto de exploração{de}Erkundungspunkt",
+		["Keep"]="{en}Keep{ru}Крепость{zh-tw}要塞{zh-cn}要塞{ko}성채{es}Fortaleza{fr}Forteresse{pt-br}Fortaleza{de}Burg",
+		["Mage Tower"]="{en}Mage Tower{ru}Башня мага{zh-tw}法師塔{zh-cn}法师塔{ko}마법사 탑{es}Torre de Mago{fr}Tour de Mage{pt-br}Torre de Mago{de}Magierturm",
+		["City"]="{en}City{ru}Город{zh-tw}城市{zh-cn}城市{ko}도시{es}Ciudad{fr}Cité{pt-br}Cidade{de}Stadt",
+		["Monastery"]="{en}Monastery{ru}Монастырь{zh-tw}修道院{zh-cn}修道院{ko}수도원{es}Monasterio{fr}Monastère{pt-br}Mosteiro{de}Kloster",
+		["Ruins"]="{en}Ruins{ru}Руины{zh-tw}遺跡{zh-cn}遗迹{ko}유적{es}Ruinas{fr}Ruines{pt-br}Ruínas{de}Ruinen",
+		["Dungeon"]="{en}Dungeon{ru}Подземелье{zh-tw}地下城{zh-cn}地下城{ko}던전{es}Mazmorra{fr}Donjon{pt-br}Masmorra{de}Kerker",
+		["Tomb"]="{en}Tomb{ru}Гробница{zh-tw}墓穴{zh-cn}墓穴{ko}무덤{es}Tumba{fr}Tombeau{pt-br}Tumba{de}Grabmal",
+		["Monster Den"]="{en}Monster Den{ru}Логово монстров{zh-tw}怪物巢穴{zh-cn}怪物巢穴{ko}괴물 소굴{es}Guarida de Monstruos{fr}Repaire de Monstres{pt-br}Covil de Monstros{de}Monsterhöhle",
+		["Spawning Grounds"]="{en}Spawning Grounds{ru}Место появления{zh-tw}繁殖地{zh-cn}繁殖地{ko}산란지{es}Campo de Aparición{fr}Terrain de Reproduction{pt-br}Terreno de Criação{de}Brutstätte",
+		["Magical Glade"]="{en}Magical Glade{ru}Магическая поляна{zh-tw}魔法林地{zh-cn}魔法林地{ko}마법의 숲{es}Claro Mágico{fr}Clairière Magique{pt-br}Clareira Mágica{de}Magische Lichtung",
+		["Village"]="{en}Village{ru}Деревня{zh-tw}村莊{zh-cn}村庄{ko}마을{es}Aldea{fr}Village{pt-br}Vila{de}Dorf",
+		["Refugee Camp"]="{en}Refugee Camp{ru}Лагерь беженцев{zh-tw}難民營{zh-cn}难民营{ko}난민 캠프{es}Campamento de Refugiados{fr}Camp de Réfugiés{pt-br}Acampamento de Refugiados{de}Flüchtlingslager",
+		["Volkare's Camp"]="{en}Volkare's Camp{ru}Лагерь Волкара{zh-tw}沃卡里營地{zh-cn}沃卡里营地{ko}볼케어의 야영지{es}Campamento de Volkare{fr}Camp de Volkare{pt-br}Acampamento de Volkare{de}Volkares Lager",
+		["Rampaging Enemy"]="{en}Rampaging Enemy{ru}Бродячий враг{zh-tw}遊蕩敵人{zh-cn}游荡敌人{ko}방랑 적{es}Enemigo Arrasador{fr}Ennemi Ravageur{pt-br}Inimigo Errante{de}Streunender Gegner",
+		["Draconum"]="{en}Draconum{ru}Драконид{zh-tw}龍人{zh-cn}龙人{ko}드라코넘{es}Draconum{fr}Draconum{pt-br}Draconum{de}Draconum"
+	}
+	return terms[text] or translateWord[text] or text
+end
+
+function proxyLocalizedColorList(colors)
+	local parts={}
+	for color in tostring(colors or ""):gmatch("[^/]+") do
+		if #parts>0 then parts[#parts+1]="/" end
+		parts[#parts+1]=translateWord[color] or color
+	end
+	return #parts>0 and joinLang(parts) or ""
+end
+
+function proxyLocalizedReason(reason,colors)
+	local text=tostring(reason or "")
+	local exact={
+		["The closest legal objective was selected."]="{en}The closest legal objective was selected.{ru}Выбрана ближайшая допустимая цель.{zh-tw}已選擇最近的合法目標。{zh-cn}已选择最近的合法目标。{ko}가장 가까운 합법적인 목표를 선택했습니다.{es}Se seleccionó el objetivo legal más cercano.{fr}L’objectif légal le plus proche a été sélectionné.{pt-br}O objetivo válido mais próximo foi selecionado.{de}Das nächstgelegene gültige Ziel wurde ausgewählt.",
+		["No legal objective matching the Objective Card was available, so the Proxy moved to the nearest space from which they could explore."]="{en}No legal objective matching the Objective Card was available, so the Proxy moved to the nearest space from which they could explore.{ru}Подходящей цели по карте цели не было, поэтому Прокси переместился к ближайшей клетке, откуда можно исследовать.{zh-tw}沒有符合目標牌的合法目標，因此代理玩家移向最近可進行探索的空間。{zh-cn}没有符合目标牌的合法目标，因此代理玩家移向最近可进行探索的空间。{ko}목표 카드와 일치하는 합법적인 목표가 없어 프록시는 탐험할 수 있는 가장 가까운 칸으로 이동했습니다.{es}No había un objetivo legal que coincidiera con la Carta de Objetivo, así que el Proxy se movió al espacio más cercano desde el que podía explorar.{fr}Aucun objectif légal ne correspondait à la Carte Objectif ; le Proxy s’est donc déplacé vers la case la plus proche depuis laquelle il pouvait explorer.{pt-br}Não havia objetivo válido correspondente à Carta de Objetivo, então o Proxy se moveu para o espaço mais próximo de onde pudesse explorar.{de}Es gab kein gültiges Ziel passend zur Zielkarte, daher bewegte sich der Proxy zum nächstgelegenen Feld, von dem aus er erkunden konnte.",
+		["Exploration was unavailable, so the Proxy used the closest legal Green, Red, or White objective."]="{en}Exploration was unavailable, so the Proxy used the closest legal Green, Red, or White objective.{ru}Исследование было недоступно, поэтому Прокси выбрал ближайшую допустимую зелёную, красную или белую цель.{zh-tw}無法探索，因此代理玩家使用最近的合法綠色、紅色或白色目標。{zh-cn}无法探索，因此代理玩家使用最近的合法绿色、红色或白色目标。{ko}탐험할 수 없어 프록시는 가장 가까운 합법적인 녹색, 빨간색 또는 흰색 목표를 사용했습니다.{es}No se podía explorar, así que el Proxy usó el objetivo Verde, Rojo o Blanco legal más cercano.{fr}L’exploration était impossible ; le Proxy a donc utilisé l’objectif Vert, Rouge ou Blanc légal le plus proche.{pt-br}A exploração não estava disponível, então o Proxy usou o objetivo Verde, Vermelho ou Branco válido mais próximo.{de}Erkundung war nicht möglich, daher verwendete der Proxy das nächstgelegene gültige grüne, rote oder weiße Ziel.",
+		["Green objective: the nearest unconquered Adventure Site was selected."]="{en}Green objective: the nearest unconquered Adventure Site was selected.{ru}Зелёная цель: выбрано ближайшее непокорённое место приключения.{zh-tw}綠色目標：已選擇最近的未征服冒險地點。{zh-cn}绿色目标：已选择最近的未征服冒险地点。{ko}녹색 목표: 가장 가까운 미정복 모험 장소를 선택했습니다.{es}Objetivo Verde: se seleccionó el Lugar de Aventura no conquistado más cercano.{fr}Objectif Vert : le Site d’Aventure non conquis le plus proche a été sélectionné.{pt-br}Objetivo Verde: o Local de Aventura não conquistado mais próximo foi selecionado.{de}Grünes Ziel: Der nächstgelegene nicht eroberte Abenteuerort wurde ausgewählt.",
+		["Red objective: the nearest unconquered Fortified Site or unburned Monastery was selected."]="{en}Red objective: the nearest unconquered Fortified Site or unburned Monastery was selected.{ru}Красная цель: выбрано ближайшее непокорённое укреплённое место или несожжённый Монастырь.{zh-tw}紅色目標：已選擇最近的未征服要塞地點或未焚毀修道院。{zh-cn}红色目标：已选择最近的未征服要塞地点或未焚毁修道院。{ko}빨간색 목표: 가장 가까운 미정복 요새 장소 또는 불타지 않은 수도원을 선택했습니다.{es}Objetivo Rojo: se seleccionó el Lugar Fortificado no conquistado o Monasterio no quemado más cercano.{fr}Objectif Rouge : le Site Fortifié non conquis ou le Monastère non brûlé le plus proche a été sélectionné.{pt-br}Objetivo Vermelho: o Local Fortificado não conquistado ou Mosteiro não queimado mais próximo foi selecionado.{de}Rotes Ziel: Der nächstgelegene nicht eroberte befestigte Ort oder das nächstgelegene nicht niedergebrannte Kloster wurde ausgewählt.",
+		["White objective: the nearest site with a legal interaction was selected."]="{en}White objective: the nearest site with a legal interaction was selected.{ru}Белая цель: выбрано ближайшее место с допустимым взаимодействием.{zh-tw}白色目標：已選擇最近可合法互動的地點。{zh-cn}白色目标：已选择最近可合法互动的地点。{ko}흰색 목표: 합법적으로 상호작용할 수 있는 가장 가까운 장소를 선택했습니다.{es}Objetivo Blanco: se seleccionó el lugar más cercano con una interacción legal.{fr}Objectif Blanc : le site le plus proche avec une interaction légale a été sélectionné.{pt-br}Objetivo Branco: o local mais próximo com interação válida foi selecionado.{de}Weißes Ziel: Der nächstgelegene Ort mit einer gültigen Interaktion wurde ausgewählt.",
+		["Blue objective: the nearest legal Green, Red, or White target farther from the Portal was selected."]="{en}Blue objective: the nearest legal Green, Red, or White target farther from the Portal was selected.{ru}Синяя цель: выбрана ближайшая допустимая зелёная, красная или белая цель, находящаяся дальше от Портала.{zh-tw}藍色目標：已選擇距傳送門更遠且最近的合法綠色、紅色或白色目標。{zh-cn}蓝色目标：已选择距传送门更远且最近的合法绿色、红色或白色目标。{ko}파란색 목표: 포털에서 더 멀리 있는 가장 가까운 합법적인 녹색, 빨간색 또는 흰색 목표를 선택했습니다.{es}Objetivo Azul: se seleccionó el objetivo Verde, Rojo o Blanco legal más cercano que estuviera más lejos del Portal.{fr}Objectif Bleu : la cible Verte, Rouge ou Blanche légale la plus proche et plus éloignée du Portail a été sélectionnée.{pt-br}Objetivo Azul: o alvo Verde, Vermelho ou Branco válido mais próximo e mais distante do Portal foi selecionado.{de}Blaues Ziel: Das nächstgelegene gültige grüne, rote oder weiße Ziel, das weiter vom Portal entfernt liegt, wurde ausgewählt."
+	}
+	if exact[text]~=nil then return exact[text] end
+	if text:find(" objective: the closest legal target matching either colour was selected.",1,true)~=nil then
+		return joinLang({proxyLocalizedColorList(colors),"{en} objective: the closest legal target matching either colour was selected.{ru} цель: выбрана ближайшая допустимая цель, соответствующая одному из цветов.{zh-tw} 目標：已選擇符合任一顏色的最近合法目標。{zh-cn} 目标：已选择符合任一颜色的最近合法目标。{ko} 목표: 두 색 중 하나와 일치하는 가장 가까운 합법적인 목표를 선택했습니다.{es}: se seleccionó el objetivo legal más cercano que coincide con cualquiera de los colores.{fr} : la cible légale la plus proche correspondant à l’une ou l’autre couleur a été sélectionnée.{pt-br}: o alvo válido mais próximo correspondente a qualquer uma das cores foi selecionado.{de}-Ziel: Das nächstgelegene gültige Ziel, das einer der Farben entspricht, wurde ausgewählt."})
+	end
+	return text
+end
+
+function proxyLocalizedAction(action)
+	local text=tostring(action or "")
+	local exact={
+		["could not restore the selected route"]="{en}could not restore the selected route{ru}не смог восстановить выбранный маршрут{zh-tw}無法恢復所選路線{zh-cn}无法恢复所选路线{ko}선택한 경로를 복원하지 못했습니다{es}no pudo restaurar la ruta seleccionada{fr}n’a pas pu restaurer l’itinéraire sélectionné{pt-br}não conseguiu restaurar a rota selecionada{de}konnte die ausgewählte Route nicht wiederherstellen",
+		["could not restore the selected destination"]="{en}could not restore the selected destination{ru}не смог восстановить выбранное место назначения{zh-tw}無法恢復所選目的地{zh-cn}无法恢复所选目的地{ko}선택한 목적지를 복원하지 못했습니다{es}no pudo restaurar el destino seleccionado{fr}n’a pas pu restaurer la destination sélectionnée{pt-br}não conseguiu restaurar o destino selecionado{de}konnte das ausgewählte Ziel nicht wiederherstellen",
+		["conquered the City"]="{en}conquered the City{ru}покорил Город{zh-tw}征服了城市{zh-cn}征服了城市{ko}도시를 정복했습니다{es}conquistó la Ciudad{fr}a conquis la Cité{pt-br}conquistou a Cidade{de}hat die Stadt erobert",
+		["could not find the selected offer card"]="{en}could not find the selected offer card{ru}не смог найти выбранную карту предложения{zh-tw}找不到所選供應牌{zh-cn}找不到所选供应牌{ko}선택한 제안 카드를 찾지 못했습니다{es}no pudo encontrar la carta seleccionada de la oferta{fr}n’a pas pu trouver la carte sélectionnée dans l’offre{pt-br}não conseguiu encontrar a carta selecionada da oferta{de}konnte die ausgewählte Angebotskarte nicht finden",
+		["found no legal card to take at the interaction site"]="{en}found no legal card to take at the interaction site{ru}не нашёл допустимой карты для получения в месте взаимодействия{zh-tw}在互動地點找不到可合法取得的牌{zh-cn}在互动地点找不到可合法取得的牌{ko}상호작용 장소에서 가져갈 수 있는 합법적인 카드를 찾지 못했습니다{es}no encontró ninguna carta legal para tomar en el lugar de interacción{fr}n’a trouvé aucune carte légale à prendre sur le site d’interaction{pt-br}não encontrou nenhuma carta válida para pegar no local de interação{de}fand am Interaktionsort keine gültige Karte zum Nehmen",
+		["explored a predefined tile"]="{en}explored a predefined tile{ru}исследовал предопределённую плитку{zh-tw}探索了一個預設板塊{zh-cn}探索了一个预设板块{ko}미리 정해진 타일을 탐험했습니다{es}exploró una loseta predefinida{fr}a exploré une tuile prédéfinie{pt-br}explorou uma peça predefinida{de}hat ein vordefiniertes Plättchen erkundet",
+		["explored a new tile"]="{en}explored a new tile{ru}исследовал новую плитку{zh-tw}探索了一個新板塊{zh-cn}探索了一个新板块{ko}새 타일을 탐험했습니다{es}exploró una nueva loseta{fr}a exploré une nouvelle tuile{pt-br}explorou uma nova peça{de}hat ein neues Plättchen erkundet",
+		["burned the Monastery"]="{en}burned the Monastery{ru}сжёг Монастырь{zh-tw}焚毀了修道院{zh-cn}焚毁了修道院{ko}수도원을 불태웠습니다{es}quemó el Monasterio{fr}a brûlé le Monastère{pt-br}queimou o Mosteiro{de}hat das Kloster niedergebrannt",
+		["had no legal objective or exploration destination"]="{en}had no legal objective or exploration destination{ru}не имел допустимой цели или места исследования{zh-tw}沒有合法目標或探索目的地{zh-cn}没有合法目标或探索目的地{ko}합법적인 목표나 탐험 목적지가 없었습니다{es}no tenía objetivo legal ni destino de exploración{fr}n’avait aucun objectif légal ni destination d’exploration{pt-br}não tinha objetivo válido nem destino de exploração{de}hatte kein gültiges Ziel oder Erkundungsziel"
+	}
+	if exact[text]~=nil then return exact[text] end
+	local name=text:match("^defeated (.+) in the City and retreated$")
+	if name~=nil then return joinLang({"{en}defeated {ru}победил {zh-tw}擊敗了 {zh-cn}击败了 {ko}을(를) 쓰러뜨리고 {es}derrotó a {fr}a vaincu {pt-br}derrotou {de}besiegte ",name,"{en} in the City and retreated{ru} в Городе и отступил{zh-tw} 於城市並撤退{zh-cn} 于城市并撤退{ko}도시에서 후퇴했습니다{es} en la Ciudad y se retiró{fr} dans la Cité et a battu en retraite{pt-br} na Cidade e recuou{de} in der Stadt und zog sich zurück"}) end
+	name=text:match("^defeated (.+) at the Ruins$")
+	if name~=nil then return joinLang({"{en}defeated {ru}победил {zh-tw}在遺跡擊敗了 {zh-cn}在遗迹击败了 {ko}유적에서 {es}derrotó a {fr}a vaincu {pt-br}derrotou {de}besiegte ",name,"{en} at the Ruins{ru} в Руинах{zh-tw}{zh-cn}{ko}을(를) 쓰러뜨렸습니다{es} en las Ruinas{fr} dans les Ruines{pt-br} nas Ruínas{de} in den Ruinen"}) end
+	name=text:match("^defeated the rampaging (.+)$")
+	if name~=nil then return joinLang({"{en}defeated the rampaging {ru}победил бродячего врага: {zh-tw}擊敗遊蕩敵人：{zh-cn}击败游荡敌人：{ko}방랑 적을 쓰러뜨렸습니다: {es}derrotó al enemigo arrasador {fr}a vaincu l’ennemi ravageur {pt-br}derrotou o inimigo errante {de}besiegte den streunenden Gegner ",name}) end
+	local count=text:match("^defeated (%d+) rampaging enemies$")
+	if count~=nil then return joinLang({"{en}defeated {ru}победил {zh-tw}擊敗 {zh-cn}击败 {ko}방랑 적 {es}derrotó a {fr}a vaincu {pt-br}derrotou {de}besiegte ",count,"{en} rampaging enemies{ru} бродячих врагов{zh-tw} 個遊蕩敵人{zh-cn} 个游荡敌人{ko}명을 쓰러뜨렸습니다{es} enemigos arrasadores{fr} ennemis ravageurs{pt-br} inimigos errantes{de} streunende Gegner"}) end
+	name=text:match("^resolved the (.+)$")
+	if name~=nil then return joinLang({"{en}resolved the {ru}разрешил {zh-tw}完成了 {zh-cn}完成了 {ko}을(를) 해결했습니다: {es}resolvió {fr}a résolu {pt-br}resolveu {de}hat abgeschlossen: ",proxyLocalizedTerm(name)}) end
+	name=text:match("^conquered the (.+)$")
+	if name~=nil then return joinLang({"{en}conquered the {ru}покорил {zh-tw}征服了 {zh-cn}征服了 {ko}을(를) 정복했습니다: {es}conquistó {fr}a conquis {pt-br}conquistou {de}hat erobert: ",proxyLocalizedTerm(name)}) end
+	local card,kind=text:match("^took (.+) %((.+)%) from the offer$")
+	if card~=nil then return joinLang({"{en}took {ru}взял {zh-tw}從供應中取得 {zh-cn}从供应中取得 {ko}제안에서 {es}tomó {fr}a pris {pt-br}pegou {de}nahm ",card," (",kind,"){en} from the offer{ru} из предложения{zh-tw}{zh-cn}{ko}을(를) 가져갔습니다{es} de la oferta{fr} de l’offre{pt-br} da oferta{de} aus dem Angebot"}) end
+	local target=text:match("^moved toward the (.+)\nbut did not reach it$")
+	if target~=nil then return joinLang({"{en}moved toward the {ru}двигался к {zh-tw}朝 {zh-cn}朝 {ko} 방향으로 이동했지만 도달하지 못했습니다: {es}se movió hacia {fr}s’est déplacé vers {pt-br}moveu-se em direção a {de}bewegte sich in Richtung ",proxyLocalizedTerm(target),"{en}\nbut did not reach it{ru}, но не достиг цели{zh-tw} 移動，但未抵達{zh-cn} 移动，但未抵达{ko}{es}\npero no llegó{fr}\nmais ne l’a pas atteint{pt-br}\nmas não chegou{de}, erreichte das Ziel aber nicht"}) end
+	return text
+end
+
 function proxyTurnReportText()
 	local report=gStates.proxyTurnReport
-	if report==nil then return "Proxy processing is complete." end
+	if report==nil then return "{en}Proxy processing is complete.{ru}Обработка Прокси завершена.{zh-tw}代理玩家處理完成。{zh-cn}代理玩家处理完成。{ko}프록시 처리가 완료되었습니다.{es}El procesamiento del Proxy ha terminado.{fr}Le traitement du Proxy est terminé.{pt-br}O processamento do Proxy foi concluído.{de}Die Proxy-Verarbeitung ist abgeschlossen." end
 	local moved=report.moved or 0
 	local action=report.action
 	local first
 	local active=gStates.proxyState=="Processing" or gStates.proxyState=="PickDestination" or gStates.proxyState=="PickRoute" or gStates.proxyState=="PickCard" or gStates.proxyState=="PickEnemy" or gStates.proxyState=="PickMana"
+	local target=proxyLocalizedTerm(report.target)
 	if action==nil or action=="" then
 		if report.target~=nil then
-			if active==true then first="Proxy is moving toward the "..report.target.."."
-			elseif moved<=0 then first="Proxy did not move toward the "..report.target.."."
-			elseif moved==1 then first="Proxy moved 1 space toward the "..report.target.."."
-			else first="Proxy moved "..tostring(moved).." spaces toward the "..report.target.."." end
+			if active==true then first=joinLang({"{en}Proxy is moving toward the {ru}Прокси движется к {zh-tw}代理玩家正朝 {zh-cn}代理玩家正朝 {ko}프록시가 다음 목표로 이동 중입니다: {es}El Proxy se mueve hacia {fr}Le Proxy se déplace vers {pt-br}O Proxy está se movendo em direção a {de}Der Proxy bewegt sich in Richtung ",target,"."})
+			elseif moved<=0 then first=joinLang({"{en}Proxy did not move toward the {ru}Прокси не двигался к {zh-tw}代理玩家沒有朝 {zh-cn}代理玩家没有朝 {ko}프록시는 다음 목표로 이동하지 않았습니다: {es}El Proxy no se movió hacia {fr}Le Proxy ne s’est pas déplacé vers {pt-br}O Proxy não se moveu em direção a {de}Der Proxy bewegte sich nicht in Richtung ",target,"."})
+			elseif moved==1 then first=joinLang({"{en}Proxy moved 1 space toward the {ru}Прокси переместился на 1 клетку к {zh-tw}代理玩家朝 {zh-cn}代理玩家朝 {ko}프록시가 다음 목표로 1칸 이동했습니다: {es}El Proxy se movió 1 espacio hacia {fr}Le Proxy s’est déplacé d’une case vers {pt-br}O Proxy moveu-se 1 espaço em direção a {de}Der Proxy bewegte sich 1 Feld in Richtung ",target,"."})
+			else first=joinLang({"{en}Proxy moved {ru}Прокси переместился на {zh-tw}代理玩家移動了 {zh-cn}代理玩家移动了 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces toward the {ru} клетки к {zh-tw} 格，朝向 {zh-cn} 格，朝向 {ko}칸 이동했습니다: {es} espacios hacia {fr} cases vers {pt-br} espaços em direção a {de} Felder in Richtung ",target,"."}) end
 		else
-			if active==true then first="Proxy is preparing their movement."
-			else first=moved<=0 and "Proxy completed their movement." or ("Proxy moved "..tostring(moved)..(moved==1 and " space." or " spaces.")) end
+			if active==true then first="{en}Proxy is preparing their movement.{ru}Прокси готовится к движению.{zh-tw}代理玩家正在準備移動。{zh-cn}代理玩家正在准备移动。{ko}프록시가 이동을 준비하고 있습니다.{es}El Proxy prepara su movimiento.{fr}Le Proxy prépare son déplacement.{pt-br}O Proxy está preparando seu movimento.{de}Der Proxy bereitet seine Bewegung vor."
+			elseif moved<=0 then first="{en}Proxy completed their movement.{ru}Прокси завершил движение.{zh-tw}代理玩家完成移動。{zh-cn}代理玩家完成移动。{ko}프록시가 이동을 완료했습니다.{es}El Proxy completó su movimiento.{fr}Le Proxy a terminé son déplacement.{pt-br}O Proxy concluiu seu movimento.{de}Der Proxy hat seine Bewegung abgeschlossen."
+			elseif moved==1 then first="{en}Proxy moved 1 space.{ru}Прокси переместился на 1 клетку.{zh-tw}代理玩家移動了 1 格。{zh-cn}代理玩家移动了 1 格。{ko}프록시가 1칸 이동했습니다.{es}El Proxy se movió 1 espacio.{fr}Le Proxy s’est déplacé d’une case.{pt-br}O Proxy moveu-se 1 espaço.{de}Der Proxy bewegte sich 1 Feld."
+			else first=joinLang({"{en}Proxy moved {ru}Прокси переместился на {zh-tw}代理玩家移動了 {zh-cn}代理玩家移动了 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces.{ru} клетки.{zh-tw} 格。{zh-cn} 格。{ko}칸 이동했습니다.{es} espacios.{fr} cases.{pt-br} espaços.{de} Felder."}) end
 		end
 	else
-		if moved<=0 then first="Proxy "..action.."."
-		elseif moved==1 then first="Proxy moved 1 space and\n"..action.."."
-		else first="Proxy moved "..tostring(moved).." spaces and\n"..action.."." end
+		local localizedAction=proxyLocalizedAction(action)
+		if moved<=0 then first=joinLang({"{en}Proxy {ru}Прокси {zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시가 {es}El Proxy {fr}Le Proxy {pt-br}O Proxy {de}Der Proxy ",localizedAction,"."})
+		elseif moved==1 then first=joinLang({"{en}Proxy moved 1 space and\n{ru}Прокси переместился на 1 клетку и\n{zh-tw}代理玩家移動 1 格並\n{zh-cn}代理玩家移动 1 格并\n{ko}프록시가 1칸 이동하고\n{es}El Proxy se movió 1 espacio y\n{fr}Le Proxy s’est déplacé d’une case et\n{pt-br}O Proxy moveu-se 1 espaço e\n{de}Der Proxy bewegte sich 1 Feld und\n",localizedAction,"."})
+		else first=joinLang({"{en}Proxy moved {ru}Прокси переместился на {zh-tw}代理玩家移動 {zh-cn}代理玩家移动 {ko}프록시가 {es}El Proxy se movió {fr}Le Proxy s’est déplacé de {pt-br}O Proxy moveu-se {de}Der Proxy bewegte sich ",tostring(moved),"{en} spaces and\n{ru} клетки и\n{zh-tw} 格並\n{zh-cn} 格并\n{ko}칸 이동하고\n{es} espacios y\n{fr} cases et\n{pt-br} espaços e\n{de} Felder und\n",localizedAction,"."}) end
 	end
 
-	local reason=report.reason or "The closest legal objective was selected."
+	local reason=proxyLocalizedReason(report.reason or "The closest legal objective was selected.",report.colors)
 	local colors=report.colors or ""
 	local shortReason=reason
-	if colors=="Green" then shortReason="Nearest unconquered Adventure Site"
-	elseif colors=="Red" then shortReason="Nearest unconquered Fortified Site or unburned Monastery"
-	elseif colors=="White" then shortReason="Nearest site with a legal interaction"
-	elseif colors=="Blue" then shortReason="Nearest legal Green, Red, or White target farther from the Portal"
-	elseif colors~="" and reason:find("closest legal target matching either colour",1,true)~=nil then shortReason="Closest legal target matching either colour"
-	elseif reason:find("No legal objective matching the Objective Card",1,true)~=nil then shortReason="Nearest legal exploration point"
-	elseif reason:find("Exploration was unavailable",1,true)~=nil then shortReason="Closest legal Green, Red, or White objective" end
-	local objectiveLabel=colors~="" and colors or tostring(report.objective or "Unknown")
+	if colors=="Green" then shortReason="{en}Nearest unconquered Adventure Site{ru}Ближайшее непокорённое место приключения{zh-tw}最近的未征服冒險地點{zh-cn}最近的未征服冒险地点{ko}가장 가까운 미정복 모험 장소{es}Lugar de Aventura no conquistado más cercano{fr}Site d’Aventure non conquis le plus proche{pt-br}Local de Aventura não conquistado mais próximo{de}Nächstgelegener nicht eroberter Abenteuerort"
+	elseif colors=="Red" then shortReason="{en}Nearest unconquered Fortified Site or unburned Monastery{ru}Ближайшее непокорённое укреплённое место или несожжённый Монастырь{zh-tw}最近的未征服要塞地點或未焚毀修道院{zh-cn}最近的未征服要塞地点或未焚毁修道院{ko}가장 가까운 미정복 요새 장소 또는 불타지 않은 수도원{es}Lugar Fortificado no conquistado o Monasterio no quemado más cercano{fr}Site Fortifié non conquis ou Monastère non brûlé le plus proche{pt-br}Local Fortificado não conquistado ou Mosteiro não queimado mais próximo{de}Nächstgelegener nicht eroberter befestigter Ort oder nicht niedergebranntes Kloster"
+	elseif colors=="White" then shortReason="{en}Nearest site with a legal interaction{ru}Ближайшее место с допустимым взаимодействием{zh-tw}最近可合法互動的地點{zh-cn}最近可合法互动的地点{ko}합법적으로 상호작용할 수 있는 가장 가까운 장소{es}Lugar más cercano con una interacción legal{fr}Site le plus proche avec une interaction légale{pt-br}Local mais próximo com interação válida{de}Nächstgelegener Ort mit gültiger Interaktion"
+	elseif colors=="Blue" then shortReason="{en}Nearest legal Green, Red, or White target farther from the Portal{ru}Ближайшая допустимая зелёная, красная или белая цель дальше от Портала{zh-tw}距傳送門更遠的最近合法綠色、紅色或白色目標{zh-cn}距传送门更远的最近合法绿色、红色或白色目标{ko}포털에서 더 멀리 있는 가장 가까운 합법적인 녹색, 빨간색 또는 흰색 목표{es}Objetivo Verde, Rojo o Blanco legal más cercano y más lejos del Portal{fr}Cible Verte, Rouge ou Blanche légale la plus proche et plus éloignée du Portail{pt-br}Alvo Verde, Vermelho ou Branco válido mais próximo e mais distante do Portal{de}Nächstgelegenes gültiges grünes, rotes oder weißes Ziel weiter vom Portal entfernt" end
+	local objectiveLabel=colors~="" and proxyLocalizedColorList(colors) or tostring(report.objective or "{en}Unknown{ru}Неизвестно{zh-tw}未知{zh-cn}未知{ko}알 수 없음{es}Desconocido{fr}Inconnu{pt-br}Desconhecido{de}Unbekannt")
 	local choiceLine=""
-	--Choice details are decision support, not part of the completed-turn summary. Keep them visible
-	--while the player is actually choosing, then remove them from the final "Proxy did" report.
 	if gStates.proxyState=="PickDestination" and (report.choiceCount or 0)>1 then
-		local choices=report.choiceTargets~=nil and table.concat(report.choiceTargets,", ") or (tostring(report.choiceCount).." equally close")
-		choiceLine="\n\nMultiple targets: "..choices
+		local choices
+		if report.choiceTargets~=nil then
+			local translated={}
+			for _,choice in ipairs(report.choiceTargets) do translated[#translated+1]=proxyLocalizedTerm(choice) end
+			local joined={}
+			for i,choice in ipairs(translated) do if i>1 then joined[#joined+1]=", " end joined[#joined+1]=choice end
+			choices=joinLang(joined)
+		else choices=joinLang({tostring(report.choiceCount),"{en} equally close{ru} равноудалённых{zh-tw} 個同樣接近{zh-cn} 个同样接近{ko}개의 동일 거리{es} igualmente cercanos{fr} à égale distance{pt-br} igualmente próximos{de} gleich nahe"}) end
+		choiceLine=joinLang({"{en}\n\nMultiple targets: {ru}\n\nНесколько целей: {zh-tw}\n\n多個目標：{zh-cn}\n\n多个目标：{ko}\n\n여러 목표: {es}\n\nMúltiples objetivos: {fr}\n\nPlusieurs cibles : {pt-br}\n\nVários alvos: {de}\n\nMehrere Ziele: ",choices})
 	end
 
 	local interactionLine=""
 	if gStates.proxyState=="PickCard" and (report.interactionChoiceCount or 0)>1 then
-		local choices=report.interactionChoiceNames~=nil and table.concat(report.interactionChoiceNames,", ") or (tostring(report.interactionChoiceCount).." equally valid cards")
-		interactionLine="\n\nMultiple interaction choices: "..choices
+		local choices=report.interactionChoiceNames~=nil and table.concat(report.interactionChoiceNames,", ") or tostring(report.interactionChoiceCount)
+		interactionLine=joinLang({"{en}\n\nMultiple interaction choices: {ru}\n\nНесколько вариантов взаимодействия: {zh-tw}\n\n多個互動選擇：{zh-cn}\n\n多个互动选择：{ko}\n\n여러 상호작용 선택: {es}\n\nMúltiples opciones de interacción: {fr}\n\nPlusieurs choix d’interaction : {pt-br}\n\nVárias escolhas de interação: {de}\n\nMehrere Interaktionsmöglichkeiten: ",choices})
 	end
 
 	local movementParts={report.baseReason or (report.baseMove==2 and "Card +2" or "Card +1")}
 	if (report.shieldMove or 0)>0 then movementParts[#movementParts+1]="Shield +"..tostring(report.shieldMove) end
 	if (report.sourceMove or 0)>0 then movementParts[#movementParts+1]="Source +1" end
-	local summaryLine="Objective: "..objectiveLabel.." ("..shortReason..").\n\nMovement: "..tostring(report.allowance or 0).." ("..table.concat(movementParts,", ")..")."
-	return first..choiceLine..interactionLine.."\n\n"..summaryLine
+	local movementText=table.concat(movementParts,", ")
+	local summaryLine=joinLang({"{en}Objective: {ru}Цель: {zh-tw}目標：{zh-cn}目标：{ko}목표: {es}Objetivo: {fr}Objectif : {pt-br}Objetivo: {de}Ziel: ",objectiveLabel," (",shortReason,").\n\n{en}Movement: {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동: {es}Movimiento: {fr}Déplacement : {pt-br}Movimento: {de}Bewegung: ",tostring(report.allowance or 0)," (",movementText,")."})
+	return joinLang({first,choiceLine,interactionLine,"\n\n",summaryLine})
 end
-
 --Return the logical Portal hex used by Proxy rules. Against the Horsemen starts from Country Tile 1's
 --central Magical Glade; even after the Round 3 ritual closes the actual Portal, Blue-objective distance
 --continues to be measured from that original Portal space rather than from the physical Portal card.
