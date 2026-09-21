@@ -2555,7 +2555,7 @@ function apocalypseQuestMineDoomUndefeatedCleanup(playerIndex)
 			removed=true
 		end
 	end
-	if removed==true then broadcastToAll("Mine of Doom: undefeated Quest enemies were discarded at the end of the attempt.",positionToColor(playerIndex)) end
+	if removed==true then broadcastToAll("{en}Mine of Doom: undefeated Quest enemies were discarded at the end of the attempt.{ru}Mine of Doom: непобеждённые враги задания сброшены в конце попытки.{zh-tw}Mine of Doom：本次嘗試結束時，未被擊敗的任務敵人已棄掉。{zh-cn}Mine of Doom：本次尝试结束时，未被击败的任务敌人已弃掉。{ko}Mine of Doom: 시도 종료 시 쓰러뜨리지 못한 퀘스트 적을 버렸습니다.{es}Mine of Doom: los enemigos de Misión no derrotados se descartaron al final del intento.{fr}Mine of Doom : les ennemis de Quête non vaincus ont été défaussés à la fin de la tentative.{pt-br}Mine of Doom: os inimigos da Missão não derrotados foram descartados no fim da tentativa.{de}Mine of Doom: Nicht besiegte Quest-Gegner wurden am Ende des Versuchs abgeworfen.",positionToColor(playerIndex)) end
 	return removed
 end
 
@@ -2579,7 +2579,7 @@ function apocalypseQuestMineDoomEndTurnCleanup(playerIndex)
 	end
 	gStates.apocalypseQuestCombatEnemies["485cc5"]=nil
 	gStates.apocalypseQuestCombatLaunches["485cc5"]=nil
-	if removed==true then broadcastToAll("Mine of Doom: remaining Quest combat enemy tokens were discarded.",positionToColor(playerIndex)) end
+	if removed==true then broadcastToAll("{en}Mine of Doom: remaining Quest combat enemy tokens were discarded.{ru}Mine of Doom: оставшиеся жетоны врагов боя задания сброшены.{zh-tw}Mine of Doom：剩餘的任務戰鬥敵人標記已棄掉。{zh-cn}Mine of Doom：剩余的任务战斗敌人标记已弃掉。{ko}Mine of Doom: 남은 퀘스트 전투 적 토큰을 버렸습니다.{es}Mine of Doom: se descartaron las fichas de enemigo restantes del combate de Misión.{fr}Mine of Doom : les jetons Ennemi restants du combat de Quête ont été défaussés.{pt-br}Mine of Doom: as fichas de inimigo restantes do combate da Missão foram descartadas.{de}Mine of Doom: Die verbleibenden Gegner-Marker des Quest-Kampfes wurden abgeworfen.",positionToColor(playerIndex)) end
 	return true
 end
 
@@ -2602,7 +2602,7 @@ function apocalypseQuestRichMerchantStartTurn()
 	apocalypseQuestMarkCombatStarted(card,2)
 	if gStates.apocalypseQuestCombatLaunches==nil then gStates.apocalypseQuestCombatLaunches={} end
 	gStates.apocalypseQuestCombatLaunches[card.guid]=apocalypseQuestCombatLaunchKey(card,state)
-	broadcastToAll("A Rich Merchant: the hidden ally attacks at the start of "..tostring(turnOrder[playerIndex].mage).."'s turn.",positionToColor(playerIndex))
+	broadcastToAll(joinLang({"{en}A Rich Merchant: the hidden ally attacks at the start of {ru}A Rich Merchant: скрытый союзник атакует в начале хода {zh-tw}A Rich Merchant：隱藏盟友在 {zh-cn}A Rich Merchant：隐藏盟友在 {ko}A Rich Merchant: 숨겨진 동료가 {es}A Rich Merchant: el aliado oculto ataca al comienzo del turno de {fr}A Rich Merchant : l’allié caché attaque au début du tour de {pt-br}A Rich Merchant: o aliado oculto ataca no início do turno de {de}A Rich Merchant: Der verborgene Verbündete greift zu Beginn des Zuges von ",translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en}'s turn.{ru}.{zh-tw} 的回合開始時攻擊。{zh-cn} 的回合开始时攻击。{ko}의 턴 시작에 공격합니다.{es}.{fr}.{pt-br}.{de} an."}),positionToColor(playerIndex))
 	safeWaitFrames("Quests",function() if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end end,2)
 	return true
 end
@@ -2695,7 +2695,7 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			if gStates.apocalypseQuestCursedHero==nil then gStates.apocalypseQuestCursedHero={} end
 			apocalypseQuestCursedMarkHolder(card,playerIndex)
 			gStates.apocalypseQuestCursedHero[card.guid]=turnOrder[playerIndex].mage
-			broadcastToAll(tostring(turnOrder[playerIndex].mage).." is now the cursed Hero. Apply +1 Armor and +1 to each enemy attack manually while this Quest remains active.",positionToColor(playerIndex))
+			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} is now the cursed Hero. Apply +1 Armor and +1 to each enemy attack manually while this Quest remains active.{ru} теперь проклятый Герой. Пока это задание активно, вручную добавляйте +1 к Броне и +1 к каждой атаке врагов.{zh-tw} 現在是受詛咒英雄。此任務保持啟用時，請手動讓每個敵人 +1 護甲、每次攻擊 +1。{zh-cn} 现在是受诅咒英雄。此任务保持启用时，请手动让每个敌人 +1 护甲、每次攻击 +1。{ko}이(가) 이제 저주받은 영웅입니다. 이 퀘스트가 활성화된 동안 각 적에게 방어력 +1과 모든 공격 +1을 수동으로 적용하십시오.{es} es ahora el Héroe maldito. Aplica manualmente +1 Armadura y +1 a cada ataque enemigo mientras esta Misión siga activa.{fr} est désormais le Héros maudit. Appliquez manuellement +1 Armure et +1 à chaque attaque ennemie tant que cette Quête reste active.{pt-br} agora é o Herói amaldiçoado. Aplique manualmente +1 Armadura e +1 a cada ataque inimigo enquanto esta Missão permanecer ativa.{de} ist nun der verfluchte Held. Solange diese Quest aktiv ist, wende manuell +1 Rüstung und +1 auf jeden Gegnerangriff an."}),positionToColor(playerIndex))
 		elseif key=="2a" then
 			local targetIndex=apocalypseQuestCursedTargetIndex(card,playerIndex)
 			if targetIndex==nil then
@@ -2707,7 +2707,7 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 				if targetState~=nil then targetState.step=2 end
 				apocalypseQuestCursedMarkHolder(card,targetIndex)
 				gStates.apocalypseQuestCursedHero[card.guid]=turnOrder[targetIndex].mage
-				broadcastToAll(tostring(turnOrder[targetIndex].mage).." is now the cursed Hero. The enemy +1 Armor/+1 Attack effect remains player-managed.",positionToColor(targetIndex))
+				broadcastToAll(joinLang({translateWord[turnOrder[targetIndex].mage] or tostring(turnOrder[targetIndex].mage),"{en} is now the cursed Hero. The enemy +1 Armor/+1 Attack effect remains player-managed.{ru} теперь проклятый Герой. Эффект врагов +1 Броня/+1 Атака по-прежнему отслеживается игроками вручную.{zh-tw} 現在是受詛咒英雄。敵人 +1 護甲／+1 攻擊效果仍由玩家手動管理。{zh-cn} 现在是受诅咒英雄。敌人 +1 护甲／+1 攻击效果仍由玩家手动管理。{ko}이(가) 이제 저주받은 영웅입니다. 적의 방어력 +1/공격 +1 효과는 계속 플레이어가 수동으로 관리합니다.{es} es ahora el Héroe maldito. El efecto enemigo de +1 Armadura/+1 Ataque sigue gestionándose manualmente.{fr} est désormais le Héros maudit. L’effet ennemi +1 Armure/+1 Attaque reste géré manuellement par les joueurs.{pt-br} agora é o Herói amaldiçoado. O efeito inimigo de +1 Armadura/+1 Ataque continua sendo gerenciado manualmente pelos jogadores.{de} ist nun der verfluchte Held. Der Gegner-Effekt +1 Rüstung/+1 Angriff bleibt spielerverwaltet."}),positionToColor(targetIndex))
 			else
 				broadcastToAll("{en}Cursed: place the chosen adjacent Hero's Shield on this Quest before using Pass the curse on.{ru}Cursed: поместите щит выбранного соседнего Героя на это задание перед использованием Pass the curse on.{zh-tw}Cursed：使用 Pass the curse on 前，先將所選相鄰英雄的盾牌放到此任務上。{zh-cn}Cursed：使用 Pass the curse on 前，先将所选相邻英雄的盾牌放到此任务上。{ko}Cursed: Pass the curse on을 사용하기 전에 선택한 인접 영웅의 방패를 이 퀘스트에 놓으십시오.{es}Cursed: coloca el Escudo del Héroe adyacente elegido sobre esta Misión antes de usar Pass the curse on.{fr}Cursed : placez le Bouclier du Héros adjacent choisi sur cette Quête avant d’utiliser Pass the curse on.{pt-br}Cursed: coloque o Escudo do Herói adjacente escolhido nesta Missão antes de usar Pass the curse on.{de}Cursed: Lege den Schild des gewählten benachbarten Helden auf diese Quest, bevor du Pass the curse on verwendest.",positionToColor(playerIndex))
 			end
@@ -2732,7 +2732,7 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 		elseif key=="3" and finalCompletion==true then
 			local level=turnOrder[playerIndex].level or 1
 			local reward=level<=4 and "an Advanced Action" or level<=8 and "a Spell" or "an Artifact"
-			broadcastToAll("A Mysterious Island reward: gain "..reward..".",positionToColor(playerIndex))
+			broadcastToAll(joinLang({"{en}A Mysterious Island reward: gain {ru}Награда A Mysterious Island: получите {zh-tw}A Mysterious Island 獎勵：獲得 {zh-cn}A Mysterious Island 奖励：获得 {ko}A Mysterious Island 보상: {es}Recompensa de A Mysterious Island: gana {fr}Récompense de A Mysterious Island : gagnez {pt-br}Recompensa de A Mysterious Island: ganhe {de}Belohnung für A Mysterious Island: Erhalte ",reward,"."}),positionToColor(playerIndex))
 		end
 	elseif card.guid=="c73a1f" and key=="3" and finalCompletion==true then
 		broadcastToAll("{en}Tomb of the Lost King reward: gain an Artifact.{ru}Награда Tomb of the Lost King: получите Артефакт.{zh-tw}Tomb of the Lost King 獎勵：獲得一件神器。{zh-cn}Tomb of the Lost King 奖励：获得一件神器。{ko}Tomb of the Lost King 보상: 유물 하나를 얻습니다.{es}Recompensa de Tomb of the Lost King: gana un Artefacto.{fr}Récompense de Tomb of the Lost King : gagnez un Artefact.{pt-br}Recompensa de Tomb of the Lost King: ganhe um Artefato.{de}Belohnung für Tomb of the Lost King: Erhalte ein Artefakt.",positionToColor(playerIndex))
@@ -2748,7 +2748,7 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 		local reward=nil
 		if key=="2a" then reward=level<=4 and "a random mana crystal" or level<=8 and "an Advanced Action" or "a Spell"
 		else reward=level<=2 and "an Advanced Action" or level<=6 and "a Spell" or "an Artifact" end
-		broadcastToAll("Traitor "..key.." reward: gain "..reward..". The generated Possessed enemy is Council of the Void faction.",positionToColor(playerIndex))
+		broadcastToAll(joinLang({"{en}Traitor {ru}Traitor {zh-tw}Traitor {zh-cn}Traitor {ko}Traitor {es}Traitor {fr}Traitor {pt-br}Traitor {de}Traitor ",key,"{en} reward: gain {ru}, награда: получите {zh-tw} 獎勵：獲得 {zh-cn} 奖励：获得 {ko} 보상: {es}, recompensa: gana {fr}, récompense : gagnez {pt-br}, recompensa: ganhe {de}, Belohnung: Erhalte ",reward,"{en}. The generated Possessed enemy is Council of the Void faction.{ru}. Созданный Одержимый враг относится к фракции Совета Пустоты.{zh-tw}。產生的附身敵人屬於虛空議會陣營。{zh-cn}。产生的附身敌人属于虚空议会阵营。{ko}. 생성된 빙의 적은 공허의 의회 진영입니다.{es}. El enemigo Poseído generado pertenece a la facción Consejo del Vacío.{fr}. L’ennemi Possédé généré appartient à la faction Conseil du Vide.{pt-br}. O inimigo Possuído gerado pertence à facção Conselho do Vácuo.{de}. Der erzeugte Besessen-Gegner gehört zur Fraktion Rat der Leere."}),positionToColor(playerIndex))
 	elseif card.guid=="dd35bb" then
 		if key=="1" then
 			if apocalypseQuestFogEnemy(card)==nil then apocalypseQuestPlaceEnemy(card,"tan",true,0) end
@@ -2819,7 +2819,7 @@ function apocalypseQuestEndRoundCleanup()
 	local firstRemoved=#cards-removeCount+1
 	local queue={}
 	for i=firstRemoved,#cards do if cards[i]~=nil then queue[#queue+1]=cards[i] end end
-	broadcastToAll("Quest cleanup started: removing the "..tostring(#queue).." rightmost Quest"..(#queue==1 and "" or "s").." from the offer.",{1,1,0.5})
+	broadcastToAll(joinLang({"{en}Quest cleanup started: removing the {ru}Очистка заданий началась: удаляется {zh-tw}任務清理開始：從供應中移除最右側 {zh-cn}任务清理开始：从供应中移除最右侧 {ko}퀘스트 정리 시작: 제안 오른쪽 끝에서 퀘스트 {es}Limpieza de Misiones iniciada: se retiran las {fr}Nettoyage des Quêtes commencé : retrait des {pt-br}Limpeza das Missões iniciada: removendo as {de}Quest-Bereinigung gestartet: Entferne die ",tostring(#queue),#queue==1 and "{en} rightmost Quest from the offer.{ru} крайнее справа задание из предложения.{zh-tw} 張任務。{zh-cn} 张任务。{ko}개를 제거합니다.{es} Misión más a la derecha de la oferta.{fr} Quête la plus à droite de l’offre.{pt-br} Missão mais à direita da oferta.{de} am weitesten rechts liegende Quest aus dem Angebot." or "{en} rightmost Quests from the offer.{ru} крайних справа заданий из предложения.{zh-tw} 張任務。{zh-cn} 张任务。{ko}개를 제거합니다.{es} Misiones más a la derecha de la oferta.{fr} Quêtes les plus à droite de l’offre.{pt-br} Missões mais à direita da oferta.{de} am weitesten rechts liegenden Quests aus dem Angebot."}),{1,1,0.5})
 
 	local function cleanNext(index)
 		if index>#queue then
@@ -2833,7 +2833,7 @@ function apocalypseQuestEndRoundCleanup()
 		local objects=apocalypseQuestObjectsOnCard(card)
 		local shieldCount=0
 		local penalized={}
-		broadcastToAll("Quest cleanup: \""..questName.."\" ("..tostring(questDetails.questType or "Unknown")..") is leaving the offer.",{1,1,0.5})
+		broadcastToAll(joinLang({"{en}Quest cleanup: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"\" (",tostring(questDetails.questType or "Unknown"),"){en} is leaving the offer.{ru} покидает предложение.{zh-tw} 正在離開供應。{zh-cn} 正在离开供应。{ko}이(가) 제안에서 제거됩니다.{es} sale de la oferta.{fr} quitte l’offre.{pt-br} está saindo da oferta.{de} verlässt das Angebot."}),{1,1,0.5})
 		for _,obj in ipairs(objects) do
 			if obj.getName()=="Shield" then
 				shieldCount=shieldCount+1
@@ -2848,13 +2848,13 @@ function apocalypseQuestEndRoundCleanup()
 			end
 		end
 		apocalypseQuestBottomDeck(card,function(success)
-			if shieldCount>0 then broadcastToAll("Quest cleanup: removed "..tostring(shieldCount).." Shield"..(shieldCount==1 and "" or "s").." from \""..questName.."\".",{1,1,0.5}) end
+			if shieldCount>0 then broadcastToAll(joinLang({"{en}Quest cleanup: removed {ru}Очистка задания: удалено {zh-tw}任務清理：從 \"{zh-cn}任务清理：从 \"{ko}퀘스트 정리: \"{es}Limpieza de Misión: se retiraron {fr}Nettoyage de Quête : retrait de {pt-br}Limpeza da Missão: foram removidos {de}Quest-Bereinigung: ",tostring(shieldCount),shieldCount==1 and "{en} Shield from \"{ru} Щит из \"{zh-tw}\" 移除 1 個盾牌。{zh-cn}\" 移除 1 个盾牌。{ko}\"에서 방패 1개를 제거했습니다.{es} Escudo de \"{fr} Bouclier de \"{pt-br} Escudo de \"{de} Schild aus \"" or "{en} Shields from \"{ru} Щитов из \"{zh-tw}\" 移除盾牌。{zh-cn}\" 移除盾牌。{ko}\"에서 방패를 제거했습니다.{es} Escudos de \"{fr} Boucliers de \"{pt-br} Escudos de \"{de} Schilde aus \"",questName,"\"."}),{1,1,0.5}) end
 			if gStates.apocalypseQuestReminderCards~=nil and gStates.apocalypseQuestReminderCards[card.guid]~=nil then
-				broadcastToAll("Quest cleanup: \""..questName.."\" remains beside the Quest Shield bags as a reminder.",{1,1,0.5})
+				broadcastToAll(joinLang({"{en}Quest cleanup: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" remains beside the Quest Shield bags as a reminder.{ru}\" остаётся рядом с мешками Щитов задания как напоминание.{zh-tw}\" 留在任務盾牌袋旁作為提醒。{zh-cn}\" 留在任务盾牌袋旁作为提醒。{ko}\"이(가) 알림으로 퀘스트 방패 주머니 옆에 남습니다.{es}\" permanece junto a las bolsas de Escudos de Misión como recordatorio.{fr}\" reste à côté des sacs de Boucliers de Quête comme rappel.{pt-br}\" permanece ao lado das bolsas de Escudos da Missão como lembrete.{de}\" bleibt als Erinnerung neben den Quest-Schild-Beuteln."}),{1,1,0.5})
 			elseif success==true then
-				broadcastToAll("Quest cleanup: \""..questName.."\" returned to the bottom of the Quest deck.",{1,1,0.5})
+				broadcastToAll(joinLang({"{en}Quest cleanup: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" returned to the bottom of the Quest deck.{ru}\" возвращено на дно колоды заданий.{zh-tw}\" 已歸還到任務牌庫底部。{zh-cn}\" 已归还到任务牌库底部。{ko}\"이(가) 퀘스트 덱 맨 아래로 돌아갔습니다.{es}\" volvió al fondo del mazo de Misiones.{fr}\" a été remis sous le paquet de Quêtes.{pt-br}\" voltou para o fundo do baralho de Missões.{de}\" wurde unter den Queststapel gelegt."}),{1,1,0.5})
 			else
-				broadcastToAll("Quest cleanup: \""..questName.."\" could not be returned to the Quest deck.",{1,0.2,0.2})
+				broadcastToAll(joinLang({"{en}Quest cleanup: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" could not be returned to the Quest deck.{ru}\" не удалось вернуть в колоду заданий.{zh-tw}\" 無法歸還到任務牌庫。{zh-cn}\" 无法归还到任务牌库。{ko}\"을(를) 퀘스트 덱으로 돌려놓지 못했습니다.{es}\" no pudo devolverse al mazo de Misiones.{fr}\" n’a pas pu être remise dans le paquet de Quêtes.{pt-br}\" não pôde ser devolvida ao baralho de Missões.{de}\" konnte nicht in den Queststapel zurückgelegt werden."}),{1,0.2,0.2})
 			end
 			--Only now may the next retiring Quest begin its deck return. This prevents the two loose
 			--cards from combining with each other and becoming a stray two-card deck beside the real deck.
