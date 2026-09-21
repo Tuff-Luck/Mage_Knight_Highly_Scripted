@@ -51,7 +51,7 @@
 				<Button id="ShrinkHand" onClick="valueAdjust" class="ShortButton">
 					<Image id="ShrinkHandImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text26" offsetXY="0 1">-</Text>
 				</Button>
-				<Button id="DrawHand" preferredWidth="250" interactable="false" onClick="drawUpTo" onMouseDown="" onMouseUp="" tooltipOffset="65" tooltip="Hand size will be purple when above your base Hand size. Achieved by proximity to Keeps and Cities, or Day Tactic 4.">
+				<Button id="DrawHand" preferredWidth="250" interactable="false" onClick="drawUpTo" onMouseDown="" onMouseUp="" tooltipOffset="65" tooltip="{en}Hand size will be purple when above your base Hand size. Achieved by proximity to Keeps and Cities, or Day Tactic 4.{ru}Размер руки становится фиолетовым, когда превышает базовый предел. Это возможно рядом с крепостями и городами или благодаря Дневной тактике 4.{zh-tw}手牌上限高於基礎值時會顯示為紫色。可透過鄰近要塞與城市，或使用白晝戰術 4 達成。{zh-cn}手牌上限高于基础值时会显示为紫色。可通过邻近要塞与城市，或使用白昼战术 4 达成。{ko}기본 손패 한도보다 높으면 보라색으로 표시됩니다. 성채나 도시 근처에 있거나 낮 전술 4를 사용하면 증가할 수 있습니다.{es}El tamaño de mano se mostrará en morado cuando supere tu tamaño base. Se consigue estando cerca de Fortalezas y Ciudades, o con la Táctica de Día 4.{fr}La taille de main s’affiche en violet lorsqu’elle dépasse votre taille de base. Cela peut être obtenu près des Forteresses et des Villes, ou avec la Tactique de Jour 4.{pt-br}O tamanho da mão ficará roxo quando estiver acima do seu limite base. Isso pode ser obtido perto de Fortalezas e Cidades, ou com a Tática Diurna 4.{de}Die Handkartenzahl wird violett angezeigt, wenn sie über deinem Grundwert liegt. Das kann durch die Nähe zu Burgen und Städten oder durch Tagestaktik 4 erreicht werden.">
 					<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<HorizontalLayout padding="5 5 0 0"><Text id="DrawHandText" class="Text20" offsetXY="0 1">Script Modifies - Hand Size</Text></HorizontalLayout>
 				</Button>
@@ -67,7 +67,7 @@
 				<Button id="ShrinkFame" onClick="valueAdjust" class="ShortButton">
 					<Image id="ShrinkFameImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text26" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 				</Button>
-				<Button id="EndRoundPlusFame" preferredWidth="250" interactable="false" onClick="PreEndRound" tooltipOffset="65" tooltip="How much Fame is added at 'End of Turn'">
+				<Button id="EndRoundPlusFame" preferredWidth="250" interactable="false" onClick="PreEndRound" tooltipOffset="65" tooltip="{en}How much Fame is added at 'End of Turn'{ru}Сколько Славы будет добавлено в конце хода{zh-tw}回合結束時將增加多少名望{zh-cn}回合结束时将增加多少名望{ko}차례 종료 시 얻는 명성 수치{es}Cuánta Fama se añade al finalizar el turno{fr}Combien de Gloire est ajoutée à la fin du tour{pt-br}Quanta Fama é adicionada no fim do turno{de}Wie viel Ruhm am Zugende hinzugefügt wird">
 					<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<HorizontalLayout padding="5 5 0 0"><Text id="EndRoundPlusFameText" class="Text20" offsetXY="0 1">Script Modifies - Fame amount</Text></HorizontalLayout>
 				</Button>
@@ -79,7 +79,7 @@
 				<Button id="ShrinkRep" onClick="valueAdjust" class="ShortButton">
 					<Image id="ShrinkRepImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text26" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 				</Button>
-				<Button id="EndRoundPlusRep" preferredWidth="250" interactable="false" onClick="PreEndRound" padding="5 5 5 5" tooltipOffset="65" tooltip="How much Reputation is added (subtracted) at 'End of Turn'">
+				<Button id="EndRoundPlusRep" preferredWidth="250" interactable="false" onClick="PreEndRound" padding="5 5 5 5" tooltipOffset="65" tooltip="{en}How much Reputation is added (subtracted) at 'End of Turn'{ru}Сколько Репутации будет добавлено (или потеряно) в конце хода{zh-tw}回合結束時將增加（或減少）多少聲譽{zh-cn}回合结束时将增加（或减少）多少声誉{ko}차례 종료 시 증가(감소)하는 평판 수치{es}Cuánta Reputación se añade (o resta) al finalizar el turno{fr}Combien de Réputation est ajoutée (ou retirée) à la fin du tour{pt-br}Quanta Reputação é adicionada (ou subtraída) no fim do turno{de}Wie viel Ruf am Zugende hinzugefügt (oder abgezogen) wird">
 					<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<HorizontalLayout padding="6 6 0 0"><Text id="EndRoundPlusRepText" class="Text20" offsetXY="0 1">Script Modifies - Reputation Amount</Text></HorizontalLayout>
 				</Button>
@@ -87,11 +87,11 @@
 					<Image id="GrowRepImage" image="Sliced Button/Button New Active" type="Sliced"/><Text class="Text26" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 				</Button>
 			</HorizontalLayout>
-			<Button id="EndTurnButton" height="1" onClick="preEndTurn" tooltip="At least one card must be played or discarded to 'End Your Turn'.">
+			<Button id="EndTurnButton" height="1" onClick="preEndTurn" tooltip="{en}At least one card must be played or discarded to 'End Your Turn'.{ru}Чтобы завершить ход, нужно сыграть или сбросить хотя бы одну карту.{zh-tw}要「結束你的回合」，至少必須打出或棄掉一張牌。{zh-cn}要“结束你的回合”，至少必须打出或弃掉一张牌。{ko}'차례 종료'를 하려면 최소 1장의 카드를 사용하거나 버려야 합니다.{es}Debes jugar o descartar al menos una carta para finalizar tu turno.{fr}Au moins une carte doit être jouée ou défaussée pour terminer votre tour.{pt-br}É necessário jogar ou descartar pelo menos uma carta para encerrar seu turno.{de}Mindestens eine Karte muss gespielt oder abgeworfen werden, um deinen Zug zu beenden.">
 				<Image id="EndTurnButtonImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 				<HorizontalLayout padding="6 6 6 6"><Text id="EndTurnButtonText" class="Text20" offsetXY="0 1">Script Modifies - End Turn Button</Text></HorizontalLayout>
 			</Button>
-			<Button id="EndRoundButton" height="1" onClick="PreEndRound" tooltip="Your deed deck needs to be empty and no cards played to 'End the Round'.">
+			<Button id="EndRoundButton" height="1" onClick="PreEndRound" tooltip="{en}Your Deed deck must be empty and no cards played to 'End the Round'.{ru}Чтобы завершить раунд, ваша колода действий должна быть пуста и не должно быть сыгранных карт.{zh-tw}要「結束本輪」，你的行動牌庫必須為空，且本回合沒有打出牌。{zh-cn}要“结束本轮”，你的行动牌库必须为空，且本回合没有打出牌。{ko}라운드를 종료하려면 행동 덱이 비어 있고 이번 차례에 사용한 카드가 없어야 합니다.{es}Para finalizar la ronda, tu mazo de Acciones debe estar vacío y no debes haber jugado cartas.{fr}Pour terminer la manche, votre paquet d’Actions doit être vide et aucune carte ne doit avoir été jouée.{pt-br}Para encerrar a rodada, seu baralho de Ações deve estar vazio e nenhuma carta deve ter sido jogada.{de}Um die Runde zu beenden, muss dein Aktionsstapel leer sein und es dürfen keine Karten gespielt worden sein.">
 				<Image id="EndRoundButtonImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 				<Text id="EndRoundButtonText" class="Text20" offsetXY="0 1">Script Modifies - End Round Button</Text>
 			</Button>
@@ -108,11 +108,11 @@
 				<HorizontalLayout spacing="4" childForceExpandWidth="true">
 					<Button id="DummyChoiceLeft" interactable="true" onClick="proxyManaChoiceSelect">
 						<Image id="DummyChoiceLeftImage" image="Sliced Button/Button New Active" type="Sliced"/>
-						<Text id="DummyChoiceLeftText" class="Text18" offsetXY="0 1">Reroll Red</Text>
+						<Text id="DummyChoiceLeftText" class="Text18" offsetXY="0 1">{en}Reroll Red{ru}Перебросить красный{zh-tw}重擲紅色{zh-cn}重掷红色{ko}빨강 다시 굴리기{es}Volver a tirar Rojo{fr}Relancer Rouge{pt-br}Rolar Vermelho novamente{de}Rot neu würfeln</Text>
 					</Button>
 					<Button id="DummyChoiceRight" interactable="true" onClick="proxyManaChoiceSelect">
 						<Image id="DummyChoiceRightImage" image="Sliced Button/Button New Active" type="Sliced"/>
-						<Text id="DummyChoiceRightText" class="Text18" offsetXY="0 1">Reroll White</Text>
+						<Text id="DummyChoiceRightText" class="Text18" offsetXY="0 1">{en}Reroll White{ru}Перебросить белый{zh-tw}重擲白色{zh-cn}重掷白色{ko}흰색 다시 굴리기{es}Volver a tirar Blanco{fr}Relancer Blanc{pt-br}Rolar Branco novamente{de}Weiß neu würfeln</Text>
 					</Button>
 				</HorizontalLayout>
 			</Panel>
@@ -140,7 +140,7 @@
 		</Panel>
 		<Panel id="EndGameButton" class="MainGameSubPanel" active="false" outlineSize="0 0" rectAlignment="LowerLeft" offsetXY="0 -45" height="30">
 			<ToggleButton id="EndGameButtonReal" onClick="scenarioEnd"
-				tooltipPosition="Left" tooltipOffset="20" tooltip="Toggle to trigger final round of turns">
+				tooltipPosition="Left" tooltipOffset="20" tooltip="{en}Toggle to trigger the final round of turns{ru}Переключите, чтобы запустить последний круг ходов{zh-tw}切換以觸發最後一輪回合{zh-cn}切换以触发最后一轮回合{ko}마지막 차례 순환을 시작하려면 전환하세요{es}Activa para iniciar la última ronda de turnos{fr}Activez pour déclencher le dernier tour de jeu{pt-br}Ative para iniciar a última rodada de turnos{de}Umschalten, um die letzte Zugrunde auszulösen">
 				<Image id="EndGameButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
 				<Text id="EndGameButtonText" class="Text18" offsetXY="0 1">{en}Scenario End Achieved - No{ru}Конец сценария достигнут - Нет{zh-cn}声明结束剧本-否{ko}시나리오 종료 조건 충족 전{es}Escenario Fin Realizados - No{fr}Scénario Fin Atteint - Non{pt-br}Fim do Cenário Alcançado - Não{de}Szenario-Ende Erreicht - Nein</Text>
 			</ToggleButton>
@@ -151,11 +151,11 @@
 			</Panel>
 			<Panel id="OutOfTurnActionsSub" class="MainGameSubPanel" color="rgb(0.4, 0.4, 0.4)" rectAlignment="LowerLeft" height="120">
 				<VerticalLayout padding="0 0 0 0">
-					<Button id="Plunder1" active="false" onClick="plunderVillage" tooltip="Draw two cards but Lose 1 reputation">
+					<Button id="Plunder1" active="false" onClick="plunderVillage" tooltip="{en}Draw two cards but lose 1 Reputation{ru}Возьмите две карты, но потеряйте 1 Репутацию{zh-tw}抽兩張牌，但失去 1 點聲譽{zh-cn}抽两张牌，但失去 1 点声誉{ko}카드 2장을 뽑고 평판 1을 잃습니다{es}Roba dos cartas, pero pierde 1 de Reputación{fr}Piochez deux cartes, mais perdez 1 Réputation{pt-br}Compre duas cartas, mas perca 1 de Reputação{de}Ziehe zwei Karten, verliere aber 1 Ruf">
 						<Image id="Plunder1Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="Plunder1Text" class="Text17">Pos1 Plunder Village (-1 Rep)</Text></HorizontalLayout>
 					</Button>
-					<Button id="Pursuit1" active="false" onClick="pursuingRampagers" tooltip="Moves all the pursuing Monster tokens. Resting, Calling End of Round, and Cooperative Assualts don't have a Move Phase.">
+					<Button id="Pursuit1" active="false" onClick="pursuingRampagers" tooltip="{en}Moves all pursuing Monster tokens. Resting, Calling End of Round, and Cooperative Assaults do not have a Move Phase.{ru}Перемещает все преследующие жетоны врагов. При отдыхе, объявлении конца раунда и совместном штурме фазы движения нет.{zh-tw}移動所有追擊中的敵人標記。休息、宣告回合結束與合作突襲沒有移動階段。{zh-cn}移动所有追击中的敌人标记。休息、宣布回合结束与合作突袭没有移动阶段。{ko}추적 중인 모든 적 토큰을 이동합니다. 휴식, 라운드 종료 선언, 협동 강습에는 이동 단계가 없습니다.{es}Mueve todas las fichas de Monstruos perseguidores. Descansar, declarar el fin de ronda y los Asaltos Cooperativos no tienen Fase de Movimiento.{fr}Déplace tous les jetons de Monstres poursuivants. Se reposer, annoncer la fin de la manche et les Assauts coopératifs n’ont pas de phase de Mouvement.{pt-br}Move todas as fichas de Monstros perseguidores. Descansar, declarar o fim da rodada e Assaltos Cooperativos não têm Fase de Movimento.{de}Bewegt alle verfolgenden Monstermarker. Ausruhen, das Rundenende ausrufen und kooperative Angriffe haben keine Bewegungsphase.">
 						<Image id="Pursuit1Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="Pursuit1Text" class="Text17">Pos1 skips Movement Phase</Text></HorizontalLayout>
 					</Button>
@@ -163,7 +163,7 @@
 						<Image id="NightTactic2-1Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic2-1Text" class="Text17">Pos1 Use Night Tactic 2</Text></HorizontalLayout>
 					</Button>
-					<Button id="NightTactic4-1" active="false" onClick="nightTactic4" tooltip="Return Cards to Deed deck to activate this button">
+					<Button id="NightTactic4-1" active="false" onClick="nightTactic4" tooltip="{en}Return cards to your Deed deck to activate this button{ru}Верните карты в колоду действий, чтобы активировать эту кнопку{zh-tw}將牌放回行動牌庫以啟用此按鈕{zh-cn}将牌放回行动牌库以启用此按钮{ko}이 버튼을 활성화하려면 카드를 행동 덱으로 되돌리세요{es}Devuelve cartas a tu mazo de Acciones para activar este botón{fr}Remettez des cartes dans votre paquet d’Actions pour activer ce bouton{pt-br}Devolva cartas ao seu baralho de Ações para ativar este botão{de}Lege Karten in deinen Aktionsstapel zurück, um diese Schaltfläche zu aktivieren">
 						<Image id="NightTactic4-1Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic4-1Text" class="Text17">Pos1 Tactic 4 Draw ? Card(s)</Text></HorizontalLayout>
 					</Button>
@@ -175,23 +175,23 @@
 						<Image id="NightTactic6Claim1Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic6Claim1Text" class="Text17">Pos1 Tactic 6 Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="3d8336-Motivation1" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="3d8336-Motivation1" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="3d8336-Motivation1Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="3d8336-Motivation1Text" class="Text17">Pos1 Motivation Arythea Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="171244-Motivation1" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="171244-Motivation1" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="171244-Motivation1Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="171244-Motivation1Text" class="Text17">Pos1 Motivation Goldyx Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="14399f-Motivation1" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="14399f-Motivation1" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="14399f-Motivation1Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="14399f-Motivation1Text" class="Text17">Pos1 Motivation Norowas Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="ba4df5-Motivation1" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="ba4df5-Motivation1" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="ba4df5-Motivation1Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="ba4df5-Motivation1Text" class="Text17">Pos1 Motivation Tovak Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="527b47-Motivation1" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="527b47-Motivation1" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="527b47-Motivation1Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="527b47-Motivation1Text" class="Text17">Pos1 Motivation Wolfhawk Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
@@ -200,11 +200,11 @@
 						<HorizontalLayout padding="5 5 5 5"><Text id="MasterOfChaos1Text" class="Text17">Pos1 Master of Chaos increment</Text></HorizontalLayout>
 					</Button>
 
-					<Button id="Plunder2" active="false" onClick="plunderVillage" tooltip="Draw two cards but Lose 1 reputation">
+					<Button id="Plunder2" active="false" onClick="plunderVillage" tooltip="{en}Draw two cards but lose 1 Reputation{ru}Возьмите две карты, но потеряйте 1 Репутацию{zh-tw}抽兩張牌，但失去 1 點聲譽{zh-cn}抽两张牌，但失去 1 点声誉{ko}카드 2장을 뽑고 평판 1을 잃습니다{es}Roba dos cartas, pero pierde 1 de Reputación{fr}Piochez deux cartes, mais perdez 1 Réputation{pt-br}Compre duas cartas, mas perca 1 de Reputação{de}Ziehe zwei Karten, verliere aber 1 Ruf">
 						<Image id="Plunder2Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="Plunder2Text" class="Text17">Pos2 Plunder Village (-1 Rep)</Text></HorizontalLayout>
 					</Button>
-					<Button id="Pursuit2" active="false" onClick="pursuingRampagers" tooltip="Moves all the pursuing Monster tokens. Resting, Calling End of Round, and Cooperative Assualts don't have a Move Phase.">
+					<Button id="Pursuit2" active="false" onClick="pursuingRampagers" tooltip="{en}Moves all pursuing Monster tokens. Resting, Calling End of Round, and Cooperative Assaults do not have a Move Phase.{ru}Перемещает все преследующие жетоны врагов. При отдыхе, объявлении конца раунда и совместном штурме фазы движения нет.{zh-tw}移動所有追擊中的敵人標記。休息、宣告回合結束與合作突襲沒有移動階段。{zh-cn}移动所有追击中的敌人标记。休息、宣布回合结束与合作突袭没有移动阶段。{ko}추적 중인 모든 적 토큰을 이동합니다. 휴식, 라운드 종료 선언, 협동 강습에는 이동 단계가 없습니다.{es}Mueve todas las fichas de Monstruos perseguidores. Descansar, declarar el fin de ronda y los Asaltos Cooperativos no tienen Fase de Movimiento.{fr}Déplace tous les jetons de Monstres poursuivants. Se reposer, annoncer la fin de la manche et les Assauts coopératifs n’ont pas de phase de Mouvement.{pt-br}Move todas as fichas de Monstros perseguidores. Descansar, declarar o fim da rodada e Assaltos Cooperativos não têm Fase de Movimento.{de}Bewegt alle verfolgenden Monstermarker. Ausruhen, das Rundenende ausrufen und kooperative Angriffe haben keine Bewegungsphase.">
 						<Image id="Pursuit2Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="Pursuit2Text" class="Text17">Pos2 skips Movement Phase</Text></HorizontalLayout>
 					</Button>
@@ -212,7 +212,7 @@
 						<Image id="NightTactic2-2Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic2-2Text" class="Text17">Pos2 Use Night Tactic 2</Text></HorizontalLayout>
 					</Button>
-					<Button id="NightTactic4-2" active="false" onClick="nightTactic4" tooltip="Return Cards to Deed deck to activate this button">
+					<Button id="NightTactic4-2" active="false" onClick="nightTactic4" tooltip="{en}Return cards to your Deed deck to activate this button{ru}Верните карты в колоду действий, чтобы активировать эту кнопку{zh-tw}將牌放回行動牌庫以啟用此按鈕{zh-cn}将牌放回行动牌库以启用此按钮{ko}이 버튼을 활성화하려면 카드를 행동 덱으로 되돌리세요{es}Devuelve cartas a tu mazo de Acciones para activar este botón{fr}Remettez des cartes dans votre paquet d’Actions pour activer ce bouton{pt-br}Devolva cartas ao seu baralho de Ações para ativar este botão{de}Lege Karten in deinen Aktionsstapel zurück, um diese Schaltfläche zu aktivieren">
 						<Image id="NightTactic4-2Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic4-2Text" class="Text17">Pos2 Tactic 4 Draw ? Card(s)</Text></HorizontalLayout>
 					</Button>
@@ -224,23 +224,23 @@
 						<Image id="NightTactic6Claim2Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic6Claim2Text" class="Text17">Pos2 Tactic 6 Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="3d8336-Motivation2" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="3d8336-Motivation2" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="3d8336-Motivation2Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="3d8336-Motivation2Text" class="Text17">Pos2 Motivation Arythea Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="171244-Motivation2" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="171244-Motivation2" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="171244-Motivation2Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="171244-Motivation2Text" class="Text17">Pos2 Motivation Goldyx Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="14399f-Motivation2" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="14399f-Motivation2" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="14399f-Motivation2Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="14399f-Motivation2Text" class="Text17">Pos2 Motivation Norowas Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="ba4df5-Motivation2" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="ba4df5-Motivation2" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="ba4df5-Motivation2Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="ba4df5-Motivation2Text" class="Text17">Pos2 Motivation Tovak Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="527b47-Motivation2" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="527b47-Motivation2" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="527b47-Motivation2Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="527b47-Motivation2Text" class="Text17">Pos2 Motivation Wolfhawk Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
@@ -249,11 +249,11 @@
 						<HorizontalLayout padding="5 5 5 5"><Text id="MasterOfChaos2Text" class="Text17">Pos2 Master of Chaos increment</Text></HorizontalLayout>
 					</Button>
 
-					<Button id="Plunder3" active="false" onClick="plunderVillage" tooltip="Draw two cards but Lose 1 reputation">
+					<Button id="Plunder3" active="false" onClick="plunderVillage" tooltip="{en}Draw two cards but lose 1 Reputation{ru}Возьмите две карты, но потеряйте 1 Репутацию{zh-tw}抽兩張牌，但失去 1 點聲譽{zh-cn}抽两张牌，但失去 1 点声誉{ko}카드 2장을 뽑고 평판 1을 잃습니다{es}Roba dos cartas, pero pierde 1 de Reputación{fr}Piochez deux cartes, mais perdez 1 Réputation{pt-br}Compre duas cartas, mas perca 1 de Reputação{de}Ziehe zwei Karten, verliere aber 1 Ruf">
 						<Image id="Plunder3Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="Plunder3Text" class="Text17">Pos3 Plunder Village (-1 Rep)</Text></HorizontalLayout>
 					</Button>
-					<Button id="Pursuit3" active="false" onClick="pursuingRampagers" tooltip="Moves all the pursuing Monster tokens. Resting, Calling End of Round, and Cooperative Assualts don't have a Move Phase.">
+					<Button id="Pursuit3" active="false" onClick="pursuingRampagers" tooltip="{en}Moves all pursuing Monster tokens. Resting, Calling End of Round, and Cooperative Assaults do not have a Move Phase.{ru}Перемещает все преследующие жетоны врагов. При отдыхе, объявлении конца раунда и совместном штурме фазы движения нет.{zh-tw}移動所有追擊中的敵人標記。休息、宣告回合結束與合作突襲沒有移動階段。{zh-cn}移动所有追击中的敌人标记。休息、宣布回合结束与合作突袭没有移动阶段。{ko}추적 중인 모든 적 토큰을 이동합니다. 휴식, 라운드 종료 선언, 협동 강습에는 이동 단계가 없습니다.{es}Mueve todas las fichas de Monstruos perseguidores. Descansar, declarar el fin de ronda y los Asaltos Cooperativos no tienen Fase de Movimiento.{fr}Déplace tous les jetons de Monstres poursuivants. Se reposer, annoncer la fin de la manche et les Assauts coopératifs n’ont pas de phase de Mouvement.{pt-br}Move todas as fichas de Monstros perseguidores. Descansar, declarar o fim da rodada e Assaltos Cooperativos não têm Fase de Movimento.{de}Bewegt alle verfolgenden Monstermarker. Ausruhen, das Rundenende ausrufen und kooperative Angriffe haben keine Bewegungsphase.">
 						<Image id="Pursuit3Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="Pursuit3Text" class="Text17">Pos3 skips Movement Phase</Text></HorizontalLayout>
 					</Button>
@@ -261,7 +261,7 @@
 						<Image id="NightTactic2-3Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic2-3Text" class="Text17">Pos3 Use Night Tactic 2</Text></HorizontalLayout>
 					</Button>
-					<Button id="NightTactic4-3" active="false" onClick="nightTactic4" tooltip="Return Cards to Deed deck to activate this button">
+					<Button id="NightTactic4-3" active="false" onClick="nightTactic4" tooltip="{en}Return cards to your Deed deck to activate this button{ru}Верните карты в колоду действий, чтобы активировать эту кнопку{zh-tw}將牌放回行動牌庫以啟用此按鈕{zh-cn}将牌放回行动牌库以启用此按钮{ko}이 버튼을 활성화하려면 카드를 행동 덱으로 되돌리세요{es}Devuelve cartas a tu mazo de Acciones para activar este botón{fr}Remettez des cartes dans votre paquet d’Actions pour activer ce bouton{pt-br}Devolva cartas ao seu baralho de Ações para ativar este botão{de}Lege Karten in deinen Aktionsstapel zurück, um diese Schaltfläche zu aktivieren">
 						<Image id="NightTactic4-3Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic4-3Text" class="Text17">Pos3 Tactic 4 Draw ? Card(s)</Text></HorizontalLayout>
 					</Button>
@@ -273,23 +273,23 @@
 						<Image id="NightTactic6Claim3Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic6Claim3Text" class="Text17">Pos3 Tactic 6 Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="3d8336-Motivation3" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="3d8336-Motivation3" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="3d8336-Motivation3Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="3d8336-Motivation3Text" class="Text17">Pos3 Motivation Arythea Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="171244-Motivation3" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="171244-Motivation3" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="171244-Motivation3Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="171244-Motivation3Text" class="Text17">Pos3 Motivation Goldyx Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="14399f-Motivation3" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="14399f-Motivation3" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="14399f-Motivation3Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="14399f-Motivation3Text" class="Text17">Pos3 Motivation Norowas Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="ba4df5-Motivation3" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="ba4df5-Motivation3" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="ba4df5-Motivation3Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="ba4df5-Motivation3Text" class="Text17">Pos3 Motivation Tovak Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="527b47-Motivation3" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="527b47-Motivation3" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="527b47-Motivation3Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="527b47-Motivation3Text" class="Text17">Pos3 Motivation Wolfhawk Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
@@ -298,11 +298,11 @@
 						<HorizontalLayout padding="5 5 5 5"><Text id="MasterOfChaos3Text" class="Text17">Pos3 Master of Chaos increment</Text></HorizontalLayout>
 					</Button>
 
-					<Button id="Plunder4" active="false" onClick="plunderVillage" tooltip="Draw two cards but Lose 1 reputation">
+					<Button id="Plunder4" active="false" onClick="plunderVillage" tooltip="{en}Draw two cards but lose 1 Reputation{ru}Возьмите две карты, но потеряйте 1 Репутацию{zh-tw}抽兩張牌，但失去 1 點聲譽{zh-cn}抽两张牌，但失去 1 点声誉{ko}카드 2장을 뽑고 평판 1을 잃습니다{es}Roba dos cartas, pero pierde 1 de Reputación{fr}Piochez deux cartes, mais perdez 1 Réputation{pt-br}Compre duas cartas, mas perca 1 de Reputação{de}Ziehe zwei Karten, verliere aber 1 Ruf">
 						<Image id="Plunder4Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="Plunder4Text" class="Text17">Pos4 Plunder Village (-1 Rep)</Text></HorizontalLayout>
 					</Button>
-					<Button id="Pursuit4" active="false" onClick="pursuingRampagers" tooltip="Moves all the pursuing Monster tokens. Resting, Calling End of Round, and Cooperative Assualts don't have a Move Phase.">
+					<Button id="Pursuit4" active="false" onClick="pursuingRampagers" tooltip="{en}Moves all pursuing Monster tokens. Resting, Calling End of Round, and Cooperative Assaults do not have a Move Phase.{ru}Перемещает все преследующие жетоны врагов. При отдыхе, объявлении конца раунда и совместном штурме фазы движения нет.{zh-tw}移動所有追擊中的敵人標記。休息、宣告回合結束與合作突襲沒有移動階段。{zh-cn}移动所有追击中的敌人标记。休息、宣布回合结束与合作突袭没有移动阶段。{ko}추적 중인 모든 적 토큰을 이동합니다. 휴식, 라운드 종료 선언, 협동 강습에는 이동 단계가 없습니다.{es}Mueve todas las fichas de Monstruos perseguidores. Descansar, declarar el fin de ronda y los Asaltos Cooperativos no tienen Fase de Movimiento.{fr}Déplace tous les jetons de Monstres poursuivants. Se reposer, annoncer la fin de la manche et les Assauts coopératifs n’ont pas de phase de Mouvement.{pt-br}Move todas as fichas de Monstros perseguidores. Descansar, declarar o fim da rodada e Assaltos Cooperativos não têm Fase de Movimento.{de}Bewegt alle verfolgenden Monstermarker. Ausruhen, das Rundenende ausrufen und kooperative Angriffe haben keine Bewegungsphase.">
 						<Image id="Pursuit4Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="Pursuit4Text" class="Text17">Pos4 skips Movement Phase</Text></HorizontalLayout>
 					</Button>
@@ -310,7 +310,7 @@
 						<Image id="NightTactic2-4Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic2-4Text" class="Text17">Pos4 Use Night Tactic 2</Text></HorizontalLayout>
 					</Button>
-					<Button id="NightTactic4-4" active="false" onClick="nightTactic4" tooltip="Return Cards to Deed deck to activate this button">
+					<Button id="NightTactic4-4" active="false" onClick="nightTactic4" tooltip="{en}Return cards to your Deed deck to activate this button{ru}Верните карты в колоду действий, чтобы активировать эту кнопку{zh-tw}將牌放回行動牌庫以啟用此按鈕{zh-cn}将牌放回行动牌库以启用此按钮{ko}이 버튼을 활성화하려면 카드를 행동 덱으로 되돌리세요{es}Devuelve cartas a tu mazo de Acciones para activar este botón{fr}Remettez des cartes dans votre paquet d’Actions pour activer ce bouton{pt-br}Devolva cartas ao seu baralho de Ações para ativar este botão{de}Lege Karten in deinen Aktionsstapel zurück, um diese Schaltfläche zu aktivieren">
 						<Image id="NightTactic4-4Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic4-4Text" class="Text17">Pos4 Tactic 4 Draw ? Card(s)</Text></HorizontalLayout>
 					</Button>
@@ -322,23 +322,23 @@
 						<Image id="NightTactic6Claim4Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="NightTactic6Claim4Text" class="Text17">Pos4 Tactic 6 Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="3d8336-Motivation4" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="3d8336-Motivation4" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="3d8336-Motivation4Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="3d8336-Motivation4Text" class="Text17">Pos4 Motivation Arythea Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="171244-Motivation4" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="171244-Motivation4" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="171244-Motivation4Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="171244-Motivation4Text" class="Text17">Pos4 Motivation Goldyx Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="14399f-Motivation4" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="14399f-Motivation4" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="14399f-Motivation4Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="14399f-Motivation4Text" class="Text17">Pos4 Motivation Norowas Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="ba4df5-Motivation4" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="ba4df5-Motivation4" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="ba4df5-Motivation4Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="ba4df5-Motivation4Text" class="Text17">Pos4 Motivation Tovak Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
-					<Button id="527b47-Motivation4" active="false" onClick="motivation" tooltip="Draw two cards">
+					<Button id="527b47-Motivation4" active="false" onClick="motivation" tooltip="{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten">
 						<Image id="527b47-Motivation4Image" image="Sliced Button/Button New Active" type="Sliced"/>
 						<HorizontalLayout padding="5 5 5 5"><Text id="527b47-Motivation4Text" class="Text17">Pos4 Motivation Wolfhawk Claim X Card(s)</Text></HorizontalLayout>
 					</Button>
@@ -357,17 +357,17 @@
 		<Panel id="VolkareAttacked" class="MainGameSubPanel" active="false" rectAlignment="LowerLeft" offsetXY="0 -55" height="100">
 			<VerticalLayout>
 				<Button id="VolkareAttackedFull" onClick="dummyTurn"
-					tooltip="Flips the attacked players Turn Order Token Down and proceeds to their turn. Attack Volkare with access to everything">
+					tooltip="{en}Flip the attacked player's Round Order token face down and proceed to their turn. Attack Volkare with access to everything.{ru}Переверните жетон порядка хода атакованного игрока лицом вниз и перейдите к его ходу. Атакуйте Волкара, используя всё доступное.{zh-tw}將受攻擊玩家的回合順位標記翻面，並進入其回合。可使用所有可用資源攻擊沃卡里。{zh-cn}将受攻击玩家的回合顺序标记翻面，并进入其回合。可使用所有可用资源攻击沃卡里。{ko}공격받은 플레이어의 라운드 순서 토큰을 뒷면으로 뒤집고 그 플레이어의 차례로 진행합니다. 모든 자원을 사용해 볼케어를 공격합니다.{es}Voltea boca abajo la ficha de Orden de Ronda del jugador atacado y continúa con su turno. Ataca a Volkare con acceso a todo.{fr}Retournez face cachée le jeton d’Ordre de Manche du joueur attaqué et passez à son tour. Attaquez Volkare avec accès à tout.{pt-br}Vire para baixo a ficha de Ordem da Rodada do jogador atacado e prossiga para o turno dele. Ataque Volkare com acesso a tudo.{de}Drehe den Rundenreihenfolgemarker des angegriffenen Spielers um und fahre mit seinem Zug fort. Greife Volkare mit allem Verfügbaren an.">
 					<Image id="VolkareAttackedFullImage" image="Sliced Button/Button New Active" type="Sliced"/>
 					<Text id="VolkareAttackedFullText" class="Text20" offsetXY="0 1">Script Modifies - Fully Attend the Battle</Text>
 				</Button>
 				<Button id="VolkareAttackedPartial" onClick="volkarePartial"
-					tooltip="Attack Volkare with cards and units only. Play area will be cleaned when your turn next arrives">
+					tooltip="{en}Attack Volkare with cards and Units only. Your play area will be cleaned when your next turn arrives.{ru}Атакуйте Волкара только картами и отрядами. Игровая зона будет очищена в начале вашего следующего хода.{zh-tw}只能使用牌與部隊攻擊沃卡里。你的遊戲區會在下一個回合開始時清理。{zh-cn}只能使用牌与部队攻击沃卡里。你的游戏区会在下一个回合开始时清理。{ko}카드와 유닛만 사용해 볼케어를 공격합니다. 다음 차례가 시작될 때 플레이 영역이 정리됩니다.{es}Ataca a Volkare solo con cartas y Unidades. Tu zona de juego se limpiará cuando llegue tu próximo turno.{fr}Attaquez Volkare uniquement avec des cartes et des Unités. Votre zone de jeu sera nettoyée au début de votre prochain tour.{pt-br}Ataque Volkare apenas com cartas e Unidades. Sua área de jogo será limpa quando chegar seu próximo turno.{de}Greife Volkare nur mit Karten und Einheiten an. Dein Spielbereich wird zu Beginn deines nächsten Zuges aufgeräumt.">
 					<Image id="VolkareAttackedPartialImage" image="Sliced Button/Button New Active" type="Sliced"/>
 					<Text id="VolkareAttackedPartialText" class="Text20" offsetXY="0 1">Script Modifies - Partially Attend the Battle</Text>
 				</Button>
 				<Button id="VolkareRetreat" onClick="volkareRetreat"
-					tooltip="Gives the attacked player's hand the wounds, and continues to the next player">
+					tooltip="{en}Give the attacked player the Wounds, then continue to the next player.{ru}Добавьте раны в руку атакованного игрока и перейдите к следующему игроку.{zh-tw}將創傷加入受攻擊玩家手牌，然後繼續到下一位玩家。{zh-cn}将创伤加入受攻击玩家手牌，然后继续到下一位玩家。{ko}공격받은 플레이어의 손에 부상을 추가한 뒤 다음 플레이어로 진행합니다.{es}Da las Heridas al jugador atacado y continúa con el siguiente jugador.{fr}Donnez les Blessures au joueur attaqué, puis passez au joueur suivant.{pt-br}Dê os Ferimentos ao jogador atacado e prossiga para o próximo jogador.{de}Gib dem angegriffenen Spieler die Wunden und fahre mit dem nächsten Spieler fort.">
 					<Image id="VolkareRetreatImage" image="Sliced Button/Button New Active" type="Sliced"/>
 					<Text id="VolkareRetreatText" class="Text20" offsetXY="0 1">Script Modifies - Retreat from the Battle</Text>
 				</Button>
@@ -403,7 +403,7 @@
 		</Button>
 	</Panel>
 	<Panel id="AutoFlipButton" active="false" rectAlignment="UpperLeft" offsetXY="0 -30" width="110" height="30" outlineSize="0 0">
-		<Button id="AutoFlipButtonReal" onClick="autoflip" tooltipPosition="Below" tooltipOffset="5" tooltip="Dropping a Mage Knight next to a Fortified site will reveal the Garrisons for you.">
+		<Button id="AutoFlipButtonReal" onClick="autoflip" tooltipPosition="Below" tooltipOffset="5" tooltip="{en}Dropping a Mage Knight next to a Fortified site will reveal its Garrison for you.{ru}Если поставить Рыцаря-мага рядом с укреплённым местом, его гарнизон будет раскрыт автоматически.{zh-tw}將魔法騎士放到要塞地點旁時，會自動揭示其守軍。{zh-cn}将魔法骑士放到要塞地点旁时，会自动揭示其守军。{ko}마법 기사를 요새화된 장소 옆에 놓으면 수비대가 자동으로 공개됩니다.{es}Al colocar un Caballero Mago junto a un sitio Fortificado, se revelará su Guarnición automáticamente.{fr}Déposer un Chevalier-Mage à côté d’un site Fortifié révélera automatiquement sa Garnison.{pt-br}Ao colocar um Cavaleiro Mago ao lado de um local Fortificado, sua Guarnição será revelada automaticamente.{de}Wenn du einen Magierritter neben einem befestigten Ort ablegst, wird dessen Garnison automatisch aufgedeckt.">
 			<Image id="AutoFlipButtonRealImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 			<VerticalLayout padding="6 6 6 6"><Text id="AutoFlipButtonRealText" class="Text18" offsetXY="0 1">{en}Auto Flip{ru}Авто-переворот{zh-cn}自动翻转{ko}자동 공개{es}Volteo Automático{fr}Retournement auto{pt-br}Auto-Virar{de}Auto-Flip</Text></VerticalLayout>
 		</Button>
@@ -852,7 +852,7 @@
 				<Cell><Text id="StartingAtAHigherLevelRules2" class="Text14" alignment="MiddleRight">{en}Crystals\nAdvanced Actions\nSpells\nArtifacts\nUnits{ru}Кристаллы\nОсобые действия\nЗаклинания\nАртефакты\nОтряды{zh-cn}魔晶 \n高级行动卡\n法术卡\n神器 \n部队{ko}수정\n상급 액션\n마법\n유물 \n유닛{es}Cristales\nAcciones Avanzadas\nHechizos\nArtefactos\nUnidades{fr}Cristaux\nActions Avancées\nSorts\nArtefacts\nUnités{pt-br}Cristais\nAções Avançadas\nFeitiços\nArtefatos\nUnidades{de}Kristalle\nErweiterte Aktionen\nZaubersprüche\nArtefakte\nEinheiten</Text></Cell>
 				<Cell><Text id="StartingAtAHigherLevelRules3" class="Text14" alignment="MiddleLeft">{en}- 3 Influence each (put in your inventory)\n- 6 Influence each\n- 9 Influence each (7 Influence with a crystal of the same color)*\n- 12 Influence each\n- Their normal Influence cost each{ru}- 3 Влияния каждый (положите в свой инвентарь)\n- 6 Влияний каждая\n- 9 Влияний или 7 Влияний плюс кристалл того же цвета*\n- 12 Влияний каждый\n- их обычная стоимость Влияния{zh-cn}- 每个花费3影响力（放入你的物品栏）。\n- 每张花费6影响力。\n- 每张花费9点影响力或7点影响力+对应颜色的魔晶。\n- 每张花费12影响力。\n- 花费正常的影响力。{ko}- 개당 영향력 3 (수정 저장칸에 놓으세요.)\n- 개당 영향력 6\n- 개당 영향력 9 또는 영향력 7 + 동일한 색상의 수정 하나\n- 개당 영향력 12\n- 유닛 고용시 필요한 영향력{es}- 3 Influencia cada uno (coloca en tu inventario)\n- 6 influencia cada uno\n- 9 influencia or 7 Influencia más un cristal del mismo color*\n- 12 influence cada uno\n- Su coste de influencia normal{fr}- 3 Influence chacun (à mettre dans votre inventaire)\n- 6 influences chacune\n- 9 Influence ou 7 Influence plus un cristal de la même couleur*\n- 12 influence chacun\n- Leur coût d'influence normal{pt-br}- 3 influência cada (Coloque no seu inventário)\n- 6 influência cada\n- 9 influência ou 7 influência + 1 Cristal da mesma cor*\n- 12 influência cada\n- O custo de Influência delas{de}- je 3 Einfluss (in dein Inventar legen)\n- 6 Einfluss pro Stück\n- 9 Einfluss oder 7 Einfluss plus einen Kristall derselben Farbe*\n- 12 Einfluss pro Stück\n- Ihre normalen Einflusskosten</Text></Cell>
 			</Row>
-			<Row preferredHeight="29"><Text id="StartingAtAHigherLevelRules4" fontSize="12" alignment="MiddleLeft" resizeTextForBestFit="true" resizeTextMaxSize="12">*Put starting crystal from your inventory on the spell\n*When everyone clicks 'Complete', the game will finish setting up.</Text></Row>
+			<Row preferredHeight="29"><Text id="StartingAtAHigherLevelRules4" fontSize="12" alignment="MiddleLeft" resizeTextForBestFit="true" resizeTextMaxSize="12">{en}*Put the starting crystal from your inventory on the Spell\n*When everyone clicks 'Complete', the game will finish setting up.{ru}*Поместите стартовый кристалл из своего инвентаря на Заклинание\n*Когда все нажмут «Готово», игра завершит подготовку.{zh-tw}*將庫存中的起始水晶放到法術牌上\n*所有人點擊「完成」後，遊戲會完成設置。{zh-cn}*将库存中的起始水晶放到法术牌上\n*所有人点击“完成”后，游戏会完成设置。{ko}*인벤토리의 시작 크리스털을 주문 카드 위에 놓으세요\n*모두가 '완료'를 누르면 게임 설정이 마무리됩니다.{es}*Pon el cristal inicial de tu inventario sobre el Hechizo\n*Cuando todos pulsen «Completar», el juego terminará la preparación.{fr}*Placez le cristal de départ de votre inventaire sur le Sort\n*Lorsque tout le monde clique sur « Terminé », la mise en place se termine.{pt-br}*Coloque o cristal inicial do seu inventário sobre o Feitiço\n*Quando todos clicarem em 'Concluir', o jogo terminará a preparação.{de}*Lege den Startkristall aus deinem Inventar auf den Zauber\n*Wenn alle auf „Abschließen“ klicken, wird der Spielaufbau beendet.</Text></Row>
 		</TableLayout>
 	</VerticalLayout>
 </Panel>
@@ -893,7 +893,7 @@
 							<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
 							<Text id="MovemAmountPlainText" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Move : 0</Text>
 						</Button>
-						<Button id="MovemAmountUpdate" preferredWidth="30" onClick="resourceTracker" class="ShortButton" tooltipPosition="Right" tooltipOffset="50" tooltip="This will update the move costs to use the current position of your Mage Knight">
+						<Button id="MovemAmountUpdate" preferredWidth="30" onClick="resourceTracker" class="ShortButton" tooltipPosition="Right" tooltipOffset="50" tooltip="{en}Update movement costs using your Mage Knight's current position.{ru}Обновить стоимость движения с учётом текущего положения вашего Рыцаря-мага.{zh-tw}依照你的魔法騎士目前位置更新移動費用。{zh-cn}根据你的魔法骑士当前位置更新移动费用。{ko}마법 기사의 현재 위치를 기준으로 이동 비용을 갱신합니다.{es}Actualiza los costes de movimiento usando la posición actual de tu Caballero Mago.{fr}Met à jour les coûts de déplacement à partir de la position actuelle de votre Chevalier-Mage.{pt-br}Atualiza os custos de movimento usando a posição atual do seu Cavaleiro Mago.{de}Aktualisiert die Bewegungskosten anhand der aktuellen Position deines Magierritters.">
 							<Image id="MovemAmountUpdateImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text class="Text24" alignment="MiddleCenter" offsetXY="0 1">#</Text>
 						</Button>
@@ -1544,7 +1544,7 @@
 						<Toggle id="rampagePursuit" class="Toggle18" onValueChanged="optionsUpdate">{en}Pursuing Rampager{ru}Преследующие враги{zh-tw}怪物追擊{zh-cn}怪物追击{ko}추적하는 적{es}Acechadores Perseguidores{fr}Poursuivre les Saccageurs{pt-br}Irascível Perseguidor{de}Rampager Verfolgen</Toggle></HorizontalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="darknessComing" class="Toggle18" onValueChanged="optionsUpdate">{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="apocalypseQuestCards" class="Toggle18" onValueChanged="optionsUpdate">{en}Apocalypse Dragon Quest Cards{ru}Apocalypse Dragon Quest Cards{zh-tw}Apocalypse Dragon Quest Cards{zh-cn}Apocalypse Dragon Quest Cards{ko}Apocalypse Dragon Quest Cards{es}Apocalypse Dragon Quest Cards{fr}Apocalypse Dragon Quest Cards{pt-br}Apocalypse Dragon Quest Cards{de}Apocalypse Dragon Quest Cards</Toggle></VerticalLayout></Row>
-					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="heroChallenges" class="Toggle18" onValueChanged="optionsUpdate">Hero Challenges</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="heroChallenges" class="Toggle18" onValueChanged="optionsUpdate">{en}Hero Challenges{ru}Испытания героев{zh-tw}英雄挑戰{zh-cn}英雄挑战{ko}영웅 도전{es}Desafíos de Héroes{fr}Défis des Héros{pt-br}Desafios de Heróis{de}Heldenherausforderungen</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="proxyPlayer" class="Toggle18" onValueChanged="optionsUpdate">{en}Proxy Player{ru}Прокси-игрок{zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시 플레이어{es}Jugador Proxy{fr}Joueur Proxy{pt-br}Jogador Proxy{de}Proxy-Spieler</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="weatherMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Atlantean Weather Custom Mod{ru}Пользовательский мод Погоды Атлантиды{zh-tw}亞特蘭提斯天氣{zh-cn}亚特兰蒂斯天气{ko}아틀란티안 날씨{es}Tiempo Atlante{fr}Météo Atlante{pt-br}Clima Atlânteano{de}Atlantisches Wetter</Toggle></VerticalLayout></Row>
 		            <Row><VerticalLayout padding="6 6 1 1"><Toggle id="questMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Quest Cards Custom Mod{ru}Пользовательский мод Квест карт{zh-tw}自製任務卡{zh-cn}自制任务卡{ko}퀘스트 카드{es}Cartas de Misión{fr}Cartes de Quête{pt-br}Cartas de Missão{de}Quest Karten</Toggle></VerticalLayout></Row>
@@ -2328,7 +2328,7 @@
 	</Panel>
 	<Panel rectAlignment="UpperCenter" offsetXY="0 32" width="150" height="34" outlineSize="0 0">
 		<Image image="Sliced Button/Title Border Tan" type="Sliced"/>
-		<VerticalLayout padding="5 5 5 5"><Text id="CoralDrawChoiceTitle" class="Title20" alignment="MiddleCenter">Quick Witted</Text></VerticalLayout>
+		<VerticalLayout padding="5 5 5 5"><Text id="CoralDrawChoiceTitle" class="Title20" alignment="MiddleCenter">{en}Quick Witted{ru}Сообразительность{zh-tw}機智過人{zh-cn}机智过人{ko}재치{es}Ingenio Rápido{fr}Vif d’Esprit{pt-br}Raciocínio Rápido{de}Schnelle Auffassung</Text></VerticalLayout>
 	</Panel>
 	<VerticalLayout padding="5 5 5 5">
 		<Text id="CoralDrawChoiceQuestion" class="Text16" alignment="MiddleCenter">Script Updated</Text>
@@ -2336,19 +2336,19 @@
 	<Panel rectAlignment="LowerCenter" offsetXY="0 -28" width="150" height="30" outlineSize="0 0">
 		<Button id="CoralDrawQuickWitted" shadowDistance="0 0" onClick="coralDrawChoice" onMouseDown="" onMouseUp="">
 			<Image image="Sliced Button/Button New Active" type="Sliced"/>
-			<VerticalLayout padding="5 5 5 5"><Text class="Text16" alignment="MiddleCenter" offsetXY="0 1">Draw Quick Witted</Text></VerticalLayout>
+			<VerticalLayout padding="5 5 5 5"><Text class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Draw Quick Witted{ru}Добрать до «Сообразительности»{zh-tw}抽牌至「機智過人」{zh-cn}抽牌至“机智过人”{ko}'재치'만큼 뽑기{es}Robar hasta Ingenio Rápido{fr}Piocher jusqu’à Vif d’Esprit{pt-br}Comprar até Raciocínio Rápido{de}Bis Schnelle Auffassung ziehen</Text></VerticalLayout>
 		</Button>
 	</Panel>
 	<Panel rectAlignment="LowerCenter" offsetXY="0 -56" width="150" height="30" outlineSize="0 0">
 		<Button id="CoralDrawOne" shadowDistance="0 0" onClick="coralDrawChoice" onMouseDown="" onMouseUp="">
 			<Image image="Sliced Button/Button New Active" type="Sliced"/>
-			<VerticalLayout padding="5 5 5 5"><Text class="Text16" alignment="MiddleCenter" offsetXY="0 1">Draw One</Text></VerticalLayout>
+			<VerticalLayout padding="5 5 5 5"><Text class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Draw One{ru}Взять одну{zh-tw}抽一張{zh-cn}抽一张{ko}1장 뽑기{es}Robar una{fr}Piocher une{pt-br}Comprar uma{de}Eine ziehen</Text></VerticalLayout>
 		</Button>
 	</Panel>
 	<Panel id="CoralDrawFullPanel" active="false" rectAlignment="LowerCenter" offsetXY="0 -84" width="150" height="30" outlineSize="0 0">
 		<Button id="CoralDrawFull" shadowDistance="0 0" onClick="coralDrawChoice" onMouseDown="" onMouseUp="">
 			<Image image="Sliced Button/Button New Active" type="Sliced"/>
-			<VerticalLayout padding="5 5 5 5"><Text class="Text16" alignment="MiddleCenter" offsetXY="0 1">Draw Full</Text></VerticalLayout>
+			<VerticalLayout padding="5 5 5 5"><Text class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Draw Full{ru}Добрать до полного{zh-tw}抽滿手牌{zh-cn}抽满手牌{ko}손패 한도까지 뽑기{es}Robar hasta el máximo{fr}Piocher jusqu’au maximum{pt-br}Comprar até o limite{de}Bis zum Maximum ziehen</Text></VerticalLayout>
 		</Button>
 	</Panel>
 </Panel>
@@ -2357,16 +2357,16 @@
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<Panel rectAlignment="UpperCenter" offsetXY="0 32" width="150" height="34" outlineSize="0 0">
 		<Image image="Sliced Button/Title Border Tan" type="Sliced"/>
-		<VerticalLayout padding="5 5 5 5"><Text id="MineClaimChoiceTitle" class="Title20" alignment="MiddleCenter">Mined Crystal</Text></VerticalLayout>
+		<VerticalLayout padding="5 5 5 5"><Text id="MineClaimChoiceTitle" class="Title20" alignment="MiddleCenter">{en}Mined Crystal{ru}Добытый кристалл{zh-tw}開採水晶{zh-cn}开采水晶{ko}채굴한 크리스털{es}Cristal Extraído{fr}Cristal Extrait{pt-br}Cristal Minerado{de}Abgebauter Kristall</Text></VerticalLayout>
 	</Panel>
-	<VerticalLayout padding="5 5 5 5"><Text class="Text16" alignment="UpperCenter">Claim a Crystal from the Mine</Text></VerticalLayout>
+	<VerticalLayout padding="5 5 5 5"><Text class="Text16" alignment="UpperCenter">{en}Claim a Crystal from the Mine{ru}Получите кристалл из шахты{zh-tw}從礦山取得一顆水晶{zh-cn}从矿山取得一颗水晶{ko}광산에서 크리스털 획득{es}Obtén un Cristal de la Mina{fr}Récupérez un Cristal de la Mine{pt-br}Colete um Cristal da Mina{de}Nimm einen Kristall aus der Mine</Text></VerticalLayout>
 	<HorizontalLayout id="MineClaimRow1" rectAlignment="LowerCenter" offsetXY="0 -28" width="150" height="30" spacing="0" childForceExpandWidth="true">
-		<Button id="MineClaimButton1" shadowDistance="0 0" onClick="mineClaimChoice" onMouseDown="" onMouseUp=""><Image image="Sliced Button/Button New Active" type="Sliced"/><Text id="MineClaimButtonText1" class="Text16" alignment="MiddleCenter" offsetXY="0 1">Red</Text></Button>
-		<Button id="MineClaimButton2" shadowDistance="0 0" onClick="mineClaimChoice" onMouseDown="" onMouseUp=""><Image image="Sliced Button/Button New Active" type="Sliced"/><Text id="MineClaimButtonText2" class="Text16" alignment="MiddleCenter" offsetXY="0 1">Blue</Text></Button>
+		<Button id="MineClaimButton1" shadowDistance="0 0" onClick="mineClaimChoice" onMouseDown="" onMouseUp=""><Image image="Sliced Button/Button New Active" type="Sliced"/><Text id="MineClaimButtonText1" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Red{ru}Красный{zh-tw}紅色{zh-cn}红色{ko}빨강{es}Rojo{fr}Rouge{pt-br}Vermelho{de}Rot</Text></Button>
+		<Button id="MineClaimButton2" shadowDistance="0 0" onClick="mineClaimChoice" onMouseDown="" onMouseUp=""><Image image="Sliced Button/Button New Active" type="Sliced"/><Text id="MineClaimButtonText2" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Blue{ru}Синий{zh-tw}藍色{zh-cn}蓝色{ko}파랑{es}Azul{fr}Bleu{pt-br}Azul{de}Blau</Text></Button>
 	</HorizontalLayout>
 	<HorizontalLayout id="MineClaimRow2" active="false" rectAlignment="LowerCenter" offsetXY="0 -58" width="150" height="30" spacing="0" childForceExpandWidth="true">
-		<Button id="MineClaimButton3" shadowDistance="0 0" onClick="mineClaimChoice" onMouseDown="" onMouseUp=""><Image image="Sliced Button/Button New Active" type="Sliced"/><Text id="MineClaimButtonText3" class="Text16" alignment="MiddleCenter" offsetXY="0 1">Green</Text></Button>
-		<Button id="MineClaimButton4" shadowDistance="0 0" onClick="mineClaimChoice" onMouseDown="" onMouseUp=""><Image image="Sliced Button/Button New Active" type="Sliced"/><Text id="MineClaimButtonText4" class="Text16" alignment="MiddleCenter" offsetXY="0 1">White</Text></Button>
+		<Button id="MineClaimButton3" shadowDistance="0 0" onClick="mineClaimChoice" onMouseDown="" onMouseUp=""><Image image="Sliced Button/Button New Active" type="Sliced"/><Text id="MineClaimButtonText3" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Green{ru}Зелёный{zh-tw}綠色{zh-cn}绿色{ko}초록{es}Verde{fr}Vert{pt-br}Verde{de}Grün</Text></Button>
+		<Button id="MineClaimButton4" shadowDistance="0 0" onClick="mineClaimChoice" onMouseDown="" onMouseUp=""><Image image="Sliced Button/Button New Active" type="Sliced"/><Text id="MineClaimButtonText4" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}White{ru}Белый{zh-tw}白色{zh-cn}白色{ko}흰색{es}Blanco{fr}Blanc{pt-br}Branco{de}Weiß</Text></Button>
 	</HorizontalLayout>
 </Panel>
 
@@ -2578,7 +2578,7 @@
 	<Panel rectAlignment="UpperLeft" offsetXY="0 0" width="345" height="30" outlineSize="0 0">
 		<Image image="Sliced Button/Title Border Tan" type="Sliced"/>
 		<VerticalLayout>
-			<Text id="zigguratPyramidInteractText1" class="Title20" alignment="MiddleCenter">Ziggurat Interaction</Text>
+			<Text id="zigguratPyramidInteractText1" class="Title20" alignment="MiddleCenter">{en}Ziggurat Interaction{ru}Взаимодействие с зиккуратом{zh-tw}金字塔互動{zh-cn}金字塔互动{ko}지구라트 상호작용{es}Interacción con el Zigurat{fr}Interaction avec la Ziggourat{pt-br}Interação com o Zigurate{de}Zikkurat-Interaktion</Text>
 		</VerticalLayout>
 	</Panel>
 	<Panel rectAlignment="UpperLeft" offsetXY="0 -35" width="345" height="30" outlineSize="0 0" color="clear">
@@ -2590,41 +2590,41 @@
 	<Panel rectAlignment="UpperLeft" offsetXY="8 -70" width="125" height="60" outlineSize="0 0">
 		<Button id="zigguratPyramidInteractClimb1" onClick="zigguratPyramidInteract">
 			<Image id="zigguratPyramidInteractClimb1Image" image="Sliced Button/Button New Active" type="Sliced"/>
-			<VerticalLayout padding="5 5 5 5"><Text id="zigguratPyramidInteractClimb1Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1">Ascend to Floor 2 and Pick one of two Trap Tokens to Deal with.</Text></VerticalLayout>
+			<VerticalLayout padding="5 5 5 5"><Text id="zigguratPyramidInteractClimb1Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Ascend to Floor 2 and pick one of two Trap tokens to deal with.{ru}Поднимитесь на 2-й этаж и выберите один из двух жетонов ловушек.{zh-tw}前往第 2 層，從兩個陷阱標記中選擇一個處理。{zh-cn}前往第 2 层，从两个陷阱标记中选择一个处理。{ko}2층으로 올라가 함정 토큰 2개 중 하나를 선택해 처리합니다.{es}Sube al Piso 2 y elige una de las dos fichas de Trampa para resolverla.{fr}Montez à l’étage 2 et choisissez l’un des deux jetons Piège à résoudre.{pt-br}Suba ao Andar 2 e escolha uma das duas fichas de Armadilha para resolver.{de}Steige in Ebene 2 auf und wähle einen von zwei Fallenmarkern aus, den du abhandelst.</Text></VerticalLayout>
 		</Button>
 	</Panel>
 	<Panel rectAlignment="UpperRight" offsetXY="-8 -70" width="180" height="60" outlineSize="0 0">
 		<Button id="zigguratPyramidInteractFight1" onClick="zigguratPyramidInteract">
 			<Image id="zigguratPyramidInteractFight1Image" image="Sliced Button/Button New Active" type="Sliced"/>
-			<VerticalLayout padding="5 5 5 5"><Text id="zigguratPyramidInteractFight1Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1">Fight the Floor 1 Apocalypse Possessed Green Enemy for Two Crystals.</Text></VerticalLayout>
+			<VerticalLayout padding="5 5 5 5"><Text id="zigguratPyramidInteractFight1Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1">{en}Fight the Floor 1 Apocalypse Possessed Green Enemy for two Crystals.{ru}Сразитесь с зелёным одержимым врагом Апокалипсиса на 1-м этаже за два кристалла.{zh-tw}與第 1 層的末日附身綠色敵人戰鬥，獎勵為兩顆水晶。{zh-cn}与第 1 层的末日附身绿色敌人战斗，奖励为两颗水晶。{ko}1층의 아포칼립스 빙의 녹색 적과 싸워 크리스털 2개를 획득합니다.{es}Lucha contra el Enemigo Verde Poseído del Apocalipsis del Piso 1 para obtener dos Cristales.{fr}Combattez l’Ennemi Vert Possédé de l’Apocalypse de l’étage 1 pour obtenir deux Cristaux.{pt-br}Lute contra o Inimigo Verde Possuído do Apocalipse do Andar 1 por dois Cristais.{de}Bekämpfe den grünen besessenen Apocalypse-Gegner auf Ebene 1 für zwei Kristalle.</Text></VerticalLayout>
 		</Button>
 	</Panel>
 	<Panel rectAlignment="UpperLeft" offsetXY="125 -70" width="40" height="60" outlineSize="0 0" color="clear">
 		<VerticalLayout padding="5 5 5 5">
-			<Text id="zigguratPyramidInteractText3" class="Text14">Or</Text>
+			<Text id="zigguratPyramidInteractText3" class="Text14">{en}Or{ru}Или{zh-tw}或{zh-cn}或{ko}또는{es}O{fr}Ou{pt-br}Ou{de}Oder</Text>
 		</VerticalLayout>
 	</Panel>
 	<Panel rectAlignment="UpperLeft" offsetXY="8 -135" width="125" height="60" outlineSize="0 0">
 		<Button id="zigguratPyramidInteractClimb2" onClick="zigguratPyramidInteract" interactable="false">
 			<Image id="zigguratPyramidInteractClimb2Image" image="Sliced Button/Button New Active" type="Sliced" color="Gray"/>
-			<VerticalLayout padding="5 5 5 5"><Text id="zigguratPyramidInteractClimb2Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1" color="Black">Ascend to Floor 3 and Deal with the last Trap Token.</Text></VerticalLayout>
+			<VerticalLayout padding="5 5 5 5"><Text id="zigguratPyramidInteractClimb2Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1" color="Black">{en}Ascend to Floor 3 and deal with the last Trap token.{ru}Поднимитесь на 3-й этаж и разберитесь с последним жетоном ловушки.{zh-tw}前往第 3 層並處理最後一個陷阱標記。{zh-cn}前往第 3 层并处理最后一个陷阱标记。{ko}3층으로 올라가 마지막 함정 토큰을 처리합니다.{es}Sube al Piso 3 y resuelve la última ficha de Trampa.{fr}Montez à l’étage 3 et résolvez le dernier jeton Piège.{pt-br}Suba ao Andar 3 e resolva a última ficha de Armadilha.{de}Steige in Ebene 3 auf und handle den letzten Fallenmarker ab.</Text></VerticalLayout>
 		</Button>
 	</Panel>
 	<Panel rectAlignment="UpperRight" offsetXY="-8 -135" width="180" height="60" outlineSize="0 0">
 		<Button id="zigguratPyramidInteractFight2" onClick="zigguratPyramidInteract" interactable="false">
 			<Image id="zigguratPyramidInteractFight2Image" image="Sliced Button/Button New Active" type="Sliced" color="Gray"/>
-			<VerticalLayout padding="5 5 5 5"><Text id="zigguratPyramidInteractFight2Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1" color="Black">Fight the Floor 1 Apocalypse Possessed Green Enemy for Two Crystals.</Text></VerticalLayout>
+			<VerticalLayout padding="5 5 5 5"><Text id="zigguratPyramidInteractFight2Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1" color="Black">{en}Fight the Floor 1 Apocalypse Possessed Green Enemy for two Crystals.{ru}Сразитесь с зелёным одержимым врагом Апокалипсиса на 1-м этаже за два кристалла.{zh-tw}與第 1 層的末日附身綠色敵人戰鬥，獎勵為兩顆水晶。{zh-cn}与第 1 层的末日附身绿色敌人战斗，奖励为两颗水晶。{ko}1층의 아포칼립스 빙의 녹색 적과 싸워 크리스털 2개를 획득합니다.{es}Lucha contra el Enemigo Verde Poseído del Apocalipsis del Piso 1 para obtener dos Cristales.{fr}Combattez l’Ennemi Vert Possédé de l’Apocalypse de l’étage 1 pour obtenir deux Cristaux.{pt-br}Lute contra o Inimigo Verde Possuído do Apocalipse do Andar 1 por dois Cristais.{de}Bekämpfe den grünen besessenen Apocalypse-Gegner auf Ebene 1 für zwei Kristalle.</Text></VerticalLayout>
 		</Button>
 	</Panel>
 	<Panel rectAlignment="UpperLeft" offsetXY="125 -135" width="40" height="60" outlineSize="0 0" color="clear">
 		<VerticalLayout padding="5 5 5 5">
-			<Text id="zigguratPyramidInteractText4" class="Text14">Or</Text>
+			<Text id="zigguratPyramidInteractText4" class="Text14">{en}Or{ru}Или{zh-tw}或{zh-cn}或{ko}또는{es}O{fr}Ou{pt-br}Ou{de}Oder</Text>
 		</VerticalLayout>
 	</Panel>
 	<Panel rectAlignment="UpperLeft" offsetXY="8 -200" width="329" height="42" outlineSize="0 0" color="clear">
 		<Button id="zigguratPyramidInteractFight3" onClick="zigguratPyramidInteract" interactable="false">
 			<Image id="zigguratPyramidInteractFight3Image" image="Sliced Button/Button New Active" type="Sliced" color="Gray"/>
-			<VerticalLayout padding="5 5 0 0"><Text id="zigguratPyramidInteractFight3Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1" color="Black">Fight the Floor 3 Apocalypse Possessed Tan Enemy for an Artifact.</Text></VerticalLayout>
+			<VerticalLayout padding="5 5 0 0"><Text id="zigguratPyramidInteractFight3Text" class="Text16" alignment="MiddleCenter" offsetXY="0 1" color="Black">{en}Fight the Floor 3 Apocalypse Possessed Tan Enemy for an Artifact.{ru}Сразитесь с бежевым одержимым врагом Апокалипсиса на 3-м этаже за Артефакт.{zh-tw}與第 3 層的末日附身棕褐色敵人戰鬥，獎勵為一件神器。{zh-cn}与第 3 层的末日附身棕褐色敌人战斗，奖励为一件神器。{ko}3층의 아포칼립스 빙의 황갈색 적과 싸워 유물 1개를 획득합니다.{es}Lucha contra el Enemigo Beige Poseído del Apocalipsis del Piso 3 para obtener un Artefacto.{fr}Combattez l’Ennemi Beige Possédé de l’Apocalypse de l’étage 3 pour obtenir un Artefact.{pt-br}Lute contra o Inimigo Bege Possuído do Apocalipse do Andar 3 por um Artefato.{de}Bekämpfe den hellbraunen besessenen Apocalypse-Gegner auf Ebene 3 für ein Artefakt.</Text></VerticalLayout>
 		</Button>
 	</Panel>
 </Panel>
