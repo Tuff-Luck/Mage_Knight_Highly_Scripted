@@ -462,6 +462,37 @@ function BlitzSelection(player, value, id)
 	ToolTipUpdate(id)
 end
 
+-- Cross-option setup locks for Rise of the Forgemasters and Hero Challenges.
+function applyForgemasterExpansionRequirements()
+	local level=gStates.riseOfTheForgemasters or 0
+	if level<=0 then return end
+	UI.setAttribute("removeLostLegionExpansion", "interactable", "false")
+	UI.setAttribute("removeLostLegionExpansion", "isOn", "false")
+	gStates.removeLostLegionExpansion=false
+	UI.setAttribute("removeBonusCards", "interactable", "false")
+	UI.setAttribute("removeBonusCards", "isOn", level==1 and "true" or "false")
+	gStates.removeBonusCards=level==1
+end
+
+function refreshHeroChallengeOptionLocks()
+	if gStates==nil then return end
+	local heroOn=gStates.heroChallenges==true
+	local rotf=(gStates.riseOfTheForgemasters or 0)>0
+	local custom=gStates.useCustomMageKnights==true
+	local firstRecon=gStates.gameScenario=="First Reconnaissance"
+	UI.setAttribute("heroChallenges","interactable",(not custom and not rotf) and "True" or "False")
+	if heroOn==true then
+		UI.setAttribute("useCustomMageKnights","interactable","False")
+		UI.setAttribute("ROTFSelection","interactable","False")
+		UI.setAttribute("ROTFSelectionImage","image","Sliced Button/Button New Deactive")
+	else
+		UI.setAttribute("useCustomMageKnights","interactable",(not firstRecon and not rotf) and "True" or "False")
+		local rotfAllowed=not firstRecon and gStates.removeLostLegionExpansion~=true
+		UI.setAttribute("ROTFSelection","interactable",rotfAllowed and "True" or "False")
+		UI.setAttribute("ROTFSelectionImage","image",rotfAllowed and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	end
+end
+
 function refreshLostLegionExpansionOption()
 	if gStates==nil then return end
 	local firstRecon=gStates.gameScenario=="First Reconnaissance"

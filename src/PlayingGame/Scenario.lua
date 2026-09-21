@@ -2997,6 +2997,42 @@ end
 --EXPLORE set, then choose the closest legal position once instead of first pushing a card away and immediately
 --trying to compact it while setPositionSmooth is still moving it.
 
+--Fury begins with Regular Units even though all Core tiles are already face up. Elite Units only
+--join subsequent Round offers after a Countryside tile adjacent to a City has been revealed, or after
+--a Hero has entered either City at least once.
+function furyDragonEliteConditionMet()
+	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" then return false end
+	if gStates.furyHeroEnteredCity==true then return true end
+	local map=getObjectFromGUID(mapArea)
+	if map==nil then return false end
+	local countries,cities={},{}
+	for _,obj in ipairs(map.getObjects() or {}) do
+		local data=terrainTiles[obj.guid]
+		if data~=nil and obj.is_face_down==false then
+			if data.tileType=="country" then countries[#countries+1]=obj
+			elseif data.tileType=="core" and data.hexFeature~=nil and tostring(data.hexFeature.center or ""):sub(1,4)=="city" then cities[#cities+1]=obj end
+		end
+	end
+	for _,city in ipairs(cities) do
+		local cp=city.getPosition()
+		for _,country in ipairs(countries) do
+			local pp=country.getPosition()
+			local distance=((cp[1]-pp[1])^2)+((cp[3]-pp[3])^2)
+			--Adjacent map-tile centres are 6.35 units apart (40.32 squared).
+			if distance>36 and distance<45 then return true end
+		end
+	end
+	return false
+end
+
+function furyDragonPrepareEliteUnits()
+	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" or gStates.eliteUnitsUsed==true then return false end
+	if furyDragonEliteConditionMet()~=true then return false end
+	gStates.eliteUnitsUsed=true
+	broadcastToAll("{en}Fury of the Apocalypse Dragon: Elite Units are included in this Round's Unit Offer.{ru}Ярость Дракона Апокалипсиса: элитные отряды включены в предложение отрядов этого раунда.{zh-tw}末日巨龍之怒：本回合輪的部隊供應包含精英部隊。{zh-cn}末日巨龙之怒：本回合轮的部队供应包含精英部队。{ko}아포칼립스 드래곤의 분노: 이번 라운드의 유닛 제안에 정예 유닛이 포함됩니다.{es}Furia del Dragón del Apocalipsis: las Unidades de Élite están incluidas en la Oferta de Unidades de esta Ronda.{fr}Fureur du Dragon de l’Apocalypse : les Unités d’Élite sont incluses dans l’Offre d’Unités de cette Manche.{pt-br}Fúria do Dragão do Apocalipse: Unidades de Elite estão incluídas na Oferta de Unidades desta Rodada.{de}Zorn des Apokalypse-Drachen: Eliteeinheiten sind in diesem Einheitenangebot der Runde enthalten.",{1,1,0.5})
+	return true
+end
+
 function apocalypseDragonScenario()
 	return gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon")
 end

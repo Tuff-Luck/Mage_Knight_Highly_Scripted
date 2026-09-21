@@ -7,20 +7,27 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/Data.lua` | Static game data: cards, monsters, scenarios, GUID mappings and other large lookup tables. |
 | `src/ErrorReporting.lua` | Automatic Lua error reporting, protected callback helpers, breadcrumbs and diagnostic context builders. |
 | `src/Shared.lua` | Shared helpers used across setup/runtime modules, including protected asynchronous/callback helpers. |
-| `src/SetupInterface.lua` | Setup menu/UI state, scenario/variant option presentation and setup-facing controls. |
-| `src/SetupGame.lua` | Physical game setup: map, decks, bags, boards, avatars and scenario setup execution. |
+| `src/SetupInterface.lua` | Setup menu/UI state, scenario/variant option presentation, cross-option locks and setup-facing controls. |
+| `src/SetupGame.lua` | Setup orchestration: Start handling, final option normalization, delayed completion and setup callback boundary. |
+| `src/SetupGame/Components.lua` | Monster pools and setup-time expansion bag merging. |
+| `src/SetupGame/Players.lua` | Physical player, Dummy and Volkare board/piece deployment. |
+| `src/SetupGame/Decks.lua` | Deck construction, shuffling and setup-time card-pool preparation. |
+| `src/SetupGame/HigherLevel.lua` | Start-at-higher-level setup and temporary player pools. |
+| `src/SetupGame/HeroChallenges.lua` | Hero Challenge legality, terrain assignment and setup-facing objective helpers. |
+| `src/SetupGame/Map.lua` | Starting-map construction, terrain-stack building and setup-only Fury lair placement. |
 | `src/PlayingGame/Map.lua` | Map state, avatar location, exploration, shield placement, terrain-site helpers and rampaging-enemy placement. |
 | `src/PlayingGame/Offers.lua` | Artifact, Unit, Monastery and deed-offer layout/refill runtime. |
 | `src/PlayingGame/TokenPools.lua` | Monster token-pool refill plus bag scaling/discard-stack presentation. |
 | `src/PlayingGame/ManaSource.lua` | Shared/mirrored Mana Source dice state and synchronization. |
 | `src/PlayingGame/Quests.lua` | Apocalypse Quest system, quest state, offer flow, rewards and quest-specific interactions. |
 | `src/PlayingGame/PlayerBoard/CardFlow.lua` | Player deed/deck/discard/hand flow, wound dealing and Glade discard-healing runtime. |
+| `src/PlayingGame/PlayerBoard/UnitLayout.lua` | Runtime Unit/Command-slot layout, compression and player-board unit positioning. |
 | `src/PlayingGame/PlayerBoard/Skills.lua` | Skill offers, claims, skill state and player skill interactions. |
 | `src/PlayingGame/PlayerBoard/PuppetMaster.lua` | Krang Puppet Master enemy/puppet behaviour. |
 | `src/PlayingGame/Combat.lua` | Combat areas, attacks, assaults, combat UI/camera support, summons and pursuit. |
 | `src/PlayingGame/Turn.lua` | Tactics, start/end turn, end round, final turns, dropout and day/night turn flow. |
 | `src/PlayingGame/City.lua` | City placement, levels, garrisons, city state and city runtime behaviour. |
-| `src/PlayingGame/Scenario.lua` | Scenario-specific runtime rules and scenario state transitions. |
+| `src/PlayingGame/Scenario.lua` | Scenario-specific runtime rules and scenario state transitions, including Fury elite-unit eligibility. |
 | `src/PlayingGame/Scoring.lua` | End-game and scenario scoring. |
 | `src/PlayingGame/AI/Common.lua` | Shared automated-player helpers. |
 | `src/PlayingGame/AI/Proxy.lua` | Apocalypse Proxy Player behaviour and choice flow. |
