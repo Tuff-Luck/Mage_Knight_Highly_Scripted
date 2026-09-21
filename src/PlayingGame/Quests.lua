@@ -3584,12 +3584,12 @@ function apocalypseQuestFreeWineStartAssault(card,playerIndex)
 				if (dx*dx)+(dz*dz)<1.5 then onObjectDrop(color,movedAvatar) end
 			end
 			safeWaitFrames("Quests",function() safeWaitCondition("Quests",finishMove,function() local obj=getObjectFromGUID(avatarGUID) return obj==nil or obj.resting end,4.0,finishMove) end,2)
-			broadcastToAll("Free Wine!: one eligible Keep was found; "..tostring(turnOrder[playerIndex].mage).." is moving there to begin the assault.",positionToColor(playerIndex))
+			broadcastToAll(joinLang({"{en}Free Wine!: one eligible Keep was found; {ru}Free Wine!: найдена одна подходящая Крепость; {zh-tw}Free Wine!：找到一座符合條件的要塞；{zh-cn}Free Wine!：找到一座符合条件的要塞；{ko}Free Wine!: 조건에 맞는 성채 하나를 찾았습니다. {es}Free Wine!: se encontró una Fortaleza válida; {fr}Free Wine! : une Forteresse éligible a été trouvée ; {pt-br}Free Wine!: uma Fortaleza elegível foi encontrada; {de}Free Wine!: Eine geeignete Burg wurde gefunden; ",translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} is moving there to begin the assault.{ru} перемещается туда, чтобы начать штурм.{zh-tw} 正移動到那裡開始攻城。{zh-cn} 正移动到那里开始攻城。{ko}이(가) 공격을 시작하기 위해 그곳으로 이동합니다.{es} se mueve allí para iniciar el asalto.{fr} s’y déplace pour commencer l’assaut.{pt-br} está se movendo até lá para iniciar o assalto.{de} bewegt sich dorthin, um den Angriff zu beginnen."}),positionToColor(playerIndex))
 		end
 	elseif #targets>1 then
-		broadcastToAll("Free Wine!: several unconquered Keeps are within 3 revealed spaces. Move to the Keep you choose and assault it.",positionToColor(playerIndex))
+		broadcastToAll("{en}Free Wine!: several unconquered Keeps are within 3 revealed spaces. Move to the Keep you choose and assault it.{ru}Free Wine!: в пределах 3 открытых клеток есть несколько непокорённых Крепостей. Переместитесь к выбранной Крепости и штурмуйте её.{zh-tw}Free Wine!：3 個已揭示空間內有多座未征服要塞。移動到你選擇的要塞並攻城。{zh-cn}Free Wine!：3 个已揭示空间内有多座未征服要塞。移动到你选择的要塞并攻城。{ko}Free Wine!: 공개된 3칸 이내에 미정복 성채가 여러 개 있습니다. 원하는 성채로 이동해 공격하십시오.{es}Free Wine!: hay varias Fortalezas no conquistadas a 3 espacios revelados. Muévete a la Fortaleza que elijas y asáltala.{fr}Free Wine! : plusieurs Forteresses non conquises se trouvent à 3 cases révélées. Déplacez-vous vers la Forteresse de votre choix et lancez l’assaut.{pt-br}Free Wine!: há várias Fortalezas não conquistadas a 3 espaços revelados. Mova-se para a Fortaleza escolhida e ataque-a.{de}Free Wine!: Mehrere nicht eroberte Burgen liegen innerhalb von 3 aufgedeckten Feldern. Bewege dich zur gewählten Burg und greife sie an.",positionToColor(playerIndex))
 	else
-		broadcastToAll("Free Wine!: no eligible Keep could be resolved automatically; move to the intended Keep manually.",positionToColor(playerIndex))
+		broadcastToAll("{en}Free Wine!: no eligible Keep could be resolved automatically; move to the intended Keep manually.{ru}Free Wine!: подходящую Крепость не удалось определить автоматически; переместитесь к нужной Крепости вручную.{zh-tw}Free Wine!：無法自動決定符合條件的要塞；請手動移動到目標要塞。{zh-cn}Free Wine!：无法自动决定符合条件的要塞；请手动移动到目标要塞。{ko}Free Wine!: 조건에 맞는 성채를 자동으로 결정하지 못했습니다. 원하는 성채로 수동 이동하십시오.{es}Free Wine!: no se pudo resolver automáticamente una Fortaleza válida; muévete manualmente a la Fortaleza prevista.{fr}Free Wine! : aucune Forteresse éligible n’a pu être déterminée automatiquement ; déplacez-vous manuellement vers la Forteresse prévue.{pt-br}Free Wine!: nenhuma Fortaleza elegível pôde ser resolvida automaticamente; mova-se manualmente para a Fortaleza desejada.{de}Free Wine!: Es konnte keine geeignete Burg automatisch bestimmt werden; bewege dich manuell zur gewünschten Burg.",positionToColor(playerIndex))
 	end
 	return true
 end
@@ -3725,7 +3725,7 @@ function apocalypseQuestTravellingMerchantRelocate(card,playerIndex)
 		if distances[apocalypseQuestMapHexKey(hex)]==3 and apocalypseQuestHexSafe(hex,mapObjects,playerIndex)==true and apocalypseQuestHexHasOtherQuestMarker(hex,token.guid)~=true then candidates[#candidates+1]=hex end
 	end
 	if #candidates==0 then
-		broadcastToAll("Travelling Merchant: no legal safe space exactly 3 revealed spaces away was found; move the highlighted Quest marker manually.",positionToColor(playerIndex))
+		broadcastToAll("{en}Travelling Merchant: no legal safe space exactly 3 revealed spaces away was found; move the highlighted Quest marker manually.{ru}Travelling Merchant: не найдено допустимой безопасной клетки ровно в 3 открытых клетках; переместите выделенный жетон задания вручную.{zh-tw}Travelling Merchant：找不到正好相距 3 個已揭示空間的合法安全空間；請手動移動高亮任務標記。{zh-cn}Travelling Merchant：找不到正好相距 3 个已揭示空间的合法安全空间；请手动移动高亮任务标记。{ko}Travelling Merchant: 공개된 칸 기준 정확히 3칸 떨어진 합법적인 안전 칸을 찾지 못했습니다. 강조된 퀘스트 마커를 수동으로 이동하십시오.{es}Travelling Merchant: no se encontró un espacio seguro legal exactamente a 3 espacios revelados; mueve manualmente el marcador de Misión resaltado.{fr}Travelling Merchant : aucune case sûre légale à exactement 3 cases révélées n’a été trouvée ; déplacez manuellement le marqueur de Quête surligné.{pt-br}Travelling Merchant: não foi encontrado espaço seguro válido exatamente a 3 espaços revelados; mova manualmente o marcador de Missão destacado.{de}Travelling Merchant: Es wurde kein gültiges sicheres Feld in genau 3 aufgedeckten Feldern Entfernung gefunden; bewege den hervorgehobenen Questmarker manuell.",positionToColor(playerIndex))
 		apocalypseQuestHighlightMarker(token)
 		return true
 	end
@@ -3735,7 +3735,7 @@ function apocalypseQuestTravellingMerchantRelocate(card,playerIndex)
 	token.setPositionSmooth({target.position[1],1.45,target.position[3]})
 	if #candidates>1 then
 		apocalypseQuestHighlightMarker(token)
-		broadcastToAll("Travelling Merchant: "..tostring(#candidates).." legal destinations exist. The first was selected; move the highlighted marker if you prefer another.",positionToColor(playerIndex))
+		broadcastToAll(joinLang({"{en}Travelling Merchant: {ru}Travelling Merchant: доступно допустимых мест назначения: {zh-tw}Travelling Merchant：共有 {zh-cn}Travelling Merchant：共有 {ko}Travelling Merchant: 합법적인 목적지가 {es}Travelling Merchant: existen {fr}Travelling Merchant : {pt-br}Travelling Merchant: existem {de}Travelling Merchant: Es gibt ",tostring(#candidates),"{en} legal destinations exist. The first was selected; move the highlighted marker if you prefer another.{ru}. Выбрано первое; переместите выделенный жетон, если предпочитаете другое.{zh-tw} 個合法目的地。已選擇第一個；若偏好其他位置，請移動高亮標記。{zh-cn} 个合法目的地。已选择第一个；若偏好其他位置，请移动高亮标记。{ko}개 있습니다. 첫 번째를 선택했습니다. 다른 곳을 원하면 강조된 마커를 이동하십시오.{es} destinos legales. Se seleccionó el primero; mueve el marcador resaltado si prefieres otro.{fr} destinations légales existent. La première a été sélectionnée ; déplacez le marqueur surligné si vous en préférez une autre.{pt-br} destinos válidos. O primeiro foi selecionado; mova o marcador destacado se preferir outro.{de} gültige Ziele. Das erste wurde ausgewählt; bewege den hervorgehobenen Marker, wenn du ein anderes bevorzugst."}),positionToColor(playerIndex))
 	else apocalypseQuestClearMarkerHighlight(token) end
 	return true
 end
@@ -3756,7 +3756,7 @@ function apocalypseQuestMagicOverloadPlaceSite(card,playerIndex)
 	local tokenBag=getObjectFromGUID(GUID.bag.apocalypseQuestTokens)
 	if spare~=nil and tokenBag~=nil then spare.unlock() tokenBag.putObject(spare) end
 	apocalypseQuestFlipSiteToken(chosen)
-	broadcastToAll("Magic Overload: highest Hero level is "..tostring(highest).."; the new "..(chosen=="a4777c" and "Monster Den" or "Spawning Grounds").." was created.",positionToColor(playerIndex))
+	broadcastToAll(joinLang({"{en}Magic Overload: highest Hero level is {ru}Magic Overload: наивысший уровень Героя — {zh-tw}Magic Overload：最高英雄等級為 {zh-cn}Magic Overload：最高英雄等级为 {ko}Magic Overload: 최고 영웅 레벨은 {es}Magic Overload: el nivel de Héroe más alto es {fr}Magic Overload : le niveau de Héros le plus élevé est {pt-br}Magic Overload: o maior nível de Herói é {de}Magic Overload: Die höchste Heldenstufe ist ",tostring(highest),"{en}; the new {ru}; создан новый объект: {zh-tw}；已建立新的 {zh-cn}；已建立新的 {ko}입니다. 새로 생성됨: {es}; se creó el nuevo {fr} ; le nouveau site {pt-br}; foi criado o novo {de}; neu erstellt wurde: ",chosen=="a4777c" and "{en}Monster Den{ru}Логово монстров{zh-tw}怪物巢穴{zh-cn}怪物巢穴{ko}괴물 소굴{es}Guarida de Monstruos{fr}Repaire de Monstres{pt-br}Covil de Monstros{de}Monsterhöhle" or "{en}Spawning Grounds{ru}Место появления{zh-tw}繁殖地{zh-cn}繁殖地{ko}산란지{es}Campo de Aparición{fr}Terrain de Reproduction{pt-br}Terreno de Criação{de}Brutstätte","{en} was created.{ru}.{zh-tw}。{zh-cn}。{ko}.{es}.{fr}.{pt-br}.{de}."}),positionToColor(playerIndex))
 	return true
 end
 
@@ -4225,7 +4225,7 @@ function apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)
 	if #candidates>1 then
 		apocalypseQuestHighlightMarker(token)
 		if playerColor~=nil then
-			broadcastToColor(tostring(#candidates).." legal spaces are available. The first was selected; move the highlighted Quest marker if you prefer another.", playerColor, {1,1,0.5})
+			broadcastToColor(joinLang({tostring(#candidates),"{en} legal spaces are available. The first was selected; move the highlighted Quest marker if you prefer another.{ru} допустимых клеток доступно. Выбрана первая; переместите выделенный жетон задания, если предпочитаете другую.{zh-tw} 個合法空間可用。已選擇第一個；若偏好其他位置，請移動高亮任務標記。{zh-cn} 个合法空间可用。已选择第一个；若偏好其他位置，请移动高亮任务标记。{ko}개의 합법적인 칸이 있습니다. 첫 번째를 선택했습니다. 다른 곳을 원하면 강조된 퀘스트 마커를 이동하십시오.{es} espacios legales disponibles. Se seleccionó el primero; mueve el marcador de Misión resaltado si prefieres otro.{fr} cases légales disponibles. La première a été sélectionnée ; déplacez le marqueur de Quête surligné si vous en préférez une autre.{pt-br} espaços válidos disponíveis. O primeiro foi selecionado; mova o marcador de Missão destacado se preferir outro.{de} gültige Felder sind verfügbar. Das erste wurde ausgewählt; bewege den hervorgehobenen Questmarker, wenn du ein anderes bevorzugst."}), playerColor, {1,1,0.5})
 		end
 	else
 		apocalypseQuestClearMarkerHighlight(token)
@@ -5132,7 +5132,7 @@ function apocalypseQuestRestoreScoreMarker(playerIndex, announce)
 		if gStates.apocalypseQuestScoreMarkers==nil then gStates.apocalypseQuestScoreMarkers={} end
 		gStates.apocalypseQuestScoreMarkers[mage]=marker.guid
 		details.questScoreGUID=marker.guid
-		if announce==true then broadcastToAll("Quest Score marker restored for "..tostring(mage)..".",{1,1,0.5}) end
+		if announce==true then broadcastToAll(joinLang({"{en}Quest Score marker restored for {ru}Маркер очков задания восстановлен для {zh-tw}已為 {zh-cn}已为 {ko}퀘스트 점수 마커 복구: {es}Marcador de Puntuación de Misión restaurado para {fr}Marqueur de Score de Quête restauré pour {pt-br}Marcador de Pontuação de Missão restaurado para {de}Quest-Punktemarker wiederhergestellt für ",translateWord[mage] or tostring(mage),"{en}.{ru}.{zh-tw} 恢復任務分數標記。{zh-cn} 恢复任务分数标记。{ko}.{es}.{fr}.{pt-br}.{de}."}),{1,1,0.5}) end
 		return marker
 	end
 	local pos=marker.getPosition()
@@ -5271,7 +5271,7 @@ function apocalypseQuestParkReminder(card)
 	card.lock()
 	card.setRotationSmooth({0,180,0})
 	card.setPositionSmooth(apocalypseQuestReminderPosition(slot))
-	broadcastToAll("Quest reminder: \""..apocalypseQuestName(card).."\" moved beside the Quest Shield bags until its Quest marker(s) are discarded.", {1,1,0.5})
+	broadcastToAll(joinLang({"{en}Quest reminder: \"{ru}Напоминание задания: \"{zh-tw}任務提醒：\"{zh-cn}任务提醒：\"{ko}퀘스트 알림: \"{es}Recordatorio de Misión: \"{fr}Rappel de Quête : \"{pt-br}Lembrete da Missão: \"{de}Quest-Erinnerung: \"",apocalypseQuestName(card),"{en}\" moved beside the Quest Shield bags until its Quest marker(s) are discarded.{ru}\" перемещено рядом с мешками Щитов задания до сброса его жетонов задания.{zh-tw}\" 已移到任務盾牌袋旁，直到其任務標記被棄掉。{zh-cn}\" 已移到任务盾牌袋旁，直到其任务标记被弃掉。{ko}\"을(를) 퀘스트 마커가 버려질 때까지 퀘스트 방패 주머니 옆으로 옮겼습니다.{es}\" se movió junto a las bolsas de Escudos de Misión hasta que se descarten sus marcadores de Misión.{fr}\" a été déplacée près des sacs de Boucliers de Quête jusqu’à ce que ses marqueurs de Quête soient défaussés.{pt-br}\" foi movida para junto das bolsas de Escudos da Missão até que seus marcadores sejam descartados.{de}\" wurde neben die Quest-Schild-Beutel verschoben, bis seine Questmarker abgeworfen wurden."}), {1,1,0.5})
 	safeWaitFrames("Quests",function() apocalypseQuestRefreshReminderCards() end, 3)
 	apocalypseQuestRefreshAfterMarkerChange()
 	return true
@@ -5297,7 +5297,7 @@ function apocalypseQuestRefreshReminderCards()
 		end
 	end
 	for _,card in ipairs(ready) do
-		broadcastToAll("Quest reminder: all markers from \""..apocalypseQuestName(card).."\" were returned; the Quest card is returning to the Quest deck cycle.", {1,1,0.5})
+		broadcastToAll(joinLang({"{en}Quest reminder: all markers from \"{ru}Напоминание задания: все жетоны из \"{zh-tw}任務提醒：\"{zh-cn}任务提醒：\"{ko}퀘스트 알림: \"{es}Recordatorio de Misión: todos los marcadores de \"{fr}Rappel de Quête : tous les marqueurs de \"{pt-br}Lembrete da Missão: todos os marcadores de \"{de}Quest-Erinnerung: Alle Marker von \"",apocalypseQuestName(card),"{en}\" were returned; the Quest card is returning to the Quest deck cycle.{ru}\" возвращены; карта задания возвращается в цикл колоды заданий.{zh-tw}\" 的所有標記都已歸還；任務牌返回任務牌庫循環。{zh-cn}\" 的所有标记都已归还；任务牌返回任务牌库循环。{ko}\"의 모든 마커가 반환되었습니다. 퀘스트 카드는 퀘스트 덱 순환으로 돌아갑니다.{es}\" fueron devueltos; la carta de Misión vuelve al ciclo del mazo de Misiones.{fr}\" ont été rendus ; la carte de Quête retourne dans le cycle du paquet de Quêtes.{pt-br}\" foram devolvidos; a carta de Missão está voltando ao ciclo do baralho de Missões.{de}\" wurden zurückgegeben; die Questkarte kehrt in den Queststapel-Zyklus zurück."}), {1,1,0.5})
 		apocalypseQuestBottomDeck(card)
 	end
 	return #ready>0
@@ -5368,9 +5368,9 @@ function apocalypseQuestBottomDeck(card,onComplete)
 			if token~=nil and (questDetails.keepToken~=true or apocalypseQuestTokenFaceUp(token)~=true) then
 				if tokenBag~=nil then
 					apocalypseQuestStageIntoContainer(token,tokenBag)
-					broadcastToAll("Quest cleanup: a Quest marker from \""..apocalypseQuestName(card).."\" returned to the Quest Token bag.", {1,1,0.5})
+					broadcastToAll(joinLang({"{en}Quest cleanup: a Quest marker from \"{ru}Очистка задания: жетон задания из \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: un marcador de Misión de \"{fr}Nettoyage de Quête : un marqueur de Quête de \"{pt-br}Limpeza da Missão: um marcador de Missão de \"{de}Quest-Bereinigung: Ein Questmarker von \"",apocalypseQuestName(card),"{en}\" returned to the Quest Token bag.{ru}\" возвращён в мешок жетонов задания.{zh-tw}\" 的任務標記已歸還任務標記袋。{zh-cn}\" 的任务标记已归还任务标记袋。{ko}\"의 퀘스트 마커가 퀘스트 토큰 주머니로 돌아갔습니다.{es}\" volvió a la bolsa de fichas de Misión.{fr}\" a été remis dans le sac de jetons de Quête.{pt-br}\" voltou para a bolsa de fichas de Missão.{de}\" wurde in den Questmarker-Beutel zurückgelegt."}), {1,1,0.5})
 				else
-					broadcastToAll("Quest cleanup: a Quest marker from \""..apocalypseQuestName(card).."\" could not be returned because the Quest Token bag is missing.", {1,0.55,0.2})
+					broadcastToAll(joinLang({"{en}Quest cleanup: a Quest marker from \"{ru}Очистка задания: жетон задания из \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: un marcador de Misión de \"{fr}Nettoyage de Quête : un marqueur de Quête de \"{pt-br}Limpeza da Missão: um marcador de Missão de \"{de}Quest-Bereinigung: Ein Questmarker von \"",apocalypseQuestName(card),"{en}\" could not be returned because the Quest Token bag is missing.{ru}\" не удалось вернуть, потому что мешок жетонов задания отсутствует.{zh-tw}\" 的任務標記無法歸還，因為任務標記袋遺失。{zh-cn}\" 的任务标记无法归还，因为任务标记袋遗失。{ko}\"의 퀘스트 마커를 반환하지 못했습니다. 퀘스트 토큰 주머니가 없습니다.{es}\" no pudo devolverse porque falta la bolsa de fichas de Misión.{fr}\" n’a pas pu être rendu car le sac de jetons de Quête est manquant.{pt-br}\" não pôde ser devolvido porque a bolsa de fichas de Missão está ausente.{de}\" konnte nicht zurückgegeben werden, da der Questmarker-Beutel fehlt."}), {1,0.55,0.2})
 				end
 			end
 		end
