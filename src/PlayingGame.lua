@@ -374,18 +374,18 @@ function shieldLocation(obj, zone, status)
 						found=true
 						if status=="remove" then
 							if hexFeature=="keep" and obj.getGMNotes()~="Burned Monastery" then
-								broadcastToAll("{en}Keep Released{ru}Крепость освобождена{zh-cn}保持释放{ko}성 정복 해제됨{es}Mantener Liberado{fr}Garder Libéré{pt-br}Forte Liberado{de}Behalten freigelassen", positionToColor(b))
+								broadcastToAll("{en}Keep Released{ru}Крепость освобождена{zh-tw}保持释放{zh-cn}保持释放{ko}성 정복 해제됨{es}Mantener Liberado{fr}Garder Libéré{pt-br}Forte Liberado{de}Behalten freigelassen", positionToColor(b))
 								mageSearch.keepsBeat=mageSearch.keepsBeat-1
 								fakeDropAvatar()
 							end
 							if hexFeature=="monastery" and gStates.monasteryBurned[terTile.guid]==true then
 								if gStates.monasteryBurnedBy~=nil then gStates.monasteryBurnedBy[terTile.guid]=nil end
-								broadcastToAll("{en}Monastery got Repaired, somehow?{ru}Монастырь как-то починился... Магия, не иначе!{zh-cn}修道院被复原了{ko}수도원이 복구되었습니다, 띠용?{es}Monasterio quedó Reparado, de alguna manera?{fr}Le Monastère a été réparé, d'une manière ou d'une autre ?{pt-br}Monastério Reparado, de alguma forma?{de}Kloster wurde repariert, irgendwie?", positionToColor(b))
+								broadcastToAll("{en}Monastery got Repaired, somehow?{ru}Монастырь как-то починился... Магия, не иначе!{zh-tw}修道院被复原了{zh-cn}修道院被复原了{ko}수도원이 복구되었습니다, 띠용?{es}Monasterio quedó Reparado, de alguna manera?{fr}Le Monastère a été réparé, d'une manière ou d'une autre ?{pt-br}Monastério Reparado, de alguma forma?{de}Kloster wurde repariert, irgendwie?", positionToColor(b))
 								gStates.monasteryCount=gStates.monasteryCount+1
 								gStates.monasteryBurned[terTile.guid]=false
 							end
 							if hexFeature=="glade" and obj.getGMNotes()~="Burned Monastery" and (gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Life and Death") then
-								broadcastToAll("{en}Glade Deactivated{ru}Магическая поляна деактивирована{zh-cn}林地解除了{ko}숲속 빈터 비활성화{es}Glade Desactivado{fr}Clairière Désactivée{pt-br}Clareira Desativada{de}Lichtung Deaktiviert", positionToColor(b))
+								broadcastToAll("{en}Glade Deactivated{ru}Магическая поляна деактивирована{zh-tw}林地解除了{zh-cn}林地解除了{ko}숲속 빈터 비활성화{es}Glade Desactivado{fr}Clairière Désactivée{pt-br}Clareira Desativada{de}Lichtung Deaktiviert", positionToColor(b))
 								if gStates.gameScenario=="Druid Nights" then
 									for index, shields in pairs(mageSearch.gladesMarked) do
 										if shields==obj.guid then table.remove(mageSearch.gladesMarked, index) end
@@ -394,22 +394,22 @@ function shieldLocation(obj, zone, status)
 							end
 							if hexFeature=="graveyard" and obj.getGMNotes()~="Burned Monastery" then
 								if gStates.gameScenario=="The Realm of the Dead Blitz" then
-									broadcastToAll("{en}Graveyard Unsealed{ru}Кладбище распечатано{zh-cn}墓地解封了{ko}봉인되지 않은 묘지{es}Cementerio Sin Sellar{fr}Cimetière Non Scellé{pt-br}Cemitério Não Selado{de}Friedhof Unversiegelt", positionToColor(b))
+									broadcastToAll("{en}Graveyard Unsealed{ru}Кладбище распечатано{zh-tw}墓地解封了{zh-cn}墓地解封了{ko}봉인되지 않은 묘지{es}Cementerio Sin Sellar{fr}Cimetière Non Scellé{pt-br}Cemitério Não Selado{de}Friedhof Unversiegelt", positionToColor(b))
 								else
-									broadcastToAll("{en}Graveyard Deactivated{ru}Кладбище деактивировано{zh-cn}墓地停用了{ko}묘지 비활성화{es}Cementerio Desactivado{fr}Cimetière Désactivé{pt-br}Cemitério Desativado{de}Friedhof Deaktiviert", positionToColor(b))
+									broadcastToAll("{en}Graveyard Deactivated{ru}Кладбище деактивировано{zh-tw}墓地停用了{zh-cn}墓地停用了{ko}묘지 비활성화{es}Cementerio Desactivado{fr}Cimetière Désactivé{pt-br}Cemitério Desativado{de}Friedhof Deaktiviert", positionToColor(b))
 								end
 							end
 							if hexFeature=="mine" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="Mines Liberation" then
-								broadcastToAll("{en}Mine Undone{ru}Шахта больше не побеждена{zh-cn}矿山未解放{ko}광산 해방 해제됨{es}Mina Deshecha{fr}Mine Défaite{pt-br}Mina Desfeita{de}Mine rückgängig gemacht", positionToColor(b))
+								broadcastToAll("{en}Mine Undone{ru}Шахта больше не побеждена{zh-tw}矿山未解放{zh-cn}矿山未解放{ko}광산 해방 해제됨{es}Mina Deshecha{fr}Mine Défaite{pt-br}Mina Desfeita{de}Mine rückgängig gemacht", positionToColor(b))
 							end
 							if hexFeature=="mage tower" and obj.getGMNotes()~="Burned Monastery" then
-								broadcastToAll("{en}Mage Tower Released{ru}Башня магов освобождена{zh-cn}法师塔释放{ko}마법사의 탑 정복 해제됨{es}Lanzamiento de la Torre de Magos{fr}Sortie de la Tour des Mages{pt-br}Torre do Mago Liberada{de}Magierturm befreit", positionToColor(b))
+								broadcastToAll("{en}Mage Tower Released{ru}Башня магов освобождена{zh-tw}法师塔释放{zh-cn}法师塔释放{ko}마법사의 탑 정복 해제됨{es}Lanzamiento de la Torre de Magos{fr}Sortie de la Tour des Mages{pt-br}Torre do Mago Liberada{de}Magierturm befreit", positionToColor(b))
 							end
 							if (hexFeature=="monster den" or hexFeature=="spawning grounds" or hexFeature=="maze" or hexFeature=="labyrinth" or hexFeature=="ruin" or hexFeature=="dungeon" or hexFeature=="tomb" or hexFeature=="ziggurat" or hexFeature=="pyramid") and obj.getGMNotes()~="Burned Monastery" then
-								broadcastToAll("{en}Adventure Site Undone{ru}Место для приключений больше не побеждено{zh-cn}冒险地点未击败{ko}모험 장소 정복 해제됨{es}Sitio de Aventuras Deshecho{fr}Site d'Aventure Annulé{pt-br}Lugar de Aventura Desfeito{de}Abenteuerseite rückgängig gemacht", positionToColor(b))
+								broadcastToAll("{en}Adventure Site Undone{ru}Место для приключений больше не побеждено{zh-tw}冒险地点未击败{zh-cn}冒险地点未击败{ko}모험 장소 정복 해제됨{es}Sitio de Aventuras Deshecho{fr}Site d'Aventure Annulé{pt-br}Lugar de Aventura Desfeito{de}Abenteuerseite rückgängig gemacht", positionToColor(b))
 							end
 							if (hexFeature or ""):sub(1, 4)=="city" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="The Lost Relic Blitz" then
-								broadcastToAll("{en}Relic Piece Replaced{ru}Часть древней реликвии была заменена{zh-cn}圣物碎片重置了{ko}유물 조각 교체됨{es}Pieza de Reliquia Reemplazada{fr}Pièce de Relique Remplacée{pt-br}Pedaço da Relíquia Substituído{de}Reliktteil ausgetauscht", positionToColor(b))
+								broadcastToAll("{en}Relic Piece Replaced{ru}Часть древней реликвии была заменена{zh-tw}圣物碎片重置了{zh-cn}圣物碎片重置了{ko}유물 조각 교체됨{es}Pieza de Reliquia Reemplazada{fr}Pièce de Relique Remplacée{pt-br}Pedaço da Relíquia Substituído{de}Reliktteil ausgetauscht", positionToColor(b))
 							end
 							break
 						else
@@ -420,44 +420,44 @@ function shieldLocation(obj, zone, status)
 							end
 							if hexFeature=="monastery" and gStates.monasteryBurned[terTile.guid]~=true then
 								if gStates.monasteryBurnedBy~=nil and turnOrder[gStates.turnNumber]~=nil then gStates.monasteryBurnedBy[terTile.guid]=turnOrder[gStates.turnNumber].mage end
-								broadcastToAll("{en}'You maniacs! You Burned it! You burned it all to Hell!'{ru}Маньяки! Вы всё сожгли! Черт, чтоб вы все сгорели в аду!'{zh-cn}“你们这些疯子! 你烧了它! 你把它烧的如同地狱! “{ko}‘곧, 심판의 날이 오리라.’ – 요엘 3장 14절{es}Monasterio Quemado{fr}Monastère Incendié{pt-br}'Seu maníaco! Você queimou tudo! Você queimou tudo pro inferno!'{de}Ihr Wahnsinnigen! Ihr habt es verbrannt! Ihr habt alles zur Hölle verbrannt!'", positionToColor(b))
+								broadcastToAll("{en}'You maniacs! You Burned it! You burned it all to Hell!'{ru}Маньяки! Вы всё сожгли! Черт, чтоб вы все сгорели в аду!'{zh-tw}“你们这些疯子! 你烧了它! 你把它烧的如同地狱! “{zh-cn}“你们这些疯子! 你烧了它! 你把它烧的如同地狱! “{ko}‘곧, 심판의 날이 오리라.’ – 요엘 3장 14절{es}Monasterio Quemado{fr}Monastère Incendié{pt-br}'Seu maníaco! Você queimou tudo! Você queimou tudo pro inferno!'{de}Ihr Wahnsinnigen! Ihr habt es verbrannt! Ihr habt alles zur Hölle verbrannt!'", positionToColor(b))
 								gStates.monasteryCount=gStates.monasteryCount-1
 								gStates.monasteryBurned[terTile.guid]=true
 							end
 							if hexFeature=="keep" and obj.getGMNotes()~="Burned Monastery" then
-								broadcastToAll("{en}'War is too serious a matter to leave to soldiers.'{ru}Война - слишком серьезная вещь, чтобы доверять её военным'{zh-cn}对于小兵来说, 战争太过残酷了{ko}성 정복됨.{es}Mantener Atacado con Exito{fr}Gardez avec Succès Agressé{pt-br}'Guerra é um assunto sério demais para deixar na mão de soldados'{de}Krieg ist eine zu ernste Angelegenheit, um sie Soldaten zu überlassen.'", positionToColor(b))
+								broadcastToAll("{en}'War is too serious a matter to leave to soldiers.'{ru}Война - слишком серьезная вещь, чтобы доверять её военным'{zh-tw}对于小兵来说, 战争太过残酷了{zh-cn}对于小兵来说, 战争太过残酷了{ko}성 정복됨.{es}Mantener Atacado con Exito{fr}Gardez avec Succès Agressé{pt-br}'Guerra é um assunto sério demais para deixar na mão de soldados'{de}Krieg ist eine zu ernste Angelegenheit, um sie Soldaten zu überlassen.'", positionToColor(b))
 								mageSearch.keepsBeat=mageSearch.keepsBeat+1
 								fakeDropAvatar()
 								break
 							end
 							if hexFeature=="glade" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="Druid Nights" then
-								broadcastToAll("{en}Glade Activated{ru}Магическая поляна активирована{zh-cn}林地激活了{ko}숲속 빈터 활성화{es}Glade Activado{fr}Clairière Activée{pt-br}Clareira Ativada{de}Glade Aktiviert", positionToColor(b))
+								broadcastToAll("{en}Glade Activated{ru}Магическая поляна активирована{zh-tw}林地激活了{zh-cn}林地激活了{ko}숲속 빈터 활성화{es}Glade Activado{fr}Clairière Activée{pt-br}Clareira Ativada{de}Glade Aktiviert", positionToColor(b))
 								mageSearch.gladesMarked[#mageSearch.gladesMarked+1]=obj.guid
 							end
 							if hexFeature=="glade" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="Life and Death" then
-								broadcastToAll("{en}Glade Liberated{ru}Магическая поляна освобождена{zh-cn}林地解放了{ko}숲속 빈터 해방됨{es}Glade Liberado{fr}Clairière Libérée{pt-br}Clareira Liberada{de}Lichtung befreit", positionToColor(b))
+								broadcastToAll("{en}Glade Liberated{ru}Магическая поляна освобождена{zh-tw}林地解放了{zh-cn}林地解放了{ko}숲속 빈터 해방됨{es}Glade Liberado{fr}Clairière Libérée{pt-br}Clareira Liberada{de}Lichtung befreit", positionToColor(b))
 							end
 							if hexFeature=="graveyard" and obj.getGMNotes()~="Burned Monastery" then
 								if gStates.gameScenario=="The Realm of the Dead Blitz" then
-									broadcastToAll("{en}Graveyard Sealed{ru}Кладбище запечатано{zh-cn}墓地封印了{ko}봉인된 묘지{es}Cementerio Sellado{fr}Cimetière Scellé{pt-br}Cemitério Selado{de}Friedhof versiegelt", positionToColor(b))
+									broadcastToAll("{en}Graveyard Sealed{ru}Кладбище запечатано{zh-tw}墓地封印了{zh-cn}墓地封印了{ko}봉인된 묘지{es}Cementerio Sellado{fr}Cimetière Scellé{pt-br}Cemitério Selado{de}Friedhof versiegelt", positionToColor(b))
 								else
-									broadcastToAll("{en}Graveyard Liberated{ru}Кладбище освобождено{zh-cn}墓地解放了{ko}묘지 해방됨{es}Cementerio Liberado{fr}Cimetière Libéré{pt-br}Cemitério Liberado{de}Friedhof befreit", positionToColor(b))
+									broadcastToAll("{en}Graveyard Liberated{ru}Кладбище освобождено{zh-tw}墓地解放了{zh-cn}墓地解放了{ko}묘지 해방됨{es}Cementerio Liberado{fr}Cimetière Libéré{pt-br}Cemitério Liberado{de}Friedhof befreit", positionToColor(b))
 								end
 							end
 							if hexFeature=="mine" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="Mines Liberation" then
-								broadcastToAll("{en}Mine Liberated{ru}Шахта освобождена{zh-cn}矿山解放了{ko}광산 해방됨{es}Mina Liberada{fr}Mine Libérée{pt-br}Mina Liberada{de}Mine befreit", positionToColor(b))
+								broadcastToAll("{en}Mine Liberated{ru}Шахта освобождена{zh-tw}矿山解放了{zh-cn}矿山解放了{ko}광산 해방됨{es}Mina Liberada{fr}Mine Libérée{pt-br}Mina Liberada{de}Mine befreit", positionToColor(b))
 							end
 							if hexFeature=="mage tower" and obj.getGMNotes()~="Burned Monastery" then
-								broadcastToAll("{en}Mage Tower Conquered{zh-cn}法师塔被征服{ko}마법사의 탑 정복됨{es}Torre de Magos Conquistada{fr}Tour des Mages Conquise{pt-br}Torre do Mago Conquistada", positionToColor(b))
+								broadcastToAll("{en}Mage Tower Conquered{ru}Башня мага захвачена{zh-tw}法師塔已被征服{zh-cn}法师塔被征服{ko}마법사의 탑 정복됨{es}Torre de Magos Conquistada{fr}Tour des Mages Conquise{pt-br}Torre do Mago Conquistada{de}Magierturm erobert", positionToColor(b))
 							end
 							if (hexFeature=="monster den" or hexFeature=="spawning grounds") and obj.getGMNotes()~="Burned Monastery" then
-								broadcastToAll("{en}'They mostly come at night...Mostly.'{ru}«Они в основном приходят ночью... В основном.»{zh-cn}“他们大多是晚上来的……大多是. ”{ko}‘징한 놈의 이 세상, 한탕 신나게 놀고 가면 그 뿐.’{es}'Vienen sobre todo por la noche ... sobre todo.'{fr}'Ils viennent surtout la nuit… surtout.'{pt-br}'Eles vem a maioria das vezes a noite....a maioria das vezes.'{de}Sie kommen meistens nachts ... meistens.", positionToColor(b))
+								broadcastToAll("{en}'They mostly come at night...Mostly.'{ru}«Они в основном приходят ночью... В основном.»{zh-tw}“他们大多是晚上来的……大多是. ”{zh-cn}“他们大多是晚上来的……大多是. ”{ko}‘징한 놈의 이 세상, 한탕 신나게 놀고 가면 그 뿐.’{es}'Vienen sobre todo por la noche ... sobre todo.'{fr}'Ils viennent surtout la nuit… surtout.'{pt-br}'Eles vem a maioria das vezes a noite....a maioria das vezes.'{de}Sie kommen meistens nachts ... meistens.", positionToColor(b))
 							end
 							if (hexFeature=="maze" or hexFeature=="labyrinth" or hexFeature=="ruin" or hexFeature=="dungeon" or hexFeature=="tomb" or hexFeature=="ziggurat" or hexFeature=="pyramid") and obj.getGMNotes()~="Burned Monastery" then
-								broadcastToAll("{en}Adventure Site Beaten{ru}Место для приключений побеждено{zh-cn}冒险地点被打败{ko}모험 장소 정복됨{es}Sitio de Aventuras Batido{fr}Site d'Aventure Battu{pt-br}Lugar de Aventura Vencido{de}Abenteuerstätte besiegt", positionToColor(b))
+								broadcastToAll("{en}Adventure Site Beaten{ru}Место для приключений побеждено{zh-tw}冒险地点被打败{zh-cn}冒险地点被打败{ko}모험 장소 정복됨{es}Sitio de Aventuras Batido{fr}Site d'Aventure Battu{pt-br}Lugar de Aventura Vencido{de}Abenteuerstätte besiegt", positionToColor(b))
 							end
 							if (hexFeature or ""):sub(1, 4)=="city" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="The Lost Relic Blitz" then
-								broadcastToAll("{en}Relic Piece Recovered{ru}Часть древней реликвии была найдена{zh-cn}找到了圣物碎片{ko}유물 조각 복구{es}Pieza de Reliquia Recuperada{fr}Pièce de Relique Récupérée{pt-br}Pedaço da Relíquia Recuperado{de}Reliktstück wiederhergestellt", positionToColor(b))
+								broadcastToAll("{en}Relic Piece Recovered{ru}Часть древней реликвии была найдена{zh-tw}找到了圣物碎片{zh-cn}找到了圣物碎片{ko}유물 조각 복구{es}Pieza de Reliquia Recuperada{fr}Pièce de Relique Récupérée{pt-br}Pedaço da Relíquia Recuperado{de}Reliktstück wiederhergestellt", positionToColor(b))
 							end
 							break
 						end
@@ -476,32 +476,32 @@ function shieldLocation(obj, zone, status)
 					or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The Realm of the Dead Blitz"
 					or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Dungeon Lords"
 					or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Mines Liberation") then
-						broadcastToAll(joinLang({"{en}City is Friendly to {ru}Город дружественный для {zh-cn}城市友善的对象: {ko}도시는 우호적입니다: {es}La Ciudad es Amigable con {fr}La Ville est Amicale avec {pt-br}Cidade é Amistosa a {de}Stadt ist befreundet mit ", translateWord[mageSearch.mage]}), positionToColor(b))
+						broadcastToAll(joinLang({"{en}City is Friendly to {ru}Город дружественный для {zh-tw}城市友善的对象: {zh-cn}城市友善的对象: {ko}도시는 우호적입니다: {es}La Ciudad es Amigable con {fr}La Ville est Amicale avec {pt-br}Cidade é Amistosa a {de}Stadt ist befreundet mit ", translateWord[mageSearch.mage]}), positionToColor(b))
 					else
 						if zone.guid==GUID.zone.blueCity or zone.guid==GUID.zone.redCity or zone.guid==GUID.zone.greenCity or zone.guid==GUID.zone.whiteCity then
 							cityBeatCheck()
 							if mageSearch.defeatedCities[cityScriptZones[zone.guid].cityGUID]~=nil then
-								broadcastToAll("{en}City has been Conquered{ru}Город был захвачен{zh-cn}城市被征服了{ko}도시가 정복되었습니다{es}La Ciudad ha sido Conquistada{fr}La Ville a été Conquise{pt-br}Cidade foi Conquistada.{de}Die Stadt wurde erobert", positionToColor(b))
+								broadcastToAll("{en}City has been Conquered{ru}Город был захвачен{zh-tw}城市被征服了{zh-cn}城市被征服了{ko}도시가 정복되었습니다{es}La Ciudad ha sido Conquistada{fr}La Ville a été Conquise{pt-br}Cidade foi Conquistada.{de}Die Stadt wurde erobert", positionToColor(b))
 							else
-								broadcastToAll("{en}City Defender Defeated{ru}Защитник города побежден{zh-cn}城防守军被击败了{ko}도시 수비자를 처치했습니다{es}Defensor de la Ciudad Derrotado{fr}Défenseur de la Ville Vaincu{pt-br}Defensor da Cidade Derrotado.{de}Stadtverteidiger besiegt", positionToColor(b))
+								broadcastToAll("{en}City Defender Defeated{ru}Защитник города побежден{zh-tw}城防守军被击败了{zh-cn}城防守军被击败了{ko}도시 수비자를 처치했습니다{es}Defensor de la Ciudad Derrotado{fr}Défenseur de la Ville Vaincu{pt-br}Defensor da Cidade Derrotado.{de}Stadtverteidiger besiegt", positionToColor(b))
 							end
 						end
 					end
 					if zone.guid==darkCrusader.discZone or zone.guid==elementalist.discZone then
 						cityBeatCheck()
 						if gStates.defeatedFactionTest[cityScriptZones[zone.guid].cityGUID]~=nil then
-							broadcastToAll("{en}Leader has been Defeated{ru}Лидер был побежден{zh-cn}首领被打败了{ko}지도자를 처치했습니다{es}El Líder ha sido Derrotado{fr}Le Chef a été Vaincu{pt-br}Líder foi Derrotado{de}Anführer wurde besiegt", positionToColor(b))
+							broadcastToAll("{en}Leader has been Defeated{ru}Лидер был побежден{zh-tw}首领被打败了{zh-cn}首领被打败了{ko}지도자를 처치했습니다{es}El Líder ha sido Derrotado{fr}Le Chef a été Vaincu{pt-br}Líder foi Derrotado{de}Anführer wurde besiegt", positionToColor(b))
 						else
-							broadcastToAll("{en}Leader Level Reduced{ru}Уровень лидера понижен{zh-cn}首领级别降低{ko}지도자 레벨 감소됨{es}Nivel de Líder Reducido{fr}Niveau de Leader Réduit{pt-br}Nível do Líder foi Reduzido{de}Anführerlevel reduziert", positionToColor(b))
+							broadcastToAll("{en}Leader Level Reduced{ru}Уровень лидера понижен{zh-tw}首领级别降低{zh-cn}首领级别降低{ko}지도자 레벨 감소됨{es}Nivel de Líder Reducido{fr}Niveau de Leader Réduit{pt-br}Nível do Líder foi Reduzido{de}Anführerlevel reduziert", positionToColor(b))
 						end
 					end
 					if zone.guid==volkare.discZone then
 						cityBeatCheck()
 						if mageSearch.defeatedCities[cityScriptZones[zone.guid].cityGUID]~=nil then
-							broadcastToAll("{en}Volkare is Defeated{ru}Волкар побежден{zh-cn}沃里卡认怂了{ko}볼케어 장군을 처치했습니다{es}Volkare es derrotado{fr}Volkare est vaincu{pt-br}Volkare foi Derrotado{de}Volkare ist besiegt", positionToColor(b))
+							broadcastToAll("{en}Volkare is Defeated{ru}Волкар побежден{zh-tw}沃里卡认怂了{zh-cn}沃里卡认怂了{ko}볼케어 장군을 처치했습니다{es}Volkare es derrotado{fr}Volkare est vaincu{pt-br}Volkare foi Derrotado{de}Volkare ist besiegt", positionToColor(b))
 							registerVolkareCampAsCityKeep()
 						else
-							broadcastToAll("{en}Volkare's Army Reduced{ru}Армия Волкара уменьшилась{zh-cn}沃里卡军队减少了{ko}볼케어의 군대가 줄었습니다{es}Ejército de Volkare reducido{fr}Armée de Volkare réduite{pt-br}Exército de Volkare Reduzido{de}Volkares Armee wurde verkleinert", positionToColor(b))
+							broadcastToAll("{en}Volkare's Army Reduced{ru}Армия Волкара уменьшилась{zh-tw}沃里卡军队减少了{zh-cn}沃里卡军队减少了{ko}볼케어의 군대가 줄었습니다{es}Ejército de Volkare reducido{fr}Armée de Volkare réduite{pt-br}Exército de Volkare Reduzido{de}Volkares Armee wurde verkleinert", positionToColor(b))
 						end
 					end
 					fakeDropAvatar()
@@ -665,9 +665,9 @@ function tokenRefill(reportResult)
 	end
 	if reportResult==true and noWait==true then
 		if emptyPile==true then
-			broadcastToAll("{en}Sorry, I have no discard tokens to fill those empty stacks{ru}Извините, у меня нет жетонов в сбросе, чтобы заполнить эти пустые стопки.{zh-cn}抱歉，我没有废弃标记来填充那些空的标记堆{ko}버린 토큰을 찾을 수 없어 더미를 채우지 못했습니다.{es}Lo siento, no tengo tokens de descarte para llenar esas pilas vacías{fr}Désolé, je n'ai pas de jetons de défausse pour remplir ces piles vides{pt-br}Desculpe, Eu tenho nenhuma ficha de descarte para preencher as estas pilhas vazias{de}Leider habe ich keine Abwurfmarken, um diese leeren Stapel zu füllen.", {0, 0.5, 1})
+			broadcastToAll("{en}Sorry, I have no discard tokens to fill those empty stacks{ru}Извините, у меня нет жетонов в сбросе, чтобы заполнить эти пустые стопки.{zh-tw}抱歉，我没有废弃标记来填充那些空的标记堆{zh-cn}抱歉，我没有废弃标记来填充那些空的标记堆{ko}버린 토큰을 찾을 수 없어 더미를 채우지 못했습니다.{es}Lo siento, no tengo tokens de descarte para llenar esas pilas vacías{fr}Désolé, je n'ai pas de jetons de défausse pour remplir ces piles vides{pt-br}Desculpe, Eu tenho nenhuma ficha de descarte para preencher as estas pilhas vazias{de}Leider habe ich keine Abwurfmarken, um diese leeren Stapel zu füllen.", {0, 0.5, 1})
 		else
-			broadcastToAll("{en}All token piles still have tokens to play{ru}Во всех стопках жетонов все еще есть жетоны для игры.{zh-cn}所有标记都还够用呢，先不用返还{ko}빈 토큰 더미가 없습니다.{es}Todas las pilas de fichas todavía tienen fichas para jugar.{fr}Toutes les piles de jetons ont encore des jetons à jouer{pt-br}Todas as pilhas de fichas ainda tem fichas para jogar{de}Alle Spielsteinstapel haben noch Spielsteine zum Spielen", {0, 0.5, 1})
+			broadcastToAll("{en}All token piles still have tokens to play{ru}Во всех стопках жетонов все еще есть жетоны для игры.{zh-tw}所有标记都还够用呢，先不用返还{zh-cn}所有标记都还够用呢，先不用返还{ko}빈 토큰 더미가 없습니다.{es}Todas las pilas de fichas todavía tienen fichas para jugar.{fr}Toutes les piles de jetons ont encore des jetons à jouer{pt-br}Todas as pilhas de fichas ainda tem fichas para jogar{de}Alle Spielsteinstapel haben noch Spielsteine zum Spielen", {0, 0.5, 1})
 		end
 	end
 	return noWait
@@ -916,7 +916,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 							if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={brutal=true} else gStates.monsterPerks[token.guid].brutal=true end
 						end
 					else
-						broadcastToAll("{en}Sorry, there are no Rampage tokens left to deploy{ru}Извините, жетоны яростных врагов закончились.{zh-cn}抱歉，没有紫色标记可供部署{ko}여분의 광분하는 적 토큰이 없습니다{es}Lo sentimos, no quedan tokens de Rampage para implementar{fr}Désolé, il n'y a plus de jetons Rampage à déployer{pt-br}Desculpe, Não tem Fichas Irascíveis sobrando para distribuir{de}Leider gibt es keine Rampage-Plättchen mehr zum Einsetzen", warningColor)
+						broadcastToAll("{en}Sorry, there are no Rampage tokens left to deploy{ru}Извините, жетоны яростных врагов закончились.{zh-tw}抱歉，没有紫色标记可供部署{zh-cn}抱歉，没有紫色标记可供部署{ko}여분의 광분하는 적 토큰이 없습니다{es}Lo sentimos, no quedan tokens de Rampage para implementar{fr}Désolé, il n'y a plus de jetons Rampage à déployer{pt-br}Desculpe, Não tem Fichas Irascíveis sobrando para distribuir{de}Leider gibt es keine Rampage-Plättchen mehr zum Einsetzen", warningColor)
 					end
 					--play Brown token
 					if dropped==false and gStates.rampage>0 and dice~=nil and dice.getRotationValue()=="Rampage Full" then
@@ -929,7 +929,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 							gStates.monsterPlayLocation[token.guid]=params.position
 							gStates.rampagingMonsters[token.guid]=true
 						else
-							broadcastToAll("{en}Sorry, there are no Brown tokens left to deploy{ru}Извините, коричневые жетоны закончились.{zh-cn}抱歉，没有棕色标记可供部署{ko}여분의 갈색 토큰이 없습니다{es}Lo sentimos, no quedan tokens marrones para implementar{fr}Désolé, il n'y a plus de jetons bruns à déployer{pt-br}Desculpe, Não tem Fichas Marrons sobrando para distribuir{de}Tut mir leid, es gibt keine braunen Plättchen mehr zum Auslegen", warningColor)
+							broadcastToAll("{en}Sorry, there are no Brown tokens left to deploy{ru}Извините, коричневые жетоны закончились.{zh-tw}抱歉，没有棕色标记可供部署{zh-cn}抱歉，没有棕色标记可供部署{ko}여분의 갈색 토큰이 없습니다{es}Lo sentimos, no quedan tokens marrones para implementar{fr}Désolé, il n'y a plus de jetons bruns à déployer{pt-br}Desculpe, Não tem Fichas Marrons sobrando para distribuir{de}Tut mir leid, es gibt keine braunen Plättchen mehr zum Auslegen", warningColor)
 						end
 					end
 				end
@@ -944,7 +944,7 @@ function plunderVillage(player, mouseButton, id)
 		if legalPlayerCheck(player.color, tonumber(id:sub(8,8)))==true then
 			for a=1, #turnOrder, 1 do
 				if turnOrder[a].seatPos==tonumber(id:sub(8,8)) then
-					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} just Plundered their Village.{ru} разграбляет деревню.{zh-cn}刚刚劫掠了他们的村庄{ko}: 마을을 약탈했습니다.{es} acaba de saquear su aldea.{fr} vient de Piller leur Village.{pt-br} acabou de Saquear a Vila{de} hat gerade ihr Dorf geplündert. "}), positionToColor(a))
+					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} just Plundered their Village.{ru} разграбляет деревню.{zh-tw}刚刚劫掠了他们的村庄{zh-cn}刚刚劫掠了他们的村庄{ko}: 마을을 약탈했습니다.{es} acaba de saquear su aldea.{fr} vient de Piller leur Village.{pt-br} acabou de Saquear a Vila{de} hat gerade ihr Dorf geplündert. "}), positionToColor(a))
 					--One exact two-card request avoids competing Quick Witted prompts for Coral.
 					drawExactDeedCards(a, 2, "DrawOne")
 					--reduce Reputation by 1
@@ -972,7 +972,7 @@ function motivation(player, mouseButton, id)
 		if legalPlayerCheck(player.color, tonumber(id:sub(18, 18)))==true then
 			for a=1, #turnOrder, 1 do
 				if turnOrder[a].seatPos==tonumber(id:sub(18, 18)) then
-					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used a Motivation skill.{ru} использует навык Мотивация.{zh-cn}使用了激励技能{ko}: 스킬 '동기 부여' 사용{es} usó una habilidad de Motivación.{fr} utilisé une compétence de Motivation.{pt-br} usou uma Habilidade de Motivação{de} eine Motivationsfertigkeit eingesetzt."}), positionToColor(a))
+					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used a Motivation skill.{ru} использует навык Мотивация.{zh-tw}使用了激励技能{zh-cn}使用了激励技能{ko}: 스킬 '동기 부여' 사용{es} usó una habilidad de Motivación.{fr} utilisé une compétence de Motivation.{pt-br} usou uma Habilidade de Motivação{de} eine Motivationsfertigkeit eingesetzt."}), positionToColor(a))
 					--One exact two-card request keeps the whole Motivation draw inside one Quick Witted choice flow.
 					drawExactDeedCards(a, 2, "DrawOne")
 					--Gain Fame or mana token
@@ -987,19 +987,19 @@ function motivation(player, mouseButton, id)
 						local params={position={(gStates.motivationSkill[id:sub(1, 6)].pos*40)-101, 1.65, -39}, rotation={0, 0, 0}, smooth=false}
 						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 13)=="Red" then
 							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.red),params)
-							broadcastToAll("{en}Also gained a Red Mana Token.{ru}Также получает Красный жетон маны.{zh-cn}同时增加了一个红色魔晶{ko}빨간색 마나 추가 획득.{es}También ganó una ficha de Maná Roja.{fr}A également gagné un jeton de Mana Rouge.{pt-br}Também ganhou um Marcador de Mana Vermelha.{de}Außerdem erhielt er ein rotes Mana-Plättchen.", positionToColor(a))
+							broadcastToAll("{en}Also gained a Red Mana Token.{ru}Также получает Красный жетон маны.{zh-tw}同时增加了一个红色魔晶{zh-cn}同时增加了一个红色魔晶{ko}빨간색 마나 추가 획득.{es}También ganó una ficha de Maná Roja.{fr}A également gagné un jeton de Mana Rouge.{pt-br}Também ganhou um Marcador de Mana Vermelha.{de}Außerdem erhielt er ein rotes Mana-Plättchen.", positionToColor(a))
 						end
 						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 14)=="Blue" then
 							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.blue),params)
-							broadcastToAll("{en}Also gained a Blue Mana Token.{ru}Также получает Синий жетон маны.{zh-cn}同时增加了一个蓝色魔晶{ko}파란색 마나 추가 획득.{es}También ganó una ficha de Maná Azul.{fr}A également gagné un jeton de Mana Bleu.{pt-br}Também ganhou um Marcador de Mana Azul.{de}Außerdem ein blaues Mana-Plättchen erhalten.", positionToColor(a))
+							broadcastToAll("{en}Also gained a Blue Mana Token.{ru}Также получает Синий жетон маны.{zh-tw}同时增加了一个蓝色魔晶{zh-cn}同时增加了一个蓝色魔晶{ko}파란색 마나 추가 획득.{es}También ganó una ficha de Maná Azul.{fr}A également gagné un jeton de Mana Bleu.{pt-br}Também ganhou um Marcador de Mana Azul.{de}Außerdem ein blaues Mana-Plättchen erhalten.", positionToColor(a))
 						end
 						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 15)=="White" then
 							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.white),params)
-							broadcastToAll("{en}Also gained a White Mana Token.{ru}Также получает Белый жетон маны.{zh-cn}同时增加了一个白色魔晶{ko}흰색 마나 추가 획득.{es}También ganó una ficha de Maná Blanca.{fr}A également gagné un jeton de Mana Blanc.{pt-br}Também ganhou um Marcador de Mana Branca.{de}Außerdem erhielt er ein weißes Mana-Plättchen.", positionToColor(a))
+							broadcastToAll("{en}Also gained a White Mana Token.{ru}Также получает Белый жетон маны.{zh-tw}同时增加了一个白色魔晶{zh-cn}同时增加了一个白色魔晶{ko}흰색 마나 추가 획득.{es}También ganó una ficha de Maná Blanca.{fr}A également gagné un jeton de Mana Blanc.{pt-br}Também ganhou um Marcador de Mana Branca.{de}Außerdem erhielt er ein weißes Mana-Plättchen.", positionToColor(a))
 						end
 						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 15)=="Green" then
 							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.green),params)
-							broadcastToAll("{en}Also gained a Green Mana Token.{ru}Также получает Зеленый жетон маны.{zh-cn}同时增加了一个绿色魔晶{ko}녹색 마나 추가 획득.{es}También ganó una ficha de Maná Verde.{fr}A également gagné un jeton de Mana Vert.{pt-br}Também ganhou um Marcador de Mana Verde.{de}Hat auch ein grünes Mana-Plättchen erhalten.", positionToColor(a))
+							broadcastToAll("{en}Also gained a Green Mana Token.{ru}Также получает Зеленый жетон маны.{zh-tw}同时增加了一个绿色魔晶{zh-cn}同时增加了一个绿色魔晶{ko}녹색 마나 추가 획득.{es}También ganó una ficha de Maná Verde.{fr}A également gagné un jeton de Mana Vert.{pt-br}Também ganhou um Marcador de Mana Verde.{de}Hat auch ein grünes Mana-Plättchen erhalten.", positionToColor(a))
 						end
 						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 14)=="Fame" then
 							local startingFameToLevel=math.floor(math.sqrt((turnOrder[a].fame-(gStates.scoreIfLooped*turnOrder[a].scoreLoop))+1))
@@ -1017,7 +1017,7 @@ function motivation(player, mouseButton, id)
 							local verticalValue=(topOfFameBoard-((fameToLevel/gStates.rowsOnBoard)*heightOfFameBoard))+yOffset-0.25
 							getObjectFromGUID(turnOrder[a].fameGUID).setPosition({horizontalValue, 1.5, verticalValue+((turnOrder[a].seatPos-2.5)/5)})
 							recordPlayerFameChange(a, 1)
-							broadcastToAll("{en}and gained a Fame also{ru}и получает Славу{zh-cn}也增加了1名望{ko}명성 1 추가 획득.{es}y ganó Fama también{fr}et a également gagné une renommée{pt-br}e também ganhou uma Fama.{de}und auch einen Ruhmespunkt gewonnen", positionToColor(a))
+							broadcastToAll("{en}and gained a Fame also{ru}и получает Славу{zh-tw}也增加了1名望{zh-cn}也增加了1名望{ko}명성 1 추가 획득.{es}y ganó Fama también{fr}et a également gagné une renommée{pt-br}e também ganhou uma Fama.{de}und auch einen Ruhmespunkt gewonnen", positionToColor(a))
 						end
 					end
 					--flip skill down.
@@ -1076,11 +1076,11 @@ function offerArtifacts(player, mouseButton, id)
 				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOffer", "active", "false")
 				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUp", "active", "false")
 			else
-				broadcastToAll("{en}Choose a tactic first{ru}Сперва выберите Тактику{zh-cn}先选一张战术卡吧{ko}먼저 전략 카드를 고르세요{es}Elige una táctica primero{fr}Choisissez d'abord une tactique{pt-br}Escolha uma Tática primeiro{de}Wähle zuerst eine Taktik",warningColor)
+				broadcastToAll("{en}Choose a tactic first{ru}Сперва выберите Тактику{zh-tw}先选一张战术卡吧{zh-cn}先选一张战术卡吧{ko}먼저 전략 카드를 고르세요{es}Elige una táctica primero{fr}Choisissez d'abord une tactique{pt-br}Escolha uma Tática primeiro{de}Wähle zuerst eine Taktik",warningColor)
 			end
 		else
 			if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
-				broadcastToAll("{en}Dummy doesn't claim artifacts{ru}Виртуальный игрок не получает артефактов{zh-cn}虚拟玩家不选择圣器{ko}가상 플레이어는 유물을 얻지 않습니다!{es}Dummy no reclama artefactos{fr}Le mannequin ne revendique pas d'artefacts{pt-br}Jog. Fictício não clama Artefatos{de}Dummy beansprucht keine Artefakte",warningColor)
+				broadcastToAll("{en}Dummy doesn't claim artifacts{ru}Виртуальный игрок не получает артефактов{zh-tw}虚拟玩家不选择圣器{zh-cn}虚拟玩家不选择圣器{ko}가상 플레이어는 유물을 얻지 않습니다!{es}Dummy no reclama artefactos{fr}Le mannequin ne revendique pas d'artefacts{pt-br}Jog. Fictício não clama Artefatos{de}Dummy beansprucht keine Artefakte",warningColor)
 			end
 		end
 	end
@@ -1355,7 +1355,7 @@ function unitOffer()
 				local params={position={pos.x-j*0.85+1, pos.y+0.15, pos.z}}
 				offerCards.takeObject(params)
 			end
-			broadcastToAll("{en}Sorry, I seem to have double dealt. Manual cleaning of Offer required{ru}Извините, что-то пошло не так. Требуется ручное исправление доступных карт{zh-cn}抱歉，我可能做了双重结算，请手动清除部队供应区{ko}죄송합니다, 공급처가 이중으로 겹쳐진 모양이네요. 직접 정리 부탁드립니다.{es}Lo siento, parece que he hecho un doblete. Se requiere limpieza manual de la Oferta{fr}Désolé, j'ai l'impression d'avoir joué deux fois. Nettoyage manuel de l'offre requis{pt-br}Desculpe, Parece que ofertei em dobro. Limpeza Manual da Oferta requerida.{de}Entschuldigung, ich habe wohl doppelt gehandelt. Manuelle Bereinigung des Angebots erforderlich", warningColor)
+			broadcastToAll("{en}Sorry, I seem to have double dealt. Manual cleaning of Offer required{ru}Извините, что-то пошло не так. Требуется ручное исправление доступных карт{zh-tw}抱歉，我可能做了双重结算，请手动清除部队供应区{zh-cn}抱歉，我可能做了双重结算，请手动清除部队供应区{ko}죄송합니다, 공급처가 이중으로 겹쳐진 모양이네요. 직접 정리 부탁드립니다.{es}Lo siento, parece que he hecho un doblete. Se requiere limpieza manual de la Oferta{fr}Désolé, j'ai l'impression d'avoir joué deux fois. Nettoyage manuel de l'offre requis{pt-br}Desculpe, Parece que ofertei em dobro. Limpeza Manual da Oferta requerida.{de}Entschuldigung, ich habe wohl doppelt gehandelt. Manuelle Bereinigung des Angebots erforderlich", warningColor)
 			skip=true
 		end
 	end
@@ -1606,7 +1606,7 @@ function playMonastery()
 		while MonasteryDeck==nil do safeWaitFrames("PlayingGame",function() MonasteryDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects() end, 10) end
 		local drawnCard=getObjectFromGUID(MonasteryDeck[1].guid).takeObject(params)
 		safeWaitCondition("PlayingGame",function() drawnCard.lock() end, function() return drawnCard.resting end)
-		broadcastToAll("{en}Monastery is teaching a new Advanced Action{ru}Монастырь обучает новому Особому действию{zh-cn}修道院现在传授新的高级行动{ko}수도원에 새로운 상급 액션이 추가되었습니다{es}El Monasterio está enseñando una nueva Acción Avanzada{fr}Le Monastère enseigne une nouvelle Action Avancée{pt-br}Monastério está encinsando uma nova Ação Avançada{de}Das Kloster lehrt eine neue fortgeschrittene Aktion", {1,1,0.5})
+		broadcastToAll("{en}Monastery is teaching a new Advanced Action{ru}Монастырь обучает новому Особому действию{zh-tw}修道院现在传授新的高级行动{zh-cn}修道院现在传授新的高级行动{ko}수도원에 새로운 상급 액션이 추가되었습니다{es}El Monasterio está enseñando una nueva Acción Avanzada{fr}Le Monastère enseigne une nouvelle Action Avancée{pt-br}Monastério está encinsando uma nova Ação Avançada{de}Das Kloster lehrt eine neue fortgeschrittene Aktion", {1,1,0.5})
 	end
 end
 
@@ -2024,7 +2024,7 @@ function volkareTokenRandomize(token)--9a686a
 			if volkareDice.getRotationValue()=="Black Mana" then gStates.monsterPerks[token.guid].paralyse=true	gStates.monsterPerks[token.guid].attack={P={3}} end
 			if volkareDice.getRotationValue()=="Gold Mana" then gStates.monsterPerks[token.guid].attack={IF={3}} end
 			if volkareDiceRolled==true then
-				broadcastToAll("{en}Volkare's Attack randomly picked{ru}Атака Волкара была определена{zh-cn}沃里卡随机挑选攻击对象{ko}볼케어의 공격이 결정되었습니다{es}Ataque de Volkare elegido al azar{fr}Attaque de Volkare choisie au hasard{pt-br}Ataque de Volkare aleatóriamente escolhido{de}Volkare's Angriff zufällig ausgewählt", {1,1,0.5})
+				broadcastToAll("{en}Volkare's Attack randomly picked{ru}Атака Волкара была определена{zh-tw}沃里卡随机挑选攻击对象{zh-cn}沃里卡随机挑选攻击对象{ko}볼케어의 공격이 결정되었습니다{es}Ataque de Volkare elegido al azar{fr}Attaque de Volkare choisie au hasard{pt-br}Ataque de Volkare aleatóriamente escolhido{de}Volkare's Angriff zufällig ausgewählt", {1,1,0.5})
 				volkareDiceRolled=false
 			end
 		end
@@ -2484,11 +2484,11 @@ function autoflip()
 	if gStates.autoFlip==true then
 		gStates.autoFlip=false
 		UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Active")
-		broadcastToAll("{en}Monster tokens need to be flipped manually.{ru}Жетоны врагов необходимо переворачивать вручную.{zh-cn}怪物标记需要手动翻转{ko}규칙에 따라 직접 토큰을 뒤집어야 합니다{es}Las fichas de monstruo deben voltearse manualmente.{fr}Les jetons Monstre doivent être retournés manuellement.{pt-br}Fichas de Monstros precisam ser viradas manualmente{de}Monsterplättchen müssen manuell umgedreht werden.", {1,1,0.5})
+		broadcastToAll("{en}Monster tokens need to be flipped manually.{ru}Жетоны врагов необходимо переворачивать вручную.{zh-tw}怪物标记需要手动翻转{zh-cn}怪物标记需要手动翻转{ko}규칙에 따라 직접 토큰을 뒤집어야 합니다{es}Las fichas de monstruo deben voltearse manualmente.{fr}Les jetons Monstre doivent être retournés manuellement.{pt-br}Fichas de Monstros precisam ser viradas manualmente{de}Monsterplättchen müssen manuell umgedreht werden.", {1,1,0.5})
 	else
 		gStates.autoFlip=true
 		UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Deactive")
-		broadcastToAll("{en}Script will flip monster tokens for you.{ru}Скрипт будет переворачивать жетоны врагов за вас.{zh-cn}脚本将为你翻转怪物标记. {ko}스크립트가 자동으로 토큰을 뒤집습니다.{es}Script le dará la vuelta a las fichas de monstruos.{fr}Le script retournera les jetons monstre pour vous.{pt-br}O Script virará as fichas de monstros por você.{de}Das Skript dreht die Monsterplättchen für dich um.", {1,1,0.5})
+		broadcastToAll("{en}Script will flip monster tokens for you.{ru}Скрипт будет переворачивать жетоны врагов за вас.{zh-tw}脚本将为你翻转怪物标记. {zh-cn}脚本将为你翻转怪物标记. {ko}스크립트가 자동으로 토큰을 뒤집습니다.{es}Script le dará la vuelta a las fichas de monstruos.{fr}Le script retournera les jetons monstre pour vous.{pt-br}O Script virará as fichas de monstros por você.{de}Das Skript dreht die Monsterplättchen für dich um.", {1,1,0.5})
 	end
 end
 
