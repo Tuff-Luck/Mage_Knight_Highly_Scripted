@@ -140,18 +140,23 @@ local function setupConfigureRulebook(rulebook,page)
 		if numeric~=nil and rulebook.book~=nil then rulebook.book.setPage(math.floor(numeric)-1) end
 		rulebook.lock()
 	end
-	if rulebook.resting==true then
-		apply()
-	else
+	--TTS can report a Book taken from a bag as resting before its Book component has finished
+	--initialising. The old setup deliberately gave manuals five seconds before touching page/lock
+	--state. Keep that asynchronous grace period; it does not hold up any other setup stage.
+	safeWaitTime("SetupGame",function()
+		if rulebook~=nil and rulebook.resting==true then
+			apply()
+			return
+		end
 		safeWaitCondition("SetupGame",apply,function()
 			return rulebook~=nil and rulebook.resting==true
 		end,10,function()
 			--Reference manuals are not setup dependencies. Apply their final state even if TTS never
 			--reports resting, rather than leaving every manual unconfigured.
 			apply()
-			print("SETUP WARNING: rulebook "..tostring(rulebook.guid).." did not report resting within 10 seconds; configured anyway.")
+			print("SETUP WARNING: rulebook "..tostring(rulebook.guid).." did not report resting within 10 seconds after its initialization delay; configured anyway.")
 		end)
-	end
+	end,5)
 end
 
 local function setupCoreSystemsReady()
