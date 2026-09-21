@@ -1,14 +1,81 @@
--- Physical setup for monster pools and expansion bag merging.
+-- Physical setup for monster pools and Tezla scenario components.
+-- The save starts with the ordinary monster pools already containing all Lost Legion and Tezla
+-- enemy tokens. Setup only removes excluded expansion tokens or moves Tezla tokens into the
+-- dedicated faction pools required by a scenario.
 
-local monsterSetupPendingMerges=0
-local monsterSetupExpectedQuantity={}
+local monsterSetupMoves={}
 local monsterSetupLeadersReady=false
 
-local function monsterMergeContentsReady()
-	if monsterSetupPendingMerges~=0 then return false end
-	for guid,expected in pairs(monsterSetupExpectedQuantity) do
-		local pile=getObjectFromGUID(guid)
-		if pile==nil or pile.getQuantity()<expected then return false end
+local lostLegionEnemyPools={
+	{source=monsterPiles.green,tokens={"643901","30df98","f0d27a","994ee9","e17886","8ffd9e","28bc08","0cc1e5"}},
+	{source=monsterPiles.tan,tokens={"013cb1","16d47c","ce794a","863ba1","558de1","277cd2"}},
+	{source=monsterPiles.red,tokens={"be5c5e","9156c4","80d998","17bcd9","09ec72","b7dca2"}},
+	{source=monsterPiles.yellow,tokens={"58c5ab","2f9a1f","28cc9c"}},
+	{source=monsterPiles.gray,tokens={"3f4b5e","88ecaa","bc5065","808631","8ea708","f11b70","7e72a2","90755e"}},
+	{source=monsterPiles.purple,tokens={"490a69","b8f920","23fe94","8a3f72"}},
+	{source=monsterPiles.white,tokens={"c0c315","eae753","e9a281","e6859f","864fe1","729056"}}
+}
+
+local darkCrusaderEnemyPools={
+	{source=monsterPiles.green,destination=monsterPiles.greenDark,tokens={"0c5f4d","698829","f87e33","565ecd","f85b1e","d549a5","39d58e","8efc22"}},
+	{source=monsterPiles.tan,destination=monsterPiles.tanDark,tokens={"863ba2","558de0","013cb2","61eb06"}},
+	{source=monsterPiles.red,destination=monsterPiles.redDark,tokens={"c77902","f87e32","342ed4","0d0645"}}
+}
+
+local elementalistEnemyPools={
+	{source=monsterPiles.green,destination=monsterPiles.greenElem,tokens={"8efc20","64b218","698828","adec2a","e9911f","60e427","a04726","f87e31"}},
+	{source=monsterPiles.tan,destination=monsterPiles.tanElem,tokens={"00c4da","863bab","013cb3","61eb07"}},
+	{source=monsterPiles.red,destination=monsterPiles.redElem,tokens={"c77901","6cad42","5d4e06","f87e39"}}
+}
+
+local function monsterBagContainsGUID(bag,guid)
+	if bag==nil then return false end
+	for _,entry in ipairs(bag.getObjects()) do
+		if entry.guid==guid then return true end
+	end
+	return false
+end
+
+local function moveMonsterToken(sourceGUID,tokenGUID,destinationGUID)
+	local source=getObjectFromGUID(sourceGUID)
+	if source==nil then error("SetupGame missing monster source bag "..tostring(sourceGUID),2) end
+	local token=safeTakeObject("SetupGame",source,{guid=tokenGUID,smooth=false})
+	if token==nil then error("SetupGame could not extract monster token "..tostring(tokenGUID).." from "..tostring(sourceGUID),2) end
+	if destinationGUID~=nil then
+		local destination=getObjectFromGUID(destinationGUID)
+		if destination==nil then error("SetupGame missing monster destination bag "..tostring(destinationGUID),2) end
+		destination.putObject(token)
+	else
+		local trash=getObjectFromGUID(trashCan)
+		if trash==nil then error("SetupGame missing trash chest while removing monster token "..tostring(tokenGUID),2) end
+		trash.putObject(token)
+	end
+	monsterSetupMoves[#monsterSetupMoves+1]={source=sourceGUID,destination=destinationGUID,guid=tokenGUID}
+end
+
+local function moveMonsterPoolSet(poolSet,toFaction)
+	for _,pool in ipairs(poolSet) do
+		for _,tokenGUID in ipairs(pool.tokens) do
+			moveMonsterToken(pool.source,tokenGUID,toFaction==true and pool.destination or nil)
+		end
+	end
+end
+
+local function destroyMonsterBags(guids)
+	for _,guid in ipairs(guids) do
+		local bag=getObjectFromGUID(guid)
+		if bag~=nil then bag.destruct() end
+	end
+end
+
+local function monsterPoolConfigurationReady()
+	for _,move in ipairs(monsterSetupMoves) do
+		local source=getObjectFromGUID(move.source)
+		if source==nil or monsterBagContainsGUID(source,move.guid)==true then return false end
+		if move.destination~=nil then
+			local destination=getObjectFromGUID(move.destination)
+			if destination==nil or monsterBagContainsGUID(destination,move.guid)~=true then return false end
+		end
 	end
 	return true
 end
@@ -25,77 +92,79 @@ local function shuffleMonsterPiles()
 	gStates.monsterSetupReady=true
 end
 
-local function mergeMonsterBag(source,destination,container)
-	local destinationBag=getObjectFromGUID(destination)
-	if destinationBag==nil then error("SetupGame missing monster destination bag "..tostring(destination),2) end
-	monsterSetupPendingMerges=monsterSetupPendingMerges+1
-	local p=destinationBag.getPosition()
-	local temp=safeTakeObject("SetupGame",getObjectFromGUID(container),{
-		position={p[1],-2,p[3]},
-		smooth=false,
-		guid=source,
-		callback_function=function(sourceBag)
-			local count=#sourceBag.getObjects()
-			local baseline=monsterSetupExpectedQuantity[destination]
-			if baseline==nil then baseline=destinationBag.getQuantity() end
-			monsterSetupExpectedQuantity[destination]=baseline+count
-			for _=1,count do destinationBag.putObject(sourceBag.takeObject({smooth=false})) end
-			sourceBag.destruct()
-			monsterSetupPendingMerges=monsterSetupPendingMerges-1
-		end})
-	if temp==nil then
-		monsterSetupPendingMerges=monsterSetupPendingMerges-1
-		error("SetupGame could not extract monster bag "..tostring(source),2)
+local function deployTezlaComponents(entries,includeScenarioComponents)
+	local tezlaBag=getObjectFromGUID(GUID.bag.tezla)
+	if tezlaBag==nil then error("SetupGame missing Shades of Tezla component bag.",2) end
+	for _,entry in ipairs(entries) do
+		if entry.always==true or includeScenarioComponents==true then
+			local obj=safeTakeObject("SetupGame",tezlaBag,{
+				guid=entry.guid,
+				position=entry.position,
+				rotation={0,180,entry.flip or 0},
+				smooth=false})
+			if obj==nil then error("SetupGame could not deploy Shades of Tezla component "..tostring(entry.guid),2) end
+			obj.lock()
+		end
 	end
 end
 
---Monster Pug Setup
+--Monster Pool Setup
 function monsterSetup()
-	monsterSetupPendingMerges=0
-	monsterSetupExpectedQuantity={}
+	monsterSetupMoves={}
 	monsterSetupLeadersReady=false
 	gStates.monsterSetupReady=false
-	if gStates.removeLostLegionExpansion==false then
-		local LostLegion={["89a23e"]=monsterPiles.green, ["77e1c6"]=monsterPiles.tan, ["143108"]=monsterPiles.red, ["88ff48"]=monsterPiles.gray, ["bf4140"]=monsterPiles.purple, ["fe25be"]=monsterPiles.white, ["b65694"]=monsterPiles.yellow}
-		for mergeBag, destinationBag in pairs(LostLegion) do
-			mergeMonsterBag(mergeBag, destinationBag, GUID.bag.lostLegion)
-		end
-	end
+
+	--Lost Legion enemies are already in the seven normal pools. Removing the expansion is subtractive.
+	if gStates.removeLostLegionExpansion==true then moveMonsterPoolSet(lostLegionEnemyPools,false) end
+
+	local scenario=gStates.gameScenario
+	local darkSupport=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="Ultimate Conquest" or scenario=="The Realm of the Dead Blitz"
+	local elemSupport=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="Ultimate Conquest" or scenario=="The Hidden Valley Blitz"
+	local darkFactionEnemies=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="The Realm of the Dead Blitz"
+	local elemFactionEnemies=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="The Hidden Valley Blitz"
+	local darkBags={monsterPiles.greenDark,monsterPiles.tanDark,monsterPiles.redDark}
+	local elemBags={monsterPiles.greenElem,monsterPiles.tanElem,monsterPiles.redElem}
+	local darkComponents={
+		{guid=darkCrusader.disc,position={-52.00,0.97,6.50}},
+		{guid=darkCrusader.token,position={-55.30,0.97,10.20}},
+		{guid=darkCrusader.terrainHex,position={-34.70,0.98,-27.00}},
+		{guid="f8c83e",position={-65.16,0.98,-5.50}},
+		{guid=GUID.bag.cemetery,position={-36.09,0.97,-24.87},flip=180},
+		{guid=monsterPiles.rewardDark,position={-46.13,0.98,13.99},always=true},
+		{guid="2ca34f",position={-53.50,0.98,15.50},always=true}
+	}
+	local elemComponents={
+		{guid=elementalist.disc,position={-63.50,0.97,6.50}},
+		{guid=elementalist.token,position={-67.00,0.97,10.20}},
+		{guid=elementalist.terrainHex,position={-37.49,0.98,-27.00}},
+		{guid="7121c7",position={-70.16,0.98,-5.50}},
+		{guid=monsterPiles.rewardElem,position={-46.13,0.98,16.99},always=true},
+		{guid="8fe07e",position={-49.50,0.98,15.50},always=true}
+	}
+
 	if gStates.removeShadesOfTezlaMonsters~=true then
-		local darkCrusaderLocations={[monsterPiles.greenDark]={-48.63, 0.98, -6.00}, [monsterPiles.tanDark]={-48.63, 0.98, -3.50}, [monsterPiles.redDark]={-48.63, 0.98, -1.00},
-							[darkCrusader.disc]={-52.00, 0.97, 6.50}, [darkCrusader.token]={-55.30, 0.97, 10.20}, [darkCrusader.terrainHex]={-34.70, 0.98, -27.00},
-							["f8c83e"]={-65.16, 0.98, -5.50}, [GUID.bag.cemetery]={-36.09, 0.97, -24.87}, [monsterPiles.rewardDark]={-46.13, 0.98, 13.99}, ["2ca34f"]={-53.50, 0.98, 15.50}}
-							--Necropolis Info Card, Graveyards, Rewards, Reward info card
-		local elementalistLocations={[monsterPiles.greenElem]={-51.13, 0.98, -6.00}, [monsterPiles.tanElem]={-51.13, 0.98, -3.50}, [monsterPiles.redElem]={-51.13, 0.98, -1.00},
-							[elementalist.disc]={-63.50, 0.97, 6.50}, [elementalist.token]={-67.00, 0.97, 10.20}, [elementalist.terrainHex]={-37.49, 0.98, -27.00},
-							["7121c7"]={-70.16, 0.98, -5.50}, [monsterPiles.rewardElem]={-46.13, 0.98, 16.99}, ["8fe07e"]={-49.50, 0.98, 15.50}}
-							--Hidden Valley Info Card, Rewards, Reward info card
-		local mergeDestination={[monsterPiles.greenDark]=monsterPiles.green, [monsterPiles.tanDark]=monsterPiles.tan, [monsterPiles.redDark]=monsterPiles.red, [monsterPiles.greenElem]=monsterPiles.green, [monsterPiles.tanElem]=monsterPiles.tan, [monsterPiles.redElem]=monsterPiles.red}
-		local allowed={[monsterPiles.rewardDark]=true, ["2ca34f"]=true, [monsterPiles.rewardElem]=true, ["8fe07e"]=true}
-		local workingOn=darkCrusaderLocations
-		for a=1, 2, 1 do
-			for objGuid, location in pairs(workingOn) do
-				if mergeDestination[objGuid]~=nil and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The War of Four" and
-					((a==1 and gStates.gameScenario~="The Realm of the Dead Blitz") or (a==2 and gStates.gameScenario~="The Hidden Valley Blitz")) then
-					mergeMonsterBag(objGuid, mergeDestination[objGuid], GUID.bag.tezla)
-				else
-					if allowed[objGuid]~=nil or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four" or gStates.gameScenario=="Ultimate Conquest" or
-						(a==1 and gStates.gameScenario=="The Realm of the Dead Blitz") or (a==2 and gStates.gameScenario=="The Hidden Valley Blitz") then
-						local flip=0
-						if mergeDestination[objGuid]~=nil or objGuid==GUID.bag.cemetery then flip=180 end
-						local obj=getObjectFromGUID(GUID.bag.tezla).takeObject({guid=objGuid, position=location, rotation={0, 180, flip}, smooth=false}).lock()
-					end
-				end
-			end
-			workingOn=elementalistLocations
+		deployTezlaComponents(darkComponents,darkSupport)
+		deployTezlaComponents(elemComponents,elemSupport)
+
+		--The six faction bags load empty in their table positions. Fill only the faction pools used by
+		--this scenario; otherwise delete those bags and leave their enemies in the normal pools.
+		if darkFactionEnemies==true then moveMonsterPoolSet(darkCrusaderEnemyPools,true) else destroyMonsterBags(darkBags) end
+		if elemFactionEnemies==true then moveMonsterPoolSet(elementalistEnemyPools,true) else destroyMonsterBags(elemBags) end
+	else
+		moveMonsterPoolSet(darkCrusaderEnemyPools,false)
+		moveMonsterPoolSet(elementalistEnemyPools,false)
+		destroyMonsterBags(darkBags)
+		destroyMonsterBags(elemBags)
+		--Custom Mage Knights can still use Tezla rewards even when the Tezla enemies are removed.
+		if gStates.useCustomMageKnights==true then
+			deployTezlaComponents(darkComponents,false)
+			deployTezlaComponents(elemComponents,false)
 		end
-		if gStates.gameScenario=="Life and Death" then getObjectFromGUID(GUID.bag.tezla).takeObject({guid="27911e", smooth=false, position={-50.63, 1.47, 1.16}}) end --Faction Die
 	end
-	if gStates.removeShadesOfTezlaMonsters==true and gStates.useCustomMageKnights==true then
-		getObjectFromGUID(GUID.bag.tezla).takeObject({guid=monsterPiles.rewardElem, position={-46.13, 0.98, 16.99}, rotation={0, 180, 0}, smooth=false}).lock()
-		getObjectFromGUID(GUID.bag.tezla).takeObject({guid="8fe07e", position={-49.50, 0.98, 15.50}, rotation={0, 180, 0}, smooth=false}).lock()
-		getObjectFromGUID(GUID.bag.tezla).takeObject({guid=monsterPiles.rewardDark, position={-46.13, 0.98, 13.99}, rotation={0, 180, 0}, smooth=false}).lock()
-		getObjectFromGUID(GUID.bag.tezla).takeObject({guid="2ca34f", position={-53.50, 0.98, 15.50}, rotation={0, 180, 0}, smooth=false}).lock()
+
+	if scenario=="Life and Death" then
+		local factionDie=safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.tezla),{guid="27911e",smooth=false,position={-50.63,1.47,1.16}})
+		if factionDie==nil then error("SetupGame could not deploy the Life and Death faction die.",2) end
 	end
 	--Set faction leader levels when the physical leader pieces have actually registered.
 	local leaderLevel=gStates.cityLevels[1]
@@ -181,6 +250,6 @@ function monsterSetup()
 	--Monster piles are ready only when every merge is physically reflected in its destination and
 	--the optional faction-leader setup has completed.
 	safeWaitCondition("SetupGame",shuffleMonsterPiles,function()
-		return monsterSetupLeadersReady==true and monsterMergeContentsReady()==true
+		return monsterSetupLeadersReady==true and monsterPoolConfigurationReady()==true
 	end,15,function() error("SetupGame timed out waiting for monster setup to complete.",2) end)
 end
