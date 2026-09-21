@@ -369,14 +369,14 @@ end
 local function apocalypseQuestReturnTuckedCard(card, questName)
 	local destinationGUID, destinationName=apocalypseQuestTuckedCardDestination(card)
 	if destinationGUID==nil then
-		broadcastToAll("Quest cleanup: Could not identify where \""..apocalypseQuestCardTitle(card).."\" from \""..questName.."\" belongs. It has been left on the table.", {1,0.55,0.2})
+		broadcastToAll(joinLang({"{en}Quest cleanup: Could not identify where \"{ru}Очистка задания: не удалось определить, куда вернуть \"{zh-tw}任務清理：無法判斷 \"{zh-cn}任务清理：无法判断 \"{ko}퀘스트 정리: \"{es}Limpieza de Misión: no se pudo determinar dónde va \"{fr}Nettoyage de Quête : impossible de déterminer où doit aller \"{pt-br}Limpeza da Missão: não foi possível determinar onde \"{de}Quest-Bereinigung: Es konnte nicht ermittelt werden, wohin \"",apocalypseQuestCardTitle(card),"{en}\" from \"{ru}\" из задания \"{zh-tw}\"（來自 \"{zh-cn}\"（来自 \"{ko}\" 카드가 \"{es}\" de \"{fr}\" provenant de \"{pt-br}\" de \"{de}\" aus \"",questName,"{en}\" belongs. It has been left on the table.{ru}\". Карта оставлена на столе.{zh-tw}\"）應歸還到哪裡。它已留在桌上。{zh-cn}\"）应归还到哪里。它已留在桌上。{ko}\"에서 어디로 돌아가야 하는지 확인하지 못했습니다. 테이블에 남겨 두었습니다.{es}\". Se ha dejado sobre la mesa.{fr}\". La carte a été laissée sur la table.{pt-br}\" deve ir. Ela foi deixada na mesa.{de}\" gehört. Die Karte wurde auf dem Tisch liegen gelassen."}), {1,0.55,0.2})
 		return false
 	end
 	--Standard offers can eventually collapse to a single Card, so find the live deck/card in its deck zone
 	--instead of assuming the original setup Deck GUID still exists.
 	local destination=standardDeckCycleObject(destinationName) or getObjectFromGUID(destinationGUID)
 	if destination==nil or destination.guid==card.guid or (destination.type~="Deck" and destination.type~="Card") then
-		broadcastToAll("Quest cleanup: The "..destinationName.." deck was not available for \""..apocalypseQuestCardTitle(card).."\" from \""..questName.."\". It has been left on the table.", {1,0.55,0.2})
+		broadcastToAll(joinLang({"{en}Quest cleanup: The {ru}Очистка задания: колода {zh-tw}任務清理：{zh-cn}任务清理：{ko}퀘스트 정리: {es}Limpieza de Misión: el mazo de {fr}Nettoyage de Quête : le paquet {pt-br}Limpeza da Missão: o baralho {de}Quest-Bereinigung: Der Stapel ",destinationName,"{en} deck was not available for \"{ru} недоступна для \"{zh-tw} 牌庫無法接收 \"{zh-cn} 牌库无法接收 \"{ko} 덱을 \"{es} no estaba disponible para \"{fr} n’était pas disponible pour \"{pt-br} não estava disponível para \"{de} war nicht verfügbar für \"",apocalypseQuestCardTitle(card),"\"{en} from \"{ru} из \"{zh-tw}（來自 \"{zh-cn}（来自 \"{ko} (\"{es} de \"{fr} de \"{pt-br} de \"{de} aus \"",questName,"{en}\". It has been left on the table.{ru}\". Карта оставлена на столе.{zh-tw}\"）。它已留在桌上。{zh-cn}\"）。它已留在桌上。{ko}\"). 테이블에 남겨 두었습니다.{es}\". Se ha dejado sobre la mesa.{fr}\". La carte a été laissée sur la table.{pt-br}\". Ela foi deixada na mesa.{de}\". Die Karte wurde auf dem Tisch liegen gelassen."}), {1,0.55,0.2})
 		return false
 	end
 	local cardGUID=card.guid
@@ -393,11 +393,11 @@ local function apocalypseQuestReturnTuckedCard(card, questName)
 		local liveDestination=standardDeckCycleObject(destinationName) or getObjectFromGUID(destinationGUID)
 		if liveCard==nil then return end
 		if liveDestination==nil or liveDestination.guid==liveCard.guid or (liveDestination.type~="Deck" and liveDestination.type~="Card") then
-			broadcastToAll("Quest cleanup: The "..destinationName.." deck disappeared before \""..cardTitle.."\" could be returned.", {1,0.55,0.2})
+			broadcastToAll(joinLang({"{en}Quest cleanup: The {ru}Очистка задания: колода {zh-tw}任務清理：{zh-cn}任务清理：{ko}퀘스트 정리: {es}Limpieza de Misión: el mazo de {fr}Nettoyage de Quête : le paquet {pt-br}Limpeza da Missão: o baralho {de}Quest-Bereinigung: Der Stapel ",destinationName,"{en} deck disappeared before \"{ru} исчезла до того, как удалось вернуть \"{zh-tw} 牌庫在 \"{zh-cn} 牌库在 \"{ko} 덱이 \"{es} desapareció antes de que \"{fr} a disparu avant que \"{pt-br} desapareceu antes que \"{de} verschwand, bevor \"",cardTitle,"{en}\" could be returned.{ru}\".{zh-tw}\" 歸還前消失了。{zh-cn}\" 归还前消失了。{ko}\" 카드를 돌려놓기 전에 사라졌습니다.{es}\" pudiera devolverse.{fr}\" puisse être rendue.{pt-br}\" pudesse ser devolvida.{de}\" zurückgelegt werden konnte."}), {1,0.55,0.2})
 			return
 		end
 		putCardAtBottom(liveDestination,liveCard)
-		broadcastToAll("Quest cleanup: \""..cardTitle.."\" returned to the bottom of the "..destinationName.." deck.", {1,1,0.5})
+		broadcastToAll(joinLang({"{en}Quest cleanup: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",cardTitle,"{en}\" returned to the bottom of the {ru}\" возвращена на дно колоды {zh-tw}\" 已歸還到 {zh-cn}\" 已归还到 {ko}\" 카드를 {es}\" volvió al fondo del mazo de {fr}\" a été remise sous le paquet {pt-br}\" voltou para o fundo do baralho {de}\" wurde unter den Stapel ",destinationName,"{en} deck.{ru}.{zh-tw} 牌庫底部。{zh-cn} 牌库底部。{ko} 덱 맨 아래로 돌려놓았습니다.{es}.{fr}.{pt-br}.{de} gelegt."}), {1,1,0.5})
 	end,2)
 	return true
 end
@@ -518,7 +518,7 @@ function apocalypseQuestRevealSetup(card)
 			local tokenBag=getObjectFromGUID(GUID.bag.apocalypseQuestTokens)
 			local taken=tokenBag~=nil and safeTakeObject("Quests",tokenBag,{guid=revealGUID,position=revealPos,rotation={0,180,0},smooth=false,callback_function=function(obj) if obj~=nil then obj.unlock() end end}) or nil
 			track(taken)
-			if taken==nil then broadcastToAll("Quest setup: "..apocalypseQuestName(card).." could not find its reward-token bag.",{1,0.55,0.2}) end
+			if taken==nil then broadcastToAll(joinLang({"{en}Quest setup: {ru}Подготовка задания: {zh-tw}任務設置：{zh-cn}任务设置：{ko}퀘스트 설정: {es}Preparación de Misión: {fr}Mise en place de Quête : {pt-br}Preparação da Missão: {de}Quest-Aufbau: ",apocalypseQuestName(card),"{en} could not find its reward-token bag.{ru} не смогло найти мешок жетонов награды.{zh-tw} 找不到獎勵標記袋。{zh-cn} 找不到奖励标记袋。{ko} 보상 토큰 주머니를 찾지 못했습니다.{es} no pudo encontrar su bolsa de fichas de recompensa.{fr} n’a pas pu trouver son sac de jetons de récompense.{pt-br} não conseguiu encontrar sua bolsa de fichas de recompensa.{de} konnte seinen Belohnungsmarker-Beutel nicht finden."}),{1,0.55,0.2}) end
 		end
 	end
 
@@ -644,7 +644,7 @@ function apocalypseQuestSiteTokenDropped(token)
 		if info~=nil then info.setRotationSmooth({0,180,0}) end
 	end
 	token.lock()
-	broadcastToAll("Quest site placed: "..site..".", {1,1,0.5})
+	broadcastToAll(joinLang({"{en}Quest site placed: {ru}Место задания размещено: {zh-tw}已放置任務地點：{zh-cn}已放置任务地点：{ko}퀘스트 장소 배치: {es}Lugar de Misión colocado: {fr}Site de Quête placé : {pt-br}Local da Missão colocado: {de}Quest-Ort platziert: ",site,"."}), {1,1,0.5})
 	fakeDropAvatar()
 	return true
 end
@@ -658,10 +658,10 @@ local function apocalypseQuestLoseReputation(playerIndex, questName, reason)
 	local explanation=reason=="abandon" and " for abandoning Personal Quest \""..questName.."\"." or reason=="fail" and " for failing Quest \""..questName.."\"." or reason=="effect" and " from completing \""..questName.."\"." or " because their Shield was on Personal Quest \""..questName.."\"."
 	if details.repGain>(-7-details.reputation) then
 		details.repGain=details.repGain-1
-		broadcastToAll(prefix..tostring(details.mage).." loses 1 Reputation"..explanation, positionToColor(playerIndex))
+		broadcastToAll(joinLang({prefix,translateWord[details.mage] or tostring(details.mage),"{en} loses 1 Reputation{ru} теряет 1 Репутацию{zh-tw} 失去 1 聲望{zh-cn} 失去 1 声望{ko}이(가) 평판 1을 잃습니다{es} pierde 1 de Reputación{fr} perd 1 Réputation{pt-br} perde 1 de Reputação{de} verliert 1 Ansehen",explanation}), positionToColor(playerIndex))
 		if playerIndex==gStates.turnNumber then mainUIUpdate("Quest Reputation loss") end
 	else
-		broadcastToAll(prefix..tostring(details.mage).." is already at minimum Reputation after pending changes; no further Reputation can be lost.", positionToColor(playerIndex))
+		broadcastToAll(joinLang({prefix,translateWord[details.mage] or tostring(details.mage),"{en} is already at minimum Reputation after pending changes; no further Reputation can be lost.{ru} уже имеет минимальную Репутацию с учётом ожидающих изменений; больше Репутации потерять нельзя.{zh-tw} 在計入待處理變更後已達最低聲望；不能再失去聲望。{zh-cn} 在计入待处理变更后已达最低声望；不能再失去声望。{ko}은(는) 대기 중인 변경을 반영하면 이미 최저 평판입니다. 더 이상 평판을 잃을 수 없습니다.{es} ya está en la Reputación mínima tras los cambios pendientes; no puede perder más Reputación.{fr} est déjà à la Réputation minimale après les changements en attente ; aucune Réputation supplémentaire ne peut être perdue.{pt-br} já está na Reputação mínima após as alterações pendentes; não pode perder mais Reputação.{de} ist nach den ausstehenden Änderungen bereits beim minimalen Ansehen; weiteres Ansehen kann nicht verloren werden."}), positionToColor(playerIndex))
 	end
 	return true
 end
@@ -674,10 +674,10 @@ function apocalypseQuestGainReputation(playerIndex, questName)
 	details.repGain=details.repGain or 0
 	if details.repGain<(7-details.reputation) then
 		details.repGain=details.repGain+1
-		broadcastToAll("Quest reward: "..tostring(details.mage).." gains 1 Reputation from completing \""..tostring(questName or "a Quest").."\".", positionToColor(playerIndex))
+		broadcastToAll(joinLang({"{en}Quest reward: {ru}Награда задания: {zh-tw}任務獎勵：{zh-cn}任务奖励：{ko}퀘스트 보상: {es}Recompensa de Misión: {fr}Récompense de Quête : {pt-br}Recompensa da Missão: {de}Quest-Belohnung: ",translateWord[details.mage] or tostring(details.mage),"{en} gains 1 Reputation from completing \"{ru} получает 1 Репутацию за завершение \"{zh-tw} 完成 \"{zh-cn} 完成 \"{ko}이(가) \"{es} gana 1 de Reputación por completar \"{fr} gagne 1 Réputation pour avoir terminé \"{pt-br} ganha 1 de Reputação por concluir \"{de} erhält 1 Ansehen für den Abschluss von \"",tostring(questName or "a Quest"),"\"."}), positionToColor(playerIndex))
 		mainUIUpdate("Quest Reputation reward")
 	else
-		broadcastToAll("Quest reward: "..tostring(details.mage).." is already at maximum Reputation after pending changes.", positionToColor(playerIndex))
+		broadcastToAll(joinLang({"{en}Quest reward: {ru}Награда задания: {zh-tw}任務獎勵：{zh-cn}任务奖励：{ko}퀘스트 보상: {es}Recompensa de Misión: {fr}Récompense de Quête : {pt-br}Recompensa da Missão: {de}Quest-Belohnung: ",translateWord[details.mage] or tostring(details.mage),"{en} is already at maximum Reputation after pending changes.{ru} уже имеет максимальную Репутацию с учётом ожидающих изменений.{zh-tw} 在計入待處理變更後已達最高聲望。{zh-cn} 在计入待处理变更后已达最高声望。{ko}은(는) 대기 중인 변경을 반영하면 이미 최대 평판입니다.{es} ya está en la Reputación máxima tras los cambios pendientes.{fr} est déjà à la Réputation maximale après les changements en attente.{pt-br} já está na Reputação máxima após as alterações pendentes.{de} ist nach den ausstehenden Änderungen bereits beim maximalen Ansehen."}), positionToColor(playerIndex))
 	end
 	return true
 end
@@ -775,7 +775,7 @@ function apocalypseQuestPlaceManaTokenOnCard(card,color,offsetX,offsetZ,reason)
 	if card==nil then return nil end
 	local bag=apocalypseQuestManaBag(color)
 	if bag==nil or bag.getQuantity()==0 then
-		broadcastToAll("Quest effect: no "..tostring(color).." mana token is available for "..tostring(reason or "this Quest")..".",{1,0.55,0.2})
+		broadcastToAll(joinLang({"{en}Quest effect: no {ru}Эффект задания: нет доступного жетона маны {zh-tw}任務效果：沒有可用的 {zh-cn}任务效果：没有可用的 {ko}퀘스트 효과: 사용할 수 있는 {es}Efecto de Misión: no hay ficha de maná {fr}Effet de Quête : aucun jeton de mana {pt-br}Efeito da Missão: não há ficha de mana {de}Quest-Effekt: Es ist kein ",translateWord[color] or tostring(color),"{en} mana token is available for {ru} для {zh-tw} 魔力標記供 {zh-cn} 魔力标记供 {ko} 마나 토큰이 없습니다: {es} disponible para {fr} disponible pour {pt-br} disponível para {de}-Manamarker verfügbar für ",tostring(reason or "this Quest"),"."}),{1,0.55,0.2})
 		return nil
 	end
 	local pos=apocalypseQuestPlannedCardPosition(card) or card.getPosition()
@@ -787,16 +787,16 @@ end
 function apocalypseQuestGiveCrystal(playerIndex, color, position, reason)
 	if turnOrder[playerIndex]==nil or mineCrystalBagKey[color]==nil then return false end
 	if mineCrystalCount(playerIndex, color)>=3 then
-		broadcastToAll(tostring(turnOrder[playerIndex].mage).." could not gain the "..color.." crystal from "..tostring(reason or "a Quest").." because their Inventory already has 3.", positionToColor(playerIndex))
+		broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} could not gain the {ru} не смог получить {zh-tw} 無法獲得 {zh-cn} 无法获得 {ko}이(가) {es} no pudo ganar el cristal {fr} n’a pas pu gagner le cristal {pt-br} não pôde ganhar o cristal {de} konnte den ",translateWord[color] or color,"{en} crystal from {ru} кристалл из {zh-tw} 水晶（來自 {zh-cn} 水晶（来自 {ko} 크리스털을 얻지 못했습니다: {es} de {fr} de {pt-br} de {de}-Kristall aus ",tostring(reason or "a Quest"),"{en} because their Inventory already has 3.{ru}, потому что в Инвентаре уже есть 3.{zh-tw}），因為庫存中已有 3 顆。{zh-cn}），因为库存中已有 3 颗。{ko}. 인벤토리에 이미 3개가 있습니다.{es} porque su Inventario ya tiene 3.{fr} car son Inventaire en contient déjà 3.{pt-br} porque seu Inventário já tem 3.{de} nicht erhalten, da das Inventar bereits 3 enthält."}), positionToColor(playerIndex))
 		return false
 	end
 	local bag=getObjectFromGUID(GUID.bag.mana[mineCrystalBagKey[color]])
 	if bag==nil or bag.getQuantity()==0 then
-		broadcastToAll("Quest reward: no "..color.." crystal is available in the supply.", {1,0.55,0.2})
+		broadcastToAll(joinLang({"{en}Quest reward: no {ru}Награда задания: в запасе нет {zh-tw}任務獎勵：供應區沒有可用的 {zh-cn}任务奖励：供应区没有可用的 {ko}퀘스트 보상: 공급처에 사용할 수 있는 {es}Recompensa de Misión: no hay cristal {fr}Récompense de Quête : aucun cristal {pt-br}Recompensa da Missão: não há cristal {de}Quest-Belohnung: Im Vorrat ist kein ",translateWord[color] or color,"{en} crystal is available in the supply.{ru} кристалла.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털이 없습니다.{es} disponible en la reserva.{fr} disponible dans la réserve.{pt-br} disponível na reserva.{de}-Kristall verfügbar."}), {1,0.55,0.2})
 		return false
 	end
 	takeManaCrystal(bag,{position=position or mineInventoryPosition(playerIndex, color),smooth=true})
-	broadcastToAll(tostring(turnOrder[playerIndex].mage).." gained a "..color.." crystal from "..tostring(reason or "a Quest")..".", positionToColor(playerIndex))
+	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} gained a {ru} получил {zh-tw} 獲得了 {zh-cn} 获得了 {ko}이(가) {es} ganó un cristal {fr} a gagné un cristal {pt-br} ganhou um cristal {de} erhielt einen ",translateWord[color] or color,"{en} crystal from {ru} кристалл из {zh-tw} 水晶，來源：{zh-cn} 水晶，来源：{ko} 크리스털을 얻었습니다: {es} de {fr} de {pt-br} de {de}-Kristall aus ",tostring(reason or "a Quest"),"."}), positionToColor(playerIndex))
 	return true
 end
 
