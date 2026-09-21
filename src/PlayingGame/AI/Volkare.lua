@@ -701,3 +701,37 @@ function volkareCoopDefense(player, mouseButton, id)
 		applyColorBarButtons()
 	end
 end
+
+-- Volkare reminder token randomization
+local volkareDiceRolled=false
+function volkareTokenRandomize(token)--9a686a
+	local VolkareReminder={	["Black Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414015137/203E9CF64831CC5BBB43AAEC5CCBC9B450B2304E/",
+							["Blue Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203413988434/BF2446CF89EF2F4398C38B32F5CAB104FCCE94AC/",
+							["White Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414024554/8541C7CC8BC88442619F8921DAA50CAE0BCD88E9/",
+							["Green Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414009198/C52B548C26AC08BCE1237A114A47DC973D0CE7D9/",
+							["Red Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414000318/7F26EE486FD34E0FD08E0653EF4DACCB69F38A87/",
+							["Gold Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203413995197/64E0C4E59A98DAFB09633F31CA9D1279F0593CFD/",}
+	--roll volkares dice and read result
+	local volkareDice=getObjectFromGUID("9a686a")
+	if volkareDiceRolled==false then volkareDice.randomize() volkareDiceRolled=true end
+	safeWaitFrames("Volkare",function() safeWaitCondition("Volkare",function()
+		if token~=nil then
+			token.setCustomObject({image=VolkareReminder[volkareDice.getRotationValue()]})
+			token.reload()
+			if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={} end
+			gStates.monsterPerks[token.guid].arcaneImmunity=true
+			gStates.monsterPerks[token.guid].brutal=true
+			gStates.monsterPerks[token.guid].assassination=true
+			if volkareDice.getRotationValue()=="Red Mana" then gStates.monsterPerks[token.guid].attack={F={3}} end
+			if volkareDice.getRotationValue()=="Blue Mana" then gStates.monsterPerks[token.guid].attack={I={3}} end
+			if volkareDice.getRotationValue()=="Green Mana" then gStates.monsterPerks[token.guid].poison=true gStates.monsterPerks[token.guid].attack={P={4}} end
+			if volkareDice.getRotationValue()=="White Mana" then gStates.monsterPerks[token.guid].swiftness=true gStates.monsterPerks[token.guid].attack={P={3}} end
+			if volkareDice.getRotationValue()=="Black Mana" then gStates.monsterPerks[token.guid].paralyse=true	gStates.monsterPerks[token.guid].attack={P={3}} end
+			if volkareDice.getRotationValue()=="Gold Mana" then gStates.monsterPerks[token.guid].attack={IF={3}} end
+			if volkareDiceRolled==true then
+				broadcastToAll("{en}Volkare's Attack randomly picked{ru}Атака Волкара была определена{zh-tw}沃里卡随机挑选攻击对象{zh-cn}沃里卡随机挑选攻击对象{ko}볼케어의 공격이 결정되었습니다{es}Ataque de Volkare elegido al azar{fr}Attaque de Volkare choisie au hasard{pt-br}Ataque de Volkare aleatóriamente escolhido{de}Volkare's Angriff zufällig ausgewählt", {1,1,0.5})
+				volkareDiceRolled=false
+			end
+		end
+	end, function() return token==nil or (token.resting and volkareDice.resting) end) end, 2)
+end

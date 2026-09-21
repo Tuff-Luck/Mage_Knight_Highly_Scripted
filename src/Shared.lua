@@ -296,3 +296,14 @@ function isTacticCard(obj)
 	for i=1, #tacticCard do if obj.guid==tacticCard[i] then return true end end
 	return false
 end
+
+-- Shared table copy helper
+function tableCopy(obj, seen)
+	local seen=seen or {}
+	if type(obj)~='table' then return obj end
+	if seen[obj] then return seen[obj] end
+	local res=setmetatable({}, getmetatable(obj))
+	seen[obj]=res
+	for key, value in pairs(obj) do res[tableCopy(key, seen)]=tableCopy(value, seen) end
+	return res
+end

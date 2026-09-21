@@ -3088,3 +3088,147 @@ function pursuingRampagers(player, mouseButton, id)
 end
 
 --Adjust the offer size
+
+-- Leaving site combat cleanup
+function leaveAvatarSite(player)
+	local playArea=getObjectFromGUID(playerPlayAreas[player.seatPos])
+	if playArea~=nil then
+		--Undo Possessed before returning the enemy so the attachment becomes a real token again.
+		for _, obj in pairs(playArea.getObjects()) do
+			if monsterPugs[obj.guid]~=nil then
+				local possessedAttached=false
+				for _, attachment in pairs(obj.getAttachments()) do
+					if monsterPugs[attachment.guid]~=nil and monsterPugs[attachment.guid].pugType=="possessed" then possessedAttached=true break end
+				end
+				if possessedAttached then
+					for _, attachment in pairs(clearPossessedEnemy(obj)) do
+						local details=gStates.attackedMonsters[attachment.guid]
+						if details~=nil then
+							attachment.setRotation(details[2])
+							attachment.setPositionSmooth(details[1])
+							gStates.attackedMonsters[attachment.guid]=nil
+						end
+					end
+				end
+				if gStates.summonStates[obj.guid]=="SummonDone" then gStates.summonStates[obj.guid]=nil end
+			end
+		end
+	end
+
+	for guid, details in pairs(gStates.attackedMonsters) do
+		if details[3]=="summoned" then
+			gStates.summonStates[guid]=nil
+			if details[4]~=nil then gStates.summonStates[details[4]]=nil end
+		end
+		if getObjectFromGUID(guid)~=nil then
+			if getObjectFromGUID(guid).getName()=="{en}Volkare Reminder Token{zh-cn}沃里卡提醒标记{ko}볼케어 공격 토큰{es}Token de recordatorio de Volkare{fr}Jeton de rappel Volkare{pt-br}Token de lembrete de Volkare" then
+				getObjectFromGUID(guid).destruct()
+			else
+				getObjectFromGUID(guid).setRotation(details[2])
+				getObjectFromGUID(guid).setPositionSmooth(details[1])
+			end
+		end
+	end
+	gStates.attackedMonsters={}
+	gStates.monsterOffsetX=0
+	gStates.monsterOffsetZ=0
+	gStates.volkarePursuitCombat=nil
+	gStates.volkarePursuitChoicePlayer=nil
+	combatCameraChoiceSuppressedPlayer=nil
+	player.combatIconHide="None"
+
+	--Pyramid/Ziggurat trap reminders only belong to the site being interacted with.
+	if playArea~=nil then
+		for _, obj in pairs(playArea.getObjects()) do
+			if obj.getGMNotes()=="Trap Reminder Token" then
+				gStates.monsterPerks[obj.guid]=nil
+				obj.destruct()
+			end
+		end
+	end
+	UI.setAttribute("zigguratPyramidInteract", "active", "false")
+	gStates.zigguratPyramidUI=nil
+end
+
+-- Ziggurat and Pyramid interaction
+function zigguratPyramidInteract(_, mouseButton, id)
+	if mouseButton=="-1" then
+		local trapBag=monsterPiles.pyramidTrap
+		local firstFight=monsterPiles.gray
+		local secondFight=monsterPiles.white
+		local thirdFight=monsterPiles.red
+		if turnOrder[gStates.turnNumber].avatarLocation=="ziggurat" then
+			trapBag=monsterPiles.zigguratTrap
+			firstFight=monsterPiles.green
+			secondFight=monsterPiles.purple
+			thirdFight=monsterPiles.tan
+		end
+		--remove face down traps
+		local playAreaObjects={}
+		if getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos])~=nil then playAreaObjects=getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos]).getObjects() end
+		for _, obj in pairs(playAreaObjects) do
+			if obj.getGMNotes()=="Trap Reminder Token" and obj.is_face_down==true then obj.destruct() end
+			local adjust=0
+			if id=="zigguratPyramidInteractFight3" then adjust=0 end
+			if obj.getGMNotes()=="Trap Reminder Token" and obj.is_face_down==false and obj.getPosition()[3]<=-39-gStates.monsterOffsetZ+adjust+0.5 then
+				obj.setPosition({(turnOrder[gStates.turnNumber].seatPos*40)-101, 2.5, -39-gStates.monsterOffsetZ+adjust})
+			end
+		end
+		--adjust interface
+		if id=="zigguratPyramidInteractClimb1" then
+			UI.setAttribute("zigguratPyramidInteractClimb1Image", "color", "Gray")
+			UI.setAttribute("zigguratPyramidInteractClimb1", "interactable", "false")
+			UI.setAttribute("zigguratPyramidInteractFight1Image", "color", "Gray")
+			UI.setAttribute("zigguratPyramidInteractFight1", "interactable", "false")
+			if UI.getAttribute("zigguratPyramidInteractClimb2Image", "color")=="Gray" then
+				UI.setAttribute("zigguratPyramidInteractClimb2Image", "color", "White")
+				UI.setAttribute("zigguratPyramidInteractClimb2", "interactable", "true")
+			end
+			if UI.getAttribute("zigguratPyramidInteractFight2Image", "color")=="Gray" then
+				UI.setAttribute("zigguratPyramidInteractFight2Image", "color", "White")
+				UI.setAttribute("zigguratPyramidInteractFight2", "interactable", "true")
+			end
+			drawMonster(trapBag, turnOrder[gStates.turnNumber], id)
+			gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5
+			gStates.monsterOffsetX=0
+			safeWaitFrames("Combat",function() drawMonster(trapBag, turnOrder[gStates.turnNumber], id) end, 10)
+		end
+		if id=="zigguratPyramidInteractClimb2" then
+			UI.setAttribute("zigguratPyramidInteractClimb2Image", "color", "Gray")
+			UI.setAttribute("zigguratPyramidInteractClimb2", "interactable", "false")
+			UI.setAttribute("zigguratPyramidInteractFight2Image", "color", "Gray")
+			UI.setAttribute("zigguratPyramidInteractFight2", "interactable", "false")
+			UI.setAttribute("zigguratPyramidInteractFight3Image", "color", "White")
+			UI.setAttribute("zigguratPyramidInteractFight3", "interactable", "true")
+			gStates.monsterOffsetX=0
+			gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5
+			drawMonster(trapBag, turnOrder[gStates.turnNumber], id)
+		end
+		if id=="zigguratPyramidInteractFight1" then
+			UI.setAttribute("zigguratPyramidInteractClimb1Image", "color", "Gray")
+			UI.setAttribute("zigguratPyramidInteractClimb2Image", "color", "Gray")
+			UI.setAttribute("zigguratPyramidInteractFight2Image", "color", "Gray")
+			UI.setAttribute("zigguratPyramidInteractFight3Image", "color", "Gray")
+			UI.setAttribute("zigguratPyramidInteractClimb1", "interactable", "false")
+			UI.setAttribute("zigguratPyramidInteractFight1", "interactable", "false")
+			UI.setAttribute("zigguratPyramidInteractFight1Image", "color", "Yellow")
+			drawMonster(monsterPiles.possessed, turnOrder[gStates.turnNumber], id, "Apoc")
+			drawMonster(firstFight, turnOrder[gStates.turnNumber], id)
+		end
+		if id=="zigguratPyramidInteractFight2" then
+			UI.setAttribute("zigguratPyramidInteractClimb2Image", "color", "Gray")
+			UI.setAttribute("zigguratPyramidInteractFight3Image", "color", "Gray")
+			UI.setAttribute("zigguratPyramidInteractClimb2", "interactable", "false")
+			UI.setAttribute("zigguratPyramidInteractFight2", "interactable", "false")
+			UI.setAttribute("zigguratPyramidInteractFight2Image", "color", "Yellow")
+			drawMonster(monsterPiles.possessed, turnOrder[gStates.turnNumber], id, "Apoc")
+			drawMonster(secondFight, turnOrder[gStates.turnNumber], id)
+		end
+		if id=="zigguratPyramidInteractFight3" then
+			UI.setAttribute("zigguratPyramidInteractFight3", "interactable", "false")
+			UI.setAttribute("zigguratPyramidInteractFight3Image", "color", "Yellow")
+			drawMonster(monsterPiles.possessed, turnOrder[gStates.turnNumber], id, "Apoc")
+			drawMonster(thirdFight, turnOrder[gStates.turnNumber], id)
+		end
+	end
+end

@@ -1241,3 +1241,70 @@ function displayScore(player, mouseButton, id)
 		table.sort(turnOrder, function (k1, k2) return k1.tactic<k2.tactic end)
 	end
 end
+
+-- Final claimed-card layout
+function layoutClaimedCards()
+	--A Time Bending set aside on the victorious final round still belongs to its owner and must be present for scoring.
+	if gStates~=nil and gStates.timeBendingRemovedSeat~=nil then if reclaimTimeBending(layoutClaimedCards)==true then return end end
+	--Never dismantle live deed decks/hands while the active turn is still waiting
+	--for Rewards Claimed. The final boundary must be crossed first.
+	if gStates~=nil and gStates.preEndTurn==true then
+		log("layoutClaimedCards ignored: Rewards Claimed is still pending.")
+		return
+	end
+	--Score the untouched deck/discard/hand/play-area state before dismantling Deck objects.
+	--TTS zone membership can lag behind takeObject/setPosition by a frame, and Deck remainders below
+	--are deliberately moved later, so scoring after the layout could temporarily miss claimed cards.
+	displayScore("all", "-1", nil)
+	for _, turnDetails in pairs(turnOrder) do
+		if turnDetails.mage~=gStates.positionMageKnight[5] then
+			--UI.setAttribute("PreEndTurn", "interactable", "False")
+			--UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Deactive")
+			local obj={}
+			local OffsetX={["Advanced Action"]=0, ["Spell"]=0, ["Artifact"]=0, ["Wound"]=0}
+			local OffsetY={["Advanced Action"]=0, ["Spell"]=0, ["Artifact"]=0, ["Wound"]=0}
+			local OffsetZ={["Advanced Action"]=0, ["Spell"]=0, ["Artifact"]=0, ["Wound"]=0}
+			local OffsetStart={["Advanced Action"]=-97, ["Spell"]=-91, ["Artifact"]=-85, ["Wound"]=-103}
+			local xOffset=0.4
+			local yOffset=0.04
+			local zOffset=0.8
+			--Look for Cards
+			for _, c in pairs(getObjectFromGUID(deedDeckZones[turnDetails.seatPos]).getObjects()) do obj[#obj+1]=c end
+			for _, c in pairs(getObjectFromGUID(deedDeckDiscardZones[turnDetails.seatPos]).getObjects()) do obj[#obj+1]=c end
+			for _, c in pairs(getObjectFromGUID(handZones[turnDetails.seatPos]).getObjects()) do obj[#obj+1]=c end
+			for _, c in pairs(obj) do
+				if c.type=="Deck" then
+					for _, card in pairs(c.getObjects()) do
+						if c.remainder~=nil and (card.gm_notes=="Advanced Action" or card.gm_notes=="Spell" or card.gm_notes=="Artifact" or card.gm_notes=="Wound") then
+							local lastCard=c.remainder
+							safeWaitFrames("Scoring",function()
+								lastCard.setPosition({(turnDetails.seatPos*40)+OffsetStart[card.gm_notes]+OffsetX[card.gm_notes], 1.1+OffsetY[card.gm_notes], -39.4-OffsetZ[card.gm_notes]})
+								OffsetX[card.gm_notes]=OffsetX[card.gm_notes]+xOffset
+								OffsetY[card.gm_notes]=OffsetY[card.gm_notes]+yOffset
+								OffsetZ[card.gm_notes]=OffsetZ[card.gm_notes]+zOffset
+								if OffsetZ[card.gm_notes]>4.8 then OffsetZ[card.gm_notes]=0 end
+							end, 10)
+							break
+						end
+						if card.gm_notes=="Advanced Action" or card.gm_notes=="Spell" or card.gm_notes=="Artifact" or card.gm_notes=="Wound" then
+							c.takeObject({position={(turnDetails.seatPos*40)+OffsetStart[card.gm_notes]+OffsetX[card.gm_notes], 1.1+OffsetY[card.gm_notes], -39.4-OffsetZ[card.gm_notes]}, rotation={0, 180, 0}, guid=card.guid, smooth=false})
+							OffsetX[card.gm_notes]=OffsetX[card.gm_notes]+xOffset
+							OffsetY[card.gm_notes]=OffsetY[card.gm_notes]+yOffset
+							OffsetZ[card.gm_notes]=OffsetZ[card.gm_notes]+zOffset
+							if OffsetZ[card.gm_notes]>4.8 then OffsetZ[card.gm_notes]=0 end
+						end
+					end
+				end
+				if c.type=="Card" and (c.getGMNotes()=="Advanced Action" or c.getGMNotes()=="Spell" or c.getGMNotes()=="Artifact" or c.getGMNotes()=="Wound") then
+					c.setPosition({(turnDetails.seatPos*40)+OffsetStart[c.getGMNotes()]+OffsetX[c.getGMNotes()], 1.1+OffsetY[c.getGMNotes()], -39.4-OffsetZ[c.getGMNotes()]})
+					OffsetX[c.getGMNotes()]=OffsetX[c.getGMNotes()]+xOffset
+					OffsetY[c.getGMNotes()]=OffsetY[c.getGMNotes()]+yOffset
+					OffsetZ[c.getGMNotes()]=OffsetZ[c.getGMNotes()]+zOffset
+					if OffsetZ[c.getGMNotes()]>4.8 then OffsetZ[c.getGMNotes()]=0 end
+				end
+			end
+		end
+	end
+end
+
+--Swap Day and Night items

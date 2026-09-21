@@ -2310,3 +2310,234 @@ end
 function artifactOnLoad()
     installArtifactUI(1)
 end
+
+-- Day/night tint control
+function nightTint(player, mouseButton, id)
+	if mouseButton=="-1" then
+		local tileColor={}
+		if getObjectFromGUID("43fa2e").UI.getAttribute("43fa2eNightTintText", "text")=="No Tint" then
+			getObjectFromGUID("43fa2e").UI.setAttribute("43fa2eNightTintText", "text", "{en}Add Tint{ru}Добавить оттенок{zh-tw}加入色調{zh-cn}加入色调{ko}색조 추가{es}Añadir Tinte{fr}Ajouter une Teinte{pt-br}Adicionar Tonalidade{de}Tönung hinzufügen")
+			tileColor={r=1.0, g=1.0, b=1.0}
+			gStates.nightTint=false
+		else
+			getObjectFromGUID("43fa2e").UI.setAttribute("43fa2eNightTintText", "text", "{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin Tinte{fr}Sans Teinte{pt-br}Sem Tonalidade{de}Keine Tönung")
+			tileColor={r=0.6, g=0.6, b=0.6}
+			gStates.nightTint=true
+		end
+		--Make terrain tile light or dark
+		for a, _ in pairs(terrainTiles) do
+			local obj=getObjectFromGUID(a)
+			if obj~=nil then obj.setColorTint(tileColor) end
+		end
+		if gStates.mapShape:sub(5,5)=="P" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" then
+			local terrainDummy=getObjectFromGUID(startTerrain.open)
+			if terrainDummy==nil then terrainDummy=getObjectFromGUID(startTerrain.wedge) end
+			onObjectEnterZone({guid=mapArea}, terrainDummy)
+		end
+	end
+end
+
+-- Shared object claim button builder
+function createClaimButton(objGUID, source)
+	local onClick="global/claimMove"
+	local width=500
+	local height=150
+	local scale=0.32
+	local position="0 190 -10"
+	local rotation="0 0 180"
+	local text="{en}^ CLAIM{ru}^ ЗАБРАТЬ{zh-tw}^ 選取{zh-cn}^ 选取{ko}^ 선택{es}^ RECLAMO{fr}^ Demande{pt-br}^ CLAMAR{de}^ ANSPRUCH"
+	local fontSize="90"
+	--Meditation / Trance uses the exact same proven object-UI structure as Claim.
+	--Coordinates are tuned for four target spots marked during testing:
+	--red pair = Meditation, green pair = Trance.
+	if source=="meditationTop" or source=="meditationBot" or source=="tranceTop" or source=="tranceBot" then
+		width=250
+		onClick=(source=="meditationTop" or source=="tranceTop") and "global/meditationTranceTop" or "global/meditationTranceBot"
+		text=(source=="meditationTop" or source=="tranceTop") and "Top" or "Bot"
+		if source=="meditationTop" then position="155 -105 -10" end
+		if source=="meditationBot" then position="155 -50 -10" end
+		if source=="tranceTop" then position="155 35 -10" end
+		if source=="tranceBot" then position="155 105 -10" end
+	end
+	--Steady Tempo reuses the same small object-button style. These sit beside the
+	--upper, middle and lower sections of the card: Discard, Bottom, Top.
+	if source=="steadyTempoDiscard" or source=="steadyTempoBot" or source=="steadyTempoTop" then
+		width=250
+		onClick="global/steadyTempoChoice"
+		if source=="steadyTempoDiscard" then text="{en}Dis{ru}Сбр{zh-tw}棄{zh-cn}弃{ko}버림{es}Des{fr}Déf{pt-br}Des{de}Abl" position="155 -130 -10" end
+		if source=="steadyTempoBot" then text="{en}Bot{ru}Низ{zh-tw}底{zh-cn}底{ko}아래{es}Inf{fr}Bas{pt-br}Inf{de}Unt" position="155 0 -10" end
+		if source=="steadyTempoTop" then text="{en}Top{ru}Верх{zh-tw}頂{zh-cn}顶{ko}위{es}Sup{fr}Haut{pt-br}Sup{de}Oben" position="155 130 -10" end
+	end
+	for a=1, 32, 1 do
+		if source==tostring(a) or source=="higherLevelSkill" then
+			if source==tostring(a) then	onClick="global/skillMove" else onClick="global/higherLevelSkill" end
+			width=175
+			position="-270 0 -1"
+			text="<"
+			scale=scale*2.307692307692308
+			break
+		end
+	end
+	if source:sub(1,6)=="tactic" or source:sub(1,12)=="removeTactic" then
+		position="0 130 -1"
+		scale=scale*0.6521739130434783
+		if source:sub(1,12)=="removeTactic" then
+			text="{en}^ REMOVE{ru}^ УДАЛИТЬ{zh-tw}^ 移除{zh-cn}^ 移除{ko}^ 제거{es}^ QUITAR{fr}^ Supprimer{pt-br}^ REMOVER{de}^ ENTFERNEN"
+			onClick="global/removeTactic"
+		end
+		if source=="tactic7" or source=="removeTactic5" then
+			width=1200
+			scale=scale*2.416666666666667
+			rotation="180 180 180"
+			if source=="tactic7" then
+				position="0 211 -29"
+				onClick=("global/"..automatedPlayerTurnFunction())
+				text="{en}Pick Random for Dummy{ru}Случайный для виртуального игрока{zh-tw}為虛擬玩家隨機選擇戰術卡{zh-cn}为虚拟玩家随机选择战术卡{ko}가상 플레이어 무작위 선택{es}Elija al Azar para el Maniquí{fr}Elija al Azar Para el Maniquí{pt-br}Escolha Aleatória para o Dummy{de}Zufallsauswahl für Dummy"
+				if proxyPlayerActive()==true then text="{en}Pick Random for Proxy{ru}Случайная тактика для прокси{zh-tw}為代理玩家隨機選擇戰術卡{zh-cn}为代理玩家随机选择战术卡{ko}프록시 무작위 선택{es}Elegir al Azar para Proxy{fr}Tirer au Sort pour le Proxy{pt-br}Escolha Aleatória para o Proxy{de}Zufallsauswahl für Proxy" end
+				if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" then
+					text="{en}Pick Random for Volkare{ru}Случайный для Волкара{zh-tw}為沃卡里隨機選擇戰術卡{zh-cn}为沃卡里随机选择战术卡{ko}볼케어 무작위 선택{es}Elige al Azar para Volkare{fr}Tirez au Sort pour Volkare{pt-br}Escolha Aleatório para Volkare{de}Zufallsauswahl für Volkare"
+				end
+			else
+				position="-400 211 -29"
+				onClick="global/removeTactic"
+				text="{en}^ Remove Both ^{ru}^ Удалить обе ^{zh-tw}^ 雙雙移除 ^{zh-cn}^ 双双移除 ^{ko}^ 둘 다 제거 ^{es}^ Quitar Ambos ^{fr}^ Supprimer les Deux ^{pt-br}^ Remover Ambos ^{de}^ Beide Entfernen ^"
+			end
+		end
+	end
+    return {tag="Button", attributes={id=objGUID..source, onClick=onClick, onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=height, width=width, position=position, rotation=rotation, scale=tostring(scale).." "..tostring(scale)},
+		children={{tag="Image", attributes={id=objGUID..source.."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
+				  {tag="HorizontalLayout", attributes={padding="25 25 25 25"},
+				  children={{tag="Text", attributes={id=objGUID..source.."Text", font="Fonts/MKCardText", fontSize=fontSize, fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize=fontSize, text=text}}}}}}
+end
+
+-- Player colour and board presentation controls
+function changePositionColor(player, mouseButton, id)
+	local barConversion={[colorBand[1]]=1, [colorBand[2]]=2, [colorBand[3]]=3, [colorBand[4]]=4}
+	local barGUID=id:sub(1,6)
+	local newColor=id:sub(7, string.len(id))
+	local currentColor=Hands.getHands()[barConversion[barGUID]].getValue()
+	if mouseButton=="-1" and legalPlayerCheck(player.color, gStates.handColors[currentColor], "NoDummyException")==true then
+		--swap an existing unused color to stop two hands having the same colour
+		if gStates.handColors[newColor]~=nil then
+			for _, freeHandColor in pairs(Player.getColors()) do
+				if gStates.handColors[freeHandColor]==nil then
+					Hands.getHands()[gStates.handColors[newColor]].setValue(freeHandColor)
+					gStates.handColors[freeHandColor]=gStates.handColors[newColor]
+					gStates.handColors[newColor]=nil
+					break
+				end
+			end
+		end
+		--change hand colour
+		gStates.handColors[newColor]=gStates.handColors[currentColor]
+		gStates.handColors[currentColor]=nil
+		Hands.getHands()[barConversion[barGUID]].setValue(newColor)
+		Player[currentColor].changeColor(newColor)
+		applyColorBarButtons()
+		refreshPlayerSeatColors()
+		outOfTurnUIStateKey=nil
+		mainUIUpdate("Player Changed Colour")
+		safeWaitFrames("UI",function() Player[newColor].lookAt({position={getObjectFromGUID(barGUID).getPosition()[1], getObjectFromGUID(barGUID).getPosition()[2], getObjectFromGUID(barGUID).getPosition()[3]-10}, pitch=75, yaw=0, distance=30}) end, 2)
+	end
+end
+
+function changeMatImage(player, mouseButton, id)
+	local barConversion={[colorBand[1]]=1, [colorBand[2]]=2, [colorBand[3]]=3, [colorBand[4]]=4}
+	if mouseButton=="-1" and legalPlayerCheck(player.color, gStates.handColors[Hands.getHands()[barConversion[id:sub(1,6)]].getValue()], "NoDummyException")==true then
+		local convert={[colorBand[1]]=playerBoard[1], [colorBand[2]]=playerBoard[2], [colorBand[3]]=playerBoard[3], [colorBand[4]]=playerBoard[4]}
+		local board=getObjectFromGUID(convert[id:sub(1, 6)])
+		local direction=1
+		local boardImages={	"https://steamusercontent-a.akamaihd.net/ugc/1684895445424376912/3EE3230EE7EDE9465FBACB66989433E76889EE1B/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553574/3C342119E5460E99D2CBA90E02703DEFE192A8D2/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553344/A14FCE5B44805580B609C6331AE493DBF57DFF16/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553120/FDF4B2E37BB40F81AD7A1DFC45FD3080EDBDD479/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424552867/531D8782F39294923F405B4A8BD33749FFCDC397/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424552298/DCE7288AD482269EF78E138258AEF64E02FB75F0/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424551898/6ED5EFA1552854F7F03E318B5DF1181E4A6388F1/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424551449/B2E1AD69C97515E4AA0B3B99B899DF3F00303E3A/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553771/4BC2365C114D1D2EFA40127F12FE662927D7A658/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553972/80BE3DDEAA19CADEAACE68ED263F52DB65465CF6/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424554181/1E919EDF42F1F900A53EE84DC6B24E0CCAE551B0/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424555147/6F7C91142DBDC2CC969E4C55760359791F0D89F8/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424601741/960077146FB0A7EFA4F5F54B6BD5B477BDFF5A6F/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424554674/5FC29A5A6972EED68545A897F9280FA3C954179F/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424554433/5E1CAFCDD9764C7370E9CA387E1E250FFBE95EEA/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424467915/9C5DD81B7345C49DB8ED3F9A5BA9E1E867855EF7/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424555440/E6D119CAA5633518305C512D82D87D033BCD27F2/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445440810937/BD5AB7FC76EBA62C6041C19BEDFF187A191B9A3C/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445440811336/57CCCDB1CA59C7EC8D78F36A8F41D867232E751A/",
+							"https://steamusercontent-a.akamaihd.net/ugc/1684895445440811734/D2494176727E75376EC01F16BBB70E8AE1799238/",
+							"https://steamusercontent-a.akamaihd.net/ugc/2546304515596768692/19801470032E2AD7FBC69C3817AD64A01998963F/",
+							"https://steamusercontent-a.akamaihd.net/ugc/2546304515596768226/A7A269B1B5492AF4E3692015A1588B3EBD7A0414/"}
+		if id:sub(7, 17)=="changeMatUp" then direction=-1 end
+		for a=1, #boardImages, 1 do
+			if boardImages[a]==board.getCustomObject().image and ((a>1 and direction==-1) or (a<#boardImages and direction==1)) then
+				board.setCustomObject({image=boardImages[a+direction]})
+				break
+			end
+			if boardImages[a]==board.getCustomObject().image and a==#boardImages then
+				board.setCustomObject({image=boardImages[1]})
+				break
+			end
+			if boardImages[a]==board.getCustomObject().image and a==1 then
+				board.setCustomObject({image=boardImages[#boardImages]})
+				break
+			end
+		end
+		board.reload()
+		safeWaitTime("UI",function() getObjectFromGUID(convert[id:sub(1, 6)]).interactable=false end, 0.2)
+	end
+end
+
+function bannerOfCommandDecal()
+	if getObjectFromGUID("8dbce4").is_face_down==true then
+		getObjectFromGUID("8dbce4").UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
+			height=240, width=125, position="0 -520 40", rotation="0 180 180"}}})
+	else
+		getObjectFromGUID("8dbce4").UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
+			height=240, width=125, position="0 -1066 -40", rotation="0 0 180"}}})
+	end
+end
+
+-- Monster image and auto-flip presentation controls
+function monsterImageSwap(player, mouseButton, id)
+	if mouseButton=="-1" then
+		for monsterGuid, monsterDetails in pairs(monsterPugs) do
+			if getObjectFromGUID(monsterGuid)~=nil then
+				if gStates.useAlternatePugs==false and (monsterDetails.original~="" or monsterDetails.alternate~="") then
+					getObjectFromGUID(monsterGuid).setCustomObject({image=monsterDetails.alternate})
+				else
+					getObjectFromGUID(monsterGuid).setCustomObject({image=monsterDetails.original})
+				end
+				getObjectFromGUID(monsterGuid).reload()
+			end
+		end
+		if gStates.useAlternatePugs==false then
+			gStates.useAlternatePugs=true
+			getObjectFromGUID("d7a165").UI.setAttribute("d7a165swapMonsterImageText", "text", "{en}Stefano Colombo's Monster Tokens - ON{ru}Жетоны монстров Stefano Colombo — ВКЛ.{zh-tw}Stefano Colombo 的怪物標記－開{zh-cn}Stefano Colombo 的怪物标记－开{ko}Stefano Colombo 몬스터 토큰 - 켬{es}Fichas de Monstruo de Stefano Colombo - ACTIVADAS{fr}Jetons de Monstre de Stefano Colombo - ACTIVÉS{pt-br}Fichas de Monstro de Stefano Colombo - ATIVADAS{de}Stefano Colombos Monstermarker - AN")
+		else
+			gStates.useAlternatePugs=false
+			getObjectFromGUID("d7a165").UI.setAttribute("d7a165swapMonsterImageText", "text", "{en}Stefano Colombo's Monster Tokens - OFF{ru}Жетоны монстров Stefano Colombo — ВЫКЛ.{zh-tw}Stefano Colombo 的怪物標記－關{zh-cn}Stefano Colombo 的怪物标记－关{ko}Stefano Colombo 몬스터 토큰 - 끔{es}Fichas de Monstruo de Stefano Colombo - DESACTIVADAS{fr}Jetons de Monstre de Stefano Colombo - DÉSACTIVÉS{pt-br}Fichas de Monstro de Stefano Colombo - DESATIVADAS{de}Stefano Colombos Monstermarker - AUS")
+		end
+		--discard containers
+		local discardContainers={GUID.bag.discard.towerGarrison, GUID.bag.discard.keepGarrison, GUID.bag.discard.cityGarrison, GUID.bag.discard.ruin, GUID.bag.discard.draconum, GUID.bag.discard.dungeon, GUID.bag.discard.orcs, GUID.bag.discard.darkDraconum, GUID.bag.discard.darkDungeon, GUID.bag.discard.darkMarauders, GUID.bag.discard.darkReward, GUID.bag.discard.elementalistDraconum, GUID.bag.discard.elementalistDungeon, GUID.bag.discard.elementalistOrcs, GUID.bag.discard.elementalistReward, GUID.bag.discard.apocReward, GUID.bag.discard.councilReward}
+		for _, containerGuid in pairs(discardContainers) do
+			if getObjectFromGUID(containerGuid)~=nil and getObjectFromGUID(containerGuid).getQuantity()>0 then
+				temp=getObjectFromGUID(containerGuid).takeObject({position={getObjectFromGUID(containerGuid).getPosition()[1], 5, getObjectFromGUID(containerGuid).getPosition()[3]}, smooth=false})
+			end
+		end
+	end
+end
+
+---------------
+function autoflip()
+	if gStates.autoFlip==true then
+		gStates.autoFlip=false
+		UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Active")
+		broadcastToAll("{en}Monster tokens need to be flipped manually.{ru}Жетоны врагов необходимо переворачивать вручную.{zh-tw}怪物标记需要手动翻转{zh-cn}怪物标记需要手动翻转{ko}규칙에 따라 직접 토큰을 뒤집어야 합니다{es}Las fichas de monstruo deben voltearse manualmente.{fr}Les jetons Monstre doivent être retournés manuellement.{pt-br}Fichas de Monstros precisam ser viradas manualmente{de}Monsterplättchen müssen manuell umgedreht werden.", {1,1,0.5})
+	else
+		gStates.autoFlip=true
+		UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Deactive")
+		broadcastToAll("{en}Script will flip monster tokens for you.{ru}Скрипт будет переворачивать жетоны врагов за вас.{zh-tw}脚本将为你翻转怪物标记. {zh-cn}脚本将为你翻转怪物标记. {ko}스크립트가 자동으로 토큰을 뒤집습니다.{es}Script le dará la vuelta a las fichas de monstruos.{fr}Le script retournera les jetons monstre pour vous.{pt-br}O Script virará as fichas de monstros por você.{de}Das Skript dreht die Monsterplättchen für dich um.", {1,1,0.5})
+	end
+end

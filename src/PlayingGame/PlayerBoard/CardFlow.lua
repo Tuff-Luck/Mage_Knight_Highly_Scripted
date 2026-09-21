@@ -1407,3 +1407,113 @@ end
 function fillSlide()
 	return safeCallback("fillSlide",function() return fillSlideRaw() end)
 end
+
+-- Glade discard healing
+local gladeDiscardHealButtonGUID=nil
+
+function removeGladeDiscardHealButton(obj)
+	if obj==nil then return end
+	local remove={}
+	for _, button in pairs(obj.getButtons() or {}) do if button.click_function=="gladeDiscardHeal" then remove[#remove+1]=button.index end end
+	table.sort(remove, function(a,b) return a>b end)
+	for _, index in ipairs(remove) do obj.removeButton(index) end
+	local xml=obj.UI.getXmlTable() or {}
+	local changed=false
+	for i=#xml, 1, -1 do
+		if xml[i].attributes~=nil and xml[i].attributes.id=="GladeDiscardHealButton" then table.remove(xml, i) changed=true end
+	end
+	if changed==true then
+		if #xml>0 then obj.UI.setXmlTable(xml) else obj.UI.setXmlTable({{}}) end
+	end
+end
+local function clearGladeDiscardHealButtons()
+	if gladeDiscardHealButtonGUID~=nil then removeGladeDiscardHealButton(getObjectFromGUID(gladeDiscardHealButtonGUID)) gladeDiscardHealButtonGUID=nil end
+	for _, details in pairs(turnOrder or {}) do
+		if details.seatPos~=nil then
+			local zone=getObjectFromGUID(deedDeckDiscardZones[details.seatPos])
+			if zone~=nil then for _, obj in pairs(zone.getObjects()) do removeGladeDiscardHealButton(obj) end end
+		end
+	end
+end
+local function gladeDiscardWound(playerIndex)
+	local details=turnOrder[playerIndex]
+	local zone=details~=nil and getObjectFromGUID(deedDeckDiscardZones[details.seatPos]) or nil
+	if zone==nil then return nil, nil end
+	for _, obj in pairs(zone.getObjects()) do
+		if obj.type=="Card" and obj.getGMNotes()=="Wound" then return obj, obj.guid end
+		if obj.type=="Deck" then
+			for _, data in pairs(obj.getObjects()) do if data.gm_notes=="Wound" then return obj, data.guid end end
+		end
+	end
+	return nil, nil
+end
+function refreshGladeDiscardHealButton()
+	clearGladeDiscardHealButtons()
+	local playerIndex=gStates.turnNumber
+	local details=turnOrder[playerIndex]
+	if details==nil or details.mage==gStates.positionMageKnight[5] or playerDropoutInactive(playerIndex)==true then return end
+	if gStates.preEndTurn~=true or gStates.coopAssaultPhase=="combat" or gameOver==true or UI.getAttribute("RewardCheck", "active")~="true" then return end
+	if details.avatarLocation~="glade" and not (gStates.gameScenario=="The Hidden Valley Blitz" and details.avatarLocation=="hidden valley") then return end
+	if gladeFreeCheck()~=true then return end
+	if gStates.gladeDiscardHealUsed==nil then gStates.gladeDiscardHealUsed={} end
+	if gStates.gladeDiscardHealUsed[details.seatPos]==true then return end
+	local discardObj=gladeDiscardWound(playerIndex)
+	if discardObj==nil then return end
+	removeGladeDiscardHealButton(discardObj)
+	local xml=discardObj.UI.getXmlTable() or {}
+	xml[#xml+1]={tag="Button", attributes={id="GladeDiscardHealButton", onClick="global/gladeDiscardHealUI", width=100, height=100, position="0 0 -100", rotation="0 0 0", colors="#00000000|#00000000|#00000000|#00000000"},
+		children={{tag="Image", attributes={image="Glade Heal Button", width=100, height=100, rotation="0 0 180", preserveAspect="true"}}}}
+	discardObj.UI.setXmlTable(xml)
+	gladeDiscardHealButtonGUID=discardObj.guid
+end
+function gladeDiscardHealUI(player, value, id)
+	local obj=gladeDiscardHealButtonGUID~=nil and getObjectFromGUID(gladeDiscardHealButtonGUID) or nil
+	if obj~=nil and player~=nil then gladeDiscardHeal(obj, player.color, false) end
+end
+function gladeDiscardHeal(obj, playerColor, altClick)
+	local playerIndex=gStates.turnNumber
+	local details=turnOrder[playerIndex]
+	if details==nil or legalPlayerCheck(playerColor, details.seatPos)~=true then return end
+	if gStates.preEndTurn~=true or gStates.coopAssaultPhase=="combat" or gameOver==true or UI.getAttribute("RewardCheck", "active")~="true" or
+		(details.avatarLocation~="glade" and not (gStates.gameScenario=="The Hidden Valley Blitz" and details.avatarLocation=="hidden valley")) or gladeFreeCheck()~=true then refreshGladeDiscardHealButton() return end
+	if gStates.gladeDiscardHealUsed==nil then gStates.gladeDiscardHealUsed={} end
+	if gStates.gladeDiscardHealUsed[details.seatPos]==true then refreshGladeDiscardHealButton() return end
+	local source, woundGUID=gladeDiscardWound(playerIndex)
+	if source==nil or woundGUID==nil then refreshGladeDiscardHealButton() return end
+	gStates.gladeDiscardHealUsed[details.seatPos]=true
+	clearGladeDiscardHealButtons()
+	local playArea=getObjectFromGUID(playerPlayAreas[details.seatPos])
+	local pos=playArea~=nil and playArea.getPosition() or {(details.seatPos*40)-100,1.5,-39.4}
+	local destination={pos[1],2.7,pos[3]}
+	local function finishHeal(wound)
+		if wound==nil then return end
+		wound.setScale({1.5,1,1.5})
+	end
+	if source.type=="Deck" then
+		safeTakeObject("CardFlow",source,{guid=woundGUID, position=destination, rotation={0,180,0}, smooth=true, callback_function=finishHeal})
+	else
+		source.setScale({1.5,1,1.5})
+		source.setRotationSmooth({0,180,0})
+		source.setPositionSmooth(destination)
+		finishHeal(source)
+	end
+end
+
+-- Coral Quick Witted scheduling
+local coralQuickWittedShufflePause=nil
+function scheduleCoralQuickWittedBottom(delayFrames)
+	if coralQuickWittedShufflePause~=nil then Wait.stop(coralQuickWittedShufflePause) end
+	coralQuickWittedShufflePause=safeWaitFrames("CardFlow",function() coralQuickWittedShufflePause=nil coralSetAsideQuickWitted() end, delayFrames or 5)
+end
+
+-- Wound dealing helper
+function DealWound(paramaters)
+	local woundbag=getObjectFromGUID(paramaters.guid)
+	local playerPosition=math.ceil((woundbag.getPosition()[1]+80)/40)
+	if legalPlayerCheck(paramaters.player.color, playerPosition)==true then
+		woundbag.takeObject({position={(playerPosition*40)-91, 2.98, -48.40}})
+		if paramaters.id=="DealPoison" then
+			woundbag.takeObject({position={(playerPosition*40)-110.54, 2, -43.20}})
+		end
+	end
+end

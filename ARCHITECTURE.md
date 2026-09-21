@@ -9,9 +9,12 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/Shared.lua` | Shared helpers used across setup/runtime modules, including protected asynchronous/callback helpers. |
 | `src/SetupInterface.lua` | Setup menu/UI state, scenario/variant option presentation and setup-facing controls. |
 | `src/SetupGame.lua` | Physical game setup: map, decks, bags, boards, avatars and scenario setup execution. |
-| `src/PlayingGame.lua` | Remaining general gameplay/runtime helpers that do not yet have a narrower owner. |
+| `src/PlayingGame/Map.lua` | Map state, avatar location, exploration, shield placement, terrain-site helpers and rampaging-enemy placement. |
+| `src/PlayingGame/Offers.lua` | Artifact, Unit, Monastery and deed-offer layout/refill runtime. |
+| `src/PlayingGame/TokenPools.lua` | Monster token-pool refill plus bag scaling/discard-stack presentation. |
+| `src/PlayingGame/ManaSource.lua` | Shared/mirrored Mana Source dice state and synchronization. |
 | `src/PlayingGame/Quests.lua` | Apocalypse Quest system, quest state, offer flow, rewards and quest-specific interactions. |
-| `src/PlayingGame/PlayerBoard/Deeds.lua` | Player deed/deck/discard/hand and related player-board runtime logic. |
+| `src/PlayingGame/PlayerBoard/CardFlow.lua` | Player deed/deck/discard/hand flow, wound dealing and Glade discard-healing runtime. |
 | `src/PlayingGame/PlayerBoard/Skills.lua` | Skill offers, claims, skill state and player skill interactions. |
 | `src/PlayingGame/PlayerBoard/PuppetMaster.lua` | Krang Puppet Master enemy/puppet behaviour. |
 | `src/PlayingGame/Combat.lua` | Combat areas, attacks, assaults, combat UI/camera support, summons and pursuit. |

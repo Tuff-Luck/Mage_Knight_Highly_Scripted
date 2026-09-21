@@ -1462,3 +1462,6 @@ function cityBeatCheck()
 	for _ in pairs(factionAssistTest) do count=count+1 end
 	if count==#turnOrder-1 then gStates.allPlayersFoughtAFactionLeaderCheck=true end
 end
+
+-- Build static City lookup data after the City module has defined its initializer.
+initializeCityStaticData()

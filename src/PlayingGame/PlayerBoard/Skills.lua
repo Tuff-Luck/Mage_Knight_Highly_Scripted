@@ -1309,3 +1309,99 @@ end
 
 --Quick Witted remains Set Aside at the bottom of Coral's physical Deed Deck.
 --While another Deed card remains above it, the containing Deck is returned so the draw-choice UI can offer Quick Witted.
+
+-- Coral Tales site shields
+function coralTalesSiteShield(siteType)
+	local playerDetails=turnOrder[gStates.turnNumber]
+	if playerDetails==nil or playerDetails.mage~="Coral" then return end
+	local adventureSites={['monster den']=true, ['spawning grounds']=true, maze=true, labyrinth=true, ruin=true, dungeon=true, tomb=true, ziggurat=true, pyramid=true}
+	local skillGUID=nil
+	if adventureSites[siteType]==true then skillGUID="9cf272"--Tales of Adventure
+	elseif siteType=="keep" or siteType=="mage tower" then skillGUID="de5b04" end--Tales of Conquest
+	if skillGUID==nil then return end
+	local skill=getObjectFromGUID(skillGUID)
+	local recordedPos=gStates.mageSkills~=nil and gStates.mageSkills[skillGUID] or nil
+	if skill==nil or recordedPos==nil then return end
+	--Claimed skills live in the owner's skill column; communal/pool skills are recorded elsewhere.
+	local claimedX=(playerDetails.seatPos*40)-107.45
+	if math.abs(recordedPos[1]-claimedX)>2 or recordedPos[3]>-35 then return end
+	local shieldContainer=nil
+	for _, details in pairs(mageKnights) do if details.mage=="Coral" then shieldContainer=getObjectFromGUID(details.shieldContainer) break end end
+	if shieldContainer==nil then return end
+	local location=skill.getPosition()
+	local snapPoints=skill.getSnapPoints()
+	if snapPoints~=nil and snapPoints[1]~=nil then location=skill.positionToWorld(snapPoints[1].position) end
+	--Drop above the snap point so the first shield snaps to the skill and later shields can stack naturally.
+	location={location[1], skill.getPosition()[2]+2.5, location[3]}
+	shieldContainer.takeObject({position=location, rotation={0, skill.getRotation()[2], 0}, smooth=false})
+end
+
+--Claim the Skill reserved by Hero Challenges. higherLevel=true mirrors the Start-at-Higher-Level
+--Bonds of Loyalty setup rather than adding cards to the live Unit Offer.
+
+-- Motivation skill runtime
+function motivation(player, mouseButton, id)
+	if mouseButton=="-1" then
+		if legalPlayerCheck(player.color, tonumber(id:sub(18, 18)))==true then
+			for a=1, #turnOrder, 1 do
+				if turnOrder[a].seatPos==tonumber(id:sub(18, 18)) then
+					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used a Motivation skill.{ru} использует навык Мотивация.{zh-tw}使用了激励技能{zh-cn}使用了激励技能{ko}: 스킬 '동기 부여' 사용{es} usó una habilidad de Motivación.{fr} utilisé une compétence de Motivation.{pt-br} usou uma Habilidade de Motivação{de} eine Motivationsfertigkeit eingesetzt."}), positionToColor(a))
+					--One exact two-card request keeps the whole Motivation draw inside one Quick Witted choice flow.
+					drawExactDeedCards(a, 2, "DrawOne")
+					--Gain Fame or mana token
+					local lowestFame=1
+					for b=2, #turnOrder, 1 do
+						if turnOrder[b].mage~=gStates.positionMageKnight[5] then
+							if turnOrder[b].fame<turnOrder[lowestFame].fame or turnOrder[lowestFame].mage==gStates.positionMageKnight[5] then lowestFame=b end
+						end
+					end
+					for b=1, #turnOrder, 1 do if turnOrder[b].fame==turnOrder[lowestFame].fame and b~=lowestFame then lowestFame=0 break end end--find ties
+					if lowestFame~=0 and turnOrder[lowestFame].seatPos==tonumber(id:sub(18, 18)) then
+						local params={position={(gStates.motivationSkill[id:sub(1, 6)].pos*40)-101, 1.65, -39}, rotation={0, 0, 0}, smooth=false}
+						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 13)=="Red" then
+							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.red),params)
+							broadcastToAll("{en}Also gained a Red Mana Token.{ru}Также получает Красный жетон маны.{zh-tw}同时增加了一个红色魔晶{zh-cn}同时增加了一个红色魔晶{ko}빨간색 마나 추가 획득.{es}También ganó una ficha de Maná Roja.{fr}A également gagné un jeton de Mana Rouge.{pt-br}Também ganhou um Marcador de Mana Vermelha.{de}Außerdem erhielt er ein rotes Mana-Plättchen.", positionToColor(a))
+						end
+						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 14)=="Blue" then
+							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.blue),params)
+							broadcastToAll("{en}Also gained a Blue Mana Token.{ru}Также получает Синий жетон маны.{zh-tw}同时增加了一个蓝色魔晶{zh-cn}同时增加了一个蓝色魔晶{ko}파란색 마나 추가 획득.{es}También ganó una ficha de Maná Azul.{fr}A également gagné un jeton de Mana Bleu.{pt-br}Também ganhou um Marcador de Mana Azul.{de}Außerdem ein blaues Mana-Plättchen erhalten.", positionToColor(a))
+						end
+						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 15)=="White" then
+							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.white),params)
+							broadcastToAll("{en}Also gained a White Mana Token.{ru}Также получает Белый жетон маны.{zh-tw}同时增加了一个白色魔晶{zh-cn}同时增加了一个白色魔晶{ko}흰색 마나 추가 획득.{es}También ganó una ficha de Maná Blanca.{fr}A également gagné un jeton de Mana Blanc.{pt-br}Também ganhou um Marcador de Mana Branca.{de}Außerdem erhielt er ein weißes Mana-Plättchen.", positionToColor(a))
+						end
+						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 15)=="Green" then
+							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.green),params)
+							broadcastToAll("{en}Also gained a Green Mana Token.{ru}Также получает Зеленый жетон маны.{zh-tw}同时增加了一个绿色魔晶{zh-cn}同时增加了一个绿色魔晶{ko}녹색 마나 추가 획득.{es}También ganó una ficha de Maná Verde.{fr}A également gagné un jeton de Mana Vert.{pt-br}Também ganhou um Marcador de Mana Verde.{de}Hat auch ein grünes Mana-Plättchen erhalten.", positionToColor(a))
+						end
+						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 14)=="Fame" then
+							local startingFameToLevel=math.floor(math.sqrt((turnOrder[a].fame-(gStates.scoreIfLooped*turnOrder[a].scoreLoop))+1))
+							local newFame=turnOrder[a].fame+1-(gStates.scoreIfLooped*turnOrder[a].scoreLoop)
+							local scoreLooped=false
+							if newFame>=gStates.scoreIfLooped then newFame=newFame-gStates.scoreIfLooped scoreLooped=true end
+							local fameToLevel=math.floor(math.sqrt(newFame+1))
+							local startPosition=(newFame-(fameToLevel*fameToLevel))+2
+							if scoreLooped==false then startPosition=startPosition+((fameToLevel-startingFameToLevel)*gStates.blitz) end
+							local levelRowFameQuantity=(((fameToLevel-1)*cellGainPerLevel)+normalCellAmount)
+							local levelRowLength=((fameToLevel-1)*gStates.rowLengthGainPerLevel)+gStates.normalRowLength
+							local xOffset=(1/levelRowFameQuantity*levelRowLength)/2
+							local yOffset=(heightOfFameBoard/gStates.rowsOnBoard)/2
+							local horizontalValue=leftOfFameBoard+(startPosition/levelRowFameQuantity*levelRowLength)-xOffset
+							local verticalValue=(topOfFameBoard-((fameToLevel/gStates.rowsOnBoard)*heightOfFameBoard))+yOffset-0.25
+							getObjectFromGUID(turnOrder[a].fameGUID).setPosition({horizontalValue, 1.5, verticalValue+((turnOrder[a].seatPos-2.5)/5)})
+							recordPlayerFameChange(a, 1)
+							broadcastToAll("{en}and gained a Fame also{ru}и получает Славу{zh-tw}也增加了1名望{zh-cn}也增加了1名望{ko}명성 1 추가 획득.{es}y ganó Fama también{fr}et a également gagné une renommée{pt-br}e também ganhou uma Fama.{de}und auch einen Ruhmespunkt gewonnen", positionToColor(a))
+						end
+					end
+					--flip skill down.
+					getObjectFromGUID(id:sub(1, 6)).setRotationSmooth({0, 180, 180})
+					getObjectFromGUID(id:sub(1, 6)).setPositionSmooth({gStates.mageSkills[id:sub(1, 6)][1], 1.5, gStates.mageSkills[id:sub(1, 6)][3]})
+					--only allow once per round
+					gStates.motivationSkill[id:sub(1, 6)].state="used"
+					mainUIUpdate("Motivation Skill activated")
+					break
+				end
+			end
+		end
+	end
+end
