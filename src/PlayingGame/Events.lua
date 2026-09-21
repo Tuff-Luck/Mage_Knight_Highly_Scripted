@@ -1704,13 +1704,30 @@ function __onObjectEnterZone_raw(zone, obj)
 					--Play the correct pugs for the terrain tile
 					local tokenWait=0
 					local tokenRefillFrame=nil
+					local setupPopulationPending=0
+					--Normal exploration keeps the familiar staggered token reveal. During initial setup, the
+					--map coordinator already serializes terrain tiles, so do not serialize every hex behind
+					--another fixed eight-frame pause. Run each deployment on the next frame and let the tile's
+					--real pending count tell map setup when all deployment code has actually executed.
+					local function scheduleTerrainPopulation(callback,frames)
+						if startingMapSetup==true then
+							setupPopulationPending=setupPopulationPending+1
+							safeWaitFrames("Events",function()
+								callback()
+								setupPopulationPending=setupPopulationPending-1
+							end,1)
+						else
+							safeWaitFrames("Events",callback,frames)
+						end
+					end
 					local tileRotation=math.floor(((180-(180-obj.getRotation()[2]))/60)+0.5)*60
 					if tileRotation<0 then tileRotation=tileRotation+360 end
 					if tileRotation>=360 then tileRotation=tileRotation-360 end
 					for hexLocation, hexFeature in pairs(terrainTiles[obj.guid].hexFeature) do
-						--Only run the all-pile refill once at each deployment step. Several hexes often share the same tokenWait.
-						if tokenRefillFrame~=tokenWait+2 then tokenRefillFrame=tokenWait+2 safeWaitFrames("Events",function() tokenRefill() end, tokenRefillFrame) end
-					safeWaitFrames("Events",function()
+						--Only run the all-pile refill once at each deployment step. Initial setup deliberately
+						--keeps refills disabled, so there is no reason to schedule its old no-op delay there.
+						if startingMapSetup~=true and tokenRefillFrame~=tokenWait+2 then tokenRefillFrame=tokenWait+2 safeWaitFrames("Events",function() tokenRefill() end, tokenRefillFrame) end
+					scheduleTerrainPopulation(function()
 						local params={}
 						--don't deploy token if megapolis is being played
 						local free=true
@@ -1911,7 +1928,7 @@ function __onObjectEnterZone_raw(zone, obj)
 				end
 				--lock terrain tile if succesfuly deployed all tokens
 				safeWaitCondition("Events",function() obj.lock() end, function() return obj.resting end)
-				safeWaitFrames("Events",function()
+				local function finishTerrainPopulation()
 					gStates.playedAllready[obj.guid]=true
 					workingOnTerrain[obj.guid]=false
 					--Terrain deployment changes the movement graph directly. Refresh it here instead of relying on
@@ -1924,7 +1941,16 @@ function __onObjectEnterZone_raw(zone, obj)
 					mapTokenArrangeAllOccupiedHexes()
 					fakeDropAvatar()
 					apocalypseQuestRefreshOfferButtons()
-				end, tokenWait+10)
+				end
+				if startingMapSetup==true then
+					safeWaitCondition("Events",finishTerrainPopulation,function()
+						return setupPopulationPending==0 and obj.resting==true
+					end,10,function()
+						error("SetupGame timed out waiting for initial terrain deployment callbacks for "..tostring(obj.guid)..".",2)
+					end)
+				else
+					safeWaitFrames("Events",finishTerrainPopulation,tokenWait+10)
+				end
 
 				--fame gain for played tiles in First Reconnaissance, Lost Relic and The Fractured Lands
 				if (gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
