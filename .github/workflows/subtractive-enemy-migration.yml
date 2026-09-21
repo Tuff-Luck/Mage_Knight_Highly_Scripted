@@ -246,111 +246,10 @@ jobs:
           component_path.write_text(new_component, encoding="utf-8")
 
           save_path = Path("Mage Knight Highly Scripted.json")
-          root = json.loads(save_path.read_text(encoding="utf-8"), parse_float=RawFloat)
+          raw = save_path.read_text(encoding="utf-8")
+          original_root = json.loads(raw)
 
-          def find_in(items, guid):
-              for obj in items or []:
-                  if obj.get("GUID") == guid:
-                      return obj
-                  found = find_in(obj.get("ContainedObjects", []), guid)
-                  if found is not None:
-                      return found
-              return None
-
-          def find(guid):
-              return find_in(root.get("ObjectStates", []), guid)
-
-          normal = {
-              "green": find("c8e6e4"),
-              "tan": find("e4b016"),
-              "red": find("4537fa"),
-              "gray": find("7a85f5"),
-              "purple": find("c03e08"),
-              "white": find("baac01"),
-              "yellow": find("cf4631"),
-          }
-          if any(v is None for v in normal.values()):
-              raise RuntimeError("A normal monster bag is missing from the save")
-
-          high_alt = dict(normal["green"].get("AltLookAngle", {}))
-          low_alt = dict(normal["tan"].get("AltLookAngle", {}))
-          lost_legion = find("aff5f6")
-          tezla = find("96878f")
-          if lost_legion is None or tezla is None:
-              raise RuntimeError("Expansion component container missing")
-
-          lost_legion_map = {
-              "89a23e":"green", "77e1c6":"tan", "143108":"red", "b65694":"yellow",
-              "88ff48":"gray", "bf4140":"purple", "fe25be":"white",
-          }
-          for source_guid, destination in lost_legion_map.items():
-              source = find_in(lost_legion.get("ContainedObjects", []), source_guid)
-              if source is None:
-                  raise RuntimeError("Missing Lost Legion enemy bag " + source_guid)
-              normal[destination].setdefault("ContainedObjects", []).extend(source.get("ContainedObjects", []))
-              source["ContainedObjects"] = []
-
-          tezla_map = {
-              "0596bd":"green", "30bbae":"tan", "54c45b":"red",
-              "cfef57":"green", "0fde4d":"tan", "bc9d0e":"red",
-          }
-          positions = {
-              "0596bd":(-51.13,0.98,-6.00), "30bbae":(-51.13,0.98,-3.50), "54c45b":(-51.13,0.98,-1.00),
-              "cfef57":(-48.63,0.98,-6.00), "0fde4d":(-48.63,0.98,-3.50), "bc9d0e":(-48.63,0.98,-1.00),
-          }
-          moved = []
-          kept = []
-          for obj in tezla.get("ContainedObjects", []):
-              destination = tezla_map.get(obj.get("GUID"))
-              if destination is None:
-                  kept.append(obj)
-                  continue
-              normal[destination].setdefault("ContainedObjects", []).extend(obj.get("ContainedObjects", []))
-              obj["ContainedObjects"] = []
-              x, y, z = positions[obj["GUID"]]
-              transform = obj["Transform"]
-              transform["posX"], transform["posY"], transform["posZ"] = RawFloat(str(x)), RawFloat(str(y)), RawFloat(str(z))
-              transform["rotX"], transform["rotY"], transform["rotZ"] = RawFloat("0.0"), RawFloat("180.0"), RawFloat("180.0")
-              transform["scaleY"] = RawFloat("1.0")
-              obj["Locked"] = True
-              obj["ColorDiffuse"] = {"r":RawFloat("0.4"), "g":RawFloat("0.4"), "b":RawFloat("0.4")}
-              obj["AltLookAngle"] = dict(low_alt)
-              moved.append(obj)
-          tezla["ContainedObjects"] = kept
-          if len(moved) != 6:
-              raise RuntimeError(f"Expected six Tezla faction bags, found {len(moved)}")
-          root["ObjectStates"].extend(moved)
-
-          expected = {"green":36, "tan":24, "red":22, "gray":18, "purple":14, "white":16, "yellow":15}
-          for name, bag in normal.items():
-              count = len(bag.get("ContainedObjects", []))
-              if count != expected[name]:
-                  raise RuntimeError(f"Unexpected {name} pool count {count}; expected {expected[name]}")
-              bag["Transform"]["scaleY"] = RawFloat(f"{count}.0")
-              if name != "yellow":
-                  bag["AltLookAngle"] = dict(high_alt)
-
-          for source_guid in lost_legion_map:
-              source = find_in(lost_legion.get("ContainedObjects", []), source_guid)
-              if source is None or source.get("ContainedObjects", []):
-                  raise RuntimeError("Lost Legion source bag was not emptied: " + source_guid)
-          if any(o.get("GUID") in tezla_map for o in tezla.get("ContainedObjects", [])):
-              raise RuntimeError("A Tezla faction bag remained inside the Tezla container")
-          if any(o.get("ContainedObjects", []) for o in moved):
-              raise RuntimeError("A deployed Tezla faction bag is not empty")
-
-          def find_object_span(text, guid):
-              marker = f'"GUID": "{guid}"'
-              marker_pos = text.find(marker)
-              if marker_pos < 0:
-                  raise RuntimeError("Could not find raw object for " + guid)
-              marker_line_start = text.rfind("\n", 0, marker_pos) + 1
-              previous_line_end = marker_line_start - 1
-              previous_line_start = text.rfind("\n", 0, previous_line_end) + 1
-              start = text.find("{", previous_line_start, marker_line_start)
-              if start < 0:
-                  raise RuntimeError("Could not find raw object start for " + guid)
-              indent = text[previous_line_start:start]
+          def matching_end(text, start, open_char, close_char):
               depth = 0
               in_string = False
               escaped = False
@@ -366,48 +265,288 @@ jobs:
                       continue
                   if ch == '"':
                       in_string = True
-                  elif ch == "{":
+                  elif ch == open_char:
                       depth += 1
-                  elif ch == "}":
+                  elif ch == close_char:
                       depth -= 1
                       if depth == 0:
-                          return start, index + 1, indent
-              raise RuntimeError("Could not find raw object end for " + guid)
+                          return index
+              raise RuntimeError(f"Unmatched {open_char} at {start}")
 
-          def encode_object(obj, indent):
-              encoded_obj = PreserveFloatEncoder(ensure_ascii=False, indent=2).encode(obj)
-              return encoded_obj.replace("\n", "\n" + indent)
+          def object_span(text, guid):
+              marker = f'"GUID": "{guid}"'
+              marker_pos = text.find(marker)
+              if marker_pos < 0:
+                  raise RuntimeError("Could not find object " + guid)
+              marker_line = text.rfind("\n", 0, marker_pos) + 1
+              previous_end = marker_line - 1
+              previous_line = text.rfind("\n", 0, previous_end) + 1
+              start = text.find("{", previous_line, marker_line)
+              if start < 0:
+                  raise RuntimeError("Could not find object start " + guid)
+              end = matching_end(text, start, "{", "}") + 1
+              indent = text[previous_line:start]
+              return start, end, indent
 
-          # Re-serialize only the nine top-level owners that actually changed. Rewriting the complete
-          # 10 MB save normalizes unrelated numeric formatting and creates an enormous meaningless diff.
-          raw = save_path.read_text(encoding="utf-8")
-          replacements = []
-          changed_top_level = list(normal.values()) + [lost_legion, tezla]
-          for obj in changed_top_level:
-              start, end, indent = find_object_span(raw, obj["GUID"])
-              replacements.append((start, end, encode_object(obj, indent)))
-          replacements.sort(reverse=True)
-          for start, end, replacement in replacements:
-              raw = raw[:start] + replacement + raw[end:]
+          def contained_span(text, parent_guid):
+              start, end, _ = object_span(text, parent_guid)
+              key_pos = text.find('"ContainedObjects":', start, end)
+              if key_pos < 0:
+                  raise RuntimeError("Object has no ContainedObjects: " + parent_guid)
+              array_start = text.find("[", key_pos, end)
+              array_close = matching_end(text, array_start, "[", "]")
+              return array_start, array_close
 
-          # The six Tezla faction bags used to be children of the Tezla container. Append their now-empty
-          # versions as normal top-level objects at the end of ObjectStates.
-          _, _, top_indent = find_object_span(raw, normal["green"]["GUID"])
-          object_states_end = raw.rfind("\n  ]\n}")
-          if object_states_end < 0:
-              raise RuntimeError("Could not find ObjectStates array end")
-          addition = ",\n" + ",\n".join(top_indent + encode_object(obj, top_indent) for obj in moved)
-          raw = raw[:object_states_end] + addition + raw[object_states_end:]
+          def reindent_block(block, old_indent, new_indent):
+              lines = block.splitlines()
+              out = []
+              for index, line in enumerate(lines):
+                  if index == 0:
+                      relative = line
+                  elif line.startswith(old_indent):
+                      relative = line[len(old_indent):]
+                  else:
+                      relative = line
+                  out.append(new_indent + relative)
+              return "\n".join(out)
 
-          # Final parse verifies the surgically edited save before it ever reaches git.
-          json.loads(raw)
+          def extract_child(text, child_guid, parent_guid):
+              child_start, child_end, child_indent = object_span(text, child_guid)
+              array_start, array_close = contained_span(text, parent_guid)
+              if not (array_start < child_start < child_end <= array_close):
+                  raise RuntimeError(f"{child_guid} is not contained directly by {parent_guid}")
+              block = text[child_start:child_end]
+
+              line_start = text.rfind("\n", 0, child_start) + 1
+              after = child_end
+              while after < len(text) and text[after] in " \t":
+                  after += 1
+              if after < len(text) and text[after] == ",":
+                  remove_end = after + 1
+                  if remove_end < len(text) and text[remove_end] == "\r":
+                      remove_end += 1
+                  if remove_end < len(text) and text[remove_end] == "\n":
+                      remove_end += 1
+                  text = text[:line_start] + text[remove_end:]
+              else:
+                  before = line_start - 1
+                  while before > array_start and text[before].isspace():
+                      before -= 1
+                  if before > array_start and text[before] == ",":
+                      remove_end = child_end
+                      if remove_end < len(text) and text[remove_end] == "\r":
+                          remove_end += 1
+                      if remove_end < len(text) and text[remove_end] == "\n":
+                          remove_end += 1
+                      text = text[:before] + text[remove_end:]
+                  else:
+                      remove_end = child_end
+                      if remove_end < len(text) and text[remove_end] == "\r":
+                          remove_end += 1
+                      if remove_end < len(text) and text[remove_end] == "\n":
+                          remove_end += 1
+                      text = text[:line_start] + text[remove_end:]
+              return text, block, child_indent
+
+          def insert_child(text, parent_guid, block, old_indent):
+              array_start, array_close = contained_span(text, parent_guid)
+              close_line = text.rfind("\n", array_start, array_close) + 1
+              array_indent = text[close_line:array_close]
+              child_indent = array_indent + "  "
+              formatted = reindent_block(block, old_indent, child_indent)
+              content = text[array_start + 1:array_close]
+              if content.strip():
+                  last = array_close - 1
+                  while last > array_start and text[last].isspace():
+                      last -= 1
+                  text = text[:last + 1] + ",\n" + formatted + text[last + 1:]
+              else:
+                  text = text[:array_start + 1] + "\n" + formatted + "\n" + array_indent + text[array_close:]
+              return text
+
+          def move_child(text, child_guid, source_guid, destination_guid):
+              text, block, old_indent = extract_child(text, child_guid, source_guid)
+              return insert_child(text, destination_guid, block, old_indent)
+
+          def property_object(block, key):
+              key_pos = block.find(f'"{key}":')
+              if key_pos < 0:
+                  raise RuntimeError(f"Missing {key}")
+              start = block.find("{", key_pos)
+              end = matching_end(block, start, "{", "}") + 1
+              return start, end, block[start:end]
+
+          def replace_property_object(block, key, value):
+              start, end, _ = property_object(block, key)
+              return block[:start] + value + block[end:]
+
+          def patch_number(block, key, value, limit=None):
+              region_end = len(block) if limit is None else limit
+              pattern = re.compile(r'("' + re.escape(key) + r'":\s*)[-+0-9.eE]+')
+              head = block[:region_end]
+              head, count = pattern.subn(lambda m: m.group(1) + value, head, count=1)
+              if count != 1:
+                  raise RuntimeError(f"Could not patch {key}")
+              return head + block[region_end:]
+
+          def replace_object(text, guid, new_block):
+              start, end, _ = object_span(text, guid)
+              return text[:start] + new_block + text[end:]
+
+          def patch_normal_bag(text, guid, count, high_alt=None):
+              start, end, _ = object_span(text, guid)
+              block = text[start:end]
+              contained = block.find('"ContainedObjects":')
+              if contained < 0:
+                  raise RuntimeError("Normal monster bag missing contents " + guid)
+              block = patch_number(block, "scaleY", f"{count}.0", contained)
+              if high_alt is not None:
+                  block = replace_property_object(block, "AltLookAngle", high_alt)
+              return text[:start] + block + text[end:]
+
+          def patch_faction_bag(block, position, low_alt):
+              contained = block.find('"ContainedObjects":')
+              if contained < 0:
+                  raise RuntimeError("Faction bag missing contents")
+              x, y, z = position
+              for key, value in [
+                  ("posX", x), ("posY", y), ("posZ", z),
+                  ("rotX", "0.0"), ("rotY", "180.0"), ("rotZ", "180.0"),
+                  ("scaleY", "1.0")
+              ]:
+                  block = patch_number(block, key, value, contained)
+              block = replace_property_object(block, "AltLookAngle", low_alt)
+              color_start, color_end, color = property_object(block, "ColorDiffuse")
+              color = patch_number(color, "r", "0.4")
+              color = patch_number(color, "g", "0.4")
+              color = patch_number(color, "b", "0.4")
+              block = block[:color_start] + color + block[color_end:]
+              block, count = re.subn(r'"Locked":\s*(?:true|false)', '"Locked": true', block, count=1)
+              if count != 1:
+                  raise RuntimeError("Could not lock faction bag")
+              return block
+
+          def append_top_level(text, block, old_indent, top_indent):
+              array_end = text.rfind("\n  ]\n}")
+              if array_end < 0:
+                  raise RuntimeError("Could not find ObjectStates array end")
+              formatted = reindent_block(block, old_indent, top_indent)
+              return text[:array_end] + ",\n" + formatted + text[array_end:]
+
+          # Capture the existing high/low normal monster ALT orientations before moving anything.
+          green_start, green_end, top_indent = object_span(raw, "c8e6e4")
+          _, _, high_alt = property_object(raw[green_start:green_end], "AltLookAngle")
+          tan_start, tan_end, _ = object_span(raw, "e4b016")
+          _, _, low_alt = property_object(raw[tan_start:tan_end], "AltLookAngle")
+
+          normal_destination = {
+              "89a23e":"c8e6e4", "77e1c6":"e4b016", "143108":"4537fa", "b65694":"cf4631",
+              "88ff48":"7a85f5", "bf4140":"c03e08", "fe25be":"baac01",
+              "0596bd":"c8e6e4", "30bbae":"e4b016", "54c45b":"4537fa",
+              "cfef57":"c8e6e4", "0fde4d":"e4b016", "bc9d0e":"4537fa",
+          }
+          token_sets = {
+              "89a23e":["643901","30df98","f0d27a","994ee9","e17886","8ffd9e","28bc08","0cc1e5"],
+              "77e1c6":["013cb1","16d47c","ce794a","863ba1","558de1","277cd2"],
+              "143108":["be5c5e","9156c4","80d998","17bcd9","09ec72","b7dca2"],
+              "b65694":["58c5ab","2f9a1f","28cc9c"],
+              "88ff48":["3f4b5e","88ecaa","bc5065","808631","8ea708","f11b70","7e72a2","90755e"],
+              "bf4140":["490a69","b8f920","23fe94","8a3f72"],
+              "fe25be":["c0c315","eae753","e9a281","e6859f","864fe1","729056"],
+              "0596bd":["8efc20","64b218","698828","adec2a","e9911f","60e427","a04726","f87e31"],
+              "30bbae":["00c4da","863bab","013cb3","61eb07"],
+              "54c45b":["c77901","6cad42","5d4e06","f87e39"],
+              "cfef57":["0c5f4d","698829","f87e33","565ecd","f85b1e","d549a5","39d58e","8efc22"],
+              "0fde4d":["863ba2","558de0","013cb2","61eb06"],
+              "bc9d0e":["c77902","f87e32","342ed4","0d0645"],
+          }
+
+          # Move every expansion enemy object into its inclusive normal pool without reserializing
+          # unrelated save content.
+          for source_guid, tokens in token_sets.items():
+              for token_guid in tokens:
+                  raw = move_child(raw, token_guid, source_guid, normal_destination[source_guid])
+
+          # Update the visible heights of the now-inclusive normal pools. Green already had the
+          # high-count ALT angle; every other normal non-Ruin pool now crosses that threshold too.
+          normal_counts = {
+              "c8e6e4":36, "e4b016":24, "4537fa":22, "7a85f5":18,
+              "c03e08":14, "baac01":16, "cf4631":15,
+          }
+          for guid, count in normal_counts.items():
+              raw = patch_normal_bag(raw, guid, count, None if guid in ("c8e6e4","cf4631") else high_alt)
+
+          # The six now-empty Tezla faction bags leave the Tezla container and live at their normal
+          # table positions. They remain available for scenarios that refill them and are deleted otherwise.
+          faction_positions = {
+              "0596bd":("-51.13","0.98","-6.00"),
+              "30bbae":("-51.13","0.98","-3.50"),
+              "54c45b":("-51.13","0.98","-1.00"),
+              "cfef57":("-48.63","0.98","-6.00"),
+              "0fde4d":("-48.63","0.98","-3.50"),
+              "bc9d0e":("-48.63","0.98","-1.00"),
+          }
+          for guid, position in faction_positions.items():
+              raw, block, old_indent = extract_child(raw, guid, "96878f")
+              block = patch_faction_bag(block, position, low_alt)
+              raw = append_top_level(raw, block, old_indent, top_indent)
+
+          final_root = json.loads(raw)
+
+          def find_in(items, guid):
+              for obj in items or []:
+                  if obj.get("GUID") == guid:
+                      return obj
+                  found = find_in(obj.get("ContainedObjects", []), guid)
+                  if found is not None:
+                      return found
+              return None
+
+          def collect_guids(items, result):
+              for obj in items or []:
+                  guid = obj.get("GUID")
+                  if guid:
+                      result[guid] = result.get(guid, 0) + 1
+                  collect_guids(obj.get("ContainedObjects", []), result)
+
+          before_guids, after_guids = {}, {}
+          collect_guids(original_root.get("ObjectStates", []), before_guids)
+          collect_guids(final_root.get("ObjectStates", []), after_guids)
+          if before_guids != after_guids:
+              raise RuntimeError("Save migration changed the GUID inventory")
+
+          expected = {"c8e6e4":36, "e4b016":24, "4537fa":22, "7a85f5":18, "c03e08":14, "baac01":16, "cf4631":15}
+          for guid, count in expected.items():
+              bag = find_in(final_root.get("ObjectStates", []), guid)
+              if bag is None or len(bag.get("ContainedObjects", [])) != count:
+                  raise RuntimeError(f"Normal pool {guid} has the wrong count")
+
+          top_level = {obj.get("GUID"):obj for obj in final_root.get("ObjectStates", [])}
+          tezla = top_level.get("96878f")
+          if tezla is None:
+              raise RuntimeError("Tezla component bag missing")
+          for guid in faction_positions:
+              bag = top_level.get(guid)
+              if bag is None or bag.get("ContainedObjects", []):
+                  raise RuntimeError("Tezla faction bag is not top-level and empty: " + guid)
+              if any(obj.get("GUID") == guid for obj in tezla.get("ContainedObjects", [])):
+                  raise RuntimeError("Tezla faction bag remained nested: " + guid)
+
+          lost_legion = top_level.get("aff5f6")
+          if lost_legion is None:
+              raise RuntimeError("Lost Legion component bag missing")
+          for guid in ("89a23e","77e1c6","143108","b65694","88ff48","bf4140","fe25be"):
+              source = find_in(lost_legion.get("ContainedObjects", []), guid)
+              if source is None or source.get("ContainedObjects", []):
+                  raise RuntimeError("Lost Legion enemy source bag was not emptied: " + guid)
+
           save_path.write_text(raw, encoding="utf-8")
           PY
 
           changes=$(git diff --numstat -- "Mage Knight Highly Scripted.json" | awk '{print $1+$2}')
           echo "Save JSON changed lines: $changes"
           git diff -- "Mage Knight Highly Scripted.json" | head -220 || true
-          if [ -z "$changes" ] || [ "$changes" -gt 30000 ]; then
+          if [ -z "$changes" ] || [ "$changes" -gt 25000 ]; then
             echo "Unexpectedly large/empty save rewrite; refusing to commit."
             exit 1
           fi
