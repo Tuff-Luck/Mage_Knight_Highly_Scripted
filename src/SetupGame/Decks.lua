@@ -72,7 +72,11 @@ function deckSetup()
 				local questSetupDie=spareDice.takeObject({position={69.00,1.47,15.30},rotation={0,180,0},smooth=true})
 				if questSetupDie~=nil then gStates.apocalypseQuestSetupDieGUID=questSetupDie.guid end
 			end
-			safeTakeObject("SetupGame",apocalypseBag,{guid=GUID.deck.apocalypseQuest, position={46.84, 1.14, 8.06}, rotation={0, 180, 180}, smooth=true, callback_function=function(obj) safeWaitFrames("SetupGame",function() apocalypseQuestDeckSetup(obj) end, 2) end})
+			safeTakeObject("SetupGame",apocalypseBag,{guid=GUID.deck.apocalypseQuest,position={46.84,1.14,8.06},rotation={0,180,180},smooth=true,callback_function=function(obj)
+				safeWaitCondition("SetupGame",function() apocalypseQuestDeckSetup(obj) end,function()
+					return obj~=nil and getObjectFromGUID(obj.guid)~=nil and obj.isSmoothMoving()==false
+				end,10,function() error("SetupGame timed out waiting for the Apocalypse Quest deck to settle.",2) end)
+			end})
 		end
 	end
 

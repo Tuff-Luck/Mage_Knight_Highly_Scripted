@@ -28,6 +28,8 @@ Functional object Lua should be moved into Global modules where practical. Place
 
 Use the existing protected asynchronous boundaries (`safeWaitFrames`, `safeWaitTime`, `safeWaitCondition`, `safeTakeObject`, `safeSpawnObject`, and related helpers) rather than introducing raw delayed/callback boundaries without a reason.
 
+During game setup, never use a fixed time/frame delay to order dependent setup steps when the real dependency can be observed. Chain setup through object callbacks or `safeWaitCondition` checks for the actual requirement (registration, resting/movement completion, container contents, state change, or subsystem-ready flag). Fixed delays are acceptable only for terminal/cosmetic post-setup work that does not gate, supply, or protect another setup step. Visual map setup may remain deliberately paced, but its completion must be signaled explicitly rather than inferred from elapsed time.
+
 Prefer compact Lua and direct changes. Add nil guards when they prevent a real runtime problem or improve diagnosis; do not blanket the code with defensive guards.
 
 For visible scripted movement, use Tabletop Simulator\'s normal/slow smooth movement by default. Pass `fast=false` explicitly (`setPositionSmooth(..., false, false)` / `setRotationSmooth(..., false, false)`) when touching movement code so the intent is unambiguous. Do not use the fast smooth-move mode unless the user explicitly asks for it. Container `takeObject({smooth=true})` is fine when extracting an object; do not replace normal visible movement with fast smooth movement.

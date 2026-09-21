@@ -17,23 +17,29 @@ local function revealSetupTerrainBatches(batches,onComplete)
 		end
 		local batch=batches[index]
 		index=index+1
+		local function batchPopulationStarted()
+			for _,entry in ipairs(batch) do
+				if gStates.playedAllready[entry.guid]~=true and workingOnTerrain[entry.guid]~=true then return false end
+			end
+			return true
+		end
+		local function batchPopulationFinished()
+			for _,entry in ipairs(batch) do if gStates.playedAllready[entry.guid]~=true then return false end end
+			return true
+		end
 		safeWaitCondition("SetupGame",function()
 			for _,entry in ipairs(batch) do
 				local tile=getObjectFromGUID(entry.guid)
 				if entry.first==true then firstTile=entry.guid gStates.firstStarted=true end
 				if tile~=nil and tile.is_face_down==true then tile.flip() end
 			end
-			--Give onObjectEnterZone one frame to claim workingOnTerrain before testing completion.
-			safeWaitFrames("SetupGame",function()
-				safeWaitCondition("SetupGame",nextBatch,function()
-					for _,entry in ipairs(batch) do
-						if gStates.playedAllready[entry.guid]~=true then return false end
-					end
-					return true
-				end,15,function()
+			safeWaitCondition("SetupGame",function()
+				safeWaitCondition("SetupGame",nextBatch,batchPopulationFinished,15,function()
 					error("SetupGame timed out waiting for terrain population during initial map reveal.",2)
 				end)
-			end,1)
+			end,batchPopulationStarted,10,function()
+				error("SetupGame timed out waiting for an initial terrain reveal event.",2)
+			end)
 		end,function()
 			for _,entry in ipairs(batch) do
 				local tile=getObjectFromGUID(entry.guid)
@@ -90,9 +96,16 @@ function furyDragonSetupLair(tile)
 	return true
 end
 
-function mapSetup()
+function mapSetup(onComplete)
 	startingMapSetup=true
 	startingMapTiles={}
+	local mapSetupFinished=false
+	local function finishMapSetup(success,reason)
+		if mapSetupFinished==true then return end
+		mapSetupFinished=true
+		startingMapSetup=false
+		if onComplete~=nil then onComplete(success,reason) end
+	end
 	local TileShuffler=		getObjectFromGUID(GUID.bag.terrain.shuffler)
 	local CityTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCity)
 	local CoreTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCore)
@@ -117,26 +130,27 @@ function mapSetup()
 		local openStartPos={-36.0305,0.98,-11.9267}
 		local startTile=getObjectFromGUID(startTerrain.wedge)
 		local portalObj=getObjectFromGUID(portal.terrainHex)
+		if TileShuffler~=nil then TileShuffler.destruct() end
+		Global.setDecals({})
 		if startTile~=nil then
 			startTile.unlock()
 			if portalObj~=nil then portalObj.unlock() end
 			startTile.setPosition(openStartPos)
 			if portalObj~=nil then portalObj.setPosition({openStartPos[1],1.1,openStartPos[3]}) end
 			startTile.setState(2)
-			safeWaitFrames("SetupGame",function()
-				local openStart=getObjectFromGUID(startTerrain.open)
-				if openStart~=nil then openStart.unlock() end
-				local currentPortal=getObjectFromGUID(portal.terrainHex)
-				if currentPortal~=nil then currentPortal.unlock() end
-			end,5)
+			safeWaitCondition("SetupGame",function()
+				getObjectFromGUID(startTerrain.open).unlock()
+				getObjectFromGUID(portal.terrainHex).unlock()
+				finishMapSetup(true)
+			end,function()
+				return getObjectFromGUID(startTerrain.open)~=nil and getObjectFromGUID(portal.terrainHex)~=nil
+			end,10,function() finishMapSetup(false,"SetupGame timed out waiting for the Custom Predefined start tile state.") end)
 		else
 			local openStart=getObjectFromGUID(startTerrain.open)
 			if openStart~=nil then openStart.unlock() end
 			if portalObj~=nil then portalObj.unlock() end
+			finishMapSetup(true)
 		end
-		if TileShuffler~=nil then TileShuffler.destruct() end
-		Global.setDecals({})
-		startingMapSetup=false
 		return
 	end
 	CityTileStack.shuffle()
@@ -232,8 +246,7 @@ function mapSetup()
 	if gStates.heroChallenges==true then
 		heroCountryAssignment=heroChallengeCountryAssignment(true)
 		if heroCountryAssignment==nil then
-			print("HERO CHALLENGE SETUP ERROR: no legal Countryside assignment")
-			startingMapSetup=false
+			finishMapSetup(false,"HERO CHALLENGE SETUP ERROR: no legal Countryside assignment")
 			return
 		end
 	end
@@ -251,7 +264,12 @@ function mapSetup()
 		getObjectFromGUID(startTerrain.wedge).setPosition(openStartPos)--start terrain tile gets moved and state changed
 		getObjectFromGUID(portal.terrainHex).setPosition({openStartPos[1],1.1,openStartPos[3]})--portal overlay follows the start tile
 		getObjectFromGUID(startTerrain.wedge).setState(2)
-		safeWaitFrames("SetupGame",function() getObjectFromGUID(startTerrain.open).lock() getObjectFromGUID(portal.terrainHex).lock() end, 5)
+		safeWaitCondition("SetupGame",function()
+			getObjectFromGUID(startTerrain.open).lock()
+			getObjectFromGUID(portal.terrainHex).lock()
+		end,function() return getObjectFromGUID(startTerrain.open)~=nil and getObjectFromGUID(portal.terrainHex)~=nil end,10,function()
+			error("SetupGame timed out waiting for the Open start tile state.",2)
+		end)
 	end
 
 	--Add Grid
@@ -381,13 +399,13 @@ function mapSetup()
 		if againstHorsemenMap then
 			params.position=againstHorsemenCoreTilePos[i]
 			local coreTile=safeTakeObject("SetupGame",CoreTileStack,params)
-			if coreTile==nil then print("HORSEMEN SETUP ERROR: Core tile "..tostring(i).." was not available") startingMapSetup=false return end
+			if coreTile==nil then finishMapSetup(false,"HORSEMEN SETUP ERROR: Core tile "..tostring(i).." was not available") return end
 			againstHorsemenCoreTileGUIDs[i]=coreTile.guid
 		elseif furyMap then
 			params.position=furyCoreTilePos[i]
 			params.rotation={0,gStates.randomTileOrientation==true and math.random(1,6)*60 or 180,180}
 			local coreTile=safeTakeObject("SetupGame",CoreTileStack,params)
-			if coreTile==nil then print("FURY SETUP ERROR: Core tile "..tostring(i).." was not available") startingMapSetup=false return end
+			if coreTile==nil then finishMapSetup(false,"FURY SETUP ERROR: Core tile "..tostring(i).." was not available") return end
 			if i==1 then furyLairTile=coreTile end
 			furyRevealGUIDs[#furyRevealGUIDs+1]=coreTile.guid
 		else
@@ -408,9 +426,9 @@ function mapSetup()
 			surplusGUIDs=heroChallengeShuffleCopy(surplusGUIDs)
 			for i=1, megaCountry, 1 do
 				local guid=surplusGUIDs[i]
-				if guid==nil then print("ULTIMATE CONQUEST SETUP ERROR: not enough unreserved Countryside tiles") startingMapSetup=false return end
+				if guid==nil then finishMapSetup(false,"ULTIMATE CONQUEST SETUP ERROR: not enough unreserved Countryside tiles") return end
 				local countryTile=CountryTileStack.takeObject({guid=guid,rotation={0, 180, 180},smooth=false})
-				if countryTile==nil then print("ULTIMATE CONQUEST SETUP ERROR: could not reserve Hero Challenge Countryside tile set") startingMapSetup=false return end
+				if countryTile==nil then finishMapSetup(false,"ULTIMATE CONQUEST SETUP ERROR: could not reserve Hero Challenge Countryside tile set") return end
 				TileShuffler.putObject(countryTile)
 			end
 		else
@@ -536,8 +554,7 @@ function mapSetup()
 		end
 		local countryTile=safeTakeObject("SetupGame",CountryTileStack,params)
 		if countryTile==nil then
-			print("COUNTRYSIDE SETUP ERROR: tile "..tostring(params.guid).." was not available for slot "..tostring(i))
-			startingMapSetup=false
+			finishMapSetup(false,"COUNTRYSIDE SETUP ERROR: tile "..tostring(params.guid).." was not available for slot "..tostring(i))
 			return
 		end
 		if againstHorsemenMap and i==1 then againstHorsemenStartGUID=countryTile.guid end
@@ -545,13 +562,26 @@ function mapSetup()
 		if not againstHorsemenMap and not furyMap then TileShuffler.putObject(countryTile) end
 	end
 
+	local function startReferenceReady()
+		if againstHorsemenMap then return againstHorsemenStartGUID~=nil and getObjectFromGUID(againstHorsemenStartGUID)~=nil end
+		local shape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)
+		local startGUID=(shape=="O" or shape=="F" or shape=="P") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
+		return getObjectFromGUID(startGUID)~=nil and getObjectFromGUID(portal.terrainHex)~=nil
+	end
+	local function revealWhenStartReady(batches,callback)
+		if startReferenceReady()==true then revealSetupTerrainBatches(batches,callback) return end
+		safeWaitCondition("SetupGame",function() revealSetupTerrainBatches(batches,callback) end,startReferenceReady,10,function()
+			finishMapSetup(false,"SetupGame timed out waiting for the starting terrain reference.")
+		end)
+	end
+
 	if furyMap then
 		--Everything in Fury is already on the table. Core 1's former Tomb is the one-space Dragon Lair.
-		if furyDragonSetupLair(furyLairTile)~=true then print("FURY SETUP ERROR: could not establish the Dragon Lair") end
+		if furyDragonSetupLair(furyLairTile)~=true then finishMapSetup(false,"FURY SETUP ERROR: could not establish the Dragon Lair") return end
 		--Reveal one tile at a time, but continue immediately when its normal terrain population finishes.
 		local batches={}
 		for _,guid in ipairs(furyRevealGUIDs) do batches[#batches+1]={{guid=guid}} end
-		revealSetupTerrainBatches(batches,function() startingMapSetup=false fakeDropAvatar() end)
+		revealWhenStartReady(batches,function() fakeDropAvatar() finishMapSetup(true) end)
 		return
 	end
 
@@ -561,7 +591,7 @@ function mapSetup()
 		againstHorsemenSetStartingAvatarLocations()
 		againstHorsemenSetupTokens(againstHorsemenCoreTileGUIDs,againstHorsemenCoreTilePos)
 		local batches=againstHorsemenStartGUID~=nil and {{{guid=againstHorsemenStartGUID}}} or {}
-		revealSetupTerrainBatches(batches,function()
+		revealWhenStartReady(batches,function()
 			--Country01's central Magical Glade replaces the normal starting terrain in this scenario.
 			--Remove either state of the start tile plus only its map Portal overlay; the Portal card stays
 			--in place as the shared-avatar parking area.
@@ -569,7 +599,7 @@ function mapSetup()
 			local portalObj=getObjectFromGUID(portal.terrainHex)
 			if startObj~=nil then startObj.destruct() end
 			if portalObj~=nil then portalObj.destruct() end
-			startingMapSetup=false
+			finishMapSetup(true)
 		end)
 		return
 	end
@@ -633,5 +663,5 @@ function mapSetup()
 	end
 	--Initial tiles remain excluded from Apocalypse is Here reveal thresholds until their real population
 	--callbacks finish; there is no longer a fixed four-second setup tail.
-	revealSetupTerrainBatches(standardRevealBatches,function() startingMapSetup=false end)
+	revealWhenStartReady(standardRevealBatches,function() finishMapSetup(true) end)
 end

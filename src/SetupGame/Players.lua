@@ -1,7 +1,23 @@
 -- Physical player, Dummy and Volkare piece deployment during setup.
 
+function setupPlayersReady()
+	if gStates==nil or gStates.playerSetupReady~=true or gStates.mirrorSetupReady~=true then return false end
+	if proxyPlayerActive()==true and gStates.proxySetupReady~=true then return false end
+	if gStates.positionMageKnight[5]=="Volkare" and gStates.volkareSetupReady~=true then return false end
+	return true
+end
+
 --Go through the five player positions and put out pieces based on the game settings
 function playerSetup()
+	gStates.playerSetupReady=false
+	gStates.proxySetupReady=proxyPlayerActive()~=true
+	gStates.volkareSetupReady=gStates.positionMageKnight[5]~="Volkare"
+	gStates.mirrorSource=gStates.mirrorSource or {}
+	gStates.mirrorSetupReady=false
+	local mirrorExpected=0
+	for seat=1,4 do if gStates.positionMageKnight[seat]~="nobody" then mirrorExpected=mirrorExpected+1 end end
+	local mirrorReady=0
+	if mirrorExpected==0 then gStates.mirrorSetupReady=true end
 	if gStates.heroChallenges==true then gStates.heroChallengeReservedSkills={} end
 	--generate random Mage Knights if needed
 	gStates.originalChoiceMageKnights={gStates.positionMageKnight[1], gStates.positionMageKnight[2], gStates.positionMageKnight[3], gStates.positionMageKnight[4], gStates.positionMageKnight[5]}
@@ -88,12 +104,16 @@ function playerSetup()
 				if (gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]~=5) then
 					local obj=getObjectFromGUID("b5a6ce").clone()
 					obj.setPosition({-58.25+offsetPosition, 0.98, -28.53})
-					safeWaitTime("SetupGame",function() safeWaitCondition("SetupGame",function()
+					safeWaitCondition("SetupGame",function()
 						obj.lock()
-						obj.setRotation({0, 180, 0})
+						obj.setRotation({0,180,0})
 						obj.registerCollisions()
 						gStates.mirrorSource[#gStates.mirrorSource+1]=obj.guid
-					end, function() return obj.resting end) end, 0.1)
+						mirrorReady=mirrorReady+1
+						if mirrorReady>=mirrorExpected then gStates.mirrorSetupReady=true end
+					end,function() return obj~=nil and obj.resting==true end,10,function()
+						error("SetupGame timed out waiting for a player mirror source to settle.",2)
+					end)
 				end
 
 				--Figure out which Mage Knight is assigned to a position
@@ -316,11 +336,28 @@ function playerSetup()
 							if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
 								params.position={-37.23, 2.5, -5.69}
 								params.rotation={0.0, 210.0, 0.0}--Volkare's Return Guide position
-								params.callback_function=function() safeWaitFrames("SetupGame",function() getObjectFromGUID("bc4dcc").jointTo(getObjectFromGUID(volkare.model), {["type"]="Fixed"}) end, 5) end
+								params.callback_function=function(guide)
+									safeWaitCondition("SetupGame",function()
+										guide.jointTo(getObjectFromGUID(volkare.model),{["type"]="Fixed"})
+									end,function() return guide~=nil and guide.resting==true and getObjectFromGUID(volkare.model)~=nil end,10,function()
+										error("SetupGame timed out waiting to attach Volkare's Return guide.",2)
+									end)
+								end
 							else
 								params.position={-12.03, 2.5, 8.86}--Volkare's Quest Guide position
 								params.rotation={0.0, 210.0, 0.0}
-								params.callback_function=function() safeWaitFrames("SetupGame",function() getObjectFromGUID("bc4dcc").setState(2) safeWaitFrames("SetupGame",function() getObjectFromGUID("be2dc2").jointTo(getObjectFromGUID(volkare.model), {["type"]="Fixed"}) end, 5) end, 5) end
+								params.callback_function=function(guide)
+									safeWaitCondition("SetupGame",function()
+										guide.setState(2)
+										safeWaitCondition("SetupGame",function()
+											getObjectFromGUID("be2dc2").jointTo(getObjectFromGUID(volkare.model),{["type"]="Fixed"})
+										end,function() return getObjectFromGUID("be2dc2")~=nil and getObjectFromGUID(volkare.model)~=nil end,10,function()
+											error("SetupGame timed out waiting for Volkare's Quest guide state.",2)
+										end)
+									end,function() return guide~=nil and guide.resting==true and getObjectFromGUID(volkare.model)~=nil end,10,function()
+										error("SetupGame timed out waiting to prepare Volkare's Quest guide.",2)
+									end)
+								end
 							end
 							skip=1
 						end
@@ -397,11 +434,20 @@ function playerSetup()
 	--The Proxy uses a visible copy of their Mage Knight's infinite Shield bag beside the Dummy setup,
 	--plus the two Apocalypse Proxy reference cards immediately to the right of the Skill reference cards.
 	if proxyPlayerActive()==true then
-		safeWaitFrames("SetupGame",function()
+		safeWaitCondition("SetupGame",function()
 			proxySetupReferenceCards()
 			proxySetupShieldBag()
-		end,10)
+			safeWaitCondition("SetupGame",function()
+				gStates.proxySetupReady=true
+			end,function()
+				local shield=gStates.proxyShieldBagGUID~=nil and getObjectFromGUID(gStates.proxyShieldBagGUID) or nil
+				return getObjectFromGUID("0e855c")~=nil and getObjectFromGUID("dbf566")~=nil and shield~=nil
+			end,10,function() error("SetupGame timed out waiting for Proxy reference components.",2) end)
+		end,function()
+			return getObjectFromGUID(dummyBoard)~=nil and getObjectFromGUID(GUID.bag.apocalypseDragon)~=nil
+		end,10,function() error("SetupGame timed out waiting for the Proxy setup sources.",2) end)
 	end
+	gStates.playerSetupReady=true
 end
 
 --Setup additional volkare components (Skill for Solo, Unit Crytals, And Monster Pugs)
@@ -521,10 +567,15 @@ function volkareArmy()
 		--Change his models level
 		getObjectFromGUID(volkare.model).setCustomObject({diffuse=cityLevelImage[volkare.model][math.floor(gStates.volkareLevel/math.ceil(gStates.volkareLevel/15))]})
 		getObjectFromGUID(volkare.model).reload()
-		safeWaitCondition("SetupGame",function() getObjectFromGUID(volkare.model).lock() end,function()
+		safeWaitCondition("SetupGame",function()
+			getObjectFromGUID(volkare.model).lock()
+			gStates.volkareSetupReady=true
+		end,function()
 			local model=getObjectFromGUID(volkare.model)
 			return model~=nil and model.resting==true
 		end,10,function() error("SetupGame timed out waiting for Volkare's model to reload.",2) end)
 		cityLevelButtons(volkare.model, "Volkar")
+	else
+		gStates.volkareSetupReady=true
 	end
 end

@@ -26,10 +26,21 @@ function higherLevelRelocateUnits(playerIndex)
 	scheduleUnitLayoutRefresh(playerData.seatPos)
 end
 
+local function higherLevelZonesSettled(seatPos)
+	for _,zoneGUID in ipairs({playerPlayAreas[seatPos],playerUnitAreas[seatPos],playerCrystalAreas[seatPos]}) do
+		local zone=getObjectFromGUID(zoneGUID)
+		if zone==nil then return false end
+		for _,obj in pairs(zone.getObjects()) do
+			if obj.isSmoothMoving~=nil and obj.isSmoothMoving()==true then return false end
+		end
+	end
+	return true
+end
+
 --Create and Update Level Interface for Player count
 local higherLevelUIPause=true
 function mageLevelBoard()
-	if higherLevelUIPause==true then safeWaitFrames("SetupGame",function()
+	if higherLevelUIPause==true then safeWaitCondition("SetupGame",function()
 		if gStates.magesSetup==true then
 			--Create an interface for all players in the game
 			for a=1, #turnOrder, 1 do
@@ -60,7 +71,8 @@ function mageLevelBoard()
 						for b, c in pairs(stats) do
 							turnOrder[a].levelingStats[c]=0
 						end
-						safeWaitFrames("SetupGame",function()
+						local refreshSeatPos=turnOrder[a].seatPos
+						safeWaitCondition("SetupGame",function()
 							--Count Everything in the player's play area
 							local spellColors={}
 							local crystalColors={}
@@ -154,7 +166,9 @@ function mageLevelBoard()
 									UI.setAttribute("Mage"..turnOrder[a].seatPos.."CompleteButtonImage", "image", "Sliced Button/Button New Deactive")
 								end
 							end
-						end, 5)
+						end,function() return higherLevelZonesSettled(refreshSeatPos) end,10,function()
+							error("SetupGame timed out waiting for higher-level selections to settle.",2)
+						end)
 					end
 				else
 					if a==1 then gStates.turnNumber=2 end
@@ -162,7 +176,9 @@ function mageLevelBoard()
 			end
 		end
 		higherLevelUIPause=true
-	end, 5)	end
+	end,function() return setupPlayersReady()==true end,10,function()
+		error("SetupGame timed out waiting for player setup before opening the higher-level interface.",2)
+	end) end
 	higherLevelUIPause=false
 end
 
@@ -255,10 +271,12 @@ function cardPool(player, mouseButton, id)
 							gStates.mageSkills[obj.guid]=pos
 						end
 					end
-					--Add claim buttons
-					safeWaitFrames("SetupGame",function() safeWaitCondition("SetupGame",function()
+					--Add claim buttons as soon as the last dealt Skill has actually settled.
+					safeWaitCondition("SetupGame",function()
 						higherLevelSkillClaimButons()
-					end, function() return obj==nil or obj.resting end) end, 5)
+					end,function() return obj==nil or obj.resting==true end,10,function()
+						error("SetupGame timed out waiting for higher-level Skill choices to settle.",2)
+					end)
 					--Deploy Command Token(s). Slot 1 is the printed starting token already on the board.
 					local setupCommandCount=1+math.floor((mageDetails.level-1)/2)
 					for c=1, setupCommandCount-1 do
@@ -458,9 +476,9 @@ function startHigherLevel(player, mouseButton, id)
 						objToDel.destruct()
 					end
 				end
-				--Return to regular setup
+				--Return to regular setup. afterLoad now owns the real readiness barrier.
 				UI.hide("LevelUpRules")
-				safeWaitTime("SetupGame",afterLoad, 0.1)
+				afterLoad()
 			end
 		end
 	end

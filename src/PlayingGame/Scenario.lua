@@ -3398,6 +3398,7 @@ end
 function setupApocalypseDragonHeads()
 	if apocalypseDragonScenario()~=true then return end
 	local startingLevel=apocalypseDragonStartingLevel()
+	gStates.apocalypseDragonHeadsSetupReady=false
 	gStates.apocalypseDragonHeadLevels={}
 	gStates.apocalypseDragonLevelMarkers={}
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
@@ -3423,9 +3424,6 @@ function setupApocalypseDragonHeads()
 		if head~=nil then head.lock() end
 		apocalypseDragonDeployHeadToken(headData,bag)
 	end
-	safeWaitFrames("Scenario",function()
-		for _,headData in ipairs(apocalypseDragon.heads) do apocalypseDragonSetHeadLevel(headData.name,startingLevel) end
-	end,2)
 	if gStates.gameScenario~="Fury of the Apocalypse Dragon" then
 		local dragon=getObjectFromGUID(apocalypseDragon.model)
 		if dragon==nil and bag~=nil then
@@ -3435,6 +3433,31 @@ function setupApocalypseDragonHeads()
 			dragon.setRotation({0,180,180})
 		end
 		if dragon~=nil then dragon.setLock(false) end
+	end
+
+	local function dragonHeadSetupObjectsReady()
+		if startingLevel>0 and getObjectFromGUID(GUID.bag.neutralShield)==nil then return false end
+		for _,headData in ipairs(apocalypseDragon.heads) do
+			if getObjectFromGUID(headData.guid)==nil or getObjectFromGUID(headData.tokenGUID)==nil then return false end
+		end
+		if gStates.gameScenario~="Fury of the Apocalypse Dragon" and getObjectFromGUID(apocalypseDragon.model)==nil then return false end
+		return true
+	end
+	local function finishDragonHeadSetup()
+		for _,headData in ipairs(apocalypseDragon.heads) do
+			if apocalypseDragonSetHeadLevel(headData.name,startingLevel)~=true then
+				error("SetupGame could not set the initial level for Apocalypse Dragon head "..tostring(headData.name)..".",2)
+			end
+		end
+		positionApocalypseDragonHeads()
+		gStates.apocalypseDragonHeadsSetupReady=true
+	end
+	if dragonHeadSetupObjectsReady()==true then
+		finishDragonHeadSetup()
+	else
+		safeWaitCondition("Scenario",finishDragonHeadSetup,dragonHeadSetupObjectsReady,10,function()
+			error("SetupGame timed out waiting for Apocalypse Dragon setup objects.",2)
+		end)
 	end
 end
 

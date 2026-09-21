@@ -98,6 +98,18 @@ local function setupStartDeckStage()
 	end)
 end
 
+local setupFinalizationStarted=false
+local setupMapStarted=false
+
+local function setupCoreSystemsReady()
+	if gStates.monsterSetupReady~=true then return false end
+	if setupPlayersReady~=nil and setupPlayersReady()~=true then return false end
+	if gStates.volkareCampSupportReady~=true then return false end
+	if apocalypseQuestsUsed()==true and gStates.apocalypseQuestSetupReady~=true then return false end
+	if apocalypseDragonScenario()==true and gStates.apocalypseDragonHeadsSetupReady~=true then return false end
+	return true
+end
+
 --Layout everything needed for the game
 local setupRewindRequestPending=false
 local function setupGameRaw(player, mouseButton, id, rewindReady)
@@ -112,6 +124,10 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			return
 		end
 		setupDeckMergesPending=0
+		setupFinalizationStarted=false
+		setupMapStarted=false
+		gStates.volkareCampSupportReady=true
+		gStates.apocalypseQuestSetupReady=apocalypseQuestsUsed()~=true
 
 		--Close the setup menu and update the Help button
 		UI.setAttribute("Setup", "active", "false")
@@ -381,12 +397,22 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 
 		--Deploy Volkare City support pieces whenever the Camp is eligible. These stay visible even if the hidden terrain draw does not select the Camp tile.
 		if setupUsesVolkareCampCity() then
+			gStates.volkareCampSupportReady=false
 			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={-57.75, 0.98, -2.95}, smooth=false, guid=volkare.disc})--Volkares Mat
 			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={-62.2, 0.98, 0.5}, smooth=false, guid=volkare.terrainHex})--Volkare's Camp Hex
-			safeWaitTime("SetupGame",function()
-				getObjectFromGUID(volkare.terrainHex).lock()
-				getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0, 180.0, 0.0}, position={getObjectFromGUID(cityScriptZones[volkare.discZone].cityCard).getPosition()[1]+2.2, 1.5, getObjectFromGUID(cityScriptZones[volkare.discZone].cityCard).getPosition()[3]+2.2}, smooth=false, guid=GUID.bag.volkareReminder})
-			end, 1)
+			local campCityCardGUID=cityScriptZones[volkare.discZone].cityCard
+			safeWaitCondition("SetupGame",function()
+				local campHex=getObjectFromGUID(volkare.terrainHex)
+				local cityCard=getObjectFromGUID(campCityCardGUID)
+				local bag=getObjectFromGUID(GUID.bag.volkare)
+				campHex.lock()
+				local p=cityCard.getPosition()
+				local reminder=safeTakeObject("SetupGame",bag,{rotation={0.0,180.0,0.0},position={p[1]+2.2,1.5,p[3]+2.2},smooth=false,guid=GUID.bag.volkareReminder})
+				if reminder==nil then error("SetupGame could not deploy the Volkare Camp reminder.",2) end
+				gStates.volkareCampSupportReady=true
+			end,function()
+				return getObjectFromGUID(volkare.terrainHex)~=nil and getObjectFromGUID(campCityCardGUID)~=nil and getObjectFromGUID(GUID.bag.volkare)~=nil
+			end,10,function() error("SetupGame timed out waiting for Volkare Camp support objects.",2) end)
 			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.volkare),{rotation={0.0, 180.0, 0.0}, position={39.16, 0.97, 35.00}, callback_function=function(spawnedObject) spawnedObject.setScale({7.05, 1.00, 6.51}) end, smooth=false, guid="b2ec85"})--Volkare Level Chart
 			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0,  45.0, 0.0}, position={-57.60, 1.57, -2.45}, smooth=false, guid="9a686a"})--Volker Dice
 		end
@@ -562,91 +588,109 @@ local function removeUnselectedTerrain()
 	if gStates.positionMageKnight[5]~="Volkare" and setupUsesVolkareCampCity()~=true then sendTerrainTileToTrash(cityBag,"835c91") end
 end
 
---destroy all the setup bags
-function afterLoad()
-	removeUnselectedTerrain()
-	--Deploy the scenario map from the already-filtered terrain bags.
-	mapSetup()
-	if apocalypseDragonScenario()==true then safeWaitTime("SetupGame",function() positionApocalypseDragonHeads() end,2) end
+--Finalize setup only after all chained setup work and initial map population are actually complete.
+local function finalizeSetup()
+	if setupFinalizationStarted==true then return end
+	setupFinalizationStarted=true
+	if gStates.startAtNight==true then gStates.dayRound=true end
+	dayNight()--dayNight need to be after map setup to change the tile tint
+	gStates.firstStarted=true
+	gStates.turnNumber=1
+	refreshAllPlayerFameReputationFromShields()
+	refreshMageSkillLocations()
+	tacticToggle()
+	--Delete Player Bags could this be done during setup
+	local ToBeDeleted={	GUID.bag.component.arythea,--Arythea
+						GUID.bag.component.norowas,--Norowas
+					 	GUID.bag.component.goldyx,--Goldyx
+						GUID.bag.component.tovak,--Tovak
+						GUID.bag.component.krang,--Krang
+						GUID.bag.component.braevalar,--Braevalar
+						GUID.bag.component.ymirgh,--Ymirgh
+						GUID.bag.component.wolfhawk,--Wolfhawk
+						GUID.bag.component.coral,--Coral
+						GUID.bag.component.jormund,--Jormund
+						GUID.bag.volkare,--Volkare
+						GUID.bag.common,--Common Piecies
+						GUID.bag.terrain.shuffler,--Tile Shuffler
+						GUID.bag.forgemaster,--Rise of the Forgemasters
+						GUID.bag.tezla,--Shades of Tesla
+						GUID.bag.apocalypseDragon,--Apocalypse Dragon
+						GUID.bag.lostLegion,--Lost Legion
+						GUID.bag.component.mevok,--Mevok
+						GUID.bag.component.duscenia,--Duscenia
+						GUID.bag.component.zirtae,--Zirtae
+						GUID.bag.component.malek}--Malek
+
+	for _, dest in pairs(ToBeDeleted) do
+		if getObjectFromGUID(dest)~=nil then getObjectFromGUID(dest).destruct() end
+	end
+	--finalize mirrored source.
+	getObjectFromGUID("b5a6ce").destruct()
+	mirrorSourceUpdate("first started game")
+	--Draw all the offers will double draw if I don't get the timing right.
+	gStates.totalUnitCount=gStates.playerCount+gStates.blitz+2
+	if gStates.positionMageKnight[5]=="Volkare" or proxyPlayerActive()==true then gStates.totalUnitCount=gStates.totalUnitCount+1 end
+	unitOffer()
+	fillSlide()
+	--display the help boxes
+	DisplayHelp(nil, "-1", nil)
+	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDownImage", "image", "Overkill Down")
+	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferImage", "image", "Sliced Button/Button Object Active")
+	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUpImage", "image", "Overkill Up")
+	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "true")
+	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOffer", "active", "true")
+	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUp", "active", "true")
+	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferText", "text", joinLang({"{en}Reward {ru}Награда {zh-tw}獎勵{zh-cn}奖励{ko}보상 {es}Premiar {fr}Reward {pt-br}Premiar {de}Belohnung ", gStates.artifactRewards}))
+	UI.setAttribute("ResourceTracker", "active", "true")
+	UI.setAttribute("cameraControl", "active", "true")
+	if gStates.gameScenario=="One to Return" then UI.hide("ScoreButton") end
+
+	broadcastToAll("-------------------", {1,1,0.5})
+	--Stop player boards and dummy board from alt zooming
+	local megaFreeze=  {"3d4319", "519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard}--player mats
+	for i=1, #megaFreeze, 1 do
+		local obj=getObjectFromGUID(megaFreeze[i])
+		if obj~=nil then obj.interactable=false end --some boards may be missing depending on their states
+	end
+	addAvatarButtons()
+	applyColorBarButtons()
+	refreshPlayerSeatColors()
+	getObjectFromGUID(GUID.deck.spell).UI.setXmlTable({	{tag="Button", attributes={id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=240, position="60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
+													children={	{tag="Image", attributes={id="e4372aOfferUpImage", image="Sliced Button/Button Object Active", type="Sliced"}},
+																{tag="Text", attributes={font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text=">"}}}},
+													{tag="Button", attributes={id="e4372aOfferDown", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=240, position="-60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
+													children={	{tag="Image", attributes={id="e4372aOfferDownImage", image="Sliced Button/Button Object Active", type="Sliced"}},
+																{tag="Text", attributes={font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text="<"}}}}})
+	--record data
 	safeWaitTime("SetupGame",function()
-		if gStates.startAtNight==true then gStates.dayRound=true end
-		dayNight()--dayNight need to be after map setup to change the tile tint
-		gStates.firstStarted=true
-		gStates.turnNumber=1
-		refreshAllPlayerFameReputationFromShields()
-		refreshMageSkillLocations()
-		tacticToggle()
-		--Delete Player Bags could this be done during setup
-		local ToBeDeleted={	GUID.bag.component.arythea,--Arythea
-							GUID.bag.component.norowas,--Norowas
-						 	GUID.bag.component.goldyx,--Goldyx
-							GUID.bag.component.tovak,--Tovak
-							GUID.bag.component.krang,--Krang
-							GUID.bag.component.braevalar,--Braevalar
-							GUID.bag.component.ymirgh,--Ymirgh
-							GUID.bag.component.wolfhawk,--Wolfhawk
-							GUID.bag.component.coral,--Coral
-							GUID.bag.component.jormund,--Jormund
-							GUID.bag.volkare,--Volkare
-							GUID.bag.common,--Common Piecies
-							GUID.bag.terrain.shuffler,--Tile Shuffler
-							GUID.bag.forgemaster,--Rise of the Forgemasters
-							GUID.bag.tezla,--Shades of Tesla
-							GUID.bag.apocalypseDragon,--Apocalypse Dragon
-							GUID.bag.lostLegion,--Lost Legion
-							GUID.bag.component.mevok,--Mevok
-							GUID.bag.component.duscenia,--Duscenia
-							GUID.bag.component.zirtae,--Zirtae
-							GUID.bag.component.malek}--Malek
-
-		for _, dest in pairs(ToBeDeleted) do
-			if getObjectFromGUID(dest)~=nil then getObjectFromGUID(dest).destruct() end
-		end
-		--finalize mirrored source.
-		getObjectFromGUID("b5a6ce").destruct()
-		mirrorSourceUpdate("first started game")
-		--Draw all the offers will double draw if I don't get the timing right.
-		gStates.totalUnitCount=gStates.playerCount+gStates.blitz+2
-		if gStates.positionMageKnight[5]=="Volkare" or proxyPlayerActive()==true then gStates.totalUnitCount=gStates.totalUnitCount+1 end
-		unitOffer()
-		fillSlide()
-		--display the help boxes
-		DisplayHelp(nil, "-1", nil)
-		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDownImage", "image", "Overkill Down")
-		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferImage", "image", "Sliced Button/Button Object Active")
-		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUpImage", "image", "Overkill Up")
-		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "true")
-		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOffer", "active", "true")
-		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUp", "active", "true")
-		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferText", "text", joinLang({"{en}Reward {ru}Награда {zh-tw}獎勵{zh-cn}奖励{ko}보상 {es}Premiar {fr}Reward {pt-br}Premiar {de}Belohnung ", gStates.artifactRewards}))
-		UI.setAttribute("ResourceTracker", "active", "true")
-		UI.setAttribute("cameraControl", "active", "true")
-		if gStates.gameScenario=="One to Return" then UI.hide("ScoreButton") end
-
-		broadcastToAll("-------------------", {1,1,0.5})
-		--Stop player boards and dummy board from alt zooming
-		local megaFreeze=  {"3d4319", "519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard}--player mats
-		for i=1, #megaFreeze, 1 do
-			local obj=getObjectFromGUID(megaFreeze[i])
-			if obj~=nil then obj.interactable=false end --some boards may be missing depending on their states
-		end
-		addAvatarButtons()
-		applyColorBarButtons()
-		refreshPlayerSeatColors()
-		getObjectFromGUID(GUID.deck.spell).UI.setXmlTable({	{tag="Button", attributes={id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=240, position="60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
-														children={	{tag="Image", attributes={id="e4372aOfferUpImage", image="Sliced Button/Button Object Active", type="Sliced"}},
-																	{tag="Text", attributes={font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text=">"}}}},
-														{tag="Button", attributes={id="e4372aOfferDown", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=240, position="-60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
-														children={	{tag="Image", attributes={id="e4372aOfferDownImage", image="Sliced Button/Button Object Active", type="Sliced"}},
-																	{tag="Text", attributes={font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text="<"}}}}})
-		--record data
-		safeWaitTime("SetupGame",function()
             if getObjectFromGUID("e7de55")~=nil then SendDataRequest("skip", "-1", "SendDataRequestYes") end
-			--UI.setAttribute("SendDataRequest", "active", "true")
-		end, 400)--time in seconds, 1800=1/2 hour, 3600=1 hour 400
-		safeWaitTime("SetupGame",function() straightenCrooked() end, 10)
-		dealStartingHandsWhenReady()
-	end, 0.7)
+		--UI.setAttribute("SendDataRequest", "active", "true")
+	end, 400)--time in seconds, 1800=1/2 hour, 3600=1 hour 400
+	safeWaitTime("SetupGame",function() straightenCrooked() end, 10)
+	dealStartingHandsWhenReady()
+end
+
+--Build the map only after monster/player/component setup has reached its real readiness conditions.
+function afterLoad()
+	if setupMapStarted==true then return end
+	local function beginMap()
+		if setupMapStarted==true then return end
+		setupMapStarted=true
+		removeUnselectedTerrain()
+		if apocalypseDragonScenario()==true then positionApocalypseDragonHeads() end
+		mapSetup(function(success,reason)
+			if success~=true then error(reason or "SetupGame map setup failed.",2) end
+			finalizeSetup()
+		end)
+	end
+	if setupCoreSystemsReady()==true then
+		beginMap()
+	else
+		safeWaitCondition("SetupGame",beginMap,setupCoreSystemsReady,20,function()
+			error("SetupGame timed out waiting for setup components before map construction.",2)
+		end)
+	end
 end
 
 --Keep setup-specific validation and rulebook deployment with the setup owner rather than a late wrapper module.

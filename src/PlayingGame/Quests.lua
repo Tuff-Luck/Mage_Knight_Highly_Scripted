@@ -6396,6 +6396,7 @@ function apocalypseQuestOfferRefresh(attempt)
 end
 function apocalypseQuestDeckSetup(questDeck)
 	apocalypseQuestAreaZone()
+	gStates.apocalypseQuestSetupReady=false
 	gStates.apocalypseQuestCardGUIDs={}
 	gStates.apocalypseQuestFirstReturnedGUID=nil
 	gStates.apocalypseQuestSiteState={}
@@ -6416,61 +6417,90 @@ function apocalypseQuestDeckSetup(questDeck)
 	gStates.apocalypseQuestOfferButtonRefreshPending=nil
 	gStates.apocalypseQuestOfferDrawSerial=nil
 	if questDeck~=nil and questDeck.type=="Deck" then
-		for _, data in pairs(questDeck.getObjects()) do if data.guid~=nil then gStates.apocalypseQuestCardGUIDs[data.guid]=true end end
+		for _,data in pairs(questDeck.getObjects()) do if data.guid~=nil then gStates.apocalypseQuestCardGUIDs[data.guid]=true end end
 	end
-	local questDeckPosition={46.84, 1.14, 8.06}
-	local startingQuests={"8939c0", "08ffcf", "81e795", "58a826", "734740", "72099f", "11d244", "8cdac4", "66ea80"}--The 9 starred starting Quest cards
-	for a=#startingQuests, 2, -1 do
-		local b=math.random(1, a)
-		startingQuests[a], startingQuests[b]=startingQuests[b], startingQuests[a]
+	local questDeckPosition={46.84,1.14,8.06}
+	local startingQuests={"8939c0","08ffcf","81e795","58a826","734740","72099f","11d244","8cdac4","66ea80"}--The 9 starred starting Quest cards
+	for a=#startingQuests,2,-1 do
+		local b=math.random(1,a)
+		startingQuests[a],startingQuests[b]=startingQuests[b],startingQuests[a]
 	end
 	local startingCount=gStates.playerCount+2
 	if gStates.playerCount==1 then startingCount=4 end
 	local reserved={}
+
 	local function currentQuestDeck()
 		local deck=getObjectFromGUID(GUID.deck.apocalypseQuest)
 		if deck~=nil and deck.type=="Deck" then return deck end
 		return nil
 	end
+	local function deckContains(deck,guid)
+		if deck==nil then return false end
+		for _,data in pairs(deck.getObjects()) do if data.guid==guid then return true end end
+		return false
+	end
+
+	local offerReady=0
 	local function dealQuestOffer()
 		local deck=currentQuestDeck()
-		if deck==nil then return end
+		if deck==nil then error("Quest setup lost the Apocalypse Quest deck before dealing the offer.",2) end
 		for offer=1,2 do
 			local slot=offer
-			safeTakeObject("Quests",deck,{position=apocalypseQuestOfferPosition(offer),rotation={0,180,0},smooth=false,callback_function=function(card)
-				if card~=nil then card.lock() print("QUEST SETUP DRAW: slot "..tostring(slot).." <- "..tostring(apocalypseQuestName(card)).." ["..tostring(card.guid).."].") end
-				safeWaitFrames("Quests",function() apocalypseQuestInterfaceAdd(card) end,2)
+			local drawn=safeTakeObject("Quests",deck,{position=apocalypseQuestOfferPosition(offer),rotation={0,180,0},smooth=false,callback_function=function(card)
+				if card==nil then error("Quest setup could not draw offer slot "..tostring(slot)..".",2) end
+				card.lock()
+				print("QUEST SETUP DRAW: slot "..tostring(slot).." <- "..tostring(apocalypseQuestName(card)).." ["..tostring(card.guid).."].")
+				safeWaitCondition("Quests",function()
+					apocalypseQuestInterfaceAdd(card)
+					offerReady=offerReady+1
+					if offerReady>=2 then gStates.apocalypseQuestSetupReady=true end
+				end,function()
+					local live=getObjectFromGUID(card.guid)
+					return live~=nil and live.resting==true
+				end,10,function() error("Quest setup timed out waiting for offer slot "..tostring(slot).." to settle.",2) end)
 			end})
+			if drawn==nil then error("Quest setup could not extract offer slot "..tostring(slot)..".",2) end
 		end
 	end
+
 	local returnReserved
 	returnReserved=function(index)
-		if index>#reserved then safeWaitFrames("Quests",dealQuestOffer,2) return end
+		if index>#reserved then dealQuestOffer() return end
 		local deck=currentQuestDeck()
 		local card=reserved[index]
-		if deck==nil or card==nil or (card.isDestroyed~=nil and card.isDestroyed()==true) then return end
+		if deck==nil then error("Quest setup lost the Apocalypse Quest deck while returning reserved cards.",2) end
+		if card==nil or (card.isDestroyed~=nil and card.isDestroyed()==true) then error("Quest setup lost a reserved starting Quest card.",2) end
+		local cardGUID=card.guid
 		card.unlock()
 		deck.putObject(card)
-		safeWaitFrames("Quests",function() returnReserved(index+1) end,1)
+		safeWaitCondition("Quests",function() returnReserved(index+1) end,function()
+			return deckContains(currentQuestDeck(),cardGUID)
+		end,10,function() error("Quest setup timed out returning reserved card "..tostring(cardGUID)..".",2) end)
 	end
-	--Instant movement is fast, but serialize each extraction so TTS always has a stable Quest Deck object.
+
+	--Serialize extraction through takeObject callbacks. The callback is the real completion signal;
+	--no extra frame sleeps are needed between cards.
 	local takeReserved
 	takeReserved=function(index)
 		if index>startingCount then
 			local deck=currentQuestDeck()
-			if deck==nil then return end
+			if deck==nil then error("Quest setup lost the Apocalypse Quest deck before shuffling.",2) end
 			deck.shuffle()--Shuffle the unreserved starting Quests in with all other Quests
-			safeWaitFrames("Quests",function() returnReserved(1) end,2)
+			safeWaitCondition("Quests",function() returnReserved(1) end,function()
+				local live=currentQuestDeck()
+				return live~=nil and live.resting==true
+			end,10,function() error("Quest setup timed out waiting for the Apocalypse Quest deck shuffle.",2) end)
 			return
 		end
 		local deck=currentQuestDeck()
-		if deck==nil then return end
-		safeTakeObject("Quests",deck,{guid=startingQuests[index],position={questDeckPosition[1],4.00+(index*0.10),questDeckPosition[3]},rotation={0,180,180},smooth=false,callback_function=function(card)
-			if card==nil then return end
+		if deck==nil then error("Quest setup lost the Apocalypse Quest deck while reserving starting cards.",2) end
+		local extracted=safeTakeObject("Quests",deck,{guid=startingQuests[index],position={questDeckPosition[1],4.00+(index*0.10),questDeckPosition[3]},rotation={0,180,180},smooth=false,callback_function=function(card)
+			if card==nil then error("Quest setup could not reserve starting Quest "..tostring(startingQuests[index])..".",2) end
 			card.lock()
 			reserved[#reserved+1]=card
-			safeWaitFrames("Quests",function() takeReserved(index+1) end,1)
+			takeReserved(index+1)
 		end})
+		if extracted==nil then error("Quest setup could not extract starting Quest "..tostring(startingQuests[index])..".",2) end
 	end
 	takeReserved(1)
 end
