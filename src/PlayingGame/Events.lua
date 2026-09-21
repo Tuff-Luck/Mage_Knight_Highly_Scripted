@@ -1789,8 +1789,10 @@ function __onObjectEnterZone_raw(zone, obj)
 					safeWaitFrames("Events",finishTerrainPopulation,tokenWait+10)
 				end
 
-				--fame gain for played tiles in First Reconnaissance, Lost Relic and The Fractured Lands
-				if (gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
+				--Fame is awarded only for terrain actually explored during play. Initial setup terrain is
+				--tagged when it enters the map and never counts as exploration in these scenarios.
+				if startingMapTiles[obj.guid]~=true and
+					(gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
 					turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
 					local centerFeature=terrainTiles[obj.guid].hexFeature["center"] or ""
 					if gStates.gameScenario=="The Lost Relic Blitz" and (centerFeature:sub(1,4)=="city" or centerFeature=="Volkare's Camp") then
