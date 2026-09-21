@@ -46,7 +46,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		end
 		--Close the setup menu and update the Help button
 		UI.setAttribute("Setup", "active", "false")
-		UI.setAttribute("helpButtonRealText", "Text", "{en}Help{ru}Помощь{zh-cn}帮  助{ko}도움말{es}Ayudar{fr}Aider{pt-br}Ajuda{de}Hilfe")
+		UI.setAttribute("helpButtonRealText", "Text", "{en}Help{ru}Помощь{zh-tw}帮  助{zh-cn}帮  助{ko}도움말{es}Ayudar{fr}Aider{pt-br}Ajuda{de}Hilfe")
 		UI.setAttribute("helpButtonReal", "onClick", "DisplayHelp")
 		UI.setAttribute("helpButtonRealImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("helpButtonReal", "interactable", "true")
@@ -154,7 +154,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		if gStates.playerCount==1 then
 			for posPriority=1, 4, 1 do
 				if gStates.positionMageKnight[posPriority]~="nobody" and posPriority~=2 then
-					broadcastToAll("{en}Changed setup Positions to be more central.{ru}Позиции игроков были передвинуты ближе к центру.{zh-cn}更改摆件位置，使其更加集中。{ko}설정의 위치를 좀더 중앙에 맞게 하였습니다.{es}Se cambiaron las posiciones de configuración para que sean más centrales.{fr}Positions de configuration modifiées pour être plus centrales.{pt-br}Mudou a Configuração das posições para ser mais central.{de}Die Aufstellungspositionen wurden geändert, um zentraler zu sein.", {1, 1, 1})
+					broadcastToAll("{en}Changed setup Positions to be more central.{ru}Позиции игроков были передвинуты ближе к центру.{zh-tw}更改摆件位置，使其更加集中。{zh-cn}更改摆件位置，使其更加集中。{ko}설정의 위치를 좀더 중앙에 맞게 하였습니다.{es}Se cambiaron las posiciones de configuración para que sean más centrales.{fr}Positions de configuration modifiées pour être plus centrales.{pt-br}Mudou a Configuração das posições para ser mais central.{de}Die Aufstellungspositionen wurden geändert, um zentraler zu sein.", {1, 1, 1})
 					gStates.positionMageKnight[2]=gStates.positionMageKnight[posPriority]
 					gStates.positionMageKnight[posPriority]="nobody"
 					break
@@ -1116,7 +1116,7 @@ function volkareArmy()
 				end
 			end
 		else
-			broadcastToAll("{en}Volkare's Army is too large with your setup. You will need to create it when you fight him for the first time{ru}Армия Волкара слишком велика с вашей настройкой. Вам нужно будет создать ее, когда вы сразитесь с ним в первый раз{zh-cn}现在不用设置沃里卡的军队, 你将在首次和他交锋时设置这些{ko}볼케어의 군대 규모가 너무 큽니다. 플레이어가 직접 첫 전투 세팅을 준비해주세요.{es}El ejército de Volkare es demasiado grande con tu configuración. Necesitarás crearlo cuando luches contra él por primera vez.{fr}L'armée de Volkare est trop grande avec votre configuration. Vous devrez le créer lorsque vous le combattrez pour la première fois{pt-br}O exército de Volkare é muito grande com a sua configuração. Você precisará criá-lo quando você for lutar com ele pela primeira vez{de}Volkare's Armee ist mit deiner Aufstellung zu groß. Du musst sie erstellen, wenn du zum ersten Mal gegen ihn kämpfst.", warningColor)
+			broadcastToAll("{en}Volkare's Army is too large with your setup. You will need to create it when you fight him for the first time{ru}Армия Волкара слишком велика с вашей настройкой. Вам нужно будет создать ее, когда вы сразитесь с ним в первый раз{zh-tw}现在不用设置沃里卡的军队, 你将在首次和他交锋时设置这些{zh-cn}现在不用设置沃里卡的军队, 你将在首次和他交锋时设置这些{ko}볼케어의 군대 규모가 너무 큽니다. 플레이어가 직접 첫 전투 세팅을 준비해주세요.{es}El ejército de Volkare es demasiado grande con tu configuración. Necesitarás crearlo cuando luches contra él por primera vez.{fr}L'armée de Volkare est trop grande avec votre configuration. Vous devrez le créer lorsque vous le combattrez pour la première fois{pt-br}O exército de Volkare é muito grande com a sua configuração. Você precisará criá-lo quando você for lutar com ele pela primeira vez{de}Volkare's Armee ist mit deiner Aufstellung zu groß. Du musst sie erstellen, wenn du zum ersten Mal gegen ihn kämpfst.", warningColor)
 		end
 		--Change his models level
 		getObjectFromGUID(volkare.model).setCustomObject({diffuse=cityLevelImage[volkare.model][math.floor(gStates.volkareLevel/math.ceil(gStates.volkareLevel/15))]})
@@ -1628,10 +1628,10 @@ function mageLevelBoard()
 			for a=1, #turnOrder, 1 do
 				if turnOrder[a].mage~=gStates.positionMageKnight[5] then
 					if turnOrder[a].seatPos>0 then
-						UI.setAttribute("Mage"..turnOrder[a].seatPos.."levelText", "Text", joinLang({"{en}Start at Level {ru}Начать с уровнем {zh-cn}起始等级：{ko}시작 레벨: {es}Empezar en el Nivel {fr}Début Niveau {pt-br}Iníciar no Nível {de}Starte auf Level ", turnOrder[a].level}))
-						UI.setAttribute("Mage"..turnOrder[a].seatPos.."influenceText", "Text", joinLang({turnOrder[a].influence, "{en} Influence Per Level{ru} Влияние(я) за ур.{zh-cn}每级构筑点数{ko} 영향력*레벨{es} Influencia por Nivel{fr} Influence par Niveau{pt-br} Influência por Nível{de} Einfluss pro Stufe"}))
-						UI.setAttribute("Mage"..turnOrder[a].seatPos.."influenceTotalText", "Text", joinLang({"{en}Influence to Spend : {ru}Доступно влияния: {zh-cn}影响力额度：{ko}주어진 영향력: {es}Influencia para Gastar : {fr}Influence à Dépenser : {pt-br}Influência para Gastar : {de}Einfluss zum Ausgeben : ", (turnOrder[a].influence*turnOrder[a].level)+gStates.bondsOfLoyalty[a]}))
-						UI.setAttribute("Mage"..turnOrder[a].seatPos.."AdvancedActionFreeText", "Text", joinLang({math.floor((turnOrder[a].level-1)/2), "{en} Free Advanced Action(s){ru} Бесплатное(ых) особое(ых) действие(ия/ий){zh-cn} 張免費的高級行動卡{ko}장의 무료 상급 액션{es} Acción Avanzada Gratuita{fr} Action Avancée Gratuite{pt-br} Cartas de Ação Avançadas Gratuitas{de} Freie Fortgeschrittene Aktion(en)"}))
+						UI.setAttribute("Mage"..turnOrder[a].seatPos.."levelText", "Text", joinLang({"{en}Start at Level {ru}Начать с уровнем {zh-tw}起始等级：{zh-cn}起始等级：{ko}시작 레벨: {es}Empezar en el Nivel {fr}Début Niveau {pt-br}Iníciar no Nível {de}Starte auf Level ", turnOrder[a].level}))
+						UI.setAttribute("Mage"..turnOrder[a].seatPos.."influenceText", "Text", joinLang({turnOrder[a].influence, "{en} Influence Per Level{ru} Влияние(я) за ур.{zh-tw}每级构筑点数{zh-cn}每级构筑点数{ko} 영향력*레벨{es} Influencia por Nivel{fr} Influence par Niveau{pt-br} Influência por Nível{de} Einfluss pro Stufe"}))
+						UI.setAttribute("Mage"..turnOrder[a].seatPos.."influenceTotalText", "Text", joinLang({"{en}Influence to Spend : {ru}Доступно влияния: {zh-tw}影响力额度：{zh-cn}影响力额度：{ko}주어진 영향력: {es}Influencia para Gastar : {fr}Influence à Dépenser : {pt-br}Influência para Gastar : {de}Einfluss zum Ausgeben : ", (turnOrder[a].influence*turnOrder[a].level)+gStates.bondsOfLoyalty[a]}))
+						UI.setAttribute("Mage"..turnOrder[a].seatPos.."AdvancedActionFreeText", "Text", joinLang({math.floor((turnOrder[a].level-1)/2), "{en} Free Advanced Action(s){ru} Бесплатное(ых) особое(ых) действие(ия/ий){zh-tw} 張免費的高級行動卡{zh-cn} 張免費的高級行動卡{ko}장의 무료 상급 액션{es} Acción Avanzada Gratuita{fr} Action Avancée Gratuite{pt-br} Cartas de Ação Avançadas Gratuitas{de} Freie Fortgeschrittene Aktion(en)"}))
 						UI.setAttribute("Mage"..turnOrder[a].seatPos.."NameText", "Text", translateWord[turnOrder[a].mage])
 						UI.setAttribute("Mage"..turnOrder[a].seatPos.."NamePanel", "Color", positionToColor(a))
 						if gStates.showboards[a]==true then
@@ -1641,8 +1641,8 @@ function mageLevelBoard()
 							gStates.showboards[a]=false
 							playArea=getObjectFromGUID(turnOrder[a].playerBoardGUID).getPosition()
 							Player[positionToColor(a)].lookAt({position={playArea[1], playArea[2], playArea[3]+2}, pitch=65, yaw=0, distance=28})
-							UI.setAttribute("Mage"..turnOrder[a].seatPos.."levelText", "Text", joinLang({"{en}Start at Level {ru}Начать с уровнем {zh-cn}起始等级：{ko}시작 레벨: {es}Empezar en el Nivel {fr}Début Niveau {pt-br}Iníciar no Nível {de}Starte auf Level ", turnOrder[a].level}))
-							UI.setAttribute("Mage"..turnOrder[a].seatPos.."influenceTotalText", "Text", joinLang({"{en}Influence to Spend : {ru}Доступно влияния: {zh-cn}影响力额度：{ko}주어진 영향력: {es}Influencia para Gastar : {fr}Influence à Dépenser : {pt-br}Influência para Gastar : {de}Einfluss zum Ausgeben : ", (turnOrder[a].influence*turnOrder[a].level)+gStates.bondsOfLoyalty[a]}))
+							UI.setAttribute("Mage"..turnOrder[a].seatPos.."levelText", "Text", joinLang({"{en}Start at Level {ru}Начать с уровнем {zh-tw}起始等级：{zh-cn}起始等级：{ko}시작 레벨: {es}Empezar en el Nivel {fr}Début Niveau {pt-br}Iníciar no Nível {de}Starte auf Level ", turnOrder[a].level}))
+							UI.setAttribute("Mage"..turnOrder[a].seatPos.."influenceTotalText", "Text", joinLang({"{en}Influence to Spend : {ru}Доступно влияния: {zh-tw}影响力额度：{zh-cn}影响力额度：{ko}주어진 영향력: {es}Influencia para Gastar : {fr}Influence à Dépenser : {pt-br}Influência para Gastar : {de}Einfluss zum Ausgeben : ", (turnOrder[a].influence*turnOrder[a].level)+gStates.bondsOfLoyalty[a]}))
 							UI.show("Mage"..turnOrder[a].seatPos.."LevelBoard")
 						end
 						--Move any Regular Unit selection accidentally dropped in the main play area to its command-token slot.
@@ -1694,7 +1694,7 @@ function mageLevelBoard()
 							gStates.higherLevelUnitWarning=gStates.higherLevelUnitWarning or {}
 							if turnOrder[a].poolCreated==true and turnOrder[a].levelingStats.RegularUnits>commandCount then
 								if gStates.higherLevelUnitWarning[a]~=true then
-									broadcastToAll(joinLang({"{en}Warning: {ru}Внимание: {zh-cn}警告：{ko}경고: {es}Advertencia: {fr}Attention : {pt-br}Aviso: {de}Warnung: ", translateWord[turnOrder[a].mage], "{en} has selected more Units than available Command tokens. One or more Units cannot be placed.{ru} выбрал(а) больше отрядов, чем доступно жетонов командования. Один или несколько отрядов нельзя разместить.{zh-cn}选择的部队数量超过了可用的指挥标记数量。一个或多个部队无法放置。{ko}이 사용 가능한 지휘 토큰보다 많은 유닛을 선택했습니다. 하나 이상의 유닛을 배치할 수 없습니다.{es} ha seleccionado más Unidades que fichas de Mando disponibles. Una o más Unidades no pueden colocarse.{fr} a sélectionné plus d'Unités que de jetons de Commandement disponibles. Une ou plusieurs Unités ne peuvent pas être placées.{pt-br} selecionou mais Unidades do que Fichas de Comando disponíveis. Uma ou mais Unidades não podem ser colocadas.{de} hat mehr Einheiten als verfügbare Befehlsplättchen gewählt. Eine oder mehrere Einheiten können nicht platziert werden."}), positionToColor(a))
+									broadcastToAll(joinLang({"{en}Warning: {ru}Внимание: {zh-tw}警告：{zh-cn}警告：{ko}경고: {es}Advertencia: {fr}Attention : {pt-br}Aviso: {de}Warnung: ", translateWord[turnOrder[a].mage], "{en} has selected more Units than available Command tokens. One or more Units cannot be placed.{ru} выбрал(а) больше отрядов, чем доступно жетонов командования. Один или несколько отрядов нельзя разместить.{zh-tw}选择的部队数量超过了可用的指挥标记数量。一个或多个部队无法放置。{zh-cn}选择的部队数量超过了可用的指挥标记数量。一个或多个部队无法放置。{ko}이 사용 가능한 지휘 토큰보다 많은 유닛을 선택했습니다. 하나 이상의 유닛을 배치할 수 없습니다.{es} ha seleccionado más Unidades que fichas de Mando disponibles. Una o más Unidades no pueden colocarse.{fr} a sélectionné plus d'Unités que de jetons de Commandement disponibles. Une ou plusieurs Unités ne peuvent pas être placées.{pt-br} selecionou mais Unidades do que Fichas de Comando disponíveis. Uma ou mais Unidades não podem ser colocadas.{de} hat mehr Einheiten als verfügbare Befehlsplättchen gewählt. Eine oder mehrere Einheiten können nicht platziert werden."}), positionToColor(a))
 								end
 								gStates.higherLevelUnitWarning[a]=true
 							else
@@ -1729,12 +1729,12 @@ function mageLevelBoard()
 							if turnOrder[a].level==1 then influence=0 end
 							local remain=influence+turnOrder[a].levelingStats.AdvancedActionsWorth+turnOrder[a].levelingStats.RegularUnitsWorth+turnOrder[a].levelingStats.SpellsWorth+turnOrder[a].levelingStats.ArtifactsWorth+turnOrder[a].levelingStats.CrystalsWorth
 							if remain~=turnOrder[a].remain then
-								UI.setAttribute("Mage"..turnOrder[a].seatPos.."AdvancedActionCostText", "Text", joinLang({turnOrder[a].levelingStats.AdvancedActions, "{en} Advanced Action(s) : {ru} Особое(ых) действие(ия/ий): {zh-cn} 張高級行動卡：{ko}장의 상급 액션 : {es} Acción Avanzada : {fr} Action Avancée : {pt-br} Ações Avançadas : {de} Fortgeschrittene Aktion(en) : ", turnOrder[a].levelingStats.AdvancedActionsWorth}))
-								UI.setAttribute("Mage"..turnOrder[a].seatPos.."RegularUnitCostText", "Text", joinLang({turnOrder[a].levelingStats.RegularUnits, "{en} Regular Unit(s) : {ru} Обычный(ых) отряд(а/ов): {zh-cn} 支常规部队：{ko}개의 일반 유닛 : {es} Unidad(es) Regulares : {fr} Unité(s) Régulières : {pt-br} Unidade(s) Regulares : {de} Normale Einheit(en) : ", turnOrder[a].levelingStats.RegularUnitsWorth}))
-								UI.setAttribute("Mage"..turnOrder[a].seatPos.."SpellCostText", "Text", joinLang({turnOrder[a].levelingStats.Spells, "{en} Spell(s) : {ru} Заклинание(я/ий): {zh-cn} 張法術卡：{ko}장의 마법 : {es} Hechizo(s) : {fr} Sort(s) : {pt-br} Feitiços : {de} Zauber : ", turnOrder[a].levelingStats.SpellsWorth}))
-								UI.setAttribute("Mage"..turnOrder[a].seatPos.."ArtifactCostText", "Text", joinLang({turnOrder[a].levelingStats.Artifacts, "{en} Artifact(s) : {ru} Артефакт(а/ов): {zh-cn} 張神器卡：{ko}장의 유물 : {es} Artefacto(s) : {fr} Artefact(s) : {pt-br} Artefatos : {de} Artefakt(e) : ", turnOrder[a].levelingStats.ArtifactsWorth}))
-								UI.setAttribute("Mage"..turnOrder[a].seatPos.."CrystalCostText", "Text", joinLang({turnOrder[a].levelingStats.Crystals, "{en} Mana Crystal(s) : {ru} Кристалл(а/ов) маны: {zh-cn} 顆魔晶：{ko}개의 수정 : {es} Cristales de Maná : {fr} Cristaux de Mana : {pt-br} Cristais de Mana : {de} Manakristall(e) : ", turnOrder[a].levelingStats.CrystalsWorth}))
-								UI.setAttribute("Mage"..turnOrder[a].seatPos.."RemainingText", "Text", joinLang({"{en}Remaining : {ru}Остаток: {zh-cn}剩餘：{ko}남은 영향력 : {es}Restante : {fr}Restant : {pt-br}Restando : {de}Verbleibend : ", remain}))
+								UI.setAttribute("Mage"..turnOrder[a].seatPos.."AdvancedActionCostText", "Text", joinLang({turnOrder[a].levelingStats.AdvancedActions, "{en} Advanced Action(s) : {ru} Особое(ых) действие(ия/ий): {zh-tw} 張高級行動卡：{zh-cn} 張高級行動卡：{ko}장의 상급 액션 : {es} Acción Avanzada : {fr} Action Avancée : {pt-br} Ações Avançadas : {de} Fortgeschrittene Aktion(en) : ", turnOrder[a].levelingStats.AdvancedActionsWorth}))
+								UI.setAttribute("Mage"..turnOrder[a].seatPos.."RegularUnitCostText", "Text", joinLang({turnOrder[a].levelingStats.RegularUnits, "{en} Regular Unit(s) : {ru} Обычный(ых) отряд(а/ов): {zh-tw} 支常规部队：{zh-cn} 支常规部队：{ko}개의 일반 유닛 : {es} Unidad(es) Regulares : {fr} Unité(s) Régulières : {pt-br} Unidade(s) Regulares : {de} Normale Einheit(en) : ", turnOrder[a].levelingStats.RegularUnitsWorth}))
+								UI.setAttribute("Mage"..turnOrder[a].seatPos.."SpellCostText", "Text", joinLang({turnOrder[a].levelingStats.Spells, "{en} Spell(s) : {ru} Заклинание(я/ий): {zh-tw} 張法術卡：{zh-cn} 張法術卡：{ko}장의 마법 : {es} Hechizo(s) : {fr} Sort(s) : {pt-br} Feitiços : {de} Zauber : ", turnOrder[a].levelingStats.SpellsWorth}))
+								UI.setAttribute("Mage"..turnOrder[a].seatPos.."ArtifactCostText", "Text", joinLang({turnOrder[a].levelingStats.Artifacts, "{en} Artifact(s) : {ru} Артефакт(а/ов): {zh-tw} 張神器卡：{zh-cn} 張神器卡：{ko}장의 유물 : {es} Artefacto(s) : {fr} Artefact(s) : {pt-br} Artefatos : {de} Artefakt(e) : ", turnOrder[a].levelingStats.ArtifactsWorth}))
+								UI.setAttribute("Mage"..turnOrder[a].seatPos.."CrystalCostText", "Text", joinLang({turnOrder[a].levelingStats.Crystals, "{en} Mana Crystal(s) : {ru} Кристалл(а/ов) маны: {zh-tw} 顆魔晶：{zh-cn} 顆魔晶：{ko}개의 수정 : {es} Cristales de Maná : {fr} Cristaux de Mana : {pt-br} Cristais de Mana : {de} Manakristall(e) : ", turnOrder[a].levelingStats.CrystalsWorth}))
+								UI.setAttribute("Mage"..turnOrder[a].seatPos.."RemainingText", "Text", joinLang({"{en}Remaining : {ru}Остаток: {zh-tw}剩餘：{zh-cn}剩餘：{ko}남은 영향력 : {es}Restante : {fr}Restant : {pt-br}Restando : {de}Verbleibend : ", remain}))
 								turnOrder[a].remain=remain
 								turnOrder[a].levelUpComplete=false
 								if remain>=0 and badPlay==false then
@@ -1796,7 +1796,7 @@ function cardPool(player, mouseButton, id)
 		if legalPlayerCheck(player.color, tonumber(playerPosition))==true then
 			--lock clicking players "Create Card Pool" button
 			UI.setAttribute("Mage"..playerPosition.."CompleteButton", "onClick", "startHigherLevel")
-			UI.setAttribute("Mage"..playerPosition.."CompleteText", "text", "{en}Complete{ru}Завершить{zh-cn}完成{ko}완료{es}Completo{fr}Compléter{pt-br}Completo{de}Fertig")
+			UI.setAttribute("Mage"..playerPosition.."CompleteText", "text", "{en}Complete{ru}Завершить{zh-tw}完成{zh-cn}完成{ko}완료{es}Completo{fr}Compléter{pt-br}Completo{de}Fertig")
 			UI.setAttribute("Mage"..playerPosition.."CompleteButton", "interactable", "true")
 			UI.setAttribute("Mage"..playerPosition.."CompleteButtonImage", "image", "Sliced Button/Button New Active")
 			--lock clicking players "+" & "-" Level buttons
@@ -1915,11 +1915,11 @@ function higherLevelSkill(player, mouseButton, id, pairPosition)
 				for a=1, #turnOrder, 1 do
 					if turnOrder[a].seatPos==playerPosition then
 						gStates.bondsOfLoyalty[a]=5
-						UI.setAttribute("Mage"..playerPosition.."influenceTotalText", "Text", joinLang({"{en}Influence to Spend : {ru}Доступно влияния: {zh-cn}影响力额度：{ko}주어진 영향력: {es}Influencia para Gastar : {fr}Influence à Dépenser : {pt-br}Influência para Gastar : {de}Einfluss zum Ausgeben : ", (turnOrder[a].influence*turnOrder[a].level)+gStates.bondsOfLoyalty[a]}))
+						UI.setAttribute("Mage"..playerPosition.."influenceTotalText", "Text", joinLang({"{en}Influence to Spend : {ru}Доступно влияния: {zh-tw}影响力额度：{zh-cn}影响力额度：{ko}주어진 영향력: {es}Influencia para Gastar : {fr}Influence à Dépenser : {pt-br}Influência para Gastar : {de}Einfluss zum Ausgeben : ", (turnOrder[a].influence*turnOrder[a].level)+gStates.bondsOfLoyalty[a]}))
 						break
 					end
 				end
-				broadcastToAll("{en}Two more Regular units and 5 influence given to Norowas.{ru}Два дополнительных обычных отряда и 5 влияния даны Норовас{zh-cn}给诺罗瓦斯增加两个常规部队供应和5影响力{ko}노로워즈에게 일반 유닛 두 개와 영향력 5가 추가 지급되었습니다. {es}Dos unidades regulares más y 5 influencia dadas a Norowas.{fr}Deux autres unités régulières et 5 d'influence donnés à Norowas.{pt-br}2 unidades Regulares a mais e 5 influência dadas a Norowas{de}Zwei weitere reguläre Einheiten und 5 Einfluss an Norowas gegeben.", {1,1,0.5})
+				broadcastToAll("{en}Two more Regular units and 5 influence given to Norowas.{ru}Два дополнительных обычных отряда и 5 влияния даны Норовас{zh-tw}给诺罗瓦斯增加两个常规部队供应和5影响力{zh-cn}给诺罗瓦斯增加两个常规部队供应和5影响力{ko}노로워즈에게 일반 유닛 두 개와 영향력 5가 추가 지급되었습니다. {es}Dos unidades regulares más y 5 influencia dadas a Norowas.{fr}Deux autres unités régulières et 5 d'influence donnés à Norowas.{pt-br}2 unidades Regulares a mais e 5 influência dadas a Norowas{de}Zwei weitere reguläre Einheiten und 5 Einfluss an Norowas gegeben.", {1,1,0.5})
 			end
 			--Master of Chaos
 			if id:sub(1,6)=="1ff34f" then
