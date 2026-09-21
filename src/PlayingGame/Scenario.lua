@@ -2261,7 +2261,7 @@ function apocalypseIsHereRevealNextHorseman(tile,forced)
 			card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,0.40},false,true)
 			if card.is_face_down==true then card.flip() end
 		end
-		broadcastToAll(name.." has been revealed at Level "..tostring(state.level)..(forced==true and " by the Round deadline." or "."),{1,0.75,0.2})
+		broadcastToAll(joinLang({name,"{en} has been revealed at Level {ru} раскрыт на уровне {zh-tw} 已揭示，等級 {zh-cn} 已揭示，等级 {ko} 공개됨. 레벨 {es} ha sido revelado en Nivel {fr} a été révélé au Niveau {pt-br} foi revelado no Nível {de} wurde auf Stufe ",tostring(state.level),forced==true and "{en} by the Round deadline.{ru} из-за срока раунда.{zh-tw}，因回合輪期限而揭示。{zh-cn}，因回合轮期限而揭示。{ko}, 라운드 기한으로 공개되었습니다.{es} por el límite de la Ronda.{fr} en raison de la limite de la Manche.{pt-br} pelo limite da Rodada.{de} aufgrund der Rundenfrist aufgedeckt." or "."}),{1,0.75,0.2})
 	end
 
 	if workingOnTerrain~=nil and workingOnTerrain[tileGUID]==true then
@@ -2681,7 +2681,7 @@ function apocalypseIsHereMainUIPanelSpec()
 	if state=="ReadyToProcess" then label="{en}Process Horsemen{ru}Process Horsemen{zh-tw}Process Horsemen{zh-cn}Process Horsemen{ko}Process Horsemen{es}Process Horsemen{fr}Process Horsemen{pt-br}Process Horsemen{de}Process Horsemen" active=true
 	elseif state=="ReadyToEnd" then label="{en}Horsemen Processed{ru}Horsemen Processed{zh-tw}Horsemen Processed{zh-cn}Horsemen Processed{ko}Horsemen Processed{es}Horsemen Processed{fr}Horsemen Processed{pt-br}Horsemen Processed{de}Horsemen Processed" active=true
 	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Pick Target{zh-tw}Pick Target{zh-cn}Pick Target{ko}Pick Target{es}Pick Target{fr}Pick Target{pt-br}Pick Target{de}Pick Target" end
-	return {actor="horsemen",mainText="<size=25>Horsemen's Turn</size>",notes=gStates.apocalypseHereHorsemenTurnReport or "Process the Horsemen.",onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
+	return {actor="horsemen",mainText="{en}<size=25>Horsemen's Turn</size>{ru}<size=25>Ход Всадников</size>{zh-tw}<size=25>騎士回合</size>{zh-cn}<size=25>骑士回合</size>{ko}<size=25>기사들의 턴</size>{es}<size=25>Turno de los Jinetes</size>{fr}<size=25>Tour des Cavaliers</size>{pt-br}<size=25>Turno dos Cavaleiros</size>{de}<size=25>Zug der Reiter</size>",notes=gStates.apocalypseHereHorsemenTurnReport or "{en}Process the Horsemen.{ru}Выполните ход Всадников.{zh-tw}處理騎士回合。{zh-cn}处理骑士回合。{ko}기사들의 턴을 처리하십시오.{es}Procesa a los Jinetes.{fr}Traitez le tour des Cavaliers.{pt-br}Processe os Cavaleiros.{de}Führe den Zug der Reiter aus.",onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
 end
 
 function apocalypseIsHereMainUIRefresh()
@@ -2862,7 +2862,7 @@ function destroySite(token,terrain,bearing)
 	terrainTiles[terrain.guid].hexFeature[bearing]="destroyed"
 	if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 	gStates.hexOverideSave[terrain.guid][bearing]="destroyed"
-	broadcastToAll(feature.." Destroyed")
+	broadcastToAll(joinLang({feature,"{en} Destroyed{ru} уничтожено{zh-tw} 已摧毀{zh-cn} 已摧毁{ko} 파괴됨{es} Destruido{fr} Détruit{pt-br} Destruído{de} zerstört"}))
 	safeWaitFrames("Scenario",function() apocalypseQuestRefreshOfferButtons() end,2)
 	return true
 end
@@ -3804,7 +3804,7 @@ function apocalypseDragonBeginGroundCombat(playerIndex)
 	apocalypseDragonRefreshGroundFameGain(playerIndex)
 	combatCameraFocus(playerIndex)
 	mainUIUpdate("Apocalypse Dragon Ground Combat")
-	broadcastToAll(tostring(details.mage).." attacks the landed Apocalypse Dragon. Each coloured head is a separate enemy; use the +/- control on a face-up head to record how many levels your attack reduced. Flip a coloured head face down if you did not reduce it. The Control head cannot be attacked.",positionToColor(playerIndex))
+	broadcastToAll(joinLang({translateWord[details.mage] or tostring(details.mage),"{en} attacks the landed Apocalypse Dragon. Each coloured head is a separate enemy; use the +/- control on a face-up head to record how many levels your attack reduced. Flip a coloured head face down if you did not reduce it. The Control head cannot be attacked.{ru} атакует приземлившегося Дракона Апокалипсиса. Каждая цветная голова считается отдельным врагом; используйте +/- на открытой голове, чтобы записать, на сколько уровней её снизила атака. Переверните цветную голову лицом вниз, если вы не снизили её уровень. Голову Контроля атаковать нельзя.{zh-tw} 攻擊已落地的末日巨龍。每個彩色龍首都是獨立敵人；用正面龍首上的 +/- 控制記錄攻擊降低了多少等級。若未降低某個彩色龍首的等級，將其翻至背面。控制龍首不能被攻擊。{zh-cn} 攻击已落地的末日巨龙。每个彩色龙首都是独立敌人；用正面龙首上的 +/- 控制记录攻击降低了多少等级。若未降低某个彩色龙首的等级，将其翻至背面。控制龙首不能被攻击。{ko}이(가) 착륙한 아포칼립스 드래곤을 공격합니다. 각 색깔 머리는 별도의 적입니다. 앞면인 머리의 +/-를 사용해 공격으로 낮춘 레벨 수를 기록하십시오. 레벨을 낮추지 못한 색깔 머리는 뒷면으로 뒤집으십시오. 제어 머리는 공격할 수 없습니다.{es} ataca al Dragón del Apocalipsis aterrizado. Cada cabeza de color es un enemigo separado; usa el control +/- de una cabeza boca arriba para registrar cuántos niveles redujo tu ataque. Voltea boca abajo una cabeza de color si no redujiste su nivel. La cabeza de Control no puede ser atacada.{fr} attaque le Dragon de l’Apocalypse au sol. Chaque tête colorée est un ennemi distinct ; utilisez le contrôle +/- d’une tête face visible pour noter le nombre de niveaux retirés par votre attaque. Retournez une tête colorée face cachée si vous n’avez réduit aucun niveau. La tête de Contrôle ne peut pas être attaquée.{pt-br} ataca o Dragão do Apocalipse pousado. Cada cabeça colorida é um inimigo separado; use o controle +/- em uma cabeça virada para cima para registrar quantos níveis seu ataque reduziu. Vire uma cabeça colorida para baixo se você não reduziu seu nível. A cabeça de Controle não pode ser atacada.{de} greift den gelandeten Apokalypse-Drachen an. Jeder farbige Kopf ist ein eigener Gegner; verwende die +/- Steuerung eines offenen Kopfes, um festzuhalten, um wie viele Stufen dein Angriff ihn reduziert hat. Drehe einen farbigen Kopf verdeckt, wenn du ihn nicht reduziert hast. Der Kontrollkopf kann nicht angegriffen werden."}),positionToColor(playerIndex))
 	return true
 end
 
@@ -4062,7 +4062,7 @@ function apocalypseDragonFinalizeGroundCombat(playerIndex)
 	local fame=tonumber(combat.fameByPlayer[playerIndex]) or 0
 	apocalypseDragonGroundCleanupRuntime(combat)
 	gStates.apocalypseDragonGroundCombat=nil
-	if fame>0 then broadcastToAll(tostring(turnOrder[playerIndex].mage).." reduced the Apocalypse Dragon by "..tostring(fame).." total level(s) and gains "..tostring(fame).." Fame.",positionToColor(playerIndex)) end
+	if fame>0 then broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} reduced the Apocalypse Dragon by {ru} снизил уровень Дракона Апокалипсиса суммарно на {zh-tw} 總共降低末日巨龍 {zh-cn} 总共降低末日巨龙 {ko}이(가) 아포칼립스 드래곤의 총 레벨을 {es} redujo al Dragón del Apocalipsis un total de {fr} a réduit le Dragon de l’Apocalypse de {pt-br} reduziu o Dragão do Apocalipse em um total de {de} hat den Apokalypse-Drachen insgesamt um ",tostring(fame),"{en} total level(s) and gains {ru} уровней и получает {zh-tw} 個等級，並獲得 {zh-cn} 个等级，并获得 {ko}만큼 낮추고 명성 {es} nivel(es) y gana {fr} niveau(x) au total et gagne {pt-br} nível(is) e ganha {de} Stufe(n) reduziert und erhält ",tostring(fame),"{en} Fame.{ru} Славы.{zh-tw} 聲望值。{zh-cn} 声望值。{ko}을(를) 얻습니다.{es} de Fama.{fr} de Renommée.{pt-br} de Fama.{de} Ruhm."}),positionToColor(playerIndex)) end
 	againstDragonDefeatCheck()
 	mainUIUpdate("Apocalypse Dragon Ground Combat Complete")
 	return true
@@ -4092,7 +4092,7 @@ function finalizeCoopDragonCombat()
 	combat.levelsApplied=true
 	--Dragon Fame was already in each player's fameGain when the co-op reward snapshot was made.
 	for playerIndex,fame in pairs(combat.fameByPlayer or {}) do
-		if fame>0 and turnOrder[playerIndex]~=nil then broadcastToAll(tostring(turnOrder[playerIndex].mage).." reduced the Apocalypse Dragon by "..tostring(fame).." total level(s) and will gain "..tostring(fame).." Fame in the cooperative reward phase.",positionToColor(playerIndex)) end
+		if fame>0 and turnOrder[playerIndex]~=nil then broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} reduced the Apocalypse Dragon by {ru} снизил уровень Дракона Апокалипсиса суммарно на {zh-tw} 總共降低末日巨龍 {zh-cn} 总共降低末日巨龙 {ko}이(가) 아포칼립스 드래곤의 총 레벨을 {es} redujo al Dragón del Apocalipsis un total de {fr} a réduit le Dragon de l’Apocalypse de {pt-br} reduziu o Dragão do Apocalipse em um total de {de} hat den Apokalypse-Drachen insgesamt um ",tostring(fame),"{en} total level(s) and will gain {ru} уровней и получит {zh-tw} 個等級，並將在合作獎勵階段獲得 {zh-cn} 个等级，并将在合作奖励阶段获得 {ko}만큼 낮추고 협동 보상 단계에서 명성 {es} nivel(es) y ganará {fr} niveau(x) au total et gagnera {pt-br} nível(is) e ganhará {de} Stufe(n) reduziert und erhält in der kooperativen Belohnungsphase ",tostring(fame),"{en} Fame in the cooperative reward phase.{ru} Славы на этапе совместной награды.{zh-tw} 聲望值。{zh-cn} 声望值。{ko}을(를) 얻습니다.{es} de Fama en la fase de recompensa cooperativa.{fr} de Renommée pendant la phase de récompense coopérative.{pt-br} de Fama na fase de recompensa cooperativa.{de} Ruhm."}),positionToColor(playerIndex)) end
 	end
 	apocalypseDragonGroundCleanupRuntime(combat)
 	gStates.apocalypseDragonGroundCombat=nil
@@ -4152,7 +4152,7 @@ function againstDragonChoiceAuthorized(player,pending)
 	local allowed=pending.playerIndex~=nil and positionToColor(pending.playerIndex) or nil
 	if color=="Black" or color==allowed then return true end
 	if color~=nil then
-		broadcastToAll(againstDragonChoicePlayerLabel(pending.playerIndex).." has the lowest-numbered Tactic and must make this Dragon choice. A player seated Black may also choose.",warningColor)
+		broadcastToAll(joinLang({againstDragonChoicePlayerLabel(pending.playerIndex),"{en} has the lowest-numbered Tactic and must make this Dragon choice. A player seated Black may also choose.{ru} имеет Тактику с наименьшим номером и должен сделать этот выбор Дракона. Игрок на чёрном месте также может выбрать.{zh-tw} 擁有編號最低的戰術，必須做出此巨龍選擇。坐在黑色席位的玩家也可以選擇。{zh-cn} 拥有编号最低的战术，必须做出此巨龙选择。坐在黑色席位的玩家也可以选择。{ko}이(가) 가장 낮은 번호의 전술을 가지고 있어 이 드래곤 선택을 해야 합니다. 검은색 자리에 앉은 플레이어도 선택할 수 있습니다.{es} tiene la Táctica con el número más bajo y debe realizar esta elección del Dragón. Un jugador sentado en Negro también puede elegir.{fr} possède la Tactique au numéro le plus bas et doit effectuer ce choix du Dragon. Un joueur assis en Noir peut également choisir.{pt-br} tem a Tática de menor número e deve fazer esta escolha do Dragão. Um jogador sentado no Preto também pode escolher.{de} hat die Taktik mit der niedrigsten Nummer und muss diese Drachenwahl treffen. Ein Spieler auf Schwarz darf ebenfalls wählen."}),warningColor)
 	end
 	return false
 end
@@ -4471,7 +4471,7 @@ function againstDragonMainUIPanelSpec()
 	local pending=gStates.apocalypseDragonPendingAttack
 	local turnNumber=tonumber(gStates.apocalypseDragonTurn) or 1
 	local ordinal=againstDragonTurnOrdinal(turnNumber)
-	local mainText="<size=25>Apocalypse Dragon's Turn</size><size=6>\n\n</size><size=18>Round "..tostring(gStates.currentRound or 1).." - Dragon turn "..tostring(dragonTurn).."</size><size=4>\n</size>"
+	local mainText=joinLang({"{en}<size=25>Apocalypse Dragon's Turn</size><size=6>\n\n</size><size=18>Round {ru}<size=25>Ход Дракона Апокалипсиса</size><size=6>\n\n</size><size=18>Раунд {zh-tw}<size=25>末日巨龍回合</size><size=6>\n\n</size><size=18>回合輪 {zh-cn}<size=25>末日巨龙回合</size><size=6>\n\n</size><size=18>回合轮 {ko}<size=25>아포칼립스 드래곤의 턴</size><size=6>\n\n</size><size=18>라운드 {es}<size=25>Turno del Dragón del Apocalipsis</size><size=6>\n\n</size><size=18>Ronda {fr}<size=25>Tour du Dragon de l'Apocalypse</size><size=6>\n\n</size><size=18>Manche {pt-br}<size=25>Turno do Dragão do Apocalipse</size><size=6>\n\n</size><size=18>Rodada {de}<size=25>Zug des Apokalypse-Drachen</size><size=6>\n\n</size><size=18>Runde ",tostring(gStates.currentRound or 1),"{en} - Dragon turn {ru} — ход Дракона {zh-tw}－巨龍回合 {zh-cn}－巨龙回合 {ko} - 드래곤 턴 {es} - turno del Dragón {fr} - tour du Dragon {pt-br} - turno do Dragão {de} - Drachenzug ",tostring(dragonTurn),"</size><size=4>\n</size>"})
 	if pending~=nil then
 		if pending.phase=="choose" then
 			return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or "Resolve the Apocalypse Dragon attack.",onClick="againstDragonProcessUI",label="{en}Resolve Dragon Attack{ru}Разрешите атаку Дракона{zh-tw}處理巨龍攻擊{zh-cn}处理巨龙攻击{ko}드래곤 공격 해결{es}Resolver Ataque del Dragón{fr}Résoudre l'Attaque du Dragon{pt-br}Resolver Ataque do Dragão{de}Drachenangriff abhandeln",interactable=false,responseSpec=againstDragonAttendanceResponseSpec()}
@@ -4485,7 +4485,7 @@ function againstDragonMainUIPanelSpec()
 	elseif state=="ReadyToEnd" then label="{en}Dragon Processed{ru}Дракон обработан{zh-tw}巨龍行動結束{zh-cn}巨龙行动结束{ko}드래곤 처리 완료{es}Dragón Procesado{fr}Dragon traité{pt-br}Dragão Processado{de}Drache verarbeitet" active=true
 	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Выберите цель{zh-tw}選擇目標{zh-cn}选择目标{ko}대상 선택{es}Elige Objetivo{fr}Choisir la Cible{pt-br}Escolha o Alvo{de}Ziel wählen"
 	elseif state=="WaitingCombat" then label="{en}Combat Resolved{ru}Бой завершён{zh-tw}戰鬥已解決{zh-cn}战斗已解决{ko}전투 해결 완료{es}Combate resuelto{fr}Combat résolu{pt-br}Combate resolvido{de}Kampf beendet" active=true end
-	return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or ("The Apocalypse Dragon is preparing its "..ordinal.." turn."),onClick="againstDragonProcessUI",label=label,interactable=active}
+	return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or joinLang({"{en}The Apocalypse Dragon is preparing its {ru}Дракон Апокалипсиса готовится к своему {zh-tw}末日巨龍正在準備第 {zh-cn}末日巨龙正在准备第 {ko}아포칼립스 드래곤이 {es}El Dragón del Apocalipsis prepara su {fr}Le Dragon de l’Apocalypse prépare son {pt-br}O Dragão do Apocalipse está preparando seu {de}Der Apokalypse-Drache bereitet seinen ",ordinal,"{en} turn.{ru} ходу.{zh-tw} 個回合。{zh-cn} 个回合。{ko}번째 턴을 준비하고 있습니다.{es} turno.{fr} tour.{pt-br} turno.{de} Zug vor."}),onClick="againstDragonProcessUI",label=label,interactable=active}
 end
 
 function againstDragonMainUIRefresh()
@@ -4640,7 +4640,7 @@ function againstDragonAttendanceAuthorized(player,pending)
 	local color=type(player)=="string" and player or (player~=nil and player.color or nil)
 	local allowed=positionToColor(pending.playerIndex)
 	if color=="Black" or color==allowed then return true end
-	if color~=nil then broadcastToColor(tostring(details.mage).." (or a player seated Black) must choose how to attend this Dragon attack.",color,warningColor) end
+	if color~=nil then broadcastToColor(joinLang({translateWord[details.mage] or tostring(details.mage),"{en} (or a player seated Black) must choose how to attend this Dragon attack.{ru} (или игрок на чёрном месте) должен выбрать, как участвовать в атаке Дракона.{zh-tw}（或坐在黑色席位的玩家）必須選擇如何參與此巨龍攻擊。{zh-cn}（或坐在黑色席位的玩家）必须选择如何参与此巨龙攻击。{ko} (또는 검은색 자리에 앉은 플레이어)이 이 드래곤 공격에 어떻게 참가할지 선택해야 합니다.{es} (o un jugador sentado en Negro) debe elegir cómo participar en este ataque del Dragón.{fr} (ou un joueur assis en Noir) doit choisir comment participer à cette attaque du Dragon.{pt-br} (ou um jogador sentado no Preto) deve escolher como participar deste ataque do Dragão.{de} (oder ein Spieler auf Schwarz) muss wählen, wie er an diesem Drachenangriff teilnimmt."}),color,warningColor) end
 	return false
 end
 
@@ -4791,7 +4791,7 @@ function againstDragonResolveAirborneProtection(pending)
 	pending.destroyedSiteTokenGUID=token.guid
 	destroySite(token,terrain,location.bearing)
 	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(location.feature) or tostring(location.feature)
-	broadcastToAll("The Apocalypse Dragon destroys the "..tostring(label).." after its protection was used.",{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}The Apocalypse Dragon destroys the {ru}Дракон Апокалипсиса уничтожает {zh-tw}末日巨龍在防護被使用後摧毀 {zh-cn}末日巨龙在防护被使用后摧毁 {ko}아포칼립스 드래곤이 보호 효과가 사용된 후 {es}El Dragón del Apocalipsis destruye {fr}Le Dragon de l’Apocalypse détruit {pt-br}O Dragão do Apocalipse destrói {de}Der Apokalypse-Drache zerstört ",tostring(label),"{en} after its protection was used.{ru} после использования его защиты.{zh-tw}。{zh-cn}。{ko}을(를) 파괴합니다.{es} después de usar su protección.{fr} après l’utilisation de sa protection.{pt-br} depois que sua proteção foi usada.{de}, nachdem dessen Schutz verwendet wurde."}),{1,0.75,0.2})
 	return true
 end
 
@@ -5138,7 +5138,7 @@ function againstDragonFinishTurn(force)
 			local skipped=turnOrder[fullAttendPlayer]
 			local token=skipped~=nil and getObjectFromGUID(skipped.turnOrderTokenGUID) or nil
 			if token~=nil and token.is_face_down==true then token.flip() end
-			if skipped~=nil then broadcastToAll(tostring(skipped.mage).." skips their normal turn because they fully attended the Dragon attack.",positionToColor(fullAttendPlayer)) end
+			if skipped~=nil then broadcastToAll(joinLang({translateWord[skipped.mage] or tostring(skipped.mage),"{en} skips their normal turn because they fully attended the Dragon attack.{ru} пропускает обычный ход, потому что полностью участвовал в атаке Дракона.{zh-tw} 因完全參與巨龍攻擊而跳過正常回合。{zh-cn} 因完全参与巨龙攻击而跳过正常回合。{ko}은(는) 드래곤 공격에 완전히 참가했으므로 일반 턴을 건너뜁니다.{es} se salta su turno normal porque participó por completo en el ataque del Dragón.{fr} saute son tour normal car il a pleinement participé à l’attaque du Dragon.{pt-br} pula seu turno normal porque participou completamente do ataque do Dragão.{de} überspringt den normalen Zug, weil vollständig am Drachenangriff teilgenommen wurde."}),positionToColor(fullAttendPlayer)) end
 			for _=1,#turnOrder do
 				resumeTurn=resumeTurn+1
 				if resumeTurn>#turnOrder then resumeTurn=1 end
@@ -5148,7 +5148,7 @@ function againstDragonFinishTurn(force)
 						local skippedDetails=turnOrder[resumeTurn]
 						local skippedToken=skippedDetails~=nil and getObjectFromGUID(skippedDetails.turnOrderTokenGUID) or nil
 						if skippedToken~=nil and skippedToken.is_face_down==true then skippedToken.flip() end
-						if skippedDetails~=nil then broadcastToAll(tostring(skippedDetails.mage).." skips their turn. They already played out of order.",positionToColor(resumeTurn)) end
+						if skippedDetails~=nil then broadcastToAll(joinLang({translateWord[skippedDetails.mage] or tostring(skippedDetails.mage),"{en} skips their turn. They already played out of order.{ru} пропускает ход: он уже сыграл вне очереди.{zh-tw} 跳過回合，因為已經提前行動過。{zh-cn} 跳过回合，因为已经提前行动过。{ko}은(는) 이미 순서를 벗어나 턴을 진행했으므로 이번 턴을 건너뜁니다.{es} se salta su turno. Ya jugó fuera de orden.{fr} saute son tour. Il a déjà joué hors ordre.{pt-br} pula seu turno. Já jogou fora de ordem.{de} überspringt den Zug. Es wurde bereits außerhalb der Reihenfolge gespielt."}),positionToColor(resumeTurn)) end
 					else
 						break
 					end
