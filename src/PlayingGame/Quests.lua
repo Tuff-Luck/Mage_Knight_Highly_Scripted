@@ -838,7 +838,7 @@ function apocalypseQuestPlaceNamedEnemy(card, pileName, enemyName, faceUp, offse
 		end
 	end
 	if wantedGUID==nil or source==nil then
-		broadcastToAll("Quest setup: no "..tostring(enemyName).." is available in the "..tostring(pileName).." enemy pile or its discard.", {1,0.55,0.2})
+		broadcastToAll(joinLang({"{en}Quest setup: no {ru}Подготовка задания: нет доступного врага {zh-tw}任務設置：{zh-cn}任务设置：{ko}퀘스트 설정: {es}Preparación de Misión: no hay {fr}Mise en place de Quête : aucun {pt-br}Preparação da Missão: não há {de}Quest-Aufbau: Kein ",tostring(enemyName),"{en} is available in the {ru} в стопке врагов {zh-tw} 無法從 {zh-cn} 无法从 {ko} 적을 {es} disponible en la pila de enemigos {fr} disponible dans la pile d’ennemis {pt-br} disponível na pilha de inimigos {de} ist im Gegnerstapel ",tostring(pileName),"{en} enemy pile or its discard.{ru} или её сбросе.{zh-tw} 敵人堆或其棄牌中取得。{zh-cn} 敌人堆或其弃牌中取得。{ko} 적 더미나 버린 더미에서 찾을 수 없습니다.{es} ni en su descarte.{fr} ni dans sa défausse.{pt-br} nem em seu descarte.{de} oder dessen Ablage verfügbar."}), {1,0.55,0.2})
 		return nil
 	end
 	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[wantedGUID]=nil end
@@ -854,7 +854,7 @@ function apocalypseQuestPlaceEnemy(card, pileName, faceUp, offsetX)
 	if card==nil or monsterPiles[pileName]==nil then return nil end
 	local bag=getObjectFromGUID(monsterPiles[pileName])
 	if bag==nil or bag.getQuantity()==0 then
-		broadcastToAll("Quest setup: no "..tostring(pileName).." enemy token is available.", {1,0.55,0.2})
+		broadcastToAll(joinLang({"{en}Quest setup: no {ru}Подготовка задания: нет доступного жетона врага из {zh-tw}任務設置：沒有可用的 {zh-cn}任务设置：没有可用的 {ko}퀘스트 설정: 사용할 수 있는 {es}Preparación de Misión: no hay ficha de enemigo de {fr}Mise en place de Quête : aucun jeton Ennemi de {pt-br}Preparação da Missão: não há ficha de inimigo de {de}Quest-Aufbau: Es ist kein Gegnermarker aus ",tostring(pileName),"{en} enemy token is available.{ru}.{zh-tw} 敵人標記。{zh-cn} 敌人标记。{ko} 적 토큰이 없습니다.{es} disponible.{fr} disponible.{pt-br} disponível.{de} verfügbar."}), {1,0.55,0.2})
 		return nil
 	end
 	local pos=apocalypseQuestPlannedCardPosition(card) or card.getPosition()
@@ -909,7 +909,7 @@ function apocalypseQuestGiveTuckedCard(playerIndex, card, wantedType)
 		if obj.type=="Card" and gameCardType(obj)==wantedType then tucked=obj break end
 	end
 	if tucked==nil then
-		broadcastToAll("Quest reward: \""..apocalypseQuestName(card).."\" could not find its tucked "..wantedType.." card.", {1,0.55,0.2})
+		broadcastToAll(joinLang({"{en}Quest reward: \"{ru}Награда задания: \"{zh-tw}任務獎勵：\"{zh-cn}任务奖励：\"{ko}퀘스트 보상: \"{es}Recompensa de Misión: \"{fr}Récompense de Quête : \"{pt-br}Recompensa da Missão: \"{de}Quest-Belohnung: \"",apocalypseQuestName(card),"{en}\" could not find its tucked {ru}\" не смогло найти подложенную карту типа {zh-tw}\" 找不到其收在下方的 {zh-cn}\" 找不到其收在下方的 {ko}\"에서 아래에 넣어 둔 {es}\" no pudo encontrar su carta guardada de tipo {fr}\" n’a pas pu trouver sa carte glissée de type {pt-br}\" não conseguiu encontrar sua carta guardada do tipo {de}\" konnte seine daruntergelegte Karte vom Typ ",wantedType,"{en} card.{ru}.{zh-tw} 牌。{zh-cn} 牌。{ko} 카드를 찾지 못했습니다.{es}.{fr}.{pt-br}.{de} nicht finden."}), {1,0.55,0.2})
 		return false
 	end
 	tucked.unlock()
@@ -918,7 +918,7 @@ function apocalypseQuestGiveTuckedCard(playerIndex, card, wantedType)
 		--Use the same visible, serialized Deed transfer as ordinary claimed cards. This keeps Quest rewards
 		--from racing another claim toward the same deck and leaves one place responsible for top-of-deck insertion.
 		if queueCardToDeedDeck(playerIndex,tucked)~=true then return false end
-		broadcastToAll(tostring(turnOrder[playerIndex].mage).." gained the Spell from \""..apocalypseQuestName(card).."\" on top of their Deed deck.", positionToColor(playerIndex))
+		broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} gained the Spell from \"{ru} получил Заклинание из \"{zh-tw} 獲得了 \"{zh-cn} 获得了 \"{ko}이(가) \"{es} ganó el Hechizo de \"{fr} a gagné le Sort de \"{pt-br} ganhou o Feitiço de \"{de} erhielt den Zauber aus \"",apocalypseQuestName(card),"{en}\" on top of their Deed deck.{ru}\" на верх своей колоды Действий.{zh-tw}\" 的法術，放到其行動牌庫頂。{zh-cn}\" 的法术，放到其行动牌库顶。{ko}\"의 주문을 행동 덱 맨 위에 놓았습니다.{es}\" en la parte superior de su mazo de Acciones.{fr}\" au-dessus de son paquet d’Actions.{pt-br}\" no topo de seu baralho de Ações.{de}\" oben auf seinen Aktionsstapel."}), positionToColor(playerIndex))
 		return true
 	end
 	return false
@@ -932,7 +932,7 @@ function apocalypseQuestGiveProveYourselfReward(card, playerIndex)
 		if obj.type=="Card" and gameCardType(obj)=="Regular Unit" then unit=obj break end
 	end
 	if token==nil or unit==nil then
-		broadcastToAll("Quest reward: Prove Yourself could not find its Quest token or tucked Unit.", {1,0.55,0.2})
+		broadcastToAll("{en}Quest reward: Prove Yourself could not find its Quest token or tucked Unit.{ru}Награда задания: Prove Yourself не смогло найти жетон задания или подложенный отряд.{zh-tw}任務獎勵：Prove Yourself 找不到任務標記或收在下方的部隊。{zh-cn}任务奖励：Prove Yourself 找不到任务标记或收在下方的部队。{ko}퀘스트 보상: Prove Yourself에서 퀘스트 토큰 또는 아래에 넣어 둔 유닛을 찾지 못했습니다.{es}Recompensa de Misión: Prove Yourself no pudo encontrar su ficha de Misión o la Unidad guardada.{fr}Récompense de Quête : Prove Yourself n’a pas pu trouver son jeton de Quête ou l’Unité glissée dessous.{pt-br}Recompensa da Missão: Prove Yourself não conseguiu encontrar sua ficha de Missão ou a Unidade guardada.{de}Quest-Belohnung: Prove Yourself konnte seinen Questmarker oder die daruntergelegte Einheit nicht finden.", {1,0.55,0.2})
 		return false
 	end
 	local area=getObjectFromGUID(playerUnitAreas[turnOrder[playerIndex].seatPos])
@@ -958,7 +958,7 @@ function apocalypseQuestGiveProveYourselfReward(card, playerIndex)
 		end
 	end,1)
 	scheduleUnitLayoutRefresh(turnOrder[playerIndex].seatPos)
-	broadcastToAll(tostring(turnOrder[playerIndex].mage).." gained the Prove Yourself Unit and Quest Command token.", positionToColor(playerIndex))
+	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} gained the Prove Yourself Unit and Quest Command token.{ru} получил отряд Prove Yourself и жетон Командования задания.{zh-tw} 獲得 Prove Yourself 部隊與任務指揮標記。{zh-cn} 获得 Prove Yourself 部队与任务指挥标记。{ko}이(가) Prove Yourself 유닛과 퀘스트 지휘 토큰을 얻었습니다.{es} ganó la Unidad de Prove Yourself y la ficha de Mando de Misión.{fr} a gagné l’Unité de Prove Yourself et le jeton de Commandement de Quête.{pt-br} ganhou a Unidade de Prove Yourself e a ficha de Comando da Missão.{de} erhielt die Prove-Yourself-Einheit und den Quest-Befehlsmarker."}), positionToColor(playerIndex))
 	return true
 end
 
@@ -966,7 +966,7 @@ function apocalypseQuestGiveQuestTokenToInventory(playerIndex, tokenGUID, reason
 	if turnOrder[playerIndex]==nil then return nil end
 	local token=getObjectFromGUID(tokenGUID)
 	if token==nil then
-		broadcastToAll("Quest reward: the Quest token for "..tostring(reason or "this Quest").." could not be found.", {1,0.55,0.2})
+		broadcastToAll(joinLang({"{en}Quest reward: the Quest token for {ru}Награда задания: жетон задания для {zh-tw}任務獎勵：找不到 {zh-cn}任务奖励：找不到 {ko}퀘스트 보상: {es}Recompensa de Misión: no se encontró la ficha de Misión de {fr}Récompense de Quête : le jeton de Quête de {pt-br}Recompensa da Missão: a ficha de Missão de {de}Quest-Belohnung: Der Questmarker für ",tostring(reason or "this Quest"),"{en} could not be found.{ru} не найден.{zh-tw} 的任務標記。{zh-cn} 的任务标记。{ko} 퀘스트 토큰을 찾지 못했습니다.{es}.{fr} est introuvable.{pt-br} não foi encontrada.{de} wurde nicht gefunden."}), {1,0.55,0.2})
 		return nil
 	end
 	apocalypseQuestUndoSiteToken(tokenGUID)
@@ -975,7 +975,7 @@ function apocalypseQuestGiveQuestTokenToInventory(playerIndex, tokenGUID, reason
 	token.unlock()
 	token.setRotationSmooth({0,180,180})
 	token.setPositionSmooth(target)
-	broadcastToAll(tostring(turnOrder[playerIndex].mage).." gained the Quest token from "..tostring(reason or "a Quest")..".", positionToColor(playerIndex))
+	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} gained the Quest token from {ru} получил жетон задания из {zh-tw} 獲得任務標記，來源：{zh-cn} 获得任务标记，来源：{ko}이(가) 퀘스트 토큰을 얻었습니다: {es} ganó la ficha de Misión de {fr} a gagné le jeton de Quête de {pt-br} ganhou a ficha de Missão de {de} erhielt den Questmarker aus ",tostring(reason or "a Quest"),"."}), positionToColor(playerIndex))
 	return token, target
 end
 
@@ -1053,21 +1053,21 @@ function apocalypseQuestRollVisibleManaDie(card,playerIndex,reason,callback,spaw
 	if card==nil or turnOrder[playerIndex]==nil then return false end
 	local sourceDie=apocalypseQuestSetupDie()
 	if sourceDie==nil then
-		broadcastToAll("Quest roll: could not find the Quest setup mana die for "..tostring(reason or "this Quest")..".",{1,0.55,0.2})
+		broadcastToAll(joinLang({"{en}Quest roll: could not find the Quest setup mana die for {ru}Бросок задания: не удалось найти кубик маны подготовки задания для {zh-tw}任務擲骰：找不到任務設置魔力骰，任務：{zh-cn}任务掷骰：找不到任务设置魔力骰，任务：{ko}퀘스트 굴림: 퀘스트 설정 마나 주사위를 찾지 못했습니다: {es}Tirada de Misión: no se pudo encontrar el dado de maná de preparación para {fr}Jet de Quête : impossible de trouver le dé de mana de mise en place pour {pt-br}Rolagem da Missão: não foi possível encontrar o dado de mana de preparação para {de}Quest-Wurf: Der Quest-Aufbau-Manawürfel wurde nicht gefunden für ",tostring(reason or "this Quest"),"."}),{1,0.55,0.2})
 		return false
 	end
 	local cardGUID=card.guid
 	local cardPos=spawnPosition or card.getPosition()
 	local rollDie=sourceDie.clone({position={cardPos[1],cardPos[2]+0.70,cardPos[3]+1.10}})
 	if rollDie==nil then
-		broadcastToAll("Quest roll: could not duplicate the Quest setup mana die for "..tostring(reason or "this Quest")..".",{1,0.55,0.2})
+		broadcastToAll(joinLang({"{en}Quest roll: could not duplicate the Quest setup mana die for {ru}Бросок задания: не удалось дублировать кубик маны подготовки задания для {zh-tw}任務擲骰：無法複製任務設置魔力骰，任務：{zh-cn}任务掷骰：无法复制任务设置魔力骰，任务：{ko}퀘스트 굴림: 퀘스트 설정 마나 주사위를 복제하지 못했습니다: {es}Tirada de Misión: no se pudo duplicar el dado de maná de preparación para {fr}Jet de Quête : impossible de dupliquer le dé de mana de mise en place pour {pt-br}Rolagem da Missão: não foi possível duplicar o dado de mana de preparação para {de}Quest-Wurf: Der Quest-Aufbau-Manawürfel konnte nicht dupliziert werden für ",tostring(reason or "this Quest"),"."}),{1,0.55,0.2})
 		return false
 	end
 	rollDie.unlock()
 	if gStates.apocalypseQuestRollDice==nil then gStates.apocalypseQuestRollDice={} end
 	gStates.apocalypseQuestRollDice[rollDie.guid]=true
 	apocalypseQuestInterfaceRemove(card)
-	broadcastToAll(tostring(reason or "Quest").." is rolling a mana die.",positionToColor(playerIndex))
+	broadcastToAll(joinLang({tostring(reason or "Quest"),"{en} is rolling a mana die.{ru} бросает кубик маны.{zh-tw} 正在擲魔力骰。{zh-cn} 正在掷魔力骰。{ko}에서 마나 주사위를 굴립니다.{es} está tirando un dado de maná.{fr} lance un dé de mana.{pt-br} está rolando um dado de mana.{de} würfelt einen Manawürfel."}),positionToColor(playerIndex))
 	local dieGUID=rollDie.guid
 	local function clearRollDie()
 		local die=getObjectFromGUID(dieGUID)
@@ -1195,7 +1195,7 @@ function apocalypseQuestGoblinRecordCleanup(enemyGUID,defeated)
 				local live=getObjectFromGUID("72099f")
 				if live~=nil then apocalypseQuestUpdateProgressButtons(live) end
 			end,2)
-			broadcastToAll(tostring(enemyRecord.mage)..(allDefeated and " defeated all Goblins and completed Goblin Warrens Step 1." or " completed Goblin Warrens Step 1 but did not defeat all Goblins."),positionToColor(playerIndex))
+			broadcastToAll(joinLang({translateWord[enemyRecord.mage] or tostring(enemyRecord.mage),allDefeated and "{en} defeated all Goblins and completed Goblin Warrens Step 1.{ru} победил всех гоблинов и завершил шаг 1 Goblin Warrens.{zh-tw} 擊敗所有哥布林並完成 Goblin Warrens 步驟 1。{zh-cn} 击败所有哥布林并完成 Goblin Warrens 步骤 1。{ko}이(가) 모든 고블린을 쓰러뜨리고 Goblin Warrens 1단계를 완료했습니다.{es} derrotó a todos los Goblins y completó el Paso 1 de Goblin Warrens.{fr} a vaincu tous les Gobelins et terminé l’Étape 1 de Goblin Warrens.{pt-br} derrotou todos os Goblins e concluiu a Etapa 1 de Goblin Warrens.{de} besiegte alle Goblins und schloss Schritt 1 von Goblin Warrens ab." or "{en} completed Goblin Warrens Step 1 but did not defeat all Goblins.{ru} завершил шаг 1 Goblin Warrens, но не победил всех гоблинов.{zh-tw} 完成 Goblin Warrens 步驟 1，但未擊敗所有哥布林。{zh-cn} 完成 Goblin Warrens 步骤 1，但未击败所有哥布林。{ko}이(가) Goblin Warrens 1단계를 완료했지만 모든 고블린을 쓰러뜨리지는 못했습니다.{es} completó el Paso 1 de Goblin Warrens pero no derrotó a todos los Goblins.{fr} a terminé l’Étape 1 de Goblin Warrens sans vaincre tous les Gobelins.{pt-br} concluiu a Etapa 1 de Goblin Warrens, mas não derrotou todos os Goblins.{de} schloss Schritt 1 von Goblin Warrens ab, besiegte aber nicht alle Goblins."}),positionToColor(playerIndex))
 		end
 	end
 	return true
@@ -1297,10 +1297,10 @@ function apocalypseQuestStartGoblinWarrens(card,playerIndex,chosen)
 			end
 		end
 		if #record.enemies~=count then
-			broadcastToAll("The Goblin Warrens could only create "..tostring(#record.enemies).." of "..tostring(count).." Goblins; this attempt cannot be completed.",{1,0.55,0.2})
+			broadcastToAll(joinLang({"{en}The Goblin Warrens could only create {ru}The Goblin Warrens смогло создать только {zh-tw}The Goblin Warrens 只能建立 {zh-cn}The Goblin Warrens 只能建立 {ko}The Goblin Warrens에서 고블린을 {es}The Goblin Warrens solo pudo crear {fr}The Goblin Warrens n’a pu créer que {pt-br}The Goblin Warrens só conseguiu criar {de}The Goblin Warrens konnte nur ",tostring(#record.enemies),"{en} of {ru} из {zh-tw}／{zh-cn}／{ko}/{es} de {fr} sur {pt-br} de {de} von ",tostring(count),"{en} Goblins; this attempt cannot be completed.{ru} гоблинов; эту попытку нельзя завершить.{zh-tw} 個哥布林；此次嘗試無法完成。{zh-cn} 个哥布林；此次尝试无法完成。{ko}마리만 생성했습니다. 이 시도는 완료할 수 없습니다.{es} Goblins; este intento no puede completarse.{fr} Gobelins ; cette tentative ne peut pas être terminée.{pt-br} Goblins; esta tentativa não pode ser concluída.{de} Goblins erzeugen; dieser Versuch kann nicht abgeschlossen werden."}),{1,0.55,0.2})
 		else
 			combatCameraFocus(playerIndex)
-			broadcastToAll(tostring(mage).." chose "..tostring(chosen)..", rolled "..tostring(rolled)..", and must fight "..tostring(count).." Goblin"..(count==1 and "" or "s")..".",positionToColor(playerIndex))
+			broadcastToAll(joinLang({translateWord[mage] or tostring(mage),"{en} chose {ru} выбрал {zh-tw} 選擇 {zh-cn} 选择 {ko}이(가) {es} eligió {fr} a choisi {pt-br} escolheu {de} wählte ",tostring(chosen),"{en}, rolled {ru}, выбросил {zh-tw}，擲出 {zh-cn}，掷出 {ko}을(를) 선택하고 {es}, sacó {fr}, a obtenu {pt-br}, rolou {de}, würfelte ",tostring(rolled),"{en}, and must fight {ru} и должен сразиться с {zh-tw}，必須與 {zh-cn}，必须与 {ko}을(를) 굴려 고블린 {es}, y debe luchar contra {fr}, et doit combattre {pt-br}, e deve lutar contra {de} und muss gegen ",tostring(count),count==1 and "{en} Goblin.{ru} гоблином.{zh-tw} 個哥布林戰鬥。{zh-cn} 个哥布林战斗。{ko}마리와 싸워야 합니다.{es} Goblin.{fr} Gobelin.{pt-br} Goblin.{de} Goblin kämpfen." or "{en} Goblins.{ru} гоблинами.{zh-tw} 個哥布林戰鬥。{zh-cn} 个哥布林战斗。{ko}마리와 싸워야 합니다.{es} Goblins.{fr} Gobelins.{pt-br} Goblins.{de} Goblins kämpfen."}),positionToColor(playerIndex))
 		end
 		apocalypseQuestInterfaceAdd(liveCard,true)
 	end,apocalypseQuestOfferPosition(1))
