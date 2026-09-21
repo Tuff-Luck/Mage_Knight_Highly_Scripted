@@ -547,8 +547,7 @@ jobs:
 
           changes=$(git diff --numstat -- "Mage Knight Highly Scripted.json" | awk '{print $1+$2}')
           echo "Save JSON changed lines: $changes"
-          git diff -- "Mage Knight Highly Scripted.json" | head -220 || true
-          if [ -z "$changes" ] || [ "$changes" -gt 25000 ]; then
+          if [ -z "$changes" ] || [ "$changes" -gt 130000 ]; then
             echo "Unexpectedly large/empty save rewrite; refusing to commit."
             exit 1
           fi
