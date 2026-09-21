@@ -91,38 +91,25 @@ function joinLang(full_string)
 end
 
 --Reapply translated static UI text once at load so TTS resolves language tags.
---Read the raw XML rather than the XML table so rich-text markup such as <b> and <size> survives intact.
-local function decodeXmlUiText(value)
-	return value
-		:gsub("&lt;", "<")
-		:gsub("&gt;", ">")
-		:gsub("&#60;", "<")
-		:gsub("&#62;", ">")
-		:gsub("&#10;", "\n")
-		:gsub("&#13;", "\r")
-		:gsub("&quot;", '"')
-		:gsub("&#34;", '"')
-		:gsub("&apos;", "'")
-		:gsub("&#39;", "'")
-		:gsub("&amp;", "&")
-end
-
+--Use TTS's parsed XML table instead of pattern-matching the whole raw XML string.
+--The table gives us the Text/Toggle value directly and avoids Lua 5.2's pattern complexity limit.
 function reapplyXmlText()
-	local xml=UI.getXml()
-	if type(xml)~="string" or xml=="" then return 0 end
+	local xml=UI.getXmlTable() or {}
 	local reapplied=0
-	local function reapplyTag(tag)
-		local pattern="<"..tag.."%s+([^>]-)>(.-)</"..tag..">"
-		for attributes,value in xml:gmatch(pattern) do
-			local id=attributes:match('id%s*=%s*"([^"]+)"')
-			if id~=nil and value:find("{en}",1,true)~=nil then
-				UI.setAttribute(id,"text",decodeXmlUiText(value))
+	local function visit(node)
+		if type(node)~="table" then return end
+		local attributes=node.attributes or {}
+		if (node.tag=="Text" or node.tag=="Toggle") and attributes.id~=nil then
+			local value=attributes.text
+			if value==nil then value=node.value end
+			if type(value)=="string" and value:find("{en}",1,true)~=nil then
+				UI.setAttribute(attributes.id,"text",value)
 				reapplied=reapplied+1
 			end
 		end
+		for _,child in ipairs(node.children or {}) do visit(child) end
 	end
-	reapplyTag("Text")
-	reapplyTag("Toggle")
+	for _,node in ipairs(xml) do visit(node) end
 	return reapplied
 end
 
