@@ -1,0 +1,261 @@
+name: One-off subtractive reward token migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/subtractive-token-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Move token bags and update setup
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise RuntimeError(f"Missing {label}")
+              return text.replace(old, new, 1)
+
+          # ---- Components.lua ----
+          path = Path("src/SetupGame/Components.lua")
+          comp = path.read_text(encoding="utf-8")
+
+          helper_anchor = '''local function destroyMonsterBags(guids)
+          \tfor _,guid in ipairs(guids) do
+          \t\tlocal bag=getObjectFromGUID(guid)
+          \t\tif bag~=nil then bag.destruct() end
+          \tend
+          end
+          '''
+          helper_new = helper_anchor + '''
+          local function configurePreloadedTokenBags(guids,keep,label)
+          \tfor _,guid in ipairs(guids) do
+          \t\tlocal bag=getObjectFromGUID(guid)
+          \t\tif keep==true then
+          \t\t\tif bag==nil then error("SetupGame missing preloaded "..tostring(label).." bag "..tostring(guid),2) end
+          \t\t\tbag.lock()
+          \t\telseif bag~=nil then
+          \t\t\tbag.destruct()
+          \t\tend
+          \tend
+          end
+          '''
+          comp = replace_once(comp, helper_anchor, helper_new, "preloaded token helper anchor")
+          comp = replace_once(comp, '\t\t{guid=monsterPiles.rewardDark,position={-46.13,0.98,13.99},always=true},\n', '', "Dark reward extraction")
+          comp = replace_once(comp, '\t\t{guid=monsterPiles.rewardElem,position={-46.13,0.98,16.99},always=true},\n', '', "Elementalist reward extraction")
+
+          bag_anchor = '''\tlocal darkBags={monsterPiles.greenDark,monsterPiles.tanDark,monsterPiles.redDark}
+          \tlocal elemBags={monsterPiles.greenElem,monsterPiles.tanElem,monsterPiles.redElem}
+          '''
+          bag_new = bag_anchor + '''\tlocal tezlaRewardsNeeded=gStates.removeShadesOfTezlaMonsters~=true or gStates.useCustomMageKnights==true
+          \tconfigurePreloadedTokenBags({
+          \t\tmonsterPiles.rewardDark,GUID.bag.discard.darkReward,
+          \t\tmonsterPiles.rewardElem,GUID.bag.discard.elementalistReward
+          \t},tezlaRewardsNeeded,"Shades of Tezla reward")
+          '''
+          comp = replace_once(comp, bag_anchor, bag_new, "Tezla faction bag anchor")
+          path.write_text(comp, encoding="utf-8")
+
+          # ---- SetupGame.lua ----
+          path = Path("src/SetupGame.lua")
+          setup = path.read_text(encoding="utf-8")
+          start_marker = '\t\t--Apocalypse Quest cards can call the Apocalypse/Council reward systems and Possessed enemies even'
+          neutral_marker = '\t\t--The Apocalypse systems share the same infinite Neutral Shield bag.'
+          start = setup.find(start_marker)
+          neutral = setup.find(neutral_marker, start)
+          if start < 0 or neutral < 0:
+              raise RuntimeError("Missing Apocalypse shared support block")
+          shared = '''\t\t--Apocalypse/Council rewards and Possessed tokens are preloaded in their normal table positions.
+          \t\t--Keep complete source/discard cycles when any enabled system can use them; otherwise remove them.
+          \t\tlocal apocalypseTokenSupportNeeded=gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or
+          \t\t\tgStates.gameScenario=="Against the Horsemen Blitz" or apocalypseDragonScenario()==true
+          \t\tfor _,guid in ipairs({
+          \t\t\tmonsterPiles.rewardApoc,GUID.bag.discard.apocReward,
+          \t\t\tmonsterPiles.rewardCouncil,GUID.bag.discard.councilReward,
+          \t\t\tmonsterPiles.possessed,GUID.bag.discard.possessed
+          \t\t}) do
+          \t\t\tlocal bag=getObjectFromGUID(guid)
+          \t\t\tif apocalypseTokenSupportNeeded==true then
+          \t\t\t\tif bag==nil then error("SetupGame missing preloaded Apocalypse token bag "..tostring(guid),2) end
+          \t\t\t\tbag.lock()
+          \t\t\telseif bag~=nil then
+          \t\t\t\tbag.destruct()
+          \t\t\tend
+          \t\tend
+          \t\tif apocalypseTokenSupportNeeded==true then
+          \t\t\tgetObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="c584ff", position={-53.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Apocalypse Cult Reward Card
+          \t\t\tgetObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="071cc6", position={-49.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Council of the Void Reward Card
+          \t\tend
+
+          '''
+          setup = setup[:start] + shared + setup[neutral:]
+
+          for needle in (
+              'getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.discard.apocReward, position={2.00, 0.98, 16.00}, rotation={0, 180, 0}, smooth=false}).lock()--Apocalypse Cult Reward Discard',
+              'getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.discard.councilReward, position={2.00, 0.97, 19.00}, rotation={0, 180, 0}, smooth=false}).lock()--Council of the Void Reward Discard',
+              'getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.discard.possessed, position={-1.00, 1.07, 19.00}, rotation={0, 180, 0}, smooth=false}).lock()--Possessed token discard Bag',
+          ):
+              idx = setup.find(needle)
+              if idx < 0:
+                  raise RuntimeError(f"Missing additive discard line: {needle[:40]}")
+              line_start = setup.rfind("\n", 0, idx) + 1
+              line_end = setup.find("\n", idx)
+              setup = setup[:line_start] + setup[line_end + 1:]
+
+          fallback_start = setup.find('\t\t--Dragon scenarios use Possessed enemies and Apocalypse faction rewards even when the optional')
+          fallback_end = setup.find('\t\t--Dragon scenarios destroy sites even when the optional Apocalypse terrain mix is off.', fallback_start)
+          if fallback_start < 0 or fallback_end < 0:
+              raise RuntimeError("Missing Dragon discard fallback block")
+          setup = setup[:fallback_start] + setup[fallback_end:]
+          path.write_text(setup, encoding="utf-8")
+
+          # ---- Save JSON ----
+          path = Path("Mage Knight Highly Scripted.json")
+          raw = path.read_text(encoding="utf-8")
+          positions = {
+              "33de41": (-46.13, 0.98, 16.99),
+              "f469f4": (-46.13, 0.98, 13.99),
+              "45d509": (-46.13, 0.97, 20.00),
+              "f4d26c": (-46.13, 0.97, 23.00),
+              "9677da": (-46.13, 2.12, 11.50),
+              "f362a2": (2.00, 0.98, 16.00),
+              "f67cac": (2.00, 0.97, 19.00),
+              "53b986": (-1.00, 1.07, 19.00),
+          }
+
+          def object_range(text, guid):
+              gi = text.find(f'"GUID": "{guid}"')
+              if gi < 0:
+                  raise RuntimeError(f"Missing GUID {guid}")
+              start = text.rfind("{", 0, gi)
+              depth = 0
+              in_string = False
+              escaped = False
+              for i in range(start, len(text)):
+                  ch = text[i]
+                  if in_string:
+                      if escaped:
+                          escaped = False
+                      elif ch == "\\":
+                          escaped = True
+                      elif ch == '"':
+                          in_string = False
+                      continue
+                  if ch == '"':
+                      in_string = True
+                  elif ch == "{":
+                      depth += 1
+                  elif ch == "}":
+                      depth -= 1
+                      if depth == 0:
+                          return start, i + 1
+              raise RuntimeError(f"Unterminated object {guid}")
+
+          def tweak(block, pos):
+              cut = block.find('"ContainedObjects"')
+              head = block if cut < 0 else block[:cut]
+              tail = "" if cut < 0 else block[cut:]
+              values = {"posX": pos[0], "posY": pos[1], "posZ": pos[2], "rotX": 0, "rotY": 180, "rotZ": 0}
+              for key, value in values.items():
+                  pattern = re.compile(r'("' + re.escape(key) + r'"\s*:\s*)[-+0-9.eE]+')
+                  head, count = pattern.subn(r'\g<1>' + str(value), head, count=1)
+                  if count != 1:
+                      raise RuntimeError(f"Missing transform {key}")
+              head, count = re.subn(r'("Locked"\s*:\s*)(true|false)', r'\g<1>true', head, count=1)
+              if count != 1:
+                  raise RuntimeError("Missing Locked field")
+              return head + tail
+
+          blocks = {}
+          ranges = []
+          for guid in positions:
+              start, end = object_range(raw, guid)
+              ranges.append((start, end, guid))
+          for start, end, guid in sorted(ranges, reverse=True):
+              blocks[guid] = tweak(raw[start:end], positions[guid])
+              remove_start, remove_end = start, end
+              j = remove_end
+              while j < len(raw) and raw[j].isspace():
+                  j += 1
+              if j < len(raw) and raw[j] == ",":
+                  remove_end = j + 1
+              else:
+                  k = remove_start - 1
+                  while k >= 0 and raw[k].isspace():
+                      k -= 1
+                  if k >= 0 and raw[k] == ",":
+                      remove_start = k
+              raw = raw[:remove_start] + raw[remove_end:]
+
+          object_states_key = raw.find('"ObjectStates"')
+          array_open = raw.find("[", object_states_key)
+          depth = 0
+          in_string = False
+          escaped = False
+          array_close = None
+          for i in range(array_open, len(raw)):
+              ch = raw[i]
+              if in_string:
+                  if escaped:
+                      escaped = False
+                  elif ch == "\\":
+                      escaped = True
+                  elif ch == '"':
+                      in_string = False
+                  continue
+              if ch == '"':
+                  in_string = True
+              elif ch == "[":
+                  depth += 1
+              elif ch == "]":
+                  depth -= 1
+                  if depth == 0:
+                      array_close = i
+                      break
+          if array_close is None:
+              raise RuntimeError("Could not find ObjectStates closing bracket")
+
+          moved = ",\n" + ",\n".join(blocks[guid] for guid in positions)
+          raw = raw[:array_close] + moved + raw[array_close:]
+          parsed = json.loads(raw)
+
+          parent_by_guid = {}
+          targets = set(positions)
+          def walk(obj, parent=None):
+              guid = str(obj.get("GUID", "")).lower()
+              if guid in targets:
+                  parent_by_guid[guid] = None if parent is None else parent.get("GUID")
+              for child in obj.get("ContainedObjects", []):
+                  walk(child, obj)
+          for obj in parsed.get("ObjectStates", []):
+              walk(obj)
+          for guid in targets:
+              if parent_by_guid.get(guid, "missing") is not None:
+                  raise RuntimeError(f"{guid} did not move to top level")
+
+          path.write_text(raw, encoding="utf-8")
+          PY
+
+      - name: Commit migration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/SetupGame.lua src/SetupGame/Components.lua "Mage Knight Highly Scripted.json"
+          git diff --cached --check
+          git commit -m "Make reward and possessed token setup subtractive"
+          git push origin HEAD:main
