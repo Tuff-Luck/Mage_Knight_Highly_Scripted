@@ -272,7 +272,7 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 					if test==false then
 						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "active", "true")
 						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos).."Text", "text", joinLang({"{en}Use {ru}{zh-tw}使用{zh-cn}使用{ko}{es}Usa la Habilidad Motivación de {fr}Utilisez la compétence de motivation de {pt-br}Habilidade Motivacional de {de}Verwenden ", translateWord[skillTokens[skillGUID].mage], "{en}'s Motivation Skill{ru} использует навык Мотивация{zh-tw}的激勵技能{zh-cn}的激励技能{ko}의 동기부여 스킬 사용{es}.{fr}.{pt-br}.{de}'s Motivations Fähigkeit"}))
-						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "tooltip", "{en}Draw two cards{ru}Возьмите две карты{zh-tw}抽兩張牌{zh-cn}抽两张牌{ko}카드 2장 뽑기{es}Roba dos cartas{fr}Piochez deux cartes{pt-br}Compre duas cartas{de}Ziehe zwei Karten")
+						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "tooltip", "Draw two cards")
 						local lowestFame=1
 						--Work out lowest fame
 						for b=2, #turnOrder, 1 do
@@ -283,7 +283,9 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 						for b=1, #turnOrder, 1 do if turnOrder[b].fame==turnOrder[lowestFame].fame and b~=lowestFame then lowestFame=0 break end end--find tied lowest fame
 						if a==lowestFame then
 							UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos).."Text", "text", joinLang({"{en}Use {ru}{zh-tw}使用{zh-cn}使用{ko}{es}Usa la Habilidad Motivación de {fr}Utilisez la compétence de motivation de {pt-br}Habilidade Motivacional de {de}Verwenden ", translateWord[skillTokens[skillGUID].mage], "{en}'s Motivation Skill (+){ru} использует навык Мотивация (+){zh-tw}的激勵技能（+）{zh-cn}的激励技能（+）{ko}의 동기부여 스킬 사용 (+){es}. (+){fr}. (+){pt-br}. (+){de}'s Motivations Fähigkeit (+)"}))
-							UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "tooltip", joinLang({"{en}Draw 2 Cards{ru}Возьмите 2 карты{zh-tw}抽 2 張牌{zh-cn}抽 2 张牌{ko}카드 2장 뽑기{es}Roba 2 cartas{fr}Piochez 2 cartes{pt-br}Compre 2 cartas{de}Ziehe 2 Karten",stats.bonus}))
+							local motivationBonus=joinLangParse(tostring(stats.bonus or ""))
+							if type(motivationBonus)=="table" then motivationBonus=motivationBonus.en or "" end
+							UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "tooltip", "Draw 2 Cards"..tostring(motivationBonus))
 						end
 						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos).."Image", "color", positionToColor(a))
 						count=count+1
@@ -688,7 +690,7 @@ function mainUIUpdate(source)
 
 			--change End turn button to say End Round on the last player turn
 			UI.setAttribute("EndTurnButton", "interactable", "True")
-			UI.setAttribute("EndTurnButton", "tooltip", "{en}At least one card must be played or discarded to 'End Your Turn'.{ru}Чтобы завершить ход, нужно сыграть или сбросить хотя бы одну карту.{zh-tw}要「結束你的回合」，至少必須打出或棄掉一張牌。{zh-cn}要“结束你的回合”，至少必须打出或弃掉一张牌。{ko}'차례 종료'를 하려면 최소 1장의 카드를 사용하거나 버려야 합니다.{es}Debes jugar o descartar al menos una carta para «Finalizar tu turno».{fr}Au moins une carte doit être jouée ou défaussée pour « terminer votre tour ».{pt-br}É necessário jogar ou descartar pelo menos uma carta para 'Encerrar seu turno'.{de}Mindestens eine Karte muss gespielt oder abgeworfen werden, um deinen Zug zu beenden.")
+			UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
 			UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Active")
 			UI.setAttribute("EndTurnButtonAlt", "interactable", "True")
 			UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Active")
@@ -1107,7 +1109,7 @@ function mainUIUpdate(source)
 					if b.type=="Card" then discardAreaCards=1 break end
 					if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
 				end
-				UI.setAttribute("EndTurnButton", "tooltip", "{en}At least one card must be played or discarded to 'End Your Turn'.{ru}Чтобы завершить ход, нужно сыграть или сбросить хотя бы одну карту.{zh-tw}要「結束你的回合」，至少必須打出或棄掉一張牌。{zh-cn}要“结束你的回合”，至少必须打出或弃掉一张牌。{ko}'차례 종료'를 하려면 최소 1장의 카드를 사용하거나 버려야 합니다.{es}Debes jugar o descartar al menos una carta para «Finalizar tu turno».{fr}Au moins une carte doit être jouée ou défaussée pour « terminer votre tour ».{pt-br}É necessário jogar ou descartar pelo menos uma carta para 'Encerrar seu turno'.{de}Mindestens eine Karte muss gespielt oder abgeworfen werden, um deinen Zug zu beenden.")
+				UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
 				if gStates.endRoundCalled==true then UI.setAttribute("EndTurnButton", "tooltip", "") end
 				local coopCombatButtonLocked=gStates.coopAssaultPhase=="combat" and (gStates.preEndTurn==true or playerAreaCardCount<1)
 				if (playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount) or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then

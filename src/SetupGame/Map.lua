@@ -17,15 +17,32 @@ local function revealSetupTerrainBatches(batches,onComplete)
 		end
 		local batch=batches[index]
 		index=index+1
-		local function batchPopulationStarted()
-			for _,entry in ipairs(batch) do
-				if gStates.playedAllready[entry.guid]~=true and workingOnTerrain[entry.guid]~=true then return false end
-			end
-			return true
-		end
 		local function batchPopulationFinished()
 			for _,entry in ipairs(batch) do if gStates.playedAllready[entry.guid]~=true then return false end end
 			return true
+		end
+		local function batchFaceUpAndSettled()
+			for _,entry in ipairs(batch) do
+				local tile=getObjectFromGUID(entry.guid)
+				if tile==nil or tile.is_face_down==true or tile.resting~=true then return false end
+			end
+			return true
+		end
+		local function startBatchPopulation()
+			local mapZone=getObjectFromGUID(mapArea)
+			if mapZone==nil then error("SetupGame lost the map scripting zone during initial terrain reveal.",2) end
+			for _,entry in ipairs(batch) do
+				if gStates.playedAllready[entry.guid]~=true and workingOnTerrain[entry.guid]~=true then
+					local tile=getObjectFromGUID(entry.guid)
+					if tile==nil then error("SetupGame lost initial terrain tile "..tostring(entry.guid).." after reveal.",2) end
+					--A scripted flip does not reliably fire onObjectEnterZone because the tile never actually
+					--leaves the map zone. Invoke the normal terrain-entry path explicitly once the flip has settled.
+					__onObjectEnterZone_raw(mapZone,tile)
+				end
+			end
+			safeWaitCondition("SetupGame",nextBatch,batchPopulationFinished,15,function()
+				error("SetupGame timed out waiting for terrain population during initial map reveal.",2)
+			end)
 		end
 		safeWaitCondition("SetupGame",function()
 			for _,entry in ipairs(batch) do
@@ -33,12 +50,8 @@ local function revealSetupTerrainBatches(batches,onComplete)
 				if entry.first==true then firstTile=entry.guid gStates.firstStarted=true end
 				if tile~=nil and tile.is_face_down==true then tile.flip() end
 			end
-			safeWaitCondition("SetupGame",function()
-				safeWaitCondition("SetupGame",nextBatch,batchPopulationFinished,15,function()
-					error("SetupGame timed out waiting for terrain population during initial map reveal.",2)
-				end)
-			end,batchPopulationStarted,10,function()
-				error("SetupGame timed out waiting for an initial terrain reveal event.",2)
+			safeWaitCondition("SetupGame",startBatchPopulation,batchFaceUpAndSettled,10,function()
+				error("SetupGame timed out waiting for initial terrain tiles to become face up after reveal.",2)
 			end)
 		end,function()
 			for _,entry in ipairs(batch) do
