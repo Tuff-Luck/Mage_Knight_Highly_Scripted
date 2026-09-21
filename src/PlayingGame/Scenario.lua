@@ -672,7 +672,7 @@ function refreshMineClaimPanel()
 	for i=1, 4 do
 		local color=pending.colors[i]
 		UI.setAttribute("MineClaimButton"..i, "active", color~=nil and "true" or "false")
-		if color~=nil then UI.setAttribute("MineClaimButtonText"..i, "text", color) end
+		if color~=nil then UI.setAttribute("MineClaimButtonText"..i, "text", translateWord[color] or color) end
 	end
 	UI.setAttribute("MineClaimRow2", "active", #pending.colors>2 and "true" or "false")
 	UI.setAttribute("MineClaimChoice", "visibility", positionToColor(pending.playerIndex).."|Black")
@@ -685,8 +685,8 @@ function beginMineCrystalClaim(playerIndex, messageColor)
 	local available={}
 	for _, color in ipairs(data.colors) do if mineCrystalCount(playerIndex, color)<3 then available[#available+1]=color end end
 	if #available==0 then
-		if messageColor~=nil then broadcastToColor("No crystal gained from the Mine: your Inventory already has 3 of every available color.", messageColor, warningColor)
-		else broadcastToAll("No crystal gained from the Mine: your Inventory already has 3 of every available color.", warningColor) end
+		if messageColor~=nil then broadcastToColor("{en}No crystal gained from the Mine: your Inventory already has 3 of every available color.{ru}Кристалл из Шахты не получен: в вашем Инвентаре уже по 3 кристалла каждого доступного цвета.{zh-tw}未從礦場獲得水晶：你的庫存中每種可用顏色都已有 3 顆水晶。{zh-cn}未从矿场获得水晶：你的库存中每种可用颜色都已有 3 颗水晶。{ko}광산에서 크리스털을 얻지 못했습니다. 인벤토리에 사용 가능한 모든 색의 크리스털이 이미 3개씩 있습니다.{es}No se obtuvo cristal de la Mina: tu Inventario ya tiene 3 de cada color disponible.{fr}Aucun cristal gagné de la Mine : votre Inventaire contient déjà 3 cristaux de chaque couleur disponible.{pt-br}Nenhum cristal foi ganho da Mina: seu Inventário já tem 3 de cada cor disponível.{de}Kein Kristall aus der Mine erhalten: Dein Inventar enthält bereits 3 Kristalle jeder verfügbaren Farbe.", messageColor, warningColor)
+		else broadcastToAll("{en}No crystal gained from the Mine: your Inventory already has 3 of every available color.{ru}Кристалл из Шахты не получен: в вашем Инвентаре уже по 3 кристалла каждого доступного цвета.{zh-tw}未從礦場獲得水晶：你的庫存中每種可用顏色都已有 3 顆水晶。{zh-cn}未从矿场获得水晶：你的库存中每种可用颜色都已有 3 颗水晶。{ko}광산에서 크리스털을 얻지 못했습니다. 인벤토리에 사용 가능한 모든 색의 크리스털이 이미 3개씩 있습니다.{es}No se obtuvo cristal de la Mina: tu Inventario ya tiene 3 de cada color disponible.{fr}Aucun cristal gagné de la Mine : votre Inventaire contient déjà 3 cristaux de chaque couleur disponible.{pt-br}Nenhum cristal foi ganho da Mina: seu Inventário já tem 3 de cada cor disponível.{de}Kein Kristall aus der Mine erhalten: Dein Inventar enthält bereits 3 Kristalle jeder verfügbaren Farbe.", warningColor) end
 		return false
 	end
 	gStates.mineClaimPending={source="Mine", playerIndex=playerIndex, terrainGUID=data.terrainGUID, bearing=data.bearing, colors=available}
@@ -702,25 +702,25 @@ function mineClaimChoice(player, mouseButton, id)
 	local claimantColor=positionToColor(pending.playerIndex)
 	local sourceName=pending.source=="Quest" and "Quest" or "Mine"
 	if player.color~=claimantColor and player.color~="Black" then
-		broadcastToColor("Only the claiming player can choose this "..sourceName.." crystal.", player.color, {1,0.3,0.3})
+		broadcastToColor(joinLang({"{en}Only the claiming player can choose this {ru}Только получающий игрок может выбрать этот кристалл из {zh-tw}只有領取的玩家可以選擇這顆來自 {zh-cn}只有领取的玩家可以选择这颗来自 {ko}이 크리스털은 획득하는 플레이어만 선택할 수 있습니다: {es}Solo el jugador que reclama puede elegir este cristal de {fr}Seul le joueur qui réclame peut choisir ce cristal de {pt-br}Apenas o jogador que está recebendo pode escolher este cristal de {de}Nur der beanspruchende Spieler kann diesen Kristall aus ",sourceName,"."}), player.color, {1,0.3,0.3})
 		return
 	end
 	local index=tonumber(id:match("(%d+)$"))
 	local color=index~=nil and pending.colors[index] or nil
 	if color==nil then return end
 	if mineCrystalCount(pending.playerIndex, color)>=3 then
-		broadcastToColor("You already have 3 "..color.." crystals in your Inventory.", player.color, warningColor)
+		broadcastToColor(joinLang({"{en}You already have 3 {ru}В вашем Инвентаре уже есть 3 {zh-tw}你的庫存中已有 3 顆 {zh-cn}你的库存中已有 3 颗 {ko}인벤토리에 이미 {es}Ya tienes 3 cristales {fr}Vous avez déjà 3 cristaux {pt-br}Você já tem 3 cristais {de}Du hast bereits 3 ",translateWord[color] or color,"{en} crystals in your Inventory.{ru} кристалла.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털이 3개 있습니다.{es} en tu Inventario.{fr} dans votre Inventaire.{pt-br} no seu Inventário.{de}-Kristalle in deinem Inventar."}), player.color, warningColor)
 		return
 	end
 	local bagKey=mineCrystalBagKey[color]
 	local bag=bagKey~=nil and getObjectFromGUID(GUID.bag.mana[bagKey]) or nil
 	if bag==nil or bag.getQuantity()==0 then
-		broadcastToColor("No "..color.." crystal is available in the supply.", player.color, {1,0.3,0.3})
+		broadcastToColor(joinLang({"{en}No {ru}В запасе нет {zh-tw}供應區沒有可用的 {zh-cn}供应区没有可用的 {ko}공급처에 사용할 수 있는 {es}No hay ningún cristal {fr}Aucun cristal {pt-br}Não há cristal {de}Im Vorrat ist kein ",translateWord[color] or color,"{en} crystal is available in the supply.{ru} кристалла.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털이 없습니다.{es} disponible en la reserva.{fr} disponible dans la réserve.{pt-br} disponível na reserva.{de}-Kristall verfügbar."}), player.color, {1,0.3,0.3})
 		return
 	end
 	local questCardGUID=pending.questCardGUID
 	takeManaCrystal(bag,{position=mineInventoryPosition(pending.playerIndex, color),smooth=false})
-	broadcastToColor("Claimed a "..color.." Crystal from the "..sourceName..".", player.color, {1,1,0.5})
+	broadcastToColor(joinLang({"{en}Claimed a {ru}Получен {zh-tw}已領取 {zh-cn}已领取 {ko}획득: {es}Se reclamó un Cristal {fr}Cristal {pt-br}Recebeu um Cristal {de}Beansprucht: ",translateWord[color] or color,"{en} Crystal from the {ru} кристалл из {zh-tw} 水晶，來源：{zh-cn} 水晶，来源：{ko} 크리스털, 출처: {es} de {fr} réclamé depuis {pt-br} de {de}-Kristall aus ",sourceName,"."}), player.color, {1,1,0.5})
 	gStates.mineClaimPending=nil
 	UI.hide("MineClaimChoice")
 	if questCardGUID~=nil and getObjectFromGUID(questCardGUID)~=nil then apocalypseQuestUpdateProgressButtons(getObjectFromGUID(questCardGUID)) end
@@ -910,12 +910,12 @@ function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature
 		local pendingName=dungeonLordsPendingSecretName(pending)
 		if pendingName~=secretName then
 			if pendingName~=nil then broadcastToAll("Dungeon Lords: place the requested "..tostring(pendingName).." first.",{1,0.55,0.2})
-			else broadcastToAll("Dungeon Lords: that secret entrance has not been requested by a newly revealed Village or Monastery.",{1,0.55,0.2}) end
+			else broadcastToAll("{en}Dungeon Lords: that secret entrance has not been requested by a newly revealed Village or Monastery.{ru}Владыки Подземелий: этот тайный вход не был запрошен недавно открытой Деревней или Монастырём.{zh-tw}地下城領主：新揭示的村莊或修道院並未要求放置此秘密入口。{zh-cn}地下城领主：新揭示的村庄或修道院并未要求放置此秘密入口。{ko}던전 로드: 새로 공개된 마을이나 수도원이 이 비밀 입구를 요청하지 않았습니다.{es}Señores de las Mazmorras: esta entrada secreta no fue solicitada por una Aldea o Monasterio recién revelados.{fr}Seigneurs des Donjons : cette entrée secrète n’a pas été demandée par un Village ou un Monastère récemment révélé.{pt-br}Senhores das Masmorras: esta entrada secreta não foi solicitada por uma Vila ou Mosteiro recém-revelado.{de}Kerkerfürsten: Dieser Geheimeingang wurde nicht von einem neu aufgedeckten Dorf oder Kloster angefordert.",{1,0.55,0.2}) end
 			return true
 		end
 		local legal,normalized=dungeonLordsSecretDestinationLegal(terrain,bearing,pending)
 		if legal~=true then
-			broadcastToAll("Dungeon Lords: the secret entrance must be on an accessible, non-Swamp empty space adjacent to the Village or Monastery that created it.",{1,0.55,0.2})
+			broadcastToAll("{en}Dungeon Lords: the secret entrance must be on an accessible, non-Swamp empty space adjacent to the Village or Monastery that created it.{ru}Владыки Подземелий: тайный вход должен находиться на доступной пустой клетке, не являющейся Болотом, рядом с создавшей его Деревней или Монастырём.{zh-tw}地下城領主：秘密入口必須放在建立它的村莊或修道院旁，一個可進入、非沼澤且空置的空間。{zh-cn}地下城领主：秘密入口必须放在建立它的村庄或修道院旁，一个可进入、非沼泽且空置的空间。{ko}던전 로드: 비밀 입구는 이를 생성한 마을 또는 수도원에 인접한, 접근 가능하고 늪이 아닌 빈 칸에 있어야 합니다.{es}Señores de las Mazmorras: la entrada secreta debe estar en un espacio vacío accesible, que no sea Pantano, adyacente a la Aldea o Monasterio que la creó.{fr}Seigneurs des Donjons : l’entrée secrète doit se trouver sur une case vide accessible, non-Marais, adjacente au Village ou au Monastère qui l’a créée.{pt-br}Senhores das Masmorras: a entrada secreta deve ficar em um espaço vazio acessível, que não seja Pântano, adjacente à Vila ou ao Mosteiro que a criou.{de}Kerkerfürsten: Der Geheimeingang muss auf einem zugänglichen, leeren Nicht-Sumpf-Feld neben dem Dorf oder Kloster liegen, das ihn erzeugt hat.",{1,0.55,0.2})
 			return true
 		end
 		terrainTiles[terrain.guid].hexFeature[tostring(bearing)]=site
@@ -1872,7 +1872,7 @@ function againstHorsemenResolveDefeat(token,playerIndex,coopCombatReward)
 			rewardBag.takeObject({position={(player.seatPos*40)-117.2+(math.random()*6.5),2,-35+(math.random()*3.2)}})
 		end
 	else
-		broadcastToAll("Sorry, there are no more Apocalypse Faction Reward Tokens. Use a reminder and collect one when a token becomes available.",positionToColor(playerIndex))
+		broadcastToAll("{en}Sorry, there are no more Apocalypse Faction Reward Tokens. Use a reminder and collect one when a token becomes available.{ru}Жетоны наград фракции Апокалипсиса закончились. Используйте напоминание и возьмите жетон, когда он станет доступен.{zh-tw}末日陣營獎勵標記已用完。請放置提醒，待標記可用時再領取。{zh-cn}末日阵营奖励标记已用完。请放置提醒，待标记可用时再领取。{ko}아포칼립스 진영 보상 토큰이 더 이상 없습니다. 알림을 사용하고 토큰이 생기면 수령하십시오.{es}No quedan fichas de Recompensa de Facción del Apocalipsis. Usa un recordatorio y recoge una cuando haya una disponible.{fr}Il ne reste plus de jetons de Récompense de Faction de l’Apocalypse. Utilisez un rappel et prenez-en un lorsqu’un jeton sera disponible.{pt-br}Não há mais fichas de Recompensa de Facção do Apocalipse. Use um lembrete e pegue uma quando houver ficha disponível.{de}Es sind keine Apokalypse-Fraktionsbelohnungsmarker mehr verfügbar. Verwende eine Erinnerung und nimm einen Marker, sobald wieder einer verfügbar ist.",positionToColor(playerIndex))
 	end
 	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[token.guid]=nil end
 	if gStates.monsterPerks~=nil then gStates.monsterPerks[token.guid]=nil end
@@ -4580,7 +4580,7 @@ function againstDragonBeginDestroy()
 		local result
 		if siteTokensAvailable~=true then
 			result="The Destroyed Site token bag was unavailable and there were no Rampaging Enemies to destroy."
-			broadcastToAll("The Destroyed Site token bag could not be found and there are no Rampaging Enemies on the map. The Apocalypse Dragon destroys nothing.",warningColor)
+			broadcastToAll("{en}The Destroyed Site token bag could not be found and there are no Rampaging Enemies on the map. The Apocalypse Dragon destroys nothing.{ru}Мешок жетонов разрушенных мест не найден, и на карте нет Бродячих врагов. Дракон Апокалипсиса ничего не уничтожает.{zh-tw}找不到「被摧毀地點」標記袋，且地圖上沒有遊蕩敵人。末日巨龍不會摧毀任何東西。{zh-cn}找不到“被摧毁地点”标记袋，且地图上没有游荡敌人。末日巨龙不会摧毁任何东西。{ko}파괴된 장소 토큰 주머니를 찾지 못했고 맵에 방랑 적도 없습니다. 아포칼립스 드래곤은 아무것도 파괴하지 않습니다.{es}No se encontró la bolsa de fichas de Sitio Destruido y no hay Enemigos Arrasadores en el mapa. El Dragón del Apocalipsis no destruye nada.{fr}Le sac de jetons Site Détruit est introuvable et aucun Ennemi Ravageur n’est présent sur la carte. Le Dragon de l’Apocalypse ne détruit rien.{pt-br}A bolsa de fichas de Local Destruído não foi encontrada e não há Inimigos Errantes no mapa. O Dragão do Apocalipse não destrói nada.{de}Der Beutel mit Markern für zerstörte Orte wurde nicht gefunden und es gibt keine streunenden Gegner auf der Karte. Der Apokalypse-Drache zerstört nichts.",warningColor)
 		else
 			result="The Dragon had no legal site or Rampaging Enemy to destroy."
 		end
