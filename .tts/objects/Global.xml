@@ -515,7 +515,7 @@
 		</Row>
 		<Row id="RestorerScoreHeading" class="ScoreHeading">
 			<Image image="Sliced Button/Button New Active" type="Sliced" color="rgb(0.8,0.7,0.1)"/>
-			<Text class="Text18" id="RestorerScoreHeadingText">Restorer</Text>
+			<Text class="Text18" id="RestorerScoreHeadingText">{en}Restorer{ru}Восстановитель{zh-tw}修復者{zh-cn}修复者{ko}복원자{es}Restaurador{fr}Restaurateur{pt-br}Restaurador{de}Wiederhersteller</Text>
 		</Row>
 		<Row id="RestorerScoreData" preferredHeight="0">
 			<Cell id="Restorer1ScoreCell" active="false"><Text id="Restorer1ScoreText" class="Text16"></Text></Cell>
@@ -2414,9 +2414,9 @@
 				<Text class="Text20" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 			</Button>
 			<Cell></Cell>
-			<Cell><Text id="Mage1AssaulterAmountOne" class="Text18" offsetXY="0 1">All</Text></Cell>
+			<Cell><Text id="Mage1AssaulterAmountOne" class="Text18" offsetXY="0 1">{en}All{ru}Все{zh-tw}全部{zh-cn}全部{ko}모두{es}Todos{fr}Tous{pt-br}Todos{de}Alle</Text></Cell>
 			<Cell><Text id="Mage1AssaulterOpponentType" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Regular and{ru}Обычные и{zh-cn}常规和{ko}일반 및{es}Regular y{fr}Régulier et{pt-br}Regular e{de}Reguläre und</Text></Cell>
-			<Cell id="Mage1VolkareCellOne" active="true"><Text id="Mage1AssaulterAmountTwo" class="Text18" offsetXY="0 1">All</Text></Cell>
+			<Cell id="Mage1VolkareCellOne" active="true"><Text id="Mage1AssaulterAmountTwo" class="Text18" offsetXY="0 1">{en}All{ru}Все{zh-tw}全部{zh-cn}全部{ko}모두{es}Todos{fr}Tous{pt-br}Todos{de}Alle</Text></Cell>
 			<Cell id="Mage1VolkareCellTwo" active="true"><Text id="Mage1AssaulterOpponentTypeTwo" class="Text18" alignment="MiddleLeft" offsetXY="0 1">{en}Elite Units{ru}Элитные отряды{zh-cn}精英部队{ko}엘리트 유닛{es}Unidades de Elite{fr}Unités d'élite{pt-br}Unidades Elites{de}Elite-Einheiten</Text></Cell>
 		</Row>
 		<Row preferredHeight="30">
