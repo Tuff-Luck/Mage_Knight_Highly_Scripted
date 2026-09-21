@@ -688,7 +688,9 @@ function mapSetup(onComplete)
 				--the normal reveal coordinator flip and populate it like every other starting terrain tile.
 				camp.setRotation(rot)
 				camp.setPosition({-37.2305,1.15,-5.6911})
-				standardRevealBatches[1][#standardRevealBatches[1]+1]={guid=camp.guid}
+				--Return replaces the normal first Countryside reveal with the Camp. Mark it as the
+				--first setup terrain so the normal onObjectEnterZone population path is enabled.
+				standardRevealBatches[1][#standardRevealBatches[1]+1]={guid=camp.guid,first=true}
 			end
 		end
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
