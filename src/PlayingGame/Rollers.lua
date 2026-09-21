@@ -154,11 +154,11 @@ function MKRollDieButton(roller, color)
     if state.phase == "done" then
         cleanupRoller(state)
     elseif state.phase == "rolling" then
-        Player[color].broadcast("Roll in progress.", {0.8, 0.2, 0.2})
+        Player[color].broadcast("{en}Roll in progress.{ru}Бросок выполняется.{zh-tw}正在擲骰。{zh-cn}正在掷骰。{ko}주사위를 굴리는 중입니다.{es}Tirada en curso.{fr}Lancer en cours.{pt-br}Rolagem em andamento.{de}Wurf läuft.", {0.8, 0.2, 0.2})
         return
     end
     if #state.dice >= state.config.maxCount then
-        Player[color].broadcast("Roll in progress.", {0.8, 0.2, 0.2})
+        Player[color].broadcast("{en}Roll in progress.{ru}Бросок выполняется.{zh-tw}正在擲骰。{zh-cn}正在掷骰。{ko}주사위를 굴리는 중입니다.{es}Tirada en curso.{fr}Lancer en cours.{pt-br}Rolagem em andamento.{de}Wurf läuft.", {0.8, 0.2, 0.2})
         return
     end
     local newCount = #state.dice + 1
