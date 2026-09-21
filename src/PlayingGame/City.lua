@@ -315,7 +315,7 @@ end
 function cityArmyPlace(cityGUID, cityLevel, basePosition, rotation, startDelay, stackIndex, ownerGUID)
 	local army=cityArmyLevelData(cityGUID, cityLevel)
 	if army==nil then
-		broadcastToAll("Unable to deploy City army: no data for GUID "..tostring(cityGUID).." at level "..tostring(cityLevel)..".", warningColor)
+		broadcastToAll(joinLang({"{en}Unable to deploy City army: no data for GUID {ru}Не удалось разместить армию Города: нет данных для GUID {zh-tw}無法部署城市軍隊：找不到 GUID {zh-cn}无法部署城市军队：找不到 GUID {ko}도시 군대를 배치할 수 없습니다. GUID {es}No se puede desplegar el ejército de la Ciudad: no hay datos para el GUID {fr}Impossible de déployer l’armée de la Cité : aucune donnée pour le GUID {pt-br}Não foi possível posicionar o exército da Cidade: não há dados para o GUID {de}Stadtarmee konnte nicht eingesetzt werden: keine Daten für GUID ",tostring(cityGUID),"{en} at level {ru} на уровне {zh-tw}，等級 {zh-cn}，等级 {ko}, 레벨 {es} en el nivel {fr} au niveau {pt-br} no nível {de} auf Stufe ",tostring(cityLevel),"."}), warningColor)
 		return startDelay or 0, stackIndex or 0
 	end
 	ownerGUID=ownerGUID or cityGUID
