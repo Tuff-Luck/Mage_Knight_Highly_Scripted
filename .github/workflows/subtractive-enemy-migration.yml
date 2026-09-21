@@ -247,7 +247,8 @@ jobs:
           component_path.write_text(new_component, encoding="utf-8")
 
           save_path = Path("Mage Knight Highly Scripted.json")
-          raw = save_path.read_text(encoding="utf-8")
+          raw = save_path.read_bytes().decode("utf-8")
+          newline = "\r\n" if "\r\n" in raw else "\n"
           original_root = json.loads(raw)
 
           def matching_end(text, start, open_char, close_char):
@@ -309,7 +310,7 @@ jobs:
                   else:
                       relative = line
                   out.append(new_indent + relative)
-              return "\n".join(out)
+              return newline.join(out)
 
           def extract_child(text, child_guid, parent_guid):
               child_start, child_end, child_indent = object_span(text, child_guid)
@@ -360,9 +361,9 @@ jobs:
                   last = array_close - 1
                   while last > array_start and text[last].isspace():
                       last -= 1
-                  text = text[:last + 1] + ",\n" + formatted + text[last + 1:]
+                  text = text[:last + 1] + "," + newline + formatted + text[last + 1:]
               else:
-                  text = text[:array_start + 1] + "\n" + formatted + "\n" + array_indent + text[array_close:]
+                  text = text[:array_start + 1] + newline + formatted + newline + array_indent + text[array_close:]
               return text
 
           def move_child(text, child_guid, source_guid, destination_guid):
@@ -428,11 +429,11 @@ jobs:
               return block
 
           def append_top_level(text, block, old_indent, top_indent):
-              array_end = text.rfind("\n  ]\n}")
+              array_end = text.rfind(newline + "  ]" + newline + "}")
               if array_end < 0:
                   raise RuntimeError("Could not find ObjectStates array end")
               formatted = reindent_block(block, old_indent, top_indent)
-              return text[:array_end] + ",\n" + formatted + text[array_end:]
+              return text[:array_end] + "," + newline + formatted + text[array_end:]
 
           # Capture the existing high/low normal monster ALT orientations before moving anything.
           green_start, green_end, top_indent = object_span(raw, "c8e6e4")
@@ -541,7 +542,7 @@ jobs:
               if source is None or source.get("ContainedObjects", []):
                   raise RuntimeError("Lost Legion enemy source bag was not emptied: " + guid)
 
-          save_path.write_text(raw, encoding="utf-8")
+          save_path.write_bytes(raw.encode("utf-8"))
           PY
 
           changes=$(git diff --numstat -- "Mage Knight Highly Scripted.json" | awk '{print $1+$2}')
