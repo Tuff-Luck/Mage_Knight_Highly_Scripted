@@ -99,11 +99,19 @@ function reapplyXmlText()
 	local function visit(node)
 		if type(node)~="table" then return end
 		local attributes=node.attributes or {}
-		if (node.tag=="Text" or node.tag=="Toggle") and attributes.id~=nil then
-			local value=attributes.text
-			if value==nil then value=node.value end
-			if type(value)=="string" and value:find("{en}",1,true)~=nil then
-				UI.setAttribute(attributes.id,"text",value)
+		local id=attributes.id
+		if id~=nil then
+			if node.tag=="Text" or node.tag=="Toggle" then
+				local value=attributes.text
+				if value==nil then value=node.value end
+				if type(value)=="string" and value:find("{en}",1,true)~=nil then
+					UI.setAttribute(id,"text",value)
+					reapplied=reapplied+1
+				end
+			end
+			local tooltip=attributes.tooltip
+			if type(tooltip)=="string" and tooltip:find("{en}",1,true)~=nil then
+				UI.setAttribute(id,"tooltip",tooltip)
 				reapplied=reapplied+1
 			end
 		end
