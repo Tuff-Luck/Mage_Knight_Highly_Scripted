@@ -278,7 +278,7 @@ end
 function takeCityDefender(cityGUID, tokenType, position, rotation)
 	local pile, substituteFaction=cityDefenderPile(cityGUID, tokenType)
 	if pile==nil then
-		broadcastToAll("{en}Sorry, there are no tokens left to deploy{zh-cn}抱歉，没有token可供部署{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan tokens para implementar{fr}Désolé, il n'y a plus de jetons à déployer{pt-br}Desculpe, Não tem Fichas sobrando para distribuir", warningColor)
+		broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
 		return nil
 	end
 	local token=pile.takeObject({position=position, rotation=rotation, smooth=true})
