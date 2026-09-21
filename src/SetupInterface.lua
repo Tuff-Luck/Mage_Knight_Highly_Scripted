@@ -539,6 +539,13 @@ function optionsUpdate(player, value, id)
 		end
 	end
 	if id=="removeApocalypseTerrain" or id=="removeTerrain" or id=="removeLostLegionExpansion" then
+		if id=="removeLostLegionExpansion" and gStates.removeLostLegionExpansion==true then
+			local setup=scenarioList[gStates.scenarioRef][gStates.playersRef]
+			if setup.cityTiles>4 then
+				setup.cityTiles=4
+				while #setup.cityLevels>4 do table.remove(setup.cityLevels) end
+			end
+		end
 		local max=14
 		if gStates.removeTerrain==true then max=max-2 end
 		if gStates.removeApocalypseTerrain~=true then max=max+3 end
@@ -980,7 +987,7 @@ function baseValueTweak(player, mouseButton, id)
 					end
 				else
 					local max=5
-					if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then max=4 end
+					if gStates.removeLostLegionExpansion==true or gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then max=4 end
 					if cityTiles<max then
 						setup.cityTiles=cityTiles+1
 						--At zero cities Custom's remaining value is the faction-leader level. The

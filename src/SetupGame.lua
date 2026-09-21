@@ -2798,7 +2798,6 @@ function mapSetup()
 		local obj=safeTakeObject("SetupGame",CityTileStack,params)--take from the City Tile Bag
 		if furyMap and obj~=nil then furyRevealGUIDs[#furyRevealGUIDs+1]=obj.guid end
 		if noShuffle==0 then TileShuffler.putObject(obj) end--Place in the Core Tile Shuffler if it is shuffled
-		if gStates.gameScenario=="Ultimate Conquest" and i==4 then break end
 	end
 
 	--Pull Core Tiles
