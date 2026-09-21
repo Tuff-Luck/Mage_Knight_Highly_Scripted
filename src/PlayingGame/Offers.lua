@@ -434,6 +434,9 @@ end
 
 function playMonastery()
 	gStates.monasteryCount=gStates.monasteryCount+1
+	--Initial terrain reveals happen before the starting offers are built. Record the monastery now,
+	--then let the first unitOffer() deal its Advanced Action once so setup does not deal-and-return it.
+	if startingMapSetup==true then return end
 	if gStates.monasteryCount>=0 then
 		--Find the first free printed Monastery slot directly from the broad offer zone.
 		local slot=monasteryOfferFirstEmptySlot()
