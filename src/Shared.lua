@@ -90,6 +90,28 @@ function joinLang(full_string)
 	return table.concat(output)
 end
 
+--Reapply static XML Text values at runtime so TTS resolves translation tags.
+--Pass a container id to limit the refresh to that subtree, or nil to refresh every id'd Text element.
+function reapplyXmlText(rootId)
+	local xml=UI.getXmlTable() or {}
+	local reapplied=0
+	local function visit(node, inScope)
+		local attributes=node.attributes or {}
+		local scoped=rootId==nil or inScope or attributes.id==rootId
+		if scoped and node.tag=="Text" and attributes.id~=nil then
+			local text=attributes.text
+			if text==nil then text=node.value end
+			if text~=nil then
+				UI.setAttribute(attributes.id, "text", text)
+				reapplied=reapplied+1
+			end
+		end
+		for _, child in ipairs(node.children or {}) do visit(child, scoped) end
+	end
+	for _, node in ipairs(xml) do visit(node, false) end
+	return reapplied
+end
+
 -- Turn / seat helpers
 --work out which color hand has the current turns mage
 function positionToColor(turnNumber)

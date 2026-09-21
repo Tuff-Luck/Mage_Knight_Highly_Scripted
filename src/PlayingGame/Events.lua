@@ -58,6 +58,8 @@ function __onLoad_raw(saved_data)
 	if gStates.finalTurnReason~=nil then ensureFinalTurnBoundary() end
 	safeWaitFrames("Events",function() againstHorsemenRestoreRuntimeState() end,2)
 	startMaintenanceTick()
+	--Targeted trial: keep Coral's Quick Witted labels in XML and reapply them from the XML tree on load.
+	reapplyXmlText("CoralDrawChoice")
 	-----------
 	UI.setAttribute("sendBugReportButtonRealText", "text", "{en}Feedback{ru}Обратная связь{zh-tw}回饋意見{zh-cn}反馈{ko}피드백{es}Realimentación{fr}Retour{pt-br}Comentários{de}Feedback")
 	UI.setAttribute("AutoFlipButtonRealText", "text", "{en}Auto Flip{ru}Авто-переворот{zh-tw}自动翻转{zh-cn}自动翻转{ko}자동 공개{es}Volteo Automático{fr}Retournement auto{pt-br}Auto-Virar{de}Auto-Flip")
