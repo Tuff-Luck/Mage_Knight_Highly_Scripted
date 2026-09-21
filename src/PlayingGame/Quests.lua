@@ -545,7 +545,7 @@ function apocalypseQuestRevealSetup(card)
 					track(deck)
 				end
 			else
-				broadcastToAll("Quest setup: Prove Yourself could not find a level II Regular Unit.", {1,0.55,0.2})
+				broadcastToAll("{en}Quest setup: Prove Yourself could not find a level II Regular Unit.{ru}Подготовка задания: Prove Yourself не смогло найти обычный отряд II уровня.{zh-tw}任務設置：Prove Yourself 找不到 II 級常規部隊。{zh-cn}任务设置：Prove Yourself 找不到 II 级常规部队。{ko}퀘스트 설정: Prove Yourself에서 II레벨 일반 유닛을 찾지 못했습니다.{es}Preparación de Misión: Prove Yourself no pudo encontrar una Unidad Regular de nivel II.{fr}Mise en place de Quête : Prove Yourself n’a pas pu trouver d’Unité Régulière de niveau II.{pt-br}Preparação da Missão: Prove Yourself não conseguiu encontrar uma Unidade Regular de nível II.{de}Quest-Aufbau: Prove Yourself konnte keine reguläre Einheit der Stufe II finden.", {1,0.55,0.2})
 			end
 		end
 	elseif quest.revealSetup=="spell" then
@@ -562,7 +562,7 @@ function apocalypseQuestRevealSetup(card)
 				track(deck)
 			end
 		else
-			broadcastToAll("Quest setup: The Spell Thief could not find the Spell deck.", {1,0.55,0.2})
+			broadcastToAll("{en}Quest setup: The Spell Thief could not find the Spell deck.{ru}Подготовка задания: The Spell Thief не смог найти колоду Заклинаний.{zh-tw}任務設置：The Spell Thief 找不到法術牌庫。{zh-cn}任务设置：The Spell Thief 找不到法术牌库。{ko}퀘스트 설정: The Spell Thief에서 주문 덱을 찾지 못했습니다.{es}Preparación de Misión: The Spell Thief no pudo encontrar el mazo de Hechizos.{fr}Mise en place de Quête : The Spell Thief n’a pas pu trouver le paquet de Sorts.{pt-br}Preparação da Missão: The Spell Thief não conseguiu encontrar o baralho de Feitiços.{de}Quest-Aufbau: The Spell Thief konnte den Zauberstapel nicht finden.", {1,0.55,0.2})
 		end
 	elseif quest.revealSetup=="randomCrystal" then
 		local roll=apocalypseQuestRollManaDie()
@@ -1084,7 +1084,7 @@ function apocalypseQuestRollVisibleManaDie(card,playerIndex,reason,callback,spaw
 		end
 		local rolled=apocalypseQuestManaDieColor(settledDie)
 		if rolled==nil then
-			broadcastToAll("Quest roll: the mana die settled without a readable result; try the Quest action again.",{1,0.55,0.2})
+			broadcastToAll("{en}Quest roll: the mana die settled without a readable result; try the Quest action again.{ru}Бросок задания: кубик маны остановился без читаемого результата; повторите действие задания.{zh-tw}任務擲骰：魔力骰停下後無法讀取結果；請再次嘗試任務動作。{zh-cn}任务掷骰：魔力骰停下后无法读取结果；请再次尝试任务动作。{ko}퀘스트 굴림: 마나 주사위가 판독할 수 없는 결과로 멈췄습니다. 퀘스트 행동을 다시 시도하십시오.{es}Tirada de Misión: el dado de maná se detuvo sin un resultado legible; intenta de nuevo la acción de Misión.{fr}Jet de Quête : le dé de mana s’est arrêté sans résultat lisible ; réessayez l’action de Quête.{pt-br}Rolagem da Missão: o dado de mana parou sem um resultado legível; tente a ação da Missão novamente.{de}Quest-Wurf: Der Manawürfel kam ohne lesbares Ergebnis zum Stillstand; versuche die Quest-Aktion erneut.",{1,0.55,0.2})
 			clearRollDie()
 			if callback~=nil then callback(nil,questCard) end
 			return
@@ -1276,7 +1276,7 @@ function apocalypseQuestStartGoblinWarrens(card,playerIndex,chosen)
 		local count=chosen+bonus
 		local bag=getObjectFromGUID("f021d8")
 		if bag==nil then
-			broadcastToAll("The Goblin Warrens could not find its Goblin infinite bag.",{1,0.55,0.2})
+			broadcastToAll("{en}The Goblin Warrens could not find its Goblin infinite bag.{ru}The Goblin Warrens не смогло найти бесконечный мешок гоблинов.{zh-tw}The Goblin Warrens 找不到哥布林無限袋。{zh-cn}The Goblin Warrens 找不到哥布林无限袋。{ko}The Goblin Warrens에서 고블린 무한 주머니를 찾지 못했습니다.{es}The Goblin Warrens no pudo encontrar su bolsa infinita de Goblins.{fr}The Goblin Warrens n’a pas pu trouver son sac infini de Gobelins.{pt-br}The Goblin Warrens não conseguiu encontrar sua bolsa infinita de Goblins.{de}The Goblin Warrens konnte seinen unendlichen Goblin-Beutel nicht finden.",{1,0.55,0.2})
 			gStates.apocalypseQuestGoblinWarrens[mage]=nil
 			apocalypseQuestInterfaceAdd(liveCard,true)
 			return
@@ -1334,7 +1334,7 @@ function apocalypseQuestResolveHerbalistReward(card, playerIndex, rolled, crysta
 	if card==nil or turnOrder[playerIndex]==nil then return false end
 	local token=getObjectFromGUID("fb29ad")
 	if token==nil then
-		broadcastToAll("Quest reward: The Eager Herbalist Quest token could not be found.", {1,0.55,0.2})
+		broadcastToAll("{en}Quest reward: The Eager Herbalist Quest token could not be found.{ru}Награда задания: жетон задания The Eager Herbalist не найден.{zh-tw}任務獎勵：找不到 The Eager Herbalist 任務標記。{zh-cn}任务奖励：找不到 The Eager Herbalist 任务标记。{ko}퀘스트 보상: The Eager Herbalist 퀘스트 토큰을 찾지 못했습니다.{es}Recompensa de Misión: no se encontró la ficha de Misión de The Eager Herbalist.{fr}Récompense de Quête : le jeton de Quête The Eager Herbalist est introuvable.{pt-br}Recompensa da Missão: a ficha de Missão de The Eager Herbalist não foi encontrada.{de}Quest-Belohnung: Der Questmarker von The Eager Herbalist wurde nicht gefunden.", {1,0.55,0.2})
 		return false
 	end
 	local target=mineInventoryPosition(playerIndex, "Quest")
@@ -1349,7 +1349,7 @@ function apocalypseQuestResolveHerbalistReward(card, playerIndex, rolled, crysta
 		crystal.unlock()
 		crystal.setPositionSmooth({target[1]-0.60,target[2]+0.36,target[3]})
 	else
-		broadcastToAll("Quest reward: The Eager Herbalist had no basic crystal on the card to place on its token.", {1,0.55,0.2})
+		broadcastToAll("{en}Quest reward: The Eager Herbalist had no basic crystal on the card to place on its token.{ru}Награда задания: на карте The Eager Herbalist нет базового кристалла для размещения на жетоне.{zh-tw}任務獎勵：The Eager Herbalist 牌上沒有可放到標記上的基本水晶。{zh-cn}任务奖励：The Eager Herbalist 牌上没有可放到标记上的基本水晶。{ko}퀘스트 보상: The Eager Herbalist 카드에 토큰 위에 놓을 기본 크리스털이 없습니다.{es}Recompensa de Misión: The Eager Herbalist no tenía un cristal básico en la carta para colocar en su ficha.{fr}Récompense de Quête : The Eager Herbalist n’avait aucun cristal de base sur la carte à placer sur son jeton.{pt-br}Recompensa da Missão: The Eager Herbalist não tinha cristal básico na carta para colocar em sua ficha.{de}Quest-Belohnung: Auf der Karte von The Eager Herbalist lag kein Basiskristall, der auf den Marker gelegt werden konnte.", {1,0.55,0.2})
 	end
 	if mineCrystalBagKey[rolled]~=nil and rolled~=crystalColor then
 		apocalypseQuestPlaceCrystalAt({target[1]+0.60,target[2]+0.36,target[3]},rolled,"The Eager Herbalist")
@@ -1366,7 +1366,7 @@ function apocalypseQuestGiveHerbalistReward(card, playerIndex, callback)
 	if gStates.apocalypseQuestHerbalistRolls[card.guid]~=nil then return true end
 	local token=getObjectFromGUID("fb29ad")
 	if token==nil then
-		broadcastToAll("Quest reward: The Eager Herbalist Quest token could not be found.", {1,0.55,0.2})
+		broadcastToAll("{en}Quest reward: The Eager Herbalist Quest token could not be found.{ru}Награда задания: жетон задания The Eager Herbalist не найден.{zh-tw}任務獎勵：找不到 The Eager Herbalist 任務標記。{zh-cn}任务奖励：找不到 The Eager Herbalist 任务标记。{ko}퀘스트 보상: The Eager Herbalist 퀘스트 토큰을 찾지 못했습니다.{es}Recompensa de Misión: no se encontró la ficha de Misión de The Eager Herbalist.{fr}Récompense de Quête : le jeton de Quête The Eager Herbalist est introuvable.{pt-br}Recompensa da Missão: a ficha de Missão de The Eager Herbalist não foi encontrada.{de}Quest-Belohnung: Der Questmarker von The Eager Herbalist wurde nicht gefunden.", {1,0.55,0.2})
 		return false
 	end
 	local crystal=nil
@@ -1377,7 +1377,7 @@ function apocalypseQuestGiveHerbalistReward(card, playerIndex, callback)
 	end
 	local sourceDie=apocalypseQuestSetupDie()
 	if sourceDie==nil then
-		broadcastToAll("Quest reward: The Eager Herbalist could not find the Quest setup mana die.", {1,0.55,0.2})
+		broadcastToAll("{en}Quest reward: The Eager Herbalist could not find the Quest setup mana die.{ru}Награда задания: The Eager Herbalist не смог найти кубик маны подготовки задания.{zh-tw}任務獎勵：The Eager Herbalist 找不到任務設置魔力骰。{zh-cn}任务奖励：The Eager Herbalist 找不到任务设置魔力骰。{ko}퀘스트 보상: The Eager Herbalist에서 퀘스트 설정 마나 주사위를 찾지 못했습니다.{es}Recompensa de Misión: The Eager Herbalist no pudo encontrar el dado de maná de preparación de la Misión.{fr}Récompense de Quête : The Eager Herbalist n’a pas pu trouver le dé de mana de mise en place de la Quête.{pt-br}Recompensa da Missão: The Eager Herbalist não conseguiu encontrar o dado de mana de preparação da Missão.{de}Quest-Belohnung: The Eager Herbalist konnte den Quest-Aufbau-Manawürfel nicht finden.", {1,0.55,0.2})
 		return false
 	end
 	local cardGUID=card.guid
@@ -1388,7 +1388,7 @@ function apocalypseQuestGiveHerbalistReward(card, playerIndex, callback)
 	--so this visibly tosses the copy rather than choosing a virtual random result.
 	local rollDie=sourceDie.clone({position={cardPos[1],cardPos[2]+0.70,cardPos[3]+1.10}})
 	if rollDie==nil then
-		broadcastToAll("Quest reward: The Eager Herbalist could not duplicate the Quest setup mana die.", {1,0.55,0.2})
+		broadcastToAll("{en}Quest reward: The Eager Herbalist could not duplicate the Quest setup mana die.{ru}Награда задания: The Eager Herbalist не смог дублировать кубик маны подготовки задания.{zh-tw}任務獎勵：The Eager Herbalist 無法複製任務設置魔力骰。{zh-cn}任务奖励：The Eager Herbalist 无法复制任务设置魔力骰。{ko}퀘스트 보상: The Eager Herbalist에서 퀘스트 설정 마나 주사위를 복제하지 못했습니다.{es}Recompensa de Misión: The Eager Herbalist no pudo duplicar el dado de maná de preparación de la Misión.{fr}Récompense de Quête : The Eager Herbalist n’a pas pu dupliquer le dé de mana de mise en place de la Quête.{pt-br}Recompensa da Missão: The Eager Herbalist não conseguiu duplicar o dado de mana de preparação da Missão.{de}Quest-Belohnung: The Eager Herbalist konnte den Quest-Aufbau-Manawürfel nicht duplizieren.", {1,0.55,0.2})
 		return false
 	end
 	rollDie.unlock()
@@ -1415,7 +1415,7 @@ function apocalypseQuestGiveHerbalistReward(card, playerIndex, callback)
 		if settledDie==nil or questCard==nil then failRoll() return end
 		local rolled=apocalypseQuestManaDieColor(settledDie)
 		if rolled==nil then
-			broadcastToAll("Quest reward: The Eager Herbalist mana die settled without a readable result; press Complete to roll again.",{1,0.55,0.2})
+			broadcastToAll("{en}Quest reward: The Eager Herbalist mana die settled without a readable result; press Complete to roll again.{ru}Награда задания: кубик маны The Eager Herbalist остановился без читаемого результата; нажмите Complete, чтобы бросить снова.{zh-tw}任務獎勵：The Eager Herbalist 的魔力骰停下後無法讀取結果；按「完成」再次擲骰。{zh-cn}任务奖励：The Eager Herbalist 的魔力骰停下后无法读取结果；按“完成”再次掷骰。{ko}퀘스트 보상: The Eager Herbalist 마나 주사위 결과를 읽을 수 없습니다. 완료를 눌러 다시 굴리십시오.{es}Recompensa de Misión: el dado de maná de The Eager Herbalist se detuvo sin resultado legible; pulsa Completar para volver a tirar.{fr}Récompense de Quête : le dé de mana de The Eager Herbalist s’est arrêté sans résultat lisible ; appuyez sur Terminer pour relancer.{pt-br}Recompensa da Missão: o dado de mana de The Eager Herbalist parou sem resultado legível; pressione Concluir para rolar novamente.{de}Quest-Belohnung: Der Manawürfel von The Eager Herbalist kam ohne lesbares Ergebnis zum Stillstand; drücke Abschließen, um erneut zu würfeln.",{1,0.55,0.2})
 			failRoll()
 			return
 		end
@@ -1450,7 +1450,7 @@ function apocalypseQuestGiveBardReward(card, playerIndex)
 		broadcastToAll("Quest reward: "..tostring(turnOrder[playerIndex].mage).." gains "..tostring(fame).." Fame from The Admiring Bard's "..tostring(crystalColor).." crystal.", positionToColor(playerIndex))
 		mainUIUpdate("Quest Fame reward")
 	else
-		broadcastToAll("Quest reward: The Admiring Bard had no Green, Blue or Red crystal on the card, so no Fame was gained.", {1,0.55,0.2})
+		broadcastToAll("{en}Quest reward: The Admiring Bard had no Green, Blue or Red crystal on the card, so no Fame was gained.{ru}Награда задания: на карте The Admiring Bard нет зелёного, синего или красного кристалла, поэтому Слава не получена.{zh-tw}任務獎勵：The Admiring Bard 牌上沒有綠色、藍色或紅色水晶，因此沒有獲得聲望值。{zh-cn}任务奖励：The Admiring Bard 牌上没有绿色、蓝色或红色水晶，因此没有获得声望值。{ko}퀘스트 보상: The Admiring Bard 카드에 녹색, 파란색 또는 빨간색 크리스털이 없어 명성을 얻지 못했습니다.{es}Recompensa de Misión: The Admiring Bard no tenía cristal Verde, Azul ni Rojo en la carta, por lo que no se ganó Fama.{fr}Récompense de Quête : The Admiring Bard n’avait aucun cristal Vert, Bleu ou Rouge sur la carte ; aucune Renommée n’a donc été gagnée.{pt-br}Recompensa da Missão: The Admiring Bard não tinha cristal Verde, Azul ou Vermelho na carta, então nenhuma Fama foi ganha.{de}Quest-Belohnung: Auf der Karte von The Admiring Bard lag kein grüner, blauer oder roter Kristall; daher wurde kein Ruhm erhalten.", {1,0.55,0.2})
 	end
 	return true
 end
@@ -1458,7 +1458,7 @@ end
 function apocalypseQuestFlipSiteToken(tokenGUID)
 	local token=getObjectFromGUID(tokenGUID)
 	if token==nil then
-		broadcastToAll("Quest completion: the permanent-site Quest token could not be found.", {1,0.55,0.2})
+		broadcastToAll("{en}Quest completion: the permanent-site Quest token could not be found.{ru}Завершение задания: жетон задания постоянного места не найден.{zh-tw}任務完成：找不到永久地點任務標記。{zh-cn}任务完成：找不到永久地点任务标记。{ko}퀘스트 완료: 영구 장소 퀘스트 토큰을 찾지 못했습니다.{es}Finalización de Misión: no se encontró la ficha de Misión del lugar permanente.{fr}Fin de Quête : le jeton de Quête du site permanent est introuvable.{pt-br}Conclusão da Missão: a ficha de Missão do local permanente não foi encontrada.{de}Quest-Abschluss: Der Questmarker des permanenten Ortes wurde nicht gefunden.", {1,0.55,0.2})
 		return false
 	end
 	token.unlock()
@@ -1500,7 +1500,7 @@ function apocalypseQuestBeginCrystalChoice(card, playerIndex)
 		if mineCrystalCount(playerIndex,color)<3 and bag~=nil and bag.getQuantity()~=0 then colors[#colors+1]=color end
 	end
 	if #colors==0 then
-		broadcastToAll("Quest reward: no basic crystal can be gained; the Inventory/supply has no available color.", positionToColor(playerIndex))
+		broadcastToAll("{en}Quest reward: no basic crystal can be gained; the Inventory/supply has no available color.{ru}Награда задания: базовый кристалл получить нельзя; в Инвентаре/запасе нет доступного цвета.{zh-tw}任務獎勵：無法獲得基本水晶；庫存／供應區沒有可用顏色。{zh-cn}任务奖励：无法获得基本水晶；库存／供应区没有可用颜色。{ko}퀘스트 보상: 기본 크리스털을 얻을 수 없습니다. 인벤토리/공급처에 가능한 색이 없습니다.{es}Recompensa de Misión: no se puede ganar ningún cristal básico; el Inventario/reserva no tiene ningún color disponible.{fr}Récompense de Quête : aucun cristal de base ne peut être gagné ; aucune couleur n’est disponible dans l’Inventaire/la réserve.{pt-br}Recompensa da Missão: nenhum cristal básico pode ser ganho; o Inventário/reserva não tem cor disponível.{de}Quest-Belohnung: Es kann kein Basiskristall erhalten werden; im Inventar/Vorrat ist keine Farbe verfügbar.", positionToColor(playerIndex))
 		return false
 	end
 	gStates.mineClaimPending={source="Quest", playerIndex=playerIndex, colors=colors, questCardGUID=card.guid}
@@ -2102,7 +2102,7 @@ function apocalypseQuestPossessExistingEnemy(card,enemy,faction)
 	local possessedBag=getObjectFromGUID(GUID.bag.possessed)
 	if possessedBag==nil or possessedBag.getQuantity()==0 then tokenRefill() possessedBag=getObjectFromGUID(GUID.bag.possessed) end
 	if possessedBag==nil or possessedBag.getQuantity()==0 then
-		broadcastToAll("Quest combat: no Possessed token is available.",{1,0.55,0.2})
+		broadcastToAll("{en}Quest combat: no Possessed token is available.{ru}Бой задания: жетон Одержимого недоступен.{zh-tw}任務戰鬥：沒有可用的附身標記。{zh-cn}任务战斗：没有可用的附身标记。{ko}퀘스트 전투: 사용할 수 있는 빙의 토큰이 없습니다.{es}Combate de Misión: no hay ficha de Poseído disponible.{fr}Combat de Quête : aucun jeton Possédé n’est disponible.{pt-br}Combate da Missão: não há ficha de Possuído disponível.{de}Quest-Kampf: Es ist kein Besessen-Marker verfügbar.",{1,0.55,0.2})
 		return false
 	end
 	local pos=apocalypseQuestPlannedWorldPosition(card,enemy.getPosition())
@@ -2202,7 +2202,7 @@ function apocalypseQuestLaunchMineDoom(card,playerIndex,color,attackBonus)
 		apocalypseQuestSpawnEnemyToCombat(card,playerIndex,data[1],data[2],(index-1)*0.25,attackBonus or 0,"Apoc")
 	end
 	if attackBonus~=nil and attackBonus>0 then
-		broadcastToAll("Mine of Doom: this mine has multiple crystal colors; all Quest enemies get +1 to every Attack.",positionToColor(playerIndex))
+		broadcastToAll("{en}Mine of Doom: this mine has multiple crystal colors; all Quest enemies get +1 to every Attack.{ru}Mine of Doom: в этой шахте несколько цветов кристаллов; все враги задания получают +1 к каждой Атаке.{zh-tw}Mine of Doom：此礦場有多種水晶顏色；所有任務敵人的每次攻擊 +1。{zh-cn}Mine of Doom：此矿场有多种水晶颜色；所有任务敌人的每次攻击 +1。{ko}Mine of Doom: 이 광산에는 여러 색의 크리스털이 있습니다. 모든 퀘스트 적의 각 공격이 +1 됩니다.{es}Mine of Doom: esta mina tiene varios colores de cristal; todos los enemigos de Misión reciben +1 a cada Ataque.{fr}Mine of Doom : cette mine possède plusieurs couleurs de cristal ; tous les ennemis de Quête gagnent +1 à chaque Attaque.{pt-br}Mine of Doom: esta mina tem várias cores de cristal; todos os inimigos da Missão recebem +1 em cada Ataque.{de}Mine of Doom: Diese Mine hat mehrere Kristallfarben; alle Quest-Gegner erhalten +1 auf jeden Angriff.",positionToColor(playerIndex))
 	end
 	return true
 end
@@ -2248,7 +2248,7 @@ function apocalypseQuestLaunchCombat(card,playerIndex,playerColor,chosenColor,cl
 		if apocalypseQuestSpawnEnemyToCombat(card,playerIndex,"purple",false,0,0)~=nil then moved=1 end
 	elseif card.guid=="a6d5cc" then
 		moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,nil)
-		if moved>0 then broadcastToAll("Under Siege: ignore fortification for this Quest fight and add Block 5 during the Block phase.",positionToColor(playerIndex)) end
+		if moved>0 then broadcastToAll("{en}Under Siege: ignore fortification for this Quest fight and add Block 5 during the Block phase.{ru}Under Siege: игнорируйте укрепление в этом бою задания и добавьте Блок 5 во время фазы Блока.{zh-tw}Under Siege：此任務戰鬥忽略要塞化，並在格擋階段加入格擋 5。{zh-cn}Under Siege：此任务战斗忽略要塞化，并在格挡阶段加入格挡 5。{ko}Under Siege: 이 퀘스트 전투에서는 요새화를 무시하고 방어 단계에 방어 5를 추가합니다.{es}Under Siege: ignora la fortificación en este combate de Misión y añade Bloqueo 5 durante la fase de Bloqueo.{fr}Under Siege : ignorez la fortification pour ce combat de Quête et ajoutez Blocage 5 pendant la phase de Blocage.{pt-br}Under Siege: ignore fortificação neste combate da Missão e adicione Bloqueio 5 durante a fase de Bloqueio.{de}Under Siege: Ignoriere für diesen Quest-Kampf die Befestigung und füge in der Blockphase Block 5 hinzu.",positionToColor(playerIndex)) end
 	elseif card.guid=="8cff07" then
 		if apocalypseQuestSpawnEnemyToCombat(card,playerIndex,"gray",false,0,0)~=nil then moved=1 end
 	elseif card.guid=="d70436" then
