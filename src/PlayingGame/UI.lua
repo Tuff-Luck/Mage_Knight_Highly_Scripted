@@ -675,16 +675,8 @@ function mainUIUpdate(source)
 			local playerAreaCardCount=0
 			local playerAreaSkillCount=0
 			local nextPlayer=nextTurnMerged("nextMage")
-			local nextPlayerDetails=nextPlayer~=nil and turnOrder[nextPlayer] or nil
-			--Seat/colour changes can arrive while TTS is between player registrations. A delayed UI refresh
-			--must not dereference a transiently missing turn-order entry; the next normal refresh will rebuild it.
-			if nextPlayerDetails==nil then mainUIPause=nil return end
-			local nextPlayerEndCalled=nextPlayerDetails.endCalled
-			if nextPlayerEndCalled~=true and nextPlayerDetails.mage==gStates.positionMageKnight[5] then
-				local nextNonDummy=nextTurnMerged("nextMageSkipDummy")
-				local nextNonDummyDetails=nextNonDummy~=nil and turnOrder[nextNonDummy] or nil
-				if nextNonDummyDetails~=nil then nextPlayerEndCalled=nextNonDummyDetails.endCalled end
-			end
+			local nextPlayerEndCalled=turnOrder[nextPlayer].endCalled
+			if nextPlayerEndCalled~=true and turnOrder[nextPlayer].mage==gStates.positionMageKnight[5] then nextPlayerEndCalled=turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled end
 			--if nextPlayerEndCalled~=true then nextPlayerEndCalled=turnOrder[nextPlayer].gameEnder end
 			--if nextPlayerEndCalled~=true then nextPlayerEndCalled=turnOrder[nextTurnMerged("nextMageSkipDummy")].gameEnder end
 
@@ -724,7 +716,8 @@ function mainUIUpdate(source)
 			if gStates.endGameAchieved=="true" and ((gStates.finalTurnReason=="victory" and currentPlayerGameEnder==true) or (gStates.finalTurnReason=="endRound" and nextPlayerEndCalled==true))==true then
 				endText="{en}End Game{ru}Конец игры{zh-tw}結束遊戲{zh-cn}结束游戏{ko}게임 종료{es}Fin del Juego{fr}Fin du Jeu{pt-br}Fim de Jogo{de}Spiel Beenden" end
 			local nextIsCoopAssaulter=gStates.coopAssaultPhase=="combat" and gStates.coopAssaultParticipants~=nil and gStates.coopAssaultParticipants[nextPlayer]~=nil
-			if nextIsCoopAssaulter and turnOrder[nextPlayer].mage~=gStates.positionMageKnight[5] and getObjectFromGUID(turnOrder[nextPlayer].turnOrderTokenGUID).is_face_down==true then
+			local nextTurnToken=nextIsCoopAssaulter and getObjectFromGUID(turnOrder[nextPlayer].turnOrderTokenGUID) or nil
+			if nextIsCoopAssaulter and turnOrder[nextPlayer].mage~=gStates.positionMageKnight[5] and nextTurnToken~=nil and nextTurnToken.is_face_down==true then
 				endText="{en}Next Assaulter{ru}Следующий штурмующий{zh-tw}換下一個襲擊者{zh-cn}换下一个袭击者{ko}다음 강습자{es}Siguiente Asaltante{fr}Prochain Agresseur{pt-br}Próximo Invasor{de}Nächster Spieler" end
 			UI.setAttribute("EndTurnButtonText", "text", endText)
 			UI.setAttribute("EndTurnButtonAltText", "text", endText)
