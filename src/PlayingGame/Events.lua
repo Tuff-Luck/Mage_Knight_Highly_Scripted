@@ -1276,14 +1276,34 @@ local function scheduleShieldLocation(obj, zone, status)
 		if status=="enter" and apocalypseQuestsUsed()==true then apocalypseQuestRefreshOfferButtons() end
 	end,2)
 end
-function __onObjectEnterZone_raw(zone, obj)
-	if zone==nil or obj==nil then return end
+local function zoneEventContext(zone, obj)
+	if zone==nil or obj==nil then return nil end
 	local zoneGUID=zone.guid
 	local objGUID=obj.guid
-	if zoneGUID==nil or objGUID==nil then return end
+	if zoneGUID==nil or objGUID==nil then return nil end
 	local zoneInfo=playerZoneLookup[zoneGUID]
-	local objType=obj.type
-	if zoneGUID==mapArea and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(obj)==true then
+	return {
+		zone=zone,
+		obj=obj,
+		zoneGUID=zoneGUID,
+		objGUID=objGUID,
+		zoneInfo=zoneInfo,
+		objType=obj.type,
+		isMap=zoneGUID==mapArea,
+		isTacticZone=tacticClaimingZones[zoneGUID]~=nil,
+		isOfferZone=cardClaimingZones[zoneGUID]~=nil,
+		playerZoneKind=zoneInfo~=nil and zoneInfo.kind or nil
+	}
+end
+
+local function handleZoneEnterPrelude(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	if ctx.isMap and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(obj)==true then
 		--A held object will be handled once by onObjectDrop; retries here are only for scripted arrivals.
 		if obj.held_by_color==nil then mapTokenScheduleObject(objGUID) end
 	end
@@ -1293,12 +1313,12 @@ function __onObjectEnterZone_raw(zone, obj)
 	end
 	--A scripted Deed transfer may physically cross unrelated scripting zones. Only its destination Deed zone
 	--is allowed to react while the card is travelling.
-	if deedTransferState~=nil and deedTransferState.transit[objGUID]~=nil and zoneGUID~=deedTransferState.transit[objGUID] then return end
+	if deedTransferState~=nil and deedTransferState.transit[objGUID]~=nil and zoneGUID~=deedTransferState.transit[objGUID] then return true end
 	--Fractured Lands holds a new tile above the map scripting zone while it is being oriented.
 	--Done only unlocks it. Its actual fall into this zone clears the orientation controls/state,
 	--then continues through the ordinary terrain-entry handler below.
-	if zoneGUID==mapArea and gStates.fracturedLandsOrientation~=nil and gStates.fracturedLandsOrientation.guid==objGUID then
-		if obj.getLock()==true then return end
+	if ctx.isMap and gStates.fracturedLandsOrientation~=nil and gStates.fracturedLandsOrientation.guid==objGUID then
+		if obj.getLock()==true then return true end
 		obj.clearButtons()
 		obj.UI.setXmlTable({{}})
 		gStates.fracturedLandsOrientation=nil
@@ -1312,934 +1332,1005 @@ function __onObjectEnterZone_raw(zone, obj)
 		elseif zoneGUID==deedDeckZones[seatPos] or zoneGUID==deedDeckDiscardZones[seatPos] then steadyTempoClearPending(objGUID) end
 	end
 	--Meditation / Trance needs its object UI as soon as the played card reaches a player area.
-	if objGUID==meditationTranceCardGUID and zoneInfo~=nil and zoneInfo.kind=="play" then
+	if objGUID==meditationTranceCardGUID and ctx.playerZoneKind=="play" then
 		safeWaitFrames("Events",function() refreshMeditationTrance() end, 2)
 	end
-	if gStates.firstStarted==true then
-		if gStates.apocalypseQuestUnderSiegeReady~=nil then apocalypseQuestUnderSiegeCardPlayed(zone,obj) end
-		local enteredSkill=skillTokens[objGUID]
-		if enteredSkill~=nil and zoneInfo~=nil and zoneInfo.kind=="play" then
-			local playerIndex=turnOrderIndexAtSeat(zoneInfo.seatPos)
-			if playerIndex~=nil then
-				tomeSkillEnteredPlay(objGUID, playerIndex)
-				if enteredSkill.skillType=="Coop" or enteredSkill.skillType=="Comp" then activateCoopCompSkill(objGUID, playerIndex) end
+	return false
+end
+
+local function handleStartedZoneEnterPrelude(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	local enteredSkill=skillTokens[objGUID]
+	if enteredSkill~=nil and zoneInfo~=nil and zoneInfo.kind=="play" then
+		local playerIndex=turnOrderIndexAtSeat(zoneInfo.seatPos)
+		if playerIndex~=nil then
+			tomeSkillEnteredPlay(objGUID, playerIndex)
+			if enteredSkill.skillType=="Coop" or enteredSkill.skillType=="Comp" then activateCoopCompSkill(objGUID, playerIndex) end
+		end
+	end
+end
+
+local function handleTurnOrderZoneEnter(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--Check if a turn marker has been flipped
+	if zoneGUID==turnOrderArea then
+		for c, d in pairs(turnOrder) do
+			if objGUID==d.turnOrderTokenGUID then
+				safeWaitFrames("Events",function() safeWaitCondition("Events",function()
+					local turnOrderTokens=getObjectFromGUID(turnOrderArea).getObjects()
+					table.sort(turnOrderTokens, function (k1, k2) return k1.getPosition()[3]>k2.getPosition()[3] end)
+					--check if all turn order tokens are present
+					if #turnOrderTokens==gStates.playerCount+gStates.coop then
+						local posOne=-19.4
+						local inOrder=true
+						--check turn order tokens fill from 1st to last position
+						for a, b in pairs(turnOrderTokens) do
+							if b.getPosition()[3]>posOne-0.5 and b.getPosition()[3]<posOne+0.6 then
+								posOne=posOne-1.4
+								for c, d in pairs(turnOrder) do
+									if b.guid==d.turnOrderTokenGUID then turnOrder[c].cutomSort=a break end
+								end
+							else
+								inOrder=false break
+							end
+						end
+						--update turnorder sequence to match token order
+						if inOrder==true then
+							if getObjectFromGUID("0934f2")~=nil then table.sort(turnOrder, function (k1, k2) return k1.cutomSort < k2.cutomSort end) end
+							broadcastToAll("{en}Turn order updated{ru}Порядок хода обновлен{zh-tw}回合顺序更新了{zh-cn}回合顺序更新了{ko}라운드 순서가 업데이트되었습니다{es}Orden de giro actualizado{fr}Ordre de rotation mis à jour{pt-br}Ordem de Turno atualizada{de}Zugreihenfolge aktualisiert", {1,1,0.5})
+							mainUIUpdate("Turn marker entered it's zone")
+						end
+					end
+				end, function() return obj.resting end) end, 2)
+				break
 			end
 		end
-		--Check if a turn marker has been flipped
-		if zoneGUID==turnOrderArea then
-			for c, d in pairs(turnOrder) do
-				if objGUID==d.turnOrderTokenGUID then
-					safeWaitFrames("Events",function() safeWaitCondition("Events",function()
-						local turnOrderTokens=getObjectFromGUID(turnOrderArea).getObjects()
-						table.sort(turnOrderTokens, function (k1, k2) return k1.getPosition()[3]>k2.getPosition()[3] end)
-						--check if all turn order tokens are present
-						if #turnOrderTokens==gStates.playerCount+gStates.coop then
-							local posOne=-19.4
-							local inOrder=true
-							--check turn order tokens fill from 1st to last position
-							for a, b in pairs(turnOrderTokens) do
-								if b.getPosition()[3]>posOne-0.5 and b.getPosition()[3]<posOne+0.6 then
-									posOne=posOne-1.4
-									for c, d in pairs(turnOrder) do
-										if b.guid==d.turnOrderTokenGUID then turnOrder[c].cutomSort=a break end
-									end
-								else
-									inOrder=false break
-								end
-							end
-							--update turnorder sequence to match token order
-							if inOrder==true then
-								if getObjectFromGUID("0934f2")~=nil then table.sort(turnOrder, function (k1, k2) return k1.cutomSort < k2.cutomSort end) end
-								broadcastToAll("{en}Turn order updated{ru}Порядок хода обновлен{zh-tw}回合顺序更新了{zh-cn}回合顺序更新了{ko}라운드 순서가 업데이트되었습니다{es}Orden de giro actualizado{fr}Ordre de rotation mis à jour{pt-br}Ordem de Turno atualizada{de}Zugreihenfolge aktualisiert", {1,1,0.5})
-								mainUIUpdate("Turn marker entered it's zone")
-							end
-						end
-					end, function() return obj.resting end) end, 2)
-					break
-				end
+	end
+
+end
+
+local function handleTerrainZoneEnter(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--Check if a terrain tile has entered the play area
+	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
+		if startingMapSetup==true then startingMapTiles[objGUID]=true end
+		workingOnTerrain[objGUID]=true
+			safeWaitTime("Events",function() addAvatarButtons() end, 1.5)
+			local playAreaObjects=zone.getObjects()
+			local faceUpTerrain={}
+			local mapObjectPositions={}
+			for _, mapObject in pairs(playAreaObjects) do
+				local mapObjectPosition=mapObject.getPosition()
+				mapObjectPositions[#mapObjectPositions+1]={guid=mapObject.guid, position=mapObjectPosition}
+				if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid, position=mapObjectPosition} end
 			end
+		local core=0
+		local faceUp=	{0.0, 180.0,   0.0}
+		local faceDown=	{0.0, 180.0, 180.0}
+		local y=2
+		--figure out which angle is the north south line
+		local northBearing=40
+		local startTileGUID=startTerrain.open
+		local startBearing=0
+		if getObjectFromGUID(startTileGUID)==nil then
+			if gStates.gameScenario=="Against the Horsemen Blitz" then startTileGUID=GUID.tile.country01
+			else startTileGUID=startTerrain.wedge northBearing=70 end
 		end
+		local startTileObject=getObjectFromGUID(startTileGUID)
+		if startTileObject==nil then workingOnTerrain[objGUID]=nil return true end
+		local startTilePosition=startTileObject.getPosition()
+		local enteredTilePosition=obj.getPosition()
+		local enteredTileName=obj.getName()
+		startBearing=math.deg(math.atan2(enteredTilePosition[3]-startTilePosition[3], enteredTilePosition[1]-startTilePosition[1]))
 
-		--Check if a terrain tile has entered the play area
-		if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
-			if startingMapSetup==true then startingMapTiles[objGUID]=true end
-			workingOnTerrain[objGUID]=true
-				safeWaitTime("Events",function() addAvatarButtons() end, 1.5)
-				local playAreaObjects=zone.getObjects()
-				local faceUpTerrain={}
-				local mapObjectPositions={}
-				for _, mapObject in pairs(playAreaObjects) do
-					local mapObjectPosition=mapObject.getPosition()
-					mapObjectPositions[#mapObjectPositions+1]={guid=mapObject.guid, position=mapObjectPosition}
-					if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid, position=mapObjectPosition} end
-				end
-			local core=0
-			local faceUp=	{0.0, 180.0,   0.0}
-			local faceDown=	{0.0, 180.0, 180.0}
-			local y=2
-			--figure out which angle is the north south line
-			local northBearing=40
-			local startTileGUID=startTerrain.open
-			local startBearing=0
-			if getObjectFromGUID(startTileGUID)==nil then
-				if gStates.gameScenario=="Against the Horsemen Blitz" then startTileGUID=GUID.tile.country01
-				else startTileGUID=startTerrain.wedge northBearing=70 end
-			end
-			local startTileObject=getObjectFromGUID(startTileGUID)
-			if startTileObject==nil then workingOnTerrain[objGUID]=nil return end
-			local startTilePosition=startTileObject.getPosition()
-			local enteredTilePosition=obj.getPosition()
-			local enteredTileName=obj.getName()
-			startBearing=math.deg(math.atan2(enteredTilePosition[3]-startTilePosition[3], enteredTilePosition[1]-startTilePosition[1]))
-
-			local faceDownTerrain=false
-			local errorBroadcast=""
-			local function positionLegal(obj)--.guid .is_face_down .getPosition() .getName()
-				--Against the Horsemen uses a completely predefined map. Its face-down tiles are already in
-				--their legal positions, so ordinary wedge/open/neighbour placement rules must never reject
-				--a tile when it is revealed. Keep face-down tiles dormant; once revealed, always populate them.
-				if gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then
-					if obj.faceDown==true then faceDownTerrain=true return false end
-					return true
-				end
-
-				--Custom Predefined is deliberately unrestricted: players may arrange any face-up terrain anywhere.
-				if gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P" then
-					if obj.faceDown==true then faceDownTerrain=true return false end
-					return true
-				end
-
-				--Check if a core tile is on the coast of a wedge map
-				if terrainTiles[objGUID].tileType=="core" and northBearing==70 and (obj.bearing<=41 or obj.bearing>=99) and gStates.gameScenario~="Fast Forwarded Conquest" then errorBroadcast="{en}Core Terrain Tiles aren't allowed on the coast{ru}Плитки Развитых земель не могут располагаться на берегу{zh-tw}海岸边不可以部署核心城市板块{zh-cn}海岸边不可以部署核心城市板块{ko}중심부 타일은 해안선에 놓일 수 없습니다{es}Las baldosas de terreno del núcleo no están permitidas en la costa{fr}Les tuiles de terrain de base ne sont pas autorisées sur la côte{pt-br}Peças Mapa Centrais não são permitidas na Costa{de}Kernterrainplättchen sind an der Küste nicht erlaubt" return false end
-
-				--Check if a tile is outside of a wedge map
-				if northBearing==70 and (obj.bearing<=35 or obj.bearing>=105) then errorBroadcast="{en}Terrain Tile isn't in the Wedge{ru}Плитка земель не находится в форме{zh-tw}地图块不在锥形里 (出界了){zh-cn}地图块不在锥形里 (出界了){ko}지도 타일이 쐐기 안에 있지 않습니다{es}Terrain Tile no está en la cuña{fr}La tuile de terrain n'est pas dans le coin{pt-br}Peça de Terreno não está no Cone{de}Das Geländeplättchen liegt nicht im Keil" return false end
-
-				--Check if tile is on the 4th or 5th column of a limited open map
-				if gStates.mapShape:sub(5,5)=="O" or gStates.mapShape:sub(5,5)=="F" then --Open Limited to ? Columns
-					local checkUpTo=3
-					if gStates.mapShape:sub(21, 21)=="4" then checkUpTo=8 end
-					if gStates.mapShape:sub(21, 21)=="3" then checkUpTo=15 end
-					local pos=obj.position
-					for b=1, checkUpTo, 1 do
-						local edge=terrainPlacementEdgeCoordinates[b]
-						if ((pos[1]-edge[1])^2)+((pos[3]-edge[2])^2)<1 then
-							errorBroadcast=joinLang({"{en}You are playing a {ru}Форма игрового поля - {zh-tw}正在玩的剧本名: {zh-cn}正在玩的剧本名: {ko}플레이 중인 맵: {es}Estás jugando un {fr}Vous jouez à un {pt-br}Você está jogando um(a) {de}Du spielst gerade ein ", gStates.mapShape, "{en} Game{ru} {zh-tw}. {zh-cn}. {ko}{es} juegos{fr} Game{pt-br} Jogo{de} Spiel"})
-							return false
-						end
-					end
-				end
-
-				--Check if Core tile has at least two neighbor Tiles
-				--Check if Country tile has at least one neighbor that has two neighbor Tiles
-				--check if an excess terrain tile has at least three neighbors.
-				if gStates.gameScenario~="The Gauntlet" and objGUID~=firstTile and not (objGUID=="835c91" and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
-					local neighboursFound=0
-					local neighbourTile=nil
-					local adjacentPositions={}
-					for c=1, 6, 1 do
-						local offset=terrainPlacementNeighbourOffsets[c]
-						adjacentPositions[c]={obj.position[1]+offset[1], obj.position[3]+offset[2]}
-					end
-					for _, b in pairs(faceUpTerrain) do
-						if b.guid~=objGUID then
-							local tested=b.position
-							for c=1, 6, 1 do
-								local toCheck=adjacentPositions[c]
-								if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 neighbourTile=b break end
-							end
-						end
-					end
-					if neighboursFound==0 then return false end
-					if terrainTiles[objGUID].tileType=="core" and neighboursFound<2 then errorBroadcast="{en}Core Terrain Tiles need two or more neighbours{ru}Плитки Развитых земель должны находиться по соседству с двумя другими землями{zh-tw}核心城市板块需要紧邻两个以上的其他板块{zh-cn}核心城市板块需要紧邻两个以上的其他板块{ko}중심부 타일은 최소 2개의 타일과 인접해야 합니다{es}Las baldosas de terreno central necesitan dos o más vecinos{fr}Les tuiles de terrain de base ont besoin de deux voisins ou plus{pt-br}Peças Mapa Centrais precisam de 2 ou mais Vizinhos{de}Kernterrainplättchen benötigen zwei oder mehr Nachbarn" return false end
-					if obj.objName=="excess" and neighboursFound<3 then errorBroadcast="{en}Excess Terrain Tiles need three or more neighbours, They're meant to fill holes in the map.{ru}Запасные земели должны примыкать хотя бы к трём другим землям (чтобы заполнить дыры).{zh-tw}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{zh-cn}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{ko}추가 지도 타일은 최소 3개의 다른 타일과 인접해야 합니다. 구멍을 메운다는 느낌과 유사합니다.{es}Los mosaicos de terreno en exceso necesitan tres o más vecinos. Están destinados a rellenar huecos en el mapa.{fr}Les tuiles de terrain excédentaire ont besoin de trois voisins ou plus, elles sont destinées à combler les trous sur la carte.{pt-br}Peças de Terreno Excessivas precisam de 3 ou mais vizinhos. Elas são para preencher buracos no mapa{de}Überschüssige Geländeplättchen brauchen drei oder mehr Nachbarn, sie sollen Löcher auf der Karte füllen." return false end
-					if terrainTiles[objGUID].tileType~="core" and neighboursFound<=1 then
-						neighboursFound=0
-						if neighbourTile~=nil then
-							local neighbourPositions={}
-							for c=1, 6, 1 do
-								local offset=terrainPlacementNeighbourOffsets[c]
-								neighbourPositions[c]={neighbourTile.position[1]+offset[1], neighbourTile.position[3]+offset[2]}
-							end
-							for _, b in pairs(faceUpTerrain) do
-								if b.guid~=objGUID then
-									local tested=b.position
-									for c=1, 6, 1 do
-										local toCheck=neighbourPositions[c]
-										if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 break end
-									end
-								end
-							end
-							if neighboursFound<2 then errorBroadcast="{en}Country Terrain Tiles can't be strung out that far{ru}Плитки Диких земель не могут вытягиваться так далеко{zh-tw}乡村板块不能铺那么远{zh-cn}乡村板块不能铺那么远{ko}교외 타일은 그렇게 놓일 수 없습니다{es}Las baldosas de terreno rural no se pueden colocar tan lejos{fr}Les tuiles de terrain de campagne ne peuvent pas être enfilées aussi loin{pt-br}Peças Mapa de Campo não podem ser colocados tão longe{de}Land-Terrainplättchen können nicht so weit aufgereiht werden" return false end
-						end
-					end
-				end
-
-				--Check if a City tile is played to wrong side in Life and Death
-				if gStates.gameScenario=="Life and Death" and getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()==1 then
-					if objGUID==GUID.tile.city08 and obj.bearing<=northBearing-1 then --red city
-						errorBroadcast="{en}Red City needs to be placed in the Northern section{ru}Земля с красным городом не может быть размещена на юге{zh-tw}红色城市需要放在靠北边{zh-cn}红色城市需要放在靠北边{ko}빨간색 도시는 북쪽에 놓여야합니다.{es}Red City debe colocarse en la sección Norte{fr}Red City doit être placé dans la section Nord{pt-br}Cidade Vermelha precisa ser colocada na sessão Norte{de}Die rote Stadt muss in den nördlichen Abschnitt gelegt werden"
-						return false
-					end
-					if objGUID==GUID.tile.city05 and obj.bearing>=northBearing+1 then --green city
-						errorBroadcast="{en}Green City needs to be placed in the Southern section{ru}Земля с зелёным городом не может быть размещена на севере{zh-tw}绿色城市需要放置在南边部分{zh-cn}绿色城市需要放置在南边部分{ko}녹색 도시는 남쪽에 놓여야합니다{es}Green City debe colocarse en la sección Sur{fr}Green City doit être placé dans la section Sud{pt-br}Cidade Verde precisa ser colocada na parte Sul do mapa{de}Grüne Stadt muss in die südliche Sektion gelegt werden"
-						return false
-					end
-				end
-
-				--Check if a terrain tile is face up
+		local faceDownTerrain=false
+		local errorBroadcast=""
+		local function positionLegal(obj)--.guid .is_face_down .getPosition() .getName()
+			--Against the Horsemen uses a completely predefined map. Its face-down tiles are already in
+			--their legal positions, so ordinary wedge/open/neighbour placement rules must never reject
+			--a tile when it is revealed. Keep face-down tiles dormant; once revealed, always populate them.
+			if gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then
 				if obj.faceDown==true then faceDownTerrain=true return false end
 				return true
 			end
 
-			--make predefined maps highlight red
-			if gStates.mapShape:sub(5,5)=="P" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then--predefined
-				for _, mightBeMap in pairs(playAreaObjects) do
-					if terrainTiles[mightBeMap.guid]~=nil then
-						if positionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}})==false then
-							mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
-						else
-							local nightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
-							if nightTint then mightBeMap.setColorTint({r=0.6, g=0.6, b=0.6}) else mightBeMap.setColorTint({r=1.0, g=1.0, b=1.0}) end--colour off
-						end
+			--Custom Predefined is deliberately unrestricted: players may arrange any face-up terrain anywhere.
+			if gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P" then
+				if obj.faceDown==true then faceDownTerrain=true return false end
+				return true
+			end
+
+			--Check if a core tile is on the coast of a wedge map
+			if terrainTiles[objGUID].tileType=="core" and northBearing==70 and (obj.bearing<=41 or obj.bearing>=99) and gStates.gameScenario~="Fast Forwarded Conquest" then errorBroadcast="{en}Core Terrain Tiles aren't allowed on the coast{ru}Плитки Развитых земель не могут располагаться на берегу{zh-tw}海岸边不可以部署核心城市板块{zh-cn}海岸边不可以部署核心城市板块{ko}중심부 타일은 해안선에 놓일 수 없습니다{es}Las baldosas de terreno del núcleo no están permitidas en la costa{fr}Les tuiles de terrain de base ne sont pas autorisées sur la côte{pt-br}Peças Mapa Centrais não são permitidas na Costa{de}Kernterrainplättchen sind an der Küste nicht erlaubt" return false end
+
+			--Check if a tile is outside of a wedge map
+			if northBearing==70 and (obj.bearing<=35 or obj.bearing>=105) then errorBroadcast="{en}Terrain Tile isn't in the Wedge{ru}Плитка земель не находится в форме{zh-tw}地图块不在锥形里 (出界了){zh-cn}地图块不在锥形里 (出界了){ko}지도 타일이 쐐기 안에 있지 않습니다{es}Terrain Tile no está en la cuña{fr}La tuile de terrain n'est pas dans le coin{pt-br}Peça de Terreno não está no Cone{de}Das Geländeplättchen liegt nicht im Keil" return false end
+
+			--Check if tile is on the 4th or 5th column of a limited open map
+			if gStates.mapShape:sub(5,5)=="O" or gStates.mapShape:sub(5,5)=="F" then --Open Limited to ? Columns
+				local checkUpTo=3
+				if gStates.mapShape:sub(21, 21)=="4" then checkUpTo=8 end
+				if gStates.mapShape:sub(21, 21)=="3" then checkUpTo=15 end
+				local pos=obj.position
+				for b=1, checkUpTo, 1 do
+					local edge=terrainPlacementEdgeCoordinates[b]
+					if ((pos[1]-edge[1])^2)+((pos[3]-edge[2])^2)<1 then
+						errorBroadcast=joinLang({"{en}You are playing a {ru}Форма игрового поля - {zh-tw}正在玩的剧本名: {zh-cn}正在玩的剧本名: {ko}플레이 중인 맵: {es}Estás jugando un {fr}Vous jouez à un {pt-br}Você está jogando um(a) {de}Du spielst gerade ein ", gStates.mapShape, "{en} Game{ru} {zh-tw}. {zh-cn}. {ko}{es} juegos{fr} Game{pt-br} Jogo{de} Spiel"})
+						return false
 					end
 				end
 			end
 
-			--deploy monster token if terrain tile is deployed correctly
-			if positionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}})==true then
-				--Before the first round, dayRound is intentionally still false so dayNight() can perform
-				--the first transition. Do not let that sentinel make setup terrain look like night.
-				if startingMapSetup==true then
-					if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
+			--Check if Core tile has at least two neighbor Tiles
+			--Check if Country tile has at least one neighbor that has two neighbor Tiles
+			--check if an excess terrain tile has at least three neighbors.
+			if gStates.gameScenario~="The Gauntlet" and objGUID~=firstTile and not (objGUID=="835c91" and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
+				local neighboursFound=0
+				local neighbourTile=nil
+				local adjacentPositions={}
+				for c=1, 6, 1 do
+					local offset=terrainPlacementNeighbourOffsets[c]
+					adjacentPositions[c]={obj.position[1]+offset[1], obj.position[3]+offset[2]}
 				end
-				againstDragonRevealLair(obj)
-				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
-				--Check if the object is a core tile and unlock elite units
-				if terrainTiles[objGUID].tileType=="core" and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
-					gStates.playedCoreTiles=gStates.playedCoreTiles+1
-					gStates.eliteUnitsUsed=true
-					if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
-					core=1
-				end
-
-				--Highlight legal tile plays
-				if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" and not (gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P") then
-					local gridType=""
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049111266/7BC768B7CD64E6018EBEC720559690409F4BA555/" end--4
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049110361/978D612A44ADDE6E1630965A311722114BA28AE5/" end--3
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049031257/2457D03CE33118D57CD456183026FEB596CF6A3A/" end--fully
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049113832/44EE3C6AA10498BCD1B46040AD18631BFD580AC4/" end--Wedge
-					local terrainDecals={}
-					gStates.exploreButtons={{}}
-					if gridType~="" then terrainDecals[#terrainDecals+1]={name="Terrain Grid", url=gridType, position={-16.825, 0.99, 0.55}, rotation={90.0, 0.0, 0.0}, scale={60, 60, 1}} end
-					local testTerrain="core"
-					local nameTerrain="dud"
-					local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
-					local leftCountry=getObjectFromGUID(GUID.bag.terrain.leftCountry)
-					local leftCore=getObjectFromGUID(GUID.bag.terrain.leftCore)
-					local terrainStackObjects=terrainStack.getObjects()
-					if #terrainStackObjects>0 then
-						local nextTerrainIndex=terrainStack.getQuantity()-1
-						testTerrain=terrainStackObjects[#terrainStackObjects].guid
-						for _, containedTerrain in pairs(terrainStackObjects) do
-							if containedTerrain.index==nextTerrainIndex then testTerrain=containedTerrain.guid break end
+				for _, b in pairs(faceUpTerrain) do
+					if b.guid~=objGUID then
+						local tested=b.position
+						for c=1, 6, 1 do
+							local toCheck=adjacentPositions[c]
+							if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 neighbourTile=b break end
 						end
+					end
+				end
+				if neighboursFound==0 then return false end
+				if terrainTiles[objGUID].tileType=="core" and neighboursFound<2 then errorBroadcast="{en}Core Terrain Tiles need two or more neighbours{ru}Плитки Развитых земель должны находиться по соседству с двумя другими землями{zh-tw}核心城市板块需要紧邻两个以上的其他板块{zh-cn}核心城市板块需要紧邻两个以上的其他板块{ko}중심부 타일은 최소 2개의 타일과 인접해야 합니다{es}Las baldosas de terreno central necesitan dos o más vecinos{fr}Les tuiles de terrain de base ont besoin de deux voisins ou plus{pt-br}Peças Mapa Centrais precisam de 2 ou mais Vizinhos{de}Kernterrainplättchen benötigen zwei oder mehr Nachbarn" return false end
+				if obj.objName=="excess" and neighboursFound<3 then errorBroadcast="{en}Excess Terrain Tiles need three or more neighbours, They're meant to fill holes in the map.{ru}Запасные земели должны примыкать хотя бы к трём другим землям (чтобы заполнить дыры).{zh-tw}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{zh-cn}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{ko}추가 지도 타일은 최소 3개의 다른 타일과 인접해야 합니다. 구멍을 메운다는 느낌과 유사합니다.{es}Los mosaicos de terreno en exceso necesitan tres o más vecinos. Están destinados a rellenar huecos en el mapa.{fr}Les tuiles de terrain excédentaire ont besoin de trois voisins ou plus, elles sont destinées à combler les trous sur la carte.{pt-br}Peças de Terreno Excessivas precisam de 3 ou mais vizinhos. Elas são para preencher buracos no mapa{de}Überschüssige Geländeplättchen brauchen drei oder mehr Nachbarn, sie sollen Löcher auf der Karte füllen." return false end
+				if terrainTiles[objGUID].tileType~="core" and neighboursFound<=1 then
+					neighboursFound=0
+					if neighbourTile~=nil then
+						local neighbourPositions={}
+						for c=1, 6, 1 do
+							local offset=terrainPlacementNeighbourOffsets[c]
+							neighbourPositions[c]={neighbourTile.position[1]+offset[1], neighbourTile.position[3]+offset[2]}
+						end
+						for _, b in pairs(faceUpTerrain) do
+							if b.guid~=objGUID then
+								local tested=b.position
+								for c=1, 6, 1 do
+									local toCheck=neighbourPositions[c]
+									if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 break end
+								end
+							end
+						end
+						if neighboursFound<2 then errorBroadcast="{en}Country Terrain Tiles can't be strung out that far{ru}Плитки Диких земель не могут вытягиваться так далеко{zh-tw}乡村板块不能铺那么远{zh-cn}乡村板块不能铺那么远{ko}교외 타일은 그렇게 놓일 수 없습니다{es}Las baldosas de terreno rural no se pueden colocar tan lejos{fr}Les tuiles de terrain de campagne ne peuvent pas être enfilées aussi loin{pt-br}Peças Mapa de Campo não podem ser colocados tão longe{de}Land-Terrainplättchen können nicht so weit aufgereiht werden" return false end
+					end
+				end
+			end
+
+			--Check if a City tile is played to wrong side in Life and Death
+			if gStates.gameScenario=="Life and Death" and getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()==1 then
+				if objGUID==GUID.tile.city08 and obj.bearing<=northBearing-1 then --red city
+					errorBroadcast="{en}Red City needs to be placed in the Northern section{ru}Земля с красным городом не может быть размещена на юге{zh-tw}红色城市需要放在靠北边{zh-cn}红色城市需要放在靠北边{ko}빨간색 도시는 북쪽에 놓여야합니다.{es}Red City debe colocarse en la sección Norte{fr}Red City doit être placé dans la section Nord{pt-br}Cidade Vermelha precisa ser colocada na sessão Norte{de}Die rote Stadt muss in den nördlichen Abschnitt gelegt werden"
+					return false
+				end
+				if objGUID==GUID.tile.city05 and obj.bearing>=northBearing+1 then --green city
+					errorBroadcast="{en}Green City needs to be placed in the Southern section{ru}Земля с зелёным городом не может быть размещена на севере{zh-tw}绿色城市需要放置在南边部分{zh-cn}绿色城市需要放置在南边部分{ko}녹색 도시는 남쪽에 놓여야합니다{es}Green City debe colocarse en la sección Sur{fr}Green City doit être placé dans la section Sud{pt-br}Cidade Verde precisa ser colocada na parte Sul do mapa{de}Grüne Stadt muss in die südliche Sektion gelegt werden"
+					return false
+				end
+			end
+
+			--Check if a terrain tile is face up
+			if obj.faceDown==true then faceDownTerrain=true return false end
+			return true
+		end
+
+		--make predefined maps highlight red
+		if gStates.mapShape:sub(5,5)=="P" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then--predefined
+			for _, mightBeMap in pairs(playAreaObjects) do
+				if terrainTiles[mightBeMap.guid]~=nil then
+					if positionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}})==false then
+						mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
 					else
-						nameTerrain="excess"
-						testTerrain="country"
+						local nightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
+						if nightTint then mightBeMap.setColorTint({r=0.6, g=0.6, b=0.6}) else mightBeMap.setColorTint({r=1.0, g=1.0, b=1.0}) end--colour off
 					end
-					if terrainStack.getQuantity()>0 or leftCountry.getQuantity()>0 or leftCore.getQuantity()>0 then
-						for _, terTile in pairs(terrainExploreSpots) do
-							local found=false
-							for _, mightBeMap in pairs(faceUpTerrain) do
-								local existingTile=mightBeMap.position
-								if ((terTile[1]-existingTile[1])^2)+((terTile[3]-existingTile[3])^2)<1 then found=true break end
-							end
-							if found==false and positionLegal({guid=testTerrain, faceDown=false, objName=nameTerrain, position=terTile, bearing=math.deg(math.atan2(terTile[3]-startTilePosition[3], terTile[1]-startTilePosition[1]))})==true then--country tile guid stand-in
-								terrainDecals[#terrainDecals+1]={name="Legal Play", url="https://steamusercontent-a.akamaihd.net/ugc/1833526258732421084/29942DB5776ABA4145E9E115D1C893574C9A737A/", position=terTile, rotation={90.0, 0.0, 0.0}, scale={6, 6, 1}}
-								gStates.exploreButtons[#gStates.exploreButtons+1]={tag="Button", attributes={id="f2291a"..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
-										children={	{tag="Image", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
-													{tag="HorizontalLayout", attributes={padding="25 25 25 25"},
-													children={{tag="Text", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
-								--record all the potential future hexes as "explore" so the move can calculate for it.
-							end
-							end
+				end
+			end
+		end
+
+		--deploy monster token if terrain tile is deployed correctly
+		if positionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}})==true then
+			--Before the first round, dayRound is intentionally still false so dayNight() can perform
+			--the first transition. Do not let that sentinel make setup terrain look like night.
+			if startingMapSetup==true then
+				if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
+			end
+			againstDragonRevealLair(obj)
+			if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
+			--Check if the object is a core tile and unlock elite units
+			if terrainTiles[objGUID].tileType=="core" and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
+				gStates.playedCoreTiles=gStates.playedCoreTiles+1
+				gStates.eliteUnitsUsed=true
+				if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
+				core=1
+			end
+
+			--Highlight legal tile plays
+			if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" and not (gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P") then
+				local gridType=""
+				if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049111266/7BC768B7CD64E6018EBEC720559690409F4BA555/" end--4
+				if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049110361/978D612A44ADDE6E1630965A311722114BA28AE5/" end--3
+				if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049031257/2457D03CE33118D57CD456183026FEB596CF6A3A/" end--fully
+				if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049113832/44EE3C6AA10498BCD1B46040AD18631BFD580AC4/" end--Wedge
+				local terrainDecals={}
+				gStates.exploreButtons={{}}
+				if gridType~="" then terrainDecals[#terrainDecals+1]={name="Terrain Grid", url=gridType, position={-16.825, 0.99, 0.55}, rotation={90.0, 0.0, 0.0}, scale={60, 60, 1}} end
+				local testTerrain="core"
+				local nameTerrain="dud"
+				local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
+				local leftCountry=getObjectFromGUID(GUID.bag.terrain.leftCountry)
+				local leftCore=getObjectFromGUID(GUID.bag.terrain.leftCore)
+				local terrainStackObjects=terrainStack.getObjects()
+				if #terrainStackObjects>0 then
+					local nextTerrainIndex=terrainStack.getQuantity()-1
+					testTerrain=terrainStackObjects[#terrainStackObjects].guid
+					for _, containedTerrain in pairs(terrainStackObjects) do
+						if containedTerrain.index==nextTerrainIndex then testTerrain=containedTerrain.guid break end
+					end
+				else
+					nameTerrain="excess"
+					testTerrain="country"
+				end
+				if terrainStack.getQuantity()>0 or leftCountry.getQuantity()>0 or leftCore.getQuantity()>0 then
+					for _, terTile in pairs(terrainExploreSpots) do
+						local found=false
+						for _, mightBeMap in pairs(faceUpTerrain) do
+							local existingTile=mightBeMap.position
+							if ((terTile[1]-existingTile[1])^2)+((terTile[3]-existingTile[3])^2)<1 then found=true break end
 						end
-						for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
-						Global.setDecals(terrainDecals)
-						getObjectFromGUID("f2291a").UI.setXmlTable(gStates.exploreButtons)
-						--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
-						compactCityCardsAfterExplore(mapObjectPositions)
-				end
-
-				--Against the Apocalypse destroyed terrain
-				if gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.tacticShown==false and enteredTileName~="excess" then
-					destroyRestoreLocation(nil, "-1", "id", "destroy", obj)
-				end
-
-					--Play the correct pugs for the terrain tile
-					local tokenWait=0
-					local tokenRefillFrame=nil
-					local setupPopulationPending=0
-					--Normal exploration keeps the familiar staggered token reveal. During initial setup, the
-					--map coordinator already serializes terrain tiles, so do not serialize every hex behind
-					--another fixed eight-frame pause. Run each deployment on the next frame and let the tile's
-					--real pending count tell map setup when all deployment code has actually executed.
-					local function scheduleTerrainPopulation(callback,frames)
-						if startingMapSetup==true then
-							setupPopulationPending=setupPopulationPending+1
-							safeWaitFrames("Events",function()
-								callback()
-								setupPopulationPending=setupPopulationPending-1
-							end,1)
-						else
-							safeWaitFrames("Events",callback,frames)
+						if found==false and positionLegal({guid=testTerrain, faceDown=false, objName=nameTerrain, position=terTile, bearing=math.deg(math.atan2(terTile[3]-startTilePosition[3], terTile[1]-startTilePosition[1]))})==true then--country tile guid stand-in
+							terrainDecals[#terrainDecals+1]={name="Legal Play", url="https://steamusercontent-a.akamaihd.net/ugc/1833526258732421084/29942DB5776ABA4145E9E115D1C893574C9A737A/", position=terTile, rotation={90.0, 0.0, 0.0}, scale={6, 6, 1}}
+							gStates.exploreButtons[#gStates.exploreButtons+1]={tag="Button", attributes={id="f2291a"..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
+									children={	{tag="Image", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
+												{tag="HorizontalLayout", attributes={padding="25 25 25 25"},
+												children={{tag="Text", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
+							--record all the potential future hexes as "explore" so the move can calculate for it.
+						end
 						end
 					end
-					local tileRotation=math.floor(((180-(180-obj.getRotation()[2]))/60)+0.5)*60
-					if tileRotation<0 then tileRotation=tileRotation+360 end
-					if tileRotation>=360 then tileRotation=tileRotation-360 end
-					for hexLocation, hexFeature in pairs(terrainTiles[objGUID].hexFeature) do
-						--Only run the all-pile refill once at each deployment step. Initial setup deliberately
-						--keeps refills disabled, so there is no reason to schedule its old no-op delay there.
-						if startingMapSetup~=true and tokenRefillFrame~=tokenWait+2 then tokenRefillFrame=tokenWait+2 safeWaitFrames("Events",function() tokenRefill() end, tokenRefillFrame) end
-					scheduleTerrainPopulation(function()
-						local params={}
-						--don't deploy token if megapolis is being played
-						local free=true
-						if gStates.megapolis>gStates.cityTiles-#gStates.citiesPlayed
-							and (objGUID==GUID.tile.city05 or objGUID==GUID.tile.city06 or objGUID==GUID.tile.city07 or objGUID==GUID.tile.city08)
-							and tonumber(hexLocation)==tileRotation then
-							megapolisSuppressTerrainHex(obj,hexFeature,false)
-							free=false
-						end
-						--deploy monster token if hex is free.
-						if free==true then
-							if gStates.playedAllready[objGUID]~=true then
-								if gStates.gameScenario=="Dungeon Lords" and gStates.tacticShown==false and (hexFeature=="village" or hexFeature=="monastery") then
-									dungeonLordsQueueSecretSite(obj,hexLocation,hexFeature)
-								end
-								--if a monastery tile is placed start dealing advanced actions
-								if hexFeature=="monastery" then playMonastery() end
+					for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
+					Global.setDecals(terrainDecals)
+					getObjectFromGUID("f2291a").UI.setXmlTable(gStates.exploreButtons)
+					--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
+					compactCityCardsAfterExplore(mapObjectPositions)
+			end
 
-								local tokenPileGreen=monsterPiles.green--Standard green Tokens
-								local tokenPileBrown=monsterPiles.tan--Standard Brown Tokens
-								local tokenPileRed=	 monsterPiles.red--Standard Red Tokens
-								--Rampaging Orcs & Draconum
-								if hexFeature=="rampaging" or hexFeature=="draconum" or
-									(gStates.gameScenario=="The Chaos Rift" and (hexFeature=="village" or ((hexFeature=="mine" or hexFeature=="") and objGUID==GUID.tile.city08))) then
-									playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, true, startingMapTiles[objGUID]~=true)
-								end
+			--Against the Apocalypse destroyed terrain
+			if gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.tacticShown==false and enteredTileName~="excess" then
+				destroyRestoreLocation(nil, "-1", "id", "destroy", obj)
+			end
 
-								--Mine
-								if hexFeature=="mine" and gStates.gameScenario=="Mines Liberation" then
-									if core==1 then tokenPileGreen=tokenPileRed end
-									if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
-										local pos={angleToXY(obj, hexLocation)[1]-0.1, y, angleToXY(obj, hexLocation)[2]-0.1}
-										local token=getObjectFromGUID(tokenPileBrown).takeObject({rotation=faceDown, position=pos})
-										gStates.monsterPlayLocation[token.guid]=pos
-										gStates.mineMonsterQty[objGUID]={[token.guid]="alive"}
-										token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
-										if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
-										local token=getObjectFromGUID(tokenPileGreen).takeObject({rotation=faceUp, position={pos[1]+0.2, pos[2]+0.5, pos[3]+0.2}})
-										gStates.monsterPlayLocation[token.guid]={pos[1]+0.2, pos[2]+0.5, pos[3]+0.2}
-										gStates.mineMonsterQty[objGUID][token.guid]="alive"
-										token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
-										if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+				--Play the correct pugs for the terrain tile
+				local tokenWait=0
+				local tokenRefillFrame=nil
+				local setupPopulationPending=0
+				--Normal exploration keeps the familiar staggered token reveal. During initial setup, the
+				--map coordinator already serializes terrain tiles, so do not serialize every hex behind
+				--another fixed eight-frame pause. Run each deployment on the next frame and let the tile's
+				--real pending count tell map setup when all deployment code has actually executed.
+				local function scheduleTerrainPopulation(callback,frames)
+					if startingMapSetup==true then
+						setupPopulationPending=setupPopulationPending+1
+						safeWaitFrames("Events",function()
+							callback()
+							setupPopulationPending=setupPopulationPending-1
+						end,1)
+					else
+						safeWaitFrames("Events",callback,frames)
+					end
+				end
+				local tileRotation=math.floor(((180-(180-obj.getRotation()[2]))/60)+0.5)*60
+				if tileRotation<0 then tileRotation=tileRotation+360 end
+				if tileRotation>=360 then tileRotation=tileRotation-360 end
+				for hexLocation, hexFeature in pairs(terrainTiles[objGUID].hexFeature) do
+					--Only run the all-pile refill once at each deployment step. Initial setup deliberately
+					--keeps refills disabled, so there is no reason to schedule its old no-op delay there.
+					if startingMapSetup~=true and tokenRefillFrame~=tokenWait+2 then tokenRefillFrame=tokenWait+2 safeWaitFrames("Events",function() tokenRefill() end, tokenRefillFrame) end
+				scheduleTerrainPopulation(function()
+					local params={}
+					--don't deploy token if megapolis is being played
+					local free=true
+					if gStates.megapolis>gStates.cityTiles-#gStates.citiesPlayed
+						and (objGUID==GUID.tile.city05 or objGUID==GUID.tile.city06 or objGUID==GUID.tile.city07 or objGUID==GUID.tile.city08)
+						and tonumber(hexLocation)==tileRotation then
+						megapolisSuppressTerrainHex(obj,hexFeature,false)
+						free=false
+					end
+					--deploy monster token if hex is free.
+					if free==true then
+						if gStates.playedAllready[objGUID]~=true then
+							if gStates.gameScenario=="Dungeon Lords" and gStates.tacticShown==false and (hexFeature=="village" or hexFeature=="monastery") then
+								dungeonLordsQueueSecretSite(obj,hexLocation,hexFeature)
+							end
+							--if a monastery tile is placed start dealing advanced actions
+							if hexFeature=="monastery" then playMonastery() end
+
+							local tokenPileGreen=monsterPiles.green--Standard green Tokens
+							local tokenPileBrown=monsterPiles.tan--Standard Brown Tokens
+							local tokenPileRed=	 monsterPiles.red--Standard Red Tokens
+							--Rampaging Orcs & Draconum
+							if hexFeature=="rampaging" or hexFeature=="draconum" or
+								(gStates.gameScenario=="The Chaos Rift" and (hexFeature=="village" or ((hexFeature=="mine" or hexFeature=="") and objGUID==GUID.tile.city08))) then
+								playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, true, startingMapTiles[objGUID]~=true)
+							end
+
+							--Mine
+							if hexFeature=="mine" and gStates.gameScenario=="Mines Liberation" then
+								if core==1 then tokenPileGreen=tokenPileRed end
+								if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
+									local pos={angleToXY(obj, hexLocation)[1]-0.1, y, angleToXY(obj, hexLocation)[2]-0.1}
+									local token=getObjectFromGUID(tokenPileBrown).takeObject({rotation=faceDown, position=pos})
+									gStates.monsterPlayLocation[token.guid]=pos
+									gStates.mineMonsterQty[objGUID]={[token.guid]="alive"}
+									token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
+									if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+									local token=getObjectFromGUID(tokenPileGreen).takeObject({rotation=faceUp, position={pos[1]+0.2, pos[2]+0.5, pos[3]+0.2}})
+									gStates.monsterPlayLocation[token.guid]={pos[1]+0.2, pos[2]+0.5, pos[3]+0.2}
+									gStates.mineMonsterQty[objGUID][token.guid]="alive"
+									token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
+									if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+								else
+									broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
+								end
+								tokenPileGreen=monsterPiles.green
+							end
+
+							--glade
+							if hexFeature=="glade" then --and objGUID~=GUID.tile.city05 then--stopped it happening on the green city tile but can't figure out why...
+								local pos=enteredTilePosition
+								local warOfFourDeploy=false
+								for _, coords in pairs(warOfFourGladeEdgeCoordinates) do
+									if math.sqrt(((pos[1]-coords[1])^2)+((pos[3]-coords[2])^2))<1 then warOfFourDeploy=true break end
+								end
+								if (gStates.gameScenario=="Life and Death" or (gStates.gameScenario=="The War of Four" and warOfFourDeploy==true)) then -- and core==0
+									local tokenFaction=nil
+									if startBearing<=northBearing or
+										(((startBearing<=northBearing+1 and gStates.coop==1) or (gStates.coop==0 and enteredTilePosition[3]<-7 and enteredTilePosition[3]>-8 and enteredTilePosition[1]<-31 and enteredTilePosition[1]>-32)) and math.random(1,2)==1) then
+											tokenFaction="Elem"
+										if getObjectFromGUID(monsterPiles.greenElem).getQuantity()>0 then tokenPileGreen=monsterPiles.greenElem end
+										if getObjectFromGUID(monsterPiles.tanElem).getQuantity()>0 then tokenPileBrown=monsterPiles.tanElem end--elementalist Tokens
 									else
-										broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
-									end
-									tokenPileGreen=monsterPiles.green
-								end
-
-								--glade
-								if hexFeature=="glade" then --and objGUID~=GUID.tile.city05 then--stopped it happening on the green city tile but can't figure out why...
-									local pos=enteredTilePosition
-									local warOfFourDeploy=false
-									for _, coords in pairs(warOfFourGladeEdgeCoordinates) do
-										if math.sqrt(((pos[1]-coords[1])^2)+((pos[3]-coords[2])^2))<1 then warOfFourDeploy=true break end
-									end
-									if (gStates.gameScenario=="Life and Death" or (gStates.gameScenario=="The War of Four" and warOfFourDeploy==true)) then -- and core==0
-										local tokenFaction=nil
-										if startBearing<=northBearing or
-											(((startBearing<=northBearing+1 and gStates.coop==1) or (gStates.coop==0 and enteredTilePosition[3]<-7 and enteredTilePosition[3]>-8 and enteredTilePosition[1]<-31 and enteredTilePosition[1]>-32)) and math.random(1,2)==1) then
-												tokenFaction="Elem"
-											if getObjectFromGUID(monsterPiles.greenElem).getQuantity()>0 then tokenPileGreen=monsterPiles.greenElem end
-											if getObjectFromGUID(monsterPiles.tanElem).getQuantity()>0 then tokenPileBrown=monsterPiles.tanElem end--elementalist Tokens
-										else
-											tokenFaction="Dark"
-											if getObjectFromGUID(monsterPiles.greenDark).getQuantity()>0 then tokenPileGreen=monsterPiles.greenDark end
-											if getObjectFromGUID(monsterPiles.tanDark).getQuantity()>0 then tokenPileBrown=monsterPiles.tanDark end---Dark Crusader Tokens
-											local pos={angleToXY(obj,hexLocation)[1], 1.09, angleToXY(obj,hexLocation)[2]}
-											local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject({rotation=faceUp, position=pos})
-											graveyard.lock()
-											terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
-											if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
-											gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
-										end
-										if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
-											local pos={angleToXY(obj,hexLocation)[1]-0.1, y, angleToXY(obj,hexLocation)[2]-0.1}
-											for i=1, 2, 1 do
-												local monsterPile={tokenPileBrown, tokenPileGreen}
-												local token=getObjectFromGUID(monsterPile[i]).takeObject({rotation=faceUp, position={pos[1]+(0.2*(i-1)), pos[2]+(0.5*(i-1)), pos[3]+(0.2*(i-1))}})
-												markMonsterFactionSubstitute(token, tokenFaction)
-												if terrainTiles[objGUID].hexFeature[hexLocation]=="graveyard" then
-													token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
-													if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
-												end
-												gStates.monsterPlayLocation[token.guid]={pos[1]+(0.2*(i-1)), pos[2]+(0.5*(i-1)), pos[3]+(0.2*(i-1))}
-												if gStates.mineMonsterQty[objGUID]==nil then gStates.mineMonsterQty[objGUID]={[token.guid]="alive"} else gStates.mineMonsterQty[objGUID][token.guid]="alive" end
-											end
-										else
-											broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
-										end
-									end
-
-									if gStates.gameScenario=="The Realm of the Dead Blitz" and terrainTiles[objGUID].tileType=="country" then
-										local deploy={	{monster={{monsterPiles.greenDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={advancedActionRewardDecal}},
-														{monster={{monsterPiles.tanDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={spellRewardDecal}},
-														{monster={{monsterPiles.redDark,  0.0}}, reward={unitRewardDecal}},
-														{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={artifactRewardDecal}},
-														{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.1}}, reward={artifactRewardDecal, advancedActionRewardDecal}},
-														{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.0}, {monsterPiles.greenDark, 0.1}}, reward={artifactRewardDecal, spellRewardDecal}}}--this is for five player games, which is currently imposible
-										--play Graveyard Token
-										params.position={angleToXY(obj,hexLocation)[1], 1.09, angleToXY(obj,hexLocation)[2]}
-										params.rotation=faceDown
-										local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject(params)
+										tokenFaction="Dark"
+										if getObjectFromGUID(monsterPiles.greenDark).getQuantity()>0 then tokenPileGreen=monsterPiles.greenDark end
+										if getObjectFromGUID(monsterPiles.tanDark).getQuantity()>0 then tokenPileBrown=monsterPiles.tanDark end---Dark Crusader Tokens
+										local pos={angleToXY(obj,hexLocation)[1], 1.09, angleToXY(obj,hexLocation)[2]}
+										local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject({rotation=faceUp, position=pos})
 										graveyard.lock()
 										terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
 										if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
 										gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
-										for index, reward in pairs(deploy[gStates.playedGladeTiles+1].reward) do
-											local posOnToken={{0.35, -0.21, 0.35}, {0.0, -0.2, 0.25}}
-											graveyard.addDecal({name="Reward", url=reward, position=posOnToken[index], rotation={-90, 0, 0}, scale={0.5, 0.7, 1}})
-										end
-										--play Monster tokens
-										local params2={}
-										for index, monsterPile in pairs(deploy[gStates.playedGladeTiles+1].monster) do
-											local token=nil
-											local monsterPileConvert={[monsterPiles.greenDark]=monsterPiles.green, [monsterPiles.tanDark]=monsterPiles.tan, [monsterPiles.redDark]=monsterPiles.red}
-											params2.position={params.position[1]+monsterPile[2], y+(index/2), params.position[3]+monsterPile[2]}
-											if getObjectFromGUID(monsterPile[1]).getQuantity()>0 then token=getObjectFromGUID(monsterPile[1]).takeObject(params2) else token=getObjectFromGUID(monsterPileConvert[monsterPile[1]]).takeObject(params2) end
-											markMonsterFactionSubstitute(token, "Dark")
-											token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
-											if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
-											gStates.monsterPlayLocation[token.guid]=params2.position
+									end
+									if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
+										local pos={angleToXY(obj,hexLocation)[1]-0.1, y, angleToXY(obj,hexLocation)[2]-0.1}
+										for i=1, 2, 1 do
+											local monsterPile={tokenPileBrown, tokenPileGreen}
+											local token=getObjectFromGUID(monsterPile[i]).takeObject({rotation=faceUp, position={pos[1]+(0.2*(i-1)), pos[2]+(0.5*(i-1)), pos[3]+(0.2*(i-1))}})
+											markMonsterFactionSubstitute(token, tokenFaction)
+											if terrainTiles[objGUID].hexFeature[hexLocation]=="graveyard" then
+												token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
+												if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+											end
+											gStates.monsterPlayLocation[token.guid]={pos[1]+(0.2*(i-1)), pos[2]+(0.5*(i-1)), pos[3]+(0.2*(i-1))}
 											if gStates.mineMonsterQty[objGUID]==nil then gStates.mineMonsterQty[objGUID]={[token.guid]="alive"} else gStates.mineMonsterQty[objGUID][token.guid]="alive" end
 										end
-										gStates.playedGladeTiles=gStates.playedGladeTiles+1
-									end
-								end
-
-								--Mage Tower
-								if hexFeature=="mage tower" then
-									params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj,hexLocation)[2]}
-									params.rotation=faceDown
-									if getObjectFromGUID(monsterPiles.purple).getQuantity()>0 then
-										local token=getObjectFromGUID(monsterPiles.purple).takeObject(params)
-										gStates.monsterPlayLocation[token.guid]=params.position
 									else
-										broadcastToAll("{en}Sorry, there are no Purple tokens left to deploy{ru}Извините, фиолетовые жетоны закончились.{zh-tw}抱歉，没有棕色标记可供部署{zh-cn}抱歉，没有棕色标记可供部署{ko}여분의 보라색 토큰이 없습니다{es}Lo sentimos, no quedan tokens púrpuras para implementar{fr}Désolé, il n'y a plus de jetons violets à déployer{pt-br}Desculpe, Não tem Fichas Roxas sobrando para distribuir{de}Leider gibt es keine violetten Plättchen mehr zum Einsetzen", warningColor)
+										broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
 									end
 								end
 
-								--Keep
-								if hexFeature=="keep" then
-									local token={}
-									params.position={angleToXY(obj,hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
+								if gStates.gameScenario=="The Realm of the Dead Blitz" and terrainTiles[objGUID].tileType=="country" then
+									local deploy={	{monster={{monsterPiles.greenDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={advancedActionRewardDecal}},
+													{monster={{monsterPiles.tanDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={spellRewardDecal}},
+													{monster={{monsterPiles.redDark,  0.0}}, reward={unitRewardDecal}},
+													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={artifactRewardDecal}},
+													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.1}}, reward={artifactRewardDecal, advancedActionRewardDecal}},
+													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.0}, {monsterPiles.greenDark, 0.1}}, reward={artifactRewardDecal, spellRewardDecal}}}--this is for five player games, which is currently imposible
+									--play Graveyard Token
+									params.position={angleToXY(obj,hexLocation)[1], 1.09, angleToXY(obj,hexLocation)[2]}
 									params.rotation=faceDown
-									if gStates.gameScenario=="The Hidden Valley Blitz" and objGUID==GUID.tile.city07 then
-										gStates.mineMonsterQty[objGUID]=gStates.mineMonsterQty[objGUID] or {}
-										local center=angleToXY(obj,hexLocation)
-										for i, offset in ipairs({-0.1, 0.1}) do
-											params.position={center[1]+offset, y, center[2]+offset}
-											local token=takeFactionMonster("green", "Elem", params)
-											if token~=nil then
-												gStates.monsterPlayLocation[token.guid]=params.position
-												gStates.hiddenValleyKeep[i]=token.guid
-												gStates.mineMonsterQty[objGUID][token.guid]="alive"
-											else
-												broadcastToAll("{en}Sorry, there are no Green tokens left to deploy{ru}Извините, зеленые жетоны закончились.{zh-tw}抱歉，没有绿色标记可供部署{zh-cn}抱歉，没有绿色标记可供部署{ko}여분의 녹색 토큰이 없습니다{es}Lo sentimos, no quedan tokens verdes para implementar{fr}Désolé, il n'y a plus de jetons verts à déployer{pt-br}Desculpe, Não tem Fichas Verde sobrando para distribuir{de}Tut mir leid, es gibt keine grünen Plättchen mehr zum Einsetzen", warningColor)
-											end
-										end
-									else
-										if getObjectFromGUID(monsterPiles.gray).getQuantity()>0 then
-											local token=getObjectFromGUID(monsterPiles.gray).takeObject(params)
-											gStates.monsterPlayLocation[token.guid]=params.position
-										else
-											broadcastToAll("{en}Sorry, there are no Gray tokens left to deploy{ru}Извините, серые жетоны закончились.{zh-tw}抱歉，没有灰色标记可供部署{zh-cn}抱歉，没有灰色标记可供部署{ko}여분의 회색 토큰이 없습니다.{es}Lo sentimos, no quedan tokens grises para desplegar{fr}Désolé, il n'y a plus de jetons gris à déployer{pt-br}Desculpe, Não tem Fichas Cinza sobrando para distribuir{de}Entschuldigung, es gibt keine grauen Plättchen mehr zum Auslegen", warningColor)
-										end
+									local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject(params)
+									graveyard.lock()
+									terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
+									if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
+									gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
+									for index, reward in pairs(deploy[gStates.playedGladeTiles+1].reward) do
+										local posOnToken={{0.35, -0.21, 0.35}, {0.0, -0.2, 0.25}}
+										graveyard.addDecal({name="Reward", url=reward, position=posOnToken[index], rotation={-90, 0, 0}, scale={0.5, 0.7, 1}})
 									end
-								end
-
-								--Ruins
-								if hexFeature=="ruin" then
-									if gStates.dayRound==false then faceUp=faceDown end
-									params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
-									params.rotation=faceUp
-									local token=getObjectFromGUID(monsterPiles.yellow).takeObject(params)
-									gStates.monsterPlayLocation[token.guid]=params.position
-									faceUp={0.0, 180.0, 0.0}
-								end
-
-								--City
-								if ((hexFeature or ""):sub(1, 4)=="city" or hexFeature=="Volkare's Camp")
-									and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true))
-									or (hexLocation=="center" and gStates.removeShadesOfTezlaMonsters~=true and gStates.gameScenario=="Ultimate Conquest" and (objGUID==GUID.tile.core03 or objGUID==GUID.tile.core10)) then
-									playCity(obj, hexFeature, true)
+									--play Monster tokens
+									local params2={}
+									for index, monsterPile in pairs(deploy[gStates.playedGladeTiles+1].monster) do
+										local token=nil
+										local monsterPileConvert={[monsterPiles.greenDark]=monsterPiles.green, [monsterPiles.tanDark]=monsterPiles.tan, [monsterPiles.redDark]=monsterPiles.red}
+										params2.position={params.position[1]+monsterPile[2], y+(index/2), params.position[3]+monsterPile[2]}
+										if getObjectFromGUID(monsterPile[1]).getQuantity()>0 then token=getObjectFromGUID(monsterPile[1]).takeObject(params2) else token=getObjectFromGUID(monsterPileConvert[monsterPile[1]]).takeObject(params2) end
+										markMonsterFactionSubstitute(token, "Dark")
+										token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
+										if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+										gStates.monsterPlayLocation[token.guid]=params2.position
+										if gStates.mineMonsterQty[objGUID]==nil then gStates.mineMonsterQty[objGUID]={[token.guid]="alive"} else gStates.mineMonsterQty[objGUID][token.guid]="alive" end
+									end
+									gStates.playedGladeTiles=gStates.playedGladeTiles+1
 								end
 							end
-						end
-					end, tokenWait+8)
-					if gStates.playedAllready[objGUID]~=true and
-						(hexFeature=="rampaging" or hexFeature=="draconum" or hexFeature=="mage tower" or hexFeature=="keep" or	hexFeature=="ruin" or hexFeature=="Volkare's Camp" or (hexFeature or ""):sub(1, 4)=="city" or
-						(hexFeature=="mine" and gStates.gameScenario=="Mines Liberation") or
-						(hexFeature=="glade" and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four" or gStates.gameScenario=="The Realm of the Dead Blitz"))) then--and objGUID~=GUID.tile.city05
-						tokenWait=tokenWait+8
-					end
-				end
-				--lock terrain tile if succesfuly deployed all tokens
-				safeWaitCondition("Events",function() obj.lock() end, function() return obj.resting end)
-				local function finishTerrainPopulation()
-					gStates.playedAllready[objGUID]=true
-					workingOnTerrain[objGUID]=false
-					--Terrain deployment changes the movement graph directly. Refresh it here instead of relying on
-					--the later fake avatar drop to eventually trigger a full UI update.
-					if gStates.firstStarted==true then
-						moveDisplayTerrainCache={signature=nil,hexMap=nil}
-						updateMoveDisplay()
-					end
-					if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals() end
-					mapTokenArrangeAllOccupiedHexes()
-					fakeDropAvatar()
-					apocalypseQuestRefreshOfferButtons()
-				end
-				if startingMapSetup==true then
-					safeWaitCondition("Events",finishTerrainPopulation,function()
-						return setupPopulationPending==0 and obj.resting==true
-					end,10,function()
-						error("SetupGame timed out waiting for initial terrain deployment callbacks for "..tostring(objGUID)..".",2)
-					end)
-				else
-					safeWaitFrames("Events",finishTerrainPopulation,tokenWait+10)
-				end
 
-				--Fame is awarded only for terrain actually explored during play. Initial setup terrain is
-				--tagged when it enters the map and never counts as exploration in these scenarios.
-				if startingMapTiles[objGUID]~=true and
-					(gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
-					turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
-					local centerFeature=terrainTiles[objGUID].hexFeature["center"] or ""
-					if gStates.gameScenario=="The Lost Relic Blitz" and (centerFeature:sub(1,4)=="city" or centerFeature=="Volkare's Camp") then
-						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
+							--Mage Tower
+							if hexFeature=="mage tower" then
+								params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj,hexLocation)[2]}
+								params.rotation=faceDown
+								if getObjectFromGUID(monsterPiles.purple).getQuantity()>0 then
+									local token=getObjectFromGUID(monsterPiles.purple).takeObject(params)
+									gStates.monsterPlayLocation[token.guid]=params.position
+								else
+									broadcastToAll("{en}Sorry, there are no Purple tokens left to deploy{ru}Извините, фиолетовые жетоны закончились.{zh-tw}抱歉，没有棕色标记可供部署{zh-cn}抱歉，没有棕色标记可供部署{ko}여분의 보라색 토큰이 없습니다{es}Lo sentimos, no quedan tokens púrpuras para implementar{fr}Désolé, il n'y a plus de jetons violets à déployer{pt-br}Desculpe, Não tem Fichas Roxas sobrando para distribuir{de}Leider gibt es keine violetten Plättchen mehr zum Einsetzen", warningColor)
+								end
+							end
+
+							--Keep
+							if hexFeature=="keep" then
+								local token={}
+								params.position={angleToXY(obj,hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
+								params.rotation=faceDown
+								if gStates.gameScenario=="The Hidden Valley Blitz" and objGUID==GUID.tile.city07 then
+									gStates.mineMonsterQty[objGUID]=gStates.mineMonsterQty[objGUID] or {}
+									local center=angleToXY(obj,hexLocation)
+									for i, offset in ipairs({-0.1, 0.1}) do
+										params.position={center[1]+offset, y, center[2]+offset}
+										local token=takeFactionMonster("green", "Elem", params)
+										if token~=nil then
+											gStates.monsterPlayLocation[token.guid]=params.position
+											gStates.hiddenValleyKeep[i]=token.guid
+											gStates.mineMonsterQty[objGUID][token.guid]="alive"
+										else
+											broadcastToAll("{en}Sorry, there are no Green tokens left to deploy{ru}Извините, зеленые жетоны закончились.{zh-tw}抱歉，没有绿色标记可供部署{zh-cn}抱歉，没有绿色标记可供部署{ko}여분의 녹색 토큰이 없습니다{es}Lo sentimos, no quedan tokens verdes para implementar{fr}Désolé, il n'y a plus de jetons verts à déployer{pt-br}Desculpe, Não tem Fichas Verde sobrando para distribuir{de}Tut mir leid, es gibt keine grünen Plättchen mehr zum Einsetzen", warningColor)
+										end
+									end
+								else
+									if getObjectFromGUID(monsterPiles.gray).getQuantity()>0 then
+										local token=getObjectFromGUID(monsterPiles.gray).takeObject(params)
+										gStates.monsterPlayLocation[token.guid]=params.position
+									else
+										broadcastToAll("{en}Sorry, there are no Gray tokens left to deploy{ru}Извините, серые жетоны закончились.{zh-tw}抱歉，没有灰色标记可供部署{zh-cn}抱歉，没有灰色标记可供部署{ko}여분의 회색 토큰이 없습니다.{es}Lo sentimos, no quedan tokens grises para desplegar{fr}Désolé, il n'y a plus de jetons gris à déployer{pt-br}Desculpe, Não tem Fichas Cinza sobrando para distribuir{de}Entschuldigung, es gibt keine grauen Plättchen mehr zum Auslegen", warningColor)
+									end
+								end
+							end
+
+							--Ruins
+							if hexFeature=="ruin" then
+								if gStates.dayRound==false then faceUp=faceDown end
+								params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
+								params.rotation=faceUp
+								local token=getObjectFromGUID(monsterPiles.yellow).takeObject(params)
+								gStates.monsterPlayLocation[token.guid]=params.position
+								faceUp={0.0, 180.0, 0.0}
+							end
+
+							--City
+							if ((hexFeature or ""):sub(1, 4)=="city" or hexFeature=="Volkare's Camp")
+								and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true))
+								or (hexLocation=="center" and gStates.removeShadesOfTezlaMonsters~=true and gStates.gameScenario=="Ultimate Conquest" and (objGUID==GUID.tile.core03 or objGUID==GUID.tile.core10)) then
+								playCity(obj, hexFeature, true)
+							end
+						end
 					end
-					broadcastToAll("{en}Exploring gives fame gain in this Scenario{ru}Исследование дает Славу в этом сценарии{zh-tw}在这个剧本探索板块会增加名望{zh-cn}在这个剧本探索板块会增加名望{ko}이 시나리오에선 탐험시 명성을 얻습니다{es}Explorar da fama en este Escenario{fr}L'exploration donne un gain de renommée dans ce Scénario{pt-br}Explorar dá Fama neste Cenário{de}Erkunden bringt in diesem Szenario Ruhmgewinn", {1,1,0.5})
-					mainUIUpdate("Fame Gain from exploring")
+				end, tokenWait+8)
+				if gStates.playedAllready[objGUID]~=true and
+					(hexFeature=="rampaging" or hexFeature=="draconum" or hexFeature=="mage tower" or hexFeature=="keep" or	hexFeature=="ruin" or hexFeature=="Volkare's Camp" or (hexFeature or ""):sub(1, 4)=="city" or
+					(hexFeature=="mine" and gStates.gameScenario=="Mines Liberation") or
+					(hexFeature=="glade" and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four" or gStates.gameScenario=="The Realm of the Dead Blitz"))) then--and objGUID~=GUID.tile.city05
+					tokenWait=tokenWait+8
 				end
-			else
-				workingOnTerrain[objGUID]=false
-				if errorBroadcast~="" then broadcastToAll(errorBroadcast, warningColor) end
-				if faceDownTerrain==false then obj.setColorTint({r=1.0, g=0.7, b=0.7}) end
 			end
+			--lock terrain tile if succesfuly deployed all tokens
+			safeWaitCondition("Events",function() obj.lock() end, function() return obj.resting end)
+			local function finishTerrainPopulation()
+				gStates.playedAllready[objGUID]=true
+				workingOnTerrain[objGUID]=false
+				--Terrain deployment changes the movement graph directly. Refresh it here instead of relying on
+				--the later fake avatar drop to eventually trigger a full UI update.
+				if gStates.firstStarted==true then
+					moveDisplayTerrainCache={signature=nil,hexMap=nil}
+					updateMoveDisplay()
+				end
+				if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals() end
+				mapTokenArrangeAllOccupiedHexes()
+				fakeDropAvatar()
+				apocalypseQuestRefreshOfferButtons()
+			end
+			if startingMapSetup==true then
+				safeWaitCondition("Events",finishTerrainPopulation,function()
+					return setupPopulationPending==0 and obj.resting==true
+				end,10,function()
+					error("SetupGame timed out waiting for initial terrain deployment callbacks for "..tostring(objGUID)..".",2)
+				end)
+			else
+				safeWaitFrames("Events",finishTerrainPopulation,tokenWait+10)
+			end
+
+			--Fame is awarded only for terrain actually explored during play. Initial setup terrain is
+			--tagged when it enters the map and never counts as exploration in these scenarios.
+			if startingMapTiles[objGUID]~=true and
+				(gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
+				turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
+				local centerFeature=terrainTiles[objGUID].hexFeature["center"] or ""
+				if gStates.gameScenario=="The Lost Relic Blitz" and (centerFeature:sub(1,4)=="city" or centerFeature=="Volkare's Camp") then
+					turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
+				end
+				broadcastToAll("{en}Exploring gives fame gain in this Scenario{ru}Исследование дает Славу в этом сценарии{zh-tw}在这个剧本探索板块会增加名望{zh-cn}在这个剧本探索板块会增加名望{ko}이 시나리오에선 탐험시 명성을 얻습니다{es}Explorar da fama en este Escenario{fr}L'exploration donne un gain de renommée dans ce Scénario{pt-br}Explorar dá Fama neste Cenário{de}Erkunden bringt in diesem Szenario Ruhmgewinn", {1,1,0.5})
+				mainUIUpdate("Fame Gain from exploring")
+			end
+		else
+			workingOnTerrain[objGUID]=false
+			if errorBroadcast~="" then broadcastToAll(errorBroadcast, warningColor) end
+			if faceDownTerrain==false then obj.setColorTint({r=1.0, g=0.7, b=0.7}) end
 		end
+	end
 
         -- Flip Info cards that match the terrain
         if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and (obj.getRotation()[3] <= 5 or obj.getRotation()[3] >= 355) then
-			for hexLocation, hexFeature in pairs(terrainTiles[objGUID].hexFeature) do
-				local infoGUID=terrainInfoCardGUIDs[hexFeature]
-				if hexFeature=="mine" then
-					local mineColors=terrainTiles[objGUID].mineColors~=nil and terrainTiles[objGUID].mineColors[hexLocation] or nil
-					if mineColors~=nil and #mineColors==1 then infoGUID="938554" end
-				end
-				if infoGUID~=nil then
-					local citySpecificInfo=hexFeature=="city green" or hexFeature=="city red" or hexFeature=="city blue" or hexFeature=="city white"
-					--City colour can change later in playCity() (duplicate/random City replacement).
-					--Reveal coloured City cards there, after the final deployed City GUID is known.
-					if citySpecificInfo==false then
-						local infoCard=getObjectFromGUID(infoGUID)
-						if infoCard~=nil then infoCard.setRotationSmooth({0.00, 180.00, 0.00}) end
-					end
+		for hexLocation, hexFeature in pairs(terrainTiles[objGUID].hexFeature) do
+			local infoGUID=terrainInfoCardGUIDs[hexFeature]
+			if hexFeature=="mine" then
+				local mineColors=terrainTiles[objGUID].mineColors~=nil and terrainTiles[objGUID].mineColors[hexLocation] or nil
+				if mineColors~=nil and #mineColors==1 then infoGUID="938554" end
+			end
+			if infoGUID~=nil then
+				local citySpecificInfo=hexFeature=="city green" or hexFeature=="city red" or hexFeature=="city blue" or hexFeature=="city white"
+				--City colour can change later in playCity() (duplicate/random City replacement).
+				--Reveal coloured City cards there, after the final deployed City GUID is known.
+				if citySpecificInfo==false then
+					local infoCard=getObjectFromGUID(infoGUID)
+					if infoCard~=nil then infoCard.setRotationSmooth({0.00, 180.00, 0.00}) end
 				end
 			end
-			local wallList=terrainTiles[objGUID].wallList
-				if wallList~=nil and next(wallList)~=nil then
-					local wallInfoCard=getObjectFromGUID("767084")
-					if wallInfoCard~=nil then wallInfoCard.setRotationSmooth({0.00, 180.00, 0.00}) end
-				end
-	        end
-		if zoneGUID==mapArea and terrainTiles[objGUID]~=nil then return end
+		end
+		local wallList=terrainTiles[objGUID].wallList
+			if wallList~=nil and next(wallList)~=nil then
+				local wallInfoCard=getObjectFromGUID("767084")
+				if wallInfoCard~=nil then wallInfoCard.setRotationSmooth({0.00, 180.00, 0.00}) end
+			end
+        end
+	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil then return true end
+	return false
+end
 
-			--Check if a shield, avatar, secret Dungeon, or Secret Tomb has been played to cities or board
-		if zoneGUID==mapArea or zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity or zoneGUID==volkare.discZone or zoneGUID==darkCrusader.discZone or zoneGUID==elementalist.discZone then
-			local objectName=obj.getName()
-			local objectNotes=obj.getGMNotes()
-			if (objectName=="Shield" or objectNotes=="Burned Monastery" or objectName=="Secret Dungeon" or objectName=="Secret Tomb") and obj.getLock()==false then
-				scheduleShieldLocation(obj, zone, "enter")
-			else
-				if zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity or zoneGUID==volkare.discZone then
-					--Record if avatar is dropped on city card
-					for b, mageSearch in pairs(turnOrder) do
-						if mageSearch.mage==objectName then
-							local found=false
-							if gStates.cityMonsterQty[cityScriptZones[zoneGUID].cityGUID]~=nil then
-								for cityguid, monsters in pairs(gStates.cityMonsterQty[cityScriptZones[zoneGUID].cityGUID]) do
-									if monsters=="alive" then found=true end
-								end
+local function handleMapLocationZoneEnter(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+		--Check if a shield, avatar, secret Dungeon, or Secret Tomb has been played to cities or board
+	if zoneGUID==mapArea or zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity or zoneGUID==volkare.discZone or zoneGUID==darkCrusader.discZone or zoneGUID==elementalist.discZone then
+		local objectName=obj.getName()
+		local objectNotes=obj.getGMNotes()
+		if (objectName=="Shield" or objectNotes=="Burned Monastery" or objectName=="Secret Dungeon" or objectName=="Secret Tomb") and obj.getLock()==false then
+			scheduleShieldLocation(obj, zone, "enter")
+		else
+			if zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity or zoneGUID==volkare.discZone then
+				--Record if avatar is dropped on city card
+				for b, mageSearch in pairs(turnOrder) do
+					if mageSearch.mage==objectName then
+						local found=false
+						if gStates.cityMonsterQty[cityScriptZones[zoneGUID].cityGUID]~=nil then
+							for cityguid, monsters in pairs(gStates.cityMonsterQty[cityScriptZones[zoneGUID].cityGUID]) do
+								if monsters=="alive" then found=true end
 							end
-							if found==false then
-								if zoneGUID~=volkare.discZone then
-									broadcastToAll(joinLang({translateWord[mageSearch.mage], "{en} has entered the City.{ru} заходит в Город.{zh-tw}已经进入城市了{zh-cn}已经进入城市了{ko}: 도시에 입장했습니다.{es} ha entrado en la Ciudad.{fr} est entré dans la Ville.{pt-br} entrou na Cidade.{de} hat die Stadt betreten."}), positionToColor(b))
-								else
-									broadcastToAll(joinLang({translateWord[mageSearch.mage], "{en} has entered the Camp.{ru} заходит в Лагерь.{zh-tw}已经进入营地了{zh-cn}已经进入营地了{ko}: 볼케어 진영에 입장했습니다.{es} ha entrado en el Campamento.{fr} est entré dans le Camp.{pt-br} entrou no Acampamento.{de} hat das Lager betreten."}), positionToColor(b))
-								end
+						end
+						if found==false then
+							if zoneGUID~=volkare.discZone then
+								broadcastToAll(joinLang({translateWord[mageSearch.mage], "{en} has entered the City.{ru} заходит в Город.{zh-tw}已经进入城市了{zh-cn}已经进入城市了{ko}: 도시에 입장했습니다.{es} ha entrado en la Ciudad.{fr} est entré dans la Ville.{pt-br} entrou na Cidade.{de} hat die Stadt betreten."}), positionToColor(b))
 							else
-								if zoneGUID~=volkare.discZone then
-									broadcastToAll(joinLang({translateWord[mageSearch.mage], "{en} is Assaulting the City.{ru} штурмует Город.{zh-tw}正在突袭城市{zh-cn}正在突袭城市{ko}: 도시를 강습합니다.{es} está Asaltando la Ciudad.{fr} est à l'assaut de la Ville.{pt-br} invadiu a Cidade.{de} greift die Stadt an."}), positionToColor(b))
-								else
-									broadcastToAll(joinLang({translateWord[mageSearch.mage], "{en} is Assaulting the Camp.{ru} штурмует Лагерь.{zh-tw}正在突袭营地{zh-cn}正在突袭营地{ko}: 볼케어 진영을 강습합니다.{es} está Asaltando el Campamento.{fr} est à l'assaut du Camp.{pt-br} invadiu o Acampamento.{de} greift das Lager an."}), positionToColor(b))
-								end
+								broadcastToAll(joinLang({translateWord[mageSearch.mage], "{en} has entered the Camp.{ru} заходит в Лагерь.{zh-tw}已经进入营地了{zh-cn}已经进入营地了{ko}: 볼케어 진영에 입장했습니다.{es} ha entrado en el Campamento.{fr} est entré dans le Camp.{pt-br} entrou no Acampamento.{de} hat das Lager betreten."}), positionToColor(b))
 							end
-							break
+						else
+							if zoneGUID~=volkare.discZone then
+								broadcastToAll(joinLang({translateWord[mageSearch.mage], "{en} is Assaulting the City.{ru} штурмует Город.{zh-tw}正在突袭城市{zh-cn}正在突袭城市{ko}: 도시를 강습합니다.{es} está Asaltando la Ciudad.{fr} est à l'assaut de la Ville.{pt-br} invadiu a Cidade.{de} greift die Stadt an."}), positionToColor(b))
+							else
+								broadcastToAll(joinLang({translateWord[mageSearch.mage], "{en} is Assaulting the Camp.{ru} штурмует Лагерь.{zh-tw}正在突袭营地{zh-cn}正在突袭营地{ko}: 볼케어 진영을 강습합니다.{es} está Asaltando el Campamento.{fr} est à l'assaut du Camp.{pt-br} invadiu o Acampamento.{de} greift das Lager an."}), positionToColor(b))
+							end
 						end
+						break
 					end
 				end
 			end
-			if objectName=="Shield" then gStates.shieldsDropped[objGUID]=true end
 		end
+		if objectName=="Shield" then gStates.shieldsDropped[objGUID]=true end
+	end
 
-		--Manually destroy a hex
-		--if zoneGUID==mapArea and obj.getGMnotes()="Destroyed" then
-		--	destroyRestoreLocation(nil, "-1", "id", "manualDestroy", obj)
-		--end
+	--Manually destroy a hex
+	--if zoneGUID==mapArea and obj.getGMnotes()="Destroyed" then
+	--	destroyRestoreLocation(nil, "-1", "id", "manualDestroy", obj)
+	--end
 
-		--Add xml Image back to Pursuing and Ambushing monster tokens. Non-monsters entering the map
-		--never need this Object UI pass, which is relatively expensive in TTS.
-		if zoneGUID==mapArea and monsterPugs[objGUID]~=nil and (gStates.rampageAmbush==true or gStates.rampagePursuit==true) then
-			local existingButtons=obj.UI.getXmlTable() or {}
-			local keptButtons={}
-			local uiChanged=false
-			for _, xmlParent in pairs(existingButtons) do
-				if xmlParent.tag=="Image" then uiChanged=true else keptButtons[#keptButtons+1]=xmlParent end
-			end
-			existingButtons=keptButtons
-			--Ambushing Circle
-			if gStates.ambushingMonsters[objGUID]~=nil then
-				uiChanged=true
-				existingButtons[#existingButtons+1]={tag="Image", attributes={id="Ambush Circle", height=1100, width=1100,
-					position="0 0 -1", rotation="0 0 0", image="Ambush Circle"}}
-			end
-			--pursuit Shield
-			for mage1, monsters in pairs(gStates.pursuingMonsters) do
-				if monsters[objGUID]~=nil then
-					for _, mage2 in pairs(mageKnights) do
-						if mage2.mage==mage1 then
-							uiChanged=true
-							existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursue Shield", height=90, width=90,
-								position="0 0 -15", rotation="0 0 180", image="Shield Button "..mage1}}
-							local pursuit=monsters[objGUID]
-							if pursuit.stunned==true or pursuit.state=="Stunned" then existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageURL}} end
-						end
+end
+
+local function handleMapVisualZoneEnter(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--Add xml Image back to Pursuing and Ambushing monster tokens. Non-monsters entering the map
+	--never need this Object UI pass, which is relatively expensive in TTS.
+	if zoneGUID==mapArea and monsterPugs[objGUID]~=nil and (gStates.rampageAmbush==true or gStates.rampagePursuit==true) then
+		local existingButtons=obj.UI.getXmlTable() or {}
+		local keptButtons={}
+		local uiChanged=false
+		for _, xmlParent in pairs(existingButtons) do
+			if xmlParent.tag=="Image" then uiChanged=true else keptButtons[#keptButtons+1]=xmlParent end
+		end
+		existingButtons=keptButtons
+		--Ambushing Circle
+		if gStates.ambushingMonsters[objGUID]~=nil then
+			uiChanged=true
+			existingButtons[#existingButtons+1]={tag="Image", attributes={id="Ambush Circle", height=1100, width=1100,
+				position="0 0 -1", rotation="0 0 0", image="Ambush Circle"}}
+		end
+		--pursuit Shield
+		for mage1, monsters in pairs(gStates.pursuingMonsters) do
+			if monsters[objGUID]~=nil then
+				for _, mage2 in pairs(mageKnights) do
+					if mage2.mage==mage1 then
+						uiChanged=true
+						existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursue Shield", height=90, width=90,
+							position="0 0 -15", rotation="0 0 180", image="Shield Button "..mage1}}
+						local pursuit=monsters[objGUID]
+						if pursuit.stunned==true or pursuit.state=="Stunned" then existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageURL}} end
 					end
 				end
 			end
-			if uiChanged==true then
-				if #existingButtons==0 then existingButtons={{}} end
-				obj.UI.setXmlTable(existingButtons)
+		end
+		if uiChanged==true then
+			if #existingButtons==0 then existingButtons={{}} end
+			obj.UI.setXmlTable(existingButtons)
+		end
+	end
+
+	--Remove transient decals from anything entering the map, but only write the decal table back
+	--when at least one decal actually needs removing.
+	if zoneGUID==mapArea and objGUID~=gStates.volkareModel then
+		local existingDecals=obj.getDecals() or {}
+		local decalTable={}
+		local decalsChanged=false
+		for _, decalDetails in pairs(existingDecals) do
+			if decalDetails.name=="Fortified" or decalDetails.name=="Elemental" or decalDetails.name=="Brutal" or decalDetails.name=="Poison" or decalDetails.name=="Defense" or decalDetails.name:sub(1,4)=="Mine" or decalDetails.name=="NightRules" or decalDetails.name=="Reward" then
+				decalTable[#decalTable+1]=decalDetails
+			else
+				decalsChanged=true
 			end
 		end
+		if decalsChanged==true then obj.setDecals(decalTable) end
+		--reset wallFortified
+		if gStates.monsterPerks[objGUID]~=nil and gStates.monsterPerks[objGUID].wallFortified~=nil then gStates.monsterPerks[objGUID].wallFortified=nil end
+	end
 
-		--Remove transient decals from anything entering the map, but only write the decal table back
-		--when at least one decal actually needs removing.
-		if zoneGUID==mapArea and objGUID~=gStates.volkareModel then
-			local existingDecals=obj.getDecals() or {}
-			local decalTable={}
-			local decalsChanged=false
-			for _, decalDetails in pairs(existingDecals) do
-				if decalDetails.name=="Fortified" or decalDetails.name=="Elemental" or decalDetails.name=="Brutal" or decalDetails.name=="Poison" or decalDetails.name=="Defense" or decalDetails.name:sub(1,4)=="Mine" or decalDetails.name=="NightRules" or decalDetails.name=="Reward" then
-					decalTable[#decalTable+1]=decalDetails
-				else
-					decalsChanged=true
-				end
-			end
-			if decalsChanged==true then obj.setDecals(decalTable) end
-			--reset wallFortified
-			if gStates.monsterPerks[objGUID]~=nil and gStates.monsterPerks[objGUID].wallFortified~=nil then gStates.monsterPerks[objGUID].wallFortified=nil end
-		end
-
-		--Add decals to monster tokens
-		if (zoneGUID==mapArea or zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity) and gStates.monsterPlayLocation[objGUID]~=nil then
-			--fortified
-			if monsterPugs[objGUID]~=nil and monsterPugs[objGUID].unfortified==nil then
-				local target=gStates.monsterPlayLocation[objGUID]
-				local mapObjects=getObjectFromGUID(mapArea).getObjects()
-				local terTile, monsterhexBearing=terrainHexAtPosition(target, mapObjects)
-				if terTile~=nil and monsterhexBearing~=nil then
-					--Add Fortified Site Icon
-					if terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="mage tower" or terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="keep" then
-						--Add Icon
-						local found=false
-						local existingDecals=obj.getDecals() or {}
-						for _, decalDetails in pairs(existingDecals) do
-							if decalDetails.name=="Fortified" then found=true break end
-						end
-						if found==false then
-							obj.addDecal({name="Fortified", url="https://steamusercontent-a.akamaihd.net/ugc/15769941683634999180/45D8BF9859C1F2C026A3B40DA634B74286E2C3EB/", position={0.7, 0.15, -0.9}, rotation={90, 180, 0}, scale={0.72, 0.72, 1}})
-							if gStates.monsterPerks[objGUID]==nil then gStates.monsterPerks[objGUID]={fortified=true} else gStates.monsterPerks[objGUID].fortified=true end
-						end
-					end
-				end
-			end
-			--City Bonus
-			cityBonusDecals(obj, obj)
-			safeWaitFrames("Events",function() addAvatarButtons() end, 5)
-		end
-
-		--Day Tactic 4 hand bonus only changes when the current player's hand changes.
-		if objType=="Card" and gStates.turnNumber>0 and turnOrder[gStates.turnNumber]~=nil and zoneGUID==handZones[turnOrder[gStates.turnNumber].seatPos] then scheduleTactic4HandBonusRefresh() end
-
-		--Record Cards in hand as part of a players deed deck
-		if objType=="Card" and zoneInfo~=nil and zoneInfo.kind=="hand" then
-			local handPlayerIndex=turnOrderIndexAtSeat(zoneInfo.seatPos)
-			local cardType=gameCardType(obj)
-			if handPlayerIndex~=nil and cardType~="Regular Unit" and cardType~="Elite Unit" then
-				for b=1, #turnOrder, 1 do
+	--Add decals to monster tokens
+	if (zoneGUID==mapArea or zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity) and gStates.monsterPlayLocation[objGUID]~=nil then
+		--fortified
+		if monsterPugs[objGUID]~=nil and monsterPugs[objGUID].unfortified==nil then
+			local target=gStates.monsterPlayLocation[objGUID]
+			local mapObjects=getObjectFromGUID(mapArea).getObjects()
+			local terTile, monsterhexBearing=terrainHexAtPosition(target, mapObjects)
+			if terTile~=nil and monsterhexBearing~=nil then
+				--Add Fortified Site Icon
+				if terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="mage tower" or terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="keep" then
+					--Add Icon
 					local found=false
-					for c=1, #turnOrder[b].deadDeckInventory, 1 do
-						if objGUID==turnOrder[b].deadDeckInventory[c] then table.remove(turnOrder[b].deadDeckInventory, c) found=true break end
+					local existingDecals=obj.getDecals() or {}
+					for _, decalDetails in pairs(existingDecals) do
+						if decalDetails.name=="Fortified" then found=true break end
 					end
-					if found==true then break end
+					if found==false then
+						obj.addDecal({name="Fortified", url="https://steamusercontent-a.akamaihd.net/ugc/15769941683634999180/45D8BF9859C1F2C026A3B40DA634B74286E2C3EB/", position={0.7, 0.15, -0.9}, rotation={90, 180, 0}, scale={0.72, 0.72, 1}})
+						if gStates.monsterPerks[objGUID]==nil then gStates.monsterPerks[objGUID]={fortified=true} else gStates.monsterPerks[objGUID].fortified=true end
+					end
 				end
-				turnOrder[handPlayerIndex].deadDeckInventory[#turnOrder[handPlayerIndex].deadDeckInventory+1]=objGUID
-				mainUIUpdate("Card Entered Hand")
 			end
 		end
+		--City Bonus
+		cityBonusDecals(obj, obj)
+		safeWaitFrames("Events",function() addAvatarButtons() end, 5)
+	end
 
-		--Offer cards can enter a broad zone while still moving toward their final row. Wait until the
-		--card is resting before deciding whether it is a Unit, Monastery AA, normal AA, or Spell.
-		if cardClaimingZones[zoneGUID]~=nil then
-			local offerZoneGUID=zoneGUID
-			local offerCardGUID=objGUID
-			safeWaitCondition("Events",function()
-				local offerZone=getObjectFromGUID(offerZoneGUID)
-				local offerCard=getObjectFromGUID(offerCardGUID)
-				if offerZone==nil or offerCard==nil then return end
-				local stillInZone=false
-				for _,zoneObj in pairs(offerZone.getObjects()) do
-					if zoneObj.guid==offerCardGUID then stillInZone=true break end
+end
+
+local function handleHandZoneEnter(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--Day Tactic 4 hand bonus only changes when the current player's hand changes.
+	if objType=="Card" and gStates.turnNumber>0 and turnOrder[gStates.turnNumber]~=nil and zoneGUID==handZones[turnOrder[gStates.turnNumber].seatPos] then scheduleTactic4HandBonusRefresh() end
+
+	--Record Cards in hand as part of a players deed deck
+	if objType=="Card" and zoneInfo~=nil and zoneInfo.kind=="hand" then
+		local handPlayerIndex=turnOrderIndexAtSeat(zoneInfo.seatPos)
+		local cardType=gameCardType(obj)
+		if handPlayerIndex~=nil and cardType~="Regular Unit" and cardType~="Elite Unit" then
+			for b=1, #turnOrder, 1 do
+				local found=false
+				for c=1, #turnOrder[b].deadDeckInventory, 1 do
+					if objGUID==turnOrder[b].deadDeckInventory[c] then table.remove(turnOrder[b].deadDeckInventory, c) found=true break end
 				end
-				if stillInZone~=true then return end
-				local cardSource=offerClaimSource(offerZoneGUID,offerCard)
-				if gameCards[offerCardGUID]==nil or cardSource==nil then return end
-				--Remove card ownership if returned to an offer.
-				for b=1,#turnOrder do
+				if found==true then break end
+			end
+			turnOrder[handPlayerIndex].deadDeckInventory[#turnOrder[handPlayerIndex].deadDeckInventory+1]=objGUID
+			mainUIUpdate("Card Entered Hand")
+		end
+	end
+
+end
+
+local function handleClaimZoneEnter(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--Offer cards can enter a broad zone while still moving toward their final row. Wait until the
+	--card is resting before deciding whether it is a Unit, Monastery AA, normal AA, or Spell.
+	if cardClaimingZones[zoneGUID]~=nil then
+		local offerZoneGUID=zoneGUID
+		local offerCardGUID=objGUID
+		safeWaitCondition("Events",function()
+			local offerZone=getObjectFromGUID(offerZoneGUID)
+			local offerCard=getObjectFromGUID(offerCardGUID)
+			if offerZone==nil or offerCard==nil then return end
+			local stillInZone=false
+			for _,zoneObj in pairs(offerZone.getObjects()) do
+				if zoneObj.guid==offerCardGUID then stillInZone=true break end
+			end
+			if stillInZone~=true then return end
+			local cardSource=offerClaimSource(offerZoneGUID,offerCard)
+			if gameCards[offerCardGUID]==nil or cardSource==nil then return end
+			--Remove card ownership if returned to an offer.
+			for b=1,#turnOrder do
+				local found=false
+				for c=1,#turnOrder[b].deadDeckInventory do
+					if offerCardGUID==turnOrder[b].deadDeckInventory[c] then table.remove(turnOrder[b].deadDeckInventory,c) found=true break end
+				end
+				if found==true then break end
+			end
+			if gStates.tacticShown==false and gStates.tacticRemove==false then
+				offerCard.UI.setXmlTable({createClaimButton(offerCardGUID,cardSource)})
+			end
+		end,function()
+			local offerCard=getObjectFromGUID(offerCardGUID)
+			return offerCard==nil or offerCard.resting
+		end)
+	end
+
+	--protect skill zone from passing through objects
+	if zoneGUID==GUID.zone.skillOffer then
+		local serial=(skillOfferEntrySerial[objGUID] or 0)+1
+		skillOfferEntrySerial[objGUID]=serial
+		safeWaitFrames("Events",function()
+			if skillOfferEntrySerial[objGUID]==serial then skillOfferEntrySerial[objGUID]=nil end
+		end,50)
+	end
+
+	--A tactic returned to its slot only needs its own claim button restored. Wait until the card
+	--has settled so a card merely crossing the zone cannot acquire a claim button mid-move.
+	local tacticSource=tacticClaimingZones[zoneGUID]
+	if tacticSource~=nil and isTacticCard(obj) then
+		local tacticZoneGUID=zoneGUID
+		local tacticCardGUID=objGUID
+		safeWaitCondition("Events",function()
+			local tacticZone=getObjectFromGUID(tacticZoneGUID)
+			local tacticCardObj=getObjectFromGUID(tacticCardGUID)
+			if tacticZone==nil or tacticCardObj==nil then return end
+			local stillInZone=false
+			for _,zoneObj in pairs(tacticZone.getObjects()) do
+				if zoneObj.guid==tacticCardGUID then stillInZone=true break end
+			end
+			if stillInZone~=true then return end
+			if gStates.tacticShown==true then
+				if turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] then
+					tacticCardObj.UI.setXmlTable({createClaimButton(tacticCardGUID,tacticSource)})
+				end
+			elseif gStates.tacticRemove==true and gStates.discardTactics~=2 then
+				tacticCardObj.UI.setXmlTable({createClaimButton(tacticCardGUID,"removeTactic"..tacticSource:sub(7,8))})
+			end
+		end,function()
+			local tacticCardObj=getObjectFromGUID(tacticCardGUID)
+			return tacticCardObj==nil or tacticCardObj.resting
+		end)
+	end
+
+end
+
+local function handlePlayerBoardZoneEnter(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--Updates Main UI buttons when anything is played to a mage's play area/deed deck/discard.
+	--Keep play-area refreshes distinct so mainUIUpdate can skip deck bookkeeping that cannot have changed.
+	if gStates.turnNumber>0 then--makes sure end of round doesn't have errors
+		if zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="deed" or zoneInfo.kind=="discard") and turnOrderIndexAtSeat(zoneInfo.seatPos)~=nil then
+			local seatPos=zoneInfo.seatPos
+			if zoneInfo.kind=="deed" and (objType=="Card" or objType=="Deck") then
+				if objType=="Deck" then obj.max_typed_number=1 end
+				scheduleEndRoundDeedStateRefresh(seatPos)
+			end
+			--remove banner card from register if returned to deck.
+			if zoneInfo.kind=="discard" and gameCards[objGUID]~=nil and gameCards[objGUID].half~=nil then gStates.bannercard[gameCards[objGUID].half]=nil end
+			if zoneInfo.kind=="play" then
+				updatePlayAreaObjectState(seatPos, obj, true)
+				dayTactic2ExpireIfCardPlayed(seatPos)
+				schedulePlayAreaCardScale(seatPos)
+				mainUIUpdate("Object entered into play area")
+			else mainUIUpdate("Object entered into deed deck or discard") end
+		end
+	end
+
+	--Object entered player board
+	if zoneInfo~=nil and zoneInfo.kind=="play" then
+		--increment Master of chaos skill
+		if objGUID=="1ff34f" then
+			if masterOfChaosPause==false then
+				masterOfChaosPause=true
+				if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
+				local temp=gStates.masterOfChaos+1
+				if temp==7 then temp=1 end
+				obj.setCustomObject({image=masterOfChaosData[temp].image})
+				for a=1, #turnOrder, 1 do
+					if turnOrder[a].masterOfChaos~=nil then turnOrder[a].masterOfChaos="used" break end
+				end
+				--Wait.frames(function()
+				obj.reload()
+				--end, 50)
+				safeWaitFrames("Events",function() masterOfChaosPause=false end, 10)
+			end
+			return true
+		end
+
+		--Add combat buttons to monster tokens.
+		local addedButtons=monsterObjectButtons(obj)
+
+
+		--Add fortified symbol
+		if gStates.monsterPlayLocation[objGUID]~=nil and monsterPugs[objGUID]~=nil and monsterPugs[objGUID].unfortified==nil then
+			local target=gStates.monsterPlayLocation[objGUID]
+			local attackingVolkare=false
+			if gStates.cityMonsterQty[volkare.model]~=nil then
+				for guid, state in pairs(gStates.cityMonsterQty[volkare.model]) do
+					if guid==objGUID then
+						local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+						if volkareObj~=nil then target={volkareObj.getPosition()[1], volkareObj.getPosition()[2], volkareObj.getPosition()[3]} end
+						attackingVolkare=true
+					end
+				end
+			end
+			local mapObjects=getObjectFromGUID(mapArea).getObjects()
+			local terTile, monsterhexBearing=terrainHexAtPosition(target, mapObjects)
+			if terTile~=nil and monsterhexBearing~=nil and gStates.volkareState~=nil and gStates.volkareState:sub(1, 9)~="Attacking" then
+
+				--fortified for Volkare's Army
+				if attackingVolkare==true and monsterPugs[objGUID].unfortified==nil and (terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="mage tower" or terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="keep") then
 					local found=false
-					for c=1,#turnOrder[b].deadDeckInventory do
-						if offerCardGUID==turnOrder[b].deadDeckInventory[c] then table.remove(turnOrder[b].deadDeckInventory,c) found=true break end
+					local existingDecals=obj.getDecals() or {}
+					for _, decalDetails in pairs(existingDecals) do
+						if decalDetails.name=="Fortified" then found=true break end
 					end
-					if found==true then break end
-				end
-				if gStates.tacticShown==false and gStates.tacticRemove==false then
-					offerCard.UI.setXmlTable({createClaimButton(offerCardGUID,cardSource)})
-				end
-			end,function()
-				local offerCard=getObjectFromGUID(offerCardGUID)
-				return offerCard==nil or offerCard.resting
-			end)
-		end
-
-		--protect skill zone from passing through objects
-		if zoneGUID==GUID.zone.skillOffer then
-			local serial=(skillOfferEntrySerial[objGUID] or 0)+1
-			skillOfferEntrySerial[objGUID]=serial
-			safeWaitFrames("Events",function()
-				if skillOfferEntrySerial[objGUID]==serial then skillOfferEntrySerial[objGUID]=nil end
-			end,50)
-		end
-
-		--A tactic returned to its slot only needs its own claim button restored. Wait until the card
-		--has settled so a card merely crossing the zone cannot acquire a claim button mid-move.
-		local tacticSource=tacticClaimingZones[zoneGUID]
-		if tacticSource~=nil and isTacticCard(obj) then
-			local tacticZoneGUID=zoneGUID
-			local tacticCardGUID=objGUID
-			safeWaitCondition("Events",function()
-				local tacticZone=getObjectFromGUID(tacticZoneGUID)
-				local tacticCardObj=getObjectFromGUID(tacticCardGUID)
-				if tacticZone==nil or tacticCardObj==nil then return end
-				local stillInZone=false
-				for _,zoneObj in pairs(tacticZone.getObjects()) do
-					if zoneObj.guid==tacticCardGUID then stillInZone=true break end
-				end
-				if stillInZone~=true then return end
-				if gStates.tacticShown==true then
-					if turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] then
-						tacticCardObj.UI.setXmlTable({createClaimButton(tacticCardGUID,tacticSource)})
-					end
-				elseif gStates.tacticRemove==true and gStates.discardTactics~=2 then
-					tacticCardObj.UI.setXmlTable({createClaimButton(tacticCardGUID,"removeTactic"..tacticSource:sub(7,8))})
-				end
-			end,function()
-				local tacticCardObj=getObjectFromGUID(tacticCardGUID)
-				return tacticCardObj==nil or tacticCardObj.resting
-			end)
-		end
-
-		--Updates Main UI buttons when anything is played to a mage's play area/deed deck/discard.
-		--Keep play-area refreshes distinct so mainUIUpdate can skip deck bookkeeping that cannot have changed.
-		if gStates.turnNumber>0 then--makes sure end of round doesn't have errors
-			if zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="deed" or zoneInfo.kind=="discard") and turnOrderIndexAtSeat(zoneInfo.seatPos)~=nil then
-				local seatPos=zoneInfo.seatPos
-				if zoneInfo.kind=="deed" and (objType=="Card" or objType=="Deck") then
-					if objType=="Deck" then obj.max_typed_number=1 end
-					scheduleEndRoundDeedStateRefresh(seatPos)
-				end
-				--remove banner card from register if returned to deck.
-				if zoneInfo.kind=="discard" and gameCards[objGUID]~=nil and gameCards[objGUID].half~=nil then gStates.bannercard[gameCards[objGUID].half]=nil end
-				if zoneInfo.kind=="play" then
-					updatePlayAreaObjectState(seatPos, obj, true)
-					dayTactic2ExpireIfCardPlayed(seatPos)
-					schedulePlayAreaCardScale(seatPos)
-					mainUIUpdate("Object entered into play area")
-				else mainUIUpdate("Object entered into deed deck or discard") end
-			end
-		end
-
-		--Object entered player board
-		if zoneInfo~=nil and zoneInfo.kind=="play" then
-			--increment Master of chaos skill
-			if objGUID=="1ff34f" then
-				if masterOfChaosPause==false then
-					masterOfChaosPause=true
-					if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
-					local temp=gStates.masterOfChaos+1
-					if temp==7 then temp=1 end
-					obj.setCustomObject({image=masterOfChaosData[temp].image})
-					for a=1, #turnOrder, 1 do
-						if turnOrder[a].masterOfChaos~=nil then turnOrder[a].masterOfChaos="used" break end
-					end
-					--Wait.frames(function()
-					obj.reload()
-					--end, 50)
-					safeWaitFrames("Events",function() masterOfChaosPause=false end, 10)
-				end
-				return
-			end
-
-			--Add combat buttons to monster tokens.
-			local addedButtons=monsterObjectButtons(obj)
-
-
-			--Add fortified symbol
-			if gStates.monsterPlayLocation[objGUID]~=nil and monsterPugs[objGUID]~=nil and monsterPugs[objGUID].unfortified==nil then
-				local target=gStates.monsterPlayLocation[objGUID]
-				local attackingVolkare=false
-				if gStates.cityMonsterQty[volkare.model]~=nil then
-					for guid, state in pairs(gStates.cityMonsterQty[volkare.model]) do
-						if guid==objGUID then
-							local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
-							if volkareObj~=nil then target={volkareObj.getPosition()[1], volkareObj.getPosition()[2], volkareObj.getPosition()[3]} end
-							attackingVolkare=true
-						end
+					if found==false then
+						obj.addDecal({name="Fortified", url="https://steamusercontent-a.akamaihd.net/ugc/15769941683634999180/45D8BF9859C1F2C026A3B40DA634B74286E2C3EB/", position={0.8, 0.15, -0.8}, rotation={90, 180, 0}, scale={0.72, 0.72, 1}})
+						if gStates.monsterPerks[objGUID]==nil then gStates.monsterPerks[objGUID]={fortified=true} else gStates.monsterPerks[objGUID].fortified=true end
 					end
 				end
-				local mapObjects=getObjectFromGUID(mapArea).getObjects()
-				local terTile, monsterhexBearing=terrainHexAtPosition(target, mapObjects)
-				if terTile~=nil and monsterhexBearing~=nil and gStates.volkareState~=nil and gStates.volkareState:sub(1, 9)~="Attacking" then
-
-					--fortified for Volkare's Army
-					if attackingVolkare==true and monsterPugs[objGUID].unfortified==nil and (terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="mage tower" or terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="keep") then
-						local found=false
-						local existingDecals=obj.getDecals() or {}
-						for _, decalDetails in pairs(existingDecals) do
-							if decalDetails.name=="Fortified" then found=true break end
-						end
-						if found==false then
-							obj.addDecal({name="Fortified", url="https://steamusercontent-a.akamaihd.net/ugc/15769941683634999180/45D8BF9859C1F2C026A3B40DA634B74286E2C3EB/", position={0.8, 0.15, -0.8}, rotation={90, 180, 0}, scale={0.72, 0.72, 1}})
-							if gStates.monsterPerks[objGUID]==nil then gStates.monsterPerks[objGUID]={fortified=true} else gStates.monsterPerks[objGUID].fortified=true end
-						end
-					end
 
 
-				end
-			end
-			--Manual monster movement cannot assume the current avatar crossed a particular wall.
-			--If the avatar is not on an adjacent hex, use the existing wall-choice interface.
-			resolveManualMonsterWallFortified(obj)
-			if #addedButtons>0 then obj.UI.setXmlTable(addedButtons) end
-
-			--Toggle Half Cards
-			if gameCards[objGUID]~=nil and gameCards[objGUID].half~=nil then
-				local bannerPosition=obj.getPosition()
-				if bannerPosition[3]>=-38.4 then
-					local pass=bannerPosition[1]
-					local halfGUID=gameCards[objGUID].half
-					obj.setState(2)
-					local bannerSeat=zoneInfo.seatPos
-					safeWaitFrames("Events",function()
-						local halfCard=getObjectFromGUID(halfGUID)
-						if halfCard~=nil then
-							halfCard.setScale({0.65, 1, 0.65})
-							halfCard.setPosition({pass, 1.2, -38.12})
-							scheduleUnitLayoutRefresh(bannerSeat)
-						end
-					end, 3)
-				end
-			end
-
-			--Add/remove the Card Remove decal when a normal card enters the player play area.
-			if objType=="Card" and (gameCards[objGUID]==nil or gameCards[objGUID].full==nil) then
-				safeWaitFrames("Events",function() local card=getObjectFromGUID(objGUID) if card~=nil then refreshCardRemoveDecal(card) end end, 2)
-			end
-
-			--Add command decal to banner of Command
-			if objGUID=="8dbce4" then
-				bannerOfCommandDecal()
-				scheduleUnitLayoutRefresh(zoneInfo.seatPos)
-			end
-
-			--if object is a crystal then alter it's animation.
-			if crystalManaNames[obj.getName()]==true then
-				safeWaitTime("Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playTriggerEffect(0) end end, 0.1)
-				safeWaitTime("Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playLoopingEffect(1) end end, 1)
 			end
 		end
+		--Manual monster movement cannot assume the current avatar crossed a particular wall.
+		--If the avatar is not on an adjacent hex, use the existing wall-choice interface.
+		resolveManualMonsterWallFortified(obj)
+		if #addedButtons>0 then obj.UI.setXmlTable(addedButtons) end
 
-		--Unit Area work is event-driven: split accidental two-card Unit decks only when this area changes.
-		local unitZoneInfo=zoneInfo
-		if unitZoneInfo~=nil and unitZoneInfo.kind=="unit" then
-			local unitSeatPos=unitZoneInfo.seatPos
-			if objType=="Card" or objType=="Deck" then safeWaitFrames("Events",function() separateCombinedUnitsInArea(unitSeatPos) end, 2) end
-			scheduleUnitLayoutRefresh(unitSeatPos)
-			--Monster tokens may be dropped directly on Units. Give them the same combat controls and reward refresh as Play Area monsters.
-			if monsterPugs[objGUID]~=nil then
-				local monsterGUID=objGUID
+		--Toggle Half Cards
+		if gameCards[objGUID]~=nil and gameCards[objGUID].half~=nil then
+			local bannerPosition=obj.getPosition()
+			if bannerPosition[3]>=-38.4 then
+				local pass=bannerPosition[1]
+				local halfGUID=gameCards[objGUID].half
+				obj.setState(2)
+				local bannerSeat=zoneInfo.seatPos
 				safeWaitFrames("Events",function()
-					local monster=getObjectFromGUID(monsterGUID)
-					if monster~=nil and objectInPlayerCombatArea(monsterGUID)==true then
-						local addedButtons=monsterObjectButtons(monster)
-						if #addedButtons>0 then monster.UI.setXmlTable(addedButtons) end
-						mainUIUpdate("Monster entered unit area")
+					local halfCard=getObjectFromGUID(halfGUID)
+					if halfCard~=nil then
+						halfCard.setScale({0.65, 1, 0.65})
+						halfCard.setPosition({pass, 1.2, -38.12})
+						scheduleUnitLayoutRefresh(bannerSeat)
 					end
-				end, 2)
+				end, 3)
 			end
 		end
 
-		--Re-add avatar buttons when an avatar enters a non-map zone. Entering the map scripting
-		--zone happens before onObjectDrop has recalculated its new hex, so refreshing here would
-		--briefly attach the previous location's buttons. The settled drop owns the map refresh.
-		if mageKnightAvatarGUIDs[objGUID]==true and zoneGUID~=mapArea then addAvatarButtons() end
-
-		--Change wound cards dropped on units to wound token.
-		if zoneInfo~=nil and zoneInfo.kind=="unit" and objType=="Card" and obj.getGMNotes()=="Wound" then
-			local woundPosition=obj.getPosition()
-			local woundX=woundPosition[1]
-			if woundPosition[3]>=-37 and ((woundX>-65.3 and woundX<-42.7) or (woundX>-25.3 and woundX<-2.7) or
-				(woundX>14.7 and woundX<37.3) or (woundX>54.7 and woundX<77.3)) then
-				getObjectFromGUID("ab56f3").takeObject({position={woundX, woundPosition[2], -33.29}, smooth=false})
-				obj.destruct()
-			end
+		--Add/remove the Card Remove decal when a normal card enters the player play area.
+		if objType=="Card" and (gameCards[objGUID]==nil or gameCards[objGUID].full==nil) then
+			safeWaitFrames("Events",function() local card=getObjectFromGUID(objGUID) if card~=nil then refreshCardRemoveDecal(card) end end, 2)
 		end
+
+		--Add command decal to banner of Command
+		if objGUID=="8dbce4" then
+			bannerOfCommandDecal()
+			scheduleUnitLayoutRefresh(zoneInfo.seatPos)
+		end
+
+		--if object is a crystal then alter it's animation.
+		if crystalManaNames[obj.getName()]==true then
+			safeWaitTime("Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playTriggerEffect(0) end end, 0.1)
+			safeWaitTime("Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playLoopingEffect(1) end end, 1)
+		end
+	end
+
+	--Unit Area work is event-driven: split accidental two-card Unit decks only when this area changes.
+	local unitZoneInfo=zoneInfo
+	if unitZoneInfo~=nil and unitZoneInfo.kind=="unit" then
+		local unitSeatPos=unitZoneInfo.seatPos
+		if objType=="Card" or objType=="Deck" then safeWaitFrames("Events",function() separateCombinedUnitsInArea(unitSeatPos) end, 2) end
+		scheduleUnitLayoutRefresh(unitSeatPos)
+		--Monster tokens may be dropped directly on Units. Give them the same combat controls and reward refresh as Play Area monsters.
+		if monsterPugs[objGUID]~=nil then
+			local monsterGUID=objGUID
+			safeWaitFrames("Events",function()
+				local monster=getObjectFromGUID(monsterGUID)
+				if monster~=nil and objectInPlayerCombatArea(monsterGUID)==true then
+					local addedButtons=monsterObjectButtons(monster)
+					if #addedButtons>0 then monster.UI.setXmlTable(addedButtons) end
+					mainUIUpdate("Monster entered unit area")
+				end
+			end, 2)
+		end
+	end
+
+	--Re-add avatar buttons when an avatar enters a non-map zone. Entering the map scripting
+	--zone happens before onObjectDrop has recalculated its new hex, so refreshing here would
+	--briefly attach the previous location's buttons. The settled drop owns the map refresh.
+	if mageKnightAvatarGUIDs[objGUID]==true and zoneGUID~=mapArea then addAvatarButtons() end
+
+	--Change wound cards dropped on units to wound token.
+	if zoneInfo~=nil and zoneInfo.kind=="unit" and objType=="Card" and obj.getGMNotes()=="Wound" then
+		local woundPosition=obj.getPosition()
+		local woundX=woundPosition[1]
+		if woundPosition[3]>=-37 and ((woundX>-65.3 and woundX<-42.7) or (woundX>-25.3 and woundX<-2.7) or
+			(woundX>14.7 and woundX<37.3) or (woundX>54.7 and woundX<77.3)) then
+			getObjectFromGUID("ab56f3").takeObject({position={woundX, woundPosition[2], -33.29}, smooth=false})
+			obj.destruct()
+		end
+	end
 
         --flip ruin down if one of its monsters is Down
         if gStates.ruinMonsters~=nil and gStates.ruinMonsters[objGUID]~=nil then
@@ -2259,23 +2350,40 @@ function __onObjectEnterZone_raw(zone, obj)
             end
         end
 
-		--record potion return locationTest
-		if zoneInfo~=nil and zoneInfo.kind=="crystal" and obj.getName():reverse():sub(1, 6)=="noitoP" then
-			local potionPosition=obj.getPosition()
-			gStates.mageSkills[objGUID]={potionPosition[1], potionPosition[2], potionPosition[3]}
-		end
-
-		--Lock possesed token on to nearest monster
-		if (zoneGUID==mapArea or (zoneInfo~=nil and zoneInfo.kind=="play"))
-			and monsterPugs[objGUID]~=nil and monsterPugs[objGUID].pugType=="possessed" then
-			attachEnemy(nil, nil, "attach", obj, zone)
-		end
-	else
-		--Update Mage Level Boards before the game starts.
-		if gStates.mageKnightLevels==true then
-			if zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then mageLevelBoard() end
-		end
+	--record potion return locationTest
+	if zoneInfo~=nil and zoneInfo.kind=="crystal" and obj.getName():reverse():sub(1, 6)=="noitoP" then
+		local potionPosition=obj.getPosition()
+		gStates.mageSkills[objGUID]={potionPosition[1], potionPosition[2], potionPosition[3]}
 	end
+
+	--Lock possesed token on to nearest monster
+	if (zoneGUID==mapArea or (zoneInfo~=nil and zoneInfo.kind=="play"))
+		and monsterPugs[objGUID]~=nil and monsterPugs[objGUID].pugType=="possessed" then
+		attachEnemy(nil, nil, "attach", obj, zone)
+	end
+	return false
+end
+
+local function handlePreGameZoneEnter(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--Update Mage Level Boards before the game starts.
+	if gStates.mageKnightLevels==true then
+		if zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then mageLevelBoard() end
+	end
+end
+
+local function handleManaZoneEnter(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
 	--Mirror dice in source and Start of rounds should have half or more standard color Mana Dice
 	if zoneGUID==GUID.zone.mana and objType=="Dice" then
 		if dieRollEnterPause~=nil then Wait.stop(dieRollEnterPause) end
@@ -2309,176 +2417,253 @@ function __onObjectEnterZone_raw(zone, obj)
 	end
 end
 
+function __onObjectEnterZone_raw(zone, obj)
+	local ctx=zoneEventContext(zone,obj)
+	if ctx==nil then return end
+	if handleZoneEnterPrelude(ctx)==true then return end
+	if gStates.firstStarted==true then
+		handleStartedZoneEnterPrelude(ctx)
+		handleTurnOrderZoneEnter(ctx)
+		if handleTerrainZoneEnter(ctx)==true then return end
+		handleMapLocationZoneEnter(ctx)
+		handleMapVisualZoneEnter(ctx)
+		handleHandZoneEnter(ctx)
+		handleClaimZoneEnter(ctx)
+		if handlePlayerBoardZoneEnter(ctx)==true then return end
+	else
+		handlePreGameZoneEnter(ctx)
+	end
+	handleManaZoneEnter(ctx)
+end
+
 --Undo a monastery & re-enable end turn button
 dieRollExitPause=nil
-function __onObjectLeaveZone_raw(zone, obj)
-	if obj~=nil and apocalypseDragonGroundCombatToken~=nil then
-		local active,headName,owner=apocalypseDragonGroundCombatToken(obj.guid)
+local function handleZoneLeavePrelude(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	if apocalypseDragonGroundCombatToken~=nil then
+		local active,headName,owner=apocalypseDragonGroundCombatToken(objGUID)
 		if active==true and headName~="Control" and owner~=nil then safeWaitFrames("Events",function() apocalypseDragonRefreshGroundFameGain(owner) end,1) end
 	end
 	--Ignore unrelated zone exits caused solely by a scripted Deed transfer crossing the table.
-	if zone~=nil and obj~=nil and deedTransferState~=nil and deedTransferState.transit[obj.guid]~=nil and zone.guid~=deedTransferState.transit[obj.guid] then return end
-	--if (obj==nil or obj.name==nil) then return end
-	--if getObjectFromGUID(obj.guid)==nil then return end
-	if gStates.firstStarted==true then
-		if obj~=nil and skillTokens[obj.guid]~=nil and (skillTokens[obj.guid].skillType=="Coop" or skillTokens[obj.guid].skillType=="Comp") then
-			for playerIndex, details in pairs(turnOrder) do
-				if details.seatPos~=nil and zone.guid==playerPlayAreas[details.seatPos] then coopCompSkillLeftPlayArea(obj.guid, playerIndex) break end
-			end
+	if deedTransferState~=nil and deedTransferState.transit[objGUID]~=nil and zoneGUID~=deedTransferState.transit[objGUID] then return true end
+	return false
+end
+
+local function handlePlayerBoardZoneLeave(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	if obj~=nil and skillTokens[obj.guid]~=nil and (skillTokens[obj.guid].skillType=="Coop" or skillTokens[obj.guid].skillType=="Comp") then
+		for playerIndex, details in pairs(turnOrder) do
+			if details.seatPos~=nil and zone.guid==playerPlayAreas[details.seatPos] then coopCompSkillLeftPlayArea(obj.guid, playerIndex) break end
 		end
-		if gStates.turnNumber>0 and turnOrder[gStates.turnNumber]~=nil and zone.guid==handZones[turnOrder[gStates.turnNumber].seatPos] then scheduleTactic4HandBonusRefresh() end
-		if (zone.guid==playerPlayAreas[2] or zone.guid==playerPlayAreas[3] or zone.guid==playerPlayAreas[1] or zone.guid==playerPlayAreas[4]) and getObjectFromGUID(obj.guid)~=nil then
-			--remove icons from monsters
-			obj.UI.setXmlTable({{}})
-			--Only remove the face-down card decal once the card is confirmed outside all player play areas.
-			if obj.type=="Card" then
-				local cardGUID=obj.guid
-				safeWaitFrames("Events",function() local card=getObjectFromGUID(cardGUID) if card~=nil and cardInPlayerPlayArea(cardGUID)==false then removeCardRemoveDecal(card) end end, 2)
-			end
+	end
+	if gStates.turnNumber>0 and turnOrder[gStates.turnNumber]~=nil and zone.guid==handZones[turnOrder[gStates.turnNumber].seatPos] then scheduleTactic4HandBonusRefresh() end
+	if (zone.guid==playerPlayAreas[2] or zone.guid==playerPlayAreas[3] or zone.guid==playerPlayAreas[1] or zone.guid==playerPlayAreas[4]) and getObjectFromGUID(obj.guid)~=nil then
+		--remove icons from monsters
+		obj.UI.setXmlTable({{}})
+		--Only remove the face-down card decal once the card is confirmed outside all player play areas.
+		if obj.type=="Card" then
+			local cardGUID=obj.guid
+			safeWaitFrames("Events",function() local card=getObjectFromGUID(cardGUID) if card~=nil and cardInPlayerPlayArea(cardGUID)==false then removeCardRemoveDecal(card) end end, 2)
+		end
 
-			--restore card size, except Unit cards still owned by the overlapping Unit Area layout.
-			if ((gameCards[obj.guid]~=nil and gameCards[obj.guid].full==nil) or obj.getGMNotes()=="Wound")
-				and not (unitLayoutIsUnit(obj) and unitLayoutObjectInAnyUnitArea(obj.guid)) then obj.setScale({1.5,1,1.5}) end
+		--restore card size, except Unit cards still owned by the overlapping Unit Area layout.
+		if ((gameCards[obj.guid]~=nil and gameCards[obj.guid].full==nil) or obj.getGMNotes()=="Wound")
+			and not (unitLayoutIsUnit(obj) and unitLayoutObjectInAnyUnitArea(obj.guid)) then obj.setScale({1.5,1,1.5}) end
 
-			safeWaitTime("Events",function()
-				--Toggle half cards when picked up.
-				if getObjectFromGUID(obj.guid)~=nil then
-					if gameCards[obj.guid]~=nil and gameCards[obj.guid].full~=nil and obj.getPosition()[2]>2 then
-						obj.setState(1)
-						safeWaitFrames("Events",function() if getObjectFromGUID(gameCards[obj.guid].full)~=nil then getObjectFromGUID(gameCards[obj.guid].full).setScale({1.5, 1, 1.5}) end end, 1)
-					end
-
-					--if object is a crystal then remove highlight.
-					local crystalGlow={["Red Mana"]={1, 0, 0}, ["Green Mana"]={0, 1, 0}, ["Blue Mana"]={0, 0, 1}, ["White Mana"]={1, 1, 1}, ["Black Mana"]={0.3, 0.0, 0.6}, ["Gold Mana"]={1, 0.9, 0}}
-					if crystalGlow[obj.getName()]~=nil then
-						obj.AssetBundle.playLoopingEffect(0)
-					end
+		safeWaitTime("Events",function()
+			--Toggle half cards when picked up.
+			if getObjectFromGUID(obj.guid)~=nil then
+				if gameCards[obj.guid]~=nil and gameCards[obj.guid].full~=nil and obj.getPosition()[2]>2 then
+					obj.setState(1)
+					safeWaitFrames("Events",function() if getObjectFromGUID(gameCards[obj.guid].full)~=nil then getObjectFromGUID(gameCards[obj.guid].full).setScale({1.5, 1, 1.5}) end end, 1)
 				end
-			end, 0.22)
-			--Decrement Master of chaos skill
-			if obj.guid=="1ff34f" and masterOfChaosPause==false then
-				if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
-				safeWaitFrames("Events",function() masterOfChaosWait=safeWaitCondition("Events",function()
-					for a=1, #turnOrder, 1 do
-						if turnOrder[a].masterOfChaos~=nil and turnOrder[a].masterOfChaos~="incrementented in turn" then turnOrder[a].masterOfChaos="available" break end
-					end
-					getObjectFromGUID("1ff34f").setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
-					getObjectFromGUID("1ff34f").reload()
-					masterOfChaosWait=nil
-				end, function() return getObjectFromGUID("1ff34f").resting end) end, 5)
-			end
-		end
-		--A Card or whole Deck leaving the deed pile can make End Round available.
-		if obj~=nil and (obj.type=="Card" or obj.type=="Deck") then
-			for _, details in pairs(turnOrder) do if zone.guid==deedDeckZones[details.seatPos] then scheduleEndRoundDeedStateRefresh(details.seatPos) break end end
-		end
-		--Updates Main UI buttons when anything is removed from a mages play Area
-		if gStates.turnNumber>0 then
-			for a=1, #turnOrder, 1 do
-				local seatPos=turnOrder[a].seatPos
-				if zone.guid==playerPlayAreas[seatPos] then
-					updatePlayAreaObjectState(seatPos, obj, false)
-					schedulePlayAreaCardScale(seatPos)
-					if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,obj.guid) end
-					mainUIUpdate("Object removed from zone")
-					break
-				elseif zone.guid==deedDeckDiscardZones[seatPos] then
-					mainUIUpdate("Object removed from zone")
-					break
+
+				--if object is a crystal then remove highlight.
+				local crystalGlow={["Red Mana"]={1, 0, 0}, ["Green Mana"]={0, 1, 0}, ["Blue Mana"]={0, 0, 1}, ["White Mana"]={1, 1, 1}, ["Black Mana"]={0.3, 0.0, 0.6}, ["Gold Mana"]={1, 0.9, 0}}
+				if crystalGlow[obj.getName()]~=nil then
+					obj.AssetBundle.playLoopingEffect(0)
 				end
 			end
+		end, 0.22)
+		--Decrement Master of chaos skill
+		if obj.guid=="1ff34f" and masterOfChaosPause==false then
+			if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
+			safeWaitFrames("Events",function() masterOfChaosWait=safeWaitCondition("Events",function()
+				for a=1, #turnOrder, 1 do
+					if turnOrder[a].masterOfChaos~=nil and turnOrder[a].masterOfChaos~="incrementented in turn" then turnOrder[a].masterOfChaos="available" break end
+				end
+				getObjectFromGUID("1ff34f").setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
+				getObjectFromGUID("1ff34f").reload()
+				masterOfChaosWait=nil
+			end, function() return getObjectFromGUID("1ff34f").resting end) end, 5)
 		end
-
-		--A monster leaving a Unit Area can change pending fame/reputation just like leaving the Play Area.
-		local leftUnitArea=false
-		local leftUnitSeat=nil
-		for seatPos=1,4 do if zone.guid==playerUnitAreas[seatPos] then leftUnitArea=true leftUnitSeat=seatPos break end end
-		if leftUnitArea==true then
-			if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(leftUnitSeat,obj.guid) else scheduleUnitLayoutRefresh(leftUnitSeat) end
-			if unitLayoutIsUnit(obj) then
-				local unitGUID=obj.guid
-				safeWaitFrames("Events",function()
-					local unit=getObjectFromGUID(unitGUID)
-					if unit~=nil and unitLayoutObjectInAnyUnitArea(unitGUID)==false then unit.setScale({unitLayoutConfig.cardScale,1,unitLayoutConfig.cardScale}) end
-				end,2)
+	end
+	--A Card or whole Deck leaving the deed pile can make End Round available.
+	if obj~=nil and (obj.type=="Card" or obj.type=="Deck") then
+		for _, details in pairs(turnOrder) do if zone.guid==deedDeckZones[details.seatPos] then scheduleEndRoundDeedStateRefresh(details.seatPos) break end end
+	end
+	--Updates Main UI buttons when anything is removed from a mages play Area
+	if gStates.turnNumber>0 then
+		for a=1, #turnOrder, 1 do
+			local seatPos=turnOrder[a].seatPos
+			if zone.guid==playerPlayAreas[seatPos] then
+				updatePlayAreaObjectState(seatPos, obj, false)
+				schedulePlayAreaCardScale(seatPos)
+				if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,obj.guid) end
+				mainUIUpdate("Object removed from zone")
+				break
+			elseif zone.guid==deedDeckDiscardZones[seatPos] then
+				mainUIUpdate("Object removed from zone")
+				break
 			end
 		end
-		if leftUnitArea==true and monsterPugs[obj.guid]~=nil then
-			local monsterGUID=obj.guid
+	end
+
+	--A monster leaving a Unit Area can change pending fame/reputation just like leaving the Play Area.
+	local leftUnitArea=false
+	local leftUnitSeat=nil
+	for seatPos=1,4 do if zone.guid==playerUnitAreas[seatPos] then leftUnitArea=true leftUnitSeat=seatPos break end end
+	if leftUnitArea==true then
+		if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(leftUnitSeat,obj.guid) else scheduleUnitLayoutRefresh(leftUnitSeat) end
+		if unitLayoutIsUnit(obj) then
+			local unitGUID=obj.guid
 			safeWaitFrames("Events",function()
-				local monster=getObjectFromGUID(monsterGUID)
-				if monster~=nil and objectInPlayerCombatArea(monsterGUID)==false then monster.UI.setXmlTable({{}}) end
-				mainUIUpdate("Monster removed from unit area")
-			end, 2)
+				local unit=getObjectFromGUID(unitGUID)
+				if unit~=nil and unitLayoutObjectInAnyUnitArea(unitGUID)==false then unit.setScale({unitLayoutConfig.cardScale,1,unitLayoutConfig.cardScale}) end
+			end,2)
 		end
+	end
+	if leftUnitArea==true and monsterPugs[obj.guid]~=nil then
+		local monsterGUID=obj.guid
+		safeWaitFrames("Events",function()
+			local monster=getObjectFromGUID(monsterGUID)
+			if monster~=nil and objectInPlayerCombatArea(monsterGUID)==false then monster.UI.setXmlTable({{}}) end
+			mainUIUpdate("Monster removed from unit area")
+		end, 2)
+	end
+end
 
-		--Remove offer claim buttons
-		if offerClaimSource(zone.guid,obj)~=nil then obj.UI.setXmlTable({{}}) end
+local function handleClaimZoneLeave(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--Remove offer claim buttons
+	if offerClaimSource(zone.guid,obj)~=nil then obj.UI.setXmlTable({{}}) end
 
-		--Remove tactic claim buttons
-		if tacticClaimingZones[zone.guid]~=nil then obj.UI.setXmlTable({{}}) end
+	--Remove tactic claim buttons
+	if tacticClaimingZones[zone.guid]~=nil then obj.UI.setXmlTable({{}}) end
 
-		--Remove Skill claim buttons
-		if zone.guid==GUID.zone.skillOffer and skillOfferEntrySerial[obj.guid]==nil and gStates.mageSkills[obj.guid]~=nil then
-			for skillGUID, _ in pairs(gStates.mageSkills) do
-				local skillObj=getObjectFromGUID(skillGUID)
-				if skillObj~=nil then skillObj.UI.setXmlTable({{}}) end
+	--Remove Skill claim buttons
+	if zone.guid==GUID.zone.skillOffer and skillOfferEntrySerial[obj.guid]==nil and gStates.mageSkills[obj.guid]~=nil then
+		for skillGUID, _ in pairs(gStates.mageSkills) do
+			local skillObj=getObjectFromGUID(skillGUID)
+			if skillObj~=nil then skillObj.UI.setXmlTable({{}}) end
+		end
+	end
+end
+
+local function handleMapZoneLeave(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--remove decals from anything lifted from the map.
+	if zone.guid==mapArea and obj.guid~=gStates.volkareModel then
+		local existingDecals=obj.getDecals() or {}
+		local decalTable={}
+		for _, decalDetails in pairs(existingDecals) do
+			if decalDetails.name=="Fortified" or decalDetails.name=="Elemental" or decalDetails.name=="Brutal" or decalDetails.name=="Poison" or decalDetails.name=="Defense" or decalDetails.name:sub(1,4)=="Mine" or decalDetails.name=="NightRules" or decalDetails.name=="Reward" then
+				decalTable[#decalTable+1]=decalDetails
 			end
 		end
+		obj.setDecals(decalTable)
+	end
 
-		--remove decals from anything lifted from the map.
-		if zone.guid==mapArea and obj.guid~=gStates.volkareModel then
-			local existingDecals=obj.getDecals() or {}
-			local decalTable={}
-			for _, decalDetails in pairs(existingDecals) do
-				if decalDetails.name=="Fortified" or decalDetails.name=="Elemental" or decalDetails.name=="Brutal" or decalDetails.name=="Poison" or decalDetails.name=="Defense" or decalDetails.name:sub(1,4)=="Mine" or decalDetails.name=="NightRules" or decalDetails.name=="Reward" then
-					decalTable[#decalTable+1]=decalDetails
-				end
+	if zone.guid==mapArea and obj.guid~=volkare.model and obj.guid~=elementalist.terrainHex and obj.guid~=darkCrusader.terrainHex then
+		obj.UI.setXmlTable({{}})
+	end
+
+	--Check if a shield has been removed
+	if (zone.guid==mapArea)--or zone.guid==GUID.zone.blueCity or zone.guid==GUID.zone.redCity or zone.guid==GUID.zone.greenCity or zone.guid==GUID.zone.whiteCity or zone.guid==volkare.discZone or zone.guid==darkCrusader.discZone or zone.guid==elementalist.discZone)
+		and (obj.getName()=="Shield" or obj.getGMNotes()=="Burned Monastery" or obj.getName()=="Secret Dungeon" or obj.getName()=="Secret Tomb") and obj.getLock()==false then
+		scheduleShieldLocation(obj, zone, "remove")
+	end
+
+	--remove red tint when lifting out terrain tile.
+	if zone.guid==mapArea and terrainTiles[obj.guid]~=nil then
+		if startingMapSetup==true then
+			if gStates.startAtNight==true then obj.setColorTint({r=0.6, g=0.6, b=0.6}) else obj.setColorTint({r=1.0, g=1.0, b=1.0}) end
+		elseif gStates.dayRound==false then
+			obj.setColorTint({r=0.6, g=0.6, b=0.6})
+		else
+			obj.setColorTint({r=1.0, g=1.0, b=1.0})
+		end
+	end
+end
+
+local function handleManaZoneLeave(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--updata Mirrored source
+	if zone.guid==GUID.zone.mana and obj.type=="Dice" then
+		if dieRollEnterPause~=nil then Wait.stop(dieRollEnterPause) end
+		dieRollEnterPause=safeWaitTime("Events",function()
+			mirrorSourceUpdate("object left zone")
+		end, 0.5)
+	end
+end
+
+local function handlePreGameZoneLeave(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--Update Mage Level Boards before the game starts.
+	if gStates.mageKnightLevels==true then
+		local playerZones={	"004cca", "9ef3c1", "182df2", "813d11",--Play Area
+							"98a462", "0d6195", "648671", "8d6d93",--Unit Area
+							"13f39d", "5bb87a", "621d88", "2936ad"}--Crystal inventory
+		for _, zoneGUID in pairs(playerZones) do
+			if zone.guid==zoneGUID then
+				mageLevelBoard()
+				break
 			end
-			obj.setDecals(decalTable)
 		end
+	end
+end
 
-		if zone.guid==mapArea and obj.guid~=volkare.model and obj.guid~=elementalist.terrainHex and obj.guid~=darkCrusader.terrainHex then
-			obj.UI.setXmlTable({{}})
-		end
-
-		--Check if a shield has been removed
-		if (zone.guid==mapArea)--or zone.guid==GUID.zone.blueCity or zone.guid==GUID.zone.redCity or zone.guid==GUID.zone.greenCity or zone.guid==GUID.zone.whiteCity or zone.guid==volkare.discZone or zone.guid==darkCrusader.discZone or zone.guid==elementalist.discZone)
-			and (obj.getName()=="Shield" or obj.getGMNotes()=="Burned Monastery" or obj.getName()=="Secret Dungeon" or obj.getName()=="Secret Tomb") and obj.getLock()==false then
-			scheduleShieldLocation(obj, zone, "remove")
-		end
-
-		--remove red tint when lifting out terrain tile.
-		if zone.guid==mapArea and terrainTiles[obj.guid]~=nil then
-			if startingMapSetup==true then
-				if gStates.startAtNight==true then obj.setColorTint({r=0.6, g=0.6, b=0.6}) else obj.setColorTint({r=1.0, g=1.0, b=1.0}) end
-			elseif gStates.dayRound==false then
-				obj.setColorTint({r=0.6, g=0.6, b=0.6})
-			else
-				obj.setColorTint({r=1.0, g=1.0, b=1.0})
-			end
-		end
-
-		--updata Mirrored source
-		if zone.guid==GUID.zone.mana and obj.type=="Dice" then
-			if dieRollEnterPause~=nil then Wait.stop(dieRollEnterPause) end
-			dieRollEnterPause=safeWaitTime("Events",function()
-				mirrorSourceUpdate("object left zone")
-			end, 0.5)
-		end
+function __onObjectLeaveZone_raw(zone, obj)
+	local ctx=zoneEventContext(zone,obj)
+	if ctx==nil then return end
+	if handleZoneLeavePrelude(ctx)==true then return end
+	if gStates.firstStarted==true then
+		handlePlayerBoardZoneLeave(ctx)
+		handleClaimZoneLeave(ctx)
+		handleMapZoneLeave(ctx)
+		handleManaZoneLeave(ctx)
 	else
-		--Update Mage Level Boards before the game starts.
-		if gStates.mageKnightLevels==true then
-			local playerZones={	"004cca", "9ef3c1", "182df2", "813d11",--Play Area
-								"98a462", "0d6195", "648671", "8d6d93",--Unit Area
-								"13f39d", "5bb87a", "621d88", "2936ad"}--Crystal inventory
-			for _, zoneGUID in pairs(playerZones) do
-				if zone.guid==zoneGUID then
-					mageLevelBoard()
-					break
-				end
-			end
-		end
+		handlePreGameZoneLeave(ctx)
 	end
 end
 
