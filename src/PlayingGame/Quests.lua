@@ -3136,30 +3136,11 @@ end
 function apocalypseQuestMapHexes()
 	local refreshCache=apocalypseQuestRefreshMapCache or {}
 	if refreshCache~=nil and refreshCache.hexes~=nil and refreshCache.mapObjects~=nil then return refreshCache.hexes,refreshCache.mapObjects end
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return {}, {} end
-	local objects=refreshCache~=nil and refreshCache.mapObjects or nil
-	if objects==nil then objects=map.getObjects() end
-	local hexes={}
-	local bearings={"center","0","60","120","180","240","300"}
-	for _, terrain in pairs(objects) do
-		local details=terrainTiles[terrain.guid]
-		if details~=nil and details.hexType~=nil and details.hexFeature~=nil and terrain.is_face_down~=true and details.tileType~="tilePile" then
-			for _, bearing in ipairs(bearings) do
-				local hexType=details.hexType[bearing]
-				if hexType~=nil and hexType~="" and hexType~="ocean" then
-					local xy=angleToXY(terrain,bearing)
-					hexes[#hexes+1]={
-						terrain=terrain, terrainGUID=terrain.guid, bearing=bearing,
-						position={xy[1],1.30,xy[2]}, hexType=hexType,
-						feature=details.hexFeature[bearing] or ""
-					}
-				end
-			end
-		end
-	end
+	local snapshot=runtimeMapSnapshot()
+	local hexes=snapshot.hexes or {}
+	local objects=snapshot.objects or {}
 	if refreshCache~=nil then refreshCache.mapObjects=objects refreshCache.hexes=hexes end
-	return hexes, objects
+	return hexes,objects
 end
 
 function apocalypseQuestHexesAdjacent(a,b)
