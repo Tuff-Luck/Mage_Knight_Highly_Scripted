@@ -36,6 +36,25 @@ For visible scripted movement, use Tabletop Simulator\'s normal/slow smooth move
 
 Do not add backwards-compatibility or old-save recovery code unless the user explicitly requests it.
 
+## Blitz scenario conventions
+
+The Blitz representation predates most custom scenarios. It was introduced because **Conquest** has genuinely different scenario values when Blitz is enabled (for example rounds, terrain counts/map shape and city levels), so Blitz cannot be treated only as a generic setup flag.
+
+`scenarioList` may therefore contain a normal row such as `"Conquest"` and a separate sibling row such as `"Conquest Blitz"`. The setup UI toggles between matching sibling rows by adding/removing the literal `" Blitz"` suffix when such a row exists. Treat `gStates.gameScenario` as the selected scenario identity: a Blitz-named row may contain materially different per-player setup data and scenario text.
+
+`gStates.blitz` is the separate common Blitz rules/setup switch. When active it supplies the shared Blitz package (including the Blitz Fame board, an extra Mana Source die, an extra Unit in the offer, and the Blitz starting Fame/Reputation adjustment). Do **not** replace explicit Blitz scenario rows by calculating their rounds, terrain counts, city levels, map shape, or other scenario-specific values from the normal row; those values belong in `scenarioList`.
+
+Use `scenarioDetails.blitzPossible` as scenario metadata:
+- `"Yes"` means the scenario is designed to have selectable normal and Blitz forms and should have the appropriate sibling data rows.
+- `"On Only"` means Blitz is the intended/required form for that scenario entry.
+- `"Off Only"` means the scenario is intended to run without Blitz.
+
+Do not assume every scenario should eventually have both normal and Blitz versions. The system was built to allow that possibility, but many scenarios only have one intended form. In particular, a scenario whose canonical internal name already ends in `" Blitz"` may simply be an on-only scenario, not evidence that a non-Blitz implementation is missing.
+
+When writing scenario-specific runtime code, match the actual `gStates.gameScenario` names represented in `scenarioList`. If behavior is genuinely shared by a normal/Blitz pair, handle both names explicitly or factor a small helper when repetition warrants it. Do not strip `" Blitz"` and assume the two variants are otherwise interchangeable. Conversely, do not create duplicate normal/Blitz branches when the only difference is already covered by the common `gStates.blitz` setup package.
+
+When adding a new scenario, choose its Blitz model deliberately: off-only, on-only, or a true selectable pair. Only add a second scenario row when the Blitz form needs its own scenario data/rules rather than merely the shared Blitz bonuses.
+
 ## UI localization
 
 In the current Tabletop Simulator version targeted by this project, XML/UI `tooltip` attributes do **not** process the `{en}`, `{ru}`, `{zh-tw}`, etc. translation-tag format. Tagged tooltip strings are shown literally. Keep tooltips as plain English unless Tabletop Simulator adds working tooltip localization in a later version and it is explicitly re-tested.
