@@ -1427,28 +1427,28 @@ function mapTokenReleaseObject(obj)
 	return true
 end
 
-function mapTokenArrangeAllOccupiedHexes()
+function mapTokenArrangeAllOccupiedHexes(terrainGUID)
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local touched={}
 	for _,obj in pairs(mapObjects or {}) do
 		if mapTokenNeedsArrangement(obj)==true then
 			local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
 			local key=hex~=nil and apocalypseQuestMapHexKey(hex) or nil
-			if key~=nil and touched[key]~=true then
+			--Terrain completion only needs to reconcile shared stacks on the tile that just finished
+			--population. Do not touch unrelated map tokens every time any terrain tile is explored.
+			if key~=nil and touched[key]~=true and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
 				touched[key]=true
-				--An arrival already owns this hex until its one final spread is complete. The terrain
-				--completion sweep must not start a second layout pass underneath it.
 				local arrivalPending=false
+				local participantCount=0
 				for _,candidate in pairs(mapObjects or {}) do
-					if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true
-						and mapTokenManualDropPending[candidate.guid]~=nil then
-						arrivalPending=true
-						break
+					if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true then
+						participantCount=participantCount+1
+						if mapTokenManualDropPending[candidate.guid]~=nil then arrivalPending=true end
 					end
 				end
-				--This is only a maintenance sweep; reapply the deterministic X/Z/Y slots directly,
-				--without starting another physics drop.
-				if arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects,nil,nil) end
+				--A lone token has nothing to separate. Its own arrival/drop path already owns centring and
+				--settling; rewriting it here caused old Keep/Mage Tower tokens to visibly twitch on explore.
+				if participantCount>1 and arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects,nil,nil) end
 			end
 		end
 	end
