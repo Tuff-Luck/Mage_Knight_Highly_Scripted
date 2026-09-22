@@ -311,7 +311,7 @@ function runtimeMapSnapshot()
 	if runtimeMapCache~=nil then return runtimeMapCache end
 	local map=getObjectFromGUID(mapArea)
 	if map==nil then
-		runtimeMapCache={objects={},objectGUIDs={},terrainObjects={},terrainPositions={},terrainRotations={},terrainEntries={},hexes={},terrainSignature=""}
+		runtimeMapCache={objects={},objectGUIDs={},terrainObjects={},terrainPositions={},terrainRotations={},terrainEntries={},hexes={},hexByKey={},neighbors={},neighborSet={},terrainSignature=""}
 		return runtimeMapCache
 	end
 
@@ -362,11 +362,39 @@ function runtimeMapSnapshot()
 			end
 		end
 	end
+	local hexByKey={}
+	local neighbors={}
+	local neighborSet={}
+	for _,hex in ipairs(hexes) do
+		local key=tostring(hex.terrainGUID).."|"..tostring(hex.bearing)
+		hexByKey[key]=hex
+		neighbors[key]={}
+		neighborSet[key]={}
+	end
+	for a=1,#hexes do
+		local first=hexes[a]
+		local firstKey=tostring(first.terrainGUID).."|"..tostring(first.bearing)
+		for b=a+1,#hexes do
+			local second=hexes[b]
+			local dx=first.position[1]-second.position[1]
+			local dz=first.position[3]-second.position[3]
+			local distanceSquared=(dx*dx)+(dz*dz)
+			if distanceSquared>4.2 and distanceSquared<7.4 then
+				local secondKey=tostring(second.terrainGUID).."|"..tostring(second.bearing)
+				neighbors[firstKey][#neighbors[firstKey]+1]=second
+				neighbors[secondKey][#neighbors[secondKey]+1]=first
+				neighborSet[firstKey][secondKey]=true
+				neighborSet[secondKey][firstKey]=true
+			end
+		end
+	end
+
 	table.sort(signatureParts)
 	runtimeMapCache={
 		objects=objects,objectGUIDs=objectGUIDs,
 		terrainObjects=terrainObjects,terrainPositions=terrainPositions,terrainRotations=terrainRotations,
-		terrainEntries=terrainEntries,hexes=hexes,terrainSignature=table.concat(signatureParts,"|")
+		terrainEntries=terrainEntries,hexes=hexes,hexByKey=hexByKey,neighbors=neighbors,neighborSet=neighborSet,
+		terrainSignature=table.concat(signatureParts,"|")
 	}
 	return runtimeMapCache
 end
