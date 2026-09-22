@@ -294,29 +294,51 @@ function terrainHexAtPosition(pos, objectsInPlay, cachedPositions, cachedRotatio
 end
 
 
--- Shared runtime map snapshot. The physical TTS table is authoritative; this is only a derived
--- in-memory index and must never be persisted in gStates. Invalidate it when map membership or a
--- terrain tile's transform/face changes, then rebuild lazily on the next map query.
-runtimeMapCache=nil
+-- Shared runtime map snapshots. The physical TTS table is authoritative; these are only derived
+-- in-memory indexes and must never be persisted in gStates. Ordinary map membership changes invalidate
+-- only the cheap object list. Terrain membership/transform/face changes also invalidate the expensive
+-- terrain hex topology.
+runtimeMapObjectCache=nil
+runtimeMapTerrainCache=nil
+runtimeMapSnapshotCache=nil
 
+function runtimeMapInvalidateObjects()
+	runtimeMapObjectCache=nil
+	runtimeMapSnapshotCache=nil
+end
+
+function runtimeMapInvalidateTerrain()
+	runtimeMapObjectCache=nil
+	runtimeMapTerrainCache=nil
+	runtimeMapSnapshotCache=nil
+end
+
+--Compatibility for any external/custom call sites: the old broad invalidation remains safe.
 function runtimeMapInvalidate()
-	runtimeMapCache=nil
+	runtimeMapInvalidateTerrain()
 end
 
 function runtimeMapContainsGUID(guid)
-	return guid~=nil and runtimeMapCache~=nil and runtimeMapCache.objectGUIDs~=nil and runtimeMapCache.objectGUIDs[guid]==true
+	return guid~=nil and runtimeMapObjectCache~=nil and runtimeMapObjectCache.objectGUIDs~=nil and runtimeMapObjectCache.objectGUIDs[guid]==true
 end
 
-function runtimeMapSnapshot()
-	if runtimeMapCache~=nil then return runtimeMapCache end
+local function runtimeMapObjectSnapshot()
+	if runtimeMapObjectCache~=nil then return runtimeMapObjectCache end
 	local map=getObjectFromGUID(mapArea)
 	if map==nil then
-		runtimeMapCache={objects={},objectGUIDs={},terrainObjects={},terrainPositions={},terrainRotations={},terrainEntries={},hexes={},hexByKey={},neighbors={},neighborSet={},terrainSignature=""}
-		return runtimeMapCache
+		runtimeMapObjectCache={objects={},objectGUIDs={}}
+		return runtimeMapObjectCache
 	end
-
 	local objects=map.getObjects()
 	local objectGUIDs={}
+	for _,obj in pairs(objects) do objectGUIDs[obj.guid]=true end
+	runtimeMapObjectCache={objects=objects,objectGUIDs=objectGUIDs}
+	return runtimeMapObjectCache
+end
+
+local function runtimeMapTerrainSnapshot()
+	if runtimeMapTerrainCache~=nil then return runtimeMapTerrainCache end
+	local objectSnapshot=runtimeMapObjectSnapshot()
 	local terrainObjects={}
 	local terrainPositions={}
 	local terrainRotations={}
@@ -325,8 +347,7 @@ function runtimeMapSnapshot()
 	local signatureParts={}
 	local bearings={"center","0","60","120","180","240","300"}
 
-	for _,obj in pairs(objects) do
-		objectGUIDs[obj.guid]=true
+	for _,obj in pairs(objectSnapshot.objects or {}) do
 		local details=terrainTiles[obj.guid]
 		if details~=nil then
 			local position=obj.getPosition()
@@ -390,13 +411,26 @@ function runtimeMapSnapshot()
 	end
 
 	table.sort(signatureParts)
-	runtimeMapCache={
-		objects=objects,objectGUIDs=objectGUIDs,
+	runtimeMapTerrainCache={
 		terrainObjects=terrainObjects,terrainPositions=terrainPositions,terrainRotations=terrainRotations,
 		terrainEntries=terrainEntries,hexes=hexes,hexByKey=hexByKey,neighbors=neighbors,neighborSet=neighborSet,
 		terrainSignature=table.concat(signatureParts,"|")
 	}
-	return runtimeMapCache
+	return runtimeMapTerrainCache
+end
+
+function runtimeMapSnapshot()
+	if runtimeMapSnapshotCache~=nil then return runtimeMapSnapshotCache end
+	local objectSnapshot=runtimeMapObjectSnapshot()
+	local terrainSnapshot=runtimeMapTerrainSnapshot()
+	runtimeMapSnapshotCache={
+		objects=objectSnapshot.objects,objectGUIDs=objectSnapshot.objectGUIDs,
+		terrainObjects=terrainSnapshot.terrainObjects,terrainPositions=terrainSnapshot.terrainPositions,
+		terrainRotations=terrainSnapshot.terrainRotations,terrainEntries=terrainSnapshot.terrainEntries,
+		hexes=terrainSnapshot.hexes,hexByKey=terrainSnapshot.hexByKey,neighbors=terrainSnapshot.neighbors,
+		neighborSet=terrainSnapshot.neighborSet,terrainSignature=terrainSnapshot.terrainSignature
+	}
+	return runtimeMapSnapshotCache
 end
 
 -- Player permission helpers
