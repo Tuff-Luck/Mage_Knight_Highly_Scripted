@@ -206,7 +206,7 @@ function playerSetup()
 							local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
 						else
 							params.callback_function=function(obj) obj.lock() end
-							if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.positionMageKnight[positionOrder[a]]~="Ymirgh" and gStates.positionMageKnight[positionOrder[a]]~="Malek" and gStates.positionMageKnight[positionOrder[a]]~="Duscenia" and gStates.positionMageKnight[positionOrder[a]]~="Mevok"then--"Mevok"
+							if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.positionMageKnight[positionOrder[a]]~="Ymirgh" and gStates.positionMageKnight[positionOrder[a]]~="Malek" and gStates.positionMageKnight[positionOrder[a]]~="Duscenia" and gStates.positionMageKnight[positionOrder[a]]~="Mevok" and gStates.positionMageKnight[positionOrder[a]]~="Zirtae" then
 								params.callback_function=function(ob) local obj=ob.setState(1) obj.lock() end
 							end
 						end
