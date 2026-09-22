@@ -983,10 +983,11 @@ function apocalypseIsHereHorsemanPriorityDescription(ref)
 end
 
 --Small map tokens can legitimately share one hex. Keep enemy-like tokens slightly separated so
---each remains visible/clickable, while a physical site marker stays at the centre underneath them.
+--each remains visible/clickable, while physical site markers stay underneath them.
 --Enemy model origins depend on face orientation: face-up rests at Y 1.08, face-down at Y 1.18.
---Each physical token layer below adds 0.10. Destroyed Site has the same top surface but its model
---origin is 0.05 higher than a face-up enemy, so its map-floor origin is Y 1.13.
+--Each physical token layer below adds 0.10. A Graveyard itself rests centred at Y 1.08 and raises
+--an enemy resting on it by 0.08 (face-up Y 1.16, face-down Y 1.26). Destroyed Site has the same
+--top surface as a face-up enemy but its model origin is 0.05 higher, so its map-floor origin is Y 1.13.
 local mapTokenArrangeGeneration={}
 --One pending generation per arriving token deduplicates map-zone callbacks and scripted moves.
 local mapTokenArrivalPending={}
@@ -1002,15 +1003,17 @@ local mapTokenSpreadSpacing=0.20
 local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
 local mapTokenEnemyFaceUpBaseY=1.08
 local mapTokenEnemyFaceDownBaseY=1.18
+local mapTokenGraveyardBaseY=1.08
+local mapTokenGraveyardSupportY=0.08
 local mapTokenDestroyedBaseY=1.13
 local mapTokenStackStepY=0.10
 
 --The model pivot moves by one token thickness when an enemy is flipped. Stack height therefore
 --starts from the orientation-specific resting origin, then adds one physical layer per earlier slot.
-local function mapTokenEnemySlotY(obj,index)
+local function mapTokenEnemySlotY(obj,index,supportY)
 	index=math.max(1,tonumber(index) or 1)
 	local baseY=(obj~=nil and obj.is_face_down==true) and mapTokenEnemyFaceDownBaseY or mapTokenEnemyFaceUpBaseY
-	return baseY+((index-1)*mapTokenStackStepY)
+	return baseY+(tonumber(supportY) or 0)+((index-1)*mapTokenStackStepY)
 end
 
 --Normalize an enemy's origin height before using it as the fallback physical stack order. Without
@@ -1038,9 +1041,13 @@ function mapTokenIsDestroyedSite(obj)
 	return obj~=nil and obj.getGMNotes~=nil and obj.getGMNotes()=="Destroyed"
 end
 
+function mapTokenIsGraveyard(obj)
+	return obj~=nil and obj.getName~=nil and obj.getName()=="GraveYard"
+end
+
 function mapTokenIsBaseSite(obj)
-	--Destroyed is the only special floor token. Ruins participate in the same diagonal spread as enemies.
-	return mapTokenIsDestroyedSite(obj)==true
+	--Graveyards and Destroyed Sites are floor tokens. Ruins participate in the enemy diagonal.
+	return mapTokenIsGraveyard(obj)==true or mapTokenIsDestroyedSite(obj)==true
 end
 
 function mapTokenIsSpreadEnemy(obj)
@@ -1136,10 +1143,10 @@ local function mapTokenMoveToSlot(obj,targetX,targetY,targetZ)
 	return true
 end
 
---Arrange one resolved map hex. Horizontal order uses the shared slot index; vertical origin also
---accounts for each enemy's face orientation. Destroyed is the special slot-1 floor object at Y 1.13.
---Ordinary tokens follow in arrival order. Horsemen, the single-hex
---Dragon and pursuing enemies form the moving group at the top-right end, also in arrival order.
+--Arrange one resolved map hex. Graveyard is a centred floor/support token and never consumes a
+--horizontal spread slot. Destroyed, when present, is the first spread token above that support.
+--Ordinary enemies follow in arrival order. Horsemen, the single-hex Dragon and pursuing enemies
+--form the moving group at the top-right end, also in arrival order.
 function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
@@ -1155,10 +1162,13 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 		seen[extraObject.guid]=true
 	end
 
+	local graveyard=nil
 	local destroyed=nil
 	local enemies={}
 	for _,obj in ipairs(objects) do
-		if mapTokenIsDestroyedSite(obj)==true then
+		if mapTokenIsGraveyard(obj)==true then
+			if graveyard==nil then graveyard=obj end
+		elseif mapTokenIsDestroyedSite(obj)==true then
 			if destroyed==nil then destroyed=obj end
 		elseif mapTokenIsSpreadEnemy(obj)==true then
 			enemies[#enemies+1]=obj
@@ -1196,13 +1206,20 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	local centerX,centerZ=hex.position[1],hex.position[3]
 	local changed=false
 	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
+	local supportY=graveyard~=nil and mapTokenGraveyardSupportY or 0
 
-	--Destroyed is always slot 1. Its origin rests at Y 1.13 even though its top surface matches
-	--an enemy resting at Y 1.08, so enemies above it still use the normal slot-2 Y 1.18.
+	--Graveyard is always centred under the stack and does not participate in the diagonal spread.
+	--Preserve its current face; Realm of the Dead deliberately uses both face-up and face-down Graveyards.
+	if graveyard~=nil then
+		changed=mapTokenMoveToSlot(graveyard,centerX,mapTokenGraveyardBaseY,centerZ) or changed
+	end
+
+	--Destroyed is the lowest spread token. The scenarios currently cannot combine it with a Graveyard,
+	--but if they ever do, the Graveyard remains underneath and raises Destroyed by the same support height.
 	if destroyed~=nil then
 		local offset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
 		local targetX,targetZ=centerX+offset.x,centerZ+offset.z
-		local targetY=mapTokenDestroyedBaseY
+		local targetY=mapTokenDestroyedBaseY+supportY
 		destroyed.setRotation({0,180,0})
 		changed=mapTokenMoveToSlot(destroyed,targetX,targetY,targetZ) or changed
 	end
@@ -1210,9 +1227,10 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	if #enemies<1 then return changed end
 	for _,obj in ipairs(enemies) do if obj.isSmoothMoving()==true then return changed end end
 
-	--A lone enemy uses its measured orientation-specific floor height: face-up 1.08, face-down 1.18.
+	--A lone enemy stays centred. Graveyard raises its measured resting origin from 1.08/1.18
+	--to 1.16/1.26; with no Graveyard the existing floor heights remain unchanged.
 	if destroyed==nil and #enemies==1 then
-		changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenEnemySlotY(enemies[1],1),centerZ) or changed
+		changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenEnemySlotY(enemies[1],1,supportY),centerZ) or changed
 		return changed
 	end
 
@@ -1220,7 +1238,7 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	for index,obj in ipairs(enemies) do
 		local spreadIndex=firstEnemyIndex+index-1
 		local offset=mapTokenSpreadOffset(spreadIndex,spreadCount)
-		changed=mapTokenMoveToSlot(obj,centerX+offset.x,mapTokenEnemySlotY(obj,spreadIndex),centerZ+offset.z) or changed
+		changed=mapTokenMoveToSlot(obj,centerX+offset.x,mapTokenEnemySlotY(obj,spreadIndex,supportY),centerZ+offset.z) or changed
 	end
 	return changed
 end
