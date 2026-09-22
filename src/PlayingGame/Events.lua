@@ -1892,6 +1892,10 @@ local function handleTerrainZoneEnter(ctx)
 			local function finishTerrainPopulation()
 				gStates.playedAllready[objGUID]=true
 				workingOnTerrain[objGUID]=false
+				--Anything that reads map geometry from here onward must see the tile's final physical position.
+				--The entry callback can run while a tile is still snapping/falling, so discard any snapshot
+				--that may have been built from that transient position.
+				runtimeMapInvalidate()
 				--A City reveal already refreshed immediately before its initial card placement.
 				--Do not compact it a second time while that smooth move is still in progress.
 				if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then refreshTerrainExploreOptions() end
@@ -1902,18 +1906,26 @@ local function handleTerrainZoneEnter(ctx)
 					updateMoveDisplay()
 				end
 				if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals() end
-				mapTokenArrangeAllOccupiedHexes()
+				--Only the newly populated tile can have gained a new shared-token stack. Leave established
+				--tokens elsewhere on the map completely untouched.
+				mapTokenArrangeAllOccupiedHexes(objGUID)
 				fakeDropAvatar()
 				apocalypseQuestRefreshOfferButtons()
 			end
 			if startingMapSetup==true then
 				safeWaitCondition("Events",finishTerrainPopulation,function()
-					return setupPopulationPending==0 and obj.resting==true
+					return setupPopulationPending==0 and obj.resting==true and obj.isSmoothMoving()==false
 				end,10,function()
 					error("SetupGame timed out waiting for initial terrain deployment callbacks for "..tostring(objGUID)..".",2)
 				end)
 			else
-				safeWaitFrames("Events",finishTerrainPopulation,tokenWait+10)
+				--The old fixed-frame finish could fire while the explored terrain was visibly still settling.
+				--Wait out the deployment stagger first, then finish only from the settled physical map state.
+				safeWaitFrames("Events",function()
+					safeWaitCondition("Events",finishTerrainPopulation,function()
+						return obj==nil or (obj.resting==true and obj.isSmoothMoving()==false)
+					end,10,finishTerrainPopulation)
+				end,tokenWait+10)
 			end
 
 			--Fame is awarded only for terrain actually explored during play. Initial setup terrain is
