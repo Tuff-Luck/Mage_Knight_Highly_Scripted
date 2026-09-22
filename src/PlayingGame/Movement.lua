@@ -226,26 +226,9 @@ end
 --monsters are overlaid fresh each render. Position, rotation and printed hex data are part of the
 --signature so a changed tile/site automatically rebuilds the base graph.
 function moveDisplayBaseHexMap(playAreaObjects, startTileGUID, startTilePos)
-	local terrainEntries={}
-	local signatureParts={}
-	for _, terrain in pairs(playAreaObjects) do
-		local details=terrainTiles[terrain.guid]
-		if details~=nil and terrain.is_face_down==false then
-			local position=terrain.getPosition()
-			local rotationAdjust=math.floor(((terrain.getRotation()[2]-180)/60)+0.5)*60
-			if rotationAdjust<0 then rotationAdjust=rotationAdjust+360 end
-			local printed={}
-			for _, bearing in ipairs(MOVE_DISPLAY_HEX_BEARINGS) do
-				local hexType=details.hexType~=nil and details.hexType[bearing] or ""
-				local feature=details.hexFeature~=nil and details.hexFeature[bearing] or ""
-				printed[#printed+1]=tostring(hexType)..":"..tostring(feature)
-			end
-			signatureParts[#signatureParts+1]=terrain.guid.."@"..string.format("%.3f,%.3f,%d", position[1], position[3], rotationAdjust).."@"..table.concat(printed, ",")
-			terrainEntries[#terrainEntries+1]={guid=terrain.guid, details=details, position=position, rotationAdjust=rotationAdjust}
-		end
-	end
-	table.sort(signatureParts)
-	local signature=startTileGUID.."@"..string.format("%.3f,%.3f", startTilePos[1], startTilePos[3]).."|"..table.concat(signatureParts, "|")
+	local snapshot=runtimeMapSnapshot()
+	local terrainEntries=snapshot.terrainEntries or {}
+	local signature=startTileGUID.."@"..string.format("%.3f,%.3f", startTilePos[1], startTilePos[3]).."|"..(snapshot.terrainSignature or "")
 	if moveDisplayTerrainCache.signature==signature and moveDisplayTerrainCache.hexMap~=nil then return moveDisplayCloneHexMap(moveDisplayTerrainCache.hexMap) end
 
 	local hexMap={}
