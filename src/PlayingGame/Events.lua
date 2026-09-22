@@ -1627,22 +1627,13 @@ local function handleTerrainZoneEnter(ctx)
 		if startingMapSetup==true then startingMapTiles[objGUID]=true end
 		workingOnTerrain[objGUID]=true
 		safeWaitTime("Events",function() addAvatarButtons() end, 1.5)
-		local playAreaObjects={}
+		local playAreaObjects=zone.getObjects()
 		local faceUpTerrain={}
-		local mapObjectPositions={}
-		local function refreshTerrainSnapshot()
-			playAreaObjects=zone.getObjects()
-			faceUpTerrain={}
-			mapObjectPositions={}
-			for _, mapObject in pairs(playAreaObjects) do
-				local mapObjectPosition=mapObject.getPosition()
-				mapObjectPositions[#mapObjectPositions+1]={guid=mapObject.guid, position=mapObjectPosition}
-				if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
-					faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid, position=mapObjectPosition}
-				end
+		for _,mapObject in pairs(playAreaObjects) do
+			if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
+				faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObject.getPosition()}
 			end
 		end
-		refreshTerrainSnapshot()
 		local core=0
 		local exploreRefreshedBeforeCity=false
 		local faceUp=	{0.0, 180.0,   0.0}
