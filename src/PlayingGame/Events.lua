@@ -1293,11 +1293,11 @@ function __onObjectEnterZone_raw(zone, obj)
 	end
 	--A scripted Deed transfer may physically cross unrelated scripting zones. Only its destination Deed zone
 	--is allowed to react while the card is travelling.
-	if zone~=nil and obj~=nil and deedTransferState~=nil and deedTransferState.transit[objGUID]~=nil and zoneGUID~=deedTransferState.transit[objGUID] then return end
+	if deedTransferState~=nil and deedTransferState.transit[objGUID]~=nil and zoneGUID~=deedTransferState.transit[objGUID] then return end
 	--Fractured Lands holds a new tile above the map scripting zone while it is being oriented.
 	--Done only unlocks it. Its actual fall into this zone clears the orientation controls/state,
 	--then continues through the ordinary terrain-entry handler below.
-	if zone~=nil and obj~=nil and zoneGUID==mapArea and gStates.fracturedLandsOrientation~=nil and gStates.fracturedLandsOrientation.guid==objGUID then
+	if zoneGUID==mapArea and gStates.fracturedLandsOrientation~=nil and gStates.fracturedLandsOrientation.guid==objGUID then
 		if obj.getLock()==true then return end
 		obj.clearButtons()
 		obj.UI.setXmlTable({{}})
@@ -1979,10 +1979,9 @@ function __onObjectEnterZone_raw(zone, obj)
 					if terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="mage tower" or terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="keep" then
 						--Add Icon
 						local found=false
-						if obj.getDecals()~=nil then
-							for _, decalDetails in pairs(obj.getDecals()) do
-								if decalDetails.name=="Fortified" then found=true break end
-							end
+						local existingDecals=obj.getDecals() or {}
+						for _, decalDetails in pairs(existingDecals) do
+							if decalDetails.name=="Fortified" then found=true break end
 						end
 						if found==false then
 							obj.addDecal({name="Fortified", url="https://steamusercontent-a.akamaihd.net/ugc/15769941683634999180/45D8BF9859C1F2C026A3B40DA634B74286E2C3EB/", position={0.7, 0.15, -0.9}, rotation={90, 180, 0}, scale={0.72, 0.72, 1}})
@@ -2064,7 +2063,6 @@ function __onObjectEnterZone_raw(zone, obj)
 		--Updates Main UI buttons when anything is played to a mage's play area/deed deck/discard.
 		--Keep play-area refreshes distinct so mainUIUpdate can skip deck bookkeeping that cannot have changed.
 		if gStates.turnNumber>0 then--makes sure end of round doesn't have errors
-			local zoneInfo=zoneInfo
 			if zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="deed" or zoneInfo.kind=="discard") and turnOrderIndexAtSeat(zoneInfo.seatPos)~=nil then
 				local seatPos=zoneInfo.seatPos
 				if zoneInfo.kind=="deed" and (objType=="Card" or objType=="Deck") then
@@ -2127,10 +2125,9 @@ function __onObjectEnterZone_raw(zone, obj)
 					--fortified for Volkare's Army
 					if attackingVolkare==true and monsterPugs[objGUID].unfortified==nil and (terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="mage tower" or terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="keep") then
 						local found=false
-						if obj.getDecals()~=nil then
-							for _, decalDetails in pairs(obj.getDecals()) do
-								if decalDetails.name=="Fortified" then found=true break end
-							end
+						local existingDecals=obj.getDecals() or {}
+						for _, decalDetails in pairs(existingDecals) do
+							if decalDetails.name=="Fortified" then found=true break end
 						end
 						if found==false then
 							obj.addDecal({name="Fortified", url="https://steamusercontent-a.akamaihd.net/ugc/15769941683634999180/45D8BF9859C1F2C026A3B40DA634B74286E2C3EB/", position={0.8, 0.15, -0.8}, rotation={90, 180, 0}, scale={0.72, 0.72, 1}})
@@ -2148,8 +2145,8 @@ function __onObjectEnterZone_raw(zone, obj)
 
 			--Toggle Half Cards
 			if gameCards[objGUID]~=nil and gameCards[objGUID].half~=nil then
-				if obj.getPosition()[3]>=-38.4 then
-					local bannerPosition=obj.getPosition()
+				local bannerPosition=obj.getPosition()
+				if bannerPosition[3]>=-38.4 then
 					local pass=bannerPosition[1]
 					local halfGUID=gameCards[objGUID].half
 					obj.setState(2)
@@ -2251,7 +2248,6 @@ function __onObjectEnterZone_raw(zone, obj)
 	else
 		--Update Mage Level Boards before the game starts.
 		if gStates.mageKnightLevels==true then
-			local zoneInfo=zoneInfo
 			if zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then mageLevelBoard() end
 		end
 	end
