@@ -941,7 +941,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 					--them before any generic rotation-value discard route can mistake them for a normal token.
 					if monsterPugs[playAreaObj.guid]~=nil and dragonGroundCleanup~=true and (playAreaObj.is_face_down==false or gStates.monsterPlayLocation[playAreaObj.guid]==nil) then
 						if horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
-							againstHorsemenResolveDefeat(playAreaObj,cleanupPlayer,coopCombatReward)
+							horsemanResolveDefeat(playAreaObj,cleanupPlayer,coopCombatReward)
 						elseif playAreaObj.getRotationValues()[2]~=nil then
 							combatDiscardMonster(playAreaObj,true,cleanupContext)
 						else--process leaders
@@ -1803,7 +1803,7 @@ function combatAttackOptionCount(playerIndex)
 					local rampagerAttack=buttonID:sub(7)==details.mage and details.combatIconHide~="Both" and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[prefix]==true
 					if avatarAttack==true or rampagerAttack==true then seen[buttonID]=true end
 				end
-				if node.tag=="Button" and attributes.onClick=="global/againstHorsemenAttackAction" then
+				if node.tag=="Button" and attributes.onClick=="global/horsemanAttackAction" then
 					local buttonID=tostring(attributes.id or "")
 					if buttonID:sub(-#details.mage)==details.mage then seen[buttonID]=true end
 				end
@@ -1824,7 +1824,7 @@ function combatAttackOptionCount(playerIndex)
 	if map~=nil then for _, obj in pairs(map.getObjects()) do scanObject(obj) end end
 	--Horseman legality is cheap to resolve directly and avoids a one-frame UI race immediately after
 	--an avatar drop. This is important to Follow Enemy: a valid Horseman choice keeps the camera on the map.
-	for _,option in ipairs(againstHorsemenAttackOptions(playerIndex)) do
+	for _,option in ipairs(horsemanAttackOptions(playerIndex)) do
 		seen["Horse|"..tostring(option.key).."|"..details.mage]=true
 	end
 	local count=0
@@ -1999,7 +1999,7 @@ function attackLocation(playerDud, mouseButton, id)
 					local cityGUID=nil
 					local cameraFollowed=false
 					if (getObjectFromGUID(id:sub(1,6))==nil and id:sub(1,6)~="Volkar") or (getObjectFromGUID(id:sub(1,6))~=nil and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower" or player.avatarLocation:sub(1, 4)=="city" or player.avatarLocation=="Volkare's Camp")) then
-						local horseSelection=gStates.againstHorsemenAttackSelection
+						local horseSelection=gStates.horsemanAttackSelection
 						for _, monster in pairs(getObjectFromGUID(mapArea).getObjects()) do
 							if monsterPugs[monster.guid]~=nil then
 								local horsemanName=horsemanTokenToName~=nil and horsemanTokenToName[monster.guid] or nil
@@ -2024,7 +2024,7 @@ function attackLocation(playerDud, mouseButton, id)
 						end
 					end
 					--The explicit selection only controls this staging pass. Wall-choice retries keep it until they reach here.
-					gStates.againstHorsemenAttackSelection=nil
+					gStates.horsemanAttackSelection=nil
 					--draw monsters for ruin token if undefeated tokens don't exist.
 					if ruinGUID~="" and gStates.monsterOffsetX==2.5 then
 						broadcastToAll("{en}Monster Drawn to Player Board{ru}Жетон врага был помещен на стол игрока{zh-tw}怪物已移到玩家面板{zh-cn}怪物被抽到玩家面板了{ko}몬스터와 전투합니다{es}Monstruo Dibujado al Tablero del Jugador{fr}Monstre Dessiné sur le Plateau du Joueur{pt-br}Monstro Puxado para o Tabuleiro do Jogador{de}Monster auf das Spielerbrett gezogen", positionToColor(gStates.turnNumber))

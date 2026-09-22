@@ -2167,8 +2167,9 @@ apocalypseDragonLevelData={
 	}},
 }
 
---The Four Horsemen. Priorities use the map's existing internal feature names so the later movement
---AI can consume them directly: camp=Refugee Camp, mine=Crystal Mine, rampaging=Marauding Orcs.
+--Shared Four Horsemen static data for Against the Horsemen and Apocalypse is Here.
+--Priorities use the map's existing internal feature names for Apocalypse is Here's movement AI:
+--camp=Refugee Camp, mine=Crystal Mine, rampaging=Marauding Orcs.
 --tokenImg holds the active front image for each Horseman level; physical rotation hides unrevealed Horsemen during setup.
 horsemanData={
 	Famine={

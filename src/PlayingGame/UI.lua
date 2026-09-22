@@ -1588,9 +1588,9 @@ function addAvatarButtons()
 					--adding the Horseman. If the Horseman action is chosen on a fortified site, attackLocation
 					--still brings that site's mandatory defenders into the same combat.
 					if gStates.preEndTurn==false and order==gStates.turnNumber and player.combatIconHide~="Both" and turnTokenFaceUp==true then
-						for _,horseOption in ipairs(againstHorsemenAttackOptions(order,avPos)) do
+						for _,horseOption in ipairs(horsemanAttackOptions(order,avPos)) do
 							avatarButton[1].children[#avatarButton[1].children+1]={tag="Button",attributes={id="Horse|"..horseOption.key.."|"..details.mage,
-								onClick="global/againstHorsemenAttackAction",height=70/scale,width=70/scale,
+								onClick="global/horsemanAttackAction",height=70/scale,width=70/scale,
 								position="0 "..tostring(specialActionY/scale).." "..tostring(-25/scale),rotation="0 0 180",color="rgba(0,0,0,0.0)"},
 								children={{tag="Image",attributes={image="https://steamusercontent-a.akamaihd.net/ugc/12647478740119221952/A4E3602A20A7A1C0FA03DA5C0FBEDF8910DE1E7D/"}}}}
 							specialActionY=specialActionY+70

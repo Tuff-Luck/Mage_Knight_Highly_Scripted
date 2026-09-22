@@ -402,7 +402,7 @@ function displayScore(player, mouseButton, id)
 		local forTheCouncil=gStates.gameScenario=="For the Council"
 		local againstHorsemen=gStates.gameScenario=="Against the Horsemen Blitz"
 		local apocalypseHere=gStates.gameScenario=="Apocalypse is Here"
-		local horsemenSummary=(againstHorsemen or apocalypseHere) and againstHorsemenDefeatSummary() or {total=0,byMage={},fameByMage={}}
+		local horsemenSummary=(againstHorsemen or apocalypseHere) and horsemanDefeatSummary() or {total=0,byMage={},fameByMage={}}
 		local againstDragon=gStates.gameScenario=="Against the Dragon Blitz" or apocalypseHere
 		local dragonScoreSummary=againstDragon and againstDragonCompetitiveScoreSummary() or {defeatedHeads=0,byMage={},heads={}}
 		local fracturedLandsNoCityScore=gStates.gameScenario=="The Fractured Lands Blitz"
@@ -1039,7 +1039,7 @@ function displayScore(player, mouseButton, id)
 							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{horsemenSummary.total,horsemenLabel,horsemenSummary.total*4})
 							coopScore=coopScore+(horsemenSummary.total*4)
 						end
-						if gStates.playerCount>1 and againstHorsemenEveryScoringPlayerDefeatedOne(horsemenSummary)==true then
+						if gStates.playerCount>1 and horsemanEveryScoringPlayerDefeatedOne(horsemenSummary)==true then
 							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Each player defeated a Horseman: +6{ru}Каждый игрок победил Всадника: +6{zh-tw}每位玩家都擊敗了一名騎士：+6{zh-cn}每位玩家都击败了一名骑士：+6{ko}각 플레이어가 기사를 한 명씩 처치: +6{es}Cada jugador derrotó a un Jinete: +6{fr}Chaque joueur a vaincu un Cavalier : +6{pt-br}Cada jogador derrotou um Cavaleiro: +6{de}Jeder Spieler besiegte einen Reiter: +6"})
 							coopScore=coopScore+6
 						end
@@ -1064,7 +1064,7 @@ function displayScore(player, mouseButton, id)
 							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{horsemenSummary.total,"{en} Horsemen defeated: +{ru} Всадников побеждено: +{zh-tw} 名騎士被擊敗：+{zh-cn} 名骑士被击败：+{ko}명의 기사 처치: +{es} Jinetes derrotados: +{fr} Cavaliers vaincus : +{pt-br} Cavaleiros derrotados: +{de} Reiter besiegt: +",horsemenSummary.total*3})
 							coopScore=coopScore+(horsemenSummary.total*3)
 						end
-						if apocalypseHere and gStates.playerCount>1 and againstHorsemenEveryScoringPlayerDefeatedOne(horsemenSummary)==true then
+						if apocalypseHere and gStates.playerCount>1 and horsemanEveryScoringPlayerDefeatedOne(horsemenSummary)==true then
 							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Each player defeated a Horseman: +5{ru}Each player defeated a Horseman: +5{zh-tw}Each player defeated a Horseman: +5{zh-cn}Each player defeated a Horseman: +5{ko}Each player defeated a Horseman: +5{es}Each player defeated a Horseman: +5{fr}Each player defeated a Horseman: +5{pt-br}Each player defeated a Horseman: +5{de}Each player defeated a Horseman: +5"})
 							coopScore=coopScore+5
 						end
