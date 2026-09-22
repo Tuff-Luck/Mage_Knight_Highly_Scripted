@@ -142,6 +142,11 @@ end
 function mapSetup(onComplete)
 	startingMapSetup=true
 	startingMapTiles={}
+	--EXPLORE is a derived view of the finished physical map. Do not show transient legal spots while
+	--setup tiles and the terrain stack are still being assembled.
+	gStates.exploreButtons={{}}
+	local exploreUI=getObjectFromGUID("f2291a")
+	if exploreUI~=nil then exploreUI.UI.setXmlTable(gStates.exploreButtons) end
 	local mapSetupFinished=false
 	local function finishMapSetup(success,reason)
 		if mapSetupFinished==true then return end
