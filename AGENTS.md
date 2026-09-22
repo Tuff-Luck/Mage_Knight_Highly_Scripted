@@ -10,7 +10,7 @@ Files under `.tts/objects/*.data.json` are object metadata snapshots. Their embe
 
 ## Git workflow
 
-During the modular refactor, work on `modular-refactor` unless the user explicitly requests another branch. Do not modify `main` unless explicitly requested.
+Work on the repository's current default branch unless the user explicitly requests another branch. Before writing to a named branch, verify that it still exists; do not rely on historical branch names.
 
 Keep changes focused. Prefer one clean commit for one logical change. Do not add temporary workflow/history commits to the final branch when a clean tree/commit can be produced instead.
 
