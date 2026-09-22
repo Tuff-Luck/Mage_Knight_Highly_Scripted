@@ -638,7 +638,8 @@ function mapSetup(onComplete)
 	--but make Country01's central Glade their shared logical start, then place the four hidden Horsemen.
 	if againstHorsemenMap then
 		againstHorsemenSetStartingAvatarLocations()
-		againstHorsemenSetupTokens(againstHorsemenCoreTileGUIDs,againstHorsemenCoreTilePos)
+		local horsemenReady,horsemenError=againstHorsemenSetupTokens(againstHorsemenCoreTileGUIDs,againstHorsemenCoreTilePos)
+		if horsemenReady~=true then finishMapSetup(false,horsemenError or "HORSEMEN SETUP ERROR: Four Horsemen setup failed") return end
 		local batches=againstHorsemenStartGUID~=nil and {{{guid=againstHorsemenStartGUID}}} or {}
 		revealWhenStartReady(batches,function()
 			--Country01's central Magical Glade replaces the normal starting terrain in this scenario.

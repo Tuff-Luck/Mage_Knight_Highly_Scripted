@@ -936,15 +936,15 @@ function displayScore(player, mouseButton, id)
 					assembledText="" lineFeed=0
 					local defeated=turnOrder[a].score.HorsemenDefeated or 0
 					if defeated>0 then
-						local horsemenLabel=defeated==1 and "{en} Horseman: +{ru} Horseman: +{zh-tw} Horseman: +{zh-cn} Horseman: +{ko} Horseman: +{es} Horseman: +{fr} Horseman: +{pt-br} Horseman: +{de} Horseman: +" or "{en} Horsemen defeated: +{ru} Horsemen defeated: +{zh-tw} Horsemen defeated: +{zh-cn} Horsemen defeated: +{ko} Horsemen defeated: +{es} Horsemen defeated: +{fr} Horsemen defeated: +{pt-br} Horsemen defeated: +{de} Horsemen defeated: +"
+						local horsemenLabel=defeated==1 and "{en} Horseman: +{ru} Всадник: +{zh-tw} 名騎士：+{zh-cn} 名骑士：+{ko}명의 기사: +{es} Jinete: +{fr} Cavalier : +{pt-br} Cavaleiro: +{de} Reiter: +" or "{en} Horsemen defeated: +{ru} Всадников побеждено: +{zh-tw} 名騎士被擊敗：+{zh-cn} 名骑士被击败：+{ko}명의 기사 처치: +{es} Jinetes derrotados: +{fr} Cavaliers vaincus : +{pt-br} Cavaleiros derrotados: +{de} Reiter besiegt: +"
 						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{defeated,horsemenLabel,defeated*6})
 						totalScore=totalScore+(defeated*6)
 					end
 					if (turnOrder[a].score.gHorsemanSlayer or 0)>0 then
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Horseman Slayer: +{ru}Greatest Horseman Slayer: +{zh-tw}Greatest Horseman Slayer: +{zh-cn}Greatest Horseman Slayer: +{ko}Greatest Horseman Slayer: +{es}Greatest Horseman Slayer: +{fr}Greatest Horseman Slayer: +{pt-br}Greatest Horseman Slayer: +{de}Greatest Horseman Slayer: +",turnOrder[a].score.gHorsemanSlayer})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Greatest Horseman Slayer: +{ru}Лучший истребитель Всадников: +{zh-tw}最佳騎士剋星：+{zh-cn}最佳骑士克星：+{ko}최고의 기사 처치자: +{es}Mayor cazador de Jinetes: +{fr}Meilleur tueur de Cavaliers : +{pt-br}Maior Matador de Cavaleiros: +{de}Größter Reiterbezwinger: +",turnOrder[a].score.gHorsemanSlayer})
 						totalScore=totalScore+turnOrder[a].score.gHorsemanSlayer
 					end
-					UI.setAttribute("TezlaScoreHeadingText","text","{en}Horsemen{ru}Horsemen{zh-tw}Horsemen{zh-cn}Horsemen{ko}Horsemen{es}Horsemen{fr}Horsemen{pt-br}Horsemen{de}Horsemen")
+					UI.setAttribute("TezlaScoreHeadingText","text","{en}Horsemen{ru}Всадники{zh-tw}騎士{zh-cn}骑士{ko}기사{es}Jinetes{fr}Cavaliers{pt-br}Cavaleiros{de}Reiter")
 					updateScorePannel("Tezla",lineFeed,assembledText)
 				end
 
@@ -1035,19 +1035,19 @@ function displayScore(player, mouseButton, id)
 					if againstHorsemen then
 						assembledText="" lineFeed=0
 						if horsemenSummary.total>0 then
-							local horsemenLabel=horsemenSummary.total==1 and "{en} Horseman: +{ru} Horseman: +{zh-tw} Horseman: +{zh-cn} Horseman: +{ko} Horseman: +{es} Horseman: +{fr} Horseman: +{pt-br} Horseman: +{de} Horseman: +" or "{en} Horsemen defeated: +{ru} Horsemen defeated: +{zh-tw} Horsemen defeated: +{zh-cn} Horsemen defeated: +{ko} Horsemen defeated: +{es} Horsemen defeated: +{fr} Horsemen defeated: +{pt-br} Horsemen defeated: +{de} Horsemen defeated: +"
+							local horsemenLabel=horsemenSummary.total==1 and "{en} Horseman: +{ru} Всадник: +{zh-tw} 名騎士：+{zh-cn} 名骑士：+{ko}명의 기사: +{es} Jinete: +{fr} Cavalier : +{pt-br} Cavaleiro: +{de} Reiter: +" or "{en} Horsemen defeated: +{ru} Всадников побеждено: +{zh-tw} 名騎士被擊敗：+{zh-cn} 名骑士被击败：+{ko}명의 기사 처치: +{es} Jinetes derrotados: +{fr} Cavaliers vaincus : +{pt-br} Cavaleiros derrotados: +{de} Reiter besiegt: +"
 							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{horsemenSummary.total,horsemenLabel,horsemenSummary.total*4})
 							coopScore=coopScore+(horsemenSummary.total*4)
 						end
 						if gStates.playerCount>1 and againstHorsemenEveryScoringPlayerDefeatedOne(horsemenSummary)==true then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Each player defeated a Horseman: +6{ru}Each player defeated a Horseman: +6{zh-tw}Each player defeated a Horseman: +6{zh-cn}Each player defeated a Horseman: +6{ko}Each player defeated a Horseman: +6{es}Each player defeated a Horseman: +6{fr}Each player defeated a Horseman: +6{pt-br}Each player defeated a Horseman: +6{de}Each player defeated a Horseman: +6"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Each player defeated a Horseman: +6{ru}Каждый игрок победил Всадника: +6{zh-tw}每位玩家都擊敗了一名騎士：+6{zh-cn}每位玩家都击败了一名骑士：+6{ko}각 플레이어가 기사를 한 명씩 처치: +6{es}Cada jugador derrotó a un Jinete: +6{fr}Chaque joueur a vaincu un Cavalier : +6{pt-br}Cada jogador derrotou um Cavaleiro: +6{de}Jeder Spieler besiegte einen Reiter: +6"})
 							coopScore=coopScore+6
 						end
 						if horsemenSummary.total>=4 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All Horsemen defeated: +15{ru}All Horsemen defeated: +15{zh-tw}All Horsemen defeated: +15{zh-cn}All Horsemen defeated: +15{ko}All Horsemen defeated: +15{es}All Horsemen defeated: +15{fr}All Horsemen defeated: +15{pt-br}All Horsemen defeated: +15{de}All Horsemen defeated: +15"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All Horsemen defeated: +15{ru}Все Всадники побеждены: +15{zh-tw}所有騎士皆被擊敗：+15{zh-cn}所有骑士皆被击败：+15{ko}모든 기사 처치: +15{es}Todos los Jinetes derrotados: +15{fr}Tous les Cavaliers vaincus : +15{pt-br}Todos os Cavaleiros derrotados: +15{de}Alle Reiter besiegt: +15"})
 							coopScore=coopScore+15
 						end
-						UI.setAttribute("TezlaScoreHeadingText","text","{en}Horsemen{ru}Horsemen{zh-tw}Horsemen{zh-cn}Horsemen{ko}Horsemen{es}Horsemen{fr}Horsemen{pt-br}Horsemen{de}Horsemen")
+						UI.setAttribute("TezlaScoreHeadingText","text","{en}Horsemen{ru}Всадники{zh-tw}騎士{zh-cn}骑士{ko}기사{es}Jinetes{fr}Cavaliers{pt-br}Cavaleiros{de}Reiter")
 						local temp=pannel
 						pannel=1
 						UI.setAttribute("Tezla1ScoreCell","columnSpan","4")
@@ -1061,7 +1061,7 @@ function displayScore(player, mouseButton, id)
 					if againstDragon then
 						assembledText="" lineFeed=0
 						if apocalypseHere and horsemenSummary.total>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{horsemenSummary.total,"{en} Horsemen defeated: +{ru} Horsemen defeated: +{zh-tw} Horsemen defeated: +{zh-cn} Horsemen defeated: +{ko} Horsemen defeated: +{es} Horsemen defeated: +{fr} Horsemen defeated: +{pt-br} Horsemen defeated: +{de} Horsemen defeated: +",horsemenSummary.total*3})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{horsemenSummary.total,"{en} Horsemen defeated: +{ru} Всадников побеждено: +{zh-tw} 名騎士被擊敗：+{zh-cn} 名骑士被击败：+{ko}명의 기사 처치: +{es} Jinetes derrotados: +{fr} Cavaliers vaincus : +{pt-br} Cavaleiros derrotados: +{de} Reiter besiegt: +",horsemenSummary.total*3})
 							coopScore=coopScore+(horsemenSummary.total*3)
 						end
 						if apocalypseHere and gStates.playerCount>1 and againstHorsemenEveryScoringPlayerDefeatedOne(horsemenSummary)==true then

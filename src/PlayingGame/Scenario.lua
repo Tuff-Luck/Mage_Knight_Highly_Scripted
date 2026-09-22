@@ -1492,12 +1492,21 @@ end
 
 function againstHorsemenAllDefeated()
 	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return false end
-	local found=false
-	for _,state in pairs(gStates.horsemen or {}) do
-		found=true
-		if state.defeated~=true then return false end
+	--Victory always requires the complete Four Horsemen roster. A partial setup must never
+	--turn three (or fewer) successfully deployed tokens into an accidental scenario victory.
+	for _,name in ipairs({"Famine","Pestilence","Death","War"}) do
+		local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+		if state==nil or state.defeated~=true then return false end
 	end
-	return found
+	return true
+end
+
+function againstHorsemenRegisterTimeoutLoss()
+	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" or againstHorsemenAllDefeated()==true then return false end
+	gStates.againstHorsemenTimeoutLoss=true
+	gStates.blurb="{en}The final Round ended while at least one Horseman still defended the Magical Glade.<size=6>\n\n</size>The ritual is complete. You have Lost.{ru}Последний раунд закончился, пока хотя бы один Всадник всё ещё защищал Магическую поляну.<size=6>\n\n</size>Ритуал завершён. Вы проиграли.{zh-tw}最後一輪結束時，仍有至少一名騎士守在魔法林地。<size=6>\n\n</size>儀式已完成。你輸了。{zh-cn}最后一轮结束时，仍有至少一名骑士守在魔法林地。<size=6>\n\n</size>仪式已完成。你输了。{ko}마지막 라운드가 끝났지만 한 명 이상의 기사가 여전히 마법의 숲을 지키고 있습니다.<size=6>\n\n</size>의식이 완성되었습니다. 패배했습니다.{es}La Ronda final terminó mientras al menos un Jinete seguía defendiendo el Claro Mágico.<size=6>\n\n</size>El ritual se ha completado. Has perdido.{fr}La dernière Manche s'est terminée alors qu'au moins un Cavalier défendait encore la Clairière Magique.<size=6>\n\n</size>Le rituel est accompli. Vous avez perdu.{pt-br}A Rodada final terminou enquanto pelo menos um Cavaleiro ainda defendia a Clareira Mágica.<size=6>\n\n</size>O ritual foi concluído. Você perdeu.{de}Die letzte Runde endete, während noch mindestens ein Reiter die Magische Lichtung verteidigte.<size=6>\n\n</size>Das Ritual ist vollendet. Ihr habt verloren."
+	UI.setAttribute("DummyNotes","Text",gStates.blurb)
+	return true
 end
 
 --Scenario scoring uses the actual Horseman defeats rather than inventory reward tokens. This remains
@@ -1641,9 +1650,14 @@ function againstHorsemenRestoreRuntimeState()
 			local token=getObjectFromGUID(entry.guid)
 			if token~=nil and layout[i]~=nil then
 				token.setRotation({0,180,0})
-				token.setPositionSmooth(layout[i],false)
+				token.setPositionSmooth(layout[i],false,false)
 			end
 		end
+	end
+	--An end-of-round Horseman wave is durable state. Reissue it after load rather than leaving
+	--the round reset suspended if the save happened while visible movement was still settling.
+	if gStates.gameScenario=="Against the Horsemen Blitz" and gStates.againstHorsemenMovePending~=nil then
+		safeWaitFrames("Scenario",function() againstHorsemenContinueEndRoundMovement() end,4)
 	end
 end
 
@@ -1957,6 +1971,12 @@ end
 function againstHorsemenFinalizeMoveWave()
 	local pending=gStates~=nil and gStates.againstHorsemenMovePending or nil
 	if pending==nil or pending.movingTargets==nil then return end
+	--Round 3's ritual state is committed only after every surviving Horseman has physically
+	--settled into the garrison display. Until this point players on the Glade remain alive.
+	if pending.finalGlade==true and pending.ritualPrepared~=true then
+		againstHorsemenPrepareRitual()
+		pending.ritualPrepared=true
+	end
 	for name,_ in pairs(pending.movingTargets) do againstHorsemenRefreshHorseman(name) end
 	pending.movingTargets=nil
 	pending.stepsRemaining=math.max(0,(pending.stepsRemaining or 1)-1)
@@ -2011,15 +2031,22 @@ function againstHorsemenContinueEndRoundMovement()
 		return
 	end
 	local targets={}
-	local stackIndex=0
-	if pending.finalGlade==true and pending.ritualPrepared~=true then
-		againstHorsemenPrepareRitual()
-		pending.ritualPrepared=true
+	local ritualDefenders={}
+	if pending.finalGlade==true then
+		--Build the display directly from the surviving movement queue. Do not mark the ritual as
+		--started yet: that commit eliminates Glade occupants and belongs after the movement settles.
+		for _,name in ipairs(pending.queue or {}) do
+			local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+			local data=horsemanData~=nil and horsemanData[name] or nil
+			if state~=nil and state.defeated~=true and data~=nil and getObjectFromGUID(data.tokenGUID)~=nil then
+				ritualDefenders[#ritualDefenders+1]={name=name,guid=data.tokenGUID,slot=tonumber(state.mapSlot) or 99}
+			end
+		end
+		table.sort(ritualDefenders,function(a,b) if a.slot==b.slot then return a.name<b.name end return a.slot<b.slot end)
 	end
-	local ritualDefenders=pending.finalGlade==true and againstHorsemenRitualDefenders() or nil
-	local ritualLayout=ritualDefenders~=nil and againstHorsemenPortalCardLayout(#ritualDefenders) or nil
+	local ritualLayout=pending.finalGlade==true and againstHorsemenPortalCardLayout(#ritualDefenders) or nil
 	local ritualSlot={}
-	for i,entry in ipairs(ritualDefenders or {}) do ritualSlot[entry.name]=i end
+	for i,entry in ipairs(ritualDefenders) do ritualSlot[entry.name]=i end
 	for _,name in ipairs(pending.queue or {}) do
 		local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
 		local data=horsemanData~=nil and horsemanData[name] or nil
@@ -2027,10 +2054,8 @@ function againstHorsemenContinueEndRoundMovement()
 		if state~=nil and state.defeated~=true and token~=nil then
 			local nextPosition=nil
 			if pending.finalGlade==true then
-				--Logically they enter the Glade; physically they take their tidy garrison slots on the Portal card.
-				stackIndex=stackIndex+1
-				local slot=ritualSlot[name] or stackIndex
-				nextPosition=ritualLayout~=nil and ritualLayout[slot] or nil
+				--They will logically enter the Glade only after this physical garrison move settles.
+				nextPosition=ritualLayout~=nil and ritualLayout[ritualSlot[name]] or nil
 			else
 				--Use the physical position every wave. Manual player corrections therefore become the new path.
 				nextPosition=againstHorsemenDefaultNextPosition(token.getPosition(),center)
@@ -2084,9 +2109,9 @@ function againstHorsemenStartingLevel()
 end
 
 function againstHorsemenSetupTokens(coreTileGUIDs, coreTilePositions)
-	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return end
+	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return false,"HORSEMEN SETUP ERROR: wrong scenario state" end
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	if bag==nil then print("HORSEMEN SETUP ERROR: Apocalypse setup bag is missing") return end
+	if bag==nil then return false,"HORSEMEN SETUP ERROR: Apocalypse setup bag is missing" end
 	local names={"Famine","Pestilence","Death","War"}
 	for i=#names,2,-1 do
 		local j=math.random(i)
@@ -2099,34 +2124,37 @@ function againstHorsemenSetupTokens(coreTileGUIDs, coreTilePositions)
 	gStates.againstHorsemenRitualStarted=false
 	gStates.againstHorsemenAssaultOrigin=nil
 	gStates.againstHorsemenSoloAssault=nil
+	gStates.againstHorsemenTimeoutLoss=false
 	for i,name in ipairs(names) do
 		local data=horsemanData[name]
 		local pos=coreTilePositions[i]
 		local coreGUID=coreTileGUIDs[i]
 		if data==nil or pos==nil or coreGUID==nil then
-			print("HORSEMEN SETUP ERROR: missing setup data for slot "..tostring(i))
-		else
-			--The left/right Horsemen begin one additional hex outward from their Core-tile centres.
-			--Slots 2 and 4 are the right and left Core tiles respectively; one horizontal hex is 2.4 world units.
-			local horsemanX=pos[1]
-			if i==2 then horsemanX=horsemanX+2.4 elseif i==4 then horsemanX=horsemanX-2.4 end
-			local token=bag.takeObject({guid=data.tokenGUID,position={horsemanX,2.3,pos[3]},rotation={0,180,180},smooth=false})
-			if token==nil then
-				print("HORSEMEN SETUP ERROR: could not deploy "..name)
-			else
-				setHorsemanLevel(name,level,true)
-				local state=gStates.horsemen[name]
-				state.revealed=false
-				--Record the actual hex, not merely the Core-tile centre. This matters for the two
-				--side Horsemen now that their physical starting hex is one step farther outward.
-				local horsemanTerrain,horsemanBearing=terrainHexAtPosition({horsemanX,1.1,pos[3]})
-				state.terrainGUID=horsemanTerrain~=nil and horsemanTerrain.guid or coreGUID
-				state.bearing=horsemanBearing or "center"
-				state.mapSlot=i
-				gStates.againstHorsemenCoreTiles[i]=coreGUID
-			end
+			return false,"HORSEMEN SETUP ERROR: missing setup data for slot "..tostring(i)
 		end
+		--The left/right Horsemen begin one additional hex outward from their Core-tile centres.
+		--Slots 2 and 4 are the right and left Core tiles respectively; one horizontal hex is 2.4 world units.
+		local horsemanX=pos[1]
+		if i==2 then horsemanX=horsemanX+2.4 elseif i==4 then horsemanX=horsemanX-2.4 end
+		local token=bag.takeObject({guid=data.tokenGUID,position={horsemanX,2.3,pos[3]},rotation={0,180,180},smooth=false})
+		if token==nil then return false,"HORSEMEN SETUP ERROR: could not deploy "..tostring(name) end
+		if setHorsemanLevel(name,level,true)~=true then return false,"HORSEMEN SETUP ERROR: could not initialize "..tostring(name) end
+		local state=gStates.horsemen[name]
+		if state==nil then return false,"HORSEMEN SETUP ERROR: missing runtime state for "..tostring(name) end
+		state.revealed=false
+		--Record the actual hex, not merely the Core-tile centre. This matters for the two
+		--side Horsemen now that their physical starting hex is one step farther outward.
+		local horsemanTerrain,horsemanBearing=terrainHexAtPosition({horsemanX,1.1,pos[3]})
+		state.terrainGUID=horsemanTerrain~=nil and horsemanTerrain.guid or coreGUID
+		state.bearing=horsemanBearing or "center"
+		state.mapSlot=i
+		gStates.againstHorsemenCoreTiles[i]=coreGUID
 	end
+	--Do not allow map setup to complete unless every named Horseman has durable runtime state.
+	for _,name in ipairs({"Famine","Pestilence","Death","War"}) do
+		if gStates.horsemen[name]==nil then return false,"HORSEMEN SETUP ERROR: incomplete Four Horsemen roster" end
+	end
+	return true
 end
 
 

@@ -758,6 +758,7 @@ function nextTurnMerged(type)--"nextMage", "nextMageSkipDummy", "incrementTurn",
 					gStates.blurb="{en}The final Round ended while Volkare still had an army.<size=6>\n\n</size>You have Lost.{ru}Последний раунд закончился, пока у Волкара еще оставалась армия.<size=6>\n\n</size>Вы проиграли.{zh-tw}最後一輪結束時沃卡里仍有軍隊。<size=6>\n\n</size>你輸了。{zh-cn}最后一轮结束时沃卡里仍有军队。<size=6>\n\n</size>你输了。{ko}마지막 라운드가 끝났지만 볼케어의 군대가 남아 있습니다.<size=6>\n\n</size>패배했습니다.{es}La Ronda final terminó mientras Volkare aún tenía un ejército.<size=6>\n\n</size>Has perdido.{fr}La dernière Manche s'est terminée alors que Volkare avait encore une armée.<size=6>\n\n</size>Vous avez perdu.{pt-br}A Rodada final terminou enquanto Volkare ainda tinha um exército.<size=6>\n\n</size>Você perdeu.{de}Die letzte Runde endete, während Volkare noch eine Armee hatte.<size=6>\n\n</size>Ihr habt verloren."
 					UI.setAttribute("DummyNotes", "Text", gStates.blurb)
 				end
+				if gStates.currentRound>=gStates.rounds and gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRegisterTimeoutLoss() end
 				gStates.gameOver=true
 				mainUIUpdate("Game Over")
 			else endRound() end

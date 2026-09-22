@@ -649,6 +649,19 @@ end
 
 function automatedMainPanelRefresh(overrideSpec)
 	local spec=overrideSpec
+	--Against the Horsemen uses the same Automated Turn panel as Volkare's timeout loss.
+	--Unlike Volkare, the final-turn owner may be a normal Mage Knight, so force the panel visible
+	--instead of depending on the automated seat being the current turn when the loss is registered.
+	if spec==nil and gStates~=nil and gStates.againstHorsemenTimeoutLoss==true then
+		spec={
+			actor="horsemen",
+			onClick="layoutClaimedCards",
+			interactable=true,
+			label="{en}Game Over - Show Score{ru}Игра окончена — показать счёт{zh-tw}遊戲結束－顯示分數{zh-cn}游戏结束－显示分数{ko}게임 종료 - 점수 보기{es}Fin de Partida - Mostrar Puntuación{fr}Partie Terminée - Afficher le Score{pt-br}Fim de Jogo - Mostrar Pontuação{de}Spiel Beendet - Wertung Anzeigen",
+			notes=gStates.blurb,
+			mainText="{en}<size=25>Against the Horsemen</size>{ru}<size=25>Против Всадников</size>{zh-tw}<size=25>對抗四騎士</size>{zh-cn}<size=25>对抗四骑士</size>{ko}<size=25>묵시록의 기사들에 맞서</size>{es}<size=25>Contra los Jinetes</size>{fr}<size=25>Contre les Cavaliers</size>{pt-br}<size=25>Contra os Cavaleiros</size>{de}<size=25>Gegen die Reiter</size>"
+		}
+	end
 	if spec==nil and gStates~=nil and gStates.apocalypseDragonTurnActive==true and againstDragonMainUIPanelSpec~=nil then spec=againstDragonMainUIPanelSpec() end
 	if spec==nil and gStates~=nil and gStates.apocalypseHereHorsemenTurnActive==true and apocalypseIsHereMainUIPanelSpec~=nil then spec=apocalypseIsHereMainUIPanelSpec() end
 	if spec==nil then spec=automatedCurrentPlayerPanelSpec() end
