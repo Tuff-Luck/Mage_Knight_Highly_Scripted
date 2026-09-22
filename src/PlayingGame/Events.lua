@@ -742,7 +742,15 @@ end
 --Update skill Locations, Update Players Location details, and Update the UI and trigger a Level up if a mage shield was moved manually
 function __onObjectDrop_raw(player_color, dropped_object)
 	local droppedGUID=dropped_object.guid
-	if terrainTiles[droppedGUID]~=nil then runtimeMapInvalidate() end
+	if terrainTiles[droppedGUID]~=nil then
+		runtimeMapInvalidate()
+		--EXPLORE legality is derived from the settled physical map. onObjectEnterZone can fire while a
+		--dragged tile is still crossing the map zone, so rebuild only after the final drop has settled.
+		safeWaitCondition("Events",function() refreshTerrainExploreOptions() end,function()
+			local tile=getObjectFromGUID(droppedGUID)
+			return tile==nil or (tile.held_by_color==nil and tile.resting==true and tile.isSmoothMoving()==false)
+		end,5,function() refreshTerrainExploreOptions() end)
+	end
 	local droppedHorseman=horsemanTokenToName~=nil and horsemanTokenToName[droppedGUID] or nil
 	if gStates.gameScenario=="Against the Horsemen Blitz" and (terrainTiles[droppedGUID]~=nil or droppedHorseman~=nil) then
 		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,2)
@@ -1407,18 +1415,29 @@ local function handleTerrainZoneEnter(ctx)
 	local zoneInfo=ctx.zoneInfo
 	local objType=ctx.objType
 	--Check if a terrain tile has entered the play area
-	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
-		if startingMapSetup==true then startingMapTiles[objGUID]=true end
-		workingOnTerrain[objGUID]=true
+	local refreshExploreOnly=ctx.refreshExploreOnly==true
+	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and (refreshExploreOnly==true or workingOnTerrain[objGUID]~=true) then
+		if refreshExploreOnly~=true then
+			if startingMapSetup==true then startingMapTiles[objGUID]=true end
+			workingOnTerrain[objGUID]=true
+		end
 			safeWaitTime("Events",function() addAvatarButtons() end, 1.5)
-			local playAreaObjects=zone.getObjects()
-			local faceUpTerrain={}
-			local mapObjectPositions={}
+			local playAreaObjects={}
+		local faceUpTerrain={}
+		local mapObjectPositions={}
+		local function refreshTerrainSnapshot()
+			playAreaObjects=zone.getObjects()
+			faceUpTerrain={}
+			mapObjectPositions={}
 			for _, mapObject in pairs(playAreaObjects) do
 				local mapObjectPosition=mapObject.getPosition()
 				mapObjectPositions[#mapObjectPositions+1]={guid=mapObject.guid, position=mapObjectPosition}
-				if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid, position=mapObjectPosition} end
+				if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
+					faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid, position=mapObjectPosition}
+				end
 			end
+		end
+		refreshTerrainSnapshot()
 		local core=0
 		local faceUp=	{0.0, 180.0,   0.0}
 		local faceDown=	{0.0, 180.0, 180.0}
@@ -1432,7 +1451,10 @@ local function handleTerrainZoneEnter(ctx)
 			else startTileGUID=startTerrain.wedge northBearing=70 end
 		end
 		local startTileObject=getObjectFromGUID(startTileGUID)
-		if startTileObject==nil then workingOnTerrain[objGUID]=nil return true end
+		if startTileObject==nil then
+			if refreshExploreOnly~=true then workingOnTerrain[objGUID]=nil end
+			return true
+		end
 		local startTilePosition=startTileObject.getPosition()
 		local enteredTilePosition=obj.getPosition()
 		local enteredTileName=obj.getName()
@@ -1440,7 +1462,8 @@ local function handleTerrainZoneEnter(ctx)
 
 		local faceDownTerrain=false
 		local errorBroadcast=""
-		local function positionLegal(obj)--.guid .is_face_down .getPosition() .getName()
+		local function positionLegal(obj)--.guid .faceDown .position .objName [.tileType]
+			local candidateTileType=obj.tileType or (terrainTiles[obj.guid]~=nil and terrainTiles[obj.guid].tileType) or "country"
 			--Against the Horsemen uses a completely predefined map. Its face-down tiles are already in
 			--their legal positions, so ordinary wedge/open/neighbour placement rules must never reject
 			--a tile when it is revealed. Keep face-down tiles dormant; once revealed, always populate them.
@@ -1456,7 +1479,7 @@ local function handleTerrainZoneEnter(ctx)
 			end
 
 			--Check if a core tile is on the coast of a wedge map
-			if terrainTiles[objGUID].tileType=="core" and northBearing==70 and (obj.bearing<=41 or obj.bearing>=99) and gStates.gameScenario~="Fast Forwarded Conquest" then errorBroadcast="{en}Core Terrain Tiles aren't allowed on the coast{ru}Плитки Развитых земель не могут располагаться на берегу{zh-tw}海岸边不可以部署核心城市板块{zh-cn}海岸边不可以部署核心城市板块{ko}중심부 타일은 해안선에 놓일 수 없습니다{es}Las baldosas de terreno del núcleo no están permitidas en la costa{fr}Les tuiles de terrain de base ne sont pas autorisées sur la côte{pt-br}Peças Mapa Centrais não são permitidas na Costa{de}Kernterrainplättchen sind an der Küste nicht erlaubt" return false end
+			if candidateTileType=="core" and northBearing==70 and (obj.bearing<=41 or obj.bearing>=99) and gStates.gameScenario~="Fast Forwarded Conquest" then errorBroadcast="{en}Core Terrain Tiles aren't allowed on the coast{ru}Плитки Развитых земель не могут располагаться на берегу{zh-tw}海岸边不可以部署核心城市板块{zh-cn}海岸边不可以部署核心城市板块{ko}중심부 타일은 해안선에 놓일 수 없습니다{es}Las baldosas de terreno del núcleo no están permitidas en la costa{fr}Les tuiles de terrain de base ne sont pas autorisées sur la côte{pt-br}Peças Mapa Centrais não são permitidas na Costa{de}Kernterrainplättchen sind an der Küste nicht erlaubt" return false end
 
 			--Check if a tile is outside of a wedge map
 			if northBearing==70 and (obj.bearing<=35 or obj.bearing>=105) then errorBroadcast="{en}Terrain Tile isn't in the Wedge{ru}Плитка земель не находится в форме{zh-tw}地图块不在锥形里 (出界了){zh-cn}地图块不在锥形里 (出界了){ko}지도 타일이 쐐기 안에 있지 않습니다{es}Terrain Tile no está en la cuña{fr}La tuile de terrain n'est pas dans le coin{pt-br}Peça de Terreno não está no Cone{de}Das Geländeplättchen liegt nicht im Keil" return false end
@@ -1479,7 +1502,7 @@ local function handleTerrainZoneEnter(ctx)
 			--Check if Core tile has at least two neighbor Tiles
 			--Check if Country tile has at least one neighbor that has two neighbor Tiles
 			--check if an excess terrain tile has at least three neighbors.
-			if gStates.gameScenario~="The Gauntlet" and objGUID~=firstTile and not (objGUID=="835c91" and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
+			if gStates.gameScenario~="The Gauntlet" and obj.guid~=firstTile and not (obj.guid=="835c91" and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
 				local neighboursFound=0
 				local neighbourTile=nil
 				local adjacentPositions={}
@@ -1488,7 +1511,7 @@ local function handleTerrainZoneEnter(ctx)
 					adjacentPositions[c]={obj.position[1]+offset[1], obj.position[3]+offset[2]}
 				end
 				for _, b in pairs(faceUpTerrain) do
-					if b.guid~=objGUID then
+					if b.guid~=obj.guid then
 						local tested=b.position
 						for c=1, 6, 1 do
 							local toCheck=adjacentPositions[c]
@@ -1497,9 +1520,9 @@ local function handleTerrainZoneEnter(ctx)
 					end
 				end
 				if neighboursFound==0 then return false end
-				if terrainTiles[objGUID].tileType=="core" and neighboursFound<2 then errorBroadcast="{en}Core Terrain Tiles need two or more neighbours{ru}Плитки Развитых земель должны находиться по соседству с двумя другими землями{zh-tw}核心城市板块需要紧邻两个以上的其他板块{zh-cn}核心城市板块需要紧邻两个以上的其他板块{ko}중심부 타일은 최소 2개의 타일과 인접해야 합니다{es}Las baldosas de terreno central necesitan dos o más vecinos{fr}Les tuiles de terrain de base ont besoin de deux voisins ou plus{pt-br}Peças Mapa Centrais precisam de 2 ou mais Vizinhos{de}Kernterrainplättchen benötigen zwei oder mehr Nachbarn" return false end
+				if candidateTileType=="core" and neighboursFound<2 then errorBroadcast="{en}Core Terrain Tiles need two or more neighbours{ru}Плитки Развитых земель должны находиться по соседству с двумя другими землями{zh-tw}核心城市板块需要紧邻两个以上的其他板块{zh-cn}核心城市板块需要紧邻两个以上的其他板块{ko}중심부 타일은 최소 2개의 타일과 인접해야 합니다{es}Las baldosas de terreno central necesitan dos o más vecinos{fr}Les tuiles de terrain de base ont besoin de deux voisins ou plus{pt-br}Peças Mapa Centrais precisam de 2 ou mais Vizinhos{de}Kernterrainplättchen benötigen zwei oder mehr Nachbarn" return false end
 				if obj.objName=="excess" and neighboursFound<3 then errorBroadcast="{en}Excess Terrain Tiles need three or more neighbours, They're meant to fill holes in the map.{ru}Запасные земели должны примыкать хотя бы к трём другим землям (чтобы заполнить дыры).{zh-tw}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{zh-cn}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{ko}추가 지도 타일은 최소 3개의 다른 타일과 인접해야 합니다. 구멍을 메운다는 느낌과 유사합니다.{es}Los mosaicos de terreno en exceso necesitan tres o más vecinos. Están destinados a rellenar huecos en el mapa.{fr}Les tuiles de terrain excédentaire ont besoin de trois voisins ou plus, elles sont destinées à combler les trous sur la carte.{pt-br}Peças de Terreno Excessivas precisam de 3 ou mais vizinhos. Elas são para preencher buracos no mapa{de}Überschüssige Geländeplättchen brauchen drei oder mehr Nachbarn, sie sollen Löcher auf der Karte füllen." return false end
-				if terrainTiles[objGUID].tileType~="core" and neighboursFound<=1 then
+				if candidateTileType~="core" and neighboursFound<=1 then
 					neighboursFound=0
 					if neighbourTile~=nil then
 						local neighbourPositions={}
@@ -1508,7 +1531,7 @@ local function handleTerrainZoneEnter(ctx)
 							neighbourPositions[c]={neighbourTile.position[1]+offset[1], neighbourTile.position[3]+offset[2]}
 						end
 						for _, b in pairs(faceUpTerrain) do
-							if b.guid~=objGUID then
+							if b.guid~=obj.guid then
 								local tested=b.position
 								for c=1, 6, 1 do
 									local toCheck=neighbourPositions[c]
@@ -1523,11 +1546,11 @@ local function handleTerrainZoneEnter(ctx)
 
 			--Check if a City tile is played to wrong side in Life and Death
 			if gStates.gameScenario=="Life and Death" and getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()==1 then
-				if objGUID==GUID.tile.city08 and obj.bearing<=northBearing-1 then --red city
+				if obj.guid==GUID.tile.city08 and obj.bearing<=northBearing-1 then --red city
 					errorBroadcast="{en}Red City needs to be placed in the Northern section{ru}Земля с красным городом не может быть размещена на юге{zh-tw}红色城市需要放在靠北边{zh-cn}红色城市需要放在靠北边{ko}빨간색 도시는 북쪽에 놓여야합니다.{es}Red City debe colocarse en la sección Norte{fr}Red City doit être placé dans la section Nord{pt-br}Cidade Vermelha precisa ser colocada na sessão Norte{de}Die rote Stadt muss in den nördlichen Abschnitt gelegt werden"
 					return false
 				end
-				if objGUID==GUID.tile.city05 and obj.bearing>=northBearing+1 then --green city
+				if obj.guid==GUID.tile.city05 and obj.bearing>=northBearing+1 then --green city
 					errorBroadcast="{en}Green City needs to be placed in the Southern section{ru}Земля с зелёным городом не может быть размещена на севере{zh-tw}绿色城市需要放置在南边部分{zh-cn}绿色城市需要放置在南边部分{ko}녹색 도시는 남쪽에 놓여야합니다{es}Green City debe colocarse en la sección Sur{fr}Green City doit être placé dans la section Sud{pt-br}Cidade Verde precisa ser colocada na parte Sul do mapa{de}Grüne Stadt muss in die südliche Sektion gelegt werden"
 					return false
 				end
@@ -1552,23 +1575,8 @@ local function handleTerrainZoneEnter(ctx)
 			end
 		end
 
-		--deploy monster token if terrain tile is deployed correctly
-		if positionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}})==true then
-			--Before the first round, dayRound is intentionally still false so dayNight() can perform
-			--the first transition. Do not let that sentinel make setup terrain look like night.
-			if startingMapSetup==true then
-				if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
-			end
-			againstDragonRevealLair(obj)
-			if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
-			--Check if the object is a core tile and unlock elite units
-			if terrainTiles[objGUID].tileType=="core" and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
-				gStates.playedCoreTiles=gStates.playedCoreTiles+1
-				gStates.eliteUnitsUsed=true
-				if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
-				core=1
-			end
-
+		local function refreshExploreOptions()
+			refreshTerrainSnapshot()
 			--Highlight legal tile plays
 			if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" and not (gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P") then
 				local gridType=""
@@ -1617,6 +1625,32 @@ local function handleTerrainZoneEnter(ctx)
 					getObjectFromGUID("f2291a").UI.setXmlTable(gStates.exploreButtons)
 					--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
 					compactCityCardsAfterExplore(mapObjectPositions)
+			end
+		end
+		if refreshExploreOnly==true then
+			refreshExploreOptions()
+			return true
+		end
+
+		--deploy monster token if terrain tile is deployed correctly
+		if positionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}})==true then
+			--Before the first round, dayRound is intentionally still false so dayNight() can perform
+			--the first transition. Do not let that sentinel make setup terrain look like night.
+			if startingMapSetup==true then
+				if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
+			end
+			againstDragonRevealLair(obj)
+			if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
+			--Check if the object is a core tile and unlock elite units
+			if terrainTiles[objGUID].tileType=="core" and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
+				gStates.playedCoreTiles=gStates.playedCoreTiles+1
+				gStates.eliteUnitsUsed=true
+				if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
+				core=1
+			end
+
+			if startingMapSetup~=true and obj.resting==true and obj.held_by_color==nil and obj.isSmoothMoving()==false then
+				refreshExploreOptions()
 			end
 
 			--Against the Apocalypse destroyed terrain
@@ -1850,6 +1884,7 @@ local function handleTerrainZoneEnter(ctx)
 			local function finishTerrainPopulation()
 				gStates.playedAllready[objGUID]=true
 				workingOnTerrain[objGUID]=false
+				if startingMapSetup~=true then refreshTerrainExploreOptions() end
 				--Terrain deployment changes the movement graph directly. Refresh it here instead of relying on
 				--the later fake avatar drop to eventually trigger a full UI update.
 				if gStates.firstStarted==true then
@@ -1916,6 +1951,31 @@ local function handleTerrainZoneEnter(ctx)
         end
 	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil then return true end
 	return false
+end
+
+--Rebuild EXPLORE buttons from the physical map as it exists now. This is intentionally derived
+--runtime state: nothing here is persisted as an alternative source of truth.
+function refreshTerrainExploreOptions()
+	if gStates==nil then return end
+	local zone=getObjectFromGUID(mapArea)
+	if zone==nil then return end
+	local anchor=nil
+	for _, candidate in pairs(zone.getObjects()) do
+		if terrainTiles[candidate.guid]~=nil and candidate.is_face_down~=true then
+			anchor=candidate
+			break
+		end
+	end
+	if anchor==nil then
+		gStates.exploreButtons={{}}
+		local mapUI=getObjectFromGUID("f2291a")
+		if mapUI~=nil then mapUI.UI.setXmlTable(gStates.exploreButtons) end
+		return
+	end
+	local ctx=zoneEventContext(zone,anchor)
+	if ctx==nil then return end
+	ctx.refreshExploreOnly=true
+	handleTerrainZoneEnter(ctx)
 end
 
 local function handleMapLocationZoneEnter(ctx)
