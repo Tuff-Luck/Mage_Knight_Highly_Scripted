@@ -104,6 +104,69 @@ monsterPiles={	["white"]="baac01", ["purple"]="c03e08", ["tan"]="e4b016", ["gray
 								["greenDark"]="cfef57", ["tanDark"]="0fde4d", ["redDark"]="bc9d0e", ["rewardDark"]="f469f4",
 								["rewardCouncil"]="f4d26c", ["rewardApoc"]="45d509", ["possessed"]=GUID.bag.possessed, ["zigguratTrap"]="40cf75", ["pyramidTrap"]="a86821"}
 
+--Single source of truth for setup-time expansion and special-pool membership.
+--Setup modules decide whether a roster is active; individual component ownership belongs here.
+setupContentRoster={
+	lostLegion={
+		terrain={
+			country={GUID.tile.country12,GUID.tile.country13,GUID.tile.country14},
+			core={GUID.tile.core09,GUID.tile.core10}
+		},
+		enemies={
+			{source=monsterPiles.green,tokens={"643901","30df98","f0d27a","994ee9","e17886","8ffd9e","28bc08","0cc1e5"}},
+			{source=monsterPiles.tan,tokens={"013cb1","16d47c","ce794a","863ba1","558de1","277cd2"}},
+			{source=monsterPiles.red,tokens={"be5c5e","9156c4","80d998","17bcd9","09ec72","b7dca2"}},
+			{source=monsterPiles.yellow,tokens={"58c5ab","2f9a1f","28cc9c"}},
+			{source=monsterPiles.gray,tokens={"3f4b5e","88ecaa","bc5065","808631","8ea708","f11b70","7e72a2","90755e"}},
+			{source=monsterPiles.purple,tokens={"490a69","b8f920","23fe94","8a3f72"}},
+			{source=monsterPiles.white,tokens={"c0c315","eae753","e9a281","e6859f","864fe1","729056"}}
+		},
+		cards={
+			[GUID.deck.action]={"d3995b","93b7d4","9de475","87bc59","878d93","05ef61","42eb53","65a1d5","8122c2","474418","54b5c4","878d94"},
+			[GUID.deck.spell]={"2eb8e6","2eb8e1","47e71c","2eb8d9"},
+			[GUID.deck.artifact]={"085e65","085e64","085e63","085e67","085e66","085e68","98681f","7d608f"},
+			[GUID.deck.regularUnit]={"75307e","ff2a54","246b0d","d8e49b","bd1011","0a2e0b","4339c4","422b8b"},
+			[GUID.deck.eliteUnit]={"88f3f2","9c5c38","223b47","c3e3c5","613dca","8ccbdd","5c2da0","4ee245"}
+		}
+	},
+	apocalypse={
+		terrain={
+			country={GUID.tile.country15,GUID.tile.country16,GUID.tile.country17},
+			core={GUID.tile.core11,GUID.tile.core12}
+		}
+	},
+	shadesOfTezla={
+		enemies={
+			dark={
+				{source=monsterPiles.green,destination=monsterPiles.greenDark,tokens={"0c5f4d","698829","f87e33","565ecd","f85b1e","d549a5","39d58e","8efc22"}},
+				{source=monsterPiles.tan,destination=monsterPiles.tanDark,tokens={"863ba2","558de0","013cb2","61eb06"}},
+				{source=monsterPiles.red,destination=monsterPiles.redDark,tokens={"c77902","f87e32","342ed4","0d0645"}}
+			},
+			elementalist={
+				{source=monsterPiles.green,destination=monsterPiles.greenElem,tokens={"8efc20","64b218","698828","adec2a","e9911f","60e427","a04726","f87e31"}},
+				{source=monsterPiles.tan,destination=monsterPiles.tanElem,tokens={"00c4da","863bab","013cb3","61eb07"}},
+				{source=monsterPiles.red,destination=monsterPiles.redElem,tokens={"c77901","6cad42","5d4e06","f87e39"}}
+			}
+		}
+	},
+	bonusCards={
+		cards={
+			[GUID.deck.action]={"409fe8","141527","1a1c02","d75285"},
+			[GUID.deck.artifact]={"085e69"}
+		}
+	},
+	competitiveSpells={
+		cards={
+			[GUID.deck.spell]={"2eb8f4","8907d7","2eb8f5","2eb8f3"}
+		}
+	},
+	firstReconnaissanceExcluded={
+		cards={
+			[GUID.deck.action]={"8c3de6","8fac50","d74999","20cb85","6fdeb0","1f362f","35aee6","bb05a9","e2b570","c3153e","885b96","3d832c"}
+		}
+	}
+}
+
 translateWord={	["Red"]="{en}Red{ru}Красный{zh-tw}红色的{zh-cn}红色的{ko}빨간색{es}Rojo{fr}Rouge{pt-br}Vermelho{de}Rote",
 				["Green"]="{en}Green{ru}Зеленый{zh-tw}绿色的{zh-cn}绿色的{ko}녹색{es}Verde{fr}Vert{pt-br}Verde{de}Grüne",
 				["Blue"]="{en}Blue{ru}Синий{zh-tw}蓝色的{zh-cn}蓝色的{ko}파란색{es}Azul{fr}Bleu{pt-br}Azul{de}Blaue",

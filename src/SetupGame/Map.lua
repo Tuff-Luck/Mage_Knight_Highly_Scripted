@@ -330,45 +330,21 @@ function mapSetup(onComplete)
 	Global.setDecals({})
 	if gridType~="" then Global.addDecal({name="Terrain Grid", url=gridType, position={-16.825, 0.99, 0.55}, rotation={90.0, 0.0, 0.0}, scale={60, 60, 1}}) end
 
-	--shuffle the order of data in a table
+	--Shuffle a scenario candidate list after applying the same expansion ownership roster used by
+	--the physical terrain bags. Feature-specific lists below stay local to the scenario logic.
+	local function removeTerrainRoster(array,terrainRoster)
+		local excluded={}
+		for _,group in pairs(terrainRoster or {}) do
+			for _,guid in ipairs(group or {}) do excluded[guid]=true end
+		end
+		local filtered={}
+		for _,guid in ipairs(array) do if excluded[guid]~=true then filtered[#filtered+1]=guid end end
+		return filtered
+	end
 	local function listShuffle(array)
-		--Remove lost legion GUIDs
-		if gStates.removeLostLegionExpansion==true then
-			local tempArray={}
-			local lostLegionTiles={GUID.tile.country12, GUID.tile.country13, GUID.tile.country14, GUID.tile.core09, GUID.tile.core10}--12, 13, 14, *9*, *10*
-			for a=1, #array, 1 do
-				local found=false
-				for b=1, #lostLegionTiles, 1 do
-					if array[a]==lostLegionTiles[b] then found=true end
-				end
-				if found==false then tempArray[#tempArray+1]=array[a] end
-			end
-			array=tempArray
-		end
-		if gStates.removeApocalypseTerrain==true then
-			local tempArray={}
-			local ApocalypseTiles={GUID.tile.country15, GUID.tile.country16, GUID.tile.country17, GUID.tile.core11, GUID.tile.core12}--15, 16, 17, *11*, *12*
-			for a=1, #array, 1 do
-				local found=false
-				for b=1, #ApocalypseTiles, 1 do
-					if array[a]==ApocalypseTiles[b] then found=true end
-				end
-				if found==false then tempArray[#tempArray+1]=array[a] end
-			end
-			array=tempArray
-		end
-		if gStates.removeTerrain==true then
-			local tempArray={}
-			local EasyTiles={GUID.tile.country01, GUID.tile.country02}
-			for a=1, #array, 1 do
-				local found=false
-				for b=1, #EasyTiles, 1 do
-					if array[a]==EasyTiles[b] then found=true end
-				end
-				if found==false then tempArray[#tempArray+1]=array[a] end
-			end
-			array=tempArray
-		end
+		if gStates.removeLostLegionExpansion==true then array=removeTerrainRoster(array,setupContentRoster.lostLegion.terrain) end
+		if gStates.removeApocalypseTerrain==true then array=removeTerrainRoster(array,setupContentRoster.apocalypse.terrain) end
+		if gStates.removeTerrain==true then array=removeTerrainRoster(array,{country={GUID.tile.country01,GUID.tile.country02}}) end
 		--shuffle the list
 		local tReturn={}
 		for a=#array, 1, -1 do

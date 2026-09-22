@@ -1,0 +1,165 @@
+name: One-off subtractive card migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/subtractive-card-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Move optional cards into standard decks
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import copy
+          import json
+
+          path = Path("Mage Knight Highly Scripted.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+
+          def walk_objects(obj):
+              yield obj
+              for child in obj.get("ContainedObjects", []):
+                  yield from walk_objects(child)
+              for state in obj.get("States", {}).values():
+                  if isinstance(state, dict):
+                      yield from walk_objects(state)
+
+          def all_objects():
+              for obj in data.get("ObjectStates", []):
+                  yield from walk_objects(obj)
+
+          def find(guid):
+              matches = [obj for obj in all_objects() if obj.get("GUID") == guid]
+              if len(matches) != 1:
+                  raise RuntimeError(f"Expected one object {guid}, found {len(matches)}")
+              return matches[0]
+
+          def count_guid(guid):
+              return sum(1 for obj in all_objects() if obj.get("GUID") == guid)
+
+          def merge_custom_deck(destination, source, label):
+              if not source:
+                  return
+              destination.setdefault("CustomDeck", {})
+              for key, value in source.items():
+                  if key in destination["CustomDeck"] and destination["CustomDeck"][key] != value:
+                      raise RuntimeError(f"CustomDeck conflict {key} while moving {label}")
+                  destination["CustomDeck"][key] = copy.deepcopy(value)
+
+          def detach(container, guid):
+              objects = container.get("ContainedObjects", [])
+              indexes = [i for i, obj in enumerate(objects) if obj.get("GUID") == guid]
+              if len(indexes) != 1:
+                  raise RuntimeError(f"Expected {guid} once in {container.get('GUID')}, found {len(indexes)}")
+              obj = objects.pop(indexes[0])
+              if obj.get("CardID") is not None and isinstance(container.get("DeckIDs"), list):
+                  try:
+                      container["DeckIDs"].remove(obj["CardID"])
+                  except ValueError:
+                      pass
+              return obj
+
+          def add_card(destination, card, source_custom, label):
+              if any(obj.get("GUID") == card.get("GUID") for obj in destination.get("ContainedObjects", [])):
+                  raise RuntimeError(f"Duplicate destination card {card.get('GUID')}")
+              merge_custom_deck(destination, source_custom, label)
+              merge_custom_deck(destination, card.get("CustomDeck"), label + " card")
+              destination.setdefault("ContainedObjects", []).append(card)
+              destination.setdefault("DeckIDs", []).append(card["CardID"])
+
+          common = find("77b3fd")
+          lost = find("aff5f6")
+          forgemaster = find("11128e")
+          forgemaster_before = copy.deepcopy(forgemaster)
+
+          destinations = {
+              "action": find("e926ba"),
+              "spell": find("e4372a"),
+              "artifact": find("ac75c4"),
+              "regular": find("75745b"),
+              "elite": find("c15e86"),
+          }
+
+          moved_guids = []
+
+          def move_pack(container, pack_guid, destination_name):
+              pack = detach(container, pack_guid)
+              cards = pack.get("ContainedObjects")
+              if not isinstance(cards, list):
+                  raise RuntimeError(f"{pack_guid} is not a deck")
+              for card in cards:
+                  moved_guids.append(card["GUID"])
+                  add_card(destinations[destination_name], card, pack.get("CustomDeck"), pack_guid)
+              return len(cards)
+
+          moved = {
+              "firstRecon": move_pack(common, "268194", "action"),
+              "bonusActions": move_pack(common, "96f761", "action"),
+              "competitiveSpells": move_pack(common, "9b3c8c", "spell"),
+          }
+
+          bonus_artifact = detach(common, "085e69")
+          moved_guids.append(bonus_artifact["GUID"])
+          add_card(destinations["artifact"], bonus_artifact, None, "085e69")
+          moved["bonusArtifact"] = 1
+
+          moved.update({
+              "lostLegionActions": move_pack(lost, "d7f7a5", "action"),
+              "lostLegionSpells": move_pack(lost, "8edf39", "spell"),
+              "lostLegionArtifacts": move_pack(lost, "00e7f4", "artifact"),
+              "lostLegionRegularUnits": move_pack(lost, "892e01", "regular"),
+              "lostLegionEliteUnits": move_pack(lost, "6d42f9", "elite"),
+          })
+
+          expected_counts = {"action": 44, "spell": 24, "artifact": 25, "regular": 28, "elite": 28}
+          for name, expected in expected_counts.items():
+              deck = destinations[name]
+              actual = len(deck.get("ContainedObjects", []))
+              deck_ids = len(deck.get("DeckIDs", []))
+              if actual != expected or deck_ids != expected:
+                  raise RuntimeError(f"{name} expected {expected} cards/DeckIDs, got {actual}/{deck_ids}")
+
+          if len(common.get("ContainedObjects", [])) != 19:
+              raise RuntimeError("Common bag should contain 19 objects after migration")
+          if len(lost.get("ContainedObjects", [])) != 7:
+              raise RuntimeError("Lost Legion bag should contain 7 non-card objects after migration")
+          if forgemaster != forgemaster_before:
+              raise RuntimeError("Rise of the Forgemaster bag changed")
+
+          if len(moved_guids) != 61 or len(set(moved_guids)) != 61:
+              raise RuntimeError(f"Expected 61 unique moved cards, got {len(moved_guids)}/{len(set(moved_guids))}")
+
+          for guid in moved_guids:
+              if count_guid(guid) != 1:
+                  raise RuntimeError(f"Moved card {guid} does not occur exactly once after migration")
+
+          for guid in ("d7f7a5","8edf39","00e7f4","892e01","6d42f9","9b3c8c","268194","96f761"):
+              if count_guid(guid) != 0:
+                  raise RuntimeError(f"Source card mini-deck still exists: {guid}")
+
+          path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+          print("Moved card pools:", moved)
+          print("Destination deck counts:", expected_counts)
+          PY
+
+      - name: Commit migrated save and remove one-off workflow
+        shell: bash
+        run: |
+          rm ".github/workflows/subtractive-card-migration.yml"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "Mage Knight Highly Scripted.json" ".github/workflows/subtractive-card-migration.yml"
+          git commit -m "Move optional cards into standard decks"
+          git push origin HEAD:main

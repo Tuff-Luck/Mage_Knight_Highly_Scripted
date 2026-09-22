@@ -80,13 +80,18 @@ function deckSetup()
 		end
 	end
 
-	--Ensure a village units is in the first draw for First Reconnaissance
+	--Ensure a Village unit is in the first draw for First Reconnaissance. Expansion filtering already
+	--happened, so choose only from cards that are physically still in the Regular Unit deck.
 	local villageUnits={"db04a7", "00ebf3", "506ea7", "c1f77c", "d55e5c", "b33811", "004558", "794e16", "484fa3", "a0a6cb", "e8acd7", "4339c4", "ff2a54", "246b0d", "bd1011"}
 	if gStates.gameScenario=="First Reconnaissance" then
-		local randAmount=15
-		if gStates.removeLostLegionExpansion==true then randAmount=11 end
-		local a=math.random(1, randAmount)
-		getObjectFromGUID(GUID.deck.regularUnit).takeObject({guid=villageUnits[a], position={40.8, 2.0, -4.2}})
+		local regularDeck=getObjectFromGUID(GUID.deck.regularUnit)
+		local present={}
+		for _,entry in ipairs(regularDeck.getObjects()) do present[entry.guid]=true end
+		local available={}
+		for _,guid in ipairs(villageUnits) do if present[guid]==true then available[#available+1]=guid end end
+		if #available==0 then error("SetupGame could not find an eligible Village unit for First Reconnaissance.",2) end
+		local unit=safeTakeObject("SetupGame",regularDeck,{guid=available[math.random(1,#available)],position={40.8,2.0,-4.2}})
+		if unit==nil then error("SetupGame could not extract the First Reconnaissance Village unit.",2) end
 	end
 
 	--Organise the Artefact deck for "Quest for the Golden Grail" and "The Chaos Rift"
@@ -107,12 +112,17 @@ function deckSetup()
 		getObjectFromGUID(GUID.deck.spell).takeObject({guid="2eb8e2", position={40.80, 1.07, -22.20}})--Put Golden Grail under artifact Deck
 	end
 
-	--Remove City only units for scenarios without city access
+	--Remove City-only units for scenarios without city access. Expansion filtering already removed
+	--disabled cards, so this only touches City units that are actually still present.
 	local cityUnits={"bb1660", "0fe22e", "5726ab", "f288ea", "f288e1", "5c2da0", "9c5c38"}
 	if gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="First Conquest" then
-		for a=1, #cityUnits, 1 do
-			if gStates.removeLostLegionExpansion==false or (gStates.removeLostLegionExpansion==true and a<=5) then
-				getObjectFromGUID(GUID.deck.eliteUnit).takeObject({guid=cityUnits[a]}).destruct()
+		local eliteDeck=getObjectFromGUID(GUID.deck.eliteUnit)
+		local present={}
+		for _,entry in ipairs(eliteDeck.getObjects()) do present[entry.guid]=true end
+		for _,guid in ipairs(cityUnits) do
+			if present[guid]==true then
+				local unit=safeTakeObject("SetupGame",eliteDeck,{guid=guid,smooth=false})
+				if unit~=nil then unit.destruct() end
 			end
 		end
 	end

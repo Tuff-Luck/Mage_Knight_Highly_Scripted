@@ -1,32 +1,14 @@
 -- Physical setup for monster pools and Tezla scenario components.
 -- The save starts with the ordinary monster pools already containing all Lost Legion and Tezla
--- enemy tokens. Setup only removes excluded expansion tokens or moves Tezla tokens into the
--- dedicated faction pools required by a scenario.
+-- enemy tokens. Membership is defined once in setupContentRoster; setup only removes excluded
+-- tokens or moves Tezla tokens into the dedicated faction pools required by a scenario.
 
 local monsterSetupMoves={}
 local monsterSetupLeadersReady=false
 
-local lostLegionEnemyPools={
-	{source=monsterPiles.green,tokens={"643901","30df98","f0d27a","994ee9","e17886","8ffd9e","28bc08","0cc1e5"}},
-	{source=monsterPiles.tan,tokens={"013cb1","16d47c","ce794a","863ba1","558de1","277cd2"}},
-	{source=monsterPiles.red,tokens={"be5c5e","9156c4","80d998","17bcd9","09ec72","b7dca2"}},
-	{source=monsterPiles.yellow,tokens={"58c5ab","2f9a1f","28cc9c"}},
-	{source=monsterPiles.gray,tokens={"3f4b5e","88ecaa","bc5065","808631","8ea708","f11b70","7e72a2","90755e"}},
-	{source=monsterPiles.purple,tokens={"490a69","b8f920","23fe94","8a3f72"}},
-	{source=monsterPiles.white,tokens={"c0c315","eae753","e9a281","e6859f","864fe1","729056"}}
-}
-
-local darkCrusaderEnemyPools={
-	{source=monsterPiles.green,destination=monsterPiles.greenDark,tokens={"0c5f4d","698829","f87e33","565ecd","f85b1e","d549a5","39d58e","8efc22"}},
-	{source=monsterPiles.tan,destination=monsterPiles.tanDark,tokens={"863ba2","558de0","013cb2","61eb06"}},
-	{source=monsterPiles.red,destination=monsterPiles.redDark,tokens={"c77902","f87e32","342ed4","0d0645"}}
-}
-
-local elementalistEnemyPools={
-	{source=monsterPiles.green,destination=monsterPiles.greenElem,tokens={"8efc20","64b218","698828","adec2a","e9911f","60e427","a04726","f87e31"}},
-	{source=monsterPiles.tan,destination=monsterPiles.tanElem,tokens={"00c4da","863bab","013cb3","61eb07"}},
-	{source=monsterPiles.red,destination=monsterPiles.redElem,tokens={"c77901","6cad42","5d4e06","f87e39"}}
-}
+local lostLegionEnemyPools=setupContentRoster.lostLegion.enemies
+local darkCrusaderEnemyPools=setupContentRoster.shadesOfTezla.enemies.dark
+local elementalistEnemyPools=setupContentRoster.shadesOfTezla.enemies.elementalist
 
 local function monsterBagContainsGUID(bag,guid)
 	if bag==nil then return false end

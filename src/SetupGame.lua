@@ -39,9 +39,8 @@ local function setupUsesVolkareCampCity()
 		gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest"
 end
 
---Setup used to sleep for fixed periods while expansion cards moved between containers. Track the
---actual outstanding merges instead so fast machines continue immediately and slower machines wait
---only for the objects they really need.
+--Rise of the Forgemaster remains additive. Track its actual outstanding card-pack merges so fast
+--machines continue immediately and slower machines wait only for the objects they really need.
 local setupDeckMergesPending=0
 local setupDeckExpectedQuantity={}
 local setupRewindRequestPending=false
@@ -86,6 +85,25 @@ local function setupQueuedDeckMergesComplete()
 		if deck==nil or deck.getQuantity()<expected then return false end
 	end
 	return true
+end
+
+local function setupRemoveCardRoster(cardsByDeck)
+	for deckGUID,cardGUIDs in pairs(cardsByDeck or {}) do
+		local deck=getObjectFromGUID(deckGUID)
+		if deck==nil then error("SetupGame missing preloaded card deck "..tostring(deckGUID),2) end
+		for _,cardGUID in ipairs(cardGUIDs or {}) do
+			local card=safeTakeObject("SetupGame",deck,{guid=cardGUID,smooth=false})
+			if card==nil then error("SetupGame missing preloaded card "..tostring(cardGUID).." in deck "..tostring(deckGUID),2) end
+			card.destruct()
+		end
+	end
+end
+
+local function setupRemoveUnselectedCards()
+	if gStates.removeLostLegionExpansion==true then setupRemoveCardRoster(setupContentRoster.lostLegion.cards) end
+	if gStates.removeBonusCards==true then setupRemoveCardRoster(setupContentRoster.bonusCards.cards) end
+	if gStates.coop~=0 and gStates.WarOfFourComp~=true then setupRemoveCardRoster(setupContentRoster.competitiveSpells.cards) end
+	if gStates.gameScenario=="First Reconnaissance" then setupRemoveCardRoster(setupContentRoster.firstReconnaissanceExcluded.cards) end
 end
 
 local function setupMainDecksSettled()
@@ -481,18 +499,9 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		UI.show("HelpButton")
 		gStates.help=false
 
-		--Add or destroy the 4 competitive spell cards
-		if gStates.coop==0 or gStates.WarOfFourComp==true then setupQueueDeckMerge(getObjectFromGUID(GUID.bag.common),GUID.deck.spell,"9b3c8c") end
-
-		--Add or destroy the Advanced action Cards removed for First Reconnaissance
-		if gStates.gameScenario~="First Reconnaissance" then setupQueueDeckMerge(getObjectFromGUID(GUID.bag.common),GUID.deck.action,"268194") end
-
-		--Merge Lost Legion Components
-		local lostLegionDecks={[GUID.deck.action]="d7f7a5", [GUID.deck.spell]="8edf39", [GUID.deck.artifact]="00e7f4", [GUID.deck.regularUnit]="892e01", [GUID.deck.eliteUnit]="6d42f9"}
-								--12 Advanced Actions, 4 Spells, 8 Artifacts, 8 Regular Units, 8 Elite Units
-		if gStates.removeLostLegionExpansion==false then
-			for mainDeck,lostLegionDeck in pairs(lostLegionDecks) do setupQueueDeckMerge(getObjectFromGUID(GUID.bag.lostLegion),mainDeck,lostLegionDeck) end
-		end
+		--The five standard decks start fully populated with every non-Forgemaster optional card.
+		--Subtract disabled card pools before any additive Forgemaster packs are merged.
+		setupRemoveUnselectedCards()
 		--Apocalypse/Council rewards and Possessed tokens are preloaded in their normal table positions.
 		--Keep complete source/discard cycles when any enabled system can use them; otherwise remove them.
 		local apocalypseTokenSupportNeeded=gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or
@@ -543,12 +552,6 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		--Set up the Apocalypse Dragon large head tokens for Dragon scenarios.
 		if apocalypseDragonScenario()==true then setupApocalypseDragonHeads() end
 		if apocalypseIsHereSetup~=nil then apocalypseIsHereSetup() end
-
-		--Merge Ultimate Edition Components
-		if gStates.removeBonusCards==false then
-			setupQueueDeckMerge(getObjectFromGUID(GUID.bag.common),GUID.deck.action,"96f761")--Advanced Actions
-			setupQueueDeckMerge(getObjectFromGUID(GUID.bag.common),GUID.deck.artifact,"085e69")--artifacts
-		end
 
 		--include or remove Rise of the Forgemaster
 		if gStates.riseOfTheForgemasters>=1 then
@@ -610,9 +613,8 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			allSkills.destruct()
 		end
 
-		--Deck setup can begin as soon as every queued expansion card has actually joined its destination
-		--deck. Check the merged quantities here, before deckSetup intentionally removes scenario cards
-		--(for example Chaos Rift's Time Bending and Rift artifact).
+		--Deck setup can begin as soon as every queued additive Forgemaster pack has joined its destination
+		--deck. Check merged quantities before deckSetup intentionally removes scenario/replaced cards.
 		if setupQueuedDeckMergesComplete()==true then
 			setupStartDeckStage()
 		else
@@ -641,12 +643,12 @@ local function removeUnselectedTerrain()
 	local coreBag=getObjectFromGUID(GUID.bag.terrain.leftCore)
 	local cityBag=getObjectFromGUID(GUID.bag.terrain.leftCity)
 	if gStates.removeLostLegionExpansion==true then
-		for _,guid in ipairs({GUID.tile.country12,GUID.tile.country13,GUID.tile.country14}) do sendTerrainTileToTrash(countryBag,guid) end
-		for _,guid in ipairs({GUID.tile.core09,GUID.tile.core10}) do sendTerrainTileToTrash(coreBag,guid) end
+		for _,guid in ipairs(setupContentRoster.lostLegion.terrain.country) do sendTerrainTileToTrash(countryBag,guid) end
+		for _,guid in ipairs(setupContentRoster.lostLegion.terrain.core) do sendTerrainTileToTrash(coreBag,guid) end
 	end
 	if gStates.removeApocalypseTerrain==true then
-		for _,guid in ipairs({GUID.tile.country15,GUID.tile.country16,GUID.tile.country17}) do sendTerrainTileToTrash(countryBag,guid) end
-		for _,guid in ipairs({GUID.tile.core11,GUID.tile.core12}) do sendTerrainTileToTrash(coreBag,guid) end
+		for _,guid in ipairs(setupContentRoster.apocalypse.terrain.country) do sendTerrainTileToTrash(countryBag,guid) end
+		for _,guid in ipairs(setupContentRoster.apocalypse.terrain.core) do sendTerrainTileToTrash(coreBag,guid) end
 	end
 	--Against the Horsemen requires Countryside 1 as its centre even if stale saved/random state says otherwise.
 	if gStates.removeTerrain==true and gStates.gameScenario~="Against the Horsemen Blitz" then

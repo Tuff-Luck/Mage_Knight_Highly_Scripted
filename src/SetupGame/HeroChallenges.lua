@@ -6,11 +6,16 @@ function heroChallengeCountryGUID(number)
 	return GUID.tile["country"..tostring(number)]
 end
 
+local function heroChallengeGUIDInList(guid,list)
+	for _,candidate in ipairs(list or {}) do if guid==candidate then return true end end
+	return false
+end
+
 function heroChallengeCountryAvailable(guid)
 	if guid==nil then return false end
 	if gStates.removeTerrain==true and (guid==GUID.tile.country01 or guid==GUID.tile.country02) then return false end
-	if gStates.removeLostLegionExpansion==true and (guid==GUID.tile.country12 or guid==GUID.tile.country13 or guid==GUID.tile.country14) then return false end
-	if gStates.removeApocalypseTerrain==true and (guid==GUID.tile.country15 or guid==GUID.tile.country16 or guid==GUID.tile.country17) then return false end
+	if gStates.removeLostLegionExpansion==true and heroChallengeGUIDInList(guid,setupContentRoster.lostLegion.terrain.country) then return false end
+	if gStates.removeApocalypseTerrain==true and heroChallengeGUIDInList(guid,setupContentRoster.apocalypse.terrain.country) then return false end
 	return terrainTiles[guid]~=nil and terrainTiles[guid].tileType=="country"
 end
 
