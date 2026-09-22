@@ -742,6 +742,7 @@ end
 --Update skill Locations, Update Players Location details, and Update the UI and trigger a Level up if a mage shield was moved manually
 function __onObjectDrop_raw(player_color, dropped_object)
 	local droppedGUID=dropped_object.guid
+	if terrainTiles[droppedGUID]~=nil then runtimeMapInvalidate() end
 	local droppedHorseman=horsemanTokenToName~=nil and horsemanTokenToName[droppedGUID] or nil
 	if gStates.gameScenario=="Against the Horsemen Blitz" and (terrainTiles[droppedGUID]~=nil or droppedHorseman~=nil) then
 		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,2)
@@ -1217,6 +1218,7 @@ end
 function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
 	local destroyedGuid=destroyedObj.guid
+	if runtimeMapContainsGUID(destroyedGuid)==true then runtimeMapInvalidate() end
 	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj)==true then mapTokenReleaseObject(destroyedObj) end
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
 	if questScorePlayer~=nil then
@@ -2416,6 +2418,7 @@ local function handleManaZoneEnter(ctx)
 end
 
 function __onObjectEnterZone_raw(zone, obj)
+	if zone~=nil and zone.guid==mapArea then runtimeMapInvalidate() end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if handleZoneEnterPrelude(ctx)==true then return end
@@ -2652,6 +2655,7 @@ local function handlePreGameZoneLeave(ctx)
 end
 
 function __onObjectLeaveZone_raw(zone, obj)
+	if zone~=nil and zone.guid==mapArea then runtimeMapInvalidate() end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if handleZoneLeavePrelude(ctx)==true then return end
@@ -2968,6 +2972,7 @@ end
 
 function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_flip)
 	if object==nil then return end
+	if terrainTiles[object.guid]~=nil then runtimeMapInvalidate() end
 	if apocalypseDragonGroundHeadToken~=nil and select(1,apocalypseDragonGroundHeadToken(object.guid))==true then
 		local _,dragonHeadName=apocalypseDragonGroundHeadToken(object.guid)
 		local dragonHeadOwner=dragonHeadName~=nil and apocalypseDragonGroundHeadOwner(dragonHeadName) or nil
