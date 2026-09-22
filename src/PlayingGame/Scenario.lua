@@ -1209,7 +1209,7 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	local supportY=graveyard~=nil and mapTokenGraveyardSupportY or 0
 
 	--Graveyard is always centred under the stack and does not participate in the diagonal spread.
-	--Preserve its current face; Realm of the Dead deliberately uses both face-up and face-down Graveyards.
+	--Preserve its current face; the Graveyard scenarios deliberately deploy different face orientations.
 	if graveyard~=nil then
 		changed=mapTokenMoveToSlot(graveyard,centerX,mapTokenGraveyardBaseY,centerZ) or changed
 	end
