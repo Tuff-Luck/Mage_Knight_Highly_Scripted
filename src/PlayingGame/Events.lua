@@ -1803,7 +1803,7 @@ local function handleTerrainZoneEnter(ctx)
 										tokenFaction="Dark"
 										if getObjectFromGUID(monsterPiles.greenDark).getQuantity()>0 then tokenPileGreen=monsterPiles.greenDark end
 										if getObjectFromGUID(monsterPiles.tanDark).getQuantity()>0 then tokenPileBrown=monsterPiles.tanDark end---Dark Crusader Tokens
-										local pos={angleToXY(obj,hexLocation)[1], 1.09, angleToXY(obj,hexLocation)[2]}
+										local pos={angleToXY(obj,hexLocation)[1], 1.08, angleToXY(obj,hexLocation)[2]}
 										local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject({rotation=faceUp, position=pos})
 										graveyard.lock()
 										terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
@@ -1836,7 +1836,7 @@ local function handleTerrainZoneEnter(ctx)
 													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.1}}, reward={artifactRewardDecal, advancedActionRewardDecal}},
 													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.0}, {monsterPiles.greenDark, 0.1}}, reward={artifactRewardDecal, spellRewardDecal}}}--this is for five player games, which is currently imposible
 									--play Graveyard Token
-									params.position={angleToXY(obj,hexLocation)[1], 1.09, angleToXY(obj,hexLocation)[2]}
+									params.position={angleToXY(obj,hexLocation)[1], 1.08, angleToXY(obj,hexLocation)[2]}
 									params.rotation=faceDown
 									local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject(params)
 									graveyard.lock()
