@@ -127,19 +127,35 @@ function deckSetup()
 		end
 	end
 
+	--Forgemaster replacements should tolerate a card already being absent because another setup filter
+	--removed it. Keep the deck layer safe rather than relying on SetupInterface option invariants.
+	local function removeForgemasterReplacedCard(deckGUID,cardGUID)
+		local deck=getObjectFromGUID(deckGUID)
+		if deck==nil then return false end
+		local present=false
+		for _,entry in ipairs(deck.getObjects()) do
+			if entry.guid==cardGUID then present=true break end
+		end
+		if present~=true then return false end
+		local replaced=safeTakeObject("SetupGame",deck,{guid=cardGUID,smooth=false})
+		if replaced==nil then return false end
+		replaced.destruct()
+		return true
+	end
+
 	--remove cards replaced by Rise of the Forgemaster
 	local cardsReplaced={["2eb8d9"]=1, ["2eb8d3"]=1, ["2eb8d0"]=3}--spells
 	for card, level in pairs(cardsReplaced) do
-		if gStates.riseOfTheForgemasters>=level and gStates.riseOfTheForgemasters~=0 then getObjectFromGUID(GUID.deck.spell).takeObject({guid=card}).destruct() end
+		if gStates.riseOfTheForgemasters>=level and gStates.riseOfTheForgemasters~=0 then removeForgemasterReplacedCard(GUID.deck.spell,card) end
 	end
 	local cardsReplaced={["085e56"]=1, ["085e59"]=1, ["085e65"]=1, ["085e50"]=1}--artifacts
 	for card, level in pairs(cardsReplaced) do
-		if gStates.riseOfTheForgemasters>=level and gStates.riseOfTheForgemasters~=0 then getObjectFromGUID(GUID.deck.artifact).takeObject({guid=card}).destruct() end
+		if gStates.riseOfTheForgemasters>=level and gStates.riseOfTheForgemasters~=0 then removeForgemasterReplacedCard(GUID.deck.artifact,card) end
 	end
 	local cardsReplaced={["65a1d5"]=1, ["05ef61"]=1, ["474418"]=1, ["6fdeb0"]=1, ["878d85"]=1, ["878d93"]=1, ["878d90"]=1, ["35aee6"]=1,
 						 ["3d832c"]=1, ["1f362f"]=1, ["9de475"]=1, ["20cb85"]=1, ["d75285"]=2, ["141527"]=2, ["409fe8"]=2, ["1a1c02"]=2, ["8fac50"]=1}--advanced actions
 	for card, level in pairs(cardsReplaced) do
-		if gStates.riseOfTheForgemasters>=level and gStates.riseOfTheForgemasters~=0 then getObjectFromGUID(GUID.deck.action).takeObject({guid=card}).destruct() end
+		if gStates.riseOfTheForgemasters>=level and gStates.riseOfTheForgemasters~=0 then removeForgemasterReplacedCard(GUID.deck.action,card) end
 	end
 	if gStates.riseOfTheForgemasters>1 then
 		offerAdjust(player, "-1", "e4372aOfferUp")
