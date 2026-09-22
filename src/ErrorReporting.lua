@@ -35,7 +35,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="425"
+local automaticLuaErrorReporterVersion="426"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -223,11 +223,13 @@ function safeCallback(functionName, callback, contextCallback)
 end
 
 --Lighter boundary for high-frequency zone events. Pass arguments directly so successful movement events
---do not allocate breadcrumb/context closures; detailed zone context is built only after an actual failure.
+--do not allocate breadcrumb/context closures. xpcall preserves the dispatcher/helper traceback, while the
+--breadcrumb and detailed zone context are only built after an actual failure.
 function safeZoneCallback(functionName, callback, zone, obj)
-	local ok, result=pcall(callback,zone,obj)
+	local ok, result=xpcall(callback,automaticLuaTraceback,zone,obj)
 	if not ok then
-		reportAutomaticLuaError(functionName,tostring(result),automaticLuaZoneContext(zone,obj))
+		automaticLuaBreadcrumb(functionName)
+		reportAutomaticLuaError(functionName,result,automaticLuaZoneContext(zone,obj))
 		return false
 	end
 	return result
@@ -270,12 +272,27 @@ end
 function automaticLuaZoneContext(zone, obj)
 	local objectGUID=obj~=nil and obj.guid or "nil"
 	local zoneGUID=zone~=nil and zone.guid or "nil"
+	local objectType=obj~=nil and obj.type or "nil"
 	local objectName=""
 	if obj~=nil then
 		local ok, name=pcall(function() return obj.getName() end)
 		if ok==true and name~=nil then objectName=tostring(name) end
 	end
-	return "Object: "..tostring(objectGUID)..(objectName~="" and " ("..objectName..")" or "").."\nZone: "..tostring(zoneGUID)
+	local context="Object: "..tostring(objectGUID)..(objectName~="" and " ("..objectName..")" or "")..
+		"\nObject type: "..tostring(objectType)..
+		"\nZone: "..tostring(zoneGUID)
+	local zoneInfo=automaticLuaErrorValue(function()
+		if playerZoneLookup==nil then return nil end
+		return playerZoneLookup[zoneGUID]
+	end,nil)
+	if zoneInfo~=nil then
+		context=context.."\nZone kind: "..tostring(zoneInfo.kind or "")
+		if zoneInfo.seatPos~=nil then context=context.."\nZone seat: "..tostring(zoneInfo.seatPos) end
+	end
+	context=context.."\nScenario: "..tostring(automaticLuaErrorStateValue("gameScenario",""))..
+		"\nTurn: "..tostring(automaticLuaErrorStateValue("turnNumber",""))..
+		" / Round: "..tostring(automaticLuaErrorStateValue("currentRound",""))
+	return context
 end
 
 function automaticLuaTurnPhaseContext(player, id)
