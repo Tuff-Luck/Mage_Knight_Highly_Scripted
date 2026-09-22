@@ -662,7 +662,7 @@ function automatedMainPanelRefresh(overrideSpec)
 			mainText="{en}<size=25>Against the Horsemen</size>{ru}<size=25>Против Всадников</size>{zh-tw}<size=25>對抗四騎士</size>{zh-cn}<size=25>对抗四骑士</size>{ko}<size=25>묵시록의 기사들에 맞서</size>{es}<size=25>Contra los Jinetes</size>{fr}<size=25>Contre les Cavaliers</size>{pt-br}<size=25>Contra os Cavaleiros</size>{de}<size=25>Gegen die Reiter</size>"
 		}
 	end
-	if spec==nil and gStates~=nil and gStates.apocalypseDragonTurnActive==true and againstDragonMainUIPanelSpec~=nil then spec=againstDragonMainUIPanelSpec() end
+	if spec==nil and gStates~=nil and gStates.apocalypseDragonTurnActive==true and apocalypseDragonMainUIPanelSpec~=nil then spec=apocalypseDragonMainUIPanelSpec() end
 	if spec==nil and gStates~=nil and gStates.apocalypseHereHorsemenTurnActive==true and apocalypseIsHereMainUIPanelSpec~=nil then spec=apocalypseIsHereMainUIPanelSpec() end
 	if spec==nil then spec=automatedCurrentPlayerPanelSpec() end
 	return automatedMainPanelApply(spec)

@@ -404,7 +404,7 @@ function displayScore(player, mouseButton, id)
 		local apocalypseHere=gStates.gameScenario=="Apocalypse is Here"
 		local horsemenSummary=(againstHorsemen or apocalypseHere) and horsemanDefeatSummary() or {total=0,byMage={},fameByMage={}}
 		local againstDragon=gStates.gameScenario=="Against the Dragon Blitz" or apocalypseHere
-		local dragonScoreSummary=againstDragon and againstDragonCompetitiveScoreSummary() or {defeatedHeads=0,byMage={},heads={}}
+		local dragonScoreSummary=againstDragon and apocalypseDragonCompetitiveScoreSummary() or {defeatedHeads=0,byMage={},heads={}}
 		local fracturedLandsNoCityScore=gStates.gameScenario=="The Fractured Lands Blitz"
 		if againstHorsemen then
 			local bestFame=0
