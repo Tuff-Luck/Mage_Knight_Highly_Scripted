@@ -1313,12 +1313,12 @@ local function zoneContainsGUID(zone,guid)
 	return false
 end
 
-local function scheduleSettledZoneEntry(ctx,callback)
+local function scheduleSettledZoneEntry(ctx,callback,channel)
 	if ctx==nil or callback==nil then return end
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
 	if zoneGUID==nil or objGUID==nil then return end
-	local key=zoneGUID.."|"..objGUID
+	local key=tostring(channel or "default").."|"..zoneGUID.."|"..objGUID
 	local serial=(settledZoneEntrySerial[key] or 0)+1
 	settledZoneEntrySerial[key]=serial
 	safeWaitCondition("Events",function()
@@ -1391,7 +1391,7 @@ local function handleStartedZoneEnterPrelude(ctx)
 					if enteredSkill.skillType=="Coop" or enteredSkill.skillType=="Comp" then activateCoopCompSkill(liveGUID, playerIndex) end
 				end
 			end
-		end)
+		end,"started")
 	end
 end
 
@@ -2185,7 +2185,7 @@ local function handleHandZoneEnter(ctx)
 				turnOrder[handPlayerIndex].deadDeckInventory[#turnOrder[handPlayerIndex].deadDeckInventory+1]=liveCtx.objGUID
 				mainUIUpdate("Card Entered Hand")
 			end
-		end)
+		end,"hand")
 	end
 
 end
@@ -2280,7 +2280,7 @@ local function handlePlayerBoardZoneEnter(ctx)
 		scheduleSettledZoneEntry(ctx,function(liveCtx)
 			liveCtx.settledPlayerZoneEntry=true
 			handlePlayerBoardZoneEnter(liveCtx)
-		end)
+		end,"playerBoard")
 		return false
 	end
 	--Updates Main UI buttons when anything is played to a mage's play area/deed deck/discard.
