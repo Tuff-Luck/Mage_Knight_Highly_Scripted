@@ -756,7 +756,20 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,2)
 	end
 	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(dropped_object)==true then
-		mapTokenArrangeDroppedObject(droppedGUID)
+		--Normally the falling token enters the short map scripting zone a few frames after onObjectDrop,
+		--and that zone entry owns separation. The delayed check only covers a player who lowered the
+		--token into the zone while still holding it, so no unheld zone-entry event remains to trigger.
+		safeWaitFrames("Events",function()
+			local token=getObjectFromGUID(droppedGUID)
+			local map=getObjectFromGUID(mapArea)
+			if token==nil or map==nil or token.held_by_color~=nil or mapTokenNeedsArrangement(token)~=true then return end
+			if mapTokenHasPendingArrival~=nil and mapTokenHasPendingArrival(droppedGUID)==true then return end
+			local inside=false
+			for _,candidate in pairs(map.getObjects()) do
+				if candidate.guid==droppedGUID then inside=true break end
+			end
+			if inside==true then mapTokenScheduleObject(droppedGUID) end
+		end,3)
 	end
 	puppetMasterDropped(dropped_object)
 	puppetMasterCheckManualCopyWhenResting(dropped_object)

@@ -988,10 +988,16 @@ end
 --Each physical token layer below adds 0.10. Destroyed Site has the same top surface but its model
 --origin is 0.05 higher than a face-up enemy, so its map-floor origin is Y 1.13.
 local mapTokenArrangeGeneration={}
---Every arrival has one settle generation. Explicit/manual arrivals also mark themselves authoritative
---so a late passive map-zone callback from another token cannot steal ownership of the same hex.
-local mapTokenManualDropPending={}
-local mapTokenExplicitArrivalPending={}
+--One pending generation per arriving token deduplicates map-zone callbacks and scripted moves.
+local mapTokenArrivalPending={}
+--Arrival order only needs to exist while this Lua session is running. After a load, the already-laid-out
+--physical diagonal is the source of truth until a token genuinely arrives again.
+local mapTokenArrivalCounter=0
+local mapTokenRuntimeArrivalOrder={}
+
+function mapTokenHasPendingArrival(guid)
+	return guid~=nil and mapTokenArrivalPending[guid]~=nil
+end
 local mapTokenSpreadSpacing=0.20
 local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
 local mapTokenEnemyFaceUpBaseY=1.08
@@ -1063,20 +1069,19 @@ function mapTokenIsMovingPriority(obj)
 	return false
 end
 
---Arrival order is gameplay state, not physics state. Every genuine arrival/move/drop receives the next
---sequence number. This lets later maintenance passes reproduce the same diagonal without reading tiny
---collider-height differences or depending on callback order.
+--New arrivals need deterministic ordering when several tokens settle together, but that ordering is
+--derived table state and does not belong in gStates. Existing tokens after a load fall back to their
+--physical diagonal/Y order; a new arrival gets a fresh runtime sequence and is newer than either.
 local function mapTokenRecordArrival(guid)
-	if guid==nil or gStates==nil then return nil end
-	gStates.mapTokenArrivalOrder=gStates.mapTokenArrivalOrder or {}
-	gStates.mapTokenArrivalCounter=(tonumber(gStates.mapTokenArrivalCounter) or 0)+1
-	gStates.mapTokenArrivalOrder[guid]=gStates.mapTokenArrivalCounter
-	return gStates.mapTokenArrivalCounter
+	if guid==nil then return nil end
+	mapTokenArrivalCounter=mapTokenArrivalCounter+1
+	mapTokenRuntimeArrivalOrder[guid]=mapTokenArrivalCounter
+	return mapTokenArrivalCounter
 end
 
 local function mapTokenArrivalOrder(guid)
-	if guid==nil or gStates==nil or gStates.mapTokenArrivalOrder==nil then return nil end
-	return tonumber(gStates.mapTokenArrivalOrder[guid])
+	if guid==nil then return nil end
+	return mapTokenRuntimeArrivalOrder[guid]
 end
 
 local function mapTokenOnHex(obj,hex)
@@ -1087,90 +1092,8 @@ local function mapTokenOnHex(obj,hex)
 	return (dx*dx)+(dz*dz)<1.5
 end
 
---A spread can move several loose tokens at once. Claim every participant before changing any X/Z so
---their own map-zone physics events cannot queue a competing arrangement. Incrementing each generation
---also invalidates retries that may already have been queued before this spread began.
-local function mapTokenClaimHexParticipants(guid,primaryGeneration)
-	local obj=guid~=nil and getObjectFromGUID(guid) or nil
-	if obj==nil then return {} end
-	local hexes,mapObjects=apocalypseQuestMapHexes()
-	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
-	if hex==nil then return {} end
-	local participants={}
-	local seen={}
-	for _,candidate in pairs(mapObjects or {}) do
-		if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true then
-			participants[#participants+1]=candidate
-			seen[candidate.guid]=true
-		end
-	end
-	if seen[obj.guid]~=true and mapTokenNeedsArrangement(obj)==true then participants[#participants+1]=obj end
-
-	local claims={}
-	for _,candidate in ipairs(participants) do
-		local candidateGUID=candidate.guid
-		local generation=nil
-		if candidateGUID==guid and primaryGeneration~=nil and mapTokenManualDropPending[candidateGUID]==primaryGeneration then
-			generation=primaryGeneration
-		else
-			generation=(mapTokenArrangeGeneration[candidateGUID] or 0)+1
-			mapTokenArrangeGeneration[candidateGUID]=generation
-			mapTokenManualDropPending[candidateGUID]=generation
-		end
-		claims[#claims+1]={guid=candidateGUID,generation=generation}
-	end
-	return claims
-end
-
-local function mapTokenReleaseParticipantClaims(claims)
-	for _,claim in ipairs(claims or {}) do
-		mapTokenAfterSettled(claim.guid,function()
-			if mapTokenManualDropPending[claim.guid]==claim.generation then
-				mapTokenManualDropPending[claim.guid]=nil
-			end
-			if mapTokenExplicitArrivalPending[claim.guid]==claim.generation then
-				mapTokenExplicitArrivalPending[claim.guid]=nil
-			end
-		end)
-	end
-end
-
---Passive map-zone arrivals are allowed to tidy a hex only when no explicit/manual mover currently
---owns that same hex. This prevents a late enemy-zone callback from reversing a Horseman/Dragon move.
-local function mapTokenHexHasExplicitArrival(guid)
-	local obj=guid~=nil and getObjectFromGUID(guid) or nil
-	if obj==nil then return false end
-	local hexes,mapObjects=apocalypseQuestMapHexes()
-	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
-	if hex==nil then return false end
-	for ownerGUID,generation in pairs(mapTokenExplicitArrivalPending) do
-		if ownerGUID~=guid and mapTokenManualDropPending[ownerGUID]==generation then
-			local owner=getObjectFromGUID(ownerGUID)
-			if owner~=nil and mapTokenOnHex(owner,hex)==true then return true end
-		end
-	end
-	return false
-end
-
---Any token that was locked before the arranger touched it is locked again only after one physics
---frame has elapsed and the moved piece reports resting. This avoids locking a token in mid-air just
---because a smooth move has ended with resting still carrying its previous value for that frame.
-function mapTokenRelockWhenSettled(guid,shouldLock)
-	if shouldLock~=true or guid==nil then return end
-	safeWaitFrames("Scenario",function()
-		safeWaitCondition("Scenario",function()
-			local obj=getObjectFromGUID(guid)
-			if obj~=nil then obj.lock() end
-		end,function()
-			local obj=getObjectFromGUID(guid)
-			return obj==nil or obj.resting==true
-		end,4,function()
-			local obj=getObjectFromGUID(guid)
-			if obj~=nil then obj.lock() end
-		end)
-	end,1)
-end
-
+--Smooth separator moves stay inside the map zone and never unlock their participants, so one
+--per-object arrival generation is sufficient; the old whole-stack claim/relock layers are unnecessary.
 function mapTokenAfterSettled(guid,callback)
 	if guid==nil or callback==nil then return end
 	safeWaitCondition("Scenario",function()
@@ -1327,101 +1250,71 @@ local function mapTokenPassiveArrivalReachedPlannedHex(obj)
 	return apocalypseQuestMapHexKey(currentHex)==apocalypseQuestMapHexKey(plannedHex)
 end
 
---All loose map-token arrivals use this one ownership path. The arriving token claims its
---settle/layout before it can cross the map zone, waits until its own movement/physics is finished,
---then claims every token sharing the final hex and assigns the ordered X/Z/Y slots once.
+--All map-token arrivals use this one settle path. A scripted mover registers before crossing the
+--map zone; a physical drop is normally registered by the map-zone entry itself. Each token can own
+--only one pending generation, so duplicate callbacks become no-ops without claiming the whole stack.
 function mapTokenSettleArrival(guid,target,options,callback)
 	options=options or {}
 	if guid==nil then return false end
 	local obj=getObjectFromGUID(guid)
 	if obj==nil then return false end
 
-	--A scripted move first releases the old hex so the pieces left behind can close up. A manual drop
-	--can forcibly take ownership away from an earlier map-zone arrival that fired while it was falling.
+	--A scripted move first releases the old hex so survivors can close up. force is reserved for
+	--authoritative scripted deployments that may be reusing an object with a stale passive arrival.
 	if options.releaseOrigin==true then
 		mapTokenReleaseObject(obj)
 	elseif options.force==true then
-		mapTokenManualDropPending[guid]=nil
-		mapTokenExplicitArrivalPending[guid]=nil
+		mapTokenArrivalPending[guid]=nil
 		mapTokenArrangeGeneration[guid]=(mapTokenArrangeGeneration[guid] or 0)+1
 	end
-	if mapTokenManualDropPending[guid]~=nil then return false end
+	if mapTokenArrivalPending[guid]~=nil then return false end
 
 	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
 	mapTokenArrangeGeneration[guid]=generation
-	mapTokenManualDropPending[guid]=generation
-	if options.passive~=true then mapTokenExplicitArrivalPending[guid]=generation end
+	mapTokenArrivalPending[guid]=generation
 	mapTokenRecordArrival(guid)
 
 	if target~=nil then
-		--Scripted smooth movement works while locked. Preserve the object's current lock state; callers
-		--that explicitly want the final object locked still use options.relock after it settles.
+		--Scripted transforms work while locked, so preserve the object's lock state throughout.
 		if options.rotation~=nil then obj.setRotation(options.rotation) end
 		obj.setPositionSmooth(target,false)
 	end
 
 	mapTokenAfterSettled(guid,function(current)
-		--Another arrival on the same hex may legitimately take ownership of this token. Its spread then
-		--wins, but the movement callback still fires so scenario turn flow cannot stall.
-		if mapTokenManualDropPending[guid]~=generation then
-			if mapTokenExplicitArrivalPending[guid]==generation then mapTokenExplicitArrivalPending[guid]=nil end
+		--A newer arrival/release for this same object wins.
+		if mapTokenArrivalPending[guid]~=generation then
 			if callback~=nil then callback(current,false) end
 			return
 		end
 		if current==nil then
-			mapTokenManualDropPending[guid]=nil
-			if mapTokenExplicitArrivalPending[guid]==generation then mapTokenExplicitArrivalPending[guid]=nil end
+			mapTokenArrivalPending[guid]=nil
 			if callback~=nil then callback(nil,false) end
 			return
 		end
 
-		--A generic map-zone event may fire while a freshly drawn token is still travelling across the
-		--map. If terrain population has already recorded a different destination hex, leave it alone;
-		--the destination arrival/terrain-completion sweep will arrange it once it is actually there.
+		--A token travelling across the map can enter the scripting zone above the wrong hex. Only passive
+		--zone arrivals need this check; the explicit mover already knows its intended destination.
 		if options.passive==true and mapTokenPassiveArrivalReachedPlannedHex(current)~=true then
-			mapTokenManualDropPending[guid]=nil
-			if callback~=nil then callback(current,false) end
-			return
-		end
-		--If a Horseman, Dragon or human drop currently owns this hex, leave the layout entirely to that
-		--authoritative arrival.
-		if options.passive==true and mapTokenHexHasExplicitArrival(guid)==true then
-			mapTokenManualDropPending[guid]=nil
+			mapTokenArrivalPending[guid]=nil
 			if callback~=nil then callback(current,false) end
 			return
 		end
 
-		local claims=mapTokenClaimHexParticipants(guid,generation)
-		local arranged=false
-		if #claims>0 then
-			arranged=mapTokenArrangeObject(guid)
-			mapTokenReleaseParticipantClaims(claims)
-		else
-			--The object may have moved somewhere outside the map (for example the Horsemen ritual
-			--layout). There is no physical hex to spread, so simply release this arrival claim.
-			mapTokenManualDropPending[guid]=nil
-			if mapTokenExplicitArrivalPending[guid]==generation then mapTokenExplicitArrivalPending[guid]=nil end
-		end
-		if options.relock==true then mapTokenRelockWhenSettled(guid,true) end
-
-		if callback~=nil then
-			--If this spread moved the arriving token laterally, wait for that final physics settle too.
-			mapTokenAfterSettled(guid,function(finalObj) callback(finalObj,arranged) end)
-		end
+		local arranged=mapTokenArrangeObject(guid)
+		--Keep this generation pending until any final smooth separator correction has settled. This also
+		--makes the delayed onObjectDrop fallback a guaranteed no-op when the map-zone path already owns it.
+		mapTokenAfterSettled(guid,function(finalObj)
+			if mapTokenArrivalPending[guid]==generation then mapTokenArrivalPending[guid]=nil end
+			if callback~=nil then callback(finalObj,arranged) end
+		end)
 	end)
 	return true
 end
 
---A human drop already owns the vertical fall. Replace any zone-entry claim with one final lateral
---spread and treat the dropped token as the newest/top participant.
-function mapTokenArrangeDroppedObject(guid)
-	mapTokenSettleArrival(guid,nil,{force=true})
-end
-
---Unheld objects entering the map get one passive settle pass. They use physical/existing order and
---must never override a known Horseman/Dragon/manual arrival that owns the same hex.
+--The map-zone entry is the normal physical-arrival trigger. onObjectDrop only calls this later as
+--insurance for a token that entered the short map zone while it was still being held.
 function mapTokenScheduleObject(guid)
-	mapTokenSettleArrival(guid,nil,{passive=true})
+	return mapTokenSettleArrival(guid,nil,{passive=true})
 end
 
 --Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
@@ -1431,8 +1324,7 @@ function mapTokenReleaseObject(obj)
 	local position=obj.getPosition()
 	local ignoreGUID=obj.guid
 	--Invalidate delayed arrival/manual-drop work for the object now being carried away.
-	mapTokenManualDropPending[ignoreGUID]=nil
-	mapTokenExplicitArrivalPending[ignoreGUID]=nil
+	mapTokenArrivalPending[ignoreGUID]=nil
 	mapTokenArrangeGeneration[ignoreGUID]=(mapTokenArrangeGeneration[ignoreGUID] or 0)+1
 	safeWaitFrames("Scenario",function()
 		local hexes,mapObjects=apocalypseQuestMapHexes()
@@ -1458,7 +1350,7 @@ function mapTokenArrangeAllOccupiedHexes(terrainGUID)
 				for _,candidate in pairs(mapObjects or {}) do
 					if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true then
 						participantCount=participantCount+1
-						if mapTokenManualDropPending[candidate.guid]~=nil then arrivalPending=true end
+						if mapTokenArrivalPending[candidate.guid]~=nil then arrivalPending=true end
 					end
 				end
 				--A lone token has nothing to separate. Its own arrival/drop path already owns centring and
@@ -2670,10 +2562,10 @@ function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	local center=angleToXY(terrain,bearing)
 	if center==nil then return false end
 
+	token.lock()
 	local started=mapTokenSettleArrival(token.guid,{center[1],mapTokenDestroyedBaseY,center[2]},{
 		force=true,
-		rotation={0,180,0},
-		relock=true
+		rotation={0,180,0}
 	},function()
 		if afterArrange~=nil then afterArrange() end
 	end)
@@ -4373,7 +4265,8 @@ function furyDragonBeginInFlightTurn()
 	gStates.furyDragonManaDieGUID=nil
 
 	local markerGUID=marker.guid
-	local started=mapTokenSettleArrival(markerGUID,destination,{force=true,rotation={0,180,0},relock=true},function(landed)
+	marker.lock()
+	local started=mapTokenSettleArrival(markerGUID,destination,{force=true,rotation={0,180,0}},function(landed)
 		if landed==nil then
 			furyDragonCompleteTurn("The Apocalypse Dragon marker disappeared while landing.")
 			return
