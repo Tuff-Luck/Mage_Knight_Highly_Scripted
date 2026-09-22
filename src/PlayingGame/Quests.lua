@@ -3154,6 +3154,8 @@ end
 function apocalypseQuestHexDistanceMap(hexes, starts)
 	local distances={}
 	local queue={}
+	local snapshot=runtimeMapSnapshot()
+	local useCachedTopology=hexes==snapshot.hexes
 	for _, startHex in ipairs(starts or {}) do
 		local key=apocalypseQuestMapHexKey(startHex)
 		if key~=nil and distances[key]==nil then
@@ -3165,12 +3167,23 @@ function apocalypseQuestHexDistanceMap(hexes, starts)
 	while queue[head]~=nil do
 		local current=queue[head]
 		head=head+1
-		local currentDistance=distances[apocalypseQuestMapHexKey(current)] or 0
-		for _, candidate in ipairs(hexes or {}) do
-			local key=apocalypseQuestMapHexKey(candidate)
-			if key~=nil and distances[key]==nil and apocalypseQuestHexesAdjacent(current,candidate)==true then
-				distances[key]=currentDistance+1
-				queue[#queue+1]=candidate
+		local currentKey=apocalypseQuestMapHexKey(current)
+		local currentDistance=distances[currentKey] or 0
+		if useCachedTopology==true then
+			for _,candidate in ipairs(snapshot.neighbors[currentKey] or {}) do
+				local key=apocalypseQuestMapHexKey(candidate)
+				if key~=nil and distances[key]==nil then
+					distances[key]=currentDistance+1
+					queue[#queue+1]=candidate
+				end
+			end
+		else
+			for _,candidate in ipairs(hexes or {}) do
+				local key=apocalypseQuestMapHexKey(candidate)
+				if key~=nil and distances[key]==nil and apocalypseQuestHexesAdjacent(current,candidate)==true then
+					distances[key]=currentDistance+1
+					queue[#queue+1]=candidate
+				end
 			end
 		end
 	end
