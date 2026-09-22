@@ -292,6 +292,84 @@ function terrainHexAtPosition(pos, objectsInPlay, cachedPositions, cachedRotatio
 	end
 end
 
+
+-- Shared runtime map snapshot. The physical TTS table is authoritative; this is only a derived
+-- in-memory index and must never be persisted in gStates. Invalidate it when map membership or a
+-- terrain tile's transform/face changes, then rebuild lazily on the next map query.
+runtimeMapCache=nil
+
+function runtimeMapInvalidate()
+	runtimeMapCache=nil
+end
+
+function runtimeMapContainsGUID(guid)
+	return guid~=nil and runtimeMapCache~=nil and runtimeMapCache.objectGUIDs~=nil and runtimeMapCache.objectGUIDs[guid]==true
+end
+
+function runtimeMapSnapshot()
+	if runtimeMapCache~=nil then return runtimeMapCache end
+	local map=getObjectFromGUID(mapArea)
+	if map==nil then
+		runtimeMapCache={objects={},objectGUIDs={},terrainObjects={},terrainPositions={},terrainRotations={},terrainEntries={},hexes={},terrainSignature=""}
+		return runtimeMapCache
+	end
+
+	local objects=map.getObjects()
+	local objectGUIDs={}
+	local terrainObjects={}
+	local terrainPositions={}
+	local terrainRotations={}
+	local terrainEntries={}
+	local hexes={}
+	local signatureParts={}
+	local bearings={"center","0","60","120","180","240","300"}
+
+	for _,obj in pairs(objects) do
+		objectGUIDs[obj.guid]=true
+		local details=terrainTiles[obj.guid]
+		if details~=nil then
+			local position=obj.getPosition()
+			local rotation=obj.getRotation()
+			terrainObjects[#terrainObjects+1]=obj
+			terrainPositions[obj.guid]=position
+			terrainRotations[obj.guid]=rotation
+			if obj.is_face_down~=true then
+				local rotationAdjust=math.floor(((rotation[2]-180)/60)+0.5)*60
+				if rotationAdjust<0 then rotationAdjust=rotationAdjust+360 end
+				local printed={}
+				for _,bearing in ipairs(bearings) do
+					local hexType=details.hexType~=nil and details.hexType[bearing] or ""
+					local feature=details.hexFeature~=nil and details.hexFeature[bearing] or ""
+					printed[#printed+1]=tostring(hexType)..":"..tostring(feature)
+				end
+				signatureParts[#signatureParts+1]=obj.guid.."@"..string.format("%.3f,%.3f,%d",position[1],position[3],rotationAdjust).."@"..table.concat(printed,",")
+				terrainEntries[#terrainEntries+1]={guid=obj.guid,object=obj,details=details,position=position,rotation=rotation,rotationAdjust=rotationAdjust}
+
+				if details.tileType~="tilePile" and details.hexType~=nil and details.hexFeature~=nil then
+					for _,bearing in ipairs(bearings) do
+						local hexType=details.hexType[bearing]
+						if hexType~=nil and hexType~="" and hexType~="ocean" then
+							local xy=angleToXY(obj,bearing,position,rotation)
+							hexes[#hexes+1]={
+								terrain=obj,terrainGUID=obj.guid,bearing=bearing,
+								position={xy[1],1.30,xy[2]},hexType=hexType,
+								feature=details.hexFeature[bearing] or ""
+							}
+						end
+					end
+				end
+			end
+		end
+	end
+	table.sort(signatureParts)
+	runtimeMapCache={
+		objects=objects,objectGUIDs=objectGUIDs,
+		terrainObjects=terrainObjects,terrainPositions=terrainPositions,terrainRotations=terrainRotations,
+		terrainEntries=terrainEntries,hexes=hexes,terrainSignature=table.concat(signatureParts,"|")
+	}
+	return runtimeMapCache
+end
+
 -- Player permission helpers
 --checks the clicking player matches the current turn
 function legalPlayerCheck(clickingPlayersColor, playerPosExpected, rule)
