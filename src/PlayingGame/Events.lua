@@ -1421,8 +1421,8 @@ local function handleTerrainZoneEnter(ctx)
 			if startingMapSetup==true then startingMapTiles[objGUID]=true end
 			workingOnTerrain[objGUID]=true
 		end
-			safeWaitTime("Events",function() addAvatarButtons() end, 1.5)
-			local playAreaObjects={}
+		if refreshExploreOnly~=true then safeWaitTime("Events",function() addAvatarButtons() end, 1.5) end
+		local playAreaObjects={}
 		local faceUpTerrain={}
 		local mapObjectPositions={}
 		local function refreshTerrainSnapshot()
@@ -1562,7 +1562,7 @@ local function handleTerrainZoneEnter(ctx)
 		end
 
 		--make predefined maps highlight red
-		if gStates.mapShape:sub(5,5)=="P" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then--predefined
+		if refreshExploreOnly~=true and gStates.mapShape:sub(5,5)=="P" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then--predefined
 			for _, mightBeMap in pairs(playAreaObjects) do
 				if terrainTiles[mightBeMap.guid]~=nil then
 					if positionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}})==false then
@@ -1953,8 +1953,8 @@ local function handleTerrainZoneEnter(ctx)
 	return false
 end
 
---Rebuild EXPLORE buttons from the physical map as it exists now. This is intentionally derived
---runtime state: nothing here is persisted as an alternative source of truth.
+--Rebuild EXPLORE buttons from the physical map as it exists now. gStates.exploreButtons remains
+--a derived UI cache for existing consumers; the physical table is the source of truth for rebuilding it.
 function refreshTerrainExploreOptions()
 	if gStates==nil then return end
 	local zone=getObjectFromGUID(mapArea)
