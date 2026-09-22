@@ -429,7 +429,8 @@ function renderMoveDisplay(id)
 	local mapObject=getObjectFromGUID(mapArea)
 	if startTile==nil or mapObject==nil then moveDisplayHideUnusedText(0) return end
 	local startTilePos=startTile.getPosition()
-	local playAreaObjects=mapObject.getObjects()
+	local snapshot=runtimeMapSnapshot()
+	local playAreaObjects=snapshot.objects or {}
 	local hexMap=moveDisplayBaseHexMap(playAreaObjects, startTileGUID, startTilePos)
 	--The Dragon's three lair spaces keep their printed terrain Move cost, but entering any of them
 	--starts the Dragon assault. Mark them as combat-only destinations so the movement helper shows
