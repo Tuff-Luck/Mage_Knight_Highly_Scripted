@@ -659,6 +659,37 @@ local function removeUnselectedTerrain()
 	if gStates.positionMageKnight[5]~="Volkare" and setupUsesVolkareCampCity()~=true then sendTerrainTileToTrash(cityBag,"835c91") end
 end
 
+--Volkare is deployed before map construction, so his final lock belongs to the map-complete path.
+--Waiting for the known map resting height here is safe: unlike the old readiness gate, the terrain now exists.
+local function lockSetupVolkareOnMap(callback)
+	if gStates.positionMageKnight[5]~="Volkare" then callback() return end
+	local volkareGUID=gStates.volkareModel or volkare.model
+	local model=getObjectFromGUID(volkareGUID)
+	if model==nil then
+		setupReleaseRewind()
+		error("SetupGame could not find Volkare after map construction.",2)
+	end
+	model.unlock()
+	safeWaitFrames("SetupGame",function()
+		safeWaitCondition("SetupGame",function()
+			local settled=getObjectFromGUID(volkareGUID)
+			if settled~=nil then
+				settled.setRotation({0,180,0})
+				settled.lock()
+			end
+			callback()
+		end,function()
+			local settled=getObjectFromGUID(volkareGUID)
+			if settled==nil then return false end
+			local y=settled.getPosition()[2]
+			return settled.resting==true and settled.isSmoothMoving()==false and math.abs(y-1.08)<0.06
+		end,10,function()
+			setupReleaseRewind()
+			error("SetupGame timed out waiting for Volkare to settle on the completed map.",2)
+		end)
+	end,1)
+end
+
 --Finalize setup only after all chained setup work and initial map population are actually complete.
 local function finalizeSetup()
 	if setupFinalizationStarted==true then return end
@@ -761,7 +792,7 @@ function afterLoad()
 				setupReleaseRewind()
 				error(reason or "SetupGame map setup failed.",2)
 			end
-			finalizeSetup()
+			lockSetupVolkareOnMap(finalizeSetup)
 		end)
 	end
 	if setupCoreSystemsReady()==true then

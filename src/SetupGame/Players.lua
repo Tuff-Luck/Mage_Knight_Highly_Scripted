@@ -302,6 +302,9 @@ function playerSetup()
 								params.position={-12.0297, 1.6, 8.8586}--Volkare's Quest Avatar position
 							end
 							local obj=safeTakeObject("SetupGame",PlayerBag,params)
+							--Volkare is stored in the Mage bag before the map exists. Keep him physical so the
+							--starting terrain can lift/settle him normally; setup locks him only after map completion.
+							if gStates.positionMageKnight[5]=="Volkare" and obj~=nil then obj.unlock() end
 							skip=1
 						else
 							local blitzSub=gStates.blitz
@@ -575,7 +578,11 @@ function volkareArmy()
 		getObjectFromGUID(volkare.model).setCustomObject({diffuse=cityLevelImage[volkare.model][math.floor(gStates.volkareLevel/math.ceil(gStates.volkareLevel/15))]})
 		getObjectFromGUID(volkare.model).reload()
 		safeWaitCondition("SetupGame",function()
-			getObjectFromGUID(volkare.model).lock()
+			local model=getObjectFromGUID(volkare.model)
+			--This flag means the model reload is complete, not that Volkare is ready to be frozen.
+			--The initial map cannot start until this flag is true, so locking here would guarantee
+			--that he is frozen on the bare table before his starting terrain is constructed.
+			if model~=nil then model.unlock() end
 			gStates.volkareSetupReady=true
 		end,function()
 			local model=getObjectFromGUID(volkare.model)

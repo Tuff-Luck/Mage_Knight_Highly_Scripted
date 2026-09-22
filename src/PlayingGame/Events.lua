@@ -1211,7 +1211,7 @@ function __onObjectSpawn_raw(spawn_object)
 			safeWaitFrames("Events",function() getObjectFromGUID(gStates.volkareModel).addDecal({name="Volkare's Quest Guide", url="https://steamusercontent-a.akamaihd.net/ugc/1617311764022517042/4160839B27C5F84E3D4D860408AE19780E48AEC4/",
 				position={1.6, 0.05, 1.4}, rotation={90, 180, 0}, scale={3.6/scale[1], 3.5/scale[3], 1}}) end, 20)
 		end
-		safeWaitTime("Events",function() getObjectFromGUID(gStates.volkareModel).lock() getObjectFromGUID(gStates.volkareModel).setRotation({0, 180, 0}) end, 3)
+		--Setup owns Volkare\'s initial lock. Locking from onObjectSpawn races map construction because\n\t\t--the model is spawned/reloaded before the starting terrain exists beneath it.\n\t\tspawn_object.setRotation({0, 180, 0})
 		cityLevelButtons(gStates.volkareModel, "Volkar")
 	end
 
