@@ -1185,16 +1185,16 @@ local function mapTokenUpdatePlayLocation(obj,pos)
 	end
 end
 
---Move one token directly to its final shared-hex slot. X/Z and Y are one piece of state:
---changing the diagonal order must also change stack height. Do not unlock/relock here; setPosition can
---move locked tokens directly, while loose tokens retain their normal physics after the correction.
+--Smooth one token to its final shared-hex slot. Scripted transforms work on locked objects, so the
+--separator never unlocks/relocks pieces just to correct X/Z/Y. collide=false also prevents the small
+--separation movement from physically shoving another token in the same stack.
 local function mapTokenMoveToSlot(obj,targetX,targetY,targetZ)
 	if obj==nil then return false end
 	local pos=obj.getPosition()
 	if obj.isSmoothMoving()==true then return false end
 	local already=math.abs(pos[1]-targetX)<0.025 and math.abs(pos[2]-targetY)<0.025 and math.abs(pos[3]-targetZ)<0.025
 	if already==true then return false end
-	obj.setPosition({targetX,targetY,targetZ})
+	obj.setPositionSmooth({targetX,targetY,targetZ},false)
 	mapTokenUpdatePlayLocation(obj,{targetX,targetY,targetZ})
 	return true
 end
@@ -1264,11 +1264,8 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 		local offset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
 		local targetX,targetZ=centerX+offset.x,centerZ+offset.z
 		local targetY=mapTokenDestroyedBaseY
-		local wasLocked=destroyed.getLock()==true
-		destroyed.unlock()
 		destroyed.setRotation({0,180,0})
 		changed=mapTokenMoveToSlot(destroyed,targetX,targetY,targetZ) or changed
-		if wasLocked==true or destroyed.getLock()~=true then destroyed.lock() end
 	end
 
 	if #enemies<1 then return changed end
@@ -1342,7 +1339,8 @@ function mapTokenSettleArrival(guid,target,options,callback)
 	mapTokenRecordArrival(guid)
 
 	if target~=nil then
-		obj.unlock()
+		--Scripted smooth movement works while locked. Preserve the object's current lock state; callers
+		--that explicitly want the final object locked still use options.relock after it settles.
 		if options.rotation~=nil then obj.setRotation(options.rotation) end
 		obj.setPositionSmooth(target,false)
 	end
