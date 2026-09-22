@@ -274,9 +274,10 @@ end
 function terrainHexAtPosition(pos, objectsInPlay, cachedPositions, cachedRotations)
 	if pos==nil then return end
 	if objectsInPlay==nil then
-		local map=getObjectFromGUID(mapArea)
-		if map==nil then return end
-		objectsInPlay=map.getObjects()
+		local snapshot=runtimeMapSnapshot()
+		objectsInPlay=snapshot.terrainObjects or {}
+		cachedPositions=snapshot.terrainPositions
+		cachedRotations=snapshot.terrainRotations
 	end
 	for _, terrain in pairs(objectsInPlay) do
 		local terrainPos=cachedPositions~=nil and cachedPositions[terrain.guid] or nil
