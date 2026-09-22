@@ -575,12 +575,15 @@ function volkareArmy()
 		getObjectFromGUID(volkare.model).setCustomObject({diffuse=cityLevelImage[volkare.model][math.floor(gStates.volkareLevel/math.ceil(gStates.volkareLevel/15))]})
 		getObjectFromGUID(volkare.model).reload()
 		safeWaitCondition("SetupGame",function()
-			getObjectFromGUID(volkare.model).lock()
+			local model=getObjectFromGUID(volkare.model)
+			if model~=nil then model.lock() end
 			gStates.volkareSetupReady=true
 		end,function()
 			local model=getObjectFromGUID(volkare.model)
-			return model~=nil and model.resting==true
-		end,10,function() error("SetupGame timed out waiting for Volkare's model to reload.",2) end)
+			if model==nil then return false end
+			local y=model.getPosition()[2]
+			return model.resting==true and model.isSmoothMoving()==false and math.abs(y-1.08)<0.06
+		end,10,function() error("SetupGame timed out waiting for Volkare's model to reload and settle at map height.",2) end)
 		cityLevelButtons(volkare.model, "Volkar")
 	else
 		gStates.volkareSetupReady=true

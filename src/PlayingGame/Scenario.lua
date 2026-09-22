@@ -1337,31 +1337,61 @@ function mapTokenReleaseObject(obj)
 	return true
 end
 
-function mapTokenArrangeAllOccupiedHexes(terrainGUID)
+local mapTokenTerrainReconcilePending={}
+
+local function mapTokenTerrainReadyForReconcile(terrainGUID)
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	for _,obj in pairs(mapObjects or {}) do
+		if mapTokenNeedsArrangement(obj)==true then
+			local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
+			if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
+				if mapTokenArrivalPending[obj.guid]~=nil or obj.isSmoothMoving()==true or obj.resting~=true then return false end
+			end
+		end
+	end
+	return true
+end
+
+local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local touched={}
 	for _,obj in pairs(mapObjects or {}) do
 		if mapTokenNeedsArrangement(obj)==true then
 			local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
 			local key=hex~=nil and apocalypseQuestMapHexKey(hex) or nil
-			--Terrain completion only needs to reconcile shared stacks on the tile that just finished
-			--population. Do not touch unrelated map tokens every time any terrain tile is explored.
+			--Terrain completion only reconciles shared stacks on the tile that just finished population.
 			if key~=nil and touched[key]~=true and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
 				touched[key]=true
-				local arrivalPending=false
 				local participantCount=0
 				for _,candidate in pairs(mapObjects or {}) do
 					if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true then
 						participantCount=participantCount+1
-						if mapTokenArrivalPending[candidate.guid]~=nil then arrivalPending=true end
 					end
 				end
-				--A lone token has nothing to separate. Its own arrival/drop path already owns centring and
-				--settling; rewriting it here caused old Keep/Mage Tower tokens to visibly twitch on explore.
-				if participantCount>1 and arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects,nil,nil) end
+				--A lone token has nothing to separate. Leaving it alone avoids the old Keep/Mage Tower shimmer.
+				if participantCount>1 then mapTokenArrangeHex(hex,mapObjects,nil,nil) end
 			end
 		end
 	end
+	return true
+end
+
+function mapTokenArrangeAllOccupiedHexes(terrainGUID)
+	if terrainGUID==nil or mapTokenTerrainReadyForReconcile(terrainGUID)==true then
+		return mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+	end
+	if mapTokenTerrainReconcilePending[terrainGUID]==true then return false end
+	mapTokenTerrainReconcilePending[terrainGUID]=true
+	local function finish()
+		mapTokenTerrainReconcilePending[terrainGUID]=nil
+		mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+	end
+	--Script-deployed enemies can still be falling when terrain population code itself is finished.
+	--Wait for their own arrival/separator work to finish, then perform one final shared-stack pass.
+	safeWaitCondition("Scenario",finish,function()
+		return mapTokenTerrainReadyForReconcile(terrainGUID)
+	end,5,finish)
+	return false
 end
 
 function againstHorsemenAllDefeated()
