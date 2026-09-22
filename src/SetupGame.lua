@@ -230,6 +230,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				gStates.scenarioRef=1
 				gStates.removeLostLegionExpansion=true
 				gStates.removeBonusCards=true
+				gStates.riseOfTheForgemasters=0
 			else--"RandomGame"
 				--Mystery Solo can be pressed after changing setup options, so build the roll from a clean baseline
 				--instead of inheriting any settings from the menu state that happened to be active beforehand.
@@ -619,7 +620,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			setupStartDeckStage()
 		else
 			safeWaitCondition("SetupGame",setupStartDeckStage,setupQueuedDeckMergesComplete,10,function()
-				error("SetupGame timed out waiting for expansion cards to merge into the main decks.",2)
+				error("SetupGame timed out waiting for Forgemaster cards to merge into the main decks.",2)
 			end)
 		end
 	end
