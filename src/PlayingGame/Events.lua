@@ -1290,8 +1290,6 @@ local function zoneEventContext(zone, obj)
 		zoneInfo=zoneInfo,
 		objType=obj.type,
 		isMap=zoneGUID==mapArea,
-		isTacticZone=tacticClaimingZones[zoneGUID]~=nil,
-		isOfferZone=cardClaimingZones[zoneGUID]~=nil,
 		playerZoneKind=zoneInfo~=nil and zoneInfo.kind or nil
 	}
 end
