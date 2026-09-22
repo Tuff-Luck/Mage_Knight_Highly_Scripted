@@ -462,9 +462,10 @@ function zigguratPyramidFloorFromPosition(terrain, sitePos, shieldPos)
 	return closestFloor
 end
 
---Plays rampaging tokens. Both onObjectEnterScriptingZone and endRound call this routine
-function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, dropped, ambushEligible)
-	if ambushEligible==nil then ambushEligible=true end
+--Plays rampaging tokens. Both onObjectEnterScriptingZone and endRound call this routine.
+--Setup terrain still receives its normal Rampaging enemy, but not player-exploration Ambush/Pursuit effects.
+function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, dropped, explorationEffectsEligible)
+	if explorationEffectsEligible==nil then explorationEffectsEligible=true end
 	local free=true
 	--set position of terrain hex in real world coordinates
 	local params={position={angleToXY(obj, hexLocation)[1], 2, angleToXY(obj, hexLocation)[2]}}
@@ -564,10 +565,10 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 						markMonsterFactionSubstitute(token, tokenFaction)
 						gStates.monsterPlayLocation[token.guid]=params.position
 						gStates.rampagingMonsters[token.guid]=true
-						if gStates.rampageAmbush==true and gStates.tacticShown==false and dropped==true and ambushEligible==true then
+						if gStates.rampageAmbush==true and gStates.tacticShown==false and dropped==true and explorationEffectsEligible==true then
 							gStates.ambushingMonsters[token.guid]=params.position
 						end
-						if gStates.rampagePursuit==true and gStates.tacticShown==false and dropped==true and turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] then
+						if gStates.rampagePursuit==true and gStates.tacticShown==false and dropped==true and explorationEffectsEligible==true and turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] then
 							for _, mage in pairs(mageKnights) do
 								if mage.mage==turnOrder[gStates.turnNumber].mage then
 									if gStates.pursuingMonsters[mage.mage]==nil then gStates.pursuingMonsters[mage.mage]={} end

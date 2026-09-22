@@ -1625,8 +1625,10 @@ local function handleTerrainZoneEnter(ctx)
 	--Check if a terrain tile has entered the play area
 	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
 		if startingMapSetup==true then startingMapTiles[objGUID]=true end
+		local initialSetupTerrain=startingMapTiles~=nil and startingMapTiles[objGUID]==true
 		workingOnTerrain[objGUID]=true
-		safeWaitTime("Events",function() addAvatarButtons() end, 1.5)
+		--Setup terrain still needs normal site/enemy population, but player-exploration UI/effects wait for actual play.
+		if initialSetupTerrain~=true then safeWaitTime("Events",function() addAvatarButtons() end, 1.5) end
 		local playAreaObjects=zone.getObjects()
 		local faceUpTerrain={}
 		for _,mapObject in pairs(playAreaObjects) do
@@ -1682,8 +1684,10 @@ local function handleTerrainZoneEnter(ctx)
 			if startingMapSetup==true then
 				if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
 			end
-			againstDragonRevealLair(obj)
-			if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
+			if initialSetupTerrain~=true then
+				againstDragonRevealLair(obj)
+				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
+			end
 			--Check if the object is a core tile and unlock elite units
 			if terrainTiles[objGUID].tileType=="core" and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
 				gStates.playedCoreTiles=gStates.playedCoreTiles+1
@@ -1697,7 +1701,7 @@ local function handleTerrainZoneEnter(ctx)
 			end
 
 			--Against the Apocalypse destroyed terrain
-			if gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.tacticShown==false and enteredTileName~="excess" then
+			if initialSetupTerrain~=true and gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.tacticShown==false and enteredTileName~="excess" then
 				destroyRestoreLocation(nil, "-1", "id", "destroy", obj)
 			end
 
@@ -1740,7 +1744,7 @@ local function handleTerrainZoneEnter(ctx)
 					--deploy monster token if hex is free.
 					if free==true then
 						if gStates.playedAllready[objGUID]~=true then
-							if gStates.gameScenario=="Dungeon Lords" and gStates.tacticShown==false and (hexFeature=="village" or hexFeature=="monastery") then
+							if initialSetupTerrain~=true and gStates.gameScenario=="Dungeon Lords" and gStates.tacticShown==false and (hexFeature=="village" or hexFeature=="monastery") then
 								dungeonLordsQueueSecretSite(obj,hexLocation,hexFeature)
 							end
 							--if a monastery tile is placed start dealing advanced actions
@@ -1752,7 +1756,7 @@ local function handleTerrainZoneEnter(ctx)
 							--Rampaging Orcs & Draconum
 							if hexFeature=="rampaging" or hexFeature=="draconum" or
 								(gStates.gameScenario=="The Chaos Rift" and (hexFeature=="village" or ((hexFeature=="mine" or hexFeature=="") and objGUID==GUID.tile.city08))) then
-								playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, true, startingMapTiles[objGUID]~=true)
+								playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, true, initialSetupTerrain~=true)
 							end
 
 							--Mine
@@ -1939,7 +1943,7 @@ local function handleTerrainZoneEnter(ctx)
 				if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then refreshTerrainExploreOptions() end
 				--Terrain deployment changes the movement graph directly. Refresh it here instead of relying on
 				--the later fake avatar drop to eventually trigger a full UI update.
-				if gStates.firstStarted==true then
+				if initialSetupTerrain~=true and gStates.firstStarted==true then
 					moveDisplayTerrainCache={signature=nil,hexMap=nil}
 					updateMoveDisplay()
 				end
@@ -1947,7 +1951,7 @@ local function handleTerrainZoneEnter(ctx)
 				--Only the newly populated tile can have gained a new shared-token stack. Leave established
 				--tokens elsewhere on the map completely untouched.
 				mapTokenArrangeAllOccupiedHexes(objGUID)
-				fakeDropAvatar()
+				if initialSetupTerrain~=true then fakeDropAvatar() end
 				apocalypseQuestRefreshOfferButtons()
 			end
 			if startingMapSetup==true then
@@ -1962,7 +1966,7 @@ local function handleTerrainZoneEnter(ctx)
 
 			--Fame is awarded only for terrain actually explored during play. Initial setup terrain is
 			--tagged when it enters the map and never counts as exploration in these scenarios.
-			if startingMapTiles[objGUID]~=true and
+			if initialSetupTerrain~=true and
 				(gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
 				turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
 				local centerFeature=terrainTiles[objGUID].hexFeature["center"] or ""
