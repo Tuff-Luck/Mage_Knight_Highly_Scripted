@@ -1297,6 +1297,22 @@ function mapTokenArrangeObject(guid)
 	return mapTokenArrangeHex(hex,mapObjects,nil,obj)
 end
 
+--Terrain population records the intended destination in monsterPlayLocation immediately after a token
+--is taken from its pile. The token can cross another revealed hex while travelling there, so a passive
+--map-zone event must not treat that intermediate position as its final hex and snap it into that stack.
+local function mapTokenPassiveArrivalReachedPlannedHex(obj)
+	if obj==nil or obj.guid==nil or gStates==nil or gStates.monsterPlayLocation==nil then return true end
+	local planned=gStates.monsterPlayLocation[obj.guid]
+	if planned==nil then return true end
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local plannedHex=apocalypseQuestHexForPosition(hexes,planned,mapObjects)
+	--A recorded destination outside the revealed map means this map-zone entry is only transit.
+	if plannedHex==nil then return false end
+	local currentHex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
+	if currentHex==nil then return false end
+	return apocalypseQuestMapHexKey(currentHex)==apocalypseQuestMapHexKey(plannedHex)
+end
+
 --All loose map-token arrivals use this one ownership path. The arriving token claims its
 --settle/layout before it can cross the map zone, waits until its own movement/physics is finished,
 --then claims every token sharing the final hex and assigns the ordered X/Z/Y slots once.
@@ -1344,8 +1360,16 @@ function mapTokenSettleArrival(guid,target,options,callback)
 			return
 		end
 
-		--A generic zone event is deliberately passive. If a Horseman, Dragon or human drop currently
-		--owns this hex, leave the layout entirely to that authoritative arrival.
+		--A generic map-zone event may fire while a freshly drawn token is still travelling across the
+		--map. If terrain population has already recorded a different destination hex, leave it alone;
+		--the destination arrival/terrain-completion sweep will arrange it once it is actually there.
+		if options.passive==true and mapTokenPassiveArrivalReachedPlannedHex(current)~=true then
+			mapTokenManualDropPending[guid]=nil
+			if callback~=nil then callback(current,false) end
+			return
+		end
+		--If a Horseman, Dragon or human drop currently owns this hex, leave the layout entirely to that
+		--authoritative arrival.
 		if options.passive==true and mapTokenHexHasExplicitArrival(guid)==true then
 			mapTokenManualDropPending[guid]=nil
 			if callback~=nil then callback(current,false) end
