@@ -2672,6 +2672,80 @@ function undoDestroyedSitePlacement(destroyed)
 	return true
 end
 
+--Against the Apocalypse keeps its completion rule in one place so both combat cleanup and
+--non-combat site restoration can finish the scenario through the same objective test.
+function againstApocalypseObjectivesComplete()
+	if gStates==nil or gStates.gameScenario~="Against the Apocalypse Blitz" then return false end
+	local map=getObjectFromGUID(mapArea)
+	if map==nil then return false end
+
+	local objectsInPlay=map.getObjects()
+	table.sort(objectsInPlay,function(a,b) return a.getPosition()[2]>b.getPosition()[2] end)
+	local floorCount=0
+	local clearedSites={}
+	for _,obj in pairs(objectsInPlay) do
+		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+			local terrain,_,_,feature=terrainHexAtPosition(obj.getPosition(),objectsInPlay)
+			if terrain~=nil and (feature=="ziggurat" or feature=="pyramid") then
+				floorCount=floorCount+1
+				clearedSites[terrain.guid]=true
+			end
+		end
+	end
+
+	local clearedSiteCount=0
+	for _ in pairs(clearedSites) do clearedSiteCount=clearedSiteCount+1 end
+
+	local restoredCount=0
+	for _,zoneGUID in ipairs({"13f39d","5bb87a","621d88","2936ad"}) do
+		local zone=getObjectFromGUID(zoneGUID)
+		if zone~=nil then
+			for _,token in pairs(zone.getObjects()) do
+				if token.getGMNotes()=="Destroyed" then restoredCount=restoredCount+1 end
+			end
+		end
+	end
+
+	local playerCount=tonumber(gStates.playerCount) or 1
+	local sitesRequired=playerCount==1 and 2 or 3
+	local progressRequired=playerCount+1
+	if gStates.coop==1 and playerCount>1 then progressRequired=playerCount+2 end
+	return clearedSiteCount==sitesRequired and floorCount>=progressRequired and restoredCount>=progressRequired
+end
+
+function againstApocalypseCheckCompletion()
+	if gStates==nil or gStates.gameScenario~="Against the Apocalypse Blitz" or gStates.endGameAchieved~="false" or gStates.tacticShown==true then return false end
+	if againstApocalypseObjectivesComplete()~=true then return false end
+	if gStates.coopAssaultPhase=="combat" then gStates.coopAssaultScenarioEndPending=true else scenarioEnd() end
+	return true
+end
+
+--Only the Possessed token placed by this scenario's terrain-destruction roll grants Destroyed Site
+--tokens. Quest and other Possessed enemies deliberately remain unmarked.
+function againstApocalypseMarkPossessedRampager(possessed)
+	if possessed==nil then return false end
+	gStates.againstApocalypseRampagerPossessedTokens=gStates.againstApocalypseRampagerPossessedTokens or {}
+	gStates.againstApocalypseRampagerPossessedTokens[possessed.guid]=true
+	return true
+end
+
+function againstApocalypseRampagerDestroyedSiteRewards(enemy)
+	if gStates==nil or gStates.gameScenario~="Against the Apocalypse Blitz" or enemy==nil then return 0 end
+	local marked=gStates.againstApocalypseRampagerPossessedTokens
+	if marked==nil then return 0 end
+	for _,attachment in ipairs(enemy.getAttachments() or {}) do
+		if marked[attachment.guid]==true then
+			marked[attachment.guid]=nil
+			if next(marked)==nil then gStates.againstApocalypseRampagerPossessedTokens=nil end
+			local details=monsterPugs~=nil and monsterPugs[enemy.guid] or nil
+			if details~=nil and details.pugType=="red" then return 2 end
+			if details~=nil and details.pugType=="green" then return 1 end
+			return 0
+		end
+	end
+	return 0
+end
+
 function restoreDestroyedSite(destroyed, player)
 	if destroyed==nil or player==nil or gStates.destroyedSites==nil then return false end
 	local data=gStates.destroyedSites[destroyed.guid]
@@ -2692,6 +2766,19 @@ function restoreDestroyedSite(destroyed, player)
 	destroyed.unlock()
 	destroyed.setPositionSmooth({(player.seatPos*40)-117.2+(math.random()*6.5), 3, -35+(math.random()*3.2)})
 	fakeDropAvatar()
+	--The restored token must actually enter its inventory zone before the objective helper counts it.
+	--Check one frame after it settles; still run the check on timeout so an odd physics state cannot strand victory.
+	if gStates.gameScenario=="Against the Apocalypse Blitz" then
+		local restoredGUID=destroyed.guid
+		safeWaitCondition("Scenario",function()
+			safeWaitFrames("Scenario",function() againstApocalypseCheckCompletion() end,1)
+		end,function()
+			local restored=getObjectFromGUID(restoredGUID)
+			return restored==nil or restored.resting
+		end,5,function()
+			againstApocalypseCheckCompletion()
+		end)
+	end
 	return true
 end
 
@@ -2715,10 +2802,15 @@ function destroyRestoreLocation(playerDud, mouseButton, id, type, obj)
 						if found==true then break end
 					end
 					if gStates.againstTheApocSitePosition==7 and (hexFeature==featureSearch[7][1] or hexFeature==featureSearch[7][2]) then
-						--deploy possessed token
-						getObjectFromGUID(GUID.bag.possessed).takeObject({position={angleToXY(obj, searchOrder[i])[1], 2, angleToXY(obj, searchOrder[i])[2]}})
-						found=true
-						break
+						--Deploy and tag the scenario's Possessed Rampaging Enemy. Generic/Quest Possessed
+						--tokens are intentionally left untagged so they cannot grant Destroyed Site rewards.
+						local possessedBag=getObjectFromGUID(GUID.bag.possessed)
+						local possessed=possessedBag~=nil and possessedBag.takeObject({position={angleToXY(obj, searchOrder[i])[1], 2, angleToXY(obj, searchOrder[i])[2]}}) or nil
+						if possessed~=nil then
+							againstApocalypseMarkPossessedRampager(possessed)
+							found=true
+							break
+						end
 					end
 				end
 				gStates.againstTheApocSitePosition=gStates.againstTheApocSitePosition+1

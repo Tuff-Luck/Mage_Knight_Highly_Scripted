@@ -813,10 +813,14 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			--Separate possessed tokens only after the base enemy was actually defeated.
 			--An undefeated face-down rampager returns to the map with its possession still attached.
 			if playAreaObj.getAttachments()[1]~=nil and playAreaObj.is_face_down==false then
-				if gStates.gameScenario=="Against the Apocalypse Blitz" and UI.getAttribute("zigguratPyramidInteract", "active")=="false" and (monsterPugs[playAreaObj.guid].pugType=="red" or monsterPugs[playAreaObj.guid].pugType=="green") then
-					--Award Destroyed Site tokens only for defeated possessed rampagers.
-					getObjectFromGUID(GUID.bag.destroyedSite).takeObject({position={(turnOrder[cleanupPlayer].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}})
-					if monsterPugs[playAreaObj.guid].pugType=="red" then getObjectFromGUID(GUID.bag.destroyedSite).takeObject({position={(turnOrder[cleanupPlayer].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}}) end
+				local destroyedSiteRewards=againstApocalypseRampagerDestroyedSiteRewards~=nil and againstApocalypseRampagerDestroyedSiteRewards(playAreaObj) or 0
+				if destroyedSiteRewards>0 then
+					local destroyedBag=getObjectFromGUID(GUID.bag.destroyedSite)
+					if destroyedBag~=nil then
+						for _=1,destroyedSiteRewards do
+							destroyedBag.takeObject({position={(turnOrder[cleanupPlayer].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}})
+						end
+					end
 				end
 				attachEnemy(nil, nil, "detach", playAreaObj, nil)
 			end
@@ -1186,8 +1190,6 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 					local graveYardCount=0
 					local graveYardTileCount=0
 					local relicCount=0
-					local floorCount=0
-					local zigPyrBeat={}
 					if gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="Against the Apocalypse Blitz" then
 						local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
 						table.sort(objectsInPlay, function (k1, k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
@@ -1202,7 +1204,6 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 									local shieldToTileDist=math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2))
 									if terTile==locatedTerrain then
 										found=true
-										if locatedFeature=="ziggurat" or locatedFeature=="pyramid" then floorCount=floorCount+1 zigPyrBeat[terTile.guid]=true end
 										if locatedFeature=="dungeon" or locatedFeature=="tomb" then dungeonCount=dungeonCount+1 end
 										if locatedFeature=="mine" then mineCount=mineCount+1 end
 										if locatedFeature~=nil and (locatedFeature:sub(1,4)=="city" or locatedFeature=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz" then relicCount=relicCount+1 end
@@ -1217,15 +1218,6 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 							local dungeonTombTiles={[GUID.tile.core01]=2, [GUID.tile.core03]=2, [GUID.tile.country07]=2, [GUID.tile.country09]=2}
 							if terrainTiles[playAreaObject.guid]~=nil and dungeonTombTiles[playAreaObject.guid]~=nil then dungeonHexCount=dungeonHexCount+1 end
 							if playAreaObject.getName()=="Secret Tomb" or playAreaObject.getName()=="Secret Dungeon" then dungeonHexCount=dungeonHexCount+1 end
-						end
-					end
-					local zigPyrBeatCount=0
-					for a, b in pairs(zigPyrBeat) do zigPyrBeatCount=zigPyrBeatCount+1 end
-					local restoredCount=0
-					local playerZones={"13f39d", "5bb87a", "621d88", "2936ad"}--Crystal inventory
-					for _, zone in pairs(playerZones) do
-						for _, destroyed in pairs(getObjectFromGUID(zone).getObjects()) do
-							if destroyed.getGMNotes()=="Destroyed" then restoredCount=restoredCount+1 end
 						end
 					end
 					local allRituals=true
@@ -1262,10 +1254,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 						(gStates.gameScenario=="Life and Death" and gStates.defeatedFaction==2) or
 						(gStates.gameScenario=="Against the Horsemen Blitz" and againstHorsemenAllDefeated()==true) or
 						(gStates.gameScenario=="Against the Dragon Blitz" and apocalypseDragonColoredHeadsDefeated()==true) or
-						(gStates.gameScenario=="Against the Apocalypse Blitz" and ((zigPyrBeatCount==2 and gStates.playerCount==1) or (zigPyrBeatCount==3 and gStates.playerCount~=1)) and
-							((gStates.coop==1 and gStates.playerCount~=1 and restoredCount>=gStates.playerCount+2 and floorCount>=gStates.playerCount+2) or
-							(gStates.coop==1 and gStates.playerCount==1 and restoredCount>=2 and floorCount>=2) or
-							(gStates.coop==0 and restoredCount>=gStates.playerCount+1 and floorCount>=gStates.playerCount+1))) then
+						(gStates.gameScenario=="Against the Apocalypse Blitz" and againstApocalypseObjectivesComplete~=nil and againstApocalypseObjectivesComplete()==true) then
 						if gStates.endGameAchieved=="false" then
 						if gStates.coopAssaultPhase=="combat" then gStates.coopAssaultScenarioEndPending=true else scenarioEnd() end
 					end

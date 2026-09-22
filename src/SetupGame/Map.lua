@@ -401,6 +401,16 @@ function mapSetup(onComplete)
 		if noShuffle==0 then TileShuffler.putObject(obj) end--Place in the Core Tile Shuffler if it is shuffled
 	end
 
+	--Scenario-specific candidate arrays predate subtractive terrain setup. Filter them against the
+	--actual post-subtraction bag so optional removals can never leave a stale GUID selected for a slot.
+	local function availableTerrainCandidates(bag,candidates)
+		local available={}
+		for _,entry in ipairs(bag~=nil and bag.getObjects() or {}) do available[entry.guid]=true end
+		local filtered={}
+		for _,guid in ipairs(candidates or {}) do if available[guid]==true then filtered[#filtered+1]=guid end end
+		return filtered
+	end
+
 	--Pull Core Tiles
 	local CoreKeepMageTiles=	{GUID.tile.core02, GUID.tile.core03, GUID.tile.core04, GUID.tile.core09, GUID.tile.core10} CoreKeepMageTiles=listShuffle(CoreKeepMageTiles)
 	local CoreGauntletTiles=	{GUID.tile.core02, GUID.tile.core04, GUID.tile.core09, GUID.tile.core10} CoreGauntletTiles=listShuffle(CoreGauntletTiles)
@@ -408,6 +418,7 @@ function mapSetup(onComplete)
 	local CoreRuinTiles=		{GUID.tile.core02, GUID.tile.core03, GUID.tile.core04, GUID.tile.core11} CoreRuinTiles=listShuffle(CoreRuinTiles)
 	local CorePyramidTiles=		{GUID.tile.core11, GUID.tile.core12} CorePyramidTiles=listShuffle(CorePyramidTiles)
 	local CoreNotPyramidTiles=	{GUID.tile.core01, GUID.tile.core02, GUID.tile.core03, GUID.tile.core04, GUID.tile.core09, GUID.tile.core10} CoreNotPyramidTiles=listShuffle(CoreNotPyramidTiles)
+	if gStates.gameScenario=="Against the Apocalypse Blitz" then CoreNotPyramidTiles=availableTerrainCandidates(CoreTileStack,CoreNotPyramidTiles) end
 	local CoreNotDragonLairTiles={GUID.tile.core01, GUID.tile.core02, GUID.tile.core04, GUID.tile.core09, GUID.tile.core10, GUID.tile.core11, GUID.tile.core12} CoreNotDragonLairTiles=listShuffle(CoreNotDragonLairTiles)
 	local CoreNotFuryLairTiles={GUID.tile.core02, GUID.tile.core03, GUID.tile.core04, GUID.tile.core09, GUID.tile.core10, GUID.tile.core11, GUID.tile.core12} CoreNotFuryLairTiles=listShuffle(CoreNotFuryLairTiles)
 	local coreTilesToUse=scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles
@@ -538,6 +549,7 @@ function mapSetup(onComplete)
 	local CountryRuinTiles=				{GUID.tile.country08, GUID.tile.country10, GUID.tile.country11} CountryRuinTiles=listShuffle(CountryRuinTiles)
 	local CountryZigguratTiles=			{GUID.tile.country16, GUID.tile.country17} CountryZigguratTiles=listShuffle(CountryZigguratTiles)
 	local CountryNotZigguratTiles=		{GUID.tile.country01, GUID.tile.country02, GUID.tile.country03, GUID.tile.country04, GUID.tile.country05, GUID.tile.country06, GUID.tile.country07, GUID.tile.country08, GUID.tile.country09, GUID.tile.country10, GUID.tile.country11, GUID.tile.country12, GUID.tile.country13, GUID.tile.country14, GUID.tile.country15} CountryNotZigguratTiles=listShuffle(CountryNotZigguratTiles)
+	if gStates.gameScenario=="Against the Apocalypse Blitz" then CountryNotZigguratTiles=availableTerrainCandidates(CountryTileStack,CountryNotZigguratTiles) end
 	--Quest games need a Village in the selected Countryside set. Promote a compatible Village inside each
 	--scenario-specific pool so the existing Mine/Glade/Keep/Ruin/etc. terrain rules still choose their normal tile types.
 	if apocalypseQuestsUsed()==true then
