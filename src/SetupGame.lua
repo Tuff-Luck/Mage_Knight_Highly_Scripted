@@ -670,6 +670,9 @@ local function finalizeSetup()
 	refreshAllPlayerFameReputationFromShields()
 	refreshMageSkillLocations()
 	tacticToggle()
+	--Map setup is now complete and startingMapSetup has been released. Build the first EXPLORE view
+	--from the final physical terrain positions instead of whichever setup callback happened last.
+	refreshTerrainExploreOptions()
 	--Delete Player Bags could this be done during setup
 	local ToBeDeleted={	GUID.bag.component.arythea,--Arythea
 						GUID.bag.component.norowas,--Norowas
