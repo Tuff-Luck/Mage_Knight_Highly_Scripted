@@ -324,27 +324,36 @@ end
 
 function proxyRouteTopology(hexes,proxyIndex)
 	local context={byKey={},neighbors={},neighborSet={},passable={}}
+	local snapshot=runtimeMapSnapshot()
+	local useCachedTopology=hexes==snapshot.hexes
 	for _,hex in ipairs(hexes or {}) do
 		local key=apocalypseQuestMapHexKey(hex)
 		if key~=nil then
 			context.byKey[key]=hex
-			context.neighbors[key]={}
-			context.neighborSet[key]={}
 			context.passable[key]=proxyHexPassable(hex,proxyIndex)==true
+			if useCachedTopology==true then
+				context.neighbors[key]=snapshot.neighbors[key] or {}
+				context.neighborSet[key]=snapshot.neighborSet[key] or {}
+			else
+				context.neighbors[key]={}
+				context.neighborSet[key]={}
+			end
 		end
 	end
-	for a=1,#(hexes or {}) do
-		local first=hexes[a]
-		local firstKey=apocalypseQuestMapHexKey(first)
-		if firstKey~=nil then
-			for b=a+1,#hexes do
-				local second=hexes[b]
-				local secondKey=apocalypseQuestMapHexKey(second)
-				if secondKey~=nil and apocalypseQuestHexesAdjacent(first,second)==true then
-					context.neighbors[firstKey][#context.neighbors[firstKey]+1]=second
-					context.neighbors[secondKey][#context.neighbors[secondKey]+1]=first
-					context.neighborSet[firstKey][secondKey]=true
-					context.neighborSet[secondKey][firstKey]=true
+	if useCachedTopology~=true then
+		for a=1,#(hexes or {}) do
+			local first=hexes[a]
+			local firstKey=apocalypseQuestMapHexKey(first)
+			if firstKey~=nil then
+				for b=a+1,#hexes do
+					local second=hexes[b]
+					local secondKey=apocalypseQuestMapHexKey(second)
+					if secondKey~=nil and apocalypseQuestHexesAdjacent(first,second)==true then
+						context.neighbors[firstKey][#context.neighbors[firstKey]+1]=second
+						context.neighbors[secondKey][#context.neighbors[secondKey]+1]=first
+						context.neighborSet[firstKey][secondKey]=true
+						context.neighborSet[secondKey][firstKey]=true
+					end
 				end
 			end
 		end
