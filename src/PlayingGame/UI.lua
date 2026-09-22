@@ -675,8 +675,16 @@ function mainUIUpdate(source)
 			local playerAreaCardCount=0
 			local playerAreaSkillCount=0
 			local nextPlayer=nextTurnMerged("nextMage")
-			local nextPlayerEndCalled=turnOrder[nextPlayer].endCalled
-			if nextPlayerEndCalled~=true and turnOrder[nextPlayer].mage==gStates.positionMageKnight[5] then nextPlayerEndCalled=turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled end
+			local nextPlayerDetails=nextPlayer~=nil and turnOrder[nextPlayer] or nil
+			--Seat/colour changes can arrive while TTS is between player registrations. A delayed UI refresh
+			--must not dereference a transiently missing turn-order entry; the next normal refresh will rebuild it.
+			if nextPlayerDetails==nil then mainUIPause=nil return end
+			local nextPlayerEndCalled=nextPlayerDetails.endCalled
+			if nextPlayerEndCalled~=true and nextPlayerDetails.mage==gStates.positionMageKnight[5] then
+				local nextNonDummy=nextTurnMerged("nextMageSkipDummy")
+				local nextNonDummyDetails=nextNonDummy~=nil and turnOrder[nextNonDummy] or nil
+				if nextNonDummyDetails~=nil then nextPlayerEndCalled=nextNonDummyDetails.endCalled end
+			end
 			--if nextPlayerEndCalled~=true then nextPlayerEndCalled=turnOrder[nextPlayer].gameEnder end
 			--if nextPlayerEndCalled~=true then nextPlayerEndCalled=turnOrder[nextTurnMerged("nextMageSkipDummy")].gameEnder end
 
