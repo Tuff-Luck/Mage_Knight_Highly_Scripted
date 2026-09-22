@@ -1211,24 +1211,7 @@ function __onObjectSpawn_raw(spawn_object)
 			safeWaitFrames("Events",function() getObjectFromGUID(gStates.volkareModel).addDecal({name="Volkare's Quest Guide", url="https://steamusercontent-a.akamaihd.net/ugc/1617311764022517042/4160839B27C5F84E3D4D860408AE19780E48AEC4/",
 				position={1.6, 0.05, 1.4}, rotation={90, 180, 0}, scale={3.6/scale[1], 3.5/scale[3], 1}}) end, 20)
 		end
-		local volkareSpawnGUID=spawn_object.guid
-		--Volkare's model rests on the map at Y 1.08. A fixed timer can catch the freshly spawned/reloaded
-		--model while it is still falling (or while TTS is briefly reporting a stale resting=true), locking
-		--it in mid-air. Lock only after the physical model is actually down on the map and motion has ended.
-		safeWaitCondition("Events",function()
-			local volkareObj=getObjectFromGUID(volkareSpawnGUID)
-			if volkareObj~=nil and gStates.volkareModel==volkareSpawnGUID then
-				volkareObj.setRotation({0,180,0})
-				volkareObj.lock()
-			end
-		end,function()
-			local volkareObj=getObjectFromGUID(volkareSpawnGUID)
-			if volkareObj==nil or gStates.volkareModel~=volkareSpawnGUID then return true end
-			local y=volkareObj.getPosition()[2]
-			return volkareObj.resting==true and volkareObj.isSmoothMoving()==false and math.abs(y-1.08)<0.06
-		end,10,function()
-			if gStates.volkareModel==volkareSpawnGUID then error("Volkare setup model did not settle to map height before locking.",2) end
-		end)
+		safeWaitTime("Events",function() getObjectFromGUID(gStates.volkareModel).lock() getObjectFromGUID(gStates.volkareModel).setRotation({0, 180, 0}) end, 3)
 		cityLevelButtons(gStates.volkareModel, "Volkar")
 	end
 
