@@ -1439,6 +1439,7 @@ local function handleTerrainZoneEnter(ctx)
 		end
 		refreshTerrainSnapshot()
 		local core=0
+		local exploreRefreshedBeforeCity=false
 		local faceUp=	{0.0, 180.0,   0.0}
 		local faceDown=	{0.0, 180.0, 180.0}
 		local y=2
@@ -1867,6 +1868,13 @@ local function handleTerrainZoneEnter(ctx)
 							if ((hexFeature or ""):sub(1, 4)=="city" or hexFeature=="Volkare's Camp")
 								and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true))
 								or (hexLocation=="center" and gStates.removeShadesOfTezlaMonsters~=true and gStates.gameScenario=="Ultimate Conquest" and (objGUID==GUID.tile.core03 or objGUID==GUID.tile.core10)) then
+								--Choose the City card's first destination against the frontier created by this tile.
+								--Without this, cityInitialCardPosition() reads the previous EXPLORE set and the later
+								--terrain-finish refresh redirects the same smooth move mid-flight.
+								if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then
+									refreshExploreOptions()
+									exploreRefreshedBeforeCity=true
+								end
 								playCity(obj, hexFeature, true)
 							end
 						end
@@ -1884,7 +1892,9 @@ local function handleTerrainZoneEnter(ctx)
 			local function finishTerrainPopulation()
 				gStates.playedAllready[objGUID]=true
 				workingOnTerrain[objGUID]=false
-				if startingMapSetup~=true then refreshTerrainExploreOptions() end
+				--A City reveal already refreshed immediately before its initial card placement.
+				--Do not compact it a second time while that smooth move is still in progress.
+				if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then refreshTerrainExploreOptions() end
 				--Terrain deployment changes the movement graph directly. Refresh it here instead of relying on
 				--the later fake avatar drop to eventually trigger a full UI update.
 				if gStates.firstStarted==true then
