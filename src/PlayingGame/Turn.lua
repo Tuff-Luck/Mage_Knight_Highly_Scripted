@@ -998,21 +998,19 @@ function __endRound_raw(rewindReady)
 			end
 		else
 			--Discards an Advance Action
-			local MainDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects()
+			local MainDeck=standardDeckCycleObject("Advanced Action")
 			local discard=mainOfferFirstCard("Advanced Action")
-			if discard~=nil and MainDeck[1]~=nil then
-				discard.unlock()
+			if discard~=nil and MainDeck~=nil then
 				standardDeckCycleMarkReturned("Advanced Action",discard)
-				MainDeck[1].putObject(discard)
+				putCardAtBottom(MainDeck,discard)
 			end
 		end
 		--Discards the last Spell
-		local MainDeck=getObjectFromGUID(GUID.zone.spellDeck).getObjects()
+		local MainDeck=standardDeckCycleObject("Spell")
 		local discard=mainOfferFirstCard("Spell")
-		if discard~=nil and MainDeck[1]~=nil then
-			discard.unlock()
+		if discard~=nil and MainDeck~=nil then
 			standardDeckCycleMarkReturned("Spell",discard)
-			MainDeck[1].putObject(discard)
+			putCardAtBottom(MainDeck,discard)
 		end
 
 		--Fury delays Elite Units until exploration reaches a City or a Hero has entered one.

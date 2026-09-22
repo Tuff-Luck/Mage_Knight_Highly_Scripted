@@ -1300,7 +1300,10 @@ function mapTokenSettleArrival(guid,target,options,callback)
 			return
 		end
 
-		local arranged=mapTokenArrangeObject(guid)
+		--A destructive mover can defer its own spread until the replacement Destroyed Site arrives,
+		--avoiding an intermediate arrange that would immediately be invalidated.
+		local arranged=false
+		if options.deferArrange~=true then arranged=mapTokenArrangeObject(guid) end
 		--Keep this generation pending until any final smooth separator correction has settled. This also
 		--makes the delayed onObjectDrop fallback a guaranteed no-op when the map-zone path already owns it.
 		mapTokenAfterSettled(guid,function(finalObj)
@@ -2059,11 +2062,13 @@ function apocalypseIsHereRevealDragonCity(tile)
 	gStates.apocalypseHereDragonCityRevealed=true
 	gStates.apocalypseDragonLairRevealed=true
 	local tilePos=tile.getPosition()
-	local fixedRotation={0,180,180}
+	local tileRotation=tile.getRotation()
+	local tileYaw=tileRotation.y or tileRotation[2] or 180
+	local dragonRotation={0,tileYaw,180}
 	local positions={
 		{tilePos[1],0.97,tilePos[3]},
-		(function() local xy=angleToXY(tile,"240",tilePos,fixedRotation) return {xy[1],0.97,xy[2]} end)(),
-		(function() local xy=angleToXY(tile,"300",tilePos,fixedRotation) return {xy[1],0.97,xy[2]} end)()
+		(function() local xy=angleToXY(tile,"240",tilePos,tileRotation) return {xy[1],0.97,xy[2]} end)(),
+		(function() local xy=angleToXY(tile,"300",tilePos,tileRotation) return {xy[1],0.97,xy[2]} end)()
 	}
 	local hexes={}
 	for i,pos in ipairs(positions) do
@@ -2082,11 +2087,11 @@ function apocalypseIsHereRevealDragonCity(tile)
 		end
 	end
 	local target={positions[1][1],1.18,positions[1][3]}
-	gStates.apocalypseDragonLair={tileGUID=tile.guid,hexes=hexes,position=target,rotation={0,180,180},cityHexKey=tile.guid.."|"..tostring(hexes[1].bearing)}
+	gStates.apocalypseDragonLair={tileGUID=tile.guid,hexes=hexes,position=target,rotation=dragonRotation,cityHexKey=tile.guid.."|"..tostring(hexes[1].bearing)}
 	local dragon=getObjectFromGUID("105141")
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	if dragon==nil and bag~=nil then dragon=bag.takeObject({guid="105141",position=target,rotation={0,180,180},smooth=false})
-	elseif dragon~=nil then dragon.unlock() dragon.setRotationSmooth({0,180,180},false,true) dragon.setPositionSmooth(target,false,true) end
+	if dragon==nil and bag~=nil then dragon=bag.takeObject({guid="105141",position=target,rotation=dragonRotation,smooth=false})
+	elseif dragon~=nil then dragon.unlock() dragon.setRotationSmooth(dragonRotation,false,true) dragon.setPositionSmooth(target,false,true) end
 	if dragon~=nil then apocalypseDragonLockModelWhenSettled() end
 	safeWaitFrames("Scenario",function() apocalypseIsHerePossessRampagersOnTile(tile.guid) end,35)
 	safeWaitFrames("Scenario",function() apocalypseIsHerePossessRampagersOnTile(tile.guid) end,75)
@@ -2282,16 +2287,21 @@ function apocalypseIsHereHorsemanTargetSelect(player,mouseButton,id)
 	apocalypseIsHereResolveHorsemanTarget(pending.name,option)
 end
 
-function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
-	local state=gStates.horsemen[name]
-	local data=horsemanData[name]
-	if state==nil or data==nil or targetHex==nil then return false end
+function apocalypseIsHereHorsemanClearTarget(targetHex)
+	if targetHex==nil then return false end
 	local _,mapObjects=apocalypseQuestMapHexes()
 	for _,enemy in ipairs(proxyMonstersOnHex(targetHex,mapObjects)) do
 		if horsemanTokenToName[enemy.guid]==nil then proxyDiscardMonster(enemy) end
 	end
-	local token=takeDestroyedSiteToken(targetHex.terrain,targetHex.bearing)
-	if token~=nil then destroySite(token,targetHex.terrain,targetHex.bearing) end
+	return true
+end
+
+function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
+	local state=gStates.horsemen[name]
+	local data=horsemanData[name]
+	if state==nil or data==nil or targetHex==nil then return false end
+	local destroyedToken=takeDestroyedSiteToken(targetHex.terrain,targetHex.bearing)
+	local destructionStarted=destroyedToken~=nil and destroySite(destroyedToken,targetHex.terrain,targetHex.bearing,afterArrange)==true
 	local oldHead=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[name] or 0) or 0
 	local newHead=math.min(12,oldHead+1)
 	if oldHead>0 and oldHead<12 then apocalypseDragonSetHeadLevel(name,newHead) end
@@ -2300,12 +2310,12 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 	local report=nil
 	if state.sitesDestroyed>=4 then
 		state.retired=true state.revealed=false state.removedAfterFour=true
-		local token=getObjectFromGUID(data.tokenGUID)
+		local horsemanToken=getObjectFromGUID(data.tokenGUID)
 		local apocBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-		if token~=nil then
-			mapTokenReleaseObject(token)
-			token.unlock()
-			if apocBag~=nil then apocBag.putObject(token) else token.setPosition({0,-20,0}) end
+		if horsemanToken~=nil then
+			mapTokenReleaseObject(horsemanToken)
+			horsemanToken.unlock()
+			if apocBag~=nil then apocBag.putObject(horsemanToken) else horsemanToken.setPosition({0,-20,0}) end
 		end
 		monsterPugs[data.tokenGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end
@@ -2318,6 +2328,7 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex)
 		report=name.." destroyed "..destroyedName..", while raising the Dragon's head level ("..tostring(newHead)..")."
 	end
 	gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..report
+	if destructionStarted~=true and afterArrange~=nil then safeWaitFrames("Scenario",afterArrange,1) end
 	return true
 end
 
@@ -2331,17 +2342,21 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 	local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 	if token==nil or destination==nil then apocalypseIsHereContinueHorsemenTurn() return false end
 	state.terrainGUID=destination.terrainGUID state.bearing=destination.bearing
+	local reached=apocalypseQuestMapHexKey(destination)==apocalypseQuestMapHexKey(target)
 	local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
-		{releaseOrigin=true,rotation={0,180,0}},function()
-			local reached=apocalypseQuestMapHexKey(destination)==apocalypseQuestMapHexKey(target)
-			if reached then apocalypseIsHereHorsemanDestroyTarget(name,target)
+		{releaseOrigin=true,rotation={0,180,0},deferArrange=reached},function()
+			if reached then
+				--The target was cleared as soon as this move was successfully queued. Add the Destroyed Site
+				--after landing; its arrival owns the one final shared-hex spread.
+				apocalypseIsHereHorsemanDestroyTarget(name,target,apocalypseIsHereContinueHorsemenTurn)
 			else
 				local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
 				gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+				apocalypseIsHereContinueHorsemenTurn()
 			end
-			apocalypseIsHereContinueHorsemenTurn()
 		end)
 	if started~=true then apocalypseIsHereContinueHorsemenTurn() return false end
+	if reached then apocalypseIsHereHorsemanClearTarget(target) end
 	return true
 end
 
@@ -2575,11 +2590,11 @@ end
 
 --Apply Destroyed Site state from one authoritative path. The helper owns the physical placement,
 --so callers only need to obtain a Destroyed Site token and identify the target hex.
-function destroySite(token,terrain,bearing)
+function destroySite(token,terrain,bearing,afterArrange)
 	if token==nil or terrain==nil or bearing==nil or terrainTiles[terrain.guid]==nil then return false end
 	local feature=terrainTiles[terrain.guid].hexFeature[bearing]
 	if feature==nil or feature=="" or feature=="portal" or feature=="destroyed" or feature:sub(1,7)=="raised " then return false end
-	arrangeDestroyedSiteHex(token,terrain,bearing)
+	arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	if gStates.destroyedSites==nil then gStates.destroyedSites={} end
 	gStates.destroyedSites[token.guid]={hexFeature=feature, terrainTile=terrain.guid, hexAngle=bearing}
 	terrainTiles[terrain.guid].hexFeature[bearing]="destroyed"

@@ -242,6 +242,37 @@ function rewindTransactionForceRelease()
 	rewindTransactionGeneration=(rewindTransactionGeneration or 0)+1
 end
 
+--Return one loose card to the bottom of a live deck using the same physical drop used by
+--Artifact cleanup: lift the deck, move the card into its old resting position, and let the deck fall
+--back onto it. A one-card source has no Deck to lift, so use putObject for that edge case.
+function putCardAtBottom(container,card,onComplete)
+	if container==nil or card==nil or container.guid==card.guid or (container.type~="Deck" and container.type~="Card") then return nil end
+	local pos=container.getPosition()
+	card.unlock()
+	card.setRotation(container.getRotation())
+	if container.type=="Card" then
+		card.setPosition({pos[1]+3.0,math.max(0.2,pos[2]-0.6),pos[3]})
+		local merged=container.putObject(card)
+		if onComplete~=nil then safeWaitFrames("Shared",function() onComplete(merged) end,1) end
+		return merged
+	end
+
+	local deckGUID=container.guid
+	local expectedQuantity=container.getQuantity()+1
+	container.setPositionSmooth({pos[1],pos[2]+2.0,pos[3]},false,false)
+	card.setPositionSmooth({pos[1],pos[2],pos[3]},false,false)
+	if onComplete~=nil then
+		local function finish()
+			onComplete(getObjectFromGUID(deckGUID))
+		end
+		safeWaitCondition("Shared",finish,function()
+			local live=getObjectFromGUID(deckGUID)
+			return live==nil or (live.type=="Deck" and live.getQuantity()>=expectedQuantity and live.isSmoothMoving()==false and live.resting==true)
+		end,5,finish)
+	end
+	return container
+end
+
 -- Map geometry helpers
 --used to workout the offset for each hex on a terrain tile
 function angleToXY(obj, ang, cachedPos, cachedRotation)

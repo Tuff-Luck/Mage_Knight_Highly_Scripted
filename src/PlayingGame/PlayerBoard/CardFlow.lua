@@ -332,14 +332,14 @@ function claimMove(player, mouseButton, id, rewindReady)
 						local remainingGUID={}
 						for GUID, state in pairs(gStates.dealtArtifacts) do if state==true then remainingGUID[#remainingGUID+1]=GUID end end
 						if #remainingGUID==1 then
-							--return last card
-							local PosOrigin=getObjectFromGUID(GUID.deck.artifact).getPosition()
-							getObjectFromGUID(GUID.deck.artifact).setPositionSmooth({getObjectFromGUID(GUID.deck.artifact).getPosition()[1], getObjectFromGUID(GUID.deck.artifact).getPosition()[2]+2, getObjectFromGUID(GUID.deck.artifact).getPosition()[3]},false,false)
-							standardDeckCycleMarkReturned("Artifact", getObjectFromGUID(remainingGUID[1]))
-							getObjectFromGUID(remainingGUID[1]).unlock()
-							getObjectFromGUID(remainingGUID[1]).setRotation({0, 180, 180})
-							getObjectFromGUID(remainingGUID[1]).setPositionSmooth(PosOrigin,false,false)
-							getObjectFromGUID(remainingGUID[1]).UI.setXmlTable({{}})
+							--Return the unclaimed Artifact through the shared physical bottom-deck helper.
+							local artifactDeck=getObjectFromGUID(GUID.deck.artifact)
+							local returnedArtifact=getObjectFromGUID(remainingGUID[1])
+							if returnedArtifact~=nil then
+								standardDeckCycleMarkReturned("Artifact",returnedArtifact)
+								if artifactDeck~=nil then putCardAtBottom(artifactDeck,returnedArtifact) end
+								returnedArtifact.UI.setXmlTable({{}})
+							end
 							--reset buttons
 							getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "true")
 							getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOffer", "active", "true")

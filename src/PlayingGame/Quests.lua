@@ -310,16 +310,6 @@ function standardDeckCycleMarkReturned(deckName, card)
 	if gStates.standardDeckFirstReturnedGUID[deckName]==nil then gStates.standardDeckFirstReturnedGUID[deckName]=card.guid return true end
 	return false
 end
-function putCardAtBottom(container,card)
-	if container==nil or card==nil or container.guid==card.guid or (container.type~="Deck" and container.type~="Card") then return nil end
-	local pos=container.getPosition()
-	card.unlock()
-	card.setRotation(container.getRotation())
-	--Keep it horizontally clear so physics cannot merge it before putObject sees the deliberately
-	--lower Y elevation. TTS then inserts it at the bottom regardless of where it came from.
-	card.setPosition({pos[1]+3.0,math.max(0.2,pos[2]-0.6),pos[3]})
-	return container.putObject(card)
-end
 
 function standardDeckCycleShuffleIfReached(deckName, deck, candidateGUID)
 	local firstReturned=standardDeckCycleMarker(deckName)
@@ -5441,15 +5431,14 @@ function apocalypseQuestBottomDeck(card,onComplete)
 				if onComplete~=nil then onComplete(false) end
 				return
 			end
-			local merged=putCardAtBottom(stagedDeck,stagedCard)
-			local liveDeck=merged~=nil and (merged.type=="Deck" or merged.type=="Card") and merged or apocalypseQuestLiveDeck()
-			if liveDeck~=nil then GUID.deck.apocalypseQuest=liveDeck.guid end
-			refreshOutOfTurnActions(nil,nil,true)
-			apocalypseQuestRefreshAfterMarkerChange()
-			if onComplete~=nil then
-				--The caller may start the next return only after TTS has produced the resulting live deck.
-				safeWaitFrames("Quests",function() onComplete(liveDeck~=nil) end,1)
-			end
+			--The caller may start the next return only after the physical drop has actually merged.
+			putCardAtBottom(stagedDeck,stagedCard,function(merged)
+				local liveDeck=merged~=nil and (merged.type=="Deck" or merged.type=="Card") and merged or apocalypseQuestLiveDeck()
+				if liveDeck~=nil then GUID.deck.apocalypseQuest=liveDeck.guid end
+				refreshOutOfTurnActions(nil,nil,true)
+				apocalypseQuestRefreshAfterMarkerChange()
+				if onComplete~=nil then onComplete(liveDeck~=nil) end
+			end)
 		end,2)
 	end
 	if attachmentsClear()==true then finishBottomDeck()
