@@ -984,8 +984,8 @@ end
 
 --Small map tokens can legitimately share one hex. Keep enemy-like tokens slightly separated so
 --each remains visible/clickable, while a physical site marker stays at the centre underneath them.
---Shared map-token slots encode both horizontal order and vertical stack order. Slot 1 sits directly
---on the map at Y 1.08; every later slot is 0.20 higher, matching one token thickness.
+--Enemy origins rest at Y 1.08 on the map and rise 0.10 per physical stack level. Destroyed Site uses
+--the same top surface but its model origin is 0.05 higher, so its map-floor origin is Y 1.13.
 local mapTokenArrangeGeneration={}
 --Every arrival has one settle generation. Explicit/manual arrivals also mark themselves authoritative
 --so a late passive map-zone callback from another token cannot steal ownership of the same hex.
@@ -994,7 +994,8 @@ local mapTokenExplicitArrivalPending={}
 local mapTokenSpreadSpacing=0.20
 local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
 local mapTokenBaseY=1.08
-local mapTokenStackStepY=0.20
+local mapTokenDestroyedBaseY=1.13
+local mapTokenStackStepY=0.10
 
 local function mapTokenSlotY(index)
 	index=math.max(1,tonumber(index) or 1)
@@ -1198,9 +1199,9 @@ local function mapTokenMoveToSlot(obj,targetX,targetY,targetZ)
 	return true
 end
 
---Arrange one resolved map hex. Horizontal and vertical positions use the same ordered slot:
---slot 1 is bottom-left at Y 1.08, slot 2 is the next diagonal position at Y 1.28, and so on.
---Destroyed is always first. Ordinary tokens follow in arrival order. Horsemen, the single-hex
+--Arrange one resolved map hex. Horizontal and vertical positions use the same ordered slot.
+--Enemy slot origins are Y 1.08, 1.18, 1.28...; Destroyed is the special slot-1 floor object at
+--Y 1.13 because its model origin is 0.05 higher. Ordinary tokens follow in arrival order. Horsemen, the single-hex
 --Dragon and pursuing enemies form the moving group at the top-right end, also in arrival order.
 function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	if hex==nil or hex.position==nil then return false end
@@ -1257,11 +1258,12 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	local changed=false
 	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
 
-	--Destroyed is always slot 1 and therefore always sits directly on the map at Y 1.08.
+	--Destroyed is always slot 1. Its origin rests at Y 1.13 even though its top surface matches
+	--an enemy resting at Y 1.08, so enemies above it still use the normal slot-2 Y 1.18.
 	if destroyed~=nil then
 		local offset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
 		local targetX,targetZ=centerX+offset.x,centerZ+offset.z
-		local targetY=mapTokenSlotY(1)
+		local targetY=mapTokenDestroyedBaseY
 		local wasLocked=destroyed.getLock()==true
 		destroyed.unlock()
 		destroyed.setRotation({0,180,0})
@@ -1272,8 +1274,8 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	if #enemies<1 then return changed end
 	for _,obj in ipairs(enemies) do if obj.isSmoothMoving()==true then return changed end end
 
-	--A lone enemy is slot 1 at the hex centre/Y 1.08. Shared tokens use the same index for diagonal
-	--position and stack height, so the visible bottom-left -> top-right order also rises by 0.20 each.
+	--A lone enemy is slot 1 at the hex centre/Y 1.08. Shared enemies use the same index for diagonal
+	--position and stack height, so the visible bottom-left -> top-right order rises by 0.10 each.
 	if destroyed==nil and #enemies==1 then
 		changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenSlotY(1),centerZ) or changed
 		return changed
@@ -2637,30 +2639,29 @@ function druidNightsRitualAction(playerDud, mouseButton, id)
 	addAvatarButtons()
 end
 
---Draw a Destroyed Site directly at its final table height. The supply is an Infinite Bag, so callers
---only need to handle a genuinely missing bag/object rather than token exhaustion.
+--Draw a Destroyed Site beside its Infinite Bag. destroySite()/arrangeDestroyedSiteHex() owns the
+--visible smooth move to the target hex, so every scripted destruction follows the same placement path.
 function takeDestroyedSiteToken(terrain,bearing)
 	if terrain==nil or bearing==nil then return nil end
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
 	local center=angleToXY(terrain,bearing)
 	if bag==nil or center==nil then return nil end
-	return bag.takeObject({position={center[1],mapTokenBaseY,center[2]},rotation={0,180,0},smooth=false})
+	local bagPos=bag.getPosition()
+	return bag.takeObject({position={bagPos[1],bagPos[2]+2,bagPos[3]},rotation={0,180,0},smooth=false})
 end
 
---A Destroyed Site is always slot 1. Put it straight onto the map at Y 1.08, then let the generic
---arranger assign every other participant its matching diagonal position and +0.20 stack height.
+--A Destroyed Site is always slot 1. Smooth it to its measured resting origin at Y 1.13; after it
+--settles, the shared arranger can apply the tiny X/Z separation and place any enemies above it.
 function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	if token==nil or terrain==nil or bearing==nil then return false end
 	local center=angleToXY(terrain,bearing)
 	if center==nil then return false end
 
-	--Destroyed starts at the slot-1 floor height; the shared arrival helper owns the complete X/Z/Y
-	--layout when an enemy, Horseman or other spread token shares the hex.
-	token.unlock()
-	token.setRotation({0,180,0})
-	token.setPosition({center[1],mapTokenBaseY,center[2]})
-	token.lock()
-	local started=mapTokenSettleArrival(token.guid,nil,{force=true},function()
+	local started=mapTokenSettleArrival(token.guid,{center[1],mapTokenDestroyedBaseY,center[2]},{
+		force=true,
+		rotation={0,180,0},
+		relock=true
+	},function()
 		if afterArrange~=nil then afterArrange() end
 	end)
 	if started~=true and afterArrange~=nil then afterArrange() end
