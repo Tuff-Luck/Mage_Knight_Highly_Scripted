@@ -984,8 +984,9 @@ end
 
 --Small map tokens can legitimately share one hex. Keep enemy-like tokens slightly separated so
 --each remains visible/clickable, while a physical site marker stays at the centre underneath them.
---Enemy origins rest at Y 1.08 on the map and rise 0.10 per physical stack level. Destroyed Site uses
---the same top surface but its model origin is 0.05 higher, so its map-floor origin is Y 1.13.
+--Enemy model origins depend on face orientation: face-up rests at Y 1.08, face-down at Y 1.18.
+--Each physical token layer below adds 0.10. Destroyed Site has the same top surface but its model
+--origin is 0.05 higher than a face-up enemy, so its map-floor origin is Y 1.13.
 local mapTokenArrangeGeneration={}
 --Every arrival has one settle generation. Explicit/manual arrivals also mark themselves authoritative
 --so a late passive map-zone callback from another token cannot steal ownership of the same hex.
@@ -993,13 +994,26 @@ local mapTokenManualDropPending={}
 local mapTokenExplicitArrivalPending={}
 local mapTokenSpreadSpacing=0.20
 local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
-local mapTokenBaseY=1.08
+local mapTokenEnemyFaceUpBaseY=1.08
+local mapTokenEnemyFaceDownBaseY=1.18
 local mapTokenDestroyedBaseY=1.13
 local mapTokenStackStepY=0.10
 
-local function mapTokenSlotY(index)
+--The model pivot moves by one token thickness when an enemy is flipped. Stack height therefore
+--starts from the orientation-specific resting origin, then adds one physical layer per earlier slot.
+local function mapTokenEnemySlotY(obj,index)
 	index=math.max(1,tonumber(index) or 1)
-	return mapTokenBaseY+((index-1)*mapTokenStackStepY)
+	local baseY=(obj~=nil and obj.is_face_down==true) and mapTokenEnemyFaceDownBaseY or mapTokenEnemyFaceUpBaseY
+	return baseY+((index-1)*mapTokenStackStepY)
+end
+
+--Normalize an enemy's origin height before using it as the fallback physical stack order. Without
+--this, a face-down token looks one whole layer higher even when it is resting directly on the map.
+local function mapTokenEnemyPhysicalLayerY(obj)
+	if obj==nil then return 0 end
+	local y=obj.getPosition()[2]
+	if obj.is_face_down==true then y=y-mapTokenStackStepY end
+	return y
 end
 
 --Return an evenly spaced WORLD-space point on one diagonal through the hex centre.
@@ -1199,9 +1213,9 @@ local function mapTokenMoveToSlot(obj,targetX,targetY,targetZ)
 	return true
 end
 
---Arrange one resolved map hex. Horizontal and vertical positions use the same ordered slot.
---Enemy slot origins are Y 1.08, 1.18, 1.28...; Destroyed is the special slot-1 floor object at
---Y 1.13 because its model origin is 0.05 higher. Ordinary tokens follow in arrival order. Horsemen, the single-hex
+--Arrange one resolved map hex. Horizontal order uses the shared slot index; vertical origin also
+--accounts for each enemy's face orientation. Destroyed is the special slot-1 floor object at Y 1.13.
+--Ordinary tokens follow in arrival order. Horsemen, the single-hex
 --Dragon and pursuing enemies form the moving group at the top-right end, also in arrival order.
 function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	if hex==nil or hex.position==nil then return false end
@@ -1250,7 +1264,9 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 		local aProjection=ap[1]+ap[3]
 		local bProjection=bp[1]+bp[3]
 		if math.abs(aProjection-bProjection)>0.05 then return aProjection<bProjection end
-		if math.abs(ap[2]-bp[2])>0.01 then return ap[2]<bp[2] end
+		local aLayerY=mapTokenEnemyPhysicalLayerY(a)
+		local bLayerY=mapTokenEnemyPhysicalLayerY(b)
+		if math.abs(aLayerY-bLayerY)>0.01 then return aLayerY<bLayerY end
 		return tostring(a.guid)<tostring(b.guid)
 	end)
 
@@ -1271,10 +1287,9 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	if #enemies<1 then return changed end
 	for _,obj in ipairs(enemies) do if obj.isSmoothMoving()==true then return changed end end
 
-	--A lone enemy is slot 1 at the hex centre/Y 1.08. Shared enemies use the same index for diagonal
-	--position and stack height, so the visible bottom-left -> top-right order rises by 0.10 each.
+	--A lone enemy uses its measured orientation-specific floor height: face-up 1.08, face-down 1.18.
 	if destroyed==nil and #enemies==1 then
-		changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenSlotY(1),centerZ) or changed
+		changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenEnemySlotY(enemies[1],1),centerZ) or changed
 		return changed
 	end
 
@@ -1282,7 +1297,7 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	for index,obj in ipairs(enemies) do
 		local spreadIndex=firstEnemyIndex+index-1
 		local offset=mapTokenSpreadOffset(spreadIndex,spreadCount)
-		changed=mapTokenMoveToSlot(obj,centerX+offset.x,mapTokenSlotY(spreadIndex),centerZ+offset.z) or changed
+		changed=mapTokenMoveToSlot(obj,centerX+offset.x,mapTokenEnemySlotY(obj,spreadIndex),centerZ+offset.z) or changed
 	end
 	return changed
 end
