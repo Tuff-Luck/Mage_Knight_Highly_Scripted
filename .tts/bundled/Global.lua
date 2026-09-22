@@ -971,20 +971,10 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,2)
 	end
 	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(dropped_object)==true then
-		--Normally the falling token enters the short map scripting zone a few frames after onObjectDrop,
-		--and that zone entry owns separation. The delayed check only covers a player who lowered the
-		--token into the zone while still holding it, so no unheld zone-entry event remains to trigger.
-		safeWaitFrames("Events",function()
-			local token=getObjectFromGUID(droppedGUID)
-			local map=getObjectFromGUID(mapArea)
-			if token==nil or map==nil or token.held_by_color~=nil or mapTokenNeedsArrangement(token)~=true then return end
-			if mapTokenHasPendingArrival~=nil and mapTokenHasPendingArrival(droppedGUID)==true then return end
-			local inside=false
-			for _,candidate in pairs(map.getObjects()) do
-				if candidate.guid==droppedGUID then inside=true break end
-			end
-			if inside==true then mapTokenScheduleObject(droppedGUID) end
-		end,3)
+		--The map scripting zone is intentionally short. A token dropped from high enough can still be
+		--above it three frames later, so do not gamble on a later zone-entry callback. Claim the manual
+		--drop now; the shared settle helper waits for the real physics landing before arranging the hex.
+		mapTokenSettleArrival(droppedGUID,nil,{force=true})
 	end
 	puppetMasterDropped(dropped_object)
 	puppetMasterCheckManualCopyWhenResting(dropped_object)
@@ -1436,7 +1426,9 @@ function __onObjectSpawn_raw(spawn_object)
 			safeWaitFrames("Events",function() getObjectFromGUID(gStates.volkareModel).addDecal({name="Volkare's Quest Guide", url="https://steamusercontent-a.akamaihd.net/ugc/1617311764022517042/4160839B27C5F84E3D4D860408AE19780E48AEC4/",
 				position={1.6, 0.05, 1.4}, rotation={90, 180, 0}, scale={3.6/scale[1], 3.5/scale[3], 1}}) end, 20)
 		end
-		safeWaitTime("Events",function() getObjectFromGUID(gStates.volkareModel).lock() getObjectFromGUID(gStates.volkareModel).setRotation({0, 180, 0}) end, 3)
+		--Setup owns Volkare's initial lock. Locking from onObjectSpawn races map construction because
+		--the model is spawned/reloaded before the starting terrain exists beneath it.
+		spawn_object.setRotation({0, 180, 0})
 		cityLevelButtons(gStates.volkareModel, "Volkar")
 	end
 
@@ -2026,7 +2018,7 @@ local function handleTerrainZoneEnter(ctx)
 										tokenFaction="Dark"
 										if getObjectFromGUID(monsterPiles.greenDark).getQuantity()>0 then tokenPileGreen=monsterPiles.greenDark end
 										if getObjectFromGUID(monsterPiles.tanDark).getQuantity()>0 then tokenPileBrown=monsterPiles.tanDark end---Dark Crusader Tokens
-										local pos={angleToXY(obj,hexLocation)[1], 1.09, angleToXY(obj,hexLocation)[2]}
+										local pos={angleToXY(obj,hexLocation)[1], 1.08, angleToXY(obj,hexLocation)[2]}
 										local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject({rotation=faceUp, position=pos})
 										graveyard.lock()
 										terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
@@ -2059,7 +2051,7 @@ local function handleTerrainZoneEnter(ctx)
 													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.1}}, reward={artifactRewardDecal, advancedActionRewardDecal}},
 													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.0}, {monsterPiles.greenDark, 0.1}}, reward={artifactRewardDecal, spellRewardDecal}}}--this is for five player games, which is currently imposible
 									--play Graveyard Token
-									params.position={angleToXY(obj,hexLocation)[1], 1.09, angleToXY(obj,hexLocation)[2]}
+									params.position={angleToXY(obj,hexLocation)[1], 1.08, angleToXY(obj,hexLocation)[2]}
 									params.rotation=faceDown
 									local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject(params)
 									graveyard.lock()
@@ -14448,10 +14440,11 @@ function apocalypseIsHereHorsemanPriorityDescription(ref)
 end
 
 --Small map tokens can legitimately share one hex. Keep enemy-like tokens slightly separated so
---each remains visible/clickable, while a physical site marker stays at the centre underneath them.
+--each remains visible/clickable, while physical site markers stay underneath them.
 --Enemy model origins depend on face orientation: face-up rests at Y 1.08, face-down at Y 1.18.
---Each physical token layer below adds 0.10. Destroyed Site has the same top surface but its model
---origin is 0.05 higher than a face-up enemy, so its map-floor origin is Y 1.13.
+--Each physical token layer below adds 0.10. A Graveyard itself rests centred at Y 1.08 and raises
+--an enemy resting on it by 0.08 (face-up Y 1.16, face-down Y 1.26). Destroyed Site has the same
+--top surface as a face-up enemy but its model origin is 0.05 higher, so its map-floor origin is Y 1.13.
 local mapTokenArrangeGeneration={}
 --One pending generation per arriving token deduplicates map-zone callbacks and scripted moves.
 local mapTokenArrivalPending={}
@@ -14467,15 +14460,17 @@ local mapTokenSpreadSpacing=0.20
 local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
 local mapTokenEnemyFaceUpBaseY=1.08
 local mapTokenEnemyFaceDownBaseY=1.18
+local mapTokenGraveyardBaseY=1.08
+local mapTokenGraveyardSupportY=0.08
 local mapTokenDestroyedBaseY=1.13
 local mapTokenStackStepY=0.10
 
 --The model pivot moves by one token thickness when an enemy is flipped. Stack height therefore
 --starts from the orientation-specific resting origin, then adds one physical layer per earlier slot.
-local function mapTokenEnemySlotY(obj,index)
+local function mapTokenEnemySlotY(obj,index,supportY)
 	index=math.max(1,tonumber(index) or 1)
 	local baseY=(obj~=nil and obj.is_face_down==true) and mapTokenEnemyFaceDownBaseY or mapTokenEnemyFaceUpBaseY
-	return baseY+((index-1)*mapTokenStackStepY)
+	return baseY+(tonumber(supportY) or 0)+((index-1)*mapTokenStackStepY)
 end
 
 --Normalize an enemy's origin height before using it as the fallback physical stack order. Without
@@ -14503,9 +14498,13 @@ function mapTokenIsDestroyedSite(obj)
 	return obj~=nil and obj.getGMNotes~=nil and obj.getGMNotes()=="Destroyed"
 end
 
+function mapTokenIsGraveyard(obj)
+	return obj~=nil and obj.getName~=nil and obj.getName()=="GraveYard"
+end
+
 function mapTokenIsBaseSite(obj)
-	--Destroyed is the only special floor token. Ruins participate in the same diagonal spread as enemies.
-	return mapTokenIsDestroyedSite(obj)==true
+	--Graveyards and Destroyed Sites are floor tokens. Ruins participate in the enemy diagonal.
+	return mapTokenIsGraveyard(obj)==true or mapTokenIsDestroyedSite(obj)==true
 end
 
 function mapTokenIsSpreadEnemy(obj)
@@ -14601,10 +14600,10 @@ local function mapTokenMoveToSlot(obj,targetX,targetY,targetZ)
 	return true
 end
 
---Arrange one resolved map hex. Horizontal order uses the shared slot index; vertical origin also
---accounts for each enemy's face orientation. Destroyed is the special slot-1 floor object at Y 1.13.
---Ordinary tokens follow in arrival order. Horsemen, the single-hex
---Dragon and pursuing enemies form the moving group at the top-right end, also in arrival order.
+--Arrange one resolved map hex. Graveyard is a centred floor/support token and never consumes a
+--horizontal spread slot. Destroyed, when present, is the first spread token above that support.
+--Ordinary enemies follow in arrival order. Horsemen, the single-hex Dragon and pursuing enemies
+--form the moving group at the top-right end, also in arrival order.
 function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
@@ -14620,10 +14619,13 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 		seen[extraObject.guid]=true
 	end
 
+	local graveyard=nil
 	local destroyed=nil
 	local enemies={}
 	for _,obj in ipairs(objects) do
-		if mapTokenIsDestroyedSite(obj)==true then
+		if mapTokenIsGraveyard(obj)==true then
+			if graveyard==nil then graveyard=obj end
+		elseif mapTokenIsDestroyedSite(obj)==true then
 			if destroyed==nil then destroyed=obj end
 		elseif mapTokenIsSpreadEnemy(obj)==true then
 			enemies[#enemies+1]=obj
@@ -14661,13 +14663,20 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	local centerX,centerZ=hex.position[1],hex.position[3]
 	local changed=false
 	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
+	local supportY=graveyard~=nil and mapTokenGraveyardSupportY or 0
 
-	--Destroyed is always slot 1. Its origin rests at Y 1.13 even though its top surface matches
-	--an enemy resting at Y 1.08, so enemies above it still use the normal slot-2 Y 1.18.
+	--Graveyard is always centred under the stack and does not participate in the diagonal spread.
+	--Preserve its current face; the Graveyard scenarios deliberately deploy different face orientations.
+	if graveyard~=nil then
+		changed=mapTokenMoveToSlot(graveyard,centerX,mapTokenGraveyardBaseY,centerZ) or changed
+	end
+
+	--Destroyed is the lowest spread token. The scenarios currently cannot combine it with a Graveyard,
+	--but if they ever do, the Graveyard remains underneath and raises Destroyed by the same support height.
 	if destroyed~=nil then
 		local offset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
 		local targetX,targetZ=centerX+offset.x,centerZ+offset.z
-		local targetY=mapTokenDestroyedBaseY
+		local targetY=mapTokenDestroyedBaseY+supportY
 		destroyed.setRotation({0,180,0})
 		changed=mapTokenMoveToSlot(destroyed,targetX,targetY,targetZ) or changed
 	end
@@ -14675,9 +14684,10 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	if #enemies<1 then return changed end
 	for _,obj in ipairs(enemies) do if obj.isSmoothMoving()==true then return changed end end
 
-	--A lone enemy uses its measured orientation-specific floor height: face-up 1.08, face-down 1.18.
+	--A lone enemy stays centred. Graveyard raises its measured resting origin from 1.08/1.18
+	--to 1.16/1.26; with no Graveyard the existing floor heights remain unchanged.
 	if destroyed==nil and #enemies==1 then
-		changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenEnemySlotY(enemies[1],1),centerZ) or changed
+		changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenEnemySlotY(enemies[1],1,supportY),centerZ) or changed
 		return changed
 	end
 
@@ -14685,7 +14695,7 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 	for index,obj in ipairs(enemies) do
 		local spreadIndex=firstEnemyIndex+index-1
 		local offset=mapTokenSpreadOffset(spreadIndex,spreadCount)
-		changed=mapTokenMoveToSlot(obj,centerX+offset.x,mapTokenEnemySlotY(obj,spreadIndex),centerZ+offset.z) or changed
+		changed=mapTokenMoveToSlot(obj,centerX+offset.x,mapTokenEnemySlotY(obj,spreadIndex,supportY),centerZ+offset.z) or changed
 	end
 	return changed
 end
@@ -14802,31 +14812,61 @@ function mapTokenReleaseObject(obj)
 	return true
 end
 
-function mapTokenArrangeAllOccupiedHexes(terrainGUID)
+local mapTokenTerrainReconcilePending={}
+
+local function mapTokenTerrainReadyForReconcile(terrainGUID)
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	for _,obj in pairs(mapObjects or {}) do
+		if mapTokenNeedsArrangement(obj)==true then
+			local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
+			if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
+				if mapTokenArrivalPending[obj.guid]~=nil or obj.isSmoothMoving()==true or obj.resting~=true then return false end
+			end
+		end
+	end
+	return true
+end
+
+local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local touched={}
 	for _,obj in pairs(mapObjects or {}) do
 		if mapTokenNeedsArrangement(obj)==true then
 			local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
 			local key=hex~=nil and apocalypseQuestMapHexKey(hex) or nil
-			--Terrain completion only needs to reconcile shared stacks on the tile that just finished
-			--population. Do not touch unrelated map tokens every time any terrain tile is explored.
+			--Terrain completion only reconciles shared stacks on the tile that just finished population.
 			if key~=nil and touched[key]~=true and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
 				touched[key]=true
-				local arrivalPending=false
 				local participantCount=0
 				for _,candidate in pairs(mapObjects or {}) do
 					if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true then
 						participantCount=participantCount+1
-						if mapTokenArrivalPending[candidate.guid]~=nil then arrivalPending=true end
 					end
 				end
-				--A lone token has nothing to separate. Its own arrival/drop path already owns centring and
-				--settling; rewriting it here caused old Keep/Mage Tower tokens to visibly twitch on explore.
-				if participantCount>1 and arrivalPending~=true then mapTokenArrangeHex(hex,mapObjects,nil,nil) end
+				--A lone token has nothing to separate. Leaving it alone avoids the old Keep/Mage Tower shimmer.
+				if participantCount>1 then mapTokenArrangeHex(hex,mapObjects,nil,nil) end
 			end
 		end
 	end
+	return true
+end
+
+function mapTokenArrangeAllOccupiedHexes(terrainGUID)
+	if terrainGUID==nil or mapTokenTerrainReadyForReconcile(terrainGUID)==true then
+		return mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+	end
+	if mapTokenTerrainReconcilePending[terrainGUID]==true then return false end
+	mapTokenTerrainReconcilePending[terrainGUID]=true
+	local function finish()
+		mapTokenTerrainReconcilePending[terrainGUID]=nil
+		mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+	end
+	--Script-deployed enemies can still be falling when terrain population code itself is finished.
+	--Wait for their own arrival/separator work to finish, then perform one final shared-stack pass.
+	safeWaitCondition("Scenario",finish,function()
+		return mapTokenTerrainReadyForReconcile(terrainGUID)
+	end,5,finish)
+	return false
 end
 
 function againstHorsemenAllDefeated()
@@ -35062,6 +35102,37 @@ local function removeUnselectedTerrain()
 	if gStates.positionMageKnight[5]~="Volkare" and setupUsesVolkareCampCity()~=true then sendTerrainTileToTrash(cityBag,"835c91") end
 end
 
+--Volkare is deployed before map construction, so his final lock belongs to the map-complete path.
+--Waiting for the known map resting height here is safe: unlike the old readiness gate, the terrain now exists.
+local function lockSetupVolkareOnMap(callback)
+	if gStates.positionMageKnight[5]~="Volkare" then callback() return end
+	local volkareGUID=gStates.volkareModel or volkare.model
+	local model=getObjectFromGUID(volkareGUID)
+	if model==nil then
+		setupReleaseRewind()
+		error("SetupGame could not find Volkare after map construction.",2)
+	end
+	model.unlock()
+	safeWaitFrames("SetupGame",function()
+		safeWaitCondition("SetupGame",function()
+			local settled=getObjectFromGUID(volkareGUID)
+			if settled~=nil then
+				settled.setRotation({0,180,0})
+				settled.lock()
+			end
+			callback()
+		end,function()
+			local settled=getObjectFromGUID(volkareGUID)
+			if settled==nil then return false end
+			local y=settled.getPosition()[2]
+			return settled.resting==true and settled.isSmoothMoving()==false and math.abs(y-1.08)<0.06
+		end,10,function()
+			setupReleaseRewind()
+			error("SetupGame timed out waiting for Volkare to settle on the completed map.",2)
+		end)
+	end,1)
+end
+
 --Finalize setup only after all chained setup work and initial map population are actually complete.
 local function finalizeSetup()
 	if setupFinalizationStarted==true then return end
@@ -35164,7 +35235,7 @@ function afterLoad()
 				setupReleaseRewind()
 				error(reason or "SetupGame map setup failed.",2)
 			end
-			finalizeSetup()
+			lockSetupVolkareOnMap(finalizeSetup)
 		end)
 	end
 	if setupCoreSystemsReady()==true then
@@ -36935,6 +37006,9 @@ function playerSetup()
 								params.position={-12.0297, 1.6, 8.8586}--Volkare's Quest Avatar position
 							end
 							local obj=safeTakeObject("SetupGame",PlayerBag,params)
+							--Volkare is stored in the Mage bag before the map exists. Keep him physical so the
+							--starting terrain can lift/settle him normally; setup locks him only after map completion.
+							if gStates.positionMageKnight[5]=="Volkare" and obj~=nil then obj.unlock() end
 							skip=1
 						else
 							local blitzSub=gStates.blitz
@@ -37208,7 +37282,11 @@ function volkareArmy()
 		getObjectFromGUID(volkare.model).setCustomObject({diffuse=cityLevelImage[volkare.model][math.floor(gStates.volkareLevel/math.ceil(gStates.volkareLevel/15))]})
 		getObjectFromGUID(volkare.model).reload()
 		safeWaitCondition("SetupGame",function()
-			getObjectFromGUID(volkare.model).lock()
+			local model=getObjectFromGUID(volkare.model)
+			--This flag means the model reload is complete, not that Volkare is ready to be frozen.
+			--The initial map cannot start until this flag is true, so locking here would guarantee
+			--that he is frozen on the bare table before his starting terrain is constructed.
+			if model~=nil then model.unlock() end
 			gStates.volkareSetupReady=true
 		end,function()
 			local model=getObjectFromGUID(volkare.model)
