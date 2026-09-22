@@ -63,6 +63,15 @@ This limitation applies both to tooltips declared in `Global.xml` and tooltips a
 
 The script does not manage a player's internal Move/Combat/Interact phases. Do not classify missing phase enforcement as a bug unless a scripted helper gives incorrect guidance or changes game state incorrectly.
 
+## Dummy and Proxy City shields
+
+The Dummy player and Proxy Player do **not** use the same friendly-City shield rule.
+
+- **Dummy:** never place a Dummy shield on a friendly City.
+- **Proxy Player:** may place its shield on a friendly City according to the Proxy rules.
+
+Do not copy Proxy shield-placement behavior into Dummy logic, and do not treat a missing Dummy shield on a friendly City as a bug.
+
 ## Rewards Claimed lock rules
 
 “Use the Rewards Claimed lock” means a soft player-action safeguard, not a disabled button. Keep **Rewards Claimed** clickable; while the lock is active, clicking it should explain the unresolved action and leave the turn at the reward stage.
