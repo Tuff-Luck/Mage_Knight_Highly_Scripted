@@ -36,6 +36,23 @@ For visible scripted movement, use Tabletop Simulator\'s normal/slow smooth move
 
 Do not add backwards-compatibility or old-save recovery code unless the user explicitly requests it.
 
+
+## Persistent state and source of truth
+
+Treat the physical Tabletop Simulator table as the source of truth for game-world facts **only when the current saved table state represents that fact unambiguously**. Players may unlock and manually move pieces despite script guidance; when they do, their physical arrangement is authoritative unless the rules require hidden/history state that the table cannot express.
+
+Do not automatically mirror reconstructable table state into `gStates`. Derived indexes, map graphs, object-location caches, revealed-object scans, and similar runtime conveniences should normally be rebuilt from the table and kept out of saved JSON.
+
+Audit `gStates` slowly and conservatively. Before removing any saved field, ask whether an arbitrary save can reconstruct the same underlying fact correctly from the physical table **at every legal save point**, including midway through turns, combat, scripted movement, setup transitions, and temporary presentation/layout states. If the visible object can be temporarily moved away from the location/state that the field represents, the field may still be required.
+
+For example, do **not** assume `gStates.monsterPlayLocation` is reconstructable from a monster's current position: a save taken during combat may have that monster temporarily sitting on a player board while its map origin still needs to be remembered.
+
+In general:
+- Save player/setup decisions, hidden history, once-only flags, unresolved sequence/choice state, and any logical state that cannot be recovered unambiguously from an arbitrary physical save.
+- Prefer the table for stable physical facts such as objects that remain in their meaningful game location/state throughout play.
+- Keep derived runtime caches outside `gStates` and rebuild them after load.
+- When saved metadata and the stable physical table genuinely disagree because a player deliberately changed the table, prefer the table unless that metadata represents hidden/history state rather than duplicated physical state.
+
 ## Blitz scenario conventions
 
 The Blitz representation predates most custom scenarios. It was introduced because **Conquest** has genuinely different scenario values when Blitz is enabled (for example rounds, terrain counts/map shape and city levels), so Blitz cannot be treated only as a generic setup flag.
