@@ -2057,8 +2057,33 @@ function __onObjectEnterZone_raw(zone, obj)
 			end,50)
 		end
 
-		--tactic zone claim buttons
-		if tacticClaimingZones[zoneGUID]~=nil then claimButtonRefresh() end
+		--A tactic returned to its slot only needs its own claim button restored. Wait until the card
+		--has settled so a card merely crossing the zone cannot acquire a claim button mid-move.
+		local tacticSource=tacticClaimingZones[zoneGUID]
+		if tacticSource~=nil and isTacticCard(obj) then
+			local tacticZoneGUID=zoneGUID
+			local tacticCardGUID=objGUID
+			safeWaitCondition("Events",function()
+				local tacticZone=getObjectFromGUID(tacticZoneGUID)
+				local tacticCardObj=getObjectFromGUID(tacticCardGUID)
+				if tacticZone==nil or tacticCardObj==nil then return end
+				local stillInZone=false
+				for _,zoneObj in pairs(tacticZone.getObjects()) do
+					if zoneObj.guid==tacticCardGUID then stillInZone=true break end
+				end
+				if stillInZone~=true then return end
+				if gStates.tacticShown==true then
+					if turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] then
+						tacticCardObj.UI.setXmlTable({createClaimButton(tacticCardGUID,tacticSource)})
+					end
+				elseif gStates.tacticRemove==true and gStates.discardTactics~=2 then
+					tacticCardObj.UI.setXmlTable({createClaimButton(tacticCardGUID,"removeTactic"..tacticSource:sub(7,8))})
+				end
+			end,function()
+				local tacticCardObj=getObjectFromGUID(tacticCardGUID)
+				return tacticCardObj==nil or tacticCardObj.resting
+			end)
+		end
 
 		--Updates Main UI buttons when anything is played to a mage's play area/deed deck/discard.
 		--Keep play-area refreshes distinct so mainUIUpdate can skip deck bookkeeping that cannot have changed.
@@ -2391,11 +2416,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 		if offerClaimSource(zone.guid,obj)~=nil then obj.UI.setXmlTable({{}}) end
 
 		--Remove tactic claim buttons
-		for zoneGUID, cardSource in pairs(tacticClaimingZones) do
-			if zone.guid==zoneGUID then
-				obj.UI.setXmlTable({{}})
-			end
-		end
+		if tacticClaimingZones[zone.guid]~=nil then obj.UI.setXmlTable({{}}) end
 
 		--Remove Skill claim buttons
 		if zone.guid==GUID.zone.skillOffer and skillOfferEntrySerial[obj.guid]==nil and gStates.mageSkills[obj.guid]~=nil then
