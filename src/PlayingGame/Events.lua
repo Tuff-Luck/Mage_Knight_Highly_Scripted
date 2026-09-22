@@ -743,7 +743,7 @@ end
 function __onObjectDrop_raw(player_color, dropped_object)
 	local droppedGUID=dropped_object.guid
 	if terrainTiles[droppedGUID]~=nil then
-		runtimeMapInvalidate()
+		runtimeMapInvalidateTerrain()
 		--EXPLORE legality is derived from the settled physical map. onObjectEnterZone can fire while a
 		--dragged tile is still crossing the map zone, so rebuild only after the final drop has settled.
 		safeWaitCondition("Events",function() refreshTerrainExploreOptions() end,function()
@@ -1226,7 +1226,9 @@ end
 function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
 	local destroyedGuid=destroyedObj.guid
-	if runtimeMapContainsGUID(destroyedGuid)==true then runtimeMapInvalidate() end
+	if runtimeMapContainsGUID(destroyedGuid)==true then
+		if terrainTiles[destroyedGuid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
+	end
 	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj)==true then mapTokenReleaseObject(destroyedObj) end
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
 	if questScorePlayer~=nil then
@@ -1304,6 +1306,35 @@ local function zoneEventContext(zone, obj)
 	}
 end
 
+local settledZoneEntrySerial={}
+local function zoneContainsGUID(zone,guid)
+	if zone==nil or guid==nil then return false end
+	for _,candidate in pairs(zone.getObjects()) do if candidate.guid==guid then return true end end
+	return false
+end
+
+local function scheduleSettledZoneEntry(ctx,callback)
+	if ctx==nil or callback==nil then return end
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	if zoneGUID==nil or objGUID==nil then return end
+	local key=zoneGUID.."|"..objGUID
+	local serial=(settledZoneEntrySerial[key] or 0)+1
+	settledZoneEntrySerial[key]=serial
+	safeWaitCondition("Events",function()
+		if settledZoneEntrySerial[key]~=serial then return end
+		settledZoneEntrySerial[key]=nil
+		local liveZone=getObjectFromGUID(zoneGUID)
+		local liveObj=getObjectFromGUID(objGUID)
+		if liveZone==nil or liveObj==nil or zoneContainsGUID(liveZone,objGUID)~=true then return end
+		local liveCtx=zoneEventContext(liveZone,liveObj)
+		if liveCtx~=nil then callback(liveCtx) end
+	end,function()
+		local liveObj=getObjectFromGUID(objGUID)
+		return liveObj==nil or (liveObj.resting==true and liveObj.isSmoothMoving()==false)
+	end)
+end
+
 local function handleZoneEnterPrelude(ctx)
 	local zone=ctx.zone
 	local obj=ctx.obj
@@ -1347,19 +1378,20 @@ local function handleZoneEnterPrelude(ctx)
 end
 
 local function handleStartedZoneEnterPrelude(ctx)
-	local zone=ctx.zone
-	local obj=ctx.obj
-	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
-	local enteredSkill=skillTokens[objGUID]
-	if enteredSkill~=nil and zoneInfo~=nil and zoneInfo.kind=="play" then
-		local playerIndex=turnOrderIndexAtSeat(zoneInfo.seatPos)
-		if playerIndex~=nil then
-			tomeSkillEnteredPlay(objGUID, playerIndex)
-			if enteredSkill.skillType=="Coop" or enteredSkill.skillType=="Comp" then activateCoopCompSkill(objGUID, playerIndex) end
-		end
+	if ctx.playerZoneKind=="play" and (gStates.apocalypseQuestUnderSiegeReady~=nil or skillTokens[objGUID]~=nil) then
+		scheduleSettledZoneEntry(ctx,function(liveCtx)
+			local liveGUID=liveCtx.objGUID
+			if gStates.apocalypseQuestUnderSiegeReady~=nil then apocalypseQuestUnderSiegeCardPlayed(liveCtx.zone,liveCtx.obj) end
+			local enteredSkill=skillTokens[liveGUID]
+			if enteredSkill~=nil and liveCtx.zoneInfo~=nil and liveCtx.zoneInfo.kind=="play" then
+				local playerIndex=turnOrderIndexAtSeat(liveCtx.zoneInfo.seatPos)
+				if playerIndex~=nil then
+					tomeSkillEnteredPlay(liveGUID, playerIndex)
+					if enteredSkill.skillType=="Coop" or enteredSkill.skillType=="Comp" then activateCoopCompSkill(liveGUID, playerIndex) end
+				end
+			end
+		end)
 	end
 end
 
@@ -1407,6 +1439,182 @@ local function handleTurnOrderZoneEnter(ctx)
 
 end
 
+local function terrainPositionLegal(obj, faceUpTerrain, northBearing, result)--.guid .faceDown .position .objName [.tileType]
+	result=result or {}
+	local candidateTileType=obj.tileType or (terrainTiles[obj.guid]~=nil and terrainTiles[obj.guid].tileType) or "country"
+	--Against the Horsemen uses a completely predefined map. Its face-down tiles are already in
+	--their legal positions, so ordinary wedge/open/neighbour placement rules must never reject
+	--a tile when it is revealed. Keep face-down tiles dormant; once revealed, always populate them.
+	if gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then
+		if obj.faceDown==true then result.faceDownTerrain=true return false end
+		return true
+	end
+
+	--Custom Predefined is deliberately unrestricted: players may arrange any face-up terrain anywhere.
+	if gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P" then
+		if obj.faceDown==true then result.faceDownTerrain=true return false end
+		return true
+	end
+
+	--Check if a core tile is on the coast of a wedge map
+	if candidateTileType=="core" and northBearing==70 and (obj.bearing<=41 or obj.bearing>=99) and gStates.gameScenario~="Fast Forwarded Conquest" then result.errorBroadcast="{en}Core Terrain Tiles aren't allowed on the coast{ru}Плитки Развитых земель не могут располагаться на берегу{zh-tw}海岸边不可以部署核心城市板块{zh-cn}海岸边不可以部署核心城市板块{ko}중심부 타일은 해안선에 놓일 수 없습니다{es}Las baldosas de terreno del núcleo no están permitidas en la costa{fr}Les tuiles de terrain de base ne sont pas autorisées sur la côte{pt-br}Peças Mapa Centrais não são permitidas na Costa{de}Kernterrainplättchen sind an der Küste nicht erlaubt" return false end
+
+	--Check if a tile is outside of a wedge map
+	if northBearing==70 and (obj.bearing<=35 or obj.bearing>=105) then result.errorBroadcast="{en}Terrain Tile isn't in the Wedge{ru}Плитка земель не находится в форме{zh-tw}地图块不在锥形里 (出界了){zh-cn}地图块不在锥形里 (出界了){ko}지도 타일이 쐐기 안에 있지 않습니다{es}Terrain Tile no está en la cuña{fr}La tuile de terrain n'est pas dans le coin{pt-br}Peça de Terreno não está no Cone{de}Das Geländeplättchen liegt nicht im Keil" return false end
+
+	--Check if tile is on the 4th or 5th column of a limited open map
+	if gStates.mapShape:sub(5,5)=="O" or gStates.mapShape:sub(5,5)=="F" then --Open Limited to ? Columns
+		local checkUpTo=3
+		if gStates.mapShape:sub(21, 21)=="4" then checkUpTo=8 end
+		if gStates.mapShape:sub(21, 21)=="3" then checkUpTo=15 end
+		local pos=obj.position
+		for b=1, checkUpTo, 1 do
+			local edge=terrainPlacementEdgeCoordinates[b]
+			if ((pos[1]-edge[1])^2)+((pos[3]-edge[2])^2)<1 then
+				result.errorBroadcast=joinLang({"{en}You are playing a {ru}Форма игрового поля - {zh-tw}正在玩的剧本名: {zh-cn}正在玩的剧本名: {ko}플레이 중인 맵: {es}Estás jugando un {fr}Vous jouez à un {pt-br}Você está jogando um(a) {de}Du spielst gerade ein ", gStates.mapShape, "{en} Game{ru} {zh-tw}. {zh-cn}. {ko}{es} juegos{fr} Game{pt-br} Jogo{de} Spiel"})
+				return false
+			end
+		end
+	end
+
+	--Check if Core tile has at least two neighbor Tiles
+	--Check if Country tile has at least one neighbor that has two neighbor Tiles
+	--check if an excess terrain tile has at least three neighbors.
+	if gStates.gameScenario~="The Gauntlet" and obj.guid~=firstTile and not (obj.guid=="835c91" and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
+		local neighboursFound=0
+		local neighbourTile=nil
+		local adjacentPositions={}
+		for c=1, 6, 1 do
+			local offset=terrainPlacementNeighbourOffsets[c]
+			adjacentPositions[c]={obj.position[1]+offset[1], obj.position[3]+offset[2]}
+		end
+		for _, b in pairs(faceUpTerrain) do
+			if b.guid~=obj.guid then
+				local tested=b.position
+				for c=1, 6, 1 do
+					local toCheck=adjacentPositions[c]
+					if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 neighbourTile=b break end
+				end
+			end
+		end
+		if neighboursFound==0 then return false end
+		if candidateTileType=="core" and neighboursFound<2 then result.errorBroadcast="{en}Core Terrain Tiles need two or more neighbours{ru}Плитки Развитых земель должны находиться по соседству с двумя другими землями{zh-tw}核心城市板块需要紧邻两个以上的其他板块{zh-cn}核心城市板块需要紧邻两个以上的其他板块{ko}중심부 타일은 최소 2개의 타일과 인접해야 합니다{es}Las baldosas de terreno central necesitan dos o más vecinos{fr}Les tuiles de terrain de base ont besoin de deux voisins ou plus{pt-br}Peças Mapa Centrais precisam de 2 ou mais Vizinhos{de}Kernterrainplättchen benötigen zwei oder mehr Nachbarn" return false end
+		if obj.objName=="excess" and neighboursFound<3 then result.errorBroadcast="{en}Excess Terrain Tiles need three or more neighbours, They're meant to fill holes in the map.{ru}Запасные земели должны примыкать хотя бы к трём другим землям (чтобы заполнить дыры).{zh-tw}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{zh-cn}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{ko}추가 지도 타일은 최소 3개의 다른 타일과 인접해야 합니다. 구멍을 메운다는 느낌과 유사합니다.{es}Los mosaicos de terreno en exceso necesitan tres o más vecinos. Están destinados a rellenar huecos en el mapa.{fr}Les tuiles de terrain excédentaire ont besoin de trois voisins ou plus, elles sont destinées à combler les trous sur la carte.{pt-br}Peças de Terreno Excessivas precisam de 3 ou mais vizinhos. Elas são para preencher buracos no mapa{de}Überschüssige Geländeplättchen brauchen drei oder mehr Nachbarn, sie sollen Löcher auf der Karte füllen." return false end
+		if candidateTileType~="core" and neighboursFound<=1 then
+			neighboursFound=0
+			if neighbourTile~=nil then
+				local neighbourPositions={}
+				for c=1, 6, 1 do
+					local offset=terrainPlacementNeighbourOffsets[c]
+					neighbourPositions[c]={neighbourTile.position[1]+offset[1], neighbourTile.position[3]+offset[2]}
+				end
+				for _, b in pairs(faceUpTerrain) do
+					if b.guid~=obj.guid then
+						local tested=b.position
+						for c=1, 6, 1 do
+							local toCheck=neighbourPositions[c]
+							if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 break end
+						end
+					end
+				end
+				if neighboursFound<2 then result.errorBroadcast="{en}Country Terrain Tiles can't be strung out that far{ru}Плитки Диких земель не могут вытягиваться так далеко{zh-tw}乡村板块不能铺那么远{zh-cn}乡村板块不能铺那么远{ko}교외 타일은 그렇게 놓일 수 없습니다{es}Las baldosas de terreno rural no se pueden colocar tan lejos{fr}Les tuiles de terrain de campagne ne peuvent pas être enfilées aussi loin{pt-br}Peças Mapa de Campo não podem ser colocados tão longe{de}Land-Terrainplättchen können nicht so weit aufgereiht werden" return false end
+			end
+		end
+	end
+
+	--Check if a City tile is played to wrong side in Life and Death
+	if gStates.gameScenario=="Life and Death" and getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()==1 then
+		if obj.guid==GUID.tile.city08 and obj.bearing<=northBearing-1 then --red city
+			result.errorBroadcast="{en}Red City needs to be placed in the Northern section{ru}Земля с красным городом не может быть размещена на юге{zh-tw}红色城市需要放在靠北边{zh-cn}红色城市需要放在靠北边{ko}빨간색 도시는 북쪽에 놓여야합니다.{es}Red City debe colocarse en la sección Norte{fr}Red City doit être placé dans la section Nord{pt-br}Cidade Vermelha precisa ser colocada na sessão Norte{de}Die rote Stadt muss in den nördlichen Abschnitt gelegt werden"
+			return false
+		end
+		if obj.guid==GUID.tile.city05 and obj.bearing>=northBearing+1 then --green city
+			result.errorBroadcast="{en}Green City needs to be placed in the Southern section{ru}Земля с зелёным городом не может быть размещена на севере{zh-tw}绿色城市需要放置在南边部分{zh-cn}绿色城市需要放置在南边部分{ko}녹색 도시는 남쪽에 놓여야합니다{es}Green City debe colocarse en la sección Sur{fr}Green City doit être placé dans la section Sud{pt-br}Cidade Verde precisa ser colocada na parte Sul do mapa{de}Grüne Stadt muss in die südliche Sektion gelegt werden"
+			return false
+		end
+	end
+
+	--Check if a terrain tile is face up
+	if obj.faceDown==true then result.faceDownTerrain=true return false end
+	return true
+end
+
+
+--Rebuild EXPLORE buttons directly from the physical map. This path has no terrain-entry side effects.
+function refreshTerrainExploreOptions()
+	if gStates==nil then return end
+	local zone=getObjectFromGUID(mapArea)
+	if zone==nil then return end
+	local playAreaObjects=zone.getObjects()
+	local faceUpTerrain={}
+	local mapObjectPositions={}
+	for _,mapObject in pairs(playAreaObjects) do
+		local mapObjectPosition=mapObject.getPosition()
+		mapObjectPositions[#mapObjectPositions+1]={guid=mapObject.guid,position=mapObjectPosition}
+		if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
+			faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObjectPosition}
+		end
+	end
+	local northBearing=40
+	local startTileGUID=startTerrain.open
+	if getObjectFromGUID(startTileGUID)==nil then
+		if gStates.gameScenario=="Against the Horsemen Blitz" then startTileGUID=GUID.tile.country01
+		else startTileGUID=startTerrain.wedge northBearing=70 end
+	end
+	local startTileObject=getObjectFromGUID(startTileGUID)
+	if startTileObject==nil then return end
+	local startTilePosition=startTileObject.getPosition()
+	--Highlight legal tile plays
+	if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" and not (gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P") then
+		local gridType=""
+		if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049111266/7BC768B7CD64E6018EBEC720559690409F4BA555/" end--4
+		if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049110361/978D612A44ADDE6E1630965A311722114BA28AE5/" end--3
+		if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049031257/2457D03CE33118D57CD456183026FEB596CF6A3A/" end--fully
+		if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049113832/44EE3C6AA10498BCD1B46040AD18631BFD580AC4/" end--Wedge
+		local terrainDecals={}
+		gStates.exploreButtons={{}}
+		if gridType~="" then terrainDecals[#terrainDecals+1]={name="Terrain Grid", url=gridType, position={-16.825, 0.99, 0.55}, rotation={90.0, 0.0, 0.0}, scale={60, 60, 1}} end
+		local testTerrain="core"
+		local nameTerrain="dud"
+		local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
+		local leftCountry=getObjectFromGUID(GUID.bag.terrain.leftCountry)
+		local leftCore=getObjectFromGUID(GUID.bag.terrain.leftCore)
+		local terrainStackObjects=terrainStack.getObjects()
+		if #terrainStackObjects>0 then
+			local nextTerrainIndex=terrainStack.getQuantity()-1
+			testTerrain=terrainStackObjects[#terrainStackObjects].guid
+			for _, containedTerrain in pairs(terrainStackObjects) do
+				if containedTerrain.index==nextTerrainIndex then testTerrain=containedTerrain.guid break end
+			end
+		else
+			nameTerrain="excess"
+			testTerrain="country"
+		end
+		if terrainStack.getQuantity()>0 or leftCountry.getQuantity()>0 or leftCore.getQuantity()>0 then
+			for _, terTile in pairs(terrainExploreSpots) do
+				local found=false
+				for _, mightBeMap in pairs(faceUpTerrain) do
+					local existingTile=mightBeMap.position
+					if ((terTile[1]-existingTile[1])^2)+((terTile[3]-existingTile[3])^2)<1 then found=true break end
+				end
+				if found==false and terrainPositionLegal({guid=testTerrain, faceDown=false, objName=nameTerrain, position=terTile, bearing=math.deg(math.atan2(terTile[3]-startTilePosition[3], terTile[1]-startTilePosition[1]))},faceUpTerrain,northBearing,{})==true then--country tile guid stand-in
+					terrainDecals[#terrainDecals+1]={name="Legal Play", url="https://steamusercontent-a.akamaihd.net/ugc/1833526258732421084/29942DB5776ABA4145E9E115D1C893574C9A737A/", position=terTile, rotation={90.0, 0.0, 0.0}, scale={6, 6, 1}}
+					gStates.exploreButtons[#gStates.exploreButtons+1]={tag="Button", attributes={id="f2291a"..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
+							children={	{tag="Image", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
+										{tag="HorizontalLayout", attributes={padding="25 25 25 25"},
+										children={{tag="Text", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
+					--record all the potential future hexes as "explore" so the move can calculate for it.
+				end
+				end
+			end
+			for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
+			Global.setDecals(terrainDecals)
+			getObjectFromGUID("f2291a").UI.setXmlTable(gStates.exploreButtons)
+			--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
+			compactCityCardsAfterExplore(mapObjectPositions)
+	end
+end
+
 local function handleTerrainZoneEnter(ctx)
 	local zone=ctx.zone
 	local obj=ctx.obj
@@ -1415,13 +1623,10 @@ local function handleTerrainZoneEnter(ctx)
 	local zoneInfo=ctx.zoneInfo
 	local objType=ctx.objType
 	--Check if a terrain tile has entered the play area
-	local refreshExploreOnly=ctx.refreshExploreOnly==true
-	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and (refreshExploreOnly==true or workingOnTerrain[objGUID]~=true) then
-		if refreshExploreOnly~=true then
-			if startingMapSetup==true then startingMapTiles[objGUID]=true end
-			workingOnTerrain[objGUID]=true
-		end
-		if refreshExploreOnly~=true then safeWaitTime("Events",function() addAvatarButtons() end, 1.5) end
+	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
+		if startingMapSetup==true then startingMapTiles[objGUID]=true end
+		workingOnTerrain[objGUID]=true
+		safeWaitTime("Events",function() addAvatarButtons() end, 1.5)
 		local playAreaObjects={}
 		local faceUpTerrain={}
 		local mapObjectPositions={}
@@ -1453,7 +1658,7 @@ local function handleTerrainZoneEnter(ctx)
 		end
 		local startTileObject=getObjectFromGUID(startTileGUID)
 		if startTileObject==nil then
-			if refreshExploreOnly~=true then workingOnTerrain[objGUID]=nil end
+			workingOnTerrain[objGUID]=nil
 			return true
 		end
 		local startTilePosition=startTileObject.getPosition()
@@ -1461,112 +1666,12 @@ local function handleTerrainZoneEnter(ctx)
 		local enteredTileName=obj.getName()
 		startBearing=math.deg(math.atan2(enteredTilePosition[3]-startTilePosition[3], enteredTilePosition[1]-startTilePosition[1]))
 
-		local faceDownTerrain=false
-		local errorBroadcast=""
-		local function positionLegal(obj)--.guid .faceDown .position .objName [.tileType]
-			local candidateTileType=obj.tileType or (terrainTiles[obj.guid]~=nil and terrainTiles[obj.guid].tileType) or "country"
-			--Against the Horsemen uses a completely predefined map. Its face-down tiles are already in
-			--their legal positions, so ordinary wedge/open/neighbour placement rules must never reject
-			--a tile when it is revealed. Keep face-down tiles dormant; once revealed, always populate them.
-			if gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then
-				if obj.faceDown==true then faceDownTerrain=true return false end
-				return true
-			end
-
-			--Custom Predefined is deliberately unrestricted: players may arrange any face-up terrain anywhere.
-			if gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P" then
-				if obj.faceDown==true then faceDownTerrain=true return false end
-				return true
-			end
-
-			--Check if a core tile is on the coast of a wedge map
-			if candidateTileType=="core" and northBearing==70 and (obj.bearing<=41 or obj.bearing>=99) and gStates.gameScenario~="Fast Forwarded Conquest" then errorBroadcast="{en}Core Terrain Tiles aren't allowed on the coast{ru}Плитки Развитых земель не могут располагаться на берегу{zh-tw}海岸边不可以部署核心城市板块{zh-cn}海岸边不可以部署核心城市板块{ko}중심부 타일은 해안선에 놓일 수 없습니다{es}Las baldosas de terreno del núcleo no están permitidas en la costa{fr}Les tuiles de terrain de base ne sont pas autorisées sur la côte{pt-br}Peças Mapa Centrais não são permitidas na Costa{de}Kernterrainplättchen sind an der Küste nicht erlaubt" return false end
-
-			--Check if a tile is outside of a wedge map
-			if northBearing==70 and (obj.bearing<=35 or obj.bearing>=105) then errorBroadcast="{en}Terrain Tile isn't in the Wedge{ru}Плитка земель не находится в форме{zh-tw}地图块不在锥形里 (出界了){zh-cn}地图块不在锥形里 (出界了){ko}지도 타일이 쐐기 안에 있지 않습니다{es}Terrain Tile no está en la cuña{fr}La tuile de terrain n'est pas dans le coin{pt-br}Peça de Terreno não está no Cone{de}Das Geländeplättchen liegt nicht im Keil" return false end
-
-			--Check if tile is on the 4th or 5th column of a limited open map
-			if gStates.mapShape:sub(5,5)=="O" or gStates.mapShape:sub(5,5)=="F" then --Open Limited to ? Columns
-				local checkUpTo=3
-				if gStates.mapShape:sub(21, 21)=="4" then checkUpTo=8 end
-				if gStates.mapShape:sub(21, 21)=="3" then checkUpTo=15 end
-				local pos=obj.position
-				for b=1, checkUpTo, 1 do
-					local edge=terrainPlacementEdgeCoordinates[b]
-					if ((pos[1]-edge[1])^2)+((pos[3]-edge[2])^2)<1 then
-						errorBroadcast=joinLang({"{en}You are playing a {ru}Форма игрового поля - {zh-tw}正在玩的剧本名: {zh-cn}正在玩的剧本名: {ko}플레이 중인 맵: {es}Estás jugando un {fr}Vous jouez à un {pt-br}Você está jogando um(a) {de}Du spielst gerade ein ", gStates.mapShape, "{en} Game{ru} {zh-tw}. {zh-cn}. {ko}{es} juegos{fr} Game{pt-br} Jogo{de} Spiel"})
-						return false
-					end
-				end
-			end
-
-			--Check if Core tile has at least two neighbor Tiles
-			--Check if Country tile has at least one neighbor that has two neighbor Tiles
-			--check if an excess terrain tile has at least three neighbors.
-			if gStates.gameScenario~="The Gauntlet" and obj.guid~=firstTile and not (obj.guid=="835c91" and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
-				local neighboursFound=0
-				local neighbourTile=nil
-				local adjacentPositions={}
-				for c=1, 6, 1 do
-					local offset=terrainPlacementNeighbourOffsets[c]
-					adjacentPositions[c]={obj.position[1]+offset[1], obj.position[3]+offset[2]}
-				end
-				for _, b in pairs(faceUpTerrain) do
-					if b.guid~=obj.guid then
-						local tested=b.position
-						for c=1, 6, 1 do
-							local toCheck=adjacentPositions[c]
-							if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 neighbourTile=b break end
-						end
-					end
-				end
-				if neighboursFound==0 then return false end
-				if candidateTileType=="core" and neighboursFound<2 then errorBroadcast="{en}Core Terrain Tiles need two or more neighbours{ru}Плитки Развитых земель должны находиться по соседству с двумя другими землями{zh-tw}核心城市板块需要紧邻两个以上的其他板块{zh-cn}核心城市板块需要紧邻两个以上的其他板块{ko}중심부 타일은 최소 2개의 타일과 인접해야 합니다{es}Las baldosas de terreno central necesitan dos o más vecinos{fr}Les tuiles de terrain de base ont besoin de deux voisins ou plus{pt-br}Peças Mapa Centrais precisam de 2 ou mais Vizinhos{de}Kernterrainplättchen benötigen zwei oder mehr Nachbarn" return false end
-				if obj.objName=="excess" and neighboursFound<3 then errorBroadcast="{en}Excess Terrain Tiles need three or more neighbours, They're meant to fill holes in the map.{ru}Запасные земели должны примыкать хотя бы к трём другим землям (чтобы заполнить дыры).{zh-tw}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{zh-cn}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{ko}추가 지도 타일은 최소 3개의 다른 타일과 인접해야 합니다. 구멍을 메운다는 느낌과 유사합니다.{es}Los mosaicos de terreno en exceso necesitan tres o más vecinos. Están destinados a rellenar huecos en el mapa.{fr}Les tuiles de terrain excédentaire ont besoin de trois voisins ou plus, elles sont destinées à combler les trous sur la carte.{pt-br}Peças de Terreno Excessivas precisam de 3 ou mais vizinhos. Elas são para preencher buracos no mapa{de}Überschüssige Geländeplättchen brauchen drei oder mehr Nachbarn, sie sollen Löcher auf der Karte füllen." return false end
-				if candidateTileType~="core" and neighboursFound<=1 then
-					neighboursFound=0
-					if neighbourTile~=nil then
-						local neighbourPositions={}
-						for c=1, 6, 1 do
-							local offset=terrainPlacementNeighbourOffsets[c]
-							neighbourPositions[c]={neighbourTile.position[1]+offset[1], neighbourTile.position[3]+offset[2]}
-						end
-						for _, b in pairs(faceUpTerrain) do
-							if b.guid~=obj.guid then
-								local tested=b.position
-								for c=1, 6, 1 do
-									local toCheck=neighbourPositions[c]
-									if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 break end
-								end
-							end
-						end
-						if neighboursFound<2 then errorBroadcast="{en}Country Terrain Tiles can't be strung out that far{ru}Плитки Диких земель не могут вытягиваться так далеко{zh-tw}乡村板块不能铺那么远{zh-cn}乡村板块不能铺那么远{ko}교외 타일은 그렇게 놓일 수 없습니다{es}Las baldosas de terreno rural no se pueden colocar tan lejos{fr}Les tuiles de terrain de campagne ne peuvent pas être enfilées aussi loin{pt-br}Peças Mapa de Campo não podem ser colocados tão longe{de}Land-Terrainplättchen können nicht so weit aufgereiht werden" return false end
-					end
-				end
-			end
-
-			--Check if a City tile is played to wrong side in Life and Death
-			if gStates.gameScenario=="Life and Death" and getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()==1 then
-				if obj.guid==GUID.tile.city08 and obj.bearing<=northBearing-1 then --red city
-					errorBroadcast="{en}Red City needs to be placed in the Northern section{ru}Земля с красным городом не может быть размещена на юге{zh-tw}红色城市需要放在靠北边{zh-cn}红色城市需要放在靠北边{ko}빨간색 도시는 북쪽에 놓여야합니다.{es}Red City debe colocarse en la sección Norte{fr}Red City doit être placé dans la section Nord{pt-br}Cidade Vermelha precisa ser colocada na sessão Norte{de}Die rote Stadt muss in den nördlichen Abschnitt gelegt werden"
-					return false
-				end
-				if obj.guid==GUID.tile.city05 and obj.bearing>=northBearing+1 then --green city
-					errorBroadcast="{en}Green City needs to be placed in the Southern section{ru}Земля с зелёным городом не может быть размещена на севере{zh-tw}绿色城市需要放置在南边部分{zh-cn}绿色城市需要放置在南边部分{ko}녹색 도시는 남쪽에 놓여야합니다{es}Green City debe colocarse en la sección Sur{fr}Green City doit être placé dans la section Sud{pt-br}Cidade Verde precisa ser colocada na parte Sul do mapa{de}Grüne Stadt muss in die südliche Sektion gelegt werden"
-					return false
-				end
-			end
-
-			--Check if a terrain tile is face up
-			if obj.faceDown==true then faceDownTerrain=true return false end
-			return true
-		end
 
 		--make predefined maps highlight red
-		if refreshExploreOnly~=true and gStates.mapShape:sub(5,5)=="P" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then--predefined
+		if gStates.mapShape:sub(5,5)=="P" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then--predefined
 			for _, mightBeMap in pairs(playAreaObjects) do
 				if terrainTiles[mightBeMap.guid]~=nil then
-					if positionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}})==false then
+					if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}},faceUpTerrain,northBearing,{})==false then
 						mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
 					else
 						local nightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
@@ -1576,65 +1681,11 @@ local function handleTerrainZoneEnter(ctx)
 			end
 		end
 
-		local function refreshExploreOptions()
-			refreshTerrainSnapshot()
-			--Highlight legal tile plays
-			if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" and not (gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P") then
-				local gridType=""
-				if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049111266/7BC768B7CD64E6018EBEC720559690409F4BA555/" end--4
-				if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049110361/978D612A44ADDE6E1630965A311722114BA28AE5/" end--3
-				if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049031257/2457D03CE33118D57CD456183026FEB596CF6A3A/" end--fully
-				if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049113832/44EE3C6AA10498BCD1B46040AD18631BFD580AC4/" end--Wedge
-				local terrainDecals={}
-				gStates.exploreButtons={{}}
-				if gridType~="" then terrainDecals[#terrainDecals+1]={name="Terrain Grid", url=gridType, position={-16.825, 0.99, 0.55}, rotation={90.0, 0.0, 0.0}, scale={60, 60, 1}} end
-				local testTerrain="core"
-				local nameTerrain="dud"
-				local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
-				local leftCountry=getObjectFromGUID(GUID.bag.terrain.leftCountry)
-				local leftCore=getObjectFromGUID(GUID.bag.terrain.leftCore)
-				local terrainStackObjects=terrainStack.getObjects()
-				if #terrainStackObjects>0 then
-					local nextTerrainIndex=terrainStack.getQuantity()-1
-					testTerrain=terrainStackObjects[#terrainStackObjects].guid
-					for _, containedTerrain in pairs(terrainStackObjects) do
-						if containedTerrain.index==nextTerrainIndex then testTerrain=containedTerrain.guid break end
-					end
-				else
-					nameTerrain="excess"
-					testTerrain="country"
-				end
-				if terrainStack.getQuantity()>0 or leftCountry.getQuantity()>0 or leftCore.getQuantity()>0 then
-					for _, terTile in pairs(terrainExploreSpots) do
-						local found=false
-						for _, mightBeMap in pairs(faceUpTerrain) do
-							local existingTile=mightBeMap.position
-							if ((terTile[1]-existingTile[1])^2)+((terTile[3]-existingTile[3])^2)<1 then found=true break end
-						end
-						if found==false and positionLegal({guid=testTerrain, faceDown=false, objName=nameTerrain, position=terTile, bearing=math.deg(math.atan2(terTile[3]-startTilePosition[3], terTile[1]-startTilePosition[1]))})==true then--country tile guid stand-in
-							terrainDecals[#terrainDecals+1]={name="Legal Play", url="https://steamusercontent-a.akamaihd.net/ugc/1833526258732421084/29942DB5776ABA4145E9E115D1C893574C9A737A/", position=terTile, rotation={90.0, 0.0, 0.0}, scale={6, 6, 1}}
-							gStates.exploreButtons[#gStates.exploreButtons+1]={tag="Button", attributes={id="f2291a"..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
-									children={	{tag="Image", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
-												{tag="HorizontalLayout", attributes={padding="25 25 25 25"},
-												children={{tag="Text", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
-							--record all the potential future hexes as "explore" so the move can calculate for it.
-						end
-						end
-					end
-					for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
-					Global.setDecals(terrainDecals)
-					getObjectFromGUID("f2291a").UI.setXmlTable(gStates.exploreButtons)
-					--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
-					compactCityCardsAfterExplore(mapObjectPositions)
-			end
-		end
-		if refreshExploreOnly==true then
-			refreshExploreOptions()
-			return true
-		end
+
 
 		--deploy monster token if terrain tile is deployed correctly
-		if positionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}})==true then
+		local placementResult={}
+		if terrainPositionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}},faceUpTerrain,northBearing,placementResult)==true then
 			--Before the first round, dayRound is intentionally still false so dayNight() can perform
 			--the first transition. Do not let that sentinel make setup terrain look like night.
 			if startingMapSetup==true then
@@ -1651,7 +1702,7 @@ local function handleTerrainZoneEnter(ctx)
 			end
 
 			if startingMapSetup~=true and obj.resting==true and obj.held_by_color==nil and obj.isSmoothMoving()==false then
-				refreshExploreOptions()
+				refreshTerrainExploreOptions()
 			end
 
 			--Against the Apocalypse destroyed terrain
@@ -1872,7 +1923,7 @@ local function handleTerrainZoneEnter(ctx)
 								--Without this, cityInitialCardPosition() reads the previous EXPLORE set and the later
 								--terrain-finish refresh redirects the same smooth move mid-flight.
 								if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then
-									refreshExploreOptions()
+									refreshTerrainExploreOptions()
 									exploreRefreshedBeforeCity=true
 								end
 								playCity(obj, hexFeature, true)
@@ -1892,10 +1943,6 @@ local function handleTerrainZoneEnter(ctx)
 			local function finishTerrainPopulation()
 				gStates.playedAllready[objGUID]=true
 				workingOnTerrain[objGUID]=false
-				--Anything that reads map geometry from here onward must see the tile's final physical position.
-				--The entry callback can run while a tile is still snapping/falling, so discard any snapshot
-				--that may have been built from that transient position.
-				runtimeMapInvalidate()
 				--A City reveal already refreshed immediately before its initial card placement.
 				--Do not compact it a second time while that smooth move is still in progress.
 				if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then refreshTerrainExploreOptions() end
@@ -1914,18 +1961,12 @@ local function handleTerrainZoneEnter(ctx)
 			end
 			if startingMapSetup==true then
 				safeWaitCondition("Events",finishTerrainPopulation,function()
-					return setupPopulationPending==0 and obj.resting==true and obj.isSmoothMoving()==false
+					return setupPopulationPending==0 and obj.resting==true
 				end,10,function()
 					error("SetupGame timed out waiting for initial terrain deployment callbacks for "..tostring(objGUID)..".",2)
 				end)
 			else
-				--The old fixed-frame finish could fire while the explored terrain was visibly still settling.
-				--Wait out the deployment stagger first, then finish only from the settled physical map state.
-				safeWaitFrames("Events",function()
-					safeWaitCondition("Events",finishTerrainPopulation,function()
-						return obj==nil or (obj.resting==true and obj.isSmoothMoving()==false)
-					end,10,finishTerrainPopulation)
-				end,tokenWait+10)
+				safeWaitFrames("Events",finishTerrainPopulation,tokenWait+10)
 			end
 
 			--Fame is awarded only for terrain actually explored during play. Initial setup terrain is
@@ -1942,8 +1983,8 @@ local function handleTerrainZoneEnter(ctx)
 			end
 		else
 			workingOnTerrain[objGUID]=false
-			if errorBroadcast~="" then broadcastToAll(errorBroadcast, warningColor) end
-			if faceDownTerrain==false then obj.setColorTint({r=1.0, g=0.7, b=0.7}) end
+			if (placementResult.errorBroadcast or "")~="" then broadcastToAll(placementResult.errorBroadcast, warningColor) end
+			if placementResult.faceDownTerrain~=true then obj.setColorTint({r=1.0, g=0.7, b=0.7}) end
 		end
 	end
 
@@ -1973,31 +2014,6 @@ local function handleTerrainZoneEnter(ctx)
         end
 	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil then return true end
 	return false
-end
-
---Rebuild EXPLORE buttons from the physical map as it exists now. gStates.exploreButtons remains
---a derived UI cache for existing consumers; the physical table is the source of truth for rebuilding it.
-function refreshTerrainExploreOptions()
-	if gStates==nil then return end
-	local zone=getObjectFromGUID(mapArea)
-	if zone==nil then return end
-	local anchor=nil
-	for _, candidate in pairs(zone.getObjects()) do
-		if terrainTiles[candidate.guid]~=nil and candidate.is_face_down~=true then
-			anchor=candidate
-			break
-		end
-	end
-	if anchor==nil then
-		gStates.exploreButtons={{}}
-		local mapUI=getObjectFromGUID("f2291a")
-		if mapUI~=nil then mapUI.UI.setXmlTable(gStates.exploreButtons) end
-		return
-	end
-	local ctx=zoneEventContext(zone,anchor)
-	if ctx==nil then return end
-	ctx.refreshExploreOnly=true
-	handleTerrainZoneEnter(ctx)
 end
 
 local function handleMapLocationZoneEnter(ctx)
@@ -2155,19 +2171,21 @@ local function handleHandZoneEnter(ctx)
 
 	--Record Cards in hand as part of a players deed deck
 	if objType=="Card" and zoneInfo~=nil and zoneInfo.kind=="hand" then
-		local handPlayerIndex=turnOrderIndexAtSeat(zoneInfo.seatPos)
-		local cardType=gameCardType(obj)
-		if handPlayerIndex~=nil and cardType~="Regular Unit" and cardType~="Elite Unit" then
-			for b=1, #turnOrder, 1 do
-				local found=false
-				for c=1, #turnOrder[b].deadDeckInventory, 1 do
-					if objGUID==turnOrder[b].deadDeckInventory[c] then table.remove(turnOrder[b].deadDeckInventory, c) found=true break end
+		scheduleSettledZoneEntry(ctx,function(liveCtx)
+			local handPlayerIndex=turnOrderIndexAtSeat(liveCtx.zoneInfo.seatPos)
+			local cardType=gameCardType(liveCtx.obj)
+			if handPlayerIndex~=nil and cardType~="Regular Unit" and cardType~="Elite Unit" then
+				for b=1, #turnOrder, 1 do
+					local found=false
+					for cc=1, #turnOrder[b].deadDeckInventory, 1 do
+						if liveCtx.objGUID==turnOrder[b].deadDeckInventory[cc] then table.remove(turnOrder[b].deadDeckInventory, cc) found=true break end
+					end
+					if found==true then break end
 				end
-				if found==true then break end
+				turnOrder[handPlayerIndex].deadDeckInventory[#turnOrder[handPlayerIndex].deadDeckInventory+1]=liveCtx.objGUID
+				mainUIUpdate("Card Entered Hand")
 			end
-			turnOrder[handPlayerIndex].deadDeckInventory[#turnOrder[handPlayerIndex].deadDeckInventory+1]=objGUID
-			mainUIUpdate("Card Entered Hand")
-		end
+		end)
 	end
 
 end
@@ -2258,6 +2276,13 @@ local function handlePlayerBoardZoneEnter(ctx)
 	local objGUID=ctx.objGUID
 	local zoneInfo=ctx.zoneInfo
 	local objType=ctx.objType
+	if ctx.settledPlayerZoneEntry~=true and zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then
+		scheduleSettledZoneEntry(ctx,function(liveCtx)
+			liveCtx.settledPlayerZoneEntry=true
+			handlePlayerBoardZoneEnter(liveCtx)
+		end)
+		return false
+	end
 	--Updates Main UI buttons when anything is played to a mage's play area/deed deck/discard.
 	--Keep play-area refreshes distinct so mainUIUpdate can skip deck bookkeeping that cannot have changed.
 	if gStates.turnNumber>0 then--makes sure end of round doesn't have errors
@@ -2500,7 +2525,9 @@ local function handleManaZoneEnter(ctx)
 end
 
 function __onObjectEnterZone_raw(zone, obj)
-	if zone~=nil and zone.guid==mapArea then runtimeMapInvalidate() end
+	if zone~=nil and zone.guid==mapArea then
+		if obj~=nil and terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
+	end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if handleZoneEnterPrelude(ctx)==true then return end
@@ -2737,7 +2764,9 @@ local function handlePreGameZoneLeave(ctx)
 end
 
 function __onObjectLeaveZone_raw(zone, obj)
-	if zone~=nil and zone.guid==mapArea then runtimeMapInvalidate() end
+	if zone~=nil and zone.guid==mapArea then
+		if obj~=nil and terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
+	end
 	local ctx=zoneEventContext(zone,obj)
 	if ctx==nil then return end
 	if handleZoneLeavePrelude(ctx)==true then return end
@@ -2774,7 +2803,9 @@ end
 
 --Container Shuffling, Image Updating and size changing
 function __onObjectEnterContainer_raw(bag, obj)
-	if obj~=nil and runtimeMapContainsGUID(obj.guid)==true then runtimeMapInvalidate() end
+	if obj~=nil and runtimeMapContainsGUID(obj.guid)==true then
+		if terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
+	end
 	if obj~=nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(obj)==true then mapTokenReleaseObject(obj) end
 	--Putting a just-created Puppet in the Trash chest is the physical undo gesture for Puppet Master.
 	if bag~=nil and obj~=nil and bag.guid==trashCan then
@@ -3055,7 +3086,7 @@ end
 
 function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_flip)
 	if object==nil then return end
-	if terrainTiles[object.guid]~=nil then runtimeMapInvalidate() end
+	if terrainTiles[object.guid]~=nil then runtimeMapInvalidateTerrain() end
 	if apocalypseDragonGroundHeadToken~=nil and select(1,apocalypseDragonGroundHeadToken(object.guid))==true then
 		local _,dragonHeadName=apocalypseDragonGroundHeadToken(object.guid)
 		local dragonHeadOwner=dragonHeadName~=nil and apocalypseDragonGroundHeadOwner(dragonHeadName) or nil
