@@ -1268,13 +1268,15 @@ end
 local shuffleOnContainerEnter=nil
 local function containerShufflesOnEntry(guid)
 	if shuffleOnContainerEnter==nil then
-		shuffleOnContainerEnter={
-			[GUID.bag.skill.arythea]=true,[GUID.bag.skill.goldyx]=true,[GUID.bag.skill.norowas]=true,[GUID.bag.skill.tovak]=true,
-			[GUID.bag.skill.krang]=true,[GUID.bag.skill.braevalar]=true,[GUID.bag.skill.ymirgh]=true,[GUID.bag.skill.wolfhawk]=true,
-			[GUID.bag.skill.jormund]=true,["8c8a04"]=true,["46f93a"]=true,[GUID.bag.terrain.leftCity]=true,
-			[GUID.bag.terrain.leftCore]=true,[GUID.bag.terrain.leftCountry]=true,[GUID.bag.allSkills]=true,["8929f0"]=true,
-			["3e1fdf"]=true,[GUID.bag.skill.malek]=true,[GUID.bag.skill.zirtae]=true,[GUID.bag.skill.coral]=true
+		shuffleOnContainerEnter={}
+		local shuffleGUIDs={
+			GUID.bag.skill.arythea,GUID.bag.skill.goldyx,GUID.bag.skill.norowas,GUID.bag.skill.tovak,
+			GUID.bag.skill.krang,GUID.bag.skill.braevalar,GUID.bag.skill.ymirgh,GUID.bag.skill.wolfhawk,
+			GUID.bag.skill.jormund,"8c8a04","46f93a",GUID.bag.terrain.leftCity,GUID.bag.terrain.leftCore,
+			GUID.bag.terrain.leftCountry,GUID.bag.allSkills,"8929f0","3e1fdf",GUID.bag.skill.malek,
+			GUID.bag.skill.zirtae,GUID.bag.skill.coral
 		}
+		for _, bagGUID in pairs(shuffleGUIDs) do if bagGUID~=nil then shuffleOnContainerEnter[bagGUID]=true end end
 	end
 	return shuffleOnContainerEnter[guid]==true
 end
@@ -1468,29 +1470,28 @@ function __onObjectLeaveContainer_raw(bag, obj)
 	scaleBags(bag, obj, "exit")
 end
 
-local bagSearchPending={}
+local bagSearchGeneration={}
 function __onObjectSearchStart_raw(object, player_color)
 	if object==nil or object.guid==nil then return end
 	local guid=object.guid
-	local serial=(bagSearchPending[guid] or 0)+1
-	bagSearchPending[guid]=serial
+	local serial=(bagSearchGeneration[guid] or 0)+1
+	bagSearchGeneration[guid]=serial
 	--Keep the delayed handoff: when a player opens a second bag without closing the first,
 	--the first bag's SearchEnd may arrive after this SearchStart. The later commit lets the new bag win.
 	safeWaitFrames("Events",function()
-		if bagSearchPending[guid]~=serial then return end
-		bagSearchPending[guid]=nil
+		if bagSearchGeneration[guid]~=serial then return end
 		bagSearch=guid
 	end, 5)
 end
 function __onObjectSearchEnd_raw(object, player_color)
 	local guid=object~=nil and object.guid or nil
 	if guid==nil then
-		bagSearchPending={}
+		bagSearchGeneration={}
 		bagSearch=nil
 		return
 	end
-	--Invalidate a pending delayed start so a very short search cannot become active after it already ended.
-	bagSearchPending[guid]=nil
+	--Advance the generation so a delayed start for this bag cannot commit after the search has ended.
+	bagSearchGeneration[guid]=(bagSearchGeneration[guid] or 0)+1
 	--An old bag ending must not clear a newer bag that has already become the active search.
 	if bagSearch==guid then bagSearch=nil end
 end
