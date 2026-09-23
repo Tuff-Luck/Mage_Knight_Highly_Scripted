@@ -972,6 +972,13 @@ function cityCardMapSnapshot()
 	return mapObjects
 end
 
+local function cityCardExploreGroupObject(obj)
+	if obj==nil or obj.guid==nil then return false end
+	--Scripting zones report collider overlap, so a terrain tile can appear in a City zone when only
+	--its corner clips the zone. Terrain is anchored to the map and must never travel with the City card.
+	return terrainTiles[obj.guid]==nil
+end
+
 function cityCardExploreGroup(cityZone)
 	local details=cityScriptZones[cityZone]
 	local cityGUID=details~=nil and details.cityGUID or nil
@@ -991,7 +998,11 @@ function cityCardExploreGroup(cityZone)
 	local movingGUIDs={[card.guid]=true}
 	for zoneGUID, _ in pairs(zonesToMove) do
 		local zoneObj=getObjectFromGUID(zoneGUID)
-		if zoneObj~=nil then for _, obj in pairs(zoneObj.getObjects()) do movingGUIDs[obj.guid]=true end end
+		if zoneObj~=nil then
+			for _, obj in pairs(zoneObj.getObjects()) do
+				if cityCardExploreGroupObject(obj)==true then movingGUIDs[obj.guid]=true end
+			end
+		end
 	end
 	return {cityGUID=cityGUID, card=card, city=cityModelObj, zones=zonesToMove, movingGUIDs=movingGUIDs}
 end
@@ -1056,7 +1067,7 @@ function moveCityCardExploreGroup(group, desiredLocation, movedCityZones, mapObj
 		if zoneObj~=nil then
 			if movedCityZones~=nil then movedCityZones[zoneGUID]=true end
 			for _, cityCardObj in pairs(zoneObj.getObjects()) do
-				if movedObjects[cityCardObj.guid]~=true and cityCardObj.guid~='3d4319' and cityCardObj.guid~='519f96' then
+				if movedObjects[cityCardObj.guid]~=true and cityCardObj.guid~='3d4319' and cityCardObj.guid~='519f96' and cityCardExploreGroupObject(cityCardObj)==true then
 					movedObjects[cityCardObj.guid]=true
 					local originalPos=cityCardObj.getPosition()
 					local relocation={originalPos[1]+deltaX, originalPos[2], originalPos[3]+deltaZ}
