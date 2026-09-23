@@ -54,13 +54,14 @@ In general:
 - When saved metadata and the stable physical table genuinely disagree because a player deliberately changed the table, prefer the table unless that metadata represents hidden/history state rather than duplicated physical state.
 
 
-### Digital map consolidation follow-up
+### Shared runtime digital map
 
-The Movement Calculator and automated-player movement should converge on one rebuildable digital-map representation derived from the physical table. Do not create another saved `gStates` copy of that map.
+Movement, Proxy/AI, Quests, Map avatar scans and Combat now share the rebuildable runtime map derived from the physical table. Do not create another saved `gStates` copy of this map.
 
-Two Combat paths are intentionally deferred until that shared map is ready:
-- `pursuingRampagers()` / its hex legality checks currently rescan physical map objects while testing pursuit routes. Refactor this to query the same digital map used by Movement and AI rather than inventing a Combat-only spatial model.
-- End-of-combat scenario completion checks for Mines Liberation, Dungeon Lords, Realm of the Dead, Lost Relic and related shield/site counts currently inspect the physical map directly. Where the shared digital map can represent the needed terrain/site/shield facts without losing legal mid-turn state, use it for those counts too.
+- `runtimeMapSnapshot()` owns revealed terrain/feature data, exact hex centres and cached neighbour topology.
+- `runtimeMapSpatialSnapshot()` overlays fresh physical-object positions and spatial buckets for live shields, enemies, avatars and other map pieces. It is deliberately runtime-only so moving a piece on the table remains authoritative.
+- `pursuingRampagers()` and Combat's nearby attack/shield checks use the shared topology/spatial view instead of rescanning the full map.
+- End-of-combat scenario completion state should continue to prefer explicit scenario/runtime state when that represents hidden or historical information; use the spatial map only for facts that are physically represented on the table.
 
 Keep these as derived-runtime optimizations. The physical table remains authoritative, and the digital map must be rebuildable after load.
 
