@@ -583,16 +583,28 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 						markMonsterFactionSubstitute(token, tokenFaction)
 						gStates.monsterPlayLocation[token.guid]=params.position
 						gStates.rampagingMonsters[token.guid]=true
+						local rampagerVisualRegistered=false
 						if gStates.rampageAmbush==true and gStates.tacticShown==false and dropped==true and explorationEffectsEligible==true then
 							gStates.ambushingMonsters[token.guid]=params.position
+							rampagerVisualRegistered=true
 						end
 						if gStates.rampagePursuit==true and gStates.tacticShown==false and dropped==true and explorationEffectsEligible==true and turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] then
 							for _, mage in pairs(mageKnights) do
 								if mage.mage==turnOrder[gStates.turnNumber].mage then
 									if gStates.pursuingMonsters[mage.mage]==nil then gStates.pursuingMonsters[mage.mage]={} end
 									gStates.pursuingMonsters[mage.mage][token.guid]={state="Deployed", location=params.position}
+									rampagerVisualRegistered=true
 								end
 							end
+						end
+						--takeObject() can cross the map zone before the Ambush/Pursuit state above is recorded.
+						--Refresh from the final registered state instead of relying on that earlier zone event.
+						if rampagerVisualRegistered==true and refreshRampagerMapVisual~=nil then
+							local tokenGUID=token.guid
+							safeWaitFrames("Map",function()
+								local liveToken=getObjectFromGUID(tokenGUID)
+								if liveToken~=nil then refreshRampagerMapVisual(liveToken) end
+							end,1)
 						end
 						--brutal red city
 						if gStates.gameScenario=="The Chaos Rift" and obj.guid==GUID.tile.city08 and monsterPugs[token.guid].brutal==nil then
