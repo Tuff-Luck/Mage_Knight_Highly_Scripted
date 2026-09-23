@@ -860,26 +860,26 @@ end
 
 function baseValueTweak(player, mouseButton, id)
 	if mouseButton=="-1" then
+		local setup=scenarioList[gStates.scenarioRef][gStates.playersRef]
 		if scenarioMapIsPredefined() and (id=="MapDown" or id=="MapUp" or id=="CountryDown" or id=="CountryUp" or id=="CoreDown" or id=="CoreUp" or id=="CityDown" or id=="CityUp") then return end
 		if gStates.volkareCampAsCity==true and (id=="MegapolisDown" or id=="MegapolisUp") then return end
 		if gStates.gameScenario~="First Reconnaissance" then
 			if id=="RoundsDown" or id=="RoundsUp" then
 				if id=="RoundsDown" then
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].rounds>1 then
-						scenarioList[gStates.scenarioRef][gStates.playersRef].rounds=scenarioList[gStates.scenarioRef][gStates.playersRef].rounds-1
+					if setup.rounds>1 then
+						setup.rounds=setup.rounds-1
 					end
 				else
-					scenarioList[gStates.scenarioRef][gStates.playersRef].rounds=scenarioList[gStates.scenarioRef][gStates.playersRef].rounds+1
+					setup.rounds=setup.rounds+1
 				end
-				scenarioList[gStates.scenarioRef][gStates.playersRef].discardTactics=scenarioList[gStates.scenarioRef][gStates.playersRef].dTW
-				if scenarioList[gStates.scenarioRef][gStates.playersRef].rounds>6 and scenarioList[gStates.scenarioRef][gStates.playersRef].discardTactics==2 then scenarioList[gStates.scenarioRef][gStates.playersRef].discardTactics=1 end
-				if scenarioList[gStates.scenarioRef][gStates.playersRef].rounds>14-(2*(gStates.playerCount+gStates.coop)) and scenarioList[gStates.scenarioRef][gStates.playersRef].discardTactics==1 then scenarioList[gStates.scenarioRef][gStates.playersRef].discardTactics=0 end
+				setup.discardTactics=setup.dTW
+				if setup.rounds>6 and setup.discardTactics==2 then setup.discardTactics=1 end
+				if setup.rounds>14-(2*(gStates.playerCount+gStates.coop)) and setup.discardTactics==1 then setup.discardTactics=0 end
 			end
 
 			if id=="MapDown" or id=="MapUp" then
 				local mapShapes={"wedge","open3","open4","open"}
 				if gStates.gameScenario=="Custom" then mapShapes[#mapShapes+1]="predefined" end
-				local setup=scenarioList[gStates.scenarioRef][gStates.playersRef]
 				for a=1,#mapShapes do
 					if setup.mapShapeKey==mapShapes[a] then
 						local b=id=="MapDown" and a-1 or a+1
@@ -895,38 +895,37 @@ function baseValueTweak(player, mouseButton, id)
 			if id=="CountryDown" or id=="CountryUp" then
 				if id=="CountryDown" then
 					local countryMin=3
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey=="wedge" then countryMin=4 end--Enough to get to the legal core positions
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles>countryMin then
-						scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles-1
+					if setup.mapShapeKey=="wedge" then countryMin=4 end--Enough to get to the legal core positions
+					if setup.countryTiles>countryMin then
+						setup.countryTiles=setup.countryTiles-1
 					end
 				else
 					local max=14
 					if gStates.removeTerrain==true then max=max-2 end
 					if gStates.removeApocalypseTerrain~=true then max=max+3 end
 					if gStates.removeLostLegionExpansion==true then max=max-3 end
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles<max then
-						scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles+1
+					if setup.countryTiles<max then
+						setup.countryTiles=setup.countryTiles+1
 					end
 				end
 			end
 
 			if id=="CoreDown" or id=="CoreUp" then
 				if id=="CoreDown" then
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles>0 then
-						scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles-1
+					if setup.coreTiles>0 then
+						setup.coreTiles=setup.coreTiles-1
 					end
 				else
 					local max=6
 					if gStates.removeApocalypseTerrain~=true then max=max+2 end
 					if gStates.removeLostLegionExpansion==true then max=max-2 end
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles<max then
-						scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles+1
+					if setup.coreTiles<max then
+						setup.coreTiles=setup.coreTiles+1
 					end
 				end
 			end
 
 			if (id=="CityDown" or id=="CityUp") and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="First Conquest" and gStates.gameScenario~="Conquer and Hold" then
-				local setup=scenarioList[gStates.scenarioRef][gStates.playersRef]
 				local cityTiles=setup.cityTiles
 				local minimum=gStates.gameScenario=="Custom" and 0 or 1
 				if id=="CityDown" then
@@ -959,8 +958,8 @@ function baseValueTweak(player, mouseButton, id)
 			if id=="MegapolisDown" or id=="MegapolisUp" then
 				if id=="MegapolisDown" then
 					if gStates.megapolis>0 then gStates.megapolis=gStates.megapolis-1 end
-					if gStates.megapolis==0 and scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels]>22 then scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels]=22 end
-					if gStates.megapolis==1 and scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels-1]>22 then scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels-1]=22 end
+					if gStates.megapolis==0 and setup.cityLevels[#setup.cityLevels]>22 then setup.cityLevels[#setup.cityLevels]=22 end
+					if gStates.megapolis==1 and setup.cityLevels[#setup.cityLevels-1]>22 then setup.cityLevels[#setup.cityLevels-1]=22 end
 				else
 					local megapolisMaximum=megapolisMaximumForSetup(gStates.scenarioRef,gStates.playersRef)
 					if gStates.megapolis<megapolisMaximum then gStates.megapolis=gStates.megapolis+1 ensureSetupMegapolisMinimumLevels() end
@@ -969,33 +968,33 @@ function baseValueTweak(player, mouseButton, id)
 
 			for a=1, 5, 1 do
 				if id=="CityLevel"..a.."Down" or id=="CityLevel"..a.."Up" then
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]>0 then
+					if setup.cityLevels[a]>0 then
 						if id=="CityLevel"..a.."Down" then
 							local min=1
-							if gStates.megapolis==2 or (gStates.megapolis==1 and scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles==a) then min=2 end
-							if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]>min then
-								scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]=scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]-1
+							if gStates.megapolis==2 or (gStates.megapolis==1 and setup.cityTiles==a) then min=2 end
+							if setup.cityLevels[a]>min then
+								setup.cityLevels[a]=setup.cityLevels[a]-1
 							else
 								break
 							end
 						else
 							local max=22
-							if gStates.megapolis==2 or (gStates.megapolis==1 and scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles==a) then max=22 end
+							if gStates.megapolis==2 or (gStates.megapolis==1 and setup.cityTiles==a) then max=22 end
 							if gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or
-								(gStates.gameScenario=="Custom" and scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles==0) then max=12 end
-							if a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 and
+								(gStates.gameScenario=="Custom" and setup.cityTiles==0) then max=12 end
+							if a==setup.cityTiles+1 and
 								(gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then max=80 end
-							if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]<max then
-								scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]=scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]+1
+							if setup.cityLevels[a]<max then
+								setup.cityLevels[a]=setup.cityLevels[a]+1
 							else
 								break
 							end
 						end
 						if gStates.gameScenario=="Life and Death" and (a==1 or a==2) then
 							if a==1 then
-								scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[2]=scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[1]
+								setup.cityLevels[2]=setup.cityLevels[1]
 							else
-								scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[1]=scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[2]
+								setup.cityLevels[1]=setup.cityLevels[2]
 							end
 						end
 					end
@@ -1140,113 +1139,115 @@ function scenarioInfoUpdate()
 	reconcileSetupState()
 	gStates.playersRef=setupPlayersRef()
 	gStates.scenarioRef=scenarioRefForName(gStates.gameScenario)
+	local scenario=scenario
+	local setup=scenario[gStates.playersRef]
+	local details=scenario.scenarioDetails
 	renderMageKnightSetupAvailability()
 	renderDummySetupSection()
 	--Update Scenario Infos
 	UI.setAttribute("ScenarioDetails", "active", "true")
 	UI.setAttribute("IntroBoard", "active", "false")
 	UI.setAttribute("ScenarioName", "text", joinLang({translateWord[gStates.gameScenario], "{en} Purpose{ru} Цель{zh-tw} 目的{zh-cn} 目的{ko} 목적{es} Propósito{fr} Objectif{pt-br} Finalidade{de} Zweck"}))
-	UI.setAttribute("PlayerCount", "text", scenarioList[gStates.scenarioRef].scenarioDetails.playerDetails)
-	UI.setAttribute("ScenarioLength", "text", joinLang({"{en}Length - {ru}Продолжительность - {zh-tw}遊戲時長：{zh-cn}游戏时长：{ko}길이 - {es}Duración - {fr}Longueur - {pt-br}Duração - {de}Länge - ", scenarioList[gStates.scenarioRef][gStates.playersRef].rounds, "{en} Rounds{ru} Раунд(а/ов){zh-tw} 輪次{zh-cn} 轮次{ko}라운드{es} Rondas{fr} Rounds{pt-br} Rodadas{de} Runden"}))
-	UI.setAttribute("ScenarioPurpose", "text", scenarioList[gStates.scenarioRef].scenarioDetails.scenarioPurpose)
-	UI.setAttribute("ScenarioShape", "text", joinLang({"{en}Map Shape - {ru}Форма поля - {zh-tw}地圖形狀：{zh-cn}地图形状：{ko}지도 모양 - {es}Forma del Mapa - {fr}Forme de la Carte - {pt-br}Formato de Mapa - {de}Karten Form - ", scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape}))
+	UI.setAttribute("PlayerCount", "text", details.playerDetails)
+	UI.setAttribute("ScenarioLength", "text", joinLang({"{en}Length - {ru}Продолжительность - {zh-tw}遊戲時長：{zh-cn}游戏时长：{ko}길이 - {es}Duración - {fr}Longueur - {pt-br}Duração - {de}Länge - ", setup.rounds, "{en} Rounds{ru} Раунд(а/ов){zh-tw} 輪次{zh-cn} 轮次{ko}라운드{es} Rondas{fr} Rounds{pt-br} Rodadas{de} Runden"}))
+	UI.setAttribute("ScenarioPurpose", "text", details.scenarioPurpose)
+	UI.setAttribute("ScenarioShape", "text", joinLang({"{en}Map Shape - {ru}Форма поля - {zh-tw}地圖形狀：{zh-cn}地图形状：{ko}지도 모양 - {es}Forma del Mapa - {fr}Forme de la Carte - {pt-br}Formato de Mapa - {de}Karten Form - ", setup.mapShape}))
 	--Display the amount of country tiles and any rules
-	if scenarioList[gStates.scenarioRef].scenarioDetails.countryRules~=nil then
-		if scenarioList[gStates.scenarioRef].scenarioDetails.countryRules[1]==nil then
-			UI.setAttribute("ScenarioCountry", "text", joinLang({SETUP_TEXT.countryTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.countryRules}))
+	if details.countryRules~=nil then
+		if details.countryRules[1]==nil then
+			UI.setAttribute("ScenarioCountry", "text", joinLang({SETUP_TEXT.countryTilesPrefix, setup.countryTiles.." ", details.countryRules}))
 		else
-			UI.setAttribute("ScenarioCountry", "text", joinLang({SETUP_TEXT.countryTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.countryRules[gStates.playersRef]}))
+			UI.setAttribute("ScenarioCountry", "text", joinLang({SETUP_TEXT.countryTilesPrefix, setup.countryTiles.." ", details.countryRules[gStates.playersRef]}))
 		end
 	else
-		UI.setAttribute("ScenarioCountry", "text", joinLang({SETUP_TEXT.countryTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles}))
+		UI.setAttribute("ScenarioCountry", "text", joinLang({SETUP_TEXT.countryTilesPrefix, setup.countryTiles}))
 	end
 	--Display the amount of core tiles and any rules
-	if scenarioList[gStates.scenarioRef].scenarioDetails.coreRules~=nil then
-		UI.setAttribute("ScenarioCore", "text", joinLang({SETUP_TEXT.coreTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.coreRules}))
+	if details.coreRules~=nil then
+		UI.setAttribute("ScenarioCore", "text", joinLang({SETUP_TEXT.coreTilesPrefix, setup.coreTiles.." ", details.coreRules}))
 	else
-		UI.setAttribute("ScenarioCore", "text", joinLang({SETUP_TEXT.coreTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles}))
+		UI.setAttribute("ScenarioCore", "text", joinLang({SETUP_TEXT.coreTilesPrefix, setup.coreTiles}))
 	end
 	--Display the amount of city tiles and any rules
-	if scenarioList[gStates.scenarioRef].scenarioDetails.cityRules~=nil then
-		UI.setAttribute("ScenarioCity", "text", joinLang({SETUP_TEXT.cityTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.cityRules}))
+	if details.cityRules~=nil then
+		UI.setAttribute("ScenarioCity", "text", joinLang({SETUP_TEXT.cityTilesPrefix, setup.cityTiles.." ", details.cityRules}))
 	else
-		UI.setAttribute("ScenarioCity", "text", joinLang({SETUP_TEXT.cityTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles}))
+		UI.setAttribute("ScenarioCity", "text", joinLang({SETUP_TEXT.cityTilesPrefix, setup.cityTiles}))
 	end
 	--Display's City Levels and activates megapolis with the right settings.
 	if gStates.megapolis==0 then
-		for index, level in pairs(scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels) do
-			if index~=scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-				if level>22 then scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[index]=22 end
+		for index, level in pairs(setup.cityLevels) do
+			if index~=setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
+				if level>22 then setup.cityLevels[index]=22 end
 			end
 		end
 	end
-	UI.setAttribute("MegapolisReminder", "active", "false")
 	local megapolisMaximum=megapolisMaximumForSetup(gStates.scenarioRef,gStates.playersRef)
 	if gStates.megapolis>megapolisMaximum then gStates.megapolis=megapolisMaximum end
 	ensureSetupMegapolisMinimumLevels()
-	local currentCitySetup=scenarioList[gStates.scenarioRef][gStates.playersRef]
+	local currentCitySetup=setup
 	local customLeaderOnly=gStates.gameScenario=="Custom" and currentCitySetup.cityTiles==0 and gStates.removeShadesOfTezlaMonsters~=true
-	if currentCitySetup.cityLevels[1]~=nil and currentCitySetup.cityLevels[1]>0 and (currentCitySetup.cityTiles>0 or customLeaderOnly) then
+	local hasCityLevelControls=currentCitySetup.cityLevels[1]~=nil and currentCitySetup.cityLevels[1]>0 and (currentCitySetup.cityTiles>0 or customLeaderOnly)
+	local showMegapolisControls=hasCityLevelControls and #currentCitySetup.cityLevels<=3 and megapolisMaximum>0
+	UI.setAttribute("MegapolisLeft","active",showMegapolisControls and "true" or "false")
+	UI.setAttribute("MegapolisRight","active",showMegapolisControls and "true" or "false")
+	UI.setAttribute("MegapolisReminder","active",showMegapolisControls and "true" or "false")
+	if showMegapolisControls then
+		local canUp=gStates.megapolis<megapolisMaximum
+		local canDown=gStates.megapolis>0
+		UI.setAttribute("MegapolisUp","interactable",canUp and "True" or "False")
+		UI.setAttribute("MegapolisDown","interactable",canDown and "True" or "False")
+		UI.setAttribute("MegapolisUpImage","image",canUp and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+		UI.setAttribute("MegapolisDownImage","image",canDown and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	end
+	if hasCityLevelControls then
 		UI.setAttribute("CityNote", "active", "false")
 		UI.setAttribute("CityLevelsRow", "active", "true")
 		UI.setAttribute("CityDescriptionRow", "active", "false")
 		UI.setAttribute("CityLevelschange", "active", "false")
 		--local b="<b>City Level(s) - </b>"
 		local layout="28"
-		if #scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels>3 or megapolisMaximum==0 then layout="0" end
+		if #setup.cityLevels>3 or megapolisMaximum==0 then layout="0" end
 		for a=1, 5, 1 do
-			if a<=#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels then
+			if a<=#setup.cityLevels then
 				UI.setAttribute("CL"..a, "active", "true")
 				layout=layout.." 0"
-				if #scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels<=3 then
-					if (gStates.megapolis==1 and a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles) or (gStates.megapolis==2) and not (a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
-						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Megapolis, Lvl {ru}Мегаполис, ур. {zh-tw}大型城市，等級 {zh-cn}大型城市，等级 {ko}거대도시, 레벨 {es}Megapolis, Niv {fr}Megapolis, Niv {pt-br}Megápolis, Nvl {de}Metropoe, Lvl ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+				if #setup.cityLevels<=3 then
+					if (gStates.megapolis==1 and a==setup.cityTiles) or (gStates.megapolis==2) and not (a==setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
+						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Megapolis, Lvl {ru}Мегаполис, ур. {zh-tw}大型城市，等級 {zh-cn}大型城市，等级 {ko}거대도시, 레벨 {es}Megapolis, Niv {fr}Megapolis, Niv {pt-br}Megápolis, Nvl {de}Metropoe, Lvl ", setup.cityLevels[a]}))
 					else
 						if (customLeaderOnly and a==1) or (a==1 and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The War of Four")) or (a==2 and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four")) then
-							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader, Level {ru}Лидер, ур. {zh-tw}領袖，等級 {zh-cn}领袖，等级 {ko}지도자, 레벨 {es}Líder, Nivel {fr}Chef, Niveau {pt-br}Líder, Nível {de}Leiter, Level ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader, Level {ru}Лидер, ур. {zh-tw}領袖，等級 {zh-cn}领袖，等级 {ko}지도자, 레벨 {es}Líder, Nivel {fr}Chef, Niveau {pt-br}Líder, Nível {de}Leiter, Level ", setup.cityLevels[a]}))
 						else
-							if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]==0 then
+							if setup.cityLevels[a]==0 then
 								UI.setAttribute("ScenarioCity"..a.."Level", "text", "{en}Friendly City{ru}Друж. город{zh-tw}友方城市{zh-cn}友方城市{ko}도시(우호적){es}Ciudad Amistosa{fr}Ville Amicale{pt-br}Cidade Amigável{de}Freundliche Stadt")
 							else
-								if a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-									UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Volkare, Level {ru}Волкар, ур. {zh-tw}沃卡里，等級 {zh-cn}沃卡里，等级 {ko}볼케어, 레벨{es}Volkare, Nivel {fr}Volkare, Niveau {pt-br}Volkare, Nível {de}Volkare, Ebene ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+								if a==setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
+									UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Volkare, Level {ru}Волкар, ур. {zh-tw}沃卡里，等級 {zh-cn}沃卡里，等级 {ko}볼케어, 레벨{es}Volkare, Nivel {fr}Volkare, Niveau {pt-br}Volkare, Nível {de}Volkare, Ebene ", setup.cityLevels[a]}))
 								else
-									UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}City, Level {ru}Город, ур. {zh-tw}城市，等級 {zh-cn}城市，等级 {ko}도시, 레벨 {es}Ciudad, Nivel {fr}Ville, Niveau {pt-br}Cidade, Nível {de}Stadt, Level ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+									UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}City, Level {ru}Город, ур. {zh-tw}城市，等級 {zh-cn}城市，等级 {ko}도시, 레벨 {es}Ciudad, Nivel {fr}Ville, Niveau {pt-br}Cidade, Nível {de}Stadt, Level ", setup.cityLevels[a]}))
 								end
 							end
 						end
 					end
-					if megapolisMaximum>0 then
-						UI.setAttribute("MegapolisLeft", "active", "true")
-						UI.setAttribute("MegapolisRight", "active", "true")
-						local canUp=gStates.megapolis<megapolisMaximum
-						local canDown=gStates.megapolis>0
-						UI.setAttribute("MegapolisUp", "interactable", canUp and "True" or "False") UI.setAttribute("MegapolisDown", "interactable", canDown and "True" or "False")
-						UI.setAttribute("MegapolisUpImage", "image", canUp and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive") UI.setAttribute("MegapolisDownImage", "image", canDown and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
-						UI.setAttribute("MegapolisReminder", "active", "true")
-					else
-						UI.setAttribute("MegapolisLeft", "active", "false")
-						UI.setAttribute("MegapolisRight", "active", "false")
-						UI.setAttribute("MegapolisReminder", "active", "false")
-					end
+
 				else
 					if (a==1 or a==2) and gStates.gameScenario=="The War of Four" then
-						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader-{ru}Лидер-{zh-tw}領袖{zh-cn}领袖{ko}지도자-{es}Líder-{fr}Chef-{pt-br}Líder-{de}Leiter-", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader-{ru}Лидер-{zh-tw}領袖{zh-cn}领袖{ko}지도자-{es}Líder-{fr}Chef-{pt-br}Líder-{de}Leiter-", setup.cityLevels[a]}))
 					else
-						if a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Volkare-{ru}Волкар-{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어-{es}Volkare-{fr}Volkare-{pt-br}Volkare-{de}Volkare-", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+						if a==setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
+							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Volkare-{ru}Волкар-{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어-{es}Volkare-{fr}Volkare-{pt-br}Volkare-{de}Volkare-", setup.cityLevels[a]}))
 						else
-							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}City-{ru}Город-{zh-tw}城市{zh-cn}城市{ko}도시-{es}Ciudad-{fr}Ville-{pt-br}Cidade-{de}Stadt-", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}City-{ru}Город-{zh-tw}城市{zh-cn}城市{ko}도시-{es}Ciudad-{fr}Ville-{pt-br}Cidade-{de}Stadt-", setup.cityLevels[a]}))
 						end
 					end
-					UI.setAttribute("MegapolisLeft", "active", "false")
-					UI.setAttribute("MegapolisRight", "active", "false")
+
 				end
 			else
 				UI.setAttribute("CL"..a, "active", "false")
 			end
 		end
-		if #scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels<=3 then layout=layout.." 28" end
+		if #setup.cityLevels<=3 then layout=layout.." 28" end
 		UI.setAttribute("CityLevelschange", "columnWidths", layout)
 		UI.setAttribute("CityLevelschange", "active", "true")
 	elseif currentCitySetup.cityTiles==0 then
@@ -1277,7 +1278,7 @@ function scenarioInfoUpdate()
 		UI.setAttribute("volkareCampAsCity", "interactable", "False")
 		UI.setAttribute("volkareCampAsCity", "isOn", "false")
 		gStates.volkareCampAsCity=false
-	elseif #scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels==5 and gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The War of Four" then
+	elseif #setup.cityLevels==5 and gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The War of Four" then
 		UI.setAttribute("volkareCampAsCity", "interactable", "False")
 		UI.setAttribute("volkareCampAsCity", "isOn", "true")
 		gStates.volkareCampAsCity=true
@@ -1300,7 +1301,7 @@ function scenarioInfoUpdate()
 		end
 	end
 	--Display the Scenario End rules
-	UI.setAttribute("ScenarioEnd", "text", scenarioList[gStates.scenarioRef].scenarioDetails.scenarioEnd)
+	UI.setAttribute("ScenarioEnd", "text", details.scenarioEnd)
 	refreshScenarioTerrainTweakLocks()
 	--Only allow Start button if the current player selection is legal
 	refreshSetupStartButton()
@@ -1437,37 +1438,5 @@ end
 --Rebuild it from the saved game state after restoring the general setup snapshot.
 function restoreMageKnightSetupSection()
 	if gStates==nil then return end
-	local volkareOn=gStates.positionMageKnight~=nil and gStates.positionMageKnight[5]=="Volkare"
-	if volkareOn==true then
-		UI.setAttribute("DummyPosText","text",SETUP_TEXT.volkareSkills)
-		local skillText=translateWord[gStates.volkareSkills or "Random"] or translateWord["Random"]
-		if skillText~=nil then UI.setAttribute("dummyMKSelectionText","text",skillText) end
-		UI.setAttribute("dummyMKSelection","interactable","true")
-		UI.setAttribute("dummyMKSelectionImage","image","Sliced Button/Button New Active")
-		UI.setAttribute("VolkareLevelSelectionRow","active","true")
-		UI.setAttribute("MageKnightDetails","height","210")
-		UI.setAttribute("Setup1Details","height","436")
-		UI.setAttribute("Setup2Details","height","436")
-		UI.setAttribute("Setup1DetailsSub","height","376")
-		UI.setAttribute("Setup2DetailsSub","height","376")
-		if gStates.gameScenario~="The War of Four" then
-			UI.setAttribute("VolkareRaceSelectionRow","active","true")
-			UI.setAttribute("MageKnightDetails","height","240")
-			UI.setAttribute("Setup1Details","height","406")
-			UI.setAttribute("Setup2Details","height","406")
-			UI.setAttribute("Setup1DetailsSub","height","346")
-			UI.setAttribute("Setup2DetailsSub","height","346")
-		else
-			UI.setAttribute("VolkareRaceSelectionRow","active","false")
-		end
-	else
-		UI.setAttribute("VolkareLevelSelectionRow","active","false")
-		UI.setAttribute("VolkareRaceSelectionRow","active","false")
-		UI.setAttribute("MageKnightDetails","height","180")
-		UI.setAttribute("Setup1Details","height","466")
-		UI.setAttribute("Setup2Details","height","466")
-		UI.setAttribute("Setup1DetailsSub","height","406")
-		UI.setAttribute("Setup2DetailsSub","height","406")
-		UI.setAttribute("DummyPosText","text",SETUP_TEXT.dummyMageKnight)
-	end
+	renderDummySetupSection()
 end
