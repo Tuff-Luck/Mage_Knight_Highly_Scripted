@@ -250,12 +250,13 @@ function playerSetup()
 							if gStates.positionMageKnight[5]=="Volkare" then
 								local cityBag=getObjectFromGUID(GUID.bag.terrain.leftCity)
 								if cityBag==nil then error("Volkare setup missing City terrain bag",2) end
-								if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
+								if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" then
 									--Keep the Camp out of the map zone until mapSetup is ready to reveal it.
+									--Quest now uses the same staging rule so its Camp cannot begin a separate reveal timer.
 									local bagPos=cityBag.getPosition()
 									params.position={bagPos.x,bagPos.y+2,bagPos.z}
 								else
-									params.position={-12.0297, 2.0,  8.8586}--Volkare's Quest and The War of Four camp tile position
+									params.position={-12.0297, 2.0,  8.8586}--The War of Four camp tile position
 								end
 								terrainTiles["835c91"].hexFeature.center=""
 								gStates.hexOverideSave["835c91"]={center=""}
