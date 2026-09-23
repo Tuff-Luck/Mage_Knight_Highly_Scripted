@@ -366,7 +366,7 @@ local function combatMonsterDiscardDestination(playAreaObj)
 	return discardGUID~=nil and getObjectFromGUID(discardGUID) or nil,route
 end
 
-local function combatDiscardMonsterlocal function combatDiscardMonster(playAreaObj, giveRewards, context)
+local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	if playAreaObj==nil then return false end
 	context=context or {}
 	local cleanupPlayer=context.player or gStates.turnNumber
@@ -416,8 +416,7 @@ local function combatDiscardMonsterlocal function combatDiscardMonster(playAreaO
 		if monsters[monsterGUID]~=nil then
 			monsters[monsterGUID]="dead"
 			if monsters.extra~=nil and (monsters.extra.megapolisPair==nil or monsters.extra.megapolisPair~=cityguid) then
-				local cityZone={[cityModel.blue]=GUID.zone.blueCity,[cityModel.red]=GUID.zone.redCity,[cityModel.green]=GUID.zone.greenCity,[cityModel.white]=GUID.zone.whiteCity,[volkare.terrainHex]=volkare.discZone}
-				local cityZoneObj=cityZone[cityguid]~=nil and getObjectFromGUID(cityZone[cityguid]) or nil
+				local cityZoneObj=combatCityZones[cityguid]~=nil and getObjectFromGUID(combatCityZones[cityguid]) or nil
 				if cityZoneObj~=nil then
 					local zonePos=cityZoneObj.getPosition()
 					local location={zonePos[1]+(-2+monsters.extra.shieldsThere),1.13,zonePos[3]+1}
