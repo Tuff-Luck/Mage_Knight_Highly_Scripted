@@ -53,6 +53,17 @@ In general:
 - Keep derived runtime caches outside `gStates` and rebuild them after load.
 - When saved metadata and the stable physical table genuinely disagree because a player deliberately changed the table, prefer the table unless that metadata represents hidden/history state rather than duplicated physical state.
 
+
+### Digital map consolidation follow-up
+
+The Movement Calculator and automated-player movement should converge on one rebuildable digital-map representation derived from the physical table. Do not create another saved `gStates` copy of that map.
+
+Two Combat paths are intentionally deferred until that shared map is ready:
+- `pursuingRampagers()` / its hex legality checks currently rescan physical map objects while testing pursuit routes. Refactor this to query the same digital map used by Movement and AI rather than inventing a Combat-only spatial model.
+- End-of-combat scenario completion checks for Mines Liberation, Dungeon Lords, Realm of the Dead, Lost Relic and related shield/site counts currently inspect the physical map directly. Where the shared digital map can represent the needed terrain/site/shield facts without losing legal mid-turn state, use it for those counts too.
+
+Keep these as derived-runtime optimizations. The physical table remains authoritative, and the digital map must be rebuildable after load.
+
 ## Blitz scenario conventions
 
 The Blitz representation predates most custom scenarios. It was introduced because **Conquest** has genuinely different scenario values when Blitz is enabled (for example rounds, terrain counts/map shape and city levels), so Blitz cannot be treated only as a generic setup flag.
