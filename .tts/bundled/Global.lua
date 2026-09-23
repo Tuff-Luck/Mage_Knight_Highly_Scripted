@@ -1093,45 +1093,49 @@ local function handleMapLocationZoneEnter(ctx)
 
 end
 
+function refreshRampagerMapVisual(obj)
+	if obj==nil or monsterPugs[obj.guid]==nil or (gStates.rampageAmbush~=true and gStates.rampagePursuit~=true) then return end
+	local objGUID=obj.guid
+	local existingButtons=obj.UI.getXmlTable() or {}
+	local keptButtons={}
+	local uiChanged=false
+	for _, xmlParent in pairs(existingButtons) do
+		if xmlParent.tag=="Image" then uiChanged=true else keptButtons[#keptButtons+1]=xmlParent end
+	end
+	existingButtons=keptButtons
+	--Ambushing Circle
+	if gStates.ambushingMonsters[objGUID]~=nil then
+		uiChanged=true
+		existingButtons[#existingButtons+1]={tag="Image", attributes={id="Ambush Circle", height=1100, width=1100,
+			position="0 0 -1", rotation="0 0 0", image="Ambush Circle"}}
+	end
+	--pursuit Shield
+	for mage1, monsters in pairs(gStates.pursuingMonsters) do
+		if monsters[objGUID]~=nil then
+			for _, mage2 in pairs(mageKnights) do
+				if mage2.mage==mage1 then
+					uiChanged=true
+					existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursue Shield", height=90, width=90,
+						position="0 0 -15", rotation="0 0 180", image="Shield Button "..mage1}}
+					local pursuit=monsters[objGUID]
+					if pursuit.stunned==true or pursuit.state=="Stunned" then existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageURL}} end
+				end
+			end
+		end
+	end
+	if uiChanged==true then
+		if #existingButtons==0 then existingButtons={{}} end
+		obj.UI.setXmlTable(existingButtons)
+	end
+end
+
 local function handleMapVisualZoneEnter(ctx)
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
-	--Add xml Image back to Pursuing and Ambushing monster tokens. Non-monsters entering the map
-	--never need this Object UI pass, which is relatively expensive in TTS.
-	if zoneGUID==mapArea and monsterPugs[objGUID]~=nil and (gStates.rampageAmbush==true or gStates.rampagePursuit==true) then
-		local existingButtons=obj.UI.getXmlTable() or {}
-		local keptButtons={}
-		local uiChanged=false
-		for _, xmlParent in pairs(existingButtons) do
-			if xmlParent.tag=="Image" then uiChanged=true else keptButtons[#keptButtons+1]=xmlParent end
-		end
-		existingButtons=keptButtons
-		--Ambushing Circle
-		if gStates.ambushingMonsters[objGUID]~=nil then
-			uiChanged=true
-			existingButtons[#existingButtons+1]={tag="Image", attributes={id="Ambush Circle", height=1100, width=1100,
-				position="0 0 -1", rotation="0 0 0", image="Ambush Circle"}}
-		end
-		--pursuit Shield
-		for mage1, monsters in pairs(gStates.pursuingMonsters) do
-			if monsters[objGUID]~=nil then
-				for _, mage2 in pairs(mageKnights) do
-					if mage2.mage==mage1 then
-						uiChanged=true
-						existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursue Shield", height=90, width=90,
-							position="0 0 -15", rotation="0 0 180", image="Shield Button "..mage1}}
-						local pursuit=monsters[objGUID]
-						if pursuit.stunned==true or pursuit.state=="Stunned" then existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageURL}} end
-					end
-				end
-			end
-		end
-		if uiChanged==true then
-			if #existingButtons==0 then existingButtons={{}} end
-			obj.UI.setXmlTable(existingButtons)
-		end
-	end
+	--Map entry normally restores Rampager UI. Scripted deployment can register Ambush/Pursuit
+	--state just after this event, so playRampagingTokens() also calls the same helper once registered.
+	if zoneGUID==mapArea then refreshRampagerMapVisual(obj) end
 
 	--Remove transient decals from anything entering the map, but only write the decal table back
 	--when at least one decal actually needs removing.
@@ -21292,9 +21296,12 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			UI.setAttribute("zigguratPyramidInteractClimb2","interactable","true")
 			UI.setAttribute("zigguratPyramidInteractFight2Image","color","White")
 			UI.setAttribute("zigguratPyramidInteractFight2","interactable","true")
-			drawMonster(trapBag, turnOrder[gStates.turnNumber], id)
+			--Ascend first, then deploy both Floor 2 traps on that row. drawMonster() can now
+			--complete immediately when the pool is ready, so changing rows between the two draws
+			--would leave the first trap behind on Floor 1.
 			gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5
 			gStates.monsterOffsetX=0
+			drawMonster(trapBag, turnOrder[gStates.turnNumber], id)
 			safeWaitFrames("Combat",function() drawMonster(trapBag, turnOrder[gStates.turnNumber], id) end, 10)
 		end
 		if id=="zigguratPyramidInteractClimb2" then
@@ -24932,16 +24939,28 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 						markMonsterFactionSubstitute(token, tokenFaction)
 						gStates.monsterPlayLocation[token.guid]=params.position
 						gStates.rampagingMonsters[token.guid]=true
+						local rampagerVisualRegistered=false
 						if gStates.rampageAmbush==true and gStates.tacticShown==false and dropped==true and explorationEffectsEligible==true then
 							gStates.ambushingMonsters[token.guid]=params.position
+							rampagerVisualRegistered=true
 						end
 						if gStates.rampagePursuit==true and gStates.tacticShown==false and dropped==true and explorationEffectsEligible==true and turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] then
 							for _, mage in pairs(mageKnights) do
 								if mage.mage==turnOrder[gStates.turnNumber].mage then
 									if gStates.pursuingMonsters[mage.mage]==nil then gStates.pursuingMonsters[mage.mage]={} end
 									gStates.pursuingMonsters[mage.mage][token.guid]={state="Deployed", location=params.position}
+									rampagerVisualRegistered=true
 								end
 							end
+						end
+						--takeObject() can cross the map zone before the Ambush/Pursuit state above is recorded.
+						--Refresh from the final registered state instead of relying on that earlier zone event.
+						if rampagerVisualRegistered==true and refreshRampagerMapVisual~=nil then
+							local tokenGUID=token.guid
+							safeWaitFrames("Map",function()
+								local liveToken=getObjectFromGUID(tokenGUID)
+								if liveToken~=nil then refreshRampagerMapVisual(liveToken) end
+							end,1)
 						end
 						--brutal red city
 						if gStates.gameScenario=="The Chaos Rift" and obj.guid==GUID.tile.city08 and monsterPugs[token.guid].brutal==nil then
@@ -35067,7 +35086,7 @@ function mapSetup(onComplete)
 	local furyCityTilePos={}
 	local furyRevealGUIDs={}
 	local furyLairTile=nil
-	local standardRevealBatches={{},{},{}}
+	local standardRevealBatches={{},{},{},{}}
 	local againstHorsemenStartGUID=nil
 	if furyMap then
 		--Exact predefined layouts from the Fury scenario sheet. Place every selected tile face down first;
@@ -35565,7 +35584,16 @@ function mapSetup(onComplete)
 			local thirdStart=takeStartingCountry({position={-30.0303,1.07,-14.0000},rotation=rot,smooth=false})
 			if thirdStart~=nil then standardRevealBatches[3][#standardRevealBatches[3]+1]={guid=thirdStart.guid} end
 		end
-		if gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
+		if gStates.gameScenario=="Volkare's Quest" then
+			local camp=getObjectFromGUID("835c91")
+			if camp~=nil then
+				--Player setup stages the Camp off-map so entering the map zone cannot start an independent
+				--terrain reveal. Put it down only after the normal three starting-terrain reveals are queued,
+				--then give it its own final reveal batch.
+				camp.setPosition({-12.0297,1.15,8.8586})
+				standardRevealBatches[4][#standardRevealBatches[4]+1]={guid=camp.guid}
+			end
+		elseif gStates.gameScenario=="The War of Four" then
 			local camp=getObjectFromGUID("835c91")
 			if camp~=nil then camp.setPosition({-12.0297,1.15,8.8586}) standardRevealBatches[3][#standardRevealBatches[3]+1]={guid=camp.guid} end
 		end
@@ -36521,12 +36549,13 @@ function playerSetup()
 							if gStates.positionMageKnight[5]=="Volkare" then
 								local cityBag=getObjectFromGUID(GUID.bag.terrain.leftCity)
 								if cityBag==nil then error("Volkare setup missing City terrain bag",2) end
-								if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
+								if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" then
 									--Keep the Camp out of the map zone until mapSetup is ready to reveal it.
+									--Quest now uses the same staging rule so its Camp cannot begin a separate reveal timer.
 									local bagPos=cityBag.getPosition()
 									params.position={bagPos.x,bagPos.y+2,bagPos.z}
 								else
-									params.position={-12.0297, 2.0,  8.8586}--Volkare's Quest and The War of Four camp tile position
+									params.position={-12.0297, 2.0,  8.8586}--The War of Four camp tile position
 								end
 								terrainTiles["835c91"].hexFeature.center=""
 								gStates.hexOverideSave["835c91"]={center=""}
