@@ -567,6 +567,120 @@ function coopLeaderScenarioEndAchieved()
 	return false
 end
 
+local combatCleanupMineTiles={
+	[GUID.tile.core02]=true,[GUID.tile.core04]=true,[GUID.tile.core03]=true,[GUID.tile.country03]=true,
+	[GUID.tile.country06]=true,[GUID.tile.country02]=true,[GUID.tile.country05]=true,[GUID.tile.city08]=true,
+	[GUID.tile.country13]=true,[GUID.tile.country14]=true,[GUID.tile.country15]=true,[GUID.tile.country17]=true,[GUID.tile.core10]=true
+}
+local combatCleanupDungeonTombTiles={
+	[GUID.tile.core01]=true,[GUID.tile.core03]=true,[GUID.tile.country07]=true,[GUID.tile.country09]=true
+}
+
+--Combat calls this only after returned enemies and shields have settled. Scenario owns victory
+--conditions and Volkare's Return defense resolution; Combat only owns when this boundary is reached.
+function scenarioCombatCleanupCheck(cleanupPlayer)
+	if gStates.endGameAchieved~="false" or gStates.tacticShown~=false then return end
+	local cleanupLocation=turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation or ""
+	local dungeonCount,dungeonHexCount=0,0
+	local mineCount,mineTileCount=0,0
+	local graveYardCount,graveYardTileCount=0,0
+	local relicCount=0
+
+	if gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="The Realm of the Dead Blitz" or
+		gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="The Lost Relic Blitz" or
+		gStates.gameScenario=="Against the Apocalypse Blitz" then
+		local map=getObjectFromGUID(mapArea)
+		local objectsInPlay=map~=nil and map.getObjects() or {}
+		table.sort(objectsInPlay,function(k1,k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
+		for _, playAreaObject in pairs(objectsInPlay) do
+			if playAreaObject.getName()=="Shield" and volkarePursuitShieldRegistered(playAreaObject)~=true then
+				local found=false
+				local shieldPos=playAreaObject.getPosition()
+				local locatedTerrain,_,_,locatedFeature=terrainHexAtPosition(shieldPos,objectsInPlay)
+				for _, terTile in pairs(objectsInPlay) do
+					local tilePos=terTile.getPosition()
+					local shieldToTileDist=math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2))
+					if terTile==locatedTerrain then
+						found=true
+						if locatedFeature=="dungeon" or locatedFeature=="tomb" then dungeonCount=dungeonCount+1 end
+						if locatedFeature=="mine" then mineCount=mineCount+1 end
+						if locatedFeature~=nil and (locatedFeature:sub(1,4)=="city" or locatedFeature=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz" then relicCount=relicCount+1 end
+					end
+					if shieldToTileDist<1 and terTile.getName()=="GraveYard" then graveYardCount=graveYardCount+1 found=true end
+					if found==true then break end
+				end
+			end
+			if terrainTiles[playAreaObject.guid]~=nil and combatCleanupMineTiles[playAreaObject.guid]==true then mineTileCount=mineTileCount+1 end
+			if playAreaObject.getName()=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
+			if terrainTiles[playAreaObject.guid]~=nil and combatCleanupDungeonTombTiles[playAreaObject.guid]==true then dungeonHexCount=dungeonHexCount+1 end
+			if playAreaObject.getName()=="Secret Tomb" or playAreaObject.getName()=="Secret Dungeon" then dungeonHexCount=dungeonHexCount+1 end
+		end
+	end
+
+	local allRituals=true
+	if gStates.gameScenario=="Druid Nights" then
+		for _, playerDetails in pairs(turnOrder) do
+			if playerDetails.mage~=gStates.positionMageKnight[5] and playerDetails.druidNightsFinalRitual~=true then allRituals=false break end
+		end
+	end
+
+	local cardInHand=false
+	if gStates.gameScenario=="Quest for the Golden Grail" and turnOrder[cleanupPlayer]~=nil then
+		local handZone=getObjectFromGUID(handZones[turnOrder[cleanupPlayer].seatPos])
+		for _, handobject in pairs(handZone~=nil and handZone.getObjects() or {}) do
+			if handobject.guid=="085e59" then cardInHand=true break end
+		end
+	end
+
+	local volkareBeaten=true
+	local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+	if volkareObj~=nil then
+		for _, state in pairs(gStates.cityMonsterQty[volkare.model]) do if state=="alive" then volkareBeaten=false break end end
+		if volkareBeaten==true then
+			local trash=getObjectFromGUID(trashCan)
+			if trash~=nil then trash.putObject(volkareObj) end
+		end
+	end
+
+	local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
+	local terrainEmpty=terrainStack~=nil and terrainStack.getQuantity()==0
+	local complete=
+		((gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest") and gStates.defeatedCities.amount==gStates.cityTiles) or
+		((gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and volkareBeaten==true) or
+		(gStates.gameScenario=="First Reconnaissance" and #gStates.citiesPlayed>=1) or
+		(gStates.gameScenario=="Ultimate Conquest" and gStates.defeatedCities.amount==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)) or
+		(gStates.gameScenario=="The Hidden Valley Blitz" and gStates.defeatedFaction==1) or
+		(gStates.gameScenario=="Mines Liberation" and terrainEmpty and mineCount==mineTileCount) or
+		(gStates.gameScenario=="Dungeon Lords" and terrainEmpty and dungeonCount==dungeonHexCount-2) or
+		(gStates.gameScenario=="The Realm of the Dead Blitz" and gStates.defeatedFaction==1 and graveYardCount==graveYardTileCount) or
+		(gStates.gameScenario=="The Lost Relic Blitz" and relicCount==gStates.cityTiles) or
+		(gStates.gameScenario=="Quest for the Golden Grail" and cleanupLocation=="portal" and cardInHand==true) or
+		(gStates.gameScenario=="The Gauntlet" and gStates.theGauntletArtifactClaimed==true) or
+		(gStates.gameScenario=="Druid Nights" and gStates.currentRound==gStates.rounds and allRituals==true) or
+		(gStates.gameScenario=="Life and Death" and gStates.defeatedFaction==2) or
+		(gStates.gameScenario=="Against the Horsemen Blitz" and againstHorsemenAllDefeated()==true) or
+		(gStates.gameScenario=="Against the Dragon Blitz" and apocalypseDragonColoredHeadsDefeated()==true) or
+		(gStates.gameScenario=="Against the Apocalypse Blitz" and againstApocalypseObjectivesComplete~=nil and againstApocalypseObjectivesComplete()==true)
+	if complete==true then
+		if gStates.coopAssaultPhase=="combat" then gStates.coopAssaultScenarioEndPending=true else scenarioEnd() end
+	end
+
+	--Judge Volkare's Return city defense only when the entire defense is complete; co-op kills are combined across all defenders.
+	local volkareReturnDefense=gStates.positionMageKnight[5]=="Volkare" and gStates.volkareState=="Attacking City" and
+		(gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz")
+	local volkareReturnDefenseFinished=volkareReturnDefense and (gStates.coopAssaultPhase~="combat" or coopAssaultPendingCombat()==false)
+	if volkareReturnDefenseFinished then
+		if gStates.volkareArmyDefeated<gStates.playerCount then
+			gStates.volkareCityDefenseMove=nil
+			local trash=getObjectFromGUID(trashCan)
+			local liveVolkare=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+			if trash~=nil and liveVolkare~=nil then trash.putObject(liveVolkare) end
+			gStates.volkareWon=true
+			mainUIUpdate("Volkare Won")
+		else volkareReturnCityDefenseMove() end
+	end
+end
+
 --Mine crystal claim: resolve before cleanup/rewards so Deep Mine choice follows the End of Turn sequence.
 mineCrystalBagKey={Red="red", Blue="blue", Green="green", White="white"}
 
