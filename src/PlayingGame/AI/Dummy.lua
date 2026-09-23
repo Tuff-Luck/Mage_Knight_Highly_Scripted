@@ -23,7 +23,7 @@ function dummyProcessTurn(dummyIndex,dummySeat)
 
 	local thirdCard=automatedDeedDraw(dummySeat,3,1)
 	local bonusDraw=0
-	if thirdCard~=nil then for _, color in ipairs(dummyCardColors(thirdCard)) do bonusDraw=bonusDraw+(crystalSnapshot[color] or 0) end end
+	if thirdCard~=nil then for _, color in ipairs(dummyCardColors(thirdCard)) do bonusDraw=math.max(bonusDraw,crystalSnapshot[color] or 0) end end
 	safeWaitTime("AI.Dummy",function()
 		automatedDeedDraw(dummySeat,bonusDraw,2)
 		safeWaitTime("AI.Dummy",function()
