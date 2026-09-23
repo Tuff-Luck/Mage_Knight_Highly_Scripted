@@ -1,5 +1,33 @@
 -- Combat, enemy staging, cooperative assault and combat reward runtime.
 
+local coopAssaultNormalText="{en}Nearby Mage Knights can choose to join this assault by skipping their next turn. This tool randomly gives the amount of defenders chosen to each player. (Remember to pay movement costs){ru}Ближайшие Рыцари-маги могут присоединиться к этому штурму, пропустив свой следующий ход. Этот инструмент случайно распределяет выбранное количество защитников между игроками. (Не забудьте оплатить стоимость движения.){zh-tw}附近的魔法騎士可以選擇加入突襲。此工具會依據數量隨機分配守軍給每位參與者。（記得支付移動點數）{zh-cn}附近的魔法骑士可以选择加入突袭。此工具会依据数量随机分配守军给每位参与者。（记得支付移动点数）{ko}근처의 메이지 나이트들은 다음 차례를 건너뛰고 이 강습에 참여할 수 있습니다. 이 도구는 선택한 수의 수비자를 각 플레이어에게 무작위로 배정합니다. (이동 비용을 지불하는 것을 잊지 마세요){es}Los Caballeros Mago cercanos pueden unirse a este asalto saltándose su próximo turno. Esta herramienta reparte al azar entre los jugadores la cantidad de defensores elegida. (Recuerda pagar los costes de movimiento){fr}Les Chevaliers-Mages proches peuvent rejoindre cet assaut en sautant leur prochain tour. Cet outil répartit aléatoirement entre les joueurs le nombre de défenseurs choisi. (N’oubliez pas de payer les coûts de mouvement){pt-br}Mage Knights próximos podem participar deste ataque pulando o próximo turno. Esta ferramenta distribui aleatoriamente entre os jogadores a quantidade escolhida de defensores. (Lembre-se de pagar os custos de movimento){de}Mage Knights in der Nähe können sich diesem Angriff anschließen, indem sie ihren nächsten Zug aussetzen. Dieses Werkzeug verteilt die gewählte Anzahl Verteidiger zufällig auf die Spieler. (Denke daran, die Bewegungskosten zu bezahlen)"
+local combatFactionRewards={
+	Dark={pile=monsterPiles.rewardDark,key="dark"},Elem={pile=monsterPiles.rewardElem,key="elementalist"},
+	Apoc={pile=monsterPiles.rewardApoc,key="apocalypse"},Coun={pile=monsterPiles.rewardCouncil,key="council"}
+}
+local combatRewardDiscardByNotes={
+	["Dark Crusader Reward"]=GUID.bag.discard.darkReward,["Elementalist Reward"]=GUID.bag.discard.elementalistReward,
+	["Apocalypse Cult Reward"]=GUID.bag.discard.apocReward,["Council of the Void Reward"]=GUID.bag.discard.councilReward
+}
+local combatCityZones={
+	[cityModel.blue]=GUID.zone.blueCity,[cityModel.red]=GUID.zone.redCity,[cityModel.green]=GUID.zone.greenCity,
+	[cityModel.white]=GUID.zone.whiteCity,[volkare.terrainHex]=volkare.discZone
+}
+local combatPursuitMageNames={Arythea=true,Braevalar=true,Goldyx=true,Krang=true,Norowas=true,Tovak=true,Wolfhawk=true,Coral=true,Ymirgh=true,Novak=true,Duscenia=true,Jormund=true,Volkare=true}
+local combatPursuitArrowRotation={[0]=270,[30]=240,[60]=210,[90]=180,[120]=150,[150]=120,[180]=90,[210]=60,[240]=30,[270]=0,[300]=330,[330]=300,[360]=270}
+local combatMonsterDiscardRoutes={
+	["Dark Crusader Draconum"]={discard=GUID.bag.discard.darkDraconum,standardDiscard=GUID.bag.discard.draconum,faction="Dark"},
+	["Dark Crusader Dungeon Monster"]={discard=GUID.bag.discard.darkDungeon,standardDiscard=GUID.bag.discard.dungeon,faction="Dark"},
+	["Marauding Dark Crusader"]={discard=GUID.bag.discard.darkMarauders,standardDiscard=GUID.bag.discard.orcs,faction="Dark"},
+	["Elementalist Draconum"]={discard=GUID.bag.discard.elementalistDraconum,standardDiscard=GUID.bag.discard.draconum,faction="Elem"},
+	["Elementalist Dungeon Monster"]={discard=GUID.bag.discard.elementalistDungeon,standardDiscard=GUID.bag.discard.dungeon,faction="Elem"},
+	["Marauding Elementalist"]={discard=GUID.bag.discard.elementalistOrcs,standardDiscard=GUID.bag.discard.orcs,faction="Elem"},
+	["Draconum"]={discard=GUID.bag.discard.draconum},["Dungeon Monster"]={discard=GUID.bag.discard.dungeon},
+	["Marauding Orcs"]={discard=GUID.bag.discard.orcs},["City Garrison"]={discard=GUID.bag.discard.cityGarrison},
+	["Ruin"]={discard=GUID.bag.discard.ruin},["Mage Tower Garrison"]={discard=GUID.bag.discard.towerGarrison},
+	["Keep Garrison"]={discard=GUID.bag.discard.keepGarrison},["Possessed"]={discard=GUID.bag.discard.possessed,possessed=true}
+}
+
 --Combat monsters may be placed either in the main Play Area or directly on a Unit.
 --Return every Play Area object plus Unit Area monsters, de-duplicated by GUID in case the zones overlap.
 function playerCombatObjects(seatPos)
@@ -51,6 +79,20 @@ function clearCoopLeaderPreviewClones()
 		if clone~=nil then clone.destruct() end
 	end
 	gStates.coopLeaderPreviewClones={}
+end
+
+function clearCoopAssaultRuntime()
+	gStates.coopAssaultPhase=nil
+	gStates.assaultData={}
+	gStates.coopAssaultUnassigned={}
+	gStates.coopAssaultParticipants={}
+	gStates.coopAssaultCityGUID=nil
+	gStates.coopAssaultLocation=nil
+	gStates.coopAssaultType=nil
+	gStates.coopAssaultInitiator=nil
+	gStates.coopAssaultConquered=nil
+	gStates.coopAssaultScenarioEndPending=false
+	gStates.coopAssaultMode=nil
 end
 
 function createCoopLeaderPreviewClones()
@@ -111,8 +153,10 @@ end
 
 function moveCoopAssaultAvatarToCityCard(playerIndex)
 	local cityGUID=gStates.coopAssaultCityGUID
-	if cityGUID==nil or gStates.cityCard[cityGUID]==nil or getObjectFromGUID(gStates.cityCard[cityGUID])==nil then return false end
-	local cardPos=getObjectFromGUID(gStates.cityCard[cityGUID]).getPosition()
+	local cardGUID=cityGUID~=nil and gStates.cityCard[cityGUID] or nil
+	local cardObj=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
+	if cardObj==nil then return false end
+	local cardPos=cardObj.getPosition()
 	local destination={cardPos[1]+(turnOrder[playerIndex].seatPos*1.83)-4.58, cardPos[2]+1, cardPos[3]-0.66}
 	local avatar=coopAssaultAvatarObject(playerIndex)
 	if avatar~=nil then avatar.setPositionSmooth(destination) end
@@ -255,8 +299,8 @@ function applyPlayerFameReputation(playerIndex)
 end
 
 function factionRewardPileGUID(faction)
-	local piles={Dark=monsterPiles.rewardDark, Elem=monsterPiles.rewardElem, Apoc=monsterPiles.rewardApoc, Coun=monsterPiles.rewardCouncil}
-	return piles[faction]
+	local reward=combatFactionRewards[faction]
+	return reward~=nil and reward.pile or nil
 end
 
 --A missing reward pile means that faction is using the Just Fame variant. An existing empty pile
@@ -309,44 +353,20 @@ function giveQueuedFactionReward(playerIndex, pileGUID)
 	if claimed~=true and reason~="justFame" then broadcastToAll("{en}No faction reward tokens remain to claim.{ru}Жетонов наград фракции для получения больше не осталось.{zh-tw}沒有剩餘的派系獎勵標記可供領取。{zh-cn}没有剩余的派系奖励标记可供领取。{ko}획득할 수 있는 세력 보상 토큰이 더 이상 없습니다.{es}No quedan fichas de recompensa de facción por reclamar.{fr}Il ne reste plus de jetons de récompense de faction à réclamer.{pt-br}Não restam fichas de recompensa de facção para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker mehr zum Beanspruchen übrig.", positionToColor(playerIndex)) end
 end
 
-local combatMonsterDiscardTokens={
-	"Dark Crusader Draconum", GUID.bag.discard.darkDraconum,
-	"Dark Crusader Dungeon Monster", GUID.bag.discard.darkDungeon,
-	"Marauding Dark Crusader", GUID.bag.discard.darkMarauders,
-	"Elementalist Draconum", GUID.bag.discard.elementalistDraconum,
-	"Elementalist Dungeon Monster", GUID.bag.discard.elementalistDungeon,
-	"Marauding Elementalist", GUID.bag.discard.elementalistOrcs,
-	"Draconum", GUID.bag.discard.draconum,
-	"Dungeon Monster", GUID.bag.discard.dungeon,
-	"Marauding Orcs", GUID.bag.discard.orcs,
-	"City Garrison", GUID.bag.discard.cityGarrison,
-	"Ruin", GUID.bag.discard.ruin,
-	"Mage Tower Garrison", GUID.bag.discard.towerGarrison,
-	"Keep Garrison", GUID.bag.discard.keepGarrison,
-	"Possessed", GUID.bag.discard.possessed
-}
-
 local function combatMonsterDiscardDestination(playAreaObj)
 	if playAreaObj==nil then return nil,nil end
 	local rotationValues=playAreaObj.getRotationValues()
 	local selected=rotationValues~=nil and rotationValues[2] or nil
 	local value=selected~=nil and selected.value or nil
-	if value==nil then return nil,nil end
-	for x=1,#combatMonsterDiscardTokens,2 do
-		if value==combatMonsterDiscardTokens[x] then
-			local discardGUID=combatMonsterDiscardTokens[x+1]
-			if x<=6 and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Realm of the Dead Blitz" then
-				discardGUID=combatMonsterDiscardTokens[x+13]
-			elseif x>=7 and x<=12 and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Hidden Valley Blitz" then
-				discardGUID=combatMonsterDiscardTokens[x+7]
-			end
-			return discardGUID~=nil and getObjectFromGUID(discardGUID) or nil,x
-		end
-	end
-	return nil,nil
+	local route=value~=nil and combatMonsterDiscardRoutes[value] or nil
+	if route==nil then return nil,nil end
+	local discardGUID=route.discard
+	if route.faction=="Dark" and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Realm of the Dead Blitz" then discardGUID=route.standardDiscard end
+	if route.faction=="Elem" and gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Hidden Valley Blitz" then discardGUID=route.standardDiscard end
+	return discardGUID~=nil and getObjectFromGUID(discardGUID) or nil,route
 end
 
-local function combatDiscardMonster(playAreaObj, giveRewards, context)
+local function combatDiscardMonsterlocal function combatDiscardMonster(playAreaObj, giveRewards, context)
 	if playAreaObj==nil then return false end
 	context=context or {}
 	local cleanupPlayer=context.player or gStates.turnNumber
@@ -368,28 +388,26 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		return true
 	end
 
-	local discardBag,x=combatMonsterDiscardDestination(playAreaObj)
-	if discardBag==nil or x==nil then return false end
+	local discardBag,route=combatMonsterDiscardDestination(playAreaObj)
+	if discardBag==nil or route==nil then return false end
 	playAreaObj.setRotation({0,180,0})
 	local summoned=gStates.summonStates~=nil and gStates.summonStates[monsterGUID]=="summoned"
 
-	if x<=6 then
+	if route.faction=="Dark" or route.faction=="Elem" then
 		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
-			local claimed,reason=awardFactionRewardToken(cleanupPlayer,monsterPiles.rewardDark,context.coopCombatReward,"dark")
-			if claimed~=true and reason=="empty" then broadcastToAll("{en}Sorry, there are no more Dark Crusader Faction Reward Tokens to claim.{ru}Извините, жетонов наград фракции Тёмных крестоносцев больше не осталось.{zh-tw}抱歉，沒有更多黑暗十字軍派系獎勵標記可供領取。{zh-cn}抱歉，没有更多黑暗十字军派系奖励标记可供领取。{ko}죄송합니다. 획득할 수 있는 다크 크루세이더 세력 보상 토큰이 더 이상 없습니다.{es}Lo sentimos, no quedan fichas de recompensa de la facción Cruzados Oscuros por reclamar.{fr}Désolé, il ne reste plus de jetons de récompense de la faction Croisés Sombres à réclamer.{pt-br}Desculpe, não restam fichas de recompensa da facção Cruzados Sombrios para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker der Dunklen Kreuzritter mehr zum Beanspruchen übrig.",positionToColor(cleanupPlayer)) end
+			local reward=combatFactionRewards[route.faction]
+			local claimed,reason=awardFactionRewardToken(cleanupPlayer,reward.pile,context.coopCombatReward,reward.key)
+			if claimed~=true and reason=="empty" then
+				local message=route.faction=="Dark" and "{en}Sorry, there are no more Dark Crusader Faction Reward Tokens to claim.{ru}Извините, жетонов наград фракции Тёмных крестоносцев больше не осталось.{zh-tw}抱歉，沒有更多黑暗十字軍派系獎勵標記可供領取。{zh-cn}抱歉，没有更多黑暗十字军派系奖励标记可供领取。{ko}죄송합니다. 획득할 수 있는 다크 크루세이더 세력 보상 토큰이 더 이상 없습니다.{es}Lo sentimos, no quedan fichas de recompensa de la facción Cruzados Oscuros por reclamar.{fr}Désolé, il ne reste plus de jetons de récompense de la faction Croisés Sombres à réclamer.{pt-br}Desculpe, não restam fichas de recompensa da facção Cruzados Sombrios para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker der Dunklen Kreuzritter mehr zum Beanspruchen übrig." or "{en}Sorry, there are no more Elementalist Faction Reward Tokens to claim.{ru}Извините, жетонов наград фракции Элементалистов больше не осталось.{zh-tw}抱歉，沒有更多元素使派系獎勵標記可供領取。{zh-cn}抱歉，没有更多元素使派系奖励标记可供领取。{ko}죄송합니다. 획득할 수 있는 엘리멘탈리스트 세력 보상 토큰이 더 이상 없습니다.{es}Lo sentimos, no quedan fichas de recompensa de la facción Elementalista por reclamar.{fr}Désolé, il ne reste plus de jetons de récompense de la faction Élémentaliste à réclamer.{pt-br}Desculpe, não restam fichas de recompensa da facção Elementalista para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker der Elementalisten mehr zum Beanspruchen übrig."
+				broadcastToAll(message,positionToColor(cleanupPlayer))
+			end
 		end
-	elseif x>=7 and x<=12 then
-		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
-			local claimed,reason=awardFactionRewardToken(cleanupPlayer,monsterPiles.rewardElem,context.coopCombatReward,"elementalist")
-			if claimed~=true and reason=="empty" then broadcastToAll("{en}Sorry, there are no more Elementalist Faction Reward Tokens to claim.{ru}Извините, жетонов наград фракции Элементалистов больше не осталось.{zh-tw}抱歉，沒有更多元素使派系獎勵標記可供領取。{zh-cn}抱歉，没有更多元素使派系奖励标记可供领取。{ko}죄송합니다. 획득할 수 있는 엘리멘탈리스트 세력 보상 토큰이 더 이상 없습니다.{es}Lo sentimos, no quedan fichas de recompensa de la facción Elementalista por reclamar.{fr}Désolé, il ne reste plus de jetons de récompense de la faction Élémentaliste à réclamer.{pt-br}Desculpe, não restam fichas de recompensa da facção Elementalista para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker der Elementalisten mehr zum Beanspruchen übrig.",positionToColor(cleanupPlayer)) end
-		end
-	elseif x==27 then
+	elseif route.possessed==true then
 		local possessedFaction=(gStates.apocalypsePossessedFactionByToken~=nil and gStates.apocalypsePossessedFactionByToken[monsterGUID]) or "Apoc"
-		local possessedRewards={Dark={pile=monsterPiles.rewardDark,key="dark"},Elem={pile=monsterPiles.rewardElem,key="elementalist"},Apoc={pile=monsterPiles.rewardApoc,key="apocalypse"},Coun={pile=monsterPiles.rewardCouncil,key="council"}}
-		local rewardData=possessedRewards[possessedFaction] or possessedRewards.Apoc
+		local reward=combatFactionRewards[possessedFaction] or combatFactionRewards.Apoc
 		if giveRewards==true and summoned~=true and playAreaObj.is_face_down==false then
-			local claimed,reason=awardFactionRewardToken(cleanupPlayer,rewardData.pile,context.coopCombatReward,rewardData.key)
-			if claimed~=true and reason=="empty" then broadcastToAll("{en}Sorry, there are no more Faction Reward Tokens to claim.{ru}Извините, жетонов наград фракции больше не осталось.{zh-tw}抱歉，沒有更多派系獎勵標記可供領取。{zh-cn}抱歉，没有更多派系奖励标记可供领取。{ko}죄송합니다. 획득할 수 있는 세력 보상 토큰이 더 이상 없습니다.{es}Lo sentimos, no quedan fichas de recompensa de facción por reclamar.{fr}Désolé, il ne reste plus de jetons de récompense de faction à réclamer.{pt-br}Desculpe, não restam fichas de recompensa de facção para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker mehr zum Beanspruchen übrig.",positionToColor(cleanupPlayer)) end
+			local claimed,reason=awardFactionRewardToken(cleanupPlayer,reward.pile,context.coopCombatReward,reward.key)
+			if claimed~=true and reason=="empty" then broadcastToAll("{en}Sorry, there are no more Faction Reward Tokens to claim.{ru}Извините, жетонов наград фракции больше не осталось.{zh-tw}抱歉，沒有更多派系獎勵標記可供領取。{zh-cn}抱歉，没有更多派系奖励标记可供领取。{ko}죄송합니다. 획득할 수 있는 세력 보상 토큰이 더 이상 없습니다.{es}Lo sentimos, no quedan fichas de recompensa de facción por reclamar.{fr}Désolé, il ne reste plus de jetons de récompense de faction à réclamer.{pt-br}Desculpe, não restam fichas de recompensa da facção para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker mehr zum Beanspruchen übrig.",positionToColor(cleanupPlayer)) end
 		end
 		if gStates.apocalypsePossessedFactionByToken~=nil then gStates.apocalypsePossessedFactionByToken[monsterGUID]=nil end
 	end
@@ -455,10 +473,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 				local shieldPos={avatarPos[1],2,avatarPos[3]}
 				local shieldRotation=nil
 				if cleanupLocation=="ziggurat" or cleanupLocation=="pyramid" then
-					local floor=nil
-					if UI.getAttribute("zigguratPyramidInteractFight1Image","color")=="Yellow" then floor=1 end
-					if UI.getAttribute("zigguratPyramidInteractFight2Image","color")=="Yellow" then floor=2 end
-					if UI.getAttribute("zigguratPyramidInteractFight3Image","color")=="Yellow" then floor=3 end
+					local floor=gStates.zigguratPyramidFightFloor
 					local terrain,_,sitePos=terrainHexAtPosition(avatarPos)
 					if terrain~=nil then shieldRotation={0,terrain.getRotation()[2],0} end
 					if floor~=nil then shieldPos=zigguratPyramidFloorPosition(terrain,sitePos or avatarPos,floor) end
@@ -607,16 +622,9 @@ function advanceCoopRewardPhase()
 		showCoopReward()
 	else
 		local scenarioEndPending=gStates.coopAssaultScenarioEndPending==true
-		gStates.coopAssaultPhase=nil
 		gStates.coopRewardQueue={}
 		gStates.coopRewardIndex=1
-		gStates.coopAssaultParticipants={}
-		gStates.coopAssaultCityGUID=nil
-		gStates.coopAssaultLocation=nil
-		gStates.coopAssaultType=nil
-		gStates.coopAssaultInitiator=nil
-		gStates.coopAssaultConquered=nil
-		gStates.coopAssaultScenarioEndPending=false
+		clearCoopAssaultRuntime()
 		gStates.preEndTurn=false
 		rewardClaimSoftLockClear()
 		if scenarioEndPending then
@@ -763,21 +771,13 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			or turnOrder[cleanupPlayer].avatarLocation=="monastery"
 			or (againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(cleanupPlayer)==true
 				and againstDragonAirborneProtectionDestroysSite~=nil and againstDragonAirborneProtectionDestroysSite(turnOrder[cleanupPlayer].avatarLocation)==true) then
-			for _, b in pairs(mageKnights) do
-				if b.mage==turnOrder[cleanupPlayer].mage then
-					if getObjectFromGUID(b.model)~=nil then avatarModel=getObjectFromGUID(b.model) end
-					if getObjectFromGUID(b.token)~=nil then avatarModel=getObjectFromGUID(b.token) end
-					if getObjectFromGUID(b.standee)~=nil then avatarModel=getObjectFromGUID(b.standee) end
-					if avatarModel~=nil then
-						avatarPos=avatarModel.getPosition()
-						avatarModel.setPosition({avatarPos[1], avatarPos[2]+2, avatarPos[3]})
-						avatarModel.lock()
-					end
-					tokenRaised=cleanupPlayer
-					break
-				end
+			avatarModel=mageKnightAvatarObject(cleanupPlayer,false)
+			if avatarModel~=nil then
+				avatarPos=avatarModel.getPosition()
+				avatarModel.setPosition({avatarPos[1],avatarPos[2]+2,avatarPos[3]})
+				avatarModel.lock()
+				tokenRaised=cleanupPlayer
 			end
-		end
 
 		--return dice function needed twice
 		local function returnDice(diceGUID)
@@ -801,10 +801,10 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			if deckSearch.type=="Card" or deckSearch.type=="Deck" then cardDestination=deckSearch break end
 		end
 
-		--seperate any decks and possessed tokens found. Unit Area monsters use the same combat cleanup path.
+		--separate any decks and possessed tokens found. Unit Area monsters use the same combat cleanup path.
 		local tokenWait=0
 		for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
-			--seperate decks
+			--separate decks
 			if playAreaObj.type=="Deck" then
 				for count=1, #playAreaObj.getObjects()-1, 1 do
 					playAreaObj.takeObject({position={playAreaObj.getPosition()[1]+(0.8*count), playAreaObj.getPosition()[2]+(0.06*count), playAreaObj.getPosition()[3]+(0.8*count)}, smooth=false})
@@ -838,7 +838,6 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			--face up, so checking them here would incorrectly count an untouched/failed fight as success.
 			for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
 				local cleanupObjectGUID=playAreaObj.guid
-				safeWaitFrames("Combat",function() tokenRefill() end, tokenWait+1)
 				safeWaitFrames("Combat",function()
 					--Returning an airborne Dragon head restores its real image with reload(), which invalidates
 					--the old TTS Object userdata for all four captured head objects. Identify them by GUID before
@@ -1017,113 +1016,19 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 					end
 
 					--Discard Reward Tokens
-					local tokens={["Dark Crusader Reward"]=GUID.bag.discard.darkReward, ["Elementalist Reward"]=GUID.bag.discard.elementalistReward, ["Apocalypse Cult Reward"]=GUID.bag.discard.apocReward, ["Council of the Void Reward"]=GUID.bag.discard.councilReward}
-					if tokens[playAreaObj.getGMNotes()]~=nil then
-						playAreaObj.setRotation({0, 180, 180})
-						getObjectFromGUID(tokens[playAreaObj.getGMNotes()]).putObject(playAreaObj)
+					local rewardDiscardGUID=combatRewardDiscardByNotes[playAreaObj.getGMNotes()]
+					if rewardDiscardGUID~=nil then
+						playAreaObj.setRotation({0,180,180})
+						local rewardDiscard=getObjectFromGUID(rewardDiscardGUID)
+						if rewardDiscard~=nil then rewardDiscard.putObject(playAreaObj) end
 					end
 
-					--Discard or delete players cards
-					if playAreaObj.type=="Card" then
-						--Check for and leave banner Cards
-						local found=false
-						if gameCards[playAreaObj.guid]~=nil and gameCards[playAreaObj.guid].full~=nil then gStates.bannercard[playAreaObj.guid]="played" found=true end
-						--Steady Tempo stays in the play area during cleanup so the player can choose
-						--Discard / bottom of Deed deck / top of Deed deck. Cover both physical copies.
-						if (playAreaObj.guid=="1f362f" or playAreaObj.guid=="6e506a") and cardEffectIsVertical(playAreaObj)==true then
-							found=true gStates.turnForfeited=false
-							if playAreaObj.is_face_down==false then steadyTempoPrepare(playAreaObj, cleanupPlayer) end
-						elseif playAreaObj.guid=="085e69" or playAreaObj.guid=="7ebe5e"
-							and playAreaObj.getRotation()[2]>175 and playAreaObj.getRotation()[2]<185
-							and (playAreaObj.is_face_down==false) then found=true gStates.turnForfeited=false end--Mysterious Box and Crystal Joy
-						if playAreaObj.getDescription()=="Quest" then found=true gStates.turnForfeited=false end
-						--Check if the card is registered to the player and place on deed pile
-						if found==false then
-							gStates.turnForfeited=false
-							--Delete face down cards
-							if playAreaObj.is_face_down==true then
-								getObjectFromGUID(trashCan).putObject(playAreaObj)
-							else
-								for x=1,#turnOrder[cleanupPlayer].deadDeckInventory, 1 do
-									if playAreaObj.guid==turnOrder[cleanupPlayer].deadDeckInventory[x] then
-										if gStates.timeBending=="Started" and cleanupPlayer==gStates.realTurn then
-											if playAreaObj.guid==timeBendingGUID then
-												gStates.timeBendingRemovedSeat=turnOrder[cleanupPlayer].seatPos
-												getObjectFromGUID(trashCan).putObject(playAreaObj)
-												broadcastToAll("{en}Time Bend Left Play{ru}«Изгиб времени» покинул игру{zh-tw}「時間彎曲」離開遊戲區{zh-cn}“时间弯曲”离开游戏区{ko}시간 왜곡이 플레이 영역을 떠났습니다{es}Curvatura Temporal salió del juego{fr}Courbure du Temps a quitté le jeu{pt-br}Dobra Temporal saiu de jogo{de}Zeitkrümmung hat das Spiel verlassen", positionToColor(cleanupPlayer))
-											else
-												playAreaObj.setRotation({0.0, 180.0, 0.0})
-												playAreaObj.setPosition({(turnOrder[cleanupPlayer].seatPos*40)-100, 4, -48.40})
-											end
-										else
-											if cardDestination==nil then
-												playAreaObj.setRotation({0.0, 180.0, 0.0})
-												playAreaObj.setPosition({(turnOrder[cleanupPlayer].seatPos*40)-110.54, 1.12, -43.20})
-												cardDestination=playAreaObj
-											else
-												playAreaObj.setPosition({playAreaObj.getPosition()[1], 1.9, playAreaObj.getPosition()[3]})
-												cardDestination=cardDestination.putObject(playAreaObj)
-											end
-										end
-										break
-									end
-								end
-							end
-						end
-					end
-
-					--Cleanup Skills. A Coop Skill can change state/GUID shortly after leaving its container in
-					--competitive play. Resolve that replacement before touching the object or its saved home.
-					local originalSkillGUID=playAreaObj.guid
-					local cleanupSkillGUID=(skillStateReplacement~=nil and skillStateReplacement[originalSkillGUID]) or originalSkillGUID
-					local cleanupSkillDetails=skillTokens[cleanupSkillGUID] or skillTokens[originalSkillGUID]
-					if cleanupSkillDetails~=nil then
-						local cleanupSkill=getObjectFromGUID(cleanupSkillGUID)
-						local cleanupSkillHome=gStates.mageSkills~=nil and gStates.mageSkills[cleanupSkillGUID] or nil
-						--Flip all per round skills in current play area face down.
-						if cleanupSkill~=nil and cleanupSkillDetails.skillType=="Round" then
-							cleanupSkill.setRotationSmooth({0.0, 180.0, 180.0})
-						end
-						--Return all non Coop/Comp Skills only when both the live object and its recorded home still exist.
-						if cleanupSkill~=nil and cleanupSkillHome~=nil and (cleanupSkillDetails.skillType=="Round" or cleanupSkillDetails.skillType=="Turn") then
-							cleanupSkill.setPositionSmooth({cleanupSkillHome[1], 1.5, cleanupSkillHome[3]})
-						end
-						--stop motivation Skills
-						if cleanupSkillHome~=nil and gStates.motivationSkill[cleanupSkillGUID]~=nil then
-							gStates.motivationSkill[cleanupSkillGUID].state="used"
-						end
-						--increment master of Chaos
-						if cleanupSkillGUID=="1ff34f" and cleanupSkill~=nil then
-							gStates.masterOfChaos=gStates.masterOfChaos+1
-							if gStates.masterOfChaos==7 then gStates.masterOfChaos=1 end
-							cleanupSkill.setDescription(masterOfChaosData[gStates.masterOfChaos].description)
-							if turnOrder[cleanupPlayer]~=nil then turnOrder[cleanupPlayer].masterOfChaos="incrementented in turn" end
-						end
-						--Coop and Comp Skills
-						if cleanupSkillDetails.skillType=="Coop" or cleanupSkillDetails.skillType=="Comp" then
-							local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[cleanupSkillGUID]~=nil
-							local playedBeforeLock=gStates.coopCompSkillLegalThisRound~=nil and gStates.coopCompSkillLegalThisRound[cleanupSkillGUID]==true
-							local inRotation=gStates.doingTheRounds[cleanupSkillGUID]~=nil and paused==false
-							if paused==false and coopCompSkillPlayLocked()==true and playedBeforeLock==false and inRotation==false then paused=pauseLateCoopCompSkill(cleanupSkillGUID, cleanupPlayer) end
-							if paused==false then
-								if gStates.doingTheRounds[cleanupSkillGUID]==nil then
-									--The real Coop skill starts its circuit; a Comp skill creates reminders and only its owner-reward exceptions stay played.
-									gStates.doingTheRounds[cleanupSkillGUID]=cleanupPlayer
-									if cleanupSkillDetails.skillType=="Comp" then createCompetitiveSkillReminders(cleanupSkillGUID, cleanupPlayer)
-									else
-										if gStates.doingTheRoundsVisited==nil then gStates.doingTheRoundsVisited={} end
-										gStates.doingTheRoundsVisited[cleanupSkillGUID]={[cleanupPlayer]=true}
-									end
-								elseif cleanupSkillDetails.skillType=="Coop" then
-									--A Coop skill already doing the rounds has now been used, so its circuit ends here.
-									gStates.doingTheRounds[cleanupSkillGUID]=nextTurnMerged("nextMageSkipDummy")
-								end
-							end
-						end
-					end
+					if playAreaObj.type=="Card" then cardDestination=cleanupPlayedCardAtEndTurn(playAreaObj,cleanupPlayer,cardDestination) end
+					cleanupPlayedSkillAtEndTurn(playAreaObj,cleanupPlayer)
 				end, tokenWait+3)
 				tokenWait=tokenWait+3
 			end
+			safeWaitFrames("Combat",function() tokenRefill() end,tokenWait+1)
 
 			--Drop Avatar after a pause. A returning undefeated monster can still be smooth-moving when the
 			--two-second settle check expires (Quest failures make this common). The old wait had no timeout
@@ -1180,147 +1085,31 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 				if gStates.coopAssaultPhase~="combat" and (cleanupLocation:sub(1,4)=="city" or cleanupLocation:sub(1,6)=="raised") then cityBeatCheck()
 				else refreshCityDefeatState() end
 		 		fakeDropAvatar(cleanupPlayer)
-				--Check for scenario completion to Start the final round of turns.
-				if gStates.endGameAchieved=="false" and gStates.tacticShown==false then
-					--local gladeCount=0
-					local dungeonCount=0
-					local dungeonHexCount=0
-					local mineCount=0
-					local mineTileCount=0
-					local graveYardCount=0
-					local graveYardTileCount=0
-					local relicCount=0
-					if gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="Against the Apocalypse Blitz" then
-						local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
-						table.sort(objectsInPlay, function (k1, k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
-						for _, playAreaObject in pairs(objectsInPlay) do
-							--Count Shield tokens
-							if playAreaObject.getName()=="Shield" and volkarePursuitShieldRegistered(playAreaObject)~=true then
-								local found=false
-								local shieldPos=playAreaObject.getPosition()
-								local locatedTerrain, _, _, locatedFeature=terrainHexAtPosition(shieldPos, objectsInPlay)
-								for _, terTile in pairs(objectsInPlay) do
-									local tilePos=terTile.getPosition()
-									local shieldToTileDist=math.sqrt(((shieldPos[1]-tilePos[1])^2)+((shieldPos[3]-tilePos[3])^2))
-									if terTile==locatedTerrain then
-										found=true
-										if locatedFeature=="dungeon" or locatedFeature=="tomb" then dungeonCount=dungeonCount+1 end
-										if locatedFeature=="mine" then mineCount=mineCount+1 end
-										if locatedFeature~=nil and (locatedFeature:sub(1,4)=="city" or locatedFeature=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz" then relicCount=relicCount+1 end
-									end
-									if shieldToTileDist<1 and terTile.getName()=="GraveYard" then graveYardCount=graveYardCount+1 found=true end
-									if found==true then break end
-								end
-							end
-							local mineTiles={[GUID.tile.core02]=2, [GUID.tile.core04]=2, [GUID.tile.core03]=2, [GUID.tile.country03]=2, [GUID.tile.country06]=2, [GUID.tile.country02]=2, [GUID.tile.country05]=2, [GUID.tile.city08]=2, [GUID.tile.country13]=2, [GUID.tile.country14]=2, [GUID.tile.country15]=2, [GUID.tile.country17]=2, [GUID.tile.core10]=2}
-							if terrainTiles[playAreaObject.guid]~=nil and mineTiles[playAreaObject.guid]~=nil then mineTileCount=mineTileCount+1 end
-							if playAreaObject.getName()=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
-							local dungeonTombTiles={[GUID.tile.core01]=2, [GUID.tile.core03]=2, [GUID.tile.country07]=2, [GUID.tile.country09]=2}
-							if terrainTiles[playAreaObject.guid]~=nil and dungeonTombTiles[playAreaObject.guid]~=nil then dungeonHexCount=dungeonHexCount+1 end
-							if playAreaObject.getName()=="Secret Tomb" or playAreaObject.getName()=="Secret Dungeon" then dungeonHexCount=dungeonHexCount+1 end
-						end
-					end
-					local allRituals=true
-					if gStates.gameScenario=="Druid Nights" then
-						for _, playerDetails in pairs(turnOrder) do
-							if playerDetails.mage~=gStates.positionMageKnight[5] and playerDetails.druidNightsFinalRitual~=true then allRituals=false break end
-						end
-					end
-					local cardInHand=false
-					if gStates.gameScenario=="Quest for the Golden Grail" and turnOrder[cleanupPlayer]~=nil then
-						for _, handobject in pairs(getObjectFromGUID(handZones[turnOrder[cleanupPlayer].seatPos]).getObjects()) do
-							if handobject.guid=="085e59" then cardInHand=true break end
-						end
-					end
-					local volkareBeaten=true
-					if getObjectFromGUID(gStates.volkareModel)~=nil then
-						for _, state in pairs(gStates.cityMonsterQty[volkare.model]) do
-							if state=="alive" then volkareBeaten=false break end
-						end
-						if volkareBeaten==true then	getObjectFromGUID(trashCan).putObject(getObjectFromGUID(gStates.volkareModel)) end
-					end
-					if ((gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest") and gStates.defeatedCities.amount==gStates.cityTiles) or
-						((gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and volkareBeaten==true) or
-						(gStates.gameScenario=="First Reconnaissance" and #gStates.citiesPlayed>=1) or
-						(gStates.gameScenario=="Ultimate Conquest" and gStates.defeatedCities.amount==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or (gStates.removeShadesOfTezlaMonsters~=true and gStates.defeatedFaction==2))) or
-						(gStates.gameScenario=="The Hidden Valley Blitz" and gStates.defeatedFaction==1) or
-						(gStates.gameScenario=="Mines Liberation" and getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()==0 and mineCount==mineTileCount) or
-						(gStates.gameScenario=="Dungeon Lords" and getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()==0 and dungeonCount==dungeonHexCount-2) or
-						(gStates.gameScenario=="The Realm of the Dead Blitz" and gStates.defeatedFaction==1 and graveYardCount==graveYardTileCount) or
-						(gStates.gameScenario=="The Lost Relic Blitz" and relicCount==gStates.cityTiles) or
-						(gStates.gameScenario=="Quest for the Golden Grail" and cleanupLocation=="portal" and cardInHand==true) or
-						(gStates.gameScenario=="The Gauntlet" and gStates.theGauntletArtifactClaimed==true) or
-						(gStates.gameScenario=="Druid Nights" and gStates.currentRound==gStates.rounds and allRituals==true) or
-						(gStates.gameScenario=="Life and Death" and gStates.defeatedFaction==2) or
-						(gStates.gameScenario=="Against the Horsemen Blitz" and againstHorsemenAllDefeated()==true) or
-						(gStates.gameScenario=="Against the Dragon Blitz" and apocalypseDragonColoredHeadsDefeated()==true) or
-						(gStates.gameScenario=="Against the Apocalypse Blitz" and againstApocalypseObjectivesComplete~=nil and againstApocalypseObjectivesComplete()==true) then
-						if gStates.endGameAchieved=="false" then
-						if gStates.coopAssaultPhase=="combat" then gStates.coopAssaultScenarioEndPending=true else scenarioEnd() end
-					end
-					end
-					--Judge Volkare's Return city defense only when the entire defense is complete; co-op kills are combined across all defenders.
-					local volkareReturnDefense=gStates.positionMageKnight[5]=="Volkare" and gStates.volkareState=="Attacking City" and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz")
-					local volkareReturnDefenseFinished=volkareReturnDefense and (gStates.coopAssaultPhase~="combat" or coopAssaultPendingCombat()==false)
-					if volkareReturnDefenseFinished then
-						if gStates.volkareArmyDefeated<gStates.playerCount then
-							gStates.volkareCityDefenseMove=nil
-							getObjectFromGUID(trashCan).putObject(getObjectFromGUID(gStates.volkareModel))
-							gStates.volkareWon=true
-							mainUIUpdate("Volkare Won")
-						else volkareReturnCityDefenseMove() end
-					end
-					--Combat Complete is the only confirmation during the combat stage. Advance as soon as cleanup is finished.
-					if gStates.coopAssaultPhase=="combat" then
-						safeWaitFrames("Combat",function()
-							if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then endTurn(player, "-1", "CoopCombatComplete") end
-						end, 2)
-					end
+				scenarioCombatCleanupCheck(cleanupPlayer)
+				--Combat Complete is the only confirmation during the combat stage. Advance as soon as cleanup is finished.
+				if gStates.endGameAchieved=="false" and gStates.tacticShown==false and gStates.coopAssaultPhase=="combat" then
+					safeWaitFrames("Combat",function()
+						if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then endTurn(player,"-1","CoopCombatComplete") end
+					end,2)
 				end
 		 	end, function() return lastObject==nil or lastObject.resting end, 2, function()
 				if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then endTurn(player, "-1", "CoopCombatComplete") end
 			end) end, tokenWait+50)
 
-			--Manipulate skills
+			--Skills own circulation/return rules; Combat retains the same delayed cleanup boundary.
 			local nextPlayer=nextTurnMerged("nextMageSkipDummy")
-			local count=0
-			local keepSafe={}
-			for skillGUID, Skillzone in pairs(sharedSkillAboveZone) do
-				if getObjectFromGUID(skillGUID)~=nil then
-					getObjectFromGUID(Skillzone).setPosition({getObjectFromGUID(skillGUID).getPosition()[1], 1.4, getObjectFromGUID(skillGUID).getPosition()[3]})
-				end
-			end
-
-			--Skills doing the rounds
 			safeWaitFrames("Combat",function()
-				registerDetachedCoopCompSkills(cleanupPlayer)
-				for skillGUID, skillDetails in pairs(skillTokens) do
-					if getObjectFromGUID(skillGUID)~=nil then
-						--Flip up per turn skills
-						if skillDetails.skillType=="Turn" and getObjectFromGUID(skillGUID).is_face_down==true then getObjectFromGUID(skillGUID).flip() end
-
-						--Comp and Unplayed coop skills that are doing the rounds.
-						if gStates.doingTheRounds[skillGUID]~=nil and (gStates.coopCompSkillPaused==nil or gStates.coopCompSkillPaused[skillGUID]==nil) then
-							local data=doingTheRounds(skillGUID, nextPlayer, count)
-							count=data[2]
-							for saveObjGuid, _ in pairs(data[1]) do
-								keepSafe[saveObjGuid]=true
-							end
-						end
-					end
-				end
-
-				if coopCompSkillPlayLocked()==true then refreshCoopCompSkillXs() end
-
-				--Delete Crystals and wound tokens Unit Wound
-				for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[turnOrder[cleanupPlayer].seatPos]).getObjects()) do
+				local keepSafe=prepareEndTurnSkillRotation(cleanupPlayer,nextPlayer)
+				local playArea=getObjectFromGUID(playerPlayAreas[turnOrder[cleanupPlayer].seatPos])
+				local trash=getObjectFromGUID(trashCan)
+				for _, playAreaObj in pairs(playArea~=nil and playArea.getObjects() or {}) do
 					if (playAreaObj.type=="Figurine" and keepSafe[playAreaObj.guid]~=true)
 					or playAreaObj.getName()=="Blue Defender Bonus Reminder" or playAreaObj.getName()=="Green Defender Bonus Reminder"
 					or playAreaObj.getName()=="White Defender Bonus Reminder" or playAreaObj.getName()=="Red Defender Bonus Reminder" then
-						getObjectFromGUID(trashCan).putObject(playAreaObj)
+						if trash~=nil then trash.putObject(playAreaObj) end
 					end
 				end
-			end, tokenWait+3)
+			end,tokenWait+3)
 
 			--Remove crystals and dice used to power Units
 			local crystalsToDestroy={}
@@ -1330,36 +1119,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 				if unitAreaObj.type=="Dice" then
 					returnDice(unitAreaObj.guid)
 				end
-				--A Coop/Comp skill used on a Unit still follows the normal doing-the-rounds rules.
-				--This mirrors the play-area handling so future Unit-affecting round skills are not mistaken for reminders.
-				if skillTokens[unitAreaObj.guid]~=nil and (skillTokens[unitAreaObj.guid].skillType=="Coop" or skillTokens[unitAreaObj.guid].skillType=="Comp") then
-					local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[unitAreaObj.guid]~=nil
-					local playedBeforeLock=gStates.coopCompSkillLegalThisRound~=nil and gStates.coopCompSkillLegalThisRound[unitAreaObj.guid]==true
-					local inRotation=gStates.doingTheRounds[unitAreaObj.guid]~=nil and paused==false
-					if paused==false and coopCompSkillPlayLocked()==true and playedBeforeLock==false and inRotation==false then paused=pauseLateCoopCompSkill(unitAreaObj.guid, cleanupPlayer) end
-					if paused==false then
-						if gStates.doingTheRounds[unitAreaObj.guid]==nil then
-							gStates.doingTheRounds[unitAreaObj.guid]=cleanupPlayer
-							if skillTokens[unitAreaObj.guid].skillType=="Comp" then createCompetitiveSkillReminders(unitAreaObj.guid, cleanupPlayer)
-							else
-								if gStates.doingTheRoundsVisited==nil then gStates.doingTheRoundsVisited={} end
-								gStates.doingTheRoundsVisited[unitAreaObj.guid]={[cleanupPlayer]=true}
-							end
-						elseif skillTokens[unitAreaObj.guid].skillType=="Coop" then
-							--A Coop skill already doing the rounds has now been used, so its circuit ends here.
-							gStates.doingTheRounds[unitAreaObj.guid]=nextTurnMerged("nextMageSkipDummy")
-						end
-					end
-				end
-				--Return ordinary skill tokens used as Unit reminders to their recorded Skill positions.
-				--Bonds of Loyalty stays in Norowas' Unit Area as a Command token; Coop/Comp skills registered above keep rotating.
-				if unitAreaObj.guid~="f30dd4" and skillTokens[unitAreaObj.guid]~=nil and gStates.mageSkills[unitAreaObj.guid]~=nil and gStates.doingTheRounds[unitAreaObj.guid]==nil then
-					local skillHome=gStates.mageSkills[unitAreaObj.guid]
-					if skillHome[1]~=nil and skillHome[2]~=nil and skillHome[3]~=nil then
-						unitAreaObj.setPositionSmooth({skillHome[1], skillHome[2], skillHome[3]})
-						unitAreaObj.setRotationSmooth({0, 180, 0})
-					end
-				end
+				cleanupUnitAreaSkillAtEndTurn(unitAreaObj,cleanupPlayer)
 				--Record Crystals in the Unit Area. Registered skill tokens are never disposable crystals.
 				if unitAreaObj.type=="Figurine" and unitAreaObj.getGMNotes()~="Unit Wound" and skillTokens[unitAreaObj.guid]==nil and monsterPugs[unitAreaObj.guid]==nil then crystalsToDestroy[#crystalsToDestroy+1]=unitAreaObj.guid end
 			end
@@ -1458,15 +1218,7 @@ end
 function clearPendingCoopAssault()
 	if gStates.coopAssaultPhase~=nil or gStates.coopAssaultCityGUID==nil then return end
 	UI.hide("CoopAssault")
-	gStates.assaultData={}
-	gStates.coopAssaultUnassigned={}
-	gStates.coopAssaultParticipants={}
-	gStates.coopAssaultCityGUID=nil
-	gStates.coopAssaultLocation=nil
-	gStates.coopAssaultType=nil
-	gStates.coopAssaultInitiator=nil
-	gStates.coopAssaultConquered=nil
-	gStates.coopAssaultScenarioEndPending=false
+	clearCoopAssaultRuntime()
 	gStates.againstHorsemenAssaultOrigin=nil
 	gStates.apocalypseDragonAssaultOrigin=nil
 	locationAttacked=false
@@ -1706,7 +1458,7 @@ function attachEnemy(player, mouseButton, id, obj, zone)
 		end, function() local possessed=getObjectFromGUID(possessedGUID) return possessed==nil or possessed.resting end) end,5)
 	end
 	--Unlink Object
-	--seperate possessed tokens
+	--separate possessed tokens
 	if id:sub(1, 6)=="detach" then
 		if obj==nil then obj=getObjectFromGUID(id:sub(7,13)) end
 		if obj==nil then return end
@@ -1773,52 +1525,11 @@ end
 --addAvatarButtons' legality rules. IDs are de-duplicated because an Avatar UI can be mirrored onto its
 --model/token/standee representation.
 function combatAttackOptionCount(playerIndex)
-	local details=turnOrder[playerIndex]
-	if details==nil then return 0 end
-	local seen={}
-	local function scanObject(obj)
-		if obj==nil then return end
-		local function scanNodes(nodes)
-			for _, node in pairs(nodes or {}) do
-				local attributes=node.attributes or {}
-				if node.tag=="Button" and attributes.onClick=="global/volkarePursuitAction" then
-					local buttonID=tostring(attributes.id or "")
-					if buttonID:sub(-#details.mage)==details.mage then seen["VolkarePursuit"]=true end
-				end
-				if node.tag=="Button" and attributes.onClick=="global/attackLocation" then
-					local buttonID=tostring(attributes.id or "")
-					local prefix=buttonID:sub(1,6)
-					local avatarAttack=(buttonID=="Attack"..details.mage or buttonID=="Volkar"..details.mage) and details.combatIconHide=="None"
-					local rampagerAttack=buttonID:sub(7)==details.mage and details.combatIconHide~="Both" and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[prefix]==true
-					if avatarAttack==true or rampagerAttack==true then seen[buttonID]=true end
-				end
-				if node.tag=="Button" and attributes.onClick=="global/horsemanAttackAction" then
-					local buttonID=tostring(attributes.id or "")
-					if buttonID:sub(-#details.mage)==details.mage then seen[buttonID]=true end
-				end
-				if node.children~=nil then scanNodes(node.children) end
-			end
-		end
-		scanNodes(obj.UI.getXmlTable() or {})
-	end
-	for _, mage in pairs(mageKnights) do
-		if mage.mage==details.mage then
-			scanObject(getObjectFromGUID(mage.model))
-			scanObject(getObjectFromGUID(mage.token))
-			scanObject(getObjectFromGUID(mage.standee))
-			break
-		end
-	end
-	local map=getObjectFromGUID(mapArea)
-	if map~=nil then for _, obj in pairs(map.getObjects()) do scanObject(obj) end end
-	--Horseman legality is cheap to resolve directly and avoids a one-frame UI race immediately after
-	--an avatar drop. This is important to Follow Enemy: a valid Horseman choice keeps the camera on the map.
-	for _,option in ipairs(horsemanAttackOptions(playerIndex)) do
-		seen["Horse|"..tostring(option.key).."|"..details.mage]=true
-	end
-	local count=0
-	for _ in pairs(seen) do count=count+1 end
-	return count
+	if turnOrder[playerIndex]==nil then return 0 end
+	local cached=combatAttackOptionCounts~=nil and (combatAttackOptionCounts[playerIndex] or 0) or 0
+	local cachedHorse=combatAttackHorsemanOptionCounts~=nil and (combatAttackHorsemanOptionCounts[playerIndex] or 0) or 0
+	local liveHorse=#horsemanAttackOptions(playerIndex)
+	return math.max(0,cached-cachedHorse)+liveHorse
 end
 
 --Resolve the current player's nearby conquest/ownership marker for Rewards Claimed checks.
@@ -2099,12 +1810,13 @@ function attackLocation(playerDud, mouseButton, id)
 									end
 								end
 							end
-							local cityDefense=UI.getAttribute("CoopAssaultMainTableText1", "text")=="{en}Combined Defense Possible{ru}Доступна Совместная защита города{zh-tw}可以進行合作防守{zh-cn}可以进行合作防守{ko}협력 수비 가능{es}Defensa Combinada Posible{fr}Défense Combinée Possible{pt-br}Defesa Combinada Possível{de}Gemeinsame Verteidigung möglich"
+							local cityDefense=gStates.coopAssaultMode=="defense"
 							for _, mageName in pairs(magesInRange) do
 								if mageName.mage~=player.mage and gStates.volkareState~="Attacking Player" then count=count+1 gStates.assaultData[mageName.mage]={primary={}, secondary={}, UIPos={count}, joined=cityDefense} end
 							end
 							--Volkare's shared fight can be combined even with only one army enemy; that enemy starts unassigned.
 							if count>=2 and (mcount>=2 or (volkareAssignment and mcount>=1)) then
+								if cityDefense~=true then gStates.coopAssaultMode="assault" end
 								gStates.coopAssaultCityGUID=cityGUID
 								gStates.coopAssaultLocation=player.avatarLocation
 								applyColorBarButtons()
@@ -2123,7 +1835,8 @@ function attackLocation(playerDud, mouseButton, id)
 								end
 								gStates.assaultData={[player.mage]=currentAssault}
 								gStates.coopAssaultUnassigned={}
-								attackCity(nil, "-1", id:sub(1,6))
+								gStates.coopAssaultMode=nil
+								attackCity(nil,"-1",id:sub(1,6))
 							end
 						end
 					end
@@ -2139,7 +1852,7 @@ function attackLocation(playerDud, mouseButton, id)
 									drawMonster(monsterPiles.tan, player, id)
 									if player.avatarLocation=="spawning grounds" then safeWaitFrames("Combat",function() drawMonster(monsterPiles.tan, player, id) end, 10)	end
 								end
-								if player.avatarLocation=="monastery" and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.purple, player, id) broadcastToAll("{en}Monastery Defender Drawn to Player Board{ru}Жетон защитника Монастыря был помещен на стол игрока{zh-tw}修道院守軍已移到玩家面板{zh-cn}修道院驻军移到玩家面板上{ko}수도원의 수비자와 전투합니다{es}Defensor del Monasterio dibujado en el tablero del jugador{fr}Défenseur du Monastère dessiné sur le plateau du joueur{pt-br}Defensor do Monastério puxado para o tabuleiro do joador{de}Verteidiger des Klosters auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
+								if player.avatarLocation=="monastery" and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.purple, player, id) broadcastToAll("{en}Monastery Defender Drawn to Player Board{ru}Жетон защитника Монастыря был помещен на стол игрока{zh-tw}修道院守軍已移到玩家面板{zh-cn}修道院驻军移到玩家面板上{ko}수도원의 수비자와 전투합니다{es}Defensor del Monasterio dibujado en el tablero del jugador{fr}Défenseur du Monastère dessiné sur le plateau du joueur{pt-br}Defensor do Monastério puxado para o tabuleiro do jogador{de}Verteidiger des Klosters auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
 								if (player.avatarLocation=="tomb" or player.avatarLocation=="labyrinth") and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.red, player, id) broadcastToAll("{en}Dragon Drawn to Player Board{ru}Жетон Драконума был помещен на стол игрока{zh-tw}巨龍已移到玩家面板{zh-cn}将龙放到玩家面板{ko}드래곤과 전투하세요{es}Dragón dibujado al tablero del jugador{fr}Dragon dessiné sur le plateau du joueur{pt-br}Dragão Puxado para o tabuleiro do jogador{de}Drache auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
 								if player.avatarLocation=="keep" and id:sub(1, 6)=="Attack" then
 									local found=false
@@ -2150,6 +1863,7 @@ function attackLocation(playerDud, mouseButton, id)
 								end
 								if (player.avatarLocation=="ziggurat" or player.avatarLocation=="pyramid") then
 									--update Interface to be fresh and match the location.
+									gStates.zigguratPyramidFightFloor=nil
 									UI.setAttribute("zigguratPyramidInteractClimb1", "interactable", "true")
 									UI.setAttribute("zigguratPyramidInteractClimb2", "interactable", "false")
 									UI.setAttribute("zigguratPyramidInteractFight1", "interactable", "true")
@@ -2243,7 +1957,7 @@ function attackLocation(playerDud, mouseButton, id)
 				end
 			end
 		else
-			broadcastToAll("{en}Flip the the Turn Order token of the Mage Knight who Volkare is attacking, and finish Volkare's turn.\n(If not fully Attending the battle, manually move his tokens){ru}Переверните жетон порядка хода Героя, которого атакует Волкар, и завершите ход Волкара\n(Если вы не используете долгую подготовку к битве, вручную переместите его жетоны){zh-tw}翻轉沃卡里正在攻擊的魔法騎士之回合順序標記，並完成沃卡里的回合。\n（若未完整參與戰鬥，請手動移動他的標記）{zh-cn}翻转沃卡里正在攻击的玩家的顺位板，并完成沃卡里的回合\n（如果没有完成，请手动移动他的标记）{ko}볼케어가 공격하는 플레이어의 라운드 순서 토큰을 뒤집고, 볼케어의 차례를 종료합니다.\n(부분적인 전투 참여의 경우 직접 뒤집으세요.){es}Da la vuelta a la ficha de Orden de turno del Caballero mago que Volkare está atacando y termina el turno de Volkare.\n(Si no asiste por completo a la batalla, mueva manualmente sus fichas){fr}Retournez le jeton Ordre du Tour du Chevalier Mage que Volkare attaque et terminez le tour de Volkare\n(Si vous n'assistez pas complètement à la bataille, déplacez manuellement ses jetons){pt-br}Vire a ficha de ordem de turno do Mage Knight que Volkare está atacando, e termine o Turno de Volkare\n(Se não estiver Atendendo por completo a batalha, então manualmente mova suas fichas){de}Drehe das Zugreihenfolgeplättchen des Magierritters, den Volkare angreift, um und beende Volkares Zug.\n(Wenn er nicht vollständig am Kampf teilnimmt, verschiebe seine Spielsteine manuell)", warningColor)
+			broadcastToAll("{en}Flip the Turn Order token of the Mage Knight who Volkare is attacking, and finish Volkare's turn.\n(If not fully Attending the battle, manually move his tokens){ru}Переверните жетон порядка хода Героя, которого атакует Волкар, и завершите ход Волкара\n(Если вы не используете долгую подготовку к битве, вручную переместите его жетоны){zh-tw}翻轉沃卡里正在攻擊的魔法騎士之回合順序標記，並完成沃卡里的回合。\n（若未完整參與戰鬥，請手動移動他的標記）{zh-cn}翻转沃卡里正在攻击的玩家的顺位板，并完成沃卡里的回合\n（如果没有完成，请手动移动他的标记）{ko}볼케어가 공격하는 플레이어의 라운드 순서 토큰을 뒤집고, 볼케어의 차례를 종료합니다.\n(부분적인 전투 참여의 경우 직접 뒤집으세요.){es}Da la vuelta a la ficha de Orden de turno del Caballero mago que Volkare está atacando y termina el turno de Volkare.\n(Si no asiste por completo a la batalla, mueva manualmente sus fichas){fr}Retournez le jeton Ordre du Tour du Chevalier Mage que Volkare attaque et terminez le tour de Volkare\n(Si vous n'assistez pas complètement à la bataille, déplacez manuellement ses jetons){pt-br}Vire a ficha de ordem de turno do Mage Knight que Volkare está atacando, e termine o Turno de Volkare\n(Se não estiver Atendendo por completo a batalha, então manualmente mova suas fichas){de}Drehe das Zugreihenfolgeplättchen des Magierritters, den Volkare angreift, um und beende Volkares Zug.\n(Wenn er nicht vollständig am Kampf teilnimmt, verschiebe seine Spielsteine manuell)", warningColor)
 		end
 	end
 end
@@ -2303,6 +2017,7 @@ end
 function attackCity(player, mouseButton, id)
 	if mouseButton=="-1" then
 		local coopStart=id=="startAssault"
+		local coopDefense=coopStart==true and gStates.coopAssaultMode=="defense"
 		local wallTargetPos=assaultTargetPosition
 		if coopStart==true and gStates.coopAssaultCityGUID~=nil and getObjectFromGUID(gStates.coopAssaultCityGUID)~=nil then
 			local target=getObjectFromGUID(gStates.coopAssaultCityGUID).getPosition()
@@ -2368,14 +2083,7 @@ function attackCity(player, mouseButton, id)
 				--ground fight instead of moving its persistent heads through generic city cleanup.
 				if startAssaultType=="dragon" then
 					UI.hide("CoopAssault")
-					gStates.coopAssaultPhase=nil
-					gStates.coopAssaultParticipants={}
-					gStates.coopAssaultCityGUID=nil
-					gStates.coopAssaultLocation=nil
-					gStates.coopAssaultType=nil
-					gStates.coopAssaultInitiator=nil
-					gStates.assaultData={}
-					gStates.coopAssaultUnassigned={}
+					clearCoopAssaultRuntime()
 					gStates.apocalypseDragonAssaultOrigin=nil
 					applyColorBarButtons()
 					apocalypseDragonBeginGroundCombat(gStates.turnNumber)
@@ -2386,7 +2094,7 @@ function attackCity(player, mouseButton, id)
 				if startAssaultType=="horsemen" then
 					gStates.againstHorsemenSoloAssault={player=gStates.turnNumber,origin=gStates.againstHorsemenAssaultOrigin}
 				end
-				gStates.coopAssaultPhase=nil gStates.coopAssaultParticipants={} gStates.coopAssaultCityGUID=nil gStates.coopAssaultLocation=nil gStates.coopAssaultType=nil gStates.coopAssaultInitiator=nil
+				clearCoopAssaultRuntime()
 				applyColorBarButtons()
 			end
 		end
@@ -2460,22 +2168,23 @@ function attackCity(player, mouseButton, id)
 		end
 		if played==true then
 			if coopStart==true and gStates.coopAssaultType=="dragon" then broadcastToAll("{en}The Apocalypse Dragon heads have been distributed to the participating Mage Knights.{ru}Головы Дракона Апокалипсиса распределены между участвующими Рыцарями-магами.{zh-tw}末日巨龍的龍首已分配給參與的魔法騎士。{zh-cn}末日巨龙的龙首已分配给参与的魔法骑士。{ko}아포칼립스 드래곤 머리가 참여한 메이지 나이트들에게 분배되었습니다.{es}Las cabezas del Dragón del Apocalipsis se han repartido entre los Caballeros Mago participantes.{fr}Les têtes du Dragon de l’Apocalypse ont été réparties entre les Chevaliers-Mages participants.{pt-br}As cabeças do Dragão do Apocalipse foram distribuídas entre os Mage Knights participantes.{de}Die Köpfe des Apokalypse-Drachen wurden unter den teilnehmenden Mage Knights verteilt.",{1,0.75,0.2})
-			else broadcastToAll("{en}Garrison moved to Player Board.{ru}Гарнизон был помещен на стол игрока{zh-tw}守軍已移到玩家面板。{zh-cn}守军移动到玩家面板{ko}수비자와 전투합니다{es}Garrison se movió al tablero de jugador.{fr}La garnison a été transférée au plateau des joueurs.{pt-br}Guarnição mvida para o tabuleiro do jogador{de}Garrison wird auf die Spielertafel verschoben.", positionToColor(gStates.turnNumber)) end
+			else broadcastToAll("{en}Garrison moved to Player Board.{ru}Гарнизон был помещен на стол игрока{zh-tw}守軍已移到玩家面板。{zh-cn}守军移动到玩家面板{ko}수비자와 전투합니다{es}Garrison se movió al tablero de jugador.{fr}La garnison a été transférée au plateau des joueurs.{pt-br}Guarnição movida para o tabuleiro do jogador{de}Garrison wird auf die Spielertafel verschoben.", positionToColor(gStates.turnNumber)) end
 		end
 		--Give later faction-leader participants an unlocked, buttonless copy now so they can plan their combat.
 		if coopStart==true and gStates.coopAssaultPhase=="combat" and gStates.coopAssaultType=="leader" then createCoopLeaderPreviewClones() end
 		gStates.assaultData={}
 		gStates.coopAssaultUnassigned={}
 		if coopStart==true then gStates.againstHorsemenAssaultOrigin=nil gStates.apocalypseDragonAssaultOrigin=nil end
-		if UI.getAttribute("CoopAssaultMainTableText1", "text")=="{en}Combined Defense Possible{ru}Доступна Совместная защита города{zh-tw}可以進行合作防守{zh-cn}可以进行合作防守{ko}협력 수비 가능{es}Defensa Combinada Posible{fr}Défense Combinée Possible{pt-br}Defesa Combinada Possível{de}Gemeinsame Verteidigung möglich" then
+		if coopDefense==true then
 			if token~=nil then
 				safeWaitCondition("Combat",function()
 					nextTurnMerged("incrementTurn")
 				end, function() return token.resting end)
 			end
 		end
-		UI.setAttribute("CoopAssaultMainTableText1", "text", "{en}Combined Assault Possible{ru}Доступен Совместный штурм города{zh-tw}可以進行合作突襲{zh-cn}可以进行合作突袭{ko}협력 강습 가능{es}Asalto Combinado Posible{fr}Assaut Combiné Possible{pt-br}Ataque Combinado Possível{de}Gemeinsamer Angriff möglich")
-		UI.setAttribute("CoopAssaultMainTableText2", "text", "{en}Nearby Mage Knights can choose to join this assault by skipping their next turn. This tool randomly gives the amount of defenders chosen to each player. (Remember to pay movement costs){ru}Герои, находящиеся на соседней с городом клетке, могут присоединиться к штурму. Этот инструмент случайным образом выдаст каждому игроку защитников согласно выбранному количеству, а также перевернет их Жетоны Порядка хода лицом вниз.{zh-tw}附近的魔法騎士可以選擇加入突襲。\n此工具會依據數量隨機分配敵人給每位參與者，\n同時也會將這些玩家的輪次順位標記翻面。\n{zh-cn}附近的魔法骑士可以选择加入突袭。 \n此工具会依据数量随机分配敌人给每位参与者，\n同时也会将这些玩家的轮次顺位标记翻面。 \n{ko}근처의 메이지 나이트들은 이 강습에 참여할 수 있습니다. 이 툴은 참여한 각 플레이어에게 무작위로 선택된 수비자 토큰을 배분합니다. 그리고 라운드 순서 토큰을 뒤집습니다.{es}Los caballeros magos cercanos pueden elegir unirse al asalto. Esta herramienta da al azar la cantidad de defensores elegidos para cada jugador, mientras que también coloca boca abajo su Ficha de Orden de Turno.{fr}Les chevaliers mages à proximité peuvent choisir de se joindre à l'assaut. Cet outil donne au hasard le nombre de défenseurs choisis à chaque joueur, tout en retournant son jeton d'ordre du tour face cachée.{pt-br}Os Mage Knights próximos podem escolher se juntar ao ataque. Esta ferramenta fornece aleatoriamente a quantidade de defensores escolhidos para cada jogador, ao mesmo tempo que vira a ficha de ordem do turno para baixo.{de}Mage Knights in der Nähe können sich dem Angriff anschließen. Mit diesem Werkzeug erhält jeder Spieler zufällig die gewählte Anzahl an Verteidigern und dreht gleichzeitig sein Zugreihenfolgeplättchen um.")
+		gStates.coopAssaultMode=nil
+		UI.setAttribute("CoopAssaultMainTableText1","text","{en}Combined Assault Possible{ru}Доступен Совместный штурм города{zh-tw}可以進行合作突襲{zh-cn}可以进行合作突袭{ko}협력 강습 가능{es}Asalto Combinado Posible{fr}Assaut Combiné Possible{pt-br}Ataque Combinado Possível{de}Gemeinsamer Angriff möglich")
+		UI.setAttribute("CoopAssaultMainTableText2","text",coopAssaultNormalText)
 		UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 		UI.setAttribute("startAssaultText", "text", "{en}Begin Assault{ru}Начать штурм{zh-tw}開始突襲{zh-cn}开始突袭{ko}강습 시작{es}Empezar Asalto{fr}Commencer l'Assaut{pt-br}Comece o Assalto{de}Angriff Starten")
 		UI.hide("CoopAssault")
@@ -2519,7 +2228,7 @@ end
 
 function coopAssaultCityMinimumEnemyRule()
 	local assaultType=coopAssaultTargetType()
-	return (assaultType=="city" or assaultType=="horsemen" or assaultType=="dragon") and UI.getAttribute("CoopAssaultMainTableText1", "text")~="{en}Combined Defense Possible{ru}Доступна Совместная защита города{zh-tw}可以進行合作防守{zh-cn}可以进行合作防守{ko}협력 수비 가능{es}Defensa Combinada Posible{fr}Défense Combinée Possible{pt-br}Defesa Combinada Possível{de}Gemeinsame Verteidigung möglich"
+	return (assaultType=="city" or assaultType=="horsemen" or assaultType=="dragon") and gStates.coopAssaultMode~="defense"
 end
 
 function coopAssaultReadyToBegin()
@@ -2543,10 +2252,10 @@ function coopAssaultUIUpdate()
 	local rowCount=0
 	local size="half"
 	local assaultType=coopAssaultTargetType()
-	local defense=UI.getAttribute("CoopAssaultMainTableText1", "text")=="{en}Combined Defense Possible{ru}Доступна Совместная защита города{zh-tw}可以進行合作防守{zh-cn}可以进行合作防守{ko}협력 수비 가능{es}Defensa Combinada Posible{fr}Défense Combinée Possible{pt-br}Defesa Combinada Possível{de}Gemeinsame Verteidigung möglich"
+	local defense=gStates.coopAssaultMode=="defense"
 	local notParticipating=defense and "{en}not Defending{ru}не защищается{zh-tw}不防守{zh-cn}不防守{ko}수비 안함{es}no Defendiendo{fr}ne pas Défendre{pt-br}não Defendendo{de}nicht verteidigend" or "{en}not Assaulting{ru}не нападает{zh-tw}不突襲{zh-cn}不突袭{ko}강습 안함{es}no Agredir{fr}ne pas Agresser{pt-br}não Agredindo{de}nicht angreifend"
 	local noneText="{en}No{ru}Нет{zh-tw}無{zh-cn}无{ko}없음{es}No{fr}Non{pt-br}Não{de}Nein"
-	local normalAssaultText="{en}Nearby Mage Knights can choose to join this assault by skipping their next turn. This tool randomly gives the amount of defenders chosen to each player. (Remember to pay movement costs){ru}Герои, находящиеся на соседней с городом клетке, могут присоединиться к штурму. Этот инструмент случайным образом выдаст каждому игроку защитников согласно выбранному количеству, а также перевернет их Жетоны Порядка хода лицом вниз.{zh-tw}附近的魔法騎士可以選擇加入突襲。此工具會依據數量隨機分配守軍給每位參與者。（記得支付移動點數）{zh-cn}附近的魔法骑士可以选择加入突袭。此工具会依据数量随机分配守军给每位参与者。（记得支付移动点数）{ko}근처의 메이지 나이트들은 다음 차례를 건너뛰고 이 강습에 참여할 수 있습니다. 이 도구는 선택한 수의 수비자를 각 플레이어에게 무작위로 배정합니다. (이동 비용을 지불하는 것을 잊지 마세요){es}Los Caballeros Mago cercanos pueden unirse a este asalto saltándose su próximo turno. Esta herramienta reparte al azar entre los jugadores la cantidad de defensores elegida. (Recuerda pagar los costes de movimiento){fr}Les Chevaliers-Mages proches peuvent rejoindre cet assaut en sautant leur prochain tour. Cet outil répartit aléatoirement entre les joueurs le nombre de défenseurs choisi. (N’oubliez pas de payer les coûts de mouvement){pt-br}Mage Knights próximos podem participar deste ataque pulando o próximo turno. Esta ferramenta distribui aleatoriamente entre os jogadores a quantidade escolhida de defensores. (Lembre-se de pagar os custos de movimento){de}Mage Knights in der Nähe können sich diesem Angriff anschließen, indem sie ihren nächsten Zug aussetzen. Dieses Werkzeug verteilt die gewählte Anzahl Verteidiger zufällig auf die Spieler. (Denke daran, die Bewegungskosten zu bezahlen)"
+	local normalAssaultText=coopAssaultNormalText
 	local defenseText="{en}The City is under attack. Players must skip their next turn and Defend. This tool randomly gives the amount of attackers chosen to each player. All must face Volkare{ru}Город атакован. Игроки должны пропустить свой следующий ход и защищаться. Этот инструмент случайным образом распределяет выбранное число нападающих между игроками. Все должны сражаться с Волкаром.{zh-tw}城市正遭受攻擊。玩家必須跳過下一回合並進行防守。此工具會將選定數量的攻擊者隨機分配給每位玩家。所有人都必須面對沃卡里。{zh-cn}城市正遭受攻击。玩家必须跳过下一回合并进行防守。此工具会将选定数量的攻击者随机分配给每位玩家。所有人都必须面对沃卡里。{ko}도시가 공격받고 있습니다. 플레이어들은 다음 차례를 건너뛰고 방어해야 합니다. 이 도구는 선택한 수의 공격자를 각 플레이어에게 무작위로 배정합니다. 모두 볼케어와 맞서야 합니다.{es}La Ciudad está bajo ataque. Los jugadores deben saltarse su próximo turno y defender. Esta herramienta reparte al azar entre los jugadores la cantidad de atacantes elegida. Todos deben enfrentarse a Volkare.{fr}La Cité est attaquée. Les joueurs doivent sauter leur prochain tour et défendre. Cet outil répartit aléatoirement entre les joueurs le nombre d’attaquants choisi. Tous doivent affronter Volkare.{pt-br}A Cidade está sob ataque. Os jogadores devem pular o próximo turno e defender. Esta ferramenta distribui aleatoriamente entre os jogadores a quantidade escolhida de atacantes. Todos devem enfrentar Volkare.{de}Die Stadt wird angegriffen. Die Spieler müssen ihren nächsten Zug aussetzen und verteidigen. Dieses Werkzeug verteilt die gewählte Anzahl Angreifer zufällig auf die Spieler. Alle müssen sich Volkare stellen."
 	for _, assignedMonsters in pairs(gStates.assaultData) do if #assignedMonsters.secondary>=1 then size="full" break end end
 	if assaultType=="volkare" and gStates.coopAssaultUnassigned~=nil and #gStates.coopAssaultUnassigned.secondary>=1 then size="full" end
@@ -2751,7 +2460,7 @@ function takeFactionMonster(standardGUID, faction, params)
 	return token, pileGUID
 end
 
---summun monsters to the left of a summoner.
+--summon monsters to the left of a summoner.
 function summonMonster(player, mouseButton, id)
 	if mouseButton=="-1" then
 		--draw tokens to the left of summoners token
@@ -2956,7 +2665,7 @@ function pursuingRampagers(player, mouseButton, id)
 							end
 						end
 						if terrainFound==false and protection~="none" and avatarToRampageDist<0.5 then
-							--need to check if the site has a shield or not to determin if he attacks or stays
+							--need to check if the site has a shield or not to determine if he attacks or stays
 							local shieldfound=false
 							for _, obj in pairs(objectsInPlay) do
 								if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true and obj.getDescription()==turnOrder[gStates.turnNumber].mage then
@@ -2986,7 +2695,7 @@ function pursuingRampagers(player, mouseButton, id)
 						end
 					end
 
-					--check for scondary option
+					--check for secondary option
 					local otherBearing=math.floor((math.deg(math.atan2(monsterDetails.location[3]-playerPos[3], monsterDetails.location[1]-playerPos[1]))/2)+0.5)*2
 					if otherBearing>=360 then otherBearing=otherBearing-360 end
 					if otherBearing<0 then otherBearing=otherBearing+360 end
@@ -3137,6 +2846,7 @@ function leaveAvatarSite(player)
 	end
 	UI.setAttribute("zigguratPyramidInteract", "active", "false")
 	gStates.zigguratPyramidUI=nil
+	gStates.zigguratPyramidFightFloor=nil
 end
 
 -- Ziggurat and Pyramid interaction
@@ -3169,14 +2879,10 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			UI.setAttribute("zigguratPyramidInteractClimb1", "interactable", "false")
 			UI.setAttribute("zigguratPyramidInteractFight1Image", "color", "Gray")
 			UI.setAttribute("zigguratPyramidInteractFight1", "interactable", "false")
-			if UI.getAttribute("zigguratPyramidInteractClimb2Image", "color")=="Gray" then
-				UI.setAttribute("zigguratPyramidInteractClimb2Image", "color", "White")
-				UI.setAttribute("zigguratPyramidInteractClimb2", "interactable", "true")
-			end
-			if UI.getAttribute("zigguratPyramidInteractFight2Image", "color")=="Gray" then
-				UI.setAttribute("zigguratPyramidInteractFight2Image", "color", "White")
-				UI.setAttribute("zigguratPyramidInteractFight2", "interactable", "true")
-			end
+			UI.setAttribute("zigguratPyramidInteractClimb2Image","color","White")
+			UI.setAttribute("zigguratPyramidInteractClimb2","interactable","true")
+			UI.setAttribute("zigguratPyramidInteractFight2Image","color","White")
+			UI.setAttribute("zigguratPyramidInteractFight2","interactable","true")
 			drawMonster(trapBag, turnOrder[gStates.turnNumber], id)
 			gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5
 			gStates.monsterOffsetX=0
@@ -3194,6 +2900,7 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			drawMonster(trapBag, turnOrder[gStates.turnNumber], id)
 		end
 		if id=="zigguratPyramidInteractFight1" then
+			gStates.zigguratPyramidFightFloor=1
 			UI.setAttribute("zigguratPyramidInteractClimb1Image", "color", "Gray")
 			UI.setAttribute("zigguratPyramidInteractClimb2Image", "color", "Gray")
 			UI.setAttribute("zigguratPyramidInteractFight2Image", "color", "Gray")
@@ -3205,6 +2912,7 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			drawMonster(firstFight, turnOrder[gStates.turnNumber], id)
 		end
 		if id=="zigguratPyramidInteractFight2" then
+			gStates.zigguratPyramidFightFloor=2
 			UI.setAttribute("zigguratPyramidInteractClimb2Image", "color", "Gray")
 			UI.setAttribute("zigguratPyramidInteractFight3Image", "color", "Gray")
 			UI.setAttribute("zigguratPyramidInteractClimb2", "interactable", "false")
@@ -3214,6 +2922,7 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			drawMonster(secondFight, turnOrder[gStates.turnNumber], id)
 		end
 		if id=="zigguratPyramidInteractFight3" then
+			gStates.zigguratPyramidFightFloor=3
 			UI.setAttribute("zigguratPyramidInteractFight3", "interactable", "false")
 			UI.setAttribute("zigguratPyramidInteractFight3Image", "color", "Yellow")
 			drawMonster(monsterPiles.possessed, turnOrder[gStates.turnNumber], id, "Apoc")
