@@ -384,17 +384,21 @@ function claimButtonRefresh()
 				for guid, state in pairs(gStates.dealtArtifacts) do
 					if state==true then
 						count=count+1
-						getObjectFromGUID(guid).UI.setXmlTable({createClaimButton(guid, "artifactReward")})
+						local artifact=getObjectFromGUID(guid)
+						if artifact~=nil then artifact.UI.setXmlTable({createClaimButton(guid, "artifactReward")}) end
 					end
 				end
 			end
 			if count==0 then
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "true")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOffer", "active", "true")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUp", "active", "true")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDownImage", "image", "Overkill Down")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferImage", "image", "Sliced Button/Button Object Active")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUpImage", "image", "Overkill Up")
+				local artifactDeck=getObjectFromGUID(GUID.deck.artifact)
+				if artifactDeck~=nil then
+					artifactDeck.UI.setAttribute("ac75c4ArtifactDown", "active", "true")
+					artifactDeck.UI.setAttribute("ac75c4ArtifactOffer", "active", "true")
+					artifactDeck.UI.setAttribute("ac75c4ArtifactUp", "active", "true")
+					artifactDeck.UI.setAttribute("ac75c4ArtifactDownImage", "image", "Overkill Down")
+					artifactDeck.UI.setAttribute("ac75c4ArtifactOfferImage", "image", "Sliced Button/Button Object Active")
+					artifactDeck.UI.setAttribute("ac75c4ArtifactUpImage", "image", "Overkill Up")
+				end
 			end
 		end
 	end, 0.3)
