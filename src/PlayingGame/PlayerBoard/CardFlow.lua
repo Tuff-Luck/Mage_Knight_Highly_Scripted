@@ -92,15 +92,29 @@ function containerInsideDeckZone(container, zone)
 	return math.abs(pos[1]-zonePos[1])<=zoneScale[1]/2 and math.abs(pos[3]-zonePos[3])<=zoneScale[3]/2
 end
 
-function scheduleContainerDeckDescriptionRefresh(container)
-	if container==nil or container.type~="Deck" then return end
+local function containerDeedPileLocation(container)
+	if container==nil or container.type~="Deck" then return nil,nil end
 	for _, details in pairs(turnOrder) do
 		local seatPos=details.seatPos
 		local deedZone=getObjectFromGUID(deedDeckZones[seatPos])
-		if containerInsideDeckZone(container, deedZone)==true then scheduleDeedPileDescriptionRefresh(seatPos, "deed") return end
+		if containerInsideDeckZone(container, deedZone)==true then return seatPos,"deed" end
 		local discardZone=getObjectFromGUID(deedDeckDiscardZones[seatPos])
-		if containerInsideDeckZone(container, discardZone)==true then scheduleDeedPileDescriptionRefresh(seatPos, "discard") return end
+		if containerInsideDeckZone(container, discardZone)==true then return seatPos,"discard" end
 	end
+	return nil,nil
+end
+
+function refreshContainerDeckDescription(container)
+	local seatPos,zoneType=containerDeedPileLocation(container)
+	if seatPos==nil then return false end
+	refreshDeedPileDescription(seatPos,zoneType)
+	return true
+end
+
+function scheduleContainerDeckDescriptionRefresh(container)
+	local seatPos,zoneType=containerDeedPileLocation(container)
+	if seatPos==nil then return end
+	scheduleDeedPileDescriptionRefresh(seatPos,zoneType)
 end
 
 --Move cards visibly to a player's Deed deck without allowing two cards to converge on the same pile.
