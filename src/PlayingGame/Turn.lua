@@ -1257,7 +1257,11 @@ function dayNight()
 					--Day Board, 5 Weather Tokens, weather deck
 		local found=false
 		for _, ruinGUID in pairs(ruinPugs) do
-			if getObjectFromGUID(ruinGUID)~=nil and getObjectFromGUID(ruinGUID).is_face_down==true then getObjectFromGUID(ruinGUID).flip() found=true end
+			local ruin=getObjectFromGUID(ruinGUID)
+			if ruin~=nil and ruin.is_face_down==true then
+				revealRuinAfterArrival(ruinGUID)
+				found=true
+			end
 		end
 		if found==true then broadcastToAll("{en}Ruins are revealed{ru}Все руины были раскрыты{zh-tw}废墟被探索了{zh-cn}废墟被探索了{ko}유적 공개됨{es}Las Ruinas se Revelan{fr}Les Ruines sont Révélées{pt-br}Ruinas são Reveladas{de}Ruinen werden aufgedeckt", {1,1,0.5}) end
 		safeWaitFrames("Turn",function()
