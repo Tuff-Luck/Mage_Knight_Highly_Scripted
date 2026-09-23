@@ -1067,9 +1067,6 @@ function doingTheRounds(skillGUID, nextPlayer, count, reset)
 	return {keepSafe, count}
 end
 
---Recover a played Interactive skill that Tome moved to the common offer before the normal play-area scan.
---Competitive effects can continue from their remembered activation. Cooperative secondary effects require
---the real token, and Source Freeze explicitly works only while its real token remains in the Source.
 --End-turn cleanup for a Skill played in the main Play Area. Combat owns the timing boundary;
 --Skills owns state replacement, rotation, return-home and Coop/Comp circulation rules.
 function cleanupPlayedSkillAtEndTurn(playAreaObj, cleanupPlayer)
@@ -1179,6 +1176,9 @@ function cleanupUnitAreaSkillAtEndTurn(unitAreaObj, cleanupPlayer)
 	return true
 end
 
+--Recover a played Interactive skill that Tome moved to the common offer before the normal play-area scan.
+--Competitive effects can continue from their remembered activation. Cooperative secondary effects require
+--the real token, and Source Freeze explicitly works only while its real token remains in the Source.
 function registerDetachedCoopCompSkills(playerIndex)
 	local toDeactivate={}
 	for skillGUID, record in pairs(coopCompSkillActivationTable()) do
@@ -1411,7 +1411,7 @@ function masterOfChaos(player, mouseButton, id)
 					getObjectFromGUID("1ff34f").setDescription(masterOfChaosData[gStates.masterOfChaos].description)
 					getObjectFromGUID("1ff34f").reload()
 					--only allow once per turn
-					turnOrder[a].masterOfChaos="incrementented out of turn"
+					turnOrder[a].masterOfChaos="incremented out of turn"
 					mainUIUpdate()
 					break
 				end
