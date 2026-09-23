@@ -777,6 +777,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 				avatarModel.lock()
 				tokenRaised=cleanupPlayer
 			end
+		end
 
 		--return dice function needed twice
 		local function returnDice(diceGUID)
