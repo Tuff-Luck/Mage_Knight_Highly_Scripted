@@ -350,7 +350,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		runtimeMapInvalidateTerrain()
 		--EXPLORE legality is derived from the settled physical map. onObjectEnterZone can fire while a
 		--dragged tile is still crossing the map zone, so rebuild only after the final drop has settled.
-		safeWaitCondition("Events",function() refreshTerrainExploreOptions() end,function()
+		safeWaitCondition("Events.terrainDrop",function() refreshTerrainExploreOptions() end,function()
 			local tile=getObjectFromGUID(droppedGUID)
 			return tile==nil or (tile.held_by_color==nil and tile.resting==true and tile.isSmoothMoving()==false)
 		end,5,function() refreshTerrainExploreOptions() end)
@@ -398,7 +398,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		if gStates.firstStarted~=true and gStates.mageKnightLevels==true and gStates.magesSetup==true then
 			local originalSkillPos=gStates.mageSkills[dropped_object.guid]
 			local wasAlreadyClaimed=higherLevelSkillAreaPlayer(originalSkillPos)~=nil
-			safeWaitFrames("Events",function() safeWaitCondition("Events",function()
+			safeWaitFrames("Events",function() safeWaitCondition("Events.higherLevelSkillDrop",function()
 				local skill=getObjectFromGUID(dropped_object.guid)
 				if skill~=nil then
 					local playerPosition=higherLevelSkillAreaPlayer(skill.getPosition())
@@ -416,7 +416,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		local coopCompSkill=(skillTokens[dropped_object.guid].skillType=="Coop" or skillTokens[dropped_object.guid].skillType=="Comp")
 		if coopCompSkill==true then coopCompSkillDropped(dropped_object.guid, dropped_object.getPosition()) end
 		local coopCompLockedAtDrop=coopCompSkill==true and coopCompSkillPlayLocked()==true
-		safeWaitFrames("Events",function() safeWaitCondition("Events",function()
+		safeWaitFrames("Events",function() safeWaitCondition("Events.skillDrop",function()
 			if getObjectFromGUID(dropped_object.guid)~=nil then
 				if coopCompSkill==true then
 					local playAreaPlayer=coopCompSkillPlayAreaPlayer(dropped_object.guid)
@@ -484,11 +484,11 @@ function __onObjectDrop_raw(player_color, dropped_object)
 						gStates.proxyAvatarOffMap=apocalypseQuestHexForPosition(proxyHexes,dropped_object.getPosition(),proxyMapObjects)==nil
 					end
 				end
-				safeWaitCondition("Events",finishProxyManualDrop,function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end,1.5,finishProxyManualDrop)
+				safeWaitCondition("Events.proxyDrop",finishProxyManualDrop,function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end,1.5,finishProxyManualDrop)
 				return
 			end
 			if player_color~=nil and gStates.firstStarted==true and avatar.mage~="Volkare" and avatarPlayerIndex~=nil and currentMage~=avatar.mage then
-				safeWaitCondition("Events",function() if coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end, function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end, 1.5, function() if getObjectFromGUID(dropped_object.guid)~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end)
+				safeWaitCondition("Events.outOfTurnAvatarDrop",function() if coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end, function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end, 1.5, function() if getObjectFromGUID(dropped_object.guid)~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end)
 				return
 			end
 			local avatarGUID=dropped_object.guid
@@ -496,7 +496,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 				local liveAvatar=getObjectFromGUID(avatarGUID)
 				if liveAvatar~=nil then mapAvatarLocationDetails(player_color,avatar,liveAvatar) end
 			end
-			safeWaitCondition("Events",updateAvatarLocation,function()
+			safeWaitCondition("Events.avatarDrop",updateAvatarLocation,function()
 				local liveAvatar=getObjectFromGUID(avatarGUID)
 				return liveAvatar==nil or liveAvatar.resting
 			end,1.5,updateAvatarLocation)
@@ -514,7 +514,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 			local questScoreMoved=dropped_object.guid==turnOrder[a].questScoreGUID
 			if fameMoved or reputationMoved or questScoreMoved then
 				local playerIndex=a
-				safeWaitCondition("Events",function()
+				safeWaitCondition("Events.progressMarkerDrop",function()
 					if fameMoved then refreshPlayerFameFromShield(playerIndex)
 					elseif reputationMoved then refreshPlayerReputationFromShield(playerIndex)
 					else refreshPlayerQuestScoreFromMarker(playerIndex) end
@@ -710,7 +710,7 @@ local function scheduleSettledZoneEntry(ctx,callback,channel)
 	local key=tostring(channel or "default").."|"..zoneGUID.."|"..objGUID
 	local serial=(settledZoneEntrySerial[key] or 0)+1
 	settledZoneEntrySerial[key]=serial
-	safeWaitCondition("Events",function()
+	safeWaitCondition("Events.zoneSettle."..tostring(channel or "default"),function()
 		if settledZoneEntrySerial[key]~=serial then return end
 		settledZoneEntrySerial[key]=nil
 		local liveZone=getObjectFromGUID(zoneGUID)
@@ -790,7 +790,7 @@ local function handleTurnOrderZoneEnter(ctx)
 	if zoneGUID==turnOrderArea then
 		for c, d in pairs(turnOrder) do
 			if objGUID==d.turnOrderTokenGUID then
-				safeWaitFrames("Events",function() safeWaitCondition("Events",function()
+				safeWaitFrames("Events",function() safeWaitCondition("Events.turnOrderEnter",function()
 					local turnOrderTokens=getObjectFromGUID(turnOrderArea).getObjects()
 					table.sort(turnOrderTokens, function (k1, k2) return k1.getPosition()[3]>k2.getPosition()[3] end)
 					--check if all turn order tokens are present
@@ -999,7 +999,7 @@ local function handleClaimZoneEnter(ctx)
 	if cardClaimingZones[zoneGUID]~=nil then
 		local offerZoneGUID=zoneGUID
 		local offerCardGUID=objGUID
-		safeWaitCondition("Events",function()
+		safeWaitCondition("Events.offerEnter",function()
 			local offerZone=getObjectFromGUID(offerZoneGUID)
 			local offerCard=getObjectFromGUID(offerCardGUID)
 			if offerZone==nil or offerCard==nil then return end
@@ -1042,7 +1042,7 @@ local function handleClaimZoneEnter(ctx)
 	if tacticSource~=nil and isTacticCard(obj) then
 		local tacticZoneGUID=zoneGUID
 		local tacticCardGUID=objGUID
-		safeWaitCondition("Events",function()
+		safeWaitCondition("Events.tacticEnter",function()
 			local tacticZone=getObjectFromGUID(tacticZoneGUID)
 			local tacticCardObj=getObjectFromGUID(tacticCardGUID)
 			if tacticZone==nil or tacticCardObj==nil then return end
@@ -1092,7 +1092,7 @@ local function handleManaZoneEnter(ctx)
 	--Mirror dice in source and Start of rounds should have half or more standard color Mana Dice
 	if zoneGUID==GUID.zone.mana and objType=="Dice" then
 		if dieRollEnterPause~=nil then Wait.stop(dieRollEnterPause) end
-		dieRollEnterPause=safeWaitCondition("Events",function()
+		dieRollEnterPause=safeWaitCondition("Events.manaEnter",function()
 			--Start of rounds should have half or more standard color Mana Dice
 			local safe=true
 			if gStates.tacticRemove==true or gStates.tacticShown==true or gStates.firstStarted~=true then
@@ -1396,7 +1396,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 		obj.guid=="55e5e5" or obj.guid=="818aea" or obj.guid=="564392" or obj.guid=="784a07" or obj.guid=="ebbbfc" or obj.guid=="b13d5f" or obj.guid=="9d866a") then
 		if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.firstStarted==true then
 			local coopGUID=obj.guid
-			safeWaitFrames("Events",function() safeWaitCondition("Events",function()
+			safeWaitFrames("Events",function() safeWaitCondition("Events.coopSkillState",function()
 				local locking=obj.setState(2)
 				if locking~=nil then
 					--setState destroys the old Coop object and creates the competitive-state GUID. Combat cleanup
@@ -1444,7 +1444,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 		local randomTrap=math.random(6)
 		local damageAdjust=0
 		if bag.guid==monsterPiles.pyramidTrap then damageAdjust=1 end
-		safeWaitFrames("Events",function() safeWaitCondition("Events",function()
+		safeWaitFrames("Events",function() safeWaitCondition("Events.trapEnter",function()
 			if obj~=nil then
 				obj.setCustomObject({image=trapImage[bag.guid][randomTrap]})
 				obj.reload()
@@ -1550,7 +1550,7 @@ function refreshCardEffectAfterRotation(cardGUID)
 	safeWaitFrames("Events",function()
 		local card=getObjectFromGUID(cardGUID)
 		if card==nil or cardEffectRotationGeneration[cardGUID]~=generation then return end
-		safeWaitCondition("Events",function()
+		safeWaitCondition("Events.cardRotate",function()
 			if cardEffectRotationGeneration[cardGUID]~=generation then return end
 			local settledCard=getObjectFromGUID(cardGUID)
 			if settledCard==nil then return end
