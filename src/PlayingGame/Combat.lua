@@ -1678,6 +1678,11 @@ function attackLocation(playerDud, mouseButton, id)
 					combatCameraChoiceSuppressedPlayer=adventureSiteAttack~=true and (combatAttackOptionCount(playerIndex)>1 or nearbyRampagerChoice==true) and playerIndex or nil
 					--Work out clicking avatar location
 					local avPos=mageKnightAvatarPositionByName(id:sub(7,string.len(id))) or {}
+					local attackMapSpatial=nil
+					local function attackMapSpatialView()
+						if attackMapSpatial==nil then attackMapSpatial=runtimeMapSpatialSnapshot() end
+						return attackMapSpatial
+					end
 					local clickedObj=getObjectFromGUID(id:sub(1,6))
 					local rampagerAttack=clickedObj~=nil and gStates.rampagingMonsters[clickedObj.guid]==true
 					local sameHexAvatarAttack=sameHexAttack
@@ -1710,7 +1715,7 @@ function attackLocation(playerDud, mouseButton, id)
 					local cameraFollowed=false
 					if (clickedObj==nil and id:sub(1,6)~="Volkar") or (clickedObj~=nil and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower" or player.avatarLocation:sub(1,4)=="city" or player.avatarLocation=="Volkare's Camp")) then
 						local horseSelection=gStates.horsemanAttackSelection
-						local mapSpatial=runtimeMapSpatialSnapshot()
+						local mapSpatial=attackMapSpatialView()
 						for _, monster in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1)) do
 							local monsterPos=mapSpatial.positions[monster.guid] or monster.getPosition()
 							if monsterPugs[monster.guid]~=nil then
@@ -1875,7 +1880,7 @@ function attackLocation(playerDud, mouseButton, id)
 								if (player.avatarLocation=="tomb" or player.avatarLocation=="labyrinth") and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.red, player, id) broadcastToAll("{en}Dragon Drawn to Player Board{ru}Жетон Драконума был помещен на стол игрока{zh-tw}巨龍已移到玩家面板{zh-cn}将龙放到玩家面板{ko}드래곤과 전투하세요{es}Dragón dibujado al tablero del jugador{fr}Dragon dessiné sur le plateau du joueur{pt-br}Dragão Puxado para o tabuleiro do jogador{de}Drache auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
 								if player.avatarLocation=="keep" and id:sub(1, 6)=="Attack" then
 									local found=false
-									local mapSpatial=runtimeMapSpatialSnapshot()
+									local mapSpatial=attackMapSpatialView()
 									for _, shield in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1)) do
 										local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
 										if shield.getName()=="Shield" and volkarePursuitShieldRegistered(shield)~=true and (shield.getDescription()==player.mage or gStates.coop==1) and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then found=true break end
@@ -1913,7 +1918,7 @@ function attackLocation(playerDud, mouseButton, id)
 									local terrain, _, sitePos=terrainHexAtPosition(avPos)
 									if sitePos~=nil then avPos=sitePos else avPos[3]=(math.floor(((avPos[3]-1)/2.0785)+0.5)*2.0785)+0.5 end
 									local fight2Done, fight3Done=false, false
-									local mapSpatial=runtimeMapSpatialSnapshot()
+									local mapSpatial=attackMapSpatialView()
 									for _, shieldCheck in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1.5)) do
 										local shieldPos=mapSpatial.positions[shieldCheck.guid] or shieldCheck.getPosition()
 										if shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1.5 then
