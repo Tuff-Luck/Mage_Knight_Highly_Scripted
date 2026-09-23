@@ -2916,9 +2916,12 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			UI.setAttribute("zigguratPyramidInteractClimb2","interactable","true")
 			UI.setAttribute("zigguratPyramidInteractFight2Image","color","White")
 			UI.setAttribute("zigguratPyramidInteractFight2","interactable","true")
-			drawMonster(trapBag, turnOrder[gStates.turnNumber], id)
+			--Ascend first, then deploy both Floor 2 traps on that row. drawMonster() can now
+			--complete immediately when the pool is ready, so changing rows between the two draws
+			--would leave the first trap behind on Floor 1.
 			gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5
 			gStates.monsterOffsetX=0
+			drawMonster(trapBag, turnOrder[gStates.turnNumber], id)
 			safeWaitFrames("Combat",function() drawMonster(trapBag, turnOrder[gStates.turnNumber], id) end, 10)
 		end
 		if id=="zigguratPyramidInteractClimb2" then
