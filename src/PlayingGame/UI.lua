@@ -1388,6 +1388,9 @@ function applyAvatarButtonXml(obj, xml, signature)
 	end
 end
 
+combatAttackOptionCounts=combatAttackOptionCounts or {}
+combatAttackHorsemanOptionCounts=combatAttackHorsemanOptionCounts or {}
+
 function addAvatarButtons()
 	if addAvatarPause==true then safeWaitFrames("UI",function()
 		--Snapshot relevant map objects once. Nearby shield/marker/ruin checks use spatial buckets;
@@ -1412,6 +1415,8 @@ function addAvatarButtons()
 
 		--Only active turn-order Mage Knights can need avatar buttons. Resolve each physical avatar once.
 		for order, player in pairs(turnOrder) do
+			combatAttackOptionCounts[order]=0
+			combatAttackHorsemanOptionCounts[order]=0
 			local details=mageKnightsByName[player.mage]
 			if details~=nil and playerDropoutInactive(order)==true then
 				for _, avatarGUID in ipairs({details.model, details.token, details.standee}) do
@@ -1483,6 +1488,7 @@ function addAvatarButtons()
 								position="0 "..tostring(100/scale).." "..tostring(-25/scale), rotation="0 0 180",
 								color="rgba(0,0,0,0.0)"},
 								children={{tag="Image", attributes={image="Offer Button"}}}}
+							combatAttackOptionCounts[order]=combatAttackOptionCounts[order]+1
 						end
 						if mapDetails.name=="Shield" and volkarePursuitShieldRegistered(mapObject)~=true and avatarToObjDistSquared<1.44 then
 							if mageShield==nil then mageShield={} end
@@ -1511,6 +1517,7 @@ function addAvatarButtons()
 										position="0 "..tostring(120/0.9).." "..tostring(-20/0.9), rotation="0 0 180",
 										color="rgba(0,0,0,0.0)"},
 									children={{tag="Image", attributes={image="Attack Button"}}}}
+									combatAttackOptionCounts[order]=combatAttackOptionCounts[order]+1
 								end
 								if #existingButtons==0 then existingButtons={{}} end
 								mapObject.UI.setXmlTable(existingButtons)
@@ -1590,6 +1597,7 @@ function addAvatarButtons()
 							position="0 "..tostring(specialActionY/scale).." "..tostring(-25/scale), rotation="0 0 180",
 							color="rgba(0,0,0,0.0)"},
 							children={{tag="Image", attributes={image="Attack Button"}}}}
+						combatAttackOptionCounts[order]=combatAttackOptionCounts[order]+1
 						specialActionY=specialActionY+70
 					end
 					--Against the Horsemen: a Horseman can only be attacked from the same hex. Keep this as a
@@ -1602,6 +1610,8 @@ function addAvatarButtons()
 								onClick="global/horsemanAttackAction",height=70/scale,width=70/scale,
 								position="0 "..tostring(specialActionY/scale).." "..tostring(-25/scale),rotation="0 0 180",color="rgba(0,0,0,0.0)"},
 								children={{tag="Image",attributes={image="https://steamusercontent-a.akamaihd.net/ugc/12647478740119221952/A4E3602A20A7A1C0FA03DA5C0FBEDF8910DE1E7D/"}}}}
+							combatAttackOptionCounts[order]=combatAttackOptionCounts[order]+1
+							combatAttackHorsemanOptionCounts[order]=combatAttackHorsemanOptionCounts[order]+1
 							specialActionY=specialActionY+70
 						end
 					end
@@ -1619,6 +1629,7 @@ function addAvatarButtons()
 									position="0 "..tostring(specialActionY/scale).." "..tostring(-25/scale), rotation="0 0 180",
 									color="rgba(0,0,0,0.0)"},
 									children={{tag="Image", attributes={image="Attack Button"}}}}
+								combatAttackOptionCounts[order]=combatAttackOptionCounts[order]+1
 								specialActionY=specialActionY+70
 							end
 						end
@@ -1626,6 +1637,7 @@ function addAvatarButtons()
 					--Conquered Camp-as-City Pursuit. The fourth slot is shared with Druid Nights; if both are legal, Druid moves one slot higher.
 					local pursuitInfo=volkarePursuitAvailable(order)
 					if pursuitInfo~=nil then
+						combatAttackOptionCounts[order]=combatAttackOptionCounts[order]+1
 						if gStates.volkarePursuitChoicePlayer==order then
 							local choices={{"Green",-58,"rgb(0.25,0.72,0.25)"},{"Red",0,"rgb(0.78,0.22,0.22)"},{"Both",58,"rgb(0.75,0.75,0.75)"}}
 							for _,choice in ipairs(choices) do
