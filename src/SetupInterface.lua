@@ -161,6 +161,17 @@ local function blitzPolicyForScenarioSelection(name)
 	return details~=nil and details.blitzPossible or nil
 end
 
+--Historical setup defaults. These scenarios open with Blitz enabled, but the option remains
+--available; First Reconnaissance is the only scenario that hard-locks Blitz, forced off.
+local BLITZ_DEFAULT_ON={
+	["The Realm of the Dead"]=true,
+	["The Hidden Valley"]=true,
+	["The Lost Relic"]=true,
+	["Against the Apocalypse"]=true,
+	["Against the Horsemen"]=true,
+	["Against the Dragon"]=true,
+	["The Fractured Lands"]=true}
+
 local function setScenarioBlitzIdentity(enabled)
 	local current=gStates.gameScenario
 	local base=current
@@ -430,14 +441,14 @@ function scenarioSelection(player, mouseButton, id)
 				gStates.coop=1
 			end
 		end
-		--Blitz follows scenario metadata. On/Off-only scenarios are locked to their valid state.
+		--Blitz is normally player-selectable. Some scenarios default it on; First Recon locks it off.
 		UI.setAttribute("BlitzSelection","textColor","rgb(0.0,0.0,0.0)")
-		local blitzPolicy=blitzPolicyForScenarioSelection(gStates.gameScenario)
-		local blitzOn=blitzPolicy=="On Only"
+		local selectedScenario=gStates.gameScenario
+		local blitzOn=BLITZ_DEFAULT_ON[selectedScenario]==true
 		gStates.blitz=blitzOn and 1 or 0
 		UI.setAttribute("BlitzSelection","isOn",blitzOn and "true" or "false")
-		UI.setAttribute("BlitzSelection","interactable",blitzPolicy=="Yes" and "True" or "False")
 		setScenarioBlitzIdentity(blitzOn)
+		UI.setAttribute("BlitzSelection","interactable",selectedScenario=="First Reconnaissance" and "False" or "True")
 
 		--Reset ordinary setup toggles from one policy table, then apply scenario-specific overrides.
 		--Hero Challenges intentionally survives scenario browsing and is therefore not part of this reset.
@@ -488,26 +499,27 @@ function scenarioSelection(player, mouseButton, id)
 end
 
 function BlitzSelection(player, value, id)
-	local blitzPolicy=blitzPolicyForScenarioSelection(gStates.gameScenario)
-	if blitzPolicy=="On Only" and value~="True" then
-		UI.setAttribute("BlitzSelection","isOn","true")
-		UI.setAttribute("BlitzSelection","interactable","False")
-		gStates.blitz=1
-		return
-	elseif blitzPolicy=="Off Only" and value=="True" then
+	if gStates.gameScenario=="First Reconnaissance" and value=="True" then
 		UI.setAttribute("BlitzSelection","isOn","false")
 		UI.setAttribute("BlitzSelection","interactable","False")
 		gStates.blitz=0
 		return
 	end
+
 	gStates.blitz=value=="True" and 1 or 0
 	UI.setAttribute("BlitzSelection","isOn",gStates.blitz==1 and "true" or "false")
-	UI.setAttribute("BlitzSelection","interactable",blitzPolicy=="Yes" and "True" or "False")
 	setScenarioBlitzIdentity(gStates.blitz==1)
+	UI.setAttribute("BlitzSelection","interactable",gStates.gameScenario=="First Reconnaissance" and "False" or "True")
+
 	resetCurrentScenarioTweaks()
 	refreshHeroChallengeOptionLocks()
 	scenarioInfoUpdate()
-	UI.setAttribute("BlitzSelection","textColor","rgb(0.0,0.0,0.0)")
+
+	--Keep the historical red warning when the chosen Blitz state differs from the scenario's
+	--published expectation, without preventing the player from making that choice.
+	local blitzPolicy=blitzPolicyForScenarioSelection(gStates.gameScenario)
+	local invalid=(blitzPolicy=="On Only" and gStates.blitz==0) or (blitzPolicy=="Off Only" and gStates.blitz==1)
+	UI.setAttribute("BlitzSelection","textColor",invalid and "rgb(1.0,0.0,0.0)" or "rgb(0.0,0.0,0.0)")
 	ToolTipUpdate(id)
 end
 
