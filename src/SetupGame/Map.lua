@@ -684,7 +684,8 @@ function mapSetup(onComplete)
 		if secondStart~=nil then standardRevealBatches[2][#standardRevealBatches[2]+1]={guid=secondStart.guid} end
 		if gStates.gameScenario=="The Chaos Rift" then
 			if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
-			takeStartingCountry({position={-20.4300, 1.09, -5.6911}, rotation=rot, smooth=false})
+			local thirdStart=takeStartingCountry({position={-20.4300, 1.09, -5.6911}, rotation=rot, smooth=false})
+			if thirdStart~=nil then standardRevealBatches[3][#standardRevealBatches[3]+1]={guid=thirdStart.guid} end
 		end
 	else
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
