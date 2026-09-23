@@ -1699,7 +1699,7 @@ function attackLocation(playerDud, mouseButton, id)
 					local ruinGUID=""
 					local cityGUID=nil
 					local cameraFollowed=false
-					if (getObjectFromGUID(id:sub(1,6))==nil and id:sub(1,6)~="Volkar") or (getObjectFromGUID(id:sub(1,6))~=nil and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower" or player.avatarLocation:sub(1, 4)=="city" or player.avatarLocation=="Volkare's Camp")) then
+					if (clickedObj==nil and id:sub(1,6)~="Volkar") or (clickedObj~=nil and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower" or player.avatarLocation:sub(1,4)=="city" or player.avatarLocation=="Volkare's Camp")) then
 						local horseSelection=gStates.horsemanAttackSelection
 						for _, monster in pairs(getObjectFromGUID(mapArea).getObjects()) do
 							if monsterPugs[monster.guid]~=nil then
@@ -2032,9 +2032,10 @@ function attackCity(player, mouseButton, id)
 		local coopStart=id=="startAssault"
 		local coopDefense=coopStart==true and gStates.coopAssaultMode=="defense"
 		local wallTargetPos=assaultTargetPosition
-		if coopStart==true and gStates.coopAssaultCityGUID~=nil and getObjectFromGUID(gStates.coopAssaultCityGUID)~=nil then
-			local target=getObjectFromGUID(gStates.coopAssaultCityGUID).getPosition()
-			wallTargetPos={target[1], target[2], target[3]}
+		local coopTarget=coopStart==true and gStates.coopAssaultCityGUID~=nil and getObjectFromGUID(gStates.coopAssaultCityGUID) or nil
+		if coopTarget~=nil then
+			local target=coopTarget.getPosition()
+			wallTargetPos={target[1],target[2],target[3]}
 		end
 		local startAssaultType=coopStart==true and coopAssaultTargetType() or nil
 		--Dragon heads are not city defenders and never gain printed wall fortification from the
@@ -2133,9 +2134,10 @@ function attackCity(player, mouseButton, id)
 				end
 				if playerData.mage~=turnOrder[gStates.turnNumber].mage then
 					OffsetX=0 OffsetZ=0
-					if getObjectFromGUID(playerData.turnOrderTokenGUID).is_face_down==false and id~="Volkar" and
+					local playerTurnToken=getObjectFromGUID(playerData.turnOrderTokenGUID)
+					if playerTurnToken~=nil and playerTurnToken.is_face_down==false and id~="Volkar" and
 						(coopStart==false or gStates.assaultData[playerData.mage].joined==true) then
-						token=getObjectFromGUID(playerData.turnOrderTokenGUID)
+						token=playerTurnToken
 						token.flip()
 					end
 				else
@@ -2160,8 +2162,8 @@ function attackCity(player, mouseButton, id)
 								dragonCombatSlot=dragonCombatSlot+1
 							end
 							monsterObj.setPositionSmooth(destination,false,false)
-							if wallTargetHasWall==true then settleAssaultWallFortified(monsterGUID, wallFortified) end
-							getObjectFromGUID(monsterGUID).setRotation({0.00, 180.00, 0.00})
+							if wallTargetHasWall==true then settleAssaultWallFortified(monsterGUID,wallFortified) end
+							monsterObj.setRotation({0.00,180.00,0.00})
 							if coopStart~=true or gStates.coopAssaultType~="dragon" then
 								OffsetX=OffsetX+2.5
 								if OffsetX>12 then OffsetX=0 OffsetZ=OffsetZ+2.5 end
@@ -2173,8 +2175,10 @@ function attackCity(player, mouseButton, id)
 				end
 				local sharedVolkare=coopStart==true and gStates.coopAssaultType=="volkare" and gStates.assaultData[playerData.mage].joined==true
 				if (playerData.avatarLocation=="Volkare's Camp" or id=="111111" or id=="Volkar" or sharedVolkare) and (inFight==true or sharedVolkare) then
-					local monster=getObjectFromGUID(GUID.bag.volkareReminder).takeObject({position={(playerData.seatPos*40)-98.5, 2.5, -39}})
-					gStates.attackedMonsters[monster.guid]={{getObjectFromGUID(GUID.bag.volkareReminder).getPosition()[1], 2, getObjectFromGUID(GUID.bag.volkareReminder).getPosition()[3]}, {0.00, 0.00, 0.00}}
+					local reminderBag=getObjectFromGUID(GUID.bag.volkareReminder)
+					local reminderPos=reminderBag~=nil and reminderBag.getPosition() or nil
+					local monster=reminderBag~=nil and reminderBag.takeObject({position={(playerData.seatPos*40)-98.5,2.5,-39}}) or nil
+					if monster~=nil and reminderPos~=nil then gStates.attackedMonsters[monster.guid]={{reminderPos[1],2,reminderPos[3]},{0.00,0.00,0.00}} end
 				end
 				if turnOrder[gStates.turnNumber].mage==playerData.mage then gStates.monsterOffsetX=OffsetX gStates.monsterOffsetZ=OffsetZ end
 			end
@@ -2552,7 +2556,8 @@ function adjustOverkill(player, mouseButton, id)
 		if id:sub(7,18)=="OverkillDown" and gStates.leaderOverkill>1 then
 			gStates.leaderOverkill=gStates.leaderOverkill-1
 		end
-		getObjectFromGUID(id:sub(1,6)).UI.setAttribute(id:sub(1,14), "Text", gStates.leaderOverkill)
+		local leaderObj=getObjectFromGUID(id:sub(1,6))
+		if leaderObj~=nil then leaderObj.UI.setAttribute(id:sub(1,14),"Text",gStates.leaderOverkill) end
 		mainUIUpdate("Leader Overkilled")
 	end
 end
@@ -2588,9 +2593,11 @@ function pursuingRampagers(player, mouseButton, id)
 					if turnOrder[gStates.turnNumber].avatarLocation:sub(1, 4)=="city" or turnOrder[gStates.turnNumber].avatarLocation=="Volkare's Camp" then
 						--figure out which city avatar is in
 						for zone, citySearch in pairs(cityScriptZones) do
-							for obj, detail in pairs(getObjectFromGUID(zone).getObjects()) do
+							local zoneObj=getObjectFromGUID(zone)
+							for _, detail in pairs(zoneObj~=nil and zoneObj.getObjects() or {}) do
 								if detail.getName()==turnOrder[gStates.turnNumber].mage then
-									playerPos=getObjectFromGUID(citySearch.cityGUID).getPosition()
+									local cityObj=getObjectFromGUID(citySearch.cityGUID)
+									if cityObj~=nil then playerPos=cityObj.getPosition() end
 									break
 								end
 							end
@@ -2636,7 +2643,8 @@ function pursuingRampagers(player, mouseButton, id)
 									for _, obj in pairs(objectsInPlay) do
 										if combatCityZones[obj.guid]~=nil and obj.guid~=volkare.terrainHex then
 											local found=false
-											for _, obj2 in pairs(getObjectFromGUID(combatCityZones[obj.guid]).getObjects()) do
+											local cityZoneObj=getObjectFromGUID(combatCityZones[obj.guid])
+											for _, obj2 in pairs(cityZoneObj~=nil and cityZoneObj.getObjects() or {}) do
 												if obj2.getName()==turnOrder[gStates.turnNumber].mage then
 													if math.sqrt(((rampageNewPos[1]-obj.getPosition()[1])^2)+((rampageNewPos[3]-obj.getPosition()[3])^2))<1 then
 														protection="City"
@@ -2868,8 +2876,8 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			thirdFight=monsterPiles.tan
 		end
 		--remove face down traps
-		local playAreaObjects={}
-		if getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos])~=nil then playAreaObjects=getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos]).getObjects() end
+		local playArea=getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos])
+		local playAreaObjects=playArea~=nil and playArea.getObjects() or {}
 		for _, obj in pairs(playAreaObjects) do
 			if obj.getGMNotes()=="Trap Reminder Token" and obj.is_face_down==true then obj.destruct() end
 			local adjust=0
