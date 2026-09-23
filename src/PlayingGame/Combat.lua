@@ -81,10 +81,12 @@ function clearCoopLeaderPreviewClones()
 	gStates.coopLeaderPreviewClones={}
 end
 
-function clearCoopAssaultRuntime()
+function clearCoopAssaultRuntime(keepAssignments)
 	gStates.coopAssaultPhase=nil
-	gStates.assaultData={}
-	gStates.coopAssaultUnassigned={}
+	if keepAssignments~=true then
+		gStates.assaultData={}
+		gStates.coopAssaultUnassigned={}
+	end
 	gStates.coopAssaultParticipants={}
 	gStates.coopAssaultCityGUID=nil
 	gStates.coopAssaultLocation=nil
@@ -1749,11 +1751,12 @@ function attackLocation(playerDud, mouseButton, id)
 						end
 					end
 					--draw all monsters left on city card
-					if getObjectFromGUID(id:sub(1,6))==nil and (player.avatarLocation:sub(1, 4)=="city" or player.avatarLocation=="Volkare's Camp" or player.avatarLocation=="hidden valley" or player.avatarLocation=="necropolis" or id:sub(1,6)=="Volkar") then
+					if clickedObj==nil and (player.avatarLocation:sub(1,4)=="city" or player.avatarLocation=="Volkare's Camp" or player.avatarLocation=="hidden valley" or player.avatarLocation=="necropolis" or id:sub(1,6)=="Volkar") then
 						--figure out which city avatar is in if not dropped on the city model
 						if player.avatarLocation:sub(1, 4)=="city" and cityGUID==nil then
 							for zone, citySearch in pairs(cityScriptZones) do
-								for obj, detail in pairs(getObjectFromGUID(zone).getObjects()) do
+								local zoneObj=getObjectFromGUID(zone)
+								for _, detail in pairs(zoneObj~=nil and zoneObj.getObjects() or {}) do
 									if detail.getName()==player.mage then
 										cityGUID=citySearch.cityGUID
 										break
@@ -2108,7 +2111,7 @@ function attackCity(player, mouseButton, id)
 				if startAssaultType=="horsemen" then
 					gStates.againstHorsemenSoloAssault={player=gStates.turnNumber,origin=gStates.againstHorsemenAssaultOrigin}
 				end
-				clearCoopAssaultRuntime()
+				clearCoopAssaultRuntime(true)
 				applyColorBarButtons()
 			end
 		end
@@ -2149,8 +2152,8 @@ function attackCity(player, mouseButton, id)
 				local dragonCombatSlot=(coopStart==true and gStates.coopAssaultType=="dragon") and 2 or 1
 				for _, army in pairs({"primary", "secondary"}) do
 					for _, monsterGUID in pairs(gStates.assaultData[playerData.mage][army]) do
-						if getObjectFromGUID(monsterGUID)~=nil then
-							local monsterObj=getObjectFromGUID(monsterGUID)
+						local monsterObj=getObjectFromGUID(monsterGUID)
+						if monsterObj~=nil then
 							gStates.attackedMonsters[monsterGUID]={monsterObj.getPosition(), monsterObj.getRotation()}
 							if wallTargetHasWall==true then setAssaultWallFortified(monsterObj, wallFortified) end
 							monsterObj.unlock()
