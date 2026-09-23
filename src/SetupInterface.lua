@@ -161,17 +161,6 @@ local function blitzPolicyForScenarioSelection(name)
 	return details~=nil and details.blitzPossible or nil
 end
 
---Historical setup defaults. These scenarios open with Blitz enabled, but the option remains
---available; First Reconnaissance is the only scenario that hard-locks Blitz, forced off.
-local BLITZ_DEFAULT_ON={
-	["The Realm of the Dead"]=true,
-	["The Hidden Valley"]=true,
-	["The Lost Relic"]=true,
-	["Against the Apocalypse"]=true,
-	["Against the Horsemen"]=true,
-	["Against the Dragon"]=true,
-	["The Fractured Lands"]=true}
-
 local function setScenarioBlitzIdentity(enabled)
 	local current=gStates.gameScenario
 	local base=current
@@ -249,6 +238,61 @@ local function applyScenarioToggleDefaults()
 		for id,details in pairs(overrides) do setSetupToggle(id,details[1],details[2]) end
 	end
 	UI.setAttribute("darknessComing","text",gStates.startAtNight==true and SETUP_TEXT.daylightComing or SETUP_TEXT.darknessComing)
+end
+
+
+local function scenarioOptionHardLock(id)
+	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
+	local details=overrides~=nil and overrides[id] or nil
+	if details~=nil and details[2]==false then return true,details[1] end
+	return false,nil
+end
+
+local function clearCustomMageKnightSelections(preserveRememberedDummy)
+	for position=1,4 do
+		local mage=gStates.positionMageKnight[position]
+		if customMages[mage]~=nil then
+			gStates.positionMageKnight[position]="nobody"
+			UI.setAttribute(MAGE_KNIGHT_CONTROL_IDS[position].."Text","text",translateWord["nobody"])
+		end
+	end
+	if gStates.positionMageKnight[5]=="Volkare" then
+		if customMages[gStates.volkareSkills]~=nil then
+			gStates.volkareSkills="Random"
+			if preserveRememberedDummy~=true then gStates.setupDummyMageChoice="Random" end
+			UI.setAttribute("dummyMKSelectionText","text",translateWord["Random"])
+		end
+	elseif customMages[gStates.positionMageKnight[5]]~=nil then
+		gStates.positionMageKnight[5]="nobody"
+		if preserveRememberedDummy~=true then gStates.setupDummyMageChoice="nobody" end
+		UI.setAttribute("dummyMKSelectionText","text",translateWord["nobody"])
+	end
+	if preserveRememberedDummy~=true and customMages[gStates.setupDummyMageChoice]~=nil then gStates.setupDummyMageChoice="nobody" end
+end
+
+local function renderDummySetupSection()
+	local volkareOn=gStates.positionMageKnight~=nil and gStates.positionMageKnight[5]=="Volkare"
+	UI.setAttribute("VolkareLevelSelectionRow","active",volkareOn and "true" or "false")
+	UI.setAttribute("VolkareRaceSelectionRow","active",volkareOn and gStates.gameScenario~="The War of Four" and "true" or "false")
+	if volkareOn then
+		UI.setAttribute("DummyPosText","text",SETUP_TEXT.volkareSkills)
+		UI.setAttribute("dummyMKSelectionText","text",translateWord[gStates.volkareSkills or "Random"] or translateWord["Random"])
+		local showRace=gStates.gameScenario~="The War of Four"
+		UI.setAttribute("MageKnightDetails","height",showRace and "240" or "210")
+		UI.setAttribute("Setup1Details","height",showRace and "406" or "436")
+		UI.setAttribute("Setup2Details","height",showRace and "406" or "436")
+		UI.setAttribute("Setup1DetailsSub","height",showRace and "346" or "376")
+		UI.setAttribute("Setup2DetailsSub","height",showRace and "346" or "376")
+	else
+		UI.setAttribute("DummyPosText","text",SETUP_TEXT.dummyMageKnight)
+		local dummy=gStates.positionMageKnight~=nil and (gStates.positionMageKnight[5] or "nobody") or "nobody"
+		UI.setAttribute("dummyMKSelectionText","text",translateWord[dummy] or translateWord["nobody"])
+		UI.setAttribute("MageKnightDetails","height","180")
+		UI.setAttribute("Setup1Details","height","466")
+		UI.setAttribute("Setup2Details","height","466")
+		UI.setAttribute("Setup1DetailsSub","height","406")
+		UI.setAttribute("Setup2DetailsSub","height","406")
+	end
 end
 
 local function copyScenarioCityLevels(source)
@@ -402,49 +446,20 @@ function scenarioSelection(player, mouseButton, id)
 		UI.setAttribute("DropDown", "active", "false")
 		gStates.megapolis=0
 		gStates.coop=gStates.positionMageKnight[5]~="nobody" and 1 or 0
-		--Dummy Menu Access
-		UI.setAttribute("VolkareLevelSelectionRow", "active", "false")
-		UI.setAttribute("VolkareRaceSelectionRow", "active", "false")
-		UI.setAttribute("MageKnightDetails", "height", "180")
-		UI.setAttribute("Setup1Details", "height", "466")
-		UI.setAttribute("Setup2Details", "height", "466")
-		UI.setAttribute("Setup1DetailsSub", "height", "406")
-		UI.setAttribute("Setup2DetailsSub", "height", "406")
-		refreshProxySetupLabel()
-		if gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" or gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
-			if gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" then
-				UI.setAttribute("dummyMKSelection", "interactable", "false")
-				UI.setAttribute("dummyMKSelectionImage", "image", "Sliced Button/Button New Deactive")
-				UI.setAttribute("dummyMKSelectionText", "text", "{en}nobody{ru}никто{zh-tw}無玩家{zh-cn}无玩家{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand")
-				gStates.positionMageKnight[5]="nobody"
-				gStates.coop=0
-			else
-				--UI.setAttribute("dummyMKSelectionText", "text", "{en}Volkare{ru}Волкар{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어{es}Volkare{fr}Volkare{pt-br}Volkare{de}Volkare")
-				UI.setAttribute("DummyPosText", "text", SETUP_TEXT.volkareSkills)
-				if gStates.setupDummyMageChoice~=nil and gStates.setupDummyMageChoice~="nobody" then gStates.volkareSkills=gStates.setupDummyMageChoice else gStates.volkareSkills="Random" end
-				UI.setAttribute("dummyMKSelectionText", "text", translateWord[gStates.volkareSkills] or translateWord["Random"])
-				UI.setAttribute("VolkareLevelSelectionRow", "active", "true")
-				UI.setAttribute("MageKnightDetails", "height", "210")
-				UI.setAttribute("Setup1Details", "height", "436")
-				UI.setAttribute("Setup2Details", "height", "436")
-				UI.setAttribute("Setup1DetailsSub", "height", "376")
-				UI.setAttribute("Setup2DetailsSub", "height", "376")
-				if gStates.gameScenario~="The War of Four" then
-					UI.setAttribute("VolkareRaceSelectionRow", "active", "true")
-					UI.setAttribute("MageKnightDetails", "height", "240")
-					UI.setAttribute("Setup1Details", "height", "406")
-					UI.setAttribute("Setup2Details", "height", "406")
-					UI.setAttribute("Setup1DetailsSub", "height", "346")
-					UI.setAttribute("Setup2DetailsSub", "height", "346")
-				end
-				gStates.positionMageKnight[5]="Volkare"
-				gStates.coop=1
-			end
+		--Scenario-specific dummy state; layout is rendered by the shared helper.
+		if gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" then
+			gStates.positionMageKnight[5]="nobody"
+			gStates.coop=0
+		elseif gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
+			if gStates.setupDummyMageChoice~=nil and gStates.setupDummyMageChoice~="nobody" then gStates.volkareSkills=gStates.setupDummyMageChoice else gStates.volkareSkills="Random" end
+			gStates.positionMageKnight[5]="Volkare"
+			gStates.coop=1
 		end
+		renderDummySetupSection()
 		--Blitz is normally player-selectable. Some scenarios default it on; First Recon locks it off.
 		UI.setAttribute("BlitzSelection","textColor","rgb(0.0,0.0,0.0)")
 		local selectedScenario=gStates.gameScenario
-		local blitzOn=BLITZ_DEFAULT_ON[selectedScenario]==true
+		local blitzOn=blitzPolicyForScenarioSelection(selectedScenario)=="On Only"
 		gStates.blitz=blitzOn and 1 or 0
 		UI.setAttribute("BlitzSelection","isOn",blitzOn and "true" or "false")
 		setScenarioBlitzIdentity(blitzOn)
@@ -618,22 +633,7 @@ function optionsUpdate(player, value, id)
 			UI.setAttribute("ROTFSelection", "interactable", "True")
 			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Active")
 		end
-		if id=="useCustomMageKnights" then
-			local MKDropDownUI=MAGE_KNIGHT_CONTROL_IDS
-			for position, mageKnight in pairs(gStates.positionMageKnight) do
-				if customMages[mageKnight]~=nil then
-					dropDownIdLink=MKDropDownUI[position]
-					PlayerChosen(nil, "-1", "nobodySelection")
-				end
-			end
-			if gStates.positionMageKnight[5]=="Volkare" and customMages[gStates.volkareSkills]~=nil then
-				gStates.volkareSkills="Random"
-				gStates.setupDummyMageChoice="Random"
-				UI.setAttribute("dummyMKSelectionText", "text", translateWord["Random"])
-			elseif customMages[gStates.setupDummyMageChoice]~=nil then
-				gStates.setupDummyMageChoice="nobody"
-			end
-		end
+		if id=="useCustomMageKnights" then clearCustomMageKnightSelections(false) end
 	end
 	if id=="removeApocalypseTerrain" or id=="removeTerrain" or id=="removeLostLegionExpansion" then
 		if id=="removeLostLegionExpansion" and gStates.removeLostLegionExpansion==true then
@@ -698,15 +698,7 @@ function riseOfTheForgemastersOption(player, mouseButton, id)
 			UI.setAttribute("useCustomMageKnights", "isOn", "true")
 			gStates.useCustomMageKnights=true
 		end
-		if gStates.riseOfTheForgemasters<3 then
-			local MKDropDownUI=MAGE_KNIGHT_CONTROL_IDS
-			for position, mageKnight in pairs(gStates.positionMageKnight) do
-				if customMages[mageKnight]~=nil then
-					dropDownIdLink=MKDropDownUI[position]
-					PlayerChosen(nil, "-1", "nobodySelection")
-				end
-			end
-		end
+		if gStates.riseOfTheForgemasters<3 then clearCustomMageKnightSelections(false) end
 		refreshHeroChallengeOptionLocks()
 		ToolTipUpdate(id)
 		scenarioInfoUpdate()
@@ -792,37 +784,9 @@ function PlayerChosen(player, mouseButton, id)
 			if dropDownIdLink=="dummyMKSelection" then gStates.setupDummyMageChoice=MAGE_KNIGHT_SELECTION_BY_ID[id] end
 		end
 
-		--Locks player mage choice when scenario player cap reached
 		if MAGE_KNIGHT_SELECTION_BY_ID[id]=="Jormund" then
-			UI.setAttribute("ROTFSelectionText", "text", ROTF_TEXT_BY_LEVEL[3])
+			UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[3])
 			gStates.riseOfTheForgemasters=3
-			applyForgemasterExpansionRequirements()
-		end
-		if MAGE_KNIGHT_SELECTION_BY_ID[id]~="nobody" and ((dropDownIdLink=="dummyMKSelection" and gStates.playerCount==1)
-		or (dropDownIdLink~="dummyMKSelection" and gStates.playerCount==1 and (gStates.positionMageKnight[5]~="nobody" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="Quest for the Golden Grail")))
-		and (gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest" or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="Mines Liberation") then
-			for a, pos in pairs(MKDropDownUI) do
-				if gStates.positionMageKnight[pos]=="nobody" then
-					UI.setAttribute(a, "interactable", "False")
-					UI.setAttribute(a, "text", "{en}nobody{ru}никто{zh-tw}無玩家{zh-cn}无玩家{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand")
-					UI.setAttribute(a.."Image", "image", "Sliced Button/Button New Deactive")
-				end
-			end
-		else
-			for a, pos in pairs(MKDropDownUI) do
-				UI.setAttribute(a, "interactable", "True")
-				UI.setAttribute(a.."Image", "image", "Sliced Button/Button New Active")
-			end
-		end
-		--locks Dummy Mage choice for scenario setups that don't use him
-		if (dropDownIdLink~="dummyMKSelection" and ((gStates.playerCount>=2 and MAGE_KNIGHT_SELECTION_BY_ID[id]~="nobody") or (gStates.playerCount>=2 and MAGE_KNIGHT_SELECTION_BY_ID[id]=="nobody"))
-		and (gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="Mines Liberation"))
-		or (gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return") then--or gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four"
-			UI.setAttribute("dummyMKSelection", "interactable", "False")
-			UI.setAttribute("dummyMKSelectionImage", "image", "Sliced Button/Button New Deactive")
-		else
-			UI.setAttribute("dummyMKSelection", "interactable", "True")
-			UI.setAttribute("dummyMKSelectionImage", "image", "Sliced Button/Button New Active")
 		end
 		refreshProxySetupLabel()
 		ToolTipUpdate(MAGE_KNIGHT_SELECTION_BY_ID[id])
