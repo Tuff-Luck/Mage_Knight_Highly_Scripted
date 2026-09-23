@@ -404,49 +404,16 @@ terrainPlacementNeighbourOffsets={
 	{math.cos(math.rad(341))*6.35, math.sin(math.rad(341))*6.35}
 }
 
---Avatar-location scans repeatedly inspect the current hex plus its six neighbours. Snapshot map
---positions once and bucket physical objects so each neighbour only checks nearby pieces, while
---terrain lookup works from terrain tiles only.
+--Avatar-location scans use the shared live spatial view, so Map, Combat, Movement and AI all
+--derive their local object/hex queries from the same physical-table snapshot.
 avatarLocationSpatialCell=3
 function avatarLocationMapSnapshot()
-	local mapObj=getObjectFromGUID(mapArea)
-	if mapObj==nil then return {}, {}, {}, {}, {} end
-	local mapObjects=mapObj.getObjects()
-	local positions={}
-	local terrainObjects={}
-	local terrainRotations={}
-	local buckets={}
-	for _, mapObject in pairs(mapObjects) do
-		local pos=mapObject.getPosition()
-		positions[mapObject.guid]=pos
-		if terrainTiles[mapObject.guid]~=nil then
-			terrainObjects[#terrainObjects+1]=mapObject
-			terrainRotations[mapObject.guid]=mapObject.getRotation()
-		end
-		local key=tostring(math.floor(pos[1]/avatarLocationSpatialCell))..":"..tostring(math.floor(pos[3]/avatarLocationSpatialCell))
-		if buckets[key]==nil then buckets[key]={} end
-		buckets[key][#buckets[key]+1]=mapObject
-	end
-	return mapObjects, positions, terrainObjects, terrainRotations, buckets
+	local spatial=runtimeMapSpatialSnapshot(avatarLocationSpatialCell)
+	return spatial.objects,spatial.positions,spatial.terrainObjects,spatial.terrainRotations,spatial.buckets,spatial
 end
 
-function avatarLocationRelevantObjects(locatedTerrain, pos, buckets)
-	local result={}
-	local seen={}
-	if locatedTerrain~=nil then result[#result+1]=locatedTerrain seen[locatedTerrain.guid]=true end
-	local baseX=math.floor(pos[1]/avatarLocationSpatialCell)
-	local baseZ=math.floor(pos[3]/avatarLocationSpatialCell)
-	for x=baseX-1, baseX+1 do
-		for z=baseZ-1, baseZ+1 do
-			local bucket=buckets[tostring(x)..":"..tostring(z)]
-			if bucket~=nil then
-				for _, obj in ipairs(bucket) do
-					if seen[obj.guid]~=true then result[#result+1]=obj seen[obj.guid]=true end
-				end
-			end
-		end
-	end
-	return result
+function avatarLocationRelevantObjects(locatedTerrain,pos,spatial)
+	return runtimeMapSpatialNearbyObjects(spatial,pos,avatarLocationSpatialCell,locatedTerrain)
 end
 
 --Refresh only the stored location of a manually moved off-turn Mage Knight.
@@ -950,15 +917,15 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 							end
 							--Use one cached map snapshot for the current hex and its six neighbours.
 							local volkareCampKeepAllowed=volkareCampAsCityConquered()==true and volkareCampContributionShieldCount(playerDetails)>0
-							local mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets=avatarLocationMapSnapshot()
+							local mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets, mapSpatial=avatarLocationMapSnapshot()
 								for keepSearch=1, 7, 1 do
 									--Volkare can remove a City model during this loop, so retain the old live-refresh behaviour for him.
 									if keepSearch>1 and playerDetails.mage=="Volkare" then
-										mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets=avatarLocationMapSnapshot()
+										mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets, mapSpatial=avatarLocationMapSnapshot()
 									end
 									local locatedTerrain, bearing, _, hexFeature=terrainHexAtPosition(avatarPos, mapTerrainObjects, mapObjectPositions, mapTerrainRotations)
 								hexFeature=hexFeature or ""
-									for _, terrain in ipairs(avatarLocationRelevantObjects(locatedTerrain, avatarPos, mapObjectBuckets)) do--terrain tile + nearby physical objects only
+									for _, terrain in ipairs(avatarLocationRelevantObjects(locatedTerrain,avatarPos,mapSpatial)) do--terrain tile + nearby physical objects only
 										--work with terrain tiles
 										local tilePos=mapObjectPositions[terrain.guid] or terrain.getPosition()
 										local avatarToTileDistSquared=((avatarPos[1]-tilePos[1])^2)+((avatarPos[3]-tilePos[3])^2)
