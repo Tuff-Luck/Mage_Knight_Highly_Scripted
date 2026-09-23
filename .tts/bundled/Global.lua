@@ -570,7 +570,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		runtimeMapInvalidateTerrain()
 		--EXPLORE legality is derived from the settled physical map. onObjectEnterZone can fire while a
 		--dragged tile is still crossing the map zone, so rebuild only after the final drop has settled.
-		safeWaitCondition("Events",function() refreshTerrainExploreOptions() end,function()
+		safeWaitCondition("Events.terrainDrop",function() refreshTerrainExploreOptions() end,function()
 			local tile=getObjectFromGUID(droppedGUID)
 			return tile==nil or (tile.held_by_color==nil and tile.resting==true and tile.isSmoothMoving()==false)
 		end,5,function() refreshTerrainExploreOptions() end)
@@ -618,7 +618,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		if gStates.firstStarted~=true and gStates.mageKnightLevels==true and gStates.magesSetup==true then
 			local originalSkillPos=gStates.mageSkills[dropped_object.guid]
 			local wasAlreadyClaimed=higherLevelSkillAreaPlayer(originalSkillPos)~=nil
-			safeWaitFrames("Events",function() safeWaitCondition("Events",function()
+			safeWaitFrames("Events",function() safeWaitCondition("Events.higherLevelSkillDrop",function()
 				local skill=getObjectFromGUID(dropped_object.guid)
 				if skill~=nil then
 					local playerPosition=higherLevelSkillAreaPlayer(skill.getPosition())
@@ -636,7 +636,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		local coopCompSkill=(skillTokens[dropped_object.guid].skillType=="Coop" or skillTokens[dropped_object.guid].skillType=="Comp")
 		if coopCompSkill==true then coopCompSkillDropped(dropped_object.guid, dropped_object.getPosition()) end
 		local coopCompLockedAtDrop=coopCompSkill==true and coopCompSkillPlayLocked()==true
-		safeWaitFrames("Events",function() safeWaitCondition("Events",function()
+		safeWaitFrames("Events",function() safeWaitCondition("Events.skillDrop",function()
 			if getObjectFromGUID(dropped_object.guid)~=nil then
 				if coopCompSkill==true then
 					local playAreaPlayer=coopCompSkillPlayAreaPlayer(dropped_object.guid)
@@ -704,11 +704,11 @@ function __onObjectDrop_raw(player_color, dropped_object)
 						gStates.proxyAvatarOffMap=apocalypseQuestHexForPosition(proxyHexes,dropped_object.getPosition(),proxyMapObjects)==nil
 					end
 				end
-				safeWaitCondition("Events",finishProxyManualDrop,function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end,1.5,finishProxyManualDrop)
+				safeWaitCondition("Events.proxyDrop",finishProxyManualDrop,function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end,1.5,finishProxyManualDrop)
 				return
 			end
 			if player_color~=nil and gStates.firstStarted==true and avatar.mage~="Volkare" and avatarPlayerIndex~=nil and currentMage~=avatar.mage then
-				safeWaitCondition("Events",function() if coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end, function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end, 1.5, function() if getObjectFromGUID(dropped_object.guid)~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end)
+				safeWaitCondition("Events.outOfTurnAvatarDrop",function() if coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end, function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end, 1.5, function() if getObjectFromGUID(dropped_object.guid)~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end)
 				return
 			end
 			local avatarGUID=dropped_object.guid
@@ -716,7 +716,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 				local liveAvatar=getObjectFromGUID(avatarGUID)
 				if liveAvatar~=nil then mapAvatarLocationDetails(player_color,avatar,liveAvatar) end
 			end
-			safeWaitCondition("Events",updateAvatarLocation,function()
+			safeWaitCondition("Events.avatarDrop",updateAvatarLocation,function()
 				local liveAvatar=getObjectFromGUID(avatarGUID)
 				return liveAvatar==nil or liveAvatar.resting
 			end,1.5,updateAvatarLocation)
@@ -734,7 +734,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 			local questScoreMoved=dropped_object.guid==turnOrder[a].questScoreGUID
 			if fameMoved or reputationMoved or questScoreMoved then
 				local playerIndex=a
-				safeWaitCondition("Events",function()
+				safeWaitCondition("Events.progressMarkerDrop",function()
 					if fameMoved then refreshPlayerFameFromShield(playerIndex)
 					elseif reputationMoved then refreshPlayerReputationFromShield(playerIndex)
 					else refreshPlayerQuestScoreFromMarker(playerIndex) end
@@ -930,7 +930,7 @@ local function scheduleSettledZoneEntry(ctx,callback,channel)
 	local key=tostring(channel or "default").."|"..zoneGUID.."|"..objGUID
 	local serial=(settledZoneEntrySerial[key] or 0)+1
 	settledZoneEntrySerial[key]=serial
-	safeWaitCondition("Events",function()
+	safeWaitCondition("Events.zoneSettle."..tostring(channel or "default"),function()
 		if settledZoneEntrySerial[key]~=serial then return end
 		settledZoneEntrySerial[key]=nil
 		local liveZone=getObjectFromGUID(zoneGUID)
@@ -1010,7 +1010,7 @@ local function handleTurnOrderZoneEnter(ctx)
 	if zoneGUID==turnOrderArea then
 		for c, d in pairs(turnOrder) do
 			if objGUID==d.turnOrderTokenGUID then
-				safeWaitFrames("Events",function() safeWaitCondition("Events",function()
+				safeWaitFrames("Events",function() safeWaitCondition("Events.turnOrderEnter",function()
 					local turnOrderTokens=getObjectFromGUID(turnOrderArea).getObjects()
 					table.sort(turnOrderTokens, function (k1, k2) return k1.getPosition()[3]>k2.getPosition()[3] end)
 					--check if all turn order tokens are present
@@ -1219,7 +1219,7 @@ local function handleClaimZoneEnter(ctx)
 	if cardClaimingZones[zoneGUID]~=nil then
 		local offerZoneGUID=zoneGUID
 		local offerCardGUID=objGUID
-		safeWaitCondition("Events",function()
+		safeWaitCondition("Events.offerEnter",function()
 			local offerZone=getObjectFromGUID(offerZoneGUID)
 			local offerCard=getObjectFromGUID(offerCardGUID)
 			if offerZone==nil or offerCard==nil then return end
@@ -1262,7 +1262,7 @@ local function handleClaimZoneEnter(ctx)
 	if tacticSource~=nil and isTacticCard(obj) then
 		local tacticZoneGUID=zoneGUID
 		local tacticCardGUID=objGUID
-		safeWaitCondition("Events",function()
+		safeWaitCondition("Events.tacticEnter",function()
 			local tacticZone=getObjectFromGUID(tacticZoneGUID)
 			local tacticCardObj=getObjectFromGUID(tacticCardGUID)
 			if tacticZone==nil or tacticCardObj==nil then return end
@@ -1312,7 +1312,7 @@ local function handleManaZoneEnter(ctx)
 	--Mirror dice in source and Start of rounds should have half or more standard color Mana Dice
 	if zoneGUID==GUID.zone.mana and objType=="Dice" then
 		if dieRollEnterPause~=nil then Wait.stop(dieRollEnterPause) end
-		dieRollEnterPause=safeWaitCondition("Events",function()
+		dieRollEnterPause=safeWaitCondition("Events.manaEnter",function()
 			--Start of rounds should have half or more standard color Mana Dice
 			local safe=true
 			if gStates.tacticRemove==true or gStates.tacticShown==true or gStates.firstStarted~=true then
@@ -1616,7 +1616,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 		obj.guid=="55e5e5" or obj.guid=="818aea" or obj.guid=="564392" or obj.guid=="784a07" or obj.guid=="ebbbfc" or obj.guid=="b13d5f" or obj.guid=="9d866a") then
 		if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.firstStarted==true then
 			local coopGUID=obj.guid
-			safeWaitFrames("Events",function() safeWaitCondition("Events",function()
+			safeWaitFrames("Events",function() safeWaitCondition("Events.coopSkillState",function()
 				local locking=obj.setState(2)
 				if locking~=nil then
 					--setState destroys the old Coop object and creates the competitive-state GUID. Combat cleanup
@@ -1664,7 +1664,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 		local randomTrap=math.random(6)
 		local damageAdjust=0
 		if bag.guid==monsterPiles.pyramidTrap then damageAdjust=1 end
-		safeWaitFrames("Events",function() safeWaitCondition("Events",function()
+		safeWaitFrames("Events",function() safeWaitCondition("Events.trapEnter",function()
 			if obj~=nil then
 				obj.setCustomObject({image=trapImage[bag.guid][randomTrap]})
 				obj.reload()
@@ -1770,7 +1770,7 @@ function refreshCardEffectAfterRotation(cardGUID)
 	safeWaitFrames("Events",function()
 		local card=getObjectFromGUID(cardGUID)
 		if card==nil or cardEffectRotationGeneration[cardGUID]~=generation then return end
-		safeWaitCondition("Events",function()
+		safeWaitCondition("Events.cardRotate",function()
 			if cardEffectRotationGeneration[cardGUID]~=generation then return end
 			local settledCard=getObjectFromGUID(cardGUID)
 			if settledCard==nil then return end
@@ -13493,6 +13493,19 @@ function mapTokenScheduleObject(guid)
 	return mapTokenSettleArrival(guid,nil,{passive=true})
 end
 
+--Run work only after the token's complete arrival transaction has finished, including any final
+--separator correction. This is intentionally later than mapTokenAfterSettled(), which is also used
+--inside mapTokenSettleArrival while its generation is still pending.
+function mapTokenAfterArrivalComplete(guid,callback)
+	if guid==nil or callback==nil then return end
+	safeWaitCondition("Scenario.mapTokenArrivalComplete",function()
+		callback(getObjectFromGUID(guid))
+	end,function()
+		local obj=getObjectFromGUID(guid)
+		return obj==nil or (mapTokenArrivalPending[guid]==nil and obj.isSmoothMoving()==false and obj.resting==true)
+	end)
+end
+
 --Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
 --remaining lone enemy and keeps a Destroyed Site marker fixed underneath anything still on the hex.
 function mapTokenReleaseObject(obj)
@@ -17793,7 +17806,11 @@ function dayNight()
 					--Day Board, 5 Weather Tokens, weather deck
 		local found=false
 		for _, ruinGUID in pairs(ruinPugs) do
-			if getObjectFromGUID(ruinGUID)~=nil and getObjectFromGUID(ruinGUID).is_face_down==true then getObjectFromGUID(ruinGUID).flip() found=true end
+			local ruin=getObjectFromGUID(ruinGUID)
+			if ruin~=nil and ruin.is_face_down==true then
+				revealRuinAfterArrival(ruinGUID)
+				found=true
+			end
 		end
 		if found==true then broadcastToAll("{en}Ruins are revealed{ru}Все руины были раскрыты{zh-tw}废墟被探索了{zh-cn}废墟被探索了{ko}유적 공개됨{es}Las Ruinas se Revelan{fr}Les Ruines sont Révélées{pt-br}Ruinas são Reveladas{de}Ruinen werden aufgedeckt", {1,1,0.5}) end
 		safeWaitFrames("Turn",function()
@@ -24376,6 +24393,14 @@ function clearTerrainExploreOptions()
 	if exploreUI~=nil then exploreUI.UI.setXmlTable(terrainExploreButtons) end
 end
 
+--Ruin tokens always travel face-down. Daytime reveal happens only after their full map-token arrival,
+--including any shared-hex separator correction, so flip() can never interrupt the journey.
+function revealRuinAfterArrival(guid)
+	mapTokenAfterArrivalComplete(guid,function(ruin)
+		if ruin~=nil and ruin.is_face_down==true then ruin.flip() end
+	end)
+end
+
 
 -- Portal and City avatar parking
 function portalSwap(state, playerIndex)
@@ -25935,12 +25960,15 @@ function mapHandleTerrainZoneEnter(ctx)
 
 							--Ruins
 							if hexFeature=="ruin" then
-								local ruinRotation=gStates.dayRound==false and faceDown or faceUp
-								params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
-								params.rotation=ruinRotation
-								params.smooth=true
-								local token=getObjectFromGUID(monsterPiles.yellow).takeObject(params)
-								gStates.monsterPlayLocation[token.guid]=params.position
+								local target={angleToXY(obj, hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
+								local ruinBag=getObjectFromGUID(monsterPiles.yellow)
+								local bagPos=ruinBag.getPosition()
+								--Extract beside the bag first. Giving takeObject() the destination rotation/position lets TTS
+								--rotate a token while its container smooth-move is still in flight.
+								local token=ruinBag.takeObject({position={bagPos[1],bagPos[2]+2,bagPos[3]},rotation=faceDown,smooth=false})
+								gStates.monsterPlayLocation[token.guid]=target
+								mapTokenSettleArrival(token.guid,target,{force=true,rotation=faceDown})
+								if gStates.dayRound==true then revealRuinAfterArrival(token.guid) end
 							end
 
 							--City
@@ -27020,6 +27048,13 @@ function cityCardMapSnapshot()
 	return mapObjects
 end
 
+local function cityCardExploreGroupObject(obj)
+	if obj==nil or obj.guid==nil then return false end
+	--Scripting zones report collider overlap, so a terrain tile can appear in a City zone when only
+	--its corner clips the zone. Terrain is anchored to the map and must never travel with the City card.
+	return terrainTiles[obj.guid]==nil
+end
+
 function cityCardExploreGroup(cityZone)
 	local details=cityScriptZones[cityZone]
 	local cityGUID=details~=nil and details.cityGUID or nil
@@ -27039,7 +27074,11 @@ function cityCardExploreGroup(cityZone)
 	local movingGUIDs={[card.guid]=true}
 	for zoneGUID, _ in pairs(zonesToMove) do
 		local zoneObj=getObjectFromGUID(zoneGUID)
-		if zoneObj~=nil then for _, obj in pairs(zoneObj.getObjects()) do movingGUIDs[obj.guid]=true end end
+		if zoneObj~=nil then
+			for _, obj in pairs(zoneObj.getObjects()) do
+				if cityCardExploreGroupObject(obj)==true then movingGUIDs[obj.guid]=true end
+			end
+		end
 	end
 	return {cityGUID=cityGUID, card=card, city=cityModelObj, zones=zonesToMove, movingGUIDs=movingGUIDs}
 end
@@ -27104,7 +27143,7 @@ function moveCityCardExploreGroup(group, desiredLocation, movedCityZones, mapObj
 		if zoneObj~=nil then
 			if movedCityZones~=nil then movedCityZones[zoneGUID]=true end
 			for _, cityCardObj in pairs(zoneObj.getObjects()) do
-				if movedObjects[cityCardObj.guid]~=true and cityCardObj.guid~='3d4319' and cityCardObj.guid~='519f96' then
+				if movedObjects[cityCardObj.guid]~=true and cityCardObj.guid~='3d4319' and cityCardObj.guid~='519f96' and cityCardExploreGroupObject(cityCardObj)==true then
 					movedObjects[cityCardObj.guid]=true
 					local originalPos=cityCardObj.getPosition()
 					local relocation={originalPos[1]+deltaX, originalPos[2], originalPos[3]+deltaZ}
