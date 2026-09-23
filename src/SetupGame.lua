@@ -214,101 +214,77 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		UI.setAttribute("MonsterButtonRealImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("MonsterButtonReal", "interactable", "true")
 
-		--New User and Random Game setup
+		--New User and Mystery Solo setup. Build the player shell first, then run the chosen scenario
+		--through the same default/lock path used by the normal setup UI. Quick starts should never inherit
+		--rules-affecting state from whichever setup happened to be visible before the button was pressed.
 		if id=="NewUser" or id=="RandomGame" then
-			for a=1, 4 do gStates.positionMageKnight[a]="nobody" end
+			for a=1,4 do gStates.positionMageKnight[a]="nobody" end
 			gStates.positionMageKnight[2]="Random"
 			gStates.positionMageKnight[5]="Random"
 			gStates.setupDummyMageChoice="Random"
 			gStates.volkareSkills="Random"
 			gStates.playerCount=1
-			gStates.scenarioRef=1
-			gStates.playersRef=5
 			gStates.coop=1
+			gStates.WarOfFourComp=false
+			gStates.dayRound=false
+			--Hero Challenges intentionally survive ordinary scenario browsing, but a quick start must begin
+			--from a known baseline. Mystery Solo may roll them back on below when the selected setup permits it.
+			gStates.heroChallenges=false
+
 			if id=="NewUser" then
-				gStates.gameScenario="First Reconnaissance"
-				gStates.scenarioRef=1
-				gStates.removeLostLegionExpansion=true
-				gStates.removeBonusCards=true
-				gStates.riseOfTheForgemasters=0
-			else--"RandomGame"
-				--Mystery Solo can be pressed after changing setup options, so build the roll from a clean baseline
-				--instead of inheriting any settings from the menu state that happened to be active beforehand.
-				gStates.rampage=0
-				gStates.megapolis=0
-				gStates.volkareCampAsCity=false
-				gStates.randomTileOrientation=false
-				gStates.randomCities=false
-				gStates.dayRound=false
-				gStates.startAtNight=false
-				gStates.darknessComing=false
-				gStates.removeShadesOfTezlaMonsters=false
-				gStates.removeApocalypseTerrain=false
-				gStates.useCustomMageKnights=false
-				gStates.heroChallenges=false
-				gStates.apocalypseQuestCards=false
-				gStates.questMod=false
-				gStates.weatherMod=false
-				gStates.itemShopMod=false
-				gStates.rampageAmbush=false
-				gStates.rampagePursuit=false
-				gStates.mageKnightLevels=false
-				gStates.removeTerrain=false
-				gStates.removeLostLegionExpansion=false
-				gStates.removeBonusCards=false
-				gStates.useAlternatePugs=false
-				gStates.riseOfTheForgemasters=0
-				while 	scenarioList[gStates.scenarioRef][1]=="First Reconnaissance" or
-						scenarioList[gStates.scenarioRef][1]=="Conquer and Hold" or
-						scenarioList[gStates.scenarioRef][1]=="One to Return" do gStates.scenarioRef=math.random(2, #scenarioList-1) end--19,9,8 aren't solo
-				gStates.gameScenario=scenarioList[gStates.scenarioRef][1]
-				if gStates.gameScenario:reverse():sub(1, 5)=="ztilB" then gStates.blitz=1 else gStates.blitz=0 end
-				if math.random(1,10)>=8 then gStates.rampage=math.random(0,2) end
-				if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then gStates.positionMageKnight[5]="Volkare" end
-				if gStates.gameScenario=="First Reconnaissance" then
-					gStates.removeShadesOfTezlaMonsters=true
-				elseif gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The War of Four" then
-					gStates.removeShadesOfTezlaMonsters=false
-				else
-					if math.random(1,10)>=7 then gStates.removeShadesOfTezlaMonsters=true else gStates.removeShadesOfTezlaMonsters=false end
+				applyScenarioSetupDefaults("First Reconnaissance")
+			else
+				--Choose from scenarios that actually provide a Solo setup row instead of maintaining a name blacklist.
+				--First Reconnaissance remains reserved for the dedicated walkthrough button; Custom remains excluded
+				--by the historical #scenarioList-1 range.
+				local soloScenarios={}
+				for scenarioRef=2,#scenarioList-1 do
+					local scenario=scenarioList[scenarioRef]
+					local soloSetup=scenario~=nil and scenario[5] or nil
+					if scenario~=nil and scenario[1]~="First Reconnaissance" and soloSetup~=nil and soloSetup.rounds~=nil then
+						soloScenarios[#soloScenarios+1]=scenarioRef
+					end
 				end
-				if gStates.gameScenario=="Against the Apocalypse Blitz" then
-					gStates.removeApocalypseTerrain=false
-				elseif gStates.gameScenario=="First Reconnaissance" then
-					gStates.removeApocalypseTerrain=true
-				else
-					if math.random(1,10)>=7 then gStates.removeApocalypseTerrain=true else gStates.removeApocalypseTerrain=false end
+				if #soloScenarios==0 then error("Mystery Solo could not find a scenario with a valid Solo setup.",2) end
+				local selectedRef=soloScenarios[math.random(1,#soloScenarios)]
+				applyScenarioSetupDefaults(scenarioList[selectedRef][1])
+
+				--Preserve Mystery Solo's existing option roster/probabilities, but respect the canonical locks
+				--that scenarioSelection just rebuilt instead of duplicating scenario-name special cases here.
+				local function rollOption(optionId,threshold)
+					if UI.getAttribute(optionId,"interactable")=="True" then
+						optionsUpdate(nil,math.random(1,10)>=threshold and "True" or "False",optionId)
+					end
 				end
-				if gStates.gameScenario=="The Fractured Lands Blitz" then gStates.randomTileOrientation=false elseif math.random(1,10)>=8 then gStates.randomTileOrientation=true else gStates.randomTileOrientation=false end
-				if randomCitiesAllowedForScenario() and math.random(1,10)>=8 then gStates.randomCities=true else gStates.randomCities=false end
-				--afterLoad/dayNight expects dayRound=false before the first flip; randomize the actual Start at Night option instead.
-				if gStates.gameScenario=="Fast Forwarded Conquest" or (gStates.gameScenario~="Druid Nights" and math.random(1,10)>=8) then gStates.startAtNight=true else gStates.startAtNight=false end
-				if math.random(1,10)>=8 and gStates.gameScenario~="Druid Nights" then gStates.darknessComing=true else gStates.darknessComing=false end
-				if math.random(1,10)>=8 then gStates.useCustomMageKnights=true else gStates.useCustomMageKnights=false end
-				--Hero Challenges use the same random-option chance, but are mutually exclusive with fan-made Mage Knights.
-				if gStates.useCustomMageKnights~=true and (gStates.riseOfTheForgemasters or 0)==0 and math.random(1,10)>=8 then gStates.heroChallenges=true else gStates.heroChallenges=false end
-				if gStates.gameScenario=="For the Council" or gStates.gameScenario=="The Fractured Lands Blitz" then
-					gStates.apocalypseQuestCards=true
-				else
-					if math.random(1,10)>=8 then gStates.apocalypseQuestCards=true else gStates.apocalypseQuestCards=false end
+				rollOption("removeShadesOfTezlaMonsters",7)
+				rollOption("removeApocalypseTerrain",7)
+				rollOption("randomTileOrientation",8)
+				rollOption("randomCities",8)
+				if gStates.gameScenario~="Druid Nights" then
+					rollOption("startAtNight",8)
+					rollOption("darknessComing",8)
 				end
-				if math.random(1,10)>=8 then gStates.rampageAmbush=true else gStates.rampageAmbush=false end
-				if math.random(1,10)>=8 and gStates.rampageAmbush==false then gStates.rampagePursuit=true else gStates.rampagePursuit=false end
-				--gStates.questMod=false
-				--gStates.weatherMod=false
-				if gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="Ultimate Conquest"
-					or gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four"
-					or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="Fast Forwarded Conquest" or gStates.gameScenario=="The Fractured Lands Blitz" or gStates.gameScenario=="Against the Horsemen Blitz" then
-					if math.random(1,10)>=8 then gStates.volkareCampAsCity=true else gStates.volkareCampAsCity=false end
-					if gStates.gameScenario=="Ultimate Conquest" then gStates.volkareCampAsCity=true end
-					if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then gStates.volkareCampAsCity=false end
+				rollOption("useCustomMageKnights",8)
+				if gStates.useCustomMageKnights~=true and (gStates.riseOfTheForgemasters or 0)==0 then rollOption("heroChallenges",8) end
+				rollOption("apocalypseQuestCards",8)
+				rollOption("rampageAmbush",8)
+				if gStates.rampageAmbush~=true then rollOption("rampagePursuit",8) end
+				rollOption("volkareCampAsCity",8)
+
+				if UI.getAttribute("RampageSelection","interactable")=="True" and math.random(1,10)>=8 then
+					local rampageMode=math.random(0,2)
+					if rampageMode==1 then
+						RampageSelection(nil,"True","RampageSelection")
+					elseif rampageMode==2 then
+						MoreRampageSelection(nil,"True","MoreRampageSelection")
+					end
 				end
+
 				local megapolisMaximum=megapolisMaximumForSetup(gStates.scenarioRef,gStates.playersRef)
 				if gStates.volkareCampAsCity==false and megapolisMaximum>0 and math.random(1,10)>=8 then
 					gStates.megapolis=math.random(0,megapolisMaximum)
 					ensureSetupMegapolisMinimumLevels()
 				end
-				if gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="Fast Forwarded Conquest" then gStates.mageKnightLevels=true end
 			end
 		end
 
