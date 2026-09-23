@@ -215,7 +215,7 @@ function mapSetup(onComplete)
 	local furyCityTilePos={}
 	local furyRevealGUIDs={}
 	local furyLairTile=nil
-	local standardRevealBatches={{},{},{}}
+	local standardRevealBatches={{},{},{},{}}
 	local againstHorsemenStartGUID=nil
 	if furyMap then
 		--Exact predefined layouts from the Fury scenario sheet. Place every selected tile face down first;
@@ -713,7 +713,16 @@ function mapSetup(onComplete)
 			local thirdStart=takeStartingCountry({position={-30.0303,1.07,-14.0000},rotation=rot,smooth=false})
 			if thirdStart~=nil then standardRevealBatches[3][#standardRevealBatches[3]+1]={guid=thirdStart.guid} end
 		end
-		if gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
+		if gStates.gameScenario=="Volkare's Quest" then
+			local camp=getObjectFromGUID("835c91")
+			if camp~=nil then
+				--Player setup stages the Camp off-map so entering the map zone cannot start an independent
+				--terrain reveal. Put it down only after the normal three starting-terrain reveals are queued,
+				--then give it its own final reveal batch.
+				camp.setPosition({-12.0297,1.15,8.8586})
+				standardRevealBatches[4][#standardRevealBatches[4]+1]={guid=camp.guid}
+			end
+		elseif gStates.gameScenario=="The War of Four" then
 			local camp=getObjectFromGUID("835c91")
 			if camp~=nil then camp.setPosition({-12.0297,1.15,8.8586}) standardRevealBatches[3][#standardRevealBatches[3]+1]={guid=camp.guid} end
 		end
