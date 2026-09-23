@@ -42,6 +42,14 @@ function clearTerrainExploreOptions()
 	if exploreUI~=nil then exploreUI.UI.setXmlTable(terrainExploreButtons) end
 end
 
+--Ruin tokens always travel face-down. Daytime reveal happens only after their full map-token arrival,
+--including any shared-hex separator correction, so flip() can never interrupt the journey.
+function revealRuinAfterArrival(guid)
+	mapTokenAfterArrivalComplete(guid,function(ruin)
+		if ruin~=nil and ruin.is_face_down==true then ruin.flip() end
+	end)
+end
+
 
 -- Portal and City avatar parking
 function portalSwap(state, playerIndex)
@@ -1601,12 +1609,15 @@ function mapHandleTerrainZoneEnter(ctx)
 
 							--Ruins
 							if hexFeature=="ruin" then
-								local ruinRotation=gStates.dayRound==false and faceDown or faceUp
-								params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
-								params.rotation=ruinRotation
-								params.smooth=true
-								local token=getObjectFromGUID(monsterPiles.yellow).takeObject(params)
-								gStates.monsterPlayLocation[token.guid]=params.position
+								local target={angleToXY(obj, hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
+								local ruinBag=getObjectFromGUID(monsterPiles.yellow)
+								local bagPos=ruinBag.getPosition()
+								--Extract beside the bag first. Giving takeObject() the destination rotation/position lets TTS
+								--rotate a token while its container smooth-move is still in flight.
+								local token=ruinBag.takeObject({position={bagPos[1],bagPos[2]+2,bagPos[3]},rotation=faceDown,smooth=false})
+								gStates.monsterPlayLocation[token.guid]=target
+								mapTokenSettleArrival(token.guid,target,{force=true,rotation=faceDown})
+								if gStates.dayRound==true then revealRuinAfterArrival(token.guid) end
 							end
 
 							--City
