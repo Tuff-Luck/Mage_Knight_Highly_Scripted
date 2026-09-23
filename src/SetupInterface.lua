@@ -7,6 +7,238 @@
 --return the selected scenario to the correct defaults for the current Mage Knight count.
 local scenarioTweakDefaults=nil
 
+
+local SETUP_TEXT={
+	notUsed="{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet",
+	rotf1="{en}1. New Beginning{ru}1. Новое начало{zh-tw}新的開始{zh-cn}新的开始{ko}1.새로운 시작{es}1. Un nuevo comienzo{fr}1. Nouveau départ{pt-br}1. Novo Começo{de}1. Neubeginn",
+	rotf2="{en}2. Spoils of War{ru}2. Военные трофеи{zh-tw}戰爭犒賞{zh-cn}战争犒赏{ko}2.전쟁의 전리품{es}2. Botín de Guerra{fr}2. Butin de Guerre{pt-br}2. Despojos de Guerra{de}2. Kriegsbeute",
+	rotf3="{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier",
+	darknessComing="{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel",
+	daylightComing="{en}Daylight is Coming{ru}Надвигается рассвет{zh-tw}白晝侵襲{zh-cn}白昼侵袭{ko}빛의 도래{es}Se Acerca la luz del Día{fr}Lendemain Arrive{pt-br}A Luz do dia está Chegando{de}Es Wird Hell",
+	startSolo="{en}Start - Solo{ru}Начало - Одиночный{zh-tw}開始 - 單人遊戲{zh-cn}开始 - 单人游戏{ko}시작 - 솔로{es}Comenzar - Solo{fr}Démarrer - Solo{pt-br}Início - Solo{de}Start - Solo",
+	startCompetitive="{en}Start - Competitive{ru}Начало - Соревновательный{zh-tw}開始 - 對抗模式{zh-cn}开始 - 对抗模式{ko}시작 - 경쟁{es}Comenzar - Competitivo{fr}Démarrer - Compétitif{pt-br}Início - Competitivo{de}Start - Wettbewerbsfähig",
+	startCooperative="{en}Start - Cooperative{ru}Начало - Кооперативный{zh-tw}開始 - 合作模式{zh-cn}开始 - 合作模式{ko}시작 - 협력{es}Comenzar - Cooperativo{fr}Démarrer - Coopératif{pt-br}Início - Cooperativo{de}Start - Genossenschaft",
+	volkareSkills="{en}Volkare Skills -{ru}Навыки Волкаре -{zh-tw}沃卡里技能：{zh-cn}沃卡里技能：{ko}볼케어의 스킬 -{es}Habilidades de Volkare -{fr}Compétences de Volkare -{pt-br}Habilidades de Volkare -{de}Volkare-Fähigkeiten -",
+	dummyMageKnight="{en}Dummy Mage Knight -{ru}Виртуальный Рыцарь-маг -{zh-tw}虛擬玩家：{zh-cn}虚拟玩家：{ko}가상 플레이어 -{es}Mage Knight Virtual -{fr}Mage fantôme -{pt-br}Mage Knight Fictício -{de}Dummy-Magier-Ritter -",
+	countryTilesPrefix="{en}Country Tiles - {ru}Дикие земли - {zh-tw}鄉村板塊：{zh-cn}乡村板块：{ko}교외 타일 - {es}Losetas de Campo - {fr}Tuiles Pays - {pt-br}Peças de Campo - {de}Land Teile - ",
+	coreTilesPrefix="{en}Core Tiles - {ru}Развитые земли - {zh-tw}核心板塊：{zh-cn}核心板块：{ko}중심부 타일 - {es}Losetas Centrales - {fr}Tuiles de Base - {pt-br}Peças Centrais - {de}Core Teile - ",
+	cityTilesPrefix="{en}City Tiles - {ru}Земли с городом - {zh-tw}城市板塊：{zh-cn}城市板块：{ko}도시 타일 - {es}Losetas de Ciudad - {fr}Tuiles Ville - {pt-br} Peças Cidade - {de}Stadt Teile - "}
+
+local ROTF_TEXT_BY_LEVEL={[0]=SETUP_TEXT.notUsed,[1]=SETUP_TEXT.rotf1,[2]=SETUP_TEXT.rotf2,[3]=SETUP_TEXT.rotf3}
+
+local SCENARIO_SELECTION_BY_ID={
+	ConquestSelection="Conquest",
+	FirstReconnaissanceSelection="First Reconnaissance",
+	FirstConquestSelection="First Conquest",
+	MinesLiberationSelection="Mines Liberation",
+	DruidNightsSelection="Druid Nights",
+	DungeonLordsSelection="Dungeon Lords",
+	ConquerAndHoldSelection="Conquer and Hold",
+	OneToReturnSelection="One to Return",
+	VolkaresReturnSelection="Volkare's Return",
+	VolkaresQuestSelection="Volkare's Quest",
+	LifeAndDeathSelection="Life and Death",
+	TheRealmOfTheDeadSelection="The Realm of the Dead",
+	TheHiddenValleySelection="The Hidden Valley",
+	AgainsttheApocalypseSelection="Against the Apocalypse",
+	AgainsttheHorsemenSelection="Against the Horsemen",
+	AgainsttheDragonSelection="Against the Dragon",
+	ApocalypseIsHereSelection="Apocalypse is Here",
+	FuryOfTheApocalypseDragonSelection="Fury of the Apocalypse Dragon",
+	TheLostRelicSelection="The Lost Relic",
+	TheGauntletSelection="The Gauntlet",
+	QuestForTheGoldenGrailSelection="Quest for the Golden Grail",
+	TheChaosRiftSelection="The Chaos Rift",
+	UltimateConquestSelection="Ultimate Conquest",
+	FastForwardedConquestSelection="Fast Forwarded Conquest",
+	TheWarOfFourSelection="The War of Four",
+	RaidersOfTheCrusaderTempleSelection="Raiders of the Crusader Temple",
+	ForTheCouncilSelection="For the Council",
+	TheFracturedLandsSelection="The Fractured Lands",
+	CustomSelection="Custom"}
+
+local ROTF_SELECTION_LEVEL_BY_ID={ROTF0Selection=0,ROTF1Selection=1,ROTF2Selection=2,ROTF3Selection=3}
+
+local SETUP_DROPDOWN_CONTROL_BY_ID={
+	firstMKSelection={1,"MageDropDown",-275},
+	secondMKSelection={2,"MageDropDown",-275},
+	thirdMKSelection={3,"MageDropDown",-275},
+	fourthMKSelection={4,"MageDropDown",-275},
+	dummyMKSelection={5,"MageDropDown",-275},
+	ScenarioSelection={0,"ScenarioDropDown",90},
+	ROTFSelection={0,"ROTFDropDown",-115},
+	VolkareLevelSelection={0,"VolkareLevelDropDown",-305},
+	VolkareRaceSelection={0,"VolkareRaceDropDown",-335}}
+
+local SETUP_DROPDOWN_ROWS={
+	nobodyRow={"nobody","nobodySelectionImage","MageDropDown"},
+	AllSkillsRow={"All Skills","AllSkillsSelectionImage","MageDropDown"},
+	RANDOMRow={"Random","RANDOMSelectionImage","MageDropDown"},
+	ArytheaRow={"Arythea","ArytheaSelectionImage","MageDropDown"},
+	GoldyxRow={"Goldyx","GoldyxSelectionImage","MageDropDown"},
+	NorowasRow={"Norowas","NorowasSelectionImage","MageDropDown"},
+	TovakRow={"Tovak","TovakSelectionImage","MageDropDown"},
+	BraevalarRow={"Braevalar","BraevalarSelectionImage","MageDropDown"},
+	KrangRow={"Krang","KrangSelectionImage","MageDropDown"},
+	WolfhawkRow={"Wolfhawk","WolfhawkSelectionImage","MageDropDown"},
+	CoralRow={"Coral","CoralSelectionImage","MageDropDown"},
+	YmirghRow={"Ymirgh","YmirghSelectionImage","MageDropDown"},
+	MevokRow={"Mevok","MevokSelectionImage","MageDropDown"},
+	DusceniaRow={"Duscenia","DusceniaSelectionImage","MageDropDown"},
+	JormundRow={"Jormund","JormundSelectionImage","MageDropDown"},
+	MalekRow={"Malek","MalekSelectionImage","MageDropDown"},
+	ZirtaeRow={"Zirtae","ZirtaeSelectionImage","MageDropDown"},
+	DaringRow={"Daring","DaringSelectionImage","VolkareLevelDropDown",1},
+	HeroicRow={"Heroic","HeroicSelectionImage","VolkareLevelDropDown",2},
+	LegendaryRow={"Legendary","LegendarySelectionImage","VolkareLevelDropDown",3},
+	FairRow={"Fair","FairSelectionImage","VolkareRaceDropDown",1},
+	TightRow={"Tight","TightSelectionImage","VolkareRaceDropDown",2},
+	ThrillingRow={"Thrilling","ThrillingSelectionImage","VolkareRaceDropDown",3},
+	ConquestRow={"Conquest","ConquestSelectionImage","ScenarioDropDown"},
+	FirstReconnaissanceRow={"First Reconnaissance","FirstReconnaissanceSelectionImage","ScenarioDropDown"},
+	FirstConquestRow={"First Conquest","FirstConquestSelectionImage","ScenarioDropDown"},
+	MinesLiberationRow={"Mines Liberation","MinesLiberationSelectionImage","ScenarioDropDown"},
+	DruidNightsRow={"Druid Nights","DruidNightsSelectionImage","ScenarioDropDown"},
+	DungeonLordsRow={"Dungeon Lords","DungeonLordsSelectionImage","ScenarioDropDown"},
+	ConquerAndHoldRow={"Conquer and Hold","ConquerAndHoldSelectionImage","ScenarioDropDown"},
+	OneToReturnRow={"One to Return","OneToReturnSelectionImage","ScenarioDropDown"},
+	VolkaresReturnRow={"Volkare's Return","VolkaresReturnSelectionImage","ScenarioDropDown"},
+	VolkaresQuestRow={"Volkare's Quest","VolkaresQuestSelectionImage","ScenarioDropDown"},
+	LifeAndDeathRow={"Life and Death","LifeAndDeathSelectionImage","ScenarioDropDown"},
+	TheRealmOfTheDeadRow={"The Realm of the Dead Blitz","TheRealmOfTheDeadSelectionImage","ScenarioDropDown"},
+	TheHiddenValleyRow={"The Hidden Valley Blitz","TheHiddenValleySelectionImage","ScenarioDropDown"},
+	AgainsttheApocalypseRow={"Against the Apocalypse Blitz","AgainsttheApocalypseSelectionImage","ScenarioDropDown"},
+	AgainsttheHorsemenRow={"Against the Horsemen Blitz","AgainsttheHorsemenSelectionImage","ScenarioDropDown"},
+	AgainsttheDragonRow={"Against the Dragon Blitz","AgainsttheDragonSelectionImage","ScenarioDropDown"},
+	ApocalypseIsHereRow={"Apocalypse is Here","ApocalypseIsHereSelectionImage","ScenarioDropDown"},
+	FuryOfTheApocalypseDragonRow={"Fury of the Apocalypse Dragon","FuryOfTheApocalypseDragonSelectionImage","ScenarioDropDown"},
+	TheLostRelicRow={"The Lost Relic Blitz","TheLostRelicSelectionImage","ScenarioDropDown"},
+	TheGauntletRow={"The Gauntlet","TheGauntletSelectionImage","ScenarioDropDown"},
+	QuestForTheGoldenGrailRow={"Quest for the Golden Grail","QuestForTheGoldenGrailSelectionImage","ScenarioDropDown"},
+	TheChaosRiftRow={"The Chaos Rift","TheChaosRiftSelectionImage","ScenarioDropDown"},
+	UltimateConquestRow={"Ultimate Conquest","UltimateConquestSelectionImage","ScenarioDropDown"},
+	FastForwardedConquestRow={"Fast Forwarded Conquest","FastForwardedConquestSelectionImage","ScenarioDropDown"},
+	TheWarOfFourRow={"The War of Four","TheWarOfFourSelectionImage","ScenarioDropDown"},
+	RaidersOfTheCrusaderTempleRow={"Raiders of the Crusader Temple","RaidersOfTheCrusaderTempleSelectionImage","ScenarioDropDown"},
+	ForTheCouncilRow={"For the Council","ForTheCouncilSelectionImage","ScenarioDropDown"},
+	TheFracturedLandsRow={"The Fractured Lands Blitz","TheFracturedLandsSelectionImage","ScenarioDropDown"},
+	CustomRow={"Custom","CustomSelectionImage","ScenarioDropDown"},
+	ROTF0Row={"Not Used","ROTF0SelectionImage","ROTFDropDown"},
+	ROTF1Row={"1. New Beginning","ROTF1SelectionImage","ROTFDropDown"},
+	ROTF2Row={"2. Spoils of War","ROTF2SelectionImage","ROTFDropDown"},
+	ROTF3Row={"3. Elixir of Life","ROTF3SelectionImage","ROTFDropDown"}}
+
+local MAGE_KNIGHT_SELECTION_BY_ID={
+	nobodySelection="nobody",AllSkillsSelection="All Skills",RANDOMSelection="Random",
+	ArytheaSelection="Arythea",GoldyxSelection="Goldyx",NorowasSelection="Norowas",TovakSelection="Tovak",
+	BraevalarSelection="Braevalar",KrangSelection="Krang",WolfhawkSelection="Wolfhawk",CoralSelection="Coral",
+	YmirghSelection="Ymirgh",MevokSelection="Mevok",DusceniaSelection="Duscenia",JormundSelection="Jormund",
+	MalekSelection="Malek",ZirtaeSelection="Zirtae"}
+
+local MAGE_KNIGHT_CONTROL_POSITION={
+	firstMKSelection=1,secondMKSelection=2,thirdMKSelection=3,fourthMKSelection=4,dummyMKSelection=5}
+local MAGE_KNIGHT_CONTROL_IDS={"firstMKSelection","secondMKSelection","thirdMKSelection","fourthMKSelection","dummyMKSelection"}
+
+local VOLKARE_COMBAT_SELECTION_BY_ID={
+	DaringSelection={"Daring",1},HeroicSelection={"Heroic",2},LegendarySelection={"Legendary",3}}
+local VOLKARE_RACE_SELECTION_BY_ID={
+	FairSelection={"Fair",1},TightSelection={"Tight",2},ThrillingSelection={"Thrilling",3}}
+
+local scenarioRefByName={}
+for scenarioRef,scenario in ipairs(scenarioList) do scenarioRefByName[scenario[1]]=scenarioRef end
+
+local function scenarioRefForName(name)
+	return type(name)=="string" and scenarioRefByName[name] or nil
+end
+
+local function scenarioRefForSelection(name)
+	return scenarioRefForName(name) or scenarioRefForName(type(name)=="string" and name.." Blitz" or nil)
+end
+
+local function blitzPolicyForScenarioSelection(name)
+	local scenarioRef=scenarioRefForSelection(name)
+	local details=scenarioRef~=nil and scenarioList[scenarioRef].scenarioDetails or nil
+	return details~=nil and details.blitzPossible or nil
+end
+
+local function setScenarioBlitzIdentity(enabled)
+	local current=gStates.gameScenario
+	local base=current
+	if type(base)=="string" and base:sub(-6)==" Blitz" then base=base:sub(1,-7) end
+	local desired=enabled and base.." Blitz" or base
+	if scenarioRefForName(desired)~=nil then gStates.gameScenario=desired end
+end
+
+local function setSetupToggle(id,value,interactable)
+	if value~=nil then
+		UI.setAttribute(id,"isOn",value and "true" or "false")
+		gStates[id]=value
+	end
+	if interactable~=nil then UI.setAttribute(id,"interactable",interactable and "True" or "False") end
+end
+
+local SETUP_TOGGLE_DEFAULTS={
+	volkareCampAsCity={false,false},
+	removeLostLegionExpansion={false,true},
+	randomTileOrientation={false,true},
+	randomCities={false,true},
+	removeShadesOfTezlaMonsters={false,true},
+	removeApocalypseTerrain={false,true},
+	startAtNight={false,true},
+	rampageAmbush={false,true},
+	rampagePursuit={false,true},
+	darknessComing={false,true},
+	mageKnightLevels={false,true},
+	useCustomMageKnights={false,true},
+	removeBonusCards={false,true},
+	weatherMod={false,true},
+	questMod={false,true},
+	apocalypseQuestCards={false,true},
+	proxyPlayer={false,true},
+	itemShopMod={false,true},
+	removeTerrain={false,true},
+	useAlternatePugs={false,true}}
+
+local SCENARIO_OPTION_OVERRIDES={
+	["First Reconnaissance"]={
+		randomTileOrientation={false,false},removeShadesOfTezlaMonsters={true,false},removeApocalypseTerrain={true,false},
+		startAtNight={false,false},rampageAmbush={false,false},rampagePursuit={false,false},darknessComing={false,false},
+		mageKnightLevels={false,false},useCustomMageKnights={false,false},removeBonusCards={true,false},weatherMod={false,false},
+		questMod={false,false},apocalypseQuestCards={false,false},proxyPlayer={false,false},itemShopMod={false,false},removeTerrain={false,false}},
+	["First Conquest"]={volkareCampAsCity={false,true}},
+	["Conquest"]={volkareCampAsCity={false,true}},
+	["Conquest Blitz"]={volkareCampAsCity={false,true}},
+	["Ultimate Conquest"]={volkareCampAsCity={false,true}},
+	["Fast Forwarded Conquest"]={volkareCampAsCity={false,true},startAtNight={true,false},mageKnightLevels={true,false}},
+	["The Lost Relic Blitz"]={volkareCampAsCity={false,true},mageKnightLevels={true,false}},
+	["The Fractured Lands Blitz"]={volkareCampAsCity={false,true},randomTileOrientation={false,false},questMod={false,false},apocalypseQuestCards={true,false}},
+	["One to Return"]={volkareCampAsCity={false,true},proxyPlayer={false,false}},
+	["Against the Horsemen Blitz"]={volkareCampAsCity={false,true},removeTerrain={false,false}},
+	["Mines Liberation"]={removeTerrain={false,false}},
+	["Druid Nights"]={removeTerrain={false,false}},
+	["The Gauntlet"]={removeTerrain={false,false}},
+	["Quest for the Golden Grail"]={removeTerrain={false,false},mageKnightLevels={false,false}},
+	["The Chaos Rift"]={removeTerrain={false,false},mageKnightLevels={false,false}},
+	["Life and Death"]={removeTerrain={false,false},removeShadesOfTezlaMonsters={false,false}},
+	["The Realm of the Dead Blitz"]={removeTerrain={false,false},removeShadesOfTezlaMonsters={false,false},rampagePursuit={true,false}},
+	["The Hidden Valley Blitz"]={removeShadesOfTezlaMonsters={false,false},rampageAmbush={true,false}},
+	["Against the Apocalypse Blitz"]={removeApocalypseTerrain={false,false}},
+	["For the Council"]={questMod={false,false},apocalypseQuestCards={true,false}},
+	["Conquer and Hold"]={proxyPlayer={false,false}},
+	["Volkare's Return"]={proxyPlayer={false,false}},
+	["Volkare's Return Blitz"]={proxyPlayer={false,false}},
+	["Volkare's Quest"]={proxyPlayer={false,false}},
+	["The War of Four"]={proxyPlayer={false,false},removeShadesOfTezlaMonsters={false,false}}}
+
+local function applyScenarioToggleDefaults()
+	for id,details in pairs(SETUP_TOGGLE_DEFAULTS) do setSetupToggle(id,details[1],details[2]) end
+	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
+	if overrides~=nil then
+		for id,details in pairs(overrides) do setSetupToggle(id,details[1],details[2]) end
+	end
+	UI.setAttribute("darknessComing","text",gStates.startAtNight==true and SETUP_TEXT.daylightComing or SETUP_TEXT.darknessComing)
+end
+
 local function copyScenarioCityLevels(source)
 	local result={}
 	for a,value in ipairs(source or {}) do result[a]=value end
@@ -43,8 +275,7 @@ function setupPlayersRef()
 	if gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="First Conquest" then playersRef=5 end
 	--Browsing/randomizing can preserve a dummy while entering a scenario that has no multiplayer co-op row.
 	--Use that scenario's normal player-count row for the info panel; refreshSetupStartButton() still blocks the illegal setup.
-	local scenarioRef=nil
-	for a=1,#scenarioList do if scenarioList[a][1]==gStates.gameScenario then scenarioRef=a break end end
+	local scenarioRef=scenarioRefForName(gStates.gameScenario)
 	local scenario=scenarioRef~=nil and scenarioList[scenarioRef] or nil
 	if scenario~=nil and (scenario[playersRef]==nil or scenario[playersRef].rounds==nil) then
 		local fallbackRef=math.max(gStates.playerCount,2)
@@ -55,8 +286,7 @@ end
 
 function resetCurrentScenarioTweaks()
 	cacheScenarioTweakDefaults()
-	local scenarioRef=nil
-	for a=1,#scenarioList do if scenarioList[a][1]==gStates.gameScenario then scenarioRef=a break end end
+	local scenarioRef=scenarioRefForName(gStates.gameScenario)
 	local playersRef=setupPlayersRef()
 	if scenarioRef==nil or scenarioTweakDefaults==nil or scenarioTweakDefaults[scenarioRef]==nil or scenarioTweakDefaults[scenarioRef][playersRef]==nil then return end
 	local defaults=scenarioTweakDefaults[scenarioRef][playersRef]
@@ -128,35 +358,6 @@ end
 
 function scenarioSelection(player, mouseButton, id)
 	if mouseButton=="-1" then
-		local IDConvert={	["ConquestSelection"]={"Conquest"},
-							["FirstReconnaissanceSelection"]={"First Reconnaissance"},
-							["FirstConquestSelection"]={"First Conquest"},
-							["MinesLiberationSelection"]={"Mines Liberation"},
-							["DruidNightsSelection"]={"Druid Nights"},
-							["DungeonLordsSelection"]={"Dungeon Lords"},
-							["ConquerAndHoldSelection"]={"Conquer and Hold"},
-							["OneToReturnSelection"]={"One to Return"},
-							["VolkaresReturnSelection"]={"Volkare's Return"},
-							["VolkaresQuestSelection"]={"Volkare's Quest"},
-							["LifeAndDeathSelection"]={"Life and Death"},
-							["TheRealmOfTheDeadSelection"]={"The Realm of the Dead"},
-							["TheHiddenValleySelection"]={"The Hidden Valley"},
-							["AgainsttheApocalypseSelection"]={"Against the Apocalypse"},
-							["AgainsttheHorsemenSelection"]={"Against the Horsemen"},
-							["AgainsttheDragonSelection"]={"Against the Dragon"},
-							["ApocalypseIsHereSelection"]={"Apocalypse is Here"},
-							["FuryOfTheApocalypseDragonSelection"]={"Fury of the Apocalypse Dragon"},
-							["TheLostRelicSelection"]={"The Lost Relic"},
-							["TheGauntletSelection"]={"The Gauntlet"},
-							["QuestForTheGoldenGrailSelection"]={"Quest for the Golden Grail"},
-							["TheChaosRiftSelection"]={"The Chaos Rift"},
-							["UltimateConquestSelection"]={"Ultimate Conquest"},
-							["FastForwardedConquestSelection"]={"Fast Forwarded Conquest"},
-							["TheWarOfFourSelection"]={"The War of Four"},
-							["RaidersOfTheCrusaderTempleSelection"]={"Raiders of the Crusader Temple"},
-							["ForTheCouncilSelection"]={"For the Council"},
-							["TheFracturedLandsSelection"]={"The Fractured Lands"},
-							["CustomSelection"]={"Custom"}}
 		--Preserve the dummy choice while browsing scenarios. Volkare uses the same remembered Mage Knight as his skill set.
 		--Scenario-forced "nobody" does not erase the remembered choice, so it survives scenarios that disallow a dummy.
 		if gStates.positionMageKnight[5]=="Volkare" then
@@ -166,13 +367,12 @@ function scenarioSelection(player, mouseButton, id)
 		elseif gStates.setupDummyMageChoice==nil then
 			gStates.setupDummyMageChoice="nobody"
 		end
-		gStates.gameScenario=id
-		if IDConvert[id]~=nil then gStates.gameScenario=IDConvert[id][1] end
+		gStates.gameScenario=SCENARIO_SELECTION_BY_ID[id] or id
 		UI.setAttribute("ScenarioSelectionText", "text", translateWord[gStates.gameScenario])
 		UI.setAttribute("ScenarioSelectionImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
 		--Keep the selected Mage Knights when browsing scenarios. The dummy is retained too, except where the scenario forces it off or replaces it with Volkare.
-		local MKDropDownUI={"firstMKSelection", "secondMKSelection", "thirdMKSelection", "fourthMKSelection"}
+		local MKDropDownUI=MAGE_KNIGHT_CONTROL_IDS
 		gStates.playerCount=0
 		for a=1, 4, 1 do
 			local mage=gStates.positionMageKnight[a] or "nobody"
@@ -208,7 +408,7 @@ function scenarioSelection(player, mouseButton, id)
 				gStates.coop=0
 			else
 				--UI.setAttribute("dummyMKSelectionText", "text", "{en}Volkare{ru}Волкар{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어{es}Volkare{fr}Volkare{pt-br}Volkare{de}Volkare")
-				UI.setAttribute("DummyPosText", "text", "{en}Volkare Skills -{ru}Навыки Волкаре -{zh-tw}沃卡里技能：{zh-cn}沃卡里技能：{ko}볼케어의 스킬 -{es}Habilidades de Volkare -{fr}Compétences de Volkare -{pt-br}Habilidades de Volkare -{de}Volkare-Fähigkeiten -")
+				UI.setAttribute("DummyPosText", "text", SETUP_TEXT.volkareSkills)
 				if gStates.setupDummyMageChoice~=nil and gStates.setupDummyMageChoice~="nobody" then gStates.volkareSkills=gStates.setupDummyMageChoice else gStates.volkareSkills="Random" end
 				UI.setAttribute("dummyMKSelectionText", "text", translateWord[gStates.volkareSkills] or translateWord["Random"])
 				UI.setAttribute("VolkareLevelSelectionRow", "active", "true")
@@ -229,212 +429,55 @@ function scenarioSelection(player, mouseButton, id)
 				gStates.coop=1
 			end
 		end
-		--Blitz Menu Access
-		UI.setAttribute("BlitzSelection", "textColor", "rgb(0.0,0.0,0.0)")
-		UI.setAttribute("BlitzSelection", "interactable", "True")
-		UI.setAttribute("BlitzSelection", "isOn", "false")
-		gStates.blitz=0
-		if gStates.gameScenario=="First Reconnaissance" then
-			UI.setAttribute("BlitzSelection", "interactable", "False")
-		else
-			if gStates.gameScenario=="The Realm of the Dead" or gStates.gameScenario=="The Hidden Valley" or gStates.gameScenario=="The Lost Relic" or gStates.gameScenario=="Against the Apocalypse" or gStates.gameScenario=="Against the Horsemen" or gStates.gameScenario=="Against the Dragon" or gStates.gameScenario=="The Fractured Lands" then
-			 	UI.setAttribute("BlitzSelection", "isOn", "true")
-				gStates.blitz=1
-			end
-			for a=1, #scenarioList, 1 do
-				if gStates.blitz==1 and gStates.gameScenario.." Blitz"==scenarioList[a][1] then gStates.gameScenario=gStates.gameScenario.." Blitz" break end
-				if gStates.blitz==0 and gStates.gameScenario:sub(1, -7)==scenarioList[a][1] then gStates.gameScenario=gStates.gameScenario:sub(1, -7) break end
-			end
-			if gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Against the Dragon Blitz" then UI.setAttribute("BlitzSelection", "interactable", "False") end
-		end
-		--Volkare's Camp Menu Access
-		UI.setAttribute("volkareCampAsCity", "interactable", "True")
-		UI.setAttribute("volkareCampAsCity", "isOn", "false")
-		gStates.volkareCampAsCity=false
-		if gStates.gameScenario~="First Conquest" and gStates.gameScenario~="Conquest" and gStates.gameScenario~="Ultimate Conquest" and gStates.gameScenario~="Fast Forwarded Conquest" and gStates.gameScenario~="The Lost Relic Blitz" and gStates.gameScenario~="The Fractured Lands Blitz" and gStates.gameScenario~="One to Return" and gStates.gameScenario~="Against the Horsemen Blitz" then UI.setAttribute("volkareCampAsCity", "interactable", "False") end
-		--Lost Legion Menu Access
-		UI.setAttribute("removeLostLegionExpansion", "interactable", "True")
-		UI.setAttribute("removeLostLegionExpansion", "isOn", "false")
-		gStates.removeLostLegionExpansion=false
+		--Blitz follows scenario metadata. On/Off-only scenarios are locked to their valid state.
+		UI.setAttribute("BlitzSelection","textColor","rgb(0.0,0.0,0.0)")
+		local blitzPolicy=blitzPolicyForScenarioSelection(gStates.gameScenario)
+		local blitzOn=blitzPolicy=="On Only"
+		gStates.blitz=blitzOn and 1 or 0
+		UI.setAttribute("BlitzSelection","isOn",blitzOn and "true" or "false")
+		UI.setAttribute("BlitzSelection","interactable",blitzPolicy=="Yes" and "True" or "False")
+		setScenarioBlitzIdentity(blitzOn)
+
+		--Reset ordinary setup toggles from one policy table, then apply scenario-specific overrides.
+		--Hero Challenges intentionally survives scenario browsing and is therefore not part of this reset.
+		applyScenarioToggleDefaults()
 		refreshLostLegionExpansionOption()
-		--Rotated Terrain Menu access
-		UI.setAttribute("randomTileOrientation", "interactable", "True")
-		UI.setAttribute("randomTileOrientation", "isOn", "false")
-		gStates.randomTileOrientation=false
-		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Fractured Lands Blitz" then UI.setAttribute("randomTileOrientation", "interactable", "False") end
-		--Random Cities Menu access - could be locked off for scenarios without city fighting
-		UI.setAttribute("randomCities", "interactable", "True")
-		UI.setAttribute("randomCities", "isOn", "false")
-		gStates.randomCities=false
-		if randomCitiesAllowedForScenario()==false then UI.setAttribute("randomCities", "interactable", "False") end
-		--Shades of Tezla monsters are included by default.
-		UI.setAttribute("removeShadesOfTezlaMonsters", "interactable", "True")
-		UI.setAttribute("removeShadesOfTezlaMonsters", "isOn", "false")
-		gStates.removeShadesOfTezlaMonsters=false
-		if gStates.gameScenario=="First Reconnaissance" then
-			UI.setAttribute("removeShadesOfTezlaMonsters", "isOn", "true")
-			UI.setAttribute("removeShadesOfTezlaMonsters", "interactable", "False")
-			gStates.removeShadesOfTezlaMonsters=true
-		elseif gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The War of Four" then
-			UI.setAttribute("removeShadesOfTezlaMonsters", "isOn", "false")
-			UI.setAttribute("removeShadesOfTezlaMonsters", "interactable", "False")
-			gStates.removeShadesOfTezlaMonsters=false
-		end
-		--Apocalypse Dragon Terrain is included by default. Only scenarios that require a specific state lock this removal option.
-		UI.setAttribute("removeApocalypseTerrain", "interactable", "True")
-		UI.setAttribute("removeApocalypseTerrain", "isOn", "false")
-		gStates.removeApocalypseTerrain=false
-		if gStates.gameScenario=="First Reconnaissance" then
-			UI.setAttribute("removeApocalypseTerrain", "isOn", "true")
-			gStates.removeApocalypseTerrain=true
-		elseif gStates.gameScenario=="Against the Apocalypse Blitz" then
-			UI.setAttribute("removeApocalypseTerrain", "isOn", "false")
-			gStates.removeApocalypseTerrain=false
-		end
-		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Against the Apocalypse Blitz" then UI.setAttribute("removeApocalypseTerrain", "interactable", "False") end
-		--Rampage Menu Access
-		UI.setAttribute("RampageSelection", "interactable", "True")
-		UI.setAttribute("MoreRampageSelection", "interactable", "True")
-		UI.setAttribute("RampageSelection", "isOn", "false")
-		UI.setAttribute("MoreRampageSelection", "isOn", "false")
+		if randomCitiesAllowedForScenario()==false then UI.setAttribute("randomCities","interactable","False") end
+		refreshProxySetupLabel()
+
+		--Rampage uses a three-state value instead of a normal boolean toggle.
+		UI.setAttribute("RampageSelection","interactable","True")
+		UI.setAttribute("MoreRampageSelection","interactable","True")
+		UI.setAttribute("RampageSelection","isOn","false")
+		UI.setAttribute("MoreRampageSelection","isOn","false")
 		gStates.rampage=0
 		if gStates.gameScenario=="First Reconnaissance" then
-			UI.setAttribute("RampageSelection", "interactable", "False")
-			UI.setAttribute("MoreRampageSelection", "interactable", "False")
+			UI.setAttribute("RampageSelection","interactable","False")
+			UI.setAttribute("MoreRampageSelection","interactable","False")
 		end
-		--Day Night Menu Access
-		UI.setAttribute("startAtNight", "interactable", "True")
-		UI.setAttribute("startAtNight", "isOn", "False")
-		UI.setAttribute("darknessComing", "text", "{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵袭{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel")
-		gStates.startAtNight=false
-		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Fast Forwarded Conquest" then
-			UI.setAttribute("startAtNight", "interactable", "False")
-			if gStates.gameScenario=="Fast Forwarded Conquest" then
-				UI.setAttribute("startAtNight", "isOn", "True")
-				gStates.startAtNight=true
-			end
-		end
-		--Ambush Menu Access
-		UI.setAttribute("rampageAmbush", "interactable", "True")
-		UI.setAttribute("rampageAmbush", "isOn", "False")
-		gStates.rampageAmbush=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("rampageAmbush", "interactable", "False") end
-		if gStates.gameScenario=="The Hidden Valley Blitz" then
-			UI.setAttribute("rampageAmbush", "isOn", "True")
-			UI.setAttribute("rampageAmbush", "interactable", "False")
-			gStates.rampageAmbush=true
-		end
-		--Pursuit Menu Access
-		UI.setAttribute("rampagePursuit", "interactable", "True")
-		UI.setAttribute("rampagePursuit", "isOn", "False")
-		gStates.rampagePursuit=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("rampagePursuit", "interactable", "False") end
-		if gStates.gameScenario=="The Realm of the Dead Blitz" then
-			UI.setAttribute("rampagePursuit", "isOn", "True")
-			UI.setAttribute("rampagePursuit", "interactable", "False")
-			gStates.rampagePursuit=true
-		end
-		--Darkness is Coming Menu Access
-		UI.setAttribute("darknessComing", "interactable", "True")
-		UI.setAttribute("darknessComing", "isOn", "false")
-		gStates.darknessComing=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("darknessComing", "interactable", "False") end
-		--Mage Knight Level Menu access
-		UI.setAttribute("mageKnightLevels", "interactable", "True")
-		UI.setAttribute("mageKnightLevels", "isOn", "False")
-		gStates.mageKnightLevels=false
-		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="Fast Forwarded Conquest" then
-			UI.setAttribute("mageKnightLevels", "interactable", "False")
-			if gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="Fast Forwarded Conquest" then
-				UI.setAttribute("mageKnightLevels", "isOn", "True")
-				gStates.mageKnightLevels=true
-			end
-		end
-		--Ymirgh Menu Access
-		UI.setAttribute("useCustomMageKnights", "interactable", "True")
-		UI.setAttribute("useCustomMageKnights", "isOn", "false")
-		gStates.useCustomMageKnights=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("useCustomMageKnights", "interactable", "False") end
-		--Bonus Cards Menu Access
-		UI.setAttribute("removeBonusCards", "interactable", "True")
-		UI.setAttribute("removeBonusCards", "isOn", "false")
-		gStates.removeBonusCards=false
-		if gStates.gameScenario=="First Reconnaissance" then
-			UI.setAttribute("removeBonusCards", "interactable", "False")
-			UI.setAttribute("removeBonusCards", "isOn", "true")
-			gStates.removeBonusCards=true
-		end
-		--Weather Menu Access
-		UI.setAttribute("weatherMod", "interactable", "True")
-		UI.setAttribute("weatherMod", "isOn", "false")
-		gStates.weatherMod=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("weatherMod", "interactable", "False") end
-		--Quest Menu Access
-		UI.setAttribute("questMod", "interactable", "True")
-		UI.setAttribute("questMod", "isOn", "false")
-		gStates.questMod=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("questMod", "interactable", "False") end
-		--Official Apocalypse Dragon Quest Cards Menu Access
-		UI.setAttribute("apocalypseQuestCards", "interactable", "True")
-		UI.setAttribute("apocalypseQuestCards", "isOn", "false")
-		gStates.apocalypseQuestCards=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("apocalypseQuestCards", "interactable", "False") end
-		if gStates.gameScenario=="For the Council" or gStates.gameScenario=="The Fractured Lands Blitz" then
-			UI.setAttribute("questMod", "isOn", "false")
-			UI.setAttribute("questMod", "interactable", "false")
-			gStates.questMod=false
-			UI.setAttribute("apocalypseQuestCards", "isOn", "true")
-			UI.setAttribute("apocalypseQuestCards", "interactable", "false")
-			gStates.apocalypseQuestCards=true
-		end
-		--Proxy Player Menu Access
-		UI.setAttribute("proxyPlayer", "interactable", "True")
-		UI.setAttribute("proxyPlayer", "isOn", "false")
-		gStates.proxyPlayer=false
-		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" or
-			gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
-			UI.setAttribute("proxyPlayer", "interactable", "False")
-		end
-		refreshProxySetupLabel()
-		--Item Shop Menu Access
-		UI.setAttribute("itemShopMod", "interactable", "True")
-		UI.setAttribute("itemShopMod", "isOn", "false")
-		gStates.itemShopMod=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("itemShopMod", "interactable", "False") end
 		--Volkare's Race and Combat Level Menu Access
 		if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
 			UI.setAttribute("VolkareLevelSelection", "interactable", "True")
-			UI.setAttribute("VolkareLevelSelection", "text", "{en}Daring{ru}Смелый{zh-tw}大膽{zh-cn}大胆{ko}대담한{es}Atrevido{fr}Audacieux{pt-br}Ousado{de}Wagemutig")
+			UI.setAttribute("VolkareLevelSelectionText", "text", translateWord["Daring"])
 			gStates.volkareCombatLevel=1
 			UI.setAttribute("VolkareRaceSelection", "interactable", "True")
-			UI.setAttribute("VolkareRaceSelection", "text", translateWord["Fair"])
+			UI.setAttribute("VolkareRaceSelectionText", "text", translateWord["Fair"])
 			gStates.volkareRaceLevel=1
 		else
 			UI.setAttribute("VolkareLevelSelection", "interactable", "False")
-			UI.setAttribute("VolkareLevelSelection", "text", "{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet")
+			UI.setAttribute("VolkareLevelSelectionText", "text", SETUP_TEXT.notUsed)
 			UI.setAttribute("VolkareRaceSelection", "interactable", "False")
-			UI.setAttribute("VolkareRaceSelection", "text", "{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet")
+			UI.setAttribute("VolkareRaceSelectionText", "text", SETUP_TEXT.notUsed)
 		end
 		--Rise of the forgemaster Menu Access
 		UI.setAttribute("ROTFSelection", "interactable", "True")
-		UI.setAttribute("ROTFSelectionText", "text", "{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet")
+		UI.setAttribute("ROTFSelectionText", "text", SETUP_TEXT.notUsed)
 		UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Active")
 		gStates.riseOfTheForgemasters=0
 		if gStates.gameScenario=="First Reconnaissance" then
 			UI.setAttribute("ROTFSelection", "interactable", "False")
 			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Deactive")
 	 	end
-		--Remove terrain Tiles Menu Access
-		UI.setAttribute("removeTerrain", "interactable", "True")
-		UI.setAttribute("removeTerrain", "ison", "False")
-		gStates.removeTerrain=false
-		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="Against the Horsemen Blitz" then
-			UI.setAttribute("removeTerrain", "interactable", "False")
-	 	end
-		--Alternate Monster Tokens Menu Access
-		UI.setAttribute("useAlternatePugs", "interactable", "True")
-		UI.setAttribute("useAlternatePugs", "ison", "False")
-		gStates.useAlternatePugs=false
 		--Changing scenario discards any previous Optional Scenario Tweaks and reloads
 		--the defaults for this scenario and the currently selected Mage Knight count.
 		resetCurrentScenarioTweaks()
@@ -444,36 +487,26 @@ function scenarioSelection(player, mouseButton, id)
 end
 
 function BlitzSelection(player, value, id)
-	if gStates.gameScenario=="Against the Horsemen Blitz" and value~="True" then
-		UI.setAttribute("BlitzSelection", "isOn", "true")
-		UI.setAttribute("BlitzSelection", "interactable", "False")
+	local blitzPolicy=blitzPolicyForScenarioSelection(gStates.gameScenario)
+	if blitzPolicy=="On Only" and value~="True" then
+		UI.setAttribute("BlitzSelection","isOn","true")
+		UI.setAttribute("BlitzSelection","interactable","False")
 		gStates.blitz=1
 		return
-	end
-	if value=="True" then
-		UI.setAttribute("BlitzSelection", "isOn", "true")
-		gStates.blitz=1
-	else
-		UI.setAttribute("BlitzSelection", "isOn", "false")
+	elseif blitzPolicy=="Off Only" and value=="True" then
+		UI.setAttribute("BlitzSelection","isOn","false")
+		UI.setAttribute("BlitzSelection","interactable","False")
 		gStates.blitz=0
+		return
 	end
-	for a=1, #scenarioList, 1 do
-		if gStates.blitz==1 and gStates.gameScenario.." Blitz"==scenarioList[a][1] then gStates.gameScenario=gStates.gameScenario.." Blitz" break end
-		if gStates.blitz==0 and gStates.gameScenario:sub(1, -7)==scenarioList[a][1] then gStates.gameScenario=gStates.gameScenario:sub(1, -7) break end
-	end
+	gStates.blitz=value=="True" and 1 or 0
+	UI.setAttribute("BlitzSelection","isOn",gStates.blitz==1 and "true" or "false")
+	UI.setAttribute("BlitzSelection","interactable",blitzPolicy=="Yes" and "True" or "False")
+	setScenarioBlitzIdentity(gStates.blitz==1)
 	resetCurrentScenarioTweaks()
 	refreshHeroChallengeOptionLocks()
 	scenarioInfoUpdate()
-	if scenarioList[gStates.scenarioRef].scenarioDetails.blitzPossible~="Yes" then
-		if scenarioList[gStates.scenarioRef].scenarioDetails.blitzPossible=="On Only" then
-			if gStates.blitz==0 then UI.setAttribute("BlitzSelection", "textColor", "rgb(1.0,0.0,0.0)") else UI.setAttribute("BlitzSelection", "textColor", "rgb(0.0,0.0,0.0)") end
-		else
-			if gStates.blitz==1 then UI.setAttribute("BlitzSelection", "textColor", "rgb(1.0,0.0,0.0)") else UI.setAttribute("BlitzSelection", "textColor", "rgb(0.0,0.0,0.0)") end
-		end
-	else
-		UI.setAttribute("BlitzSelection", "textColor", "rgb(0.0,0.0,0.0)")
-	end
-	scenarioInfoUpdate()
+	UI.setAttribute("BlitzSelection","textColor","rgb(0.0,0.0,0.0)")
 	ToolTipUpdate(id)
 end
 
@@ -550,7 +583,7 @@ function optionsUpdate(player, value, id)
 		gStates[id]=true
 		--The two Quest systems cannot be used together.
 		if id=="questMod" then UI.setAttribute("apocalypseQuestCards", "interactable", "false") elseif id=="apocalypseQuestCards" then UI.setAttribute("questMod", "interactable", "false") end
-		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", "{en}Daylight is Coming{ru}Надвигается рассвет{zh-tw}白晝侵襲{zh-cn}白昼侵袭{ko}빛의 도래{es}Se Acerca la luz del Día{fr}Lendemain Arrive{pt-br}A Luz do dia está Chegando{de}Es Wird Hell") end
+		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", SETUP_TEXT.daylightComing) end
 		if id=="removeLostLegionExpansion" then
 			UI.setAttribute("ROTFSelection", "interactable", "False")
 			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Deactive")
@@ -562,13 +595,13 @@ function optionsUpdate(player, value, id)
 		UI.setAttribute(id, "isOn", "false")
 		gStates[id]=false
 		if id=="questMod" then UI.setAttribute("apocalypseQuestCards", "interactable", "true") elseif id=="apocalypseQuestCards" then UI.setAttribute("questMod", "interactable", "true") end
-		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", "{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel") end
+		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", SETUP_TEXT.darknessComing) end
 		if id=="removeLostLegionExpansion" then --and gStates.removeBonusCards==false) or (id=="removeBonusCards" and gStates.removeLostLegionExpansion==false)
 			UI.setAttribute("ROTFSelection", "interactable", "True")
 			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Active")
 		end
 		if id=="useCustomMageKnights" then
-			local MKDropDownUI={"firstMKSelection", "secondMKSelection", "thirdMKSelection", "fourthMKSelection", "dummyMKSelection"}
+			local MKDropDownUI=MAGE_KNIGHT_CONTROL_IDS
 			for position, mageKnight in pairs(gStates.positionMageKnight) do
 				if customMages[mageKnight]~=nil then
 					dropDownIdLink=MKDropDownUI[position]
@@ -631,15 +664,13 @@ end
 
 function riseOfTheForgemastersOption(player, mouseButton, id)
 	if mouseButton=="-1" then
-		local IDConvert={["ROTF0Selection"]="{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet",
-							["ROTF1Selection"]="{en}1. New Beginning{ru}1. Новое начало{zh-tw}新的開始{zh-cn}新的开始{ko}1.새로운 시작{es}1. Un nuevo comienzo{fr}1. Nouveau départ{pt-br}1. Novo Começo{de}1. Neubeginn",
-							["ROTF2Selection"]="{en}2. Spoils of War{ru}2. Военные трофеи{zh-tw}戰爭犒賞{zh-cn}战争犒赏{ko}2.전쟁의 전리품{es}2. Botín de Guerra{fr}2. Butin de Guerre{pt-br}2. Despojos de Guerra{de}2. Kriegsbeute",
-							["ROTF3Selection"]="{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier"}
-		UI.setAttribute(dropDownIdLink.."Text", "text", IDConvert[id])
+		local level=ROTF_SELECTION_LEVEL_BY_ID[id]
+		if level==nil then return end
+		UI.setAttribute(dropDownIdLink.."Text", "text", ROTF_TEXT_BY_LEVEL[level])
 		UI.setAttribute(dropDownIdLink.."Image", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
 		dropDownIdLink="none"
-		gStates.riseOfTheForgemasters=tonumber(id:sub(5,5))
+		gStates.riseOfTheForgemasters=level
 		UI.setAttribute("removeLostLegionExpansion", "interactable", "true")
 		UI.setAttribute("removeBonusCards", "interactable", "true")
 		UI.setAttribute("useCustomMageKnights", "interactable", "true")
@@ -650,7 +681,7 @@ function riseOfTheForgemastersOption(player, mouseButton, id)
 			gStates.useCustomMageKnights=true
 		end
 		if gStates.riseOfTheForgemasters<3 then
-			local MKDropDownUI={"firstMKSelection", "secondMKSelection", "thirdMKSelection", "fourthMKSelection", "dummyMKSelection"}
+			local MKDropDownUI=MAGE_KNIGHT_CONTROL_IDS
 			for position, mageKnight in pairs(gStates.positionMageKnight) do
 				if customMages[mageKnight]~=nil then
 					dropDownIdLink=MKDropDownUI[position]
@@ -682,164 +713,74 @@ end
 
 dropDownIdLink="none"
 function toggleDropDown(player, mouseButton, id)
-	if mouseButton=="-1" then
-		local IDConvert={	["firstMKSelection"]={1,"MageDropDown",-275},
-							["secondMKSelection"]={2,"MageDropDown",-275},
-							["thirdMKSelection"]={3, "MageDropDown",-275},
-							["fourthMKSelection"]={4,"MageDropDown",-275},
-							["dummyMKSelection"]={5,"MageDropDown",-275},
-							["ScenarioSelection"]={0,"ScenarioDropDown", 90},
-							["ROTFSelection"]={0,"ROTFDropDown", -115},
-							["VolkareLevelSelection"]={0,"VolkareLevelDropDown",-305},
-							["VolkareRaceSelection"]={0,"VolkareRaceDropDown",-335}}
-		UI.setAttribute(dropDownIdLink.."Image", "image", "Sliced Button/Button New Active")
-		if dropDownIdLink==id then
-			dropDownIdLink="none"
-			UI.setAttribute("DropDown", "active", "false")
-			UI.setAttribute(id.."Image", "image", "Sliced Button/Button New Active")
-		else
-			dropDownIdLink=id
-			local dropDownData={["nobodyRow"]={"nobody", "nobodySelectionImage", "MageDropDown"},
-								["AllSkillsRow"]={"All Skills", "AllSkillsSelectionImage", "MageDropDown"},
-								["RANDOMRow"]={"Random", "RANDOMSelectionImage", "MageDropDown"},
-								["ArytheaRow"]={"Arythea", "ArytheaSelectionImage", "MageDropDown"},
-								["GoldyxRow"]={"Goldyx", "GoldyxSelectionImage", "MageDropDown"},
-								["NorowasRow"]={"Norowas", "NorowasSelectionImage", "MageDropDown"},
-								["TovakRow"]={"Tovak", "TovakSelectionImage", "MageDropDown"},
-								["BraevalarRow"]={"Braevalar", "BraevalarSelectionImage", "MageDropDown"},
-								["KrangRow"]={"Krang", "KrangSelectionImage", "MageDropDown"},
-								["WolfhawkRow"]={"Wolfhawk", "WolfhawkSelectionImage", "MageDropDown"},
-								["CoralRow"]={"Coral", "CoralSelectionImage", "MageDropDown"},
-								["YmirghRow"]={"Ymirgh", "YmirghSelectionImage", "MageDropDown"},
-								["MevokRow"]={"Mevok", "MevokSelectionImage", "MageDropDown"},
-								["DusceniaRow"]={"Duscenia", "DusceniaSelectionImage", "MageDropDown"},
-								["JormundRow"]={"Jormund", "JormundSelectionImage", "MageDropDown"},
-								["MalekRow"]={"Malek", "MalekSelectionImage", "MageDropDown"},
-								["ZirtaeRow"]={"Zirtae", "ZirtaeSelectionImage", "MageDropDown"},
-								["DaringRow"]={"Daring", "DaringSelectionImage", "VolkareLevelDropDown", 1},
-								["HeroicRow"]={"Heroic", "HeroicSelectionImage", "VolkareLevelDropDown", 2},
-								["LegendaryRow"]={"Legendary", "LegendarySelectionImage", "VolkareLevelDropDown", 3},
-								["FairRow"]={"Fair", "FairSelectionImage", "VolkareRaceDropDown", 1},
-								["TightRow"]={"Tight", "TightSelectionImage", "VolkareRaceDropDown", 2},
-								["ThrillingRow"]={"Thrilling", "ThrillingSelectionImage", "VolkareRaceDropDown", 3},
-								["ConquestRow"]={"Conquest", "ConquestSelectionImage", "ScenarioDropDown"},
-								["FirstReconnaissanceRow"]={"First Reconnaissance", "FirstReconnaissanceSelectionImage", "ScenarioDropDown"},
-								["FirstConquestRow"]={"First Conquest", "FirstConquestSelectionImage", "ScenarioDropDown"},
-								["MinesLiberationRow"]={"Mines Liberation", "MinesLiberationSelectionImage", "ScenarioDropDown"},
-								["DruidNightsRow"]={"Druid Nights", "DruidNightsSelectionImage", "ScenarioDropDown"},
-								["DungeonLordsRow"]={"Dungeon Lords", "DungeonLordsSelectionImage", "ScenarioDropDown"},
-								["ConquerAndHoldRow"]={"Conquer and Hold", "ConquerAndHoldSelectionImage", "ScenarioDropDown"},
-								["OneToReturnRow"]={"One to Return", "OneToReturnSelectionImage", "ScenarioDropDown"},
-								["VolkaresReturnRow"]={"Volkare's Return", "VolkaresReturnSelectionImage", "ScenarioDropDown"},
-								["VolkaresQuestRow"]={"Volkare's Quest", "VolkaresQuestSelectionImage", "ScenarioDropDown"},
-								["LifeAndDeathRow"]={"Life and Death", "LifeAndDeathSelectionImage", "ScenarioDropDown"},
-								["TheRealmOfTheDeadRow"]={"The Realm of the Dead Blitz", "TheRealmOfTheDeadSelectionImage", "ScenarioDropDown"},
-								["TheHiddenValleyRow"]={"The Hidden Valley Blitz", "TheHiddenValleySelectionImage", "ScenarioDropDown"},
-								["AgainsttheApocalypseRow"]={"Against the Apocalypse Blitz", "AgainsttheApocalypseSelectionImage", "ScenarioDropDown"},
-								["AgainsttheHorsemenRow"]={"Against the Horsemen Blitz", "AgainsttheHorsemenSelectionImage", "ScenarioDropDown"},
-								["AgainsttheDragonRow"]={"Against the Dragon Blitz", "AgainsttheDragonSelectionImage", "ScenarioDropDown"},
-								["ApocalypseIsHereRow"]={"Apocalypse is Here", "ApocalypseIsHereSelectionImage", "ScenarioDropDown"},
-								["FuryOfTheApocalypseDragonRow"]={"Fury of the Apocalypse Dragon", "FuryOfTheApocalypseDragonSelectionImage", "ScenarioDropDown"},
-								["TheLostRelicRow"]={"The Lost Relic Blitz", "TheLostRelicSelectionImage", "ScenarioDropDown"},
-								["TheGauntletRow"]={"The Gauntlet", "TheGauntletSelectionImage", "ScenarioDropDown"},
-								["QuestForTheGoldenGrailRow"]={"Quest for the Golden Grail", "QuestForTheGoldenGrailSelectionImage", "ScenarioDropDown"},
-								["TheChaosRiftRow"]={"The Chaos Rift", "TheChaosRiftSelectionImage", "ScenarioDropDown"},
-								["UltimateConquestRow"]={"Ultimate Conquest", "UltimateConquestSelectionImage", "ScenarioDropDown"},
-								["FastForwardedConquestRow"]={"Fast Forwarded Conquest", "FastForwardedConquestSelectionImage", "ScenarioDropDown"},
-								["TheWarOfFourRow"]={"The War of Four", "TheWarOfFourSelectionImage", "ScenarioDropDown"},
-								["RaidersOfTheCrusaderTempleRow"]={"Raiders of the Crusader Temple", "RaidersOfTheCrusaderTempleSelectionImage", "ScenarioDropDown"},
-								["ForTheCouncilRow"]={"For the Council", "ForTheCouncilSelectionImage", "ScenarioDropDown"},
-								["TheFracturedLandsRow"]={"The Fractured Lands Blitz", "TheFracturedLandsSelectionImage", "ScenarioDropDown"},
-								["CustomRow"]={"Custom", "CustomSelectionImage", "ScenarioDropDown"},
-								["ROTF0Row"]={"Not Used", "ROTF0SelectionImage", "ROTFDropDown"},
-								["ROTF1Row"]={"1. New Beginning", "ROTF1SelectionImage", "ROTFDropDown"},
-								["ROTF2Row"]={"2. Spoils of War", "ROTF2SelectionImage", "ROTFDropDown"},
-								["ROTF3Row"]={"3. Elixir of Life", "ROTF3SelectionImage", "ROTFDropDown"}}
-			local count=0
-			for UiId, data in pairs(dropDownData) do
-				UI.setAttribute(data[2], "image", "Sliced Button/Button New Active")
-				local skip=false
-				if data[1]=="All Skills" and IDConvert[id][1]~=5 then skip=true end
-				if customMages[data[1]]~=nil and gStates.useCustomMageKnights==false then skip=true end
-				--if data[1]=="Jormund" and gStates.riseOfTheForgemasters~=3 then skip=true end
-				if IDConvert[id][2]=="MageDropDown" and (data[3]=="VolkareLevelDropDown" or data[3]=="VolkareRaceDropDown" or data[3]=="ScenarioDropDown" or data[3]=="ROTFDropDown") then skip=true end
-				if IDConvert[id][2]=="VolkareLevelDropDown" and (data[3]=="MageDropDown" or data[3]=="VolkareRaceDropDown" or data[3]=="ScenarioDropDown" or data[3]=="ROTFDropDown") then skip=true end
-				if IDConvert[id][2]=="VolkareRaceDropDown" and (data[3]=="MageDropDown" or data[3]=="VolkareLevelDropDown" or data[3]=="ScenarioDropDown" or data[3]=="ROTFDropDown") then skip=true end
-				if IDConvert[id][2]=="ScenarioDropDown" and (data[3]=="MageDropDown" or data[3]=="VolkareLevelDropDown" or data[3]=="VolkareRaceDropDown" or data[3]=="ROTFDropDown") then skip=true end
-				if IDConvert[id][2]=="ROTFDropDown" and (data[3]=="MageDropDown" or data[3]=="VolkareLevelDropDown" or data[3]=="VolkareRaceDropDown" or data[3]=="ScenarioDropDown") then skip=true end
-				if IDConvert[id][2]=="MageDropDown" then
-					for x=1, 5, 1 do
-						if gStates.positionMageKnight[x]==data[1] and data[1]~="nobody" and data[1]~="Random" then skip=true end
-						if IDConvert[id][1]==x and gStates.positionMageKnight[x]==data[1] then skip=true end
-						if IDConvert[id][1]==x and gStates.positionMageKnight[x]==data[1] then UI.setAttribute(data[2], "image", "Sliced Button/Button New Active") end
-					end
-				end
-				--if data[1]==gStates.gameScenario then skip=true end
-				if data[1]==gStates.gameScenario then UI.setAttribute(data[2], "image", "Sliced Button/Button New Deactive") end
-				if data[3]=="VolkareLevelDropDown" and data[4]==gStates.volkareCombatLevel then UI.setAttribute(data[2], "image", "Sliced Button/Button New Active") end
-				if data[3]=="VolkareRaceDropDown" and data[4]==gStates.volkareRaceLevel then UI.setAttribute(data[2], "image", "Sliced Button/Button New Active") end
-				if skip==false then UI.setAttribute(UiId, "active", "true") count=count+1 else UI.setAttribute(UiId, "active", "false") end
-			end
-			UI.setAttribute(id.."Image", "image", "Sliced Button/Button New Deactive")
-			local dropDownHeight=count*(330/12)
-			--Scenario rows are 30 px high; use an exact whole-row height to avoid pixel gaps.
-			if IDConvert[id][2]=="ScenarioDropDown" then dropDownHeight=count*30 end
-			UI.setAttribute("DropDown", "height", tostring(dropDownHeight))
-			UI.setAttribute("DropDown", "width", "120")
-			if IDConvert[id][2]=="ScenarioDropDown" then UI.setAttribute("DropDown", "width", "220") end
-			if IDConvert[id][2]=="ROTFDropDown" then UI.setAttribute("DropDown", "width", "150") end
-			UI.setAttribute("DropDown", "offsetXY", "-100 "..tostring(IDConvert[id][3]))
-			UI.setAttribute("DropDown", "active", "true")
-		end
+	if mouseButton~="-1" then return end
+	local control=SETUP_DROPDOWN_CONTROL_BY_ID[id]
+	if control==nil then return end
+	UI.setAttribute(dropDownIdLink.."Image", "image", "Sliced Button/Button New Active")
+	if dropDownIdLink==id then
+		dropDownIdLink="none"
+		UI.setAttribute("DropDown", "active", "false")
+		UI.setAttribute(id.."Image", "image", "Sliced Button/Button New Active")
+		return
 	end
+
+	dropDownIdLink=id
+	local count=0
+	for uiId,data in pairs(SETUP_DROPDOWN_ROWS) do
+		UI.setAttribute(data[2], "image", "Sliced Button/Button New Active")
+		local skip=data[3]~=control[2]
+		if skip==false and data[1]=="All Skills" and control[1]~=5 then skip=true end
+		if skip==false and customMages[data[1]]~=nil and gStates.useCustomMageKnights==false then skip=true end
+		if skip==false and control[2]=="MageDropDown" then
+			for x=1,5 do
+				if gStates.positionMageKnight[x]==data[1] and data[1]~="nobody" and data[1]~="Random" then skip=true break end
+				if control[1]==x and gStates.positionMageKnight[x]==data[1] then skip=true break end
+			end
+		end
+		if data[1]==gStates.gameScenario then UI.setAttribute(data[2], "image", "Sliced Button/Button New Deactive") end
+		if data[3]=="VolkareLevelDropDown" and data[4]==gStates.volkareCombatLevel then UI.setAttribute(data[2], "image", "Sliced Button/Button New Active") end
+		if data[3]=="VolkareRaceDropDown" and data[4]==gStates.volkareRaceLevel then UI.setAttribute(data[2], "image", "Sliced Button/Button New Active") end
+		if skip==false then UI.setAttribute(uiId, "active", "true") count=count+1 else UI.setAttribute(uiId, "active", "false") end
+	end
+	UI.setAttribute(id.."Image", "image", "Sliced Button/Button New Deactive")
+	local dropDownHeight=count*(330/12)
+	--Scenario rows are 30 px high; use an exact whole-row height to avoid pixel gaps.
+	if control[2]=="ScenarioDropDown" then dropDownHeight=count*30 end
+	UI.setAttribute("DropDown", "height", tostring(dropDownHeight))
+	UI.setAttribute("DropDown", "width", control[2]=="ScenarioDropDown" and "220" or control[2]=="ROTFDropDown" and "150" or "120")
+	UI.setAttribute("DropDown", "offsetXY", "-100 "..tostring(control[3]))
+	UI.setAttribute("DropDown", "active", "true")
 end
 
 function PlayerChosen(player, mouseButton, id)
 	if mouseButton=="-1" then
-		local IDConvert={	["nobodySelection"]="nobody",
-							["AllSkillsSelection"]="All Skills",
-							["RANDOMSelection"]="Random",
-							["ArytheaSelection"]="Arythea",
-							["GoldyxSelection"]="Goldyx",
-							["NorowasSelection"]="Norowas",
-							["TovakSelection"]="Tovak",
-							["BraevalarSelection"]="Braevalar",
-							["KrangSelection"]="Krang",
-							["WolfhawkSelection"]="Wolfhawk",
-							["CoralSelection"]="Coral",
-							["YmirghSelection"]="Ymirgh",
-							["MevokSelection"]="Mevok",
-							["DusceniaSelection"]="Duscenia",
-							["JormundSelection"]="Jormund",
-							["MalekSelection"]="Malek",
-							["ZirtaeSelection"]="Zirtae"}
-		UI.setAttribute(dropDownIdLink.."Text", "text", translateWord[IDConvert[id]])
+		UI.setAttribute(dropDownIdLink.."Text", "text", translateWord[MAGE_KNIGHT_SELECTION_BY_ID[id]])
 		UI.setAttribute(dropDownIdLink.."Image", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
 		--adjust number of players
-		local MKDropDownUI={["firstMKSelection"]=1, ["secondMKSelection"]=2, ["thirdMKSelection"]=3, ["fourthMKSelection"]=4, ["dummyMKSelection"]=5}
+		local MKDropDownUI=MAGE_KNIGHT_CONTROL_POSITION
 		if dropDownIdLink~="dummyMKSelection" then
-			if IDConvert[id]=="nobody" then
+			if MAGE_KNIGHT_SELECTION_BY_ID[id]=="nobody" then
 				if gStates.playerCount>0 then gStates.playerCount=gStates.playerCount-1 end
 			else
 				if gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=="nobody" then gStates.playerCount=gStates.playerCount+1 end
 			end
 		end
 		if dropDownIdLink=="dummyMKSelection" and gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=="Volkare" then
-			gStates.volkareSkills=IDConvert[id]
-			gStates.setupDummyMageChoice=IDConvert[id]
+			gStates.volkareSkills=MAGE_KNIGHT_SELECTION_BY_ID[id]
+			gStates.setupDummyMageChoice=MAGE_KNIGHT_SELECTION_BY_ID[id]
 		else
-			gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=IDConvert[id]
-			if dropDownIdLink=="dummyMKSelection" then gStates.setupDummyMageChoice=IDConvert[id] end
+			gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=MAGE_KNIGHT_SELECTION_BY_ID[id]
+			if dropDownIdLink=="dummyMKSelection" then gStates.setupDummyMageChoice=MAGE_KNIGHT_SELECTION_BY_ID[id] end
 		end
 
 		--Locks player mage choice when scenario player cap reached
-		if IDConvert[id]=="Jormund" then
-			UI.setAttribute("ROTFSelectionText", "text", "{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier")
+		if MAGE_KNIGHT_SELECTION_BY_ID[id]=="Jormund" then
+			UI.setAttribute("ROTFSelectionText", "text", ROTF_TEXT_BY_LEVEL[3])
 			gStates.riseOfTheForgemasters=3
 			applyForgemasterExpansionRequirements()
 		end
-		if IDConvert[id]~="nobody" and ((dropDownIdLink=="dummyMKSelection" and gStates.playerCount==1)
+		if MAGE_KNIGHT_SELECTION_BY_ID[id]~="nobody" and ((dropDownIdLink=="dummyMKSelection" and gStates.playerCount==1)
 		or (dropDownIdLink~="dummyMKSelection" and gStates.playerCount==1 and (gStates.positionMageKnight[5]~="nobody" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="Quest for the Golden Grail")))
 		and (gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest" or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="Mines Liberation") then
 			for a, pos in pairs(MKDropDownUI) do
@@ -856,7 +797,7 @@ function PlayerChosen(player, mouseButton, id)
 			end
 		end
 		--locks Dummy Mage choice for scenario setups that don't use him
-		if (dropDownIdLink~="dummyMKSelection" and ((gStates.playerCount>=2 and IDConvert[id]~="nobody") or (gStates.playerCount>=2 and IDConvert[id]=="nobody"))
+		if (dropDownIdLink~="dummyMKSelection" and ((gStates.playerCount>=2 and MAGE_KNIGHT_SELECTION_BY_ID[id]~="nobody") or (gStates.playerCount>=2 and MAGE_KNIGHT_SELECTION_BY_ID[id]=="nobody"))
 		and (gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="Mines Liberation"))
 		or (gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return") then--or gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four"
 			UI.setAttribute("dummyMKSelection", "interactable", "False")
@@ -866,10 +807,9 @@ function PlayerChosen(player, mouseButton, id)
 			UI.setAttribute("dummyMKSelectionImage", "image", "Sliced Button/Button New Active")
 		end
 		refreshProxySetupLabel()
-		ToolTipUpdate(IDConvert[id])
+		ToolTipUpdate(MAGE_KNIGHT_SELECTION_BY_ID[id])
 		--Set Coop flag
-		if gStates.positionMageKnight[5]=="nobody" then gStates.coop=0 UI.setAttribute("StartButtonText", "text", "{en}Start - Competitive{ru}Начало - Соревновательный{zh-tw}開始 - 對抗模式{zh-cn}开始 - 对抗模式{ko}시작 - 경쟁{es}Comenzar - Competitivo{fr}Démarrer - Compétitif{pt-br}Início - Competitivo{de}Start - Wettbewerbsfähig") else gStates.coop=1 UI.setAttribute("StartButtonText", "text", "{en}Start - Cooperative{ru}Начало - Кооперативный{zh-tw}開始 - 合作模式{zh-cn}开始 - 合作模式{ko}시작 - 협력{es}Comenzar - Cooperativo{fr}Démarrer - Coopératif{pt-br}Início - Cooperativo{de}Start - Genossenschaft") end
-		if gStates.playerCount==1 then UI.setAttribute("StartButtonText", "text", "{en}Start - Solo{ru}Начало - Одиночный{zh-tw}開始 - 單人遊戲{zh-cn}开始 - 单人游戏{ko}시작 - 솔로{es}Comenzar - Solo{fr}Démarrer - Solo{pt-br}Início - Solo{de}Start - Solo") end
+		gStates.coop=gStates.positionMageKnight[5]=="nobody" and 0 or 1
 		--reset megapolis
 		gStates.megapolis=0
 		scenarioInfoUpdate()
@@ -879,13 +819,10 @@ end
 
 function VolkareLevelSelection(player, mouseButton, id)
 	if mouseButton=="-1" then
-		local IDConvert={	["DaringSelection"]={"Daring", 1},
-							["HeroicSelection"]={"Heroic", 2},
-							["LegendarySelection"]={"Legendary", 3}}
-		UI.setAttribute("VolkareLevelSelectionText", "text", translateWord[IDConvert[id][1]])
+		UI.setAttribute("VolkareLevelSelectionText", "text", translateWord[VOLKARE_COMBAT_SELECTION_BY_ID[id][1]])
 		UI.setAttribute("VolkareLevelSelectionImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
-		gStates.volkareCombatLevel=IDConvert[id][2]
+		gStates.volkareCombatLevel=VOLKARE_COMBAT_SELECTION_BY_ID[id][2]
 		--adjust city levels of volkare scenarios
 		local cityAdjust=	{{["Volkare's Return"]={{4,5}, {6,10}, {8,15}, {10,20}}, ["Volkare's Return Blitz"]={{3,4}, {4,8}, {5,12}, {6,16}}, ["Volkare's Quest"]={{3,3,8}, {4,4,14}, {4,4,4,20}, {5,5,5,26}}, ["The War of Four"]={{2,2,4,4,16}, {4,4,6,6,32}, {6,6,8,8,46}, {8,8,10,10,58}}}, --daring
 							{["Volkare's Return"]={{6,8}, {9,16}, {12,24}, {16,32}}, ["Volkare's Return Blitz"]={{4,6}, {6,12}, {8,18}, {10,24}}, ["Volkare's Quest"]={{4,4,10}, {4,4,18}, {5,5,5,26}, {5,5,5,34}}, ["The War of Four"]={{3,3,6,6,18}, {5,5,9,9,36}, {8,8,12,12,52}, {10,10,15,15,66}}}, --Heroic
@@ -904,13 +841,10 @@ end
 
 function VolkareRaceSelection(player, mouseButton, id)
 	if mouseButton=="-1" then
-		local IDConvert={	["FairSelection"]={"Fair", 1},
-							["TightSelection"]={"Tight", 2},
-							["ThrillingSelection"]={"Thrilling", 3}}
-		UI.setAttribute("VolkareRaceSelectionText", "text", translateWord[IDConvert[id][1]])
+		UI.setAttribute("VolkareRaceSelectionText", "text", translateWord[VOLKARE_RACE_SELECTION_BY_ID[id][1]])
 		UI.setAttribute("VolkareRaceSelectionImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
-		gStates.volkareRaceLevel=IDConvert[id][2]
+		gStates.volkareRaceLevel=VOLKARE_RACE_SELECTION_BY_ID[id][2]
 		scenarioInfoUpdate()
 		ToolTipUpdate(dropDownIdLink)
 		dropDownIdLink="none"
@@ -975,7 +909,7 @@ function baseValueTweak(player, mouseButton, id)
 
 			if id=="CountryDown" or id=="CountryUp" then
 				if id=="CountryDown" then
-					countryMin=3
+					local countryMin=3
 					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey=="wedge" then countryMin=4 end--Enough to get to the legal core positions
 					if scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles>countryMin then
 						scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles-1
@@ -1097,7 +1031,7 @@ function setupScenarioMaxMageKnights()
 end
 
 function refreshMageKnightSetupAvailability()
-	local MKDropDownUI={"firstMKSelection", "secondMKSelection", "thirdMKSelection", "fourthMKSelection"}
+	local MKDropDownUI=MAGE_KNIGHT_CONTROL_IDS
 	gStates.playerCount=0
 	local customSelected=false
 	local jormundSelected=false
@@ -1134,7 +1068,7 @@ function refreshMageKnightSetupAvailability()
 	end
 	if jormundSelected then
 		gStates.riseOfTheForgemasters=3
-		UI.setAttribute("ROTFSelectionText", "text", "{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier")
+		UI.setAttribute("ROTFSelectionText", "text", ROTF_TEXT_BY_LEVEL[3])
 		applyForgemasterExpansionRequirements()
 	end
 end
@@ -1160,11 +1094,11 @@ function refreshSetupStartButton()
 		UI.setAttribute("StartButton", "interactable", "True")
 		UI.setAttribute("StartButtonImage", "image", "Sliced Button/Button New Active")
 		if gStates.playerCount==1 then
-			UI.setAttribute("StartButtonText", "text", "{en}Start - Solo{ru}Начало - Одиночный{zh-tw}開始 - 單人遊戲{zh-cn}开始 - 单人游戏{ko}시작 - 솔로{es}Comenzar - Solo{fr}Démarrer - Solo{pt-br}Início - Solo{de}Start - Solo")
+			UI.setAttribute("StartButtonText", "text", SETUP_TEXT.startSolo)
 		elseif gStates.positionMageKnight[5]=="nobody" then
-			UI.setAttribute("StartButtonText", "text", "{en}Start - Competitive{ru}Начало - Соревновательный{zh-tw}開始 - 對抗模式{zh-cn}开始 - 对抗模式{ko}시작 - 경쟁{es}Comenzar - Competitivo{fr}Démarrer - Compétitif{pt-br}Início - Competitivo{de}Start - Wettbewerbsfähig")
+			UI.setAttribute("StartButtonText", "text", SETUP_TEXT.startCompetitive)
 		else
-			UI.setAttribute("StartButtonText", "text", "{en}Start - Cooperative{ru}Начало - Кооперативный{zh-tw}開始 - 合作模式{zh-cn}开始 - 合作模式{ko}시작 - 협력{es}Comenzar - Cooperativo{fr}Démarrer - Coopératif{pt-br}Início - Cooperativo{de}Start - Genossenschaft")
+			UI.setAttribute("StartButtonText", "text", SETUP_TEXT.startCooperative)
 		end
 		if gStates.gameScenario=="The War of Four" and gStates.playerCount>=2 then
 			UI.setAttribute("WarOfFourStartButton", "active", "True")
@@ -1185,12 +1119,10 @@ function scenarioInfoUpdate()
 	refreshLostLegionExpansionOption()
 	if gStates.megapolis>0 then gStates.volkareCampAsCity=false end
 	--Convert Scenario to a reference then read the round count
-	for i=1, #scenarioList, 1 do
-		if gStates.gameScenario==scenarioList[i][1] then gStates.scenarioRef=i break end
-	end
+	gStates.scenarioRef=scenarioRefForName(gStates.gameScenario)
 	--Update Scenario Infos
-	UI.setAttribute("ScenarioDetails", "Active", "True")
-	UI.setAttribute("IntroBoard", "Active", "False")
+	UI.setAttribute("ScenarioDetails", "active", "true")
+	UI.setAttribute("IntroBoard", "active", "false")
 	UI.setAttribute("ScenarioName", "text", joinLang({translateWord[gStates.gameScenario], "{en} Purpose{ru} Цель{zh-tw} 目的{zh-cn} 目的{ko} 목적{es} Propósito{fr} Objectif{pt-br} Finalidade{de} Zweck"}))
 	UI.setAttribute("PlayerCount", "text", scenarioList[gStates.scenarioRef].scenarioDetails.playerDetails)
 	UI.setAttribute("ScenarioLength", "text", joinLang({"{en}Length - {ru}Продолжительность - {zh-tw}遊戲時長：{zh-cn}游戏时长：{ko}길이 - {es}Duración - {fr}Longueur - {pt-br}Duração - {de}Länge - ", scenarioList[gStates.scenarioRef][gStates.playersRef].rounds, "{en} Rounds{ru} Раунд(а/ов){zh-tw} 輪次{zh-cn} 轮次{ko}라운드{es} Rondas{fr} Rounds{pt-br} Rodadas{de} Runden"}))
@@ -1199,24 +1131,24 @@ function scenarioInfoUpdate()
 	--Display the amount of country tiles and any rules
 	if scenarioList[gStates.scenarioRef].scenarioDetails.countryRules~=nil then
 		if scenarioList[gStates.scenarioRef].scenarioDetails.countryRules[1]==nil then
-			UI.setAttribute("ScenarioCountry", "text", joinLang({"{en}Country Tiles - {ru}Дикие земли - {zh-tw}鄉村板塊：{zh-cn}乡村板块：{ko}교외 타일 - {es}Losetas de Campo - {fr}Tuiles Pays - {pt-br}Peças de Campo - {de}Land Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.countryRules}))
+			UI.setAttribute("ScenarioCountry", "text", joinLang({SETUP_TEXT.countryTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.countryRules}))
 		else
-			UI.setAttribute("ScenarioCountry", "text", joinLang({"{en}Country Tiles - {ru}Дикие земли - {zh-tw}鄉村板塊：{zh-cn}乡村板块：{ko}교외 타일 - {es}Losetas de Campo - {fr}Tuiles Pays - {pt-br}Peças de Campo - {de}Land Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.countryRules[gStates.playersRef]}))
+			UI.setAttribute("ScenarioCountry", "text", joinLang({SETUP_TEXT.countryTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.countryRules[gStates.playersRef]}))
 		end
 	else
-		UI.setAttribute("ScenarioCountry", "text", joinLang({"{en}Country Tiles - {ru}Дикие земли - {zh-tw}鄉村板塊：{zh-cn}乡村板块：{ko}교외 타일 - {es}Losetas de Campo - {fr}Tuiles Pays - {pt-br}Peças de Campo - {de}Land Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles}))
+		UI.setAttribute("ScenarioCountry", "text", joinLang({SETUP_TEXT.countryTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles}))
 	end
 	--Display the amount of core tiles and any rules
 	if scenarioList[gStates.scenarioRef].scenarioDetails.coreRules~=nil then
-		UI.setAttribute("ScenarioCore", "text", joinLang({"{en}Core Tiles - {ru}Развитые земли - {zh-tw}核心板塊：{zh-cn}核心板块：{ko}중심부 타일 - {es}Losetas Centrales - {fr}Tuiles de Base - {pt-br}Peças Centrais - {de}Core Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.coreRules}))
+		UI.setAttribute("ScenarioCore", "text", joinLang({SETUP_TEXT.coreTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.coreRules}))
 	else
-		UI.setAttribute("ScenarioCore", "text", joinLang({"{en}Core Tiles - {ru}Развитые земли - {zh-tw}核心板塊：{zh-cn}核心板块：{ko}중심부 타일 - {es}Losetas Centrales - {fr}Tuiles de Base - {pt-br}Peças Centrais - {de}Core Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles}))
+		UI.setAttribute("ScenarioCore", "text", joinLang({SETUP_TEXT.coreTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles}))
 	end
 	--Display the amount of city tiles and any rules
 	if scenarioList[gStates.scenarioRef].scenarioDetails.cityRules~=nil then
-		UI.setAttribute("ScenarioCity", "text", joinLang({"{en}City Tiles - {ru}Земли с городом - {zh-tw}城市板塊：{zh-cn}城市板块：{ko}도시 타일 - {es}Losetas de Ciudad - {fr}Tuiles Ville - {pt-br} Peças Cidade - {de}Stadt Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.cityRules}))
+		UI.setAttribute("ScenarioCity", "text", joinLang({SETUP_TEXT.cityTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.cityRules}))
 	else
-		UI.setAttribute("ScenarioCity", "text", joinLang({"{en}City Tiles - {ru}Земли с городом - {zh-tw}城市板塊：{zh-cn}城市板块：{ko}도시 타일 - {es}Losetas de Ciudad - {fr}Tuiles Ville - {pt-br} Peças Cidade - {de}Stadt Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles}))
+		UI.setAttribute("ScenarioCity", "text", joinLang({SETUP_TEXT.cityTilesPrefix, scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles}))
 	end
 	--Display's City Levels and activates megapolis with the right settings.
 	if gStates.megapolis==0 then
@@ -1376,9 +1308,9 @@ local setupUISaveAttributes={
 	{id="dummyMKSelection",attribute="interactable"},{id="dummyMKSelectionText",attribute="text"},{id="dummyMKSelectionImage",attribute="image"},
 	{id="DummyPosText",attribute="text"},
 	{id="VolkareLevelSelectionRow",attribute="active"},{id="VolkareRaceSelectionRow",attribute="active"},
-	{id="VolkareLevelSelection",attribute="interactable"},{id="VolkareLevelSelection",attribute="text"},
+	{id="VolkareLevelSelection",attribute="interactable"},
 	{id="VolkareLevelSelectionText",attribute="text"},{id="VolkareLevelSelectionImage",attribute="image"},
-	{id="VolkareRaceSelection",attribute="interactable"},{id="VolkareRaceSelection",attribute="text"},
+	{id="VolkareRaceSelection",attribute="interactable"},
 	{id="VolkareRaceSelectionText",attribute="text"},{id="VolkareRaceSelectionImage",attribute="image"},
 	{id="ROTFSelection",attribute="interactable"},{id="ROTFSelectionText",attribute="text"},{id="ROTFSelectionImage",attribute="image"},
 	{id="BlitzSelection",attribute="interactable"},{id="BlitzSelection",attribute="isOn"},{id="BlitzSelection",attribute="textColor"},
@@ -1408,9 +1340,7 @@ local setupUISaveAttributes={
 
 local function setupScenarioRef()
 	if gStates==nil then return nil end
-	if gStates.scenarioRef~=nil and scenarioList[gStates.scenarioRef]~=nil and scenarioList[gStates.scenarioRef][1]==gStates.gameScenario then return gStates.scenarioRef end
-	for a=1,#scenarioList do if scenarioList[a][1]==gStates.gameScenario then return a end end
-	return nil
+	return scenarioRefForName(gStates.gameScenario)
 end
 
 function saveSetupState()
@@ -1432,8 +1362,7 @@ end
 function restoreSetupScenarioState()
 	if gStates==nil or gStates.setupScenarioState==nil then return end
 	local saved=gStates.setupScenarioState
-	local scenarioRef=nil
-	for a=1,#scenarioList do if scenarioList[a][1]==saved.scenario then scenarioRef=a break end end
+	local scenarioRef=scenarioRefForName(saved.scenario)
 	if scenarioRef==nil or saved.playersRef==nil or scenarioList[scenarioRef][saved.playersRef]==nil then return end
 	local target=scenarioList[scenarioRef][saved.playersRef]
 	if saved.rounds~=nil then target.rounds=saved.rounds end
@@ -1460,19 +1389,14 @@ local function restoreSetupUIFromState()
 	UI.setAttribute("RampageSelection","isOn",gStates.rampage==1 and "true" or "false")
 	UI.setAttribute("MoreRampageSelection","isOn",gStates.rampage==2 and "true" or "false")
 	if translateWord[gStates.gameScenario]~=nil then UI.setAttribute("ScenarioSelectionText","text",translateWord[gStates.gameScenario]) end
-	local rotfText={
-		[0]="{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet",
-		[1]="{en}1. New Beginning{ru}1. Новое начало{zh-tw}新的開始{zh-cn}新的开始{ko}1.새로운 시작{es}1. Un nuevo comienzo{fr}1. Nouveau départ{pt-br}1. Novo Começo{de}1. Neubeginn",
-		[2]="{en}2. Spoils of War{ru}2. Военные трофеи{zh-tw}戰爭犒賞{zh-cn}战争犒赏{ko}2.전쟁의 전리품{es}2. Botín de Guerra{fr}2. Butin de Guerre{pt-br}2. Despojos de Guerra{de}2. Kriegsbeute",
-		[3]="{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier"}
-	if rotfText[gStates.riseOfTheForgemasters or 0]~=nil then UI.setAttribute("ROTFSelectionText","text",rotfText[gStates.riseOfTheForgemasters or 0]) end
+	if ROTF_TEXT_BY_LEVEL[gStates.riseOfTheForgemasters or 0]~=nil then UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[gStates.riseOfTheForgemasters or 0]) end
 	local combat={"Daring","Heroic","Legendary"}
 	local race={"Fair","Tight","Thrilling"}
 	if combat[gStates.volkareCombatLevel or 1]~=nil then UI.setAttribute("VolkareLevelSelectionText","text",translateWord[combat[gStates.volkareCombatLevel or 1]]) end
 	if race[gStates.volkareRaceLevel or 1]~=nil then UI.setAttribute("VolkareRaceSelectionText","text",translateWord[race[gStates.volkareRaceLevel or 1]]) end
 	UI.setAttribute("darknessComing","text",gStates.startAtNight==true and
-		"{en}Daylight is Coming{ru}Надвигается рассвет{zh-tw}白晝侵襲{zh-cn}白昼侵袭{ko}빛의 도래{es}Se Acerca la luz del Día{fr}Lendemain Arrive{pt-br}A Luz do dia está Chegando{de}Es Wird Hell" or
-		"{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel")
+		SETUP_TEXT.daylightComing or
+		SETUP_TEXT.darknessComing)
 	refreshProxySetupLabel()
 end
 
@@ -1493,7 +1417,7 @@ function restoreMageKnightSetupSection()
 	if gStates==nil then return end
 	local volkareOn=gStates.positionMageKnight~=nil and gStates.positionMageKnight[5]=="Volkare"
 	if volkareOn==true then
-		UI.setAttribute("DummyPosText","text","{en}Volkare Skills -{ru}Навыки Волкаре -{zh-tw}沃卡里技能：{zh-cn}沃卡里技能：{ko}볼케어의 스킬 -{es}Habilidades de Volkare -{fr}Compétences de Volkare -{pt-br}Habilidades de Volkare -{de}Volkare-Fähigkeiten -")
+		UI.setAttribute("DummyPosText","text",SETUP_TEXT.volkareSkills)
 		local skillText=translateWord[gStates.volkareSkills or "Random"] or translateWord["Random"]
 		if skillText~=nil then UI.setAttribute("dummyMKSelectionText","text",skillText) end
 		UI.setAttribute("dummyMKSelection","interactable","true")
@@ -1522,6 +1446,6 @@ function restoreMageKnightSetupSection()
 		UI.setAttribute("Setup2Details","height","466")
 		UI.setAttribute("Setup1DetailsSub","height","406")
 		UI.setAttribute("Setup2DetailsSub","height","406")
-		UI.setAttribute("DummyPosText","text","{en}Dummy Mage Knight -{ru}Виртуальный Рыцарь-маг -{zh-tw}虛擬玩家：{zh-cn}虚拟玩家：{ko}가상 플레이어 -{es}Mage Knight Virtual -{fr}Mage fantôme -{pt-br}Mage Knight Fictício -{de}Dummy-Magier-Ritter -")
+		UI.setAttribute("DummyPosText","text",SETUP_TEXT.dummyMageKnight)
 	end
 end

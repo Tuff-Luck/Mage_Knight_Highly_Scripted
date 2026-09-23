@@ -1624,7 +1624,7 @@ Einheiten</Text></Cell>
 	</Button>
 	<Panel outlineSize="0 0" rectAlignment="MiddleLeft" width="392" height="700">
 		<Image image="Sliced Button/Button New Active" type="Sliced"/>
-		<Panel id="ScenarioDetails" outlineSize="0 0" rectAlignment="UpperCenter" width="392" height="60" color="clear">
+		<Panel id="ScenarioSetupHeader" outlineSize="0 0" rectAlignment="UpperCenter" width="392" height="60" color="clear">
 			<VerticalLayout padding="0 0 0 0"><!-- childAlignment="MiddleCenter" color="rgb(0.8, 0.8, 0.8)"> -->
 				<TableLayout>
 					<Row preferredHeight="30" dontUseTableRowBackground="true" >
