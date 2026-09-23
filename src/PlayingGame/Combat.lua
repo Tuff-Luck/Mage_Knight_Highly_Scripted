@@ -842,7 +842,6 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			--Get objects from player area to clean them up
 			local lastObject=nil
 			local spawningGroundMonstersReturned=0
-			local spawningGroundMonstersBeat=0
 			local cleanupContext={player=cleanupPlayer,coopCombatReward=coopCombatReward,avatarPos=avatarPos,volkareCityShield=0,volkarePaused=false,spawningGroundMonstersBeat=0,mapSpatial=runtimeMapSpatialSnapshot()}
 			gStates.turnForfeited=true
 			--Goblin Warrens is resolved by the normal monster-cleanup result below. Fresh Goblins begin
@@ -1052,13 +1051,12 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 					avatarDropFinished=true
 					--place shield or replenish monster in spawning grounds
 					if turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
-						if spawningGroundMonstersBeat==2 then dropShield({avatarPos[1], 2, avatarPos[3]}, true) coralTalesSiteShield("spawning grounds") end
+						if cleanupContext.spawningGroundMonstersBeat==2 then dropShield({avatarPos[1], 2, avatarPos[3]}, true) coralTalesSiteShield("spawning grounds") end
 						if spawningGroundMonstersReturned==1 then
 							local newMonster=getObjectFromGUID(monsterPiles.tan).takeObject({position={avatarPos[1]+0.22, 2.12, avatarPos[3]}, smooth=false})
 							gStates.monsterPlayLocation[newMonster.guid]={avatarPos[1]+0.22, 2.12, avatarPos[3]}
 						end
 					end
-					spawningGroundMonstersBeat=cleanupContext.spawningGroundMonstersBeat or spawningGroundMonstersBeat
 					local horsemenReturn=againstHorsemenFinishSoloAssault(cleanupPlayer)
 					if horsemenReturn~=nil then
 						if avatarModel~=nil then

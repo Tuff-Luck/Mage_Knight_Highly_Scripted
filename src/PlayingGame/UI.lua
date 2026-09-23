@@ -893,10 +893,10 @@ function mainUIUpdate(source)
 									if gStates.druidNightsSummon~=nil then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(rewardPug*gStates.gainList[obj.guid].tokenDirection) end
 								end
 								--Rampaging Reputation
-								if gStates.monsterPlayLocation[obj.guid]~=nil and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[obj.guid]==nil) and
+								if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[obj.guid]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[obj.guid]==nil) and
 									(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) and
 									obj.guid~=gStates.hiddenValleyKeep[1] and obj.guid~=gStates.hiddenValleyKeep[2] then
-									if monsterPugs[obj.guid].pugType=="green" or monsterPugs[obj.guid].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(1*gStates.gainList[obj.guid].tokenDirection) end --Why do I have Tan??
+									if monsterPugs[obj.guid].pugType=="green" or monsterPugs[obj.guid].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(1*gStates.gainList[obj.guid].tokenDirection) end --More Rampage! can add tan rampagers.
 									if monsterPugs[obj.guid].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(2*gStates.gainList[obj.guid].tokenDirection) end
 								end
 								--add hero and thug reputation
@@ -950,7 +950,7 @@ function mainUIUpdate(source)
 									end
 								end
 								--Rampaging reputation
-								if gStates.monsterPlayLocation[a]~=nil and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[a]==nil) and
+								if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[a]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[a]==nil) and
 									(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) and
 									a~=gStates.hiddenValleyKeep[1] and a~=gStates.hiddenValleyKeep[2] then
 									if monsterPugs[a].pugType=="green" or monsterPugs[a].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1 end
