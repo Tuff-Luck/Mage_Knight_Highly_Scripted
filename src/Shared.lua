@@ -464,6 +464,68 @@ function runtimeMapSnapshot()
 	return runtimeMapSnapshotCache
 end
 
+--Build a live spatial view on top of the shared runtime map. Object membership comes from the
+--invalidated runtime map cache, while positions are intentionally sampled fresh so ordinary movement
+--inside the map zone is immediately authoritative without persisting another map copy in gStates.
+runtimeMapSpatialCell=3
+function runtimeMapSpatialSnapshot(cellSize)
+	cellSize=cellSize or runtimeMapSpatialCell
+	local snapshot=runtimeMapSnapshot()
+	local positions={}
+	local terrainObjects={}
+	local terrainRotations={}
+	local buckets={}
+	for _, obj in pairs(snapshot.objects or {}) do
+		local pos=obj.getPosition()
+		positions[obj.guid]=pos
+		if terrainTiles[obj.guid]~=nil then
+			terrainObjects[#terrainObjects+1]=obj
+			terrainRotations[obj.guid]=obj.getRotation()
+		end
+		local key=tostring(math.floor(pos[1]/cellSize))..":"..tostring(math.floor(pos[3]/cellSize))
+		if buckets[key]==nil then buckets[key]={} end
+		buckets[key][#buckets[key]+1]=obj
+	end
+	return {
+		objects=snapshot.objects or {},positions=positions,buckets=buckets,cellSize=cellSize,
+		terrainObjects=terrainObjects,terrainRotations=terrainRotations,
+		terrainPositions=positions,topology=snapshot
+	}
+end
+
+--Return objects from the spatial buckets around a world position. Callers still apply their exact
+--distance/rules test; this only avoids rescanning unrelated map objects.
+function runtimeMapSpatialNearbyObjects(spatial,pos,radius,includeObject)
+	local result={}
+	local seen={}
+	if spatial==nil or pos==nil then return result end
+	if includeObject~=nil then result[#result+1]=includeObject seen[includeObject.guid]=true end
+	local cellSize=spatial.cellSize or runtimeMapSpatialCell
+	local cellRadius=math.max(1,math.ceil((radius or cellSize)/cellSize))
+	local baseX=math.floor(pos[1]/cellSize)
+	local baseZ=math.floor(pos[3]/cellSize)
+	for x=baseX-cellRadius,baseX+cellRadius do
+		for z=baseZ-cellRadius,baseZ+cellRadius do
+			local bucket=spatial.buckets[tostring(x)..":"..tostring(z)]
+			if bucket~=nil then
+				for _, obj in ipairs(bucket) do
+					if seen[obj.guid]~=true then result[#result+1]=obj seen[obj.guid]=true end
+				end
+			end
+		end
+	end
+	return result
+end
+
+--Resolve a world position against the same revealed-hex topology used by Movement, Proxy and Quests.
+function runtimeMapHexAtPosition(pos,snapshot)
+	snapshot=snapshot or runtimeMapSnapshot()
+	local terrain,bearing,hexPos,feature,hexType=terrainHexAtPosition(pos,snapshot.terrainObjects,snapshot.terrainPositions,snapshot.terrainRotations)
+	if terrain==nil or bearing==nil then return nil,nil,terrain,bearing,hexPos,feature,hexType end
+	local key=tostring(terrain.guid).."|"..tostring(bearing)
+	return snapshot.hexByKey[key],key,terrain,bearing,hexPos,feature,hexType
+end
+
 -- Player permission helpers
 --checks the clicking player matches the current turn
 function legalPlayerCheck(clickingPlayersColor, playerPosExpected, rule)
