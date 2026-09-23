@@ -507,7 +507,6 @@ function scenarioSelection(player, mouseButton, id)
 		--Changing scenario discards any previous Optional Scenario Tweaks and reloads
 		--the defaults for this scenario and the currently selected Mage Knight count.
 		resetCurrentScenarioTweaks()
-		refreshHeroChallengeOptionLocks()
 		scenarioInfoUpdate()
 	end
 end
@@ -526,7 +525,6 @@ function BlitzSelection(player, value, id)
 	UI.setAttribute("BlitzSelection","interactable",gStates.gameScenario=="First Reconnaissance" and "False" or "True")
 
 	resetCurrentScenarioTweaks()
-	refreshHeroChallengeOptionLocks()
 	scenarioInfoUpdate()
 
 	--Keep the historical red warning when the chosen Blitz state differs from the scenario's
@@ -541,11 +539,8 @@ end
 function applyForgemasterExpansionRequirements()
 	local level=gStates.riseOfTheForgemasters or 0
 	if level<=0 then return end
-	UI.setAttribute("removeLostLegionExpansion", "interactable", "false")
-	UI.setAttribute("removeLostLegionExpansion", "isOn", "false")
+	gStates.useCustomMageKnights=true
 	gStates.removeLostLegionExpansion=false
-	UI.setAttribute("removeBonusCards", "interactable", "false")
-	UI.setAttribute("removeBonusCards", "isOn", level==1 and "true" or "false")
 	gStates.removeBonusCards=level==1
 end
 
@@ -660,7 +655,6 @@ function optionsUpdate(player, value, id)
 			scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles=max
 		end
 	end
-	refreshHeroChallengeOptionLocks()
 	ToolTipUpdate(id)
 	scenarioInfoUpdate()
 	if id=="proxyPlayer" then refreshProxySetupLabel() end
@@ -692,17 +686,8 @@ function riseOfTheForgemastersOption(player, mouseButton, id)
 		UI.setAttribute("DropDown", "active", "false")
 		dropDownIdLink="none"
 		gStates.riseOfTheForgemasters=level
-		UI.setAttribute("removeLostLegionExpansion", "interactable", "true")
-		UI.setAttribute("removeBonusCards", "interactable", "true")
-		UI.setAttribute("useCustomMageKnights", "interactable", "true")
-		if gStates.riseOfTheForgemasters>0 then
-			applyForgemasterExpansionRequirements()
-			UI.setAttribute("useCustomMageKnights", "interactable", "false")
-			UI.setAttribute("useCustomMageKnights", "isOn", "true")
-			gStates.useCustomMageKnights=true
-		end
+		if gStates.riseOfTheForgemasters>0 then applyForgemasterExpansionRequirements() end
 		if gStates.riseOfTheForgemasters<3 then clearCustomMageKnightSelections(false) end
-		refreshHeroChallengeOptionLocks()
 		ToolTipUpdate(id)
 		scenarioInfoUpdate()
 	end
@@ -1032,15 +1017,78 @@ local function recountSetupMageKnights()
 	return customSelected,jormundSelected
 end
 
+local function scenarioUsesVolkareArmyLevel()
+	return gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or
+		gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four"
+end
+
+local function volkareCampAsCitySelectable()
+	return gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Conquest" or
+		gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="One to Return" or
+		gStates.gameScenario=="Fast Forwarded Conquest" or gStates.gameScenario=="The Lost Relic Blitz" or
+		gStates.gameScenario=="Ultimate Conquest" or gStates.gameScenario=="The Fractured Lands Blitz" or
+		gStates.gameScenario=="Against the Horsemen Blitz"
+end
+
+local function reconcileScenarioHardLocks()
+	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
+	if overrides==nil then return end
+	for id,details in pairs(overrides) do
+		if details[2]==false then gStates[id]=details[1] end
+	end
+end
+
+local function renderScenarioHardLocks()
+	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
+	if overrides==nil then return end
+	for id,details in pairs(overrides) do
+		if details[2]==false then
+			UI.setAttribute(id,"isOn",details[1] and "true" or "false")
+			UI.setAttribute(id,"interactable","False")
+		end
+	end
+end
+
+local function reconcileScenarioSetupValues()
+	gStates.playersRef=setupPlayersRef()
+	gStates.scenarioRef=scenarioRefForName(gStates.gameScenario)
+	local scenario=scenarioList[gStates.scenarioRef]
+	local setup=scenario~=nil and scenario[gStates.playersRef] or nil
+	if setup==nil then return end
+
+	if gStates.megapolis==0 and scenarioUsesVolkareArmyLevel() then
+		for index,level in pairs(setup.cityLevels) do
+			if index~=setup.cityTiles+1 and level>22 then setup.cityLevels[index]=22 end
+		end
+	end
+
+	local megapolisMaximum=megapolisMaximumForSetup(gStates.scenarioRef,gStates.playersRef)
+	if gStates.megapolis>megapolisMaximum then gStates.megapolis=megapolisMaximum end
+	ensureSetupMegapolisMinimumLevels()
+
+	if gStates.removeLostLegionExpansion==true or gStates.megapolis>0 then
+		gStates.volkareCampAsCity=false
+	elseif #setup.cityLevels==5 and not scenarioUsesVolkareArmyLevel() then
+		gStates.volkareCampAsCity=true
+	elseif not volkareCampAsCitySelectable() then
+		gStates.volkareCampAsCity=false
+	end
+end
+
+local function renderVolkareCampAsCityOption(setup)
+	local forcedFiveCities=#setup.cityLevels==5 and not scenarioUsesVolkareArmyLevel()
+	local enabled=not gStates.removeLostLegionExpansion and gStates.megapolis==0 and not forcedFiveCities and volkareCampAsCitySelectable()
+	UI.setAttribute("volkareCampAsCity","isOn",gStates.volkareCampAsCity==true and "true" or "false")
+	UI.setAttribute("volkareCampAsCity","interactable",enabled and "True" or "False")
+end
+
 function reconcileSetupState()
 	if gStates==nil then return end
 
 	local customLocked,customValue=scenarioOptionHardLock("useCustomMageKnights")
 	if customLocked and customValue==false then clearCustomMageKnightSelections(true) end
-	if gStates.gameScenario=="First Reconnaissance" then
-		gStates.riseOfTheForgemasters=0
-		gStates.heroChallenges=false
-	end
+	reconcileScenarioHardLocks()
+	if gStates.gameScenario=="First Reconnaissance" then gStates.riseOfTheForgemasters=0 end
 
 	local customSelected,jormundSelected=recountSetupMageKnights()
 	if customLocked then
@@ -1049,16 +1097,14 @@ function reconcileSetupState()
 		gStates.useCustomMageKnights=true
 	end
 	if gStates.gameScenario~="First Reconnaissance" and jormundSelected then gStates.riseOfTheForgemasters=3 end
+	if (gStates.riseOfTheForgemasters or 0)>0 then applyForgemasterExpansionRequirements() end
 
-	if (gStates.riseOfTheForgemasters or 0)>0 then
-		gStates.useCustomMageKnights=true
-		gStates.removeLostLegionExpansion=false
-		gStates.removeBonusCards=gStates.riseOfTheForgemasters==1
-	end
+	local bonusLocked,bonusValue=scenarioOptionHardLock("removeBonusCards")
+	if bonusLocked then gStates.removeBonusCards=bonusValue==true end
 
 	recountSetupMageKnights()
 	reconcileLostLegionExpansionState()
-	if gStates.megapolis>0 then gStates.volkareCampAsCity=false end
+	reconcileScenarioSetupValues()
 end
 
 local function renderMageKnightSetupAvailability()
@@ -1081,13 +1127,13 @@ local function renderMageKnightSetupAvailability()
 	UI.setAttribute("useCustomMageKnights","isOn",gStates.useCustomMageKnights==true and "true" or "false")
 	UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[gStates.riseOfTheForgemasters or 0] or SETUP_TEXT.notUsed)
 
-	local bonusLocked,bonusValue=scenarioOptionHardLock("removeBonusCards")
+	local bonusLocked=scenarioOptionHardLock("removeBonusCards")
 	local rotf=(gStates.riseOfTheForgemasters or 0)>0
-	if bonusLocked then gStates.removeBonusCards=bonusValue==true end
 	UI.setAttribute("removeBonusCards","isOn",gStates.removeBonusCards==true and "true" or "false")
 	UI.setAttribute("removeBonusCards","interactable",(not bonusLocked and not rotf) and "True" or "False")
 
 	renderLostLegionExpansionOption()
+	renderScenarioHardLocks()
 	refreshHeroChallengeOptionLocks()
 end
 
@@ -1137,9 +1183,7 @@ end
 
 function scenarioInfoUpdate()
 	reconcileSetupState()
-	gStates.playersRef=setupPlayersRef()
-	gStates.scenarioRef=scenarioRefForName(gStates.gameScenario)
-	local scenario=scenario
+	local scenario=scenarioList[gStates.scenarioRef]
 	local setup=scenario[gStates.playersRef]
 	local details=scenario.scenarioDetails
 	renderMageKnightSetupAvailability()
@@ -1174,17 +1218,8 @@ function scenarioInfoUpdate()
 	else
 		UI.setAttribute("ScenarioCity", "text", joinLang({SETUP_TEXT.cityTilesPrefix, setup.cityTiles}))
 	end
-	--Display's City Levels and activates megapolis with the right settings.
-	if gStates.megapolis==0 then
-		for index, level in pairs(setup.cityLevels) do
-			if index~=setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-				if level>22 then setup.cityLevels[index]=22 end
-			end
-		end
-	end
+	--Display City Levels and Megapolis controls from the reconciled setup state.
 	local megapolisMaximum=megapolisMaximumForSetup(gStates.scenarioRef,gStates.playersRef)
-	if gStates.megapolis>megapolisMaximum then gStates.megapolis=megapolisMaximum end
-	ensureSetupMegapolisMinimumLevels()
 	local currentCitySetup=setup
 	local customLeaderOnly=gStates.gameScenario=="Custom" and currentCitySetup.cityTiles==0 and gStates.removeShadesOfTezlaMonsters~=true
 	local hasCityLevelControls=currentCitySetup.cityLevels[1]~=nil and currentCitySetup.cityLevels[1]>0 and (currentCitySetup.cityTiles>0 or customLeaderOnly)
@@ -1269,37 +1304,8 @@ function scenarioInfoUpdate()
 		b=joinLang({b, c})
 		UI.setAttribute("CityNote", "text", b)
 	end
-	--Volkare's Camp as City Menu Access
-	if gStates.removeLostLegionExpansion==true then
-		UI.setAttribute("volkareCampAsCity", "interactable", "False")
-		UI.setAttribute("volkareCampAsCity", "isOn", "false")
-		gStates.volkareCampAsCity=false
-	elseif gStates.megapolis>0 then
-		UI.setAttribute("volkareCampAsCity", "interactable", "False")
-		UI.setAttribute("volkareCampAsCity", "isOn", "false")
-		gStates.volkareCampAsCity=false
-	elseif #setup.cityLevels==5 and gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The War of Four" then
-		UI.setAttribute("volkareCampAsCity", "interactable", "False")
-		UI.setAttribute("volkareCampAsCity", "isOn", "true")
-		gStates.volkareCampAsCity=true
-	else
-		--UI.setAttribute("volkareCampAsCity", "interactable", "True")
-		if gStates.gameScenario=="First Conquest" or
-			gStates.gameScenario=="Conquest" or
-			gStates.gameScenario=="Conquest Blitz" or
-			gStates.gameScenario=="One to Return" or
-			gStates.gameScenario=="Fast Forwarded Conquest" or
-			gStates.gameScenario=="The Lost Relic Blitz" or
-			gStates.gameScenario=="Ultimate Conquest" or
-			gStates.gameScenario=="The Fractured Lands Blitz" or
-			gStates.gameScenario=="Against the Horsemen Blitz" then
-			UI.setAttribute("volkareCampAsCity", "interactable", "True")
-		else
-			UI.setAttribute("volkareCampAsCity", "interactable", "False")
-			UI.setAttribute("volkareCampAsCity", "isOn", "false")
-			gStates.volkareCampAsCity=false
-		end
-	end
+	--Volkare's Camp as City state was reconciled before rendering.
+	renderVolkareCampAsCityOption(setup)
 	--Display the Scenario End rules
 	UI.setAttribute("ScenarioEnd", "text", details.scenarioEnd)
 	refreshScenarioTerrainTweakLocks()
