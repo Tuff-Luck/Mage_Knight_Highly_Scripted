@@ -964,6 +964,68 @@ function cardEffectIsVertical(card)
 	return math.min(y,180-y)<=10
 end
 
+--End-turn card cleanup belongs with deed/card flow rather than Combat. Return the current
+--discard destination because the first loose card becomes the physical discard pile.
+function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
+	if card==nil or card.type~="Card" or turnOrder[playerIndex]==nil then return cardDestination end
+	local keepInPlay=false
+
+	--Banner cards remain attached/available for their own banner handling.
+	if gameCards[card.guid]~=nil and gameCards[card.guid].full~=nil then
+		gStates.bannercard[card.guid]="played"
+		keepInPlay=true
+	end
+
+	--Steady Tempo stays in the play area while its explicit end-turn choice is unresolved.
+	if isSteadyTempoGUID~=nil and isSteadyTempoGUID(card.guid)==true and cardEffectIsVertical(card)==true then
+		keepInPlay=true
+		gStates.turnForfeited=false
+		if card.is_face_down==false then steadyTempoPrepare(card, playerIndex) end
+	end
+
+	--Mysterious Box and Crystal Joy both have an unresolved end-turn choice while upright and
+	--face up. A sideways Mysterious Box was used as a generic card and is discarded normally;
+	--a face-down copy follows the normal thrown-away cleanup path.
+	local manualEndTurnCard=(card.guid=="085e69" or card.guid=="7ebe5e")
+		and card.is_face_down==false and cardEffectIsVertical(card)==true
+	if manualEndTurnCard then keepInPlay=true gStates.turnForfeited=false end
+
+	if card.getDescription()=="Quest" then keepInPlay=true gStates.turnForfeited=false end
+	if keepInPlay==true then return cardDestination end
+
+	gStates.turnForfeited=false
+	local trash=getObjectFromGUID(trashCan)
+	if card.is_face_down==true then
+		if trash~=nil then trash.putObject(card) end
+		return cardDestination
+	end
+
+	for _, ownedGUID in ipairs(turnOrder[playerIndex].deadDeckInventory or {}) do
+		if card.guid==ownedGUID then
+			if gStates.timeBending=="Started" and playerIndex==gStates.realTurn then
+				if card.guid==timeBendingGUID then
+					gStates.timeBendingRemovedSeat=turnOrder[playerIndex].seatPos
+					if trash~=nil then trash.putObject(card) end
+					broadcastToAll("{en}Time Bend Left Play{ru}«Изгиб времени» покинул игру{zh-tw}「時間彎曲」離開遊戲區{zh-cn}“时间弯曲”离开游戏区{ko}시간 왜곡이 플레이 영역을 떠났습니다{es}Curvatura Temporal salió del juego{fr}Courbure du Temps a quitté le jeu{pt-br}Dobra Temporal saiu de jogo{de}Zeitkrümmung hat das Spiel verlassen", positionToColor(playerIndex))
+				else
+					card.setRotation({0.0,180.0,0.0})
+					card.setPosition({(turnOrder[playerIndex].seatPos*40)-100,4,-48.40})
+				end
+			elseif cardDestination==nil then
+				card.setRotation({0.0,180.0,0.0})
+				card.setPosition({(turnOrder[playerIndex].seatPos*40)-110.54,1.12,-43.20})
+				cardDestination=card
+			else
+				local cardPos=card.getPosition()
+				card.setPosition({cardPos[1],1.9,cardPos[3]})
+				cardDestination=cardDestination.putObject(card)
+			end
+			break
+		end
+	end
+	return cardDestination
+end
+
 local function meditationStripXmlButtons(card)
 	local xml=card.UI.getXmlTable() or {}
 	for a=#xml, 1, -1 do
