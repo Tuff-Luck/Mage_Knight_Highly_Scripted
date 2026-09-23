@@ -75,10 +75,24 @@ function resetCurrentScenarioTweaks()
 	gStates.megapolis=0
 end
 
+--Apply the same scenario defaults whether the scenario came from the setup menu, a randomizer,
+--or one of the quick-start buttons. Blitz variants are normalized through the ordinary scenario
+--selection path first so forced/selectable Blitz rules cannot drift into separate implementations.
+function applyScenarioSetupDefaults(scenarioName)
+	if type(scenarioName)~="string" or scenarioName=="" then return false end
+	local requested=scenarioName
+	local baseScenario=requested
+	if requested:sub(-6)==" Blitz" then baseScenario=requested:sub(1,-7) end
+	scenarioSelection(nil, "-1", baseScenario)
+	if requested:sub(-6)==" Blitz" and gStates.gameScenario~=requested then
+		BlitzSelection(nil, "True", "BlitzSelection")
+	end
+	return gStates.gameScenario==requested
+end
+
 function randomSetup(player, value, id)
 	local value=scenarioList[math.random(2, #scenarioList-1)][1]
-	if value:reverse():sub(1, 5)=="ztilB" then scenarioSelection(nil, "-1", value:sub(1, string.len(value)-6)) else scenarioSelection(nil, "-1", value) end
-	if (value=="Conquest Blitz" or value=="Volkare's Return Blitz") then BlitzSelection(nil, "True", "BlitzSelection") end
+	applyScenarioSetupDefaults(value)
 	--scenarioSelection updates setup state synchronously; randomize immediately instead of sleeping a frame.
 	local randomOptions={"volkareCampAsCity", "randomTileOrientation", "randomCities", "removeShadesOfTezlaMonsters", "removeApocalypseTerrain",	"startAtNight", "darknessComing", "heroChallenges", "useCustomMageKnights", "weatherMod", "questMod", "apocalypseQuestCards", "proxyPlayer", "itemShopMod", "rampageAmbush", "rampagePursuit", "removeTerrain"}
 	for a=1, #randomOptions, 1 do
