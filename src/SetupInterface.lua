@@ -468,7 +468,6 @@ function scenarioSelection(player, mouseButton, id)
 		--Reset ordinary setup toggles from one policy table, then apply scenario-specific overrides.
 		--Hero Challenges intentionally survives scenario browsing and is therefore not part of this reset.
 		applyScenarioToggleDefaults()
-		refreshLostLegionExpansionOption()
 		if randomCitiesAllowedForScenario()==false then UI.setAttribute("randomCities","interactable","False") end
 		refreshProxySetupLabel()
 
@@ -556,11 +555,7 @@ function refreshHeroChallengeOptionLocks()
 	local rotf=(gStates.riseOfTheForgemasters or 0)>0
 	local custom=gStates.useCustomMageKnights==true
 	local firstRecon=gStates.gameScenario=="First Reconnaissance"
-	if firstRecon and heroOn then
-		gStates.heroChallenges=false
-		heroOn=false
-		UI.setAttribute("heroChallenges","isOn","false")
-	end
+	UI.setAttribute("heroChallenges","isOn",heroOn and "true" or "false")
 	UI.setAttribute("heroChallenges","interactable",(not firstRecon and not custom and not rotf) and "True" or "False")
 	if heroOn==true then
 		UI.setAttribute("useCustomMageKnights","interactable","False")
@@ -574,27 +569,35 @@ function refreshHeroChallengeOptionLocks()
 	end
 end
 
+local function setupLostLegionExpansionRequired()
+	return gStates.gameScenario=="The Gauntlet" or
+		(gStates.gameScenario=="The Lost Relic Blitz" and gStates.coop==1 and (gStates.playerCount or 0)>=4)
+end
+
+local function reconcileLostLegionExpansionState()
+	if gStates.gameScenario=="First Reconnaissance" then
+		gStates.removeLostLegionExpansion=true
+	elseif setupLostLegionExpansionRequired() then
+		gStates.removeLostLegionExpansion=false
+	end
+	if gStates.removeLostLegionExpansion==true then gStates.volkareCampAsCity=false end
+end
+
+local function renderLostLegionExpansionOption()
+	local rotf=(gStates.riseOfTheForgemasters or 0)>0
+	local locked=gStates.gameScenario=="First Reconnaissance" or setupLostLegionExpansionRequired() or rotf
+	UI.setAttribute("removeLostLegionExpansion","isOn",gStates.removeLostLegionExpansion==true and "true" or "false")
+	UI.setAttribute("removeLostLegionExpansion","interactable",locked and "False" or "True")
+	if gStates.removeLostLegionExpansion==true then
+		UI.setAttribute("volkareCampAsCity","isOn","false")
+		UI.setAttribute("volkareCampAsCity","interactable","False")
+	end
+end
+
 function refreshLostLegionExpansionOption()
 	if gStates==nil then return end
-	local firstRecon=gStates.gameScenario=="First Reconnaissance"
-	local required=gStates.gameScenario=="The Gauntlet" or
-		(gStates.gameScenario=="The Lost Relic Blitz" and gStates.coop==1 and (gStates.playerCount or 0)>=4)
-	if firstRecon then
-		gStates.removeLostLegionExpansion=true
-		UI.setAttribute("removeLostLegionExpansion", "isOn", "true")
-		UI.setAttribute("removeLostLegionExpansion", "interactable", "False")
-	elseif required then
-		gStates.removeLostLegionExpansion=false
-		UI.setAttribute("removeLostLegionExpansion", "isOn", "false")
-		UI.setAttribute("removeLostLegionExpansion", "interactable", "False")
-	else
-		UI.setAttribute("removeLostLegionExpansion", "interactable", "True")
-	end
-	if gStates.removeLostLegionExpansion==true then
-		gStates.volkareCampAsCity=false
-		UI.setAttribute("volkareCampAsCity", "isOn", "false")
-		UI.setAttribute("volkareCampAsCity", "interactable", "False")
-	end
+	reconcileLostLegionExpansionState()
+	renderLostLegionExpansionOption()
 end
 
 function optionsUpdate(player, value, id)
@@ -1012,27 +1015,60 @@ function setupScenarioMaxMageKnights()
 	return 4
 end
 
-function refreshMageKnightSetupAvailability()
-	local MKDropDownUI=MAGE_KNIGHT_CONTROL_IDS
+local function recountSetupMageKnights()
 	gStates.playerCount=0
 	local customSelected=false
 	local jormundSelected=false
-	for a=1,4 do
-		local mage=gStates.positionMageKnight[a] or "nobody"
+	for position=1,4 do
+		local mage=gStates.positionMageKnight[position] or "nobody"
 		if mage~="nobody" then gStates.playerCount=gStates.playerCount+1 end
 		if customMages[mage]~=nil then customSelected=true end
 		if mage=="Jormund" then jormundSelected=true end
 	end
-	local rememberedDummy=gStates.setupDummyMageChoice or (gStates.positionMageKnight[5]=="Volkare" and gStates.volkareSkills) or gStates.positionMageKnight[5]
+	local rememberedDummy=gStates.setupDummyMageChoice or
+		(gStates.positionMageKnight[5]=="Volkare" and gStates.volkareSkills) or gStates.positionMageKnight[5]
 	if customMages[rememberedDummy]~=nil then customSelected=true end
 	if rememberedDummy=="Jormund" then jormundSelected=true end
 	gStates.coop=gStates.positionMageKnight[5]~="nobody" and 1 or 0
+	return customSelected,jormundSelected
+end
 
+function reconcileSetupState()
+	if gStates==nil then return end
+
+	local customLocked,customValue=scenarioOptionHardLock("useCustomMageKnights")
+	if customLocked and customValue==false then clearCustomMageKnightSelections(true) end
+	if gStates.gameScenario=="First Reconnaissance" then
+		gStates.riseOfTheForgemasters=0
+		gStates.heroChallenges=false
+	end
+
+	local customSelected,jormundSelected=recountSetupMageKnights()
+	if customLocked then
+		gStates.useCustomMageKnights=customValue==true
+	elseif customSelected then
+		gStates.useCustomMageKnights=true
+	end
+	if gStates.gameScenario~="First Reconnaissance" and jormundSelected then gStates.riseOfTheForgemasters=3 end
+
+	if (gStates.riseOfTheForgemasters or 0)>0 then
+		gStates.useCustomMageKnights=true
+		gStates.removeLostLegionExpansion=false
+		gStates.removeBonusCards=gStates.riseOfTheForgemasters==1
+	end
+
+	recountSetupMageKnights()
+	reconcileLostLegionExpansionState()
+	if gStates.megapolis>0 then gStates.volkareCampAsCity=false end
+end
+
+local function renderMageKnightSetupAvailability()
 	local maxPlayers=setupScenarioMaxMageKnights()
-	for a=1,4 do
-		local available=gStates.positionMageKnight[a]~="nobody" or gStates.playerCount<maxPlayers
-		UI.setAttribute(MKDropDownUI[a], "interactable", available and "True" or "False")
-		UI.setAttribute(MKDropDownUI[a].."Image", "image", available and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	for position=1,4 do
+		local available=gStates.positionMageKnight[position]~="nobody" or gStates.playerCount<maxPlayers
+		local id=MAGE_KNIGHT_CONTROL_IDS[position]
+		UI.setAttribute(id,"interactable",available and "True" or "False")
+		UI.setAttribute(id.."Image","image",available and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
 	end
 
 	local dummyLocked=gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return"
@@ -1040,23 +1076,28 @@ function refreshMageKnightSetupAvailability()
 		gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or
 		gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="Mines Liberation"
 	local dummyAvailable=not dummyLocked and (gStates.positionMageKnight[5]=="Volkare" or not dummyPlayerLimited or gStates.playerCount<2)
-	UI.setAttribute("dummyMKSelection", "interactable", dummyAvailable and "True" or "False")
-	UI.setAttribute("dummyMKSelectionImage", "image", dummyAvailable and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	UI.setAttribute("dummyMKSelection","interactable",dummyAvailable and "True" or "False")
+	UI.setAttribute("dummyMKSelectionImage","image",dummyAvailable and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
 
-	--Retained optional Mage Knights keep the options they require when the scenario defaults are rebuilt.
-	if customSelected then
-		gStates.useCustomMageKnights=true
-		UI.setAttribute("useCustomMageKnights", "isOn", "true")
-	end
-	if jormundSelected then
-		gStates.riseOfTheForgemasters=3
-		UI.setAttribute("ROTFSelectionText", "text", ROTF_TEXT_BY_LEVEL[3])
-		applyForgemasterExpansionRequirements()
-	end
+	UI.setAttribute("useCustomMageKnights","isOn",gStates.useCustomMageKnights==true and "true" or "false")
+	UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[gStates.riseOfTheForgemasters or 0] or SETUP_TEXT.notUsed)
+
+	local bonusLocked,bonusValue=scenarioOptionHardLock("removeBonusCards")
+	local rotf=(gStates.riseOfTheForgemasters or 0)>0
+	if bonusLocked then gStates.removeBonusCards=bonusValue==true end
+	UI.setAttribute("removeBonusCards","isOn",gStates.removeBonusCards==true and "true" or "false")
+	UI.setAttribute("removeBonusCards","interactable",(not bonusLocked and not rotf) and "True" or "False")
+
+	renderLostLegionExpansionOption()
+	refreshHeroChallengeOptionLocks()
+end
+
+function refreshMageKnightSetupAvailability()
+	reconcileSetupState()
+	renderMageKnightSetupAvailability()
 end
 
 function refreshSetupStartButton()
-	refreshMageKnightSetupAvailability()
 	UI.setAttribute("WarOfFourStartButton", "active", "false")
 	UI.setAttribute("StartButton", "active", "false")
 	UI.setAttribute("StartButton", "width", "1000")
@@ -1096,12 +1137,11 @@ function refreshSetupStartButton()
 end
 
 function scenarioInfoUpdate()
-	--convert Mage Knight count/setup type to the scenario's matching reference
+	reconcileSetupState()
 	gStates.playersRef=setupPlayersRef()
-	refreshLostLegionExpansionOption()
-	if gStates.megapolis>0 then gStates.volkareCampAsCity=false end
-	--Convert Scenario to a reference then read the round count
 	gStates.scenarioRef=scenarioRefForName(gStates.gameScenario)
+	renderMageKnightSetupAvailability()
+	renderDummySetupSection()
 	--Update Scenario Infos
 	UI.setAttribute("ScenarioDetails", "active", "true")
 	UI.setAttribute("IntroBoard", "active", "false")
