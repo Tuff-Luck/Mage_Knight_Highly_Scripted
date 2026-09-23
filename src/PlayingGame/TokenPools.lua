@@ -1,33 +1,34 @@
 -- Monster token-pool replenishment and bag presentation runtime.
 
 -- Token pile refill
+local tokenPileLinks={	{discard=GUID.bag.discard.towerGarrison, destination=monsterPiles.purple},--Mage Towers Discard-->Main
+						{discard=GUID.bag.discard.keepGarrison, destination=monsterPiles.gray},--Keeps Discard-->Main
+						{discard=GUID.bag.discard.cityGarrison, destination=monsterPiles.white},--Cities Discard-->Main
+						{discard=GUID.bag.discard.ruin, destination=monsterPiles.yellow},--Ruins Discard-->Main
+						{discard=GUID.bag.discard.draconum, destination=monsterPiles.red},--Draconum Discard-->Main
+						{discard=GUID.bag.discard.dungeon, destination=monsterPiles.tan},--Dungeon Discard-->Main
+						{discard=GUID.bag.discard.orcs, destination=monsterPiles.green},--Orc Discard-->Main
+						{discard=GUID.bag.discard.darkDraconum, destination=monsterPiles.redDark},--Dark Crusader Draconum Discard-->Main
+						{discard=GUID.bag.discard.darkDungeon, destination=monsterPiles.tanDark},--Dark Crusader Dungeon Discard-->Main
+						{discard=GUID.bag.discard.darkMarauders, destination=monsterPiles.greenDark},--Dark Crusader Orc Discard-->Main
+						{discard=GUID.bag.discard.darkReward, destination=monsterPiles.rewardDark},--Dark Crusader Reward Discard-->Main
+						{discard=GUID.bag.discard.elementalistDraconum, destination=monsterPiles.redElem},--Elementalist Draconum Discard-->Main
+						{discard=GUID.bag.discard.elementalistDungeon, destination=monsterPiles.tanElem},--Elementalist Dungeon Discard-->Main
+						{discard=GUID.bag.discard.elementalistOrcs, destination=monsterPiles.greenElem},--Elementalist Orc Discard-->Main
+						{discard=GUID.bag.discard.elementalistReward, destination=monsterPiles.rewardElem},--Elementalist Reward Discard-->Main
+						{discard=GUID.bag.discard.possessed, destination=monsterPiles.possessed},--Possessed-->Main
+						{discard=GUID.bag.discard.apocReward, destination=monsterPiles.rewardApoc},--Apocalypse Cult Reward Discard-->Main
+						{discard=GUID.bag.discard.councilReward, destination=monsterPiles.rewardCouncil}}--Council of the Void Reward Discard-->Main
+
 --refill empty token piles. Both onObjectEnterScriptingZone and endRound call this routine
 function tokenRefill(reportResult)
 	--Token piles cannot need refilling during initial setup, and some Apocalypse piles are still being extracted then.
 	if gStates==nil or gStates.tokenRefillEnabled~=true then return true end
-	local tokenPileLink={	{discard=GUID.bag.discard.towerGarrison, destination=monsterPiles.purple},--Mage Towers Discard-->Main
-							{discard=GUID.bag.discard.keepGarrison, destination=monsterPiles.gray},--Keeps Discard-->Main
-							{discard=GUID.bag.discard.cityGarrison, destination=monsterPiles.white},--Cities Discard-->Main
-							{discard=GUID.bag.discard.ruin, destination=monsterPiles.yellow},--Ruins Discard-->Main
-							{discard=GUID.bag.discard.draconum, destination=monsterPiles.red},--Draconum Discard-->Main
-							{discard=GUID.bag.discard.dungeon, destination=monsterPiles.tan},--Dungeon Discard-->Main
-							{discard=GUID.bag.discard.orcs, destination=monsterPiles.green},--Orc Discard-->Main
-							{discard=GUID.bag.discard.darkDraconum, destination=monsterPiles.redDark},--Dark Crusader Draconum Discard-->Main
-							{discard=GUID.bag.discard.darkDungeon, destination=monsterPiles.tanDark},--Dark Crusader Dungeon Discard-->Main
-							{discard=GUID.bag.discard.darkMarauders, destination=monsterPiles.greenDark},--Dark Crusader Orc Discard-->Main
-							{discard=GUID.bag.discard.darkReward, destination=monsterPiles.rewardDark},--Dark Crusader Reward Discard-->Main
-							{discard=GUID.bag.discard.elementalistDraconum, destination=monsterPiles.redElem},--Elementalist Draconum Discard-->Main
-							{discard=GUID.bag.discard.elementalistDungeon, destination=monsterPiles.tanElem},--Elementalist Dungeon Discard-->Main
-							{discard=GUID.bag.discard.elementalistOrcs, destination=monsterPiles.greenElem},--Elementalist Orc Discard-->Main
-							{discard=GUID.bag.discard.elementalistReward, destination=monsterPiles.rewardElem},--Elementalist Reward Discard-->Main
-							{discard=GUID.bag.discard.possessed, destination=monsterPiles.possessed},--Possessed-->Main
-							{discard=GUID.bag.discard.apocReward, destination=monsterPiles.rewardApoc},--Apocalypse Cult Reward Discard-->Main
-							{discard=GUID.bag.discard.councilReward, destination=monsterPiles.rewardCouncil}}--Council of the Void Reward Discard-->Main
 	local noWait=true
 	local emptyPile=false
-	for a=1, #tokenPileLink, 1 do
-		local discardObj=getObjectFromGUID(tokenPileLink[a].discard)
-		local destinationObj=getObjectFromGUID(tokenPileLink[a].destination)
+	for a=1, #tokenPileLinks, 1 do
+		local discardObj=getObjectFromGUID(tokenPileLinks[a].discard)
+		local destinationObj=getObjectFromGUID(tokenPileLinks[a].destination)
 		if destinationObj~=nil and discardObj~=nil then
 			if #destinationObj.getObjects()==0 then
 				emptyPile=true
@@ -52,6 +53,33 @@ function tokenRefill(reportResult)
 		end
 	end
 	return noWait
+end
+
+--Run a draw only after the specific destination pile has been replenished when necessary.
+--Unlike the old combat pattern, this does not scan every pool and then wait a fixed five frames
+--for draws whose requested pile was already ready.
+function withTokenPoolReady(pileGUID, callback, context)
+	if callback==nil then return end
+	local pile=pileGUID~=nil and getObjectFromGUID(pileGUID) or nil
+	if pile==nil or pile.getQuantity()~=0 then callback() return end
+
+	local refillable=false
+	for _, link in ipairs(tokenPileLinks) do
+		if link.destination==pileGUID then
+			local discard=getObjectFromGUID(link.discard)
+			refillable=discard~=nil and #discard.getObjects()>0
+			break
+		end
+	end
+	if refillable~=true then callback() return end
+
+	tokenRefill()
+	local function ready()
+		local target=getObjectFromGUID(pileGUID)
+		return target==nil or target.getQuantity()~=0
+	end
+	if ready()==true then callback()
+	else safeWaitCondition(context or "TokenPools",callback,ready,2,callback) end
 end
 
 --Object UI callback for the Monster Replenish panel. The refill logic itself is shared with automatic refills.
