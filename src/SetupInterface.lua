@@ -204,7 +204,8 @@ local SCENARIO_OPTION_OVERRIDES={
 		randomTileOrientation={false,false},removeShadesOfTezlaMonsters={true,false},removeApocalypseTerrain={true,false},
 		startAtNight={false,false},rampageAmbush={false,false},rampagePursuit={false,false},darknessComing={false,false},
 		mageKnightLevels={false,false},useCustomMageKnights={false,false},removeBonusCards={true,false},weatherMod={false,false},
-		questMod={false,false},apocalypseQuestCards={false,false},proxyPlayer={false,false},itemShopMod={false,false},removeTerrain={false,false}},
+		questMod={false,false},apocalypseQuestCards={false,false},proxyPlayer={false,false},itemShopMod={false,false},
+		heroChallenges={false,false},removeTerrain={false,false}},
 	["First Conquest"]={volkareCampAsCity={false,true}},
 	["Conquest"]={volkareCampAsCity={false,true}},
 	["Conquest Blitz"]={volkareCampAsCity={false,true}},
@@ -528,7 +529,12 @@ function refreshHeroChallengeOptionLocks()
 	local rotf=(gStates.riseOfTheForgemasters or 0)>0
 	local custom=gStates.useCustomMageKnights==true
 	local firstRecon=gStates.gameScenario=="First Reconnaissance"
-	UI.setAttribute("heroChallenges","interactable",(not custom and not rotf) and "True" or "False")
+	if firstRecon and heroOn then
+		gStates.heroChallenges=false
+		heroOn=false
+		UI.setAttribute("heroChallenges","isOn","false")
+	end
+	UI.setAttribute("heroChallenges","interactable",(not firstRecon and not custom and not rotf) and "True" or "False")
 	if heroOn==true then
 		UI.setAttribute("useCustomMageKnights","interactable","False")
 		UI.setAttribute("ROTFSelection","interactable","False")
@@ -565,7 +571,7 @@ function refreshLostLegionExpansionOption()
 end
 
 function optionsUpdate(player, value, id)
-	if id=="heroChallenges" and value=="True" and (gStates.useCustomMageKnights==true or (gStates.riseOfTheForgemasters or 0)>0) then
+	if id=="heroChallenges" and value=="True" and (gStates.gameScenario=="First Reconnaissance" or gStates.useCustomMageKnights==true or (gStates.riseOfTheForgemasters or 0)>0) then
 		UI.setAttribute("heroChallenges","isOn","false")
 		gStates.heroChallenges=false
 		refreshHeroChallengeOptionLocks()
