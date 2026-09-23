@@ -1053,7 +1053,9 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 										end
 										--flip ruins at night and Lost Relic dragons day or night
 										if gStates.autoFlip==true and turnOrder[gStates.turnNumber].mage==avatar.mage and ((playerDetails.avatarLocation=="ruin" and keepSearch==1) or (terrain.getRotationValues()[2]~=nil and terrain.getRotationValues()[2].value:sub(-8)=="Draconum")) then--and gStates.preEndTurn==false
-											if terrain.is_face_down==true then
+											--A newly deployed face-down Ruin can pass near the avatar while its container smooth move is
+											--still in flight. Flipping that transient object can interrupt its move, so only reveal settled pieces.
+											if terrain.is_face_down==true and terrain.isSmoothMoving()==false and terrain.resting==true then
 												terrain.flip()
 												if playerDetails.avatarLocation=="ruin" then broadcastToAll("{en}Ruin Site Revealed{ru}Руины были раскрыты{zh-tw}废墟板块被揭示了{zh-cn}废墟板块被揭示了{ko}유적 장소 공개됨{es}Sitio de Ruinas Revelado{fr}Site de Ruines Révélé{pt-br}Lugar de Ruinas Revelado{de}Ruinenstätte aufgedeckt", {1,1,0.5}) end
 												if playerDetails.avatarLocation~="ruin" then broadcastToAll("{en}Draconum Revealed{ru}Драконид раскрыт{zh-tw}龍人已揭示{zh-cn}龙人已揭示{ko}드라코넘 공개됨{es}Draconum Revelado{fr}Draconum Révélé{pt-br}Draconum Revelado{de}Draconum aufgedeckt", {1,1,0.5}) end
@@ -1599,12 +1601,12 @@ function mapHandleTerrainZoneEnter(ctx)
 
 							--Ruins
 							if hexFeature=="ruin" then
-								if gStates.dayRound==false then faceUp=faceDown end
+								local ruinRotation=gStates.dayRound==false and faceDown or faceUp
 								params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
-								params.rotation=faceUp
+								params.rotation=ruinRotation
+								params.smooth=true
 								local token=getObjectFromGUID(monsterPiles.yellow).takeObject(params)
 								gStates.monsterPlayLocation[token.guid]=params.position
-								faceUp={0.0, 180.0, 0.0}
 							end
 
 							--City
