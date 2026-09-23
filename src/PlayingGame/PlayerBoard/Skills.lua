@@ -1070,6 +1070,115 @@ end
 --Recover a played Interactive skill that Tome moved to the common offer before the normal play-area scan.
 --Competitive effects can continue from their remembered activation. Cooperative secondary effects require
 --the real token, and Source Freeze explicitly works only while its real token remains in the Source.
+--End-turn cleanup for a Skill played in the main Play Area. Combat owns the timing boundary;
+--Skills owns state replacement, rotation, return-home and Coop/Comp circulation rules.
+function cleanupPlayedSkillAtEndTurn(playAreaObj, cleanupPlayer)
+	if playAreaObj==nil then return false end
+	local originalSkillGUID=playAreaObj.guid
+	local cleanupSkillGUID=(skillStateReplacement~=nil and skillStateReplacement[originalSkillGUID]) or originalSkillGUID
+	local cleanupSkillDetails=skillTokens[cleanupSkillGUID] or skillTokens[originalSkillGUID]
+	if cleanupSkillDetails==nil then return false end
+	local cleanupSkill=getObjectFromGUID(cleanupSkillGUID)
+	local cleanupSkillHome=gStates.mageSkills~=nil and gStates.mageSkills[cleanupSkillGUID] or nil
+
+	if cleanupSkill~=nil and cleanupSkillDetails.skillType=="Round" then
+		cleanupSkill.setRotationSmooth({0.0,180.0,180.0},false,false)
+	end
+	if cleanupSkill~=nil and cleanupSkillHome~=nil and (cleanupSkillDetails.skillType=="Round" or cleanupSkillDetails.skillType=="Turn") then
+		cleanupSkill.setPositionSmooth({cleanupSkillHome[1],1.5,cleanupSkillHome[3]},false,false)
+	end
+	if cleanupSkillHome~=nil and gStates.motivationSkill[cleanupSkillGUID]~=nil then gStates.motivationSkill[cleanupSkillGUID].state="used" end
+
+	if cleanupSkillGUID=="1ff34f" and cleanupSkill~=nil then
+		gStates.masterOfChaos=gStates.masterOfChaos+1
+		if gStates.masterOfChaos==7 then gStates.masterOfChaos=1 end
+		cleanupSkill.setDescription(masterOfChaosData[gStates.masterOfChaos].description)
+		if turnOrder[cleanupPlayer]~=nil then turnOrder[cleanupPlayer].masterOfChaos="incremented in turn" end
+	end
+
+	if cleanupSkillDetails.skillType=="Coop" or cleanupSkillDetails.skillType=="Comp" then
+		local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[cleanupSkillGUID]~=nil
+		local playedBeforeLock=gStates.coopCompSkillLegalThisRound~=nil and gStates.coopCompSkillLegalThisRound[cleanupSkillGUID]==true
+		local inRotation=gStates.doingTheRounds[cleanupSkillGUID]~=nil and paused==false
+		if paused==false and coopCompSkillPlayLocked()==true and playedBeforeLock==false and inRotation==false then paused=pauseLateCoopCompSkill(cleanupSkillGUID,cleanupPlayer) end
+		if paused==false then
+			if gStates.doingTheRounds[cleanupSkillGUID]==nil then
+				gStates.doingTheRounds[cleanupSkillGUID]=cleanupPlayer
+				if cleanupSkillDetails.skillType=="Comp" then createCompetitiveSkillReminders(cleanupSkillGUID,cleanupPlayer)
+				else
+					if gStates.doingTheRoundsVisited==nil then gStates.doingTheRoundsVisited={} end
+					gStates.doingTheRoundsVisited[cleanupSkillGUID]={[cleanupPlayer]=true}
+				end
+			elseif cleanupSkillDetails.skillType=="Coop" then
+				gStates.doingTheRounds[cleanupSkillGUID]=nextTurnMerged("nextMageSkipDummy")
+			end
+		end
+	end
+	return true
+end
+
+--Refresh all played Skills at the end-turn circulation boundary and return the reminder GUIDs
+--that must survive generic Play Area figurine cleanup.
+function prepareEndTurnSkillRotation(cleanupPlayer, nextPlayer)
+	local count=0
+	local keepSafe={}
+	for skillGUID, zoneGUID in pairs(sharedSkillAboveZone) do
+		local skill=getObjectFromGUID(skillGUID)
+		local zone=getObjectFromGUID(zoneGUID)
+		if skill~=nil and zone~=nil then
+			local pos=skill.getPosition()
+			zone.setPosition({pos[1],1.4,pos[3]})
+		end
+	end
+	registerDetachedCoopCompSkills(cleanupPlayer)
+	for skillGUID, skillDetails in pairs(skillTokens) do
+		local skill=getObjectFromGUID(skillGUID)
+		if skill~=nil then
+			if skillDetails.skillType=="Turn" and skill.is_face_down==true then skill.flip() end
+			if gStates.doingTheRounds[skillGUID]~=nil and (gStates.coopCompSkillPaused==nil or gStates.coopCompSkillPaused[skillGUID]==nil) then
+				local data=doingTheRounds(skillGUID,nextPlayer,count)
+				count=data[2]
+				for saveObjGuid, _ in pairs(data[1]) do keepSafe[saveObjGuid]=true end
+			end
+		end
+	end
+	if coopCompSkillPlayLocked()==true then refreshCoopCompSkillXs() end
+	return keepSafe
+end
+
+--A Skill used as a Unit reminder follows the same circulation rules as one in the Play Area.
+function cleanupUnitAreaSkillAtEndTurn(unitAreaObj, cleanupPlayer)
+	if unitAreaObj==nil then return false end
+	local details=skillTokens[unitAreaObj.guid]
+	if details==nil then return false end
+	if details.skillType=="Coop" or details.skillType=="Comp" then
+		local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[unitAreaObj.guid]~=nil
+		local playedBeforeLock=gStates.coopCompSkillLegalThisRound~=nil and gStates.coopCompSkillLegalThisRound[unitAreaObj.guid]==true
+		local inRotation=gStates.doingTheRounds[unitAreaObj.guid]~=nil and paused==false
+		if paused==false and coopCompSkillPlayLocked()==true and playedBeforeLock==false and inRotation==false then paused=pauseLateCoopCompSkill(unitAreaObj.guid,cleanupPlayer) end
+		if paused==false then
+			if gStates.doingTheRounds[unitAreaObj.guid]==nil then
+				gStates.doingTheRounds[unitAreaObj.guid]=cleanupPlayer
+				if details.skillType=="Comp" then createCompetitiveSkillReminders(unitAreaObj.guid,cleanupPlayer)
+				else
+					if gStates.doingTheRoundsVisited==nil then gStates.doingTheRoundsVisited={} end
+					gStates.doingTheRoundsVisited[unitAreaObj.guid]={[cleanupPlayer]=true}
+				end
+			elseif details.skillType=="Coop" then
+				gStates.doingTheRounds[unitAreaObj.guid]=nextTurnMerged("nextMageSkipDummy")
+			end
+		end
+	end
+	if unitAreaObj.guid~="f30dd4" and gStates.mageSkills[unitAreaObj.guid]~=nil and gStates.doingTheRounds[unitAreaObj.guid]==nil then
+		local skillHome=gStates.mageSkills[unitAreaObj.guid]
+		if skillHome[1]~=nil and skillHome[2]~=nil and skillHome[3]~=nil then
+			unitAreaObj.setPositionSmooth({skillHome[1],skillHome[2],skillHome[3]},false,false)
+			unitAreaObj.setRotationSmooth({0,180,0},false,false)
+		end
+	end
+	return true
+end
+
 function registerDetachedCoopCompSkills(playerIndex)
 	local toDeactivate={}
 	for skillGUID, record in pairs(coopCompSkillActivationTable()) do
