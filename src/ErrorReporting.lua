@@ -94,6 +94,21 @@ function automaticLuaErrorMultiHand()
 	end, "")
 end
 
+--Mirror the existing manual bug-report seat fields so automatic rows can be tied back to the
+--players in that session without changing the generic "Automatic Lua Error" reporter label.
+function automaticLuaErrorSteamName(position)
+	return automaticLuaErrorValue(function()
+		for _, color in pairs(Player.getAvailableColors()) do
+			local seatedPlayer=Player[color]
+			if seatedPlayer~=nil and seatedPlayer.seated==true then
+				local hand=seatedPlayer.getHandTransform()
+				local seatPos=math.ceil((hand.position[1]+97.59)/40)
+				if seatPos==position then return seatedPlayer.steam_name end
+			end
+		end
+	end, "")
+end
+
 function sendAutomaticLuaErrorRequest(comment)
 	-- Build the normal bug-report context, but protect every lookup independently.
 	-- A broken game-state field must never be able to stop the emergency report.
@@ -116,6 +131,11 @@ function sendAutomaticLuaErrorRequest(comment)
 		positionMageKnight3=automaticLuaErrorMageValue(3),
 		positionMageKnight4=automaticLuaErrorMageValue(4),
 		positionMageKnight5=automaticLuaErrorMageValue(5),
+		steamName1=automaticLuaErrorSteamName(1),
+		steamName2=automaticLuaErrorSteamName(2),
+		steamName3=automaticLuaErrorSteamName(3),
+		steamName4=automaticLuaErrorSteamName(4),
+		steamName5=automaticLuaErrorSteamName(5),
 		proxyPlayer=automaticLuaErrorStateValue("proxyPlayer", false),
 		multihand=automaticLuaErrorMultiHand(),
 		includeYmirgh=automaticLuaErrorStateValue("useCustomMageKnights", ""),
