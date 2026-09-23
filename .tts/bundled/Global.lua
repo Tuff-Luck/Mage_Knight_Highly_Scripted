@@ -4413,11 +4413,7 @@ function nightTint(player, mouseButton, id)
 			local obj=getObjectFromGUID(a)
 			if obj~=nil then obj.setColorTint(tileColor) end
 		end
-		if gStates.mapShapeKey=="predefined" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" then
-			local terrainDummy=getObjectFromGUID(startTerrain.open)
-			if terrainDummy==nil then terrainDummy=getObjectFromGUID(startTerrain.wedge) end
-			onObjectEnterZone({guid=mapArea}, terrainDummy)
-		end
+		refreshPredefinedTerrainTint()
 	end
 end
 
@@ -17982,11 +17978,7 @@ function dayNight()
 		if obj~=nil then obj.setColorTint(tileColor) end
 	end
 	--re tints red terrain tiles on predefined maps.
-	if gStates.mapShapeKey=="predefined" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" then
-		local terrainDummy=getObjectFromGUID(startTerrain.open)
-		if terrainDummy==nil then terrainDummy=getObjectFromGUID(startTerrain.wedge) end
-		onObjectEnterZone({guid=mapArea}, terrainDummy)
-	end
+	refreshPredefinedTerrainTint()
 end
 
 function removeTactic(player, mouseButton, id)
@@ -25646,8 +25638,37 @@ function refreshTerrainExploreOptions(compactCities)
 	end
 end
 
+local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBearing,northBearing)
+	if gStates.mapShapeKey~="predefined" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then return end
+	for _, mightBeMap in pairs(playAreaObjects) do
+		if terrainTiles[mightBeMap.guid]~=nil then
+			if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}},faceUpTerrain,northBearing,{})==false then
+				mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
+			else
+				local useNightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
+				if useNightTint then mightBeMap.setColorTint({r=0.6, g=0.6, b=0.6}) else mightBeMap.setColorTint({r=1.0, g=1.0, b=1.0}) end--colour off
+			end
+		end
+	end
+end
+
+--Day/night tint changes need to restore the red illegal-placement tint on predefined maps.
+--Do this directly from the real map zone instead of faking a TTS onObjectEnterZone callback.
+function refreshPredefinedTerrainTint()
+	local mapZone=getObjectFromGUID(mapArea)
+	if mapZone==nil or mapZone.getObjects==nil then return end
+	local playAreaObjects=mapZone.getObjects()
+	local faceUpTerrain={}
+	for _,mapObject in pairs(playAreaObjects) do
+		if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
+			faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObject.getPosition()}
+		end
+	end
+	local northBearing=getObjectFromGUID(startTerrain.open)==nil and 70 or 40
+	applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,0,northBearing)
+end
+
 function mapHandleTerrainZoneEnter(ctx)
-	local zone=ctx.zone
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
@@ -25660,7 +25681,12 @@ function mapHandleTerrainZoneEnter(ctx)
 		workingOnTerrain[objGUID]=true
 		--Setup terrain still needs normal site/enemy population, but player-exploration UI/effects wait for actual play.
 		if initialSetupTerrain~=true then safeWaitTime("Map",function() addAvatarButtons() end, 1.5) end
-		local playAreaObjects=zone.getObjects()
+		local mapZone=getObjectFromGUID(mapArea)
+		if mapZone==nil or mapZone.getObjects==nil then
+			workingOnTerrain[objGUID]=nil
+			return true
+		end
+		local playAreaObjects=mapZone.getObjects()
 		local faceUpTerrain={}
 		for _,mapObject in pairs(playAreaObjects) do
 			if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
@@ -25692,18 +25718,7 @@ function mapHandleTerrainZoneEnter(ctx)
 
 
 		--make predefined maps highlight red
-		if gStates.mapShapeKey=="predefined" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then--predefined
-			for _, mightBeMap in pairs(playAreaObjects) do
-				if terrainTiles[mightBeMap.guid]~=nil then
-					if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}},faceUpTerrain,northBearing,{})==false then
-						mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
-					else
-						local nightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
-						if nightTint then mightBeMap.setColorTint({r=0.6, g=0.6, b=0.6}) else mightBeMap.setColorTint({r=1.0, g=1.0, b=1.0}) end--colour off
-					end
-				end
-			end
-		end
+		applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBearing,northBearing)
 
 
 
@@ -41847,7 +41862,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="428"
+local automaticLuaErrorReporterVersion="429"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -41906,8 +41921,7 @@ function automaticLuaErrorMultiHand()
 	end, "")
 end
 
---Mirror the existing manual bug-report seat fields so automatic rows can be tied back to the
---players in that session without changing the generic "Automatic Lua Error" reporter label.
+--Keep the existing per-seat fields for endpoint compatibility.
 function automaticLuaErrorSteamName(position)
 	return automaticLuaErrorValue(function()
 		for _, color in pairs(Player.getAvailableColors()) do
@@ -41921,10 +41935,32 @@ function automaticLuaErrorSteamName(position)
 	end, "")
 end
 
+--The bug-report sheet exposes the reporter field as its visible User column. Include every seated
+--Steam user here because an automatic global callback cannot reliably identify which player caused it.
+function automaticLuaErrorReporter()
+	return automaticLuaErrorValue(function()
+		local names={}
+		local seen={}
+		local function addPlayer(seatedPlayer)
+			if seatedPlayer==nil or seatedPlayer.seated~=true then return end
+			local name=seatedPlayer.steam_name
+			if name~=nil and name~="" and seen[name]~=true then
+				seen[name]=true
+				names[#names+1]=name
+			end
+		end
+		for _, color in pairs(Player.getAvailableColors()) do addPlayer(Player[color]) end
+		addPlayer(Player["Black"])
+		table.sort(names)
+		if #names==0 then return "Automatic Lua Error" end
+		return "Automatic Lua Error - "..table.concat(names,", ")
+	end, "Automatic Lua Error")
+end
+
 function sendAutomaticLuaErrorRequest(comment)
 	-- Build the normal bug-report context, but protect every lookup independently.
 	-- A broken game-state field must never be able to stop the emergency report.
-	local gameRecord={Comment=comment, reporter="Automatic Lua Error", reporterVersion=automaticLuaErrorReporterVersion,
+	local gameRecord={Comment=comment, reporter=automaticLuaErrorReporter(), reporterVersion=automaticLuaErrorReporterVersion,
 		gameScenario=automaticLuaErrorStateValue("gameScenario", ""),
 		gameType=automaticLuaErrorGameType(),
 		blitz=automaticLuaErrorStateValue("blitz", ""),

@@ -35,7 +35,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="428"
+local automaticLuaErrorReporterVersion="429"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -94,8 +94,7 @@ function automaticLuaErrorMultiHand()
 	end, "")
 end
 
---Mirror the existing manual bug-report seat fields so automatic rows can be tied back to the
---players in that session without changing the generic "Automatic Lua Error" reporter label.
+--Keep the existing per-seat fields for endpoint compatibility.
 function automaticLuaErrorSteamName(position)
 	return automaticLuaErrorValue(function()
 		for _, color in pairs(Player.getAvailableColors()) do
@@ -109,10 +108,32 @@ function automaticLuaErrorSteamName(position)
 	end, "")
 end
 
+--The bug-report sheet exposes the reporter field as its visible User column. Include every seated
+--Steam user here because an automatic global callback cannot reliably identify which player caused it.
+function automaticLuaErrorReporter()
+	return automaticLuaErrorValue(function()
+		local names={}
+		local seen={}
+		local function addPlayer(seatedPlayer)
+			if seatedPlayer==nil or seatedPlayer.seated~=true then return end
+			local name=seatedPlayer.steam_name
+			if name~=nil and name~="" and seen[name]~=true then
+				seen[name]=true
+				names[#names+1]=name
+			end
+		end
+		for _, color in pairs(Player.getAvailableColors()) do addPlayer(Player[color]) end
+		addPlayer(Player["Black"])
+		table.sort(names)
+		if #names==0 then return "Automatic Lua Error" end
+		return "Automatic Lua Error - "..table.concat(names,", ")
+	end, "Automatic Lua Error")
+end
+
 function sendAutomaticLuaErrorRequest(comment)
 	-- Build the normal bug-report context, but protect every lookup independently.
 	-- A broken game-state field must never be able to stop the emergency report.
-	local gameRecord={Comment=comment, reporter="Automatic Lua Error", reporterVersion=automaticLuaErrorReporterVersion,
+	local gameRecord={Comment=comment, reporter=automaticLuaErrorReporter(), reporterVersion=automaticLuaErrorReporterVersion,
 		gameScenario=automaticLuaErrorStateValue("gameScenario", ""),
 		gameType=automaticLuaErrorGameType(),
 		blitz=automaticLuaErrorStateValue("blitz", ""),

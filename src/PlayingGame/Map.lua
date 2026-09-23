@@ -1289,8 +1289,37 @@ function refreshTerrainExploreOptions(compactCities)
 	end
 end
 
+local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBearing,northBearing)
+	if gStates.mapShapeKey~="predefined" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then return end
+	for _, mightBeMap in pairs(playAreaObjects) do
+		if terrainTiles[mightBeMap.guid]~=nil then
+			if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}},faceUpTerrain,northBearing,{})==false then
+				mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
+			else
+				local useNightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
+				if useNightTint then mightBeMap.setColorTint({r=0.6, g=0.6, b=0.6}) else mightBeMap.setColorTint({r=1.0, g=1.0, b=1.0}) end--colour off
+			end
+		end
+	end
+end
+
+--Day/night tint changes need to restore the red illegal-placement tint on predefined maps.
+--Do this directly from the real map zone instead of faking a TTS onObjectEnterZone callback.
+function refreshPredefinedTerrainTint()
+	local mapZone=getObjectFromGUID(mapArea)
+	if mapZone==nil or mapZone.getObjects==nil then return end
+	local playAreaObjects=mapZone.getObjects()
+	local faceUpTerrain={}
+	for _,mapObject in pairs(playAreaObjects) do
+		if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
+			faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObject.getPosition()}
+		end
+	end
+	local northBearing=getObjectFromGUID(startTerrain.open)==nil and 70 or 40
+	applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,0,northBearing)
+end
+
 function mapHandleTerrainZoneEnter(ctx)
-	local zone=ctx.zone
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
@@ -1303,7 +1332,12 @@ function mapHandleTerrainZoneEnter(ctx)
 		workingOnTerrain[objGUID]=true
 		--Setup terrain still needs normal site/enemy population, but player-exploration UI/effects wait for actual play.
 		if initialSetupTerrain~=true then safeWaitTime("Map",function() addAvatarButtons() end, 1.5) end
-		local playAreaObjects=zone.getObjects()
+		local mapZone=getObjectFromGUID(mapArea)
+		if mapZone==nil or mapZone.getObjects==nil then
+			workingOnTerrain[objGUID]=nil
+			return true
+		end
+		local playAreaObjects=mapZone.getObjects()
 		local faceUpTerrain={}
 		for _,mapObject in pairs(playAreaObjects) do
 			if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
@@ -1335,18 +1369,7 @@ function mapHandleTerrainZoneEnter(ctx)
 
 
 		--make predefined maps highlight red
-		if gStates.mapShapeKey=="predefined" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then--predefined
-			for _, mightBeMap in pairs(playAreaObjects) do
-				if terrainTiles[mightBeMap.guid]~=nil then
-					if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}},faceUpTerrain,northBearing,{})==false then
-						mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
-					else
-						local nightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
-						if nightTint then mightBeMap.setColorTint({r=0.6, g=0.6, b=0.6}) else mightBeMap.setColorTint({r=1.0, g=1.0, b=1.0}) end--colour off
-					end
-				end
-			end
-		end
+		applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBearing,northBearing)
 
 
 

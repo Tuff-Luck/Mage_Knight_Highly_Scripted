@@ -2365,11 +2365,7 @@ function nightTint(player, mouseButton, id)
 			local obj=getObjectFromGUID(a)
 			if obj~=nil then obj.setColorTint(tileColor) end
 		end
-		if gStates.mapShapeKey=="predefined" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" then
-			local terrainDummy=getObjectFromGUID(startTerrain.open)
-			if terrainDummy==nil then terrainDummy=getObjectFromGUID(startTerrain.wedge) end
-			onObjectEnterZone({guid=mapArea}, terrainDummy)
-		end
+		refreshPredefinedTerrainTint()
 	end
 end
 
