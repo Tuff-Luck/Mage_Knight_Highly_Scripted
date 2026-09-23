@@ -53,6 +53,7 @@ require("SetupInterface")
 require("PlayingGame.Help")
 require("PlayingGame.PlayerBoard.CardFlow")
 require("PlayingGame.PlayerBoard.UnitLayout")
+require("PlayingGame.PlayerBoard.Events")
 require("SetupGame.Components")
 require("SetupGame.Players")
 require("SetupGame.Decks")
@@ -80,6 +81,7 @@ require("PlayingGame.AI.Volkare")
 require("PlayingGame.Movement")
 require("PlayingGame.Rollers")
 require("PlayingGame.UI")
+require("PlayingGame.Telemetry")
 require("PlayingGame.Events")
 require("PlayingGame.Callbacks")
 
@@ -116,7 +118,10 @@ function onLoad(saved_data)
 		rollerOnLoad(rollerSavedState(saved_data))
 		local result=__onLoad_raw(saved_data)
 		safeWaitFrames("Callbacks",function()
-			getObjectFromGUID("d7a165").UI.setAttribute("d7a165replenishMonsterPilesText", "text", "{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen")
+			local monsterReplenish=getObjectFromGUID("d7a165")
+			if monsterReplenish~=nil then
+				monsterReplenish.UI.setAttribute("d7a165replenishMonsterPilesText", "text", "{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen")
+			end
 			artifactOnLoad()
 		end,2)
 		return result
@@ -214,40 +219,6 @@ end
 end)
 __bundle_register("PlayingGame.Events", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- TTS persistence, raw event handling, maintenance and runtime event dispatch.
-
---Terrain placement geometry is constant and only used by positionLegal() in this module.
-local terrainPlacementEdgeCoordinates={
-	{-30.03, 15.09}, {-25.23, 19.25}, {-31.23, 21.34},
-	{-38.43, 0.54}, {-33.63, 4.70}, {-28.83, 8.86}, {-24.03, 13.02}, {-19.23, 17.17},
-	{-24.03, -16.08}, {-19.23, -11.93}, {-14.43, -7.77}, {-9.63, -3.61}, {-4.82, 0.55}, {-0.02, 4.71}, {4.78, 8.87}
-}
-
-local terrainExploreSpots={
-	{-24.0301, 0.99, -16.0837}, {-30.0303, 0.99, -14.0052}, {-36.0305, 0.99, -11.9267}, {-19.2300, 0.99, -11.9267},
-	{-25.2302, 0.99,  -9.8482}, {-31.2303, 0.99,  -7.7696}, {-14.4298, 0.99,  -7.7696}, {-20.4300, 0.99,  -5.6911},
-	{-37.2305, 0.99,  -5.6911}, { -9.6297, 0.99,  -3.6126}, {-26.4302, 0.99,  -3.6126}, {-32.4304, 0.99,  -1.5341},
-	{-15.6299, 0.99,  -1.5341}, { -4.8295, 0.99,   0.5445}, {-38.4306, 0.99,   0.5445}, {-21.6300, 0.99,   0.5445},
-	{-10.8297, 0.99,   2.6230}, {-27.6302, 0.99,   2.6230}, {-33.6304, 0.99,   4.7015}, {-16.8299, 0.99,   4.7015},
-	{-0.02940, 0.99,   4.7015}, { -6.0278, 0.99,   6.7794}, {-22.8301, 0.99,   6.7794}, {-28.8303, 0.99,   8.8586},
-	{-12.0297, 0.99,   8.8586}, {  4.7708, 0.99,   8.8586}, {-18.0299, 0.99,  10.9371}, { -1.2294, 0.99,  10.9371},
-	{ -7.2296, 0.99,  13.0156}, {-24.0301, 0.99,  13.0156}, {-30.0303, 0.99,  15.0941}, {-13.2298, 0.99,  15.0941},
-	{-19.2300, 0.99,  17.0727}, {-25.2302, 0.99,  19.2512}, {-31.2303, 0.99,  21.3297}
-}
-local terrainInfoCardGUIDs={
-	["rampaging"]="cb9285", ["mage tower"]="29ef37", ["village"]="3a89e4", ["draconum"]="c2ada0",
-	["keep"]="9c74a9", ["monastery"]="8dd3c2", ["maze"]="ad6e2b", ["monster den"]="3aef9a",
-	["dungeon"]="57dcab", ["glade"]="938554", ["labyrinth"]="36762b", ["spawning grounds"]="321d15",
-	["tomb"]="1cab50", ["mine"]="6b9c02", ["camp"]="6b9c02", ["pyramid"]="467846", ["ziggurat"]="4efb28",
-	["Volkare's Camp"]="0bb2dc", ["city green"]="8de450", ["city red"]="bd6ab1", ["city blue"]="79a723",
-	["city white"]="a37b57", ["oasis"]="4e4bda", ["ruin"]="0b5e05"
-}
-local warOfFourGladeEdgeCoordinates={
-	{-38.43,  0.54}, {-33.63,  4.70}, {-28.83,  8.86}, {-24.03, 13.02}, {0, 0},
-	{-37.23, -5.69}, {-32.43, -1.52}, {-27.63,  2.62}, {-22.83,  6.79}, {-18.02, 10.94},
-	{-30.03,-14.01}, {-25.23, -9.84}, {-20.43, -5.69}, {-15.63, -1.54}, {-10.81,  2.63},
-	{-24.03,-16.08}, {-19.23,-11.93}, {-14.43, -7.77}, { -9.63, -3.61}
-}
-local crystalManaNames={["Red Mana"]=true,["Green Mana"]=true,["Blue Mana"]=true,["White Mana"]=true,["Black Mana"]=true,["Gold Mana"]=true}
 
 function __tryObjectEnterContainer_raw(container, object)
     if gStates.preEndTurn==false and container.type=="Card" and object.type=="Card" then
@@ -443,7 +414,7 @@ function __onLoad_raw(saved_data)
 		safeWaitFrames("Events",function() againstHorsemenRefreshReveals() end,4)
 		--Rewind/load restores the Leader token and saved overkill value, but not its object UI.
 		safeWaitFrames("Events",function() refreshLeaderOverkillButtons() end, 3)
-		getObjectFromGUID("f2291a").UI.setXmlTable(gStates.exploreButtons)
+		refreshTerrainExploreOptions(false)
 		skillButtonActivate()
 		refreshCoopCompSkillXs()
 		claimButtonRefresh()
@@ -458,7 +429,10 @@ function __onLoad_raw(saved_data)
 		addCityButtons()
 		applyColorBarButtons()
 		refreshPlayerSeatColors()
-		for _, mirrorGUID in pairs(gStates.mirrorSource) do getObjectFromGUID(mirrorGUID).registerCollisions() end
+		for _, mirrorGUID in pairs(gStates.mirrorSource or {}) do
+			local mirrorObj=getObjectFromGUID(mirrorGUID)
+			if mirrorObj~=nil then mirrorObj.registerCollisions() end
+		end
 		straightenCrooked()
 		for seatPos=1,4 do scheduleUnitLayoutRefresh(seatPos) end
 
@@ -492,169 +466,6 @@ function onSave()
 	end)
 end
 
-
---Preserve the complete pre-game setup display and the scenario values that are edited directly in scenarioList.
-local setupUISaveAttributes={
-	{id="Setup1Details",attribute="active"},{id="Setup2Details",attribute="active"},
-	{id="Setup1Details",attribute="height"},{id="Setup2Details",attribute="height"},
-	{id="Setup1DetailsSub",attribute="height"},{id="Setup2DetailsSub",attribute="height"},
-	{id="MageKnightDetails",attribute="height"},
-	{id="ScenarioSelection",attribute="interactable"},{id="ScenarioSelectionText",attribute="text"},{id="ScenarioSelectionImage",attribute="image"},
-	{id="firstMKSelection",attribute="interactable"},{id="firstMKSelectionText",attribute="text"},{id="firstMKSelectionImage",attribute="image"},
-	{id="secondMKSelection",attribute="interactable"},{id="secondMKSelectionText",attribute="text"},{id="secondMKSelectionImage",attribute="image"},
-	{id="thirdMKSelection",attribute="interactable"},{id="thirdMKSelectionText",attribute="text"},{id="thirdMKSelectionImage",attribute="image"},
-	{id="fourthMKSelection",attribute="interactable"},{id="fourthMKSelectionText",attribute="text"},{id="fourthMKSelectionImage",attribute="image"},
-	{id="dummyMKSelection",attribute="interactable"},{id="dummyMKSelectionText",attribute="text"},{id="dummyMKSelectionImage",attribute="image"},
-	{id="DummyPosText",attribute="text"},
-	{id="VolkareLevelSelectionRow",attribute="active"},{id="VolkareRaceSelectionRow",attribute="active"},
-	{id="VolkareLevelSelection",attribute="interactable"},{id="VolkareLevelSelection",attribute="text"},
-	{id="VolkareLevelSelectionText",attribute="text"},{id="VolkareLevelSelectionImage",attribute="image"},
-	{id="VolkareRaceSelection",attribute="interactable"},{id="VolkareRaceSelection",attribute="text"},
-	{id="VolkareRaceSelectionText",attribute="text"},{id="VolkareRaceSelectionImage",attribute="image"},
-	{id="ROTFSelection",attribute="interactable"},{id="ROTFSelectionText",attribute="text"},{id="ROTFSelectionImage",attribute="image"},
-	{id="BlitzSelection",attribute="interactable"},{id="BlitzSelection",attribute="isOn"},{id="BlitzSelection",attribute="textColor"},
-	{id="RampageSelection",attribute="interactable"},{id="RampageSelection",attribute="isOn"},
-	{id="MoreRampageSelection",attribute="interactable"},{id="MoreRampageSelection",attribute="isOn"},
-	{id="volkareCampAsCity",attribute="interactable"},{id="volkareCampAsCity",attribute="isOn"},
-	{id="randomTileOrientation",attribute="interactable"},{id="randomTileOrientation",attribute="isOn"},
-	{id="randomCities",attribute="interactable"},{id="randomCities",attribute="isOn"},
-	{id="removeShadesOfTezlaMonsters",attribute="interactable"},{id="removeShadesOfTezlaMonsters",attribute="isOn"},
-	{id="removeApocalypseTerrain",attribute="interactable"},{id="removeApocalypseTerrain",attribute="isOn"},
-	{id="removeLostLegionExpansion",attribute="interactable"},{id="removeLostLegionExpansion",attribute="isOn"},
-	{id="startAtNight",attribute="interactable"},{id="startAtNight",attribute="isOn"},
-	{id="darknessComing",attribute="interactable"},{id="darknessComing",attribute="isOn"},{id="darknessComing",attribute="text"},
-	{id="rampageAmbush",attribute="interactable"},{id="rampageAmbush",attribute="isOn"},
-	{id="rampagePursuit",attribute="interactable"},{id="rampagePursuit",attribute="isOn"},
-	{id="mageKnightLevels",attribute="interactable"},{id="mageKnightLevels",attribute="isOn"},
-	{id="useCustomMageKnights",attribute="interactable"},{id="useCustomMageKnights",attribute="isOn"},
-	{id="heroChallenges",attribute="interactable"},{id="heroChallenges",attribute="isOn"},
-	{id="removeBonusCards",attribute="interactable"},{id="removeBonusCards",attribute="isOn"},
-	{id="weatherMod",attribute="interactable"},{id="weatherMod",attribute="isOn"},
-	{id="questMod",attribute="interactable"},{id="questMod",attribute="isOn"},
-	{id="apocalypseQuestCards",attribute="interactable"},{id="apocalypseQuestCards",attribute="isOn"},
-	{id="proxyPlayer",attribute="interactable"},{id="proxyPlayer",attribute="isOn"},
-	{id="itemShopMod",attribute="interactable"},{id="itemShopMod",attribute="isOn"},
-	{id="removeTerrain",attribute="interactable"},{id="removeTerrain",attribute="isOn"},
-	{id="useAlternatePugs",attribute="interactable"},{id="useAlternatePugs",attribute="isOn"}}
-
-local function setupScenarioRef()
-	if gStates==nil then return nil end
-	if gStates.scenarioRef~=nil and scenarioList[gStates.scenarioRef]~=nil and scenarioList[gStates.scenarioRef][1]==gStates.gameScenario then return gStates.scenarioRef end
-	for a=1,#scenarioList do if scenarioList[a][1]==gStates.gameScenario then return a end end
-	return nil
-end
-
-function saveSetupState()
-	if gStates==nil or gStates.firstStarted==true then return end
-	gStates.setupUI={}
-	for _,details in ipairs(setupUISaveAttributes) do
-		local value=UI.getAttribute(details.id,details.attribute)
-		if value~=nil then gStates.setupUI[details.id.."|"..details.attribute]=value end
-	end
-	local scenarioRef=setupScenarioRef()
-	local playersRef=gStates.playersRef
-	if scenarioRef==nil or playersRef==nil or scenarioList[scenarioRef][playersRef]==nil then return end
-	local source=scenarioList[scenarioRef][playersRef]
-	gStates.setupScenarioState={scenario=gStates.gameScenario,playersRef=playersRef,rounds=source.rounds,mapShape=source.mapShape,
-		countryTiles=source.countryTiles,coreTiles=source.coreTiles,cityTiles=source.cityTiles,discardTactics=source.discardTactics,cityLevels={}}
-	for a,value in ipairs(source.cityLevels or {}) do gStates.setupScenarioState.cityLevels[a]=value end
-end
-
-function restoreSetupScenarioState()
-	if gStates==nil or gStates.setupScenarioState==nil then return end
-	local saved=gStates.setupScenarioState
-	local scenarioRef=nil
-	for a=1,#scenarioList do if scenarioList[a][1]==saved.scenario then scenarioRef=a break end end
-	if scenarioRef==nil or saved.playersRef==nil or scenarioList[scenarioRef][saved.playersRef]==nil then return end
-	local target=scenarioList[scenarioRef][saved.playersRef]
-	if saved.rounds~=nil then target.rounds=saved.rounds end
-	if saved.mapShape~=nil then target.mapShape=saved.mapShape end
-	if saved.countryTiles~=nil then target.countryTiles=saved.countryTiles end
-	if saved.coreTiles~=nil then target.coreTiles=saved.coreTiles end
-	if saved.cityTiles~=nil then target.cityTiles=saved.cityTiles end
-	if saved.discardTactics~=nil then target.discardTactics=saved.discardTactics end
-	if saved.cityLevels~=nil then
-		target.cityLevels={}
-		for a,value in ipairs(saved.cityLevels) do target.cityLevels[a]=value end
-	end
-	gStates.scenarioRef=scenarioRef
-	gStates.playersRef=saved.playersRef
-end
-
-local function restoreSetupUIFromState()
-	local toggles={"volkareCampAsCity","randomTileOrientation","randomCities","removeShadesOfTezlaMonsters","removeApocalypseTerrain",
-		"removeLostLegionExpansion","startAtNight","darknessComing","rampageAmbush","rampagePursuit","mageKnightLevels",
-		"useCustomMageKnights","heroChallenges","removeBonusCards","weatherMod","questMod","apocalypseQuestCards","proxyPlayer","itemShopMod","removeTerrain","useAlternatePugs"}
-	for _,id in ipairs(toggles) do if gStates[id]~=nil then UI.setAttribute(id,"isOn",gStates[id] and "true" or "false") end end
-	UI.setAttribute("BlitzSelection","isOn",gStates.blitz==1 and "true" or "false")
-	UI.setAttribute("RampageSelection","isOn",gStates.rampage==1 and "true" or "false")
-	UI.setAttribute("MoreRampageSelection","isOn",gStates.rampage==2 and "true" or "false")
-	if translateWord[gStates.gameScenario]~=nil then UI.setAttribute("ScenarioSelectionText","text",translateWord[gStates.gameScenario]) end
-	local rotfText={
-		[0]="{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet",
-		[1]="{en}1. New Beginning{ru}1. Новое начало{zh-tw}新的開始{zh-cn}新的开始{ko}1.새로운 시작{es}1. Un nuevo comienzo{fr}1. Nouveau départ{pt-br}1. Novo Começo{de}1. Neubeginn",
-		[2]="{en}2. Spoils of War{ru}2. Военные трофеи{zh-tw}戰爭犒賞{zh-cn}战争犒赏{ko}2.전쟁의 전리품{es}2. Botín de Guerra{fr}2. Butin de Guerre{pt-br}2. Despojos de Guerra{de}2. Kriegsbeute",
-		[3]="{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier"}
-	if rotfText[gStates.riseOfTheForgemasters or 0]~=nil then UI.setAttribute("ROTFSelectionText","text",rotfText[gStates.riseOfTheForgemasters or 0]) end
-	local combat={"Daring","Heroic","Legendary"}
-	local race={"Fair","Tight","Thrilling"}
-	if combat[gStates.volkareCombatLevel or 1]~=nil then UI.setAttribute("VolkareLevelSelectionText","text",translateWord[combat[gStates.volkareCombatLevel or 1]]) end
-	if race[gStates.volkareRaceLevel or 1]~=nil then UI.setAttribute("VolkareRaceSelectionText","text",translateWord[race[gStates.volkareRaceLevel or 1]]) end
-	UI.setAttribute("darknessComing","text",gStates.startAtNight==true and
-		"{en}Daylight is Coming{ru}Надвигается рассвет{zh-tw}白晝侵襲{zh-cn}白昼侵袭{ko}빛의 도래{es}Se Acerca la luz del Día{fr}Lendemain Arrive{pt-br}A Luz do dia está Chegando{de}Es Wird Hell" or
-		"{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel")
-	refreshProxySetupLabel()
-end
-
-function restoreSetupUI()
-	if gStates==nil then return end
-	if gStates.setupUI==nil then restoreSetupUIFromState() return end
-	for _,details in ipairs(setupUISaveAttributes) do
-		local value=gStates.setupUI[details.id.."|"..details.attribute]
-		if value~=nil then UI.setAttribute(details.id,details.attribute,value) end
-	end
-	--Never reopen a dropdown just because it happened to be open when the game was saved.
-	UI.setAttribute("DropDown","active","false")
-end
-
---Section 3 has derived layout/content when Volkare occupies the dummy position.
---Rebuild it from the saved game state after restoring the general setup snapshot.
-function restoreMageKnightSetupSection()
-	if gStates==nil then return end
-	local volkareOn=gStates.positionMageKnight~=nil and gStates.positionMageKnight[5]=="Volkare"
-	if volkareOn==true then
-		UI.setAttribute("DummyPosText","text","{en}Volkare Skills -{ru}Навыки Волкаре -{zh-tw}沃卡里技能：{zh-cn}沃卡里技能：{ko}볼케어의 스킬 -{es}Habilidades de Volkare -{fr}Compétences de Volkare -{pt-br}Habilidades de Volkare -{de}Volkare-Fähigkeiten -")
-		local skillText=translateWord[gStates.volkareSkills or "Random"] or translateWord["Random"]
-		if skillText~=nil then UI.setAttribute("dummyMKSelectionText","text",skillText) end
-		UI.setAttribute("dummyMKSelection","interactable","true")
-		UI.setAttribute("dummyMKSelectionImage","image","Sliced Button/Button New Active")
-		UI.setAttribute("VolkareLevelSelectionRow","active","true")
-		UI.setAttribute("MageKnightDetails","height","210")
-		UI.setAttribute("Setup1Details","height","436")
-		UI.setAttribute("Setup2Details","height","436")
-		UI.setAttribute("Setup1DetailsSub","height","376")
-		UI.setAttribute("Setup2DetailsSub","height","376")
-		if gStates.gameScenario~="The War of Four" then
-			UI.setAttribute("VolkareRaceSelectionRow","active","true")
-			UI.setAttribute("MageKnightDetails","height","240")
-			UI.setAttribute("Setup1Details","height","406")
-			UI.setAttribute("Setup2Details","height","406")
-			UI.setAttribute("Setup1DetailsSub","height","346")
-			UI.setAttribute("Setup2DetailsSub","height","346")
-		else
-			UI.setAttribute("VolkareRaceSelectionRow","active","false")
-		end
-	else
-		UI.setAttribute("VolkareLevelSelectionRow","active","false")
-		UI.setAttribute("VolkareRaceSelectionRow","active","false")
-		UI.setAttribute("MageKnightDetails","height","180")
-		UI.setAttribute("Setup1Details","height","466")
-		UI.setAttribute("Setup2Details","height","466")
-		UI.setAttribute("Setup1DetailsSub","height","406")
-		UI.setAttribute("Setup2DetailsSub","height","406")
-		UI.setAttribute("DummyPosText","text","{en}Dummy Mage Knight -{ru}Виртуальный Рыцарь-маг -{zh-tw}虛擬玩家：{zh-cn}虚拟玩家：{ko}가상 플레이어 -{es}Mage Knight Virtual -{fr}Mage fantôme -{pt-br}Mage Knight Fictício -{de}Dummy-Magier-Ritter -")
-	end
-end
 
 local zigguratPyramidUISaveAttributes={
     {id="zigguratPyramidInteract", attribute="active"},
@@ -729,229 +540,27 @@ function __onObjectPickUp_raw(player_color, picked_up_object)
 	end
 end
 
---blank Deck summary if not allowed to view
+--Blank private Deed deck summaries for other players, then restore the real summary when
+--the owner (or Black) hovers it again. TTS descriptions are shared, so the latest hover still wins.
+local privateDeckHoverDescription="{en}Deck contents are only visible for this player.{ru}Содержимое колоды видно только этому игроку.{zh-tw}牌庫內容僅此玩家可見。{zh-cn}牌库内容仅此玩家可见。{ko}덱 내용은 이 플레이어에게만 보입니다.{es}El contenido del mazo solo es visible para este jugador.{fr}Le contenu du paquet n’est visible que par ce joueur.{pt-br}O conteúdo do baralho só é visível para este jogador.{de}Der Inhalt des Decks ist nur für diesen Spieler sichtbar."
+local privateDeckHoverApplied={}
 function __onObjectHover_raw(player_color, hover_object)
-	--Make deck dsecription unreadable to other players
-	if hover_object~=nil and hover_object.type=="Deck" and hover_object.getGMNotes()~=nil and hover_object.getGMNotes()~="" then
-		if hover_object.getGMNotes()~=player_color and player_color~="Black" and gStates.coop==0 then
-			hover_object.setDescription("{en}Deck contents are only visible for this player.{ru}Содержимое колоды видно только этому игроку.{zh-tw}牌庫內容僅此玩家可見。{zh-cn}牌库内容仅此玩家可见。{ko}덱 내용은 이 플레이어에게만 보입니다.{es}El contenido del mazo solo es visible para este jugador.{fr}Le contenu du paquet n’est visible que par ce joueur.{pt-br}O conteúdo do baralho só é visível para este jogador.{de}Der Inhalt des Decks ist nur für diesen Spieler sichtbar.")
+	if hover_object~=nil and hover_object.type=="Deck" then
+		local ownerColor=hover_object.getGMNotes()
+		if ownerColor~=nil and ownerColor~="" then
+			local unauthorized=ownerColor~=player_color and player_color~="Black" and gStates.coop==0
+			if unauthorized==true then
+				if privateDeckHoverApplied[hover_object.guid]~=true or hover_object.getDescription()~=privateDeckHoverDescription then
+					hover_object.setDescription(privateDeckHoverDescription)
+					privateDeckHoverApplied[hover_object.guid]=true
+				end
+			elseif privateDeckHoverApplied[hover_object.guid]==true or hover_object.getDescription()==privateDeckHoverDescription then
+				if refreshContainerDeckDescription(hover_object)==true then privateDeckHoverApplied[hover_object.guid]=nil end
+			end
 		end
 	end
 
-	--monster token tooltip update.
-	if hover_object~=nil and (monsterPugs[hover_object.guid]~=nil or gStates.monsterPerks[hover_object.guid]~=nil) then
-		local monsterDescription=""
-		if hover_object.is_face_down==false then
-			--Attack Descriptions
-			--Trap Blurb
-			if hover_object.getGMNotes()=="Trap Reminder Token" then
-				monsterDescription="{en}(If flipped, this token will be removed when you Ascend)\n\n{ru}(Если этот жетон перевернуть, он будет удален при «Восхождении»)\n\n{zh-tw}（如果翻面，此標記會在你爬升至下一層時移除）\n\n{zh-cn}（如果翻面，此标记会在你爬升至下一层时移除）\n\n{ko}(뒤집은 함정 토큰은 다음 층 등반 시 제거)\n\n{es}(Si se da la vuelta a esta ficha, se retirará cuando asciendas)\n\n{fr}(Si cette carte est retournée, elle sera retirée lorsque vous atteindrez l'Ascension)\n\n{pt-br}(Se virada, esta ficha será removida quando você Ascender)\n\n{de}(Wenn diese Karte umgedreht wird, wird sie entfernt, sobald du aufsteigst)\n\n"
-			end
-			--Volkare Blurb
-			if hover_object.getName()=="{en}Volkare Reminder Token{zh-cn}沃里卡提醒标记{ko}볼케어 공격 토큰{es}Token de recordatorio de Volkare{fr}Jeton de rappel Volkare{pt-br}Token de lembrete de Volkare" then
-				monsterDescription="{en}He can't be attacked directly, but Volkare attacks along with his army.\n\nDefeat Volkare's Army and you Defeat General Volkare.\n\n{ru}Волкара нельзя атаковать напрямую, но он атакует вместе со своей армией.\n\nПобедите армию Волкара — и вы победите генерала Волкара.\n\n{zh-tw}不能直接攻擊沃卡里；他會與自己的軍隊一同進攻。\n\n擊敗沃卡里的軍隊，就能擊敗沃卡里將軍。\n\n{zh-cn}不能直接攻击沃卡里；他会与自己的军队一同进攻。\n\n击败沃卡里的军队，就能击败沃卡里将军。\n\n{ko}볼케어는 직접 공격할 수 없으며 그의 군대와 함께 공격합니다.\n\n볼케어의 군대를 물리치면 볼케어 장군도 패배합니다.\n\n{es}No puede ser atacado directamente, pero Volkare ataca junto con su ejército.\n\nDerrota al ejército de Volkare y derrotarás al general Volkare.\n\n{fr}Il ne peut pas être attaqué directement, mais Volkare attaque avec son armée.\n\nBattez l’armée de Volkare et vous vaincrez le général Volkare.\n\n{pt-br}Ele não pode ser atacado diretamente, mas Volkare ataca junto com seu exército.\n\nDerrote o Exército de Volkare e você derrotará o General Volkare.\n\n{de}Volkare kann nicht direkt angegriffen werden, greift aber gemeinsam mit seiner Armee an.\n\nBesiegt Volkares Armee und ihr besiegt General Volkare.\n\n"
-			end
-			--Leader Blurb
-			if hover_object.guid==darkCrusader.token or hover_object.guid==elementalist.token then
-				monsterDescription="{en}Faction Leaders are attacked and blocked in the same way as other enemies.\n\nDealing damage to beat the Leaders armour value will reduce his level by 1.\n\nYou may attack with enough damage to do multiple of the Leaders armour value and reduce his level more.\n\nThe leader will reduce level for the next fight if not reduced to zero level\n\n{ru}Лидеры фракций атакуются и блокируются так же, как и другие враги.\n\nНанесение урона, превышающего значение брони лидера, снизит его уровень на 1.\n\nВы можете нанести урон, превышающий значение брони лидера, и снизить его уровень еще больше.\n\nЛидер снизит уровень для следующего боя, если он не будет снижен до нуля.{zh-tw}派系首领的攻击与防御机制与其他敌人相同。\n\n造成超过首领护甲值的伤害可使其等级降低1级。\n\n若单次攻击伤害值达到首领护甲值的倍数，可使其等级多次递减。\n\n若首领未被降至零级，其等级将在下次战斗中继续递减。{zh-cn}派系首领的攻击与防御机制与其他敌人相同。\n\n造成超过首领护甲值的伤害可使其等级降低1级。\n\n若单次攻击伤害值达到首领护甲值的倍数，可使其等级多次递减。\n\n若首领未被降至零级，其等级将在下次战斗中继续递减。{ko}파벌 지도자는 다른 적과 동일한 방식으로 공격 및 차단됩니다.\n\n지도자의 방어력 수치를 초과하는 피해를 입히면 그의 레벨이 1 감소합니다.\n\n지도자의 방어력 수치보다 큰 피해를 입혀 레벨을 더 많이 감소시킬 수 있습니다.\n\n지도자의 레벨이 0이 되지 않은 경우, 다음 전투에서 레벨이 감소합니다.{es}Los líderes de facción son atacados y bloqueados de la misma manera que otros enemigos.\n\nInfligir daño que supere el valor de armadura del líder reducirá su nivel en 1.\n\nPuedes atacar con suficiente daño como para superar varias veces el valor de armadura del líder y reducir aún más su nivel.\n\nEl líder reducirá su nivel para la siguiente lucha si no se reduce a cero.{fr}Les chefs de faction sont attaqués et bloqués de la même manière que les autres ennemis.\n\nInfliger des dégâts supérieurs à la valeur d'armure du chef réduira son niveau de 1.\n\nVous pouvez attaquer en infligeant des dégâts supérieurs à la valeur d'armure du chef et réduire davantage son niveau.\n\nLe chef réduira son niveau pour le prochain combat s'il n'est pas réduit à zéro.{pt-br}Os líderes das facções são atacados e bloqueados da mesma forma que outros inimigos.\n\nCausar danos que superem o valor da armadura do líder reduzirá o seu nível em 1.\n\nPode atacar com danos suficientes para causar múltiplos do valor da armadura do líder e reduzir ainda mais o seu nível.\n\nO líder reduzirá o nível para a próxima luta se não for reduzido ao nível zero.{de}Fraktionsanführer werden genauso angegriffen und geblockt wie andere Gegner. \n\nWenn du Schaden verursachst, der den Rüstungswert des Anführers übersteigt, sinkt sein Level um 1. \n\nDu kannst mit ausreichend Schaden angreifen, um den Rüstungswert des Anführers mehrfach zu übertreffen und sein Level weiter zu senken. \n\nDer Anführer senkt sein Level für den nächsten Kampf, wenn es nicht auf Null gesunken ist. \n\n"
-			end
-			--Airborne Dragon attacks reuse the normal attack/ability renderer, but the heads are attackers only:
-			--no Armour/resistance data is registered and the displayed Fame is the single Round reward.
-			local airbornePerks=gStates.monsterPerks~=nil and gStates.monsterPerks[hover_object.guid] or nil
-			if airbornePerks~=nil and airbornePerks.dragonAirborne==true then
-				local airborneRound=tonumber(airbornePerks.dragonAirborneRound) or tonumber(gStates.currentRound) or 1
-				monsterDescription=joinLang({monsterDescription,"{en}[ffda00]AIRBORNE DRAGON ATTACK — ROUND {ru}[ffda00]ВОЗДУШНАЯ АТАКА ДРАКОНА — РАУНД {zh-tw}[ffda00]空中巨龍攻擊 — 回合 {zh-cn}[ffda00]空中巨龙攻击 — 回合 {ko}[ffda00]공중 드래곤 공격 — 라운드 {es}[ffda00]ATAQUE AÉREO DEL DRAGÓN — RONDA {fr}[ffda00]ATTAQUE AÉRIENNE DU DRAGON — MANCHE {pt-br}[ffda00]ATAQUE AÉREO DO DRAGÃO — RODADA {de}[ffda00]LUFTANGRIFF DES DRACHEN — RUNDE ",tostring(airborneRound),"{en}[-]\n[i]This head is only attacking; it cannot be attacked or defeated in this combat. Flip the chosen heads face down if you are site fortified.[/i]\n\n[00ff00]DRAGON ATTACK REWARD: [-]{ru}[-]\n[i]Эта голова только атакует; её нельзя атаковать или победить в этом бою. Переверните выбранные головы лицом вниз, если вы укреплены местом.[/i]\n\n[00ff00]НАГРАДА ЗА АТАКУ ДРАКОНА: [-]{zh-tw}[-]\n[i]此龍首只會攻擊；本次戰鬥中無法攻擊或擊敗它。若你受到地點防禦，將選中的龍首翻至背面。[/i]\n\n[00ff00]巨龍攻擊獎勵：[-]{zh-cn}[-]\n[i]此龙首只会攻击；本次战斗中无法攻击或击败它。若你受到地点防御，将选中的龙首翻至背面。[/i]\n\n[00ff00]巨龙攻击奖励：[-]{ko}[-]\n[i]이 머리는 공격만 하며 이번 전투에서 공격하거나 처치할 수 없습니다. 장소 요새화를 받고 있다면 선택한 머리를 뒷면으로 뒤집으십시오.[/i]\n\n[00ff00]드래곤 공격 보상: [-]{es}[-]\n[i]Esta cabeza solo ataca; no puede ser atacada ni derrotada en este combate. Voltea boca abajo las cabezas elegidas si estás fortificado por el sitio.[/i]\n\n[00ff00]RECOMPENSA DEL ATAQUE DEL DRAGÓN: [-]{fr}[-]\n[i]Cette tête ne fait qu’attaquer ; elle ne peut ni être attaquée ni vaincue pendant ce combat. Retournez face cachée les têtes choisies si le site vous fortifie.[/i]\n\n[00ff00]RÉCOMPENSE DE L’ATTAQUE DU DRAGON : [-]{pt-br}[-]\n[i]Esta cabeça apenas ataca; ela não pode ser atacada nem derrotada neste combate. Vire as cabeças escolhidas para baixo se o local estiver fortificando você.[/i]\n\n[00ff00]RECOMPENSA DO ATAQUE DO DRAGÃO: [-]{de}[-]\n[i]Dieser Kopf greift nur an; er kann in diesem Kampf weder angegriffen noch besiegt werden. Dreht die gewählten Köpfe auf die Rückseite, wenn ihr durch den Ort befestigt seid.[/i]\n\n[00ff00]BELOHNUNG FÜR DEN DRACHENANGRIFF: [-]",tostring(airborneRound),"{en} Fame\n\n{ru} Славы\n\n{zh-tw} 點名望\n\n{zh-cn} 点名望\n\n{ko} 명성\n\n{es} de Fama\n\n{fr} de Gloire\n\n{pt-br} de Fama\n\n{de} Ruhm\n\n"})
-			end
-			--Horseman priorities. Combat stats/abilities below continue through the normal monster hover renderer.
-			local horsemanName=horsemanTokenToName~=nil and horsemanTokenToName[hover_object.guid] or nil
-			if horsemanName~=nil and gStates.gameScenario~="Against the Horsemen Blitz" then monsterDescription=joinLang({monsterDescription,apocalypseIsHereHorsemanPriorityDescription(horsemanName)}) end
-			--Night Rules
-			if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].nightRules~=nil and gStates.summonStates[hover_object.guid]~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]NIGHT RULES[-][i] - For this fight, Gold mana can't be used, Black mana can be used, and affected Skills use their night version.[/i]\n\n{ru}[00ff00]НОЧНЫЕ ПРАВИЛА[-][i] - Считайте, что битва проходит ночью: нельзя использовать золотую ману, можно использовать черную ману, а навыки используют свою ночную версию.[/i]\n\n{zh-tw}[00ff00]夜晚規則[-][i] - 在這場戰鬥中，金色法力不能使用，黑色法力可以使用，受影響的技能使用其夜間版本。[/i]\n\n{zh-cn}[00ff00]夜晚規則[-][i] - 在這場戰鬥中，金色法力不能使用，黑色法力可以使用，受影響的技能使用其夜間版本。[/i]\n\n{ko}[00ff00]밤 규칙[-][i] - 이 전투에서 금색 마나를 사용할 수 없고, 흑색 마나를 사용할 수 있으며, 스킬 또한 밤 효과로 사용합니다.[/i]\n\n{es}[00ff00]REGLAS NOCTURNAS[-][i] - Para este combate, no se puede usar Maná Dorado, se puede usar Maná Negro y las Habilidades afectadas usan su versión nocturna.[/i]\n\n{fr}[00ff00]RÈGLES DE LA NUIT[-][i] - Pour ce combat, le mana d'or ne peut pas être utilisé, le mana noir peut être utilisé et les compétences affectées utilisent leur version nocturne.[/i]\n\n{pt-br}[00ff00]REGRAS NOTURNAS[-][i] - Nesta luta, a mana dourada não pode ser usada, a mana preta pode ser usada e as habilidades afetadas usam sua versão noturna.[/i]\n\n{de}[00ff00]REGELN FÜR DIE NACHT[-][i] - Für diesen Kampf kann kein Goldmana verwendet werden, Schwarzmana kann verwendet werden, und die betroffenen Fertigkeiten verwenden ihre Nachtversion.[/i]\n\n"}) end
-			--No Units
-			if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].noUnits~=nil and gStates.summonStates[hover_object.guid]~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]NO UNITS[-][i] - No Units can be used for this Fight.[/i]\n\n{ru}[00ff00]БЕЗ ОТРЯДОВ[-][i] - В этом бою герой не может использовать отряды.[/i]\n\n{zh-tw}[00ff00]禁用部队[-][i] - 本次战斗不能使用任何部队。[/i]\n\n{zh-cn}[00ff00]禁用部队[-][i] - 本次战斗不能使用任何部队。[/i]\n\n{ko}[00ff00]유닛 사용불가[-][i] - 이 전투에는 유닛을 사용할 수 없습니다.[/i]\n\n{es}[00ff00]SIN UNIDADES[-][i] - No se pueden utilizar unidades para este combate.[/i]\n\n{fr}[00ff00]PAS D'UNITÉS[-][i] - Aucune unité ne peut être utilisée pour ce combat.[/i]\n\n{pt-br}[00ff00]SEM UNIDADES[-][i] - Nenhuma unidade pode ser usada para essa luta.[/i]\n\n{de}[00ff00]KEINE EINHEITEN[-][i] - Für diesen Kampf können keine Einheiten verwendet werden.[/i]\n\n"}) end
-			--One Unit
-			if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].oneUnit~=nil and gStates.summonStates[hover_object.guid]~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ONE UNIT[-][i] - Only one Unit can be used for this Fight[/i]\n\n{ru}[00ff00]ОДИН ОТРЯД[-][i] - В этом бою герой может использовать только один отряд.[/i]\n\n{zh-tw}[00ff00]单个部队[-][i] - 本场比赛只能使用一个部队。[/i]\n\n{zh-cn}[00ff00]单个部队[-][i] - 本场比赛只能使用一个部队。[/i]\n\n{ko}[00ff00]유닛 하나[-][i] - 이 전투에는 유닛 하나만 사용할 수 있습니다.[/i]\n\n{es}[00ff00]UNA UNIDAD[-][i] - Sólo se puede utilizar una unidad para este combate.[/i]\n\n{fr}[00ff00]UNE UNITÉ[-][i] - Une seule unité peut être utilisée pour ce combat.[/i]\n\n{pt-br}[00ff00]UMA UNIDADE[-][i] - Somente uma unidade pode ser usada para essa luta.[/i]\n\n{de}[00ff00]EINE EINHEIT[-][i] - Für diesen Kampf kann nur eine Einheit verwendet werden.[/i]\n\n"}) end
-			--Attack values
-			if ((monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].attack~=nil and monsterPugs[hover_object.guid].monsters==nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].attack~=nil)) then
-				local attackTypeConvert={
-					["P"]="{en}[00ff00]PHYSICAL ATTACK: [-]{ru}[00ff00]ФИЗИЧЕСКАЯ АТАКА: [-]{zh-tw}[00ff00]物理攻击：[-]{zh-cn}[00ff00]物理攻击：[-]{ko}[00ff00]물리 공격: [-]{es}[00ff00]ATAQUE FÍSICO: [-]{fr}[00ff00]ATTAQUE PHYSIQUE : [-]{pt-br}[00ff00]ATAQUE FÍSICO: [-]{de}[00ff00]PHYSISCHER ANGRIFF: [-]",
-					["F"]="{en}[ff0000]FIRE ATTACK: [-]{ru}[ff0000]ОГНЕННАЯ АТАКА: [-]{zh-tw}[ff0000]火焰攻击：[-]{zh-cn}[ff0000]火焰攻击：[-]{ko}[ff0000]불 공격: [-]{es}[ff0000]ATAQUE DE FUEGO: [-]{fr}[ff0000]ATTENTAT DE FEU : [-]{pt-br}[ff0000]ATAQUE DE FOGO: [-]{de}[ff0000]FEUERANSCHLAG: [-]",
-					["I"]="{en}[5a5aff]ICE ATTACK: [-]{ru}[5a5aff]ЛЕДЯНАЯ АТАКА: [-]{zh-tw}[5a5aff]寒冰攻击：[-]{zh-cn}[5a5aff]寒冰攻击：[-]{ko}[5a5aff]얼음 공격: [-]{es}[5a5aff]ATAQUE DE HIELO: [-]{fr}[5a5aff]ATTAQUE DE GLACE : [-]{pt-br}[5a5aff]ATAQUE DE GELO: [-]{de}[5a5aff]EIS-ATTACK: [-]",
-					["M"]="{en}[ffda00]PSYCHIC ATTACK: [-]{ru}[ffda00]ПСИХИЧЕСКОЕ НАПАДЕНИЕ: [-]{zh-tw}[ffda00]心靈攻擊：[-]{zh-cn}[ffda00]心灵攻击：[-]{ko}[ffda00]정신 공격: [-]{es}[ffda00]ATAQUE PSÍQUICO: [-]{fr}[ffda00]ATTAQUE PSYCHIQUE : [-]{pt-br}[ffda00]ATAQUE PSÍQUICO: [-]{de}[ffda00]PSYCHISCHER ANGRIFF: [-]",
-					["IF"]="{en}[ff00fe]COLD FIRE ATTACK: [-]{ru}[ff00fe]ОГНЕННО-ЛЕДЯНАЯ АТАКА: [-]{zh-tw}[ff00fe]冰火攻击：[-]{zh-cn}[ff00fe]冰火攻击：[-]{ko}[ff00fe]차가운불 공격: [-]{es}[ff00fe]ATAQUE DE FUEGO FRÍO: [-]{fr}[ff00fe]ATTENTAT DE FEU FROID : [-]{pt-br}[ff00fe]ATAQUE DE FOGO FRIO: [-]{de}[ff00fe]KALTER FEUERANSCHLAG: [-]"}
-				local attackTypeDescription={
-					["F"]="{en}(Your Physical and Fire Blocks are halved){ru}(Значения Физических и Огненных блоков делятся на 2, с округлением вниз){zh-tw}（您的物理和火焰属性减半）{zh-cn}（您的物理和火焰属性减半）{ko}(물리 및 불 방어가 절반으로 감소합니다.){es}(Tus Bloques Físicos y de Fuego se reducen a la mitad){fr}(Vos blocs de physique et de feu sont réduits de moitié){pt-br}(Seus bloqueios Físico e de Fogo são reduzidos à metade){de}(Deine Physikalischen und Feuer-Blöcke werden halbiert)",
-					["I"]="{en}(Your Physical and Ice Blocks are halved){ru}(Значения Физических и Ледяных блоков делятся на 2, с округлением вниз){zh-tw}（您的物理和寒冰属性减半）{zh-cn}（您的物理和寒冰属性减半）{ko}(물리 및 얼음 방어가 절반으로 감소합니다.){es}(Tus Bloques Físicos y de Hielo se reducen a la mitad){fr}(Vos blocs de physique et de glace sont divisés par deux){pt-br}(Seus bloqueios Físico e de Gelo são reduzidos à metade){de}(Ihre physischen und Eis-Blöcke werden halbiert)",
-					["M"]="{en}(All your Blocks are halved. Influence points may be spent as full Psychic Block){ru}(Все ваши блоки уменьшаются вдвое. Очки влияния можно тратить как полноценный психический блок){zh-tw}（你所有的格檔效果減半，影響力可以完全轉換成心靈格檔）{zh-cn}（你所有的格档效果减半，影响力可以完全转换成心灵格档）{ko}(모든 방어 수치가 절반으로 감소. 영향력을 지불하여 온전한 정신 방어로 사용 가능){es}(Todos tus bloqueos se reducen a la mitad. Los puntos de influencia se pueden gastar como un bloqueo psíquico completo){fr}(Tous vos blocages sont réduits de moitié. Les points d'influence peuvent être utilisés pour obtenir un blocage psychique complet.){pt-br}(Todos os seus bloqueios são reduzidos pela metade. Os pontos de influência podem ser usados como um bloqueio psíquico completo){de}(Alle deine Blöcke werden halbiert. Einflusspunkte können als vollständiger psychischer Block ausgegeben werden.)",
-					["IF"]="{en}(Your Physical, Fire and Ice Blocks are halved){ru}(Значения Физических, Ледяных и Огненных блоков делятся на 2, с округлением вниз){zh-tw}（你的物理、火焰和寒冰格挡减半）{zh-cn}（你的物理、火焰和寒冰格挡减半）{ko}(물리, 불, 얼음 방어가 절반으로 감소합니다.){es}(Tus Bloques Físico, Fuego y Hielo se reducen a la mitad){fr}(Vos blocs de physique, de feu et de glace sont réduits de moitié){pt-br}(Seus bloqueios Físico, de Fogo e de Gelo são reduzidos à metade){de}(Deine Physischen, Feuer- und Eis-Blöcke werden halbiert)"}
-				--this method works as Volkare token, Trap Tokens and Possessed tokens don't overlap they're damage types. Suspect in future I may need to add the two.
-				local boostDone=false
-				for attackType, _ in pairs(attackTypeConvert) do
-					if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].attack~=nil and monsterPugs[hover_object.guid].attack[attackType]~=nil) or
-						(gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].attack~=nil and gStates.monsterPerks[hover_object.guid].attack[attackType]~=nil) then
-						local elementalBonus=0
-						if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].elemental~=nil then if attackType=="IF" then elementalBonus=1 else elementalBonus=2 end end
-						local damageToScan={}--monsterPugs[hover_object.guid].attack[attackType]
-						if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].attack~=nil and monsterPugs[hover_object.guid].attack[attackType]~=nil then damageToScan=monsterPugs[hover_object.guid].attack[attackType] end
-						if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].attack~=nil and gStates.monsterPerks[hover_object.guid].attack[attackType]~=nil then damageToScan=gStates.monsterPerks[hover_object.guid].attack[attackType] end
-						for count, v in pairs(damageToScan) do
-							local boost=0
-							if count==1 and boostDone==false and gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].boost~=nil then boost=gStates.monsterPerks[hover_object.guid].boost boostDone=true end
-							monsterDescription=joinLang({monsterDescription, attackTypeConvert[tostring(attackType)], tostring(v+elementalBonus+boost), "\n"})
-						end
-						if tostring(attackType)~="P" and hover_object.getGMNotes()~="Puppet Master" then monsterDescription=joinLang({monsterDescription, "[i]", attackTypeDescription[tostring(attackType)], "[/i]\n"}) end
-					end
-				end
-			end
-			--Block values. Puppet Master uses this generic monsterPerks field so kept tokens can reuse
-			--the normal hover system without pretending the Puppet is still an enemy.
-			if gStates.monsterPerks[hover_object.guid]~=nil and type(gStates.monsterPerks[hover_object.guid].block)=="table" then
-				--Puppets only show their usable Attack and Block values. Put the visual separator
-				--between those groups instead of leaving an empty line at the bottom of the tooltip.
-				if hover_object.getGMNotes()=="Puppet Master" then monsterDescription=joinLang({monsterDescription, "\n"}) end
-				local blockTypeConvert={
-					["P"]="{en}[00ff00]PHYSICAL BLOCK: [-]{ru}[00ff00]ФИЗИЧЕСКИЙ БЛОК: [-]{zh-tw}[00ff00]物理格挡：[-]{zh-cn}[00ff00]物理格挡：[-]{ko}[00ff00]물리 방어: [-]{es}[00ff00]BLOQUEO FÍSICO: [-]{fr}[00ff00]BLOC PHYSIQUE : [-]{pt-br}[00ff00]BLOQUEIO FÍSICO: [-]{de}[00ff00]PHYSISCHER BLOCK: [-]",
-					["F"]="{en}[ff0000]FIRE BLOCK: [-]{ru}[ff0000]ОГНЕННЫЙ БЛОК: [-]{zh-tw}[ff0000]火焰格挡：[-]{zh-cn}[ff0000]火焰格挡：[-]{ko}[ff0000]불 방어: [-]{es}[ff0000]BLOQUEO DE FUEGO: [-]{fr}[ff0000]BLOC DE FEU : [-]{pt-br}[ff0000]BLOQUEIO DE FOGO: [-]{de}[ff0000]FEUER-BLOCK: [-]",
-					["I"]="{en}[5a5aff]ICE BLOCK: [-]{ru}[5a5aff]ЛЕДЯНОЙ БЛОК: [-]{zh-tw}[5a5aff]寒冰格挡：[-]{zh-cn}[5a5aff]寒冰格挡：[-]{ko}[5a5aff]얼음 방어: [-]{es}[5a5aff]BLOQUEO DE HIELO: [-]{fr}[5a5aff]BLOC DE GLACE : [-]{pt-br}[5a5aff]BLOQUEIO DE GELO: [-]{de}[5a5aff]EIS-BLOCK: [-]",
-					["M"]="{en}[ffda00]PSYCHIC BLOCK: [-]{ru}[ffda00]ПСИХИЧЕСКИЙ БЛОК: [-]{zh-tw}[ffda00]心靈格檔：[-]{zh-cn}[ffda00]心灵格挡：[-]{ko}[ffda00]정신 방어: [-]{es}[ffda00]BLOQUEO PSÍQUICO: [-]{fr}[ffda00]BLOC PSYCHIQUE : [-]{pt-br}[ffda00]BLOQUEIO PSÍQUICO: [-]{de}[ffda00]PSYCHISCHER BLOCK: [-]",
-					["IF"]="{en}[ff00fe]COLD FIRE BLOCK: [-]{ru}[ff00fe]ОГНЕННО-ЛЕДЯНОЙ БЛОК: [-]{zh-tw}[ff00fe]冰火格挡：[-]{zh-cn}[ff00fe]冰火格挡：[-]{ko}[ff00fe]차가운불 방어: [-]{es}[ff00fe]BLOQUEO DE FUEGO FRÍO: [-]{fr}[ff00fe]BLOC DE FEU FROID : [-]{pt-br}[ff00fe]BLOQUEIO DE FOGO FRIO: [-]{de}[ff00fe]KALTFEUER-BLOCK: [-]"}
-				for _, blockType in ipairs({"P","F","I","IF","M"}) do
-					local values=gStates.monsterPerks[hover_object.guid].block[blockType]
-					if type(values)=="table" then for _, value in ipairs(values) do monsterDescription=joinLang({monsterDescription,blockTypeConvert[blockType],tostring(value),"\n"}) end end
-				end
-			end
-			--summoners
-			if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].monsters~=nil and monsterPugs[hover_object.guid].pugType~="yellow" then
-				local count=0
-				for _, summon in pairs(monsterPugs[hover_object.guid].monsters) do count=count+1 end
-				if count>1 then
-					monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMY SUMMONS: [-]{ru}[00ff00]ПРИЗЫВ: [-]{zh-tw}[00ff00]敌人召唤：[-]{zh-cn}[00ff00]敌人召唤：[-]{ko}[00ff00]적 소환수: [-]{es}[00ff00]CONVOCATORIA ENEMIGA: [-]{fr}[00ff00]SOMMES ENNEMIES: [-]{pt-br}[00ff00]CONVOCAÇÕES INIMIGAS: [-]{de}[00ff00]ENEMY SUMMONS: [-]", tostring(count), "\n"})
-				else
-					monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMY SUMMON: [-]1\n{ru}[00ff00]ПРИЗЫВ: [-]1\n{zh-tw}[00ff00]敌人召唤：[-]1\n{zh-cn}[00ff00]敌人召唤：[-]1\n{ko}[00ff00]적 소환수: [-]1\n{es}[00ff00]CONVOCATORIA ENEMIGA: [-]1\n{fr}[00ff00]SOMME DE L'ENNEMI : [-]1\n{pt-br}[00ff00]CONVOCAÇÃO DO INIMIGO: [-]1\n{de}[00ff00]Feindlicher SUMMON: [-]1\n"})
-				end
-			end
-			--ruins
-			if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].monsters~=nil and monsterPugs[hover_object.guid].pugType=="yellow" and hover_object.guid~="f3c6e3" and hover_object.guid~="28cc9c" and hover_object.guid~="2f9a1f" then
-				colorConvert={
-					["gray"]="{en}Keep Garison (Gray){ru}Гарнизон крепости (Серый){zh-tw}要塞守军（灰色）{zh-cn}要塞守军（灰色）{ko}성 수비대 (회색){es}Mantener Garison (Gris){fr}Garder Garison (Gris){pt-br}Forte Guarnição (Cinza){de}Garison behalten (Grau)",
-					["tan"]="{en}Dungeon Monster (Tan){ru}Монстр из подземелья (Коричневый){zh-tw}地下城怪物（棕色）{zh-cn}地下城怪物（棕色）{ko}던전 몬스터 (갈색){es}Monstruo de Mazmorra (Marrón){fr}Monstre du donjon (Tan){pt-br}Monstro de Masmorra (Bronze){de}Kerkermonster (Braun)",
-					["green"]="{en}Maraudering Orcs (Green){ru}Орк-мародер (Зеленый){zh-tw}兽人劫掠队（绿色）{zh-cn}兽人劫掠队（绿色）{ko}오크 습격자 (녹색){es}Orkos Merodeadores (Verde){fr}Orques maraudeurs (Vert){pt-br}Orks saqueadores (Verde){de}Marodierende Orks (Grün)",
-					["red"]="{en}Draconum (Red){ru}Драконум (красный){zh-tw}龍族（紅色）{zh-cn}龙族（红色）{ko}드라코넘 (적색){es}Draconum (Rojo){fr}Draconum (Rouge){pt-br}Draconum (Vermelho){de}Draconum (Rot)",
-					["purple"]="{en}Mage Tower Garison (Purple){ru}Гарнизон башни магов (Фиолетовый){zh-tw}法师塔守军（紫色）{zh-cn}法师塔守军（紫色）{ko}마법사 탑 수비대 (보라색){es}Torre de Mago Garison (Morado){fr}Tour des mages Garison (Violet){pt-br}Guarnição da Torre do Mago (Roxo){de}Magierturm Garison (Violett)",
-					["white"]="{en}City Garison (white){ru}Гарнизон города (Белый){zh-tw}城市守军（白色）{zh-cn}城市守军（白色）{ko}도시 수비대 (흰색){es}Ciudad Garison (Blanco){fr}Garison de la ville (Blanc){pt-br}Guarnição da cidade (Branco){de}Stadt Garison (Weiß)"}
-				monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]One {ru}[00ff00]ОХРАНА: [-]Один {zh-tw}[00ff00]防守的敌人：[-]一个{zh-cn}[00ff00]防守的敌人：[-]一个{ko}[00ff00]방어 중인 적: [-]1개의 {es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Uno {fr}[00ff00]ENNEMIS EN DÉFENSE : [-]Un {pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Um {de}[00ff00]ENEMIES DEFENDING: [-]Einer ", colorConvert[monsterPugs[hover_object.guid].monsters[1]], "{en} and one {ru} и один {zh-tw}和一个{zh-cn}和一个{ko} 그리고 1개의 {es} y uno {fr} et un {pt-br} e um {de} und einer ", colorConvert[monsterPugs[hover_object.guid].monsters[2]], "{en}.\n{zh-tw}。\n{zh-cn}。\n"})
-			end
-			if hover_object.guid=="f3c6e3" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]Two Maraudering Orcs(Green).\n{ru}[00ff00]ОХРАНА: [-]Два Орка-мародер (Зеленый).\n{zh-tw}[00ff00]驻守敌人：[-]两个兽人劫掠队（绿色）。\n{zh-cn}[00ff00]驻守敌人：[-]两个兽人劫掠队（绿色）。\n{ko}[00ff00]방어 중인 적: [-]2개의 오크(녹색).\n{es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Dos Orkos Merodeadores(Verde).\n{fr}[00ff00]ENNEMIES DEFENDANTS : [-]Deux Orks maraudeurs (vert).\n{pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Dois Orks saqueadores(verde).\n{de}[00ff00]ENEMIES DEFENDING: [-]Zwei marodierende Orks(grün).\n"}) end
-			if hover_object.guid=="28cc9c" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]Two Mage Tower Garisons(Purple).\n{ru}[00ff00]ОХРАНА: [-]Два Гарнизона башни магов (Фиолетовый).\n{zh-tw}[00ff00]驻守敌人：[-]两个法师塔守军（紫色）。\n{zh-cn}[00ff00]驻守敌人：[-]两个法师塔守军（紫色）。\n{ko}[00ff00]방어 중인 적: [-]2개의 마법사 탑 수비대(보라색).\n{es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Dos Mage Tower Garisons(Purple).\n{fr}[00ff00]ENEMIS EN DEFENSE : [-]Deux Garisons de la Tour des Mages (Pourpre).\n{pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Duas Guarnições da Torre do Mago (Roxo).\n{de}[00ff00]ENEMIES DEFENDING: [-]Zwei Magierturm-Garisons(Lila).\n"}) end
-			if hover_object.guid=="2f9a1f" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]Three Maraudering Orcs(Green).\n{ru}[00ff00]ОХРАНА: [-]Три Орка-мародер (Зеленый).\n{zh-tw}[00ff00]驻守敌人：[-]三个兽人劫掠队（绿色）。\n{zh-cn}[00ff00]驻守敌人：[-]三个兽人劫掠队（绿色）。\n{ko}[00ff00]방어 중인 적: [-]3개의 오크(녹색).\n{es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Tres Orkos Merodeadores(Verde).\n{fr}[00ff00]ENEMIS EN DEFENSE : [-]Trois Orks maraudeurs(Vert).\n{pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Três Orcs Saqueadores(Verde).\n{de}[00ff00]ENEMIES DEFENDING: [-]Drei marodierende Orks(Grün).\n"}) end
-			if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].required~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ALTER REQUIRES: [-]{ru}[00ff00]ПОДНОШЕНИЕ АЛТАРЮ: [-]{zh-tw}[00ff00]改变要求：[-]{zh-cn}[00ff00]改变要求：[-]{ko}[00ff00]재단 활성화: [-]{es}[00ff00]ALTER REQUIRE: [-]{fr}[00ff00]ALTER REQUIRES : [-]{pt-br}[00ff00]ALTERAR REQUISITOS: [-]{de}[00ff00]ALTER ERFORDERT: [-]", monsterPugs[hover_object.guid].required, "{en}.\n{zh-tw}。\n{zh-cn}。\n"}) end
-			if hover_object.getGMNotes()~="Puppet Master" then monsterDescription=joinLang({monsterDescription, "\n"}) end
-			if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].reward~=nil and monsterPugs[hover_object.guid].pugType=="yellow" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]REWARD FOR DEFEATING: [-]{ru}[00ff00]НАГРАДА ЗА ПОБЕДУ: [-]{zh-tw}[00ff00]击败奖励：[-]{zh-cn}[00ff00]击败奖励：[-]{ko}[00ff00]정복 보상: [-]{es}[00ff00]RECOMPENSA POR DERROTA: [-]{fr}[00ff00]RÉCOMPENSE POUR LA DÉFENSE : [-]{pt-br}[00ff00]RECOMPENSA PELA DEFESA: [-]{de}[00ff00]BELOHNUNG FÜR DIE BESIEGUNG: [-]", monsterPugs[hover_object.guid].reward, "{en}.{zh-tw}。{zh-cn}。"}) end
-			--swiftness
-			if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].swiftness~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].swiftness~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]SWIFTNESS[-][i] - This enemy's attack is doubled when trying to Block it.[/i]\n\n{ru}[00ff00]БЫСТРАЯ АТАКА[-][i] - Блокирование атаки врага требует вдвое больше очков блока, чем обычно.[/i]\n\n{zh-tw}[00ff00]迅捷[-][i] - 当试图阻挡敌人时，该敌人的攻击力会加倍。[/i]\n\n{zh-cn}[00ff00]迅捷[-][i] - 当试图阻挡敌人时，该敌人的攻击力会加倍。[/i]\n\n{ko}[00ff00]신속[-][i] - 이 공격을 방어할 때는 두 배의 수치가 필요.[/i]\n\n{es}[00ff00]VELOCIDAD[-][i] - El ataque de este enemigo se duplica al intentar Bloquearlo[/i]\n\n{fr}[00ff00]SOUPLESSE[-][i] - L'attaque de cet ennemi est doublée lorsque l'on tente de le bloquer.[/i]\n\n{pt-br}[00ff00]AGILIDADE[-][i] - O ataque deste inimigo é dobrado ao tentar bloqueá-lo.[/i]\n\n{de}[00ff00]GESCHWINDIGKEIT[-][i] - Der Angriff dieses Gegners wird verdoppelt, wenn man versucht, ihn zu blocken.[/i]\n\n"}) end
-			--cumbersome
-			if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].cumbersome~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].cumbersome~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]CUMBERSOME[-][i] - This enemy's attack can be reduced by the amount of Move a player spends.[/i]\n\n{ru}[00ff00]НЕПОВОРОТЛИВЫЙ[-][i] - В фазе блока вы можете потратить очки Движения, уменьшив значение Атаки врага на 1 за каждое очко. Атака, уменьшенная до 0, успешно заблокирована.[/i]\n\n{zh-tw}[00ff00]笨重[-][i] - 该敌人的攻击力可以被玩家消耗的移动力减少。[/i]\n\n{zh-cn}[00ff00]笨重[-][i] - 该敌人的攻击力可以被玩家消耗的移动力减少。[/i]\n\n{ko}[00ff00]육중함[-][i] - 플레이어가 소비한 이동력만큼 이 적의 공격력이 감소.[/i]\n\n{es}[00ff00]CUMBERSOME[-][i] - El ataque de este enemigo puede ser reducido por la cantidad de Movimiento que gaste el jugador.[/i]\n\n{fr}[00ff00]CUMBERSOME[-][i] - L'attaque de cet ennemi peut être réduite par la quantité de Mouvement dépensée par le joueur.[/i]\n\n{pt-br}[00ff00]CORPULENTO-][i] - O ataque desse inimigo pode ser reduzido pela quantidade de movimento que o jogador gasta.[/i]\n\n{de}[00ff00]GESCHWINDIGKEIT[-][i] - Der Angriff dieses Gegners kann um die Menge an Bewegung reduziert werden, die ein Spieler ausgibt.[/i]\n\n"}) end
-			--poison
-			if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].poison~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].poison~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]POISON[-][i] - The Player adds an extra wound to their discard pile for each wound from this enemy. Units get two wounds if taking a wound.[/i]\n\n{ru}[00ff00]ЯДОВИТАЯ АТАКА[-][i] - Отряд получает две карты ран вместо одной от атаки ядовитого врага. За каждую рану, полученную героем от этой атаки, он также кладет одну карту раны в свой сброс.[/i]\n\n{zh-tw}[00ff00]剧毒[-][i] - 此敌人每造成一次伤害，玩家就会在弃牌堆中额外增加一次伤害。如果受伤，单位会获得两个伤口。[/i]\n\n{zh-cn}[00ff00]剧毒[-][i] - 此敌人每造成一次伤害，玩家就会在弃牌堆中额外增加一次伤害。如果受伤，单位会获得两个伤口。[/i]\n\n{ko}[00ff00]독성[-][i] - 이 적에게 받는 부상 하나당, 자신의 버린 카드 더미에 부상 하나를 추가. 유닛이 부상을 받을 경우 두 개를 받음.[/i]\n\n{es}[00ff00]VENENO[-][i] - El Jugador añade una herida extra a su pila de descartes por cada herida de este enemigo. Las unidades reciben dos heridas si reciben una herida.[/i]\n\n{fr}[00ff00]POISON[-][i] - Le joueur ajoute une blessure supplémentaire à sa pile de défausse pour chaque blessure infligée par cet ennemi.[/i]\n\n{pt-br}[00ff00]VENENO[-][i] - O jogador adiciona um ferimento extra à sua pilha de descarte para cada ferimento desse inimigo. As unidades recebem dois ferimentos se receberem um ferimento.[/i]\n\n{de}[00ff00]GIFT[-][i] - Der Spieler legt für jede Verwundung durch diesen Feind eine zusätzliche Wunde auf seinen Ablagestapel. Einheiten erhalten zwei Verwundungen, wenn sie eine Verwundung erleiden.[/i]\n\n"}) end
-			--brutal
-			if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].brutal~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].brutal~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]BRUTAL[-][i] - This enemy's attack is doubled if not blocked.[/i]\n\n{ru}[00ff00]ЖЕСТОКАЯ АТАКА[-][i] - Если враг не заблокирован, он наносит вдвое больше урона, чем его значение Атаки.[/i]\n\n{zh-tw}[00ff00]残暴[-][i] - 如果没有被阻挡，这个敌人的攻击会加倍。[/i]\n\n{zh-cn}[00ff00]残暴[-][i] - 如果没有被阻挡，这个敌人的攻击会加倍。[/i]\n\n{ko}[00ff00]난폭[-][i] - 방어하지 못하면, 공격력의 두 배만큼의 대미지를 받음.[/i]\n\n{es}[00ff00]BRUTAL[-][i] - El ataque de este enemigo se duplica si no es bloqueado.[/i]\n\n{fr}[00ff00]BRUTAL[-][i] - L'attaque de cet ennemi est doublée si elle n'est pas bloquée.[/i]\n\n{pt-br}[00ff00]BRUTAL[-][i] - O ataque desse inimigo é dobrado se não for bloqueado.[/i]\n\n{de}[00ff00]BRUTAL[-][i] - Der Angriff dieses Feindes wird verdoppelt, wenn er nicht geblockt wird.[/i]\n\n"}) end
-			--vampiric
-			if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].vampiric~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]VAMPIRIC[-][i] - Increase the armour of this enemy by the amount of wounds this enemy has dealt to the player and units.[/i]\n\n{ru}[00ff00]ВАМПИРИЗМ[-][i] - Броня врага с вампиризмом увеличивается на 1 до конца битвы каждый раз, когда в результате его атаки отряд получает рану или игрок берёт карту раны в руку.[/i]\n\n{zh-tw}[00ff00]吸血[-][i] - 增加该敌人的护甲，数值为该敌人对玩家和单位造成的伤害值。[/i]\n\n{zh-cn}[00ff00]吸血[-][i] - 增加该敌人的护甲，数值为该敌人对玩家和单位造成的伤害值。[/i]\n\n{ko}[00ff00]흡혈[-][i] - 이 적의 방어구가, 플레이어와 유닛에게 준 부상의 개수만큼 증가합니다.[/i]\n\n{es}[00ff00]VAMPÍRICO[-][i] - Aumenta la armadura de este enemigo por la cantidad de heridas que este enemigo haya infligido al jugador y a las unidades.[/i]\n\n{fr}[00ff00]VAMPIRIC[-][i] - Augmente l'armure de cet ennemi du nombre de blessures qu'il a infligées au joueur et à ses unités.[/i]\n\n{pt-br}[00ff00]VAMPÍRICO[-][i] - Aumenta a armadura desse inimigo pela quantidade de ferimentos que esse inimigo causou ao jogador e às unidades.[/i]\n\n{de}[00ff00]VAMPIRISCH[-][i] - Erhöht die Rüstung dieses Feindes um die Anzahl der Wunden, die dieser Feind dem Spieler und seinen Einheiten zugefügt hat.[/i]\n\n"}) end
-			--Paralyse
-			if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].paralyse~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].paralyse~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]PARALYZE[-][i] - Player discards all non-wound cards when taking a wound from this enemy. Units are destroyed if taking a wound.[/i]\n\n{ru}[00ff00]ПАРАЛИЗУЮЩАЯ АТАКА[-][i] - Отряд, получивший рану от такой атаки, немедленно уничтожается. Если герой получает раны от такой атаки, управляющий им игрок немедленно сбрасывает с руки все карты, кроме карт ран.[/i]\n\n{zh-tw}[00ff00]瘫痪[-][i] - 玩家在受到该敌人的伤害时会丢弃所有非受伤的牌。如果受伤，单位将被摧毁。[/i]\n\n{zh-cn}[00ff00]瘫痪[-][i] - 玩家在受到该敌人的伤害时会丢弃所有非受伤的牌。如果受伤，单位将被摧毁。[/i]\n\n{ko}[00ff00]마비[-][i] - 플레이어가 이 공격으로 한 장 이상의 부상을 받으면, 즉시 손에서 부상을 제외한 모든 카드를 버림. 부상을 받은 유닛은 게임에서 제거됨.[/i]\n\n{es}[00ff00]PARALYSE[-][i] - El jugador descarta todas las cartas no heridas al recibir una herida de este enemigo. Las unidades son destruidas si reciben una herida.[/i]\n\n{fr}[00ff00]PARALYSE[-][i] - Le joueur défausse toutes les cartes non blessées lorsqu'il est blessé par cet ennemi. Les unités sont détruites si elles subissent une blessure.[/i]\n\n{pt-br}[00ff00]PARALISIA[-][i] - O jogador descarta todas as cartas não feridas ao receber um ferimento desse inimigo. As unidades são destruídas se receberem um ferimento.[/i]\n\n{de}[00ff00]PARALYSE[-][i] - Der Spieler wirft alle Karten ab, die nicht verwundet sind, wenn er eine Verwundung durch diesen Feind erleidet. Einheiten werden zerstört, wenn sie eine Verwundung erleiden.[/i]\n\n"}) end
-			--assassination
-			if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].assassination~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].assassination~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ASSASSINATION[-][i] - This enemy's attack damage can only be assigned to the player.[/i]\n\n{ru}[00ff00]НАЕМНЫЙ УБИЙЦА[-][i] - Урон от атаки врага не может быть распределён на отряды. Если враг не заблокирован, урон получает только герой.[/i]\n\n{zh-tw}[00ff00]刺杀[-][i] - 该敌人的攻击伤害只能分配给玩家。[/i]\n\n{zh-cn}[00ff00]刺杀[-][i] - 该敌人的攻击伤害只能分配给玩家。[/i]\n\n{ko}[00ff00]암살[-][i] - 이 적의 대미지는 유닛에게 할당 불가.[/i]\n\n{es}[00ff00]ASESINATO[-][i] - El daño de ataque de este enemigo sólo puede ser asignado al jugador.[/i]\n\n{fr}[00ff00]ASSASSINATION[-][i] - Les dégâts d'attaque de cet ennemi ne peuvent être attribués qu'au joueur.[/i]\n\n{pt-br}[00ff00]ASSASSINATO[-][i] - O dano de ataque desse inimigo só pode ser atribuído ao jogador.[/i]\n\n{de}[00ff00]ASSASSINATION[-][i] - Der Angriffsschaden dieses Feindes kann nur dem Spieler zugewiesen werden.[/i]\n\n"}) end
-			if gStates.summonStates[hover_object.guid]~="summoned" then
-				--armour
-				local bonus=0
-				if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].armour~=nil then bonus=gStates.monsterPerks[hover_object.guid].armour end
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].armour~=nil and monsterPugs[hover_object.guid].elusive==nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARMOUR: [-]{ru}[00ff00]БРОНЯ: [-]{zh-tw}[00ff00]护甲：[-]{zh-cn}[00ff00]护甲：[-]{ko}[00ff00]방어구: [-]{es}[00ff00]ARMADURA: [-]{fr}[00ff00]ARMURE : [-]{pt-br}[00ff00] ARMADURA: [-]{de}[00ff00]RÜSTUNG: [-]", tostring(monsterPugs[hover_object.guid].armour+bonus), "\n\n"}) end
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].armour~=nil and monsterPugs[hover_object.guid].elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARMOUR: [-]{ru}[00ff00]БРОНЯ: [-]{zh-tw}[00ff00]护甲：[-]{zh-cn}[00ff00]护甲：[-]{ko}[00ff00]방어구: [-]{es}[00ff00]ARMADURA: [-]{fr}[00ff00]ARMURE : [-]{pt-br}[00ff00] ARMADURA: [-]{de}[00ff00]RÜSTUNG: [-]", tostring(monsterPugs[hover_object.guid].armour+bonus), "[7b7b7b]/", tostring((monsterPugs[hover_object.guid].armour*2)+bonus), "[-]\n\n"}) end
-				--Elusive
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ELUSIVE[-][i] - This enemy's higher Armour value is used until successfully Blocked.[/i]\n\n{ru}[00ff00]НЕУЛОВИМЫЙ[-][i] - Меньшее значение брони используется только в фазе ближнего боя и только если все атаки этого врага были успешно заблокированы.[/i]\n\n{zh-tw}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{zh-cn}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{ko}[00ff00]은밀함[-][i] - 이 공격을 성공적으로 방어하기 전 까지, 더 높은 방어구 수치를 적용.[/i]\n\n{es}[00ff00]ELUSIVO[-][i] - El valor de Armadura más alto de este enemigo se utiliza hasta que es Bloqueado con éxito.[/i]\n\n{fr}[00ff00]ELUSIVE[-][i] - La valeur d'armure la plus élevée de cet ennemi est utilisée jusqu'à ce qu'il soit bloqué avec succès.[/i]\n\n{pt-br}[00ff00]ELUSIVO[-][i] - O valor mais alto de Armadura desse inimigo é usado até que ele seja bloqueado com sucesso[/i]\n\n{de}[00ff00]ELUSIV[-][i] - Der höhere Rüstungswert dieses Gegners wird verwendet, bis er erfolgreich geblockt wird[/i]\n\n"}) end
-				--defender
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].defend~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DEFENDER[-][i] - The first enemy attacked by the player gets {ru}[00ff00]ПРИКРЫТИЕ[-][i] - Первый враг, атакованный игроком, получает {zh-tw}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{zh-cn}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{ko}[00ff00]수비[-][i] - 플레이어가 처음 공격하는 적에게{es}[00ff00]DEFENSOR[-][i] - El primer enemigo atacado por el jugador obtiene {fr}[00ff00]DEFENDER[-][i] - Le premier ennemi attaqué par le joueur voit son armure augmentée {pt-br}[00ff00]DEFENSOR[-][i] - O primeiro inimigo atacado pelo jogador recebe {de}[00ff00]VERTEIDIGER[-][i] - Der erste vom Spieler angegriffene Feind erhält ", monsterPugs[hover_object.guid].defend, "{en} added to its armour.[/i]\n\n{ru} к его броне.[/i]\n\n{zh-tw}增加其护甲。[/i]\n\n{zh-cn}增加其护甲。[/i]\n\n{ko}방어구를 추가.[/i]\n\n{es} se añade a su armadura.[/i]\n\n{fr}ajouté à son armure.[/i]\n\n{pt-br} adicionado à sua armadura.[/i]\n\n{de} zu seiner Rüstung hinzugefügt.[/i]\n\n"}) end
-				--Fortified
-				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fortified~=nil and (gStates.monsterPerks[hover_object.guid]==nil or (gStates.monsterPerks[hover_object.guid].fortified==nil and gStates.monsterPerks[hover_object.guid].wallFortified==nil))) or (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fortified==nil and gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].fortified~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]FORTIFIED[-][i] - This enemy can't be attacked with Ranged attacks in the Range phase.[/i]\n\n{ru}[00ff00]УКРЕПЛЕННЫЙ[-][i] - Во время фазы боя на расстоянии против врага можно играть только Осадные атаки.[/i]\n\n{zh-tw}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{zh-cn}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{ko}[00ff00]요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]FORTIFICADO[-][i] - Este enemigo no puede ser atacado con ataques a distancia en la fase de Alcance.[/i]\n\n{fr}[00ff00]FORTIFIÉ[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance lors de la phase de portée.[/i]\n\n{pt-br}[00ff00]FORTIFICADO[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance na fase de alcance[/i]\n\n{de}[00ff00]VERTEIDIGT[-][i] - Dieser Gegner kann in der Fernkampfphase nicht mit Fernkampfangriffen angegriffen werden.[/i]\n\n"}) end
-				--double Fortified
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fortified~=nil and gStates.monsterPerks[hover_object.guid]~=nil and (gStates.monsterPerks[hover_object.guid].fortified~=nil or gStates.monsterPerks[hover_object.guid].wallFortified~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DOUBLE FORTIFIED[-][i] - This enemy can't be attacked with Ranged or Siege attacks in the Range phase.[/i]\n\n{ru}[00ff00]ДВАЖДЫ УКРЕПЛЕННЫЙ[-][i] - Враг не может быть атакован во время фазы боя на расстоянии.[/i]\n\n{zh-tw}[00ff00]双重城防[-][i] - 在远程攻击阶段不能使用远程攻击或攻城攻击攻击该敌人。[/i]\n\n{zh-cn}[00ff00]双重城防[-][i] - 在远程攻击阶段不能使用远程攻击或攻城攻击攻击该敌人。[/i]\n\n{ko}[00ff00]이중 요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격이나 공성 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]DOBLE FORTIFICADO[-][i] - Este enemigo no puede ser atacado con ataques a distancia o de asedio en la fase de alcance.[/i]\n\n{fr}[00ff00]DOUBLE FORTIFIÉ[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance ou de siège lors de la phase à distance.[/i]\n\n{pt-br}[00ff00]DUPLAMENTE FORTIFIED[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance ou de cerco na fase de alcance[/i]\n\n{de}[00ff00]DOPPEL-FORTIFIED[-][i] - Dieser Feind kann in der Fernkampfphase nicht mit Fernkampf- oder Belagerungsangriffen angegriffen werden[/i]\n\n"}) end
-				--Wall Fortified
-				if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].wallFortified~=nil and (monsterPugs[hover_object.guid]==nil or monsterPugs[hover_object.guid].fortified==nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]WALL FORTIFIED[-][i] - This enemy can't be attacked with Ranged attacks in the Range phase.[/i]\n\n{ru}[00ff00]УКРЕПЛЕННЫЙ ЗА СТЕНОЙ[-][i] - Во время фазы боя на расстоянии против врага можно играть только Осадные атаки.[/i]\n\n{zh-tw}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{zh-cn}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{ko}[00ff00]벽 요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]PARED FORTIFICADA[-][i] - Este enemigo no puede ser atacado con ataques a distancia en la fase de Alcance.[/i]\n\n{fr}[00ff00]WALL FORTIFIED[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance lors de la phase de portée.[/i]\n\n{pt-br}[00ff00]PAREDE FORTIFICADA[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance na fase de alcance[/i]\n\n{de}[00ff00]WALL FORTIFIED[-][i] - Dieser Gegner kann in der Fernkampfphase nicht mit Fernkampfangriffen angegriffen werden.[/i]\n\n"}) end
-				--Unfortified
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].unfortified~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]UN-FORTIFIED[-][i] - This enemy ignores site fortifications, and can be attacked with Range and Siege attacks.[/i]\n\n{ru}[00ff00]НЕУКРЕПЛЕННЫЙ[-][i] - Этот враг игнорирует все местные укрепления и может быть атакован с помощью Дальних и Осадных атак.[/i]\n\n{zh-tw}[00ff00]不设城防[-][i] - 该敌人无视地点城防，可以使用远程攻击和攻城攻击。[/i]\n\n{zh-cn}[00ff00]不设城防[-][i] - 该敌人无视地点城防，可以使用远程攻击和攻城攻击。[/i]\n\n{ko}[00ff00]무방비[-][i] - 이 적을 요새화를 무시하고 원거리 및 공성 공격으로 공격할 수 있음.[/i]\n\n{es}[00ff00]NO FORTIFICADO[-][i] - Este enemigo ignora las fortificaciones del sitio, y puede ser atacado con ataques de Alcance y Asedio.[/i]\n\n{fr}[00ff00]NON FORTIFIE[-][i] - Cet ennemi ignore les fortifications du site et peut être attaqué avec des attaques à distance et de siège.[/i]\n\n{pt-br}[00ff00]NÃO FORTIFICADO[-][i] - Esse inimigo ignora as fortificações do local e pode ser atacado com ataques de longo alcance e de cerco.[/i]\n\n{de}[00ff00]UNVERBESSERT[-][i] - Dieser Feind ignoriert Standortbefestigungen und kann mit Fernkampf- und Belagerungsangriffen angegriffen werden.[/i]\n\n"}) end
-				--physical resistance
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].pResist~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]PHYSICAL RESISTANCE[-][i] - Physical attacks are halved against this enemy.[/i]\n\n{ru}[00ff00]ФИЗИЧЕСКОЕ СОПРОТИВЛЕНИЕ[-][i] - Значения Физических атак делятся на 2, с округлением вниз[/i]\n\n{zh-tw}[00ff00]物理抗性[-][i] - 对该敌人的物理攻击减半。[/i]\n\n{zh-cn}[00ff00]物理抗性[-][i] - 对该敌人的物理攻击减半。[/i]\n\n{ko}[00ff00]물리 저항[-][i] - 모든 물리 공격이 반감됨.[/i]\n\n{es}[00ff00]RESISTENCIA FÍSICA[-][i] - Los ataques físicos se reducen a la mitad contra este enemigo.[/i]\n\n{fr}[00ff00]RÉSISTANCE PHYSIQUE[-][i] - Les attaques physiques sont réduites de moitié contre cet ennemi.[/i]\n\n{pt-br}[00ff00]RESISTÊNCIA FÍSICA[-][i] - Os ataques físicos são reduzidos à metade contra esse inimigo.[/i]\n\n{de}[00ff00]PHYSISCHE RESISTENZ[-][i] - Physische Angriffe werden gegen diesen Feind halbiert.[/i]\n\n"}) end
-				--fire resistance
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fResist~=nil and monsterPugs[hover_object.guid].iResist==nil then monsterDescription=joinLang({monsterDescription, "{en}[ff0000]FIRE RESISTANCE[-][i] - Fire attacks are halved against this enemy. This enemy can't be targeted by Unit abilities powered by Red Mana, nor from non-attack effects of Red cards.[/i]\n\n{ru}[ff0000]СОПРОТИВЛЕНИЕ ОГНЮ[-][i] - Значения Огненных атак делятся на 2, с округлением вниз. Этот отряд игнорирует все эффекты карт и способности отрядов, сыгранные за красную ману (кроме эффектов Атак).[/i]\n\n{zh-tw}[ff0000]火焰抗性[-][i] - 对该敌人的火焰攻击减半。该敌人无法成为由红色法力驱动的单位能力的目标，也无法成为红色卡牌的非攻击效果的目标。[/i]\n\n{zh-cn}[ff0000]火焰抗性[-][i] - 对该敌人的火焰攻击减半。该敌人无法成为由红色法力驱动的单位能力的目标，也无法成为红色卡牌的非攻击效果的目标。[/i]\n\n{ko}[ff0000]불 저항[-][i] - 모든 불 공격이 반감됨. 이 적은 적색 카드나 적색 마나로 강화한 유닛의 (공격이 아닌) 특수 효과를 무시함.[/i]\n\n{es}[ff0000]RESISTENCIA AL FUEGO[-][i] - Los ataques de fuego se reducen a la mitad contra este enemigo. Este enemigo no puede ser objetivo de habilidades de Unidad potenciadas con Maná Rojo, ni de efectos de no-ataque de cartas Rojas.[/i]\n\n{fr}[ff0000]RÉSISTANCE AU FEU[-][i] - Les attaques de feu sont réduites de moitié contre cet ennemi. Cet ennemi ne peut pas être ciblé par des capacités d'unité alimentées par du mana rouge, ni par des effets de cartes rouges qui n'attaquent pas.[/i]\n\n{pt-br}[ff0000]RESISTÊNCIA AO FOGO[-][i] - Os ataques de fogo são reduzidos à metade contra esse inimigo. Esse inimigo não pode ser alvo de habilidades de unidade alimentadas por Mana vermelha nem de efeitos de cartas vermelhas que não sejam de ataque.[/i]\n\n{de}[ff0000]FEUERWIDERSTAND[-][i] - Feuerangriffe werden gegen diesen Feind halbiert. Dieser Feind kann weder von Einheitenfähigkeiten, die durch rotes Mana angetrieben werden, noch von Nicht-Angriffseffekten roter Karten angegriffen werden.[/i]\n\n"}) end
-				--ice resistance
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].iResist~=nil and monsterPugs[hover_object.guid].fResist==nil then monsterDescription=joinLang({monsterDescription, "{en}[5a5aff]ICE RESISTANCE[-][i] - Ice attacks are halved against this enemy. This enemy can't be targeted by Unit abilities powered by Blue Mana, nor from non-attack effects of Blue cards.[/i]\n\n{ru}[5a5aff]СОПРОТИВЛЕНИЕ ЛЬДУ[-][i] - Значения Ледяных атак делятся на 2, с округлением вниз. Этот отряд игнорирует все эффекты карт и способности отрядов, сыгранные за синюю ману (кроме эффектов Атак).[/i]\n\n{zh-tw}[5a5aff]寒冰抗性[-][i] - 此敌人受到的寒冰攻击减半。该敌人不能成为由蓝色法力驱动的单位异能的目标，也不能成为蓝色卡牌非攻击效果的目标。[/i]\n\n{zh-cn}[5a5aff]寒冰抗性[-][i] - 此敌人受到的寒冰攻击减半。该敌人不能成为由蓝色法力驱动的单位异能的目标，也不能成为蓝色卡牌非攻击效果的目标。[/i]\n\n{ko}[5a5aff]얼음 저항[-][i] - 모든 얼음 공격이 반감됨. 이 적은 청색 카드나 총색 마나로 강화한 유닛의 (공격이 아닌) 특수 효과를 무시함.[/i]\n\n{es}[5a5aff]RESISTENCIA AL HIELO[-][i] - Los ataques de hielo se reducen a la mitad contra este enemigo. Este enemigo no puede ser objetivo de habilidades de Unidad potenciadas con Maná Azul, ni de efectos de no-ataque de cartas Azules.[/i]\n\n{fr}[5a5aff]RÉSISTANCE À LA GLACE[-][i] - Les attaques de glace sont réduites de moitié contre cet ennemi. Cet ennemi ne peut pas être ciblé par les capacités d'unité alimentées par du mana bleu, ni par les effets non offensifs des cartes bleues.[/i]\n\n{pt-br}[5a5aff]RESISTÊNCIA AO GELO[-][i] - Os ataques de gelo são reduzidos à metade contra esse inimigo. Esse inimigo não pode ser alvo de habilidades de Unidade alimentadas por Mana Azul nem de efeitos de cartas Azuis que não sejam de ataque.[/i]\n\n{de}[5a5aff]EISWIDERSTAND[-][i] - Eisangriffe werden gegen diesen Feind halbiert. Dieser Feind kann weder von Einheitenfähigkeiten, die durch blaues Mana angetrieben werden, noch von Nicht-Angriffseffekten blauer Karten angegriffen werden.[/i]\n\n"}) end
-				--cold fire resistance
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].iResist~=nil and monsterPugs[hover_object.guid].fResist~=nil then monsterDescription=joinLang({monsterDescription, "{en}[ff00fe]COLD FIRE RESISTANCE[-][i] - Fire, Ice and Cold Fire attacks are halved against this enemy. This enemy can't be targeted by Unit abilities powered by Red or Blue Mana, nor from non-attack effects of Red or Blue cards.[/i]\n\n{ru}[ff00fe]СОПРОТИВЛЕНИЕ ОГНЮ И ЛЬДУ[-][i] - Значения Огненных, Ледяных и Огненно-ледяных атак делятся на 2, с округлением вниз. Этот отряд игнорирует все эффекты карт и способности отрядов, сыгранные за красную или синюю ману (кроме эффектов Атак).[/i]\n\n{zh-tw}[ff00fe]冰火抗性[-][i] - 此敌人受到的火、冰和冰火攻击减半。该敌人不能成为由红色或蓝色法力驱动的单位能力的目标，也不能成为红色或蓝色卡牌的非攻击效果的目标。[/i]\n\n{zh-cn}[ff00fe]冰火抗性[-][i] - 此敌人受到的火、冰和冰火攻击减半。该敌人不能成为由红色或蓝色法力驱动的单位能力的目标，也不能成为红色或蓝色卡牌的非攻击效果的目标。[/i]\n\n{ko}[ff00fe]차가운불 저항[-][i] - 모든 불, 얼음, 차가운 불 공격이 반감됨. 이 적은 청,적색 카드나 청,적색 마나로 강화한 유닛의 (공격이 아닌) 특수 효과를 무시함..[/i]\n\n{es}[ff00fe]RESISTENCIA AL FUEGO FRÍO[-][i] - Los ataques de Fuego, Hielo y Fuego Frío se reducen a la mitad contra este enemigo. Este enemigo no puede ser objetivo de habilidades de Unidad potenciadas con Maná Rojo o Azul, ni de efectos de no-ataque de cartas Rojas o Azules.[/i]\n\n{fr}[ff00fe]RÉSISTANCE AU FEU FROID[-][i] - Les attaques de Feu, de Glace et de Feu froid sont réduites de moitié contre cet ennemi. Cet ennemi ne peut pas être ciblé par des capacités d'unité alimentées par du mana rouge ou bleu, ni par des effets non offensifs de cartes rouges ou bleues.[/i]\n\n{pt-br}[ff00fe]RESISTÊNCIA A FOGO FRIO[-][i] - Os ataques de Fogo, Gelo e Fogo Frio são reduzidos à metade contra esse inimigo. Esse inimigo não pode ser alvo de habilidades de unidade alimentadas por Mana vermelha ou azul, nem de efeitos que não sejam de ataque de cartas vermelhas ou azuis.[/i]\n\n{de}[ff00fe]KALTE FEUERWIDERSTAND[-][i] - Feuer-, Eis- und Kältefeuer-Angriffe werden gegen diesen Feind halbiert. Dieser Feind kann weder von Einheitenfähigkeiten, die durch rotes oder blaues Mana angetrieben werden, noch von Nicht-Angriffseffekten roter oder blauer Karten angegriffen werden.[/i]\n\n"}) end
-				--arcane immunity
-				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].arcaneImmunity~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].arcaneImmunity~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARCANE IMMUNITY[-][i] - This enemy can't be targeted by non-Attack or non-Block effects from any source. Effects that directly affect an enemy's attack(s) still apply.[/i]\n\n{ru}[00ff00]ЗАЩИТА ОТ МАГИИ[-][i] - На врага не влияют никакие эффекты, кроме атак и блоков. Эффекты, действующие напрямую на атаку этого врага, по-прежнему можно использовать.[/i]\n\n{zh-tw}[00ff00]魔法免疫[-][i] - 该敌人无法成为任何来源的非攻击或非阻断效果的目标。直接影响敌人攻击的效果仍然适用。[/i]\n\n{zh-cn}[00ff00]魔法免疫[-][i] - 该敌人无法成为任何来源的非攻击或非阻断效果的目标。直接影响敌人攻击的效果仍然适用。[/i]\n\n{ko}[00ff00]마법 면역[-][i] - 이 적은 공격, 방어를 제외한 그 어떠한 특수 효과를 무시함. 적의 공격에 직접 영향을 주는 효과는 여전히 적용.[/i]\n\n{es}[00ff00]INMUNIDAD ARCANA[-][i] - Este enemigo no puede ser objetivo de efectos que no sean de Ataque o Bloqueo de ninguna fuente. Los efectos que afectan directamente a los ataques de un enemigo se siguen aplicando.[/i]\n\n{fr}[00ff00]IMMUNITÉ DE L'ARCANE[-][i] - Cet ennemi ne peut pas être ciblé par des effets autres qu'une attaque ou un blocage, quelle qu'en soit la source. Les effets qui affectent directement les attaques de l'ennemi s'appliquent toujours.[/i]\n\n{pt-br}[00ff00]IMUNIDADE ARCANA[-][i] - Esse inimigo não pode ser alvo de efeitos que não sejam de ataque ou de bloqueio de nenhuma fonte. Os efeitos que afetam diretamente o(s) ataque(s) de um inimigo ainda se aplicam.[/i]\n\n{de}[00ff00]ARKANE IMMUNITÄT[-][i] - Dieser Feind kann nicht durch Nicht-Angriffs- oder Nicht-Block-Effekte aus irgendeiner Quelle angegriffen werden. Effekte, die sich direkt auf die Attacke(n) des Feindes auswirken, gelten weiterhin.[/i]\n\n"}) end
-				--reward
-				local factionTranslate=({	["Dark"]="{en}Dark Crusader{ru}Тёмный крестоносец{zh-tw}黑暗遠征軍{zh-cn}黑暗远征军{ko}암흑 십자군{es}Cruzado Oscuro{fr}Croisé des ténèbres{pt-br}Cruzado das Trevas{de}Dunkler Kreuzritter",
-											["Elem"]="{en}Elementalist{ru}Элементалист{zh-tw}元素之力{zh-cn}元素之力{ko}원소술사{es}Elementalista{fr}Élémentaliste{pt-br}Elementalista{de}Elementarist",
-											["Apoc"]="{en}Apocalypse Cult{ru}Культ Апокалипсиса{zh-tw}末日教團{zh-cn}末日教团{ko}아포칼립스 컬트{es}Culto del Apocalipsis{fr}Culte de l'Apocalypse{pt-br}Culto do Apocalipse{de}Apokalypse-Kult",
-											["Coun"]="{en}Council of the Void{ru}Совет Пустоты{zh-tw}虛空議會{zh-cn}虚空议会{ko}공허 의회{es}Consejo del Vacío{fr}Conseil du Vide{pt-br}Conselho do Vazio{de}Rat der Leere"})
-				local used=false
-				local rewardLabel="{en}[00ff00]FACTION REWARD:[-] {ru}[00ff00]НАГРАДЫ ФРАКЦИИ:[-] {zh-tw}[00ff00]派系奖励：[-] {zh-cn}[00ff00]派系奖励：[-] {ko}[00ff00]세력 보상:[-] {es}[00ff00]RECOMPENSA DE FACCIÓN:[-] {fr}[00ff00]RÉCOMPENSE DE FACTION:[-] {pt-br}[00ff00]RECOMPENSA DE FAÇÃO:[-] {de}[00ff00]FACTION REWARD:[-] "
-				local printed=monsterPugs[hover_object.guid]
-				if printed~=nil and printed.pugType~="yellow" and type(printed.reward)=="number" and printed.reward>0 and factionRewardUsesJustFame(printed.faction)~=true then
-					local faction=factionTranslate[printed.faction]
-					if faction~=nil then monsterDescription=joinLang({monsterDescription,rewardLabel,faction}) used=true end
-				end
-				local perks=gStates.monsterPerks[hover_object.guid]
-				if perks~=nil and type(perks.reward)=="number" and perks.reward>0 and factionRewardUsesJustFame(perks.faction)~=true then
-					local faction=factionTranslate[perks.faction]
-					if faction~=nil then
-						if used==true then monsterDescription=joinLang({monsterDescription,"\n"}) end
-						monsterDescription=joinLang({monsterDescription,rewardLabel,faction})
-						used=true
-					end
-				end
-				if used==true then monsterDescription=joinLang({monsterDescription,"\n\n"}) end
-				--fame: each faction independently uses +1 Fame when its own reward pile has been removed.
-				local rewardPug,rewardPerk=monsterFactionRewardFameFallback(hover_object.guid)
-				local reward=rewardPug+rewardPerk
-				local bonus=0
-				if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].fame~=nil then bonus=gStates.monsterPerks[hover_object.guid].fame end
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fame~=nil and monsterPugs[hover_object.guid].fame>0 then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]FAME: [-]{ru}[00ff00]СЛАВА: [-]{zh-tw}[00ff00]名望：[-]{zh-cn}[00ff00]名望：[-]{ko}[00ff00]명성: [-]{es}[00ff00]FAMA: [-]{fr}[00ff00]FAME : [-]{pt-br}[00ff00]FAMA: [-]{de}[00ff00]RUHM: [-]", tostring(monsterPugs[hover_object.guid].fame+reward+bonus)}) end
-				if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].dragonGround==true then
-					local headName=apocalypseDragonGroundHeadNameForGUID(hover_object.guid)
-					if headName=="Control" then monsterDescription=joinLang({monsterDescription,"{en}\n[00ff00]CONTROL HEAD[-] - This head may never be attacked.{ru}\n[00ff00]ГОЛОВА КОНТРОЛЯ[-] - Эту голову нельзя атаковать.{zh-tw}\n[00ff00]控制龍首[-] - 此龍首永遠不能被攻擊。{zh-cn}\n[00ff00]控制龙首[-] - 此龙首永远不能被攻击。{ko}\n[00ff00]통제 머리[-] - 이 머리는 공격할 수 없습니다.{es}\n[00ff00]CABEZA DE CONTROL[-] - Esta cabeza nunca puede ser atacada.{fr}\n[00ff00]TÊTE DE CONTRÔLE[-] - Cette tête ne peut jamais être attaquée.{pt-br}\n[00ff00]CABEÇA DE CONTROLE[-] - Esta cabeça nunca pode ser atacada.{de}\n[00ff00]KONTROLLKOPF[-] - Dieser Kopf kann niemals angegriffen werden."}) end
-				end
-			end
-		end
-		hover_object.setDescription(monsterDescription)
-	end
-end
-
---Face-down cards in a player play area get a physical decal instead of Object UI.
-local cardRemoveDecalURL="https://steamusercontent-a.akamaihd.net/ugc/1661232230977162756/90D8AEB60005119DD4182B5FD24D7BDD8243B5F3/"
-local function cardInPlayerPlayArea(cardGUID)
-	for a=1, 4 do
-		local zone=getObjectFromGUID(playerPlayAreas[a])
-		if zone~=nil then for _, card in pairs(zone.getObjects()) do if card.guid==cardGUID then return true end end end
-	end
-	return false
-end
-local function removeCardRemoveDecal(card)
-	if card==nil then return end
-	local decals={}
-	local changed=false
-	for _, decal in pairs(card.getDecals() or {}) do
-		if decal.name=="Card Remove" then changed=true else decals[#decals+1]=decal end
-	end
-	if changed==true then card.setDecals(decals) end
-end
-local function refreshCardRemoveDecal(card)
-	if card==nil or card.type~="Card" or not (gameCards[card.guid]==nil or gameCards[card.guid].full==nil) then return end
-	removeCardRemoveDecal(card)
-	if card.is_face_down==true and cardInPlayerPlayArea(card.guid)==true then
-		--Face-down cards are rotated over, so put the decal on the card's local underside.
-		card.addDecal({name="Card Remove", url=cardRemoveDecalURL, position={0,-0.5,0}, rotation={270,180,180}, scale={1.7,2.0,1}})
-	end
+	refreshMonsterHoverDescription(hover_object)
 end
 
 --Update skill Locations, Update Players Location details, and Update the UI and trigger a Level up if a mage shield was moved manually
@@ -991,7 +600,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		safeWaitFrames("Events",function() apocalypseQuestRefreshOfferButtons() end,2)
 	end
 	--Avatar Quest eligibility is refreshed after the avatar has settled and its new hex has been
-	--recorded in avatarlocationDetails(). Do not do an earlier full-offer refresh against the old hex.
+	--recorded by the Map avatar-location handler. Do not do an earlier full-offer refresh against the old hex.
 	if dropped_object~=nil and dropped_object.type=="Card" then
 		safeWaitFrames("Events",function() local card=getObjectFromGUID(droppedGUID) if card~=nil then refreshCardRemoveDecal(card) end end, 2)
 	end
@@ -1077,16 +686,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		return
 	end
 
-	--Update Players Location details
-	local keepShieldMatch={	{keep=false, keepShield=false, city=false, cityShield=false},
-							{keep=false, keepShield=false, city=false, cityShield=false},
-							{keep=false, keepShield=false, city=false, cityShield=false},
-							{keep=false, keepShield=false, city=false, cityShield=false},
-							{keep=false, keepShield=false, city=false, cityShield=false},
-							{keep=false, keepShield=false, city=false, cityShield=false},
-							{keep=false, keepShield=false, city=false, cityShield=false}}
-	local keepFound=false
-	local cityFound="False"
+	--Update Players Location details.
 	for _, avatar in pairs(mageKnights) do
 		if (dropped_object.guid==avatar.model or dropped_object.guid==avatar.standee or dropped_object.guid==avatar.token) then --and avatar.mage~="Volkare" then
 			local avatarPlayerIndex=nil
@@ -1111,247 +711,15 @@ function __onObjectDrop_raw(player_color, dropped_object)
 				safeWaitCondition("Events",function() if coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end, function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end, 1.5, function() if getObjectFromGUID(dropped_object.guid)~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end)
 				return
 			end
-			function avatarlocationDetails()
-				local attackedLocation=nil
-				local horsemenGladeAssault=false
-				local avatarChangedHex=false
-				if player_color~=nil and turnOrder[gStates.turnNumber].mage==avatar.mage then
-					avatarChangedHex=avatarMovedFromPickedUpHex(dropped_object.getPosition())
-					if avatarChangedHex==true then
-						apocalypseQuestUnderSiegeMarkMoved(gStates.turnNumber)
-						clearWallAssaultChoice()
-						assaultApproachOrigin=nil
-						assaultTargetPosition=nil
-						leaveAvatarSite(turnOrder[gStates.turnNumber])
-						clearPendingCoopAssault()
-					end
-				end
-				playerPickedUpHex=nil
-				if getObjectFromGUID(dropped_object.guid)~=nil then
-					for _, playerDetails in pairs(turnOrder) do
-						if playerDetails.mage==avatar.mage then
-							playerDetails.avatarLocation=""
-							playerDetails.avatarSharedHex=nil
-							local droppedPos=dropped_object.getPosition()
-							local avatarPos={droppedPos[1], droppedPos[2], droppedPos[3]}--copy so neighbour math can safely mutate it
-							--check if avatar dropped on city card, then use the city model as the avatar location
-							local cityZoneFound=false
-							for zone, citySearch in pairs(cityScriptZones) do
-								local zoneObj=getObjectFromGUID(zone)
-								if zoneObj~=nil then
-									for _, detail in pairs(zoneObj.getObjects()) do
-										if detail.guid==dropped_object.guid then
-											local cityObj=nil
-											if zone==volkare.discZone and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then cityObj=getObjectFromGUID(gStates.volkareModel)
-											else cityObj=getObjectFromGUID(citySearch.cityGUID) end
-											if cityObj~=nil then local cityPos=cityObj.getPosition() avatarPos={cityPos[1],1.5,cityPos[3]} end
-											cityZoneFound=true
-											break
-										end
-									end
-								end
-								if cityZoneFound==true then break end
-							end
-							--Use one cached map snapshot for the current hex and its six neighbours.
-							local volkareCampKeepAllowed=volkareCampAsCityConquered()==true and volkareCampContributionShieldCount(playerDetails)>0
-							local mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets=avatarLocationMapSnapshot()
-								for keepSearch=1, 7, 1 do
-									--Volkare can remove a City model during this loop, so retain the old live-refresh behaviour for him.
-									if keepSearch>1 and playerDetails.mage=="Volkare" then
-										mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets=avatarLocationMapSnapshot()
-									end
-									local locatedTerrain, bearing, _, hexFeature=terrainHexAtPosition(avatarPos, mapTerrainObjects, mapObjectPositions, mapTerrainRotations)
-								hexFeature=hexFeature or ""
-									for _, terrain in ipairs(avatarLocationRelevantObjects(locatedTerrain, avatarPos, mapObjectBuckets)) do--terrain tile + nearby physical objects only
-										--work with terrain tiles
-										local tilePos=mapObjectPositions[terrain.guid] or terrain.getPosition()
-										local avatarToTileDistSquared=((avatarPos[1]-tilePos[1])^2)+((avatarPos[3]-tilePos[3])^2)
-									if terrain==locatedTerrain then
-										if keepSearch==1 then
-											playerDetails.avatarLocation=hexFeature
-											if gStates.gameScenario=="Fury of the Apocalypse Dragon" and avatarChangedHex==true and playerDetails.mage~="Volkare" and
-												turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and playerDetails.avatarLocation:sub(1,4)=="city" then
-												gStates.furyHeroEnteredCity=true
-											end
-											if againstHorsemenCentralGladeHex(locatedTerrain,bearing)==true then
-												if gStates.againstHorsemenRitualStarted~=true then playerDetails.avatarSharedHex=againstHorsemenSharedHexKey
-												elseif playerDetails.mage~="Volkare" and turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and avatarChangedHex==true then horsemenGladeAssault=true end
-											end
-											if playerDetails.mage~="Volkare" and turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and attackedLocation==nil and horsemenGladeAssault==false
-												and (avatarChangedHex==true or next(gStates.attackedMonsters)==nil)
-												and (playerDetails.avatarLocation=="keep" or playerDetails.avatarLocation=="mage tower" or playerDetails.avatarLocation:sub(1, 4)=="city" or playerDetails.avatarLocation=="Volkare's Camp" or playerDetails.avatarLocation=="hidden valley" or playerDetails.avatarLocation=="necropolis") then
-												attackedLocation="Attack"..playerDetails.mage--was "Locati" instead of "Attack"
-											end
-											if playerDetails.mage=="Volkare" and gStates.preEndTurn==false and attackedLocation==nil and playerDetails.avatarLocation:sub(1, 4)=="city" then
-												if gStates.gameScenario~="Volkare's Quest" then
-													for index, modelTerrain in pairs(gStates.cityRevealed) do
-														if modelTerrain.terrain==terrain.guid then
-															getObjectFromGUID(trashCan).putObject(getObjectFromGUID(modelTerrain.model))
-															gStates.cityRevealed[index].state="defeated"
-															break
-														end
-													end
-												end
-											end
-										end
-										if hexFeature=="keep" or (volkareCampKeepAllowed==true and (hexFeature=="Volkare's Camp" or (gStates.cityVolkareTile==terrain.guid and bearing=="center"))) then
-											keepShieldMatch[keepSearch]["keep"]=true
-											if keepShieldMatch[keepSearch]["keepShield"]==true then keepFound=true end
-										end
-										if (hexFeature or ""):sub(1,4)=="city" then
-											keepShieldMatch[keepSearch]["city"]=true
-											if keepShieldMatch[keepSearch]["cityShield"]==true then cityFound=terrain.getName() end
-										end
-									end
-										if avatarToTileDistSquared<1 then
-										--work with Shields
-										if terrain.getName()=="Shield" and volkarePursuitShieldRegistered(terrain)~=true and ((terrain.getDescription()==playerDetails.mage and (gStates.coop==0 or gStates.WarOfFourComp==true)) or (gStates.coop==1 and gStates.WarOfFourComp~=true)) then
-											keepShieldMatch[keepSearch]["keepShield"]=true
-											if keepShieldMatch[keepSearch]["keep"]==true then keepFound=true end
-										end
-
-										--work with Cities
-										local temp=terrain.guid
-										if terrain.guid=="938cd3" or terrain.guid=="a0d7b3" then temp=volkare.model end
-										if temp==cityModel.white or	temp==cityModel.blue or	temp==cityModel.red or temp==cityModel.green or temp==volkare.terrainHex or	temp==volkare.model then
-											--flip garrisons during the day
-											if turnOrder[gStates.turnNumber].mage==avatar.mage and gStates.preEndTurn==false and gStates.cityMonsterQty[temp]~=nil and gStates.autoFlip==true and temp~=volkare.model then
-												local broadcast=false
-												for monsterGUID, monster in pairs(gStates.cityMonsterQty[temp]) do
-													if monsterGUID~="extra" then
-														local monsterObj=getObjectFromGUID(monsterGUID)
-														if monsterObj~=nil and monsterObj.is_face_down==true then monsterObj.flip() broadcast=true end
-													end
-												end
-												if broadcast==true then
-													if temp==volkare.model then
-														broadcastToAll("{en}Volkare's Army Revealed{ru}Армия Волкара раскрыта{zh-tw}沃里卡军队揭示了{zh-cn}沃里卡军队揭示了{ko}볼케어의 군대가 공개되었습니다{es}Se revela el ejército de Volkare{fr}L'armée de Volkare révélée{pt-br}Exército de Volkare Revelado{de}Volkare's Armee aufgedeckt", {1,1,0.5})
-													else
-														broadcastToAll("{en}Site Garrison Revealed{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5})
-													end
-												end
-											end
-											--Assult Volkare
-											if playerDetails.mage~="Volkare" and keepSearch==1 and temp==volkare.model then
-												playerDetails.avatarLocation="Volkare's Camp"
-												if player_color~=nil and gStates.preEndTurn==false and attackedLocation~="Volkar"..playerDetails.mage and (avatarChangedHex==true or next(gStates.attackedMonsters)==nil) then
-													attackedLocation="Volkar"..playerDetails.mage
-												end
-											end
-											--
-											if terrain.getName()~="Volkare's Camp" then
-												if playerDetails.defeatedCities[terrain.guid]~=nil then
-													keepShieldMatch[keepSearch]["cityShield"]=true
-													if keepShieldMatch[keepSearch]["city"]==true then cityFound=terrain.getGMNotes() end
-												end
-											else
-												if volkareCampKeepAllowed==true and playerDetails.defeatedCities[terrain.guid]~=nil then
-													keepShieldMatch[keepSearch]["keepShield"]=true
-													if keepShieldMatch[keepSearch]["keep"]==true then keepFound=true end
-												end
-											end
-											if gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="The Hidden Valley Blitz"
-												or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The Realm of the Dead Blitz"
-												or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Dungeon Lords"
-												or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Mines Liberation" then
-												keepShieldMatch[keepSearch]["cityShield"]=true
-												if keepShieldMatch[keepSearch]["city"]==true then cityFound=terrain.getGMNotes() end
-												playerDetails.defeatedCities[terrain.guid]="Assist"
-											end
-										end
-										--flip garrisons during the day
-										if gStates.autoFlip==true and gStates.dayRound==true and turnOrder[gStates.turnNumber].mage==avatar.mage and terrain.getRotationValues()[2]~=nil and (terrain.getRotationValues()[2].value=="Mage Tower Garrison" or terrain.getRotationValues()[2].value=="Keep Garrison" or terrain.getRotationValues()[2].value=="Marauding Elementalist") then--and gStates.preEndTurn==false
-											if terrain.is_face_down==true then terrain.flip() broadcastToAll("{en}Site Garrison Revealed{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5}) end
-										end
-										--flip ruins at night and Lost Relic dragons day or night
-										if gStates.autoFlip==true and turnOrder[gStates.turnNumber].mage==avatar.mage and ((playerDetails.avatarLocation=="ruin" and keepSearch==1) or (terrain.getRotationValues()[2]~=nil and terrain.getRotationValues()[2].value:sub(-8)=="Draconum")) then--and gStates.preEndTurn==false
-											if terrain.is_face_down==true then
-												terrain.flip()
-												if playerDetails.avatarLocation=="ruin" then broadcastToAll("{en}Ruin Site Revealed{ru}Руины были раскрыты{zh-tw}废墟板块被揭示了{zh-cn}废墟板块被揭示了{ko}유적 장소 공개됨{es}Sitio de Ruinas Revelado{fr}Site de Ruines Révélé{pt-br}Lugar de Ruinas Revelado{de}Ruinenstätte aufgedeckt", {1,1,0.5}) end
-												if playerDetails.avatarLocation~="ruin" then broadcastToAll("{en}Draconum Revealed{ru}Драконид раскрыт{zh-tw}龍人已揭示{zh-cn}龙人已揭示{ko}드라코넘 공개됨{es}Draconum Revelado{fr}Draconum Révélé{pt-br}Draconum Revelado{de}Draconum aufgedeckt", {1,1,0.5}) end
-											end
-										end
-									end
-								end
-								local avatarAdjust={{-2.39, 0}, {1.2, -2.05}, {2.39, 0}, {1.2, 2.05}, {-1.2, 2.05}, {-2.39, 0}, {0, 0}}
-								avatarPos[1]=avatarPos[1]+avatarAdjust[keepSearch][1]
-								avatarPos[3]=avatarPos[3]+avatarAdjust[keepSearch][2]
-								if cityFound=="False" then playerDetails.nearCity=false
-								else playerDetails.nearCity=true end
-								if keepFound==true then	playerDetails.nearKeep=true
-								else playerDetails.nearKeep=false end
-							end
-							if avatarPos[3]<-20 then playerDetails.avatarLocation="portal" end
-							break
-						end
-					end
-					if turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and avatarChangedHex==true and
-						apocalypseDragonLairContainsPosition~=nil and apocalypseDragonLairContainsPosition(dropped_object.getPosition())==true and
-						gStates.apocalypseDragonDefeated~=true then
-						attackedLocation=nil
-						local dragonApproach=nil
-						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then dragonApproach={playerPickedUpPos[1],playerPickedUpPos[2],playerPickedUpPos[3]} end
-						if apocalypseDragonBeginLairAssault(gStates.turnNumber,dragonApproach)==true then
-							turnOrder[gStates.turnNumber].avatarLocation="apocalypse dragon"
-						end
-					end
-					if horsemenGladeAssault==true then
-						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then assaultApproachOrigin={playerPickedUpPos[1],playerPickedUpPos[2],playerPickedUpPos[3]} end
-						local target=dropped_object.getPosition()
-						assaultTargetPosition={target[1],target[2],target[3]}
-						againstHorsemenBeginGladeAssault(gStates.turnNumber,assaultApproachOrigin)
-					elseif attackedLocation~=nil then
-						--Keep the actual hex this assault location was entered from. Long moves are deliberately
-						--left ambiguous so the wall interface can ask which side was used.
-						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then assaultApproachOrigin={playerPickedUpPos[1], playerPickedUpPos[2], playerPickedUpPos[3]} end
-						local target=dropped_object.getPosition()
-						assaultTargetPosition={target[1], target[2], target[3]}
-						local targetFeature=turnOrder[gStates.turnNumber].avatarLocation
-						if (targetFeature=="keep" or targetFeature=="mage tower") and wallAssaultChoiceResult==nil and wallAssaultChoiceNeeded(assaultTargetPosition, assaultApproachOrigin)==true then showWallAssaultChoice("attackLocation", attackedLocation, player_color)
-						else attackLocation(nil, "-1", attackedLocation) end
-					end
-					--adjust the hand size
-					local cityConversion={["White City"]=GUID.zone.whiteCity, ["Blue City"]=GUID.zone.blueCity, ["Red City"]=GUID.zone.redCity, ["Green City"]=GUID.zone.greenCity}
-					local previousHand=turnOrder[gStates.turnNumber].hand
-					local handBonusSource=nil
-					local raisedReturnCity=(gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") and gStates.volkareRaisedCity==true
-					local nearCityForHand=turnOrder[gStates.turnNumber].nearCity==true and raisedReturnCity~=true
-					if (turnOrder[gStates.turnNumber].mage==avatar.mage and turnOrder[gStates.turnNumber].nearKeep==true) or nearCityForHand then
-						if nearCityForHand and cityFound~="False" then
-							if turnOrder[gStates.turnNumber].defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Lead" then turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+2 handBonusSource="City" end
-							if turnOrder[gStates.turnNumber].defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Assist" then turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+1 handBonusSource="City" end
-						end
-						if (turnOrder[gStates.turnNumber].nearKeep==true and nearCityForHand==false) or
-							(turnOrder[gStates.turnNumber].nearKeep==true and nearCityForHand==true and turnOrder[gStates.turnNumber].keepsBeat>1) then
-							turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+turnOrder[gStates.turnNumber].keepsBeat
-							if turnOrder[gStates.turnNumber].keepsBeat>0 then handBonusSource="Keep" end
-						end
-					else
-						turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand
-					end
-					if turnOrder[gStates.turnNumber].hand~=previousHand then
-						if handBonusSource=="City" then broadcastToAll("{en}Hand size increased from proximity to City{ru}Предел карт в руке увеличен из-за близости города{zh-tw}手牌数量因靠近城市而增加{zh-cn}手牌数量因靠近城市而增加{ko}인접한 도시에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Ciudad.{fr}La taille de la main a augmenté de la proximité à la Ville{pt-br}O tamanho da mão aumentou devido à proximidade da Cidade{de}Handgröße durch Nähe zur Stadt erhöht", positionToColor(gStates.turnNumber)) end
-						if handBonusSource=="Keep" then broadcastToAll("{en}Hand size increased from proximity to Keep{ru}Предел карт в руке увеличен из-за близости крепости{zh-tw}手牌数量增加到最大值{zh-cn}手牌数量增加到最大值{ko}인접한 성에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Fortaleza{fr}La taille de la main a augmenté de la proximité à la Keep{pt-br}O tamanho da mão aumentou com a proximidade de Keep{de}Handgröße erhöht sich durch die Nähe zu Keep", positionToColor(gStates.turnNumber)) end
-					end
-					--Reset attack icon and interaction after leaving a hex, but preserve an interaction if the avatar was only repositioned on the same hex.
-					if turnOrder[gStates.turnNumber].mage==avatar.mage and attackedLocation==nil and horsemenGladeAssault==false and (avatarChangedHex==true or (next(gStates.attackedMonsters)==nil and UI.getAttribute("zigguratPyramidInteract", "active")~="true")) then
-						turnOrder[gStates.turnNumber].combatIconHide="None" gStates.monsterOffsetX=0 gStates.monsterOffsetZ=0
-					end
-					--Avatar location directly changes Plunder/Pursuit availability.
-					--Invalidate the cached menu; the normal location UI refresh will rebuild it when relevant.
-					outOfTurnUIStateKey=nil
-					mainUIUpdate("Updated player location Details")
-					--Quest step availability can depend on the active Mage Knight's current map hex.
-					--Use the serialized offer refresh instead of touching Object UI directly here. fakeDropAvatar()
-					--can reach this delayed location callback while a Quest offer refill is still physically moving cards;
-					--apocalypseQuestRefreshOfferButtons() defers safely until that refill has settled.
-					if apocalypseQuestsUsed()==true then apocalypseQuestRefreshOfferButtons() end
-					if turnOrder[gStates.turnNumber].mage==avatar.mage then refreshFracturedLandsTeleportHighlights() end
-					addAvatarButtons()
-					if gStates.rampagePursuit==true and gStates.preEndTurn==false then pursuingRampagers(nil, "-1", nil) end
-				end
+			local avatarGUID=dropped_object.guid
+			local function updateAvatarLocation()
+				local liveAvatar=getObjectFromGUID(avatarGUID)
+				if liveAvatar~=nil then mapAvatarLocationDetails(player_color,avatar,liveAvatar) end
 			end
-			safeWaitCondition("Events",function() avatarlocationDetails() end, function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end, 1.5, function() avatarlocationDetails() end)
+			safeWaitCondition("Events",updateAvatarLocation,function()
+				local liveAvatar=getObjectFromGUID(avatarGUID)
+				return liveAvatar==nil or liveAvatar.resting
+			end,1.5,updateAvatarLocation)
 			return
 		end
 	end
@@ -1419,12 +787,20 @@ function __onObjectSpawn_raw(spawn_object)
 		gStates.volkareModel=spawn_object.guid
 		local scale=spawn_object.getScale()
 		if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-			safeWaitFrames("Events",function() getObjectFromGUID(gStates.volkareModel).addDecal({name="Volkare's Return Guide", url="https://steamusercontent-a.akamaihd.net/ugc/1617311764022517379/17F0D137572FE6672A880B1865AF9D7B66D8061F/",
-				position={-1.7, 0.05, 0.0}, rotation={90, 180, 0}, scale={3.24/scale[1], 5.508/scale[3], 1}}) end, 20)
+			local volkareGUID=gStates.volkareModel
+			safeWaitFrames("Events",function()
+				local volkareObj=getObjectFromGUID(volkareGUID)
+				if volkareObj~=nil then volkareObj.addDecal({name="Volkare's Return Guide", url="https://steamusercontent-a.akamaihd.net/ugc/1617311764022517379/17F0D137572FE6672A880B1865AF9D7B66D8061F/",
+					position={-1.7, 0.05, 0.0}, rotation={90, 180, 0}, scale={3.24/scale[1], 5.508/scale[3], 1}}) end
+			end, 20)
 		end
 		if gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
-			safeWaitFrames("Events",function() getObjectFromGUID(gStates.volkareModel).addDecal({name="Volkare's Quest Guide", url="https://steamusercontent-a.akamaihd.net/ugc/1617311764022517042/4160839B27C5F84E3D4D860408AE19780E48AEC4/",
-				position={1.6, 0.05, 1.4}, rotation={90, 180, 0}, scale={3.6/scale[1], 3.5/scale[3], 1}}) end, 20)
+			local volkareGUID=gStates.volkareModel
+			safeWaitFrames("Events",function()
+				local volkareObj=getObjectFromGUID(volkareGUID)
+				if volkareObj~=nil then volkareObj.addDecal({name="Volkare's Quest Guide", url="https://steamusercontent-a.akamaihd.net/ugc/1617311764022517042/4160839B27C5F84E3D4D860408AE19780E48AEC4/",
+					position={1.6, 0.05, 1.4}, rotation={90, 180, 0}, scale={3.6/scale[1], 3.5/scale[3], 1}}) end
+			end, 20)
 		end
 		--Setup owns Volkare's initial lock. Locking from onObjectSpawn races map construction because
 		--the model is spawned/reloaded before the starting terrain exists beneath it.
@@ -1432,10 +808,8 @@ function __onObjectSpawn_raw(spawn_object)
 		cityLevelButtons(gStates.volkareModel, "Volkar")
 	end
 
-	--update Competitive skills
-	if (spawn_object.guid=="d90de4" or spawn_object.guid=="676856" or spawn_object.guid=="3bd08e" or spawn_object.guid=="c4546c" or
-		spawn_object.guid=="a92d73" or spawn_object.guid=="958209" or spawn_object.guid=="19daf9" or
-		spawn_object.guid=="335290" or spawn_object.guid=="e68fed" or spawn_object.guid=="676855" or spawn_object.guid=="c82406") then
+	--Update competitive-state skills from the canonical skill metadata.
+	if skillTokens[spawn_object.guid]~=nil and skillTokens[spawn_object.guid].competitiveState==true then
 		gStates.mageSkills[spawn_object.guid]={spawn_object.getPosition()[1], spawn_object.getPosition()[2], spawn_object.getPosition()[3]}
 		if gStates.firstStarted==true then skillButtonActivate() else higherLevelSkillClaimButons() end
 	end
@@ -1492,6 +866,21 @@ dieRollEnterPause=nil
 workingOnTerrain={}
 local shieldLocationWait={}--Per-object debounce so simultaneous shield/site moves cannot cancel each other.
 masterOfChaosWait=nil
+randomizePause=nil
+local sourceRandomizeFences={{"7e09c6", 7.40}, {"0a7c95", 3.60}, {"ec49dd", 7.40}, {"c17ca2", 3.60}}
+local function pulseSourceRandomizeFences()
+	for _, fenceDetails in ipairs(sourceRandomizeFences) do
+		local fence=getObjectFromGUID(fenceDetails[1])
+		if fence~=nil then fence.setScale({0.10, 20.00, fenceDetails[2]}) end
+	end
+	if randomizePause~=nil then Wait.stop(randomizePause) end
+	randomizePause=safeWaitTime("Events",function()
+		for _, fenceDetails in ipairs(sourceRandomizeFences) do
+			local fence=getObjectFromGUID(fenceDetails[1])
+			if fence~=nil then fence.setScale({0.10, 0.1, fenceDetails[2]}) end
+		end
+	end, 3)
+end
 
 local function scheduleShieldLocation(obj, zone, status)
 	local guid=obj~=nil and obj.guid or nil
@@ -1560,8 +949,6 @@ local function handleZoneEnterPrelude(ctx)
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	if ctx.isMap and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(obj)==true then
 		--A held object will be handled once by onObjectDrop; retries here are only for scripted arrivals.
 		if obj.held_by_color==nil then mapTokenScheduleObject(objGUID) end
@@ -1616,12 +1003,9 @@ local function handleStartedZoneEnterPrelude(ctx)
 end
 
 local function handleTurnOrderZoneEnter(ctx)
-	local zone=ctx.zone
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	--Check if a turn marker has been flipped
 	if zoneGUID==turnOrderArea then
 		for c, d in pairs(turnOrder) do
@@ -1634,11 +1018,11 @@ local function handleTurnOrderZoneEnter(ctx)
 						local posOne=-19.4
 						local inOrder=true
 						--check turn order tokens fill from 1st to last position
-						for a, b in pairs(turnOrderTokens) do
+						for a, b in ipairs(turnOrderTokens) do
 							if b.getPosition()[3]>posOne-0.5 and b.getPosition()[3]<posOne+0.6 then
 								posOne=posOne-1.4
 								for c, d in pairs(turnOrder) do
-									if b.guid==d.turnOrderTokenGUID then turnOrder[c].cutomSort=a break end
+									if b.guid==d.turnOrderTokenGUID then turnOrder[c].customSort=a break end
 								end
 							else
 								inOrder=false break
@@ -1646,7 +1030,7 @@ local function handleTurnOrderZoneEnter(ctx)
 						end
 						--update turnorder sequence to match token order
 						if inOrder==true then
-							if getObjectFromGUID("0934f2")~=nil then table.sort(turnOrder, function (k1, k2) return k1.cutomSort < k2.cutomSort end) end
+							if getObjectFromGUID("0934f2")~=nil then table.sort(turnOrder, function (k1, k2) return k1.customSort < k2.customSort end) end
 							broadcastToAll("{en}Turn order updated{ru}Порядок хода обновлен{zh-tw}回合顺序更新了{zh-cn}回合顺序更新了{ko}라운드 순서가 업데이트되었습니다{es}Orden de giro actualizado{fr}Ordre de rotation mis à jour{pt-br}Ordem de Turno atualizada{de}Zugreihenfolge aktualisiert", {1,1,0.5})
 							mainUIUpdate("Turn marker entered it's zone")
 						end
@@ -1659,585 +1043,11 @@ local function handleTurnOrderZoneEnter(ctx)
 
 end
 
-local function terrainPositionLegal(obj, faceUpTerrain, northBearing, result)--.guid .faceDown .position .objName [.tileType]
-	result=result or {}
-	local candidateTileType=obj.tileType or (terrainTiles[obj.guid]~=nil and terrainTiles[obj.guid].tileType) or "country"
-	--Against the Horsemen uses a completely predefined map. Its face-down tiles are already in
-	--their legal positions, so ordinary wedge/open/neighbour placement rules must never reject
-	--a tile when it is revealed. Keep face-down tiles dormant; once revealed, always populate them.
-	if gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then
-		if obj.faceDown==true then result.faceDownTerrain=true return false end
-		return true
-	end
-
-	--Custom Predefined is deliberately unrestricted: players may arrange any face-up terrain anywhere.
-	if gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P" then
-		if obj.faceDown==true then result.faceDownTerrain=true return false end
-		return true
-	end
-
-	--Check if a core tile is on the coast of a wedge map
-	if candidateTileType=="core" and northBearing==70 and (obj.bearing<=41 or obj.bearing>=99) and gStates.gameScenario~="Fast Forwarded Conquest" then result.errorBroadcast="{en}Core Terrain Tiles aren't allowed on the coast{ru}Плитки Развитых земель не могут располагаться на берегу{zh-tw}海岸边不可以部署核心城市板块{zh-cn}海岸边不可以部署核心城市板块{ko}중심부 타일은 해안선에 놓일 수 없습니다{es}Las baldosas de terreno del núcleo no están permitidas en la costa{fr}Les tuiles de terrain de base ne sont pas autorisées sur la côte{pt-br}Peças Mapa Centrais não são permitidas na Costa{de}Kernterrainplättchen sind an der Küste nicht erlaubt" return false end
-
-	--Check if a tile is outside of a wedge map
-	if northBearing==70 and (obj.bearing<=35 or obj.bearing>=105) then result.errorBroadcast="{en}Terrain Tile isn't in the Wedge{ru}Плитка земель не находится в форме{zh-tw}地图块不在锥形里 (出界了){zh-cn}地图块不在锥形里 (出界了){ko}지도 타일이 쐐기 안에 있지 않습니다{es}Terrain Tile no está en la cuña{fr}La tuile de terrain n'est pas dans le coin{pt-br}Peça de Terreno não está no Cone{de}Das Geländeplättchen liegt nicht im Keil" return false end
-
-	--Check if tile is on the 4th or 5th column of a limited open map
-	if gStates.mapShape:sub(5,5)=="O" or gStates.mapShape:sub(5,5)=="F" then --Open Limited to ? Columns
-		local checkUpTo=3
-		if gStates.mapShape:sub(21, 21)=="4" then checkUpTo=8 end
-		if gStates.mapShape:sub(21, 21)=="3" then checkUpTo=15 end
-		local pos=obj.position
-		for b=1, checkUpTo, 1 do
-			local edge=terrainPlacementEdgeCoordinates[b]
-			if ((pos[1]-edge[1])^2)+((pos[3]-edge[2])^2)<1 then
-				result.errorBroadcast=joinLang({"{en}You are playing a {ru}Форма игрового поля - {zh-tw}正在玩的剧本名: {zh-cn}正在玩的剧本名: {ko}플레이 중인 맵: {es}Estás jugando un {fr}Vous jouez à un {pt-br}Você está jogando um(a) {de}Du spielst gerade ein ", gStates.mapShape, "{en} Game{ru} {zh-tw}. {zh-cn}. {ko}{es} juegos{fr} Game{pt-br} Jogo{de} Spiel"})
-				return false
-			end
-		end
-	end
-
-	--Check if Core tile has at least two neighbor Tiles
-	--Check if Country tile has at least one neighbor that has two neighbor Tiles
-	--check if an excess terrain tile has at least three neighbors.
-	if gStates.gameScenario~="The Gauntlet" and obj.guid~=firstTile and not (obj.guid=="835c91" and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
-		local neighboursFound=0
-		local neighbourTile=nil
-		local adjacentPositions={}
-		for c=1, 6, 1 do
-			local offset=terrainPlacementNeighbourOffsets[c]
-			adjacentPositions[c]={obj.position[1]+offset[1], obj.position[3]+offset[2]}
-		end
-		for _, b in pairs(faceUpTerrain) do
-			if b.guid~=obj.guid then
-				local tested=b.position
-				for c=1, 6, 1 do
-					local toCheck=adjacentPositions[c]
-					if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 neighbourTile=b break end
-				end
-			end
-		end
-		if neighboursFound==0 then return false end
-		if candidateTileType=="core" and neighboursFound<2 then result.errorBroadcast="{en}Core Terrain Tiles need two or more neighbours{ru}Плитки Развитых земель должны находиться по соседству с двумя другими землями{zh-tw}核心城市板块需要紧邻两个以上的其他板块{zh-cn}核心城市板块需要紧邻两个以上的其他板块{ko}중심부 타일은 최소 2개의 타일과 인접해야 합니다{es}Las baldosas de terreno central necesitan dos o más vecinos{fr}Les tuiles de terrain de base ont besoin de deux voisins ou plus{pt-br}Peças Mapa Centrais precisam de 2 ou mais Vizinhos{de}Kernterrainplättchen benötigen zwei oder mehr Nachbarn" return false end
-		if obj.objName=="excess" and neighboursFound<3 then result.errorBroadcast="{en}Excess Terrain Tiles need three or more neighbours, They're meant to fill holes in the map.{ru}Запасные земели должны примыкать хотя бы к трём другим землям (чтобы заполнить дыры).{zh-tw}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{zh-cn}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{ko}추가 지도 타일은 최소 3개의 다른 타일과 인접해야 합니다. 구멍을 메운다는 느낌과 유사합니다.{es}Los mosaicos de terreno en exceso necesitan tres o más vecinos. Están destinados a rellenar huecos en el mapa.{fr}Les tuiles de terrain excédentaire ont besoin de trois voisins ou plus, elles sont destinées à combler les trous sur la carte.{pt-br}Peças de Terreno Excessivas precisam de 3 ou mais vizinhos. Elas são para preencher buracos no mapa{de}Überschüssige Geländeplättchen brauchen drei oder mehr Nachbarn, sie sollen Löcher auf der Karte füllen." return false end
-		if candidateTileType~="core" and neighboursFound<=1 then
-			neighboursFound=0
-			if neighbourTile~=nil then
-				local neighbourPositions={}
-				for c=1, 6, 1 do
-					local offset=terrainPlacementNeighbourOffsets[c]
-					neighbourPositions[c]={neighbourTile.position[1]+offset[1], neighbourTile.position[3]+offset[2]}
-				end
-				for _, b in pairs(faceUpTerrain) do
-					if b.guid~=obj.guid then
-						local tested=b.position
-						for c=1, 6, 1 do
-							local toCheck=neighbourPositions[c]
-							if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 break end
-						end
-					end
-				end
-				if neighboursFound<2 then result.errorBroadcast="{en}Country Terrain Tiles can't be strung out that far{ru}Плитки Диких земель не могут вытягиваться так далеко{zh-tw}乡村板块不能铺那么远{zh-cn}乡村板块不能铺那么远{ko}교외 타일은 그렇게 놓일 수 없습니다{es}Las baldosas de terreno rural no se pueden colocar tan lejos{fr}Les tuiles de terrain de campagne ne peuvent pas être enfilées aussi loin{pt-br}Peças Mapa de Campo não podem ser colocados tão longe{de}Land-Terrainplättchen können nicht so weit aufgereiht werden" return false end
-			end
-		end
-	end
-
-	--Check if a City tile is played to wrong side in Life and Death
-	if gStates.gameScenario=="Life and Death" and getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()==1 then
-		if obj.guid==GUID.tile.city08 and obj.bearing<=northBearing-1 then --red city
-			result.errorBroadcast="{en}Red City needs to be placed in the Northern section{ru}Земля с красным городом не может быть размещена на юге{zh-tw}红色城市需要放在靠北边{zh-cn}红色城市需要放在靠北边{ko}빨간색 도시는 북쪽에 놓여야합니다.{es}Red City debe colocarse en la sección Norte{fr}Red City doit être placé dans la section Nord{pt-br}Cidade Vermelha precisa ser colocada na sessão Norte{de}Die rote Stadt muss in den nördlichen Abschnitt gelegt werden"
-			return false
-		end
-		if obj.guid==GUID.tile.city05 and obj.bearing>=northBearing+1 then --green city
-			result.errorBroadcast="{en}Green City needs to be placed in the Southern section{ru}Земля с зелёным городом не может быть размещена на севере{zh-tw}绿色城市需要放置在南边部分{zh-cn}绿色城市需要放置在南边部分{ko}녹색 도시는 남쪽에 놓여야합니다{es}Green City debe colocarse en la sección Sur{fr}Green City doit être placé dans la section Sud{pt-br}Cidade Verde precisa ser colocada na parte Sul do mapa{de}Grüne Stadt muss in die südliche Sektion gelegt werden"
-			return false
-		end
-	end
-
-	--Check if a terrain tile is face up
-	if obj.faceDown==true then result.faceDownTerrain=true return false end
-	return true
-end
-
-
---Rebuild EXPLORE buttons directly from the physical map. This path has no terrain-entry side effects.
-function refreshTerrainExploreOptions()
-	if gStates==nil then return end
-	local zone=getObjectFromGUID(mapArea)
-	if zone==nil then return end
-	local playAreaObjects=zone.getObjects()
-	local faceUpTerrain={}
-	local mapObjectPositions={}
-	for _,mapObject in pairs(playAreaObjects) do
-		local mapObjectPosition=mapObject.getPosition()
-		mapObjectPositions[#mapObjectPositions+1]={guid=mapObject.guid,position=mapObjectPosition}
-		if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
-			faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObjectPosition}
-		end
-	end
-	local northBearing=40
-	local startTileGUID=startTerrain.open
-	if getObjectFromGUID(startTileGUID)==nil then
-		if gStates.gameScenario=="Against the Horsemen Blitz" then startTileGUID=GUID.tile.country01
-		else startTileGUID=startTerrain.wedge northBearing=70 end
-	end
-	local startTileObject=getObjectFromGUID(startTileGUID)
-	if startTileObject==nil then return end
-	local startTilePosition=startTileObject.getPosition()
-	--Highlight legal tile plays
-	if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" and not (gStates.gameScenario=="Custom" and gStates.mapShape:sub(5,5)=="P") then
-		local gridType=""
-		if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049111266/7BC768B7CD64E6018EBEC720559690409F4BA555/" end--4
-		if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049110361/978D612A44ADDE6E1630965A311722114BA28AE5/" end--3
-		if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049031257/2457D03CE33118D57CD456183026FEB596CF6A3A/" end--fully
-		if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049113832/44EE3C6AA10498BCD1B46040AD18631BFD580AC4/" end--Wedge
-		local terrainDecals={}
-		gStates.exploreButtons={{}}
-		if gridType~="" then terrainDecals[#terrainDecals+1]={name="Terrain Grid", url=gridType, position={-16.825, 0.99, 0.55}, rotation={90.0, 0.0, 0.0}, scale={60, 60, 1}} end
-		local testTerrain="core"
-		local nameTerrain="dud"
-		local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
-		local leftCountry=getObjectFromGUID(GUID.bag.terrain.leftCountry)
-		local leftCore=getObjectFromGUID(GUID.bag.terrain.leftCore)
-		local terrainStackObjects=terrainStack.getObjects()
-		if #terrainStackObjects>0 then
-			local nextTerrainIndex=terrainStack.getQuantity()-1
-			testTerrain=terrainStackObjects[#terrainStackObjects].guid
-			for _, containedTerrain in pairs(terrainStackObjects) do
-				if containedTerrain.index==nextTerrainIndex then testTerrain=containedTerrain.guid break end
-			end
-		else
-			nameTerrain="excess"
-			testTerrain="country"
-		end
-		if terrainStack.getQuantity()>0 or leftCountry.getQuantity()>0 or leftCore.getQuantity()>0 then
-			for _, terTile in pairs(terrainExploreSpots) do
-				local found=false
-				for _, mightBeMap in pairs(faceUpTerrain) do
-					local existingTile=mightBeMap.position
-					if ((terTile[1]-existingTile[1])^2)+((terTile[3]-existingTile[3])^2)<1 then found=true break end
-				end
-				if found==false and terrainPositionLegal({guid=testTerrain, faceDown=false, objName=nameTerrain, position=terTile, bearing=math.deg(math.atan2(terTile[3]-startTilePosition[3], terTile[1]-startTilePosition[1]))},faceUpTerrain,northBearing,{})==true then--country tile guid stand-in
-					terrainDecals[#terrainDecals+1]={name="Legal Play", url="https://steamusercontent-a.akamaihd.net/ugc/1833526258732421084/29942DB5776ABA4145E9E115D1C893574C9A737A/", position=terTile, rotation={90.0, 0.0, 0.0}, scale={6, 6, 1}}
-					gStates.exploreButtons[#gStates.exploreButtons+1]={tag="Button", attributes={id="f2291a"..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
-							children={	{tag="Image", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
-										{tag="HorizontalLayout", attributes={padding="25 25 25 25"},
-										children={{tag="Text", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
-					--record all the potential future hexes as "explore" so the move can calculate for it.
-				end
-				end
-			end
-			for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
-			Global.setDecals(terrainDecals)
-			getObjectFromGUID("f2291a").UI.setXmlTable(gStates.exploreButtons)
-			--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
-			compactCityCardsAfterExplore(mapObjectPositions)
-	end
-end
-
-local function handleTerrainZoneEnter(ctx)
-	local zone=ctx.zone
-	local obj=ctx.obj
-	local zoneGUID=ctx.zoneGUID
-	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
-	--Check if a terrain tile has entered the play area
-	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
-		if startingMapSetup==true then startingMapTiles[objGUID]=true end
-		local initialSetupTerrain=startingMapTiles~=nil and startingMapTiles[objGUID]==true
-		workingOnTerrain[objGUID]=true
-		--Setup terrain still needs normal site/enemy population, but player-exploration UI/effects wait for actual play.
-		if initialSetupTerrain~=true then safeWaitTime("Events",function() addAvatarButtons() end, 1.5) end
-		local playAreaObjects=zone.getObjects()
-		local faceUpTerrain={}
-		for _,mapObject in pairs(playAreaObjects) do
-			if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
-				faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObject.getPosition()}
-			end
-		end
-		local core=0
-		local exploreRefreshedBeforeCity=false
-		local faceUp=	{0.0, 180.0,   0.0}
-		local faceDown=	{0.0, 180.0, 180.0}
-		local y=2
-		--figure out which angle is the north south line
-		local northBearing=40
-		local startTileGUID=startTerrain.open
-		local startBearing=0
-		if getObjectFromGUID(startTileGUID)==nil then
-			if gStates.gameScenario=="Against the Horsemen Blitz" then startTileGUID=GUID.tile.country01
-			else startTileGUID=startTerrain.wedge northBearing=70 end
-		end
-		local startTileObject=getObjectFromGUID(startTileGUID)
-		if startTileObject==nil then
-			workingOnTerrain[objGUID]=nil
-			return true
-		end
-		local startTilePosition=startTileObject.getPosition()
-		local enteredTilePosition=obj.getPosition()
-		local enteredTileName=obj.getName()
-		startBearing=math.deg(math.atan2(enteredTilePosition[3]-startTilePosition[3], enteredTilePosition[1]-startTilePosition[1]))
-
-
-		--make predefined maps highlight red
-		if gStates.mapShape:sub(5,5)=="P" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then--predefined
-			for _, mightBeMap in pairs(playAreaObjects) do
-				if terrainTiles[mightBeMap.guid]~=nil then
-					if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}},faceUpTerrain,northBearing,{})==false then
-						mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
-					else
-						local nightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
-						if nightTint then mightBeMap.setColorTint({r=0.6, g=0.6, b=0.6}) else mightBeMap.setColorTint({r=1.0, g=1.0, b=1.0}) end--colour off
-					end
-				end
-			end
-		end
-
-
-
-		--deploy monster token if terrain tile is deployed correctly
-		local placementResult={}
-		if terrainPositionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}},faceUpTerrain,northBearing,placementResult)==true then
-			--Before the first round, dayRound is intentionally still false so dayNight() can perform
-			--the first transition. Do not let that sentinel make setup terrain look like night.
-			if startingMapSetup==true then
-				if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
-			end
-			if initialSetupTerrain~=true then
-				againstDragonRevealLair(obj)
-				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
-			end
-			--Check if the object is a core tile and unlock elite units
-			if terrainTiles[objGUID].tileType=="core" and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
-				gStates.playedCoreTiles=gStates.playedCoreTiles+1
-				gStates.eliteUnitsUsed=true
-				if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
-				core=1
-			end
-
-			if startingMapSetup~=true and obj.resting==true and obj.held_by_color==nil and obj.isSmoothMoving()==false then
-				refreshTerrainExploreOptions()
-			end
-
-			--Against the Apocalypse destroyed terrain
-			if initialSetupTerrain~=true and gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.tacticShown==false and enteredTileName~="excess" then
-				destroyRestoreLocation(nil, "-1", "id", "destroy", obj)
-			end
-
-				--Play the correct pugs for the terrain tile
-				local tokenWait=0
-				local tokenRefillFrame=nil
-				local setupPopulationPending=0
-				--Normal exploration keeps the familiar staggered token reveal. During initial setup, the
-				--map coordinator already serializes terrain tiles, so do not serialize every hex behind
-				--another fixed eight-frame pause. Run each deployment on the next frame and let the tile's
-				--real pending count tell map setup when all deployment code has actually executed.
-				local function scheduleTerrainPopulation(callback,frames)
-					if startingMapSetup==true then
-						setupPopulationPending=setupPopulationPending+1
-						safeWaitFrames("Events",function()
-							callback()
-							setupPopulationPending=setupPopulationPending-1
-						end,1)
-					else
-						safeWaitFrames("Events",callback,frames)
-					end
-				end
-				local tileRotation=math.floor(((180-(180-obj.getRotation()[2]))/60)+0.5)*60
-				if tileRotation<0 then tileRotation=tileRotation+360 end
-				if tileRotation>=360 then tileRotation=tileRotation-360 end
-				for hexLocation, hexFeature in pairs(terrainTiles[objGUID].hexFeature) do
-					--Only run the all-pile refill once at each deployment step. Initial setup deliberately
-					--keeps refills disabled, so there is no reason to schedule its old no-op delay there.
-					if startingMapSetup~=true and tokenRefillFrame~=tokenWait+2 then tokenRefillFrame=tokenWait+2 safeWaitFrames("Events",function() tokenRefill() end, tokenRefillFrame) end
-				scheduleTerrainPopulation(function()
-					local params={}
-					--don't deploy token if megapolis is being played
-					local free=true
-					if gStates.megapolis>gStates.cityTiles-#gStates.citiesPlayed
-						and (objGUID==GUID.tile.city05 or objGUID==GUID.tile.city06 or objGUID==GUID.tile.city07 or objGUID==GUID.tile.city08)
-						and tonumber(hexLocation)==tileRotation then
-						megapolisSuppressTerrainHex(obj,hexFeature,false)
-						free=false
-					end
-					--deploy monster token if hex is free.
-					if free==true then
-						if gStates.playedAllready[objGUID]~=true then
-							if initialSetupTerrain~=true and gStates.gameScenario=="Dungeon Lords" and gStates.tacticShown==false and (hexFeature=="village" or hexFeature=="monastery") then
-								dungeonLordsQueueSecretSite(obj,hexLocation,hexFeature)
-							end
-							--if a monastery tile is placed start dealing advanced actions
-							if hexFeature=="monastery" then playMonastery() end
-
-							local tokenPileGreen=monsterPiles.green--Standard green Tokens
-							local tokenPileBrown=monsterPiles.tan--Standard Brown Tokens
-							local tokenPileRed=	 monsterPiles.red--Standard Red Tokens
-							--Rampaging Orcs & Draconum
-							if hexFeature=="rampaging" or hexFeature=="draconum" or
-								(gStates.gameScenario=="The Chaos Rift" and (hexFeature=="village" or ((hexFeature=="mine" or hexFeature=="") and objGUID==GUID.tile.city08))) then
-								playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, true, initialSetupTerrain~=true)
-							end
-
-							--Mine
-							if hexFeature=="mine" and gStates.gameScenario=="Mines Liberation" then
-								if core==1 then tokenPileGreen=tokenPileRed end
-								if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
-									local pos={angleToXY(obj, hexLocation)[1]-0.1, y, angleToXY(obj, hexLocation)[2]-0.1}
-									local token=getObjectFromGUID(tokenPileBrown).takeObject({rotation=faceDown, position=pos})
-									gStates.monsterPlayLocation[token.guid]=pos
-									gStates.mineMonsterQty[objGUID]={[token.guid]="alive"}
-									token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
-									if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
-									local token=getObjectFromGUID(tokenPileGreen).takeObject({rotation=faceUp, position={pos[1]+0.2, pos[2]+0.5, pos[3]+0.2}})
-									gStates.monsterPlayLocation[token.guid]={pos[1]+0.2, pos[2]+0.5, pos[3]+0.2}
-									gStates.mineMonsterQty[objGUID][token.guid]="alive"
-									token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
-									if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
-								else
-									broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
-								end
-								tokenPileGreen=monsterPiles.green
-							end
-
-							--glade
-							if hexFeature=="glade" then --and objGUID~=GUID.tile.city05 then--stopped it happening on the green city tile but can't figure out why...
-								local pos=enteredTilePosition
-								local warOfFourDeploy=false
-								for _, coords in pairs(warOfFourGladeEdgeCoordinates) do
-									if math.sqrt(((pos[1]-coords[1])^2)+((pos[3]-coords[2])^2))<1 then warOfFourDeploy=true break end
-								end
-								if (gStates.gameScenario=="Life and Death" or (gStates.gameScenario=="The War of Four" and warOfFourDeploy==true)) then -- and core==0
-									local tokenFaction=nil
-									if startBearing<=northBearing or
-										(((startBearing<=northBearing+1 and gStates.coop==1) or (gStates.coop==0 and enteredTilePosition[3]<-7 and enteredTilePosition[3]>-8 and enteredTilePosition[1]<-31 and enteredTilePosition[1]>-32)) and math.random(1,2)==1) then
-											tokenFaction="Elem"
-										if getObjectFromGUID(monsterPiles.greenElem).getQuantity()>0 then tokenPileGreen=monsterPiles.greenElem end
-										if getObjectFromGUID(monsterPiles.tanElem).getQuantity()>0 then tokenPileBrown=monsterPiles.tanElem end--elementalist Tokens
-									else
-										tokenFaction="Dark"
-										if getObjectFromGUID(monsterPiles.greenDark).getQuantity()>0 then tokenPileGreen=monsterPiles.greenDark end
-										if getObjectFromGUID(monsterPiles.tanDark).getQuantity()>0 then tokenPileBrown=monsterPiles.tanDark end---Dark Crusader Tokens
-										local pos={angleToXY(obj,hexLocation)[1], 1.08, angleToXY(obj,hexLocation)[2]}
-										local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject({rotation=faceUp, position=pos})
-										graveyard.lock()
-										terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
-										if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
-										gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
-									end
-									if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
-										local pos={angleToXY(obj,hexLocation)[1]-0.1, y, angleToXY(obj,hexLocation)[2]-0.1}
-										for i=1, 2, 1 do
-											local monsterPile={tokenPileBrown, tokenPileGreen}
-											local token=getObjectFromGUID(monsterPile[i]).takeObject({rotation=faceUp, position={pos[1]+(0.2*(i-1)), pos[2]+(0.5*(i-1)), pos[3]+(0.2*(i-1))}})
-											markMonsterFactionSubstitute(token, tokenFaction)
-											if terrainTiles[objGUID].hexFeature[hexLocation]=="graveyard" then
-												token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
-												if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
-											end
-											gStates.monsterPlayLocation[token.guid]={pos[1]+(0.2*(i-1)), pos[2]+(0.5*(i-1)), pos[3]+(0.2*(i-1))}
-											if gStates.mineMonsterQty[objGUID]==nil then gStates.mineMonsterQty[objGUID]={[token.guid]="alive"} else gStates.mineMonsterQty[objGUID][token.guid]="alive" end
-										end
-									else
-										broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
-									end
-								end
-
-								if gStates.gameScenario=="The Realm of the Dead Blitz" and terrainTiles[objGUID].tileType=="country" then
-									local deploy={	{monster={{monsterPiles.greenDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={advancedActionRewardDecal}},
-													{monster={{monsterPiles.tanDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={spellRewardDecal}},
-													{monster={{monsterPiles.redDark,  0.0}}, reward={unitRewardDecal}},
-													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={artifactRewardDecal}},
-													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.1}}, reward={artifactRewardDecal, advancedActionRewardDecal}},
-													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.0}, {monsterPiles.greenDark, 0.1}}, reward={artifactRewardDecal, spellRewardDecal}}}--this is for five player games, which is currently imposible
-									--play Graveyard Token
-									params.position={angleToXY(obj,hexLocation)[1], 1.08, angleToXY(obj,hexLocation)[2]}
-									params.rotation=faceDown
-									local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject(params)
-									graveyard.lock()
-									terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
-									if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
-									gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
-									for index, reward in pairs(deploy[gStates.playedGladeTiles+1].reward) do
-										local posOnToken={{0.35, -0.21, 0.35}, {0.0, -0.2, 0.25}}
-										graveyard.addDecal({name="Reward", url=reward, position=posOnToken[index], rotation={-90, 0, 0}, scale={0.5, 0.7, 1}})
-									end
-									--play Monster tokens
-									local params2={}
-									for index, monsterPile in pairs(deploy[gStates.playedGladeTiles+1].monster) do
-										local token=nil
-										local monsterPileConvert={[monsterPiles.greenDark]=monsterPiles.green, [monsterPiles.tanDark]=monsterPiles.tan, [monsterPiles.redDark]=monsterPiles.red}
-										params2.position={params.position[1]+monsterPile[2], y+(index/2), params.position[3]+monsterPile[2]}
-										if getObjectFromGUID(monsterPile[1]).getQuantity()>0 then token=getObjectFromGUID(monsterPile[1]).takeObject(params2) else token=getObjectFromGUID(monsterPileConvert[monsterPile[1]]).takeObject(params2) end
-										markMonsterFactionSubstitute(token, "Dark")
-										token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
-										if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
-										gStates.monsterPlayLocation[token.guid]=params2.position
-										if gStates.mineMonsterQty[objGUID]==nil then gStates.mineMonsterQty[objGUID]={[token.guid]="alive"} else gStates.mineMonsterQty[objGUID][token.guid]="alive" end
-									end
-									gStates.playedGladeTiles=gStates.playedGladeTiles+1
-								end
-							end
-
-							--Mage Tower
-							if hexFeature=="mage tower" then
-								params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj,hexLocation)[2]}
-								params.rotation=faceDown
-								if getObjectFromGUID(monsterPiles.purple).getQuantity()>0 then
-									local token=getObjectFromGUID(monsterPiles.purple).takeObject(params)
-									gStates.monsterPlayLocation[token.guid]=params.position
-								else
-									broadcastToAll("{en}Sorry, there are no Purple tokens left to deploy{ru}Извините, фиолетовые жетоны закончились.{zh-tw}抱歉，没有棕色标记可供部署{zh-cn}抱歉，没有棕色标记可供部署{ko}여분의 보라색 토큰이 없습니다{es}Lo sentimos, no quedan tokens púrpuras para implementar{fr}Désolé, il n'y a plus de jetons violets à déployer{pt-br}Desculpe, Não tem Fichas Roxas sobrando para distribuir{de}Leider gibt es keine violetten Plättchen mehr zum Einsetzen", warningColor)
-								end
-							end
-
-							--Keep
-							if hexFeature=="keep" then
-								local token={}
-								params.position={angleToXY(obj,hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
-								params.rotation=faceDown
-								if gStates.gameScenario=="The Hidden Valley Blitz" and objGUID==GUID.tile.city07 then
-									gStates.mineMonsterQty[objGUID]=gStates.mineMonsterQty[objGUID] or {}
-									local center=angleToXY(obj,hexLocation)
-									for i, offset in ipairs({-0.1, 0.1}) do
-										params.position={center[1]+offset, y, center[2]+offset}
-										local token=takeFactionMonster("green", "Elem", params)
-										if token~=nil then
-											gStates.monsterPlayLocation[token.guid]=params.position
-											gStates.hiddenValleyKeep[i]=token.guid
-											gStates.mineMonsterQty[objGUID][token.guid]="alive"
-										else
-											broadcastToAll("{en}Sorry, there are no Green tokens left to deploy{ru}Извините, зеленые жетоны закончились.{zh-tw}抱歉，没有绿色标记可供部署{zh-cn}抱歉，没有绿色标记可供部署{ko}여분의 녹색 토큰이 없습니다{es}Lo sentimos, no quedan tokens verdes para implementar{fr}Désolé, il n'y a plus de jetons verts à déployer{pt-br}Desculpe, Não tem Fichas Verde sobrando para distribuir{de}Tut mir leid, es gibt keine grünen Plättchen mehr zum Einsetzen", warningColor)
-										end
-									end
-								else
-									if getObjectFromGUID(monsterPiles.gray).getQuantity()>0 then
-										local token=getObjectFromGUID(monsterPiles.gray).takeObject(params)
-										gStates.monsterPlayLocation[token.guid]=params.position
-									else
-										broadcastToAll("{en}Sorry, there are no Gray tokens left to deploy{ru}Извините, серые жетоны закончились.{zh-tw}抱歉，没有灰色标记可供部署{zh-cn}抱歉，没有灰色标记可供部署{ko}여분의 회색 토큰이 없습니다.{es}Lo sentimos, no quedan tokens grises para desplegar{fr}Désolé, il n'y a plus de jetons gris à déployer{pt-br}Desculpe, Não tem Fichas Cinza sobrando para distribuir{de}Entschuldigung, es gibt keine grauen Plättchen mehr zum Auslegen", warningColor)
-									end
-								end
-							end
-
-							--Ruins
-							if hexFeature=="ruin" then
-								if gStates.dayRound==false then faceUp=faceDown end
-								params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
-								params.rotation=faceUp
-								local token=getObjectFromGUID(monsterPiles.yellow).takeObject(params)
-								gStates.monsterPlayLocation[token.guid]=params.position
-								faceUp={0.0, 180.0, 0.0}
-							end
-
-							--City
-							if ((hexFeature or ""):sub(1, 4)=="city" or hexFeature=="Volkare's Camp")
-								and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true))
-								or (hexLocation=="center" and gStates.removeShadesOfTezlaMonsters~=true and gStates.gameScenario=="Ultimate Conquest" and (objGUID==GUID.tile.core03 or objGUID==GUID.tile.core10)) then
-								--Choose the City card's first destination against the frontier created by this tile.
-								--Without this, cityInitialCardPosition() reads the previous EXPLORE set and the later
-								--terrain-finish refresh redirects the same smooth move mid-flight.
-								if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then
-									refreshTerrainExploreOptions()
-									exploreRefreshedBeforeCity=true
-								end
-								playCity(obj, hexFeature, true)
-							end
-						end
-					end
-				end, tokenWait+8)
-				if gStates.playedAllready[objGUID]~=true and
-					(hexFeature=="rampaging" or hexFeature=="draconum" or hexFeature=="mage tower" or hexFeature=="keep" or	hexFeature=="ruin" or hexFeature=="Volkare's Camp" or (hexFeature or ""):sub(1, 4)=="city" or
-					(hexFeature=="mine" and gStates.gameScenario=="Mines Liberation") or
-					(hexFeature=="glade" and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four" or gStates.gameScenario=="The Realm of the Dead Blitz"))) then--and objGUID~=GUID.tile.city05
-					tokenWait=tokenWait+8
-				end
-			end
-			--lock terrain tile if succesfuly deployed all tokens
-			safeWaitCondition("Events",function() obj.lock() end, function() return obj.resting end)
-			local function finishTerrainPopulation()
-				gStates.playedAllready[objGUID]=true
-				workingOnTerrain[objGUID]=false
-				--A City reveal already refreshed immediately before its initial card placement.
-				--Do not compact it a second time while that smooth move is still in progress.
-				if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then refreshTerrainExploreOptions() end
-				--Terrain deployment changes the movement graph directly. Refresh it here instead of relying on
-				--the later fake avatar drop to eventually trigger a full UI update.
-				if initialSetupTerrain~=true and gStates.firstStarted==true then
-					moveDisplayTerrainCache={signature=nil,hexMap=nil}
-					updateMoveDisplay()
-				end
-				if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals() end
-				--Only the newly populated tile can have gained a new shared-token stack. Leave established
-				--tokens elsewhere on the map completely untouched.
-				mapTokenArrangeAllOccupiedHexes(objGUID)
-				if initialSetupTerrain~=true then fakeDropAvatar() end
-				apocalypseQuestRefreshOfferButtons()
-			end
-			if startingMapSetup==true then
-				safeWaitCondition("Events",finishTerrainPopulation,function()
-					return setupPopulationPending==0 and obj.resting==true
-				end,10,function()
-					error("SetupGame timed out waiting for initial terrain deployment callbacks for "..tostring(objGUID)..".",2)
-				end)
-			else
-				safeWaitFrames("Events",finishTerrainPopulation,tokenWait+10)
-			end
-
-			--Fame is awarded only for terrain actually explored during play. Initial setup terrain is
-			--tagged when it enters the map and never counts as exploration in these scenarios.
-			if initialSetupTerrain~=true and
-				(gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
-				turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
-				local centerFeature=terrainTiles[objGUID].hexFeature["center"] or ""
-				if gStates.gameScenario=="The Lost Relic Blitz" and (centerFeature:sub(1,4)=="city" or centerFeature=="Volkare's Camp") then
-					turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
-				end
-				broadcastToAll("{en}Exploring gives fame gain in this Scenario{ru}Исследование дает Славу в этом сценарии{zh-tw}在这个剧本探索板块会增加名望{zh-cn}在这个剧本探索板块会增加名望{ko}이 시나리오에선 탐험시 명성을 얻습니다{es}Explorar da fama en este Escenario{fr}L'exploration donne un gain de renommée dans ce Scénario{pt-br}Explorar dá Fama neste Cenário{de}Erkunden bringt in diesem Szenario Ruhmgewinn", {1,1,0.5})
-				mainUIUpdate("Fame Gain from exploring")
-			end
-		else
-			workingOnTerrain[objGUID]=false
-			if (placementResult.errorBroadcast or "")~="" then broadcastToAll(placementResult.errorBroadcast, warningColor) end
-			if placementResult.faceDownTerrain~=true then obj.setColorTint({r=1.0, g=0.7, b=0.7}) end
-		end
-	end
-
-        -- Flip Info cards that match the terrain
-        if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and (obj.getRotation()[3] <= 5 or obj.getRotation()[3] >= 355) then
-		for hexLocation, hexFeature in pairs(terrainTiles[objGUID].hexFeature) do
-			local infoGUID=terrainInfoCardGUIDs[hexFeature]
-			if hexFeature=="mine" then
-				local mineColors=terrainTiles[objGUID].mineColors~=nil and terrainTiles[objGUID].mineColors[hexLocation] or nil
-				if mineColors~=nil and #mineColors==1 then infoGUID="938554" end
-			end
-			if infoGUID~=nil then
-				local citySpecificInfo=hexFeature=="city green" or hexFeature=="city red" or hexFeature=="city blue" or hexFeature=="city white"
-				--City colour can change later in playCity() (duplicate/random City replacement).
-				--Reveal coloured City cards there, after the final deployed City GUID is known.
-				if citySpecificInfo==false then
-					local infoCard=getObjectFromGUID(infoGUID)
-					if infoCard~=nil then infoCard.setRotationSmooth({0.00, 180.00, 0.00}) end
-				end
-			end
-		end
-		local wallList=terrainTiles[objGUID].wallList
-			if wallList~=nil and next(wallList)~=nil then
-				local wallInfoCard=getObjectFromGUID("767084")
-				if wallInfoCard~=nil then wallInfoCard.setRotationSmooth({0.00, 180.00, 0.00}) end
-			end
-        end
-	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil then return true end
-	return false
-end
-
 local function handleMapLocationZoneEnter(ctx)
 	local zone=ctx.zone
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 		--Check if a shield, avatar, secret Dungeon, or Secret Tomb has been played to cities or board
 	if zoneGUID==mapArea or zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity or zoneGUID==volkare.discZone or zoneGUID==darkCrusader.discZone or zoneGUID==elementalist.discZone then
 		local objectName=obj.getName()
@@ -2284,12 +1094,9 @@ local function handleMapLocationZoneEnter(ctx)
 end
 
 local function handleMapVisualZoneEnter(ctx)
-	local zone=ctx.zone
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	--Add xml Image back to Pursuing and Ambushing monster tokens. Non-monsters entering the map
 	--never need this Object UI pass, which is relatively expensive in TTS.
 	if zoneGUID==mapArea and monsterPugs[objGUID]~=nil and (gStates.rampageAmbush==true or gStates.rampagePursuit==true) then
@@ -2375,8 +1182,6 @@ local function handleMapVisualZoneEnter(ctx)
 end
 
 local function handleHandZoneEnter(ctx)
-	local zone=ctx.zone
-	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
 	local zoneInfo=ctx.zoneInfo
@@ -2406,12 +1211,9 @@ local function handleHandZoneEnter(ctx)
 end
 
 local function handleClaimZoneEnter(ctx)
-	local zone=ctx.zone
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	--Offer cards can enter a broad zone while still moving toward their final row. Wait until the
 	--card is resting before deciding whether it is a Unit, Monastery AA, normal AA, or Spell.
 	if cardClaimingZones[zoneGUID]~=nil then
@@ -2485,214 +1287,19 @@ local function handleClaimZoneEnter(ctx)
 end
 
 local function handlePlayerBoardZoneEnter(ctx)
-	local zone=ctx.zone
-	local obj=ctx.obj
-	local zoneGUID=ctx.zoneGUID
-	local objGUID=ctx.objGUID
 	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	if ctx.settledPlayerZoneEntry~=true and zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then
 		scheduleSettledZoneEntry(ctx,function(liveCtx)
 			liveCtx.settledPlayerZoneEntry=true
-			handlePlayerBoardZoneEnter(liveCtx)
+			playerBoardZoneEnterSettled(liveCtx)
 		end,"playerBoard")
 		return false
 	end
-	--Updates Main UI buttons when anything is played to a mage's play area/deed deck/discard.
-	--Keep play-area refreshes distinct so mainUIUpdate can skip deck bookkeeping that cannot have changed.
-	if gStates.turnNumber>0 then--makes sure end of round doesn't have errors
-		if zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="deed" or zoneInfo.kind=="discard") and turnOrderIndexAtSeat(zoneInfo.seatPos)~=nil then
-			local seatPos=zoneInfo.seatPos
-			if zoneInfo.kind=="deed" and (objType=="Card" or objType=="Deck") then
-				if objType=="Deck" then obj.max_typed_number=1 end
-				scheduleEndRoundDeedStateRefresh(seatPos)
-			end
-			--remove banner card from register if returned to deck.
-			if zoneInfo.kind=="discard" and gameCards[objGUID]~=nil and gameCards[objGUID].half~=nil then gStates.bannercard[gameCards[objGUID].half]=nil end
-			if zoneInfo.kind=="play" then
-				updatePlayAreaObjectState(seatPos, obj, true)
-				dayTactic2ExpireIfCardPlayed(seatPos)
-				schedulePlayAreaCardScale(seatPos)
-				mainUIUpdate("Object entered into play area")
-			else mainUIUpdate("Object entered into deed deck or discard") end
-		end
-	end
-
-	--Object entered player board
-	if zoneInfo~=nil and zoneInfo.kind=="play" then
-		--increment Master of chaos skill
-		if objGUID=="1ff34f" then
-			if masterOfChaosPause==false then
-				masterOfChaosPause=true
-				if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
-				local temp=gStates.masterOfChaos+1
-				if temp==7 then temp=1 end
-				obj.setCustomObject({image=masterOfChaosData[temp].image})
-				for a=1, #turnOrder, 1 do
-					if turnOrder[a].masterOfChaos~=nil then turnOrder[a].masterOfChaos="used" break end
-				end
-				--Wait.frames(function()
-				obj.reload()
-				--end, 50)
-				safeWaitFrames("Events",function() masterOfChaosPause=false end, 10)
-			end
-			return true
-		end
-
-		--Add combat buttons to monster tokens.
-		local addedButtons=monsterObjectButtons(obj)
-
-
-		--Add fortified symbol
-		if gStates.monsterPlayLocation[objGUID]~=nil and monsterPugs[objGUID]~=nil and monsterPugs[objGUID].unfortified==nil then
-			local target=gStates.monsterPlayLocation[objGUID]
-			local attackingVolkare=false
-			if gStates.cityMonsterQty[volkare.model]~=nil then
-				for guid, state in pairs(gStates.cityMonsterQty[volkare.model]) do
-					if guid==objGUID then
-						local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
-						if volkareObj~=nil then target={volkareObj.getPosition()[1], volkareObj.getPosition()[2], volkareObj.getPosition()[3]} end
-						attackingVolkare=true
-					end
-				end
-			end
-			local mapObjects=getObjectFromGUID(mapArea).getObjects()
-			local terTile, monsterhexBearing=terrainHexAtPosition(target, mapObjects)
-			if terTile~=nil and monsterhexBearing~=nil and gStates.volkareState~=nil and gStates.volkareState:sub(1, 9)~="Attacking" then
-
-				--fortified for Volkare's Army
-				if attackingVolkare==true and monsterPugs[objGUID].unfortified==nil and (terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="mage tower" or terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="keep") then
-					local found=false
-					local existingDecals=obj.getDecals() or {}
-					for _, decalDetails in pairs(existingDecals) do
-						if decalDetails.name=="Fortified" then found=true break end
-					end
-					if found==false then
-						obj.addDecal({name="Fortified", url="https://steamusercontent-a.akamaihd.net/ugc/15769941683634999180/45D8BF9859C1F2C026A3B40DA634B74286E2C3EB/", position={0.8, 0.15, -0.8}, rotation={90, 180, 0}, scale={0.72, 0.72, 1}})
-						if gStates.monsterPerks[objGUID]==nil then gStates.monsterPerks[objGUID]={fortified=true} else gStates.monsterPerks[objGUID].fortified=true end
-					end
-				end
-
-
-			end
-		end
-		--Manual monster movement cannot assume the current avatar crossed a particular wall.
-		--If the avatar is not on an adjacent hex, use the existing wall-choice interface.
-		resolveManualMonsterWallFortified(obj)
-		if #addedButtons>0 then obj.UI.setXmlTable(addedButtons) end
-
-		--Toggle Half Cards
-		if gameCards[objGUID]~=nil and gameCards[objGUID].half~=nil then
-			local bannerPosition=obj.getPosition()
-			if bannerPosition[3]>=-38.4 then
-				local pass=bannerPosition[1]
-				local halfGUID=gameCards[objGUID].half
-				obj.setState(2)
-				local bannerSeat=zoneInfo.seatPos
-				safeWaitFrames("Events",function()
-					local halfCard=getObjectFromGUID(halfGUID)
-					if halfCard~=nil then
-						halfCard.setScale({0.65, 1, 0.65})
-						halfCard.setPosition({pass, 1.2, -38.12})
-						scheduleUnitLayoutRefresh(bannerSeat)
-					end
-				end, 3)
-			end
-		end
-
-		--Add/remove the Card Remove decal when a normal card enters the player play area.
-		if objType=="Card" and (gameCards[objGUID]==nil or gameCards[objGUID].full==nil) then
-			safeWaitFrames("Events",function() local card=getObjectFromGUID(objGUID) if card~=nil then refreshCardRemoveDecal(card) end end, 2)
-		end
-
-		--Add command decal to banner of Command
-		if objGUID=="8dbce4" then
-			bannerOfCommandDecal()
-			scheduleUnitLayoutRefresh(zoneInfo.seatPos)
-		end
-
-		--if object is a crystal then alter it's animation.
-		if crystalManaNames[obj.getName()]==true then
-			safeWaitTime("Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playTriggerEffect(0) end end, 0.1)
-			safeWaitTime("Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playLoopingEffect(1) end end, 1)
-		end
-	end
-
-	--Unit Area work is event-driven: split accidental two-card Unit decks only when this area changes.
-	local unitZoneInfo=zoneInfo
-	if unitZoneInfo~=nil and unitZoneInfo.kind=="unit" then
-		local unitSeatPos=unitZoneInfo.seatPos
-		if objType=="Card" or objType=="Deck" then safeWaitFrames("Events",function() separateCombinedUnitsInArea(unitSeatPos) end, 2) end
-		scheduleUnitLayoutRefresh(unitSeatPos)
-		--Monster tokens may be dropped directly on Units. Give them the same combat controls and reward refresh as Play Area monsters.
-		if monsterPugs[objGUID]~=nil then
-			local monsterGUID=objGUID
-			safeWaitFrames("Events",function()
-				local monster=getObjectFromGUID(monsterGUID)
-				if monster~=nil and objectInPlayerCombatArea(monsterGUID)==true then
-					local addedButtons=monsterObjectButtons(monster)
-					if #addedButtons>0 then monster.UI.setXmlTable(addedButtons) end
-					mainUIUpdate("Monster entered unit area")
-				end
-			end, 2)
-		end
-	end
-
-	--Re-add avatar buttons when an avatar enters a non-map zone. Entering the map scripting
-	--zone happens before onObjectDrop has recalculated its new hex, so refreshing here would
-	--briefly attach the previous location's buttons. The settled drop owns the map refresh.
-	if mageKnightAvatarGUIDs[objGUID]==true and zoneGUID~=mapArea then addAvatarButtons() end
-
-	--Change wound cards dropped on units to wound token.
-	if zoneInfo~=nil and zoneInfo.kind=="unit" and objType=="Card" and obj.getGMNotes()=="Wound" then
-		local woundPosition=obj.getPosition()
-		local woundX=woundPosition[1]
-		if woundPosition[3]>=-37 and ((woundX>-65.3 and woundX<-42.7) or (woundX>-25.3 and woundX<-2.7) or
-			(woundX>14.7 and woundX<37.3) or (woundX>54.7 and woundX<77.3)) then
-			getObjectFromGUID("ab56f3").takeObject({position={woundX, woundPosition[2], -33.29}, smooth=false})
-			obj.destruct()
-		end
-	end
-
-        --flip ruin down if one of its monsters is Down
-        if gStates.ruinMonsters~=nil and gStates.ruinMonsters[objGUID]~=nil then
-            local ruinObj=getObjectFromGUID(gStates.ruinMonsters[objGUID])
-            if ruinObj==nil then
-                --The monster token has been reused after its Ruin was removed; discard the stale link.
-                gStates.ruinMonsters[objGUID]=nil
-            elseif obj.is_face_down==true then
-                if ruinObj.is_face_down==false then ruinObj.flip() end
-            else
-                local flip=true
-                for monsterGUID, _ in pairs(gStates.ruinMonsters) do
-                    local monsterObj=getObjectFromGUID(monsterGUID)
-                    if monsterObj~=nil and monsterObj.is_face_down==true then flip=false break end
-                end
-                if flip==true and ruinObj.is_face_down==true then ruinObj.flip() end
-            end
-        end
-
-	--record potion return locationTest
-	if zoneInfo~=nil and zoneInfo.kind=="crystal" and obj.getName():reverse():sub(1, 6)=="noitoP" then
-		local potionPosition=obj.getPosition()
-		gStates.mageSkills[objGUID]={potionPosition[1], potionPosition[2], potionPosition[3]}
-	end
-
-	--Lock possesed token on to nearest monster
-	if (zoneGUID==mapArea or (zoneInfo~=nil and zoneInfo.kind=="play"))
-		and monsterPugs[objGUID]~=nil and monsterPugs[objGUID].pugType=="possessed" then
-		attachEnemy(nil, nil, "attach", obj, zone)
-	end
-	return false
+	return playerBoardZoneEnterSettled(ctx)
 end
 
 local function handlePreGameZoneEnter(ctx)
-	local zone=ctx.zone
-	local obj=ctx.obj
-	local zoneGUID=ctx.zoneGUID
-	local objGUID=ctx.objGUID
 	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	--Update Mage Level Boards before the game starts.
 	if gStates.mageKnightLevels==true then
 		if zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then mageLevelBoard() end
@@ -2700,11 +1307,7 @@ local function handlePreGameZoneEnter(ctx)
 end
 
 local function handleManaZoneEnter(ctx)
-	local zone=ctx.zone
-	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
-	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
 	local objType=ctx.objType
 	--Mirror dice in source and Start of rounds should have half or more standard color Mana Dice
 	if zoneGUID==GUID.zone.mana and objType=="Dice" then
@@ -2720,7 +1323,7 @@ local function handleManaZoneEnter(ctx)
 				end
 				if #bad>gStates.diceNeeded/2 or (gStates.startAtNight==true and gStates.currentRound==1) then
 					for _, badManaDie in pairs(bad) do badManaDie.randomize() end
-					onObjectRandomize({type="Dice"})
+					pulseSourceRandomizeFences()
 					if #bad>0 then safe=false end
 				end
 			end
@@ -2749,7 +1352,7 @@ function __onObjectEnterZone_raw(zone, obj)
 	if gStates.firstStarted==true then
 		handleStartedZoneEnterPrelude(ctx)
 		handleTurnOrderZoneEnter(ctx)
-		if handleTerrainZoneEnter(ctx)==true then return end
+		if mapHandleTerrainZoneEnter(ctx)==true then return end
 		handleMapLocationZoneEnter(ctx)
 		handleMapVisualZoneEnter(ctx)
 		handleHandZoneEnter(ctx)
@@ -2764,12 +1367,8 @@ end
 --Undo a monastery & re-enable end turn button
 dieRollExitPause=nil
 local function handleZoneLeavePrelude(ctx)
-	local zone=ctx.zone
-	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	if apocalypseDragonGroundCombatToken~=nil then
 		local active,headName,owner=apocalypseDragonGroundCombatToken(objGUID)
 		if active==true and headName~="Control" and owner~=nil then safeWaitFrames("Events",function() apocalypseDragonRefreshGroundFameGain(owner) end,1) end
@@ -2779,112 +1378,10 @@ local function handleZoneLeavePrelude(ctx)
 	return false
 end
 
-local function handlePlayerBoardZoneLeave(ctx)
-	local zone=ctx.zone
-	local obj=ctx.obj
-	local zoneGUID=ctx.zoneGUID
-	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
-	if obj~=nil and skillTokens[obj.guid]~=nil and (skillTokens[obj.guid].skillType=="Coop" or skillTokens[obj.guid].skillType=="Comp") then
-		for playerIndex, details in pairs(turnOrder) do
-			if details.seatPos~=nil and zone.guid==playerPlayAreas[details.seatPos] then coopCompSkillLeftPlayArea(obj.guid, playerIndex) break end
-		end
-	end
-	if gStates.turnNumber>0 and turnOrder[gStates.turnNumber]~=nil and zone.guid==handZones[turnOrder[gStates.turnNumber].seatPos] then scheduleTactic4HandBonusRefresh() end
-	if (zone.guid==playerPlayAreas[2] or zone.guid==playerPlayAreas[3] or zone.guid==playerPlayAreas[1] or zone.guid==playerPlayAreas[4]) and getObjectFromGUID(obj.guid)~=nil then
-		--remove icons from monsters
-		obj.UI.setXmlTable({{}})
-		--Only remove the face-down card decal once the card is confirmed outside all player play areas.
-		if obj.type=="Card" then
-			local cardGUID=obj.guid
-			safeWaitFrames("Events",function() local card=getObjectFromGUID(cardGUID) if card~=nil and cardInPlayerPlayArea(cardGUID)==false then removeCardRemoveDecal(card) end end, 2)
-		end
-
-		--restore card size, except Unit cards still owned by the overlapping Unit Area layout.
-		if ((gameCards[obj.guid]~=nil and gameCards[obj.guid].full==nil) or obj.getGMNotes()=="Wound")
-			and not (unitLayoutIsUnit(obj) and unitLayoutObjectInAnyUnitArea(obj.guid)) then obj.setScale({1.5,1,1.5}) end
-
-		safeWaitTime("Events",function()
-			--Toggle half cards when picked up.
-			if getObjectFromGUID(obj.guid)~=nil then
-				if gameCards[obj.guid]~=nil and gameCards[obj.guid].full~=nil and obj.getPosition()[2]>2 then
-					obj.setState(1)
-					safeWaitFrames("Events",function() if getObjectFromGUID(gameCards[obj.guid].full)~=nil then getObjectFromGUID(gameCards[obj.guid].full).setScale({1.5, 1, 1.5}) end end, 1)
-				end
-
-				--if object is a crystal then remove highlight.
-				local crystalGlow={["Red Mana"]={1, 0, 0}, ["Green Mana"]={0, 1, 0}, ["Blue Mana"]={0, 0, 1}, ["White Mana"]={1, 1, 1}, ["Black Mana"]={0.3, 0.0, 0.6}, ["Gold Mana"]={1, 0.9, 0}}
-				if crystalGlow[obj.getName()]~=nil then
-					obj.AssetBundle.playLoopingEffect(0)
-				end
-			end
-		end, 0.22)
-		--Decrement Master of chaos skill
-		if obj.guid=="1ff34f" and masterOfChaosPause==false then
-			if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
-			safeWaitFrames("Events",function() masterOfChaosWait=safeWaitCondition("Events",function()
-				for a=1, #turnOrder, 1 do
-					if turnOrder[a].masterOfChaos~=nil and turnOrder[a].masterOfChaos~="incrementented in turn" then turnOrder[a].masterOfChaos="available" break end
-				end
-				getObjectFromGUID("1ff34f").setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
-				getObjectFromGUID("1ff34f").reload()
-				masterOfChaosWait=nil
-			end, function() return getObjectFromGUID("1ff34f").resting end) end, 5)
-		end
-	end
-	--A Card or whole Deck leaving the deed pile can make End Round available.
-	if obj~=nil and (obj.type=="Card" or obj.type=="Deck") then
-		for _, details in pairs(turnOrder) do if zone.guid==deedDeckZones[details.seatPos] then scheduleEndRoundDeedStateRefresh(details.seatPos) break end end
-	end
-	--Updates Main UI buttons when anything is removed from a mages play Area
-	if gStates.turnNumber>0 then
-		for a=1, #turnOrder, 1 do
-			local seatPos=turnOrder[a].seatPos
-			if zone.guid==playerPlayAreas[seatPos] then
-				updatePlayAreaObjectState(seatPos, obj, false)
-				schedulePlayAreaCardScale(seatPos)
-				if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,obj.guid) end
-				mainUIUpdate("Object removed from zone")
-				break
-			elseif zone.guid==deedDeckDiscardZones[seatPos] then
-				mainUIUpdate("Object removed from zone")
-				break
-			end
-		end
-	end
-
-	--A monster leaving a Unit Area can change pending fame/reputation just like leaving the Play Area.
-	local leftUnitArea=false
-	local leftUnitSeat=nil
-	for seatPos=1,4 do if zone.guid==playerUnitAreas[seatPos] then leftUnitArea=true leftUnitSeat=seatPos break end end
-	if leftUnitArea==true then
-		if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(leftUnitSeat,obj.guid) else scheduleUnitLayoutRefresh(leftUnitSeat) end
-		if unitLayoutIsUnit(obj) then
-			local unitGUID=obj.guid
-			safeWaitFrames("Events",function()
-				local unit=getObjectFromGUID(unitGUID)
-				if unit~=nil and unitLayoutObjectInAnyUnitArea(unitGUID)==false then unit.setScale({unitLayoutConfig.cardScale,1,unitLayoutConfig.cardScale}) end
-			end,2)
-		end
-	end
-	if leftUnitArea==true and monsterPugs[obj.guid]~=nil then
-		local monsterGUID=obj.guid
-		safeWaitFrames("Events",function()
-			local monster=getObjectFromGUID(monsterGUID)
-			if monster~=nil and objectInPlayerCombatArea(monsterGUID)==false then monster.UI.setXmlTable({{}}) end
-			mainUIUpdate("Monster removed from unit area")
-		end, 2)
-	end
-end
 
 local function handleClaimZoneLeave(ctx)
 	local zone=ctx.zone
 	local obj=ctx.obj
-	local zoneGUID=ctx.zoneGUID
-	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	--Remove offer claim buttons
 	if offerClaimSource(zone.guid,obj)~=nil then obj.UI.setXmlTable({{}}) end
 
@@ -2903,20 +1400,19 @@ end
 local function handleMapZoneLeave(ctx)
 	local zone=ctx.zone
 	local obj=ctx.obj
-	local zoneGUID=ctx.zoneGUID
-	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	--remove decals from anything lifted from the map.
 	if zone.guid==mapArea and obj.guid~=gStates.volkareModel then
 		local existingDecals=obj.getDecals() or {}
 		local decalTable={}
+		local decalsChanged=false
 		for _, decalDetails in pairs(existingDecals) do
 			if decalDetails.name=="Fortified" or decalDetails.name=="Elemental" or decalDetails.name=="Brutal" or decalDetails.name=="Poison" or decalDetails.name=="Defense" or decalDetails.name:sub(1,4)=="Mine" or decalDetails.name=="NightRules" or decalDetails.name=="Reward" then
 				decalTable[#decalTable+1]=decalDetails
+			else
+				decalsChanged=true
 			end
 		end
-		obj.setDecals(decalTable)
+		if decalsChanged==true then obj.setDecals(decalTable) end
 	end
 
 	if zone.guid==mapArea and obj.guid~=volkare.model and obj.guid~=elementalist.terrainHex and obj.guid~=darkCrusader.terrainHex then
@@ -2944,10 +1440,6 @@ end
 local function handleManaZoneLeave(ctx)
 	local zone=ctx.zone
 	local obj=ctx.obj
-	local zoneGUID=ctx.zoneGUID
-	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	--updata Mirrored source
 	if zone.guid==GUID.zone.mana and obj.type=="Dice" then
 		if dieRollEnterPause~=nil then Wait.stop(dieRollEnterPause) end
@@ -2958,23 +1450,10 @@ local function handleManaZoneLeave(ctx)
 end
 
 local function handlePreGameZoneLeave(ctx)
-	local zone=ctx.zone
-	local obj=ctx.obj
-	local zoneGUID=ctx.zoneGUID
-	local objGUID=ctx.objGUID
 	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	--Update Mage Level Boards before the game starts.
-	if gStates.mageKnightLevels==true then
-		local playerZones={	"004cca", "9ef3c1", "182df2", "813d11",--Play Area
-							"98a462", "0d6195", "648671", "8d6d93",--Unit Area
-							"13f39d", "5bb87a", "621d88", "2936ad"}--Crystal inventory
-		for _, zoneGUID in pairs(playerZones) do
-			if zone.guid==zoneGUID then
-				mageLevelBoard()
-				break
-			end
-		end
+	if gStates.mageKnightLevels==true and zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then
+		mageLevelBoard()
 	end
 end
 
@@ -2986,7 +1465,7 @@ function __onObjectLeaveZone_raw(zone, obj)
 	if ctx==nil then return end
 	if handleZoneLeavePrelude(ctx)==true then return end
 	if gStates.firstStarted==true then
-		handlePlayerBoardZoneLeave(ctx)
+		playerBoardZoneLeave(ctx)
 		handleClaimZoneLeave(ctx)
 		handleMapZoneLeave(ctx)
 		handleManaZoneLeave(ctx)
@@ -3017,6 +1496,22 @@ function __onObjectCollisionExit_raw(registered_object, info)
 end
 
 --Container Shuffling, Image Updating and size changing
+local shuffleOnContainerEnter=nil
+local function containerShufflesOnEntry(guid)
+	if shuffleOnContainerEnter==nil then
+		shuffleOnContainerEnter={}
+		local shuffleGUIDs={
+			GUID.bag.skill.arythea,GUID.bag.skill.goldyx,GUID.bag.skill.norowas,GUID.bag.skill.tovak,
+			GUID.bag.skill.krang,GUID.bag.skill.braevalar,GUID.bag.skill.ymirgh,GUID.bag.skill.wolfhawk,
+			GUID.bag.skill.jormund,"8c8a04","46f93a",GUID.bag.terrain.leftCity,GUID.bag.terrain.leftCore,
+			GUID.bag.terrain.leftCountry,GUID.bag.allSkills,"8929f0","3e1fdf",GUID.bag.skill.malek,
+			GUID.bag.skill.zirtae,GUID.bag.skill.coral
+		}
+		for _, bagGUID in pairs(shuffleGUIDs) do if bagGUID~=nil then shuffleOnContainerEnter[bagGUID]=true end end
+	end
+	return shuffleOnContainerEnter[guid]==true
+end
+
 function __onObjectEnterContainer_raw(bag, obj)
 	if obj~=nil and runtimeMapContainsGUID(obj.guid)==true then
 		if terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
@@ -3043,15 +1538,9 @@ function __onObjectEnterContainer_raw(bag, obj)
 	scheduleContainerDeckDescriptionRefresh(bag)
 	scheduleContainerEndRoundStateRefresh(bag)
 
-	--Shuffles the contents of certain bags when items are dropped in
-	local ToBeShuffled = {GUID.bag.skill.arythea,GUID.bag.skill.goldyx,GUID.bag.skill.norowas,GUID.bag.skill.tovak,GUID.bag.skill.krang,GUID.bag.skill.braevalar,GUID.bag.skill.ymirgh,GUID.bag.skill.wolfhawk,GUID.bag.skill.jormund, "8c8a04","46f93a",GUID.bag.terrain.leftCity,GUID.bag.terrain.leftCore,GUID.bag.terrain.leftCountry,GUID.bag.allSkills,"8929f0","3e1fdf",GUID.bag.skill.malek,GUID.bag.skill.zirtae,GUID.bag.skill.coral}
-		--Arythea Skills, Goldyx Skills, Norowas Skills, Tovak Skills, Krang Skills, Braevalar Skills, Ymirgh Skills, Wolfhawk Skills, Coral Skills, round order container, City Monster Shuffler, City Tiles, Core Tiles, Country Tiles, All Skill. terrain pile, Mevok Skills, Duscenia Skills, Malek Skills
-	local found=false
-	if gStates.firstStarted==true then
-		for a=1, #ToBeShuffled, 1 do
-			if ToBeShuffled[a]==bag.guid then found=true getObjectFromGUID(ToBeShuffled[a]).shuffle() break end
-		end
-	end
+	--Shuffle bags whose contents are randomized whenever an object returns.
+	local found=gStates.firstStarted==true and containerShufflesOnEntry(bag.guid)
+	if found==true then bag.shuffle() end
 
 	--removes location data from monster pugs
 	if found==false then
@@ -3073,6 +1562,29 @@ function __onObjectEnterContainer_raw(bag, obj)
 		mainUIUpdate("Object entered container or formed Deck")
 	end
 end
+
+local soloDescription={
+							["3fba07"]="{en}Once a round (Except during combat):\n\nThrow away up to two Wound cards from your hand. (Put this skill token in your Play Area to activated it)\n\nNext turn only:\n\nYou may play a Wound card sideways for +3.{ru}Один раз в раунд (не в битве):\n\nУдалите до двух карт раны с руки. (Положите навык в вашу игровую зону для активации эффекта)\n\nТолько в следующий ход:\n\nМожете сыграть карту раны боком, получив бонус +3.{zh-tw}每轮一次，非战斗中使用\n\n从手牌中去除最多两张创伤卡。将本技能标记放在桌子中央。\n\n仅下回合： 你可以横置打出一张创伤卡，效果+3{zh-cn}每轮一次，非战斗中使用\n\n从手牌中去除最多两张创伤卡。将本技能标记放在桌子中央。\n\n仅下回合： 你可以横置打出一张创伤卡，效果+3{ko}라운드에 한번, 전투에서 제외:\n\n손에 든 부상을 2개까지 제거한다. (스킬을 플레이 영역에 놓아 활성화)\n\n다음 차례에 한번,\n\n부상 하나를 다른 행동 카드처럼 가로로 시용해, +1 대신 +3을 받는다.{es}Una vez por Ronda (excepto durante el combate):\n\nTira hasta dos cartas de Herida de tu mano. (Pon esta ficha de habilidad en tu Área de juego para activarla)\n\nSólo en el próximo turno:\n\nPuedes jugar una carta de Herida de lado por +3.{fr}Une fois par Rounde (Sauf pendant le combat):\n\nJetez jusqu'à deux cartes Blessure de votre main. (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer)\n\nTour suivant uniquement:\n\nVous pouvez jouer une carte Blessure latéralement pour +3.{pt-br}Uma vez por rodada (Exceto durante combate):\n\nJogue fora 2 cartas de ferimento da sua mão. (Coloque esta habilidade na sua área de jogo para ativá-la)\n\nPróximo turno turno apenas:\n\nVocê pode jogar uma carta de Ferimento de lado como +3.{de}Einmal pro Runde (außer im Kampf):\n\nWirf bis zu zwei Wundenkarten aus deiner Hand weg. (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nNur im nächsten Zug:\n\nDu darfst eine Wundenkarte seitwärts für +3 ausspielen.",
+							["4ac9f6"]="{en}Once a Round:\n\nReduce one attack of an enemy by 1. That enemy gains Cumbersome this turn. (Put this skill token in your Play Area to activated it)\n\nNext turn only:\n\nYou may reduce one attack of an enemy by 1. That enemy gains Cumbersome.{ru}Один раз в раунд:\n\nУменьшите значение одной Атаки врага на 1. Этот враг становится Неповоротливым до конца хода. (Положите навык в вашу игровую зону для активации эффекта)\n\nТолько в следующий ход:\n\nУменьшите значение одной Атаки врага на 1. Этот враг становится Неповоротливым до конца хода.{zh-tw}每轮一次：\n\n将敌人的一次攻击减少1。该敌人在本回合变得笨重（将此标记放在桌子中央以激活它）\n\n仅下一回合：\n\n您可以将敌人的一次攻击减少1。该敌人变得笨重。{zh-cn}每轮一次：\n\n将敌人的一次攻击减少1。该敌人在本回合变得笨重（将此标记放在桌子中央以激活它）\n\n仅下一回合：\n\n您可以将敌人的一次攻击减少1。该敌人变得笨重。{ko}라운드에 한번:\n\n적 공격 하나를 1 줄인다. 이번 차례에 그 적의 공격은 육중함을 얻는다.  (스킬을 플레이 영역에 놓아 활성화)\n\n다음 자기 차례에:\n\n적 공격 하나를 1 줄인다. 이번 차례에 그 적의 공격은 육중함을 얻는다.{es}Una vez por Ronda:\n\nReduce un ataque de un enemigo en 1. Ese enemigo gana Engorroso este turno. (Pon esta ficha de habilidad en tu área de juego para activarla)\n\nSolo en el próximo turno:\n\nPuedes reducir un ataque de un enemigo en 1. Ese enemigo se vuelve engorroso.{fr}Une fois par Rounde:\n\nRéduisez une attaque d'un ennemi de 1. Cet ennemi devient Encombrant ce tour-ci. (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer)\n\nTour suivant uniquement:\n\nVous pouvez réduire une attaque d'un ennemi de 1. Cet ennemi devient Encombrant.{pt-br}Uma vez por Rodada:\n\nReduz um ataque de um inimigo em 1.Este inimigo ganha Corpulento este turno. (Coloque esta habilidade na sua área de jogo para ativá-la)\n\nPróximo Turno apenas:\n\nVocê pode reduzir um ataque de 1 inimigo em 1. Este inimigo ganha Corpulento.{de}Einmal pro Runde:\n\nReduziere einen Angriff eines Feindes um 1. Dieser Feind wird in diesem Zug schwerfällig. (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nNur im nächsten Zug:\n\nDu kannst einen Angriff eines Gegners um 1 reduzieren. Dieser Gegner wird schwerfällig.",
+							["3b3273"]="{en}Once a Round:\n\nYou may Reroll a mana die in the source. (Put this skill token in your Play Area to activated it)\n\nNext turn only:\n\nYou may use an extra die from the source. Also gain a crystal of the same color. You may decide whether to reroll that die or not at the end of your turn.{ru}Один раз в раунд:\n\nМожете перебросить кубик маны в источнике. (Положите навык в вашу игровую зону для активации эффекта)\n\nТолько в следующий ход:\n\nМожете использовать дополнительный кубик маны основного цвета и взять кристалл этого цвета. Вы решаете, перебрасывать взятый кубик или нет.{zh-tw}每回合一次:\n\n你可以重掷来源中的一个法力骰子. (将此技能令牌放入你的游戏区域以激活它).\n\n仅限下一回合:\n\n你可以使用一个额外的法力骰子, 同时获得一个相同颜色的水晶. 在你的回合结束时, 你可以决定是否重掷该骰子.{zh-cn}每回合一次:\n\n你可以重掷来源中的一个法力骰子. (将此技能令牌放入你的游戏区域以激活它).\n\n仅限下一回合:\n\n你可以使用一个额外的法力骰子, 同时获得一个相同颜色的水晶. 在你的回合结束时, 你可以决定是否重掷该骰子.{ko}1라운드에 한 번:\n\n당신은 소스의 마나 주사위를 다시 굴릴 수 있습니다. (이 스킬 토큰을 자신의 플레이 영역에 놓아 활성화합니다).\n\n다음 턴에만 가능합니다:\n\n당신은 소스에서 주사위 한 개를 추가로 사용할 수 있습니다. 또한 같은 색의 수정 하나를 얻습니다. 자신의 턴이 끝날 때 주사위를 다시 굴릴지 여부를 결정할 수 있습니다.{es}Una vez por Ronda:\n\nPuedes volver a lanzar un dado de maná en la fuente. (Pon esta ficha de habilidad en tu Área de Juego para activarla)\n\nSólo en el siguiente turno:\n\nPuedes usar un dado extra de la fuente. También ganas un cristal del mismo color. Puedes decidir si volver a lanzar ese dado o no al final de tu turno.{fr}Une fois par round :\n\nVous pouvez relancer un dé de mana dans la source. (Placez ce jeton de compétence dans votre zone de jeu pour l'activer).\n\nAu prochain tour seulement :\n\nVous pouvez utiliser un dé supplémentaire de la source. Vous gagnez également un cristal de la même couleur. Vous pouvez décider de relancer ou non ce dé à la fin de votre tour.{pt-br}Uma vez por rodada:\n\nVocê pode fazer o Reroll de um dado de mana na fonte. (Coloque esse token de habilidade em sua Área de Jogo para ativá-lo).\n\nSomente no próximo turno:\n\nVocê pode usar um dado extra da fonte. Também ganha um cristal da mesma cor. Você pode decidir se quer rolar novamente esse dado ou não no final do seu turno.{de}Einmal pro Runde:\n\nDu darfst einen Manawürfel in der Quelle neu würfeln. (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nNur in der nächsten Runde:\n\nDu darfst einen zusätzlichen Würfel aus der Quelle verwenden. Außerdem erhältst du einen Kristall der gleichen Farbe. Am Ende deines Zuges darfst du entscheiden, ob du diesen Würfel neu würfelst oder nicht.",
+							["725de9"]="{en}Once a Round:\n\nWhen you spend a mana of a basic color, gain a Crystal of that color. (Put this skill token in your Play Area to activated it, and place another crystal of the same color on it)\n\nNext turn only:\n\nYou may gain the mana token on this skill.{ru}Один раз в раунд:\n\nПотратив ману основного цвета, возьмите кристалл того же цвета. (Положите навык в вашу игровую зону для активации эффекта, и положите на него жетон маны того же цвета из резерва)\n\nТолько в следующий ход:\n\nМожете использовать ману, лежащую на этом навыке.{zh-tw}每轮一次：\n\n当你花费一个基本颜色的魔力时，获得一个该颜色的魔晶（将此技能标记放置在桌子中央以激活它，并在其上放置另一个相同颜色的水晶）\n\n仅下一回合：\n\n您可以获得此技能上的魔力标记。{zh-cn}每轮一次：\n\n当你花费一个基本颜色的魔力时，获得一个该颜色的魔晶（将此技能标记放置在桌子中央以激活它，并在其上放置另一个相同颜色的水晶）\n\n仅下一回合：\n\n您可以获得此技能上的魔力标记。{ko}라운드에 한번:\n\n기본 색상 마나 1개를 지불할 때,  이 스킬을 사용하여 해당 색상 수정 1개를 얻는다.(같은 색의 마나 토큰으로 스킬 위에 표시하고 플레이 영역에 놓아 활성화)\n\n다음 차례에:\n\n이 마나 토큰을 얻을 수 있다.{es}Una vez por Ronda:\n\nCuando gastas un maná de un color básico, obtienes un cristal de ese color. (Pon esta ficha de habilidad en tu Área de juego para activarla y coloca otro cristal del mismo color sobre ella)\n\nSolo en el próximo turno:\n\nPuedes obtener la ficha de maná en esta habilidad.{fr}Une fois par Rounde:\n\nLorsque vous dépensez un mana d'une couleur de base, gagnez un cristal de cette couleur. (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer et placez-y un autre cristal de la même couleur)\n\nTour suivant uniquement:\n\nVous pouvez gagner le jeton mana de cette compétence.{pt-br}Uma vez por Rodada:\n\nQuando você gastar uma mana de cor básica, ganhe um cristal daquela cor. (coloque essa habilidade na sua área de jogo para ativá-la e coloque outro cristal da mesma cor nela)\n\nPróximo Turno apenas:\n\nVocê pode ganhar o marcador de mana desta habilidade.{de}Einmal pro Runde:\n\nWenn du ein Mana einer Grundfarbe ausgibst, erhältst du einen Kristall dieser Farbe (lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren, und lege einen weiteren Kristall derselben Farbe darauf).\n\nNur im nächsten Zug:\n\nDu darfst das Mana-Token für diese Fähigkeit erhalten.",
+							["55e5e5"]="{en}Once a Round:\n\nReduce the Move cost of all terrains by 2 (to a minimum of 1). (Put this skill token in your Play Area to activated it)\n\nNext turn only:\n\nYou may reduce the move cost of all terrains by 1 (to a minimum of 1).{ru}Один раз в раунд:\n\nВаш герой двигается по любой местности, тратя на 2 очка Движения меньше (но не меньше 1) в этот ход. (Положите навык в вашу игровую зону для активации эффекта)\n\nТолько в следующий ход:\n\nВаш герой двигается по любой местности, тратя на 1 очко Движения меньше (но не меньше 1) в этот ход.{zh-tw}每轮一次: \n\n将本技能标记放在桌子中央以激活效果. \n将所有地形移动消耗减少2 (最少至1)\n\n仅下回合: \n将所有地形移动消耗减少1 (最低至1){zh-cn}每轮一次: \n\n将本技能标记放在桌子中央以激活效果. \n将所有地形移动消耗减少2 (最少至1)\n\n仅下回合: \n将所有地形移动消耗减少1 (最低至1){ko}라운드에 한번:\n\n이번 차례에 당신에게 모든 지형의 이동 비용은 2(최하 1) 감소한다.(스킬을 플레이 영역에 놓아 활성화)\n\n다음 차례에 한번만:\n\n이번 차례에 모든 지형의 이동 비용이 1 감소한다.{es}Una vez por Ronda:\n\nReduce el coste de movimiento de todos los terrenos en 2 (hasta un mínimo de 1). (Pon esta ficha de habilidad en tu Área de juego para activarla)\n\nSolo en el próximo turno:\n\nPuedes reducir el costo de movimiento de todos los terrenos en 1 (hasta un mínimo de 1).{fr}Une fois par Rounde:\n\nRéduisez le coût de déplacement de tous les terrains de 2 (jusqu'à un minimum de 1). (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer)\n\nTour suivant uniquement :\n\nVous pouvez réduire le coût de déplacement de tous les terrains de 1 (jusqu'à un minimum de 1).{pt-br}Uma vez por Rodada:\n\nReduz o custo de movimento de todos os terrenos em 2 (a um mínimo de 1). (Coloque esta Habilidade na sua área de jogo para ativá-la).\n\nPróximo Turno apenas:\n\nVocê pode reduzir o custo de movimento de todos os terrenos em 1 (a um mínimo de 1).{de}Einmal pro Runde:\n\nVerringere die Bewegungskosten aller Terrains um 2 (auf ein Minimum von 1). (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nNur in der nächsten Runde:\n\nDu darfst die Bewegungskosten aller Geländefelder um 1 reduzieren (auf ein Minimum von 1).",
+							["818aea"]="{en}Once a Round:\n\nGain a mana token of any color except Gold. (Put this skill token in your Play Area to activated it, and place another crystal of the same color on it)\n\nNext turn only:\n\nIf you use a Mana of this same Color to power a Deed Card that gives Move, Influence, or any type of Attack or Block, it gets +4 from that card.{ru}Один раз в раунд:\n\nВозьмите жетон маны любого цвета, кроме золотого. (Положите навык в вашу игровую зону для активации эффекта, и положите на него жетон маны того же цвета из резерва)\n\nТолько в следующий ход:\n\nЕсли вы используете ману этого цвета для усиления карты с очками Движения, Влияния, любой Атаки или Блока, вы получаете +4 к значению этого эффекта.{zh-tw}每回合一次：\n\n获得一个任意颜色的法力令牌，金色除外。（将此技能令牌放入你的游戏区域以激活它，并在其上放置另一个相同颜色的水晶）。\n\n仅限下一回合：\n\n如果你使用一张同色的法力牌为一张可提供移动、影响或任何类型的攻击或格挡的契约牌提供能量，它将从该牌中获得 +4。{zh-cn}每回合一次：\n\n获得一个任意颜色的法力令牌，金色除外。（将此技能令牌放入你的游戏区域以激活它，并在其上放置另一个相同颜色的水晶）。\n\n仅限下一回合：\n\n如果你使用一张同色的法力牌为一张可提供移动、影响或任何类型的攻击或格挡的契约牌提供能量，它将从该牌中获得 +4。{ko}라운드에 한 번:\n\n금색이 아닌 색상 마나 토큰 1개를 선택해 받는다.(같은 색의 마나 토큰으로 스킬 위에 표시하고 플레이 영역에 놓아 활성화)\n\n다음 차례에 한번:\n\n이동, 영향력, 또는 아무 종류의 공격이나 방어를 제공하는 카드 하나를, 표시돤 색상과 동일한 색의 마나로 강화 사용한다면 해당 수치에 +4를 추가로 얻는다.{es}Una vez por ronda:\n\nGana una ficha de maná de cualquier color excepto oro. (Pon esta ficha de habilidad en tu Área de juego para activarla y coloca otro cristal del mismo color sobre ella)\n\nSolo en el próximo turno:\n\nSi usas un Mana de este mismo Color para potenciar una Carta de Escritura que otorga Movimiento, Influencia o cualquier tipo de Ataque o Bloqueo, obtiene +4 de esa carta.{fr}Une fois par Rounde:\n\nGagnez un jeton de mana de n'importe quelle couleur à l'exception de l'or. (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer et placez-y un autre cristal de la même couleur)\n\nTour suivant uniquement:\n\nSi vous utilisez un mana de cette même couleur pour alimenter une carte d'action qui donne un mouvement, une influence ou tout type d'attaque ou de blocage, elle obtient +4 de cette carte.{pt-br}Uma vez por rodada:\n\nGanhe uma ficha de mana de qualquer cor, exceto ouro. (Coloque esta ficha de habilidade em sua área de jogo para ativá-la e coloque outro cristal da mesma cor sobre ela)\n\nPróxima curva apenas:\n\nSe você usar um Mana desta mesma Cor para energizar uma Carta de Ação que conceda Movimento, Influência ou qualquer tipo de Ataque ou Bloqueio, ela recebe +4 daquela carta.{de}Einmal pro Runde:\n\nErhalte ein Mana-Token einer beliebigen Farbe außer Gold. (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren, und lege einen weiteren Kristall derselben Farbe darauf)\n\nNur in der nächsten Zug:\n\nWenn du Mana dieser Farbe nutzt, um eine Handlungs­karte mit Bewegung, Einfluss, Angriff oder Block zu aktivieren, erhält +4 von dieser Karte.",
+							["564392"]="{en}Once a Round (Except during Interactions): (Put this skill token in your Play Area to activated it)\n\nOne card played sideways is worth +4. For each command token without a Unit gain an extra +1.\n\nNext turn only:\n\nYou may reduce the Armour of an enemy by 1, and one attack of the same or another enemy by 1{ru}Один раз в раунд (не при взаимодействии): (Положите навык в вашу игровую зону для активации эффекта)\n\nОдна карта, сыгранная боком, дает бонус +4 вместо +1. Каждый свободной жетон командования увеличивает бонус еще на +1.\n\nТолько в следующий ход:\n\nВы можете уменьшить Броню одного врага на 1 и значение одной Атаки на 1 (этого или другого врага).{zh-tw}每轮一次，交涉中除外：\n\n一张横置打出的卡牌效果+4而非+1。你没有一个未分配给部队的指挥标记额外+1。将本技能放在桌子中间。\n仅下回合： 你的一个敌人护甲-1，同时同一个或另一个敌人的攻击-1{zh-cn}每轮一次，交涉中除外：\n\n一张横置打出的卡牌效果+4而非+1。你没有一个未分配给部队的指挥标记额外+1。将本技能放在桌子中间。\n仅下回合： 你的一个敌人护甲-1，同时同一个或另一个敌人的攻击-1{ko}라운드에 한번, 교류에서 제외:\n\n가로로 사용한 카드 1장은 +1 대신 +4를 준다. 이 수치는 유닛이 배정되지 않은 지휘 토큰 하나당 +1씩 증가한다. (스킬을 플레이 영역에 놓아 활성화)\n\n다음 차례에 한 번:\n\n선택한 적 하나의 방어구를 1 감소시키고, 같은 적이나 다른 적 공격 하나도 1 감소시킨다.{es}Una vez por Ronda (excepto durante las interacciones): (Pon esta ficha de habilidad en tu Área de juego para activarla)\n\nUna carta jugada de lado vale +4. Por cada ficha de Mando sin una Unidad, obtienes un +1 extra.\n\nSolo en el próximo turno:\n\nPuedes reducir la armadura de un enemigo en 1 y un ataque del mismo u otro enemigo en 1{fr}Une fois par Rounde (sauf pendant les interactions): (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer)\n\nUne carte jouée de côté vaut +4. Pour chaque jeton de commandement sans Unité, gagnez un +1 supplémentaire.\n\nTour suivant uniquement:\n\nVous pouvez réduire l'armure d'un ennemi de 1 et une attaque du même ennemi ou d'un autre de 1{pt-br}Uma vez por Rodada (Exceto durante interações): (Coloque esta habilidade na sua área de jogo para ativá-la)\n\nUma carta jogada de lado vale +4. Para cada Ficha de Comando sem uma unidade ganhe +1 extra.\n\nNo Próximo Turno apenas:\n\nVocê pode reduzir a armadura de um inimigo em 1 e um ataque do mesmo inimigo em 1.{de}Einmal pro Runde (außer bei Interaktionen): (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nEine seitwärts gespielte Karte ist +4 wert. Für jedes Befehlsplättchen ohne Einheit erhältst du zusätzlich +1.\n\nNur in der nächsten Zug:\n\nDu kannst die Rüstung eines Gegners um 1 und einen Angriff desselben oder eines anderen Gegners um 1 reduzieren.",
+							["ebbbfc"]="{en}Once a Round:\n\nChoose one card from your discard pile and place it on top  of your deed deck.\n\nIf the dummy hasn't called end of round, place the top card from the Advanced Action Deck in his deck.{ru}Один раз за раунд:\n\nВыберите одну карту из своей стопки сброса и положите её на верх колоды действий.\n\nЕсли виртуальный игрок не объявил конец раунда, положите верхнюю карту колоды Продвинутых действий в его колоду.{zh-tw}每轮一次：\n\n你和其他所有玩家从弃牌堆中选择一张牌，将这张牌放到功能牌库顶。单人游戏时，再将高级行动牌堆顶部的1张牌放到虚拟玩家的功能牌库顶，即使虚拟玩家的 功能牌库没有牌也可以这样做。\n如果虚拟玩家已经声明本轮结束，则忽略此效果。{zh-cn}每轮一次：\n\n你和其他所有玩家从弃牌堆中选择一张牌，将这张牌放到功能牌库顶。单人游戏时，再将高级行动牌堆顶部的1张牌放到虚拟玩家的功能牌库顶，即使虚拟玩家的 功能牌库没有牌也可以这样做。\n如果虚拟玩家已经声明本轮结束，则忽略此效果。{ko}라운드에 한번:\n\n이 토큰을 뒤집어 버린 더미에서 카드 한장을 선택해 더미 위에 올려둔다.\n\n가상 플레이어가 라운드 종료를 선언Cards하지 않았다면, 가장 아래 위치한 상급 액션을 그의 더미에 추가한다.{es}Una vez por Ronda:\n\nElige una carta de tu pila de descarte y colócala encima de tu mazo de escrituras.\n\nSi el muerto no ha dicho fin de ronda, coloca la carta superior del Mazo de Acción Avanzada en su mazo.{fr}Une fois par Rounde:\n\nChoisissez une carte de votre défausse et placez-la au-dessus de votre deck d'actes.\n\nSi le mannequin n'a pas appelé à la fin du tour, placez la première carte du paquet d'action avancée dans son paquet.{pt-br}Uma vez por Rodada:\n\nEscolha uma carta de sua pilha de descarte e coloque-a no topo de seu baralho de ações.\n\nSe o morto não tiver chamado o final da rodada, coloque a carta do topo do Baralho de Ação Avançada em seu baralho.{de}Einmal pro Runde:\n\nWähle eine Karte aus deinem Ablagestapel und lege sie oben auf dein Aktionsdeck.\n\nFalls der Dummy das Rundenende noch nicht ausgerufen hat, lege die oberste Karte des Decks der Fortgeschrittenen Aktionen in sein Deck.",
+							["a598f6"]="{en}Once a round (Except during combat):\\n\\nGain a Potion. (Put this skill token in your Play Area to activate it).\\n\\nNext turn only:\\n\\nYou may add +3 to any Move, Influence, or any type of Attack or Block provided by your next card or Unit ability that requires no mana.{ru}Один раз за раунд (кроме боя):\\n\\nПолучите Зелье. (Положите этот жетон навыка в свою игровую зону, чтобы активировать его.)\\n\\nТолько в следующий ход:\\n\\nВы можете добавить +3 к Движению, Влиянию или любому типу Атаки или Блока от следующей карты или способности Отряда, не требующей маны.{zh-tw}每輪一次（戰鬥期間除外）：\\n\\n獲得一瓶藥劑。（將此技能標記放入你的遊戲區以啟動它。）\\n\\n僅限下一回合：\\n\\n你的下一張牌或不需要魔力的部隊能力所提供的移動、影響力或任何類型的攻擊／格擋可獲得 +3。{zh-cn}每轮一次（战斗期间除外）：\\n\\n获得一瓶药剂。（将此技能标记放入你的游戏区以启动它。）\\n\\n仅限下一回合：\\n\\n你的下一张牌或不需要魔力的部队能力所提供的移动、影响力或任何类型的攻击／格挡可获得 +3。{ko}라운드당 한 번(전투 중 제외):\\n\\n물약 1개를 얻습니다. (이 스킬 토큰을 자신의 플레이 영역에 놓아 활성화합니다.)\\n\\n다음 턴에만:\\n\\n마나가 필요하지 않은 다음 카드 또는 유닛 능력이 제공하는 이동, 영향력, 모든 종류의 공격 또는 방어 중 하나에 +3을 더할 수 있습니다.{es}Una vez por ronda (excepto durante el combate):\\n\\nGana una Poción. (Pon esta ficha de habilidad en tu Área de Juego para activarla).\\n\\nSolo durante tu próximo turno:\\n\\nPuedes añadir +3 a cualquier Movimiento, Influencia o tipo de Ataque o Bloque proporcionado por tu próxima carta o habilidad de Unidad que no requiera maná.{fr}Une fois par manche (sauf pendant un combat) :\\n\\nGagnez une Potion. (Placez ce jeton de compétence dans votre Zone de Jeu pour l’activer.)\\n\\nAu prochain tour uniquement :\\n\\nVous pouvez ajouter +3 à un Mouvement, une Influence ou tout type d’Attaque ou de Bloc fourni par votre prochaine carte ou capacité d’Unité ne nécessitant aucun mana.{pt-br}Uma vez por rodada (exceto durante combate):\\n\\nGanhe uma Poção. (Coloque esta ficha de habilidade na sua Área de Jogo para ativá-la.)\\n\\nApenas no próximo turno:\\n\\nVocê pode adicionar +3 a qualquer Movimento, Influência ou tipo de Ataque ou Bloqueio fornecido pela sua próxima carta ou habilidade de Unidade que não exija mana.{de}Einmal pro Runde (außer während eines Kampfes):\\n\\nErhalte einen Trank. (Lege diesen Fähigkeitsmarker in deinen Spielbereich, um ihn zu aktivieren.)\\n\\nNur im nächsten Zug:\\n\\nDu darfst +3 zu Bewegung, Einfluss oder einer beliebigen Angriffs- oder Blockart deiner nächsten Karte oder Einheitenfähigkeit addieren, sofern dafür kein Mana benötigt wird.",
+							["3d8336"]="{en}Once a Round:\n\nFlip this to draw two cards, and gain a Red mana token.\n\nYou cannot use another Motivation Skill until the end of your next turn.{ru}Один раз в раунд:\n\nПереверните навык и возьмите 2 карты и жетон красной маны.\n\nНельзя использовать другие навыки Мотивации до конца вашего следующего хода.{zh-tw}每轮一次：\n\n使用此技能抽两张牌，并获得一个红色魔力标记。\n\n在下一回合结束之前，您不能使用其他激励技能。{zh-cn}每轮一次：\n\n使用此技能抽两张牌，并获得一个红色魔力标记。\n\n在下一回合结束之前，您不能使用其他激励技能。{ko}라운드에 한번:\n\n이 토큰을 뒤집어 카드 2장을 뽑는다. 그리고 적색 마나 토큰을 얻는다.\n\n다음 차례를 마칠 때 까지 다른 동기 부여를 사용할 수 없다.{es}Una vez por Ronda:\n\nDale la vuelta para robar dos cartas y ganar una ficha de maná roja.\n\nNo puedes usar otra habilidad de motivación hasta el final de tu próximo turno.{fr}Une fois par Rounde :\n\nRetournez-le pour piocher deux cartes et gagner un jeton de mana rouge.\n\nVous ne pouvez pas utiliser une autre compétence de motivation jusqu'à la fin de votre prochain tour.{pt-br}Uma vez por Rodada:\n\nVire esta para comprar duas cartas e ganhar um marcador de mana Vermelha.\n\nVocê não pode usar habilidades Motivacionais até o fim do seu próximo turno.{de}Einmal pro Runde:\n\nDrehe dies um, um zwei Karten zu ziehen und einen roten Mana-Token zu erhalten.\n\nDu kannst bis zum Ende deines nächsten Zuges keine weitere Motivationsfähigkeit nutzen.",
+							["171244"]="{en}Once a Round:\n\nFlip this to draw two cards, and gain a Green mana token.\n\nYou cannot use another Motivation Skill until the end of your next turn.{ru}Один раз в раунд:\n\nПереверните навык и возьмите 2 карты и жетон зеленой маны.\n\nНельзя использовать другие навыки Мотивации до конца вашего следующего хода.{zh-tw}每轮一次：\n\n使用此技能抽两张牌，并获得一个绿色魔力标记。\n\n在下一回合结束之前，您不能使用其他激励技能。{zh-cn}每轮一次：\n\n使用此技能抽两张牌，并获得一个绿色魔力标记。\n\n在下一回合结束之前，您不能使用其他激励技能。{ko}라운드에 한번:\n\n이 토큰을 뒤집어 카드 2장을 뽑는다. 그리고 녹색 마나 토큰을 얻는다.\n\n다음 차례를 마칠 때 까지 다른 동기 부여를 사용할 수 없다.{es}Una vez por Ronda:\n\nDale la vuelta para robar dos cartas y ganar una ficha de maná verde.\n\nNo puedes usar otra habilidad de motivación hasta el final de tu próximo turno.{fr}Une fois par Rounde:\n\nRetournez-le pour piocher deux cartes et gagner un jeton de mana vert.\n\nVous ne pouvez pas utiliser une autre compétence de motivation jusqu'à la fin de votre prochain tour.{pt-br}Uma vez por Rodada:\n\nVire esta para comprar duas cartas e ganhar um marcador de mana Verde.\n\nVocê não pode usar habilidades Motivacionais até o fim do seu próximo turno.{de}Einmal pro Runde:\n\nDrehe dies um, um zwei Karten zu ziehen und einen grünen Mana-Token zu erhalten.\n\nDu kannst bis zum Ende deines nächsten Zuges keine weitere Motivationsfähigkeit nutzen.",
+							["14399f"]="{en}Once a Round:\n\nFlip this to draw two cards, and gain a White mana token.\n\nYou cannot use another Motivation Skill until the end of your next turn.{ru}Один раз в раунд:\n\nПереверните навык и возьмите 2 карты и жетон белой маны.\n\nНельзя использовать другие навыки Мотивации до конца вашего следующего хода.{zh-tw}每轮一次：\n\n将本标记翻面以抽取两张卡牌。获得一个白色魔力标记。你的下回合结束前无法使用其他激励技能{zh-cn}每轮一次：\n\n将本标记翻面以抽取两张卡牌。获得一个白色魔力标记。你的下回合结束前无法使用其他激励技能{ko}라운드에 한번:\n\n이 토큰을 뒤집어 카드 2장을 뽑는다. 그리고 백색 마나 토큰을 얻는다.\n\n다음 차례를 마칠 때 까지 다른 동기 부여를 사용할 수 없다.{es}Una vez por Ronda:\n\nDale la vuelta para robar dos cartas y ganar una ficha de maná blanca.\n\nNo puedes usar otra habilidad de motivación hasta el final de tu próximo turno.{fr}Une fois par Rounde:\n\nRetournez-le pour piocher deux cartes et gagner un jeton de mana blanc.\n\nVous ne pouvez pas utiliser une autre compétence de motivation jusqu'à la fin de votre prochain tour.{pt-br}Uma vez por Rodada:\n\nVire esta para comprar duas cartas e ganhar um marcador de mana Branca.\n\nVocê não pode usar habilidades Motivacionais até o fim do seu próximo turno.{de}Einmal pro Runde:\n\nDrehe dies um, um zwei Karten zu ziehen und ein weißes Mana-Token zu erhalten.\n\nDu kannst bis zum Ende deines nächsten Zuges keine weitere Motivationsfähigkeit nutzen.",
+							["527b47"]="{en}Once a Round:\n\nFlip this to draw two cards, and gain Fame 1.\n\nYou cannot use another Motivation Skill until the end of your next turn.{ru}Один раз в раунд:\n\nПереверните навык и возьмите 2 карты и 1 очко Славы.\n\nНельзя использовать другие навыки Мотивации до конца вашего следующего хода.{zh-tw}每轮一次：\n\n使用此技能抽两张牌，并获得声望1。\n\n在下一回合结束之前，您不能使用其他激励技能。{zh-cn}每轮一次：\n\n使用此技能抽两张牌，并获得声望1。\n\n在下一回合结束之前，您不能使用其他激励技能。{ko}라운드에 한번:\n\n이 토큰을 뒤집어 카드 2장을 뽑는다. 그리고 명성 1을 얻는다.\n\n다음 차례를 마칠 때 까지 다른 동기 부여를 사용할 수 없다.{es}Una vez por Ronda:\n\nDale la vuelta para robar dos cartas y ganar Fama 1.\n\nNo puedes usar otra habilidad de motivación hasta el final de tu próximo turno.{fr}Une fois par Rounde:\n\nRetournez-le pour piocher deux cartes et gagner de la renommée 1.\n\nVous ne pouvez pas utiliser une autre compétence de motivation jusqu'à la fin de votre prochain tour.{pt-br}Uma vez por Rodada:\n\nVire esta para comprar duas cartas e ganhar 1 de fama.\n\nVocê não pode usar habilidades Motivacionais até o fim do seu próximo turno.{de}Einmal pro Runde:\n\nDrehe dies um, um zwei Karten zu ziehen und 1 Ruhm zu erhalten.\n\nDu kannst bis zum Ende deines nächsten Zuges keine weitere Motivationsfähigkeit nutzen.",
+							["ba4df5"]="{en}Once a Round:\n\nFlip this to draw two cards, and gain a Blue mana token.\n\nYou cannot use another Motivation Skill until the end of your next turn.{ru}Один раз в раунд:\n\nПереверните навык и возьмите 2 карты и жетон синей маны.\n\nНельзя использовать другие навыки Мотивации до конца вашего следующего хода.{zh-tw}每轮一次：\n\n使用此技能抽两张牌，并获得蓝色魔力标记。\n下回合结束前，你不能使用其他激励技能。{zh-cn}每轮一次：\n\n使用此技能抽两张牌，并获得蓝色魔力标记。\n下回合结束前，你不能使用其他激励技能。{ko}라운드에 한번:\n\n이 토큰을 뒤집어 카드 2장을 뽑는다. 그리고 청색 마나 토큰을 얻는다.\n\n다음 차례를 마칠 때 까지 다른 동기 부여를 사용할 수 없다.{es}Una vez por Ronda:\n\nDale la vuelta para robar dos cartas y ganar una ficha de maná azul.\n\nNo puedes usar otra habilidad de motivación hasta el final de tu próximo turno.{fr}Une fois par Rounde:\n\nRetournez-le pour piocher deux cartes et gagner un jeton de mana bleu.\n\nVous ne pouvez pas utiliser une autre compétence de motivation jusqu'à la fin de votre prochain tour.{pt-br}Uma vez por Rodada:\n\nVire esta para comprar duas cartas e ganhar um marcador de mana Azul.\n\nVocê não pode usar habilidades Motivacionais até o fim do seu próximo turno.{de}Einmal pro Runde:\n\nDrehe dies um, um zwei Karten zu ziehen und ein blaues Mana-Token zu erhalten.\n\nDu kannst bis zum Ende deines nächsten Zuges keine weitere Motivationsfähigkeit nutzen.",
+							["48fd35"]="{en}Once a turn:\n\nPay a mana of any color and throw away a Wound from your hand. Also draw a card.{ru}Один раз в ход:\n\nПотратьте ману любого цвета и удалите карту раны с руки. Возьмите одну карту.{zh-tw}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{zh-cn}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{ko}차례에 한번:\n\n아무 색상 마나를 지불하고 손에 든 부상 하나를 제거한다. 추가로 카드 1장을 뽑는다.{es}Una vez por Turno:\n\nPaga un maná de cualquier color y tira una herida de tu mano. También roba una carta.{fr}Une fois par Tour:\n\nPayez un mana de n'importe quelle couleur et jetez une Blessure de votre main. Piochez également une carte.{pt-br}Uma vez por Turno:\n\nPague uma mana de qualquer cor e jogue fora um Ferimento da sua mão. Também compre uma carta.{de}Einmal pro Zug:\n\nBezahle ein Mana beliebiger Farbe und wirf eine Wundenkarte aus deiner Hand ab. Ziehe außerdem eine Karte.",
+							["b13d5f"]="{en}Change up to 4 Black Mana Tokens or Dice into unique Basic Mana colours, even during the day. Place this skill in the Source until Mevok’s next turn. This allows a friendly Knight to reroll Black (day) or Gold (night) mana in the Source. If any Black (day) or Gold (night) mana remains after rolling, return this skill face down to Mevok.{ru}Измените до 4 жетонов или кубиков чёрной маны на разные основные цвета маны, даже днём. Поместите этот навык в Источник до следующего хода Мевока. Дружественный Рыцарь-маг может перебросить чёрную ману днём или золотую ночью в Источнике. Если после броска остаётся чёрная мана днём или золотая ночью, верните этот навык Мевоку лицом вниз.{zh-tw}將最多 4 個黑色魔力標記或骰子改為彼此不同的基本魔力顏色，即使在白天也可以。將此技能放入魔力源，直到梅沃克的下一回合。友方魔法騎士可重擲魔力源中的黑色（白天）或金色（夜晚）魔力。若重擲後仍有黑色（白天）或金色（夜晚）魔力，將此技能面朝下歸還梅沃克。{zh-cn}将最多 4 个黑色魔力标记或骰子改为彼此不同的基本魔力颜色，即使在白天也可以。将此技能放入魔力源，直到梅沃克的下一回合。友方魔法骑士可重掷魔力源中的黑色（白天）或金色（夜晚）魔力。若重掷后仍有黑色（白天）或金色（夜晚）魔力，将此技能面朝下归还梅沃克。{ko}검은색 마나 토큰이나 주사위를 최대 4개까지 서로 다른 기본 마나 색으로 바꿉니다. 낮에도 사용할 수 있습니다. 이 스킬을 메복의 다음 차례까지 마나 원천에 놓습니다. 아군 마법기사는 원천의 검은색(낮) 또는 금색(밤) 마나를 다시 굴릴 수 있습니다. 굴린 뒤에도 검은색(낮) 또는 금색(밤) 마나가 남아 있다면 이 스킬을 뒷면으로 메복에게 돌려놓습니다.{es}Cambia hasta 4 fichas o dados de Maná Negro a colores básicos de Maná distintos, incluso durante el día. Coloca esta habilidad en la Fuente hasta el próximo turno de Mevok. Esto permite a un Caballero aliado volver a tirar Maná Negro (día) o Dorado (noche) de la Fuente. Si queda Maná Negro (día) o Dorado (noche) después de tirar, devuelve esta habilidad boca abajo a Mevok.{fr}Transformez jusqu’à 4 jetons ou dés de Mana Noir en couleurs de Mana de base différentes, même pendant le jour. Placez cette compétence dans la Source jusqu’au prochain tour de Mevok. Un Chevalier allié peut relancer le Mana Noir (jour) ou Or (nuit) de la Source. S’il reste du Mana Noir (jour) ou Or (nuit) après le lancer, rendez cette compétence face cachée à Mevok.{pt-br}Mude até 4 fichas ou dados de Mana Preto para cores básicas de Mana diferentes, mesmo durante o dia. Coloque esta habilidade na Fonte até o próximo turno de Mevok. Um Cavaleiro aliado pode rolar novamente Mana Preto (dia) ou Dourado (noite) da Fonte. Se restar Mana Preto (dia) ou Dourado (noite) após a rolagem, devolva esta habilidade virada para baixo a Mevok.{de}Ändere bis zu 4 schwarze Mana-Marker oder -Würfel in unterschiedliche Grundmanafarben, sogar am Tag. Lege diese Fertigkeit bis zu Mevoks nächstem Zug in die Quelle. Ein verbündeter Ritter darf schwarzes Mana (Tag) oder goldenes Mana (Nacht) in der Quelle neu würfeln. Bleibt danach schwarzes Mana (Tag) oder goldenes Mana (Nacht) übrig, gib diese Fertigkeit verdeckt an Mevok zurück.",
+							["68f864"]="{en}Once a Round:\\n\\nFlip this token to ignore all Attack effects of one enemy token (Put this skill token in your Play Area to activate it).\\n\\nNext turn only:\\n\\nYou may use this skill to ignore one Attack effect of one enemy token.{ru}Один раз за раунд:\\n\\nПереверните этот жетон, чтобы игнорировать все эффекты Атаки одного жетона врага. (Положите этот жетон навыка в свою игровую зону, чтобы активировать его.)\\n\\nТолько в следующий ход:\\n\\nВы можете использовать этот навык, чтобы игнорировать один эффект Атаки одного жетона врага.{zh-tw}每輪一次：\\n\\n翻轉此標記以忽略一個敵人標記的所有攻擊效果。（將此技能標記放入你的遊戲區以啟動它。）\\n\\n僅限下一回合：\\n\\n你可以使用此技能忽略一個敵人標記的一項攻擊效果。{zh-cn}每轮一次：\\n\\n翻转此标记以忽略一个敌人标记的所有攻击效果。（将此技能标记放入你的游戏区以启动它。）\\n\\n仅限下一回合：\\n\\n你可以使用此技能忽略一个敌人标记的一项攻击效果。{ko}라운드당 한 번:\\n\\n이 토큰을 뒤집어 적 토큰 하나의 모든 공격 효과를 무시합니다. (이 스킬 토큰을 자신의 플레이 영역에 놓아 활성화합니다.)\\n\\n다음 턴에만:\\n\\n이 스킬을 사용해 적 토큰 하나의 공격 효과 하나를 무시할 수 있습니다.{es}Una vez por ronda:\\n\\nVoltea esta ficha para ignorar todos los efectos de Ataque de una ficha enemiga. (Pon esta ficha de habilidad en tu Área de Juego para activarla.)\\n\\nSolo durante tu próximo turno:\\n\\nPuedes usar esta habilidad para ignorar un efecto de Ataque de una ficha enemiga.{fr}Une fois par manche :\\n\\nRetournez ce jeton pour ignorer tous les effets d’Attaque d’un jeton ennemi. (Placez ce jeton de compétence dans votre Zone de Jeu pour l’activer.)\\n\\nAu prochain tour uniquement :\\n\\nVous pouvez utiliser cette compétence pour ignorer un effet d’Attaque d’un jeton ennemi.{pt-br}Uma vez por rodada:\\n\\nVire esta ficha para ignorar todos os efeitos de Ataque de uma ficha inimiga. (Coloque esta ficha de habilidade na sua Área de Jogo para ativá-la.)\\n\\nApenas no próximo turno:\\n\\nVocê pode usar esta habilidade para ignorar um efeito de Ataque de uma ficha inimiga.{de}Einmal pro Runde:\\n\\nDrehe diesen Marker um, um alle Angriffseffekte eines gegnerischen Markers zu ignorieren. (Lege diesen Fähigkeitsmarker in deinen Spielbereich, um ihn zu aktivieren.)\\n\\nNur im nächsten Zug:\\n\\nDu darfst mit dieser Fähigkeit einen Angriffseffekt eines gegnerischen Markers ignorieren.",
+							["784a07"]="{en}Once a round:\n\nFlip this Token to draw a card.\n\nYou may also discard a card and draw a card.\n\nNext turn only:\n\nYou may use this skill to draw a card.{ru}Один раз за раунд:\n\nПереверните этот жетон, чтобы взять карту.\n\nВы также можете сбросить карту и взять карту.\n\nТолько в следующем ходу:\n\nВы можете использовать этот навык, чтобы взять карту.{zh-tw}每輪一次：\n\n將此技能翻面來抽一張卡牌。\n\n你可以再棄一張牌來抽一張卡牌。\n\n僅下回合：\n\n你可以使用此技能來抽一張卡牌。{zh-cn}每轮一次：\n\n将此技能翻面来抽一张卡牌。\n\n你可以再弃一张牌来抽一张卡牌。\n\n仅下回合：\n\n你可以使用此技能来抽一张卡牌。{ko}매 턴마다 한 번:\n\n이 토큰을 뒤집어 카드를 한 장 뽑을 수 있습니다.\n\n카드를 버리고 한 장 뽑을 수도 있습니다.\n\n다음 턴에만:\n\n이 능력을 사용하여 카드를 한 장 뽑을 수 있습니다.{es}Una vez por ronda:\n\nVoltea esta ficha para robar una carta.\n\nTambién puedes descartar una carta y robar una carta.\n\nSolo en el siguiente turno:\n\nPuedes usar esta habilidad para robar una carta.{fr}Une fois par tour :\n\nRetournez ce jeton pour piocher une carte.\n\nVous pouvez également défausser une carte et en piocher une.\n\nAu prochain tour uniquement :\n\nVous pouvez utiliser cette capacité pour piocher une carte.{pt-br}Uma vez por rodada:\n\nVire este marcador para comprar uma carta.\n\nVocê também pode descartar uma carta e comprar uma carta.\n\nSomente no próximo turno:\n\nVocê pode usar esta habilidade para comprar uma carta.{de}Einmal pro Runde:\n\nDrehe diesen Spielstein um, um eine Karte zu ziehen.\n\nDu kannst auch eine Karte ablegen und eine Karte ziehen.\n\nNur im nächsten Zug:\n\nDu kannst diese Fähigkeit nutzen, um eine Karte zu ziehen.",
+							["b66704"]="{en}Once a Round:\\n\\nYou may play a Wound as a sideways card for +3.\\n\\nIf your reputation is negative, add half your reputation score rounded up (x=7).\\n\\nNext turn only:\\n\\nGain +1 on the Reputation Track.{ru}Один раз за раунд:\\n\\nВы можете сыграть Рану боком как карту со значением +3.\\n\\nЕсли ваша репутация отрицательная, добавьте половину значения репутации, округляя вверх (x=7).\\n\\nТолько в следующий ход:\\n\\nПолучите +1 на шкале Репутации.{zh-tw}每輪一次：\\n\\n你可以將一張創傷牌橫置打出，視為 +3。\\n\\n若你的聲望為負數，加入你聲望值的一半並向上取整（x=7）。\\n\\n僅限下一回合：\\n\\n聲望軌提升 +1。{zh-cn}每轮一次：\\n\\n你可以将一张创伤牌横置打出，视为 +3。\\n\\n若你的声望为负数，加入你声望值的一半并向上取整（x=7）。\\n\\n仅限下一回合：\\n\\n声望轨提升 +1。{ko}라운드당 한 번:\\n\\n부상 카드 한 장을 옆으로 내어 +3으로 사용할 수 있습니다.\\n\\n평판이 음수라면 평판 수치의 절반을 올림하여 더합니다(x=7).\\n\\n다음 턴에만:\\n\\n평판 트랙에서 +1을 얻습니다.{es}Una vez por ronda:\\n\\nPuedes jugar una Herida de lado como una carta de +3.\\n\\nSi tu reputación es negativa, añade la mitad de tu puntuación de reputación redondeando hacia arriba (x=7).\\n\\nSolo durante tu próximo turno:\\n\\nGana +1 en la Pista de Reputación.{fr}Une fois par manche :\\n\\nVous pouvez jouer une Blessure de côté comme une carte valant +3.\\n\\nSi votre réputation est négative, ajoutez la moitié de votre valeur de réputation, arrondie au supérieur (x=7).\\n\\nAu prochain tour uniquement :\\n\\nGagnez +1 sur la Piste de Réputation.{pt-br}Uma vez por rodada:\\n\\nVocê pode jogar um Ferimento de lado como uma carta de +3.\\n\\nSe sua reputação for negativa, adicione metade do valor de reputação, arredondado para cima (x=7).\\n\\nApenas no próximo turno:\\n\\nGanhe +1 na Trilha de Reputação.{de}Einmal pro Runde:\\n\\nDu darfst eine Wunde seitlich als Karte mit +3 spielen.\\n\\nIst dein Ruf negativ, addiere die Hälfte deines Rufwerts, aufgerundet (x=7).\\n\\nNur im nächsten Zug:\\n\\nErhalte +1 auf der Rufleiste.",
+							["9d866a"]="{en}Double your Armour when assigning damage. Gain 1 extra Wound per damage source to your hand and 2 to the discard pile. Knock Out requires 1 extra Wound. After combat, throw out Wounds equal to defeated enemies. Place this skill into the Source. A friendly Knight gains 1 Block or Block equal to your unsigned Reputation. Return face down at the start of next turn.{ru}Удвойте свою Броню при распределении урона. За каждый источник урона получите дополнительно 1 Рану в руку и 2 в сброс. Для нокаута требуется на 1 Рану больше. После боя удалите столько Ран, сколько врагов было побеждено. Поместите этот навык в Источник. Дружественный Рыцарь-маг получает 1 Блок или Блок, равный абсолютному значению вашей Репутации. В начале следующего хода верните навык лицом вниз.{zh-tw}分配傷害時，你的護甲加倍。每個傷害來源額外獲得 1 張創傷到手牌、2 張創傷到棄牌堆。被擊倒需要多 1 張創傷。戰鬥後，移除等同於被擊敗敵人數量的創傷。將此技能放入魔力源。友方魔法騎士獲得 1 點格擋，或等同於你聲望絕對值的格擋。下一回合開始時將此技能面朝下歸還。{zh-cn}分配伤害时，你的护甲加倍。每个伤害来源额外获得 1 张创伤到手牌、2 张创伤到弃牌堆。被击倒需要多 1 张创伤。战斗后，移除等同于被击败敌人数量的创伤。将此技能放入魔力源。友方魔法骑士获得 1 点格挡，或等同于你声望绝对值的格挡。下一回合开始时将此技能面朝下归还。{ko}피해를 배정할 때 방어력을 두 배로 계산합니다. 피해 원천마다 손에 부상 1장을 추가로 받고 버린 카드 더미에 2장을 받습니다. 쓰러지려면 부상 1장이 더 필요합니다. 전투 후 처치한 적 수만큼 부상을 제거합니다. 이 스킬을 마나 원천에 놓습니다. 아군 마법기사는 방어 1 또는 당신의 평판 절댓값만큼 방어를 얻습니다. 다음 차례 시작에 뒷면으로 되돌립니다.{es}Duplica tu Armadura al asignar daño. Recibe 1 Herida adicional en tu mano y 2 en el descarte por cada fuente de daño. Quedar Inconsciente requiere 1 Herida adicional. Después del combate, elimina tantas Heridas como enemigos derrotados. Coloca esta habilidad en la Fuente. Un Caballero aliado obtiene 1 Bloqueo o Bloqueo igual al valor absoluto de tu Reputación. Devuélvela boca abajo al comienzo del siguiente turno.{fr}Doublez votre Armure lors de l’attribution des dégâts. Pour chaque source de dégâts, gagnez 1 Blessure supplémentaire en main et 2 dans la défausse. Être Assommé nécessite 1 Blessure supplémentaire. Après le combat, retirez autant de Blessures que d’ennemis vaincus. Placez cette compétence dans la Source. Un Chevalier allié gagne 1 Blocage ou un Blocage égal à la valeur absolue de votre Réputation. Remettez-la face cachée au début du prochain tour.{pt-br}Dobre sua Armadura ao atribuir dano. Para cada fonte de dano, receba 1 Ferimento extra na mão e 2 na pilha de descarte. Ser Nocauteado exige 1 Ferimento extra. Após o combate, remova Ferimentos em quantidade igual aos inimigos derrotados. Coloque esta habilidade na Fonte. Um Cavaleiro aliado ganha 1 Bloqueio ou Bloqueio igual ao valor absoluto da sua Reputação. Devolva-a virada para baixo no início do próximo turno.{de}Verdopple deine Rüstung beim Zuweisen von Schaden. Erhalte pro Schadensquelle 1 zusätzliche Wunde auf die Hand und 2 in den Ablagestapel. Für das K.-o.-Gehen ist 1 zusätzliche Wunde nötig. Entferne nach dem Kampf so viele Wunden, wie Gegner besiegt wurden. Lege diese Fertigkeit in die Quelle. Ein verbündeter Ritter erhält 1 Block oder Block in Höhe des Absolutwerts deines Rufs. Lege sie zu Beginn des nächsten Zuges verdeckt zurück.",
+							["adf8ab"]="{en}Once a turn:\n\nPay a mana of any color and throw away a Wound from your hand. Also draw a card.{ru}Один раз в ход:\n\nПотратьте ману любого цвета и удалите карту раны с руки. Возьмите одну карту.{zh-tw}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{zh-cn}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{ko}차례에 한번:\n\n아무 색상 마나를 지불하고 손에 든 부상 하나를 제거한다. 추가로 카드 1장을 뽑는다.{es}Una vez por Turno:\n\nPaga un maná de cualquier color y tira una herida de tu mano. También roba una carta.{fr}Une fois par Tour:\n\nPayez un mana de n'importe quelle couleur et jetez une Blessure de votre main. Piochez également une carte.{pt-br}Uma vez por Turno:\n\nPague uma mana de qualquer cor e jogue fora um Ferimento da sua mão. Também compre uma carta.{de}Einmal pro Zug:\n\nBezahle ein Mana beliebiger Farbe und wirf eine Wundenkarte aus deiner Hand ab. Ziehe außerdem eine Karte."}
 
 function __onObjectLeaveContainer_raw(bag, obj)
 	if bag~=nil and obj~=nil and bag.guid==GUID.bag.apocalypseQuestTokens then
@@ -3125,28 +1637,6 @@ function __onObjectLeaveContainer_raw(bag, obj)
 			end, function() return obj.resting end) end, 10)
 		end
 	end
-	local soloDescription={
-							["3fba07"]="{en}Once a round (Except during combat):\n\nThrow away up to two Wound cards from your hand. (Put this skill token in your Play Area to activated it)\n\nNext turn only:\n\nYou may play a Wound card sideways for +3.{ru}Один раз в раунд (не в битве):\n\nУдалите до двух карт раны с руки. (Положите навык в вашу игровую зону для активации эффекта)\n\nТолько в следующий ход:\n\nМожете сыграть карту раны боком, получив бонус +3.{zh-tw}每轮一次，非战斗中使用\n\n从手牌中去除最多两张创伤卡。将本技能标记放在桌子中央。\n\n仅下回合： 你可以横置打出一张创伤卡，效果+3{zh-cn}每轮一次，非战斗中使用\n\n从手牌中去除最多两张创伤卡。将本技能标记放在桌子中央。\n\n仅下回合： 你可以横置打出一张创伤卡，效果+3{ko}라운드에 한번, 전투에서 제외:\n\n손에 든 부상을 2개까지 제거한다. (스킬을 플레이 영역에 놓아 활성화)\n\n다음 차례에 한번,\n\n부상 하나를 다른 행동 카드처럼 가로로 시용해, +1 대신 +3을 받는다.{es}Una vez por Ronda (excepto durante el combate):\n\nTira hasta dos cartas de Herida de tu mano. (Pon esta ficha de habilidad en tu Área de juego para activarla)\n\nSólo en el próximo turno:\n\nPuedes jugar una carta de Herida de lado por +3.{fr}Une fois par Rounde (Sauf pendant le combat):\n\nJetez jusqu'à deux cartes Blessure de votre main. (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer)\n\nTour suivant uniquement:\n\nVous pouvez jouer une carte Blessure latéralement pour +3.{pt-br}Uma vez por rodada (Exceto durante combate):\n\nJogue fora 2 cartas de ferimento da sua mão. (Coloque esta habilidade na sua área de jogo para ativá-la)\n\nPróximo turno turno apenas:\n\nVocê pode jogar uma carta de Ferimento de lado como +3.{de}Einmal pro Runde (außer im Kampf):\n\nWirf bis zu zwei Wundenkarten aus deiner Hand weg. (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nNur im nächsten Zug:\n\nDu darfst eine Wundenkarte seitwärts für +3 ausspielen.",
-							["4ac9f6"]="{en}Once a Round:\n\nReduce one attack of an enemy by 1. That enemy gains Cumbersome this turn. (Put this skill token in your Play Area to activated it)\n\nNext turn only:\n\nYou may reduce one attack of an enemy by 1. That enemy gains Cumbersome.{ru}Один раз в раунд:\n\nУменьшите значение одной Атаки врага на 1. Этот враг становится Неповоротливым до конца хода. (Положите навык в вашу игровую зону для активации эффекта)\n\nТолько в следующий ход:\n\nУменьшите значение одной Атаки врага на 1. Этот враг становится Неповоротливым до конца хода.{zh-tw}每轮一次：\n\n将敌人的一次攻击减少1。该敌人在本回合变得笨重（将此标记放在桌子中央以激活它）\n\n仅下一回合：\n\n您可以将敌人的一次攻击减少1。该敌人变得笨重。{zh-cn}每轮一次：\n\n将敌人的一次攻击减少1。该敌人在本回合变得笨重（将此标记放在桌子中央以激活它）\n\n仅下一回合：\n\n您可以将敌人的一次攻击减少1。该敌人变得笨重。{ko}라운드에 한번:\n\n적 공격 하나를 1 줄인다. 이번 차례에 그 적의 공격은 육중함을 얻는다.  (스킬을 플레이 영역에 놓아 활성화)\n\n다음 자기 차례에:\n\n적 공격 하나를 1 줄인다. 이번 차례에 그 적의 공격은 육중함을 얻는다.{es}Una vez por Ronda:\n\nReduce un ataque de un enemigo en 1. Ese enemigo gana Engorroso este turno. (Pon esta ficha de habilidad en tu área de juego para activarla)\n\nSolo en el próximo turno:\n\nPuedes reducir un ataque de un enemigo en 1. Ese enemigo se vuelve engorroso.{fr}Une fois par Rounde:\n\nRéduisez une attaque d'un ennemi de 1. Cet ennemi devient Encombrant ce tour-ci. (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer)\n\nTour suivant uniquement:\n\nVous pouvez réduire une attaque d'un ennemi de 1. Cet ennemi devient Encombrant.{pt-br}Uma vez por Rodada:\n\nReduz um ataque de um inimigo em 1.Este inimigo ganha Corpulento este turno. (Coloque esta habilidade na sua área de jogo para ativá-la)\n\nPróximo Turno apenas:\n\nVocê pode reduzir um ataque de 1 inimigo em 1. Este inimigo ganha Corpulento.{de}Einmal pro Runde:\n\nReduziere einen Angriff eines Feindes um 1. Dieser Feind wird in diesem Zug schwerfällig. (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nNur im nächsten Zug:\n\nDu kannst einen Angriff eines Gegners um 1 reduzieren. Dieser Gegner wird schwerfällig.",
-							["3b3273"]="{en}Once a Round:\n\nYou may Reroll a mana die in the source. (Put this skill token in your Play Area to activated it)\n\nNext turn only:\n\nYou may use an extra die from the source. Also gain a crystal of the same color. You may decide whether to reroll that die or not at the end of your turn.{ru}Один раз в раунд:\n\nМожете перебросить кубик маны в источнике. (Положите навык в вашу игровую зону для активации эффекта)\n\nТолько в следующий ход:\n\nМожете использовать дополнительный кубик маны основного цвета и взять кристалл этого цвета. Вы решаете, перебрасывать взятый кубик или нет.{zh-tw}每回合一次:\n\n你可以重掷来源中的一个法力骰子. (将此技能令牌放入你的游戏区域以激活它).\n\n仅限下一回合:\n\n你可以使用一个额外的法力骰子, 同时获得一个相同颜色的水晶. 在你的回合结束时, 你可以决定是否重掷该骰子.{zh-cn}每回合一次:\n\n你可以重掷来源中的一个法力骰子. (将此技能令牌放入你的游戏区域以激活它).\n\n仅限下一回合:\n\n你可以使用一个额外的法力骰子, 同时获得一个相同颜色的水晶. 在你的回合结束时, 你可以决定是否重掷该骰子.{ko}1라운드에 한 번:\n\n당신은 소스의 마나 주사위를 다시 굴릴 수 있습니다. (이 스킬 토큰을 자신의 플레이 영역에 놓아 활성화합니다).\n\n다음 턴에만 가능합니다:\n\n당신은 소스에서 주사위 한 개를 추가로 사용할 수 있습니다. 또한 같은 색의 수정 하나를 얻습니다. 자신의 턴이 끝날 때 주사위를 다시 굴릴지 여부를 결정할 수 있습니다.{es}Una vez por Ronda:\n\nPuedes volver a lanzar un dado de maná en la fuente. (Pon esta ficha de habilidad en tu Área de Juego para activarla)\n\nSólo en el siguiente turno:\n\nPuedes usar un dado extra de la fuente. También ganas un cristal del mismo color. Puedes decidir si volver a lanzar ese dado o no al final de tu turno.{fr}Une fois par round :\n\nVous pouvez relancer un dé de mana dans la source. (Placez ce jeton de compétence dans votre zone de jeu pour l'activer).\n\nAu prochain tour seulement :\n\nVous pouvez utiliser un dé supplémentaire de la source. Vous gagnez également un cristal de la même couleur. Vous pouvez décider de relancer ou non ce dé à la fin de votre tour.{pt-br}Uma vez por rodada:\n\nVocê pode fazer o Reroll de um dado de mana na fonte. (Coloque esse token de habilidade em sua Área de Jogo para ativá-lo).\n\nSomente no próximo turno:\n\nVocê pode usar um dado extra da fonte. Também ganha um cristal da mesma cor. Você pode decidir se quer rolar novamente esse dado ou não no final do seu turno.{de}Einmal pro Runde:\n\nDu darfst einen Manawürfel in der Quelle neu würfeln. (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nNur in der nächsten Runde:\n\nDu darfst einen zusätzlichen Würfel aus der Quelle verwenden. Außerdem erhältst du einen Kristall der gleichen Farbe. Am Ende deines Zuges darfst du entscheiden, ob du diesen Würfel neu würfelst oder nicht.",
-							["725de9"]="{en}Once a Round:\n\nWhen you spend a mana of a basic color, gain a Crystal of that color. (Put this skill token in your Play Area to activated it, and place another crystal of the same color on it)\n\nNext turn only:\n\nYou may gain the mana token on this skill.{ru}Один раз в раунд:\n\nПотратив ману основного цвета, возьмите кристалл того же цвета. (Положите навык в вашу игровую зону для активации эффекта, и положите на него жетон маны того же цвета из резерва)\n\nТолько в следующий ход:\n\nМожете использовать ману, лежащую на этом навыке.{zh-tw}每轮一次：\n\n当你花费一个基本颜色的魔力时，获得一个该颜色的魔晶（将此技能标记放置在桌子中央以激活它，并在其上放置另一个相同颜色的水晶）\n\n仅下一回合：\n\n您可以获得此技能上的魔力标记。{zh-cn}每轮一次：\n\n当你花费一个基本颜色的魔力时，获得一个该颜色的魔晶（将此技能标记放置在桌子中央以激活它，并在其上放置另一个相同颜色的水晶）\n\n仅下一回合：\n\n您可以获得此技能上的魔力标记。{ko}라운드에 한번:\n\n기본 색상 마나 1개를 지불할 때,  이 스킬을 사용하여 해당 색상 수정 1개를 얻는다.(같은 색의 마나 토큰으로 스킬 위에 표시하고 플레이 영역에 놓아 활성화)\n\n다음 차례에:\n\n이 마나 토큰을 얻을 수 있다.{es}Una vez por Ronda:\n\nCuando gastas un maná de un color básico, obtienes un cristal de ese color. (Pon esta ficha de habilidad en tu Área de juego para activarla y coloca otro cristal del mismo color sobre ella)\n\nSolo en el próximo turno:\n\nPuedes obtener la ficha de maná en esta habilidad.{fr}Une fois par Rounde:\n\nLorsque vous dépensez un mana d'une couleur de base, gagnez un cristal de cette couleur. (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer et placez-y un autre cristal de la même couleur)\n\nTour suivant uniquement:\n\nVous pouvez gagner le jeton mana de cette compétence.{pt-br}Uma vez por Rodada:\n\nQuando você gastar uma mana de cor básica, ganhe um cristal daquela cor. (coloque essa habilidade na sua área de jogo para ativá-la e coloque outro cristal da mesma cor nela)\n\nPróximo Turno apenas:\n\nVocê pode ganhar o marcador de mana desta habilidade.{de}Einmal pro Runde:\n\nWenn du ein Mana einer Grundfarbe ausgibst, erhältst du einen Kristall dieser Farbe (lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren, und lege einen weiteren Kristall derselben Farbe darauf).\n\nNur im nächsten Zug:\n\nDu darfst das Mana-Token für diese Fähigkeit erhalten.",
-							["55e5e5"]="{en}Once a Round:\n\nReduce the Move cost of all terrains by 2 (to a minimum of 1). (Put this skill token in your Play Area to activated it)\n\nNext turn only:\n\nYou may reduce the move cost of all terrains by 1 (to a minimum of 1).{ru}Один раз в раунд:\n\nВаш герой двигается по любой местности, тратя на 2 очка Движения меньше (но не меньше 1) в этот ход. (Положите навык в вашу игровую зону для активации эффекта)\n\nТолько в следующий ход:\n\nВаш герой двигается по любой местности, тратя на 1 очко Движения меньше (но не меньше 1) в этот ход.{zh-tw}每轮一次: \n\n将本技能标记放在桌子中央以激活效果. \n将所有地形移动消耗减少2 (最少至1)\n\n仅下回合: \n将所有地形移动消耗减少1 (最低至1){zh-cn}每轮一次: \n\n将本技能标记放在桌子中央以激活效果. \n将所有地形移动消耗减少2 (最少至1)\n\n仅下回合: \n将所有地形移动消耗减少1 (最低至1){ko}라운드에 한번:\n\n이번 차례에 당신에게 모든 지형의 이동 비용은 2(최하 1) 감소한다.(스킬을 플레이 영역에 놓아 활성화)\n\n다음 차례에 한번만:\n\n이번 차례에 모든 지형의 이동 비용이 1 감소한다.{es}Una vez por Ronda:\n\nReduce el coste de movimiento de todos los terrenos en 2 (hasta un mínimo de 1). (Pon esta ficha de habilidad en tu Área de juego para activarla)\n\nSolo en el próximo turno:\n\nPuedes reducir el costo de movimiento de todos los terrenos en 1 (hasta un mínimo de 1).{fr}Une fois par Rounde:\n\nRéduisez le coût de déplacement de tous les terrains de 2 (jusqu'à un minimum de 1). (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer)\n\nTour suivant uniquement :\n\nVous pouvez réduire le coût de déplacement de tous les terrains de 1 (jusqu'à un minimum de 1).{pt-br}Uma vez por Rodada:\n\nReduz o custo de movimento de todos os terrenos em 2 (a um mínimo de 1). (Coloque esta Habilidade na sua área de jogo para ativá-la).\n\nPróximo Turno apenas:\n\nVocê pode reduzir o custo de movimento de todos os terrenos em 1 (a um mínimo de 1).{de}Einmal pro Runde:\n\nVerringere die Bewegungskosten aller Terrains um 2 (auf ein Minimum von 1). (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nNur in der nächsten Runde:\n\nDu darfst die Bewegungskosten aller Geländefelder um 1 reduzieren (auf ein Minimum von 1).",
-							["818aea"]="{en}Once a Round:\n\nGain a mana token of any color except Gold. (Put this skill token in your Play Area to activated it, and place another crystal of the same color on it)\n\nNext turn only:\n\nIf you use a Mana of this same Color to power a Deed Card that gives Move, Influence, or any type of Attack or Block, it gets +4 from that card.{ru}Один раз в раунд:\n\nВозьмите жетон маны любого цвета, кроме золотого. (Положите навык в вашу игровую зону для активации эффекта, и положите на него жетон маны того же цвета из резерва)\n\nТолько в следующий ход:\n\nЕсли вы используете ману этого цвета для усиления карты с очками Движения, Влияния, любой Атаки или Блока, вы получаете +4 к значению этого эффекта.{zh-tw}每回合一次：\n\n获得一个任意颜色的法力令牌，金色除外。（将此技能令牌放入你的游戏区域以激活它，并在其上放置另一个相同颜色的水晶）。\n\n仅限下一回合：\n\n如果你使用一张同色的法力牌为一张可提供移动、影响或任何类型的攻击或格挡的契约牌提供能量，它将从该牌中获得 +4。{zh-cn}每回合一次：\n\n获得一个任意颜色的法力令牌，金色除外。（将此技能令牌放入你的游戏区域以激活它，并在其上放置另一个相同颜色的水晶）。\n\n仅限下一回合：\n\n如果你使用一张同色的法力牌为一张可提供移动、影响或任何类型的攻击或格挡的契约牌提供能量，它将从该牌中获得 +4。{ko}라운드에 한 번:\n\n금색이 아닌 색상 마나 토큰 1개를 선택해 받는다.(같은 색의 마나 토큰으로 스킬 위에 표시하고 플레이 영역에 놓아 활성화)\n\n다음 차례에 한번:\n\n이동, 영향력, 또는 아무 종류의 공격이나 방어를 제공하는 카드 하나를, 표시돤 색상과 동일한 색의 마나로 강화 사용한다면 해당 수치에 +4를 추가로 얻는다.{es}Una vez por ronda:\n\nGana una ficha de maná de cualquier color excepto oro. (Pon esta ficha de habilidad en tu Área de juego para activarla y coloca otro cristal del mismo color sobre ella)\n\nSolo en el próximo turno:\n\nSi usas un Mana de este mismo Color para potenciar una Carta de Escritura que otorga Movimiento, Influencia o cualquier tipo de Ataque o Bloqueo, obtiene +4 de esa carta.{fr}Une fois par Rounde:\n\nGagnez un jeton de mana de n'importe quelle couleur à l'exception de l'or. (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer et placez-y un autre cristal de la même couleur)\n\nTour suivant uniquement:\n\nSi vous utilisez un mana de cette même couleur pour alimenter une carte d'action qui donne un mouvement, une influence ou tout type d'attaque ou de blocage, elle obtient +4 de cette carte.{pt-br}Uma vez por rodada:\n\nGanhe uma ficha de mana de qualquer cor, exceto ouro. (Coloque esta ficha de habilidade em sua área de jogo para ativá-la e coloque outro cristal da mesma cor sobre ela)\n\nPróxima curva apenas:\n\nSe você usar um Mana desta mesma Cor para energizar uma Carta de Ação que conceda Movimento, Influência ou qualquer tipo de Ataque ou Bloqueio, ela recebe +4 daquela carta.{de}Einmal pro Runde:\n\nErhalte ein Mana-Token einer beliebigen Farbe außer Gold. (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren, und lege einen weiteren Kristall derselben Farbe darauf)\n\nNur in der nächsten Zug:\n\nWenn du Mana dieser Farbe nutzt, um eine Handlungs­karte mit Bewegung, Einfluss, Angriff oder Block zu aktivieren, erhält +4 von dieser Karte.",
-							["564392"]="{en}Once a Round (Except during Interactions): (Put this skill token in your Play Area to activated it)\n\nOne card played sideways is worth +4. For each command token without a Unit gain an extra +1.\n\nNext turn only:\n\nYou may reduce the Armour of an enemy by 1, and one attack of the same or another enemy by 1{ru}Один раз в раунд (не при взаимодействии): (Положите навык в вашу игровую зону для активации эффекта)\n\nОдна карта, сыгранная боком, дает бонус +4 вместо +1. Каждый свободной жетон командования увеличивает бонус еще на +1.\n\nТолько в следующий ход:\n\nВы можете уменьшить Броню одного врага на 1 и значение одной Атаки на 1 (этого или другого врага).{zh-tw}每轮一次，交涉中除外：\n\n一张横置打出的卡牌效果+4而非+1。你没有一个未分配给部队的指挥标记额外+1。将本技能放在桌子中间。\n仅下回合： 你的一个敌人护甲-1，同时同一个或另一个敌人的攻击-1{zh-cn}每轮一次，交涉中除外：\n\n一张横置打出的卡牌效果+4而非+1。你没有一个未分配给部队的指挥标记额外+1。将本技能放在桌子中间。\n仅下回合： 你的一个敌人护甲-1，同时同一个或另一个敌人的攻击-1{ko}라운드에 한번, 교류에서 제외:\n\n가로로 사용한 카드 1장은 +1 대신 +4를 준다. 이 수치는 유닛이 배정되지 않은 지휘 토큰 하나당 +1씩 증가한다. (스킬을 플레이 영역에 놓아 활성화)\n\n다음 차례에 한 번:\n\n선택한 적 하나의 방어구를 1 감소시키고, 같은 적이나 다른 적 공격 하나도 1 감소시킨다.{es}Una vez por Ronda (excepto durante las interacciones): (Pon esta ficha de habilidad en tu Área de juego para activarla)\n\nUna carta jugada de lado vale +4. Por cada ficha de Mando sin una Unidad, obtienes un +1 extra.\n\nSolo en el próximo turno:\n\nPuedes reducir la armadura de un enemigo en 1 y un ataque del mismo u otro enemigo en 1{fr}Une fois par Rounde (sauf pendant les interactions): (Mettez ce jeton de compétence dans votre zone de jeu pour l'activer)\n\nUne carte jouée de côté vaut +4. Pour chaque jeton de commandement sans Unité, gagnez un +1 supplémentaire.\n\nTour suivant uniquement:\n\nVous pouvez réduire l'armure d'un ennemi de 1 et une attaque du même ennemi ou d'un autre de 1{pt-br}Uma vez por Rodada (Exceto durante interações): (Coloque esta habilidade na sua área de jogo para ativá-la)\n\nUma carta jogada de lado vale +4. Para cada Ficha de Comando sem uma unidade ganhe +1 extra.\n\nNo Próximo Turno apenas:\n\nVocê pode reduzir a armadura de um inimigo em 1 e um ataque do mesmo inimigo em 1.{de}Einmal pro Runde (außer bei Interaktionen): (Lege dieses Fertigkeitsplättchen in deinen Spielbereich, um es zu aktivieren)\n\nEine seitwärts gespielte Karte ist +4 wert. Für jedes Befehlsplättchen ohne Einheit erhältst du zusätzlich +1.\n\nNur in der nächsten Zug:\n\nDu kannst die Rüstung eines Gegners um 1 und einen Angriff desselben oder eines anderen Gegners um 1 reduzieren.",
-							["ebbbfc"]="{en}Once a Round:\n\nChoose one card from your discard pile and place it on top  of your deed deck.\n\nIf the dummy hasn't called end of round, place the top card from the Advanced Action Deck in his deck.{ru}Один раз за раунд:\n\nВыберите одну карту из своей стопки сброса и положите её на верх колоды действий.\n\nЕсли виртуальный игрок не объявил конец раунда, положите верхнюю карту колоды Продвинутых действий в его колоду.{zh-tw}每轮一次：\n\n你和其他所有玩家从弃牌堆中选择一张牌，将这张牌放到功能牌库顶。单人游戏时，再将高级行动牌堆顶部的1张牌放到虚拟玩家的功能牌库顶，即使虚拟玩家的 功能牌库没有牌也可以这样做。\n如果虚拟玩家已经声明本轮结束，则忽略此效果。{zh-cn}每轮一次：\n\n你和其他所有玩家从弃牌堆中选择一张牌，将这张牌放到功能牌库顶。单人游戏时，再将高级行动牌堆顶部的1张牌放到虚拟玩家的功能牌库顶，即使虚拟玩家的 功能牌库没有牌也可以这样做。\n如果虚拟玩家已经声明本轮结束，则忽略此效果。{ko}라운드에 한번:\n\n이 토큰을 뒤집어 버린 더미에서 카드 한장을 선택해 더미 위에 올려둔다.\n\n가상 플레이어가 라운드 종료를 선언Cards하지 않았다면, 가장 아래 위치한 상급 액션을 그의 더미에 추가한다.{es}Una vez por Ronda:\n\nElige una carta de tu pila de descarte y colócala encima de tu mazo de escrituras.\n\nSi el muerto no ha dicho fin de ronda, coloca la carta superior del Mazo de Acción Avanzada en su mazo.{fr}Une fois par Rounde:\n\nChoisissez une carte de votre défausse et placez-la au-dessus de votre deck d'actes.\n\nSi le mannequin n'a pas appelé à la fin du tour, placez la première carte du paquet d'action avancée dans son paquet.{pt-br}Uma vez por Rodada:\n\nEscolha uma carta de sua pilha de descarte e coloque-a no topo de seu baralho de ações.\n\nSe o morto não tiver chamado o final da rodada, coloque a carta do topo do Baralho de Ação Avançada em seu baralho.{de}Einmal pro Runde:\n\nWähle eine Karte aus deinem Ablagestapel und lege sie oben auf dein Aktionsdeck.\n\nFalls der Dummy das Rundenende noch nicht ausgerufen hat, lege die oberste Karte des Decks der Fortgeschrittenen Aktionen in sein Deck.",
-							["a598f6"]="{en}Once a round (Except during combat):\\n\\nGain a Potion. (Put this skill token in your Play Area to activate it).\\n\\nNext turn only:\\n\\nYou may add +3 to any Move, Influence, or any type of Attack or Block provided by your next card or Unit ability that requires no mana.{ru}Один раз за раунд (кроме боя):\\n\\nПолучите Зелье. (Положите этот жетон навыка в свою игровую зону, чтобы активировать его.)\\n\\nТолько в следующий ход:\\n\\nВы можете добавить +3 к Движению, Влиянию или любому типу Атаки или Блока от следующей карты или способности Отряда, не требующей маны.{zh-tw}每輪一次（戰鬥期間除外）：\\n\\n獲得一瓶藥劑。（將此技能標記放入你的遊戲區以啟動它。）\\n\\n僅限下一回合：\\n\\n你的下一張牌或不需要魔力的部隊能力所提供的移動、影響力或任何類型的攻擊／格擋可獲得 +3。{zh-cn}每轮一次（战斗期间除外）：\\n\\n获得一瓶药剂。（将此技能标记放入你的游戏区以启动它。）\\n\\n仅限下一回合：\\n\\n你的下一张牌或不需要魔力的部队能力所提供的移动、影响力或任何类型的攻击／格挡可获得 +3。{ko}라운드당 한 번(전투 중 제외):\\n\\n물약 1개를 얻습니다. (이 스킬 토큰을 자신의 플레이 영역에 놓아 활성화합니다.)\\n\\n다음 턴에만:\\n\\n마나가 필요하지 않은 다음 카드 또는 유닛 능력이 제공하는 이동, 영향력, 모든 종류의 공격 또는 방어 중 하나에 +3을 더할 수 있습니다.{es}Una vez por ronda (excepto durante el combate):\\n\\nGana una Poción. (Pon esta ficha de habilidad en tu Área de Juego para activarla).\\n\\nSolo durante tu próximo turno:\\n\\nPuedes añadir +3 a cualquier Movimiento, Influencia o tipo de Ataque o Bloque proporcionado por tu próxima carta o habilidad de Unidad que no requiera maná.{fr}Une fois par manche (sauf pendant un combat) :\\n\\nGagnez une Potion. (Placez ce jeton de compétence dans votre Zone de Jeu pour l’activer.)\\n\\nAu prochain tour uniquement :\\n\\nVous pouvez ajouter +3 à un Mouvement, une Influence ou tout type d’Attaque ou de Bloc fourni par votre prochaine carte ou capacité d’Unité ne nécessitant aucun mana.{pt-br}Uma vez por rodada (exceto durante combate):\\n\\nGanhe uma Poção. (Coloque esta ficha de habilidade na sua Área de Jogo para ativá-la.)\\n\\nApenas no próximo turno:\\n\\nVocê pode adicionar +3 a qualquer Movimento, Influência ou tipo de Ataque ou Bloqueio fornecido pela sua próxima carta ou habilidade de Unidade que não exija mana.{de}Einmal pro Runde (außer während eines Kampfes):\\n\\nErhalte einen Trank. (Lege diesen Fähigkeitsmarker in deinen Spielbereich, um ihn zu aktivieren.)\\n\\nNur im nächsten Zug:\\n\\nDu darfst +3 zu Bewegung, Einfluss oder einer beliebigen Angriffs- oder Blockart deiner nächsten Karte oder Einheitenfähigkeit addieren, sofern dafür kein Mana benötigt wird.",
-							["3d8336"]="{en}Once a Round:\n\nFlip this to draw two cards, and gain a Red mana token.\n\nYou cannot use another Motivation Skill until the end of your next turn.{ru}Один раз в раунд:\n\nПереверните навык и возьмите 2 карты и жетон красной маны.\n\nНельзя использовать другие навыки Мотивации до конца вашего следующего хода.{zh-tw}每轮一次：\n\n使用此技能抽两张牌，并获得一个红色魔力标记。\n\n在下一回合结束之前，您不能使用其他激励技能。{zh-cn}每轮一次：\n\n使用此技能抽两张牌，并获得一个红色魔力标记。\n\n在下一回合结束之前，您不能使用其他激励技能。{ko}라운드에 한번:\n\n이 토큰을 뒤집어 카드 2장을 뽑는다. 그리고 적색 마나 토큰을 얻는다.\n\n다음 차례를 마칠 때 까지 다른 동기 부여를 사용할 수 없다.{es}Una vez por Ronda:\n\nDale la vuelta para robar dos cartas y ganar una ficha de maná roja.\n\nNo puedes usar otra habilidad de motivación hasta el final de tu próximo turno.{fr}Une fois par Rounde :\n\nRetournez-le pour piocher deux cartes et gagner un jeton de mana rouge.\n\nVous ne pouvez pas utiliser une autre compétence de motivation jusqu'à la fin de votre prochain tour.{pt-br}Uma vez por Rodada:\n\nVire esta para comprar duas cartas e ganhar um marcador de mana Vermelha.\n\nVocê não pode usar habilidades Motivacionais até o fim do seu próximo turno.{de}Einmal pro Runde:\n\nDrehe dies um, um zwei Karten zu ziehen und einen roten Mana-Token zu erhalten.\n\nDu kannst bis zum Ende deines nächsten Zuges keine weitere Motivationsfähigkeit nutzen.",
-							["171244"]="{en}Once a Round:\n\nFlip this to draw two cards, and gain a Green mana token.\n\nYou cannot use another Motivation Skill until the end of your next turn.{ru}Один раз в раунд:\n\nПереверните навык и возьмите 2 карты и жетон зеленой маны.\n\nНельзя использовать другие навыки Мотивации до конца вашего следующего хода.{zh-tw}每轮一次：\n\n使用此技能抽两张牌，并获得一个绿色魔力标记。\n\n在下一回合结束之前，您不能使用其他激励技能。{zh-cn}每轮一次：\n\n使用此技能抽两张牌，并获得一个绿色魔力标记。\n\n在下一回合结束之前，您不能使用其他激励技能。{ko}라운드에 한번:\n\n이 토큰을 뒤집어 카드 2장을 뽑는다. 그리고 녹색 마나 토큰을 얻는다.\n\n다음 차례를 마칠 때 까지 다른 동기 부여를 사용할 수 없다.{es}Una vez por Ronda:\n\nDale la vuelta para robar dos cartas y ganar una ficha de maná verde.\n\nNo puedes usar otra habilidad de motivación hasta el final de tu próximo turno.{fr}Une fois par Rounde:\n\nRetournez-le pour piocher deux cartes et gagner un jeton de mana vert.\n\nVous ne pouvez pas utiliser une autre compétence de motivation jusqu'à la fin de votre prochain tour.{pt-br}Uma vez por Rodada:\n\nVire esta para comprar duas cartas e ganhar um marcador de mana Verde.\n\nVocê não pode usar habilidades Motivacionais até o fim do seu próximo turno.{de}Einmal pro Runde:\n\nDrehe dies um, um zwei Karten zu ziehen und einen grünen Mana-Token zu erhalten.\n\nDu kannst bis zum Ende deines nächsten Zuges keine weitere Motivationsfähigkeit nutzen.",
-							["14399f"]="{en}Once a Round:\n\nFlip this to draw two cards, and gain a White mana token.\n\nYou cannot use another Motivation Skill until the end of your next turn.{ru}Один раз в раунд:\n\nПереверните навык и возьмите 2 карты и жетон белой маны.\n\nНельзя использовать другие навыки Мотивации до конца вашего следующего хода.{zh-tw}每轮一次：\n\n将本标记翻面以抽取两张卡牌。获得一个白色魔力标记。你的下回合结束前无法使用其他激励技能{zh-cn}每轮一次：\n\n将本标记翻面以抽取两张卡牌。获得一个白色魔力标记。你的下回合结束前无法使用其他激励技能{ko}라운드에 한번:\n\n이 토큰을 뒤집어 카드 2장을 뽑는다. 그리고 백색 마나 토큰을 얻는다.\n\n다음 차례를 마칠 때 까지 다른 동기 부여를 사용할 수 없다.{es}Una vez por Ronda:\n\nDale la vuelta para robar dos cartas y ganar una ficha de maná blanca.\n\nNo puedes usar otra habilidad de motivación hasta el final de tu próximo turno.{fr}Une fois par Rounde:\n\nRetournez-le pour piocher deux cartes et gagner un jeton de mana blanc.\n\nVous ne pouvez pas utiliser une autre compétence de motivation jusqu'à la fin de votre prochain tour.{pt-br}Uma vez por Rodada:\n\nVire esta para comprar duas cartas e ganhar um marcador de mana Branca.\n\nVocê não pode usar habilidades Motivacionais até o fim do seu próximo turno.{de}Einmal pro Runde:\n\nDrehe dies um, um zwei Karten zu ziehen und ein weißes Mana-Token zu erhalten.\n\nDu kannst bis zum Ende deines nächsten Zuges keine weitere Motivationsfähigkeit nutzen.",
-							["527b47"]="{en}Once a Round:\n\nFlip this to draw two cards, and gain Fame 1.\n\nYou cannot use another Motivation Skill until the end of your next turn.{ru}Один раз в раунд:\n\nПереверните навык и возьмите 2 карты и 1 очко Славы.\n\nНельзя использовать другие навыки Мотивации до конца вашего следующего хода.{zh-tw}每轮一次：\n\n使用此技能抽两张牌，并获得声望1。\n\n在下一回合结束之前，您不能使用其他激励技能。{zh-cn}每轮一次：\n\n使用此技能抽两张牌，并获得声望1。\n\n在下一回合结束之前，您不能使用其他激励技能。{ko}라운드에 한번:\n\n이 토큰을 뒤집어 카드 2장을 뽑는다. 그리고 명성 1을 얻는다.\n\n다음 차례를 마칠 때 까지 다른 동기 부여를 사용할 수 없다.{es}Una vez por Ronda:\n\nDale la vuelta para robar dos cartas y ganar Fama 1.\n\nNo puedes usar otra habilidad de motivación hasta el final de tu próximo turno.{fr}Une fois par Rounde:\n\nRetournez-le pour piocher deux cartes et gagner de la renommée 1.\n\nVous ne pouvez pas utiliser une autre compétence de motivation jusqu'à la fin de votre prochain tour.{pt-br}Uma vez por Rodada:\n\nVire esta para comprar duas cartas e ganhar 1 de fama.\n\nVocê não pode usar habilidades Motivacionais até o fim do seu próximo turno.{de}Einmal pro Runde:\n\nDrehe dies um, um zwei Karten zu ziehen und 1 Ruhm zu erhalten.\n\nDu kannst bis zum Ende deines nächsten Zuges keine weitere Motivationsfähigkeit nutzen.",
-							["ba4df5"]="{en}Once a Round:\n\nFlip this to draw two cards, and gain a Blue mana token.\n\nYou cannot use another Motivation Skill until the end of your next turn.{ru}Один раз в раунд:\n\nПереверните навык и возьмите 2 карты и жетон синей маны.\n\nНельзя использовать другие навыки Мотивации до конца вашего следующего хода.{zh-tw}每轮一次：\n\n使用此技能抽两张牌，并获得蓝色魔力标记。\n下回合结束前，你不能使用其他激励技能。{zh-cn}每轮一次：\n\n使用此技能抽两张牌，并获得蓝色魔力标记。\n下回合结束前，你不能使用其他激励技能。{ko}라운드에 한번:\n\n이 토큰을 뒤집어 카드 2장을 뽑는다. 그리고 청색 마나 토큰을 얻는다.\n\n다음 차례를 마칠 때 까지 다른 동기 부여를 사용할 수 없다.{es}Una vez por Ronda:\n\nDale la vuelta para robar dos cartas y ganar una ficha de maná azul.\n\nNo puedes usar otra habilidad de motivación hasta el final de tu próximo turno.{fr}Une fois par Rounde:\n\nRetournez-le pour piocher deux cartes et gagner un jeton de mana bleu.\n\nVous ne pouvez pas utiliser une autre compétence de motivation jusqu'à la fin de votre prochain tour.{pt-br}Uma vez por Rodada:\n\nVire esta para comprar duas cartas e ganhar um marcador de mana Azul.\n\nVocê não pode usar habilidades Motivacionais até o fim do seu próximo turno.{de}Einmal pro Runde:\n\nDrehe dies um, um zwei Karten zu ziehen und ein blaues Mana-Token zu erhalten.\n\nDu kannst bis zum Ende deines nächsten Zuges keine weitere Motivationsfähigkeit nutzen.",
-							["48fd35"]="{en}Once a turn:\n\nPay a mana of any color and throw away a Wound from your hand. Also draw a card.{ru}Один раз в ход:\n\nПотратьте ману любого цвета и удалите карту раны с руки. Возьмите одну карту.{zh-tw}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{zh-cn}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{ko}차례에 한번:\n\n아무 색상 마나를 지불하고 손에 든 부상 하나를 제거한다. 추가로 카드 1장을 뽑는다.{es}Una vez por Turno:\n\nPaga un maná de cualquier color y tira una herida de tu mano. También roba una carta.{fr}Une fois par Tour:\n\nPayez un mana de n'importe quelle couleur et jetez une Blessure de votre main. Piochez également une carte.{pt-br}Uma vez por Turno:\n\nPague uma mana de qualquer cor e jogue fora um Ferimento da sua mão. Também compre uma carta.{de}Einmal pro Zug:\n\nBezahle ein Mana beliebiger Farbe und wirf eine Wundenkarte aus deiner Hand ab. Ziehe außerdem eine Karte.",
-							["b13d5f"]="Change up to 4 Black Mana Tokens or Die into unique Basic Mana colours, even during the day. Place this skill in the source until Mevok’s next turn. This allows a friendly Knight to reroll Black (day) or Gold (night) mana in the source. If any Black (day) or Gold (night) mana remains after rolling, return this skill face down to Mevok.",
-							["68f864"]="{en}Once a Round:\\n\\nFlip this token to ignore all Attack effects of one enemy token (Put this skill token in your Play Area to activate it).\\n\\nNext turn only:\\n\\nYou may use this skill to ignore one Attack effect of one enemy token.{ru}Один раз за раунд:\\n\\nПереверните этот жетон, чтобы игнорировать все эффекты Атаки одного жетона врага. (Положите этот жетон навыка в свою игровую зону, чтобы активировать его.)\\n\\nТолько в следующий ход:\\n\\nВы можете использовать этот навык, чтобы игнорировать один эффект Атаки одного жетона врага.{zh-tw}每輪一次：\\n\\n翻轉此標記以忽略一個敵人標記的所有攻擊效果。（將此技能標記放入你的遊戲區以啟動它。）\\n\\n僅限下一回合：\\n\\n你可以使用此技能忽略一個敵人標記的一項攻擊效果。{zh-cn}每轮一次：\\n\\n翻转此标记以忽略一个敌人标记的所有攻击效果。（将此技能标记放入你的游戏区以启动它。）\\n\\n仅限下一回合：\\n\\n你可以使用此技能忽略一个敌人标记的一项攻击效果。{ko}라운드당 한 번:\\n\\n이 토큰을 뒤집어 적 토큰 하나의 모든 공격 효과를 무시합니다. (이 스킬 토큰을 자신의 플레이 영역에 놓아 활성화합니다.)\\n\\n다음 턴에만:\\n\\n이 스킬을 사용해 적 토큰 하나의 공격 효과 하나를 무시할 수 있습니다.{es}Una vez por ronda:\\n\\nVoltea esta ficha para ignorar todos los efectos de Ataque de una ficha enemiga. (Pon esta ficha de habilidad en tu Área de Juego para activarla.)\\n\\nSolo durante tu próximo turno:\\n\\nPuedes usar esta habilidad para ignorar un efecto de Ataque de una ficha enemiga.{fr}Une fois par manche :\\n\\nRetournez ce jeton pour ignorer tous les effets d’Attaque d’un jeton ennemi. (Placez ce jeton de compétence dans votre Zone de Jeu pour l’activer.)\\n\\nAu prochain tour uniquement :\\n\\nVous pouvez utiliser cette compétence pour ignorer un effet d’Attaque d’un jeton ennemi.{pt-br}Uma vez por rodada:\\n\\nVire esta ficha para ignorar todos os efeitos de Ataque de uma ficha inimiga. (Coloque esta ficha de habilidade na sua Área de Jogo para ativá-la.)\\n\\nApenas no próximo turno:\\n\\nVocê pode usar esta habilidade para ignorar um efeito de Ataque de uma ficha inimiga.{de}Einmal pro Runde:\\n\\nDrehe diesen Marker um, um alle Angriffseffekte eines gegnerischen Markers zu ignorieren. (Lege diesen Fähigkeitsmarker in deinen Spielbereich, um ihn zu aktivieren.)\\n\\nNur im nächsten Zug:\\n\\nDu darfst mit dieser Fähigkeit einen Angriffseffekt eines gegnerischen Markers ignorieren.",
-							["784a07"]="{en}Once a round:\n\nFlip this Token to draw a card.\n\nYou may also discard a card and draw a card.\n\nNext turn only:\n\nYou may use this skill to draw a card.{ru}Один раз за раунд:\n\nПереверните этот жетон, чтобы взять карту.\n\nВы также можете сбросить карту и взять карту.\n\nТолько в следующем ходу:\n\nВы можете использовать этот навык, чтобы взять карту.{zh-tw}每輪一次：\n\n將此技能翻面來抽一張卡牌。\n\n你可以再棄一張牌來抽一張卡牌。\n\n僅下回合：\n\n你可以使用此技能來抽一張卡牌。{zh-cn}每轮一次：\n\n将此技能翻面来抽一张卡牌。\n\n你可以再弃一张牌来抽一张卡牌。\n\n仅下回合：\n\n你可以使用此技能来抽一张卡牌。{ko}매 턴마다 한 번:\n\n이 토큰을 뒤집어 카드를 한 장 뽑을 수 있습니다.\n\n카드를 버리고 한 장 뽑을 수도 있습니다.\n\n다음 턴에만:\n\n이 능력을 사용하여 카드를 한 장 뽑을 수 있습니다.{es}Una vez por ronda:\n\nVoltea esta ficha para robar una carta.\n\nTambién puedes descartar una carta y robar una carta.\n\nSolo en el siguiente turno:\n\nPuedes usar esta habilidad para robar una carta.{fr}Une fois par tour :\n\nRetournez ce jeton pour piocher une carte.\n\nVous pouvez également défausser une carte et en piocher une.\n\nAu prochain tour uniquement :\n\nVous pouvez utiliser cette capacité pour piocher une carte.{pt-br}Uma vez por rodada:\n\nVire este marcador para comprar uma carta.\n\nVocê também pode descartar uma carta e comprar uma carta.\n\nSomente no próximo turno:\n\nVocê pode usar esta habilidade para comprar uma carta.{de}Einmal pro Runde:\n\nDrehe diesen Spielstein um, um eine Karte zu ziehen.\n\nDu kannst auch eine Karte ablegen und eine Karte ziehen.\n\nNur im nächsten Zug:\n\nDu kannst diese Fähigkeit nutzen, um eine Karte zu ziehen.",
-							["b66704"]="{en}Once a Round:\\n\\nYou may play a Wound as a sideways card for +3.\\n\\nIf your reputation is negative, add half your reputation score rounded up (x=7).\\n\\nNext turn only:\\n\\nGain +1 on the Reputation Track.{ru}Один раз за раунд:\\n\\nВы можете сыграть Рану боком как карту со значением +3.\\n\\nЕсли ваша репутация отрицательная, добавьте половину значения репутации, округляя вверх (x=7).\\n\\nТолько в следующий ход:\\n\\nПолучите +1 на шкале Репутации.{zh-tw}每輪一次：\\n\\n你可以將一張創傷牌橫置打出，視為 +3。\\n\\n若你的聲望為負數，加入你聲望值的一半並向上取整（x=7）。\\n\\n僅限下一回合：\\n\\n聲望軌提升 +1。{zh-cn}每轮一次：\\n\\n你可以将一张创伤牌横置打出，视为 +3。\\n\\n若你的声望为负数，加入你声望值的一半并向上取整（x=7）。\\n\\n仅限下一回合：\\n\\n声望轨提升 +1。{ko}라운드당 한 번:\\n\\n부상 카드 한 장을 옆으로 내어 +3으로 사용할 수 있습니다.\\n\\n평판이 음수라면 평판 수치의 절반을 올림하여 더합니다(x=7).\\n\\n다음 턴에만:\\n\\n평판 트랙에서 +1을 얻습니다.{es}Una vez por ronda:\\n\\nPuedes jugar una Herida de lado como una carta de +3.\\n\\nSi tu reputación es negativa, añade la mitad de tu puntuación de reputación redondeando hacia arriba (x=7).\\n\\nSolo durante tu próximo turno:\\n\\nGana +1 en la Pista de Reputación.{fr}Une fois par manche :\\n\\nVous pouvez jouer une Blessure de côté comme une carte valant +3.\\n\\nSi votre réputation est négative, ajoutez la moitié de votre valeur de réputation, arrondie au supérieur (x=7).\\n\\nAu prochain tour uniquement :\\n\\nGagnez +1 sur la Piste de Réputation.{pt-br}Uma vez por rodada:\\n\\nVocê pode jogar um Ferimento de lado como uma carta de +3.\\n\\nSe sua reputação for negativa, adicione metade do valor de reputação, arredondado para cima (x=7).\\n\\nApenas no próximo turno:\\n\\nGanhe +1 na Trilha de Reputação.{de}Einmal pro Runde:\\n\\nDu darfst eine Wunde seitlich als Karte mit +3 spielen.\\n\\nIst dein Ruf negativ, addiere die Hälfte deines Rufwerts, aufgerundet (x=7).\\n\\nNur im nächsten Zug:\\n\\nErhalte +1 auf der Rufleiste.",
-							["9d866a"]="Double your armour when assigning damage. Gain 1 extra wound per damage source to your hand and 2 to the discard pile. Knock Out requires 1 extra wound. After combat, throw out wounds equal to defeated enemies. Place this skill into the source. A friendly knight gains 1 Block or Block equal to your unsigned reputation. Return face down at the start of next turn.",
-							["adf8ab"]="{en}Once a turn:\n\nPay a mana of any color and throw away a Wound from your hand. Also draw a card.{ru}Один раз в ход:\n\nПотратьте ману любого цвета и удалите карту раны с руки. Возьмите одну карту.{zh-tw}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{zh-cn}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{ko}차례에 한번:\n\n아무 색상 마나를 지불하고 손에 든 부상 하나를 제거한다. 추가로 카드 1장을 뽑는다.{es}Una vez por Turno:\n\nPaga un maná de cualquier color y tira una herida de tu mano. También roba una carta.{fr}Une fois par Tour:\n\nPayez un mana de n'importe quelle couleur et jetez une Blessure de votre main. Piochez également une carte.{pt-br}Uma vez por Turno:\n\nPague uma mana de qualquer cor e jogue fora um Ferimento da sua mão. Também compre uma carta.{de}Einmal pro Zug:\n\nBezahle ein Mana beliebiger Farbe und wirf eine Wundenkarte aus deiner Hand ab. Ziehe außerdem eine Karte."}
 	if gStates.playerCount==1 and soloDescription[obj.guid]~=nil then
 		obj.setDescription(soloDescription[obj.guid])
 	end
@@ -3211,14 +1701,32 @@ function __onObjectLeaveContainer_raw(bag, obj)
 	scaleBags(bag, obj, "exit")
 end
 
+local bagSearchGeneration={}
 function __onObjectSearchStart_raw(object, player_color)
-	safeWaitFrames("Events",function() bagSearch=object.guid end, 5)
+	if object==nil or object.guid==nil then return end
+	local guid=object.guid
+	local serial=(bagSearchGeneration[guid] or 0)+1
+	bagSearchGeneration[guid]=serial
+	--Keep the delayed handoff: when a player opens a second bag without closing the first,
+	--the first bag's SearchEnd may arrive after this SearchStart. The later commit lets the new bag win.
+	safeWaitFrames("Events",function()
+		if bagSearchGeneration[guid]~=serial then return end
+		bagSearch=guid
+	end, 5)
 end
 function __onObjectSearchEnd_raw(object, player_color)
-	bagSearch=nil
+	local guid=object~=nil and object.guid or nil
+	if guid==nil then
+		bagSearchGeneration={}
+		bagSearch=nil
+		return
+	end
+	--Advance the generation so a delayed start for this bag cannot commit after the search has ended.
+	bagSearchGeneration[guid]=(bagSearchGeneration[guid] or 0)+1
+	--An old bag ending must not clear a newer bag that has already become the active search.
+	if bagSearch==guid then bagSearch=nil end
 end
 
-randomizePause=nil
 function __onObjectRandomize_raw(randomize_object, player_color)
 	if randomize_object.type=="Bag" or randomize_object.type=="Deck" then safeWaitFrames("Events",function() scaleBags(randomize_object, "dud", "shuffle") end, 5) end
 	if randomize_object.type=="Deck" and gStates~=nil and gStates.firstStarted==true then standardDeckCycleClearIfDeckShuffled(randomize_object) end
@@ -3248,18 +1756,7 @@ function __onObjectRandomize_raw(randomize_object, player_color)
 	if randomize_object.type=="Dice" then
 		--R/shake waits for the final resting face, then updates existing mirrors in place when possible.
 		if scheduleMirrorRandomizeSync(randomize_object, "mirrored Source die randomized")~=true then scheduleRealSourceRefresh(randomize_object, "real Source die randomized", true) end
-		local randomizeFences={{"7e09c6", 7.40}, {"0a7c95", 3.60}, {"ec49dd", 7.40}, {"c17ca2", 3.60}}
-		for _, fenceDetails in ipairs(randomizeFences) do
-			local fence=getObjectFromGUID(fenceDetails[1])
-			if fence~=nil then fence.setScale({0.10, 20.00, fenceDetails[2]}) end
-		end
-		if randomizePause~=nil then Wait.stop(randomizePause) end
-		randomizePause=safeWaitTime("Events",function()
-			for _, fenceDetails in ipairs(randomizeFences) do
-				local fence=getObjectFromGUID(fenceDetails[1])
-				if fence~=nil then fence.setScale({0.10, 0.1, fenceDetails[2]}) end
-			end
-		end, 3)
+		pulseSourceRandomizeFences()
 	end
 end
 
@@ -3414,6 +1911,10 @@ function __filterObjectEnterContainer_raw(container, enter_object)
 	return true -- Allows object to enter.
 end
 
+end)
+__bundle_register("PlayingGame.Telemetry", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Opt-in statistics, bug-report and score-report submission.
+
 function SendDataRequest(player, mouseButton, id)
 	--Send an explicit false for Apocalypse Quest when the option was never touched.
 	if gStates~=nil then gStates.apocalypseQuestCards=(gStates.apocalypseQuestCards==true) end
@@ -3467,18 +1968,14 @@ function SendDataRequest(player, mouseButton, id)
 				riseOfTheForgemasters=gStates.riseOfTheForgemasters,
 				autoFlip=gStates.autoFlip,
 				offerSize=gStates.offerSize}
-			if GameRecord.mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then GameRecord.mapShape="4 Columns" end
-			if GameRecord.mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then GameRecord.mapShape="3 Columns" end
-			if GameRecord.mapShape=="{en}Wedge with No Limitations{ru}Клиновидное поле без ограничений{zh-tw}錐形無限制地圖{zh-cn}锥形无限制地图{ko}쐐기형(무제한){es}En Cuña sin Límites{fr}Coin sans Limites{pt-br}Cônico sem Limitações{de}Keil ohne Begrenzungen" then GameRecord.mapShape="Wedge" end
-			if GameRecord.mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then GameRecord.mapShape="Wedge" end
-			if GameRecord.mapShape=="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen" then GameRecord.mapShape="Fully Open" end
-			if GameRecord.mapShape=="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert" then GameRecord.mapShape="Predefined" end
+			local telemetryShape={wedgeUnlimited="Wedge",wedge="Wedge",open3="3 Columns",open4="4 Columns",open="Fully Open",predefined="Predefined"}
+			GameRecord.mapShape=telemetryShape[gStates.mapShapeKey] or tostring(gStates.mapShapeKey or "")
 			if gStates.positionMageKnight[5]=="Volkare" then
 				GameRecord.volkareCombatLevel=gStates.volkareCombatLevel
 				GameRecord.volkareRaceLevel=gStates.volkareRaceLevel
 			end
 			GameRecord["cityLevel"]="[ "
-			for a, b in pairs(gStates.cityLevels) do
+			for a, b in ipairs(gStates.cityLevels) do
 				GameRecord["cityLevel"]=GameRecord["cityLevel"]..tostring(b).." "
 			end
 			for a=1, 5, 1 do
@@ -3501,16 +1998,18 @@ function SendDataRequest(player, mouseButton, id)
 			if id=="SendBugRequestYes" then
 				if player=="auto" then GameRecord["reporter"]="Automatic Lua Error" else GameRecord["reporter"]=Player[player.color].steam_name end
 			end
-			for _, playerDetails in pairs(turnOrder) do
-				--if playerDetails.score==nil then playerDetails["score"]={["finalScore"]=0} end
-				if playerDetails.score.finalScore==nil then playerDetails.score.finalScore=0 end
+			for _,playerDetails in pairs(turnOrder) do if playerDetails.score.finalScore==nil then playerDetails.score.finalScore=0 end end
+			local reportPlayers={}
+			for a,playerDetails in ipairs(turnOrder) do reportPlayers[a]=playerDetails end
+			if id=="SendScoreRequestYes" then
+				table.sort(reportPlayers,function(k1,k2) return k1.score.finalScore>k2.score.finalScore end)
+				for c=1,4 do GameRecord["positionMageKnight"..c]="" end
 			end
-			table.sort(turnOrder, function (k1, k2) return k1.score.finalScore>k2.score.finalScore end)
-			if id=="SendScoreRequestYes" then for c=1, 4, 1 do GameRecord["positionMageKnight"..c]="" end end
-			for playerNo=1, #turnOrder, 1 do
+			for playerNo=1,#reportPlayers do
+				local reportPlayer=reportPlayers[playerNo]
 				for _, color in pairs(Player.getAvailableColors()) do
 					local colorPos=math.ceil((Player[color].getHandTransform().position[1]+97.59)/40)
-					if turnOrder[playerNo].seatPos==colorPos then
+					if reportPlayer.seatPos==colorPos then
 						--steam user name
 						if gStates.positionMageKnight[colorPos]~="nobody" then
 							local recordPos=colorPos
@@ -3518,7 +2017,7 @@ function SendDataRequest(player, mouseButton, id)
 							GameRecord["steamName"..recordPos]=Player[color].steam_name
 							if GameRecord["steamName"..recordPos]==nil then
 								if player.color~=nil then GameRecord["steamName"..recordPos]=Player[player.color].steam_name end
-								if player.color==nil then GameRecord["steamName"..recordPos]=Player["black"].steam_name end
+								if player.color==nil then GameRecord["steamName"..recordPos]=Player["Black"].steam_name end
 								if GameRecord["steamName"..recordPos]==nil then GameRecord["steamName"..recordPos]="No Player" end
 							end
 						end
@@ -3527,7 +2026,7 @@ function SendDataRequest(player, mouseButton, id)
 							GameRecord["positionMageKnight"..playerNo]=gStates.positionMageKnight[colorPos]
 							if GameRecord["positionMageKnight"..playerNo]=="nobody" then GameRecord["positionMageKnight"..playerNo]="" end
 							--score achieved
-							GameRecord["score"..playerNo]=turnOrder[playerNo].score.finalScore
+							GameRecord["score"..playerNo]=reportPlayer.score.finalScore
 							if GameRecord["score"..playerNo]==0 then GameRecord["score"..playerNo]="" end
 							if GameRecord["riseOfTheForgemasters"]==0 then GameRecord["riseOfTheForgemasters"]="" end
 						end
@@ -3535,7 +2034,6 @@ function SendDataRequest(player, mouseButton, id)
 					end
 				end
 			end
-			table.sort(turnOrder, function (k1, k2) return k1.tactic<k2.tactic end)
 			WebRequest.post(STAT_URL, GameRecord, function(w)
 				log(w.text)
 				if id=="SendBugRequestYes" or id=="SendScoreRequestYes" then
@@ -4225,8 +2723,16 @@ function mainUIUpdate(source)
 			local playerAreaCardCount=0
 			local playerAreaSkillCount=0
 			local nextPlayer=nextTurnMerged("nextMage")
-			local nextPlayerEndCalled=turnOrder[nextPlayer].endCalled
-			if nextPlayerEndCalled~=true and turnOrder[nextPlayer].mage==gStates.positionMageKnight[5] then nextPlayerEndCalled=turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled end
+			local nextPlayerDetails=nextPlayer~=nil and turnOrder[nextPlayer] or nil
+			--Seat/colour changes can arrive while TTS is between player registrations. A delayed UI refresh
+			--must not dereference a transiently missing turn-order entry; the next normal refresh will rebuild it.
+			if nextPlayerDetails==nil then mainUIPause=nil return end
+			local nextPlayerEndCalled=nextPlayerDetails.endCalled
+			if nextPlayerEndCalled~=true and nextPlayerDetails.mage==gStates.positionMageKnight[5] then
+				local nextNonDummy=nextTurnMerged("nextMageSkipDummy")
+				local nextNonDummyDetails=nextNonDummy~=nil and turnOrder[nextNonDummy] or nil
+				if nextNonDummyDetails~=nil then nextPlayerEndCalled=nextNonDummyDetails.endCalled end
+			end
 			--if nextPlayerEndCalled~=true then nextPlayerEndCalled=turnOrder[nextPlayer].gameEnder end
 			--if nextPlayerEndCalled~=true then nextPlayerEndCalled=turnOrder[nextTurnMerged("nextMageSkipDummy")].gameEnder end
 
@@ -4266,7 +2772,8 @@ function mainUIUpdate(source)
 			if gStates.endGameAchieved=="true" and ((gStates.finalTurnReason=="victory" and currentPlayerGameEnder==true) or (gStates.finalTurnReason=="endRound" and nextPlayerEndCalled==true))==true then
 				endText="{en}End Game{ru}Конец игры{zh-tw}結束遊戲{zh-cn}结束游戏{ko}게임 종료{es}Fin del Juego{fr}Fin du Jeu{pt-br}Fim de Jogo{de}Spiel Beenden" end
 			local nextIsCoopAssaulter=gStates.coopAssaultPhase=="combat" and gStates.coopAssaultParticipants~=nil and gStates.coopAssaultParticipants[nextPlayer]~=nil
-			if nextIsCoopAssaulter and turnOrder[nextPlayer].mage~=gStates.positionMageKnight[5] and getObjectFromGUID(turnOrder[nextPlayer].turnOrderTokenGUID).is_face_down==true then
+			local nextTurnToken=nextIsCoopAssaulter and getObjectFromGUID(turnOrder[nextPlayer].turnOrderTokenGUID) or nil
+			if nextIsCoopAssaulter and turnOrder[nextPlayer].mage~=gStates.positionMageKnight[5] and nextTurnToken~=nil and nextTurnToken.is_face_down==true then
 				endText="{en}Next Assaulter{ru}Следующий штурмующий{zh-tw}換下一個襲擊者{zh-cn}换下一个袭击者{ko}다음 강습자{es}Siguiente Asaltante{fr}Prochain Agresseur{pt-br}Próximo Invasor{de}Nächster Spieler" end
 			UI.setAttribute("EndTurnButtonText", "text", endText)
 			UI.setAttribute("EndTurnButtonAltText", "text", endText)
@@ -5894,7 +4401,7 @@ function nightTint(player, mouseButton, id)
 			local obj=getObjectFromGUID(a)
 			if obj~=nil then obj.setColorTint(tileColor) end
 		end
-		if gStates.mapShape:sub(5,5)=="P" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" then
+		if gStates.mapShapeKey=="predefined" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" then
 			local terrainDummy=getObjectFromGUID(startTerrain.open)
 			if terrainDummy==nil then terrainDummy=getObjectFromGUID(startTerrain.wedge) end
 			onObjectEnterZone({guid=mapArea}, terrainDummy)
@@ -6105,6 +4612,197 @@ function autoflip()
 		UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Deactive")
 		broadcastToAll("{en}Script will flip monster tokens for you.{ru}Скрипт будет переворачивать жетоны врагов за вас.{zh-tw}脚本将为你翻转怪物标记. {zh-cn}脚本将为你翻转怪物标记. {ko}스크립트가 자동으로 토큰을 뒤집습니다.{es}Script le dará la vuelta a las fichas de monstruos.{fr}Le script retournera les jetons monstre pour vous.{pt-br}O Script virará as fichas de monstros por você.{de}Das Skript dreht die Monsterplättchen für dich um.", {1,1,0.5})
 	end
+end
+
+-- Build monster hover descriptions outside the raw TTS event boundary.
+function refreshMonsterHoverDescription(hover_object)
+	--monster token tooltip update.
+		if hover_object~=nil and (monsterPugs[hover_object.guid]~=nil or gStates.monsterPerks[hover_object.guid]~=nil) then
+			local monsterDescription=""
+			if hover_object.is_face_down==false then
+				--Attack Descriptions
+				--Trap Blurb
+				if hover_object.getGMNotes()=="Trap Reminder Token" then
+					monsterDescription="{en}(If flipped, this token will be removed when you Ascend)\n\n{ru}(Если этот жетон перевернуть, он будет удален при «Восхождении»)\n\n{zh-tw}（如果翻面，此標記會在你爬升至下一層時移除）\n\n{zh-cn}（如果翻面，此标记会在你爬升至下一层时移除）\n\n{ko}(뒤집은 함정 토큰은 다음 층 등반 시 제거)\n\n{es}(Si se da la vuelta a esta ficha, se retirará cuando asciendas)\n\n{fr}(Si cette carte est retournée, elle sera retirée lorsque vous atteindrez l'Ascension)\n\n{pt-br}(Se virada, esta ficha será removida quando você Ascender)\n\n{de}(Wenn diese Karte umgedreht wird, wird sie entfernt, sobald du aufsteigst)\n\n"
+				end
+				--Volkare Blurb
+				if hover_object.getGMNotes()=="Volkare Reminder Token" then
+					monsterDescription="{en}He can't be attacked directly, but Volkare attacks along with his army.\n\nDefeat Volkare's Army and you Defeat General Volkare.\n\n{ru}Волкара нельзя атаковать напрямую, но он атакует вместе со своей армией.\n\nПобедите армию Волкара — и вы победите генерала Волкара.\n\n{zh-tw}不能直接攻擊沃卡里；他會與自己的軍隊一同進攻。\n\n擊敗沃卡里的軍隊，就能擊敗沃卡里將軍。\n\n{zh-cn}不能直接攻击沃卡里；他会与自己的军队一同进攻。\n\n击败沃卡里的军队，就能击败沃卡里将军。\n\n{ko}볼케어는 직접 공격할 수 없으며 그의 군대와 함께 공격합니다.\n\n볼케어의 군대를 물리치면 볼케어 장군도 패배합니다.\n\n{es}No puede ser atacado directamente, pero Volkare ataca junto con su ejército.\n\nDerrota al ejército de Volkare y derrotarás al general Volkare.\n\n{fr}Il ne peut pas être attaqué directement, mais Volkare attaque avec son armée.\n\nBattez l’armée de Volkare et vous vaincrez le général Volkare.\n\n{pt-br}Ele não pode ser atacado diretamente, mas Volkare ataca junto com seu exército.\n\nDerrote o Exército de Volkare e você derrotará o General Volkare.\n\n{de}Volkare kann nicht direkt angegriffen werden, greift aber gemeinsam mit seiner Armee an.\n\nBesiegt Volkares Armee und ihr besiegt General Volkare.\n\n"
+				end
+				--Leader Blurb
+				if hover_object.guid==darkCrusader.token or hover_object.guid==elementalist.token then
+					monsterDescription="{en}Faction Leaders are attacked and blocked in the same way as other enemies.\n\nDealing damage to beat the Leaders armour value will reduce his level by 1.\n\nYou may attack with enough damage to do multiple of the Leaders armour value and reduce his level more.\n\nThe leader will reduce level for the next fight if not reduced to zero level\n\n{ru}Лидеры фракций атакуются и блокируются так же, как и другие враги.\n\nНанесение урона, превышающего значение брони лидера, снизит его уровень на 1.\n\nВы можете нанести урон, превышающий значение брони лидера, и снизить его уровень еще больше.\n\nЛидер снизит уровень для следующего боя, если он не будет снижен до нуля.{zh-tw}派系首领的攻击与防御机制与其他敌人相同。\n\n造成超过首领护甲值的伤害可使其等级降低1级。\n\n若单次攻击伤害值达到首领护甲值的倍数，可使其等级多次递减。\n\n若首领未被降至零级，其等级将在下次战斗中继续递减。{zh-cn}派系首领的攻击与防御机制与其他敌人相同。\n\n造成超过首领护甲值的伤害可使其等级降低1级。\n\n若单次攻击伤害值达到首领护甲值的倍数，可使其等级多次递减。\n\n若首领未被降至零级，其等级将在下次战斗中继续递减。{ko}파벌 지도자는 다른 적과 동일한 방식으로 공격 및 차단됩니다.\n\n지도자의 방어력 수치를 초과하는 피해를 입히면 그의 레벨이 1 감소합니다.\n\n지도자의 방어력 수치보다 큰 피해를 입혀 레벨을 더 많이 감소시킬 수 있습니다.\n\n지도자의 레벨이 0이 되지 않은 경우, 다음 전투에서 레벨이 감소합니다.{es}Los líderes de facción son atacados y bloqueados de la misma manera que otros enemigos.\n\nInfligir daño que supere el valor de armadura del líder reducirá su nivel en 1.\n\nPuedes atacar con suficiente daño como para superar varias veces el valor de armadura del líder y reducir aún más su nivel.\n\nEl líder reducirá su nivel para la siguiente lucha si no se reduce a cero.{fr}Les chefs de faction sont attaqués et bloqués de la même manière que les autres ennemis.\n\nInfliger des dégâts supérieurs à la valeur d'armure du chef réduira son niveau de 1.\n\nVous pouvez attaquer en infligeant des dégâts supérieurs à la valeur d'armure du chef et réduire davantage son niveau.\n\nLe chef réduira son niveau pour le prochain combat s'il n'est pas réduit à zéro.{pt-br}Os líderes das facções são atacados e bloqueados da mesma forma que outros inimigos.\n\nCausar danos que superem o valor da armadura do líder reduzirá o seu nível em 1.\n\nPode atacar com danos suficientes para causar múltiplos do valor da armadura do líder e reduzir ainda mais o seu nível.\n\nO líder reduzirá o nível para a próxima luta se não for reduzido ao nível zero.{de}Fraktionsanführer werden genauso angegriffen und geblockt wie andere Gegner. \n\nWenn du Schaden verursachst, der den Rüstungswert des Anführers übersteigt, sinkt sein Level um 1. \n\nDu kannst mit ausreichend Schaden angreifen, um den Rüstungswert des Anführers mehrfach zu übertreffen und sein Level weiter zu senken. \n\nDer Anführer senkt sein Level für den nächsten Kampf, wenn es nicht auf Null gesunken ist. \n\n"
+				end
+				--Airborne Dragon attacks reuse the normal attack/ability renderer, but the heads are attackers only:
+				--no Armour/resistance data is registered and the displayed Fame is the single Round reward.
+				local airbornePerks=gStates.monsterPerks~=nil and gStates.monsterPerks[hover_object.guid] or nil
+				if airbornePerks~=nil and airbornePerks.dragonAirborne==true then
+					local airborneRound=tonumber(airbornePerks.dragonAirborneRound) or tonumber(gStates.currentRound) or 1
+					monsterDescription=joinLang({monsterDescription,"{en}[ffda00]AIRBORNE DRAGON ATTACK — ROUND {ru}[ffda00]ВОЗДУШНАЯ АТАКА ДРАКОНА — РАУНД {zh-tw}[ffda00]空中巨龍攻擊 — 回合 {zh-cn}[ffda00]空中巨龙攻击 — 回合 {ko}[ffda00]공중 드래곤 공격 — 라운드 {es}[ffda00]ATAQUE AÉREO DEL DRAGÓN — RONDA {fr}[ffda00]ATTAQUE AÉRIENNE DU DRAGON — MANCHE {pt-br}[ffda00]ATAQUE AÉREO DO DRAGÃO — RODADA {de}[ffda00]LUFTANGRIFF DES DRACHEN — RUNDE ",tostring(airborneRound),"{en}[-]\n[i]This head is only attacking; it cannot be attacked or defeated in this combat. Flip the chosen heads face down if you are site fortified.[/i]\n\n[00ff00]DRAGON ATTACK REWARD: [-]{ru}[-]\n[i]Эта голова только атакует; её нельзя атаковать или победить в этом бою. Переверните выбранные головы лицом вниз, если вы укреплены местом.[/i]\n\n[00ff00]НАГРАДА ЗА АТАКУ ДРАКОНА: [-]{zh-tw}[-]\n[i]此龍首只會攻擊；本次戰鬥中無法攻擊或擊敗它。若你受到地點防禦，將選中的龍首翻至背面。[/i]\n\n[00ff00]巨龍攻擊獎勵：[-]{zh-cn}[-]\n[i]此龙首只会攻击；本次战斗中无法攻击或击败它。若你受到地点防御，将选中的龙首翻至背面。[/i]\n\n[00ff00]巨龙攻击奖励：[-]{ko}[-]\n[i]이 머리는 공격만 하며 이번 전투에서 공격하거나 처치할 수 없습니다. 장소 요새화를 받고 있다면 선택한 머리를 뒷면으로 뒤집으십시오.[/i]\n\n[00ff00]드래곤 공격 보상: [-]{es}[-]\n[i]Esta cabeza solo ataca; no puede ser atacada ni derrotada en este combate. Voltea boca abajo las cabezas elegidas si estás fortificado por el sitio.[/i]\n\n[00ff00]RECOMPENSA DEL ATAQUE DEL DRAGÓN: [-]{fr}[-]\n[i]Cette tête ne fait qu’attaquer ; elle ne peut ni être attaquée ni vaincue pendant ce combat. Retournez face cachée les têtes choisies si le site vous fortifie.[/i]\n\n[00ff00]RÉCOMPENSE DE L’ATTAQUE DU DRAGON : [-]{pt-br}[-]\n[i]Esta cabeça apenas ataca; ela não pode ser atacada nem derrotada neste combate. Vire as cabeças escolhidas para baixo se o local estiver fortificando você.[/i]\n\n[00ff00]RECOMPENSA DO ATAQUE DO DRAGÃO: [-]{de}[-]\n[i]Dieser Kopf greift nur an; er kann in diesem Kampf weder angegriffen noch besiegt werden. Dreht die gewählten Köpfe auf die Rückseite, wenn ihr durch den Ort befestigt seid.[/i]\n\n[00ff00]BELOHNUNG FÜR DEN DRACHENANGRIFF: [-]",tostring(airborneRound),"{en} Fame\n\n{ru} Славы\n\n{zh-tw} 點名望\n\n{zh-cn} 点名望\n\n{ko} 명성\n\n{es} de Fama\n\n{fr} de Gloire\n\n{pt-br} de Fama\n\n{de} Ruhm\n\n"})
+				end
+				--Horseman priorities. Combat stats/abilities below continue through the normal monster hover renderer.
+				local horsemanName=horsemanTokenToName~=nil and horsemanTokenToName[hover_object.guid] or nil
+				if horsemanName~=nil and gStates.gameScenario~="Against the Horsemen Blitz" then monsterDescription=joinLang({monsterDescription,apocalypseIsHereHorsemanPriorityDescription(horsemanName)}) end
+				--Night Rules
+				if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].nightRules~=nil and gStates.summonStates[hover_object.guid]~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]NIGHT RULES[-][i] - For this fight, Gold mana can't be used, Black mana can be used, and affected Skills use their night version.[/i]\n\n{ru}[00ff00]НОЧНЫЕ ПРАВИЛА[-][i] - Считайте, что битва проходит ночью: нельзя использовать золотую ману, можно использовать черную ману, а навыки используют свою ночную версию.[/i]\n\n{zh-tw}[00ff00]夜晚規則[-][i] - 在這場戰鬥中，金色法力不能使用，黑色法力可以使用，受影響的技能使用其夜間版本。[/i]\n\n{zh-cn}[00ff00]夜晚規則[-][i] - 在這場戰鬥中，金色法力不能使用，黑色法力可以使用，受影響的技能使用其夜間版本。[/i]\n\n{ko}[00ff00]밤 규칙[-][i] - 이 전투에서 금색 마나를 사용할 수 없고, 흑색 마나를 사용할 수 있으며, 스킬 또한 밤 효과로 사용합니다.[/i]\n\n{es}[00ff00]REGLAS NOCTURNAS[-][i] - Para este combate, no se puede usar Maná Dorado, se puede usar Maná Negro y las Habilidades afectadas usan su versión nocturna.[/i]\n\n{fr}[00ff00]RÈGLES DE LA NUIT[-][i] - Pour ce combat, le mana d'or ne peut pas être utilisé, le mana noir peut être utilisé et les compétences affectées utilisent leur version nocturne.[/i]\n\n{pt-br}[00ff00]REGRAS NOTURNAS[-][i] - Nesta luta, a mana dourada não pode ser usada, a mana preta pode ser usada e as habilidades afetadas usam sua versão noturna.[/i]\n\n{de}[00ff00]REGELN FÜR DIE NACHT[-][i] - Für diesen Kampf kann kein Goldmana verwendet werden, Schwarzmana kann verwendet werden, und die betroffenen Fertigkeiten verwenden ihre Nachtversion.[/i]\n\n"}) end
+				--No Units
+				if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].noUnits~=nil and gStates.summonStates[hover_object.guid]~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]NO UNITS[-][i] - No Units can be used for this Fight.[/i]\n\n{ru}[00ff00]БЕЗ ОТРЯДОВ[-][i] - В этом бою герой не может использовать отряды.[/i]\n\n{zh-tw}[00ff00]禁用部队[-][i] - 本次战斗不能使用任何部队。[/i]\n\n{zh-cn}[00ff00]禁用部队[-][i] - 本次战斗不能使用任何部队。[/i]\n\n{ko}[00ff00]유닛 사용불가[-][i] - 이 전투에는 유닛을 사용할 수 없습니다.[/i]\n\n{es}[00ff00]SIN UNIDADES[-][i] - No se pueden utilizar unidades para este combate.[/i]\n\n{fr}[00ff00]PAS D'UNITÉS[-][i] - Aucune unité ne peut être utilisée pour ce combat.[/i]\n\n{pt-br}[00ff00]SEM UNIDADES[-][i] - Nenhuma unidade pode ser usada para essa luta.[/i]\n\n{de}[00ff00]KEINE EINHEITEN[-][i] - Für diesen Kampf können keine Einheiten verwendet werden.[/i]\n\n"}) end
+				--One Unit
+				if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].oneUnit~=nil and gStates.summonStates[hover_object.guid]~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ONE UNIT[-][i] - Only one Unit can be used for this Fight[/i]\n\n{ru}[00ff00]ОДИН ОТРЯД[-][i] - В этом бою герой может использовать только один отряд.[/i]\n\n{zh-tw}[00ff00]单个部队[-][i] - 本场比赛只能使用一个部队。[/i]\n\n{zh-cn}[00ff00]单个部队[-][i] - 本场比赛只能使用一个部队。[/i]\n\n{ko}[00ff00]유닛 하나[-][i] - 이 전투에는 유닛 하나만 사용할 수 있습니다.[/i]\n\n{es}[00ff00]UNA UNIDAD[-][i] - Sólo se puede utilizar una unidad para este combate.[/i]\n\n{fr}[00ff00]UNE UNITÉ[-][i] - Une seule unité peut être utilisée pour ce combat.[/i]\n\n{pt-br}[00ff00]UMA UNIDADE[-][i] - Somente uma unidade pode ser usada para essa luta.[/i]\n\n{de}[00ff00]EINE EINHEIT[-][i] - Für diesen Kampf kann nur eine Einheit verwendet werden.[/i]\n\n"}) end
+				--Attack values
+				if ((monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].attack~=nil and monsterPugs[hover_object.guid].monsters==nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].attack~=nil)) then
+					local attackTypeConvert={
+						["P"]="{en}[00ff00]PHYSICAL ATTACK: [-]{ru}[00ff00]ФИЗИЧЕСКАЯ АТАКА: [-]{zh-tw}[00ff00]物理攻击：[-]{zh-cn}[00ff00]物理攻击：[-]{ko}[00ff00]물리 공격: [-]{es}[00ff00]ATAQUE FÍSICO: [-]{fr}[00ff00]ATTAQUE PHYSIQUE : [-]{pt-br}[00ff00]ATAQUE FÍSICO: [-]{de}[00ff00]PHYSISCHER ANGRIFF: [-]",
+						["F"]="{en}[ff0000]FIRE ATTACK: [-]{ru}[ff0000]ОГНЕННАЯ АТАКА: [-]{zh-tw}[ff0000]火焰攻击：[-]{zh-cn}[ff0000]火焰攻击：[-]{ko}[ff0000]불 공격: [-]{es}[ff0000]ATAQUE DE FUEGO: [-]{fr}[ff0000]ATTAQUE DE FEU : [-]{pt-br}[ff0000]ATAQUE DE FOGO: [-]{de}[ff0000]FEUERANSCHLAG: [-]",
+						["I"]="{en}[5a5aff]ICE ATTACK: [-]{ru}[5a5aff]ЛЕДЯНАЯ АТАКА: [-]{zh-tw}[5a5aff]寒冰攻击：[-]{zh-cn}[5a5aff]寒冰攻击：[-]{ko}[5a5aff]얼음 공격: [-]{es}[5a5aff]ATAQUE DE HIELO: [-]{fr}[5a5aff]ATTAQUE DE GLACE : [-]{pt-br}[5a5aff]ATAQUE DE GELO: [-]{de}[5a5aff]EISANGRIFF: [-]",
+						["M"]="{en}[ffda00]PSYCHIC ATTACK: [-]{ru}[ffda00]ПСИХИЧЕСКОЕ НАПАДЕНИЕ: [-]{zh-tw}[ffda00]心靈攻擊：[-]{zh-cn}[ffda00]心灵攻击：[-]{ko}[ffda00]정신 공격: [-]{es}[ffda00]ATAQUE PSÍQUICO: [-]{fr}[ffda00]ATTAQUE PSYCHIQUE : [-]{pt-br}[ffda00]ATAQUE PSÍQUICO: [-]{de}[ffda00]PSYCHISCHER ANGRIFF: [-]",
+						["IF"]="{en}[ff00fe]COLD FIRE ATTACK: [-]{ru}[ff00fe]ОГНЕННО-ЛЕДЯНАЯ АТАКА: [-]{zh-tw}[ff00fe]冰火攻击：[-]{zh-cn}[ff00fe]冰火攻击：[-]{ko}[ff00fe]차가운불 공격: [-]{es}[ff00fe]ATAQUE DE FUEGO FRÍO: [-]{fr}[ff00fe]ATTAQUE DE FEU FROID : [-]{pt-br}[ff00fe]ATAQUE DE FOGO FRIO: [-]{de}[ff00fe]KALTER FEUERANSCHLAG: [-]"}
+					local attackTypeDescription={
+						["F"]="{en}(Your Physical and Fire Blocks are halved){ru}(Значения Физических и Огненных блоков делятся на 2, с округлением вниз){zh-tw}（您的物理和火焰属性减半）{zh-cn}（您的物理和火焰属性减半）{ko}(물리 및 불 방어가 절반으로 감소합니다.){es}(Tus Bloques Físicos y de Fuego se reducen a la mitad){fr}(Vos blocs de physique et de feu sont réduits de moitié){pt-br}(Seus bloqueios Físico e de Fogo são reduzidos à metade){de}(Deine Physikalischen und Feuer-Blöcke werden halbiert)",
+						["I"]="{en}(Your Physical and Ice Blocks are halved){ru}(Значения Физических и Ледяных блоков делятся на 2, с округлением вниз){zh-tw}（您的物理和寒冰属性减半）{zh-cn}（您的物理和寒冰属性减半）{ko}(물리 및 얼음 방어가 절반으로 감소합니다.){es}(Tus Bloques Físicos y de Hielo se reducen a la mitad){fr}(Vos blocs de physique et de glace sont divisés par deux){pt-br}(Seus bloqueios Físico e de Gelo são reduzidos à metade){de}(Ihre physischen und Eis-Blöcke werden halbiert)",
+						["M"]="{en}(All your Blocks are halved. Influence points may be spent as full Psychic Block){ru}(Все ваши блоки уменьшаются вдвое. Очки влияния можно тратить как полноценный психический блок){zh-tw}（你所有的格檔效果減半，影響力可以完全轉換成心靈格檔）{zh-cn}（你所有的格档效果减半，影响力可以完全转换成心灵格档）{ko}(모든 방어 수치가 절반으로 감소. 영향력을 지불하여 온전한 정신 방어로 사용 가능){es}(Todos tus bloqueos se reducen a la mitad. Los puntos de influencia se pueden gastar como un bloqueo psíquico completo){fr}(Tous vos blocages sont réduits de moitié. Les points d'influence peuvent être utilisés pour obtenir un blocage psychique complet.){pt-br}(Todos os seus bloqueios são reduzidos pela metade. Os pontos de influência podem ser usados como um bloqueio psíquico completo){de}(Alle deine Blöcke werden halbiert. Einflusspunkte können als vollständiger psychischer Block ausgegeben werden.)",
+						["IF"]="{en}(Your Physical, Fire and Ice Blocks are halved){ru}(Значения Физических, Ледяных и Огненных блоков делятся на 2, с округлением вниз){zh-tw}（你的物理、火焰和寒冰格挡减半）{zh-cn}（你的物理、火焰和寒冰格挡减半）{ko}(물리, 불, 얼음 방어가 절반으로 감소합니다.){es}(Tus Bloques Físico, Fuego y Hielo se reducen a la mitad){fr}(Vos blocs de physique, de feu et de glace sont réduits de moitié){pt-br}(Seus bloqueios Físico, de Fogo e de Gelo são reduzidos à metade){de}(Deine Physischen, Feuer- und Eis-Blöcke werden halbiert)"}
+					--this method works as Volkare token, Trap Tokens and Possessed tokens don't overlap they're damage types. Suspect in future I may need to add the two.
+					local boostDone=false
+					for attackType, _ in pairs(attackTypeConvert) do
+						if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].attack~=nil and monsterPugs[hover_object.guid].attack[attackType]~=nil) or
+							(gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].attack~=nil and gStates.monsterPerks[hover_object.guid].attack[attackType]~=nil) then
+							local elementalBonus=0
+							if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].elemental~=nil then if attackType=="IF" then elementalBonus=1 else elementalBonus=2 end end
+							local damageToScan={}--monsterPugs[hover_object.guid].attack[attackType]
+							if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].attack~=nil and monsterPugs[hover_object.guid].attack[attackType]~=nil then damageToScan=monsterPugs[hover_object.guid].attack[attackType] end
+							if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].attack~=nil and gStates.monsterPerks[hover_object.guid].attack[attackType]~=nil then damageToScan=gStates.monsterPerks[hover_object.guid].attack[attackType] end
+							for count, v in pairs(damageToScan) do
+								local boost=0
+								if count==1 and boostDone==false and gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].boost~=nil then boost=gStates.monsterPerks[hover_object.guid].boost boostDone=true end
+								monsterDescription=joinLang({monsterDescription, attackTypeConvert[tostring(attackType)], tostring(v+elementalBonus+boost), "\n"})
+							end
+							if tostring(attackType)~="P" and hover_object.getGMNotes()~="Puppet Master" then monsterDescription=joinLang({monsterDescription, "[i]", attackTypeDescription[tostring(attackType)], "[/i]\n"}) end
+						end
+					end
+				end
+				--Block values. Puppet Master uses this generic monsterPerks field so kept tokens can reuse
+				--the normal hover system without pretending the Puppet is still an enemy.
+				if gStates.monsterPerks[hover_object.guid]~=nil and type(gStates.monsterPerks[hover_object.guid].block)=="table" then
+					--Puppets only show their usable Attack and Block values. Put the visual separator
+					--between those groups instead of leaving an empty line at the bottom of the tooltip.
+					if hover_object.getGMNotes()=="Puppet Master" then monsterDescription=joinLang({monsterDescription, "\n"}) end
+					local blockTypeConvert={
+						["P"]="{en}[00ff00]PHYSICAL BLOCK: [-]{ru}[00ff00]ФИЗИЧЕСКИЙ БЛОК: [-]{zh-tw}[00ff00]物理格挡：[-]{zh-cn}[00ff00]物理格挡：[-]{ko}[00ff00]물리 방어: [-]{es}[00ff00]BLOQUEO FÍSICO: [-]{fr}[00ff00]BLOC PHYSIQUE : [-]{pt-br}[00ff00]BLOQUEIO FÍSICO: [-]{de}[00ff00]PHYSISCHER BLOCK: [-]",
+						["F"]="{en}[ff0000]FIRE BLOCK: [-]{ru}[ff0000]ОГНЕННЫЙ БЛОК: [-]{zh-tw}[ff0000]火焰格挡：[-]{zh-cn}[ff0000]火焰格挡：[-]{ko}[ff0000]불 방어: [-]{es}[ff0000]BLOQUEO DE FUEGO: [-]{fr}[ff0000]BLOC DE FEU : [-]{pt-br}[ff0000]BLOQUEIO DE FOGO: [-]{de}[ff0000]FEUER-BLOCK: [-]",
+						["I"]="{en}[5a5aff]ICE BLOCK: [-]{ru}[5a5aff]ЛЕДЯНОЙ БЛОК: [-]{zh-tw}[5a5aff]寒冰格挡：[-]{zh-cn}[5a5aff]寒冰格挡：[-]{ko}[5a5aff]얼음 방어: [-]{es}[5a5aff]BLOQUEO DE HIELO: [-]{fr}[5a5aff]BLOC DE GLACE : [-]{pt-br}[5a5aff]BLOQUEIO DE GELO: [-]{de}[5a5aff]EIS-BLOCK: [-]",
+						["M"]="{en}[ffda00]PSYCHIC BLOCK: [-]{ru}[ffda00]ПСИХИЧЕСКИЙ БЛОК: [-]{zh-tw}[ffda00]心靈格檔：[-]{zh-cn}[ffda00]心灵格挡：[-]{ko}[ffda00]정신 방어: [-]{es}[ffda00]BLOQUEO PSÍQUICO: [-]{fr}[ffda00]BLOC PSYCHIQUE : [-]{pt-br}[ffda00]BLOQUEIO PSÍQUICO: [-]{de}[ffda00]PSYCHISCHER BLOCK: [-]",
+						["IF"]="{en}[ff00fe]COLD FIRE BLOCK: [-]{ru}[ff00fe]ОГНЕННО-ЛЕДЯНОЙ БЛОК: [-]{zh-tw}[ff00fe]冰火格挡：[-]{zh-cn}[ff00fe]冰火格挡：[-]{ko}[ff00fe]차가운불 방어: [-]{es}[ff00fe]BLOQUEO DE FUEGO FRÍO: [-]{fr}[ff00fe]BLOC DE FEU FROID : [-]{pt-br}[ff00fe]BLOQUEIO DE FOGO FRIO: [-]{de}[ff00fe]KALTFEUER-BLOCK: [-]"}
+					for _, blockType in ipairs({"P","F","I","IF","M"}) do
+						local values=gStates.monsterPerks[hover_object.guid].block[blockType]
+						if type(values)=="table" then for _, value in ipairs(values) do monsterDescription=joinLang({monsterDescription,blockTypeConvert[blockType],tostring(value),"\n"}) end end
+					end
+				end
+				--summoners
+				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].monsters~=nil and monsterPugs[hover_object.guid].pugType~="yellow" then
+					local count=0
+					for _, summon in pairs(monsterPugs[hover_object.guid].monsters) do count=count+1 end
+					if count>1 then
+						monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMY SUMMONS: [-]{ru}[00ff00]ПРИЗЫВ: [-]{zh-tw}[00ff00]敌人召唤：[-]{zh-cn}[00ff00]敌人召唤：[-]{ko}[00ff00]적 소환수: [-]{es}[00ff00]CONVOCATORIA ENEMIGA: [-]{fr}[00ff00]SOMMES ENNEMIES: [-]{pt-br}[00ff00]CONVOCAÇÕES INIMIGAS: [-]{de}[00ff00]ENEMY SUMMONS: [-]", tostring(count), "\n"})
+					else
+						monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMY SUMMON: [-]1\n{ru}[00ff00]ПРИЗЫВ: [-]1\n{zh-tw}[00ff00]敌人召唤：[-]1\n{zh-cn}[00ff00]敌人召唤：[-]1\n{ko}[00ff00]적 소환수: [-]1\n{es}[00ff00]CONVOCATORIA ENEMIGA: [-]1\n{fr}[00ff00]SOMME DE L'ENNEMI : [-]1\n{pt-br}[00ff00]CONVOCAÇÃO DO INIMIGO: [-]1\n{de}[00ff00]Feindlicher SUMMON: [-]1\n"})
+					end
+				end
+				--ruins
+				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].monsters~=nil and monsterPugs[hover_object.guid].pugType=="yellow" and hover_object.guid~="f3c6e3" and hover_object.guid~="28cc9c" and hover_object.guid~="2f9a1f" then
+					colorConvert={
+						["gray"]="{en}Keep Garison (Gray){ru}Гарнизон крепости (Серый){zh-tw}要塞守军（灰色）{zh-cn}要塞守军（灰色）{ko}성 수비대 (회색){es}Mantener Garison (Gris){fr}Garder Garison (Gris){pt-br}Forte Guarnição (Cinza){de}Garison behalten (Grau)",
+						["tan"]="{en}Dungeon Monster (Tan){ru}Монстр из подземелья (Коричневый){zh-tw}地下城怪物（棕色）{zh-cn}地下城怪物（棕色）{ko}던전 몬스터 (갈색){es}Monstruo de Mazmorra (Marrón){fr}Monstre du donjon (Tan){pt-br}Monstro de Masmorra (Bronze){de}Kerkermonster (Braun)",
+						["green"]="{en}Maraudering Orcs (Green){ru}Орк-мародер (Зеленый){zh-tw}兽人劫掠队（绿色）{zh-cn}兽人劫掠队（绿色）{ko}오크 습격자 (녹색){es}Orkos Merodeadores (Verde){fr}Orques maraudeurs (Vert){pt-br}Orks saqueadores (Verde){de}Marodierende Orks (Grün)",
+						["red"]="{en}Draconum (Red){ru}Драконум (красный){zh-tw}龍族（紅色）{zh-cn}龙族（红色）{ko}드라코넘 (적색){es}Draconum (Rojo){fr}Draconum (Rouge){pt-br}Draconum (Vermelho){de}Draconum (Rot)",
+						["purple"]="{en}Mage Tower Garison (Purple){ru}Гарнизон башни магов (Фиолетовый){zh-tw}法师塔守军（紫色）{zh-cn}法师塔守军（紫色）{ko}마법사 탑 수비대 (보라색){es}Torre de Mago Garison (Morado){fr}Tour des mages Garison (Violet){pt-br}Guarnição da Torre do Mago (Roxo){de}Magierturm Garison (Violett)",
+						["white"]="{en}City Garison (white){ru}Гарнизон города (Белый){zh-tw}城市守军（白色）{zh-cn}城市守军（白色）{ko}도시 수비대 (흰색){es}Ciudad Garison (Blanco){fr}Garison de la ville (Blanc){pt-br}Guarnição da cidade (Branco){de}Stadt Garison (Weiß)"}
+					monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]One {ru}[00ff00]ОХРАНА: [-]Один {zh-tw}[00ff00]防守的敌人：[-]一个{zh-cn}[00ff00]防守的敌人：[-]一个{ko}[00ff00]방어 중인 적: [-]1개의 {es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Uno {fr}[00ff00]ENNEMIS EN DÉFENSE : [-]Un {pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Um {de}[00ff00]ENEMIES DEFENDING: [-]Einer ", colorConvert[monsterPugs[hover_object.guid].monsters[1]], "{en} and one {ru} и один {zh-tw}和一个{zh-cn}和一个{ko} 그리고 1개의 {es} y uno {fr} et un {pt-br} e um {de} und einer ", colorConvert[monsterPugs[hover_object.guid].monsters[2]], "{en}.\n{zh-tw}。\n{zh-cn}。\n"})
+				end
+				if hover_object.guid=="f3c6e3" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]Two Maraudering Orcs(Green).\n{ru}[00ff00]ОХРАНА: [-]Два Орка-мародер (Зеленый).\n{zh-tw}[00ff00]驻守敌人：[-]两个兽人劫掠队（绿色）。\n{zh-cn}[00ff00]驻守敌人：[-]两个兽人劫掠队（绿色）。\n{ko}[00ff00]방어 중인 적: [-]2개의 오크(녹색).\n{es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Dos Orkos Merodeadores(Verde).\n{fr}[00ff00]ENNEMIES DEFENDANTS : [-]Deux Orks maraudeurs (vert).\n{pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Dois Orks saqueadores(verde).\n{de}[00ff00]ENEMIES DEFENDING: [-]Zwei marodierende Orks(grün).\n"}) end
+				if hover_object.guid=="28cc9c" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]Two Mage Tower Garisons(Purple).\n{ru}[00ff00]ОХРАНА: [-]Два Гарнизона башни магов (Фиолетовый).\n{zh-tw}[00ff00]驻守敌人：[-]两个法师塔守军（紫色）。\n{zh-cn}[00ff00]驻守敌人：[-]两个法师塔守军（紫色）。\n{ko}[00ff00]방어 중인 적: [-]2개의 마법사 탑 수비대(보라색).\n{es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Dos Mage Tower Garisons(Purple).\n{fr}[00ff00]ENEMIS EN DEFENSE : [-]Deux Garisons de la Tour des Mages (Pourpre).\n{pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Duas Guarnições da Torre do Mago (Roxo).\n{de}[00ff00]ENEMIES DEFENDING: [-]Zwei Magierturm-Garisons(Lila).\n"}) end
+				if hover_object.guid=="2f9a1f" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]Three Maraudering Orcs(Green).\n{ru}[00ff00]ОХРАНА: [-]Три Орка-мародер (Зеленый).\n{zh-tw}[00ff00]驻守敌人：[-]三个兽人劫掠队（绿色）。\n{zh-cn}[00ff00]驻守敌人：[-]三个兽人劫掠队（绿色）。\n{ko}[00ff00]방어 중인 적: [-]3개의 오크(녹색).\n{es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Tres Orkos Merodeadores(Verde).\n{fr}[00ff00]ENEMIS EN DEFENSE : [-]Trois Orks maraudeurs(Vert).\n{pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Três Orcs Saqueadores(Verde).\n{de}[00ff00]ENEMIES DEFENDING: [-]Drei marodierende Orks(Grün).\n"}) end
+				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].required~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ALTER REQUIRES: [-]{ru}[00ff00]ПОДНОШЕНИЕ АЛТАРЮ: [-]{zh-tw}[00ff00]改变要求：[-]{zh-cn}[00ff00]改变要求：[-]{ko}[00ff00]재단 활성화: [-]{es}[00ff00]ALTER REQUIRE: [-]{fr}[00ff00]ALTER REQUIRES : [-]{pt-br}[00ff00]ALTERAR REQUISITOS: [-]{de}[00ff00]ALTER ERFORDERT: [-]", monsterPugs[hover_object.guid].required, "{en}.\n{zh-tw}。\n{zh-cn}。\n"}) end
+				if hover_object.getGMNotes()~="Puppet Master" then monsterDescription=joinLang({monsterDescription, "\n"}) end
+				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].reward~=nil and monsterPugs[hover_object.guid].pugType=="yellow" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]REWARD FOR DEFEATING: [-]{ru}[00ff00]НАГРАДА ЗА ПОБЕДУ: [-]{zh-tw}[00ff00]击败奖励：[-]{zh-cn}[00ff00]击败奖励：[-]{ko}[00ff00]정복 보상: [-]{es}[00ff00]RECOMPENSA POR DERROTA: [-]{fr}[00ff00]RÉCOMPENSE POUR LA DÉFENSE : [-]{pt-br}[00ff00]RECOMPENSA PELA DEFESA: [-]{de}[00ff00]BELOHNUNG FÜR DIE BESIEGUNG: [-]", monsterPugs[hover_object.guid].reward, "{en}.{zh-tw}。{zh-cn}。"}) end
+				--swiftness
+				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].swiftness~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].swiftness~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]SWIFTNESS[-][i] - This enemy's attack is doubled when trying to Block it.[/i]\n\n{ru}[00ff00]БЫСТРАЯ АТАКА[-][i] - Блокирование атаки врага требует вдвое больше очков блока, чем обычно.[/i]\n\n{zh-tw}[00ff00]迅捷[-][i] - 当试图阻挡敌人时，该敌人的攻击力会加倍。[/i]\n\n{zh-cn}[00ff00]迅捷[-][i] - 当试图阻挡敌人时，该敌人的攻击力会加倍。[/i]\n\n{ko}[00ff00]신속[-][i] - 이 공격을 방어할 때는 두 배의 수치가 필요.[/i]\n\n{es}[00ff00]VELOCIDAD[-][i] - El ataque de este enemigo se duplica al intentar Bloquearlo[/i]\n\n{fr}[00ff00]SOUPLESSE[-][i] - L'attaque de cet ennemi est doublée lorsque l'on tente de le bloquer.[/i]\n\n{pt-br}[00ff00]AGILIDADE[-][i] - O ataque deste inimigo é dobrado ao tentar bloqueá-lo.[/i]\n\n{de}[00ff00]GESCHWINDIGKEIT[-][i] - Der Angriff dieses Gegners wird verdoppelt, wenn man versucht, ihn zu blocken.[/i]\n\n"}) end
+				--cumbersome
+				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].cumbersome~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].cumbersome~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]CUMBERSOME[-][i] - This enemy's attack can be reduced by the amount of Move a player spends.[/i]\n\n{ru}[00ff00]НЕПОВОРОТЛИВЫЙ[-][i] - В фазе блока вы можете потратить очки Движения, уменьшив значение Атаки врага на 1 за каждое очко. Атака, уменьшенная до 0, успешно заблокирована.[/i]\n\n{zh-tw}[00ff00]笨重[-][i] - 该敌人的攻击力可以被玩家消耗的移动力减少。[/i]\n\n{zh-cn}[00ff00]笨重[-][i] - 该敌人的攻击力可以被玩家消耗的移动力减少。[/i]\n\n{ko}[00ff00]육중함[-][i] - 플레이어가 소비한 이동력만큼 이 적의 공격력이 감소.[/i]\n\n{es}[00ff00]CUMBERSOME[-][i] - El ataque de este enemigo puede ser reducido por la cantidad de Movimiento que gaste el jugador.[/i]\n\n{fr}[00ff00]CUMBERSOME[-][i] - L'attaque de cet ennemi peut être réduite par la quantité de Mouvement dépensée par le joueur.[/i]\n\n{pt-br}[00ff00]CORPULENTO-][i] - O ataque desse inimigo pode ser reduzido pela quantidade de movimento que o jogador gasta.[/i]\n\n{de}[00ff00]GESCHWINDIGKEIT[-][i] - Der Angriff dieses Gegners kann um die Menge an Bewegung reduziert werden, die ein Spieler ausgibt.[/i]\n\n"}) end
+				--poison
+				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].poison~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].poison~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]POISON[-][i] - The Player adds an extra wound to their discard pile for each wound from this enemy. Units get two wounds if taking a wound.[/i]\n\n{ru}[00ff00]ЯДОВИТАЯ АТАКА[-][i] - Отряд получает две карты ран вместо одной от атаки ядовитого врага. За каждую рану, полученную героем от этой атаки, он также кладет одну карту раны в свой сброс.[/i]\n\n{zh-tw}[00ff00]剧毒[-][i] - 此敌人每造成一次伤害，玩家就会在弃牌堆中额外增加一次伤害。如果受伤，单位会获得两个伤口。[/i]\n\n{zh-cn}[00ff00]剧毒[-][i] - 此敌人每造成一次伤害，玩家就会在弃牌堆中额外增加一次伤害。如果受伤，单位会获得两个伤口。[/i]\n\n{ko}[00ff00]독성[-][i] - 이 적에게 받는 부상 하나당, 자신의 버린 카드 더미에 부상 하나를 추가. 유닛이 부상을 받을 경우 두 개를 받음.[/i]\n\n{es}[00ff00]VENENO[-][i] - El Jugador añade una herida extra a su pila de descartes por cada herida de este enemigo. Las unidades reciben dos heridas si reciben una herida.[/i]\n\n{fr}[00ff00]POISON[-][i] - Le joueur ajoute une blessure supplémentaire à sa pile de défausse pour chaque blessure infligée par cet ennemi.[/i]\n\n{pt-br}[00ff00]VENENO[-][i] - O jogador adiciona um ferimento extra à sua pilha de descarte para cada ferimento desse inimigo. As unidades recebem dois ferimentos se receberem um ferimento.[/i]\n\n{de}[00ff00]GIFT[-][i] - Der Spieler legt für jede Verwundung durch diesen Feind eine zusätzliche Wunde auf seinen Ablagestapel. Einheiten erhalten zwei Verwundungen, wenn sie eine Verwundung erleiden.[/i]\n\n"}) end
+				--brutal
+				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].brutal~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].brutal~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]BRUTAL[-][i] - This enemy's attack is doubled if not blocked.[/i]\n\n{ru}[00ff00]ЖЕСТОКАЯ АТАКА[-][i] - Если враг не заблокирован, он наносит вдвое больше урона, чем его значение Атаки.[/i]\n\n{zh-tw}[00ff00]残暴[-][i] - 如果没有被阻挡，这个敌人的攻击会加倍。[/i]\n\n{zh-cn}[00ff00]残暴[-][i] - 如果没有被阻挡，这个敌人的攻击会加倍。[/i]\n\n{ko}[00ff00]난폭[-][i] - 방어하지 못하면, 공격력의 두 배만큼의 대미지를 받음.[/i]\n\n{es}[00ff00]BRUTAL[-][i] - El ataque de este enemigo se duplica si no es bloqueado.[/i]\n\n{fr}[00ff00]BRUTAL[-][i] - L'attaque de cet ennemi est doublée si elle n'est pas bloquée.[/i]\n\n{pt-br}[00ff00]BRUTAL[-][i] - O ataque desse inimigo é dobrado se não for bloqueado.[/i]\n\n{de}[00ff00]BRUTAL[-][i] - Der Angriff dieses Feindes wird verdoppelt, wenn er nicht geblockt wird.[/i]\n\n"}) end
+				--vampiric
+				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].vampiric~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]VAMPIRIC[-][i] - Increase the armour of this enemy by the amount of wounds this enemy has dealt to the player and units.[/i]\n\n{ru}[00ff00]ВАМПИРИЗМ[-][i] - Броня врага с вампиризмом увеличивается на 1 до конца битвы каждый раз, когда в результате его атаки отряд получает рану или игрок берёт карту раны в руку.[/i]\n\n{zh-tw}[00ff00]吸血[-][i] - 增加该敌人的护甲，数值为该敌人对玩家和单位造成的伤害值。[/i]\n\n{zh-cn}[00ff00]吸血[-][i] - 增加该敌人的护甲，数值为该敌人对玩家和单位造成的伤害值。[/i]\n\n{ko}[00ff00]흡혈[-][i] - 이 적의 방어구가, 플레이어와 유닛에게 준 부상의 개수만큼 증가합니다.[/i]\n\n{es}[00ff00]VAMPÍRICO[-][i] - Aumenta la armadura de este enemigo por la cantidad de heridas que este enemigo haya infligido al jugador y a las unidades.[/i]\n\n{fr}[00ff00]VAMPIRIC[-][i] - Augmente l'armure de cet ennemi du nombre de blessures qu'il a infligées au joueur et à ses unités.[/i]\n\n{pt-br}[00ff00]VAMPÍRICO[-][i] - Aumenta a armadura desse inimigo pela quantidade de ferimentos que esse inimigo causou ao jogador e às unidades.[/i]\n\n{de}[00ff00]VAMPIRISCH[-][i] - Erhöht die Rüstung dieses Feindes um die Anzahl der Wunden, die dieser Feind dem Spieler und seinen Einheiten zugefügt hat.[/i]\n\n"}) end
+				--Paralyse
+				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].paralyse~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].paralyse~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]PARALYZE[-][i] - Player discards all non-wound cards when taking a wound from this enemy. Units are destroyed if taking a wound.[/i]\n\n{ru}[00ff00]ПАРАЛИЗУЮЩАЯ АТАКА[-][i] - Отряд, получивший рану от такой атаки, немедленно уничтожается. Если герой получает раны от такой атаки, управляющий им игрок немедленно сбрасывает с руки все карты, кроме карт ран.[/i]\n\n{zh-tw}[00ff00]瘫痪[-][i] - 玩家在受到该敌人的伤害时会丢弃所有非受伤的牌。如果受伤，单位将被摧毁。[/i]\n\n{zh-cn}[00ff00]瘫痪[-][i] - 玩家在受到该敌人的伤害时会丢弃所有非受伤的牌。如果受伤，单位将被摧毁。[/i]\n\n{ko}[00ff00]마비[-][i] - 플레이어가 이 공격으로 한 장 이상의 부상을 받으면, 즉시 손에서 부상을 제외한 모든 카드를 버림. 부상을 받은 유닛은 게임에서 제거됨.[/i]\n\n{es}[00ff00]PARALYSE[-][i] - El jugador descarta todas las cartas no heridas al recibir una herida de este enemigo. Las unidades son destruidas si reciben una herida.[/i]\n\n{fr}[00ff00]PARALYSE[-][i] - Le joueur défausse toutes les cartes non blessées lorsqu'il est blessé par cet ennemi. Les unités sont détruites si elles subissent une blessure.[/i]\n\n{pt-br}[00ff00]PARALISIA[-][i] - O jogador descarta todas as cartas não feridas ao receber um ferimento desse inimigo. As unidades são destruídas se receberem um ferimento.[/i]\n\n{de}[00ff00]PARALYSE[-][i] - Der Spieler wirft alle Karten ab, die nicht verwundet sind, wenn er eine Verwundung durch diesen Feind erleidet. Einheiten werden zerstört, wenn sie eine Verwundung erleiden.[/i]\n\n"}) end
+				--assassination
+				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].assassination~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].assassination~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ASSASSINATION[-][i] - This enemy's attack damage can only be assigned to the player.[/i]\n\n{ru}[00ff00]НАЕМНЫЙ УБИЙЦА[-][i] - Урон от атаки врага не может быть распределён на отряды. Если враг не заблокирован, урон получает только герой.[/i]\n\n{zh-tw}[00ff00]刺杀[-][i] - 该敌人的攻击伤害只能分配给玩家。[/i]\n\n{zh-cn}[00ff00]刺杀[-][i] - 该敌人的攻击伤害只能分配给玩家。[/i]\n\n{ko}[00ff00]암살[-][i] - 이 적의 대미지는 유닛에게 할당 불가.[/i]\n\n{es}[00ff00]ASESINATO[-][i] - El daño de ataque de este enemigo sólo puede ser asignado al jugador.[/i]\n\n{fr}[00ff00]ASSASSINATION[-][i] - Les dégâts d'attaque de cet ennemi ne peuvent être attribués qu'au joueur.[/i]\n\n{pt-br}[00ff00]ASSASSINATO[-][i] - O dano de ataque desse inimigo só pode ser atribuído ao jogador.[/i]\n\n{de}[00ff00]ASSASSINATION[-][i] - Der Angriffsschaden dieses Feindes kann nur dem Spieler zugewiesen werden.[/i]\n\n"}) end
+				if gStates.summonStates[hover_object.guid]~="summoned" then
+					--armour
+					local bonus=0
+					if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].armour~=nil then bonus=gStates.monsterPerks[hover_object.guid].armour end
+					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].armour~=nil and monsterPugs[hover_object.guid].elusive==nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARMOUR: [-]{ru}[00ff00]БРОНЯ: [-]{zh-tw}[00ff00]护甲：[-]{zh-cn}[00ff00]护甲：[-]{ko}[00ff00]방어구: [-]{es}[00ff00]ARMADURA: [-]{fr}[00ff00]ARMURE : [-]{pt-br}[00ff00] ARMADURA: [-]{de}[00ff00]RÜSTUNG: [-]", tostring(monsterPugs[hover_object.guid].armour+bonus), "\n\n"}) end
+					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].armour~=nil and monsterPugs[hover_object.guid].elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARMOUR: [-]{ru}[00ff00]БРОНЯ: [-]{zh-tw}[00ff00]护甲：[-]{zh-cn}[00ff00]护甲：[-]{ko}[00ff00]방어구: [-]{es}[00ff00]ARMADURA: [-]{fr}[00ff00]ARMURE : [-]{pt-br}[00ff00] ARMADURA: [-]{de}[00ff00]RÜSTUNG: [-]", tostring(monsterPugs[hover_object.guid].armour+bonus), "[7b7b7b]/", tostring((monsterPugs[hover_object.guid].armour*2)+bonus), "[-]\n\n"}) end
+					--Elusive
+					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ELUSIVE[-][i] - This enemy's higher Armour value is used until successfully Blocked.[/i]\n\n{ru}[00ff00]НЕУЛОВИМЫЙ[-][i] - Меньшее значение брони используется только в фазе ближнего боя и только если все атаки этого врага были успешно заблокированы.[/i]\n\n{zh-tw}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{zh-cn}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{ko}[00ff00]은밀함[-][i] - 이 공격을 성공적으로 방어하기 전 까지, 더 높은 방어구 수치를 적용.[/i]\n\n{es}[00ff00]ELUSIVO[-][i] - El valor de Armadura más alto de este enemigo se utiliza hasta que es Bloqueado con éxito.[/i]\n\n{fr}[00ff00]ELUSIVE[-][i] - La valeur d'armure la plus élevée de cet ennemi est utilisée jusqu'à ce qu'il soit bloqué avec succès.[/i]\n\n{pt-br}[00ff00]ELUSIVO[-][i] - O valor mais alto de Armadura desse inimigo é usado até que ele seja bloqueado com sucesso[/i]\n\n{de}[00ff00]ELUSIV[-][i] - Der höhere Rüstungswert dieses Gegners wird verwendet, bis er erfolgreich geblockt wird[/i]\n\n"}) end
+					--defender
+					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].defend~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DEFENDER[-][i] - The first enemy attacked by the player gets {ru}[00ff00]ПРИКРЫТИЕ[-][i] - Первый враг, атакованный игроком, получает {zh-tw}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{zh-cn}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{ko}[00ff00]수비[-][i] - 플레이어가 처음 공격하는 적에게{es}[00ff00]DEFENSOR[-][i] - El primer enemigo atacado por el jugador obtiene {fr}[00ff00]DEFENDER[-][i] - Le premier ennemi attaqué par le joueur voit son armure augmentée {pt-br}[00ff00]DEFENSOR[-][i] - O primeiro inimigo atacado pelo jogador recebe {de}[00ff00]VERTEIDIGER[-][i] - Der erste vom Spieler angegriffene Feind erhält ", monsterPugs[hover_object.guid].defend, "{en} added to its armour.[/i]\n\n{ru} к его броне.[/i]\n\n{zh-tw}增加其护甲。[/i]\n\n{zh-cn}增加其护甲。[/i]\n\n{ko}방어구를 추가.[/i]\n\n{es} se añade a su armadura.[/i]\n\n{fr}ajouté à son armure.[/i]\n\n{pt-br} adicionado à sua armadura.[/i]\n\n{de} zu seiner Rüstung hinzugefügt.[/i]\n\n"}) end
+					--Fortified
+					if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fortified~=nil and (gStates.monsterPerks[hover_object.guid]==nil or (gStates.monsterPerks[hover_object.guid].fortified==nil and gStates.monsterPerks[hover_object.guid].wallFortified==nil))) or (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fortified==nil and gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].fortified~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]FORTIFIED[-][i] - This enemy can't be attacked with Ranged attacks in the Range phase.[/i]\n\n{ru}[00ff00]УКРЕПЛЕННЫЙ[-][i] - Во время фазы боя на расстоянии против врага можно играть только Осадные атаки.[/i]\n\n{zh-tw}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{zh-cn}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{ko}[00ff00]요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]FORTIFICADO[-][i] - Este enemigo no puede ser atacado con ataques a distancia en la fase de Alcance.[/i]\n\n{fr}[00ff00]FORTIFIÉ[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance lors de la phase de portée.[/i]\n\n{pt-br}[00ff00]FORTIFICADO[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance na fase de alcance[/i]\n\n{de}[00ff00]VERTEIDIGT[-][i] - Dieser Gegner kann in der Fernkampfphase nicht mit Fernkampfangriffen angegriffen werden.[/i]\n\n"}) end
+					--double Fortified
+					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fortified~=nil and gStates.monsterPerks[hover_object.guid]~=nil and (gStates.monsterPerks[hover_object.guid].fortified~=nil or gStates.monsterPerks[hover_object.guid].wallFortified~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DOUBLE FORTIFIED[-][i] - This enemy can't be attacked with Ranged or Siege attacks in the Range phase.[/i]\n\n{ru}[00ff00]ДВАЖДЫ УКРЕПЛЕННЫЙ[-][i] - Враг не может быть атакован во время фазы боя на расстоянии.[/i]\n\n{zh-tw}[00ff00]双重城防[-][i] - 在远程攻击阶段不能使用远程攻击或攻城攻击攻击该敌人。[/i]\n\n{zh-cn}[00ff00]双重城防[-][i] - 在远程攻击阶段不能使用远程攻击或攻城攻击攻击该敌人。[/i]\n\n{ko}[00ff00]이중 요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격이나 공성 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]DOBLE FORTIFICADO[-][i] - Este enemigo no puede ser atacado con ataques a distancia o de asedio en la fase de alcance.[/i]\n\n{fr}[00ff00]DOUBLE FORTIFIÉ[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance ou de siège lors de la phase à distance.[/i]\n\n{pt-br}[00ff00]DUPLAMENTE FORTIFICADO[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance ou de cerco na fase de alcance[/i]\n\n{de}[00ff00]DOPPELT BEFESTIGT[-][i] - Dieser Feind kann in der Fernkampfphase nicht mit Fernkampf- oder Belagerungsangriffen angegriffen werden[/i]\n\n"}) end
+					--Wall Fortified
+					if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].wallFortified~=nil and (monsterPugs[hover_object.guid]==nil or monsterPugs[hover_object.guid].fortified==nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]WALL FORTIFIED[-][i] - This enemy can't be attacked with Ranged attacks in the Range phase.[/i]\n\n{ru}[00ff00]УКРЕПЛЕННЫЙ ЗА СТЕНОЙ[-][i] - Во время фазы боя на расстоянии против врага можно играть только Осадные атаки.[/i]\n\n{zh-tw}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{zh-cn}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{ko}[00ff00]벽 요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]PARED FORTIFICADA[-][i] - Este enemigo no puede ser atacado con ataques a distancia en la fase de Alcance.[/i]\n\n{fr}[00ff00]FORTIFIÉ PAR UN MUR[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance lors de la phase de portée.[/i]\n\n{pt-br}[00ff00]PAREDE FORTIFICADA[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance na fase de alcance[/i]\n\n{de}[00ff00]DURCH MAUER BEFESTIGT[-][i] - Dieser Gegner kann in der Fernkampfphase nicht mit Fernkampfangriffen angegriffen werden.[/i]\n\n"}) end
+					--Unfortified
+					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].unfortified~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]UN-FORTIFIED[-][i] - This enemy ignores site fortifications, and can be attacked with Range and Siege attacks.[/i]\n\n{ru}[00ff00]НЕУКРЕПЛЕННЫЙ[-][i] - Этот враг игнорирует все местные укрепления и может быть атакован с помощью Дальних и Осадных атак.[/i]\n\n{zh-tw}[00ff00]不设城防[-][i] - 该敌人无视地点城防，可以使用远程攻击和攻城攻击。[/i]\n\n{zh-cn}[00ff00]不设城防[-][i] - 该敌人无视地点城防，可以使用远程攻击和攻城攻击。[/i]\n\n{ko}[00ff00]무방비[-][i] - 이 적을 요새화를 무시하고 원거리 및 공성 공격으로 공격할 수 있음.[/i]\n\n{es}[00ff00]NO FORTIFICADO[-][i] - Este enemigo ignora las fortificaciones del sitio, y puede ser atacado con ataques de Alcance y Asedio.[/i]\n\n{fr}[00ff00]NON FORTIFIE[-][i] - Cet ennemi ignore les fortifications du site et peut être attaqué avec des attaques à distance et de siège.[/i]\n\n{pt-br}[00ff00]NÃO FORTIFICADO[-][i] - Esse inimigo ignora as fortificações do local e pode ser atacado com ataques de longo alcance e de cerco.[/i]\n\n{de}[00ff00]UNVERBESSERT[-][i] - Dieser Feind ignoriert Standortbefestigungen und kann mit Fernkampf- und Belagerungsangriffen angegriffen werden.[/i]\n\n"}) end
+					--physical resistance
+					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].pResist~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]PHYSICAL RESISTANCE[-][i] - Physical attacks are halved against this enemy.[/i]\n\n{ru}[00ff00]ФИЗИЧЕСКОЕ СОПРОТИВЛЕНИЕ[-][i] - Значения Физических атак делятся на 2, с округлением вниз[/i]\n\n{zh-tw}[00ff00]物理抗性[-][i] - 对该敌人的物理攻击减半。[/i]\n\n{zh-cn}[00ff00]物理抗性[-][i] - 对该敌人的物理攻击减半。[/i]\n\n{ko}[00ff00]물리 저항[-][i] - 모든 물리 공격이 반감됨.[/i]\n\n{es}[00ff00]RESISTENCIA FÍSICA[-][i] - Los ataques físicos se reducen a la mitad contra este enemigo.[/i]\n\n{fr}[00ff00]RÉSISTANCE PHYSIQUE[-][i] - Les attaques physiques sont réduites de moitié contre cet ennemi.[/i]\n\n{pt-br}[00ff00]RESISTÊNCIA FÍSICA[-][i] - Os ataques físicos são reduzidos à metade contra esse inimigo.[/i]\n\n{de}[00ff00]PHYSISCHE RESISTENZ[-][i] - Physische Angriffe werden gegen diesen Feind halbiert.[/i]\n\n"}) end
+					--fire resistance
+					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fResist~=nil and monsterPugs[hover_object.guid].iResist==nil then monsterDescription=joinLang({monsterDescription, "{en}[ff0000]FIRE RESISTANCE[-][i] - Fire attacks are halved against this enemy. This enemy can't be targeted by Unit abilities powered by Red Mana, nor from non-attack effects of Red cards.[/i]\n\n{ru}[ff0000]СОПРОТИВЛЕНИЕ ОГНЮ[-][i] - Значения Огненных атак делятся на 2, с округлением вниз. Этот отряд игнорирует все эффекты карт и способности отрядов, сыгранные за красную ману (кроме эффектов Атак).[/i]\n\n{zh-tw}[ff0000]火焰抗性[-][i] - 对该敌人的火焰攻击减半。该敌人无法成为由红色法力驱动的单位能力的目标，也无法成为红色卡牌的非攻击效果的目标。[/i]\n\n{zh-cn}[ff0000]火焰抗性[-][i] - 对该敌人的火焰攻击减半。该敌人无法成为由红色法力驱动的单位能力的目标，也无法成为红色卡牌的非攻击效果的目标。[/i]\n\n{ko}[ff0000]불 저항[-][i] - 모든 불 공격이 반감됨. 이 적은 적색 카드나 적색 마나로 강화한 유닛의 (공격이 아닌) 특수 효과를 무시함.[/i]\n\n{es}[ff0000]RESISTENCIA AL FUEGO[-][i] - Los ataques de fuego se reducen a la mitad contra este enemigo. Este enemigo no puede ser objetivo de habilidades de Unidad potenciadas con Maná Rojo, ni de efectos de no-ataque de cartas Rojas.[/i]\n\n{fr}[ff0000]RÉSISTANCE AU FEU[-][i] - Les attaques de feu sont réduites de moitié contre cet ennemi. Cet ennemi ne peut pas être ciblé par des capacités d'unité alimentées par du mana rouge, ni par des effets de cartes rouges qui n'attaquent pas.[/i]\n\n{pt-br}[ff0000]RESISTÊNCIA AO FOGO[-][i] - Os ataques de fogo são reduzidos à metade contra esse inimigo. Esse inimigo não pode ser alvo de habilidades de unidade alimentadas por Mana vermelha nem de efeitos de cartas vermelhas que não sejam de ataque.[/i]\n\n{de}[ff0000]FEUERWIDERSTAND[-][i] - Feuerangriffe werden gegen diesen Feind halbiert. Dieser Feind kann weder von Einheitenfähigkeiten, die durch rotes Mana angetrieben werden, noch von Nicht-Angriffseffekten roter Karten angegriffen werden.[/i]\n\n"}) end
+					--ice resistance
+					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].iResist~=nil and monsterPugs[hover_object.guid].fResist==nil then monsterDescription=joinLang({monsterDescription, "{en}[5a5aff]ICE RESISTANCE[-][i] - Ice attacks are halved against this enemy. This enemy can't be targeted by Unit abilities powered by Blue Mana, nor from non-attack effects of Blue cards.[/i]\n\n{ru}[5a5aff]СОПРОТИВЛЕНИЕ ЛЬДУ[-][i] - Значения Ледяных атак делятся на 2, с округлением вниз. Этот отряд игнорирует все эффекты карт и способности отрядов, сыгранные за синюю ману (кроме эффектов Атак).[/i]\n\n{zh-tw}[5a5aff]寒冰抗性[-][i] - 此敌人受到的寒冰攻击减半。该敌人不能成为由蓝色法力驱动的单位异能的目标，也不能成为蓝色卡牌非攻击效果的目标。[/i]\n\n{zh-cn}[5a5aff]寒冰抗性[-][i] - 此敌人受到的寒冰攻击减半。该敌人不能成为由蓝色法力驱动的单位异能的目标，也不能成为蓝色卡牌非攻击效果的目标。[/i]\n\n{ko}[5a5aff]얼음 저항[-][i] - 모든 얼음 공격이 반감됨. 이 적은 청색 카드나 총색 마나로 강화한 유닛의 (공격이 아닌) 특수 효과를 무시함.[/i]\n\n{es}[5a5aff]RESISTENCIA AL HIELO[-][i] - Los ataques de hielo se reducen a la mitad contra este enemigo. Este enemigo no puede ser objetivo de habilidades de Unidad potenciadas con Maná Azul, ni de efectos de no-ataque de cartas Azules.[/i]\n\n{fr}[5a5aff]RÉSISTANCE À LA GLACE[-][i] - Les attaques de glace sont réduites de moitié contre cet ennemi. Cet ennemi ne peut pas être ciblé par les capacités d'unité alimentées par du mana bleu, ni par les effets non offensifs des cartes bleues.[/i]\n\n{pt-br}[5a5aff]RESISTÊNCIA AO GELO[-][i] - Os ataques de gelo são reduzidos à metade contra esse inimigo. Esse inimigo não pode ser alvo de habilidades de Unidade alimentadas por Mana Azul nem de efeitos de cartas Azuis que não sejam de ataque.[/i]\n\n{de}[5a5aff]EISWIDERSTAND[-][i] - Eisangriffe werden gegen diesen Feind halbiert. Dieser Feind kann weder von Einheitenfähigkeiten, die durch blaues Mana angetrieben werden, noch von Nicht-Angriffseffekten blauer Karten angegriffen werden.[/i]\n\n"}) end
+					--cold fire resistance
+					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].iResist~=nil and monsterPugs[hover_object.guid].fResist~=nil then monsterDescription=joinLang({monsterDescription, "{en}[ff00fe]COLD FIRE RESISTANCE[-][i] - Fire, Ice and Cold Fire attacks are halved against this enemy. This enemy can't be targeted by Unit abilities powered by Red or Blue Mana, nor from non-attack effects of Red or Blue cards.[/i]\n\n{ru}[ff00fe]СОПРОТИВЛЕНИЕ ОГНЮ И ЛЬДУ[-][i] - Значения Огненных, Ледяных и Огненно-ледяных атак делятся на 2, с округлением вниз. Этот отряд игнорирует все эффекты карт и способности отрядов, сыгранные за красную или синюю ману (кроме эффектов Атак).[/i]\n\n{zh-tw}[ff00fe]冰火抗性[-][i] - 此敌人受到的火、冰和冰火攻击减半。该敌人不能成为由红色或蓝色法力驱动的单位能力的目标，也不能成为红色或蓝色卡牌的非攻击效果的目标。[/i]\n\n{zh-cn}[ff00fe]冰火抗性[-][i] - 此敌人受到的火、冰和冰火攻击减半。该敌人不能成为由红色或蓝色法力驱动的单位能力的目标，也不能成为红色或蓝色卡牌的非攻击效果的目标。[/i]\n\n{ko}[ff00fe]차가운불 저항[-][i] - 모든 불, 얼음, 차가운 불 공격이 반감됨. 이 적은 청,적색 카드나 청,적색 마나로 강화한 유닛의 (공격이 아닌) 특수 효과를 무시함..[/i]\n\n{es}[ff00fe]RESISTENCIA AL FUEGO FRÍO[-][i] - Los ataques de Fuego, Hielo y Fuego Frío se reducen a la mitad contra este enemigo. Este enemigo no puede ser objetivo de habilidades de Unidad potenciadas con Maná Rojo o Azul, ni de efectos de no-ataque de cartas Rojas o Azules.[/i]\n\n{fr}[ff00fe]RÉSISTANCE AU FEU FROID[-][i] - Les attaques de Feu, de Glace et de Feu froid sont réduites de moitié contre cet ennemi. Cet ennemi ne peut pas être ciblé par des capacités d'unité alimentées par du mana rouge ou bleu, ni par des effets non offensifs de cartes rouges ou bleues.[/i]\n\n{pt-br}[ff00fe]RESISTÊNCIA A FOGO FRIO[-][i] - Os ataques de Fogo, Gelo e Fogo Frio são reduzidos à metade contra esse inimigo. Esse inimigo não pode ser alvo de habilidades de unidade alimentadas por Mana vermelha ou azul, nem de efeitos que não sejam de ataque de cartas vermelhas ou azuis.[/i]\n\n{de}[ff00fe]KALTE FEUERWIDERSTAND[-][i] - Feuer-, Eis- und Kältefeuer-Angriffe werden gegen diesen Feind halbiert. Dieser Feind kann weder von Einheitenfähigkeiten, die durch rotes oder blaues Mana angetrieben werden, noch von Nicht-Angriffseffekten roter oder blauer Karten angegriffen werden.[/i]\n\n"}) end
+					--arcane immunity
+					if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].arcaneImmunity~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].arcaneImmunity~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARCANE IMMUNITY[-][i] - This enemy can't be targeted by non-Attack or non-Block effects from any source. Effects that directly affect an enemy's attack(s) still apply.[/i]\n\n{ru}[00ff00]ЗАЩИТА ОТ МАГИИ[-][i] - На врага не влияют никакие эффекты, кроме атак и блоков. Эффекты, действующие напрямую на атаку этого врага, по-прежнему можно использовать.[/i]\n\n{zh-tw}[00ff00]魔法免疫[-][i] - 该敌人无法成为任何来源的非攻击或非阻断效果的目标。直接影响敌人攻击的效果仍然适用。[/i]\n\n{zh-cn}[00ff00]魔法免疫[-][i] - 该敌人无法成为任何来源的非攻击或非阻断效果的目标。直接影响敌人攻击的效果仍然适用。[/i]\n\n{ko}[00ff00]마법 면역[-][i] - 이 적은 공격, 방어를 제외한 그 어떠한 특수 효과를 무시함. 적의 공격에 직접 영향을 주는 효과는 여전히 적용.[/i]\n\n{es}[00ff00]INMUNIDAD ARCANA[-][i] - Este enemigo no puede ser objetivo de efectos que no sean de Ataque o Bloqueo de ninguna fuente. Los efectos que afectan directamente a los ataques de un enemigo se siguen aplicando.[/i]\n\n{fr}[00ff00]IMMUNITÉ DE L'ARCANE[-][i] - Cet ennemi ne peut pas être ciblé par des effets autres qu'une attaque ou un blocage, quelle qu'en soit la source. Les effets qui affectent directement les attaques de l'ennemi s'appliquent toujours.[/i]\n\n{pt-br}[00ff00]IMUNIDADE ARCANA[-][i] - Esse inimigo não pode ser alvo de efeitos que não sejam de ataque ou de bloqueio de nenhuma fonte. Os efeitos que afetam diretamente o(s) ataque(s) de um inimigo ainda se aplicam.[/i]\n\n{de}[00ff00]ARKANE IMMUNITÄT[-][i] - Dieser Feind kann nicht durch Nicht-Angriffs- oder Nicht-Block-Effekte aus irgendeiner Quelle angegriffen werden. Effekte, die sich direkt auf die Attacke(n) des Feindes auswirken, gelten weiterhin.[/i]\n\n"}) end
+					--reward
+					local factionTranslate=({	["Dark"]="{en}Dark Crusader{ru}Тёмный крестоносец{zh-tw}黑暗遠征軍{zh-cn}黑暗远征军{ko}암흑 십자군{es}Cruzado Oscuro{fr}Croisé des ténèbres{pt-br}Cruzado das Trevas{de}Dunkler Kreuzritter",
+												["Elem"]="{en}Elementalist{ru}Элементалист{zh-tw}元素之力{zh-cn}元素之力{ko}원소술사{es}Elementalista{fr}Élémentaliste{pt-br}Elementalista{de}Elementarist",
+												["Apoc"]="{en}Apocalypse Cult{ru}Культ Апокалипсиса{zh-tw}末日教團{zh-cn}末日教团{ko}아포칼립스 컬트{es}Culto del Apocalipsis{fr}Culte de l'Apocalypse{pt-br}Culto do Apocalipse{de}Apokalypse-Kult",
+												["Coun"]="{en}Council of the Void{ru}Совет Пустоты{zh-tw}虛空議會{zh-cn}虚空议会{ko}공허 의회{es}Consejo del Vacío{fr}Conseil du Vide{pt-br}Conselho do Vazio{de}Rat der Leere"})
+					local used=false
+					local rewardLabel="{en}[00ff00]FACTION REWARD:[-] {ru}[00ff00]НАГРАДЫ ФРАКЦИИ:[-] {zh-tw}[00ff00]派系奖励：[-] {zh-cn}[00ff00]派系奖励：[-] {ko}[00ff00]세력 보상:[-] {es}[00ff00]RECOMPENSA DE FACCIÓN:[-] {fr}[00ff00]RÉCOMPENSE DE FACTION:[-] {pt-br}[00ff00]RECOMPENSA DE FAÇÃO:[-] {de}[00ff00]FRAKTIONSBELOHNUNG:[-] "
+					local printed=monsterPugs[hover_object.guid]
+					if printed~=nil and printed.pugType~="yellow" and type(printed.reward)=="number" and printed.reward>0 and factionRewardUsesJustFame(printed.faction)~=true then
+						local faction=factionTranslate[printed.faction]
+						if faction~=nil then monsterDescription=joinLang({monsterDescription,rewardLabel,faction}) used=true end
+					end
+					local perks=gStates.monsterPerks[hover_object.guid]
+					if perks~=nil and type(perks.reward)=="number" and perks.reward>0 and factionRewardUsesJustFame(perks.faction)~=true then
+						local faction=factionTranslate[perks.faction]
+						if faction~=nil then
+							if used==true then monsterDescription=joinLang({monsterDescription,"\n"}) end
+							monsterDescription=joinLang({monsterDescription,rewardLabel,faction})
+							used=true
+						end
+					end
+					if used==true then monsterDescription=joinLang({monsterDescription,"\n\n"}) end
+					--fame: each faction independently uses +1 Fame when its own reward pile has been removed.
+					local rewardPug,rewardPerk=monsterFactionRewardFameFallback(hover_object.guid)
+					local reward=rewardPug+rewardPerk
+					local bonus=0
+					if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].fame~=nil then bonus=gStates.monsterPerks[hover_object.guid].fame end
+					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fame~=nil and monsterPugs[hover_object.guid].fame>0 then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]FAME: [-]{ru}[00ff00]СЛАВА: [-]{zh-tw}[00ff00]名望：[-]{zh-cn}[00ff00]名望：[-]{ko}[00ff00]명성: [-]{es}[00ff00]FAMA: [-]{fr}[00ff00]FAME : [-]{pt-br}[00ff00]FAMA: [-]{de}[00ff00]RUHM: [-]", tostring(monsterPugs[hover_object.guid].fame+reward+bonus)}) end
+					if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].dragonGround==true then
+						local headName=apocalypseDragonGroundHeadNameForGUID(hover_object.guid)
+						if headName=="Control" then monsterDescription=joinLang({monsterDescription,"{en}\n[00ff00]CONTROL HEAD[-] - This head may never be attacked.{ru}\n[00ff00]ГОЛОВА КОНТРОЛЯ[-] - Эту голову нельзя атаковать.{zh-tw}\n[00ff00]控制龍首[-] - 此龍首永遠不能被攻擊。{zh-cn}\n[00ff00]控制龙首[-] - 此龙首永远不能被攻击。{ko}\n[00ff00]통제 머리[-] - 이 머리는 공격할 수 없습니다.{es}\n[00ff00]CABEZA DE CONTROL[-] - Esta cabeza nunca puede ser atacada.{fr}\n[00ff00]TÊTE DE CONTRÔLE[-] - Cette tête ne peut jamais être attaquée.{pt-br}\n[00ff00]CABEÇA DE CONTROLE[-] - Esta cabeça nunca pode ser atacada.{de}\n[00ff00]KONTROLLKOPF[-] - Dieser Kopf kann niemals angegriffen werden."}) end
+					end
+				end
+			end
+			hover_object.setDescription(monsterDescription)
+		end
 end
 
 end)
@@ -7306,10 +6004,10 @@ __bundle_register("PlayingGame.AI.Volkare", function(require, _LOADED, __bundle_
 --Return the legal top-tile exploration position that contains a world hex.
 --This deliberately reuses the normal EXPLORE set, so Volkare obeys the same tile-placement rules as players.
 local function volkareLegalExploreSpot(pos)
-	if pos==nil or gStates.exploreButtons==nil then return end
+	if pos==nil then return end
 	local best=nil
 	local bestDist=999
-	for _, button in pairs(gStates.exploreButtons) do
+	for _, button in pairs(terrainExploreOptions()) do
 		local attributes=button.attributes
 		if attributes~=nil then
 			local x=tonumber(attributes.tilePosX)
@@ -8066,7 +6764,7 @@ function dummyProcessTurn(dummyIndex,dummySeat)
 
 	local thirdCard=automatedDeedDraw(dummySeat,3,1)
 	local bonusDraw=0
-	if thirdCard~=nil then for _, color in ipairs(dummyCardColors(thirdCard)) do bonusDraw=bonusDraw+(crystalSnapshot[color] or 0) end end
+	if thirdCard~=nil then for _, color in ipairs(dummyCardColors(thirdCard)) do bonusDraw=math.max(bonusDraw,crystalSnapshot[color] or 0) end end
 	safeWaitTime("AI.Dummy",function()
 		automatedDeedDraw(dummySeat,bonusDraw,2)
 		safeWaitTime("AI.Dummy",function()
@@ -8925,7 +7623,7 @@ end
 function proxyExploreTarget(hexes,distances)
 	local candidates={}
 	--Ordinary maps expose legal Explore buttons. Use those exactly as before.
-	for _,button in pairs(gStates.exploreButtons or {}) do
+	for _,button in pairs(terrainExploreOptions()) do
 		local p=proxyExploreButtonPosition(button)
 		if p~=nil then
 			local bestHex,bestTravel,bestEdge=nil,nil,nil
@@ -8948,7 +7646,7 @@ function proxyExploreTarget(hexes,distances)
 	--face-down tile in place, so give the Proxy the same destinations instead of asking exploreMap() to
 	--draw a new terrain tile. The same <26 edge test used by ordinary Explore buttons identifies the
 	--revealed map hex from which this tile can be explored.
-	if gStates.mapShape~=nil and gStates.mapShape:sub(5,5)=="P" then
+	if gStates.mapShapeKey=="predefined" then
 		local map=getObjectFromGUID(mapArea)
 		for _,tile in pairs(map~=nil and map.getObjects() or {}) do
 			local details=terrainTiles[tile.guid]
@@ -9398,7 +8096,7 @@ function proxyTargetLoad(saved,hexes)
 	local target={hex=hex,action=saved.action,fortified=saved.fortified,proxyReason=saved.proxyReason,choiceObjectiveColor=saved.choiceObjectiveColor}
 	if saved.action=="explore" then
 		if saved.exploreID~=nil then
-			for _,button in pairs(gStates.exploreButtons or {}) do
+			for _,button in pairs(terrainExploreOptions()) do
 				if button.attributes~=nil and button.attributes.id==saved.exploreID then target.button=button target.proxyExplorePosition=proxyExploreButtonPosition(button) break end
 			end
 			if target.button==nil then return nil end
@@ -9478,7 +8176,7 @@ function proxyChoiceMapRefresh(pending)
 	local mapUI=getObjectFromGUID("f2291a")
 	if mapUI~=nil then
 		local xml={}
-		for _,button in pairs(gStates.exploreButtons or {}) do xml[#xml+1]=button end
+		for _,button in pairs(terrainExploreOptions()) do xml[#xml+1]=button end
 		mapUI.UI.setXmlTable(xml)
 	end
 	proxyDestinationChoiceClearButtons()
@@ -19140,7 +17838,7 @@ function dayNight()
 		if obj~=nil then obj.setColorTint(tileColor) end
 	end
 	--re tints red terrain tiles on predefined maps.
-	if gStates.mapShape:sub(5,5)=="P" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" then
+	if gStates.mapShapeKey=="predefined" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" then
 		local terrainDummy=getObjectFromGUID(startTerrain.open)
 		if terrainDummy==nil then terrainDummy=getObjectFromGUID(startTerrain.wedge) end
 		onObjectEnterZone({guid=mapArea}, terrainDummy)
@@ -23595,17 +22293,21 @@ function claimButtonRefresh()
 				for guid, state in pairs(gStates.dealtArtifacts) do
 					if state==true then
 						count=count+1
-						getObjectFromGUID(guid).UI.setXmlTable({createClaimButton(guid, "artifactReward")})
+						local artifact=getObjectFromGUID(guid)
+						if artifact~=nil then artifact.UI.setXmlTable({createClaimButton(guid, "artifactReward")}) end
 					end
 				end
 			end
 			if count==0 then
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "true")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOffer", "active", "true")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUp", "active", "true")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDownImage", "image", "Overkill Down")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferImage", "image", "Sliced Button/Button Object Active")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUpImage", "image", "Overkill Up")
+				local artifactDeck=getObjectFromGUID(GUID.deck.artifact)
+				if artifactDeck~=nil then
+					artifactDeck.UI.setAttribute("ac75c4ArtifactDown", "active", "true")
+					artifactDeck.UI.setAttribute("ac75c4ArtifactOffer", "active", "true")
+					artifactDeck.UI.setAttribute("ac75c4ArtifactUp", "active", "true")
+					artifactDeck.UI.setAttribute("ac75c4ArtifactDownImage", "image", "Overkill Down")
+					artifactDeck.UI.setAttribute("ac75c4ArtifactOfferImage", "image", "Sliced Button/Button Object Active")
+					artifactDeck.UI.setAttribute("ac75c4ArtifactUpImage", "image", "Overkill Up")
+				end
 			end
 		end
 	end, 0.3)
@@ -25632,6 +24334,49 @@ end)
 __bundle_register("PlayingGame.Map", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Map state, avatar location, exploration, shields and terrain-site runtime.
 
+local terrainExploreButtons={{}}
+local terrainPlacementEdgeCoordinates={
+	{-30.03, 15.09}, {-25.23, 19.25}, {-31.23, 21.34},
+	{-38.43, 0.54}, {-33.63, 4.70}, {-28.83, 8.86}, {-24.03, 13.02}, {-19.23, 17.17},
+	{-24.03, -16.08}, {-19.23, -11.93}, {-14.43, -7.77}, {-9.63, -3.61}, {-4.82, 0.55}, {-0.02, 4.71}, {4.78, 8.87}
+}
+local terrainExploreSpots={
+	{-24.0301, 0.99, -16.0837}, {-30.0303, 0.99, -14.0052}, {-36.0305, 0.99, -11.9267}, {-19.2300, 0.99, -11.9267},
+	{-25.2302, 0.99,  -9.8482}, {-31.2303, 0.99,  -7.7696}, {-14.4298, 0.99,  -7.7696}, {-20.4300, 0.99,  -5.6911},
+	{-37.2305, 0.99,  -5.6911}, { -9.6297, 0.99,  -3.6126}, {-26.4302, 0.99,  -3.6126}, {-32.4304, 0.99,  -1.5341},
+	{-15.6299, 0.99,  -1.5341}, { -4.8295, 0.99,   0.5445}, {-38.4306, 0.99,   0.5445}, {-21.6300, 0.99,   0.5445},
+	{-10.8297, 0.99,   2.6230}, {-27.6302, 0.99,   2.6230}, {-33.6304, 0.99,   4.7015}, {-16.8299, 0.99,   4.7015},
+	{-0.02940, 0.99,   4.7015}, { -6.0278, 0.99,   6.7794}, {-22.8301, 0.99,   6.7794}, {-28.8303, 0.99,   8.8586},
+	{-12.0297, 0.99,   8.8586}, {  4.7708, 0.99,   8.8586}, {-18.0299, 0.99,  10.9371}, { -1.2294, 0.99,  10.9371},
+	{ -7.2296, 0.99,  13.0156}, {-24.0301, 0.99,  13.0156}, {-30.0303, 0.99,  15.0941}, {-13.2298, 0.99,  15.0941},
+	{-19.2300, 0.99,  17.0727}, {-25.2302, 0.99,  19.2512}, {-31.2303, 0.99,  21.3297}
+}
+local terrainInfoCardGUIDs={
+	["rampaging"]="cb9285", ["mage tower"]="29ef37", ["village"]="3a89e4", ["draconum"]="c2ada0",
+	["keep"]="9c74a9", ["monastery"]="8dd3c2", ["maze"]="ad6e2b", ["monster den"]="3aef9a",
+	["dungeon"]="57dcab", ["glade"]="938554", ["labyrinth"]="36762b", ["spawning grounds"]="321d15",
+	["tomb"]="1cab50", ["mine"]="6b9c02", ["camp"]="6b9c02", ["pyramid"]="467846", ["ziggurat"]="4efb28",
+	["Volkare's Camp"]="0bb2dc", ["city green"]="8de450", ["city red"]="bd6ab1", ["city blue"]="79a723",
+	["city white"]="a37b57", ["oasis"]="4e4bda", ["ruin"]="0b5e05"
+}
+local warOfFourGladeEdgeCoordinates={
+	{-38.43,  0.54}, {-33.63,  4.70}, {-28.83,  8.86}, {-24.03, 13.02}, {0, 0},
+	{-37.23, -5.69}, {-32.43, -1.52}, {-27.63,  2.62}, {-22.83,  6.79}, {-18.02, 10.94},
+	{-30.03,-14.01}, {-25.23, -9.84}, {-20.43, -5.69}, {-15.63, -1.54}, {-10.81,  2.63},
+	{-24.03,-16.08}, {-19.23,-11.93}, {-14.43, -7.77}, { -9.63, -3.61}
+}
+
+function terrainExploreOptions()
+	return terrainExploreButtons
+end
+
+function clearTerrainExploreOptions()
+	terrainExploreButtons={{}}
+	local exploreUI=getObjectFromGUID("f2291a")
+	if exploreUI~=nil then exploreUI.UI.setXmlTable(terrainExploreButtons) end
+end
+
+
 -- Portal and City avatar parking
 function portalSwap(state, playerIndex)
 	playerIndex=playerIndex or gStates.turnNumber
@@ -26401,7 +25146,7 @@ function exploreMap(player, mouseButton, id)
 		end
 		--Ignore a stale button event, then recheck the physical target so rapid clicks cannot stack terrain tiles.
 		local exploreStillLegal=false
-		for _, button in pairs(gStates.exploreButtons or {}) do
+		for _, button in pairs(terrainExploreButtons) do
 			if button.attributes~=nil and button.attributes.id==id then exploreStillLegal=true break end
 		end
 		if exploreStillLegal==false then explorePause=false return end
@@ -26475,6 +25220,828 @@ function straightenCrooked()
 			--Wait.time(function() getObjectFromGUID(objGUID).lock() end, 0.5)
 		end
 	end
+end
+
+-- Avatar drop resolution and terrain-entry runtime moved from Events.lua.
+function mapAvatarLocationDetails(player_color, avatar, dropped_object)
+	local keepShieldMatch={
+		{keep=false, keepShield=false, city=false, cityShield=false},
+		{keep=false, keepShield=false, city=false, cityShield=false},
+		{keep=false, keepShield=false, city=false, cityShield=false},
+		{keep=false, keepShield=false, city=false, cityShield=false},
+		{keep=false, keepShield=false, city=false, cityShield=false},
+		{keep=false, keepShield=false, city=false, cityShield=false},
+		{keep=false, keepShield=false, city=false, cityShield=false}}
+	local keepFound=false
+	local cityFound="False"
+				local attackedLocation=nil
+				local horsemenGladeAssault=false
+				local avatarChangedHex=false
+				if player_color~=nil and turnOrder[gStates.turnNumber].mage==avatar.mage then
+					avatarChangedHex=avatarMovedFromPickedUpHex(dropped_object.getPosition())
+					if avatarChangedHex==true then
+						apocalypseQuestUnderSiegeMarkMoved(gStates.turnNumber)
+						clearWallAssaultChoice()
+						assaultApproachOrigin=nil
+						assaultTargetPosition=nil
+						leaveAvatarSite(turnOrder[gStates.turnNumber])
+						clearPendingCoopAssault()
+					end
+				end
+				playerPickedUpHex=nil
+				if getObjectFromGUID(dropped_object.guid)~=nil then
+					for _, playerDetails in pairs(turnOrder) do
+						if playerDetails.mage==avatar.mage then
+							playerDetails.avatarLocation=""
+							playerDetails.avatarSharedHex=nil
+							local droppedPos=dropped_object.getPosition()
+							local avatarPos={droppedPos[1], droppedPos[2], droppedPos[3]}--copy so neighbour math can safely mutate it
+							--check if avatar dropped on city card, then use the city model as the avatar location
+							local cityZoneFound=false
+							for zone, citySearch in pairs(cityScriptZones) do
+								local zoneObj=getObjectFromGUID(zone)
+								if zoneObj~=nil then
+									for _, detail in pairs(zoneObj.getObjects()) do
+										if detail.guid==dropped_object.guid then
+											local cityObj=nil
+											if zone==volkare.discZone and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then cityObj=getObjectFromGUID(gStates.volkareModel)
+											else cityObj=getObjectFromGUID(citySearch.cityGUID) end
+											if cityObj~=nil then local cityPos=cityObj.getPosition() avatarPos={cityPos[1],1.5,cityPos[3]} end
+											cityZoneFound=true
+											break
+										end
+									end
+								end
+								if cityZoneFound==true then break end
+							end
+							--Use one cached map snapshot for the current hex and its six neighbours.
+							local volkareCampKeepAllowed=volkareCampAsCityConquered()==true and volkareCampContributionShieldCount(playerDetails)>0
+							local mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets=avatarLocationMapSnapshot()
+								for keepSearch=1, 7, 1 do
+									--Volkare can remove a City model during this loop, so retain the old live-refresh behaviour for him.
+									if keepSearch>1 and playerDetails.mage=="Volkare" then
+										mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets=avatarLocationMapSnapshot()
+									end
+									local locatedTerrain, bearing, _, hexFeature=terrainHexAtPosition(avatarPos, mapTerrainObjects, mapObjectPositions, mapTerrainRotations)
+								hexFeature=hexFeature or ""
+									for _, terrain in ipairs(avatarLocationRelevantObjects(locatedTerrain, avatarPos, mapObjectBuckets)) do--terrain tile + nearby physical objects only
+										--work with terrain tiles
+										local tilePos=mapObjectPositions[terrain.guid] or terrain.getPosition()
+										local avatarToTileDistSquared=((avatarPos[1]-tilePos[1])^2)+((avatarPos[3]-tilePos[3])^2)
+									if terrain==locatedTerrain then
+										if keepSearch==1 then
+											playerDetails.avatarLocation=hexFeature
+											if gStates.gameScenario=="Fury of the Apocalypse Dragon" and avatarChangedHex==true and playerDetails.mage~="Volkare" and
+												turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and playerDetails.avatarLocation:sub(1,4)=="city" then
+												gStates.furyHeroEnteredCity=true
+											end
+											if againstHorsemenCentralGladeHex(locatedTerrain,bearing)==true then
+												if gStates.againstHorsemenRitualStarted~=true then playerDetails.avatarSharedHex=againstHorsemenSharedHexKey
+												elseif playerDetails.mage~="Volkare" and turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and avatarChangedHex==true then horsemenGladeAssault=true end
+											end
+											if playerDetails.mage~="Volkare" and turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and attackedLocation==nil and horsemenGladeAssault==false
+												and (avatarChangedHex==true or next(gStates.attackedMonsters)==nil)
+												and (playerDetails.avatarLocation=="keep" or playerDetails.avatarLocation=="mage tower" or playerDetails.avatarLocation:sub(1, 4)=="city" or playerDetails.avatarLocation=="Volkare's Camp" or playerDetails.avatarLocation=="hidden valley" or playerDetails.avatarLocation=="necropolis") then
+												attackedLocation="Attack"..playerDetails.mage--was "Locati" instead of "Attack"
+											end
+											if playerDetails.mage=="Volkare" and gStates.preEndTurn==false and attackedLocation==nil and playerDetails.avatarLocation:sub(1, 4)=="city" then
+												if gStates.gameScenario~="Volkare's Quest" then
+													for index, modelTerrain in pairs(gStates.cityRevealed) do
+														if modelTerrain.terrain==terrain.guid then
+															getObjectFromGUID(trashCan).putObject(getObjectFromGUID(modelTerrain.model))
+															gStates.cityRevealed[index].state="defeated"
+															break
+														end
+													end
+												end
+											end
+										end
+										if hexFeature=="keep" or (volkareCampKeepAllowed==true and (hexFeature=="Volkare's Camp" or (gStates.cityVolkareTile==terrain.guid and bearing=="center"))) then
+											keepShieldMatch[keepSearch]["keep"]=true
+											if keepShieldMatch[keepSearch]["keepShield"]==true then keepFound=true end
+										end
+										if (hexFeature or ""):sub(1,4)=="city" then
+											keepShieldMatch[keepSearch]["city"]=true
+											if keepShieldMatch[keepSearch]["cityShield"]==true then cityFound=terrain.getName() end
+										end
+									end
+										if avatarToTileDistSquared<1 then
+										--work with Shields
+										if terrain.getName()=="Shield" and volkarePursuitShieldRegistered(terrain)~=true and ((terrain.getDescription()==playerDetails.mage and (gStates.coop==0 or gStates.WarOfFourComp==true)) or (gStates.coop==1 and gStates.WarOfFourComp~=true)) then
+											keepShieldMatch[keepSearch]["keepShield"]=true
+											if keepShieldMatch[keepSearch]["keep"]==true then keepFound=true end
+										end
+
+										--work with Cities
+										local temp=terrain.guid
+										if terrain.guid=="938cd3" or terrain.guid=="a0d7b3" then temp=volkare.model end
+										if temp==cityModel.white or	temp==cityModel.blue or	temp==cityModel.red or temp==cityModel.green or temp==volkare.terrainHex or	temp==volkare.model then
+											--flip garrisons during the day
+											if turnOrder[gStates.turnNumber].mage==avatar.mage and gStates.preEndTurn==false and gStates.cityMonsterQty[temp]~=nil and gStates.autoFlip==true and temp~=volkare.model then
+												local broadcast=false
+												for monsterGUID, monster in pairs(gStates.cityMonsterQty[temp]) do
+													if monsterGUID~="extra" then
+														local monsterObj=getObjectFromGUID(monsterGUID)
+														if monsterObj~=nil and monsterObj.is_face_down==true then monsterObj.flip() broadcast=true end
+													end
+												end
+												if broadcast==true then
+													if temp==volkare.model then
+														broadcastToAll("{en}Volkare's Army Revealed{ru}Армия Волкара раскрыта{zh-tw}沃里卡军队揭示了{zh-cn}沃里卡军队揭示了{ko}볼케어의 군대가 공개되었습니다{es}Se revela el ejército de Volkare{fr}L'armée de Volkare révélée{pt-br}Exército de Volkare Revelado{de}Volkare's Armee aufgedeckt", {1,1,0.5})
+													else
+														broadcastToAll("{en}Site Garrison Revealed{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5})
+													end
+												end
+											end
+											--Assult Volkare
+											if playerDetails.mage~="Volkare" and keepSearch==1 and temp==volkare.model then
+												playerDetails.avatarLocation="Volkare's Camp"
+												if player_color~=nil and gStates.preEndTurn==false and attackedLocation~="Volkar"..playerDetails.mage and (avatarChangedHex==true or next(gStates.attackedMonsters)==nil) then
+													attackedLocation="Volkar"..playerDetails.mage
+												end
+											end
+											--
+											if terrain.getName()~="Volkare's Camp" then
+												if playerDetails.defeatedCities[terrain.guid]~=nil then
+													keepShieldMatch[keepSearch]["cityShield"]=true
+													if keepShieldMatch[keepSearch]["city"]==true then cityFound=terrain.getGMNotes() end
+												end
+											else
+												if volkareCampKeepAllowed==true and playerDetails.defeatedCities[terrain.guid]~=nil then
+													keepShieldMatch[keepSearch]["keepShield"]=true
+													if keepShieldMatch[keepSearch]["keep"]==true then keepFound=true end
+												end
+											end
+											if gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="The Hidden Valley Blitz"
+												or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The Realm of the Dead Blitz"
+												or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Dungeon Lords"
+												or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Mines Liberation" then
+												keepShieldMatch[keepSearch]["cityShield"]=true
+												if keepShieldMatch[keepSearch]["city"]==true then cityFound=terrain.getGMNotes() end
+												playerDetails.defeatedCities[terrain.guid]="Assist"
+											end
+										end
+										--flip garrisons during the day
+										if gStates.autoFlip==true and gStates.dayRound==true and turnOrder[gStates.turnNumber].mage==avatar.mage and terrain.getRotationValues()[2]~=nil and (terrain.getRotationValues()[2].value=="Mage Tower Garrison" or terrain.getRotationValues()[2].value=="Keep Garrison" or terrain.getRotationValues()[2].value=="Marauding Elementalist") then--and gStates.preEndTurn==false
+											if terrain.is_face_down==true then terrain.flip() broadcastToAll("{en}Site Garrison Revealed{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5}) end
+										end
+										--flip ruins at night and Lost Relic dragons day or night
+										if gStates.autoFlip==true and turnOrder[gStates.turnNumber].mage==avatar.mage and ((playerDetails.avatarLocation=="ruin" and keepSearch==1) or (terrain.getRotationValues()[2]~=nil and terrain.getRotationValues()[2].value:sub(-8)=="Draconum")) then--and gStates.preEndTurn==false
+											--A newly deployed face-down Ruin can pass near the avatar while its container smooth move is
+											--still in flight. Flipping that transient object can interrupt its move, so only reveal settled pieces.
+											if terrain.is_face_down==true and terrain.isSmoothMoving()==false and terrain.resting==true then
+												terrain.flip()
+												if playerDetails.avatarLocation=="ruin" then broadcastToAll("{en}Ruin Site Revealed{ru}Руины были раскрыты{zh-tw}废墟板块被揭示了{zh-cn}废墟板块被揭示了{ko}유적 장소 공개됨{es}Sitio de Ruinas Revelado{fr}Site de Ruines Révélé{pt-br}Lugar de Ruinas Revelado{de}Ruinenstätte aufgedeckt", {1,1,0.5}) end
+												if playerDetails.avatarLocation~="ruin" then broadcastToAll("{en}Draconum Revealed{ru}Драконид раскрыт{zh-tw}龍人已揭示{zh-cn}龙人已揭示{ko}드라코넘 공개됨{es}Draconum Revelado{fr}Draconum Révélé{pt-br}Draconum Revelado{de}Draconum aufgedeckt", {1,1,0.5}) end
+											end
+										end
+									end
+								end
+								local avatarAdjust={{-2.39, 0}, {1.2, -2.05}, {2.39, 0}, {1.2, 2.05}, {-1.2, 2.05}, {-2.39, 0}, {0, 0}}
+								avatarPos[1]=avatarPos[1]+avatarAdjust[keepSearch][1]
+								avatarPos[3]=avatarPos[3]+avatarAdjust[keepSearch][2]
+								if cityFound=="False" then playerDetails.nearCity=false
+								else playerDetails.nearCity=true end
+								if keepFound==true then	playerDetails.nearKeep=true
+								else playerDetails.nearKeep=false end
+							end
+							if avatarPos[3]<-20 then playerDetails.avatarLocation="portal" end
+							break
+						end
+					end
+					if turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and avatarChangedHex==true and
+						apocalypseDragonLairContainsPosition~=nil and apocalypseDragonLairContainsPosition(dropped_object.getPosition())==true and
+						gStates.apocalypseDragonDefeated~=true then
+						attackedLocation=nil
+						local dragonApproach=nil
+						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then dragonApproach={playerPickedUpPos[1],playerPickedUpPos[2],playerPickedUpPos[3]} end
+						if apocalypseDragonBeginLairAssault(gStates.turnNumber,dragonApproach)==true then
+							turnOrder[gStates.turnNumber].avatarLocation="apocalypse dragon"
+						end
+					end
+					if horsemenGladeAssault==true then
+						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then assaultApproachOrigin={playerPickedUpPos[1],playerPickedUpPos[2],playerPickedUpPos[3]} end
+						local target=dropped_object.getPosition()
+						assaultTargetPosition={target[1],target[2],target[3]}
+						againstHorsemenBeginGladeAssault(gStates.turnNumber,assaultApproachOrigin)
+					elseif attackedLocation~=nil then
+						--Keep the actual hex this assault location was entered from. Long moves are deliberately
+						--left ambiguous so the wall interface can ask which side was used.
+						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then assaultApproachOrigin={playerPickedUpPos[1], playerPickedUpPos[2], playerPickedUpPos[3]} end
+						local target=dropped_object.getPosition()
+						assaultTargetPosition={target[1], target[2], target[3]}
+						local targetFeature=turnOrder[gStates.turnNumber].avatarLocation
+						if (targetFeature=="keep" or targetFeature=="mage tower") and wallAssaultChoiceResult==nil and wallAssaultChoiceNeeded(assaultTargetPosition, assaultApproachOrigin)==true then showWallAssaultChoice("attackLocation", attackedLocation, player_color)
+						else attackLocation(nil, "-1", attackedLocation) end
+					end
+					--adjust the hand size
+					local cityConversion={["White City"]=GUID.zone.whiteCity, ["Blue City"]=GUID.zone.blueCity, ["Red City"]=GUID.zone.redCity, ["Green City"]=GUID.zone.greenCity}
+					local previousHand=turnOrder[gStates.turnNumber].hand
+					local handBonusSource=nil
+					local raisedReturnCity=(gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") and gStates.volkareRaisedCity==true
+					local nearCityForHand=turnOrder[gStates.turnNumber].nearCity==true and raisedReturnCity~=true
+					if (turnOrder[gStates.turnNumber].mage==avatar.mage and turnOrder[gStates.turnNumber].nearKeep==true) or nearCityForHand then
+						if nearCityForHand and cityFound~="False" then
+							if turnOrder[gStates.turnNumber].defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Lead" then turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+2 handBonusSource="City" end
+							if turnOrder[gStates.turnNumber].defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Assist" then turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+1 handBonusSource="City" end
+						end
+						if (turnOrder[gStates.turnNumber].nearKeep==true and nearCityForHand==false) or
+							(turnOrder[gStates.turnNumber].nearKeep==true and nearCityForHand==true and turnOrder[gStates.turnNumber].keepsBeat>1) then
+							turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+turnOrder[gStates.turnNumber].keepsBeat
+							if turnOrder[gStates.turnNumber].keepsBeat>0 then handBonusSource="Keep" end
+						end
+					else
+						turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand
+					end
+					if turnOrder[gStates.turnNumber].hand~=previousHand then
+						if handBonusSource=="City" then broadcastToAll("{en}Hand size increased from proximity to City{ru}Предел карт в руке увеличен из-за близости города{zh-tw}手牌数量因靠近城市而增加{zh-cn}手牌数量因靠近城市而增加{ko}인접한 도시에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Ciudad.{fr}La taille de la main a augmenté de la proximité à la Ville{pt-br}O tamanho da mão aumentou devido à proximidade da Cidade{de}Handgröße durch Nähe zur Stadt erhöht", positionToColor(gStates.turnNumber)) end
+						if handBonusSource=="Keep" then broadcastToAll("{en}Hand size increased from proximity to Keep{ru}Предел карт в руке увеличен из-за близости крепости{zh-tw}手牌数量增加到最大值{zh-cn}手牌数量增加到最大值{ko}인접한 성에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Fortaleza{fr}La taille de la main a augmenté de la proximité à la Keep{pt-br}O tamanho da mão aumentou com a proximidade de Keep{de}Handgröße erhöht sich durch die Nähe zu Keep", positionToColor(gStates.turnNumber)) end
+					end
+					--Reset attack icon and interaction after leaving a hex, but preserve an interaction if the avatar was only repositioned on the same hex.
+					if turnOrder[gStates.turnNumber].mage==avatar.mage and attackedLocation==nil and horsemenGladeAssault==false and (avatarChangedHex==true or (next(gStates.attackedMonsters)==nil and UI.getAttribute("zigguratPyramidInteract", "active")~="true")) then
+						turnOrder[gStates.turnNumber].combatIconHide="None" gStates.monsterOffsetX=0 gStates.monsterOffsetZ=0
+					end
+					--Avatar location directly changes Plunder/Pursuit availability.
+					--Invalidate the cached menu; the normal location UI refresh will rebuild it when relevant.
+					outOfTurnUIStateKey=nil
+					mainUIUpdate("Updated player location Details")
+					--Quest step availability can depend on the active Mage Knight's current map hex.
+					--Use the serialized offer refresh instead of touching Object UI directly here. fakeDropAvatar()
+					--can reach this delayed location callback while a Quest offer refill is still physically moving cards;
+					--apocalypseQuestRefreshOfferButtons() defers safely until that refill has settled.
+					if apocalypseQuestsUsed()==true then apocalypseQuestRefreshOfferButtons() end
+					if turnOrder[gStates.turnNumber].mage==avatar.mage then refreshFracturedLandsTeleportHighlights() end
+					addAvatarButtons()
+					if gStates.rampagePursuit==true and gStates.preEndTurn==false then pursuingRampagers(nil, "-1", nil) end
+				end
+			end
+
+local function terrainPositionLegal(obj, faceUpTerrain, northBearing, result)--.guid .faceDown .position .objName [.tileType]
+	result=result or {}
+	local candidateTileType=obj.tileType or (terrainTiles[obj.guid]~=nil and terrainTiles[obj.guid].tileType) or "country"
+	--Against the Horsemen uses a completely predefined map. Its face-down tiles are already in
+	--their legal positions, so ordinary wedge/open/neighbour placement rules must never reject
+	--a tile when it is revealed. Keep face-down tiles dormant; once revealed, always populate them.
+	if gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then
+		if obj.faceDown==true then result.faceDownTerrain=true return false end
+		return true
+	end
+
+	--Custom Predefined is deliberately unrestricted: players may arrange any face-up terrain anywhere.
+	if gStates.gameScenario=="Custom" and gStates.mapShapeKey=="predefined" then
+		if obj.faceDown==true then result.faceDownTerrain=true return false end
+		return true
+	end
+
+	--Check if a core tile is on the coast of a wedge map
+	if candidateTileType=="core" and northBearing==70 and (obj.bearing<=41 or obj.bearing>=99) and gStates.gameScenario~="Fast Forwarded Conquest" then result.errorBroadcast="{en}Core Terrain Tiles aren't allowed on the coast{ru}Плитки Развитых земель не могут располагаться на берегу{zh-tw}海岸边不可以部署核心城市板块{zh-cn}海岸边不可以部署核心城市板块{ko}중심부 타일은 해안선에 놓일 수 없습니다{es}Las baldosas de terreno del núcleo no están permitidas en la costa{fr}Les tuiles de terrain de base ne sont pas autorisées sur la côte{pt-br}Peças Mapa Centrais não são permitidas na Costa{de}Kernterrainplättchen sind an der Küste nicht erlaubt" return false end
+
+	--Check if a tile is outside of a wedge map
+	if northBearing==70 and (obj.bearing<=35 or obj.bearing>=105) then result.errorBroadcast="{en}Terrain Tile isn't in the Wedge{ru}Плитка земель не находится в форме{zh-tw}地图块不在锥形里 (出界了){zh-cn}地图块不在锥形里 (出界了){ko}지도 타일이 쐐기 안에 있지 않습니다{es}Terrain Tile no está en la cuña{fr}La tuile de terrain n'est pas dans le coin{pt-br}Peça de Terreno não está no Cone{de}Das Geländeplättchen liegt nicht im Keil" return false end
+
+	--Check if tile is on the 4th or 5th column of a limited open map
+	if gStates.mapShapeKey=="open3" or gStates.mapShapeKey=="open4" or gStates.mapShapeKey=="open" then
+		local checkUpTo=3
+		if gStates.mapShapeKey=="open4" then checkUpTo=8 end
+		if gStates.mapShapeKey=="open3" then checkUpTo=15 end
+		local pos=obj.position
+		for b=1, checkUpTo, 1 do
+			local edge=terrainPlacementEdgeCoordinates[b]
+			if ((pos[1]-edge[1])^2)+((pos[3]-edge[2])^2)<1 then
+				result.errorBroadcast=joinLang({"{en}You are playing a {ru}Форма игрового поля - {zh-tw}正在玩的剧本名: {zh-cn}正在玩的剧本名: {ko}플레이 중인 맵: {es}Estás jugando un {fr}Vous jouez à un {pt-br}Você está jogando um(a) {de}Du spielst gerade ein ", gStates.mapShape, "{en} Game{ru} {zh-tw}. {zh-cn}. {ko}{es} juegos{fr} Game{pt-br} Jogo{de} Spiel"})
+				return false
+			end
+		end
+	end
+
+	--Check if Core tile has at least two neighbor Tiles
+	--Check if Country tile has at least one neighbor that has two neighbor Tiles
+	--check if an excess terrain tile has at least three neighbors.
+	if gStates.gameScenario~="The Gauntlet" and obj.guid~=firstTile and not (obj.guid=="835c91" and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
+		local neighboursFound=0
+		local neighbourTile=nil
+		local adjacentPositions={}
+		for c=1, 6, 1 do
+			local offset=terrainPlacementNeighbourOffsets[c]
+			adjacentPositions[c]={obj.position[1]+offset[1], obj.position[3]+offset[2]}
+		end
+		for _, b in pairs(faceUpTerrain) do
+			if b.guid~=obj.guid then
+				local tested=b.position
+				for c=1, 6, 1 do
+					local toCheck=adjacentPositions[c]
+					if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 neighbourTile=b break end
+				end
+			end
+		end
+		if neighboursFound==0 then return false end
+		if candidateTileType=="core" and neighboursFound<2 then result.errorBroadcast="{en}Core Terrain Tiles need two or more neighbours{ru}Плитки Развитых земель должны находиться по соседству с двумя другими землями{zh-tw}核心城市板块需要紧邻两个以上的其他板块{zh-cn}核心城市板块需要紧邻两个以上的其他板块{ko}중심부 타일은 최소 2개의 타일과 인접해야 합니다{es}Las baldosas de terreno central necesitan dos o más vecinos{fr}Les tuiles de terrain de base ont besoin de deux voisins ou plus{pt-br}Peças Mapa Centrais precisam de 2 ou mais Vizinhos{de}Kernterrainplättchen benötigen zwei oder mehr Nachbarn" return false end
+		if obj.objName=="excess" and neighboursFound<3 then result.errorBroadcast="{en}Excess Terrain Tiles need three or more neighbours, They're meant to fill holes in the map.{ru}Запасные земели должны примыкать хотя бы к трём другим землям (чтобы заполнить дыры).{zh-tw}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{zh-cn}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{ko}추가 지도 타일은 최소 3개의 다른 타일과 인접해야 합니다. 구멍을 메운다는 느낌과 유사합니다.{es}Los mosaicos de terreno en exceso necesitan tres o más vecinos. Están destinados a rellenar huecos en el mapa.{fr}Les tuiles de terrain excédentaire ont besoin de trois voisins ou plus, elles sont destinées à combler les trous sur la carte.{pt-br}Peças de Terreno Excessivas precisam de 3 ou mais vizinhos. Elas são para preencher buracos no mapa{de}Überschüssige Geländeplättchen brauchen drei oder mehr Nachbarn, sie sollen Löcher auf der Karte füllen." return false end
+		if candidateTileType~="core" and neighboursFound<=1 then
+			neighboursFound=0
+			if neighbourTile~=nil then
+				local neighbourPositions={}
+				for c=1, 6, 1 do
+					local offset=terrainPlacementNeighbourOffsets[c]
+					neighbourPositions[c]={neighbourTile.position[1]+offset[1], neighbourTile.position[3]+offset[2]}
+				end
+				for _, b in pairs(faceUpTerrain) do
+					if b.guid~=obj.guid then
+						local tested=b.position
+						for c=1, 6, 1 do
+							local toCheck=neighbourPositions[c]
+							if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 break end
+						end
+					end
+				end
+				if neighboursFound<2 then result.errorBroadcast="{en}Country Terrain Tiles can't be strung out that far{ru}Плитки Диких земель не могут вытягиваться так далеко{zh-tw}乡村板块不能铺那么远{zh-cn}乡村板块不能铺那么远{ko}교외 타일은 그렇게 놓일 수 없습니다{es}Las baldosas de terreno rural no se pueden colocar tan lejos{fr}Les tuiles de terrain de campagne ne peuvent pas être enfilées aussi loin{pt-br}Peças Mapa de Campo não podem ser colocados tão longe{de}Land-Terrainplättchen können nicht so weit aufgereiht werden" return false end
+			end
+		end
+	end
+
+	--Check if a City tile is played to wrong side in Life and Death
+	if gStates.gameScenario=="Life and Death" and getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()==1 then
+		if obj.guid==GUID.tile.city08 and obj.bearing<=northBearing-1 then --red city
+			result.errorBroadcast="{en}Red City needs to be placed in the Northern section{ru}Земля с красным городом не может быть размещена на юге{zh-tw}红色城市需要放在靠北边{zh-cn}红色城市需要放在靠北边{ko}빨간색 도시는 북쪽에 놓여야합니다.{es}Red City debe colocarse en la sección Norte{fr}Red City doit être placé dans la section Nord{pt-br}Cidade Vermelha precisa ser colocada na sessão Norte{de}Die rote Stadt muss in den nördlichen Abschnitt gelegt werden"
+			return false
+		end
+		if obj.guid==GUID.tile.city05 and obj.bearing>=northBearing+1 then --green city
+			result.errorBroadcast="{en}Green City needs to be placed in the Southern section{ru}Земля с зелёным городом не может быть размещена на севере{zh-tw}绿色城市需要放置在南边部分{zh-cn}绿色城市需要放置在南边部分{ko}녹색 도시는 남쪽에 놓여야합니다{es}Green City debe colocarse en la sección Sur{fr}Green City doit être placé dans la section Sud{pt-br}Cidade Verde precisa ser colocada na parte Sul do mapa{de}Grüne Stadt muss in die südliche Sektion gelegt werden"
+			return false
+		end
+	end
+
+	--Check if a terrain tile is face up
+	if obj.faceDown==true then result.faceDownTerrain=true return false end
+	return true
+end
+
+
+--Rebuild EXPLORE buttons directly from the physical map. This path has no terrain-entry side effects.
+function refreshTerrainExploreOptions(compactCities)
+	if gStates==nil then return end
+	local zone=getObjectFromGUID(mapArea)
+	if zone==nil then return end
+	local playAreaObjects=zone.getObjects()
+	local faceUpTerrain={}
+	local mapObjectPositions={}
+	for _,mapObject in pairs(playAreaObjects) do
+		local mapObjectPosition=mapObject.getPosition()
+		mapObjectPositions[#mapObjectPositions+1]={guid=mapObject.guid,position=mapObjectPosition}
+		if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
+			faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObjectPosition}
+		end
+	end
+	local northBearing=40
+	local startTileGUID=startTerrain.open
+	if getObjectFromGUID(startTileGUID)==nil then
+		if gStates.gameScenario=="Against the Horsemen Blitz" then startTileGUID=GUID.tile.country01
+		else startTileGUID=startTerrain.wedge northBearing=70 end
+	end
+	local startTileObject=getObjectFromGUID(startTileGUID)
+	if startTileObject==nil then return end
+	local startTilePosition=startTileObject.getPosition()
+	--Highlight legal tile plays
+	if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" and not (gStates.gameScenario=="Custom" and gStates.mapShapeKey=="predefined") then
+		local gridType=mapShapeGridURL[gStates.mapShapeKey] or ""
+		local terrainDecals={}
+		terrainExploreButtons={{}}
+		if gridType~="" then terrainDecals[#terrainDecals+1]={name="Terrain Grid", url=gridType, position={-16.825, 0.99, 0.55}, rotation={90.0, 0.0, 0.0}, scale={60, 60, 1}} end
+		local testTerrain="core"
+		local nameTerrain="dud"
+		local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
+		local leftCountry=getObjectFromGUID(GUID.bag.terrain.leftCountry)
+		local leftCore=getObjectFromGUID(GUID.bag.terrain.leftCore)
+		local terrainStackObjects=terrainStack.getObjects()
+		if #terrainStackObjects>0 then
+			local nextTerrainIndex=terrainStack.getQuantity()-1
+			testTerrain=terrainStackObjects[#terrainStackObjects].guid
+			for _, containedTerrain in pairs(terrainStackObjects) do
+				if containedTerrain.index==nextTerrainIndex then testTerrain=containedTerrain.guid break end
+			end
+		else
+			nameTerrain="excess"
+			testTerrain="country"
+		end
+		if terrainStack.getQuantity()>0 or leftCountry.getQuantity()>0 or leftCore.getQuantity()>0 then
+			for _, terTile in pairs(terrainExploreSpots) do
+				local found=false
+				for _, mightBeMap in pairs(faceUpTerrain) do
+					local existingTile=mightBeMap.position
+					if ((terTile[1]-existingTile[1])^2)+((terTile[3]-existingTile[3])^2)<1 then found=true break end
+				end
+				if found==false and terrainPositionLegal({guid=testTerrain, faceDown=false, objName=nameTerrain, position=terTile, bearing=math.deg(math.atan2(terTile[3]-startTilePosition[3], terTile[1]-startTilePosition[1]))},faceUpTerrain,northBearing,{})==true then--country tile guid stand-in
+					terrainDecals[#terrainDecals+1]={name="Legal Play", url="https://steamusercontent-a.akamaihd.net/ugc/1833526258732421084/29942DB5776ABA4145E9E115D1C893574C9A737A/", position=terTile, rotation={90.0, 0.0, 0.0}, scale={6, 6, 1}}
+					terrainExploreButtons[#terrainExploreButtons+1]={tag="Button", attributes={id="f2291a"..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
+							children={	{tag="Image", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
+										{tag="HorizontalLayout", attributes={padding="25 25 25 25"},
+										children={{tag="Text", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
+					--record all the potential future hexes as "explore" so the move can calculate for it.
+				end
+				end
+			end
+			for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
+			Global.setDecals(terrainDecals)
+			getObjectFromGUID("f2291a").UI.setXmlTable(terrainExploreButtons)
+			--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
+			if compactCities~=false then compactCityCardsAfterExplore(mapObjectPositions) end
+	end
+end
+
+function mapHandleTerrainZoneEnter(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--Check if a terrain tile has entered the play area
+	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
+		if startingMapSetup==true then startingMapTiles[objGUID]=true end
+		local initialSetupTerrain=startingMapTiles~=nil and startingMapTiles[objGUID]==true
+		workingOnTerrain[objGUID]=true
+		--Setup terrain still needs normal site/enemy population, but player-exploration UI/effects wait for actual play.
+		if initialSetupTerrain~=true then safeWaitTime("Map",function() addAvatarButtons() end, 1.5) end
+		local playAreaObjects=zone.getObjects()
+		local faceUpTerrain={}
+		for _,mapObject in pairs(playAreaObjects) do
+			if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
+				faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObject.getPosition()}
+			end
+		end
+		local core=0
+		local exploreRefreshedBeforeCity=false
+		local faceUp=	{0.0, 180.0,   0.0}
+		local faceDown=	{0.0, 180.0, 180.0}
+		local y=2
+		--figure out which angle is the north south line
+		local northBearing=40
+		local startTileGUID=startTerrain.open
+		local startBearing=0
+		if getObjectFromGUID(startTileGUID)==nil then
+			if gStates.gameScenario=="Against the Horsemen Blitz" then startTileGUID=GUID.tile.country01
+			else startTileGUID=startTerrain.wedge northBearing=70 end
+		end
+		local startTileObject=getObjectFromGUID(startTileGUID)
+		if startTileObject==nil then
+			workingOnTerrain[objGUID]=nil
+			return true
+		end
+		local startTilePosition=startTileObject.getPosition()
+		local enteredTilePosition=obj.getPosition()
+		local enteredTileName=obj.getName()
+		startBearing=math.deg(math.atan2(enteredTilePosition[3]-startTilePosition[3], enteredTilePosition[1]-startTilePosition[1]))
+
+
+		--make predefined maps highlight red
+		if gStates.mapShapeKey=="predefined" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then--predefined
+			for _, mightBeMap in pairs(playAreaObjects) do
+				if terrainTiles[mightBeMap.guid]~=nil then
+					if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}},faceUpTerrain,northBearing,{})==false then
+						mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
+					else
+						local nightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
+						if nightTint then mightBeMap.setColorTint({r=0.6, g=0.6, b=0.6}) else mightBeMap.setColorTint({r=1.0, g=1.0, b=1.0}) end--colour off
+					end
+				end
+			end
+		end
+
+
+
+		--deploy monster token if terrain tile is deployed correctly
+		local placementResult={}
+		if terrainPositionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}},faceUpTerrain,northBearing,placementResult)==true then
+			--Before the first round, dayRound is intentionally still false so dayNight() can perform
+			--the first transition. Do not let that sentinel make setup terrain look like night.
+			if startingMapSetup==true then
+				if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
+			end
+			if initialSetupTerrain~=true then
+				againstDragonRevealLair(obj)
+				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
+			end
+			--Check if the object is a core tile and unlock elite units
+			if terrainTiles[objGUID].tileType=="core" and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
+				gStates.playedCoreTiles=gStates.playedCoreTiles+1
+				gStates.eliteUnitsUsed=true
+				if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
+				core=1
+			end
+
+			if startingMapSetup~=true and obj.resting==true and obj.held_by_color==nil and obj.isSmoothMoving()==false then
+				refreshTerrainExploreOptions()
+			end
+
+			--Against the Apocalypse destroyed terrain
+			if initialSetupTerrain~=true and gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.tacticShown==false and enteredTileName~="excess" then
+				destroyRestoreLocation(nil, "-1", "id", "destroy", obj)
+			end
+
+				--Play the correct pugs for the terrain tile
+				local tokenWait=0
+				local tokenRefillFrame=nil
+				local setupPopulationPending=0
+				--Normal exploration keeps the familiar staggered token reveal. During initial setup, the
+				--map coordinator already serializes terrain tiles, so do not serialize every hex behind
+				--another fixed eight-frame pause. Run each deployment on the next frame and let the tile's
+				--real pending count tell map setup when all deployment code has actually executed.
+				local function scheduleTerrainPopulation(callback,frames)
+					if startingMapSetup==true then
+						setupPopulationPending=setupPopulationPending+1
+						safeWaitFrames("Map",function()
+							callback()
+							setupPopulationPending=setupPopulationPending-1
+						end,1)
+					else
+						safeWaitFrames("Map",callback,frames)
+					end
+				end
+				local tileRotation=math.floor(((180-(180-obj.getRotation()[2]))/60)+0.5)*60
+				if tileRotation<0 then tileRotation=tileRotation+360 end
+				if tileRotation>=360 then tileRotation=tileRotation-360 end
+				for hexLocation, hexFeature in pairs(terrainTiles[objGUID].hexFeature) do
+					--Only run the all-pile refill once at each deployment step. Initial setup deliberately
+					--keeps refills disabled, so there is no reason to schedule its old no-op delay there.
+					if startingMapSetup~=true and tokenRefillFrame~=tokenWait+2 then tokenRefillFrame=tokenWait+2 safeWaitFrames("Map",function() tokenRefill() end, tokenRefillFrame) end
+				scheduleTerrainPopulation(function()
+					local params={}
+					--don't deploy token if megapolis is being played
+					local free=true
+					if gStates.megapolis>gStates.cityTiles-#gStates.citiesPlayed
+						and (objGUID==GUID.tile.city05 or objGUID==GUID.tile.city06 or objGUID==GUID.tile.city07 or objGUID==GUID.tile.city08)
+						and tonumber(hexLocation)==tileRotation then
+						megapolisSuppressTerrainHex(obj,hexFeature,false)
+						free=false
+					end
+					--deploy monster token if hex is free.
+					if free==true then
+						if gStates.playedAllready[objGUID]~=true then
+							if initialSetupTerrain~=true and gStates.gameScenario=="Dungeon Lords" and gStates.tacticShown==false and (hexFeature=="village" or hexFeature=="monastery") then
+								dungeonLordsQueueSecretSite(obj,hexLocation,hexFeature)
+							end
+							--if a monastery tile is placed start dealing advanced actions
+							if hexFeature=="monastery" then playMonastery() end
+
+							local tokenPileGreen=monsterPiles.green--Standard green Tokens
+							local tokenPileBrown=monsterPiles.tan--Standard Brown Tokens
+							local tokenPileRed=	 monsterPiles.red--Standard Red Tokens
+							--Rampaging Orcs & Draconum
+							if hexFeature=="rampaging" or hexFeature=="draconum" or
+								(gStates.gameScenario=="The Chaos Rift" and (hexFeature=="village" or ((hexFeature=="mine" or hexFeature=="") and objGUID==GUID.tile.city08))) then
+								playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, true, initialSetupTerrain~=true)
+							end
+
+							--Mine
+							if hexFeature=="mine" and gStates.gameScenario=="Mines Liberation" then
+								if core==1 then tokenPileGreen=tokenPileRed end
+								if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
+									local pos={angleToXY(obj, hexLocation)[1]-0.1, y, angleToXY(obj, hexLocation)[2]-0.1}
+									local token=getObjectFromGUID(tokenPileBrown).takeObject({rotation=faceDown, position=pos})
+									gStates.monsterPlayLocation[token.guid]=pos
+									gStates.mineMonsterQty[objGUID]={[token.guid]="alive"}
+									token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
+									if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+									local token=getObjectFromGUID(tokenPileGreen).takeObject({rotation=faceUp, position={pos[1]+0.2, pos[2]+0.5, pos[3]+0.2}})
+									gStates.monsterPlayLocation[token.guid]={pos[1]+0.2, pos[2]+0.5, pos[3]+0.2}
+									gStates.mineMonsterQty[objGUID][token.guid]="alive"
+									token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
+									if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+								else
+									broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
+								end
+								tokenPileGreen=monsterPiles.green
+							end
+
+							--glade
+							if hexFeature=="glade" then --and objGUID~=GUID.tile.city05 then--stopped it happening on the green city tile but can't figure out why...
+								local pos=enteredTilePosition
+								local warOfFourDeploy=false
+								for _, coords in pairs(warOfFourGladeEdgeCoordinates) do
+									if math.sqrt(((pos[1]-coords[1])^2)+((pos[3]-coords[2])^2))<1 then warOfFourDeploy=true break end
+								end
+								if (gStates.gameScenario=="Life and Death" or (gStates.gameScenario=="The War of Four" and warOfFourDeploy==true)) then -- and core==0
+									local tokenFaction=nil
+									if startBearing<=northBearing or
+										(((startBearing<=northBearing+1 and gStates.coop==1) or (gStates.coop==0 and enteredTilePosition[3]<-7 and enteredTilePosition[3]>-8 and enteredTilePosition[1]<-31 and enteredTilePosition[1]>-32)) and math.random(1,2)==1) then
+											tokenFaction="Elem"
+										if getObjectFromGUID(monsterPiles.greenElem).getQuantity()>0 then tokenPileGreen=monsterPiles.greenElem end
+										if getObjectFromGUID(monsterPiles.tanElem).getQuantity()>0 then tokenPileBrown=monsterPiles.tanElem end--elementalist Tokens
+									else
+										tokenFaction="Dark"
+										if getObjectFromGUID(monsterPiles.greenDark).getQuantity()>0 then tokenPileGreen=monsterPiles.greenDark end
+										if getObjectFromGUID(monsterPiles.tanDark).getQuantity()>0 then tokenPileBrown=monsterPiles.tanDark end---Dark Crusader Tokens
+										local pos={angleToXY(obj,hexLocation)[1], 1.08, angleToXY(obj,hexLocation)[2]}
+										local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject({rotation=faceUp, position=pos})
+										graveyard.lock()
+										terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
+										if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
+										gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
+									end
+									if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
+										local pos={angleToXY(obj,hexLocation)[1]-0.1, y, angleToXY(obj,hexLocation)[2]-0.1}
+										for i=1, 2, 1 do
+											local monsterPile={tokenPileBrown, tokenPileGreen}
+											local token=getObjectFromGUID(monsterPile[i]).takeObject({rotation=faceUp, position={pos[1]+(0.2*(i-1)), pos[2]+(0.5*(i-1)), pos[3]+(0.2*(i-1))}})
+											markMonsterFactionSubstitute(token, tokenFaction)
+											if terrainTiles[objGUID].hexFeature[hexLocation]=="graveyard" then
+												token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
+												if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+											end
+											gStates.monsterPlayLocation[token.guid]={pos[1]+(0.2*(i-1)), pos[2]+(0.5*(i-1)), pos[3]+(0.2*(i-1))}
+											if gStates.mineMonsterQty[objGUID]==nil then gStates.mineMonsterQty[objGUID]={[token.guid]="alive"} else gStates.mineMonsterQty[objGUID][token.guid]="alive" end
+										end
+									else
+										broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
+									end
+								end
+
+								if gStates.gameScenario=="The Realm of the Dead Blitz" and terrainTiles[objGUID].tileType=="country" then
+									local deploy={	{monster={{monsterPiles.greenDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={advancedActionRewardDecal}},
+													{monster={{monsterPiles.tanDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={spellRewardDecal}},
+													{monster={{monsterPiles.redDark,  0.0}}, reward={unitRewardDecal}},
+													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={artifactRewardDecal}},
+													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.1}}, reward={artifactRewardDecal, advancedActionRewardDecal}},
+													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.0}, {monsterPiles.greenDark, 0.1}}, reward={artifactRewardDecal, spellRewardDecal}}}--this is for five player games, which is currently imposible
+									--play Graveyard Token
+									params.position={angleToXY(obj,hexLocation)[1], 1.08, angleToXY(obj,hexLocation)[2]}
+									params.rotation=faceDown
+									local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject(params)
+									graveyard.lock()
+									terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
+									if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
+									gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
+									for index, reward in pairs(deploy[gStates.playedGladeTiles+1].reward) do
+										local posOnToken={{0.35, -0.21, 0.35}, {0.0, -0.2, 0.25}}
+										graveyard.addDecal({name="Reward", url=reward, position=posOnToken[index], rotation={-90, 0, 0}, scale={0.5, 0.7, 1}})
+									end
+									--play Monster tokens
+									local params2={}
+									for index, monsterPile in pairs(deploy[gStates.playedGladeTiles+1].monster) do
+										local token=nil
+										local monsterPileConvert={[monsterPiles.greenDark]=monsterPiles.green, [monsterPiles.tanDark]=monsterPiles.tan, [monsterPiles.redDark]=monsterPiles.red}
+										params2.position={params.position[1]+monsterPile[2], y+(index/2), params.position[3]+monsterPile[2]}
+										if getObjectFromGUID(monsterPile[1]).getQuantity()>0 then token=getObjectFromGUID(monsterPile[1]).takeObject(params2) else token=getObjectFromGUID(monsterPileConvert[monsterPile[1]]).takeObject(params2) end
+										markMonsterFactionSubstitute(token, "Dark")
+										token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
+										if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+										gStates.monsterPlayLocation[token.guid]=params2.position
+										if gStates.mineMonsterQty[objGUID]==nil then gStates.mineMonsterQty[objGUID]={[token.guid]="alive"} else gStates.mineMonsterQty[objGUID][token.guid]="alive" end
+									end
+									gStates.playedGladeTiles=gStates.playedGladeTiles+1
+								end
+							end
+
+							--Mage Tower
+							if hexFeature=="mage tower" then
+								params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj,hexLocation)[2]}
+								params.rotation=faceDown
+								if getObjectFromGUID(monsterPiles.purple).getQuantity()>0 then
+									local token=getObjectFromGUID(monsterPiles.purple).takeObject(params)
+									gStates.monsterPlayLocation[token.guid]=params.position
+								else
+									broadcastToAll("{en}Sorry, there are no Purple tokens left to deploy{ru}Извините, фиолетовые жетоны закончились.{zh-tw}抱歉，沒有紫色標記可供部署{zh-cn}抱歉，没有紫色标记可供部署{ko}여분의 보라색 토큰이 없습니다{es}Lo sentimos, no quedan tokens púrpuras para implementar{fr}Désolé, il n'y a plus de jetons violets à déployer{pt-br}Desculpe, Não tem Fichas Roxas sobrando para distribuir{de}Leider gibt es keine violetten Plättchen mehr zum Einsetzen", warningColor)
+								end
+							end
+
+							--Keep
+							if hexFeature=="keep" then
+								local token={}
+								params.position={angleToXY(obj,hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
+								params.rotation=faceDown
+								if gStates.gameScenario=="The Hidden Valley Blitz" and objGUID==GUID.tile.city07 then
+									gStates.mineMonsterQty[objGUID]=gStates.mineMonsterQty[objGUID] or {}
+									local center=angleToXY(obj,hexLocation)
+									for i, offset in ipairs({-0.1, 0.1}) do
+										params.position={center[1]+offset, y, center[2]+offset}
+										local token=takeFactionMonster("green", "Elem", params)
+										if token~=nil then
+											gStates.monsterPlayLocation[token.guid]=params.position
+											gStates.hiddenValleyKeep[i]=token.guid
+											gStates.mineMonsterQty[objGUID][token.guid]="alive"
+										else
+											broadcastToAll("{en}Sorry, there are no Green tokens left to deploy{ru}Извините, зеленые жетоны закончились.{zh-tw}抱歉，没有绿色标记可供部署{zh-cn}抱歉，没有绿色标记可供部署{ko}여분의 녹색 토큰이 없습니다{es}Lo sentimos, no quedan tokens verdes para implementar{fr}Désolé, il n'y a plus de jetons verts à déployer{pt-br}Desculpe, Não tem Fichas Verde sobrando para distribuir{de}Tut mir leid, es gibt keine grünen Plättchen mehr zum Einsetzen", warningColor)
+										end
+									end
+								else
+									if getObjectFromGUID(monsterPiles.gray).getQuantity()>0 then
+										local token=getObjectFromGUID(monsterPiles.gray).takeObject(params)
+										gStates.monsterPlayLocation[token.guid]=params.position
+									else
+										broadcastToAll("{en}Sorry, there are no Gray tokens left to deploy{ru}Извините, серые жетоны закончились.{zh-tw}抱歉，没有灰色标记可供部署{zh-cn}抱歉，没有灰色标记可供部署{ko}여분의 회색 토큰이 없습니다.{es}Lo sentimos, no quedan tokens grises para desplegar{fr}Désolé, il n'y a plus de jetons gris à déployer{pt-br}Desculpe, Não tem Fichas Cinza sobrando para distribuir{de}Entschuldigung, es gibt keine grauen Plättchen mehr zum Auslegen", warningColor)
+									end
+								end
+							end
+
+							--Ruins
+							if hexFeature=="ruin" then
+								local ruinRotation=gStates.dayRound==false and faceDown or faceUp
+								params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
+								params.rotation=ruinRotation
+								params.smooth=true
+								local token=getObjectFromGUID(monsterPiles.yellow).takeObject(params)
+								gStates.monsterPlayLocation[token.guid]=params.position
+							end
+
+							--City
+							if ((hexFeature or ""):sub(1, 4)=="city" or hexFeature=="Volkare's Camp")
+								and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true))
+								or (hexLocation=="center" and gStates.removeShadesOfTezlaMonsters~=true and gStates.gameScenario=="Ultimate Conquest" and (objGUID==GUID.tile.core03 or objGUID==GUID.tile.core10)) then
+								--Choose the City card's first destination against the frontier created by this tile.
+								--Without this, cityInitialCardPosition() reads the previous EXPLORE set and the later
+								--terrain-finish refresh redirects the same smooth move mid-flight.
+								if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then
+									refreshTerrainExploreOptions()
+									exploreRefreshedBeforeCity=true
+								end
+								playCity(obj, hexFeature, true)
+							end
+						end
+					end
+				end, tokenWait+8)
+				if gStates.playedAllready[objGUID]~=true and
+					(hexFeature=="rampaging" or hexFeature=="draconum" or hexFeature=="mage tower" or hexFeature=="keep" or	hexFeature=="ruin" or hexFeature=="Volkare's Camp" or (hexFeature or ""):sub(1, 4)=="city" or
+					(hexFeature=="mine" and gStates.gameScenario=="Mines Liberation") or
+					(hexFeature=="glade" and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four" or gStates.gameScenario=="The Realm of the Dead Blitz"))) then--and objGUID~=GUID.tile.city05
+					tokenWait=tokenWait+8
+				end
+			end
+			--lock terrain tile if succesfuly deployed all tokens
+			safeWaitCondition("Map",function() obj.lock() end, function() return obj.resting end)
+			local function finishTerrainPopulation()
+				gStates.playedAllready[objGUID]=true
+				workingOnTerrain[objGUID]=false
+				--A City reveal already refreshed immediately before its initial card placement.
+				--Do not compact it a second time while that smooth move is still in progress.
+				if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then refreshTerrainExploreOptions() end
+				--Terrain deployment changes the movement graph directly. Refresh it here instead of relying on
+				--the later fake avatar drop to eventually trigger a full UI update.
+				if initialSetupTerrain~=true and gStates.firstStarted==true then
+					moveDisplayTerrainCache={signature=nil,hexMap=nil}
+					updateMoveDisplay()
+				end
+				if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals() end
+				--Only the newly populated tile can have gained a new shared-token stack. Leave established
+				--tokens elsewhere on the map completely untouched.
+				mapTokenArrangeAllOccupiedHexes(objGUID)
+				if initialSetupTerrain~=true then fakeDropAvatar() end
+				apocalypseQuestRefreshOfferButtons()
+			end
+			if startingMapSetup==true then
+				safeWaitCondition("Map",finishTerrainPopulation,function()
+					return setupPopulationPending==0 and obj.resting==true
+				end,10,function()
+					error("SetupGame timed out waiting for initial terrain deployment callbacks for "..tostring(objGUID)..".",2)
+				end)
+			else
+				safeWaitFrames("Map",finishTerrainPopulation,tokenWait+10)
+			end
+
+			--Fame is awarded only for terrain actually explored during play. Initial setup terrain is
+			--tagged when it enters the map and never counts as exploration in these scenarios.
+			if initialSetupTerrain~=true and
+				(gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
+				turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
+				local centerFeature=terrainTiles[objGUID].hexFeature["center"] or ""
+				if gStates.gameScenario=="The Lost Relic Blitz" and (centerFeature:sub(1,4)=="city" or centerFeature=="Volkare's Camp") then
+					turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
+				end
+				broadcastToAll("{en}Exploring gives fame gain in this Scenario{ru}Исследование дает Славу в этом сценарии{zh-tw}在这个剧本探索板块会增加名望{zh-cn}在这个剧本探索板块会增加名望{ko}이 시나리오에선 탐험시 명성을 얻습니다{es}Explorar da fama en este Escenario{fr}L'exploration donne un gain de renommée dans ce Scénario{pt-br}Explorar dá Fama neste Cenário{de}Erkunden bringt in diesem Szenario Ruhmgewinn", {1,1,0.5})
+				mainUIUpdate("Fame Gain from exploring")
+			end
+		else
+			workingOnTerrain[objGUID]=false
+			if (placementResult.errorBroadcast or "")~="" then broadcastToAll(placementResult.errorBroadcast, warningColor) end
+			if placementResult.faceDownTerrain~=true then obj.setColorTint({r=1.0, g=0.7, b=0.7}) end
+		end
+	end
+
+        -- Flip Info cards that match the terrain
+        if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and (obj.getRotation()[3] <= 5 or obj.getRotation()[3] >= 355) then
+		for hexLocation, hexFeature in pairs(terrainTiles[objGUID].hexFeature) do
+			local infoGUID=terrainInfoCardGUIDs[hexFeature]
+			if hexFeature=="mine" then
+				local mineColors=terrainTiles[objGUID].mineColors~=nil and terrainTiles[objGUID].mineColors[hexLocation] or nil
+				if mineColors~=nil and #mineColors==1 then infoGUID="938554" end
+			end
+			if infoGUID~=nil then
+				local citySpecificInfo=hexFeature=="city green" or hexFeature=="city red" or hexFeature=="city blue" or hexFeature=="city white"
+				--City colour can change later in playCity() (duplicate/random City replacement).
+				--Reveal coloured City cards there, after the final deployed City GUID is known.
+				if citySpecificInfo==false then
+					local infoCard=getObjectFromGUID(infoGUID)
+					if infoCard~=nil then infoCard.setRotationSmooth({0.00, 180.00, 0.00}) end
+				end
+			end
+		end
+		local wallList=terrainTiles[objGUID].wallList
+			if wallList~=nil and next(wallList)~=nil then
+				local wallInfoCard=getObjectFromGUID("767084")
+				if wallInfoCard~=nil then wallInfoCard.setRotationSmooth({0.00, 180.00, 0.00}) end
+			end
+        end
+	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil then return true end
+	return false
 end
 
 end)
@@ -27492,7 +27059,7 @@ function cityCardExploreSpaceFree(mapObjects, desiredLocation, movingGUIDs, extr
 	for _, reservedPos in ipairs(reservedPositions or {}) do
 		if ((desiredLocation[1]-reservedPos[1])^2)+((desiredLocation[3]-reservedPos[3])^2)<9.61 then return false end
 	end
-	for _, button in pairs(gStates.exploreButtons or {}) do
+	for _, button in pairs(terrainExploreOptions()) do
 		if button.attributes~=nil and button.attributes.tilePosX~=nil and button.attributes.tilePosZ~=nil and
 			((desiredLocation[1]-tonumber(button.attributes.tilePosX))^2)+((desiredLocation[3]-tonumber(button.attributes.tilePosZ))^2)<9.61 then return false end
 	end
@@ -34657,101 +34224,77 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		UI.setAttribute("MonsterButtonRealImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("MonsterButtonReal", "interactable", "true")
 
-		--New User and Random Game setup
+		--New User and Mystery Solo setup. Build the player shell first, then run the chosen scenario
+		--through the same default/lock path used by the normal setup UI. Quick starts should never inherit
+		--rules-affecting state from whichever setup happened to be visible before the button was pressed.
 		if id=="NewUser" or id=="RandomGame" then
-			for a=1, 4 do gStates.positionMageKnight[a]="nobody" end
+			for a=1,4 do gStates.positionMageKnight[a]="nobody" end
 			gStates.positionMageKnight[2]="Random"
 			gStates.positionMageKnight[5]="Random"
 			gStates.setupDummyMageChoice="Random"
 			gStates.volkareSkills="Random"
 			gStates.playerCount=1
-			gStates.scenarioRef=1
-			gStates.playersRef=5
 			gStates.coop=1
+			gStates.WarOfFourComp=false
+			gStates.dayRound=false
+			--Hero Challenges intentionally survive ordinary scenario browsing, but a quick start must begin
+			--from a known baseline. Mystery Solo may roll them back on below when the selected setup permits it.
+			gStates.heroChallenges=false
+
 			if id=="NewUser" then
-				gStates.gameScenario="First Reconnaissance"
-				gStates.scenarioRef=1
-				gStates.removeLostLegionExpansion=true
-				gStates.removeBonusCards=true
-				gStates.riseOfTheForgemasters=0
-			else--"RandomGame"
-				--Mystery Solo can be pressed after changing setup options, so build the roll from a clean baseline
-				--instead of inheriting any settings from the menu state that happened to be active beforehand.
-				gStates.rampage=0
-				gStates.megapolis=0
-				gStates.volkareCampAsCity=false
-				gStates.randomTileOrientation=false
-				gStates.randomCities=false
-				gStates.dayRound=false
-				gStates.startAtNight=false
-				gStates.darknessComing=false
-				gStates.removeShadesOfTezlaMonsters=false
-				gStates.removeApocalypseTerrain=false
-				gStates.useCustomMageKnights=false
-				gStates.heroChallenges=false
-				gStates.apocalypseQuestCards=false
-				gStates.questMod=false
-				gStates.weatherMod=false
-				gStates.itemShopMod=false
-				gStates.rampageAmbush=false
-				gStates.rampagePursuit=false
-				gStates.mageKnightLevels=false
-				gStates.removeTerrain=false
-				gStates.removeLostLegionExpansion=false
-				gStates.removeBonusCards=false
-				gStates.useAlternatePugs=false
-				gStates.riseOfTheForgemasters=0
-				while 	scenarioList[gStates.scenarioRef][1]=="First Reconnaissance" or
-						scenarioList[gStates.scenarioRef][1]=="Conquer and Hold" or
-						scenarioList[gStates.scenarioRef][1]=="One to Return" do gStates.scenarioRef=math.random(2, #scenarioList-1) end--19,9,8 aren't solo
-				gStates.gameScenario=scenarioList[gStates.scenarioRef][1]
-				if gStates.gameScenario:reverse():sub(1, 5)=="ztilB" then gStates.blitz=1 else gStates.blitz=0 end
-				if math.random(1,10)>=8 then gStates.rampage=math.random(0,2) end
-				if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then gStates.positionMageKnight[5]="Volkare" end
-				if gStates.gameScenario=="First Reconnaissance" then
-					gStates.removeShadesOfTezlaMonsters=true
-				elseif gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The War of Four" then
-					gStates.removeShadesOfTezlaMonsters=false
-				else
-					if math.random(1,10)>=7 then gStates.removeShadesOfTezlaMonsters=true else gStates.removeShadesOfTezlaMonsters=false end
+				applyScenarioSetupDefaults("First Reconnaissance")
+			else
+				--Choose from scenarios that actually provide a Solo setup row instead of maintaining a name blacklist.
+				--First Reconnaissance remains reserved for the dedicated walkthrough button; Custom remains excluded
+				--by the historical #scenarioList-1 range.
+				local soloScenarios={}
+				for scenarioRef=2,#scenarioList-1 do
+					local scenario=scenarioList[scenarioRef]
+					local soloSetup=scenario~=nil and scenario[5] or nil
+					if scenario~=nil and scenario[1]~="First Reconnaissance" and soloSetup~=nil and soloSetup.rounds~=nil then
+						soloScenarios[#soloScenarios+1]=scenarioRef
+					end
 				end
-				if gStates.gameScenario=="Against the Apocalypse Blitz" then
-					gStates.removeApocalypseTerrain=false
-				elseif gStates.gameScenario=="First Reconnaissance" then
-					gStates.removeApocalypseTerrain=true
-				else
-					if math.random(1,10)>=7 then gStates.removeApocalypseTerrain=true else gStates.removeApocalypseTerrain=false end
+				if #soloScenarios==0 then error("Mystery Solo could not find a scenario with a valid Solo setup.",2) end
+				local selectedRef=soloScenarios[math.random(1,#soloScenarios)]
+				applyScenarioSetupDefaults(scenarioList[selectedRef][1])
+
+				--Preserve Mystery Solo's existing option roster/probabilities, but respect the canonical locks
+				--that scenarioSelection just rebuilt instead of duplicating scenario-name special cases here.
+				local function rollOption(optionId,threshold)
+					if UI.getAttribute(optionId,"interactable")=="True" then
+						optionsUpdate(nil,math.random(1,10)>=threshold and "True" or "False",optionId)
+					end
 				end
-				if gStates.gameScenario=="The Fractured Lands Blitz" then gStates.randomTileOrientation=false elseif math.random(1,10)>=8 then gStates.randomTileOrientation=true else gStates.randomTileOrientation=false end
-				if randomCitiesAllowedForScenario() and math.random(1,10)>=8 then gStates.randomCities=true else gStates.randomCities=false end
-				--afterLoad/dayNight expects dayRound=false before the first flip; randomize the actual Start at Night option instead.
-				if gStates.gameScenario=="Fast Forwarded Conquest" or (gStates.gameScenario~="Druid Nights" and math.random(1,10)>=8) then gStates.startAtNight=true else gStates.startAtNight=false end
-				if math.random(1,10)>=8 and gStates.gameScenario~="Druid Nights" then gStates.darknessComing=true else gStates.darknessComing=false end
-				if math.random(1,10)>=8 then gStates.useCustomMageKnights=true else gStates.useCustomMageKnights=false end
-				--Hero Challenges use the same random-option chance, but are mutually exclusive with fan-made Mage Knights.
-				if gStates.useCustomMageKnights~=true and (gStates.riseOfTheForgemasters or 0)==0 and math.random(1,10)>=8 then gStates.heroChallenges=true else gStates.heroChallenges=false end
-				if gStates.gameScenario=="For the Council" or gStates.gameScenario=="The Fractured Lands Blitz" then
-					gStates.apocalypseQuestCards=true
-				else
-					if math.random(1,10)>=8 then gStates.apocalypseQuestCards=true else gStates.apocalypseQuestCards=false end
+				rollOption("removeShadesOfTezlaMonsters",7)
+				rollOption("removeApocalypseTerrain",7)
+				rollOption("randomTileOrientation",8)
+				rollOption("randomCities",8)
+				if gStates.gameScenario~="Druid Nights" then
+					rollOption("startAtNight",8)
+					rollOption("darknessComing",8)
 				end
-				if math.random(1,10)>=8 then gStates.rampageAmbush=true else gStates.rampageAmbush=false end
-				if math.random(1,10)>=8 and gStates.rampageAmbush==false then gStates.rampagePursuit=true else gStates.rampagePursuit=false end
-				--gStates.questMod=false
-				--gStates.weatherMod=false
-				if gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="Ultimate Conquest"
-					or gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four"
-					or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="Fast Forwarded Conquest" or gStates.gameScenario=="The Fractured Lands Blitz" or gStates.gameScenario=="Against the Horsemen Blitz" then
-					if math.random(1,10)>=8 then gStates.volkareCampAsCity=true else gStates.volkareCampAsCity=false end
-					if gStates.gameScenario=="Ultimate Conquest" then gStates.volkareCampAsCity=true end
-					if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then gStates.volkareCampAsCity=false end
+				rollOption("useCustomMageKnights",8)
+				if gStates.useCustomMageKnights~=true and (gStates.riseOfTheForgemasters or 0)==0 then rollOption("heroChallenges",8) end
+				rollOption("apocalypseQuestCards",8)
+				rollOption("rampageAmbush",8)
+				if gStates.rampageAmbush~=true then rollOption("rampagePursuit",8) end
+				rollOption("volkareCampAsCity",8)
+
+				if UI.getAttribute("RampageSelection","interactable")=="True" and math.random(1,10)>=8 then
+					local rampageMode=math.random(0,2)
+					if rampageMode==1 then
+						RampageSelection(nil,"True","RampageSelection")
+					elseif rampageMode==2 then
+						MoreRampageSelection(nil,"True","MoreRampageSelection")
+					end
 				end
+
 				local megapolisMaximum=megapolisMaximumForSetup(gStates.scenarioRef,gStates.playersRef)
 				if gStates.volkareCampAsCity==false and megapolisMaximum>0 and math.random(1,10)>=8 then
 					gStates.megapolis=math.random(0,megapolisMaximum)
 					ensureSetupMegapolisMinimumLevels()
 				end
-				if gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="Fast Forwarded Conquest" then gStates.mageKnightLevels=true end
 			end
 		end
 
@@ -34778,6 +34321,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		--Record scenario setting to gStates to be saved
 		gStates.rounds=scenarioList[gStates.scenarioRef][gStates.playersRef].rounds
 		gStates.mapShape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape
+		gStates.mapShapeKey=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey
 		gStates.cityTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles
 		gStates.cityLevels={}
 		for _, cityLevel in ipairs(scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels) do gStates.cityLevels[#gStates.cityLevels+1]=cityLevel end
@@ -35425,9 +34969,7 @@ function mapSetup(onComplete)
 	startingMapTiles={}
 	--EXPLORE is a derived view of the finished physical map. Do not show transient legal spots while
 	--setup tiles and the terrain stack are still being assembled.
-	gStates.exploreButtons={{}}
-	local exploreUI=getObjectFromGUID("f2291a")
-	if exploreUI~=nil then exploreUI.UI.setXmlTable(gStates.exploreButtons) end
+	clearTerrainExploreOptions()
 	local mapSetupFinished=false
 	local function finishMapSetup(success,reason)
 		if mapSetupFinished==true then return end
@@ -35439,7 +34981,7 @@ function mapSetup(onComplete)
 	local CityTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCity)
 	local CoreTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCore)
 	local CountryTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCountry)
-	local customPredefined=gStates.gameScenario=="Custom" and scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)=="P"
+	local customPredefined=gStates.gameScenario=="Custom" and scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey=="predefined"
 	if customPredefined then
 		--Predefined Custom maps are built by the players. Leave all three selected terrain pools untouched.
 		--Store every available tile face down so manual pulls from these bags begin hidden.
@@ -35585,9 +35127,9 @@ function mapSetup(onComplete)
 	local tUp=2--Starts building the final tile stack from this high
 	--Layout Starting map tile. The Horsemen predefined map temporarily keeps this normal reference
 	--during terrain-entry setup, then removes it once every real map tile has settled.
-	local a=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)
+	local a=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey
 	local furyWedgeStart=furyMap and gStates.playerCount<=2
-	if (a=="O" or a=="F" or a=="P") and furyWedgeStart~=true then
+	if (a=="open3" or a=="open4" or a=="open" or a=="predefined") and furyWedgeStart~=true then
 		local openStartPos={-36.0305,0.98,-11.9267}
 		if furyMap and gStates.playerCount>=4 then openStartPos={-30.0303,0.98,-14.0052} end
 		getObjectFromGUID(startTerrain.wedge).unlock()
@@ -35606,11 +35148,8 @@ function mapSetup(onComplete)
 	end
 
 	--Add Grid
-	local gridType=""
-	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049111266/7BC768B7CD64E6018EBEC720559690409F4BA555/" end--4
-	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049110361/978D612A44ADDE6E1630965A311722114BA28AE5/" end--3
-	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049031257/2457D03CE33118D57CD456183026FEB596CF6A3A/" end--fully
-	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049113832/44EE3C6AA10498BCD1B46040AD18631BFD580AC4/" end--Wedge
+	local setupMapShapeKey=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey
+	local gridType=mapShapeGridURL[setupMapShapeKey] or ""
 	if gStates.gameScenario=="The Gauntlet" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1673610837369514853/1BBAD048566E753F09184CBAE7022049D90B5471/" end
 	if againstHorsemenMap then gridType="" end
 	Global.setDecals({})
@@ -35905,13 +35444,13 @@ function mapSetup(onComplete)
 
 	local function startReferenceReady()
 		if againstHorsemenMap then return againstHorsemenStartGUID~=nil and setupMapObjectSettled(againstHorsemenStartGUID) end
-		local shape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)
-		local startGUID=(shape=="O" or shape=="F" or shape=="P") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
+		local shape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey
+		local startGUID=(shape=="open3" or shape=="open4" or shape=="open" or shape=="predefined") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
 		return setupMapObjectSettled(startGUID) and setupMapObjectSettled(portal.terrainHex)
 	end
 	local function tintAndReveal(batches,callback)
-		local shape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)
-		local startGUID=(shape=="O" or shape=="F" or shape=="P") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
+		local shape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey
+		local startGUID=(shape=="open3" or shape=="open4" or shape=="open" or shape=="predefined") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
 		if againstHorsemenMap~=true then setupTintStartingTerrain(startGUID) end
 		revealSetupTerrainBatches(batches,callback)
 	end
@@ -35961,7 +35500,7 @@ function mapSetup(onComplete)
 		return safeTakeObject("SetupGame",TileShuffler,params)
 	end
 	local rot={}
-	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)=="W" then
+	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey=="wedge" or scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey=="wedgeUnlimited" then
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
 		local firstStart=takeStartingCountry({position={-25.2302,1.07,-9.8482},rotation=rot,smooth=false})
 		if firstStart~=nil then standardRevealBatches[1][#standardRevealBatches[1]+1]={guid=firstStart.guid,first=true} end
@@ -37554,6 +37093,333 @@ function monsterSetup()
 end
 
 end)
+__bundle_register("PlayingGame.PlayerBoard.Events", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Player-board scripting-zone reactions dispatched by PlayingGame.Events.
+
+local crystalManaNames={["Red Mana"]=true,["Green Mana"]=true,["Blue Mana"]=true,["White Mana"]=true,["Black Mana"]=true,["Gold Mana"]=true}
+
+--Face-down cards in a player play area get a physical decal instead of Object UI.
+local cardRemoveDecalURL="https://steamusercontent-a.akamaihd.net/ugc/1661232230977162756/90D8AEB60005119DD4182B5FD24D7BDD8243B5F3/"
+function cardInPlayerPlayArea(cardGUID)
+	for a=1, 4 do
+		local zone=getObjectFromGUID(playerPlayAreas[a])
+		if zone~=nil then for _, card in pairs(zone.getObjects()) do if card.guid==cardGUID then return true end end end
+	end
+	return false
+end
+function removeCardRemoveDecal(card)
+	if card==nil then return end
+	local decals={}
+	local changed=false
+	for _, decal in pairs(card.getDecals() or {}) do
+		if decal.name=="Card Remove" then changed=true else decals[#decals+1]=decal end
+	end
+	if changed==true then card.setDecals(decals) end
+end
+function refreshCardRemoveDecal(card)
+	if card==nil or card.type~="Card" or not (gameCards[card.guid]==nil or gameCards[card.guid].full==nil) then return end
+	removeCardRemoveDecal(card)
+	if card.is_face_down==true and cardInPlayerPlayArea(card.guid)==true then
+		--Face-down cards are rotated over, so put the decal on the card's local underside.
+		card.addDecal({name="Card Remove", url=cardRemoveDecalURL, position={0,-0.5,0}, rotation={270,180,180}, scale={1.7,2.0,1}})
+	end
+end
+
+function playerBoardZoneEnterSettled(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--Updates Main UI buttons when anything is played to a mage's play area/deed deck/discard.
+	--Keep play-area refreshes distinct so mainUIUpdate can skip deck bookkeeping that cannot have changed.
+	if gStates.turnNumber>0 then--makes sure end of round doesn't have errors
+		if zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="deed" or zoneInfo.kind=="discard") and turnOrderIndexAtSeat(zoneInfo.seatPos)~=nil then
+			local seatPos=zoneInfo.seatPos
+			if zoneInfo.kind=="deed" and (objType=="Card" or objType=="Deck") then
+				if objType=="Deck" then obj.max_typed_number=1 end
+				scheduleEndRoundDeedStateRefresh(seatPos)
+			end
+			--remove banner card from register if returned to deck.
+			if zoneInfo.kind=="discard" and gameCards[objGUID]~=nil and gameCards[objGUID].half~=nil then gStates.bannercard[gameCards[objGUID].half]=nil end
+			if zoneInfo.kind=="play" then
+				updatePlayAreaObjectState(seatPos, obj, true)
+				dayTactic2ExpireIfCardPlayed(seatPos)
+				schedulePlayAreaCardScale(seatPos)
+				mainUIUpdate("Object entered into play area")
+			else mainUIUpdate("Object entered into deed deck or discard") end
+		end
+	end
+
+	--Object entered player board
+	if zoneInfo~=nil and zoneInfo.kind=="play" then
+		--increment Master of chaos skill
+		if objGUID=="1ff34f" then
+			if masterOfChaosPause==false then
+				masterOfChaosPause=true
+				if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
+				local temp=gStates.masterOfChaos+1
+				if temp==7 then temp=1 end
+				obj.setCustomObject({image=masterOfChaosData[temp].image})
+				for a=1, #turnOrder, 1 do
+					if turnOrder[a].masterOfChaos~=nil then turnOrder[a].masterOfChaos="used" break end
+				end
+				--Wait.frames(function()
+				obj.reload()
+				--end, 50)
+				safeWaitFrames("PlayerBoard.Events",function() masterOfChaosPause=false end, 10)
+			end
+			return true
+		end
+
+		--Add combat buttons to monster tokens.
+		local addedButtons=monsterObjectButtons(obj)
+
+
+		--Add fortified symbol
+		if gStates.monsterPlayLocation[objGUID]~=nil and monsterPugs[objGUID]~=nil and monsterPugs[objGUID].unfortified==nil then
+			local target=gStates.monsterPlayLocation[objGUID]
+			local attackingVolkare=false
+			if gStates.cityMonsterQty[volkare.model]~=nil then
+				for guid, state in pairs(gStates.cityMonsterQty[volkare.model]) do
+					if guid==objGUID then
+						local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+						if volkareObj~=nil then target={volkareObj.getPosition()[1], volkareObj.getPosition()[2], volkareObj.getPosition()[3]} end
+						attackingVolkare=true
+					end
+				end
+			end
+			local mapObjects=getObjectFromGUID(mapArea).getObjects()
+			local terTile, monsterhexBearing=terrainHexAtPosition(target, mapObjects)
+			if terTile~=nil and monsterhexBearing~=nil and gStates.volkareState~=nil and gStates.volkareState:sub(1, 9)~="Attacking" then
+
+				--fortified for Volkare's Army
+				if attackingVolkare==true and monsterPugs[objGUID].unfortified==nil and (terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="mage tower" or terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="keep") then
+					local found=false
+					local existingDecals=obj.getDecals() or {}
+					for _, decalDetails in pairs(existingDecals) do
+						if decalDetails.name=="Fortified" then found=true break end
+					end
+					if found==false then
+						obj.addDecal({name="Fortified", url="https://steamusercontent-a.akamaihd.net/ugc/15769941683634999180/45D8BF9859C1F2C026A3B40DA634B74286E2C3EB/", position={0.8, 0.15, -0.8}, rotation={90, 180, 0}, scale={0.72, 0.72, 1}})
+						if gStates.monsterPerks[objGUID]==nil then gStates.monsterPerks[objGUID]={fortified=true} else gStates.monsterPerks[objGUID].fortified=true end
+					end
+				end
+
+
+			end
+		end
+		--Manual monster movement cannot assume the current avatar crossed a particular wall.
+		--If the avatar is not on an adjacent hex, use the existing wall-choice interface.
+		resolveManualMonsterWallFortified(obj)
+		if #addedButtons>0 then obj.UI.setXmlTable(addedButtons) end
+
+		--Toggle Half Cards
+		if gameCards[objGUID]~=nil and gameCards[objGUID].half~=nil then
+			local bannerPosition=obj.getPosition()
+			if bannerPosition[3]>=-38.4 then
+				local pass=bannerPosition[1]
+				local halfGUID=gameCards[objGUID].half
+				obj.setState(2)
+				local bannerSeat=zoneInfo.seatPos
+				safeWaitFrames("PlayerBoard.Events",function()
+					local halfCard=getObjectFromGUID(halfGUID)
+					if halfCard~=nil then
+						halfCard.setScale({0.65, 1, 0.65})
+						halfCard.setPosition({pass, 1.2, -38.12})
+						scheduleUnitLayoutRefresh(bannerSeat)
+					end
+				end, 3)
+			end
+		end
+
+		--Add/remove the Card Remove decal when a normal card enters the player play area.
+		if objType=="Card" and (gameCards[objGUID]==nil or gameCards[objGUID].full==nil) then
+			safeWaitFrames("PlayerBoard.Events",function() local card=getObjectFromGUID(objGUID) if card~=nil then refreshCardRemoveDecal(card) end end, 2)
+		end
+
+		--Add command decal to banner of Command
+		if objGUID=="8dbce4" then
+			bannerOfCommandDecal()
+			scheduleUnitLayoutRefresh(zoneInfo.seatPos)
+		end
+
+		--if object is a crystal then alter it's animation.
+		if crystalManaNames[obj.getName()]==true then
+			safeWaitTime("PlayerBoard.Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playTriggerEffect(0) end end, 0.1)
+			safeWaitTime("PlayerBoard.Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playLoopingEffect(1) end end, 1)
+		end
+	end
+
+	--Unit Area work is event-driven: split accidental two-card Unit decks only when this area changes.
+	local unitZoneInfo=zoneInfo
+	if unitZoneInfo~=nil and unitZoneInfo.kind=="unit" then
+		local unitSeatPos=unitZoneInfo.seatPos
+		if objType=="Card" or objType=="Deck" then safeWaitFrames("PlayerBoard.Events",function() separateCombinedUnitsInArea(unitSeatPos) end, 2) end
+		scheduleUnitLayoutRefresh(unitSeatPos)
+		--Monster tokens may be dropped directly on Units. Give them the same combat controls and reward refresh as Play Area monsters.
+		if monsterPugs[objGUID]~=nil then
+			local monsterGUID=objGUID
+			safeWaitFrames("PlayerBoard.Events",function()
+				local monster=getObjectFromGUID(monsterGUID)
+				if monster~=nil and objectInPlayerCombatArea(monsterGUID)==true then
+					local addedButtons=monsterObjectButtons(monster)
+					if #addedButtons>0 then monster.UI.setXmlTable(addedButtons) end
+					mainUIUpdate("Monster entered unit area")
+				end
+			end, 2)
+		end
+	end
+
+	--Re-add avatar buttons when an avatar enters a non-map zone. Entering the map scripting
+	--zone happens before onObjectDrop has recalculated its new hex, so refreshing here would
+	--briefly attach the previous location's buttons. The settled drop owns the map refresh.
+	if mageKnightAvatarGUIDs[objGUID]==true and zoneGUID~=mapArea then addAvatarButtons() end
+
+	--Change wound cards dropped on units to wound token.
+	if zoneInfo~=nil and zoneInfo.kind=="unit" and objType=="Card" and obj.getGMNotes()=="Wound" then
+		local woundPosition=obj.getPosition()
+		local woundX=woundPosition[1]
+		if woundPosition[3]>=-37 and ((woundX>-65.3 and woundX<-42.7) or (woundX>-25.3 and woundX<-2.7) or
+			(woundX>14.7 and woundX<37.3) or (woundX>54.7 and woundX<77.3)) then
+			getObjectFromGUID("ab56f3").takeObject({position={woundX, woundPosition[2], -33.29}, smooth=false})
+			obj.destruct()
+		end
+	end
+
+        --flip ruin down if one of its monsters is Down
+        if gStates.ruinMonsters~=nil and gStates.ruinMonsters[objGUID]~=nil then
+            local ruinObj=getObjectFromGUID(gStates.ruinMonsters[objGUID])
+            if ruinObj==nil then
+                --The monster token has been reused after its Ruin was removed; discard the stale link.
+                gStates.ruinMonsters[objGUID]=nil
+            elseif obj.is_face_down==true then
+                if ruinObj.is_face_down==false then ruinObj.flip() end
+            else
+                local flip=true
+                for monsterGUID, _ in pairs(gStates.ruinMonsters) do
+                    local monsterObj=getObjectFromGUID(monsterGUID)
+                    if monsterObj~=nil and monsterObj.is_face_down==true then flip=false break end
+                end
+                if flip==true and ruinObj.is_face_down==true then ruinObj.flip() end
+            end
+        end
+
+	--record potion return locationTest
+	if zoneInfo~=nil and zoneInfo.kind=="crystal" and obj.getName():reverse():sub(1, 6)=="noitoP" then
+		local potionPosition=obj.getPosition()
+		gStates.mageSkills[objGUID]={potionPosition[1], potionPosition[2], potionPosition[3]}
+	end
+
+	--Lock possesed token on to nearest monster
+	if (zoneGUID==mapArea or (zoneInfo~=nil and zoneInfo.kind=="play"))
+		and monsterPugs[objGUID]~=nil and monsterPugs[objGUID].pugType=="possessed" then
+		attachEnemy(nil, nil, "attach", obj, zone)
+	end
+	return false
+end
+
+function playerBoardZoneLeave(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	if obj~=nil and skillTokens[obj.guid]~=nil and (skillTokens[obj.guid].skillType=="Coop" or skillTokens[obj.guid].skillType=="Comp") then
+		for playerIndex, details in pairs(turnOrder) do
+			if details.seatPos~=nil and zone.guid==playerPlayAreas[details.seatPos] then coopCompSkillLeftPlayArea(obj.guid, playerIndex) break end
+		end
+	end
+	if gStates.turnNumber>0 and turnOrder[gStates.turnNumber]~=nil and zone.guid==handZones[turnOrder[gStates.turnNumber].seatPos] then scheduleTactic4HandBonusRefresh() end
+	if (zone.guid==playerPlayAreas[2] or zone.guid==playerPlayAreas[3] or zone.guid==playerPlayAreas[1] or zone.guid==playerPlayAreas[4]) and getObjectFromGUID(obj.guid)~=nil then
+		--remove icons from monsters
+		obj.UI.setXmlTable({{}})
+		--Only remove the face-down card decal once the card is confirmed outside all player play areas.
+		if obj.type=="Card" then
+			local cardGUID=obj.guid
+			safeWaitFrames("PlayerBoard.Events",function() local card=getObjectFromGUID(cardGUID) if card~=nil and cardInPlayerPlayArea(cardGUID)==false then removeCardRemoveDecal(card) end end, 2)
+		end
+
+		--restore card size, except Unit cards still owned by the overlapping Unit Area layout.
+		if ((gameCards[obj.guid]~=nil and gameCards[obj.guid].full==nil) or obj.getGMNotes()=="Wound")
+			and not (unitLayoutIsUnit(obj) and unitLayoutObjectInAnyUnitArea(obj.guid)) then obj.setScale({1.5,1,1.5}) end
+
+		safeWaitTime("PlayerBoard.Events",function()
+			--Toggle half cards when picked up.
+			if getObjectFromGUID(obj.guid)~=nil then
+				if gameCards[obj.guid]~=nil and gameCards[obj.guid].full~=nil and obj.getPosition()[2]>2 then
+					obj.setState(1)
+					safeWaitFrames("PlayerBoard.Events",function() if getObjectFromGUID(gameCards[obj.guid].full)~=nil then getObjectFromGUID(gameCards[obj.guid].full).setScale({1.5, 1, 1.5}) end end, 1)
+				end
+
+				--if object is a crystal then remove highlight.
+				local crystalGlow={["Red Mana"]={1, 0, 0}, ["Green Mana"]={0, 1, 0}, ["Blue Mana"]={0, 0, 1}, ["White Mana"]={1, 1, 1}, ["Black Mana"]={0.3, 0.0, 0.6}, ["Gold Mana"]={1, 0.9, 0}}
+				if crystalGlow[obj.getName()]~=nil then
+					obj.AssetBundle.playLoopingEffect(0)
+				end
+			end
+		end, 0.22)
+		--Decrement Master of chaos skill
+		if obj.guid=="1ff34f" and masterOfChaosPause==false then
+			if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
+			safeWaitFrames("PlayerBoard.Events",function() masterOfChaosWait=safeWaitCondition("PlayerBoard.Events",function()
+				for a=1, #turnOrder, 1 do
+					if turnOrder[a].masterOfChaos~=nil and turnOrder[a].masterOfChaos~="incrementented in turn" then turnOrder[a].masterOfChaos="available" break end
+				end
+				getObjectFromGUID("1ff34f").setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
+				getObjectFromGUID("1ff34f").reload()
+				masterOfChaosWait=nil
+			end, function() return getObjectFromGUID("1ff34f").resting end) end, 5)
+		end
+	end
+	--A Card or whole Deck leaving the deed pile can make End Round available.
+	if obj~=nil and (obj.type=="Card" or obj.type=="Deck") then
+		for _, details in pairs(turnOrder) do if zone.guid==deedDeckZones[details.seatPos] then scheduleEndRoundDeedStateRefresh(details.seatPos) break end end
+	end
+	--Updates Main UI buttons when anything is removed from a mages play Area
+	if gStates.turnNumber>0 then
+		for a=1, #turnOrder, 1 do
+			local seatPos=turnOrder[a].seatPos
+			if zone.guid==playerPlayAreas[seatPos] then
+				updatePlayAreaObjectState(seatPos, obj, false)
+				schedulePlayAreaCardScale(seatPos)
+				if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(seatPos,obj.guid) end
+				mainUIUpdate("Object removed from zone")
+				break
+			elseif zone.guid==deedDeckDiscardZones[seatPos] then
+				mainUIUpdate("Object removed from zone")
+				break
+			end
+		end
+	end
+
+	--A monster leaving a Unit Area can change pending fame/reputation just like leaving the Play Area.
+	local leftUnitArea=false
+	local leftUnitSeat=nil
+	for seatPos=1,4 do if zone.guid==playerUnitAreas[seatPos] then leftUnitArea=true leftUnitSeat=seatPos break end end
+	if leftUnitArea==true then
+		if unitLayoutIsCommand(obj) then scheduleUnitLayoutRefreshAfterCommandRelease(leftUnitSeat,obj.guid) else scheduleUnitLayoutRefresh(leftUnitSeat) end
+		if unitLayoutIsUnit(obj) then
+			local unitGUID=obj.guid
+			safeWaitFrames("PlayerBoard.Events",function()
+				local unit=getObjectFromGUID(unitGUID)
+				if unit~=nil and unitLayoutObjectInAnyUnitArea(unitGUID)==false then unit.setScale({unitLayoutConfig.cardScale,1,unitLayoutConfig.cardScale}) end
+			end,2)
+		end
+	end
+	if leftUnitArea==true and monsterPugs[obj.guid]~=nil then
+		local monsterGUID=obj.guid
+		safeWaitFrames("PlayerBoard.Events",function()
+			local monster=getObjectFromGUID(monsterGUID)
+			if monster~=nil and objectInPlayerCombatArea(monsterGUID)==false then monster.UI.setXmlTable({{}}) end
+			mainUIUpdate("Monster removed from unit area")
+		end, 2)
+	end
+end
+
+end)
 __bundle_register("PlayingGame.PlayerBoard.UnitLayout", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Runtime Unit/Command-slot layout and compression on player boards.
 
@@ -37962,15 +37828,29 @@ function containerInsideDeckZone(container, zone)
 	return math.abs(pos[1]-zonePos[1])<=zoneScale[1]/2 and math.abs(pos[3]-zonePos[3])<=zoneScale[3]/2
 end
 
-function scheduleContainerDeckDescriptionRefresh(container)
-	if container==nil or container.type~="Deck" then return end
+local function containerDeedPileLocation(container)
+	if container==nil or container.type~="Deck" then return nil,nil end
 	for _, details in pairs(turnOrder) do
 		local seatPos=details.seatPos
 		local deedZone=getObjectFromGUID(deedDeckZones[seatPos])
-		if containerInsideDeckZone(container, deedZone)==true then scheduleDeedPileDescriptionRefresh(seatPos, "deed") return end
+		if containerInsideDeckZone(container, deedZone)==true then return seatPos,"deed" end
 		local discardZone=getObjectFromGUID(deedDeckDiscardZones[seatPos])
-		if containerInsideDeckZone(container, discardZone)==true then scheduleDeedPileDescriptionRefresh(seatPos, "discard") return end
+		if containerInsideDeckZone(container, discardZone)==true then return seatPos,"discard" end
 	end
+	return nil,nil
+end
+
+function refreshContainerDeckDescription(container)
+	local seatPos,zoneType=containerDeedPileLocation(container)
+	if seatPos==nil then return false end
+	refreshDeedPileDescription(seatPos,zoneType)
+	return true
+end
+
+function scheduleContainerDeckDescriptionRefresh(container)
+	local seatPos,zoneType=containerDeedPileLocation(container)
+	if seatPos==nil then return end
+	scheduleDeedPileDescriptionRefresh(seatPos,zoneType)
 end
 
 --Move cards visibly to a player's Deed deck without allowing two cards to converge on the same pile.
@@ -39574,6 +39454,294 @@ __bundle_register("SetupInterface", function(require, _LOADED, __bundle_register
 --return the selected scenario to the correct defaults for the current Mage Knight count.
 local scenarioTweakDefaults=nil
 
+
+local SETUP_TEXT={
+	notUsed="{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet",
+	rotf1="{en}1. New Beginning{ru}1. Новое начало{zh-tw}新的開始{zh-cn}新的开始{ko}1.새로운 시작{es}1. Un nuevo comienzo{fr}1. Nouveau départ{pt-br}1. Novo Começo{de}1. Neubeginn",
+	rotf2="{en}2. Spoils of War{ru}2. Военные трофеи{zh-tw}戰爭犒賞{zh-cn}战争犒赏{ko}2.전쟁의 전리품{es}2. Botín de Guerra{fr}2. Butin de Guerre{pt-br}2. Despojos de Guerra{de}2. Kriegsbeute",
+	rotf3="{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier",
+	darknessComing="{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel",
+	daylightComing="{en}Daylight is Coming{ru}Надвигается рассвет{zh-tw}白晝侵襲{zh-cn}白昼侵袭{ko}빛의 도래{es}Se Acerca la luz del Día{fr}Lendemain Arrive{pt-br}A Luz do dia está Chegando{de}Es Wird Hell",
+	startSolo="{en}Start - Solo{ru}Начало - Одиночный{zh-tw}開始 - 單人遊戲{zh-cn}开始 - 单人游戏{ko}시작 - 솔로{es}Comenzar - Solo{fr}Démarrer - Solo{pt-br}Início - Solo{de}Start - Solo",
+	startCompetitive="{en}Start - Competitive{ru}Начало - Соревновательный{zh-tw}開始 - 對抗模式{zh-cn}开始 - 对抗模式{ko}시작 - 경쟁{es}Comenzar - Competitivo{fr}Démarrer - Compétitif{pt-br}Início - Competitivo{de}Start - Wettbewerbsfähig",
+	startCooperative="{en}Start - Cooperative{ru}Начало - Кооперативный{zh-tw}開始 - 合作模式{zh-cn}开始 - 合作模式{ko}시작 - 협력{es}Comenzar - Cooperativo{fr}Démarrer - Coopératif{pt-br}Início - Cooperativo{de}Start - Genossenschaft",
+	volkareSkills="{en}Volkare Skills -{ru}Навыки Волкаре -{zh-tw}沃卡里技能：{zh-cn}沃卡里技能：{ko}볼케어의 스킬 -{es}Habilidades de Volkare -{fr}Compétences de Volkare -{pt-br}Habilidades de Volkare -{de}Volkare-Fähigkeiten -",
+	dummyMageKnight="{en}Dummy Mage Knight -{ru}Виртуальный Рыцарь-маг -{zh-tw}虛擬玩家：{zh-cn}虚拟玩家：{ko}가상 플레이어 -{es}Mage Knight Virtual -{fr}Mage fantôme -{pt-br}Mage Knight Fictício -{de}Dummy-Magier-Ritter -",
+	countryTilesPrefix="{en}Country Tiles - {ru}Дикие земли - {zh-tw}鄉村板塊：{zh-cn}乡村板块：{ko}교외 타일 - {es}Losetas de Campo - {fr}Tuiles Pays - {pt-br}Peças de Campo - {de}Land Teile - ",
+	coreTilesPrefix="{en}Core Tiles - {ru}Развитые земли - {zh-tw}核心板塊：{zh-cn}核心板块：{ko}중심부 타일 - {es}Losetas Centrales - {fr}Tuiles de Base - {pt-br}Peças Centrais - {de}Core Teile - ",
+	cityTilesPrefix="{en}City Tiles - {ru}Земли с городом - {zh-tw}城市板塊：{zh-cn}城市板块：{ko}도시 타일 - {es}Losetas de Ciudad - {fr}Tuiles Ville - {pt-br} Peças Cidade - {de}Stadt Teile - "}
+
+local ROTF_TEXT_BY_LEVEL={[0]=SETUP_TEXT.notUsed,[1]=SETUP_TEXT.rotf1,[2]=SETUP_TEXT.rotf2,[3]=SETUP_TEXT.rotf3}
+
+local SCENARIO_SELECTION_BY_ID={
+	ConquestSelection="Conquest",
+	FirstReconnaissanceSelection="First Reconnaissance",
+	FirstConquestSelection="First Conquest",
+	MinesLiberationSelection="Mines Liberation",
+	DruidNightsSelection="Druid Nights",
+	DungeonLordsSelection="Dungeon Lords",
+	ConquerAndHoldSelection="Conquer and Hold",
+	OneToReturnSelection="One to Return",
+	VolkaresReturnSelection="Volkare's Return",
+	VolkaresQuestSelection="Volkare's Quest",
+	LifeAndDeathSelection="Life and Death",
+	TheRealmOfTheDeadSelection="The Realm of the Dead",
+	TheHiddenValleySelection="The Hidden Valley",
+	AgainsttheApocalypseSelection="Against the Apocalypse",
+	AgainsttheHorsemenSelection="Against the Horsemen",
+	AgainsttheDragonSelection="Against the Dragon",
+	ApocalypseIsHereSelection="Apocalypse is Here",
+	FuryOfTheApocalypseDragonSelection="Fury of the Apocalypse Dragon",
+	TheLostRelicSelection="The Lost Relic",
+	TheGauntletSelection="The Gauntlet",
+	QuestForTheGoldenGrailSelection="Quest for the Golden Grail",
+	TheChaosRiftSelection="The Chaos Rift",
+	UltimateConquestSelection="Ultimate Conquest",
+	FastForwardedConquestSelection="Fast Forwarded Conquest",
+	TheWarOfFourSelection="The War of Four",
+	RaidersOfTheCrusaderTempleSelection="Raiders of the Crusader Temple",
+	ForTheCouncilSelection="For the Council",
+	TheFracturedLandsSelection="The Fractured Lands",
+	CustomSelection="Custom"}
+
+local ROTF_SELECTION_LEVEL_BY_ID={ROTF0Selection=0,ROTF1Selection=1,ROTF2Selection=2,ROTF3Selection=3}
+
+local SETUP_DROPDOWN_CONTROL_BY_ID={
+	firstMKSelection={1,"MageDropDown",-275},
+	secondMKSelection={2,"MageDropDown",-275},
+	thirdMKSelection={3,"MageDropDown",-275},
+	fourthMKSelection={4,"MageDropDown",-275},
+	dummyMKSelection={5,"MageDropDown",-275},
+	ScenarioSelection={0,"ScenarioDropDown",90},
+	ROTFSelection={0,"ROTFDropDown",-115},
+	VolkareLevelSelection={0,"VolkareLevelDropDown",-305},
+	VolkareRaceSelection={0,"VolkareRaceDropDown",-335}}
+
+local SETUP_DROPDOWN_ROWS={
+	nobodyRow={"nobody","nobodySelectionImage","MageDropDown"},
+	AllSkillsRow={"All Skills","AllSkillsSelectionImage","MageDropDown"},
+	RANDOMRow={"Random","RANDOMSelectionImage","MageDropDown"},
+	ArytheaRow={"Arythea","ArytheaSelectionImage","MageDropDown"},
+	GoldyxRow={"Goldyx","GoldyxSelectionImage","MageDropDown"},
+	NorowasRow={"Norowas","NorowasSelectionImage","MageDropDown"},
+	TovakRow={"Tovak","TovakSelectionImage","MageDropDown"},
+	BraevalarRow={"Braevalar","BraevalarSelectionImage","MageDropDown"},
+	KrangRow={"Krang","KrangSelectionImage","MageDropDown"},
+	WolfhawkRow={"Wolfhawk","WolfhawkSelectionImage","MageDropDown"},
+	CoralRow={"Coral","CoralSelectionImage","MageDropDown"},
+	YmirghRow={"Ymirgh","YmirghSelectionImage","MageDropDown"},
+	MevokRow={"Mevok","MevokSelectionImage","MageDropDown"},
+	DusceniaRow={"Duscenia","DusceniaSelectionImage","MageDropDown"},
+	JormundRow={"Jormund","JormundSelectionImage","MageDropDown"},
+	MalekRow={"Malek","MalekSelectionImage","MageDropDown"},
+	ZirtaeRow={"Zirtae","ZirtaeSelectionImage","MageDropDown"},
+	DaringRow={"Daring","DaringSelectionImage","VolkareLevelDropDown",1},
+	HeroicRow={"Heroic","HeroicSelectionImage","VolkareLevelDropDown",2},
+	LegendaryRow={"Legendary","LegendarySelectionImage","VolkareLevelDropDown",3},
+	FairRow={"Fair","FairSelectionImage","VolkareRaceDropDown",1},
+	TightRow={"Tight","TightSelectionImage","VolkareRaceDropDown",2},
+	ThrillingRow={"Thrilling","ThrillingSelectionImage","VolkareRaceDropDown",3},
+	ConquestRow={"Conquest","ConquestSelectionImage","ScenarioDropDown"},
+	FirstReconnaissanceRow={"First Reconnaissance","FirstReconnaissanceSelectionImage","ScenarioDropDown"},
+	FirstConquestRow={"First Conquest","FirstConquestSelectionImage","ScenarioDropDown"},
+	MinesLiberationRow={"Mines Liberation","MinesLiberationSelectionImage","ScenarioDropDown"},
+	DruidNightsRow={"Druid Nights","DruidNightsSelectionImage","ScenarioDropDown"},
+	DungeonLordsRow={"Dungeon Lords","DungeonLordsSelectionImage","ScenarioDropDown"},
+	ConquerAndHoldRow={"Conquer and Hold","ConquerAndHoldSelectionImage","ScenarioDropDown"},
+	OneToReturnRow={"One to Return","OneToReturnSelectionImage","ScenarioDropDown"},
+	VolkaresReturnRow={"Volkare's Return","VolkaresReturnSelectionImage","ScenarioDropDown"},
+	VolkaresQuestRow={"Volkare's Quest","VolkaresQuestSelectionImage","ScenarioDropDown"},
+	LifeAndDeathRow={"Life and Death","LifeAndDeathSelectionImage","ScenarioDropDown"},
+	TheRealmOfTheDeadRow={"The Realm of the Dead Blitz","TheRealmOfTheDeadSelectionImage","ScenarioDropDown"},
+	TheHiddenValleyRow={"The Hidden Valley Blitz","TheHiddenValleySelectionImage","ScenarioDropDown"},
+	AgainsttheApocalypseRow={"Against the Apocalypse Blitz","AgainsttheApocalypseSelectionImage","ScenarioDropDown"},
+	AgainsttheHorsemenRow={"Against the Horsemen Blitz","AgainsttheHorsemenSelectionImage","ScenarioDropDown"},
+	AgainsttheDragonRow={"Against the Dragon Blitz","AgainsttheDragonSelectionImage","ScenarioDropDown"},
+	ApocalypseIsHereRow={"Apocalypse is Here","ApocalypseIsHereSelectionImage","ScenarioDropDown"},
+	FuryOfTheApocalypseDragonRow={"Fury of the Apocalypse Dragon","FuryOfTheApocalypseDragonSelectionImage","ScenarioDropDown"},
+	TheLostRelicRow={"The Lost Relic Blitz","TheLostRelicSelectionImage","ScenarioDropDown"},
+	TheGauntletRow={"The Gauntlet","TheGauntletSelectionImage","ScenarioDropDown"},
+	QuestForTheGoldenGrailRow={"Quest for the Golden Grail","QuestForTheGoldenGrailSelectionImage","ScenarioDropDown"},
+	TheChaosRiftRow={"The Chaos Rift","TheChaosRiftSelectionImage","ScenarioDropDown"},
+	UltimateConquestRow={"Ultimate Conquest","UltimateConquestSelectionImage","ScenarioDropDown"},
+	FastForwardedConquestRow={"Fast Forwarded Conquest","FastForwardedConquestSelectionImage","ScenarioDropDown"},
+	TheWarOfFourRow={"The War of Four","TheWarOfFourSelectionImage","ScenarioDropDown"},
+	RaidersOfTheCrusaderTempleRow={"Raiders of the Crusader Temple","RaidersOfTheCrusaderTempleSelectionImage","ScenarioDropDown"},
+	ForTheCouncilRow={"For the Council","ForTheCouncilSelectionImage","ScenarioDropDown"},
+	TheFracturedLandsRow={"The Fractured Lands Blitz","TheFracturedLandsSelectionImage","ScenarioDropDown"},
+	CustomRow={"Custom","CustomSelectionImage","ScenarioDropDown"},
+	ROTF0Row={"Not Used","ROTF0SelectionImage","ROTFDropDown"},
+	ROTF1Row={"1. New Beginning","ROTF1SelectionImage","ROTFDropDown"},
+	ROTF2Row={"2. Spoils of War","ROTF2SelectionImage","ROTFDropDown"},
+	ROTF3Row={"3. Elixir of Life","ROTF3SelectionImage","ROTFDropDown"}}
+
+local MAGE_KNIGHT_SELECTION_BY_ID={
+	nobodySelection="nobody",AllSkillsSelection="All Skills",RANDOMSelection="Random",
+	ArytheaSelection="Arythea",GoldyxSelection="Goldyx",NorowasSelection="Norowas",TovakSelection="Tovak",
+	BraevalarSelection="Braevalar",KrangSelection="Krang",WolfhawkSelection="Wolfhawk",CoralSelection="Coral",
+	YmirghSelection="Ymirgh",MevokSelection="Mevok",DusceniaSelection="Duscenia",JormundSelection="Jormund",
+	MalekSelection="Malek",ZirtaeSelection="Zirtae"}
+
+local MAGE_KNIGHT_CONTROL_POSITION={
+	firstMKSelection=1,secondMKSelection=2,thirdMKSelection=3,fourthMKSelection=4,dummyMKSelection=5}
+local MAGE_KNIGHT_CONTROL_IDS={"firstMKSelection","secondMKSelection","thirdMKSelection","fourthMKSelection","dummyMKSelection"}
+
+local VOLKARE_COMBAT_SELECTION_BY_ID={
+	DaringSelection={"Daring",1},HeroicSelection={"Heroic",2},LegendarySelection={"Legendary",3}}
+local VOLKARE_RACE_SELECTION_BY_ID={
+	FairSelection={"Fair",1},TightSelection={"Tight",2},ThrillingSelection={"Thrilling",3}}
+
+local scenarioRefByName={}
+for scenarioRef,scenario in ipairs(scenarioList) do scenarioRefByName[scenario[1]]=scenarioRef end
+
+local function scenarioRefForName(name)
+	return type(name)=="string" and scenarioRefByName[name] or nil
+end
+
+local function scenarioRefForSelection(name)
+	return scenarioRefForName(name) or scenarioRefForName(type(name)=="string" and name.." Blitz" or nil)
+end
+
+local function blitzPolicyForScenarioSelection(name)
+	local scenarioRef=scenarioRefForSelection(name)
+	local details=scenarioRef~=nil and scenarioList[scenarioRef].scenarioDetails or nil
+	return details~=nil and details.blitzPossible or nil
+end
+
+local function setScenarioBlitzIdentity(enabled)
+	local current=gStates.gameScenario
+	local base=current
+	if type(base)=="string" and base:sub(-6)==" Blitz" then base=base:sub(1,-7) end
+	local desired=enabled and base.." Blitz" or base
+	if scenarioRefForName(desired)~=nil then gStates.gameScenario=desired end
+end
+
+local function setSetupToggle(id,value,interactable)
+	if value~=nil then
+		UI.setAttribute(id,"isOn",value and "true" or "false")
+		gStates[id]=value
+	end
+	if interactable~=nil then UI.setAttribute(id,"interactable",interactable and "True" or "False") end
+end
+
+local SETUP_TOGGLE_DEFAULTS={
+	volkareCampAsCity={false,false},
+	removeLostLegionExpansion={false,true},
+	randomTileOrientation={false,true},
+	randomCities={false,true},
+	removeShadesOfTezlaMonsters={false,true},
+	removeApocalypseTerrain={false,true},
+	startAtNight={false,true},
+	rampageAmbush={false,true},
+	rampagePursuit={false,true},
+	darknessComing={false,true},
+	mageKnightLevels={false,true},
+	useCustomMageKnights={false,true},
+	removeBonusCards={false,true},
+	weatherMod={false,true},
+	questMod={false,true},
+	apocalypseQuestCards={false,true},
+	proxyPlayer={false,true},
+	itemShopMod={false,true},
+	removeTerrain={false,true},
+	useAlternatePugs={false,true}}
+
+local SCENARIO_OPTION_OVERRIDES={
+	["First Reconnaissance"]={
+		randomTileOrientation={false,false},removeShadesOfTezlaMonsters={true,false},removeApocalypseTerrain={true,false},
+		startAtNight={false,false},rampageAmbush={false,false},rampagePursuit={false,false},darknessComing={false,false},
+		mageKnightLevels={false,false},useCustomMageKnights={false,false},removeBonusCards={true,false},weatherMod={false,false},
+		questMod={false,false},apocalypseQuestCards={false,false},proxyPlayer={false,false},itemShopMod={false,false},
+		heroChallenges={false,false},removeTerrain={false,false}},
+	["First Conquest"]={volkareCampAsCity={false,true}},
+	["Conquest"]={volkareCampAsCity={false,true}},
+	["Conquest Blitz"]={volkareCampAsCity={false,true}},
+	["Ultimate Conquest"]={volkareCampAsCity={false,true}},
+	["Fast Forwarded Conquest"]={volkareCampAsCity={false,true},startAtNight={true,false},mageKnightLevels={true,false}},
+	["The Lost Relic Blitz"]={volkareCampAsCity={false,true},mageKnightLevels={true,false}},
+	["The Fractured Lands Blitz"]={volkareCampAsCity={false,true},randomTileOrientation={false,false},questMod={false,false},apocalypseQuestCards={true,false}},
+	["One to Return"]={volkareCampAsCity={false,true},proxyPlayer={false,false}},
+	["Against the Horsemen Blitz"]={volkareCampAsCity={false,true},removeTerrain={false,false}},
+	["Mines Liberation"]={removeTerrain={false,false}},
+	["Druid Nights"]={removeTerrain={false,false}},
+	["The Gauntlet"]={removeTerrain={false,false}},
+	["Quest for the Golden Grail"]={removeTerrain={false,false},mageKnightLevels={false,false}},
+	["The Chaos Rift"]={removeTerrain={false,false},mageKnightLevels={false,false}},
+	["Life and Death"]={removeTerrain={false,false},removeShadesOfTezlaMonsters={false,false}},
+	["The Realm of the Dead Blitz"]={removeTerrain={false,false},removeShadesOfTezlaMonsters={false,false},rampagePursuit={true,false}},
+	["The Hidden Valley Blitz"]={removeShadesOfTezlaMonsters={false,false},rampageAmbush={true,false}},
+	["Against the Apocalypse Blitz"]={removeApocalypseTerrain={false,false}},
+	["For the Council"]={questMod={false,false},apocalypseQuestCards={true,false}},
+	["Conquer and Hold"]={proxyPlayer={false,false}},
+	["Volkare's Return"]={proxyPlayer={false,false}},
+	["Volkare's Return Blitz"]={proxyPlayer={false,false}},
+	["Volkare's Quest"]={proxyPlayer={false,false}},
+	["The War of Four"]={proxyPlayer={false,false},removeShadesOfTezlaMonsters={false,false}}}
+
+local function applyScenarioToggleDefaults()
+	for id,details in pairs(SETUP_TOGGLE_DEFAULTS) do setSetupToggle(id,details[1],details[2]) end
+	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
+	if overrides~=nil then
+		for id,details in pairs(overrides) do setSetupToggle(id,details[1],details[2]) end
+	end
+	UI.setAttribute("darknessComing","text",gStates.startAtNight==true and SETUP_TEXT.daylightComing or SETUP_TEXT.darknessComing)
+end
+
+
+local function scenarioOptionHardLock(id)
+	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
+	local details=overrides~=nil and overrides[id] or nil
+	if details~=nil and details[2]==false then return true,details[1] end
+	return false,nil
+end
+
+local function clearCustomMageKnightSelections(preserveRememberedDummy)
+	for position=1,4 do
+		local mage=gStates.positionMageKnight[position]
+		if customMages[mage]~=nil then
+			gStates.positionMageKnight[position]="nobody"
+			UI.setAttribute(MAGE_KNIGHT_CONTROL_IDS[position].."Text","text",translateWord["nobody"])
+		end
+	end
+	if gStates.positionMageKnight[5]=="Volkare" then
+		if customMages[gStates.volkareSkills]~=nil then
+			gStates.volkareSkills="Random"
+			if preserveRememberedDummy~=true then gStates.setupDummyMageChoice="Random" end
+			UI.setAttribute("dummyMKSelectionText","text",translateWord["Random"])
+		end
+	elseif customMages[gStates.positionMageKnight[5]]~=nil then
+		gStates.positionMageKnight[5]="nobody"
+		if preserveRememberedDummy~=true then gStates.setupDummyMageChoice="nobody" end
+		UI.setAttribute("dummyMKSelectionText","text",translateWord["nobody"])
+	end
+	if preserveRememberedDummy~=true and customMages[gStates.setupDummyMageChoice]~=nil then gStates.setupDummyMageChoice="nobody" end
+end
+
+local function renderDummySetupSection()
+	local volkareOn=gStates.positionMageKnight~=nil and gStates.positionMageKnight[5]=="Volkare"
+	UI.setAttribute("VolkareLevelSelectionRow","active",volkareOn and "true" or "false")
+	UI.setAttribute("VolkareRaceSelectionRow","active",volkareOn and gStates.gameScenario~="The War of Four" and "true" or "false")
+	if volkareOn then
+		UI.setAttribute("DummyPosText","text",SETUP_TEXT.volkareSkills)
+		UI.setAttribute("dummyMKSelectionText","text",translateWord[gStates.volkareSkills or "Random"] or translateWord["Random"])
+		local showRace=gStates.gameScenario~="The War of Four"
+		UI.setAttribute("MageKnightDetails","height",showRace and "240" or "210")
+		UI.setAttribute("Setup1Details","height",showRace and "406" or "436")
+		UI.setAttribute("Setup2Details","height",showRace and "406" or "436")
+		UI.setAttribute("Setup1DetailsSub","height",showRace and "346" or "376")
+		UI.setAttribute("Setup2DetailsSub","height",showRace and "346" or "376")
+	else
+		UI.setAttribute("DummyPosText","text",SETUP_TEXT.dummyMageKnight)
+		local dummy=gStates.positionMageKnight~=nil and (gStates.positionMageKnight[5] or "nobody") or "nobody"
+		UI.setAttribute("dummyMKSelectionText","text",translateWord[dummy] or translateWord["nobody"])
+		UI.setAttribute("MageKnightDetails","height","180")
+		UI.setAttribute("Setup1Details","height","466")
+		UI.setAttribute("Setup2Details","height","466")
+		UI.setAttribute("Setup1DetailsSub","height","406")
+		UI.setAttribute("Setup2DetailsSub","height","406")
+	end
+end
+
 local function copyScenarioCityLevels(source)
 	local result={}
 	for a,value in ipairs(source or {}) do result[a]=value end
@@ -39591,6 +39759,7 @@ function cacheScenarioTweakDefaults()
 				scenarioTweakDefaults[scenarioRef][playersRef]={
 					rounds=source.rounds,
 					mapShape=source.mapShape,
+					mapShapeKey=source.mapShapeKey,
 					countryTiles=source.countryTiles,
 					coreTiles=source.coreTiles,
 					cityTiles=source.cityTiles,
@@ -39609,8 +39778,7 @@ function setupPlayersRef()
 	if gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="First Conquest" then playersRef=5 end
 	--Browsing/randomizing can preserve a dummy while entering a scenario that has no multiplayer co-op row.
 	--Use that scenario's normal player-count row for the info panel; refreshSetupStartButton() still blocks the illegal setup.
-	local scenarioRef=nil
-	for a=1,#scenarioList do if scenarioList[a][1]==gStates.gameScenario then scenarioRef=a break end end
+	local scenarioRef=scenarioRefForName(gStates.gameScenario)
 	local scenario=scenarioRef~=nil and scenarioList[scenarioRef] or nil
 	if scenario~=nil and (scenario[playersRef]==nil or scenario[playersRef].rounds==nil) then
 		local fallbackRef=math.max(gStates.playerCount,2)
@@ -39621,14 +39789,14 @@ end
 
 function resetCurrentScenarioTweaks()
 	cacheScenarioTweakDefaults()
-	local scenarioRef=nil
-	for a=1,#scenarioList do if scenarioList[a][1]==gStates.gameScenario then scenarioRef=a break end end
+	local scenarioRef=scenarioRefForName(gStates.gameScenario)
 	local playersRef=setupPlayersRef()
 	if scenarioRef==nil or scenarioTweakDefaults==nil or scenarioTweakDefaults[scenarioRef]==nil or scenarioTweakDefaults[scenarioRef][playersRef]==nil then return end
 	local defaults=scenarioTweakDefaults[scenarioRef][playersRef]
 	local target=scenarioList[scenarioRef][playersRef]
 	target.rounds=defaults.rounds
 	target.mapShape=defaults.mapShape
+	target.mapShapeKey=defaults.mapShapeKey
 	target.countryTiles=defaults.countryTiles
 	target.coreTiles=defaults.coreTiles
 	target.cityTiles=defaults.cityTiles
@@ -39640,10 +39808,24 @@ function resetCurrentScenarioTweaks()
 	gStates.megapolis=0
 end
 
+--Apply the same scenario defaults whether the scenario came from the setup menu, a randomizer,
+--or one of the quick-start buttons. Blitz variants are normalized through the ordinary scenario
+--selection path first so forced/selectable Blitz rules cannot drift into separate implementations.
+function applyScenarioSetupDefaults(scenarioName)
+	if type(scenarioName)~="string" or scenarioName=="" then return false end
+	local requested=scenarioName
+	local baseScenario=requested
+	if requested:sub(-6)==" Blitz" then baseScenario=requested:sub(1,-7) end
+	scenarioSelection(nil, "-1", baseScenario)
+	if requested:sub(-6)==" Blitz" and gStates.gameScenario~=requested then
+		BlitzSelection(nil, "True", "BlitzSelection")
+	end
+	return gStates.gameScenario==requested
+end
+
 function randomSetup(player, value, id)
 	local value=scenarioList[math.random(2, #scenarioList-1)][1]
-	if value:reverse():sub(1, 5)=="ztilB" then scenarioSelection(nil, "-1", value:sub(1, string.len(value)-6)) else scenarioSelection(nil, "-1", value) end
-	if (value=="Conquest Blitz" or value=="Volkare's Return Blitz") then BlitzSelection(nil, "True", "BlitzSelection") end
+	applyScenarioSetupDefaults(value)
 	--scenarioSelection updates setup state synchronously; randomize immediately instead of sleeping a frame.
 	local randomOptions={"volkareCampAsCity", "randomTileOrientation", "randomCities", "removeShadesOfTezlaMonsters", "removeApocalypseTerrain",	"startAtNight", "darknessComing", "heroChallenges", "useCustomMageKnights", "weatherMod", "questMod", "apocalypseQuestCards", "proxyPlayer", "itemShopMod", "rampageAmbush", "rampagePursuit", "removeTerrain"}
 	for a=1, #randomOptions, 1 do
@@ -39679,35 +39861,6 @@ end
 
 function scenarioSelection(player, mouseButton, id)
 	if mouseButton=="-1" then
-		local IDConvert={	["ConquestSelection"]={"Conquest"},
-							["FirstReconnaissanceSelection"]={"First Reconnaissance"},
-							["FirstConquestSelection"]={"First Conquest"},
-							["MinesLiberationSelection"]={"Mines Liberation"},
-							["DruidNightsSelection"]={"Druid Nights"},
-							["DungeonLordsSelection"]={"Dungeon Lords"},
-							["ConquerAndHoldSelection"]={"Conquer and Hold"},
-							["OneToReturnSelection"]={"One to Return"},
-							["VolkaresReturnSelection"]={"Volkare's Return"},
-							["VolkaresQuestSelection"]={"Volkare's Quest"},
-							["LifeAndDeathSelection"]={"Life and Death"},
-							["TheRealmOfTheDeadSelection"]={"The Realm of the Dead"},
-							["TheHiddenValleySelection"]={"The Hidden Valley"},
-							["AgainsttheApocalypseSelection"]={"Against the Apocalypse"},
-							["AgainsttheHorsemenSelection"]={"Against the Horsemen"},
-							["AgainsttheDragonSelection"]={"Against the Dragon"},
-							["ApocalypseIsHereSelection"]={"Apocalypse is Here"},
-							["FuryOfTheApocalypseDragonSelection"]={"Fury of the Apocalypse Dragon"},
-							["TheLostRelicSelection"]={"The Lost Relic"},
-							["TheGauntletSelection"]={"The Gauntlet"},
-							["QuestForTheGoldenGrailSelection"]={"Quest for the Golden Grail"},
-							["TheChaosRiftSelection"]={"The Chaos Rift"},
-							["UltimateConquestSelection"]={"Ultimate Conquest"},
-							["FastForwardedConquestSelection"]={"Fast Forwarded Conquest"},
-							["TheWarOfFourSelection"]={"The War of Four"},
-							["RaidersOfTheCrusaderTempleSelection"]={"Raiders of the Crusader Temple"},
-							["ForTheCouncilSelection"]={"For the Council"},
-							["TheFracturedLandsSelection"]={"The Fractured Lands"},
-							["CustomSelection"]={"Custom"}}
 		--Preserve the dummy choice while browsing scenarios. Volkare uses the same remembered Mage Knight as his skill set.
 		--Scenario-forced "nobody" does not erase the remembered choice, so it survives scenarios that disallow a dummy.
 		if gStates.positionMageKnight[5]=="Volkare" then
@@ -39717,13 +39870,12 @@ function scenarioSelection(player, mouseButton, id)
 		elseif gStates.setupDummyMageChoice==nil then
 			gStates.setupDummyMageChoice="nobody"
 		end
-		gStates.gameScenario=id
-		if IDConvert[id]~=nil then gStates.gameScenario=IDConvert[id][1] end
+		gStates.gameScenario=SCENARIO_SELECTION_BY_ID[id] or id
 		UI.setAttribute("ScenarioSelectionText", "text", translateWord[gStates.gameScenario])
 		UI.setAttribute("ScenarioSelectionImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
 		--Keep the selected Mage Knights when browsing scenarios. The dummy is retained too, except where the scenario forces it off or replaces it with Volkare.
-		local MKDropDownUI={"firstMKSelection", "secondMKSelection", "thirdMKSelection", "fourthMKSelection"}
+		local MKDropDownUI=MAGE_KNIGHT_CONTROL_IDS
 		gStates.playerCount=0
 		for a=1, 4, 1 do
 			local mage=gStates.positionMageKnight[a] or "nobody"
@@ -39741,290 +39893,92 @@ function scenarioSelection(player, mouseButton, id)
 		UI.setAttribute("DropDown", "active", "false")
 		gStates.megapolis=0
 		gStates.coop=gStates.positionMageKnight[5]~="nobody" and 1 or 0
-		--Dummy Menu Access
-		UI.setAttribute("VolkareLevelSelectionRow", "active", "false")
-		UI.setAttribute("VolkareRaceSelectionRow", "active", "false")
-		UI.setAttribute("MageKnightDetails", "height", "180")
-		UI.setAttribute("Setup1Details", "height", "466")
-		UI.setAttribute("Setup2Details", "height", "466")
-		UI.setAttribute("Setup1DetailsSub", "height", "406")
-		UI.setAttribute("Setup2DetailsSub", "height", "406")
+		--Scenario-specific dummy state; layout is rendered by the shared helper.
+		if gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" then
+			gStates.positionMageKnight[5]="nobody"
+			gStates.coop=0
+		elseif gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
+			if gStates.setupDummyMageChoice~=nil and gStates.setupDummyMageChoice~="nobody" then gStates.volkareSkills=gStates.setupDummyMageChoice else gStates.volkareSkills="Random" end
+			gStates.positionMageKnight[5]="Volkare"
+			gStates.coop=1
+		end
+		renderDummySetupSection()
+		--Blitz is normally player-selectable. Some scenarios default it on; First Recon locks it off.
+		UI.setAttribute("BlitzSelection","textColor","rgb(0.0,0.0,0.0)")
+		local selectedScenario=gStates.gameScenario
+		local blitzOn=blitzPolicyForScenarioSelection(selectedScenario)=="On Only"
+		gStates.blitz=blitzOn and 1 or 0
+		UI.setAttribute("BlitzSelection","isOn",blitzOn and "true" or "false")
+		setScenarioBlitzIdentity(blitzOn)
+		UI.setAttribute("BlitzSelection","interactable",selectedScenario=="First Reconnaissance" and "False" or "True")
+
+		--Reset ordinary setup toggles from one policy table, then apply scenario-specific overrides.
+		--Hero Challenges intentionally survives scenario browsing and is therefore not part of this reset.
+		applyScenarioToggleDefaults()
+		if randomCitiesAllowedForScenario()==false then UI.setAttribute("randomCities","interactable","False") end
 		refreshProxySetupLabel()
-		if gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" or gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
-			if gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" then
-				UI.setAttribute("dummyMKSelection", "interactable", "false")
-				UI.setAttribute("dummyMKSelectionImage", "image", "Sliced Button/Button New Deactive")
-				UI.setAttribute("dummyMKSelectionText", "text", "{en}nobody{ru}никто{zh-tw}無玩家{zh-cn}无玩家{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand")
-				gStates.positionMageKnight[5]="nobody"
-				gStates.coop=0
-			else
-				--UI.setAttribute("dummyMKSelectionText", "text", "{en}Volkare{ru}Волкар{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어{es}Volkare{fr}Volkare{pt-br}Volkare{de}Volkare")
-				UI.setAttribute("DummyPosText", "text", "{en}Volkare Skills -{ru}Навыки Волкаре -{zh-tw}沃卡里技能：{zh-cn}沃卡里技能：{ko}볼케어의 스킬 -{es}Habilidades de Volkare -{fr}Compétences de Volkare -{pt-br}Habilidades de Volkare -{de}Volkare-Fähigkeiten -")
-				if gStates.setupDummyMageChoice~=nil and gStates.setupDummyMageChoice~="nobody" then gStates.volkareSkills=gStates.setupDummyMageChoice else gStates.volkareSkills="Random" end
-				UI.setAttribute("dummyMKSelectionText", "text", translateWord[gStates.volkareSkills] or translateWord["Random"])
-				UI.setAttribute("VolkareLevelSelectionRow", "active", "true")
-				UI.setAttribute("MageKnightDetails", "height", "210")
-				UI.setAttribute("Setup1Details", "height", "436")
-				UI.setAttribute("Setup2Details", "height", "436")
-				UI.setAttribute("Setup1DetailsSub", "height", "376")
-				UI.setAttribute("Setup2DetailsSub", "height", "376")
-				if gStates.gameScenario~="The War of Four" then
-					UI.setAttribute("VolkareRaceSelectionRow", "active", "true")
-					UI.setAttribute("MageKnightDetails", "height", "240")
-					UI.setAttribute("Setup1Details", "height", "406")
-					UI.setAttribute("Setup2Details", "height", "406")
-					UI.setAttribute("Setup1DetailsSub", "height", "346")
-					UI.setAttribute("Setup2DetailsSub", "height", "346")
-				end
-				gStates.positionMageKnight[5]="Volkare"
-				gStates.coop=1
-			end
-		end
-		--Blitz Menu Access
-		UI.setAttribute("BlitzSelection", "textColor", "rgb(0.0,0.0,0.0)")
-		UI.setAttribute("BlitzSelection", "interactable", "True")
-		UI.setAttribute("BlitzSelection", "isOn", "false")
-		gStates.blitz=0
-		if gStates.gameScenario=="First Reconnaissance" then
-			UI.setAttribute("BlitzSelection", "interactable", "False")
-		else
-			if gStates.gameScenario=="The Realm of the Dead" or gStates.gameScenario=="The Hidden Valley" or gStates.gameScenario=="The Lost Relic" or gStates.gameScenario=="Against the Apocalypse" or gStates.gameScenario=="Against the Horsemen" or gStates.gameScenario=="Against the Dragon" or gStates.gameScenario=="The Fractured Lands" then
-			 	UI.setAttribute("BlitzSelection", "isOn", "true")
-				gStates.blitz=1
-			end
-			for a=1, #scenarioList, 1 do
-				if gStates.blitz==1 and gStates.gameScenario.." Blitz"==scenarioList[a][1] then gStates.gameScenario=gStates.gameScenario.." Blitz" break end
-				if gStates.blitz==0 and gStates.gameScenario:sub(1, -7)==scenarioList[a][1] then gStates.gameScenario=gStates.gameScenario:sub(1, -7) break end
-			end
-			if gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Against the Dragon Blitz" then UI.setAttribute("BlitzSelection", "interactable", "False") end
-		end
-		--Volkare's Camp Menu Access
-		UI.setAttribute("volkareCampAsCity", "interactable", "True")
-		UI.setAttribute("volkareCampAsCity", "isOn", "false")
-		gStates.volkareCampAsCity=false
-		if gStates.gameScenario~="First Conquest" and gStates.gameScenario~="Conquest" and gStates.gameScenario~="Ultimate Conquest" and gStates.gameScenario~="Fast Forwarded Conquest" and gStates.gameScenario~="The Lost Relic Blitz" and gStates.gameScenario~="The Fractured Lands Blitz" and gStates.gameScenario~="One to Return" and gStates.gameScenario~="Against the Horsemen Blitz" then UI.setAttribute("volkareCampAsCity", "interactable", "False") end
-		--Lost Legion Menu Access
-		UI.setAttribute("removeLostLegionExpansion", "interactable", "True")
-		UI.setAttribute("removeLostLegionExpansion", "isOn", "false")
-		gStates.removeLostLegionExpansion=false
-		refreshLostLegionExpansionOption()
-		--Rotated Terrain Menu access
-		UI.setAttribute("randomTileOrientation", "interactable", "True")
-		UI.setAttribute("randomTileOrientation", "isOn", "false")
-		gStates.randomTileOrientation=false
-		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Fractured Lands Blitz" then UI.setAttribute("randomTileOrientation", "interactable", "False") end
-		--Random Cities Menu access - could be locked off for scenarios without city fighting
-		UI.setAttribute("randomCities", "interactable", "True")
-		UI.setAttribute("randomCities", "isOn", "false")
-		gStates.randomCities=false
-		if randomCitiesAllowedForScenario()==false then UI.setAttribute("randomCities", "interactable", "False") end
-		--Shades of Tezla monsters are included by default.
-		UI.setAttribute("removeShadesOfTezlaMonsters", "interactable", "True")
-		UI.setAttribute("removeShadesOfTezlaMonsters", "isOn", "false")
-		gStates.removeShadesOfTezlaMonsters=false
-		if gStates.gameScenario=="First Reconnaissance" then
-			UI.setAttribute("removeShadesOfTezlaMonsters", "isOn", "true")
-			UI.setAttribute("removeShadesOfTezlaMonsters", "interactable", "False")
-			gStates.removeShadesOfTezlaMonsters=true
-		elseif gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The War of Four" then
-			UI.setAttribute("removeShadesOfTezlaMonsters", "isOn", "false")
-			UI.setAttribute("removeShadesOfTezlaMonsters", "interactable", "False")
-			gStates.removeShadesOfTezlaMonsters=false
-		end
-		--Apocalypse Dragon Terrain is included by default. Only scenarios that require a specific state lock this removal option.
-		UI.setAttribute("removeApocalypseTerrain", "interactable", "True")
-		UI.setAttribute("removeApocalypseTerrain", "isOn", "false")
-		gStates.removeApocalypseTerrain=false
-		if gStates.gameScenario=="First Reconnaissance" then
-			UI.setAttribute("removeApocalypseTerrain", "isOn", "true")
-			gStates.removeApocalypseTerrain=true
-		elseif gStates.gameScenario=="Against the Apocalypse Blitz" then
-			UI.setAttribute("removeApocalypseTerrain", "isOn", "false")
-			gStates.removeApocalypseTerrain=false
-		end
-		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Against the Apocalypse Blitz" then UI.setAttribute("removeApocalypseTerrain", "interactable", "False") end
-		--Rampage Menu Access
-		UI.setAttribute("RampageSelection", "interactable", "True")
-		UI.setAttribute("MoreRampageSelection", "interactable", "True")
-		UI.setAttribute("RampageSelection", "isOn", "false")
-		UI.setAttribute("MoreRampageSelection", "isOn", "false")
+
+		--Rampage uses a three-state value instead of a normal boolean toggle.
+		UI.setAttribute("RampageSelection","interactable","True")
+		UI.setAttribute("MoreRampageSelection","interactable","True")
+		UI.setAttribute("RampageSelection","isOn","false")
+		UI.setAttribute("MoreRampageSelection","isOn","false")
 		gStates.rampage=0
 		if gStates.gameScenario=="First Reconnaissance" then
-			UI.setAttribute("RampageSelection", "interactable", "False")
-			UI.setAttribute("MoreRampageSelection", "interactable", "False")
+			UI.setAttribute("RampageSelection","interactable","False")
+			UI.setAttribute("MoreRampageSelection","interactable","False")
 		end
-		--Day Night Menu Access
-		UI.setAttribute("startAtNight", "interactable", "True")
-		UI.setAttribute("startAtNight", "isOn", "False")
-		UI.setAttribute("darknessComing", "text", "{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵袭{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel")
-		gStates.startAtNight=false
-		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Fast Forwarded Conquest" then
-			UI.setAttribute("startAtNight", "interactable", "False")
-			if gStates.gameScenario=="Fast Forwarded Conquest" then
-				UI.setAttribute("startAtNight", "isOn", "True")
-				gStates.startAtNight=true
-			end
-		end
-		--Ambush Menu Access
-		UI.setAttribute("rampageAmbush", "interactable", "True")
-		UI.setAttribute("rampageAmbush", "isOn", "False")
-		gStates.rampageAmbush=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("rampageAmbush", "interactable", "False") end
-		if gStates.gameScenario=="The Hidden Valley Blitz" then
-			UI.setAttribute("rampageAmbush", "isOn", "True")
-			UI.setAttribute("rampageAmbush", "interactable", "False")
-			gStates.rampageAmbush=true
-		end
-		--Pursuit Menu Access
-		UI.setAttribute("rampagePursuit", "interactable", "True")
-		UI.setAttribute("rampagePursuit", "isOn", "False")
-		gStates.rampagePursuit=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("rampagePursuit", "interactable", "False") end
-		if gStates.gameScenario=="The Realm of the Dead Blitz" then
-			UI.setAttribute("rampagePursuit", "isOn", "True")
-			UI.setAttribute("rampagePursuit", "interactable", "False")
-			gStates.rampagePursuit=true
-		end
-		--Darkness is Coming Menu Access
-		UI.setAttribute("darknessComing", "interactable", "True")
-		UI.setAttribute("darknessComing", "isOn", "false")
-		gStates.darknessComing=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("darknessComing", "interactable", "False") end
-		--Mage Knight Level Menu access
-		UI.setAttribute("mageKnightLevels", "interactable", "True")
-		UI.setAttribute("mageKnightLevels", "isOn", "False")
-		gStates.mageKnightLevels=false
-		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="Fast Forwarded Conquest" then
-			UI.setAttribute("mageKnightLevels", "interactable", "False")
-			if gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="Fast Forwarded Conquest" then
-				UI.setAttribute("mageKnightLevels", "isOn", "True")
-				gStates.mageKnightLevels=true
-			end
-		end
-		--Ymirgh Menu Access
-		UI.setAttribute("useCustomMageKnights", "interactable", "True")
-		UI.setAttribute("useCustomMageKnights", "isOn", "false")
-		gStates.useCustomMageKnights=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("useCustomMageKnights", "interactable", "False") end
-		--Bonus Cards Menu Access
-		UI.setAttribute("removeBonusCards", "interactable", "True")
-		UI.setAttribute("removeBonusCards", "isOn", "false")
-		gStates.removeBonusCards=false
-		if gStates.gameScenario=="First Reconnaissance" then
-			UI.setAttribute("removeBonusCards", "interactable", "False")
-			UI.setAttribute("removeBonusCards", "isOn", "true")
-			gStates.removeBonusCards=true
-		end
-		--Weather Menu Access
-		UI.setAttribute("weatherMod", "interactable", "True")
-		UI.setAttribute("weatherMod", "isOn", "false")
-		gStates.weatherMod=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("weatherMod", "interactable", "False") end
-		--Quest Menu Access
-		UI.setAttribute("questMod", "interactable", "True")
-		UI.setAttribute("questMod", "isOn", "false")
-		gStates.questMod=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("questMod", "interactable", "False") end
-		--Official Apocalypse Dragon Quest Cards Menu Access
-		UI.setAttribute("apocalypseQuestCards", "interactable", "True")
-		UI.setAttribute("apocalypseQuestCards", "isOn", "false")
-		gStates.apocalypseQuestCards=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("apocalypseQuestCards", "interactable", "False") end
-		if gStates.gameScenario=="For the Council" or gStates.gameScenario=="The Fractured Lands Blitz" then
-			UI.setAttribute("questMod", "isOn", "false")
-			UI.setAttribute("questMod", "interactable", "false")
-			gStates.questMod=false
-			UI.setAttribute("apocalypseQuestCards", "isOn", "true")
-			UI.setAttribute("apocalypseQuestCards", "interactable", "false")
-			gStates.apocalypseQuestCards=true
-		end
-		--Proxy Player Menu Access
-		UI.setAttribute("proxyPlayer", "interactable", "True")
-		UI.setAttribute("proxyPlayer", "isOn", "false")
-		gStates.proxyPlayer=false
-		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" or
-			gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
-			UI.setAttribute("proxyPlayer", "interactable", "False")
-		end
-		refreshProxySetupLabel()
-		--Item Shop Menu Access
-		UI.setAttribute("itemShopMod", "interactable", "True")
-		UI.setAttribute("itemShopMod", "isOn", "false")
-		gStates.itemShopMod=false
-		if gStates.gameScenario=="First Reconnaissance" then UI.setAttribute("itemShopMod", "interactable", "False") end
 		--Volkare's Race and Combat Level Menu Access
 		if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
 			UI.setAttribute("VolkareLevelSelection", "interactable", "True")
-			UI.setAttribute("VolkareLevelSelection", "text", "{en}Daring{ru}Смелый{zh-tw}大膽{zh-cn}大胆{ko}대담한{es}Atrevido{fr}Audacieux{pt-br}Ousado{de}Wagemutig")
+			UI.setAttribute("VolkareLevelSelectionText", "text", translateWord["Daring"])
 			gStates.volkareCombatLevel=1
 			UI.setAttribute("VolkareRaceSelection", "interactable", "True")
-			UI.setAttribute("VolkareRaceSelection", "text", translateWord["Fair"])
+			UI.setAttribute("VolkareRaceSelectionText", "text", translateWord["Fair"])
 			gStates.volkareRaceLevel=1
 		else
 			UI.setAttribute("VolkareLevelSelection", "interactable", "False")
-			UI.setAttribute("VolkareLevelSelection", "text", "{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet")
+			UI.setAttribute("VolkareLevelSelectionText", "text", SETUP_TEXT.notUsed)
 			UI.setAttribute("VolkareRaceSelection", "interactable", "False")
-			UI.setAttribute("VolkareRaceSelection", "text", "{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet")
+			UI.setAttribute("VolkareRaceSelectionText", "text", SETUP_TEXT.notUsed)
 		end
 		--Rise of the forgemaster Menu Access
 		UI.setAttribute("ROTFSelection", "interactable", "True")
-		UI.setAttribute("ROTFSelectionText", "text", "{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet")
+		UI.setAttribute("ROTFSelectionText", "text", SETUP_TEXT.notUsed)
 		UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Active")
 		gStates.riseOfTheForgemasters=0
 		if gStates.gameScenario=="First Reconnaissance" then
 			UI.setAttribute("ROTFSelection", "interactable", "False")
 			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Deactive")
 	 	end
-		--Remove terrain Tiles Menu Access
-		UI.setAttribute("removeTerrain", "interactable", "True")
-		UI.setAttribute("removeTerrain", "ison", "False")
-		gStates.removeTerrain=false
-		if gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="Against the Horsemen Blitz" then
-			UI.setAttribute("removeTerrain", "interactable", "False")
-	 	end
-		--Alternate Monster Tokens Menu Access
-		UI.setAttribute("useAlternatePugs", "interactable", "True")
-		UI.setAttribute("useAlternatePugs", "ison", "False")
-		gStates.useAlternatePugs=false
 		--Changing scenario discards any previous Optional Scenario Tweaks and reloads
 		--the defaults for this scenario and the currently selected Mage Knight count.
 		resetCurrentScenarioTweaks()
-		refreshHeroChallengeOptionLocks()
 		scenarioInfoUpdate()
 	end
 end
 
 function BlitzSelection(player, value, id)
-	if gStates.gameScenario=="Against the Horsemen Blitz" and value~="True" then
-		UI.setAttribute("BlitzSelection", "isOn", "true")
-		UI.setAttribute("BlitzSelection", "interactable", "False")
-		gStates.blitz=1
+	if gStates.gameScenario=="First Reconnaissance" and value=="True" then
+		UI.setAttribute("BlitzSelection","isOn","false")
+		UI.setAttribute("BlitzSelection","interactable","False")
+		gStates.blitz=0
 		return
 	end
-	if value=="True" then
-		UI.setAttribute("BlitzSelection", "isOn", "true")
-		gStates.blitz=1
-	else
-		UI.setAttribute("BlitzSelection", "isOn", "false")
-		gStates.blitz=0
-	end
-	for a=1, #scenarioList, 1 do
-		if gStates.blitz==1 and gStates.gameScenario.." Blitz"==scenarioList[a][1] then gStates.gameScenario=gStates.gameScenario.." Blitz" break end
-		if gStates.blitz==0 and gStates.gameScenario:sub(1, -7)==scenarioList[a][1] then gStates.gameScenario=gStates.gameScenario:sub(1, -7) break end
-	end
+
+	gStates.blitz=value=="True" and 1 or 0
+	UI.setAttribute("BlitzSelection","isOn",gStates.blitz==1 and "true" or "false")
+	setScenarioBlitzIdentity(gStates.blitz==1)
+	UI.setAttribute("BlitzSelection","interactable",gStates.gameScenario=="First Reconnaissance" and "False" or "True")
+
 	resetCurrentScenarioTweaks()
-	refreshHeroChallengeOptionLocks()
 	scenarioInfoUpdate()
-	if scenarioList[gStates.scenarioRef].scenarioDetails.blitzPossible~="Yes" then
-		if scenarioList[gStates.scenarioRef].scenarioDetails.blitzPossible=="On Only" then
-			if gStates.blitz==0 then UI.setAttribute("BlitzSelection", "textColor", "rgb(1.0,0.0,0.0)") else UI.setAttribute("BlitzSelection", "textColor", "rgb(0.0,0.0,0.0)") end
-		else
-			if gStates.blitz==1 then UI.setAttribute("BlitzSelection", "textColor", "rgb(1.0,0.0,0.0)") else UI.setAttribute("BlitzSelection", "textColor", "rgb(0.0,0.0,0.0)") end
-		end
-	else
-		UI.setAttribute("BlitzSelection", "textColor", "rgb(0.0,0.0,0.0)")
-	end
-	scenarioInfoUpdate()
+
+	--Keep the historical red warning when the chosen Blitz state differs from the scenario's
+	--published expectation, without preventing the player from making that choice.
+	local blitzPolicy=blitzPolicyForScenarioSelection(gStates.gameScenario)
+	local invalid=(blitzPolicy=="On Only" and gStates.blitz==0) or (blitzPolicy=="Off Only" and gStates.blitz==1)
+	UI.setAttribute("BlitzSelection","textColor",invalid and "rgb(1.0,0.0,0.0)" or "rgb(0.0,0.0,0.0)")
 	ToolTipUpdate(id)
 end
 
@@ -40032,11 +39986,8 @@ end
 function applyForgemasterExpansionRequirements()
 	local level=gStates.riseOfTheForgemasters or 0
 	if level<=0 then return end
-	UI.setAttribute("removeLostLegionExpansion", "interactable", "false")
-	UI.setAttribute("removeLostLegionExpansion", "isOn", "false")
+	gStates.useCustomMageKnights=true
 	gStates.removeLostLegionExpansion=false
-	UI.setAttribute("removeBonusCards", "interactable", "false")
-	UI.setAttribute("removeBonusCards", "isOn", level==1 and "true" or "false")
 	gStates.removeBonusCards=level==1
 end
 
@@ -40046,7 +39997,8 @@ function refreshHeroChallengeOptionLocks()
 	local rotf=(gStates.riseOfTheForgemasters or 0)>0
 	local custom=gStates.useCustomMageKnights==true
 	local firstRecon=gStates.gameScenario=="First Reconnaissance"
-	UI.setAttribute("heroChallenges","interactable",(not custom and not rotf) and "True" or "False")
+	UI.setAttribute("heroChallenges","isOn",heroOn and "true" or "false")
+	UI.setAttribute("heroChallenges","interactable",(not firstRecon and not custom and not rotf) and "True" or "False")
 	if heroOn==true then
 		UI.setAttribute("useCustomMageKnights","interactable","False")
 		UI.setAttribute("ROTFSelection","interactable","False")
@@ -40059,31 +40011,39 @@ function refreshHeroChallengeOptionLocks()
 	end
 end
 
-function refreshLostLegionExpansionOption()
-	if gStates==nil then return end
-	local firstRecon=gStates.gameScenario=="First Reconnaissance"
-	local required=gStates.gameScenario=="The Gauntlet" or
+local function setupLostLegionExpansionRequired()
+	return gStates.gameScenario=="The Gauntlet" or
 		(gStates.gameScenario=="The Lost Relic Blitz" and gStates.coop==1 and (gStates.playerCount or 0)>=4)
-	if firstRecon then
+end
+
+local function reconcileLostLegionExpansionState()
+	if gStates.gameScenario=="First Reconnaissance" then
 		gStates.removeLostLegionExpansion=true
-		UI.setAttribute("removeLostLegionExpansion", "isOn", "true")
-		UI.setAttribute("removeLostLegionExpansion", "interactable", "False")
-	elseif required then
+	elseif setupLostLegionExpansionRequired() then
 		gStates.removeLostLegionExpansion=false
-		UI.setAttribute("removeLostLegionExpansion", "isOn", "false")
-		UI.setAttribute("removeLostLegionExpansion", "interactable", "False")
-	else
-		UI.setAttribute("removeLostLegionExpansion", "interactable", "True")
 	end
+	if gStates.removeLostLegionExpansion==true then gStates.volkareCampAsCity=false end
+end
+
+local function renderLostLegionExpansionOption()
+	local rotf=(gStates.riseOfTheForgemasters or 0)>0
+	local locked=gStates.gameScenario=="First Reconnaissance" or setupLostLegionExpansionRequired() or rotf
+	UI.setAttribute("removeLostLegionExpansion","isOn",gStates.removeLostLegionExpansion==true and "true" or "false")
+	UI.setAttribute("removeLostLegionExpansion","interactable",locked and "False" or "True")
 	if gStates.removeLostLegionExpansion==true then
-		gStates.volkareCampAsCity=false
-		UI.setAttribute("volkareCampAsCity", "isOn", "false")
-		UI.setAttribute("volkareCampAsCity", "interactable", "False")
+		UI.setAttribute("volkareCampAsCity","isOn","false")
+		UI.setAttribute("volkareCampAsCity","interactable","False")
 	end
 end
 
+function refreshLostLegionExpansionOption()
+	if gStates==nil then return end
+	reconcileLostLegionExpansionState()
+	renderLostLegionExpansionOption()
+end
+
 function optionsUpdate(player, value, id)
-	if id=="heroChallenges" and value=="True" and (gStates.useCustomMageKnights==true or (gStates.riseOfTheForgemasters or 0)>0) then
+	if id=="heroChallenges" and value=="True" and (gStates.gameScenario=="First Reconnaissance" or gStates.useCustomMageKnights==true or (gStates.riseOfTheForgemasters or 0)>0) then
 		UI.setAttribute("heroChallenges","isOn","false")
 		gStates.heroChallenges=false
 		refreshHeroChallengeOptionLocks()
@@ -40101,7 +40061,7 @@ function optionsUpdate(player, value, id)
 		gStates[id]=true
 		--The two Quest systems cannot be used together.
 		if id=="questMod" then UI.setAttribute("apocalypseQuestCards", "interactable", "false") elseif id=="apocalypseQuestCards" then UI.setAttribute("questMod", "interactable", "false") end
-		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", "{en}Daylight is Coming{ru}Надвигается рассвет{zh-tw}白晝侵襲{zh-cn}白昼侵袭{ko}빛의 도래{es}Se Acerca la luz del Día{fr}Lendemain Arrive{pt-br}A Luz do dia está Chegando{de}Es Wird Hell") end
+		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", SETUP_TEXT.daylightComing) end
 		if id=="removeLostLegionExpansion" then
 			UI.setAttribute("ROTFSelection", "interactable", "False")
 			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Deactive")
@@ -40113,27 +40073,12 @@ function optionsUpdate(player, value, id)
 		UI.setAttribute(id, "isOn", "false")
 		gStates[id]=false
 		if id=="questMod" then UI.setAttribute("apocalypseQuestCards", "interactable", "true") elseif id=="apocalypseQuestCards" then UI.setAttribute("questMod", "interactable", "true") end
-		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", "{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel") end
+		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", SETUP_TEXT.darknessComing) end
 		if id=="removeLostLegionExpansion" then --and gStates.removeBonusCards==false) or (id=="removeBonusCards" and gStates.removeLostLegionExpansion==false)
 			UI.setAttribute("ROTFSelection", "interactable", "True")
 			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Active")
 		end
-		if id=="useCustomMageKnights" then
-			local MKDropDownUI={"firstMKSelection", "secondMKSelection", "thirdMKSelection", "fourthMKSelection", "dummyMKSelection"}
-			for position, mageKnight in pairs(gStates.positionMageKnight) do
-				if customMages[mageKnight]~=nil then
-					dropDownIdLink=MKDropDownUI[position]
-					PlayerChosen(nil, "-1", "nobodySelection")
-				end
-			end
-			if gStates.positionMageKnight[5]=="Volkare" and customMages[gStates.volkareSkills]~=nil then
-				gStates.volkareSkills="Random"
-				gStates.setupDummyMageChoice="Random"
-				UI.setAttribute("dummyMKSelectionText", "text", translateWord["Random"])
-			elseif customMages[gStates.setupDummyMageChoice]~=nil then
-				gStates.setupDummyMageChoice="nobody"
-			end
-		end
+		if id=="useCustomMageKnights" then clearCustomMageKnightSelections(false) end
 	end
 	if id=="removeApocalypseTerrain" or id=="removeTerrain" or id=="removeLostLegionExpansion" then
 		if id=="removeLostLegionExpansion" and gStates.removeLostLegionExpansion==true then
@@ -40157,7 +40102,6 @@ function optionsUpdate(player, value, id)
 			scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles=max
 		end
 	end
-	refreshHeroChallengeOptionLocks()
 	ToolTipUpdate(id)
 	scenarioInfoUpdate()
 	if id=="proxyPlayer" then refreshProxySetupLabel() end
@@ -40182,34 +40126,15 @@ end
 
 function riseOfTheForgemastersOption(player, mouseButton, id)
 	if mouseButton=="-1" then
-		local IDConvert={["ROTF0Selection"]="{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet",
-							["ROTF1Selection"]="{en}1. New Beginning{ru}1. Новое начало{zh-tw}新的開始{zh-cn}新的开始{ko}1.새로운 시작{es}1. Un nuevo comienzo{fr}1. Nouveau départ{pt-br}1. Novo Começo{de}1. Neubeginn",
-							["ROTF2Selection"]="{en}2. Spoils of War{ru}2. Военные трофеи{zh-tw}戰爭犒賞{zh-cn}战争犒赏{ko}2.전쟁의 전리품{es}2. Botín de Guerra{fr}2. Butin de Guerre{pt-br}2. Despojos de Guerra{de}2. Kriegsbeute",
-							["ROTF3Selection"]="{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier"}
-		UI.setAttribute(dropDownIdLink.."Text", "text", IDConvert[id])
+		local level=ROTF_SELECTION_LEVEL_BY_ID[id]
+		if level==nil then return end
+		UI.setAttribute(dropDownIdLink.."Text", "text", ROTF_TEXT_BY_LEVEL[level])
 		UI.setAttribute(dropDownIdLink.."Image", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
 		dropDownIdLink="none"
-		gStates.riseOfTheForgemasters=tonumber(id:sub(5,5))
-		UI.setAttribute("removeLostLegionExpansion", "interactable", "true")
-		UI.setAttribute("removeBonusCards", "interactable", "true")
-		UI.setAttribute("useCustomMageKnights", "interactable", "true")
-		if gStates.riseOfTheForgemasters>0 then
-			applyForgemasterExpansionRequirements()
-			UI.setAttribute("useCustomMageKnights", "interactable", "false")
-			UI.setAttribute("useCustomMageKnights", "isOn", "true")
-			gStates.useCustomMageKnights=true
-		end
-		if gStates.riseOfTheForgemasters<3 then
-			local MKDropDownUI={"firstMKSelection", "secondMKSelection", "thirdMKSelection", "fourthMKSelection", "dummyMKSelection"}
-			for position, mageKnight in pairs(gStates.positionMageKnight) do
-				if customMages[mageKnight]~=nil then
-					dropDownIdLink=MKDropDownUI[position]
-					PlayerChosen(nil, "-1", "nobodySelection")
-				end
-			end
-		end
-		refreshHeroChallengeOptionLocks()
+		gStates.riseOfTheForgemasters=level
+		if gStates.riseOfTheForgemasters>0 then applyForgemasterExpansionRequirements() end
+		if gStates.riseOfTheForgemasters<3 then clearCustomMageKnightSelections(false) end
 		ToolTipUpdate(id)
 		scenarioInfoUpdate()
 	end
@@ -40233,194 +40158,75 @@ end
 
 dropDownIdLink="none"
 function toggleDropDown(player, mouseButton, id)
-	if mouseButton=="-1" then
-		local IDConvert={	["firstMKSelection"]={1,"MageDropDown",-275},
-							["secondMKSelection"]={2,"MageDropDown",-275},
-							["thirdMKSelection"]={3, "MageDropDown",-275},
-							["fourthMKSelection"]={4,"MageDropDown",-275},
-							["dummyMKSelection"]={5,"MageDropDown",-275},
-							["ScenarioSelection"]={0,"ScenarioDropDown", 90},
-							["ROTFSelection"]={0,"ROTFDropDown", -115},
-							["VolkareLevelSelection"]={0,"VolkareLevelDropDown",-305},
-							["VolkareRaceSelection"]={0,"VolkareRaceDropDown",-335}}
-		UI.setAttribute(dropDownIdLink.."Image", "image", "Sliced Button/Button New Active")
-		if dropDownIdLink==id then
-			dropDownIdLink="none"
-			UI.setAttribute("DropDown", "active", "false")
-			UI.setAttribute(id.."Image", "image", "Sliced Button/Button New Active")
-		else
-			dropDownIdLink=id
-			local dropDownData={["nobodyRow"]={"nobody", "nobodySelectionImage", "MageDropDown"},
-								["AllSkillsRow"]={"All Skills", "AllSkillsSelectionImage", "MageDropDown"},
-								["RANDOMRow"]={"Random", "RANDOMSelectionImage", "MageDropDown"},
-								["ArytheaRow"]={"Arythea", "ArytheaSelectionImage", "MageDropDown"},
-								["GoldyxRow"]={"Goldyx", "GoldyxSelectionImage", "MageDropDown"},
-								["NorowasRow"]={"Norowas", "NorowasSelectionImage", "MageDropDown"},
-								["TovakRow"]={"Tovak", "TovakSelectionImage", "MageDropDown"},
-								["BraevalarRow"]={"Braevalar", "BraevalarSelectionImage", "MageDropDown"},
-								["KrangRow"]={"Krang", "KrangSelectionImage", "MageDropDown"},
-								["WolfhawkRow"]={"Wolfhawk", "WolfhawkSelectionImage", "MageDropDown"},
-								["CoralRow"]={"Coral", "CoralSelectionImage", "MageDropDown"},
-								["YmirghRow"]={"Ymirgh", "YmirghSelectionImage", "MageDropDown"},
-								["MevokRow"]={"Mevok", "MevokSelectionImage", "MageDropDown"},
-								["DusceniaRow"]={"Duscenia", "DusceniaSelectionImage", "MageDropDown"},
-								["JormundRow"]={"Jormund", "JormundSelectionImage", "MageDropDown"},
-								["MalekRow"]={"Malek", "MalekSelectionImage", "MageDropDown"},
-								["ZirtaeRow"]={"Zirtae", "ZirtaeSelectionImage", "MageDropDown"},
-								["DaringRow"]={"Daring", "DaringSelectionImage", "VolkareLevelDropDown", 1},
-								["HeroicRow"]={"Heroic", "HeroicSelectionImage", "VolkareLevelDropDown", 2},
-								["LegendaryRow"]={"Legendary", "LegendarySelectionImage", "VolkareLevelDropDown", 3},
-								["FairRow"]={"Fair", "FairSelectionImage", "VolkareRaceDropDown", 1},
-								["TightRow"]={"Tight", "TightSelectionImage", "VolkareRaceDropDown", 2},
-								["ThrillingRow"]={"Thrilling", "ThrillingSelectionImage", "VolkareRaceDropDown", 3},
-								["ConquestRow"]={"Conquest", "ConquestSelectionImage", "ScenarioDropDown"},
-								["FirstReconnaissanceRow"]={"First Reconnaissance", "FirstReconnaissanceSelectionImage", "ScenarioDropDown"},
-								["FirstConquestRow"]={"First Conquest", "FirstConquestSelectionImage", "ScenarioDropDown"},
-								["MinesLiberationRow"]={"Mines Liberation", "MinesLiberationSelectionImage", "ScenarioDropDown"},
-								["DruidNightsRow"]={"Druid Nights", "DruidNightsSelectionImage", "ScenarioDropDown"},
-								["DungeonLordsRow"]={"Dungeon Lords", "DungeonLordsSelectionImage", "ScenarioDropDown"},
-								["ConquerAndHoldRow"]={"Conquer and Hold", "ConquerAndHoldSelectionImage", "ScenarioDropDown"},
-								["OneToReturnRow"]={"One to Return", "OneToReturnSelectionImage", "ScenarioDropDown"},
-								["VolkaresReturnRow"]={"Volkare's Return", "VolkaresReturnSelectionImage", "ScenarioDropDown"},
-								["VolkaresQuestRow"]={"Volkare's Quest", "VolkaresQuestSelectionImage", "ScenarioDropDown"},
-								["LifeAndDeathRow"]={"Life and Death", "LifeAndDeathSelectionImage", "ScenarioDropDown"},
-								["TheRealmOfTheDeadRow"]={"The Realm of the Dead Blitz", "TheRealmOfTheDeadSelectionImage", "ScenarioDropDown"},
-								["TheHiddenValleyRow"]={"The Hidden Valley Blitz", "TheHiddenValleySelectionImage", "ScenarioDropDown"},
-								["AgainsttheApocalypseRow"]={"Against the Apocalypse Blitz", "AgainsttheApocalypseSelectionImage", "ScenarioDropDown"},
-								["AgainsttheHorsemenRow"]={"Against the Horsemen Blitz", "AgainsttheHorsemenSelectionImage", "ScenarioDropDown"},
-								["AgainsttheDragonRow"]={"Against the Dragon Blitz", "AgainsttheDragonSelectionImage", "ScenarioDropDown"},
-								["ApocalypseIsHereRow"]={"Apocalypse is Here", "ApocalypseIsHereSelectionImage", "ScenarioDropDown"},
-								["FuryOfTheApocalypseDragonRow"]={"Fury of the Apocalypse Dragon", "FuryOfTheApocalypseDragonSelectionImage", "ScenarioDropDown"},
-								["TheLostRelicRow"]={"The Lost Relic Blitz", "TheLostRelicSelectionImage", "ScenarioDropDown"},
-								["TheGauntletRow"]={"The Gauntlet", "TheGauntletSelectionImage", "ScenarioDropDown"},
-								["QuestForTheGoldenGrailRow"]={"Quest for the Golden Grail", "QuestForTheGoldenGrailSelectionImage", "ScenarioDropDown"},
-								["TheChaosRiftRow"]={"The Chaos Rift", "TheChaosRiftSelectionImage", "ScenarioDropDown"},
-								["UltimateConquestRow"]={"Ultimate Conquest", "UltimateConquestSelectionImage", "ScenarioDropDown"},
-								["FastForwardedConquestRow"]={"Fast Forwarded Conquest", "FastForwardedConquestSelectionImage", "ScenarioDropDown"},
-								["TheWarOfFourRow"]={"The War of Four", "TheWarOfFourSelectionImage", "ScenarioDropDown"},
-								["RaidersOfTheCrusaderTempleRow"]={"Raiders of the Crusader Temple", "RaidersOfTheCrusaderTempleSelectionImage", "ScenarioDropDown"},
-								["ForTheCouncilRow"]={"For the Council", "ForTheCouncilSelectionImage", "ScenarioDropDown"},
-								["TheFracturedLandsRow"]={"The Fractured Lands Blitz", "TheFracturedLandsSelectionImage", "ScenarioDropDown"},
-								["CustomRow"]={"Custom", "CustomSelectionImage", "ScenarioDropDown"},
-								["ROTF0Row"]={"Not Used", "ROTF0SelectionImage", "ROTFDropDown"},
-								["ROTF1Row"]={"1. New Beginning", "ROTF1SelectionImage", "ROTFDropDown"},
-								["ROTF2Row"]={"2. Spoils of War", "ROTF2SelectionImage", "ROTFDropDown"},
-								["ROTF3Row"]={"3. Elixir of Life", "ROTF3SelectionImage", "ROTFDropDown"}}
-			local count=0
-			for UiId, data in pairs(dropDownData) do
-				UI.setAttribute(data[2], "image", "Sliced Button/Button New Active")
-				local skip=false
-				if data[1]=="All Skills" and IDConvert[id][1]~=5 then skip=true end
-				if customMages[data[1]]~=nil and gStates.useCustomMageKnights==false then skip=true end
-				--if data[1]=="Jormund" and gStates.riseOfTheForgemasters~=3 then skip=true end
-				if IDConvert[id][2]=="MageDropDown" and (data[3]=="VolkareLevelDropDown" or data[3]=="VolkareRaceDropDown" or data[3]=="ScenarioDropDown" or data[3]=="ROTFDropDown") then skip=true end
-				if IDConvert[id][2]=="VolkareLevelDropDown" and (data[3]=="MageDropDown" or data[3]=="VolkareRaceDropDown" or data[3]=="ScenarioDropDown" or data[3]=="ROTFDropDown") then skip=true end
-				if IDConvert[id][2]=="VolkareRaceDropDown" and (data[3]=="MageDropDown" or data[3]=="VolkareLevelDropDown" or data[3]=="ScenarioDropDown" or data[3]=="ROTFDropDown") then skip=true end
-				if IDConvert[id][2]=="ScenarioDropDown" and (data[3]=="MageDropDown" or data[3]=="VolkareLevelDropDown" or data[3]=="VolkareRaceDropDown" or data[3]=="ROTFDropDown") then skip=true end
-				if IDConvert[id][2]=="ROTFDropDown" and (data[3]=="MageDropDown" or data[3]=="VolkareLevelDropDown" or data[3]=="VolkareRaceDropDown" or data[3]=="ScenarioDropDown") then skip=true end
-				if IDConvert[id][2]=="MageDropDown" then
-					for x=1, 5, 1 do
-						if gStates.positionMageKnight[x]==data[1] and data[1]~="nobody" and data[1]~="Random" then skip=true end
-						if IDConvert[id][1]==x and gStates.positionMageKnight[x]==data[1] then skip=true end
-						if IDConvert[id][1]==x and gStates.positionMageKnight[x]==data[1] then UI.setAttribute(data[2], "image", "Sliced Button/Button New Active") end
-					end
-				end
-				--if data[1]==gStates.gameScenario then skip=true end
-				if data[1]==gStates.gameScenario then UI.setAttribute(data[2], "image", "Sliced Button/Button New Deactive") end
-				if data[3]=="VolkareLevelDropDown" and data[4]==gStates.volkareCombatLevel then UI.setAttribute(data[2], "image", "Sliced Button/Button New Active") end
-				if data[3]=="VolkareRaceDropDown" and data[4]==gStates.volkareRaceLevel then UI.setAttribute(data[2], "image", "Sliced Button/Button New Active") end
-				if skip==false then UI.setAttribute(UiId, "active", "true") count=count+1 else UI.setAttribute(UiId, "active", "false") end
-			end
-			UI.setAttribute(id.."Image", "image", "Sliced Button/Button New Deactive")
-			local dropDownHeight=count*(330/12)
-			--Scenario rows are 30 px high; use an exact whole-row height to avoid pixel gaps.
-			if IDConvert[id][2]=="ScenarioDropDown" then dropDownHeight=count*30 end
-			UI.setAttribute("DropDown", "height", tostring(dropDownHeight))
-			UI.setAttribute("DropDown", "width", "120")
-			if IDConvert[id][2]=="ScenarioDropDown" then UI.setAttribute("DropDown", "width", "220") end
-			if IDConvert[id][2]=="ROTFDropDown" then UI.setAttribute("DropDown", "width", "150") end
-			UI.setAttribute("DropDown", "offsetXY", "-100 "..tostring(IDConvert[id][3]))
-			UI.setAttribute("DropDown", "active", "true")
-		end
+	if mouseButton~="-1" then return end
+	local control=SETUP_DROPDOWN_CONTROL_BY_ID[id]
+	if control==nil then return end
+	UI.setAttribute(dropDownIdLink.."Image", "image", "Sliced Button/Button New Active")
+	if dropDownIdLink==id then
+		dropDownIdLink="none"
+		UI.setAttribute("DropDown", "active", "false")
+		UI.setAttribute(id.."Image", "image", "Sliced Button/Button New Active")
+		return
 	end
+
+	dropDownIdLink=id
+	local count=0
+	for uiId,data in pairs(SETUP_DROPDOWN_ROWS) do
+		UI.setAttribute(data[2], "image", "Sliced Button/Button New Active")
+		local skip=data[3]~=control[2]
+		if skip==false and data[1]=="All Skills" and control[1]~=5 then skip=true end
+		if skip==false and customMages[data[1]]~=nil and gStates.useCustomMageKnights==false then skip=true end
+		if skip==false and control[2]=="MageDropDown" then
+			for x=1,5 do
+				if gStates.positionMageKnight[x]==data[1] and data[1]~="nobody" and data[1]~="Random" then skip=true break end
+				if control[1]==x and gStates.positionMageKnight[x]==data[1] then skip=true break end
+			end
+		end
+		if data[1]==gStates.gameScenario then UI.setAttribute(data[2], "image", "Sliced Button/Button New Deactive") end
+		if data[3]=="VolkareLevelDropDown" and data[4]==gStates.volkareCombatLevel then UI.setAttribute(data[2], "image", "Sliced Button/Button New Active") end
+		if data[3]=="VolkareRaceDropDown" and data[4]==gStates.volkareRaceLevel then UI.setAttribute(data[2], "image", "Sliced Button/Button New Active") end
+		if skip==false then UI.setAttribute(uiId, "active", "true") count=count+1 else UI.setAttribute(uiId, "active", "false") end
+	end
+	UI.setAttribute(id.."Image", "image", "Sliced Button/Button New Deactive")
+	local dropDownHeight=count*(330/12)
+	--Scenario rows are 30 px high; use an exact whole-row height to avoid pixel gaps.
+	if control[2]=="ScenarioDropDown" then dropDownHeight=count*30 end
+	UI.setAttribute("DropDown", "height", tostring(dropDownHeight))
+	UI.setAttribute("DropDown", "width", control[2]=="ScenarioDropDown" and "220" or control[2]=="ROTFDropDown" and "150" or "120")
+	UI.setAttribute("DropDown", "offsetXY", "-100 "..tostring(control[3]))
+	UI.setAttribute("DropDown", "active", "true")
 end
 
 function PlayerChosen(player, mouseButton, id)
 	if mouseButton=="-1" then
-		local IDConvert={	["nobodySelection"]="nobody",
-							["AllSkillsSelection"]="All Skills",
-							["RANDOMSelection"]="Random",
-							["ArytheaSelection"]="Arythea",
-							["GoldyxSelection"]="Goldyx",
-							["NorowasSelection"]="Norowas",
-							["TovakSelection"]="Tovak",
-							["BraevalarSelection"]="Braevalar",
-							["KrangSelection"]="Krang",
-							["WolfhawkSelection"]="Wolfhawk",
-							["CoralSelection"]="Coral",
-							["YmirghSelection"]="Ymirgh",
-							["MevokSelection"]="Mevok",
-							["DusceniaSelection"]="Duscenia",
-							["JormundSelection"]="Jormund",
-							["MalekSelection"]="Malek",
-							["ZirtaeSelection"]="Zirtae"}
-		UI.setAttribute(dropDownIdLink.."Text", "text", translateWord[IDConvert[id]])
+		UI.setAttribute(dropDownIdLink.."Text", "text", translateWord[MAGE_KNIGHT_SELECTION_BY_ID[id]])
 		UI.setAttribute(dropDownIdLink.."Image", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
 		--adjust number of players
-		local MKDropDownUI={["firstMKSelection"]=1, ["secondMKSelection"]=2, ["thirdMKSelection"]=3, ["fourthMKSelection"]=4, ["dummyMKSelection"]=5}
+		local MKDropDownUI=MAGE_KNIGHT_CONTROL_POSITION
 		if dropDownIdLink~="dummyMKSelection" then
-			if IDConvert[id]=="nobody" then
+			if MAGE_KNIGHT_SELECTION_BY_ID[id]=="nobody" then
 				if gStates.playerCount>0 then gStates.playerCount=gStates.playerCount-1 end
 			else
 				if gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=="nobody" then gStates.playerCount=gStates.playerCount+1 end
 			end
 		end
 		if dropDownIdLink=="dummyMKSelection" and gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=="Volkare" then
-			gStates.volkareSkills=IDConvert[id]
-			gStates.setupDummyMageChoice=IDConvert[id]
+			gStates.volkareSkills=MAGE_KNIGHT_SELECTION_BY_ID[id]
+			gStates.setupDummyMageChoice=MAGE_KNIGHT_SELECTION_BY_ID[id]
 		else
-			gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=IDConvert[id]
-			if dropDownIdLink=="dummyMKSelection" then gStates.setupDummyMageChoice=IDConvert[id] end
+			gStates.positionMageKnight[MKDropDownUI[dropDownIdLink]]=MAGE_KNIGHT_SELECTION_BY_ID[id]
+			if dropDownIdLink=="dummyMKSelection" then gStates.setupDummyMageChoice=MAGE_KNIGHT_SELECTION_BY_ID[id] end
 		end
 
-		--Locks player mage choice when scenario player cap reached
-		if IDConvert[id]=="Jormund" then
-			UI.setAttribute("ROTFSelectionText", "text", "{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier")
+		if MAGE_KNIGHT_SELECTION_BY_ID[id]=="Jormund" then
+			UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[3])
 			gStates.riseOfTheForgemasters=3
-			applyForgemasterExpansionRequirements()
-		end
-		if IDConvert[id]~="nobody" and ((dropDownIdLink=="dummyMKSelection" and gStates.playerCount==1)
-		or (dropDownIdLink~="dummyMKSelection" and gStates.playerCount==1 and (gStates.positionMageKnight[5]~="nobody" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="Quest for the Golden Grail")))
-		and (gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest" or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="Mines Liberation") then
-			for a, pos in pairs(MKDropDownUI) do
-				if gStates.positionMageKnight[pos]=="nobody" then
-					UI.setAttribute(a, "interactable", "False")
-					UI.setAttribute(a, "text", "{en}nobody{ru}никто{zh-tw}無玩家{zh-cn}无玩家{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand")
-					UI.setAttribute(a.."Image", "image", "Sliced Button/Button New Deactive")
-				end
-			end
-		else
-			for a, pos in pairs(MKDropDownUI) do
-				UI.setAttribute(a, "interactable", "True")
-				UI.setAttribute(a.."Image", "image", "Sliced Button/Button New Active")
-			end
-		end
-		--locks Dummy Mage choice for scenario setups that don't use him
-		if (dropDownIdLink~="dummyMKSelection" and ((gStates.playerCount>=2 and IDConvert[id]~="nobody") or (gStates.playerCount>=2 and IDConvert[id]=="nobody"))
-		and (gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="Mines Liberation"))
-		or (gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return") then--or gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four"
-			UI.setAttribute("dummyMKSelection", "interactable", "False")
-			UI.setAttribute("dummyMKSelectionImage", "image", "Sliced Button/Button New Deactive")
-		else
-			UI.setAttribute("dummyMKSelection", "interactable", "True")
-			UI.setAttribute("dummyMKSelectionImage", "image", "Sliced Button/Button New Active")
 		end
 		refreshProxySetupLabel()
-		ToolTipUpdate(IDConvert[id])
+		ToolTipUpdate(MAGE_KNIGHT_SELECTION_BY_ID[id])
 		--Set Coop flag
-		if gStates.positionMageKnight[5]=="nobody" then gStates.coop=0 UI.setAttribute("StartButtonText", "text", "{en}Start - Competitive{ru}Начало - Соревновательный{zh-tw}開始 - 對抗模式{zh-cn}开始 - 对抗模式{ko}시작 - 경쟁{es}Comenzar - Competitivo{fr}Démarrer - Compétitif{pt-br}Início - Competitivo{de}Start - Wettbewerbsfähig") else gStates.coop=1 UI.setAttribute("StartButtonText", "text", "{en}Start - Cooperative{ru}Начало - Кооперативный{zh-tw}開始 - 合作模式{zh-cn}开始 - 合作模式{ko}시작 - 협력{es}Comenzar - Cooperativo{fr}Démarrer - Coopératif{pt-br}Início - Cooperativo{de}Start - Genossenschaft") end
-		if gStates.playerCount==1 then UI.setAttribute("StartButtonText", "text", "{en}Start - Solo{ru}Начало - Одиночный{zh-tw}開始 - 單人遊戲{zh-cn}开始 - 单人游戏{ko}시작 - 솔로{es}Comenzar - Solo{fr}Démarrer - Solo{pt-br}Início - Solo{de}Start - Solo") end
+		gStates.coop=gStates.positionMageKnight[5]=="nobody" and 0 or 1
 		--reset megapolis
 		gStates.megapolis=0
 		scenarioInfoUpdate()
@@ -40430,13 +40236,10 @@ end
 
 function VolkareLevelSelection(player, mouseButton, id)
 	if mouseButton=="-1" then
-		local IDConvert={	["DaringSelection"]={"Daring", 1},
-							["HeroicSelection"]={"Heroic", 2},
-							["LegendarySelection"]={"Legendary", 3}}
-		UI.setAttribute("VolkareLevelSelectionText", "text", translateWord[IDConvert[id][1]])
+		UI.setAttribute("VolkareLevelSelectionText", "text", translateWord[VOLKARE_COMBAT_SELECTION_BY_ID[id][1]])
 		UI.setAttribute("VolkareLevelSelectionImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
-		gStates.volkareCombatLevel=IDConvert[id][2]
+		gStates.volkareCombatLevel=VOLKARE_COMBAT_SELECTION_BY_ID[id][2]
 		--adjust city levels of volkare scenarios
 		local cityAdjust=	{{["Volkare's Return"]={{4,5}, {6,10}, {8,15}, {10,20}}, ["Volkare's Return Blitz"]={{3,4}, {4,8}, {5,12}, {6,16}}, ["Volkare's Quest"]={{3,3,8}, {4,4,14}, {4,4,4,20}, {5,5,5,26}}, ["The War of Four"]={{2,2,4,4,16}, {4,4,6,6,32}, {6,6,8,8,46}, {8,8,10,10,58}}}, --daring
 							{["Volkare's Return"]={{6,8}, {9,16}, {12,24}, {16,32}}, ["Volkare's Return Blitz"]={{4,6}, {6,12}, {8,18}, {10,24}}, ["Volkare's Quest"]={{4,4,10}, {4,4,18}, {5,5,5,26}, {5,5,5,34}}, ["The War of Four"]={{3,3,6,6,18}, {5,5,9,9,36}, {8,8,12,12,52}, {10,10,15,15,66}}}, --Heroic
@@ -40455,13 +40258,10 @@ end
 
 function VolkareRaceSelection(player, mouseButton, id)
 	if mouseButton=="-1" then
-		local IDConvert={	["FairSelection"]={"Fair", 1},
-							["TightSelection"]={"Tight", 2},
-							["ThrillingSelection"]={"Thrilling", 3}}
-		UI.setAttribute("VolkareRaceSelectionText", "text", translateWord[IDConvert[id][1]])
+		UI.setAttribute("VolkareRaceSelectionText", "text", translateWord[VOLKARE_RACE_SELECTION_BY_ID[id][1]])
 		UI.setAttribute("VolkareRaceSelectionImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
-		gStates.volkareRaceLevel=IDConvert[id][2]
+		gStates.volkareRaceLevel=VOLKARE_RACE_SELECTION_BY_ID[id][2]
 		scenarioInfoUpdate()
 		ToolTipUpdate(dropDownIdLink)
 		dropDownIdLink="none"
@@ -40479,7 +40279,7 @@ function scenarioMapIsPredefined()
 	local scenario=gStates~=nil and scenarioList[gStates.scenarioRef] or nil
 	local setup=scenario~=nil and scenario[gStates.playersRef] or nil
 	--Custom Predefined is a player-built sandbox, so only scenario-owned predefined maps lock these setup controls.
-	return setup~=nil and type(setup.mapShape)=="string" and setup.mapShape:sub(5,5)=="P" and gStates.gameScenario~="Custom"
+	return setup~=nil and setup.mapShapeKey=="predefined" and gStates.gameScenario~="Custom"
 end
 
 function refreshScenarioTerrainTweakLocks()
@@ -40492,42 +40292,33 @@ end
 
 function baseValueTweak(player, mouseButton, id)
 	if mouseButton=="-1" then
+		local setup=scenarioList[gStates.scenarioRef][gStates.playersRef]
 		if scenarioMapIsPredefined() and (id=="MapDown" or id=="MapUp" or id=="CountryDown" or id=="CountryUp" or id=="CoreDown" or id=="CoreUp" or id=="CityDown" or id=="CityUp") then return end
 		if gStates.volkareCampAsCity==true and (id=="MegapolisDown" or id=="MegapolisUp") then return end
 		if gStates.gameScenario~="First Reconnaissance" then
 			if id=="RoundsDown" or id=="RoundsUp" then
 				if id=="RoundsDown" then
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].rounds>1 then
-						scenarioList[gStates.scenarioRef][gStates.playersRef].rounds=scenarioList[gStates.scenarioRef][gStates.playersRef].rounds-1
+					if setup.rounds>1 then
+						setup.rounds=setup.rounds-1
 					end
 				else
-					scenarioList[gStates.scenarioRef][gStates.playersRef].rounds=scenarioList[gStates.scenarioRef][gStates.playersRef].rounds+1
+					setup.rounds=setup.rounds+1
 				end
-				scenarioList[gStates.scenarioRef][gStates.playersRef].discardTactics=scenarioList[gStates.scenarioRef][gStates.playersRef].dTW
-				if scenarioList[gStates.scenarioRef][gStates.playersRef].rounds>6 and scenarioList[gStates.scenarioRef][gStates.playersRef].discardTactics==2 then scenarioList[gStates.scenarioRef][gStates.playersRef].discardTactics=1 end
-				if scenarioList[gStates.scenarioRef][gStates.playersRef].rounds>14-(2*(gStates.playerCount+gStates.coop)) and scenarioList[gStates.scenarioRef][gStates.playersRef].discardTactics==1 then scenarioList[gStates.scenarioRef][gStates.playersRef].discardTactics=0 end
+				setup.discardTactics=setup.dTW
+				if setup.rounds>6 and setup.discardTactics==2 then setup.discardTactics=1 end
+				if setup.rounds>14-(2*(gStates.playerCount+gStates.coop)) and setup.discardTactics==1 then setup.discardTactics=0 end
 			end
 
 			if id=="MapDown" or id=="MapUp" then
-				local mapShapes={"{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",
-								"{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten",
-								"{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",
-								"{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen"}
-				if gStates.gameScenario=="Custom" then
-					mapShapes[#mapShapes+1]="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert"
-				end
-				for a=1, #mapShapes, 1 do
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape==mapShapes[a] then
-						local b=nil
-						if id=="MapDown" then
-							b=a-1
-							if b<1 then b=#mapShapes end
-						else
-							b=a+1
-							if b>#mapShapes then b=1 end
-						end
-						scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=mapShapes[b]
-						if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape~="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" and scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles==2 then scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles=3 end
+				local mapShapes={"wedge","open3","open4","open"}
+				if gStates.gameScenario=="Custom" then mapShapes[#mapShapes+1]="predefined" end
+				for a=1,#mapShapes do
+					if setup.mapShapeKey==mapShapes[a] then
+						local b=id=="MapDown" and a-1 or a+1
+						if b<1 then b=#mapShapes elseif b>#mapShapes then b=1 end
+						setup.mapShapeKey=mapShapes[b]
+						setup.mapShape=mapShapeText[setup.mapShapeKey]
+						if setup.mapShapeKey~="wedge" and setup.countryTiles==2 then setup.countryTiles=3 end
 						break
 					end
 				end
@@ -40535,39 +40326,38 @@ function baseValueTweak(player, mouseButton, id)
 
 			if id=="CountryDown" or id=="CountryUp" then
 				if id=="CountryDown" then
-					countryMin=3
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then countryMin=4 end--Enough to get to the legal core positions
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles>countryMin then
-						scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles-1
+					local countryMin=3
+					if setup.mapShapeKey=="wedge" then countryMin=4 end--Enough to get to the legal core positions
+					if setup.countryTiles>countryMin then
+						setup.countryTiles=setup.countryTiles-1
 					end
 				else
 					local max=14
 					if gStates.removeTerrain==true then max=max-2 end
 					if gStates.removeApocalypseTerrain~=true then max=max+3 end
 					if gStates.removeLostLegionExpansion==true then max=max-3 end
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles<max then
-						scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles+1
+					if setup.countryTiles<max then
+						setup.countryTiles=setup.countryTiles+1
 					end
 				end
 			end
 
 			if id=="CoreDown" or id=="CoreUp" then
 				if id=="CoreDown" then
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles>0 then
-						scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles-1
+					if setup.coreTiles>0 then
+						setup.coreTiles=setup.coreTiles-1
 					end
 				else
 					local max=6
 					if gStates.removeApocalypseTerrain~=true then max=max+2 end
 					if gStates.removeLostLegionExpansion==true then max=max-2 end
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles<max then
-						scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles+1
+					if setup.coreTiles<max then
+						setup.coreTiles=setup.coreTiles+1
 					end
 				end
 			end
 
 			if (id=="CityDown" or id=="CityUp") and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="First Conquest" and gStates.gameScenario~="Conquer and Hold" then
-				local setup=scenarioList[gStates.scenarioRef][gStates.playersRef]
 				local cityTiles=setup.cityTiles
 				local minimum=gStates.gameScenario=="Custom" and 0 or 1
 				if id=="CityDown" then
@@ -40600,8 +40390,8 @@ function baseValueTweak(player, mouseButton, id)
 			if id=="MegapolisDown" or id=="MegapolisUp" then
 				if id=="MegapolisDown" then
 					if gStates.megapolis>0 then gStates.megapolis=gStates.megapolis-1 end
-					if gStates.megapolis==0 and scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels]>22 then scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels]=22 end
-					if gStates.megapolis==1 and scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels-1]>22 then scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels-1]=22 end
+					if gStates.megapolis==0 and setup.cityLevels[#setup.cityLevels]>22 then setup.cityLevels[#setup.cityLevels]=22 end
+					if gStates.megapolis==1 and setup.cityLevels[#setup.cityLevels-1]>22 then setup.cityLevels[#setup.cityLevels-1]=22 end
 				else
 					local megapolisMaximum=megapolisMaximumForSetup(gStates.scenarioRef,gStates.playersRef)
 					if gStates.megapolis<megapolisMaximum then gStates.megapolis=gStates.megapolis+1 ensureSetupMegapolisMinimumLevels() end
@@ -40610,33 +40400,33 @@ function baseValueTweak(player, mouseButton, id)
 
 			for a=1, 5, 1 do
 				if id=="CityLevel"..a.."Down" or id=="CityLevel"..a.."Up" then
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]>0 then
+					if setup.cityLevels[a]>0 then
 						if id=="CityLevel"..a.."Down" then
 							local min=1
-							if gStates.megapolis==2 or (gStates.megapolis==1 and scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles==a) then min=2 end
-							if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]>min then
-								scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]=scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]-1
+							if gStates.megapolis==2 or (gStates.megapolis==1 and setup.cityTiles==a) then min=2 end
+							if setup.cityLevels[a]>min then
+								setup.cityLevels[a]=setup.cityLevels[a]-1
 							else
 								break
 							end
 						else
 							local max=22
-							if gStates.megapolis==2 or (gStates.megapolis==1 and scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles==a) then max=22 end
+							if gStates.megapolis==2 or (gStates.megapolis==1 and setup.cityTiles==a) then max=22 end
 							if gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or
-								(gStates.gameScenario=="Custom" and scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles==0) then max=12 end
-							if a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 and
+								(gStates.gameScenario=="Custom" and setup.cityTiles==0) then max=12 end
+							if a==setup.cityTiles+1 and
 								(gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then max=80 end
-							if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]<max then
-								scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]=scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]+1
+							if setup.cityLevels[a]<max then
+								setup.cityLevels[a]=setup.cityLevels[a]+1
 							else
 								break
 							end
 						end
 						if gStates.gameScenario=="Life and Death" and (a==1 or a==2) then
 							if a==1 then
-								scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[2]=scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[1]
+								setup.cityLevels[2]=setup.cityLevels[1]
 							else
-								scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[1]=scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[2]
+								setup.cityLevels[1]=setup.cityLevels[2]
 							end
 						end
 					end
@@ -40656,27 +40446,121 @@ function setupScenarioMaxMageKnights()
 	return 4
 end
 
-function refreshMageKnightSetupAvailability()
-	local MKDropDownUI={"firstMKSelection", "secondMKSelection", "thirdMKSelection", "fourthMKSelection"}
+local function recountSetupMageKnights()
 	gStates.playerCount=0
 	local customSelected=false
 	local jormundSelected=false
-	for a=1,4 do
-		local mage=gStates.positionMageKnight[a] or "nobody"
+	for position=1,4 do
+		local mage=gStates.positionMageKnight[position] or "nobody"
 		if mage~="nobody" then gStates.playerCount=gStates.playerCount+1 end
 		if customMages[mage]~=nil then customSelected=true end
 		if mage=="Jormund" then jormundSelected=true end
 	end
-	local rememberedDummy=gStates.setupDummyMageChoice or (gStates.positionMageKnight[5]=="Volkare" and gStates.volkareSkills) or gStates.positionMageKnight[5]
+	local rememberedDummy=gStates.setupDummyMageChoice or
+		(gStates.positionMageKnight[5]=="Volkare" and gStates.volkareSkills) or gStates.positionMageKnight[5]
 	if customMages[rememberedDummy]~=nil then customSelected=true end
 	if rememberedDummy=="Jormund" then jormundSelected=true end
 	gStates.coop=gStates.positionMageKnight[5]~="nobody" and 1 or 0
+	return customSelected,jormundSelected
+end
 
+local function scenarioUsesVolkareArmyLevel()
+	return gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or
+		gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four"
+end
+
+local function volkareCampAsCitySelectable()
+	return gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Conquest" or
+		gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="One to Return" or
+		gStates.gameScenario=="Fast Forwarded Conquest" or gStates.gameScenario=="The Lost Relic Blitz" or
+		gStates.gameScenario=="Ultimate Conquest" or gStates.gameScenario=="The Fractured Lands Blitz" or
+		gStates.gameScenario=="Against the Horsemen Blitz"
+end
+
+local function reconcileScenarioHardLocks()
+	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
+	if overrides==nil then return end
+	for id,details in pairs(overrides) do
+		if details[2]==false then gStates[id]=details[1] end
+	end
+end
+
+local function renderScenarioHardLocks()
+	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
+	if overrides==nil then return end
+	for id,details in pairs(overrides) do
+		if details[2]==false then
+			UI.setAttribute(id,"isOn",details[1] and "true" or "false")
+			UI.setAttribute(id,"interactable","False")
+		end
+	end
+end
+
+local function reconcileScenarioSetupValues()
+	gStates.playersRef=setupPlayersRef()
+	gStates.scenarioRef=scenarioRefForName(gStates.gameScenario)
+	local scenario=scenarioList[gStates.scenarioRef]
+	local setup=scenario~=nil and scenario[gStates.playersRef] or nil
+	if setup==nil then return end
+
+	if gStates.megapolis==0 and scenarioUsesVolkareArmyLevel() then
+		for index,level in pairs(setup.cityLevels) do
+			if index~=setup.cityTiles+1 and level>22 then setup.cityLevels[index]=22 end
+		end
+	end
+
+	local megapolisMaximum=megapolisMaximumForSetup(gStates.scenarioRef,gStates.playersRef)
+	if gStates.megapolis>megapolisMaximum then gStates.megapolis=megapolisMaximum end
+	ensureSetupMegapolisMinimumLevels()
+
+	if gStates.removeLostLegionExpansion==true or gStates.megapolis>0 then
+		gStates.volkareCampAsCity=false
+	elseif #setup.cityLevels==5 and not scenarioUsesVolkareArmyLevel() then
+		gStates.volkareCampAsCity=true
+	elseif not volkareCampAsCitySelectable() then
+		gStates.volkareCampAsCity=false
+	end
+end
+
+local function renderVolkareCampAsCityOption(setup)
+	local forcedFiveCities=#setup.cityLevels==5 and not scenarioUsesVolkareArmyLevel()
+	local enabled=not gStates.removeLostLegionExpansion and gStates.megapolis==0 and not forcedFiveCities and volkareCampAsCitySelectable()
+	UI.setAttribute("volkareCampAsCity","isOn",gStates.volkareCampAsCity==true and "true" or "false")
+	UI.setAttribute("volkareCampAsCity","interactable",enabled and "True" or "False")
+end
+
+function reconcileSetupState()
+	if gStates==nil then return end
+
+	local customLocked,customValue=scenarioOptionHardLock("useCustomMageKnights")
+	if customLocked and customValue==false then clearCustomMageKnightSelections(true) end
+	reconcileScenarioHardLocks()
+	if gStates.gameScenario=="First Reconnaissance" then gStates.riseOfTheForgemasters=0 end
+
+	local customSelected,jormundSelected=recountSetupMageKnights()
+	if customLocked then
+		gStates.useCustomMageKnights=customValue==true
+	elseif customSelected then
+		gStates.useCustomMageKnights=true
+	end
+	if gStates.gameScenario~="First Reconnaissance" and jormundSelected then gStates.riseOfTheForgemasters=3 end
+	if (gStates.riseOfTheForgemasters or 0)>0 then applyForgemasterExpansionRequirements() end
+
+	local bonusLocked,bonusValue=scenarioOptionHardLock("removeBonusCards")
+	if bonusLocked then gStates.removeBonusCards=bonusValue==true end
+
+	recountSetupMageKnights()
+	reconcileLostLegionExpansionState()
+	reconcileScenarioSetupValues()
+end
+
+local function renderMageKnightSetupAvailability()
 	local maxPlayers=setupScenarioMaxMageKnights()
-	for a=1,4 do
-		local available=gStates.positionMageKnight[a]~="nobody" or gStates.playerCount<maxPlayers
-		UI.setAttribute(MKDropDownUI[a], "interactable", available and "True" or "False")
-		UI.setAttribute(MKDropDownUI[a].."Image", "image", available and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	for position=1,4 do
+		local available=gStates.positionMageKnight[position]~="nobody" or gStates.playerCount<maxPlayers
+		local id=MAGE_KNIGHT_CONTROL_IDS[position]
+		UI.setAttribute(id,"interactable",available and "True" or "False")
+		UI.setAttribute(id.."Image","image",available and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
 	end
 
 	local dummyLocked=gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return"
@@ -40684,23 +40568,28 @@ function refreshMageKnightSetupAvailability()
 		gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or
 		gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="Mines Liberation"
 	local dummyAvailable=not dummyLocked and (gStates.positionMageKnight[5]=="Volkare" or not dummyPlayerLimited or gStates.playerCount<2)
-	UI.setAttribute("dummyMKSelection", "interactable", dummyAvailable and "True" or "False")
-	UI.setAttribute("dummyMKSelectionImage", "image", dummyAvailable and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	UI.setAttribute("dummyMKSelection","interactable",dummyAvailable and "True" or "False")
+	UI.setAttribute("dummyMKSelectionImage","image",dummyAvailable and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
 
-	--Retained optional Mage Knights keep the options they require when the scenario defaults are rebuilt.
-	if customSelected then
-		gStates.useCustomMageKnights=true
-		UI.setAttribute("useCustomMageKnights", "isOn", "true")
-	end
-	if jormundSelected then
-		gStates.riseOfTheForgemasters=3
-		UI.setAttribute("ROTFSelectionText", "text", "{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier")
-		applyForgemasterExpansionRequirements()
-	end
+	UI.setAttribute("useCustomMageKnights","isOn",gStates.useCustomMageKnights==true and "true" or "false")
+	UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[gStates.riseOfTheForgemasters or 0] or SETUP_TEXT.notUsed)
+
+	local bonusLocked=scenarioOptionHardLock("removeBonusCards")
+	local rotf=(gStates.riseOfTheForgemasters or 0)>0
+	UI.setAttribute("removeBonusCards","isOn",gStates.removeBonusCards==true and "true" or "false")
+	UI.setAttribute("removeBonusCards","interactable",(not bonusLocked and not rotf) and "True" or "False")
+
+	renderLostLegionExpansionOption()
+	renderScenarioHardLocks()
+	refreshHeroChallengeOptionLocks()
+end
+
+function refreshMageKnightSetupAvailability()
+	reconcileSetupState()
+	renderMageKnightSetupAvailability()
 end
 
 function refreshSetupStartButton()
-	refreshMageKnightSetupAvailability()
 	UI.setAttribute("WarOfFourStartButton", "active", "false")
 	UI.setAttribute("StartButton", "active", "false")
 	UI.setAttribute("StartButton", "width", "1000")
@@ -40720,11 +40609,11 @@ function refreshSetupStartButton()
 		UI.setAttribute("StartButton", "interactable", "True")
 		UI.setAttribute("StartButtonImage", "image", "Sliced Button/Button New Active")
 		if gStates.playerCount==1 then
-			UI.setAttribute("StartButtonText", "text", "{en}Start - Solo{ru}Начало - Одиночный{zh-tw}開始 - 單人遊戲{zh-cn}开始 - 单人游戏{ko}시작 - 솔로{es}Comenzar - Solo{fr}Démarrer - Solo{pt-br}Início - Solo{de}Start - Solo")
+			UI.setAttribute("StartButtonText", "text", SETUP_TEXT.startSolo)
 		elseif gStates.positionMageKnight[5]=="nobody" then
-			UI.setAttribute("StartButtonText", "text", "{en}Start - Competitive{ru}Начало - Соревновательный{zh-tw}開始 - 對抗模式{zh-cn}开始 - 对抗模式{ko}시작 - 경쟁{es}Comenzar - Competitivo{fr}Démarrer - Compétitif{pt-br}Início - Competitivo{de}Start - Wettbewerbsfähig")
+			UI.setAttribute("StartButtonText", "text", SETUP_TEXT.startCompetitive)
 		else
-			UI.setAttribute("StartButtonText", "text", "{en}Start - Cooperative{ru}Начало - Кооперативный{zh-tw}開始 - 合作模式{zh-cn}开始 - 合作模式{ko}시작 - 협력{es}Comenzar - Cooperativo{fr}Démarrer - Coopératif{pt-br}Início - Cooperativo{de}Start - Genossenschaft")
+			UI.setAttribute("StartButtonText", "text", SETUP_TEXT.startCooperative)
 		end
 		if gStates.gameScenario=="The War of Four" and gStates.playerCount>=2 then
 			UI.setAttribute("WarOfFourStartButton", "active", "True")
@@ -40740,119 +40629,107 @@ function refreshSetupStartButton()
 end
 
 function scenarioInfoUpdate()
-	--convert Mage Knight count/setup type to the scenario's matching reference
-	gStates.playersRef=setupPlayersRef()
-	refreshLostLegionExpansionOption()
-	if gStates.megapolis>0 then gStates.volkareCampAsCity=false end
-	--Convert Scenario to a reference then read the round count
-	for i=1, #scenarioList, 1 do
-		if gStates.gameScenario==scenarioList[i][1] then gStates.scenarioRef=i break end
-	end
+	reconcileSetupState()
+	local scenario=scenarioList[gStates.scenarioRef]
+	local setup=scenario[gStates.playersRef]
+	local details=scenario.scenarioDetails
+	renderMageKnightSetupAvailability()
+	renderDummySetupSection()
 	--Update Scenario Infos
-	UI.setAttribute("ScenarioDetails", "Active", "True")
-	UI.setAttribute("IntroBoard", "Active", "False")
+	UI.setAttribute("ScenarioDetails", "active", "true")
+	UI.setAttribute("IntroBoard", "active", "false")
 	UI.setAttribute("ScenarioName", "text", joinLang({translateWord[gStates.gameScenario], "{en} Purpose{ru} Цель{zh-tw} 目的{zh-cn} 目的{ko} 목적{es} Propósito{fr} Objectif{pt-br} Finalidade{de} Zweck"}))
-	UI.setAttribute("PlayerCount", "text", scenarioList[gStates.scenarioRef].scenarioDetails.playerDetails)
-	UI.setAttribute("ScenarioLength", "text", joinLang({"{en}Length - {ru}Продолжительность - {zh-tw}遊戲時長：{zh-cn}游戏时长：{ko}길이 - {es}Duración - {fr}Longueur - {pt-br}Duração - {de}Länge - ", scenarioList[gStates.scenarioRef][gStates.playersRef].rounds, "{en} Rounds{ru} Раунд(а/ов){zh-tw} 輪次{zh-cn} 轮次{ko}라운드{es} Rondas{fr} Rounds{pt-br} Rodadas{de} Runden"}))
-	UI.setAttribute("ScenarioPurpose", "text", scenarioList[gStates.scenarioRef].scenarioDetails.scenarioPurpose)
-	UI.setAttribute("ScenarioShape", "text", joinLang({"{en}Map Shape - {ru}Форма поля - {zh-tw}地圖形狀：{zh-cn}地图形状：{ko}지도 모양 - {es}Forma del Mapa - {fr}Forme de la Carte - {pt-br}Formato de Mapa - {de}Karten Form - ", scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape}))
+	UI.setAttribute("PlayerCount", "text", details.playerDetails)
+	UI.setAttribute("ScenarioLength", "text", joinLang({"{en}Length - {ru}Продолжительность - {zh-tw}遊戲時長：{zh-cn}游戏时长：{ko}길이 - {es}Duración - {fr}Longueur - {pt-br}Duração - {de}Länge - ", setup.rounds, "{en} Rounds{ru} Раунд(а/ов){zh-tw} 輪次{zh-cn} 轮次{ko}라운드{es} Rondas{fr} Rounds{pt-br} Rodadas{de} Runden"}))
+	UI.setAttribute("ScenarioPurpose", "text", details.scenarioPurpose)
+	UI.setAttribute("ScenarioShape", "text", joinLang({"{en}Map Shape - {ru}Форма поля - {zh-tw}地圖形狀：{zh-cn}地图形状：{ko}지도 모양 - {es}Forma del Mapa - {fr}Forme de la Carte - {pt-br}Formato de Mapa - {de}Karten Form - ", setup.mapShape}))
 	--Display the amount of country tiles and any rules
-	if scenarioList[gStates.scenarioRef].scenarioDetails.countryRules~=nil then
-		if scenarioList[gStates.scenarioRef].scenarioDetails.countryRules[1]==nil then
-			UI.setAttribute("ScenarioCountry", "text", joinLang({"{en}Country Tiles - {ru}Дикие земли - {zh-tw}鄉村板塊：{zh-cn}乡村板块：{ko}교외 타일 - {es}Losetas de Campo - {fr}Tuiles Pays - {pt-br}Peças de Campo - {de}Land Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.countryRules}))
+	if details.countryRules~=nil then
+		if details.countryRules[1]==nil then
+			UI.setAttribute("ScenarioCountry", "text", joinLang({SETUP_TEXT.countryTilesPrefix, setup.countryTiles.." ", details.countryRules}))
 		else
-			UI.setAttribute("ScenarioCountry", "text", joinLang({"{en}Country Tiles - {ru}Дикие земли - {zh-tw}鄉村板塊：{zh-cn}乡村板块：{ko}교외 타일 - {es}Losetas de Campo - {fr}Tuiles Pays - {pt-br}Peças de Campo - {de}Land Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.countryRules[gStates.playersRef]}))
+			UI.setAttribute("ScenarioCountry", "text", joinLang({SETUP_TEXT.countryTilesPrefix, setup.countryTiles.." ", details.countryRules[gStates.playersRef]}))
 		end
 	else
-		UI.setAttribute("ScenarioCountry", "text", joinLang({"{en}Country Tiles - {ru}Дикие земли - {zh-tw}鄉村板塊：{zh-cn}乡村板块：{ko}교외 타일 - {es}Losetas de Campo - {fr}Tuiles Pays - {pt-br}Peças de Campo - {de}Land Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles}))
+		UI.setAttribute("ScenarioCountry", "text", joinLang({SETUP_TEXT.countryTilesPrefix, setup.countryTiles}))
 	end
 	--Display the amount of core tiles and any rules
-	if scenarioList[gStates.scenarioRef].scenarioDetails.coreRules~=nil then
-		UI.setAttribute("ScenarioCore", "text", joinLang({"{en}Core Tiles - {ru}Развитые земли - {zh-tw}核心板塊：{zh-cn}核心板块：{ko}중심부 타일 - {es}Losetas Centrales - {fr}Tuiles de Base - {pt-br}Peças Centrais - {de}Core Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.coreRules}))
+	if details.coreRules~=nil then
+		UI.setAttribute("ScenarioCore", "text", joinLang({SETUP_TEXT.coreTilesPrefix, setup.coreTiles.." ", details.coreRules}))
 	else
-		UI.setAttribute("ScenarioCore", "text", joinLang({"{en}Core Tiles - {ru}Развитые земли - {zh-tw}核心板塊：{zh-cn}核心板块：{ko}중심부 타일 - {es}Losetas Centrales - {fr}Tuiles de Base - {pt-br}Peças Centrais - {de}Core Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles}))
+		UI.setAttribute("ScenarioCore", "text", joinLang({SETUP_TEXT.coreTilesPrefix, setup.coreTiles}))
 	end
 	--Display the amount of city tiles and any rules
-	if scenarioList[gStates.scenarioRef].scenarioDetails.cityRules~=nil then
-		UI.setAttribute("ScenarioCity", "text", joinLang({"{en}City Tiles - {ru}Земли с городом - {zh-tw}城市板塊：{zh-cn}城市板块：{ko}도시 타일 - {es}Losetas de Ciudad - {fr}Tuiles Ville - {pt-br} Peças Cidade - {de}Stadt Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles.." ", scenarioList[gStates.scenarioRef].scenarioDetails.cityRules}))
+	if details.cityRules~=nil then
+		UI.setAttribute("ScenarioCity", "text", joinLang({SETUP_TEXT.cityTilesPrefix, setup.cityTiles.." ", details.cityRules}))
 	else
-		UI.setAttribute("ScenarioCity", "text", joinLang({"{en}City Tiles - {ru}Земли с городом - {zh-tw}城市板塊：{zh-cn}城市板块：{ko}도시 타일 - {es}Losetas de Ciudad - {fr}Tuiles Ville - {pt-br} Peças Cidade - {de}Stadt Teile - ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles}))
+		UI.setAttribute("ScenarioCity", "text", joinLang({SETUP_TEXT.cityTilesPrefix, setup.cityTiles}))
 	end
-	--Display's City Levels and activates megapolis with the right settings.
-	if gStates.megapolis==0 then
-		for index, level in pairs(scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels) do
-			if index~=scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-				if level>22 then scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[index]=22 end
-			end
-		end
-	end
-	UI.setAttribute("MegapolisReminder", "active", "false")
+	--Display City Levels and Megapolis controls from the reconciled setup state.
 	local megapolisMaximum=megapolisMaximumForSetup(gStates.scenarioRef,gStates.playersRef)
-	if gStates.megapolis>megapolisMaximum then gStates.megapolis=megapolisMaximum end
-	ensureSetupMegapolisMinimumLevels()
-	local currentCitySetup=scenarioList[gStates.scenarioRef][gStates.playersRef]
+	local currentCitySetup=setup
 	local customLeaderOnly=gStates.gameScenario=="Custom" and currentCitySetup.cityTiles==0 and gStates.removeShadesOfTezlaMonsters~=true
-	if currentCitySetup.cityLevels[1]~=nil and currentCitySetup.cityLevels[1]>0 and (currentCitySetup.cityTiles>0 or customLeaderOnly) then
+	local hasCityLevelControls=currentCitySetup.cityLevels[1]~=nil and currentCitySetup.cityLevels[1]>0 and (currentCitySetup.cityTiles>0 or customLeaderOnly)
+	local showMegapolisControls=hasCityLevelControls and #currentCitySetup.cityLevels<=3 and megapolisMaximum>0
+	UI.setAttribute("MegapolisLeft","active",showMegapolisControls and "true" or "false")
+	UI.setAttribute("MegapolisRight","active",showMegapolisControls and "true" or "false")
+	UI.setAttribute("MegapolisReminder","active",showMegapolisControls and "true" or "false")
+	if showMegapolisControls then
+		local canUp=gStates.megapolis<megapolisMaximum
+		local canDown=gStates.megapolis>0
+		UI.setAttribute("MegapolisUp","interactable",canUp and "True" or "False")
+		UI.setAttribute("MegapolisDown","interactable",canDown and "True" or "False")
+		UI.setAttribute("MegapolisUpImage","image",canUp and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+		UI.setAttribute("MegapolisDownImage","image",canDown and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	end
+	if hasCityLevelControls then
 		UI.setAttribute("CityNote", "active", "false")
 		UI.setAttribute("CityLevelsRow", "active", "true")
 		UI.setAttribute("CityDescriptionRow", "active", "false")
 		UI.setAttribute("CityLevelschange", "active", "false")
 		--local b="<b>City Level(s) - </b>"
 		local layout="28"
-		if #scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels>3 or megapolisMaximum==0 then layout="0" end
+		if #setup.cityLevels>3 or megapolisMaximum==0 then layout="0" end
 		for a=1, 5, 1 do
-			if a<=#scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels then
+			if a<=#setup.cityLevels then
 				UI.setAttribute("CL"..a, "active", "true")
 				layout=layout.." 0"
-				if #scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels<=3 then
-					if (gStates.megapolis==1 and a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles) or (gStates.megapolis==2) and not (a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
-						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Megapolis, Lvl {ru}Мегаполис, ур. {zh-tw}大型城市，等級 {zh-cn}大型城市，等级 {ko}거대도시, 레벨 {es}Megapolis, Niv {fr}Megapolis, Niv {pt-br}Megápolis, Nvl {de}Metropoe, Lvl ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+				if #setup.cityLevels<=3 then
+					if (gStates.megapolis==1 and a==setup.cityTiles) or (gStates.megapolis==2) and not (a==setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
+						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Megapolis, Lvl {ru}Мегаполис, ур. {zh-tw}大型城市，等級 {zh-cn}大型城市，等级 {ko}거대도시, 레벨 {es}Megapolis, Niv {fr}Megapolis, Niv {pt-br}Megápolis, Nvl {de}Metropoe, Lvl ", setup.cityLevels[a]}))
 					else
 						if (customLeaderOnly and a==1) or (a==1 and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The War of Four")) or (a==2 and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four")) then
-							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader, Level {ru}Лидер, ур. {zh-tw}領袖，等級 {zh-cn}领袖，等级 {ko}지도자, 레벨 {es}Líder, Nivel {fr}Chef, Niveau {pt-br}Líder, Nível {de}Leiter, Level ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader, Level {ru}Лидер, ур. {zh-tw}領袖，等級 {zh-cn}领袖，等级 {ko}지도자, 레벨 {es}Líder, Nivel {fr}Chef, Niveau {pt-br}Líder, Nível {de}Leiter, Level ", setup.cityLevels[a]}))
 						else
-							if scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]==0 then
+							if setup.cityLevels[a]==0 then
 								UI.setAttribute("ScenarioCity"..a.."Level", "text", "{en}Friendly City{ru}Друж. город{zh-tw}友方城市{zh-cn}友方城市{ko}도시(우호적){es}Ciudad Amistosa{fr}Ville Amicale{pt-br}Cidade Amigável{de}Freundliche Stadt")
 							else
-								if a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-									UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Volkare, Level {ru}Волкар, ур. {zh-tw}沃卡里，等級 {zh-cn}沃卡里，等级 {ko}볼케어, 레벨{es}Volkare, Nivel {fr}Volkare, Niveau {pt-br}Volkare, Nível {de}Volkare, Ebene ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+								if a==setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
+									UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Volkare, Level {ru}Волкар, ур. {zh-tw}沃卡里，等級 {zh-cn}沃卡里，等级 {ko}볼케어, 레벨{es}Volkare, Nivel {fr}Volkare, Niveau {pt-br}Volkare, Nível {de}Volkare, Ebene ", setup.cityLevels[a]}))
 								else
-									UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}City, Level {ru}Город, ур. {zh-tw}城市，等級 {zh-cn}城市，等级 {ko}도시, 레벨 {es}Ciudad, Nivel {fr}Ville, Niveau {pt-br}Cidade, Nível {de}Stadt, Level ", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+									UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}City, Level {ru}Город, ур. {zh-tw}城市，等級 {zh-cn}城市，等级 {ko}도시, 레벨 {es}Ciudad, Nivel {fr}Ville, Niveau {pt-br}Cidade, Nível {de}Stadt, Level ", setup.cityLevels[a]}))
 								end
 							end
 						end
 					end
-					if megapolisMaximum>0 then
-						UI.setAttribute("MegapolisLeft", "active", "true")
-						UI.setAttribute("MegapolisRight", "active", "true")
-						local canUp=gStates.megapolis<megapolisMaximum
-						local canDown=gStates.megapolis>0
-						UI.setAttribute("MegapolisUp", "interactable", canUp and "True" or "False") UI.setAttribute("MegapolisDown", "interactable", canDown and "True" or "False")
-						UI.setAttribute("MegapolisUpImage", "image", canUp and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive") UI.setAttribute("MegapolisDownImage", "image", canDown and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
-						UI.setAttribute("MegapolisReminder", "active", "true")
-					else
-						UI.setAttribute("MegapolisLeft", "active", "false")
-						UI.setAttribute("MegapolisRight", "active", "false")
-						UI.setAttribute("MegapolisReminder", "active", "false")
-					end
+
 				else
 					if (a==1 or a==2) and gStates.gameScenario=="The War of Four" then
-						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader-{ru}Лидер-{zh-tw}領袖{zh-cn}领袖{ko}지도자-{es}Líder-{fr}Chef-{pt-br}Líder-{de}Leiter-", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader-{ru}Лидер-{zh-tw}領袖{zh-cn}领袖{ko}지도자-{es}Líder-{fr}Chef-{pt-br}Líder-{de}Leiter-", setup.cityLevels[a]}))
 					else
-						if a==scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Volkare-{ru}Волкар-{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어-{es}Volkare-{fr}Volkare-{pt-br}Volkare-{de}Volkare-", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+						if a==setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
+							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Volkare-{ru}Волкар-{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어-{es}Volkare-{fr}Volkare-{pt-br}Volkare-{de}Volkare-", setup.cityLevels[a]}))
 						else
-							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}City-{ru}Город-{zh-tw}城市{zh-cn}城市{ko}도시-{es}Ciudad-{fr}Ville-{pt-br}Cidade-{de}Stadt-", scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels[a]}))
+							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}City-{ru}Город-{zh-tw}城市{zh-cn}城市{ko}도시-{es}Ciudad-{fr}Ville-{pt-br}Cidade-{de}Stadt-", setup.cityLevels[a]}))
 						end
 					end
-					UI.setAttribute("MegapolisLeft", "active", "false")
-					UI.setAttribute("MegapolisRight", "active", "false")
+
 				end
 			else
 				UI.setAttribute("CL"..a, "active", "false")
 			end
 		end
-		if #scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels<=3 then layout=layout.." 28" end
+		if #setup.cityLevels<=3 then layout=layout.." 28" end
 		UI.setAttribute("CityLevelschange", "columnWidths", layout)
 		UI.setAttribute("CityLevelschange", "active", "true")
 	elseif currentCitySetup.cityTiles==0 then
@@ -40874,39 +40751,10 @@ function scenarioInfoUpdate()
 		b=joinLang({b, c})
 		UI.setAttribute("CityNote", "text", b)
 	end
-	--Volkare's Camp as City Menu Access
-	if gStates.removeLostLegionExpansion==true then
-		UI.setAttribute("volkareCampAsCity", "interactable", "False")
-		UI.setAttribute("volkareCampAsCity", "isOn", "false")
-		gStates.volkareCampAsCity=false
-	elseif gStates.megapolis>0 then
-		UI.setAttribute("volkareCampAsCity", "interactable", "False")
-		UI.setAttribute("volkareCampAsCity", "isOn", "false")
-		gStates.volkareCampAsCity=false
-	elseif #scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels==5 and gStates.gameScenario~="Volkare's Return" and gStates.gameScenario~="Volkare's Return Blitz" and gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The War of Four" then
-		UI.setAttribute("volkareCampAsCity", "interactable", "False")
-		UI.setAttribute("volkareCampAsCity", "isOn", "true")
-		gStates.volkareCampAsCity=true
-	else
-		--UI.setAttribute("volkareCampAsCity", "interactable", "True")
-		if gStates.gameScenario=="First Conquest" or
-			gStates.gameScenario=="Conquest" or
-			gStates.gameScenario=="Conquest Blitz" or
-			gStates.gameScenario=="One to Return" or
-			gStates.gameScenario=="Fast Forwarded Conquest" or
-			gStates.gameScenario=="The Lost Relic Blitz" or
-			gStates.gameScenario=="Ultimate Conquest" or
-			gStates.gameScenario=="The Fractured Lands Blitz" or
-			gStates.gameScenario=="Against the Horsemen Blitz" then
-			UI.setAttribute("volkareCampAsCity", "interactable", "True")
-		else
-			UI.setAttribute("volkareCampAsCity", "interactable", "False")
-			UI.setAttribute("volkareCampAsCity", "isOn", "false")
-			gStates.volkareCampAsCity=false
-		end
-	end
+	--Volkare's Camp as City state was reconciled before rendering.
+	renderVolkareCampAsCityOption(setup)
 	--Display the Scenario End rules
-	UI.setAttribute("ScenarioEnd", "text", scenarioList[gStates.scenarioRef].scenarioDetails.scenarioEnd)
+	UI.setAttribute("ScenarioEnd", "text", details.scenarioEnd)
 	refreshScenarioTerrainTweakLocks()
 	--Only allow Start button if the current player selection is legal
 	refreshSetupStartButton()
@@ -40920,6 +40768,132 @@ function SetupMenu(player, mouseButton, id)
 		--UI.hide("HelpButton")
 	end
 end
+
+-- Preserve/restore the pre-game setup presentation without making Events.lua own setup UI state.
+--Preserve the complete pre-game setup display and the scenario values that are edited directly in scenarioList.
+local setupUISaveAttributes={
+	{id="Setup1Details",attribute="active"},{id="Setup2Details",attribute="active"},
+	{id="Setup1Details",attribute="height"},{id="Setup2Details",attribute="height"},
+	{id="Setup1DetailsSub",attribute="height"},{id="Setup2DetailsSub",attribute="height"},
+	{id="MageKnightDetails",attribute="height"},
+	{id="ScenarioSelection",attribute="interactable"},{id="ScenarioSelectionText",attribute="text"},{id="ScenarioSelectionImage",attribute="image"},
+	{id="firstMKSelection",attribute="interactable"},{id="firstMKSelectionText",attribute="text"},{id="firstMKSelectionImage",attribute="image"},
+	{id="secondMKSelection",attribute="interactable"},{id="secondMKSelectionText",attribute="text"},{id="secondMKSelectionImage",attribute="image"},
+	{id="thirdMKSelection",attribute="interactable"},{id="thirdMKSelectionText",attribute="text"},{id="thirdMKSelectionImage",attribute="image"},
+	{id="fourthMKSelection",attribute="interactable"},{id="fourthMKSelectionText",attribute="text"},{id="fourthMKSelectionImage",attribute="image"},
+	{id="dummyMKSelection",attribute="interactable"},{id="dummyMKSelectionText",attribute="text"},{id="dummyMKSelectionImage",attribute="image"},
+	{id="DummyPosText",attribute="text"},
+	{id="VolkareLevelSelectionRow",attribute="active"},{id="VolkareRaceSelectionRow",attribute="active"},
+	{id="VolkareLevelSelection",attribute="interactable"},
+	{id="VolkareLevelSelectionText",attribute="text"},{id="VolkareLevelSelectionImage",attribute="image"},
+	{id="VolkareRaceSelection",attribute="interactable"},
+	{id="VolkareRaceSelectionText",attribute="text"},{id="VolkareRaceSelectionImage",attribute="image"},
+	{id="ROTFSelection",attribute="interactable"},{id="ROTFSelectionText",attribute="text"},{id="ROTFSelectionImage",attribute="image"},
+	{id="BlitzSelection",attribute="interactable"},{id="BlitzSelection",attribute="isOn"},{id="BlitzSelection",attribute="textColor"},
+	{id="RampageSelection",attribute="interactable"},{id="RampageSelection",attribute="isOn"},
+	{id="MoreRampageSelection",attribute="interactable"},{id="MoreRampageSelection",attribute="isOn"},
+	{id="volkareCampAsCity",attribute="interactable"},{id="volkareCampAsCity",attribute="isOn"},
+	{id="randomTileOrientation",attribute="interactable"},{id="randomTileOrientation",attribute="isOn"},
+	{id="randomCities",attribute="interactable"},{id="randomCities",attribute="isOn"},
+	{id="removeShadesOfTezlaMonsters",attribute="interactable"},{id="removeShadesOfTezlaMonsters",attribute="isOn"},
+	{id="removeApocalypseTerrain",attribute="interactable"},{id="removeApocalypseTerrain",attribute="isOn"},
+	{id="removeLostLegionExpansion",attribute="interactable"},{id="removeLostLegionExpansion",attribute="isOn"},
+	{id="startAtNight",attribute="interactable"},{id="startAtNight",attribute="isOn"},
+	{id="darknessComing",attribute="interactable"},{id="darknessComing",attribute="isOn"},{id="darknessComing",attribute="text"},
+	{id="rampageAmbush",attribute="interactable"},{id="rampageAmbush",attribute="isOn"},
+	{id="rampagePursuit",attribute="interactable"},{id="rampagePursuit",attribute="isOn"},
+	{id="mageKnightLevels",attribute="interactable"},{id="mageKnightLevels",attribute="isOn"},
+	{id="useCustomMageKnights",attribute="interactable"},{id="useCustomMageKnights",attribute="isOn"},
+	{id="heroChallenges",attribute="interactable"},{id="heroChallenges",attribute="isOn"},
+	{id="removeBonusCards",attribute="interactable"},{id="removeBonusCards",attribute="isOn"},
+	{id="weatherMod",attribute="interactable"},{id="weatherMod",attribute="isOn"},
+	{id="questMod",attribute="interactable"},{id="questMod",attribute="isOn"},
+	{id="apocalypseQuestCards",attribute="interactable"},{id="apocalypseQuestCards",attribute="isOn"},
+	{id="proxyPlayer",attribute="interactable"},{id="proxyPlayer",attribute="isOn"},
+	{id="itemShopMod",attribute="interactable"},{id="itemShopMod",attribute="isOn"},
+	{id="removeTerrain",attribute="interactable"},{id="removeTerrain",attribute="isOn"},
+	{id="useAlternatePugs",attribute="interactable"},{id="useAlternatePugs",attribute="isOn"}}
+
+local function setupScenarioRef()
+	if gStates==nil then return nil end
+	return scenarioRefForName(gStates.gameScenario)
+end
+
+function saveSetupState()
+	if gStates==nil or gStates.firstStarted==true then return end
+	gStates.setupUI={}
+	for _,details in ipairs(setupUISaveAttributes) do
+		local value=UI.getAttribute(details.id,details.attribute)
+		if value~=nil then gStates.setupUI[details.id.."|"..details.attribute]=value end
+	end
+	local scenarioRef=setupScenarioRef()
+	local playersRef=gStates.playersRef
+	if scenarioRef==nil or playersRef==nil or scenarioList[scenarioRef][playersRef]==nil then return end
+	local source=scenarioList[scenarioRef][playersRef]
+	gStates.setupScenarioState={scenario=gStates.gameScenario,playersRef=playersRef,rounds=source.rounds,mapShape=source.mapShape,mapShapeKey=source.mapShapeKey,
+		countryTiles=source.countryTiles,coreTiles=source.coreTiles,cityTiles=source.cityTiles,discardTactics=source.discardTactics,cityLevels={}}
+	for a,value in ipairs(source.cityLevels or {}) do gStates.setupScenarioState.cityLevels[a]=value end
+end
+
+function restoreSetupScenarioState()
+	if gStates==nil or gStates.setupScenarioState==nil then return end
+	local saved=gStates.setupScenarioState
+	local scenarioRef=scenarioRefForName(saved.scenario)
+	if scenarioRef==nil or saved.playersRef==nil or scenarioList[scenarioRef][saved.playersRef]==nil then return end
+	local target=scenarioList[scenarioRef][saved.playersRef]
+	if saved.rounds~=nil then target.rounds=saved.rounds end
+	if saved.mapShape~=nil then target.mapShape=saved.mapShape end
+	if saved.mapShapeKey~=nil then target.mapShapeKey=saved.mapShapeKey end
+	if saved.countryTiles~=nil then target.countryTiles=saved.countryTiles end
+	if saved.coreTiles~=nil then target.coreTiles=saved.coreTiles end
+	if saved.cityTiles~=nil then target.cityTiles=saved.cityTiles end
+	if saved.discardTactics~=nil then target.discardTactics=saved.discardTactics end
+	if saved.cityLevels~=nil then
+		target.cityLevels={}
+		for a,value in ipairs(saved.cityLevels) do target.cityLevels[a]=value end
+	end
+	gStates.scenarioRef=scenarioRef
+	gStates.playersRef=saved.playersRef
+end
+
+local function restoreSetupUIFromState()
+	local toggles={"volkareCampAsCity","randomTileOrientation","randomCities","removeShadesOfTezlaMonsters","removeApocalypseTerrain",
+		"removeLostLegionExpansion","startAtNight","darknessComing","rampageAmbush","rampagePursuit","mageKnightLevels",
+		"useCustomMageKnights","heroChallenges","removeBonusCards","weatherMod","questMod","apocalypseQuestCards","proxyPlayer","itemShopMod","removeTerrain","useAlternatePugs"}
+	for _,id in ipairs(toggles) do if gStates[id]~=nil then UI.setAttribute(id,"isOn",gStates[id] and "true" or "false") end end
+	UI.setAttribute("BlitzSelection","isOn",gStates.blitz==1 and "true" or "false")
+	UI.setAttribute("RampageSelection","isOn",gStates.rampage==1 and "true" or "false")
+	UI.setAttribute("MoreRampageSelection","isOn",gStates.rampage==2 and "true" or "false")
+	if translateWord[gStates.gameScenario]~=nil then UI.setAttribute("ScenarioSelectionText","text",translateWord[gStates.gameScenario]) end
+	if ROTF_TEXT_BY_LEVEL[gStates.riseOfTheForgemasters or 0]~=nil then UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[gStates.riseOfTheForgemasters or 0]) end
+	local combat={"Daring","Heroic","Legendary"}
+	local race={"Fair","Tight","Thrilling"}
+	if combat[gStates.volkareCombatLevel or 1]~=nil then UI.setAttribute("VolkareLevelSelectionText","text",translateWord[combat[gStates.volkareCombatLevel or 1]]) end
+	if race[gStates.volkareRaceLevel or 1]~=nil then UI.setAttribute("VolkareRaceSelectionText","text",translateWord[race[gStates.volkareRaceLevel or 1]]) end
+	UI.setAttribute("darknessComing","text",gStates.startAtNight==true and
+		SETUP_TEXT.daylightComing or
+		SETUP_TEXT.darknessComing)
+	refreshProxySetupLabel()
+end
+
+function restoreSetupUI()
+	if gStates==nil then return end
+	if gStates.setupUI==nil then restoreSetupUIFromState() return end
+	for _,details in ipairs(setupUISaveAttributes) do
+		local value=gStates.setupUI[details.id.."|"..details.attribute]
+		if value~=nil then UI.setAttribute(details.id,details.attribute,value) end
+	end
+	--Never reopen a dropdown just because it happened to be open when the game was saved.
+	UI.setAttribute("DropDown","active","false")
+end
+
+--Section 3 has derived layout/content when Volkare occupies the dummy position.
+--Rebuild it from the saved game state after restoring the general setup snapshot.
+function restoreMageKnightSetupSection()
+	if gStates==nil then return end
+	renderDummySetupSection()
+end
+
 end)
 __bundle_register("SetupGame.HeroChallenges", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Hero Challenge setup validation, terrain assignment and objective text.
@@ -41736,7 +41710,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="426"
+local automaticLuaErrorReporterVersion="427"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -41765,14 +41739,9 @@ function automaticLuaErrorMageValue(position)
 end
 
 function automaticLuaErrorMapShape()
-	local mapShape=automaticLuaErrorScenarioValue("mapShape", "")
-	if mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then return "4 Columns" end
-	if mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then return "3 Columns" end
-	if mapShape=="{en}Wedge with No Limitations{ru}Клиновидное поле без ограничений{zh-tw}錐形無限制地圖{zh-cn}锥形无限制地图{ko}쐐기형(무제한){es}En Cuña sin Límites{fr}Coin sans Limites{pt-br}Cônico sem Limitações{de}Keil ohne Begrenzungen" then return "Wedge" end
-	if mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then return "Wedge" end
-	if mapShape=="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen" then return "Fully Open" end
-	if mapShape=="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert" then return "Predefined" end
-	return mapShape
+	local key=automaticLuaErrorScenarioValue("mapShapeKey","")
+	local labels={wedgeUnlimited="Wedge",wedge="Wedge",open3="3 Columns",open4="4 Columns",open="Fully Open",predefined="Predefined"}
+	return labels[key] or tostring(key)
 end
 
 function automaticLuaErrorCityLevel()
@@ -41800,6 +41769,21 @@ function automaticLuaErrorMultiHand()
 	end, "")
 end
 
+--Mirror the existing manual bug-report seat fields so automatic rows can be tied back to the
+--players in that session without changing the generic "Automatic Lua Error" reporter label.
+function automaticLuaErrorSteamName(position)
+	return automaticLuaErrorValue(function()
+		for _, color in pairs(Player.getAvailableColors()) do
+			local seatedPlayer=Player[color]
+			if seatedPlayer~=nil and seatedPlayer.seated==true then
+				local hand=seatedPlayer.getHandTransform()
+				local seatPos=math.ceil((hand.position[1]+97.59)/40)
+				if seatPos==position then return seatedPlayer.steam_name end
+			end
+		end
+	end, "")
+end
+
 function sendAutomaticLuaErrorRequest(comment)
 	-- Build the normal bug-report context, but protect every lookup independently.
 	-- A broken game-state field must never be able to stop the emergency report.
@@ -41822,6 +41806,11 @@ function sendAutomaticLuaErrorRequest(comment)
 		positionMageKnight3=automaticLuaErrorMageValue(3),
 		positionMageKnight4=automaticLuaErrorMageValue(4),
 		positionMageKnight5=automaticLuaErrorMageValue(5),
+		steamName1=automaticLuaErrorSteamName(1),
+		steamName2=automaticLuaErrorSteamName(2),
+		steamName3=automaticLuaErrorSteamName(3),
+		steamName4=automaticLuaErrorSteamName(4),
+		steamName5=automaticLuaErrorSteamName(5),
 		proxyPlayer=automaticLuaErrorStateValue("proxyPlayer", false),
 		multihand=automaticLuaErrorMultiHand(),
 		includeYmirgh=automaticLuaErrorStateValue("useCustomMageKnights", ""),
@@ -42028,57 +42017,169 @@ end
 
 end)
 __bundle_register("Data", function(require, _LOADED, __bundle_register, __bundle_modules)
--- Static game data only: GUIDs, scenarios, cards, terrain, monsters, Mage Knights and related configuration.
--- Apocalypse Dragon component identity, Fury targeting tables and head-level combat data are shared here by all Dragon scenarios.
--- No gameplay functions belong in this module.
-
-apocalypseDragon={
-	model="105141",
-	furyMarker="42b581",
-	furyHoldingPosition={-65.53,1.35,22.09},
-	furyDieRollPosition={-4.50,2.50,-22.20},
-	furyTargetCategories={
-		fortified={"keep","mage tower","city"},
-		adventure={"monster den","dungeon","maze","ziggurat","spawning grounds","tomb","labyrinth","pyramid","ruin"},
-		rampager={"rampaging","draconum"},
-		inhabited={"village","camp","oasis","monastery"},
-		mana={"mine","glade"}
-	},
-	furyColorCategories={
-		blue={"fortified"}, green={"adventure"}, red={"rampager"}, white={"inhabited"}, gold={"mana"},
-		black={"fortified","adventure","rampager","inhabited","mana"}
-	},
-	furyCategoryHead={fortified="Death",adventure="Pestilence",rampager="War",inhabited="Famine"},
-	furyLowestHeadOrder={"Famine","War","Pestilence","Death"},
-	roundOrder="9ba54f",
-	modelPosition={-65.53,1.07,22.09},
-	levelMarkerRadius=2.9,
-	heads={
-		{guid="a977d8",tokenGUID="198da8",name="Famine",position={-69.93,0.97,7.00}},
-		{guid="92fed8",tokenGUID="44f36b",name="Death",position={-69.93,0.97,16.00}},
-		{guid="c7e80f",tokenGUID="726090",name="Control",position={-60.93,0.97,7.00}},
-		{guid="819bba",tokenGUID="3c4daf",name="Pestilence",position={-60.93,0.97,16.00}},
-		{guid="51e2b1",tokenGUID="977f51",name="War",position={-51.93,0.97,7.00}}
-	}
-}
-apocalypseDragonColoredHeads={"Famine","Death","Pestilence","War"}
-apocalypseDragonAirborneHeads={"War","Death","Famine","Pestilence"}
 ------------
 -- Variables
 ------------
-GUID={
-	deck={artifact="ac75c4", spell="e4372a", action="e926ba", regularUnit="75745b", eliteUnit="c15e86", dayWeather="a822f8", nightWeather="d951b8", krang="bee7bd", goldyx="514e15", volkare="95765b", villageQuest="cabd7d", monasteryQuest="5073ec", cityQuest="4a5525", uniqueQuest="9dffb3", apocalypseQuest="e41b86"},
-	zone={mana="2cd825", regularUnit="4fa2f2", eliteUnit="715b48", unitOffer="a3d99b", actionDeck="7ce69e", spellDeck="f752bb", offer="45cc44", skillOffer="d20c01", blueCity="8a7266", redCity="648da8", greenCity="213d78", whiteCity="d2d65e"},
-	tile={country01="e2ecf8", country02="ca8ad3", country03="a501d6", country04="a26c4f", country05="184fb7", country06="208d84", country07="20607e", country08="78fc79", country09="05b612", country10="6510ac", country11="d21095", country12="29a93c", country13="0bf020", country14="7ce33f", country15="b5d212", country16="ab4202", country17="228469", core01="584237", core02="155a31", core03="be86ec", core04="264fa0", city05="314081", city06="63f201", city07="a3ce11", city08="53d847", core09="cff250", core10="de7fad", core11="ed651c", core12="a33586"},
-	bag={forgemaster="11128e", apocalypseDragon="e4b8f4", apocalypseQuestTokens="f7bd64", neutralShield="bdc03e", tezla="96878f", volkare="63f203", volkareReminder="758fb3", common="77b3fd", allSkills="219c37", cemetery="651583", destroyedSite="9d4a53", spareDice="5cf042", possessed="9677da", itemShop="70f4fe", lostLegion="aff5f6", quest="bffdc0", weatherMod="a1e972",
-		terrain={stack="966e0e", leftCore="c87444", leftCountry="37d9b4", leftCity="a0ba93", shuffler="089e71"},
-		mana={red="819a62", blue="8ae7b8", green="a30eb7", white="4f6569", gold="4a836f", black="74d666"},
-		weather={blazingSun="889c03", overcast="36014f", snowfall="9b5096", thunder="0ddafe", rain="b92ffa"},
-		component={arythea="960fa0", braevalar="eefacc", coral="84bc3c", duscenia="d41799", goldyx="e573b9", jormund="708a80", krang="6fc671", malek="62255c", mevok="536ec1", norowas="13d7b8", tovak="b0d65f", wolfhawk="8f94bc", ymirgh="b8031f", zirtae="a843af"},
-		skill={arythea="96a66d", braevalar="86bf10", goldyx="21cb81", jormund="5fe895", krang="0f342d", malek="508847", norowas="41db58", tovak="f3e3b3", wolfhawk="fb1d20", ymirgh="731696", zirtae="b74d7f", coral="ce5ce6"},
-		discard={apocReward="f362a2", councilReward="f67cac", cityGarrison="730898", darkDraconum="9860ce", darkDungeon="e9b18c", darkReward="f9d3a4", draconum="b23c77", dungeon="763c2d", elementalistDraconum="80c10d", elementalistDungeon="236555", elementalistOrcs="4aecb4", elementalistReward="076ab9", keepGarrison="b336a7", towerGarrison="6ae8c3", darkMarauders="61ba30", orcs="ed0ec9", possessed="53b986", ruin="869a0f"}
-	}
-}
+-- Static game data only: GUIDs, scenarios, cards, terrain, monsters, Mage Knights and related configuration.
+-- No gameplay functions belong in this module.
+
+apocalypseDragon={	model="105141",
+					furyMarker="42b581",
+					furyHoldingPosition={-65.53,1.35,22.09},
+					furyDieRollPosition={-4.50,2.50,-22.20},
+					furyTargetCategories={	fortified={"keep","mage tower","city"},
+											adventure={"monster den","dungeon","maze","ziggurat","spawning grounds","tomb","labyrinth","pyramid","ruin"},
+											rampager={"rampaging","draconum"},
+											inhabited={"village","camp","oasis","monastery"},
+											mana={"mine","glade"}},
+					furyColorCategories={	blue={"fortified"}, green={"adventure"}, red={"rampager"}, white={"inhabited"}, gold={"mana"},
+											black={"fortified","adventure","rampager","inhabited","mana"}},
+					furyCategoryHead={fortified="Death",adventure="Pestilence",rampager="War",inhabited="Famine"},
+					furyLowestHeadOrder={"Famine","War","Pestilence","Death"},
+					roundOrder="9ba54f",
+					modelPosition={-65.53,1.07,22.09},
+					levelMarkerRadius=2.9,
+					heads={	{guid="a977d8",tokenGUID="198da8",name="Famine",position={-69.93,0.97,7.00}},
+							{guid="92fed8",tokenGUID="44f36b",name="Death",position={-69.93,0.97,16.00}},
+							{guid="c7e80f",tokenGUID="726090",name="Control",position={-60.93,0.97,7.00}},
+							{guid="819bba",tokenGUID="3c4daf",name="Pestilence",position={-60.93,0.97,16.00}},
+							{guid="51e2b1",tokenGUID="977f51",name="War",position={-51.93,0.97,7.00}}}}
+apocalypseDragonColoredHeads={"Famine","Death","Pestilence","War"}
+apocalypseDragonAirborneHeads={"War","Death","Famine","Pestilence"}
+
+GUID={	deck={	artifact="ac75c4", 
+				spell="e4372a", 
+				action="e926ba", 
+				regularUnit="75745b", 
+				eliteUnit="c15e86", 
+				dayWeather="a822f8", 
+				nightWeather="d951b8", 
+				krang="bee7bd", 
+				goldyx="514e15", 
+				volkare="95765b", 
+				villageQuest="cabd7d", 
+				monasteryQuest="5073ec", 
+				cityQuest="4a5525", 
+				uniqueQuest="9dffb3", 
+				apocalypseQuest="e41b86"},
+		zone={	mana="2cd825", 
+				regularUnit="4fa2f2", 
+				eliteUnit="715b48", 
+				unitOffer="a3d99b", 
+				actionDeck="7ce69e", 
+				spellDeck="f752bb", 
+				offer="45cc44", 
+				skillOffer="d20c01", 
+				blueCity="8a7266", 
+				redCity="648da8", 
+				greenCity="213d78", 
+				whiteCity="d2d65e"},
+		tile={	country01="e2ecf8", 
+				country02="ca8ad3", 
+				country03="a501d6", 
+				country04="a26c4f", 
+				country05="184fb7", 
+				country06="208d84", 
+				country07="20607e", 
+				country08="78fc79", 
+				country09="05b612", 
+				country10="6510ac", 
+				country11="d21095", 
+				country12="29a93c", 
+				country13="0bf020", 
+				country14="7ce33f", 
+				country15="b5d212", 
+				country16="ab4202", 
+				country17="228469", 
+				core01="584237", 
+				core02="155a31", 
+				core03="be86ec", 
+				core04="264fa0", 
+				city05="314081", 
+				city06="63f201", 
+				city07="a3ce11", 
+				city08="53d847", 
+				core09="cff250", 
+				core10="de7fad", 
+				core11="ed651c", 
+				core12="a33586"},
+		bag={	forgemaster="11128e", 
+				apocalypseDragon="e4b8f4", 
+				apocalypseQuestTokens="f7bd64", 
+				neutralShield="bdc03e", 
+				tezla="96878f", 
+				volkare="63f203", 
+				volkareReminder="758fb3", 
+				common="77b3fd", 
+				allSkills="219c37", 
+				cemetery="651583", 
+				destroyedSite="9d4a53", 
+				spareDice="5cf042", 
+				possessed="9677da", 
+				itemShop="70f4fe", 
+				lostLegion="aff5f6", 
+				quest="bffdc0", 
+				weatherMod="a1e972",
+				terrain={	stack="966e0e", 
+							leftCore="c87444", 
+							leftCountry="37d9b4", 
+							leftCity="a0ba93", 
+							shuffler="089e71"},
+				mana={		red="819a62", 
+							blue="8ae7b8", 
+							green="a30eb7", 
+							white="4f6569", 
+							gold="4a836f", 
+							black="74d666"},
+				weather={	blazingSun="889c03", 
+							overcast="36014f", 
+							snowfall="9b5096", 
+							thunder="0ddafe", 
+							rain="b92ffa"},
+				component={	arythea="960fa0", 
+							braevalar="eefacc", 
+							coral="84bc3c", 
+							duscenia="d41799", 
+							goldyx="e573b9", 
+							jormund="708a80", 
+							krang="6fc671", 
+							malek="62255c", 
+							mevok="536ec1", 
+							norowas="13d7b8", 
+							tovak="b0d65f", 
+							wolfhawk="8f94bc", 
+							ymirgh="b8031f", 
+							zirtae="a843af"},
+				skill={		arythea="96a66d", 
+							braevalar="86bf10", 
+							goldyx="21cb81", 
+							jormund="5fe895", 
+							krang="0f342d", 
+							malek="508847", 
+							norowas="41db58", 
+							tovak="f3e3b3", 
+							wolfhawk="fb1d20", 
+							ymirgh="731696", 
+							zirtae="b74d7f", 
+							coral="ce5ce6"},
+				discard={	apocReward="f362a2", 
+							councilReward="f67cac", 
+							cityGarrison="730898", 
+							darkDraconum="9860ce", 
+							darkDungeon="e9b18c", 
+							darkReward="f9d3a4", 
+							draconum="b23c77", 
+							dungeon="763c2d", 
+							elementalistDraconum="80c10d", 
+							elementalistDungeon="236555", 
+							elementalistOrcs="4aecb4", 
+							elementalistReward="076ab9", 
+							keepGarrison="b336a7", 
+							towerGarrison="6ae8c3", 
+							darkMarauders="61ba30", 
+							orcs="ed0ec9", 
+							possessed="53b986", 
+							ruin="869a0f"}}}
 tacticZones=			{"9e319e", "32172f", "bc2046", "8363fc", "01ac7e", "582d2b"}
 tacticCard=				{"3b6922", "a000a4", "fbd7fd", "6f7af6", "ea251c", "2404f1",     "650f6f", "f6ad01", "3bb84a", "db7aaa", "6c50ac", "e2af14"}--1-6 Day, 1-6 Night
 deedDeckZones=			{"af0360", "22b532", "c10770", "aa1121", "b29524"}
@@ -42131,72 +42232,38 @@ darkCrusader=			{disc="67e80f", token="eefd23", terrainHex="ffffff", discZone="8
 volkare=				{disc="5a616b", model="c62a53", terrainHex="a7d898", discZone="48f2f1"}
 portal=					{terrainHex="5737b3"}
 monsterPiles={	["white"]="baac01", ["purple"]="c03e08", ["tan"]="e4b016", ["gray"]="7a85f5", ["red"]="4537fa", ["green"]="c8e6e4", ["yellow"]="cf4631",
-								["greenElem"]="0596bd", ["tanElem"]="30bbae", ["redElem"]="54c45b", ["rewardElem"]="33de41",
-								["greenDark"]="cfef57", ["tanDark"]="0fde4d", ["redDark"]="bc9d0e", ["rewardDark"]="f469f4",
-								["rewardCouncil"]="f4d26c", ["rewardApoc"]="45d509", ["possessed"]=GUID.bag.possessed, ["zigguratTrap"]="40cf75", ["pyramidTrap"]="a86821"}
+				["greenElem"]="0596bd", ["tanElem"]="30bbae", ["redElem"]="54c45b", ["rewardElem"]="33de41",
+				["greenDark"]="cfef57", ["tanDark"]="0fde4d", ["redDark"]="bc9d0e", ["rewardDark"]="f469f4",
+				["rewardCouncil"]="f4d26c", ["rewardApoc"]="45d509", ["possessed"]=GUID.bag.possessed, ["zigguratTrap"]="40cf75", ["pyramidTrap"]="a86821"}
 
 --Single source of truth for setup-time expansion and special-pool membership.
 --Setup modules decide whether a roster is active; individual component ownership belongs here.
-setupContentRoster={
-	lostLegion={
-		terrain={
-			country={GUID.tile.country12,GUID.tile.country13,GUID.tile.country14},
-			core={GUID.tile.core09,GUID.tile.core10}
-		},
-		enemies={
-			{source=monsterPiles.green,tokens={"643901","30df98","f0d27a","994ee9","e17886","8ffd9e","28bc08","0cc1e5"}},
-			{source=monsterPiles.tan,tokens={"013cb1","16d47c","ce794a","863ba1","558de1","277cd2"}},
-			{source=monsterPiles.red,tokens={"be5c5e","9156c4","80d998","17bcd9","09ec72","b7dca2"}},
-			{source=monsterPiles.yellow,tokens={"58c5ab","2f9a1f","28cc9c"}},
-			{source=monsterPiles.gray,tokens={"3f4b5e","88ecaa","bc5065","808631","8ea708","f11b70","7e72a2","90755e"}},
-			{source=monsterPiles.purple,tokens={"490a69","b8f920","23fe94","8a3f72"}},
-			{source=monsterPiles.white,tokens={"c0c315","eae753","e9a281","e6859f","864fe1","729056"}}
-		},
-		cards={
-			[GUID.deck.action]={"d3995b","93b7d4","9de475","87bc59","878d93","05ef61","42eb53","65a1d5","8122c2","474418","54b5c4","878d94"},
-			[GUID.deck.spell]={"2eb8e6","2eb8e1","47e71c","2eb8d9"},
-			[GUID.deck.artifact]={"085e65","085e64","085e63","085e67","085e66","085e68","98681f","7d608f"},
-			[GUID.deck.regularUnit]={"75307e","ff2a54","246b0d","d8e49b","bd1011","0a2e0b","4339c4","422b8b"},
-			[GUID.deck.eliteUnit]={"88f3f2","9c5c38","223b47","c3e3c5","613dca","8ccbdd","5c2da0","4ee245"}
-		}
-	},
-	apocalypse={
-		terrain={
-			country={GUID.tile.country15,GUID.tile.country16,GUID.tile.country17},
-			core={GUID.tile.core11,GUID.tile.core12}
-		}
-	},
-	shadesOfTezla={
-		enemies={
-			dark={
-				{source=monsterPiles.green,destination=monsterPiles.greenDark,tokens={"0c5f4d","698829","f87e33","565ecd","f85b1e","d549a5","39d58e","8efc22"}},
-				{source=monsterPiles.tan,destination=monsterPiles.tanDark,tokens={"863ba2","558de0","013cb2","61eb06"}},
-				{source=monsterPiles.red,destination=monsterPiles.redDark,tokens={"c77902","f87e32","342ed4","0d0645"}}
-			},
-			elementalist={
-				{source=monsterPiles.green,destination=monsterPiles.greenElem,tokens={"8efc20","64b218","698828","adec2a","e9911f","60e427","a04726","f87e31"}},
-				{source=monsterPiles.tan,destination=monsterPiles.tanElem,tokens={"00c4da","863bab","013cb3","61eb07"}},
-				{source=monsterPiles.red,destination=monsterPiles.redElem,tokens={"c77901","6cad42","5d4e06","f87e39"}}
-			}
-		}
-	},
-	bonusCards={
-		cards={
-			[GUID.deck.action]={"409fe8","141527","1a1c02","d75285"},
-			[GUID.deck.artifact]={"085e69"}
-		}
-	},
-	competitiveSpells={
-		cards={
-			[GUID.deck.spell]={"2eb8f4","8907d7","2eb8f5","2eb8f3"}
-		}
-	},
-	firstReconnaissanceExcluded={
-		cards={
-			[GUID.deck.action]={"8c3de6","8fac50","d74999","20cb85","6fdeb0","1f362f","35aee6","bb05a9","e2b570","c3153e","885b96","3d832c"}
-		}
-	}
-}
+setupContentRoster={lostLegion={terrain={	country={GUID.tile.country12,GUID.tile.country13,GUID.tile.country14},
+											core={GUID.tile.core09,GUID.tile.core10}},
+								enemies={	{source=monsterPiles.green,tokens={"643901","30df98","f0d27a","994ee9","e17886","8ffd9e","28bc08","0cc1e5"}},
+											{source=monsterPiles.tan,tokens={"013cb1","16d47c","ce794a","863ba1","558de1","277cd2"}},
+											{source=monsterPiles.red,tokens={"be5c5e","9156c4","80d998","17bcd9","09ec72","b7dca2"}},
+											{source=monsterPiles.yellow,tokens={"58c5ab","2f9a1f","28cc9c"}},
+											{source=monsterPiles.gray,tokens={"3f4b5e","88ecaa","bc5065","808631","8ea708","f11b70","7e72a2","90755e"}},
+											{source=monsterPiles.purple,tokens={"490a69","b8f920","23fe94","8a3f72"}},
+											{source=monsterPiles.white,tokens={"c0c315","eae753","e9a281","e6859f","864fe1","729056"}}},
+								cards={		[GUID.deck.action]={"d3995b","93b7d4","9de475","87bc59","878d93","05ef61","42eb53","65a1d5","8122c2","474418","54b5c4","878d94"},
+											[GUID.deck.spell]={"2eb8e6","2eb8e1","47e71c","2eb8d9"},
+											[GUID.deck.artifact]={"085e65","085e64","085e63","085e67","085e66","085e68","98681f","7d608f"},
+											[GUID.deck.regularUnit]={"75307e","ff2a54","246b0d","d8e49b","bd1011","0a2e0b","4339c4","422b8b"},
+											[GUID.deck.eliteUnit]={"88f3f2","9c5c38","223b47","c3e3c5","613dca","8ccbdd","5c2da0","4ee245"}}},
+					apocalypse={terrain={	country={GUID.tile.country15,GUID.tile.country16,GUID.tile.country17},
+											core={GUID.tile.core11,GUID.tile.core12}}},
+					shadesOfTezla={enemies={dark={			{source=monsterPiles.green,destination=monsterPiles.greenDark,tokens={"0c5f4d","698829","f87e33","565ecd","f85b1e","d549a5","39d58e","8efc22"}},
+															{source=monsterPiles.tan,destination=monsterPiles.tanDark,tokens={"863ba2","558de0","013cb2","61eb06"}},
+															{source=monsterPiles.red,destination=monsterPiles.redDark,tokens={"c77902","f87e32","342ed4","0d0645"}}},
+											elementalist={	{source=monsterPiles.green,destination=monsterPiles.greenElem,tokens={"8efc20","64b218","698828","adec2a","e9911f","60e427","a04726","f87e31"}},
+															{source=monsterPiles.tan,destination=monsterPiles.tanElem,tokens={"00c4da","863bab","013cb3","61eb07"}},
+															{source=monsterPiles.red,destination=monsterPiles.redElem,tokens={"c77901","6cad42","5d4e06","f87e39"}}}}},
+					bonusCards={cards={		[GUID.deck.action]={"409fe8","141527","1a1c02","d75285"},
+											[GUID.deck.artifact]={"085e69"}}},
+					competitiveSpells={cards={[GUID.deck.spell]={"2eb8f4","8907d7","2eb8f5","2eb8f3"}}},
+					firstReconnaissanceExcluded={cards={[GUID.deck.action]={"8c3de6","8fac50","d74999","20cb85","6fdeb0","1f362f","35aee6","bb05a9","e2b570","c3153e","885b96","3d832c"}}}}
 
 translateWord={	["Red"]="{en}Red{ru}Красный{zh-tw}红色的{zh-cn}红色的{ko}빨간색{es}Rojo{fr}Rouge{pt-br}Vermelho{de}Rote",
 				["Green"]="{en}Green{ru}Зеленый{zh-tw}绿色的{zh-cn}绿色的{ko}녹색{es}Verde{fr}Vert{pt-br}Verde{de}Grüne",
@@ -42300,56 +42367,64 @@ translateWord={	["Red"]="{en}Red{ru}Красный{zh-tw}红色的{zh-cn}红色�
 				["Arythea"]="{en}Arythea{ru}Аритея{zh-tw}艾莉西亞{zh-cn}艾莉西亚{ko}아리시아{es}Arythea{fr}Arythea{pt-br}Arythea{de}Arythea",
 				["Volkare"]="{en}Volkare{ru}Волкар{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어{es}Volkare{fr}Volkare{pt-br}Volkare{de}Volkare"}
 
+mapShapeText={
+	wedgeUnlimited="{en}Wedge with No Limitations{ru}Клиновидное поле без ограничений{zh-tw}錐形無限制地圖{zh-cn}锥形无限制地图{ko}쐐기형(무제한){es}En Cuña sin Límites{fr}Coin sans Limites{pt-br}Cônico sem Limitações{de}Keil ohne Begrenzungen",
+	wedge="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",
+	open3="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten",
+	open4="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",
+	open="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",
+	predefined="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert"
+}
+mapShapeGridURL={
+	wedge="https://steamusercontent-a.akamaihd.net/ugc/1674736055049113832/44EE3C6AA10498BCD1B46040AD18631BFD580AC4/",
+	open3="https://steamusercontent-a.akamaihd.net/ugc/1674736055049110361/978D612A44ADDE6E1630965A311722114BA28AE5/",
+	open4="https://steamusercontent-a.akamaihd.net/ugc/1674736055049111266/7BC768B7CD64E6018EBEC720559690409F4BA555/",
+	open="https://steamusercontent-a.akamaihd.net/ugc/1674736055049031257/2457D03CE33118D57CD456183026FEB596CF6A3A/"
+}
+
 scenarioList={
 	{"First Reconnaissance",
-		{mapShape="{en}Wedge with No Limitations{ru}Клиновидное поле без ограничений{zh-tw}錐形無限制地圖{zh-cn}锥形无限制地图{ko}쐐기형(무제한){es}En Cuña sin Límites{fr}Coin sans Limites{pt-br}Cônico sem Limitações{de}Keil ohne Begrenzungen",countryTiles=8,cityTiles=1,coreTiles=2,rounds=3,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Wedge with No Limitations{ru}Клиновидное поле без ограничений{zh-tw}錐形無限制地圖{zh-cn}锥形无限制地图{ko}쐐기형(무제한){es}En Cuña sin Límites{fr}Coin sans Limites{pt-br}Cônico sem Limitações{de}Keil ohne Begrenzungen",countryTiles=9,cityTiles=1,coreTiles=2,rounds=3,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Wedge with No Limitations{ru}Клиновидное поле без ограничений{zh-tw}錐形無限制地圖{zh-cn}锥形无限制地图{ko}쐐기형(무제한){es}En Cuña sin Límites{fr}Coin sans Limites{pt-br}Cônico sem Limitações{de}Keil ohne Begrenzungen",countryTiles=11,cityTiles=1,coreTiles=2,rounds=3,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Wedge with No Limitations{ru}Клиновидное поле без ограничений{zh-tw}錐形無限制地圖{zh-cn}锥形无限制地图{ko}쐐기형(무제한){es}En Cuña sin Límites{fr}Coin sans Limites{pt-br}Cônico sem Limitações{de}Keil ohne Begrenzungen",countryTiles=8,cityTiles=1,coreTiles=2,rounds=4,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
+		{mapShape=mapShapeText.wedgeUnlimited,mapShapeKey="wedgeUnlimited",countryTiles=8,cityTiles=1,coreTiles=2,rounds=3,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedgeUnlimited,mapShapeKey="wedgeUnlimited",countryTiles=9,cityTiles=1,coreTiles=2,rounds=3,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedgeUnlimited,mapShapeKey="wedgeUnlimited",countryTiles=11,cityTiles=1,coreTiles=2,rounds=3,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedgeUnlimited,mapShapeKey="wedgeUnlimited",countryTiles=8,cityTiles=1,coreTiles=2,rounds=4,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
 		scenarioDetails={
 			megapolisPossible=false, blitzPossible="Off Only", ruleStates={main=18},
 			playerDetails="{en}1 to 4 - Slightly Competitive(No PvP) and Solo{ru}От 1 до 4 - слегка Соревновательный (без PvP) и Одиночный{zh-tw}1 到 4 人－輕度對抗（無 PvP）或單人模式{zh-cn}1 到 4 人－轻度对抗（无 PvP）或单人模式{ko}1 ~ 4 - 약간의 경쟁(PvP X) 또는 솔로{es}1 a 4 - Ligeramente Competitivo(No PvP) y Solitario{fr}1 à 4 - Légèrement Compétitif (pas de PvP) et Solo{pt-br}1 a 4 - Levemente Competitivo (sem JvJ) e Solo{de}1 bis 4 - Gegeneinander (ohne pvp) und Solo",
 			countryRules="{en}(Sorted by terrain number){ru}(Отсортированы по номеру земель){zh-tw}（依地形編號排序）{zh-cn}（按地形编号排序）{ko}(숫자대로 분류함){es}(Ordenados por número){fr}(Trié par numéro de terrain){pt-br}(Sorteado por número de Peças Mapa){de}(Sortiert nach Geländenummer)",
 			scenarioPurpose="{en}Training scenario. Strongly recommended whenever any player plays the game for the first time, as it provides a natural way to learn the game rules and get familiar with them.<size=6>\n\n</size><color=#8c5e35><i>On your first mission, you will be sent to an unknown part of the Atlantean kingdom, your task is to locate its Capital. That’s all. All the Fame, any knowledge and treasures you manage to get during your mission are yours to keep.</i></color><size=6>\n\n</size>For a detailed description of this scenario, see the Game Walkthrough.{ru}Обучающий сценарий. Настоятельно рекомендуем его использовать во всех играх с новичками — это наилучший способ знакомства с правилами.<size=6>\n\n</size><color=#8c5e35><i>Ваша первая задача — отыскать столицу Империи атлантов посреди неизвестной местности. Добытые в пути слава, знания и сокровища останутся у вас.</i></color><size=6>\n\n</size>Подробное описание этого сценария см. в Руководстве к игре.{zh-tw}訓練劇本。強烈推薦第一次進行遊戲的新手玩家使用此劇本，\n因為這個劇本以最通俗易懂的方式介紹遊戲規則，以便玩家進行熟悉。<size=6>\n\n</size><color=#8c5e35><i>這是你的第一次任務，你被派遣到亞特蘭蒂斯王國的一片未知地區，\n你的任務是找到這裡的首府。就這麼簡單。\n你在任務期間獲得的所有名望、知識和財寶都歸你所有。</i></color><size=6>\n\n</size>本劇本的詳細說明請參見入門指南，這裡只做摘要。{zh-cn}训练剧本。强烈推荐第一次进行游戏的新手玩家使用此剧本，\n因为这个剧本以最通俗易懂的方式介绍游戏规则，以便玩家进行熟悉。<size=6>\n\n</size><color=#8c5e35><i>这是你的第一次任务，你被派遣到亚特兰蒂斯王国的一片未知地区，\n你的任务是找到这里的首府。就这么简单。\n你在任务期间获得的所有名望、知识和财宝都归你所有。</i></color><size=6>\n\n</size>本剧本的详细说明请参见入门指南，这里只做摘要。{ko}훈련 시나리오 - 게임 규칙을 배우고 익숙해지는 자연스러운 방식을 제공해, 처음으로 게임을 진행하는 플레이어에게 강력히 추천합니다.<size=6>\n\n</size><color=#8c5e35><i>당신은 첫 번째 임무로 아틀란티안 왕국의 알려지지 않은 지역으로 보내져, 왕국 수도의 정확한 위치를 찾아내야 하는 일을 맡았다. 이 일이 지금으로써는 전부다. 임무 중 얻는 모든 명성, 배우게 되는 지식과 발견하는 모든 보물은 당신의 것이다.</i></color><size=6>\n\n</size>이 시나리오의 자세한 설명은, 게임 공략을 참고하세요.{es}Escenario de aprendizaje. Altamente recomendado para una primera partida, ya que proporciona una manera natural the aprender las reglas del juego y familiarizarse con ellas.<size=6>\n\n</size><color=#8c5e35><i>En tu primera misión, serás enviado a un lugar desconocido del imperio Atlante, tu tarea es encontrar su capital. Eso es todo. Conservarás toda la Fama, conocimiento y tesoros que obtengas durante tu misión.</i></color><size=6>\n\n</size>Para una descripción detallada de este escenario, consulta el manual de tutorial.{fr}Scénario de formation. Fortement recommandé chaque fois qu'un joueur joue au jeu pour la première fois, car il offre un moyen naturel d'apprendre les règles du jeu et de se familiariser avec elles.<size=6>\n\n</size><color=#8c5e35><i>Lors de votre première mission, vous serez envoyé dans un partie inconnue du royaume atlante, votre tâche est de localiser sa capitale. C'est tout. Toute la renommée, toutes les connaissances et tous les trésors que vous parvenez à obtenir pendant votre mission sont à vous.</i></color><size=6>\n\n</size>Pour une description détaillée de ce scénario, consultez la procédure pas à pas du jeu.{pt-br}Cenário de treinamento. Fortemente recomendado para qualquer jogador que jogue o jogo pela primeira vez, pois ela fornece um jeito natural de aprender as regras do jogo e se tornar familiar a elas.<size=6>\n\n</size><color=#8c5e35><i>Nesta primeira missão, você será enviado a uma parte desconhecida do Reino Atlântico, sua missão é localizar sua capital. Isto é tudo. Toda a fama, qualquer conhecimento e tesouros que você adquirir durante a missão são seus.</i></color><size=6>\n\n</size>Para uma descrição detalhada deste cenário, veja o Tutorail do jogo.{de}Trainingsszenario. Es wird dringend empfohlen, wenn ein Spieler das Spiel zum ersten Mal spielt, da es eine natürliche Möglichkeit bietet, die Spielregeln zu lernen und sich mit ihnen vertraut zu machen.<size=6>\n\n</size><color=#8c5e35><i>Bei Ihrer ersten Mission werden Sie in einen unbekannten Teil  des atlantischen Königreichs geschickt ihre aufgabe besteht darin, seine Hauptstadt zu lokalisieren. Das ist alles. Alle Berühmtheiten, Kenntnisse und Schätze, die du während deiner Mission erlangst, gehören dir.</i></color><size=6>\n\n</size>Eine detaillierte Beschreibung dieses Szenarios findest du in der Spielanleitung.",
 			scenarioEnd="{en}When a player reveals a city, all players (including themselves) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда любой герой открывает землю с городом, у всех игроков (включая владельца этого героя) остаётся по одному ходу, а затем игра заканчивается. Если раунд заканчивается раньше, игра завершается вместе с ним.{zh-tw}當有一名玩家翻開城市時，所有玩家（包括當前玩家）各進行最後一個回合。\n如果此時本輪已經結束，此遊戲立即結束。{zh-cn}当有一名玩家翻开城市时，所有玩家（包括当前玩家）各进行最后一个回合。\n如果此时本轮已经结束，此游戏立即结束。{ko}플레이어가 도시를 공개하면, 모든 플레이어(공개한 플레이어 포함)는 마지막으로 자신의 차례를 한 번씩 더 진행합니다. 이 동안 라운드가 종료되면, 게임은 즉시 종료됩니다.{es}Cuando un jugador revela una ciudad, todos los jugadores (incluido el que reveló) tienen un último turno. Si la ronda acaba durante este evento, la partida acaba inmediatamente.{fr}Lorsqu'un joueur révèle une ville tous les joueurs (y compris eux-mêmes) ont un dernier tour. Si le tour se termine pendant cela le jeu se termine immédiatement.{pt-br}Quando um jogador revelar uma cidade, todos os jogadores (incluíndo o próprio) tem um último turno. Se a Rodada acabar durante isto, o jogo acaba imediatamente.{de}Wenn ein Spieler eine Stadt aufdeckt, haben alle Spieler (einschließlich sich selbst) einen letzten Zug. Endet die Runde währenddessen, endet das Spiel sofort."}},
-	{"First Conquest", {},{},{},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=1,coreTiles=2,rounds=5,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={5}},
-		scenarioDetails={
-			megapolisPossible=true, blitzPossible="Off Only", ruleStates={},
-			playerDetails="{en}1 - Solo Only{ru}1 - только Одиночный{zh-tw}1 人－僅限單人模式{zh-cn}1 人－仅限单人模式{ko}1 - 솔로 전용{es}1 - Solitario{fr}1 - Solo{pt-br}1 - Somente Solo{de}1 - Nur Solo",
-			scenarioPurpose="{en}First Conquest is a simple solo scenario aimed at bridging the gap between First Reconnaissance and Full Conquest.{ru}«Первое завоевание» — простой одиночный сценарий, призванный сократить разрыв между «Первой разведкой» и полноценным «Завоеванием».{zh-tw}首次征服是一個簡單的單人劇本，目的是讓玩家在完成首次勘察後，\n能更順利地銜接至全面征服劇本。{zh-cn}首次征服是一个简单的单人剧本，目的是让玩家在完成首次勘察后，\n能更顺利地衔接至全面征服剧本。{ko}이 시나리오는 '첫 번째 정찰'과 '정식 정복 임무' 사이의 큰 난이도 갭이 부담스러운 플레이어에게 강력히 추천합니다. (비공식 시나리오){es}Primera Conquista es un escenario en solitario sencillo enfocado a reducir el salto entre Primer Reconocimiento and Conquista.{fr}Première Conquète est un scénario solo simple visant à combler le vide entre la première reconnaissance et la conquête complète.{pt-br}Primeira Conquista é um cenário solo simples com objetivo de fazer uma ponte entre Reconhecimento inicial e a Conquista completa.{de}Solo-Eroberung ist ein einfaches Solo-Szenario, das darauf abzielt, die Lücke zwischen Blitz-Eroberung und Vollständige Eroberung zu schließen.",
-			scenarioEnd="{en}When the single city is conquered, the player has one last turn, before scoring.{ru}Когда любой город захвачен, игрок делает один последний ход перед подсчетом очков.{zh-tw}當唯一的城市被征服後，玩家在計分前進行最後一回合。{zh-cn}当唯一的城市被征服后，玩家在计分前进行最后一回合。{ko}플레이어가 도시 하나를 정복하면,  마지막으로 자신의 차례를 한 번 더 진행하고 게임을 종료합니다.{es}Cuando la única ciudad sea conquistada, el jugador tiene un último turno, antes de la puntuación.{fr}Lorsque la ville unique est conquise le joueur à un dernier tour avant notation.{pt-br}Quando a única cidade é conquistada, o jogador tem um último turno, antes da pontuação.{de}Wenn die einzige Stadt erobert ist, hat der Spieler einen letzten Zug, bevor Die Punktewertung beginnt."}},
 	{"Conquest",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",		countryTiles= 8,cityTiles=2,coreTiles=1,rounds=6,discardTactics=0, dTW=0, cityLevels={4,4}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",		countryTiles= 9,cityTiles=3,coreTiles=2,rounds=6,discardTactics=0, dTW=0, cityLevels={4,4,4}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",	countryTiles=11,cityTiles=4,coreTiles=3,rounds=6,discardTactics=0, dTW=0, cityLevels={4,4,4,4}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",		countryTiles= 7,cityTiles=2,coreTiles=2,rounds=6,discardTactics=2, dTW=2, cityLevels={5,8}, 		dummyTacticSelection="L"},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",	countryTiles= 8,cityTiles=3,coreTiles=2,rounds=6,discardTactics=1, dTW=1, cityLevels={5,5,8}, 		dummyTacticSelection="F"},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",	countryTiles=10,cityTiles=4,coreTiles=3,rounds=6,discardTactics=1, dTW=1, cityLevels={5,5,5,11}, 	dummyTacticSelection="F"},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",	countryTiles=13,cityTiles=5,coreTiles=3,rounds=6,discardTactics=0, dTW=0, cityLevels={5,5,5,5,11}, 	dummyTacticSelection="F"},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",		countryTiles= 8,cityTiles=2,coreTiles=1,rounds=6,discardTactics=0, dTW=0, cityLevels={4,4}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",		countryTiles= 9,cityTiles=3,coreTiles=2,rounds=6,discardTactics=0, dTW=0, cityLevels={4,4,4}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",			countryTiles=11,cityTiles=4,coreTiles=3,rounds=6,discardTactics=0, dTW=0, cityLevels={4,4,4,4}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",		countryTiles= 7,cityTiles=2,coreTiles=2,rounds=6,discardTactics=2, dTW=2, cityLevels={5,8}, 		dummyTacticSelection="L"},
+		{mapShape=mapShapeText.open,mapShapeKey="open",			countryTiles= 8,cityTiles=3,coreTiles=2,rounds=6,discardTactics=1, dTW=1, cityLevels={5,5,8}, 		dummyTacticSelection="F"},
+		{mapShape=mapShapeText.open,mapShapeKey="open",			countryTiles=10,cityTiles=4,coreTiles=3,rounds=6,discardTactics=1, dTW=1, cityLevels={5,5,5,11}, 	dummyTacticSelection="F"},
+		{mapShape=mapShapeText.open,mapShapeKey="open",			countryTiles=13,cityTiles=5,coreTiles=3,rounds=6,discardTactics=0, dTW=0, cityLevels={5,5,5,5,11}, 	dummyTacticSelection="F"},
 		scenarioDetails={
 			megapolisPossible=true,	blitzPossible="Yes",  ruleStates={main=19},
 			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}От 1 до 4 - Кооперативный, Соревновательный и Одиночный{zh-tw}1 到 4 人－合作，對抗或單人模式{zh-cn}1 到 4 人－合作，对抗或单人模式{ko}1 ~ 4 - 협력, 경쟁 또는 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 – Kooperativ, Kompetitiv und Solo",
 			scenarioPurpose="{en}The Standard game scenario.<size=6>\n\n</size><color=#8c5e35><i>Your task is to find and conquer all cities in three days and three nights. Each of you will be on your own, and as usual, you want to get as much Fame, knowledge, and loot as possible. Luckily for you, conquering cities is a great way to get Fame.</i></color>{ru}Стандартный сценарий.<size=6>\n\n</size><color=#8c5e35><i>Ваша задача — обнаружить и захватить все города за три дня и три ночи. Каждый из вас действует сам по себе. Вы должны получить как можно больше славы, знаний и сокровищ. Захват городов может значительно усилить вашего героя.</i></color>{zh-tw}標準遊戲劇本。<size=6>\n\n</size><color=#8c5e35><i>你們的任務是在三天三夜之間尋找並征服所有城市。\n你們每個人都必須單獨行動，\n和以往一樣，你們需要盡可能多地獲取名望、知識和財富。\n幸運的是，征服城市是獲得名望的最好手段。</i></color>{zh-cn}标准游戏剧本。<size=6>\n\n</size><color=#8c5e35><i>你们的任务是在三天三夜之间寻找并征服所有城市。\n你们每个人都必须单独行动，\n和以往一样，你们需要尽可能多地获取名望、知识和财富。\n幸运的是，征服城市是获得名望的最好手段。</i></color>{ko}표준 게임 시나리오입니다.<size=6>\n\n</size><color=#8c5e35><i>여러분의 임무는 사흘 밤낮으로 모든 도시를 찾아 정복하는 것입니다. 여러분은 각자 혼자서 진행해야 하며, 평소처럼 최대한 많은 명성, 지식, 전리품을 획득해야 합니다. 다행히도 도시 정복은 명성을 얻을 수 있는 좋은 방법입니다.</i></color>{es}El escenario de juego estándar.<size=6>\n\n</size><color=#8c5e35><i>Vuestra tarea consiste en encontrar y conquistar todas las ciudades en tres días y tres noches. Cada uno de vosotros estará solo y, como de costumbre, querréis conseguir tanta Fama, conocimientos y botín como sea posible. Por suerte para vosotros, conquistar ciudades es una forma estupenda de conseguir Fama.</i></color>{fr}Le scénario standard du jeu.<size=6>\n\n</size><color=#8c5e35><i>Votre tâche est de trouver et de conquérir toutes les villes en trois jours et trois nuits. Chacun d'entre vous sera seul et, comme d'habitude, vous voudrez obtenir le plus de renommée, de connaissances et de butin possible. Heureusement pour vous, la conquête de villes est un excellent moyen d'obtenir de la Renommée.</i></color>{pt-br}O cenário padrão do jogo.<size=6>\n\n</size><color=#8c5e35><i>Sua tarefa é encontrar e conquistar todas as cidades em três dias e três noites. Cada um de vocês estará por conta própria e, como de costume, você quer obter o máximo possível de fama, conhecimento e saques. Felizmente para você, conquistar cidades é uma ótima maneira de obter Fama.</i></color>{de}Das Standard-Spielszenario.<size=6>\n\n</size><color=#8c5e35><i>Eure Aufgabe ist es, alle Städte in drei Tagen und drei Nächten zu finden und zu erobern. Each of you will be on your own, and as usual, you want to get as much Fame, knowledge, and loot as possible. Zu eurem Glück ist die Eroberung von Städten ein guter Weg, um Ruhm zu erlangen.</i></color>",
 			scenarioEnd="{en}When all cities are conquered, all players (including the one who conquered the last city) have one last turn, before Scoring.{ru}Когда последний город захвачен, все игроки (включая владельца героя, захватившего последний город), делают по одному последнему ходу перед подсчетом очков.{zh-tw}當所有城市被征服後，\n所有玩家（包括征服最後一個城市的玩家）在計分前各進行最後一個回合。{zh-cn}当所有城市被征服后，\n所有玩家（包括征服最后一个城市的玩家）在计分前各进行最后一个回合。{ko}모든 도시가 정복되면 모든 플레이어(마지막 도시를 정복한 플레이어 포함)는 마지막으로 자신의 차례를 한 번씩 더 진행합니다. 이 동안 라운드가 종료되면, 게임은 즉시 종료됩니다.{es}Cuando todas las ciudades son conquistadas, todos los jugadores (incluyendo aquel que conquistó la última ciudad) tienen un último turno, antes de la puntuación.{fr}Lorsque toutes les villes sont conquises tous les joueurs (y compris celui qui a conquis le dernier city) ont un dernier tour avant de marquer.{pt-br}Quando todas as cidades forem conquistadas, todos jogadores (inclusive aquele que conquistou a última cidade) tem um último turno, antes da pontuação.{de}Wenn alle Städte erobert sind, haben alle Spieler (inklusive demjenigen, der die letzte Stadt erobert hat) einen letzten Zug vor der Wertung."}},
 	{"Conquest Blitz",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil", countryTiles= 6,cityTiles=2,coreTiles=1,rounds=4,discardTactics=0, dTW=0, cityLevels={3,3}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil", countryTiles= 7,cityTiles=3,coreTiles=2,rounds=4,discardTactics=0, dTW=0, cityLevels={3,3,3}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten", countryTiles= 9,cityTiles=4,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={3,3,3,3}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil", countryTiles= 6,cityTiles=1,coreTiles=1,rounds=4,discardTactics=2, dTW=2, cityLevels={6}, dummyTacticSelection="L"},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen", countryTiles= 7,cityTiles=2,coreTiles=1,rounds=4,discardTactics=1, dTW=1, cityLevels={5,8}, dummyTacticSelection="F"},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen", countryTiles= 8,cityTiles=3,coreTiles=2,rounds=4,discardTactics=1, dTW=1, cityLevels={5,8,11}, dummyTacticSelection="F"},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen", countryTiles=11,cityTiles=4,coreTiles=2,rounds=4,discardTactics=1, dTW=1, cityLevels={5,8,11,11}, dummyTacticSelection="F"},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge", 	countryTiles= 6,cityTiles=2,coreTiles=1,rounds=4,discardTactics=0, dTW=0, cityLevels={3,3}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge", 	countryTiles= 7,cityTiles=3,coreTiles=2,rounds=4,discardTactics=0, dTW=0, cityLevels={3,3,3}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4", 	countryTiles= 9,cityTiles=4,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={3,3,3,3}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge", 	countryTiles= 6,cityTiles=1,coreTiles=1,rounds=4,discardTactics=2, dTW=2, cityLevels={6}, dummyTacticSelection="L"},
+		{mapShape=mapShapeText.open,mapShapeKey="open", 	countryTiles= 7,cityTiles=2,coreTiles=1,rounds=4,discardTactics=1, dTW=1, cityLevels={5,8}, dummyTacticSelection="F"},
+		{mapShape=mapShapeText.open,mapShapeKey="open", 	countryTiles= 8,cityTiles=3,coreTiles=2,rounds=4,discardTactics=1, dTW=1, cityLevels={5,8,11}, dummyTacticSelection="F"},
+		{mapShape=mapShapeText.open,mapShapeKey="open", 	countryTiles=11,cityTiles=4,coreTiles=2,rounds=4,discardTactics=1, dTW=1, cityLevels={5,8,11,11}, dummyTacticSelection="F"},
 		scenarioDetails={
 			megapolisPossible=true,	blitzPossible="Yes", ruleStates={main=19},
 			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}От 1 до 4 - Кооперативный, Соревновательный и Одиночный{zh-tw}1 到 4 人－合作，對抗或單人模式{zh-cn}1 到 4 人－合作，对抗或单人模式{ko}1 ~ 4 - 협력, 경쟁 또는 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 – Kooperativ, Kompetitiv und Solo",
 			scenarioPurpose="{en}Standard game scenario that only has 4 Rounds. To help, it includes an extra mana die and Unit, plus players start at Reputation +1 and Fame 1.<size=6>\n\n</size><color=#8c5e35><i>Again, your task is to conquer all cities. You have only two days and two nights this time, so you were imbued with extra power. And again, whoever scores most Fame is the winner.</i></color>{ru}Стандартный сценарий, который продолжается только 4 раунда. В качестве помощи, в источнике маны лежит на один кубик больше, чем обычно, и выложен на один доступный отряд больше, чем обычно. Также герои начинают игру с репутацией +2 (с бонусом +1 для взаимодействия) и 1 очком славы.<size=6>\n\n</size><color=#8c5e35><i>Ваша задача осталась прежней — захватить все города. На этот раз у вас есть только два дня и две ночи, поэтому вы отправляетесь на задание с дополнительной помощью от Совета. Победителя снова определит полученная в приключениях слава.</i></color>{zh-tw}只有四輪的標準遊戲劇本。為了幫助玩家，額外增加一顆魔力骰和一個部隊，\n並且玩家有 1 點名望和聲譽從 +1 開始。<size=6>\n\n</size><color=#8c5e35><i>同樣，你們的任務是征服所有城市。\n但是你們只有兩天兩夜的時間，所以你們被賦予了更多的力量。\n同樣，獲得名望最多的玩家獲勝。</i></color>{zh-cn}只有四轮的标准游戏剧本。为了帮助玩家，额外增加一颗魔力骰和一个部队，\n并且玩家有 1 点名望和声誉从 +1 开始。<size=6>\n\n</size><color=#8c5e35><i>同样，你们的任务是征服所有城市。\n但是你们只有两天两夜的时间，所以你们被赋予了更多的力量。\n同样，获得名望最多的玩家获胜。</i></color>{ko}4라운드만 있는 표준 게임 시나리오입니다. 추가 마나 주사위와 유닛이 포함되며, 플레이어는 평판 +1과 명성 1에서 시작합니다.<size=6>\n\n</size><color=#8c5e35><i>이번에도 모든 도시를 정복하는 것이 임무입니다. 이번에는 이틀 밤낮으로만 진행되기 때문에 더욱 강력한 힘을 발휘할 수 있습니다. 이번에도 명성을 가장 많이 획득한 플레이어가 승리합니다.</i></color>{es}Escenario de juego estándar que sólo tiene 4 Rondas. Para ayudar, incluye un dado de maná extra y una Unidad, además los jugadores empiezan con Reputación +1 y Fama 1.<size=6>\n\n</size><color=#8c5e35><i>De nuevo, tu tarea es conquistar todas las ciudades. Esta vez sólo dispones de dos días y dos noches, por lo que estás imbuido de un poder extra. Y de nuevo, quien consiga más Fama es el ganador.</i></color>{fr}Scénario de jeu standard qui ne comporte que 4 tours. Pour vous aider, il inclut un dé de mana et une unité supplémentaires, et les joueurs commencent avec une Réputation +1 et une Renommée 1.<size=6>\n\n</size><color=#8c5e35><i>Une fois de plus, votre tâche consiste à conquérir toutes les villes. Cette fois-ci, vous ne disposez que de deux jours et deux nuits, ce qui vous confère un pouvoir supplémentaire. Une fois encore, le vainqueur est celui qui obtient le plus de renommée.</i></color>{pt-br}Cenário de jogo padrão com apenas 4 rodadas. Para ajudar, ele inclui um dado de mana e uma unidade extras, além de os jogadores começarem com Reputação +1 e Fama 1.<size=6>\n\n</size><color=#8c5e35><i>Novamente, sua tarefa é conquistar todas as cidades. Desta vez, você tem apenas dois dias e duas noites, por isso foi imbuído de poder extra. E, mais uma vez, quem obtiver mais Fama será o vencedor.</i></color>{de}Standard-Spielszenario, das nur 4 Runden hat. Zur Unterstützung enthält es einen zusätzlichen Manawürfel und eine Einheit, außerdem beginnen die Spieler mit Ruf +1 und Ruhm 1.<size=6>\n\n</size><color=#8c5e35><i>Eure Aufgabe ist es wieder, alle Städte zu erobern. Diesmal habt ihr nur zwei Tage und zwei Nächte Zeit, so dass ihr mit zusätzlicher Macht ausgestattet wurdet. Und wieder gewinnt derjenige, der den meisten Ruhm erlangt.</i></color>",
 			scenarioEnd="{en}When all cities are conquered, all players (including the one who conquered the last city) have one last turn. Dummy player gets skipped{ru}Когда последний город захвачен, все игроки (включая владельца героя, захватившего последний город), делают по одному последнему ходу. Виртуальный игрок пропускает свой ход.{zh-tw}當所有城市被征服後，\n所有玩家（包括征服最後一個城市的玩家）各進行最後一個回合。\n虛擬玩家會被跳過。{zh-cn}当所有城市被征服后，\n所有玩家（包括征服最后一个城市的玩家）各进行最后一个回合。\n虚拟玩家会被跳过。{ko}모든 도시가 정복되면 모든 플레이어(마지막 도시를 정복한 플레이어 포함)는 마지막으로 자신의 차례를 한 번씩 더 진행합니다. 이 동안 라운드가 종료되면, 게임은 즉시 종료됩니다.{es}Cuando todas las ciudades sean conquistadas, todos los jugadores (incluyendo aquel que conquistó la última ciudad) tienen un turno adicional. El Jugador Virtual se salta su turno.{fr}Lorsque toutes les villes sont conquises, tous les joueurs (y compris celui qui a conquis la dernière ville) ont un dernier tour. Le joueur fantôme est ignoré{pt-br}Quando todas as cidades forem conquistadas, todos os jogadores (incluindo o que conquistou a última cidade) terão um último turno (mas não o Jogador Fictício).{de}Wenn alle Städte erobert sind, haben alle Spieler (auch derjenige, der die letzte Stadt erobert hat) einen letzten Zug. Der Dummy-Spieler wird übersprungen"}},
 	{"Mines Liberation",--5
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=8,cityTiles=1,coreTiles=1,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=9,cityTiles=1,coreTiles=2,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=11,cityTiles=1,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=1,coreTiles=1,rounds=5,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=8,cityTiles=1,coreTiles=1,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=9,cityTiles=1,coreTiles=2,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=11,cityTiles=1,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=1,rounds=5,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
 		scenarioDetails={
 			megapolisPossible=false, blitzPossible="Off Only", ruleStates={main=20},
 			playerDetails="{en}1 to 4 - Competitive and Solo{ru}От 1 до 4 - Соревновательный и Одиночный{zh-tw}1 到 4 人－合作或單人模式{zh-cn}1 到 4 人－合作或单人模式{ko}1 ~ 4 - 경쟁 또는 솔로{es}1 a 4 - Competitivo y Solitario{fr}1 à 4 - Compétitif et Solo{pt-br}1 a 4 - Competitivo e Solo{de}1 bis 4 - Gegeneinander und Solo",
@@ -42359,10 +42434,10 @@ scenarioList={
 			scenarioPurpose="{en}A shorter scenario similar to the standard one, but with different goals.<size=6>\n\n</size>(The SOLO version of this is fan made and it's balance appears to be wrong based on the scores I've recorded. I've increased the round count by one to see if it can bring the scores up.)<size=6>\n\n</size><color=#8c5e35><i>Fight in the tunnels! Mines in this friendly kingdom are occupied by enemies! Without a supply of crystals, Mages cannot serve the land. Go there and regain them.</i></color>{ru}Короткий сценарий, похожий на стандартный, но с другими целями.<size=6>\n\n</size>(ОДИНОЧНАЯ версия этого сценария создана фанатами, и ее баланс, судя по моим результатам, кажется неправильным. Я увеличил количество раундов на один, чтобы посмотреть, сможет ли это повысить результаты.)<size=6>\n\n</size><color=#8c5e35><i>Сражайтесь в туннелях! Шахты этой провинции заняты врагами! Кристаллы, которые растут в них, необходимы магам. Отправляйтесь под землю и освободите захваченные шахты.</i></color>{zh-tw}與標準劇本類似的短劇本，但目標不同，這次你們要在地下坑道中戰鬥！<size=6>\n\n</size>（此劇本的單人模式是玩家自製的，根據我記錄的分數來看，它的平衡性可能\n有問題。我把遊戲時長增加了一輪，看看能不能提高分數。）<size=6>\n\n</size><color=#8c5e35><i>這個友方王國的礦山被敵人佔領了！沒有魔晶，法師就無法盡職盡責。\n去把那些礦山奪回來。</i></color>{zh-cn}与标准剧本类似的短剧本，但目标不同，这次你们要在地下坑道中战斗！<size=6>\n\n</size>（此剧本的单人模式是玩家自制的，根据我记录的分数来看，它的平衡性可能\n有问题。我把游戏时长增加了一轮，看看能不能提高分数。）<size=6>\n\n</size><color=#8c5e35><i>这个友方王国的矿山被敌人占领了！没有魔晶，法师就无法尽职尽责。\n去把那些矿山夺回来。</i></color>{ko}표준 시나리오와 비슷하지만 목표가 다른 짧은 시나리오입니다.<size=6>\n\n</size>(솔로 버전은 팬이 만든 것으로, 제가 기록한 점수에 따르면 밸런스가 맞지 않는 것 같습니다. 점수를 올릴 수 있는지 확인하기 위해 라운드 수를 한 번 늘렸습니다.)<size=6>\n\n</size><color=#8c5e35><i>터널에서 싸우세요! 이 아군 왕국의 광산이 적에게 점령당했습니다! 수정이 없으면 마법사는 이 땅을 지킬 수 없습니다. 그곳으로 가서 수정을 되찾으세요.</i></color>{es}Un escenario más corto similar al estándar, pero con objetivos diferentes.<size=6>\n\n</size>(La versión en solitario es obra de un aficionado y su equilibrio parece estar mal según las puntuaciones que he registrado. He aumentado el número de rondas en una para ver si puede subir las puntuaciones).<size=6>\n\n</size><color=#8c5e35><i>¡Lucha en los túneles! ¡Las minas de este reino amigo están ocupadas por enemigos! Sin un suministro de cristales, los Magos no pueden servir a la tierra. Ve allí y recupéralos.</i></color>{fr}Un scénario plus court, similaire au scénario standard, mais avec des objectifs différents.<size=6>\n\n</size>(La version Solo de ce scénario a été créée par un fan et son équilibre semble être erroné d'après les scores que j'ai enregistrés. J'ai augmenté le nombre de rounds d'une unité pour voir si cela peut faire remonter les scores).<size=6>\n\n</size><color=#8c5e35><i>Combattez dans les tunnels ! Les mines de ce royaume ami sont occupées par des ennemis ! Sans cristaux, les Mages ne peuvent pas servir le pays. Allez-y et récupérez-les.</i></color>{pt-br}Um cenário mais curto semelhante ao padrão, mas com objetivos diferentes.<size=6>\n\n</size>(A versão Solo desse cenário foi criada por um fã e seu equilíbrio parece estar errado com base nas pontuações que registrei. Aumentei a contagem de rodadas em uma para ver se as pontuações aumentam).<size=6>\n\n</size><color=#8c5e35><i>Lute nos túneis! As minas deste reino amigável estão ocupadas por inimigos! Sem um suprimento de cristais, os magos não podem servir a terra. Vá até lá e recupere-os.</i></color>{de}Ein kürzeres Szenario ähnlich dem Standard-Szenario, aber mit anderen Zielen.<size=6>\n\n</size>(Die Soloversion dieses Szenarios ist von einem Fan erstellt worden, und die Balance scheint nach den von mir aufgezeichneten Ergebnissen falsch zu sein. Ich habe die Anzahl der Runden um eine erhöht, um zu sehen, ob sich die Punktzahl dadurch verbessern lässt).<size=6>\n\n</size><color=#8c5e35><i>Kämpfe in den Tunneln! Die Minen in diesem freundlichen Königreich sind von Feinden besetzt! Ohne einen Vorrat an Kristallen können die Magier dem Land nicht dienen. Geht dorthin und holt sie zurück.</i></color>",
 			scenarioEnd="{en}When all map tiles are revealed and all mines are liberated, all players (including the one who conquered the last mine) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда все земли открыты и все шахты освобождены, игроки (включая освободившего последнюю шахту) делают по одному ходу, и игра заканчивается. Если раунд заканчивается раньше, игра завершается вместе с ним.{zh-tw}當所有地圖板塊都被翻開，且所有礦山都被解放時，\n所有玩家（包括征服了最後一個礦山的玩家）各進行最後一回合。\n如果此時本輪已經結束，則遊戲立即結束。{zh-cn}当所有地图板块都被翻开，且所有矿山都被解放时，\n所有玩家（包括征服了最后一个矿山的玩家）各进行最后一回合。\n如果此时本轮已经结束，则游戏立即结束。{ko}모든 지도 타일이 공개되고 모든 광산이 해방되면, 모든 플레이어(마지막 광산을 정복한 플레이어 포함)는 마지막으로 자신의 차례를 한 번씩 더 진행합니다. 이 동안 라운드가 종료되면, 게임은 즉시 종료됩니다.{es}Cuando todas las losetas de mapa se yayan revelado y las minas se hayan liberado, todos los jugadores (incluyendo aquel que conquistó la última mina) tienen un último turno. Si la ronda acaba durante este evento, la partida acaba inmediatamente.{fr}Lorsque toutes les tuiles de la carte sont révélées et que toutes les mines sont libérées, tous les joueurs (y compris celui qui a conquis la dernière mine) ont un dernier tour. Si le tour se termine pendant cela, le jeu se termine immédiatement.{pt-br}Quando todas as peças de Mapa forem reveladas e todas as minas forem libertadas, todos os jogadores (incluindo o que conquistou a última mina) têm um último Turno. Se a Rodada terminar antes disso, a partida acaba imediatamente.{de}Wenn alle Spielplanteile aufgedeckt und alle Minen befreit sind, haben alle Spieler (auch derjenige, der die letzte Mine erobert hat) noch einen letzten Zug. Endet die Runde währenddessen, endet das Spiel sofort."}},
 	{"Druid Nights",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=8,cityTiles=1,coreTiles=1,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=9,cityTiles=1,coreTiles=2,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=11,cityTiles=1,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=1,coreTiles=1,rounds=4,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=8,cityTiles=1,coreTiles=1,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=9,cityTiles=1,coreTiles=2,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=11,cityTiles=1,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=1,rounds=4,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
 		scenarioDetails={
 			megapolisPossible=false, blitzPossible="Off Only", ruleStates={main=21},
 			playerDetails="{en}1 to 4 - Competitive and Solo{ru}От 1 до 4 - Соревновательный и Одиночный{zh-tw}1 到 4 人－合作或單人模式{zh-cn}1 到 4 人－合作或单人模式{ko}1 ~ 4 - 경쟁 또는 솔로{es}1 a 4 - Competitivo y Solitario{fr}1 à 4 - Compétitif et Solo{pt-br}1 a 4 - Competitivo e Solo{de}1 bis 4 - Gegeneinander und Solo",
@@ -42371,10 +42446,10 @@ scenarioList={
 			scenarioPurpose="{en}A shorter scenario similar to the standard one, but with different goals.<size=6>\n\n</size>(The SOLO version of this is fan made and it's balance may not be right.)<size=6>\n\n</size><color=#8c5e35><i>How big a challenge dare you encounter? Have you noticed the mysterious obelisks with engraved symbols on the magical glades around this kingdom? Go and investigate!</i></color><size=6>\n\n</size>(For an epic Variant you can choose 6 Rounds with 11 Country and 4 Core Tiles){ru}Короткий сценарий, похожий на стандартный, но с другими целями.<size=6>\n\n</size>(ОДИНОЧНАЯ версия этого сценария создана фанатами, и ее баланс может быть неправильным.)<size=6>\n\n</size><color=#8c5e35><i>Есть ли пределы вашим возможностям? Вы замечали на магических полянах всей Империи загадочные обелиски с выгравированными символами? Вперёд, разберитесь, зачем они нужны!</i></color><size=6>\n\n</size>(Для эпического варианта сценария вы можете выбрать 6 раундов с 11 Дикими землями и 4 Развитыми землями){zh-tw}與標準劇本類似的短劇本，但目標不同。看看你敢接受多大的挑戰！<size=6>\n\n</size>（此劇本的單人模式是玩家自製的，平衡性可能有問題。）<size=6>\n\n</size><color=#8c5e35><i>你有沒有注意到在王國各處的魔法林地裡，有許多雕刻著符號的神秘方尖碑？\n趕快去調查一下吧！</i></color><size=6>\n\n</size>（要遊玩史詩版本變體時，你可以將劇本長度調整為 6 輪、使用\n11 個鄉村板塊和 4 個核心板塊。）{zh-cn}与标准剧本类似的短剧本，但目标不同。看看你敢接受多大的挑战！<size=6>\n\n</size>（此剧本的单人模式是玩家自制的，平衡性可能有问题。）<size=6>\n\n</size><color=#8c5e35><i>你有没有注意到在王国各处的魔法林地里，有许多雕刻着符号的神秘方尖碑？\n赶快去调查一下吧！</i></color><size=6>\n\n</size>（要游玩史诗版本变体时，你可以将剧本长度调整为 6 轮、使用\n11 个乡村板块和 4 个核心板块。）{ko}표준 게임의 짧은 시나리오와 유사하지만, 다른 목표를 갖습니다. 보다 어려워진 목표에 도전할 준비가 되셨나요?<size=6>\n\n</size>(솔로 버젼은 비공식이며, 밸런스가 맞지 않을 수 있습니다.)<size=6>\n\n</size><color=#8c5e35><i>왕국 곳곳에 있는 마법 숲속 빈터에서 알수 없는 상징들이 새겨져 있는 불가사의한 기념비가 발견되었다. 이곳을 찾아가 조사하도록 하자!</i></color>{es}Un escenario más corto similar al estándar, pero con objetivos diferentes.<size=6>\n\n</size>(La versión SOLO de esto es hecha por fans y su balance puede no ser el correcto).<size=6>\n\n</size><color=#8c5e35><i>¿Cómo de grande es el desafío que te atreves a encontrar? ¿Te has fijado en los misteriosos obeliscos con símbolos grabados en los claros mágicos que rodean este reino? ¡Ve a investigar!</i></color><size=6>\n\n</size>(Para una Variante épica puedes elegir 6 Rondas con 11 Fichas de País y 4 Fichas Básicas){fr}Un scénario plus court similaire au scénario standard, mais avec des objectifs différents.<size=6>\n\n</size>(La version SOLO de celui-ci est faite par un fan et son équilibre peut ne pas être correct.)<size=6>\n\n</size><color=#8c5e35><i>défi oserez-vous l'essayer? Avez-vous remarqué les mystérieux obélisques avec des symboles gravés sur les clairières magiques autour de ce royaume? Allez enquêter!</i></color>{pt-br}Um cenário mais curto similar ao padrão, mas com objetivos diferentes.<size=6>\n\n</size>(A versão solo deste cenário é feita por fã e pode não estar balanceada.)<size=6>\n\n</size><color=#8c5e35><i>Quão grande é o desafio que ousa encontrar? Você notou os misteriosos obeliscos com símbolos gravados nas clareiras mágicas em volta deste reino? Vá e investigue!</i></color>{de}Ein kürzeres Szenario ähnlich dem Standard, aber mit anderen Zielen.<size=6>\n\n</size>(Die SOLO-Version davon wurde von Fans erstellt und die Balance stimmt möglicherweise nicht.)<size=6>\n\n</size><color=#8c5e35><i>Welcher Herausforderung traust du dich zu stellen ? Haben Sie die mysteriösen Obelisken mit eingravierten Symbolen auf den magischen Lichtungen rund um dieses Königreich bemerkt? Geh und forsche nach!</i></color><size=6>\n\n</size>(Für eine epische Variante kannst du 6 Runden mit 11 Länder- und 4 Kernplättchen wählen)",
 			scenarioEnd="{en}When all players have performed the incantation during the second Night (in that case, each player has one more turn), or at the end of the second Night.{ru}Игра завершается, если все герои прочтут заклинание во время второй ночи (после чего у каждого игрока будет ещё один ход), или в конце второй ночи.{zh-tw}當所有玩家都在第二個黑夜中釋放魔咒之後（此時每位玩家各進行最後一個回\n合），或者第二個黑夜結束時，遊戲結束。{zh-cn}当所有玩家都在第二个黑夜中释放魔咒之后（此时每位玩家各进行最后一个回\n合），或者第二个黑夜结束时，游戏结束。{ko}두 번째 밤 동안 모든 플레이어가 주문을 외우거나(이 경우 각 플레이어는 자신의 차례를 한 번씩 더 진행하고) 두 번째 밤이 종료되면, 게임이 종료됩니다.{es}Cuando todos los jugadores hayan ejecutado el encantamiento durante la segunda noche (en ese caso, todos los jugadores tienen un turno adicional), o al final de la segunda noche.{fr}Lorsque tous les joueurs ont exécuté l'incantation lors de la deuxième Nuit (dans ce cas, chaque joueur a un tour de plus), ou à la fin de la deuxième Nuit.{pt-br}Quando todos os jogadores fizeram o encantamento durante a segunda noite (neste caso, cada jogador tem um turno a mais), ou no fim da segunda noite.{de}Wenn alle Spieler die Beschwörung während der zweiten Nacht ausgeführt haben (in diesem Fall ist jeder Spieler noch einmal an der Reihe) oder am Ende der zweiten Nacht."}},
 	{"Dungeon Lords",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=8,cityTiles=1,coreTiles=1,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=9,cityTiles=1,coreTiles=2,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=11,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=1,coreTiles=1,rounds=5,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=8,cityTiles=1,coreTiles=1,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=9,cityTiles=1,coreTiles=2,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=11,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=1,rounds=5,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
 		scenarioDetails={
 			megapolisPossible=false, blitzPossible="Off Only", ruleStates={main=21},
 			playerDetails="{en}1 to 4 - Competitive and Solo{ru}От 1 до 4 - Соревновательный и Одиночный{zh-tw}1 到 4 人－合作或單人模式{zh-cn}1 到 4 人－合作或单人模式{ko}1 ~ 4 - 경쟁 또는 솔로{es}1 a 4 - Competitivo y Solitario{fr}1 à 4 - Compétitif et Solo{pt-br}1 a 4 - Competitivo e Solo{de}1 bis 4 - Gegeneinander und Solo",
@@ -42384,9 +42459,9 @@ scenarioList={
 			scenarioPurpose="{en}A shorter scenario similar to the standard one, but with different goals.<size=6>\n\n</size>(The SOLO version of this is fan made and it's balance may not be right)<size=6>\n\n</size><color=#8c5e35><i>Let’s go underground. We thought we already controlled this land. We were wrong! There is a vast system of underground tunnels under the kingdom. We do not know who dug these tunnels and why, but we do not care. Go, and seize control of them!</i></color>{ru}Короткий сценарий, похожий на стандартный, но с другими целями.<size=6>\n\n</size>(ОДИНОЧНАЯ версия этого сценария создана фанатами, и ее баланс может быть неправильным.)<size=6>\n\n</size><color=#8c5e35><i>Давайте спустимся в подземелье. Мы думали, что уже подчинили эти земли. Мы ошибались! Под Империей вырыта огромная сеть подземных ходов. Мы не знаем, кто их проложил и зачем, но нас это не интересует. Вперёд, возьмите их под контроль!</i></color>{zh-tw}與標準劇本類似的短劇本，但目標不同，這一次我們要深入地底。<size=6>\n\n</size>（此劇本的單人模式是玩家自製的，平衡性可能有問題。）<size=6>\n\n</size><color=#8c5e35><i>我們自以為已經掌控了這片土地，但我們錯了！\n這個王國的地下，存在著大量錯綜複雜的隧道。\n我們不知道誰挖的隧道，也不知道他們開挖隧道的原因，\n但這些不是重點。去吧，佔領這些隧道！</i></color>{zh-cn}与标准剧本类似的短剧本，但目标不同，这一次我们要深入地底。<size=6>\n\n</size>（此剧本的单人模式是玩家自制的，平衡性可能有问题。）<size=6>\n\n</size><color=#8c5e35><i>我们自以为已经掌控了这片土地，但我们错了！\n这个王国的地下，存在着大量错综复杂的隧道。\n我们不知道谁挖的隧道，也不知道他们开挖隧道的原因，\n但这些不是重点。去吧，占领这些隧道！</i></color>{ko}표준 게임의 짧은 시나리오와 유사하지만, 다른 목표를 갖습니다. 지하로 향합니다.<size=6>\n\n</size>(솔로 버젼은 비공식이며, 밸런스가 맞지 않을 수 있습니다.)<size=6>\n\n</size><color=#8c5e35><i>우리가 이미 이 땅을 지배했다고 생각했다. 하지만, 이는 잘못된 생각이었다! 왕국 아래 깊숙한 곳에 방대한 체계로 이루어진 지하 통로가 있었다. 누가 왜 이 통로를 팠는지 알 길이 없지만, 그런 건 크게 신경 쓰이지 않는다. 서둘러 이곳을 장악하러 가자!</i></color>{es}Un escenario corto similar al estándar, pero con diferentes objetivos.<size=6>\n\n</size><color=#8c5e35><i>Vayamos bajo tierra. Pensábamos que ya controlábamos esta tierra. Estábamos equivocados! Hay un vasto sistema de túneles subterráneos bajo el reino. No sabemos quen lo excavó y porqué, pero no nos importa. Ve, y aduéñate de ellos!</i></color>{fr}Un scénario plus court similaire au scénario standard, mais avec des objectifs différents.<size=6>\n\n</size>(La version SOLO est faite par des fans et son équilibre peut ne pas être correct)<size=6>\n\n</size><color=#8c5e35><i>Allons dans la clandestinité. Nous pensions que nous contrôlions déjà cette terre. Nous avions tort! Il existe un vaste système de tunnels souterrains sous le royaume. On ne sait pas qui a creusé ces tunnels et pourquoi, mais on s'en fiche. Allez, prendre le contrôle de ceux-ci!</i></color>{pt-br}Um cenário mais curto similar ao padrão, mas com objetivos diferentes.<size=6>\n\n</size>(A versão Solo deste é feito por fã e seu equilíbrio pode não estar certo)<size=6>\n\n</size><color=#8c5e35><i>Vamos ao subterâneo. Nõs pensávamos que já haviamos controlado esta terra. Estávamos errados! Existe um vasto sistema de túneis subterrâneos sob o Reino. Não sabemos quem cavou estes túneis ou o porquê, mas não ligamos. Vá e tome controle deles!</i></color>{de}Ein kürzeres Szenario ähnlich dem Standard, aber mit anderen Zielen.<size=6>\n\n</size>(Die SOLO-Version davon wurde von Fans erstellt und die Balance stimmt möglicherweise nicht)<size=6>\n\n</size><color=#8c5e35><i>Lass uns in den Untergrund gehen. Wir dachten, wir hätten dieses Land bereits kontrolliert. Wir lagen falsch! Es gibt ein riesiges System von unterirdischen Tunneln unter dem Königreich. Wir wissen nicht, wer diese Tunnel gegraben hat und warum, aber es interessiert uns nicht. Geh und übernimm die Kontrolle über sie!</i></color>",
 			scenarioEnd="{en}When all map tiles are revealed and all dungeons and tombs are conquered, all players (including the one who conquered last tomb or dungeon) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда все земли открыты, и все подземелья с гробницами захвачены, все игроки (включая владельца героя, захватившего последнюю гробницу или подземелье) делают по одному ходу, и затем игра заканчивается. Если раунд заканчивается раньше, игра завершается вместе с ним.{zh-tw}當所有地圖板塊都被翻開，且所有地下城和墓穴都已被征服時，\n所有玩家（包括征服了最後一個墓穴或地下城的玩家）各進行最後一回合。\n如果此時本輪已經結束，則遊戲立即結束。{zh-cn}当所有地图板块都被翻开，且所有地下城和墓穴都已被征服时，\n所有玩家（包括征服了最后一个墓穴或地下城的玩家）各进行最后一回合。\n如果此时本轮已经结束，则游戏立即结束。{ko}모든 지도 타일이 공개되고 모든 던전과 무덤이 정복되면 모든 플레이어(마지막 무덤과 던전을 정복한 플레이어 포함)는 마지막으로 자신의 차례를 한 번씩 더 진행합니다. 이 동안 라운드가 종료되면, 게임은 즉시 종료됩니다.{es}Cuando todas las losetas de mapa se hayan revelado y todas las mazmorras y tumbas conquistadas, todos los jugadores (incluyendo aquel que conquistó la última tumba o mazmorra) tienen un último turno. Si la ronda acaba durante este evento, la partida acaba inmediatamente.{fr}Lorsque toutes les tuiles de la carte sont révélées et que tous les donjons et tombes sont conquis, tous les joueurs (y compris celui qui a conquis le dernier tombeau ou donjon) ont un dernier tour. Si la manche se termine pendant cette période, la partie se termine immédiatement.{pt-br}Quando todas as peças mapa são reveladas e todas as masmorras e tumbas forem conquistadas, todos os jogadores (incluíndo aquele que conquistou a última tumba ou masmorra) tem um último turno. Se a Rodada acabar durante isto, o jogo acaba imediatamente.{de}Wenn alle Spielplanteile aufgedeckt und alle Verliese und Gräber erobert sind, haben alle Spieler (einschließlich desjenigen, der das letzte Grab oder Verlies erobert hat) einen letzten Zug. Endet die Runde währenddessen, endet das Spiel sofort."}},
 	{"Conquer and Hold",
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=5,cityTiles=1,coreTiles=3,rounds=6,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=5,cityTiles=1,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=5,cityTiles=1,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=5,cityTiles=1,coreTiles=3,rounds=6,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=5,cityTiles=1,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=5,cityTiles=1,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={0}},
 		scenarioDetails={
 			megapolisPossible=false, blitzPossible="Off Only", ruleStates={main=22},
 			playerDetails="{en}2 to 4 - Competitive Only{ru}От 2 до 4 - только Соревновательный{zh-tw}2 到 4 人－僅限合作模式{zh-cn}2 到 4 人－仅限合作模式{ko}2 ~ 4 - 협력 전용{es}2 o 4 - Competitivo{fr}2 à 4 - Compétitif Seulement{pt-br}2 a 4 - Somente Competitivo{de}2 bis 4 - Nur Gegeneinander",
@@ -42396,52 +42471,52 @@ scenarioList={
 			scenarioPurpose="{en}A very competitive scenario full of opportunities for Heroes to fight each other.<size=6>\n\n</size><color=#8c5e35><i>Victory points for controlled sites instead of Fame! You are sent to this problematic province by the Council of the Void... well... to be exact... by the ... um... righteous members of the Council of the Void... to seize control over it. Just beware, there is another faction of treacherous Council members that wants to control the region. Do not allow them!</i></color>{ru}Сценарий с очень сильной конкуренцией, в которой героям часто придётся сражаться друг с другом.<size=6>\n\n</size><color=#8c5e35><i>Вместо славы начисляются очки победы за контролируемые места! Вас направил в эту неспокойную провинцию Совет Пустоты… ну… если точнее… добродетельные члены Совета Пустоты… чтобы взять её под контроль. Осторожно, другая фракция Совета тоже хочет управлять провинцией. Не допустите этого!</i></color>{zh-tw}高度對抗性的劇本，英雄們有許多機會互相戰鬥。\n遊戲結束按玩家控制的地點結算分數，而不是名望！<size=6>\n\n</size><color=#8c5e35><i>你被虛空議會派遣到這個問題嚴重的省份…\n嗯…確切的說…是被…議會中的公正派系…派來取得這個地區的控制權。\n但要小心，還有其他心懷不軌的派系也想控制這個地區。不能讓他們得逞！</i></color>{zh-cn}高度对抗性的剧本，英雄们有许多机会互相战斗。\n游戏结束按玩家控制的地点结算分数，而不是名望！<size=6>\n\n</size><color=#8c5e35><i>你被虚空议会派遣到这个问题严重的省份…\n嗯…确切的说…是被…议会中的公正派系…派来取得这个地区的控制权。\n但要小心，还有其他心怀不轨的派系也想控制这个地区。不能让他们得逞！</i></color>{ko}치열한 경쟁 시나리오 - 영웅들에게 서로 싸울 충분한 기회가 주어집니다. 정복한 장소마다 명성 대신에 승점을 받습니다.<size=6>\n\n</size><color=#8c5e35><i>공석 위원회의 명령으로 당신은 이 문제 많은 지역에 보내졌다...만 사실은... 정확히 말하자면... 이곳을 장악하기 위해... 음... 공석 위원회의... 정직한 위원... 에게 명령을 받았다. 다만 조심하길 바란다. 이 지역을 지배하고 싶은 다른 세력의 기만한 위원회 일원들이 있다. 이들을 저지하도록 하자!</i></color>{es}Un escenario muy competitivo lleno de oportunidades para que los héroes luchen entre ellos. ¡Los lugares controlados otorgan puntos de Victoria en lugar de Fama!<size=6>\n\n</size><color=#8c5e35><i>Has sido enviado a esta provincia problemática por el Concilio de la Vacuidad... bueno... para ser exactos... por los... eh... miembros honorables del Concilio de la Vacuidad... para hacerte con su control. Pero ten cuidado, hay otra facción formada por miembros traidores del Concilio que quieren controlar la región ¡No se lo permitas!</i></color>{fr}Un scénario très compétitif plein d'occasions pour les héros de se battre.<size=6>\n\n</size><color=#8c5e35><i>Des points de victoire pour les sites contrôlés au lieu de la renommée! Vous êtes envoyé dans cette province problématique par le Conseil du Vide ... eh bien ... pour être exact ... par les ... euh ... membres justes du Conseil du Vide ... pour prendre le contrôle sur eux. Attention, il y a une autre faction de membres perfides du Conseil qui veut contrôler la région. Ne leur permettez pas!</i></color>{pt-br}Um cenário bastante competitivo cheio de oportunidades para os heróis lutarem entre sí.<size=6>\n\n</size><color=#8c5e35><i>Pontos de vitória por lugares controlados ao invés de Fama! Você foi enviado para esta província problemática pelo Conselho do Váculo...bem..para ser exato..pelos...uh...Justos membros do Conselho do Vácuo...para tomar controle sobre isto. Apenas tome cuidado, Existe outra facção de membros traiçoeiros dos membros do conselho que quer tomar controle da região. Não os permita!</i></color>{de}Ein sehr kompetitives Szenario voller Möglichkeiten für Helden, gegeneinander zu kämpfen.<size=6>\n\n</size><color=#8c5e35><i>Siegpunkte für kontrollierte Stätte statt Ruhm! Sie werden vom Rat der Leere in diese problematische Provinz geschickt ... na ja ... um genau zu sein ... von den ... ähm ... rechtschaffenen Mitgliedern des Rates der Leere ... um die Kontrolle zu übernehmen . Aber Vorsicht, es gibt eine weitere Fraktion verräterischer Ratsmitglieder, die die Region kontrollieren will. Verhindern sie es!</i></color>",
 			scenarioEnd="{en}The scenario is played until end of the Round limit, or until one side admits the other side has won. Each owned keep counts as 3 Victory points. Each owned mage tower counts as 2 Victory points. The player or team who has the most points wins the game. If tied (i.e. if some sites were left unconquered, as there are 25 points available in the game), no one is the winner.{ru}Сценарий играется до тех пор, пока не достигнуто предельное количество раундов или пока одна сторона не признает поражение. Каждая крепость, принадлежащая герою, даёт 3 победных очка. Каждая башня мага даёт 2 победных очка. Игрок или команда, набравшая больше всех очков победы, выигрывает игру. Если ничья (то есть, некоторые места остались не захваченными, так как на поле доступны 25 очков), победителя в игре нет.{zh-tw}本劇本持續進行直到輪次達到上限， 或一方認輸為止。\n每座擁有的要塞計 3 分，每座擁有的法師塔計 2 分。獲得最高分的玩家或隊伍獲勝。\n如果平手（因為遊戲中共有 25 分，這種情況說明某些地點無人征服），\n則無人獲勝。{zh-cn}本剧本持续进行直到轮次达到上限， 或一方认输为止。\n每座拥有的要塞计 3 分，每座拥有的法师塔计 2 分。获得最高分的玩家或队伍获胜。\n如果平手（因为游戏中共有 25 分，这种情况说明某些地点无人征服），\n则无人获胜。{ko}이 시나리오는 라운드 범위의 종료 시점까지 또는 한 쪽에서 다른 쪽이 이겼다고 인정할 때까지 진행됩니다. 소유한 성마다 3승점을 받습니다. 소유한 마법사의 탑마다 2승점을 받습니다. 가장 많은 승점을 받은 플레이어 또는 팀이 게임에서 승리합니다. 동점이라면 (즉, 이 게임은 최대 25승점까지 받을 수 있어, 일부 장소들이 정복되지 않은 채로 남겨졌다면), 우승자는 없습니다.{es}El escenario se juega hasta el final del límite de Ronda, o hasta que uno de los equipos admita que el otro ha sido el vencedor. Cada fortaleza propia cuenta como 3 puntos de Victoria. Cada torre mágica propia cuenta como 2 puntos de Victoria. El jugador o equipo que tenga más puntos gana la partida. Si hay empate (ocurre solo si algunos lugares se quedaron sin conquistar, ya que hay 25 puntos disponibles en la partida), nadie resulta ganador.{fr}Le scénario est joué jusqu'à la fin de la limite du tour, ou jusqu'à ce qu'un côté admette que l'autre a gagné. Chaque donjon possédé compte pour 3 points de victoire. Chaque tour de mage possédée compte pour 2 points de victoire. Le joueur ou l'équipe qui a le plus de points remporte la partie. En cas d'égalité (c'est-à-dire si certains sites n'ont pas été conquis, car il y a 25 points disponibles dans le jeu), personne n'est le gagnant.{pt-br}O cenário é jogado até o fim da última Rodada, ou até que um lado admita ao outro a derrota. Cada Guarnição controlada conta como 3 pontos de vitória. Cada torre do mago controlada conta como 2 Pontos de vitória. Cada jogador ou time que tiver maior quantidade de pontos, vence o jogo. Se empatados (Por exemplo, se alguns lugares forem deixados inconquistados, pois tem 25 pontos disponíveis no jogo), ninguém é o vencedor.{de}Das Szenario wird bis zum Ende des Rundenlimits gespielt oder bis eine Seite zugibt, dass die andere Seite gewonnen hat. Jede eigene Festung zählt als 3 Siegpunkte. Jeder eigene Magierturm zählt 2 Siegpunkte. Der Spieler oder das Team mit den meisten Punkten gewinnt das Spiel. Bei Gleichstand (d. h. wenn einige Orte unbesiegt blieben, da im Spiel 25 Punkte verfügbar sind) ist niemand der Gewinner."}},
 	{"One to Return",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=1,coreTiles=1,rounds=4,discardTactics=0, dTW=0, cityLevels={3}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=8,cityTiles=2,coreTiles=2,rounds=4,discardTactics=0, dTW=0, cityLevels={3,3}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=10,cityTiles=3,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={3,3,3}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=1,rounds=4,discardTactics=0, dTW=0, cityLevels={3}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=8,cityTiles=2,coreTiles=2,rounds=4,discardTactics=0, dTW=0, cityLevels={3,3}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=10,cityTiles=3,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={3,3,3}},
 		scenarioDetails={
 			megapolisPossible=true, blitzPossible="Off Only", ruleStates={main=22},
 			playerDetails="{en}2 to 4 - Competitive Only{ru}От 2 до 4 - только Соревновательный{zh-tw}2 到 4 人－僅限合作模式{zh-cn}2 到 4 人－仅限合作模式{ko}2 ~ 4 - 협력 전용{es}2 o 4 - Competitivo{fr}2 à 4 - Compétitif Seulement{pt-br}2 a 4 - Somente Competitivo{de}2 bis 4 - Nur Gegeneinander",
 			scenarioPurpose="{en}A competitive scenario suitable for those who prefer 'last man standing' types of games over the end game scoring.<size=6>\n\n</size><color=#8c5e35><i>This is an ultimate test of your power. You are sent to an unknown part of the kingdom and the portal closes after you go through it. After two days and two nights, the portal opens again for a short while. Only the hero who is at the portal at that moment can return home.</i></color>{ru}Агрессивный сценарий, подходящий для любителей игр на выживание, а не подсчета победных очков.<size=6>\n\n</size><color=#8c5e35><i>Это настоящее испытание вашей силы. Вы направлены в неизвестную часть Империи, и портал за вами закроется. После двух дней и двух ночей портал откроется снова на короткое время. Только один герой, добравшийся до портала, сможет вернуться домой.</i></color>{zh-tw}對抗性劇本，適合喜歡“大逃殺”類型，而不是計分獲勝的玩家。<size=6>\n\n</size><color=#8c5e35><i>這是對你們力量的終極考驗。\n你們會被送入王國中一片未知的地域，之後傳送門立即關閉。\n經過兩天兩夜之後，傳送門會重新打開，但只會開放很短一段時間。\n只有在那一刻穿過傳送門的英雄才能回到家鄉。</i></color>{zh-cn}对抗性剧本，适合喜欢“大逃杀”类型，而不是计分获胜的玩家。<size=6>\n\n</size><color=#8c5e35><i>这是对你们力量的终极考验。\n你们会被送入王国中一片未知的地域，之后传送门立即关闭。\n经过两天两夜之后，传送门会重新打开，但只会开放很短一段时间。\n只有在那一刻穿过传送门的英雄才能回到家乡。</i></color>{ko}경쟁 시나리오 - 게임이 종료될 때 '최후의 남은 자' 게임 유형을 선호하는 플레이어에게 적합니다.<size=6>\n\n</size><color=#8c5e35><i>이 임무는 당신의 힘에 대한 마지막 시험이다. 당신은 왕국의 알려지지 않은 지역으로 보내져 포털을 통해 들어가지만, 이내 이 포털은 닫혀버린다. 두 번의 낮과 두 번의 밤을 보낸 이후, 잠시 동안 포털은 다시 열린다. 이 순간 포털에 있는 단 한 명의 영웅만이 자신의 안식처로 돌아갈 수 있다.</i></color>{es}Escenario competitivo adecuado para quienes prefieren el estilo de 'último hombre en pie' en vez de contar la puntuación al final de la partida.<size=6>\n\n</size><color=#8c5e35><i>Te encuentras ante la prueba definitiva de tu poder. Has sido enviado a una parte del reino desconocida y el portal se cierra en cuanto lo atraviesas. Después de dos días y dos noches, el portal se abre de nuevo durante un instante. Solo el Héroe que esté en el portal en ese momento podrá regresar a casa.</i></color>{fr}Un scénario compétitif adapté à ceux qui préfèrent les types de jeux «dernier homme debout» aux scores de fin de partie.<size=6>\n\n</size><color=#8c5e35><i>Ceci est un test ultime de votre puissance. Vous êtes envoyé dans une partie inconnue du royaume et le portail se ferme après que vous l'ayez traversé. Après deux jours et deux nuits, le portail s'ouvre à nouveau pour un court instant. Seul le héros qui se trouve sur le portail à ce moment peut rentrer chez lui.</i></color>{pt-br}Um cenário competitivo mais apropriado para aqueles que preferem jogos do tipo 'último homem de pé' ao invés da pontuação de final de jogo.<size=6>\n\n</size><color=#8c5e35><i>Este é o teste máximo do seu poder. Você foi enviado a uma parte desconhecida do Reino e o portal se fecha depois de você passar por ele. Depois de 2 dias e 2 noites, o portal se abrirá de novo por um curto período de tempo. Somente o herói que estiver no portal naquele momento pode retornar para casa.</i></color>{de}Ein Wettbewerbsszenario, das für diejenigen geeignet ist, die 'Last Man Standing'-Spiele der Wertung im Endspiel vorziehen.<size=6>\n\n</size><color=#8c5e35><i>Dies ist ein ultimativer Test deiner Macht. Sie werden in einen unbekannten Teil des Königreichs geschickt und das Portal schließt sich, nachdem Sie es durchlaufen haben. Nach zwei Tagen und zwei Nächten öffnet sich das Portal für kurze Zeit wieder. Nur der Held, der sich gerade am Portal befindet, kann nach Hause zurückkehren.</i></color>",
 			scenarioEnd="{en}The scenario ends as soon as the second Night is over. Whoever stands on the portal space at that moment wins the game. If no-one stands there, there is no winner. There is no scoring, and Fame does not matter.<size=6>\n\n</size>Note: After End of the Night is announced, initiating Player vs. Player combat is not allowed. Thus, if the portal is occupied at the moment when end of the second Night is announced, the player occupying it wins.{ru}Сценарий заканчивается по истечении второй ночи. Герой, стоящий на клетке портала в этот момент, выигрывает игру. Если на портале никого не окажется, все герои проиграли. В этом сценарии нет подсчёта очков и слава не имеет значения.<size=6>\n\n</size>Важно: после объявления конца второй ночи (последнего раунда) битвы героев запрещены. Таким образом, если портал занят в момент объявления конца второй ночи, герой, занимающий его, выигрывает.{zh-tw}第二個黑夜結束時，劇本結束。此時站在傳送門格上的玩家獲勝。\n如果沒人站在該格上，無人獲勝。本劇本不進行計分，勝負與名望無關。\n注意：有人聲明黑夜輪結束後，就無法再發起 PVP 戰鬥。\n因此當有人聲明第二個黑夜輪結束時，佔據傳送門的玩家立即獲勝。{zh-cn}第二个黑夜结束时，剧本结束。此时站在传送门格上的玩家获胜。\n如果没人站在该格上，无人获胜。本剧本不进行计分，胜负与名望无关。\n注意：有人声明黑夜轮结束后，就无法再发起 PVP 战斗。\n因此當有人聲明第二個黑夜輪結束時，占据传送门的玩家立即获胜。{ko}시나리오는 두 번째 밤이 끝나면 즉시 종료됩니다. 이 순간 포털 칸에 있는 플레이어가 게임에서 승리합니다. 이 칸에 아무도 없다면, 우승자는 없습니다. 점수 계산이 없어 명성도 중요하지 않습니다. 노트: 밤의 종료가 선언되면, 플레이어 대 플레이어 전투를 시작하는 것은 허용되지 않습니다. 점수 계산이 없어 명성도 중요하지 않습니다. 그러므로, 두 번째 밤의 종료가 선언되는 순간 포털을 차지하고 있는 플레이어가 승리합니다.{es}El escenario finaliza tan pronto como termine la segunda Noche. Gana la partida quien se encuentre en el espacio del portal en ese momento. Si no hay nadie, no hay ganador. No hay puntuación y la Fama no se tiene en cuenta.<size=6>\n\n</size>Nota: Después de que se anuncie el final de la última Noche, el combate Jugador contra Jugador no está permitido. Por lo tanto, si el portal está ocupado en el momento en que se anuncia el final de la segunda Noche, el jugador que se encuentre en él gana.{fr}Le scénario se termine dès que la deuxième nuit est terminée. Celui qui se tient sur l'espace du portail à ce moment remporte la partie. Si personne n'est là, il n'y a pas de gagnant. Il n'y a pas de score et la renommée n'a pas d'importance.<size=6>\n\n</size>Remarque: après l'annonce de la fin de la nuit, le lancement d'un combat joueur contre joueur n'est pas autorisé. Ainsi, si le portail est occupé au moment où la fin de la deuxième Nuit est annoncée, le joueur qui l'occupe gagne.{pt-br}O cenário termina assim que a segunda noite acaba. Quem estiver no espaço do portal naquele momento, venec o jogo. Se ninguém está lá, não há vencedores. Não existe pontuação, e fama não importa.<size=6>\n\n</size>Nota: Depois que o fim da noite é anunciar combate PvP não é permitido. Assim sendo, se o portal estiver ocupado no momento quando o fim da segunda noite é ancunciado, o jogador ocupando ele vence.{de}Das Szenario endet, sobald die zweite Nacht vorüber ist. Wer in diesem Moment auf dem Portalfeld steht, gewinnt das Spiel. Wenn niemand dort steht, gibt es keinen Gewinner. Es gibt keine Wertung und Ruhm spielt keine Rolle.<size=6>\n\n</size>Hinweis: Nachdem das Ende der Nacht angekündigt wurde, ist es nicht erlaubt, Spieler-gegen-Spieler-Kämpfe zu beginnen. Wenn also das Portal in dem Moment besetzt ist, in dem das Ende der zweiten Nacht angekündigt wird, gewinnt der Spieler, der es besetzt."}},
 	{"Volkare's Return", {},{},{},--10
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=7,cityTiles=1,coreTiles=1,rounds=6,discardTactics=1, dTW=1, dummyTacticSelection="L",cityLevels={4,5}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=8,cityTiles=1,coreTiles=2,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={6,10}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=10,cityTiles=1,coreTiles=3,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={8,15}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=12,cityTiles=1,coreTiles=4,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={10,20}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=7,cityTiles=1,coreTiles=1,rounds=6,discardTactics=1, dTW=1, dummyTacticSelection="L",cityLevels={4,5}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=8,cityTiles=1,coreTiles=2,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={6,10}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=10,cityTiles=1,coreTiles=3,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={8,15}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=12,cityTiles=1,coreTiles=4,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={10,20}},
 		scenarioDetails={
 			megapolisPossible=true,	blitzPossible="Yes", ruleStates={expansion=12},
 			playerDetails="{en}1 to 4 - Cooperative and Solo{ru}От 1 до 4 - Кооперативный и Одиночный{zh-tw}1 到 4 人－合作與單人模式{zh-cn}1 到 4 人－合作与单人模式{ko}1 ~ 4 - 협동 및 솔로{es}1 a 4 - Cooperativo y Solitario{fr}1 à 4 - Coopératif Seulement et Solo{pt-br}1 a 4 - Cooperativo e Solo{de}1 bis 4 - Nur coop und Solo",
 			scenarioPurpose="{en}A challenging solo or coop game with epic city conquering and city defense battles. Time is measured by enemy progress instead of a dummy player.<size=6>\n\n</size><size=16><color=#8c5e35><i>It started as a normal mission - you entered the region, ready to find and conquer its capital. But soon you realized you are not the only ones. The dreaded General Volkare just disembarked close to you and prepares to march. Despite his huge army of orcs and draconum, Atlanteans welcome him and some even join his forces. Have they made some strange alliance? Whoever this Volkare is, and whatever allowed him to rise to such power, he has to be stopped at any cost. And it has to be done before he joins his forces with the garrison of the capital. Hurry to reach and conquer the city before Volkare – and at its gates, prepare one hell of a welcome for him. Get ready for the most epic battle the Land has ever seen!</i></color></size>{ru}Сложный одиночный или кооперативный сценарий с эпическими битвами, захватом и защитой города. Вместо виртуального игрока вас ограничивает генерал Волкар.<size=6>\n\n</size><size=16><color=#8c5e35><i>Всё начиналось обычно — вы вошли в провинцию, готовясь найти и захватить её столицу. Но вы стремились к этому не один. Ужасный генерал Волкар встал лагерем неподалёку от вас и готовится к маршу. Несмотря на его огромную армию из орков и драконумов, атланты приветствуют его, а некоторые даже присоединяются к его войскам. Что ждать от столь странного союза? Кем бы ни был Волкар, что бы ни позволило ему получить такую силу, вернувшегося полководца нужно остановить до того, как его войска объединятся с гарнизоном столицы. Поспешите и захватите город раньше Волкара — и ждите гостей. Приготовьтесь к самой эпичной битве, которую знала Земля!</i></color></size>{zh-tw}一場富有挑戰的單人或合作遊戲，包含史詩級的攻城戰和城市保衛戰。\n時間由敵人的進度控制，而不是一位虛擬玩家。<size=6>\n\n</size><color=#8c5e35><i>一開始只是一件普通的任務——你進入這個地區，準備征服都城。\n但很快你意識到這裡還有別人。恐怖的沃卡里將軍正在向你逼近。\n雖然他率領著支獸人和龍族組成的大軍，但亞特蘭蒂斯的人們歡迎他，\n甚至還有人加入他的軍隊。是不是他們達成了某些奇怪的聯盟？\n無論這個沃卡里是誰，無論他的力量源自何方，都必須不惜一切代價阻止他，\n而且你必須趕在他的部隊與都城的守軍匯合之前攔截他。\n而後，你需要在城下與他一決死戰，很快這片土地將見證一場史詩級的戰鬥！</i></color>{zh-cn}一場富有挑戰的單人或合作遊戲，包含史詩級的攻城戰和城市保衛戰。\n時間由敵人的進度控制，而不是一位虛擬玩家。<size=6>\n\n</size><color=#8c5e35><i>一开始只是一件普通的任务——你进入这个地区，准备征服都城。\n但很快你意识到这里还有别人。恐怖的沃卡里将军正在向你逼近。\n雖然他率领着支獸人和龙族组成的大军，但亚特兰蒂斯的人们欢迎他，\n甚至还有人加入他的军队。是不是他们达成了某些奇怪的联盟？\n无论这个沃卡里是谁，無論他的力量源自何方，都必須不惜一切代价阻止他，\n而且你必須赶在他的部队与都城的守军汇合之前拦截他。\n而后，你需要在城下与他一决死戰，很快这片土地将见证一场史诗级的战斗！</i></color>{ko}도전적인 솔로 또는 협력 시나리오 – 장대한 도시 정복과 도시 방어 전투. 가상 플레이어 대신 볼케어 시스템이 게임 진행 속도를 결정합니다.<size=6>\n\n</size><size=16><color=#8c5e35><i>처음엔 그저 평범한 임무라고 생각했지. 이 지역의 수도를 찾고, 정복하는 것… 그러나 그건 우리만 원하는게 아니야. 공포의 볼케어 장군이 이 주변에서 대진격을 준비하고 있어. 오크와 드라코넘이 득실대는 군대인데도 불구하고, 아틀란티스 주민들은 그를 환영하고 일부는 심지어 거기에 참여하길 원하더군. 이런 이상한 동맹은 듣도보도 못했겠지? 그의 정체가 뭐든, 무엇이 그에게 그렇게 강력한 힘을 주었든, 무슨 수를 써서라도 볼케어를 막아야 해. 그가 수도 안의 사람들과 만나기 전에 말이야. 볼케어 보다 먼저 도시를 정복하고 성문 앞에서 그를 맞이할 지옥의 환영 파티를 준비해야 하니 서두르자. 이 땅 위에서 전례없는 장대한 전투가 벌어질 테니 단단히 준비하라고.</i></color></size>{es}Una desafiante partida en solitario o cooperativo con épicas conquistas y batallas en defensa de la ciudad. El tiempo se mide en función del progreso del enemigo en lugar del Jugador Virtual.<size=6>\n\n</size><size=16><color=#8c5e35><i>Comenzó como una misión normal: os adentráis en la región, preparados para encontrar y conquistar su capital. Pero pronto os dais cuenta de que no sois los únicos. El temido general Volkare acaba de desembarcar cerca de vosotros y se prepara para avanzar. A pesar de su enorme ejército de Orcos y Draconum, los Atlantes le dan la bienvenida e incluso algunos se unen a sus fuerzas. ¿Habrán acordado alguna extraña alianza? Sea quien sea Volkare y lo que le haya permitido elevarse con tal poder, tiene que ser detenido a toda costa. Y tiene que ser antes de que una sus fuerzas con los defensores de la capital. Daros prisa para alcanzar y conquistar la ciudad antes de Volkare y, en sus puertas, darle una bienvenida infernal. ¡Preparaos para la batalla más épica que la Tierra haya visto jamás!</i></color></size>{fr}Un jeu difficile en solo ou en coopération avec des combats épiques de conquête de la ville et de défense de la ville. Le temps est mesuré par la progression de l'ennemi au lieu d'un joueur factice.<size=6>\n\n</size><size=16><color=#8c5e35><i>Cela va commencé comme une mission normale - vous êtes entré dans la région, prêt pour trouver et conquérir sa capitale. Mais vous vous êtes vite rendu compte que vous n'êtes pas les seuls. Le redoutable général Volkare vient de débarquer près de vous et se prépare à marcher. Malgré son immense armée d'orques et de draconum, les Atlantes l'accueillent et certains rejoignent même ses forces Quel que soit ce Volkare, et tout ce qui lui a permis d'accéder à un tel pouvoir, il faut l'arrêter à tout prix, et il faut le faire avant qu'il ne rejoigne ses forces avec la garnison de la capitale. Dépêchez-vous d'atteindre et de conquérir la ville avant Volkare - et à ses portes, préparez-lui un sacré accueil. Préparez-vous pour la bataille la plus épique que le Land ait jamais vue!</i></color></size>{pt-br}Um jogo desafiador solo ou co-op com conquistas e batalhas de cidades épicas. Tempo é marcado pelo progresso do inimigo ao invés de um jogador fictício<size=6>\n\n</size><size=16><color=#8c5e35><i>Tudo começou como uma missão normal: vocês entraram na região, prontos para encontrar e conquistar a capital. Entretanto, vocês logo perceberam que não eram os únicos com isso em mente. O temido General Volkare acabou de desembarcar perto de vocês e se prepara para marchar. Apesar de seu enorme exército de orcs e draconum,os Atlantes o acolheram, e alguns até mesmo se juntaram às suas forças. Será que eles fizeram algum tipo de aliança? Seja lá o que ele for ou o que permitiu que ele conseguisse tamanho poder, Volkare deve ser impedido a qualquer custo. E isso precisa ser feito antes de eles juntarem forças com a guarnição da capital. Apresse-se para alcançar e conquistar a cidade antes de Volkare, e prepare um belo comitê de boas-vindas para ele. Prepare-se para a batalha mais épica que o Território já viu!</i></color></size>{de}Ein herausforderndes Solo- oder Koop-Spiel mit epischen Stadteroberungen und Stadtverteidigungsschlachten. Die Zeit wird durch den feindlichen Fortschritt statt durch einen Dummy-Spieler gemessen.<size=6>\n\n</size><size=16><color=#8c5e35><i>Es begann als normale Mission - Sie betraten die Region, bereit, ihre Hauptstadt zu finden und zu erobern. Aber bald merkten Sie, dass Sie nicht die Einzigen sind. Der gefürchtete General Volkare ist gerade in Ihrer Nähe von Bord gegangen und bereitet sich auf den Marsch vor. Trotz seiner riesigen Armee aus Orks und Draconum heißen ihn die Atlanter willkommen und einige schließen sich sogar seinen Truppen an. Haben sie eine seltsame Allianz geschlossen? Wer auch immer dieser Volkare ist und was auch immer ihm erlaubt hat, zu einer solchen Macht aufzusteigen, er muss um jeden Preis aufgehalten werden. Und es muss getan werden, bevor er seine Kräfte mit der Garnison der Hauptstadt verbündet. Beeilen Sie sich, um die Stadt vor Volkare zu erreichen und zu erobern – und bereiten Sie ihm an ihren Toren einen höllischen Empfang. Mach dich bereit für die epischste Schlacht, die das Land je gesehen hat!</i></color></size>",
 			scenarioEnd="{en}The scenario can end by one of these ways:\n• Volkare enters the city before players conquer it. The players lose.\n• Volkare attacks the conquered city twice unchallenged. The players lose.\n• The 6th Round ends & Volkare still has an army. The players lose.\n• The entirety of Volkare’s army is destroyed. The players win.\nIf you want to count your score, every player may then play one more turn. Otherwise, just rejoice in the victory{ru}Сценарий может закончиться одним из следующих исходов:\n• Волкар входит в город до того, как его захватили герои. Герои проигрывают.\n• Волкар атакует город, захваченный героями дважды без оказания сопротивления героями. Герои проигрывают.\n• Завершается шестой раунд, и герои не победили всю армию Волкара. Герои проигрывают.\n• Армия Волкара полностью уничтожена. Герои выигрывают.\nЕсли вы хотите подсчитать победные очки, каждый игрок может сделать ещё один ход, но, скорее всего, большинство игроков просто перевернёт жетоны порядка хода обратно и не сможет ничего сделать.{zh-tw}劇本有以下幾種結束方式：\n•沃卡里在玩家征服城市前進入城市，玩家失敗。\n•沃卡里兩次攻擊已被玩家征服的城市，玩家無法進行有效的防守，玩家失敗\n•第六輪結束玩家還沒有擊敗沃卡里的所有軍隊，玩家失敗。\n•沃卡里的所有軍隊被消滅，玩家勝利。\n如果你們想要計分，每名玩家可以再行動一個回合，不然就直接慶祝勝利吧！{zh-cn}剧本有以下几种结束方式：\n•沃卡里在玩家征服城市前进入城市，玩家失败。\n•沃卡里两次攻击已被玩家征服的城市，玩家无法进行有效的防守，玩家失败\n•第六轮结束玩家还没有擊敗沃卡里的所有军队，玩家失败。\n•沃卡里的所有军队被消灭，玩家胜利。\n如果你们想要计分，每名玩家可以再行动一个回合，不然就直接庆祝胜利吧！{ko}다음 중 하나의 조건이 만족되면 시나리오가 종료됩니다:\n• 플레이어가 도시를 정복하기 전에 먼저 볼케어가 도착함. 플레이어 패배.\n• 볼케어가 정복된 도시를 (플레이어의 방어없이) 두 번 공격함, 플레이어 패배.\n• 6 라운드가 끝났고, 볼케어 군대가 살아있음. 플레이어 패배.\n• 볼케어 군대를 모두 처치함. 플레이어 승리.\n점수를 기록하길 원하면, 종료 후 한 차례씩 더 진행하세요. 그게 아니라면, 그냥 승리의 기쁨을 즐기세요.{es}El escenario puede terminar de las siguientes maneras:\n• Volkare entra en la ciudad antes de que los jugadores la conquisten. Los jugadores pierden.\n• Volkare ataca la ciudad conquistada por los jugadores dos veces sin que la defiendan. Los jugadores pierden.\n• Termina la sexta Ronda y los jugadores no han derrotado al ejército entero de Volkare. Los jugadores pierden.\n• El ejército entero de Volkare es derrotado. Los jugadores ganan.\n– Si quieres contar la puntuación, todos los jugadores pueden jugar un turno más, pero ten en cuenta que, para la mayoría de los jugadores, esto solo significa que voltean la ficha de Orden de Ronda boca arriba.\n– De lo contrario, celebrad la victoria.{fr}Le scénario peut se terminer de l'une des manières suivantes:\n• Volkare entre dans la ville avant que les joueurs ne la conquièrent. Les joueurs perdent.\n• Volkare attaque la ville conquise deux fois sans aucun défi. Les joueurs perdent.\n• Le 6ème round se termine et Volkare a toujours une armée. Les joueurs perdent.\n• L’ensemble de l’armée de Volkare est détruit. Les joueurs gagnent.\nSi vous voulez compter votre score, chaque joueur peut alors jouer un tour de plus. Sinon, réjouissez-vous de la victoire.{pt-br}O cenário pode terminar de uma destas formas:\n• Volkare entra na cidade antes de um jogador conquistá-la. Os jogadores perdem.\n• Volkare ataca a cidade conquistada duas vezes sem ser desafiado. Os jogadores perdem.\n• A 6ª Rodada termina e Volkare ainda tem um exércido. Os jogadores Perdem.\n• A totalidade do exército de Volkare foi destruída. Os jogadores vencem.\n• Se você quiser contar a puntuação, cada jogador pode jogar um turno a mais, do contrário, apenas regozije na vitória{de}Das Szenario kann auf eine der folgenden Arten enden:\n• Volkare betritt die Stadt, bevor die Spieler sie erobern. Die Spieler verlieren.\n• Volkare greift die eroberte Stadt zweimal unangefochten an. Die Spieler verlieren.\n• Die 6. Runde endet und Volkare hat immer noch eine Armee. Die Spieler verlieren.\n• Die gesamte Armee von Volkare wird zerstört. Die Spieler gewinnen.\nWenn Sie Ihre Punktzahl zählen möchten, darf jeder Spieler noch einmal an der Reihe sein. Ansonsten freut euch einfach über den Sieg"}},
 	{"Volkare's Return Blitz",{},{},{},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=5,cityTiles=1,coreTiles=1,rounds=4,discardTactics=1, dTW=1, dummyTacticSelection="L",cityLevels={3,4}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=6,cityTiles=1,coreTiles=1,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={4,8}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=8,cityTiles=1,coreTiles=2,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={5,12}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=10,cityTiles=1,coreTiles=3,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={6,16}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=5,cityTiles=1,coreTiles=1,rounds=4,discardTactics=1, dTW=1, dummyTacticSelection="L",cityLevels={3,4}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=6,cityTiles=1,coreTiles=1,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={4,8}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=8,cityTiles=1,coreTiles=2,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={5,12}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=10,cityTiles=1,coreTiles=3,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={6,16}},
 		scenarioDetails={
 			megapolisPossible=true,	blitzPossible="Yes", ruleStates={expansion=14},
 			playerDetails="{en}1 to 4 - Cooperative and Solo{ru}От 1 до 4 - Кооперативный и Одиночный{zh-tw}1 到 4 人－合作與單人模式{zh-cn}1 到 4 人－合作与单人模式{ko}1 ~ 4 - 협동 및 솔로{es}1 a 4 - Cooperativo y Solitario{fr}1 à 4 - Coopératif Seulement et Solo{pt-br}1 a 4 - Cooperativo e Solo{de}1 bis 4 - Nur coop und Solo",
 			scenarioPurpose="{en}A challenging solo or coop game with epic city conquering and city defense battles. Time is measured by enemy progress instead of a dummy player.<size=6>\n\n</size><size=16><color=#8c5e35><i>It started as a normal mission - you entered the region, ready to find and conquer its capital. But soon you realized you are not the only ones. The dreaded General Volkare just disembarked close to you and prepares to march. Despite his huge army of orcs and draconum, Atlanteans welcome him and some even join his forces. Have they made some strange alliance? Whoever this Volkare is, and whatever allowed him to rise to such power, he has to be stopped at any cost. And it has to be done before he joins his forces with the garrison of the capital. Hurry to reach and conquer the city before Volkare – and at its gates, prepare one hell of a welcome for him. Get ready for the most epic battle the Land has ever seen!</i></color></size>{ru}Сложный одиночный или кооперативный сценарий с эпическими битвами, захватом и защитой города. Вместо виртуального игрока вас ограничивает генерал Волкар.<size=6>\n\n</size><size=16><color=#8c5e35><i>Всё начиналось обычно — вы вошли в провинцию, готовясь найти и захватить её столицу. Но вы стремились к этому не один. Ужасный генерал Волкар встал лагерем неподалёку от вас и готовится к маршу. Несмотря на его огромную армию из орков и драконумов, атланты приветствуют его, а некоторые даже присоединяются к его войскам. Что ждать от столь странного союза? Кем бы ни был Волкар, что бы ни позволило ему получить такую силу, вернувшегося полководца нужно остановить до того, как его войска объединятся с гарнизоном столицы. Поспешите и захватите город раньше Волкара — и ждите гостей. Приготовьтесь к самой эпичной битве, которую знала Земля!</i></color></size>{zh-tw}一場富有挑戰的單人或合作遊戲，包含史詩級的攻城戰和城市保衛戰。\n時間由敵人的進度控制，而不是一位虛擬玩家。<size=6>\n\n</size><color=#8c5e35><i>一開始只是一件普通的任務——你進入這個地區，準備征服都城。\n但很快你意識到這裡還有別人。恐怖的沃卡里將軍正在向你逼近。\n雖然他率領著支獸人和龍族組成的大軍，但亞特蘭蒂斯的人們歡迎他，\n甚至還有人加入他的軍隊。是不是他們達成了某些奇怪的聯盟？\n無論這個沃卡里是誰，無論他的力量源自何方，都必須不惜一切代價阻止他，\n而且你必須趕在他的部隊與都城的守軍匯合之前攔截他。\n而後，你需要在城下與他一決死戰，很快這片土地將見證一場史詩級的戰鬥！</i></color>{zh-cn}一場富有挑戰的單人或合作遊戲，包含史詩級的攻城戰和城市保衛戰。\n時間由敵人的進度控制，而不是一位虛擬玩家。<size=6>\n\n</size><color=#8c5e35><i>一开始只是一件普通的任务——你进入这个地区，准备征服都城。\n但很快你意识到这里还有别人。恐怖的沃卡里将军正在向你逼近。\n雖然他率领着支獸人和龙族组成的大军，但亚特兰蒂斯的人们欢迎他，\n甚至还有人加入他的军队。是不是他们达成了某些奇怪的联盟？\n无论这个沃卡里是谁，無論他的力量源自何方，都必須不惜一切代价阻止他，\n而且你必須赶在他的部队与都城的守军汇合之前拦截他。\n而后，你需要在城下与他一决死戰，很快这片土地将见证一场史诗级的战斗！</i></color>{ko}도전적인 솔로 또는 협력 시나리오 – 장대한 도시 정복과 도시 방어 전투. 가상 플레이어 대신 볼케어 시스템이 게임 진행 속도를 결정합니다.<size=6>\n\n</size><size=16><color=#8c5e35><i>처음엔 그저 평범한 임무라고 생각했지. 이 지역의 수도를 찾고, 정복하는 것… 그러나 그건 우리만 원하는게 아니야. 공포의 볼케어 장군이 이 주변에서 대진격을 준비하고 있어. 오크와 드라코넘이 득실대는 군대인데도 불구하고, 아틀란티스 주민들은 그를 환영하고 일부는 심지어 거기에 참여하길 원하더군. 이런 이상한 동맹은 듣도보도 못했겠지? 그의 정체가 뭐든, 무엇이 그에게 그렇게 강력한 힘을 주었든, 무슨 수를 써서라도 볼케어를 막아야 해. 그가 수도 안의 사람들과 만나기 전에 말이야. 볼케어 보다 먼저 도시를 정복하고 성문 앞에서 그를 맞이할 지옥의 환영 파티를 준비해야 하니 서두르자. 이 땅 위에서 전례없는 장대한 전투가 벌어질 테니 단단히 준비하라고.</i></color></size>{es}Una desafiante partida en solitario o cooperativo con épicas conquistas y batallas en defensa de la ciudad. El tiempo se mide en función del progreso del enemigo en lugar del Jugador Virtual.<size=6>\n\n</size><size=16><color=#8c5e35><i>Comenzó como una misión normal: os adentráis en la región, preparados para encontrar y conquistar su capital. Pero pronto os dais cuenta de que no sois los únicos. El temido general Volkare acaba de desembarcar cerca de vosotros y se prepara para avanzar. A pesar de su enorme ejército de Orcos y Draconum, los Atlantes le dan la bienvenida e incluso algunos se unen a sus fuerzas. ¿Habrán acordado alguna extraña alianza? Sea quien sea Volkare y lo que le haya permitido elevarse con tal poder, tiene que ser detenido a toda costa. Y tiene que ser antes de que una sus fuerzas con los defensores de la capital. Daros prisa para alcanzar y conquistar la ciudad antes de Volkare y, en sus puertas, darle una bienvenida infernal. ¡Preparaos para la batalla más épica que la Tierra haya visto jamás!</i></color></size>{fr}Un jeu difficile en solo ou en coopération avec des combats épiques de conquête de la ville et de défense de la ville. Le temps est mesuré par la progression de l'ennemi au lieu d'un joueur factice.<size=6>\n\n</size><size=16><color=#8c5e35><i>Cela va commencé comme une mission normale - vous êtes entré dans la région, prêt pour trouver et conquérir sa capitale. Mais vous vous êtes vite rendu compte que vous n'êtes pas les seuls. Le redoutable général Volkare vient de débarquer près de vous et se prépare à marcher. Malgré son immense armée d'orques et de draconum, les Atlantes l'accueillent et certains rejoignent même ses forces Quel que soit ce Volkare, et tout ce qui lui a permis d'accéder à un tel pouvoir, il faut l'arrêter à tout prix, et il faut le faire avant qu'il ne rejoigne ses forces avec la garnison de la capitale. Dépêchez-vous d'atteindre et de conquérir la ville avant Volkare - et à ses portes, préparez-lui un sacré accueil. Préparez-vous pour la bataille la plus épique que le Land ait jamais vue!</i></color></size>{pt-br}Um jogo desafiador solo ou co-op com conquistas e batalhas de cidades épicas. Tempo é marcado pelo progresso do inimigo ao invés de um jogador fictício<size=6>\n\n</size><size=16><color=#8c5e35><i>Tudo começou como uma missão normal: vocês entraram na região, prontos para encontrar e conquistar a capital. Entretanto, vocês logo perceberam que não eram os únicos com isso em mente. O temido General Volkare acabou de desembarcar perto de vocês e se prepara para marchar. Apesar de seu enorme exército de orcs e draconum,os Atlantes o acolheram, e alguns até mesmo se juntaram às suas forças. Será que eles fizeram algum tipo de aliança? Seja lá o que ele for ou o que permitiu que ele conseguisse tamanho poder, Volkare deve ser impedido a qualquer custo. E isso precisa ser feito antes de eles juntarem forças com a guarnição da capital. Apresse-se para alcançar e conquistar a cidade antes de Volkare, e prepare um belo comitê de boas-vindas para ele. Prepare-se para a batalha mais épica que o Território já viu!</i></color></size>{de}Ein herausforderndes Solo- oder Koop-Spiel mit epischen Stadteroberungen und Stadtverteidigungsschlachten. Die Zeit wird durch den feindlichen Fortschritt statt durch einen Dummy-Spieler gemessen.<size=6>\n\n</size><size=16><color=#8c5e35><i>Es begann als normale Mission - Sie betraten die Region, bereit, ihre Hauptstadt zu finden und zu erobern. Aber bald merkten Sie, dass Sie nicht die Einzigen sind. Der gefürchtete General Volkare ist gerade in Ihrer Nähe von Bord gegangen und bereitet sich auf den Marsch vor. Trotz seiner riesigen Armee aus Orks und Draconum heißen ihn die Atlanter willkommen und einige schließen sich sogar seinen Truppen an. Haben sie eine seltsame Allianz geschlossen? Wer auch immer dieser Volkare ist und was auch immer ihm erlaubt hat, zu einer solchen Macht aufzusteigen, er muss um jeden Preis aufgehalten werden. Und es muss getan werden, bevor er seine Kräfte mit der Garnison der Hauptstadt verbündet. Beeilen Sie sich, um die Stadt vor Volkare zu erreichen und zu erobern – und bereiten Sie ihm an ihren Toren einen höllischen Empfang. Mach dich bereit für die epischste Schlacht, die das Land je gesehen hat!</i></color></size>",
 			scenarioEnd="{en}The scenario can end by one of these ways:\n• Volkare enters the city before players conquer it. The players lose.\n• Volkare attacks the conquered city twice unchallenged. The players lose.\n• The 6th Round ends & Volkare still has an army. The players lose.\n• The entirety of Volkare’s army is destroyed. The players win.\nIf you want to count your score, every player may then play one more turn. Otherwise, just rejoice in the victory{ru}Сценарий может закончиться одним из следующих исходов:\n• Волкар входит в город до того, как его захватили герои. Герои проигрывают.\n• Волкар атакует город, захваченный героями дважды без оказания сопротивления героями. Герои проигрывают.\n• Завершается шестой раунд, и герои не победили всю армию Волкара. Герои проигрывают.\n• Армия Волкара полностью уничтожена. Герои выигрывают.\nЕсли вы хотите подсчитать победные очки, каждый игрок может сделать ещё один ход, но, скорее всего, большинство игроков просто перевернёт жетоны порядка хода обратно и не сможет ничего сделать.{zh-tw}劇本有以下幾種結束方式：\n•沃卡里在玩家征服城市前進入城市，玩家失敗。\n•沃卡里兩次攻擊已被玩家征服的城市，玩家無法進行有效的防守，玩家失敗\n•第六輪結束玩家還沒有擊敗沃卡里的所有軍隊，玩家失敗。\n•沃卡里的所有軍隊被消滅，玩家勝利。\n如果你們想要計分，每名玩家可以再行動一個回合，不然就直接慶祝勝利吧！{zh-cn}剧本有以下几种结束方式：\n•沃卡里在玩家征服城市前进入城市，玩家失败。\n•沃卡里两次攻击已被玩家征服的城市，玩家无法进行有效的防守，玩家失败\n•第六轮结束玩家还没有擊敗沃卡里的所有军队，玩家失败。\n•沃卡里的所有军队被消灭，玩家胜利。\n如果你们想要计分，每名玩家可以再行动一个回合，不然就直接庆祝胜利吧！{ko}다음 중 하나의 조건이 만족되면 시나리오가 종료됩니다:\n• 플레이어가 도시를 정복하기 전에 먼저 볼케어가 도착함. 플레이어 패배.\n• 볼케어가 정복된 도시를 (플레이어의 방어없이) 두 번 공격함, 플레이어 패배.\n• 6 라운드가 끝났고, 볼케어 군대가 살아있음. 플레이어 패배.\n• 볼케어 군대를 모두 처치함. 플레이어 승리.\n점수를 기록하길 원하면, 종료 후 한 차례씩 더 진행하세요. 그게 아니라면, 그냥 승리의 기쁨을 즐기세요.{es}El escenario puede terminar de las siguientes maneras:\n• Volkare entra en la ciudad antes de que los jugadores la conquisten. Los jugadores pierden.\n• Volkare ataca la ciudad conquistada por los jugadores dos veces sin que la defiendan. Los jugadores pierden.\n• Termina la sexta Ronda y los jugadores no han derrotado al ejército entero de Volkare. Los jugadores pierden.\n• El ejército entero de Volkare es derrotado. Los jugadores ganan.\n– Si quieres contar la puntuación, todos los jugadores pueden jugar un turno más, pero ten en cuenta que, para la mayoría de los jugadores, esto solo significa que voltean la ficha de Orden de Ronda boca arriba.\n– De lo contrario, celebrad la victoria.{fr}Le scénario peut se terminer de l'une des manières suivantes:\n• Volkare entre dans la ville avant que les joueurs ne la conquièrent. Les joueurs perdent.\n• Volkare attaque la ville conquise deux fois sans aucun défi. Les joueurs perdent.\n• Le 6ème round se termine et Volkare a toujours une armée. Les joueurs perdent.\n• L’ensemble de l’armée de Volkare est détruit. Les joueurs gagnent.\nSi vous voulez compter votre score, chaque joueur peut alors jouer un tour de plus. Sinon, réjouissez-vous de la victoire.{pt-br}O cenário pode terminar de uma destas formas:\n• Volkare entra na cidade antes de um jogador conquistá-la. Os jogadores perdem.\n• Volkare ataca a cidade conquistada duas vezes sem ser desafiado. Os jogadores perdem.\n• A 6ª Rodada termina e Volkare ainda tem um exércido. Os jogadores Perdem.\n• A totalidade do exército de Volkare foi destruída. Os jogadores vencem.\n• Se você quiser contar a puntuação, cada jogador pode jogar um turno a mais, do contrário, apenas regozije na vitória{de}Das Szenario kann auf eine der folgenden Arten enden:\n• Volkare betritt die Stadt, bevor die Spieler sie erobern. Die Spieler verlieren.\n• Volkare greift die eroberte Stadt zweimal unangefochten an. Die Spieler verlieren.\n• Die 6. Runde endet und Volkare hat immer noch eine Armee. Die Spieler verlieren.\n• Die gesamte Armee von Volkare wird zerstört. Die Spieler gewinnen.\nWenn Sie Ihre Punktzahl zählen möchten, darf jeder Spieler noch einmal an der Reihe sein. Ansonsten freut euch einfach über den Sieg"}},
 	{"Volkare's Quest",{},{},{},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=8,cityTiles=2,coreTiles=4,rounds=6,discardTactics=1, dTW=1, dummyTacticSelection="L",cityLevels={3,3,8}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=9,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={4,4,14}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=11,cityTiles=3,coreTiles=4,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={4,4,4,20}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=12,cityTiles=3,coreTiles=3,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={5,5,5,26}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=8,cityTiles=2,coreTiles=4,rounds=6,discardTactics=1, dTW=1, dummyTacticSelection="L",cityLevels={3,3,8}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=9,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={4,4,14}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=11,cityTiles=3,coreTiles=4,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={4,4,4,20}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=12,cityTiles=3,coreTiles=3,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={5,5,5,26}},
 		scenarioDetails={
 			megapolisPossible=true,	blitzPossible="Off Only", ruleStates={expansion=15},
 			playerDetails="{en}1 to 4 - Cooperative and Solo{ru}От 1 до 4 - Кооперативный и Одиночный{zh-tw}1 到 4 人－合作與單人模式{zh-cn}1 到 4 人－合作与单人模式{ko}1 ~ 4 - 협동 및 솔로{es}1 a 4 - Cooperativo y Solitario{fr}1 à 4 - Coopératif Seulement et Solo{pt-br}1 a 4 - Cooperativo e Solo{de}1 bis 4 - Nur coop und Solo",
 			scenarioPurpose="{en}A challenging solo or coop game where you have to avoid Volkare at first, and then pursue and stop him before he enters the portal.<size=6>\n\n</size><color=#8c5e35><i>You were sent there with a clear task – to Find the mysterious General Volkare and eliminate him. But it seems Volkare was ready for your arrival – once the portal opened and you entered the land, his huge army started to march directly towards you. You are not ready for the confrontation yet! Oh, wait – it is not you who is his target. He is heading directly to the portal. It seems he was just waiting for someone to open it for him. What are his intentions? Does he want to enter the portal, or to destroy it? What happens if he succeeds? Your task is not to investigate that. Your task is to stop him. Destroy his army before he Finishes his quest, whatever it is.</i></color>{ru}Сложный сценарий, в котором вы должны сначала уклоняться от встречи с Волкаром, а затем остановить его до того, как он войдёт в портал.<size=6>\n\n</size><color=#8c5e35><i>Вы были направлены в эту часть Империи с чёткой задачей — найти загадочного генерала Волкара и уничтожить его. Но, похоже, Волкар был готов к вашему прибытию — как только портал открылся, и вы ступили на землю, его огромная армия двинулась прямо к вам. Вы ещё не готовы противостоять ему! Но погодите… его цель — вовсе не вы. Он держит курс прямо на портал. Видимо, он просто ждал кого-то, кто откроет ему дорогу.</i></color>{zh-tw}一場富有挑戰的單人或合作遊戲，\n一開始你要躲避沃卡里，然後在他進入傳送門前，要趕上並阻止他。<size=6>\n\n</size><color=#8c5e35><i>你的目標很明確—找到神秘的沃卡里將軍並消滅他。但看起來他已有所準備了\n只要傳送門打開，你踏入這片土地，他的大軍就會向你湧來。\n你目前還無法和他正面抗衡！等等，他的目標不是你，他直衝傳送門而來。\n看來他就是等著有人為他打開傳送門！他的目的是什麼？\n他想進入傳送門還是毀掉傳送門？如果他的計劃成功了會怎樣？\n但你的任務不是來調查此事。你的任務就是阻止他。\n無論他身負什麼樣的使命，你必須趕在他成功之前殲滅他的部隊。</i></color>{zh-cn}一场富有挑战的单人或合作游戏，\n一开始你要躲避沃卡里，然后在他进入传送门前，要赶上并阻止他。<size=6>\n\n</size><color=#8c5e35><i>你的目标很明确—找到神秘的沃卡里将军并消滅他。但看起来他已有所准备了\n只要传送门打开，你踏入这片土地，他的大军就会向你湧来。\n你目前还无法和他正面抗衡！等等，他的目标不是你，他直冲传送门而来。\n看来他就是等着有人为他打开传送门！他的目的是什么？\n他想进入传送门还是毁掉传送门？如果他的计划成功了会怎样？\n但你的任务不是来调查此事的。你的任务就是阻止他。\n无论他身负什樣的使命，你必須赶在他成功之前歼灭他的部队。</i></color>{ko}도전적인 솔로 또는 협력 시나리오 – 초반에는 볼케어를 피해다니며 성장하다가, 후에 그가 포탈에 도착하기 전에 쫓아가 막아야합니다.<size=6>\n\n</size><color=#8c5e35><i>우린 정말 간단명료한 임무를 받았지 – 볼케어 장군을 찾아 제거하라! 그런데... 볼케어는 이미 우리를 맞이할 준비를 된것 같아 – 포탈이 열리고 우리가 도착하자마자 그의 거대한 군대는 우리 쪽으로 진격을 시작할거야. 그전까지 충분히 성장하여 그를 마주할 준비를 해야해. 그런데 이상한 점은... 볼케어의 진짜 목적지는 우리가 아니라 포탈이라는 거야. 마치 누군가 포탈을 열기만을 기다린 것처럼 보이더군. 무슨 의도일까? 포탈을 부수고 싶은 건지,  처들어 오려는 건지. 그가 이 원정에 성공하면 어떤 일이 일어날지 몰라. 우리 임무는 볼케어의 목적을 알아내는게 아니라, 그를 막아야 한다는 것이니, 뭐가 됐든, 볼케어가 원정을 끝마치기 전에 그를 쓰러뜨려야 해. </i></color>{es}Una desafiante partida en solitario o cooperativa donde primero debes eludir a Volkare, y luego perseguirlo y detenerlo antes de que entre en el portal.<size=6>\n\n</size><color=#8c5e35><i>Fuiste enviado allí con un objetivo claro: encontrar al misterioso General Volkare y eliminarlo. Pero parece que Volkare estaba preparado para tu llegada. Cuando se abrió el portal y entraste en la región, su enorme ejército comenzó a marchar directo hacia ti. ¡Todavía no estás preparado para una confrontación! Pero espera… parece que su objetivo no eres tú. Volkare se dirige directamente hacia el portal. Parece que estaba esperando a que alguien lo abriese por él. ¿Cuáles son sus intenciones? ¿Quiere entrar en el portal o destruirlo? ¿Qué pasará si lo consigue? Tu tarea no es descubrir esto. Tu tarea es detenerlo. Destruye a su ejército antes de que consiga su objetivo, sea el que sea.</i></color>{fr}Un jeu difficile en solo ou en coopération où vous devez d'abord éviter Volkare, puis le poursuivre et l'arrêter avant qu'il n'entre dans le portail.<size=6>\n\n</size><color=#8c5e35><i>Vous y avez été envoyé avec une tâche claire: trouver le mystérieux général Volkare et éliminez-le. Mais il semble que Volkare était prêt pour votre arrivée - une fois que le portail s'est ouvert et que vous êtes entré dans le pays, son énorme armée a commencé à marcher directement vers vous. Vous n'êtes pas encore prêt pour la confrontation! Oh, attendez - ce n'est pas vous qui êtes sa cible. Il se dirige directement vers le portail. Il semble qu'il attendait juste que quelqu'un l'ouvre pour lui. Quelles sont ses intentions? Veut-il entrer dans le portail ou le détruire? Que se passe-t-il s'il réussit? Votre tâche n'est pas d'enquêter là-dessus. Votre tâche est de l'arrêter. Détruisez son armée avant qu'il ne termine sa quête, quelle qu'elle soit.</i></color>{pt-br}Uma partida solo ou cooperativa desafiadora onde você deve primeiro evitar Volkare e em seguida persegui-lo e detê-lo antes que ele entre no portal.<size=6>\n\n</size><color=#8c5e35><i>Você foi enviado para cá com um objetivo muito claro: encontrar o misterioso General Volkare e eliminá-lo. Mas parece que Volkare estava preparado para sua chegada: assim que o portal se abriu e você entrou, seu enorme exército começou a marchar diretamente em sua direção. Você não está preparado para o confronto ainda! Mas espere, você não é o alvo. Ele está indo diretamente para o portal. Parece que ele estava apenas esperando alguém abri-lo. Quais são suas intenções? Ele quer entrar no portal ou destruí-lo? O que acontecerá se ele conseguir? Sua tarefa não é investigar a situação. Sua tarefa é detê-lo. Destrua o exército dele antes que ele conclua seu objetivo, seja qual for.</i></color>{de}Ein herausforderndes Solo- oder Koop-Spiel, bei dem du Volkare zuerst ausweichen und ihn dann verfolgen und aufhalten musst, bevor er das Portal betritt.<size=6>\n\n</size><color=#8c5e35><i>Du wurdest mit einer klaren Aufgabe dorthin geschickt – den mysteriösen General Volkare zu finden und ihn beseitigen. Aber es scheint, dass Volkare auf deine Ankunft vorbereitet war – sobald sich das Portal öffnete und du das Land betratst, begann seine riesige Armee, direkt auf dich zu zu marschieren. Du bist noch nicht bereit für die Konfrontation! Oh, warte – nicht du bist sein Ziel. Er geht direkt zum Portal. Anscheinend hat er nur darauf gewartet, dass jemand es für ihn öffnet. Was sind seine Absichten? Will er das Portal betreten oder es zerstören? Was passiert, wenn er Erfolg hat? Ihre Aufgabe ist es nicht, das zu untersuchen. Ihre Aufgabe ist es, ihn aufzuhalten. Zerstöre seine Armee, bevor er seine Mission beendet, was immer es auch sein mag.</i></color>",
 			scenarioEnd="{en}The scenario can end by one of these ways:-\n• Volkare enters the portal and then performs another move. The players lose.\n• The entire of Volkare’s army is destroyed. The players win.<size=6>\n\n</size>If you want to count your score, every player then may play one more turn. Otherwise, just rejoice in the victory.{ru}Сценарий может закончиться одним из следующих исходов:-\n• Волкар входит на клетку с порталом и двигается ещё один раз. Герои проигрывают.<size=6>\n\n</size>Если вы хотите подсчитать победные очки, каждый игрок может сделать ещё один ход, но, скорее всего, большинство игроков просто перевернёт жетоны порядка хода обратно и не сможет ничего сделать.{zh-tw}劇本有以下幾種方式結束：\n•沃卡里進入傳送門並再次移動，玩家失敗。\n•沃卡里的所有軍隊被殲滅，玩家勝利。\n如果你們想要計分，每名玩家可以再行動一個回合，不然就直接慶祝勝利吧！{zh-cn}剧本有以下几种方式结束：\n•沃卡里进入传送门并再次移动，玩家失败。\n•沃卡里的所有军队被歼灭，玩家胜利。\n如果你们想要计分，每名玩家可以再行动一个回合，不然就直接庆祝胜利吧！{ko}다음 중 하나의 조건이 만족되면 시나리오가 종료됩니다:-\n• 볼케어가 포탈에 도착하고 한 번 더 행동함. 플레이어 패배.\n• 볼케어 군대를 전부 처치함. 플레이어 승리.<size=6>\n\n</size>점수를 기록하길 원하면, 종료 후 한 차례씩 더 진행하세요. 그게 아니라면, 그냥 승리의 기쁨을 즐기세요.{es}El escenario puede terminar de las siguientes maneras:-\n• Volkare entra en el portal y después realiza otro movimiento. Los jugadores pierden.\n• El ejército entero de Volkare es derrotado. Los jugadores ganan.\n– Si quieres contar la puntuación, todos los jugadores pueden jugar un turno más, pero ten en cuenta que, para la mayoría de los jugadores, esto solo significa que voltean la ficha de Orden de Ronda boca arriba.\n– De lo contrario, celebrad la victoria.{fr}Le scénario peut se terminer de l'une des manières suivantes: -\n• Volkare entre dans le portail et effectue un autre mouvement. Les joueurs perdent.\n• L'ensemble de l'armée de Volkare est détruit. Les joueurs gagnent.<size=6>\n\n</size>Si vous voulez compter votre score, chaque joueur peut alors jouer un tour de plus. Sinon, réjouissez-vous de la victoire.{pt-br}O cenário pode acabar de uma destas formas:-\n• Volkare entra no portão e então faz outro movimento. Os jogadores perdem.\n• A totalidade do exército de Volkare é destruída. Os jogadores vencem.\n•Se você quiser contar sua pontuação, cada jogador então pode jogar um turno a mais, do contrário, apenas regozije a vitória.{de}Das Szenario kann auf eine der folgenden Arten enden:-\n• Volkare betritt das Portal und führt dann einen weiteren Zug aus. Die Spieler verlieren.\n• Die gesamte Armee von Volkare wird zerstört. Die Spieler gewinnen.<size=6>\n\n</size>Wenn Sie Ihre Punktzahl zählen möchten, darf jeder Spieler noch einen Zug spielen. Ansonsten freut euch einfach über den Sieg."}},
 	{"Life and Death",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=3,coreTiles=1,rounds=6,discardTactics=0, dTW=0, cityLevels={4,4,0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=9,cityTiles=3,coreTiles=2,rounds=6,discardTactics=0, dTW=0, cityLevels={5,5,0}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=11,cityTiles=3,coreTiles=3,rounds=6,discardTactics=0, dTW=0, cityLevels={6,6,0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=6,cityTiles=3,coreTiles=2,rounds=6,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={6,6,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=7,cityTiles=3,coreTiles=2,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={8,8,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=9,cityTiles=3,coreTiles=3,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={10,10,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=11,cityTiles=3,coreTiles=4,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={12,12,0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=3,coreTiles=1,rounds=6,discardTactics=0, dTW=0, cityLevels={4,4,0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=9,cityTiles=3,coreTiles=2,rounds=6,discardTactics=0, dTW=0, cityLevels={5,5,0}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=11,cityTiles=3,coreTiles=3,rounds=6,discardTactics=0, dTW=0, cityLevels={6,6,0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=6,cityTiles=3,coreTiles=2,rounds=6,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={6,6,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=7,cityTiles=3,coreTiles=2,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={8,8,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=9,cityTiles=3,coreTiles=3,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={10,10,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=11,cityTiles=3,coreTiles=4,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={12,12,0}},
 		scenarioDetails={
 			megapolisPossible=false, blitzPossible="Off Only", ruleStates={expansion=22},
 			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}От 1 до 4 - Кооперативный, Соревновательный и Одиночный{zh-tw}1 到 4 人－合作，對抗或單人模式{zh-cn}1 到 4 人－合作，对抗或单人模式{ko}1 ~ 4 - 협력, 경쟁 또는 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 – Kooperativ, Kompetitiv und Solo",
@@ -42457,13 +42532,13 @@ scenarioList={
 			scenarioPurpose="{en}The full scenario against the forces of life and death.<size=6>\n\n</size><color=#8c5e35><i>The Elementalists and the Dark Crusaders are at war. The Council of the Void wish you to take advantage of this opportunity, and fight your way into enemy territory to destroy the Avatars of Tezla; Tezla’s Spirit of the Elementalists and Dark Tezla of the Dark Crusader.</i></color>{ru}Длинный сценарий, в котором вы столкнётесь с силами жизни и смерти.<size=6>\n\n</size><color=#8c5e35><i>Элементалисты и Тёмный легион воюют друг с другом. Совет Пустоты желает, чтобы вы воспользовались этой возможностью, прорвались на вражескую территорию и уничтожили аватары великого мага.</i></color>{zh-tw}對抗生死力量的完整劇本。<size=6>\n\n</size><color=#8c5e35><i>元素之力和黑暗遠征軍激戰正酣！\n虛空議會希望你利用這個機會深入敵人領地並消滅特茲拉的化身：\n元素之力的特茲拉之靈以及黑暗遠征軍的黑暗特茲拉。</i></color>{zh-cn}对抗生死力量的完整剧本。<size=6>\n\n</size><color=#8c5e35><i>元素之力和黑暗远征军激战正酣！\n虚空议会希望你利用这个机会深入敌人领地并消灭特兹拉的化身：\n元素之力的特兹拉之灵以及黑暗远征军的黑暗特兹拉。</i></color>{ko}삶과 죽음의 세력에 맞서는 전체 시나리오. 정령술사와 암흑 성전사가 전쟁 중입니다. .<size=6>\n\n</size><color=#8c5e35>공허의 평의회는 여러분이 이 기회를 이용하여 적의 영토로 들어가 테즐라의 아바타, 즉 정령술사의 테즐라의 정령과 암흑 성전사의 다크 테즐라를 파괴하기를 바랍니다. </color>{es}El escenario completo contra las fuerzas de la vida y la muerte.<size=6>\n\n</size><color=#8c5e35><i>Los Elementalistas y los Cruzados Oscuros están en guerra. El Concilio de la Vacuidad quiere que aproveches esta oportunidad para buscar una forma de entrar en el territorio enemigo y destruir los Avatares de Tezla: el Espíritu de Tezla de los Elementalistas y Tezla Oscura de los Cruzados Oscuros.</i></color>{fr}Le scénario complet contre les forces de la vie et de la mort.<size=6>\n\n</size><color=#8c5e35><i>Les élémentalistes et les croisés noirs sont en guerre. Le Conseil du Vide souhaite que vous profitiez de cette opportunité et frayez-vous un chemin en territoire ennemi pour détruire les Avatars de Tezla; L'esprit des élémentalistes de Tezla et Tezla sombre du croisé noir.</i></color>{pt-br}O Cenário completo contra as forças da vida e morte.<size=6>\n\n</size><color=#8c5e35><i>Os Elementaristas e os Cruzados Sombrios estão em guerra. O Conselho do Vácuo deseja que você tire vantagem desta oportunidade, e lute seu caminho adentro do território inimigo para destruir os Avatares de Tezla; O Espirito de Tezla dos Elementaristas e Tezla Sombrio dos Cruzados Sombrios.</i></color>{de}Das vollständige Szenario gegen die Mächte von Leben und Tod.<size=6>\n\n</size><color=#8c5e35><i>Die Elementarmagier und die Dunklen Kreuzritter befinden sich im Krieg. Der Rat der Leere möchte, dass Sie diese Gelegenheit nutzen und sich in feindliches Gebiet vorkämpfen, um die Avatare von Tezla zu vernichten; Tezla’s Spirit of the Elementalists und Dark Tezla of the Dark Crusader.</i></color>",
 			scenarioEnd="{en}When both faction leaders are defeated, all players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда оба лидера фракции побеждены, игроки делают по одному ходу (в случае одиночного или кооперативного сценария, все игроки кроме виртуального). Если раунд заканчивается раньше, игра завершается вместе с ним.{zh-tw}如果兩個宗派領袖都被擊敗，所有玩家（除了虛擬玩家）還有最後一回合。\n如果在此期間該輪結束，遊戲立即結束。{zh-cn}如果两个宗派领袖都被击败，所有玩家（除了虚拟玩家）还有最后一回合。\n如果在此期间该轮结束，游戏立即结束。{ko}두 진영의 리더가 모두 패배하면, 더미 플레이어를 제외한 모든 플레이어는 마지막 턴을 한 번 더 가질 수 있습니다. 이 시간 동안 라운드가 종료되면 게임은 즉시 종료됩니다.{es}Cuando ambos líderes de facción han sido derrotados, todos los jugadores tienen un último turno. Si mientras sucede esto la Ronda termina, la partida finaliza inmediatamente.{fr}Lorsque les deux chefs de faction sont vaincus, tous les joueurs (à l'exception du joueur factice) ont un dernier tour. Si la manche se termine pendant cette période, la partie se termine immédiatement.{pt-br}Quando ambos líderes de facção forem derrotados, todos os jogadores (Exceto o jogador fictício) tem um último turno. Se a Rodada acabar durante isto, o jogo acaba imediatamente.{de}Wenn beide Fraktionsführer besiegt sind, haben alle Spieler (außer dem Dummy-Spieler) einen letzten Zug. Endet die Runde währenddessen, endet das Spiel sofort."}},
 	{"The Realm of the Dead Blitz",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=5,cityTiles=2,coreTiles=2,rounds=4,discardTactics=0, dTW=0, cityLevels={5,0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=2,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={6,0}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=9,cityTiles=2,coreTiles=4,rounds=4,discardTactics=0, dTW=0, cityLevels={7,0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=5,cityTiles=2,coreTiles=1,rounds=4,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={4,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=6,cityTiles=2,coreTiles=2,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={8,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=2,coreTiles=3,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={10,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=10,cityTiles=2,coreTiles=4,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={12,0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=5,cityTiles=2,coreTiles=2,rounds=4,discardTactics=0, dTW=0, cityLevels={5,0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=2,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={6,0}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=9,cityTiles=2,coreTiles=4,rounds=4,discardTactics=0, dTW=0, cityLevels={7,0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=5,cityTiles=2,coreTiles=1,rounds=4,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={4,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=6,cityTiles=2,coreTiles=2,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={8,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=2,coreTiles=3,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={10,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=10,cityTiles=2,coreTiles=4,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={12,0}},
 		scenarioDetails={
 			megapolisPossible=false, blitzPossible="On Only", ruleStates={expansion=24},
 			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}От 1 до 4 - Кооперативный, Соревновательный и Одиночный{zh-tw}1 到 4 人－合作，對抗或單人模式{zh-cn}1 到 4 人－合作，对抗或单人模式{ko}1 ~ 4 - 협력, 경쟁 또는 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 – Kooperativ, Kompetitiv und Solo",
@@ -42479,13 +42554,13 @@ scenarioList={
 			scenarioPurpose="{en}Defeat the Necromancer Lord and cleanse the Realm of the Dead.<size=6>\n\n</size><color=#8c5e35><i>Many lands have been ravaged by war in the aftermath of the Breaking. In a province abandoned by the Lords of Atlantis, a powerful Necromancer has arisen, fueled by the victims of plague and famine. He wields powerful death magic to taint the land and raise legions of the fallen to serve him. Meanwhile he is working feverishly to complete the terrible Ritual of Lichdom and make himself immortal.<size=6>\n\n</size>The hordes of undead and corrupted spirits have begun to spread from the lost realm, generating a growing wave of terror and panic. The Council, alarmed at the growing threat, has ordered you to hunt down and destroy this Necromancer, and to cleanse the land of his corruption before it is too late.</i></color>{ru}Герои должны победить великого некроманта и очистить Землю от его злодеяний.<size=6>\n\n</size><color=#8c5e35><i>Многие земли были разорены после Разлома. В провинции, оставленной лордами атлантов, появился могущественный некромант, черпающий энергию из жертв чумы и голода. Он загрязняет землю мощной магией смерти и поднимает легионы мертвецов себе на службу. Собирая силы, он готовит ужасный ритуал превращения в лича, стремясь к вечной жизни.<size=6>\n\n</size>Орды нежити и злые духи наводнили земли, соседние с утраченной провинцией, сея ужас и панику. Совет, обеспокоенный растущей угрозой, приказал вам выследить и уничтожить некроманта и очистить землю от его порчи, пока ещё не слишком поздно.</i></color>{zh-tw}擊敗亡靈法師並淨化亡靈國度。<size=6>\n\n</size><color=#8c5e35><i>大分裂後，戰爭讓許多土地飽受摧殘。在一個亞特蘭蒂斯領主廢棄的行省中，\n死於瘟疫與飢荒的屍體讓一名強大的亡靈法師異軍突起，不斷壯大。\n他利用強大的死亡魔法污染了土地，喚醒了無數死者為其效忠。\n同時，他還狂熱地研究可怕的巫妖儀式，想讓自己長生不老。<size=6>\n\n</size>大批亡靈和冤魂從地獄奔湧而出，驚慌和恐懼不斷蔓延。\n議會收到了警報，於是下令你追蹤並消滅這名死靈法師，\n在事態惡化之前淨化被他腐蝕的土地。</i></color>{zh-cn}击败亡灵法师并净化亡灵国度。<size=6>\n\n</size><color=#8c5e35><i>大分裂后，战争让许多土地饱受蹂躏。在一个亚特兰斯蒂领主废弃的行省中，\n死于瘟疫与饥荒的尸体让一名强大的亡灵法师异军突起，不断壮大。\n他利用强大的死亡魔法污染了土地，唤醒了无数死者为其效忠。\n同时，他还狂热地研究可怕的巫妖仪式，想让自己长生不老。<size=6>\n\n</size>大批亡灵和冤魂从地狱奔涌而出，惊慌和恐惧不断蔓延。\n议会收到了警报，于是下令你追踪并消灭这名死灵法师，\n在事态恶化之前净化被他腐蚀的土地。</i></color>{ko}강령술사 군주를 처치하고 망자의 왕국을 정화하십시오.<size=6>\n\n</size><color=#8c5e35><i>브레이킹의 여파로 많은 땅이 전쟁으로 황폐해졌습니다. 아틀란티스의 영주들이 버린 한 지방에서 전염병과 기근의 희생자들에 힘입어 강력한 강령술사가 일어났습니다. 그는 강력한 죽음의 마법을 휘둘러 땅을 오염시키고 타락한 자들의 군단을 일으켜 자신을 섬기게 합니다. 한편 그는 끔찍한 리치돔 의식을 완성하고 스스로를 불멸의 존재로 만들기 위해 열렬히 노력하고 있습니다.<size=6>\n\n</size>잃어버린 왕국에서 언데드와 타락한 영혼의 무리가 퍼져나가기 시작하면서 공포와 공황의 물결이 커지고 있습니다. 위협이 커지는 것에 놀란 의회는 이 강령술사를 추적하여 파괴하고 너무 늦기 전에 땅의 타락을 정화하라는 명령을 내렸습니다.</i></color>{es}Derrota al Maestro Nigromante y purga el Reino de los Muertos.<size=6>\n\n</size><color=#8c5e35><i>Muchas tierras han sido devastadas por la guerra a raíz de la Ruptura. En una provincia abandonada por los Señores del Reino Atlante ha surgido un poderoso Nigromante, fortalecido por las víctimas de la peste y la hambruna. Ejerce una poderosa magia oscura para profanar la tierra y levantar legiones de los caídos para servirle. Mientras tanto, trabaja sin cesar para completar el terrible Ritual de Lichdom y volverse inmortal.<size=6>\n\n</size>Las hordas de los no muertos y espíritus corruptos han comenzado a extenderse desde el reino perdido, generando una ola de terror y pánico cada vez mayor. El Concilio, alarmado por la creciente amenaza, te ha ordenado cazar y destruir a este Nigromante, para limpiar la tierra de su corrupción antes de que sea demasiado tarde.</i></color>{fr}Battez le seigneur nécromancien et nettoyez le royaume des morts.<size=6>\n\n</size><color=#8c5e35><i>De nombreuses terres ont été ravagées par la guerre à la suite de la Rupture. Dans une province abandonnée par les seigneurs de l'Atlantide, un puissant nécromancien est né, alimenté par les victimes de la peste et de la famine. Il utilise une puissante magie de la mort pour entacher la terre et élever des légions de morts pour le servir. Pendant ce temps, il travaille fiévreusement pour achever le terrible Rituel de Lichdom et devenir immortel.<size=6>\n\n</size>Les hordes de morts-vivants et d'esprits corrompus ont commencé à se répandre du royaume perdu, générant une vague croissante de terreur et de panique. Le Conseil, alarmé par la menace croissante, vous a ordonné de traquer et de détruire ce Nécromancien, et de nettoyer le pays de sa corruption avant qu'il ne soit trop tard.</i></color>{pt-br}Derrote o Lorde Necromante e limpe o Reino dos Mortos.<size=6>\n\n</size><color=#8c5e35><i>Muitas terras foram devastadas por guerras travadas após o Rompimento. Em uma província abandonada pelos Senhores de Atlântida, um poderoso Necromante surgiu e acumulou poder com as vítimas da doença e da fome. Ele manipula poderosas magias da morte para infectar a terra e erguer legiões de mortos para servi-lo. Ao mesmo tempo ele trabalha freneticamente para completar o terrível Ritual Mortuário que o tornará imortal. As hordas de mortos-vivos e de espíritos corrompidos começaram a se espalhar a partir do reino perdido, gerando uma crescente onda de terror e pânico. O Conselho, preocupado com a crescente ameaça, ordenou que você cace e destrua este Necromante e que limpe a terra de sua corrupção antes que seja tarde demais.</i></color>{de}Besiege den Lord der Nekromanten und säubere das Reich der Toten.<size=6>\n\n</size><color=#8c5e35><i>Viele Länder wurden nach der Zerstörung durch den Krieg verwüstet. In einer von den Lords von Atlantis verlassenen Provinz ist ein mächtiger Nekromant auferstanden, angetrieben von den Opfern von Seuchen und Hungersnöten. Er übt mächtige Todesmagie aus, um das Land zu verderben und Legionen der Gefallenen zu erwecken, die ihm dienen. Unterdessen arbeitet er fieberhaft daran, das schreckliche Ritual des Lichdoms zu vollenden und sich selbst unsterblich zu machen.<size=6>\n\n</size>Die Horden von Untoten und korrumpierten Geistern breiten sich aus dem verlorenen Reich aus und erzeugen eine wachsende Welle von Terror und Panik. Der Rat, alarmiert über die wachsende Bedrohung, hat dir befohlen, diesen Nekromanten zu jagen und zu vernichten und das Land von seiner Verderbnis zu säubern, bevor es zu spät ist.</i></color>",
 			scenarioEnd="{en}When all Graveyards are sealed and the necromancer is defeated, all players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда все кладбища запечатаны и некромант побеждён, все игроки делают один последний ход (в случае одиночного или кооперативного сценария, все игроки кроме виртуального). Если раунд заканчивается раньше, игра завершается вместе с ним.{zh-tw}當所有墓地被封印且死靈法師被擊敗後，所有玩家（除了虛擬玩家）還有最後\n一回合。如果在此期間該輪結束，遊戲立即結束。{zh-cn}当所有墓地被封印且死灵法师被击败后，所有玩家（除了虚拟玩家）还有最后\n一回合。如果在此期间该轮结束，游戏立即结束。{ko}모든 묘지가 봉인되고 강령술사가 패배하면, 모든 플레이어(더미 플레이어 제외)에게 마지막 턴이 한 번 주어집니다. 이 시간 동안 라운드가 종료되면 게임은 즉시 종료됩니다.{es}Cuando todos los Cementerios han sido sellados y el Nigromante derrotado, todos los jugadores (excepto el Jugador Virtual) tienen un último turno. Si mientras sucede esto la Ronda termina, la partida finaliza inmediatamente.{fr}Scénario le royaume des morts fin éclair {pt-br}Quando todos os Cemitérios forem selados e o necromante for derrotado, todos os jogadores (Exceto o jogador fictício) tem um último turno. Se a Rodada acabar durante isto, o jogo acaba imediatamente.{de}Wenn alle Friedhöfe versiegelt und der Nekromant besiegt sind, haben alle Spieler (außer dem Dummy-Spieler) einen letzten Zug. Endet die Runde währenddessen, endet das Spiel sofort."}},
 	{"The Hidden Valley Blitz",--15
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=5,cityTiles=2,coreTiles=2,rounds=4,discardTactics=0, dTW=0, cityLevels={5,0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=2,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={6,0}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=9,cityTiles=2,coreTiles=4,rounds=4,discardTactics=0, dTW=0, cityLevels={7,0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=5,cityTiles=2,coreTiles=1,rounds=4,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={4,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=6,cityTiles=2,coreTiles=2,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={8,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=2,coreTiles=3,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={10,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=10,cityTiles=2,coreTiles=4,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={12,0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=5,cityTiles=2,coreTiles=2,rounds=4,discardTactics=0, dTW=0, cityLevels={5,0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=2,coreTiles=3,rounds=4,discardTactics=0, dTW=0, cityLevels={6,0}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=9,cityTiles=2,coreTiles=4,rounds=4,discardTactics=0, dTW=0, cityLevels={7,0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=5,cityTiles=2,coreTiles=1,rounds=4,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={4,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=6,cityTiles=2,coreTiles=2,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={8,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=2,coreTiles=3,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={10,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=10,cityTiles=2,coreTiles=4,rounds=4,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={12,0}},
 		scenarioDetails={
 			megapolisPossible=false, blitzPossible="On Only", ruleStates={expansion=26},
 			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}От 1 до 4 - Кооперативный, Соревновательный и Одиночный{zh-tw}1 到 4 人－合作，對抗或單人模式{zh-cn}1 到 4 人－合作，对抗或单人模式{ko}1 ~ 4 - 협력, 경쟁 또는 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 – Kooperativ, Kompetitiv und Solo",
@@ -42493,26 +42568,40 @@ scenarioList={
 			scenarioPurpose="{en}Find the Hidden Valley and defeat the high priestess.<size=6>\n\n</size><color=#8c5e35><i>Rumors have reached the council of an Elementalist high priestess who is gathering forces. However, all the rumors tell of a long hidden valley only spoken about in legend. Even the Council of the Void have been unable to find it. Clearly there is powerful magic at work. You must locate this hidden valley and defeat the priestess before her threat becomes too great.</i></color>{ru}Найти скрытую долину и победить верховную жрицу.<size=6>\n\n</size><color=#8c5e35><i>До Совета дошли вести о верховной жрице Элементалистов, собирающей войско. Все слухи сходятся в одном: скрытая от посторонних глаз долина, известная лишь по легендам, и вправду существует. Даже Совет Пустоты не может найти её. Очевидно, в деле замешана мощная магия. Вы должны отыскать скрытую долину и победить верховную жрицу.</i></color>{zh-tw}找到神秘幽谷並擊敗女祭司。<size=6>\n\n</size><color=#8c5e35><i>近期虛空議會一直獲悉傳聞，\n“元素之力”的一位高階女祭司正在暗中聚集勢力。\n然而，所有的傳聞中都提到了狹長的“神秘幽谷”。\n但即使虛空議會也無法找到它。顯然有強大的魔法在發揮作用。\n你必須找到這個隱秘的山谷並在高階女祭司成為巨大的威脅前擊敗她。</i></color>{zh-cn}找到神秘幽谷并击败女祭司。<size=6>\n\n</size><color=#8c5e35><i>近期虚空议会一直获悉传闻，\n“元素之力”的一位高阶女祭司正在暗中聚集势力。\n然而，所有的传闻中都提到了狭长的“神秘幽谷”。\n但即使虚空议会也无法找到它。显然有强大的魔法在发挥作用。\n你必须找到这个隐秘的山谷并在高阶女祭司成为巨大的威胁前击败她。</i></color>{ko}숨겨진 계곡을 찾아 대제사장을 처치하세요.<size=6>\n\n</size><color=#8c5e35><i>정령술사 대제사장이 세력을 모으고 있다는 소문이 의회에 전해졌습니다. 하지만 그 소문은 모두 전설로만 전해지는 긴 숨겨진 계곡에 대한 이야기입니다. 공허의 의회조차도 그곳을 찾지 못했습니다. 강력한 마법이 작용하고 있는 것이 분명합니다. 여사제의 위협이 너무 커지기 전에 이 숨겨진 계곡을 찾아서 여사제를 쓰러뜨려야 합니다.</i></color>{es}Encuentra el Valle Oculto y derrota a la Sacerdotisa Suprema.<size=6>\n\n</size><color=#8c5e35><i>Al Concilio han llegado rumores de una Sacerdotisa Suprema Elementalista que está reuniendo fuerzas. Por otra parte, todos los rumores mencionan un Valle Oculto solo conocido en leyendas. Ni siquiera el Concilio de la Vacuidad ha podido encontrarlo. Claramente hay una magia poderosa implicada. Debes localizar este Valle Oculto y vencer a la sacerdotisa antes de que su amenaza se vuelva imparable.</i></color>{fr}La vallée cachée Objectif éclair {pt-br}Encontre o Vale Escondido e derrote a Suma Sacerdotisa.<size=6>\n\n</size><color=#8c5e35><i>Chegaram ao Conselho rumores de que uma Suma Sacerdotisa Elementalista está juntando forças. Entretanto, todos os rumores falam de um suposto vale escondido mencionado apenas em lendas. Nem mesmo o Conselho do Vazio foi capaz de encontrá-lo. Com certeza há magia de alto poder envolvida. Você deve localizar este vale perdido e derrotar a sacerdotisa antes que a ameaça tome maiores proporções.</i></color>{de}Finde das verborgene Tal und besiege die Hohepriesterin.<size=6>\n\n</size><color=#8c5e35><i>Gerüchte haben den Rat einer Elementarmagier-Hohepriesterin erreicht, die Kräfte sammelt. Alle Gerüchte erzählen jedoch von einem lange verborgenen Tal, von dem nur in Legenden gesprochen wird. Selbst der Rat der Leere konnte es nicht finden. Es ist eindeutig, dass mächtige Magie am Werk ist. Du musst dieses verborgene Tal finden und die Priesterin besiegen, bevor ihre Bedrohung zu groß wird.</i></color>",
 			scenarioEnd="{en}When the high priestess is defeated, all players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда верховная жрица побеждена, все игроки делают по одному последнему ходу (в случае одиночного или кооперативного сценария, все игроки кроме виртуального). Если раунд заканчивается раньше, игра завершается вместе с ним.{zh-tw}當女祭司被擊敗後，所有玩家（除了虛擬玩家）還有最後一回合。\n如果在此期間該輪結束，遊戲立即結束。{zh-cn}当女祭司被击败后，所有玩家（除了虚拟玩家）还有最后一回合。\n如果在此期间该轮结束，游戏立即结束。{ko}대제사장이 패배하면, 더미 플레이어를 제외한 모든 플레이어는 마지막 턴을 한 번 더 가질 수 있습니다. 이 시간 동안 라운드가 종료되면 게임은 즉시 종료됩니다.{es}Cuando la Sacerdotisa Suprema ha sido derrotada, los jugadores tienen un último turno. Si mientras sucede esto la Ronda termina, la partida finaliza inmediatamente.{fr}La vallée cachée Fin éclair {pt-br}Quando a Sumo Sacerdotisa for derrotada, todos jogadores (exceto o Jogador fictício) tem um último turno. Se a Rodada acabar durante isto, o jogo acaba imediatamente.{de}Wenn die Hohepriesterin besiegt ist, haben alle Spieler (außer dem Dummy-Spieler) noch einen letzten Zug. Endet die Runde währenddessen, endet das Spiel sofort."}},
 	{"The Lost Relic Blitz",
-		{mapShape="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten",countryTiles=6,cityTiles=2,coreTiles=1,rounds=2,discardTactics=0, dTW=0, cityLevels={0,0}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=7,cityTiles=3,coreTiles=2,rounds=2,discardTactics=0, dTW=0, cityLevels={0,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=4,coreTiles=3,rounds=2,discardTactics=0, dTW=0, cityLevels={0,0,0,0}},
-		{mapShape="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten",countryTiles=6,cityTiles=2,coreTiles=1,rounds=2,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0,0}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=7,cityTiles=3,coreTiles=2,rounds=2,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={0,0,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=4,coreTiles=3,rounds=2,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={0,0,0,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=9,cityTiles=5,coreTiles=4,rounds=2,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={0,0,0,0,0}},
+		{mapShape=mapShapeText.open3,mapShapeKey="open3",countryTiles=6,cityTiles=2,coreTiles=1,rounds=2,discardTactics=0, dTW=0, cityLevels={0,0}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=7,cityTiles=3,coreTiles=2,rounds=2,discardTactics=0, dTW=0, cityLevels={0,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=4,coreTiles=3,rounds=2,discardTactics=0, dTW=0, cityLevels={0,0,0,0}},
+		{mapShape=mapShapeText.open3,mapShapeKey="open3",countryTiles=6,cityTiles=2,coreTiles=1,rounds=2,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0,0}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=7,cityTiles=3,coreTiles=2,rounds=2,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={0,0,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=4,coreTiles=3,rounds=2,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={0,0,0,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=9,cityTiles=5,coreTiles=4,rounds=2,discardTactics=0, dTW=0, dummyTacticSelection="F",cityLevels={0,0,0,0,0}},
 		scenarioDetails={
 			megapolisPossible=false, blitzPossible="On Only", ruleStates={expansion=28},
 			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}От 1 до 4 - Кооперативный, Соревновательный и Одиночный{zh-tw}1 到 4 人－合作，對抗或單人模式{zh-cn}1 到 4 人－合作，对抗或单人模式{ko}1 ~ 4 - 협력, 경쟁 또는 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 – Kooperativ, Kompetitiv und Solo",
 			scenarioPurpose="{en}Find all the pieces of an ancient relic in the ruins of old cities. This scenario requires you to build a level 3 character (see Expansion Variants).<size=6>\n\n</size><color=#8c5e35><i>In years past, for reasons unknown, an ancient relic was broken into pieces and distributed between the cities.<size=6>\n\n</size>The council wants the pieces recovered to learn the secrets they hold. However, your task will not be easy as it seems that draconum may also be drawn to the power.</i></color><size=6>\n\n</size> * The script removes all City Only Elite units{ru}Герои должны найти все части древней реликвии в руинах старых городов. Каждый герой начинает игру с 3-м уровнем (см. Параметры сценария).<size=6>\n\n</size><color=#8c5e35><i>Годы назад, по неизвестной причине, древняя реликвия была разделена на части, которые отвезли в разные города.<size=6>\n\n</size>Совет хочет найти фрагменты реликвии и узнать секреты, которые они хранят. Ваша задача — не из легких. Похоже, драконумов тоже притягивает сила реликвии.</i></color><size=6>\n\n</size> * Скрипт удаляет из игры все элитные отряды, которые могут быть завербованы только в городах.{zh-tw}在古老城市的遺蹟中找到的所有的遠古聖器碎片。\n此劇本要求您建立一個 3 級角色（詳見擴充的變體規則）。<size=6>\n\n</size><color=#8c5e35><i>在過去的歲月中，由於某些未知的原因，\n一個遠古聖器被分解成多個碎片，並分放在不同的城市中。\n虛空議會想取回這些碎片並復原聖器以掌握它的秘密。\n然而，你的任務並不容易，因為龍族也已被這個聖器的力量所吸引。</i></color><size=6>\n\n</size>腳本會將只能在城市招募的精銳部隊移除{zh-cn}在古老城市的遗迹中找到的所有的远古圣器碎片。\n此剧本要求您建立一个 3 级角色（详见扩展的变体规则）。<size=6>\n\n</size><color=#8c5e35><i>在过去的岁月中，由于某些未知的原因，\n一个远古圣器被分解成多个碎片，并分放在不同的城市中。\n虚空议会想取回这些碎片并复原圣器以掌握它的秘密。\n然而，你的任务并不容易，因为龙族也已被这个圣器的力量所吸引。</i></color><size=6>\n\n</size>脚本会将只能在城市招募的精锐部队移除{ko}오래된 도시의 폐허에서 고대 유물의 모든 조각을 찾으세요. 이 시나리오를 플레이하려면 레벨 3 캐릭터를 생성해야 합니다(확장팩 변형 참조).<size=6>\n\n</size><color=#8c5e35><i>수년 전, 알 수 없는 이유로 고대 유물이 여러 조각으로 나뉘어 도시로 흩어졌습니다.<size=6>\n\n</size>의회는 유물 조각을 회수하여 유물에 담긴 비밀을 알아내길 원합니다. 하지만 드라코룸도 그 힘에 이끌린 것 같아 임무는 쉽지 않을 것입니다.</i></color><size=6>\n\n</size> * 이 스크립트는 모든 도시 전용 엘리트 유닛을 제거합니다.{es}Encuentra todas las piezas de una antigua reliquia en las ruinas de viejas ciudades. Este escenario requiere que construyas un personaje de nivel 3 (ver Variantes de Expansión).<size=6>\n\n</size><color=#8c5e35><i>En años pasados, por razones desconocidas, una antigua reliquia se rompió en pedazos y se distribuyó entre las ciudades.<size=6>\n\n</size>El consejo quiere recuperar las piezas para conocer los secretos que guardan. Sin embargo, su tarea no será fácil, ya que parece que los draconum también pueden sentirse atraídos por el poder.</i></color><size=6>\n\n</size> * El script elimina todas las unidades de élite sólo de ciudad.{fr}Trouvez tous les morceaux d'une ancienne relique dans les ruines des vieilles villes. Ce scénario vous oblige à construire un personnage de niveau 3 (voir Variantes d'extension).<size=6>\n\n</size><color=#8c5e35><i>Au cours des années passées, pour des raisons inconnues, une ancienne relique a été brisée en morceaux et distribuée entre les villes .<size=6>\n\n</size>Le conseil veut les pièces récupérées pour apprendre les secrets qu'elles détiennent. Cependant, votre tâche ne sera pas facile car il semble que draconum puisse également être marqué par le pouvoir.</i></color><size=6>\n\n</size> * Le script supprime toutes les unités City Only Elite{pt-br}Encontre todas as peças de uma relíquia antiga nas ruínas de cidades antigas. Esse cenário exige que você crie um personagem de nível 3 (consulte Variantes de expansão).<size=6>\n\n</size><color=#8c5e35><i>Em anos passados, por razões desconhecidas, uma relíquia antiga foi quebrada em pedaços e distribuída entre as cidades.<size=6>\n\n</size>O conselho quer recuperar as peças para descobrir os segredos que elas guardam. No entanto, sua tarefa não será fácil, pois parece que o draconum também pode ser atraído pelo poder.</i></color><size=6>\n\n</size> * O script remove todas as unidades City Only Elite{de}Finde alle Teile eines antiken Relikts in den Ruinen alter Städte. Dieses Szenario erfordert, dass Sie einen Charakter der Stufe 3 bauen (siehe Erweiterungsvarianten).<size=6>\n\n</size><color=#8c5e35><i>In der Vergangenheit wurde aus unbekannten Gründen ein uraltes Relikt in Stücke gebrochen und zwischen den Städten verteilt.<size=6>\n\n</size>Der Rat will Die Stücke wurden geborgen, um die Geheimnisse zu erfahren, die sie enthalten. Ihre Aufgabe wird jedoch nicht einfach sein, da es scheint, dass Draconum auch von der Macht angezogen werden könnte.</i></color><size=6>\n\n</size> * Das Skript entfernt alle City Only Elite-Einheiten",
 			scenarioEnd="{en}When all parts of the relic have been collected, all players except the Dummy player have one more turn. If the Round ends during this, the game ends immediately.{ru}Когда все части реликвии собраны, все игроки (включая того, кто нашел последнюю часть) делают по одному последнему ходу (в случае одиночного или кооперативного сценария, все игроки кроме виртуального). Если раунд заканчивается раньше, игра завершается вместе с ним.{zh-tw}當聖物的所有碎片都被集齊後，所有玩家（除了虛擬玩家）還有最後一回合。\n如果在此期間該輪結束，遊戲立即結束。{zh-cn}当圣物的所有碎片都被集齐后，所有玩家（除了虚拟玩家）还有最后一回合。\n如果在此期间该轮结束，游戏立即结束。{ko}유물의 모든 부품을 수집하면 더미 플레이어를 제외한 모든 플레이어는 한 번의 턴을 더 가질 수 있습니다. 이 시간 동안 라운드가 종료되면 게임은 즉시 종료됩니다.{es}Cuando todos los fragmentos de la reliquia han sido reunidos, todos los jugadores excepto el Jugador Virtual tienen un turno más. Si mientras sucede esto la Ronda termina, la partida finaliza inmediatamente.{fr}Lorsque toutes les parties de la relique ont été récupérées, tous les joueurs sauf le joueur factice ont un tour de plus. Si la manche se termine pendant cette période, la partie se termine immédiatement.{pt-br}Quando todas as partes da relíquia forem coletadas, todos os jogadores (exceto o Jogador fictício) tem um último turno. Se a Rodada acabar durante isto, o jogo acaba imediatamente.{de}Wenn alle Teile der Reliquie eingesammelt wurden, sind alle Spieler außer dem Dummy-Spieler noch einmal an der Reihe. Endet die Runde währenddessen, endet das Spiel sofort."}},
+	{"For the Council",
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=6,cityTiles=1,coreTiles=2,rounds=3,discardTactics=0,dTW=0,cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=3,rounds=3,discardTactics=0,dTW=0,cityLevels={0}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=9,cityTiles=1,coreTiles=4,rounds=3,discardTactics=0,dTW=0,cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=6,cityTiles=1,coreTiles=2,rounds=3,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=7,cityTiles=1,coreTiles=2,rounds=3,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=9,cityTiles=1,coreTiles=3,rounds=3,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=11,cityTiles=1,coreTiles=4,rounds=3,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0}},
+		scenarioDetails={
+			megapolisPossible=false,blitzPossible="Off Only",ruleStates={apocalypse=24},
+			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}1–4 — кооперативная, соревновательная и одиночная игра{zh-tw}1 至 4 人－合作、競爭與單人模式{zh-cn}1 至 4 人－合作、竞争与单人模式{ko}1~4인 - 협력, 경쟁 및 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 - Kooperativ, Kompetitiv und Solo",
+			countryRules="{en}(will place a Village tile First){ru}(will place a Village tile First){zh-tw}(will place a Village tile First){zh-cn}(will place a Village tile First){ko}(will place a Village tile First){es}(will place a Village tile First){fr}(will place a Village tile First){pt-br}(will place a Village tile First){de}(will place a Village tile First)",
+			scenarioPurpose="{en}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{ru}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{zh-tw}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{zh-cn}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{ko}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{es}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{fr}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{pt-br}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{de}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>",
+			scenarioEnd="{en}The scenario ends at the end of the second Day (three rounds).{ru}The scenario ends at the end of the second Day (three rounds).{zh-tw}The scenario ends at the end of the second Day (three rounds).{zh-cn}The scenario ends at the end of the second Day (three rounds).{ko}The scenario ends at the end of the second Day (three rounds).{es}The scenario ends at the end of the second Day (three rounds).{fr}The scenario ends at the end of the second Day (three rounds).{pt-br}The scenario ends at the end of the second Day (three rounds).{de}The scenario ends at the end of the second Day (three rounds)."}},
 	{"Against the Apocalypse Blitz",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=5,cityTiles=1,coreTiles=1,rounds=3,discardTactics=0, dTW=0,cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=6,cityTiles=1,coreTiles=2,rounds=3,discardTactics=0, dTW=0,cityLevels={0}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=8,cityTiles=1,coreTiles=3,rounds=3,discardTactics=0, dTW=0,cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=4,cityTiles=1,coreTiles=1,rounds=3,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=5,cityTiles=1,coreTiles=2,rounds=3,discardTactics=1, dTW=1, dummyTacticSelection="F",cityLevels={0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=7,cityTiles=1,coreTiles=3,rounds=3,discardTactics=1, dTW=1, dummyTacticSelection="F",cityLevels={0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=9,cityTiles=1,coreTiles=4,rounds=3,discardTactics=1, dTW=1, dummyTacticSelection="F",cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=5,cityTiles=1,coreTiles=1,rounds=3,discardTactics=0, dTW=0,cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=6,cityTiles=1,coreTiles=2,rounds=3,discardTactics=0, dTW=0,cityLevels={0}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=8,cityTiles=1,coreTiles=3,rounds=3,discardTactics=0, dTW=0,cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=4,cityTiles=1,coreTiles=1,rounds=3,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=5,cityTiles=1,coreTiles=2,rounds=3,discardTactics=1, dTW=1, dummyTacticSelection="F",cityLevels={0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=7,cityTiles=1,coreTiles=3,rounds=3,discardTactics=1, dTW=1, dummyTacticSelection="F",cityLevels={0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=9,cityTiles=1,coreTiles=4,rounds=3,discardTactics=1, dTW=1, dummyTacticSelection="F",cityLevels={0}},
 		scenarioDetails={
 			megapolisPossible=false, blitzPossible="On Only", ruleStates={apocalypse=26},
 			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}От 1 до 4 - Кооперативный, Соревновательный и Одиночный{zh-tw}1 到 4 人－合作，對抗或單人模式{zh-cn}1 到 4 人－合作，对抗或单人模式{ko}1 ~ 4 - 협력, 경쟁 또는 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 – Kooperativ, Kompetitiv und Solo",
@@ -42528,43 +42617,111 @@ scenarioList={
 			scenarioPurpose="{en}A short scenario that uses Ziggurats and Pyramids, Possessed Enemies, and Faction Reward Tokens.<size=6>\n\n</size><color=#8c5e35><i>Creatures of the Apocalypse have started spewing forth from a magical pyramid. They are rampaging across the land and destroying settlements. Stop this terror and restore the settlements.</i></color>{ru}Краткий сценарий, в котором используются зиккураты и пирамиды, одержимые враги и жетоны наград фракций.<size=6>\n\n</size><color=#8c5e35><i>Из магической пирамиды начали вырываться существа Апокалипсиса. Они бушуют по всей земле и уничтожают поселения. Остановите этот террор и восстановите поселения.</i></color>{zh-tw}使用階梯神廟、金字塔、附身敵人和宗派獎勵標記的短劇本。<size=6>\n\n</size><color=#8c5e35><i>末日生物已開始從一座魔法金字塔中不斷湧出。\n它們在這片土地上肆虐，摧毀了一個又一個聚落。\n你必須阻止這場恐怖災難，並重建被摧毀的聚落。</i></color>{zh-cn}使用阶梯神庙、金字塔、附身敌人和宗派奖励标记的短剧本。<size=6>\n\n</size><color=#8c5e35><i>末日生物已开始从一座魔法金字塔中不断涌出。\n它们在这片土地上肆虐，摧毁了一个又一个聚落。\n你必须阻止这场恐怖灾难，并重建被摧毁的聚落。</i></color>{ko}지구라트와 피라미드, 빙의된 적 토큰, 진영 보상 토큰을 사용하는 짧은 시나리오입니다.<size=6>\n\n</size><color=#8c5e35><i>마력이 깃든 피라미드에서 아포칼립스의 괴물들이 쏟아져 나오기 시작했습니다. 이들은 땅 곳곳을 휩쓸며 정착지를 파괴하고 있습니다. 이 사태를 저지하고 정착지를 되살리세요.</i></color>{es}Una breve partida que utiliza zigurats y pirámides, enemigos poseídos y fichas de recompensa de facción.<size=6>\n\n</size><color=#8c5e35><i>Las criaturas del Apocalipsis han comenzado a salir a raudales de una pirámide mágica. Están causando estragos por toda la tierra y destruyendo los asentamientos. Detén este terror y restaura los asentamientos.</i></color>{fr}Un court scénario mettant en scène des ziggourats et des pyramides, des ennemis possédés et des jetons de récompense de faction.<size=6>\n\n</size><color=#8c5e35><i>Des créatures de l'Apocalypse ont commencé à jaillir d'une pyramide magique. Elles sèment la terreur à travers le pays et détruisent les villages. Mettez fin à cette terreur et reconstruisez les villages.</i></color>{pt-br}Um cenário curto que utiliza zigurates e pirâmides, inimigos possuídos e fichas de recompensa de facção.<size=6>\n\n</size><color=#8c5e35><i>Criaturas do Apocalipse começaram a jorrar de uma pirâmide mágica. Elas estão causando estragos por toda a região e destruindo povoados. Acabe com esse terror e restaure os povoados.</i></color>{de}Ein kurzes Szenario, in dem Zikkurats und Pyramiden, besessene Gegner und Fraktionsbelohnungsmarker zum Einsatz kommen.<size=6>\n\n</size><color=#8c5e35><i>Aus einer magischen Pyramide strömen nun Kreaturen der Apokalypse hervor. Sie wüten im Land und zerstören Siedlungen. Beendet diesen Terror und stellt die Siedlungen wieder her.</i></color>",
 			scenarioEnd="{en}The end of the scenario is triggered when you have conquered all the Ziggurat(s) and the Pyramid, clearing a number of Floors, and restoring a number of Destroyed Sites.\n\nFor Solo and Competative the minimum amount is the player count plus One, while Coop is player count plus Two\n\nAfter, everyone has one last turn (the Dummy player does not).{ru}Завершение сценария наступает, когда вы завоюете все зиккураты и пирамиду, пройдете определенное количество уровней и восстановите определенное количество разрушенных объектов.\n\nВ режимах «Одиночная игра» и «Соревновательная игра» минимальное количество составляет количество игроков плюс один, а в режиме «Кооператив» — количество игроков плюс два.\n\nПосле этого у каждого игрока есть один последний ход (за исключением фиктивного игрока).{zh-tw}當玩家征服了指定層數的階梯神廟與金字塔，並且修復了指定數量的摧毀地點\n時，才會觸發劇本結束。<size=6>\n\n</size>單人和競爭模式的最少數量為玩家人數+1，\n合作模式的最少數量為玩家人數+2。<size=6>\n\n</size>觸發劇本結束後，所有玩家（除了虛擬玩家）還有最後一回合。{zh-cn}当玩家征服了指定层数的阶梯神庙与金字塔，并且修复了指定数量的摧毁地点\n时，才会触发剧本结束。<size=6>\n\n</size>单人和竞争模式的最少数量为玩家人数+1，\n合作模式的最少数量为玩家人数+2。<size=6>\n\n</size>触发剧本结束后，所有玩家（除了虚拟玩家）还有最后一回合。{ko}모든 지구라트와 피라미드를 정복하고, 일정 수의 층을 정복했으며 , 일정 수의 파괴된 장소를 복구하면 시나리오가 종료됩니다.\n\n솔로 및 경쟁 모드에서는 조건 개수는 플레이어 수에 1을 더한 값이며, 협동 모드에서는 플레이어 수에 2를 더한 값입니다.\n\n그 후, 모든 플레이어는 마지막 턴을 한 번씩 가집니다(더미 플레이어는 제외).{es}El final de la partida se activa cuando hayas conquistado todos los zigurats y la pirámide, hayas completado un número determinado de plantas y hayas restaurado un número determinado de yacimientos destruidos.\n\nEn los modos individual y competitivo, el número mínimo es el número de jugadores más uno, mientras que en el modo cooperativo es el número de jugadores más dos.\n\nA continuación, todos tienen un último turno (excepto el jugador ficticio).{fr}La fin du scénario est déclenchée lorsque vous avez conquis toutes les ziggourats et la pyramide, terminé un certain nombre d’étages et restauré un certain nombre de sites détruits.\n\nEn modes Solo et Compétitif, le nombre minimum correspond au nombre de joueurs plus un, tandis qu’en mode Coopération, il correspond au nombre de joueurs plus deux.\n\nEnsuite, chaque joueur dispose d’un dernier tour (à l’exception du joueur fantôme).{pt-br}O fim do cenário é acionado quando você tiver conquistado todas as zigurates e a pirâmide, completado um determinado número de andares e restaurado um determinado número de locais destruídos.\n\nNos modos Solo e Competitivo, o número mínimo é igual ao número de jogadores mais um, enquanto no modo Cooperativo é igual ao número de jogadores mais dois.\n\nDepois disso, todos têm um último turno (exceto o jogador fictício).{de}Das Ende des Szenarios wird ausgelöst, wenn du alle Zikkurats und die Pyramide erobert, eine bestimmte Anzahl von Etagen geräumt und eine bestimmte Anzahl zerstörter Stätten wiederhergestellt hast.\n\nIm Solo- und Wettbewerbsmodus entspricht die Mindestanzahl der Spielerzahl plus eins, im Koop-Modus der Spielerzahl plus zwei.\n\nDanach hat jeder noch einen letzten Zug (der Dummy-Spieler ausgenommen)."}},
 	{"Against the Horsemen Blitz",
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=0,dTW=0,cityLevels={1,1,1,1}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=0,dTW=0,cityLevels={1,1,1,1}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=0,dTW=0,cityLevels={1,1,1,1}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={1,1,1,1}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={1,1,1,1}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={1,1,1,1}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={1,1,1,1}},
-		scenarioDetails={megapolisPossible=false,blitzPossible="On Only",ruleStates={apocalypse=28},playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}1–4 — кооперативная, соревновательная и одиночная игра{zh-tw}1 至 4 人－合作、競爭與單人模式{zh-cn}1 至 4 人－合作、竞争与单人模式{ko}1~4인 - 협력, 경쟁 및 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 - Kooperativ, Kompetitiv und Solo",countryRules="{en}(Country Tile 1 in the Center){ru}(Загородная плитка 1 в центре){zh-tw}（鄉野地圖板塊 1 位於中央）{zh-cn}（乡野地图板块 1 位于中央）{ko}(중앙에 시골 타일 1 배치){es}(Loseta de Campo 1 en el centro){fr}(Tuile de Campagne 1 au centre){pt-br}(Peça de Campo 1 no centro){de}(Landplättchen 1 in der Mitte)",scenarioPurpose="{en}Stop the Four Horsemen from reaching the magical glade at the center of the map and performing their ritual.<size=6>\n\n</size><color=#8c5e35><i>The Four Horsemen are performing some kind of terrible ritual, culminating at a site of magical power. You must stop any of them from finishing the ritual.</i></color>{ru}Не дайте четырём Всадникам добраться до магической поляны в центре карты и завершить ритуал.<size=6>\n\n</size><color=#8c5e35><i>Четыре Всадника проводят ужасный ритуал, который должен завершиться в месте магической силы. Вы должны помешать любому из них завершить ритуал.</i></color>{zh-tw}阻止四騎士抵達地圖中央的魔法林地並完成儀式。<size=6>\n\n</size><color=#8c5e35><i>四騎士正在進行某種可怕的儀式，並將在魔力匯聚之地完成。你必須阻止任何一名騎士完成儀式。</i></color>{zh-cn}阻止四骑士抵达地图中央的魔法林地并完成仪式。<size=6>\n\n</size><color=#8c5e35><i>四骑士正在进行某种可怕的仪式，并将在魔力汇聚之地完成。你必须阻止任何一名骑士完成仪式。</i></color>{ko}네 기수가 맵 중앙의 마법의 숲에 도달해 의식을 완성하지 못하게 하십시오.<size=6>\n\n</size><color=#8c5e35><i>네 기수는 마력이 깃든 장소에서 절정에 이르는 끔찍한 의식을 치르고 있습니다. 그 누구도 의식을 끝내지 못하게 해야 합니다.</i></color>{es}Impide que los Cuatro Jinetes lleguen al claro mágico del centro del mapa y completen su ritual.<size=6>\n\n</size><color=#8c5e35><i>Los Cuatro Jinetes están realizando un terrible ritual que culminará en un lugar de poder mágico. Debes impedir que cualquiera de ellos lo complete.</i></color>{fr}Empêchez les Quatre Cavaliers d'atteindre la clairière magique au centre de la carte et d'accomplir leur rituel.<size=6>\n\n</size><color=#8c5e35><i>Les Quatre Cavaliers accomplissent un terrible rituel qui culminera dans un lieu de puissance magique. Vous devez empêcher l'un d'eux de l'achever.</i></color>{pt-br}Impeça os Quatro Cavaleiros de alcançar a clareira mágica no centro do mapa e concluir o ritual.<size=6>\n\n</size><color=#8c5e35><i>Os Quatro Cavaleiros estão realizando um ritual terrível que culminará em um local de poder mágico. Você deve impedir que qualquer um deles conclua o ritual.</i></color>{de}Haltet die Vier Reiter davon ab, die magische Lichtung in der Mitte der Karte zu erreichen und ihr Ritual zu vollenden.<size=6>\n\n</size><color=#8c5e35><i>Die Vier Reiter führen ein schreckliches Ritual durch, das an einem Ort magischer Macht vollendet werden soll. Ihr müsst jeden von ihnen daran hindern, das Ritual abzuschließen.</i></color>",scenarioEnd="{en}When all Horsemen are defeated, all players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда все Всадники побеждены, все игроки (кроме игрока-Автомы) получают по одному последнему ходу. Если в это время заканчивается раунд, игра немедленно завершается.{zh-tw}當所有騎士都被擊敗後，所有玩家（自動玩家除外）各有最後一個回合。若在此期間回合輪結束，遊戲立即結束。{zh-cn}当所有骑士都被击败后，所有玩家（自动玩家除外）各有最后一个回合。若在此期间回合轮结束，游戏立即结束。{ko}모든 기사를 쓰러뜨리면 더미 플레이어를 제외한 모든 플레이어가 마지막으로 한 턴씩 진행합니다. 그중 라운드가 끝나면 게임은 즉시 종료됩니다.{es}Cuando todos los Jinetes sean derrotados, todos los jugadores (excepto el jugador Automa) tienen un último turno. Si la Ronda termina durante esos turnos, la partida termina inmediatamente.{fr}Lorsque tous les Cavaliers sont vaincus, tous les joueurs (sauf le joueur Automate) effectuent un dernier tour. Si la Manche se termine pendant ces tours, la partie se termine immédiatement.{pt-br}Quando todos os Cavaleiros forem derrotados, todos os jogadores (exceto o jogador Automa) terão um último turno. Se a Rodada terminar durante esses turnos, a partida termina imediatamente.{de}Wenn alle Reiter besiegt sind, hat jeder Spieler (außer dem Automa-Spieler) noch einen letzten Zug. Endet währenddessen die Runde, endet das Spiel sofort."}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=0,dTW=0,cityLevels={1,1,1,1}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=0,dTW=0,cityLevels={1,1,1,1}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=0,dTW=0,cityLevels={1,1,1,1}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={1,1,1,1}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={1,1,1,1}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={1,1,1,1}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=11,cityTiles=4,coreTiles=4,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={1,1,1,1}},
+		scenarioDetails={
+			megapolisPossible=false,blitzPossible="On Only",ruleStates={apocalypse=28},
+			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}1–4 — кооперативная, соревновательная и одиночная игра{zh-tw}1 至 4 人－合作、競爭與單人模式{zh-cn}1 至 4 人－合作、竞争与单人模式{ko}1~4인 - 협력, 경쟁 및 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 - Kooperativ, Kompetitiv und Solo",
+			countryRules="{en}(Country Tile 1 in the Center){ru}(Загородная плитка 1 в центре){zh-tw}（鄉野地圖板塊 1 位於中央）{zh-cn}（乡野地图板块 1 位于中央）{ko}(중앙에 시골 타일 1 배치){es}(Loseta de Campo 1 en el centro){fr}(Tuile de Campagne 1 au centre){pt-br}(Peça de Campo 1 no centro){de}(Landplättchen 1 in der Mitte)",
+			scenarioPurpose="{en}Stop the Four Horsemen from reaching the magical glade at the center of the map and performing their ritual.<size=6>\n\n</size><color=#8c5e35><i>The Four Horsemen are performing some kind of terrible ritual, culminating at a site of magical power. You must stop any of them from finishing the ritual.</i></color>{ru}Не дайте четырём Всадникам добраться до магической поляны в центре карты и завершить ритуал.<size=6>\n\n</size><color=#8c5e35><i>Четыре Всадника проводят ужасный ритуал, который должен завершиться в месте магической силы. Вы должны помешать любому из них завершить ритуал.</i></color>{zh-tw}阻止四騎士抵達地圖中央的魔法林地並完成儀式。<size=6>\n\n</size><color=#8c5e35><i>四騎士正在進行某種可怕的儀式，並將在魔力匯聚之地完成。你必須阻止任何一名騎士完成儀式。</i></color>{zh-cn}阻止四骑士抵达地图中央的魔法林地并完成仪式。<size=6>\n\n</size><color=#8c5e35><i>四骑士正在进行某种可怕的仪式，并将在魔力汇聚之地完成。你必须阻止任何一名骑士完成仪式。</i></color>{ko}네 기수가 맵 중앙의 마법의 숲에 도달해 의식을 완성하지 못하게 하십시오.<size=6>\n\n</size><color=#8c5e35><i>네 기수는 마력이 깃든 장소에서 절정에 이르는 끔찍한 의식을 치르고 있습니다. 그 누구도 의식을 끝내지 못하게 해야 합니다.</i></color>{es}Impide que los Cuatro Jinetes lleguen al claro mágico del centro del mapa y completen su ritual.<size=6>\n\n</size><color=#8c5e35><i>Los Cuatro Jinetes están realizando un terrible ritual que culminará en un lugar de poder mágico. Debes impedir que cualquiera de ellos lo complete.</i></color>{fr}Empêchez les Quatre Cavaliers d'atteindre la clairière magique au centre de la carte et d'accomplir leur rituel.<size=6>\n\n</size><color=#8c5e35><i>Les Quatre Cavaliers accomplissent un terrible rituel qui culminera dans un lieu de puissance magique. Vous devez empêcher l'un d'eux de l'achever.</i></color>{pt-br}Impeça os Quatro Cavaleiros de alcançar a clareira mágica no centro do mapa e concluir o ritual.<size=6>\n\n</size><color=#8c5e35><i>Os Quatro Cavaleiros estão realizando um ritual terrível que culminará em um local de poder mágico. Você deve impedir que qualquer um deles conclua o ritual.</i></color>{de}Haltet die Vier Reiter davon ab, die magische Lichtung in der Mitte der Karte zu erreichen und ihr Ritual zu vollenden.<size=6>\n\n</size><color=#8c5e35><i>Die Vier Reiter führen ein schreckliches Ritual durch, das an einem Ort magischer Macht vollendet werden soll. Ihr müsst jeden von ihnen daran hindern, das Ritual abzuschließen.</i></color>",
+			scenarioEnd="{en}When all Horsemen are defeated, all players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда все Всадники побеждены, все игроки (кроме игрока-Автомы) получают по одному последнему ходу. Если в это время заканчивается раунд, игра немедленно завершается.{zh-tw}當所有騎士都被擊敗後，所有玩家（自動玩家除外）各有最後一個回合。若在此期間回合輪結束，遊戲立即結束。{zh-cn}当所有骑士都被击败后，所有玩家（自动玩家除外）各有最后一个回合。若在此期间回合轮结束，游戏立即结束。{ko}모든 기사를 쓰러뜨리면 더미 플레이어를 제외한 모든 플레이어가 마지막으로 한 턴씩 진행합니다. 그중 라운드가 끝나면 게임은 즉시 종료됩니다.{es}Cuando todos los Jinetes sean derrotados, todos los jugadores (excepto el jugador Automa) tienen un último turno. Si la Ronda termina durante esos turnos, la partida termina inmediatamente.{fr}Lorsque tous les Cavaliers sont vaincus, tous les joueurs (sauf le joueur Automate) effectuent un dernier tour. Si la Manche se termine pendant ces tours, la partie se termine immédiatement.{pt-br}Quando todos os Cavaleiros forem derrotados, todos os jogadores (exceto o jogador Automa) terão um último turno. Se a Rodada terminar durante esses turnos, a partida termina imediatamente.{de}Wenn alle Reiter besiegt sind, hat jeder Spieler (außer dem Automa-Spieler) noch einen letzten Zug. Endet währenddessen die Runde, endet das Spiel sofort."}},
 	{"Against the Dragon Blitz",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=6,cityTiles=1,coreTiles=1,rounds=4,discardTactics=0,dTW=0,cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=1,coreTiles=2,rounds=4,discardTactics=0,dTW=0,cityLevels={0}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=9,cityTiles=1,coreTiles=3,rounds=4,discardTactics=0,dTW=0,cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=5,cityTiles=1,coreTiles=2,rounds=4,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=6,cityTiles=1,coreTiles=2,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=1,coreTiles=3,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=10,cityTiles=1,coreTiles=4,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0}},
-		scenarioDetails={megapolisPossible=false,blitzPossible="On Only",ruleStates={apocalypse=31},playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}1–4 — кооперативная, соревновательная и одиночная игра{zh-tw}1 至 4 人－合作、競爭與單人模式{zh-cn}1 至 4 人－合作、竞争与单人模式{ko}1~4인 - 협력, 경쟁 및 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 - Kooperativ, Kompetitiv und Solo",coreRules="{en}(Core non-city tile 3 is included){ru}(Включена основная плитка 3 без города){zh-tw}（包含核心非城市板塊 3）{zh-cn}（包含核心非城市板块 3）{ko}(도시가 아닌 핵심 타일 3 포함){es}(Se incluye la loseta central no urbana 3){fr}(La tuile centrale non-ville 3 est incluse){pt-br}(A peça central sem Cidade 3 está incluída){de}(Kernplättchen 3 ohne Stadt ist enthalten)",scenarioPurpose="{en}Reach the Apocalypse Dragon’s lair as it attacks you from the air, then defeat it when it lands to protect its sanctuary.<size=6>\n\n</size><color=#8c5e35><i>The Apocalypse Dragon has started its destructive purging of the countryside, swooping down on unsuspecting villagers and experienced troops alike. You must reach its lair to force it to confront you on the ground and then defeat it in its sanctuary.</i></color>{ru}Доберитесь до логова Дракона Апокалипсиса, пока он атакует с воздуха, а затем победите его, когда он приземлится защищать своё убежище.<size=6>\n\n</size><color=#8c5e35><i>Дракон Апокалипсиса начал разрушительную чистку земель, обрушиваясь и на ничего не подозревающих жителей, и на опытные войска. Доберитесь до его логова, заставьте его сразиться с вами на земле и победите в его убежище.</i></color>{zh-tw}在末日巨龍從空中襲擊你們時抵達牠的巢穴，並在牠降落守護聖域後將牠擊敗。<size=6>\n\n</size><color=#8c5e35><i>末日巨龍開始在鄉野間進行毀滅性的清洗，無論毫無戒心的村民或身經百戰的軍隊都遭到牠的襲擊。你必須抵達牠的巢穴，迫使牠在地面迎戰，並在聖域中將牠擊敗。</i></color>{zh-cn}在末日巨龙从空中袭击你们时抵达它的巢穴，并在它降落守护圣域后将它击败。<size=6>\n\n</size><color=#8c5e35><i>末日巨龙开始在乡野间进行毁灭性的清洗，无论毫无戒心的村民或身经百战的军队都遭到它的袭击。你必须抵达它的巢穴，迫使它在地面迎战，并在圣域中将它击败。</i></color>{ko}아포칼립스 드래곤이 공중에서 공격하는 동안 그 소굴에 도달한 뒤, 성역을 지키기 위해 착륙하면 쓰러뜨리십시오.<size=6>\n\n</size><color=#8c5e35><i>아포칼립스 드래곤은 시골을 파괴적으로 휩쓸며 무방비한 주민과 숙련된 부대를 가리지 않고 덮치고 있습니다. 소굴에 도달해 지상에서 맞서도록 만들고 성역에서 쓰러뜨려야 합니다.</i></color>{es}Alcanza la guarida del Dragón del Apocalipsis mientras te ataca desde el aire y derrótalo cuando aterrice para proteger su santuario.<size=6>\n\n</size><color=#8c5e35><i>El Dragón del Apocalipsis ha comenzado una purga destructiva del territorio, abalanzándose tanto sobre aldeanos desprevenidos como sobre tropas veteranas. Debes llegar a su guarida, obligarlo a enfrentarte en tierra y derrotarlo en su santuario.</i></color>{fr}Atteignez l'antre du Dragon de l'Apocalypse tandis qu'il vous attaque depuis les airs, puis vainquez-le lorsqu'il atterrit pour protéger son sanctuaire.<size=6>\n\n</size><color=#8c5e35><i>Le Dragon de l'Apocalypse a commencé à ravager les campagnes, fondant aussi bien sur des villageois sans méfiance que sur des troupes aguerries. Vous devez atteindre son antre, le forcer à vous affronter au sol, puis le vaincre dans son sanctuaire.</i></color>{pt-br}Alcance o covil do Dragão do Apocalipse enquanto ele ataca do ar e derrote-o quando pousar para proteger seu santuário.<size=6>\n\n</size><color=#8c5e35><i>O Dragão do Apocalipse iniciou uma purga destrutiva do campo, atacando tanto aldeões desavisados quanto tropas experientes. Você deve alcançar o covil, forçá-lo a enfrentá-lo em terra e então derrotá-lo em seu santuário.</i></color>{de}Erreicht den Hort des Apokalypse-Drachen, während er euch aus der Luft angreift, und besiegt ihn, wenn er landet, um sein Heiligtum zu schützen.<size=6>\n\n</size><color=#8c5e35><i>Der Apokalypse-Drache hat begonnen, das Land zu verwüsten, und stürzt sich gleichermaßen auf ahnungslose Dorfbewohner und erfahrene Truppen. Ihr müsst seinen Hort erreichen, ihn zwingen, euch am Boden entgegenzutreten, und ihn dann in seinem Heiligtum besiegen.</i></color>",scenarioEnd="{en}When the Apocalypse Dragon is defeated, all players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда Дракон Апокалипсиса побеждён, все игроки (кроме игрока-Автомы) получают по одному последнему ходу. Если в это время заканчивается раунд, игра немедленно завершается.{zh-tw}當末日巨龍被擊敗後，所有玩家（自動玩家除外）各有最後一個回合。若在此期間回合輪結束，遊戲立即結束。{zh-cn}当末日巨龙被击败后，所有玩家（自动玩家除外）各有最后一个回合。若在此期间回合轮结束，游戏立即结束。{ko}아포칼립스 드래곤을 쓰러뜨리면 더미 플레이어를 제외한 모든 플레이어가 마지막으로 한 턴씩 진행합니다. 그중 라운드가 끝나면 게임은 즉시 종료됩니다.{es}Cuando el Dragón del Apocalipsis sea derrotado, todos los jugadores (excepto el jugador Automa) tienen un último turno. Si la Ronda termina durante esos turnos, la partida termina inmediatamente.{fr}Lorsque le Dragon de l'Apocalypse est vaincu, tous les joueurs (sauf le joueur Automate) effectuent un dernier tour. Si la Manche se termine pendant ces tours, la partie se termine immédiatement.{pt-br}Quando o Dragão do Apocalipse for derrotado, todos os jogadores (exceto o jogador Automa) terão um último turno. Se a Rodada terminar durante esses turnos, a partida termina imediatamente.{de}Wenn der Apokalypse-Drache besiegt ist, hat jeder Spieler (außer dem Automa-Spieler) noch einen letzten Zug. Endet währenddessen die Runde, endet das Spiel sofort."}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=6,cityTiles=1,coreTiles=1,rounds=4,discardTactics=0,dTW=0,cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=2,rounds=4,discardTactics=0,dTW=0,cityLevels={0}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=9,cityTiles=1,coreTiles=3,rounds=4,discardTactics=0,dTW=0,cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=5,cityTiles=1,coreTiles=2,rounds=4,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=6,cityTiles=1,coreTiles=2,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=1,coreTiles=3,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=10,cityTiles=1,coreTiles=4,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0}},
+		scenarioDetails={
+			megapolisPossible=false,blitzPossible="On Only",ruleStates={apocalypse=31},
+			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}1–4 — кооперативная, соревновательная и одиночная игра{zh-tw}1 至 4 人－合作、競爭與單人模式{zh-cn}1 至 4 人－合作、竞争与单人模式{ko}1~4인 - 협력, 경쟁 및 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 - Kooperativ, Kompetitiv und Solo",
+			coreRules="{en}(Core non-city tile 3 is included){ru}(Включена основная плитка 3 без города){zh-tw}（包含核心非城市板塊 3）{zh-cn}（包含核心非城市板块 3）{ko}(도시가 아닌 핵심 타일 3 포함){es}(Se incluye la loseta central no urbana 3){fr}(La tuile centrale non-ville 3 est incluse){pt-br}(A peça central sem Cidade 3 está incluída){de}(Kernplättchen 3 ohne Stadt ist enthalten)",
+			scenarioPurpose="{en}Reach the Apocalypse Dragon’s lair as it attacks you from the air, then defeat it when it lands to protect its sanctuary.<size=6>\n\n</size><color=#8c5e35><i>The Apocalypse Dragon has started its destructive purging of the countryside, swooping down on unsuspecting villagers and experienced troops alike. You must reach its lair to force it to confront you on the ground and then defeat it in its sanctuary.</i></color>{ru}Доберитесь до логова Дракона Апокалипсиса, пока он атакует с воздуха, а затем победите его, когда он приземлится защищать своё убежище.<size=6>\n\n</size><color=#8c5e35><i>Дракон Апокалипсиса начал разрушительную чистку земель, обрушиваясь и на ничего не подозревающих жителей, и на опытные войска. Доберитесь до его логова, заставьте его сразиться с вами на земле и победите в его убежище.</i></color>{zh-tw}在末日巨龍從空中襲擊你們時抵達牠的巢穴，並在牠降落守護聖域後將牠擊敗。<size=6>\n\n</size><color=#8c5e35><i>末日巨龍開始在鄉野間進行毀滅性的清洗，無論毫無戒心的村民或身經百戰的軍隊都遭到牠的襲擊。你必須抵達牠的巢穴，迫使牠在地面迎戰，並在聖域中將牠擊敗。</i></color>{zh-cn}在末日巨龙从空中袭击你们时抵达它的巢穴，并在它降落守护圣域后将它击败。<size=6>\n\n</size><color=#8c5e35><i>末日巨龙开始在乡野间进行毁灭性的清洗，无论毫无戒心的村民或身经百战的军队都遭到它的袭击。你必须抵达它的巢穴，迫使它在地面迎战，并在圣域中将它击败。</i></color>{ko}아포칼립스 드래곤이 공중에서 공격하는 동안 그 소굴에 도달한 뒤, 성역을 지키기 위해 착륙하면 쓰러뜨리십시오.<size=6>\n\n</size><color=#8c5e35><i>아포칼립스 드래곤은 시골을 파괴적으로 휩쓸며 무방비한 주민과 숙련된 부대를 가리지 않고 덮치고 있습니다. 소굴에 도달해 지상에서 맞서도록 만들고 성역에서 쓰러뜨려야 합니다.</i></color>{es}Alcanza la guarida del Dragón del Apocalipsis mientras te ataca desde el aire y derrótalo cuando aterrice para proteger su santuario.<size=6>\n\n</size><color=#8c5e35><i>El Dragón del Apocalipsis ha comenzado una purga destructiva del territorio, abalanzándose tanto sobre aldeanos desprevenidos como sobre tropas veteranas. Debes llegar a su guarida, obligarlo a enfrentarte en tierra y derrotarlo en su santuario.</i></color>{fr}Atteignez l'antre du Dragon de l'Apocalypse tandis qu'il vous attaque depuis les airs, puis vainquez-le lorsqu'il atterrit pour protéger son sanctuaire.<size=6>\n\n</size><color=#8c5e35><i>Le Dragon de l'Apocalypse a commencé à ravager les campagnes, fondant aussi bien sur des villageois sans méfiance que sur des troupes aguerries. Vous devez atteindre son antre, le forcer à vous affronter au sol, puis le vaincre dans son sanctuaire.</i></color>{pt-br}Alcance o covil do Dragão do Apocalipse enquanto ele ataca do ar e derrote-o quando pousar para proteger seu santuário.<size=6>\n\n</size><color=#8c5e35><i>O Dragão do Apocalipse iniciou uma purga destrutiva do campo, atacando tanto aldeões desavisados quanto tropas experientes. Você deve alcançar o covil, forçá-lo a enfrentá-lo em terra e então derrotá-lo em seu santuário.</i></color>{de}Erreicht den Hort des Apokalypse-Drachen, während er euch aus der Luft angreift, und besiegt ihn, wenn er landet, um sein Heiligtum zu schützen.<size=6>\n\n</size><color=#8c5e35><i>Der Apokalypse-Drache hat begonnen, das Land zu verwüsten, und stürzt sich gleichermaßen auf ahnungslose Dorfbewohner und erfahrene Truppen. Ihr müsst seinen Hort erreichen, ihn zwingen, euch am Boden entgegenzutreten, und ihn dann in seinem Heiligtum besiegen.</i></color>",
+			scenarioEnd="{en}When the Apocalypse Dragon is defeated, all players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда Дракон Апокалипсиса побеждён, все игроки (кроме игрока-Автомы) получают по одному последнему ходу. Если в это время заканчивается раунд, игра немедленно завершается.{zh-tw}當末日巨龍被擊敗後，所有玩家（自動玩家除外）各有最後一個回合。若在此期間回合輪結束，遊戲立即結束。{zh-cn}当末日巨龙被击败后，所有玩家（自动玩家除外）各有最后一个回合。若在此期间回合轮结束，游戏立即结束。{ko}아포칼립스 드래곤을 쓰러뜨리면 더미 플레이어를 제외한 모든 플레이어가 마지막으로 한 턴씩 진행합니다. 그중 라운드가 끝나면 게임은 즉시 종료됩니다.{es}Cuando el Dragón del Apocalipsis sea derrotado, todos los jugadores (excepto el jugador Automa) tienen un último turno. Si la Ronda termina durante esos turnos, la partida termina inmediatamente.{fr}Lorsque le Dragon de l'Apocalypse est vaincu, tous les joueurs (sauf le joueur Automate) effectuent un dernier tour. Si la Manche se termine pendant ces tours, la partie se termine immédiatement.{pt-br}Quando o Dragão do Apocalipse for derrotado, todos os jogadores (exceto o jogador Automa) terão um último turno. Se a Rodada terminar durante esses turnos, a partida termina imediatamente.{de}Wenn der Apokalypse-Drache besiegt ist, hat jeder Spieler (außer dem Automa-Spieler) noch einen letzten Zug. Endet währenddessen die Runde, endet das Spiel sofort."}},
 	{"Apocalypse is Here",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=2,coreTiles=1,rounds=6,discardTactics=0,dTW=0,cityLevels={0,0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=8,cityTiles=2,coreTiles=2,rounds=6,discardTactics=0,dTW=0,cityLevels={0,0}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={0,0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=2,coreTiles=2,rounds=6,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={0,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=2,coreTiles=2,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=9,cityTiles=2,coreTiles=3,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0,0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=11,cityTiles=2,coreTiles=4,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0,0}},
-		scenarioDetails={megapolisPossible=false,blitzPossible="Off Only",ruleStates={apocalypse=34},playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}1–4 — кооперативная, соревновательная и одиночная игра{zh-tw}1 至 4 人－合作、競爭與單人模式{zh-cn}1 至 4 人－合作、竞争与单人模式{ko}1~4인 - 협력, 경쟁 및 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 - Kooperativ, Kompetitiv und Solo",cityRules="{en}(first City is friendly; second City is destroyed by the Dragon){ru}(первый Город дружественный; второй Город уничтожается Драконом){zh-tw}（第一座城市為友方；第二座城市會被巨龍摧毀）{zh-cn}（第一座城市为友方；第二座城市会被巨龙摧毁）{ko}(첫 번째 도시는 우호적이며, 두 번째 도시는 드래곤에게 파괴됨){es}(la primera Ciudad es amistosa; la segunda Ciudad es destruida por el Dragón){fr}(la première Cité est amie ; la seconde est détruite par le Dragon){pt-br}(a primeira Cidade é amigável; a segunda é destruída pelo Dragão){de}(die erste Stadt ist freundlich; die zweite wird vom Drachen zerstört)",scenarioPurpose="{en}Stop the Four Horsemen and defeat the Apocalypse Dragon.<size=6>\n\n</size><color=#8c5e35><i>The Four Horsemen of the Apocalypse are on the move, spreading death and destruction, and in doing so, empowering the newly reborn Apocalypse Dragon. You must stop the Horsemen and then defeat the Dragon before it is too late.</i></color>{ru}Остановите четырёх Всадников и победите Дракона Апокалипсиса.<size=6>\n\n</size><color=#8c5e35><i>Четыре Всадника Апокалипсиса несут смерть и разрушение, тем самым усиливая недавно возрождённого Дракона Апокалипсиса. Вы должны остановить Всадников, а затем победить Дракона, пока не стало слишком поздно.</i></color>{zh-tw}阻止四騎士並擊敗末日巨龍。<size=6>\n\n</size><color=#8c5e35><i>末日四騎士正在四處散播死亡與毀滅，並藉此強化剛重生的末日巨龍。你必須先阻止騎士，再趁一切尚未太遲前擊敗巨龍。</i></color>{zh-cn}阻止四骑士并击败末日巨龙。<size=6>\n\n</size><color=#8c5e35><i>末日四骑士正在四处散播死亡与毁灭，并借此强化刚重生的末日巨龙。你必须先阻止骑士，再趁一切尚未太迟前击败巨龙。</i></color>{ko}네 기수를 막고 아포칼립스 드래곤을 쓰러뜨리십시오.<size=6>\n\n</size><color=#8c5e35><i>묵시록의 네 기수가 죽음과 파괴를 퍼뜨리며 갓 부활한 아포칼립스 드래곤을 강화하고 있습니다. 너무 늦기 전에 기수들을 막고 드래곤을 쓰러뜨려야 합니다.</i></color>{es}Detén a los Cuatro Jinetes y derrota al Dragón del Apocalipsis.<size=6>\n\n</size><color=#8c5e35><i>Los Cuatro Jinetes del Apocalipsis avanzan sembrando muerte y destrucción y, al hacerlo, fortalecen al recién renacido Dragón del Apocalipsis. Debes detener a los Jinetes y luego derrotar al Dragón antes de que sea demasiado tarde.</i></color>{fr}Arrêtez les Quatre Cavaliers et vainquez le Dragon de l'Apocalypse.<size=6>\n\n</size><color=#8c5e35><i>Les Quatre Cavaliers de l'Apocalypse répandent la mort et la destruction, renforçant ainsi le Dragon de l'Apocalypse récemment ressuscité. Vous devez arrêter les Cavaliers puis vaincre le Dragon avant qu'il ne soit trop tard.</i></color>{pt-br}Detenha os Quatro Cavaleiros e derrote o Dragão do Apocalipse.<size=6>\n\n</size><color=#8c5e35><i>Os Quatro Cavaleiros do Apocalipse avançam espalhando morte e destruição e, com isso, fortalecem o recém-renascido Dragão do Apocalipse. Você deve deter os Cavaleiros e depois derrotar o Dragão antes que seja tarde demais.</i></color>{de}Stoppt die Vier Reiter und besiegt den Apokalypse-Drachen.<size=6>\n\n</size><color=#8c5e35><i>Die Vier Reiter der Apokalypse ziehen umher, verbreiten Tod und Zerstörung und stärken damit den neu wiedergeborenen Apokalypse-Drachen. Ihr müsst die Reiter aufhalten und anschließend den Drachen besiegen, bevor es zu spät ist.</i></color>",scenarioEnd="{en}When the Apocalypse Dragon is defeated, all players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда Дракон Апокалипсиса побеждён, все игроки (кроме игрока-Автомы) получают по одному последнему ходу. Если в это время заканчивается раунд, игра немедленно завершается.{zh-tw}當末日巨龍被擊敗後，所有玩家（自動玩家除外）各有最後一個回合。若在此期間回合輪結束，遊戲立即結束。{zh-cn}当末日巨龙被击败后，所有玩家（自动玩家除外）各有最后一个回合。若在此期间回合轮结束，游戏立即结束。{ko}아포칼립스 드래곤을 쓰러뜨리면 더미 플레이어를 제외한 모든 플레이어가 마지막으로 한 턴씩 진행합니다. 그중 라운드가 끝나면 게임은 즉시 종료됩니다.{es}Cuando el Dragón del Apocalipsis sea derrotado, todos los jugadores (excepto el jugador Automa) tienen un último turno. Si la Ronda termina durante esos turnos, la partida termina inmediatamente.{fr}Lorsque le Dragon de l'Apocalypse est vaincu, tous les joueurs (sauf le joueur Automate) effectuent un dernier tour. Si la Manche se termine pendant ces tours, la partie se termine immédiatement.{pt-br}Quando o Dragão do Apocalipse for derrotado, todos os jogadores (exceto o jogador Automa) terão um último turno. Se a Rodada terminar durante esses turnos, a partida termina imediatamente.{de}Wenn der Apokalypse-Drache besiegt ist, hat jeder Spieler (außer dem Automa-Spieler) noch einen letzten Zug. Endet währenddessen die Runde, endet das Spiel sofort."}},
-		{"Fury of the Apocalypse Dragon",
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=12,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={4,4}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={4,4}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={4,4}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=12,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,dummyTacticSelection="F",cityLevels={4,4}},
-		scenarioDetails={megapolisPossible=false,blitzPossible="Off Only",ruleStates={},playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}1–4 — кооперативная, соревновательная и одиночная игра{zh-tw}1 至 4 人－合作、競爭與單人模式{zh-cn}1 至 4 人－合作、竞争与单人模式{ko}1~4인 - 협력, 경쟁 및 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 - Kooperativ, Kompetitiv und Solo",countryRules="{en}{ru}{zh-tw}{zh-cn}{ko}{es}{fr}{pt-br}{de}",coreRules="{en}(Core Tile 1 is included){ru}(Включена основная плитка 1){zh-tw}（包含核心板塊 1）{zh-cn}（包含核心板块 1）{ko}(핵심 타일 1 포함){es}(Se incluye la loseta central 1){fr}(La tuile centrale 1 est incluse){pt-br}(A peça central 1 está incluída){de}(Kernplättchen 1 ist enthalten)",cityRules="{en}(Both Cities are friendly, even though they have defenders){ru}(Оба Города дружественные, несмотря на защитников){zh-tw}（兩座城市都是友方，即使其中有守軍）{zh-cn}（两座城市都是友方，即使其中有守军）{ko}(두 도시 모두 수비대가 있어도 우호적임){es}(Ambas Ciudades son amistosas, aunque tengan defensores){fr}(Les deux Cités sont amies, même si elles ont des défenseurs){pt-br}(Ambas as Cidades são amigáveis, mesmo tendo defensores){de}(Beide Städte sind freundlich, obwohl sie Verteidiger haben)",scenarioPurpose="{en}An epic scenario where you must give chase to the mighty Apocalypse Dragon and defeat it.<size=6>\n\n</size><color=#8c5e35><i>The Mage Knights sent to defeat the Apocalypse Dragon have failed, and now it rampages across the land laying waste to all in a furious frenzy. You are all that stands between it and total annihilation.</i></color>{ru}Эпический сценарий, в котором вам предстоит преследовать могучего Дракона Апокалипсиса и победить его.<size=6>\n\n</size><color=#8c5e35><i>Рыцари-маги, отправленные победить Дракона Апокалипсиса, потерпели неудачу, и теперь он в ярости разоряет земли. Только вы стоите между ним и полным уничтожением.</i></color>{zh-tw}一個史詩般的劇本：追擊強大的末日巨龍並將牠擊敗。<size=6>\n\n</size><color=#8c5e35><i>被派去討伐末日巨龍的魔法騎士失敗了，如今牠狂怒地肆虐大地，將一切化為廢墟。你們是阻止全面毀滅的最後防線。</i></color>{zh-cn}一个史诗般的剧本：追击强大的末日巨龙并将它击败。<size=6>\n\n</size><color=#8c5e35><i>被派去讨伐末日巨龙的魔法骑士失败了，如今它狂怒地肆虐大地，将一切化为废墟。你们是阻止全面毁灭的最后防线。</i></color>{ko}강대한 아포칼립스 드래곤을 추격해 쓰러뜨려야 하는 장대한 시나리오입니다.<size=6>\n\n</size><color=#8c5e35><i>아포칼립스 드래곤을 쓰러뜨리러 파견된 마법 기사들은 실패했고, 이제 드래곤은 광란에 빠져 온 땅을 초토화하고 있습니다. 완전한 파멸을 막을 수 있는 것은 여러분뿐입니다.</i></color>{es}Un escenario épico en el que debes perseguir al poderoso Dragón del Apocalipsis y derrotarlo.<size=6>\n\n</size><color=#8c5e35><i>Los Caballeros Mago enviados para derrotar al Dragón del Apocalipsis han fracasado, y ahora la criatura arrasa la tierra en un frenesí de destrucción. Solo vosotros os interponéis entre él y la aniquilación total.</i></color>{fr}Un scénario épique dans lequel vous devez poursuivre le puissant Dragon de l'Apocalypse et le vaincre.<size=6>\n\n</size><color=#8c5e35><i>Les Chevaliers-Mages envoyés pour vaincre le Dragon de l'Apocalypse ont échoué. Désormais, il ravage les terres dans une frénésie destructrice. Vous êtes le dernier rempart entre lui et l'anéantissement total.</i></color>{pt-br}Um cenário épico em que você deve perseguir o poderoso Dragão do Apocalipse e derrotá-lo.<size=6>\n\n</size><color=#8c5e35><i>Os Cavaleiros-Magos enviados para derrotar o Dragão do Apocalipse falharam, e agora ele devasta a terra em um frenesi destrutivo. Vocês são a única coisa entre ele e a aniquilação total.</i></color>{de}Ein episches Szenario, in dem ihr den mächtigen Apokalypse-Drachen verfolgen und besiegen müsst.<size=6>\n\n</size><color=#8c5e35><i>Die Magieritter, die ausgesandt wurden, den Apokalypse-Drachen zu besiegen, sind gescheitert. Nun verwüstet er in rasender Wut das Land. Nur ihr steht noch zwischen ihm und der völligen Vernichtung.</i></color>",scenarioEnd="{en}When the Apocalypse Dragon is defeated, all players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда Дракон Апокалипсиса побеждён, все игроки (кроме игрока-Автомы) получают по одному последнему ходу. Если в это время заканчивается раунд, игра немедленно завершается.{zh-tw}當末日巨龍被擊敗後，所有玩家（自動玩家除外）各有最後一個回合。若在此期間回合輪結束，遊戲立即結束。{zh-cn}当末日巨龙被击败后，所有玩家（自动玩家除外）各有最后一个回合。若在此期间回合轮结束，游戏立即结束。{ko}아포칼립스 드래곤을 쓰러뜨리면 더미 플레이어를 제외한 모든 플레이어가 마지막으로 한 턴씩 진행합니다. 그중 라운드가 끝나면 게임은 즉시 종료됩니다.{es}Cuando el Dragón del Apocalipsis sea derrotado, todos los jugadores (excepto el jugador Automa) tienen un último turno. Si la Ronda termina durante esos turnos, la partida termina inmediatamente.{fr}Lorsque le Dragon de l'Apocalypse est vaincu, tous les joueurs (sauf le joueur Automate) effectuent un dernier tour. Si la Manche se termine pendant ces tours, la partie se termine immédiatement.{pt-br}Quando o Dragão do Apocalipse for derrotado, todos os jogadores (exceto o jogador Automa) terão um último turno. Se a Rodada terminar durante esses turnos, a partida termina imediatamente.{de}Wenn der Apokalypse-Drache besiegt ist, hat jeder Spieler (außer dem Automa-Spieler) noch einen letzten Zug. Endet währenddessen die Runde, endet das Spiel sofort."}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=2,coreTiles=1,rounds=6,discardTactics=0,dTW=0,cityLevels={0,0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=8,cityTiles=2,coreTiles=2,rounds=6,discardTactics=0,dTW=0,cityLevels={0,0}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={0,0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=2,coreTiles=2,rounds=6,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={0,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=2,coreTiles=2,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=9,cityTiles=2,coreTiles=3,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0,0}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=11,cityTiles=2,coreTiles=4,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0,0}},
+		scenarioDetails={
+			megapolisPossible=false,blitzPossible="Off Only",ruleStates={apocalypse=34},
+			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}1–4 — кооперативная, соревновательная и одиночная игра{zh-tw}1 至 4 人－合作、競爭與單人模式{zh-cn}1 至 4 人－合作、竞争与单人模式{ko}1~4인 - 협력, 경쟁 및 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 - Kooperativ, Kompetitiv und Solo",
+			cityRules="{en}(first City is friendly; second City is destroyed by the Dragon){ru}(первый Город дружественный; второй Город уничтожается Драконом){zh-tw}（第一座城市為友方；第二座城市會被巨龍摧毀）{zh-cn}（第一座城市为友方；第二座城市会被巨龙摧毁）{ko}(첫 번째 도시는 우호적이며, 두 번째 도시는 드래곤에게 파괴됨){es}(la primera Ciudad es amistosa; la segunda Ciudad es destruida por el Dragón){fr}(la première Cité est amie ; la seconde est détruite par le Dragon){pt-br}(a primeira Cidade é amigável; a segunda é destruída pelo Dragão){de}(die erste Stadt ist freundlich; die zweite wird vom Drachen zerstört)",
+			scenarioPurpose="{en}Stop the Four Horsemen and defeat the Apocalypse Dragon.<size=6>\n\n</size><color=#8c5e35><i>The Four Horsemen of the Apocalypse are on the move, spreading death and destruction, and in doing so, empowering the newly reborn Apocalypse Dragon. You must stop the Horsemen and then defeat the Dragon before it is too late.</i></color>{ru}Остановите четырёх Всадников и победите Дракона Апокалипсиса.<size=6>\n\n</size><color=#8c5e35><i>Четыре Всадника Апокалипсиса несут смерть и разрушение, тем самым усиливая недавно возрождённого Дракона Апокалипсиса. Вы должны остановить Всадников, а затем победить Дракона, пока не стало слишком поздно.</i></color>{zh-tw}阻止四騎士並擊敗末日巨龍。<size=6>\n\n</size><color=#8c5e35><i>末日四騎士正在四處散播死亡與毀滅，並藉此強化剛重生的末日巨龍。你必須先阻止騎士，再趁一切尚未太遲前擊敗巨龍。</i></color>{zh-cn}阻止四骑士并击败末日巨龙。<size=6>\n\n</size><color=#8c5e35><i>末日四骑士正在四处散播死亡与毁灭，并借此强化刚重生的末日巨龙。你必须先阻止骑士，再趁一切尚未太迟前击败巨龙。</i></color>{ko}네 기수를 막고 아포칼립스 드래곤을 쓰러뜨리십시오.<size=6>\n\n</size><color=#8c5e35><i>묵시록의 네 기수가 죽음과 파괴를 퍼뜨리며 갓 부활한 아포칼립스 드래곤을 강화하고 있습니다. 너무 늦기 전에 기수들을 막고 드래곤을 쓰러뜨려야 합니다.</i></color>{es}Detén a los Cuatro Jinetes y derrota al Dragón del Apocalipsis.<size=6>\n\n</size><color=#8c5e35><i>Los Cuatro Jinetes del Apocalipsis avanzan sembrando muerte y destrucción y, al hacerlo, fortalecen al recién renacido Dragón del Apocalipsis. Debes detener a los Jinetes y luego derrotar al Dragón antes de que sea demasiado tarde.</i></color>{fr}Arrêtez les Quatre Cavaliers et vainquez le Dragon de l'Apocalypse.<size=6>\n\n</size><color=#8c5e35><i>Les Quatre Cavaliers de l'Apocalypse répandent la mort et la destruction, renforçant ainsi le Dragon de l'Apocalypse récemment ressuscité. Vous devez arrêter les Cavaliers puis vaincre le Dragon avant qu'il ne soit trop tard.</i></color>{pt-br}Detenha os Quatro Cavaleiros e derrote o Dragão do Apocalipse.<size=6>\n\n</size><color=#8c5e35><i>Os Quatro Cavaleiros do Apocalipse avançam espalhando morte e destruição e, com isso, fortalecem o recém-renascido Dragão do Apocalipse. Você deve deter os Cavaleiros e depois derrotar o Dragão antes que seja tarde demais.</i></color>{de}Stoppt die Vier Reiter und besiegt den Apokalypse-Drachen.<size=6>\n\n</size><color=#8c5e35><i>Die Vier Reiter der Apokalypse ziehen umher, verbreiten Tod und Zerstörung und stärken damit den neu wiedergeborenen Apokalypse-Drachen. Ihr müsst die Reiter aufhalten und anschließend den Drachen besiegen, bevor es zu spät ist.</i></color>",
+			scenarioEnd="{en}When the Apocalypse Dragon is defeated, all players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда Дракон Апокалипсиса побеждён, все игроки (кроме игрока-Автомы) получают по одному последнему ходу. Если в это время заканчивается раунд, игра немедленно завершается.{zh-tw}當末日巨龍被擊敗後，所有玩家（自動玩家除外）各有最後一個回合。若在此期間回合輪結束，遊戲立即結束。{zh-cn}当末日巨龙被击败后，所有玩家（自动玩家除外）各有最后一个回合。若在此期间回合轮结束，游戏立即结束。{ko}아포칼립스 드래곤을 쓰러뜨리면 더미 플레이어를 제외한 모든 플레이어가 마지막으로 한 턴씩 진행합니다. 그중 라운드가 끝나면 게임은 즉시 종료됩니다.{es}Cuando el Dragón del Apocalipsis sea derrotado, todos los jugadores (excepto el jugador Automa) tienen un último turno. Si la Ronda termina durante esos turnos, la partida termina inmediatamente.{fr}Lorsque le Dragon de l'Apocalypse est vaincu, tous les joueurs (sauf le joueur Automate) effectuent un dernier tour. Si la Manche se termine pendant ces tours, la partie se termine immédiatement.{pt-br}Quando o Dragão do Apocalipse for derrotado, todos os jogadores (exceto o jogador Automa) terão um último turno. Se a Rodada terminar durante esses turnos, a partida termina imediatamente.{de}Wenn der Apokalypse-Drache besiegt ist, hat jeder Spieler (außer dem Automa-Spieler) noch einen letzten Zug. Endet währenddessen die Runde, endet das Spiel sofort."}},
+	{"Fury of the Apocalypse Dragon",
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=12,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={4,4}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={4,4}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={4,4}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=12,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,dummyTacticSelection="F",cityLevels={4,4}},
+		scenarioDetails={
+			megapolisPossible=false,blitzPossible="Off Only",ruleStates={},
+			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}1–4 — кооперативная, соревновательная и одиночная игра{zh-tw}1 至 4 人－合作、競爭與單人模式{zh-cn}1 至 4 人－合作、竞争与单人模式{ko}1~4인 - 협력, 경쟁 및 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 - Kooperativ, Kompetitiv und Solo",
+			countryRules="{en}{ru}{zh-tw}{zh-cn}{ko}{es}{fr}{pt-br}{de}",
+			coreRules="{en}(Core Tile 1 is included){ru}(Включена основная плитка 1){zh-tw}（包含核心板塊 1）{zh-cn}（包含核心板块 1）{ko}(핵심 타일 1 포함){es}(Se incluye la loseta central 1){fr}(La tuile centrale 1 est incluse){pt-br}(A peça central 1 está incluída){de}(Kernplättchen 1 ist enthalten)",
+			cityRules="{en}(Both Cities are friendly, even though they have defenders){ru}(Оба Города дружественные, несмотря на защитников){zh-tw}（兩座城市都是友方，即使其中有守軍）{zh-cn}（两座城市都是友方，即使其中有守军）{ko}(두 도시 모두 수비대가 있어도 우호적임){es}(Ambas Ciudades son amistosas, aunque tengan defensores){fr}(Les deux Cités sont amies, même si elles ont des défenseurs){pt-br}(Ambas as Cidades são amigáveis, mesmo tendo defensores){de}(Beide Städte sind freundlich, obwohl sie Verteidiger haben)",
+			scenarioPurpose="{en}An epic scenario where you must give chase to the mighty Apocalypse Dragon and defeat it.<size=6>\n\n</size><color=#8c5e35><i>The Mage Knights sent to defeat the Apocalypse Dragon have failed, and now it rampages across the land laying waste to all in a furious frenzy. You are all that stands between it and total annihilation.</i></color>{ru}Эпический сценарий, в котором вам предстоит преследовать могучего Дракона Апокалипсиса и победить его.<size=6>\n\n</size><color=#8c5e35><i>Рыцари-маги, отправленные победить Дракона Апокалипсиса, потерпели неудачу, и теперь он в ярости разоряет земли. Только вы стоите между ним и полным уничтожением.</i></color>{zh-tw}一個史詩般的劇本：追擊強大的末日巨龍並將牠擊敗。<size=6>\n\n</size><color=#8c5e35><i>被派去討伐末日巨龍的魔法騎士失敗了，如今牠狂怒地肆虐大地，將一切化為廢墟。你們是阻止全面毀滅的最後防線。</i></color>{zh-cn}一个史诗般的剧本：追击强大的末日巨龙并将它击败。<size=6>\n\n</size><color=#8c5e35><i>被派去讨伐末日巨龙的魔法骑士失败了，如今它狂怒地肆虐大地，将一切化为废墟。你们是阻止全面毁灭的最后防线。</i></color>{ko}강대한 아포칼립스 드래곤을 추격해 쓰러뜨려야 하는 장대한 시나리오입니다.<size=6>\n\n</size><color=#8c5e35><i>아포칼립스 드래곤을 쓰러뜨리러 파견된 마법 기사들은 실패했고, 이제 드래곤은 광란에 빠져 온 땅을 초토화하고 있습니다. 완전한 파멸을 막을 수 있는 것은 여러분뿐입니다.</i></color>{es}Un escenario épico en el que debes perseguir al poderoso Dragón del Apocalipsis y derrotarlo.<size=6>\n\n</size><color=#8c5e35><i>Los Caballeros Mago enviados para derrotar al Dragón del Apocalipsis han fracasado, y ahora la criatura arrasa la tierra en un frenesí de destrucción. Solo vosotros os interponéis entre él y la aniquilación total.</i></color>{fr}Un scénario épique dans lequel vous devez poursuivre le puissant Dragon de l'Apocalypse et le vaincre.<size=6>\n\n</size><color=#8c5e35><i>Les Chevaliers-Mages envoyés pour vaincre le Dragon de l'Apocalypse ont échoué. Désormais, il ravage les terres dans une frénésie destructrice. Vous êtes le dernier rempart entre lui et l'anéantissement total.</i></color>{pt-br}Um cenário épico em que você deve perseguir o poderoso Dragão do Apocalipse e derrotá-lo.<size=6>\n\n</size><color=#8c5e35><i>Os Cavaleiros-Magos enviados para derrotar o Dragão do Apocalipse falharam, e agora ele devasta a terra em um frenesi destrutivo. Vocês são a única coisa entre ele e a aniquilação total.</i></color>{de}Ein episches Szenario, in dem ihr den mächtigen Apokalypse-Drachen verfolgen und besiegen müsst.<size=6>\n\n</size><color=#8c5e35><i>Die Magieritter, die ausgesandt wurden, den Apokalypse-Drachen zu besiegen, sind gescheitert. Nun verwüstet er in rasender Wut das Land. Nur ihr steht noch zwischen ihm und der völligen Vernichtung.</i></color>",
+			scenarioEnd="{en}When the Apocalypse Dragon is defeated, all players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Когда Дракон Апокалипсиса побеждён, все игроки (кроме игрока-Автомы) получают по одному последнему ходу. Если в это время заканчивается раунд, игра немедленно завершается.{zh-tw}當末日巨龍被擊敗後，所有玩家（自動玩家除外）各有最後一個回合。若在此期間回合輪結束，遊戲立即結束。{zh-cn}当末日巨龙被击败后，所有玩家（自动玩家除外）各有最后一个回合。若在此期间回合轮结束，游戏立即结束。{ko}아포칼립스 드래곤을 쓰러뜨리면 더미 플레이어를 제외한 모든 플레이어가 마지막으로 한 턴씩 진행합니다. 그중 라운드가 끝나면 게임은 즉시 종료됩니다.{es}Cuando el Dragón del Apocalipsis sea derrotado, todos los jugadores (excepto el jugador Automa) tienen un último turno. Si la Ronda termina durante esos turnos, la partida termina inmediatamente.{fr}Lorsque le Dragon de l'Apocalypse est vaincu, tous les joueurs (sauf le joueur Automate) effectuent un dernier tour. Si la Manche se termine pendant ces tours, la partie se termine immédiatement.{pt-br}Quando o Dragão do Apocalipse for derrotado, todos os jogadores (exceto o jogador Automa) terão um último turno. Se a Rodada terminar durante esses turnos, a partida termina imediatamente.{de}Wenn der Apokalypse-Drache besiegt ist, hat jeder Spieler (außer dem Automa-Spieler) noch einen letzten Zug. Endet währenddessen die Runde, endet das Spiel sofort."}},
+	{"The Fractured Lands Blitz",
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=8,cityTiles=2,coreTiles=2,rounds=4,discardTactics=0,dTW=0,cityLevels={1,2}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=9,cityTiles=2,coreTiles=3,rounds=4,discardTactics=0,dTW=0,cityLevels={1,2}},
+		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=12,cityTiles=2,coreTiles=4,rounds=4,discardTactics=0,dTW=0,cityLevels={1,2}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=2,rounds=4,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={2}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=9,cityTiles=2,coreTiles=2,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={2,4}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=10,cityTiles=2,coreTiles=3,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={2,4}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=13,cityTiles=2,coreTiles=4,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={2,4}},
+		scenarioDetails={
+			megapolisPossible=true,blitzPossible="On Only",ruleStates={apocalypse=40},
+			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}1–4 — кооперативная, соревновательная и одиночная игра{zh-tw}1 至 4 人－合作、競爭與單人模式{zh-cn}1 至 4 人－合作、竞争与单人模式{ko}1~4인 - 협력, 경쟁 및 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 - Kooperativ, Kompetitiv und Solo",
+			scenarioPurpose="{en}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{ru}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{zh-tw}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{zh-cn}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{ko}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{es}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{fr}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{pt-br}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{de}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>",
+			scenarioEnd="{en}The scenario ends at the end of the second Night (four rounds).{ru}The scenario ends at the end of the second Night (four rounds).{zh-tw}The scenario ends at the end of the second Night (four rounds).{zh-cn}The scenario ends at the end of the second Night (four rounds).{ko}The scenario ends at the end of the second Night (four rounds).{es}The scenario ends at the end of the second Night (four rounds).{fr}The scenario ends at the end of the second Night (four rounds).{pt-br}The scenario ends at the end of the second Night (four rounds).{de}The scenario ends at the end of the second Night (four rounds)."}},
+	{"First Conquest", {},{},{},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=2,rounds=5,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={5}},
+		scenarioDetails={
+			megapolisPossible=true, blitzPossible="Off Only", ruleStates={},
+			playerDetails="{en}1 - Solo Only{ru}1 - только Одиночный{zh-tw}1 人－僅限單人模式{zh-cn}1 人－仅限单人模式{ko}1 - 솔로 전용{es}1 - Solitario{fr}1 - Solo{pt-br}1 - Somente Solo{de}1 - Nur Solo",
+			scenarioPurpose="{en}First Conquest is a simple solo scenario aimed at bridging the gap between First Reconnaissance and Full Conquest.{ru}«Первое завоевание» — простой одиночный сценарий, призванный сократить разрыв между «Первой разведкой» и полноценным «Завоеванием».{zh-tw}首次征服是一個簡單的單人劇本，目的是讓玩家在完成首次勘察後，\n能更順利地銜接至全面征服劇本。{zh-cn}首次征服是一个简单的单人剧本，目的是让玩家在完成首次勘察后，\n能更顺利地衔接至全面征服剧本。{ko}이 시나리오는 '첫 번째 정찰'과 '정식 정복 임무' 사이의 큰 난이도 갭이 부담스러운 플레이어에게 강력히 추천합니다. (비공식 시나리오){es}Primera Conquista es un escenario en solitario sencillo enfocado a reducir el salto entre Primer Reconocimiento and Conquista.{fr}Première Conquète est un scénario solo simple visant à combler le vide entre la première reconnaissance et la conquête complète.{pt-br}Primeira Conquista é um cenário solo simples com objetivo de fazer uma ponte entre Reconhecimento inicial e a Conquista completa.{de}Solo-Eroberung ist ein einfaches Solo-Szenario, das darauf abzielt, die Lücke zwischen Blitz-Eroberung und Vollständige Eroberung zu schließen.",
+			scenarioEnd="{en}When the single city is conquered, the player has one last turn, before scoring.{ru}Когда любой город захвачен, игрок делает один последний ход перед подсчетом очков.{zh-tw}當唯一的城市被征服後，玩家在計分前進行最後一回合。{zh-cn}当唯一的城市被征服后，玩家在计分前进行最后一回合。{ko}플레이어가 도시 하나를 정복하면,  마지막으로 자신의 차례를 한 번 더 진행하고 게임을 종료합니다.{es}Cuando la única ciudad sea conquistada, el jugador tiene un último turno, antes de la puntuación.{fr}Lorsque la ville unique est conquise le joueur à un dernier tour avant notation.{pt-br}Quando a única cidade é conquistada, o jogador tem um último turno, antes da pontuação.{de}Wenn die einzige Stadt erobert ist, hat der Spieler einen letzten Zug, bevor Die Punktewertung beginnt."}},
+	{"Fast Forwarded Conquest",
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",		countryTiles=2,cityTiles=2,coreTiles=1,rounds=3,discardTactics=0, dTW=0, cityLevels={4,4}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",		countryTiles=2,cityTiles=3,coreTiles=2,rounds=3,discardTactics=0, dTW=0, cityLevels={4,4,4}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",	countryTiles=3,cityTiles=4,coreTiles=3,rounds=3,discardTactics=0, dTW=0, cityLevels={4,4,4,4}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",		countryTiles=2,cityTiles=2,coreTiles=2,rounds=3,discardTactics=2, dTW=2, cityLevels={5,8}, 		  dummyTacticSelection="L"},
+		{mapShape=mapShapeText.open,mapShapeKey="open",	countryTiles=3,cityTiles=3,coreTiles=2,rounds=3,discardTactics=1, dTW=1, cityLevels={5,5,8}, 	  dummyTacticSelection="F"},
+		{mapShape=mapShapeText.open,mapShapeKey="open",	countryTiles=3,cityTiles=4,coreTiles=3,rounds=3,discardTactics=1, dTW=1, cityLevels={5,5,5,11},   dummyTacticSelection="F"},
+		{mapShape=mapShapeText.open,mapShapeKey="open",	countryTiles=3,cityTiles=5,coreTiles=3,rounds=3,discardTactics=0, dTW=0, cityLevels={5,5,5,5,11}, dummyTacticSelection="F"},
+		scenarioDetails={
+			megapolisPossible=true,	blitzPossible="Yes", ruleStates={},
+			playerDetails="{en}1 - Solo Only{ru}1 - только Одиночный{zh-tw}1 人－僅限單人模式{zh-cn}1 人－仅限单人模式{ko}1 - 솔로 전용{es}1 - Solitario{fr}1 - Solo{pt-br}1 - Somente Solo{de}1 - Nur Solo",
+			scenarioPurpose="{en}Created by Gene Selfish<size=6>\n\n</size>Standard Conquest scenario, but skipping the first couple of rounds.<size=6>\n\n</size><color=#8c5e35><i>Your task is to find and conquer all cities in three days and three nights. Each of you will be on your own, and as usual, you want to get as much Fame, knowledge, and loot as possible. Luckily for you, conquering cities is a great way to get Fame.</i></color>{ru}Создано Gene Selfish<size=6>\n\n</size>Стандартный сценарий завоевания, но пропущены первые пару раундов.<size=6>\n\n</size><color=#8c5e35><i>Ваша задача — найти и завоевать все города за три дня и три ночи. Каждый из вас будет сам по себе, и, как обычно, вы хотите получить как можно больше славы, знаний и добычи. К счастью для вас, завоевание городов — отличный способ получить славу.</i></color>{zh-tw}由 Gene Selfish 設計的劇本，<size=6>\n\n</size>標準征服劇本，但會跳過前面幾輪並從較高等級開始。<size=6>\n\n</size><color=#8c5e35><i>你們的任務是在三天三夜之間尋找並征服所有城市。\n你們每個人都必須單獨行動，\n和以往一樣，你們需要儘可能多地獲取名望、知識和財富。\n幸運的是，征服城市是獲得名望的最好手段。</i></color>{zh-cn}由 Gene Selfish 设计的剧本，<size=6>\n\n</size>标准征服剧本，但会跳过前面几轮并从较高等级开始。<size=6>\n\n</size><color=#8c5e35><i>你们的任务是在三天三夜之间寻找并征服所有城市。\n你们每个人都必须单独行动，\n和以往一样，你们需要尽可能多地获取名望、知识和财富。\n幸运的是，征服城市是获得名望的最好手段。</i></color>{ko}작성자: 진 셀피쉬<size=6>\n\n</size>표준 정복 시나리오이지만 처음 두 라운드는 건너뜁니다.<size=6>\n\n</size><color=#8c5e35><i>여러분의 임무는 3박 4일 동안 모든 도시를 찾아 정복하는 것입니다. 여러분은 각자 혼자서 진행해야 하며, 평소와 마찬가지로 가능한 한 많은 명성, 지식, 전리품을 획득하고 싶을 것입니다. 다행히도 도시 정복은 명성을 얻을 수 있는 좋은 방법입니다.</i></color>{es}Creado por Gene Selfish<size=6>\n\n</size>Escenario de Conquista estándar, pero saltándose el primer par de rondas.<size=6>\n\n</size><color=#8c5e35><i>Vuestra tarea es encontrar y conquistar todas las ciudades en tres días y tres noches. Cada uno de vosotros estará solo y, como de costumbre, querréis conseguir tanta Fama, conocimiento y botín como sea posible. Por suerte para vosotros, conquistar ciudades es una forma estupenda de conseguir Fama.</i></color>{fr}Créé par Gene Selfish<size=6>\n\n</size>Scénario de conquête standard, mais sans les deux premiers tours.<size=6>\n\n</size><color=#8c5e35><i>Votre tâche est de trouver et de conquérir toutes les villes en trois jours et trois nuits. Chacun d'entre vous sera seul et, comme d'habitude, vous voudrez obtenir le plus de renommée, de connaissances et de butin possible. Heureusement pour vous, la conquête de villes est un excellent moyen d'obtenir de la renommée.</i></color>{pt-br}Criado por Gene Selfish<size=6>\n\n</size>Cenário Padrão de Conquista, mas pulando as primeiras rodadas.<size=6>\n\n</size><color=#8c5e35><i>Sua missão é encontrar e conquistar todas as cidades em três dias e três noites. Cada um de vocês estará por si só, como de costume, você quer acumular Fama, Conhecimento e Tesouro o máximo que for possível. Por sorte, conquistar s cidades é um ótimo jeito de conseguir Fama.</i></color>{de}Erstellt von Gene Selfish<size=6>\n\n</size>Standard-Eroberungsszenario, bei dem jedoch die ersten paar Runden übersprungen werden.<size=6>\n\n</size><color=#8c5e35><i>Eure Aufgabe ist es, alle Städte in drei Tagen und drei Nächten zu finden und zu erobern. Jeder von euch ist auf sich allein gestellt, und wie immer wollt ihr so viel Ruhm, Wissen und Beute wie möglich bekommen. Zu eurem Glück ist die Eroberung von Städten ein guter Weg, um Ruhm zu erhalten.</i></color>",
+			scenarioEnd="{en}When all cities are conquered, all players (including the one who conquered the last city) have one last turn, before Scoring.{ru}Когда последний город захвачен, все игроки (включая владельца героя, захватившего последний город), делают по одному последнему ходу перед подсчетом очков.{zh-tw}當所有城市被征服後，\n所有玩家（包括征服最後一個城市的玩家）在計分前各進行最後一個回合。{zh-cn}当所有城市被征服后，\n所有玩家（包括征服最后一个城市的玩家）在计分前各进行最后一个回合。{ko}모든 도시가 정복되면 모든 플레이어(마지막 도시를 정복한 플레이어 포함)는 마지막으로 자신의 차례를 한 번씩 더 진행합니다. 이 동안 라운드가 종료되면, 게임은 즉시 종료됩니다.{es}Cuando todas las ciudades son conquistadas, todos los jugadores (incluyendo aquel que conquistó la última ciudad) tienen un último turno, antes de la puntuación.{fr}Lorsque toutes les villes sont conquises tous les joueurs (y compris celui qui a conquis le dernier city) ont un dernier tour avant de marquer.{pt-br}Quando todas as cidades forem conquistadas, todos jogadores (inclusive aquele que conquistou a última cidade) tem um último turno, antes da pontuação.{de}Wenn alle Städte erobert sind, haben alle Spieler (inklusive demjenigen, der die letzte Stadt erobert hat) einen letzten Zug vor der Wertung."}},
+	{"Ultimate Conquest",--20
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={5,6,7,8,9}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={6,7,8,9,10}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={7,8,9,10,11}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={4,5,6,7,8}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={5,6,7,8,9}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={6,7,8,9,10}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={7,8,9,10,11}},
+		scenarioDetails={
+			megapolisPossible=true,	blitzPossible="Off Only", ruleStates={},
+			playerDetails="{en}1 - Solo Only{ru}1 - только Одиночный{zh-tw}1 人－僅限單人模式{zh-cn}1 人－仅限单人模式{ko}1 - 솔로 전용{es}1 - Solitario{fr}1 - Solo{pt-br}1 - Somente Solo{de}1 - Nur Solo",
+			scenarioPurpose="{en}Created by ArthurDent<size=6>\n\n</size>The objective of this scenario is to provide a fulfilling experience utilizing most game components included in the Ultimate Edition.<size=6>\n\n</size>The main highlight is the utilization of all the map tiles as well as the extended duration allowing for epic scale games.<size=6>\n\n</size>With a 12 round duration, each player will choose each tactic only once. You will know which tactics have been used by the shield(s) at the top of the tactic card.<size=6>\n\n</size>Country Tile amount chosen below, is the amount of tiles that will sit on top of the mixed Core and Country Tiles.<size=6>\n\n</size>Using Tezla Monsters will place the Necropolis and Hidden Valley tiles on their terrain tiles. Unlock and remove them if just doing the cities.{ru}Создано ArthurDent<size=6>\n\n</size>Цель этого сценария — предоставить полноценный опыт использования большинства игровых компонентов, включенных в Полное Издание.<size=6>\n\n</size>Главной изюминкой является использование всех плиток карты, а также увеличенная продолжительность, позволяющая проводить эпические масштабные игры.<size=6>\n\n</size>При продолжительности в 12 раундов каждый игрок будет выбирать каждую Тактику только один раз. Вы будете знать, какие тактики были использованы, по щиту(ам) в верхней части карты тактики.<size=6>\n\n</size>Выбранное ниже количество плиток Диких земель — это количество плиток, которые будут располагаться поверх смешанных плиток ядра и страны.<size=6>\n\n</size>Использование монстров Тезлы разместит плитки Некрополя и Скрытой Долины на их плитках ландшафта. Разблокируйте и удалите их, если вы используете только обычные города.{zh-tw}由 ArthurDent 設計的劇本<size=6>\n\n</size>此劇本的目標是利用終極版大部分的遊戲組件來獲得令人滿意的體驗。<size=6>\n\n</size>主要特色是充分使用了全部地圖板塊並增加遊戲時長，來進行史詩級的遊戲。<size=6>\n\n</size>遊戲時長為 12 輪，每位玩家在每種戰術卡牌都只能選擇一次。\n你可以藉由戰術卡上的盾徽標記來知道哪些卡牌已經使用過。<size=6>\n\n</size>下方的鄉村板塊選項，是指剩餘的混和地圖板塊上方的鄉村板塊數量。<size=6>\n\n</size>使用特茲拉之影怪物時會在特定地點放置亡者之城和神秘幽谷，\n如果只單純使用城市規則時，將其解鎖並移除。{zh-cn}由 ArthurDent 设计的剧本<size=6>\n\n</size>此剧本的目标是利用终极版大部分的游戏组件来获得令人满意的体验。<size=6>\n\n</size>主要特色是充分使用了全部地图板块并增加游戏时长，来进行史诗级的游戏。<size=6>\n\n</size>游戏时长为 12 轮，每位玩家在每种战术卡牌都只能选择一次。\n你可以藉由战术卡上的盾徽标记来知道哪些卡牌已经使用过。<size=6>\n\n</size>下方的乡村板块选项，是指剩余的混和地图板块上方的乡村板块数量。<size=6>\n\n</size>使用特兹拉之影怪物时会在特定地点放置亡者之城和神秘幽谷，\n如果只单纯使用城市规则时，将其解锁并移除。{ko}ArthurDent에 의해 생성됨<size=6>\n\n</size>이 시나리오의 목표는 얼티밋 에디션에 포함된 대부분의 게임 구성 요소를 활용하여 만족스러운 경험을 제공하는 것입니다.<size=6>\n\n</size>주요 특징은 모든 맵 타일을 활용하고 게임 시간을 연장하여 장대한 스케일의 게임을 즐길 수 있다는 점입니다.<size=6>\n\n</size>12라운드 동안 각 플레이어는 각 전술을 한 번만 선택할 수 있습니다. 전술 카드 상단의 방패로 어떤 전술이 사용되었는지 알 수 있습니다.<size=6>\n\n</size>아래에 선택된 국가 타일 개수는 혼합된 코어 타일과 국가 타일 위에 놓일 타일의 개수입니다.<size=6>\n\n</size>테슬라 몬스터를 사용하면 지형 타일 위에 네크로폴리스와 숨겨진 계곡 타일이 놓입니다. 도시만 건설할 경우 이 타일을 잠금 해제하고 제거합니다.{es}Creado por ArthurDent<size=6>\n\n</size>El objetivo de este escenario es proporcionar una experiencia satisfactoria utilizando la mayoría de los componentes del juego incluidos en la Ultimate Edition.<size=6>\n\n</size>Lo más destacado es la utilización de todas las losetas de mapa, así como la duración extendida que permite partidas de escala épica.<size=6>\n\n</size>Con una duración de 12 rondas, cada jugador elegirá cada táctica una sola vez. Sabrás qué táctica se ha utilizado por el escudo o escudos que aparecen en la parte superior de la carta de táctica.<size=6>\n\n</size>La cantidad de Fichas de País elegida a continuación, es la cantidad de fichas que se colocarán encima de las Fichas de Núcleo y País mezcladas.<size=6>\n\n</size>El uso de Monstruos Tezla colocará las losetas de Necrópolis y Valle Oculto sobre sus losetas de terreno. Desbloquéalas y elimínalas si sólo estás haciendo las ciudades.{fr}Créé par ArthurDent<size=6>\n\n</size>L'objectif de ce scénario est de fournir une expérience enrichissante en utilisant la plupart des composants du jeu inclus dans l'Ultimate Edition.<size=6>\n\n</size>Le point fort est l'utilisation de toutes les tuiles de la carte ainsi que la durée prolongée permettant des parties à l'échelle épique.<size=6>\n\n</size>Avec une durée de 12 rounds, chaque joueur ne choisira chaque tactique qu'une seule fois. Vous saurez quelles tactiques ont été utilisées grâce au(x) bouclier(s) situé(s) en haut de la carte tactique.<size=6>\n\n</size>La quantité de tuiles Pays choisie ci-dessous est la quantité de tuiles qui seront placées sur les tuiles Noyau et Pays mélangées.<size=6>\n\n</size>L'utilisation des monstres Tezla placera les tuiles Nécropole et Vallée cachée sur leurs tuiles de terrain. Déverrouillez-les et retirez-les si vous ne faites que les villes.{pt-br}Criado por ArthurDent<size=6>\n\n</size>O objetivo deste cenário é prover uma experiência satisfatória utilizando a maior parte dos componentes do jogo incluídas na Edição Definitiva.<size=6>\n\n</size>O grande destaque é a utilização do mapa inteiro assim como uma duração mais extensa permitindo jogos de escalas épicas.<size=6>\n\n</size>Com a duração de 12 Rodadas, cada jogador irá escolher cada tática apenas uma vez. Você saberá quais táticas foram escolhidas pelos escudos no topo de cada carta de tática.<size=6>\n\n</size>Quantidade de Peças de de Campo escolhido abaixo, é a quantidade de Peças que irar ficar acima da mistura entre as Peças Mapa de Campo e Centrais.<size=6>\n\n</size>Usando os Monstros de Tezla irá colocar a Necropolis e o Vale Escondido em seus mapas de terreno. Desbloqueie e os remova se estiver apenas fazendo as Cidades.{de}Erstellt von ArthurDent<size=6>\n\n</size>Das Ziel dieses Szenarios ist es, ein erfüllendes Erlebnis zu bieten, indem die meisten Spielkomponenten der Ultimate Edition verwendet werden.<size=6>\n\n</size>Das wichtigste Highlight ist die Nutzung aller Kartenkacheln sowie die verlängerte Dauer, die ein Epos ermöglicht Maßstabsspiele.<size=6>\n\n</size>Bei einer Dauer von 12 Runden wählt jeder Spieler jede Taktik nur einmal. Sie werden wissen, welche Taktiken von den Schilden oben auf der Taktikkarte verwendet wurden.<size=6>\n\n</size>Die unten gewählte Anzahl der Länderplättchen ist die Anzahl der Plättchen, die auf den gemischten Kern- und Länderplättchen liegen.<size=6>\n\n</size>Die Verwendung von Tezla-Monstern platziert die Necropolis- und Hidden Valley-Kacheln auf ihren Geländekacheln. Schalte sie frei und entferne sie, wenn du nur die Städte machst.",
+			scenarioEnd="{en}The player(s) wins if all cities (and Leaders) are conquered before time runs out. All players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Игрок(и) выигрывает(ют), если все города (и лидеры) будут захвачены до истечения времени. У всех игроков (кроме виртуального игрока) остаётся по одному ходу, а затем игра заканчивается. Если раунд заканчивается раньше, игра завершается вместе с ним.{zh-tw}如果在時間結束前征服所有城市（以及擊敗所有領袖），則玩家們獲勝。\n所有玩家（除了虛擬玩家）還有最後一回合。如果在此期間該輪結束，遊戲立\n即結束。{zh-cn}如果在时间结束前征服所有城市（以及击败所有领袖），则玩家们获胜。\n所有玩家（除了虚拟玩家）还有最后一回合。如果在此期间该轮结束，游戏立\n即结束。{ko}시간이 다 떨어지기 전에 모든 도시(및 지도자)를 정복한 플레이어가 승리합니다. 모든 플레이어(더미 플레이어 제외)에게는 마지막 턴이 한 번 주어집니다. 이 시간 동안 라운드가 종료되면 게임은 즉시 종료됩니다.{es}El jugador(es) gana si todas las ciudades (y Líderes) son conquistadas antes de que se acabe el tiempo. Todos los jugadores (excepto el jugador Maniquí) tienen un último turno. Si la Ronda termina durante este, el juego termina inmediatamente.{fr}Le(s) joueur(s) gagne(nt) si toutes les villes (et les chefs) sont conquises avant la fin du temps imparti. Tous les joueurs (sauf le joueur fictif) ont un dernier tour. Si la manche se termine pendant ce tour, la partie s'arrête immédiatement.{pt-br}Os jogadores vencem se todas as cidades (e Líderes) forem conquistados antes que o tempo acabe. Todos os jogadores (Exceto o Fictício) tem um último turno. Se a Rodada terminar durante isto, o jogo acaba imediatamente.{de}Der/die Spieler gewinnt/gewinnen, wenn alle Städte (und Anführer) erobert werden, bevor die Zeit abläuft. Alle Spieler (außer dem Dummy-Spieler) haben einen letzten Zug. Wenn die Runde währenddessen endet, endet das Spiel sofort."}},
 	{"The Gauntlet",{},{},{},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=7,cityTiles=1,coreTiles=3,rounds=6,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=7,cityTiles=1,coreTiles=3,rounds=6,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
 		scenarioDetails={
 			megapolisPossible=false, blitzPossible="Off Only", ruleStates={},
 			playerDetails="{en}1 - Solo Only{ru}1 - только Одиночный{zh-tw}1 人－僅限單人模式{zh-cn}1 人－仅限单人模式{ko}1 - 솔로 전용{es}1 - Solitario{fr}1 - Solo{pt-br}1 - Somente Solo{de}1 - Nur Solo",
@@ -42574,7 +42731,7 @@ scenarioList={
 			scenarioPurpose="{en}A solitaire game whose goal is to get to the end!<size=6>\n\n</size><color=#8c5e35><i>The Council of the Void has taken note of your deeds and selected you to go on a mission to retrieve a rare artifact from the city of the desert. This city can only be reached through a long and treacherous canyon. Hurry, your time is limited!</i></color>{ru}Сценарий для одного игрока, цель которого — дойти до конца!<size=6>\n\n</size><color=#8c5e35><i>Совет Пустоты принял во внимание ваши деяния и выбрал вас для выполнения миссии по извлечению редкого артефакта из города пустыни. До этого города можно добраться только через длинный и коварный каньон. Поторопитесь, ваше время ограничено!</i></color>{zh-tw}以通關為主要目標的單人劇本！<size=6>\n\n</size><color=#8c5e35><i>虛空議會已經注意到你的英勇事蹟，並指派你執行一項任務，前往沙漠之城取\n回一件罕見的神器。但通往那座城市的唯一道路，是一條漫長且危機四伏的峽\n谷。快點行動，你的時間所剩無幾！</i></color>{zh-cn}以通关为主要目标的单人剧本！<size=6>\n\n</size><color=#8c5e35><i>虚空议会已经注意到你的英勇事迹，并指派你执行一项任务，前往沙漠之城取\n回一件罕见的神器。但通往那座城市的唯一道路，是一条漫长且危机四伏的峡\n谷。快点行动，你的时间所剩无几！</i></color>{ko}끝까지 살아남는 것이 목표인 솔리테어 게임!<size=6>\n\n</size><color=#8c5e35><i>공허의 평의회가 당신의 업적을 주목하고 사막의 도시에서 희귀한 유물을 되찾아오는 임무를 맡겼습니다. 이 도시는 길고 위험한 협곡을 통과해야만 갈 수 있습니다. 시간이 얼마 남지 않았으니 서둘러야 합니다!</i></color>{es}¡Un juego de solitario cuyo objetivo es llegar al final!<size=6>\n\n</size><color=#8c5e35><i>El Consejo del Vacío ha tomado nota de tus hazañas y te ha seleccionado para la misión de recuperar un raro artefacto de la ciudad del desierto. A esta ciudad sólo se puede llegar a través de un largo y traicionero cañón. Date prisa, ¡tu tiempo es limitado!</i></color>{fr}Un jeu de solitaire dont le but est d'arriver au bout !<size=6>\n\n</size><color=#8c5e35><i>Le Conseil du Vide a pris note de vos exploits et vous a choisi pour partir en mission afin de récupérer un artefact rare dans la cité du désert. Cette ville n'est accessible qu'à travers un long et dangereux canyon. Dépêchez-vous, votre temps est compté !</i></color>{pt-br}Um jogo solo cujo objetivo é chegar ao final!<size=6>\n\n</size><color=#8c5e35><i>O Conselho do Vácuo tomou nota dos seus feitos e selecionou você para ir em uma missão de recuperar um artefato raro de uma cidade no deserto. Esta cidade pode ser alcançada somente por um longo e traiçoeiro desfiladeiro. Rápido, seu tempo é limitado!</i></color>{de}Ein Solitaire-Spiel, dessen Ziel es ist, bis zum Ende zu kommen!<size=6>\n\n</size><color=#8c5e35><i>Der Rat der Leere hat deine Taten zur Kenntnis genommen und dich ausgewählt, um auf eine Mission zu gehen, um ein seltenes Artefakt aus der Wüstenstadt zu bergen. Diese Stadt kann nur durch eine lange und tückische Schlucht erreicht werden. Beeilen Sie sich, Ihre Zeit ist begrenzt!</i></color>",
 			scenarioEnd="{en}The game ends at the end of the turn in which you buy an artifact from the red city, or at the end of the sixth round, whichever comes first.{ru}Игра заканчивается в конце хода, в котором вы покупаете артефакт из красного города, или в конце шестого раунда, в зависимости от того, что наступит раньше.{zh-tw}遊戲會在你從紅色城市購買神器的該回合結束時，\n或是在經過六輪之後結束，看哪個條件先觸發。{zh-cn}游戏会在你从红色城市购买神器的该回合结束时，\n或是在经过六轮之后结束，看哪个条件先触发。{ko}게임은 빨간색 도시에서 유물을 구입한 턴이 끝날 때 또는 여섯 번째 라운드가 끝날 때 중 먼저 도착하는 시점에 종료됩니다.{es}La partida finaliza al final del turno en el que compras el artefacto en la ciudad roja, o al final de la sexta ronda, lo que ocurra antes.{fr}La partie se termine à la fin du tour au cours duquel vous achetez un artefact dans la ville rouge, ou à la fin du sixième tour, selon ce qui arrive en premier.{pt-br}O jogo termina no fim do turno em que você compra um artefato da Cidade Vermelha, ou no fim da sexta rodada, o que vier primeiro.{de}Das Spiel endet am Ende der Runde, in der Sie ein Artefakt aus der roten Stadt kaufen, oder am Ende der sechsten Runde, je nachdem, was zuerst eintritt."}},
 	{"Quest for the Golden Grail",{},{},{},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=1,coreTiles=2,rounds=6,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={4}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=2,rounds=6,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={4}},
 		scenarioDetails={
 			megapolisPossible=true,	blitzPossible="Off Only", ruleStates={},
 			playerDetails="{en}1 - Solo Only{ru}1 - только Одиночный{zh-tw}1 人－僅限單人模式{zh-cn}1 人－仅限单人模式{ko}1 - 솔로 전용{es}1 - Solitario{fr}1 - Solo{pt-br}1 - Somente Solo{de}1 - Nur Solo",
@@ -42582,7 +42739,7 @@ scenarioList={
 			scenarioPurpose="{en}Find the Golden Grail and return it to the Council of the Void. The script puts the Golden Grail at the bottom of the Artifact Deck.<size=6>\n\n</size><color=#8c5e35><i>The Lord of the Council of the Void has been stricken by a powerful curse. The Council exerts great magics to hold him at the threshold of death, but they will soon fail. According to legend, the great prophet Solandir forged the Golden Grail in ancient times, and it had the power to heal the wounded, cure the sick, and to cleanse any curse. However, after the prophet's death the Grail was lost, its final resting place a mystery. The Council has dispatched Mage Knights to every corner of the realm to seek the Grail. Will you be the one to find it, and save the Lord of the Council?</i></color>{ru}Найдите Золотой Грааль и верните его Совету Пустоты. Сценарий помещает Золотой Грааль в низ Колоды Артефактов.<size=6>\n\n</size><color=#8c5e35><i>Владыка Совета Пустоты был поражен мощным проклятием. Совет применяет великие магические силы, чтобы удержать его на пороге смерти, но они скоро потерпят неудачу. Согласно легенде, великий пророк Соландир выковал Золотой Грааль в древние времена, и он обладал силой исцелять больных и раненых и снимать любое проклятие. Однако после смерти пророка Грааль был утерян, и его последнее пристанище осталось загадкой. Совет отправил Магов-Рыцарей во все уголки королевства, чтобы искать Грааль. Сможете ли вы найти его и спасти Владыку Совета?</i></color>{zh-tw}找到黃金聖杯並把它歸還給虛空議會。\n劇本會將黃金聖杯放在神器牌庫的底部。<size=6>\n\n</size><color=#8c5e35><i>虛空議會的領導者正遭受強大詛咒的侵蝕。議會正依靠龐大的魔法之力，\n勉強將他維繫於生死之間，但這狀態無法持續太久。\n根據傳說，遠古時代的偉大先知索蘭迪爾曾鍛造出黃金聖杯，\n它擁有治癒傷者、醫治百病，以及淨化一切詛咒的神聖力量。\n然而在先知逝世後，黃金聖杯便下落不明，\n其最終安息之地至今仍是個無人知曉的謎。\n如今，虛空議會已派遣魔法騎士奔赴王國各地，尋找這件傳說中的聖物。\n你是否能成為尋得黃金聖杯的人，並拯救議會之主？</i></color>{zh-cn}找到黄金圣杯并把它归还给虚空议会。\n剧本会将黄金圣杯放在神器牌库的底部。<size=6>\n\n</size><color=#8c5e35><i>虚空议会的领导者正遭受强大诅咒的侵蚀。议会正依靠庞大的魔法之力，\n勉强将他维系于生死之间，但这状态无法持续太久。\n根据传说，远古时代的伟大先知索兰迪尔曾锻造出黄金圣杯，\n它拥有治愈伤者、医治百病，以及净化一切诅咒的神圣力量。\n然而在先知逝世后，黄金圣杯便下落不明，\n其最终安息之地至今仍是个无人知晓的谜。\n如今，虚空议会已派遣魔法骑士奔赴王国各地，寻找这件传说中的圣物。\n你是否能成为寻得黄金圣杯的人，并拯救议会之主？</i></color>{ko}황금 성배를 찾아 공허의 평의회에 반환하세요. 대본에 따르면 황금 성배는 유물 덱 맨 아래에 놓입니다.<size=6>\n\n</size><color=#8c5e35><i>공허 의회의 군주는 강력한 저주에 걸렸습니다. 의회는 그를 죽음의 문턱에서 붙잡아두기 위해 강력한 마법을 사용하지만, 곧 실패할 것입니다. 전설에 따르면, 위대한 예언자 솔란디르는 고대에 성배를 주조했으며, 이 성배에는 부상자를 치료하고 병자를 치유하며 모든 저주를 씻어내는 힘이 있었다고 합니다. 하지만 예언자가 죽은 후 성배는 분실되었고, 성배의 마지막 안식처는 미스터리로 남았습니다. 의회는 성배를 찾기 위해 왕국 곳곳에 마법사 기사단을 파견했습니다. 성배를 찾아 의회의 군주를 구할 수 있을까요?</i></color>{es}Encuentra el Grial de Oro y devuélvelo al Consejo del Vacío. El guión coloca el Grial de Oro al final del Mazo de Artefactos.<size=6>\n\n</size><color=#8c5e35><i>El Señor del Consejo del Vacío ha sido golpeado por una poderosa maldición. El Consejo ejerce grandes magias para retenerlo en el umbral de la muerte, pero pronto fracasarán. Según la leyenda, el gran profeta Solandir forjó el Grial de Oro en la antigüedad, y éste tenía el poder de sanar a los heridos, curar a los enfermos y limpiar cualquier maldición. Sin embargo, tras la muerte del profeta, el Grial se perdió y su paradero final es un misterio. El Consejo ha enviado Caballeros Magos a todos los rincones del reino para buscar el Grial. ¿Serás tú quien lo encuentre y salve al Señor del Consejo?</i></color>{fr}Trouvez le Graal d'or et rapportez-le au Conseil du Vide. Le script place le Graal d'or au bas de la pioche des artefacts.<size=6>\n\n</size><color=#8c5e35><i>Le Seigneur du Conseil du Vide a été frappé par une puissante malédiction. Le Conseil déploie de grands efforts magiques pour le maintenir au seuil de la mort, mais ils échoueront bientôt. Selon la légende, le grand prophète Solandir a forgé le Graal d'or dans les temps anciens, qui avait le pouvoir de soigner les blessés, de guérir les malades et d'effacer toute malédiction. Cependant, après la mort du prophète, le Graal a été perdu et sa dernière demeure reste un mystère. Le Conseil a envoyé des chevaliers-mages dans tous les coins du royaume pour chercher le Graal. Serez-vous celui qui le trouvera et qui sauvera le Seigneur du Conseil ?</i></color>{pt-br}Encontre o Graal Dourado e retorne-o ao Conselho do Vácuo. O Script coloca o Graal dourado no fundo do baralho de Artefato.<size=6>\n\n</size><color=#8c5e35><i>O senhor do Conselho do Vácuo foi afetado por uma poderosa maldição. O Conselho exerce grandes mágicas para matê-lo no limite da morte, mas ele cairá logo. De acordo com a lenda, o grande profeta Solandir forjou o Graal Dourado em tempos antigos, e ele tem o poder de curar os feridos, doenças e eliminar qualquer maldição. No entanto, depois da morte do profeta o Graal foi perdido, seu lugar de descanso final, um mistério. O Conselho dispachou os Mage Knights para cada canto do Reino em busca do Graal. Será você aquele que o encontrará e salvará o Senhor do Conselho?</i></color>{de}Finde den Goldenen Gral und bringe ihn zum Rat der Leere. Das Drehbuch platziert den Goldenen Gral am unteren Rand des Artefaktdecks.<size=6>\n\n</size><color=#8c5e35><i>Der Herr des Rates der Leere wurde von einem mächtigen Fluch heimgesucht. Der Rat wendet große Magie an, um ihn an der Schwelle des Todes zu halten, aber sie werden bald versagen. Der Legende nach hat der große Prophet Solandir in der Antike den Goldenen Gral geschmiedet, und er hatte die Macht, die Verwundeten zu heilen, die Kranken zu heilen und jeden Fluch zu beseitigen. Nach dem Tod des Propheten war der Gral jedoch verloren, seine letzte Ruhestätte ein Rätsel. Der Rat hat Mage Knights in jeden Winkel des Reiches entsandt, um den Gral zu suchen. Wirst du derjenige sein, der es findet und den Lord of the Council rettet?</i></color>",
 			scenarioEnd="{en}The player must find the Golden Grail, and return to the Portal with it in hand (it cannot be in your deed deck or discard pile). If this is completed before the end of the last round, the player wins the game.{ru}Игрок должен найти Золотой Грааль и вернуться в Портал с ним в руке (он не может быть в вашей колоде деяний или сбросе). Если это будет сделано до конца последнего раунда, игрок выигрывает игру.{zh-tw}玩家必須找到金色聖杯，並手持著它回到傳送門（不能在你的功能牌庫或棄牌\n堆）。如果在最後一輪結束前完成，則玩家獲勝。{zh-cn}玩家必须找到金色圣杯，并手持着它回到传送门（不能在你的功能牌库或弃牌\n堆）。如果在最后一轮结束前完成，则玩家获胜。{ko}플레이어는 황금 성배를 찾아서 손에 들고 차원문으로 돌아와야 합니다(증서 덱이나 버리기 더미에 있을 수 없습니다). 마지막 라운드가 끝나기 전에 이 작업을 완료하면 플레이어가 게임에서 승리합니다.{es}El jugador debe encontrar el Grial Dorado, y volver al portal con él en la mano (no puede estar en tu mazo de gesta o descarte). Si esto se completa antes del dinal de la última ronda, el jugador gana la partida.{fr}Le joueur doit trouver le Graal d'or et retourner au Portail avec le Graal en main (il ne peut pas se trouver dans sa pile de cartes ou dans sa pile de défausse). S'il y parvient avant la fin du dernier tour, il remporte la partie.{pt-br}O jogador deve encontrar o Graal Dourado e retonar ao portal com ele em mãos (Não pode estar no seu baralho de façanhas ou pilha de discarte). Se for completado antes do fim da última rodada, o jogador vence o jogo.{de}Der Spieler muss den Goldenen Gral finden und mit ihm in der Hand zum Portal zurückkehren (er darf sich nicht in Ihrem Urkundenstapel oder Ablagestapel befinden). Wenn dies vor dem Ende der letzten Runde abgeschlossen ist, gewinnt der Spieler das Spiel."}},
 	{"The Chaos Rift",{},{},{},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=1,coreTiles=2,rounds=6,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={6}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=2,rounds=6,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={6}},
 		scenarioDetails={
 			megapolisPossible=true,	blitzPossible="Off Only", ruleStates={},
 			playerDetails="{en}1 - Solo Only{ru}1 - только Одиночный{zh-tw}1 人－僅限單人模式{zh-cn}1 人－仅限单人模式{ko}1 - 솔로 전용{es}1 - Solitario{fr}1 - Solo{pt-br}1 - Somente Solo{de}1 - Nur Solo",
@@ -42590,50 +42747,24 @@ scenarioList={
 			cityRules="{en}(will pick the Red City){ru}(будет выбран Красный город){zh-tw}（將會選取紅色城市）{zh-cn}（将会选取红色城市）{ko}(항상 빨간색 도시){es}(elegirá la Ciudad Roja){fr}(je choisirai la Ville Rouge){pt-br}(Selecionará a Cidade Vermelha){de}(wählt die Rote Stadt)",
 			scenarioPurpose="{en}The player must enter the Red City and perform a 'Ritual of Sealing' as their action for the turn. The script puts the Amulet of the Sun at the bottom of the Artifact Deck and the Time Bending Spell at the bottom of the Spell Deck.<size=6>\n\n</size><size=16><color=#8c5e35><i>One of the last great Mages of the Empire, Malakov, planned a masterstroke that would turn the conflict against the Council of the Void back in his favor. He made an attempt to open a gateway to the Realm of Chaos, and summon vast armies of its denizens to do his bidding. Alas, the magic involved was much too strong to control, and Malakov was destroyed. A chaotic rift was left behind from which monstrosities began to pour forth into the countryside. Inside Malakov’s once great city, the rift is growing… soon no magic will be able to control it. Hearing rumors of this event, the Council dispatched you to scout the area and report back. You found a realm wracked with terror and destruction. Quickly gathering information, you prepared to return with your findings, only to find the Portal now inert. It appears there is no way to open it. As the sun rises over the cliffs, only one option remains: seal the rift before you are destroyed, and an even worse catastrophe befalls the world you leave behind...</i></color></size>{ru}Игрок должен войти в Красный Город и выполнить «Ритуал Запечатывания» в качестве действия на ход. Скрипт помещает «Амулет Солнца» в низ Колоды Артефактов, а заклинание «Изгибы Времени» в низ Колоды Заклинаний.<size=6>\n\n</size><size=16><color=#8c5e35><i>Один из последних великих Магов Империи, Малаков, задумал гениальный ход, который должен был повернуть конфликт против Совета Пустоты обратно в его пользу. Он предпринял попытку открыть врата в Царство Хаоса и призвать огромные армии его обитателей, чтобы выполнять его приказы. Увы, задействованная магия была слишком сильна, чтобы ее контролировать, и Малаков был уничтожен. Хаотический разлом остался открытым, и из него начали вылазить чудовища. Внутри некогда великого города Малакова разрастается разлом... скоро никакая магия не сможет его контролировать. Услышав слухи об этом событии, Совет отправил вас разведать территорию и доложить обстановку. Вы обнаружили землю, охваченную ужасом и разрушением. Быстро собрав информацию, вы приготовились вернуться с вашими находками, но обнаружили, что Портал теперь инертен. Похоже, нет способа открыть его. Солнце уже встает над горами, и остается только один вариант: запечатать разлом, прежде чем вас уничтожат, и еще худшая катастрофа постигнет мир, который вы оставляете позади...</i></color></size>{zh-tw}玩家需要進入紅色城市，並執行“封印儀式”作為該回合的行動。\n劇本會將皓日護符放在神器牌庫的底部、時間扭曲放在法術牌庫的底部。<size=6>\n\n</size><color=#8c5e35><i>帝國最後幾位偉大法師之一：馬拉科夫，曾策劃一場能對抗虛空議會的計畫。\n他試圖開啟一扇通往混沌王國的傳送門，號召裡面的魔物來為自己效命。\n但這股魔法的力量遠遠超出他的掌控。最終馬拉科夫在失控的魔法中毀滅，\n而混沌裂縫也因此留存。無數的怪物自裂縫源源不絕地湧入鄉野到處肆虐。\n在馬拉科夫昔日輝煌的城市深處，那道裂縫仍然持續擴大……\n很快就沒有任何魔法能將其束縛。\n虛空議會聽聞此事後，派遣你前往當地偵察並回報情況。\n當你抵達時，映入眼簾的是一片遭恐懼與毀滅蹂躪的土地。\n你迅速蒐集了情報並準備返回時，卻發現傳送門已徹底損毀，再也無法啟動。\n當晨曦越過峭壁，照亮大地時，你明白自己只剩下一種選擇：\n在自己遭到毀滅之前，封印那道混沌裂縫；\n否則一場更加可怕的災難，將降臨於你身後的世界。</i></color>{zh-cn}玩家需要进入红色城市，并执行“封印仪式”作为该回合的行动。\n剧本会将皓日护符放在神器牌库的底部、时间扭曲放在法术牌库的底部。<size=6>\n\n</size><color=#8c5e35><i>帝国最后几位伟大法师之一：马拉科夫，曾策划一场能对抗虚空议会的计画。\n他试图开启一座通往混沌王国的传送门，号召里面的魔物来为自己效命。\n但这股魔法的力量远远超出他的掌控。最终马拉科夫在失控的魔法中毁灭，\n而混沌裂缝也因此留存。无数的怪物自裂缝源源不绝地涌入乡野到处肆虐。\n在马拉科夫昔日辉煌的城市深处，那道裂缝仍然持续扩大……\n很快就没有任何魔法能将其束缚。\n虚空议会听闻此事后，派遣你前往当地侦察并回报情况。\n当你抵达时，映入眼帘的是一片遭恐惧与毁灭蹂躏的土地。\n你迅速搜集了情报并准备返回时，却发现传送门已彻底损毁，再也无法启动。\n当晨曦越过峭壁，照亮大地时，你明白自己只剩下一个选择：\n在自己遭到毁灭之前，封印那道混沌裂缝；\n否则一场更加可怕的灾难，将降临于你身后的世界。</i></color>{ko}플레이어는 붉은 도시로 들어가서 해당 턴의 행동으로 '봉인 의식'을 수행해야 합니다. 대본에 따르면, 태양의 부적은 유물 덱의 맨 아래에, 시간 굴곡 주문은 주문 덱의 맨 아래에 놓습니다.<size=6>\n\n</size><size=16><color=#8c5e35><i>제국의 마지막 위대한 마법사 중 한 명인 말라코프는 공허 평의회와의 전쟁을 자신에게 유리하게 되돌릴 수 있는 대작을 계획했습니다. 그는 혼돈의 영역으로 통하는 관문을 열고 그곳에 사는 방대한 군대를 소환하여 자신의 명령을 수행하려 했습니다. 하지만 아쉽게도 그 마법은 너무 강력해서 제어할 수 없었고 말라코프는 파괴되고 말았습니다. 혼돈의 균열이 남았고, 그 틈으로 괴물들이 시골로 쏟아져 나오기 시작했습니다. 한때 위대한 도시였던 말라코프 내부의 균열은 점점 커지고 있으며, 곧 그 어떤 마법으로도 제어할 수 없게 될 것입니다. 이 사건에 대한 소문을 들은 의회는 당신을 파견하여 이 지역을 정찰하고 보고하도록 했습니다. 당신은 공포와 파괴로 뒤덮인 왕국을 발견했습니다. 재빨리 정보를 수집하고 조사 결과를 가지고 돌아올 준비를 했지만, 포탈이 비활성화된 것을 발견했습니다. 포탈을 열 방법이 없는 것 같습니다. 절벽 너머로 해가 떠오를 때, 남은 선택은 단 하나, 당신이 파괴되기 전에 균열을 봉인하는 것뿐입니다.</i></color></size>{es}El jugador debe entrar en la Ciudad Roja y realizar un 'Ritual de Sellado' como su acción del turno. El guión coloca el Amuleto del Sol en la parte inferior del Mazo de Artefactos y el Hechizo de Doblar el Tiempo en la parte inferior del Mazo de Hechizos.<size=6>\n\n</size><size=16><color=#8c5e35><i>Uno de los últimos grandes Magos del Imperio, Malakov, planeó un golpe maestro que volvería a poner a su favor el conflicto contra el Consejo del Vacío. Intentó abrir un portal al Reino del Caos y convocar a vastos ejércitos de sus habitantes para que cumplieran sus órdenes. Pero la magia era demasiado poderosa para controlarla y Malakov fue destruido. Atrás quedó una grieta caótica de la que empezaron a brotar monstruosidades. Dentro de la otrora gran ciudad de Malakov, la grieta crece... pronto ninguna magia será capaz de controlarla. Oyendo rumores de este evento, el Consejo te envió a explorar el área e informar. Encontraste un reino asolado por el terror y la destrucción. Rápidamente recopilando información, te preparaste para regresar con tus hallazgos, sólo para encontrar el Portal ahora inerte. Parece que no hay forma de abrirlo. Mientras el sol se eleva sobre los acantilados, sólo queda una opción: sellar la grieta antes de que os destruyan y una catástrofe aún peor se abata sobre el mundo que dejáis atrás...</i></color></size>{fr}Le joueur doit entrer dans la Cité Rouge et effectuer un 'Rituel de Scellement' comme action pour le tour. Le script place l'Amulette du Soleil au bas de la pioche d'artefacts et le Sort de flexion temporelle au bas de la pioche de sorts.<size=6>\n\n</size><size=16><color=#8c5e35><i>L'un des derniers grands Mages de l'Empire, Malakov, a planifié un coup de maître qui retournerait en sa faveur le conflit contre le Conseil du Néant. Il tenta d'ouvrir une passerelle vers le royaume du Chaos et d'invoquer de vastes armées de ses habitants pour exécuter ses ordres. Hélas, la magie impliquée était bien trop puissante pour être contrôlée, et Malakov fut détruit. Une faille chaotique a été laissée derrière lui, d'où des monstruosités ont commencé à se déverser dans la campagne. À l'intérieur de l'ancienne grande ville de Malakov, la faille s'agrandit... bientôt, aucune magie ne pourra plus la contrôler. Entendant des rumeurs sur cet événement, le Conseil vous a envoyé en éclaireur dans la région et vous a fait un rapport. Vous avez découvert un royaume en proie à la terreur et à la destruction. Rassemblant rapidement des informations, vous vous êtes préparés à revenir avec vos conclusions, mais vous avez découvert que le portail était désormais inerte. Il semble qu'il n'y ait aucun moyen de l'ouvrir. Alors que le soleil se lève au-dessus des falaises, il ne vous reste plus qu'une seule solution : colmater la brèche avant d'être détruit et qu'une catastrophe encore plus grave ne s'abatte sur le monde que vous laissez derrière vous...</i></color></size>{pt-br}O jogador deve entrar na Cidade Vermelha e fazer um 'Ritual de Selamento' como a ação do turno. o Script coloca o amuleto do sol no fundo do Baralho de Artefato e o feitiço Dobra de Tempo no fundo do baralho de Feitiços.<size=6>\n\n</size><size=16><color=#8c5e35><i>Um dos grandes Magos do Império, Malakov, planeja um golpe de mestre que mudaria o conflito contra o Conselho do Vácuo de volta em seu favor. Ele fez uma tentativa de abrir um portal para o Reino do Caos e invocar um vasto exército de seus habitantes à sua mercê. Infelizmente, a magia envolvida foi forte demais para controlar e Malakov foi destruído. Uma fenda caótica foi deixada para trás do qual mostruosidades começaram a se espalhar pelos campos. Dentro da, uma vez grandiosa, Cidade de Malakov, a fenda está crescendo...logo nenhuma magia irá conseguir controlá-la. Ouvindo rumores deste evento, o Conselho dispachou você para verificar a área e rreportar de volta. Você encontra um Reino dizimado pelo terror e destruição. Rapidamente colhendo informação, você se prepara para retornar com suas descobertas, apenas para encontrar o portal agora inerte. Parece que não há forma de abrí-lo. Assim que o sol se ergue nas colinas, resta somente uma única opção: Selar a fenda antes de você ser destruído, e uma catástrofe ainda maior cair sobre o mundo que você deixa para trás...</i></color></size>{de}Der Spieler muss die Rote Stadt betreten und als Aktion für die Runde ein „Ritual der Versiegelung“ durchführen. Das Skript platziert das Amulett der Sonne am unteren Rand des Artefaktstapels und den Zeitkrümmungszauber am unteren Rand des Zauberstapels.<size=6>\n\n</size><size=16><color=#8c5e35><i>Einer der letzten großen Magier des Imperiums, Malakov, plante einen Meisterstreich das würde den Konflikt gegen den Rat der Leere zu seinen Gunsten wenden. Er unternahm einen Versuch, ein Tor zum Reich des Chaos zu öffnen und riesige Armeen seiner Bewohner herbeizurufen, um seinen Befehlen nachzukommen. Leider war die beteiligte Magie viel zu stark, um sie zu kontrollieren, und Malakov wurde zerstört. Ein chaotischer Riss blieb zurück, aus dem Monstrositäten in die Landschaft zu strömen begannen. In Malakovs einst großer Stadt wächst der Riss ... bald wird keine Magie ihn mehr kontrollieren können. Als der Rat Gerüchte über dieses Ereignis hörte, hat er dich entsandt, um die Gegend zu erkunden und Bericht zu erstatten. Du hast ein Reich voller Terror und Zerstörung gefunden. Während Sie schnell Informationen sammelten, bereiteten Sie sich darauf vor, mit Ihren Erkenntnissen zurückzukehren, nur um festzustellen, dass das Portal jetzt inaktiv ist. Es scheint, dass es keine Möglichkeit gibt, es zu öffnen. Als die Sonne über den Klippen aufgeht, bleibt nur eine Option: Schließe den Riss, bevor du zerstört wirst, und eine noch schlimmere Katastrophe bricht über die Welt herein, die du zurücklässt ...</i></color></size>",
 			scenarioEnd="{en}If the 'Ritual of Sealing' is completed before the end of the last round, then the Rift is sealed and the player is victorious.{ru}Если «Ритуал запечатывания» завершен до конца последнего раунда, то Разлом запечатан, и игрок побеждает.{zh-tw}如果封印儀式在最後一輪結束前完成，則裂縫遭到封印並且則玩家獲勝。{zh-cn}如果封印儀式在最后一轮结束前完成，則裂縫遭到封印並且則玩家獲勝。{ko}마지막 라운드가 끝나기 전에 '봉인의 의식'을 완료하면 균열이 봉인되고 플레이어가 승리합니다.{es}Si el 'Ritual de Sellado' se completa antes del final de la última ronda, la Grieta queda sellada y el jugador sale victorioso.{fr}Si le 'Rituel de scellement' est achevé avant la fin du dernier tour, la Faille est scellée et le joueur est victorieux.{pt-br}Se o 'Ritual de Selamento' for completado antes do fim da última rodada, então a Fenda é selada e os jogadores são vitoriosos.{de}Wenn das 'Ritual der Versiegelung' vor dem Ende der letzten Runde abgeschlossen ist, ist der Riss versiegelt und der Spieler ist siegreich."}},
-	{"Ultimate Conquest",--20
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={5,6,7,8,9}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={6,7,8,9,10}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={7,8,9,10,11}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={4,5,6,7,8}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={5,6,7,8,9}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={6,7,8,9,10}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=8,cityTiles=5,coreTiles=6,rounds=12,discardTactics=0, dTW=0, dummyTacticSelection="L",cityLevels={7,8,9,10,11}},
-		scenarioDetails={
-			megapolisPossible=true,	blitzPossible="Off Only", ruleStates={},
-			playerDetails="{en}1 - Solo Only{ru}1 - только Одиночный{zh-tw}1 人－僅限單人模式{zh-cn}1 人－仅限单人模式{ko}1 - 솔로 전용{es}1 - Solitario{fr}1 - Solo{pt-br}1 - Somente Solo{de}1 - Nur Solo",
-			scenarioPurpose="{en}Created by ArthurDent<size=6>\n\n</size>The objective of this scenario is to provide a fulfilling experience utilizing most game components included in the Ultimate Edition.<size=6>\n\n</size>The main highlight is the utilization of all the map tiles as well as the extended duration allowing for epic scale games.<size=6>\n\n</size>With a 12 round duration, each player will choose each tactic only once. You will know which tactics have been used by the shield(s) at the top of the tactic card.<size=6>\n\n</size>Country Tile amount chosen below, is the amount of tiles that will sit on top of the mixed Core and Country Tiles.<size=6>\n\n</size>Using Tezla Monsters will place the Necropolis and Hidden Valley tiles on their terrain tiles. Unlock and remove them if just doing the cities.{ru}Создано ArthurDent<size=6>\n\n</size>Цель этого сценария — предоставить полноценный опыт использования большинства игровых компонентов, включенных в Полное Издание.<size=6>\n\n</size>Главной изюминкой является использование всех плиток карты, а также увеличенная продолжительность, позволяющая проводить эпические масштабные игры.<size=6>\n\n</size>При продолжительности в 12 раундов каждый игрок будет выбирать каждую Тактику только один раз. Вы будете знать, какие тактики были использованы, по щиту(ам) в верхней части карты тактики.<size=6>\n\n</size>Выбранное ниже количество плиток Диких земель — это количество плиток, которые будут располагаться поверх смешанных плиток ядра и страны.<size=6>\n\n</size>Использование монстров Тезлы разместит плитки Некрополя и Скрытой Долины на их плитках ландшафта. Разблокируйте и удалите их, если вы используете только обычные города.{zh-tw}由 ArthurDent 設計的劇本<size=6>\n\n</size>此劇本的目標是利用終極版大部分的遊戲組件來獲得令人滿意的體驗。<size=6>\n\n</size>主要特色是充分使用了全部地圖板塊並增加遊戲時長，來進行史詩級的遊戲。<size=6>\n\n</size>遊戲時長為 12 輪，每位玩家在每種戰術卡牌都只能選擇一次。\n你可以藉由戰術卡上的盾徽標記來知道哪些卡牌已經使用過。<size=6>\n\n</size>下方的鄉村板塊選項，是指剩餘的混和地圖板塊上方的鄉村板塊數量。<size=6>\n\n</size>使用特茲拉之影怪物時會在特定地點放置亡者之城和神秘幽谷，\n如果只單純使用城市規則時，將其解鎖並移除。{zh-cn}由 ArthurDent 设计的剧本<size=6>\n\n</size>此剧本的目标是利用终极版大部分的游戏组件来获得令人满意的体验。<size=6>\n\n</size>主要特色是充分使用了全部地图板块并增加游戏时长，来进行史诗级的游戏。<size=6>\n\n</size>游戏时长为 12 轮，每位玩家在每种战术卡牌都只能选择一次。\n你可以藉由战术卡上的盾徽标记来知道哪些卡牌已经使用过。<size=6>\n\n</size>下方的乡村板块选项，是指剩余的混和地图板块上方的乡村板块数量。<size=6>\n\n</size>使用特兹拉之影怪物时会在特定地点放置亡者之城和神秘幽谷，\n如果只单纯使用城市规则时，将其解锁并移除。{ko}ArthurDent에 의해 생성됨<size=6>\n\n</size>이 시나리오의 목표는 얼티밋 에디션에 포함된 대부분의 게임 구성 요소를 활용하여 만족스러운 경험을 제공하는 것입니다.<size=6>\n\n</size>주요 특징은 모든 맵 타일을 활용하고 게임 시간을 연장하여 장대한 스케일의 게임을 즐길 수 있다는 점입니다.<size=6>\n\n</size>12라운드 동안 각 플레이어는 각 전술을 한 번만 선택할 수 있습니다. 전술 카드 상단의 방패로 어떤 전술이 사용되었는지 알 수 있습니다.<size=6>\n\n</size>아래에 선택된 국가 타일 개수는 혼합된 코어 타일과 국가 타일 위에 놓일 타일의 개수입니다.<size=6>\n\n</size>테슬라 몬스터를 사용하면 지형 타일 위에 네크로폴리스와 숨겨진 계곡 타일이 놓입니다. 도시만 건설할 경우 이 타일을 잠금 해제하고 제거합니다.{es}Creado por ArthurDent<size=6>\n\n</size>El objetivo de este escenario es proporcionar una experiencia satisfactoria utilizando la mayoría de los componentes del juego incluidos en la Ultimate Edition.<size=6>\n\n</size>Lo más destacado es la utilización de todas las losetas de mapa, así como la duración extendida que permite partidas de escala épica.<size=6>\n\n</size>Con una duración de 12 rondas, cada jugador elegirá cada táctica una sola vez. Sabrás qué táctica se ha utilizado por el escudo o escudos que aparecen en la parte superior de la carta de táctica.<size=6>\n\n</size>La cantidad de Fichas de País elegida a continuación, es la cantidad de fichas que se colocarán encima de las Fichas de Núcleo y País mezcladas.<size=6>\n\n</size>El uso de Monstruos Tezla colocará las losetas de Necrópolis y Valle Oculto sobre sus losetas de terreno. Desbloquéalas y elimínalas si sólo estás haciendo las ciudades.{fr}Créé par ArthurDent<size=6>\n\n</size>L'objectif de ce scénario est de fournir une expérience enrichissante en utilisant la plupart des composants du jeu inclus dans l'Ultimate Edition.<size=6>\n\n</size>Le point fort est l'utilisation de toutes les tuiles de la carte ainsi que la durée prolongée permettant des parties à l'échelle épique.<size=6>\n\n</size>Avec une durée de 12 rounds, chaque joueur ne choisira chaque tactique qu'une seule fois. Vous saurez quelles tactiques ont été utilisées grâce au(x) bouclier(s) situé(s) en haut de la carte tactique.<size=6>\n\n</size>La quantité de tuiles Pays choisie ci-dessous est la quantité de tuiles qui seront placées sur les tuiles Noyau et Pays mélangées.<size=6>\n\n</size>L'utilisation des monstres Tezla placera les tuiles Nécropole et Vallée cachée sur leurs tuiles de terrain. Déverrouillez-les et retirez-les si vous ne faites que les villes.{pt-br}Criado por ArthurDent<size=6>\n\n</size>O objetivo deste cenário é prover uma experiência satisfatória utilizando a maior parte dos componentes do jogo incluídas na Edição Definitiva.<size=6>\n\n</size>O grande destaque é a utilização do mapa inteiro assim como uma duração mais extensa permitindo jogos de escalas épicas.<size=6>\n\n</size>Com a duração de 12 Rodadas, cada jogador irá escolher cada tática apenas uma vez. Você saberá quais táticas foram escolhidas pelos escudos no topo de cada carta de tática.<size=6>\n\n</size>Quantidade de Peças de de Campo escolhido abaixo, é a quantidade de Peças que irar ficar acima da mistura entre as Peças Mapa de Campo e Centrais.<size=6>\n\n</size>Usando os Monstros de Tezla irá colocar a Necropolis e o Vale Escondido em seus mapas de terreno. Desbloqueie e os remova se estiver apenas fazendo as Cidades.{de}Erstellt von ArthurDent<size=6>\n\n</size>Das Ziel dieses Szenarios ist es, ein erfüllendes Erlebnis zu bieten, indem die meisten Spielkomponenten der Ultimate Edition verwendet werden.<size=6>\n\n</size>Das wichtigste Highlight ist die Nutzung aller Kartenkacheln sowie die verlängerte Dauer, die ein Epos ermöglicht Maßstabsspiele.<size=6>\n\n</size>Bei einer Dauer von 12 Runden wählt jeder Spieler jede Taktik nur einmal. Sie werden wissen, welche Taktiken von den Schilden oben auf der Taktikkarte verwendet wurden.<size=6>\n\n</size>Die unten gewählte Anzahl der Länderplättchen ist die Anzahl der Plättchen, die auf den gemischten Kern- und Länderplättchen liegen.<size=6>\n\n</size>Die Verwendung von Tezla-Monstern platziert die Necropolis- und Hidden Valley-Kacheln auf ihren Geländekacheln. Schalte sie frei und entferne sie, wenn du nur die Städte machst.",
-			scenarioEnd="{en}The player(s) wins if all cities (and Leaders) are conquered before time runs out. All players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{ru}Игрок(и) выигрывает(ют), если все города (и лидеры) будут захвачены до истечения времени. У всех игроков (кроме виртуального игрока) остаётся по одному ходу, а затем игра заканчивается. Если раунд заканчивается раньше, игра завершается вместе с ним.{zh-tw}如果在時間結束前征服所有城市（以及擊敗所有領袖），則玩家們獲勝。\n所有玩家（除了虛擬玩家）還有最後一回合。如果在此期間該輪結束，遊戲立\n即結束。{zh-cn}如果在时间结束前征服所有城市（以及击败所有领袖），则玩家们获胜。\n所有玩家（除了虚拟玩家）还有最后一回合。如果在此期间该轮结束，游戏立\n即结束。{ko}시간이 다 떨어지기 전에 모든 도시(및 지도자)를 정복한 플레이어가 승리합니다. 모든 플레이어(더미 플레이어 제외)에게는 마지막 턴이 한 번 주어집니다. 이 시간 동안 라운드가 종료되면 게임은 즉시 종료됩니다.{es}El jugador(es) gana si todas las ciudades (y Líderes) son conquistadas antes de que se acabe el tiempo. Todos los jugadores (excepto el jugador Maniquí) tienen un último turno. Si la Ronda termina durante este, el juego termina inmediatamente.{fr}Le(s) joueur(s) gagne(nt) si toutes les villes (et les chefs) sont conquises avant la fin du temps imparti. Tous les joueurs (sauf le joueur fictif) ont un dernier tour. Si la manche se termine pendant ce tour, la partie s'arrête immédiatement.{pt-br}Os jogadores vencem se todas as cidades (e Líderes) forem conquistados antes que o tempo acabe. Todos os jogadores (Exceto o Fictício) tem um último turno. Se a Rodada terminar durante isto, o jogo acaba imediatamente.{de}Der/die Spieler gewinnt/gewinnen, wenn alle Städte (und Anführer) erobert werden, bevor die Zeit abläuft. Alle Spieler (außer dem Dummy-Spieler) haben einen letzten Zug. Wenn die Runde währenddessen endet, endet das Spiel sofort."}},--20
-	{"Fast Forwarded Conquest",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",		countryTiles=2,cityTiles=2,coreTiles=1,rounds=3,discardTactics=0, dTW=0, cityLevels={4,4}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",		countryTiles=2,cityTiles=3,coreTiles=2,rounds=3,discardTactics=0, dTW=0, cityLevels={4,4,4}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",	countryTiles=3,cityTiles=4,coreTiles=3,rounds=3,discardTactics=0, dTW=0, cityLevels={4,4,4,4}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",		countryTiles=2,cityTiles=2,coreTiles=2,rounds=3,discardTactics=2, dTW=2, cityLevels={5,8}, 		  dummyTacticSelection="L"},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",	countryTiles=3,cityTiles=3,coreTiles=2,rounds=3,discardTactics=1, dTW=1, cityLevels={5,5,8}, 	  dummyTacticSelection="F"},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",	countryTiles=3,cityTiles=4,coreTiles=3,rounds=3,discardTactics=1, dTW=1, cityLevels={5,5,5,11},   dummyTacticSelection="F"},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",	countryTiles=3,cityTiles=5,coreTiles=3,rounds=3,discardTactics=0, dTW=0, cityLevels={5,5,5,5,11}, dummyTacticSelection="F"},
-		scenarioDetails={
-			megapolisPossible=true,	blitzPossible="Yes", ruleStates={},
-			playerDetails="{en}1 - Solo Only{ru}1 - только Одиночный{zh-tw}1 人－僅限單人模式{zh-cn}1 人－仅限单人模式{ko}1 - 솔로 전용{es}1 - Solitario{fr}1 - Solo{pt-br}1 - Somente Solo{de}1 - Nur Solo",
-			scenarioPurpose="{en}Created by Gene Selfish<size=6>\n\n</size>Standard Conquest scenario, but skipping the first couple of rounds.<size=6>\n\n</size><color=#8c5e35><i>Your task is to find and conquer all cities in three days and three nights. Each of you will be on your own, and as usual, you want to get as much Fame, knowledge, and loot as possible. Luckily for you, conquering cities is a great way to get Fame.</i></color>{ru}Создано Gene Selfish<size=6>\n\n</size>Стандартный сценарий завоевания, но пропущены первые пару раундов.<size=6>\n\n</size><color=#8c5e35><i>Ваша задача — найти и завоевать все города за три дня и три ночи. Каждый из вас будет сам по себе, и, как обычно, вы хотите получить как можно больше славы, знаний и добычи. К счастью для вас, завоевание городов — отличный способ получить славу.</i></color>{zh-tw}由 Gene Selfish 設計的劇本，<size=6>\n\n</size>標準征服劇本，但會跳過前面幾輪並從較高等級開始。<size=6>\n\n</size><color=#8c5e35><i>你們的任務是在三天三夜之間尋找並征服所有城市。\n你們每個人都必須單獨行動，\n和以往一樣，你們需要儘可能多地獲取名望、知識和財富。\n幸運的是，征服城市是獲得名望的最好手段。</i></color>{zh-cn}由 Gene Selfish 设计的剧本，<size=6>\n\n</size>标准征服剧本，但会跳过前面几轮并从较高等级开始。<size=6>\n\n</size><color=#8c5e35><i>你们的任务是在三天三夜之间寻找并征服所有城市。\n你们每个人都必须单独行动，\n和以往一样，你们需要尽可能多地获取名望、知识和财富。\n幸运的是，征服城市是获得名望的最好手段。</i></color>{ko}작성자: 진 셀피쉬<size=6>\n\n</size>표준 정복 시나리오이지만 처음 두 라운드는 건너뜁니다.<size=6>\n\n</size><color=#8c5e35><i>여러분의 임무는 3박 4일 동안 모든 도시를 찾아 정복하는 것입니다. 여러분은 각자 혼자서 진행해야 하며, 평소와 마찬가지로 가능한 한 많은 명성, 지식, 전리품을 획득하고 싶을 것입니다. 다행히도 도시 정복은 명성을 얻을 수 있는 좋은 방법입니다.</i></color>{es}Creado por Gene Selfish<size=6>\n\n</size>Escenario de Conquista estándar, pero saltándose el primer par de rondas.<size=6>\n\n</size><color=#8c5e35><i>Vuestra tarea es encontrar y conquistar todas las ciudades en tres días y tres noches. Cada uno de vosotros estará solo y, como de costumbre, querréis conseguir tanta Fama, conocimiento y botín como sea posible. Por suerte para vosotros, conquistar ciudades es una forma estupenda de conseguir Fama.</i></color>{fr}Créé par Gene Selfish<size=6>\n\n</size>Scénario de conquête standard, mais sans les deux premiers tours.<size=6>\n\n</size><color=#8c5e35><i>Votre tâche est de trouver et de conquérir toutes les villes en trois jours et trois nuits. Chacun d'entre vous sera seul et, comme d'habitude, vous voudrez obtenir le plus de renommée, de connaissances et de butin possible. Heureusement pour vous, la conquête de villes est un excellent moyen d'obtenir de la renommée.</i></color>{pt-br}Criado por Gene Selfish<size=6>\n\n</size>Cenário Padrão de Conquista, mas pulando as primeiras rodadas.<size=6>\n\n</size><color=#8c5e35><i>Sua missão é encontrar e conquistar todas as cidades em três dias e três noites. Cada um de vocês estará por si só, como de costume, você quer acumular Fama, Conhecimento e Tesouro o máximo que for possível. Por sorte, conquistar s cidades é um ótimo jeito de conseguir Fama.</i></color>{de}Erstellt von Gene Selfish<size=6>\n\n</size>Standard-Eroberungsszenario, bei dem jedoch die ersten paar Runden übersprungen werden.<size=6>\n\n</size><color=#8c5e35><i>Eure Aufgabe ist es, alle Städte in drei Tagen und drei Nächten zu finden und zu erobern. Jeder von euch ist auf sich allein gestellt, und wie immer wollt ihr so viel Ruhm, Wissen und Beute wie möglich bekommen. Zu eurem Glück ist die Eroberung von Städten ein guter Weg, um Ruhm zu erhalten.</i></color>",
-			scenarioEnd="{en}When all cities are conquered, all players (including the one who conquered the last city) have one last turn, before Scoring.{ru}Когда последний город захвачен, все игроки (включая владельца героя, захватившего последний город), делают по одному последнему ходу перед подсчетом очков.{zh-tw}當所有城市被征服後，\n所有玩家（包括征服最後一個城市的玩家）在計分前各進行最後一個回合。{zh-cn}当所有城市被征服后，\n所有玩家（包括征服最后一个城市的玩家）在计分前各进行最后一个回合。{ko}모든 도시가 정복되면 모든 플레이어(마지막 도시를 정복한 플레이어 포함)는 마지막으로 자신의 차례를 한 번씩 더 진행합니다. 이 동안 라운드가 종료되면, 게임은 즉시 종료됩니다.{es}Cuando todas las ciudades son conquistadas, todos los jugadores (incluyendo aquel que conquistó la última ciudad) tienen un último turno, antes de la puntuación.{fr}Lorsque toutes les villes sont conquises tous les joueurs (y compris celui qui a conquis le dernier city) ont un dernier tour avant de marquer.{pt-br}Quando todas as cidades forem conquistadas, todos jogadores (inclusive aquele que conquistou a última cidade) tem um último turno, antes da pontuação.{de}Wenn alle Städte erobert sind, haben alle Spieler (inklusive demjenigen, der die letzte Stadt erobert hat) einen letzten Zug vor der Wertung."}},
 	{"The War of Four", {}, {}, {},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=13,cityTiles=4,coreTiles=5,rounds=99,discardTactics=0, dTW=0, dummyTacticSelection="L", cityLevels={2,2,4,4,10}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=13,cityTiles=4,coreTiles=5,rounds=99,discardTactics=0, dTW=0, dummyTacticSelection="L", cityLevels={4,4,6,6,10}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=13,cityTiles=4,coreTiles=5,rounds=99,discardTactics=0, dTW=0, dummyTacticSelection="L", cityLevels={6,6,8,8,10}},
-		{mapShape="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert",countryTiles=13,cityTiles=4,coreTiles=5,rounds=99,discardTactics=0, dTW=0, dummyTacticSelection="L", cityLevels={8,8,10,10,10}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=13,cityTiles=4,coreTiles=5,rounds=99,discardTactics=0, dTW=0, dummyTacticSelection="L", cityLevels={2,2,4,4,10}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=13,cityTiles=4,coreTiles=5,rounds=99,discardTactics=0, dTW=0, dummyTacticSelection="L", cityLevels={4,4,6,6,10}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=13,cityTiles=4,coreTiles=5,rounds=99,discardTactics=0, dTW=0, dummyTacticSelection="L", cityLevels={6,6,8,8,10}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=13,cityTiles=4,coreTiles=5,rounds=99,discardTactics=0, dTW=0, dummyTacticSelection="L", cityLevels={8,8,10,10,10}},
 		scenarioDetails={
 			megapolisPossible=true,	blitzPossible="Yes", ruleStates={},
 			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}От 1 до 4 - Кооперативный, Соревновательный и Одиночный{zh-tw}1 到 4 人－合作，對抗或單人模式{zh-cn}1 到 4 人－合作，对抗或单人模式{ko}1 ~ 4 - 협력, 경쟁 또는 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 – Kooperativ, Kompetitiv und Solo",
 			scenarioPurpose="{en}A long scenario that is primarily a combination between the scenarios 'Volkare’s Quest' and 'Life and Death'. This scenario is for people looking for an epic scenario combining the rules of both enemy factions and their territory with an epic final series of battles with Volkare. Players also have the opportunity to take control of the enemy factions and use their minions to help fight Volkare and hinder foes.<size=6>\n\n</size><color=#8c5e35><i>As the Atlantean Empire tries to survive, caught between the war of the Elementalists and Dark Crusaders, Volkare returns from far off lands with an army in tow. The Atlanteans know naught whether Volkare intends to be their savior or a new tyrant. They fear the horde of creatures he brings with him to the land, but they will need to wait to find out their fate until after Volkare’s march towards the portal. The Council of The Void is all that can stop him now, but with the destruction of the portal, the world will be his.</i></color>{ru}Длинный сценарий, который в первую очередь является комбинацией сценариев «Поход Волкара» и «Жизнь и Смерть». Этот сценарий предназначен для людей, ищущих эпический сценарий, объединяющий правила обеих вражеских фракций и их территории с эпической финальной серией сражений с Волкаром. Игроки также имеют возможность взять под контроль вражеские фракции и использовать их приспешников, чтобы использовать их в сражении с Волкаром и чтобы мешать соперникам.<size=6>\n\n</size><color=#8c5e35><i>Пока Империя Атлантиды пытается выжить, зажатая между войной Элементалистов и Тёмного легиона, Волкар возвращается из далеких земель со своей армией. Жители Атлантиды не знают, намерен ли Волкар спасти их или поработить. Они боятся полчищ существ, которых он ведет с собой, но им придется подождать пока Волкар не двинется к Порталу, чтобы узнать свою судьбу. Совет Пустоты — это единственное, что может его остановить сейчас, но с уничтожением Портала мир будет принадлежать ему.</i></color>{zh-tw}這是一個漫長的劇本，主要是結合了沃卡里的使命和生死之間這兩個劇本。\n本劇本適合想體驗史詩級冒險的玩家，將同時面對兩大宗派和其勢力範圍，\n並在劇情最終與沃卡里決戰。玩家也有機會控制敵對派系，運用他們的手下\n協助對抗沃卡里，並阻礙其他敵人。<size=6>\n\n</size><color=#8c5e35><i>當亞特蘭蒂斯王國在元素之力與黑暗遠征軍的戰火夾擊下艱難求存之際，\n沃卡里率領著龐大的軍隊從遙遠的異域歸來。亞特蘭蒂斯人無從得知，\n沃卡里究竟會成為拯救帝國的英雄，還是一位新的暴君。\n他麾下那支由無數怪物組成的大軍，令所有人心生恐懼。\n然而在沃卡里向傳送門進軍之前，沒有人知道自己的命運將會如何。\n如今只有虛空議會能阻止他。但若傳送門遭到摧毀，\n整個世界都將落入沃卡里手中。</i></color>{zh-cn}这是一个漫长的剧本，主要是结合了沃卡里的使命和生死之间这两个剧本。\n本剧本适合想体验史诗级冒险的玩家，将同时面对两大宗派和其势力范围，\n并在剧情最终与沃卡里决战。玩家也有机会控制敌对派系，运用他们的手下\n协助对抗沃卡里，并阻碍其他敌人。<size=6>\n\n</size><color=#8c5e35><i>当亚特兰提斯帝国在元素之力与黑暗远征军的战火夹击下艰难求存之际，\n沃卡里率领着庞大的军队从遥远的异域归来。亚特兰提斯人无从得知，\n沃卡里究竟会成为拯救帝国的英雄，还是一位新的暴君。\n他麾下那支由无数怪物组成的大军，令所有人心生恐惧。\n然而在沃卡里向传送门进军之前，没有人知道自己的命运将会如何。\n如今只有虚空议会能阻止他。但若传送门遭到摧毁，\n整个世界都将落入沃卡里手中。</i></color>{ko}주로 '볼카레의 퀘스트' 시나리오와 '삶과 죽음' 시나리오가 결합된 긴 시나리오입니다. 이 시나리오는 양쪽 적 진영의 규칙과 그들의 영토를 볼카레와의 장대한 마지막 전투 시리즈와 결합한 장대한 시나리오를 찾는 사람들을 위한 시나리오입니다. 플레이어는 적 진영을 장악하고 하수인을 사용하여 볼카레와 싸우고 적을 방해할 수 있는 기회도 있습니다.<size=6>\n\n</size><color=#8c5e35><i>아틀란티스 제국이 엘리멘탈리스트와 다크 크루세이더의 전쟁 사이에 끼어 생존을 위해 애쓰고 있을 때, 볼카레는 군대를 이끌고 먼 땅에서 돌아옵니다. 아틀란티아인들은 볼카레가 자신들의 구세주가 될지, 새로운 폭군이 될지 알 수 없습니다. 그들은 볼카레가 지상에 데려온 괴물 무리를 두려워하지만, 그들의 운명은 볼카레가 차원문을 향해 행군할 때까지 기다려야 알 수 있을 것입니다. 지금은 공허의 의회가 그를 막을 수 있지만, 차원문이 파괴되면 세상은 그의 것이 될 것입니다.</i></color>{es}Un escenario largo que es principalmente una combinación entre los escenarios 'Volkare's Quest' y 'Life and Death'. Este escenario es para gente que busca un escenario épico que combine las reglas de ambas facciones enemigas y su territorio con una épica serie final de batallas con Volkare. Los jugadores también tienen la oportunidad de tomar el control de las facciones enemigas y utilizar a sus esbirros para ayudar a combatir a Volkare y entorpecer a los enemigos.<size=6>\n\n</size><color=#8c5e35><i>Mientras el Imperio Atlante intenta sobrevivir, atrapado entre la guerra de los Elementalistas y los Cruzados Oscuros, Volkare regresa de tierras lejanas con un ejército a cuestas. Los atlantes no saben si Volkare pretende ser su salvador o un nuevo tirano. Temen a la horda de criaturas que trae consigo a la tierra, pero tendrán que esperar a conocer su destino hasta después de la marcha de Volkare hacia el portal. El Consejo del Vacío es todo lo que puede detenerle ahora, pero con la destrucción del portal, el mundo será suyo.</i></color>{fr}Un long scénario qui est principalement une combinaison entre les scénarios 'Volkare's Quest' et 'Life and Death'. Ce scénario s'adresse à ceux qui recherchent un scénario épique combinant les règles des deux factions ennemies et de leur territoire avec une série de batailles finales épiques contre Volkare. Les joueurs ont également la possibilité de prendre le contrôle des factions ennemies et d'utiliser leurs serviteurs pour aider à combattre Volkare et à gêner les ennemis.<size=6>\n\n</size><color=#8c5e35><i>Alors que l'Empire atlante tente de survivre, pris entre la guerre des Elémentalistes et celle des Croisés noirs, Volkare revient de contrées lointaines avec une armée à sa remorque. Les Atlantes ne savent pas si Volkare a l'intention d'être leur sauveur ou un nouveau tyran. Ils craignent la horde de créatures qu'il amène avec lui sur leur terre, mais ils devront attendre la marche de Volkare vers le portail pour connaître leur sort. Le Conseil du Néant est le seul à pouvoir l'arrêter, mais avec la destruction du portail, le monde lui appartiendra.</i></color>{pt-br}Um Cenário longo que é primariamente uma combinação entre os cenários 'Missão de Volkare' e 'Vida e Morte'. Este Cenário é para pessoas procurando por um cenário épico combinando as regras de ambas facções inimigas e seus territórios com uma sequência final épica de batalhas com Volkare. Jogadores também tem a oportunidade de tomar controle das facções inimigas e usar seus capangas para ajudar a lutar Volkare e Impedir inimigos.<size=6>\n\n</size><color=#8c5e35><i>A medida que o Império Atlântico tenta sobreviver, preso entre a guerra dos Elementaristas e os Cruzados Sombrios, Volkare retorna de terras distantes com um exercito em prontidão. Os Atlânticos desconhecem se Volkare pretende ser seu salvador ou seu novo tirano. Eles temem que a orda de criaturas que ele trás consigo para a terra, mas eles precisarão esperar para descobrir seu destino depois que Volkare marchar através do portal. O Conselho do Vácuo é tudo que pode pará-lo agora, mas com a destruição do portal, o mundo será dele.</i></color>{de}Ein langes Szenario, das in erster Linie eine Kombination aus den Szenarien 'Volkare's Quest' und 'Life and Death' ist. Dieses Szenario ist für Spieler gedacht, die ein episches Szenario suchen, das die Regeln der beiden feindlichen Fraktionen und ihres Territoriums mit einer epischen Schlussserie von Kämpfen mit Volkare kombiniert. Die Spieler haben auch die Möglichkeit, die Kontrolle über die feindlichen Fraktionen zu übernehmen und ihre Diener einzusetzen, um Volkare zu bekämpfen und die Feinde zu behindern.<size=6>\n\n</size><color=#8c5e35><i>Während das atlantische Imperium versucht zu überleben, gefangen zwischen dem Krieg der Elementarmagier und der Dunklen Kreuzfahrer, kehrt Volkare mit einer Armee aus fernen Ländern zurück. Die Atlanter wissen nicht, ob Volkare ihr Retter oder ein neuer Tyrann sein will. Sie fürchten sich vor der Horde von Kreaturen, die er mit ins Land bringt, aber sie werden ihr Schicksal erst nach Volkares Marsch zum Portal erfahren. Der Rat der Leere ist das Einzige, was ihn jetzt noch aufhalten kann, aber mit der Zerstörung des Portals wird die Welt ihm gehören.</i></color>",
 			scenarioEnd="{en}When Volkare is defeated. If Volkare moves on to the space with the Portal, all players lose.{ru}Когда Волкар побеждён. Если Волкар переходит на поле с Порталом, все игроки проигрывают.{zh-tw}當沃卡里被擊敗，玩家獲勝。若沃卡里移動到傳送門的位置，所有玩家失敗。{zh-cn}当沃卡里被击败，玩家获胜。若沃卡里移动到传送门的位置，所有玩家失败。{ko}볼카레가 패배했을 때. 볼카레가 차원문이 있는 칸으로 이동하면 모든 플레이어가 패배합니다.{es}Cuando Volkare es derrotado. Si Volkare pasa a la casilla con el Portal, todos los jugadores pierden.{fr}Lorsque Volkare est vaincu. Si Volkare se déplace dans l'espace où se trouve le portail, tous les joueurs perdent.{pt-br}Quando Volkare é derrotado. Se Volkare Move para o espaço do Portal, todos jogadores perdem.{de}Wenn Volkare besiegt wird. Wenn Volkare auf das Feld mit dem Portal weiterzieht, verlieren alle Spieler."}},
 	{"Raiders of the Crusader Temple",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=8,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten",countryTiles=9,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=6,cityTiles=1,coreTiles=3,rounds=5,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=8,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
-		{mapShape="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten",countryTiles=9,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=8,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.open3,mapShapeKey="open3",countryTiles=9,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=6,cityTiles=1,coreTiles=3,rounds=5,discardTactics=2, dTW=2, dummyTacticSelection="L",cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=8,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
+		{mapShape=mapShapeText.open3,mapShapeKey="open3",countryTiles=9,cityTiles=1,coreTiles=3,rounds=5,discardTactics=0, dTW=0, cityLevels={0}},
 		scenarioDetails={
 			megapolisPossible=false, blitzPossible="Off Only", ruleStates={},
 			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}От 1 до 4 - Кооперативный, Соревновательный и Одиночный{zh-tw}1 到 4 人－合作，對抗或單人模式{zh-cn}1 到 4 人－合作，对抗或单人模式{ko}1 ~ 4 - 협력, 경쟁 또는 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 – Kooperativ, Kompetitiv und Solo",
@@ -42642,37 +42773,20 @@ scenarioList={
 			cityRules="{en}(will pick the Red City){ru}(будет выбран Красный город){zh-tw}（將會選取紅色城市）{zh-cn}（将会选取红色城市）{ko}(항상 빨간색 도시){es}(elegirá la Ciudad Roja){fr}(je choisirai la Ville Rouge){pt-br}(Selecionará a Cidade Vermelha){de}(wählt die Rote Stadt)",
 			scenarioPurpose="{en}Setup for Gabik's test scenario. He wants to see what a scenario would be like focused on Ruins.{ru}Настройка для тестового сценария, созданного Gabik. Он хочет посмотреть, каким будет сценарий, ориентированный на Руины.{zh-tw}專門為 Gabik 設置的測試劇本，他想知道著重在遺蹟的劇本會是如何。{zh-cn}专门为 Gabik 设置的测试剧本，他想知道着重在遗迹的剧本会是如何。{ko}가빅의 테스트 시나리오를 설정합니다. 그는 폐허에 초점을 맞춘 시나리오가 어떤 모습일지 보고 싶어합니다.{es}Preparación para el escenario de prueba de Gabik. Quiere ver cómo sería un escenario centrado en las Ruinas.{fr}Mise en place du scénario test de Gabik. Il veut voir à quoi ressemblerait un scénario centré sur les ruines.{pt-br}Preparação para o cenário de teste do Gabik. Ele quer ver como seria um cenário centrado nas Ruínas.{de}Vorbereitung für Gabiks Testszenario. Er möchte sehen, wie ein Szenario aussehen würde, das sich auf Ruinen konzentriert.",
 			scenarioEnd="{en}When all Ruins are Completed, all players (including the one who completed the last Ruin) have one last turn, before Scoring.{ru}Когда все Руины разорены, все игроки (включая владельца героя, разорившего последние Руины), делают по одному последнему ходу перед подсчетом очков.{zh-tw}當所有遺蹟都完成後，\n所有玩家（包括完成最後一個遺蹟的玩家）在計分前各進行最後一個回合。{zh-cn}当所有遗迹都完成后，\n所有玩家（包括完成最后一个遗迹的玩家）在计分前各进行最后一个回合。{ko}모든 폐허를 완료하면, 모든 플레이어(마지막 폐허를 완료한 플레이어 포함)는 마지막 턴을 한 번 더 가진 후 점수를 획득합니다.{es}Cuando todas las Ruinas están Completadas, todos los jugadores (incluido el que completó la última Ruina) tienen un último turno, antes de Puntuar.{fr}Lorsque toutes les ruines sont achevées, tous les joueurs (y compris celui qui a achevé la dernière ruine) ont un dernier tour avant de marquer des points.{pt-br}Quando todas as ruínas estiverem concluídas, todos os jogadores (incluindo o que completou a última ruína) têm um último turno, antes de pontuar.{de}Wenn alle Ruinen fertiggestellt sind, haben alle Spieler (einschließlich des Spielers, der die letzte Ruine fertiggestellt hat) einen letzten Zug, bevor sie gewertet werden."}},
-	{"For the Council",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=6,cityTiles=1,coreTiles=2,rounds=3,discardTactics=0,dTW=0,cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=1,coreTiles=3,rounds=3,discardTactics=0,dTW=0,cityLevels={0}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=9,cityTiles=1,coreTiles=4,rounds=3,discardTactics=0,dTW=0,cityLevels={0}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=6,cityTiles=1,coreTiles=2,rounds=3,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=7,cityTiles=1,coreTiles=2,rounds=3,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=9,cityTiles=1,coreTiles=3,rounds=3,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=11,cityTiles=1,coreTiles=4,rounds=3,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={0}},
-		scenarioDetails={megapolisPossible=false,blitzPossible="Off Only",ruleStates={apocalypse=24},playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}1–4 — кооперативная, соревновательная и одиночная игра{zh-tw}1 至 4 人－合作、競爭與單人模式{zh-cn}1 至 4 人－合作、竞争与单人模式{ko}1~4인 - 협력, 경쟁 및 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 - Kooperativ, Kompetitiv und Solo",countryRules="{en}(will place a Village tile First){ru}(will place a Village tile First){zh-tw}(will place a Village tile First){zh-cn}(will place a Village tile First){ko}(will place a Village tile First){es}(will place a Village tile First){fr}(will place a Village tile First){pt-br}(will place a Village tile First){de}(will place a Village tile First)",scenarioPurpose="{en}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{ru}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{zh-tw}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{zh-cn}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{ko}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{es}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{fr}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{pt-br}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>{de}A short three-round scenario using Apocalypse Dragon Quests. Quest points, Reputation, and titles determine the score.<size=6>\n\n</size><color=#8c5e35><i>The Council has devised a test for you. You are to travel this land and show the local population how you can get things done.</i></color>",scenarioEnd="{en}The scenario ends at the end of the second Day (three rounds).{ru}The scenario ends at the end of the second Day (three rounds).{zh-tw}The scenario ends at the end of the second Day (three rounds).{zh-cn}The scenario ends at the end of the second Day (three rounds).{ko}The scenario ends at the end of the second Day (three rounds).{es}The scenario ends at the end of the second Day (three rounds).{fr}The scenario ends at the end of the second Day (three rounds).{pt-br}The scenario ends at the end of the second Day (three rounds).{de}The scenario ends at the end of the second Day (three rounds)."}},
-	{"The Fractured Lands Blitz",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=8,cityTiles=2,coreTiles=2,rounds=4,discardTactics=0,dTW=0,cityLevels={1,2}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=9,cityTiles=2,coreTiles=3,rounds=4,discardTactics=0,dTW=0,cityLevels={1,2}},
-		{mapShape="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",countryTiles=12,cityTiles=2,coreTiles=4,rounds=4,discardTactics=0,dTW=0,cityLevels={1,2}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=7,cityTiles=1,coreTiles=2,rounds=4,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={2}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=9,cityTiles=2,coreTiles=2,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={2,4}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=10,cityTiles=2,coreTiles=3,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={2,4}},
-		{mapShape="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen",countryTiles=13,cityTiles=2,coreTiles=4,rounds=4,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={2,4}},
-		scenarioDetails={megapolisPossible=true,blitzPossible="On Only",ruleStates={apocalypse=40},playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}1–4 — кооперативная, соревновательная и одиночная игра{zh-tw}1 至 4 人－合作、競爭與單人模式{zh-cn}1 至 4 人－合作、竞争与单人模式{ko}1~4인 - 협력, 경쟁 및 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 - Kooperativ, Kompetitiv und Solo",scenarioPurpose="{en}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{ru}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{zh-tw}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{zh-cn}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{ko}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{es}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{fr}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{pt-br}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>{de}Adventure into lands fractured by The Breaking. Use Quests and the Greatest Quester variant, explore freely, and take advantage of folding corridors to teleport across the land.<size=6>\n\n</size><color=#8c5e35><i>These lands were particularly badly affected by The Breaking. They fractured, but also folded in on themselves. While confusing for some, those with the powers of a Mage Knight can understand the patterns, take advantage of the folding, and teleport to other parts of the land.</i></color>",scenarioEnd="{en}The scenario ends at the end of the second Night (four rounds).{ru}The scenario ends at the end of the second Night (four rounds).{zh-tw}The scenario ends at the end of the second Night (four rounds).{zh-cn}The scenario ends at the end of the second Night (four rounds).{ko}The scenario ends at the end of the second Night (four rounds).{es}The scenario ends at the end of the second Night (four rounds).{fr}The scenario ends at the end of the second Night (four rounds).{pt-br}The scenario ends at the end of the second Night (four rounds).{de}The scenario ends at the end of the second Night (four rounds)."}},
 	{"Custom",
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, cityLevels={5}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, cityLevels={5}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, cityLevels={5}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L", cityLevels={5}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="F", cityLevels={5}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="F", cityLevels={5}},
-		{mapShape="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="F", cityLevels={5}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, cityLevels={5}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, cityLevels={5}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, cityLevels={5}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="L", cityLevels={5}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="F", cityLevels={5}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="F", cityLevels={5}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=4,cityTiles=1,coreTiles=1,rounds=6,discardTactics=0, dTW=0, dummyTacticSelection="F", cityLevels={5}},
 		scenarioDetails={
 			megapolisPossible=true,	blitzPossible="Yes", ruleStates={},
 			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{ru}От 1 до 4 - Кооперативный, Соревновательный и Одиночный{zh-tw}1 到 4 人－合作，對抗或單人模式{zh-cn}1 到 4 人－合作，对抗或单人模式{ko}1 ~ 4 - 협력, 경쟁 또는 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 – Kooperativ, Kompetitiv und Solo",
 			scenarioPurpose="{en}This scenario is here as a place holder. My focus is still on getting the existing Scenarios working flawlessly. It's basically a conquest scenario without The terrain tile counts loaded. Better to leave me a comment of the custom thing you want to do, and I'll see about working it in to the script{ru}Этот сценарий здесь как заглушка. Я все еще сосредоточен на том, чтобы существующие сценарии работали безупречно. По сути, это сценарий завоевания без загруженных тайлов ландшафта. Лучше оставьте мне комментарий о том, что вы хотите сделать, и я посмотрю, как это можно включить в сценарий.{zh-tw}此劇本目前僅作為預留位置。\n現階段我仍以完善現有劇本的功能與穩定性為首要目標。\n目前它只是一般的征服劇本，但需要自行調整載入的地形板塊數量。\n如果你有想要實現的自訂玩法或特殊規則，歡迎留言告訴我，\n我會考慮將它加入腳本中。{zh-cn}此剧本目前仅作为预留位置。\n现阶段我仍以完善现有剧本的功能与稳定性为首要目标。\n目前它只是一般的征服剧本，但需要自行调整载入的地形板块数量。\n如果你有想要实现的自订玩法或特殊规则，欢迎留言告诉我，\n我会考虑将它加入脚本中。{ko}이 시나리오는 자리 채우기 용입니다. 이것은 단순히 정복 임무에 지도 타일이 따로 로드되지 않는 시나리오입니다. 현존하는 모든 시나리오들을 스크립트로 만드는 것이 저의 목표입니다. 플레이어께서 원하는 시나리오가 있다면 저에게 댓글을 남겨주세요. 스크립트화할 수 있는지 알아 보겠습니다.{es}Este escenario está aquí como marcador de posición. Mi objetivo sigue siendo conseguir que los escenarios existentes funcionen a la perfección. Es básicamente un escenario de conquista sin el recuento de fichas de terreno cargado. Es mejor dejarme un comentario de lo personalizado que desea hacer, y veré cómo trabajarlo en el script.{fr}Ce scénario est ici comme un espace réservé. Mon objectif est toujours de faire fonctionner parfaitement les scénarios existants. Il s'agit essentiellement d'un scénario de conquête sans que le nombre de tuiles de terrain soit chargé. Mieux vaut me laisser un commentaire sur la chose personnalisée que vous voulez faire, et je verrai comment l'intégrer au script{pt-br}Este cenário está aqui para guardar lugar. Meu foco é ainda fazer todos os cenários existentes funcionarem perfeitamente. Este é basicamente um cenário de Conquista sem os Mapas de Terreno carregados. Melhor me deixar um comentário da Customização que você quer fazer, e verei sobre a possibilidade de integrar no Script.{de}Dieses Szenario ist als Platzhalter gedacht. Mein Fokus liegt immer noch darauf, die bestehenden Szenarien fehlerfrei zum Laufen zu bringen. Es ist im Grunde ein Eroberungsszenario ohne die Geländestückzahlen zu laden. Hinterlasst mir am besten einen Kommentar, was ihr machen wollt, und ich werde sehen, ob ich es in das Skript einbauen kann.",
-			scenarioEnd="{en}Up to the players to decide.{ru}На усмотрение игроков.{zh-tw}由玩家自行決定。{zh-cn}由玩家自行决定。{ko}플레이어의 결정에 따릅니다.{es}Depende de los jugadores decidir.{fr}Aux joueurs de décider.{pt-br}Para os jogadores decidirem.{de}Die Entscheidung liegt bei den Spielern."}}}
+			scenarioEnd="{en}Up to the players to decide.{ru}На усмотрение игроков.{zh-tw}由玩家自行決定。{zh-cn}由玩家自行决定。{ko}플레이어의 결정에 따릅니다.{es}Depende de los jugadores decidir.{fr}Aux joueurs de décider.{pt-br}Para os jogadores decidirem.{de}Die Entscheidung liegt bei den Spielern."}}
+}
 	--Major Table {Scenario, 2P Comp, 3P Comp, 4P Comp, Solo, 2P Coop, 3P Coop, 4P coop}
 
 tooltip={	["BlitzSelection"]={
@@ -42872,58 +42986,58 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["794e16"]={influence= 4, level=1, armour=3, cardType="Regular Unit",	name={"Peasants"}, 			recruit={"village", "camp", "oasis"}},
 			["484fa3"]={influence= 4, level=1, armour=3, cardType="Regular Unit",	name={"Peasants"},			recruit={"village", "camp", "oasis"}},
 			["b8d41f"]={influence= 7, level=2, armour=4, cardType="Regular Unit",	name={"Savage Monks"}, 		recruit={"monastery", "camp"}},
-			["c10664"]={influence= 6, level=2, armour=4, cardType="Regular Unit",	name={"Utem Swordsmen"},		recruit={"keep", "camp"}},
-			["aff9b6"]={influence= 6, level=2, armour=4, cardType="Regular Unit",	name={"Utem Swordsmen"},		recruit={"keep", "camp"}},
-			["b33811"]={influence= 3, level=1, armour=2, cardType="Regular Unit",	name={"Herbalists"},			recruit={"village", "monastery", "camp", "oasis"}},
-			["db04a7"]={influence= 3, level=1, armour=2, cardType="Regular Unit",	name={"Herbalists"},			recruit={"village", "monastery", "camp", "oasis"}},
+			["c10664"]={influence= 6, level=2, armour=4, cardType="Regular Unit",	name={"Utem Swordsmen"},	recruit={"keep", "camp"}},
+			["aff9b6"]={influence= 6, level=2, armour=4, cardType="Regular Unit",	name={"Utem Swordsmen"},	recruit={"keep", "camp"}},
+			["b33811"]={influence= 3, level=1, armour=2, cardType="Regular Unit",	name={"Herbalists"},		recruit={"village", "monastery", "camp", "oasis"}},
+			["db04a7"]={influence= 3, level=1, armour=2, cardType="Regular Unit",	name={"Herbalists"},		recruit={"village", "monastery", "camp", "oasis"}},
 			["004558"]={influence= 6, level=2, armour=4, cardType="Regular Unit",	name={"Utem Crossbowmen"},	recruit={"village", "keep", "camp", "oasis"}},
 			["506ea7"]={influence= 6, level=2, armour=4, cardType="Regular Unit",	name={"Utem Crossbowmen"},	recruit={"village", "keep", "camp", "oasis"}},
-			["84e5d3"]={influence= 7, level=2, armour=3, cardType="Regular Unit",	name={"Guardian Golems"},		recruit={"mage tower", "keep", "camp"}, 			resistance={"Physical"}},
-			["b5500d"]={influence= 7, level=2, armour=3, cardType="Regular Unit",	name={"Guardian Golems"},		recruit={"mage tower", "keep", "camp"}, 			resistance={"Physical"}},
-			["868e12"]={influence= 7, level=2, armour=4, cardType="Regular Unit",	name={"Red Cape Monks"}, 		recruit={"monastery", "camp"}},
-			["f17813"]={influence= 7, level=2, armour=4, cardType="Regular Unit",	name={"Northern Monks"}, 		recruit={"monastery", "camp"}},
-			["8dc143"]={influence= 7, level=2, armour=2, cardType="Regular Unit",	name={"Illusionists"}, 		recruit={"mage tower", "monastery", "camp"}, 	resistance={"Physical"}},
-			["c72d43"]={influence= 7, level=2, armour=2, cardType="Regular Unit",	name={"Illusionists"}, 		recruit={"mage tower", "monastery", "camp"}, 	resistance={"Physical"}},
-			["e8acd7"]={influence= 5, level=1, armour=4, cardType="Regular Unit",	name={"Foresters"}, 			recruit={"village", "camp", "oasis"}},
-			["d55e5c"]={influence= 5, level=1, armour=4, cardType="Regular Unit",	name={"Foresters"}, 			recruit={"village", "camp", "oasis"}},
-			["c1f77c"]={influence= 5, level=2, armour=5, cardType="Regular Unit",	name={"Utem Guardsmen"}, 		recruit={"village", "keep", "camp", "oasis"}},
-			["00ebf3"]={influence= 5, level=2, armour=5, cardType="Regular Unit",	name={"Utem Guardsmen"}, 		recruit={"village", "keep", "camp", "oasis"}},
-			["246b0d"]={influence= 4, level=1, armour=2, cardType="Regular Unit",	name={"Scouts"}, 				recruit={"village", "keep", "mage tower", "monastery", "city", "camp", "oasis"}},
-			["bd1011"]={influence= 4, level=1, armour=2, cardType="Regular Unit",	name={"Scouts"}, 				recruit={"village", "keep", "mage tower", "monastery", "city", "camp", "oasis"}},
-			["4339c4"]={influence= 5, level=1, armour=5, cardType="Regular Unit",	name={"Thugs"}, 				recruit={"village", "keep", "camp", "oasis"}},
-			["ff2a54"]={influence= 5, level=1, armour=5, cardType="Regular Unit",	name={"Thugs"}, 				recruit={"village", "keep", "camp", "oasis"}},
+			["84e5d3"]={influence= 7, level=2, armour=3, cardType="Regular Unit",	name={"Guardian Golems"},	recruit={"mage tower", "keep", "camp"}, 				resistance={"Physical"}},
+			["b5500d"]={influence= 7, level=2, armour=3, cardType="Regular Unit",	name={"Guardian Golems"},	recruit={"mage tower", "keep", "camp"}, 				resistance={"Physical"}},
+			["868e12"]={influence= 7, level=2, armour=4, cardType="Regular Unit",	name={"Red Cape Monks"}, 	recruit={"monastery", "camp"}},
+			["f17813"]={influence= 7, level=2, armour=4, cardType="Regular Unit",	name={"Northern Monks"}, 	recruit={"monastery", "camp"}},
+			["8dc143"]={influence= 7, level=2, armour=2, cardType="Regular Unit",	name={"Illusionists"}, 		recruit={"mage tower", "monastery", "camp"}, 			resistance={"Physical"}},
+			["c72d43"]={influence= 7, level=2, armour=2, cardType="Regular Unit",	name={"Illusionists"}, 		recruit={"mage tower", "monastery", "camp"}, 			resistance={"Physical"}},
+			["e8acd7"]={influence= 5, level=1, armour=4, cardType="Regular Unit",	name={"Foresters"}, 		recruit={"village", "camp", "oasis"}},
+			["d55e5c"]={influence= 5, level=1, armour=4, cardType="Regular Unit",	name={"Foresters"}, 		recruit={"village", "camp", "oasis"}},
+			["c1f77c"]={influence= 5, level=2, armour=5, cardType="Regular Unit",	name={"Utem Guardsmen"}, 	recruit={"village", "keep", "camp", "oasis"}},
+			["00ebf3"]={influence= 5, level=2, armour=5, cardType="Regular Unit",	name={"Utem Guardsmen"}, 	recruit={"village", "keep", "camp", "oasis"}},
+			["246b0d"]={influence= 4, level=1, armour=2, cardType="Regular Unit",	name={"Scouts"}, 			recruit={"village", "keep", "mage tower", "monastery", "city", "camp", "oasis"}},
+			["bd1011"]={influence= 4, level=1, armour=2, cardType="Regular Unit",	name={"Scouts"}, 			recruit={"village", "keep", "mage tower", "monastery", "city", "camp", "oasis"}},
+			["4339c4"]={influence= 5, level=1, armour=5, cardType="Regular Unit",	name={"Thugs"}, 			recruit={"village", "keep", "camp", "oasis"}},
+			["ff2a54"]={influence= 5, level=1, armour=5, cardType="Regular Unit",	name={"Thugs"}, 			recruit={"village", "keep", "camp", "oasis"}},
 			["75307e"]={influence= 6, level=2, armour=3, cardType="Regular Unit",	name={"Shocktroops"}, 		recruit={"keep", "camp"}},
 			["422b8b"]={influence= 6, level=2, armour=3, cardType="Regular Unit",	name={"Shocktroops"}, 		recruit={"keep", "camp"}},
 			["0a2e0b"]={influence= 6, level=2, armour=5, cardType="Regular Unit",	name={"Magic Familiars"}, 	recruit={"monastery", "mage tower", "glade", "camp", "hidden valley"}},
 			["d8e49b"]={influence= 6, level=2, armour=5, cardType="Regular Unit",	name={"Magic Familiars"}, 	recruit={"monastery", "mage tower", "glade", "camp", "hidden valley"}},
-			["9ea578"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Fire Mages"},	 		recruit={"mage tower", "monastery", "camp"}, 	resistance={"Fire"}},
-			["f80455"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Fire Mages"},	 		recruit={"mage tower", "monastery", "camp"}, 	resistance={"Fire"}},
+			["9ea578"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Fire Mages"},	 	recruit={"mage tower", "monastery", "camp"}, 			resistance={"Fire"}},
+			["f80455"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Fire Mages"},	 	recruit={"mage tower", "monastery", "camp"}, 			resistance={"Fire"}},
 			["1aa68c"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Catapults"},	 		recruit={"keep", "city", "camp"}},
 			["1aa681"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Catapults"},	 		recruit={"keep", "city", "camp"}},
 			["d6d932"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Catapults"},	 		recruit={"keep", "city", "camp"}},
-			["7ba7be"]={influence= 8, level=3, armour=6, cardType="Elite Unit", 	name={"Amotep Gunners"},	 	recruit={"keep", "city", "camp"}},
-			["f60766"]={influence= 8, level=3, armour=6, cardType="Elite Unit", 	name={"Amotep Gunners"},	 	recruit={"keep", "city", "camp"}},
-			["d81a4f"]={influence= 8, level=3, armour=4, cardType="Elite Unit", 	name={"Fire Golems"},	 		recruit={"keep", "mage tower", "camp"}, 		resistance={"Physical", "Fire"}},
-			["97f64a"]={influence= 8, level=3, armour=4, cardType="Elite Unit", 	name={"Fire Golems"},	 		recruit={"keep", "mage tower", "camp"}, 		resistance={"Physical", "Fire"}},
-			["2806cf"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Ice Mages"},	 		recruit={"mage tower", "monastery", "camp"}, 	resistance={"Ice"}},
-			["094bd9"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Ice Mages"},	 		recruit={"mage tower", "monastery", "camp"}, 	resistance={"Ice"}},
-			["18446c"]={influence= 8, level=3, armour=4, cardType="Elite Unit", 	name={"Ice Golems"},	 		recruit={"keep", "mage tower", "camp"}, 		resistance={"Physical", "Ice"}},
-			["c6ca7b"]={influence= 8, level=3, armour=4, cardType="Elite Unit", 	name={"Ice Golems"},	 		recruit={"keep", "mage tower", "camp"}, 		resistance={"Physical", "Ice"}},
-			["9e8205"]={influence= 8, level=3, armour=6, cardType="Elite Unit", 	name={"Amotep Freezers"},		recruit={"keep", "city", "camp"}},
-			["f8ebe0"]={influence= 8, level=3, armour=6, cardType="Elite Unit", 	name={"Amotep Freezers"},		recruit={"keep", "city", "camp"}},
-			["c3e3c5"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Sorcerers"},			recruit={"mage tower", "monastery", "camp"}, 	resistance={"Fire", "Ice"}},
-			["223b47"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Sorcerers"},			recruit={"mage tower", "monastery", "camp"}, 	resistance={"Fire", "Ice"}},
-			["8ccbdd"]={influence= 9, level=3, armour=6, cardType="Elite Unit", 	name={"Heroes"},				recruit={"village", "keep", "city", "camp", "oasis"}},
-			["613dca"]={influence= 9, level=3, armour=3, cardType="Elite Unit", 	name={"Heroes"},				recruit={"village", "keep", "city", "camp", "oasis"}, 	resistance={"Physical"}},
-			["88f3f2"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Heroes"},				recruit={"village", "keep", "city", "camp", "oasis"}, 	resistance={"Ice"}},
-			["4ee245"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Heroes"},				recruit={"village", "keep", "city", "camp", "oasis"}, 	resistance={"Fire"}},
-			["bb1660"]={influence=12, level=4, armour=5, cardType="Elite Unit",		name={"Altem Mages"},			recruit={"keep", "city", "camp"}, 				resistance={"Fire", "Ice"}},
-			["0fe22e"]={influence=12, level=4, armour=5, cardType="Elite Unit",		name={"Altem Mages"},			recruit={"keep", "city", "camp"}, 				resistance={"Fire", "Ice"}},
-			["f288ea"]={influence=11, level=4, armour=7, cardType="Elite Unit",		name={"Altem Guardians"},		recruit={"city", "camp"}},
-			["5726ab"]={influence=11, level=4, armour=7, cardType="Elite Unit",		name={"Altem Guardians"},		recruit={"city", "camp"}},
-			["f288e1"]={influence=11, level=4, armour=7, cardType="Elite Unit",		name={"Altem Guardians"},		recruit={"city", "camp"}},
-			["9c5c38"]={influence=13, level=4, armour=3, cardType="Elite Unit",		name={"Delphana Masters"},	recruit={"city", "camp"},						resistance={"Physical", "Fire", "Ice"}},
-			["5c2da0"]={influence=13, level=4, armour=3, cardType="Elite Unit",		name={"Delphana Masters"},	recruit={"city", "camp"}, 						resistance={"Physical", "Fire", "Ice"}},
+			["7ba7be"]={influence= 8, level=3, armour=6, cardType="Elite Unit", 	name={"Amotep Gunners"},	recruit={"keep", "city", "camp"}},
+			["f60766"]={influence= 8, level=3, armour=6, cardType="Elite Unit", 	name={"Amotep Gunners"},	recruit={"keep", "city", "camp"}},
+			["d81a4f"]={influence= 8, level=3, armour=4, cardType="Elite Unit", 	name={"Fire Golems"},	 	recruit={"keep", "mage tower", "camp"}, 				resistance={"Physical", "Fire"}},
+			["97f64a"]={influence= 8, level=3, armour=4, cardType="Elite Unit", 	name={"Fire Golems"},	 	recruit={"keep", "mage tower", "camp"}, 				resistance={"Physical", "Fire"}},
+			["2806cf"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Ice Mages"},	 		recruit={"mage tower", "monastery", "camp"}, 			resistance={"Ice"}},
+			["094bd9"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Ice Mages"},	 		recruit={"mage tower", "monastery", "camp"}, 			resistance={"Ice"}},
+			["18446c"]={influence= 8, level=3, armour=4, cardType="Elite Unit", 	name={"Ice Golems"},	 	recruit={"keep", "mage tower", "camp"}, 				resistance={"Physical", "Ice"}},
+			["c6ca7b"]={influence= 8, level=3, armour=4, cardType="Elite Unit", 	name={"Ice Golems"},	 	recruit={"keep", "mage tower", "camp"}, 				resistance={"Physical", "Ice"}},
+			["9e8205"]={influence= 8, level=3, armour=6, cardType="Elite Unit", 	name={"Amotep Freezers"},	recruit={"keep", "city", "camp"}},
+			["f8ebe0"]={influence= 8, level=3, armour=6, cardType="Elite Unit", 	name={"Amotep Freezers"},	recruit={"keep", "city", "camp"}},
+			["c3e3c5"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Sorcerers"},			recruit={"mage tower", "monastery", "camp"}, 			resistance={"Fire", "Ice"}},
+			["223b47"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Sorcerers"},			recruit={"mage tower", "monastery", "camp"}, 			resistance={"Fire", "Ice"}},
+			["8ccbdd"]={influence= 9, level=3, armour=6, cardType="Elite Unit", 	name={"Heroes"},			recruit={"village", "keep", "city", "camp", "oasis"}},
+			["613dca"]={influence= 9, level=3, armour=3, cardType="Elite Unit", 	name={"Heroes"},			recruit={"village", "keep", "city", "camp", "oasis"}, 	resistance={"Physical"}},
+			["88f3f2"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Heroes"},			recruit={"village", "keep", "city", "camp", "oasis"}, 	resistance={"Ice"}},
+			["4ee245"]={influence= 9, level=3, armour=4, cardType="Elite Unit", 	name={"Heroes"},			recruit={"village", "keep", "city", "camp", "oasis"}, 	resistance={"Fire"}},
+			["bb1660"]={influence=12, level=4, armour=5, cardType="Elite Unit",		name={"Altem Mages"},		recruit={"keep", "city", "camp"}, 						resistance={"Fire", "Ice"}},
+			["0fe22e"]={influence=12, level=4, armour=5, cardType="Elite Unit",		name={"Altem Mages"},		recruit={"keep", "city", "camp"}, 						resistance={"Fire", "Ice"}},
+			["f288ea"]={influence=11, level=4, armour=7, cardType="Elite Unit",		name={"Altem Guardians"},	recruit={"city", "camp"}},
+			["5726ab"]={influence=11, level=4, armour=7, cardType="Elite Unit",		name={"Altem Guardians"},	recruit={"city", "camp"}},
+			["f288e1"]={influence=11, level=4, armour=7, cardType="Elite Unit",		name={"Altem Guardians"},	recruit={"city", "camp"}},
+			["9c5c38"]={influence=13, level=4, armour=3, cardType="Elite Unit",		name={"Delphana Masters"},	recruit={"city", "camp"},								resistance={"Physical", "Fire", "Ice"}},
+			["5c2da0"]={influence=13, level=4, armour=3, cardType="Elite Unit",		name={"Delphana Masters"},	recruit={"city", "camp"}, 								resistance={"Physical", "Fire", "Ice"}},
 			--Arythea Starting Cards
 			["046141"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
 			["046140"]={cardType="Starting", name={"Stamina"}, color={"Blue"}, action={"Move"}},
@@ -43981,48 +44095,48 @@ skillTokens={	["1906f4"]={skillType="Turn", mage="Arythea"},				  	["33d341"]={s
 				["68568b"]={skillType="Turn", mage="Arythea"},				  	["2f2ad9"]={skillType="Turn", mage="Arythea"},
 				["24855b"]={skillType="Turn", mage="Arythea"},				  	["fe29ca"]={skillType="Turn", mage="Arythea"},
 				["4b997c"]={skillType="Turn", mage="Arythea"},				  	["3fba07"]={skillType="Coop", mage="Arythea", name="Ritual of Pain"},
-				["3d8336"]={skillType="Round", mage="Arythea"},				  	["d90de4"]={skillType="Round", mage="Arythea", name="Healing Ritual"},
+				["3d8336"]={skillType="Round", mage="Arythea"},				  	["d90de4"]={competitiveState=true, skillType="Round", mage="Arythea", name="Healing Ritual"},
 				["0951b9"]={skillType="Round", mage="Arythea"},
 
 				["c73c8c"]={skillType="Turn", mage="Braevalar"},				["ae8673"]={skillType="Round", mage="Braevalar"},
 				["8892c4"]={skillType="Turn", mage="Braevalar"},				["407c99"]={skillType="Turn", mage="Braevalar"},
 				["7d21e6"]={skillType="Turn", mage="Braevalar"},				["d01b70"]={skillType="Turn", mage="Braevalar"},
-				["48fd35"]={skillType="Turn", mage="Braevalar"},				["19daf9"]={skillType="Comp", mage="Braevalar", name="Nature's Vengeance"},
+				["48fd35"]={skillType="Turn", mage="Braevalar"},				["19daf9"]={competitiveState=true, skillType="Comp", mage="Braevalar", name="Nature's Vengeance"},
 				["c93979"]={skillType="Round", mage="Braevalar"},				["4ac9f6"]={skillType="Coop", mage="Braevalar", name="Nature's Vengeance"},
 				["122015"]={skillType="Turn", mage="Braevalar"},
 
 				["8cea19"]={skillType="Turn", mage="Goldyx"},					["91bf3d"]={skillType="Turn", mage="Goldyx"},
 				["3a3f49"]={skillType="Turn", mage="Goldyx"},					["9eb4c5"]={skillType="Round", mage="Goldyx"},
 				["4d5351"]={skillType="Round", mage="Goldyx"},				  	["866002"]={skillType="Round", mage="Goldyx"},
-				["171244"]={skillType="Round", mage="Goldyx"},				  	["3bd08e"]={skillType="Comp", mage="Goldyx", name="Source Freeze"},
+				["171244"]={skillType="Round", mage="Goldyx"},				  	["3bd08e"]={competitiveState=true, skillType="Comp", mage="Goldyx", name="Source Freeze"},
 				["04319a"]={skillType="Round", mage="Goldyx"},				  	["3b3273"]={skillType="Coop", mage="Goldyx", name="Source Opening"},
 				["0db37a"]={skillType="Round", mage="Goldyx"},
 
 				["0fbcfe"]={skillType="Turn", mage="Krang"},					["91c8a0"]={skillType="Turn", mage="Krang", name="Arcane Disguise"},
 				["0688d8"]={skillType="Turn", mage="Krang"},					["6a33c1"]={skillType="Turn", mage="Krang"},
 				["893537"]={skillType="Turn", mage="Krang"},					["adf8ab"]={skillType="Turn", mage="Krang"},
-				["f36762"]={skillType="Turn", mage="Krang"},					["958209"]={skillType="Comp", mage="Krang", name="Mana Suppression"},
+				["f36762"]={skillType="Turn", mage="Krang"},					["958209"]={competitiveState=true, skillType="Comp", mage="Krang", name="Mana Suppression"},
 				["1ff34f"]={skillType="Turn", mage="Krang"},					["725de9"]={skillType="Coop", mage="Krang", name="Mana Enhancement"},
 				["d8824d"]={skillType="Round", mage="Krang"},
 
 				["93c62e"]={skillType="Turn", mage="Norowas"},				  	["257c0c"]={skillType="Turn", mage="Norowas"},
 				["046187"]={skillType="Turn", mage="Norowas"},				  	["3f0f3b"]={skillType="Turn", mage="Norowas"},
 				["f30dd4"]={skillType="Round", mage="Norowas"},				  	["b2dfce"]={skillType="Round", mage="Norowas"},
-				["e45fdf"]={skillType="Round", mage="Norowas"},				  	["676856"]={skillType="Comp", mage="Norowas", name="Prayer of the Weather"},
+				["e45fdf"]={skillType="Round", mage="Norowas"},				  	["676856"]={competitiveState=true, skillType="Comp", mage="Norowas", name="Prayer of the Weather"},
 				["3dc067"]={skillType="Round", mage="Norowas"},				  	["55e5e5"]={skillType="Coop", mage="Norowas", name="Calming the Weather"},
 				["14399f"]={skillType="Round", mage="Norowas"},
 
 				["5049e5"]={skillType="Turn", mage="Tovak"},					["dfaee3"]={skillType="Turn", mage="Tovak"},
 				["1a78b3"]={skillType="Turn", mage="Tovak"},					["4c9273"]={skillType="Turn", mage="Tovak"},
 				["6413a1"]={skillType="Turn", mage="Tovak"},					["9efc9b"]={skillType="Turn", mage="Tovak"},
-				["036af1"]={skillType="Turn", mage="Tovak"},					["c4546c"]={skillType="Comp", mage="Tovak", name="Mana Exploit"},
+				["036af1"]={skillType="Turn", mage="Tovak"},					["c4546c"]={competitiveState=true, skillType="Comp", mage="Tovak", name="Mana Exploit"},
 				["0db913"]={skillType="Turn", mage="Tovak"},					["818aea"]={skillType="Coop", mage="Tovak", name="Mana Overload"},
 				["ba4df5"]={skillType="Round", mage="Tovak"},
 
 				["590a46"]={skillType="Turn", mage="Wolfhawk"},				 	["b73b21"]={skillType="Turn", mage="Wolfhawk"},
 				["eeb395"]={skillType="Turn", mage="Wolfhawk"},				  	["7d1c32"]={skillType="Turn", mage="Wolfhawk"},
 				["152a98"]={skillType="Turn", mage="Wolfhawk"},				  	["210835"]={skillType="Round", mage="Wolfhawk"},
-				["84ea07"]={skillType="Round", mage="Wolfhawk"},				["a92d73"]={skillType="Comp", mage="Wolfhawk", name="Wolf's Howl"},
+				["84ea07"]={skillType="Round", mage="Wolfhawk"},				["a92d73"]={competitiveState=true, skillType="Comp", mage="Wolfhawk", name="Wolf's Howl"},
 				["2c74ca"]={skillType="Round", mage="Wolfhawk"},				["564392"]={skillType="Coop", mage="Wolfhawk", name="Howl of the Pack"},
 				["527b47"]={skillType="Round", mage="Wolfhawk"},
 
@@ -44036,21 +44150,21 @@ skillTokens={	["1906f4"]={skillType="Turn", mage="Arythea"},				  	["33d341"]={s
 				["31b225"]={skillType="Turn", mage="Ymirgh"},					["2cbfd9"]={skillType="Round", mage="Ymirgh"},
 				["80b843"]={skillType="Turn", mage="Ymirgh"},					["79503e"]={skillType="Turn", mage="Ymirgh"},
 				["babfbf"]={skillType="Round", mage="Ymirgh"},				  	["f50f77"]={skillType="Round", mage="Ymirgh"},
-				["5b42dc"]={skillType="Round", mage="Ymirgh"},				  	["335290"]={skillType="Comp", mage="Ymirgh", name="Master Rune of Quebrith the Mad"},
+				["5b42dc"]={skillType="Round", mage="Ymirgh"},				  	["335290"]={competitiveState=true, skillType="Comp", mage="Ymirgh", name="Master Rune of Quebrith the Mad"},
 				["929377"]={skillType="Round", mage="Ymirgh"},				  	["ebbbfc"]={skillType="Round", mage="Ymirgh", name="Cheers, for our Failures!"},
 				["038787"]={skillType="Round", mage="Ymirgh"},
 
 				["f8ba0b"]={skillType="Turn", mage="Jormund"},					["216c1f"]={skillType="Round", mage="Jormund"},
 				["4c6c1a"]={skillType="Turn", mage="Jormund"},					["45fe78"]={skillType="Turn", mage="Jormund"},
 				["5f61d5"]={skillType="Round", mage="Jormund"},				  	["76da53"]={skillType="Round", mage="Jormund"},
-				["cae27e"]={skillType="Turn", mage="Jormund"},				  	["e68fed"]={skillType="Comp", mage="Jormund", name="Fury of the Elements"},
+				["cae27e"]={skillType="Turn", mage="Jormund"},				  	["e68fed"]={competitiveState=true, skillType="Comp", mage="Jormund", name="Fury of the Elements"},
 				["bfe38f"]={skillType="Turn", mage="Jormund"},				  	["a598f6"]={skillType="Coop", mage="Jormund", name="Serenity of the Elements"},
 				["70c30f"]={skillType="Turn", mage="Jormund"},
 
 				["107400"]={skillType="Round", mage="Mevok"},					["bfd0c5"]={skillType="Turn", mage="Mevok"},
 				["fc7930"]={skillType="Round", mage="Mevok"},					["e31735"]={skillType="Round", mage="Mevok"},
 				["a883af"]={skillType="Round", mage="Mevok"},				  	["b6b035"]={skillType="Round", mage="Mevok"},
-				["c2e5a3"]={skillType="Round", mage="Mevok"},				  	["676855"]={skillType="Comp", mage="Mevok", name="Reverant Protector"},
+				["c2e5a3"]={skillType="Round", mage="Mevok"},				  	["676855"]={competitiveState=true, skillType="Comp", mage="Mevok", name="Reverant Protector"},
 				["eec431"]={skillType="Round", mage="Mevok"},				  	["b13d5f"]={skillType="Coop", mage="Mevok", name="Abysal Mana Growth"},
 				["8397f1"]={skillType="Round", mage="Mevok"},					["7ad337"]={skillType="Turn", mage="Mevok"},
 
@@ -44064,7 +44178,7 @@ skillTokens={	["1906f4"]={skillType="Turn", mage="Arythea"},				  	["33d341"]={s
 				["9f5dc0"]={skillType="Turn", mage="Duscenia"},					["75a83d"]={skillType="Round", mage="Duscenia"},
 				["6d7027"]={skillType="Turn", mage="Duscenia"},					["7d5670"]={skillType="Turn", mage="Duscenia"},
 				["d013af"]={skillType="Turn", mage="Duscenia"},					["f8292e"]={skillType="Round", mage="Duscenia"},
-				["933090"]={skillType="Round", mage="Duscenia"},			 	["c82406"]={skillType="Comp", mage="Duscenia", name="Organic Defence"},
+				["933090"]={skillType="Round", mage="Duscenia"},			 	["c82406"]={competitiveState=true, skillType="Comp", mage="Duscenia", name="Organic Defence"},
 				["f96fd9"]={skillType="Round", mage="Duscenia"},			  	["9d866a"]={skillType="Coop", mage="Duscenia", name="Hidden in Foliage"},
 				["932b6a"]={skillType="Turn", mage="Duscenia"},					["0d59f4"]={skillType="Turn", mage="Duscenia"},
 
