@@ -730,12 +730,13 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			local tacticSixAvailable, timeBendingAvailable=extraTurnOptions(cleanupPlayer)
 			local useTactic=id=="ExtraTurnChoiceTactic6" or (id=="ExtraTurnTacticButton" and tacticSixAvailable and timeBendingAvailable==false)
 			local useTimeBending=id=="ExtraTurnChoiceTimeBending" or (id=="ExtraTurnTacticButton" and timeBendingAvailable and tacticSixAvailable==false)
+			local cleanupTurnToken=getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID)
 			--flip Day tactic six if using the second turn
 			if useTactic then
 				gStates.tacticSixState="Started"
 				getObjectFromGUID("2404f1").setRotationSmooth({0.00, 180.00, 180.00},false,false)
-				if getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID).is_face_down==true then
-					getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID).flip()
+				if cleanupTurnToken~=nil and cleanupTurnToken.is_face_down==true then
+					cleanupTurnToken.flip()
 					gStates.tacticSixState="Used"
 					gStates.skipTurn[cleanupPlayer]=nil
 				end
@@ -743,8 +744,8 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			--Change clean up if Time Bending used
 			if useTimeBending then
 				gStates.timeBending="Started"
-				if getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID).is_face_down==true then
-					getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID).flip()
+				if cleanupTurnToken~=nil and cleanupTurnToken.is_face_down==true then
+					cleanupTurnToken.flip()
 					gStates.timeBending="Used"
 					gStates.skipTurn[cleanupPlayer]=nil
 				end
@@ -1542,10 +1543,12 @@ function rewardNearbyOwnShield(playerIndex,avatarLocation)
 	avatarLocation=avatarLocation or details.avatarLocation or ""
 	local avPos=mageKnightAvatarPosition(playerIndex) or {}
 	if avPos[1]==nil or avPos[3]==nil then return "false" end
-	if (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and
-		gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel)~=nil then
-		local volkarePos=getObjectFromGUID(gStates.volkareModel).getPosition()
-		if math.sqrt(((volkarePos[1]-avPos[1])^2)+((volkarePos[3]-avPos[3])^2))<1 then return volkare.model end
+	if (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and gStates.volkareModel~=nil then
+		local volkareObj=getObjectFromGUID(gStates.volkareModel)
+		if volkareObj~=nil then
+			local volkarePos=volkareObj.getPosition()
+			if math.sqrt(((volkarePos[1]-avPos[1])^2)+((volkarePos[3]-avPos[3])^2))<1 then return volkare.model end
+		end
 	end
 	if avatarLocation:sub(1,4)=="city" or avatarLocation=="Volkare's Camp" or avatarLocation=="necropolis" or avatarLocation=="hidden valley" then
 		refreshCityDefeatState()
