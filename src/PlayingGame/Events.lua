@@ -873,45 +873,49 @@ local function handleMapLocationZoneEnter(ctx)
 
 end
 
+function refreshRampagerMapVisual(obj)
+	if obj==nil or monsterPugs[obj.guid]==nil or (gStates.rampageAmbush~=true and gStates.rampagePursuit~=true) then return end
+	local objGUID=obj.guid
+	local existingButtons=obj.UI.getXmlTable() or {}
+	local keptButtons={}
+	local uiChanged=false
+	for _, xmlParent in pairs(existingButtons) do
+		if xmlParent.tag=="Image" then uiChanged=true else keptButtons[#keptButtons+1]=xmlParent end
+	end
+	existingButtons=keptButtons
+	--Ambushing Circle
+	if gStates.ambushingMonsters[objGUID]~=nil then
+		uiChanged=true
+		existingButtons[#existingButtons+1]={tag="Image", attributes={id="Ambush Circle", height=1100, width=1100,
+			position="0 0 -1", rotation="0 0 0", image="Ambush Circle"}}
+	end
+	--pursuit Shield
+	for mage1, monsters in pairs(gStates.pursuingMonsters) do
+		if monsters[objGUID]~=nil then
+			for _, mage2 in pairs(mageKnights) do
+				if mage2.mage==mage1 then
+					uiChanged=true
+					existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursue Shield", height=90, width=90,
+						position="0 0 -15", rotation="0 0 180", image="Shield Button "..mage1}}
+					local pursuit=monsters[objGUID]
+					if pursuit.stunned==true or pursuit.state=="Stunned" then existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageURL}} end
+				end
+			end
+		end
+	end
+	if uiChanged==true then
+		if #existingButtons==0 then existingButtons={{}} end
+		obj.UI.setXmlTable(existingButtons)
+	end
+end
+
 local function handleMapVisualZoneEnter(ctx)
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
-	--Add xml Image back to Pursuing and Ambushing monster tokens. Non-monsters entering the map
-	--never need this Object UI pass, which is relatively expensive in TTS.
-	if zoneGUID==mapArea and monsterPugs[objGUID]~=nil and (gStates.rampageAmbush==true or gStates.rampagePursuit==true) then
-		local existingButtons=obj.UI.getXmlTable() or {}
-		local keptButtons={}
-		local uiChanged=false
-		for _, xmlParent in pairs(existingButtons) do
-			if xmlParent.tag=="Image" then uiChanged=true else keptButtons[#keptButtons+1]=xmlParent end
-		end
-		existingButtons=keptButtons
-		--Ambushing Circle
-		if gStates.ambushingMonsters[objGUID]~=nil then
-			uiChanged=true
-			existingButtons[#existingButtons+1]={tag="Image", attributes={id="Ambush Circle", height=1100, width=1100,
-				position="0 0 -1", rotation="0 0 0", image="Ambush Circle"}}
-		end
-		--pursuit Shield
-		for mage1, monsters in pairs(gStates.pursuingMonsters) do
-			if monsters[objGUID]~=nil then
-				for _, mage2 in pairs(mageKnights) do
-					if mage2.mage==mage1 then
-						uiChanged=true
-						existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursue Shield", height=90, width=90,
-							position="0 0 -15", rotation="0 0 180", image="Shield Button "..mage1}}
-						local pursuit=monsters[objGUID]
-						if pursuit.stunned==true or pursuit.state=="Stunned" then existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageURL}} end
-					end
-				end
-			end
-		end
-		if uiChanged==true then
-			if #existingButtons==0 then existingButtons={{}} end
-			obj.UI.setXmlTable(existingButtons)
-		end
-	end
+	--Map entry normally restores Rampager UI. Scripted deployment can register Ambush/Pursuit
+	--state just after this event, so playRampagingTokens() also calls the same helper once registered.
+	if zoneGUID==mapArea then refreshRampagerMapVisual(obj) end
 
 	--Remove transient decals from anything entering the map, but only write the decal table back
 	--when at least one decal actually needs removing.
