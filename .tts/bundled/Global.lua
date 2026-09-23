@@ -18837,22 +18837,28 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		(monsterData.pugType=="possessed" and (cleanupLocation=="ziggurat" or cleanupLocation=="pyramid")) or
 		(monsterData.pugType=="purple" and (cleanupLocation=="mage tower" or cleanupLocation=="monastery"))) then
 		local shieldExists=false
-		if cleanupLocation~="ziggurat" and cleanupLocation~="pyramid" and cleanupLocation~="maze" and cleanupLocation~="labyrinth" and avatarPos[1]~=nil and avatarPos[3]~=nil then
-			local map=getObjectFromGUID(mapArea)
-			if map~=nil then
-				for _, shield in pairs(map.getObjects()) do
-					if shield.getName()=="Shield" and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shield.getPosition()[1]-avatarPos[1])^2)+((shield.getPosition()[3]-avatarPos[3])^2))<1 then
+		local trackSiteShield=cleanupLocation~="ziggurat" and cleanupLocation~="pyramid" and cleanupLocation~="maze" and cleanupLocation~="labyrinth" and avatarPos[1]~=nil and avatarPos[3]~=nil
+		if trackSiteShield==true then
+			if context.siteShieldExists~=nil then
+				shieldExists=context.siteShieldExists
+			else
+				local mapSpatial=context.mapSpatial or runtimeMapSpatialSnapshot()
+				for _, shield in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avatarPos,1)) do
+					local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
+					if shield.getName()=="Shield" and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shieldPos[1]-avatarPos[1])^2)+((shieldPos[3]-avatarPos[3])^2))<1 then
 						shieldExists=true
 						if cleanupLocation=="keep" and shield.getDescription()~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
 						if cleanupLocation=="dungeon" or cleanupLocation=="tomb" then gStates.shieldsDropped[shield.guid]=true end
 						break
 					end
 				end
+				context.siteShieldExists=shieldExists
 			end
 		end
 		if shieldExists==false then
 			if gStates.monsterPlayLocation[monsterGUID]~=nil then
 				dropShield(gStates.monsterPlayLocation[monsterGUID],true)
+				if trackSiteShield==true then context.siteShieldExists=true end
 				coralTalesSiteShield(cleanupLocation)
 			elseif avatarPos[1]~=nil and avatarPos[3]~=nil then
 				local shieldPos={avatarPos[1],2,avatarPos[3]}
@@ -18864,6 +18870,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 					if floor~=nil then shieldPos=zigguratPyramidFloorPosition(terrain,sitePos or avatarPos,floor) end
 				end
 				dropShield(shieldPos,true,shieldRotation)
+				if trackSiteShield==true then context.siteShieldExists=true end
 				coralTalesSiteShield(cleanupLocation)
 			end
 		end
@@ -19220,7 +19227,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			local lastObject=nil
 			local spawningGroundMonstersReturned=0
 			local spawningGroundMonstersBeat=0
-			local cleanupContext={player=cleanupPlayer,coopCombatReward=coopCombatReward,avatarPos=avatarPos,volkareCityShield=0,volkarePaused=false,spawningGroundMonstersBeat=0}
+			local cleanupContext={player=cleanupPlayer,coopCombatReward=coopCombatReward,avatarPos=avatarPos,volkareCityShield=0,volkarePaused=false,spawningGroundMonstersBeat=0,mapSpatial=runtimeMapSpatialSnapshot()}
 			gStates.turnForfeited=true
 			--Goblin Warrens is resolved by the normal monster-cleanup result below. Fresh Goblins begin
 			--face up, so checking them here would incorrectly count an untouched/failed fight as success.
@@ -19897,11 +19904,10 @@ function combatNearbyRampagerChoice(playerIndex)
 	if turnToken==nil or turnToken.is_face_down==true then return false end
 	local avatar=mageKnightAvatarPositionByName(details.mage)
 	if avatar==nil or avatar[1]==nil then return false end
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return false end
-	for _,obj in pairs(map.getObjects()) do
+	local mapSpatial=runtimeMapSpatialSnapshot()
+	for _,obj in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avatar,5.1)) do
 		if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[obj.guid]==true then
-			local pos=obj.getPosition()
+			local pos=mapSpatial.positions[obj.guid] or obj.getPosition()
 			local distance=((pos[1]-avatar[1])^2)+((pos[3]-avatar[3])^2)
 			if distance<9.61 or (distance<26.01 and gStates.ambushingMonsters~=nil and gStates.ambushingMonsters[obj.guid]~=nil) then return true end
 		end
@@ -19952,15 +19958,13 @@ function rewardNearbyOwnShield(playerIndex,avatarLocation)
 			end
 		end
 	end
-	local map=getObjectFromGUID(mapArea)
-	if map~=nil then
-		for _,shieldCheck in pairs(map.getObjects()) do
-			if ((shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and shieldCheck.getDescription()==details.mage) or
-				shieldCheck.getName()=="Hidden Valley" or shieldCheck.getName()=="Necropolis" or shieldCheck.getName()=="Volkare's Camp" or shieldCheck.getName()=="Volkare" or
-				shieldCheck.getGMNotes()=="White City" or shieldCheck.getGMNotes()=="Red City" or shieldCheck.getGMNotes()=="Green City" or shieldCheck.getGMNotes()=="Blue City") then
-				local shieldPos=shieldCheck.getPosition()
-				if math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then return shieldCheck.guid end
-			end
+	local mapSpatial=runtimeMapSpatialSnapshot()
+	for _,shieldCheck in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1)) do
+		if ((shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and shieldCheck.getDescription()==details.mage) or
+			shieldCheck.getName()=="Hidden Valley" or shieldCheck.getName()=="Necropolis" or shieldCheck.getName()=="Volkare's Camp" or shieldCheck.getName()=="Volkare" or
+			shieldCheck.getGMNotes()=="White City" or shieldCheck.getGMNotes()=="Red City" or shieldCheck.getGMNotes()=="Green City" or shieldCheck.getGMNotes()=="Blue City") then
+			local shieldPos=mapSpatial.positions[shieldCheck.guid] or shieldCheck.getPosition()
+			if math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then return shieldCheck.guid end
 		end
 	end
 	return "false"
@@ -20058,6 +20062,11 @@ function attackLocation(playerDud, mouseButton, id)
 					combatCameraChoiceSuppressedPlayer=adventureSiteAttack~=true and (combatAttackOptionCount(playerIndex)>1 or nearbyRampagerChoice==true) and playerIndex or nil
 					--Work out clicking avatar location
 					local avPos=mageKnightAvatarPositionByName(id:sub(7,string.len(id))) or {}
+					local attackMapSpatial=nil
+					local function attackMapSpatialView()
+						if attackMapSpatial==nil then attackMapSpatial=runtimeMapSpatialSnapshot() end
+						return attackMapSpatial
+					end
 					local clickedObj=getObjectFromGUID(id:sub(1,6))
 					local rampagerAttack=clickedObj~=nil and gStates.rampagingMonsters[clickedObj.guid]==true
 					local sameHexAvatarAttack=sameHexAttack
@@ -20090,12 +20099,14 @@ function attackLocation(playerDud, mouseButton, id)
 					local cameraFollowed=false
 					if (clickedObj==nil and id:sub(1,6)~="Volkar") or (clickedObj~=nil and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower" or player.avatarLocation:sub(1,4)=="city" or player.avatarLocation=="Volkare's Camp")) then
 						local horseSelection=gStates.horsemanAttackSelection
-						for _, monster in pairs(getObjectFromGUID(mapArea).getObjects()) do
+						local mapSpatial=attackMapSpatialView()
+						for _, monster in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1)) do
+							local monsterPos=mapSpatial.positions[monster.guid] or monster.getPosition()
 							if monsterPugs[monster.guid]~=nil then
 								local horsemanName=horsemanTokenToName~=nil and horsemanTokenToName[monster.guid] or nil
 								local horsemanSelected=horsemanName==nil or (horseSelection~=nil and horseSelection.player==playerIndex and horseSelection.targets~=nil and horseSelection.targets[monster.guid]==true)
-								if horsemanSelected==true and math.sqrt(((monster.getPosition()[1]-avPos[1])^2)+((monster.getPosition()[3]-avPos[3])^2))<1 then
-									local originalPos=monster.getPosition()
+								if horsemanSelected==true and math.sqrt(((monsterPos[1]-avPos[1])^2)+((monsterPos[3]-avPos[3])^2))<1 then
+									local originalPos={monsterPos[1],monsterPos[2],monsterPos[3]}
 									gStates.attackedMonsters[monster.guid]={originalPos, monster.getRotation()}
 									if horsemanName~=nil then gStates.monsterPlayLocation[monster.guid]={originalPos[1],originalPos[2],originalPos[3]} end
 									if cameraFollowed==false then combatCameraFocus(playerIndex) cameraFollowed=true end
@@ -20107,7 +20118,7 @@ function attackLocation(playerDud, mouseButton, id)
 							end
 							if player.avatarLocation:sub(1, 4)=="city" then
 								if (monster.getGMNotes()=="Blue City" or monster.getGMNotes()=="Green City" or monster.getGMNotes()=="Red City" or monster.getGMNotes()=="White City")
-									and math.sqrt(((monster.getPosition()[1]-avPos[1])^2)+((monster.getPosition()[3]-avPos[3])^2))<1 then
+									and math.sqrt(((monsterPos[1]-avPos[1])^2)+((monsterPos[3]-avPos[3])^2))<1 then
 									cityGUID=monster.guid
 								end
 							end
@@ -20253,8 +20264,10 @@ function attackLocation(playerDud, mouseButton, id)
 								if (player.avatarLocation=="tomb" or player.avatarLocation=="labyrinth") and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.red, player, id) broadcastToAll("{en}Dragon Drawn to Player Board{ru}Жетон Драконума был помещен на стол игрока{zh-tw}巨龍已移到玩家面板{zh-cn}将龙放到玩家面板{ko}드래곤과 전투하세요{es}Dragón dibujado al tablero del jugador{fr}Dragon dessiné sur le plateau du joueur{pt-br}Dragão Puxado para o tabuleiro do jogador{de}Drache auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
 								if player.avatarLocation=="keep" and id:sub(1, 6)=="Attack" then
 									local found=false
-									for _, shield in pairs(getObjectFromGUID(mapArea).getObjects()) do
-										if shield.getName()=="Shield" and volkarePursuitShieldRegistered(shield)~=true and (shield.getDescription()==player.mage or gStates.coop==1) and math.sqrt(((shield.getPosition()[1]-avPos[1])^2)+((shield.getPosition()[3]-avPos[3])^2))<1 then found=true break end
+									local mapSpatial=attackMapSpatialView()
+									for _, shield in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1)) do
+										local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
+										if shield.getName()=="Shield" and volkarePursuitShieldRegistered(shield)~=true and (shield.getDescription()==player.mage or gStates.coop==1) and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then found=true break end
 									end
 									if found==false then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
 								end
@@ -20289,9 +20302,11 @@ function attackLocation(playerDud, mouseButton, id)
 									local terrain, _, sitePos=terrainHexAtPosition(avPos)
 									if sitePos~=nil then avPos=sitePos else avPos[3]=(math.floor(((avPos[3]-1)/2.0785)+0.5)*2.0785)+0.5 end
 									local fight2Done, fight3Done=false, false
-									for _, shieldCheck in pairs(getObjectFromGUID(mapArea).getObjects()) do
-										if shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and math.sqrt(((shieldCheck.getPosition()[1]-avPos[1])^2)+((shieldCheck.getPosition()[3]-avPos[3])^2))<1.5 then
-											local floor=zigguratPyramidFloorFromPosition(terrain, avPos, shieldCheck.getPosition())
+									local mapSpatial=attackMapSpatialView()
+									for _, shieldCheck in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1.5)) do
+										local shieldPos=mapSpatial.positions[shieldCheck.guid] or shieldCheck.getPosition()
+										if shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1.5 then
+											local floor=zigguratPyramidFloorFromPosition(terrain,avPos,shieldPos)
 											if floor==1 then
 												UI.setAttribute("zigguratPyramidInteractFight1Image", "color", "Red")
 												UI.setAttribute("zigguratPyramidInteractFight1", "interactable", "false")
@@ -20975,6 +20990,8 @@ function pursuingRampagers(player, mouseButton, id)
 			end
 			gStates.arrowDelete={}
 			local height=0.2
+			local mapSpatial=runtimeMapSpatialSnapshot()
+			local mapSnapshot=mapSpatial.topology
 			for monsterGUID, monsterDetails in pairs(gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]) do
 				if monsterDetails.state=="Pursuing" then
 					--find initial vector to move closer to the player
@@ -21005,38 +21022,33 @@ function pursuingRampagers(player, mouseButton, id)
 					local protection="none"
 					local rampageNewPos={}
 					local function hexCheck()
-						local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
+						local targetHex, _, terTile, hexBearing=runtimeMapHexAtPosition(rampageNewPos,mapSnapshot)
 						local terrainFound=false
-						local terTile, hexBearing=terrainHexAtPosition(rampageNewPos, objectsInPlay)
-						if terTile~=nil and hexBearing~=nil then
+						local nearby=runtimeMapSpatialNearbyObjects(mapSpatial,rampageNewPos,3)
+						if targetHex~=nil and terTile~=nil and hexBearing~=nil then
+							local hexFeature=targetHex.feature or ""
 							--make sure the hex isn't a fortified site
-							if terrainTiles[terTile.guid].hexFeature[hexBearing]~="keep" and
-								terrainTiles[terTile.guid].hexFeature[hexBearing]~="mage tower" and
-								terrainTiles[terTile.guid].hexFeature[hexBearing]:sub(1, 4)~="city" then
+							if hexFeature~="keep" and hexFeature~="mage tower" and hexFeature:sub(1,4)~="city" then
 								terrainFound=true
-								if terrainTiles[terTile.guid].hexFeature[hexBearing]=="village" or
-									terrainTiles[terTile.guid].hexFeature[hexBearing]=="camp" or
-									terrainTiles[terTile.guid].hexFeature[hexBearing]=="monastery" and gStates.monasteryBurned[terTile.guid]~=true then
-								protection="Interaction"
-							end
-							if terrainTiles[terTile.guid].wallList~=nil and terrainTiles[terTile.guid].wallList[hexBearing]~=nil then
-								local hexOriginBearing=terrainHexBearing(terTile, monsterDetails.location)
-								if hexOriginBearing~=nil then
-									if terrainTiles[terTile.guid].wallList[hexBearing][hexOriginBearing]~=nil then
-										protection="Wall"
-										end
-									end
+								if hexFeature=="village" or hexFeature=="camp" or
+									hexFeature=="monastery" and gStates.monasteryBurned[terTile.guid]~=true then
+									protection="Interaction"
+								end
+								if terrainTiles[terTile.guid].wallList~=nil and terrainTiles[terTile.guid].wallList[hexBearing]~=nil then
+									local hexOriginBearing=terrainHexBearing(terTile,monsterDetails.location,mapSnapshot.terrainPositions[terTile.guid],mapSnapshot.terrainRotations[terTile.guid])
+									if hexOriginBearing~=nil and terrainTiles[terTile.guid].wallList[hexBearing][hexOriginBearing]~=nil then protection="Wall" end
 								end
 							else
 								protection="Fortified"
-								if terrainTiles[terTile.guid].hexFeature[tostring(hexBearing)]:sub(1, 4)=="city" then
-									for _, obj in pairs(objectsInPlay) do
+								if hexFeature:sub(1,4)=="city" then
+									for _, obj in ipairs(nearby) do
 										if combatCityZones[obj.guid]~=nil and obj.guid~=volkare.terrainHex then
 											local found=false
 											local cityZoneObj=getObjectFromGUID(combatCityZones[obj.guid])
 											for _, obj2 in pairs(cityZoneObj~=nil and cityZoneObj.getObjects() or {}) do
 												if obj2.getName()==turnOrder[gStates.turnNumber].mage then
-													if math.sqrt(((rampageNewPos[1]-obj.getPosition()[1])^2)+((rampageNewPos[3]-obj.getPosition()[3])^2))<1 then
+													local objPos=mapSpatial.positions[obj.guid] or obj.getPosition()
+													if math.sqrt(((rampageNewPos[1]-objPos[1])^2)+((rampageNewPos[3]-objPos[3])^2))<1 then
 														protection="City"
 														if turnOrder[gStates.turnNumber].defeatedCities[obj.guid]==nil and gStates.cityLevels[#gStates.cityLevels]~=0 then canAttack=true end
 														found=true
@@ -21054,9 +21066,10 @@ function pursuingRampagers(player, mouseButton, id)
 						if terrainFound==true then
 							--make sure there isnt an other player
 							local magefound=false
-							for _, obj in pairs(objectsInPlay) do
+							for _, obj in ipairs(nearby) do
 								if obj.getName()~=turnOrder[gStates.turnNumber].mage and combatPursuitMageNames[obj.getName()]==true then
-									if math.sqrt(((rampageNewPos[1]-obj.getPosition()[1])^2)+((rampageNewPos[3]-obj.getPosition()[3])^2))<1 then
+									local objPos=mapSpatial.positions[obj.guid] or obj.getPosition()
+									if math.sqrt(((rampageNewPos[1]-objPos[1])^2)+((rampageNewPos[3]-objPos[3])^2))<1 then
 										magefound=true
 										break
 									end
@@ -21071,9 +21084,10 @@ function pursuingRampagers(player, mouseButton, id)
 						if terrainFound==false and protection~="none" and avatarToRampageDist<0.5 then
 							--need to check if the site has a shield or not to determine if he attacks or stays
 							local shieldfound=false
-							for _, obj in pairs(objectsInPlay) do
+							for _, obj in ipairs(nearby) do
 								if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true and obj.getDescription()==turnOrder[gStates.turnNumber].mage then
-									if math.sqrt(((rampageNewPos[1]-obj.getPosition()[1])^2)+((rampageNewPos[3]-obj.getPosition()[3])^2))<1 then
+									local objPos=mapSpatial.positions[obj.guid] or obj.getPosition()
+									if math.sqrt(((rampageNewPos[1]-objPos[1])^2)+((rampageNewPos[3]-objPos[3])^2))<1 then
 										shieldfound=true
 										break
 									end
@@ -24747,49 +24761,16 @@ terrainPlacementNeighbourOffsets={
 	{math.cos(math.rad(341))*6.35, math.sin(math.rad(341))*6.35}
 }
 
---Avatar-location scans repeatedly inspect the current hex plus its six neighbours. Snapshot map
---positions once and bucket physical objects so each neighbour only checks nearby pieces, while
---terrain lookup works from terrain tiles only.
+--Avatar-location scans use the shared live spatial view, so Map, Combat, Movement and AI all
+--derive their local object/hex queries from the same physical-table snapshot.
 avatarLocationSpatialCell=3
 function avatarLocationMapSnapshot()
-	local mapObj=getObjectFromGUID(mapArea)
-	if mapObj==nil then return {}, {}, {}, {}, {} end
-	local mapObjects=mapObj.getObjects()
-	local positions={}
-	local terrainObjects={}
-	local terrainRotations={}
-	local buckets={}
-	for _, mapObject in pairs(mapObjects) do
-		local pos=mapObject.getPosition()
-		positions[mapObject.guid]=pos
-		if terrainTiles[mapObject.guid]~=nil then
-			terrainObjects[#terrainObjects+1]=mapObject
-			terrainRotations[mapObject.guid]=mapObject.getRotation()
-		end
-		local key=tostring(math.floor(pos[1]/avatarLocationSpatialCell))..":"..tostring(math.floor(pos[3]/avatarLocationSpatialCell))
-		if buckets[key]==nil then buckets[key]={} end
-		buckets[key][#buckets[key]+1]=mapObject
-	end
-	return mapObjects, positions, terrainObjects, terrainRotations, buckets
+	local spatial=runtimeMapSpatialSnapshot(avatarLocationSpatialCell)
+	return spatial.objects,spatial.positions,spatial.terrainObjects,spatial.terrainRotations,spatial.buckets,spatial
 end
 
-function avatarLocationRelevantObjects(locatedTerrain, pos, buckets)
-	local result={}
-	local seen={}
-	if locatedTerrain~=nil then result[#result+1]=locatedTerrain seen[locatedTerrain.guid]=true end
-	local baseX=math.floor(pos[1]/avatarLocationSpatialCell)
-	local baseZ=math.floor(pos[3]/avatarLocationSpatialCell)
-	for x=baseX-1, baseX+1 do
-		for z=baseZ-1, baseZ+1 do
-			local bucket=buckets[tostring(x)..":"..tostring(z)]
-			if bucket~=nil then
-				for _, obj in ipairs(bucket) do
-					if seen[obj.guid]~=true then result[#result+1]=obj seen[obj.guid]=true end
-				end
-			end
-		end
-	end
-	return result
+function avatarLocationRelevantObjects(locatedTerrain,pos,spatial)
+	return runtimeMapSpatialNearbyObjects(spatial,pos,avatarLocationSpatialCell,locatedTerrain)
 end
 
 --Refresh only the stored location of a manually moved off-turn Mage Knight.
@@ -25293,15 +25274,15 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 							end
 							--Use one cached map snapshot for the current hex and its six neighbours.
 							local volkareCampKeepAllowed=volkareCampAsCityConquered()==true and volkareCampContributionShieldCount(playerDetails)>0
-							local mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets=avatarLocationMapSnapshot()
+							local mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets, mapSpatial=avatarLocationMapSnapshot()
 								for keepSearch=1, 7, 1 do
 									--Volkare can remove a City model during this loop, so retain the old live-refresh behaviour for him.
 									if keepSearch>1 and playerDetails.mage=="Volkare" then
-										mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets=avatarLocationMapSnapshot()
+										mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets, mapSpatial=avatarLocationMapSnapshot()
 									end
 									local locatedTerrain, bearing, _, hexFeature=terrainHexAtPosition(avatarPos, mapTerrainObjects, mapObjectPositions, mapTerrainRotations)
 								hexFeature=hexFeature or ""
-									for _, terrain in ipairs(avatarLocationRelevantObjects(locatedTerrain, avatarPos, mapObjectBuckets)) do--terrain tile + nearby physical objects only
+									for _, terrain in ipairs(avatarLocationRelevantObjects(locatedTerrain,avatarPos,mapSpatial)) do--terrain tile + nearby physical objects only
 										--work with terrain tiles
 										local tilePos=mapObjectPositions[terrain.guid] or terrain.getPosition()
 										local avatarToTileDistSquared=((avatarPos[1]-tilePos[1])^2)+((avatarPos[3]-tilePos[3])^2)
@@ -41720,6 +41701,68 @@ function runtimeMapSnapshot()
 		neighborSet=terrainSnapshot.neighborSet,terrainSignature=terrainSnapshot.terrainSignature
 	}
 	return runtimeMapSnapshotCache
+end
+
+--Build a live spatial view on top of the shared runtime map. Object membership comes from the
+--invalidated runtime map cache, while positions are intentionally sampled fresh so ordinary movement
+--inside the map zone is immediately authoritative without persisting another map copy in gStates.
+runtimeMapSpatialCell=3
+function runtimeMapSpatialSnapshot(cellSize)
+	cellSize=cellSize or runtimeMapSpatialCell
+	local snapshot=runtimeMapSnapshot()
+	local positions={}
+	local terrainObjects={}
+	local terrainRotations={}
+	local buckets={}
+	for _, obj in pairs(snapshot.objects or {}) do
+		local pos=obj.getPosition()
+		positions[obj.guid]=pos
+		if terrainTiles[obj.guid]~=nil then
+			terrainObjects[#terrainObjects+1]=obj
+			terrainRotations[obj.guid]=obj.getRotation()
+		end
+		local key=tostring(math.floor(pos[1]/cellSize))..":"..tostring(math.floor(pos[3]/cellSize))
+		if buckets[key]==nil then buckets[key]={} end
+		buckets[key][#buckets[key]+1]=obj
+	end
+	return {
+		objects=snapshot.objects or {},positions=positions,buckets=buckets,cellSize=cellSize,
+		terrainObjects=terrainObjects,terrainRotations=terrainRotations,
+		terrainPositions=positions,topology=snapshot
+	}
+end
+
+--Return objects from the spatial buckets around a world position. Callers still apply their exact
+--distance/rules test; this only avoids rescanning unrelated map objects.
+function runtimeMapSpatialNearbyObjects(spatial,pos,radius,includeObject)
+	local result={}
+	local seen={}
+	if spatial==nil or pos==nil then return result end
+	if includeObject~=nil then result[#result+1]=includeObject seen[includeObject.guid]=true end
+	local cellSize=spatial.cellSize or runtimeMapSpatialCell
+	local cellRadius=math.max(1,math.ceil((radius or cellSize)/cellSize))
+	local baseX=math.floor(pos[1]/cellSize)
+	local baseZ=math.floor(pos[3]/cellSize)
+	for x=baseX-cellRadius,baseX+cellRadius do
+		for z=baseZ-cellRadius,baseZ+cellRadius do
+			local bucket=spatial.buckets[tostring(x)..":"..tostring(z)]
+			if bucket~=nil then
+				for _, obj in ipairs(bucket) do
+					if seen[obj.guid]~=true then result[#result+1]=obj seen[obj.guid]=true end
+				end
+			end
+		end
+	end
+	return result
+end
+
+--Resolve a world position against the same revealed-hex topology used by Movement, Proxy and Quests.
+function runtimeMapHexAtPosition(pos,snapshot)
+	snapshot=snapshot or runtimeMapSnapshot()
+	local terrain,bearing,hexPos,feature,hexType=terrainHexAtPosition(pos,snapshot.terrainObjects,snapshot.terrainPositions,snapshot.terrainRotations)
+	if terrain==nil or bearing==nil then return nil,nil,terrain,bearing,hexPos,feature,hexType end
+	local key=tostring(terrain.guid).."|"..tostring(bearing)
+	return snapshot.hexByKey[key],key,terrain,bearing,hexPos,feature,hexType
 end
 
 -- Player permission helpers
