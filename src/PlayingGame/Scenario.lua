@@ -1338,6 +1338,19 @@ function mapTokenScheduleObject(guid)
 	return mapTokenSettleArrival(guid,nil,{passive=true})
 end
 
+--Run work only after the token's complete arrival transaction has finished, including any final
+--separator correction. This is intentionally later than mapTokenAfterSettled(), which is also used
+--inside mapTokenSettleArrival while its generation is still pending.
+function mapTokenAfterArrivalComplete(guid,callback)
+	if guid==nil or callback==nil then return end
+	safeWaitCondition("Scenario.mapTokenArrivalComplete",function()
+		callback(getObjectFromGUID(guid))
+	end,function()
+		local obj=getObjectFromGUID(guid)
+		return obj==nil or (mapTokenArrivalPending[guid]==nil and obj.isSmoothMoving()==false and obj.resting==true)
+	end)
+end
+
 --Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
 --remaining lone enemy and keeps a Destroyed Site marker fixed underneath anything still on the hex.
 function mapTokenReleaseObject(obj)
