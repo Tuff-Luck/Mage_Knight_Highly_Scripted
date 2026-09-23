@@ -2331,8 +2331,8 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 						for b=1, #turnOrder, 1 do if turnOrder[b].fame==turnOrder[lowestFame].fame and b~=lowestFame then lowestFame=0 break end end--find tied lowest fame
 						if a==lowestFame then
 							UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos).."Text", "text", joinLang({"{en}Use {ru}{zh-tw}使用{zh-cn}使用{ko}{es}Usa la Habilidad Motivación de {fr}Utilisez la compétence de motivation de {pt-br}Habilidade Motivacional de {de}Verwenden ", translateWord[skillTokens[skillGUID].mage], "{en}'s Motivation Skill (+){ru} использует навык Мотивация (+){zh-tw}的激勵技能（+）{zh-cn}的激励技能（+）{ko}의 동기부여 스킬 사용 (+){es}. (+){fr}. (+){pt-br}. (+){de}'s Motivations Fähigkeit (+)"}))
-							local motivationBonus=joinLangParse(tostring(stats.bonus or ""))
-							if type(motivationBonus)=="table" then motivationBonus=motivationBonus.en or "" end
+							local parsedMotivationBonus=joinLangParse(tostring(stats.bonus or ""))
+							local motivationBonus=type(parsedMotivationBonus)=="table" and tostring(parsedMotivationBonus.en or "") or tostring(parsedMotivationBonus or "")
 							UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos), "tooltip", "Draw 2 Cards"..tostring(motivationBonus))
 						end
 						UI.setAttribute(skillGUID.."-Motivation"..tostring(turnOrder[a].seatPos).."Image", "color", positionToColor(a))
@@ -13546,7 +13546,7 @@ local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
 			local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
 			local key=hex~=nil and apocalypseQuestMapHexKey(hex) or nil
 			--Terrain completion only reconciles shared stacks on the tile that just finished population.
-			if key~=nil and touched[key]~=true and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
+			if hex~=nil and key~=nil and touched[key]~=true and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
 				touched[key]=true
 				local participantCount=0
 				for _,candidate in pairs(mapObjects or {}) do
@@ -14404,7 +14404,7 @@ function apocalypseIsHereHorsemanDestination(startHex,targetHex,hexes,horsemanNa
 				local pos=obj.getPosition()
 				for _,candidate in ipairs(hexes) do
 					local key=apocalypseQuestMapHexKey(candidate)
-					if occupied[key]~=true then
+					if key~=nil and occupied[key]~=true then
 						local dx=pos[1]-candidate.position[1]
 						local dz=pos[3]-candidate.position[3]
 						if (dx*dx)+(dz*dz)<1.5 then occupied[key]=true break end

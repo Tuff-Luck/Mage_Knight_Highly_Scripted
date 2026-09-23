@@ -1391,7 +1391,7 @@ local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
 			local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
 			local key=hex~=nil and apocalypseQuestMapHexKey(hex) or nil
 			--Terrain completion only reconciles shared stacks on the tile that just finished population.
-			if key~=nil and touched[key]~=true and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
+			if hex~=nil and key~=nil and touched[key]~=true and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
 				touched[key]=true
 				local participantCount=0
 				for _,candidate in pairs(mapObjects or {}) do
@@ -2249,7 +2249,7 @@ function apocalypseIsHereHorsemanDestination(startHex,targetHex,hexes,horsemanNa
 				local pos=obj.getPosition()
 				for _,candidate in ipairs(hexes) do
 					local key=apocalypseQuestMapHexKey(candidate)
-					if occupied[key]~=true then
+					if key~=nil and occupied[key]~=true then
 						local dx=pos[1]-candidate.position[1]
 						local dz=pos[3]-candidate.position[3]
 						if (dx*dx)+(dz*dz)<1.5 then occupied[key]=true break end
