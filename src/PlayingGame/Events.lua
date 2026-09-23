@@ -320,12 +320,23 @@ function __onObjectPickUp_raw(player_color, picked_up_object)
 	end
 end
 
---blank Deck summary if not allowed to view
+--Blank private Deed deck summaries for other players, then restore the real summary when
+--the owner (or Black) hovers it again. TTS descriptions are shared, so the latest hover still wins.
+local privateDeckHoverDescription="{en}Deck contents are only visible for this player.{ru}Содержимое колоды видно только этому игроку.{zh-tw}牌庫內容僅此玩家可見。{zh-cn}牌库内容仅此玩家可见。{ko}덱 내용은 이 플레이어에게만 보입니다.{es}El contenido del mazo solo es visible para este jugador.{fr}Le contenu du paquet n’est visible que par ce joueur.{pt-br}O conteúdo do baralho só é visível para este jogador.{de}Der Inhalt des Decks ist nur für diesen Spieler sichtbar."
+local privateDeckHoverApplied={}
 function __onObjectHover_raw(player_color, hover_object)
-	--Make deck dsecription unreadable to other players
-	if hover_object~=nil and hover_object.type=="Deck" and hover_object.getGMNotes()~=nil and hover_object.getGMNotes()~="" then
-		if hover_object.getGMNotes()~=player_color and player_color~="Black" and gStates.coop==0 then
-			hover_object.setDescription("{en}Deck contents are only visible for this player.{ru}Содержимое колоды видно только этому игроку.{zh-tw}牌庫內容僅此玩家可見。{zh-cn}牌库内容仅此玩家可见。{ko}덱 내용은 이 플레이어에게만 보입니다.{es}El contenido del mazo solo es visible para este jugador.{fr}Le contenu du paquet n’est visible que par ce joueur.{pt-br}O conteúdo do baralho só é visível para este jogador.{de}Der Inhalt des Decks ist nur für diesen Spieler sichtbar.")
+	if hover_object~=nil and hover_object.type=="Deck" then
+		local ownerColor=hover_object.getGMNotes()
+		if ownerColor~=nil and ownerColor~="" then
+			local unauthorized=ownerColor~=player_color and player_color~="Black" and gStates.coop==0
+			if unauthorized==true then
+				if privateDeckHoverApplied[hover_object.guid]~=true or hover_object.getDescription()~=privateDeckHoverDescription then
+					hover_object.setDescription(privateDeckHoverDescription)
+					privateDeckHoverApplied[hover_object.guid]=true
+				end
+			elseif privateDeckHoverApplied[hover_object.guid]==true or hover_object.getDescription()==privateDeckHoverDescription then
+				if refreshContainerDeckDescription(hover_object)==true then privateDeckHoverApplied[hover_object.guid]=nil end
+			end
 		end
 	end
 
