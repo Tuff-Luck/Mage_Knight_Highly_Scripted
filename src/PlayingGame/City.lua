@@ -1011,7 +1011,7 @@ function cityCardExploreSpaceFree(mapObjects, desiredLocation, movingGUIDs, extr
 	for _, reservedPos in ipairs(reservedPositions or {}) do
 		if ((desiredLocation[1]-reservedPos[1])^2)+((desiredLocation[3]-reservedPos[3])^2)<9.61 then return false end
 	end
-	for _, button in pairs(gStates.exploreButtons or {}) do
+	for _, button in pairs(terrainExploreOptions()) do
 		if button.attributes~=nil and button.attributes.tilePosX~=nil and button.attributes.tilePosZ~=nil and
 			((desiredLocation[1]-tonumber(button.attributes.tilePosX))^2)+((desiredLocation[3]-tonumber(button.attributes.tilePosZ))^2)<9.61 then return false end
 	end

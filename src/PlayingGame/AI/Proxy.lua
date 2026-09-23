@@ -822,7 +822,7 @@ end
 function proxyExploreTarget(hexes,distances)
 	local candidates={}
 	--Ordinary maps expose legal Explore buttons. Use those exactly as before.
-	for _,button in pairs(gStates.exploreButtons or {}) do
+	for _,button in pairs(terrainExploreOptions()) do
 		local p=proxyExploreButtonPosition(button)
 		if p~=nil then
 			local bestHex,bestTravel,bestEdge=nil,nil,nil
@@ -845,7 +845,7 @@ function proxyExploreTarget(hexes,distances)
 	--face-down tile in place, so give the Proxy the same destinations instead of asking exploreMap() to
 	--draw a new terrain tile. The same <26 edge test used by ordinary Explore buttons identifies the
 	--revealed map hex from which this tile can be explored.
-	if gStates.mapShape~=nil and gStates.mapShape:sub(5,5)=="P" then
+	if gStates.mapShapeKey=="predefined" then
 		local map=getObjectFromGUID(mapArea)
 		for _,tile in pairs(map~=nil and map.getObjects() or {}) do
 			local details=terrainTiles[tile.guid]
@@ -1295,7 +1295,7 @@ function proxyTargetLoad(saved,hexes)
 	local target={hex=hex,action=saved.action,fortified=saved.fortified,proxyReason=saved.proxyReason,choiceObjectiveColor=saved.choiceObjectiveColor}
 	if saved.action=="explore" then
 		if saved.exploreID~=nil then
-			for _,button in pairs(gStates.exploreButtons or {}) do
+			for _,button in pairs(terrainExploreOptions()) do
 				if button.attributes~=nil and button.attributes.id==saved.exploreID then target.button=button target.proxyExplorePosition=proxyExploreButtonPosition(button) break end
 			end
 			if target.button==nil then return nil end
@@ -1375,7 +1375,7 @@ function proxyChoiceMapRefresh(pending)
 	local mapUI=getObjectFromGUID("f2291a")
 	if mapUI~=nil then
 		local xml={}
-		for _,button in pairs(gStates.exploreButtons or {}) do xml[#xml+1]=button end
+		for _,button in pairs(terrainExploreOptions()) do xml[#xml+1]=button end
 		mapUI.UI.setXmlTable(xml)
 	end
 	proxyDestinationChoiceClearButtons()

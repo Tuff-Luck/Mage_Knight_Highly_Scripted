@@ -64,14 +64,9 @@ function automaticLuaErrorMageValue(position)
 end
 
 function automaticLuaErrorMapShape()
-	local mapShape=automaticLuaErrorScenarioValue("mapShape", "")
-	if mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then return "4 Columns" end
-	if mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then return "3 Columns" end
-	if mapShape=="{en}Wedge with No Limitations{ru}Клиновидное поле без ограничений{zh-tw}錐形無限制地圖{zh-cn}锥形无限制地图{ko}쐐기형(무제한){es}En Cuña sin Límites{fr}Coin sans Limites{pt-br}Cônico sem Limitações{de}Keil ohne Begrenzungen" then return "Wedge" end
-	if mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then return "Wedge" end
-	if mapShape=="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen" then return "Fully Open" end
-	if mapShape=="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert" then return "Predefined" end
-	return mapShape
+	local key=automaticLuaErrorScenarioValue("mapShapeKey","")
+	local labels={wedgeUnlimited="Wedge",wedge="Wedge",open3="3 Columns",open4="4 Columns",open="Fully Open",predefined="Predefined"}
+	return labels[key] or tostring(key)
 end
 
 function automaticLuaErrorCityLevel()

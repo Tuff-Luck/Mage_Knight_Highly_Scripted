@@ -1,5 +1,48 @@
 -- Map state, avatar location, exploration, shields and terrain-site runtime.
 
+local terrainExploreButtons={{}}
+local terrainPlacementEdgeCoordinates={
+	{-30.03, 15.09}, {-25.23, 19.25}, {-31.23, 21.34},
+	{-38.43, 0.54}, {-33.63, 4.70}, {-28.83, 8.86}, {-24.03, 13.02}, {-19.23, 17.17},
+	{-24.03, -16.08}, {-19.23, -11.93}, {-14.43, -7.77}, {-9.63, -3.61}, {-4.82, 0.55}, {-0.02, 4.71}, {4.78, 8.87}
+}
+local terrainExploreSpots={
+	{-24.0301, 0.99, -16.0837}, {-30.0303, 0.99, -14.0052}, {-36.0305, 0.99, -11.9267}, {-19.2300, 0.99, -11.9267},
+	{-25.2302, 0.99,  -9.8482}, {-31.2303, 0.99,  -7.7696}, {-14.4298, 0.99,  -7.7696}, {-20.4300, 0.99,  -5.6911},
+	{-37.2305, 0.99,  -5.6911}, { -9.6297, 0.99,  -3.6126}, {-26.4302, 0.99,  -3.6126}, {-32.4304, 0.99,  -1.5341},
+	{-15.6299, 0.99,  -1.5341}, { -4.8295, 0.99,   0.5445}, {-38.4306, 0.99,   0.5445}, {-21.6300, 0.99,   0.5445},
+	{-10.8297, 0.99,   2.6230}, {-27.6302, 0.99,   2.6230}, {-33.6304, 0.99,   4.7015}, {-16.8299, 0.99,   4.7015},
+	{-0.02940, 0.99,   4.7015}, { -6.0278, 0.99,   6.7794}, {-22.8301, 0.99,   6.7794}, {-28.8303, 0.99,   8.8586},
+	{-12.0297, 0.99,   8.8586}, {  4.7708, 0.99,   8.8586}, {-18.0299, 0.99,  10.9371}, { -1.2294, 0.99,  10.9371},
+	{ -7.2296, 0.99,  13.0156}, {-24.0301, 0.99,  13.0156}, {-30.0303, 0.99,  15.0941}, {-13.2298, 0.99,  15.0941},
+	{-19.2300, 0.99,  17.0727}, {-25.2302, 0.99,  19.2512}, {-31.2303, 0.99,  21.3297}
+}
+local terrainInfoCardGUIDs={
+	["rampaging"]="cb9285", ["mage tower"]="29ef37", ["village"]="3a89e4", ["draconum"]="c2ada0",
+	["keep"]="9c74a9", ["monastery"]="8dd3c2", ["maze"]="ad6e2b", ["monster den"]="3aef9a",
+	["dungeon"]="57dcab", ["glade"]="938554", ["labyrinth"]="36762b", ["spawning grounds"]="321d15",
+	["tomb"]="1cab50", ["mine"]="6b9c02", ["camp"]="6b9c02", ["pyramid"]="467846", ["ziggurat"]="4efb28",
+	["Volkare's Camp"]="0bb2dc", ["city green"]="8de450", ["city red"]="bd6ab1", ["city blue"]="79a723",
+	["city white"]="a37b57", ["oasis"]="4e4bda", ["ruin"]="0b5e05"
+}
+local warOfFourGladeEdgeCoordinates={
+	{-38.43,  0.54}, {-33.63,  4.70}, {-28.83,  8.86}, {-24.03, 13.02}, {0, 0},
+	{-37.23, -5.69}, {-32.43, -1.52}, {-27.63,  2.62}, {-22.83,  6.79}, {-18.02, 10.94},
+	{-30.03,-14.01}, {-25.23, -9.84}, {-20.43, -5.69}, {-15.63, -1.54}, {-10.81,  2.63},
+	{-24.03,-16.08}, {-19.23,-11.93}, {-14.43, -7.77}, { -9.63, -3.61}
+}
+
+function terrainExploreOptions()
+	return terrainExploreButtons
+end
+
+function clearTerrainExploreOptions()
+	terrainExploreButtons={{}}
+	local exploreUI=getObjectFromGUID("f2291a")
+	if exploreUI~=nil then exploreUI.UI.setXmlTable(terrainExploreButtons) end
+end
+
+
 -- Portal and City avatar parking
 function portalSwap(state, playerIndex)
 	playerIndex=playerIndex or gStates.turnNumber
@@ -769,7 +812,7 @@ function exploreMap(player, mouseButton, id)
 		end
 		--Ignore a stale button event, then recheck the physical target so rapid clicks cannot stack terrain tiles.
 		local exploreStillLegal=false
-		for _, button in pairs(gStates.exploreButtons or {}) do
+		for _, button in pairs(terrainExploreButtons) do
 			if button.attributes~=nil and button.attributes.id==id then exploreStillLegal=true break end
 		end
 		if exploreStillLegal==false then explorePause=false return end
@@ -843,4 +886,824 @@ function straightenCrooked()
 			--Wait.time(function() getObjectFromGUID(objGUID).lock() end, 0.5)
 		end
 	end
+end
+
+-- Avatar drop resolution and terrain-entry runtime moved from Events.lua.
+function mapAvatarLocationDetails(player_color, avatar, dropped_object)
+	local keepShieldMatch={
+		{keep=false, keepShield=false, city=false, cityShield=false},
+		{keep=false, keepShield=false, city=false, cityShield=false},
+		{keep=false, keepShield=false, city=false, cityShield=false},
+		{keep=false, keepShield=false, city=false, cityShield=false},
+		{keep=false, keepShield=false, city=false, cityShield=false},
+		{keep=false, keepShield=false, city=false, cityShield=false},
+		{keep=false, keepShield=false, city=false, cityShield=false}}
+	local keepFound=false
+	local cityFound="False"
+				local attackedLocation=nil
+				local horsemenGladeAssault=false
+				local avatarChangedHex=false
+				if player_color~=nil and turnOrder[gStates.turnNumber].mage==avatar.mage then
+					avatarChangedHex=avatarMovedFromPickedUpHex(dropped_object.getPosition())
+					if avatarChangedHex==true then
+						apocalypseQuestUnderSiegeMarkMoved(gStates.turnNumber)
+						clearWallAssaultChoice()
+						assaultApproachOrigin=nil
+						assaultTargetPosition=nil
+						leaveAvatarSite(turnOrder[gStates.turnNumber])
+						clearPendingCoopAssault()
+					end
+				end
+				playerPickedUpHex=nil
+				if getObjectFromGUID(dropped_object.guid)~=nil then
+					for _, playerDetails in pairs(turnOrder) do
+						if playerDetails.mage==avatar.mage then
+							playerDetails.avatarLocation=""
+							playerDetails.avatarSharedHex=nil
+							local droppedPos=dropped_object.getPosition()
+							local avatarPos={droppedPos[1], droppedPos[2], droppedPos[3]}--copy so neighbour math can safely mutate it
+							--check if avatar dropped on city card, then use the city model as the avatar location
+							local cityZoneFound=false
+							for zone, citySearch in pairs(cityScriptZones) do
+								local zoneObj=getObjectFromGUID(zone)
+								if zoneObj~=nil then
+									for _, detail in pairs(zoneObj.getObjects()) do
+										if detail.guid==dropped_object.guid then
+											local cityObj=nil
+											if zone==volkare.discZone and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then cityObj=getObjectFromGUID(gStates.volkareModel)
+											else cityObj=getObjectFromGUID(citySearch.cityGUID) end
+											if cityObj~=nil then local cityPos=cityObj.getPosition() avatarPos={cityPos[1],1.5,cityPos[3]} end
+											cityZoneFound=true
+											break
+										end
+									end
+								end
+								if cityZoneFound==true then break end
+							end
+							--Use one cached map snapshot for the current hex and its six neighbours.
+							local volkareCampKeepAllowed=volkareCampAsCityConquered()==true and volkareCampContributionShieldCount(playerDetails)>0
+							local mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets=avatarLocationMapSnapshot()
+								for keepSearch=1, 7, 1 do
+									--Volkare can remove a City model during this loop, so retain the old live-refresh behaviour for him.
+									if keepSearch>1 and playerDetails.mage=="Volkare" then
+										mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets=avatarLocationMapSnapshot()
+									end
+									local locatedTerrain, bearing, _, hexFeature=terrainHexAtPosition(avatarPos, mapTerrainObjects, mapObjectPositions, mapTerrainRotations)
+								hexFeature=hexFeature or ""
+									for _, terrain in ipairs(avatarLocationRelevantObjects(locatedTerrain, avatarPos, mapObjectBuckets)) do--terrain tile + nearby physical objects only
+										--work with terrain tiles
+										local tilePos=mapObjectPositions[terrain.guid] or terrain.getPosition()
+										local avatarToTileDistSquared=((avatarPos[1]-tilePos[1])^2)+((avatarPos[3]-tilePos[3])^2)
+									if terrain==locatedTerrain then
+										if keepSearch==1 then
+											playerDetails.avatarLocation=hexFeature
+											if gStates.gameScenario=="Fury of the Apocalypse Dragon" and avatarChangedHex==true and playerDetails.mage~="Volkare" and
+												turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and playerDetails.avatarLocation:sub(1,4)=="city" then
+												gStates.furyHeroEnteredCity=true
+											end
+											if againstHorsemenCentralGladeHex(locatedTerrain,bearing)==true then
+												if gStates.againstHorsemenRitualStarted~=true then playerDetails.avatarSharedHex=againstHorsemenSharedHexKey
+												elseif playerDetails.mage~="Volkare" and turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and avatarChangedHex==true then horsemenGladeAssault=true end
+											end
+											if playerDetails.mage~="Volkare" and turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and attackedLocation==nil and horsemenGladeAssault==false
+												and (avatarChangedHex==true or next(gStates.attackedMonsters)==nil)
+												and (playerDetails.avatarLocation=="keep" or playerDetails.avatarLocation=="mage tower" or playerDetails.avatarLocation:sub(1, 4)=="city" or playerDetails.avatarLocation=="Volkare's Camp" or playerDetails.avatarLocation=="hidden valley" or playerDetails.avatarLocation=="necropolis") then
+												attackedLocation="Attack"..playerDetails.mage--was "Locati" instead of "Attack"
+											end
+											if playerDetails.mage=="Volkare" and gStates.preEndTurn==false and attackedLocation==nil and playerDetails.avatarLocation:sub(1, 4)=="city" then
+												if gStates.gameScenario~="Volkare's Quest" then
+													for index, modelTerrain in pairs(gStates.cityRevealed) do
+														if modelTerrain.terrain==terrain.guid then
+															getObjectFromGUID(trashCan).putObject(getObjectFromGUID(modelTerrain.model))
+															gStates.cityRevealed[index].state="defeated"
+															break
+														end
+													end
+												end
+											end
+										end
+										if hexFeature=="keep" or (volkareCampKeepAllowed==true and (hexFeature=="Volkare's Camp" or (gStates.cityVolkareTile==terrain.guid and bearing=="center"))) then
+											keepShieldMatch[keepSearch]["keep"]=true
+											if keepShieldMatch[keepSearch]["keepShield"]==true then keepFound=true end
+										end
+										if (hexFeature or ""):sub(1,4)=="city" then
+											keepShieldMatch[keepSearch]["city"]=true
+											if keepShieldMatch[keepSearch]["cityShield"]==true then cityFound=terrain.getName() end
+										end
+									end
+										if avatarToTileDistSquared<1 then
+										--work with Shields
+										if terrain.getName()=="Shield" and volkarePursuitShieldRegistered(terrain)~=true and ((terrain.getDescription()==playerDetails.mage and (gStates.coop==0 or gStates.WarOfFourComp==true)) or (gStates.coop==1 and gStates.WarOfFourComp~=true)) then
+											keepShieldMatch[keepSearch]["keepShield"]=true
+											if keepShieldMatch[keepSearch]["keep"]==true then keepFound=true end
+										end
+
+										--work with Cities
+										local temp=terrain.guid
+										if terrain.guid=="938cd3" or terrain.guid=="a0d7b3" then temp=volkare.model end
+										if temp==cityModel.white or	temp==cityModel.blue or	temp==cityModel.red or temp==cityModel.green or temp==volkare.terrainHex or	temp==volkare.model then
+											--flip garrisons during the day
+											if turnOrder[gStates.turnNumber].mage==avatar.mage and gStates.preEndTurn==false and gStates.cityMonsterQty[temp]~=nil and gStates.autoFlip==true and temp~=volkare.model then
+												local broadcast=false
+												for monsterGUID, monster in pairs(gStates.cityMonsterQty[temp]) do
+													if monsterGUID~="extra" then
+														local monsterObj=getObjectFromGUID(monsterGUID)
+														if monsterObj~=nil and monsterObj.is_face_down==true then monsterObj.flip() broadcast=true end
+													end
+												end
+												if broadcast==true then
+													if temp==volkare.model then
+														broadcastToAll("{en}Volkare's Army Revealed{ru}Армия Волкара раскрыта{zh-tw}沃里卡军队揭示了{zh-cn}沃里卡军队揭示了{ko}볼케어의 군대가 공개되었습니다{es}Se revela el ejército de Volkare{fr}L'armée de Volkare révélée{pt-br}Exército de Volkare Revelado{de}Volkare's Armee aufgedeckt", {1,1,0.5})
+													else
+														broadcastToAll("{en}Site Garrison Revealed{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5})
+													end
+												end
+											end
+											--Assult Volkare
+											if playerDetails.mage~="Volkare" and keepSearch==1 and temp==volkare.model then
+												playerDetails.avatarLocation="Volkare's Camp"
+												if player_color~=nil and gStates.preEndTurn==false and attackedLocation~="Volkar"..playerDetails.mage and (avatarChangedHex==true or next(gStates.attackedMonsters)==nil) then
+													attackedLocation="Volkar"..playerDetails.mage
+												end
+											end
+											--
+											if terrain.getName()~="Volkare's Camp" then
+												if playerDetails.defeatedCities[terrain.guid]~=nil then
+													keepShieldMatch[keepSearch]["cityShield"]=true
+													if keepShieldMatch[keepSearch]["city"]==true then cityFound=terrain.getGMNotes() end
+												end
+											else
+												if volkareCampKeepAllowed==true and playerDetails.defeatedCities[terrain.guid]~=nil then
+													keepShieldMatch[keepSearch]["keepShield"]=true
+													if keepShieldMatch[keepSearch]["keep"]==true then keepFound=true end
+												end
+											end
+											if gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="The Hidden Valley Blitz"
+												or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The Realm of the Dead Blitz"
+												or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Dungeon Lords"
+												or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Mines Liberation" then
+												keepShieldMatch[keepSearch]["cityShield"]=true
+												if keepShieldMatch[keepSearch]["city"]==true then cityFound=terrain.getGMNotes() end
+												playerDetails.defeatedCities[terrain.guid]="Assist"
+											end
+										end
+										--flip garrisons during the day
+										if gStates.autoFlip==true and gStates.dayRound==true and turnOrder[gStates.turnNumber].mage==avatar.mage and terrain.getRotationValues()[2]~=nil and (terrain.getRotationValues()[2].value=="Mage Tower Garrison" or terrain.getRotationValues()[2].value=="Keep Garrison" or terrain.getRotationValues()[2].value=="Marauding Elementalist") then--and gStates.preEndTurn==false
+											if terrain.is_face_down==true then terrain.flip() broadcastToAll("{en}Site Garrison Revealed{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5}) end
+										end
+										--flip ruins at night and Lost Relic dragons day or night
+										if gStates.autoFlip==true and turnOrder[gStates.turnNumber].mage==avatar.mage and ((playerDetails.avatarLocation=="ruin" and keepSearch==1) or (terrain.getRotationValues()[2]~=nil and terrain.getRotationValues()[2].value:sub(-8)=="Draconum")) then--and gStates.preEndTurn==false
+											if terrain.is_face_down==true then
+												terrain.flip()
+												if playerDetails.avatarLocation=="ruin" then broadcastToAll("{en}Ruin Site Revealed{ru}Руины были раскрыты{zh-tw}废墟板块被揭示了{zh-cn}废墟板块被揭示了{ko}유적 장소 공개됨{es}Sitio de Ruinas Revelado{fr}Site de Ruines Révélé{pt-br}Lugar de Ruinas Revelado{de}Ruinenstätte aufgedeckt", {1,1,0.5}) end
+												if playerDetails.avatarLocation~="ruin" then broadcastToAll("{en}Draconum Revealed{ru}Драконид раскрыт{zh-tw}龍人已揭示{zh-cn}龙人已揭示{ko}드라코넘 공개됨{es}Draconum Revelado{fr}Draconum Révélé{pt-br}Draconum Revelado{de}Draconum aufgedeckt", {1,1,0.5}) end
+											end
+										end
+									end
+								end
+								local avatarAdjust={{-2.39, 0}, {1.2, -2.05}, {2.39, 0}, {1.2, 2.05}, {-1.2, 2.05}, {-2.39, 0}, {0, 0}}
+								avatarPos[1]=avatarPos[1]+avatarAdjust[keepSearch][1]
+								avatarPos[3]=avatarPos[3]+avatarAdjust[keepSearch][2]
+								if cityFound=="False" then playerDetails.nearCity=false
+								else playerDetails.nearCity=true end
+								if keepFound==true then	playerDetails.nearKeep=true
+								else playerDetails.nearKeep=false end
+							end
+							if avatarPos[3]<-20 then playerDetails.avatarLocation="portal" end
+							break
+						end
+					end
+					if turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and avatarChangedHex==true and
+						apocalypseDragonLairContainsPosition~=nil and apocalypseDragonLairContainsPosition(dropped_object.getPosition())==true and
+						gStates.apocalypseDragonDefeated~=true then
+						attackedLocation=nil
+						local dragonApproach=nil
+						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then dragonApproach={playerPickedUpPos[1],playerPickedUpPos[2],playerPickedUpPos[3]} end
+						if apocalypseDragonBeginLairAssault(gStates.turnNumber,dragonApproach)==true then
+							turnOrder[gStates.turnNumber].avatarLocation="apocalypse dragon"
+						end
+					end
+					if horsemenGladeAssault==true then
+						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then assaultApproachOrigin={playerPickedUpPos[1],playerPickedUpPos[2],playerPickedUpPos[3]} end
+						local target=dropped_object.getPosition()
+						assaultTargetPosition={target[1],target[2],target[3]}
+						againstHorsemenBeginGladeAssault(gStates.turnNumber,assaultApproachOrigin)
+					elseif attackedLocation~=nil then
+						--Keep the actual hex this assault location was entered from. Long moves are deliberately
+						--left ambiguous so the wall interface can ask which side was used.
+						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then assaultApproachOrigin={playerPickedUpPos[1], playerPickedUpPos[2], playerPickedUpPos[3]} end
+						local target=dropped_object.getPosition()
+						assaultTargetPosition={target[1], target[2], target[3]}
+						local targetFeature=turnOrder[gStates.turnNumber].avatarLocation
+						if (targetFeature=="keep" or targetFeature=="mage tower") and wallAssaultChoiceResult==nil and wallAssaultChoiceNeeded(assaultTargetPosition, assaultApproachOrigin)==true then showWallAssaultChoice("attackLocation", attackedLocation, player_color)
+						else attackLocation(nil, "-1", attackedLocation) end
+					end
+					--adjust the hand size
+					local cityConversion={["White City"]=GUID.zone.whiteCity, ["Blue City"]=GUID.zone.blueCity, ["Red City"]=GUID.zone.redCity, ["Green City"]=GUID.zone.greenCity}
+					local previousHand=turnOrder[gStates.turnNumber].hand
+					local handBonusSource=nil
+					local raisedReturnCity=(gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") and gStates.volkareRaisedCity==true
+					local nearCityForHand=turnOrder[gStates.turnNumber].nearCity==true and raisedReturnCity~=true
+					if (turnOrder[gStates.turnNumber].mage==avatar.mage and turnOrder[gStates.turnNumber].nearKeep==true) or nearCityForHand then
+						if nearCityForHand and cityFound~="False" then
+							if turnOrder[gStates.turnNumber].defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Lead" then turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+2 handBonusSource="City" end
+							if turnOrder[gStates.turnNumber].defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Assist" then turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+1 handBonusSource="City" end
+						end
+						if (turnOrder[gStates.turnNumber].nearKeep==true and nearCityForHand==false) or
+							(turnOrder[gStates.turnNumber].nearKeep==true and nearCityForHand==true and turnOrder[gStates.turnNumber].keepsBeat>1) then
+							turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+turnOrder[gStates.turnNumber].keepsBeat
+							if turnOrder[gStates.turnNumber].keepsBeat>0 then handBonusSource="Keep" end
+						end
+					else
+						turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand
+					end
+					if turnOrder[gStates.turnNumber].hand~=previousHand then
+						if handBonusSource=="City" then broadcastToAll("{en}Hand size increased from proximity to City{ru}Предел карт в руке увеличен из-за близости города{zh-tw}手牌数量因靠近城市而增加{zh-cn}手牌数量因靠近城市而增加{ko}인접한 도시에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Ciudad.{fr}La taille de la main a augmenté de la proximité à la Ville{pt-br}O tamanho da mão aumentou devido à proximidade da Cidade{de}Handgröße durch Nähe zur Stadt erhöht", positionToColor(gStates.turnNumber)) end
+						if handBonusSource=="Keep" then broadcastToAll("{en}Hand size increased from proximity to Keep{ru}Предел карт в руке увеличен из-за близости крепости{zh-tw}手牌数量增加到最大值{zh-cn}手牌数量增加到最大值{ko}인접한 성에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Fortaleza{fr}La taille de la main a augmenté de la proximité à la Keep{pt-br}O tamanho da mão aumentou com a proximidade de Keep{de}Handgröße erhöht sich durch die Nähe zu Keep", positionToColor(gStates.turnNumber)) end
+					end
+					--Reset attack icon and interaction after leaving a hex, but preserve an interaction if the avatar was only repositioned on the same hex.
+					if turnOrder[gStates.turnNumber].mage==avatar.mage and attackedLocation==nil and horsemenGladeAssault==false and (avatarChangedHex==true or (next(gStates.attackedMonsters)==nil and UI.getAttribute("zigguratPyramidInteract", "active")~="true")) then
+						turnOrder[gStates.turnNumber].combatIconHide="None" gStates.monsterOffsetX=0 gStates.monsterOffsetZ=0
+					end
+					--Avatar location directly changes Plunder/Pursuit availability.
+					--Invalidate the cached menu; the normal location UI refresh will rebuild it when relevant.
+					outOfTurnUIStateKey=nil
+					mainUIUpdate("Updated player location Details")
+					--Quest step availability can depend on the active Mage Knight's current map hex.
+					--Use the serialized offer refresh instead of touching Object UI directly here. fakeDropAvatar()
+					--can reach this delayed location callback while a Quest offer refill is still physically moving cards;
+					--apocalypseQuestRefreshOfferButtons() defers safely until that refill has settled.
+					if apocalypseQuestsUsed()==true then apocalypseQuestRefreshOfferButtons() end
+					if turnOrder[gStates.turnNumber].mage==avatar.mage then refreshFracturedLandsTeleportHighlights() end
+					addAvatarButtons()
+					if gStates.rampagePursuit==true and gStates.preEndTurn==false then pursuingRampagers(nil, "-1", nil) end
+				end
+			end
+
+local function terrainPositionLegal(obj, faceUpTerrain, northBearing, result)--.guid .faceDown .position .objName [.tileType]
+	result=result or {}
+	local candidateTileType=obj.tileType or (terrainTiles[obj.guid]~=nil and terrainTiles[obj.guid].tileType) or "country"
+	--Against the Horsemen uses a completely predefined map. Its face-down tiles are already in
+	--their legal positions, so ordinary wedge/open/neighbour placement rules must never reject
+	--a tile when it is revealed. Keep face-down tiles dormant; once revealed, always populate them.
+	if gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then
+		if obj.faceDown==true then result.faceDownTerrain=true return false end
+		return true
+	end
+
+	--Custom Predefined is deliberately unrestricted: players may arrange any face-up terrain anywhere.
+	if gStates.gameScenario=="Custom" and gStates.mapShapeKey=="predefined" then
+		if obj.faceDown==true then result.faceDownTerrain=true return false end
+		return true
+	end
+
+	--Check if a core tile is on the coast of a wedge map
+	if candidateTileType=="core" and northBearing==70 and (obj.bearing<=41 or obj.bearing>=99) and gStates.gameScenario~="Fast Forwarded Conquest" then result.errorBroadcast="{en}Core Terrain Tiles aren't allowed on the coast{ru}Плитки Развитых земель не могут располагаться на берегу{zh-tw}海岸边不可以部署核心城市板块{zh-cn}海岸边不可以部署核心城市板块{ko}중심부 타일은 해안선에 놓일 수 없습니다{es}Las baldosas de terreno del núcleo no están permitidas en la costa{fr}Les tuiles de terrain de base ne sont pas autorisées sur la côte{pt-br}Peças Mapa Centrais não são permitidas na Costa{de}Kernterrainplättchen sind an der Küste nicht erlaubt" return false end
+
+	--Check if a tile is outside of a wedge map
+	if northBearing==70 and (obj.bearing<=35 or obj.bearing>=105) then result.errorBroadcast="{en}Terrain Tile isn't in the Wedge{ru}Плитка земель не находится в форме{zh-tw}地图块不在锥形里 (出界了){zh-cn}地图块不在锥形里 (出界了){ko}지도 타일이 쐐기 안에 있지 않습니다{es}Terrain Tile no está en la cuña{fr}La tuile de terrain n'est pas dans le coin{pt-br}Peça de Terreno não está no Cone{de}Das Geländeplättchen liegt nicht im Keil" return false end
+
+	--Check if tile is on the 4th or 5th column of a limited open map
+	if gStates.mapShapeKey=="open3" or gStates.mapShapeKey=="open4" or gStates.mapShapeKey=="open" then
+		local checkUpTo=3
+		if gStates.mapShapeKey=="open4" then checkUpTo=8 end
+		if gStates.mapShapeKey=="open3" then checkUpTo=15 end
+		local pos=obj.position
+		for b=1, checkUpTo, 1 do
+			local edge=terrainPlacementEdgeCoordinates[b]
+			if ((pos[1]-edge[1])^2)+((pos[3]-edge[2])^2)<1 then
+				result.errorBroadcast=joinLang({"{en}You are playing a {ru}Форма игрового поля - {zh-tw}正在玩的剧本名: {zh-cn}正在玩的剧本名: {ko}플레이 중인 맵: {es}Estás jugando un {fr}Vous jouez à un {pt-br}Você está jogando um(a) {de}Du spielst gerade ein ", gStates.mapShape, "{en} Game{ru} {zh-tw}. {zh-cn}. {ko}{es} juegos{fr} Game{pt-br} Jogo{de} Spiel"})
+				return false
+			end
+		end
+	end
+
+	--Check if Core tile has at least two neighbor Tiles
+	--Check if Country tile has at least one neighbor that has two neighbor Tiles
+	--check if an excess terrain tile has at least three neighbors.
+	if gStates.gameScenario~="The Gauntlet" and obj.guid~=firstTile and not (obj.guid=="835c91" and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
+		local neighboursFound=0
+		local neighbourTile=nil
+		local adjacentPositions={}
+		for c=1, 6, 1 do
+			local offset=terrainPlacementNeighbourOffsets[c]
+			adjacentPositions[c]={obj.position[1]+offset[1], obj.position[3]+offset[2]}
+		end
+		for _, b in pairs(faceUpTerrain) do
+			if b.guid~=obj.guid then
+				local tested=b.position
+				for c=1, 6, 1 do
+					local toCheck=adjacentPositions[c]
+					if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 neighbourTile=b break end
+				end
+			end
+		end
+		if neighboursFound==0 then return false end
+		if candidateTileType=="core" and neighboursFound<2 then result.errorBroadcast="{en}Core Terrain Tiles need two or more neighbours{ru}Плитки Развитых земель должны находиться по соседству с двумя другими землями{zh-tw}核心城市板块需要紧邻两个以上的其他板块{zh-cn}核心城市板块需要紧邻两个以上的其他板块{ko}중심부 타일은 최소 2개의 타일과 인접해야 합니다{es}Las baldosas de terreno central necesitan dos o más vecinos{fr}Les tuiles de terrain de base ont besoin de deux voisins ou plus{pt-br}Peças Mapa Centrais precisam de 2 ou mais Vizinhos{de}Kernterrainplättchen benötigen zwei oder mehr Nachbarn" return false end
+		if obj.objName=="excess" and neighboursFound<3 then result.errorBroadcast="{en}Excess Terrain Tiles need three or more neighbours, They're meant to fill holes in the map.{ru}Запасные земели должны примыкать хотя бы к трём другим землям (чтобы заполнить дыры).{zh-tw}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{zh-cn}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{ko}추가 지도 타일은 최소 3개의 다른 타일과 인접해야 합니다. 구멍을 메운다는 느낌과 유사합니다.{es}Los mosaicos de terreno en exceso necesitan tres o más vecinos. Están destinados a rellenar huecos en el mapa.{fr}Les tuiles de terrain excédentaire ont besoin de trois voisins ou plus, elles sont destinées à combler les trous sur la carte.{pt-br}Peças de Terreno Excessivas precisam de 3 ou mais vizinhos. Elas são para preencher buracos no mapa{de}Überschüssige Geländeplättchen brauchen drei oder mehr Nachbarn, sie sollen Löcher auf der Karte füllen." return false end
+		if candidateTileType~="core" and neighboursFound<=1 then
+			neighboursFound=0
+			if neighbourTile~=nil then
+				local neighbourPositions={}
+				for c=1, 6, 1 do
+					local offset=terrainPlacementNeighbourOffsets[c]
+					neighbourPositions[c]={neighbourTile.position[1]+offset[1], neighbourTile.position[3]+offset[2]}
+				end
+				for _, b in pairs(faceUpTerrain) do
+					if b.guid~=obj.guid then
+						local tested=b.position
+						for c=1, 6, 1 do
+							local toCheck=neighbourPositions[c]
+							if ((tested[1]-toCheck[1])^2)+((tested[3]-toCheck[2])^2)<1 then neighboursFound=neighboursFound+1 break end
+						end
+					end
+				end
+				if neighboursFound<2 then result.errorBroadcast="{en}Country Terrain Tiles can't be strung out that far{ru}Плитки Диких земель не могут вытягиваться так далеко{zh-tw}乡村板块不能铺那么远{zh-cn}乡村板块不能铺那么远{ko}교외 타일은 그렇게 놓일 수 없습니다{es}Las baldosas de terreno rural no se pueden colocar tan lejos{fr}Les tuiles de terrain de campagne ne peuvent pas être enfilées aussi loin{pt-br}Peças Mapa de Campo não podem ser colocados tão longe{de}Land-Terrainplättchen können nicht so weit aufgereiht werden" return false end
+			end
+		end
+	end
+
+	--Check if a City tile is played to wrong side in Life and Death
+	if gStates.gameScenario=="Life and Death" and getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()==1 then
+		if obj.guid==GUID.tile.city08 and obj.bearing<=northBearing-1 then --red city
+			result.errorBroadcast="{en}Red City needs to be placed in the Northern section{ru}Земля с красным городом не может быть размещена на юге{zh-tw}红色城市需要放在靠北边{zh-cn}红色城市需要放在靠北边{ko}빨간색 도시는 북쪽에 놓여야합니다.{es}Red City debe colocarse en la sección Norte{fr}Red City doit être placé dans la section Nord{pt-br}Cidade Vermelha precisa ser colocada na sessão Norte{de}Die rote Stadt muss in den nördlichen Abschnitt gelegt werden"
+			return false
+		end
+		if obj.guid==GUID.tile.city05 and obj.bearing>=northBearing+1 then --green city
+			result.errorBroadcast="{en}Green City needs to be placed in the Southern section{ru}Земля с зелёным городом не может быть размещена на севере{zh-tw}绿色城市需要放置在南边部分{zh-cn}绿色城市需要放置在南边部分{ko}녹색 도시는 남쪽에 놓여야합니다{es}Green City debe colocarse en la sección Sur{fr}Green City doit être placé dans la section Sud{pt-br}Cidade Verde precisa ser colocada na parte Sul do mapa{de}Grüne Stadt muss in die südliche Sektion gelegt werden"
+			return false
+		end
+	end
+
+	--Check if a terrain tile is face up
+	if obj.faceDown==true then result.faceDownTerrain=true return false end
+	return true
+end
+
+
+--Rebuild EXPLORE buttons directly from the physical map. This path has no terrain-entry side effects.
+function refreshTerrainExploreOptions(compactCities)
+	if gStates==nil then return end
+	local zone=getObjectFromGUID(mapArea)
+	if zone==nil then return end
+	local playAreaObjects=zone.getObjects()
+	local faceUpTerrain={}
+	local mapObjectPositions={}
+	for _,mapObject in pairs(playAreaObjects) do
+		local mapObjectPosition=mapObject.getPosition()
+		mapObjectPositions[#mapObjectPositions+1]={guid=mapObject.guid,position=mapObjectPosition}
+		if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
+			faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObjectPosition}
+		end
+	end
+	local northBearing=40
+	local startTileGUID=startTerrain.open
+	if getObjectFromGUID(startTileGUID)==nil then
+		if gStates.gameScenario=="Against the Horsemen Blitz" then startTileGUID=GUID.tile.country01
+		else startTileGUID=startTerrain.wedge northBearing=70 end
+	end
+	local startTileObject=getObjectFromGUID(startTileGUID)
+	if startTileObject==nil then return end
+	local startTilePosition=startTileObject.getPosition()
+	--Highlight legal tile plays
+	if gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="The War of Four" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" and not (gStates.gameScenario=="Custom" and gStates.mapShapeKey=="predefined") then
+		local gridType=mapShapeGridURL[gStates.mapShapeKey] or ""
+		local terrainDecals={}
+		terrainExploreButtons={{}}
+		if gridType~="" then terrainDecals[#terrainDecals+1]={name="Terrain Grid", url=gridType, position={-16.825, 0.99, 0.55}, rotation={90.0, 0.0, 0.0}, scale={60, 60, 1}} end
+		local testTerrain="core"
+		local nameTerrain="dud"
+		local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
+		local leftCountry=getObjectFromGUID(GUID.bag.terrain.leftCountry)
+		local leftCore=getObjectFromGUID(GUID.bag.terrain.leftCore)
+		local terrainStackObjects=terrainStack.getObjects()
+		if #terrainStackObjects>0 then
+			local nextTerrainIndex=terrainStack.getQuantity()-1
+			testTerrain=terrainStackObjects[#terrainStackObjects].guid
+			for _, containedTerrain in pairs(terrainStackObjects) do
+				if containedTerrain.index==nextTerrainIndex then testTerrain=containedTerrain.guid break end
+			end
+		else
+			nameTerrain="excess"
+			testTerrain="country"
+		end
+		if terrainStack.getQuantity()>0 or leftCountry.getQuantity()>0 or leftCore.getQuantity()>0 then
+			for _, terTile in pairs(terrainExploreSpots) do
+				local found=false
+				for _, mightBeMap in pairs(faceUpTerrain) do
+					local existingTile=mightBeMap.position
+					if ((terTile[1]-existingTile[1])^2)+((terTile[3]-existingTile[3])^2)<1 then found=true break end
+				end
+				if found==false and terrainPositionLegal({guid=testTerrain, faceDown=false, objName=nameTerrain, position=terTile, bearing=math.deg(math.atan2(terTile[3]-startTilePosition[3], terTile[1]-startTilePosition[1]))},faceUpTerrain,northBearing,{})==true then--country tile guid stand-in
+					terrainDecals[#terrainDecals+1]={name="Legal Play", url="https://steamusercontent-a.akamaihd.net/ugc/1833526258732421084/29942DB5776ABA4145E9E115D1C893574C9A737A/", position=terTile, rotation={90.0, 0.0, 0.0}, scale={6, 6, 1}}
+					terrainExploreButtons[#terrainExploreButtons+1]={tag="Button", attributes={id="f2291a"..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
+							children={	{tag="Image", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
+										{tag="HorizontalLayout", attributes={padding="25 25 25 25"},
+										children={{tag="Text", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
+					--record all the potential future hexes as "explore" so the move can calculate for it.
+				end
+				end
+			end
+			for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
+			Global.setDecals(terrainDecals)
+			getObjectFromGUID("f2291a").UI.setXmlTable(terrainExploreButtons)
+			--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
+			if compactCities~=false then compactCityCardsAfterExplore(mapObjectPositions) end
+	end
+end
+
+function mapHandleTerrainZoneEnter(ctx)
+	local zone=ctx.zone
+	local obj=ctx.obj
+	local zoneGUID=ctx.zoneGUID
+	local objGUID=ctx.objGUID
+	local zoneInfo=ctx.zoneInfo
+	local objType=ctx.objType
+	--Check if a terrain tile has entered the play area
+	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
+		if startingMapSetup==true then startingMapTiles[objGUID]=true end
+		local initialSetupTerrain=startingMapTiles~=nil and startingMapTiles[objGUID]==true
+		workingOnTerrain[objGUID]=true
+		--Setup terrain still needs normal site/enemy population, but player-exploration UI/effects wait for actual play.
+		if initialSetupTerrain~=true then safeWaitTime("Map",function() addAvatarButtons() end, 1.5) end
+		local playAreaObjects=zone.getObjects()
+		local faceUpTerrain={}
+		for _,mapObject in pairs(playAreaObjects) do
+			if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
+				faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObject.getPosition()}
+			end
+		end
+		local core=0
+		local exploreRefreshedBeforeCity=false
+		local faceUp=	{0.0, 180.0,   0.0}
+		local faceDown=	{0.0, 180.0, 180.0}
+		local y=2
+		--figure out which angle is the north south line
+		local northBearing=40
+		local startTileGUID=startTerrain.open
+		local startBearing=0
+		if getObjectFromGUID(startTileGUID)==nil then
+			if gStates.gameScenario=="Against the Horsemen Blitz" then startTileGUID=GUID.tile.country01
+			else startTileGUID=startTerrain.wedge northBearing=70 end
+		end
+		local startTileObject=getObjectFromGUID(startTileGUID)
+		if startTileObject==nil then
+			workingOnTerrain[objGUID]=nil
+			return true
+		end
+		local startTilePosition=startTileObject.getPosition()
+		local enteredTilePosition=obj.getPosition()
+		local enteredTileName=obj.getName()
+		startBearing=math.deg(math.atan2(enteredTilePosition[3]-startTilePosition[3], enteredTilePosition[1]-startTilePosition[1]))
+
+
+		--make predefined maps highlight red
+		if gStates.mapShapeKey=="predefined" and gStates.gameScenario~="The Gauntlet" and gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then--predefined
+			for _, mightBeMap in pairs(playAreaObjects) do
+				if terrainTiles[mightBeMap.guid]~=nil then
+					if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}},faceUpTerrain,northBearing,{})==false then
+						mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
+					else
+						local nightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
+						if nightTint then mightBeMap.setColorTint({r=0.6, g=0.6, b=0.6}) else mightBeMap.setColorTint({r=1.0, g=1.0, b=1.0}) end--colour off
+					end
+				end
+			end
+		end
+
+
+
+		--deploy monster token if terrain tile is deployed correctly
+		local placementResult={}
+		if terrainPositionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}},faceUpTerrain,northBearing,placementResult)==true then
+			--Before the first round, dayRound is intentionally still false so dayNight() can perform
+			--the first transition. Do not let that sentinel make setup terrain look like night.
+			if startingMapSetup==true then
+				if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
+			end
+			if initialSetupTerrain~=true then
+				againstDragonRevealLair(obj)
+				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
+			end
+			--Check if the object is a core tile and unlock elite units
+			if terrainTiles[objGUID].tileType=="core" and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
+				gStates.playedCoreTiles=gStates.playedCoreTiles+1
+				gStates.eliteUnitsUsed=true
+				if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
+				core=1
+			end
+
+			if startingMapSetup~=true and obj.resting==true and obj.held_by_color==nil and obj.isSmoothMoving()==false then
+				refreshTerrainExploreOptions()
+			end
+
+			--Against the Apocalypse destroyed terrain
+			if initialSetupTerrain~=true and gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.tacticShown==false and enteredTileName~="excess" then
+				destroyRestoreLocation(nil, "-1", "id", "destroy", obj)
+			end
+
+				--Play the correct pugs for the terrain tile
+				local tokenWait=0
+				local tokenRefillFrame=nil
+				local setupPopulationPending=0
+				--Normal exploration keeps the familiar staggered token reveal. During initial setup, the
+				--map coordinator already serializes terrain tiles, so do not serialize every hex behind
+				--another fixed eight-frame pause. Run each deployment on the next frame and let the tile's
+				--real pending count tell map setup when all deployment code has actually executed.
+				local function scheduleTerrainPopulation(callback,frames)
+					if startingMapSetup==true then
+						setupPopulationPending=setupPopulationPending+1
+						safeWaitFrames("Map",function()
+							callback()
+							setupPopulationPending=setupPopulationPending-1
+						end,1)
+					else
+						safeWaitFrames("Map",callback,frames)
+					end
+				end
+				local tileRotation=math.floor(((180-(180-obj.getRotation()[2]))/60)+0.5)*60
+				if tileRotation<0 then tileRotation=tileRotation+360 end
+				if tileRotation>=360 then tileRotation=tileRotation-360 end
+				for hexLocation, hexFeature in pairs(terrainTiles[objGUID].hexFeature) do
+					--Only run the all-pile refill once at each deployment step. Initial setup deliberately
+					--keeps refills disabled, so there is no reason to schedule its old no-op delay there.
+					if startingMapSetup~=true and tokenRefillFrame~=tokenWait+2 then tokenRefillFrame=tokenWait+2 safeWaitFrames("Map",function() tokenRefill() end, tokenRefillFrame) end
+				scheduleTerrainPopulation(function()
+					local params={}
+					--don't deploy token if megapolis is being played
+					local free=true
+					if gStates.megapolis>gStates.cityTiles-#gStates.citiesPlayed
+						and (objGUID==GUID.tile.city05 or objGUID==GUID.tile.city06 or objGUID==GUID.tile.city07 or objGUID==GUID.tile.city08)
+						and tonumber(hexLocation)==tileRotation then
+						megapolisSuppressTerrainHex(obj,hexFeature,false)
+						free=false
+					end
+					--deploy monster token if hex is free.
+					if free==true then
+						if gStates.playedAllready[objGUID]~=true then
+							if initialSetupTerrain~=true and gStates.gameScenario=="Dungeon Lords" and gStates.tacticShown==false and (hexFeature=="village" or hexFeature=="monastery") then
+								dungeonLordsQueueSecretSite(obj,hexLocation,hexFeature)
+							end
+							--if a monastery tile is placed start dealing advanced actions
+							if hexFeature=="monastery" then playMonastery() end
+
+							local tokenPileGreen=monsterPiles.green--Standard green Tokens
+							local tokenPileBrown=monsterPiles.tan--Standard Brown Tokens
+							local tokenPileRed=	 monsterPiles.red--Standard Red Tokens
+							--Rampaging Orcs & Draconum
+							if hexFeature=="rampaging" or hexFeature=="draconum" or
+								(gStates.gameScenario=="The Chaos Rift" and (hexFeature=="village" or ((hexFeature=="mine" or hexFeature=="") and objGUID==GUID.tile.city08))) then
+								playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, true, initialSetupTerrain~=true)
+							end
+
+							--Mine
+							if hexFeature=="mine" and gStates.gameScenario=="Mines Liberation" then
+								if core==1 then tokenPileGreen=tokenPileRed end
+								if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
+									local pos={angleToXY(obj, hexLocation)[1]-0.1, y, angleToXY(obj, hexLocation)[2]-0.1}
+									local token=getObjectFromGUID(tokenPileBrown).takeObject({rotation=faceDown, position=pos})
+									gStates.monsterPlayLocation[token.guid]=pos
+									gStates.mineMonsterQty[objGUID]={[token.guid]="alive"}
+									token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
+									if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+									local token=getObjectFromGUID(tokenPileGreen).takeObject({rotation=faceUp, position={pos[1]+0.2, pos[2]+0.5, pos[3]+0.2}})
+									gStates.monsterPlayLocation[token.guid]={pos[1]+0.2, pos[2]+0.5, pos[3]+0.2}
+									gStates.mineMonsterQty[objGUID][token.guid]="alive"
+									token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
+									if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+								else
+									broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
+								end
+								tokenPileGreen=monsterPiles.green
+							end
+
+							--glade
+							if hexFeature=="glade" then --and objGUID~=GUID.tile.city05 then--stopped it happening on the green city tile but can't figure out why...
+								local pos=enteredTilePosition
+								local warOfFourDeploy=false
+								for _, coords in pairs(warOfFourGladeEdgeCoordinates) do
+									if math.sqrt(((pos[1]-coords[1])^2)+((pos[3]-coords[2])^2))<1 then warOfFourDeploy=true break end
+								end
+								if (gStates.gameScenario=="Life and Death" or (gStates.gameScenario=="The War of Four" and warOfFourDeploy==true)) then -- and core==0
+									local tokenFaction=nil
+									if startBearing<=northBearing or
+										(((startBearing<=northBearing+1 and gStates.coop==1) or (gStates.coop==0 and enteredTilePosition[3]<-7 and enteredTilePosition[3]>-8 and enteredTilePosition[1]<-31 and enteredTilePosition[1]>-32)) and math.random(1,2)==1) then
+											tokenFaction="Elem"
+										if getObjectFromGUID(monsterPiles.greenElem).getQuantity()>0 then tokenPileGreen=monsterPiles.greenElem end
+										if getObjectFromGUID(monsterPiles.tanElem).getQuantity()>0 then tokenPileBrown=monsterPiles.tanElem end--elementalist Tokens
+									else
+										tokenFaction="Dark"
+										if getObjectFromGUID(monsterPiles.greenDark).getQuantity()>0 then tokenPileGreen=monsterPiles.greenDark end
+										if getObjectFromGUID(monsterPiles.tanDark).getQuantity()>0 then tokenPileBrown=monsterPiles.tanDark end---Dark Crusader Tokens
+										local pos={angleToXY(obj,hexLocation)[1], 1.08, angleToXY(obj,hexLocation)[2]}
+										local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject({rotation=faceUp, position=pos})
+										graveyard.lock()
+										terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
+										if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
+										gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
+									end
+									if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
+										local pos={angleToXY(obj,hexLocation)[1]-0.1, y, angleToXY(obj,hexLocation)[2]-0.1}
+										for i=1, 2, 1 do
+											local monsterPile={tokenPileBrown, tokenPileGreen}
+											local token=getObjectFromGUID(monsterPile[i]).takeObject({rotation=faceUp, position={pos[1]+(0.2*(i-1)), pos[2]+(0.5*(i-1)), pos[3]+(0.2*(i-1))}})
+											markMonsterFactionSubstitute(token, tokenFaction)
+											if terrainTiles[objGUID].hexFeature[hexLocation]=="graveyard" then
+												token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
+												if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+											end
+											gStates.monsterPlayLocation[token.guid]={pos[1]+(0.2*(i-1)), pos[2]+(0.5*(i-1)), pos[3]+(0.2*(i-1))}
+											if gStates.mineMonsterQty[objGUID]==nil then gStates.mineMonsterQty[objGUID]={[token.guid]="alive"} else gStates.mineMonsterQty[objGUID][token.guid]="alive" end
+										end
+									else
+										broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
+									end
+								end
+
+								if gStates.gameScenario=="The Realm of the Dead Blitz" and terrainTiles[objGUID].tileType=="country" then
+									local deploy={	{monster={{monsterPiles.greenDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={advancedActionRewardDecal}},
+													{monster={{monsterPiles.tanDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={spellRewardDecal}},
+													{monster={{monsterPiles.redDark,  0.0}}, reward={unitRewardDecal}},
+													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.greenDark, 0.1}}, reward={artifactRewardDecal}},
+													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.1}}, reward={artifactRewardDecal, advancedActionRewardDecal}},
+													{monster={{monsterPiles.redDark, -0.1}, {monsterPiles.tanDark, 0.0}, {monsterPiles.greenDark, 0.1}}, reward={artifactRewardDecal, spellRewardDecal}}}--this is for five player games, which is currently imposible
+									--play Graveyard Token
+									params.position={angleToXY(obj,hexLocation)[1], 1.08, angleToXY(obj,hexLocation)[2]}
+									params.rotation=faceDown
+									local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject(params)
+									graveyard.lock()
+									terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
+									if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
+									gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
+									for index, reward in pairs(deploy[gStates.playedGladeTiles+1].reward) do
+										local posOnToken={{0.35, -0.21, 0.35}, {0.0, -0.2, 0.25}}
+										graveyard.addDecal({name="Reward", url=reward, position=posOnToken[index], rotation={-90, 0, 0}, scale={0.5, 0.7, 1}})
+									end
+									--play Monster tokens
+									local params2={}
+									for index, monsterPile in pairs(deploy[gStates.playedGladeTiles+1].monster) do
+										local token=nil
+										local monsterPileConvert={[monsterPiles.greenDark]=monsterPiles.green, [monsterPiles.tanDark]=monsterPiles.tan, [monsterPiles.redDark]=monsterPiles.red}
+										params2.position={params.position[1]+monsterPile[2], y+(index/2), params.position[3]+monsterPile[2]}
+										if getObjectFromGUID(monsterPile[1]).getQuantity()>0 then token=getObjectFromGUID(monsterPile[1]).takeObject(params2) else token=getObjectFromGUID(monsterPileConvert[monsterPile[1]]).takeObject(params2) end
+										markMonsterFactionSubstitute(token, "Dark")
+										token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
+										if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
+										gStates.monsterPlayLocation[token.guid]=params2.position
+										if gStates.mineMonsterQty[objGUID]==nil then gStates.mineMonsterQty[objGUID]={[token.guid]="alive"} else gStates.mineMonsterQty[objGUID][token.guid]="alive" end
+									end
+									gStates.playedGladeTiles=gStates.playedGladeTiles+1
+								end
+							end
+
+							--Mage Tower
+							if hexFeature=="mage tower" then
+								params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj,hexLocation)[2]}
+								params.rotation=faceDown
+								if getObjectFromGUID(monsterPiles.purple).getQuantity()>0 then
+									local token=getObjectFromGUID(monsterPiles.purple).takeObject(params)
+									gStates.monsterPlayLocation[token.guid]=params.position
+								else
+									broadcastToAll("{en}Sorry, there are no Purple tokens left to deploy{ru}Извините, фиолетовые жетоны закончились.{zh-tw}抱歉，沒有紫色標記可供部署{zh-cn}抱歉，没有紫色标记可供部署{ko}여분의 보라색 토큰이 없습니다{es}Lo sentimos, no quedan tokens púrpuras para implementar{fr}Désolé, il n'y a plus de jetons violets à déployer{pt-br}Desculpe, Não tem Fichas Roxas sobrando para distribuir{de}Leider gibt es keine violetten Plättchen mehr zum Einsetzen", warningColor)
+								end
+							end
+
+							--Keep
+							if hexFeature=="keep" then
+								local token={}
+								params.position={angleToXY(obj,hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
+								params.rotation=faceDown
+								if gStates.gameScenario=="The Hidden Valley Blitz" and objGUID==GUID.tile.city07 then
+									gStates.mineMonsterQty[objGUID]=gStates.mineMonsterQty[objGUID] or {}
+									local center=angleToXY(obj,hexLocation)
+									for i, offset in ipairs({-0.1, 0.1}) do
+										params.position={center[1]+offset, y, center[2]+offset}
+										local token=takeFactionMonster("green", "Elem", params)
+										if token~=nil then
+											gStates.monsterPlayLocation[token.guid]=params.position
+											gStates.hiddenValleyKeep[i]=token.guid
+											gStates.mineMonsterQty[objGUID][token.guid]="alive"
+										else
+											broadcastToAll("{en}Sorry, there are no Green tokens left to deploy{ru}Извините, зеленые жетоны закончились.{zh-tw}抱歉，没有绿色标记可供部署{zh-cn}抱歉，没有绿色标记可供部署{ko}여분의 녹색 토큰이 없습니다{es}Lo sentimos, no quedan tokens verdes para implementar{fr}Désolé, il n'y a plus de jetons verts à déployer{pt-br}Desculpe, Não tem Fichas Verde sobrando para distribuir{de}Tut mir leid, es gibt keine grünen Plättchen mehr zum Einsetzen", warningColor)
+										end
+									end
+								else
+									if getObjectFromGUID(monsterPiles.gray).getQuantity()>0 then
+										local token=getObjectFromGUID(monsterPiles.gray).takeObject(params)
+										gStates.monsterPlayLocation[token.guid]=params.position
+									else
+										broadcastToAll("{en}Sorry, there are no Gray tokens left to deploy{ru}Извините, серые жетоны закончились.{zh-tw}抱歉，没有灰色标记可供部署{zh-cn}抱歉，没有灰色标记可供部署{ko}여분의 회색 토큰이 없습니다.{es}Lo sentimos, no quedan tokens grises para desplegar{fr}Désolé, il n'y a plus de jetons gris à déployer{pt-br}Desculpe, Não tem Fichas Cinza sobrando para distribuir{de}Entschuldigung, es gibt keine grauen Plättchen mehr zum Auslegen", warningColor)
+									end
+								end
+							end
+
+							--Ruins
+							if hexFeature=="ruin" then
+								if gStates.dayRound==false then faceUp=faceDown end
+								params.position={angleToXY(obj, hexLocation)[1], y, angleToXY(obj, hexLocation)[2]}
+								params.rotation=faceUp
+								local token=getObjectFromGUID(monsterPiles.yellow).takeObject(params)
+								gStates.monsterPlayLocation[token.guid]=params.position
+								faceUp={0.0, 180.0, 0.0}
+							end
+
+							--City
+							if ((hexFeature or ""):sub(1, 4)=="city" or hexFeature=="Volkare's Camp")
+								and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true))
+								or (hexLocation=="center" and gStates.removeShadesOfTezlaMonsters~=true and gStates.gameScenario=="Ultimate Conquest" and (objGUID==GUID.tile.core03 or objGUID==GUID.tile.core10)) then
+								--Choose the City card's first destination against the frontier created by this tile.
+								--Without this, cityInitialCardPosition() reads the previous EXPLORE set and the later
+								--terrain-finish refresh redirects the same smooth move mid-flight.
+								if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then
+									refreshTerrainExploreOptions()
+									exploreRefreshedBeforeCity=true
+								end
+								playCity(obj, hexFeature, true)
+							end
+						end
+					end
+				end, tokenWait+8)
+				if gStates.playedAllready[objGUID]~=true and
+					(hexFeature=="rampaging" or hexFeature=="draconum" or hexFeature=="mage tower" or hexFeature=="keep" or	hexFeature=="ruin" or hexFeature=="Volkare's Camp" or (hexFeature or ""):sub(1, 4)=="city" or
+					(hexFeature=="mine" and gStates.gameScenario=="Mines Liberation") or
+					(hexFeature=="glade" and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four" or gStates.gameScenario=="The Realm of the Dead Blitz"))) then--and objGUID~=GUID.tile.city05
+					tokenWait=tokenWait+8
+				end
+			end
+			--lock terrain tile if succesfuly deployed all tokens
+			safeWaitCondition("Map",function() obj.lock() end, function() return obj.resting end)
+			local function finishTerrainPopulation()
+				gStates.playedAllready[objGUID]=true
+				workingOnTerrain[objGUID]=false
+				--A City reveal already refreshed immediately before its initial card placement.
+				--Do not compact it a second time while that smooth move is still in progress.
+				if startingMapSetup~=true and exploreRefreshedBeforeCity~=true then refreshTerrainExploreOptions() end
+				--Terrain deployment changes the movement graph directly. Refresh it here instead of relying on
+				--the later fake avatar drop to eventually trigger a full UI update.
+				if initialSetupTerrain~=true and gStates.firstStarted==true then
+					moveDisplayTerrainCache={signature=nil,hexMap=nil}
+					updateMoveDisplay()
+				end
+				if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals() end
+				--Only the newly populated tile can have gained a new shared-token stack. Leave established
+				--tokens elsewhere on the map completely untouched.
+				mapTokenArrangeAllOccupiedHexes(objGUID)
+				if initialSetupTerrain~=true then fakeDropAvatar() end
+				apocalypseQuestRefreshOfferButtons()
+			end
+			if startingMapSetup==true then
+				safeWaitCondition("Map",finishTerrainPopulation,function()
+					return setupPopulationPending==0 and obj.resting==true
+				end,10,function()
+					error("SetupGame timed out waiting for initial terrain deployment callbacks for "..tostring(objGUID)..".",2)
+				end)
+			else
+				safeWaitFrames("Map",finishTerrainPopulation,tokenWait+10)
+			end
+
+			--Fame is awarded only for terrain actually explored during play. Initial setup terrain is
+			--tagged when it enters the map and never counts as exploration in these scenarios.
+			if initialSetupTerrain~=true and
+				(gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
+				turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
+				local centerFeature=terrainTiles[objGUID].hexFeature["center"] or ""
+				if gStates.gameScenario=="The Lost Relic Blitz" and (centerFeature:sub(1,4)=="city" or centerFeature=="Volkare's Camp") then
+					turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
+				end
+				broadcastToAll("{en}Exploring gives fame gain in this Scenario{ru}Исследование дает Славу в этом сценарии{zh-tw}在这个剧本探索板块会增加名望{zh-cn}在这个剧本探索板块会增加名望{ko}이 시나리오에선 탐험시 명성을 얻습니다{es}Explorar da fama en este Escenario{fr}L'exploration donne un gain de renommée dans ce Scénario{pt-br}Explorar dá Fama neste Cenário{de}Erkunden bringt in diesem Szenario Ruhmgewinn", {1,1,0.5})
+				mainUIUpdate("Fame Gain from exploring")
+			end
+		else
+			workingOnTerrain[objGUID]=false
+			if (placementResult.errorBroadcast or "")~="" then broadcastToAll(placementResult.errorBroadcast, warningColor) end
+			if placementResult.faceDownTerrain~=true then obj.setColorTint({r=1.0, g=0.7, b=0.7}) end
+		end
+	end
+
+        -- Flip Info cards that match the terrain
+        if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and (obj.getRotation()[3] <= 5 or obj.getRotation()[3] >= 355) then
+		for hexLocation, hexFeature in pairs(terrainTiles[objGUID].hexFeature) do
+			local infoGUID=terrainInfoCardGUIDs[hexFeature]
+			if hexFeature=="mine" then
+				local mineColors=terrainTiles[objGUID].mineColors~=nil and terrainTiles[objGUID].mineColors[hexLocation] or nil
+				if mineColors~=nil and #mineColors==1 then infoGUID="938554" end
+			end
+			if infoGUID~=nil then
+				local citySpecificInfo=hexFeature=="city green" or hexFeature=="city red" or hexFeature=="city blue" or hexFeature=="city white"
+				--City colour can change later in playCity() (duplicate/random City replacement).
+				--Reveal coloured City cards there, after the final deployed City GUID is known.
+				if citySpecificInfo==false then
+					local infoCard=getObjectFromGUID(infoGUID)
+					if infoCard~=nil then infoCard.setRotationSmooth({0.00, 180.00, 0.00}) end
+				end
+			end
+		end
+		local wallList=terrainTiles[objGUID].wallList
+			if wallList~=nil and next(wallList)~=nil then
+				local wallInfoCard=getObjectFromGUID("767084")
+				if wallInfoCard~=nil then wallInfoCard.setRotationSmooth({0.00, 180.00, 0.00}) end
+			end
+        end
+	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil then return true end
+	return false
 end

@@ -15,13 +15,14 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/SetupGame/HigherLevel.lua` | Start-at-higher-level setup and temporary player pools. |
 | `src/SetupGame/HeroChallenges.lua` | Hero Challenge legality, terrain assignment and setup-facing objective helpers. |
 | `src/SetupGame/Map.lua` | Starting-map construction, terrain-stack building and setup-only Fury lair placement. |
-| `src/PlayingGame/Map.lua` | Map state, avatar location, exploration, shield placement, terrain-site helpers and rampaging-enemy placement. |
+| `src/PlayingGame/Map.lua` | Map state, avatar location, terrain placement/population, exploration, shield placement, terrain-site helpers and rampaging-enemy placement. |
 | `src/PlayingGame/Offers.lua` | Artifact, Unit, Monastery and deed-offer layout/refill runtime. |
 | `src/PlayingGame/TokenPools.lua` | Monster token-pool refill plus bag scaling/discard-stack presentation. |
 | `src/PlayingGame/ManaSource.lua` | Shared/mirrored Mana Source dice state and synchronization. |
 | `src/PlayingGame/Quests.lua` | Apocalypse Quest system, quest state, offer flow, rewards and quest-specific interactions. |
 | `src/PlayingGame/PlayerBoard/CardFlow.lua` | Player deed/deck/discard/hand flow, wound dealing and Glade discard-healing runtime. |
 | `src/PlayingGame/PlayerBoard/UnitLayout.lua` | Runtime Unit/Command-slot layout, compression and player-board unit positioning. |
+| `src/PlayingGame/PlayerBoard/Events.lua` | Player-board scripting-zone reactions and card presentation helpers dispatched by the global event layer. |
 | `src/PlayingGame/PlayerBoard/Skills.lua` | Skill offers, claims, skill state and player skill interactions. |
 | `src/PlayingGame/PlayerBoard/PuppetMaster.lua` | Krang Puppet Master enemy/puppet behaviour. |
 | `src/PlayingGame/Combat.lua` | Combat areas, attacks, assaults, combat UI/camera support, summons and pursuit. |
@@ -38,7 +39,8 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/Movement.lua` | Movement calculator, route/terrain costs and teleport movement assistance. |
 | `src/PlayingGame/Rollers.lua` | Centralized Roll Crystal Die/object roller behaviour. |
 | `src/PlayingGame/UI.lua` | Runtime presentation, camera controls, ALT views, resource/UI helpers and object UI installers. |
-| `src/PlayingGame/Events.lua` | TTS event handling, maintenance/persistence support and runtime event dispatch. |
+| `src/PlayingGame/Events.lua` | Thin TTS event handling, maintenance/persistence support and runtime event dispatch. |
+| `src/PlayingGame/Telemetry.lua` | Opt-in statistics, bug-report and score-report payload construction/submission. |
 | `src/PlayingGame/Callbacks.lua` | Public/safe callback boundaries exposed to TTS/UI entry points, including final `onLoad` composition. |
 
 ## Dependency shape

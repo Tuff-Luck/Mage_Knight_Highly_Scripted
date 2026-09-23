@@ -3,10 +3,10 @@
 --Return the legal top-tile exploration position that contains a world hex.
 --This deliberately reuses the normal EXPLORE set, so Volkare obeys the same tile-placement rules as players.
 local function volkareLegalExploreSpot(pos)
-	if pos==nil or gStates.exploreButtons==nil then return end
+	if pos==nil then return end
 	local best=nil
 	local bestDist=999
-	for _, button in pairs(gStates.exploreButtons) do
+	for _, button in pairs(terrainExploreOptions()) do
 		local attributes=button.attributes
 		if attributes~=nil then
 			local x=tonumber(attributes.tilePosX)

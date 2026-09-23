@@ -24,6 +24,7 @@ function cacheScenarioTweakDefaults()
 				scenarioTweakDefaults[scenarioRef][playersRef]={
 					rounds=source.rounds,
 					mapShape=source.mapShape,
+					mapShapeKey=source.mapShapeKey,
 					countryTiles=source.countryTiles,
 					coreTiles=source.coreTiles,
 					cityTiles=source.cityTiles,
@@ -62,6 +63,7 @@ function resetCurrentScenarioTweaks()
 	local target=scenarioList[scenarioRef][playersRef]
 	target.rounds=defaults.rounds
 	target.mapShape=defaults.mapShape
+	target.mapShapeKey=defaults.mapShapeKey
 	target.countryTiles=defaults.countryTiles
 	target.coreTiles=defaults.coreTiles
 	target.cityTiles=defaults.cityTiles
@@ -912,7 +914,7 @@ function scenarioMapIsPredefined()
 	local scenario=gStates~=nil and scenarioList[gStates.scenarioRef] or nil
 	local setup=scenario~=nil and scenario[gStates.playersRef] or nil
 	--Custom Predefined is a player-built sandbox, so only scenario-owned predefined maps lock these setup controls.
-	return setup~=nil and type(setup.mapShape)=="string" and setup.mapShape:sub(5,5)=="P" and gStates.gameScenario~="Custom"
+	return setup~=nil and setup.mapShapeKey=="predefined" and gStates.gameScenario~="Custom"
 end
 
 function refreshScenarioTerrainTweakLocks()
@@ -942,25 +944,16 @@ function baseValueTweak(player, mouseButton, id)
 			end
 
 			if id=="MapDown" or id=="MapUp" then
-				local mapShapes={"{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil",
-								"{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten",
-								"{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten",
-								"{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen"}
-				if gStates.gameScenario=="Custom" then
-					mapShapes[#mapShapes+1]="{en}Predefined{ru}Предопределенное поле{zh-tw}按劇本預設{zh-cn}按剧本预设{ko}미리 정해짐{es}Predefinido{fr}Prédéfini{pt-br}Pré-definido{de}Vordefiniert"
-				end
-				for a=1, #mapShapes, 1 do
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape==mapShapes[a] then
-						local b=nil
-						if id=="MapDown" then
-							b=a-1
-							if b<1 then b=#mapShapes end
-						else
-							b=a+1
-							if b>#mapShapes then b=1 end
-						end
-						scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=mapShapes[b]
-						if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape~="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" and scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles==2 then scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles=3 end
+				local mapShapes={"wedge","open3","open4","open"}
+				if gStates.gameScenario=="Custom" then mapShapes[#mapShapes+1]="predefined" end
+				local setup=scenarioList[gStates.scenarioRef][gStates.playersRef]
+				for a=1,#mapShapes do
+					if setup.mapShapeKey==mapShapes[a] then
+						local b=id=="MapDown" and a-1 or a+1
+						if b<1 then b=#mapShapes elseif b>#mapShapes then b=1 end
+						setup.mapShapeKey=mapShapes[b]
+						setup.mapShape=mapShapeText[setup.mapShapeKey]
+						if setup.mapShapeKey~="wedge" and setup.countryTiles==2 then setup.countryTiles=3 end
 						break
 					end
 				end
@@ -969,7 +962,7 @@ function baseValueTweak(player, mouseButton, id)
 			if id=="CountryDown" or id=="CountryUp" then
 				if id=="CountryDown" then
 					countryMin=3
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then countryMin=4 end--Enough to get to the legal core positions
+					if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey=="wedge" then countryMin=4 end--Enough to get to the legal core positions
 					if scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles>countryMin then
 						scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles-1
 					end
@@ -1351,5 +1344,170 @@ function SetupMenu(player, mouseButton, id)
 		UI.setAttribute("helpButtonRealImage", "image", "Sliced Button/Button New Deactive")
 		UI.setAttribute("helpButtonReal", "interactable", "false")
 		--UI.hide("HelpButton")
+	end
+end
+
+-- Preserve/restore the pre-game setup presentation without making Events.lua own setup UI state.
+--Preserve the complete pre-game setup display and the scenario values that are edited directly in scenarioList.
+local setupUISaveAttributes={
+	{id="Setup1Details",attribute="active"},{id="Setup2Details",attribute="active"},
+	{id="Setup1Details",attribute="height"},{id="Setup2Details",attribute="height"},
+	{id="Setup1DetailsSub",attribute="height"},{id="Setup2DetailsSub",attribute="height"},
+	{id="MageKnightDetails",attribute="height"},
+	{id="ScenarioSelection",attribute="interactable"},{id="ScenarioSelectionText",attribute="text"},{id="ScenarioSelectionImage",attribute="image"},
+	{id="firstMKSelection",attribute="interactable"},{id="firstMKSelectionText",attribute="text"},{id="firstMKSelectionImage",attribute="image"},
+	{id="secondMKSelection",attribute="interactable"},{id="secondMKSelectionText",attribute="text"},{id="secondMKSelectionImage",attribute="image"},
+	{id="thirdMKSelection",attribute="interactable"},{id="thirdMKSelectionText",attribute="text"},{id="thirdMKSelectionImage",attribute="image"},
+	{id="fourthMKSelection",attribute="interactable"},{id="fourthMKSelectionText",attribute="text"},{id="fourthMKSelectionImage",attribute="image"},
+	{id="dummyMKSelection",attribute="interactable"},{id="dummyMKSelectionText",attribute="text"},{id="dummyMKSelectionImage",attribute="image"},
+	{id="DummyPosText",attribute="text"},
+	{id="VolkareLevelSelectionRow",attribute="active"},{id="VolkareRaceSelectionRow",attribute="active"},
+	{id="VolkareLevelSelection",attribute="interactable"},{id="VolkareLevelSelection",attribute="text"},
+	{id="VolkareLevelSelectionText",attribute="text"},{id="VolkareLevelSelectionImage",attribute="image"},
+	{id="VolkareRaceSelection",attribute="interactable"},{id="VolkareRaceSelection",attribute="text"},
+	{id="VolkareRaceSelectionText",attribute="text"},{id="VolkareRaceSelectionImage",attribute="image"},
+	{id="ROTFSelection",attribute="interactable"},{id="ROTFSelectionText",attribute="text"},{id="ROTFSelectionImage",attribute="image"},
+	{id="BlitzSelection",attribute="interactable"},{id="BlitzSelection",attribute="isOn"},{id="BlitzSelection",attribute="textColor"},
+	{id="RampageSelection",attribute="interactable"},{id="RampageSelection",attribute="isOn"},
+	{id="MoreRampageSelection",attribute="interactable"},{id="MoreRampageSelection",attribute="isOn"},
+	{id="volkareCampAsCity",attribute="interactable"},{id="volkareCampAsCity",attribute="isOn"},
+	{id="randomTileOrientation",attribute="interactable"},{id="randomTileOrientation",attribute="isOn"},
+	{id="randomCities",attribute="interactable"},{id="randomCities",attribute="isOn"},
+	{id="removeShadesOfTezlaMonsters",attribute="interactable"},{id="removeShadesOfTezlaMonsters",attribute="isOn"},
+	{id="removeApocalypseTerrain",attribute="interactable"},{id="removeApocalypseTerrain",attribute="isOn"},
+	{id="removeLostLegionExpansion",attribute="interactable"},{id="removeLostLegionExpansion",attribute="isOn"},
+	{id="startAtNight",attribute="interactable"},{id="startAtNight",attribute="isOn"},
+	{id="darknessComing",attribute="interactable"},{id="darknessComing",attribute="isOn"},{id="darknessComing",attribute="text"},
+	{id="rampageAmbush",attribute="interactable"},{id="rampageAmbush",attribute="isOn"},
+	{id="rampagePursuit",attribute="interactable"},{id="rampagePursuit",attribute="isOn"},
+	{id="mageKnightLevels",attribute="interactable"},{id="mageKnightLevels",attribute="isOn"},
+	{id="useCustomMageKnights",attribute="interactable"},{id="useCustomMageKnights",attribute="isOn"},
+	{id="heroChallenges",attribute="interactable"},{id="heroChallenges",attribute="isOn"},
+	{id="removeBonusCards",attribute="interactable"},{id="removeBonusCards",attribute="isOn"},
+	{id="weatherMod",attribute="interactable"},{id="weatherMod",attribute="isOn"},
+	{id="questMod",attribute="interactable"},{id="questMod",attribute="isOn"},
+	{id="apocalypseQuestCards",attribute="interactable"},{id="apocalypseQuestCards",attribute="isOn"},
+	{id="proxyPlayer",attribute="interactable"},{id="proxyPlayer",attribute="isOn"},
+	{id="itemShopMod",attribute="interactable"},{id="itemShopMod",attribute="isOn"},
+	{id="removeTerrain",attribute="interactable"},{id="removeTerrain",attribute="isOn"},
+	{id="useAlternatePugs",attribute="interactable"},{id="useAlternatePugs",attribute="isOn"}}
+
+local function setupScenarioRef()
+	if gStates==nil then return nil end
+	if gStates.scenarioRef~=nil and scenarioList[gStates.scenarioRef]~=nil and scenarioList[gStates.scenarioRef][1]==gStates.gameScenario then return gStates.scenarioRef end
+	for a=1,#scenarioList do if scenarioList[a][1]==gStates.gameScenario then return a end end
+	return nil
+end
+
+function saveSetupState()
+	if gStates==nil or gStates.firstStarted==true then return end
+	gStates.setupUI={}
+	for _,details in ipairs(setupUISaveAttributes) do
+		local value=UI.getAttribute(details.id,details.attribute)
+		if value~=nil then gStates.setupUI[details.id.."|"..details.attribute]=value end
+	end
+	local scenarioRef=setupScenarioRef()
+	local playersRef=gStates.playersRef
+	if scenarioRef==nil or playersRef==nil or scenarioList[scenarioRef][playersRef]==nil then return end
+	local source=scenarioList[scenarioRef][playersRef]
+	gStates.setupScenarioState={scenario=gStates.gameScenario,playersRef=playersRef,rounds=source.rounds,mapShape=source.mapShape,mapShapeKey=source.mapShapeKey,
+		countryTiles=source.countryTiles,coreTiles=source.coreTiles,cityTiles=source.cityTiles,discardTactics=source.discardTactics,cityLevels={}}
+	for a,value in ipairs(source.cityLevels or {}) do gStates.setupScenarioState.cityLevels[a]=value end
+end
+
+function restoreSetupScenarioState()
+	if gStates==nil or gStates.setupScenarioState==nil then return end
+	local saved=gStates.setupScenarioState
+	local scenarioRef=nil
+	for a=1,#scenarioList do if scenarioList[a][1]==saved.scenario then scenarioRef=a break end end
+	if scenarioRef==nil or saved.playersRef==nil or scenarioList[scenarioRef][saved.playersRef]==nil then return end
+	local target=scenarioList[scenarioRef][saved.playersRef]
+	if saved.rounds~=nil then target.rounds=saved.rounds end
+	if saved.mapShape~=nil then target.mapShape=saved.mapShape end
+	if saved.mapShapeKey~=nil then target.mapShapeKey=saved.mapShapeKey end
+	if saved.countryTiles~=nil then target.countryTiles=saved.countryTiles end
+	if saved.coreTiles~=nil then target.coreTiles=saved.coreTiles end
+	if saved.cityTiles~=nil then target.cityTiles=saved.cityTiles end
+	if saved.discardTactics~=nil then target.discardTactics=saved.discardTactics end
+	if saved.cityLevels~=nil then
+		target.cityLevels={}
+		for a,value in ipairs(saved.cityLevels) do target.cityLevels[a]=value end
+	end
+	gStates.scenarioRef=scenarioRef
+	gStates.playersRef=saved.playersRef
+end
+
+local function restoreSetupUIFromState()
+	local toggles={"volkareCampAsCity","randomTileOrientation","randomCities","removeShadesOfTezlaMonsters","removeApocalypseTerrain",
+		"removeLostLegionExpansion","startAtNight","darknessComing","rampageAmbush","rampagePursuit","mageKnightLevels",
+		"useCustomMageKnights","heroChallenges","removeBonusCards","weatherMod","questMod","apocalypseQuestCards","proxyPlayer","itemShopMod","removeTerrain","useAlternatePugs"}
+	for _,id in ipairs(toggles) do if gStates[id]~=nil then UI.setAttribute(id,"isOn",gStates[id] and "true" or "false") end end
+	UI.setAttribute("BlitzSelection","isOn",gStates.blitz==1 and "true" or "false")
+	UI.setAttribute("RampageSelection","isOn",gStates.rampage==1 and "true" or "false")
+	UI.setAttribute("MoreRampageSelection","isOn",gStates.rampage==2 and "true" or "false")
+	if translateWord[gStates.gameScenario]~=nil then UI.setAttribute("ScenarioSelectionText","text",translateWord[gStates.gameScenario]) end
+	local rotfText={
+		[0]="{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet",
+		[1]="{en}1. New Beginning{ru}1. Новое начало{zh-tw}新的開始{zh-cn}新的开始{ko}1.새로운 시작{es}1. Un nuevo comienzo{fr}1. Nouveau départ{pt-br}1. Novo Começo{de}1. Neubeginn",
+		[2]="{en}2. Spoils of War{ru}2. Военные трофеи{zh-tw}戰爭犒賞{zh-cn}战争犒赏{ko}2.전쟁의 전리품{es}2. Botín de Guerra{fr}2. Butin de Guerre{pt-br}2. Despojos de Guerra{de}2. Kriegsbeute",
+		[3]="{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier"}
+	if rotfText[gStates.riseOfTheForgemasters or 0]~=nil then UI.setAttribute("ROTFSelectionText","text",rotfText[gStates.riseOfTheForgemasters or 0]) end
+	local combat={"Daring","Heroic","Legendary"}
+	local race={"Fair","Tight","Thrilling"}
+	if combat[gStates.volkareCombatLevel or 1]~=nil then UI.setAttribute("VolkareLevelSelectionText","text",translateWord[combat[gStates.volkareCombatLevel or 1]]) end
+	if race[gStates.volkareRaceLevel or 1]~=nil then UI.setAttribute("VolkareRaceSelectionText","text",translateWord[race[gStates.volkareRaceLevel or 1]]) end
+	UI.setAttribute("darknessComing","text",gStates.startAtNight==true and
+		"{en}Daylight is Coming{ru}Надвигается рассвет{zh-tw}白晝侵襲{zh-cn}白昼侵袭{ko}빛의 도래{es}Se Acerca la luz del Día{fr}Lendemain Arrive{pt-br}A Luz do dia está Chegando{de}Es Wird Hell" or
+		"{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel")
+	refreshProxySetupLabel()
+end
+
+function restoreSetupUI()
+	if gStates==nil then return end
+	if gStates.setupUI==nil then restoreSetupUIFromState() return end
+	for _,details in ipairs(setupUISaveAttributes) do
+		local value=gStates.setupUI[details.id.."|"..details.attribute]
+		if value~=nil then UI.setAttribute(details.id,details.attribute,value) end
+	end
+	--Never reopen a dropdown just because it happened to be open when the game was saved.
+	UI.setAttribute("DropDown","active","false")
+end
+
+--Section 3 has derived layout/content when Volkare occupies the dummy position.
+--Rebuild it from the saved game state after restoring the general setup snapshot.
+function restoreMageKnightSetupSection()
+	if gStates==nil then return end
+	local volkareOn=gStates.positionMageKnight~=nil and gStates.positionMageKnight[5]=="Volkare"
+	if volkareOn==true then
+		UI.setAttribute("DummyPosText","text","{en}Volkare Skills -{ru}Навыки Волкаре -{zh-tw}沃卡里技能：{zh-cn}沃卡里技能：{ko}볼케어의 스킬 -{es}Habilidades de Volkare -{fr}Compétences de Volkare -{pt-br}Habilidades de Volkare -{de}Volkare-Fähigkeiten -")
+		local skillText=translateWord[gStates.volkareSkills or "Random"] or translateWord["Random"]
+		if skillText~=nil then UI.setAttribute("dummyMKSelectionText","text",skillText) end
+		UI.setAttribute("dummyMKSelection","interactable","true")
+		UI.setAttribute("dummyMKSelectionImage","image","Sliced Button/Button New Active")
+		UI.setAttribute("VolkareLevelSelectionRow","active","true")
+		UI.setAttribute("MageKnightDetails","height","210")
+		UI.setAttribute("Setup1Details","height","436")
+		UI.setAttribute("Setup2Details","height","436")
+		UI.setAttribute("Setup1DetailsSub","height","376")
+		UI.setAttribute("Setup2DetailsSub","height","376")
+		if gStates.gameScenario~="The War of Four" then
+			UI.setAttribute("VolkareRaceSelectionRow","active","true")
+			UI.setAttribute("MageKnightDetails","height","240")
+			UI.setAttribute("Setup1Details","height","406")
+			UI.setAttribute("Setup2Details","height","406")
+			UI.setAttribute("Setup1DetailsSub","height","346")
+			UI.setAttribute("Setup2DetailsSub","height","346")
+		else
+			UI.setAttribute("VolkareRaceSelectionRow","active","false")
+		end
+	else
+		UI.setAttribute("VolkareLevelSelectionRow","active","false")
+		UI.setAttribute("VolkareRaceSelectionRow","active","false")
+		UI.setAttribute("MageKnightDetails","height","180")
+		UI.setAttribute("Setup1Details","height","466")
+		UI.setAttribute("Setup2Details","height","466")
+		UI.setAttribute("Setup1DetailsSub","height","406")
+		UI.setAttribute("Setup2DetailsSub","height","406")
+		UI.setAttribute("DummyPosText","text","{en}Dummy Mage Knight -{ru}Виртуальный Рыцарь-маг -{zh-tw}虛擬玩家：{zh-cn}虚拟玩家：{ko}가상 플레이어 -{es}Mage Knight Virtual -{fr}Mage fantôme -{pt-br}Mage Knight Fictício -{de}Dummy-Magier-Ritter -")
 	end
 end

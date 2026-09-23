@@ -144,9 +144,7 @@ function mapSetup(onComplete)
 	startingMapTiles={}
 	--EXPLORE is a derived view of the finished physical map. Do not show transient legal spots while
 	--setup tiles and the terrain stack are still being assembled.
-	gStates.exploreButtons={{}}
-	local exploreUI=getObjectFromGUID("f2291a")
-	if exploreUI~=nil then exploreUI.UI.setXmlTable(gStates.exploreButtons) end
+	clearTerrainExploreOptions()
 	local mapSetupFinished=false
 	local function finishMapSetup(success,reason)
 		if mapSetupFinished==true then return end
@@ -158,7 +156,7 @@ function mapSetup(onComplete)
 	local CityTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCity)
 	local CoreTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCore)
 	local CountryTileStack=	getObjectFromGUID(GUID.bag.terrain.leftCountry)
-	local customPredefined=gStates.gameScenario=="Custom" and scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)=="P"
+	local customPredefined=gStates.gameScenario=="Custom" and scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey=="predefined"
 	if customPredefined then
 		--Predefined Custom maps are built by the players. Leave all three selected terrain pools untouched.
 		--Store every available tile face down so manual pulls from these bags begin hidden.
@@ -304,9 +302,9 @@ function mapSetup(onComplete)
 	local tUp=2--Starts building the final tile stack from this high
 	--Layout Starting map tile. The Horsemen predefined map temporarily keeps this normal reference
 	--during terrain-entry setup, then removes it once every real map tile has settled.
-	local a=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)
+	local a=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey
 	local furyWedgeStart=furyMap and gStates.playerCount<=2
-	if (a=="O" or a=="F" or a=="P") and furyWedgeStart~=true then
+	if (a=="open3" or a=="open4" or a=="open" or a=="predefined") and furyWedgeStart~=true then
 		local openStartPos={-36.0305,0.98,-11.9267}
 		if furyMap and gStates.playerCount>=4 then openStartPos={-30.0303,0.98,-14.0052} end
 		getObjectFromGUID(startTerrain.wedge).unlock()
@@ -325,11 +323,8 @@ function mapSetup(onComplete)
 	end
 
 	--Add Grid
-	local gridType=""
-	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 4 Columns{ru}Открытое поле с ограничением в 4 ряда{zh-tw}4 列的限制開放地圖{zh-cn}4 列的限制开放地图 {ko}4열 제한{es}Abierto Limitado a 4 Columnas{fr}Ouvert Limité à 4 Colonnes{pt-br}Aberto Limitado a 4 Colunas{de}Offen Begrenzt auf 4 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049111266/7BC768B7CD64E6018EBEC720559690409F4BA555/" end--4
-	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Open Limited to 3 Columns{ru}Открытое поле с ограничением в 3 ряда{zh-tw}3 列的限制開放地圖{zh-cn}3 列的限制开放地图 {ko}3열 제한{es}Abierto Limitado a 3 Columnas{fr}Ouvert Limité à 3 Colonnes{pt-br}Aberto Limitado a 3 Colunas{de}Offen Begrenzt auf 3 Spalten" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049110361/978D612A44ADDE6E1630965A311722114BA28AE5/" end--3
-	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Fully Open{ru}Полностью открытое поле{zh-tw}完全開放地圖{zh-cn}完全开放地图{ko}전체 개방형{es}Totalmente Abierto{fr}Entièrement Ouvert{pt-br}Totalmente Aberto{de}Vollständig Offen" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049031257/2457D03CE33118D57CD456183026FEB596CF6A3A/" end--fully
-	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape=="{en}Wedge{ru}Клиновидное поле{zh-tw}錐形地圖{zh-cn}锥形地图{ko}쐐기형{es}En Cuña{fr}Coin{pt-br}Cônico{de}Keil" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1674736055049113832/44EE3C6AA10498BCD1B46040AD18631BFD580AC4/" end--Wedge
+	local setupMapShapeKey=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey
+	local gridType=mapShapeGridURL[setupMapShapeKey] or ""
 	if gStates.gameScenario=="The Gauntlet" then gridType="https://steamusercontent-a.akamaihd.net/ugc/1673610837369514853/1BBAD048566E753F09184CBAE7022049D90B5471/" end
 	if againstHorsemenMap then gridType="" end
 	Global.setDecals({})
@@ -624,13 +619,13 @@ function mapSetup(onComplete)
 
 	local function startReferenceReady()
 		if againstHorsemenMap then return againstHorsemenStartGUID~=nil and setupMapObjectSettled(againstHorsemenStartGUID) end
-		local shape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)
-		local startGUID=(shape=="O" or shape=="F" or shape=="P") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
+		local shape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey
+		local startGUID=(shape=="open3" or shape=="open4" or shape=="open" or shape=="predefined") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
 		return setupMapObjectSettled(startGUID) and setupMapObjectSettled(portal.terrainHex)
 	end
 	local function tintAndReveal(batches,callback)
-		local shape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)
-		local startGUID=(shape=="O" or shape=="F" or shape=="P") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
+		local shape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey
+		local startGUID=(shape=="open3" or shape=="open4" or shape=="open" or shape=="predefined") and not (furyMap and gStates.playerCount<=2) and startTerrain.open or startTerrain.wedge
 		if againstHorsemenMap~=true then setupTintStartingTerrain(startGUID) end
 		revealSetupTerrainBatches(batches,callback)
 	end
@@ -680,7 +675,7 @@ function mapSetup(onComplete)
 		return safeTakeObject("SetupGame",TileShuffler,params)
 	end
 	local rot={}
-	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape:sub(5,5)=="W" then
+	if scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey=="wedge" or scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey=="wedgeUnlimited" then
 		if gStates.randomTileOrientation==false then rot={0, 180, 180} else rot={0, math.random(1,6)*60, 180} end
 		local firstStart=takeStartingCountry({position={-25.2302,1.07,-9.8482},rotation=rot,smooth=false})
 		if firstStart~=nil then standardRevealBatches[1][#standardRevealBatches[1]+1]={guid=firstStart.guid,first=true} end

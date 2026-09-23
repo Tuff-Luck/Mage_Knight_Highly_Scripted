@@ -72,6 +72,10 @@ When writing scenario-specific runtime code, match the actual `gStates.gameScena
 
 When adding a new scenario, choose its Blitz model deliberately: off-only, on-only, or a true selectable pair. Only add a second scenario row when the Blitz form needs its own scenario data/rules rather than merely the shared Blitz bonuses.
 
+## Canonical game data
+
+Do not use translated display strings as program identity or parse them to infer rules. Store a stable canonical key beside translated presentation text and branch on the key. Map shape logic specifically uses `mapShapeKey`; `mapShape` is display text only.
+
 ## UI localization
 
 In the current Tabletop Simulator version targeted by this project, XML/UI `tooltip` attributes do **not** process the `{en}`, `{ru}`, `{zh-tw}`, etc. translation-tag format. Tagged tooltip strings are shown literally. Keep tooltips as plain English unless Tabletop Simulator adds working tooltip localization in a later version and it is explicitly re-tested.

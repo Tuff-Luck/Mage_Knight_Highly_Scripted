@@ -335,6 +335,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		--Record scenario setting to gStates to be saved
 		gStates.rounds=scenarioList[gStates.scenarioRef][gStates.playersRef].rounds
 		gStates.mapShape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape
+		gStates.mapShapeKey=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey
 		gStates.cityTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles
 		gStates.cityLevels={}
 		for _, cityLevel in ipairs(scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels) do gStates.cityLevels[#gStates.cityLevels+1]=cityLevel end
