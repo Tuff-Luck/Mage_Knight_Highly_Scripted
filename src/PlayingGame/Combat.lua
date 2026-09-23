@@ -1731,14 +1731,20 @@ function attackLocation(playerDud, mouseButton, id)
 						broadcastToAll("{en}Monster Drawn to Player Board{ru}Жетон врага был помещен на стол игрока{zh-tw}怪物已移到玩家面板{zh-cn}怪物被抽到玩家面板了{ko}몬스터와 전투합니다{es}Monstruo Dibujado al Tablero del Jugador{fr}Monstre Dessiné sur le Plateau du Joueur{pt-br}Monstro Puxado para o Tabuleiro do Jogador{de}Monster auf das Spielerbrett gezogen", positionToColor(gStates.turnNumber))
 						local tokenWait=0
 						for _, monsterColor in pairs(monsterPugs[ruinGUID].monsters) do
-							safeWaitFrames("Combat",function() tokenRefill() end, tokenWait+1)
+							local pileGUID=monsterPiles[monsterColor]
 							safeWaitFrames("Combat",function()
-								local monster=getObjectFromGUID(monsterPiles[monsterColor]).takeObject({position={(player.seatPos*40)-96+gStates.monsterOffsetX, 2.5, -39-gStates.monsterOffsetZ}, rotation={0.00, 180.00, 0.00}})--brown
-								combatCameraFocus(playerIndex)
-								gStates.attackedMonsters[monster.guid]={{getObjectFromGUID(monsterPiles[monsterColor]).getPosition()[1], 2+((tokenWait/5)/10), getObjectFromGUID(monsterPiles[monsterColor]).getPosition()[3]}, {0.00, 0.00, 0.00}}
-                                if gStates.ruinMonsters==nil then gStates.ruinMonsters={[monster.guid]=ruinGUID} else gStates.ruinMonsters[monster.guid]=ruinGUID end
-                                gStates.monsterOffsetX=gStates.monsterOffsetX+2.5
-							end, tokenWait+5)
+								withTokenPoolReady(pileGUID,function()
+									local pile=getObjectFromGUID(pileGUID)
+									if pile==nil or pile.getQuantity()==0 then return end
+									local pilePos=pile.getPosition()
+									local monster=pile.takeObject({position={(player.seatPos*40)-96+gStates.monsterOffsetX,2.5,-39-gStates.monsterOffsetZ},rotation={0.00,180.00,0.00}})
+									if monster==nil then return end
+									combatCameraFocus(playerIndex)
+									gStates.attackedMonsters[monster.guid]={{pilePos[1],2+((tokenWait/5)/10),pilePos[3]},{0.00,0.00,0.00}}
+									if gStates.ruinMonsters==nil then gStates.ruinMonsters={[monster.guid]=ruinGUID} else gStates.ruinMonsters[monster.guid]=ruinGUID end
+									gStates.monsterOffsetX=gStates.monsterOffsetX+2.5
+								end,"Combat")
+							end,tokenWait)
 							tokenWait=tokenWait+5
 						end
 					end
@@ -1966,15 +1972,20 @@ end
 function drawMonster(color, player, id, possessedFaction)
 	local drawID=tostring(id or "")
 	local volkarePursuitDraw=drawID:sub(1,7)=="VPDraw|"
-	tokenRefill()
-	safeWaitFrames("Combat",function()
-		local monsterDrawn=getObjectFromGUID(color).takeObject({position={(player.seatPos*40)-96+gStates.monsterOffsetX, 2.5, -39-gStates.monsterOffsetZ}, rotation={0.00, 180.00, 0.00}})
+	local function takeDraw()
+		local pile=getObjectFromGUID(color)
+		if pile==nil or pile.getQuantity()==0 then
+			broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения больше не осталось.{zh-tw}抱歉，沒有可部署的標記了。{zh-cn}抱歉，没有token可供部署{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan tokens para implementar{fr}Désolé, il n'y a plus de jetons à déployer{pt-br}Desculpe, Não tem Fichas sobrando para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig.",warningColor)
+			return
+		end
+		local monsterDrawn=pile.takeObject({position={(player.seatPos*40)-96+gStates.monsterOffsetX,2.5,-39-gStates.monsterOffsetZ},rotation={0.00,180.00,0.00}})
+		if monsterDrawn==nil then return end
 		if color==monsterPiles.possessed and possessedFaction~=nil then
 			if gStates.apocalypsePossessedFactionByToken==nil then gStates.apocalypsePossessedFactionByToken={} end
 			gStates.apocalypsePossessedFactionByToken[monsterDrawn.guid]=possessedFaction
 		end
 		if color~=monsterPiles.pyramidTrap and color~=monsterPiles.zigguratTrap then
-			local pilePos=getObjectFromGUID(color).getPosition()
+			local pilePos=pile.getPosition()
 			local returnPos={pilePos[1],2,pilePos[3]}
 			gStates.attackedMonsters[monsterDrawn.guid]={returnPos,{0.00,0.00,0.00}}
 			if volkarePursuitDraw==true then
@@ -2011,7 +2022,8 @@ function drawMonster(color, player, id, possessedFaction)
 				end
 			end, 0.5)
 		end
-	end, 5)
+	end
+	withTokenPoolReady(color,takeDraw,"Combat")
 end
 
 --Move armies and garrisons to player boards
@@ -2436,6 +2448,17 @@ function markMonsterFactionSubstitute(token, faction)
 	return token
 end
 
+function factionMonsterPreferredPileGUID(standardGUID, faction)
+	if monsterPiles[standardGUID]~=nil then standardGUID=monsterPiles[standardGUID] end
+	local suffix=faction=="Dark" and "Dark" or faction=="Elem" and "Elem" or nil
+	if suffix~=nil then
+		for _, color in ipairs({"green","tan","red"}) do
+			if standardGUID==monsterPiles[color] then return monsterPiles[color..suffix] or standardGUID end
+		end
+	end
+	return standardGUID
+end
+
 function factionMonsterPileGUID(standardGUID, faction)
 	local suffix=faction=="Dark" and "Dark" or faction=="Elem" and "Elem" or nil
 	if suffix~=nil then
@@ -2463,68 +2486,59 @@ end
 
 --summon monsters to the left of a summoner.
 function summonMonster(player, mouseButton, id)
-	if mouseButton=="-1" then
-		--draw tokens to the left of summoners token
-		broadcastToAll("{en}Monster Summoned some support{ru}Враг призвал подмогу{zh-tw}怪物召喚了支援{zh-cn}怪物叫了些同谋{ko}몬스터가 소환되었습니다{es}Monster convocó algo de apoyo{fr}Monstre a invoqué du soutien{pt-br}Monstro Invocou algum suporte.{de}Monster beschwört etwas Unterstützung", positionToColor(gStates.turnNumber))
-		local location=getObjectFromGUID(id).getPosition()
-		local search=monsterPugs[id].monsters
-		local summonerFaction=monsterEffectiveFaction(id)
-		local tokenWait=0
-		local cameraFocused=false
-		for order, monsterColor in pairs(search) do
-			safeWaitFrames("Combat",function() tokenRefill() end, tokenWait+1)
-			safeWaitFrames("Combat",function()
+	if mouseButton~="-1" then return end
+	local summoner=getObjectFromGUID(id)
+	local monsterData=monsterPugs[id]
+	if summoner==nil or monsterData==nil or monsterData.monsters==nil then return end
+	broadcastToAll("{en}Monster Summoned some support{ru}Враг призвал подмогу{zh-tw}怪物召喚了支援{zh-cn}怪物叫了些同谋{ko}몬스터가 소환되었습니다{es}Monster convocó algo de apoyo{fr}Monstre a invoqué du soutien{pt-br}Monstro Invocou algum suporte.{de}Monster beschwört etwas Unterstützung",positionToColor(gStates.turnNumber))
+	local location=summoner.getPosition()
+	local summonerFaction=monsterEffectiveFaction(id)
+	local tokenWait=0
+	local cameraFocused=false
+	for order, monsterColor in pairs(monsterData.monsters) do
+		local preferredPile=factionMonsterPreferredPileGUID(monsterColor,summonerFaction)
+		safeWaitFrames("Combat",function()
+			withTokenPoolReady(preferredPile,function()
 				local summonTarget={location[1]-(2.5*order),2.5,location[3]}
-				local summonedMonster, summonPileGUID=takeFactionMonster(monsterColor, summonerFaction, {position=summonTarget, rotation={0.00, 180.00, 0.00}})
-				if summonedMonster~=nil then
-					local summonPile=getObjectFromGUID(summonPileGUID)
-					local returnPos={summonPile.getPosition()[1], 2, summonPile.getPosition()[3]}
-					if cameraFocused==false then combatCameraFocus(turnOrder[gStates.turnNumber]) cameraFocused=true end
-					gStates.attackedMonsters[summonedMonster.guid]={returnPos, {0.00, 0.00, 0.00}, "summoned", id}
-					if id==darkCrusader.token or (summonerFaction=="Dark" and turnOrder[gStates.turnNumber].avatarLocation=="graveyard") then summonedMonster.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal}) end
-					gStates.summonStates[summonedMonster.guid]="summoned"
-					--Control-head summons are Apocalypse possessed enemies. Use the ordinary global
-					--Possessed attachment path so their modified attacks/psychic data behave normally.
-					local dragonControl=apocalypseDragonGroundControlToken~=nil and select(1,apocalypseDragonGroundControlToken(id))==true
-					if dragonControl==true and gStates.apocalypseDragonGroundCombat~=nil then
-						apocalypseDragonPossessSummonedEnemy(summonedMonster.guid,summonTarget)
-					end
-					if gStates.monsterPerks[summonedMonster.guid]==nil then gStates.monsterPerks[summonedMonster.guid]={nightRules=true} else gStates.monsterPerks[summonedMonster.guid].nightRules=true end
-					cityBonusDecals(getObjectFromGUID(id), summonedMonster)
-					--add possessed perks
-					if getObjectFromGUID(id).getAttachments()[1]~=nil and tokenWait==5 then
-						local possessedToken=getObjectFromGUID(id).getAttachments()[1].guid
-						if monsterPugs[possessedToken].attack~=nil then
-							if gStates.monsterPerks[summonedMonster.guid]==nil then
-								gStates.monsterPerks[summonedMonster.guid]={[attack]=monsterPugs[possessedToken].attack}
-							else
-								gStates.monsterPerks[summonedMonster.guid].attack=monsterPugs[possessedToken].attack
-							end
-						end
-						if monsterPugs[possessedToken].boost~=nil then if gStates.monsterPerks[summonedMonster.guid]==nil then gStates.monsterPerks[summonedMonster.guid]={[boost]=monsterPugs[possessedToken].boost} else gStates.monsterPerks[summonedMonster.guid].boost=monsterPugs[possessedToken].boost end end
-					end
-				else
-					broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения больше не осталось.{zh-tw}抱歉，沒有可部署的標記了。{zh-cn}抱歉，没有token可供部署{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan tokens para implementar{fr}Désolé, il n'y a plus de jetons à déployer{pt-br}Desculpe, Não tem Fichas sobrando para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig.", warningColor)
+				local summonedMonster,summonPileGUID=takeFactionMonster(monsterColor,summonerFaction,{position=summonTarget,rotation={0.00,180.00,0.00}})
+				if summonedMonster==nil then
+					broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения больше не осталось.{zh-tw}抱歉，沒有可部署的標記了。{zh-cn}抱歉，没有token可供部署{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan tokens para implementar{fr}Désolé, il n'y a plus de jetons à déployer{pt-br}Desculpe, Não tem Fichas sobrando para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig.",warningColor)
+					return
 				end
-			end, tokenWait+5)
-			tokenWait=tokenWait+5
-		end
-		--turn off button
-		if id==darkCrusader.token then
-			getObjectFromGUID(id).UI.setXmlTable({
-				{tag="Button", attributes={id=id.."OverkillUp", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",	onClick="global/adjustOverkill", height=50/0.9, width=50/0.9,
-					color="rgba(0,0,0,0.0)", position="-62 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"},
-					children={{tag="Image", attributes={id=id.."OverkillUpImage", image="Overkill Up"}}}},
-				{tag="Image", attributes={image="Overkill Text", height=50/0.9, width=55/0.9, position="0 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"},
-					children={{tag="Text", attributes={id=id.."Overkill",	color="rgb(0,0,0)", fontSize="45", fontStyle="Bold", alignment="MiddleCenter", text=gStates.leaderOverkill}}}},
-				{tag="Button", attributes={id=id.."OverkillDown", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/adjustOverkill", height=50/0.9, width=50/0.9,
-					color="rgba(0,0,0,0.0)", position="62 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"},
-					children={{tag="Image", attributes={id=id.."OverkillDownImage", image="Overkill Down"}}}}})
-		else
-			gStates.summonStates[id]="SummonDone"
-			setMonsterObjectButtons(getObjectFromGUID(id))
-		end
+				local summonPile=getObjectFromGUID(summonPileGUID)
+				local summonPilePos=summonPile~=nil and summonPile.getPosition() or location
+				local returnPos={summonPilePos[1],2,summonPilePos[3]}
+				if cameraFocused==false then combatCameraFocus(turnOrder[gStates.turnNumber]) cameraFocused=true end
+				gStates.attackedMonsters[summonedMonster.guid]={returnPos,{0.00,0.00,0.00},"summoned",id}
+				if id==darkCrusader.token or (summonerFaction=="Dark" and turnOrder[gStates.turnNumber].avatarLocation=="graveyard") then
+					summonedMonster.addDecal({name="NightRules",position={0.85,0.15,-0.85},rotation={90,180,0},scale={0.6,0.6,1},url=nightRulesDecal})
+				end
+				gStates.summonStates[summonedMonster.guid]="summoned"
+				local dragonControl=apocalypseDragonGroundControlToken~=nil and select(1,apocalypseDragonGroundControlToken(id))==true
+				if dragonControl==true and gStates.apocalypseDragonGroundCombat~=nil then apocalypseDragonPossessSummonedEnemy(summonedMonster.guid,summonTarget) end
+				if gStates.monsterPerks[summonedMonster.guid]==nil then gStates.monsterPerks[summonedMonster.guid]={nightRules=true}
+				else gStates.monsterPerks[summonedMonster.guid].nightRules=true end
+				cityBonusDecals(summoner,summonedMonster)
+				local attachments=summoner.getAttachments()
+				if attachments[1]~=nil and tokenWait==5 then
+					local possessedToken=attachments[1].guid
+					if monsterPugs[possessedToken]~=nil then
+						if monsterPugs[possessedToken].attack~=nil then
+							if gStates.monsterPerks[summonedMonster.guid]==nil then gStates.monsterPerks[summonedMonster.guid]={} end
+							gStates.monsterPerks[summonedMonster.guid].attack=monsterPugs[possessedToken].attack
+						end
+						if monsterPugs[possessedToken].boost~=nil then
+							if gStates.monsterPerks[summonedMonster.guid]==nil then gStates.monsterPerks[summonedMonster.guid]={} end
+							gStates.monsterPerks[summonedMonster.guid].boost=monsterPugs[possessedToken].boost
+						end
+					end
+				end
+			end,"Combat")
+		end,tokenWait)
+		tokenWait=tokenWait+5
 	end
+	gStates.summonStates[id]="SummonDone"
+	setMonsterObjectButtons(summoner)
 end
 
 --Leader overkill adjust
