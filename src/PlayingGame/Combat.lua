@@ -137,7 +137,7 @@ function promoteCoopLeaderPreview(playerIndex, leaderObj)
 	end
 	if gStates.coopLeaderPreviewClones~=nil then gStates.coopLeaderPreviewClones[playerIndex]=nil end
 	leaderObj.unlock()
-	leaderObj.setPositionSmooth(destination)
+	leaderObj.setPositionSmooth(destination,false,false)
 	leaderObj.setRotation({0, 180, 0})
 	setMonsterObjectButtons(leaderObj)
 end
@@ -159,7 +159,7 @@ function moveCoopAssaultAvatarToCityCard(playerIndex)
 	local cardPos=cardObj.getPosition()
 	local destination={cardPos[1]+(turnOrder[playerIndex].seatPos*1.83)-4.58, cardPos[2]+1, cardPos[3]-0.66}
 	local avatar=coopAssaultAvatarObject(playerIndex)
-	if avatar~=nil then avatar.setPositionSmooth(destination) end
+	if avatar~=nil then avatar.setPositionSmooth(destination,false,false) end
 	turnOrder[playerIndex].avatarSwapCity=cityGUID
 	return true
 end
@@ -215,7 +215,7 @@ function restoreCoopAssaultAvatar(playerIndex, original)
 	turnOrder[playerIndex].avatarSharedHex=original.avatarSharedHex
 	turnOrder[playerIndex].avatarSwapCity=original.avatarSwapCity
 	local avatar=coopAssaultAvatarObject(playerIndex)
-	if avatar~=nil and original.position~=nil then avatar.setPositionSmooth(original.position) end
+	if avatar~=nil and original.position~=nil then avatar.setPositionSmooth(original.position,false,false) end
 end
 
 function resolveCoopAssaultLocations()
@@ -570,7 +570,7 @@ function finalizeCoopLeaderCombat()
 		end
 	else
 		if leaderObj~=nil then
-			if gStates.monsterPlayLocation[leaderObj.guid]~=nil then leaderObj.setPositionSmooth(gStates.monsterPlayLocation[leaderObj.guid]) end
+			if gStates.monsterPlayLocation[leaderObj.guid]~=nil then leaderObj.setPositionSmooth(gStates.monsterPlayLocation[leaderObj.guid],false,false) end
 			leaderObj.setCustomObject({image=leaderData[currentLeader.terrainHex][finalLevel].tokenImg})
 			leaderObj.setName(joinLang({currentLeader==darkCrusader and "{en}Dark Crusader Leader Level {ru}Уровень лидера Тёмных крестоносцев: {zh-tw}黑暗十字軍領袖等級 {zh-cn}黑暗十字军领袖等级 {ko}다크 크루세이더 지도자 레벨 {es}Nivel del líder Cruzado Oscuro {fr}Niveau du chef Croisé Sombre {pt-br}Nível do líder Cruzado Sombrio {de}Stufe des Anführers der Dunklen Kreuzritter " or "{en}Elementalist Leader Level {ru}Уровень лидера Элементалистов: {zh-tw}元素使領袖等級 {zh-cn}元素使领袖等级 {ko}엘리멘탈리스트 지도자 레벨 {es}Nivel del líder Elementalista {fr}Niveau du chef Élémentaliste {pt-br}Nível do líder Elementalista {de}Stufe des Elementalisten-Anführers ", finalLevel}))
 			leaderObj.reload()
@@ -731,7 +731,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			--flip Day tactic six if using the second turn
 			if useTactic then
 				gStates.tacticSixState="Started"
-				getObjectFromGUID("2404f1").setRotationSmooth({0.00, 180.00, 180.00})
+				getObjectFromGUID("2404f1").setRotationSmooth({0.00, 180.00, 180.00},false,false)
 				if getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID).is_face_down==true then
 					getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID).flip()
 					gStates.tacticSixState="Used"
@@ -785,9 +785,10 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 			gStates.coopAssaultDice[#gStates.coopAssaultDice+1]=diceGUID
 			if getObjectFromGUID(turnOrder[nextTurnMerged("nextMageSkipDummy")].turnOrderTokenGUID).is_face_down==false or #turnOrder<=2 then
 				for _, diceG in pairs(gStates.coopAssaultDice) do
-					if getObjectFromGUID(diceG)~=nil then
-						getObjectFromGUID(diceG).setPosition({-12.5+(math.random()*7), 2.7, -25.0+(math.random()*4.0)})
-						getObjectFromGUID(diceG).randomize()
+					local die=getObjectFromGUID(diceG)
+					if die~=nil then
+						die.setPosition({-12.5+(math.random()*7),2.7,-25.0+(math.random()*4.0)})
+						die.randomize()
 						onObjectRandomize({type="Dice"})
 					end
 				end
@@ -869,7 +870,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 
 					--Return face down Potion
 					if ((playAreaObj.getName()=="Green Potion" or playAreaObj.getName()=="Red Potion" or playAreaObj.getName()=="Blue Potion" or playAreaObj.getName()=="White Potion") and playAreaObj.is_face_down==true) then
-						if gStates.mageSkills[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.mageSkills[playAreaObj.guid]) end
+						if gStates.mageSkills[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.mageSkills[playAreaObj.guid],false,false) end
 					end
 
 					--Mark mine monster as defeated
@@ -911,7 +912,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 							if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="horsemen" and horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
 								--Each Horseman is assigned to exactly one participant; a survivor returns to its Portal-card slot.
 								playAreaObj.setRotation({0,180,0})
-								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid])
+								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
 								lastObject=playAreaObj
 							elseif gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" and (playAreaObj.guid==elementalist.token or playAreaObj.guid==darkCrusader.token) then
 								--A face-down leader means this player defeated no leader levels. Advance the real token through
@@ -922,11 +923,11 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 								else
 									clearCoopLeaderPreviewClones()
 									playAreaObj.setRotation({0, 180, 0})
-									playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid])
+									playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
 								end
 							elseif getObjectFromGUID(turnOrder[nextTurnMerged("nextMage")].turnOrderTokenGUID).is_face_down==true and playAreaObj.getRotationValues()[2]==nil then
 								--Move to next players play area.
-								playAreaObj.setPositionSmooth({turnOrder[nextTurnMerged("nextMage")].seatPos*40-100, 1.5, -39.41})
+								playAreaObj.setPositionSmooth({turnOrder[nextTurnMerged("nextMage")].seatPos*40-100, 1.5, -39.41},false,false)
 							else
 								if turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) then
 									gStates.monsterPlayLocation[playAreaObj.guid][1]=gStates.monsterPlayLocation[playAreaObj.guid][1]-0.22+(spawningGroundMonstersReturned*0.44)
@@ -934,7 +935,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 									spawningGroundMonstersReturned=spawningGroundMonstersReturned+1
 								end
 								if gStates.monsterPerks[playAreaObj.guid]~=nil and gStates.monsterPerks[playAreaObj.guid].wallFortified~=nil then setAssaultWallFortified(playAreaObj, false) end
-								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid])
+								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
 								lastObject=playAreaObj
 							end
 						end
@@ -977,7 +978,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 									promoteCoopLeaderPreview(nextPlayer, playAreaObj)
 								else
 									clearCoopLeaderPreviewClones()
-									if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid]) end
+									if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false) end
 								end
 							else
 								--Solo/non-co-op leader combat keeps the existing immediate resolution.
@@ -996,7 +997,7 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 										end
 									end, 2)
 								else
-									playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid])
+									playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
 									safeWaitFrames("Combat",function()
 										local levelData=leaderData[currentLeader.terrainHex]~=nil and leaderData[currentLeader.terrainHex][currenLeaderLevel] or nil
 										if levelData==nil then return end
@@ -1054,12 +1055,12 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 							avatarPos={horsemenReturn[1],horsemenReturn[2],horsemenReturn[3]}
 						else
 							local horsemenAvatar=coopAssaultAvatarObject(cleanupPlayer)
-							if horsemenAvatar~=nil then horsemenAvatar.setPositionSmooth(horsemenReturn) end
+							if horsemenAvatar~=nil then horsemenAvatar.setPositionSmooth(horsemenReturn,false,false) end
 						end
 					end
 					if avatarModel~=nil then
 						avatarModel.setLock(false)
-						avatarModel.setPositionSmooth({avatarPos[1], avatarPos[2]+1.0, avatarPos[3]})
+						avatarModel.setPositionSmooth({avatarPos[1], avatarPos[2]+1.0, avatarPos[3]},false,false)
 					end
 				end
 				safeWaitCondition("Combat",finishAvatarDrop, function()
@@ -1709,7 +1710,7 @@ function attackLocation(playerDud, mouseButton, id)
 									gStates.attackedMonsters[monster.guid]={originalPos, monster.getRotation()}
 									if horsemanName~=nil then gStates.monsterPlayLocation[monster.guid]={originalPos[1],originalPos[2],originalPos[3]} end
 									if cameraFollowed==false then combatCameraFocus(playerIndex) cameraFollowed=true end
-									monster.setPositionSmooth({(player.seatPos*40)-96+gStates.monsterOffsetX, 2.5, -39-gStates.monsterOffsetZ})
+									monster.setPositionSmooth({(player.seatPos*40)-96+gStates.monsterOffsetX, 2.5, -39-gStates.monsterOffsetZ},false,false)
 									monster.setRotation({0.00, 180.00, 0.00})
 									gStates.monsterOffsetX=gStates.monsterOffsetX+2.5
 									if monsterPugs[monster.guid].monsters~=nil and monsterPugs[monster.guid].name=="Ruin" then ruinGUID=monster.guid end
@@ -1942,7 +1943,7 @@ function attackLocation(playerDud, mouseButton, id)
 							gStates.attackedMonsters[rampagerGUID]={rampager.getPosition(), rampager.getRotation()}
 							setAssaultWallFortified(rampager, wallFortified)
 							if cameraFollowed==false then combatCameraFocus(playerIndex) cameraFollowed=true end
-							rampager.setPositionSmooth({(player.seatPos*40)-96+gStates.monsterOffsetX, 2.5, -39-gStates.monsterOffsetZ})
+							rampager.setPositionSmooth({(player.seatPos*40)-96+gStates.monsterOffsetX, 2.5, -39-gStates.monsterOffsetZ},false,false)
 							settleAssaultWallFortified(rampagerGUID, wallFortified)
 							rampager.setRotation({0.00, 180.00, 0.00})
 							safeWaitFrames("Combat",function() local obj=getObjectFromGUID(rampagerGUID) if obj~=nil then obj.UI.setXmlTable({{}}) end end, 10)
@@ -2146,7 +2147,7 @@ function attackCity(player, mouseButton, id)
 								if dragonPosition~=nil then destination={dragonPosition[1],2.5,dragonPosition[3]} end
 								dragonCombatSlot=dragonCombatSlot+1
 							end
-							monsterObj.setPositionSmooth(destination)
+							monsterObj.setPositionSmooth(destination,false,false)
 							if wallTargetHasWall==true then settleAssaultWallFortified(monsterGUID, wallFortified) end
 							getObjectFromGUID(monsterGUID).setRotation({0.00, 180.00, 0.00})
 							if coopStart~=true or gStates.coopAssaultType~="dragon" then
@@ -2560,23 +2561,16 @@ function pursuingRampagers(player, mouseButton, id)
 		if gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]~=nil and gStates.tacticShown==false then
 			--delete the help arrows
 			for guid, _ in pairs(gStates.arrowDelete) do
-				if getObjectFromGUID(guid)~=nil then getObjectFromGUID(guid).destruct() end
+				local arrow=getObjectFromGUID(guid)
+				if arrow~=nil then arrow.destruct() end
 			end
 			gStates.arrowDelete={}
 			local height=0.2
 			for monsterGUID, monsterDetails in pairs(gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]) do
 				if monsterDetails.state=="Pursuing" then
 					--find initial vector to move closer to the player
-					local playerPos={}
-					local playerRealPos=playerPos
-					for b, details in pairs(mageKnights) do
-						if details.mage==turnOrder[gStates.turnNumber].mage then
-							if getObjectFromGUID(details.model)~=nil then playerPos=getObjectFromGUID(details.model).getPosition() end
-							if getObjectFromGUID(details.token)~=nil then playerPos=getObjectFromGUID(details.token).getPosition() end
-							if getObjectFromGUID(details.standee)~=nil then playerPos=getObjectFromGUID(details.standee).getPosition() end
-						end
-					end
-					playerRealPos={playerPos[1], playerPos[2], playerPos[3]}
+					local playerPos=mageKnightAvatarPosition(gStates.turnNumber) or {}
+					local playerRealPos={playerPos[1],playerPos[2],playerPos[3]}
 					if turnOrder[gStates.turnNumber].avatarLocation:sub(1, 4)=="city" or turnOrder[gStates.turnNumber].avatarLocation=="Volkare's Camp" then
 						--figure out which city avatar is in
 						for zone, citySearch in pairs(cityScriptZones) do
@@ -2599,7 +2593,7 @@ function pursuingRampagers(player, mouseButton, id)
 					local canAttack=false
 					local protection="none"
 					local rampageNewPos={}
-					function hexCheck()
+					local function hexCheck()
 						local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
 						local terrainFound=false
 						local terTile, hexBearing=terrainHexAtPosition(rampageNewPos, objectsInPlay)
@@ -2625,11 +2619,10 @@ function pursuingRampagers(player, mouseButton, id)
 							else
 								protection="Fortified"
 								if terrainTiles[terTile.guid].hexFeature[tostring(hexBearing)]:sub(1, 4)=="city" then
-									local cityZone={[cityModel.blue]=GUID.zone.blueCity, [cityModel.red]=GUID.zone.redCity, [cityModel.green]=GUID.zone.greenCity, [cityModel.white]=GUID.zone.whiteCity}
 									for _, obj in pairs(objectsInPlay) do
-										if cityZone[obj.guid]~=nil then
+										if combatCityZones[obj.guid]~=nil and obj.guid~=volkare.terrainHex then
 											local found=false
-											for _, obj2 in pairs(getObjectFromGUID(cityZone[obj.guid]).getObjects()) do
+											for _, obj2 in pairs(getObjectFromGUID(combatCityZones[obj.guid]).getObjects()) do
 												if obj2.getName()==turnOrder[gStates.turnNumber].mage then
 													if math.sqrt(((rampageNewPos[1]-obj.getPosition()[1])^2)+((rampageNewPos[3]-obj.getPosition()[3])^2))<1 then
 														protection="City"
@@ -2649,9 +2642,8 @@ function pursuingRampagers(player, mouseButton, id)
 						if terrainFound==true then
 							--make sure there isnt an other player
 							local magefound=false
-							local test={Arythea=1, Braevalar=1, Goldyx=1, Krang=1, Norowas=1, Tovak=1, Wolfhawk=1, Coral=1, Ymirgh=1, Novak=1, Duscenia=1, Jormund=1, Volkare=1}
 							for _, obj in pairs(objectsInPlay) do
-								if obj.getName()~=turnOrder[gStates.turnNumber].mage and test[obj.getName()]==1 then
+								if obj.getName()~=turnOrder[gStates.turnNumber].mage and combatPursuitMageNames[obj.getName()]==true then
 									if math.sqrt(((rampageNewPos[1]-obj.getPosition()[1])^2)+((rampageNewPos[3]-obj.getPosition()[3])^2))<1 then
 										magefound=true
 										break
@@ -2754,9 +2746,9 @@ function pursuingRampagers(player, mouseButton, id)
 						elseif canAttack==true then
 							--The Pursuer is leaving the map for the combat grid; close up its old hex only.
 							if mapTokenReleaseObject~=nil then mapTokenReleaseObject(movingMonster) end
-							movingMonster.setPositionSmooth(rampageNewPos)
+							movingMonster.setPositionSmooth(rampageNewPos,false,false)
 						else
-							movingMonster.setPositionSmooth(rampageNewPos)
+							movingMonster.setPositionSmooth(rampageNewPos,false,false)
 						end
 					end
 
@@ -2768,10 +2760,9 @@ function pursuingRampagers(player, mouseButton, id)
 						for i=1, twoOptions, 1 do
 							local arrowPos={monsterDetails.location[1]-(1.1*math.cos(math.rad(playerBearing))), 1.11, monsterDetails.location[3]-(1.1*math.sin(math.rad(playerBearing)))}
 							local arrow=getObjectFromGUID("6647eb").clone({position=arrowPos})
-							local convert={[0]=270, [30]=240, [60]=210, [90]=180, [120]=150, [150]=120, [180]=90, [210]=60, [240]=30, [270]=0, [300]=330, [330]=300, [360]=270}
 							if playerBearing>=360 then playerBearing=playerBearing-360 end
 							if playerBearing<0 then playerBearing=playerBearing+360 end
-							arrow.setRotation({90.00, convert[playerBearing], 0.00})
+							arrow.setRotation({90.00, combatPursuitArrowRotation[playerBearing], 0.00})
 							arrow.setColorTint("Orange")
 							arrow.setPosition(arrowPos) arrow.lock() gStates.arrowDelete[arrow.guid]="Del"
 							playerBearing=otherBearing
@@ -2803,7 +2794,7 @@ function leaveAvatarSite(player)
 						local details=gStates.attackedMonsters[attachment.guid]
 						if details~=nil then
 							attachment.setRotation(details[2])
-							attachment.setPositionSmooth(details[1])
+							attachment.setPositionSmooth(details[1],false,false)
 							gStates.attackedMonsters[attachment.guid]=nil
 						end
 					end
@@ -2818,12 +2809,12 @@ function leaveAvatarSite(player)
 			gStates.summonStates[guid]=nil
 			if details[4]~=nil then gStates.summonStates[details[4]]=nil end
 		end
-		if getObjectFromGUID(guid)~=nil then
-			if getObjectFromGUID(guid).getName()=="{en}Volkare Reminder Token{zh-cn}沃里卡提醒标记{ko}볼케어 공격 토큰{es}Token de recordatorio de Volkare{fr}Jeton de rappel Volkare{pt-br}Token de lembrete de Volkare" then
-				getObjectFromGUID(guid).destruct()
+		local attackedObj=getObjectFromGUID(guid)
+		if attackedObj~=nil then
+			if attackedObj.getGMNotes()=="Volkare Reminder Token" then attackedObj.destruct()
 			else
-				getObjectFromGUID(guid).setRotation(details[2])
-				getObjectFromGUID(guid).setPositionSmooth(details[1])
+				attackedObj.setRotation(details[2])
+				attackedObj.setPositionSmooth(details[1],false,false)
 			end
 		end
 	end
