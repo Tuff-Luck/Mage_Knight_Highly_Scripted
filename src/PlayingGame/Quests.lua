@@ -2182,10 +2182,6 @@ function apocalypseQuestLaunchCombat(card,playerIndex,playerColor,chosenColor,cl
 	if apocalypseQuestCombatAvailable(card,playerIndex)~=true and chosenColor==nil then return false end
 	local state=apocalypseQuestProgressState(card,playerIndex,false)
 	if state==nil then return false end
-	if card.guid=="ce70fb" and chosenColor~=nil then
-		if gStates.apocalypseQuestCombatBranch==nil then gStates.apocalypseQuestCombatBranch={} end
-		gStates.apocalypseQuestCombatBranch[card.guid]=chosenColor
-	end
 	local combatOption=apocalypseQuestCombatOption(card,state)
 	if combatOption~=nil then
 		local markerRule=apocalypseQuestMarkerRule(card,apocalypseQuestStepNumber(combatOption.key))
@@ -4608,7 +4604,7 @@ end
 
 local spellThiefHandler=apocalypseQuestRegisterHandler("8cdac4")
 local fistfulHandler=apocalypseQuestRegisterHandler("66ea80")
-local function launchClickedOrFirstQuestEnemy(card,playerIndex,clickedEnemyGUID)
+local function launchClickedOrFirstQuestEnemy(card,playerIndex,playerColor,chosenColor,clickedEnemyGUID)
 	if clickedEnemyGUID~=nil then
 		local clicked=getObjectFromGUID(clickedEnemyGUID)
 		local onCard=false
