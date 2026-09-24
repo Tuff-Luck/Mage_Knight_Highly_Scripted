@@ -1637,69 +1637,117 @@ function apocalypseIsHereRevealThreshold(index)
 	return thresholds[index]
 end
 
+function apocalypseIsHereRecomputeNextHorseman()
+	local order=gStates.apocalypseHereHorsemanOrder or {}
+	for index,name in ipairs(order) do
+		local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+		if state~=nil and state.revealed~=true and state.retired~=true and state.defeated~=true and state.revealPending~=true then
+			gStates.apocalypseHereNextHorseman=index
+			return index
+		end
+	end
+	gStates.apocalypseHereNextHorseman=#order+1
+	return gStates.apocalypseHereNextHorseman
+end
+
+function apocalypseIsHereCancelReservedReveal(state)
+	if state==nil then return false end
+	local forced=state.revealForced==true
+	state.revealPending=nil
+	state.revealForced=nil
+	state.revealIndex=nil
+	if forced==true then
+		gStates.apocalypseHereForcedRevealCount=(tonumber(gStates.apocalypseHereForcedRevealCount) or 0)+1
+		gStates.apocalypseHereForcedRevealPending=true
+		if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Horseman reveal restored") end
+	end
+	apocalypseIsHereRecomputeNextHorseman()
+	return true
+end
+
+function apocalypseIsHereDeployReservedHorseman(name)
+	if apocalypseIsHereActive()~=true then return false end
+	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	local data=horsemanData~=nil and horsemanData[name] or nil
+	if state==nil or data==nil or state.revealPending~=true then return false end
+	local tileGUID=state.revealTileGUID
+	local index=tonumber(state.revealIndex) or tonumber(state.mapSlot) or 1
+	local forced=state.revealForced==true
+	local currentTile=tileGUID~=nil and getObjectFromGUID(tileGUID) or nil
+	if currentTile==nil then
+		apocalypseIsHereCancelReservedReveal(state)
+		print("HORSEMAN REVEAL ERROR: terrain tile "..tostring(tileGUID).." disappeared before "..tostring(name).." could deploy")
+		return false
+	end
+	local xy=angleToXY(currentTile,"center")
+	local tilePos=currentTile.getPosition()
+	local target={xy[1],tilePos[2]+1.0,xy[2]}
+	local token=getObjectFromGUID(data.tokenGUID)
+	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+	if token==nil and bag~=nil then token=bag.takeObject({guid=data.tokenGUID,position={target[1],target[2]+1.0,target[3]},rotation={0,180,0},smooth=false}) end
+	if token==nil then
+		apocalypseIsHereCancelReservedReveal(state)
+		print("HORSEMAN REVEAL ERROR: "..tostring(name).." token is missing")
+		return false
+	end
+
+	setHorsemanLevel(name,state.level,false)
+	token=getObjectFromGUID(data.tokenGUID) or token
+	local started=mapTokenSettleArrival(token.guid,target,{force=true,rotation={0,180,0}})
+	if started~=true then
+		apocalypseIsHereCancelReservedReveal(state)
+		print("HORSEMAN REVEAL ERROR: "..tostring(name).." could not start its deployment")
+		return false
+	end
+
+	state.revealPending=nil
+	state.revealForced=nil
+	state.revealIndex=nil
+	state.revealed=true
+	apocalypseIsHereRecomputeNextHorseman()
+
+	local card=getObjectFromGUID(data.cardGUID)
+	if card~=nil then
+		card.unlock()
+		card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,0.40},false,false)
+		if card.is_face_down==true then card.flip() end
+	end
+	broadcastToAll(joinLang({name,"{en} has been revealed at Level {ru} раскрыт на уровне {zh-tw} 已揭示，等級 {zh-cn} 已揭示，等级 {ko} 공개됨. 레벨 {es} ha sido revelado en Nivel {fr} a été révélé au Niveau {pt-br} foi revelado no Nível {de} wurde auf Stufe ",tostring(state.level),forced==true and "{en} by the Round deadline.{ru} из-за срока раунда.{zh-tw}，因回合輪期限而揭示。{zh-cn}，因回合轮期限而揭示。{ko}, 라운드 기한으로 공개되었습니다.{es} por el límite de la Ronda.{fr} en raison de la limite de la Manche.{pt-br} pelo limite da Rodada.{de} aufgrund der Rundenfrist aufgedeckt." or "."}),{1,0.75,0.2})
+	return true
+end
+
 function apocalypseIsHereRevealNextHorseman(tile,forced)
 	if apocalypseIsHereActive()~=true or gStates.apocalypseHereHorsemenEnded==true or tile==nil then return false end
 	local index=tonumber(gStates.apocalypseHereNextHorseman) or 1
 	local name=(gStates.apocalypseHereHorsemanOrder or {})[index]
 	local data=name~=nil and horsemanData[name] or nil
 	local state=name~=nil and gStates.horsemen[name] or nil
-	if data==nil or state==nil then return false end
+	if data==nil or state==nil or state.revealPending==true or state.revealed==true then return false end
 
-	--Reserve this reveal immediately so another rapidly explored tile cannot queue the same Horseman.
-	--The physical move waits for this terrain tile's ordinary site/enemy population to finish; that
-	--makes the Horseman the final moving token on the hex, so the one arrival spread keeps it on top.
+	--Reserve the reveal so rapid exploration may reserve the next Horseman too. If physical deployment
+	--fails, the reservation and any forced-reveal count are rolled back rather than silently consuming it.
 	local tileGUID=tile.guid
 	state.revealPending=true
+	state.revealForced=forced==true
+	state.revealIndex=index
 	state.retired=false
 	state.terrainGUID=tileGUID
 	state.bearing="center"
 	state.revealTileGUID=tileGUID
 	state.revealCount=gStates.apocalypseHereTilesRevealed
-	gStates.apocalypseHereNextHorseman=index+1
-
-	if gStates.apocalypseHereForcedRevealPending==true then
+	if forced==true then
 		gStates.apocalypseHereForcedRevealCount=math.max(0,(tonumber(gStates.apocalypseHereForcedRevealCount) or 1)-1)
 		gStates.apocalypseHereForcedRevealPending=gStates.apocalypseHereForcedRevealCount>0
-		if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Horseman exploration resolved") end
+		if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Horseman exploration reserved") end
 	end
+	apocalypseIsHereRecomputeNextHorseman()
 
 	local deployed=false
 	local function deploy()
 		if deployed==true then return end
 		deployed=true
-		local currentTile=getObjectFromGUID(tileGUID)
-		if currentTile==nil then
-			state.revealPending=nil
-			print("HORSEMAN REVEAL ERROR: terrain tile "..tostring(tileGUID).." disappeared before "..tostring(name).." could deploy")
-			return
-		end
-		local xy=angleToXY(currentTile,"center")
-		local tilePos=currentTile.getPosition()
-		local target={xy[1],tilePos[2]+1.0,xy[2]}
-		local token=getObjectFromGUID(data.tokenGUID)
-		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-		if token==nil and bag~=nil then token=bag.takeObject({guid=data.tokenGUID,position={target[1],target[2]+1.0,target[3]},rotation={0,180,0},smooth=false}) end
-		if token==nil then
-			state.revealPending=nil
-			print("HORSEMAN REVEAL ERROR: "..tostring(name).." token is missing")
-			return
-		end
-
-		setHorsemanLevel(name,state.level,false)
-		token=getObjectFromGUID(data.tokenGUID) or token
-		state.revealPending=nil
-		state.revealed=true
-		mapTokenSettleArrival(token.guid,target,{force=true,rotation={0,180,0}})
-
-		local card=getObjectFromGUID(data.cardGUID)
-		if card~=nil then
-			card.unlock()
-			card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,0.40},false,true)
-			if card.is_face_down==true then card.flip() end
-		end
-		broadcastToAll(joinLang({name,"{en} has been revealed at Level {ru} раскрыт на уровне {zh-tw} 已揭示，等級 {zh-cn} 已揭示，等级 {ko} 공개됨. 레벨 {es} ha sido revelado en Nivel {fr} a été révélé au Niveau {pt-br} foi revelado no Nível {de} wurde auf Stufe ",tostring(state.level),forced==true and "{en} by the Round deadline.{ru} из-за срока раунда.{zh-tw}，因回合輪期限而揭示。{zh-cn}，因回合轮期限而揭示。{ko}, 라운드 기한으로 공개되었습니다.{es} por el límite de la Ronda.{fr} en raison de la limite de la Manche.{pt-br} pelo limite da Rodada.{de} aufgrund der Rundenfrist aufgedeckt." or "."}),{1,0.75,0.2})
+		apocalypseIsHereDeployReservedHorseman(name)
 	end
-
 	if workingOnTerrain~=nil and workingOnTerrain[tileGUID]==true then
 		--Do not time this out: the Horseman must remain the final arrival even on a slow machine.
 		safeWaitCondition("Scenario",deploy,function() return workingOnTerrain[tileGUID]~=true end)
@@ -1923,27 +1971,49 @@ function apocalypseIsHereHorsemanDestination(startHex,targetHex,hexes,horsemanNa
 	return current
 end
 
-function apocalypseIsHereClearChoiceButtons()
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return end
-	for _,terrain in pairs(map.getObjects()) do
-		if terrainTiles[terrain.guid]~=nil then
-			local xml=terrain.UI.getXmlTable() or {}
-			local changed=false
-			for i=#xml,1,-1 do local id=xml[i].attributes~=nil and tostring(xml[i].attributes.id or "") or "" if id:find("ApocalypseHorsemanTarget",1,true)~=nil then table.remove(xml,i) changed=true end end
-			if changed then if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end end
+function apocalypseIsHereClearChoiceButtons(terrainGUIDs)
+	local pending=gStates~=nil and gStates.apocalypseHereHorsemanPendingChoice or nil
+	local guids=terrainGUIDs or (pending~=nil and pending.terrainGUIDs) or {}
+	local seen={}
+	for _,terrainGUID in ipairs(guids) do
+		if seen[terrainGUID]~=true then
+			seen[terrainGUID]=true
+			local terrain=getObjectFromGUID(terrainGUID)
+			if terrain~=nil then
+				local xml=terrain.UI.getXmlTable() or {}
+				local changed=false
+				for i=#xml,1,-1 do
+					local id=xml[i].attributes~=nil and tostring(xml[i].attributes.id or "") or ""
+					if id:find("ApocalypseHorsemanTarget",1,true)~=nil then table.remove(xml,i) changed=true end
+				end
+				if changed then if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end end
+			end
 		end
 	end
 end
 
-function apocalypseIsHereShowTargetChoice(name,options)
-	apocalypseIsHereClearChoiceButtons()
+function apocalypseIsHereShowTargetChoice(name,options,previousReport,choicePlayerIndex)
+	local oldPending=gStates.apocalypseHereHorsemanPendingChoice
+	apocalypseIsHereClearChoiceButtons(oldPending~=nil and oldPending.terrainGUIDs or nil)
 	local targetKeys={}
+	local terrainGUIDs={}
+	local terrainSeen={}
 	for _,option in ipairs(options or {}) do
 		local key=option~=nil and option.hex~=nil and runtimeMapHexKey(option.hex) or nil
 		if key~=nil then targetKeys[#targetKeys+1]=key end
+		local terrain=option~=nil and option.hex~=nil and option.hex.terrain or nil
+		if terrain~=nil and terrainSeen[terrain.guid]~=true then
+			terrainSeen[terrain.guid]=true
+			terrainGUIDs[#terrainGUIDs+1]=terrain.guid
+		end
 	end
-	local pending={name=name,targetKeys=targetKeys,playerIndex=apocalypseDragonChoicePlayerIndex(),previousReport=gStates.apocalypseHereHorsemenTurnReport or ""}
+	local pending={
+		name=name,
+		targetKeys=targetKeys,
+		terrainGUIDs=terrainGUIDs,
+		playerIndex=choicePlayerIndex or apocalypseDragonChoicePlayerIndex(),
+		previousReport=previousReport~=nil and previousReport or (gStates.apocalypseHereHorsemenTurnReport or "")
+	}
 	gStates.apocalypseHereHorsemanPendingChoice=pending
 	local grouped={}
 	for index,option in ipairs(options or {}) do
@@ -1956,23 +2026,45 @@ function apocalypseIsHereShowTargetChoice(name,options)
 			local tileScale=terrain.getScale()
 			local scaleX=tileScale.x or tileScale[1] or 2.25
 			local scaleZ=tileScale.z or tileScale[3] or 2.25
-			--Match the Proxy map-choice buttons. TTS scales the button but not its object-UI position,
-			--so shrink the coordinates/depth by the same ratio as the 0.38 -> 0.16 visual scale.
 			local uiFactor=0.16/0.38
 			local uiX=(localPos.x or localPos[1])*scaleX*110*uiFactor
 			local uiY=(localPos.z or localPos[3])*scaleZ*110*uiFactor
 			local uiDepth=-40*uiFactor
 			local buttonScale=0.16
 			local id=terrain.guid.."ApocalypseHorsemanTarget"..tostring(index)
-			group.xml[#group.xml+1]={tag="Button",attributes={id=id,onClick="global/apocalypseIsHereHorsemanTargetSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",height=300,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(terrain.getRotation()[2] or 180),scale=buttonScale.." "..buttonScale},children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},{tag="Text",attributes={font="Fonts/MKCardText",fontSize="65",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="65",text=name.."\nTarget"}}}}
+			group.xml[#group.xml+1]={tag="Button",attributes={id=id,onClick="global/apocalypseIsHereHorsemanTargetSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",height=300,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(terrain.getRotation()[2] or 180),scale=buttonScale.." "..buttonScale},children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},{tag="Text",attributes={font="Fonts/MKCardText",fontSize="65",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="65",text=joinLang({name,"\n","{en}Target{ru}Цель{zh-tw}目標{zh-cn}目标{ko}목표{es}Objetivo{fr}Cible{pt-br}Alvo{de}Ziel"})}}}}
 		end
 	end
 	for _,group in pairs(grouped) do group.terrain.UI.setXmlTable(group.xml) end
 	gStates.apocalypseHereHorsemenUIState="WaitingChoice"
-	local choiceText=name.." has tied preferred targets. "..apocalypseDragonChoicePlayerLabel(pending.playerIndex).." must choose which site it moves toward."
+	local choiceText=joinLang({name,"{en} has tied preferred targets. {ru} имеет несколько равноценных предпочтительных целей. {zh-tw} 有多個同等優先的目標。{zh-cn} 有多个同等优先的目标。{ko}에게 동률인 우선 목표가 있습니다. {es} tiene varios objetivos preferidos empatados. {fr} a plusieurs cibles prioritaires à égalité. {pt-br} tem vários alvos preferidos empatados. {de} hat mehrere gleichrangige bevorzugte Ziele. ",apocalypseDragonChoicePlayerLabel(pending.playerIndex),"{en} must choose which site it moves toward.{ru} должен выбрать, к какому месту он двинется.{zh-tw} 必須選擇它要朝哪個地點移動。{zh-cn} 必须选择它要朝哪个地点移动。{ko}이(가) 어느 장소로 이동할지 선택해야 합니다.{es} debe elegir hacia qué lugar se moverá.{fr} doit choisir vers quel site il se déplacera.{pt-br} deve escolher em direção a qual local ele se moverá.{de} muss wählen, auf welchen Ort er sich zubewegt."})
 	gStates.apocalypseHereHorsemenTurnReport=pending.previousReport..(pending.previousReport~="" and "<size=6>\n\n</size>" or "")..choiceText
 	mainUIUpdate("Horseman target choice")
 	return true
+end
+
+function apocalypseIsHereRefreshPendingTargetChoice()
+	local pending=gStates.apocalypseHereHorsemanPendingChoice
+	if pending==nil then return false end
+	local liveOptions=apocalypseIsHereHorsemanTargetOptions(pending.name)
+	local previousReport=pending.previousReport or ""
+	local playerIndex=pending.playerIndex
+	apocalypseIsHereClearChoiceButtons(pending.terrainGUIDs)
+	if #liveOptions<1 then
+		gStates.apocalypseHereHorsemanPendingChoice=nil
+		gStates.apocalypseHereHorsemenUIState="Processing"
+		local line=joinLang({pending.name,"{en} found no remaining preferred undestroyed target and did not move.{ru} не нашёл оставшейся предпочтительной неразрушенной цели и не двигался.{zh-tw} 找不到剩餘的優先未摧毀目標，因此沒有移動。{zh-cn} 找不到剩余的优先未摧毁目标，因此没有移动。{ko}은(는) 남아 있는 선호 미파괴 목표를 찾지 못해 이동하지 않았습니다.{es} no encontró ningún objetivo preferido sin destruir y no se movió.{fr} n’a trouvé aucune cible prioritaire non détruite et ne s’est pas déplacé.{pt-br} não encontrou nenhum alvo preferido não destruído e não se moveu.{de} fand kein verbleibendes bevorzugtes unzerstörtes Ziel und bewegte sich nicht."})
+		gStates.apocalypseHereHorsemenTurnReport=previousReport..(previousReport~="" and "<size=6>\n\n</size>" or "")..line
+		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
+		return true
+	end
+	if #liveOptions==1 then
+		gStates.apocalypseHereHorsemenTurnReport=previousReport
+		gStates.apocalypseHereHorsemanPendingChoice=nil
+		gStates.apocalypseHereHorsemenUIState="Processing"
+		return apocalypseIsHereResolveHorsemanTarget(pending.name,liveOptions[1])
+	end
+	return apocalypseIsHereShowTargetChoice(pending.name,liveOptions,previousReport,playerIndex)
 end
 
 function apocalypseIsHereHorsemanTargetSelect(player,mouseButton,id)
@@ -1987,9 +2079,8 @@ function apocalypseIsHereHorsemanTargetSelect(player,mouseButton,id)
 	for _,candidate in ipairs(liveOptions or {}) do
 		if candidate.key==targetKey then option=candidate break end
 	end
-	if option==nil then return end
-	apocalypseIsHereClearChoiceButtons()
-	--The choice prompt is temporary UI guidance, not part of the completed Horsemen action log.
+	if option==nil then apocalypseIsHereRefreshPendingTargetChoice() return end
+	apocalypseIsHereClearChoiceButtons(pending.terrainGUIDs)
 	gStates.apocalypseHereHorsemenTurnReport=pending.previousReport or ""
 	gStates.apocalypseHereHorsemanPendingChoice=nil
 	gStates.apocalypseHereHorsemenUIState="Processing"
@@ -2009,13 +2100,37 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
 	local state=gStates.horsemen[name]
 	local data=horsemanData[name]
 	if state==nil or data==nil or targetHex==nil then return false end
+	local destroyedName=proxyFeatureDisplayName(targetHex.feature)
+	local action=gStates.apocalypseHereHorsemanAction
+	local function failDestruction()
+		local line=joinLang({name,"{en} could not destroy {ru} не смог уничтожить {zh-tw} 無法摧毀 {zh-cn} 无法摧毁 {ko}은(는) {es} no pudo destruir {fr} n’a pas pu détruire {pt-br} não conseguiu destruir {de} konnte ",destroyedName,"{en}; no Horseman or Dragon effects were applied.{ru}; эффекты Всадника и Дракона не применены.{zh-tw}；未套用騎士或巨龍效果。{zh-cn}；未应用骑士或巨龙效果。{ko}을(를) 파괴하지 못했습니다. 기사 및 드래곤 효과는 적용되지 않았습니다.{es}; no se aplicaron efectos del Jinete ni del Dragón.{fr} ; aucun effet du Cavalier ni du Dragon n’a été appliqué.{pt-br}; nenhum efeito do Cavaleiro ou do Dragão foi aplicado.{de} nicht zerstören; es wurden keine Reiter- oder Dracheneffekte angewendet."})
+		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		gStates.apocalypseHereHorsemanAction=nil
+		if afterArrange~=nil then safeWaitFrames("Scenario",afterArrange,1) end
+	end
+
 	local destroyedToken=takeDestroyedSiteToken(targetHex.terrain,targetHex.bearing)
-	local destructionStarted=destroyedToken~=nil and destroySite(destroyedToken,targetHex.terrain,targetHex.bearing,afterArrange)==true
+	if destroyedToken==nil then failDestruction() return false end
+	if action~=nil then
+		action.stage="destroying"
+		action.destroyedTokenGUID=destroyedToken.guid
+	end
+	local function finished()
+		if gStates.apocalypseHereHorsemanAction==action then gStates.apocalypseHereHorsemanAction=nil end
+		if afterArrange~=nil then afterArrange() end
+	end
+	local destructionStarted=destroySite(destroyedToken,targetHex.terrain,targetHex.bearing,finished)==true
+	if destructionStarted~=true then
+		local bag=getObjectFromGUID(GUID.bag.destroyedSite)
+		if bag~=nil and getObjectFromGUID(destroyedToken.guid)~=nil then bag.putObject(destroyedToken) end
+		failDestruction()
+		return false
+	end
+
 	local oldHead=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[name] or 0) or 0
 	local newHead=math.min(12,oldHead+1)
 	if oldHead>0 and oldHead<12 then apocalypseDragonSetHeadLevel(name,newHead) end
 	state.sitesDestroyed=(tonumber(state.sitesDestroyed) or 0)+1
-	local destroyedName=proxyFeatureDisplayName(targetHex.feature)
 	local report=nil
 	if state.sitesDestroyed>=4 then
 		state.retired=true state.revealed=false state.removedAfterFour=true
@@ -2028,17 +2143,36 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
 		end
 		monsterPugs[data.tokenGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end
-		report=name.." destroyed "..destroyedName..", raising the Dragon's head level ("..tostring(newHead).."), then left the map after destroying four sites."
+		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, raising the Dragon head to level {ru}, повысив уровень головы Дракона до {zh-tw}，使巨龍頭部等級提升至 {zh-cn}，使巨龙头部等级提升至 {ko}을(를) 파괴하여 드래곤 머리 레벨을 {es}, elevando la cabeza del Dragón al nivel {fr}, faisant passer la tête du Dragon au niveau {pt-br}, elevando a cabeça do Dragão ao nível {de} und erhöhte den Drachenkopf auf Stufe ",newHead,"{en}, then left the map after destroying four sites.{ru}, а затем покинул карту после уничтожения четырёх мест.{zh-tw}，並在摧毀四個地點後離開地圖。{zh-cn}，并在摧毁四个地点后离开地图。{ko}로 올린 뒤, 네 곳을 파괴하고 지도에서 떠났습니다.{es}, y luego abandonó el mapa tras destruir cuatro lugares.{fr}, puis a quitté la carte après avoir détruit quatre sites.{pt-br}, e então deixou o mapa após destruir quatro locais.{de} und verließ danach die Karte, nachdem vier Orte zerstört worden waren."})
 	elseif (tonumber(state.level) or 1)>1 then
 		state.level=state.level-1
 		setHorsemanLevel(name,state.level,false)
-		report=name.." destroyed "..destroyedName..", losing a level ("..tostring(state.level).."), while raising the Dragon's head level ("..tostring(newHead)..")."
+		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, losing a level (now {ru}, потеряв уровень (теперь {zh-tw}，降低一級（現為 {zh-cn}，降低一级（现为 {ko}을(를) 파괴해 레벨이 감소했습니다(현재 {es}, perdiendo un nivel (ahora {fr}, perdant un niveau (désormais {pt-br}, perdendo um nível (agora {de} und verlor eine Stufe (jetzt ",state.level,"{en}) while raising the Dragon head to level {ru}), одновременно повысив голову Дракона до уровня {zh-tw}），同時使巨龍頭部提升至等級 {zh-cn}），同时使巨龙头部提升至等级 {ko}) 그리고 드래곤 머리를 레벨 {es}) mientras elevaba la cabeza del Dragón al nivel {fr}) tout en faisant passer la tête du Dragon au niveau {pt-br}) enquanto elevava a cabeça do Dragão ao nível {de}) und erhöhte dabei den Drachenkopf auf Stufe ",newHead,"."})
 	else
-		report=name.." destroyed "..destroyedName..", while raising the Dragon's head level ("..tostring(newHead)..")."
+		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, raising the Dragon head to level {ru}, повысив голову Дракона до уровня {zh-tw}，使巨龍頭部提升至等級 {zh-cn}，使巨龙头部提升至等级 {ko}을(를) 파괴해 드래곤 머리를 레벨 {es}, elevando la cabeza del Dragón al nivel {fr}, faisant passer la tête du Dragon au niveau {pt-br}, elevando a cabeça do Dragão ao nível {de} und erhöhte den Drachenkopf auf Stufe ",newHead,"."})
 	end
 	gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..report
-	if destructionStarted~=true and afterArrange~=nil then safeWaitFrames("Scenario",afterArrange,1) end
+	if action~=nil then action.stage="settling" end
 	return true
+end
+
+function apocalypseIsHereHexByKey(key,hexes)
+	if key==nil then return nil end
+	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
+	return nil
+end
+
+function apocalypseIsHereHorsemanMoveFinished(name,target,reached)
+	if reached==true then
+		local action=gStates.apocalypseHereHorsemanAction
+		if action~=nil then action.stage="destroying" end
+		apocalypseIsHereHorsemanDestroyTarget(name,target,apocalypseIsHereContinueHorsemenTurn)
+	else
+		local line=joinLang({name,"{en} moved two spaces toward {ru} переместился на две клетки к {zh-tw} 朝 {zh-cn} 朝 {ko}이(가) {es} se movió dos espacios hacia {fr} s’est déplacé de deux cases vers {pt-br} moveu-se dois espaços em direção a {de} bewegte sich zwei Felder in Richtung ",proxyFeatureDisplayName(target.feature),"{en}.{ru}.{zh-tw} 移動了兩格。{zh-cn} 移动了两格。{ko} 쪽으로 두 칸 이동했습니다.{es}.{fr}.{pt-br}.{de}."})
+		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		gStates.apocalypseHereHorsemanAction=nil
+		apocalypseIsHereContinueHorsemenTurn()
+	end
 end
 
 function apocalypseIsHereResolveHorsemanTarget(name,option)
@@ -2052,19 +2186,22 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 	if token==nil or destination==nil then apocalypseIsHereContinueHorsemenTurn() return false end
 	state.terrainGUID=destination.terrainGUID state.bearing=destination.bearing
 	local reached=runtimeMapHexKey(destination)==runtimeMapHexKey(target)
+	gStates.apocalypseHereHorsemanAction={
+		name=name,
+		targetKey=runtimeMapHexKey(target),
+		destinationKey=runtimeMapHexKey(destination),
+		reached=reached,
+		stage="moving"
+	}
 	local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
 		{releaseOrigin=true,rotation={0,180,0},deferArrange=reached},function()
-			if reached then
-				--The target was cleared as soon as this move was successfully queued. Add the Destroyed Site
-				--after landing; its arrival owns the one final shared-hex spread.
-				apocalypseIsHereHorsemanDestroyTarget(name,target,apocalypseIsHereContinueHorsemenTurn)
-			else
-				local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
-				gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
-				apocalypseIsHereContinueHorsemenTurn()
-			end
+			apocalypseIsHereHorsemanMoveFinished(name,target,reached)
 		end)
-	if started~=true then apocalypseIsHereContinueHorsemenTurn() return false end
+	if started~=true then
+		gStates.apocalypseHereHorsemanAction=nil
+		apocalypseIsHereContinueHorsemenTurn()
+		return false
+	end
 	if reached then apocalypseIsHereHorsemanClearTarget(target) end
 	return true
 end
@@ -2076,14 +2213,16 @@ function apocalypseIsHereProcessNextHorseman()
 	local name=queue[index]
 	if name==nil then
 		gStates.apocalypseHereHorsemenUIState="ReadyToEnd"
-		if (gStates.apocalypseHereHorsemenTurnReport or "")=="" then gStates.apocalypseHereHorsemenTurnReport="The Horsemen had no action to resolve." end
+		if (gStates.apocalypseHereHorsemenTurnReport or "")=="" then
+			gStates.apocalypseHereHorsemenTurnReport="{en}The Horsemen had no action to resolve.{ru}У Всадников не было действий для разрешения.{zh-tw}騎士沒有需要處理的行動。{zh-cn}骑士没有需要处理的行动。{ko}기사들이 처리할 행동이 없습니다.{es}Los Jinetes no tenían ninguna acción que resolver.{fr}Les Cavaliers n’avaient aucune action à résoudre.{pt-br}Os Cavaleiros não tinham nenhuma ação para resolver.{de}Die Reiter hatten keine Aktion auszuführen."
+		end
 		mainUIUpdate("Horsemen Processed")
 		return
 	end
 	gStates.apocalypseHereHorsemenQueueIndex=index+1
 	local options=apocalypseIsHereHorsemanTargetOptions(name)
 	if #options<1 then
-		local line=name.." found no preferred undestroyed target and did not move."
+		local line=joinLang({name,"{en} found no preferred undestroyed target and did not move.{ru} не нашёл предпочтительной неразрушенной цели и не двигался.{zh-tw} 找不到優先的未摧毀目標，因此沒有移動。{zh-cn} 找不到优先的未摧毁目标，因此没有移动。{ko}은(는) 선호하는 미파괴 목표를 찾지 못해 이동하지 않았습니다.{es} no encontró ningún objetivo preferido sin destruir y no se movió.{fr} n’a trouvé aucune cible prioritaire non détruite et ne s’est pas déplacé.{pt-br} não encontrou nenhum alvo preferido não destruído e não se moveu.{de} fand kein bevorzugtes unzerstörtes Ziel und bewegte sich nicht."})
 		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
 		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
 	elseif #options>1 then apocalypseIsHereShowTargetChoice(name,options)
@@ -2115,7 +2254,8 @@ function apocalypseIsHereBeginHorsemenTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	gStates.apocalypseHereHorsemenResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn,sameTurn=sameTurn}
 	gStates.apocalypseHereHorsemenQueue=queue
 	gStates.apocalypseHereHorsemenQueueIndex=1
-	gStates.apocalypseHereHorsemenTurnReport="The Horsemen act in the order they were revealed."
+	gStates.apocalypseHereHorsemanAction=nil
+	gStates.apocalypseHereHorsemenTurnReport="{en}The Horsemen act in the order they were revealed.{ru}Всадники действуют в порядке их раскрытия.{zh-tw}騎士依照揭示順序行動。{zh-cn}骑士依照揭示顺序行动。{ko}기사들은 공개된 순서대로 행동합니다.{es}Los Jinetes actúan en el orden en que fueron revelados.{fr}Les Cavaliers agissent dans l’ordre où ils ont été révélés.{pt-br}Os Cavaleiros agem na ordem em que foram revelados.{de}Die Reiter handeln in der Reihenfolge, in der sie aufgedeckt wurden."
 	gStates.apocalypseHereHorsemenUIState="ReadyToProcess"
 	mainUIUpdate("Horsemen Turn")
 	return true
@@ -2124,11 +2264,17 @@ end
 function apocalypseIsHereMainUIPanelSpec()
 	if apocalypseIsHereActive()~=true or gStates.apocalypseHereHorsemenTurnActive~=true then return nil end
 	local state=gStates.apocalypseHereHorsemenUIState
-	local label="{en}Processing Horsemen...{ru}Processing Horsemen...{zh-tw}Processing Horsemen...{zh-cn}Processing Horsemen...{ko}Processing Horsemen...{es}Processing Horsemen...{fr}Processing Horsemen...{pt-br}Processing Horsemen...{de}Processing Horsemen..."
+	local label="{en}Processing Horsemen...{ru}Обработка Всадников...{zh-tw}正在處理騎士…{zh-cn}正在处理骑士…{ko}기사 처리 중...{es}Procesando Jinetes...{fr}Traitement des Cavaliers...{pt-br}Processando Cavaleiros...{de}Reiter werden verarbeitet..."
 	local active=false
-	if state=="ReadyToProcess" then label="{en}Process Horsemen{ru}Process Horsemen{zh-tw}Process Horsemen{zh-cn}Process Horsemen{ko}Process Horsemen{es}Process Horsemen{fr}Process Horsemen{pt-br}Process Horsemen{de}Process Horsemen" active=true
-	elseif state=="ReadyToEnd" then label="{en}Horsemen Processed{ru}Horsemen Processed{zh-tw}Horsemen Processed{zh-cn}Horsemen Processed{ko}Horsemen Processed{es}Horsemen Processed{fr}Horsemen Processed{pt-br}Horsemen Processed{de}Horsemen Processed" active=true
-	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Pick Target{zh-tw}Pick Target{zh-cn}Pick Target{ko}Pick Target{es}Pick Target{fr}Pick Target{pt-br}Pick Target{de}Pick Target" end
+	if state=="ReadyToProcess" then
+		label="{en}Process Horsemen{ru}Обработать Всадников{zh-tw}處理騎士{zh-cn}处理骑士{ko}기사 처리{es}Procesar Jinetes{fr}Traiter les Cavaliers{pt-br}Processar Cavaleiros{de}Reiter verarbeiten"
+		active=true
+	elseif state=="ReadyToEnd" then
+		label="{en}Horsemen Processed{ru}Всадники обработаны{zh-tw}騎士處理完成{zh-cn}骑士处理完成{ko}기사 처리 완료{es}Jinetes Procesados{fr}Cavaliers traités{pt-br}Cavaleiros processados{de}Reiter verarbeitet"
+		active=true
+	elseif state=="WaitingChoice" then
+		label="{en}Pick Target{ru}Выбрать цель{zh-tw}選擇目標{zh-cn}选择目标{ko}목표 선택{es}Elegir objetivo{fr}Choisir la cible{pt-br}Escolher alvo{de}Ziel wählen"
+	end
 	return {actor="horsemen",mainText="{en}<size=25>Horsemen's Turn</size>{ru}<size=25>Ход Всадников</size>{zh-tw}<size=25>騎士回合</size>{zh-cn}<size=25>骑士回合</size>{ko}<size=25>기사들의 턴</size>{es}<size=25>Turno de los Jinetes</size>{fr}<size=25>Tour des Cavaliers</size>{pt-br}<size=25>Turno dos Cavaleiros</size>{de}<size=25>Zug der Reiter</size>",notes=gStates.apocalypseHereHorsemenTurnReport or "{en}Process the Horsemen.{ru}Выполните ход Всадников.{zh-tw}處理騎士回合。{zh-cn}处理骑士回合。{ko}기사들의 턴을 처리하십시오.{es}Procesa a los Jinetes.{fr}Traitez le tour des Cavaliers.{pt-br}Processe os Cavaleiros.{de}Führe den Zug der Reiter aus.",onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
 end
 
@@ -2149,14 +2295,88 @@ end
 
 function apocalypseIsHereFinishHorsemenTurn()
 	if gStates.apocalypseHereHorsemenTurnActive~=true then return false end
-	apocalypseIsHereClearChoiceButtons()
+	local pending=gStates.apocalypseHereHorsemanPendingChoice
+	apocalypseIsHereClearChoiceButtons(pending~=nil and pending.terrainGUIDs or nil)
 	UI.setAttribute("DummyTurn","active","false")
 	local resume=gStates.apocalypseHereHorsemenResumeTurn
 	gStates.apocalypseHereHorsemenTurnActive=false
 	gStates.apocalypseHereHorsemenResumeTurn=nil
 	gStates.apocalypseHereHorsemanPendingChoice=nil
+	gStates.apocalypseHereHorsemanAction=nil
 	gStates.apocalypseHereHorsemenUIState=nil
 	if resume~=nil then mergedTurnCommit(resume.turnNumber,resume.newOutOfTurn,resume.sameTurn) end
+	return true
+end
+
+
+function apocalypseIsHereRestoreScenarioState()
+	if apocalypseIsHereActive()~=true then return false end
+
+	--Reveal callbacks are not serialized. Resume any successfully reserved reveal from its persisted tile;
+	--failed physical deployment rolls the reservation back through the normal reveal path.
+	for _,name in ipairs(gStates.apocalypseHereHorsemanOrder or {}) do
+		local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+		if state~=nil and state.revealPending==true then
+			local tile=state.revealTileGUID~=nil and getObjectFromGUID(state.revealTileGUID) or nil
+			if tile~=nil and workingOnTerrain~=nil and workingOnTerrain[tile.guid]==true then
+				safeWaitCondition("Scenario",function() apocalypseIsHereDeployReservedHorseman(name) end,function() return workingOnTerrain[tile.guid]~=true end)
+			else
+				apocalypseIsHereDeployReservedHorseman(name)
+			end
+		end
+	end
+	apocalypseIsHereRecomputeNextHorseman()
+
+	if gStates.apocalypseHereHorsemenTurnActive~=true then return true end
+	local pending=gStates.apocalypseHereHorsemanPendingChoice
+	if pending~=nil or gStates.apocalypseHereHorsemenUIState=="WaitingChoice" then
+		if pending~=nil then apocalypseIsHereRefreshPendingTargetChoice()
+		else
+			gStates.apocalypseHereHorsemenUIState="Processing"
+			safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
+		end
+		return true
+	end
+
+	local action=gStates.apocalypseHereHorsemanAction
+	if action~=nil then
+		local hexes=runtimeMapSnapshot()
+		local destination=apocalypseIsHereHexByKey(action.destinationKey,hexes)
+		local target=apocalypseIsHereHexByKey(action.targetKey,hexes)
+		local state=gStates.horsemen~=nil and gStates.horsemen[action.name] or nil
+		local data=horsemanData~=nil and horsemanData[action.name] or nil
+		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
+		if action.stage=="settling" then
+			local destroyed=action.destroyedTokenGUID~=nil and getObjectFromGUID(action.destroyedTokenGUID) or nil
+			if destroyed~=nil and target~=nil then
+				arrangeDestroyedSiteHex(destroyed,target.terrain,target.bearing,function()
+					if gStates.apocalypseHereHorsemanAction==action then gStates.apocalypseHereHorsemanAction=nil end
+					apocalypseIsHereContinueHorsemenTurn()
+				end)
+			else
+				gStates.apocalypseHereHorsemanAction=nil
+				apocalypseIsHereContinueHorsemenTurn()
+			end
+			return true
+		end
+		if token~=nil and destination~=nil and target~=nil then
+			state.terrainGUID=destination.terrainGUID
+			state.bearing=destination.bearing
+			action.stage="moving"
+			local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
+				{force=true,rotation={0,180,0},deferArrange=action.reached==true},function()
+					apocalypseIsHereHorsemanMoveFinished(action.name,target,action.reached==true)
+				end)
+			if started==true then return true end
+		end
+		gStates.apocalypseHereHorsemanAction=nil
+	end
+
+	if gStates.apocalypseHereHorsemenUIState=="Processing" then
+		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
+	else
+		mainUIUpdate("Horsemen Turn Restored")
+	end
 	return true
 end
 
@@ -2286,24 +2506,23 @@ function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	local center=angleToXY(terrain,bearing)
 	if center==nil then return false end
 
-	token.lock()
-	local started=mapTokenSettleArrival(token.guid,{center[1],mapTokenDestroyedSiteBaseY(),center[2]},{
+	--Move the token visibly above the destination and leave it unlocked. TTS gravity performs the
+	--actual drop onto the hex; once it rests, MapTokens' normal separator owns the bottom slot.
+	token.unlock()
+	local started=mapTokenSettleArrival(token.guid,{center[1],2.0,center[2]},{
 		force=true,
 		rotation={0,180,0}
 	},function()
 		if afterArrange~=nil then afterArrange() end
 	end)
-	if started~=true and afterArrange~=nil then afterArrange() end
-	return true
+	return started==true
 end
 
---Apply Destroyed Site state from one authoritative path. The helper owns the physical placement,
---so callers only need to obtain a Destroyed Site token and identify the target hex.
 function destroySite(token,terrain,bearing,afterArrange)
 	if token==nil or terrain==nil or bearing==nil or terrainTiles[terrain.guid]==nil then return false end
 	local feature=terrainTiles[terrain.guid].hexFeature[bearing]
 	if feature==nil or feature=="" or feature=="portal" or feature=="destroyed" or feature:sub(1,7)=="raised " then return false end
-	arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
+	if arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)~=true then return false end
 	if gStates.destroyedSites==nil then gStates.destroyedSites={} end
 	gStates.destroyedSites[token.guid]={hexFeature=feature, terrainTile=terrain.guid, hexAngle=bearing}
 	terrainTiles[terrain.guid].hexFeature[bearing]="destroyed"
@@ -2314,7 +2533,6 @@ function destroySite(token,terrain,bearing,afterArrange)
 	return true
 end
 
---Undo only the map assignment. Used when a player deliberately unlocks and moves an active Destroyed token.
 function undoDestroyedSitePlacement(destroyed)
 	if destroyed==nil or gStates.destroyedSites==nil then return false end
 	local data=gStates.destroyedSites[destroyed.guid]
