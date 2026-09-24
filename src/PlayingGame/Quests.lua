@@ -2240,12 +2240,12 @@ function apocalypseQuestRestoreBurnedMonastery(card,playerIndex)
 	local marker=getObjectFromGUID("81b6f2")
 	local map=getObjectFromGUID(mapArea)
 	if marker==nil or map==nil then return false end
-	local terrain,bearing=terrainHexAtPosition(marker.getPosition(),map.getObjects())
-	if terrain==nil or bearing==nil then return false end
-	for _, obj in pairs(map.getObjects()) do
-		local pos=obj.getPosition()
-		local xy=angleToXY(terrain,bearing)
-		if ((pos[1]-xy[1])^2)+((pos[3]-xy[2])^2)<1 then
+	local hex=runtimeMapHexAtPosition(marker.getPosition())
+	if hex==nil then return false end
+	local spatial=runtimeMapSpatialSnapshot()
+	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,hex.position,1.1)) do
+		local pos=spatial.positions[obj.guid] or obj.getPosition()
+		if ((pos[1]-hex.position[1])^2)+((pos[3]-hex.position[3])^2)<1 then
 			if gStates.destroyedSites~=nil and gStates.destroyedSites[obj.guid]~=nil and gStates.destroyedSites[obj.guid].hexFeature=="monastery" then
 				undoDestroyedSitePlacement(obj)
 				local bag=getObjectFromGUID(GUID.bag.destroyedSite)
@@ -2422,13 +2422,11 @@ function apocalypseQuestUnderSiegeFailure(card,playerIndex)
 	local marker=getObjectFromGUID("4c5f97")
 	if marker==nil then return end
 	local pos=marker.getPosition()
-	local map=getObjectFromGUID(mapArea)
-	if map~=nil then
-		for _, obj in pairs(map.getObjects()) do
-			if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true and turnOrder[playerIndex]~=nil and obj.getDescription()==turnOrder[playerIndex].mage then
-				local p=obj.getPosition()
-				if ((p[1]-pos[1])^2)+((p[3]-pos[3])^2)<1 then obj.destruct() break end
-			end
+	local spatial=runtimeMapSpatialSnapshot()
+	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,pos,1.1)) do
+		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true and turnOrder[playerIndex]~=nil and obj.getDescription()==turnOrder[playerIndex].mage then
+			local p=spatial.positions[obj.guid] or obj.getPosition()
+			if ((p[1]-pos[1])^2)+((p[3]-pos[3])^2)<1 then obj.destruct() break end
 		end
 	end
 	local enemies={}
@@ -3911,10 +3909,9 @@ end
 function apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)
 	if token==nil then return false end
 	local target=fracturedLandsTeleportSourcePosition(playerIndex)
-	local map=getObjectFromGUID(mapArea)
-	if target==nil or map==nil then return false end
-	local terrain,bearing=terrainHexAtPosition(target,map.getObjects())
-	if terrain==nil or bearing==nil then return false end
+	if target==nil then return false end
+	local hex,_,terrain,bearing=runtimeMapHexAtPosition(target)
+	if hex==nil or terrain==nil or bearing==nil then return false end
 	--Never stack a new Quest lift on top of an unfinished one for this Hero.
 	apocalypseQuestRestoreRaisedAvatar(playerIndex,true)
 	local avatar=coopAssaultAvatarObject(playerIndex)
