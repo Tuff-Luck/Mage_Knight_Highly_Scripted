@@ -98,8 +98,7 @@ function tacticToggle()
 				end
 			end
 		end, 0.5)--allow time for the smooth claim to pull the cards out of the zone
-		UI.setAttribute("ScoreButtonReal", "interactable", "True")
-		UI.setAttribute("ScoreButtonRealImage", "image", "Sliced Button/Button New Active")
+		setUIButtonEnabled("ScoreButtonReal",true)
 		gStates.tacticShown=false
 		if apocalypseIsHereRoundStart~=nil then apocalypseIsHereRoundStart() end
 		refreshTactic4HandBonus(true)
@@ -131,8 +130,7 @@ function tacticToggle()
 				getObjectFromGUID(tacticCard[a+show]).lock()
 			end
 		end
-		UI.setAttribute("ScoreButtonReal", "interactable", "False")
-		UI.setAttribute("ScoreButtonRealImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("ScoreButtonReal",false)
 		if getObjectFromGUID("0934f2")==nil then turnOrderSort() end
 		mainUIUpdate("Tactic Togle")
 	end
