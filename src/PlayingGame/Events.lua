@@ -138,9 +138,12 @@ function eventsOnLoadRawBase(saved_data)
 		automatedMainPanelRefresh()
 		for terrainGUID, hexOveride in pairs(gStates.hexOverideSave) do
 			for location, hexFeature in pairs(hexOveride) do
-				terrainTiles[terrainGUID].hexFeature[location]=hexFeature
+				runtimeMapSetHexFeature(terrainGUID,location,hexFeature)
 			end
 		end
+		--Apocalypse is Here derives the destroyed City's Plains terrain from durable scenario state;
+		--do not save a second digital-map copy just to preserve this one logical terrain override.
+		apocalypseIsHereApplyDragonCityTerrainOverride()
 		if getObjectFromGUID(GUID.card.bannerOfCommandToken)~=nil then bannerOfCommandDecal() end
 		--Add decals back to Pursuing and Ambushing tokens
 		if gStates.rampageAmbush==true and gStates.rampagePursuit==false then
@@ -933,11 +936,10 @@ local function handleMapVisualZoneEnter(ctx)
 		--fortified
 		if monsterPugs[objGUID]~=nil and monsterPugs[objGUID].unfortified==nil then
 			local target=gStates.monsterPlayLocation[objGUID]
-			local mapObjects=getObjectFromGUID(mapArea).getObjects()
-			local terTile, monsterhexBearing=terrainHexAtPosition(target, mapObjects)
-			if terTile~=nil and monsterhexBearing~=nil then
+			local targetHex, _, terTile, monsterhexBearing=runtimeMapHexAtPosition(target)
+			if targetHex~=nil and terTile~=nil and monsterhexBearing~=nil then
 				--Add Fortified Site Icon
-				if terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="mage tower" or terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="keep" then
+				if targetHex.feature=="mage tower" or targetHex.feature=="keep" then
 					--Add Icon
 					local found=false
 					local existingDecals=obj.getDecals() or {}
