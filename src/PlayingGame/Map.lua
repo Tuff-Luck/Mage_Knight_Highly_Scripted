@@ -38,7 +38,7 @@ end
 
 function clearTerrainExploreOptions()
 	terrainExploreButtons={{}}
-	local exploreUI=getObjectFromGUID("f2291a")
+	local exploreUI=getObjectFromGUID(GUID.ui.mapExplore)
 	if exploreUI~=nil then exploreUI.UI.setXmlTable(terrainExploreButtons) end
 end
 
@@ -1167,7 +1167,7 @@ local function terrainPositionLegal(obj, faceUpTerrain, northBearing, result)--.
 	--Check if Core tile has at least two neighbor Tiles
 	--Check if Country tile has at least one neighbor that has two neighbor Tiles
 	--check if an excess terrain tile has at least three neighbors.
-	if gStates.gameScenario~="The Gauntlet" and obj.guid~=firstTile and not (obj.guid=="835c91" and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
+	if gStates.gameScenario~="The Gauntlet" and obj.guid~=firstTile and not (obj.guid==GUID.tile.volkareCamp and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
 		local neighboursFound=0
 		local neighbourTile=nil
 		local adjacentPositions={}
@@ -1282,17 +1282,17 @@ function refreshTerrainExploreOptions(compactCities)
 				end
 				if found==false and terrainPositionLegal({guid=testTerrain, faceDown=false, objName=nameTerrain, position=terTile, bearing=math.deg(math.atan2(terTile[3]-startTilePosition[3], terTile[1]-startTilePosition[1]))},faceUpTerrain,northBearing,{})==true then--country tile guid stand-in
 					terrainDecals[#terrainDecals+1]={name="Legal Play", url="https://steamusercontent-a.akamaihd.net/ugc/1833526258732421084/29942DB5776ABA4145E9E115D1C893574C9A737A/", position=terTile, rotation={90.0, 0.0, 0.0}, scale={6, 6, 1}}
-					terrainExploreButtons[#terrainExploreButtons+1]={tag="Button", attributes={id="f2291a"..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
-							children={	{tag="Image", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
+					terrainExploreButtons[#terrainExploreButtons+1]={tag="Button", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
+							children={	{tag="Image", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
 										{tag="HorizontalLayout", attributes={padding="25 25 25 25"},
-										children={{tag="Text", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
+										children={{tag="Text", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
 					--record all the potential future hexes as "explore" so the move can calculate for it.
 				end
 				end
 			end
 			for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
 			Global.setDecals(terrainDecals)
-			getObjectFromGUID("f2291a").UI.setXmlTable(terrainExploreButtons)
+			getObjectFromGUID(GUID.ui.mapExplore).UI.setXmlTable(terrainExploreButtons)
 			--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
 			if compactCities~=false then compactCityCardsAfterExplore(mapObjectPositions) end
 	end
@@ -1395,7 +1395,7 @@ function mapHandleTerrainZoneEnter(ctx)
 				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
 			end
 			--Check if the object is a core tile and unlock elite units
-			if terrainTiles[objGUID].tileType=="core" and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
+			if terrainTiles[objGUID].tileType=="core" and (objGUID~=GUID.tile.volkareCamp or (objGUID==GUID.tile.volkareCamp and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
 				gStates.playedCoreTiles=gStates.playedCoreTiles+1
 				gStates.eliteUnitsUsed=true
 				if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
@@ -1621,7 +1621,7 @@ function mapHandleTerrainZoneEnter(ctx)
 
 							--City
 							if ((hexFeature or ""):sub(1, 4)=="city" or hexFeature=="Volkare's Camp")
-								and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true))
+								and (objGUID~=GUID.tile.volkareCamp or (objGUID==GUID.tile.volkareCamp and gStates.volkareCampAsCity==true))
 								or (hexLocation=="center" and gStates.removeShadesOfTezlaMonsters~=true and gStates.gameScenario=="Ultimate Conquest" and (objGUID==GUID.tile.core03 or objGUID==GUID.tile.core10)) then
 								--Choose the City card's first destination against the frontier created by this tile.
 								--Without this, cityInitialCardPosition() reads the previous EXPLORE set and the later
