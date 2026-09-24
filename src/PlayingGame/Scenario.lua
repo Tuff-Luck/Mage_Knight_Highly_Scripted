@@ -2119,6 +2119,7 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
 	local function failDestruction()
 		local line=joinLang({name,"{en} could not destroy {ru} не смог уничтожить {zh-tw} 無法摧毀 {zh-cn} 无法摧毁 {ko}은(는) {es} no pudo destruir {fr} n’a pas pu détruire {pt-br} não conseguiu destruir {de} konnte ",destroyedName,"{en}; no Horseman or Dragon effects were applied.{ru}; эффекты Всадника и Дракона не применены.{zh-tw}；未套用騎士或巨龍效果。{zh-cn}；未应用骑士或巨龙效果。{ko}을(를) 파괴하지 못했습니다. 기사 및 드래곤 효과는 적용되지 않았습니다.{es}; no se aplicaron efectos del Jinete ni del Dragón.{fr} ; aucun effet du Cavalier ni du Dragon n’a été appliqué.{pt-br}; nenhum efeito do Cavaleiro ou do Dragão foi aplicado.{de} nicht zerstören; es wurden keine Reiter- oder Dracheneffekte angewendet."})
 		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		mainUIUpdate("Horseman action report")
 		gStates.apocalypseHereHorsemanAction=nil
 		if afterArrange~=nil then safeWaitFrames("Scenario",afterArrange,1) end
 	end
@@ -2166,6 +2167,7 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
 		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, raising the Dragon head to level {ru}, повысив голову Дракона до уровня {zh-tw}，使巨龍頭部提升至等級 {zh-cn}，使巨龙头部提升至等级 {ko}을(를) 파괴해 드래곤 머리를 레벨 {es}, elevando la cabeza del Dragón al nivel {fr}, faisant passer la tête du Dragon au niveau {pt-br}, elevando a cabeça do Dragão ao nível {de} und erhöhte den Drachenkopf auf Stufe ",newHead,"."})
 	end
 	gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..report
+	mainUIUpdate("Horseman action report")
 	if action~=nil then action.stage="settling" end
 	return true
 end
@@ -2184,6 +2186,7 @@ function apocalypseIsHereHorsemanMoveFinished(name,target,reached)
 	else
 		local line=joinLang({name,"{en} moved two spaces toward {ru} переместился на две клетки к {zh-tw} 朝 {zh-cn} 朝 {ko}이(가) {es} se movió dos espacios hacia {fr} s’est déplacé de deux cases vers {pt-br} moveu-se dois espaços em direção a {de} bewegte sich zwei Felder in Richtung ",proxyFeatureDisplayName(target.feature),"{en}.{ru}.{zh-tw} 移動了兩格。{zh-cn} 移动了两格。{ko} 쪽으로 두 칸 이동했습니다.{es}.{fr}.{pt-br}.{de}."})
 		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		mainUIUpdate("Horseman action report")
 		gStates.apocalypseHereHorsemanAction=nil
 		apocalypseIsHereContinueHorsemenTurn()
 	end
@@ -2238,6 +2241,7 @@ function apocalypseIsHereProcessNextHorseman()
 	if #options<1 then
 		local line=joinLang({name,"{en} found no preferred undestroyed target and did not move.{ru} не нашёл предпочтительной неразрушенной цели и не двигался.{zh-tw} 找不到優先的未摧毀目標，因此沒有移動。{zh-cn} 找不到优先的未摧毁目标，因此没有移动。{ko}은(는) 선호하는 미파괴 목표를 찾지 못해 이동하지 않았습니다.{es} no encontró ningún objetivo preferido sin destruir y no se movió.{fr} n’a trouvé aucune cible prioritaire non détruite et ne s’est pas déplacé.{pt-br} não encontrou nenhum alvo preferido não destruído e não se moveu.{de} fand kein bevorzugtes unzerstörtes Ziel und bewegte sich nicht."})
 		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		mainUIUpdate("Horseman action report")
 		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
 	elseif #options>1 then apocalypseIsHereShowTargetChoice(name,options)
 	else apocalypseIsHereResolveHorsemanTarget(name,options[1]) end
@@ -2257,6 +2261,20 @@ function apocalypseIsHereActiveHorsemen()
 		if state~=nil and data~=nil and state.revealed==true and state.defeated~=true and state.retired~=true and getObjectFromGUID(data.tokenGUID)~=nil then list[#list+1]=name end
 	end
 	return list
+end
+
+local function apocalypseIsHereHorsemenTurnDescription()
+	local queue=gStates.apocalypseHereHorsemenQueue or {}
+	local parts={}
+	for index,name in ipairs(queue) do
+		if index>1 then parts[#parts+1]=", " end
+		parts[#parts+1]=translateWord[name] or name
+	end
+	local roster=#parts>0 and joinLang(parts) or joinLang({"{en}None{ru}Нет{zh-tw}無{zh-cn}无{ko}없음{es}Ninguno{fr}Aucun{pt-br}Nenhum{de}Keine"})
+	local heading=joinLang({"{en}Horsemen acting this turn: {ru}Всадники, действующие в этот ход: {zh-tw}本回合行動的騎士：{zh-cn}本回合行动的骑士：{ko}이번 턴에 행동하는 기사: {es}Jinetes que actúan este turno: {fr}Cavaliers agissant ce tour : {pt-br}Cavaleiros agindo neste turno: {de}In diesem Zug handelnde Reiter: ",roster})
+	local report=gStates.apocalypseHereHorsemenTurnReport or ""
+	if report=="" then return heading end
+	return heading.."<size=6>\n\n</size>"..report
 end
 
 function apocalypseIsHereBeginHorsemenTurn(nextTurnNumber,newOutOfTurn,sameTurn)
@@ -2289,7 +2307,7 @@ function apocalypseIsHereMainUIPanelSpec()
 	elseif state=="WaitingChoice" then
 		label="{en}Pick Target{ru}Выбрать цель{zh-tw}選擇目標{zh-cn}选择目标{ko}목표 선택{es}Elegir objetivo{fr}Choisir la cible{pt-br}Escolher alvo{de}Ziel wählen"
 	end
-	return {actor="horsemen",mainText="{en}<size=25>Horsemen's Turn</size>{ru}<size=25>Ход Всадников</size>{zh-tw}<size=25>騎士回合</size>{zh-cn}<size=25>骑士回合</size>{ko}<size=25>기사들의 턴</size>{es}<size=25>Turno de los Jinetes</size>{fr}<size=25>Tour des Cavaliers</size>{pt-br}<size=25>Turno dos Cavaleiros</size>{de}<size=25>Zug der Reiter</size>",notes=gStates.apocalypseHereHorsemenTurnReport or "{en}Process the Horsemen.{ru}Выполните ход Всадников.{zh-tw}處理騎士回合。{zh-cn}处理骑士回合。{ko}기사들의 턴을 처리하십시오.{es}Procesa a los Jinetes.{fr}Traitez le tour des Cavaliers.{pt-br}Processe os Cavaleiros.{de}Führe den Zug der Reiter aus.",onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
+	return {actor="horsemen",mainText="{en}<size=25>Horsemen's Turn</size>{ru}<size=25>Ход Всадников</size>{zh-tw}<size=25>騎士回合</size>{zh-cn}<size=25>骑士回合</size>{ko}<size=25>기사들의 턴</size>{es}<size=25>Turno de los Jinetes</size>{fr}<size=25>Tour des Cavaliers</size>{pt-br}<size=25>Turno dos Cavaleiros</size>{de}<size=25>Zug der Reiter</size>",notes=apocalypseIsHereHorsemenTurnDescription(),onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
 end
 
 function apocalypseIsHereMainUIRefresh()
