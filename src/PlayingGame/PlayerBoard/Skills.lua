@@ -217,7 +217,7 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 			end
 			gStates.mageSkills[claimedGUID]={((gStates.skillButtons*40)-107.45), 1.1, -38.67-(1.48*count)}
 			--Bonds of Loyalty goes to unit area
-			if claimedGUID=="f30dd4" then
+			if claimedGUID==GUID.skill.bondsOfLoyalty then
 				local bondsX=unitLayoutNextCommandX(gStates.skillButtons)
 				gStates.mageSkills[claimedGUID]={bondsX,1.1,-31.19}
 				scheduleUnitLayoutRefresh(gStates.skillButtons)
@@ -225,7 +225,7 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 				broadcastToAll("{en}Two more Regular units added to the Unit Offer for this round.{ru}Два дополнительных обычных отряда доступны в этом раунде{zh-tw}本輪的部隊供應區增加兩個常規部隊。{zh-cn}本轮增加了两个部队供应{ko}일반 유닛 두 개를 공급처에 추가합니다{es}Se agregaron dos unidades regulares más a la oferta de unidades para esta ronda.{fr}Deux autres unités régulières ajoutées à l'offre d'unités pour ce tour.{pt-br}2 unidades Regulares a mais adicionadas a Oferta de Unidades por esta Rodada{de}Zwei weitere reguläre Einheiten wurden dem Einheitenangebot für diese Runde hinzugefügt.", {1,1,0.5})
 			end
 			--Master of Chaos
-			if claimedGUID=="1ff34f" then masterOfChaosSetup(gStates.skillButtons) end
+			if claimedGUID==GUID.skill.masterOfChaos then masterOfChaosSetup(gStates.skillButtons) end
 			--move selected skill
 			claimedSkill.unlock()
 			claimedSkill.setPositionSmooth(gStates.mageSkills[claimedGUID])
@@ -715,8 +715,8 @@ end
 sharedSkillAboveZone={	["725de9"]="40ef14",--Krang's Coop Skill
 							["818aea"]="8fc095",--Tovak's Coop Skill
 							["c4546c"]="d28865",--Tovak's Comp Skill
-							["958209"]="22b866"}--Krang's Comp Skill
-local competitiveOwnerReward={ ["3bd08e"]=true, ["958209"]=true }
+							[GUID.skill.manaSuppression]="22b866"}--Krang's Comp Skill
+local competitiveOwnerReward={ ["3bd08e"]=true, [GUID.skill.manaSuppression]=true }
 
 local function lockCompetitiveSkillCloneWhenSettled(clone)
 	if clone==nil then return end
@@ -778,7 +778,7 @@ local function nextCompetitiveSkillReminder(record, fromSeat, nextPlayer)
 			if bestDistance==nil or distance<bestDistance then best=reminder bestDistance=distance end
 		end
 	end
-	return best or getObjectFromGUID("958209")
+	return best or getObjectFromGUID(GUID.skill.manaSuppression)
 end
 
 local function manaSuppressionTokensAtReminder(record, seatPos)
@@ -815,7 +815,7 @@ end
 local function clearCompetitiveSkillSeat(skillGUID, seatPos, nextPlayer)
 	local record=gStates.competitiveSkillReminders~=nil and gStates.competitiveSkillReminders[skillGUID] or nil
 	if record==nil then return {} end
-	local moved=skillGUID=="958209" and passManaSuppressionTokens(record, seatPos, nextPlayer) or {}
+	local moved=skillGUID==GUID.skill.manaSuppression and passManaSuppressionTokens(record, seatPos, nextPlayer) or {}
 	for reminderGUID, reminderSeat in pairs(record.reminders or {}) do
 		if reminderSeat==seatPos then
 			local reminder=getObjectFromGUID(reminderGUID)
@@ -837,7 +837,7 @@ function clearCompetitiveSkillReminders(skillGUID)
 	if gStates.competitiveSkillReminders==nil then return end
 	local record=gStates.competitiveSkillReminders[skillGUID]
 	if record==nil then return end
-	if skillGUID=="958209" then
+	if skillGUID==GUID.skill.manaSuppression then
 		local clearedSeats={}
 		for _, seatPos in pairs(record.reminders or {}) do
 			if clearedSeats[seatPos]~=true then
@@ -1086,7 +1086,7 @@ function cleanupPlayedSkillAtEndTurn(playAreaObj, cleanupPlayer)
 	end
 	if cleanupSkillHome~=nil and gStates.motivationSkill[cleanupSkillGUID]~=nil then gStates.motivationSkill[cleanupSkillGUID].state="used" end
 
-	if cleanupSkillGUID=="1ff34f" and cleanupSkill~=nil then
+	if cleanupSkillGUID==GUID.skill.masterOfChaos and cleanupSkill~=nil then
 		gStates.masterOfChaos=gStates.masterOfChaos+1
 		if gStates.masterOfChaos==7 then gStates.masterOfChaos=1 end
 		cleanupSkill.setDescription(masterOfChaosData[gStates.masterOfChaos].description)
@@ -1166,7 +1166,7 @@ function cleanupUnitAreaSkillAtEndTurn(unitAreaObj, cleanupPlayer)
 			end
 		end
 	end
-	if unitAreaObj.guid~="f30dd4" and gStates.mageSkills[unitAreaObj.guid]~=nil and gStates.doingTheRounds[unitAreaObj.guid]==nil then
+	if unitAreaObj.guid~=GUID.skill.bondsOfLoyalty and gStates.mageSkills[unitAreaObj.guid]~=nil and gStates.doingTheRounds[unitAreaObj.guid]==nil then
 		local skillHome=gStates.mageSkills[unitAreaObj.guid]
 		if skillHome[1]~=nil and skillHome[2]~=nil and skillHome[3]~=nil then
 			unitAreaObj.setPositionSmooth({skillHome[1],skillHome[2],skillHome[3]},false,false)
@@ -1219,7 +1219,7 @@ function heroChallengeClaimReservedSkill(playerIndex,higherLevel)
 	local skillX=(playerData.seatPos*40)-107.45
 	for _,skillPos in pairs(gStates.mageSkills or {}) do if skillPos[3]<-36.9 and math.abs(skillPos[1]-skillX)<1 then count=count+1 end end
 	local target={skillX,1.1,-38.67-(1.48*count)}
-	if guid=="f30dd4" then
+	if guid==GUID.skill.bondsOfLoyalty then
 		local bondsX=unitLayoutNextCommandX(playerData.seatPos)
 		target={bondsX,1.1,-31.19}
 		scheduleUnitLayoutRefresh(playerData.seatPos)
@@ -1390,11 +1390,11 @@ function masterOfChaosSetup(position)
 	safeWaitFrames("PlayerBoard.Skills",function() masterOfChaosPause=false end, 80)
 	safeWaitFrames("PlayerBoard.Skills",function() safeWaitCondition("PlayerBoard.Skills",function()
 		gStates.masterOfChaos=math.random(1,6)
-		getObjectFromGUID("1ff34f").setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
-		getObjectFromGUID("1ff34f").setDescription(masterOfChaosData[gStates.masterOfChaos].description)
-		getObjectFromGUID("1ff34f").reload()
+		getObjectFromGUID(GUID.skill.masterOfChaos).setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
+		getObjectFromGUID(GUID.skill.masterOfChaos).setDescription(masterOfChaosData[gStates.masterOfChaos].description)
+		getObjectFromGUID(GUID.skill.masterOfChaos).reload()
 		broadcastToAll("{en}'Master of Chaos' start Randomly picked.{ru}Старт «Мастер магии Хаоса» выбирается случайным образом.{zh-tw}「混亂大師」的起始位置已隨機選擇。{zh-cn}“混乱大师”开始随机挑选{ko}스킬 '혼돈의 달인'의 첫 칸이 무작위로 결정되었습니다.{es}Inicio de 'Master of Chaos' Elegido al azar.{fr}Début de 'Master of Chaos' Choisi au hasard.{pt-br}Início de 'Mestre do Caos' é aleatóriamente escolhido.{de}Meister des Chaos' startet Zufällig gewählt.", {1,1,0.5})
-	end, function() return getObjectFromGUID("1ff34f").resting end) end, 5)
+	end, function() return getObjectFromGUID(GUID.skill.masterOfChaos).resting end) end, 5)
 end
 
 --masterOfChaos
@@ -1407,9 +1407,9 @@ function masterOfChaos(player, mouseButton, id)
 					--change skill to next image
 					gStates.masterOfChaos=gStates.masterOfChaos+1
 					if gStates.masterOfChaos==7 then gStates.masterOfChaos=1 end
-					getObjectFromGUID("1ff34f").setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
-					getObjectFromGUID("1ff34f").setDescription(masterOfChaosData[gStates.masterOfChaos].description)
-					getObjectFromGUID("1ff34f").reload()
+					getObjectFromGUID(GUID.skill.masterOfChaos).setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
+					getObjectFromGUID(GUID.skill.masterOfChaos).setDescription(masterOfChaosData[gStates.masterOfChaos].description)
+					getObjectFromGUID(GUID.skill.masterOfChaos).reload()
 					--only allow once per turn
 					turnOrder[a].masterOfChaos="incremented out of turn"
 					mainUIUpdate()
