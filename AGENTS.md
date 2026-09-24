@@ -66,6 +66,7 @@ Movement, Proxy/AI, Quests, Map avatar scans and Combat now share the rebuildabl
 
 - `runtimeMapSnapshot()` owns revealed terrain/feature data, exact hex centres and cached neighbour topology.
 - `runtimeMapSpatialSnapshot()` overlays fresh physical-object positions and spatial buckets for live shields, enemies, avatars and other map pieces. It is deliberately runtime-only so moving a piece on the table remains authoritative.
+- Runtime changes to a terrain hex's logical feature/type must go through `runtimeMapSetHexFeature()` / `runtimeMapSetHexType()`. Do not write `terrainTiles[...].hexFeature/hexType` directly during play, because the shared topology cache must be invalidated with the mutation.
 - Generic map identity/geometry belongs in Shared: use `runtimeMapHexKey()`, `runtimeMapHexesAdjacent()`, `runtimeMapHexDistanceMap()`, `runtimeMapWorldToAxial()`, `runtimeMapAxialToWorld()`, `runtimeMapWorldHexDistance()`, and `runtimeMapHexForPosition()` instead of subsystem-prefixed copies.
 - `PlayingGame/MapTokens.lua` owns runtime-only arrival ordering and physical shared-hex token separation/stacking; scenario modules should call it rather than reimplementing token layout.
 - `pursuingRampagers()` and Combat's nearby attack/shield checks use the shared topology/spatial view instead of rescanning the full map.
