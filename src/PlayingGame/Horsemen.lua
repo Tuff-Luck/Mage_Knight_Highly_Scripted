@@ -78,6 +78,7 @@ function horsemanRestoreRuntimeState()
 		end
 	end
 	if gStates.gameScenario=="Against the Horsemen Blitz" and againstHorsemenRestoreScenarioState~=nil then againstHorsemenRestoreScenarioState() end
+	if gStates.gameScenario=="Apocalypse is Here" and apocalypseIsHereRestoreScenarioState~=nil then apocalypseIsHereRestoreScenarioState() end
 end
 
 --Scenario scoring uses the actual Horseman defeats rather than inventory reward tokens. This remains
