@@ -1495,7 +1495,7 @@ function apocalypseQuestRollManaDie()
 	return colors[math.random(1,#colors)]
 end
 
-function apocalypseQuestPlaceCrystalAt(position,color,reason)function apocalypseQuestPlaceCrystalAt(position,color,reason)
+function apocalypseQuestPlaceCrystalAt(position,color,reason)
 	if position==nil or mineCrystalBagKey[color]==nil then return nil end
 	local bag=getObjectFromGUID(GUID.bag.mana[mineCrystalBagKey[color]])
 	if bag==nil or bag.getQuantity()==0 then
@@ -2368,7 +2368,7 @@ function apocalypseQuestResolveCrystalRollResults(card,playerIndex,results,reaso
 	return true
 end
 
-function apocalypseQuestNobleWarriorRollReward(card,playerIndex,callback)function apocalypseQuestNobleWarriorRollReward(card,playerIndex,callback)
+function apocalypseQuestNobleWarriorRollReward(card,playerIndex,callback)
 	if card==nil or turnOrder[playerIndex]==nil then return false end
 	local marker=nil
 	local markerColor=nil
@@ -6067,7 +6067,7 @@ local function apocalypseQuestCompleteRandomObjects(card,playerIndex,option,play
 	return true,started
 end
 
-local function apocalypseQuestCompleteHerbalist(card,playerIndex,option,playerColor,context,finishQuestResolution)local function apocalypseQuestCompleteHerbalist(card,playerIndex,option,playerColor,context,finishQuestResolution)
+local function apocalypseQuestCompleteHerbalist(card,playerIndex,option,playerColor,context,finishQuestResolution)
 	if tostring(option.key)~="3" then return false end
 	--The Herbalist completion stays in the offer while its visible mana die is rolling. This keeps
 	--the Quest token/crystal available until the physical result has been read and transferred.
@@ -6099,7 +6099,7 @@ apocalypseQuestRegisterHandler("08ffcf").completeAction=apocalypseQuestCompleteG
 apocalypseQuestRegisterHandler("58a826").completeAction=apocalypseQuestCompleteHerbalist
 apocalypseQuestRegisterHandler("11d244").completeAction=apocalypseQuestCompleteRandomObjects
 
-local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,playerColor,state,questState,quest,finishQuestResolution)local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,playerColor,state,questState,quest,finishQuestResolution)
+local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,playerColor,state,questState,quest,finishQuestResolution)
 	local handler=apocalypseQuestHandler(card)
 	local completionContext={}
 	if handler~=nil and handler.prepareCompleteAction~=nil then
@@ -6243,7 +6243,7 @@ local apocalypseQuestCombatChoiceModes={
 			end)
 		end
 	},
-	ProgressColor={	ProgressColor={
+	ProgressColor={
 		resolve=function(card,playerIndex,color,pendingCombat,player)
 			if gStates.apocalypseQuestStepColor==nil then gStates.apocalypseQuestStepColor={} end
 			gStates.apocalypseQuestStepColor[card.guid]=color
