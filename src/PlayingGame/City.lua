@@ -532,7 +532,7 @@ function megapolisSuppressTerrainHex(terrainObj,originalFeature,removeDeployedOb
 		if feature=="graveyard" then megapolisRemoveGraveyardMarker(terrainObj,hexLocation) end
 		if feature=="monastery" then megapolisRemoveMonasteryOffer() end
 	end
-	terrainTiles[terrainObj.guid].hexFeature[hexLocation]="city"
+	runtimeMapSetHexFeature(terrainObj.guid,hexLocation,"city")
 	gStates.hexOverideSave[terrainObj.guid]=gStates.hexOverideSave[terrainObj.guid] or {}
 	gStates.hexOverideSave[terrainObj.guid][hexLocation]="city"
 	return feature,hexLocation
@@ -576,7 +576,7 @@ end
 function megapolisRestoreTerrainHex(terrainObj,feature)
 	if terrainObj==nil or terrainTiles[terrainObj.guid]==nil then return end
 	local hexLocation=cityTerrainRotationKey(terrainObj)
-	terrainTiles[terrainObj.guid].hexFeature[hexLocation]=feature or ""
+	runtimeMapSetHexFeature(terrainObj.guid,hexLocation,feature or "")
 	gStates.hexOverideSave[terrainObj.guid]=gStates.hexOverideSave[terrainObj.guid] or {}
 	gStates.hexOverideSave[terrainObj.guid][hexLocation]=feature or ""
 	if feature=="monastery" then playMonastery() return end
@@ -597,7 +597,7 @@ function megapolisRestoreTerrainHex(terrainObj,feature)
 		local elementalist=startBearing<=northBearing or (((startBearing<=northBearing+1 and gStates.coop==1) or (gStates.coop==0 and pos[3]<-7 and pos[3]>-8 and pos[1]<-31 and pos[1]>-32)) and math.random(1,2)==1)
 		if elementalist then megapolisDeployWarOfFourGlade(terrainObj,hexLocation,"Elem",false)
 		else
-			terrainTiles[terrainObj.guid].hexFeature[hexLocation]="graveyard"
+			runtimeMapSetHexFeature(terrainObj.guid,hexLocation,"graveyard")
 			gStates.hexOverideSave[terrainObj.guid][hexLocation]="graveyard"
 			megapolisDeployWarOfFourGlade(terrainObj,hexLocation,"Dark",true)
 		end
@@ -640,7 +640,7 @@ function createCityMegapolisPair(cityGUID, terrainObj)
 		if storedOriginal==nil then storedOriginal=megapolisSuppressTerrainHex(terrainObj,nil,true) end
 		data.extra.megapolisOriginalFeature=storedOriginal
 		if gStates.megapolisOriginalFeatureByTerrain~=nil then gStates.megapolisOriginalFeatureByTerrain[terrainGUID]=nil end
-		terrainTiles[terrainGUID].hexFeature[rotationKey]=CITY_NAME_BY_GUID[pair]
+		runtimeMapSetHexFeature(terrainGUID,rotationKey,CITY_NAME_BY_GUID[pair])
 		if gStates.hexOverideSave[terrainGUID]==nil then gStates.hexOverideSave[terrainGUID]={} end
 		gStates.hexOverideSave[terrainGUID][rotationKey]=CITY_NAME_BY_GUID[pair]
 		local terrainPos=terrainObj.getPosition()
@@ -797,7 +797,7 @@ function resolveCityForTerrain(obj, hexFeature, dropped)
 		local available={}
 		for _, possible in ipairs(choices) do if cityPlayedContains(possible)==false then available[#available+1]=possible end end
 		if #available>0 then cityGUID=available[math.random(1,#available)] end
-		terrainTiles[obj.guid].hexFeature.center=CITY_NAME_BY_GUID[cityGUID]
+		runtimeMapSetHexFeature(obj.guid,"center",CITY_NAME_BY_GUID[cityGUID])
 		gStates.hexOverideSave[obj.guid].center=CITY_NAME_BY_GUID[cityGUID]
 	end
 	if gStates.gameScenario=="The Gauntlet" and (hexFeature or ""):sub(6,8)=="red" then cityGUID=cityModel.red end
@@ -853,11 +853,11 @@ function playCity(obj, hexFeature, dropped)
 			gStates.cityLevels[order]=leaderLevel
 			setFactionLeaderLevel(cityGUID,leaderLevel)
 			if leader==elementalist then
-				terrainTiles[obj.guid].hexFeature.center="hidden valley"
+				runtimeMapSetHexFeature(obj.guid,"center","hidden valley")
 				gStates.hexOverideSave[obj.guid].center="hidden valley"
 				gStates.monsterPlayLocation[elementalist.token]={-55.3,1.5,15.3}
 			else
-				terrainTiles[obj.guid].hexFeature.center="necropolis"
+				runtimeMapSetHexFeature(obj.guid,"center","necropolis")
 				gStates.hexOverideSave[obj.guid].center="necropolis"
 				gStates.monsterPlayLocation[darkCrusader.token]={-55.3,1.5,6.7}
 			end
