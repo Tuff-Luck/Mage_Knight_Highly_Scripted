@@ -480,8 +480,8 @@ function __onObjectDrop_raw(player_color, dropped_object)
 						refreshAvatarLocationOnly(avatarPlayerIndex,dropped_object)
 						--Do not infer off-map status from avatarLocation: featureless terrain legitimately has no
 						--location label. Record whether the physical figure is actually on a revealed map hex.
-						local proxyHexes,proxyMapObjects=apocalypseQuestMapHexes()
-						gStates.proxyAvatarOffMap=apocalypseQuestHexForPosition(proxyHexes,dropped_object.getPosition(),proxyMapObjects)==nil
+						local proxyHexes,proxyMapObjects=runtimeMapHexesAndObjects()
+						gStates.proxyAvatarOffMap=runtimeMapHexForPosition(proxyHexes,dropped_object.getPosition(),proxyMapObjects)==nil
 					end
 				end
 				safeWaitCondition("Events.proxyDrop",finishProxyManualDrop,function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end,1.5,finishProxyManualDrop)

@@ -353,6 +353,84 @@ function runtimeMapContainsGUID(guid)
 	return guid~=nil and runtimeMapObjectCache~=nil and runtimeMapObjectCache.objectGUIDs~=nil and runtimeMapObjectCache.objectGUIDs[guid]==true
 end
 
+local RUNTIME_MAP_HEX_X_STEP=2.4
+local RUNTIME_MAP_HEX_Z_STEP=2.0785
+
+function runtimeMapHexKey(hexOrTerrainGUID,bearing)
+	if hexOrTerrainGUID==nil then return nil end
+	if type(hexOrTerrainGUID)=="table" then
+		return tostring(hexOrTerrainGUID.terrainGUID).."|"..tostring(hexOrTerrainGUID.bearing)
+	end
+	return tostring(hexOrTerrainGUID).."|"..tostring(bearing)
+end
+
+function runtimeMapHexesAdjacent(a,b)
+	if a==nil or b==nil or a.position==nil or b.position==nil then return false end
+	local dx=a.position[1]-b.position[1]
+	local dz=a.position[3]-b.position[3]
+	local distanceSquared=(dx*dx)+(dz*dz)
+	return distanceSquared>4.2 and distanceSquared<7.4
+end
+
+function runtimeMapWorldToAxial(position,origin)
+	if position==nil or origin==nil then return nil,nil end
+	local r=math.floor(((position[3]-origin[3])/RUNTIME_MAP_HEX_Z_STEP)+0.5)
+	local q=math.floor(((position[1]-origin[1])/RUNTIME_MAP_HEX_X_STEP)+(r/2)+0.5)
+	return q,r
+end
+
+function runtimeMapAxialToWorld(q,r,origin,y)
+	if q==nil or r==nil or origin==nil then return nil end
+	return {
+		origin[1]+(RUNTIME_MAP_HEX_X_STEP*(q-(r/2))),
+		y or origin[2],
+		origin[3]+(RUNTIME_MAP_HEX_Z_STEP*r)
+	}
+end
+
+function runtimeMapAxialDistance(q,r)
+	if q==nil or r==nil then return nil end
+	return math.max(math.abs(q),math.abs(r),math.abs(q-r))
+end
+
+function runtimeMapWorldHexDistance(fromPos,toPos)
+	if fromPos==nil or toPos==nil then return nil end
+	local function nearest(value)
+		if value>=0 then return math.floor(value+0.5) end
+		return math.ceil(value-0.5)
+	end
+	local r=nearest((toPos[3]-fromPos[3])/RUNTIME_MAP_HEX_Z_STEP)
+	local q=nearest(((toPos[1]-fromPos[1])/RUNTIME_MAP_HEX_X_STEP)+(r/2))
+	return runtimeMapAxialDistance(q,r)
+end
+
+function terrainHexChoiceUIPlacement(key,buttonScale,splitIndex,splitCount,referenceScale)
+	if key==nil then return nil,nil end
+	local terrainGUID,bearing=tostring(key):match("^([^|]+)|(.+)$")
+	local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
+	if terrain==nil or bearing==nil then return nil,nil end
+	local hexXY=angleToXY(terrain,bearing)
+	local tilePos=terrain.getPosition()
+	local localHex=terrain.positionToLocal({hexXY[1],tilePos[2],hexXY[2]})
+	local tileScale=terrain.getScale()
+	local scaleX=tileScale.x or tileScale[1] or 2.25
+	local scaleZ=tileScale.z or tileScale[3] or 2.25
+	buttonScale=tonumber(buttonScale) or 0.38
+	referenceScale=tonumber(referenceScale) or buttonScale
+	local uiFactor=referenceScale~=0 and buttonScale/referenceScale or 1
+	local uiX=(localHex.x or localHex[1])*scaleX*110*uiFactor
+	local uiY=(localHex.z or localHex[3])*scaleZ*110*uiFactor
+	local count=math.max(1,tonumber(splitCount) or 1)
+	local slot=math.max(1,tonumber(splitIndex) or 1)
+	local height=320/count
+	if count>1 then uiY=uiY+(((count+1)/2)-slot)*height*buttonScale end
+	return terrain,{
+		x=uiX,y=uiY,depth=-40*uiFactor,
+		rotation=terrain.getRotation()[2] or 180,
+		height=height,count=count,scale=buttonScale
+	}
+end
+
 local function runtimeMapObjectSnapshot()
 	if runtimeMapObjectCache~=nil then return runtimeMapObjectCache end
 	local map=getObjectFromGUID(mapArea)
@@ -418,21 +496,18 @@ local function runtimeMapTerrainSnapshot()
 	local neighbors={}
 	local neighborSet={}
 	for _,hex in ipairs(hexes) do
-		local key=tostring(hex.terrainGUID).."|"..tostring(hex.bearing)
+		local key=runtimeMapHexKey(hex)
 		hexByKey[key]=hex
 		neighbors[key]={}
 		neighborSet[key]={}
 	end
 	for a=1,#hexes do
 		local first=hexes[a]
-		local firstKey=tostring(first.terrainGUID).."|"..tostring(first.bearing)
+		local firstKey=runtimeMapHexKey(first)
 		for b=a+1,#hexes do
 			local second=hexes[b]
-			local dx=first.position[1]-second.position[1]
-			local dz=first.position[3]-second.position[3]
-			local distanceSquared=(dx*dx)+(dz*dz)
-			if distanceSquared>4.2 and distanceSquared<7.4 then
-				local secondKey=tostring(second.terrainGUID).."|"..tostring(second.bearing)
+			if runtimeMapHexesAdjacent(first,second)==true then
+				local secondKey=runtimeMapHexKey(second)
 				neighbors[firstKey][#neighbors[firstKey]+1]=second
 				neighbors[secondKey][#neighbors[secondKey]+1]=first
 				neighborSet[firstKey][secondKey]=true
@@ -462,6 +537,50 @@ function runtimeMapSnapshot()
 		neighborSet=terrainSnapshot.neighborSet,terrainSignature=terrainSnapshot.terrainSignature
 	}
 	return runtimeMapSnapshotCache
+end
+
+function runtimeMapHexDistanceMap(hexes,starts)
+	local distances={}
+	local queue={}
+	local snapshot=runtimeMapSnapshot()
+	local useCachedTopology=hexes==snapshot.hexes
+	for _,startHex in ipairs(starts or {}) do
+		local key=runtimeMapHexKey(startHex)
+		if key~=nil and distances[key]==nil then
+			distances[key]=0
+			queue[#queue+1]=startHex
+		end
+	end
+	local head=1
+	while queue[head]~=nil do
+		local current=queue[head]
+		head=head+1
+		local currentKey=runtimeMapHexKey(current)
+		local currentDistance=distances[currentKey] or 0
+		if useCachedTopology==true then
+			for _,candidate in ipairs(snapshot.neighbors[currentKey] or {}) do
+				local key=runtimeMapHexKey(candidate)
+				if key~=nil and distances[key]==nil then
+					distances[key]=currentDistance+1
+					queue[#queue+1]=candidate
+				end
+			end
+		else
+			for _,candidate in ipairs(hexes or {}) do
+				local key=runtimeMapHexKey(candidate)
+				if key~=nil and distances[key]==nil and runtimeMapHexesAdjacent(current,candidate)==true then
+					distances[key]=currentDistance+1
+					queue[#queue+1]=candidate
+				end
+			end
+		end
+	end
+	return distances
+end
+
+function runtimeMapHexesAndObjects()
+	local snapshot=runtimeMapSnapshot()
+	return snapshot.hexes or {},snapshot.objects or {}
 end
 
 --Build a live spatial view on top of the shared runtime map. Object membership comes from the
@@ -522,8 +641,25 @@ function runtimeMapHexAtPosition(pos,snapshot)
 	snapshot=snapshot or runtimeMapSnapshot()
 	local terrain,bearing,hexPos,feature,hexType=terrainHexAtPosition(pos,snapshot.terrainObjects,snapshot.terrainPositions,snapshot.terrainRotations)
 	if terrain==nil or bearing==nil then return nil,nil,terrain,bearing,hexPos,feature,hexType end
-	local key=tostring(terrain.guid).."|"..tostring(bearing)
+	local key=runtimeMapHexKey(terrain.guid,bearing)
 	return snapshot.hexByKey[key],key,terrain,bearing,hexPos,feature,hexType
+end
+
+--Resolve a position against a supplied revealed-hex list. Quests can pass their synchronous refresh
+--cache; ordinary callers can omit both collections and use the shared runtime snapshot directly.
+function runtimeMapHexForPosition(hexes,position,mapObjects)
+	if position==nil then return nil end
+	local snapshot=runtimeMapSnapshot()
+	if hexes==nil or (hexes==snapshot.hexes and (mapObjects==nil or mapObjects==snapshot.objects)) then
+		return runtimeMapHexAtPosition(position,snapshot)
+	end
+	local terrain,bearing=terrainHexAtPosition(position,mapObjects)
+	if terrain==nil or bearing==nil then return nil end
+	local key=runtimeMapHexKey(terrain.guid,bearing)
+	for _,hex in ipairs(hexes or {}) do
+		if runtimeMapHexKey(hex)==key then return hex end
+	end
+	return nil
 end
 
 -- Player permission helpers

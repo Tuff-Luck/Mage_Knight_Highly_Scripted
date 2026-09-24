@@ -159,8 +159,7 @@ function moveDisplayDungeonLordsTunnelNetwork(hexMap,playAreaObjects,startTilePo
 	local nodes={}
 	local nodeList={}
 	local function gridForPosition(pos)
-		local hor=math.floor(((pos[3]-startTilePos[3])/2.0785)+0.5)
-		local vec=math.floor(((pos[1]-startTilePos[1])/2.4)+(hor/2)+0.5)
+		local vec,hor=runtimeMapWorldToAxial(pos,startTilePos)
 		return hor,vec
 	end
 	for _,obj in pairs(playAreaObjects or {}) do
@@ -234,8 +233,7 @@ function moveDisplayBaseHexMap(playAreaObjects, startTileGUID, startTilePos)
 	local hexMap={}
 	for _, entry in pairs(terrainEntries) do
 		local details=entry.details
-		local hexGridHorizontal=math.floor(((entry.position[3]-startTilePos[3])/2.0785)+0.5)
-		local hexGridAxial=math.floor(((entry.position[1]-startTilePos[1])/2.4)+(hexGridHorizontal/2)+0.5)
+		local hexGridAxial,hexGridHorizontal=runtimeMapWorldToAxial(entry.position,startTilePos)
 		for hexBearing, hexType in pairs(details.hexType) do
 			local fixedBearing="center"
 			if hexBearing~="center" then
@@ -439,9 +437,9 @@ function renderMoveDisplay(id)
 		for _,lairHex in ipairs(gStates.apocalypseDragonLair.hexes or {}) do
 			local p=lairHex.position
 			if p~=nil then
-				local lairHor=tostring(math.floor(((p[3]-startTilePos[3])/2.0785)+0.5))
-				local lairHorNumber=tonumber(lairHor)
-				local lairVec=tostring(math.floor(((p[1]-startTilePos[1])/2.4)+(lairHorNumber/2)+0.5))
+				local lairVecNumber,lairHorNumber=runtimeMapWorldToAxial(p,startTilePos)
+				local lairHor=tostring(lairHorNumber)
+				local lairVec=tostring(lairVecNumber)
 				if hexMap[lairHor]~=nil and hexMap[lairHor][lairVec]~=nil then hexMap[lairHor][lairVec].dragonLair=true end
 			end
 		end
@@ -459,8 +457,7 @@ function renderMoveDisplay(id)
 		end
 		if cityObject==true or shield==true or rampager==true then
 			local objectPosition=mightBeMap.getPosition()
-			local hexGridHorizontal=math.floor(((objectPosition[3]-startTilePos[3])/2.0785)+0.5)
-			local hexGridAxial=math.floor(((objectPosition[1]-startTilePos[1])/2.4)+(hexGridHorizontal/2)+0.5)
+			local hexGridAxial,hexGridHorizontal=runtimeMapWorldToAxial(objectPosition,startTilePos)
 			local hor=tostring(hexGridHorizontal)
 			local vec=tostring(hexGridAxial)
 			if hexMap[hor]==nil then hexMap[hor]={} end
@@ -507,8 +504,7 @@ function renderMoveDisplay(id)
 				if playerIndex~=gStates.turnNumber and playerDetails.mage~="Volkare" then
 					local otherPos=fracturedLandsTeleportSourcePosition(playerIndex)
 					if otherPos~=nil then
-						local otherHor=math.floor(((otherPos[3]-startTilePos[3])/2.0785)+0.5)
-						local otherVec=math.floor(((otherPos[1]-startTilePos[1])/2.4)+(otherHor/2)+0.5)
+						local otherVec,otherHor=runtimeMapWorldToAxial(otherPos,startTilePos)
 						occupiedByOtherMage[tostring(otherHor)..":"..tostring(otherVec)]=true
 					end
 				end
@@ -519,8 +515,7 @@ function renderMoveDisplay(id)
 			for _, mapObject in pairs(playAreaObjects) do
 				if monsterPugs[mapObject.guid]~=nil then
 					local monsterPos=mapObject.getPosition()
-					local monsterHor=math.floor(((monsterPos[3]-startTilePos[3])/2.0785)+0.5)
-					local monsterVec=math.floor(((monsterPos[1]-startTilePos[1])/2.4)+(monsterHor/2)+0.5)
+					local monsterVec,monsterHor=runtimeMapWorldToAxial(monsterPos,startTilePos)
 					occupiedByMonster[tostring(monsterHor)..":"..tostring(monsterVec)]=true
 				end
 			end
@@ -654,8 +649,7 @@ function renderMoveDisplay(id)
 			if gladePos~=nil then playerPos=gladePos end
 		end
 
-		local playerHexGridHorizontal=math.floor(((playerPos[3]-startTilePos[3])/2.0785)+0.5)
-		local playerHexGridAxial=math.floor(((playerPos[1]-startTilePos[1])/2.4)+(playerHexGridHorizontal/2)+0.5)
+		local playerHexGridAxial,playerHexGridHorizontal=runtimeMapWorldToAxial(playerPos,startTilePos)
 		local moveMap={[tostring(playerHexGridHorizontal)]={[tostring(playerHexGridAxial)]={main=0}}}
 		local fringe={{coord={playerHexGridHorizontal, playerHexGridAxial}}}
 		local tempFringe={}
@@ -870,7 +864,7 @@ function renderMoveDisplay(id)
 		local routeStateSeen={}
 		local routeStack={}
 		local function routeWorldPosition(hor, vec)
-			return {((vec-(hor/2))*2.4)+startTilePos[1], 1.22, (hor*2.0785)+startTilePos[3]}
+			return runtimeMapAxialToWorld(vec,hor,startTilePos,1.22)
 		end
 		local function addRouteSegment(fromHor, fromVec, toHor, toVec, teleport, tunnelPath)
 			local function addOne(aHor,aVec,bHor,bVec,mode)
@@ -922,7 +916,6 @@ function renderMoveDisplay(id)
 
 		--Highlight movement costs with spawned text instead of numbered image decals.
 		for hor, rowOfHexes in pairs(moveMap) do
-			local hexGridZ=((hor*2.0785)+startTilePos[3])
 			for vec, hexCost in pairs(rowOfHexes) do
 				local lowestHex=hexCost.main
 				local lowestState="main"
@@ -944,7 +937,8 @@ function renderMoveDisplay(id)
 							highCombat=destinationCombat or (higherState=="main" and hexCost.mainCombat==true) or (higherState=="tricky" and hexCost.trickyCombat==true)}
 					end
 				end
-				local hexGridX=((vec-(hor/2))*2.4)+startTilePos[1]
+				local world=runtimeMapAxialToWorld(tonumber(vec),tonumber(hor),startTilePos,1.22)
+				local hexGridX,hexGridZ=world[1],world[3]
 				local startingHex=tonumber(hor)==playerHexGridHorizontal and tonumber(vec)==playerHexGridAxial
 				if startingHex==false then
 					if lowestHex<=gStates.resourceTracker.move.move then

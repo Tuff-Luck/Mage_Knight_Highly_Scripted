@@ -16,6 +16,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/SetupGame/HeroChallenges.lua` | Hero Challenge legality, terrain assignment and setup-facing objective helpers. |
 | `src/SetupGame/Map.lua` | Starting-map construction, terrain-stack building and setup-only Fury lair placement. |
 | `src/PlayingGame/Map.lua` | Map state, avatar location, terrain placement/population, exploration, shield placement, terrain-site helpers and rampaging-enemy placement. |
+| `src/PlayingGame/MapTokens.lua` | Runtime-only physical map-token arrival, shared-hex stacking/separation and deterministic token layout. |
 | `src/PlayingGame/Offers.lua` | Artifact, Unit, Monastery and deed-offer layout/refill runtime. |
 | `src/PlayingGame/TokenPools.lua` | Monster token-pool refill plus bag scaling/discard-stack presentation. |
 | `src/PlayingGame/ManaSource.lua` | Shared/mirrored Mana Source dice state and synchronization. |
@@ -45,7 +46,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 
 ## Dependency shape
 
-`Data`, `ErrorReporting` and `Shared` load first. Error reporting loads before Shared because the shared async/object helpers use its protected callback machinery. Setup modules then define setup-facing globals. Gameplay modules load after setup, with specialized modules defining their systems before the final UI/event/callback layers. `PlayingGame.Scenario` loads immediately before `PlayingGame.ApocalypseDragon` and `PlayingGame.Horsemen`; both shared encounter modules call scenario-owned hooks only at runtime.
+`Data`, `ErrorReporting` and `Shared` load first. Shared owns the generic runtime-map geometry/topology primitives (hex keys, adjacency, BFS distance maps, axial conversion and terrain-hex UI placement). Error reporting loads before Shared because the shared async/object helpers use its protected callback machinery. Setup modules then define setup-facing globals. Gameplay modules load after setup, with specialized modules defining their systems before the final UI/event/callback layers. `PlayingGame.Scenario` loads immediately before `PlayingGame.ApocalypseDragon` and `PlayingGame.Horsemen`; both shared encounter modules call scenario-owned hooks only at runtime.
 
 Modules have separate lexical scope for `local` declarations. Globals are shared in the final bundled Global environment. A helper needed by multiple modules should therefore be intentionally global/shared or otherwise exposed once; copying a local helper into several files does not consolidate it.
 

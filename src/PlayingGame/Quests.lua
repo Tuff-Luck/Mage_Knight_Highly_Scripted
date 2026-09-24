@@ -1571,7 +1571,7 @@ function apocalypseQuestCursedTargetEligible(card,playerIndex,targetIndex,allowT
 	if hexes==nil then hexes,mapObjects=apocalypseQuestMapHexes() end
 	source=source or apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	local target=source~=nil and apocalypseQuestPlayerHex(hexes,mapObjects,targetIndex) or nil
-	return target~=nil and (apocalypseQuestMapHexKey(source)==apocalypseQuestMapHexKey(target) or apocalypseQuestHexesAdjacent(source,target)==true)
+	return target~=nil and (runtimeMapHexKey(source)==runtimeMapHexKey(target) or runtimeMapHexesAdjacent(source,target)==true)
 end
 
 function apocalypseQuestCursedTargetIndex(card,playerIndex)
@@ -3118,11 +3118,6 @@ function apocalypseQuestMarkerObject(rule)
 	return nil
 end
 
-function apocalypseQuestMapHexKey(hex)
-	if hex==nil then return nil end
-	return tostring(hex.terrainGUID).."|"..tostring(hex.bearing)
-end
-
 function apocalypseQuestMapHexes()
 	local refreshCache=apocalypseQuestRefreshMapCache or {}
 	if refreshCache~=nil and refreshCache.hexes~=nil and refreshCache.mapObjects~=nil then return refreshCache.hexes,refreshCache.mapObjects end
@@ -3133,53 +3128,6 @@ function apocalypseQuestMapHexes()
 	return hexes,objects
 end
 
-function apocalypseQuestHexesAdjacent(a,b)
-	if a==nil or b==nil then return false end
-	local dx=a.position[1]-b.position[1]
-	local dz=a.position[3]-b.position[3]
-	local distanceSquared=(dx*dx)+(dz*dz)
-	return distanceSquared>4.2 and distanceSquared<7.4
-end
-
-function apocalypseQuestHexDistanceMap(hexes, starts)
-	local distances={}
-	local queue={}
-	local snapshot=runtimeMapSnapshot()
-	local useCachedTopology=hexes==snapshot.hexes
-	for _, startHex in ipairs(starts or {}) do
-		local key=apocalypseQuestMapHexKey(startHex)
-		if key~=nil and distances[key]==nil then
-			distances[key]=0
-			queue[#queue+1]=startHex
-		end
-	end
-	local head=1
-	while queue[head]~=nil do
-		local current=queue[head]
-		head=head+1
-		local currentKey=apocalypseQuestMapHexKey(current)
-		local currentDistance=distances[currentKey] or 0
-		if useCachedTopology==true then
-			for _,candidate in ipairs(snapshot.neighbors[currentKey] or {}) do
-				local key=apocalypseQuestMapHexKey(candidate)
-				if key~=nil and distances[key]==nil then
-					distances[key]=currentDistance+1
-					queue[#queue+1]=candidate
-				end
-			end
-		else
-			for _,candidate in ipairs(hexes or {}) do
-				local key=apocalypseQuestMapHexKey(candidate)
-				if key~=nil and distances[key]==nil and apocalypseQuestHexesAdjacent(current,candidate)==true then
-					distances[key]=currentDistance+1
-					queue[#queue+1]=candidate
-				end
-			end
-		end
-	end
-	return distances
-end
-
 --Guard Duty measures the shortest connection between the merchant marker's pickup site and the
 --Mage Knight's current drop-off site using revealed map spaces only. apocalypseQuestMapHexes()
 --already omits unrevealed terrain, so a BFS over its adjacency graph matches the printed wording.
@@ -3187,21 +3135,11 @@ function apocalypseQuestGuardDutyDistance(playerIndex)
 	local marker=getObjectFromGUID("518afd")
 	if marker==nil then return nil end
 	local hexes,mapObjects=apocalypseQuestMapHexes()
-	local markerHex=apocalypseQuestHexForPosition(hexes,marker.getPosition(),mapObjects)
+	local markerHex=runtimeMapHexForPosition(hexes,marker.getPosition(),mapObjects)
 	local playerHex=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	if markerHex==nil or playerHex==nil then return nil end
-	local distances=apocalypseQuestHexDistanceMap(hexes,{markerHex})
-	return distances[apocalypseQuestMapHexKey(playerHex)]
-end
-
-function apocalypseQuestHexForPosition(hexes, position, mapObjects)
-	if position==nil then return nil end
-	local terrain,bearing=terrainHexAtPosition(position,mapObjects)
-	if terrain==nil or bearing==nil then return nil end
-	for _, hex in ipairs(hexes or {}) do
-		if hex.terrainGUID==terrain.guid and hex.bearing==bearing then return hex end
-	end
-	return nil
+	local distances=runtimeMapHexDistanceMap(hexes,{markerHex})
+	return distances[runtimeMapHexKey(playerHex)]
 end
 
 function apocalypseQuestPlayerHex(hexes, mapObjects, playerIndex)
@@ -3211,7 +3149,7 @@ function apocalypseQuestPlayerHex(hexes, mapObjects, playerIndex)
 		local avatar=coopAssaultAvatarObject(playerIndex)
 		if avatar~=nil then position=avatar.getPosition() end
 	end
-	return apocalypseQuestHexForPosition(hexes,position,mapObjects)
+	return runtimeMapHexForPosition(hexes,position,mapObjects)
 end
 
 function apocalypseQuestFeatureIsCity(feature)
@@ -3414,10 +3352,10 @@ function apocalypseQuestFreeWineLocationLegal(hex,mapObjects,playerIndex)
 		if candidate.terrainGUID==hex.terrainGUID and tostring(candidate.bearing)==tostring(hex.bearing) then start=candidate break end
 	end
 	if start==nil then return false end
-	local distances=apocalypseQuestHexDistanceMap(hexes,{start})
+	local distances=runtimeMapHexDistanceMap(hexes,{start})
 	for _, candidate in ipairs(hexes) do
 		if apocalypseQuestFeatureMatches(candidate.feature,"keep")==true then
-			local distance=distances[apocalypseQuestMapHexKey(candidate)]
+			local distance=distances[runtimeMapHexKey(candidate)]
 			if distance~=nil and distance<=3 and apocalypseQuestHexHasShield(candidate,mapObjects,playerIndex,false)~=true then return true end
 		end
 	end
@@ -3428,11 +3366,11 @@ function apocalypseQuestFreeWineKeepTargets(playerIndex)
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local start=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	if start==nil then return {} end
-	local distances=apocalypseQuestHexDistanceMap(hexes,{start})
+	local distances=runtimeMapHexDistanceMap(hexes,{start})
 	local result={}
 	for _, candidate in ipairs(hexes) do
 		if apocalypseQuestFeatureMatches(candidate.feature,"keep")==true then
-			local distance=distances[apocalypseQuestMapHexKey(candidate)]
+			local distance=distances[runtimeMapHexKey(candidate)]
 			if distance~=nil and distance<=3 and apocalypseQuestHexHasShield(candidate,mapObjects,playerIndex,false)~=true then result[#result+1]=candidate end
 		end
 	end
@@ -3703,10 +3641,10 @@ function apocalypseQuestTravellingMerchantRelocate(card,playerIndex)
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local start=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	if token==nil or start==nil then return false end
-	local distances=apocalypseQuestHexDistanceMap(hexes,{start})
+	local distances=runtimeMapHexDistanceMap(hexes,{start})
 	local candidates={}
 	for _, hex in ipairs(hexes) do
-		if distances[apocalypseQuestMapHexKey(hex)]==3 and apocalypseQuestHexSafe(hex,mapObjects,playerIndex)==true and apocalypseQuestHexHasOtherQuestMarker(hex,token.guid)~=true then candidates[#candidates+1]=hex end
+		if distances[runtimeMapHexKey(hex)]==3 and apocalypseQuestHexSafe(hex,mapObjects,playerIndex)==true and apocalypseQuestHexHasOtherQuestMarker(hex,token.guid)~=true then candidates[#candidates+1]=hex end
 	end
 	if #candidates==0 then
 		broadcastToAll("{en}Travelling Merchant: no legal safe space exactly 3 revealed spaces away was found; move the highlighted Quest marker manually.{ru}Travelling Merchant: не найдено допустимой безопасной клетки ровно в 3 открытых клетках; переместите выделенный жетон задания вручную.{zh-tw}Travelling Merchant：找不到正好相距 3 個已揭示空間的合法安全空間；請手動移動高亮任務標記。{zh-cn}Travelling Merchant：找不到正好相距 3 个已揭示空间的合法安全空间；请手动移动高亮任务标记。{ko}Travelling Merchant: 공개된 칸 기준 정확히 3칸 떨어진 합법적인 안전 칸을 찾지 못했습니다. 강조된 퀘스트 마커를 수동으로 이동하십시오.{es}Travelling Merchant: no se encontró un espacio seguro legal exactamente a 3 espacios revelados; mueve manualmente el marcador de Misión resaltado.{fr}Travelling Merchant : aucune case sûre légale à exactement 3 cases révélées n’a été trouvée ; déplacez manuellement le marqueur de Quête surligné.{pt-br}Travelling Merchant: não foi encontrado espaço seguro válido exatamente a 3 espaços revelados; mova manualmente o marcador de Missão destacado.{de}Travelling Merchant: Es wurde kein gültiges sicheres Feld in genau 3 aufgedeckten Feldern Entfernung gefunden; bewege den hervorgehobenen Questmarker manuell.",positionToColor(playerIndex))
@@ -3821,7 +3759,7 @@ function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 	if rule.adjacentTerrain~=nil then
 		local adjacent=false
 		for _, other in ipairs(apocalypseQuestMapHexes()) do
-			if other.hexType==rule.adjacentTerrain and apocalypseQuestHexesAdjacent(hex,other)==true then adjacent=true break end
+			if other.hexType==rule.adjacentTerrain and runtimeMapHexesAdjacent(hex,other)==true then adjacent=true break end
 		end
 		if adjacent~=true then return false end
 	end
@@ -3833,8 +3771,8 @@ function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 		if tokenTerrain==nil or tokenBearing==nil then return false end
 		local tokenXY=angleToXY(tokenTerrain,tokenBearing)
 		local tokenHex={terrainGUID=tokenTerrain.guid,bearing=tokenBearing,position={tokenXY[1],1.30,tokenXY[2]}}
-		local distances=apocalypseQuestHexDistanceMap(hexes,{tokenHex})
-		local distance=distances[apocalypseQuestMapHexKey(hex)]
+		local distances=runtimeMapHexDistanceMap(hexes,{tokenHex})
+		local distance=distances[runtimeMapHexKey(hex)]
 		if distance==nil or (rule.nearDistanceMax~=nil and distance>rule.nearDistanceMax) then return false end
 	end
 	if rule.nearFeatures~=nil then
@@ -3844,8 +3782,8 @@ function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 			for _, feature in ipairs(rule.nearFeatures) do if apocalypseQuestFeatureMatches(candidate.feature,feature)==true then starts[#starts+1]=candidate break end end
 		end
 		if #starts==0 then return false end
-		local distances=apocalypseQuestHexDistanceMap(hexes,starts)
-		local distance=distances[apocalypseQuestMapHexKey(hex)]
+		local distances=runtimeMapHexDistanceMap(hexes,starts)
+		local distance=distances[runtimeMapHexKey(hex)]
 		if distance==nil or (rule.nearDistanceMax~=nil and distance>rule.nearDistanceMax) then return false end
 	end
 	if rule.coastalTile==true then
@@ -3974,7 +3912,7 @@ function apocalypseQuestTerrainTileOnCurrentMapEdge(hexes, terrainGUID)
 		if hex.terrainGUID==terrainGUID then
 			local neighbours=0
 			for _, other in ipairs(hexes or {}) do
-				if apocalypseQuestHexesAdjacent(hex,other)==true then neighbours=neighbours+1 end
+				if runtimeMapHexesAdjacent(hex,other)==true then neighbours=neighbours+1 end
 			end
 			if neighbours<6 then return true end
 		end
@@ -4013,7 +3951,7 @@ function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 	if rule.distanceFromPlayerMax~=nil or rule.distanceFromPlayerMin~=nil then
 		playerHex=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 		if playerHex==nil then return {} end
-		playerDistances=apocalypseQuestHexDistanceMap(hexes,{playerHex})
+		playerDistances=runtimeMapHexDistanceMap(hexes,{playerHex})
 	end
 	local nearDistances=nil
 	if rule.nearFeatures~=nil then
@@ -4024,13 +3962,13 @@ function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 			end
 		end
 		if #starts==0 then return {} end
-		nearDistances=apocalypseQuestHexDistanceMap(hexes,starts)
+		nearDistances=runtimeMapHexDistanceMap(hexes,starts)
 	end
 	local markerDistances=nil
 	if rule.distanceFromMarkerMax~=nil or rule.distanceFromMarkerMin~=nil then
-		local markerHex=apocalypseQuestHexForPosition(hexes,token.getPosition(),mapObjects)
+		local markerHex=runtimeMapHexForPosition(hexes,token.getPosition(),mapObjects)
 		if markerHex==nil then return {} end
-		markerDistances=apocalypseQuestHexDistanceMap(hexes,{markerHex})
+		markerDistances=runtimeMapHexDistanceMap(hexes,{markerHex})
 	end
 	local candidates={}
 	local coastalCache={}
@@ -4062,24 +4000,24 @@ function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 		if legal and rule.adjacentTerrain~=nil then
 			local adjacent=false
 			for _, other in ipairs(hexes) do
-				if other.hexType==rule.adjacentTerrain and apocalypseQuestHexesAdjacent(hex,other)==true then adjacent=true break end
+				if other.hexType==rule.adjacentTerrain and runtimeMapHexesAdjacent(hex,other)==true then adjacent=true break end
 			end
 			if adjacent~=true then legal=false end
 		end
 		if legal and playerDistances~=nil then
-			local distance=playerDistances[apocalypseQuestMapHexKey(hex)]
+			local distance=playerDistances[runtimeMapHexKey(hex)]
 			if distance==nil then legal=false end
 			if legal and rule.distanceFromPlayerMax~=nil and distance>rule.distanceFromPlayerMax then legal=false end
 			if legal and rule.distanceFromPlayerMin~=nil and distance<rule.distanceFromPlayerMin then legal=false end
 		end
 		if legal and nearDistances~=nil then
-			local distance=nearDistances[apocalypseQuestMapHexKey(hex)]
+			local distance=nearDistances[runtimeMapHexKey(hex)]
 			if distance==nil then legal=false end
 			if legal and rule.nearDistanceMax~=nil and distance>rule.nearDistanceMax then legal=false end
 			if legal and rule.nearDistanceMin~=nil and distance<rule.nearDistanceMin then legal=false end
 		end
 		if legal and markerDistances~=nil then
-			local distance=markerDistances[apocalypseQuestMapHexKey(hex)]
+			local distance=markerDistances[runtimeMapHexKey(hex)]
 			if distance==nil then legal=false end
 			if legal and rule.distanceFromMarkerMax~=nil and distance>rule.distanceFromMarkerMax then legal=false end
 			if legal and rule.distanceFromMarkerMin~=nil and distance<rule.distanceFromMarkerMin then legal=false end
@@ -4094,8 +4032,8 @@ function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 	local sourceHex=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	table.sort(candidates,function(a,b)
 		if rule.closestToPlayer==true and playerDistances~=nil then
-			local ad=playerDistances[apocalypseQuestMapHexKey(a)]
-			local bd=playerDistances[apocalypseQuestMapHexKey(b)]
+			local ad=playerDistances[runtimeMapHexKey(a)]
+			local bd=playerDistances[runtimeMapHexKey(b)]
 			if ad~=nil and bd~=nil and ad~=bd then return ad<bd end
 		end
 		if sourceHex~=nil then
@@ -4115,11 +4053,11 @@ end
 
 function apocalypseQuestMarkerCurrentHexLegal(token,candidates,hexes,mapObjects)
 	if token==nil then return false end
-	local current=apocalypseQuestHexForPosition(hexes,token.getPosition(),mapObjects)
+	local current=runtimeMapHexForPosition(hexes,token.getPosition(),mapObjects)
 	if current==nil then return false end
-	local key=apocalypseQuestMapHexKey(current)
+	local key=runtimeMapHexKey(current)
 	for _, candidate in ipairs(candidates or {}) do
-		if apocalypseQuestMapHexKey(candidate)==key then return true end
+		if runtimeMapHexKey(candidate)==key then return true end
 	end
 	return false
 end
@@ -4198,8 +4136,8 @@ function apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)
 	local currentLegal=apocalypseQuestMarkerCurrentHexLegal(token,candidates,hexes,mapObjects)
 	local target=candidates[1]
 	if rule.closestToPlayer==true then
-		local current=apocalypseQuestHexForPosition(hexes,token.getPosition(),mapObjects)
-		currentLegal=current~=nil and apocalypseQuestMapHexKey(current)==apocalypseQuestMapHexKey(target)
+		local current=runtimeMapHexForPosition(hexes,token.getPosition(),mapObjects)
+		currentLegal=current~=nil and runtimeMapHexKey(current)==runtimeMapHexKey(target)
 	end
 	if currentLegal~=true then
 		token.unlock()

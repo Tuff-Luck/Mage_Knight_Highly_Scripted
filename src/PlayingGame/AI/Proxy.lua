@@ -327,7 +327,7 @@ function proxyRouteTopology(hexes,proxyIndex)
 	local snapshot=runtimeMapSnapshot()
 	local useCachedTopology=hexes==snapshot.hexes
 	for _,hex in ipairs(hexes or {}) do
-		local key=apocalypseQuestMapHexKey(hex)
+		local key=runtimeMapHexKey(hex)
 		if key~=nil then
 			context.byKey[key]=hex
 			context.passable[key]=proxyHexPassable(hex,proxyIndex)==true
@@ -343,12 +343,12 @@ function proxyRouteTopology(hexes,proxyIndex)
 	if useCachedTopology~=true then
 		for a=1,#(hexes or {}) do
 			local first=hexes[a]
-			local firstKey=apocalypseQuestMapHexKey(first)
+			local firstKey=runtimeMapHexKey(first)
 			if firstKey~=nil then
 				for b=a+1,#hexes do
 					local second=hexes[b]
-					local secondKey=apocalypseQuestMapHexKey(second)
-					if secondKey~=nil and apocalypseQuestHexesAdjacent(first,second)==true then
+					local secondKey=runtimeMapHexKey(second)
+					if secondKey~=nil and runtimeMapHexesAdjacent(first,second)==true then
 						context.neighbors[firstKey][#context.neighbors[firstKey]+1]=second
 						context.neighbors[secondKey][#context.neighbors[secondKey]+1]=first
 						context.neighborSet[firstKey][secondKey]=true
@@ -366,16 +366,16 @@ function proxyDistanceMap(hexes,starts,proxyIndex,context)
 	local distances={}
 	local queue={}
 	for _,hex in ipairs(starts or {}) do
-		local key=apocalypseQuestMapHexKey(hex)
+		local key=runtimeMapHexKey(hex)
 		if key~=nil and distances[key]==nil and context.passable[key]==true then distances[key]=0 queue[#queue+1]=hex end
 	end
 	local head=1
 	while queue[head]~=nil do
 		local current=queue[head] head=head+1
-		local currentKey=apocalypseQuestMapHexKey(current)
+		local currentKey=runtimeMapHexKey(current)
 		local currentDistance=distances[currentKey] or 0
 		for _,candidate in ipairs(context.neighbors[currentKey] or {}) do
-			local key=apocalypseQuestMapHexKey(candidate)
+			local key=runtimeMapHexKey(candidate)
 			if key~=nil and distances[key]==nil and context.passable[key]==true then
 				distances[key]=currentDistance+1 queue[#queue+1]=candidate
 			end
@@ -787,7 +787,7 @@ function proxyTargetCandidatesForColor(color,hexes,mapObjects,proxyIndex,crystal
 	local candidates={}
 	for _,hex in ipairs(hexes or {}) do
 		local feature=string.lower(tostring(hex.feature or ""))
-		local validFarther=fartherOnly~=true or ((portalDistances[apocalypseQuestMapHexKey(hex)] or -1)>currentPortalDistance)
+		local validFarther=fartherOnly~=true or ((portalDistances[runtimeMapHexKey(hex)] or -1)>currentPortalDistance)
 		if validFarther and feature~="destroyed" then
 			if color=="Green" and apocalypseQuestHexAdventureSite(hex)==true and proxyAdventureSiteAvailable(hex,mapObjects,proxyIndex)==true then
 				if not (gStates.gameScenario=="Against the Apocalypse Blitz" and (feature=="ziggurat" or feature=="pyramid")) then candidates[#candidates+1]={hex=hex,action="adventure",objectiveColor=color} end
@@ -827,7 +827,7 @@ function proxyExploreTarget(hexes,distances)
 		if p~=nil then
 			local bestHex,bestTravel,bestEdge=nil,nil,nil
 			for _,hex in ipairs(hexes or {}) do
-				local travel=distances[apocalypseQuestMapHexKey(hex)]
+				local travel=distances[runtimeMapHexKey(hex)]
 				if travel~=nil then
 					local dx=hex.position[1]-p[1]
 					local dz=hex.position[3]-p[3]
@@ -853,7 +853,7 @@ function proxyExploreTarget(hexes,distances)
 				local p=tile.getPosition()
 				local bestHex,bestTravel,bestEdge=nil,nil,nil
 				for _,hex in ipairs(hexes or {}) do
-					local travel=distances[apocalypseQuestMapHexKey(hex)]
+					local travel=distances[runtimeMapHexKey(hex)]
 					if travel~=nil then
 						local dx=hex.position[1]-p[1]
 						local dz=hex.position[3]-p[3]
@@ -893,8 +893,8 @@ function proxyChooseTarget(objective,hexes,mapObjects,proxyIndex,crystals,startH
 	local colors=dummyCardColors(objective)
 	local fromStart=proxyDistanceMap(hexes,{startHex},proxyIndex)
 	local portal=proxyPortalHex(hexes)
-	local portalDistances=portal~=nil and apocalypseQuestHexDistanceMap(hexes,{portal}) or {}
-	local currentPortalDistance=portalDistances[apocalypseQuestMapHexKey(startHex)] or 0
+	local portalDistances=portal~=nil and runtimeMapHexDistanceMap(hexes,{portal}) or {}
+	local currentPortalDistance=portalDistances[runtimeMapHexKey(startHex)] or 0
 	local candidates={}
 	local offerCache=proxyInteractionOfferCache(crystals)
 	local candidateCache={}
@@ -917,7 +917,7 @@ function proxyChooseTarget(objective,hexes,mapObjects,proxyIndex,crystals,startH
 		local unique={}
 		local seen={}
 		for _,candidate in ipairs(list or {}) do
-			local hexKey=candidate.hex~=nil and apocalypseQuestMapHexKey(candidate.hex) or nil
+			local hexKey=candidate.hex~=nil and runtimeMapHexKey(candidate.hex) or nil
 			local actionKey=tostring(candidate.action or "")
 			if candidate.action=="explore" then
 				if candidate.button~=nil and candidate.button.attributes~=nil then actionKey=actionKey..":"..tostring(candidate.button.attributes.id or "")
@@ -929,7 +929,7 @@ function proxyChooseTarget(objective,hexes,mapObjects,proxyIndex,crystals,startH
 		local distance=nil
 		local tied={}
 		for _,candidate in ipairs(unique) do
-			local d=fromStart[apocalypseQuestMapHexKey(candidate.hex)]
+			local d=fromStart[runtimeMapHexKey(candidate.hex)]
 			if d~=nil and (distance==nil or d<distance) then distance=d tied={candidate}
 			elseif d~=nil and d==distance then tied[#tied+1]=candidate end
 		end
@@ -977,8 +977,8 @@ function proxyRouteContext(hexes,mapObjects,proxyIndex)
 	context.edgeHazard={}
 	for _,obj in pairs(mapObjects or {}) do
 		if obj~=nil and obj.guid~=nil and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[obj.guid]==true then
-			local rampHex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
-			local key=rampHex~=nil and apocalypseQuestMapHexKey(rampHex) or nil
+			local rampHex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+			local key=rampHex~=nil and runtimeMapHexKey(rampHex) or nil
 			if key~=nil then context.rampagers[#context.rampagers+1]={obj=obj,key=key} end
 		end
 	end
@@ -989,8 +989,8 @@ end
 --Several Rampagers can be provoked by the same edge; collect all of them and resolve the fight together.
 function proxyMovementHazard(fromHex,toHex,hexes,mapObjects,proxyIndex,context)
 	if fromHex==nil or toHex==nil then return nil end
-	local fromKey=apocalypseQuestMapHexKey(fromHex)
-	local toKey=apocalypseQuestMapHexKey(toHex)
+	local fromKey=runtimeMapHexKey(fromHex)
+	local toKey=runtimeMapHexKey(toHex)
 	if fromKey==nil or toKey==nil then return nil end
 	local edgeKey=fromKey..">"..toKey
 	if context~=nil and context.edgeHazard[edgeKey]~=nil then
@@ -1027,8 +1027,8 @@ function proxyMovementHazard(fromHex,toHex,hexes,mapObjects,proxyIndex,context)
 	else
 		for _,obj in pairs(mapObjects or {}) do
 			if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[obj.guid]==true and seen[obj.guid]~=true then
-				local rampHex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
-				if rampHex~=nil and apocalypseQuestHexesAdjacent(fromHex,rampHex)==true and apocalypseQuestHexesAdjacent(toHex,rampHex)==true then
+				local rampHex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+				if rampHex~=nil and runtimeMapHexesAdjacent(fromHex,rampHex)==true and runtimeMapHexesAdjacent(toHex,rampHex)==true then
 					seen[obj.guid]=true enemies[#enemies+1]=obj
 				end
 			end
@@ -1048,17 +1048,17 @@ function proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,forcedF
 	if startHex==nil or target==nil or target.hex==nil then return {},nil,nil end
 	local context=sharedContext or proxyRouteContext(hexes,mapObjects,proxyIndex)
 	local toTarget=proxyDistanceMap(hexes,{target.hex},proxyIndex,context)
-	local targetKey=apocalypseQuestMapHexKey(target.hex)
+	local targetKey=runtimeMapHexKey(target.hex)
 	local safeMemo={}
 	local function safeRun(hex)
-		local key=apocalypseQuestMapHexKey(hex)
+		local key=runtimeMapHexKey(hex)
 		if key==nil or key==targetKey then return 0 end
 		if safeMemo[key]~=nil then return safeMemo[key] end
 		local distance=toTarget[key]
 		if distance==nil or distance<=0 then safeMemo[key]=0 return 0 end
 		local best=-1
 		for _,candidate in ipairs(context.neighbors[key] or {}) do
-			if context.passable[apocalypseQuestMapHexKey(candidate)]==true and toTarget[apocalypseQuestMapHexKey(candidate)]==distance-1 then
+			if context.passable[runtimeMapHexKey(candidate)]==true and toTarget[runtimeMapHexKey(candidate)]==distance-1 then
 				local hazard=proxyMovementHazard(hex,candidate,hexes,mapObjects,proxyIndex,context)
 				local score=hazard~=nil and 0 or (1+safeRun(candidate))
 				if score>best then best=score end
@@ -1073,22 +1073,22 @@ function proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,forcedF
 	local lastSafe=startHex
 	local hazard=nil
 	for step=1,move do
-		if apocalypseQuestMapHexKey(current)==targetKey then break end
-		local currentDistance=toTarget[apocalypseQuestMapHexKey(current)]
+		if runtimeMapHexKey(current)==targetKey then break end
+		local currentDistance=toTarget[runtimeMapHexKey(current)]
 		if currentDistance==nil or currentDistance<=0 then break end
 		local choices={}
-		for _,candidate in ipairs(context.neighbors[apocalypseQuestMapHexKey(current)] or {}) do
-			if context.passable[apocalypseQuestMapHexKey(candidate)]==true and toTarget[apocalypseQuestMapHexKey(candidate)]==currentDistance-1 then
+		for _,candidate in ipairs(context.neighbors[runtimeMapHexKey(current)] or {}) do
+			if context.passable[runtimeMapHexKey(candidate)]==true and toTarget[runtimeMapHexKey(candidate)]==currentDistance-1 then
 				local candidateHazard=proxyMovementHazard(current,candidate,hexes,mapObjects,proxyIndex,context)
 				choices[#choices+1]={hex=candidate,hazard=candidateHazard,safe=candidateHazard~=nil and 0 or (1+safeRun(candidate))}
 			end
 		end
 		if #choices==0 then break end
-		table.sort(choices,function(a,b) if a.safe~=b.safe then return a.safe>b.safe end return apocalypseQuestMapHexKey(a.hex)<apocalypseQuestMapHexKey(b.hex) end)
+		table.sort(choices,function(a,b) if a.safe~=b.safe then return a.safe>b.safe end return runtimeMapHexKey(a.hex)<runtimeMapHexKey(b.hex) end)
 		local choice=choices[1]
 		if step==1 and forcedFirstKey~=nil then
 			local bestSafe=choices[1].safe
-			for _,candidate in ipairs(choices) do if candidate.safe==bestSafe and apocalypseQuestMapHexKey(candidate.hex)==forcedFirstKey then choice=candidate break end end
+			for _,candidate in ipairs(choices) do if candidate.safe==bestSafe and runtimeMapHexKey(candidate.hex)==forcedFirstKey then choice=candidate break end end
 		end
 		local nextHex=choice.hex
 		hazard=choice.hazard
@@ -1103,9 +1103,9 @@ end
 
 function proxyRouteOutcomeSignature(startHex,target,route,hazard,lastSafe)
 	local finalHex=(route~=nil and route[#route]) or startHex
-	local finalKey=tostring(apocalypseQuestMapHexKey(finalHex) or "?")
-	local targetKey=target~=nil and target.hex~=nil and apocalypseQuestMapHexKey(target.hex) or nil
-	local reached=hazard==nil and targetKey~=nil and apocalypseQuestMapHexKey(finalHex)==targetKey
+	local finalKey=tostring(runtimeMapHexKey(finalHex) or "?")
+	local targetKey=target~=nil and target.hex~=nil and runtimeMapHexKey(target.hex) or nil
+	local reached=hazard==nil and targetKey~=nil and runtimeMapHexKey(finalHex)==targetKey
 	if hazard==nil then
 		--Two safe paths that both reach the same objective have exactly the same game result. Do not
 		--ask a human merely because their intermediate/penultimate hexes differ. If neither reaches
@@ -1113,7 +1113,7 @@ function proxyRouteOutcomeSignature(startHex,target,route,hazard,lastSafe)
 		if reached==true then return "arrive|"..tostring(target.action or "arrive").."|"..tostring(targetKey) end
 		return "move|"..finalKey
 	end
-	local parts={"hazard",tostring(hazard.action or "hazard"),tostring(apocalypseQuestMapHexKey(hazard.hex) or "?"),tostring(hazard.enterHex),tostring(hazard.provoked),tostring(hazard.fortified or "")}
+	local parts={"hazard",tostring(hazard.action or "hazard"),tostring(runtimeMapHexKey(hazard.hex) or "?"),tostring(hazard.enterHex),tostring(hazard.provoked),tostring(hazard.fortified or "")}
 	local enemies={}
 	for _,enemy in ipairs(hazard.enemies or {}) do if enemy~=nil then enemies[#enemies+1]=tostring(enemy.guid or "") end end
 	if #enemies==0 and hazard.enemy~=nil then enemies[1]=tostring(hazard.enemy.guid or "") end
@@ -1121,7 +1121,7 @@ function proxyRouteOutcomeSignature(startHex,target,route,hazard,lastSafe)
 	parts[#parts+1]=table.concat(enemies,",")
 	--For a hazard/assault, the previous safe hex can affect where the Proxy ends up after resolution
 	--(for example after a retreat), so retain it as a genuinely meaningful route difference.
-	parts[#parts+1]=tostring(apocalypseQuestMapHexKey(lastSafe) or "")
+	parts[#parts+1]=tostring(runtimeMapHexKey(lastSafe) or "")
 	return table.concat(parts,"|")
 end
 
@@ -1129,17 +1129,17 @@ function proxyFindRouteChoice(startHex,target,hexes,mapObjects,proxyIndex,move)
 	if startHex==nil or target==nil or target.hex==nil or (move or 0)<=0 then return nil end
 	local context=proxyRouteContext(hexes,mapObjects,proxyIndex)
 	local toTarget=proxyDistanceMap(hexes,{target.hex},proxyIndex,context)
-	local targetKey=apocalypseQuestMapHexKey(target.hex)
+	local targetKey=runtimeMapHexKey(target.hex)
 	local safeMemo={}
 	local function safeRun(hex)
-		local key=apocalypseQuestMapHexKey(hex)
+		local key=runtimeMapHexKey(hex)
 		if key==nil or key==targetKey then return 0 end
 		if safeMemo[key]~=nil then return safeMemo[key] end
 		local distance=toTarget[key]
 		if distance==nil or distance<=0 then safeMemo[key]=0 return 0 end
 		local best=-1
 		for _,candidate in ipairs(context.neighbors[key] or {}) do
-			if context.passable[apocalypseQuestMapHexKey(candidate)]==true and toTarget[apocalypseQuestMapHexKey(candidate)]==distance-1 then
+			if context.passable[runtimeMapHexKey(candidate)]==true and toTarget[runtimeMapHexKey(candidate)]==distance-1 then
 				local h=proxyMovementHazard(hex,candidate,hexes,mapObjects,proxyIndex,context)
 				local score=h~=nil and 0 or (1+safeRun(candidate))
 				if score>best then best=score end
@@ -1150,18 +1150,18 @@ function proxyFindRouteChoice(startHex,target,hexes,mapObjects,proxyIndex,move)
 	local current=startHex
 	local prefix={}
 	for step=1,move do
-		if apocalypseQuestMapHexKey(current)==targetKey then return nil,context end
-		local distance=toTarget[apocalypseQuestMapHexKey(current)]
+		if runtimeMapHexKey(current)==targetKey then return nil,context end
+		local distance=toTarget[runtimeMapHexKey(current)]
 		if distance==nil or distance<=0 then return nil,context end
 		local choices={}
-		for _,candidate in ipairs(context.neighbors[apocalypseQuestMapHexKey(current)] or {}) do
-			if context.passable[apocalypseQuestMapHexKey(candidate)]==true and toTarget[apocalypseQuestMapHexKey(candidate)]==distance-1 then
+		for _,candidate in ipairs(context.neighbors[runtimeMapHexKey(current)] or {}) do
+			if context.passable[runtimeMapHexKey(candidate)]==true and toTarget[runtimeMapHexKey(candidate)]==distance-1 then
 				local h=proxyMovementHazard(current,candidate,hexes,mapObjects,proxyIndex,context)
 				choices[#choices+1]={hex=candidate,hazard=h,safe=h~=nil and 0 or (1+safeRun(candidate))}
 			end
 		end
 		if #choices==0 then return nil,context end
-		table.sort(choices,function(a,b) if a.safe~=b.safe then return a.safe>b.safe end return apocalypseQuestMapHexKey(a.hex)<apocalypseQuestMapHexKey(b.hex) end)
+		table.sort(choices,function(a,b) if a.safe~=b.safe then return a.safe>b.safe end return runtimeMapHexKey(a.hex)<runtimeMapHexKey(b.hex) end)
 		local bestSafe=choices[1].safe
 		local tied={}
 		for _,choice in ipairs(choices) do if choice.safe==bestSafe then tied[#tied+1]=choice else break end end
@@ -1170,7 +1170,7 @@ function proxyFindRouteChoice(startHex,target,hexes,mapObjects,proxyIndex,move)
 			local matters=false
 			local remaining=move-step+1
 			for _,choice in ipairs(tied) do
-				local key=apocalypseQuestMapHexKey(choice.hex)
+				local key=runtimeMapHexKey(choice.hex)
 				local route,hazard,lastSafe=proxyPlanRoute(current,target,hexes,mapObjects,proxyIndex,remaining,key,context)
 				local currentSignature=proxyRouteOutcomeSignature(current,target,route,hazard,lastSafe)
 				if signature==nil then signature=currentSignature elseif currentSignature~=signature then matters=true break end
@@ -1188,12 +1188,12 @@ end
 function proxyDestinationTurnSignature(startHex,target,hexes,mapObjects,proxyIndex,move,sharedContext)
 	local route,hazard,lastSafe=proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,nil,sharedContext)
 	local parts={}
-	for _,hex in ipairs(route or {}) do parts[#parts+1]=tostring(apocalypseQuestMapHexKey(hex) or "?") end
+	for _,hex in ipairs(route or {}) do parts[#parts+1]=tostring(runtimeMapHexKey(hex) or "?") end
 	local finalHex=(route~=nil and route[#route]) or startHex
-	local reached=hazard==nil and finalHex~=nil and target~=nil and target.hex~=nil and apocalypseQuestMapHexKey(finalHex)==apocalypseQuestMapHexKey(target.hex)
+	local reached=hazard==nil and finalHex~=nil and target~=nil and target.hex~=nil and runtimeMapHexKey(finalHex)==runtimeMapHexKey(target.hex)
 	local hazardParts={"none"}
 	if hazard~=nil then
-		hazardParts={tostring(hazard.action or "hazard"),tostring(apocalypseQuestMapHexKey(hazard.hex) or "?"),tostring(hazard.enterHex),tostring(hazard.provoked),tostring(hazard.fortified or "")}
+		hazardParts={tostring(hazard.action or "hazard"),tostring(runtimeMapHexKey(hazard.hex) or "?"),tostring(hazard.enterHex),tostring(hazard.provoked),tostring(hazard.fortified or "")}
 		local enemies={}
 		for _,enemy in ipairs(hazard.enemies or {}) do if enemy~=nil then enemies[#enemies+1]=tostring(enemy.guid or "") end end
 		if #enemies==0 and hazard.enemy~=nil then enemies[1]=tostring(hazard.enemy.guid or "") end
@@ -1208,7 +1208,7 @@ function proxyDestinationTurnSignature(startHex,target,hexes,mapObjects,proxyInd
 			elseif target.predefinedTileGUID~=nil then arrival=arrival..":"..tostring(target.predefinedTileGUID) end
 		end
 	end
-	return table.concat(parts,">").."|"..table.concat(hazardParts,":").."|"..arrival.."|"..tostring(apocalypseQuestMapHexKey(lastSafe) or "")
+	return table.concat(parts,">").."|"..table.concat(hazardParts,":").."|"..arrival.."|"..tostring(runtimeMapHexKey(lastSafe) or "")
 end
 
 function proxyDestinationChoiceMattersThisTurn(targets,startHex,hexes,mapObjects,proxyIndex,move)
@@ -1263,7 +1263,7 @@ end
 function proxyTargetSave(target)
 	if target==nil or target.hex==nil then return nil end
 	local saved={
-		key=apocalypseQuestMapHexKey(target.hex),
+		key=runtimeMapHexKey(target.hex),
 		action=target.action,
 		fortified=target.fortified,
 		proxyReason=target.proxyReason,
@@ -1290,7 +1290,7 @@ end
 function proxyTargetLoad(saved,hexes)
 	if saved==nil or saved.key==nil then return nil end
 	local hex=nil
-	for _,candidate in ipairs(hexes or {}) do if apocalypseQuestMapHexKey(candidate)==saved.key then hex=candidate break end end
+	for _,candidate in ipairs(hexes or {}) do if runtimeMapHexKey(candidate)==saved.key then hex=candidate break end end
 	if hex==nil then return nil end
 	local target={hex=hex,action=saved.action,fortified=saved.fortified,proxyReason=saved.proxyReason,choiceObjectiveColor=saved.choiceObjectiveColor}
 	if saved.action=="explore" then
@@ -1339,33 +1339,14 @@ end
 
 function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 	if saved==nil or saved.key==nil then return nil,xml end
-	local terrainGUID,bearing=tostring(saved.key):match("^([^|]+)|(.+)$")
-	local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
-	if terrain==nil or bearing==nil then return nil,xml end
-	local hexXY=angleToXY(terrain,bearing)
-	local tilePos=terrain.getPosition()
-	local localHex=terrain.positionToLocal({hexXY[1],tilePos[2],hexXY[2]})
-	local tileScale=terrain.getScale()
-	local scaleX=tileScale.x or tileScale[1] or 2.25
-	local scaleZ=tileScale.z or tileScale[3] or 2.25
-	local uiFactor=0.16/0.38
-	local uiX=(localHex.x or localHex[1])*scaleX*110*uiFactor
-	local uiY=(localHex.z or localHex[3])*scaleZ*110*uiFactor
-	local uiDepth=-40*uiFactor
-	local buttonScale=0.16
-	local uiRotation=terrain.getRotation()[2] or 180
-	local count=math.max(1,tonumber(splitCount) or 1)
-	local slot=math.max(1,tonumber(splitIndex) or 1)
-	local height=320/count
-	--Button scale shrinks the visible button but not its UI position. Offset split choices by the
-	--scaled height so adjacent Proxy action buttons meet edge-to-edge instead of straddling the hex.
-	if count>1 then uiY=uiY+(((count+1)/2)-slot)*height*buttonScale end
+	local terrain,placement=terrainHexChoiceUIPlacement(saved.key,0.16,splitIndex,splitCount,0.38)
+	if terrain==nil or placement==nil then return nil,xml end
 	local id=terrain.guid.."ProxyDestinationChoice"..tostring(index)
 	xml=xml or terrain.UI.getXmlTable() or {}
 	xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/proxyDestinationChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-		height=height,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(uiRotation),scale=buttonScale.." "..buttonScale},
+		height=placement.height,width=320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
 		children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
-			{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize=count>1 and "62" or "76",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=count>1 and "62" or "76",text=proxyDestinationChoiceActionText(saved)}}}}}}
+			{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize=placement.count>1 and "62" or "76",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=placement.count>1 and "62" or "76",text=proxyDestinationChoiceActionText(saved)}}}}}}
 	return terrain,xml
 end
 
@@ -1475,10 +1456,10 @@ function proxyBeginRouteChoice(routeChoice,target,proxyIndex,move)
 	local chooser=proxyChoicePlayerIndex()
 	if chooser==nil then return false end
 	local pending={type="route",proxyIndex=proxyIndex,playerIndex=chooser,playerColor=proxyChoicePlayerColor(chooser),move=routeChoice.remainingMove or move,target=proxyTargetSave(target),prefix={},options={}}
-	for _,hex in ipairs(routeChoice.prefix or {}) do pending.prefix[#pending.prefix+1]=apocalypseQuestMapHexKey(hex) end
+	for _,hex in ipairs(routeChoice.prefix or {}) do pending.prefix[#pending.prefix+1]=runtimeMapHexKey(hex) end
 	for _,choice in ipairs(routeChoice.choices or {}) do
 		local hex=choice.hex
-		if hex~=nil then pending.options[#pending.options+1]={key=apocalypseQuestMapHexKey(hex),action="route",choicePosition={hex.position[1],hex.position[2],hex.position[3]},feature=hex.feature} end
+		if hex~=nil then pending.options[#pending.options+1]={key=runtimeMapHexKey(hex),action="route",choicePosition={hex.position[1],hex.position[2],hex.position[3]},feature=hex.feature} end
 	end
 	if #pending.options<2 then return false end
 	gStates.proxyPendingChoice=pending
@@ -1497,13 +1478,13 @@ end
 
 function proxyResolveRouteChoice(pending,saved)
 	if pending==nil or saved==nil or gStates.turnNumber~=pending.proxyIndex then automatedTurnRewindRelease() return end
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local target=proxyTargetLoad(pending.target,hexes)
 	local avatar=proxyAvatarObject()
 	if target==nil or avatar==nil then proxyTurnReportSetAction("could not restore the selected route") proxyFinishTurn(hexes,mapObjects,pending.proxyIndex) return end
 	proxyRouteChoiceAnimatePrefix(pending,target,hexes,mapObjects,1,function()
-		local freshHexes,freshObjects=apocalypseQuestMapHexes()
-		local current=apocalypseQuestHexForPosition(freshHexes,avatar.getPosition(),freshObjects)
+		local freshHexes,freshObjects=runtimeMapHexesAndObjects()
+		local current=runtimeMapHexForPosition(freshHexes,avatar.getPosition(),freshObjects)
 		local nextHex=proxyHexByKey(freshHexes,saved.key)
 		if current==nil or nextHex==nil then proxyFinishTurn(freshHexes,freshObjects,pending.proxyIndex) return end
 		local context=proxyRouteContext(freshHexes,freshObjects,pending.proxyIndex)
@@ -1564,7 +1545,7 @@ function proxyDestinationChoiceSelect(player,mouseButton,id)
 	end
 	automatedTurnRewindStart(function()
 		if gStates.turnNumber~=pending.proxyIndex then automatedTurnRewindRelease() return end
-		local hexes,mapObjects=apocalypseQuestMapHexes()
+		local hexes,mapObjects=runtimeMapHexesAndObjects()
 		local target=proxyTargetLoad(saved,hexes)
 		if target==nil then proxyTurnReportSetAction("could not restore the selected destination") proxyFinishTurn(hexes,mapObjects,pending.proxyIndex) return end
 		proxyContinueTowardTarget(target,pending.proxyIndex,pending.move)
@@ -1754,7 +1735,7 @@ end
 
 function proxyHexByKey(hexes,key)
 	if key==nil then return nil end
-	for _,hex in ipairs(hexes or {}) do if apocalypseQuestMapHexKey(hex)==key then return hex end end
+	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
 	return nil
 end
 
@@ -1850,7 +1831,7 @@ end
 
 function proxyResolveEnemyChoice(pending,selectedGUID)
 	if pending==nil or pending.context==nil then automatedTurnRewindRelease() return end
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local hex=proxyHexByKey(hexes,pending.context.hexKey)
 	if hex==nil then proxyFinishTurn(hexes,mapObjects,pending.proxyIndex) return end
 	if pending.context.kind=="ruin" then
@@ -1869,7 +1850,7 @@ function proxyResolveEnemyChoice(pending,selectedGUID)
 		broadcastToAll("{en}Proxy resolved the tied City defender choice.{ru}Прокси разрешил ничью при выборе защитника Города.{zh-tw}代理玩家已解決城市防守者選擇的平手。{zh-cn}代理玩家已解决城市防守者选择的平手。{ko}프록시가 도시 수비자 선택의 동률을 해결했습니다.{es}El Proxy resolvió el empate en la elección de defensor de la Ciudad.{fr}Le Proxy a résolu l’égalité du choix de défenseur de la Cité.{pt-br}O Proxy resolveu o empate na escolha de defensor da Cidade.{de}Der Proxy hat den Gleichstand bei der Verteidigerwahl der Stadt aufgelöst.",{1,0.75,0.2})
 	end
 	safeWaitTime("AI.Proxy",function()
-		local freshHexes,freshObjects=apocalypseQuestMapHexes()
+		local freshHexes,freshObjects=runtimeMapHexesAndObjects()
 		proxyFinishTurn(freshHexes,freshObjects,pending.proxyIndex)
 	end,1.1)
 end
@@ -1935,7 +1916,7 @@ function proxyResolveAdventure(hex,mapObjects,proxyIndex)
 		end
 		if #enemies>0 then
 			local lowest=proxyLowestFameEnemies(enemies)
-			if #lowest>1 and proxyBeginEnemyChoice(lowest,{kind="ruin",hexKey=apocalypseQuestMapHexKey(hex)},proxyIndex)==true then
+			if #lowest>1 and proxyBeginEnemyChoice(lowest,{kind="ruin",hexKey=runtimeMapHexKey(hex)},proxyIndex)==true then
 				proxyRestoreAvatarAfterSiteObjects(lift,settleGUIDs)
 				return false
 			end
@@ -1970,7 +1951,7 @@ function proxyResolveFortified(hex,mapObjects,proxyIndex,lastSafe)
 		local city=proxyCityGUIDForHex(hex)
 		local alive=proxyCityAliveEnemies(city)
 		local lowest=proxyLowestFameEnemies(alive)
-		if #lowest>1 and proxyBeginEnemyChoice(lowest,{kind="city",hexKey=apocalypseQuestMapHexKey(hex),lastSafeKey=lastSafe~=nil and apocalypseQuestMapHexKey(lastSafe) or nil},proxyIndex)==true then return false end
+		if #lowest>1 and proxyBeginEnemyChoice(lowest,{kind="city",hexKey=runtimeMapHexKey(hex),lastSafeKey=lastSafe~=nil and runtimeMapHexKey(lastSafe) or nil},proxyIndex)==true then return false end
 		local selected=lowest[1]~=nil and lowest[1].guid or nil
 		proxyResolveCitySelectedEnemy(hex,mapObjects,proxyIndex,lastSafe,selected)
 	elseif fortified~=nil then
@@ -2080,7 +2061,7 @@ function proxyInteractionChoiceSelect(player,mouseButton,id)
 		if card~=nil then proxyTakeInteractionChoice({card=card,kind=snap.kind,cost=snap.cost})
 		else proxyTurnReportSetAction("could not find the selected offer card") proxyClearObjective(true) end
 		safeWaitTime("AI.Proxy",function()
-			local hexes,mapObjects=apocalypseQuestMapHexes()
+			local hexes,mapObjects=runtimeMapHexesAndObjects()
 			proxyFinishTurn(hexes,mapObjects,pending.proxyIndex)
 		end,1.1)
 	end)
@@ -2167,7 +2148,7 @@ function proxyRevealGarrisonsAtHex(hex,hexes,mapObjects,proxyIndex)
 	if hex==nil or gStates.autoFlip~=true then return end
 	local revealHexes={hex}
 	for _,nearHex in ipairs(hexes or {}) do
-		if apocalypseQuestMapHexKey(nearHex)~=apocalypseQuestMapHexKey(hex) and apocalypseQuestHexesAdjacent(hex,nearHex)==true then revealHexes[#revealHexes+1]=nearHex end
+		if runtimeMapHexKey(nearHex)~=runtimeMapHexKey(hex) and runtimeMapHexesAdjacent(hex,nearHex)==true then revealHexes[#revealHexes+1]=nearHex end
 	end
 	local revealed=false
 	for _,revealHex in ipairs(revealHexes) do
@@ -2222,8 +2203,8 @@ function proxyAnimateRoute(route,index,target,hazard,lastSafe,hexes,mapObjects,p
 	local avatar=proxyAvatarObject()
 	if avatar==nil then proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
 	if route[index]==nil then
-		local current=apocalypseQuestHexForPosition(hexes,avatar.getPosition(),mapObjects)
-		if hazard~=nil or (target~=nil and current~=nil and apocalypseQuestMapHexKey(current)==apocalypseQuestMapHexKey(target.hex)) then proxyResolveArrival(target,hazard,lastSafe,hexes,mapObjects,proxyIndex)
+		local current=runtimeMapHexForPosition(hexes,avatar.getPosition(),mapObjects)
+		if hazard~=nil or (target~=nil and current~=nil and runtimeMapHexKey(current)==runtimeMapHexKey(target.hex)) then proxyResolveArrival(target,hazard,lastSafe,hexes,mapObjects,proxyIndex)
 		else
 			if gStates.proxyTurnReport~=nil and gStates.proxyTurnReport.action==nil then proxyTurnReportSetAction("moved toward the "..proxyTargetDisplayName(target).."\nbut did not reach it") end
 			proxyFinishTurn(hexes,mapObjects,proxyIndex)
@@ -2235,9 +2216,9 @@ end
 
 function proxyContinueTowardTarget(target,proxyIndex,move,preserveMoved)
 	local avatar=proxyAvatarObject()
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	if avatar==nil then proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
-	local startHex=apocalypseQuestHexForPosition(hexes,avatar.getPosition(),mapObjects)
+	local startHex=runtimeMapHexForPosition(hexes,avatar.getPosition(),mapObjects)
 	if startHex==nil then proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
 	proxyRevealGarrisonsAtHex(startHex,hexes,mapObjects,proxyIndex)
 	proxyTurnReportSetTarget(target)
@@ -2247,7 +2228,7 @@ function proxyContinueTowardTarget(target,proxyIndex,move,preserveMoved)
 	local routeChoice,routeContext=proxyFindRouteChoice(startHex,target,hexes,mapObjects,proxyIndex,move or 0)
 	if routeChoice~=nil and proxyBeginRouteChoice(routeChoice,target,proxyIndex,move)==true then return end
 	local route,hazard,lastSafe=proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move or 0,nil,routeContext)
-	if #route==0 and apocalypseQuestMapHexKey(startHex)==apocalypseQuestMapHexKey(target.hex) then proxyResolveArrival(target,nil,startHex,hexes,mapObjects,proxyIndex)
+	if #route==0 and runtimeMapHexKey(startHex)==runtimeMapHexKey(target.hex) then proxyResolveArrival(target,nil,startHex,hexes,mapObjects,proxyIndex)
 	else proxyAnimateRoute(route,1,target,hazard,lastSafe,hexes,mapObjects,proxyIndex) end
 end
 
@@ -2282,9 +2263,9 @@ function proxyContinueAfterMovementSetup(proxyIndex,move,crystals)
 	if gStates.turnNumber~=proxyIndex then automatedTurnRewindRelease() return end
 	local avatar=proxyAvatarObject()
 	local objectiveNow=proxyObjectiveObject()
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	if avatar==nil or objectiveNow==nil then proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
-	local startHex=apocalypseQuestHexForPosition(hexes,avatar.getPosition(),mapObjects)
+	local startHex=runtimeMapHexForPosition(hexes,avatar.getPosition(),mapObjects)
 	if startHex==nil then proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
 	local target=proxyChooseTarget(objectiveNow,hexes,mapObjects,proxyIndex,crystals or proxySnapshotCrystals(turnOrder[proxyIndex]),startHex,move)
 	if target==nil then
@@ -2317,10 +2298,10 @@ function proxyProcessTurn(proxyIndex)
 	proxyClearPendingChoice()
 	automatedMainPanelRefresh()
 	local avatar=proxyAvatarObject()
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local portal=proxyPortalHex(hexes)
 	if avatar==nil or portal==nil then gStates.proxyTurnReport={moved=0,action="could not find their Hero or Portal",reason="Setup could not provide both required objects.",allowance=0} broadcastToAll("{en}Proxy Player could not find its Hero or Portal.{ru}Прокси-игрок не смог найти своего Героя или Портал.{zh-tw}代理玩家找不到英雄或傳送門。{zh-cn}代理玩家找不到英雄或传送门。{ko}프록시 플레이어가 영웅 또는 포털을 찾지 못했습니다.{es}El jugador Proxy no pudo encontrar su Héroe o Portal.{fr}Le joueur Proxy n’a pas pu trouver son Héros ou le Portail.{pt-br}O jogador Proxy não conseguiu encontrar seu Herói ou o Portal.{de}Der Proxy-Spieler konnte seinen Helden oder das Portal nicht finden.",{1,0.25,0.25}) proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
-	local physicalStartHex=apocalypseQuestHexForPosition(hexes,avatar.getPosition(),mapObjects)
+	local physicalStartHex=runtimeMapHexForPosition(hexes,avatar.getPosition(),mapObjects)
 	if physicalStartHex==nil then
 		avatar.unlock() avatar.setPosition({portal.position[1],1.5,portal.position[3]}) gStates.proxyAvatarOffMap=false
 		stats.avatarLocation=gStates.gameScenario=="Against the Horsemen Blitz" and "glade" or "portal"
