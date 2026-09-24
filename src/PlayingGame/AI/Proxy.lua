@@ -616,13 +616,19 @@ function proxyLocalizedTerm(value)
 	return terms[text] or translateWord[text] or text
 end
 
-function proxyLocalizedColorList(colors)
+function proxyLocalizedList(values,separator)
 	local parts={}
-	for color in tostring(colors or ""):gmatch("[^/]+") do
-		if #parts>0 then parts[#parts+1]="/" end
-		parts[#parts+1]=translateWord[color] or color
+	for _,value in ipairs(values or {}) do
+		if #parts>0 then parts[#parts+1]=separator or ", " end
+		parts[#parts+1]=value
 	end
 	return #parts>0 and joinLang(parts) or ""
+end
+
+function proxyLocalizedColorList(colors)
+	local values={}
+	for color in tostring(colors or ""):gmatch("[^/]+") do values[#values+1]=translateWord[color] or color end
+	return proxyLocalizedList(values,"/")
 end
 
 function proxyLocalizedReason(reason,colors)
@@ -717,16 +723,14 @@ function proxyTurnReportText()
 		if report.choiceTargets~=nil then
 			local translated={}
 			for _,choice in ipairs(report.choiceTargets) do translated[#translated+1]=proxyLocalizedTerm(choice) end
-			local joined={}
-			for i,choice in ipairs(translated) do if i>1 then joined[#joined+1]=", " end joined[#joined+1]=choice end
-			choices=joinLang(joined)
+			choices=proxyLocalizedList(translated,", ")
 		else choices=joinLang({tostring(report.choiceCount),"{en} equally close{ru} равноудалённых{zh-tw} 個同樣接近{zh-cn} 个同样接近{ko}개의 동일 거리{es} igualmente cercanos{fr} à égale distance{pt-br} igualmente próximos{de} gleich nahe"}) end
 		choiceLine=joinLang({"{en}\n\nMultiple targets: {ru}\n\nНесколько целей: {zh-tw}\n\n多個目標：{zh-cn}\n\n多个目标：{ko}\n\n여러 목표: {es}\n\nMúltiples objetivos: {fr}\n\nPlusieurs cibles : {pt-br}\n\nVários alvos: {de}\n\nMehrere Ziele: ",choices})
 	end
 
 	local interactionLine=""
 	if gStates.proxyState=="PickCard" and (report.interactionChoiceCount or 0)>1 then
-		local choices=report.interactionChoiceNames~=nil and table.concat(report.interactionChoiceNames,", ") or tostring(report.interactionChoiceCount)
+		local choices=report.interactionChoiceNames~=nil and proxyLocalizedList(report.interactionChoiceNames,", ") or tostring(report.interactionChoiceCount)
 		interactionLine=joinLang({"{en}\n\nMultiple interaction choices: {ru}\n\nНесколько вариантов взаимодействия: {zh-tw}\n\n多個互動選擇：{zh-cn}\n\n多个互动选择：{ko}\n\n여러 상호작용 선택: {es}\n\nMúltiples opciones de interacción: {fr}\n\nPlusieurs choix d’interaction : {pt-br}\n\nVárias escolhas de interação: {de}\n\nMehrere Interaktionsmöglichkeiten: ",choices})
 	end
 
@@ -1439,14 +1443,17 @@ function proxyBeginDestinationChoice(targets,proxyIndex,move,reason)
 		if saved~=nil and saved.choicePosition~=nil then
 			pending.options[#pending.options+1]=saved
 			local label=target.action=="explore" and "{en}Explore{ru}Исследовать{zh-tw}探索{zh-cn}探索{ko}탐험{es}Explorar{fr}Explorer{pt-br}Explorar{de}Erkunden" or proxyLocalizedTerm(proxyFeatureDisplayName(target.hex~=nil and target.hex.feature or nil))
-			if target.choiceObjectiveColor~=nil then label=label.." ("..tostring(target.choiceObjectiveColor).." "..proxyDestinationChoiceActionText(saved):match("\n(.+)$")..")" end
+			if target.choiceObjectiveColor~=nil then
+				local colorLabel=translateWord[target.choiceObjectiveColor] or tostring(target.choiceObjectiveColor)
+				label=joinLang({label," (",colorLabel," ",proxyDestinationChoiceActionText(saved):match("\n(.+)$"),")"})
+			end
 			names[#names+1]=label
 		end
 	end
 	if #pending.options<2 then return false end
 	gStates.proxyPendingChoice=pending
 	proxyChoiceMapRefresh(pending)
-	broadcastToAll(joinLang({"{en}Proxy has {ru}У Прокси есть {zh-tw}代理玩家有 {zh-cn}代理玩家有 {ko}프록시에게 {es}El Proxy tiene {fr}Le Proxy a {pt-br}O Proxy tem {de}Der Proxy hat ",tostring(#pending.options),"{en} equally close legal choices: {ru} равноудалённых допустимых вариантов: {zh-tw} 個距離相同的合法選擇：{zh-cn} 个距离相同的合法选择：{ko}개의 동일 거리 합법 선택지가 있습니다: {es} opciones legales igualmente cercanas: {fr} choix légaux à égale distance : {pt-br} escolhas válidas igualmente próximas: {de} gleich nahe gültige Optionen: ",table.concat(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать один.{zh-tw} 必須選擇一個。{zh-cn} 必须选择一个。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir una.{fr} doit en choisir une.{pt-br} deve escolher uma.{de} muss eine auswählen."}),{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}Proxy has {ru}У Прокси есть {zh-tw}代理玩家有 {zh-cn}代理玩家有 {ko}프록시에게 {es}El Proxy tiene {fr}Le Proxy a {pt-br}O Proxy tem {de}Der Proxy hat ",tostring(#pending.options),"{en} equally close legal choices: {ru} равноудалённых допустимых вариантов: {zh-tw} 個距離相同的合法選擇：{zh-cn} 个距离相同的合法选择：{ko}개의 동일 거리 합법 선택지가 있습니다: {es} opciones legales igualmente cercanas: {fr} choix légaux à égale distance : {pt-br} escolhas válidas igualmente próximas: {de} gleich nahe gültige Optionen: ",proxyLocalizedList(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать один.{zh-tw} 必須選擇一個。{zh-cn} 必须选择一个。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir una.{fr} doit en choisir une.{pt-br} deve escolher uma.{de} muss eine auswählen."}),{1,0.75,0.2})
 	return proxyChoiceSetWaiting(pending)
 end
 
@@ -1787,7 +1794,7 @@ function proxyBeginEnemyChoice(enemies,context,proxyIndex)
 	if #pending.order<2 then return false end
 	gStates.proxyPendingChoice=pending
 	for _,guid in ipairs(pending.order) do local enemy=getObjectFromGUID(guid) if enemy~=nil then proxyEnemyChoiceButton(enemy) end end
-	broadcastToAll(joinLang({"{en}Proxy must choose between tied lowest-Fame enemies: {ru}Прокси должен выбрать между врагами с одинаковой наименьшей Славой: {zh-tw}代理玩家必須在聲望值同為最低的敵人中選擇：{zh-cn}代理玩家必须在声望值同为最低的敌人中选择：{ko}프록시는 명성이 공동 최저인 적 중 선택해야 합니다: {es}El Proxy debe elegir entre los enemigos empatados con la Fama más baja: {fr}Le Proxy doit choisir parmi les ennemis à égalité pour la Renommée la plus faible : {pt-br}O Proxy deve escolher entre os inimigos empatados com a menor Fama: {de}Der Proxy muss zwischen den Gegnern mit gleich niedrigstem Ruhm wählen: ",table.concat(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать одного.{zh-tw} 必須選擇一個。{zh-cn} 必须选择一个。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir uno.{fr} doit en choisir un.{pt-br} deve escolher um.{de} muss einen auswählen."}),{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}Proxy must choose between tied lowest-Fame enemies: {ru}Прокси должен выбрать между врагами с одинаковой наименьшей Славой: {zh-tw}代理玩家必須在聲望值同為最低的敵人中選擇：{zh-cn}代理玩家必须在声望值同为最低的敌人中选择：{ko}프록시는 명성이 공동 최저인 적 중 선택해야 합니다: {es}El Proxy debe elegir entre los enemigos empatados con la Fama más baja: {fr}Le Proxy doit choisir parmi les ennemis à égalité pour la Renommée la plus faible : {pt-br}O Proxy deve escolher entre os inimigos empatados com a menor Fama: {de}Der Proxy muss zwischen den Gegnern mit gleich niedrigstem Ruhm wählen: ",proxyLocalizedList(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать одного.{zh-tw} 必須選擇一個。{zh-cn} 必须选择一个。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir uno.{fr} doit en choisir un.{pt-br} deve escolher um.{de} muss einen auswählen."}),{1,0.75,0.2})
 	return proxyChoiceSetWaiting(pending)
 end
 
@@ -2034,7 +2041,7 @@ function proxyBeginCardChoice(choices,proxyIndex)
 	if #pending.order<2 then return false end
 	gStates.proxyPendingChoice=pending
 	for _,guid in ipairs(pending.order) do local card=getObjectFromGUID(guid) if card~=nil then proxyInteractionChoiceButton(card) end end
-	broadcastToAll(joinLang({"{en}Proxy has {ru}У Прокси есть {zh-tw}代理玩家有 {zh-cn}代理玩家有 {ko}프록시에게 {es}El Proxy tiene {fr}Le Proxy a {pt-br}O Proxy tem {de}Der Proxy hat ",tostring(#pending.order),"{en} equally valid lowest-cost cards: {ru} равно допустимых карт с наименьшей стоимостью: {zh-tw} 張同樣有效且費用最低的牌：{zh-cn} 张同样有效且费用最低的牌：{ko}개의 동일하게 유효한 최저 비용 카드가 있습니다: {es} cartas de coste mínimo igualmente válidas: {fr} cartes de coût minimal également valides : {pt-br} cartas de menor custo igualmente válidas: {de} gleich gültige Karten mit den niedrigsten Kosten: ",table.concat(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать одну.{zh-tw} 必須選擇一張。{zh-cn} 必须选择一张。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir una.{fr} doit en choisir une.{pt-br} deve escolher uma.{de} muss eine auswählen."}),{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}Proxy has {ru}У Прокси есть {zh-tw}代理玩家有 {zh-cn}代理玩家有 {ko}프록시에게 {es}El Proxy tiene {fr}Le Proxy a {pt-br}O Proxy tem {de}Der Proxy hat ",tostring(#pending.order),"{en} equally valid lowest-cost cards: {ru} равно допустимых карт с наименьшей стоимостью: {zh-tw} 張同樣有效且費用最低的牌：{zh-cn} 张同样有效且费用最低的牌：{ko}개의 동일하게 유효한 최저 비용 카드가 있습니다: {es} cartas de coste mínimo igualmente válidas: {fr} cartes de coût minimal également valides : {pt-br} cartas de menor custo igualmente válidas: {de} gleich gültige Karten mit den niedrigsten Kosten: ",proxyLocalizedList(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать одну.{zh-tw} 必須選擇一張。{zh-cn} 必须选择一张。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir una.{fr} doit en choisir une.{pt-br} deve escolher uma.{de} muss eine auswählen."}),{1,0.75,0.2})
 	return proxyChoiceSetWaiting(pending)
 end
 
