@@ -38,6 +38,7 @@ Prefer compact Lua and direct changes. Add nil guards when they prevent a real r
 For visible scripted movement, use Tabletop Simulator\'s normal/slow smooth movement by default. Pass `fast=false` explicitly (`setPositionSmooth(..., false, false)` / `setRotationSmooth(..., false, false)`) when touching movement code so the intent is unambiguous. Do not use the fast smooth-move mode unless the user explicitly asks for it. Container `takeObject({smooth=true})` is fine when extracting an object; do not replace normal visible movement with fast smooth movement.
 
 Do not add backwards-compatibility or old-save recovery code unless the user explicitly requests it.
+For Apocalypse Quests, the old Google Sheet / Quest summary sheet used during initial implementation is out of date and is not an authority. Audit and change the current Lua/card behavior directly; do not re-import or “correct” rules from that sheet.
 
 
 ## Persistent state and source of truth
