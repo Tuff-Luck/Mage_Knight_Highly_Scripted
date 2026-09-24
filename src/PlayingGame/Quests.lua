@@ -2600,23 +2600,51 @@ function apocalypseQuestUnderSiegeFailure(card,playerIndex)
 	end
 end
 
+local apocalypseQuestEnemyDiscardByType={
+	gray=GUID.bag.discard.keepGarrison,
+	purple=GUID.bag.discard.towerGarrison,
+	white=GUID.bag.discard.cityGarrison,
+	red=GUID.bag.discard.draconum,
+	green=GUID.bag.discard.orcs,
+	tan=GUID.bag.discard.dungeon
+}
+
+local function apocalypseQuestDetachPossessedForDiscard(enemy)
+	if enemy==nil then return end
+	local detached=clearPossessedEnemy(enemy)
+	local possessedDiscard=getObjectFromGUID(GUID.bag.discard.possessed)
+	for _,token in pairs(detached or {}) do
+		if possessedDiscard~=nil then possessedDiscard.putObject(token) else token.destruct() end
+	end
+end
+
+local function apocalypseQuestEnemyDiscardDestination(enemy)
+	if enemy==nil or monsterPugs[enemy.guid]==nil then return nil end
+	local discardGUID=apocalypseQuestEnemyDiscardByType[monsterPugs[enemy.guid].pugType]
+	return discardGUID~=nil and getObjectFromGUID(discardGUID) or nil
+end
+
+local function apocalypseQuestDiscardEnemyNow(enemy)
+	if enemy==nil then return false end
+	apocalypseQuestDetachPossessedForDiscard(enemy)
+	local discard=apocalypseQuestEnemyDiscardDestination(enemy)
+	if discard==nil then return false end
+	enemy.unlock()
+	discard.putObject(enemy)
+	return true
+end
+
 --Mine of Doom is unusual: an unsuccessful attempt still discards its undefeated enemies instead of
 --returning them to a map site. Remove those face-down survivors during normal pre-end-turn cleanup so
 --the board is already clear when the Rewards Claimed stage appears. Defeated face-up enemies remain
 --for the standard combat cleanup so their normal Fame/reward processing is preserved.
 function apocalypseQuestMineDoomUndefeatedCleanup(playerIndex)
 	if gStates.apocalypseQuestCombatEnemies==nil or gStates.apocalypseQuestCombatEnemies["485cc5"]==nil then return false end
-	local discardByType={gray=GUID.bag.discard.keepGarrison,purple=GUID.bag.discard.towerGarrison,white=GUID.bag.discard.cityGarrison,red=GUID.bag.discard.draconum,green=GUID.bag.discard.orcs,tan=GUID.bag.discard.dungeon}
-	local possessedDiscard=getObjectFromGUID(GUID.bag.discard.possessed)
 	local removed=false
 	for guid,_ in pairs(gStates.apocalypseQuestCombatEnemies["485cc5"]) do
 		local enemy=getObjectFromGUID(guid)
 		if enemy~=nil and enemy.is_face_down==true then
-			local detached=clearPossessedEnemy(enemy)
-			for _, token in pairs(detached or {}) do if possessedDiscard~=nil then possessedDiscard.putObject(token) else token.destruct() end end
-			local kind=monsterPugs[guid]~=nil and monsterPugs[guid].pugType or nil
-			local discard=kind~=nil and discardByType[kind]~=nil and getObjectFromGUID(discardByType[kind]) or nil
-			if discard~=nil then enemy.unlock() discard.putObject(enemy) end
+			apocalypseQuestDiscardEnemyNow(enemy)
 			if gStates.attackedMonsters~=nil then gStates.attackedMonsters[guid]=nil end
 			if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[guid]=nil end
 			removed=true
@@ -2628,17 +2656,11 @@ end
 
 function apocalypseQuestMineDoomEndTurnCleanup(playerIndex)
 	if gStates.apocalypseQuestCombatEnemies==nil or gStates.apocalypseQuestCombatEnemies["485cc5"]==nil then return false end
-	local discardByType={gray=GUID.bag.discard.keepGarrison,purple=GUID.bag.discard.towerGarrison,white=GUID.bag.discard.cityGarrison,red=GUID.bag.discard.draconum,green=GUID.bag.discard.orcs,tan=GUID.bag.discard.dungeon}
 	local removed=false
 	for guid,_ in pairs(gStates.apocalypseQuestCombatEnemies["485cc5"]) do
 		local enemy=getObjectFromGUID(guid)
 		if enemy~=nil then
-			local detached=clearPossessedEnemy(enemy)
-			local possessedDiscard=getObjectFromGUID(GUID.bag.discard.possessed)
-			for _, token in pairs(detached or {}) do if possessedDiscard~=nil then possessedDiscard.putObject(token) else token.destruct() end end
-			local kind=monsterPugs[guid]~=nil and monsterPugs[guid].pugType or nil
-			local discard=kind~=nil and discardByType[kind]~=nil and getObjectFromGUID(discardByType[kind]) or nil
-			if discard~=nil then enemy.unlock() discard.putObject(enemy) end
+			apocalypseQuestDiscardEnemyNow(enemy)
 			removed=true
 		end
 		if gStates.attackedMonsters~=nil then gStates.attackedMonsters[guid]=nil end
@@ -5429,6 +5451,44 @@ function apocalypseQuestFinishCompletedCard(card)
 	if quest~=nil and quest.keepToken==true then return apocalypseQuestParkReminder(card) end
 	return apocalypseQuestBottomDeck(card)
 end
+local apocalypseQuestCardRuntimeStores={
+	"apocalypseQuestReminderCards",
+	"apocalypseQuestProgress",
+	"apocalypseQuestPendingChoice",
+	"apocalypseQuestCombatChoice",
+	"apocalypseQuestCombatLaunches",
+	"apocalypseQuestCombatEnemies",
+	"apocalypseQuestCombatBranch",
+	"apocalypseQuestCursedHero",
+	"apocalypseQuestCursedHistory",
+	"apocalypseQuestHerbalistRolls",
+	"apocalypseQuestDirectBranch",
+	"apocalypseQuestCombatStarted",
+	"apocalypseQuestRewardCompletionPending",
+	"apocalypseQuestMineDoomColor",
+	"apocalypseQuestStepColor",
+	"apocalypseQuestRichMerchantRoll",
+	"apocalypseQuestRichMerchantHidden",
+	"apocalypseQuestVeryPersonalSuccess",
+	"apocalypseQuestRevealDone",
+	"apocalypseQuestRevealPending"
+}
+
+local function apocalypseQuestClearCardRuntime(cardGUID)
+	if cardGUID==nil then return end
+	local herbalist=gStates.apocalypseQuestHerbalistRolls~=nil and gStates.apocalypseQuestHerbalistRolls[cardGUID] or nil
+	if herbalist~=nil then
+		local die=herbalist.dieGUID~=nil and getObjectFromGUID(herbalist.dieGUID) or nil
+		if die~=nil then die.destruct() end
+		if gStates.apocalypseQuestRollDice~=nil and herbalist.dieGUID~=nil then gStates.apocalypseQuestRollDice[herbalist.dieGUID]=nil end
+	end
+	for _,storeName in ipairs(apocalypseQuestCardRuntimeStores) do
+		local store=gStates[storeName]
+		if store~=nil then store[cardGUID]=nil end
+	end
+	if apocalypseQuestRevealWaitScheduled~=nil then apocalypseQuestRevealWaitScheduled[cardGUID]=nil end
+end
+
 function apocalypseQuestBottomDeck(card,onComplete)
 	if card==nil then if onComplete~=nil then onComplete(false) end return false end
 	if card.guid=="a6d5cc" then gStates.apocalypseQuestUnderSiegeReady=nil gStates.apocalypseQuestUnderSiegeStep2=nil end
@@ -5443,33 +5503,7 @@ function apocalypseQuestBottomDeck(card,onComplete)
 		if onComplete~=nil then onComplete(parked==true) end
 		return parked
 	end
-	if gStates.apocalypseQuestReminderCards~=nil then gStates.apocalypseQuestReminderCards[card.guid]=nil end
-	if gStates.apocalypseQuestProgress~=nil then gStates.apocalypseQuestProgress[card.guid]=nil end
-	if gStates.apocalypseQuestPendingChoice~=nil then gStates.apocalypseQuestPendingChoice[card.guid]=nil end
-	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
-	if gStates.apocalypseQuestCombatLaunches~=nil then gStates.apocalypseQuestCombatLaunches[card.guid]=nil end
-	if gStates.apocalypseQuestCombatEnemies~=nil then gStates.apocalypseQuestCombatEnemies[card.guid]=nil end
-	if gStates.apocalypseQuestCombatBranch~=nil then gStates.apocalypseQuestCombatBranch[card.guid]=nil end
-	if gStates.apocalypseQuestCursedHero~=nil then gStates.apocalypseQuestCursedHero[card.guid]=nil end
-	if gStates.apocalypseQuestCursedHistory~=nil then gStates.apocalypseQuestCursedHistory[card.guid]=nil end
-	if gStates.apocalypseQuestHerbalistRolls~=nil and gStates.apocalypseQuestHerbalistRolls[card.guid]~=nil then
-		local roll=gStates.apocalypseQuestHerbalistRolls[card.guid]
-		local die=roll.dieGUID~=nil and getObjectFromGUID(roll.dieGUID) or nil
-		if die~=nil then die.destruct() end
-		if gStates.apocalypseQuestRollDice~=nil and roll.dieGUID~=nil then gStates.apocalypseQuestRollDice[roll.dieGUID]=nil end
-		gStates.apocalypseQuestHerbalistRolls[card.guid]=nil
-	end
-	if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[card.guid]=nil end
-	if gStates.apocalypseQuestCombatStarted~=nil then gStates.apocalypseQuestCombatStarted[card.guid]=nil end
-	if gStates.apocalypseQuestRewardCompletionPending~=nil then gStates.apocalypseQuestRewardCompletionPending[card.guid]=nil end
-	if gStates.apocalypseQuestMineDoomColor~=nil then gStates.apocalypseQuestMineDoomColor[card.guid]=nil end
-	if gStates.apocalypseQuestStepColor~=nil then gStates.apocalypseQuestStepColor[card.guid]=nil end
-	if gStates.apocalypseQuestRichMerchantRoll~=nil then gStates.apocalypseQuestRichMerchantRoll[card.guid]=nil end
-	if gStates.apocalypseQuestRichMerchantHidden~=nil then gStates.apocalypseQuestRichMerchantHidden[card.guid]=nil end
-	if gStates.apocalypseQuestVeryPersonalSuccess~=nil then gStates.apocalypseQuestVeryPersonalSuccess[card.guid]=nil end
-	if gStates.apocalypseQuestRevealDone~=nil then gStates.apocalypseQuestRevealDone[card.guid]=nil end
-	if gStates.apocalypseQuestRevealPending~=nil then gStates.apocalypseQuestRevealPending[card.guid]=nil end
-	if apocalypseQuestRevealWaitScheduled~=nil then apocalypseQuestRevealWaitScheduled[card.guid]=nil end
+	apocalypseQuestClearCardRuntime(card.guid)
 	apocalypseQuestInterfaceRemove(card)
 	local deck=apocalypseQuestLiveDeck()
 	if deck==nil or deck.guid==card.guid then if onComplete~=nil then onComplete(false) end return false end
@@ -5506,13 +5540,8 @@ function apocalypseQuestBottomDeck(card,onComplete)
 		elseif monsterPugs[obj.guid]~=nil then
 			--Quest enemies always leave through their discard piles, defeated or not. Their original source
 			--pile is not restored when the Quest leaves play.
-			local detached=clearPossessedEnemy(obj)
-			local possessedDiscard=getObjectFromGUID(GUID.bag.discard.possessed)
-			for _, token in ipairs(detached or {}) do if possessedDiscard~=nil then possessedDiscard.putObject(token) else token.destruct() end end
-			local pugType=monsterPugs[obj.guid].pugType
-			local discardGUID=({gray=GUID.bag.discard.keepGarrison,purple=GUID.bag.discard.towerGarrison,white=GUID.bag.discard.cityGarrison,
-				red=GUID.bag.discard.draconum,green=GUID.bag.discard.orcs,tan=GUID.bag.discard.dungeon})[pugType]
-			local destination=discardGUID~=nil and getObjectFromGUID(discardGUID) or nil
+			apocalypseQuestDetachPossessedForDiscard(obj)
+			local destination=apocalypseQuestEnemyDiscardDestination(obj)
 			if destination~=nil then apocalypseQuestStageIntoContainer(obj,destination) end
 		elseif obj.type=="Card" then
 			--BottomDeck owns tucked-card detachment for completion, failure and end-of-round expiry alike.
