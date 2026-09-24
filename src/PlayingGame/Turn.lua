@@ -1,6 +1,7 @@
 -- Turn, round, tactic and final-turn runtime.
 
 local dropoutMatImage="https://steamusercontent-a.akamaihd.net/ugc/9970617178500111609/C9D8D7517B7FAF114F10D8195AC38269F0504E37/"
+local bannerGUIDs={"596cfa", "986216", "0b5b32", "e48e44", GUID.card.bannerOfCommandToken, "8e4b92", "75a627"}
 
 --Player seat colors only change during setup/load or when a player uses the color controls.
 --Keep physical tinting out of mainUIUpdate so ordinary card play never recolors unchanged objects.
@@ -249,7 +250,7 @@ function startOfTurn()
 
 	--Gain Reminder token from oasis
 	if virtualCoopCombat==false and turnOrder[gStates.turnNumber].avatarLocation=="oasis" then
-		getObjectFromGUID("a8bf9c").clone({position={(turnOrder[gStates.turnNumber].seatPos*40)-103, 1.65, -39}, rotation={0.00, 180.00, 0.00}, smooth=false}).unlock()
+		getObjectFromGUID(GUID.token.oasisReminder).clone({position={(turnOrder[gStates.turnNumber].seatPos*40)-103, 1.65, -39}, rotation={0.00, 180.00, 0.00}, smooth=false}).unlock()
 	end
 
 	mainUIUpdate("New Turn")
@@ -298,7 +299,7 @@ end
 
 --Time Bending is set aside for the rest of the round when its extra-turn button is actually used.
 --Keep its owner seat so the card can be recovered from the trash chest at round end or before final scoring.
-timeBendingGUID="2eb8e2"
+timeBendingGUID=GUID.card.timeBending
 local timeBendingRecoveryPending=false
 function reclaimTimeBending(callback)
 	if gStates==nil or gStates.timeBendingRemovedSeat==nil then if callback~=nil then callback() end return false end
@@ -346,7 +347,7 @@ function extraTurnOptions(playerIndex)
 	local timeBendingAvailable=false
 	local playArea=getObjectFromGUID(playerPlayAreas[details.seatPos])
 	if playArea~=nil then
-		for _, obj in pairs(playArea.getObjects()) do if obj.guid=="2eb8e2" then timeBendingAvailable=true break end end
+		for _, obj in pairs(playArea.getObjects()) do if obj.guid==GUID.card.timeBending then timeBendingAvailable=true break end end
 	end
 	return tacticSixAvailable, timeBendingAvailable
 end
@@ -1137,22 +1138,22 @@ local function turnEndRoundRefreshSkillsAndUnits()
 						"005290", "10feb1", "ff9201", "af501e", "cc32e5", "2b6131",--Coral command
 						"22a7bb", "bb619e", "6688df", "2a2da1", "f3f02c", "8e1952",--Jormund command
 						"fbf2cb", "405221", "787513", "2e1d38", "832228", "4b661b",--Malek command
-						"f30dd4"}--Norowas Skill is also a command token
+						GUID.skill.bondsOfLoyalty}--Norowas Skill is also a command token
 	for _, commandGUID in pairs (commandTokens) do
 		if getObjectFromGUID(commandGUID)~=nil then
 			local token=getObjectFromGUID(commandGUID)
-			if commandGUID~="f30dd4" or (commandGUID=="f30dd4" and token.getPosition()[3]<-25) then token.setPosition({token.getPosition()[1],token.getPosition()[2],-31.19}) end
+			if commandGUID~=GUID.skill.bondsOfLoyalty or (commandGUID==GUID.skill.bondsOfLoyalty and token.getPosition()[3]<-25) then token.setPosition({token.getPosition()[1],token.getPosition()[2],-31.19}) end
 		end
 	end
 
 	--Flip banner Cards
-	for _, bannerGUID in pairs({"596cfa", "986216", "0b5b32", "e48e44", "8dbce4", "8e4b92", "75a627"}) do
+	for _, bannerGUID in pairs(bannerGUIDs) do
 		if getObjectFromGUID(bannerGUID)~=nil then getObjectFromGUID(bannerGUID).setRotationSmooth({0, 180, 0}) end
 	end
-	if getObjectFromGUID("8dbce4")~=nil then
+	if getObjectFromGUID(GUID.card.bannerOfCommandToken)~=nil then
 		safeWaitFrames("Turn",function() safeWaitCondition("Turn",function()
 			bannerOfCommandDecal()
-		end, function() return getObjectFromGUID("8dbce4").resting end) end, 10)
+		end, function() return getObjectFromGUID(GUID.card.bannerOfCommandToken).resting end) end, 10)
 	end
 
 	--Move any player claimed Magic familiars down to indicate they need a new crystal
@@ -1435,7 +1436,7 @@ end
 --Use the tactic card's actual board position to identify its owner. During tactic selection,
 --turnOrder can temporarily contain duplicate tactic numbers until everybody has chosen.
 function dayTactic2Owner()
-	local tactic=getObjectFromGUID("a000a4")
+	local tactic=getObjectFromGUID(tacticCard[2])
 	if tactic==nil or gStates.dayRound~=true or gStates.tacticRemove==true then return nil, nil end
 	local tacticPos=tactic.getPosition()
 	if tacticPos[3]>=-15 then return nil, nil end
@@ -1447,7 +1448,7 @@ function dayTactic2Owner()
 end
 
 function dayTactic2ButtonActivate()
-	local tactic=getObjectFromGUID("a000a4")
+	local tactic=getObjectFromGUID(tacticCard[2])
 	if tactic==nil then return end
 	--While the card is still in the tactic offer, leave its normal claim/remove UI alone.
 	--Once it has reached its owner's board, Rethink can be available immediately even while
@@ -1458,7 +1459,7 @@ function dayTactic2ButtonActivate()
 	end
 	tactic.UI.setXmlTable({{}})
 	safeWaitFrames("Turn",function()
-		local card=getObjectFromGUID("a000a4")
+		local card=getObjectFromGUID(tacticCard[2])
 		local currentOwner=dayTactic2Owner()
 		if card==nil or currentOwner==nil then return end
 		if cardEffectIsVertical(card)==true and gStates.tacticTwoState~="Used" then
@@ -1474,7 +1475,7 @@ end
 function dayTactic2SetUsed()
 	if gStates.tacticTwoState=="Used" then return end
 	gStates.tacticTwoState="Used"
-	local tactic=getObjectFromGUID("a000a4")
+	local tactic=getObjectFromGUID(tacticCard[2])
 	if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
 	dayTactic2ButtonActivate()
 end
@@ -1494,7 +1495,7 @@ end
 --Give replacement cards for Day Tactic 2, then shuffle the discarded cards back into the Deed Deck.
 function dayTactic2Discarded(player, mouseButton, id)
 	if mouseButton~="-1" or player==nil then return end
-	local tactic=getObjectFromGUID("a000a4")
+	local tactic=getObjectFromGUID(tacticCard[2])
 	if tactic==nil then return end
 	if gStates.tacticTwoState=="Used" then dayTactic2ButtonActivate() return end
 	local playerColor=player.color
@@ -1513,7 +1514,7 @@ function dayTactic2Discarded(player, mouseButton, id)
 	for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[playerPosition]).getObjects()) do
 		if playAreaObj.tag=="Card" then
 			local found=false
-			for _, bannerGUID in pairs({"596cfa", "986216", "0b5b32", "e48e44", "8dbce4", "8e4b92", "75a627"}) do if playAreaObj.guid==bannerGUID then found=true break end end
+			for _, bannerGUID in pairs(bannerGUIDs) do if playAreaObj.guid==bannerGUID then found=true break end end
 			if playAreaObj.getDescription()=="Quest" then found=true end
 			if found==false then
 				waitTime=1
@@ -1604,7 +1605,7 @@ function nightTactic2(player, mouseButton, id)
 					--stop from repeating
 					gStates.tacticTwoState="Used"
 					--flip over tactic
-					if getObjectFromGUID("f6ad01").is_face_down==false then getObjectFromGUID("f6ad01").flip() end
+					if getObjectFromGUID(tacticCard[8]).is_face_down==false then getObjectFromGUID(tacticCard[8]).flip() end
 					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic to refill Deed Deck with 3 Random discards{ru} использует Тактику 2 и кладет 3 карты из сброса в Колоду деяний{zh-tw}使用战术从弃牌堆中随机拿了3张手牌{zh-cn}使用战术从弃牌堆中随机拿了3张手牌{ko}: 전략 카드 2 사용. 3장의 버려진 카드로 더미를 채웁니다.{es} usó Táctica para rellenar Deed Deck con 3 descartes aleatorios{fr} utilisé Tactic pour remplir Deed Deck avec 3 défausse aléatoires{pt-br} usou Tática para preencher o Baralho de Façanhas com 3 cartas aleatórias do Discarte.{de} taktik benutzt, um das Tatendeck mit 3 zufälligen Abwürfen aufzufüllen"}), positionToColor(a))
 					mainUIUpdate("Night Tactic 2 Used")
 					break
@@ -1637,7 +1638,7 @@ function nightTactic4(player, mouseButton, id)
 							--with the correct remaining count and keeps the Draw Full button available.
 							if redrawCount>0 then coralTactic4Draw(a, redrawCount) end
 							--flip Tactic face down
-							if getObjectFromGUID("db7aaa").is_face_down==false then getObjectFromGUID("db7aaa").flip() end
+							if getObjectFromGUID(tacticCard[10]).is_face_down==false then getObjectFromGUID(tacticCard[10]).flip() end
 							--Update states and buttons
 							gStates.tacticFourState="Used"
 							broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic 4 to redraw hand{ru} использует Тактику 4 для добора{zh-tw}使用战术4重抽手牌{zh-cn}使用战术4重抽手牌{ko}: 전략 카드 4 사용. 카드를 다시 뽑습니다. {es} usé la Táctica 4 para volver a dibujar la mano{fr} utilisé Tactic 4 pour redessiner la main{pt-br} usou a Tática 4 para re-comprar mão.{de} taktik 4 verwendet, um die Hand neu zu ziehen"}), positionToColor(a))
@@ -1695,7 +1696,7 @@ function nightTactic6(player, mouseButton, id)
 	if mouseButton=="-1" then
 		if legalPlayerCheck(player.color, tonumber(id:sub(18,18)))==true then
 			if id:sub(1,17)=="NightTactic6Store" then
-				local tactic=getObjectFromGUID("e2af14")
+				local tactic=getObjectFromGUID(tacticCard[12])
 				local seatPos=tonumber(id:sub(18,18)) or math.ceil((tactic.getPosition()[1]+78)/40)
 				local playerIndex=nil
 				for a, details in pairs(turnOrder) do if details.seatPos==seatPos then playerIndex=a break end end
@@ -1708,7 +1709,7 @@ function nightTactic6(player, mouseButton, id)
 					for _, deedZoneObj in pairs(deedZone.getObjects()) do
 						if deedZoneObj.type=="Card" then
 							--Quick Witted is set aside, so skip it and keep looking for a normal Deed card.
-							if not (turnOrder[playerIndex].mage=="Coral" and deedZoneObj.guid=="6ecbc6") then
+							if not (turnOrder[playerIndex].mage=="Coral" and deedZoneObj.guid==GUID.card.quickWitted) then
 								deedZoneObj.setPositionSmooth({tactic.getPosition()[1], 1.2, tactic.getPosition()[3]})
 								deedZoneObj.setRotation({0, 180, 180})
 								drawn=deedZoneObj
@@ -1718,7 +1719,7 @@ function nightTactic6(player, mouseButton, id)
 						if deedZoneObj.type=="Deck" then
 							local normalCards=deedZoneObj.getQuantity()
 							if turnOrder[playerIndex].mage=="Coral" then
-								for _, cardData in pairs(deedZoneObj.getObjects()) do if cardData.guid=="6ecbc6" then normalCards=normalCards-1 break end end
+								for _, cardData in pairs(deedZoneObj.getObjects()) do if cardData.guid==GUID.card.quickWitted then normalCards=normalCards-1 break end end
 							end
 							if normalCards>0 then
 								drawn=deedZoneObj.takeObject({position={tactic.getPosition()[1], 1.2, tactic.getPosition()[3]}, rotation={0, 180, 180}})
@@ -1753,7 +1754,7 @@ function nightTactic6(player, mouseButton, id)
 						return
 					end
 					--Only finish the tactic after every recorded stored card has actually been returned.
-					local tactic=getObjectFromGUID("e2af14")
+					local tactic=getObjectFromGUID(tacticCard[12])
 					if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
 					gStates.powerStored={}
 					gStates.tacticSixState="Used"
