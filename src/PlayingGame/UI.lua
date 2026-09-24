@@ -2645,16 +2645,25 @@ function monsterImageSwap(player, mouseButton, id)
 end
 
 ---------------
+function refreshAutoFlipButton()
+	local autoFlipOn=gStates~=nil and gStates.autoFlip==true
+	local text=autoFlipOn
+		and "{en}Auto Flip - On{ru}Авто-переворот - Вкл.{zh-tw}自動翻轉 - 開{zh-cn}自动翻转 - 开{ko}자동 공개 - 켜짐{es}Volteo Automático - Sí{fr}Retournement auto - Oui{pt-br}Auto-Virar - Ligado{de}Auto-Flip - An"
+		or "{en}Auto Flip - Off{ru}Авто-переворот - Выкл.{zh-tw}自動翻轉 - 關{zh-cn}自动翻转 - 关{ko}자동 공개 - 꺼짐{es}Volteo Automático - No{fr}Retournement auto - Non{pt-br}Auto-Virar - Desligado{de}Auto-Flip - Aus"
+	UI.setAttribute("AutoFlipButtonRealText","text",text)
+	--Auto Flip is a normal clickable button; the label carries the state instead of a toggle/disabled look.
+	setUIButtonEnabled("AutoFlipButtonReal",true)
+end
+
 function autoflip()
 	if gStates.autoFlip==true then
 		gStates.autoFlip=false
-		UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Active")
 		broadcastToAll("{en}Monster tokens need to be flipped manually.{ru}Жетоны врагов необходимо переворачивать вручную.{zh-tw}怪物标记需要手动翻转{zh-cn}怪物标记需要手动翻转{ko}규칙에 따라 직접 토큰을 뒤집어야 합니다{es}Las fichas de monstruo deben voltearse manualmente.{fr}Les jetons Monstre doivent être retournés manuellement.{pt-br}Fichas de Monstros precisam ser viradas manualmente{de}Monsterplättchen müssen manuell umgedreht werden.", {1,1,0.5})
 	else
 		gStates.autoFlip=true
-		UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Deactive")
-		broadcastToAll("{en}Script will flip monster tokens for you.{ru}Скрипт будет переворачивать жетоны врагов за вас.{zh-tw}脚本将为你翻转怪物标记. {zh-cn}脚本将为你翻转怪物标记. {ko}스크립트가 자동으로 토큰을 뒤집습니다.{es}Script le dará la vuelta a las fichas de monstruos.{fr}Le script retournera les jetons monstre pour vous.{pt-br}O Script virará as fichas de monstros por você.{de}Das Skript dreht die Monsterplättchen für dich um.", {1,1,0.5})
+		broadcastToAll("{en}Script will flip monster tokens for you.{ru}Скрипт будет переворачивать жетоны врагов за вас.{zh-tw}脚本将为你翻转怪物标记. {zh-cn}脚本将为你翻转怪物标记. {ko}스크립트가 자동으로 토큰을 뒤집습니다.{es}Script le dará la vuelta a las fichas de monstruos.{fr}Le script retournera les jetons monstre pour vous.{pt-br}O Script virará as fichas de Monstros por você.{de}Das Skript dreht die Monsterplättchen für dich um.", {1,1,0.5})
 	end
+	refreshAutoFlipButton()
 end
 
 -- Build monster hover descriptions outside the raw TTS event boundary.
