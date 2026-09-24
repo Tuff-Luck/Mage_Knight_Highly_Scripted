@@ -48,6 +48,7 @@ __bundle_register("__root", function(require, _LOADED, __bundle_register, __bund
 require("Data")
 require("ErrorReporting")
 require("Shared")
+require("PlayingGame.DeckCycle")
 require("SetupGame.HeroChallenges")
 require("SetupInterface")
 require("PlayingGame.Help")
@@ -63,6 +64,7 @@ require("SetupGame")
 require("PlayingGame.Quests")
 require("PlayingGame.City")
 require("PlayingGame.Map")
+require("PlayingGame.MapTokens")
 require("PlayingGame.TokenPools")
 require("PlayingGame.Offers")
 require("PlayingGame.ManaSource")
@@ -119,7 +121,7 @@ function onLoad(saved_data)
 		rollerOnLoad(rollerSavedState(saved_data))
 		local result=__onLoad_raw(saved_data)
 		safeWaitFrames("Callbacks",function()
-			local monsterReplenish=getObjectFromGUID("d7a165")
+			local monsterReplenish=getObjectFromGUID(GUID.ui.monsterReplenish)
 			if monsterReplenish~=nil then
 				monsterReplenish.UI.setAttribute("d7a165replenishMonsterPilesText", "text", "{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen")
 			end
@@ -220,18 +222,8 @@ end
 end)
 __bundle_register("PlayingGame.FameReputation", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Fame/Reputation accounting corrections that sit across Combat, UI, Quests, Map and Turn.
--- Loaded after the runtime/event modules so the wrappers below can consolidate cross-module behaviour
--- without duplicating the large combat/UI implementations.
-
-local fameRepOriginalApply=applyPlayerFameReputation
-local fameRepOriginalMainUIUpdate=mainUIUpdate
-local fameRepOriginalValueAdjust=valueAdjust
-local fameRepOriginalMotivation=motivation
-local fameRepOriginalPlunderVillage=plunderVillage
-local fameRepOriginalAttachEnemy=attachEnemy
-local fameRepOriginalAdvanceCoopRewardPhase=advanceCoopRewardPhase
-local fameRepOriginalEndTurnRaw=__endTurn_raw
-local fameRepOriginalOnLoadRaw=__onLoad_raw
+-- Owning modules expose the public entry points and delegate here explicitly. Their uniquely named base
+-- implementations keep cross-module sequencing visible without relying on late global redefinition.
 
 local fameRepSyncSuppressed=false
 local possessedAttachPending={}
@@ -343,7 +335,7 @@ local function syncPostCommitAdjustments(playerIndex)
 	player.fameGain=fameDelta
 	player.repGain=repDelta
 	fameRepSyncSuppressed=true
-	fameRepOriginalApply(playerIndex)
+	combatApplyPlayerFameReputationBase(playerIndex)
 	syncPlayerFameFromMarker(playerIndex)
 	fameRepSyncSuppressed=false
 	player.fameGain=displayFame
@@ -352,12 +344,12 @@ local function syncPostCommitAdjustments(playerIndex)
 	committed.rep=displayRep
 end
 
-function applyPlayerFameReputation(playerIndex)
+function fameReputationApplyPlayerFameReputation(playerIndex)
 	local player=turnOrder[playerIndex]
 	if player==nil then return end
 	normalizePendingReputation(playerIndex)
 	fameRepSyncSuppressed=true
-	fameRepOriginalApply(playerIndex)
+	combatApplyPlayerFameReputationBase(playerIndex)
 	--The original Fame placement already includes Blitz line-crossing bonuses. Read that authoritative
 	--marker back so player.fame records the same value instead of only the pre-Blitz delta.
 	syncPlayerFameFromMarker(playerIndex)
@@ -411,7 +403,7 @@ local function correctPossessedAttachmentAwards()
 	end
 end
 
-function attachEnemy(player,mouseButton,id,obj,zone)
+function fameReputationAttachEnemy(player,mouseButton,id,obj,zone)
 	if id=="attach" and obj~=nil then
 		local enemy=nearestPossessedEnemy(obj,zone)
 		if enemy~=nil then
@@ -444,12 +436,12 @@ function attachEnemy(player,mouseButton,id,obj,zone)
 			end
 		end
 	end
-	return fameRepOriginalAttachEnemy(player,mouseButton,id,obj,zone)
+	return combatAttachEnemyBase(player,mouseButton,id,obj,zone)
 end
 
-function mainUIUpdate(...)
+function fameReputationMainUIUpdate(...)
 	local previousSiteLoss=fameRepSnapshotSiteLoss()
-	local result=fameRepOriginalMainUIUpdate(...)
+	local result=uiMainUIUpdateBase(...)
 	if turnOrder[gStates.turnNumber]~=nil then normalizePendingReputation(gStates.turnNumber,previousSiteLoss) end
 	hiddenValleyNormalizeSiteLoss()
 	correctPossessedAttachmentAwards()
@@ -457,8 +449,8 @@ function mainUIUpdate(...)
 	return result
 end
 
-function valueAdjust(player,mouseButton,id)
-	local result=fameRepOriginalValueAdjust(player,mouseButton,id)
+function fameReputationValueAdjust(player,mouseButton,id)
+	local result=uiValueAdjustBase(player,mouseButton,id)
 	if turnOrder[gStates.turnNumber]~=nil then
 		normalizePendingReputation(gStates.turnNumber)
 		syncPostCommitAdjustments(gStates.turnNumber)
@@ -466,8 +458,8 @@ function valueAdjust(player,mouseButton,id)
 	return result
 end
 
-function motivation(...)
-	local result=fameRepOriginalMotivation(...)
+function fameReputationMotivation(...)
+	local result=skillsMotivationBase(...)
 	--Motivation has its own physical Fame movement and includes Blitz bonuses there. Keep every logical
 	--Fame value synchronized with its marker after that independent award path.
 	for playerIndex,_ in pairs(turnOrder) do syncPlayerFameFromMarker(playerIndex) end
@@ -475,7 +467,7 @@ function motivation(...)
 end
 
 --Plundering remains legal at -7 Reputation; the Reputation loss simply cannot move below the track.
-function plunderVillage(player,mouseButton,id)
+function fameReputationPlunderVillage(player,mouseButton,id)
 	if mouseButton=="-1" and legalPlayerCheck(player.color,tonumber(id:sub(8,8)))==true then
 		for a=1,#turnOrder do
 			if turnOrder[a].seatPos==tonumber(id:sub(8,8)) then
@@ -495,29 +487,29 @@ function plunderVillage(player,mouseButton,id)
 	end
 end
 
-function advanceCoopRewardPhase(...)
+function fameReputationAdvanceCoopRewardPhase(...)
 	local entry=gStates.coopRewardQueue~=nil and gStates.coopRewardQueue[gStates.coopRewardIndex] or nil
 	if entry~=nil then syncPostCommitAdjustments(entry.player) end
 	fameRepSyncSuppressed=true
 	if entry~=nil and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[entry.player]=nil end
-	local result=fameRepOriginalAdvanceCoopRewardPhase(...)
+	local result=combatAdvanceCoopRewardPhaseBase(...)
 	fameRepSyncSuppressed=false
 	return result
 end
 
-function __endTurn_raw(player,mouseButton,id,rewindReady)
+function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	local playerIndex=gStates.turnNumber
 	if gStates.coopAssaultPhase~="rewards" then syncPostCommitAdjustments(playerIndex) end
 	fameRepSyncSuppressed=true
-	local result=fameRepOriginalEndTurnRaw(player,mouseButton,id,rewindReady)
+	local result=turnEndTurnRawBase(player,mouseButton,id,rewindReady)
 	fameRepSyncSuppressed=false
 	--Only clear the persisted commit marker when the turn actually advanced past Rewards Claimed.
 	if gStates.preEndTurn~=true and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[playerIndex]=nil end
 	return result
 end
 
-function __onLoad_raw(saved_data)
-	local result=fameRepOriginalOnLoadRaw(saved_data)
+function fameReputationOnLoadRaw(saved_data)
+	local result=eventsOnLoadRawBase(saved_data)
 	--A save can occur after preEndTurn is set but before its delayed Fame/Rep commit callback. The absence
 	--of a persisted commit marker means the physical tracks still need the pending reward exactly once.
 	safeWaitFrames("FameReputation",function()
@@ -556,7 +548,7 @@ end
 -- Event Handling functions
 ---------------
 --Save and load settings
-function __onLoad_raw(saved_data)
+function eventsOnLoadRawBase(saved_data)
 	cacheScenarioTweakDefaults()
 	local megaFreeze=  {"3d4319", "519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard, "a02b0f"}--player mats
 	for i=1, #megaFreeze, 1 do
@@ -627,8 +619,7 @@ function __onLoad_raw(saved_data)
 					 	if mageDetails.poolCreated~=nil then
 							UI.setAttribute("Mage"..a.."CompleteButton", "onClick", "startHigherLevel")
 							UI.setAttribute("Mage"..a.."CompleteText", "text", "{en}Complete{ru}Завершить{zh-tw}完成{zh-cn}完成{ko}완료{es}Completo{fr}Compléter{pt-br}Completo{de}Fertig")
-							UI.setAttribute("Mage"..a.."CompleteButton", "interactable", "true")
-							UI.setAttribute("Mage"..a.."CompleteButtonImage", "image", "Sliced Button/Button New Active")
+							setUIButtonEnabled("Mage"..a.."CompleteButton",true)
 							UI.setAttribute("Mage"..a.."levelDown", "interactable", "false")
 							UI.setAttribute("Mage"..a.."levelUp", "interactable", "false")
 						end
@@ -648,10 +639,8 @@ function __onLoad_raw(saved_data)
 			refreshSetupStartButton()
 		end
 	else
-		UI.setAttribute("helpButtonRealImage", "image", "Sliced Button/Button New Active")
-		UI.setAttribute("helpButtonReal", "interactable", "true")
-		UI.setAttribute("MonsterButtonRealImage", "image", "Sliced Button/Button New Active")
-		UI.setAttribute("MonsterButtonReal", "interactable", "true")
+		setUIButtonEnabled("helpButtonReal",true)
+		setUIButtonEnabled("MonsterButtonReal",true)
 		UI.setAttribute("ResourceTracker", "active", "true")
 		UI.setAttribute("cameraControl", "active", "true")
 		recourceTrackerReset("update")
@@ -665,18 +654,14 @@ function __onLoad_raw(saved_data)
 		UI.setAttribute("helpButtonRealText", "Text", "{en}Help{ru}Помощь{zh-tw}帮  助{zh-cn}帮  助{ko}도움말{es}Ayudar{fr}Aider{pt-br}Ajuda{de}Hilfe")
 		UI.setAttribute("helpButtonReal", "onClick", "DisplayHelp")
 		if gStates.gameScenario=="One to Return" then UI.hide("ScoreButton") end
-		if gStates.autoFlip==true then UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Deactive") end
+		refreshAutoFlipButton()
 		if gStates.tacticShown==true or gStates.tacticRemove==true then
 		 	UI.show("NoticeBoard")
-		 	UI.setAttribute("DrawOne", "interactable", "False")
-			UI.setAttribute("DrawOneImage", "image", "Sliced Button/Button New Deactive")
-			UI.setAttribute("ScoreButtonReal", "interactable", "False")
-			UI.setAttribute("ScoreButtonRealImage", "image", "Sliced Button/Button New Deactive")
-		 	UI.setAttribute("EndTurnButton", "interactable", "False")
-			UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
+		 	setUIButtonEnabled("DrawOne",false)
+			setUIButtonEnabled("ScoreButtonReal",false)
+		 	setUIButtonEnabled("EndTurnButton",false)
 		else
-			UI.setAttribute("ScoreButtonReal", "interactable", "True")
-			UI.setAttribute("ScoreButtonRealImage", "image", "Sliced Button/Button New Active")
+			setUIButtonEnabled("ScoreButtonReal",true)
 		end
 		--Restore the centre panel through the same owner/state renderer used during live play.
 		automatedMainPanelRefresh()
@@ -685,7 +670,7 @@ function __onLoad_raw(saved_data)
 				terrainTiles[terrainGUID].hexFeature[location]=hexFeature
 			end
 		end
-		if getObjectFromGUID("8dbce4")~=nil then bannerOfCommandDecal() end
+		if getObjectFromGUID(GUID.card.bannerOfCommandToken)~=nil then bannerOfCommandDecal() end
 		--Add decals back to Pursuing and Ambushing tokens
 		if gStates.rampageAmbush==true and gStates.rampagePursuit==false then
 			for monsterGUID, _ in pairs(gStates.ambushingMonsters) do
@@ -1017,8 +1002,8 @@ function __onObjectDrop_raw(player_color, dropped_object)
 						refreshAvatarLocationOnly(avatarPlayerIndex,dropped_object)
 						--Do not infer off-map status from avatarLocation: featureless terrain legitimately has no
 						--location label. Record whether the physical figure is actually on a revealed map hex.
-						local proxyHexes,proxyMapObjects=apocalypseQuestMapHexes()
-						gStates.proxyAvatarOffMap=apocalypseQuestHexForPosition(proxyHexes,dropped_object.getPosition(),proxyMapObjects)==nil
+						local proxyHexes,proxyMapObjects=runtimeMapHexesAndObjects()
+						gStates.proxyAvatarOffMap=runtimeMapHexForPosition(proxyHexes,dropped_object.getPosition(),proxyMapObjects)==nil
 					end
 				end
 				safeWaitCondition("Events.proxyDrop",finishProxyManualDrop,function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end,1.5,finishProxyManualDrop)
@@ -1917,7 +1902,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 	scheduleContainerEndRoundStateRefresh(bag)
 	--Manual Coral draw: a player-dragged card is held immediately after it leaves the Deed Deck.
 	--Scripted takeObject/deal calls also leave the Deck, but are not held, so they pass through untouched.
-	if obj~=nil and obj.type=="Card" and obj.guid~="6ecbc6" and coralDrawPending==nil and bagSearch~=bag.guid then
+	if obj~=nil and obj.type=="Card" and obj.guid~=GUID.card.quickWitted and coralDrawPending==nil and bagSearch~=bag.guid then
 		local playerIndex=coralManualQuickWittedLeaveSource(bag)
 		if playerIndex~=nil then
 			local seatPos=turnOrder[playerIndex].seatPos
@@ -2061,7 +2046,7 @@ function __onObjectRandomize_raw(randomize_object, player_color)
 					for _, obj in pairs(deedZone.getObjects()) do if obj.guid==randomize_object.guid then coralDeck=true break end end
 					if coralDeck==true then
 						for _, cardData in pairs(randomize_object.getObjects()) do
-							if cardData.guid=="6ecbc6" then
+							if cardData.guid==GUID.card.quickWitted then
 								scheduleCoralQuickWittedBottom(5)
 								break
 							end
@@ -2099,7 +2084,7 @@ function refreshCardEffectAfterRotation(cardGUID)
 				refreshMeditationTrance()
 			elseif isSteadyTempoGUID(cardGUID)==true then
 				steadyTempoRefreshCard(cardGUID)
-			elseif cardGUID=="a000a4" and cardInPlayerPlayArea(cardGUID)==true then
+			elseif cardGUID==tacticCard[2] and cardInPlayerPlayArea(cardGUID)==true then
 				dayTactic2ButtonActivate()
 			end
 		end, function()
@@ -2112,7 +2097,7 @@ function refreshCardEffectAfterRotation(cardGUID)
 			if settledCard==nil then return end
 			if cardGUID==meditationTranceCardGUID then refreshMeditationTrance()
 			elseif isSteadyTempoGUID(cardGUID)==true then steadyTempoRefreshCard(cardGUID)
-			elseif cardGUID=="a000a4" and cardInPlayerPlayArea(cardGUID)==true then dayTactic2ButtonActivate() end
+			elseif cardGUID==tacticCard[2] and cardInPlayerPlayArea(cardGUID)==true then dayTactic2ButtonActivate() end
 		end)
 	end, 1)
 end
@@ -2153,7 +2138,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	end
 	if object.type~="Card" then return end
 	local cardGUID=object.guid
-	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true or cardGUID=="a000a4" then refreshCardEffectAfterRotation(cardGUID) end
+	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true or cardGUID==tacticCard[2] then refreshCardEffectAfterRotation(cardGUID) end
 end
 
 function __onPlayerChangeColor_raw(color)
@@ -2230,6 +2215,11 @@ function __filterObjectEnterContainer_raw(container, enter_object)
 	if container.getGMNotes()=="Command Tokens" and enter_object.getGMNotes()~="Command Token" then return false end
 	if container.getGMNotes()=="Skills" and skillTokens[enter_object.guid]==nil then return false end
 	return true -- Allows object to enter.
+end
+
+-- Final load composition includes Fame/Reputation recovery after the base table/UI restoration.
+function __onLoad_raw(saved_data)
+	return fameReputationOnLoadRaw(saved_data)
 end
 
 end)
@@ -2443,13 +2433,11 @@ function refreshEndRoundState(playerAreaCardCount)
 	if endRoundUIStateKey==stateKey then return end
 	endRoundUIStateKey=stateKey
 
-	UI.setAttribute("EndRoundButton", "interactable", "False")
-	UI.setAttribute("EndRoundButtonImage", "image", "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("EndRoundButton",false)
 	UI.setAttribute("EndRoundButtonText", "text", joinLang({"{en}Call End of Round {ru}Объявить конец Раунда {zh-tw}聲明結束輪次 {zh-cn}声明结束轮次 {ko}라운드 종료 선언 {es}Llamar a Fin de Ronda {fr}Appel fin de Round{pt-br}Fim da Rodada {de}Ende der Runde Einläuten ", gStates.currentRound, "{en} of {ru} из {zh-tw} / {zh-cn} / {ko} / {es} / {fr} de {pt-br} de {de} von ", gStates.rounds}))
 	if gStates.currentRound>=gStates.rounds then UI.setAttribute("EndRoundButtonText", "text", "{en}Call End of Game{ru}Объявить конец игры{zh-tw}宣告遊戲結束{zh-cn}宣布游戏结束{ko}게임 종료 선언{es}Declarar Fin del Juego{fr}Déclarer la Fin de la Partie{pt-br}Declarar Fim do Jogo{de}Spielende Ausrufen") end
 	if hasDeedCards==false and playerStats.mage~=gStates.positionMageKnight[5] and tokenFaceDown==false and gStates.tacticShown==false and gStates.tacticRemove==false and gStates.endRoundCalled==false and gStates.endGameAchieved=="false" and playerAreaCardCount<1 then
-		UI.setAttribute("EndRoundButton", "interactable", "True")
-		UI.setAttribute("EndRoundButtonImage", "image", "Sliced Button/Button New Active")
+		setUIButtonEnabled("EndRoundButton",true)
 	end
 	if gStates.endRoundCalled==true then
 		UI.setAttribute("EndRoundButtonText", "text", joinLang({"{en}Ending Round {ru}Завершение Раунда {zh-tw}正在結束輪次 {zh-cn}正在结束轮次 {ko}라운드 종료 중 {es}Terminando Ronda {fr}Fin du Round {pt-br}Terminando Rodada {de}Runde wird beendet ", gStates.currentRound, "{en} of {ru} из {zh-tw} / {zh-cn} / {ko} / {es} de {fr} sur {pt-br} de {de} von ", gStates.rounds}))
@@ -2503,7 +2491,7 @@ local function buildOutOfTurnUIStateKey(playerAreaCardCount, playerAreaSkillCoun
 
 	--Master of Chaos availability depends on the physical skill token's player-board position.
 	local chaosSeat=0
-	local chaos=getObjectFromGUID("1ff34f")
+	local chaos=getObjectFromGUID(GUID.skill.masterOfChaos)
 	if chaos~=nil then
 		local pos=chaos.getPosition()
 		if pos[3]<-25 then chaosSeat=math.floor(((pos[1]+107.3)/40)+0.5) end
@@ -2663,7 +2651,7 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 			end
 
 			--Master of Chaos
-			if playerDropoutInactive(a)==false and getObjectFromGUID("1ff34f")~=nil and getObjectFromGUID("1ff34f").getPosition()[3]<-25 and math.floor(((getObjectFromGUID("1ff34f").getPosition()[1]+107.3)/40)+0.5)==turnOrder[a].seatPos and (a~=gStates.turnNumber or (a==gStates.turnNumber and playerAreaCardCount+playerAreaSkillCount<1)) and turnOrder[a].masterOfChaos=="available" and turnOrder[a].mage~=gStates.positionMageKnight[5] then
+			if playerDropoutInactive(a)==false and getObjectFromGUID(GUID.skill.masterOfChaos)~=nil and getObjectFromGUID(GUID.skill.masterOfChaos).getPosition()[3]<-25 and math.floor(((getObjectFromGUID(GUID.skill.masterOfChaos).getPosition()[1]+107.3)/40)+0.5)==turnOrder[a].seatPos and (a~=gStates.turnNumber or (a==gStates.turnNumber and playerAreaCardCount+playerAreaSkillCount<1)) and turnOrder[a].masterOfChaos=="available" and turnOrder[a].mage~=gStates.positionMageKnight[5] then
 				UI.setAttribute("MasterOfChaos"..tostring(turnOrder[a].seatPos).."Text", "text", "{en}Increment 'Master of Chaos' Skill{ru}Передвинуть навык «Мастер магии Хаоса»{zh-tw} 推進“混亂大師”技能{zh-cn} 推进“混乱大师”技能{ko} '혼돈의 달인' 스킬 한 칸 이동{es}Incrementa la Habilidad 'Maestro del Caos'{fr}Augmenter la Compétence 'Maître du Chaos'{pt-br}Incrementar a Habilidade 'Mestre do Caos'{de}Erhöht die Fertigkeit 'Meister des Chaos'")
 				UI.setAttribute("MasterOfChaos"..tostring(turnOrder[a].seatPos), "active", "true")
 				UI.setAttribute("MasterOfChaos"..tostring(turnOrder[a].seatPos).."Image", "color", positionToColor(a))
@@ -2855,8 +2843,7 @@ function automatedAttackResponseButton(id,textId,imageId,spec)
 	if spec.onClick~=nil then UI.setAttribute(id,"onClick",spec.onClick) end
 	if spec.text~=nil then UI.setAttribute(textId,"text",spec.text) end
 	UI.setAttribute(id,"tooltip",spec.tooltip or "")
-	UI.setAttribute(id,"interactable",enabled and "true" or "false")
-	UI.setAttribute(imageId,"image",enabled and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	setUIButtonEnabled(id,enabled,imageId)
 end
 
 function automatedAttackResponseUI(spec)
@@ -3010,8 +2997,7 @@ function automatedMainPanelApply(spec)
 	if spec.onClick~=nil then UI.setAttribute("DummyButton","onClick",spec.onClick) end
 	if spec.label~=nil then UI.setAttribute("DummyButtonText","Text",spec.label) end
 	local enabled=spec.interactable~=false
-	UI.setAttribute("DummyButton","interactable",enabled and "True" or "False")
-	UI.setAttribute("DummyButtonImage","image",enabled and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("DummyButton",enabled)
 	if spec.proxyManaChoice~=nil and proxyManaChoiceUI~=nil then proxyManaChoiceUI(spec.proxyManaChoice) end
 	return true
 end
@@ -3037,681 +3023,768 @@ function automatedMainPanelRefresh(overrideSpec)
 	return automatedMainPanelApply(spec)
 end
 
-function mainUIUpdate(source)
-	if gStates.firstStarted==true then
-		if mainUIPause~=nil then Wait.stop(mainUIPause) end
-		mainUIPause=safeWaitTime("UI",function()
-			local playerAreaCardCount=0
-			local playerAreaSkillCount=0
-			local nextPlayer=nextTurnMerged("nextMage")
-			local nextPlayerDetails=nextPlayer~=nil and turnOrder[nextPlayer] or nil
-			--Seat/colour changes can arrive while TTS is between player registrations. A delayed UI refresh
-			--must not dereference a transiently missing turn-order entry; the next normal refresh will rebuild it.
-			if nextPlayerDetails==nil then mainUIPause=nil return end
-			local nextPlayerEndCalled=nextPlayerDetails.endCalled
-			if nextPlayerEndCalled~=true and nextPlayerDetails.mage==gStates.positionMageKnight[5] then
-				local nextNonDummy=nextTurnMerged("nextMageSkipDummy")
-				local nextNonDummyDetails=nextNonDummy~=nil and turnOrder[nextNonDummy] or nil
-				if nextNonDummyDetails~=nil then nextPlayerEndCalled=nextNonDummyDetails.endCalled end
-			end
-			--if nextPlayerEndCalled~=true then nextPlayerEndCalled=turnOrder[nextPlayer].gameEnder end
-			--if nextPlayerEndCalled~=true then nextPlayerEndCalled=turnOrder[nextTurnMerged("nextMageSkipDummy")].gameEnder end
+-- Main UI refresh domains. mainUIUpdate remains coalesced through one delayed scheduler, but
+-- each domain now owns one kind of presentation/state work instead of one monolithic renderer.
+-- Unknown sources always take the full path; only sources known not to alter combat-area monsters
+-- skip the expensive Fame/Reputation combat-object reconciliation.
+local mainUINonCombatAccountingSources={
+	["Card Entered Hand"]=true,
+	["Object entered into deed deck or discard"]=true,
+	["Deed pile state changed"]=true,
+	["Tactic 4 Hand Bonus Changed"]=true,
+	["Value Adjusted"]=true,
+	["Quest Score Marker Dropped"]=true,
+	["Fame and Rep Shield Dropped"]=true,
+	["Player Changed Colour"]=true,
+	["Skill Claimed"]=true,
+	["Motivation Skill activated"]=true,
+	["Village Pillaged"]=true,
+	["Quest Reputation loss"]=true,
+	["Quest Reputation reward"]=true,
+	["Rich Merchant Fame"]=true,
+	["Quest Fame reward"]=true,
+	["Quest reward gate cleared"]=true,
+	["Quest Fame/Reputation reward"]=true,
+	["Noble Warrior Black Fame"]=true,
+	["The Execution Black Fame"]=true,
+	["Guard Duty Black Fame"]=true,
+	["Mine crystal pending"]=true,
+	["Mine crystal claimed"]=true,
+	["Need Token"]=true,
+	["Tactic Togle"]=true,
+	["Day Tactic 2 Used"]=true,
+	["Night Tactic 2 Used"]=true,
+	["night Tactic 4 Used"]=true,
+	["Night Tactic 6 Stored"]=true,
+	["Night Tactic 6 Claimed"]=true,
+	["Fame Gain from exploring"]=true
+}
+local mainUITimeBendingPresent=false
 
-			--Check for Game Over state. Normal final-turn completion is promoted to
-			--gStates.gameOver by nextTurnMerged("incrementTurn"), after Rewards Claimed
-			--has finished the last player's cleanup.
-			gameOver=gStates.gameOver==true or gStates.volkareWon==true
+local function mainUIBuildRefreshContext(source)
+	local currentPlayer=turnOrder[gStates.turnNumber]
+	if currentPlayer==nil then return nil end
+	local nextPlayer=nextTurnMerged("nextMage")
+	local nextPlayerDetails=nextPlayer~=nil and turnOrder[nextPlayer] or nil
+	--Seat/colour changes can arrive while TTS is between player registrations. A delayed UI refresh
+	--must not dereference a transiently missing turn-order entry; the next normal refresh will rebuild it.
+	if nextPlayerDetails==nil then return nil end
+	local nextPlayerEndCalled=nextPlayerDetails.endCalled
+	if nextPlayerEndCalled~=true and nextPlayerDetails.mage==gStates.positionMageKnight[5] then
+		local nextNonDummy=nextTurnMerged("nextMageSkipDummy")
+		local nextNonDummyDetails=nextNonDummy~=nil and turnOrder[nextNonDummy] or nil
+		if nextNonDummyDetails~=nil then nextPlayerEndCalled=nextNonDummyDetails.endCalled end
+	end
 
-			local currentPlayerGameEnder=turnOrder[gStates.turnNumber].gameEnder==true
+	--Normal final-turn completion is promoted to gStates.gameOver by nextTurnMerged("incrementTurn"),
+	--after Rewards Claimed has finished the last player's cleanup.
+	gameOver=gStates.gameOver==true or gStates.volkareWon==true
+	local playerAreaCardCount,playerAreaSkillCount=cachedPlayAreaCounts(currentPlayer.seatPos)
+	return {
+		source=source,
+		currentPlayer=currentPlayer,
+		nextPlayer=nextPlayer,
+		nextPlayerEndCalled=nextPlayerEndCalled,
+		gameOver=gameOver,
+		currentPlayerGameEnder=currentPlayer.gameEnder==true,
+		playerAreaCardCount=playerAreaCardCount,
+		playerAreaSkillCount=playerAreaSkillCount,
+		refreshCombatAccounting=mainUINonCombatAccountingSources[source]~=true
+	}
+end
 
-			--Card/skill counts come from the play-area GUID registry maintained by zone enter/leave events.
-			playerAreaCardCount, playerAreaSkillCount=cachedPlayAreaCounts(turnOrder[gStates.turnNumber].seatPos)
+local function mainUIRefreshOutOfTurn(context)
+	local hot=context.source=="Object entered into play area" or context.source=="Object removed from zone"
+	refreshOutOfTurnActions(context.playerAreaCardCount,context.playerAreaSkillCount,false,hot)
+end
+
+local function mainUIRefreshTurnControls(context)
+	local nextPlayer=context.nextPlayer
+	local nextPlayerEndCalled=context.nextPlayerEndCalled
+	local currentPlayerGameEnder=context.currentPlayerGameEnder
+	--change End turn button to say End Round on the last player turn
+	setUIButtonEnabled("EndTurnButton",true)
+	UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
+	setUIButtonEnabled("EndTurnButtonAlt",true)
+	setUIButtonEnabled("ExtraTurnTacticButton",true)
+	UI.setAttribute("PreEndTurnText", "text", "{en}Rewards Claimed{ru}Награды получены{zh-tw}獲得獎勵{zh-cn}获得奖励{ko}보상 처리 완료{es}Recompensas Reclamadas{fr}Récompenses réclamées{pt-br}Recompensas Coletadas{de}Belohnungen Beansprucht")
+	local endText="{en}End Turn{ru}Конец хода{zh-tw}結束回合{zh-cn}结束回合{ko}차례 종료{es}Fin de Turno{fr}Fin de Tour{pt-br}Fim de Turno{de}Zug Beenden"
+	if nextPlayerEndCalled==true then
+		endText="{en}End Turn and Round{ru}Конец хода и Раунда{zh-tw}結束回合及本輪次{zh-cn}结束回合及本轮次{ko}차례 및 라운드 종료{es}Fin de Turno y Ronda{fr}Fin du Tour et du Round{pt-br}Fim de Turno e Rodada{de}Zug und Runde Beenden" end
+	if gStates.endGameAchieved=="true" and ((gStates.finalTurnReason=="victory" and currentPlayerGameEnder==true) or (gStates.finalTurnReason=="endRound" and nextPlayerEndCalled==true))==true then
+		endText="{en}End Game{ru}Конец игры{zh-tw}結束遊戲{zh-cn}结束游戏{ko}게임 종료{es}Fin del Juego{fr}Fin du Jeu{pt-br}Fim de Jogo{de}Spiel Beenden" end
+	local nextIsCoopAssaulter=gStates.coopAssaultPhase=="combat" and gStates.coopAssaultParticipants~=nil and gStates.coopAssaultParticipants[nextPlayer]~=nil
+	local nextTurnToken=nextIsCoopAssaulter and getObjectFromGUID(turnOrder[nextPlayer].turnOrderTokenGUID) or nil
+	if nextIsCoopAssaulter and turnOrder[nextPlayer].mage~=gStates.positionMageKnight[5] and nextTurnToken~=nil and nextTurnToken.is_face_down==true then
+		endText="{en}Next Assaulter{ru}Следующий штурмующий{zh-tw}換下一個襲擊者{zh-cn}换下一个袭击者{ko}다음 강습자{es}Siguiente Asaltante{fr}Prochain Agresseur{pt-br}Próximo Invasor{de}Nächster Spieler" end
+	UI.setAttribute("EndTurnButtonText", "text", endText)
+	UI.setAttribute("EndTurnButtonAltText", "text", endText)
+end
+
+local function mainUIRefreshPlayerState(context)
+	local fameForUp=0
+	if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
+		if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then turnOrder[gStates.turnNumber].fame=-1 else turnOrder[gStates.turnNumber].fame=999 end
+		return {automated=true,currentPlayer=turnOrder[gStates.turnNumber],fameForUp=0,timeBending=mainUITimeBendingPresent==true}
+	end
+
+	if againstDragonAttendanceUIRefresh==nil or againstDragonAttendanceUIRefresh()~=true then UI.setAttribute("VolkareAttacked", "active", "false") end
+	--Reputation is cached when its shield moves; no reputation-track zone scan is needed here.
+	--Resource Tracker is manually controlled by the player; mainUIUpdate does not redraw it.
+
+	--Work out how much more fame is needed until a level up is required.
+	--Fame is already cached when the shield moves, so derive its board row instead of rereading the physical shield.
+	local currentPlayer=turnOrder[gStates.turnNumber]
+	local boardFame=currentPlayer.fame-(gStates.scoreIfLooped*currentPlayer.scoreLoop)
+	if boardFame<0 then boardFame=0 end
+	local fameVerticle=math.floor(math.sqrt(boardFame+1))
+	if fameVerticle>gStates.rowsOnBoard then fameVerticle=gStates.rowsOnBoard end
+	if currentPlayer.level<gStates.rowsOnBoard then
+		local fameToLevel=math.floor(math.sqrt(currentPlayer.fame+1))
+		if fameToLevel>gStates.rowsOnBoard then fameToLevel=gStates.rowsOnBoard end
+		if fameVerticle<gStates.rowsOnBoard then fameForUp=((fameToLevel+1)*(fameToLevel+1))-1-currentPlayer.fame end
+		--see if the current fame value would cause a level up
+		currentPlayer.levelUp=0
+		if fameToLevel>currentPlayer.level then
+			if fameToLevel==2 or fameToLevel==4 or fameToLevel==6 or fameToLevel==8 or fameToLevel==10 or fameToLevel==12 or fameToLevel-currentPlayer.level>1 then gStates.levelingUp=true end
+			currentPlayer.levelUp=fameToLevel-currentPlayer.level
+			if gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat" and levelUpcalled==false then levelUpcalled=true levelUp(gStates.turnNumber) end
+		end
+	end
 
 
-			--Play-area card scaling is handled by the play-area zone callbacks.
-			--This keeps physical setScale calls out of the full main UI refresh.
-
-			--Fame is cached when a fame shield moves; ordinary UI refreshes do not reread every fame shield.
-
-			--Out of Turn Menu visibility is event-driven/cached. Ordinary card movement uses the cheap empty/non-empty hot path.
-			local outOfTurnHotPlayAreaOnly=source=="Object entered into play area" or source=="Object removed from zone"
-			refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, false, outOfTurnHotPlayAreaOnly)
-
-
-			--change End turn button to say End Round on the last player turn
-			UI.setAttribute("EndTurnButton", "interactable", "True")
-			UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
-			UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Active")
-			UI.setAttribute("EndTurnButtonAlt", "interactable", "True")
-			UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Active")
-			UI.setAttribute("ExtraTurnTacticButton", "interactable", "True")
-			UI.setAttribute("ExtraTurnTacticButtonImage", "image", "Sliced Button/Button New Active")
-			UI.setAttribute("PreEndTurnText", "text", "{en}Rewards Claimed{ru}Награды получены{zh-tw}獲得獎勵{zh-cn}获得奖励{ko}보상 처리 완료{es}Recompensas Reclamadas{fr}Récompenses réclamées{pt-br}Recompensas Coletadas{de}Belohnungen Beansprucht")
-			local endText="{en}End Turn{ru}Конец хода{zh-tw}結束回合{zh-cn}结束回合{ko}차례 종료{es}Fin de Turno{fr}Fin de Tour{pt-br}Fim de Turno{de}Zug Beenden"
-			if nextPlayerEndCalled==true then
-				endText="{en}End Turn and Round{ru}Конец хода и Раунда{zh-tw}結束回合及本輪次{zh-cn}结束回合及本轮次{ko}차례 및 라운드 종료{es}Fin de Turno y Ronda{fr}Fin du Tour et du Round{pt-br}Fim de Turno e Rodada{de}Zug und Runde Beenden" end
-			if gStates.endGameAchieved=="true" and ((gStates.finalTurnReason=="victory" and currentPlayerGameEnder==true) or (gStates.finalTurnReason=="endRound" and nextPlayerEndCalled==true))==true then
-				endText="{en}End Game{ru}Конец игры{zh-tw}結束遊戲{zh-cn}结束游戏{ko}게임 종료{es}Fin del Juego{fr}Fin du Jeu{pt-br}Fim de Jogo{de}Spiel Beenden" end
-			local nextIsCoopAssaulter=gStates.coopAssaultPhase=="combat" and gStates.coopAssaultParticipants~=nil and gStates.coopAssaultParticipants[nextPlayer]~=nil
-			local nextTurnToken=nextIsCoopAssaulter and getObjectFromGUID(turnOrder[nextPlayer].turnOrderTokenGUID) or nil
-			if nextIsCoopAssaulter and turnOrder[nextPlayer].mage~=gStates.positionMageKnight[5] and nextTurnToken~=nil and nextTurnToken.is_face_down==true then
-				endText="{en}Next Assaulter{ru}Следующий штурмующий{zh-tw}換下一個襲擊者{zh-cn}换下一个袭击者{ko}다음 강습자{es}Siguiente Asaltante{fr}Prochain Agresseur{pt-br}Próximo Invasor{de}Nächster Spieler" end
-			UI.setAttribute("EndTurnButtonText", "text", endText)
-			UI.setAttribute("EndTurnButtonAltText", "text", endText)
-
-
-			--Automated-player presentation is centralized in automatedMainPanelRefresh().
-			--Keep only the gameplay branch split here so normal-player Fame/Rep work is never run for the automated seat.
-			local fameForUp=0
-			if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
-				if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then turnOrder[gStates.turnNumber].fame=-1 else turnOrder[gStates.turnNumber].fame=999 end
-			else--normal players
-				if againstDragonAttendanceUIRefresh==nil or againstDragonAttendanceUIRefresh()~=true then UI.setAttribute("VolkareAttacked", "active", "false") end
-				--Reputation is cached when its shield moves; no reputation-track zone scan is needed here.
-				--Resource Tracker is manually controlled by the player; mainUIUpdate does not redraw it.
-
-				--Work out how much more fame is needed until a level up is required.
-				--Fame is already cached when the shield moves, so derive its board row instead of rereading the physical shield.
-				local currentPlayer=turnOrder[gStates.turnNumber]
-				local boardFame=currentPlayer.fame-(gStates.scoreIfLooped*currentPlayer.scoreLoop)
-				if boardFame<0 then boardFame=0 end
-				local fameVerticle=math.floor(math.sqrt(boardFame+1))
-				if fameVerticle>gStates.rowsOnBoard then fameVerticle=gStates.rowsOnBoard end
-				if currentPlayer.level<gStates.rowsOnBoard then
-					local fameToLevel=math.floor(math.sqrt(currentPlayer.fame+1))
-					if fameToLevel>gStates.rowsOnBoard then fameToLevel=gStates.rowsOnBoard end
-					if fameVerticle<gStates.rowsOnBoard then fameForUp=((fameToLevel+1)*(fameToLevel+1))-1-currentPlayer.fame end
-					--see if the current fame value would cause a level up
-					currentPlayer.levelUp=0
-					if fameToLevel>currentPlayer.level then
-						if fameToLevel==2 or fameToLevel==4 or fameToLevel==6 or fameToLevel==8 or fameToLevel==10 or fameToLevel==12 or fameToLevel-currentPlayer.level>1 then gStates.levelingUp=true end
-						currentPlayer.levelUp=fameToLevel-currentPlayer.level
-						if gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat" and levelUpcalled==false then levelUpcalled=true levelUp(gStates.turnNumber) end
-					end
+	--Read all objects found in play area. Used to decide on off states of "End.." buttons, plus fame and rep gains
+	local timeBending=mainUITimeBendingPresent==true
+	local avatarLocation=turnOrder[gStates.turnNumber].avatarLocation
+	if context.refreshCombatAccounting==true then
+		if gStates.preEndTurn==false then timeBending=false end
+		for a, b in pairs(gStates.gainList) do b.exists=false end
+	if gStates.preEndTurn==false then
+		local hiddenValleyKeep=false
+		for _, obj in pairs(playerCombatObjects(turnOrder[gStates.turnNumber].seatPos)) do
+			--Read Monster tokens in the current player's Play/Unit areas and update fame and reputation gain values.
+			if obj.guid==GUID.card.timeBending then timeBending=true end
+			if monsterPugs[obj.guid]~=nil and gStates.summonStates[obj.guid]~="summoned" and monsterPugs[obj.guid].pugType~="possessed" then
+				local doMath=false
+				local cityRepLoss=false
+				for cityguid, monsters in pairs(gStates.cityMonsterQty) do
+					if monsters[obj.guid]=="alive" then cityRepLoss=true break end
 				end
-
-
-				--Read all objects found in play area. Used to decide on off states of "End.." buttons, plus fame and rep gains
-				local timeBending=false
-				local avatarLocation=turnOrder[gStates.turnNumber].avatarLocation
-				for a, b in pairs(gStates.gainList) do b.exists=false end
-				if gStates.preEndTurn==false then
-					local hiddenValleyKeep=false
-					for _, obj in pairs(playerCombatObjects(turnOrder[gStates.turnNumber].seatPos)) do
-						--Read Monster tokens in the current player's Play/Unit areas and update fame and reputation gain values.
-						if obj.guid=="2eb8e2" then timeBending=true end
-						if monsterPugs[obj.guid]~=nil and gStates.summonStates[obj.guid]~="summoned" and monsterPugs[obj.guid].pugType~="possessed" then
-							local doMath=false
-							local cityRepLoss=false
-							for cityguid, monsters in pairs(gStates.cityMonsterQty) do
-								if monsters[obj.guid]=="alive" then cityRepLoss=true break end
-							end
-							--If no entry found create a new entry for this token
-							if gStates.gainList[obj.guid]==nil then
-								--record token orientation and do the math if face up.
-								gStates.gainList[obj.guid]={exists=true, siteRepLoss=0, keepHalfFame=false}
-								if obj.is_face_down==false then
-									gStates.gainList[obj.guid].tokenDirection=1
-									doMath=true
-								else
-									gStates.gainList[obj.guid].tokenDirection=-1
-								end
-								--store leader overkil value
-								if obj.guid==darkCrusader.token or obj.guid==elementalist.token then gStates.gainList[obj.guid].overkill=0 end
-								--just existing is enough orientation has no effect
-								--city rep loss
-								for cityguid, monsters in pairs(gStates.cityMonsterQty) do
-									if cityguid~=darkCrusader.terrainHex and cityguid~=elementalist.terrainHex and cityguid~=volkare.model and cityguid~=volkare.terrainHex and monsters[obj.guid]=="alive" and gStates.gainList[cityguid]==nil then
-									 	turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
-										gStates.gainList[cityguid]={exists=true}
-										if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]={exists=true} end
-										break
-									end
-								end
-								--Mage Tower and keep rep loss
-								local count=0
-								for c, d in pairs(gStates.gainList) do
-									if c==gStates.hiddenValleyKeep[1] or c==gStates.hiddenValleyKeep[2] then count=count+1 end
-								end
-								if count==2 then hiddenValleyKeep=true end
-								if cityRepLoss==false and
-								   ((monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep") or
-	   							   (monsterPugs[obj.guid].pugType=="purple" and avatarLocation=="mage tower") or
-								   ((obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2]) and hiddenValleyKeep==false)) then
-									turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
-									gStates.gainList[obj.guid].siteRepLoss=1
-									if obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2] then hiddenValleyKeep=true end
-								end
-								--monastery rep loss
-								if avatarLocation~=nil then
-									if monsterPugs[obj.guid].pugType=="purple" and gStates.monsterPlayLocation[obj.guid]==nil and avatarLocation=="monastery" then
-										turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-3
-										gStates.gainList[obj.guid].siteRepLoss=3
-									end
-								end
-								--Keep defenders use half Fame; remember this so reset does not depend on the avatar still being on the Keep.
-								gStates.gainList[obj.guid].keepHalfFame=gStates.monsterPlayLocation[obj.guid]==nil and monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep"
-							end
-							--existing token found, but it has been flipped
-							if (obj.is_face_down==false and gStates.gainList[obj.guid].tokenDirection==-1)
-							or (obj.is_face_down==true and gStates.gainList[obj.guid].tokenDirection==1) then
-								gStates.gainList[obj.guid].tokenDirection=gStates.gainList[obj.guid].tokenDirection*-1
-								doMath=true
-							end
-							--mines liberation corect fame and rep
-							local minesLibMonster=false
-							for terrainguid, monsters in pairs(gStates.mineMonsterQty) do
-								if monsters[obj.guid]~=nil and gStates.gameScenario~="The Hidden Valley Blitz" then
-									minesLibMonster=true--current monster has come from a mine
-									if gStates.gameScenario~="The Realm of the Dead Blitz" then
-										for monsterGUID, state in pairs(monsters) do
-											if monsterGUID~=obj.guid then--found second mine monster
-												if (state=="alive" and gStates.gainList[monsterGUID]~=nil) or state=="dead" then
-													local x=1
-													if terrainTiles[terrainguid].tileType=="core" then x=2 end--and gStates.gameScenario~="Mines Liberation"
-													if gStates.gainList[terrainguid]==nil then
-														gStates.gainList[terrainguid]={exists=true}
-														gStates.gainList[terrainguid].tokenDirection=-1
-														if gStates.gainList[obj.guid].tokenDirection==1 and (state=="dead" or gStates.gainList[monsterGUID].tokenDirection==1) then
-															gStates.gainList[terrainguid].tokenDirection=1
-															turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(x*gStates.gainList[terrainguid].tokenDirection)
-														end
-													else
-														gStates.gainList[terrainguid].exists=true
-														if (gStates.gainList[obj.guid].tokenDirection==1 and (state=="dead" or gStates.gainList[monsterGUID].tokenDirection==1) and gStates.gainList[terrainguid].tokenDirection==-1)
-														or ((gStates.gainList[obj.guid].tokenDirection==-1 or (state=="alive" and gStates.gainList[monsterGUID].tokenDirection==-1)) and gStates.gainList[terrainguid].tokenDirection==1) then
-															gStates.gainList[terrainguid].tokenDirection=gStates.gainList[terrainguid].tokenDirection*-1
-															turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(x*gStates.gainList[terrainguid].tokenDirection)
-														end
-													end
-													break
-												end
+				--If no entry found create a new entry for this token
+				if gStates.gainList[obj.guid]==nil then
+					--record token orientation and do the math if face up.
+					gStates.gainList[obj.guid]={exists=true, siteRepLoss=0, keepHalfFame=false}
+					if obj.is_face_down==false then
+						gStates.gainList[obj.guid].tokenDirection=1
+						doMath=true
+					else
+						gStates.gainList[obj.guid].tokenDirection=-1
+					end
+					--store leader overkil value
+					if obj.guid==darkCrusader.token or obj.guid==elementalist.token then gStates.gainList[obj.guid].overkill=0 end
+					--just existing is enough orientation has no effect
+					--city rep loss
+					for cityguid, monsters in pairs(gStates.cityMonsterQty) do
+						if cityguid~=darkCrusader.terrainHex and cityguid~=elementalist.terrainHex and cityguid~=volkare.model and cityguid~=volkare.terrainHex and monsters[obj.guid]=="alive" and gStates.gainList[cityguid]==nil then
+							turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
+							gStates.gainList[cityguid]={exists=true}
+							if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]={exists=true} end
+							break
+						end
+					end
+					--Mage Tower and keep rep loss
+					local count=0
+					for c, d in pairs(gStates.gainList) do
+						if c==gStates.hiddenValleyKeep[1] or c==gStates.hiddenValleyKeep[2] then count=count+1 end
+					end
+					if count==2 then hiddenValleyKeep=true end
+					if cityRepLoss==false and
+					   ((monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep") or
+						   (monsterPugs[obj.guid].pugType=="purple" and avatarLocation=="mage tower") or
+					   ((obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2]) and hiddenValleyKeep==false)) then
+						turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
+						gStates.gainList[obj.guid].siteRepLoss=1
+						if obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2] then hiddenValleyKeep=true end
+					end
+					--monastery rep loss
+					if avatarLocation~=nil then
+						if monsterPugs[obj.guid].pugType=="purple" and gStates.monsterPlayLocation[obj.guid]==nil and avatarLocation=="monastery" then
+							turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-3
+							gStates.gainList[obj.guid].siteRepLoss=3
+						end
+					end
+					--Keep defenders use half Fame; remember this so reset does not depend on the avatar still being on the Keep.
+					gStates.gainList[obj.guid].keepHalfFame=gStates.monsterPlayLocation[obj.guid]==nil and monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep"
+				end
+				--existing token found, but it has been flipped
+				if (obj.is_face_down==false and gStates.gainList[obj.guid].tokenDirection==-1)
+				or (obj.is_face_down==true and gStates.gainList[obj.guid].tokenDirection==1) then
+					gStates.gainList[obj.guid].tokenDirection=gStates.gainList[obj.guid].tokenDirection*-1
+					doMath=true
+				end
+				--mines liberation corect fame and rep
+				local minesLibMonster=false
+				for terrainguid, monsters in pairs(gStates.mineMonsterQty) do
+					if monsters[obj.guid]~=nil and gStates.gameScenario~="The Hidden Valley Blitz" then
+						minesLibMonster=true--current monster has come from a mine
+						if gStates.gameScenario~="The Realm of the Dead Blitz" then
+							for monsterGUID, state in pairs(monsters) do
+								if monsterGUID~=obj.guid then--found second mine monster
+									if (state=="alive" and gStates.gainList[monsterGUID]~=nil) or state=="dead" then
+										local x=1
+										if terrainTiles[terrainguid].tileType=="core" then x=2 end--and gStates.gameScenario~="Mines Liberation"
+										if gStates.gainList[terrainguid]==nil then
+											gStates.gainList[terrainguid]={exists=true}
+											gStates.gainList[terrainguid].tokenDirection=-1
+											if gStates.gainList[obj.guid].tokenDirection==1 and (state=="dead" or gStates.gainList[monsterGUID].tokenDirection==1) then
+												gStates.gainList[terrainguid].tokenDirection=1
+												turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(x*gStates.gainList[terrainguid].tokenDirection)
+											end
+										else
+											gStates.gainList[terrainguid].exists=true
+											if (gStates.gainList[obj.guid].tokenDirection==1 and (state=="dead" or gStates.gainList[monsterGUID].tokenDirection==1) and gStates.gainList[terrainguid].tokenDirection==-1)
+											or ((gStates.gainList[obj.guid].tokenDirection==-1 or (state=="alive" and gStates.gainList[monsterGUID].tokenDirection==-1)) and gStates.gainList[terrainguid].tokenDirection==1) then
+												gStates.gainList[terrainguid].tokenDirection=gStates.gainList[terrainguid].tokenDirection*-1
+												turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(x*gStates.gainList[terrainguid].tokenDirection)
 											end
 										end
-									end
-									break
-								end
-							end
-							--Check if leader Overkill Changed
-							if gStates.gainList[obj.guid].overkill~=nil and gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill and obj.is_face_down==false then doMath=true end
-							--if allowed add or subtract fame and reputation
-							if doMath==true then
-								--All tokens Fame
-								if gStates.gainList[obj.guid].keepHalfFame==true then
-									turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(math.ceil(monsterPugs[obj.guid].fame/2)*gStates.gainList[obj.guid].tokenDirection)
-								else
-									local multiple=1
-									if obj.guid==darkCrusader.token or obj.guid==elementalist.token then
-										if gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-(monsterPugs[obj.guid].fame*gStates.gainList[obj.guid].overkill) end
-										multiple=gStates.leaderOverkill
-										gStates.gainList[obj.guid].overkill=gStates.leaderOverkill
-									end
-									if gStates.druidNightsSummon~=nil then multiple=2 end
-									local perks=0
-									if gStates.monsterPerks[obj.guid]~=nil and gStates.monsterPerks[obj.guid].fame~=nil then perks=gStates.monsterPerks[obj.guid].fame end
-									local questFame=monsterPugs[obj.guid].fame+perks
-									--Dragon heads use custom reward resolution: airborne gives Round Fame once, while
-									--landed heads give 1 Fame for each selected level reduction at combat cleanup.
-									if gStates.monsterPerks[obj.guid]~=nil and (gStates.monsterPerks[obj.guid].dragonAirborne==true or gStates.monsterPerks[obj.guid].dragonGround==true) then questFame=0 end
-									if gStates.monsterPerks[obj.guid]~=nil and gStates.monsterPerks[obj.guid].questHalfFame==true then questFame=math.ceil(questFame/2) end
-									turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(questFame*multiple*gStates.gainList[obj.guid].tokenDirection)
-								end
-								local rewardPug,rewardPerk=monsterFactionRewardFameFallback(obj.guid)
-								if rewardPug>0 or rewardPerk>0 then
-									turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+((rewardPug+rewardPerk)*gStates.gainList[obj.guid].tokenDirection)
-									if gStates.druidNightsSummon~=nil then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(rewardPug*gStates.gainList[obj.guid].tokenDirection) end
-								end
-								--Rampaging Reputation
-								if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[obj.guid]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[obj.guid]==nil) and
-									(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) and
-									obj.guid~=gStates.hiddenValleyKeep[1] and obj.guid~=gStates.hiddenValleyKeep[2] then
-									if monsterPugs[obj.guid].pugType=="green" or monsterPugs[obj.guid].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(1*gStates.gainList[obj.guid].tokenDirection) end --More Rampage! can add tan rampagers.
-									if monsterPugs[obj.guid].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(2*gStates.gainList[obj.guid].tokenDirection) end
-								end
-								--add hero and thug reputation
-								if monsterPugs[obj.guid].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(monsterPugs[obj.guid].reputation*gStates.gainList[obj.guid].tokenDirection) end
-							end
-							gStates.gainList[obj.guid].exists=true
-						end
-					end
-					--if a token has been removed subtract it's values
-					hiddenValleyKeep=false
-					for a, b in pairs(gStates.gainList) do
-						if b.exists==false and monsterPugs[a]~=nil then
-							local cityRepLoss=false
-							for cityguid, monsters in pairs(gStates.cityMonsterQty) do
-								if monsters[a]=="alive" then cityRepLoss=true break end
-							end
-							if b.tokenDirection==1 then
-								--fame
-								if b.keepHalfFame==true then
-									turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-math.ceil(monsterPugs[a].fame/2)
-								else
-									local multiple=1
-									if a==darkCrusader.token or a==elementalist.token then multiple=gStates.leaderOverkill end
-									if gStates.druidNightsSummon~=nil then multiple=2 end
-									local perks=0
-									if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].fame~=nil then perks=gStates.monsterPerks[a].fame end
-									local questFame=monsterPugs[a].fame+perks
-									--Dragon rewards are owned by their custom combat tracker. Mirror the add-side suppression
-									--here so removing a Dragon head cannot subtract ordinary monster Fame behind its back.
-									if gStates.monsterPerks[a]~=nil and (gStates.monsterPerks[a].dragonAirborne==true or gStates.monsterPerks[a].dragonGround==true) then questFame=0 end
-									if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].questHalfFame==true then questFame=math.ceil(questFame/2) end
-									turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-(questFame*multiple)
-								end
-								local rewardPug,rewardPerk=monsterFactionRewardFameFallback(a)
-								if rewardPug>0 or rewardPerk>0 then
-									turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-rewardPug-rewardPerk
-									if gStates.druidNightsSummon~=nil then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-rewardPug end
-								end
-								--Mine Liberation Reputation gStates.gameScenario=="Mines Liberation"
-								local minesLibMonster=false
-								for terrainguid, monsters in pairs(gStates.mineMonsterQty) do
-									if monsters[a]~=nil then
-										minesLibMonster=true--current monster has come from a mine
-										if gStates.gainList[terrainguid]~=nil and gStates.gainList[terrainguid].tokenDirection==1 then
-											local x=1
-											if terrainTiles[terrainguid].tileType=="core" then x=2 end
-											turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-x
-											gStates.gainList[terrainguid]=nil
-										end
 										break
 									end
 								end
-								--Rampaging reputation
-								if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[a]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[a]==nil) and
-									(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) and
-									a~=gStates.hiddenValleyKeep[1] and a~=gStates.hiddenValleyKeep[2] then
-									if monsterPugs[a].pugType=="green" or monsterPugs[a].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1 end
-									if monsterPugs[a].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-2 end
-								end
-								--Hero and thug reputation
-								if monsterPugs[a].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-monsterPugs[a].reputation end
-							end
-							--City monsters
-							for cityguid, monsters in pairs(gStates.cityMonsterQty) do
-								if cityguid~=darkCrusader.terrainHex and cityguid~=elementalist.terrainHex and monsters[a]=="alive" and gStates.gainList[cityguid]~=nil then
-									local found=false
-									for monsterGUID, state in pairs(monsters) do
-										if gStates.gainList[monsterGUID]~=nil then
-											if gStates.gainList[monsterGUID].exists==true then found=true end
-										end
-									end
-									if found==false then
-										turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+1
-										gStates.gainList[cityguid]=nil
-										if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]=nil end
-									end
-									break
-								end
-							end
-							--Refund the exact temporary Keep/Mage Tower/Hidden Valley/Monastery assault loss applied when this token entered combat.
-							--The avatar may already have been moved away to cancel/reset the combat, so do not re-check avatarLocation here.
-							if (b.siteRepLoss or 0)>0 then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+b.siteRepLoss end
-							gStates.gainList[a]=nil
-						end
-					end
-					--Cap the gain values if exceeding limits
-					if turnOrder[gStates.turnNumber].fameGain<0 then turnOrder[gStates.turnNumber].fameGain=0 end
-				end
-
-
-				--Change End turn button text if level up expected
-				if gStates.coopAssaultPhase~="combat" and (fameForUp<=turnOrder[gStates.turnNumber].fameGain or turnOrder[gStates.turnNumber].levelUp>0) and turnOrder[gStates.turnNumber].fame<gStates.scoreIfLooped and fameVerticle<gStates.rowsOnBoard then
-					UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
-					UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
-					local expectedFame=turnOrder[gStates.turnNumber].fame+turnOrder[gStates.turnNumber].fameGain
-					local excessLevels=math.floor(math.sqrt(expectedFame+1))-turnOrder[gStates.turnNumber].level
-					expectedFame=expectedFame+(1*excessLevels*gStates.blitz)
-					excessLevels=math.floor(math.sqrt(expectedFame+1))-turnOrder[gStates.turnNumber].level
-					if excessLevels>1 then
-						UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
-						UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
-					end
-					if nextPlayerEndCalled==true then
-						UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
-						UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
-						if excessLevels>1 then
-							UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
-							UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
-						end
-					end
-				end
-
-
-				local function defeatedElementalistRampagerThisTurn()
-					if gStates.gameScenario~="The Hidden Valley Blitz" then return false end
-					for guid, gain in pairs(gStates.gainList or {}) do
-						if gain.tokenDirection==1 and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[guid]==true and monsterEffectiveFaction(guid)=="Elem" then return true end
-					end
-					return false
-				end
-
-				--Change Reward text to be player location sensitive
-				local rewardChecklistActive=(gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat") or gameOver==true
-				if rewardChecklistActive then
-					local count=1
-					local rewardText="{en}Have you:-\n{ru}Проверьте, что вы:-\n{zh-tw}你是否已經：\n{zh-cn}你是否已经：\n{ko}차례 종료 과정 진행:-\n{es}Has:-\n{fr}Avez-vous:-\n{pt-br}Você já:-\n{de}Hast du:-\n"
-					local linefeed=false
-					local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
-					if questRewardPending==true then
-						local questReminder=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "{en}. Completed/Failed the Quest.{ru}. Завершили/провалили задание.{zh-tw}. 完成／失敗任務。{zh-cn}. 完成/失败任务。{ko}. 퀘스트를 완료/실패 처리했습니다.{es}. Completaste/Fallaste la Misión.{fr}. Terminé/Échoué la Quête.{pt-br}. Concluiu/Falhou a Missão.{de}. Die Quest abgeschlossen/fehlgeschlagen." or "{en}. Completed/Progressed the Quest.{ru}. Завершили/продвинули задание.{zh-tw}. 完成／推進任務。{zh-cn}. 完成/推进任务。{ko}. 퀘스트를 완료/진행했습니다.{es}. Completaste/Avanzaste la Misión.{fr}. Terminé/Progressé dans la Quête.{pt-br}. Concluiu/Avançou a Missão.{de}. Die Quest abgeschlossen/fortgesetzt."
-						rewardText=joinLang({rewardText,count,questReminder})
-						count=count+1 linefeed=true
-					end
-					if apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
-						rewardText=joinLang({rewardText,count,"{en}. Explored for Horsemen.{ru}. Исследовали местность для Всадников.{zh-tw}. 為騎士探索了地圖。{zh-cn}. 为骑士探索了地图。{ko}. 기마병을 위해 탐험했습니다.{es}. Exploraste para los Jinetes.{fr}. Exploré pour les Cavaliers.{pt-br}. Explorou para os Cavaleiros.{de}. Für die Reiter erkundet."})
-						count=count+1 linefeed=true
-					end
-					if steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(currentPlayer.seatPos)==true then
-						rewardText=joinLang({rewardText,count,"{en}. Resolved Steady Tempo.{ru}. Разыграли «Ровный темп».{zh-tw}. 已處理「穩定節奏」。{zh-cn}. 已处理“稳定节奏”。{ko}. 'Steady Tempo'를 처리했습니다.{es}. Resolviste Ritmo Constante.{fr}. Résolu Rythme Régulier.{pt-br}. Resolveu Ritmo Constante.{de}. Gleichmäßiges Tempo abgehandelt."})
-						count=count+1 linefeed=true
-					end
-					local pendingCrystal=gStates.mineClaimPending
-					if pendingCrystal~=nil and pendingCrystal.playerIndex==gStates.turnNumber then
-						local crystalSource=pendingCrystal.source=="Quest" and "{en}Quest{ru}задания{zh-tw}任務{zh-cn}任务{ko}퀘스트{es}Misión{fr}Quête{pt-br}Missão{de}Quest" or "{en}Mine{ru}шахты{zh-tw}礦山{zh-cn}矿山{ko}광산{es}Mina{fr}Mine{pt-br}Mina{de}Mine"
-						rewardText=joinLang({rewardText,count,"{en}. Claimed your {ru}. Получили кристалл {zh-tw}. 已領取你的{zh-cn}. 已领取你的{ko}. {es}. Reclamaste tu Cristal de {fr}. Récupéré votre Cristal de {pt-br}. Coletou seu Cristal de {de}. Deinen ",crystalSource,"{en} Crystal.{ru}.{zh-tw}水晶。{zh-cn}水晶。{ko} 크리스털을 획득했습니다.{es}.{fr}.{pt-br}.{de}-Kristall genommen."})
-						count=count+1 linefeed=true
-					end
-					if linefeed==true then rewardText=joinLang({rewardText,"\n"}) linefeed=false end
-					if gStates.gameScenario=="Mines Liberation" and gStates.endRoundCalled==true and gStates.turnForfeited==false then
-						rewardText=joinLang({rewardText, count, "{en}. Collected 1 Crystal from your Liberated Mine(s){ru}. Получили 1 кристалл из ваших освобожденных шахт{zh-tw}. 從你解放的礦山獲得 1 顆魔晶{zh-cn}. 从你解放的矿山获得 1 块魔晶{ko}. 해방한 광산에서 수정 1개 획득{es}. Obtenido 1 Cristal de tus Minas liberadas{fr}. Obtenu 1 cristal de vos Mines libérées{pt-br}. Ganhou 1 Cristal das suas Minas libertadas{de}. 1 Kristall aus deinen befreiten Minen erhalten"})
-						count=count+1 linefeed=true
-					end
-					if gStates.gameScenario=="Druid Nights" and gStates.druidNightsSummon~=nil then
-						local crystalReward=gStates.druidNightsCrystalReward or gStates.druidNightsSummon
-						rewardText=joinLang({rewardText, count, "{en}. Gained {ru}. Получено {zh-tw}。獲得 {zh-cn}。获得 {ko}. 획득: {es}. Obtuvo {fr}. Gagné {pt-br}. Ganhou {de}. Erhalten: ", tostring(crystalReward), "{en} Random Crystal(s) from incantation{ru} случайных кристалла(ов) от заклинания{zh-tw} 個由咒語產生的隨機魔力水晶{zh-cn} 个由咒语产生的随机魔力水晶{ko}개의 주문으로 얻은 무작위 마나 수정{es} Cristal(es) aleatorio(s) por el encantamiento{fr} Cristal(aux) aléatoire(s) grâce à l’incantation{pt-br} Cristal(is) aleatório(s) da invocação{de} zufällige(n) Kristall(e) durch die Beschwörung"})
-						count=count+1 linefeed=true
-					end
-					if defeatedElementalistRampagerThisTurn()==true then
-						rewardText=joinLang({rewardText, count, "{en}. Explored (Defeated Elementalist){ru}. Исследовали (победили Элементалиста){zh-tw}. 已探索（擊敗元素使）{zh-cn}. 已探索（击败元素使）{ko}. 탐험 완료 (원소술사 처치){es}. Exploraste (Elementalista derrotado){fr}. Exploré (Élémentaliste vaincu){pt-br}. Explorou (Elementalista derrotado){de}. Erkundet (Elementarmagier besiegt)"})
-						count=count+1 linefeed=true
-					end
-					if avatarLocation~=nil then
-						--see if a matching shield is near the avatar
-						local nearbyOwnShield=rewardNearbyOwnShield(gStates.turnNumber,avatarLocation)
-
-						--Victory Shield
-						if (avatarLocation=="glade" and gStates.gameScenario=="Druid Nights") then
-							if nearbyOwnShield=="false" and gStates.turnForfeited==false then
-								rewardText=joinLang({rewardText, count, "{en}. Placed a Victory Shield{ru}. Разместили Жетон щита{zh-tw}. 放置勝利盾徽{zh-cn}. 放置胜利盾徽{ko}. 방패 토큰 놓기{es}. Colocado un Escudo de Conquista.{fr}. Placé un Bouclier de Victoire{pt-br}. Colocou um Escudo de Vitória.{de}. Einen Siegesschild platziert"})
-								count=count+1 linefeed=true
 							end
 						end
-						--Victory Shield
-						if avatarLocation=="graveyard" and gStates.gameScenario=="The Realm of the Dead Blitz" and nearbyOwnShield=="false" and gStates.turnForfeited==false then
-							rewardText=joinLang({rewardText, count, "{en}. Paid to Seal the Graveyard{ru}. Заплатили за запечатывание Кладбища{zh-tw}. 支付魔力來封印墓地{zh-cn}. 支付魔力来封印墓地{ko}. 묘지 봉인 마나 지불(선택){es}. Pagado para Sellar el Cementerio{fr}. Payé pour Sceller le Cimetière{pt-br}Pago para Selar o Cemitério{de}. Für die Versiegelung des Friedhofs bezahlt."})
-							count=count+1 linefeed=true
-						end
-						if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-						if rewardRetreatRequired(gStates.turnNumber,avatarLocation,nearbyOwnShield)==true then
-							rewardText=joinLang({rewardText, count, "{en}. Retreated to a Safe space{ru}. Отступили в Безопасное место{zh-tw}. 撤離到一個安全位置{zh-cn}. 撤离到一个安全位置{ko}. 안전한 칸으로 후퇴{es}. Acabado en un Espacio Seguro{fr}. Retraité dans un espace sûr{pt-br}. Recuou para um espaço seguro{de}. Dich in ein sicheres Feld zurückgezogen"})
-							count=count+1 linefeed=true
-						end
-						if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-						if gStates.turnForfeited==false and gladeFreeCheck()==true and (avatarLocation=="glade" or avatarLocation=="hidden valley" or
-						(gStates.gameScenario=="The War of Four" and (avatarLocation=="necropolis" or avatarLocation=="graveyard"))) then
-							rewardText=joinLang({rewardText, count, "{en}. Removed One Wound{ru}. Вернули в стопку одну рану{zh-tw}. 移除一點創傷{zh-cn}. 移除一点创伤{ko}. 부상 하나 제거{es}. Eliminado una Herida{fr}. Suppression d'une blessure{pt-br}. Removeu Um Ferimento{de}. Eine Wunde wurde entfernt"})
-							count=count+1 linefeed=true
-						end
-						if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-						if gStates.turnForfeited==false and ((gStates.shieldsDropped[nearbyOwnShield]~=nil and (avatarLocation=="mage tower" or avatarLocation=="labyrinth"	or avatarLocation=="maze" or avatarLocation=="monastery" or avatarLocation=="monster den" or avatarLocation=="dungeon" or avatarLocation=="spawning grounds" or avatarLocation=="tomb" or avatarLocation=="ziggurat" or avatarLocation=="pyramid"
-						or (avatarLocation=="ruin" and gStates.crytalRuin~=true)
-						or ((avatarLocation=="graveyard" or avatarLocation=="glade") and gStates.gameScenario=="Life and Death")))
-						or (avatarLocation=="graveyard" and gStates.gameScenario=="The Realm of the Dead Blitz")) then
-							rewardText=joinLang({rewardText, count, "{en}. Gained Site Conquest Rewards{ru}. Получили награды за завоевание Места{zh-tw}. 獲得地點的征服獎勵{zh-cn}. 获得地点的征服奖励{ko}. 장소 정복 보상 획득{es}. Obtenido la Recompensa de Conquista{fr}. Récompenses de conquête de site obtenues{pt-br}. Ganhou As Recompensas de Conquista{de}. Gewonnene Eroberungsbelohnungen"})
-							count=count+1 linefeed=true
-						end
+						break
 					end
-					if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-					if gStates.levelingUp==true then
-						if currentPlayer.skipHeroChallengeSkillReminder~=true then
-							rewardText=joinLang({rewardText, count, "{en}. Gained a New Skill Token{ru}. Получили новый Жетон навыка{zh-tw}. 獲得新的技能{zh-cn}. 获得新的技能{ko}. 새로운 스킬 획득{es}. Obtuvo una ficha de habilidad nueva{fr}. Vous avez obtenu un nouveau jeton de compétence{pt-br}. Ganhou uma Nova Ficha de Habilidade{de}. Einen neuen Fertigkeitsmarker erhalten"})
-							count=count+1 rewardText=joinLang({rewardText, "\n"})
-						end
-						rewardText=joinLang({rewardText, count, "{en}. Gained a New Advanced Action{ru}. Получили новое Особое действие{zh-tw}. 獲得新的高級行動卡{zh-cn}. 获得新的高级行动卡{ko}. 새로운 상급 액션 획득{es}. Obtuvo una nueva acción avanzada{fr}. Vous avez obtenu une nouvelle action avancée{pt-br}. Ganhou uma Nova Ação Avançada{de}. Eine neue fortgeschrittene Aktion erhalten"})
-						count=count+1 linefeed=true
-					end
-					if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-					if gStates.volkareArmyReduced==true and gStates.endGameAchieved=="false" and gStates.volkareState=="Attacking City" then
-						if gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel)~=nil then getObjectFromGUID(gStates.volkareModel).unlock() end
-					end
-					if gStates.turnForfeited==true then
-						rewardText=joinLang({rewardText, count, "{en}. Forfeit Turn, no site Rewards{ru}. Пропустили ход, и не получаете Награды за Места{zh-tw}. 放棄回合，無地點獎勵{zh-cn}. 放弃回合，无地点奖励{ko}. 차례 포기, 장소 혜택 사용불가{es}. Saltar Turno, sin Recompensas de Lugar{fr}. Forfait Turn, pas de récompenses de site{pt-br}. Desistir do Turno. Sem Recompensas de Local{de}. Zug ausgelassen, keine Ortsbelohnung"})
-						count=count+1 linefeed=true
-					end
-					if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-					if gameOver==false then
-						rewardText=joinLang({rewardText, count, "{en}. Confirmed your hand size{ru}. Проверили предел карт в вашей руке{zh-tw}. 更新你的手牌上限{zh-cn}. 更新你的手牌上限{ko}. 카드 보유 제한 체크{es}. Confirmado tu tamaño de Mano{fr}. Confirmé votre taille de main{pt-br}. Confirmou seu tamanho de Mão{de}. Handkartenzahl bestätigt"})
+				end
+				--Check if leader Overkill Changed
+				if gStates.gainList[obj.guid].overkill~=nil and gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill and obj.is_face_down==false then doMath=true end
+				--if allowed add or subtract fame and reputation
+				if doMath==true then
+					--All tokens Fame
+					if gStates.gainList[obj.guid].keepHalfFame==true then
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(math.ceil(monsterPugs[obj.guid].fame/2)*gStates.gainList[obj.guid].tokenDirection)
 					else
-						rewardText=joinLang({rewardText, count, "{en}. Looked at your final Score{ru}. Посмотрели на ваш окончательный результат{zh-tw}. 查看你的最終分數{zh-cn}. 查看你的最终分数{ko}. 최종 점수 확인{es}. Revisado tu Puntuación Final{fr}. Regardé votre score final{pt-br}. Ollhou para a sua Pontuação Final{de}. Deine Endpunktzahl angesehen"})
+						local multiple=1
+						if obj.guid==darkCrusader.token or obj.guid==elementalist.token then
+							if gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-(monsterPugs[obj.guid].fame*gStates.gainList[obj.guid].overkill) end
+							multiple=gStates.leaderOverkill
+							gStates.gainList[obj.guid].overkill=gStates.leaderOverkill
+						end
+						if gStates.druidNightsSummon~=nil then multiple=2 end
+						local perks=0
+						if gStates.monsterPerks[obj.guid]~=nil and gStates.monsterPerks[obj.guid].fame~=nil then perks=gStates.monsterPerks[obj.guid].fame end
+						local questFame=monsterPugs[obj.guid].fame+perks
+						--Dragon heads use custom reward resolution: airborne gives Round Fame once, while
+						--landed heads give 1 Fame for each selected level reduction at combat cleanup.
+						if gStates.monsterPerks[obj.guid]~=nil and (gStates.monsterPerks[obj.guid].dragonAirborne==true or gStates.monsterPerks[obj.guid].dragonGround==true) then questFame=0 end
+						if gStates.monsterPerks[obj.guid]~=nil and gStates.monsterPerks[obj.guid].questHalfFame==true then questFame=math.ceil(questFame/2) end
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(questFame*multiple*gStates.gainList[obj.guid].tokenDirection)
 					end
-					UI.setAttribute("RewardNotes", "text", rewardText)
+					local rewardPug,rewardPerk=monsterFactionRewardFameFallback(obj.guid)
+					if rewardPug>0 or rewardPerk>0 then
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+((rewardPug+rewardPerk)*gStates.gainList[obj.guid].tokenDirection)
+						if gStates.druidNightsSummon~=nil then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(rewardPug*gStates.gainList[obj.guid].tokenDirection) end
+					end
+					--Rampaging Reputation
+					if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[obj.guid]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[obj.guid]==nil) and
+						(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) and
+						obj.guid~=gStates.hiddenValleyKeep[1] and obj.guid~=gStates.hiddenValleyKeep[2] then
+						if monsterPugs[obj.guid].pugType=="green" or monsterPugs[obj.guid].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(1*gStates.gainList[obj.guid].tokenDirection) end --More Rampage! can add tan rampagers.
+						if monsterPugs[obj.guid].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(2*gStates.gainList[obj.guid].tokenDirection) end
+					end
+					--add hero and thug reputation
+					if monsterPugs[obj.guid].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(monsterPugs[obj.guid].reputation*gStates.gainList[obj.guid].tokenDirection) end
 				end
-
-
-				--lock end turn button if no cards are played or discarded
-				--discard object detection
-				local discardAreaCards=0
-				local discardZoneGUID=deedDeckDiscardZones[turnOrder[gStates.turnNumber].seatPos]
-				local discardZone=discardZoneGUID~=nil and getObjectFromGUID(discardZoneGUID) or nil
-				if discardZone==nil then return end
-				for _, b in pairs(discardZone.getObjects()) do
-					if b.type=="Card" then discardAreaCards=1 break end
-					if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
+				gStates.gainList[obj.guid].exists=true
+			end
+		end
+		--if a token has been removed subtract it's values
+		hiddenValleyKeep=false
+		for a, b in pairs(gStates.gainList) do
+			if b.exists==false and monsterPugs[a]~=nil then
+				local cityRepLoss=false
+				for cityguid, monsters in pairs(gStates.cityMonsterQty) do
+					if monsters[a]=="alive" then cityRepLoss=true break end
 				end
-				UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
-				if gStates.endRoundCalled==true then UI.setAttribute("EndTurnButton", "tooltip", "") end
-				local coopCombatButtonLocked=gStates.coopAssaultPhase=="combat" and (gStates.preEndTurn==true or playerAreaCardCount<1)
-				if (playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount) or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
-					UI.setAttribute("EndTurnButton", "interactable", "False")
-					UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
-					UI.setAttribute("EndTurnButtonAlt", "interactable", "False")
-					UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Deactive")
-					UI.setAttribute("ExtraTurnTacticButton", "interactable", "False")
-					UI.setAttribute("ExtraTurnTacticButtonImage", "image", "Sliced Button/Button New Deactive")
-				end
-
-				--Show extra-turn button. If Time Bending and Day Tactic 6 are both available, ask which one is being used.
-				local tacticSixAvailable=turnOrder[gStates.turnNumber].tactic==6 and gStates.dayRound==true and gStates.tacticSixState~="Used"
-				local timeBendingAvailable=timeBending==true
-				if (tacticSixAvailable or timeBendingAvailable) and gStates.tacticRemove==false and gStates.tacticShown==false then
-					UI.setAttribute("ExtraTurnTactic", "active", "true")
-					if tacticSixAvailable and timeBendingAvailable then
-						UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Extra Turn{ru}Дополнительный ход{zh-tw}額外回合{zh-cn}额外回合{ko}추가 턴{es}Turno Extra{fr}Tour Supplémentaire{pt-br}Turno Extra{de}Extra-Zug")
-					elseif timeBendingAvailable then
-						UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Time Bend{ru}Изгиб Времени{zh-tw}時間扭曲{zh-cn}时间扭曲{ko}시간 왜곡{es}Salto en el Tiempo{fr}Courbe du Temps{pt-br}Dobrar Tempo{de}Zeitkrümmung")
+				if b.tokenDirection==1 then
+					--fame
+					if b.keepHalfFame==true then
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-math.ceil(monsterPugs[a].fame/2)
 					else
-						UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Use Tactic{ru}Использовать Тактику{zh-tw}使用戰術卡{zh-cn}使用战术卡{ko}전략카드 사용{es}Usar la Táctica{fr}Utiliser la Tactique{pt-br}Usar Tática{de}Taktik Benutzen")
+						local multiple=1
+						if a==darkCrusader.token or a==elementalist.token then multiple=gStates.leaderOverkill end
+						if gStates.druidNightsSummon~=nil then multiple=2 end
+						local perks=0
+						if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].fame~=nil then perks=gStates.monsterPerks[a].fame end
+						local questFame=monsterPugs[a].fame+perks
+						--Dragon rewards are owned by their custom combat tracker. Mirror the add-side suppression
+						--here so removing a Dragon head cannot subtract ordinary monster Fame behind its back.
+						if gStates.monsterPerks[a]~=nil and (gStates.monsterPerks[a].dragonAirborne==true or gStates.monsterPerks[a].dragonGround==true) then questFame=0 end
+						if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].questHalfFame==true then questFame=math.ceil(questFame/2) end
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-(questFame*multiple)
+					end
+					local rewardPug,rewardPerk=monsterFactionRewardFameFallback(a)
+					if rewardPug>0 or rewardPerk>0 then
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-rewardPug-rewardPerk
+						if gStates.druidNightsSummon~=nil then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-rewardPug end
+					end
+					--Mine Liberation Reputation gStates.gameScenario=="Mines Liberation"
+					local minesLibMonster=false
+					for terrainguid, monsters in pairs(gStates.mineMonsterQty) do
+						if monsters[a]~=nil then
+							minesLibMonster=true--current monster has come from a mine
+							if gStates.gainList[terrainguid]~=nil and gStates.gainList[terrainguid].tokenDirection==1 then
+								local x=1
+								if terrainTiles[terrainguid].tileType=="core" then x=2 end
+								turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-x
+								gStates.gainList[terrainguid]=nil
+							end
+							break
+						end
+					end
+					--Rampaging reputation
+					if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[a]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[a]==nil) and
+						(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) and
+						a~=gStates.hiddenValleyKeep[1] and a~=gStates.hiddenValleyKeep[2] then
+						if monsterPugs[a].pugType=="green" or monsterPugs[a].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1 end
+						if monsterPugs[a].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-2 end
+					end
+					--Hero and thug reputation
+					if monsterPugs[a].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-monsterPugs[a].reputation end
+				end
+				--City monsters
+				for cityguid, monsters in pairs(gStates.cityMonsterQty) do
+					if cityguid~=darkCrusader.terrainHex and cityguid~=elementalist.terrainHex and monsters[a]=="alive" and gStates.gainList[cityguid]~=nil then
+						local found=false
+						for monsterGUID, state in pairs(monsters) do
+							if gStates.gainList[monsterGUID]~=nil then
+								if gStates.gainList[monsterGUID].exists==true then found=true end
+							end
+						end
+						if found==false then
+							turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+1
+							gStates.gainList[cityguid]=nil
+							if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]=nil end
+						end
+						break
 					end
 				end
-
-				--Update Fame and Reputation menus only when their displayed values change.
-				local fameRepPlayer=turnOrder[gStates.turnNumber]
-				local fameRepKey=table.concat({gStates.turnNumber, fameRepPlayer.fameGain, fameRepPlayer.repGain, fameRepPlayer.reputation}, "|")
-				if endTurnFameRepCache~=fameRepKey then
-					endTurnFameRepCache=fameRepKey
-					local limetedRepGain=fameRepPlayer.repGain
-					if limetedRepGain<(-7-fameRepPlayer.reputation) then limetedRepGain=(-7-fameRepPlayer.reputation) end
-					if limetedRepGain>(7-fameRepPlayer.reputation) then limetedRepGain=(7-fameRepPlayer.reputation) end
-					UI.setAttribute("EndRoundPlusFameText", "text", joinLang({"{en}Gain {ru}Получить {zh-tw}增加 {zh-cn}增加 {ko}획득 {es}Ganar {fr}Gagner {pt-br}Ganhe {de}Erhalte ", tostring(fameRepPlayer.fameGain), "{en} Fame{ru} Славу(ы){zh-tw} 名望{zh-cn} 名望{ko} 명성{es} Fama{fr} Gloire{pt-br} Fama{de} Ruhm"}))
-					local prefix="{en}Lose {ru}Потерять {zh-tw}減少 {zh-cn}减少 {ko}감소 {es}Perder {fr}Perdez {pt-br}Perca {de}Verliere "
-					if limetedRepGain>-1 then prefix="{en}Gain {ru}Получить {zh-tw}增加 {zh-cn}增加 {ko}획득 {es}Ganar {fr}Gagner {pt-br}Ganhe {de}Erhalte " end
-					local sufix1="{en} Reputation{ru} Репутацию(и){zh-tw} 聲譽{zh-cn} 声誉{ko} 평판{es} Reputación{fr} Réputation{pt-br} Reputação{de} Ansehen"
-					if limetedRepGain~=0 and (limetedRepGain<=(-7-fameRepPlayer.reputation) or limetedRepGain>=(7-fameRepPlayer.reputation)) then
-						sufix1="{en} Rep. Max.{ru} Макс. Реп.{zh-tw} 聲譽到最底{zh-cn} 声誉到最底{ko} 최대 평판{es} Rep. Máx.{fr} Rép. Max.{pt-br} Rep. Máx.{de} Ruf Max."
-					end
-					local sufix2=""
-					if limetedRepGain~=0 and reputationTable[fameRepPlayer.reputation+limetedRepGain]~=nil then
-						sufix2=" ('"..reputationTable[fameRepPlayer.reputation+limetedRepGain].repDisplay.."')"
-						if fameRepPlayer.reputation+limetedRepGain<=-7 then sufix2=" ('X')" end
-					end
-					UI.setAttribute("EndRoundPlusRepText", "text", joinLang({prefix, tostring(math.abs(limetedRepGain)), sufix1, sufix2}))
-				end
+				--Refund the exact temporary Keep/Mage Tower/Hidden Valley/Monastery assault loss applied when this token entered combat.
+				--The avatar may already have been moved away to cancel/reset the combat, so do not re-check avatarLocation here.
+				if (b.siteRepLoss or 0)>0 then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+b.siteRepLoss end
+				gStates.gainList[a]=nil
 			end
-
-
-			--Deed-pile events refresh End Round directly. During routine play/discard object updates,
-			--played-card count only matters once the current deed pile is actually empty.
-			local routineZoneUpdate=source=="Object entered into play area" or source=="Object removed from zone"
-			local currentSeat=turnOrder[gStates.turnNumber].seatPos
-			if routineZoneUpdate~=true or endRoundDeedHasCards[currentSeat]~=true then refreshEndRoundState(playerAreaCardCount) end
-
-
-			local notice=false
-			local UIColor=positionToColor(gStates.turnNumber)
-			--Display Info Pannel if pursuing monsters have two options.
-			if gStates.pursuitTwoOption==true then
-				UI.setAttribute("NoticeText", "Text", "{en}Pursuing Monster(s) have two Options for the current Player to decide between.{ru}Игрок, чьего героя преследуют, решает, на какую из двух клеток переместится враг.{zh-tw}追击的怪物有两个选项供当前玩家选择. {zh-cn}追击的怪物有两个选项供当前玩家选择. {ko}현재 플레이어는 추적 중인 몬스터의 두 옵션 중 하나를 결정하세요.{es}Los Monstruos que persiguen tienen dos Opciones para que el Jugador actual decida entre ellas.{fr}Les Monstres Poursuivants ont deux Options entre lesquelles le Joueur actuel doit choisir.{pt-br}Monstro(s) Perseguidor(es) tem 2 opções para o jogador atual escolher.{de}Verfolgende Monster haben zwei Optionen, zwischen denen der aktuelle Spieler wählen kann.")
-				UI.setAttribute("NoticeBoard", "visibility", "")
-				UI.setAttribute("NoticeBoard", "height", "50")
-				notice=true
-			end
-
-			--Display Info pannel if player needs to deploy a tomb or dungeon token
-			if #gStates.locationPlace>0 then
-				local pendingSecretName=dungeonLordsPendingSecretName(gStates.locationPlace[#gStates.locationPlace])
-				local site="{en}Village{ru}Деревней{zh-tw}\n要求2: 挨着刚翻开的村庄{zh-cn}\n要求2: 挨着刚翻开的村庄{ko}마을{es}una Aldea{fr}Village{pt-br}Vila{de}Dorf"
-				if pendingSecretName=="Secret Tomb" then site="{en}Monastery{ru}Монастырем{zh-tw}\n要求2: 挨着刚翻开的修道院{zh-cn}\n要求2: 挨着刚翻开的修道院{ko}수도원{es}un Monasterio{fr}Monastère{pt-br}Mosteiro{de}Kloster" end
-				UI.setAttribute("NoticeText", "Text", joinLang({"{en}Place a {ru}Поместите жетон {zh-tw}在地图上放置一个{zh-cn}在地图上放置一个{ko}{es}Coloca una ficha de {fr}Placer un{pt-br}Coloque uma ficha de {de}Platziere ein ", translateWord[pendingSecretName], "{en} token on an accessible non-swamp, non-feature space next to the {ru} на любую доступную клетку без болота на которой нет никаких мест, соседнюю с {zh-tw}\n要求1: 可进入、非沼泽、上面无地点{zh-cn}\n要求1: 可进入、非沼泽、上面无地点{ko}을 비어있고, 늪이 아니면서 다음의 장소 주변인 칸에 설치하세요: {es} en un espacio accesible que no sea un pantano, o no tenga ningún elemento adyacente a {fr} jeton sur un espace non marécageux accessible à côté du {pt-br} em um espaço acessível sem ser pântano ou que já tenha algo próximo a {de} plättchen auf ein zugängliches Nicht-Sumpf-, Nicht-Feature-Feld neben dem ", site}))
-				UI.setAttribute("NoticeBoard", "visibility", "")
-				UI.setAttribute("NoticeBoard", "height", "50")
-				notice=true
-			end
-
-			--Display Info pannel if End of round is immenant
-			if ((nextPlayerEndCalled==true and gStates.playerCount>1) or (gStates.endRoundCalled==true and gStates.playerCount==1)) and
-				(gStates.preEndTurn==true or turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5]) and gStates.currentRound<gStates.rounds then
-				local boxHeight=50
-				local endRoundText="{en}The game is about to experience end of round updates.\nPut Banners in discard if desired.{ru}Конец раунда. Скрипт произведет нужные обновления.\nЕсли хотите, можете сбросить знамёна с отрядов.{zh-tw}回合即将结束, 如果需要, 将清理弃牌区{zh-cn}回合即将结束, 如果需要, 将清理弃牌区{ko}이제 라운드가 종료됩니다.\n원한다면 지금 깃발 장착을 해제하세요.{es}El juego está a punto de experimentar actualizaciones de fin de ronda.\nDescarte los Banners si lo desea.{fr}Le jeu est sur le point de connaître des mises à jour de fin de manche.\nMettez les bannières au rebut si vous le souhaitez.{pt-br}O jogo está prestes a executar as atualizações de fim de Rodada.<size=6>\n\n</size>Coloque os Estandartes na pilha de descarte se assim desejar.{de}Das Spiel wird zum Ende der Runde aktualisiert.\nLegt die Banner auf den Ablagestapel, falls gewünscht."
-				if gStates.playerCount==1 then endRoundText=joinLang({endRoundText, "{en}\nDiscard the 2nd offer if playing 'Control over the Offers'{ru}\nПри 'Контроле над доступными картами', сбросьте среднюю доступную карту{zh-tw}\n如果使用“控制供应区”变体规则, 弃掉最左侧两个供应的卡牌{zh-cn}\n如果使用“控制供应区”变体规则, 弃掉最左侧两个供应的卡牌{ko}\n변형 규칙 '공급처 갱신 조정'을 적용하려면 지금 하세요.{es}\nDescarta la segunda oferta si juegas 'Control sobre las Ofertas'{fr}\nJetez la 2e offre si vous jouez à 'Contrôle des Offres'{pt-br}\nDiscarte a 2a oferta se estiver jogando com 'Controle sobre ofertas'{de}\nWirf das 2. Angebot ab, wenn du 'Kontrolle über die Angebote' spielst."}) boxHeight=boxHeight+20 end
-				if gStates.gameScenario=="Mines Liberation" then endRoundText=joinLang({endRoundText, "{en}\nCollect 1 Crystal from your liberated Mine(s).{ru}Получите 1 кристалл из каждой освобожденной вами шахты.{zh-tw}从你解放的每个矿山获得 1 块魔晶。{zh-cn}从你解放的每个矿山获得 1 块魔晶。{ko}\n해방한 각 광산에서 수정 1개를 얻으세요.{es}\nRecoge 1 Cristal de cada Mina que hayas liberado.{fr}\nRécupérez 1 cristal de chaque Mine que vous avez libérée.{pt-br}\nColete 1 Cristal de cada Mina que você libertou.{de}\nSammle 1 Kristall aus jeder Mine, die du befreit hast."}) boxHeight=boxHeight+20 end
-				UI.setAttribute("NoticeBoard", "height", boxHeight)
-				UI.setAttribute("NoticeText", "Text", endRoundText)
-				UI.setAttribute("NoticeBoard", "visibility", "")
-				notice=true
-			end
-
-			--Display Info pannel if tactics are shown
-			UI.setAttribute("DrawOne", "interactable", "true")
-			UI.setAttribute("DrawOneImage", "image", "Sliced Button/Button New Active")
-			if gStates.tacticRemove==true or gStates.tacticShown==true then
-				if gStates.tacticRemove==true then
-					UI.setAttribute("NoticeText", "Text", "{en}Choose tactic(s) to be removed from the Game{ru}Выберите тактику(и), которая будет удалена из игры{zh-tw}选择要从游戏中移除的战术卡{zh-cn}选择要从游戏中移除的战术卡{ko}게임에서 제거할 전략 카드를 고르세요.{es}Elige la táctica(s) que quieres eliminar del Juego{fr}Choisissez la tactique(s) à retirer du Jeu{pt-br}Escolha tática(s) a ser(em) removida(s) do jogo.{de}Wähle die Taktik(en), die aus dem Spiel entfernt werden sollen")
-				else
-					UI.setAttribute("NoticeText", "Text", joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} needs to choose a tactic from the center{ru} должен(на) выбрать Тактику из центра{zh-tw}需要从中间选择一个战术{zh-cn}需要从中间选择一个战术{ko}의 전략 카드를 선택하세요.{es} necesita elegir una táctica del centro{fr} doit choisir une tactique du centre{pt-br} precisa escolher uma tática do centro.{de} muss eine Taktik aus dem Zentrum wählen"}))
-				end
-				UI.setAttribute("DrawOne", "interactable", "False")
-				UI.setAttribute("DrawOneImage", "image", "Sliced Button/Button New Deactive")
-				UI.setAttribute("NoticeBoard", "visibility", "")
-				UI.setAttribute("NoticeBoard", "height", "50")
-				notice=true
-			else --turn off help notes after first round of tactic selection
-				if gStates.help==true then DisplayHelp(nil, "-1", "Game Started") end
-			end
-
-			--Remove or Display the notice board as needed
-			if notice==false and gStates.noticeShown==true then
-				UI.hide("NoticeBoard")
-				gStates.noticeShown=false
-			end
-			if notice==true and gStates.noticeShown==false then
-				UI.show("NoticeBoard")
-				gStates.noticeShown=true
-			end
-
-
-
-			UI.setAttribute("RewardCheck", "active", "false")
-			UI.setAttribute("EndGameButton", "active", "false")
-			if (gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat") or gameOver==true then
-				UI.setAttribute("RewardCheck", "active", "true")
-				UI.setAttribute("EndGameButton", "active", "true")
-				if gStates.timeBending=="Started" and gStates.turnNumber==gStates.realTurn then--or (gStates.endRoundCalled==true and gStates.currentRound>=gStates.rounds)
-					UI.setAttribute("EndGameButton", "active", "false")
-				end
-			end
-			--Steady Tempo must resolve before Rewards Claimed can refresh the hand, because Top can be the next card drawn.
-			if steadyTempoUpdateRewardGate~=nil and turnOrder[gStates.turnNumber]~=nil then steadyTempoUpdateRewardGate(turnOrder[gStates.turnNumber].seatPos) end
-			--Rewards Claimed remains clickable during a soft lock; a faint orange tint shows that clicking it
-			--will currently produce a reminder instead of advancing. The tint clears when the requirement is
-			--resolved or when the shared soft-lock window expires.
-			local rewardSoftLockTint=rewardClaimSoftLockPending~=nil and rewardClaimSoftLockPending(gStates.turnNumber)
-			UI.setAttribute("PreEndTurnImage","color",rewardSoftLockTint and "rgb(1,0.86,0.68)" or "white")
-			if UIColor=="Black" then UIColor="rgb(0,0,0)" end
-			UI.setAttribute("MainGameNotes", "color", UIColor)
-			UI.setAttribute("RewardNotes", "color", UIColor)
-
-
-			local currentPlayer=turnOrder[gStates.turnNumber]
-			local meditationBonus=(gStates.meditationDrawBonus~=nil and gStates.meditationDrawBonus[gStates.turnNumber]) or 0
-			local drawHandSize=currentPlayer.hand+currentPlayer.handBonus+gStates.tactic4HandBonus+meditationBonus
-			local cityShields=currentCityShieldInfluence(currentPlayer)
-			local handMainKey=table.concat({gStates.turnNumber, currentPlayer.mage, currentPlayer.hand, currentPlayer.handBonus, gStates.tactic4HandBonus, meditationBonus, currentPlayer.baseHand, currentPlayer.reputation, cityShields, currentPlayer.fame, currentPlayer.level, fameForUp, gStates.positionMageKnight[5]}, "|")
-			if handMainTextCache~=handMainKey then
-				handMainTextCache=handMainKey
-				UI.setAttribute("DrawHandText", "text", joinLang({"{en}Draw up to {ru}Добрать до {zh-tw}抽滿至 {zh-cn}抽满至 {ko}카드 보유 제한 {es}Roba hasta {fr}Piochez jusqu'à {pt-br}Compre até {de}Zieh auf ", tostring(drawHandSize), "{en} cards{ru} карт{zh-tw} 張手牌{zh-cn} 张手牌{ko} 장{es} cartas{fr} cartes{pt-br} cartas{de} karten"}))
-				UI.setAttribute("DrawHandText", "color", drawHandSize>currentPlayer.baseHand and "rgb(0.4, 0.1, 0.2)" or "Black")
-				if currentPlayer.mage~=gStates.positionMageKnight[5] then
-					local repDisplay=reputationTable[currentPlayer.reputation].repDisplay
-					local repLabel="{en}'s Turn</size><size=6>\n\n</size>Reputation = {ru} Ходит</size><size=6>\n\n</size>Репутация =  {zh-tw}的回合</size><size=6>\n\n</size>聲譽 = {zh-cn}的回合</size><size=6>\n\n</size>声誉 = {ko} 차례</size><size=6>\n\n</size>평판 = {es}</size><size=6>\n\n</size>Reputación = {fr}</size><size=6>\n\n</size>Réputation = {pt-br}</size><size=6>\n\n</size>Reputação = {de}'s Zug</size><size=6>\n\n</size>Ansehen = "
-					if cityShields>0 and repDisplay~="No Interaction" then
-						local repValue=tonumber(repDisplay) or 0
-						repLabel="{en}'s Turn</size><size=6>\n\n</size>Rep Bonus = {ru} Ходит</size><size=6>\n\n</size>Бонус реп. = {zh-tw}的回合</size><size=6>\n\n</size>聲譽加成 = {zh-cn}的回合</size><size=6>\n\n</size>声誉加成 = {ko} 차례</size><size=6>\n\n</size>평판 보너스 = {es}</size><size=6>\n\n</size>Bonif. Rep. = {fr}</size><size=6>\n\n</size>Bonus Rép. = {pt-br}</size><size=6>\n\n</size>Bônus Rep. = {de}'s Zug</size><size=6>\n\n</size>Rufbonus = "
-						repDisplay=joinLang({signedBonus(repValue+cityShields), " (", signedBonus(repValue), "{en} Rep + {ru} Реп. + {zh-tw} 聲譽 + {zh-cn} 声誉 + {ko} 평판 + {es} Rep. + {fr} Rép. + {pt-br} Rep. + {de} Ruf + ", cityShields, "{en} City){ru} Город){zh-tw} 城市){zh-cn} 城市){ko} 도시){es} Ciudad){fr} Ville){pt-br} Cidade){de} Stadt)"})
-					end
-					local mainText=joinLang({"{en}<size=25>{ru}<size=25>{zh-tw}<size=25>{zh-cn}<size=25>{ko}<size=25>{es}<size=25>Turno de {fr}<size=25>Au tour de {pt-br}<size=25>Turno de {de}<size=25>", translateWord[currentPlayer.mage], repLabel, repDisplay, "{en}\nFame = {ru}\nСлава = {zh-tw}\n名望 = {zh-cn}\n名望 = {ko}\n명성 = {es}\nFama = {fr}\nGloire = {pt-br}\nFama = {de}\nRuhm = ", currentPlayer.fame})
-					local levelUpType="{en}\n(Skill & Advanced Action){ru}\n(Навык и Особое действие){zh-tw}\n（技能和高級行動）{zh-cn}\n（技能和高级行动）{ko}\n(스킬 및 상급 액션){es}\n(Habilidad y Acción Avanzada){fr}\n(Compétence et Action Avancée){pt-br}\n(Habilidade e Ação Avançada){de}\n(Fähigkeit & Fortgeschrittene Aktion)"
-					if currentPlayer.level==2 or currentPlayer.level==4 or currentPlayer.level==6 or currentPlayer.level==8 or currentPlayer.level==10 or currentPlayer.level==12 then levelUpType="{en}\n(Command Token){ru}\n(Жетон командования){zh-tw}\n（指揮標記）{zh-cn}\n（指挥标记）{ko}\n(지휘 토큰){es}\n(Token de Comando){fr}\n(Jeton de Commande){pt-br}\n(Token de Comando){de}\n(Befehlsplättchen)" end
-					if fameForUp>0 then mainText=joinLang({mainText, "{en}<size=6>\n\n</size>Next Level in {ru}<size=6>\n\n</size>До повышения уровня {zh-tw}<size=6>\n\n</size>升級還需 {zh-cn}<size=6>\n\n</size>升级还需 {ko}<size=6>\n\n</size>다음 레벨까지 {es}<size=6>\n\n</size>Siguiente nivel en {fr}<size=6>\n\n</size>Niveau suivant dans {pt-br}<size=6>\n\n</size>Próximo Nível em {de}<size=6>\n\n</size>Nächstes Level in ", fameForUp, "{en} Fame{ru} Слава(ы){zh-tw} 名望{zh-cn} 名望{ko} 명성 남음{es} Fama{fr} Gloire{pt-br} Fama{de} Ruhm", levelUpType}) else mainText=joinLang({mainText, "\n "}) end
-					UI.setAttribute("MainGameNotes", "text", mainText)
-				else
-					if proxyPlayerActive()==true then
-						UI.setAttribute("MainGameNotes", "text", joinLang({"{en}<size=25>Proxy {ru}<size=25>Прокси {zh-tw}<size=25>代理玩家 {zh-cn}<size=25>代理玩家 {ko}<size=25>프록시 {es}<size=25>Proxy {fr}<size=25>Proxy {pt-br}<size=25>Proxy {de}<size=25>Proxy ", translateWord[currentPlayer.mage], "{en}'s Turn</size>{ru} Ходит</size>{zh-tw}的回合</size>{zh-cn}的回合</size>{ko} 차례</size>{es}</size>{fr}</size>{pt-br}</size>{de}'s Zug</size>"}))
-					else
-						UI.setAttribute("MainGameNotes", "text", joinLang({"{en}<size=25>Dummy {ru}<size=25>Манекен {zh-tw}<size=25>虛擬玩家 {zh-cn}<size=25>虚拟玩家 {ko}<size=25>더미{es}<size=25>Turno de Maniquí {fr}<size=25>Au tour de Mannequin {pt-br}<size=25>Turno de Manequim {de}<size=25>Dummy ", translateWord[currentPlayer.mage], "{en}'s Turn</size>{ru} Ходит</size>{zh-tw}的回合</size>{zh-cn}的回合</size>{ko} 차례</size>{es}</size>{fr}</size>{pt-br}</size>{de}'s Zug</size>"}))
-					end
-				end
-			end
-
-
-			automatedMainPanelRefresh()
-
-			UI.setAttribute("PreEndTurn", "onClick", "endTurn")
-			if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==false then
-				UI.setAttribute("EndTurnButtonText", "text", "{en}Combat Complete{ru}Бой завершён{zh-tw}戰鬥完成{zh-cn}战斗完成{ko}전투 완료{es}Combate Completo{fr}Combat Terminé{pt-br}Combate Concluído{de}Kampf Abgeschlossen")
-				UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
-			elseif gStates.coopAssaultPhase=="rewards" then
-				local nextText="{en}Finish Co-op Rewards{ru}Завершить совместные награды{zh-tw}完成合作獎勵{zh-cn}完成合作奖励{ko}협력 보상 완료{es}Finalizar Recompensas Coop.{fr}Terminer les Récompenses Coop.{pt-br}Finalizar Recompensas Coop.{de}Koop-Belohnungen Beenden"
-				if gStates.coopRewardIndex<#gStates.coopRewardQueue then nextText="{en}Rewards Claimed - Next Reward{ru}Награды получены - Следующая награда{zh-tw}獎勵完成－下一位{zh-cn}奖励完成－下一位{ko}보상 완료 - 다음 보상{es}Recompensas Reclamadas - Siguiente{fr}Récompenses Réclamées - Suivant{pt-br}Recompensas Coletadas - Próximo{de}Belohnungen Beansprucht - Weiter" end
-				UI.setAttribute("PreEndTurnText", "text", nextText)
-				UI.setAttribute("EndTurnButtonText", "text", "{en}Co-op Rewards{ru}Совместные награды{zh-tw}合作獎勵{zh-cn}合作奖励{ko}협력 보상{es}Recompensas Coop.{fr}Récompenses Coop.{pt-br}Recompensas Coop.{de}Koop-Belohnungen")
-				UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
-				UI.setAttribute("EndTurnButton", "interactable", "false")
-				UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
-				UI.setAttribute("EndTurnButtonAlt", "interactable", "false")
-				UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Deactive")
-			end
-			UI.setAttribute("ScoreButtonReal", "onClick", "displayScore")
-			if gameOver==true then
-				UI.setAttribute("PreEndTurn", "onClick", "layoutClaimedCards")
-				UI.setAttribute("PreEndTurnText", "text", "{en}Game Over - Show Score{ru}Игра окончена{zh-tw}遊戲結束{zh-cn}游戏结束{ko}게임 종료{es}Fin de Partida{fr}Jeu Terminé{pt-br}Fim de Jogo{de}Spiel Beendet")
-				UI.setAttribute("DummyButton", "onClick", "layoutClaimedCards")
-				UI.setAttribute("DummyButtonText", "Text", "{en}Game Over - Show Score{ru}Игра окончена{zh-tw}遊戲結束{zh-cn}游戏结束{ko}게임 종료{es}Fin de Partida{fr}Jeu Terminé{pt-br}Fim de Jogo{de}Spiel Beendet")
-				UI.setAttribute("ScoreButtonReal", "onClick", "layoutClaimedCards")
-				local noTurnsLeftToUndoInto=gStates.endRoundCalled==true and nextPlayerEndCalled==true and gStates.currentRound>=gStates.rounds
-				local victoryRegistered=false
-				for _, turnDetails in pairs(turnOrder) do if turnDetails.gameEnder==true then victoryRegistered=true break end end
-				local canUndoVictory=victoryRegistered==true and noTurnsLeftToUndoInto==false
-				UI.setAttribute("EndGameButton", "active", canUndoVictory and "true" or "false")
-			end
-
-
-			refreshGladeDiscardHealButton()
-			UI.show("MainGame")
-			mainUIPause=nil
-		end, 0.1)
+		end
+		--Cap the gain values if exceeding limits
+		if turnOrder[gStates.turnNumber].fameGain<0 then turnOrder[gStates.turnNumber].fameGain=0 end
 	end
+		mainUITimeBendingPresent=timeBending
+	end
+
+	return {
+		automated=false,currentPlayer=currentPlayer,fameForUp=fameForUp,
+		fameVerticle=fameVerticle,avatarLocation=avatarLocation,timeBending=timeBending
+	}
+end
+
+local function mainUIRefreshLevelUpTurnText(context,playerState)
+	if playerState.automated==true then return end
+	local fameForUp=playerState.fameForUp or 0
+	local fameVerticle=playerState.fameVerticle or 0
+	local nextPlayerEndCalled=context.nextPlayerEndCalled
+	--Change End turn button text if level up expected
+	if gStates.coopAssaultPhase~="combat" and (fameForUp<=turnOrder[gStates.turnNumber].fameGain or turnOrder[gStates.turnNumber].levelUp>0) and turnOrder[gStates.turnNumber].fame<gStates.scoreIfLooped and fameVerticle<gStates.rowsOnBoard then
+		UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
+		UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
+		local expectedFame=turnOrder[gStates.turnNumber].fame+turnOrder[gStates.turnNumber].fameGain
+		local excessLevels=math.floor(math.sqrt(expectedFame+1))-turnOrder[gStates.turnNumber].level
+		expectedFame=expectedFame+(1*excessLevels*gStates.blitz)
+		excessLevels=math.floor(math.sqrt(expectedFame+1))-turnOrder[gStates.turnNumber].level
+		if excessLevels>1 then
+			UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
+			UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
+		end
+		if nextPlayerEndCalled==true then
+			UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
+			UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
+			if excessLevels>1 then
+				UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
+				UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
+			end
+		end
+	end
+
+
+end
+
+local function defeatedElementalistRampagerThisTurn()
+	if gStates.gameScenario~="The Hidden Valley Blitz" then return false end
+	for guid, gain in pairs(gStates.gainList or {}) do
+		if gain.tokenDirection==1 and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[guid]==true and monsterEffectiveFaction(guid)=="Elem" then return true end
+	end
+	return false
+end
+
+local function mainUIRefreshRewardChecklist(context,playerState)
+	if playerState.automated==true then return end
+	local currentPlayer=playerState.currentPlayer
+	local avatarLocation=playerState.avatarLocation
+	local gameOver=context.gameOver
+	--Change Reward text to be player location sensitive
+	local rewardChecklistActive=(gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat") or gameOver==true
+	if rewardChecklistActive then
+		local count=1
+		local rewardText="{en}Have you:-\n{ru}Проверьте, что вы:-\n{zh-tw}你是否已經：\n{zh-cn}你是否已经：\n{ko}차례 종료 과정 진행:-\n{es}Has:-\n{fr}Avez-vous:-\n{pt-br}Você já:-\n{de}Hast du:-\n"
+		local linefeed=false
+		local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
+		if questRewardPending==true then
+			local questReminder=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "{en}. Completed/Failed the Quest.{ru}. Завершили/провалили задание.{zh-tw}. 完成／失敗任務。{zh-cn}. 完成/失败任务。{ko}. 퀘스트를 완료/실패 처리했습니다.{es}. Completaste/Fallaste la Misión.{fr}. Terminé/Échoué la Quête.{pt-br}. Concluiu/Falhou a Missão.{de}. Die Quest abgeschlossen/fehlgeschlagen." or "{en}. Completed/Progressed the Quest.{ru}. Завершили/продвинули задание.{zh-tw}. 完成／推進任務。{zh-cn}. 完成/推进任务。{ko}. 퀘스트를 완료/진행했습니다.{es}. Completaste/Avanzaste la Misión.{fr}. Terminé/Progressé dans la Quête.{pt-br}. Concluiu/Avançou a Missão.{de}. Die Quest abgeschlossen/fortgesetzt."
+			rewardText=joinLang({rewardText,count,questReminder})
+			count=count+1 linefeed=true
+		end
+		if apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
+			rewardText=joinLang({rewardText,count,"{en}. Explored for Horsemen.{ru}. Исследовали местность для Всадников.{zh-tw}. 為騎士探索了地圖。{zh-cn}. 为骑士探索了地图。{ko}. 기마병을 위해 탐험했습니다.{es}. Exploraste para los Jinetes.{fr}. Exploré pour les Cavaliers.{pt-br}. Explorou para os Cavaleiros.{de}. Für die Reiter erkundet."})
+			count=count+1 linefeed=true
+		end
+		if steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(currentPlayer.seatPos)==true then
+			rewardText=joinLang({rewardText,count,"{en}. Resolved Steady Tempo.{ru}. Разыграли «Ровный темп».{zh-tw}. 已處理「穩定節奏」。{zh-cn}. 已处理“稳定节奏”。{ko}. 'Steady Tempo'를 처리했습니다.{es}. Resolviste Ritmo Constante.{fr}. Résolu Rythme Régulier.{pt-br}. Resolveu Ritmo Constante.{de}. Gleichmäßiges Tempo abgehandelt."})
+			count=count+1 linefeed=true
+		end
+		local pendingCrystal=gStates.mineClaimPending
+		if pendingCrystal~=nil and pendingCrystal.playerIndex==gStates.turnNumber then
+			local crystalSource=pendingCrystal.source=="Quest" and "{en}Quest{ru}задания{zh-tw}任務{zh-cn}任务{ko}퀘스트{es}Misión{fr}Quête{pt-br}Missão{de}Quest" or "{en}Mine{ru}шахты{zh-tw}礦山{zh-cn}矿山{ko}광산{es}Mina{fr}Mine{pt-br}Mina{de}Mine"
+			rewardText=joinLang({rewardText,count,"{en}. Claimed your {ru}. Получили кристалл {zh-tw}. 已領取你的{zh-cn}. 已领取你的{ko}. {es}. Reclamaste tu Cristal de {fr}. Récupéré votre Cristal de {pt-br}. Coletou seu Cristal de {de}. Deinen ",crystalSource,"{en} Crystal.{ru}.{zh-tw}水晶。{zh-cn}水晶。{ko} 크리스털을 획득했습니다.{es}.{fr}.{pt-br}.{de}-Kristall genommen."})
+			count=count+1 linefeed=true
+		end
+		if linefeed==true then rewardText=joinLang({rewardText,"\n"}) linefeed=false end
+		if gStates.gameScenario=="Mines Liberation" and gStates.endRoundCalled==true and gStates.turnForfeited==false then
+			rewardText=joinLang({rewardText, count, "{en}. Collected 1 Crystal from your Liberated Mine(s){ru}. Получили 1 кристалл из ваших освобожденных шахт{zh-tw}. 從你解放的礦山獲得 1 顆魔晶{zh-cn}. 从你解放的矿山获得 1 块魔晶{ko}. 해방한 광산에서 수정 1개 획득{es}. Obtenido 1 Cristal de tus Minas liberadas{fr}. Obtenu 1 cristal de vos Mines libérées{pt-br}. Ganhou 1 Cristal das suas Minas libertadas{de}. 1 Kristall aus deinen befreiten Minen erhalten"})
+			count=count+1 linefeed=true
+		end
+		if gStates.gameScenario=="Druid Nights" and gStates.druidNightsSummon~=nil then
+			local crystalReward=gStates.druidNightsCrystalReward or gStates.druidNightsSummon
+			rewardText=joinLang({rewardText, count, "{en}. Gained {ru}. Получено {zh-tw}。獲得 {zh-cn}。获得 {ko}. 획득: {es}. Obtuvo {fr}. Gagné {pt-br}. Ganhou {de}. Erhalten: ", tostring(crystalReward), "{en} Random Crystal(s) from incantation{ru} случайных кристалла(ов) от заклинания{zh-tw} 個由咒語產生的隨機魔力水晶{zh-cn} 个由咒语产生的随机魔力水晶{ko}개의 주문으로 얻은 무작위 마나 수정{es} Cristal(es) aleatorio(s) por el encantamiento{fr} Cristal(aux) aléatoire(s) grâce à l’incantation{pt-br} Cristal(is) aleatório(s) da invocação{de} zufällige(n) Kristall(e) durch die Beschwörung"})
+			count=count+1 linefeed=true
+		end
+		if defeatedElementalistRampagerThisTurn()==true then
+			rewardText=joinLang({rewardText, count, "{en}. Explored (Defeated Elementalist){ru}. Исследовали (победили Элементалиста){zh-tw}. 已探索（擊敗元素使）{zh-cn}. 已探索（击败元素使）{ko}. 탐험 완료 (원소술사 처치){es}. Exploraste (Elementalista derrotado){fr}. Exploré (Élémentaliste vaincu){pt-br}. Explorou (Elementalista derrotado){de}. Erkundet (Elementarmagier besiegt)"})
+			count=count+1 linefeed=true
+		end
+		if avatarLocation~=nil then
+			--see if a matching shield is near the avatar
+			local nearbyOwnShield=rewardNearbyOwnShield(gStates.turnNumber,avatarLocation)
+
+			--Victory Shield
+			if (avatarLocation=="glade" and gStates.gameScenario=="Druid Nights") then
+				if nearbyOwnShield=="false" and gStates.turnForfeited==false then
+					rewardText=joinLang({rewardText, count, "{en}. Placed a Victory Shield{ru}. Разместили Жетон щита{zh-tw}. 放置勝利盾徽{zh-cn}. 放置胜利盾徽{ko}. 방패 토큰 놓기{es}. Colocado un Escudo de Conquista.{fr}. Placé un Bouclier de Victoire{pt-br}. Colocou um Escudo de Vitória.{de}. Einen Siegesschild platziert"})
+					count=count+1 linefeed=true
+				end
+			end
+			--Victory Shield
+			if avatarLocation=="graveyard" and gStates.gameScenario=="The Realm of the Dead Blitz" and nearbyOwnShield=="false" and gStates.turnForfeited==false then
+				rewardText=joinLang({rewardText, count, "{en}. Paid to Seal the Graveyard{ru}. Заплатили за запечатывание Кладбища{zh-tw}. 支付魔力來封印墓地{zh-cn}. 支付魔力来封印墓地{ko}. 묘지 봉인 마나 지불(선택){es}. Pagado para Sellar el Cementerio{fr}. Payé pour Sceller le Cimetière{pt-br}Pago para Selar o Cemitério{de}. Für die Versiegelung des Friedhofs bezahlt."})
+				count=count+1 linefeed=true
+			end
+			if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
+			if rewardRetreatRequired(gStates.turnNumber,avatarLocation,nearbyOwnShield)==true then
+				rewardText=joinLang({rewardText, count, "{en}. Retreated to a Safe space{ru}. Отступили в Безопасное место{zh-tw}. 撤離到一個安全位置{zh-cn}. 撤离到一个安全位置{ko}. 안전한 칸으로 후퇴{es}. Acabado en un Espacio Seguro{fr}. Retraité dans un espace sûr{pt-br}. Recuou para um espaço seguro{de}. Dich in ein sicheres Feld zurückgezogen"})
+				count=count+1 linefeed=true
+			end
+			if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
+			if gStates.turnForfeited==false and gladeFreeCheck()==true and (avatarLocation=="glade" or avatarLocation=="hidden valley" or
+			(gStates.gameScenario=="The War of Four" and (avatarLocation=="necropolis" or avatarLocation=="graveyard"))) then
+				rewardText=joinLang({rewardText, count, "{en}. Removed One Wound{ru}. Вернули в стопку одну рану{zh-tw}. 移除一點創傷{zh-cn}. 移除一点创伤{ko}. 부상 하나 제거{es}. Eliminado una Herida{fr}. Suppression d'une blessure{pt-br}. Removeu Um Ferimento{de}. Eine Wunde wurde entfernt"})
+				count=count+1 linefeed=true
+			end
+			if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
+			if gStates.turnForfeited==false and ((gStates.shieldsDropped[nearbyOwnShield]~=nil and (avatarLocation=="mage tower" or avatarLocation=="labyrinth"	or avatarLocation=="maze" or avatarLocation=="monastery" or avatarLocation=="monster den" or avatarLocation=="dungeon" or avatarLocation=="spawning grounds" or avatarLocation=="tomb" or avatarLocation=="ziggurat" or avatarLocation=="pyramid"
+			or (avatarLocation=="ruin" and gStates.crytalRuin~=true)
+			or ((avatarLocation=="graveyard" or avatarLocation=="glade") and gStates.gameScenario=="Life and Death")))
+			or (avatarLocation=="graveyard" and gStates.gameScenario=="The Realm of the Dead Blitz")) then
+				rewardText=joinLang({rewardText, count, "{en}. Gained Site Conquest Rewards{ru}. Получили награды за завоевание Места{zh-tw}. 獲得地點的征服獎勵{zh-cn}. 获得地点的征服奖励{ko}. 장소 정복 보상 획득{es}. Obtenido la Recompensa de Conquista{fr}. Récompenses de conquête de site obtenues{pt-br}. Ganhou As Recompensas de Conquista{de}. Gewonnene Eroberungsbelohnungen"})
+				count=count+1 linefeed=true
+			end
+		end
+		if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
+		if gStates.levelingUp==true then
+			if currentPlayer.skipHeroChallengeSkillReminder~=true then
+				rewardText=joinLang({rewardText, count, "{en}. Gained a New Skill Token{ru}. Получили новый Жетон навыка{zh-tw}. 獲得新的技能{zh-cn}. 获得新的技能{ko}. 새로운 스킬 획득{es}. Obtuvo una ficha de habilidad nueva{fr}. Vous avez obtenu un nouveau jeton de compétence{pt-br}. Ganhou uma Nova Ficha de Habilidade{de}. Einen neuen Fertigkeitsmarker erhalten"})
+				count=count+1 rewardText=joinLang({rewardText, "\n"})
+			end
+			rewardText=joinLang({rewardText, count, "{en}. Gained a New Advanced Action{ru}. Получили новое Особое действие{zh-tw}. 獲得新的高級行動卡{zh-cn}. 获得新的高级行动卡{ko}. 새로운 상급 액션 획득{es}. Obtuvo una nueva acción avanzada{fr}. Vous avez obtenu une nouvelle action avancée{pt-br}. Ganhou uma Nova Ação Avançada{de}. Eine neue fortgeschrittene Aktion erhalten"})
+			count=count+1 linefeed=true
+		end
+		if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
+		if gStates.volkareArmyReduced==true and gStates.endGameAchieved=="false" and gStates.volkareState=="Attacking City" then
+			if gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel)~=nil then getObjectFromGUID(gStates.volkareModel).unlock() end
+		end
+		if gStates.turnForfeited==true then
+			rewardText=joinLang({rewardText, count, "{en}. Forfeit Turn, no site Rewards{ru}. Пропустили ход, и не получаете Награды за Места{zh-tw}. 放棄回合，無地點獎勵{zh-cn}. 放弃回合，无地点奖励{ko}. 차례 포기, 장소 혜택 사용불가{es}. Saltar Turno, sin Recompensas de Lugar{fr}. Forfait Turn, pas de récompenses de site{pt-br}. Desistir do Turno. Sem Recompensas de Local{de}. Zug ausgelassen, keine Ortsbelohnung"})
+			count=count+1 linefeed=true
+		end
+		if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
+		if gameOver==false then
+			rewardText=joinLang({rewardText, count, "{en}. Confirmed your hand size{ru}. Проверили предел карт в вашей руке{zh-tw}. 更新你的手牌上限{zh-cn}. 更新你的手牌上限{ko}. 카드 보유 제한 체크{es}. Confirmado tu tamaño de Mano{fr}. Confirmé votre taille de main{pt-br}. Confirmou seu tamanho de Mão{de}. Handkartenzahl bestätigt"})
+		else
+			rewardText=joinLang({rewardText, count, "{en}. Looked at your final Score{ru}. Посмотрели на ваш окончательный результат{zh-tw}. 查看你的最終分數{zh-cn}. 查看你的最终分数{ko}. 최종 점수 확인{es}. Revisado tu Puntuación Final{fr}. Regardé votre score final{pt-br}. Ollhou para a sua Pontuação Final{de}. Deine Endpunktzahl angesehen"})
+		end
+		UI.setAttribute("RewardNotes", "text", rewardText)
+	end
+
+end
+
+local function mainUIRefreshTurnAvailability(context,playerState)
+	if playerState.automated==true then return end
+	local playerAreaCardCount=context.playerAreaCardCount
+	--lock end turn button if no cards are played or discarded
+	--discard object detection
+	local discardAreaCards=0
+	local discardZoneGUID=deedDeckDiscardZones[turnOrder[gStates.turnNumber].seatPos]
+	local discardZone=discardZoneGUID~=nil and getObjectFromGUID(discardZoneGUID) or nil
+	if discardZone==nil then return false end
+	for _, b in pairs(discardZone.getObjects()) do
+		if b.type=="Card" then discardAreaCards=1 break end
+		if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
+	end
+	UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
+	if gStates.endRoundCalled==true then UI.setAttribute("EndTurnButton", "tooltip", "") end
+	local coopCombatButtonLocked=gStates.coopAssaultPhase=="combat" and (gStates.preEndTurn==true or playerAreaCardCount<1)
+	if (playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount) or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
+		setUIButtonEnabled("EndTurnButton",false)
+		setUIButtonEnabled("EndTurnButtonAlt",false)
+		setUIButtonEnabled("ExtraTurnTacticButton",false)
+	end
+	return true
+end
+
+local function mainUIRefreshExtraTurn(context,playerState)
+	if playerState.automated==true then return end
+	local timeBending=playerState.timeBending==true
+	--Show extra-turn button. If Time Bending and Day Tactic 6 are both available, ask which one is being used.
+	local tacticSixAvailable=turnOrder[gStates.turnNumber].tactic==6 and gStates.dayRound==true and gStates.tacticSixState~="Used"
+	local timeBendingAvailable=timeBending==true
+	if (tacticSixAvailable or timeBendingAvailable) and gStates.tacticRemove==false and gStates.tacticShown==false then
+		UI.setAttribute("ExtraTurnTactic", "active", "true")
+		if tacticSixAvailable and timeBendingAvailable then
+			UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Extra Turn{ru}Дополнительный ход{zh-tw}額外回合{zh-cn}额外回合{ko}추가 턴{es}Turno Extra{fr}Tour Supplémentaire{pt-br}Turno Extra{de}Extra-Zug")
+		elseif timeBendingAvailable then
+			UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Time Bend{ru}Изгиб Времени{zh-tw}時間扭曲{zh-cn}时间扭曲{ko}시간 왜곡{es}Salto en el Tiempo{fr}Courbe du Temps{pt-br}Dobrar Tempo{de}Zeitkrümmung")
+		else
+			UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Use Tactic{ru}Использовать Тактику{zh-tw}使用戰術卡{zh-cn}使用战术卡{ko}전략카드 사용{es}Usar la Táctica{fr}Utiliser la Tactique{pt-br}Usar Tática{de}Taktik Benutzen")
+		end
+	end
+end
+
+local function mainUIRefreshFameRepMenu(context,playerState)
+	if playerState.automated==true then return end
+	--Update Fame and Reputation menus only when their displayed values change.
+	local fameRepPlayer=turnOrder[gStates.turnNumber]
+	local fameRepKey=table.concat({gStates.turnNumber, fameRepPlayer.fameGain, fameRepPlayer.repGain, fameRepPlayer.reputation}, "|")
+	if endTurnFameRepCache~=fameRepKey then
+		endTurnFameRepCache=fameRepKey
+		local limetedRepGain=fameRepPlayer.repGain
+		if limetedRepGain<(-7-fameRepPlayer.reputation) then limetedRepGain=(-7-fameRepPlayer.reputation) end
+		if limetedRepGain>(7-fameRepPlayer.reputation) then limetedRepGain=(7-fameRepPlayer.reputation) end
+		UI.setAttribute("EndRoundPlusFameText", "text", joinLang({"{en}Gain {ru}Получить {zh-tw}增加 {zh-cn}增加 {ko}획득 {es}Ganar {fr}Gagner {pt-br}Ganhe {de}Erhalte ", tostring(fameRepPlayer.fameGain), "{en} Fame{ru} Славу(ы){zh-tw} 名望{zh-cn} 名望{ko} 명성{es} Fama{fr} Gloire{pt-br} Fama{de} Ruhm"}))
+		local prefix="{en}Lose {ru}Потерять {zh-tw}減少 {zh-cn}减少 {ko}감소 {es}Perder {fr}Perdez {pt-br}Perca {de}Verliere "
+		if limetedRepGain>-1 then prefix="{en}Gain {ru}Получить {zh-tw}增加 {zh-cn}增加 {ko}획득 {es}Ganar {fr}Gagner {pt-br}Ganhe {de}Erhalte " end
+		local sufix1="{en} Reputation{ru} Репутацию(и){zh-tw} 聲譽{zh-cn} 声誉{ko} 평판{es} Reputación{fr} Réputation{pt-br} Reputação{de} Ansehen"
+		if limetedRepGain~=0 and (limetedRepGain<=(-7-fameRepPlayer.reputation) or limetedRepGain>=(7-fameRepPlayer.reputation)) then
+			sufix1="{en} Rep. Max.{ru} Макс. Реп.{zh-tw} 聲譽到最底{zh-cn} 声誉到最底{ko} 최대 평판{es} Rep. Máx.{fr} Rép. Max.{pt-br} Rep. Máx.{de} Ruf Max."
+		end
+		local sufix2=""
+		if limetedRepGain~=0 and reputationTable[fameRepPlayer.reputation+limetedRepGain]~=nil then
+			sufix2=" ('"..reputationTable[fameRepPlayer.reputation+limetedRepGain].repDisplay.."')"
+			if fameRepPlayer.reputation+limetedRepGain<=-7 then sufix2=" ('X')" end
+		end
+		UI.setAttribute("EndRoundPlusRepText", "text", joinLang({prefix, tostring(math.abs(limetedRepGain)), sufix1, sufix2}))
+	end
+end
+
+local function mainUIRefreshEndRound(context)
+	local source=context.source
+	local playerAreaCardCount=context.playerAreaCardCount
+	--Deed-pile events refresh End Round directly. During routine play/discard object updates,
+	--played-card count only matters once the current deed pile is actually empty.
+	local routineZoneUpdate=source=="Object entered into play area" or source=="Object removed from zone"
+	local currentSeat=turnOrder[gStates.turnNumber].seatPos
+	if routineZoneUpdate~=true or endRoundDeedHasCards[currentSeat]~=true then refreshEndRoundState(playerAreaCardCount) end
+end
+
+local function mainUIRefreshNoticeBoard(context)
+	local nextPlayerEndCalled=context.nextPlayerEndCalled
+	local notice=false
+	--Display Info Pannel if pursuing monsters have two options.
+	if gStates.pursuitTwoOption==true then
+		UI.setAttribute("NoticeText", "Text", "{en}Pursuing Monster(s) have two Options for the current Player to decide between.{ru}Игрок, чьего героя преследуют, решает, на какую из двух клеток переместится враг.{zh-tw}追击的怪物有两个选项供当前玩家选择. {zh-cn}追击的怪物有两个选项供当前玩家选择. {ko}현재 플레이어는 추적 중인 몬스터의 두 옵션 중 하나를 결정하세요.{es}Los Monstruos que persiguen tienen dos Opciones para que el Jugador actual decida entre ellas.{fr}Les Monstres Poursuivants ont deux Options entre lesquelles le Joueur actuel doit choisir.{pt-br}Monstro(s) Perseguidor(es) tem 2 opções para o jogador atual escolher.{de}Verfolgende Monster haben zwei Optionen, zwischen denen der aktuelle Spieler wählen kann.")
+		UI.setAttribute("NoticeBoard", "visibility", "")
+		UI.setAttribute("NoticeBoard", "height", "50")
+		notice=true
+	end
+
+	--Display Info pannel if player needs to deploy a tomb or dungeon token
+	if #gStates.locationPlace>0 then
+		local pendingSecretName=dungeonLordsPendingSecretName(gStates.locationPlace[#gStates.locationPlace])
+		local site="{en}Village{ru}Деревней{zh-tw}\n要求2: 挨着刚翻开的村庄{zh-cn}\n要求2: 挨着刚翻开的村庄{ko}마을{es}una Aldea{fr}Village{pt-br}Vila{de}Dorf"
+		if pendingSecretName=="Secret Tomb" then site="{en}Monastery{ru}Монастырем{zh-tw}\n要求2: 挨着刚翻开的修道院{zh-cn}\n要求2: 挨着刚翻开的修道院{ko}수도원{es}un Monasterio{fr}Monastère{pt-br}Mosteiro{de}Kloster" end
+		UI.setAttribute("NoticeText", "Text", joinLang({"{en}Place a {ru}Поместите жетон {zh-tw}在地图上放置一个{zh-cn}在地图上放置一个{ko}{es}Coloca una ficha de {fr}Placer un{pt-br}Coloque uma ficha de {de}Platziere ein ", translateWord[pendingSecretName], "{en} token on an accessible non-swamp, non-feature space next to the {ru} на любую доступную клетку без болота на которой нет никаких мест, соседнюю с {zh-tw}\n要求1: 可进入、非沼泽、上面无地点{zh-cn}\n要求1: 可进入、非沼泽、上面无地点{ko}을 비어있고, 늪이 아니면서 다음의 장소 주변인 칸에 설치하세요: {es} en un espacio accesible que no sea un pantano, o no tenga ningún elemento adyacente a {fr} jeton sur un espace non marécageux accessible à côté du {pt-br} em um espaço acessível sem ser pântano ou que já tenha algo próximo a {de} plättchen auf ein zugängliches Nicht-Sumpf-, Nicht-Feature-Feld neben dem ", site}))
+		UI.setAttribute("NoticeBoard", "visibility", "")
+		UI.setAttribute("NoticeBoard", "height", "50")
+		notice=true
+	end
+
+	--Display Info pannel if End of round is immenant
+	if ((nextPlayerEndCalled==true and gStates.playerCount>1) or (gStates.endRoundCalled==true and gStates.playerCount==1)) and
+		(gStates.preEndTurn==true or turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5]) and gStates.currentRound<gStates.rounds then
+		local boxHeight=50
+		local endRoundText="{en}The game is about to experience end of round updates.\nPut Banners in discard if desired.{ru}Конец раунда. Скрипт произведет нужные обновления.\nЕсли хотите, можете сбросить знамёна с отрядов.{zh-tw}回合即将结束, 如果需要, 将清理弃牌区{zh-cn}回合即将结束, 如果需要, 将清理弃牌区{ko}이제 라운드가 종료됩니다.\n원한다면 지금 깃발 장착을 해제하세요.{es}El juego está a punto de experimentar actualizaciones de fin de ronda.\nDescarte los Banners si lo desea.{fr}Le jeu est sur le point de connaître des mises à jour de fin de manche.\nMettez les bannières au rebut si vous le souhaitez.{pt-br}O jogo está prestes a executar as atualizações de fim de Rodada.<size=6>\n\n</size>Coloque os Estandartes na pilha de descarte se assim desejar.{de}Das Spiel wird zum Ende der Runde aktualisiert.\nLegt die Banner auf den Ablagestapel, falls gewünscht."
+		if gStates.playerCount==1 then endRoundText=joinLang({endRoundText, "{en}\nDiscard the 2nd offer if playing 'Control over the Offers'{ru}\nПри 'Контроле над доступными картами', сбросьте среднюю доступную карту{zh-tw}\n如果使用“控制供应区”变体规则, 弃掉最左侧两个供应的卡牌{zh-cn}\n如果使用“控制供应区”变体规则, 弃掉最左侧两个供应的卡牌{ko}\n변형 규칙 '공급처 갱신 조정'을 적용하려면 지금 하세요.{es}\nDescarta la segunda oferta si juegas 'Control sobre las Ofertas'{fr}\nJetez la 2e offre si vous jouez à 'Contrôle des Offres'{pt-br}\nDiscarte a 2a oferta se estiver jogando com 'Controle sobre ofertas'{de}\nWirf das 2. Angebot ab, wenn du 'Kontrolle über die Angebote' spielst."}) boxHeight=boxHeight+20 end
+		if gStates.gameScenario=="Mines Liberation" then endRoundText=joinLang({endRoundText, "{en}\nCollect 1 Crystal from your liberated Mine(s).{ru}Получите 1 кристалл из каждой освобожденной вами шахты.{zh-tw}从你解放的每个矿山获得 1 块魔晶。{zh-cn}从你解放的每个矿山获得 1 块魔晶。{ko}\n해방한 각 광산에서 수정 1개를 얻으세요.{es}\nRecoge 1 Cristal de cada Mina que hayas liberado.{fr}\nRécupérez 1 cristal de chaque Mine que vous avez libérée.{pt-br}\nColete 1 Cristal de cada Mina que você libertou.{de}\nSammle 1 Kristall aus jeder Mine, die du befreit hast."}) boxHeight=boxHeight+20 end
+		UI.setAttribute("NoticeBoard", "height", boxHeight)
+		UI.setAttribute("NoticeText", "Text", endRoundText)
+		UI.setAttribute("NoticeBoard", "visibility", "")
+		notice=true
+	end
+
+	--Display Info pannel if tactics are shown
+	setUIButtonEnabled("DrawOne",true)
+	if gStates.tacticRemove==true or gStates.tacticShown==true then
+		if gStates.tacticRemove==true then
+			UI.setAttribute("NoticeText", "Text", "{en}Choose tactic(s) to be removed from the Game{ru}Выберите тактику(и), которая будет удалена из игры{zh-tw}选择要从游戏中移除的战术卡{zh-cn}选择要从游戏中移除的战术卡{ko}게임에서 제거할 전략 카드를 고르세요.{es}Elige la táctica(s) que quieres eliminar del Juego{fr}Choisissez la tactique(s) à retirer du Jeu{pt-br}Escolha tática(s) a ser(em) removida(s) do jogo.{de}Wähle die Taktik(en), die aus dem Spiel entfernt werden sollen")
+		else
+			UI.setAttribute("NoticeText", "Text", joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} needs to choose a tactic from the center{ru} должен(на) выбрать Тактику из центра{zh-tw}需要从中间选择一个战术{zh-cn}需要从中间选择一个战术{ko}의 전략 카드를 선택하세요.{es} necesita elegir una táctica del centro{fr} doit choisir une tactique du centre{pt-br} precisa escolher uma tática do centro.{de} muss eine Taktik aus dem Zentrum wählen"}))
+		end
+		setUIButtonEnabled("DrawOne",false)
+		UI.setAttribute("NoticeBoard", "visibility", "")
+		UI.setAttribute("NoticeBoard", "height", "50")
+		notice=true
+	else --turn off help notes after first round of tactic selection
+		if gStates.help==true then DisplayHelp(nil, "-1", "Game Started") end
+	end
+
+	--Remove or Display the notice board as needed
+	if notice==false and gStates.noticeShown==true then
+		UI.hide("NoticeBoard")
+		gStates.noticeShown=false
+	end
+	if notice==true and gStates.noticeShown==false then
+		UI.show("NoticeBoard")
+		gStates.noticeShown=true
+	end
+end
+
+local function mainUIRefreshStatusPanel(context,playerState)
+	local gameOver=context.gameOver
+	local nextPlayerEndCalled=context.nextPlayerEndCalled
+	local fameForUp=playerState.fameForUp or 0
+	local UIColor=positionToColor(gStates.turnNumber)
+	UI.setAttribute("RewardCheck", "active", "false")
+	UI.setAttribute("EndGameButton", "active", "false")
+	if (gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat") or gameOver==true then
+		UI.setAttribute("RewardCheck", "active", "true")
+		UI.setAttribute("EndGameButton", "active", "true")
+		if gStates.timeBending=="Started" and gStates.turnNumber==gStates.realTurn then--or (gStates.endRoundCalled==true and gStates.currentRound>=gStates.rounds)
+			UI.setAttribute("EndGameButton", "active", "false")
+		end
+	end
+	--Steady Tempo must resolve before Rewards Claimed can refresh the hand, because Top can be the next card drawn.
+	if steadyTempoUpdateRewardGate~=nil and turnOrder[gStates.turnNumber]~=nil then steadyTempoUpdateRewardGate(turnOrder[gStates.turnNumber].seatPos) end
+	--Rewards Claimed remains clickable during a soft lock; a faint orange tint shows that clicking it
+	--will currently produce a reminder instead of advancing. The tint clears when the requirement is
+	--resolved or when the shared soft-lock window expires.
+	local rewardSoftLockTint=rewardClaimSoftLockPending~=nil and rewardClaimSoftLockPending(gStates.turnNumber)
+	UI.setAttribute("PreEndTurnImage","color",rewardSoftLockTint and "rgb(1,0.86,0.68)" or "white")
+	if UIColor=="Black" then UIColor="rgb(0,0,0)" end
+	UI.setAttribute("MainGameNotes", "color", UIColor)
+	UI.setAttribute("RewardNotes", "color", UIColor)
+
+
+	local currentPlayer=turnOrder[gStates.turnNumber]
+	local meditationBonus=(gStates.meditationDrawBonus~=nil and gStates.meditationDrawBonus[gStates.turnNumber]) or 0
+	local drawHandSize=currentPlayer.hand+currentPlayer.handBonus+gStates.tactic4HandBonus+meditationBonus
+	local cityShields=currentCityShieldInfluence(currentPlayer)
+	local handMainKey=table.concat({gStates.turnNumber, currentPlayer.mage, currentPlayer.hand, currentPlayer.handBonus, gStates.tactic4HandBonus, meditationBonus, currentPlayer.baseHand, currentPlayer.reputation, cityShields, currentPlayer.fame, currentPlayer.level, fameForUp, gStates.positionMageKnight[5]}, "|")
+	if handMainTextCache~=handMainKey then
+		handMainTextCache=handMainKey
+		UI.setAttribute("DrawHandText", "text", joinLang({"{en}Draw up to {ru}Добрать до {zh-tw}抽滿至 {zh-cn}抽满至 {ko}카드 보유 제한 {es}Roba hasta {fr}Piochez jusqu'à {pt-br}Compre até {de}Zieh auf ", tostring(drawHandSize), "{en} cards{ru} карт{zh-tw} 張手牌{zh-cn} 张手牌{ko} 장{es} cartas{fr} cartes{pt-br} cartas{de} karten"}))
+		UI.setAttribute("DrawHandText", "color", drawHandSize>currentPlayer.baseHand and "rgb(0.4, 0.1, 0.2)" or "Black")
+		if currentPlayer.mage~=gStates.positionMageKnight[5] then
+			local repDisplay=reputationTable[currentPlayer.reputation].repDisplay
+			local repLabel="{en}'s Turn</size><size=6>\n\n</size>Reputation = {ru} Ходит</size><size=6>\n\n</size>Репутация =  {zh-tw}的回合</size><size=6>\n\n</size>聲譽 = {zh-cn}的回合</size><size=6>\n\n</size>声誉 = {ko} 차례</size><size=6>\n\n</size>평판 = {es}</size><size=6>\n\n</size>Reputación = {fr}</size><size=6>\n\n</size>Réputation = {pt-br}</size><size=6>\n\n</size>Reputação = {de}'s Zug</size><size=6>\n\n</size>Ansehen = "
+			if cityShields>0 and repDisplay~="No Interaction" then
+				local repValue=tonumber(repDisplay) or 0
+				repLabel="{en}'s Turn</size><size=6>\n\n</size>Rep Bonus = {ru} Ходит</size><size=6>\n\n</size>Бонус реп. = {zh-tw}的回合</size><size=6>\n\n</size>聲譽加成 = {zh-cn}的回合</size><size=6>\n\n</size>声誉加成 = {ko} 차례</size><size=6>\n\n</size>평판 보너스 = {es}</size><size=6>\n\n</size>Bonif. Rep. = {fr}</size><size=6>\n\n</size>Bonus Rép. = {pt-br}</size><size=6>\n\n</size>Bônus Rep. = {de}'s Zug</size><size=6>\n\n</size>Rufbonus = "
+				repDisplay=joinLang({signedBonus(repValue+cityShields), " (", signedBonus(repValue), "{en} Rep + {ru} Реп. + {zh-tw} 聲譽 + {zh-cn} 声誉 + {ko} 평판 + {es} Rep. + {fr} Rép. + {pt-br} Rep. + {de} Ruf + ", cityShields, "{en} City){ru} Город){zh-tw} 城市){zh-cn} 城市){ko} 도시){es} Ciudad){fr} Ville){pt-br} Cidade){de} Stadt)"})
+			end
+			local mainText=joinLang({"{en}<size=25>{ru}<size=25>{zh-tw}<size=25>{zh-cn}<size=25>{ko}<size=25>{es}<size=25>Turno de {fr}<size=25>Au tour de {pt-br}<size=25>Turno de {de}<size=25>", translateWord[currentPlayer.mage], repLabel, repDisplay, "{en}\nFame = {ru}\nСлава = {zh-tw}\n名望 = {zh-cn}\n名望 = {ko}\n명성 = {es}\nFama = {fr}\nGloire = {pt-br}\nFama = {de}\nRuhm = ", currentPlayer.fame})
+			local levelUpType="{en}\n(Skill & Advanced Action){ru}\n(Навык и Особое действие){zh-tw}\n（技能和高級行動）{zh-cn}\n（技能和高级行动）{ko}\n(스킬 및 상급 액션){es}\n(Habilidad y Acción Avanzada){fr}\n(Compétence et Action Avancée){pt-br}\n(Habilidade e Ação Avançada){de}\n(Fähigkeit & Fortgeschrittene Aktion)"
+			if currentPlayer.level==2 or currentPlayer.level==4 or currentPlayer.level==6 or currentPlayer.level==8 or currentPlayer.level==10 or currentPlayer.level==12 then levelUpType="{en}\n(Command Token){ru}\n(Жетон командования){zh-tw}\n（指揮標記）{zh-cn}\n（指挥标记）{ko}\n(지휘 토큰){es}\n(Token de Comando){fr}\n(Jeton de Commande){pt-br}\n(Token de Comando){de}\n(Befehlsplättchen)" end
+			if fameForUp>0 then mainText=joinLang({mainText, "{en}<size=6>\n\n</size>Next Level in {ru}<size=6>\n\n</size>До повышения уровня {zh-tw}<size=6>\n\n</size>升級還需 {zh-cn}<size=6>\n\n</size>升级还需 {ko}<size=6>\n\n</size>다음 레벨까지 {es}<size=6>\n\n</size>Siguiente nivel en {fr}<size=6>\n\n</size>Niveau suivant dans {pt-br}<size=6>\n\n</size>Próximo Nível em {de}<size=6>\n\n</size>Nächstes Level in ", fameForUp, "{en} Fame{ru} Слава(ы){zh-tw} 名望{zh-cn} 名望{ko} 명성 남음{es} Fama{fr} Gloire{pt-br} Fama{de} Ruhm", levelUpType}) else mainText=joinLang({mainText, "\n "}) end
+			UI.setAttribute("MainGameNotes", "text", mainText)
+		else
+			if proxyPlayerActive()==true then
+				UI.setAttribute("MainGameNotes", "text", joinLang({"{en}<size=25>Proxy {ru}<size=25>Прокси {zh-tw}<size=25>代理玩家 {zh-cn}<size=25>代理玩家 {ko}<size=25>프록시 {es}<size=25>Proxy {fr}<size=25>Proxy {pt-br}<size=25>Proxy {de}<size=25>Proxy ", translateWord[currentPlayer.mage], "{en}'s Turn</size>{ru} Ходит</size>{zh-tw}的回合</size>{zh-cn}的回合</size>{ko} 차례</size>{es}</size>{fr}</size>{pt-br}</size>{de}'s Zug</size>"}))
+			else
+				UI.setAttribute("MainGameNotes", "text", joinLang({"{en}<size=25>Dummy {ru}<size=25>Манекен {zh-tw}<size=25>虛擬玩家 {zh-cn}<size=25>虚拟玩家 {ko}<size=25>더미{es}<size=25>Turno de Maniquí {fr}<size=25>Au tour de Mannequin {pt-br}<size=25>Turno de Manequim {de}<size=25>Dummy ", translateWord[currentPlayer.mage], "{en}'s Turn</size>{ru} Ходит</size>{zh-tw}的回合</size>{zh-cn}的回合</size>{ko} 차례</size>{es}</size>{fr}</size>{pt-br}</size>{de}'s Zug</size>"}))
+			end
+		end
+	end
+
+
+	automatedMainPanelRefresh()
+
+	UI.setAttribute("PreEndTurn", "onClick", "endTurn")
+	if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==false then
+		UI.setAttribute("EndTurnButtonText", "text", "{en}Combat Complete{ru}Бой завершён{zh-tw}戰鬥完成{zh-cn}战斗完成{ko}전투 완료{es}Combate Completo{fr}Combat Terminé{pt-br}Combate Concluído{de}Kampf Abgeschlossen")
+		UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
+	elseif gStates.coopAssaultPhase=="rewards" then
+		local nextText="{en}Finish Co-op Rewards{ru}Завершить совместные награды{zh-tw}完成合作獎勵{zh-cn}完成合作奖励{ko}협력 보상 완료{es}Finalizar Recompensas Coop.{fr}Terminer les Récompenses Coop.{pt-br}Finalizar Recompensas Coop.{de}Koop-Belohnungen Beenden"
+		if gStates.coopRewardIndex<#gStates.coopRewardQueue then nextText="{en}Rewards Claimed - Next Reward{ru}Награды получены - Следующая награда{zh-tw}獎勵完成－下一位{zh-cn}奖励完成－下一位{ko}보상 완료 - 다음 보상{es}Recompensas Reclamadas - Siguiente{fr}Récompenses Réclamées - Suivant{pt-br}Recompensas Coletadas - Próximo{de}Belohnungen Beansprucht - Weiter" end
+		UI.setAttribute("PreEndTurnText", "text", nextText)
+		UI.setAttribute("EndTurnButtonText", "text", "{en}Co-op Rewards{ru}Совместные награды{zh-tw}合作獎勵{zh-cn}合作奖励{ko}협력 보상{es}Recompensas Coop.{fr}Récompenses Coop.{pt-br}Recompensas Coop.{de}Koop-Belohnungen")
+		UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
+		setUIButtonEnabled("EndTurnButton",false)
+		setUIButtonEnabled("EndTurnButtonAlt",false)
+	end
+	UI.setAttribute("ScoreButtonReal", "onClick", "displayScore")
+	if gameOver==true then
+		UI.setAttribute("PreEndTurn", "onClick", "layoutClaimedCards")
+		UI.setAttribute("PreEndTurnText", "text", "{en}Game Over - Show Score{ru}Игра окончена{zh-tw}遊戲結束{zh-cn}游戏结束{ko}게임 종료{es}Fin de Partida{fr}Jeu Terminé{pt-br}Fim de Jogo{de}Spiel Beendet")
+		UI.setAttribute("DummyButton", "onClick", "layoutClaimedCards")
+		UI.setAttribute("DummyButtonText", "Text", "{en}Game Over - Show Score{ru}Игра окончена{zh-tw}遊戲結束{zh-cn}游戏结束{ko}게임 종료{es}Fin de Partida{fr}Jeu Terminé{pt-br}Fim de Jogo{de}Spiel Beendet")
+		UI.setAttribute("ScoreButtonReal", "onClick", "layoutClaimedCards")
+		local noTurnsLeftToUndoInto=gStates.endRoundCalled==true and nextPlayerEndCalled==true and gStates.currentRound>=gStates.rounds
+		local victoryRegistered=false
+		for _, turnDetails in pairs(turnOrder) do if turnDetails.gameEnder==true then victoryRegistered=true break end end
+		local canUndoVictory=victoryRegistered==true and noTurnsLeftToUndoInto==false
+		UI.setAttribute("EndGameButton", "active", canUndoVictory and "true" or "false")
+	end
+
+
+	refreshGladeDiscardHealButton()
+end
+
+function uiMainUIUpdateBase(source)
+	if gStates.firstStarted~=true then return end
+	if mainUIPause~=nil then Wait.stop(mainUIPause) end
+	mainUIPause=safeWaitTime("UI",function()
+		local context=mainUIBuildRefreshContext(source)
+		if context==nil then mainUIPause=nil return end
+		mainUIRefreshOutOfTurn(context)
+		mainUIRefreshTurnControls(context)
+		local playerState=mainUIRefreshPlayerState(context)
+		mainUIRefreshLevelUpTurnText(context,playerState)
+		mainUIRefreshRewardChecklist(context,playerState)
+		if mainUIRefreshTurnAvailability(context,playerState)==false then mainUIPause=nil return end
+		mainUIRefreshExtraTurn(context,playerState)
+		mainUIRefreshFameRepMenu(context,playerState)
+		mainUIRefreshEndRound(context)
+		mainUIRefreshNoticeBoard(context)
+		mainUIRefreshStatusPanel(context,playerState)
+		UI.show("MainGame")
+		mainUIPause=nil
+	end,0.1)
 end
 
 --Add Icons to players Avatar and Rampaging Monsters
@@ -4523,7 +4596,7 @@ function buttonClicked(player, mouseButton, ButtonPressed)
 	end, 0.35)
 end
 
-function valueAdjust(player, mouseButton, id)
+function uiValueAdjustBase(player, mouseButton, id)
 	if mouseButton=="-1" and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
 		if id=="GrowHand" and turnOrder[gStates.turnNumber].hand+turnOrder[gStates.turnNumber].handBonus+gStates.tactic4HandBonus<20 then turnOrder[gStates.turnNumber].handBonus=turnOrder[gStates.turnNumber].handBonus+1 end
 		if id=="ShrinkHand" and turnOrder[gStates.turnNumber].hand+turnOrder[gStates.turnNumber].handBonus+gStates.tactic4HandBonus>turnOrder[gStates.turnNumber].baseHand then turnOrder[gStates.turnNumber].handBonus=turnOrder[gStates.turnNumber].handBonus-1 end
@@ -4663,7 +4736,7 @@ end
 --Monster Replenish no longer carries its own Lua/XML. Rebuild its physical Restock button from
 --Global, and keep the old status ids as hidden targets for existing swap/status helpers.
 function monsterReplenishObjectOnLoad()
-	local obj=getObjectFromGUID("d7a165")
+	local obj=getObjectFromGUID(GUID.ui.monsterReplenish)
 	if obj==nil then return end
 	obj.UI.setXml([=[
 <Button id="d7a165replenishMonsterPiles" interactable="true"
@@ -4720,12 +4793,12 @@ end
 function nightTint(player, mouseButton, id)
 	if mouseButton=="-1" then
 		local tileColor={}
-		if getObjectFromGUID("43fa2e").UI.getAttribute("43fa2eNightTintText", "text")=="No Tint" then
-			getObjectFromGUID("43fa2e").UI.setAttribute("43fa2eNightTintText", "text", "{en}Add Tint{ru}Добавить оттенок{zh-tw}加入色調{zh-cn}加入色调{ko}색조 추가{es}Añadir Tinte{fr}Ajouter une Teinte{pt-br}Adicionar Tonalidade{de}Tönung hinzufügen")
+		if getObjectFromGUID(GUID.ui.nightTint).UI.getAttribute("43fa2eNightTintText", "text")=="No Tint" then
+			getObjectFromGUID(GUID.ui.nightTint).UI.setAttribute("43fa2eNightTintText", "text", "{en}Add Tint{ru}Добавить оттенок{zh-tw}加入色調{zh-cn}加入色调{ko}색조 추가{es}Añadir Tinte{fr}Ajouter une Teinte{pt-br}Adicionar Tonalidade{de}Tönung hinzufügen")
 			tileColor={r=1.0, g=1.0, b=1.0}
 			gStates.nightTint=false
 		else
-			getObjectFromGUID("43fa2e").UI.setAttribute("43fa2eNightTintText", "text", "{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin Tinte{fr}Sans Teinte{pt-br}Sem Tonalidade{de}Keine Tönung")
+			getObjectFromGUID(GUID.ui.nightTint).UI.setAttribute("43fa2eNightTintText", "text", "{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin Tinte{fr}Sans Teinte{pt-br}Sem Tonalidade{de}Keine Tönung")
 			tileColor={r=0.6, g=0.6, b=0.6}
 			gStates.nightTint=true
 		end
@@ -4891,11 +4964,11 @@ function changeMatImage(player, mouseButton, id)
 end
 
 function bannerOfCommandDecal()
-	if getObjectFromGUID("8dbce4").is_face_down==true then
-		getObjectFromGUID("8dbce4").UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
+	if getObjectFromGUID(GUID.card.bannerOfCommandToken).is_face_down==true then
+		getObjectFromGUID(GUID.card.bannerOfCommandToken).UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
 			height=240, width=125, position="0 -520 40", rotation="0 180 180"}}})
 	else
-		getObjectFromGUID("8dbce4").UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
+		getObjectFromGUID(GUID.card.bannerOfCommandToken).UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
 			height=240, width=125, position="0 -1066 -40", rotation="0 0 180"}}})
 	end
 end
@@ -4915,10 +4988,10 @@ function monsterImageSwap(player, mouseButton, id)
 		end
 		if gStates.useAlternatePugs==false then
 			gStates.useAlternatePugs=true
-			getObjectFromGUID("d7a165").UI.setAttribute("d7a165swapMonsterImageText", "text", "{en}Stefano Colombo's Monster Tokens - ON{ru}Жетоны монстров Stefano Colombo — ВКЛ.{zh-tw}Stefano Colombo 的怪物標記－開{zh-cn}Stefano Colombo 的怪物标记－开{ko}Stefano Colombo 몬스터 토큰 - 켬{es}Fichas de Monstruo de Stefano Colombo - ACTIVADAS{fr}Jetons de Monstre de Stefano Colombo - ACTIVÉS{pt-br}Fichas de Monstro de Stefano Colombo - ATIVADAS{de}Stefano Colombos Monstermarker - AN")
+			getObjectFromGUID(GUID.ui.monsterReplenish).UI.setAttribute("d7a165swapMonsterImageText", "text", "{en}Stefano Colombo's Monster Tokens - ON{ru}Жетоны монстров Stefano Colombo — ВКЛ.{zh-tw}Stefano Colombo 的怪物標記－開{zh-cn}Stefano Colombo 的怪物标记－开{ko}Stefano Colombo 몬스터 토큰 - 켬{es}Fichas de Monstruo de Stefano Colombo - ACTIVADAS{fr}Jetons de Monstre de Stefano Colombo - ACTIVÉS{pt-br}Fichas de Monstro de Stefano Colombo - ATIVADAS{de}Stefano Colombos Monstermarker - AN")
 		else
 			gStates.useAlternatePugs=false
-			getObjectFromGUID("d7a165").UI.setAttribute("d7a165swapMonsterImageText", "text", "{en}Stefano Colombo's Monster Tokens - OFF{ru}Жетоны монстров Stefano Colombo — ВЫКЛ.{zh-tw}Stefano Colombo 的怪物標記－關{zh-cn}Stefano Colombo 的怪物标记－关{ko}Stefano Colombo 몬스터 토큰 - 끔{es}Fichas de Monstruo de Stefano Colombo - DESACTIVADAS{fr}Jetons de Monstre de Stefano Colombo - DÉSACTIVÉS{pt-br}Fichas de Monstro de Stefano Colombo - DESATIVADAS{de}Stefano Colombos Monstermarker - AUS")
+			getObjectFromGUID(GUID.ui.monsterReplenish).UI.setAttribute("d7a165swapMonsterImageText", "text", "{en}Stefano Colombo's Monster Tokens - OFF{ru}Жетоны монстров Stefano Colombo — ВЫКЛ.{zh-tw}Stefano Colombo 的怪物標記－關{zh-cn}Stefano Colombo 的怪物标记－关{ko}Stefano Colombo 몬스터 토큰 - 끔{es}Fichas de Monstruo de Stefano Colombo - DESACTIVADAS{fr}Jetons de Monstre de Stefano Colombo - DÉSACTIVÉS{pt-br}Fichas de Monstro de Stefano Colombo - DESATIVADAS{de}Stefano Colombos Monstermarker - AUS")
 		end
 		--discard containers
 		local discardContainers={GUID.bag.discard.towerGarrison, GUID.bag.discard.keepGarrison, GUID.bag.discard.cityGarrison, GUID.bag.discard.ruin, GUID.bag.discard.draconum, GUID.bag.discard.dungeon, GUID.bag.discard.orcs, GUID.bag.discard.darkDraconum, GUID.bag.discard.darkDungeon, GUID.bag.discard.darkMarauders, GUID.bag.discard.darkReward, GUID.bag.discard.elementalistDraconum, GUID.bag.discard.elementalistDungeon, GUID.bag.discard.elementalistOrcs, GUID.bag.discard.elementalistReward, GUID.bag.discard.apocReward, GUID.bag.discard.councilReward}
@@ -4931,16 +5004,25 @@ function monsterImageSwap(player, mouseButton, id)
 end
 
 ---------------
+function refreshAutoFlipButton()
+	local autoFlipOn=gStates~=nil and gStates.autoFlip==true
+	local text=autoFlipOn
+		and "{en}Auto Flip - On{ru}Авто-переворот - Вкл.{zh-tw}自動翻轉 - 開{zh-cn}自动翻转 - 开{ko}자동 공개 - 켜짐{es}Volteo Automático - Sí{fr}Retournement auto - Oui{pt-br}Auto-Virar - Ligado{de}Auto-Flip - An"
+		or "{en}Auto Flip - Off{ru}Авто-переворот - Выкл.{zh-tw}自動翻轉 - 關{zh-cn}自动翻转 - 关{ko}자동 공개 - 꺼짐{es}Volteo Automático - No{fr}Retournement auto - Non{pt-br}Auto-Virar - Desligado{de}Auto-Flip - Aus"
+	UI.setAttribute("AutoFlipButtonRealText","text",text)
+	--Auto Flip is a normal clickable button; the label carries the state instead of a toggle/disabled look.
+	setUIButtonEnabled("AutoFlipButtonReal",true)
+end
+
 function autoflip()
 	if gStates.autoFlip==true then
 		gStates.autoFlip=false
-		UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Active")
 		broadcastToAll("{en}Monster tokens need to be flipped manually.{ru}Жетоны врагов необходимо переворачивать вручную.{zh-tw}怪物标记需要手动翻转{zh-cn}怪物标记需要手动翻转{ko}규칙에 따라 직접 토큰을 뒤집어야 합니다{es}Las fichas de monstruo deben voltearse manualmente.{fr}Les jetons Monstre doivent être retournés manuellement.{pt-br}Fichas de Monstros precisam ser viradas manualmente{de}Monsterplättchen müssen manuell umgedreht werden.", {1,1,0.5})
 	else
 		gStates.autoFlip=true
-		UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Deactive")
-		broadcastToAll("{en}Script will flip monster tokens for you.{ru}Скрипт будет переворачивать жетоны врагов за вас.{zh-tw}脚本将为你翻转怪物标记. {zh-cn}脚本将为你翻转怪物标记. {ko}스크립트가 자동으로 토큰을 뒤집습니다.{es}Script le dará la vuelta a las fichas de monstruos.{fr}Le script retournera les jetons monstre pour vous.{pt-br}O Script virará as fichas de monstros por você.{de}Das Skript dreht die Monsterplättchen für dich um.", {1,1,0.5})
+		broadcastToAll("{en}Script will flip monster tokens for you.{ru}Скрипт будет переворачивать жетоны врагов за вас.{zh-tw}脚本将为你翻转怪物标记. {zh-cn}脚本将为你翻转怪物标记. {ko}스크립트가 자동으로 토큰을 뒤집습니다.{es}Script le dará la vuelta a las fichas de monstruos.{fr}Le script retournera les jetons monstre pour vous.{pt-br}O Script virará as fichas de Monstros por você.{de}Das Skript dreht die Monsterplättchen für dich um.", {1,1,0.5})
 	end
+	refreshAutoFlipButton()
 end
 
 -- Build monster hover descriptions outside the raw TTS event boundary.
@@ -5132,6 +5214,15 @@ function refreshMonsterHoverDescription(hover_object)
 			end
 			hover_object.setDescription(monsterDescription)
 		end
+end
+
+-- Fame/Reputation accounting wraps these UI entry points explicitly rather than replacing globals by require order.
+function mainUIUpdate(...)
+	return fameReputationMainUIUpdate(...)
+end
+
+function valueAdjust(player, mouseButton, id)
+	return fameReputationValueAdjust(player, mouseButton, id)
 end
 
 end)
@@ -5527,8 +5618,7 @@ function moveDisplayDungeonLordsTunnelNetwork(hexMap,playAreaObjects,startTilePo
 	local nodes={}
 	local nodeList={}
 	local function gridForPosition(pos)
-		local hor=math.floor(((pos[3]-startTilePos[3])/2.0785)+0.5)
-		local vec=math.floor(((pos[1]-startTilePos[1])/2.4)+(hor/2)+0.5)
+		local vec,hor=runtimeMapWorldToAxial(pos,startTilePos)
 		return hor,vec
 	end
 	for _,obj in pairs(playAreaObjects or {}) do
@@ -5602,8 +5692,7 @@ function moveDisplayBaseHexMap(playAreaObjects, startTileGUID, startTilePos)
 	local hexMap={}
 	for _, entry in pairs(terrainEntries) do
 		local details=entry.details
-		local hexGridHorizontal=math.floor(((entry.position[3]-startTilePos[3])/2.0785)+0.5)
-		local hexGridAxial=math.floor(((entry.position[1]-startTilePos[1])/2.4)+(hexGridHorizontal/2)+0.5)
+		local hexGridAxial,hexGridHorizontal=runtimeMapWorldToAxial(entry.position,startTilePos)
 		for hexBearing, hexType in pairs(details.hexType) do
 			local fixedBearing="center"
 			if hexBearing~="center" then
@@ -5807,9 +5896,9 @@ function renderMoveDisplay(id)
 		for _,lairHex in ipairs(gStates.apocalypseDragonLair.hexes or {}) do
 			local p=lairHex.position
 			if p~=nil then
-				local lairHor=tostring(math.floor(((p[3]-startTilePos[3])/2.0785)+0.5))
-				local lairHorNumber=tonumber(lairHor)
-				local lairVec=tostring(math.floor(((p[1]-startTilePos[1])/2.4)+(lairHorNumber/2)+0.5))
+				local lairVecNumber,lairHorNumber=runtimeMapWorldToAxial(p,startTilePos)
+				local lairHor=tostring(lairHorNumber)
+				local lairVec=tostring(lairVecNumber)
 				if hexMap[lairHor]~=nil and hexMap[lairHor][lairVec]~=nil then hexMap[lairHor][lairVec].dragonLair=true end
 			end
 		end
@@ -5827,8 +5916,7 @@ function renderMoveDisplay(id)
 		end
 		if cityObject==true or shield==true or rampager==true then
 			local objectPosition=mightBeMap.getPosition()
-			local hexGridHorizontal=math.floor(((objectPosition[3]-startTilePos[3])/2.0785)+0.5)
-			local hexGridAxial=math.floor(((objectPosition[1]-startTilePos[1])/2.4)+(hexGridHorizontal/2)+0.5)
+			local hexGridAxial,hexGridHorizontal=runtimeMapWorldToAxial(objectPosition,startTilePos)
 			local hor=tostring(hexGridHorizontal)
 			local vec=tostring(hexGridAxial)
 			if hexMap[hor]==nil then hexMap[hor]={} end
@@ -5875,8 +5963,7 @@ function renderMoveDisplay(id)
 				if playerIndex~=gStates.turnNumber and playerDetails.mage~="Volkare" then
 					local otherPos=fracturedLandsTeleportSourcePosition(playerIndex)
 					if otherPos~=nil then
-						local otherHor=math.floor(((otherPos[3]-startTilePos[3])/2.0785)+0.5)
-						local otherVec=math.floor(((otherPos[1]-startTilePos[1])/2.4)+(otherHor/2)+0.5)
+						local otherVec,otherHor=runtimeMapWorldToAxial(otherPos,startTilePos)
 						occupiedByOtherMage[tostring(otherHor)..":"..tostring(otherVec)]=true
 					end
 				end
@@ -5887,8 +5974,7 @@ function renderMoveDisplay(id)
 			for _, mapObject in pairs(playAreaObjects) do
 				if monsterPugs[mapObject.guid]~=nil then
 					local monsterPos=mapObject.getPosition()
-					local monsterHor=math.floor(((monsterPos[3]-startTilePos[3])/2.0785)+0.5)
-					local monsterVec=math.floor(((monsterPos[1]-startTilePos[1])/2.4)+(monsterHor/2)+0.5)
+					local monsterVec,monsterHor=runtimeMapWorldToAxial(monsterPos,startTilePos)
 					occupiedByMonster[tostring(monsterHor)..":"..tostring(monsterVec)]=true
 				end
 			end
@@ -6022,8 +6108,7 @@ function renderMoveDisplay(id)
 			if gladePos~=nil then playerPos=gladePos end
 		end
 
-		local playerHexGridHorizontal=math.floor(((playerPos[3]-startTilePos[3])/2.0785)+0.5)
-		local playerHexGridAxial=math.floor(((playerPos[1]-startTilePos[1])/2.4)+(playerHexGridHorizontal/2)+0.5)
+		local playerHexGridAxial,playerHexGridHorizontal=runtimeMapWorldToAxial(playerPos,startTilePos)
 		local moveMap={[tostring(playerHexGridHorizontal)]={[tostring(playerHexGridAxial)]={main=0}}}
 		local fringe={{coord={playerHexGridHorizontal, playerHexGridAxial}}}
 		local tempFringe={}
@@ -6238,7 +6323,7 @@ function renderMoveDisplay(id)
 		local routeStateSeen={}
 		local routeStack={}
 		local function routeWorldPosition(hor, vec)
-			return {((vec-(hor/2))*2.4)+startTilePos[1], 1.22, (hor*2.0785)+startTilePos[3]}
+			return runtimeMapAxialToWorld(vec,hor,startTilePos,1.22)
 		end
 		local function addRouteSegment(fromHor, fromVec, toHor, toVec, teleport, tunnelPath)
 			local function addOne(aHor,aVec,bHor,bVec,mode)
@@ -6290,7 +6375,6 @@ function renderMoveDisplay(id)
 
 		--Highlight movement costs with spawned text instead of numbered image decals.
 		for hor, rowOfHexes in pairs(moveMap) do
-			local hexGridZ=((hor*2.0785)+startTilePos[3])
 			for vec, hexCost in pairs(rowOfHexes) do
 				local lowestHex=hexCost.main
 				local lowestState="main"
@@ -6312,7 +6396,8 @@ function renderMoveDisplay(id)
 							highCombat=destinationCombat or (higherState=="main" and hexCost.mainCombat==true) or (higherState=="tricky" and hexCost.trickyCombat==true)}
 					end
 				end
-				local hexGridX=((vec-(hor/2))*2.4)+startTilePos[1]
+				local world=runtimeMapAxialToWorld(tonumber(vec),tonumber(hor),startTilePos,1.22)
+				local hexGridX,hexGridZ=world[1],world[3]
 				local startingHex=tonumber(hor)==playerHexGridHorizontal and tonumber(vec)==playerHexGridAxial
 				if startingHex==false then
 					if lowestHex<=gStates.resourceTracker.move.move then
@@ -6358,7 +6443,7 @@ end
 
 --Plan each first-phase Volkare step from the card's original direction.
 --If that step needs an illegal tile, try the closest neighbouring direction and test the movement again.
-local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, objectsInPlay)
+local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, mapSnapshot)
 	local bearings={}
 	local plannedTile=nil
 	local simPos={volkarePos[1], volkarePos[2], volkarePos[3]}
@@ -6369,7 +6454,7 @@ local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, ob
 		for _, offset in ipairs(offsets) do
 			local bearing=normalizeVolkareBearing(originalBearing+offset)
 			local testPos={simPos[1]-(2.39*math.cos(math.rad(bearing))), 3.5, simPos[3]-(2.39*math.sin(math.rad(bearing)))}
-			local explored=terrainHexAtPosition(testPos, objectsInPlay)~=nil
+			local explored=terrainHexAtPosition(testPos,mapSnapshot.terrainObjects,mapSnapshot.terrainPositions,mapSnapshot.terrainRotations)~=nil
 			if explored==false and plannedTile~=nil then explored=math.sqrt(((testPos[1]-plannedTile[1])^2)+((testPos[3]-plannedTile[3])^2))<3.1 end
 			if explored==true then
 				chosenBearing=bearing
@@ -6450,7 +6535,7 @@ function volkareTurn(player, mouseButton, id)
 				gStates.blurb="{en}Volkare rests this turn{ru}Волкар отдыхает в этот ход{zh-tw}沃卡里這回合休息。{zh-cn}沃卡里这回合休息。{ko}볼케어는 이번 차례에 휴식{es}Volkare descansa este turno{fr}Volkare se repose ce tour{pt-br}Volkare descansa esse turno{de}Volkare ruht diese Runde"
 				--roll volkares dice and read result
 				gStates.volkareState="Resting"
-				local volkareDice=getObjectFromGUID("9a686a")
+				local volkareDice=getObjectFromGUID(GUID.object.volkareDie)
 				volkareDice.randomize()
 				safeWaitCondition("AI.Volkare",function()
 					local crystalData=gStates.volkareUnitCrystals~=nil and gStates.volkareUnitCrystals[volkareDice.getRotationValue()] or nil
@@ -6556,10 +6641,10 @@ function volkareTurn(player, mouseButton, id)
 					--Before the city is found, each step tries the card's indicated direction first.
 					--If that step requires an illegal new tile, retry in the closest legal direction.
 					if cityDistance.key==0 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") then
-						local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
+						local mapSnapshot=runtimeMapSnapshot()
 						local originalBearing=volkareVector[gStates.gameScenario][volkareDrew.color]
 						local terrainSpot=nil
-						volkareExploreBearings, terrainSpot=planVolkareExploreMove(volkarePOS, originalBearing, volkareDrew.spell, objectsInPlay)
+						volkareExploreBearings, terrainSpot=planVolkareExploreMove(volkarePOS, originalBearing, volkareDrew.spell, mapSnapshot)
 						if terrainSpot~=nil then
 							local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
 							if terrainStack~=nil and terrainStack.getQuantity()>0 then
@@ -6588,10 +6673,12 @@ function volkareTurn(player, mouseButton, id)
 								--correct course if going out of bounds
 								volkarePOS=getObjectFromGUID(gStates.volkareModel).getPosition()
 								if cityDistance.key==0 and volkareExploreBearings[pass]~=nil then volkareVector[gStates.gameScenario][volkareDrew.color]=volkareExploreBearings[pass] end
-								local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
+								--Use the shared runtime-map membership/cache here. terrainHexAtPosition is kept for this
+								--one movement test so a just-explored tile remains valid during its brief face-down settle.
+								local mapSnapshot=runtimeMapSnapshot()
 								local arrowColor=volkareDrew.color
 								local volkareProjPos={volkarePOS[1]-(2.39*math.cos(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color]))), 3.5, volkarePOS[3]-(2.39*math.sin(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color])))}
-								local found=terrainHexAtPosition(volkareProjPos, objectsInPlay)~=nil
+								local found=terrainHexAtPosition(volkareProjPos,mapSnapshot.terrainObjects,mapSnapshot.terrainPositions,mapSnapshot.terrainRotations)~=nil
 								if found==false and gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The War of Four" and cityDistance.key>0 and (volkareDrew.color=="White" or volkareDrew.color=="Green") then volkareDrew.color="Blue" end
 								if found==false and (gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and (volkareDrew.color=="White" or volkareDrew.color=="Blue") then volkareDrew.color="Green" found=true end
 								if found==false and (gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and volkareDrew.color=="Green" then volkareDrew.color="Blue" end
@@ -6846,14 +6933,11 @@ function volkareTurn(player, mouseButton, id)
 		broadcastToAll("{en}Fully Attend is unavailable: the attacked Mage Knight's Round Order token is already face down, or they have no non-Wound cards in hand.{ru}Полное участие недоступно: жетон порядка хода атакованного Рыцаря-мага уже лежит лицом вниз или у него в руке нет карт, кроме Ран.{zh-tw}無法完全參戰：遭攻擊魔法騎士的回合順位標記已翻面，或手牌中沒有非創傷牌。{zh-cn}无法完全参战：遭攻击魔法骑士的回合顺序标记已翻面，或手牌中没有非创伤牌。{ko}완전 참전할 수 없습니다. 공격받은 마법 기사의 라운드 순서 토큰이 이미 뒷면이거나 손에 부상 이외의 카드가 없습니다.{es}No se puede Asistir por Completo: la ficha de Orden de Ronda del Caballero Mago atacado ya está boca abajo o no tiene cartas que no sean Heridas en la mano.{fr}Participation complète indisponible : le jeton d’Ordre de Manche du Chevalier-Mage attaqué est déjà face cachée, ou sa main ne contient aucune carte autre que des Blessures.{pt-br}Não é possível Participar por Completo: a ficha de Ordem da Rodada do Cavaleiro-Mago atacado já está virada para baixo, ou ele não tem cartas que não sejam Ferimentos na mão.{de}Vollständige Teilnahme ist nicht möglich: Der Rundenreihenfolgemarker des angegriffenen Magieritters liegt bereits verdeckt oder er hat nur Wunden auf der Hand.", warningColor)
 		return
 	end
-	UI.setAttribute("VolkareAttackedFull", "interactable", "false")
-	UI.setAttribute("VolkareAttackedFullImage", "image", "Sliced Button/Button New Deactive")
-	UI.setAttribute("VolkareAttackedPartial", "interactable", "false")
-	UI.setAttribute("VolkareAttackedPartialImage", "image", "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("VolkareAttackedFull",false)
+	setUIButtonEnabled("VolkareAttackedPartial",false)
 	UI.setAttribute("VolkareAttackedPartialText", "text", "{en}Partially Attend the Battle{ru}Быстрая подготовка к битве{zh-tw}部分參戰{zh-cn}部分参战{ko}전투 부분 참여{es}Asiste Parcialmente a la Batalla{fr}Participez Partiellement à la Bataille{pt-br}Participe Parcialmente da Batalha{de}Teilweise an der Schlacht teilnehmen")
 	UI.setAttribute("VolkareRetreat", "active", "true")
-	UI.setAttribute("VolkareRetreat", "interactable", "false")
-	UI.setAttribute("VolkareRetreatImage", "image", "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("VolkareRetreat",false)
 	if id=="VolkareAttackedFull" or id=="VolkareRetreat" or id=="VolkareAttackedPartial" then
 		--find mage knight affected
 		for x, mageDetails in pairs(turnOrder) do
@@ -6918,17 +7002,13 @@ function volkarePartial(player, mouseButton, id)
 		if dropoutCoopDefensePrompt==true then dropoutCoopDefensePrompt=false applyColorBarButtons() end
 		UI.setAttribute("VolkareAttackedPartial", "onClick", "volkareTurn")
 		UI.setAttribute("VolkareAttackedPartialText", "text", "{en}Finished Partially Attending{ru}Завершено Частичное участие{zh-tw}部分參戰結束{zh-cn}部分参战结束{ko}전투 부분 참여 완료{es}Finalizada la Participación Parcial{fr}Fini Partiellement Participant{pt-br}Participar Parcialmente do Combate{de}Teilweise Teilnahme an der Schlacht beendet")
-		UI.setAttribute("VolkareAttackedFull", "interactable", "false")
-		UI.setAttribute("VolkareAttackedFullImage", "image", "Sliced Button/Button New Deactive")
-		UI.setAttribute("VolkareRetreat", "interactable", "false")
-		UI.setAttribute("VolkareRetreatImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("VolkareAttackedFull",false)
+		setUIButtonEnabled("VolkareRetreat",false)
 		--find mage knight affected
 		for _, mageDetails in pairs(turnOrder) do
 			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
 				--place Volkare's Army
-				--Wait.time(function()
 				attackLocation("", "-1", "Volkar"..mageDetails.mage)
-				--end, 1)
 				break
 			end
 		end
@@ -6977,10 +7057,8 @@ function volkareRetreat(player, mouseButton, id)
 		local playerRetreat=retreatText:sub(1, 11)=="{en}Retreat"
 		UI.setAttribute("VolkareRetreat", "onClick", "volkareTurn")
 		UI.setAttribute("VolkareRetreatText", "text", "{en}Finished Retreating{ru}Завершено отступление{zh-tw}完成撤退{zh-cn}完成撤退{ko}후퇴 완료{es}Terminar de Retirarse{fr}Retraite Terminée{pt-br}Retiro Acabado{de}Beendeter Rückzug")
-		UI.setAttribute("VolkareAttackedFull", "interactable", "false")
-		UI.setAttribute("VolkareAttackedFullImage", "image", "Sliced Button/Button New Deactive")
-		UI.setAttribute("VolkareAttackedPartial", "interactable", "false")
-		UI.setAttribute("VolkareAttackedPartialImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("VolkareAttackedFull",false)
+		setUIButtonEnabled("VolkareAttackedPartial",false)
 		--find mage knight affected
 		for x, mageDetails in pairs(turnOrder) do
 			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
@@ -7017,10 +7095,8 @@ end
 
 function volkareCoopDefense(player, mouseButton, id)
 	if mouseButton=="-1" then
-		UI.setAttribute("VolkareAttackedFull", "interactable", "false")
-		UI.setAttribute("VolkareAttackedFullImage", "image", "Sliced Button/Button New Deactive")
-		UI.setAttribute("VolkareRetreat", "interactable", "false")
-		UI.setAttribute("VolkareRetreatImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("VolkareAttackedFull",false)
+		setUIButtonEnabled("VolkareRetreat",false)
 		--load the coop Interface
 		for _, mageDetails in pairs(turnOrder) do
 			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
@@ -7043,7 +7119,7 @@ function volkareTokenRandomize(token)--9a686a
 							["Red Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414000318/7F26EE486FD34E0FD08E0653EF4DACCB69F38A87/",
 							["Gold Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203413995197/64E0C4E59A98DAFB09633F31CA9D1279F0593CFD/",}
 	--roll volkares dice and read result
-	local volkareDice=getObjectFromGUID("9a686a")
+	local volkareDice=getObjectFromGUID(GUID.object.volkareDie)
 	if volkareDiceRolled==false then volkareDice.randomize() volkareDiceRolled=true end
 	safeWaitFrames("Volkare",function() safeWaitCondition("Volkare",function()
 		if token~=nil then
@@ -7458,7 +7534,7 @@ function proxyRouteTopology(hexes,proxyIndex)
 	local snapshot=runtimeMapSnapshot()
 	local useCachedTopology=hexes==snapshot.hexes
 	for _,hex in ipairs(hexes or {}) do
-		local key=apocalypseQuestMapHexKey(hex)
+		local key=runtimeMapHexKey(hex)
 		if key~=nil then
 			context.byKey[key]=hex
 			context.passable[key]=proxyHexPassable(hex,proxyIndex)==true
@@ -7474,12 +7550,12 @@ function proxyRouteTopology(hexes,proxyIndex)
 	if useCachedTopology~=true then
 		for a=1,#(hexes or {}) do
 			local first=hexes[a]
-			local firstKey=apocalypseQuestMapHexKey(first)
+			local firstKey=runtimeMapHexKey(first)
 			if firstKey~=nil then
 				for b=a+1,#hexes do
 					local second=hexes[b]
-					local secondKey=apocalypseQuestMapHexKey(second)
-					if secondKey~=nil and apocalypseQuestHexesAdjacent(first,second)==true then
+					local secondKey=runtimeMapHexKey(second)
+					if secondKey~=nil and runtimeMapHexesAdjacent(first,second)==true then
 						context.neighbors[firstKey][#context.neighbors[firstKey]+1]=second
 						context.neighbors[secondKey][#context.neighbors[secondKey]+1]=first
 						context.neighborSet[firstKey][secondKey]=true
@@ -7497,16 +7573,16 @@ function proxyDistanceMap(hexes,starts,proxyIndex,context)
 	local distances={}
 	local queue={}
 	for _,hex in ipairs(starts or {}) do
-		local key=apocalypseQuestMapHexKey(hex)
+		local key=runtimeMapHexKey(hex)
 		if key~=nil and distances[key]==nil and context.passable[key]==true then distances[key]=0 queue[#queue+1]=hex end
 	end
 	local head=1
 	while queue[head]~=nil do
 		local current=queue[head] head=head+1
-		local currentKey=apocalypseQuestMapHexKey(current)
+		local currentKey=runtimeMapHexKey(current)
 		local currentDistance=distances[currentKey] or 0
 		for _,candidate in ipairs(context.neighbors[currentKey] or {}) do
-			local key=apocalypseQuestMapHexKey(candidate)
+			local key=runtimeMapHexKey(candidate)
 			if key~=nil and distances[key]==nil and context.passable[key]==true then
 				distances[key]=currentDistance+1 queue[#queue+1]=candidate
 			end
@@ -7918,7 +7994,7 @@ function proxyTargetCandidatesForColor(color,hexes,mapObjects,proxyIndex,crystal
 	local candidates={}
 	for _,hex in ipairs(hexes or {}) do
 		local feature=string.lower(tostring(hex.feature or ""))
-		local validFarther=fartherOnly~=true or ((portalDistances[apocalypseQuestMapHexKey(hex)] or -1)>currentPortalDistance)
+		local validFarther=fartherOnly~=true or ((portalDistances[runtimeMapHexKey(hex)] or -1)>currentPortalDistance)
 		if validFarther and feature~="destroyed" then
 			if color=="Green" and apocalypseQuestHexAdventureSite(hex)==true and proxyAdventureSiteAvailable(hex,mapObjects,proxyIndex)==true then
 				if not (gStates.gameScenario=="Against the Apocalypse Blitz" and (feature=="ziggurat" or feature=="pyramid")) then candidates[#candidates+1]={hex=hex,action="adventure",objectiveColor=color} end
@@ -7958,7 +8034,7 @@ function proxyExploreTarget(hexes,distances)
 		if p~=nil then
 			local bestHex,bestTravel,bestEdge=nil,nil,nil
 			for _,hex in ipairs(hexes or {}) do
-				local travel=distances[apocalypseQuestMapHexKey(hex)]
+				local travel=distances[runtimeMapHexKey(hex)]
 				if travel~=nil then
 					local dx=hex.position[1]-p[1]
 					local dz=hex.position[3]-p[3]
@@ -7984,7 +8060,7 @@ function proxyExploreTarget(hexes,distances)
 				local p=tile.getPosition()
 				local bestHex,bestTravel,bestEdge=nil,nil,nil
 				for _,hex in ipairs(hexes or {}) do
-					local travel=distances[apocalypseQuestMapHexKey(hex)]
+					local travel=distances[runtimeMapHexKey(hex)]
 					if travel~=nil then
 						local dx=hex.position[1]-p[1]
 						local dz=hex.position[3]-p[3]
@@ -8024,8 +8100,8 @@ function proxyChooseTarget(objective,hexes,mapObjects,proxyIndex,crystals,startH
 	local colors=dummyCardColors(objective)
 	local fromStart=proxyDistanceMap(hexes,{startHex},proxyIndex)
 	local portal=proxyPortalHex(hexes)
-	local portalDistances=portal~=nil and apocalypseQuestHexDistanceMap(hexes,{portal}) or {}
-	local currentPortalDistance=portalDistances[apocalypseQuestMapHexKey(startHex)] or 0
+	local portalDistances=portal~=nil and runtimeMapHexDistanceMap(hexes,{portal}) or {}
+	local currentPortalDistance=portalDistances[runtimeMapHexKey(startHex)] or 0
 	local candidates={}
 	local offerCache=proxyInteractionOfferCache(crystals)
 	local candidateCache={}
@@ -8048,7 +8124,7 @@ function proxyChooseTarget(objective,hexes,mapObjects,proxyIndex,crystals,startH
 		local unique={}
 		local seen={}
 		for _,candidate in ipairs(list or {}) do
-			local hexKey=candidate.hex~=nil and apocalypseQuestMapHexKey(candidate.hex) or nil
+			local hexKey=candidate.hex~=nil and runtimeMapHexKey(candidate.hex) or nil
 			local actionKey=tostring(candidate.action or "")
 			if candidate.action=="explore" then
 				if candidate.button~=nil and candidate.button.attributes~=nil then actionKey=actionKey..":"..tostring(candidate.button.attributes.id or "")
@@ -8060,7 +8136,7 @@ function proxyChooseTarget(objective,hexes,mapObjects,proxyIndex,crystals,startH
 		local distance=nil
 		local tied={}
 		for _,candidate in ipairs(unique) do
-			local d=fromStart[apocalypseQuestMapHexKey(candidate.hex)]
+			local d=fromStart[runtimeMapHexKey(candidate.hex)]
 			if d~=nil and (distance==nil or d<distance) then distance=d tied={candidate}
 			elseif d~=nil and d==distance then tied[#tied+1]=candidate end
 		end
@@ -8108,8 +8184,8 @@ function proxyRouteContext(hexes,mapObjects,proxyIndex)
 	context.edgeHazard={}
 	for _,obj in pairs(mapObjects or {}) do
 		if obj~=nil and obj.guid~=nil and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[obj.guid]==true then
-			local rampHex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
-			local key=rampHex~=nil and apocalypseQuestMapHexKey(rampHex) or nil
+			local rampHex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+			local key=rampHex~=nil and runtimeMapHexKey(rampHex) or nil
 			if key~=nil then context.rampagers[#context.rampagers+1]={obj=obj,key=key} end
 		end
 	end
@@ -8120,8 +8196,8 @@ end
 --Several Rampagers can be provoked by the same edge; collect all of them and resolve the fight together.
 function proxyMovementHazard(fromHex,toHex,hexes,mapObjects,proxyIndex,context)
 	if fromHex==nil or toHex==nil then return nil end
-	local fromKey=apocalypseQuestMapHexKey(fromHex)
-	local toKey=apocalypseQuestMapHexKey(toHex)
+	local fromKey=runtimeMapHexKey(fromHex)
+	local toKey=runtimeMapHexKey(toHex)
 	if fromKey==nil or toKey==nil then return nil end
 	local edgeKey=fromKey..">"..toKey
 	if context~=nil and context.edgeHazard[edgeKey]~=nil then
@@ -8158,8 +8234,8 @@ function proxyMovementHazard(fromHex,toHex,hexes,mapObjects,proxyIndex,context)
 	else
 		for _,obj in pairs(mapObjects or {}) do
 			if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[obj.guid]==true and seen[obj.guid]~=true then
-				local rampHex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
-				if rampHex~=nil and apocalypseQuestHexesAdjacent(fromHex,rampHex)==true and apocalypseQuestHexesAdjacent(toHex,rampHex)==true then
+				local rampHex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+				if rampHex~=nil and runtimeMapHexesAdjacent(fromHex,rampHex)==true and runtimeMapHexesAdjacent(toHex,rampHex)==true then
 					seen[obj.guid]=true enemies[#enemies+1]=obj
 				end
 			end
@@ -8179,17 +8255,17 @@ function proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,forcedF
 	if startHex==nil or target==nil or target.hex==nil then return {},nil,nil end
 	local context=sharedContext or proxyRouteContext(hexes,mapObjects,proxyIndex)
 	local toTarget=proxyDistanceMap(hexes,{target.hex},proxyIndex,context)
-	local targetKey=apocalypseQuestMapHexKey(target.hex)
+	local targetKey=runtimeMapHexKey(target.hex)
 	local safeMemo={}
 	local function safeRun(hex)
-		local key=apocalypseQuestMapHexKey(hex)
+		local key=runtimeMapHexKey(hex)
 		if key==nil or key==targetKey then return 0 end
 		if safeMemo[key]~=nil then return safeMemo[key] end
 		local distance=toTarget[key]
 		if distance==nil or distance<=0 then safeMemo[key]=0 return 0 end
 		local best=-1
 		for _,candidate in ipairs(context.neighbors[key] or {}) do
-			if context.passable[apocalypseQuestMapHexKey(candidate)]==true and toTarget[apocalypseQuestMapHexKey(candidate)]==distance-1 then
+			if context.passable[runtimeMapHexKey(candidate)]==true and toTarget[runtimeMapHexKey(candidate)]==distance-1 then
 				local hazard=proxyMovementHazard(hex,candidate,hexes,mapObjects,proxyIndex,context)
 				local score=hazard~=nil and 0 or (1+safeRun(candidate))
 				if score>best then best=score end
@@ -8204,22 +8280,22 @@ function proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,forcedF
 	local lastSafe=startHex
 	local hazard=nil
 	for step=1,move do
-		if apocalypseQuestMapHexKey(current)==targetKey then break end
-		local currentDistance=toTarget[apocalypseQuestMapHexKey(current)]
+		if runtimeMapHexKey(current)==targetKey then break end
+		local currentDistance=toTarget[runtimeMapHexKey(current)]
 		if currentDistance==nil or currentDistance<=0 then break end
 		local choices={}
-		for _,candidate in ipairs(context.neighbors[apocalypseQuestMapHexKey(current)] or {}) do
-			if context.passable[apocalypseQuestMapHexKey(candidate)]==true and toTarget[apocalypseQuestMapHexKey(candidate)]==currentDistance-1 then
+		for _,candidate in ipairs(context.neighbors[runtimeMapHexKey(current)] or {}) do
+			if context.passable[runtimeMapHexKey(candidate)]==true and toTarget[runtimeMapHexKey(candidate)]==currentDistance-1 then
 				local candidateHazard=proxyMovementHazard(current,candidate,hexes,mapObjects,proxyIndex,context)
 				choices[#choices+1]={hex=candidate,hazard=candidateHazard,safe=candidateHazard~=nil and 0 or (1+safeRun(candidate))}
 			end
 		end
 		if #choices==0 then break end
-		table.sort(choices,function(a,b) if a.safe~=b.safe then return a.safe>b.safe end return apocalypseQuestMapHexKey(a.hex)<apocalypseQuestMapHexKey(b.hex) end)
+		table.sort(choices,function(a,b) if a.safe~=b.safe then return a.safe>b.safe end return runtimeMapHexKey(a.hex)<runtimeMapHexKey(b.hex) end)
 		local choice=choices[1]
 		if step==1 and forcedFirstKey~=nil then
 			local bestSafe=choices[1].safe
-			for _,candidate in ipairs(choices) do if candidate.safe==bestSafe and apocalypseQuestMapHexKey(candidate.hex)==forcedFirstKey then choice=candidate break end end
+			for _,candidate in ipairs(choices) do if candidate.safe==bestSafe and runtimeMapHexKey(candidate.hex)==forcedFirstKey then choice=candidate break end end
 		end
 		local nextHex=choice.hex
 		hazard=choice.hazard
@@ -8234,9 +8310,9 @@ end
 
 function proxyRouteOutcomeSignature(startHex,target,route,hazard,lastSafe)
 	local finalHex=(route~=nil and route[#route]) or startHex
-	local finalKey=tostring(apocalypseQuestMapHexKey(finalHex) or "?")
-	local targetKey=target~=nil and target.hex~=nil and apocalypseQuestMapHexKey(target.hex) or nil
-	local reached=hazard==nil and targetKey~=nil and apocalypseQuestMapHexKey(finalHex)==targetKey
+	local finalKey=tostring(runtimeMapHexKey(finalHex) or "?")
+	local targetKey=target~=nil and target.hex~=nil and runtimeMapHexKey(target.hex) or nil
+	local reached=hazard==nil and targetKey~=nil and runtimeMapHexKey(finalHex)==targetKey
 	if hazard==nil then
 		--Two safe paths that both reach the same objective have exactly the same game result. Do not
 		--ask a human merely because their intermediate/penultimate hexes differ. If neither reaches
@@ -8244,7 +8320,7 @@ function proxyRouteOutcomeSignature(startHex,target,route,hazard,lastSafe)
 		if reached==true then return "arrive|"..tostring(target.action or "arrive").."|"..tostring(targetKey) end
 		return "move|"..finalKey
 	end
-	local parts={"hazard",tostring(hazard.action or "hazard"),tostring(apocalypseQuestMapHexKey(hazard.hex) or "?"),tostring(hazard.enterHex),tostring(hazard.provoked),tostring(hazard.fortified or "")}
+	local parts={"hazard",tostring(hazard.action or "hazard"),tostring(runtimeMapHexKey(hazard.hex) or "?"),tostring(hazard.enterHex),tostring(hazard.provoked),tostring(hazard.fortified or "")}
 	local enemies={}
 	for _,enemy in ipairs(hazard.enemies or {}) do if enemy~=nil then enemies[#enemies+1]=tostring(enemy.guid or "") end end
 	if #enemies==0 and hazard.enemy~=nil then enemies[1]=tostring(hazard.enemy.guid or "") end
@@ -8252,7 +8328,7 @@ function proxyRouteOutcomeSignature(startHex,target,route,hazard,lastSafe)
 	parts[#parts+1]=table.concat(enemies,",")
 	--For a hazard/assault, the previous safe hex can affect where the Proxy ends up after resolution
 	--(for example after a retreat), so retain it as a genuinely meaningful route difference.
-	parts[#parts+1]=tostring(apocalypseQuestMapHexKey(lastSafe) or "")
+	parts[#parts+1]=tostring(runtimeMapHexKey(lastSafe) or "")
 	return table.concat(parts,"|")
 end
 
@@ -8260,17 +8336,17 @@ function proxyFindRouteChoice(startHex,target,hexes,mapObjects,proxyIndex,move)
 	if startHex==nil or target==nil or target.hex==nil or (move or 0)<=0 then return nil end
 	local context=proxyRouteContext(hexes,mapObjects,proxyIndex)
 	local toTarget=proxyDistanceMap(hexes,{target.hex},proxyIndex,context)
-	local targetKey=apocalypseQuestMapHexKey(target.hex)
+	local targetKey=runtimeMapHexKey(target.hex)
 	local safeMemo={}
 	local function safeRun(hex)
-		local key=apocalypseQuestMapHexKey(hex)
+		local key=runtimeMapHexKey(hex)
 		if key==nil or key==targetKey then return 0 end
 		if safeMemo[key]~=nil then return safeMemo[key] end
 		local distance=toTarget[key]
 		if distance==nil or distance<=0 then safeMemo[key]=0 return 0 end
 		local best=-1
 		for _,candidate in ipairs(context.neighbors[key] or {}) do
-			if context.passable[apocalypseQuestMapHexKey(candidate)]==true and toTarget[apocalypseQuestMapHexKey(candidate)]==distance-1 then
+			if context.passable[runtimeMapHexKey(candidate)]==true and toTarget[runtimeMapHexKey(candidate)]==distance-1 then
 				local h=proxyMovementHazard(hex,candidate,hexes,mapObjects,proxyIndex,context)
 				local score=h~=nil and 0 or (1+safeRun(candidate))
 				if score>best then best=score end
@@ -8281,18 +8357,18 @@ function proxyFindRouteChoice(startHex,target,hexes,mapObjects,proxyIndex,move)
 	local current=startHex
 	local prefix={}
 	for step=1,move do
-		if apocalypseQuestMapHexKey(current)==targetKey then return nil,context end
-		local distance=toTarget[apocalypseQuestMapHexKey(current)]
+		if runtimeMapHexKey(current)==targetKey then return nil,context end
+		local distance=toTarget[runtimeMapHexKey(current)]
 		if distance==nil or distance<=0 then return nil,context end
 		local choices={}
-		for _,candidate in ipairs(context.neighbors[apocalypseQuestMapHexKey(current)] or {}) do
-			if context.passable[apocalypseQuestMapHexKey(candidate)]==true and toTarget[apocalypseQuestMapHexKey(candidate)]==distance-1 then
+		for _,candidate in ipairs(context.neighbors[runtimeMapHexKey(current)] or {}) do
+			if context.passable[runtimeMapHexKey(candidate)]==true and toTarget[runtimeMapHexKey(candidate)]==distance-1 then
 				local h=proxyMovementHazard(current,candidate,hexes,mapObjects,proxyIndex,context)
 				choices[#choices+1]={hex=candidate,hazard=h,safe=h~=nil and 0 or (1+safeRun(candidate))}
 			end
 		end
 		if #choices==0 then return nil,context end
-		table.sort(choices,function(a,b) if a.safe~=b.safe then return a.safe>b.safe end return apocalypseQuestMapHexKey(a.hex)<apocalypseQuestMapHexKey(b.hex) end)
+		table.sort(choices,function(a,b) if a.safe~=b.safe then return a.safe>b.safe end return runtimeMapHexKey(a.hex)<runtimeMapHexKey(b.hex) end)
 		local bestSafe=choices[1].safe
 		local tied={}
 		for _,choice in ipairs(choices) do if choice.safe==bestSafe then tied[#tied+1]=choice else break end end
@@ -8301,7 +8377,7 @@ function proxyFindRouteChoice(startHex,target,hexes,mapObjects,proxyIndex,move)
 			local matters=false
 			local remaining=move-step+1
 			for _,choice in ipairs(tied) do
-				local key=apocalypseQuestMapHexKey(choice.hex)
+				local key=runtimeMapHexKey(choice.hex)
 				local route,hazard,lastSafe=proxyPlanRoute(current,target,hexes,mapObjects,proxyIndex,remaining,key,context)
 				local currentSignature=proxyRouteOutcomeSignature(current,target,route,hazard,lastSafe)
 				if signature==nil then signature=currentSignature elseif currentSignature~=signature then matters=true break end
@@ -8319,12 +8395,12 @@ end
 function proxyDestinationTurnSignature(startHex,target,hexes,mapObjects,proxyIndex,move,sharedContext)
 	local route,hazard,lastSafe=proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,nil,sharedContext)
 	local parts={}
-	for _,hex in ipairs(route or {}) do parts[#parts+1]=tostring(apocalypseQuestMapHexKey(hex) or "?") end
+	for _,hex in ipairs(route or {}) do parts[#parts+1]=tostring(runtimeMapHexKey(hex) or "?") end
 	local finalHex=(route~=nil and route[#route]) or startHex
-	local reached=hazard==nil and finalHex~=nil and target~=nil and target.hex~=nil and apocalypseQuestMapHexKey(finalHex)==apocalypseQuestMapHexKey(target.hex)
+	local reached=hazard==nil and finalHex~=nil and target~=nil and target.hex~=nil and runtimeMapHexKey(finalHex)==runtimeMapHexKey(target.hex)
 	local hazardParts={"none"}
 	if hazard~=nil then
-		hazardParts={tostring(hazard.action or "hazard"),tostring(apocalypseQuestMapHexKey(hazard.hex) or "?"),tostring(hazard.enterHex),tostring(hazard.provoked),tostring(hazard.fortified or "")}
+		hazardParts={tostring(hazard.action or "hazard"),tostring(runtimeMapHexKey(hazard.hex) or "?"),tostring(hazard.enterHex),tostring(hazard.provoked),tostring(hazard.fortified or "")}
 		local enemies={}
 		for _,enemy in ipairs(hazard.enemies or {}) do if enemy~=nil then enemies[#enemies+1]=tostring(enemy.guid or "") end end
 		if #enemies==0 and hazard.enemy~=nil then enemies[1]=tostring(hazard.enemy.guid or "") end
@@ -8339,7 +8415,7 @@ function proxyDestinationTurnSignature(startHex,target,hexes,mapObjects,proxyInd
 			elseif target.predefinedTileGUID~=nil then arrival=arrival..":"..tostring(target.predefinedTileGUID) end
 		end
 	end
-	return table.concat(parts,">").."|"..table.concat(hazardParts,":").."|"..arrival.."|"..tostring(apocalypseQuestMapHexKey(lastSafe) or "")
+	return table.concat(parts,">").."|"..table.concat(hazardParts,":").."|"..arrival.."|"..tostring(runtimeMapHexKey(lastSafe) or "")
 end
 
 function proxyDestinationChoiceMattersThisTurn(targets,startHex,hexes,mapObjects,proxyIndex,move)
@@ -8394,7 +8470,7 @@ end
 function proxyTargetSave(target)
 	if target==nil or target.hex==nil then return nil end
 	local saved={
-		key=apocalypseQuestMapHexKey(target.hex),
+		key=runtimeMapHexKey(target.hex),
 		action=target.action,
 		fortified=target.fortified,
 		proxyReason=target.proxyReason,
@@ -8421,7 +8497,7 @@ end
 function proxyTargetLoad(saved,hexes)
 	if saved==nil or saved.key==nil then return nil end
 	local hex=nil
-	for _,candidate in ipairs(hexes or {}) do if apocalypseQuestMapHexKey(candidate)==saved.key then hex=candidate break end end
+	for _,candidate in ipairs(hexes or {}) do if runtimeMapHexKey(candidate)==saved.key then hex=candidate break end end
 	if hex==nil then return nil end
 	local target={hex=hex,action=saved.action,fortified=saved.fortified,proxyReason=saved.proxyReason,choiceObjectiveColor=saved.choiceObjectiveColor}
 	if saved.action=="explore" then
@@ -8470,40 +8546,21 @@ end
 
 function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 	if saved==nil or saved.key==nil then return nil,xml end
-	local terrainGUID,bearing=tostring(saved.key):match("^([^|]+)|(.+)$")
-	local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
-	if terrain==nil or bearing==nil then return nil,xml end
-	local hexXY=angleToXY(terrain,bearing)
-	local tilePos=terrain.getPosition()
-	local localHex=terrain.positionToLocal({hexXY[1],tilePos[2],hexXY[2]})
-	local tileScale=terrain.getScale()
-	local scaleX=tileScale.x or tileScale[1] or 2.25
-	local scaleZ=tileScale.z or tileScale[3] or 2.25
-	local uiFactor=0.16/0.38
-	local uiX=(localHex.x or localHex[1])*scaleX*110*uiFactor
-	local uiY=(localHex.z or localHex[3])*scaleZ*110*uiFactor
-	local uiDepth=-40*uiFactor
-	local buttonScale=0.16
-	local uiRotation=terrain.getRotation()[2] or 180
-	local count=math.max(1,tonumber(splitCount) or 1)
-	local slot=math.max(1,tonumber(splitIndex) or 1)
-	local height=320/count
-	--Button scale shrinks the visible button but not its UI position. Offset split choices by the
-	--scaled height so adjacent Proxy action buttons meet edge-to-edge instead of straddling the hex.
-	if count>1 then uiY=uiY+(((count+1)/2)-slot)*height*buttonScale end
+	local terrain,placement=terrainHexChoiceUIPlacement(saved.key,0.16,splitIndex,splitCount,0.38)
+	if terrain==nil or placement==nil then return nil,xml end
 	local id=terrain.guid.."ProxyDestinationChoice"..tostring(index)
 	xml=xml or terrain.UI.getXmlTable() or {}
 	xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/proxyDestinationChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-		height=height,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(uiRotation),scale=buttonScale.." "..buttonScale},
+		height=placement.height,width=320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
 		children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
-			{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize=count>1 and "62" or "76",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=count>1 and "62" or "76",text=proxyDestinationChoiceActionText(saved)}}}}}}
+			{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize=placement.count>1 and "62" or "76",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=placement.count>1 and "62" or "76",text=proxyDestinationChoiceActionText(saved)}}}}}}
 	return terrain,xml
 end
 
 function proxyChoiceMapRefresh(pending)
 	--Keep the ordinary Explore controls on the map UI; Proxy destination/route choices live on the
 	--actual terrain tiles so each square button floats over the exact chosen hex.
-	local mapUI=getObjectFromGUID("f2291a")
+	local mapUI=getObjectFromGUID(GUID.ui.mapExplore)
 	if mapUI~=nil then
 		local xml={}
 		for _,button in pairs(terrainExploreOptions()) do xml[#xml+1]=button end
@@ -8606,10 +8663,10 @@ function proxyBeginRouteChoice(routeChoice,target,proxyIndex,move)
 	local chooser=proxyChoicePlayerIndex()
 	if chooser==nil then return false end
 	local pending={type="route",proxyIndex=proxyIndex,playerIndex=chooser,playerColor=proxyChoicePlayerColor(chooser),move=routeChoice.remainingMove or move,target=proxyTargetSave(target),prefix={},options={}}
-	for _,hex in ipairs(routeChoice.prefix or {}) do pending.prefix[#pending.prefix+1]=apocalypseQuestMapHexKey(hex) end
+	for _,hex in ipairs(routeChoice.prefix or {}) do pending.prefix[#pending.prefix+1]=runtimeMapHexKey(hex) end
 	for _,choice in ipairs(routeChoice.choices or {}) do
 		local hex=choice.hex
-		if hex~=nil then pending.options[#pending.options+1]={key=apocalypseQuestMapHexKey(hex),action="route",choicePosition={hex.position[1],hex.position[2],hex.position[3]},feature=hex.feature} end
+		if hex~=nil then pending.options[#pending.options+1]={key=runtimeMapHexKey(hex),action="route",choicePosition={hex.position[1],hex.position[2],hex.position[3]},feature=hex.feature} end
 	end
 	if #pending.options<2 then return false end
 	gStates.proxyPendingChoice=pending
@@ -8628,13 +8685,13 @@ end
 
 function proxyResolveRouteChoice(pending,saved)
 	if pending==nil or saved==nil or gStates.turnNumber~=pending.proxyIndex then automatedTurnRewindRelease() return end
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local target=proxyTargetLoad(pending.target,hexes)
 	local avatar=proxyAvatarObject()
 	if target==nil or avatar==nil then proxyTurnReportSetAction("could not restore the selected route") proxyFinishTurn(hexes,mapObjects,pending.proxyIndex) return end
 	proxyRouteChoiceAnimatePrefix(pending,target,hexes,mapObjects,1,function()
-		local freshHexes,freshObjects=apocalypseQuestMapHexes()
-		local current=apocalypseQuestHexForPosition(freshHexes,avatar.getPosition(),freshObjects)
+		local freshHexes,freshObjects=runtimeMapHexesAndObjects()
+		local current=runtimeMapHexForPosition(freshHexes,avatar.getPosition(),freshObjects)
 		local nextHex=proxyHexByKey(freshHexes,saved.key)
 		if current==nil or nextHex==nil then proxyFinishTurn(freshHexes,freshObjects,pending.proxyIndex) return end
 		local context=proxyRouteContext(freshHexes,freshObjects,pending.proxyIndex)
@@ -8695,7 +8752,7 @@ function proxyDestinationChoiceSelect(player,mouseButton,id)
 	end
 	automatedTurnRewindStart(function()
 		if gStates.turnNumber~=pending.proxyIndex then automatedTurnRewindRelease() return end
-		local hexes,mapObjects=apocalypseQuestMapHexes()
+		local hexes,mapObjects=runtimeMapHexesAndObjects()
 		local target=proxyTargetLoad(saved,hexes)
 		if target==nil then proxyTurnReportSetAction("could not restore the selected destination") proxyFinishTurn(hexes,mapObjects,pending.proxyIndex) return end
 		proxyContinueTowardTarget(target,pending.proxyIndex,pending.move)
@@ -8885,7 +8942,7 @@ end
 
 function proxyHexByKey(hexes,key)
 	if key==nil then return nil end
-	for _,hex in ipairs(hexes or {}) do if apocalypseQuestMapHexKey(hex)==key then return hex end end
+	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
 	return nil
 end
 
@@ -8981,7 +9038,7 @@ end
 
 function proxyResolveEnemyChoice(pending,selectedGUID)
 	if pending==nil or pending.context==nil then automatedTurnRewindRelease() return end
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local hex=proxyHexByKey(hexes,pending.context.hexKey)
 	if hex==nil then proxyFinishTurn(hexes,mapObjects,pending.proxyIndex) return end
 	if pending.context.kind=="ruin" then
@@ -9000,7 +9057,7 @@ function proxyResolveEnemyChoice(pending,selectedGUID)
 		broadcastToAll("{en}Proxy resolved the tied City defender choice.{ru}Прокси разрешил ничью при выборе защитника Города.{zh-tw}代理玩家已解決城市防守者選擇的平手。{zh-cn}代理玩家已解决城市防守者选择的平手。{ko}프록시가 도시 수비자 선택의 동률을 해결했습니다.{es}El Proxy resolvió el empate en la elección de defensor de la Ciudad.{fr}Le Proxy a résolu l’égalité du choix de défenseur de la Cité.{pt-br}O Proxy resolveu o empate na escolha de defensor da Cidade.{de}Der Proxy hat den Gleichstand bei der Verteidigerwahl der Stadt aufgelöst.",{1,0.75,0.2})
 	end
 	safeWaitTime("AI.Proxy",function()
-		local freshHexes,freshObjects=apocalypseQuestMapHexes()
+		local freshHexes,freshObjects=runtimeMapHexesAndObjects()
 		proxyFinishTurn(freshHexes,freshObjects,pending.proxyIndex)
 	end,1.1)
 end
@@ -9066,7 +9123,7 @@ function proxyResolveAdventure(hex,mapObjects,proxyIndex)
 		end
 		if #enemies>0 then
 			local lowest=proxyLowestFameEnemies(enemies)
-			if #lowest>1 and proxyBeginEnemyChoice(lowest,{kind="ruin",hexKey=apocalypseQuestMapHexKey(hex)},proxyIndex)==true then
+			if #lowest>1 and proxyBeginEnemyChoice(lowest,{kind="ruin",hexKey=runtimeMapHexKey(hex)},proxyIndex)==true then
 				proxyRestoreAvatarAfterSiteObjects(lift,settleGUIDs)
 				return false
 			end
@@ -9101,7 +9158,7 @@ function proxyResolveFortified(hex,mapObjects,proxyIndex,lastSafe)
 		local city=proxyCityGUIDForHex(hex)
 		local alive=proxyCityAliveEnemies(city)
 		local lowest=proxyLowestFameEnemies(alive)
-		if #lowest>1 and proxyBeginEnemyChoice(lowest,{kind="city",hexKey=apocalypseQuestMapHexKey(hex),lastSafeKey=lastSafe~=nil and apocalypseQuestMapHexKey(lastSafe) or nil},proxyIndex)==true then return false end
+		if #lowest>1 and proxyBeginEnemyChoice(lowest,{kind="city",hexKey=runtimeMapHexKey(hex),lastSafeKey=lastSafe~=nil and runtimeMapHexKey(lastSafe) or nil},proxyIndex)==true then return false end
 		local selected=lowest[1]~=nil and lowest[1].guid or nil
 		proxyResolveCitySelectedEnemy(hex,mapObjects,proxyIndex,lastSafe,selected)
 	elseif fortified~=nil then
@@ -9211,7 +9268,7 @@ function proxyInteractionChoiceSelect(player,mouseButton,id)
 		if card~=nil then proxyTakeInteractionChoice({card=card,kind=snap.kind,cost=snap.cost})
 		else proxyTurnReportSetAction("could not find the selected offer card") proxyClearObjective(true) end
 		safeWaitTime("AI.Proxy",function()
-			local hexes,mapObjects=apocalypseQuestMapHexes()
+			local hexes,mapObjects=runtimeMapHexesAndObjects()
 			proxyFinishTurn(hexes,mapObjects,pending.proxyIndex)
 		end,1.1)
 	end)
@@ -9298,7 +9355,7 @@ function proxyRevealGarrisonsAtHex(hex,hexes,mapObjects,proxyIndex)
 	if hex==nil or gStates.autoFlip~=true then return end
 	local revealHexes={hex}
 	for _,nearHex in ipairs(hexes or {}) do
-		if apocalypseQuestMapHexKey(nearHex)~=apocalypseQuestMapHexKey(hex) and apocalypseQuestHexesAdjacent(hex,nearHex)==true then revealHexes[#revealHexes+1]=nearHex end
+		if runtimeMapHexKey(nearHex)~=runtimeMapHexKey(hex) and runtimeMapHexesAdjacent(hex,nearHex)==true then revealHexes[#revealHexes+1]=nearHex end
 	end
 	local revealed=false
 	for _,revealHex in ipairs(revealHexes) do
@@ -9353,8 +9410,8 @@ function proxyAnimateRoute(route,index,target,hazard,lastSafe,hexes,mapObjects,p
 	local avatar=proxyAvatarObject()
 	if avatar==nil then proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
 	if route[index]==nil then
-		local current=apocalypseQuestHexForPosition(hexes,avatar.getPosition(),mapObjects)
-		if hazard~=nil or (target~=nil and current~=nil and apocalypseQuestMapHexKey(current)==apocalypseQuestMapHexKey(target.hex)) then proxyResolveArrival(target,hazard,lastSafe,hexes,mapObjects,proxyIndex)
+		local current=runtimeMapHexForPosition(hexes,avatar.getPosition(),mapObjects)
+		if hazard~=nil or (target~=nil and current~=nil and runtimeMapHexKey(current)==runtimeMapHexKey(target.hex)) then proxyResolveArrival(target,hazard,lastSafe,hexes,mapObjects,proxyIndex)
 		else
 			if gStates.proxyTurnReport~=nil and gStates.proxyTurnReport.action==nil then proxyTurnReportSetAction("moved toward the "..proxyTargetDisplayName(target).."\nbut did not reach it") end
 			proxyFinishTurn(hexes,mapObjects,proxyIndex)
@@ -9366,9 +9423,9 @@ end
 
 function proxyContinueTowardTarget(target,proxyIndex,move,preserveMoved)
 	local avatar=proxyAvatarObject()
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	if avatar==nil then proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
-	local startHex=apocalypseQuestHexForPosition(hexes,avatar.getPosition(),mapObjects)
+	local startHex=runtimeMapHexForPosition(hexes,avatar.getPosition(),mapObjects)
 	if startHex==nil then proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
 	proxyRevealGarrisonsAtHex(startHex,hexes,mapObjects,proxyIndex)
 	proxyTurnReportSetTarget(target)
@@ -9378,7 +9435,7 @@ function proxyContinueTowardTarget(target,proxyIndex,move,preserveMoved)
 	local routeChoice,routeContext=proxyFindRouteChoice(startHex,target,hexes,mapObjects,proxyIndex,move or 0)
 	if routeChoice~=nil and proxyBeginRouteChoice(routeChoice,target,proxyIndex,move)==true then return end
 	local route,hazard,lastSafe=proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move or 0,nil,routeContext)
-	if #route==0 and apocalypseQuestMapHexKey(startHex)==apocalypseQuestMapHexKey(target.hex) then proxyResolveArrival(target,nil,startHex,hexes,mapObjects,proxyIndex)
+	if #route==0 and runtimeMapHexKey(startHex)==runtimeMapHexKey(target.hex) then proxyResolveArrival(target,nil,startHex,hexes,mapObjects,proxyIndex)
 	else proxyAnimateRoute(route,1,target,hazard,lastSafe,hexes,mapObjects,proxyIndex) end
 end
 
@@ -9413,9 +9470,9 @@ function proxyContinueAfterMovementSetup(proxyIndex,move,crystals)
 	if gStates.turnNumber~=proxyIndex then automatedTurnRewindRelease() return end
 	local avatar=proxyAvatarObject()
 	local objectiveNow=proxyObjectiveObject()
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	if avatar==nil or objectiveNow==nil then proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
-	local startHex=apocalypseQuestHexForPosition(hexes,avatar.getPosition(),mapObjects)
+	local startHex=runtimeMapHexForPosition(hexes,avatar.getPosition(),mapObjects)
 	if startHex==nil then proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
 	local target=proxyChooseTarget(objectiveNow,hexes,mapObjects,proxyIndex,crystals or proxySnapshotCrystals(turnOrder[proxyIndex]),startHex,move)
 	if target==nil then
@@ -9448,10 +9505,10 @@ function proxyProcessTurn(proxyIndex)
 	proxyClearPendingChoice()
 	automatedMainPanelRefresh()
 	local avatar=proxyAvatarObject()
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local portal=proxyPortalHex(hexes)
 	if avatar==nil or portal==nil then gStates.proxyTurnReport={moved=0,action="could not find their Hero or Portal",reason="Setup could not provide both required objects.",allowance=0} broadcastToAll("{en}Proxy Player could not find its Hero or Portal.{ru}Прокси-игрок не смог найти своего Героя или Портал.{zh-tw}代理玩家找不到英雄或傳送門。{zh-cn}代理玩家找不到英雄或传送门。{ko}프록시 플레이어가 영웅 또는 포털을 찾지 못했습니다.{es}El jugador Proxy no pudo encontrar su Héroe o Portal.{fr}Le joueur Proxy n’a pas pu trouver son Héros ou le Portail.{pt-br}O jogador Proxy não conseguiu encontrar seu Herói ou o Portal.{de}Der Proxy-Spieler konnte seinen Helden oder das Portal nicht finden.",{1,0.25,0.25}) proxyFinishTurn(hexes,mapObjects,proxyIndex) return end
-	local physicalStartHex=apocalypseQuestHexForPosition(hexes,avatar.getPosition(),mapObjects)
+	local physicalStartHex=runtimeMapHexForPosition(hexes,avatar.getPosition(),mapObjects)
 	if physicalStartHex==nil then
 		avatar.unlock() avatar.setPosition({portal.position[1],1.5,portal.position[3]}) gStates.proxyAvatarOffMap=false
 		stats.avatarLocation=gStates.gameScenario=="Against the Horsemen Blitz" and "glade" or "portal"
@@ -10147,7 +10204,7 @@ function displayScore(player, mouseButton, id)
 			if gStates.gameScenario=="Mines Liberation" and greatName=="gLiberator" then ref=2 end
 			if gStates.gameScenario=="Dungeon Lords" and greatName=="gAdventurer" then ref=2 end
 			if gStates.gameScenario=="Against the Apocalypse Blitz" and (greatName=="gRestorer" or (greatName=="gAdventurer" and gStates.coop==1) or (greatName=="gAscender" and gStates.coop==0)) then ref=4 end
-			if (gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="Ultimate Conquest" or gStates.gameScenario=="Fast Forwarded Conquest") and greatName=="gCityLead" then ref=2 end
+			if (gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Ultimate Conquest" or gStates.gameScenario=="Fast Forwarded Conquest") and greatName=="gCityLead" then ref=2 end
 			if gStates.gameScenario=="The Lost Relic Blitz" and gStates.coop==0 and greatName=="gRelic" then ref=3 end
 			scoreMax=0
 			key={}
@@ -10595,15 +10652,15 @@ function displayScore(player, mouseButton, id)
 					assembledText="" lineFeed=0
 					local dragonPlayer=dragonScoreSummary.byMage[turnOrder[a].mage] or {levels=0,slayerBonus=0,slayerHeads={}}
 					if dragonPlayer.levels>0 then
-						local dragonScoreLabel=apocalypseHere and "{en} Head Slayer score: +{ru} Head Slayer score: +{zh-tw} Head Slayer score: +{zh-cn} Head Slayer score: +{ko} Head Slayer score: +{es} Head Slayer score: +{fr} Head Slayer score: +{pt-br} Head Slayer score: +{de} Head Slayer score: +" or "{en} Dragon Head Level(s) Reduced: +{ru} Dragon Head Level(s) Reduced: +{zh-tw} Dragon Head Level(s) Reduced: +{zh-cn} Dragon Head Level(s) Reduced: +{ko} Dragon Head Level(s) Reduced: +{es} Dragon Head Level(s) Reduced: +{fr} Dragon Head Level(s) Reduced: +{pt-br} Dragon Head Level(s) Reduced: +{de} Dragon Head Level(s) Reduced: +"
+						local dragonScoreLabel=apocalypseHere and "{en} Head Slayer score: +{ru} Счёт истребителя голов: +{zh-tw} 龍首剋星分數：+{zh-cn} 龙首克星分数：+{ko} 용 머리 처치 점수: +{es} Puntuación de cazador de cabezas: +{fr} Score de tueur de têtes : +{pt-br} Pontuação de matador de cabeças: +{de} Kopfbezwinger-Wertung: +" or "{en} Dragon Head Level(s) Reduced: +{ru} Снижено уровней голов Дракона: +{zh-tw} 降低的巨龍頭部等級：+{zh-cn} 降低的巨龙头部等级：+{ko} 감소시킨 드래곤 머리 레벨: +{es} Niveles de cabezas del Dragón reducidos: +{fr} Niveaux de têtes du Dragon réduits : +{pt-br} Níveis de cabeças do Dragão reduzidos: +{de} Reduzierte Drachenkopf-Stufen: +"
 						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{dragonPlayer.levels,dragonScoreLabel,dragonPlayer.levels})
 						totalScore=totalScore+dragonPlayer.levels
 					end
 					if dragonPlayer.slayerBonus>0 then
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{#dragonPlayer.slayerHeads,"{en} Greatest Head Slayer bonus(es): +{ru} Greatest Head Slayer bonus(es): +{zh-tw} Greatest Head Slayer bonus(es): +{zh-cn} Greatest Head Slayer bonus(es): +{ko} Greatest Head Slayer bonus(es): +{es} Greatest Head Slayer bonus(es): +{fr} Greatest Head Slayer bonus(es): +{pt-br} Greatest Head Slayer bonus(es): +{de} Greatest Head Slayer bonus(es): +",dragonPlayer.slayerBonus})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{#dragonPlayer.slayerHeads,"{en} Greatest Head Slayer bonus(es): +{ru} Бонус лучшего истребителя голов: +{zh-tw} 最佳龍首剋星獎勵：+{zh-cn} 最佳龙首克星奖励：+{ko} 최고의 용 머리 처치자 보너스: +{es} Bonificación del mejor cazador de cabezas: +{fr} Bonus du meilleur tueur de têtes : +{pt-br} Bônus do maior matador de cabeças: +{de} Bonus des größten Kopfbezwingers: +",dragonPlayer.slayerBonus})
 						totalScore=totalScore+dragonPlayer.slayerBonus
 					end
-					UI.setAttribute("TezlaScoreHeadingText","text",apocalypseHere and "{en}Head Slayer score{ru}Head Slayer score{zh-tw}Head Slayer score{zh-cn}Head Slayer score{ko}Head Slayer score{es}Head Slayer score{fr}Head Slayer score{pt-br}Head Slayer score{de}Head Slayer score" or "{en}Dragon{ru}Dragon{zh-tw}Dragon{zh-cn}Dragon{ko}Dragon{es}Dragon{fr}Dragon{pt-br}Dragon{de}Dragon")
+					UI.setAttribute("TezlaScoreHeadingText","text",apocalypseHere and "{en}Head Slayer score{ru}Счёт истребителя голов{zh-tw}龍首剋星分數{zh-cn}龙首克星分数{ko}용 머리 처치 점수{es}Puntuación de cazador de cabezas{fr}Score de tueur de têtes{pt-br}Pontuação de matador de cabeças{de}Kopfbezwinger-Wertung" or "{en}Dragon{ru}Дракон{zh-tw}巨龍{zh-cn}巨龙{ko}드래곤{es}Dragón{fr}Dragon{pt-br}Dragão{de}Drache")
 					updateScorePannel("Tezla",lineFeed,assembledText)
 				end
 
@@ -10706,18 +10763,18 @@ function displayScore(player, mouseButton, id)
 							coopScore=coopScore+(horsemenSummary.total*3)
 						end
 						if apocalypseHere and gStates.playerCount>1 and horsemanEveryScoringPlayerDefeatedOne(horsemenSummary)==true then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Each player defeated a Horseman: +5{ru}Each player defeated a Horseman: +5{zh-tw}Each player defeated a Horseman: +5{zh-cn}Each player defeated a Horseman: +5{ko}Each player defeated a Horseman: +5{es}Each player defeated a Horseman: +5{fr}Each player defeated a Horseman: +5{pt-br}Each player defeated a Horseman: +5{de}Each player defeated a Horseman: +5"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Each player defeated a Horseman: +5{ru}Каждый игрок победил Всадника: +5{zh-tw}每位玩家都擊敗一名騎士：+5{zh-cn}每位玩家都击败一名骑士：+5{ko}각 플레이어가 기사를 한 명씩 처치: +5{es}Cada jugador derrotó a un Jinete: +5{fr}Chaque joueur a vaincu un Cavalier : +5{pt-br}Cada jogador derrotou um Cavaleiro: +5{de}Jeder Spieler besiegte einen Reiter: +5"})
 							coopScore=coopScore+5
 						end
 						if dragonScoreSummary.defeatedHeads>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{dragonScoreSummary.defeatedHeads,"{en} Dragon Head(s) Defeated: +{ru} Dragon Head(s) Defeated: +{zh-tw} Dragon Head(s) Defeated: +{zh-cn} Dragon Head(s) Defeated: +{ko} Dragon Head(s) Defeated: +{es} Dragon Head(s) Defeated: +{fr} Dragon Head(s) Defeated: +{pt-br} Dragon Head(s) Defeated: +{de} Dragon Head(s) Defeated: +",dragonScoreSummary.defeatedHeads*5})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{dragonScoreSummary.defeatedHeads,"{en} Dragon Head(s) Defeated: +{ru} Побеждено голов Дракона: +{zh-tw} 擊敗的巨龍頭部：+{zh-cn} 击败的巨龙头部：+{ko} 처치한 드래곤 머리: +{es} Cabezas del Dragón derrotadas: +{fr} Têtes du Dragon vaincues : +{pt-br} Cabeças do Dragão derrotadas: +{de} Besiegte Drachenköpfe: +",dragonScoreSummary.defeatedHeads*5})
 							coopScore=coopScore+(dragonScoreSummary.defeatedHeads*5)
 						end
 						if dragonScoreSummary.defeatedHeads>=4 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All Dragon Heads defeated: +15{ru}All Dragon Heads defeated: +15{zh-tw}All Dragon Heads defeated: +15{zh-cn}All Dragon Heads defeated: +15{ko}All Dragon Heads defeated: +15{es}All Dragon Heads defeated: +15{fr}All Dragon Heads defeated: +15{pt-br}All Dragon Heads defeated: +15{de}All Dragon Heads defeated: +15"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All Dragon Heads defeated: +15{ru}Все головы Дракона побеждены: +15{zh-tw}所有巨龍頭部都已擊敗：+15{zh-cn}所有巨龙头部都已击败：+15{ko}모든 드래곤 머리 처치: +15{es}Todas las cabezas del Dragón derrotadas: +15{fr}Toutes les têtes du Dragon vaincues : +15{pt-br}Todas as cabeças do Dragão derrotadas: +15{de}Alle Drachenköpfe besiegt: +15"})
 							coopScore=coopScore+15
 						end
-						UI.setAttribute("TezlaScoreHeadingText","text",apocalypseHere and "{en}Apocalypse{ru}Apocalypse{zh-tw}Apocalypse{zh-cn}Apocalypse{ko}Apocalypse{es}Apocalypse{fr}Apocalypse{pt-br}Apocalypse{de}Apocalypse" or "{en}Dragon{ru}Dragon{zh-tw}Dragon{zh-cn}Dragon{ko}Dragon{es}Dragon{fr}Dragon{pt-br}Dragon{de}Dragon")
+						UI.setAttribute("TezlaScoreHeadingText","text",apocalypseHere and "{en}Apocalypse{ru}Апокалипсис{zh-tw}末日{zh-cn}末日{ko}아포칼립스{es}Apocalipsis{fr}Apocalypse{pt-br}Apocalipse{de}Apokalypse" or "{en}Dragon{ru}Дракон{zh-tw}巨龍{zh-cn}巨龙{ko}드래곤{es}Dragón{fr}Dragon{pt-br}Dragão{de}Drache")
 						local temp=pannel
 						pannel=1
 						UI.setAttribute("Tezla1ScoreCell","columnSpan","4")
@@ -11032,6 +11089,7 @@ function horsemanRestoreRuntimeState()
 		end
 	end
 	if gStates.gameScenario=="Against the Horsemen Blitz" and againstHorsemenRestoreScenarioState~=nil then againstHorsemenRestoreScenarioState() end
+	if gStates.gameScenario=="Apocalypse is Here" and apocalypseIsHereRestoreScenarioState~=nil then apocalypseIsHereRestoreScenarioState() end
 end
 
 --Scenario scoring uses the actual Horseman defeats rather than inventory reward tokens. This remains
@@ -11215,6 +11273,15 @@ end)
 __bundle_register("PlayingGame.ApocalypseDragon", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Shared Apocalypse Dragon entity, head-level and landed-combat helpers.
 -- Scenario-specific AI/turn rules remain in Scenario.lua.
+
+function syncDragonHeadAttackBonusDecal(tokenGUID,bonus)
+	local token=tokenGUID~=nil and getObjectFromGUID(tokenGUID) or nil
+	if token==nil then return false end
+	--The head tokens sit at 180 degrees, so positive local X is visually left.
+	--Keep the Control bonus centred vertically rather than using the Quest possessed-token offset.
+	combatSyncNamedAttackBonusDecal(token,"DragonAllAttack+",bonus,{1.1,0.15,0})
+	return true
+end
 
 function apocalypseDragonPossessSummonedEnemy(enemyGUID,target)
 	local enemy=getObjectFromGUID(enemyGUID)
@@ -13375,14 +13442,6 @@ function dungeonLordsSecretSourceFeature(secretName)
 	return nil
 end
 
-function dungeonLordsWorldHexDistance(fromPos,toPos)
-	if fromPos==nil or toPos==nil then return nil end
-	local function nearest(value) if value>=0 then return math.floor(value+0.5) end return math.ceil(value-0.5) end
-	local dHor=nearest((toPos[3]-fromPos[3])/2.0785)
-	local dVec=nearest(((toPos[1]-fromPos[1])/2.4)+(dHor/2))
-	return math.max(math.abs(dHor),math.abs(dVec),math.abs(dVec-dHor))
-end
-
 function dungeonLordsSecretSourcePosition(entry)
 	if type(entry)~="table" then return nil end
 	local terrain=entry.sourceTerrainGUID~=nil and getObjectFromGUID(entry.sourceTerrainGUID) or nil
@@ -13414,7 +13473,7 @@ function dungeonLordsFindAdjacentSecretSource(secretName,destinationPosition)
 				if feature==sourceFeature then
 					local xy=angleToXY(terrain,sourceBearing)
 					local sourcePos={xy[1],terrain.getPosition()[2],xy[2]}
-					if dungeonLordsWorldHexDistance(sourcePos,destinationPosition)==1 then
+					if runtimeMapWorldHexDistance(sourcePos,destinationPosition)==1 then
 						return {siteType=secretName,sourceTerrainGUID=terrain.guid,sourceBearing=tostring(sourceBearing),sourcePosition=sourcePos}
 					end
 				end
@@ -13431,7 +13490,7 @@ function dungeonLordsSecretDestinationLegal(terrain,bearing,request)
 	local normalized=request
 	if type(normalized)~="table" then normalized=dungeonLordsFindAdjacentSecretSource(dungeonLordsPendingSecretName(request),destinationPosition) end
 	local sourcePosition=dungeonLordsSecretSourcePosition(normalized)
-	if sourcePosition==nil or dungeonLordsWorldHexDistance(sourcePosition,destinationPosition)~=1 then return false,normalized end
+	if sourcePosition==nil or runtimeMapWorldHexDistance(sourcePosition,destinationPosition)~=1 then return false,normalized end
 	return true,normalized
 end
 
@@ -13579,449 +13638,6 @@ function apocalypseIsHereHorsemanPriorityDescription(ref)
 		"{en}Priority A: {ru}Приоритет A: {zh-tw}優先級 A：{zh-cn}优先级 A：{ko}우선순위 A: {es}Prioridad A: {fr}Priorité A : {pt-br}Prioridade A: {de}Priorität A: ",apocalypseIsHereHorsemanPriorityLocalizedList(data.priorityText.A),"\n",
 		"{en}Priority B: {ru}Приоритет B: {zh-tw}優先級 B：{zh-cn}优先级 B：{ko}우선순위 B: {es}Prioridad B: {fr}Priorité B : {pt-br}Prioridade B: {de}Priorität B: ",apocalypseIsHereHorsemanPriorityLocalizedList(data.priorityText.B),"\n",
 		"{en}Priority C: {ru}Приоритет C: {zh-tw}優先級 C：{zh-cn}优先级 C：{ko}우선순위 C: {es}Prioridad C: {fr}Priorité C : {pt-br}Prioridade C: {de}Priorität C: ",apocalypseIsHereHorsemanPriorityLocalizedList(data.priorityText.C),"\n\n"})
-end
-
---Small map tokens can legitimately share one hex. Keep enemy-like tokens slightly separated so
---each remains visible/clickable, while physical site markers stay underneath them.
---Enemy model origins depend on face orientation: face-up rests at Y 1.08, face-down at Y 1.18.
---Each physical token layer below adds 0.10. A Graveyard itself rests centred at Y 1.08 and raises
---an enemy resting on it by 0.08 (face-up Y 1.16, face-down Y 1.26). Destroyed Site has the same
---top surface as a face-up enemy but its model origin is 0.05 higher, so its map-floor origin is Y 1.13.
-local mapTokenArrangeGeneration={}
---One pending generation per arriving token deduplicates map-zone callbacks and scripted moves.
-local mapTokenArrivalPending={}
---Arrival order only needs to exist while this Lua session is running. After a load, the already-laid-out
---physical diagonal is the source of truth until a token genuinely arrives again.
-local mapTokenArrivalCounter=0
-local mapTokenRuntimeArrivalOrder={}
-
-function mapTokenHasPendingArrival(guid)
-	return guid~=nil and mapTokenArrivalPending[guid]~=nil
-end
-local mapTokenSpreadSpacing=0.20
-local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
-local mapTokenEnemyFaceUpBaseY=1.08
-local mapTokenEnemyFaceDownBaseY=1.18
-local mapTokenGraveyardBaseY=1.08
-local mapTokenGraveyardSupportY=0.08
-local mapTokenDestroyedBaseY=1.13
-local mapTokenStackStepY=0.10
-
---The model pivot moves by one token thickness when an enemy is flipped. Stack height therefore
---starts from the orientation-specific resting origin, then adds one physical layer per earlier slot.
-local function mapTokenEnemySlotY(obj,index,supportY)
-	index=math.max(1,tonumber(index) or 1)
-	local baseY=(obj~=nil and obj.is_face_down==true) and mapTokenEnemyFaceDownBaseY or mapTokenEnemyFaceUpBaseY
-	return baseY+(tonumber(supportY) or 0)+((index-1)*mapTokenStackStepY)
-end
-
---Normalize an enemy's origin height before using it as the fallback physical stack order. Without
---this, a face-down token looks one whole layer higher even when it is resting directly on the map.
-local function mapTokenEnemyPhysicalLayerY(obj)
-	if obj==nil then return 0 end
-	local y=obj.getPosition()[2]
-	if obj.is_face_down==true then y=y-mapTokenStackStepY end
-	return y
-end
-
---Return an evenly spaced WORLD-space point on one diagonal through the hex centre.
---The group is always centred: 3 tokens are -1/0/+1 steps, 4 are -1.5/-0.5/+0.5/+1.5.
---The tested table orientation is -X/-Z for the lower/older (visual bottom-left) end and
---+X/+Z for the higher/newest (visual upper-right) end.
-local function mapTokenSpreadOffset(index,count)
-	count=math.max(1,tonumber(count) or 1)
-	index=math.max(1,math.min(count,tonumber(index) or 1))
-	local steps=((count+1)/2)-index
-	local component=-steps*mapTokenSpreadDiagonalComponent
-	return {x=component,z=component}
-end
-
-function mapTokenIsDestroyedSite(obj)
-	return obj~=nil and obj.getGMNotes~=nil and obj.getGMNotes()=="Destroyed"
-end
-
-function mapTokenIsGraveyard(obj)
-	return obj~=nil and obj.getName~=nil and obj.getName()=="GraveYard"
-end
-
-function mapTokenIsBaseSite(obj)
-	--Graveyards and Destroyed Sites are floor tokens. Ruins participate in the enemy diagonal.
-	return mapTokenIsGraveyard(obj)==true or mapTokenIsDestroyedSite(obj)==true
-end
-
-function mapTokenIsSpreadEnemy(obj)
-	if obj==nil then return false end
-	if apocalypseDragon~=nil and obj.guid==apocalypseDragon.furyMarker then return true end
-	local details=monsterPugs~=nil and monsterPugs[obj.guid] or nil
-	if details==nil then return false end
-	--Possessed markers are physically linked overlays, not independent tokens. Ruins are spread normally.
-	if details.pugType=="possessed" then return false end
-	return true
-end
-
-function mapTokenNeedsArrangement(obj)
-	return mapTokenIsSpreadEnemy(obj)==true or mapTokenIsBaseSite(obj)==true
-end
-
---Horsemen, the single-hex Fury Dragon and Pursuit monsters are always the moving/top group.
---Their own arrival order still matters when more than one moving token shares a hex.
-function mapTokenIsMovingPriority(obj)
-	if obj==nil or obj.guid==nil then return false end
-	if horsemanTokenToName~=nil and horsemanTokenToName[obj.guid]~=nil then return true end
-	if apocalypseDragon~=nil and obj.guid==apocalypseDragon.furyMarker then return true end
-	for _,monsters in pairs(gStates~=nil and gStates.pursuingMonsters or {}) do
-		if monsters~=nil and monsters[obj.guid]~=nil then return true end
-	end
-	return false
-end
-
---New arrivals need deterministic ordering when several tokens settle together, but that ordering is
---derived table state and does not belong in gStates. Existing tokens after a load fall back to their
---physical diagonal/Y order; a new arrival gets a fresh runtime sequence and is newer than either.
-local function mapTokenRecordArrival(guid)
-	if guid==nil then return nil end
-	mapTokenArrivalCounter=mapTokenArrivalCounter+1
-	mapTokenRuntimeArrivalOrder[guid]=mapTokenArrivalCounter
-	return mapTokenArrivalCounter
-end
-
-local function mapTokenArrivalOrder(guid)
-	if guid==nil then return nil end
-	return mapTokenRuntimeArrivalOrder[guid]
-end
-
-local function mapTokenOnHex(obj,hex)
-	if obj==nil or hex==nil or hex.position==nil then return false end
-	local pos=obj.getPosition()
-	local dx=pos[1]-hex.position[1]
-	local dz=pos[3]-hex.position[3]
-	return (dx*dx)+(dz*dz)<1.5
-end
-
---Smooth separator moves stay inside the map zone and never unlock their participants, so one
---per-object arrival generation is sufficient; the old whole-stack claim/relock layers are unnecessary.
-function mapTokenAfterSettled(guid,callback)
-	if guid==nil or callback==nil then return end
-	safeWaitCondition("Scenario",function()
-		safeWaitFrames("Scenario",function()
-			safeWaitCondition("Scenario",function()
-				callback(getObjectFromGUID(guid))
-			end,function()
-				local obj=getObjectFromGUID(guid)
-				return obj==nil or obj.resting==true
-			end,5,function()
-				callback(getObjectFromGUID(guid))
-			end)
-		end,1)
-	end,function()
-		local obj=getObjectFromGUID(guid)
-		return obj==nil or obj.isSmoothMoving()==false
-	end,5,function()
-		callback(getObjectFromGUID(guid))
-	end)
-end
-
-local function mapTokenUpdatePlayLocation(obj,pos)
-	if obj==nil or pos==nil or gStates==nil or gStates.monsterPlayLocation==nil then return end
-	if gStates.monsterPlayLocation[obj.guid]~=nil then
-		gStates.monsterPlayLocation[obj.guid]={pos[1],pos[2],pos[3]}
-	end
-end
-
---Smooth one token to its final shared-hex slot. Scripted transforms work on locked objects, so the
---separator never unlocks/relocks pieces just to correct X/Z/Y. collide=false also prevents the small
---separation movement from physically shoving another token in the same stack.
-local function mapTokenMoveToSlot(obj,targetX,targetY,targetZ)
-	if obj==nil then return false end
-	local pos=obj.getPosition()
-	if obj.isSmoothMoving()==true then return false end
-	local already=math.abs(pos[1]-targetX)<0.025 and math.abs(pos[2]-targetY)<0.025 and math.abs(pos[3]-targetZ)<0.025
-	if already==true then return false end
-	obj.setPositionSmooth({targetX,targetY,targetZ},false)
-	mapTokenUpdatePlayLocation(obj,{targetX,targetY,targetZ})
-	return true
-end
-
---Arrange one resolved map hex. Graveyard is a centred floor/support token and never consumes a
---horizontal spread slot. Destroyed, when present, is the first spread token above that support.
---Ordinary enemies follow in arrival order. Horsemen, the single-hex Dragon and pursuing enemies
---form the moving group at the top-right end, also in arrival order.
-function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
-	if hex==nil or hex.position==nil then return false end
-	local objects={}
-	local seen={}
-	for _,obj in pairs(mapObjects or {}) do
-		if obj~=nil and obj.guid~=ignoreGUID and mapTokenOnHex(obj,hex)==true and mapTokenNeedsArrangement(obj)==true then
-			objects[#objects+1]=obj
-			seen[obj.guid]=true
-		end
-	end
-	if extraObject~=nil and extraObject.guid~=ignoreGUID and seen[extraObject.guid]~=true and mapTokenNeedsArrangement(extraObject)==true then
-		objects[#objects+1]=extraObject
-		seen[extraObject.guid]=true
-	end
-
-	local graveyard=nil
-	local destroyed=nil
-	local enemies={}
-	for _,obj in ipairs(objects) do
-		if mapTokenIsGraveyard(obj)==true then
-			if graveyard==nil then graveyard=obj end
-		elseif mapTokenIsDestroyedSite(obj)==true then
-			if destroyed==nil then destroyed=obj end
-		elseif mapTokenIsSpreadEnemy(obj)==true then
-			enemies[#enemies+1]=obj
-		end
-	end
-	table.sort(enemies,function(a,b)
-		local aMoving=mapTokenIsMovingPriority(a)
-		local bMoving=mapTokenIsMovingPriority(b)
-		--Ordinary/site enemies always precede the moving group, regardless of which one physically
-		--arrived later. This keeps a pre-deployed Horseman above a site token revealed afterward.
-		if aMoving~=bMoving then return aMoving~=true end
-
-		local aOrder=mapTokenArrivalOrder(a.guid)
-		local bOrder=mapTokenArrivalOrder(b.guid)
-		if aOrder~=bOrder then
-			--An unrecorded token is necessarily older than a newly recorded arrival in this game.
-			if aOrder==nil then return true end
-			if bOrder==nil then return false end
-			return aOrder<bOrder
-		end
-
-		--Fallback only for tokens with no distinct recorded arrival (for example pieces already present
-		--when this layout first runs). Preserve an existing diagonal, then physical low-to-high stack order.
-		local ap=a.getPosition()
-		local bp=b.getPosition()
-		local aProjection=ap[1]+ap[3]
-		local bProjection=bp[1]+bp[3]
-		if math.abs(aProjection-bProjection)>0.05 then return aProjection<bProjection end
-		local aLayerY=mapTokenEnemyPhysicalLayerY(a)
-		local bLayerY=mapTokenEnemyPhysicalLayerY(b)
-		if math.abs(aLayerY-bLayerY)>0.01 then return aLayerY<bLayerY end
-		return tostring(a.guid)<tostring(b.guid)
-	end)
-
-	local centerX,centerZ=hex.position[1],hex.position[3]
-	local changed=false
-	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
-	local supportY=graveyard~=nil and mapTokenGraveyardSupportY or 0
-
-	--Graveyard is always centred under the stack and does not participate in the diagonal spread.
-	--Preserve its current face; the Graveyard scenarios deliberately deploy different face orientations.
-	if graveyard~=nil then
-		changed=mapTokenMoveToSlot(graveyard,centerX,mapTokenGraveyardBaseY,centerZ) or changed
-	end
-
-	--Destroyed is the lowest spread token. The scenarios currently cannot combine it with a Graveyard,
-	--but if they ever do, the Graveyard remains underneath and raises Destroyed by the same support height.
-	if destroyed~=nil then
-		local offset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
-		local targetX,targetZ=centerX+offset.x,centerZ+offset.z
-		local targetY=mapTokenDestroyedBaseY+supportY
-		destroyed.setRotation({0,180,0})
-		changed=mapTokenMoveToSlot(destroyed,targetX,targetY,targetZ) or changed
-	end
-
-	if #enemies<1 then return changed end
-	for _,obj in ipairs(enemies) do if obj.isSmoothMoving()==true then return changed end end
-
-	--A lone enemy stays centred. Graveyard raises its measured resting origin from 1.08/1.18
-	--to 1.16/1.26; with no Graveyard the existing floor heights remain unchanged.
-	if destroyed==nil and #enemies==1 then
-		changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenEnemySlotY(enemies[1],1,supportY),centerZ) or changed
-		return changed
-	end
-
-	local firstEnemyIndex=destroyed~=nil and 2 or 1
-	for index,obj in ipairs(enemies) do
-		local spreadIndex=firstEnemyIndex+index-1
-		local offset=mapTokenSpreadOffset(spreadIndex,spreadCount)
-		changed=mapTokenMoveToSlot(obj,centerX+offset.x,mapTokenEnemySlotY(obj,spreadIndex,supportY),centerZ+offset.z) or changed
-	end
-	return changed
-end
-
-function mapTokenArrangeObject(guid)
-	local obj=guid~=nil and getObjectFromGUID(guid) or nil
-	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
-	local hexes,mapObjects=apocalypseQuestMapHexes()
-	local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
-	if hex==nil then return false end
-	return mapTokenArrangeHex(hex,mapObjects,nil,obj)
-end
-
---Terrain population records the intended destination in monsterPlayLocation immediately after a token
---is taken from its pile. The token can cross another revealed hex while travelling there, so a passive
---map-zone event must not treat that intermediate position as its final hex and snap it into that stack.
-local function mapTokenPassiveArrivalReachedPlannedHex(obj)
-	if obj==nil or obj.guid==nil or gStates==nil or gStates.monsterPlayLocation==nil then return true end
-	local planned=gStates.monsterPlayLocation[obj.guid]
-	if planned==nil then return true end
-	local hexes,mapObjects=apocalypseQuestMapHexes()
-	local plannedHex=apocalypseQuestHexForPosition(hexes,planned,mapObjects)
-	--A recorded destination outside the revealed map means this map-zone entry is only transit.
-	if plannedHex==nil then return false end
-	local currentHex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
-	if currentHex==nil then return false end
-	return apocalypseQuestMapHexKey(currentHex)==apocalypseQuestMapHexKey(plannedHex)
-end
-
---All map-token arrivals use this one settle path. A scripted mover registers before crossing the
---map zone; a physical drop is normally registered by the map-zone entry itself. Each token can own
---only one pending generation, so duplicate callbacks become no-ops without claiming the whole stack.
-function mapTokenSettleArrival(guid,target,options,callback)
-	options=options or {}
-	if guid==nil then return false end
-	local obj=getObjectFromGUID(guid)
-	if obj==nil then return false end
-
-	--A scripted move first releases the old hex so survivors can close up. force is reserved for
-	--authoritative scripted deployments that may be reusing an object with a stale passive arrival.
-	if options.releaseOrigin==true then
-		mapTokenReleaseObject(obj)
-	elseif options.force==true then
-		mapTokenArrivalPending[guid]=nil
-		mapTokenArrangeGeneration[guid]=(mapTokenArrangeGeneration[guid] or 0)+1
-	end
-	if mapTokenArrivalPending[guid]~=nil then return false end
-
-	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
-	mapTokenArrangeGeneration[guid]=generation
-	mapTokenArrivalPending[guid]=generation
-	mapTokenRecordArrival(guid)
-
-	if target~=nil then
-		--Scripted transforms work while locked, so preserve the object's lock state throughout.
-		if options.rotation~=nil then obj.setRotation(options.rotation) end
-		obj.setPositionSmooth(target,false)
-	end
-
-	mapTokenAfterSettled(guid,function(current)
-		--A newer arrival/release for this same object wins.
-		if mapTokenArrivalPending[guid]~=generation then
-			if callback~=nil then callback(current,false) end
-			return
-		end
-		if current==nil then
-			mapTokenArrivalPending[guid]=nil
-			if callback~=nil then callback(nil,false) end
-			return
-		end
-
-		--A token travelling across the map can enter the scripting zone above the wrong hex. Only passive
-		--zone arrivals need this check; the explicit mover already knows its intended destination.
-		if options.passive==true and mapTokenPassiveArrivalReachedPlannedHex(current)~=true then
-			mapTokenArrivalPending[guid]=nil
-			if callback~=nil then callback(current,false) end
-			return
-		end
-
-		--A destructive mover can defer its own spread until the replacement Destroyed Site arrives,
-		--avoiding an intermediate arrange that would immediately be invalidated.
-		local arranged=false
-		if options.deferArrange~=true then arranged=mapTokenArrangeObject(guid) end
-		--Keep this generation pending until any final smooth separator correction has settled. This also
-		--makes the delayed onObjectDrop fallback a guaranteed no-op when the map-zone path already owns it.
-		mapTokenAfterSettled(guid,function(finalObj)
-			if mapTokenArrivalPending[guid]==generation then mapTokenArrivalPending[guid]=nil end
-			if callback~=nil then callback(finalObj,arranged) end
-		end)
-	end)
-	return true
-end
-
---The map-zone entry is the normal physical-arrival trigger. onObjectDrop only calls this later as
---insurance for a token that entered the short map zone while it was still being held.
-function mapTokenScheduleObject(guid)
-	return mapTokenSettleArrival(guid,nil,{passive=true})
-end
-
---Run work only after the token's complete arrival transaction has finished, including any final
---separator correction. This is intentionally later than mapTokenAfterSettled(), which is also used
---inside mapTokenSettleArrival while its generation is still pending.
-function mapTokenAfterArrivalComplete(guid,callback)
-	if guid==nil or callback==nil then return end
-	safeWaitCondition("Scenario.mapTokenArrivalComplete",function()
-		callback(getObjectFromGUID(guid))
-	end,function()
-		local obj=getObjectFromGUID(guid)
-		return obj==nil or (mapTokenArrivalPending[guid]==nil and obj.isSmoothMoving()==false and obj.resting==true)
-	end)
-end
-
---Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
---remaining lone enemy and keeps a Destroyed Site marker fixed underneath anything still on the hex.
-function mapTokenReleaseObject(obj)
-	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
-	local position=obj.getPosition()
-	local ignoreGUID=obj.guid
-	--Invalidate delayed arrival/manual-drop work for the object now being carried away.
-	mapTokenArrivalPending[ignoreGUID]=nil
-	mapTokenArrangeGeneration[ignoreGUID]=(mapTokenArrangeGeneration[ignoreGUID] or 0)+1
-	safeWaitFrames("Scenario",function()
-		local hexes,mapObjects=apocalypseQuestMapHexes()
-		local hex=apocalypseQuestHexForPosition(hexes,position,mapObjects)
-		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID,nil) end
-	end,1)
-	return true
-end
-
-local mapTokenTerrainReconcilePending={}
-
-local function mapTokenTerrainReadyForReconcile(terrainGUID)
-	local hexes,mapObjects=apocalypseQuestMapHexes()
-	for _,obj in pairs(mapObjects or {}) do
-		if mapTokenNeedsArrangement(obj)==true then
-			local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
-			if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
-				if mapTokenArrivalPending[obj.guid]~=nil or obj.isSmoothMoving()==true or obj.resting~=true then return false end
-			end
-		end
-	end
-	return true
-end
-
-local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
-	local hexes,mapObjects=apocalypseQuestMapHexes()
-	local touched={}
-	for _,obj in pairs(mapObjects or {}) do
-		if mapTokenNeedsArrangement(obj)==true then
-			local hex=apocalypseQuestHexForPosition(hexes,obj.getPosition(),mapObjects)
-			local key=hex~=nil and apocalypseQuestMapHexKey(hex) or nil
-			--Terrain completion only reconciles shared stacks on the tile that just finished population.
-			if hex~=nil and key~=nil and touched[key]~=true and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
-				touched[key]=true
-				local participantCount=0
-				for _,candidate in pairs(mapObjects or {}) do
-					if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true then
-						participantCount=participantCount+1
-					end
-				end
-				--A lone token has nothing to separate. Leaving it alone avoids the old Keep/Mage Tower shimmer.
-				if participantCount>1 then mapTokenArrangeHex(hex,mapObjects,nil,nil) end
-			end
-		end
-	end
-	return true
-end
-
-function mapTokenArrangeAllOccupiedHexes(terrainGUID)
-	if terrainGUID==nil or mapTokenTerrainReadyForReconcile(terrainGUID)==true then
-		return mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
-	end
-	if mapTokenTerrainReconcilePending[terrainGUID]==true then return false end
-	mapTokenTerrainReconcilePending[terrainGUID]=true
-	local function finish()
-		mapTokenTerrainReconcilePending[terrainGUID]=nil
-		mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
-	end
-	--Script-deployed enemies can still be falling when terrain population code itself is finished.
-	--Wait for their own arrival/separator work to finish, then perform one final shared-stack pass.
-	safeWaitCondition("Scenario",finish,function()
-		return mapTokenTerrainReadyForReconcile(terrainGUID)
-	end,5,finish)
-	return false
 end
 
 function againstHorsemenAllDefeated()
@@ -14267,29 +13883,14 @@ function againstHorsemenGladePosition()
 	return {xy[1],1.45,xy[2]}
 end
 
-function againstHorsemenGridFromPosition(position,center)
-	if position==nil or center==nil then return nil,nil end
-	local r=math.floor(((position[3]-center[3])/2.0785)+0.5)
-	local q=math.floor(((position[1]-center[1])/2.4)+(r/2)+0.5)
-	return q,r
-end
-
-function againstHorsemenGridDistance(q,r)
-	return math.max(math.abs(q),math.abs(r),math.abs(q-r))
-end
-
 function againstHorsemenInlineGridDistance(q,r)
 	return math.min(math.abs(q),math.abs(r),math.abs(q-r))
 end
 
-function againstHorsemenGridPosition(q,r,center,y)
-	return {center[1]+(2.4*(q-(r/2))),y or 1.45,center[3]+(2.0785*r)}
-end
-
 function againstHorsemenDefaultNextPosition(position,center)
-	local q,r=againstHorsemenGridFromPosition(position,center)
+	local q,r=runtimeMapWorldToAxial(position,center)
 	if q==nil or r==nil or (q==0 and r==0) then return nil end
-	local currentCenter=againstHorsemenGridDistance(q,r)
+	local currentCenter=runtimeMapAxialDistance(q,r)
 	local currentInline=againstHorsemenInlineGridDistance(q,r)
 	local neighbours={{1,0},{-1,0},{0,1},{0,-1},{1,1},{-1,-1}}
 	local bestQ,bestR=nil,nil
@@ -14298,7 +13899,7 @@ function againstHorsemenDefaultNextPosition(position,center)
 		local nq=q+offset[1]
 		local nr=r+offset[2]
 		local inline=againstHorsemenInlineGridDistance(nq,nr)
-		local centerDistance=againstHorsemenGridDistance(nq,nr)
+		local centerDistance=runtimeMapAxialDistance(nq,nr)
 		local legal=false
 		if currentInline==0 then
 			--Already on one of the three lines through the Glade: stay on it and go straight inward.
@@ -14314,7 +13915,7 @@ function againstHorsemenDefaultNextPosition(position,center)
 		end
 	end
 	if bestQ==nil then return nil end
-	return againstHorsemenGridPosition(bestQ,bestR,center,1.45)
+	return runtimeMapAxialToWorld(bestQ,bestR,center,1.45)
 end
 
 function againstHorsemenFinalizeMoveWave()
@@ -14524,16 +14125,16 @@ end
 
 function apocalypseIsHerePositionRoundOrderToken()
 	if apocalypseIsHereActive()~=true then return false end
-	local token=getObjectFromGUID("9ba54f")
+	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 	local target={-1.90,0.97,-22.20}
-	if token==nil and bag~=nil then token=bag.takeObject({guid="9ba54f",position=target,rotation={0,180,0},smooth=false}) end
+	if token==nil and bag~=nil then token=bag.takeObject({guid=apocalypseDragon.roundOrder,position=target,rotation={0,180,0},smooth=false}) end
 	if token==nil then return false end
 	token.unlock()
 	token.setRotation({0,180,0})
 	token.setPositionSmooth(target,false,true)
-	safeWaitCondition("Scenario",function() local current=getObjectFromGUID("9ba54f") if current~=nil then current.lock() end end,
-		function() local current=getObjectFromGUID("9ba54f") return current==nil or current.isSmoothMoving()==false end)
+	safeWaitCondition("Scenario",function() local current=getObjectFromGUID(apocalypseDragon.roundOrder) if current~=nil then current.lock() end end,
+		function() local current=getObjectFromGUID(apocalypseDragon.roundOrder) return current==nil or current.isSmoothMoving()==false end)
 	return true
 end
 
@@ -14557,6 +14158,7 @@ function apocalypseIsHereSetup()
 	gStates.apocalypseHereHorsemenQueue={}
 	gStates.apocalypseHereHorsemenQueueIndex=1
 	gStates.apocalypseHereHorsemanPendingChoice=nil
+	gStates.apocalypseHereHorsemanAction=nil
 	gStates.apocalypseHerePossessedPending={}
 	gStates.apocalypseHereDragonCityRevealed=false
 	gStates.apocalypseDragonAssaultFortifiedInitiator=false
@@ -14588,69 +14190,117 @@ function apocalypseIsHereRevealThreshold(index)
 	return thresholds[index]
 end
 
+function apocalypseIsHereRecomputeNextHorseman()
+	local order=gStates.apocalypseHereHorsemanOrder or {}
+	for index,name in ipairs(order) do
+		local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+		if state~=nil and state.revealed~=true and state.retired~=true and state.defeated~=true and state.revealPending~=true then
+			gStates.apocalypseHereNextHorseman=index
+			return index
+		end
+	end
+	gStates.apocalypseHereNextHorseman=#order+1
+	return gStates.apocalypseHereNextHorseman
+end
+
+function apocalypseIsHereCancelReservedReveal(state)
+	if state==nil then return false end
+	local forced=state.revealForced==true
+	state.revealPending=nil
+	state.revealForced=nil
+	state.revealIndex=nil
+	if forced==true then
+		gStates.apocalypseHereForcedRevealCount=(tonumber(gStates.apocalypseHereForcedRevealCount) or 0)+1
+		gStates.apocalypseHereForcedRevealPending=true
+		if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Horseman reveal restored") end
+	end
+	apocalypseIsHereRecomputeNextHorseman()
+	return true
+end
+
+function apocalypseIsHereDeployReservedHorseman(name)
+	if apocalypseIsHereActive()~=true then return false end
+	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	local data=horsemanData~=nil and horsemanData[name] or nil
+	if state==nil or data==nil or state.revealPending~=true then return false end
+	local tileGUID=state.revealTileGUID
+	local index=tonumber(state.revealIndex) or tonumber(state.mapSlot) or 1
+	local forced=state.revealForced==true
+	local currentTile=tileGUID~=nil and getObjectFromGUID(tileGUID) or nil
+	if currentTile==nil then
+		apocalypseIsHereCancelReservedReveal(state)
+		print("HORSEMAN REVEAL ERROR: terrain tile "..tostring(tileGUID).." disappeared before "..tostring(name).." could deploy")
+		return false
+	end
+	local xy=angleToXY(currentTile,"center")
+	local tilePos=currentTile.getPosition()
+	local target={xy[1],tilePos[2]+1.0,xy[2]}
+	local token=getObjectFromGUID(data.tokenGUID)
+	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+	if token==nil and bag~=nil then token=bag.takeObject({guid=data.tokenGUID,position={target[1],target[2]+1.0,target[3]},rotation={0,180,0},smooth=false}) end
+	if token==nil then
+		apocalypseIsHereCancelReservedReveal(state)
+		print("HORSEMAN REVEAL ERROR: "..tostring(name).." token is missing")
+		return false
+	end
+
+	setHorsemanLevel(name,state.level,false)
+	token=getObjectFromGUID(data.tokenGUID) or token
+	local started=mapTokenSettleArrival(token.guid,target,{force=true,rotation={0,180,0}})
+	if started~=true then
+		apocalypseIsHereCancelReservedReveal(state)
+		print("HORSEMAN REVEAL ERROR: "..tostring(name).." could not start its deployment")
+		return false
+	end
+
+	state.revealPending=nil
+	state.revealForced=nil
+	state.revealIndex=nil
+	state.revealed=true
+	apocalypseIsHereRecomputeNextHorseman()
+
+	local card=getObjectFromGUID(data.cardGUID)
+	if card~=nil then
+		card.unlock()
+		card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,0.40},false,false)
+		if card.is_face_down==true then card.flip() end
+	end
+	broadcastToAll(joinLang({name,"{en} has been revealed at Level {ru} раскрыт на уровне {zh-tw} 已揭示，等級 {zh-cn} 已揭示，等级 {ko} 공개됨. 레벨 {es} ha sido revelado en Nivel {fr} a été révélé au Niveau {pt-br} foi revelado no Nível {de} wurde auf Stufe ",tostring(state.level),forced==true and "{en} by the Round deadline.{ru} из-за срока раунда.{zh-tw}，因回合輪期限而揭示。{zh-cn}，因回合轮期限而揭示。{ko}, 라운드 기한으로 공개되었습니다.{es} por el límite de la Ronda.{fr} en raison de la limite de la Manche.{pt-br} pelo limite da Rodada.{de} aufgrund der Rundenfrist aufgedeckt." or "."}),{1,0.75,0.2})
+	return true
+end
+
 function apocalypseIsHereRevealNextHorseman(tile,forced)
 	if apocalypseIsHereActive()~=true or gStates.apocalypseHereHorsemenEnded==true or tile==nil then return false end
 	local index=tonumber(gStates.apocalypseHereNextHorseman) or 1
 	local name=(gStates.apocalypseHereHorsemanOrder or {})[index]
 	local data=name~=nil and horsemanData[name] or nil
 	local state=name~=nil and gStates.horsemen[name] or nil
-	if data==nil or state==nil then return false end
+	if data==nil or state==nil or state.revealPending==true or state.revealed==true then return false end
 
-	--Reserve this reveal immediately so another rapidly explored tile cannot queue the same Horseman.
-	--The physical move waits for this terrain tile's ordinary site/enemy population to finish; that
-	--makes the Horseman the final moving token on the hex, so the one arrival spread keeps it on top.
+	--Reserve the reveal so rapid exploration may reserve the next Horseman too. If physical deployment
+	--fails, the reservation and any forced-reveal count are rolled back rather than silently consuming it.
 	local tileGUID=tile.guid
 	state.revealPending=true
+	state.revealForced=forced==true
+	state.revealIndex=index
 	state.retired=false
 	state.terrainGUID=tileGUID
 	state.bearing="center"
 	state.revealTileGUID=tileGUID
 	state.revealCount=gStates.apocalypseHereTilesRevealed
-	gStates.apocalypseHereNextHorseman=index+1
-
-	if gStates.apocalypseHereForcedRevealPending==true then
+	if forced==true then
 		gStates.apocalypseHereForcedRevealCount=math.max(0,(tonumber(gStates.apocalypseHereForcedRevealCount) or 1)-1)
 		gStates.apocalypseHereForcedRevealPending=gStates.apocalypseHereForcedRevealCount>0
-		if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Horseman exploration resolved") end
+		if gStates.preEndTurn==true and mainUIUpdate~=nil then mainUIUpdate("Horseman exploration reserved") end
 	end
+	apocalypseIsHereRecomputeNextHorseman()
 
 	local deployed=false
 	local function deploy()
 		if deployed==true then return end
 		deployed=true
-		local currentTile=getObjectFromGUID(tileGUID)
-		if currentTile==nil then
-			state.revealPending=nil
-			print("HORSEMAN REVEAL ERROR: terrain tile "..tostring(tileGUID).." disappeared before "..tostring(name).." could deploy")
-			return
-		end
-		local xy=angleToXY(currentTile,"center")
-		local tilePos=currentTile.getPosition()
-		local target={xy[1],tilePos[2]+1.0,xy[2]}
-		local token=getObjectFromGUID(data.tokenGUID)
-		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-		if token==nil and bag~=nil then token=bag.takeObject({guid=data.tokenGUID,position={target[1],target[2]+1.0,target[3]},rotation={0,180,0},smooth=false}) end
-		if token==nil then
-			state.revealPending=nil
-			print("HORSEMAN REVEAL ERROR: "..tostring(name).." token is missing")
-			return
-		end
-
-		setHorsemanLevel(name,state.level,false)
-		token=getObjectFromGUID(data.tokenGUID) or token
-		state.revealPending=nil
-		state.revealed=true
-		mapTokenSettleArrival(token.guid,target,{force=true,rotation={0,180,0}})
-
-		local card=getObjectFromGUID(data.cardGUID)
-		if card~=nil then
-			card.unlock()
-			card.setPositionSmooth({-69.80+((index-1)*5.90),0.98,0.40},false,true)
-			if card.is_face_down==true then card.flip() end
-		end
-		broadcastToAll(joinLang({name,"{en} has been revealed at Level {ru} раскрыт на уровне {zh-tw} 已揭示，等級 {zh-cn} 已揭示，等级 {ko} 공개됨. 레벨 {es} ha sido revelado en Nivel {fr} a été révélé au Niveau {pt-br} foi revelado no Nível {de} wurde auf Stufe ",tostring(state.level),forced==true and "{en} by the Round deadline.{ru} из-за срока раунда.{zh-tw}，因回合輪期限而揭示。{zh-cn}，因回合轮期限而揭示。{ko}, 라운드 기한으로 공개되었습니다.{es} por el límite de la Ronda.{fr} en raison de la limite de la Manche.{pt-br} pelo limite da Rodada.{de} aufgrund der Rundenfrist aufgedeckt." or "."}),{1,0.75,0.2})
+		apocalypseIsHereDeployReservedHorseman(name)
 	end
-
 	if workingOnTerrain~=nil and workingOnTerrain[tileGUID]==true then
 		--Do not time this out: the Horseman must remain the final arrival even on a slow machine.
 		safeWaitCondition("Scenario",deploy,function() return workingOnTerrain[tileGUID]~=true end)
@@ -14707,7 +14357,7 @@ end
 
 function apocalypseIsHerePossessRampagersOnTile(tileGUID)
 	if apocalypseIsHereActive()~=true or tileGUID==nil then return end
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	for _,hex in ipairs(hexes) do
 		if hex.terrainGUID==tileGUID and (hex.feature=="rampaging" or hex.feature=="draconum") then
 			for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
@@ -14748,9 +14398,9 @@ function apocalypseIsHereRevealDragonCity(tile)
 	end
 	local target={positions[1][1],1.18,positions[1][3]}
 	gStates.apocalypseDragonLair={tileGUID=tile.guid,hexes=hexes,position=target,rotation=dragonRotation,cityHexKey=tile.guid.."|"..tostring(hexes[1].bearing)}
-	local dragon=getObjectFromGUID("105141")
+	local dragon=getObjectFromGUID(apocalypseDragon.model)
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	if dragon==nil and bag~=nil then dragon=bag.takeObject({guid="105141",position=target,rotation=dragonRotation,smooth=false})
+	if dragon==nil and bag~=nil then dragon=bag.takeObject({guid=apocalypseDragon.model,position=target,rotation=dragonRotation,smooth=false})
 	elseif dragon~=nil then dragon.unlock() dragon.setRotationSmooth(dragonRotation,false,true) dragon.setPositionSmooth(target,false,true) end
 	if dragon~=nil then apocalypseDragonLockModelWhenSettled() end
 	safeWaitFrames("Scenario",function() apocalypseIsHerePossessRampagersOnTile(tile.guid) end,35)
@@ -14795,7 +14445,7 @@ function apocalypseIsHereCurrentHorsemanHex(name,hexes)
 	local terrain,bearing=terrainHexAtPosition(token.getPosition())
 	if terrain~=nil and bearing~=nil then state.terrainGUID=terrain.guid state.bearing=bearing end
 	local key=tostring(state.terrainGUID).."|"..tostring(state.bearing)
-	for _,hex in ipairs(hexes or {}) do if apocalypseQuestMapHexKey(hex)==key then return hex end end
+	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
 	return nil
 end
 
@@ -14803,10 +14453,10 @@ function apocalypseIsHereHorsemanTargetOptions(name)
 	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
 	local data=horsemanData~=nil and horsemanData[name] or nil
 	if state==nil or data==nil or state.defeated==true or state.retired==true then return {} end
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local startHex=apocalypseIsHereCurrentHorsemanHex(name,hexes)
 	if startHex==nil then return {} end
-	local distances=apocalypseQuestHexDistanceMap(hexes,{startHex})
+	local distances=runtimeMapHexDistanceMap(hexes,{startHex})
 	for _,priority in ipairs({"A","B","C"}) do
 		local wanted={}
 		for _,feature in ipairs(data.priorities[priority] or {}) do wanted[feature]=true end
@@ -14823,9 +14473,9 @@ function apocalypseIsHereHorsemanTargetOptions(name)
 				end
 			end
 			if eligible then
-				local distance=distances[apocalypseQuestMapHexKey(hex)]
-				if distance~=nil and (best==nil or distance<best) then best=distance options={{key=apocalypseQuestMapHexKey(hex),hex=hex,distance=distance,priority=priority}}
-				elseif distance~=nil and distance==best then options[#options+1]={key=apocalypseQuestMapHexKey(hex),hex=hex,distance=distance,priority=priority} end
+				local distance=distances[runtimeMapHexKey(hex)]
+				if distance~=nil and (best==nil or distance<best) then best=distance options={{key=runtimeMapHexKey(hex),hex=hex,distance=distance,priority=priority}}
+				elseif distance~=nil and distance==best then options[#options+1]={key=runtimeMapHexKey(hex),hex=hex,distance=distance,priority=priority} end
 			end
 		end
 		if #options>0 then table.sort(options,function(a,b) return a.key<b.key end) return options,startHex,hexes,mapObjects end
@@ -14835,10 +14485,10 @@ end
 
 function apocalypseIsHereHorsemanDestination(startHex,targetHex,hexes,horsemanName,mapObjects)
 	if startHex==nil or targetHex==nil then return startHex end
-	local fromTarget=apocalypseQuestHexDistanceMap(hexes,{targetHex})
+	local fromTarget=runtimeMapHexDistanceMap(hexes,{targetHex})
 	local current=startHex
 	for _=1,2 do
-		local currentDistance=fromTarget[apocalypseQuestMapHexKey(current)]
+		local currentDistance=fromTarget[runtimeMapHexKey(current)]
 		if currentDistance==nil or currentDistance<=0 then break end
 		local choices={}
 		local occupied={}
@@ -14847,7 +14497,7 @@ function apocalypseIsHereHorsemanDestination(startHex,targetHex,hexes,horsemanNa
 			if other~=nil and other~=horsemanName then
 				local pos=obj.getPosition()
 				for _,candidate in ipairs(hexes) do
-					local key=apocalypseQuestMapHexKey(candidate)
+					local key=runtimeMapHexKey(candidate)
 					if key~=nil and occupied[key]~=true then
 						local dx=pos[1]-candidate.position[1]
 						local dz=pos[3]-candidate.position[3]
@@ -14857,44 +14507,66 @@ function apocalypseIsHereHorsemanDestination(startHex,targetHex,hexes,horsemanNa
 			end
 		end
 		for _,candidate in ipairs(hexes) do
-			if apocalypseQuestHexesAdjacent(current,candidate)==true and fromTarget[apocalypseQuestMapHexKey(candidate)]==currentDistance-1 and occupied[apocalypseQuestMapHexKey(candidate)]~=true then
+			if runtimeMapHexesAdjacent(current,candidate)==true and fromTarget[runtimeMapHexKey(candidate)]==currentDistance-1 and occupied[runtimeMapHexKey(candidate)]~=true then
 				choices[#choices+1]=candidate
 			end
 		end
 		--If every shortest path is occupied, preserve the normal shortest-path rule rather than stopping.
 		if #choices<1 then
 			for _,candidate in ipairs(hexes) do
-				if apocalypseQuestHexesAdjacent(current,candidate)==true and fromTarget[apocalypseQuestMapHexKey(candidate)]==currentDistance-1 then choices[#choices+1]=candidate end
+				if runtimeMapHexesAdjacent(current,candidate)==true and fromTarget[runtimeMapHexKey(candidate)]==currentDistance-1 then choices[#choices+1]=candidate end
 			end
 		end
 		if #choices<1 then break end
-		table.sort(choices,function(a,b) return apocalypseQuestMapHexKey(a)<apocalypseQuestMapHexKey(b) end)
+		table.sort(choices,function(a,b) return runtimeMapHexKey(a)<runtimeMapHexKey(b) end)
 		current=choices[1]
 	end
 	return current
 end
 
-function apocalypseIsHereClearChoiceButtons()
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return end
-	for _,terrain in pairs(map.getObjects()) do
-		if terrainTiles[terrain.guid]~=nil then
-			local xml=terrain.UI.getXmlTable() or {}
-			local changed=false
-			for i=#xml,1,-1 do local id=xml[i].attributes~=nil and tostring(xml[i].attributes.id or "") or "" if id:find("ApocalypseHorsemanTarget",1,true)~=nil then table.remove(xml,i) changed=true end end
-			if changed then if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end end
+function apocalypseIsHereClearChoiceButtons(terrainGUIDs)
+	local pending=gStates~=nil and gStates.apocalypseHereHorsemanPendingChoice or nil
+	local guids=terrainGUIDs or (pending~=nil and pending.terrainGUIDs) or {}
+	local seen={}
+	for _,terrainGUID in ipairs(guids) do
+		if seen[terrainGUID]~=true then
+			seen[terrainGUID]=true
+			local terrain=getObjectFromGUID(terrainGUID)
+			if terrain~=nil then
+				local xml=terrain.UI.getXmlTable() or {}
+				local changed=false
+				for i=#xml,1,-1 do
+					local id=xml[i].attributes~=nil and tostring(xml[i].attributes.id or "") or ""
+					if id:find("ApocalypseHorsemanTarget",1,true)~=nil then table.remove(xml,i) changed=true end
+				end
+				if changed then if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end end
+			end
 		end
 	end
 end
 
-function apocalypseIsHereShowTargetChoice(name,options)
-	apocalypseIsHereClearChoiceButtons()
+function apocalypseIsHereShowTargetChoice(name,options,previousReport,choicePlayerIndex)
+	local oldPending=gStates.apocalypseHereHorsemanPendingChoice
+	apocalypseIsHereClearChoiceButtons(oldPending~=nil and oldPending.terrainGUIDs or nil)
 	local targetKeys={}
+	local terrainGUIDs={}
+	local terrainSeen={}
 	for _,option in ipairs(options or {}) do
-		local key=option~=nil and option.hex~=nil and apocalypseQuestMapHexKey(option.hex) or nil
+		local key=option~=nil and option.hex~=nil and runtimeMapHexKey(option.hex) or nil
 		if key~=nil then targetKeys[#targetKeys+1]=key end
+		local terrain=option~=nil and option.hex~=nil and option.hex.terrain or nil
+		if terrain~=nil and terrainSeen[terrain.guid]~=true then
+			terrainSeen[terrain.guid]=true
+			terrainGUIDs[#terrainGUIDs+1]=terrain.guid
+		end
 	end
-	local pending={name=name,targetKeys=targetKeys,playerIndex=apocalypseDragonChoicePlayerIndex(),previousReport=gStates.apocalypseHereHorsemenTurnReport or ""}
+	local pending={
+		name=name,
+		targetKeys=targetKeys,
+		terrainGUIDs=terrainGUIDs,
+		playerIndex=choicePlayerIndex or apocalypseDragonChoicePlayerIndex(),
+		previousReport=previousReport~=nil and previousReport or (gStates.apocalypseHereHorsemenTurnReport or "")
+	}
 	gStates.apocalypseHereHorsemanPendingChoice=pending
 	local grouped={}
 	for index,option in ipairs(options or {}) do
@@ -14907,23 +14579,45 @@ function apocalypseIsHereShowTargetChoice(name,options)
 			local tileScale=terrain.getScale()
 			local scaleX=tileScale.x or tileScale[1] or 2.25
 			local scaleZ=tileScale.z or tileScale[3] or 2.25
-			--Match the Proxy map-choice buttons. TTS scales the button but not its object-UI position,
-			--so shrink the coordinates/depth by the same ratio as the 0.38 -> 0.16 visual scale.
 			local uiFactor=0.16/0.38
 			local uiX=(localPos.x or localPos[1])*scaleX*110*uiFactor
 			local uiY=(localPos.z or localPos[3])*scaleZ*110*uiFactor
 			local uiDepth=-40*uiFactor
 			local buttonScale=0.16
 			local id=terrain.guid.."ApocalypseHorsemanTarget"..tostring(index)
-			group.xml[#group.xml+1]={tag="Button",attributes={id=id,onClick="global/apocalypseIsHereHorsemanTargetSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",height=300,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(terrain.getRotation()[2] or 180),scale=buttonScale.." "..buttonScale},children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},{tag="Text",attributes={font="Fonts/MKCardText",fontSize="65",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="65",text=name.."\nTarget"}}}}
+			group.xml[#group.xml+1]={tag="Button",attributes={id=id,onClick="global/apocalypseIsHereHorsemanTargetSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",height=300,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(terrain.getRotation()[2] or 180),scale=buttonScale.." "..buttonScale},children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},{tag="Text",attributes={font="Fonts/MKCardText",fontSize="65",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="65",text=joinLang({name,"\n","{en}Target{ru}Цель{zh-tw}目標{zh-cn}目标{ko}목표{es}Objetivo{fr}Cible{pt-br}Alvo{de}Ziel"})}}}}
 		end
 	end
 	for _,group in pairs(grouped) do group.terrain.UI.setXmlTable(group.xml) end
 	gStates.apocalypseHereHorsemenUIState="WaitingChoice"
-	local choiceText=name.." has tied preferred targets. "..apocalypseDragonChoicePlayerLabel(pending.playerIndex).." must choose which site it moves toward."
+	local choiceText=joinLang({name,"{en} has tied preferred targets. {ru} имеет несколько равноценных предпочтительных целей. {zh-tw} 有多個同等優先的目標。{zh-cn} 有多个同等优先的目标。{ko}에게 동률인 우선 목표가 있습니다. {es} tiene varios objetivos preferidos empatados. {fr} a plusieurs cibles prioritaires à égalité. {pt-br} tem vários alvos preferidos empatados. {de} hat mehrere gleichrangige bevorzugte Ziele. ",apocalypseDragonChoicePlayerLabel(pending.playerIndex),"{en} must choose which site it moves toward.{ru} должен выбрать, к какому месту он двинется.{zh-tw} 必須選擇它要朝哪個地點移動。{zh-cn} 必须选择它要朝哪个地点移动。{ko}이(가) 어느 장소로 이동할지 선택해야 합니다.{es} debe elegir hacia qué lugar se moverá.{fr} doit choisir vers quel site il se déplacera.{pt-br} deve escolher em direção a qual local ele se moverá.{de} muss wählen, auf welchen Ort er sich zubewegt."})
 	gStates.apocalypseHereHorsemenTurnReport=pending.previousReport..(pending.previousReport~="" and "<size=6>\n\n</size>" or "")..choiceText
 	mainUIUpdate("Horseman target choice")
 	return true
+end
+
+function apocalypseIsHereRefreshPendingTargetChoice()
+	local pending=gStates.apocalypseHereHorsemanPendingChoice
+	if pending==nil then return false end
+	local liveOptions=apocalypseIsHereHorsemanTargetOptions(pending.name)
+	local previousReport=pending.previousReport or ""
+	local playerIndex=pending.playerIndex
+	apocalypseIsHereClearChoiceButtons(pending.terrainGUIDs)
+	if #liveOptions<1 then
+		gStates.apocalypseHereHorsemanPendingChoice=nil
+		gStates.apocalypseHereHorsemenUIState="Processing"
+		local line=joinLang({pending.name,"{en} found no remaining preferred undestroyed target and did not move.{ru} не нашёл оставшейся предпочтительной неразрушенной цели и не двигался.{zh-tw} 找不到剩餘的優先未摧毀目標，因此沒有移動。{zh-cn} 找不到剩余的优先未摧毁目标，因此没有移动。{ko}은(는) 남아 있는 선호 미파괴 목표를 찾지 못해 이동하지 않았습니다.{es} no encontró ningún objetivo preferido sin destruir y no se movió.{fr} n’a trouvé aucune cible prioritaire non détruite et ne s’est pas déplacé.{pt-br} não encontrou nenhum alvo preferido não destruído e não se moveu.{de} fand kein verbleibendes bevorzugtes unzerstörtes Ziel und bewegte sich nicht."})
+		gStates.apocalypseHereHorsemenTurnReport=previousReport..(previousReport~="" and "<size=6>\n\n</size>" or "")..line
+		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
+		return true
+	end
+	if #liveOptions==1 then
+		gStates.apocalypseHereHorsemenTurnReport=previousReport
+		gStates.apocalypseHereHorsemanPendingChoice=nil
+		gStates.apocalypseHereHorsemenUIState="Processing"
+		return apocalypseIsHereResolveHorsemanTarget(pending.name,liveOptions[1])
+	end
+	return apocalypseIsHereShowTargetChoice(pending.name,liveOptions,previousReport,playerIndex)
 end
 
 function apocalypseIsHereHorsemanTargetSelect(player,mouseButton,id)
@@ -14938,9 +14632,8 @@ function apocalypseIsHereHorsemanTargetSelect(player,mouseButton,id)
 	for _,candidate in ipairs(liveOptions or {}) do
 		if candidate.key==targetKey then option=candidate break end
 	end
-	if option==nil then return end
-	apocalypseIsHereClearChoiceButtons()
-	--The choice prompt is temporary UI guidance, not part of the completed Horsemen action log.
+	if option==nil then apocalypseIsHereRefreshPendingTargetChoice() return end
+	apocalypseIsHereClearChoiceButtons(pending.terrainGUIDs)
 	gStates.apocalypseHereHorsemenTurnReport=pending.previousReport or ""
 	gStates.apocalypseHereHorsemanPendingChoice=nil
 	gStates.apocalypseHereHorsemenUIState="Processing"
@@ -14949,7 +14642,7 @@ end
 
 function apocalypseIsHereHorsemanClearTarget(targetHex)
 	if targetHex==nil then return false end
-	local _,mapObjects=apocalypseQuestMapHexes()
+	local _,mapObjects=runtimeMapHexesAndObjects()
 	for _,enemy in ipairs(proxyMonstersOnHex(targetHex,mapObjects)) do
 		if horsemanTokenToName[enemy.guid]==nil then proxyDiscardMonster(enemy) end
 	end
@@ -14960,13 +14653,37 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
 	local state=gStates.horsemen[name]
 	local data=horsemanData[name]
 	if state==nil or data==nil or targetHex==nil then return false end
+	local destroyedName=proxyFeatureDisplayName(targetHex.feature)
+	local action=gStates.apocalypseHereHorsemanAction
+	local function failDestruction()
+		local line=joinLang({name,"{en} could not destroy {ru} не смог уничтожить {zh-tw} 無法摧毀 {zh-cn} 无法摧毁 {ko}은(는) {es} no pudo destruir {fr} n’a pas pu détruire {pt-br} não conseguiu destruir {de} konnte ",destroyedName,"{en}; no Horseman or Dragon effects were applied.{ru}; эффекты Всадника и Дракона не применены.{zh-tw}；未套用騎士或巨龍效果。{zh-cn}；未应用骑士或巨龙效果。{ko}을(를) 파괴하지 못했습니다. 기사 및 드래곤 효과는 적용되지 않았습니다.{es}; no se aplicaron efectos del Jinete ni del Dragón.{fr} ; aucun effet du Cavalier ni du Dragon n’a été appliqué.{pt-br}; nenhum efeito do Cavaleiro ou do Dragão foi aplicado.{de} nicht zerstören; es wurden keine Reiter- oder Dracheneffekte angewendet."})
+		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		gStates.apocalypseHereHorsemanAction=nil
+		if afterArrange~=nil then safeWaitFrames("Scenario",afterArrange,1) end
+	end
+
 	local destroyedToken=takeDestroyedSiteToken(targetHex.terrain,targetHex.bearing)
-	local destructionStarted=destroyedToken~=nil and destroySite(destroyedToken,targetHex.terrain,targetHex.bearing,afterArrange)==true
+	if destroyedToken==nil then failDestruction() return false end
+	if action~=nil then
+		action.stage="destroying"
+		action.destroyedTokenGUID=destroyedToken.guid
+	end
+	local function finished()
+		if gStates.apocalypseHereHorsemanAction==action then gStates.apocalypseHereHorsemanAction=nil end
+		if afterArrange~=nil then afterArrange() end
+	end
+	local destructionStarted=destroySite(destroyedToken,targetHex.terrain,targetHex.bearing,finished)==true
+	if destructionStarted~=true then
+		local bag=getObjectFromGUID(GUID.bag.destroyedSite)
+		if bag~=nil and getObjectFromGUID(destroyedToken.guid)~=nil then bag.putObject(destroyedToken) end
+		failDestruction()
+		return false
+	end
+
 	local oldHead=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[name] or 0) or 0
 	local newHead=math.min(12,oldHead+1)
 	if oldHead>0 and oldHead<12 then apocalypseDragonSetHeadLevel(name,newHead) end
 	state.sitesDestroyed=(tonumber(state.sitesDestroyed) or 0)+1
-	local destroyedName=proxyFeatureDisplayName(targetHex.feature)
 	local report=nil
 	if state.sitesDestroyed>=4 then
 		state.retired=true state.revealed=false state.removedAfterFour=true
@@ -14979,17 +14696,36 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
 		end
 		monsterPugs[data.tokenGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end
-		report=name.." destroyed "..destroyedName..", raising the Dragon's head level ("..tostring(newHead).."), then left the map after destroying four sites."
+		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, raising the Dragon head to level {ru}, повысив уровень головы Дракона до {zh-tw}，使巨龍頭部等級提升至 {zh-cn}，使巨龙头部等级提升至 {ko}을(를) 파괴하여 드래곤 머리 레벨을 {es}, elevando la cabeza del Dragón al nivel {fr}, faisant passer la tête du Dragon au niveau {pt-br}, elevando a cabeça do Dragão ao nível {de} und erhöhte den Drachenkopf auf Stufe ",newHead,"{en}, then left the map after destroying four sites.{ru}, а затем покинул карту после уничтожения четырёх мест.{zh-tw}，並在摧毀四個地點後離開地圖。{zh-cn}，并在摧毁四个地点后离开地图。{ko}로 올린 뒤, 네 곳을 파괴하고 지도에서 떠났습니다.{es}, y luego abandonó el mapa tras destruir cuatro lugares.{fr}, puis a quitté la carte après avoir détruit quatre sites.{pt-br}, e então deixou o mapa após destruir quatro locais.{de} und verließ danach die Karte, nachdem vier Orte zerstört worden waren."})
 	elseif (tonumber(state.level) or 1)>1 then
 		state.level=state.level-1
 		setHorsemanLevel(name,state.level,false)
-		report=name.." destroyed "..destroyedName..", losing a level ("..tostring(state.level).."), while raising the Dragon's head level ("..tostring(newHead)..")."
+		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, losing a level (now {ru}, потеряв уровень (теперь {zh-tw}，降低一級（現為 {zh-cn}，降低一级（现为 {ko}을(를) 파괴해 레벨이 감소했습니다(현재 {es}, perdiendo un nivel (ahora {fr}, perdant un niveau (désormais {pt-br}, perdendo um nível (agora {de} und verlor eine Stufe (jetzt ",state.level,"{en}) while raising the Dragon head to level {ru}), одновременно повысив голову Дракона до уровня {zh-tw}），同時使巨龍頭部提升至等級 {zh-cn}），同时使巨龙头部提升至等级 {ko}) 그리고 드래곤 머리를 레벨 {es}) mientras elevaba la cabeza del Dragón al nivel {fr}) tout en faisant passer la tête du Dragon au niveau {pt-br}) enquanto elevava a cabeça do Dragão ao nível {de}) und erhöhte dabei den Drachenkopf auf Stufe ",newHead,"."})
 	else
-		report=name.." destroyed "..destroyedName..", while raising the Dragon's head level ("..tostring(newHead)..")."
+		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, raising the Dragon head to level {ru}, повысив голову Дракона до уровня {zh-tw}，使巨龍頭部提升至等級 {zh-cn}，使巨龙头部提升至等级 {ko}을(를) 파괴해 드래곤 머리를 레벨 {es}, elevando la cabeza del Dragón al nivel {fr}, faisant passer la tête du Dragon au niveau {pt-br}, elevando a cabeça do Dragão ao nível {de} und erhöhte den Drachenkopf auf Stufe ",newHead,"."})
 	end
 	gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..report
-	if destructionStarted~=true and afterArrange~=nil then safeWaitFrames("Scenario",afterArrange,1) end
+	if action~=nil then action.stage="settling" end
 	return true
+end
+
+function apocalypseIsHereHexByKey(key,hexes)
+	if key==nil then return nil end
+	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
+	return nil
+end
+
+function apocalypseIsHereHorsemanMoveFinished(name,target,reached)
+	if reached==true then
+		local action=gStates.apocalypseHereHorsemanAction
+		if action~=nil then action.stage="destroying" end
+		apocalypseIsHereHorsemanDestroyTarget(name,target,apocalypseIsHereContinueHorsemenTurn)
+	else
+		local line=joinLang({name,"{en} moved two spaces toward {ru} переместился на две клетки к {zh-tw} 朝 {zh-cn} 朝 {ko}이(가) {es} se movió dos espacios hacia {fr} s’est déplacé de deux cases vers {pt-br} moveu-se dois espaços em direção a {de} bewegte sich zwei Felder in Richtung ",proxyFeatureDisplayName(target.feature),"{en}.{ru}.{zh-tw} 移動了兩格。{zh-cn} 移动了两格。{ko} 쪽으로 두 칸 이동했습니다.{es}.{fr}.{pt-br}.{de}."})
+		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		gStates.apocalypseHereHorsemanAction=nil
+		apocalypseIsHereContinueHorsemenTurn()
+	end
 end
 
 function apocalypseIsHereResolveHorsemanTarget(name,option)
@@ -15002,20 +14738,23 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 	local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 	if token==nil or destination==nil then apocalypseIsHereContinueHorsemenTurn() return false end
 	state.terrainGUID=destination.terrainGUID state.bearing=destination.bearing
-	local reached=apocalypseQuestMapHexKey(destination)==apocalypseQuestMapHexKey(target)
+	local reached=runtimeMapHexKey(destination)==runtimeMapHexKey(target)
+	gStates.apocalypseHereHorsemanAction={
+		name=name,
+		targetKey=runtimeMapHexKey(target),
+		destinationKey=runtimeMapHexKey(destination),
+		reached=reached,
+		stage="moving"
+	}
 	local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
 		{releaseOrigin=true,rotation={0,180,0},deferArrange=reached},function()
-			if reached then
-				--The target was cleared as soon as this move was successfully queued. Add the Destroyed Site
-				--after landing; its arrival owns the one final shared-hex spread.
-				apocalypseIsHereHorsemanDestroyTarget(name,target,apocalypseIsHereContinueHorsemenTurn)
-			else
-				local line=name.." moved two spaces toward "..proxyFeatureDisplayName(target.feature).."."
-				gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
-				apocalypseIsHereContinueHorsemenTurn()
-			end
+			apocalypseIsHereHorsemanMoveFinished(name,target,reached)
 		end)
-	if started~=true then apocalypseIsHereContinueHorsemenTurn() return false end
+	if started~=true then
+		gStates.apocalypseHereHorsemanAction=nil
+		apocalypseIsHereContinueHorsemenTurn()
+		return false
+	end
 	if reached then apocalypseIsHereHorsemanClearTarget(target) end
 	return true
 end
@@ -15027,14 +14766,16 @@ function apocalypseIsHereProcessNextHorseman()
 	local name=queue[index]
 	if name==nil then
 		gStates.apocalypseHereHorsemenUIState="ReadyToEnd"
-		if (gStates.apocalypseHereHorsemenTurnReport or "")=="" then gStates.apocalypseHereHorsemenTurnReport="The Horsemen had no action to resolve." end
+		if (gStates.apocalypseHereHorsemenTurnReport or "")=="" then
+			gStates.apocalypseHereHorsemenTurnReport="{en}The Horsemen had no action to resolve.{ru}У Всадников не было действий для разрешения.{zh-tw}騎士沒有需要處理的行動。{zh-cn}骑士没有需要处理的行动。{ko}기사들이 처리할 행동이 없습니다.{es}Los Jinetes no tenían ninguna acción que resolver.{fr}Les Cavaliers n’avaient aucune action à résoudre.{pt-br}Os Cavaleiros não tinham nenhuma ação para resolver.{de}Die Reiter hatten keine Aktion auszuführen."
+		end
 		mainUIUpdate("Horsemen Processed")
 		return
 	end
 	gStates.apocalypseHereHorsemenQueueIndex=index+1
 	local options=apocalypseIsHereHorsemanTargetOptions(name)
 	if #options<1 then
-		local line=name.." found no preferred undestroyed target and did not move."
+		local line=joinLang({name,"{en} found no preferred undestroyed target and did not move.{ru} не нашёл предпочтительной неразрушенной цели и не двигался.{zh-tw} 找不到優先的未摧毀目標，因此沒有移動。{zh-cn} 找不到优先的未摧毁目标，因此没有移动。{ko}은(는) 선호하는 미파괴 목표를 찾지 못해 이동하지 않았습니다.{es} no encontró ningún objetivo preferido sin destruir y no se movió.{fr} n’a trouvé aucune cible prioritaire non détruite et ne s’est pas déplacé.{pt-br} não encontrou nenhum alvo preferido não destruído e não se moveu.{de} fand kein bevorzugtes unzerstörtes Ziel und bewegte sich nicht."})
 		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
 		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
 	elseif #options>1 then apocalypseIsHereShowTargetChoice(name,options)
@@ -15066,7 +14807,8 @@ function apocalypseIsHereBeginHorsemenTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	gStates.apocalypseHereHorsemenResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn,sameTurn=sameTurn}
 	gStates.apocalypseHereHorsemenQueue=queue
 	gStates.apocalypseHereHorsemenQueueIndex=1
-	gStates.apocalypseHereHorsemenTurnReport="The Horsemen act in the order they were revealed."
+	gStates.apocalypseHereHorsemanAction=nil
+	gStates.apocalypseHereHorsemenTurnReport="{en}The Horsemen act in the order they were revealed.{ru}Всадники действуют в порядке их раскрытия.{zh-tw}騎士依照揭示順序行動。{zh-cn}骑士依照揭示顺序行动。{ko}기사들은 공개된 순서대로 행동합니다.{es}Los Jinetes actúan en el orden en que fueron revelados.{fr}Les Cavaliers agissent dans l’ordre où ils ont été révélés.{pt-br}Os Cavaleiros agem na ordem em que foram revelados.{de}Die Reiter handeln in der Reihenfolge, in der sie aufgedeckt wurden."
 	gStates.apocalypseHereHorsemenUIState="ReadyToProcess"
 	mainUIUpdate("Horsemen Turn")
 	return true
@@ -15075,11 +14817,17 @@ end
 function apocalypseIsHereMainUIPanelSpec()
 	if apocalypseIsHereActive()~=true or gStates.apocalypseHereHorsemenTurnActive~=true then return nil end
 	local state=gStates.apocalypseHereHorsemenUIState
-	local label="{en}Processing Horsemen...{ru}Processing Horsemen...{zh-tw}Processing Horsemen...{zh-cn}Processing Horsemen...{ko}Processing Horsemen...{es}Processing Horsemen...{fr}Processing Horsemen...{pt-br}Processing Horsemen...{de}Processing Horsemen..."
+	local label="{en}Processing Horsemen...{ru}Обработка Всадников...{zh-tw}正在處理騎士…{zh-cn}正在处理骑士…{ko}기사 처리 중...{es}Procesando Jinetes...{fr}Traitement des Cavaliers...{pt-br}Processando Cavaleiros...{de}Reiter werden verarbeitet..."
 	local active=false
-	if state=="ReadyToProcess" then label="{en}Process Horsemen{ru}Process Horsemen{zh-tw}Process Horsemen{zh-cn}Process Horsemen{ko}Process Horsemen{es}Process Horsemen{fr}Process Horsemen{pt-br}Process Horsemen{de}Process Horsemen" active=true
-	elseif state=="ReadyToEnd" then label="{en}Horsemen Processed{ru}Horsemen Processed{zh-tw}Horsemen Processed{zh-cn}Horsemen Processed{ko}Horsemen Processed{es}Horsemen Processed{fr}Horsemen Processed{pt-br}Horsemen Processed{de}Horsemen Processed" active=true
-	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Pick Target{zh-tw}Pick Target{zh-cn}Pick Target{ko}Pick Target{es}Pick Target{fr}Pick Target{pt-br}Pick Target{de}Pick Target" end
+	if state=="ReadyToProcess" then
+		label="{en}Process Horsemen{ru}Обработать Всадников{zh-tw}處理騎士{zh-cn}处理骑士{ko}기사 처리{es}Procesar Jinetes{fr}Traiter les Cavaliers{pt-br}Processar Cavaleiros{de}Reiter verarbeiten"
+		active=true
+	elseif state=="ReadyToEnd" then
+		label="{en}Horsemen Processed{ru}Всадники обработаны{zh-tw}騎士處理完成{zh-cn}骑士处理完成{ko}기사 처리 완료{es}Jinetes Procesados{fr}Cavaliers traités{pt-br}Cavaleiros processados{de}Reiter verarbeitet"
+		active=true
+	elseif state=="WaitingChoice" then
+		label="{en}Pick Target{ru}Выбрать цель{zh-tw}選擇目標{zh-cn}选择目标{ko}목표 선택{es}Elegir objetivo{fr}Choisir la cible{pt-br}Escolher alvo{de}Ziel wählen"
+	end
 	return {actor="horsemen",mainText="{en}<size=25>Horsemen's Turn</size>{ru}<size=25>Ход Всадников</size>{zh-tw}<size=25>騎士回合</size>{zh-cn}<size=25>骑士回合</size>{ko}<size=25>기사들의 턴</size>{es}<size=25>Turno de los Jinetes</size>{fr}<size=25>Tour des Cavaliers</size>{pt-br}<size=25>Turno dos Cavaleiros</size>{de}<size=25>Zug der Reiter</size>",notes=gStates.apocalypseHereHorsemenTurnReport or "{en}Process the Horsemen.{ru}Выполните ход Всадников.{zh-tw}處理騎士回合。{zh-cn}处理骑士回合。{ko}기사들의 턴을 처리하십시오.{es}Procesa a los Jinetes.{fr}Traitez le tour des Cavaliers.{pt-br}Processe os Cavaleiros.{de}Führe den Zug der Reiter aus.",onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
 end
 
@@ -15100,14 +14848,91 @@ end
 
 function apocalypseIsHereFinishHorsemenTurn()
 	if gStates.apocalypseHereHorsemenTurnActive~=true then return false end
-	apocalypseIsHereClearChoiceButtons()
+	local pending=gStates.apocalypseHereHorsemanPendingChoice
+	apocalypseIsHereClearChoiceButtons(pending~=nil and pending.terrainGUIDs or nil)
 	UI.setAttribute("DummyTurn","active","false")
 	local resume=gStates.apocalypseHereHorsemenResumeTurn
 	gStates.apocalypseHereHorsemenTurnActive=false
 	gStates.apocalypseHereHorsemenResumeTurn=nil
 	gStates.apocalypseHereHorsemanPendingChoice=nil
+	gStates.apocalypseHereHorsemanAction=nil
 	gStates.apocalypseHereHorsemenUIState=nil
 	if resume~=nil then mergedTurnCommit(resume.turnNumber,resume.newOutOfTurn,resume.sameTurn) end
+	return true
+end
+
+
+function apocalypseIsHereRestoreScenarioState()
+	if apocalypseIsHereActive()~=true then return false end
+
+	--Reveal callbacks are not serialized. Resume any successfully reserved reveal from its persisted tile;
+	--failed physical deployment rolls the reservation back through the normal reveal path.
+	for _,name in ipairs(gStates.apocalypseHereHorsemanOrder or {}) do
+		local reservedName=name
+		local state=gStates.horsemen~=nil and gStates.horsemen[reservedName] or nil
+		if state~=nil and state.revealPending==true then
+			local tile=state.revealTileGUID~=nil and getObjectFromGUID(state.revealTileGUID) or nil
+			if tile~=nil and workingOnTerrain~=nil and workingOnTerrain[tile.guid]==true then
+				local tileGUID=tile.guid
+				safeWaitCondition("Scenario",function() apocalypseIsHereDeployReservedHorseman(reservedName) end,function() return workingOnTerrain[tileGUID]~=true end)
+			else
+				apocalypseIsHereDeployReservedHorseman(reservedName)
+			end
+		end
+	end
+	apocalypseIsHereRecomputeNextHorseman()
+
+	if gStates.apocalypseHereHorsemenTurnActive~=true then return true end
+	local pending=gStates.apocalypseHereHorsemanPendingChoice
+	if pending~=nil or gStates.apocalypseHereHorsemenUIState=="WaitingChoice" then
+		if pending~=nil then apocalypseIsHereRefreshPendingTargetChoice()
+		else
+			gStates.apocalypseHereHorsemenUIState="Processing"
+			safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
+		end
+		return true
+	end
+
+	local action=gStates.apocalypseHereHorsemanAction
+	if action~=nil then
+		local snapshot=runtimeMapSnapshot()
+		local hexes=snapshot.hexes or {}
+		local destination=apocalypseIsHereHexByKey(action.destinationKey,hexes)
+		local target=apocalypseIsHereHexByKey(action.targetKey,hexes)
+		local state=gStates.horsemen~=nil and gStates.horsemen[action.name] or nil
+		local data=horsemanData~=nil and horsemanData[action.name] or nil
+		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
+		if action.stage=="settling" then
+			local destroyed=action.destroyedTokenGUID~=nil and getObjectFromGUID(action.destroyedTokenGUID) or nil
+			if destroyed~=nil and target~=nil then
+				arrangeDestroyedSiteHex(destroyed,target.terrain,target.bearing,function()
+					if gStates.apocalypseHereHorsemanAction==action then gStates.apocalypseHereHorsemanAction=nil end
+					apocalypseIsHereContinueHorsemenTurn()
+				end)
+			else
+				gStates.apocalypseHereHorsemanAction=nil
+				apocalypseIsHereContinueHorsemenTurn()
+			end
+			return true
+		end
+		if token~=nil and state~=nil and destination~=nil and target~=nil then
+			state.terrainGUID=destination.terrainGUID
+			state.bearing=destination.bearing
+			action.stage="moving"
+			local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
+				{force=true,rotation={0,180,0},deferArrange=action.reached==true},function()
+					apocalypseIsHereHorsemanMoveFinished(action.name,target,action.reached==true)
+				end)
+			if started==true then return true end
+		end
+		gStates.apocalypseHereHorsemanAction=nil
+	end
+
+	if gStates.apocalypseHereHorsemenUIState=="Processing" then
+		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
+	else
+		mainUIUpdate("Horsemen Turn Restored")
+	end
 	return true
 end
 
@@ -15175,7 +15000,7 @@ end
 function druidNightsCanIncantHere(playerIndex)
 	local player=turnOrder[playerIndex]
 	if player==nil or gStates.gameScenario~="Druid Nights" then return false end
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local hex=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	if hex~=nil then return apocalypseQuestHexInteractionSite(hex,mapObjects,playerIndex)~=true end
 	local location=string.lower(tostring(player.avatarLocation or ""))
@@ -15237,24 +15062,23 @@ function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
 	local center=angleToXY(terrain,bearing)
 	if center==nil then return false end
 
-	token.lock()
-	local started=mapTokenSettleArrival(token.guid,{center[1],mapTokenDestroyedBaseY,center[2]},{
+	--Move the token visibly above the destination and leave it unlocked. TTS gravity performs the
+	--actual drop onto the hex; once it rests, MapTokens' normal separator owns the bottom slot.
+	token.unlock()
+	local started=mapTokenSettleArrival(token.guid,{center[1],2.0,center[2]},{
 		force=true,
 		rotation={0,180,0}
 	},function()
 		if afterArrange~=nil then afterArrange() end
 	end)
-	if started~=true and afterArrange~=nil then afterArrange() end
-	return true
+	return started==true
 end
 
---Apply Destroyed Site state from one authoritative path. The helper owns the physical placement,
---so callers only need to obtain a Destroyed Site token and identify the target hex.
 function destroySite(token,terrain,bearing,afterArrange)
 	if token==nil or terrain==nil or bearing==nil or terrainTiles[terrain.guid]==nil then return false end
 	local feature=terrainTiles[terrain.guid].hexFeature[bearing]
 	if feature==nil or feature=="" or feature=="portal" or feature=="destroyed" or feature:sub(1,7)=="raised " then return false end
-	arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
+	if arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)~=true then return false end
 	if gStates.destroyedSites==nil then gStates.destroyedSites={} end
 	gStates.destroyedSites[token.guid]={hexFeature=feature, terrainTile=terrain.guid, hexAngle=bearing}
 	terrainTiles[terrain.guid].hexFeature[bearing]="destroyed"
@@ -15265,7 +15089,6 @@ function destroySite(token,terrain,bearing,afterArrange)
 	return true
 end
 
---Undo only the map assignment. Used when a player deliberately unlocks and moves an active Destroyed token.
 function undoDestroyedSitePlacement(destroyed)
 	if destroyed==nil or gStates.destroyedSites==nil then return false end
 	local data=gStates.destroyedSites[destroyed.guid]
@@ -15698,31 +15521,16 @@ end
 
 function againstDragonTargetChoiceButton(option,index,xml,splitIndex,splitCount)
 	if option==nil or option.key==nil then return nil,xml end
-	local terrainGUID,bearing=tostring(option.key):match("^([^|]+)|(.+)$")
-	local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
-	if terrain==nil or bearing==nil then return nil,xml end
-	local hexXY=angleToXY(terrain,bearing)
-	local tilePos=terrain.getPosition()
-	local localHex=terrain.positionToLocal({hexXY[1],tilePos[2],hexXY[2]})
-	local tileScale=terrain.getScale()
-	local scaleX=tileScale.x or tileScale[1] or 2.25
-	local scaleZ=tileScale.z or tileScale[3] or 2.25
-	local uiX=(localHex.x or localHex[1])*scaleX*110
-	local uiY=(localHex.z or localHex[3])*scaleZ*110
-	local buttonScale=0.38
-	local uiRotation=terrain.getRotation()[2] or 180
-	local count=math.max(1,tonumber(splitCount) or 1)
-	local slot=math.max(1,tonumber(splitIndex) or 1)
-	local height=320/count
-	if count>1 then uiY=uiY+(((count+1)/2)-slot)*height*buttonScale end
+	local terrain,placement=terrainHexChoiceUIPlacement(option.key,0.38,splitIndex,splitCount,0.38)
+	if terrain==nil or placement==nil then return nil,xml end
 	local label="{en}Dragon\nDestroy{ru}Дракон\nУничтожает{zh-tw}巨龍\n摧毀{zh-cn}巨龙\n摧毁{ko}드래곤\n파괴{es}Dragón\nDestruir{fr}Dragon\nDétruire{pt-br}Dragão\nDestruir{de}Drache\nZerstört"
 	if option.kind=="attack" then label=joinLang({"{en}Attack\n{ru}Атака\n{zh-tw}攻擊\n{zh-cn}攻击\n{ko}공격\n{es}Atacar\n{fr}Attaquer\n{pt-br}Atacar\n{de}Angriff\n",tostring(option.mage or joinLang({"{en}Player{ru}Игрок{zh-tw}玩家{zh-cn}玩家{ko}플레이어{es}Jugador{fr}Joueur{pt-br}Jogador{de}Spieler"}))}) end
 	local id=terrain.guid.."DragonTargetChoice"..tostring(index)
 	xml=xml or terrain.UI.getXmlTable() or {}
 	xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/againstDragonTargetChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-		height=height,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..(-40),rotation="0 0 "..tostring(uiRotation),scale=buttonScale.." "..buttonScale},
+		height=placement.height,width=320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
 		children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
-			{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize=count>1 and "60" or "72",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=count>1 and "60" or "72",text=label}}}}}}
+			{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize=placement.count>1 and "60" or "72",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=placement.count>1 and "60" or "72",text=label}}}}}}
 	return terrain,xml
 end
 
@@ -15769,7 +15577,7 @@ function againstDragonShowOffMapChoice(pending)
 end
 
 function againstDragonMapHexByKey(hexes,key)
-	for _,hex in ipairs(hexes or {}) do if apocalypseQuestMapHexKey(hex)==key then return hex end end
+	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
 	return nil
 end
 
@@ -15777,7 +15585,7 @@ function againstDragonDistanceStarts(hexes,mapObjects)
 	local starts={}
 	if gStates.apocalypseDragonLairRevealed==true and gStates.apocalypseDragonLair~=nil then
 		for _,saved in ipairs(gStates.apocalypseDragonLair.hexes or {}) do
-			local hex=apocalypseQuestHexForPosition(hexes,saved.position,mapObjects)
+			local hex=runtimeMapHexForPosition(hexes,saved.position,mapObjects)
 			if hex~=nil then starts[#starts+1]=hex end
 		end
 	else
@@ -15791,7 +15599,7 @@ end
 function againstDragonDistanceChoices(options,hexes,mapObjects)
 	local starts=againstDragonDistanceStarts(hexes,mapObjects)
 	if #starts<1 then return {} end
-	local distances=apocalypseQuestHexDistanceMap(hexes,starts)
+	local distances=runtimeMapHexDistanceMap(hexes,starts)
 	local best=nil
 	local tied={}
 	local closest=gStates.apocalypseDragonLairRevealed==true
@@ -15823,14 +15631,14 @@ function againstDragonPlayerHex(hexes,mapObjects,playerIndex)
 				for _,obj in pairs(z.getObjects()) do
 					if obj.getName()==details.mage then
 						local cityObj=getObjectFromGUID(city.cityGUID)
-						if cityObj~=nil then return apocalypseQuestHexForPosition(hexes,cityObj.getPosition(),mapObjects) end
+						if cityObj~=nil then return runtimeMapHexForPosition(hexes,cityObj.getPosition(),mapObjects) end
 					end
 				end
 			end
 		end
 	end
 	local avatar=currentMageAvatarPosition(playerIndex)
-	return avatar~=nil and apocalypseQuestHexForPosition(hexes,avatar,mapObjects) or nil
+	return avatar~=nil and runtimeMapHexForPosition(hexes,avatar,mapObjects) or nil
 end
 
 function againstDragonSiteEligible(hex)
@@ -15850,9 +15658,9 @@ function againstDragonDestroyCandidates(hexes,mapObjects)
 			if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[enemy.guid]==true then rampager=enemy break end
 		end
 		if rampager~=nil then
-			candidates[#candidates+1]={kind="rampager",key=apocalypseQuestMapHexKey(hex),enemyGUID=rampager.guid}
+			candidates[#candidates+1]={kind="rampager",key=runtimeMapHexKey(hex),enemyGUID=rampager.guid}
 		elseif siteTokensAvailable==true and againstDragonSiteEligible(hex)==true then
-			candidates[#candidates+1]={kind="site",key=apocalypseQuestMapHexKey(hex),feature=hex.feature}
+			candidates[#candidates+1]={kind="site",key=runtimeMapHexKey(hex),feature=hex.feature}
 		end
 	end
 	return candidates,siteTokensAvailable
@@ -15892,7 +15700,7 @@ function againstDragonAttendanceResponseSpec()
 end
 
 function againstDragonResolveDestroyOption(option)
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local hex=option~=nil and againstDragonMapHexByKey(hexes,option.key) or nil
 	if hex==nil then
 		broadcastToAll("{en}The Apocalypse Dragon's selected destruction target could no longer be found.{ru}Выбранная цель уничтожения Дракона Апокалипсиса больше не найдена.{zh-tw}找不到末日巨龍先前選定的摧毀目標。{zh-cn}找不到末日巨龙先前选定的摧毁目标。{ko}아포칼립스 드래곤이 선택한 파괴 대상을 더 이상 찾을 수 없습니다.{es}Ya no se pudo encontrar el objetivo de destrucción elegido por el Dragón del Apocalipsis.{fr}La cible de destruction choisie par le Dragon de l’Apocalypse est introuvable.{pt-br}O alvo de destruição escolhido pelo Dragão do Apocalipse não pôde mais ser encontrado.{de}Das ausgewählte Zerstörungsziel des Apokalypse-Drachen konnte nicht mehr gefunden werden.",warningColor)
@@ -15944,7 +15752,7 @@ end
 
 function againstDragonBeginDestroy()
 	gStates.apocalypseDragonUIState="Processing"
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local candidates,siteTokensAvailable=againstDragonDestroyCandidates(hexes,mapObjects)
 	if #candidates<1 then
 		local result
@@ -16304,7 +16112,7 @@ end
 
 function againstDragonBeginAttack()
 	gStates.apocalypseDragonUIState="Processing"
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local attackable={}
 	local offMap={}
 	for index,details in ipairs(turnOrder or {}) do
@@ -16315,7 +16123,7 @@ function againstDragonBeginAttack()
 			else
 				local hex=againstDragonPlayerHex(hexes,mapObjects,index)
 				if hex~=nil then
-					attackable[#attackable+1]={kind="attack",mage=details.mage,playerIndex=index,key=apocalypseQuestMapHexKey(hex)}
+					attackable[#attackable+1]={kind="attack",mage=details.mage,playerIndex=index,key=runtimeMapHexKey(hex)}
 				else
 					broadcastToAll(joinLang({"{en}Could not locate the map space for {ru}Не удалось найти клетку карты для {zh-tw}找不到 {zh-cn}找不到 {ko}아포칼립스 드래곤 공격을 위한 {es}No se pudo localizar el espacio de mapa de {fr}Impossible de localiser la case de carte de {pt-br}Não foi possível localizar o espaço do mapa de {de}Das Kartenfeld von ",translateWord[details.mage] or tostring(details.mage),"{en} for the Apocalypse Dragon attack.{ru} для атаки Дракона Апокалипсиса.{zh-tw} 的地圖空間以進行末日巨龍攻擊。{zh-cn} 的地图空间以进行末日巨龙攻击。{ko}의 지도 칸을 찾지 못했습니다.{es} para el ataque del Dragón del Apocalipsis.{fr} pour l’attaque du Dragon de l’Apocalypse.{pt-br} para o ataque do Dragão do Apocalipse.{de} für den Angriff des Apokalypse-Drachen konnte nicht gefunden werden."}),warningColor)
 				end
@@ -16652,13 +16460,13 @@ function furyDragonChooseTarget(color,hexes,mapObjects)
 	for _,hex in ipairs(hexes or {}) do
 		if hex.terrain~=nil and current.terrain~=nil and furyDragonMapTilesAdjacent(current.terrain,hex.terrain)==true then allowed[#allowed+1]=hex end
 	end
-	local distances=apocalypseQuestHexDistanceMap(allowed,{current})
-	local currentKey=apocalypseQuestMapHexKey(current)
+	local distances=runtimeMapHexDistanceMap(allowed,{current})
+	local currentKey=runtimeMapHexKey(current)
 	local bestDistance=nil
 	local bestPriority=nil
 	local candidates={}
 	for _,hex in ipairs(allowed) do
-		local key=apocalypseQuestMapHexKey(hex)
+		local key=runtimeMapHexKey(hex)
 		if key~=currentKey then
 			local category,priority,wanted=furyDragonTargetCategory(hex,color,mapObjects)
 			local distance=distances[key]
@@ -16755,7 +16563,7 @@ function furyDragonBeginLandedTurn()
 				return
 			end
 			local color=furyDragonManaColor(currentDie)
-			local hexes,mapObjects=apocalypseQuestMapHexes()
+			local hexes,mapObjects=runtimeMapHexesAndObjects()
 			local target=furyDragonChooseTarget(color,hexes,mapObjects)
 			if target==nil then
 				local spare=getObjectFromGUID(GUID.bag.spareDice)
@@ -16815,7 +16623,7 @@ function furyDragonPlayersOnTarget(target,hexes,mapObjects)
 				onTarget=true
 			else
 				local playerHex=againstDragonPlayerHex(hexes,mapObjects,playerIndex)
-				onTarget=playerHex~=nil and apocalypseQuestMapHexKey(playerHex)==target.key
+				onTarget=playerHex~=nil and runtimeMapHexKey(playerHex)==target.key
 			end
 			if onTarget==true then players[#players+1]=playerIndex end
 		end
@@ -16926,7 +16734,7 @@ function furyDragonBeginInFlightTurn()
 	gStates.apocalypseDragonUIState="Processing"
 	gStates.apocalypseDragonTurnReport="The Apocalypse Dragon is flying to "..furyDragonTargetLabel(target).."."
 	apocalypseDragonMainUIRefresh()
-	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local hex=againstDragonMapHexByKey(hexes,target.key)
 	local destination=furyDragonTargetPosition(target,hexes,true)
 	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
@@ -16948,7 +16756,7 @@ function furyDragonBeginInFlightTurn()
 		end
 		gStates.furyDragonCurrentHexKey=target.key
 		gStates.furyDragonFlightTarget=nil
-		local currentHexes,currentMapObjects=apocalypseQuestMapHexes()
+		local currentHexes,currentMapObjects=runtimeMapHexesAndObjects()
 		local currentHex=againstDragonMapHexByKey(currentHexes,target.key)
 		if currentHex==nil then
 			furyDragonCompleteTurn("The Apocalypse Dragon landed, but the destination space could no longer be resolved.")
@@ -16994,6 +16802,7 @@ __bundle_register("PlayingGame.Turn", function(require, _LOADED, __bundle_regist
 -- Turn, round, tactic and final-turn runtime.
 
 local dropoutMatImage="https://steamusercontent-a.akamaihd.net/ugc/9970617178500111609/C9D8D7517B7FAF114F10D8195AC38269F0504E37/"
+local bannerGUIDs={"596cfa", "986216", "0b5b32", "e48e44", GUID.card.bannerOfCommandToken, "8e4b92", "75a627"}
 
 --Player seat colors only change during setup/load or when a player uses the color controls.
 --Keep physical tinting out of mainUIUpdate so ordinary card play never recolors unchanged objects.
@@ -17091,8 +16900,7 @@ function tacticToggle()
 				end
 			end
 		end, 0.5)--allow time for the smooth claim to pull the cards out of the zone
-		UI.setAttribute("ScoreButtonReal", "interactable", "True")
-		UI.setAttribute("ScoreButtonRealImage", "image", "Sliced Button/Button New Active")
+		setUIButtonEnabled("ScoreButtonReal",true)
 		gStates.tacticShown=false
 		if apocalypseIsHereRoundStart~=nil then apocalypseIsHereRoundStart() end
 		refreshTactic4HandBonus(true)
@@ -17124,8 +16932,7 @@ function tacticToggle()
 				getObjectFromGUID(tacticCard[a+show]).lock()
 			end
 		end
-		UI.setAttribute("ScoreButtonReal", "interactable", "False")
-		UI.setAttribute("ScoreButtonRealImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("ScoreButtonReal",false)
 		if getObjectFromGUID("0934f2")==nil then turnOrderSort() end
 		mainUIUpdate("Tactic Togle")
 	end
@@ -17223,7 +17030,7 @@ function startOfTurn()
 	--A co-op assistant's combat step is not a new turn at the temporary assault location.
 	--Do not grant Glade/Hidden Valley/Necropolis/Graveyard/Oasis start-of-turn benefits.
 	if virtualCoopCombat==false and (turnOrder[gStates.turnNumber].avatarLocation=="glade" or turnOrder[gStates.turnNumber].avatarLocation=="graveyard"
-	 	or turnOrder[gStates.turnNumber].avatarLocation=="hidden valley" or turnOrder[gStates.turnNumber].avatarLocation=="necropolis") then
+		or turnOrder[gStates.turnNumber].avatarLocation=="hidden valley" or turnOrder[gStates.turnNumber].avatarLocation=="necropolis") then
 		--check if glade is conquered
 		if gladeFreeCheck()==true then
 			local params={position={(turnOrder[gStates.turnNumber].seatPos*40)-103, 1.65, -39}, rotation={0, 0, 0}, smooth=false}
@@ -17244,7 +17051,7 @@ function startOfTurn()
 
 	--Gain Reminder token from oasis
 	if virtualCoopCombat==false and turnOrder[gStates.turnNumber].avatarLocation=="oasis" then
-		getObjectFromGUID("a8bf9c").clone({position={(turnOrder[gStates.turnNumber].seatPos*40)-103, 1.65, -39}, rotation={0.00, 180.00, 0.00}, smooth=false}).unlock()
+		getObjectFromGUID(GUID.token.oasisReminder).clone({position={(turnOrder[gStates.turnNumber].seatPos*40)-103, 1.65, -39}, rotation={0.00, 180.00, 0.00}, smooth=false}).unlock()
 	end
 
 	mainUIUpdate("New Turn")
@@ -17293,7 +17100,7 @@ end
 
 --Time Bending is set aside for the rest of the round when its extra-turn button is actually used.
 --Keep its owner seat so the card can be recovered from the trash chest at round end or before final scoring.
-timeBendingGUID="2eb8e2"
+timeBendingGUID=GUID.card.timeBending
 local timeBendingRecoveryPending=false
 function reclaimTimeBending(callback)
 	if gStates==nil or gStates.timeBendingRemovedSeat==nil then if callback~=nil then callback() end return false end
@@ -17341,7 +17148,7 @@ function extraTurnOptions(playerIndex)
 	local timeBendingAvailable=false
 	local playArea=getObjectFromGUID(playerPlayAreas[details.seatPos])
 	if playArea~=nil then
-		for _, obj in pairs(playArea.getObjects()) do if obj.guid=="2eb8e2" then timeBendingAvailable=true break end end
+		for _, obj in pairs(playArea.getObjects()) do if obj.guid==GUID.card.timeBending then timeBendingAvailable=true break end end
 	end
 	return tacticSixAvailable, timeBendingAvailable
 end
@@ -17388,174 +17195,237 @@ function rewardClaimSoftLockPending(playerIndex)
 end
 
 --Deals player Hand then increments turn
-function __endTurn_raw(player, mouseButton, id, rewindReady)
-	if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then --and slightPause==false
-		local rewardSeat=turnOrder[gStates.turnNumber].seatPos
-		local rewardSoftLock=rewardClaimSoftLockActive()
-		local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
-		if rewardSoftLock==true and questRewardPending==true then
-			apocalypseQuestRefreshOfferButtons()
-			rewardReminderCameraFocus(player.color,"questView")
-			local questGateMessage=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "Complete/Fail the Quest First" or "Complete/Progress the Quest First"
-			broadcastToColor(questGateMessage,player.color,warningColor)
-			if rewindReady==true then rewindTransactionFinish("End turn") end
-			return
+-- Turn-owned pre-end-turn work runs after Combat has opened the reward boundary but before
+-- physical combat cleanup starts. Combat calls this service at runtime after all modules are loaded.
+function turnPreparePreEndTurn(cleanupPlayer,playerColor,id)
+	if id=="ExtraTurnTacticButton" or id=="ExtraTurnChoiceTactic6" or id=="ExtraTurnChoiceTimeBending" then
+		local tacticSixAvailable,timeBendingAvailable=extraTurnOptions(cleanupPlayer)
+		local useTactic=id=="ExtraTurnChoiceTactic6" or (id=="ExtraTurnTacticButton" and tacticSixAvailable and timeBendingAvailable==false)
+		local useTimeBending=id=="ExtraTurnChoiceTimeBending" or (id=="ExtraTurnTacticButton" and timeBendingAvailable and tacticSixAvailable==false)
+		local cleanupTurnToken=getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID)
+		if useTactic then
+			gStates.tacticSixState="Started"
+			getObjectFromGUID("2404f1").setRotationSmooth({0.00,180.00,180.00},false,false)
+			if cleanupTurnToken~=nil and cleanupTurnToken.is_face_down==true then
+				cleanupTurnToken.flip()
+				gStates.tacticSixState="Used"
+				gStates.skipTurn[cleanupPlayer]=nil
+			end
 		end
-		if rewardSoftLock==true and gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
-			local overdue=math.max(1,tonumber(gStates.apocalypseHereForcedRevealCount) or 1)
-			cameraControl(player,"-1","mapView")
-			local message=overdue==1 and "Reveal the overdue Map tile before claiming rewards." or ("Reveal "..tostring(overdue).." overdue Map tiles before claiming rewards.")
-			broadcastToColor(message,player.color,warningColor)
-			if rewindReady==true then rewindTransactionFinish("End turn") end
-			return
-		end
-		if rewardSoftLock==true and steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(rewardSeat)==true then
-			steadyTempoRefreshAll() steadyTempoUpdateRewardGate(rewardSeat)
-			cameraControl(player,"-1","playAreaView")
-			broadcastToAll("{en}Resolve Steady Tempo before claiming rewards.{ru}Разрешите «Steady Tempo» перед получением наград.{zh-tw}領取獎勵前先結算「Steady Tempo」。{zh-cn}领取奖励前先结算“Steady Tempo”。{ko}보상을 받기 전에 Steady Tempo를 해결하십시오.{es}Resuelve Steady Tempo antes de reclamar recompensas.{fr}Résolvez Steady Tempo avant de réclamer les récompenses.{pt-br}Resolva Steady Tempo antes de receber as recompensas.{de}Führe Steady Tempo aus, bevor du Belohnungen beanspruchst.", positionToColor(gStates.turnNumber))
-			if rewindReady==true then rewindTransactionFinish("End turn") end
-			return
-		end
-		if rewardSoftLock==true and gStates.mineClaimPending~=nil and (gStates.mineClaimPending.playerIndex==nil or gStates.mineClaimPending.playerIndex==gStates.turnNumber) then
-			broadcastToColor("{en}Resolve the pending crystal choice before proceeding to the next player.{ru}Сначала выберите ожидающий кристалл, прежде чем переходить к следующему игроку.{zh-tw}前往下一位玩家前，先完成尚未處理的水晶選擇。{zh-cn}前往下一位玩家前，先完成尚未处理的水晶选择。{ko}다음 플레이어로 넘어가기 전에 대기 중인 크리스털 선택을 해결하십시오.{es}Resuelve la elección de cristal pendiente antes de pasar al siguiente jugador.{fr}Résolvez le choix de cristal en attente avant de passer au joueur suivant.{pt-br}Resolva a escolha de cristal pendente antes de passar para o próximo jogador.{de}Schließe die ausstehende Kristallauswahl ab, bevor du zum nächsten Spieler wechselst.", player.color, warningColor)
-			if rewindReady==true then rewindTransactionFinish("End turn") end
-			return
-		end
-		if rewardSoftLock==true and rewardRetreatRequired~=nil and rewardRetreatRequired(gStates.turnNumber)==true then
-			cameraControl(player,"-1","mapView")
-			broadcastToColor("{en}Retreat to a safe space before claiming rewards.{ru}Отступите на безопасное поле перед получением наград.{zh-tw}領取獎勵前先撤退到安全空間。{zh-cn}领取奖励前先撤退到安全空间。{ko}보상을 받기 전에 안전한 칸으로 후퇴하십시오.{es}Retírate a un espacio seguro antes de reclamar recompensas.{fr}Retirez-vous vers un espace sûr avant de réclamer les récompenses.{pt-br}Recue para um espaço seguro antes de receber as recompensas.{de}Ziehe dich auf ein sicheres Feld zurück, bevor du Belohnungen beanspruchst.",player.color,warningColor)
-			if rewindReady==true then rewindTransactionFinish("End turn") end
-			return
-		end
-		if rewindReady~=true and rewindTransactionOwnerActive("End turn")==true then return end
-		if gStates.coopAssaultPhase=="rewards" then
-			if gStates.skillButtons==0 or rewardSoftLock~=true then
-				if rewindReady~=true then
-					rewindTransactionStart(function() endTurn(player,mouseButton,id,true) end,"End turn")
-					return
-				end
-				local function finishCoopRewardAdvance()
-					advanceCoopRewardPhase()
-					safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
-				end
-				--Co-op hand draw is delayed until Rewards Claimed, after the city result has set the final hand limit.
-				if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then drawUpTo(player, "-1", "DrawHand") end
-				--Don't switch reward players while a visible Deed transfer is still travelling or queued.
-				if cardClaim==true or deedTransferAnyBusy()==true then
-					safeWaitCondition("Turn",finishCoopRewardAdvance,function() return cardClaim~=true and deedTransferAnyBusy()~=true end,10,finishCoopRewardAdvance)
-				else
-					finishCoopRewardAdvance()
-				end
-			else
-				if rewindReady==true then rewindTransactionFinish("End turn") end
-				rewardReminderCameraFocus(player.color,"offerView")
-				broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} needs to select a skill before claiming these rewards.{ru} должен выбрать Навык перед получением наград.{zh-tw}需要先选择一项技能再领取奖励.{zh-cn}需要先选择一项技能再领取奖励.{ko}: 보상을 받기 전에 스킬을 선택하세요.{es} necesita seleccionar una habilidad antes de reclamar estas recompensas.{fr} doit sélectionner une compétence avant de réclamer ces récompenses.{pt-br} precisa selecionar uma habilidade antes de pegar estas recompensas.{de} muss eine Fertigkeit auswählen, bevor diese Belohnungen beansprucht werden."}), warningColor)
+		if useTimeBending then
+			gStates.timeBending="Started"
+			if cleanupTurnToken~=nil and cleanupTurnToken.is_face_down==true then
+				cleanupTurnToken.flip()
+				gStates.timeBending="Used"
+				gStates.skipTurn[cleanupPlayer]=nil
 			end
-			return
-		end
-		--slightPause=true
-		if gStates.skillButtons==0 or rewardSoftLock~=true then--skill reward soft-lock expires with the shared Rewards Claimed window
-			if rewindReady~=true then
-				rewindTransactionStart(function() endTurn(player,mouseButton,id,true) end,"End turn")
-				return
-			end
-
-			apocalypseQuestMineDoomEndTurnCleanup(gStates.turnNumber)
-			apocalypseQuestClearMarkerHighlights()
-			UI.setAttribute("NightTacticSix", "active", "false")
-			UI.setAttribute("zigguratPyramidInteract", "active", "false")
-			gStates.preEndTurn=false
-			rewardClaimSoftLockClear()
-			gStates.levelingUp=false
-			gStates.crytalRuin=false
-			gStates.volkareArmyReduced=false
-			turnOrder[gStates.turnNumber].fameGain=0 gStates.gainList={}
-			turnOrder[gStates.turnNumber].repGain=0
-			turnOrder[gStates.turnNumber].combatIconHide="None"
-			turnOrder[gStates.turnNumber].pillagedVillage=false
-			gStates.skippedMove=false
-			gStates.druidNightsSummon=nil
-			gStates.druidNightsCrystalReward=nil
-			gStates.locationPlace={}
-			gStates.summonStates={}
-			gStates.shieldsDropped={}
-			if gStates.endGameAchieved=="started" then gStates.endGameAchieved="true" end
-			--Update all pursuing monsters, new deployed or stunned will be on the move.
-			if gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]~=nil then
-				for guid, monster in pairs(gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]) do
-					if getObjectFromGUID(guid)~=nil then
-						local monsterObj=getObjectFromGUID(guid)
-						if monster.state=="Deployed" and monsterObj.is_face_down==true then monsterObj.flip() end
-						if monster.state=="Stunned" then monster.stunned=true monster.state="Deployed" else if monster.state=="Deployed" then monster.stunned=nil setPursuitStunnedImage(monsterObj, false) end monster.state="Pursuing" end
-						monster.location={monsterObj.getPosition()[1], monsterObj.getPosition()[2], monsterObj.getPosition()[3]}
-						gStates.monsterPlayLocation[guid]=monster.location
-					end
-				end
-				--delete the help arrows
-				for guid, _ in pairs(gStates.arrowDelete) do
-					if getObjectFromGUID(guid)~=nil then getObjectFromGUID(guid).destruct() end
-				end
-				gStates.arrowDelete={}
-			end
-
-			if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and gStates.coopAssaultPhase~="combat" then
-				--Normal turns draw here. Co-op assault hands wait until that player clicks Rewards Claimed.
-				if turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then
-					drawUpTo(player, "-1", "DrawHand")
-				end
-			end
-
-			--remove any wound cards played because of glade, regardless of which face is showing.
-			for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
-				if playAreaObj.getGMNotes()=="Wound" then
-					getObjectFromGUID(trashCan).putObject(playAreaObj)
-				end
-			end
-
-			--re-enable night tactic six buttons
-			if turnOrder[gStates.turnNumber].tactic==6 and gStates.tacticSixState~="Used" and gStates.dayRound==false then
-				gStates.tacticSixState="notClaimed"
-			end
-
-			--Update Motivation Skill status
-			for a, stats in pairs(gStates.motivationSkill) do
-				if stats.state=="used" then stats.state="deactive" end
-			end
-
-			--During a co-op Dragon assault this player's physical head tokens have now been read and
-			--returned. Mark their combat complete before asking whether another assaulter remains.
-			if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="dragon" and apocalypseDragonGroundPlayerFinished~=nil then apocalypseDragonGroundPlayerFinished(gStates.turnNumber) end
-			--During a co-op assault finish every combat before starting the reward queue.
-			if gStates.coopAssaultPhase=="combat" and coopAssaultPendingCombat()==false then
-				startCoopRewardPhase()
-			elseif gStates.volkareMovementStepPending==true and gStates.volkareMovementPaused==true and gStates.volkarePendingCombatMage==turnOrder[gStates.turnNumber].mage then
-				--A first-half Volkare attack consumed this Mage Knight's turn. Release the second movement only now, after combat/rewards are finished.
-				gStates.volkareMovementPaused=false
-				gStates.volkareAdvanceAfterMovement=true
-				gStates.volkarePendingCombatMage=nil
-			elseif againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(gStates.turnNumber)==true then
-				--The target just took their normal turn in advance. Resolve the airborne attack and release
-				--the suspended Dragon turn directly; do not return to a Dragon Processed interface.
-				againstDragonFinishAttackForPlayer(gStates.turnNumber,true)
-			elseif apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(gStates.turnNumber)==true then
-				--Dragon levels only move after the whole ground combat is over. The pre-end-turn pass has
-				--already read every physical head token and placed the player's level-marking Shields.
-				apocalypseDragonFinalizeGroundCombat(gStates.turnNumber)
-				nextTurnMerged("incrementTurn")
-			else
-				volkareQuestCombatWithdrawalReminder(turnOrder[gStates.turnNumber].mage)
-				nextTurnMerged("incrementTurn")
-			end
-			recourceTrackerReset()
-			if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
-			addAvatarButtons()
-			safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
-		else
-			if rewindReady==true then rewindTransactionFinish("End turn") end
-			rewardReminderCameraFocus(player.color,"offerView")
-			broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} needs to select a skill before you can end their Turn.{ru} должен выбрать Навык перед окончанием хода.{zh-tw}需要先选择一项技能, 然后才能结束他们的回合. {zh-cn}需要先选择一项技能, 然后才能结束他们的回合. {ko}: 차례를 넘기기 전에 스킬을 선택하세요.{es} necesita seleccionar una habilidad antes de que pueda finalizar su turno.{fr} doit sélectionner une compétence avant de pouvoir terminer son tour.{pt-br} precisa selecionar uma habilidade antes que você possa encerrar seu turno.{de} muss eine Fertigkeit wählen, bevor du seinen Zug beenden kannst."}), warningColor)
 		end
 	end
+	mainUIUpdate("Pre End Turn")
+	--Mine rewards are chosen alongside the normal Rewards Claimed stage and use its shared soft-lock window.
+	local mineTurnEligible=turnOrder[cleanupPlayer].mage~=gStates.positionMageKnight[5] and turnOrder[cleanupPlayer].endCalled~=true
+	if mineTurnEligible and gStates.coopAssaultPhase~="combat" then beginMineCrystalClaim(cleanupPlayer,playerColor) end
+end
+
+local function turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)
+	local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
+	if rewardSoftLock==true and questRewardPending==true then
+		apocalypseQuestRefreshOfferButtons()
+		rewardReminderCameraFocus(player.color,"questView")
+		local questGateMessage=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "Complete/Fail the Quest First" or "Complete/Progress the Quest First"
+		broadcastToColor(questGateMessage,player.color,warningColor)
+		if rewindReady==true then rewindTransactionFinish("End turn") end
+		return true
+	end
+	if rewardSoftLock==true and gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
+		local overdue=math.max(1,tonumber(gStates.apocalypseHereForcedRevealCount) or 1)
+		cameraControl(player,"-1","mapView")
+		local message=overdue==1 and "Reveal the overdue Map tile before claiming rewards." or ("Reveal "..tostring(overdue).." overdue Map tiles before claiming rewards.")
+		broadcastToColor(message,player.color,warningColor)
+		if rewindReady==true then rewindTransactionFinish("End turn") end
+		return true
+	end
+	if rewardSoftLock==true and steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(rewardSeat)==true then
+		steadyTempoRefreshAll() steadyTempoUpdateRewardGate(rewardSeat)
+		cameraControl(player,"-1","playAreaView")
+		broadcastToAll("{en}Resolve Steady Tempo before claiming rewards.{ru}Разрешите «Steady Tempo» перед получением наград.{zh-tw}領取獎勵前先結算「Steady Tempo」。{zh-cn}领取奖励前先结算“Steady Tempo”。{ko}보상을 받기 전에 Steady Tempo를 해결하십시오.{es}Resuelve Steady Tempo antes de reclamar recompensas.{fr}Résolvez Steady Tempo avant de réclamer les récompenses.{pt-br}Resolva Steady Tempo antes de receber as recompensas.{de}Führe Steady Tempo aus, bevor du Belohnungen beanspruchst.", positionToColor(gStates.turnNumber))
+		if rewindReady==true then rewindTransactionFinish("End turn") end
+		return true
+	end
+	if rewardSoftLock==true and gStates.mineClaimPending~=nil and (gStates.mineClaimPending.playerIndex==nil or gStates.mineClaimPending.playerIndex==gStates.turnNumber) then
+		broadcastToColor("{en}Resolve the pending crystal choice before proceeding to the next player.{ru}Сначала выберите ожидающий кристалл, прежде чем переходить к следующему игроку.{zh-tw}前往下一位玩家前，先完成尚未處理的水晶選擇。{zh-cn}前往下一位玩家前，先完成尚未处理的水晶选择。{ko}다음 플레이어로 넘어가기 전에 대기 중인 크리스털 선택을 해결하십시오.{es}Resuelve la elección de cristal pendiente antes de pasar al siguiente jugador.{fr}Résolvez le choix de cristal en attente avant de passer au joueur suivant.{pt-br}Resolva a escolha de cristal pendente antes de passar para o próximo jogador.{de}Schließe die ausstehende Kristallauswahl ab, bevor du zum nächsten Spieler wechselst.", player.color, warningColor)
+		if rewindReady==true then rewindTransactionFinish("End turn") end
+		return true
+	end
+	if rewardSoftLock==true and rewardRetreatRequired~=nil and rewardRetreatRequired(gStates.turnNumber)==true then
+		cameraControl(player,"-1","mapView")
+		broadcastToColor("{en}Retreat to a safe space before claiming rewards.{ru}Отступите на безопасное поле перед получением наград.{zh-tw}領取獎勵前先撤退到安全空間。{zh-cn}领取奖励前先撤退到安全空间。{ko}보상을 받기 전에 안전한 칸으로 후퇴하십시오.{es}Retírate a un espacio seguro antes de reclamar recompensas.{fr}Retirez-vous vers un espace sûr avant de réclamer les récompenses.{pt-br}Recue para um espaço seguro antes de receber as recompensas.{de}Ziehe dich auf ein sicheres Feld zurück, bevor du Belohnungen beanspruchst.",player.color,warningColor)
+		if rewindReady==true then rewindTransactionFinish("End turn") end
+		return true
+	end
+	return false
+end
+
+local function turnAdvanceCoopRewards(player,mouseButton,id,rewindReady,rewardSoftLock)
+	if gStates.skillButtons==0 or rewardSoftLock~=true then
+		if rewindReady~=true then
+			rewindTransactionStart(function() endTurn(player,mouseButton,id,true) end,"End turn")
+			return
+		end
+		local function finishCoopRewardAdvance()
+			advanceCoopRewardPhase()
+			safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
+		end
+		--Co-op hand draw is delayed until Rewards Claimed, after the city result has set the final hand limit.
+		if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then drawUpTo(player, "-1", "DrawHand") end
+		--Don't switch reward players while a visible Deed transfer is still travelling or queued.
+		if cardClaim==true or deedTransferAnyBusy()==true then
+			safeWaitCondition("Turn",finishCoopRewardAdvance,function() return cardClaim~=true and deedTransferAnyBusy()~=true end,10,finishCoopRewardAdvance)
+		else
+			finishCoopRewardAdvance()
+		end
+	else
+		if rewindReady==true then rewindTransactionFinish("End turn") end
+		rewardReminderCameraFocus(player.color,"offerView")
+		broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} needs to select a skill before claiming these rewards.{ru} должен выбрать Навык перед получением наград.{zh-tw}需要先选择一项技能再领取奖励.{zh-cn}需要先选择一项技能再领取奖励.{ko}: 보상을 받기 전에 스킬을 선택하세요.{es} necesita seleccionar una habilidad antes de reclamar estas recompensas.{fr} doit sélectionner une compétence avant de réclamer ces récompenses.{pt-br} precisa selecionar uma habilidade antes de pegar estas recompensas.{de} muss eine Fertigkeit auswählen, bevor diese Belohnungen beansprucht werden."}), warningColor)
+	end
+end
+
+local function turnResetCompletedTurnState()
+	apocalypseQuestMineDoomEndTurnCleanup(gStates.turnNumber)
+	apocalypseQuestClearMarkerHighlights()
+	UI.setAttribute("NightTacticSix", "active", "false")
+	UI.setAttribute("zigguratPyramidInteract", "active", "false")
+	gStates.preEndTurn=false
+	rewardClaimSoftLockClear()
+	gStates.levelingUp=false
+	gStates.crytalRuin=false
+	gStates.volkareArmyReduced=false
+	turnOrder[gStates.turnNumber].fameGain=0 gStates.gainList={}
+	turnOrder[gStates.turnNumber].repGain=0
+	turnOrder[gStates.turnNumber].combatIconHide="None"
+	turnOrder[gStates.turnNumber].pillagedVillage=false
+	gStates.skippedMove=false
+	gStates.druidNightsSummon=nil
+	gStates.druidNightsCrystalReward=nil
+	gStates.locationPlace={}
+	gStates.summonStates={}
+	gStates.shieldsDropped={}
+	if gStates.endGameAchieved=="started" then gStates.endGameAchieved="true" end
+	--Update all pursuing monsters, new deployed or stunned will be on the move.
+	if gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]~=nil then
+		for guid, monster in pairs(gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]) do
+			if getObjectFromGUID(guid)~=nil then
+				local monsterObj=getObjectFromGUID(guid)
+				if monster.state=="Deployed" and monsterObj.is_face_down==true then monsterObj.flip() end
+				if monster.state=="Stunned" then monster.stunned=true monster.state="Deployed" else if monster.state=="Deployed" then monster.stunned=nil setPursuitStunnedImage(monsterObj, false) end monster.state="Pursuing" end
+				monster.location={monsterObj.getPosition()[1], monsterObj.getPosition()[2], monsterObj.getPosition()[3]}
+				gStates.monsterPlayLocation[guid]=monster.location
+			end
+		end
+		--delete the help arrows
+		for guid, _ in pairs(gStates.arrowDelete) do
+			if getObjectFromGUID(guid)~=nil then getObjectFromGUID(guid).destruct() end
+		end
+		gStates.arrowDelete={}
+	end
+end
+
+local function turnDrawCompletedTurnHand(player)
+	if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and gStates.coopAssaultPhase~="combat" then
+		--Normal turns draw here. Co-op assault hands wait until that player clicks Rewards Claimed.
+		if turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then
+			drawUpTo(player, "-1", "DrawHand")
+		end
+	end
+end
+
+local function turnCleanupCompletedTurnBoard()
+	--remove any wound cards played because of glade, regardless of which face is showing.
+	for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
+		if playAreaObj.getGMNotes()=="Wound" then
+			getObjectFromGUID(trashCan).putObject(playAreaObj)
+		end
+	end
+
+	--re-enable night tactic six buttons
+	if turnOrder[gStates.turnNumber].tactic==6 and gStates.tacticSixState~="Used" and gStates.dayRound==false then
+		gStates.tacticSixState="notClaimed"
+	end
+
+	--Update Motivation Skill status
+	for a, stats in pairs(gStates.motivationSkill) do
+		if stats.state=="used" then stats.state="deactive" end
+	end
+end
+
+local function turnAdvanceCompletedTurnLifecycle()
+	--During a co-op Dragon assault this player's physical head tokens have now been read and
+	--returned. Mark their combat complete before asking whether another assaulter remains.
+	if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="dragon" and apocalypseDragonGroundPlayerFinished~=nil then apocalypseDragonGroundPlayerFinished(gStates.turnNumber) end
+	--During a co-op assault finish every combat before starting the reward queue.
+	if gStates.coopAssaultPhase=="combat" and coopAssaultPendingCombat()==false then
+		startCoopRewardPhase()
+	elseif gStates.volkareMovementStepPending==true and gStates.volkareMovementPaused==true and gStates.volkarePendingCombatMage==turnOrder[gStates.turnNumber].mage then
+		--A first-half Volkare attack consumed this Mage Knight's turn. Release the second movement only now, after combat/rewards are finished.
+		gStates.volkareMovementPaused=false
+		gStates.volkareAdvanceAfterMovement=true
+		gStates.volkarePendingCombatMage=nil
+	elseif againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(gStates.turnNumber)==true then
+		--The target just took their normal turn in advance. Resolve the airborne attack and release
+		--the suspended Dragon turn directly; do not return to a Dragon Processed interface.
+		againstDragonFinishAttackForPlayer(gStates.turnNumber,true)
+	elseif apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(gStates.turnNumber)==true then
+		--Dragon levels only move after the whole ground combat is over. The pre-end-turn pass has
+		--already read every physical head token and placed the player's level-marking Shields.
+		apocalypseDragonFinalizeGroundCombat(gStates.turnNumber)
+		nextTurnMerged("incrementTurn")
+	else
+		volkareQuestCombatWithdrawalReminder(turnOrder[gStates.turnNumber].mage)
+		nextTurnMerged("incrementTurn")
+	end
+end
+
+local function turnFinishCompletedTurnUI()
+	recourceTrackerReset()
+	if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
+	addAvatarButtons()
+	safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
+end
+
+local function turnSkillRewardBlocked(player,rewindReady)
+	if rewindReady==true then rewindTransactionFinish("End turn") end
+	rewardReminderCameraFocus(player.color,"offerView")
+	broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} needs to select a skill before you can end their Turn.{ru} должен выбрать Навык перед окончанием хода.{zh-tw}需要先选择一项技能, 然后才能结束他们的回合. {zh-cn}需要先选择一项技能, 然后才能结束他们的回合. {ko}: 차례를 넘기기 전에 스킬을 선택하세요.{es} necesita seleccionar una habilidad antes de que pueda finalizar su turno.{fr} doit sélectionner une compétence avant de pouvoir terminer son tour.{pt-br} precisa selecionar uma habilidade antes que você possa encerrar seu turno.{de} muss eine Fertigkeit wählen, bevor du seinen Zug beenden kannst."}), warningColor)
+end
+
+function turnEndTurnRawBase(player, mouseButton, id, rewindReady)
+	if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)~=true then return end
+	local rewardSeat=turnOrder[gStates.turnNumber].seatPos
+	local rewardSoftLock=rewardClaimSoftLockActive()
+	if turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)==true then return end
+	if rewindReady~=true and rewindTransactionOwnerActive("End turn")==true then return end
+
+	if gStates.coopAssaultPhase=="rewards" then
+		turnAdvanceCoopRewards(player,mouseButton,id,rewindReady,rewardSoftLock)
+		return
+	end
+
+	--Skill reward soft-lock expires with the shared Rewards Claimed window.
+	if gStates.skillButtons~=0 and rewardSoftLock==true then
+		turnSkillRewardBlocked(player,rewindReady)
+		return
+	end
+	if rewindReady~=true then
+		rewindTransactionStart(function() endTurn(player,mouseButton,id,true) end,"End turn")
+		return
+	end
+
+	turnResetCompletedTurnState()
+	turnDrawCompletedTurnHand(player)
+	turnCleanupCompletedTurnBoard()
+	turnAdvanceCompletedTurnLifecycle()
+	turnFinishCompletedTurnUI()
 end
 
 --The first finish-line event owns the final-turn circuit.
@@ -17813,7 +17683,7 @@ function __PreEndRound_raw(player, mouseButton, id)
 		establishFinalTurnBoundary("endRound", gStates.turnNumber)
 		--Show Game over Screen
 		if gStates.currentRound==gStates.rounds and gStates.endGameAchieved~="true" then
-		    gStates.endGameAchieved="true"
+		gStates.endGameAchieved="true"
 			if gStates.gameScenario=="One to Return" then oneToReturnLockFinalWinner() end
 		end
 		-- if gStates.currentRound==gStates.rounds and gStates.endGameAchieved~="true" then
@@ -17854,9 +17724,9 @@ end
 
 --Run all the End of Round Tasks
 endRoundRewindRequestPending=false
-function __endRound_raw(rewindReady)
+local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 	if rewindReady~=true then
-		if endRoundRewindRequestPending==true then return end
+		if endRoundRewindRequestPending==true then return true end
 		--Unlike the other protected actions, the true round-reset boundary has no player button to press
 		--again after a rewind. Save a durable checkpoint marker so onLoad can resume this reset automatically.
 		gStates.endRoundResetPending=true
@@ -17870,19 +17740,23 @@ function __endRound_raw(rewindReady)
 			endRoundRewindRequestPending=false
 			gStates.endRoundResetPending=false
 		end)
-		return
+		return true
 	end
 	--Time Bending returns before the round reset rebuilds and shuffles the owner's Deed deck.
-	if gStates.timeBendingRemovedSeat~=nil then if reclaimTimeBending(endRound)==true then return end end
+	if gStates.timeBendingRemovedSeat~=nil then if reclaimTimeBending(endRound)==true then return true end end
 	--Against the Horsemen resolves its Round 1/2 approach, or the Round 3 ritual move, before tactics or the round reset.
-	if againstHorsemenBeginEndRoundMovement()==true then return end
+	if againstHorsemenBeginEndRoundMovement()==true then return true end
 	--A Proxy objective is part of its Deed deck between rounds, just like the physical rules.
 	if proxyPlayerActive()==true and gStates.proxyObjectiveGUID~=nil then proxyClearObjective(true) end
 	--One to Return closes the starting Portal after the first Day's final-turn circuit is complete.
 	if gStates.gameScenario=="One to Return" and gStates.currentRound==1 then
 		oneToReturnClosePortal()
-		if gStates.gameOver==true then return end
+		if gStates.gameOver==true then return true end
 	end
+	return false
+end
+
+local function turnEndRoundAdvanceWorld()
 	--Update round count and check for end of game
 	broadcastToAll("-------------------",{1,1,0.5})
 	apocalypseQuestEndRoundCleanup()
@@ -17903,8 +17777,8 @@ function __endRound_raw(rewindReady)
 	if gStates.darknessComing==true then broadcastToAll(joinLang({"{en}Virtual Dice rolled {ru}Виртуальный бросок кубика выпал на {zh-tw}投掷出{zh-cn}投掷出{ko}다음의 색 주사위 굴려짐: {es}Dados virtuales enrollados en {fr}Dés virtuels lancés {pt-br}Dados Virtuais Rolados {de}Virtuelle Würfel gewürfelt ", dieValue[virtualDie1], "{en} and {ru} и {zh-tw}和{zh-cn}和{ko}그리고{es} y {fr} et {pt-br} e {de} und ", dieValue[virtualDie2]}), {1,1,0.5}) end
 	if gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) then broadcastToAll("{en}Time of day has changed permenantly{ru}Время дня изменилось до конца игры{zh-tw}白昼/黑夜停止交替了{zh-cn}白昼/黑夜停止交替了{ko}낮 또는 밤이 영원히 지속됩니다{es}La hora del día ha cambiado permanentemente{fr}L'heure de la journée a changé en permanence{pt-br}Tempo do dia mudado permanentemente.{de}Die Tageszeit hat sich dauerhaft geändert", {1,1,0.5}) end
 	if gStates.darknessComing==false or (gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) and gStates.timeChanged==false) then
-	 	gStates.timeChanged=true
-	 	dayNight()
+		gStates.timeChanged=true
+		dayNight()
 	end
 
 	--return unused mana steal die
@@ -17924,6 +17798,9 @@ function __endRound_raw(rewindReady)
 		end
 	end, 5)
 
+end
+
+local function turnEndRoundReplenishMap()
 	--Rampage defeated sites
 	if gStates.rampage>=1 then
 		broadcastToAll("{en}Rampaging Tokens have been Replenished{ru}Клетки с яростными врагами получили новые жетоны{zh-tw}肆虐怪物标记已经补充{zh-cn}肆虐怪物标记已经补充{ko}광분하는 적 토큰이 보충되었습니다.{es}Se han reabastecido las fichas violentas.{fr}Les jetons déchaînés ont été réapprovisionnés{pt-br}Fichas Irascíveis foram Reabastecidas{de}Zornige Spielsteine wurden aufgefüllt", {1,1,0.5})
@@ -17946,6 +17823,9 @@ function __endRound_raw(rewindReady)
 		end
 	end
 
+end
+
+local function turnEndRoundRefreshOffers()
 	--Update Dummy Player
 	safeWaitTime("Turn",function()
 		if gStates.positionMageKnight[5]~="nobody" and gStates.positionMageKnight[5]~="Volkare" then
@@ -18024,7 +17904,9 @@ function __endRound_raw(rewindReady)
 			fillSlide()
 		end, 1)
 	end, 1)
+end
 
+local function turnEndRoundRefreshSkillsAndUnits()
 	--Flip all skills
 	broadcastToAll("{en}All Mage Knight Skills Reset{ru}Жетоны навыков снова готовы к использованию{zh-tw}所有魔法骑士的技能重置{zh-cn}所有魔法骑士的技能重置{ko}모든 스킬이 리셋 되었습니다{es}Restablecimiento de Todas las Habilidades de Mage Knight{fr}Réinitialisation de Toutes les Compétences de Mage Knight{pt-br}Todas as Hab. de MK Redefinidas{de}Alle Magier-Ritter-Fähigkeiten zurückgesetzt", {1,1,0.5})
 	for skillGUID, skillDetails in pairs(skillTokens) do
@@ -18047,32 +17929,32 @@ function __endRound_raw(rewindReady)
 	--Ready all units
 	broadcastToAll ("{en}All Units are Ready for combat again{ru}Все отряды готовы к бою{zh-tw}所有部队准备好再次迎战了{zh-cn}所有部队准备好再次迎战了{ko}유닛이 다시 전투할 준비가 되었습니다{es}Todas las unidades están listas para el combate de nuevo.{fr}Toutes les unités sont à nouveau prêtes pour le combat{pt-br}Todas Unidades estão prontas para combater novamente{de}Alle Einheiten sind wieder bereit für den Kampf", {1,1,0.5})
 	local commandTokens={"12e399", "87cff0", "7a2083", "4af106", "ab5b0d", "88f6c1",--Braevalar Command
-						 "07eec8", "d9f39d", "ea80e4", "dbc3f1", "442ad5", "4aa025",--Krang command
-						 "a0f780", "47d922", "a8f242", "d960d3", "493833", "6bfe5b",--Ymirgh command
-						 "104cff", "20a938", "2c51b2", "519062", "31e29d", "ab61c0",--Arythea command
-						 "a345a3", "77dd3d", "c53d0a", "d55244", "4c1c1b", "2eb846",--Norowas command
-						 "c5b17e", "7c0270", "4ea3a1", "4bbe27", "867634", "0162e7",--Goldyx command
-						 "aa0a9d", "fa99cf", "10295b", "92bd25", "7e91b7", "7e6c4f",--Tovak command
-						 "07661c", "bf879c", "6b7e70", "439a0a", "fb74bd", "361a24",--Wolfhawk command
-						 "005290", "10feb1", "ff9201", "af501e", "cc32e5", "2b6131",--Coral command
-						 "22a7bb", "bb619e", "6688df", "2a2da1", "f3f02c", "8e1952",--Jormund command
-						 "fbf2cb", "405221", "787513", "2e1d38", "832228", "4b661b",--Malek command
-						 "f30dd4"}--Norowas Skill is also a command token
+						"07eec8", "d9f39d", "ea80e4", "dbc3f1", "442ad5", "4aa025",--Krang command
+						"a0f780", "47d922", "a8f242", "d960d3", "493833", "6bfe5b",--Ymirgh command
+						"104cff", "20a938", "2c51b2", "519062", "31e29d", "ab61c0",--Arythea command
+						"a345a3", "77dd3d", "c53d0a", "d55244", "4c1c1b", "2eb846",--Norowas command
+						"c5b17e", "7c0270", "4ea3a1", "4bbe27", "867634", "0162e7",--Goldyx command
+						"aa0a9d", "fa99cf", "10295b", "92bd25", "7e91b7", "7e6c4f",--Tovak command
+						"07661c", "bf879c", "6b7e70", "439a0a", "fb74bd", "361a24",--Wolfhawk command
+						"005290", "10feb1", "ff9201", "af501e", "cc32e5", "2b6131",--Coral command
+						"22a7bb", "bb619e", "6688df", "2a2da1", "f3f02c", "8e1952",--Jormund command
+						"fbf2cb", "405221", "787513", "2e1d38", "832228", "4b661b",--Malek command
+						GUID.skill.bondsOfLoyalty}--Norowas Skill is also a command token
 	for _, commandGUID in pairs (commandTokens) do
 		if getObjectFromGUID(commandGUID)~=nil then
 			local token=getObjectFromGUID(commandGUID)
-			if commandGUID~="f30dd4" or (commandGUID=="f30dd4" and token.getPosition()[3]<-25) then token.setPosition({token.getPosition()[1],token.getPosition()[2],-31.19}) end
+			if commandGUID~=GUID.skill.bondsOfLoyalty or (commandGUID==GUID.skill.bondsOfLoyalty and token.getPosition()[3]<-25) then token.setPosition({token.getPosition()[1],token.getPosition()[2],-31.19}) end
 		end
 	end
 
 	--Flip banner Cards
-	for _, bannerGUID in pairs({"596cfa", "986216", "0b5b32", "e48e44", "8dbce4", "8e4b92", "75a627"}) do
+	for _, bannerGUID in pairs(bannerGUIDs) do
 		if getObjectFromGUID(bannerGUID)~=nil then getObjectFromGUID(bannerGUID).setRotationSmooth({0, 180, 0}) end
 	end
-	if getObjectFromGUID("8dbce4")~=nil then
+	if getObjectFromGUID(GUID.card.bannerOfCommandToken)~=nil then
 		safeWaitFrames("Turn",function() safeWaitCondition("Turn",function()
 			bannerOfCommandDecal()
-		end, function() return getObjectFromGUID("8dbce4").resting end) end, 10)
+		end, function() return getObjectFromGUID(GUID.card.bannerOfCommandToken).resting end) end, 10)
 	end
 
 	--Move any player claimed Magic familiars down to indicate they need a new crystal
@@ -18085,7 +17967,9 @@ function __endRound_raw(rewindReady)
 			if blurbed==false then broadcastToAll("{en}Magic Familiars are looking for more Mana to sustain them.{ru}Магические фамильяры жаждут ману для поддержания своей жизни.{zh-tw}法师们正在寻找更多的法力来供能他们。 {zh-cn}法师们正在寻找更多的法力来供能他们。 {ko}마법 패밀리어가 힘을 유지하기 위한 마나를 요구합니다.{es}Los Familiares Mágicos buscan más Maná para sustentarlos.{fr}Les Familiers Magiques recherchent plus de Mana pour les soutenir.{pt-br}Familiares Mágicos estão procurando por mais Mana para sustentá-los.{de}Magische Vertraute suchen nach mehr Mana, um sie zu unterstützen.", {1,1,0.5}) blurbed=true end
 		end
 	end
+end
 
+local function turnEndRoundResetPlayerDecks()
 	--Shuffle all discarded player decks and loose cards back to starting position and remove Magic Familiar Crystals
 	for _, playerDetails in pairs(turnOrder) do
 		--Volkare does not reset his deck
@@ -18139,11 +18023,14 @@ function __endRound_raw(rewindReady)
 	end
 	broadcastToAll ("{en}Deed Decks reset and shuffled{ru}Колоды деяний собраны и перетасованы{zh-tw}功能牌区重置并洗牌{zh-cn}功能牌区重置并洗牌{ko}카드 더미를 셔플했습니다{es}Deed Decks reiniciados y barajados{fr}Deed Decks réinitialisés et mélangés{pt-br}Baralhos de Façanhas reiniciados e embaralhados{de}Deed Decks werden zurückgesetzt und neu gemischt", {1,1,0.5})
 
+end
+
+local function turnEndRoundPrepareTurnOrder()
 	--Work out new tactics picking order
 	table.sort(turnOrder, function (k1, k2) return k1.fame < k2.fame end)
 	for a=1, #turnOrder-1, 1 do
 		if turnOrder[a].fame==turnOrder[a+1].fame and turnOrder[a].tactic<turnOrder[a+1].tactic then
-		 	local temp=turnOrder[a]
+			local temp=turnOrder[a]
 			turnOrder[a]=turnOrder[a+1]
 			turnOrder[a+1]=temp
 		end
@@ -18162,6 +18049,9 @@ function __endRound_raw(rewindReady)
 	for _, details in pairs(turnOrder) do details.endCalled=false end
 	refreshCoopCompSkillXs()
 
+end
+
+local function turnEndRoundPrepareTactics()
 	--Lay out tactics for removal
 	safeWaitFrames("Turn",function()
 		--No tactics removed Scenarios
@@ -18194,6 +18084,9 @@ function __endRound_raw(rewindReady)
 		end
 	end, 20)--long enough for dice collision on mana steal to complete
 
+end
+
+local function turnEndRoundDealHands()
 	--shuffles, deals cards
 	safeWaitTime("Turn",function()
 		--shuffle and scale decks down for more room
@@ -18228,6 +18121,9 @@ function __endRound_raw(rewindReady)
 		end, function() return coralQuickWittedReadyForDraw() end)
 	end, 2)
 
+end
+
+local function turnEndRoundFinalizeImmediateState()
 	--set discards count to 0
 	for a, b in pairs(turnOrder) do	b.discardCount=0 end
 
@@ -18235,12 +18131,25 @@ function __endRound_raw(rewindReady)
 	if gStates.currentRound==gStates.rounds then broadcastToAll("{en}Final Round{ru}Последний Раунд{zh-tw}最终回合{zh-cn}最终回合{ko}마지막 라운드{es}Ronda Final{fr}Tour Final{pt-br}Rodada Final{de}Letzte Runde", {1,1,0.5}) end
 end
 
+function __endRound_raw(rewindReady)
+	if turnEndRoundCheckpointAndInterrupts(rewindReady)==true then return end
+	turnEndRoundAdvanceWorld()
+	turnEndRoundReplenishMap()
+	turnEndRoundRefreshOffers()
+	turnEndRoundRefreshSkillsAndUnits()
+	turnEndRoundResetPlayerDecks()
+	turnEndRoundPrepareTurnOrder()
+	turnEndRoundPrepareTactics()
+	turnEndRoundDealHands()
+	turnEndRoundFinalizeImmediateState()
+end
+
 function dayNight()
 	--Swith day night board
 	local tileColor={}
 	if gStates.dayRound==false then
 		tileColor={r=1.0, g=1.0, b=1.0}
-		local nightObject={"43fa2e", "0f95b7", "9e7de3", "ee9e66", "717bcc", "39ca3f", GUID.deck.nightWeather}
+		local nightObject={GUID.ui.nightTint, "0f95b7", "9e7de3", "ee9e66", "717bcc", "39ca3f", GUID.deck.nightWeather}
 					--Day Board, 5 Weather Tokens, weather deck
 		broadcastToAll("{en}Day has Risen{ru}Наступает день{zh-tw}天亮了{zh-cn}天亮了{ko}아침이 밝았습니다{es}El Día ha Resucitado{fr}Le Jour s'est Levé{pt-br}A Manhã Chegou{de}Der Tag ist auferstanden", {1,1,0.5})
 		for i=1, #nightObject, 1 do
@@ -18278,11 +18187,11 @@ function dayNight()
 		end
 		safeWaitFrames("Turn",function()
 			if getObjectFromGUID(GUID.deck.nightWeather)~=nil then getObjectFromGUID(GUID.deck.nightWeather).shuffle() end
-			if getObjectFromGUID("43fa2e")~=nil then
-				getObjectFromGUID("43fa2e").UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
+			if getObjectFromGUID(GUID.ui.nightTint)~=nil then
+				getObjectFromGUID(GUID.ui.nightTint).UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
 					children={	{tag="Image",  attributes={id="43fa2eNightTintImage", image="Sliced Button/Button Object Active", type="Sliced"}},
-				    			{tag="Text",  attributes={id="43fa2eNightTintText", font="Fonts/MKCardText", fontSize="90", color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin tinte{fr}Sans teinte{pt-br}Sem tonalidade{de}Keine Tönung"}}}}})
-				getObjectFromGUID("43fa2e").interactable=false
+							{tag="Text",  attributes={id="43fa2eNightTintText", font="Fonts/MKCardText", fontSize="90", color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin tinte{fr}Sans teinte{pt-br}Sem tonalidade{de}Keine Tönung"}}}}})
+				getObjectFromGUID(GUID.ui.nightTint).interactable=false
 			end
 		end, 5)--shuffle night weather
 		gStates.dayRound=false
@@ -18328,7 +18237,7 @@ end
 --Use the tactic card's actual board position to identify its owner. During tactic selection,
 --turnOrder can temporarily contain duplicate tactic numbers until everybody has chosen.
 function dayTactic2Owner()
-	local tactic=getObjectFromGUID("a000a4")
+	local tactic=getObjectFromGUID(tacticCard[2])
 	if tactic==nil or gStates.dayRound~=true or gStates.tacticRemove==true then return nil, nil end
 	local tacticPos=tactic.getPosition()
 	if tacticPos[3]>=-15 then return nil, nil end
@@ -18340,7 +18249,7 @@ function dayTactic2Owner()
 end
 
 function dayTactic2ButtonActivate()
-	local tactic=getObjectFromGUID("a000a4")
+	local tactic=getObjectFromGUID(tacticCard[2])
 	if tactic==nil then return end
 	--While the card is still in the tactic offer, leave its normal claim/remove UI alone.
 	--Once it has reached its owner's board, Rethink can be available immediately even while
@@ -18351,7 +18260,7 @@ function dayTactic2ButtonActivate()
 	end
 	tactic.UI.setXmlTable({{}})
 	safeWaitFrames("Turn",function()
-		local card=getObjectFromGUID("a000a4")
+		local card=getObjectFromGUID(tacticCard[2])
 		local currentOwner=dayTactic2Owner()
 		if card==nil or currentOwner==nil then return end
 		if cardEffectIsVertical(card)==true and gStates.tacticTwoState~="Used" then
@@ -18367,7 +18276,7 @@ end
 function dayTactic2SetUsed()
 	if gStates.tacticTwoState=="Used" then return end
 	gStates.tacticTwoState="Used"
-	local tactic=getObjectFromGUID("a000a4")
+	local tactic=getObjectFromGUID(tacticCard[2])
 	if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
 	dayTactic2ButtonActivate()
 end
@@ -18387,7 +18296,7 @@ end
 --Give replacement cards for Day Tactic 2, then shuffle the discarded cards back into the Deed Deck.
 function dayTactic2Discarded(player, mouseButton, id)
 	if mouseButton~="-1" or player==nil then return end
-	local tactic=getObjectFromGUID("a000a4")
+	local tactic=getObjectFromGUID(tacticCard[2])
 	if tactic==nil then return end
 	if gStates.tacticTwoState=="Used" then dayTactic2ButtonActivate() return end
 	local playerColor=player.color
@@ -18406,7 +18315,7 @@ function dayTactic2Discarded(player, mouseButton, id)
 	for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[playerPosition]).getObjects()) do
 		if playAreaObj.tag=="Card" then
 			local found=false
-			for _, bannerGUID in pairs({"596cfa", "986216", "0b5b32", "e48e44", "8dbce4", "8e4b92", "75a627"}) do if playAreaObj.guid==bannerGUID then found=true break end end
+			for _, bannerGUID in pairs(bannerGUIDs) do if playAreaObj.guid==bannerGUID then found=true break end end
 			if playAreaObj.getDescription()=="Quest" then found=true end
 			if found==false then
 				waitTime=1
@@ -18497,7 +18406,7 @@ function nightTactic2(player, mouseButton, id)
 					--stop from repeating
 					gStates.tacticTwoState="Used"
 					--flip over tactic
-					if getObjectFromGUID("f6ad01").is_face_down==false then getObjectFromGUID("f6ad01").flip() end
+					if getObjectFromGUID(tacticCard[8]).is_face_down==false then getObjectFromGUID(tacticCard[8]).flip() end
 					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic to refill Deed Deck with 3 Random discards{ru} использует Тактику 2 и кладет 3 карты из сброса в Колоду деяний{zh-tw}使用战术从弃牌堆中随机拿了3张手牌{zh-cn}使用战术从弃牌堆中随机拿了3张手牌{ko}: 전략 카드 2 사용. 3장의 버려진 카드로 더미를 채웁니다.{es} usó Táctica para rellenar Deed Deck con 3 descartes aleatorios{fr} utilisé Tactic pour remplir Deed Deck avec 3 défausse aléatoires{pt-br} usou Tática para preencher o Baralho de Façanhas com 3 cartas aleatórias do Discarte.{de} taktik benutzt, um das Tatendeck mit 3 zufälligen Abwürfen aufzufüllen"}), positionToColor(a))
 					mainUIUpdate("Night Tactic 2 Used")
 					break
@@ -18530,7 +18439,7 @@ function nightTactic4(player, mouseButton, id)
 							--with the correct remaining count and keeps the Draw Full button available.
 							if redrawCount>0 then coralTactic4Draw(a, redrawCount) end
 							--flip Tactic face down
-							if getObjectFromGUID("db7aaa").is_face_down==false then getObjectFromGUID("db7aaa").flip() end
+							if getObjectFromGUID(tacticCard[10]).is_face_down==false then getObjectFromGUID(tacticCard[10]).flip() end
 							--Update states and buttons
 							gStates.tacticFourState="Used"
 							broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic 4 to redraw hand{ru} использует Тактику 4 для добора{zh-tw}使用战术4重抽手牌{zh-cn}使用战术4重抽手牌{ko}: 전략 카드 4 사용. 카드를 다시 뽑습니다. {es} usé la Táctica 4 para volver a dibujar la mano{fr} utilisé Tactic 4 pour redessiner la main{pt-br} usou a Tática 4 para re-comprar mão.{de} taktik 4 verwendet, um die Hand neu zu ziehen"}), positionToColor(a))
@@ -18588,7 +18497,7 @@ function nightTactic6(player, mouseButton, id)
 	if mouseButton=="-1" then
 		if legalPlayerCheck(player.color, tonumber(id:sub(18,18)))==true then
 			if id:sub(1,17)=="NightTactic6Store" then
-				local tactic=getObjectFromGUID("e2af14")
+				local tactic=getObjectFromGUID(tacticCard[12])
 				local seatPos=tonumber(id:sub(18,18)) or math.ceil((tactic.getPosition()[1]+78)/40)
 				local playerIndex=nil
 				for a, details in pairs(turnOrder) do if details.seatPos==seatPos then playerIndex=a break end end
@@ -18601,7 +18510,7 @@ function nightTactic6(player, mouseButton, id)
 					for _, deedZoneObj in pairs(deedZone.getObjects()) do
 						if deedZoneObj.type=="Card" then
 							--Quick Witted is set aside, so skip it and keep looking for a normal Deed card.
-							if not (turnOrder[playerIndex].mage=="Coral" and deedZoneObj.guid=="6ecbc6") then
+							if not (turnOrder[playerIndex].mage=="Coral" and deedZoneObj.guid==GUID.card.quickWitted) then
 								deedZoneObj.setPositionSmooth({tactic.getPosition()[1], 1.2, tactic.getPosition()[3]})
 								deedZoneObj.setRotation({0, 180, 180})
 								drawn=deedZoneObj
@@ -18611,7 +18520,7 @@ function nightTactic6(player, mouseButton, id)
 						if deedZoneObj.type=="Deck" then
 							local normalCards=deedZoneObj.getQuantity()
 							if turnOrder[playerIndex].mage=="Coral" then
-								for _, cardData in pairs(deedZoneObj.getObjects()) do if cardData.guid=="6ecbc6" then normalCards=normalCards-1 break end end
+								for _, cardData in pairs(deedZoneObj.getObjects()) do if cardData.guid==GUID.card.quickWitted then normalCards=normalCards-1 break end end
 							end
 							if normalCards>0 then
 								drawn=deedZoneObj.takeObject({position={tactic.getPosition()[1], 1.2, tactic.getPosition()[3]}, rotation={0, 180, 180}})
@@ -18646,7 +18555,7 @@ function nightTactic6(player, mouseButton, id)
 						return
 					end
 					--Only finish the tactic after every recorded stored card has actually been returned.
-					local tactic=getObjectFromGUID("e2af14")
+					local tactic=getObjectFromGUID(tacticCard[12])
 					if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
 					gStates.powerStored={}
 					gStates.tacticSixState="Used"
@@ -18693,9 +18602,42 @@ end
 
 --Add a row of buttons to allow changing of hand color
 
+-- Preserve the public raw callback boundary while making the Fame/Reputation coordination explicit.
+function __endTurn_raw(player, mouseButton, id, rewindReady)
+	return fameReputationEndTurnRaw(player, mouseButton, id, rewindReady)
+end
+
 end)
 __bundle_register("PlayingGame.Combat", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Combat, enemy staging, cooperative assault and combat reward runtime.
+
+local function combatAllAttackBonusDecalURL(bonus)
+	bonus=tonumber(bonus) or 0
+	if bonus==1 then return "https://steamusercontent-a.akamaihd.net/ugc/15079936556037598648/4230C9B5103E634683302A5818A744A4B14CD8CF/" end
+	if bonus==2 then return "https://steamusercontent-a.akamaihd.net/ugc/10898261749964477479/1CE17B450996B940608CA7CEBB7269B0FBC7EB9A/" end
+	if bonus==3 then return "https://steamusercontent-a.akamaihd.net/ugc/9640160926418445784/88929ADF524E4BC2A53D4CDB2B942A925BB53625/" end
+	return nil
+end
+
+--Shared presentation helper for temporary Attack modifiers on enemies and Dragon heads.
+function combatSyncNamedAttackBonusDecal(obj,prefix,bonus,position)
+	if obj==nil or prefix==nil or position==nil then return false end
+	local decals={}
+	for _,decalDetails in pairs(obj.getDecals() or {}) do
+		if tostring(decalDetails.name or ""):sub(1,#prefix)~=prefix then decals[#decals+1]=decalDetails end
+	end
+	local url=combatAllAttackBonusDecalURL(bonus)
+	if url~=nil then decals[#decals+1]={name=prefix..tostring(bonus),url=url,position=position,rotation={90,180,0},scale={0.72,0.72,1}} end
+	obj.setDecals(decals)
+	return true
+end
+
+--Visual reminder for temporary +X to every Attack. Use the same decal placement/scale as
+--the Green City Poison bonus so this behaves like the mod's existing monster bonus markers.
+function combatAddAllAttackBonusDecal(enemy,bonus)
+	if enemy==nil then return end
+	combatSyncNamedAttackBonusDecal(enemy,"AllAttack+",bonus,{1.1,0.15,0.25})
+end
 
 local coopAssaultNormalText="{en}Nearby Mage Knights can choose to join this assault by skipping their next turn. This tool randomly gives the amount of defenders chosen to each player. (Remember to pay movement costs){ru}Ближайшие Рыцари-маги могут присоединиться к этому штурму, пропустив свой следующий ход. Этот инструмент случайно распределяет выбранное количество защитников между игроками. (Не забудьте оплатить стоимость движения.){zh-tw}附近的魔法騎士可以選擇加入突襲。此工具會依據數量隨機分配守軍給每位參與者。（記得支付移動點數）{zh-cn}附近的魔法骑士可以选择加入突袭。此工具会依据数量随机分配守军给每位参与者。（记得支付移动点数）{ko}근처의 메이지 나이트들은 다음 차례를 건너뛰고 이 강습에 참여할 수 있습니다. 이 도구는 선택한 수의 수비자를 각 플레이어에게 무작위로 배정합니다. (이동 비용을 지불하는 것을 잊지 마세요){es}Los Caballeros Mago cercanos pueden unirse a este asalto saltándose su próximo turno. Esta herramienta reparte al azar entre los jugadores la cantidad de defensores elegida. (Recuerda pagar los costes de movimiento){fr}Les Chevaliers-Mages proches peuvent rejoindre cet assaut en sautant leur prochain tour. Cet outil répartit aléatoirement entre les joueurs le nombre de défenseurs choisi. (N’oubliez pas de payer les coûts de mouvement){pt-br}Mage Knights próximos podem participar deste ataque pulando o próximo turno. Esta ferramenta distribui aleatoriamente entre os jogadores a quantidade escolhida de defensores. (Lembre-se de pagar os custos de movimento){de}Mage Knights in der Nähe können sich diesem Angriff anschließen, indem sie ihren nächsten Zug aussetzen. Dieses Werkzeug verteilt die gewählte Anzahl Verteidiger zufällig auf die Spieler. (Denke daran, die Bewegungskosten zu bezahlen)"
 local combatFactionRewards={
@@ -18971,7 +18913,7 @@ function resolveCoopAssaultLocations()
 	end
 end
 
-function applyPlayerFameReputation(playerIndex)
+function combatApplyPlayerFameReputationBase(playerIndex)
 	local player=turnOrder[playerIndex]
 	local startingFameToLevel=math.floor(math.sqrt((player.fame-(gStates.scoreIfLooped*player.scoreLoop))+1))
 	local newFame=player.fame+player.fameGain-(gStates.scoreIfLooped*player.scoreLoop)
@@ -19315,7 +19257,7 @@ function startCoopRewardPhase()
 	safeWaitFrames("Combat",function() safeWaitCondition("Combat",beginRewards, coopAssaultAvatarsSettled, 3, beginRewards) end, 2)
 end
 
-function advanceCoopRewardPhase()
+function combatAdvanceCoopRewardPhaseBase()
 	local entry=gStates.coopRewardQueue[gStates.coopRewardIndex]
 	if entry~=nil then
 		turnOrder[entry.player].fameGain=0
@@ -19352,501 +19294,497 @@ end
 rewardClaimDelayActive=false
 local rewardClaimDelayWait=nil
 --local slightPause=true
+local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
+	volkarePursuitResolveCombat(cleanupPlayer)
+	puppetMasterCleanupPlayedPuppets(cleanupPlayer)
+	--A Quest marker may still be settling under this Hero. Finish that temporary lift before the older
+	--end-turn site-cleanup lift records avatarPos/locks the same object, or it can be left floating.
+	apocalypseQuestRestoreRaisedAvatar(cleanupPlayer,true)
+	local coopCombatReward=nil
+	if gStates.coopAssaultPhase=="combat" then
+		coopCombatReward={player=cleanupPlayer, mage=turnOrder[cleanupPlayer].mage, fame=turnOrder[cleanupPlayer].fameGain, reputation=turnOrder[cleanupPlayer].repGain, factionRewards={dark=0, elementalist=0, apocalypse=0, council=0}}
+		gStates.coopRewardQueue[#gStates.coopRewardQueue+1]=coopCombatReward
+		setUIButtonEnabled("EndTurnButton",false)
+		setUIButtonEnabled("EndTurnButtonAlt",false)
+	end
+	--reset variables for next turn
+	gStates.preEndTurn=true
+	--Before combat cleanup moves/discards Quest enemies, remember successful combat-gated Quest
+	--resolutions. This gives Rewards Claimed its soft warning gate while that Quest action is pending.
+	apocalypseQuestCaptureRewardCompletionGate(cleanupPlayer)
+	--Free Wine uses a normal Keep assault rather than a Quest-spawned combat, so capture its outcome
+	--separately now that the rewards boundary has been reached.
+	apocalypseQuestCaptureFreeWineResolutionGate(cleanupPlayer)
+	--Mine of Doom enemies now use the normal end-of-turn combat cleanup with every other enemy.
+	rewardClaimDelayActive=true
+	if rewardClaimDelayWait~=nil then Wait.stop(rewardClaimDelayWait) rewardClaimDelayWait=nil end
+	gStates.monsterOffsetX=0
+	gStates.monsterOffsetZ=0
+	gStates.attackedMonsters={}
+	combatCameraChoiceSuppressedPlayer=nil
+	turnOrder[cleanupPlayer].combatIconHide="Both"
+	if turnOrder[cleanupPlayer].masterOfChaos~=nil then turnOrder[cleanupPlayer].masterOfChaos="available" end
+	addAvatarButtons()
+	if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
+	setUIButtonEnabled("PreEndTurn",false)
+	rewardClaimDelayWait=safeWaitTime("Combat",function()
+		rewardClaimDelayWait=nil
+		local function finishRewardDelay()
+			rewardClaimDelayActive=false
+			if gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
+				rewardClaimSoftLockStart()
+				if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[cleanupPlayer].seatPos)
+				else
+					setUIButtonEnabled("PreEndTurn",true)
+				end
+			end
+			rewindTransactionFinish("Pre-end-turn cleanup")
+		end
+		local dragonCombat=gStates.apocalypseDragonGroundCombat
+		if dragonCombat~=nil and dragonCombat.coop~=true and dragonCombat.playerIndex==cleanupPlayer and dragonCombat.levelsApplied~=true then
+			safeWaitCondition("Combat",finishRewardDelay,function()
+				local current=gStates.apocalypseDragonGroundCombat
+				return current==nil or current.levelsApplied==true
+			end,5,finishRewardDelay)
+		else
+			finishRewardDelay()
+		end
+	end, 2.0)
+	return coopCombatReward
+end
+
+local function combatPreEndTurnRaiseAvatar(cleanupPlayer)
+	--lift player Avatar for token(s) to go under
+	local tokenRaised=0
+	local avatarPos={}
+	local avatarModel=nil
+	if (turnOrder[cleanupPlayer].avatarLocation=="mine" and gStates.gameScenario=="Mines Liberation")
+		or (turnOrder[cleanupPlayer].avatarLocation:sub(1, 4)=="city" and gStates.gameScenario=="The Lost Relic Blitz")
+		or (turnOrder[cleanupPlayer].avatarLocation=="glade" and gStates.gameScenario=="Life and Death")
+		or turnOrder[cleanupPlayer].avatarLocation=="graveyard"
+		or turnOrder[cleanupPlayer].avatarLocation=="keep"	or turnOrder[cleanupPlayer].avatarLocation=="mage tower"
+		or turnOrder[cleanupPlayer].avatarLocation=="tomb"	or turnOrder[cleanupPlayer].avatarLocation=="dungeon"
+		or turnOrder[cleanupPlayer].avatarLocation=="labyrinth" or turnOrder[cleanupPlayer].avatarLocation=="maze"
+		or turnOrder[cleanupPlayer].avatarLocation=="ziggurat" or turnOrder[cleanupPlayer].avatarLocation=="pyramid"
+		or turnOrder[cleanupPlayer].avatarLocation=="ruin"
+		or turnOrder[cleanupPlayer].avatarLocation=="monster den" or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds"
+		or turnOrder[cleanupPlayer].avatarLocation=="monastery"
+		or (againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(cleanupPlayer)==true
+			and againstDragonAirborneProtectionDestroysSite~=nil and againstDragonAirborneProtectionDestroysSite(turnOrder[cleanupPlayer].avatarLocation)==true) then
+		avatarModel=mageKnightAvatarObject(cleanupPlayer,false)
+		if avatarModel~=nil then
+			avatarPos=avatarModel.getPosition()
+			avatarModel.setPosition({avatarPos[1],avatarPos[2]+2,avatarPos[3]})
+			avatarModel.lock()
+			tokenRaised=cleanupPlayer
+		end
+	end
+	return tokenRaised,avatarPos,avatarModel
+end
+
+local function combatReturnPreEndTurnDie(cleanupPlayer,diceGUID)
+	--make sure coop assault isn't happening before returning dice.
+	gStates.coopAssaultDice[#gStates.coopAssaultDice+1]=diceGUID
+	if getObjectFromGUID(turnOrder[nextTurnMerged("nextMageSkipDummy")].turnOrderTokenGUID).is_face_down==false or #turnOrder<=2 then
+		for _, diceG in pairs(gStates.coopAssaultDice) do
+			local die=getObjectFromGUID(diceG)
+			if die~=nil then
+				die.setPosition({-12.5+(math.random()*7),2.7,-25.0+(math.random()*4.0)})
+				die.randomize()
+				onObjectRandomize({type="Dice"})
+			end
+		end
+		gStates.coopAssaultDice={}
+	end
+end
+
+local function combatPreEndTurnPreparePlayArea(cleanupPlayer)
+	--locate discard deck
+	local cardDestination=nil
+	for _, deckSearch in pairs(getObjectFromGUID(deedDeckDiscardZones[turnOrder[cleanupPlayer].seatPos]).getObjects()) do
+		if deckSearch.type=="Card" or deckSearch.type=="Deck" then cardDestination=deckSearch break end
+	end
+
+	--separate any decks and possessed tokens found. Unit Area monsters use the same combat cleanup path.
+	local tokenWait=0
+	for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
+		--separate decks
+		if playAreaObj.type=="Deck" then
+			for count=1, #playAreaObj.getObjects()-1, 1 do
+				playAreaObj.takeObject({position={playAreaObj.getPosition()[1]+(0.8*count), playAreaObj.getPosition()[2]+(0.06*count), playAreaObj.getPosition()[3]+(0.8*count)}, smooth=false})
+			end
+		end
+		--Separate possessed tokens only after the base enemy was actually defeated.
+		--An undefeated face-down rampager returns to the map with its possession still attached.
+		if playAreaObj.getAttachments()[1]~=nil and playAreaObj.is_face_down==false then
+			local destroyedSiteRewards=againstApocalypseRampagerDestroyedSiteRewards~=nil and againstApocalypseRampagerDestroyedSiteRewards(playAreaObj) or 0
+			if destroyedSiteRewards>0 then
+				local destroyedBag=getObjectFromGUID(GUID.bag.destroyedSite)
+				if destroyedBag~=nil then
+					for _=1,destroyedSiteRewards do
+						destroyedBag.takeObject({position={(turnOrder[cleanupPlayer].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}})
+					end
+				end
+			end
+			attachEnemy(nil, nil, "detach", playAreaObj, nil)
+		end
+		tokenWait=40
+	end
+	return cardDestination,tokenWait
+end
+
+local function combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avatarPos,avatarModel,state,tokenWait)
+	--Drop Avatar after a pause. A returning undefeated monster can still be smooth-moving when the
+	--two-second settle check expires (Quest failures make this common). The old wait had no timeout
+	--handler, so the avatar could remain locked at +2 height forever. Run the same finish routine on
+	--either a normal settle or timeout.
+	safeWaitFrames("Combat",function()
+		local avatarDropFinished=false
+		local function finishAvatarDrop()
+			if avatarDropFinished==true then return end
+			avatarDropFinished=true
+			--place shield or replenish monster in spawning grounds
+			if turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
+				if state.cleanupContext.spawningGroundMonstersBeat==2 then dropShield({avatarPos[1], 2, avatarPos[3]}, true) coralTalesSiteShield("spawning grounds") end
+				if state.spawningGroundMonstersReturned==1 then
+					local newMonster=getObjectFromGUID(monsterPiles.tan).takeObject({position={avatarPos[1]+0.22, 2.12, avatarPos[3]}, smooth=false})
+					gStates.monsterPlayLocation[newMonster.guid]={avatarPos[1]+0.22, 2.12, avatarPos[3]}
+				end
+			end
+			local horsemenReturn=againstHorsemenFinishSoloAssault(cleanupPlayer)
+			if horsemenReturn~=nil then
+				if avatarModel~=nil then
+					avatarPos={horsemenReturn[1],horsemenReturn[2],horsemenReturn[3]}
+				else
+					local horsemenAvatar=coopAssaultAvatarObject(cleanupPlayer)
+					if horsemenAvatar~=nil then horsemenAvatar.setPositionSmooth(horsemenReturn,false,false) end
+				end
+			end
+			if avatarModel~=nil then
+				avatarModel.setLock(false)
+				avatarModel.setPositionSmooth({avatarPos[1], avatarPos[2]+1.0, avatarPos[3]},false,false)
+			end
+		end
+		safeWaitCondition("Combat",finishAvatarDrop, function()
+			if tokenRaised<=0 or (state.lastObject~=nil and state.lastObject.resting~=true) then return false end
+			local pendingDragonAttack=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
+			local destroyedGUID=pendingDragonAttack~=nil and pendingDragonAttack.destroyedSiteTokenGUID or nil
+			if destroyedGUID~=nil then
+				local destroyed=getObjectFromGUID(destroyedGUID)
+				if destroyed==nil then return false end
+				local destroyedPos=destroyed.getPosition()
+				if math.abs(destroyedPos[2]-1.13)>0.05 then return false end
+			end
+			return true
+		end, 5, finishAvatarDrop)
+	end, tokenWait+3)
+end
+
+local function combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait)
+	--Adjust hand size and Check for scenario completion to Start the final round of turns.
+	--A completed City assault has just changed both monster state and physical shields. Rebuild ownership once,
+	--at this settled cleanup boundary, before fakeDropAvatar reads Lead/Assist for the new hand limit.
+	--Other cleanup only needs the cheaper defeat-state refresh; co-op combat rebuilds ownership in its reward phase.
+	safeWaitFrames("Combat",function() safeWaitCondition("Combat",function()
+		local cleanupLocation=turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation or ""
+		if gStates.coopAssaultPhase~="combat" and (cleanupLocation:sub(1,4)=="city" or cleanupLocation:sub(1,6)=="raised") then cityBeatCheck()
+		else refreshCityDefeatState() end
+		fakeDropAvatar(cleanupPlayer)
+		scenarioCombatCleanupCheck(cleanupPlayer)
+		--Combat Complete is the only confirmation during the combat stage. Advance as soon as cleanup is finished.
+		if gStates.endGameAchieved=="false" and gStates.tacticShown==false and gStates.coopAssaultPhase=="combat" then
+			safeWaitFrames("Combat",function()
+				if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then endTurn(player,"-1","CoopCombatComplete") end
+			end,2)
+		end
+	end, function() return state.lastObject==nil or state.lastObject.resting end, 2, function()
+		if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then endTurn(player, "-1", "CoopCombatComplete") end
+	end) end, tokenWait+50)
+end
+
+local function combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait)
+	--Skills own circulation/return rules; Combat retains the same delayed cleanup boundary.
+	local nextPlayer=nextTurnMerged("nextMageSkipDummy")
+	safeWaitFrames("Combat",function()
+		local keepSafe=prepareEndTurnSkillRotation(cleanupPlayer,nextPlayer)
+		local playArea=getObjectFromGUID(playerPlayAreas[turnOrder[cleanupPlayer].seatPos])
+		local trash=getObjectFromGUID(trashCan)
+		for _, playAreaObj in pairs(playArea~=nil and playArea.getObjects() or {}) do
+			if (playAreaObj.type=="Figurine" and keepSafe[playAreaObj.guid]~=true)
+			or playAreaObj.getName()=="Blue Defender Bonus Reminder" or playAreaObj.getName()=="Green Defender Bonus Reminder"
+			or playAreaObj.getName()=="White Defender Bonus Reminder" or playAreaObj.getName()=="Red Defender Bonus Reminder" then
+				if trash~=nil then trash.putObject(playAreaObj) end
+			end
+		end
+	end,tokenWait+3)
+end
+
+local function combatCleanupPreEndTurnUnitArea(cleanupPlayer)
+	--Remove crystals and dice used to power Units
+	local crystalsToDestroy={}
+	local unitAreaObjects=getObjectFromGUID(playerUnitAreas[turnOrder[cleanupPlayer].seatPos]).getObjects()
+	for _, unitAreaObj in pairs(unitAreaObjects) do
+		--Return any Mana dice
+		if unitAreaObj.type=="Dice" then
+			combatReturnPreEndTurnDie(cleanupPlayer,unitAreaObj.guid)
+		end
+		cleanupUnitAreaSkillAtEndTurn(unitAreaObj,cleanupPlayer)
+		--Record Crystals in the Unit Area. Registered skill tokens are never disposable crystals.
+		if unitAreaObj.type=="Figurine" and unitAreaObj.getGMNotes()~="Unit Wound" and skillTokens[unitAreaObj.guid]==nil and monsterPugs[unitAreaObj.guid]==nil then crystalsToDestroy[#crystalsToDestroy+1]=unitAreaObj.guid end
+	end
+	for _, crystals in pairs(crystalsToDestroy) do
+		local crystal=getObjectFromGUID(crystals)
+		local delete=true
+		if crystal~=nil then
+			local nearestUnit, distance=unitLayoutNearestUnit(unitAreaObjects,crystal.getPosition()[1])
+			if nearestUnit~=nil and distance<=1.5 and (nearestUnit.guid=="0a2e0b" or nearestUnit.guid=="d8e49b") then delete=false end
+		end
+		if delete==true and crystal~=nil then getObjectFromGUID(trashCan).putObject(crystal) end
+	end
+
+	--Fame and Reputation are held until every participant has finished a co-op assault.
+	if gStates.coopAssaultPhase~="combat" then applyPlayerFameReputation(cleanupPlayer) end
+
+	--Use the player whose cleanup started, not whatever turn happens to be current when
+	--this delayed callback fires. This prevents two Mage Knights being left on the portal.
+	if coopAssaultVirtualPlayer(cleanupPlayer)==false then portalSwap("endOfTurn", cleanupPlayer) end
+end
+
+local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait)
+	safeWaitFrames("Combat",function()
+		--Get objects from player area to clean them up
+		local state={
+			lastObject=nil,
+			spawningGroundMonstersReturned=0,
+			cleanupContext={player=cleanupPlayer,coopCombatReward=coopCombatReward,avatarPos=avatarPos,volkareCityShield=0,volkarePaused=false,spawningGroundMonstersBeat=0,mapSpatial=runtimeMapSpatialSnapshot()}
+		}
+		gStates.turnForfeited=true
+		--Goblin Warrens is resolved by the normal monster-cleanup result below. Fresh Goblins begin
+		--face up, so checking them here would incorrectly count an untouched/failed fight as success.
+		for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
+			local cleanupObjectGUID=playAreaObj.guid
+			safeWaitFrames("Combat",function()
+				--Returning an airborne Dragon head restores its real image with reload(), which invalidates
+				--the old TTS Object userdata for all four captured head objects. Identify them by GUID before
+				--touching that userdata, return the set once, and stop this object's ordinary cleanup here.
+				local dragonAirborneCleanup=againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(cleanupPlayer)==true and againstDragonAirborneHeadGUID~=nil and againstDragonAirborneHeadGUID(cleanupObjectGUID)==true
+				if dragonAirborneCleanup==true then
+					againstDragonReturnAirborneHeads()
+					--The avatar is still raised at this cleanup boundary. Resolve site protection now so
+					--the Destroyed Site marker can settle underneath it before the avatar comes back down.
+					local pendingDragonAttack=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
+					if againstDragonResolveAirborneProtection~=nil then againstDragonResolveAirborneProtection(pendingDragonAttack) end
+					return
+				end
+				playAreaObj=getObjectFromGUID(cleanupObjectGUID)
+				if playAreaObj==nil then return end
+
+				--Return any Mana dice
+				if playAreaObj.type=="Dice" then
+					combatReturnPreEndTurnDie(cleanupPlayer,playAreaObj.guid)
+				end
+
+				--Delete wound tokens, shards and face up potions.
+				if playAreaObj.getGMNotes()=="Unit Wound" or playAreaObj.getGMNotes()=="Volkare Reminder Token" or playAreaObj.getGMNotes()=="Trap Reminder Token" or playAreaObj.getGMNotes()=="Oasis Reminder Token" or
+					playAreaObj.getName()=="Green Shard" or playAreaObj.getName()=="Red Shard" or playAreaObj.getName()=="Blue Shard" or playAreaObj.getName()=="White Shard" or
+					((playAreaObj.getName()=="Green Potion" or playAreaObj.getName()=="Red Potion" or playAreaObj.getName()=="Blue Potion" or playAreaObj.getName()=="White Potion") and playAreaObj.is_face_down==false) or
+					(playAreaObj.getName()=="" and playAreaObj.type=="Tile" and monsterPugs[playAreaObj.guid]==nil) then
+					getObjectFromGUID(trashCan).putObject(playAreaObj)
+				end
+
+				--Return face down Potion
+				if ((playAreaObj.getName()=="Green Potion" or playAreaObj.getName()=="Red Potion" or playAreaObj.getName()=="Blue Potion" or playAreaObj.getName()=="White Potion") and playAreaObj.is_face_down==true) then
+					if gStates.mageSkills[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.mageSkills[playAreaObj.guid],false,false) end
+				end
+
+				--Mark mine monster as defeated
+				for _, monsters in pairs(gStates.mineMonsterQty) do
+					if monsters[playAreaObj.guid]~=nil and playAreaObj.is_face_down==false then
+						monsters[playAreaObj.guid]="dead"
+						break
+					end
+				end
+
+				local dragonGroundCleanup=apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(cleanupPlayer)==true and apocalypseDragonGroundCombatToken~=nil and select(1,apocalypseDragonGroundCombatToken(playAreaObj.guid))==true
+				if dragonGroundCleanup==true then
+					apocalypseDragonGroundResolveToken(playAreaObj)
+					apocalypseDragonGroundTryApplyLevelsBeforeRewards(cleanupPlayer)
+					return
+				end
+
+				--Return undefeated face down tokens
+				if monsterPugs[playAreaObj.guid]~=nil and playAreaObj.is_face_down==true and dragonGroundCleanup~=true then
+					if gStates.monsterPlayLocation[playAreaObj.guid]==nil or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
+						--if manual drawn assign the avatar location as return spot.
+						if (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) and gStates.summonStates[playAreaObj.guid]~="summoned" and (turnOrder[cleanupPlayer].avatarLocation=="monster den" or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" or turnOrder[cleanupPlayer].avatarLocation=="ruin") then
+							gStates.monsterPlayLocation[playAreaObj.guid]={avatarPos[1], 2.5, avatarPos[3]}
+						end
+					end
+					if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then
+						if gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage]~=nil and gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]~=nil then
+							local pursuit=gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]
+							pursuit.state="Stunned" pursuit.stunned=true
+							playAreaObj.setRotation({0, 180, 0})
+							broadcastToAll(joinLang({translateWord[turnOrder[cleanupPlayer].mage],"{en} Stunned the Pursuing Rampager (Skips next turns Movement){ru} «оглушает» преследователя (тот пропускает одно Движение){zh-tw} 暈眩了狂暴追擊者（它會跳過下次移動）{zh-cn}晕眩了狂暴追击者(它跳过下次行动){ko}: 추적하는 적 기절시킴. (다음 추적 단계 건너뜀.){es} Aturdido al agresor que lo persigue (se salta el movimiento del siguiente turno){fr} Étourdi le saccageur à la poursuite (ignore le mouvement des tours suivants){pt-br} Atordoou o Irascível Perseguidor (Pule próximos turnos de movimento).{de} hat den Verfolger betäubt (überspringt die Bewegung des nächsten Zuges)"}), positionToColor(cleanupPlayer))
+						else
+							local returningMonsterGUID=playAreaObj.guid
+							safeWaitTime("Combat",function()
+								local returningMonster=getObjectFromGUID(returningMonsterGUID)
+								if returningMonster~=nil then returningMonster.setRotation({0,180,0}) end
+							end,3)--long enough to have traveled back to the board.
+						end
+						if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="horsemen" and horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
+							--Each Horseman is assigned to exactly one participant; a survivor returns to its Portal-card slot.
+							playAreaObj.setRotation({0,180,0})
+							playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
+							state.lastObject=playAreaObj
+						elseif gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" and (playAreaObj.guid==elementalist.token or playAreaObj.guid==darkCrusader.token) then
+							--A face-down leader means this player defeated no leader levels. Advance the real token through
+							--the same preview handoff used by a face-up surviving leader so the next planning copy is consumed.
+							if coopAssaultPendingCombat()==true then
+								local nextPlayer=nextTurnMerged("nextMage")
+								promoteCoopLeaderPreview(nextPlayer, playAreaObj)
+							else
+								clearCoopLeaderPreviewClones()
+								playAreaObj.setRotation({0, 180, 0})
+								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
+							end
+						elseif getObjectFromGUID(turnOrder[nextTurnMerged("nextMage")].turnOrderTokenGUID).is_face_down==true and playAreaObj.getRotationValues()[2]==nil then
+							--Move to next players play area.
+							playAreaObj.setPositionSmooth({turnOrder[nextTurnMerged("nextMage")].seatPos*40-100, 1.5, -39.41},false,false)
+						else
+							if turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) then
+								gStates.monsterPlayLocation[playAreaObj.guid][1]=gStates.monsterPlayLocation[playAreaObj.guid][1]-0.22+(state.spawningGroundMonstersReturned*0.44)
+								gStates.monsterPlayLocation[playAreaObj.guid][2]=gStates.monsterPlayLocation[playAreaObj.guid][2]+(state.spawningGroundMonstersReturned*0.12)
+								state.spawningGroundMonstersReturned=state.spawningGroundMonstersReturned+1
+							end
+							if gStates.monsterPerks[playAreaObj.guid]~=nil and gStates.monsterPerks[playAreaObj.guid].wallFortified~=nil then setAssaultWallFortified(playAreaObj, false) end
+							playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
+							state.lastObject=playAreaObj
+						end
+					end
+				end
+
+				--Process and Discard Face up monsters. Horsemen are persistent Custom Tiles, so identify
+				--them before any generic rotation-value discard route can mistake them for a normal token.
+				if monsterPugs[playAreaObj.guid]~=nil and dragonGroundCleanup~=true and (playAreaObj.is_face_down==false or gStates.monsterPlayLocation[playAreaObj.guid]==nil) then
+					if horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
+						horsemanResolveDefeat(playAreaObj,cleanupPlayer,coopCombatReward)
+					elseif playAreaObj.getRotationValues()[2]~=nil then
+						combatDiscardMonster(playAreaObj,true,state.cleanupContext)
+					else--process leaders
+						local currentLeader=elementalist
+						if playAreaObj.guid==darkCrusader.token then currentLeader=darkCrusader end
+						--drop shield(s) on leader disc
+						for b=1, gStates.leaderOverkill, 1 do
+							local leaderDisc=getObjectFromGUID(currentLeader.disc)
+							if leaderDisc~=nil then
+								local hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.elementalistLevel-gStates.leaderReduction-(b-1)))))
+								if playAreaObj.guid==darkCrusader.token then hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.darkCrusaderLevel-gStates.leaderReduction-(b-1))))) end
+								local discPos=leaderDisc.getPosition()
+								local location={discPos[1]+(math.cos(hexRotationRad)*2.9),2+(b*1.5),discPos[3]+(math.sin(hexRotationRad)*2.9)}
+								dropShield(location,false)
+							end
+						end
+						--Record damage to the faction leader, but during a cooperative assault do not move its
+						--actual level marker/state until every participating player has finished combat.
+						gStates.leaderReduction=gStates.leaderReduction+gStates.leaderOverkill
+						local leaderStartingLevel=gStates.elementalistLevel
+						if playAreaObj.guid==darkCrusader.token then leaderStartingLevel=gStates.darkCrusaderLevel end
+						local leaderDefeatedNow=gStates.leaderReduction>=leaderStartingLevel
+						gStates.leaderOverkill=1
+						if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" then
+							--The next participant already has a planning clone. Swap the real leader into that copy's
+							--current position so the combat controls move with the real token. If the leader was fully
+							--marked, remove every remaining preview because later participants no longer face it.
+							if coopAssaultPendingCombat()==true and leaderDefeatedNow==false then
+								local nextPlayer=nextTurnMerged("nextMage")
+								promoteCoopLeaderPreview(nextPlayer, playAreaObj)
+							else
+								clearCoopLeaderPreviewClones()
+								if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false) end
+							end
+						else
+							--Solo/non-co-op leader combat keeps the existing immediate resolution.
+							local currenLeaderLevel=math.max(0, leaderStartingLevel-gStates.leaderReduction)
+							if playAreaObj.guid==darkCrusader.token then gStates.darkCrusaderLevel=currenLeaderLevel else gStates.elementalistLevel=currenLeaderLevel end
+							gStates.leaderReduction=0
+							if currenLeaderLevel==0 then
+								getObjectFromGUID(trashCan).putObject(playAreaObj)
+								gStates.cityMonsterQty[currentLeader.terrainHex][currentLeader.token]="dead"
+								local leaderDisc=getObjectFromGUID(currentLeader.disc)
+								if leaderDisc~=nil then leaderDisc.setCustomObject({image=leaderData[currentLeader.terrainHex]["dead"].discImg}) leaderDisc.reload() end
+								safeWaitTime("Combat",function()
+									for monsterGUID, _ in pairs(gStates.cityMonsterQty[currentLeader.terrainHex]) do
+										local monster=getObjectFromGUID(monsterGUID)
+									if monster~=nil and monster.getRotationValues()[2]~=nil then combatDiscardMonster(monster,false,state.cleanupContext) end
+									end
+								end, 2)
+							else
+								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
+								safeWaitFrames("Combat",function()
+									local levelData=leaderData[currentLeader.terrainHex]~=nil and leaderData[currentLeader.terrainHex][currenLeaderLevel] or nil
+									if levelData==nil then return end
+									local leaderDisc=getObjectFromGUID(currentLeader.disc)
+									if leaderDisc~=nil then leaderDisc.setCustomObject({image=levelData.discImg}) leaderDisc.reload() end
+									local leaderToken=getObjectFromGUID(currentLeader.token)
+									if leaderToken~=nil then
+										leaderToken.setCustomObject({image=levelData.tokenImg})
+										leaderToken.setName(joinLang({currentLeader==darkCrusader and "{en}Dark Crusader Leader Level {ru}Уровень лидера Тёмных крестоносцев: {zh-tw}黑暗十字軍領袖等級 {zh-cn}黑暗十字军领袖等级 {ko}다크 크루세이더 지도자 레벨 {es}Nivel del líder Cruzado Oscuro {fr}Niveau du chef Croisé Sombre {pt-br}Nível do líder Cruzado Sombrio {de}Stufe des Anführers der Dunklen Kreuzritter " or "{en}Elementalist Leader Level {ru}Уровень лидера Элементалистов: {zh-tw}元素使領袖等級 {zh-cn}元素使领袖等级 {ko}엘리멘탈리스트 지도자 레벨 {es}Nivel del líder Elementalista {fr}Niveau du chef Élémentaliste {pt-br}Nível do líder Elementalista {de}Stufe des Elementalisten-Anführers ", currenLeaderLevel}))
+										leaderToken.reload()
+									end
+									monsterPugs[currentLeader.token]=levelData.abilities
+								end,100)
+							end
+						end
+					end
+				end
+
+				--Discard Reward Tokens
+				local rewardDiscardGUID=combatRewardDiscardByNotes[playAreaObj.getGMNotes()]
+				if rewardDiscardGUID~=nil then
+					playAreaObj.setRotation({0,180,180})
+					local rewardDiscard=getObjectFromGUID(rewardDiscardGUID)
+					if rewardDiscard~=nil then rewardDiscard.putObject(playAreaObj) end
+				end
+
+				if playAreaObj.type=="Card" then cardDestination=cleanupPlayedCardAtEndTurn(playAreaObj,cleanupPlayer,cardDestination) end
+				cleanupPlayedSkillAtEndTurn(playAreaObj,cleanupPlayer)
+			end, tokenWait+3)
+			tokenWait=tokenWait+3
+		end
+		safeWaitFrames("Combat",function() tokenRefill() end,tokenWait+1)
+
+		combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avatarPos,avatarModel,state,tokenWait)
+		combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait)
+		combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait)
+		combatCleanupPreEndTurnUnitArea(cleanupPlayer)
+	end,tokenWait)
+end
+
 function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 	if gStates.apocalypseDragonTurnActive==true and (againstDragonFullAttendInProgress==nil or againstDragonFullAttendInProgress(gStates.turnNumber)~=true) then
 		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Apocalypse Dragon turn first.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 차례를 끝내세요.{es}Primero termina el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
 		return
 	end
-	--Wait.time(function() slightPause=false end, 1)
-	if mouseButton=="-1" and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
-		if gStates.mineClaimPending~=nil then
-			broadcastToColor("{en}Resolve the pending crystal choice before ending the turn.{ru}Завершите ожидающий выбор кристалла, прежде чем заканчивать ход.{zh-tw}結束回合前，請先完成尚未處理的魔晶選擇。{zh-cn}结束回合前，请先完成尚未处理的魔晶选择。{ko}턴을 끝내기 전에 대기 중인 수정 선택을 완료하세요.{es}Resuelve la elección de cristal pendiente antes de terminar el turno.{fr}Résolvez le choix de cristal en attente avant de terminer le tour.{pt-br}Resolva a escolha de cristal pendente antes de encerrar o turno.{de}Schließe die ausstehende Kristallauswahl ab, bevor du den Zug beendest.", player.color, warningColor)
-			if rewindReady==true then rewindTransactionFinish("Pre-end-turn cleanup") end
-			return
-		end
-		if rewindReady~=true then
-			if rewindTransactionOwnerActive("Pre-end-turn cleanup")==true then return end
-			rewindTransactionStart(function() preEndTurn(player,mouseButton,id,true) end,"Pre-end-turn cleanup")
-			return
-		end
-		local cleanupPlayer=gStates.turnNumber
-		volkarePursuitResolveCombat(cleanupPlayer)
-		puppetMasterCleanupPlayedPuppets(cleanupPlayer)
-		--A Quest marker may still be settling under this Hero. Finish that temporary lift before the older
-		--end-turn site-cleanup lift records avatarPos/locks the same object, or it can be left floating.
-		apocalypseQuestRestoreRaisedAvatar(cleanupPlayer,true)
-		local coopCombatReward=nil
-		if gStates.coopAssaultPhase=="combat" then
-			coopCombatReward={player=cleanupPlayer, mage=turnOrder[cleanupPlayer].mage, fame=turnOrder[cleanupPlayer].fameGain, reputation=turnOrder[cleanupPlayer].repGain, factionRewards={dark=0, elementalist=0, apocalypse=0, council=0}}
-			gStates.coopRewardQueue[#gStates.coopRewardQueue+1]=coopCombatReward
-			UI.setAttribute("EndTurnButton", "interactable", "false")
-			UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
-			UI.setAttribute("EndTurnButtonAlt", "interactable", "false")
-			UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Deactive")
-		end
-		--reset variables for next turn
-		gStates.preEndTurn=true
-		--Before combat cleanup moves/discards Quest enemies, remember successful combat-gated Quest
-		--resolutions. This gives Rewards Claimed its soft warning gate while that Quest action is pending.
-		apocalypseQuestCaptureRewardCompletionGate(cleanupPlayer)
-		--Free Wine uses a normal Keep assault rather than a Quest-spawned combat, so capture its outcome
-		--separately now that the rewards boundary has been reached.
-		apocalypseQuestCaptureFreeWineResolutionGate(cleanupPlayer)
-		--Mine of Doom enemies now use the normal end-of-turn combat cleanup with every other enemy.
-		rewardClaimDelayActive=true
-		if rewardClaimDelayWait~=nil then Wait.stop(rewardClaimDelayWait) rewardClaimDelayWait=nil end
-		gStates.monsterOffsetX=0
-		gStates.monsterOffsetZ=0
-		gStates.attackedMonsters={}
-		combatCameraChoiceSuppressedPlayer=nil
-		turnOrder[cleanupPlayer].combatIconHide="Both"
-		if turnOrder[cleanupPlayer].masterOfChaos~=nil then turnOrder[cleanupPlayer].masterOfChaos="available" end
-		addAvatarButtons()
-		if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
-		UI.setAttribute("PreEndTurn", "interactable", "false")
-		UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Deactive")
-		rewardClaimDelayWait=safeWaitTime("Combat",function()
-			rewardClaimDelayWait=nil
-			local function finishRewardDelay()
-				rewardClaimDelayActive=false
-				if gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
-					rewardClaimSoftLockStart()
-					if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[cleanupPlayer].seatPos)
-					else
-						UI.setAttribute("PreEndTurn", "interactable", "true")
-						UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Active")
-					end
-				end
-				rewindTransactionFinish("Pre-end-turn cleanup")
-			end
-			local dragonCombat=gStates.apocalypseDragonGroundCombat
-			if dragonCombat~=nil and dragonCombat.coop~=true and dragonCombat.playerIndex==cleanupPlayer and dragonCombat.levelsApplied~=true then
-				safeWaitCondition("Combat",finishRewardDelay,function()
-					local current=gStates.apocalypseDragonGroundCombat
-					return current==nil or current.levelsApplied==true
-				end,5,finishRewardDelay)
-			else
-				finishRewardDelay()
-			end
-		end, 2.0)
-
-		if id=="ExtraTurnTacticButton" or id=="ExtraTurnChoiceTactic6" or id=="ExtraTurnChoiceTimeBending" then
-			local tacticSixAvailable, timeBendingAvailable=extraTurnOptions(cleanupPlayer)
-			local useTactic=id=="ExtraTurnChoiceTactic6" or (id=="ExtraTurnTacticButton" and tacticSixAvailable and timeBendingAvailable==false)
-			local useTimeBending=id=="ExtraTurnChoiceTimeBending" or (id=="ExtraTurnTacticButton" and timeBendingAvailable and tacticSixAvailable==false)
-			local cleanupTurnToken=getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID)
-			--flip Day tactic six if using the second turn
-			if useTactic then
-				gStates.tacticSixState="Started"
-				getObjectFromGUID("2404f1").setRotationSmooth({0.00, 180.00, 180.00},false,false)
-				if cleanupTurnToken~=nil and cleanupTurnToken.is_face_down==true then
-					cleanupTurnToken.flip()
-					gStates.tacticSixState="Used"
-					gStates.skipTurn[cleanupPlayer]=nil
-				end
-			end
-			--Change clean up if Time Bending used
-			if useTimeBending then
-				gStates.timeBending="Started"
-				if cleanupTurnToken~=nil and cleanupTurnToken.is_face_down==true then
-					cleanupTurnToken.flip()
-					gStates.timeBending="Used"
-					gStates.skipTurn[cleanupPlayer]=nil
-				end
-			end
-		end
-		mainUIUpdate("Pre End Turn")
-		--Mine rewards are chosen alongside the normal Rewards Claimed stage and use its shared soft-lock window.
-		local mineTurnEligible=turnOrder[cleanupPlayer].mage~=gStates.positionMageKnight[5] and turnOrder[cleanupPlayer].endCalled~=true
-		if mineTurnEligible and gStates.coopAssaultPhase~="combat" then beginMineCrystalClaim(cleanupPlayer, player.color) end
-
-		--lift player Avatar for token(s) to go under
-		local tokenRaised=0
-		local avatarPos={}
-		local avatarModel=nil
-		if (turnOrder[cleanupPlayer].avatarLocation=="mine" and gStates.gameScenario=="Mines Liberation")
-			or (turnOrder[cleanupPlayer].avatarLocation:sub(1, 4)=="city" and gStates.gameScenario=="The Lost Relic Blitz")
-			or (turnOrder[cleanupPlayer].avatarLocation=="glade" and gStates.gameScenario=="Life and Death")
-			or turnOrder[cleanupPlayer].avatarLocation=="graveyard"
-			or turnOrder[cleanupPlayer].avatarLocation=="keep"	or turnOrder[cleanupPlayer].avatarLocation=="mage tower"
-			or turnOrder[cleanupPlayer].avatarLocation=="tomb"	or turnOrder[cleanupPlayer].avatarLocation=="dungeon"
-			or turnOrder[cleanupPlayer].avatarLocation=="labyrinth" or turnOrder[cleanupPlayer].avatarLocation=="maze"
-			or turnOrder[cleanupPlayer].avatarLocation=="ziggurat" or turnOrder[cleanupPlayer].avatarLocation=="pyramid"
-			or turnOrder[cleanupPlayer].avatarLocation=="ruin"
-			or turnOrder[cleanupPlayer].avatarLocation=="monster den" or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds"
-			or turnOrder[cleanupPlayer].avatarLocation=="monastery"
-			or (againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(cleanupPlayer)==true
-				and againstDragonAirborneProtectionDestroysSite~=nil and againstDragonAirborneProtectionDestroysSite(turnOrder[cleanupPlayer].avatarLocation)==true) then
-			avatarModel=mageKnightAvatarObject(cleanupPlayer,false)
-			if avatarModel~=nil then
-				avatarPos=avatarModel.getPosition()
-				avatarModel.setPosition({avatarPos[1],avatarPos[2]+2,avatarPos[3]})
-				avatarModel.lock()
-				tokenRaised=cleanupPlayer
-			end
-		end
-
-		--return dice function needed twice
-		local function returnDice(diceGUID)
-			--make sure coop assault isn't happening before returning dice.
-			gStates.coopAssaultDice[#gStates.coopAssaultDice+1]=diceGUID
-			if getObjectFromGUID(turnOrder[nextTurnMerged("nextMageSkipDummy")].turnOrderTokenGUID).is_face_down==false or #turnOrder<=2 then
-				for _, diceG in pairs(gStates.coopAssaultDice) do
-					local die=getObjectFromGUID(diceG)
-					if die~=nil then
-						die.setPosition({-12.5+(math.random()*7),2.7,-25.0+(math.random()*4.0)})
-						die.randomize()
-						onObjectRandomize({type="Dice"})
-					end
-				end
-				gStates.coopAssaultDice={}
-			end
-		end
-
-		--locate discard deck
-		local cardDestination=nil
-		for _, deckSearch in pairs(getObjectFromGUID(deedDeckDiscardZones[turnOrder[cleanupPlayer].seatPos]).getObjects()) do
-			if deckSearch.type=="Card" or deckSearch.type=="Deck" then cardDestination=deckSearch break end
-		end
-
-		--separate any decks and possessed tokens found. Unit Area monsters use the same combat cleanup path.
-		local tokenWait=0
-		for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
-			--separate decks
-			if playAreaObj.type=="Deck" then
-				for count=1, #playAreaObj.getObjects()-1, 1 do
-					playAreaObj.takeObject({position={playAreaObj.getPosition()[1]+(0.8*count), playAreaObj.getPosition()[2]+(0.06*count), playAreaObj.getPosition()[3]+(0.8*count)}, smooth=false})
-				end
-			end
-			--Separate possessed tokens only after the base enemy was actually defeated.
-			--An undefeated face-down rampager returns to the map with its possession still attached.
-			if playAreaObj.getAttachments()[1]~=nil and playAreaObj.is_face_down==false then
-				local destroyedSiteRewards=againstApocalypseRampagerDestroyedSiteRewards~=nil and againstApocalypseRampagerDestroyedSiteRewards(playAreaObj) or 0
-				if destroyedSiteRewards>0 then
-					local destroyedBag=getObjectFromGUID(GUID.bag.destroyedSite)
-					if destroyedBag~=nil then
-						for _=1,destroyedSiteRewards do
-							destroyedBag.takeObject({position={(turnOrder[cleanupPlayer].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}})
-						end
-					end
-				end
-				attachEnemy(nil, nil, "detach", playAreaObj, nil)
-			end
-			tokenWait=40
-		end
-
-		safeWaitFrames("Combat",function()
-			--Get objects from player area to clean them up
-			local lastObject=nil
-			local spawningGroundMonstersReturned=0
-			local cleanupContext={player=cleanupPlayer,coopCombatReward=coopCombatReward,avatarPos=avatarPos,volkareCityShield=0,volkarePaused=false,spawningGroundMonstersBeat=0,mapSpatial=runtimeMapSpatialSnapshot()}
-			gStates.turnForfeited=true
-			--Goblin Warrens is resolved by the normal monster-cleanup result below. Fresh Goblins begin
-			--face up, so checking them here would incorrectly count an untouched/failed fight as success.
-			for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
-				local cleanupObjectGUID=playAreaObj.guid
-				safeWaitFrames("Combat",function()
-					--Returning an airborne Dragon head restores its real image with reload(), which invalidates
-					--the old TTS Object userdata for all four captured head objects. Identify them by GUID before
-					--touching that userdata, return the set once, and stop this object's ordinary cleanup here.
-					local dragonAirborneCleanup=againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(cleanupPlayer)==true and againstDragonAirborneHeadGUID~=nil and againstDragonAirborneHeadGUID(cleanupObjectGUID)==true
-					if dragonAirborneCleanup==true then
-						againstDragonReturnAirborneHeads()
-						--The avatar is still raised at this cleanup boundary. Resolve site protection now so
-						--the Destroyed Site marker can settle underneath it before the avatar comes back down.
-						local pendingDragonAttack=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
-						if againstDragonResolveAirborneProtection~=nil then againstDragonResolveAirborneProtection(pendingDragonAttack) end
-						return
-					end
-					playAreaObj=getObjectFromGUID(cleanupObjectGUID)
-					if playAreaObj==nil then return end
-
-					--Return any Mana dice
-					if playAreaObj.type=="Dice" then
-						returnDice(playAreaObj.guid)
-					end
-
-					--Delete wound tokens, shards and face up potions.
-					if playAreaObj.getGMNotes()=="Unit Wound" or playAreaObj.getGMNotes()=="Volkare Reminder Token" or playAreaObj.getGMNotes()=="Trap Reminder Token" or playAreaObj.getGMNotes()=="Oasis Reminder Token" or
-						playAreaObj.getName()=="Green Shard" or playAreaObj.getName()=="Red Shard" or playAreaObj.getName()=="Blue Shard" or playAreaObj.getName()=="White Shard" or
-						((playAreaObj.getName()=="Green Potion" or playAreaObj.getName()=="Red Potion" or playAreaObj.getName()=="Blue Potion" or playAreaObj.getName()=="White Potion") and playAreaObj.is_face_down==false) or
-						(playAreaObj.getName()=="" and playAreaObj.type=="Tile" and monsterPugs[playAreaObj.guid]==nil) then
-						getObjectFromGUID(trashCan).putObject(playAreaObj)
-					end
-
-					--Return face down Potion
-					if ((playAreaObj.getName()=="Green Potion" or playAreaObj.getName()=="Red Potion" or playAreaObj.getName()=="Blue Potion" or playAreaObj.getName()=="White Potion") and playAreaObj.is_face_down==true) then
-						if gStates.mageSkills[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.mageSkills[playAreaObj.guid],false,false) end
-					end
-
-					--Mark mine monster as defeated
-					for _, monsters in pairs(gStates.mineMonsterQty) do
-						if monsters[playAreaObj.guid]~=nil and playAreaObj.is_face_down==false then
-							monsters[playAreaObj.guid]="dead"
-							break
-						end
-					end
-
-					local dragonGroundCleanup=apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(cleanupPlayer)==true and apocalypseDragonGroundCombatToken~=nil and select(1,apocalypseDragonGroundCombatToken(playAreaObj.guid))==true
-					if dragonGroundCleanup==true then
-						apocalypseDragonGroundResolveToken(playAreaObj)
-						apocalypseDragonGroundTryApplyLevelsBeforeRewards(cleanupPlayer)
-						return
-					end
-
-					--Return undefeated face down tokens
-					if monsterPugs[playAreaObj.guid]~=nil and playAreaObj.is_face_down==true and dragonGroundCleanup~=true then
-						if gStates.monsterPlayLocation[playAreaObj.guid]==nil or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
-							--if manual drawn assign the avatar location as return spot.
-							if (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) and gStates.summonStates[playAreaObj.guid]~="summoned" and (turnOrder[cleanupPlayer].avatarLocation=="monster den" or turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" or turnOrder[cleanupPlayer].avatarLocation=="ruin") then
-								gStates.monsterPlayLocation[playAreaObj.guid]={avatarPos[1], 2.5, avatarPos[3]}
-							end
-						end
-						if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then
-							if gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage]~=nil and gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]~=nil then
-								local pursuit=gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]
-								pursuit.state="Stunned" pursuit.stunned=true
-								playAreaObj.setRotation({0, 180, 0})
-								broadcastToAll(joinLang({translateWord[turnOrder[cleanupPlayer].mage],"{en} Stunned the Pursuing Rampager (Skips next turns Movement){ru} «оглушает» преследователя (тот пропускает одно Движение){zh-tw} 暈眩了狂暴追擊者（它會跳過下次移動）{zh-cn}晕眩了狂暴追击者(它跳过下次行动){ko}: 추적하는 적 기절시킴. (다음 추적 단계 건너뜀.){es} Aturdido al agresor que lo persigue (se salta el movimiento del siguiente turno){fr} Étourdi le saccageur à la poursuite (ignore le mouvement des tours suivants){pt-br} Atordoou o Irascível Perseguidor (Pule próximos turnos de movimento).{de} hat den Verfolger betäubt (überspringt die Bewegung des nächsten Zuges)"}), positionToColor(cleanupPlayer))
-							else
-								local returningMonsterGUID=playAreaObj.guid
-								safeWaitTime("Combat",function()
-									local returningMonster=getObjectFromGUID(returningMonsterGUID)
-									if returningMonster~=nil then returningMonster.setRotation({0,180,0}) end
-								end,3)--long enough to have traveled back to the board.
-							end
-							if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="horsemen" and horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
-								--Each Horseman is assigned to exactly one participant; a survivor returns to its Portal-card slot.
-								playAreaObj.setRotation({0,180,0})
-								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-								lastObject=playAreaObj
-							elseif gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" and (playAreaObj.guid==elementalist.token or playAreaObj.guid==darkCrusader.token) then
-								--A face-down leader means this player defeated no leader levels. Advance the real token through
-								--the same preview handoff used by a face-up surviving leader so the next planning copy is consumed.
-								if coopAssaultPendingCombat()==true then
-									local nextPlayer=nextTurnMerged("nextMage")
-									promoteCoopLeaderPreview(nextPlayer, playAreaObj)
-								else
-									clearCoopLeaderPreviewClones()
-									playAreaObj.setRotation({0, 180, 0})
-									playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-								end
-							elseif getObjectFromGUID(turnOrder[nextTurnMerged("nextMage")].turnOrderTokenGUID).is_face_down==true and playAreaObj.getRotationValues()[2]==nil then
-								--Move to next players play area.
-								playAreaObj.setPositionSmooth({turnOrder[nextTurnMerged("nextMage")].seatPos*40-100, 1.5, -39.41},false,false)
-							else
-								if turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[playAreaObj.guid]~=true) then
-									gStates.monsterPlayLocation[playAreaObj.guid][1]=gStates.monsterPlayLocation[playAreaObj.guid][1]-0.22+(spawningGroundMonstersReturned*0.44)
-									gStates.monsterPlayLocation[playAreaObj.guid][2]=gStates.monsterPlayLocation[playAreaObj.guid][2]+(spawningGroundMonstersReturned*0.12)
-									spawningGroundMonstersReturned=spawningGroundMonstersReturned+1
-								end
-								if gStates.monsterPerks[playAreaObj.guid]~=nil and gStates.monsterPerks[playAreaObj.guid].wallFortified~=nil then setAssaultWallFortified(playAreaObj, false) end
-								playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-								lastObject=playAreaObj
-							end
-						end
-					end
-
-					--Process and Discard Face up monsters. Horsemen are persistent Custom Tiles, so identify
-					--them before any generic rotation-value discard route can mistake them for a normal token.
-					if monsterPugs[playAreaObj.guid]~=nil and dragonGroundCleanup~=true and (playAreaObj.is_face_down==false or gStates.monsterPlayLocation[playAreaObj.guid]==nil) then
-						if horsemanTokenToName~=nil and horsemanTokenToName[playAreaObj.guid]~=nil then
-							horsemanResolveDefeat(playAreaObj,cleanupPlayer,coopCombatReward)
-						elseif playAreaObj.getRotationValues()[2]~=nil then
-							combatDiscardMonster(playAreaObj,true,cleanupContext)
-						else--process leaders
-							local currentLeader=elementalist
-							if playAreaObj.guid==darkCrusader.token then currentLeader=darkCrusader end
-							--drop shield(s) on leader disc
-							for b=1, gStates.leaderOverkill, 1 do
-								local leaderDisc=getObjectFromGUID(currentLeader.disc)
-								if leaderDisc~=nil then
-									local hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.elementalistLevel-gStates.leaderReduction-(b-1)))))
-									if playAreaObj.guid==darkCrusader.token then hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.darkCrusaderLevel-gStates.leaderReduction-(b-1))))) end
-									local discPos=leaderDisc.getPosition()
-									local location={discPos[1]+(math.cos(hexRotationRad)*2.9),2+(b*1.5),discPos[3]+(math.sin(hexRotationRad)*2.9)}
-									dropShield(location,false)
-								end
-							end
-							--Record damage to the faction leader, but during a cooperative assault do not move its
-							--actual level marker/state until every participating player has finished combat.
-							gStates.leaderReduction=gStates.leaderReduction+gStates.leaderOverkill
-							local leaderStartingLevel=gStates.elementalistLevel
-							if playAreaObj.guid==darkCrusader.token then leaderStartingLevel=gStates.darkCrusaderLevel end
-							local leaderDefeatedNow=gStates.leaderReduction>=leaderStartingLevel
-							gStates.leaderOverkill=1
-							if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" then
-								--The next participant already has a planning clone. Swap the real leader into that copy's
-								--current position so the combat controls move with the real token. If the leader was fully
-								--marked, remove every remaining preview because later participants no longer face it.
-								if coopAssaultPendingCombat()==true and leaderDefeatedNow==false then
-									local nextPlayer=nextTurnMerged("nextMage")
-									promoteCoopLeaderPreview(nextPlayer, playAreaObj)
-								else
-									clearCoopLeaderPreviewClones()
-									if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false) end
-								end
-							else
-								--Solo/non-co-op leader combat keeps the existing immediate resolution.
-								local currenLeaderLevel=math.max(0, leaderStartingLevel-gStates.leaderReduction)
-								if playAreaObj.guid==darkCrusader.token then gStates.darkCrusaderLevel=currenLeaderLevel else gStates.elementalistLevel=currenLeaderLevel end
-								gStates.leaderReduction=0
-								if currenLeaderLevel==0 then
-									getObjectFromGUID(trashCan).putObject(playAreaObj)
-									gStates.cityMonsterQty[currentLeader.terrainHex][currentLeader.token]="dead"
-									local leaderDisc=getObjectFromGUID(currentLeader.disc)
-									if leaderDisc~=nil then leaderDisc.setCustomObject({image=leaderData[currentLeader.terrainHex]["dead"].discImg}) leaderDisc.reload() end
-									safeWaitTime("Combat",function()
-										for monsterGUID, state in pairs(gStates.cityMonsterQty[currentLeader.terrainHex]) do
-											local monster=getObjectFromGUID(monsterGUID)
-										if monster~=nil and monster.getRotationValues()[2]~=nil then combatDiscardMonster(monster,false,cleanupContext) end
-										end
-									end, 2)
-								else
-									playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-									safeWaitFrames("Combat",function()
-										local levelData=leaderData[currentLeader.terrainHex]~=nil and leaderData[currentLeader.terrainHex][currenLeaderLevel] or nil
-										if levelData==nil then return end
-										local leaderDisc=getObjectFromGUID(currentLeader.disc)
-										if leaderDisc~=nil then leaderDisc.setCustomObject({image=levelData.discImg}) leaderDisc.reload() end
-										local leaderToken=getObjectFromGUID(currentLeader.token)
-										if leaderToken~=nil then
-											leaderToken.setCustomObject({image=levelData.tokenImg})
-											leaderToken.setName(joinLang({currentLeader==darkCrusader and "{en}Dark Crusader Leader Level {ru}Уровень лидера Тёмных крестоносцев: {zh-tw}黑暗十字軍領袖等級 {zh-cn}黑暗十字军领袖等级 {ko}다크 크루세이더 지도자 레벨 {es}Nivel del líder Cruzado Oscuro {fr}Niveau du chef Croisé Sombre {pt-br}Nível do líder Cruzado Sombrio {de}Stufe des Anführers der Dunklen Kreuzritter " or "{en}Elementalist Leader Level {ru}Уровень лидера Элементалистов: {zh-tw}元素使領袖等級 {zh-cn}元素使领袖等级 {ko}엘리멘탈리스트 지도자 레벨 {es}Nivel del líder Elementalista {fr}Niveau du chef Élémentaliste {pt-br}Nível do líder Elementalista {de}Stufe des Elementalisten-Anführers ", currenLeaderLevel}))
-											leaderToken.reload()
-										end
-										monsterPugs[currentLeader.token]=levelData.abilities
-									end,100)
-								end
-							end
-						end
-					end
-
-					--Discard Reward Tokens
-					local rewardDiscardGUID=combatRewardDiscardByNotes[playAreaObj.getGMNotes()]
-					if rewardDiscardGUID~=nil then
-						playAreaObj.setRotation({0,180,180})
-						local rewardDiscard=getObjectFromGUID(rewardDiscardGUID)
-						if rewardDiscard~=nil then rewardDiscard.putObject(playAreaObj) end
-					end
-
-					if playAreaObj.type=="Card" then cardDestination=cleanupPlayedCardAtEndTurn(playAreaObj,cleanupPlayer,cardDestination) end
-					cleanupPlayedSkillAtEndTurn(playAreaObj,cleanupPlayer)
-				end, tokenWait+3)
-				tokenWait=tokenWait+3
-			end
-			safeWaitFrames("Combat",function() tokenRefill() end,tokenWait+1)
-
-			--Drop Avatar after a pause. A returning undefeated monster can still be smooth-moving when the
-			--two-second settle check expires (Quest failures make this common). The old wait had no timeout
-			--handler, so the avatar could remain locked at +2 height forever. Run the same finish routine on
-			--either a normal settle or timeout.
-			safeWaitFrames("Combat",function()
-				local avatarDropFinished=false
-				local function finishAvatarDrop()
-					if avatarDropFinished==true then return end
-					avatarDropFinished=true
-					--place shield or replenish monster in spawning grounds
-					if turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
-						if cleanupContext.spawningGroundMonstersBeat==2 then dropShield({avatarPos[1], 2, avatarPos[3]}, true) coralTalesSiteShield("spawning grounds") end
-						if spawningGroundMonstersReturned==1 then
-							local newMonster=getObjectFromGUID(monsterPiles.tan).takeObject({position={avatarPos[1]+0.22, 2.12, avatarPos[3]}, smooth=false})
-							gStates.monsterPlayLocation[newMonster.guid]={avatarPos[1]+0.22, 2.12, avatarPos[3]}
-						end
-					end
-					local horsemenReturn=againstHorsemenFinishSoloAssault(cleanupPlayer)
-					if horsemenReturn~=nil then
-						if avatarModel~=nil then
-							avatarPos={horsemenReturn[1],horsemenReturn[2],horsemenReturn[3]}
-						else
-							local horsemenAvatar=coopAssaultAvatarObject(cleanupPlayer)
-							if horsemenAvatar~=nil then horsemenAvatar.setPositionSmooth(horsemenReturn,false,false) end
-						end
-					end
-					if avatarModel~=nil then
-						avatarModel.setLock(false)
-						avatarModel.setPositionSmooth({avatarPos[1], avatarPos[2]+1.0, avatarPos[3]},false,false)
-					end
-				end
-				safeWaitCondition("Combat",finishAvatarDrop, function()
-					if tokenRaised<=0 or (lastObject~=nil and lastObject.resting~=true) then return false end
-					local pendingDragonAttack=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
-					local destroyedGUID=pendingDragonAttack~=nil and pendingDragonAttack.destroyedSiteTokenGUID or nil
-					if destroyedGUID~=nil then
-						local destroyed=getObjectFromGUID(destroyedGUID)
-						if destroyed==nil then return false end
-						local destroyedPos=destroyed.getPosition()
-						if math.abs(destroyedPos[2]-1.13)>0.05 then return false end
-					end
-					return true
-				end, 5, finishAvatarDrop)
-			end, tokenWait+3)
-
-			--Adjust hand size and Check for scenario completion to Start the final round of turns.
-			--A completed City assault has just changed both monster state and physical shields. Rebuild ownership once,
-			--at this settled cleanup boundary, before fakeDropAvatar reads Lead/Assist for the new hand limit.
-			--Other cleanup only needs the cheaper defeat-state refresh; co-op combat rebuilds ownership in its reward phase.
-			safeWaitFrames("Combat",function() safeWaitCondition("Combat",function()
-				local cleanupLocation=turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation or ""
-				if gStates.coopAssaultPhase~="combat" and (cleanupLocation:sub(1,4)=="city" or cleanupLocation:sub(1,6)=="raised") then cityBeatCheck()
-				else refreshCityDefeatState() end
-		 		fakeDropAvatar(cleanupPlayer)
-				scenarioCombatCleanupCheck(cleanupPlayer)
-				--Combat Complete is the only confirmation during the combat stage. Advance as soon as cleanup is finished.
-				if gStates.endGameAchieved=="false" and gStates.tacticShown==false and gStates.coopAssaultPhase=="combat" then
-					safeWaitFrames("Combat",function()
-						if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then endTurn(player,"-1","CoopCombatComplete") end
-					end,2)
-				end
-		 	end, function() return lastObject==nil or lastObject.resting end, 2, function()
-				if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then endTurn(player, "-1", "CoopCombatComplete") end
-			end) end, tokenWait+50)
-
-			--Skills own circulation/return rules; Combat retains the same delayed cleanup boundary.
-			local nextPlayer=nextTurnMerged("nextMageSkipDummy")
-			safeWaitFrames("Combat",function()
-				local keepSafe=prepareEndTurnSkillRotation(cleanupPlayer,nextPlayer)
-				local playArea=getObjectFromGUID(playerPlayAreas[turnOrder[cleanupPlayer].seatPos])
-				local trash=getObjectFromGUID(trashCan)
-				for _, playAreaObj in pairs(playArea~=nil and playArea.getObjects() or {}) do
-					if (playAreaObj.type=="Figurine" and keepSafe[playAreaObj.guid]~=true)
-					or playAreaObj.getName()=="Blue Defender Bonus Reminder" or playAreaObj.getName()=="Green Defender Bonus Reminder"
-					or playAreaObj.getName()=="White Defender Bonus Reminder" or playAreaObj.getName()=="Red Defender Bonus Reminder" then
-						if trash~=nil then trash.putObject(playAreaObj) end
-					end
-				end
-			end,tokenWait+3)
-
-			--Remove crystals and dice used to power Units
-			local crystalsToDestroy={}
-			local unitAreaObjects=getObjectFromGUID(playerUnitAreas[turnOrder[cleanupPlayer].seatPos]).getObjects()
-			for _, unitAreaObj in pairs(unitAreaObjects) do
-				--Return any Mana dice
-				if unitAreaObj.type=="Dice" then
-					returnDice(unitAreaObj.guid)
-				end
-				cleanupUnitAreaSkillAtEndTurn(unitAreaObj,cleanupPlayer)
-				--Record Crystals in the Unit Area. Registered skill tokens are never disposable crystals.
-				if unitAreaObj.type=="Figurine" and unitAreaObj.getGMNotes()~="Unit Wound" and skillTokens[unitAreaObj.guid]==nil and monsterPugs[unitAreaObj.guid]==nil then crystalsToDestroy[#crystalsToDestroy+1]=unitAreaObj.guid end
-			end
-			for _, crystals in pairs(crystalsToDestroy) do
-				local crystal=getObjectFromGUID(crystals)
-				local delete=true
-				if crystal~=nil then
-					local nearestUnit, distance=unitLayoutNearestUnit(unitAreaObjects,crystal.getPosition()[1])
-					if nearestUnit~=nil and distance<=1.5 and (nearestUnit.guid=="0a2e0b" or nearestUnit.guid=="d8e49b") then delete=false end
-				end
-				if delete==true and crystal~=nil then getObjectFromGUID(trashCan).putObject(crystal) end
-			end
-
-			--Fame and Reputation are held until every participant has finished a co-op assault.
-			if gStates.coopAssaultPhase~="combat" then applyPlayerFameReputation(cleanupPlayer) end
-
-			--Use the player whose cleanup started, not whatever turn happens to be current when
-			--this delayed callback fires. This prevents two Mage Knights being left on the portal.
-			if coopAssaultVirtualPlayer(cleanupPlayer)==false then portalSwap("endOfTurn", cleanupPlayer) end
-		end, tokenWait)
+	if mouseButton~="-1" or legalPlayerCheck(player.color,turnOrder[gStates.turnNumber].seatPos)~=true then return end
+	if gStates.mineClaimPending~=nil then
+		broadcastToColor("{en}Resolve the pending crystal choice before ending the turn.{ru}Завершите ожидающий выбор кристалла, прежде чем заканчивать ход.{zh-tw}結束回合前，請先完成尚未處理的魔晶選擇。{zh-cn}结束回合前，请先完成尚未处理的魔晶选择。{ko}턴을 끝내기 전에 대기 중인 수정 선택을 완료하세요.{es}Resuelve la elección de cristal pendiente antes de terminar el turno.{fr}Résolvez le choix de cristal en attente avant de terminer le tour.{pt-br}Resolva a escolha de cristal pendente antes de encerrar o turno.{de}Schließe die ausstehende Kristallauswahl ab, bevor du den Zug beendest.",player.color,warningColor)
+		if rewindReady==true then rewindTransactionFinish("Pre-end-turn cleanup") end
+		return
 	end
+	if rewindReady~=true then
+		if rewindTransactionOwnerActive("Pre-end-turn cleanup")==true then return end
+		rewindTransactionStart(function() preEndTurn(player,mouseButton,id,true) end,"Pre-end-turn cleanup")
+		return
+	end
+
+	local cleanupPlayer=gStates.turnNumber
+	local coopCombatReward=combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
+	turnPreparePreEndTurn(cleanupPlayer,player.color,id)
+	local tokenRaised,avatarPos,avatarModel=combatPreEndTurnRaiseAvatar(cleanupPlayer)
+	local cardDestination,tokenWait=combatPreEndTurnPreparePlayArea(cleanupPlayer)
+	combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait)
 end
 
 assaultApproachOrigin=nil
@@ -20083,7 +20021,7 @@ end
 
 --Link and Unlink the chosen enemy
 local justDetached={}
-function attachEnemy(player, mouseButton, id, obj, zone)
+function combatAttachEnemyBase(player, mouseButton, id, obj, zone)
 	--find nearest monster
 	if id=="attach" and obj~=nil then
 		local possessedGUID=obj.guid
@@ -21028,15 +20966,11 @@ function coopAssaultUIUpdate()
 		local sourceTotal=coopAssaultDividableCount(sourcePrimary)+coopAssaultDividableCount(sourceSecondary)
 		local canGiveBack=cityMinimum==false or assignedTotal>1
 		local canTakeFromSource=cityMinimum==false or sourceTotal>1
-		if primaryCount>=1 and canAdjust and canGiveBack then UI.setAttribute("Mage"..entry.."AssaultAdjustPrimDo", "interactable", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustPrimDoImage", "image", "Sliced Button/Button New Active")
-		else UI.setAttribute("Mage"..entry.."AssaultAdjustPrimDo", "interactable", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustPrimDoImage", "image", "Sliced Button/Button New Deactive") end
-		if coopAssaultDividableCount(sourcePrimary)>=1 and canAdjust and canTakeFromSource then UI.setAttribute("Mage"..entry.."AssaultAdjustPrimUp", "interactable", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustPrimUpImage", "image", "Sliced Button/Button New Active")
-		else UI.setAttribute("Mage"..entry.."AssaultAdjustPrimUp", "interactable", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustPrimUpImage", "image", "Sliced Button/Button New Deactive") end
+		setUIButtonEnabled("Mage"..entry.."AssaultAdjustPrimDo",primaryCount>=1 and canAdjust and canGiveBack)
+		setUIButtonEnabled("Mage"..entry.."AssaultAdjustPrimUp",coopAssaultDividableCount(sourcePrimary)>=1 and canAdjust and canTakeFromSource)
 		if secondaryCount>=1 then UI.setAttribute("Mage"..entry.."AssaulterAmountTwo", "text", tostring(secondaryCount)) elseif joined then UI.setAttribute("Mage"..entry.."AssaulterAmountTwo", "text", noneText) else UI.setAttribute("Mage"..entry.."AssaulterAmountTwo", "text", "") end
-		if secondaryCount>=1 and canAdjust and canGiveBack then UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDo", "interactable", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDoImage", "image", "Sliced Button/Button New Active")
-		else UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDo", "interactable", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDoImage", "image", "Sliced Button/Button New Deactive") end
-		if coopAssaultDividableCount(sourceSecondary)>=1 and canAdjust and canTakeFromSource then UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUp", "interactable", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUpImage", "image", "Sliced Button/Button New Active")
-		else UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUp", "interactable", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUpImage", "image", "Sliced Button/Button New Deactive") end
+		setUIButtonEnabled("Mage"..entry.."AssaultAdjustSecoDo",secondaryCount>=1 and canAdjust and canGiveBack)
+		setUIButtonEnabled("Mage"..entry.."AssaultAdjustSecoUp",coopAssaultDividableCount(sourceSecondary)>=1 and canAdjust and canTakeFromSource)
 		if size=="full" then UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUp", "active", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDo", "active", "true") else UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUp", "active", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDo", "active", "false") end
 	end
 	if assaultType=="dragon" then
@@ -21056,8 +20990,7 @@ function coopAssaultUIUpdate()
 		UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	end
 	local ready=coopAssaultReadyToBegin()
-	UI.setAttribute("startAssault", "interactable", ready and "true" or "false")
-	UI.setAttribute("startAssaultImage", "image", ready and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("startAssault",ready)
 	UI.setAttribute("CoopAssault", "width", "525")
 	UI.setAttribute("CoopAssault", "height", tostring(((rowCount+1)*30)+90))
 	UI.setAttribute("CoopAssaultMainTableHeading", "columnSpan", "5")
@@ -21469,7 +21402,7 @@ function pursuingRampagers(player, mouseButton, id)
 							gStates.monsterOffsetX=gStates.monsterOffsetX+2.5
 							if gStates.monsterOffsetX>12 then gStates.monsterOffsetX=0 gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5 end
 							noMove=false
-							 gStates.monsterPlayLocation[monsterGUID]=monsterDetails.location
+							gStates.monsterPlayLocation[monsterGUID]=monsterDetails.location
 							getObjectFromGUID(monsterGUID).UI.setXmlTable({{}})
 							broadcastToAll(joinLang({"{en}Pursuing Monster Attacked {ru}Преследующие враги напали на {zh-tw}追擊怪物攻擊了 {zh-cn}被追击怪物所攻击{ko}추적 중인 몬스터의 공격: {es}Persecución de Monstruos Atacados por {fr}Poursuivant le Monstre Attaqué {pt-br}Monstro Perseguidor Atacado {de}Verfolgtes Monster angegriffen ", translateWord[turnOrder[gStates.turnNumber].mage]}), positionToColor(gStates.turnNumber))
 						end
@@ -21660,6 +21593,20 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			drawMonster(thirdFight, turnOrder[gStates.turnNumber], id)
 		end
 	end
+end
+
+-- Public Fame/Reputation-integrated entry points. The cross-cutting accounting service is loaded
+-- later, but all TTS/UI calls occur after the complete Global bundle has initialized.
+function applyPlayerFameReputation(playerIndex)
+	return fameReputationApplyPlayerFameReputation(playerIndex)
+end
+
+function advanceCoopRewardPhase()
+	return fameReputationAdvanceCoopRewardPhase()
+end
+
+function attachEnemy(player, mouseButton, id, obj, zone)
+	return fameReputationAttachEnemy(player, mouseButton, id, obj, zone)
 end
 
 end)
@@ -22326,7 +22273,7 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 			end
 			gStates.mageSkills[claimedGUID]={((gStates.skillButtons*40)-107.45), 1.1, -38.67-(1.48*count)}
 			--Bonds of Loyalty goes to unit area
-			if claimedGUID=="f30dd4" then
+			if claimedGUID==GUID.skill.bondsOfLoyalty then
 				local bondsX=unitLayoutNextCommandX(gStates.skillButtons)
 				gStates.mageSkills[claimedGUID]={bondsX,1.1,-31.19}
 				scheduleUnitLayoutRefresh(gStates.skillButtons)
@@ -22334,7 +22281,7 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 				broadcastToAll("{en}Two more Regular units added to the Unit Offer for this round.{ru}Два дополнительных обычных отряда доступны в этом раунде{zh-tw}本輪的部隊供應區增加兩個常規部隊。{zh-cn}本轮增加了两个部队供应{ko}일반 유닛 두 개를 공급처에 추가합니다{es}Se agregaron dos unidades regulares más a la oferta de unidades para esta ronda.{fr}Deux autres unités régulières ajoutées à l'offre d'unités pour ce tour.{pt-br}2 unidades Regulares a mais adicionadas a Oferta de Unidades por esta Rodada{de}Zwei weitere reguläre Einheiten wurden dem Einheitenangebot für diese Runde hinzugefügt.", {1,1,0.5})
 			end
 			--Master of Chaos
-			if claimedGUID=="1ff34f" then masterOfChaosSetup(gStates.skillButtons) end
+			if claimedGUID==GUID.skill.masterOfChaos then masterOfChaosSetup(gStates.skillButtons) end
 			--move selected skill
 			claimedSkill.unlock()
 			claimedSkill.setPositionSmooth(gStates.mageSkills[claimedGUID])
@@ -22824,8 +22771,8 @@ end
 sharedSkillAboveZone={	["725de9"]="40ef14",--Krang's Coop Skill
 							["818aea"]="8fc095",--Tovak's Coop Skill
 							["c4546c"]="d28865",--Tovak's Comp Skill
-							["958209"]="22b866"}--Krang's Comp Skill
-local competitiveOwnerReward={ ["3bd08e"]=true, ["958209"]=true }
+							[GUID.skill.manaSuppression]="22b866"}--Krang's Comp Skill
+local competitiveOwnerReward={ ["3bd08e"]=true, [GUID.skill.manaSuppression]=true }
 
 local function lockCompetitiveSkillCloneWhenSettled(clone)
 	if clone==nil then return end
@@ -22887,7 +22834,7 @@ local function nextCompetitiveSkillReminder(record, fromSeat, nextPlayer)
 			if bestDistance==nil or distance<bestDistance then best=reminder bestDistance=distance end
 		end
 	end
-	return best or getObjectFromGUID("958209")
+	return best or getObjectFromGUID(GUID.skill.manaSuppression)
 end
 
 local function manaSuppressionTokensAtReminder(record, seatPos)
@@ -22924,7 +22871,7 @@ end
 local function clearCompetitiveSkillSeat(skillGUID, seatPos, nextPlayer)
 	local record=gStates.competitiveSkillReminders~=nil and gStates.competitiveSkillReminders[skillGUID] or nil
 	if record==nil then return {} end
-	local moved=skillGUID=="958209" and passManaSuppressionTokens(record, seatPos, nextPlayer) or {}
+	local moved=skillGUID==GUID.skill.manaSuppression and passManaSuppressionTokens(record, seatPos, nextPlayer) or {}
 	for reminderGUID, reminderSeat in pairs(record.reminders or {}) do
 		if reminderSeat==seatPos then
 			local reminder=getObjectFromGUID(reminderGUID)
@@ -22946,7 +22893,7 @@ function clearCompetitiveSkillReminders(skillGUID)
 	if gStates.competitiveSkillReminders==nil then return end
 	local record=gStates.competitiveSkillReminders[skillGUID]
 	if record==nil then return end
-	if skillGUID=="958209" then
+	if skillGUID==GUID.skill.manaSuppression then
 		local clearedSeats={}
 		for _, seatPos in pairs(record.reminders or {}) do
 			if clearedSeats[seatPos]~=true then
@@ -23195,7 +23142,7 @@ function cleanupPlayedSkillAtEndTurn(playAreaObj, cleanupPlayer)
 	end
 	if cleanupSkillHome~=nil and gStates.motivationSkill[cleanupSkillGUID]~=nil then gStates.motivationSkill[cleanupSkillGUID].state="used" end
 
-	if cleanupSkillGUID=="1ff34f" and cleanupSkill~=nil then
+	if cleanupSkillGUID==GUID.skill.masterOfChaos and cleanupSkill~=nil then
 		gStates.masterOfChaos=gStates.masterOfChaos+1
 		if gStates.masterOfChaos==7 then gStates.masterOfChaos=1 end
 		cleanupSkill.setDescription(masterOfChaosData[gStates.masterOfChaos].description)
@@ -23275,7 +23222,7 @@ function cleanupUnitAreaSkillAtEndTurn(unitAreaObj, cleanupPlayer)
 			end
 		end
 	end
-	if unitAreaObj.guid~="f30dd4" and gStates.mageSkills[unitAreaObj.guid]~=nil and gStates.doingTheRounds[unitAreaObj.guid]==nil then
+	if unitAreaObj.guid~=GUID.skill.bondsOfLoyalty and gStates.mageSkills[unitAreaObj.guid]~=nil and gStates.doingTheRounds[unitAreaObj.guid]==nil then
 		local skillHome=gStates.mageSkills[unitAreaObj.guid]
 		if skillHome[1]~=nil and skillHome[2]~=nil and skillHome[3]~=nil then
 			unitAreaObj.setPositionSmooth({skillHome[1],skillHome[2],skillHome[3]},false,false)
@@ -23328,7 +23275,7 @@ function heroChallengeClaimReservedSkill(playerIndex,higherLevel)
 	local skillX=(playerData.seatPos*40)-107.45
 	for _,skillPos in pairs(gStates.mageSkills or {}) do if skillPos[3]<-36.9 and math.abs(skillPos[1]-skillX)<1 then count=count+1 end end
 	local target={skillX,1.1,-38.67-(1.48*count)}
-	if guid=="f30dd4" then
+	if guid==GUID.skill.bondsOfLoyalty then
 		local bondsX=unitLayoutNextCommandX(playerData.seatPos)
 		target={bondsX,1.1,-31.19}
 		scheduleUnitLayoutRefresh(playerData.seatPos)
@@ -23499,11 +23446,11 @@ function masterOfChaosSetup(position)
 	safeWaitFrames("PlayerBoard.Skills",function() masterOfChaosPause=false end, 80)
 	safeWaitFrames("PlayerBoard.Skills",function() safeWaitCondition("PlayerBoard.Skills",function()
 		gStates.masterOfChaos=math.random(1,6)
-		getObjectFromGUID("1ff34f").setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
-		getObjectFromGUID("1ff34f").setDescription(masterOfChaosData[gStates.masterOfChaos].description)
-		getObjectFromGUID("1ff34f").reload()
+		getObjectFromGUID(GUID.skill.masterOfChaos).setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
+		getObjectFromGUID(GUID.skill.masterOfChaos).setDescription(masterOfChaosData[gStates.masterOfChaos].description)
+		getObjectFromGUID(GUID.skill.masterOfChaos).reload()
 		broadcastToAll("{en}'Master of Chaos' start Randomly picked.{ru}Старт «Мастер магии Хаоса» выбирается случайным образом.{zh-tw}「混亂大師」的起始位置已隨機選擇。{zh-cn}“混乱大师”开始随机挑选{ko}스킬 '혼돈의 달인'의 첫 칸이 무작위로 결정되었습니다.{es}Inicio de 'Master of Chaos' Elegido al azar.{fr}Début de 'Master of Chaos' Choisi au hasard.{pt-br}Início de 'Mestre do Caos' é aleatóriamente escolhido.{de}Meister des Chaos' startet Zufällig gewählt.", {1,1,0.5})
-	end, function() return getObjectFromGUID("1ff34f").resting end) end, 5)
+	end, function() return getObjectFromGUID(GUID.skill.masterOfChaos).resting end) end, 5)
 end
 
 --masterOfChaos
@@ -23516,9 +23463,9 @@ function masterOfChaos(player, mouseButton, id)
 					--change skill to next image
 					gStates.masterOfChaos=gStates.masterOfChaos+1
 					if gStates.masterOfChaos==7 then gStates.masterOfChaos=1 end
-					getObjectFromGUID("1ff34f").setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
-					getObjectFromGUID("1ff34f").setDescription(masterOfChaosData[gStates.masterOfChaos].description)
-					getObjectFromGUID("1ff34f").reload()
+					getObjectFromGUID(GUID.skill.masterOfChaos).setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
+					getObjectFromGUID(GUID.skill.masterOfChaos).setDescription(masterOfChaosData[gStates.masterOfChaos].description)
+					getObjectFromGUID(GUID.skill.masterOfChaos).reload()
 					--only allow once per turn
 					turnOrder[a].masterOfChaos="incremented out of turn"
 					mainUIUpdate()
@@ -23562,7 +23509,7 @@ end
 --Bonds of Loyalty setup rather than adding cards to the live Unit Offer.
 
 -- Motivation skill runtime
-function motivation(player, mouseButton, id)
+function skillsMotivationBase(player, mouseButton, id)
 	if mouseButton=="-1" then
 		if legalPlayerCheck(player.color, tonumber(id:sub(18, 18)))==true then
 			for a=1, #turnOrder, 1 do
@@ -23628,9 +23575,24 @@ function motivation(player, mouseButton, id)
 	end
 end
 
+-- Motivation's post-award Fame synchronization is coordinated by FameReputation.
+function motivation(player, mouseButton, id)
+	return fameReputationMotivation(player, mouseButton, id)
+end
+
 end)
 __bundle_register("PlayingGame.ManaSource", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Mirrored Mana Source runtime.
+
+--Keep every scripted mana crystal/token draw at the same display angle as a manual bag draw.
+--Preserve any intentional X/Z rotation supplied by the caller, but normalize Y to 30 degrees.
+function takeManaCrystal(bag,params)
+	if bag==nil then return nil end
+	params=params or {}
+	local rotation=params.rotation or {0,0,0}
+	params.rotation={rotation[1] or rotation.x or 0,30,rotation[3] or rotation.z or 0}
+	return bag.takeObject(params)
+end
 
 -- Shared Mana Source mirrors
 exitWaitID={}
@@ -24398,14 +24360,37 @@ function playMonastery()
 		local slot=monasteryOfferFirstEmptySlot()
 		if slot==nil then return end
 		local params={rotation={0,180,0},position={40.8-slot*4.8,0.98,-10.2}}
-		local drawDecks={GUID.zone.regularUnit,GUID.zone.eliteUnit,GUID.zone.actionDeck} --Zone covering Regular units draw deck, Elite Units Draw Deck, Advanced Actions Draw Deck
-		--Play an advanced action card
+		--Play an advanced action card. Deck-cycle cleanup can briefly leave the draw zone without
+		--a Card/Deck, so wait on the real source instead of spinning a Lua while loop around a callback.
 		standardDeckCycleShuffleIfReached("Advanced Action")
-		local MonasteryDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects()
-		while MonasteryDeck==nil do safeWaitFrames("Offers",function() MonasteryDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects() end, 10) end
-		local drawnCard=getObjectFromGUID(MonasteryDeck[1].guid).takeObject(params)
-		safeWaitCondition("Offers",function() drawnCard.lock() end, function() return drawnCard.resting end)
-		broadcastToAll("{en}Monastery is teaching a new Advanced Action{ru}Монастырь обучает новому Особому действию{zh-tw}修道院现在传授新的高级行动{zh-cn}修道院现在传授新的高级行动{ko}수도원에 새로운 상급 액션이 추가되었습니다{es}El Monasterio está enseñando una nueva Acción Avanzada{fr}Le Monastère enseigne une nouvelle Action Avancée{pt-br}Monastério está encinsando uma nova Ação Avançada{de}Das Kloster lehrt eine neue fortgeschrittene Aktion", {1,1,0.5})
+		local function drawMonasteryAdvancedAction()
+			local source=standardDeckCycleObject("Advanced Action")
+			if source==nil then return false end
+			local drawnCard=nil
+			if source.type=="Deck" then
+				drawnCard=safeTakeObject("Offers",source,params)
+			elseif source.type=="Card" then
+				drawnCard=source
+				drawnCard.unlock()
+				drawnCard.setPositionSmooth(params.position,false,false)
+				drawnCard.setRotationSmooth(params.rotation,false,false)
+			end
+			if drawnCard==nil then return false end
+			safeWaitCondition("Offers",function() if drawnCard~=nil then drawnCard.lock() end end,function()
+				return drawnCard==nil or drawnCard.resting==true
+			end,5,function() if drawnCard~=nil then drawnCard.lock() end end)
+			broadcastToAll("{en}Monastery is teaching a new Advanced Action{ru}Монастырь обучает новому Особому действию{zh-tw}修道院现在传授新的高级行动{zh-cn}修道院现在传授新的高级行动{ko}수도원에 새로운 상급 액션이 추가되었습니다{es}El Monasterio está enseñando una nueva Acción Avanzada{fr}Le Monastère enseigne une nouvelle Action Avancée{pt-br}Monastério está encinsando uma nova Ação Avançada{de}Das Kloster lehrt eine neue fortgeschrittene Aktion", {1,1,0.5})
+			return true
+		end
+		if drawMonasteryAdvancedAction()~=true then
+			safeWaitCondition("Offers",function()
+				if drawMonasteryAdvancedAction()~=true then error("Monastery Advanced Action source disappeared before it could be drawn.",2) end
+			end,function()
+				return standardDeckCycleObject("Advanced Action")~=nil
+			end,5,function()
+				error("Timed out waiting for the Monastery Advanced Action draw source.",2)
+			end)
+		end
 	end
 end
 
@@ -24427,7 +24412,6 @@ function offerAdjust(player, mouseButton, id)
 		if id=="e4372aOfferUp" then
 			--run fill slide after a wait frame.
 			fillSlide()
-			--Wait.condition(function() fillSlide() end, function() return getObjectFromGUID(GUID.deck.spell).resting end)
 		else
 			--flip existing cards if shrinking the offer.
 			for _, card in pairs(getObjectFromGUID(GUID.zone.offer).getObjects()) do
@@ -24668,6 +24652,458 @@ function scaleBags(bag, obj, state)
 end
 
 end)
+__bundle_register("PlayingGame.MapTokens", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Shared physical map-token arrival, stacking and shared-hex layout.
+-- Runtime-only ordering stays rebuildable from the physical table and is never persisted in gStates.
+
+--Small map tokens can legitimately share one hex. Keep enemy-like tokens slightly separated so
+--each remains visible/clickable, while physical site markers stay underneath them.
+--Enemy model origins depend on face orientation: face-up rests at Y 1.08, face-down at Y 1.18.
+--Each physical token layer below adds 0.10. A Graveyard itself rests centred at Y 1.08 and raises
+--an enemy resting on it by 0.08 (face-up Y 1.16, face-down Y 1.26). Destroyed Site has the same
+--top surface as a face-up enemy but its model origin is 0.05 higher, so its map-floor origin is Y 1.13.
+local mapTokenArrangeGeneration={}
+--One pending generation per arriving token deduplicates map-zone callbacks and scripted moves.
+local mapTokenArrivalPending={}
+--Arrival order only needs to exist while this Lua session is running. After a load, the already-laid-out
+--physical diagonal is the source of truth until a token genuinely arrives again.
+local mapTokenArrivalCounter=0
+local mapTokenRuntimeArrivalOrder={}
+
+function mapTokenHasPendingArrival(guid)
+	return guid~=nil and mapTokenArrivalPending[guid]~=nil
+end
+local mapTokenSpreadSpacing=0.20
+local mapTokenSpreadDiagonalComponent=mapTokenSpreadSpacing/math.sqrt(2)
+local mapTokenEnemyFaceUpBaseY=1.08
+local mapTokenEnemyFaceDownBaseY=1.18
+local mapTokenGraveyardBaseY=1.08
+local mapTokenGraveyardSupportY=0.08
+local mapTokenDestroyedBaseY=1.13
+
+function mapTokenDestroyedSiteBaseY()
+	return mapTokenDestroyedBaseY
+end
+local mapTokenStackStepY=0.10
+
+--The model pivot moves by one token thickness when an enemy is flipped. Stack height therefore
+--starts from the orientation-specific resting origin, then adds one physical layer per earlier slot.
+local function mapTokenEnemySlotY(obj,index,supportY)
+	index=math.max(1,tonumber(index) or 1)
+	local baseY=(obj~=nil and obj.is_face_down==true) and mapTokenEnemyFaceDownBaseY or mapTokenEnemyFaceUpBaseY
+	return baseY+(tonumber(supportY) or 0)+((index-1)*mapTokenStackStepY)
+end
+
+--Normalize an enemy's origin height before using it as the fallback physical stack order. Without
+--this, a face-down token looks one whole layer higher even when it is resting directly on the map.
+local function mapTokenEnemyPhysicalLayerY(obj)
+	if obj==nil then return 0 end
+	local y=obj.getPosition()[2]
+	if obj.is_face_down==true then y=y-mapTokenStackStepY end
+	return y
+end
+
+--Return an evenly spaced WORLD-space point on one diagonal through the hex centre.
+--The group is always centred: 3 tokens are -1/0/+1 steps, 4 are -1.5/-0.5/+0.5/+1.5.
+--The tested table orientation is -X/-Z for the lower/older (visual bottom-left) end and
+--+X/+Z for the higher/newest (visual upper-right) end.
+local function mapTokenSpreadOffset(index,count)
+	count=math.max(1,tonumber(count) or 1)
+	index=math.max(1,math.min(count,tonumber(index) or 1))
+	local steps=((count+1)/2)-index
+	local component=-steps*mapTokenSpreadDiagonalComponent
+	return {x=component,z=component}
+end
+
+function mapTokenIsDestroyedSite(obj)
+	return obj~=nil and obj.getGMNotes~=nil and obj.getGMNotes()=="Destroyed"
+end
+
+function mapTokenIsGraveyard(obj)
+	return obj~=nil and obj.getName~=nil and obj.getName()=="GraveYard"
+end
+
+function mapTokenIsBaseSite(obj)
+	--Graveyards and Destroyed Sites are floor tokens. Ruins participate in the enemy diagonal.
+	return mapTokenIsGraveyard(obj)==true or mapTokenIsDestroyedSite(obj)==true
+end
+
+function mapTokenIsSpreadEnemy(obj)
+	if obj==nil then return false end
+	if apocalypseDragon~=nil and obj.guid==apocalypseDragon.furyMarker then return true end
+	local details=monsterPugs~=nil and monsterPugs[obj.guid] or nil
+	if details==nil then return false end
+	--Possessed markers are physically linked overlays, not independent tokens. Ruins are spread normally.
+	if details.pugType=="possessed" then return false end
+	return true
+end
+
+function mapTokenNeedsArrangement(obj)
+	return mapTokenIsSpreadEnemy(obj)==true or mapTokenIsBaseSite(obj)==true
+end
+
+--Horsemen, the single-hex Fury Dragon and Pursuit monsters are always the moving/top group.
+--Their own arrival order still matters when more than one moving token shares a hex.
+function mapTokenIsMovingPriority(obj)
+	if obj==nil or obj.guid==nil then return false end
+	if horsemanTokenToName~=nil and horsemanTokenToName[obj.guid]~=nil then return true end
+	if apocalypseDragon~=nil and obj.guid==apocalypseDragon.furyMarker then return true end
+	for _,monsters in pairs(gStates~=nil and gStates.pursuingMonsters or {}) do
+		if monsters~=nil and monsters[obj.guid]~=nil then return true end
+	end
+	return false
+end
+
+--New arrivals need deterministic ordering when several tokens settle together, but that ordering is
+--derived table state and does not belong in gStates. Existing tokens after a load fall back to their
+--physical diagonal/Y order; a new arrival gets a fresh runtime sequence and is newer than either.
+local function mapTokenRecordArrival(guid)
+	if guid==nil then return nil end
+	mapTokenArrivalCounter=mapTokenArrivalCounter+1
+	mapTokenRuntimeArrivalOrder[guid]=mapTokenArrivalCounter
+	return mapTokenArrivalCounter
+end
+
+local function mapTokenArrivalOrder(guid)
+	if guid==nil then return nil end
+	return mapTokenRuntimeArrivalOrder[guid]
+end
+
+local function mapTokenOnHex(obj,hex)
+	if obj==nil or hex==nil or hex.position==nil then return false end
+	local pos=obj.getPosition()
+	local dx=pos[1]-hex.position[1]
+	local dz=pos[3]-hex.position[3]
+	return (dx*dx)+(dz*dz)<1.5
+end
+
+--Smooth separator moves stay inside the map zone and never unlock their participants, so one
+--per-object arrival generation is sufficient; the old whole-stack claim/relock layers are unnecessary.
+function mapTokenAfterSettled(guid,callback)
+	if guid==nil or callback==nil then return end
+	safeWaitCondition("MapTokens",function()
+		safeWaitFrames("MapTokens",function()
+			safeWaitCondition("MapTokens",function()
+				callback(getObjectFromGUID(guid))
+			end,function()
+				local obj=getObjectFromGUID(guid)
+				return obj==nil or obj.resting==true
+			end,5,function()
+				callback(getObjectFromGUID(guid))
+			end)
+		end,1)
+	end,function()
+		local obj=getObjectFromGUID(guid)
+		return obj==nil or obj.isSmoothMoving()==false
+	end,5,function()
+		callback(getObjectFromGUID(guid))
+	end)
+end
+
+local function mapTokenUpdatePlayLocation(obj,pos)
+	if obj==nil or pos==nil or gStates==nil or gStates.monsterPlayLocation==nil then return end
+	if gStates.monsterPlayLocation[obj.guid]~=nil then
+		gStates.monsterPlayLocation[obj.guid]={pos[1],pos[2],pos[3]}
+	end
+end
+
+--Smooth one token to its final shared-hex slot. Scripted transforms work on locked objects, so the
+--separator never unlocks/relocks pieces just to correct X/Z/Y. collide=false also prevents the small
+--separation movement from physically shoving another token in the same stack.
+local function mapTokenMoveToSlot(obj,targetX,targetY,targetZ)
+	if obj==nil then return false end
+	local pos=obj.getPosition()
+	if obj.isSmoothMoving()==true then return false end
+	local already=math.abs(pos[1]-targetX)<0.025 and math.abs(pos[2]-targetY)<0.025 and math.abs(pos[3]-targetZ)<0.025
+	if already==true then return false end
+	obj.setPositionSmooth({targetX,targetY,targetZ},false)
+	mapTokenUpdatePlayLocation(obj,{targetX,targetY,targetZ})
+	return true
+end
+
+--Arrange one resolved map hex. Graveyard is a centred floor/support token and never consumes a
+--horizontal spread slot. Destroyed, when present, is the first spread token above that support.
+--Ordinary enemies follow in arrival order. Horsemen, the single-hex Dragon and pursuing enemies
+--form the moving group at the top-right end, also in arrival order.
+function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
+	if hex==nil or hex.position==nil then return false end
+	local objects={}
+	local seen={}
+	for _,obj in pairs(mapObjects or {}) do
+		if obj~=nil and obj.guid~=ignoreGUID and mapTokenOnHex(obj,hex)==true and mapTokenNeedsArrangement(obj)==true then
+			objects[#objects+1]=obj
+			seen[obj.guid]=true
+		end
+	end
+	if extraObject~=nil and extraObject.guid~=ignoreGUID and seen[extraObject.guid]~=true and mapTokenNeedsArrangement(extraObject)==true then
+		objects[#objects+1]=extraObject
+		seen[extraObject.guid]=true
+	end
+
+	local graveyard=nil
+	local destroyed=nil
+	local enemies={}
+	for _,obj in ipairs(objects) do
+		if mapTokenIsGraveyard(obj)==true then
+			if graveyard==nil then graveyard=obj end
+		elseif mapTokenIsDestroyedSite(obj)==true then
+			if destroyed==nil then destroyed=obj end
+		elseif mapTokenIsSpreadEnemy(obj)==true then
+			enemies[#enemies+1]=obj
+		end
+	end
+	table.sort(enemies,function(a,b)
+		local aMoving=mapTokenIsMovingPriority(a)
+		local bMoving=mapTokenIsMovingPriority(b)
+		--Ordinary/site enemies always precede the moving group, regardless of which one physically
+		--arrived later. This keeps a pre-deployed Horseman above a site token revealed afterward.
+		if aMoving~=bMoving then return aMoving~=true end
+
+		local aOrder=mapTokenArrivalOrder(a.guid)
+		local bOrder=mapTokenArrivalOrder(b.guid)
+		if aOrder~=bOrder then
+			--An unrecorded token is necessarily older than a newly recorded arrival in this game.
+			if aOrder==nil then return true end
+			if bOrder==nil then return false end
+			return aOrder<bOrder
+		end
+
+		--Fallback only for tokens with no distinct recorded arrival (for example pieces already present
+		--when this layout first runs). Preserve an existing diagonal, then physical low-to-high stack order.
+		local ap=a.getPosition()
+		local bp=b.getPosition()
+		local aProjection=ap[1]+ap[3]
+		local bProjection=bp[1]+bp[3]
+		if math.abs(aProjection-bProjection)>0.05 then return aProjection<bProjection end
+		local aLayerY=mapTokenEnemyPhysicalLayerY(a)
+		local bLayerY=mapTokenEnemyPhysicalLayerY(b)
+		if math.abs(aLayerY-bLayerY)>0.01 then return aLayerY<bLayerY end
+		return tostring(a.guid)<tostring(b.guid)
+	end)
+
+	local centerX,centerZ=hex.position[1],hex.position[3]
+	local changed=false
+	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
+	local supportY=graveyard~=nil and mapTokenGraveyardSupportY or 0
+
+	--Graveyard is always centred under the stack and does not participate in the diagonal spread.
+	--Preserve its current face; the Graveyard scenarios deliberately deploy different face orientations.
+	if graveyard~=nil then
+		changed=mapTokenMoveToSlot(graveyard,centerX,mapTokenGraveyardBaseY,centerZ) or changed
+	end
+
+	--Destroyed is the lowest spread token. The scenarios currently cannot combine it with a Graveyard,
+	--but if they ever do, the Graveyard remains underneath and raises Destroyed by the same support height.
+	if destroyed~=nil then
+		local offset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
+		local targetX,targetZ=centerX+offset.x,centerZ+offset.z
+		local targetY=mapTokenDestroyedBaseY+supportY
+		destroyed.setRotation({0,180,0})
+		changed=mapTokenMoveToSlot(destroyed,targetX,targetY,targetZ) or changed
+	end
+
+	if #enemies<1 then return changed end
+	for _,obj in ipairs(enemies) do if obj.isSmoothMoving()==true then return changed end end
+
+	--A lone enemy stays centred. Graveyard raises its measured resting origin from 1.08/1.18
+	--to 1.16/1.26; with no Graveyard the existing floor heights remain unchanged.
+	if destroyed==nil and #enemies==1 then
+		changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenEnemySlotY(enemies[1],1,supportY),centerZ) or changed
+		return changed
+	end
+
+	local firstEnemyIndex=destroyed~=nil and 2 or 1
+	for index,obj in ipairs(enemies) do
+		local spreadIndex=firstEnemyIndex+index-1
+		local offset=mapTokenSpreadOffset(spreadIndex,spreadCount)
+		changed=mapTokenMoveToSlot(obj,centerX+offset.x,mapTokenEnemySlotY(obj,spreadIndex,supportY),centerZ+offset.z) or changed
+	end
+	return changed
+end
+
+function mapTokenArrangeObject(guid)
+	local obj=guid~=nil and getObjectFromGUID(guid) or nil
+	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
+	local hex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+	if hex==nil then return false end
+	return mapTokenArrangeHex(hex,mapObjects,nil,obj)
+end
+
+--Terrain population records the intended destination in monsterPlayLocation immediately after a token
+--is taken from its pile. The token can cross another revealed hex while travelling there, so a passive
+--map-zone event must not treat that intermediate position as its final hex and snap it into that stack.
+local function mapTokenPassiveArrivalReachedPlannedHex(obj)
+	if obj==nil or obj.guid==nil or gStates==nil or gStates.monsterPlayLocation==nil then return true end
+	local planned=gStates.monsterPlayLocation[obj.guid]
+	if planned==nil then return true end
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
+	local plannedHex=runtimeMapHexForPosition(hexes,planned,mapObjects)
+	--A recorded destination outside the revealed map means this map-zone entry is only transit.
+	if plannedHex==nil then return false end
+	local currentHex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+	if currentHex==nil then return false end
+	return runtimeMapHexKey(currentHex)==runtimeMapHexKey(plannedHex)
+end
+
+--All map-token arrivals use this one settle path. A scripted mover registers before crossing the
+--map zone; a physical drop is normally registered by the map-zone entry itself. Each token can own
+--only one pending generation, so duplicate callbacks become no-ops without claiming the whole stack.
+function mapTokenSettleArrival(guid,target,options,callback)
+	options=options or {}
+	if guid==nil then return false end
+	local obj=getObjectFromGUID(guid)
+	if obj==nil then return false end
+
+	--A scripted move first releases the old hex so survivors can close up. force is reserved for
+	--authoritative scripted deployments that may be reusing an object with a stale passive arrival.
+	if options.releaseOrigin==true then
+		mapTokenReleaseObject(obj)
+	elseif options.force==true then
+		mapTokenArrivalPending[guid]=nil
+		mapTokenArrangeGeneration[guid]=(mapTokenArrangeGeneration[guid] or 0)+1
+	end
+	if mapTokenArrivalPending[guid]~=nil then return false end
+
+	local generation=(mapTokenArrangeGeneration[guid] or 0)+1
+	mapTokenArrangeGeneration[guid]=generation
+	mapTokenArrivalPending[guid]=generation
+	mapTokenRecordArrival(guid)
+
+	if target~=nil then
+		--Scripted transforms work while locked, so preserve the object's lock state throughout.
+		if options.rotation~=nil then obj.setRotation(options.rotation) end
+		obj.setPositionSmooth(target,false)
+	end
+
+	mapTokenAfterSettled(guid,function(current)
+		--A newer arrival/release for this same object wins.
+		if mapTokenArrivalPending[guid]~=generation then
+			if callback~=nil then callback(current,false) end
+			return
+		end
+		if current==nil then
+			mapTokenArrivalPending[guid]=nil
+			if callback~=nil then callback(nil,false) end
+			return
+		end
+
+		--A token travelling across the map can enter the scripting zone above the wrong hex. Only passive
+		--zone arrivals need this check; the explicit mover already knows its intended destination.
+		if options.passive==true and mapTokenPassiveArrivalReachedPlannedHex(current)~=true then
+			mapTokenArrivalPending[guid]=nil
+			if callback~=nil then callback(current,false) end
+			return
+		end
+
+		--A destructive mover can defer its own spread until the replacement Destroyed Site arrives,
+		--avoiding an intermediate arrange that would immediately be invalidated.
+		local arranged=false
+		if options.deferArrange~=true then arranged=mapTokenArrangeObject(guid) end
+		--Keep this generation pending until any final smooth separator correction has settled. This also
+		--makes the delayed onObjectDrop fallback a guaranteed no-op when the map-zone path already owns it.
+		mapTokenAfterSettled(guid,function(finalObj)
+			if mapTokenArrivalPending[guid]==generation then mapTokenArrivalPending[guid]=nil end
+			if callback~=nil then callback(finalObj,arranged) end
+		end)
+	end)
+	return true
+end
+
+--The map-zone entry is the normal physical-arrival trigger. onObjectDrop only calls this later as
+--insurance for a token that entered the short map zone while it was still being held.
+function mapTokenScheduleObject(guid)
+	return mapTokenSettleArrival(guid,nil,{passive=true})
+end
+
+--Run work only after the token's complete arrival transaction has finished, including any final
+--separator correction. This is intentionally later than mapTokenAfterSettled(), which is also used
+--inside mapTokenSettleArrival while its generation is still pending.
+function mapTokenAfterArrivalComplete(guid,callback)
+	if guid==nil or callback==nil then return end
+	safeWaitCondition("MapTokens.mapTokenArrivalComplete",function()
+		callback(getObjectFromGUID(guid))
+	end,function()
+		local obj=getObjectFromGUID(guid)
+		return obj==nil or (mapTokenArrivalPending[guid]==nil and obj.isSmoothMoving()==false and obj.resting==true)
+	end)
+end
+
+--Re-arrange the hex an object is leaving while deliberately ignoring that object. This recentres a
+--remaining lone enemy and keeps a Destroyed Site marker fixed underneath anything still on the hex.
+function mapTokenReleaseObject(obj)
+	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
+	local position=obj.getPosition()
+	local ignoreGUID=obj.guid
+	--Invalidate delayed arrival/manual-drop work for the object now being carried away.
+	mapTokenArrivalPending[ignoreGUID]=nil
+	mapTokenArrangeGeneration[ignoreGUID]=(mapTokenArrangeGeneration[ignoreGUID] or 0)+1
+	safeWaitFrames("MapTokens",function()
+		local hexes,mapObjects=runtimeMapHexesAndObjects()
+		local hex=runtimeMapHexForPosition(hexes,position,mapObjects)
+		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID,nil) end
+	end,1)
+	return true
+end
+
+local mapTokenTerrainReconcilePending={}
+
+local function mapTokenTerrainReadyForReconcile(terrainGUID)
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
+	for _,obj in pairs(mapObjects or {}) do
+		if mapTokenNeedsArrangement(obj)==true then
+			local hex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+			if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
+				if mapTokenArrivalPending[obj.guid]~=nil or obj.isSmoothMoving()==true or obj.resting~=true then return false end
+			end
+		end
+	end
+	return true
+end
+
+local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+	local hexes,mapObjects=runtimeMapHexesAndObjects()
+	local touched={}
+	for _,obj in pairs(mapObjects or {}) do
+		if mapTokenNeedsArrangement(obj)==true then
+			local hex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+			local key=hex~=nil and runtimeMapHexKey(hex) or nil
+			--Terrain completion only reconciles shared stacks on the tile that just finished population.
+			if hex~=nil and key~=nil and touched[key]~=true and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
+				touched[key]=true
+				local participantCount=0
+				for _,candidate in pairs(mapObjects or {}) do
+					if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true then
+						participantCount=participantCount+1
+					end
+				end
+				--A lone token has nothing to separate. Leaving it alone avoids the old Keep/Mage Tower shimmer.
+				if participantCount>1 then mapTokenArrangeHex(hex,mapObjects,nil,nil) end
+			end
+		end
+	end
+	return true
+end
+
+function mapTokenArrangeAllOccupiedHexes(terrainGUID)
+	if terrainGUID==nil or mapTokenTerrainReadyForReconcile(terrainGUID)==true then
+		return mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+	end
+	if mapTokenTerrainReconcilePending[terrainGUID]==true then return false end
+	mapTokenTerrainReconcilePending[terrainGUID]=true
+	local function finish()
+		mapTokenTerrainReconcilePending[terrainGUID]=nil
+		mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+	end
+	--Script-deployed enemies can still be falling when terrain population code itself is finished.
+	--Wait for their own arrival/separator work to finish, then perform one final shared-stack pass.
+	safeWaitCondition("MapTokens",finish,function()
+		return mapTokenTerrainReadyForReconcile(terrainGUID)
+	end,5,finish)
+	return false
+end
+
+end)
 __bundle_register("PlayingGame.Map", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Map state, avatar location, exploration, shields and terrain-site runtime.
 
@@ -24710,7 +25146,7 @@ end
 
 function clearTerrainExploreOptions()
 	terrainExploreButtons={{}}
-	local exploreUI=getObjectFromGUID("f2291a")
+	local exploreUI=getObjectFromGUID(GUID.ui.mapExplore)
 	if exploreUI~=nil then exploreUI.UI.setXmlTable(terrainExploreButtons) end
 end
 
@@ -24845,11 +25281,9 @@ function dropShield(location, lockToken, rotation)
 					shield.lock()
 				end, function() return shield.resting end) end, 1.5)
 			end
-			UI.setAttribute("PreEndTurn", "interactable", "false")
-			UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Deactive")
+			setUIButtonEnabled("PreEndTurn",false)
 			safeWaitTime("Map",function()
-				UI.setAttribute("PreEndTurn", "interactable", "true")
-				UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Active")
+				setUIButtonEnabled("PreEndTurn",true)
 			end, 2.1)
 			break
 		end
@@ -25308,7 +25742,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 end
 
 --Pillage Village, draw two cards for chosen mage and reduce Reputation by 1
-function plunderVillage(player, mouseButton, id)
+function mapPlunderVillageBase(player, mouseButton, id)
 	if mouseButton=="-1" then
 		if legalPlayerCheck(player.color, tonumber(id:sub(8,8)))==true then
 			for a=1, #turnOrder, 1 do
@@ -25542,7 +25976,6 @@ function straightenCrooked()
 			local rot={0.00, 180.00, 0.00}
 			if getObjectFromGUID(objGUID).getRotation()[3]>=170 and getObjectFromGUID(objGUID).getRotation()[3]<=190 then rot=({0.00, 180.00, 180.00}) end
 			getObjectFromGUID(objGUID).setRotation(rot)
-			--Wait.time(function() getObjectFromGUID(objGUID).lock() end, 0.5)
 		end
 	end
 end
@@ -25842,7 +26275,7 @@ local function terrainPositionLegal(obj, faceUpTerrain, northBearing, result)--.
 	--Check if Core tile has at least two neighbor Tiles
 	--Check if Country tile has at least one neighbor that has two neighbor Tiles
 	--check if an excess terrain tile has at least three neighbors.
-	if gStates.gameScenario~="The Gauntlet" and obj.guid~=firstTile and not (obj.guid=="835c91" and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
+	if gStates.gameScenario~="The Gauntlet" and obj.guid~=firstTile and not (obj.guid==GUID.tile.volkareCamp and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
 		local neighboursFound=0
 		local neighbourTile=nil
 		local adjacentPositions={}
@@ -25937,21 +26370,27 @@ function refreshTerrainExploreOptions(compactCities)
 		local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
 		local leftCountry=getObjectFromGUID(GUID.bag.terrain.leftCountry)
 		local leftCore=getObjectFromGUID(GUID.bag.terrain.leftCore)
-		local terrainStackQuantity=terrainStack~=nil and (tonumber(terrainStack.getQuantity()) or 0) or 0
-		local terrainStackObjects=terrainStack~=nil and terrainStack.getObjects() or nil
-		--TTS destroys/rebuilds container objects while loose terrain tiles merge into the final stack.
-		--During that frame getObjects() can return nil even though getQuantity() already reports the stack.
-		--Retry the derived EXPLORE view after the merge instead of treating a transient container as empty.
-		if terrainStackQuantity>1 and type(terrainStackObjects)~="table" then
-			if terrainExploreRefreshQueued~=true then
-				terrainExploreRefreshQueued=true
-				safeWaitFrames("Map",function()
-					terrainExploreRefreshQueued=false
-					refreshTerrainExploreOptions(compactCities)
-				end,1)
-			end
-			return
+		local function retryTerrainExploreRefresh()
+			if terrainExploreRefreshQueued==true then return end
+			terrainExploreRefreshQueued=true
+			safeWaitFrames("Map",function()
+				terrainExploreRefreshQueued=false
+				refreshTerrainExploreOptions(compactCities)
+			end,1)
 		end
+		local terrainStackQuantity=0
+		local terrainStackObjects=nil
+		if terrainStack~=nil then
+			--TTS can destroy/rebuild the terrain container while loose tiles merge into the final stack.
+			--During that frame even getQuantity() can throw from the transient container proxy, so protect
+			--both reads and retry the derived EXPLORE view once the replacement object exists.
+			local quantityOK, quantity=pcall(function() return terrainStack.getQuantity() end)
+			local objectsOK, objects=pcall(function() return terrainStack.getObjects() end)
+			if quantityOK~=true or objectsOK~=true then retryTerrainExploreRefresh() return end
+			terrainStackQuantity=tonumber(quantity) or 0
+			terrainStackObjects=objects
+		end
+		if terrainStackQuantity>1 and type(terrainStackObjects)~="table" then retryTerrainExploreRefresh() return end
 		terrainStackObjects=type(terrainStackObjects)=="table" and terrainStackObjects or {}
 		local terrainStackSingleTile=terrainStack~=nil and terrainTiles[terrainStack.guid]~=nil and terrainTiles[terrainStack.guid].tileType~="tilePile"
 		if #terrainStackObjects>0 then
@@ -25978,17 +26417,17 @@ function refreshTerrainExploreOptions(compactCities)
 				end
 				if found==false and terrainPositionLegal({guid=testTerrain, faceDown=false, objName=nameTerrain, position=terTile, bearing=math.deg(math.atan2(terTile[3]-startTilePosition[3], terTile[1]-startTilePosition[1]))},faceUpTerrain,northBearing,{})==true then--country tile guid stand-in
 					terrainDecals[#terrainDecals+1]={name="Legal Play", url="https://steamusercontent-a.akamaihd.net/ugc/1833526258732421084/29942DB5776ABA4145E9E115D1C893574C9A737A/", position=terTile, rotation={90.0, 0.0, 0.0}, scale={6, 6, 1}}
-					terrainExploreButtons[#terrainExploreButtons+1]={tag="Button", attributes={id="f2291a"..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
-							children={	{tag="Image", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
+					terrainExploreButtons[#terrainExploreButtons+1]={tag="Button", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
+							children={	{tag="Image", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
 										{tag="HorizontalLayout", attributes={padding="25 25 25 25"},
-										children={{tag="Text", attributes={id="f2291a"..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
+										children={{tag="Text", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
 					--record all the potential future hexes as "explore" so the move can calculate for it.
 				end
 				end
 			end
 			for _, teleportDecal in pairs(fracturedLandsTeleportDecals()) do terrainDecals[#terrainDecals+1]=teleportDecal end
 			Global.setDecals(terrainDecals)
-			getObjectFromGUID("f2291a").UI.setXmlTable(terrainExploreButtons)
+			getObjectFromGUID(GUID.ui.mapExplore).UI.setXmlTable(terrainExploreButtons)
 			--Now that the complete legal EXPLORE set is known, place each City card once at its closest legal position.
 			if compactCities~=false then compactCityCardsAfterExplore(mapObjectPositions) end
 	end
@@ -26091,7 +26530,7 @@ function mapHandleTerrainZoneEnter(ctx)
 				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
 			end
 			--Check if the object is a core tile and unlock elite units
-			if terrainTiles[objGUID].tileType=="core" and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
+			if terrainTiles[objGUID].tileType=="core" and (objGUID~=GUID.tile.volkareCamp or (objGUID==GUID.tile.volkareCamp and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
 				gStates.playedCoreTiles=gStates.playedCoreTiles+1
 				gStates.eliteUnitsUsed=true
 				if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
@@ -26317,7 +26756,7 @@ function mapHandleTerrainZoneEnter(ctx)
 
 							--City
 							if ((hexFeature or ""):sub(1, 4)=="city" or hexFeature=="Volkare's Camp")
-								and (objGUID~="835c91" or (objGUID=="835c91" and gStates.volkareCampAsCity==true))
+								and (objGUID~=GUID.tile.volkareCamp or (objGUID==GUID.tile.volkareCamp and gStates.volkareCampAsCity==true))
 								or (hexLocation=="center" and gStates.removeShadesOfTezlaMonsters~=true and gStates.gameScenario=="Ultimate Conquest" and (objGUID==GUID.tile.core03 or objGUID==GUID.tile.core10)) then
 								--Choose the City card's first destination against the frontier created by this tile.
 								--Without this, cityInitialCardPosition() reads the previous EXPLORE set and the later
@@ -26414,6 +26853,11 @@ function mapHandleTerrainZoneEnter(ctx)
         end
 	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil then return true end
 	return false
+end
+
+-- The integrated implementation clamps Reputation at the track edge before applying the physical move.
+function plunderVillage(player, mouseButton, id)
+	return fameReputationPlunderVillage(player, mouseButton, id)
 end
 
 end)
@@ -27944,6 +28388,63 @@ local apocalypseQuestData={
 	["783076"]={number=30, name="Hunter's Moon", questType="Collective", starting=false, stepCount=2, usesMarker=true, keepToken=false, questTokens={"e55059"}, revealSetup="werewolf", snapOrder={"1a", "1b"}, steps={{key="1a", point=true, canFail=false, completes=false, repeatCount=0, pointLimit=1}, {key="1b", point=true, canFail=false, completes=false, repeatCount=0, pointLimit=1}, {key="2", point=true, canFail=true, completes=true, repeatCount=0, pointLimit=1}}},
 }
 
+--Quest-specific behavior registers here instead of being spread across unrelated engine dispatchers.
+--This first pass centralizes combat-step identity; additional hooks migrate here incrementally.
+local apocalypseQuestHandlers={
+	["8939c0"]={combatSteps={[1]={key="1b"}}},
+	["8cdac4"]={combatSteps={[3]={key="3"}}},
+	["66ea80"]={combatSteps={[2]={key="2"},[3]={key="3"}}},
+	["37e2ce"]={},
+	["485cc5"]={combatSteps={[2]={key="2"}}},
+	["82a935"]={combatSteps={[2]={key="2c"}}},
+	["8455b5"]={},
+	["a6d5cc"]={combatSteps={[2]={key="2a"}}},
+	["8cff07"]={combatSteps={[2]={key="2"}}},
+	["abd4fb"]={},
+	["d70436"]={combatSteps={[3]={key="3"}}},
+	["c73a1f"]={combatSteps={[3]={key="3"}}},
+	["ce70fb"]={combatSteps={[2]={keys={["2a"]=true,["2b"]=true},defaultKey="2a",branchState="combat"}}},
+	["dd35bb"]={combatSteps={[3]={key="3"}}},
+	["bb2828"]={},
+	["783076"]={combatSteps={[2]={key="2"}}},
+}
+
+local function apocalypseQuestHandler(cardOrGUID)
+	local guid=type(cardOrGUID)=="table" and cardOrGUID.guid or cardOrGUID
+	return guid~=nil and apocalypseQuestHandlers[guid] or nil
+end
+
+local function apocalypseQuestRegisterHandler(guid)
+	if apocalypseQuestHandlers[guid]==nil then apocalypseQuestHandlers[guid]={} end
+	return apocalypseQuestHandlers[guid]
+end
+
+local function apocalypseQuestCombatRuleForStep(card,step)
+	local handler=apocalypseQuestHandler(card)
+	return handler~=nil and handler.combatSteps~=nil and handler.combatSteps[tonumber(step)] or nil
+end
+
+local function apocalypseQuestCombatRuleForOption(card,key)
+	local handler=apocalypseQuestHandler(card)
+	if handler==nil or handler.combatSteps==nil then return nil,nil end
+	key=tostring(key)
+	for step,rule in pairs(handler.combatSteps) do
+		if rule.key==key or (rule.keys~=nil and rule.keys[key]==true) then return rule,step end
+	end
+	return nil,nil
+end
+
+local function apocalypseQuestCombatRuleSelectedKey(card,state)
+	if state==nil then return nil,nil end
+	local rule=apocalypseQuestCombatRuleForStep(card,state.step)
+	if rule==nil then return nil,nil end
+	local key=rule.key
+	if rule.branchState=="combat" then
+		key=(gStates.apocalypseQuestCombatBranch~=nil and gStates.apocalypseQuestCombatBranch[card.guid]) or rule.defaultKey
+	end
+	return key,rule
+end
+
 --Map-placement rules for Quest markers. These mirror the placement notes in the Quest catalogue.
 --A marker is only auto-positioned while the matching numbered step is current. If several legal
 --spaces exist, the first is used as a default and the marker is highlighted so the player can move it.
@@ -27984,7 +28485,7 @@ apocalypseQuestMarkerPlacementRules={
 	["783076"]={["1"]={tokens={"e55059"}, atPlayer=true}},
 }
 
---Quest step location rules transcribed from the Quest Card Summary sheet.
+--Quest step location rules used by the current scripted Quest implementation.
 --Rules use the full printed branch key where branches have different legal locations; missing steps mean Anywhere.
 apocalypseQuestStepLocationRules={
 	["8939c0"]={["1"]={features={"village","keep","mage tower","oasis"}, requireInteractable=true}},
@@ -28185,61 +28686,6 @@ local function apocalypseQuestTuckedCardDestination(card)
 	if cardType=="Elite Unit" or name=="Elite Unit" then return GUID.deck.eliteUnit, "Elite Unit" end
 	return nil, nil
 end
-local function standardDeckCycleZone(deckName)
-	if deckName=="Advanced Action" then return GUID.zone.actionDeck end
-	if deckName=="Spell" then return GUID.zone.spellDeck end
-	if deckName=="Regular Unit" then return GUID.zone.regularUnit end
-	if deckName=="Elite Unit" then return GUID.zone.eliteUnit end
-	return nil
-end
-function standardDeckCycleObject(deckName)
-	if deckName=="Artifact" then return getObjectFromGUID(GUID.deck.artifact) end
-	local zoneGUID=standardDeckCycleZone(deckName)
-	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-	if zone~=nil then
-		for _, obj in pairs(zone.getObjects()) do if obj.type=="Deck" or obj.type=="Card" then return obj end end
-	end
-	return nil
-end
-local function standardDeckCycleMarker(deckName)
-	if deckName==nil or gStates==nil or gStates.standardDeckFirstReturnedGUID==nil then return nil end
-	return gStates.standardDeckFirstReturnedGUID[deckName]
-end
-function standardDeckCycleMarkReturned(deckName, card)
-	if deckName==nil or gStates==nil or gStates.firstStarted~=true or card==nil then return false end
-	if gStates.standardDeckFirstReturnedGUID==nil then gStates.standardDeckFirstReturnedGUID={} end
-	if gStates.standardDeckFirstReturnedGUID[deckName]==nil then gStates.standardDeckFirstReturnedGUID[deckName]=card.guid return true end
-	return false
-end
-
-function standardDeckCycleShuffleIfReached(deckName, deck, candidateGUID)
-	local firstReturned=standardDeckCycleMarker(deckName)
-	if firstReturned==nil then return false end
-	deck=deck or standardDeckCycleObject(deckName)
-	if deck==nil or (deck.type~="Deck" and deck.type~="Card") then return false end
-	local reachedGUID=candidateGUID
-	if reachedGUID==nil then
-		if deck.type=="Deck" then
-			local objects=deck.getObjects()
-			if objects[1]~=nil then reachedGUID=objects[1].guid end
-		else
-			reachedGUID=deck.guid
-		end
-	end
-	if reachedGUID~=firstReturned then return false end
-	gStates.standardDeckFirstReturnedGUID[deckName]=nil
-	if deck.type=="Deck" and deck.getQuantity()>1 then deck.shuffle() end
-	return true
-end
-function standardDeckCycleClearIfDeckShuffled(deck)
-	if deck==nil or deck.type~="Deck" or gStates==nil or gStates.standardDeckFirstReturnedGUID==nil then return false end
-	for _, deckName in ipairs({"Artifact", "Regular Unit", "Elite Unit", "Advanced Action", "Spell"}) do
-		local current=standardDeckCycleObject(deckName)
-		if current~=nil and current.guid==deck.guid then gStates.standardDeckFirstReturnedGUID[deckName]=nil return true end
-	end
-	return false
-end
-
 function apocalypseQuestStageIntoContainer(obj,container)
 	if obj==nil or container==nil then return false end
 	local objectGUID=obj.guid
@@ -28319,6 +28765,59 @@ function apocalypseQuestReturnRevealBag(card)
 	return true
 end
 
+local apocalypseQuestRevealSetupHandlers={
+	regularUnitII=function(card,cardPos,track)
+		local deck=standardDeckCycleObject("Regular Unit")
+		if deck~=nil then
+			local unitGUID=nil
+			if deck.type=="Deck" then
+				for _, data in ipairs(deck.getObjects()) do
+					if gameCards[data.guid]~=nil and gameCards[data.guid].cardType=="Regular Unit" and gameCards[data.guid].level==2 and data.guid~="0a2e0b" and data.guid~="d8e49b" then unitGUID=data.guid break end
+				end
+			elseif deck.type=="Card" and gameCards[deck.guid]~=nil and gameCards[deck.guid].cardType=="Regular Unit" and gameCards[deck.guid].level==2 and deck.guid~="0a2e0b" and deck.guid~="d8e49b" then
+				unitGUID=deck.guid
+			end
+			local tuckPos={cardPos[1], cardPos[2]-0.06, cardPos[3]+1.10}
+			if unitGUID~=nil then
+				if deck.type=="Deck" then
+					track(safeTakeObject("Quests",deck,{guid=unitGUID,position=tuckPos,rotation={0,180,0},smooth=false,callback_function=function(obj) if obj~=nil then obj.lock() end end}))
+				else
+					deck.setRotationSmooth({0,180,0})
+					deck.setPosition(tuckPos)
+					deck.lock()
+					track(deck)
+				end
+			else
+				broadcastToAll("{en}Quest setup: Prove Yourself could not find a level II Regular Unit.{ru}Подготовка задания: Prove Yourself не смогло найти обычный отряд II уровня.{zh-tw}任務設置：Prove Yourself 找不到 II 級常規部隊。{zh-cn}任务设置：Prove Yourself 找不到 II 级常规部队。{ko}퀘스트 설정: Prove Yourself에서 II레벨 일반 유닛을 찾지 못했습니다.{es}Preparación de Misión: Prove Yourself no pudo encontrar una Unidad Regular de nivel II.{fr}Mise en place de Quête : Prove Yourself n’a pas pu trouver d’Unité Régulière de niveau II.{pt-br}Preparação da Missão: Prove Yourself não conseguiu encontrar uma Unidade Regular de nível II.{de}Quest-Aufbau: Prove Yourself konnte keine reguläre Einheit der Stufe II finden.", {1,0.55,0.2})
+			end
+		end
+	end,
+	spell=function(card,cardPos,track)
+		local deck=standardDeckCycleObject("Spell")
+		if deck~=nil then
+			standardDeckCycleShuffleIfReached("Spell", deck)
+			local tuckPos={cardPos[1], cardPos[2]-0.06, cardPos[3]+1.10}
+			if deck.type=="Deck" then
+				track(safeTakeObject("Quests",deck,{position=tuckPos,rotation={0,180,0},smooth=false,callback_function=function(obj) if obj~=nil then obj.lock() end end}))
+			elseif deck.type=="Card" then
+				deck.setRotationSmooth({0,180,0})
+				deck.setPosition(tuckPos)
+				deck.lock()
+				track(deck)
+			end
+		else
+			broadcastToAll("{en}Quest setup: The Spell Thief could not find the Spell deck.{ru}Подготовка задания: The Spell Thief не смог найти колоду Заклинаний.{zh-tw}任務設置：The Spell Thief 找不到法術牌庫。{zh-cn}任务设置：The Spell Thief 找不到法术牌库。{ko}퀘스트 설정: The Spell Thief에서 주문 덱을 찾지 못했습니다.{es}Preparación de Misión: The Spell Thief no pudo encontrar el mazo de Hechizos.{fr}Mise en place de Quête : The Spell Thief n’a pas pu trouver le paquet de Sorts.{pt-br}Preparação da Missão: The Spell Thief não conseguiu encontrar o baralho de Feitiços.{de}Quest-Aufbau: The Spell Thief konnte den Zauberstapel nicht finden.", {1,0.55,0.2})
+		end
+	end,
+	randomCrystal=function(card,cardPos,track)
+		local roll=apocalypseQuestRollManaDie()
+		track(apocalypseQuestPlaceManaTokenOnCard(card,roll,0,-0.15,"Travelling Merchant setup"))
+	end,
+	werewolf=function(card,cardPos,track)
+		track(apocalypseQuestPlaceNamedEnemy(card,"tan","Werewolf",true,0))
+	end,
+}
+
 function apocalypseQuestRevealSetup(card)
 	if card==nil then return false end
 	local quest=apocalypseQuestData[card.guid]
@@ -28396,9 +28895,8 @@ function apocalypseQuestRevealSetup(card)
 	--Some Quests keep a small reusable reward supply on the card while they are active.
 	if quest.revealBag~=nil then
 		local revealGUID=quest.revealBag
-		local revealPos
-		if card.guid=="72099f" then revealPos={cardPos[1],cardPos[2]+0.42,cardPos[3]-1.18}
-		else revealPos={cardPos[1],cardPos[2]+0.62,cardPos[3]+1.35} end
+		local handler=apocalypseQuestHandler(card)
+		local revealPos=handler~=nil and handler.revealBagPosition~=nil and handler.revealBagPosition(cardPos) or {cardPos[1],cardPos[2]+0.62,cardPos[3]+1.35}
 		local liveBag=getObjectFromGUID(revealGUID)
 		if liveBag~=nil then
 			liveBag.unlock()
@@ -28413,55 +28911,9 @@ function apocalypseQuestRevealSetup(card)
 		end
 	end
 
-	--Catalogue-defined reveal setups.
-	if quest.revealSetup=="regularUnitII" then
-		local deck=standardDeckCycleObject("Regular Unit")
-		if deck~=nil then
-			local unitGUID=nil
-			if deck.type=="Deck" then
-				for _, data in ipairs(deck.getObjects()) do
-					if gameCards[data.guid]~=nil and gameCards[data.guid].cardType=="Regular Unit" and gameCards[data.guid].level==2 and data.guid~="0a2e0b" and data.guid~="d8e49b" then unitGUID=data.guid break end
-				end
-			elseif deck.type=="Card" and gameCards[deck.guid]~=nil and gameCards[deck.guid].cardType=="Regular Unit" and gameCards[deck.guid].level==2 and deck.guid~="0a2e0b" and deck.guid~="d8e49b" then
-				unitGUID=deck.guid
-			end
-			local tuckPos={cardPos[1], cardPos[2]-0.06, cardPos[3]+1.10}
-			if unitGUID~=nil then
-				if deck.type=="Deck" then
-					track(safeTakeObject("Quests",deck,{guid=unitGUID,position=tuckPos,rotation={0,180,0},smooth=false,callback_function=function(obj) if obj~=nil then obj.lock() end end}))
-				else
-					deck.setRotationSmooth({0,180,0})
-					deck.setPosition(tuckPos)
-					deck.lock()
-					track(deck)
-				end
-			else
-				broadcastToAll("{en}Quest setup: Prove Yourself could not find a level II Regular Unit.{ru}Подготовка задания: Prove Yourself не смогло найти обычный отряд II уровня.{zh-tw}任務設置：Prove Yourself 找不到 II 級常規部隊。{zh-cn}任务设置：Prove Yourself 找不到 II 级常规部队。{ko}퀘스트 설정: Prove Yourself에서 II레벨 일반 유닛을 찾지 못했습니다.{es}Preparación de Misión: Prove Yourself no pudo encontrar una Unidad Regular de nivel II.{fr}Mise en place de Quête : Prove Yourself n’a pas pu trouver d’Unité Régulière de niveau II.{pt-br}Preparação da Missão: Prove Yourself não conseguiu encontrar uma Unidade Regular de nível II.{de}Quest-Aufbau: Prove Yourself konnte keine reguläre Einheit der Stufe II finden.", {1,0.55,0.2})
-			end
-		end
-	elseif quest.revealSetup=="spell" then
-		local deck=standardDeckCycleObject("Spell")
-		if deck~=nil then
-			standardDeckCycleShuffleIfReached("Spell", deck)
-			local tuckPos={cardPos[1], cardPos[2]-0.06, cardPos[3]+1.10}
-			if deck.type=="Deck" then
-				track(safeTakeObject("Quests",deck,{position=tuckPos,rotation={0,180,0},smooth=false,callback_function=function(obj) if obj~=nil then obj.lock() end end}))
-			elseif deck.type=="Card" then
-				deck.setRotationSmooth({0,180,0})
-				deck.setPosition(tuckPos)
-				deck.lock()
-				track(deck)
-			end
-		else
-			broadcastToAll("{en}Quest setup: The Spell Thief could not find the Spell deck.{ru}Подготовка задания: The Spell Thief не смог найти колоду Заклинаний.{zh-tw}任務設置：The Spell Thief 找不到法術牌庫。{zh-cn}任务设置：The Spell Thief 找不到法术牌库。{ko}퀘스트 설정: The Spell Thief에서 주문 덱을 찾지 못했습니다.{es}Preparación de Misión: The Spell Thief no pudo encontrar el mazo de Hechizos.{fr}Mise en place de Quête : The Spell Thief n’a pas pu trouver le paquet de Sorts.{pt-br}Preparação da Missão: The Spell Thief não conseguiu encontrar o baralho de Feitiços.{de}Quest-Aufbau: The Spell Thief konnte den Zauberstapel nicht finden.", {1,0.55,0.2})
-		end
-	elseif quest.revealSetup=="randomCrystal" then
-		local roll=apocalypseQuestRollManaDie()
-		track(apocalypseQuestPlaceManaTokenOnCard(card,roll,0,-0.15,"Travelling Merchant setup"))
-	elseif quest.revealSetup=="werewolf" then
-		track(apocalypseQuestPlaceNamedEnemy(card,"tan","Werewolf",true,0))
-	end
-
+	--Catalogue-defined reveal setups dispatch through named handlers so this lifecycle function stays generic.
+	local revealHandler=apocalypseQuestRevealSetupHandlers[quest.revealSetup]
+	if revealHandler~=nil then revealHandler(card,cardPos,track) end
 	if pendingReady(pending)==true then finishReveal(false) return true end
 	scheduleRevealWait()
 	return false
@@ -28586,16 +29038,6 @@ function apocalypseQuestManaTokenColor(obj)
 	if name=="Gold Mana" then return "Gold" end
 	if name=="Black Mana" then return "Black" end
 	return nil
-end
-
---Keep every scripted mana crystal/token draw at the same display angle as a manual bag draw.
---Preserve any intentional X/Z rotation supplied by the caller, but normalize Y to 30 degrees.
-function takeManaCrystal(bag, params)
-	if bag==nil then return nil end
-	params=params or {}
-	local rotation=params.rotation or {0,0,0}
-	params.rotation={rotation[1] or rotation.x or 0,30,rotation[3] or rotation.z or 0}
-	return bag.takeObject(params)
 end
 
 function apocalypseQuestManaBag(color)
@@ -29472,7 +29914,7 @@ function apocalypseQuestCursedTargetEligible(card,playerIndex,targetIndex,allowT
 	if hexes==nil then hexes,mapObjects=apocalypseQuestMapHexes() end
 	source=source or apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	local target=source~=nil and apocalypseQuestPlayerHex(hexes,mapObjects,targetIndex) or nil
-	return target~=nil and (apocalypseQuestMapHexKey(source)==apocalypseQuestMapHexKey(target) or apocalypseQuestHexesAdjacent(source,target)==true)
+	return target~=nil and (runtimeMapHexKey(source)==runtimeMapHexKey(target) or runtimeMapHexesAdjacent(source,target)==true)
 end
 
 function apocalypseQuestCursedTargetIndex(card,playerIndex)
@@ -29525,83 +29967,96 @@ function apocalypseQuestCursedAutoShield(card,playerIndex,targetIndex)
 	return shield~=nil
 end
 
-function apocalypseQuestStepSpecialLegal(card,playerIndex,option)
-	if card==nil or option==nil then return true end
+--Only exceptional legality/failure behavior lives in handlers; ordinary combat readiness comes from combatSteps above.
+apocalypseQuestHandlers["8939c0"].specialLegal=function(card,playerIndex,option)
 	local key=tostring(option.key)
 	local branch=gStates.apocalypseQuestDirectBranch~=nil and gStates.apocalypseQuestDirectBranch[card.guid] or nil
-	if card.guid=="8939c0" and branch~=nil then
-		if key~=branch then return false end
-		if key=="1b" then return apocalypseQuestCombatStartedThisTurn(card,1) end
+	if branch==nil and key=="1b" then return true,true end
+	if branch~=nil then
+		if key~=branch then return true,false end
+		if key=="1b" then return true,apocalypseQuestCombatStartedThisTurn(card,1) end
 	end
-	if card.guid=="8cdac4" and key=="3" then return apocalypseQuestCombatStartedThisTurn(card,3) end
-	if card.guid=="66ea80" and (key=="2" or key=="3") then return apocalypseQuestCombatStartedThisTurn(card,tonumber(key)) end
-	if card.guid=="485cc5" and key=="2" then return apocalypseQuestCombatStartedThisTurn(card,2) end
-	if card.guid=="c73a1f" and key=="3" then return apocalypseQuestCombatStartedThisTurn(card,3) end
-	if card.guid=="82a935" and branch~=nil then
-		if key~=branch then return false end
-		if key=="2c" then return apocalypseQuestCombatStartedThisTurn(card,2) end
+	return false
+end
+apocalypseQuestHandlers["82a935"].specialLegal=function(card,playerIndex,option)
+	local key=tostring(option.key)
+	local branch=gStates.apocalypseQuestDirectBranch~=nil and gStates.apocalypseQuestDirectBranch[card.guid] or nil
+	if branch==nil and key=="2c" then return true,true end
+	if branch~=nil then
+		if key~=branch then return true,false end
+		if key=="2c" then return true,apocalypseQuestCombatStartedThisTurn(card,2) end
 	end
-	if card.guid=="a6d5cc" and key=="2a" then return apocalypseQuestCombatStartedThisTurn(card,2) end
-	if card.guid=="8cff07" and key=="2" then return apocalypseQuestCombatStartedThisTurn(card,2) end
-	if card.guid=="d70436" and key=="3" then return apocalypseQuestCombatStartedThisTurn(card,3) end
-	if card.guid=="dd35bb" and key=="3" then return apocalypseQuestCombatStartedThisTurn(card,3) end
-	if card.guid=="783076" and key=="2" then return apocalypseQuestCombatStartedThisTurn(card,2) end
-	if card.guid=="abd4fb" then
-		local questState=gStates.apocalypseQuestProgress~=nil and gStates.apocalypseQuestProgress[card.guid] or nil
-		if key=="1" then return questState==nil or questState.globalPoints==nil or (questState.globalPoints["1"] or 0)<1 end
-		local cursed=gStates.apocalypseQuestCursedHero~=nil and gStates.apocalypseQuestCursedHero[card.guid] or nil
-		if turnOrder[playerIndex]==nil or cursed~=turnOrder[playerIndex].mage then return false end
-		if key=="2a" then
-			if apocalypseQuestCursedTargetIndex(card,playerIndex)~=nil then return true end
-			return #apocalypseQuestCursedEligibleTargets(card,playerIndex)==1
-		end
+	return false
+end
+apocalypseQuestHandlers["ce70fb"].specialLegal=function(card,playerIndex,option)
+	if apocalypseQuestStepNumber(option.key)~=2 then return false end
+	local chosen=gStates.apocalypseQuestCombatBranch~=nil and gStates.apocalypseQuestCombatBranch[card.guid] or nil
+	if chosen==nil or chosen~=tostring(option.key) then return true,false end
+	return true,apocalypseQuestCombatStartedThisTurn(card,2)
+end
+apocalypseQuestHandlers["abd4fb"].specialLegal=function(card,playerIndex,option)
+	local key=tostring(option.key)
+	local questState=gStates.apocalypseQuestProgress~=nil and gStates.apocalypseQuestProgress[card.guid] or nil
+	if key=="1" then return true,questState==nil or questState.globalPoints==nil or (questState.globalPoints["1"] or 0)<1 end
+	local cursed=gStates.apocalypseQuestCursedHero~=nil and gStates.apocalypseQuestCursedHero[card.guid] or nil
+	if turnOrder[playerIndex]==nil or cursed~=turnOrder[playerIndex].mage then return true,false end
+	if key=="2a" then
+		if apocalypseQuestCursedTargetIndex(card,playerIndex)~=nil then return true,true end
+		return true,#apocalypseQuestCursedEligibleTargets(card,playerIndex)==1
 	end
-	if card.guid=="ce70fb" and apocalypseQuestStepNumber(key)==2 then
-		local chosen=gStates.apocalypseQuestCombatBranch~=nil and gStates.apocalypseQuestCombatBranch[card.guid] or nil
-		if chosen~=nil and chosen~=key then return false end
-		return chosen~=nil and apocalypseQuestCombatStartedThisTurn(card,2)
+	return false
+end
+apocalypseQuestHandlers["8455b5"].specialLegal=function(card,playerIndex,option)
+	if apocalypseQuestStepNumber(option.key)==2 then return true,true end
+	return false
+end
+apocalypseQuestHandlers["bb2828"].specialLegal=function(card,playerIndex,option)
+	local key=tostring(option.key)
+	if key=="2" then return true,#apocalypseQuestArtificerAvailableColors(card,playerIndex)>0 end
+	if key=="3" then return true,apocalypseQuestArtificerUniqueCrystalCount(card)>=3 end
+	return false
+end
+apocalypseQuestHandlers["37e2ce"].failureReady=function(card,playerIndex,option)
+	if tostring(option.key)=="2" then return true,apocalypseQuestFreeWineFailureReady(playerIndex or gStates.turnNumber) end
+	return false
+end
+apocalypseQuestHandlers["a6d5cc"].failureReady=function(card,playerIndex,option)
+	if tostring(option.key)=="2b" then
+		local index=playerIndex or gStates.turnNumber
+		return true,apocalypseQuestCombatStartedThisTurn(card,2)~=true and apocalypseQuestUnderSiegeStep2ChoiceLegal(index,"2b")
 	end
-	if card.guid=="8455b5" and apocalypseQuestStepNumber(key)==2 then
-		--The player declares which printed enemy category they defeated; do not inspect the combat area.
-		return true
+	return false
+end
+
+function apocalypseQuestStepSpecialLegal(card,playerIndex,option)
+	if card==nil or option==nil then return true end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.specialLegal~=nil then
+		local handled,result=handler.specialLegal(card,playerIndex,option)
+		if handled==true then return result==true end
 	end
-	if card.guid=="bb2828" and key=="2" then return #apocalypseQuestArtificerAvailableColors(card,playerIndex)>0 end
-	if card.guid=="bb2828" and key=="3" then return apocalypseQuestArtificerUniqueCrystalCount(card)>=3 end
+	local combatRule,combatStep=apocalypseQuestCombatRuleForOption(card,option.key)
+	if combatRule~=nil then return apocalypseQuestCombatStartedThisTurn(card,combatRule.startedStep or combatStep) end
 	return true
 end
 
 function apocalypseQuestFailureReady(card,option,playerIndex)
 	if card==nil or option==nil then return true end
-	local key=tostring(option.key)
-	if card.guid=="37e2ce" and key=="2" then return apocalypseQuestFreeWineFailureReady(playerIndex or gStates.turnNumber) end
-	if card.guid=="a6d5cc" and key=="2b" then return apocalypseQuestCombatStartedThisTurn(card,2)~=true and apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex or gStates.turnNumber,"2b") end
-	if card.guid=="8939c0" and key=="1b" then return apocalypseQuestCombatStartedThisTurn(card,1) end
-	if card.guid=="82a935" and key=="2c" then return apocalypseQuestCombatStartedThisTurn(card,2) end
-	if card.guid=="8cff07" and key=="2" then return apocalypseQuestCombatStartedThisTurn(card,2) end
-	if card.guid=="d70436" and key=="3" then return apocalypseQuestCombatStartedThisTurn(card,3) end
-	if card.guid=="ce70fb" and key=="2a" then return apocalypseQuestCombatStartedThisTurn(card,2) end
-	if card.guid=="783076" and key=="2" then return apocalypseQuestCombatStartedThisTurn(card,2) end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.failureReady~=nil then
+		local handled,result=handler.failureReady(card,playerIndex,option)
+		if handled==true then return result==true end
+	end
+	local combatRule,combatStep=apocalypseQuestCombatRuleForOption(card,option.key)
+	if combatRule~=nil then return apocalypseQuestCombatStartedThisTurn(card,combatRule.startedStep or combatStep) end
 	return true
 end
 
 function apocalypseQuestCombatOption(card,state)
 	if card==nil or state==nil then return nil end
-	local wanted=nil
-	if card.guid=="8939c0" and state.step==1 then wanted="1b"
-	elseif card.guid=="8cdac4" and state.step==3 then wanted="3"
-	elseif card.guid=="66ea80" and (state.step==2 or state.step==3) then wanted=tostring(state.step)
-	elseif card.guid=="485cc5" and state.step==2 then wanted="2"
-	elseif card.guid=="82a935" and state.step==2 then wanted="2c"
-	elseif card.guid=="a6d5cc" and state.step==2 then wanted="2a"
-	elseif card.guid=="8cff07" and state.step==2 then wanted="2"
-	elseif card.guid=="d70436" and state.step==3 then wanted="3"
-	elseif card.guid=="c73a1f" and state.step==3 then wanted="3"
-	elseif card.guid=="ce70fb" and state.step==2 then wanted=(gStates.apocalypseQuestCombatBranch~=nil and gStates.apocalypseQuestCombatBranch[card.guid]) or "2a"
-	elseif card.guid=="dd35bb" and state.step==3 then wanted="3"
-	elseif card.guid=="783076" and state.step==2 then wanted="2"
-	end
-	if wanted==nil then return nil end
-	return apocalypseQuestChoiceOption(card,wanted)
+	local key=apocalypseQuestCombatRuleSelectedKey(card,state)
+	if key==nil then return nil end
+	return apocalypseQuestChoiceOption(card,key)
 end
 
 function apocalypseQuestCombatRelevant(card,playerIndex)
@@ -29614,7 +30069,8 @@ end
 --nearby Rampaging enemy.  Generated combats (Execution, Mine of Doom, etc.) still need
 --the card Fight control because there is no enemy object to click until the fight begins.
 function apocalypseQuestUsesEnemyAttackButton(card)
-	return card~=nil and (card.guid=="8cdac4" or card.guid=="66ea80" or card.guid=="c73a1f" or card.guid=="783076")
+	local handler=apocalypseQuestHandler(card)
+	return handler~=nil and handler.enemyAttackButton==true
 end
 
 function apocalypseQuestRemoveEnemyAttackButton(enemy)
@@ -29798,12 +30254,13 @@ function apocalypseQuestCaptureRewardCompletionGate(playerIndex)
 			end
 			local requiredAction=option.completes==true and "Complete" or "Progress"
 			local resolved=fought>0 and allDefeated==true
-			--The Execution 1B must be resolved on the Quest card after either result. A win requires
-			--Complete; a loss requires Fail. Unlike ordinary Quest combats, losing this fight therefore
-			--still keeps Rewards Claimed behind the Quest-card resolution.
-			if card.guid=="8939c0" and tostring(option.key)=="1b" and fought>0 then
-				resolved=true
-				requiredAction=allDefeated==true and "Complete" or "Fail"
+			local handler=apocalypseQuestHandler(card)
+			if handler~=nil and handler.rewardCompletionGate~=nil then
+				local handled,handlerResolved,handlerAction=handler.rewardCompletionGate(card,playerIndex,option,fought,allDefeated)
+				if handled==true then
+					resolved=handlerResolved==true
+					requiredAction=handlerAction or requiredAction
+				end
 			end
 			if resolved==true then
 				apocalypseQuestSetRewardCompletionGate(card,playerIndex,requiredAction)
@@ -29832,7 +30289,11 @@ function apocalypseQuestCombatAvailable(card,playerIndex,cardObjects)
 	if card==nil or apocalypseQuestPlayerMayAct(card,playerIndex)~=true then return false end
 	local state=apocalypseQuestProgressState(card,playerIndex,false)
 	if state==nil or state.completed==true then return false end
-	if card.guid=="a6d5cc" and state.step==2 and apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,"2a")~=true then return false end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.combatAvailable~=nil then
+		local handled,available=handler.combatAvailable(card,playerIndex,state)
+		if handled==true and available~=true then return false end
+	end
 	local option=apocalypseQuestCombatOption(card,state)
 	if option==nil or apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then return false end
 	if gStates.apocalypseQuestCombatLaunches~=nil and gStates.apocalypseQuestCombatLaunches[card.guid]==apocalypseQuestCombatLaunchKey(card,state) then return false end
@@ -29935,42 +30396,6 @@ function apocalypseQuestSpawnEnemyToCombat(card,playerIndex,pileName,possessed,o
 	return enemy
 end
 
-function allAttackBonusDecalURL(bonus)
-	bonus=tonumber(bonus) or 0
-	if bonus==1 then return "https://steamusercontent-a.akamaihd.net/ugc/15079936556037598648/4230C9B5103E634683302A5818A744A4B14CD8CF/" end
-	if bonus==2 then return "https://steamusercontent-a.akamaihd.net/ugc/10898261749964477479/1CE17B450996B940608CA7CEBB7269B0FBC7EB9A/" end
-	if bonus==3 then return "https://steamusercontent-a.akamaihd.net/ugc/9640160926418445784/88929ADF524E4BC2A53D4CDB2B942A925BB53625/" end
-	return nil
-end
-
-function syncNamedAttackBonusDecal(obj,prefix,bonus,position)
-	if obj==nil or prefix==nil or position==nil then return false end
-	local decals={}
-	for _, decalDetails in pairs(obj.getDecals() or {}) do
-		if tostring(decalDetails.name or ""):sub(1,#prefix)~=prefix then decals[#decals+1]=decalDetails end
-	end
-	local url=allAttackBonusDecalURL(bonus)
-	if url~=nil then decals[#decals+1]={name=prefix..tostring(bonus), url=url, position=position, rotation={90,180,0}, scale={0.72,0.72,1}} end
-	obj.setDecals(decals)
-	return true
-end
-
---Visual reminder for temporary +X to every Attack. Use the same decal placement/scale as
---the Green City Poison bonus so this behaves like the mod's existing monster bonus markers.
-function addAllAttackBonusDecal(enemy,bonus)
-	if enemy==nil then return end
-	syncNamedAttackBonusDecal(enemy,"AllAttack+",bonus,{1.1,0.15,0.25})
-end
-
-function syncDragonHeadAttackBonusDecal(tokenGUID,bonus)
-	local token=tokenGUID~=nil and getObjectFromGUID(tokenGUID) or nil
-	if token==nil then return false end
-	--The head tokens sit at 180 degrees, so positive local X is visually left.
-	--Keep the Control bonus centred vertically rather than using the Quest possessed-token offset.
-	syncNamedAttackBonusDecal(token,"DragonAllAttack+",bonus,{1.1,0.15,0})
-	return true
-end
-
 function apocalypseQuestFogEnemy(card)
 	if card==nil then return nil end
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
@@ -30032,7 +30457,7 @@ function apocalypseQuestAddEnemyAttackBonus(enemyGUID,bonus)
 	local source=gStates.monsterPerks[enemyGUID].attack or base.attack
 	if source==nil then
 		gStates.monsterPerks[enemyGUID].boost=(gStates.monsterPerks[enemyGUID].boost or 0)+bonus
-		addAllAttackBonusDecal(enemy,bonus)
+		combatAddAllAttackBonusDecal(enemy,bonus)
 		return true
 	end
 	local adjusted={}
@@ -30041,7 +30466,7 @@ function apocalypseQuestAddEnemyAttackBonus(enemyGUID,bonus)
 		for index,value in pairs(values) do adjusted[attackType][index]=value+bonus end
 	end
 	gStates.monsterPerks[enemyGUID].attack=adjusted
-	addAllAttackBonusDecal(enemy,bonus)
+	combatAddAllAttackBonusDecal(enemy,bonus)
 	setMonsterObjectButtons(enemy,true)
 	return true
 end
@@ -30102,10 +30527,6 @@ function apocalypseQuestLaunchCombat(card,playerIndex,playerColor,chosenColor,cl
 	if apocalypseQuestCombatAvailable(card,playerIndex)~=true and chosenColor==nil then return false end
 	local state=apocalypseQuestProgressState(card,playerIndex,false)
 	if state==nil then return false end
-	if card.guid=="ce70fb" and chosenColor~=nil then
-		if gStates.apocalypseQuestCombatBranch==nil then gStates.apocalypseQuestCombatBranch={} end
-		gStates.apocalypseQuestCombatBranch[card.guid]=chosenColor
-	end
 	local combatOption=apocalypseQuestCombatOption(card,state)
 	if combatOption~=nil then
 		local markerRule=apocalypseQuestMarkerRule(card,apocalypseQuestStepNumber(combatOption.key))
@@ -30116,60 +30537,10 @@ function apocalypseQuestLaunchCombat(card,playerIndex,playerColor,chosenColor,cl
 	end
 	if gStates.apocalypseQuestCombatLaunches==nil then gStates.apocalypseQuestCombatLaunches={} end
 	gStates.apocalypseQuestCombatLaunches[card.guid]=apocalypseQuestCombatLaunchKey(card,state)
-	local moved=0
-	if card.guid=="8939c0" then
-		if apocalypseQuestSpawnEnemyToCombat(card,playerIndex,"gray",false,0,0)~=nil then moved=1 end
-	elseif card.guid=="8cdac4" or card.guid=="66ea80" then
-		if clickedEnemyGUID~=nil then
-			local clicked=getObjectFromGUID(clickedEnemyGUID)
-			local onCard=false
-			for _, enemy in ipairs(apocalypseQuestObjectsOnCard(card)) do if enemy.guid==clickedEnemyGUID then onCard=true break end end
-			if clicked~=nil and onCard==true and monsterPugs[clicked.guid]~=nil and apocalypseQuestMoveEnemyToPlayer(card,playerIndex,clicked)==true then moved=1 end
-		else
-			moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
-		end
-	elseif card.guid=="485cc5" then
-		if chosenColor==nil then
-			local colors=apocalypseQuestMineDoomColors(playerIndex)
-			if #colors==1 then chosenColor=colors[1]
-			elseif #colors>1 then chosenColor=gStates.apocalypseQuestMineDoomColor~=nil and gStates.apocalypseQuestMineDoomColor[card.guid] or colors[1] end
-		end
-		moved=apocalypseQuestLaunchMineDoom(card,playerIndex,chosenColor,#apocalypseQuestMineDoomColors(playerIndex)>1 and 1 or 0) and 1 or 0
-	elseif card.guid=="82a935" then
-		if apocalypseQuestSpawnEnemyToCombat(card,playerIndex,"purple",false,0,0)~=nil then moved=1 end
-	elseif card.guid=="a6d5cc" then
-		moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,nil)
-		if moved>0 then broadcastToAll("{en}Under Siege: ignore fortification for this Quest fight and add Block 5 during the Block phase.{ru}Under Siege: игнорируйте укрепление в этом бою задания и добавьте Блок 5 во время фазы Блока.{zh-tw}Under Siege：此任務戰鬥忽略要塞化，並在格擋階段加入格擋 5。{zh-cn}Under Siege：此任务战斗忽略要塞化，并在格挡阶段加入格挡 5。{ko}Under Siege: 이 퀘스트 전투에서는 요새화를 무시하고 방어 단계에 방어 5를 추가합니다.{es}Under Siege: ignora la fortificación en este combate de Misión y añade Bloqueo 5 durante la fase de Bloqueo.{fr}Under Siege : ignorez la fortification pour ce combat de Quête et ajoutez Blocage 5 pendant la phase de Blocage.{pt-br}Under Siege: ignore fortificação neste combate da Missão e adicione Bloqueio 5 durante a fase de Bloqueio.{de}Under Siege: Ignoriere für diesen Quest-Kampf die Befestigung und füge in der Blockphase Block 5 hinzu.",positionToColor(playerIndex)) end
-	elseif card.guid=="8cff07" then
-		if apocalypseQuestSpawnEnemyToCombat(card,playerIndex,"gray",false,0,0)~=nil then moved=1 end
-	elseif card.guid=="d70436" then
-		local level=turnOrder[playerIndex].level or 1
-		local pile=level<=4 and "tan" or level<=8 and "white" or "red"
-		if apocalypseQuestSpawnEnemyToCombat(card,playerIndex,pile,false,0,0)~=nil then moved=1 end
-	elseif card.guid=="c73a1f" then
-		moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
-	elseif card.guid=="ce70fb" then
-		local level=turnOrder[playerIndex].level or 1
-		local choice=(gStates.apocalypseQuestCombatBranch~=nil and gStates.apocalypseQuestCombatBranch[card.guid]) or "2a"
-		local pile=nil
-		if choice=="2b" then pile=level<=2 and "gray" or level<=6 and "purple" or "white"
-		else pile=level<=4 and "gray" or level<=8 and "purple" or "white" end
-		local traitorEnemy=apocalypseQuestSpawnEnemyToCombat(card,playerIndex,pile,true,0,0,"Coun")
-		if traitorEnemy~=nil then
-			moved=1
-			if choice=="2b" then
-				if gStates.monsterPerks[traitorEnemy.guid]==nil then gStates.monsterPerks[traitorEnemy.guid]={} end
-				gStates.monsterPerks[traitorEnemy.guid].questHalfFame=true
-				broadcastToAll("{en}Traitor 2b: this enemy's Fame reward will be halved, rounded up.{ru}Traitor 2b: награда Славы за этого врага уменьшается вдвое с округлением вверх.{zh-tw}Traitor 2b：此敵人的聲望值獎勵減半並向上取整。{zh-cn}Traitor 2b：此敌人的声望值奖励减半并向上取整。{ko}Traitor 2b: 이 적의 명성 보상은 절반으로 줄이고 올림합니다.{es}Traitor 2b: la recompensa de Fama de este enemigo se reduce a la mitad, redondeando hacia arriba.{fr}Traitor 2b : la récompense de Renommée de cet ennemi est divisée par deux, arrondie au supérieur.{pt-br}Traitor 2b: a recompensa de Fama deste inimigo é reduzida pela metade, arredondando para cima.{de}Traitor 2b: Die Ruhmbelohnung dieses Gegners wird halbiert und aufgerundet.",positionToColor(playerIndex))
-			end
-		end
-	elseif card.guid=="dd35bb" then
-		broadcastToAll("{en}The Fog: skip the Ranged and Siege Attack phase during this Quest combat.{ru}The Fog: пропустите фазу Дальней и Осадной атаки в этом бою задания.{zh-tw}The Fog：此任務戰鬥跳過遠程與攻城攻擊階段。{zh-cn}The Fog：此任务战斗跳过远程与攻城攻击阶段。{ko}The Fog: 이 퀘스트 전투에서는 원거리 및 공성 공격 단계를 건너뜁니다.{es}The Fog: omite la fase de Ataque a Distancia y de Asedio durante este combate de Misión.{fr}The Fog : ignorez la phase d’Attaque à Distance et de Siège pendant ce combat de Quête.{pt-br}The Fog: pule a fase de Ataque à Distância e de Cerco durante este combate da Missão.{de}The Fog: Überspringe in diesem Quest-Kampf die Fern- und Belagerungsangriffsphase.",positionToColor(playerIndex))
-		moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
-	elseif card.guid=="783076" then
-		moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
-		if moved>0 and apocalypseQuestCardManaColor(card)=="Black" and gStates.dayRound==true then broadcastToAll("{en}Hunter's Moon: during Day, the black mana token removes Swift from the werewolf for this combat.{ru}Hunter's Moon: Днём чёрный жетон маны убирает Быстроту у оборотня на этот бой.{zh-tw}Hunter's Moon：白天時，黑色魔力標記在此戰鬥中移除狼人身上的迅捷。{zh-cn}Hunter's Moon：白天时，黑色魔力标记在此战斗中移除狼人身上的迅捷。{ko}Hunter's Moon: 낮에는 검은 마나 토큰이 이 전투 동안 늑대인간의 신속을 제거합니다.{es}Hunter's Moon: durante el Día, la ficha de maná negra elimina Veloz del hombre lobo para este combate.{fr}Hunter's Moon : pendant le Jour, le jeton de mana noir retire Rapide au loup-garou pour ce combat.{pt-br}Hunter's Moon: durante o Dia, a ficha de mana preta remove Rápido do lobisomem neste combate.{de}Hunter's Moon: Am Tag entfernt der schwarze Manamarker für diesen Kampf Schnell vom Werwolf.",positionToColor(playerIndex)) end
-	end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.prepareCombatLaunch~=nil then handler.prepareCombatLaunch(card,playerIndex,chosenColor) end
+	local moved=handler~=nil and handler.launchCombat~=nil and handler.launchCombat(card,playerIndex,playerColor,chosenColor,clickedEnemyGUID) or 0
+
 	if moved==0 then
 		gStates.apocalypseQuestCombatLaunches[card.guid]=nil
 	else
@@ -30203,9 +30574,9 @@ function apocalypseQuestEnemyAttack(player,mouseButton,id)
 		apocalypseQuestRefreshEnemyAttackButtons(card,playerIndex)
 		return
 	end
-	--Spell Thief and Fistful move the enemy that was actually clicked. Under Siege deliberately
-	--launches both enemies when either Attack icon is clicked, matching its single combat step.
-	local clickedGUID=card.guid=="a6d5cc" and nil or enemyGUID
+	local handler=apocalypseQuestHandler(card)
+	--Most card-enemy Quests launch only the clicked enemy. A handler may explicitly launch the full group.
+	local clickedGUID=handler~=nil and handler.enemyAttackMovesAll==true and nil or enemyGUID
 	apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil,clickedGUID)
 	if getObjectFromGUID(cardGUID)~=nil then apocalypseQuestInterfaceAdd(card,true) end
 end
@@ -30424,23 +30795,51 @@ function apocalypseQuestUnderSiegeFailure(card,playerIndex)
 	end
 end
 
+local apocalypseQuestEnemyDiscardByType={
+	gray=GUID.bag.discard.keepGarrison,
+	purple=GUID.bag.discard.towerGarrison,
+	white=GUID.bag.discard.cityGarrison,
+	red=GUID.bag.discard.draconum,
+	green=GUID.bag.discard.orcs,
+	tan=GUID.bag.discard.dungeon
+}
+
+local function apocalypseQuestDetachPossessedForDiscard(enemy)
+	if enemy==nil then return end
+	local detached=clearPossessedEnemy(enemy)
+	local possessedDiscard=getObjectFromGUID(GUID.bag.discard.possessed)
+	for _,token in pairs(detached or {}) do
+		if possessedDiscard~=nil then possessedDiscard.putObject(token) else token.destruct() end
+	end
+end
+
+local function apocalypseQuestEnemyDiscardDestination(enemy)
+	if enemy==nil or monsterPugs[enemy.guid]==nil then return nil end
+	local discardGUID=apocalypseQuestEnemyDiscardByType[monsterPugs[enemy.guid].pugType]
+	return discardGUID~=nil and getObjectFromGUID(discardGUID) or nil
+end
+
+local function apocalypseQuestDiscardEnemyNow(enemy)
+	if enemy==nil then return false end
+	apocalypseQuestDetachPossessedForDiscard(enemy)
+	local discard=apocalypseQuestEnemyDiscardDestination(enemy)
+	if discard==nil then return false end
+	enemy.unlock()
+	discard.putObject(enemy)
+	return true
+end
+
 --Mine of Doom is unusual: an unsuccessful attempt still discards its undefeated enemies instead of
 --returning them to a map site. Remove those face-down survivors during normal pre-end-turn cleanup so
 --the board is already clear when the Rewards Claimed stage appears. Defeated face-up enemies remain
 --for the standard combat cleanup so their normal Fame/reward processing is preserved.
 function apocalypseQuestMineDoomUndefeatedCleanup(playerIndex)
 	if gStates.apocalypseQuestCombatEnemies==nil or gStates.apocalypseQuestCombatEnemies["485cc5"]==nil then return false end
-	local discardByType={gray=GUID.bag.discard.keepGarrison,purple=GUID.bag.discard.towerGarrison,white=GUID.bag.discard.cityGarrison,red=GUID.bag.discard.draconum,green=GUID.bag.discard.orcs,tan=GUID.bag.discard.dungeon}
-	local possessedDiscard=getObjectFromGUID(GUID.bag.discard.possessed)
 	local removed=false
 	for guid,_ in pairs(gStates.apocalypseQuestCombatEnemies["485cc5"]) do
 		local enemy=getObjectFromGUID(guid)
 		if enemy~=nil and enemy.is_face_down==true then
-			local detached=clearPossessedEnemy(enemy)
-			for _, token in pairs(detached or {}) do if possessedDiscard~=nil then possessedDiscard.putObject(token) else token.destruct() end end
-			local kind=monsterPugs[guid]~=nil and monsterPugs[guid].pugType or nil
-			local discard=kind~=nil and discardByType[kind]~=nil and getObjectFromGUID(discardByType[kind]) or nil
-			if discard~=nil then enemy.unlock() discard.putObject(enemy) end
+			apocalypseQuestDiscardEnemyNow(enemy)
 			if gStates.attackedMonsters~=nil then gStates.attackedMonsters[guid]=nil end
 			if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[guid]=nil end
 			removed=true
@@ -30452,17 +30851,11 @@ end
 
 function apocalypseQuestMineDoomEndTurnCleanup(playerIndex)
 	if gStates.apocalypseQuestCombatEnemies==nil or gStates.apocalypseQuestCombatEnemies["485cc5"]==nil then return false end
-	local discardByType={gray=GUID.bag.discard.keepGarrison,purple=GUID.bag.discard.towerGarrison,white=GUID.bag.discard.cityGarrison,red=GUID.bag.discard.draconum,green=GUID.bag.discard.orcs,tan=GUID.bag.discard.dungeon}
 	local removed=false
 	for guid,_ in pairs(gStates.apocalypseQuestCombatEnemies["485cc5"]) do
 		local enemy=getObjectFromGUID(guid)
 		if enemy~=nil then
-			local detached=clearPossessedEnemy(enemy)
-			local possessedDiscard=getObjectFromGUID(GUID.bag.discard.possessed)
-			for _, token in pairs(detached or {}) do if possessedDiscard~=nil then possessedDiscard.putObject(token) else token.destruct() end end
-			local kind=monsterPugs[guid]~=nil and monsterPugs[guid].pugType or nil
-			local discard=kind~=nil and discardByType[kind]~=nil and getObjectFromGUID(discardByType[kind]) or nil
-			if discard~=nil then enemy.unlock() discard.putObject(enemy) end
+			apocalypseQuestDiscardEnemyNow(enemy)
 			removed=true
 		end
 		if gStates.attackedMonsters~=nil then gStates.attackedMonsters[guid]=nil end
@@ -30476,7 +30869,8 @@ end
 
 function apocalypseQuestResolveFailureEffect(card,playerIndex,option)
 	if card==nil or option==nil then return end
-	if card.guid=="a6d5cc" and tostring(option.key)=="2b" then apocalypseQuestUnderSiegeFailure(card,playerIndex) end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.failureEffect~=nil then handler.failureEffect(card,playerIndex,option) end
 end
 
 function apocalypseQuestRichMerchantStartTurn()
@@ -30498,10 +30892,9 @@ function apocalypseQuestRichMerchantStartTurn()
 	return true
 end
 
-function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCompletion)
-	if card==nil or option==nil or turnOrder[playerIndex]==nil then return end
+-- Quest-specific resolution effects live on the same per-Quest handlers as legality/combat metadata.
+apocalypseQuestRegisterHandler("8939c0").resolveEffect=function(card,playerIndex,option,finalCompletion)
 	local key=tostring(option.key)
-	if card.guid=="8939c0" then
 		if key=="1a" then
 			turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+1
 			apocalypseQuestGainReputation(playerIndex,"The Execution")
@@ -30514,34 +30907,62 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			apocalypseQuestLoseReputation(playerIndex,"The Execution","effect")
 			mainUIUpdate("Quest Fame reward")
 		end
-	elseif card.guid=="58a826" then
+end
+
+apocalypseQuestRegisterHandler("58a826").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="2" then
 			local hex=apocalypseQuestCurrentPlayerHex(playerIndex)
 			local terrainColor=hex~=nil and ({plains="White",forest="Green",wasteland="Red",swamp="Blue"})[hex.hexType] or nil
 			if terrainColor~=nil then apocalypseQuestPlaceCrystalOnCard(card,terrainColor,0,-0.55,"The Eager Herbalist") end
 		end
-	elseif card.guid=="734740" and key=="3" then
+end
+
+apocalypseQuestRegisterHandler("734740").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="3" then
 		apocalypseQuestGiveProveYourselfReward(card,playerIndex)
-	elseif card.guid=="72099f" then
+	end
+end
+
+apocalypseQuestRegisterHandler("72099f").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="1" and turnOrder[playerIndex]~=nil and gStates.apocalypseQuestGoblinWarrens~=nil then
 			gStates.apocalypseQuestGoblinWarrens[turnOrder[playerIndex].mage]=nil
 		elseif key=="2" and finalCompletion==true then
 			apocalypseQuestFlipSiteToken("02f996")
 		end
-	elseif card.guid=="8cdac4" then
+end
+
+apocalypseQuestRegisterHandler("8cdac4").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="2" then
 			local level=turnOrder[playerIndex].level or 1
 			apocalypseQuestPlaceEnemy(card,level<=3 and "gray" or level<=6 and "purple" or "white",true,0)
 		elseif key=="3" then
 			apocalypseQuestGiveTuckedCard(playerIndex,card,"Spell")
 		end
-	elseif card.guid=="66ea80" and key=="1" then
+end
+
+apocalypseQuestRegisterHandler("66ea80").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="1" then
 		--Fistful's two gray enemies are placed after the Quest offer finishes moving. Drawing both from the
 		--same bag while the card is also relocating can lose a spawn/attachment race in TTS.
 		return
-	elseif card.guid=="37e2ce" and key=="1a" then
+	end
+end
+
+apocalypseQuestRegisterHandler("37e2ce").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="1a" then
 		apocalypseQuestFreeWineStartAssault(card,playerIndex)
-	elseif card.guid=="485cc5" and key=="1" then
+	end
+end
+
+apocalypseQuestRegisterHandler("485cc5").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="1" then
 		local color=gStates.apocalypseQuestStepColor~=nil and gStates.apocalypseQuestStepColor[card.guid] or nil
 		local colors=apocalypseQuestMineDoomColors(playerIndex)
 		if color~=nil then
@@ -30550,9 +30971,14 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			local launched=apocalypseQuestLaunchMineDoom(card,playerIndex,color,#colors>1 and 1 or 0)
 			if launched==true then apocalypseQuestMarkCombatStarted(card,2) end
 		end
-	elseif card.guid=="485cc5" and key=="2" and finalCompletion==true then
+	end
+	if key=="2" and finalCompletion==true then
 		broadcastToAll("{en}Mine of Doom reward: gain an Artifact.{ru}Награда Mine of Doom: получите Артефакт.{zh-tw}Mine of Doom 獎勵：獲得一件神器。{zh-cn}Mine of Doom 奖励：获得一件神器。{ko}Mine of Doom 보상: 유물 하나를 얻습니다.{es}Recompensa de Mine of Doom: gana un Artefacto.{fr}Récompense de Mine of Doom : gagnez un Artefact.{pt-br}Recompensa de Mine of Doom: ganhe um Artefato.{de}Belohnung für Mine of Doom: Erhalte ein Artefakt.",positionToColor(playerIndex))
-	elseif card.guid=="b401dc" then
+	end
+end
+
+apocalypseQuestRegisterHandler("b401dc").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="1" then
 			local token=getObjectFromGUID("7e4e4c")
 			if token~=nil then apocalypseQuestHighlightMarker(token) end
@@ -30562,11 +30988,19 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			gStates.apocalypseQuestVeryPersonalSuccess[card.guid]=true
 			broadcastToAll("{en}A Very Personal Quest: the protected Unit survived the Mage Tower rescue; its Quest marker will be returned.{ru}A Very Personal Quest: защищаемый отряд пережил спасение Башни мага; его жетон задания будет возвращён.{zh-tw}A Very Personal Quest：受保護部隊在法師塔救援中存活；其任務標記將被歸還。{zh-cn}A Very Personal Quest：受保护部队在法师塔救援中存活；其任务标记将被归还。{ko}A Very Personal Quest: 보호 대상 유닛이 마법사 탑 구출에서 살아남았습니다. 퀘스트 토큰을 반환합니다.{es}A Very Personal Quest: la Unidad protegida sobrevivió al rescate de la Torre de Mago; se devolverá su ficha de Misión.{fr}A Very Personal Quest : l’Unité protégée a survécu au sauvetage de la Tour de Mage ; son jeton de Quête sera rendu.{pt-br}A Very Personal Quest: a Unidade protegida sobreviveu ao resgate da Torre de Mago; sua ficha de Missão será devolvida.{de}A Very Personal Quest: Die geschützte Einheit hat die Rettung am Magierturm überlebt; ihr Questmarker wird zurückgegeben.",positionToColor(playerIndex))
 		end
-	elseif card.guid=="82a935" and key=="2a" then
+end
+
+apocalypseQuestRegisterHandler("82a935").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="2a" then
 		apocalypseQuestRestoreBurnedMonastery(card,playerIndex)
 		apocalypseQuestAddAdvancedActionToUnitOffer()
 		apocalypseQuestGainReputation(playerIndex,"The Burned Monastery")
-	elseif card.guid=="8455b5" then
+	end
+end
+
+apocalypseQuestRegisterHandler("8455b5").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="1" then
 			broadcastToAll("{en}The Admiring Bard: defeat an enemy token to continue. Non-Red/non-Tan = 2a (Green), Tan = 2b (Blue), Red = 2c (Red).{ru}The Admiring Bard: победите жетон врага, чтобы продолжить. Не красный/не бежевый = 2a (зелёный), бежевый = 2b (синий), красный = 2c (красный).{zh-tw}The Admiring Bard：擊敗一個敵人標記以繼續。非紅／非棕 = 2a（綠），棕 = 2b（藍），紅 = 2c（紅）。{zh-cn}The Admiring Bard：击败一个敌人标记以继续。非红／非棕 = 2a（绿），棕 = 2b（蓝），红 = 2c（红）。{ko}The Admiring Bard: 계속하려면 적 토큰 하나를 처치하십시오. 빨강/황갈색 아님 = 2a(녹색), 황갈색 = 2b(파란색), 빨강 = 2c(빨간색).{es}The Admiring Bard: derrota una ficha de enemigo para continuar. No Rojo/no Canela = 2a (Verde), Canela = 2b (Azul), Rojo = 2c (Rojo).{fr}The Admiring Bard : vainquez un jeton Ennemi pour continuer. Ni Rouge ni Fauve = 2a (Vert), Fauve = 2b (Bleu), Rouge = 2c (Rouge).{pt-br}The Admiring Bard: derrote uma ficha de inimigo para continuar. Não Vermelho/não Bege = 2a (Verde), Bege = 2b (Azul), Vermelho = 2c (Vermelho).{de}The Admiring Bard: Besiege einen Gegnermarker, um fortzufahren. Nicht Rot/nicht Hellbraun = 2a (Grün), Hellbraun = 2b (Blau), Rot = 2c (Rot).",positionToColor(playerIndex))
 		elseif key=="2a" then
@@ -30581,7 +31015,10 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 		elseif key=="3" then
 			apocalypseQuestGiveBardReward(card,playerIndex)
 		end
-	elseif card.guid=="abd4fb" then
+end
+
+apocalypseQuestRegisterHandler("abd4fb").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="1" then
 			if gStates.apocalypseQuestCursedHero==nil then gStates.apocalypseQuestCursedHero={} end
 			apocalypseQuestCursedMarkHolder(card,playerIndex)
@@ -30606,7 +31043,10 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			apocalypseQuestGainReputation(playerIndex,"Cursed")
 			if gStates.apocalypseQuestCursedHero~=nil then gStates.apocalypseQuestCursedHero[card.guid]=nil end
 		end
-	elseif card.guid=="d70436" then
+end
+
+apocalypseQuestRegisterHandler("d70436").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="2" then
 			local level=turnOrder[playerIndex].level or 1
 			local pile=level<=4 and "tan" or level<=8 and "white" or "red"
@@ -30625,22 +31065,56 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			local reward=level<=4 and "an Advanced Action" or level<=8 and "a Spell" or "an Artifact"
 			broadcastToAll(joinLang({"{en}A Mysterious Island reward: gain {ru}Награда A Mysterious Island: получите {zh-tw}A Mysterious Island 獎勵：獲得 {zh-cn}A Mysterious Island 奖励：获得 {ko}A Mysterious Island 보상: {es}Recompensa de A Mysterious Island: gana {fr}Récompense de A Mysterious Island : gagnez {pt-br}Recompensa de A Mysterious Island: ganhe {de}Belohnung für A Mysterious Island: Erhalte ",reward,"."}),positionToColor(playerIndex))
 		end
-	elseif card.guid=="c73a1f" and key=="3" and finalCompletion==true then
+end
+
+apocalypseQuestRegisterHandler("c73a1f").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="3" and finalCompletion==true then
 		broadcastToAll("{en}Tomb of the Lost King reward: gain an Artifact.{ru}Награда Tomb of the Lost King: получите Артефакт.{zh-tw}Tomb of the Lost King 獎勵：獲得一件神器。{zh-cn}Tomb of the Lost King 奖励：获得一件神器。{ko}Tomb of the Lost King 보상: 유물 하나를 얻습니다.{es}Recompensa de Tomb of the Lost King: gana un Artefacto.{fr}Récompense de Tomb of the Lost King : gagnez un Artefact.{pt-br}Recompensa de Tomb of the Lost King: ganhe um Artefato.{de}Belohnung für Tomb of the Lost King: Erhalte ein Artefakt.",positionToColor(playerIndex))
-	elseif card.guid=="77bbac" and key=="2" then
+	end
+	if key=="2" and apocalypseQuestCardHasEnemyType(card,"white")~=true then
+		apocalypseQuestPlaceEnemy(card,"white",false,0)
+	end
+end
+
+apocalypseQuestRegisterHandler("77bbac").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="2" then
 		broadcastToAll("{en}The Child Seer: resolve the destiny matching the mana token on your Shield (or pay matching mana to choose another destiny).{ru}The Child Seer: разрешите судьбу, соответствующую жетону маны на вашем Щите (или заплатите совпадающую ману, чтобы выбрать другую судьбу).{zh-tw}The Child Seer：結算與你盾牌上魔力標記相符的命運（或支付相符魔力以選擇另一個命運）。{zh-cn}The Child Seer：结算与你盾牌上魔力标记相符的命运（或支付相符魔力以选择另一个命运）。{ko}The Child Seer: 방패 위의 마나 토큰과 일치하는 운명을 해결하십시오(또는 일치하는 마나를 지불해 다른 운명을 선택하십시오).{es}The Child Seer: resuelve el destino que coincida con la ficha de maná de tu Escudo (o paga maná coincidente para elegir otro destino).{fr}The Child Seer : résolvez le destin correspondant au jeton de mana sur votre Bouclier (ou payez le mana correspondant pour choisir un autre destin).{pt-br}The Child Seer: resolva o destino correspondente à ficha de mana em seu Escudo (ou pague mana correspondente para escolher outro destino).{de}The Child Seer: Führe das Schicksal aus, das dem Manamarker auf deinem Schild entspricht (oder zahle passendes Mana, um ein anderes Schicksal zu wählen).",positionToColor(playerIndex))
-	elseif card.guid=="8cff07" and key=="1" and finalCompletion~=true then
+	end
+	if key=="1" then
+		apocalypseQuestPlaceRandomCrystalOnShield(card,playerIndex)
+	end
+end
+
+apocalypseQuestRegisterHandler("8cff07").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="1" and finalCompletion~=true then
 		--A Rich Merchant Step 1 is resolved by the visible physical mana-die path in ResolveStepAction.
 		return
-	elseif card.guid=="082f39" and key=="1" then
+	end
+end
+
+apocalypseQuestRegisterHandler("082f39").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="1" then
 		apocalypseQuestTravellingMerchantRelocate(card,playerIndex)
-	elseif card.guid=="ce70fb" and apocalypseQuestStepNumber(key)==2 then
+	end
+end
+
+apocalypseQuestRegisterHandler("ce70fb").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if apocalypseQuestStepNumber(key)==2 then
 		local level=turnOrder[playerIndex].level or 1
 		local reward=nil
 		if key=="2a" then reward=level<=4 and "a random mana crystal" or level<=8 and "an Advanced Action" or "a Spell"
 		else reward=level<=2 and "an Advanced Action" or level<=6 and "a Spell" or "an Artifact" end
 		broadcastToAll(joinLang({"{en}Traitor {ru}Traitor {zh-tw}Traitor {zh-cn}Traitor {ko}Traitor {es}Traitor {fr}Traitor {pt-br}Traitor {de}Traitor ",key,"{en} reward: gain {ru}, награда: получите {zh-tw} 獎勵：獲得 {zh-cn} 奖励：获得 {ko} 보상: {es}, recompensa: gana {fr}, récompense : gagnez {pt-br}, recompensa: ganhe {de}, Belohnung: Erhalte ",reward,"{en}. The generated Possessed enemy is Council of the Void faction.{ru}. Созданный Одержимый враг относится к фракции Совета Пустоты.{zh-tw}。產生的附身敵人屬於虛空議會陣營。{zh-cn}。产生的附身敌人属于虚空议会阵营。{ko}. 생성된 빙의 적은 공허의 의회 진영입니다.{es}. El enemigo Poseído generado pertenece a la facción Consejo del Vacío.{fr}. L’ennemi Possédé généré appartient à la faction Conseil du Vide.{pt-br}. O inimigo Possuído gerado pertence à facção Conselho do Vácuo.{de}. Der erzeugte Besessen-Gegner gehört zur Fraktion Rat der Leere."}),positionToColor(playerIndex))
-	elseif card.guid=="dd35bb" then
+	end
+end
+
+apocalypseQuestRegisterHandler("dd35bb").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="1" then
 			if apocalypseQuestFogEnemy(card)==nil then apocalypseQuestPlaceEnemy(card,"tan",true,0) end
 		elseif key=="2" then
@@ -30649,45 +31123,86 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 		elseif key=="3" and finalCompletion==true then
 			broadcastToAll("{en}The Fog reward: gain an Artifact.{ru}Награда The Fog: получите Артефакт.{zh-tw}The Fog 獎勵：獲得一件神器。{zh-cn}The Fog 奖励：获得一件神器。{ko}The Fog 보상: 유물 하나를 얻습니다.{es}Recompensa de The Fog: gana un Artefacto.{fr}Récompense de The Fog : gagnez un Artefact.{pt-br}Recompensa de The Fog: ganhe um Artefato.{de}Belohnung für The Fog: Erhalte ein Artefakt.",positionToColor(playerIndex))
 		end
-	elseif card.guid=="783076" and key=="2" and finalCompletion==true then
+end
+
+apocalypseQuestRegisterHandler("783076").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="2" and finalCompletion==true then
 		broadcastToAll("{en}Hunter's Moon reward: gain an Artifact.{ru}Награда Hunter's Moon: получите Артефакт.{zh-tw}Hunter's Moon 獎勵：獲得一件神器。{zh-cn}Hunter's Moon 奖励：获得一件神器。{ko}Hunter's Moon 보상: 유물 하나를 얻습니다.{es}Recompensa de Hunter's Moon: gana un Artefacto.{fr}Récompense de Hunter's Moon : gagnez un Artefact.{pt-br}Recompensa de Hunter's Moon: ganhe um Artefato.{de}Belohnung für Hunter's Moon: Erhalte ein Artefakt.",positionToColor(playerIndex))
-	elseif card.guid=="a6d5cc" and key=="1" then
+	end
+	if key=="1b" then
+		apocalypseQuestLoseReputation(playerIndex,"Hunter's Moon","effect")
+		apocalypseQuestPlaceCrystalOnCard(card,"Black",0.70,-0.65,"Hunter's Moon")
+	end
+end
+
+apocalypseQuestRegisterHandler("a6d5cc").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="1" then
 		gStates.apocalypseQuestUnderSiegeReady=nil
 		gStates.apocalypseQuestUnderSiegeStep2={player=playerIndex,mage=turnOrder[playerIndex].mage,serial=gStates.apocalypseQuestTurnSerial or 0,movedSerial=nil}
 		apocalypseQuestPlaceEnemy(card,"gray",true,-0.45)
 		apocalypseQuestPlaceEnemy(card,"purple",true,0.45)
-	elseif card.guid=="bbd087" then
+	end
+end
+
+apocalypseQuestRegisterHandler("bbd087").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="1" then
 			broadcastToAll("{en}Noble Warrior: the companion Quest marker is now at this site.{ru}Noble Warrior: сопровождающий жетон задания теперь находится в этом месте.{zh-tw}Noble Warrior：同伴任務標記現在位於此地點。{zh-cn}Noble Warrior：同伴任务标记现在位于此地点。{ko}Noble Warrior: 동료 퀘스트 마커가 이제 이 장소에 있습니다.{es}Noble Warrior: la ficha de Misión compañera está ahora en este lugar.{fr}Noble Warrior : le marqueur de Quête compagnon se trouve maintenant sur ce site.{pt-br}Noble Warrior: o marcador de Missão companheiro agora está neste local.{de}Noble Warrior: Der begleitende Questmarker befindet sich jetzt an diesem Ort.",positionToColor(playerIndex))
 		elseif key=="3a" or key=="3b" then
 			apocalypseQuestNobleWarriorFinalReward(card,playerIndex,key)
 		end
-	elseif card.guid=="c73a1f" and key=="2" and apocalypseQuestCardHasEnemyType(card,"white")~=true then
-		apocalypseQuestPlaceEnemy(card,"white",false,0)
-	elseif card.guid=="77bbac" and key=="1" then
-		apocalypseQuestPlaceRandomCrystalOnShield(card,playerIndex)
-	elseif card.guid=="c5dec8" and key=="3" then
+end
+
+apocalypseQuestRegisterHandler("c5dec8").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="3" then
 		apocalypseQuestGiveQuestTokenToInventory(playerIndex,"186613","Stray")
-	elseif card.guid=="3009b4" then
+	end
+end
+
+apocalypseQuestRegisterHandler("3009b4").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		local tokens={["1"]="adc752",["2"]="c92844",["3"]="0143e0",["4"]="7a56a0"}
 		if tokens[key]~=nil then apocalypseQuestGiveQuestTokenToInventory(playerIndex,tokens[key],"Ill Omens") end
-	elseif card.guid=="6175e8" and key=="3" then
+end
+
+apocalypseQuestRegisterHandler("6175e8").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="3" then
 		apocalypseQuestMagicOverloadPlaceSite(card,playerIndex)
-	elseif card.guid=="00a4fe" and key=="2" then
+	end
+end
+
+apocalypseQuestRegisterHandler("00a4fe").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="2" then
 		apocalypseQuestGiveQuestTokenToInventory(playerIndex,"3c89b8","Misadventure")
-	elseif card.guid=="bb2828" and key=="2" then
+	end
+end
+
+apocalypseQuestRegisterHandler("bb2828").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="2" then
 		local color=gStates.apocalypseQuestStepColor~=nil and gStates.apocalypseQuestStepColor[card.guid] or nil
 		if color~=nil then apocalypseQuestPlaceCrystalOnCard(card,color,0,-0.55,"The Artificer") end
-	elseif card.guid=="bb2828" and key=="3" then
+	end
+	if key=="3" then
 		--The three Step 2 crystals are temporary progress markers. The Artificer keeps its Quest card
 		--as a reminder after completion, so normal bottom-deck cleanup never gets a chance to remove them.
 		for _,obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
 			if apocalypseQuestBasicCrystalColor(obj)~=nil then obj.destruct() end
 		end
 		apocalypseQuestGiveQuestTokenToInventory(playerIndex,"cd8313","The Artificer")
-	elseif card.guid=="783076" and key=="1b" then
-		apocalypseQuestLoseReputation(playerIndex,"Hunter's Moon","effect")
-		apocalypseQuestPlaceCrystalOnCard(card,"Black",0.70,-0.65,"Hunter's Moon")
+	end
+end
+
+function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCompletion)
+	if card==nil or option==nil or turnOrder[playerIndex]==nil then return end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.resolveEffect~=nil then
+		return handler.resolveEffect(card,playerIndex,option,finalCompletion)
 	end
 end
 
@@ -31019,11 +31534,6 @@ function apocalypseQuestMarkerObject(rule)
 	return nil
 end
 
-function apocalypseQuestMapHexKey(hex)
-	if hex==nil then return nil end
-	return tostring(hex.terrainGUID).."|"..tostring(hex.bearing)
-end
-
 function apocalypseQuestMapHexes()
 	local refreshCache=apocalypseQuestRefreshMapCache or {}
 	if refreshCache~=nil and refreshCache.hexes~=nil and refreshCache.mapObjects~=nil then return refreshCache.hexes,refreshCache.mapObjects end
@@ -31034,53 +31544,6 @@ function apocalypseQuestMapHexes()
 	return hexes,objects
 end
 
-function apocalypseQuestHexesAdjacent(a,b)
-	if a==nil or b==nil then return false end
-	local dx=a.position[1]-b.position[1]
-	local dz=a.position[3]-b.position[3]
-	local distanceSquared=(dx*dx)+(dz*dz)
-	return distanceSquared>4.2 and distanceSquared<7.4
-end
-
-function apocalypseQuestHexDistanceMap(hexes, starts)
-	local distances={}
-	local queue={}
-	local snapshot=runtimeMapSnapshot()
-	local useCachedTopology=hexes==snapshot.hexes
-	for _, startHex in ipairs(starts or {}) do
-		local key=apocalypseQuestMapHexKey(startHex)
-		if key~=nil and distances[key]==nil then
-			distances[key]=0
-			queue[#queue+1]=startHex
-		end
-	end
-	local head=1
-	while queue[head]~=nil do
-		local current=queue[head]
-		head=head+1
-		local currentKey=apocalypseQuestMapHexKey(current)
-		local currentDistance=distances[currentKey] or 0
-		if useCachedTopology==true then
-			for _,candidate in ipairs(snapshot.neighbors[currentKey] or {}) do
-				local key=apocalypseQuestMapHexKey(candidate)
-				if key~=nil and distances[key]==nil then
-					distances[key]=currentDistance+1
-					queue[#queue+1]=candidate
-				end
-			end
-		else
-			for _,candidate in ipairs(hexes or {}) do
-				local key=apocalypseQuestMapHexKey(candidate)
-				if key~=nil and distances[key]==nil and apocalypseQuestHexesAdjacent(current,candidate)==true then
-					distances[key]=currentDistance+1
-					queue[#queue+1]=candidate
-				end
-			end
-		end
-	end
-	return distances
-end
-
 --Guard Duty measures the shortest connection between the merchant marker's pickup site and the
 --Mage Knight's current drop-off site using revealed map spaces only. apocalypseQuestMapHexes()
 --already omits unrevealed terrain, so a BFS over its adjacency graph matches the printed wording.
@@ -31088,21 +31551,11 @@ function apocalypseQuestGuardDutyDistance(playerIndex)
 	local marker=getObjectFromGUID("518afd")
 	if marker==nil then return nil end
 	local hexes,mapObjects=apocalypseQuestMapHexes()
-	local markerHex=apocalypseQuestHexForPosition(hexes,marker.getPosition(),mapObjects)
+	local markerHex=runtimeMapHexForPosition(hexes,marker.getPosition(),mapObjects)
 	local playerHex=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	if markerHex==nil or playerHex==nil then return nil end
-	local distances=apocalypseQuestHexDistanceMap(hexes,{markerHex})
-	return distances[apocalypseQuestMapHexKey(playerHex)]
-end
-
-function apocalypseQuestHexForPosition(hexes, position, mapObjects)
-	if position==nil then return nil end
-	local terrain,bearing=terrainHexAtPosition(position,mapObjects)
-	if terrain==nil or bearing==nil then return nil end
-	for _, hex in ipairs(hexes or {}) do
-		if hex.terrainGUID==terrain.guid and hex.bearing==bearing then return hex end
-	end
-	return nil
+	local distances=runtimeMapHexDistanceMap(hexes,{markerHex})
+	return distances[runtimeMapHexKey(playerHex)]
 end
 
 function apocalypseQuestPlayerHex(hexes, mapObjects, playerIndex)
@@ -31112,7 +31565,7 @@ function apocalypseQuestPlayerHex(hexes, mapObjects, playerIndex)
 		local avatar=coopAssaultAvatarObject(playerIndex)
 		if avatar~=nil then position=avatar.getPosition() end
 	end
-	return apocalypseQuestHexForPosition(hexes,position,mapObjects)
+	return runtimeMapHexForPosition(hexes,position,mapObjects)
 end
 
 function apocalypseQuestFeatureIsCity(feature)
@@ -31315,10 +31768,10 @@ function apocalypseQuestFreeWineLocationLegal(hex,mapObjects,playerIndex)
 		if candidate.terrainGUID==hex.terrainGUID and tostring(candidate.bearing)==tostring(hex.bearing) then start=candidate break end
 	end
 	if start==nil then return false end
-	local distances=apocalypseQuestHexDistanceMap(hexes,{start})
+	local distances=runtimeMapHexDistanceMap(hexes,{start})
 	for _, candidate in ipairs(hexes) do
 		if apocalypseQuestFeatureMatches(candidate.feature,"keep")==true then
-			local distance=distances[apocalypseQuestMapHexKey(candidate)]
+			local distance=distances[runtimeMapHexKey(candidate)]
 			if distance~=nil and distance<=3 and apocalypseQuestHexHasShield(candidate,mapObjects,playerIndex,false)~=true then return true end
 		end
 	end
@@ -31329,11 +31782,11 @@ function apocalypseQuestFreeWineKeepTargets(playerIndex)
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local start=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	if start==nil then return {} end
-	local distances=apocalypseQuestHexDistanceMap(hexes,{start})
+	local distances=runtimeMapHexDistanceMap(hexes,{start})
 	local result={}
 	for _, candidate in ipairs(hexes) do
 		if apocalypseQuestFeatureMatches(candidate.feature,"keep")==true then
-			local distance=distances[apocalypseQuestMapHexKey(candidate)]
+			local distance=distances[runtimeMapHexKey(candidate)]
 			if distance~=nil and distance<=3 and apocalypseQuestHexHasShield(candidate,mapObjects,playerIndex,false)~=true then result[#result+1]=candidate end
 		end
 	end
@@ -31604,10 +32057,10 @@ function apocalypseQuestTravellingMerchantRelocate(card,playerIndex)
 	local hexes,mapObjects=apocalypseQuestMapHexes()
 	local start=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	if token==nil or start==nil then return false end
-	local distances=apocalypseQuestHexDistanceMap(hexes,{start})
+	local distances=runtimeMapHexDistanceMap(hexes,{start})
 	local candidates={}
 	for _, hex in ipairs(hexes) do
-		if distances[apocalypseQuestMapHexKey(hex)]==3 and apocalypseQuestHexSafe(hex,mapObjects,playerIndex)==true and apocalypseQuestHexHasOtherQuestMarker(hex,token.guid)~=true then candidates[#candidates+1]=hex end
+		if distances[runtimeMapHexKey(hex)]==3 and apocalypseQuestHexSafe(hex,mapObjects,playerIndex)==true and apocalypseQuestHexHasOtherQuestMarker(hex,token.guid)~=true then candidates[#candidates+1]=hex end
 	end
 	if #candidates==0 then
 		broadcastToAll("{en}Travelling Merchant: no legal safe space exactly 3 revealed spaces away was found; move the highlighted Quest marker manually.{ru}Travelling Merchant: не найдено допустимой безопасной клетки ровно в 3 открытых клетках; переместите выделенный жетон задания вручную.{zh-tw}Travelling Merchant：找不到正好相距 3 個已揭示空間的合法安全空間；請手動移動高亮任務標記。{zh-cn}Travelling Merchant：找不到正好相距 3 个已揭示空间的合法安全空间；请手动移动高亮任务标记。{ko}Travelling Merchant: 공개된 칸 기준 정확히 3칸 떨어진 합법적인 안전 칸을 찾지 못했습니다. 강조된 퀘스트 마커를 수동으로 이동하십시오.{es}Travelling Merchant: no se encontró un espacio seguro legal exactamente a 3 espacios revelados; mueve manualmente el marcador de Misión resaltado.{fr}Travelling Merchant : aucune case sûre légale à exactement 3 cases révélées n’a été trouvée ; déplacez manuellement le marqueur de Quête surligné.{pt-br}Travelling Merchant: não foi encontrado espaço seguro válido exatamente a 3 espaços revelados; mova manualmente o marcador de Missão destacado.{de}Travelling Merchant: Es wurde kein gültiges sicheres Feld in genau 3 aufgedeckten Feldern Entfernung gefunden; bewege den hervorgehobenen Questmarker manuell.",positionToColor(playerIndex))
@@ -31665,11 +32118,11 @@ function apocalypseQuestDisbandVeryPersonalUnit(card)
 	local unit=apocalypseQuestVeryPersonalUnit(card)
 	if unit==nil then return false end
 	local cardType=gameCardType(unit)
-	local deckGUID=cardType=="Elite Unit" and GUID.deck.eliteUnit or GUID.deck.regularUnit
-	local deck=getObjectFromGUID(deckGUID)
+	local deckName=cardType=="Elite Unit" and "Elite Unit" or cardType=="Regular Unit" and "Regular Unit" or nil
+	local deck=deckName~=nil and standardDeckCycleObject(deckName) or nil
 	if deck~=nil then
-		unit.unlock()
-		deck.putObject(unit)
+		standardDeckCycleMarkReturned(deckName,unit)
+		putCardAtBottom(deck,unit)
 		broadcastToAll("{en}A Very Personal Quest: the marked Unit was disbanded when the Quest left play.{ru}A Very Personal Quest: отмеченный отряд был распущен, когда задание покинуло игру.{zh-tw}A Very Personal Quest：任務離場時，帶有標記的部隊已被解散。{zh-cn}A Very Personal Quest：任务离场时，带有标记的部队已被解散。{ko}A Very Personal Quest: 퀘스트가 플레이에서 제거될 때 표시된 유닛이 해산되었습니다.{es}A Very Personal Quest: la Unidad marcada fue disuelta cuando la Misión salió del juego.{fr}A Very Personal Quest : l’Unité marquée a été dissoute lorsque la Quête a quitté le jeu.{pt-br}A Very Personal Quest: a Unidade marcada foi dispensada quando a Missão saiu de jogo.{de}A Very Personal Quest: Die markierte Einheit wurde aufgelöst, als die Quest das Spiel verließ.",{1,1,0.5})
 		return true
 	end
@@ -31685,16 +32138,11 @@ function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 	local hex,mapObjects=apocalypseQuestCurrentPlayerHex(playerIndex)
 	if hex==nil then return false end
 
-	if card.guid=="a6d5cc" and tostring(option.key)=="1" then return apocalypseQuestUnderSiegeLocationLegal(hex,playerIndex) end
-
-	if card.guid=="082f39" and tostring(option.key)=="1" and gStates.apocalypseQuestMarkerPlacements~=nil and gStates.apocalypseQuestMarkerPlacements["afcfc1"]==true then
-		return apocalypseQuestTokenOnHex("afcfc1",hex,mapObjects)==true
-	end
-
-	--Mine of Doom is not failed by an unsuccessful fight. Once its marker has been committed, it
-	--identifies the specific mine being investigated, so later attempts must return to that mine.
-	if card.guid=="485cc5" and gStates.apocalypseQuestMarkerPlacements~=nil and gStates.apocalypseQuestMarkerPlacements["2f238c"]==true then
-		if apocalypseQuestTokenOnHex("2f238c",hex,mapObjects)~=true then return false end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.starterLocationPrecheck~=nil and handler.starterLocationPrecheck(card,playerIndex,option,hex,mapObjects)~=true then return false end
+	if handler~=nil and handler.starterLocationLegal~=nil then
+		local handled,result=handler.starterLocationLegal(card,playerIndex,option,hex,mapObjects)
+		if handled==true then return result==true end
 	end
 
 	if rule.warrens==true then
@@ -31722,7 +32170,7 @@ function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 	if rule.adjacentTerrain~=nil then
 		local adjacent=false
 		for _, other in ipairs(apocalypseQuestMapHexes()) do
-			if other.hexType==rule.adjacentTerrain and apocalypseQuestHexesAdjacent(hex,other)==true then adjacent=true break end
+			if other.hexType==rule.adjacentTerrain and runtimeMapHexesAdjacent(hex,other)==true then adjacent=true break end
 		end
 		if adjacent~=true then return false end
 	end
@@ -31734,8 +32182,8 @@ function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 		if tokenTerrain==nil or tokenBearing==nil then return false end
 		local tokenXY=angleToXY(tokenTerrain,tokenBearing)
 		local tokenHex={terrainGUID=tokenTerrain.guid,bearing=tokenBearing,position={tokenXY[1],1.30,tokenXY[2]}}
-		local distances=apocalypseQuestHexDistanceMap(hexes,{tokenHex})
-		local distance=distances[apocalypseQuestMapHexKey(hex)]
+		local distances=runtimeMapHexDistanceMap(hexes,{tokenHex})
+		local distance=distances[runtimeMapHexKey(hex)]
 		if distance==nil or (rule.nearDistanceMax~=nil and distance>rule.nearDistanceMax) then return false end
 	end
 	if rule.nearFeatures~=nil then
@@ -31745,8 +32193,8 @@ function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 			for _, feature in ipairs(rule.nearFeatures) do if apocalypseQuestFeatureMatches(candidate.feature,feature)==true then starts[#starts+1]=candidate break end end
 		end
 		if #starts==0 then return false end
-		local distances=apocalypseQuestHexDistanceMap(hexes,starts)
-		local distance=distances[apocalypseQuestMapHexKey(hex)]
+		local distances=runtimeMapHexDistanceMap(hexes,starts)
+		local distance=distances[runtimeMapHexKey(hex)]
 		if distance==nil or (rule.nearDistanceMax~=nil and distance>rule.nearDistanceMax) then return false end
 	end
 	if rule.coastalTile==true then
@@ -31875,7 +32323,7 @@ function apocalypseQuestTerrainTileOnCurrentMapEdge(hexes, terrainGUID)
 		if hex.terrainGUID==terrainGUID then
 			local neighbours=0
 			for _, other in ipairs(hexes or {}) do
-				if apocalypseQuestHexesAdjacent(hex,other)==true then neighbours=neighbours+1 end
+				if runtimeMapHexesAdjacent(hex,other)==true then neighbours=neighbours+1 end
 			end
 			if neighbours<6 then return true end
 		end
@@ -31914,7 +32362,7 @@ function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 	if rule.distanceFromPlayerMax~=nil or rule.distanceFromPlayerMin~=nil then
 		playerHex=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 		if playerHex==nil then return {} end
-		playerDistances=apocalypseQuestHexDistanceMap(hexes,{playerHex})
+		playerDistances=runtimeMapHexDistanceMap(hexes,{playerHex})
 	end
 	local nearDistances=nil
 	if rule.nearFeatures~=nil then
@@ -31925,13 +32373,13 @@ function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 			end
 		end
 		if #starts==0 then return {} end
-		nearDistances=apocalypseQuestHexDistanceMap(hexes,starts)
+		nearDistances=runtimeMapHexDistanceMap(hexes,starts)
 	end
 	local markerDistances=nil
 	if rule.distanceFromMarkerMax~=nil or rule.distanceFromMarkerMin~=nil then
-		local markerHex=apocalypseQuestHexForPosition(hexes,token.getPosition(),mapObjects)
+		local markerHex=runtimeMapHexForPosition(hexes,token.getPosition(),mapObjects)
 		if markerHex==nil then return {} end
-		markerDistances=apocalypseQuestHexDistanceMap(hexes,{markerHex})
+		markerDistances=runtimeMapHexDistanceMap(hexes,{markerHex})
 	end
 	local candidates={}
 	local coastalCache={}
@@ -31963,24 +32411,24 @@ function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 		if legal and rule.adjacentTerrain~=nil then
 			local adjacent=false
 			for _, other in ipairs(hexes) do
-				if other.hexType==rule.adjacentTerrain and apocalypseQuestHexesAdjacent(hex,other)==true then adjacent=true break end
+				if other.hexType==rule.adjacentTerrain and runtimeMapHexesAdjacent(hex,other)==true then adjacent=true break end
 			end
 			if adjacent~=true then legal=false end
 		end
 		if legal and playerDistances~=nil then
-			local distance=playerDistances[apocalypseQuestMapHexKey(hex)]
+			local distance=playerDistances[runtimeMapHexKey(hex)]
 			if distance==nil then legal=false end
 			if legal and rule.distanceFromPlayerMax~=nil and distance>rule.distanceFromPlayerMax then legal=false end
 			if legal and rule.distanceFromPlayerMin~=nil and distance<rule.distanceFromPlayerMin then legal=false end
 		end
 		if legal and nearDistances~=nil then
-			local distance=nearDistances[apocalypseQuestMapHexKey(hex)]
+			local distance=nearDistances[runtimeMapHexKey(hex)]
 			if distance==nil then legal=false end
 			if legal and rule.nearDistanceMax~=nil and distance>rule.nearDistanceMax then legal=false end
 			if legal and rule.nearDistanceMin~=nil and distance<rule.nearDistanceMin then legal=false end
 		end
 		if legal and markerDistances~=nil then
-			local distance=markerDistances[apocalypseQuestMapHexKey(hex)]
+			local distance=markerDistances[runtimeMapHexKey(hex)]
 			if distance==nil then legal=false end
 			if legal and rule.distanceFromMarkerMax~=nil and distance>rule.distanceFromMarkerMax then legal=false end
 			if legal and rule.distanceFromMarkerMin~=nil and distance<rule.distanceFromMarkerMin then legal=false end
@@ -31995,8 +32443,8 @@ function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 	local sourceHex=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	table.sort(candidates,function(a,b)
 		if rule.closestToPlayer==true and playerDistances~=nil then
-			local ad=playerDistances[apocalypseQuestMapHexKey(a)]
-			local bd=playerDistances[apocalypseQuestMapHexKey(b)]
+			local ad=playerDistances[runtimeMapHexKey(a)]
+			local bd=playerDistances[runtimeMapHexKey(b)]
 			if ad~=nil and bd~=nil and ad~=bd then return ad<bd end
 		end
 		if sourceHex~=nil then
@@ -32016,11 +32464,11 @@ end
 
 function apocalypseQuestMarkerCurrentHexLegal(token,candidates,hexes,mapObjects)
 	if token==nil then return false end
-	local current=apocalypseQuestHexForPosition(hexes,token.getPosition(),mapObjects)
+	local current=runtimeMapHexForPosition(hexes,token.getPosition(),mapObjects)
 	if current==nil then return false end
-	local key=apocalypseQuestMapHexKey(current)
+	local key=runtimeMapHexKey(current)
 	for _, candidate in ipairs(candidates or {}) do
-		if apocalypseQuestMapHexKey(candidate)==key then return true end
+		if runtimeMapHexKey(candidate)==key then return true end
 	end
 	return false
 end
@@ -32099,8 +32547,8 @@ function apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)
 	local currentLegal=apocalypseQuestMarkerCurrentHexLegal(token,candidates,hexes,mapObjects)
 	local target=candidates[1]
 	if rule.closestToPlayer==true then
-		local current=apocalypseQuestHexForPosition(hexes,token.getPosition(),mapObjects)
-		currentLegal=current~=nil and apocalypseQuestMapHexKey(current)==apocalypseQuestMapHexKey(target)
+		local current=runtimeMapHexForPosition(hexes,token.getPosition(),mapObjects)
+		currentLegal=current~=nil and runtimeMapHexKey(current)==runtimeMapHexKey(target)
 	end
 	if currentLegal~=true then
 		token.unlock()
@@ -32196,19 +32644,378 @@ function apocalypseQuestRefreshAfterMarkerChange()
 	safeWaitFrames("Quests",function() apocalypseQuestRefreshOfferButtons() end,60)
 end
 
+--Quest-specific lifecycle hooks. Generic Quest flow dispatches through these instead of
+--branching on card GUIDs; individual Quest helpers still own their detailed rules.
+local goblinWarrensHandler=apocalypseQuestRegisterHandler("72099f")
+goblinWarrensHandler.revealBagPosition=function(cardPos) return {cardPos[1],cardPos[2]+0.42,cardPos[3]-1.18} end
+goblinWarrensHandler.filterOption=function(card,playerIndex,action,option,state,context)
+	if tostring(option.key)=="1" and action=="Progress" then context.include=apocalypseQuestGoblinAttemptReady(playerIndex) end
+	return context
+end
+goblinWarrensHandler.directChoices=function(card,playerIndex,state)
+	if state.step==1 and apocalypseQuestGoblinAttempt(playerIndex,true)==nil then
+		return {{key="Goblin1",action="GoblinWarrens",label="1"},{key="Goblin2",action="GoblinWarrens",label="2"},{key="Goblin3",action="GoblinWarrens",label="3"}}
+	end
+end
+goblinWarrensHandler.directChoiceLegal=function(card,playerIndex,choice)
+	if choice.action~="GoblinWarrens" then return false end
+	local option=apocalypseQuestChoiceOption(card,"1")
+	return true,option~=nil and apocalypseQuestGoblinAttempt(playerIndex,true)==nil and apocalypseQuestStarterLocationLegal(card,playerIndex,option)==true and apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)==true
+end
+goblinWarrensHandler.directAction=function(player,card,playerIndex,selected,key)
+	if selected.action~="GoblinWarrens" then return false end
+	apocalypseQuestStartGoblinWarrens(card,playerIndex,tonumber(key:match("(%d+)$")))
+	return true
+end
+goblinWarrensHandler.buttonState=function(card,playerIndex,questState,result)
+	if questState~=nil and questState.step==1 then result.progressLabel="Proceed" end
+end
+goblinWarrensHandler.bottomDeckBeforeReveal=function() gStates.apocalypseQuestGoblinWarrens={} end
+
+local executionHandler=apocalypseQuestRegisterHandler("8939c0")
+executionHandler.directChoices=function(card,playerIndex,state)
+	if state.step==1 then return {{key="1a",action="Complete"},{key="1b",action="Combat"},{key="1c",action="Complete"}} end
+end
+executionHandler.storeDirectBranch=true
+executionHandler.storeDirectCombatBranch=true
+executionHandler.rewardCompletionGate=function(card,playerIndex,option,fought,allDefeated)
+	if tostring(option.key)=="1b" and fought>0 then return true,true,allDefeated==true and "Complete" or "Fail" end
+	return false
+end
+executionHandler.launchCombat=function(card,playerIndex)
+	return apocalypseQuestSpawnEnemyToCombat(card,playerIndex,"gray",false,0,0)~=nil and 1 or 0
+end
+
+local nobleWarriorHandler=apocalypseQuestRegisterHandler("bbd087")
+nobleWarriorHandler.filterOption=function(card,playerIndex,action,option,state,context)
+	if apocalypseQuestStepNumber(option.key)==3 and action=="Complete" then context.include=context.include==true and apocalypseQuestCardCrystalColor(card)~=nil end
+	return context
+end
+nobleWarriorHandler.directChoices=function(card,playerIndex,state)
+	if state.step~=3 or apocalypseQuestCardCrystalColor(card)==nil then return nil end
+	local option=apocalypseQuestChoiceOption(card,"3a")
+	if option~=nil and apocalypseQuestStarterLocationLegal(card,playerIndex,option)==true then
+		return {{key="3a",action="Complete",label="3A"},{key="3b",action="Complete",label="3B"}}
+	end
+end
+nobleWarriorHandler.directChoiceLegal=function(card,playerIndex,choice)
+	if apocalypseQuestStepNumber(choice.key)==3 and apocalypseQuestCardCrystalColor(card)==nil then return true,false end
+	return false
+end
+
+local freeWineHandler=apocalypseQuestRegisterHandler("37e2ce")
+freeWineHandler.filterOption=function(card,playerIndex,action,option,state,context)
+	if state.step==2 and (action=="Complete" or action=="Fail") then
+		context.include=action=="Complete" and apocalypseQuestFreeWineSuccessReady(playerIndex) or apocalypseQuestFreeWineFailureReady(playerIndex)
+		context.skipLegality=true
+		context.skipMarker=true
+	end
+	return context
+end
+freeWineHandler.directChoices=function(card,playerIndex,state)
+	if state.step==1 then return {{key="1a",action="Progress"},{key="1b",action="Complete"}} end
+end
+freeWineHandler.bottomDeckBeforeReveal=function() gStates.apocalypseQuestFreeWineAssault=nil end
+
+local underSiegeHandler=apocalypseQuestRegisterHandler("a6d5cc")
+underSiegeHandler.mayAct=function(card,playerIndex)
+	local readyPlayer=apocalypseQuestUnderSiegeReadyPlayer()
+	if readyPlayer~=nil and readyPlayer~=playerIndex then return true,false end
+	return false
+end
+underSiegeHandler.actionEnabled=function(card,playerIndex,action)
+	if action=="Abandon" and apocalypseQuestPersonalShieldOwner(card)~=nil then return true,false end
+	return false
+end
+underSiegeHandler.directChoices=function(card,playerIndex,state)
+	if state.step==2 and apocalypseQuestCombatStartedThisTurn(card,2)~=true then
+		return {{key="2a",action="Combat",label="2A"},{key="2b",action="Fail",label="{en}2B - Fail{ru}2B - Провал{zh-tw}2B - 失敗{zh-cn}2B - 失败{ko}2B - 실패{es}2B - Fallar{fr}2B - Échouer{pt-br}2B - Falhar{de}2B - Scheitern"}}
+	end
+end
+underSiegeHandler.directChoiceLegal=function(card,playerIndex,choice)
+	if apocalypseQuestStepNumber(choice.key)==2 and apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,choice.key)~=true then return true,false end
+	return false
+end
+underSiegeHandler.buttonState=function(card,playerIndex,questState,result)
+	if questState==nil or questState.step==1 then result.progressLabel="Proceed" end
+	if questState~=nil and questState.step==2 then result.failLabel="2B - Fail" end
+end
+underSiegeHandler.combatAvailable=function(card,playerIndex,state)
+	if state.step==2 and apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,"2a")~=true then return true,false end
+	return false
+end
+underSiegeHandler.storeDirectCombatBranch=false
+underSiegeHandler.enemyAttackMovesAll=true
+underSiegeHandler.launchCombat=function(card,playerIndex)
+	local moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,nil)
+	if moved>0 then broadcastToAll("{en}Under Siege: ignore fortification for this Quest fight and add Block 5 during the Block phase.{ru}Under Siege: игнорируйте укрепление в этом бою задания и добавьте Блок 5 во время фазы Блока.{zh-tw}Under Siege：此任務戰鬥忽略要塞化，並在格擋階段加入格擋 5。{zh-cn}Under Siege：此任务战斗忽略要塞化，并在格挡阶段加入格挡 5。{ko}Under Siege: 이 퀘스트 전투에서는 요새화를 무시하고 방어 단계에 방어 5를 추가합니다.{es}Under Siege: ignora la fortificación en este combate de Misión y añade Bloqueo 5 durante la fase de Bloqueo.{fr}Under Siege : ignorez la fortification pour ce combat de Quête et ajoutez Blocage 5 pendant la phase de Blocage.{pt-br}Under Siege: ignore fortificação neste combate da Missão e adicione Bloqueio 5 durante a fase de Bloqueio.{de}Under Siege: Ignoriere für diesen Quest-Kampf die Befestigung und füge in der Blockphase Block 5 hinzu.",positionToColor(playerIndex)) end
+	return moved
+end
+underSiegeHandler.failureEffect=function(card,playerIndex,option)
+	if tostring(option.key)=="2b" then apocalypseQuestUnderSiegeFailure(card,playerIndex) end
+end
+underSiegeHandler.starterLocationLegal=function(card,playerIndex,option,hex)
+	if tostring(option.key)=="1" then return true,apocalypseQuestUnderSiegeLocationLegal(hex,playerIndex) end
+	return false
+end
+underSiegeHandler.personalAction=function(player,card)
+	if apocalypseQuestPersonalShieldOwner(card)==nil then return false end
+	broadcastToColor("{en}Under Siege must be resolved with 2A or 2B; it cannot be abandoned after Step 1.{ru}Under Siege должно быть разрешено через 2A или 2B; после шага 1 его нельзя покинуть.{zh-tw}Under Siege 必須以 2A 或 2B 結算；步驟 1 後不能放棄。{zh-cn}Under Siege 必须以 2A 或 2B 结算；步骤 1 后不能放弃。{ko}Under Siege는 2A 또는 2B로 해결해야 하며 1단계 이후에는 포기할 수 없습니다.{es}Under Siege debe resolverse con 2A o 2B; no puede abandonarse después del Paso 1.{fr}Under Siege doit être résolu avec 2A ou 2B ; il ne peut pas être abandonné après l’Étape 1.{pt-br}Under Siege deve ser resolvido com 2A ou 2B; não pode ser abandonado após a Etapa 1.{de}Under Siege muss mit 2A oder 2B abgewickelt werden; nach Schritt 1 kann es nicht aufgegeben werden.",player.color,warningColor)
+	apocalypseQuestInterfaceAdd(card,true)
+	return true
+end
+underSiegeHandler.actionPlayer=function(card,action,defaultIndex)
+	if action~="Progress" then return defaultIndex,false end
+	local readyPlayer=apocalypseQuestUnderSiegeReadyPlayer()
+	if readyPlayer~=nil then return readyPlayer,true end
+	return defaultIndex,false
+end
+underSiegeHandler.bottomDeckBeforeReveal=function()
+	gStates.apocalypseQuestUnderSiegeReady=nil
+	gStates.apocalypseQuestUnderSiegeStep2=nil
+end
+
+local burnedMonasteryHandler=apocalypseQuestRegisterHandler("82a935")
+burnedMonasteryHandler.mayActBeforeOwnership=function(card,playerIndex)
+	if apocalypseQuestPlayerBurnedMonastery(playerIndex)==true then return true,false end
+	return false
+end
+burnedMonasteryHandler.actionEnabled=function(card,playerIndex,action)
+	if action=="Abandon" and apocalypseQuestCombatStartedThisTurn(card,2)==true and gStates.apocalypseQuestDirectBranch~=nil and gStates.apocalypseQuestDirectBranch[card.guid]=="2c" then return true,false end
+	return false
+end
+burnedMonasteryHandler.directChoices=function(card,playerIndex,state)
+	if state.step==2 then return {{key="2a",action="Complete"},{key="2b",action="Complete"},{key="2c",action="Combat"}} end
+end
+burnedMonasteryHandler.storeDirectBranch=true
+burnedMonasteryHandler.storeDirectCombatBranch=true
+burnedMonasteryHandler.launchCombat=function(card,playerIndex)
+	return apocalypseQuestSpawnEnemyToCombat(card,playerIndex,"purple",false,0,0)~=nil and 1 or 0
+end
+
+local bardHandler=apocalypseQuestRegisterHandler("8455b5")
+bardHandler.directChoices=function(card,playerIndex,state)
+	if state.step==2 and apocalypseQuestPersonalShieldOwner(card)==playerIndex then
+		return {{key="2a",action="Progress",label="2A"},{key="2b",action="Progress",label="2B"},{key="2c",action="Progress",label="2C"}}
+	end
+end
+bardHandler.directChoicesAllowAbandon=true
+
+local traitorHandler=apocalypseQuestRegisterHandler("ce70fb")
+traitorHandler.actionEnabled=function(card,playerIndex,action)
+	if action=="Fail" and gStates.apocalypseQuestCombatBranch~=nil and gStates.apocalypseQuestCombatBranch[card.guid]=="2b" then return true,false end
+	return false
+end
+traitorHandler.directChoices=function(card,playerIndex,state)
+	if state.step==2 then return {{key="2a",action="Combat"},{key="2b",action="Combat"}} end
+end
+traitorHandler.storeDirectCombatBranch=true
+traitorHandler.combatBranchChoice=true
+traitorHandler.prepareCombatLaunch=function(card,playerIndex,chosenColor)
+	if chosenColor~=nil then
+		if gStates.apocalypseQuestCombatBranch==nil then gStates.apocalypseQuestCombatBranch={} end
+		gStates.apocalypseQuestCombatBranch[card.guid]=chosenColor
+	end
+end
+traitorHandler.launchCombat=function(card,playerIndex)
+	local level=turnOrder[playerIndex].level or 1
+	local choice=(gStates.apocalypseQuestCombatBranch~=nil and gStates.apocalypseQuestCombatBranch[card.guid]) or "2a"
+	local pile=nil
+	if choice=="2b" then pile=level<=2 and "gray" or level<=6 and "purple" or "white"
+	else pile=level<=4 and "gray" or level<=8 and "purple" or "white" end
+	local enemy=apocalypseQuestSpawnEnemyToCombat(card,playerIndex,pile,true,0,0,"Coun")
+	if enemy==nil then return 0 end
+	if choice=="2b" then
+		if gStates.monsterPerks[enemy.guid]==nil then gStates.monsterPerks[enemy.guid]={} end
+		gStates.monsterPerks[enemy.guid].questHalfFame=true
+		broadcastToAll("{en}Traitor 2b: this enemy's Fame reward will be halved, rounded up.{ru}Traitor 2b: награда Славы за этого врага уменьшается вдвое с округлением вверх.{zh-tw}Traitor 2b：此敵人的聲望值獎勵減半並向上取整。{zh-cn}Traitor 2b：此敌人的声望值奖励减半并向上取整。{ko}Traitor 2b: 이 적의 명성 보상은 절반으로 줄이고 올림합니다.{es}Traitor 2b: la recompensa de Fama de este enemigo se reduce a la mitad, redondeando hacia arriba.{fr}Traitor 2b : la récompense de Renommée de cet ennemi est divisée par deux, arrondie au supérieur.{pt-br}Traitor 2b: a recompensa de Fama deste inimigo é reduzida pela metade, arredondando para cima.{de}Traitor 2b: Die Ruhmbelohnung dieses Gegners wird halbiert und aufgerundet.",positionToColor(playerIndex))
+	end
+	return 1
+end
+
+local hunterMoonHandler=apocalypseQuestRegisterHandler("783076")
+hunterMoonHandler.directChoices=function(card,playerIndex,state)
+	if state.step==1 then return {{key="1a",action="Progress"},{key="1b",action="Progress"}} end
+end
+hunterMoonHandler.enemyAttackButton=true
+hunterMoonHandler.launchCombat=function(card,playerIndex)
+	local moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
+	if moved>0 and apocalypseQuestCardManaColor(card)=="Black" and gStates.dayRound==true then broadcastToAll("{en}Hunter's Moon: during Day, the black mana token removes Swift from the werewolf for this combat.{ru}Hunter's Moon: Днём чёрный жетон маны убирает Быстроту у оборотня на этот бой.{zh-tw}Hunter's Moon：白天時，黑色魔力標記在此戰鬥中移除狼人身上的迅捷。{zh-cn}Hunter's Moon：白天时，黑色魔力标记在此战斗中移除狼人身上的迅捷。{ko}Hunter's Moon: 낮에는 검은 마나 토큰이 이 전투 동안 늑대인간의 신속을 제거합니다.{es}Hunter's Moon: durante el Día, la ficha de maná negra elimina Veloz del hombre lobo para este combate.{fr}Hunter's Moon : pendant le Jour, le jeton de mana noir retire Rapide au loup-garou pour ce combat.{pt-br}Hunter's Moon: durante o Dia, a ficha de mana preta remove Rápido do lobisomem neste combate.{de}Hunter's Moon: Am Tag entfernt der schwarze Manamarker für diesen Kampf Schnell vom Werwolf.",positionToColor(playerIndex)) end
+	return moved
+end
+
+local richMerchantHandler=apocalypseQuestRegisterHandler("8cff07")
+richMerchantHandler.filterOption=function(card,playerIndex,action,option,state,context)
+	if tostring(option.key)=="1" then
+		local rolled=gStates.apocalypseQuestRichMerchantRoll~=nil and gStates.apocalypseQuestRichMerchantRoll[card.guid] or nil
+		if action=="Progress" then context.include=rolled==nil end
+		if action=="Complete" then context.include=rolled~=nil and rolled.mage==turnOrder[playerIndex].mage and rolled.result~="Black" end
+	end
+	return context
+end
+richMerchantHandler.buttonState=function(card,playerIndex,questState,result)
+	if questState~=nil and questState.step==1 then
+		result.progressLabel="Proceed"
+		local rolled=gStates.apocalypseQuestRichMerchantRoll~=nil and gStates.apocalypseQuestRichMerchantRoll[card.guid] or nil
+		if rolled~=nil and rolled.mage==turnOrder[playerIndex].mage and rolled.result~="Black" then
+			result.progress=false
+			result.abandon=false
+		end
+	end
+end
+richMerchantHandler.advanceProgress=function(card,state,option)
+	if tostring(option.key)~="1" then return false end
+	local rolled=gStates.apocalypseQuestRichMerchantRoll~=nil and gStates.apocalypseQuestRichMerchantRoll[card.guid] or nil
+	return rolled==nil or rolled.result~="Black"
+end
+richMerchantHandler.launchCombat=function(card,playerIndex)
+	return apocalypseQuestSpawnEnemyToCombat(card,playerIndex,"gray",false,0,0)~=nil and 1 or 0
+end
+
+local guardDutyHandler=apocalypseQuestRegisterHandler("08ffcf")
+guardDutyHandler.filterOption=function(card,playerIndex,action,option,state,context)
+	if action=="Fail" then context.skipLocation=true end
+	return context
+end
+
+local veryPersonalHandler=apocalypseQuestRegisterHandler("b401dc")
+veryPersonalHandler.filterOption=function(card,playerIndex,action,option,state,context)
+	if state.step==2 and (action=="Complete" or action=="Fail") then
+		context.skipLegality=true
+		context.skipMarker=true
+	end
+	return context
+end
+veryPersonalHandler.bottomDeckAfterReveal=function(card)
+	if gStates.apocalypseQuestVeryPersonalSuccess==nil or gStates.apocalypseQuestVeryPersonalSuccess[card.guid]~=true then apocalypseQuestDisbandVeryPersonalUnit(card) end
+end
+
+local mineDoomHandler=apocalypseQuestRegisterHandler("485cc5")
+mineDoomHandler.starterLocationPrecheck=function(card,playerIndex,option,hex,mapObjects)
+	if gStates.apocalypseQuestMarkerPlacements~=nil and gStates.apocalypseQuestMarkerPlacements["2f238c"]==true then
+		return apocalypseQuestTokenOnHex("2f238c",hex,mapObjects)==true
+	end
+	return true
+end
+mineDoomHandler.progressColors=function(card,playerIndex,action,option)
+	if action=="Progress" and tostring(option.key)=="1" then return true,apocalypseQuestMineDoomColors(playerIndex) end
+	return false
+end
+mineDoomHandler.buttonState=function(card,playerIndex,questState,result)
+	if questState~=nil and questState.step==2 then
+		result.progressLabel="Attack"
+		result.progress=apocalypseQuestCombatAvailable(card,playerIndex)
+		result.fight=false
+	end
+end
+mineDoomHandler.progressCombatLaunch=function(player,card,playerIndex,action)
+	if action~="Progress" then return false end
+	local questState=apocalypseQuestProgressState(card,playerIndex,false)
+	if questState==nil or questState.step~=2 then return false end
+	apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil)
+	if getObjectFromGUID(card.guid)~=nil and (gStates.apocalypseQuestCombatChoice==nil or gStates.apocalypseQuestCombatChoice[card.guid]==nil) then apocalypseQuestInterfaceAdd(card,true) end
+	return true
+end
+mineDoomHandler.preserveCombatLaunchOnProgressKeys={["1"]=true}
+mineDoomHandler.launchCombat=function(card,playerIndex,playerColor,chosenColor)
+	if chosenColor==nil then
+		local colors=apocalypseQuestMineDoomColors(playerIndex)
+		if #colors==1 then chosenColor=colors[1]
+		elseif #colors>1 then chosenColor=gStates.apocalypseQuestMineDoomColor~=nil and gStates.apocalypseQuestMineDoomColor[card.guid] or colors[1] end
+	end
+	return apocalypseQuestLaunchMineDoom(card,playerIndex,chosenColor,#apocalypseQuestMineDoomColors(playerIndex)>1 and 1 or 0) and 1 or 0
+end
+
+local fogHandler=apocalypseQuestRegisterHandler("dd35bb")
+fogHandler.buttonState=function(card,playerIndex,questState,result)
+	if questState~=nil and questState.step==3 then
+		result.progressLabel="Proceed"
+		result.progress=apocalypseQuestFogPossessedReady(card)==true and apocalypseQuestCombatAvailable(card,playerIndex)
+		result.fight=false
+	end
+end
+fogHandler.progressCombatLaunch=function(player,card,playerIndex,action)
+	if action~="Progress" then return false end
+	local questState=apocalypseQuestProgressState(card,playerIndex,false)
+	if questState==nil or questState.step~=3 or apocalypseQuestFogPossessedReady(card)~=true then return false end
+	apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil)
+	if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end
+	return true
+end
+fogHandler.launchCombat=function(card,playerIndex)
+	broadcastToAll("{en}The Fog: skip the Ranged and Siege Attack phase during this Quest combat.{ru}The Fog: пропустите фазу Дальней и Осадной атаки в этом бою задания.{zh-tw}The Fog：此任務戰鬥跳過遠程與攻城攻擊階段。{zh-cn}The Fog：此任务战斗跳过远程与攻城攻击阶段。{ko}The Fog: 이 퀘스트 전투에서는 원거리 및 공성 공격 단계를 건너뜁니다.{es}The Fog: omite la fase de Ataque a Distancia y de Asedio durante este combate de Misión.{fr}The Fog : ignorez la phase d’Attaque à Distance et de Siège pendant ce combat de Quête.{pt-br}The Fog: pule a fase de Ataque à Distância e de Cerco durante este combate da Missão.{de}The Fog: Überspringe in diesem Quest-Kampf die Fern- und Belagerungsangriffsphase.",positionToColor(playerIndex))
+	return apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
+end
+
+local spellThiefHandler=apocalypseQuestRegisterHandler("8cdac4")
+local fistfulHandler=apocalypseQuestRegisterHandler("66ea80")
+local function launchClickedOrFirstQuestEnemy(card,playerIndex,playerColor,chosenColor,clickedEnemyGUID)
+	if clickedEnemyGUID~=nil then
+		local clicked=getObjectFromGUID(clickedEnemyGUID)
+		local onCard=false
+		for _,enemy in ipairs(apocalypseQuestObjectsOnCard(card)) do if enemy.guid==clickedEnemyGUID then onCard=true break end end
+		if clicked~=nil and onCard==true and monsterPugs[clicked.guid]~=nil and apocalypseQuestMoveEnemyToPlayer(card,playerIndex,clicked)==true then return 1 end
+		return 0
+	end
+	return apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
+end
+spellThiefHandler.enemyAttackButton=true
+spellThiefHandler.launchCombat=launchClickedOrFirstQuestEnemy
+fistfulHandler.enemyAttackButton=true
+fistfulHandler.launchCombat=launchClickedOrFirstQuestEnemy
+fistfulHandler.fistfulSetupKey="1"
+
+local wanderingOracleHandler=apocalypseQuestRegisterHandler("d70436")
+wanderingOracleHandler.preserveCombatLaunchOnProgressKeys={["2"]=true}
+wanderingOracleHandler.launchCombat=function(card,playerIndex)
+	local level=turnOrder[playerIndex].level or 1
+	local pile=level<=4 and "tan" or level<=8 and "white" or "red"
+	return apocalypseQuestSpawnEnemyToCombat(card,playerIndex,pile,false,0,0)~=nil and 1 or 0
+end
+
+local pilgrimageHandler=apocalypseQuestRegisterHandler("c73a1f")
+pilgrimageHandler.enemyAttackButton=true
+pilgrimageHandler.launchCombat=function(card,playerIndex) return apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1) end
+
+local artificerHandler=apocalypseQuestRegisterHandler("bb2828")
+artificerHandler.progressColors=function(card,playerIndex,action,option)
+	if action=="Progress" and tostring(option.key)=="2" then return true,apocalypseQuestArtificerAvailableColors(card,playerIndex) end
+	return false
+end
+
+local magicOverloadHandler=apocalypseQuestRegisterHandler("6175e8")
+magicOverloadHandler.skipGenericStepMarker=function(card,option) return tostring(option.key)=="3" end
+
+local misadventureHandler=apocalypseQuestRegisterHandler("082f39")
+misadventureHandler.starterLocationLegal=function(card,playerIndex,option,hex,mapObjects)
+	if tostring(option.key)=="1" and gStates.apocalypseQuestMarkerPlacements~=nil and gStates.apocalypseQuestMarkerPlacements["afcfc1"]==true then
+		return true,apocalypseQuestTokenOnHex("afcfc1",hex,mapObjects)==true
+	end
+	return false
+end
+
+local function apocalypseQuestUsesGenericStepMarker(card,option)
+	local handler=apocalypseQuestHandler(card)
+	return handler==nil or handler.skipGenericStepMarker==nil or handler.skipGenericStepMarker(card,option)~=true
+end
+
 function apocalypseQuestPlayerMayAct(card, playerIndex)
 	if card==nil or turnOrder[playerIndex]==nil then return false end
 	local playerDetails=turnOrder[playerIndex]
 	if playerDetails.mage==nil or playerDetails.mage=="nobody" or playerDetails.mage==gStates.positionMageKnight[5] or playerDetails.dropoutState~=nil then return false end
 	local quest=apocalypseQuestData[card.guid]
 	if quest==nil then return false end
-	if card.guid=="82a935" and apocalypseQuestPlayerBurnedMonastery(playerIndex)==true then return false end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.mayActBeforeOwnership~=nil then
+		local handled,result=handler.mayActBeforeOwnership(card,playerIndex)
+		if handled==true then return result==true end
+	end
 	if quest.questType~="Personal" then return true end
 	local ownerIndex=apocalypseQuestPersonalShieldOwner(card)
 	if ownerIndex~=nil then return ownerIndex==playerIndex end
-	if card.guid=="a6d5cc" then
-		local readyPlayer=apocalypseQuestUnderSiegeReadyPlayer()
-		if readyPlayer~=nil and readyPlayer~=playerIndex then return false end
+	if handler~=nil and handler.mayAct~=nil then
+		local handled,result=handler.mayAct(card,playerIndex)
+		if handled==true then return result==true end
 	end
 	if apocalypseQuestPlayerHasOtherPersonalQuest(playerIndex, card.guid)==true then return false end
 	return true
@@ -32241,32 +33048,16 @@ function apocalypseQuestCurrentOptions(card, playerIndex, action)
 			elseif action=="Fail" then
 				include=option.canFail==true
 			end
-			if card.guid=="72099f" and tostring(option.key)=="1" and action=="Progress" then
-				include=apocalypseQuestGoblinAttemptReady(playerIndex)
-			end
-			if card.guid=="bbd087" and apocalypseQuestStepNumber(option.key)==3 and action=="Complete" then
-				include=include==true and apocalypseQuestCardCrystalColor(card)~=nil
-			end
-			if card.guid=="8cff07" and tostring(option.key)=="1" then
-				local rolled=gStates.apocalypseQuestRichMerchantRoll~=nil and gStates.apocalypseQuestRichMerchantRoll[card.guid] or nil
-				--Before the roll, Proceed is the Step-1 action. Once a non-Black result has resolved, the only
-				--remaining Step-1 action is Complete; Proceed must not be rolled again.
-				if action=="Progress" then include=rolled==nil end
-				if action=="Complete" then include=rolled~=nil and rolled.mage==turnOrder[playerIndex].mage and rolled.result~="Black" end
-			end
-			local veryPersonalManual=card.guid=="b401dc" and state.step==2 and (action=="Complete" or action=="Fail")
-			local freeWineResolution=card.guid=="37e2ce" and state.step==2 and (action=="Complete" or action=="Fail")
-			if freeWineResolution==true then
-				--Quest 10 resolves the already committed Keep assault. Its result remains valid after a Proxy or
-				--other turn intervenes, so do not run the generic conquered-*this-turn* location gate here.
-				include=action=="Complete" and apocalypseQuestFreeWineSuccessReady(playerIndex) or apocalypseQuestFreeWineFailureReady(playerIndex)
-			elseif include==true and veryPersonalManual~=true then
-				local failIgnoresLocation=action=="Fail" and card.guid=="08ffcf"
-				local locationReady=failIgnoresLocation or apocalypseQuestStarterLocationLegal(card,playerIndex,option)
+			local handler=apocalypseQuestHandler(card)
+			local context={include=include,skipLegality=false,skipLocation=false,skipMarker=false}
+			if handler~=nil and handler.filterOption~=nil then context=handler.filterOption(card,playerIndex,action,option,state,context) or context end
+			include=context.include==true
+			if include==true and context.skipLegality~=true then
+				local locationReady=context.skipLocation==true or apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 				local specialReady=action=="Fail" and apocalypseQuestFailureReady(card,option,playerIndex) or apocalypseQuestStepSpecialLegal(card,playerIndex,option)
 				include=locationReady==true and specialReady==true
 			end
-			if include==true and action~="Fail" and veryPersonalManual~=true and freeWineResolution~=true then
+			if include==true and action~="Fail" and context.skipMarker~=true then
 				if placementAvailable==nil then
 					local ok, available=pcall(apocalypseQuestMarkerPlacementAvailable, card, playerIndex, option)
 					if ok==true then
@@ -32284,13 +33075,15 @@ function apocalypseQuestCurrentOptions(card, playerIndex, action)
 	return options
 end
 function apocalypseQuestActionEnabled(card, playerIndex, action)
-	if action=="Fail" and card~=nil and card.guid=="ce70fb" and gStates.apocalypseQuestCombatBranch~=nil and gStates.apocalypseQuestCombatBranch[card.guid]=="2b" then return false end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.actionEnabled~=nil then
+		local handled,result=handler.actionEnabled(card,playerIndex,action)
+		if handled==true then return result==true end
+	end
 	if gStates.mineClaimPending~=nil and gStates.mineClaimPending.source=="Quest" and gStates.mineClaimPending.questCardGUID==card.guid then return false end
 	if action=="Abandon" then
 		local quest=card~=nil and apocalypseQuestData[card.guid] or nil
 		if quest==nil or quest.questType~="Personal" then return false end
-		if card.guid=="a6d5cc" and apocalypseQuestPersonalShieldOwner(card)~=nil then return false end
-		if card.guid=="82a935" and apocalypseQuestCombatStartedThisTurn(card,2)==true and gStates.apocalypseQuestDirectBranch~=nil and gStates.apocalypseQuestDirectBranch[card.guid]=="2c" then return false end
 		local ownerIndex=apocalypseQuestPersonalShieldOwner(card)
 		if ownerIndex~=nil then return ownerIndex==playerIndex end
 		if apocalypseQuestNeutralShield(card)~=nil then return apocalypseQuestPlayerMayAct(card, playerIndex)==true end
@@ -32485,10 +33278,8 @@ end
 function apocalypseQuestAdvanceProgress(card, state, option)
 	if card==nil or state==nil or option==nil then return end
 	local quest=apocalypseQuestData[card.guid]
-	if card.guid=="8cff07" and tostring(option.key)=="1" then
-		local rolled=gStates.apocalypseQuestRichMerchantRoll~=nil and gStates.apocalypseQuestRichMerchantRoll[card.guid] or nil
-		if rolled==nil or rolled.result~="Black" then return end
-	end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.advanceProgress~=nil and handler.advanceProgress(card,state,option)==true then return end
 	local repeatCount=math.max(0, tonumber(option.repeatCount) or 0)
 	if repeatCount>0 then
 		local count=(state.repeats[option.key] or 0)+1
@@ -32565,77 +33356,41 @@ function apocalypseQuestDirectChoices(card,playerIndex)
 	if state==nil or state.completed==true then return choices end
 	local already=gStates.apocalypseQuestDirectBranch~=nil and gStates.apocalypseQuestDirectBranch[card.guid] or nil
 	if already~=nil then return choices end
-	if card.guid=="72099f" and state.step==1 and apocalypseQuestGoblinAttempt(playerIndex,true)==nil then
-		choices={{key="Goblin1",action="GoblinWarrens",label="1"},{key="Goblin2",action="GoblinWarrens",label="2"},{key="Goblin3",action="GoblinWarrens",label="3"}}
-	elseif card.guid=="8939c0" and state.step==1 then choices={{key="1a",action="Complete"},{key="1b",action="Combat"},{key="1c",action="Complete"}}
-	elseif card.guid=="bbd087" and state.step==3 and apocalypseQuestCardCrystalColor(card)~=nil then
-		local option=apocalypseQuestChoiceOption(card,"3a")
-		if option~=nil and apocalypseQuestStarterLocationLegal(card,playerIndex,option)==true then
-			choices={{key="3a",action="Complete",label="3A"},{key="3b",action="Complete",label="3B"}}
-		end
-	elseif card.guid=="37e2ce" and state.step==1 then choices={{key="1a",action="Progress"},{key="1b",action="Complete"}}
-	elseif card.guid=="a6d5cc" and state.step==2 and apocalypseQuestCombatStartedThisTurn(card,2)~=true then choices={{key="2a",action="Combat",label="2A"},{key="2b",action="Fail",label="{en}2B - Fail{ru}2B - Провал{zh-tw}2B - 失敗{zh-cn}2B - 失败{ko}2B - 실패{es}2B - Fallar{fr}2B - Échouer{pt-br}2B - Falhar{de}2B - Scheitern"}}
-	elseif card.guid=="82a935" and state.step==2 then choices={{key="2a",action="Complete"},{key="2b",action="Complete"},{key="2c",action="Combat"}}
-	elseif card.guid=="8455b5" and state.step==2 and apocalypseQuestPersonalShieldOwner(card)==playerIndex then
-		--The Admiring Bard's defeated-enemy branch is player-declared. Combat cleanup removes defeated
-		--tokens before the Quest can reliably inspect them, so keep all three printed outcomes available.
-		choices={{key="2a",action="Progress",label="2A"},{key="2b",action="Progress",label="2B"},{key="2c",action="Progress",label="2C"}}
-	elseif card.guid=="ce70fb" and state.step==2 then choices={{key="2a",action="Combat"},{key="2b",action="Combat"}}
-	elseif card.guid=="783076" and state.step==1 then choices={{key="1a",action="Progress"},{key="1b",action="Progress"}} end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.directChoices~=nil then return handler.directChoices(card,playerIndex,state) or choices end
 	return choices
 end
 
 function apocalypseQuestDirectChoiceLegal(card,playerIndex,choice)
 	if card==nil or choice==nil then return false end
-	if card.guid=="bbd087" and apocalypseQuestStepNumber(choice.key)==3 and apocalypseQuestCardCrystalColor(card)==nil then return false end
-	if card.guid=="72099f" and choice.action=="GoblinWarrens" then
-		local option=apocalypseQuestChoiceOption(card,"1")
-		return option~=nil and apocalypseQuestGoblinAttempt(playerIndex,true)==nil and apocalypseQuestStarterLocationLegal(card,playerIndex,option)==true and apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)==true
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.directChoiceLegal~=nil then
+		local handled,result=handler.directChoiceLegal(card,playerIndex,choice)
+		if handled==true then return result==true end
 	end
 	local option=apocalypseQuestChoiceOption(card,choice.key)
 	if option==nil or apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then return false end
-	if card.guid=="a6d5cc" and apocalypseQuestStepNumber(choice.key)==2 and apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,choice.key)~=true then return false end
 	if choice.action~="Combat" and apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)~=true then return false end
 	return true
 end
 function apocalypseQuestButtonState(card, playerIndex)
-	local progressEnabled=apocalypseQuestActionEnabled(card, playerIndex, "Progress")
-	local completeEnabled=apocalypseQuestActionEnabled(card, playerIndex, "Complete")
-	local abandonEnabled=apocalypseQuestActionEnabled(card, playerIndex, "Abandon")
+	local result={
+		progress=apocalypseQuestActionEnabled(card,playerIndex,"Progress"),
+		progressLabel="Progress",
+		complete=apocalypseQuestActionEnabled(card,playerIndex,"Complete"),
+		abandon=apocalypseQuestActionEnabled(card,playerIndex,"Abandon"),
+		fail=apocalypseQuestActionEnabled(card,playerIndex,"Fail"),
+		failLabel="Fail"
+	}
 	local quest=apocalypseQuestData[card.guid]
-	local abandonLabel=quest~=nil and quest.questType=="Personal" and apocalypseQuestPersonalShieldOwner(card)==nil and apocalypseQuestNeutralShield(card)~=nil and "Resume" or "Abandon"
-	local failEnabled=apocalypseQuestActionEnabled(card, playerIndex, "Fail")
+	result.abandonLabel=quest~=nil and quest.questType=="Personal" and apocalypseQuestPersonalShieldOwner(card)==nil and apocalypseQuestNeutralShield(card)~=nil and "Resume" or "Abandon"
 	local enemyAttackButton=apocalypseQuestUsesEnemyAttackButton(card)==true
 	if enemyAttackButton==true then apocalypseQuestRefreshEnemyAttackButtons(card,playerIndex) end
 	local questState=apocalypseQuestProgressState(card,playerIndex,false)
-	local mineDoomAttack=card.guid=="485cc5" and questState~=nil and questState.step==2
-	local fogFinalFight=card.guid=="dd35bb" and questState~=nil and questState.step==3
-	local fightRelevant=enemyAttackButton~=true and mineDoomAttack~=true and fogFinalFight~=true and apocalypseQuestCombatRelevant(card,playerIndex)
-	local progressLabel="Progress"
-	local failLabel="Fail"
-	if mineDoomAttack==true then
-		--Mine of Doom uses the normal Quest action slot as its combat launcher instead of adding
-		--the separate Attack icon beneath the card controls.
-		progressLabel="Attack"
-		progressEnabled=apocalypseQuestCombatAvailable(card,playerIndex)
-	elseif fogFinalFight==true then
-		progressLabel="Proceed"
-		progressEnabled=apocalypseQuestFogPossessedReady(card)==true and apocalypseQuestCombatAvailable(card,playerIndex)
-	elseif card.guid=="72099f" and questState~=nil and questState.step==1 then
-		progressLabel="Proceed"
-	elseif card.guid=="8cff07" and questState~=nil and questState.step==1 then
-		progressLabel="Proceed"
-		local rolled=gStates.apocalypseQuestRichMerchantRoll~=nil and gStates.apocalypseQuestRichMerchantRoll[card.guid] or nil
-		if rolled~=nil and rolled.mage==turnOrder[playerIndex].mage and rolled.result~="Black" then
-			progressEnabled=false
-			abandonEnabled=false
-		end
-	elseif card.guid=="a6d5cc" then
-		if questState==nil or questState.step==1 then progressLabel="Proceed" end
-		if questState~=nil and questState.step==2 then failLabel="2B - Fail" end
-	end
-	return {progress=progressEnabled,progressLabel=progressLabel,complete=completeEnabled,abandon=abandonEnabled,abandonLabel=abandonLabel,fail=failEnabled,failLabel=failLabel,
-		fight=fightRelevant and apocalypseQuestCombatAvailable(card,playerIndex)}
+	result.fight=enemyAttackButton~=true and apocalypseQuestCombatRelevant(card,playerIndex) and apocalypseQuestCombatAvailable(card,playerIndex)
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.buttonState~=nil then handler.buttonState(card,playerIndex,questState,result) end
+	return result
 end
 
 function apocalypseQuestUpdateProgressButtons(card)
@@ -32821,8 +33576,9 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 		end
 		--Admiring Bard Step 2 uses three player-declared outcomes but must retain the Personal Quest
 		--Abandon action as the fourth control. Once abandoned, directChoices disappears and Resume returns.
-		local bardState=card.guid=="8455b5" and apocalypseQuestProgressState(card,interfacePlayer,false) or nil
-		if bardState~=nil and bardState.step==2 and #directChoices==3 then
+		local handler=apocalypseQuestHandler(card)
+		local directState=handler~=nil and handler.directChoicesAllowAbandon==true and apocalypseQuestProgressState(card,interfacePlayer,false) or nil
+		if directState~=nil and #directChoices==3 then
 			local abandon=apocalypseQuestActionEnabled(card,interfacePlayer,"Abandon")
 			xml[#xml+1]=questButton("Abandon","Abandon",spots[4][1],spots[4][2],abandon and "#d5b784" or "#b5b5b5",abandon)
 		end
@@ -33194,13 +33950,50 @@ function apocalypseQuestFinishCompletedCard(card)
 	if quest~=nil and quest.keepToken==true then return apocalypseQuestParkReminder(card) end
 	return apocalypseQuestBottomDeck(card)
 end
+local apocalypseQuestCardRuntimeStores={
+	"apocalypseQuestReminderCards",
+	"apocalypseQuestProgress",
+	"apocalypseQuestPendingChoice",
+	"apocalypseQuestCombatChoice",
+	"apocalypseQuestCombatLaunches",
+	"apocalypseQuestCombatEnemies",
+	"apocalypseQuestCombatBranch",
+	"apocalypseQuestCursedHero",
+	"apocalypseQuestCursedHistory",
+	"apocalypseQuestHerbalistRolls",
+	"apocalypseQuestDirectBranch",
+	"apocalypseQuestCombatStarted",
+	"apocalypseQuestRewardCompletionPending",
+	"apocalypseQuestMineDoomColor",
+	"apocalypseQuestStepColor",
+	"apocalypseQuestRichMerchantRoll",
+	"apocalypseQuestRichMerchantHidden",
+	"apocalypseQuestVeryPersonalSuccess",
+	"apocalypseQuestRevealDone",
+	"apocalypseQuestRevealPending"
+}
+
+local function apocalypseQuestClearCardRuntime(cardGUID)
+	if cardGUID==nil then return end
+	local herbalist=gStates.apocalypseQuestHerbalistRolls~=nil and gStates.apocalypseQuestHerbalistRolls[cardGUID] or nil
+	if herbalist~=nil then
+		local die=herbalist.dieGUID~=nil and getObjectFromGUID(herbalist.dieGUID) or nil
+		if die~=nil then die.destruct() end
+		if gStates.apocalypseQuestRollDice~=nil and herbalist.dieGUID~=nil then gStates.apocalypseQuestRollDice[herbalist.dieGUID]=nil end
+	end
+	for _,storeName in ipairs(apocalypseQuestCardRuntimeStores) do
+		local store=gStates[storeName]
+		if store~=nil then store[cardGUID]=nil end
+	end
+	if apocalypseQuestRevealWaitScheduled~=nil then apocalypseQuestRevealWaitScheduled[cardGUID]=nil end
+end
+
 function apocalypseQuestBottomDeck(card,onComplete)
 	if card==nil then if onComplete~=nil then onComplete(false) end return false end
-	if card.guid=="a6d5cc" then gStates.apocalypseQuestUnderSiegeReady=nil gStates.apocalypseQuestUnderSiegeStep2=nil end
-	if card.guid=="37e2ce" then gStates.apocalypseQuestFreeWineAssault=nil end
-	if card.guid=="72099f" then gStates.apocalypseQuestGoblinWarrens={} end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.bottomDeckBeforeReveal~=nil then handler.bottomDeckBeforeReveal(card) end
 	apocalypseQuestReturnRevealBag(card)
-	if card.guid=="b401dc" and (gStates.apocalypseQuestVeryPersonalSuccess==nil or gStates.apocalypseQuestVeryPersonalSuccess[card.guid]~=true) then apocalypseQuestDisbandVeryPersonalUnit(card) end
+	if handler~=nil and handler.bottomDeckAfterReveal~=nil then handler.bottomDeckAfterReveal(card) end
 	--Round refresh/failure can remove an unfinished Quest after it has already granted a reminder marker.
 	--Such a card follows the same reminder rule as a normally completed Quest.
 	if apocalypseQuestHasActiveReminderToken(card)==true and (gStates.apocalypseQuestReminderCards==nil or gStates.apocalypseQuestReminderCards[card.guid]==nil) then
@@ -33208,33 +34001,7 @@ function apocalypseQuestBottomDeck(card,onComplete)
 		if onComplete~=nil then onComplete(parked==true) end
 		return parked
 	end
-	if gStates.apocalypseQuestReminderCards~=nil then gStates.apocalypseQuestReminderCards[card.guid]=nil end
-	if gStates.apocalypseQuestProgress~=nil then gStates.apocalypseQuestProgress[card.guid]=nil end
-	if gStates.apocalypseQuestPendingChoice~=nil then gStates.apocalypseQuestPendingChoice[card.guid]=nil end
-	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
-	if gStates.apocalypseQuestCombatLaunches~=nil then gStates.apocalypseQuestCombatLaunches[card.guid]=nil end
-	if gStates.apocalypseQuestCombatEnemies~=nil then gStates.apocalypseQuestCombatEnemies[card.guid]=nil end
-	if gStates.apocalypseQuestCombatBranch~=nil then gStates.apocalypseQuestCombatBranch[card.guid]=nil end
-	if gStates.apocalypseQuestCursedHero~=nil then gStates.apocalypseQuestCursedHero[card.guid]=nil end
-	if gStates.apocalypseQuestCursedHistory~=nil then gStates.apocalypseQuestCursedHistory[card.guid]=nil end
-	if gStates.apocalypseQuestHerbalistRolls~=nil and gStates.apocalypseQuestHerbalistRolls[card.guid]~=nil then
-		local roll=gStates.apocalypseQuestHerbalistRolls[card.guid]
-		local die=roll.dieGUID~=nil and getObjectFromGUID(roll.dieGUID) or nil
-		if die~=nil then die.destruct() end
-		if gStates.apocalypseQuestRollDice~=nil and roll.dieGUID~=nil then gStates.apocalypseQuestRollDice[roll.dieGUID]=nil end
-		gStates.apocalypseQuestHerbalistRolls[card.guid]=nil
-	end
-	if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[card.guid]=nil end
-	if gStates.apocalypseQuestCombatStarted~=nil then gStates.apocalypseQuestCombatStarted[card.guid]=nil end
-	if gStates.apocalypseQuestRewardCompletionPending~=nil then gStates.apocalypseQuestRewardCompletionPending[card.guid]=nil end
-	if gStates.apocalypseQuestMineDoomColor~=nil then gStates.apocalypseQuestMineDoomColor[card.guid]=nil end
-	if gStates.apocalypseQuestStepColor~=nil then gStates.apocalypseQuestStepColor[card.guid]=nil end
-	if gStates.apocalypseQuestRichMerchantRoll~=nil then gStates.apocalypseQuestRichMerchantRoll[card.guid]=nil end
-	if gStates.apocalypseQuestRichMerchantHidden~=nil then gStates.apocalypseQuestRichMerchantHidden[card.guid]=nil end
-	if gStates.apocalypseQuestVeryPersonalSuccess~=nil then gStates.apocalypseQuestVeryPersonalSuccess[card.guid]=nil end
-	if gStates.apocalypseQuestRevealDone~=nil then gStates.apocalypseQuestRevealDone[card.guid]=nil end
-	if gStates.apocalypseQuestRevealPending~=nil then gStates.apocalypseQuestRevealPending[card.guid]=nil end
-	if apocalypseQuestRevealWaitScheduled~=nil then apocalypseQuestRevealWaitScheduled[card.guid]=nil end
+	apocalypseQuestClearCardRuntime(card.guid)
 	apocalypseQuestInterfaceRemove(card)
 	local deck=apocalypseQuestLiveDeck()
 	if deck==nil or deck.guid==card.guid then if onComplete~=nil then onComplete(false) end return false end
@@ -33271,13 +34038,8 @@ function apocalypseQuestBottomDeck(card,onComplete)
 		elseif monsterPugs[obj.guid]~=nil then
 			--Quest enemies always leave through their discard piles, defeated or not. Their original source
 			--pile is not restored when the Quest leaves play.
-			local detached=clearPossessedEnemy(obj)
-			local possessedDiscard=getObjectFromGUID(GUID.bag.discard.possessed)
-			for _, token in ipairs(detached or {}) do if possessedDiscard~=nil then possessedDiscard.putObject(token) else token.destruct() end end
-			local pugType=monsterPugs[obj.guid].pugType
-			local discardGUID=({gray=GUID.bag.discard.keepGarrison,purple=GUID.bag.discard.towerGarrison,white=GUID.bag.discard.cityGarrison,
-				red=GUID.bag.discard.draconum,green=GUID.bag.discard.orcs,tan=GUID.bag.discard.dungeon})[pugType]
-			local destination=discardGUID~=nil and getObjectFromGUID(discardGUID) or nil
+			apocalypseQuestDetachPossessedForDiscard(obj)
+			local destination=apocalypseQuestEnemyDiscardDestination(obj)
 			if destination~=nil then apocalypseQuestStageIntoContainer(obj,destination) end
 		elseif obj.type=="Card" then
 			--BottomDeck owns tucked-card detachment for completion, failure and end-of-round expiry alike.
@@ -33368,57 +34130,443 @@ function apocalypseQuestClaimAbandonedPersonal(card, playerIndex)
 	apocalypseQuestRegisterMoveAttachment(card,shield,target)
 	return true
 end
-function apocalypseQuestResolveStepAction(card, playerIndex, action, option, playerColor, rewindReady)
-	if card==nil or option==nil or turnOrder[playerIndex]==nil then return false end
-	if card.isSmoothMoving()==true then
-		local cardGUID=card.guid
-		safeWaitCondition("Quests",function()
-			local live=getObjectFromGUID(cardGUID)
-			if live~=nil then apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
-		end,function()
-			local live=getObjectFromGUID(cardGUID)
-			return live==nil or live.isSmoothMoving()==false
-		end,5,function()
-			local live=getObjectFromGUID(cardGUID)
-			if live~=nil then apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
-		end)
+local function apocalypseQuestWaitForStepResolution(card,playerIndex,action,option,playerColor,rewindReady)
+if card==nil or option==nil or turnOrder[playerIndex]==nil then return false end
+if card.isSmoothMoving()==true then
+	local cardGUID=card.guid
+	safeWaitCondition("Quests",function()
+		local live=getObjectFromGUID(cardGUID)
+		if live~=nil then apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
+	end,function()
+		local live=getObjectFromGUID(cardGUID)
+		return live==nil or live.isSmoothMoving()==false
+	end,5,function()
+		local live=getObjectFromGUID(cardGUID)
+		if live~=nil then apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
+	end)
+	return true
+end
+	return nil
+end
+
+local function apocalypseQuestValidateStepResolution(card,playerIndex,action,option,playerColor,quest)
+local handler=apocalypseQuestHandler(card)
+local handledColors,colors=false,nil
+if handler~=nil and handler.progressColors~=nil then handledColors,colors=handler.progressColors(card,playerIndex,action,option) end
+if handledColors==true then
+	colors=colors or {}
+	if #colors==0 then return false end
+	if gStates.apocalypseQuestStepColor==nil then gStates.apocalypseQuestStepColor={} end
+	if gStates.apocalypseQuestStepColor[card.guid]==nil and #colors>1 then
+		if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+		gStates.apocalypseQuestCombatChoice[card.guid]={playerIndex=playerIndex,colors=colors,mode="ProgressColor",action=action,key=tostring(option.key)}
+		apocalypseQuestInterfaceAdd(card,true)
 		return true
 	end
+	if gStates.apocalypseQuestStepColor[card.guid]==nil then gStates.apocalypseQuestStepColor[card.guid]=colors[1] end
+end
+local minimumReputationModifier=option.minimumReputationModifier or quest.minimumReputationModifier
+if minimumReputationModifier~=nil and action~="Fail" then
+	refreshPlayerReputationFromShield(playerIndex)
+	local effectiveReputation=math.max(-7, math.min(7, (turnOrder[playerIndex].reputation or 0)+(turnOrder[playerIndex].repGain or 0)))
+	local repData=reputationTable[effectiveReputation]
+	local repModifier=repData~=nil and tonumber(repData.repDisplay) or nil
+	if repModifier==nil or repModifier<minimumReputationModifier then
+		if playerColor~=nil then broadcastToColor(joinLang({"{en}This Quest step requires a Reputation Modifier of {ru}Этот шаг задания требует модификатор Репутации {zh-tw}此任務步驟需要聲望修正值至少為 {zh-cn}此任务步骤需要声望修正值至少为 {ko}이 퀘스트 단계에는 평판 수정치 {es}Este paso de Misión requiere un Modificador de Reputación de {fr}Cette étape de Quête exige un Modificateur de Réputation de {pt-br}Esta etapa da Missão exige um Modificador de Reputação de {de}Dieser Quest-Schritt erfordert einen Ansehensmodifikator von ",tostring(minimumReputationModifier),"{en} or higher.{ru} или выше.{zh-tw}。{zh-cn}。{ko} 이상이 필요합니다.{es} o superior.{fr} ou plus.{pt-br} ou superior.{de} oder höher."}), playerColor, warningColor) end
+		return false
+	end
+end
+if action=="Fail" and apocalypseQuestFailureReady(card,option,playerIndex)~=true then
+	if playerColor~=nil then broadcastToColor("{en}Start this Quest combat before resolving Fail.{ru}Начните бой задания перед разрешением Провала.{zh-tw}在結算失敗前先開始此任務戰鬥。{zh-cn}在结算失败前先开始此任务战斗。{ko}실패를 처리하기 전에 이 퀘스트 전투를 시작하십시오.{es}Inicia este combate de Misión antes de resolver Fallar.{fr}Commencez ce combat de Quête avant de résoudre Échouer.{pt-br}Inicie este combate da Missão antes de resolver Falhar.{de}Beginne diesen Quest-Kampf, bevor du Scheitern abwickelst.",playerColor,warningColor) end
+	return false
+end
+if action~="Fail" and apocalypseQuestStepSpecialLegal(card,playerIndex,option)~=true then
+	if playerColor~=nil then broadcastToColor(joinLang({"{en}The combat requirement for Quest step {ru}Требование боя для шага задания {zh-tw}尚未偵測到任務步驟 {zh-cn}尚未检测到任务步骤 {ko}퀘스트 단계 {es}Aún no se ha detectado el requisito de combate del paso de Misión {fr}La condition de combat de l’étape de Quête {pt-br}O requisito de combate da etapa da Missão {de}Die Kampfanforderung für Quest-Schritt ",tostring(option.key),"{en} has not been detected yet.{ru} ещё не обнаружено.{zh-tw} 的戰鬥要求。{zh-cn} 的战斗要求。{ko}의 전투 요구 사항이 아직 감지되지 않았습니다.{es}.{fr} n’a pas encore été détectée.{pt-br} ainda não foi detectado.{de} wurde noch nicht erkannt."}),playerColor,warningColor) end
+	return false
+end
+	return nil
+end
+
+local function apocalypseQuestFinishResolution(questRewindOwner,delay)
+	if delay~=nil and delay>0 then safeWaitTime("Quests",function() rewindTransactionFinish(questRewindOwner) end,delay)
+	else rewindTransactionFinish(questRewindOwner) end
+end
+
+local function apocalypseQuestResolveRichMerchantProgress(card,playerIndex,option,playerColor,state,finishQuestResolution)
+--A Rich Merchant Step 1 must use the face of a real rolled mana die. The die can appear immediately
+--over slot 1 because that destination is already known; the Quest card starts moving there at once.
+--Black advances to Step 2; the other results leave Step 1 ready to Complete.
+if apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
+if apocalypseQuestClaimAbandonedPersonal(card,playerIndex)~=true then
+	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.",playerColor,{1,0.55,0.2}) end
+	finishQuestResolution(0.5)
+	return false
+end
+apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
+if apocalypseQuestPositionProgressShield(card,playerIndex,option)~=true then
+	apocalypseQuestEndMoveAttachmentCapture(card)
+	if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.",playerColor,{1,0.55,0.2}) end
+	finishQuestResolution(0.5)
+	return false
+end
+apocalypseQuestEndMoveAttachmentCapture(card)
+apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+local started=apocalypseQuestRollVisibleManaDie(card,playerIndex,"A Rich Merchant",function(rolled,liveCard)
+	if liveCard==nil then finishQuestResolution(0.5) return end
+	if rolled==nil then
+		--Stay on Step 1 so Proceed can simply be tried again if the physical die was unreadable.
+		apocalypseQuestInterfaceAdd(liveCard,true)
+		finishQuestResolution(0.5)
+		return
+	end
+	apocalypseQuestResolveRichMerchantRoll(liveCard,playerIndex,rolled)
+	if rolled=="Black" then apocalypseQuestAdvanceProgress(liveCard,state,option) end
+	apocalypseQuestRefreshOfferButtons()
+	finishQuestResolution(0.5)
+end,apocalypseQuestOfferPosition(1))
+if started~=true then
+	if gStates.apocalypseQuestMoveAttachments~=nil then gStates.apocalypseQuestMoveAttachments[card.guid]=nil end
+	apocalypseQuestPositionProgressShield(card,playerIndex,option)
+	apocalypseQuestInterfaceAdd(card,true)
+	finishQuestResolution(0.5)
+	return false
+end
+apocalypseQuestCommitStepMarker(card,option)
+--Suppress the normal settled refresh while the visible die is still resolving; its callback refreshes
+--the Quest once the result is known. The physical offer still starts moving immediately.
+apocalypseQuestOfferMoveToLeft(card,function() end)
+return true
+end
+
+apocalypseQuestRegisterHandler("8cff07").progressAction=function(card,playerIndex,option,playerColor,state,questState,finishQuestResolution)
+	if tostring(option.key)~="1" then return false end
+	return true,apocalypseQuestResolveRichMerchantProgress(card,playerIndex,option,playerColor,state,finishQuestResolution)
+end
+
+local function apocalypseQuestResolveProgressAction(card,playerIndex,option,playerColor,state,questState,finishQuestResolution)
+local handler=apocalypseQuestHandler(card)
+if apocalypseQuestUsesGenericStepMarker(card,option)==true and apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
+--Plan the offer move before any replacement/progress Shield is created so every new Shield
+--uses slot 1 immediately and is explicitly owned by this Quest during the reorder.
+apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
+if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
+	apocalypseQuestEndMoveAttachmentCapture(card)
+	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
+	finishQuestResolution(0.5)
+	return false
+end
+if apocalypseQuestPositionProgressShield(card, playerIndex, option)~=true then
+	apocalypseQuestEndMoveAttachmentCapture(card)
+	if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.", playerColor, {1,0.55,0.2}) end
+	finishQuestResolution(0.5)
+	return false
+end
+apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
+apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+local key=tostring(option.key)
+local fistfulSetup=handler~=nil and handler.fistfulSetupKey==key
+local launchedNext=handler~=nil and handler.preserveCombatLaunchOnProgressKeys~=nil and handler.preserveCombatLaunchOnProgressKeys[key]==true
+--Resolve the step immediately, as before. Anything leaving the Quest card moves away now. New objects
+--created on the card are explicitly captured for the imminent offer move, so they travel with the card
+--without waiting for the scripting zone to notice them.
+apocalypseQuestResolveSpecialEffect(card, playerIndex, option, false)
+apocalypseQuestEndMoveAttachmentCapture(card)
+if gStates.apocalypseQuestStepColor~=nil then gStates.apocalypseQuestStepColor[card.guid]=nil end
+apocalypseQuestAdvanceProgress(card, state, option)
+if launchedNext==true and apocalypseQuestCombatStartedThisTurn(card,state.step)==true then
+	if gStates.apocalypseQuestCombatLaunches==nil then gStates.apocalypseQuestCombatLaunches={} end
+	gStates.apocalypseQuestCombatLaunches[card.guid]=apocalypseQuestCombatLaunchKey(card,state)
+end
+--Commit before the offer snapshot. A Quest marker may still be travelling to the map and must not be
+--mistaken for an attachment that should follow the card left.
+if apocalypseQuestUsesGenericStepMarker(card,option)==true then apocalypseQuestCommitStepMarker(card,option) end
+if fistfulSetup==true then
+	--Let the card reach slot 1 before drawing from the same gray bag twice. The short gap also
+	--ensures the first takeObject has fully left the container before the second extraction.
+	apocalypseQuestOfferMoveToLeft(card,function(liveCard)
+		apocalypseQuestPlaceFistfulEnemies(liveCard,function()
+			apocalypseQuestRefreshOfferButtons()
+			finishQuestResolution(0.5)
+		end)
+	end)
+else
+	apocalypseQuestOfferMoveToLeft(card)
+	finishQuestResolution(1.0)
+end
+broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} progressed a Quest ({ru} продвинул задание ({zh-tw} 推進了一個任務（{zh-cn} 推进了一个任务（{ko}이(가) 퀘스트를 진행했습니다 ({es} progresó una Misión ({fr} a fait progresser une Quête ({pt-br} progrediu uma Missão ({de} hat eine Quest vorangebracht (",tostring(option.key),")."}), positionToColor(playerIndex))
+return true
+end
+
+local function apocalypseQuestPrepareGuardDutyCompletion(card,playerIndex,option,playerColor,finishQuestResolution)
+	if tostring(option.key)~="2" then return false,true,nil end
+	local distance=apocalypseQuestGuardDutyDistance(playerIndex)
+	if distance==nil then
+		if playerColor~=nil then broadcastToColor("{en}Guard Duty could not measure a revealed-space path back to the merchant marker.{ru}Guard Duty не смог определить путь по открытым клеткам обратно к жетону торговца.{zh-tw}Guard Duty 無法計算沿已揭示空間返回商人標記的路徑。{zh-cn}Guard Duty 无法计算沿已揭示空间返回商人标记的路径。{ko}Guard Duty에서 공개된 칸을 따라 상인 마커로 돌아가는 경로를 계산하지 못했습니다.{es}Guard Duty no pudo calcular una ruta por espacios revelados hasta el marcador del mercader.{fr}Guard Duty n’a pas pu calculer un trajet par les cases révélées jusqu’au marqueur du marchand.{pt-br}Guard Duty não conseguiu calcular uma rota por espaços revelados até o marcador do mercador.{de}Guard Duty konnte keinen Weg über aufgedeckte Felder zurück zum Händlermarker bestimmen.",playerColor,{1,0.55,0.2}) end
+		finishQuestResolution(0.5)
+		return true,false,nil
+	end
+	return true,true,{guardDutyDistance=distance}
+end
+
+local function apocalypseQuestCompleteNobleWarrior(card,playerIndex,option,playerColor,context,finishQuestResolution)
+	if tostring(option.key)~="3a" then return false end
+	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
+	local started=apocalypseQuestNobleWarriorRollReward(card,playerIndex,function(success,questCard,results)
+		if questCard==nil then finishQuestResolution(0.5) return end
+		if success==true then
+			local reserved={}
+			local starting={}
+			for _,basic in ipairs({"Blue","Red","Green","White"}) do starting[basic]=mineCrystalCount(playerIndex,basic) end
+			local gold=0
+			local black=0
+			for _,color in ipairs(results or {}) do
+				if color=="Gold" then gold=gold+1
+				elseif color=="Black" then black=black+1
+				elseif mineCrystalBagKey[color]~=nil then
+					local effective=math.max(mineCrystalCount(playerIndex,color),starting[color]+(reserved[color] or 0))
+					if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Noble Warrior")==true then reserved[color]=(reserved[color] or 0)+1 end
+				end
+			end
+			if black>0 then
+				turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
+				mainUIUpdate("Noble Warrior Black Fame")
+			end
+			if gold>0 then
+				local pending={playerIndex=playerIndex,mode="NobleWarriorGold",goldRemaining=gold,startCounts={},granted={}}
+				for _,color in ipairs({"Blue","Red","Green","White"}) do pending.startCounts[color]=mineCrystalCount(playerIndex,color) end
+				pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
+				if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+				gStates.apocalypseQuestCombatChoice[questCard.guid]=pending
+				apocalypseQuestInterfaceAdd(questCard,true)
+				--Keep the Quest rewind transaction open until every Gold has been chosen, or No Inventory
+				--clears the remaining Golds.
+				return
+			end
+			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Noble Warrior (3A).{ru} завершил Noble Warrior (3A).{zh-tw} 完成 Noble Warrior（3A）。{zh-cn} 完成 Noble Warrior（3A）。{ko}이(가) Noble Warrior (3A)를 완료했습니다.{es} completó Noble Warrior (3A).{fr} a terminé Noble Warrior (3A).{pt-br} concluiu Noble Warrior (3A).{de} schloss Noble Warrior (3A) ab."}),positionToColor(playerIndex))
+			apocalypseQuestFinishCompletedCard(questCard)
+		else
+			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+			apocalypseQuestInterfaceAdd(questCard,true)
+		end
+		finishQuestResolution(0.5)
+	end)
+	if started~=true then
+		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+		apocalypseQuestInterfaceAdd(card,true)
+		finishQuestResolution(0.5)
+	end
+	return true,started
+end
+
+local function apocalypseQuestCompleteExecution(card,playerIndex,option,playerColor,context,finishQuestResolution)
+	if tostring(option.key)~="1a" then return false end
+	--The Execution 1A awards a random mana-die reward. Resolve it with the same visible Quest die;
+	--basic colours grant that crystal, Gold chooses a colour, and Black grants +1 Fame.
+	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
+	local started=apocalypseQuestRollExecutionReward(card,playerIndex,function(rolled,questCard)
+		if questCard==nil then finishQuestResolution(0.5) return end
+		if rolled==nil then
+			if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[questCard.guid]=nil end
+			apocalypseQuestInterfaceAdd(questCard,true)
+			finishQuestResolution(0.5)
+			return
+		end
+		if mineCrystalBagKey[rolled]~=nil then
+			apocalypseQuestGiveCrystal(playerIndex,rolled,nil,"The Execution")
+			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+			apocalypseQuestResolveSpecialEffect(questCard,playerIndex,option,true)
+			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}),positionToColor(playerIndex))
+			apocalypseQuestFinishCompletedCard(questCard)
+			finishQuestResolution(0.5)
+		elseif rolled=="Black" then
+			--Black replaces the crystal reward with +1 Fame, in addition to 1A's normal Fame/Reputation.
+			turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+1
+			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+			apocalypseQuestResolveSpecialEffect(questCard,playerIndex,option,true)
+			mainUIUpdate("The Execution Black Fame")
+			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} rolled Black for The Execution and gained +1 Fame instead of a crystal.{ru} выбросил чёрный для The Execution и получил +1 Славу вместо кристалла.{zh-tw} 在 The Execution 擲出黑色，改為獲得 +1 聲望值而非水晶。{zh-cn} 在 The Execution 掷出黑色，改为获得 +1 声望值而非水晶。{ko}이(가) The Execution에서 검정을 굴려 크리스털 대신 명성 +1을 얻었습니다.{es} sacó Negro para The Execution y ganó +1 Fama en lugar de un cristal.{fr} a obtenu Noir pour The Execution et gagne +1 Renommée au lieu d’un cristal.{pt-br} rolou Preto em The Execution e ganhou +1 Fama em vez de um cristal.{de} würfelte bei The Execution Schwarz und erhielt statt eines Kristalls +1 Ruhm."}),positionToColor(playerIndex))
+			apocalypseQuestFinishCompletedCard(questCard)
+			finishQuestResolution(0.5)
+		elseif rolled=="Gold" then
+			--Gold lets the player choose any basic crystal. Keep the Quest transaction open until that
+			--mandatory choice is made, just as other Quest colour selections do.
+			if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+			gStates.apocalypseQuestCombatChoice[questCard.guid]={playerIndex=playerIndex,colors={"Blue","Red","Green","White"},mode="ExecutionGold"}
+			apocalypseQuestInterfaceAdd(questCard,true)
+		end
+	end)
+	if started~=true then
+		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+		if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[card.guid]=nil end
+		apocalypseQuestInterfaceAdd(card,true)
+		finishQuestResolution(0.5)
+	end
+	return true,started
+end
+
+local function apocalypseQuestCompleteGuardDuty(card,playerIndex,option,playerColor,context,finishQuestResolution)
+	if tostring(option.key)~="2" then return false end
+	local guardDutyDistance=context.guardDutyDistance
+	--Guard Duty pays from the shortest revealed-space distance back to the merchant marker:
+	--1-3 = one random basic crystal; 4-6 = two random basic crystals; 7+ = two chosen basic crystals.
+	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
+	if guardDutyDistance>=7 then
+		local pending={playerIndex=playerIndex,mode="GuardDutyChoice",remaining=2,distance=guardDutyDistance,startCounts={},granted={}}
+		pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
+		if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+		gStates.apocalypseQuestCombatChoice[card.guid]=pending
+		apocalypseQuestInterfaceAdd(card,true)
+		broadcastToAll(joinLang({"{en}Guard Duty distance is {ru}Расстояние Guard Duty: {zh-tw}Guard Duty 距離為 {zh-cn}Guard Duty 距离为 {ko}Guard Duty 거리: {es}La distancia de Guard Duty es {fr}La distance de Guard Duty est de {pt-br}A distância de Guard Duty é {de}Die Entfernung bei Guard Duty beträgt ",tostring(guardDutyDistance),"{en}: choose two basic mana crystals.{ru}: выберите два базовых кристалла маны.{zh-tw}：選擇兩顆基本魔力水晶。{zh-cn}：选择两颗基本魔力水晶。{ko}: 기본 마나 크리스털 2개를 선택하십시오.{es}: elige dos cristales básicos de maná.{fr} : choisissez deux cristaux de mana de base.{pt-br}: escolha dois cristais básicos de mana.{de}: Wähle zwei Basismana-Kristalle."}),positionToColor(playerIndex))
+		return true,true
+	end
+	local crystalCount=guardDutyDistance<=3 and 1 or 2
+	local started=apocalypseQuestGuardDutyRollRandomCrystals(card,playerIndex,crystalCount,function(success,questCard,results)
+		if questCard==nil then finishQuestResolution(0.5) return end
+		if success==true then
+			local gold=0
+			local black=0
+			for _,rolled in ipairs(results or {}) do
+				if rolled=="Gold" then gold=gold+1
+				elseif rolled=="Black" then black=black+1
+				elseif mineCrystalBagKey[rolled]~=nil then apocalypseQuestGiveCrystal(playerIndex,rolled,nil,"Guard Duty") end
+			end
+			if black>0 then
+				turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
+				mainUIUpdate("Guard Duty Black Fame")
+				broadcastToAll(joinLang({"{en}Guard Duty rolled {ru}Guard Duty выбросил чёрный: {zh-tw}Guard Duty 擲出黑色結果 {zh-cn}Guard Duty 掷出黑色结果 {ko}Guard Duty에서 검정 결과 {es}Guard Duty sacó {fr}Guard Duty a obtenu {pt-br}Guard Duty rolou {de}Guard Duty würfelte ",tostring(black),"{en} Black result(s) and gained +{ru} и получил +{zh-tw} 次，並獲得 +{zh-cn} 次，并获得 +{ko}개가 나와 명성 +{es} resultado(s) Negro y ganó +{fr} résultat(s) Noir et gagne +{pt-br} resultado(s) Preto e ganhou +{de} schwarze(s) Ergebnis(se) und erhielt +",tostring(black),"{en} Fame.{ru} Славы.{zh-tw} 聲望值。{zh-cn} 声望值。{ko}을(를) 얻었습니다.{es} de Fama.{fr} Renommée.{pt-br} de Fama.{de} Ruhm."}),positionToColor(playerIndex))
+			end
+			if gold>0 then
+				local pending={playerIndex=playerIndex,mode="GuardDutyGold",goldRemaining=gold,distance=guardDutyDistance,startCounts={},granted={}}
+				for _,color in ipairs({"Blue","Red","Green","White"}) do pending.startCounts[color]=mineCrystalCount(playerIndex,color) end
+				pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
+				if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+				gStates.apocalypseQuestCombatChoice[questCard.guid]=pending
+				apocalypseQuestInterfaceAdd(questCard,true)
+				broadcastToAll(joinLang({"{en}Guard Duty rolled Gold{ru}Guard Duty выбросил золотой{zh-tw}Guard Duty 擲出金色{zh-cn}Guard Duty 掷出金色{ko}Guard Duty에서 금색이 나왔습니다{es}Guard Duty sacó Dorado{fr}Guard Duty a obtenu Or{pt-br}Guard Duty rolou Dourado{de}Guard Duty würfelte Gold",gold>1 and (" x"..tostring(gold)) or "","{en}: choose {ru}: выберите {zh-tw}：選擇 {zh-cn}：选择 {ko}: {es}: elige {fr} : choisissez {pt-br}: escolha {de}: Wähle ",gold==1 and "{en}a basic mana crystal.{ru}базовый кристалл маны.{zh-tw}一顆基本魔力水晶。{zh-cn}一颗基本魔力水晶。{ko}기본 마나 크리스털 1개를 선택하십시오.{es}un cristal básico de maná.{fr}un cristal de mana de base.{pt-br}um cristal básico de mana.{de}einen Basismana-Kristall." or joinLang({tostring(gold),"{en} basic mana crystals.{ru} базовых кристалла маны.{zh-tw} 顆基本魔力水晶。{zh-cn} 颗基本魔力水晶。{ko}개의 기본 마나 크리스털을 선택하십시오.{es} cristales básicos de maná.{fr} cristaux de mana de base.{pt-br} cristais básicos de mana.{de} Basismana-Kristalle."})}),positionToColor(playerIndex))
+				return
+			end
+			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Guard Duty: distance {ru} завершил Guard Duty: расстояние {zh-tw} 完成 Guard Duty：距離 {zh-cn} 完成 Guard Duty：距离 {ko}이(가) Guard Duty를 완료했습니다: 거리 {es} completó Guard Duty: distancia {fr} a terminé Guard Duty : distance {pt-br} concluiu Guard Duty: distância {de} schloss Guard Duty ab: Entfernung ",tostring(guardDutyDistance),"{en}, random mana reward resolved.{ru}, случайная награда маны разрешена.{zh-tw}，隨機魔力獎勵已結算。{zh-cn}，随机魔力奖励已结算。{ko}, 무작위 마나 보상 해결 완료.{es}, recompensa aleatoria de maná resuelta.{fr}, récompense de mana aléatoire résolue.{pt-br}, recompensa aleatória de mana resolvida.{de}, zufällige Manabelohnung abgewickelt."}),positionToColor(playerIndex))
+			apocalypseQuestFinishCompletedCard(questCard)
+		else
+			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+			apocalypseQuestInterfaceAdd(questCard,true)
+		end
+		finishQuestResolution(0.5)
+	end)
+	if started~=true then
+		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+		apocalypseQuestInterfaceAdd(card,true)
+		finishQuestResolution(0.5)
+	end
+	return true,started
+end
+
+local function apocalypseQuestCompleteHerbalist(card,playerIndex,option,playerColor,context,finishQuestResolution)
+	if tostring(option.key)~="3" then return false end
+	--The Herbalist completion stays in the offer while its visible mana die is rolling. This keeps
+	--the Quest token/crystal available until the physical result has been read and transferred.
+	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
+	local started=apocalypseQuestGiveHerbalistReward(card,playerIndex,function(success,questCard)
+		if questCard==nil then finishQuestResolution(0.5) return end
+		if success==true then
+			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}), positionToColor(playerIndex))
+			apocalypseQuestFinishCompletedCard(questCard)
+		else
+			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+			apocalypseQuestInterfaceAdd(questCard,true)
+		end
+		finishQuestResolution(0.5)
+	end)
+	if started~=true then
+		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+		apocalypseQuestInterfaceAdd(card,true)
+		finishQuestResolution(0.5)
+	end
+	return true,started
+end
+
+apocalypseQuestRegisterHandler("bbd087").completeAction=apocalypseQuestCompleteNobleWarrior
+apocalypseQuestRegisterHandler("8939c0").completeAction=apocalypseQuestCompleteExecution
+apocalypseQuestRegisterHandler("08ffcf").prepareCompleteAction=apocalypseQuestPrepareGuardDutyCompletion
+apocalypseQuestRegisterHandler("08ffcf").completeAction=apocalypseQuestCompleteGuardDuty
+apocalypseQuestRegisterHandler("58a826").completeAction=apocalypseQuestCompleteHerbalist
+
+local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,playerColor,state,questState,quest,finishQuestResolution)
+	local handler=apocalypseQuestHandler(card)
+	local completionContext={}
+	if handler~=nil and handler.prepareCompleteAction~=nil then
+		local handled,proceed,context=handler.prepareCompleteAction(card,playerIndex,option,playerColor,finishQuestResolution)
+		if handled==true then
+			if proceed~=true then return false end
+			completionContext=context or {}
+		end
+	end
+if apocalypseQuestUsesGenericStepMarker(card,option)==true and apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
+if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
+	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
+	finishQuestResolution(0.5)
+	return false
+end
+apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
+apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+if apocalypseQuestUsesGenericStepMarker(card,option)==true then apocalypseQuestCommitStepMarker(card,option) end
+if quest.allPlayersComplete==true then
+	state.completed=true
+	apocalypseQuestRemovePlayerShield(card, playerIndex)
+	if apocalypseQuestAllPlayersCompleted(card)==true then
+		apocalypseQuestResolveSpecialEffect(card, playerIndex, option, true)
+		broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed the final required part of \"{ru} завершил последнюю требуемую часть \"{zh-tw} 完成了 \"{zh-cn} 完成了 \"{ko}이(가) \"{es} completó la última parte requerida de \"{fr} a terminé la dernière partie requise de \"{pt-br} concluiu a última parte necessária de \"{de} hat den letzten erforderlichen Teil von \"",quest.name,"{en}\".{ru}\".{zh-tw}\" 的最後必要部分。{zh-cn}\" 的最后必要部分。{ko}\"의 마지막 필수 부분을 완료했습니다.{es}\".{fr}\".{pt-br}\".{de}\" abgeschlossen."}), positionToColor(playerIndex))
+		apocalypseQuestFinishCompletedCard(card)
+	else
+		apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
+		apocalypseQuestResolveSpecialEffect(card, playerIndex, option, false)
+		apocalypseQuestEndMoveAttachmentCapture(card)
+		apocalypseQuestOfferMoveToLeft(card)
+		broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed their part of \"{ru} завершил свою часть \"{zh-tw} 完成了自己在 \"{zh-cn} 完成了自己在 \"{ko}이(가) \"{es} completó su parte de \"{fr} a terminé sa partie de \"{pt-br} concluiu sua parte de \"{de} hat seinen Teil von \"",quest.name,"{en}\".{ru}\".{zh-tw}\" 中的部分。{zh-cn}\" 中的部分。{ko}\"에서 자신의 부분을 완료했습니다.{es}\".{fr}\".{pt-br}\".{de}\" abgeschlossen."}), positionToColor(playerIndex))
+	end
+else
+	if handler~=nil and handler.completeAction~=nil then
+		local handled,result=handler.completeAction(card,playerIndex,option,playerColor,completionContext,finishQuestResolution)
+		if handled==true then return result end
+	end
+	apocalypseQuestResolveSpecialEffect(card, playerIndex, option, true)
+	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}), positionToColor(playerIndex))
+	apocalypseQuestFinishCompletedCard(card)
+end
+finishQuestResolution(1.0)
+return true
+end
+
+local function apocalypseQuestResolveFailAction(card,playerIndex,option,playerColor,quest,finishQuestResolution)
+if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
+	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
+	finishQuestResolution(0.5)
+	return false
+end
+apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+apocalypseQuestResolveFailureEffect(card,playerIndex,option)
+apocalypseQuestLoseReputation(playerIndex, quest.name, "fail")
+broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} failed \"{ru} провалил \"{zh-tw} 任務失敗：\"{zh-cn} 任务失败：\"{ko}이(가) \"{es} falló \"{fr} a échoué à \"{pt-br} falhou em \"{de} ist bei \"",quest.name,"{en}\".{ru}\".{zh-tw}\"。{zh-cn}\"。{ko}\"에 실패했습니다.{es}\".{fr}\".{pt-br}\".{de}\" gescheitert."}), positionToColor(playerIndex))
+apocalypseQuestBottomDeck(card)
+finishQuestResolution(1.0)
+return true
+end
+
+function apocalypseQuestResolveStepAction(card, playerIndex, action, option, playerColor, rewindReady)
+	local waiting=apocalypseQuestWaitForStepResolution(card,playerIndex,action,option,playerColor,rewindReady)
+	if waiting~=nil then return waiting end
+
 	local quest=apocalypseQuestData[card.guid]
 	if quest==nil then return false end
-	local state, questState=apocalypseQuestProgressState(card, playerIndex, true)
+	local state,questState=apocalypseQuestProgressState(card,playerIndex,true)
 	if state==nil or state.completed==true then return false end
-	if action=="Progress" and (card.guid=="485cc5" and tostring(option.key)=="1" or card.guid=="bb2828" and tostring(option.key)=="2") then
-		local colors=card.guid=="485cc5" and apocalypseQuestMineDoomColors(playerIndex) or apocalypseQuestArtificerAvailableColors(card,playerIndex)
-		if #colors==0 then return false end
-		if gStates.apocalypseQuestStepColor==nil then gStates.apocalypseQuestStepColor={} end
-		if gStates.apocalypseQuestStepColor[card.guid]==nil and #colors>1 then
-			if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-			gStates.apocalypseQuestCombatChoice[card.guid]={playerIndex=playerIndex,colors=colors,mode="ProgressColor",action=action,key=tostring(option.key)}
-			apocalypseQuestInterfaceAdd(card,true)
-			return true
-		end
-		if gStates.apocalypseQuestStepColor[card.guid]==nil then gStates.apocalypseQuestStepColor[card.guid]=colors[1] end
-	end
-	local minimumReputationModifier=option.minimumReputationModifier or quest.minimumReputationModifier
-	if minimumReputationModifier~=nil and action~="Fail" then
-		refreshPlayerReputationFromShield(playerIndex)
-		local effectiveReputation=math.max(-7, math.min(7, (turnOrder[playerIndex].reputation or 0)+(turnOrder[playerIndex].repGain or 0)))
-		local repData=reputationTable[effectiveReputation]
-		local repModifier=repData~=nil and tonumber(repData.repDisplay) or nil
-		if repModifier==nil or repModifier<minimumReputationModifier then
-			if playerColor~=nil then broadcastToColor(joinLang({"{en}This Quest step requires a Reputation Modifier of {ru}Этот шаг задания требует модификатор Репутации {zh-tw}此任務步驟需要聲望修正值至少為 {zh-cn}此任务步骤需要声望修正值至少为 {ko}이 퀘스트 단계에는 평판 수정치 {es}Este paso de Misión requiere un Modificador de Reputación de {fr}Cette étape de Quête exige un Modificateur de Réputation de {pt-br}Esta etapa da Missão exige um Modificador de Reputação de {de}Dieser Quest-Schritt erfordert einen Ansehensmodifikator von ",tostring(minimumReputationModifier),"{en} or higher.{ru} или выше.{zh-tw}。{zh-cn}。{ko} 이상이 필요합니다.{es} o superior.{fr} ou plus.{pt-br} ou superior.{de} oder höher."}), playerColor, warningColor) end
-			return false
-		end
-	end
-	if action=="Fail" and apocalypseQuestFailureReady(card,option,playerIndex)~=true then
-		if playerColor~=nil then broadcastToColor("{en}Start this Quest combat before resolving Fail.{ru}Начните бой задания перед разрешением Провала.{zh-tw}在結算失敗前先開始此任務戰鬥。{zh-cn}在结算失败前先开始此任务战斗。{ko}실패를 처리하기 전에 이 퀘스트 전투를 시작하십시오.{es}Inicia este combate de Misión antes de resolver Fallar.{fr}Commencez ce combat de Quête avant de résoudre Échouer.{pt-br}Inicie este combate da Missão antes de resolver Falhar.{de}Beginne diesen Quest-Kampf, bevor du Scheitern abwickelst.",playerColor,warningColor) end
-		return false
-	end
-	if action~="Fail" and apocalypseQuestStepSpecialLegal(card,playerIndex,option)~=true then
-		if playerColor~=nil then broadcastToColor(joinLang({"{en}The combat requirement for Quest step {ru}Требование боя для шага задания {zh-tw}尚未偵測到任務步驟 {zh-cn}尚未检测到任务步骤 {ko}퀘스트 단계 {es}Aún no se ha detectado el requisito de combate del paso de Misión {fr}La condition de combat de l’étape de Quête {pt-br}O requisito de combate da etapa da Missão {de}Die Kampfanforderung für Quest-Schritt ",tostring(option.key),"{en} has not been detected yet.{ru} ещё не обнаружено.{zh-tw} 的戰鬥要求。{zh-cn} 的战斗要求。{ko}의 전투 요구 사항이 아직 감지되지 않았습니다.{es}.{fr} n’a pas encore été détectée.{pt-br} ainda não foi detectado.{de} wurde noch nicht erkannt."}),playerColor,warningColor) end
-		return false
-	end
+
+	local validation=apocalypseQuestValidateStepResolution(card,playerIndex,action,option,playerColor,quest)
+	if validation~=nil then return validation end
+
 	local questRewindOwner="Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)
 	if rewindReady~=true then
 		if rewindTransactionOwnerActive(questRewindOwner)==true then return true end
@@ -33426,333 +34574,270 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 		return true
 	end
 	local function finishQuestResolution(delay)
-		if delay~=nil and delay>0 then safeWaitTime("Quests",function() rewindTransactionFinish(questRewindOwner) end,delay)
-		else rewindTransactionFinish(questRewindOwner) end
+		apocalypseQuestFinishResolution(questRewindOwner,delay)
 	end
-	local guardDutyDistance=nil
-	if action=="Complete" and card.guid=="08ffcf" and tostring(option.key)=="2" then
-		guardDutyDistance=apocalypseQuestGuardDutyDistance(playerIndex)
-		if guardDutyDistance==nil then
-			if playerColor~=nil then broadcastToColor("{en}Guard Duty could not measure a revealed-space path back to the merchant marker.{ru}Guard Duty не смог определить путь по открытым клеткам обратно к жетону торговца.{zh-tw}Guard Duty 無法計算沿已揭示空間返回商人標記的路徑。{zh-cn}Guard Duty 无法计算沿已揭示空间返回商人标记的路径。{ko}Guard Duty에서 공개된 칸을 따라 상인 마커로 돌아가는 경로를 계산하지 못했습니다.{es}Guard Duty no pudo calcular una ruta por espacios revelados hasta el marcador del mercader.{fr}Guard Duty n’a pas pu calculer un trajet par les cases révélées jusqu’au marqueur du marchand.{pt-br}Guard Duty não conseguiu calcular uma rota por espaços revelados até o marcador do mercador.{de}Guard Duty konnte keinen Weg über aufgedeckte Felder zurück zum Händlermarker bestimmen.",playerColor,{1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
-		end
-	end
-	--A Rich Merchant Step 1 must use the face of a real rolled mana die. The die can appear immediately
-	--over slot 1 because that destination is already known; the Quest card starts moving there at once.
-	--Black advances to Step 2; the other results leave Step 1 ready to Complete.
-	if action=="Progress" and card.guid=="8cff07" and tostring(option.key)=="1" then
-		if apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
-		if apocalypseQuestClaimAbandonedPersonal(card,playerIndex)~=true then
-			if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.",playerColor,{1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
-		end
-		apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
-		if apocalypseQuestPositionProgressShield(card,playerIndex,option)~=true then
-			apocalypseQuestEndMoveAttachmentCapture(card)
-			if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.",playerColor,{1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
-		end
-		apocalypseQuestEndMoveAttachmentCapture(card)
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		local started=apocalypseQuestRollVisibleManaDie(card,playerIndex,"A Rich Merchant",function(rolled,liveCard)
-			if liveCard==nil then finishQuestResolution(0.5) return end
-			if rolled==nil then
-				--Stay on Step 1 so Proceed can simply be tried again if the physical die was unreadable.
-				apocalypseQuestInterfaceAdd(liveCard,true)
-				finishQuestResolution(0.5)
-				return
-			end
-			apocalypseQuestResolveRichMerchantRoll(liveCard,playerIndex,rolled)
-			if rolled=="Black" then apocalypseQuestAdvanceProgress(liveCard,state,option) end
-			apocalypseQuestRefreshOfferButtons()
-			finishQuestResolution(0.5)
-		end,apocalypseQuestOfferPosition(1))
-		if started~=true then
-			if gStates.apocalypseQuestMoveAttachments~=nil then gStates.apocalypseQuestMoveAttachments[card.guid]=nil end
-			apocalypseQuestPositionProgressShield(card,playerIndex,option)
-			apocalypseQuestInterfaceAdd(card,true)
-			finishQuestResolution(0.5)
-			return false
-		end
-		apocalypseQuestCommitStepMarker(card,option)
-		--Suppress the normal settled refresh while the visible die is still resolving; its callback refreshes
-		--the Quest once the result is known. The physical offer still starts moving immediately.
-		apocalypseQuestOfferMoveToLeft(card,function() end)
-		return true
-	end
+
+	local handler=apocalypseQuestHandler(card)
 	if action=="Progress" then
-		if not (card.guid=="6175e8" and tostring(option.key)=="3") and apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)~=true then finishQuestResolution(0.5) return false end
-		--Plan the offer move before any replacement/progress Shield is created so every new Shield
-		--uses slot 1 immediately and is explicitly owned by this Quest during the reorder.
-		apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
-		if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-			apocalypseQuestEndMoveAttachmentCapture(card)
-			if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
+		if handler~=nil and handler.progressAction~=nil then
+			local handled,result=handler.progressAction(card,playerIndex,option,playerColor,state,questState,finishQuestResolution)
+			if handled==true then return result end
 		end
-		if apocalypseQuestPositionProgressShield(card, playerIndex, option)~=true then
-			apocalypseQuestEndMoveAttachmentCapture(card)
-			if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.", playerColor, {1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
-		end
-		apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		local fistfulSetup=card.guid=="66ea80" and tostring(option.key)=="1"
-		local launchedNext=(card.guid=="485cc5" and tostring(option.key)=="1") or (card.guid=="d70436" and tostring(option.key)=="2")
-		--Resolve the step immediately, as before. Anything leaving the Quest card moves away now. New objects
-		--created on the card are explicitly captured for the imminent offer move, so they travel with the card
-		--without waiting for the scripting zone to notice them.
-		apocalypseQuestResolveSpecialEffect(card, playerIndex, option, false)
-		apocalypseQuestEndMoveAttachmentCapture(card)
-		if gStates.apocalypseQuestStepColor~=nil then gStates.apocalypseQuestStepColor[card.guid]=nil end
-		apocalypseQuestAdvanceProgress(card, state, option)
-		if launchedNext==true and apocalypseQuestCombatStartedThisTurn(card,state.step)==true then
-			if gStates.apocalypseQuestCombatLaunches==nil then gStates.apocalypseQuestCombatLaunches={} end
-			gStates.apocalypseQuestCombatLaunches[card.guid]=apocalypseQuestCombatLaunchKey(card,state)
-		end
-		--Commit before the offer snapshot. A Quest marker may still be travelling to the map and must not be
-		--mistaken for an attachment that should follow the card left.
-		apocalypseQuestCommitStepMarker(card, option)
-		if fistfulSetup==true then
-			--Let the card reach slot 1 before drawing from the same gray bag twice. The short gap also
-			--ensures the first takeObject has fully left the container before the second extraction.
-			apocalypseQuestOfferMoveToLeft(card,function(liveCard)
-				apocalypseQuestPlaceFistfulEnemies(liveCard,function()
-					apocalypseQuestRefreshOfferButtons()
-					finishQuestResolution(0.5)
-				end)
-			end)
-		else
-			apocalypseQuestOfferMoveToLeft(card)
-			finishQuestResolution(1.0)
-		end
-		broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} progressed a Quest ({ru} продвинул задание ({zh-tw} 推進了一個任務（{zh-cn} 推进了一个任务（{ko}이(가) 퀘스트를 진행했습니다 ({es} progresó una Misión ({fr} a fait progresser une Quête ({pt-br} progrediu uma Missão ({de} hat eine Quest vorangebracht (",tostring(option.key),")."}), positionToColor(playerIndex))
-		return true
+		return apocalypseQuestResolveProgressAction(card,playerIndex,option,playerColor,state,questState,finishQuestResolution)
 	elseif action=="Complete" then
-		if not (card.guid=="6175e8" and tostring(option.key)=="3") and apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)~=true then finishQuestResolution(0.5) return false end
-		if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-			if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
-		end
-		apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		if not (card.guid=="6175e8" and tostring(option.key)=="3") then apocalypseQuestCommitStepMarker(card, option) end
-		if quest.allPlayersComplete==true then
-			state.completed=true
-			apocalypseQuestRemovePlayerShield(card, playerIndex)
-			if apocalypseQuestAllPlayersCompleted(card)==true then
-				apocalypseQuestResolveSpecialEffect(card, playerIndex, option, true)
-				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed the final required part of \"{ru} завершил последнюю требуемую часть \"{zh-tw} 完成了 \"{zh-cn} 完成了 \"{ko}이(가) \"{es} completó la última parte requerida de \"{fr} a terminé la dernière partie requise de \"{pt-br} concluiu a última parte necessária de \"{de} hat den letzten erforderlichen Teil von \"",quest.name,"{en}\".{ru}\".{zh-tw}\" 的最後必要部分。{zh-cn}\" 的最后必要部分。{ko}\"의 마지막 필수 부분을 완료했습니다.{es}\".{fr}\".{pt-br}\".{de}\" abgeschlossen."}), positionToColor(playerIndex))
-				apocalypseQuestFinishCompletedCard(card)
-			else
-				apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
-				apocalypseQuestResolveSpecialEffect(card, playerIndex, option, false)
-				apocalypseQuestEndMoveAttachmentCapture(card)
-				apocalypseQuestOfferMoveToLeft(card)
-				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed their part of \"{ru} завершил свою часть \"{zh-tw} 完成了自己在 \"{zh-cn} 完成了自己在 \"{ko}이(가) \"{es} completó su parte de \"{fr} a terminé sa partie de \"{pt-br} concluiu sua parte de \"{de} hat seinen Teil von \"",quest.name,"{en}\".{ru}\".{zh-tw}\" 中的部分。{zh-cn}\" 中的部分。{ko}\"에서 자신의 부분을 완료했습니다.{es}\".{fr}\".{pt-br}\".{de}\" abgeschlossen."}), positionToColor(playerIndex))
-			end
-		else
-			if card.guid=="bbd087" and tostring(option.key)=="3a" then
-				apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
-				local started=apocalypseQuestNobleWarriorRollReward(card,playerIndex,function(success,questCard,results)
-					if questCard==nil then finishQuestResolution(0.5) return end
-					if success==true then
-						local reserved={}
-						local starting={}
-						for _,basic in ipairs({"Blue","Red","Green","White"}) do starting[basic]=mineCrystalCount(playerIndex,basic) end
-						local gold=0
-						local black=0
-						for _,color in ipairs(results or {}) do
-							if color=="Gold" then gold=gold+1
-							elseif color=="Black" then black=black+1
-							elseif mineCrystalBagKey[color]~=nil then
-								local effective=math.max(mineCrystalCount(playerIndex,color),starting[color]+(reserved[color] or 0))
-								if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Noble Warrior")==true then reserved[color]=(reserved[color] or 0)+1 end
-							end
-						end
-						if black>0 then
-							turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
-							mainUIUpdate("Noble Warrior Black Fame")
-						end
-						if gold>0 then
-							local pending={playerIndex=playerIndex,mode="NobleWarriorGold",goldRemaining=gold,startCounts={},granted={}}
-							for _,color in ipairs({"Blue","Red","Green","White"}) do pending.startCounts[color]=mineCrystalCount(playerIndex,color) end
-							pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
-							if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-							gStates.apocalypseQuestCombatChoice[questCard.guid]=pending
-							apocalypseQuestInterfaceAdd(questCard,true)
-							--Keep the Quest rewind transaction open until every Gold has been chosen, or No Inventory
-							--clears the remaining Golds.
-							return
-						end
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Noble Warrior (3A).{ru} завершил Noble Warrior (3A).{zh-tw} 完成 Noble Warrior（3A）。{zh-cn} 完成 Noble Warrior（3A）。{ko}이(가) Noble Warrior (3A)를 완료했습니다.{es} completó Noble Warrior (3A).{fr} a terminé Noble Warrior (3A).{pt-br} concluiu Noble Warrior (3A).{de} schloss Noble Warrior (3A) ab."}),positionToColor(playerIndex))
-						apocalypseQuestFinishCompletedCard(questCard)
-					else
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						apocalypseQuestInterfaceAdd(questCard,true)
-					end
-					finishQuestResolution(0.5)
-				end)
-				if started~=true then
-					apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-					apocalypseQuestInterfaceAdd(card,true)
-					finishQuestResolution(0.5)
-				end
-				return started
-			end
-			if card.guid=="8939c0" and tostring(option.key)=="1a" then
-				--The Execution 1A awards a random mana-die reward. Resolve it with the same visible Quest die;
-				--basic colours grant that crystal, Gold chooses a colour, and Black grants +1 Fame.
-				apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
-				local started=apocalypseQuestRollExecutionReward(card,playerIndex,function(rolled,questCard)
-					if questCard==nil then finishQuestResolution(0.5) return end
-					if rolled==nil then
-						if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[questCard.guid]=nil end
-						apocalypseQuestInterfaceAdd(questCard,true)
-						finishQuestResolution(0.5)
-						return
-					end
-					if mineCrystalBagKey[rolled]~=nil then
-						apocalypseQuestGiveCrystal(playerIndex,rolled,nil,"The Execution")
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						apocalypseQuestResolveSpecialEffect(questCard,playerIndex,option,true)
-						broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}),positionToColor(playerIndex))
-						apocalypseQuestFinishCompletedCard(questCard)
-						finishQuestResolution(0.5)
-					elseif rolled=="Black" then
-						--Black replaces the crystal reward with +1 Fame, in addition to 1A's normal Fame/Reputation.
-						turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+1
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						apocalypseQuestResolveSpecialEffect(questCard,playerIndex,option,true)
-						mainUIUpdate("The Execution Black Fame")
-						broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} rolled Black for The Execution and gained +1 Fame instead of a crystal.{ru} выбросил чёрный для The Execution и получил +1 Славу вместо кристалла.{zh-tw} 在 The Execution 擲出黑色，改為獲得 +1 聲望值而非水晶。{zh-cn} 在 The Execution 掷出黑色，改为获得 +1 声望值而非水晶。{ko}이(가) The Execution에서 검정을 굴려 크리스털 대신 명성 +1을 얻었습니다.{es} sacó Negro para The Execution y ganó +1 Fama en lugar de un cristal.{fr} a obtenu Noir pour The Execution et gagne +1 Renommée au lieu d’un cristal.{pt-br} rolou Preto em The Execution e ganhou +1 Fama em vez de um cristal.{de} würfelte bei The Execution Schwarz und erhielt statt eines Kristalls +1 Ruhm."}),positionToColor(playerIndex))
-						apocalypseQuestFinishCompletedCard(questCard)
-						finishQuestResolution(0.5)
-					elseif rolled=="Gold" then
-						--Gold lets the player choose any basic crystal. Keep the Quest transaction open until that
-						--mandatory choice is made, just as other Quest colour selections do.
-						if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-						gStates.apocalypseQuestCombatChoice[questCard.guid]={playerIndex=playerIndex,colors={"Blue","Red","Green","White"},mode="ExecutionGold"}
-						apocalypseQuestInterfaceAdd(questCard,true)
-					end
-				end)
-				if started~=true then
-					apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-					if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[card.guid]=nil end
-					apocalypseQuestInterfaceAdd(card,true)
-					finishQuestResolution(0.5)
-				end
-				return started
-			end
-			if card.guid=="08ffcf" and tostring(option.key)=="2" then
-				--Guard Duty pays from the shortest revealed-space distance back to the merchant marker:
-				--1-3 = one random basic crystal; 4-6 = two random basic crystals; 7+ = two chosen basic crystals.
-				apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
-				if guardDutyDistance>=7 then
-					local pending={playerIndex=playerIndex,mode="GuardDutyChoice",remaining=2,distance=guardDutyDistance,startCounts={},granted={}}
-					pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
-					if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-					gStates.apocalypseQuestCombatChoice[card.guid]=pending
-					apocalypseQuestInterfaceAdd(card,true)
-					broadcastToAll(joinLang({"{en}Guard Duty distance is {ru}Расстояние Guard Duty: {zh-tw}Guard Duty 距離為 {zh-cn}Guard Duty 距离为 {ko}Guard Duty 거리: {es}La distancia de Guard Duty es {fr}La distance de Guard Duty est de {pt-br}A distância de Guard Duty é {de}Die Entfernung bei Guard Duty beträgt ",tostring(guardDutyDistance),"{en}: choose two basic mana crystals.{ru}: выберите два базовых кристалла маны.{zh-tw}：選擇兩顆基本魔力水晶。{zh-cn}：选择两颗基本魔力水晶。{ko}: 기본 마나 크리스털 2개를 선택하십시오.{es}: elige dos cristales básicos de maná.{fr} : choisissez deux cristaux de mana de base.{pt-br}: escolha dois cristais básicos de mana.{de}: Wähle zwei Basismana-Kristalle."}),positionToColor(playerIndex))
-					return true
-				end
-				local crystalCount=guardDutyDistance<=3 and 1 or 2
-				local started=apocalypseQuestGuardDutyRollRandomCrystals(card,playerIndex,crystalCount,function(success,questCard,results)
-					if questCard==nil then finishQuestResolution(0.5) return end
-					if success==true then
-						local gold=0
-						local black=0
-						for _,rolled in ipairs(results or {}) do
-							if rolled=="Gold" then gold=gold+1
-							elseif rolled=="Black" then black=black+1
-							elseif mineCrystalBagKey[rolled]~=nil then apocalypseQuestGiveCrystal(playerIndex,rolled,nil,"Guard Duty") end
-						end
-						if black>0 then
-							turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
-							mainUIUpdate("Guard Duty Black Fame")
-							broadcastToAll(joinLang({"{en}Guard Duty rolled {ru}Guard Duty выбросил чёрный: {zh-tw}Guard Duty 擲出黑色結果 {zh-cn}Guard Duty 掷出黑色结果 {ko}Guard Duty에서 검정 결과 {es}Guard Duty sacó {fr}Guard Duty a obtenu {pt-br}Guard Duty rolou {de}Guard Duty würfelte ",tostring(black),"{en} Black result(s) and gained +{ru} и получил +{zh-tw} 次，並獲得 +{zh-cn} 次，并获得 +{ko}개가 나와 명성 +{es} resultado(s) Negro y ganó +{fr} résultat(s) Noir et gagne +{pt-br} resultado(s) Preto e ganhou +{de} schwarze(s) Ergebnis(se) und erhielt +",tostring(black),"{en} Fame.{ru} Славы.{zh-tw} 聲望值。{zh-cn} 声望值。{ko}을(를) 얻었습니다.{es} de Fama.{fr} Renommée.{pt-br} de Fama.{de} Ruhm."}),positionToColor(playerIndex))
-						end
-						if gold>0 then
-							local pending={playerIndex=playerIndex,mode="GuardDutyGold",goldRemaining=gold,distance=guardDutyDistance,startCounts={},granted={}}
-							for _,color in ipairs({"Blue","Red","Green","White"}) do pending.startCounts[color]=mineCrystalCount(playerIndex,color) end
-							pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
-							if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-							gStates.apocalypseQuestCombatChoice[questCard.guid]=pending
-							apocalypseQuestInterfaceAdd(questCard,true)
-							broadcastToAll(joinLang({"{en}Guard Duty rolled Gold{ru}Guard Duty выбросил золотой{zh-tw}Guard Duty 擲出金色{zh-cn}Guard Duty 掷出金色{ko}Guard Duty에서 금색이 나왔습니다{es}Guard Duty sacó Dorado{fr}Guard Duty a obtenu Or{pt-br}Guard Duty rolou Dourado{de}Guard Duty würfelte Gold",gold>1 and (" x"..tostring(gold)) or "","{en}: choose {ru}: выберите {zh-tw}：選擇 {zh-cn}：选择 {ko}: {es}: elige {fr} : choisissez {pt-br}: escolha {de}: Wähle ",gold==1 and "{en}a basic mana crystal.{ru}базовый кристалл маны.{zh-tw}一顆基本魔力水晶。{zh-cn}一颗基本魔力水晶。{ko}기본 마나 크리스털 1개를 선택하십시오.{es}un cristal básico de maná.{fr}un cristal de mana de base.{pt-br}um cristal básico de mana.{de}einen Basismana-Kristall." or joinLang({tostring(gold),"{en} basic mana crystals.{ru} базовых кристалла маны.{zh-tw} 顆基本魔力水晶。{zh-cn} 颗基本魔力水晶。{ko}개의 기본 마나 크리스털을 선택하십시오.{es} cristales básicos de maná.{fr} cristaux de mana de base.{pt-br} cristais básicos de mana.{de} Basismana-Kristalle."})}),positionToColor(playerIndex))
-							return
-						end
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Guard Duty: distance {ru} завершил Guard Duty: расстояние {zh-tw} 完成 Guard Duty：距離 {zh-cn} 完成 Guard Duty：距离 {ko}이(가) Guard Duty를 완료했습니다: 거리 {es} completó Guard Duty: distancia {fr} a terminé Guard Duty : distance {pt-br} concluiu Guard Duty: distância {de} schloss Guard Duty ab: Entfernung ",tostring(guardDutyDistance),"{en}, random mana reward resolved.{ru}, случайная награда маны разрешена.{zh-tw}，隨機魔力獎勵已結算。{zh-cn}，随机魔力奖励已结算。{ko}, 무작위 마나 보상 해결 완료.{es}, recompensa aleatoria de maná resuelta.{fr}, récompense de mana aléatoire résolue.{pt-br}, recompensa aleatória de mana resolvida.{de}, zufällige Manabelohnung abgewickelt."}),positionToColor(playerIndex))
-						apocalypseQuestFinishCompletedCard(questCard)
-					else
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						apocalypseQuestInterfaceAdd(questCard,true)
-					end
-					finishQuestResolution(0.5)
-				end)
-				if started~=true then
-					apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-					apocalypseQuestInterfaceAdd(card,true)
-					finishQuestResolution(0.5)
-				end
-				return started
-			end
-			if card.guid=="58a826" and tostring(option.key)=="3" then
-				--The Herbalist completion stays in the offer while its visible mana die is rolling. This keeps
-				--the Quest token/crystal available until the physical result has been read and transferred.
-				apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
-				local started=apocalypseQuestGiveHerbalistReward(card,playerIndex,function(success,questCard)
-					if questCard==nil then finishQuestResolution(0.5) return end
-					if success==true then
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}), positionToColor(playerIndex))
-						apocalypseQuestFinishCompletedCard(questCard)
-					else
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						apocalypseQuestInterfaceAdd(questCard,true)
-					end
-					finishQuestResolution(0.5)
-				end)
-				if started~=true then
-					apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-					apocalypseQuestInterfaceAdd(card,true)
-					finishQuestResolution(0.5)
-				end
-				return started
-			end
-			apocalypseQuestResolveSpecialEffect(card, playerIndex, option, true)
-			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}), positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(card)
-		end
-		finishQuestResolution(1.0)
-		return true
+		return apocalypseQuestResolveCompleteAction(card,playerIndex,option,playerColor,state,questState,quest,finishQuestResolution)
 	elseif action=="Fail" then
-		if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-			if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
-		end
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		apocalypseQuestResolveFailureEffect(card,playerIndex,option)
-		apocalypseQuestLoseReputation(playerIndex, quest.name, "fail")
-		broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} failed \"{ru} провалил \"{zh-tw} 任務失敗：\"{zh-cn} 任务失败：\"{ko}이(가) \"{es} falló \"{fr} a échoué à \"{pt-br} falhou em \"{de} ist bei \"",quest.name,"{en}\".{ru}\".{zh-tw}\"。{zh-cn}\"。{ko}\"에 실패했습니다.{es}\".{fr}\".{pt-br}\".{de}\" gescheitert."}), positionToColor(playerIndex))
-		apocalypseQuestBottomDeck(card)
-		finishQuestResolution(1.0)
-		return true
+		return apocalypseQuestResolveFailAction(card,playerIndex,option,playerColor,quest,finishQuestResolution)
 	end
 	finishQuestResolution(0.5)
 	return false
 end
 local apocalypseQuestCardActionRestWait={}
+local function apocalypseQuestRequeueCombatChoice(card,pendingCombat)
+	if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+	pendingCombat.colors=apocalypseQuestNobleGoldColors(pendingCombat.playerIndex,pendingCombat)
+	gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
+	apocalypseQuestInterfaceAdd(card,true)
+end
+
+local function apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,source,remainingKey,finish)
+	if color=="NoInventory" then
+		local available=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
+		if #available==1 and available[1]=="NoInventory" then finish(card,playerIndex,pendingCombat)
+		else apocalypseQuestRequeueCombatChoice(card,pendingCombat) end
+		return
+	end
+	pendingCombat.granted=pendingCombat.granted or {}
+	pendingCombat.startCounts=pendingCombat.startCounts or {}
+	if pendingCombat.startCounts[color]==nil then pendingCombat.startCounts[color]=mineCrystalCount(playerIndex,color) end
+	local effective=math.max(mineCrystalCount(playerIndex,color),pendingCombat.startCounts[color]+(pendingCombat.granted[color] or 0))
+	if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,source)==true then
+		pendingCombat.granted[color]=(pendingCombat.granted[color] or 0)+1
+		pendingCombat[remainingKey]=(pendingCombat[remainingKey] or 1)-1
+	end
+	if (pendingCombat[remainingKey] or 0)<=0 then finish(card,playerIndex,pendingCombat)
+	else apocalypseQuestRequeueCombatChoice(card,pendingCombat) end
+end
+
+local apocalypseQuestCombatChoiceModes={
+	GuardDutyChoice={
+		cancelLocked=true,
+		refreshAfter=false,
+		resolve=function(card,playerIndex,color,pendingCombat)
+			apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,"Guard Duty","remaining",function(questCard,index,pending)
+				apocalypseQuestFinishGuardDutyChoice(questCard,index,pending.distance)
+			end)
+		end
+	},
+	GuardDutyGold={
+		cancelLocked=true,
+		refreshAfter=false,
+		resolve=function(card,playerIndex,color,pendingCombat)
+			apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,"Guard Duty","goldRemaining",function(questCard,index,pending)
+				apocalypseQuestFinishGuardDutyGold(questCard,index,pending.distance)
+			end)
+		end
+	},
+	NobleWarriorGold={
+		cancelLocked=true,
+		refreshAfter=false,
+		resolve=function(card,playerIndex,color,pendingCombat)
+			apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,"Noble Warrior","goldRemaining",function(questCard,index)
+				apocalypseQuestFinishNobleGold(questCard,index)
+			end)
+		end
+	},
+	ExecutionGold={
+		cancelLocked=true,
+		refreshAfter=false,
+		resolve=function(card,playerIndex,color,pendingCombat)
+			local selected=apocalypseQuestChoiceOption(card,"1a")
+			if selected~=nil and apocalypseQuestGiveCrystal(playerIndex,color,nil,"The Execution")==true then
+				apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+				apocalypseQuestResolveSpecialEffect(card,playerIndex,selected,true)
+				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} chose a {ru} выбрал {zh-tw} 為 The Execution 選擇了 {zh-cn} 为 The Execution 选择了 {ko}이(가) The Execution에서 {es} eligió un cristal {fr} a choisi un cristal {pt-br} escolheu um cristal {de} wählte für The Execution einen ",translateWord[color] or tostring(color),"{en} crystal for The Execution.{ru} кристалл для The Execution.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털을 선택했습니다.{es} para The Execution.{fr} pour The Execution.{pt-br} para The Execution.{de}-Kristall."}),positionToColor(playerIndex))
+				apocalypseQuestFinishCompletedCard(card)
+				safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
+			else
+				--If the chosen crystal cannot be taken, keep the mandatory Gold choice open.
+				if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+				gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
+				apocalypseQuestInterfaceAdd(card,true)
+			end
+		end
+	},
+	ProgressColor={
+		resolve=function(card,playerIndex,color,pendingCombat,player)
+			if gStates.apocalypseQuestStepColor==nil then gStates.apocalypseQuestStepColor={} end
+			gStates.apocalypseQuestStepColor[card.guid]=color
+			local selected=apocalypseQuestChoiceOption(card,pendingCombat.key)
+			if selected~=nil then apocalypseQuestResolveStepAction(card,playerIndex,pendingCombat.action or "Progress",selected,player.color) end
+		end
+	}
+}
+
+local function apocalypseQuestHandleCombatChoiceAction(player,card,playerIndex,action)
+	local pendingCombat=gStates.apocalypseQuestCombatChoice~=nil and gStates.apocalypseQuestCombatChoice[card.guid] or nil
+	if action=="CombatCancel" then
+		local mode=pendingCombat~=nil and apocalypseQuestCombatChoiceModes[pendingCombat.mode] or nil
+		if mode~=nil and mode.cancelLocked==true then return end
+		if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
+		apocalypseQuestInterfaceAdd(card,true)
+		return
+	end
+	if action:sub(1,12)~="CombatColor_" then return end
+	local color=action:sub(13)
+	if pendingCombat==nil or pendingCombat.playerIndex~=playerIndex then
+		if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
+		apocalypseQuestInterfaceAdd(card,true)
+		return
+	end
+	local allowed=false
+	for _,possible in ipairs(pendingCombat.colors or {}) do if possible==color then allowed=true break end end
+	gStates.apocalypseQuestCombatChoice[card.guid]=nil
+	if allowed==true then
+		local mode=apocalypseQuestCombatChoiceModes[pendingCombat.mode]
+		if mode~=nil and mode.resolve~=nil then
+			mode.resolve(card,playerIndex,color,pendingCombat,player)
+			if mode.refreshAfter==false then return end
+		else apocalypseQuestLaunchCombat(card,playerIndex,player.color,color) end
+	end
+	if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end
+end
+
+local function apocalypseQuestHandleDirectAction(player,card,playerIndex,action)
+	if action:sub(1,7)~="Direct_" then return end
+	local key=action:sub(8)
+	local selected=nil
+	for _,choice in ipairs(apocalypseQuestDirectChoices(card,playerIndex)) do if choice.key==key then selected=choice break end end
+	if selected==nil or apocalypseQuestDirectChoiceLegal(card,playerIndex,selected)~=true then apocalypseQuestInterfaceAdd(card,true) return end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.directAction~=nil and handler.directAction(player,card,playerIndex,selected,key)==true then return end
+	local option=apocalypseQuestChoiceOption(card,key)
+	if selected.action=="Combat" then
+		if handler==nil or handler.storeDirectCombatBranch~=false then
+			if gStates.apocalypseQuestDirectBranch==nil then gStates.apocalypseQuestDirectBranch={} end
+			gStates.apocalypseQuestDirectBranch[card.guid]=key
+		end
+		local chosenColor=nil
+		if handler~=nil and handler.combatBranchChoice==true then chosenColor=key end
+		apocalypseQuestLaunchCombat(card,playerIndex,player.color,chosenColor)
+		if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end
+	else
+		if handler~=nil and handler.storeDirectBranch==true then
+			if gStates.apocalypseQuestDirectBranch==nil then gStates.apocalypseQuestDirectBranch={} end
+			gStates.apocalypseQuestDirectBranch[card.guid]=key
+		end
+		apocalypseQuestResolveStepAction(card,playerIndex,selected.action,option,player.color)
+	end
+end
+
+local function apocalypseQuestHandleCombatLaunchAction(player,card,playerIndex,action)
+	if action=="Fight" then
+		apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil)
+		if getObjectFromGUID(card.guid)~=nil and (gStates.apocalypseQuestCombatChoice==nil or gStates.apocalypseQuestCombatChoice[card.guid]==nil) then apocalypseQuestInterfaceAdd(card,true) end
+		return true
+	end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.progressCombatLaunch~=nil then return handler.progressCombatLaunch(player,card,playerIndex,action)==true end
+	return false
+end
+
+local function apocalypseQuestHandlePendingChoiceAction(player,card,playerIndex,action)
+if action=="ChoiceCancel" then
+	if gStates.apocalypseQuestPendingChoice~=nil then gStates.apocalypseQuestPendingChoice[card.guid]=nil end
+	apocalypseQuestInterfaceAdd(card, true)
+	return
+end
+if action:sub(1,7)=="Choice_" then
+	local pending=gStates.apocalypseQuestPendingChoice~=nil and gStates.apocalypseQuestPendingChoice[card.guid] or nil
+	if pending==nil or pending.playerIndex~=playerIndex then
+		if gStates.apocalypseQuestPendingChoice~=nil then gStates.apocalypseQuestPendingChoice[card.guid]=nil end
+		apocalypseQuestInterfaceAdd(card, true)
+		return
+	end
+	local key=action:sub(8)
+	local selected=nil
+	for _, option in ipairs(apocalypseQuestCurrentOptions(card, playerIndex, pending.action)) do if option.key==key then selected=option break end end
+	gStates.apocalypseQuestPendingChoice[card.guid]=nil
+	if selected==nil then apocalypseQuestInterfaceAdd(card, true) return end
+	apocalypseQuestResolveStepAction(card, playerIndex, pending.action, selected, player.color)
+	if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card, true) end
+	return
+end
+end
+
+local function apocalypseQuestHandlePersonalQuestAction(player,card,playerIndex,action,quest,details)
+if action=="Abandon" then
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.personalAction~=nil and handler.personalAction(player,card,playerIndex,action)==true then return end
+	local ownerIndex, ownerShield=apocalypseQuestPersonalShieldOwner(card)
+	local neutralShield=apocalypseQuestNeutralShield(card)
+	if quest.questType=="Personal" and ownerIndex==nil and neutralShield~=nil then
+		if apocalypseQuestPlayerMayAct(card, playerIndex)~=true then
+			broadcastToColor("{en}You cannot resume this Personal Quest while you have another Personal Quest.{ru}Нельзя возобновить это личное задание, пока у вас есть другое личное задание.{zh-tw}當你有另一個個人任務時，不能恢復此個人任務。{zh-cn}当你有另一个个人任务时，不能恢复此个人任务。{ko}다른 개인 퀘스트를 보유한 동안에는 이 개인 퀘스트를 재개할 수 없습니다.{es}No puedes reanudar esta Misión Personal mientras tengas otra Misión Personal.{fr}Vous ne pouvez pas reprendre cette Quête Personnelle tant que vous en avez une autre.{pt-br}Você não pode retomar esta Missão Pessoal enquanto tiver outra Missão Pessoal.{de}Du kannst diese persönliche Quest nicht fortsetzen, solange du eine andere persönliche Quest hast.", player.color, warningColor)
+			apocalypseQuestUpdateProgressButtons(card)
+			return
+		end
+		if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
+			broadcastToColor("{en}The Personal Quest Shield could not be resumed.{ru}Щит личного задания не удалось восстановить.{zh-tw}無法恢復個人任務盾牌。{zh-cn}无法恢复个人任务盾牌。{ko}개인 퀘스트 방패를 재개하지 못했습니다.{es}No se pudo reanudar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être repris.{pt-br}O Escudo de Missão Pessoal não pôde ser retomado.{de}Der Schild der persönlichen Quest konnte nicht wieder aufgenommen werden.", player.color, {1,0.55,0.2})
+			return
+		end
+		apocalypseQuestUpdateProgressButtons(card)
+		broadcastToAll(joinLang({translateWord[details.mage] or tostring(details.mage),"{en} resumed \"{ru} возобновил \"{zh-tw} 恢復了 \"{zh-cn} 恢复了 \"{ko}이(가) \"{es} reanudó \"{fr} a repris \"{pt-br} retomou \"{de} setzte \"",tostring(quest.name),"{en}\".{ru}\".{zh-tw}\"。{zh-cn}\"。{ko}\"을(를) 재개했습니다.{es}\".{fr}\".{pt-br}\".{de}\" fort."}), positionToColor(playerIndex))
+		return
+	end
+	if quest.questType~="Personal" or ownerIndex~=playerIndex or ownerShield==nil then
+		broadcastToColor("{en}You can only abandon a Personal Quest marked with your own Shield.{ru}Вы можете отказаться только от личного задания, отмеченного вашим собственным Щитом.{zh-tw}你只能放棄以自己盾牌標記的個人任務。{zh-cn}你只能放弃以自己盾牌标记的个人任务。{ko}자신의 방패로 표시된 개인 퀘스트만 포기할 수 있습니다.{es}Solo puedes abandonar una Misión Personal marcada con tu propio Escudo.{fr}Vous ne pouvez abandonner qu’une Quête Personnelle marquée de votre propre Bouclier.{pt-br}Você só pode abandonar uma Missão Pessoal marcada com seu próprio Escudo.{de}Du kannst nur eine persönliche Quest aufgeben, die mit deinem eigenen Schild markiert ist.", player.color, warningColor)
+		apocalypseQuestUpdateProgressButtons(card)
+		return
+	end
+	if apocalypseQuestShieldSupplyBag("Neutral")==nil then
+		broadcastToColor("{en}The neutral Quest Shield bag could not be found.{ru}Мешок нейтральных Щитов задания не найден.{zh-tw}找不到中立任務盾牌袋。{zh-cn}找不到中立任务盾牌袋。{ko}중립 퀘스트 방패 주머니를 찾지 못했습니다.{es}No se encontró la bolsa de Escudos de Misión neutrales.{fr}Le sac de Boucliers de Quête neutres est introuvable.{pt-br}A bolsa de Escudos de Missão neutros não foi encontrada.{de}Der Beutel mit neutralen Quest-Schilden wurde nicht gefunden.", player.color, {1,0.55,0.2})
+		return
+	end
+	local shieldPos=ownerShield.getPosition()
+	local shieldRot=ownerShield.getRotation()
+	apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
+	local surface=apocalypseQuestPlannedWorldPosition(card,{shieldPos[1],shieldPos[2]+0.08,shieldPos[3]})
+	local target=apocalypseQuestRaisedPiecePosition(surface)
+	local neutralShield=apocalypseQuestTakeNeutralShield(surface)
+	if neutralShield==nil then
+		apocalypseQuestEndMoveAttachmentCapture(card)
+		broadcastToColor("{en}A neutral Quest Shield could not be placed.{ru}Нейтральный Щит задания не удалось разместить.{zh-tw}無法放置中立任務盾牌。{zh-cn}无法放置中立任务盾牌。{ko}중립 퀘스트 방패를 놓지 못했습니다.{es}No se pudo colocar un Escudo de Misión neutral.{fr}Un Bouclier de Quête neutre n’a pas pu être placé.{pt-br}Um Escudo de Missão neutro não pôde ser colocado.{de}Ein neutraler Quest-Schild konnte nicht platziert werden.", player.color, {1,0.55,0.2})
+		return
+	end
+	neutralShield.setRotationSmooth(shieldRot)
+	apocalypseQuestRegisterMoveAttachment(card,neutralShield,target)
+	apocalypseQuestEndMoveAttachmentCapture(card)
+	local ownerMage=details.mage
+	for _, shield in ipairs(apocalypseQuestObjectsOnCard(card)) do
+		if shield.getName()=="Shield" and shield.getDescription()==ownerMage and getObjectFromGUID(shield.guid)~=nil then shield.destruct() end
+	end
+	apocalypseQuestLoseReputation(playerIndex, quest.name, "abandon")
+	apocalypseQuestOfferMoveToLeft(card)
+	broadcastToAll(joinLang({translateWord[details.mage] or tostring(details.mage),"{en} abandoned a Quest.{ru} отказался от задания.{zh-tw} 放棄了一個任務。{zh-cn} 放弃了一个任务。{ko}이(가) 퀘스트를 포기했습니다.{es} abandonó una Misión.{fr} a abandonné une Quête.{pt-br} abandonou uma Missão.{de} hat eine Quest aufgegeben."}), positionToColor(playerIndex))
+	return
+end
+end
+
+local function apocalypseQuestHandleStandardAction(player,card,playerIndex,action)
+if action~="Progress" and action~="Complete" and action~="Fail" then return end
+local options=apocalypseQuestCurrentOptions(card, playerIndex, action)
+if #options==0 then
+	local state=apocalypseQuestProgressState(card, playerIndex, false)
+	local step=state~=nil and state.step or 1
+	broadcastToColor(joinLang({action,"{en} is not available for step {ru} недоступно для шага {zh-tw} 不適用於此任務的步驟 {zh-cn} 不适用于此任务的步骤 {ko}은(는) 이 퀘스트의 {es} no está disponible para el paso {fr} n’est pas disponible pour l’étape {pt-br} não está disponível para a etapa {de} ist für Schritt ",tostring(step),"{en} of this Quest.{ru} этого задания.{zh-tw}。{zh-cn}。{ko}단계에서 사용할 수 없습니다.{es} de esta Misión.{fr} de cette Quête.{pt-br} desta Missão.{de} dieser Quest nicht verfügbar."}), player.color, warningColor)
+	apocalypseQuestUpdateProgressButtons(card)
+	return
+end
+if apocalypseQuestOptionsNeedChoice(card, action, options)==true then
+	apocalypseQuestShowChoice(card, playerIndex, action, options)
+	return
+end
+apocalypseQuestResolveStepAction(card, playerIndex, action, options[1], player.color)
+end
+
 function apocalypseQuestCardAction(player, mouseButton, id)
 	if mouseButton=="-3" or player==nil or id==nil then return end
 	local guid=id:sub(16, 21)
@@ -33777,14 +34862,12 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 		return
 	end
 	local playerIndex=gStates.turnNumber
-	local underSiegeConfirm=false
-	if card~=nil and card.guid=="a6d5cc" and action=="Progress" then
-		local readyPlayer=apocalypseQuestUnderSiegeReadyPlayer()
-		if readyPlayer~=nil then playerIndex=readyPlayer underSiegeConfirm=true end
-	end
+	local anyHumanConfirm=false
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.actionPlayer~=nil then playerIndex,anyHumanConfirm=handler.actionPlayer(card,action,playerIndex) end
 	local details=turnOrder[playerIndex]
 	if card==nil or details==nil then return end
-	if underSiegeConfirm==true then
+	if anyHumanConfirm==true then
 		if apocalypseQuestAnyHumanMayConfirm(player.color)~=true then return end
 	elseif legalPlayerCheck(player.color, details.seatPos, "NoDummyException")~=true then return end
 	local offered=false
@@ -33792,285 +34875,28 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 	if offered~=true then apocalypseQuestInterfaceRemove(card) return end
 	local quest=apocalypseQuestData[card.guid]
 	if quest==nil then return end
-
-	if action=="CombatCancel" then
-		local pendingCombat=gStates.apocalypseQuestCombatChoice~=nil and gStates.apocalypseQuestCombatChoice[card.guid] or nil
-		if pendingCombat~=nil and (pendingCombat.mode=="ExecutionGold" or pendingCombat.mode=="NobleWarriorGold" or pendingCombat.mode=="GuardDutyChoice" or pendingCombat.mode=="GuardDutyGold") then return end
-		if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
-		apocalypseQuestInterfaceAdd(card,true)
-		return
-	end
-	if action:sub(1,12)=="CombatColor_" then
-		local pendingCombat=gStates.apocalypseQuestCombatChoice~=nil and gStates.apocalypseQuestCombatChoice[card.guid] or nil
-		local color=action:sub(13)
-		if pendingCombat==nil or pendingCombat.playerIndex~=playerIndex then
-			if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
-			apocalypseQuestInterfaceAdd(card,true)
-			return
-		end
-		local allowed=false
-		for _, possible in ipairs(pendingCombat.colors or {}) do if possible==color then allowed=true break end end
-		gStates.apocalypseQuestCombatChoice[card.guid]=nil
-		if allowed==true and pendingCombat.mode=="GuardDutyChoice" then
-			if color=="NoInventory" then
-				--Nothing more can legally be gained. Consume the remaining printed choices and finish cleanly.
-				if #apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)==1 and apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)[1]=="NoInventory" then
-					apocalypseQuestFinishGuardDutyChoice(card,playerIndex,pendingCombat.distance)
-				else
-					pendingCombat.colors=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
-					gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-					apocalypseQuestInterfaceAdd(card,true)
-				end
-				return
-			end
-			pendingCombat.granted=pendingCombat.granted or {}
-			pendingCombat.startCounts=pendingCombat.startCounts or {}
-			if pendingCombat.startCounts[color]==nil then pendingCombat.startCounts[color]=mineCrystalCount(playerIndex,color) end
-			local effective=math.max(mineCrystalCount(playerIndex,color),pendingCombat.startCounts[color]+(pendingCombat.granted[color] or 0))
-			if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Guard Duty")==true then
-				pendingCombat.granted[color]=(pendingCombat.granted[color] or 0)+1
-				pendingCombat.remaining=(pendingCombat.remaining or 1)-1
-			end
-			if (pendingCombat.remaining or 0)<=0 then
-				apocalypseQuestFinishGuardDutyChoice(card,playerIndex,pendingCombat.distance)
-			else
-				pendingCombat.colors=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
-				gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-				apocalypseQuestInterfaceAdd(card,true)
-			end
-			return
-		elseif allowed==true and pendingCombat.mode=="GuardDutyGold" then
-			if color=="NoInventory" then
-				if #apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)==1 and apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)[1]=="NoInventory" then
-					apocalypseQuestFinishGuardDutyGold(card,playerIndex,pendingCombat.distance)
-				else
-					pendingCombat.colors=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
-					gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-					apocalypseQuestInterfaceAdd(card,true)
-				end
-				return
-			end
-			pendingCombat.granted=pendingCombat.granted or {}
-			pendingCombat.startCounts=pendingCombat.startCounts or {}
-			if pendingCombat.startCounts[color]==nil then pendingCombat.startCounts[color]=mineCrystalCount(playerIndex,color) end
-			local effective=math.max(mineCrystalCount(playerIndex,color),pendingCombat.startCounts[color]+(pendingCombat.granted[color] or 0))
-			if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Guard Duty")==true then
-				pendingCombat.granted[color]=(pendingCombat.granted[color] or 0)+1
-				pendingCombat.goldRemaining=(pendingCombat.goldRemaining or 1)-1
-			end
-			if (pendingCombat.goldRemaining or 0)<=0 then
-				apocalypseQuestFinishGuardDutyGold(card,playerIndex,pendingCombat.distance)
-			else
-				pendingCombat.colors=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
-				gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-				apocalypseQuestInterfaceAdd(card,true)
-			end
-			return
-		elseif allowed==true and pendingCombat.mode=="NobleWarriorGold" then
-			if color=="NoInventory" then
-				--This button is only offered when all four basic-crystal inventories are full. It consumes
-				--any remaining Gold results so the Quest can always be cleared.
-				if #apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)==1 and apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)[1]=="NoInventory" then
-					apocalypseQuestFinishNobleGold(card,playerIndex)
-				else
-					pendingCombat.colors=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
-					gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-					apocalypseQuestInterfaceAdd(card,true)
-				end
-				return
-			end
-			pendingCombat.granted=pendingCombat.granted or {}
-			pendingCombat.startCounts=pendingCombat.startCounts or {}
-			if pendingCombat.startCounts[color]==nil then pendingCombat.startCounts[color]=mineCrystalCount(playerIndex,color) end
-			local effective=math.max(mineCrystalCount(playerIndex,color),pendingCombat.startCounts[color]+(pendingCombat.granted[color] or 0))
-			if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Noble Warrior")==true then
-				pendingCombat.granted[color]=(pendingCombat.granted[color] or 0)+1
-				pendingCombat.goldRemaining=(pendingCombat.goldRemaining or 1)-1
-			end
-			if (pendingCombat.goldRemaining or 0)<=0 then
-				apocalypseQuestFinishNobleGold(card,playerIndex)
-			else
-				pendingCombat.colors=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
-				gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-				apocalypseQuestInterfaceAdd(card,true)
-			end
-			return
-		elseif allowed==true and pendingCombat.mode=="ExecutionGold" then
-			local selected=apocalypseQuestChoiceOption(card,"1a")
-			if selected~=nil and apocalypseQuestGiveCrystal(playerIndex,color,nil,"The Execution")==true then
-				apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-				apocalypseQuestResolveSpecialEffect(card,playerIndex,selected,true)
-				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} chose a {ru} выбрал {zh-tw} 為 The Execution 選擇了 {zh-cn} 为 The Execution 选择了 {ko}이(가) The Execution에서 {es} eligió un cristal {fr} a choisi un cristal {pt-br} escolheu um cristal {de} wählte für The Execution einen ",translateWord[color] or tostring(color),"{en} crystal for The Execution.{ru} кристалл для The Execution.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털을 선택했습니다.{es} para The Execution.{fr} pour The Execution.{pt-br} para The Execution.{de}-Kristall."}),positionToColor(playerIndex))
-				apocalypseQuestFinishCompletedCard(card)
-				safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
-			else
-				--If the chosen crystal cannot be taken (for example the Inventory already has 3), keep the
-				--Gold choice open so the player may choose another basic colour.
-				if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-				gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-				apocalypseQuestInterfaceAdd(card,true)
-			end
-			return
-		elseif allowed==true and pendingCombat.mode=="ProgressColor" then
-			if gStates.apocalypseQuestStepColor==nil then gStates.apocalypseQuestStepColor={} end
-			gStates.apocalypseQuestStepColor[card.guid]=color
-			local selected=apocalypseQuestChoiceOption(card,pendingCombat.key)
-			if selected~=nil then apocalypseQuestResolveStepAction(card,playerIndex,pendingCombat.action or "Progress",selected,player.color) end
-		elseif allowed==true then apocalypseQuestLaunchCombat(card,playerIndex,player.color,color) end
-		if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end
+	if action=="CombatCancel" or action:sub(1,12)=="CombatColor_" then
+		apocalypseQuestHandleCombatChoiceAction(player,card,playerIndex,action)
 		return
 	end
 	if action:sub(1,7)=="Direct_" then
-		local key=action:sub(8)
-		local selected=nil
-		for _, choice in ipairs(apocalypseQuestDirectChoices(card,playerIndex)) do if choice.key==key then selected=choice break end end
-		if selected==nil or apocalypseQuestDirectChoiceLegal(card,playerIndex,selected)~=true then apocalypseQuestInterfaceAdd(card,true) return end
-		if card.guid=="72099f" and selected.action=="GoblinWarrens" then
-			apocalypseQuestStartGoblinWarrens(card,playerIndex,tonumber(key:match("(%d+)$")))
-			return
-		end
-		local option=apocalypseQuestChoiceOption(card,key)
-		if selected.action=="Combat" then
-			if card.guid~="a6d5cc" then
-				if gStates.apocalypseQuestDirectBranch==nil then gStates.apocalypseQuestDirectBranch={} end
-				gStates.apocalypseQuestDirectBranch[card.guid]=key
-			end
-			if card.guid=="ce70fb" then
-				if gStates.apocalypseQuestCombatBranch==nil then gStates.apocalypseQuestCombatBranch={} end
-				gStates.apocalypseQuestCombatBranch[card.guid]=key
-				apocalypseQuestLaunchCombat(card,playerIndex,player.color,key)
-			else apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil) end
-			if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end
-		else
-			if card.guid=="8939c0" or card.guid=="82a935" then
-				if gStates.apocalypseQuestDirectBranch==nil then gStates.apocalypseQuestDirectBranch={} end
-				gStates.apocalypseQuestDirectBranch[card.guid]=key
-			end
-			--ResolveStepAction owns the refresh after its rewind transaction has advanced the Quest state.
-			--Rebuilding here used the old state and could put the just-clicked branch choices straight back.
-			apocalypseQuestResolveStepAction(card,playerIndex,selected.action,option,player.color)
-		end
+		apocalypseQuestHandleDirectAction(player,card,playerIndex,action)
 		return
 	end
 	if action=="Fight" then
-		apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil)
-		if getObjectFromGUID(card.guid)~=nil and (gStates.apocalypseQuestCombatChoice==nil or gStates.apocalypseQuestCombatChoice[card.guid]==nil) then apocalypseQuestInterfaceAdd(card,true) end
+		apocalypseQuestHandleCombatLaunchAction(player,card,playerIndex,action)
 		return
 	end
-
-	--The Fog Step 3 uses Proceed as its final combat launcher. It becomes available only after the
-	--Possessed token has physically linked to the brown enemy on the Quest card.
-	if action=="Progress" and card.guid=="dd35bb" then
-		local questState=apocalypseQuestProgressState(card,playerIndex,false)
-		if questState~=nil and questState.step==3 and apocalypseQuestFogPossessedReady(card)==true then
-			apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil)
-			if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end
-			return
-		end
-	end
-
-	--Mine of Doom Step 2 presents its combat launcher in the normal Progress/Proceed slot.
-	--It performs exactly the same launch path as the old separate Attack icon.
-	if action=="Progress" and card.guid=="485cc5" then
-		local questState=apocalypseQuestProgressState(card,playerIndex,false)
-		if questState~=nil and questState.step==2 then
-			apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil)
-			if getObjectFromGUID(card.guid)~=nil and (gStates.apocalypseQuestCombatChoice==nil or gStates.apocalypseQuestCombatChoice[card.guid]==nil) then apocalypseQuestInterfaceAdd(card,true) end
-			return
-		end
-	end
-
-	if action=="ChoiceCancel" then
-		if gStates.apocalypseQuestPendingChoice~=nil then gStates.apocalypseQuestPendingChoice[card.guid]=nil end
-		apocalypseQuestInterfaceAdd(card, true)
+	if action=="Progress" and apocalypseQuestHandleCombatLaunchAction(player,card,playerIndex,action)==true then return end
+	if action=="ChoiceCancel" or action:sub(1,7)=="Choice_" then
+		apocalypseQuestHandlePendingChoiceAction(player,card,playerIndex,action)
 		return
 	end
-	if action:sub(1,7)=="Choice_" then
-		local pending=gStates.apocalypseQuestPendingChoice~=nil and gStates.apocalypseQuestPendingChoice[card.guid] or nil
-		if pending==nil or pending.playerIndex~=playerIndex then
-			if gStates.apocalypseQuestPendingChoice~=nil then gStates.apocalypseQuestPendingChoice[card.guid]=nil end
-			apocalypseQuestInterfaceAdd(card, true)
-			return
-		end
-		local key=action:sub(8)
-		local selected=nil
-		for _, option in ipairs(apocalypseQuestCurrentOptions(card, playerIndex, pending.action)) do if option.key==key then selected=option break end end
-		gStates.apocalypseQuestPendingChoice[card.guid]=nil
-		if selected==nil then apocalypseQuestInterfaceAdd(card, true) return end
-		apocalypseQuestResolveStepAction(card, playerIndex, pending.action, selected, player.color)
-		if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card, true) end
-		return
-	end
-
 	if action=="Abandon" then
-		if card.guid=="a6d5cc" and apocalypseQuestPersonalShieldOwner(card)~=nil then
-			broadcastToColor("{en}Under Siege must be resolved with 2A or 2B; it cannot be abandoned after Step 1.{ru}Under Siege должно быть разрешено через 2A или 2B; после шага 1 его нельзя покинуть.{zh-tw}Under Siege 必須以 2A 或 2B 結算；步驟 1 後不能放棄。{zh-cn}Under Siege 必须以 2A 或 2B 结算；步骤 1 后不能放弃。{ko}Under Siege는 2A 또는 2B로 해결해야 하며 1단계 이후에는 포기할 수 없습니다.{es}Under Siege debe resolverse con 2A o 2B; no puede abandonarse después del Paso 1.{fr}Under Siege doit être résolu avec 2A ou 2B ; il ne peut pas être abandonné après l’Étape 1.{pt-br}Under Siege deve ser resolvido com 2A ou 2B; não pode ser abandonado após a Etapa 1.{de}Under Siege muss mit 2A oder 2B abgewickelt werden; nach Schritt 1 kann es nicht aufgegeben werden.",player.color,warningColor)
-			apocalypseQuestInterfaceAdd(card,true)
-			return
-		end
-		local ownerIndex, ownerShield=apocalypseQuestPersonalShieldOwner(card)
-		local neutralShield=apocalypseQuestNeutralShield(card)
-		if quest.questType=="Personal" and ownerIndex==nil and neutralShield~=nil then
-			if apocalypseQuestPlayerMayAct(card, playerIndex)~=true then
-				broadcastToColor("{en}You cannot resume this Personal Quest while you have another Personal Quest.{ru}Нельзя возобновить это личное задание, пока у вас есть другое личное задание.{zh-tw}當你有另一個個人任務時，不能恢復此個人任務。{zh-cn}当你有另一个个人任务时，不能恢复此个人任务。{ko}다른 개인 퀘스트를 보유한 동안에는 이 개인 퀘스트를 재개할 수 없습니다.{es}No puedes reanudar esta Misión Personal mientras tengas otra Misión Personal.{fr}Vous ne pouvez pas reprendre cette Quête Personnelle tant que vous en avez une autre.{pt-br}Você não pode retomar esta Missão Pessoal enquanto tiver outra Missão Pessoal.{de}Du kannst diese persönliche Quest nicht fortsetzen, solange du eine andere persönliche Quest hast.", player.color, warningColor)
-				apocalypseQuestUpdateProgressButtons(card)
-				return
-			end
-			if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-				broadcastToColor("{en}The Personal Quest Shield could not be resumed.{ru}Щит личного задания не удалось восстановить.{zh-tw}無法恢復個人任務盾牌。{zh-cn}无法恢复个人任务盾牌。{ko}개인 퀘스트 방패를 재개하지 못했습니다.{es}No se pudo reanudar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être repris.{pt-br}O Escudo de Missão Pessoal não pôde ser retomado.{de}Der Schild der persönlichen Quest konnte nicht wieder aufgenommen werden.", player.color, {1,0.55,0.2})
-				return
-			end
-			apocalypseQuestUpdateProgressButtons(card)
-			broadcastToAll(joinLang({translateWord[details.mage] or tostring(details.mage),"{en} resumed \"{ru} возобновил \"{zh-tw} 恢復了 \"{zh-cn} 恢复了 \"{ko}이(가) \"{es} reanudó \"{fr} a repris \"{pt-br} retomou \"{de} setzte \"",tostring(quest.name),"{en}\".{ru}\".{zh-tw}\"。{zh-cn}\"。{ko}\"을(를) 재개했습니다.{es}\".{fr}\".{pt-br}\".{de}\" fort."}), positionToColor(playerIndex))
-			return
-		end
-		if quest.questType~="Personal" or ownerIndex~=playerIndex or ownerShield==nil then
-			broadcastToColor("{en}You can only abandon a Personal Quest marked with your own Shield.{ru}Вы можете отказаться только от личного задания, отмеченного вашим собственным Щитом.{zh-tw}你只能放棄以自己盾牌標記的個人任務。{zh-cn}你只能放弃以自己盾牌标记的个人任务。{ko}자신의 방패로 표시된 개인 퀘스트만 포기할 수 있습니다.{es}Solo puedes abandonar una Misión Personal marcada con tu propio Escudo.{fr}Vous ne pouvez abandonner qu’une Quête Personnelle marquée de votre propre Bouclier.{pt-br}Você só pode abandonar uma Missão Pessoal marcada com seu próprio Escudo.{de}Du kannst nur eine persönliche Quest aufgeben, die mit deinem eigenen Schild markiert ist.", player.color, warningColor)
-			apocalypseQuestUpdateProgressButtons(card)
-			return
-		end
-		if apocalypseQuestShieldSupplyBag("Neutral")==nil then
-			broadcastToColor("{en}The neutral Quest Shield bag could not be found.{ru}Мешок нейтральных Щитов задания не найден.{zh-tw}找不到中立任務盾牌袋。{zh-cn}找不到中立任务盾牌袋。{ko}중립 퀘스트 방패 주머니를 찾지 못했습니다.{es}No se encontró la bolsa de Escudos de Misión neutrales.{fr}Le sac de Boucliers de Quête neutres est introuvable.{pt-br}A bolsa de Escudos de Missão neutros não foi encontrada.{de}Der Beutel mit neutralen Quest-Schilden wurde nicht gefunden.", player.color, {1,0.55,0.2})
-			return
-		end
-		local shieldPos=ownerShield.getPosition()
-		local shieldRot=ownerShield.getRotation()
-		apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
-		local surface=apocalypseQuestPlannedWorldPosition(card,{shieldPos[1],shieldPos[2]+0.08,shieldPos[3]})
-		local target=apocalypseQuestRaisedPiecePosition(surface)
-		local neutralShield=apocalypseQuestTakeNeutralShield(surface)
-		if neutralShield==nil then
-			apocalypseQuestEndMoveAttachmentCapture(card)
-			broadcastToColor("{en}A neutral Quest Shield could not be placed.{ru}Нейтральный Щит задания не удалось разместить.{zh-tw}無法放置中立任務盾牌。{zh-cn}无法放置中立任务盾牌。{ko}중립 퀘스트 방패를 놓지 못했습니다.{es}No se pudo colocar un Escudo de Misión neutral.{fr}Un Bouclier de Quête neutre n’a pas pu être placé.{pt-br}Um Escudo de Missão neutro não pôde ser colocado.{de}Ein neutraler Quest-Schild konnte nicht platziert werden.", player.color, {1,0.55,0.2})
-			return
-		end
-		neutralShield.setRotationSmooth(shieldRot)
-		apocalypseQuestRegisterMoveAttachment(card,neutralShield,target)
-		apocalypseQuestEndMoveAttachmentCapture(card)
-		local ownerMage=details.mage
-		for _, shield in ipairs(apocalypseQuestObjectsOnCard(card)) do
-			if shield.getName()=="Shield" and shield.getDescription()==ownerMage and getObjectFromGUID(shield.guid)~=nil then shield.destruct() end
-		end
-		apocalypseQuestLoseReputation(playerIndex, quest.name, "abandon")
-		apocalypseQuestOfferMoveToLeft(card)
-		broadcastToAll(joinLang({translateWord[details.mage] or tostring(details.mage),"{en} abandoned a Quest.{ru} отказался от задания.{zh-tw} 放棄了一個任務。{zh-cn} 放弃了一个任务。{ko}이(가) 퀘스트를 포기했습니다.{es} abandonó una Misión.{fr} a abandonné une Quête.{pt-br} abandonou uma Missão.{de} hat eine Quest aufgegeben."}), positionToColor(playerIndex))
+		apocalypseQuestHandlePersonalQuestAction(player,card,playerIndex,action,quest,details)
 		return
 	end
-
-	if action~="Progress" and action~="Complete" and action~="Fail" then return end
-	local options=apocalypseQuestCurrentOptions(card, playerIndex, action)
-	if #options==0 then
-		local state=apocalypseQuestProgressState(card, playerIndex, false)
-		local step=state~=nil and state.step or 1
-		broadcastToColor(joinLang({action,"{en} is not available for step {ru} недоступно для шага {zh-tw} 不適用於此任務的步驟 {zh-cn} 不适用于此任务的步骤 {ko}은(는) 이 퀘스트의 {es} no está disponible para el paso {fr} n’est pas disponible pour l’étape {pt-br} não está disponível para a etapa {de} ist für Schritt ",tostring(step),"{en} of this Quest.{ru} этого задания.{zh-tw}。{zh-cn}。{ko}단계에서 사용할 수 없습니다.{es} de esta Misión.{fr} de cette Quête.{pt-br} desta Missão.{de} dieser Quest nicht verfügbar."}), player.color, warningColor)
-		apocalypseQuestUpdateProgressButtons(card)
-		return
-	end
-	if apocalypseQuestOptionsNeedChoice(card, action, options)==true then
-		apocalypseQuestShowChoice(card, playerIndex, action, options)
-		return
-	end
-	apocalypseQuestResolveStepAction(card, playerIndex, action, options[1], player.color)
+	apocalypseQuestHandleStandardAction(player,card,playerIndex,action)
 end
 --Quest Deck GUIDs can change when TTS collapses/rebuilds a Deck while completed Quests are returned.
 --Recover the live pile by its fixed table position and known Quest contents, then remember the new GUID.
@@ -34727,7 +35553,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 
 		--switch rules to the matching page for scenario. Rulebooks are presentation/reference objects,
 		--so configure each returned object independently rather than making them a chained setup dependency.
-		local ruleBag=getObjectFromGUID("d4a866")
+		local ruleBag=getObjectFromGUID(GUID.bag.rules)
 		local r={main="b850ab", expansion="700e93", apocalypse="65f2b6"}
 		local scenarioRuleStates=scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates or {}
 		local needExpansionRules=scenarioRuleStates.expansion~=nil or gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false
@@ -34863,7 +35689,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				return getObjectFromGUID(volkare.terrainHex)~=nil and getObjectFromGUID(campCityCardGUID)~=nil and getObjectFromGUID(GUID.bag.volkare)~=nil
 			end,10,function() error("SetupGame timed out waiting for Volkare Camp support objects.",2) end)
 			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.volkare),{rotation={0.0, 180.0, 0.0}, position={39.16, 0.97, 35.00}, callback_function=function(spawnedObject) spawnedObject.setScale({7.05, 1.00, 6.51}) end, smooth=false, guid="b2ec85"})--Volkare Level Chart
-			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0,  45.0, 0.0}, position={-57.60, 1.57, -2.45}, smooth=false, guid="9a686a"})--Volker Dice
+			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0,  45.0, 0.0}, position={-57.60, 1.57, -2.45}, smooth=false, guid=GUID.object.volkareDie})--Volker Dice
 		end
 
 		--display the help button
@@ -34904,7 +35730,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		if gStates.removeApocalypseTerrain~=true then
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.pyramidTrap, position={-43.00, 1.30, 20.00}, rotation={0, 180, 0}, smooth=false}).lock()--Pyramid Trap Tokens
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.zigguratTrap, position={-43.00, 1.30, 23.00}, rotation={0, 180, 0}, smooth=false}).lock()--Zigurat Trap Tokens
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="a8bf9c", position={-51.63, 0.97, 45.88}, rotation={0, 180, 0}, smooth=false}).lock()--Oasis Reminder token
+			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.token.oasisReminder, position={-51.63, 0.97, 45.88}, rotation={0, 180, 0}, smooth=false}).lock()--Oasis Reminder token
 			if gStates.gameScenario=="Against the Apocalypse Blitz" then
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="f64a50", position={-38.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Against the Apocalypse Reminder Card
 				local startPosition={1, 4, 5, 6, 7, 9}
@@ -35026,7 +35852,7 @@ local function removeUnselectedTerrain()
 		for _,guid in ipairs({GUID.tile.country01,GUID.tile.country02}) do sendTerrainTileToTrash(countryBag,guid) end
 	end
 	--When Volkare is the automated opponent, their scenario setup has already pulled this same tile from the City bag.
-	if gStates.positionMageKnight[5]~="Volkare" and setupUsesVolkareCampCity()~=true then sendTerrainTileToTrash(cityBag,"835c91") end
+	if gStates.positionMageKnight[5]~="Volkare" and setupUsesVolkareCampCity()~=true then sendTerrainTileToTrash(cityBag,GUID.tile.volkareCamp) end
 end
 
 --Volkare is deployed before map construction, so his final lock belongs to the map-complete path.
@@ -35192,10 +36018,10 @@ function setupGame(player, mouseButton, id, rewindReady)
 			end
 			--Fury's manual comes from the Apocalypse Dragon rules bag and is locked by the normal
 			--delayed rulebook pass alongside the other manuals.
-			if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
-				local ruleBag=getObjectFromGUID("d4a866")
+			if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID(GUID.card.furyOfDragonRules)==nil then
+				local ruleBag=getObjectFromGUID(GUID.bag.rules)
 				if ruleBag~=nil then
-					local furyRules=safeTakeObject("SetupGame",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
+					local furyRules=safeTakeObject("SetupGame",ruleBag,{guid=GUID.card.furyOfDragonRules,position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
 					setupConfigureRulebook(furyRules,nil)
 				end
 			end
@@ -35902,7 +36728,7 @@ function mapSetup(onComplete)
 			if firstStart~=nil then standardRevealBatches[1][#standardRevealBatches[1]+1]={guid=firstStart.guid,first=true} end
 		end
 		if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-			local camp=getObjectFromGUID("835c91")
+			local camp=getObjectFromGUID(GUID.tile.volkareCamp)
 			if camp~=nil then
 				--Player setup stages the Camp off-map. Bring it into its opening hex face down, then let
 				--the normal reveal coordinator flip and populate it like every other starting terrain tile.
@@ -35922,7 +36748,7 @@ function mapSetup(onComplete)
 			if thirdStart~=nil then standardRevealBatches[3][#standardRevealBatches[3]+1]={guid=thirdStart.guid} end
 		end
 		if gStates.gameScenario=="Volkare's Quest" then
-			local camp=getObjectFromGUID("835c91")
+			local camp=getObjectFromGUID(GUID.tile.volkareCamp)
 			if camp~=nil then
 				--Player setup stages the Camp off-map so entering the map zone cannot start an independent
 				--terrain reveal. Put it down only after the normal three starting-terrain reveals are queued,
@@ -35931,7 +36757,7 @@ function mapSetup(onComplete)
 				standardRevealBatches[4][#standardRevealBatches[4]+1]={guid=camp.guid}
 			end
 		elseif gStates.gameScenario=="The War of Four" then
-			local camp=getObjectFromGUID("835c91")
+			local camp=getObjectFromGUID(GUID.tile.volkareCamp)
 			if camp~=nil then camp.setPosition({-12.0297,1.15,8.8586}) standardRevealBatches[3][#standardRevealBatches[3]+1]={guid=camp.guid} end
 		end
 	end
@@ -36286,7 +37112,7 @@ function higherLevelSkill(player, mouseButton, id, pairPosition)
 		local pairZ=pairPosition~=nil and pairPosition[3] or selectedSkill.getPosition()[3]
 		if legalPlayerCheck(player.color, tonumber(playerPosition))==true then
 			--Bonds of Loyalty goes to unit area
-			if id:sub(1,6)=="f30dd4" then
+			if id:sub(1,6)==GUID.skill.bondsOfLoyalty then
 				local bondsX=unitLayoutNextCommandX(playerPosition)
 				gStates.mageSkills[id:sub(1,6)]={bondsX,1.1,-31.19}
 				selectedSkill.setPositionSmooth({bondsX,1.1,-31.19})
@@ -36308,12 +37134,12 @@ function higherLevelSkill(player, mouseButton, id, pairPosition)
 				broadcastToAll("{en}Two more Regular units and 5 influence given to Norowas.{ru}Два дополнительных обычных отряда и 5 влияния даны Норовас{zh-tw}给诺罗瓦斯增加两个常规部队供应和5影响力{zh-cn}给诺罗瓦斯增加两个常规部队供应和5影响力{ko}노로워즈에게 일반 유닛 두 개와 영향력 5가 추가 지급되었습니다. {es}Dos unidades regulares más y 5 influencia dadas a Norowas.{fr}Deux autres unités régulières et 5 d'influence donnés à Norowas.{pt-br}2 unidades Regulares a mais e 5 influência dadas a Norowas{de}Zwei weitere reguläre Einheiten und 5 Einfluss an Norowas gegeben.", {1,1,0.5})
 			end
 			--Master of Chaos
-			if id:sub(1,6)=="1ff34f" then
+			if id:sub(1,6)==GUID.skill.masterOfChaos then
 				masterOfChaosSetup(playerPosition)
 			end
 			--move claimed skill to skill column. Bonds of Loyalty already moved to/recorded in the Unit Area above.
 			selectedSkill.unlock()
-			if id:sub(1,6)~="f30dd4" then
+			if id:sub(1,6)~=GUID.skill.bondsOfLoyalty then
 				local skillHome={(playerPosition*40)-107.45, 1.5, selectedSkill.getPosition()[3]}
 				selectedSkill.setPositionSmooth(skillHome)
 				gStates.mageSkills[id:sub(1,6)]=skillHome
@@ -36558,7 +37384,7 @@ function deckSetup()
 	--Organise the Spell deck for "The Chaos Rift"
 	if gStates.gameScenario=="The Chaos Rift" then
 		getObjectFromGUID(GUID.deck.spell).setPosition({40.80, 2.0, -22.20})--Raise spell Deck
-		getObjectFromGUID(GUID.deck.spell).takeObject({guid="2eb8e2", position={40.80, 1.07, -22.20}})--Put Golden Grail under artifact Deck
+		getObjectFromGUID(GUID.deck.spell).takeObject({guid=GUID.card.timeBending, position={40.80, 1.07, -22.20}})--Put Golden Grail under artifact Deck
 	end
 
 	--Remove City-only units for scenarios without city access. Expansion filtering already removed
@@ -36636,6 +37462,488 @@ end)
 __bundle_register("SetupGame.Players", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Physical player, Dummy and Volkare piece deployment during setup.
 
+local PLAYER_SETUP_POSITION_ORDER={2,3,4,1,5}
+
+local PLAYER_SETUP_COMMON_PARTS={
+	{-72.50,0.98,-38.00},{-68.60,1.37,-30.80},{-68.60,1.37,-32.40},
+	{-67.30,1.37,-30.80},{-67.30,1.37,-32.40},{-65.90,1.37,-30.80},{-65.90,1.37,-32.40},
+	{-41.95,1.08,-36.10},{-41.76,1.14,-31.10},{-41.76,1.16,-34.41},
+	{-69.30,1.35,-29.30},{-68.00,1.35,-29.30},{-66.70,1.35,-29.30},{-65.40,1.35,-29.30},
+	{-76.30,1.35,-29.30},{-75.00,1.35,-29.30},{-73.70,1.35,-29.30},{-72.40,1.35,-29.30}
+}
+
+local PLAYER_SETUP_UNIQUE_PARTS={
+	{0.40,1.55,-19.17},{-74.19,1.50,-43.16},{-72.89,1.10,-35.13},{-67.46,1.60,-36.88},
+	{-77.30,1.05,-49.00},{-73.90,1.05,-49.00},{-10.00,1.25,-27.50},{12.10,1.25,24.50},
+	{40.15,1.25,18.60},{-66.40,1.16,-34.25},{-41.76,1.16,-32.78},{-63.57,1.50,-31.19},
+	{-68.24,1.10,-34.40}
+}
+
+local PLAYER_SETUP_PORTAL_POSITIONS={
+	{-42.5,1.3,-11.4},{-45.5,1.3,-13.2},{-42.5,1.3,-13.2},{-45.5,1.3,-11.4},{-43.94,1.3,-12.36}
+}
+
+local PLAYER_SETUP_REPUTATION_POSITIONS={
+	{{34.02,1.14,21.26},{34.50,1.14,22.57},{34.99,1.14,23.91},{33.53,1.21,19.98}},
+	{{36.70,1.20,20.25},{37.33,1.14,21.45},{38.02,1.14,22.63},{36.11,1.14,19.04}},
+	{{39.87,1.13,19.41},{38.79,1.13,18.75},{41.16,1.13,19.20},{40.33,1.13,20.87}},
+	{{39.03,1.13,16.00},{40.18,1.13,16.30},{41.37,1.13,16.56},{37.87,1.13,15.74}}
+}
+
+local PLAYER_SETUP_INVENTORIES={
+	Arythea="https://steamusercontent-a.akamaihd.net/ugc/1688270498378077447/DA7FA05E7349C9E1C99C318032043429816C861D/",
+	Braevalar="https://steamusercontent-a.akamaihd.net/ugc/1688270498378077718/DCE81E61A3E1B96D8BA93A4F8793A10FB665FB6B/",
+	Goldyx="https://steamusercontent-a.akamaihd.net/ugc/1688270498378077961/390B23321D1B2E3F34B1A029FFB2FB9C84262763/",
+	Jormund="https://steamusercontent-a.akamaihd.net/ugc/1795241588983562972/1557BE3291E3A706D57FBFDBE5A72E7FAAB2CDF1/",
+	Mevok="https://steamusercontent-a.akamaihd.net/ugc/2546304515601825153/FC93E96C09CB79AC93C52094C1B5287D811FA482/",
+	Duscenia="https://steamusercontent-a.akamaihd.net/ugc/2546304515601824613/3B452F1B422F9671596713E2AFAAD60D41D3D16F/",
+	Malek="https://steamusercontent-a.akamaihd.net/ugc/14943218316842257893/D58F0F6FCC4FE321C759297C11AE9F56BE11B0FD/",
+	Krang="https://steamusercontent-a.akamaihd.net/ugc/1688270498378078687/F80D82EF2E26084CEB57089D002A0302D97DEC6B/",
+	Norowas="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079060/8711BC1DD995631FD7EEEC2747ADB204C806CE5C/",
+	Tovak="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079257/2B4D0055D769A2F0A24EEBC1940C0A50F834A9C0/",
+	Wolfhawk="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079469/999F91445334DECE8125779EB46C1A5C46687A9D/",
+	Coral="https://steamusercontent-a.akamaihd.net/ugc/14667008316248124108/D5989267D0EA9DC649819CA8E597860FA8B9F92C/",
+	Zirtae="https://steamusercontent-a.akamaihd.net/ugc/17952541848407306110/B100358117F2DBF3F181B3FD347B14C77AA26308/",
+	Ymirgh="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079688/47CE3F5B6A9F817FB562B5E9864E7F761CC62F97/"
+}
+
+local function playerSetupInitializeState()
+	gStates.playerSetupReady=false
+	gStates.proxySetupReady=proxyPlayerActive()~=true
+	gStates.volkareSetupReady=gStates.positionMageKnight[5]~="Volkare"
+	gStates.mirrorSource=gStates.mirrorSource or {}
+	gStates.mirrorSetupReady=false
+	local mirrorExpected=0
+	for seat=1,4 do
+		if gStates.positionMageKnight[seat]~="nobody" then mirrorExpected=mirrorExpected+1 end
+	end
+	if mirrorExpected==0 then gStates.mirrorSetupReady=true end
+	if gStates.heroChallenges==true then gStates.heroChallengeReservedSkills={} end
+	return mirrorExpected
+end
+
+local function playerSetupResolveRandomMages()
+	gStates.originalChoiceMageKnights={gStates.positionMageKnight[1],gStates.positionMageKnight[2],gStates.positionMageKnight[3],gStates.positionMageKnight[4],gStates.positionMageKnight[5]}
+	for position=1,5 do
+		if gStates.positionMageKnight[position]=="Random" or gStates.positionMageKnight[position]=="All Skills" then
+			local randomMK=""
+			local duplicate=true
+			while duplicate==true do
+				duplicate=false
+				randomMK=mageKnights[math.random(1,#mageKnights-3)].mage
+				for otherPosition=1,5 do
+					if randomMK==gStates.positionMageKnight[otherPosition] then duplicate=true break end
+				end
+				if gStates.useCustomMageKnights==false and customMages[randomMK]~=nil then duplicate=true end
+				if gStates.riseOfTheForgemasters~=3 and randomMK=="Jormund" then duplicate=true end
+				if duplicate==false and gStates.heroChallenges==true then
+					if heroChallengesData[randomMK]==nil then
+						duplicate=true
+					else
+						local oldChoice=gStates.positionMageKnight[position]
+						gStates.positionMageKnight[position]=randomMK
+						local assignment=heroChallengeCountryAssignment(false)
+						gStates.positionMageKnight[position]=oldChoice
+						if assignment==nil then duplicate=true end
+					end
+				end
+			end
+			gStates.positionMageKnight[position]=randomMK
+		end
+	end
+end
+
+local function playerSetupFinishProxyComponents()
+	if proxyPlayerActive()~=true then return end
+	safeWaitCondition("SetupGame",function()
+		proxySetupReferenceCards()
+		proxySetupShieldBag()
+		safeWaitCondition("SetupGame",function()
+			gStates.proxySetupReady=true
+		end,function()
+			local shield=gStates.proxyShieldBagGUID~=nil and getObjectFromGUID(gStates.proxyShieldBagGUID) or nil
+			return getObjectFromGUID("0e855c")~=nil and getObjectFromGUID("dbf566")~=nil and shield~=nil
+		end,10,function() error("SetupGame timed out waiting for Proxy reference components.",2) end)
+	end,function()
+		return getObjectFromGUID(dummyBoard)~=nil and getObjectFromGUID(GUID.bag.apocalypseDragon)~=nil
+	end,10,function() error("SetupGame timed out waiting for the Proxy setup sources.",2) end)
+end
+
+local function playerSetupPositionNeeded(position,context)
+	return (gStates.positionMageKnight[position]~="nobody" and position<=4) or
+		(gStates.positionMageKnight[5]~="nobody" and context.dummyPlayed==0)
+end
+
+local function playerSetupDeployCommonComponents(position,offsetPosition,context)
+	--Layout everything from the Common Bag if needed
+	local source=getObjectFromGUID(GUID.bag.common)
+	if source==nil then error("SetupGame missing common player-component bag.",2) end
+	local commonBag=source.clone()
+	commonBag.setPosition({-60.0+offsetPosition, 1.5, -38.0})
+	for i=1, #PLAYER_SETUP_COMMON_PARTS, 1 do
+		local skip=0
+		local part=PLAYER_SETUP_COMMON_PARTS[i]
+		local params={position={part[1]+offsetPosition,part[2],part[3]}, rotation={0,180,0}, smooth=false}
+		if (i>=2 and i<=7) or (i>=11 and i<=14) then params.rotation={0, 30, 0} end
+		if position==5 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
+		if i==1 and position<=4 and gStates.positionMageKnight[position]~="nobody" then local obj=commonBag.takeObject() obj.destruct() skip=1 end--destroy the Dummy Board if this is a player
+		if i==1 and position<=4 and gStates.positionMageKnight[position]=="nobody" then--change a player position into a dummy position
+			getObjectFromGUID(playerBoard[position]).destruct()
+			getObjectFromGUID(colorBand[position]).setScale({7.48, 0.01, 2.5})
+			getObjectFromGUID(colorBand[position]).setColorTint("Black")
+			getObjectFromGUID(colorBand[position]).setPosition({getObjectFromGUID(colorBand[position]).getPosition()[1]-12.5, 0.98, -30.0})
+			if getObjectFromGUID(playAreaGuideText[position])~=nil then getObjectFromGUID(playAreaGuideText[position]).destruct() end
+			if getObjectFromGUID(playAreaGuideBackground[position])~=nil then getObjectFromGUID(playAreaGuideBackground[position]).destruct() end
+		end
+		if i==8 and position<=4 and gStates.positionMageKnight[position]~="nobody" then--snuck the new poison card in with the regular wound cards
+			commonBag.takeObject({guid="d1e6c3", position={-40.86+offsetPosition, 1.08, -36.10}, smooth=false}).lock()
+		end
+		if (gStates.positionMageKnight[position]=="nobody" or position==5) and ((i>=2 and gStates.positionMageKnight[5]=="Volkare") or (i>=8 and gStates.positionMageKnight[5]~="nobody")) then context.dummyPlayed=1 break end--just dummy board for Volkare
+		if i>=11 and gStates.riseOfTheForgemasters<=1 then break end
+		if i>=15 and gStates.riseOfTheForgemasters<=2 then break end
+		if skip==0 then local obj=safeTakeObject("SetupGame",commonBag,params).lock() end
+	end
+	commonBag.destruct()
+end
+
+local function playerSetupCreateMirrorSource(position,offsetPosition,context)
+	--mirror source
+	if (gStates.positionMageKnight[position]~="nobody" and position~=5) then
+		local source=getObjectFromGUID("b5a6ce")
+		if source==nil then error("SetupGame missing mirror source object b5a6ce.",2) end
+		local obj=source.clone()
+		obj.setPosition({-58.25+offsetPosition, 0.98, -28.53})
+		safeWaitCondition("SetupGame",function()
+			obj.lock()
+			obj.setRotation({0,180,0})
+			obj.registerCollisions()
+			gStates.mirrorSource[#gStates.mirrorSource+1]=obj.guid
+			context.mirrorReady=context.mirrorReady+1
+			if context.mirrorReady>=context.mirrorExpected then gStates.mirrorSetupReady=true end
+		end,function() return obj~=nil and obj.resting==true end,10,function()
+			error("SetupGame timed out waiting for a player mirror source to settle.",2)
+		end)
+	end
+end
+
+local function playerSetupMageBag(position,offsetPosition)
+	local mage=gStates.positionMageKnight[position]
+	if mage=="nobody" then mage=gStates.positionMageKnight[5] end
+	for i=1,#mageKnights do
+		if mage==mageKnights[i].mage then
+			local source=getObjectFromGUID(mageKnights[i].bag)
+			if source==nil then error("SetupGame missing Mage bag for "..tostring(mage)..".",2) end
+			local playerBag=source.clone()
+			playerBag.setPosition({-60.0+offsetPosition,1.5,-38.0})
+			return playerBag
+		end
+	end
+	error("SetupGame could not resolve a Mage bag for "..tostring(mage)..".",2)
+end
+
+local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosition,playerBag,context)
+	--Layout everything from the mage bag assigned to the position
+	--1-Turn Order, 2-Unique Cards, 3-Dummy Inventory, 4-Skills, 5-Skill Reference Card 1, 6-Skill Reference Card 2,
+	--7-Avatar, 8-Shield Fame, 9-Shield Rep, 10-Shield Control, 11-Quest Marker,
+	--12-Command token Blank, 13-5 Command Tokens
+	local turnRef=1
+	for i=1, #PLAYER_SETUP_UNIQUE_PARTS, 1 do
+		local skip=0
+		local part=PLAYER_SETUP_UNIQUE_PARTS[i]
+		local params={position={part[1]+offsetPosition,part[2],part[3]}, smooth=false, setColorTint=""}
+		--turn markers all go in Shuffled Order
+		if i==1 then
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Dummy and Volkare
+				local dummyStats={	seatPos=position, mage=gStates.positionMageKnight[5], fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, hand=5, baseHand=5, handBonus=0, tactic=1, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, defeatedCities={}, deadDeckInventory={}, score={Glade=0, GraveYard=0},
+									dummyCrystals={["Red"]=0, Blue=0, Green=0, ["White"]=0}}
+				if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
+					params.position={-1.9, 0.96, -19.4}--if dummy draws first
+					context.startPos[1]=1
+					turnOrder[1]=dummyStats
+				else
+					params.position={-1.9, 0.96, -19.4-(gStates.playerCount*1.4)}--if dummy draw last
+					context.startPos[gStates.playerCount+1]=1
+					turnOrder[gStates.playerCount+1]=dummyStats
+					turnOrder[gStates.playerCount+1].tactic=gStates.playerCount+1
+					turnRef=gStates.playerCount+1
+				end
+			else--Mage Knights
+				local duplicate=true
+				while duplicate==true do
+					duplicate=false
+					turnRef=math.random(1, gStates.playerCount)
+					if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then turnRef=turnRef+1 end
+					if context.startPos[turnRef]==1 then duplicate=true else context.startPos[turnRef]=1 end
+				end
+				params.position={-1.9, 0.96, -19.4-((turnRef-1)*1.4)}
+				turnOrder[turnRef]={seatPos=position,mage=gStates.positionMageKnight[position], fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, level=1, levelUp=0, influence=6, hand=5, baseHand=5, handBonus=0, tactic=turnRef, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, combatIconHide="None", defeatedCities={}, levelUpComplete=false, avatarLocation="portal", deadDeckInventory={}, levelingStats={}, score={Glade=0, GraveYard=0}}
+			end
+		end
+
+		--Player Deed Deck
+		if i==2 then
+			params.rotation={180, 0, 0}--Orient cards face down
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Dummy and Volkare deck go in different spot
+				params.position={-67.96+offsetPosition, 1.17, -43.17}
+			end
+			params.callback_function=function(obj) obj.shuffle() end
+		end
+
+		--Dummy Invetory Card
+		if i==3 and (gStates.positionMageKnight[position]~="nobody" and position<5) then local destr=safeTakeObject("SetupGame",playerBag,params) destr.destruct() skip=1 end--Delete Dummy Inventory when this is a player
+
+		--Skills Container or Volkare's Level Chart
+		if i==4 then
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Checks if this position is a dummy
+				if gStates.positionMageKnight[5]=="Volkare" then
+					params.position={39.16, 0.97, 35.00}
+					params.guid="b2ec85"--Volkare Level Chart: explicit GUID pull rather than relying on bag order.
+				else
+					if gStates.playerCount==1 and gStates.dummyAllSkills==false then
+						params.position={-78.12+offsetPosition, 1.6, -31.03}--Skills container Position
+					else
+						local destr=safeTakeObject("SetupGame",playerBag,params) destr.destruct() skip=1
+					end
+				end
+			end
+		end
+
+		--Skill Refernce Card 1
+		if i==5 and (gStates.positionMageKnight[position]=="nobody" or position==5) and ((gStates.positionMageKnight[5]=="Volkare" or gStates.playerCount~=1) or gStates.dummyAllSkills==true) then
+			local destr=safeTakeObject("SetupGame",playerBag,params) destr.destruct() skip=1
+		end
+
+		--Skill Refernce Card 2
+		if i==6 then
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) and ((gStates.positionMageKnight[5]=="Volkare" or gStates.playerCount~=1) or gStates.dummyAllSkills==true) then
+				local destr=safeTakeObject("SetupGame",playerBag,params) destr.destruct() skip=1
+			else
+				params.callback_function=function(obj) obj.lock() end
+				if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.positionMageKnight[position]~="Ymirgh" and gStates.positionMageKnight[position]~="Malek" and gStates.positionMageKnight[position]~="Duscenia" and gStates.positionMageKnight[position]~="Mevok" and gStates.positionMageKnight[position]~="Zirtae" then
+					params.callback_function=function(ob) local obj=ob.setState(1) obj.lock() end
+				end
+			end
+		end
+
+		--Player Avater or Volkare's Wound Card
+		if i==7 then
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Checks if this position is a dummy
+				if gStates.positionMageKnight[5]=="Volkare" then
+					params.rotation={180, 0, 0}
+					params.position={-67.96+offsetPosition, 1.17, -50.17}--Flip wound card over if Volkare
+					params.callback_function=volkareSetup
+				elseif proxyPlayerActive()==true then
+					--Use one of the same four Portal-card positions as a normal player whenever one is free.
+					--With four human players there is no fifth Portal position, so the Proxy starts on the Dummy board instead.
+					local proxyPos,onPortal=proxySetupAvatarPosition()
+					params.position=proxyPos
+					params.callback_function=function(obj)
+						obj.unlock()
+						gStates.proxyAvatarOffMap=(onPortal~=true)
+						local proxyIndex=proxyPlayerIndex()
+						if proxyIndex~=nil and turnOrder[proxyIndex]~=nil then turnOrder[proxyIndex].avatarLocation=onPortal==true and "portal" or nil end
+					end
+				else
+					local destr=safeTakeObject("SetupGame",playerBag,params) destr.destruct() skip=1
+				end
+			else
+				--params.position[1]=params.position[1]-(offsetPosition/1.07)--Avatar
+				local portal=PLAYER_SETUP_PORTAL_POSITIONS[orderIndex]
+				params.position={portal[1],portal[2],portal[3]}
+			end
+		end
+
+		--Fame Marker, Volkare's Terrain Tile or Dummy's Crystals. Dummy is Setup
+		if i==8 then
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Checks if this position is a dummy
+				if position<5 then
+					getObjectFromGUID(deedDeckZones[position]).setPosition({offsetPosition-68, 1.15, -43.20})
+					getObjectFromGUID(deedDeckDiscardZones[position]).setPosition({offsetPosition-77.21, 1.15, -43.20})
+				end
+				if gStates.positionMageKnight[5]=="Volkare" then
+					local cityBag=getObjectFromGUID(GUID.bag.terrain.leftCity)
+					if cityBag==nil then error("Volkare setup missing City terrain bag",2) end
+					if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" then
+						--Keep the Camp out of the map zone until mapSetup is ready to reveal it.
+						--Quest now uses the same staging rule so its Camp cannot begin a separate reveal timer.
+						local bagPos=cityBag.getPosition()
+						params.position={bagPos.x,bagPos.y+2,bagPos.z}
+					else
+						params.position={-12.0297, 2.0,  8.8586}--The War of Four camp tile position
+					end
+					terrainTiles[GUID.tile.volkareCamp].hexFeature.center=""
+					gStates.hexOverideSave[GUID.tile.volkareCamp]={center=""}
+					if gStates.randomTileOrientation==false then params.rotation={0, 180, 180} else params.rotation={0, math.random(1, 6)*60, 180} end
+					params.guid=GUID.tile.volkareCamp
+					local obj=safeTakeObject("SetupGame",cityBag,params)
+					if obj==nil then error("Volkare setup missing Camp terrain tile 835c91 from City terrain bag",2) end
+					--The Camp originated as a special Volkare component and historically had no Terrain tag.
+					--Now that it lives in the City terrain pool, normalize it before it ever reaches the map.
+					if obj.hasTag("Terrain")~=true then obj.addTag("Terrain") end
+					skip=1
+				else
+					local params={position={-69.4, 1.41, -36.5}, rotation={0, 30, 0}, smooth=false, index=0}
+					if position==5 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
+					params.position[1]=params.position[1]+offsetPosition
+					for a=1, 3, 1 do
+						params.position[1]=params.position[1]-(1.7)
+						local obj=safeTakeObject("SetupGame",playerBag,params)
+						obj.lock()
+						local b=obj.getDescription()
+						if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
+							turnOrder[1].dummyCrystals[b]=turnOrder[1].dummyCrystals[b]+1
+						else
+							turnOrder[gStates.playerCount+1].dummyCrystals[b]=turnOrder[gStates.playerCount+1].dummyCrystals[b]+1
+						end
+					end
+					break
+				end
+			else
+				params.position[1]=(params.position[1]-(offsetPosition/1.032))+(5.3*gStates.blitz)--Fame Marker
+			end
+		end
+
+		--Reputation Marker or Volkare's Avatar
+		if i==9 then
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Checks if this position is a dummy
+				if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
+					params.position={-37.2305, 1.6, -5.6911}--Volkare's Return Avatar position
+				else
+					params.position={-12.0297, 1.6, 8.8586}--Volkare's Quest Avatar position
+				end
+				local obj=safeTakeObject("SetupGame",playerBag,params)
+				--Volkare is stored in the Mage bag before the map exists. Keep him physical so the
+				--starting terrain can lift/settle him normally; setup locks him only after map completion.
+				if gStates.positionMageKnight[5]=="Volkare" and obj~=nil then obj.unlock() end
+				skip=1
+			else
+				local blitzSub=gStates.blitz
+				local reputationPosition=PLAYER_SETUP_REPUTATION_POSITIONS[blitzSub-gStates.rampage+3][position]
+				params.position={reputationPosition[1],reputationPosition[2],reputationPosition[3]}--Reputation Marker
+				turnOrder[turnRef].reputation=(0+blitzSub-gStates.rampage)*2
+			end
+		end
+
+		-- or Volkare's Arrow Guide or Volkares Dice
+		if i==10 then
+			if ((position<5 and gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[position]=="Volkare") then
+				params.position={-72.89+offsetPosition,1.5,-33.0}--Volkare Dice
+			end
+		end
+
+		--or Volkares Scenario Reference Card
+		if i==11 then
+			if (position<5 and gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[position]=="Volkare" then
+				params.position={-72.5+offsetPosition, 1.06, -48.23}
+				params.callback_function=function(obj) obj.lock() end
+				if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
+					params.callback_function=function(ob) local obj=ob.setState(2) obj.lock() end
+				end
+			end
+		end
+
+		--Volkare's Marker
+		if i==12 then
+			if (position<5 and gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[position]=="Volkare" then
+				params.position={-76+offsetPosition, 1.16, -31}
+				params.callback_function=function(obj) obj.lock() end
+			else
+				params.rotation={0.00, 180.00, 180.00}
+			end
+		end
+
+		if i==13 then
+			if (position<5 and gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[position]=="Volkare" then
+				if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
+					params.position={-37.23, 2.5, -5.69}
+					params.rotation={0.0, 210.0, 0.0}--Volkare's Return Guide position
+					params.callback_function=function(guide)
+						safeWaitCondition("SetupGame",function()
+							guide.jointTo(getObjectFromGUID(volkare.model),{["type"]="Fixed"})
+						end,function() return guide~=nil and guide.resting==true and getObjectFromGUID(volkare.model)~=nil end,10,function()
+							error("SetupGame timed out waiting to attach Volkare's Return guide.",2)
+						end)
+					end
+				else
+					params.position={-12.03, 2.5, 8.86}--Volkare's Quest Guide position
+					params.rotation={0.0, 210.0, 0.0}
+					params.callback_function=function(guide)
+						safeWaitCondition("SetupGame",function()
+							guide.setState(2)
+							safeWaitCondition("SetupGame",function()
+								getObjectFromGUID("be2dc2").jointTo(getObjectFromGUID(volkare.model),{["type"]="Fixed"})
+							end,function() return getObjectFromGUID("be2dc2")~=nil and getObjectFromGUID(volkare.model)~=nil end,10,function()
+								error("SetupGame timed out waiting for Volkare's Quest guide state.",2)
+							end)
+						end,function() return guide~=nil and guide.resting==true and getObjectFromGUID(volkare.model)~=nil end,10,function()
+							error("SetupGame timed out waiting to prepare Volkare's Quest guide.",2)
+						end)
+					end
+				end
+				skip=1
+			end
+		end
+
+		--Volkare is Setup
+		if i==13 and (gStates.positionMageKnight[position]=="nobody" or position==5) then break end
+
+		if position==5 and i~=1 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
+		if skip==0 then
+			local obj=safeTakeObject("SetupGame",playerBag,params)
+			if (i==4 or i==5 or i==10 or i==11 or i==13) and gStates.positionMageKnight[position]~="nobody" and position<5 then obj.lock() end--lock player board components
+			if (i==1 or i==3 or i==4 or i==5 or i==11) and (gStates.positionMageKnight[position]=="nobody" or position==5) then obj.lock() end--lock dummy board components
+			if i==1 then turnOrder[turnRef].turnOrderTokenGUID=obj.guid end
+			if (i==4 and gStates.positionMageKnight[position]~="nobody" and position<=4) or (i==4 and gStates.playerCount==1) then
+				turnOrder[turnRef].skillBagGUID=obj.guid
+				--Hero Challenges reserve the prescribed first Skill before the Hero's remaining Skill bag is shuffled.
+				if gStates.heroChallenges==true and position<=4 and gStates.positionMageKnight[position]~="nobody" then
+					local challenge=heroChallengesData[turnOrder[turnRef].mage]
+					if challenge~=nil then
+						local reserved=obj.takeObject({guid=challenge.skillGUID,position={(position*40)-113.0,1.5,-48.9},rotation={0,180,0},smooth=false})
+						--turnOrder is re-sorted during play, so reserve by stable Mage Knight identity rather than array index.
+						if reserved~=nil then reserved.lock() gStates.heroChallengeReservedSkills[turnOrder[turnRef].mage]=reserved.guid end
+					end
+				end
+				obj.shuffle()
+			end
+			if i==8 and gStates.positionMageKnight[position]~="nobody" and position<=4 then turnOrder[turnRef].fameGUID=obj.guid end
+			if i==9 and gStates.positionMageKnight[position]~="nobody" and position<=4 then turnOrder[turnRef].reputationGUID=obj.guid end
+			if i==13 and gStates.positionMageKnight[position]~="nobody" and position<=4 then turnOrder[turnRef].commandGUID=obj.guid end
+			if i==1 and gStates.positionMageKnight[position]~="nobody" and position<=4 then
+				local inventoryImage=PLAYER_SETUP_INVENTORIES[gStates.positionMageKnight[position]]
+				if inventoryImage~=nil then getObjectFromGUID(playerBoard[position]).addDecal({name="Mage Inventory", url=inventoryImage, position={1.735, 0.11, -0.32}, rotation={90.0, 180.0, 0.0}, scale={1.164, 1.219, 10}}) end
+				turnOrder[turnRef].playerBoardGUID=playerBoard[position]
+			end
+		end
+	end
+	if gStates.positionMageKnight[position]=="Mevok" then
+		local obj=safeTakeObject("SetupGame",playerBag,{guid="32bc89", position={-77.30+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
+		local obj=safeTakeObject("SetupGame",playerBag,{guid="2dbfde", position={-73.90+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
+	end
+end
+
+local function playerSetupCleanupPosition(position)
+	getObjectFromGUID(deedDeckZones[position]).destruct()
+	getObjectFromGUID(deedDeckDiscardZones[position]).destruct()
+	getObjectFromGUID(colorBand[position]).destruct()
+	if position~=5 then getObjectFromGUID(playerBoard[position]).destruct() end
+	if getObjectFromGUID(playAreaGuideText[position])~=nil then getObjectFromGUID(playAreaGuideText[position]).destruct() end
+	if getObjectFromGUID(playAreaGuideBackground[position])~=nil then getObjectFromGUID(playAreaGuideBackground[position]).destruct() end
+end
+
+local function playerSetupDeployPosition(orderIndex,position,context)
+	if playerSetupPositionNeeded(position,context)~=true then
+		playerSetupCleanupPosition(position)
+		return
+	end
+	local offsetPosition=position*40-40
+	playerSetupDeployCommonComponents(position,offsetPosition,context)
+	playerSetupCreateMirrorSource(position,offsetPosition,context)
+	local playerBag=playerSetupMageBag(position,offsetPosition)
+	playerSetupDeployUniqueComponents(orderIndex,position,offsetPosition,playerBag,context)
+	playerBag.destruct()
+end
+
 function setupPlayersReady()
 	if gStates==nil or gStates.playerSetupReady~=true or gStates.mirrorSetupReady~=true then return false end
 	if proxyPlayerActive()==true and gStates.proxySetupReady~=true then return false end
@@ -36645,455 +37953,22 @@ end
 
 --Go through the five player positions and put out pieces based on the game settings
 function playerSetup()
-	gStates.playerSetupReady=false
-	gStates.proxySetupReady=proxyPlayerActive()~=true
-	gStates.volkareSetupReady=gStates.positionMageKnight[5]~="Volkare"
-	gStates.mirrorSource=gStates.mirrorSource or {}
-	gStates.mirrorSetupReady=false
-	local mirrorExpected=0
-	for seat=1,4 do if gStates.positionMageKnight[seat]~="nobody" then mirrorExpected=mirrorExpected+1 end end
-	local mirrorReady=0
-	if mirrorExpected==0 then gStates.mirrorSetupReady=true end
-	if gStates.heroChallenges==true then gStates.heroChallengeReservedSkills={} end
-	--generate random Mage Knights if needed
-	gStates.originalChoiceMageKnights={gStates.positionMageKnight[1], gStates.positionMageKnight[2], gStates.positionMageKnight[3], gStates.positionMageKnight[4], gStates.positionMageKnight[5]}
-	for a=1, 5, 1 do
-		if gStates.positionMageKnight[a]=="Random" or gStates.positionMageKnight[a]=="All Skills" then
-			local randomMK=""
-			local duplicate=true
-			while duplicate==true do
-				duplicate=false
-				randomMK=mageKnights[math.random(1, #mageKnights-3)].mage
-				for a=1, 5, 1 do
-					if randomMK==gStates.positionMageKnight[a] then duplicate=true break end
-				end
-				if gStates.useCustomMageKnights==false and customMages[randomMK]~=nil then duplicate=true end
-				if gStates.riseOfTheForgemasters~=3 and randomMK=="Jormund" then duplicate=true end
-				if duplicate==false and gStates.heroChallenges==true then
-					if heroChallengesData[randomMK]==nil then
-						duplicate=true
-					else
-						--Quick Random Game bypasses the setup Start-button legality check. Temporarily test the
-						--candidate here so a random Hero never creates an impossible Challenge terrain setup.
-						local oldChoice=gStates.positionMageKnight[a]
-						gStates.positionMageKnight[a]=randomMK
-						local assignment=heroChallengeCountryAssignment(false)
-						gStates.positionMageKnight[a]=oldChoice
-						if assignment==nil then duplicate=true end
-					end
-				end
-			end
-			gStates.positionMageKnight[a]=randomMK
-		end
-	end
+	local context={
+		mirrorExpected=playerSetupInitializeState(),
+		mirrorReady=0,
+		dummyPlayed=0,
+		startPos={0,0,0,0,0}
+	}
+	playerSetupResolveRandomMages()
 
 	--The selected Mage Knight's normal Shield source may belong to a player position that is cleaned
 	--before the Dummy/Proxy position is built. Preserve a dedicated Proxy copy first.
 	if proxyPlayerActive()==true then proxyStageShieldBag() end
 
-	--Setup Players Mats.
-	local DummyPlayed=0
-	local positionOrder={2, 3, 4, 1, 5}--positions are built in this order so dummy is put in the middle
-	local startPos=		{0, 0, 0, 0, 0}--records if a position has been used for a turn order token.
-	local time=0
-	local delay=1.6
-	local DummyPlayedTiming=0
-	for a=1, 5, 1 do
-		--Wait.time(function()
-			local offsetPosition=positionOrder[a]*40-40
-			local CommonParts={	{-72.50, 0.98, -38.00}, {-68.60, 1.37, -30.80}, {-68.60, 1.37, -32.40},							--Dummy Board, Black Mana, Gold Mana
-								{-67.30, 1.37, -30.80}, {-67.30, 1.37, -32.40}, {-65.90, 1.37, -30.80}, {-65.9, 1.37, -32.40},	--Blue Mana, Green Mana, Red Mana, White Mana
-								{-41.95, 1.08, -36.10}, {-41.76, 1.14, -31.10}, {-41.76, 1.16, -34.41},							--Wound Cards, Wound Tokens, Keep Token
-								{-69.30, 1.35, -29.30}, {-68.00, 1.35, -29.30}, {-66.70, 1.35, -29.30}, {-65.40, 1.35, -29.30}, --Blue Shard, Green Shard, Red Shard, White Shard
-								{-76.30, 1.35, -29.30}, {-75.00, 1.35, -29.30}, {-73.70, 1.35, -29.30}, {-72.40, 1.35, -29.30}} --Blue Potion, Green Potion, Red Potion, White Potion
-			--Checks if the position has a player, dummy or Volkare required
-			if (gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4) or (gStates.positionMageKnight[5]~="nobody" and DummyPlayed==0) then
-				--Layout everything from the Common Bag if needed
-				local CommonBag=getObjectFromGUID(GUID.bag.common).clone()
-				CommonBag.setPosition({-60.0+offsetPosition, 1.5, -38.0})
-				for i=1, #CommonParts, 1 do
-					local skip=0
-					local params={position=CommonParts[i], rotation={0, 180, 0}, smooth=false}
-					params.position[1]=params.position[1]+offsetPosition
-					if (i>=2 and i<=7) or (i>=11 and i<=14) then params.rotation={0, 30, 0} end
-					if positionOrder[a]==5 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
-					if i==1 and positionOrder[a]<=4 and gStates.positionMageKnight[positionOrder[a]]~="nobody" then local obj=CommonBag.takeObject() obj.destruct() skip=1 end--destroy the Dummy Board if this is a player
-					if i==1 and positionOrder[a]<=4 and gStates.positionMageKnight[positionOrder[a]]=="nobody" then--change a player position into a dummy position
-						getObjectFromGUID(playerBoard[positionOrder[a]]).destruct()
-						getObjectFromGUID(colorBand[positionOrder[a]]).setScale({7.48, 0.01, 2.5})
-						getObjectFromGUID(colorBand[positionOrder[a]]).setColorTint("Black")
-						getObjectFromGUID(colorBand[positionOrder[a]]).setPosition({getObjectFromGUID(colorBand[positionOrder[a]]).getPosition()[1]-12.5, 0.98, -30.0})
-						if getObjectFromGUID(playAreaGuideText[positionOrder[a]])~=nil then getObjectFromGUID(playAreaGuideText[positionOrder[a]]).destruct() end
-						if getObjectFromGUID(playAreaGuideBackground[positionOrder[a]])~=nil then getObjectFromGUID(playAreaGuideBackground[positionOrder[a]]).destruct() end
-					end
-					if i==8 and positionOrder[a]<=4 and gStates.positionMageKnight[positionOrder[a]]~="nobody" then--snuck the new poison card in with the regular wound cards
-						CommonBag.takeObject({guid="d1e6c3", position={-40.86+offsetPosition, 1.08, -36.10}, smooth=false}).lock()
-					end
-					if (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) and ((i>=2 and gStates.positionMageKnight[5]=="Volkare") or (i>=8 and gStates.positionMageKnight[5]~="nobody")) then DummyPlayed=1 break end--just dummy board for Volkare
-					if i>=11 and gStates.riseOfTheForgemasters<=1 then break end
-					if i>=15 and gStates.riseOfTheForgemasters<=2 then break end
-					if skip==0 then local obj=safeTakeObject("SetupGame",CommonBag,params).lock() end
-				end
-				CommonBag.destruct()
-
-				--mirror source
-				if (gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]~=5) then
-					local obj=getObjectFromGUID("b5a6ce").clone()
-					obj.setPosition({-58.25+offsetPosition, 0.98, -28.53})
-					safeWaitCondition("SetupGame",function()
-						obj.lock()
-						obj.setRotation({0,180,0})
-						obj.registerCollisions()
-						gStates.mirrorSource[#gStates.mirrorSource+1]=obj.guid
-						mirrorReady=mirrorReady+1
-						if mirrorReady>=mirrorExpected then gStates.mirrorSetupReady=true end
-					end,function() return obj~=nil and obj.resting==true end,10,function()
-						error("SetupGame timed out waiting for a player mirror source to settle.",2)
-					end)
-				end
-
-				--Figure out which Mage Knight is assigned to a position
-				local PlayerBag={}
-				for i=1, #mageKnights, 1 do
-					if gStates.positionMageKnight[positionOrder[a]]==mageKnights[i].mage or (gStates.positionMageKnight[positionOrder[a]]=="nobody" and gStates.positionMageKnight[5]==mageKnights[i].mage) then
-						PlayerBag=getObjectFromGUID(mageKnights[i].bag).clone()
-						PlayerBag.setPosition({-60.0+offsetPosition, 1.5, -38.0})
-						break
-					end
-				end
-
-				--Layout everything from the mage bag assigned to the position
-				local UniqueParts={	{  0.40, 1.55, -19.17}, {-74.19, 1.50, -43.16}, {-72.89, 1.10, -35.13}, {-67.46, 1.60, -36.88}, {-77.30, 1.05, -49.00}, {-73.90, 1.05, -49.00}, --{-67.33, 1.99, -36.88}, {-67.33, 1.99, -36.88},
-									{-10.00, 1.25, -27.50}, { 12.10, 1.25,  24.5}, { 40.15, 1.25,  18.6}, {-66.40, 1.16, -34.25}, {-41.76, 1.16, -32.78},
-									{-63.57, 1.50, -31.19},	{-68.24, 1.10, -34.4}}
-									--1-Turn Order, 2-Unique Cards, 3-Dummy Inventory, 4-Skills, 5-Skill Reference Card 1, 6-Skill Reference Card 2,
-									--7-Avatar, 8-Shield Fame, 9-Shield Rep, 10-Shield Control, 11-Quest Marker,
-									--12-Comand token Blank, 13-5 Command Tokens
-				local turnRef=1
-				for i=1, #UniqueParts, 1 do
-					local skip=0
-					local params={position=UniqueParts[i], smooth=false, setColorTint=""}
-					params.position[1]=params.position[1]+offsetPosition
-					--turn markers all go in Shuffled Order
-					if i==1 then
-						if (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) then--Dummy and Volkare
-							local dummyStats={	seatPos=positionOrder[a], mage=gStates.positionMageKnight[5], fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, hand=5, baseHand=5, handBonus=0, tactic=1, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, defeatedCities={}, deadDeckInventory={}, score={Glade=0, GraveYard=0},
-												dummyCrystals={["Red"]=0, Blue=0, Green=0, ["White"]=0}}
-							if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
-								params.position={-1.9, 0.96, -19.4}--if dummy draws first
-								startPos[1]=1
-								turnOrder[1]=dummyStats
-							else
-								params.position={-1.9, 0.96, -19.4-(gStates.playerCount*1.4)}--if dummy draw last
-								startPos[gStates.playerCount+1]=1
-								turnOrder[gStates.playerCount+1]=dummyStats
-								turnOrder[gStates.playerCount+1].tactic=gStates.playerCount+1
-								turnRef=gStates.playerCount+1
-							end
-						else--Mage Knights
-							local duplicate=true
-							while duplicate==true do
-								duplicate=false
-								turnRef=math.random(1, gStates.playerCount)
-								if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then turnRef=turnRef+1 end
-								if startPos[turnRef]==1 then duplicate=true else startPos[turnRef]=1 end
-							end
-							params.position={-1.9, 0.96, -19.4-((turnRef-1)*1.4)}
-							turnOrder[turnRef]={seatPos=positionOrder[a],mage=gStates.positionMageKnight[positionOrder[a]], fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, level=1, levelUp=0, influence=6, hand=5, baseHand=5, handBonus=0, tactic=turnRef, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, combatIconHide="None", defeatedCities={}, levelUpComplete=false, avatarLocation="portal", deadDeckInventory={}, levelingStats={}, score={Glade=0, GraveYard=0}}
-						end
-					end
-
-					--Player Deed Deck
-					if i==2 then
-						params.rotation={180, 0, 0}--Orient cards face down
-						if (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) then--Dummy and Volkare deck go in different spot
-							params.position={-67.96+offsetPosition, 1.17, -43.17}
-						end
-						params.callback_function=function(obj) obj.shuffle() end
-					end
-
-					--Dummy Invetory Card
-					if i==3 and (gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<5) then local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1 end--Delete Dummy Inventory when this is a player
-
-					--Skills Container or Volkare's Level Chart
-					if i==4 then
-						if (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) then--Checks if this position is a dummy
-							if gStates.positionMageKnight[5]=="Volkare" then
-								params.position={39.16, 0.97, 35.00}
-								params.guid="b2ec85"--Volkare Level Chart: explicit GUID pull rather than relying on bag order.
-							else
-								if gStates.playerCount==1 and gStates.dummyAllSkills==false then
-									params.position={-78.12+offsetPosition, 1.6, -31.03}--Skills container Position
-								else
-									local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
-								end
-							end
-						end
-					end
-
-					--Skill Refernce Card 1
-					if i==5 and (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) and ((gStates.positionMageKnight[5]=="Volkare" or gStates.playerCount~=1) or gStates.dummyAllSkills==true) then
-						local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
-					end
-
-					--Skill Refernce Card 2
-					if i==6 then
-						if (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) and ((gStates.positionMageKnight[5]=="Volkare" or gStates.playerCount~=1) or gStates.dummyAllSkills==true) then
-							local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
-						else
-							params.callback_function=function(obj) obj.lock() end
-							if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.positionMageKnight[positionOrder[a]]~="Ymirgh" and gStates.positionMageKnight[positionOrder[a]]~="Malek" and gStates.positionMageKnight[positionOrder[a]]~="Duscenia" and gStates.positionMageKnight[positionOrder[a]]~="Mevok" and gStates.positionMageKnight[positionOrder[a]]~="Zirtae" then
-								params.callback_function=function(ob) local obj=ob.setState(1) obj.lock() end
-							end
-						end
-					end
-
-					--Player Avater or Volkare's Wound Card
-					if i==7 then
-						if (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) then--Checks if this position is a dummy
-							if gStates.positionMageKnight[5]=="Volkare" then
-								params.rotation={180, 0, 0}
-								params.position={-67.96+offsetPosition, 1.17, -50.17}--Flip wound card over if Volkare
-								params.callback_function=volkareSetup
-							elseif proxyPlayerActive()==true then
-								--Use one of the same four Portal-card positions as a normal player whenever one is free.
-								--With four human players there is no fifth Portal position, so the Proxy starts on the Dummy board instead.
-								local proxyPos,onPortal=proxySetupAvatarPosition()
-								params.position=proxyPos
-								params.callback_function=function(obj)
-									obj.unlock()
-									gStates.proxyAvatarOffMap=(onPortal~=true)
-									local proxyIndex=proxyPlayerIndex()
-									if proxyIndex~=nil and turnOrder[proxyIndex]~=nil then turnOrder[proxyIndex].avatarLocation=onPortal==true and "portal" or nil end
-								end
-							else
-								local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
-							end
-						else
-							--params.position[1]=params.position[1]-(offsetPosition/1.07)--Avatar
-							local portalPosition={{-42.5, 1.3, -11.4}, {-45.5, 1.3, -13.2}, {-42.5, 1.3, -13.2}, {-45.5, 1.3, -11.4}, {-43.94, 1.3, -12.36}}
-							params.position=portalPosition[a]
-						end
-					end
-
-					--Fame Marker, Volkare's Terrain Tile or Dummy's Crystals. Dummy is Setup
-					if i==8 then
-						if (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) then--Checks if this position is a dummy
-							if positionOrder[a]<5 then
-								getObjectFromGUID(deedDeckZones[positionOrder[a]]).setPosition({offsetPosition-68, 1.15, -43.20})
-								getObjectFromGUID(deedDeckDiscardZones[positionOrder[a]]).setPosition({offsetPosition-77.21, 1.15, -43.20})
-							end
-							if gStates.positionMageKnight[5]=="Volkare" then
-								local cityBag=getObjectFromGUID(GUID.bag.terrain.leftCity)
-								if cityBag==nil then error("Volkare setup missing City terrain bag",2) end
-								if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" then
-									--Keep the Camp out of the map zone until mapSetup is ready to reveal it.
-									--Quest now uses the same staging rule so its Camp cannot begin a separate reveal timer.
-									local bagPos=cityBag.getPosition()
-									params.position={bagPos.x,bagPos.y+2,bagPos.z}
-								else
-									params.position={-12.0297, 2.0,  8.8586}--The War of Four camp tile position
-								end
-								terrainTiles["835c91"].hexFeature.center=""
-								gStates.hexOverideSave["835c91"]={center=""}
-								if gStates.randomTileOrientation==false then params.rotation={0, 180, 180} else params.rotation={0, math.random(1, 6)*60, 180} end
-								params.guid="835c91"
-								local obj=safeTakeObject("SetupGame",cityBag,params)
-								if obj==nil then error("Volkare setup missing Camp terrain tile 835c91 from City terrain bag",2) end
-								--The Camp originated as a special Volkare component and historically had no Terrain tag.
-								--Now that it lives in the City terrain pool, normalize it before it ever reaches the map.
-								if obj.hasTag("Terrain")~=true then obj.addTag("Terrain") end
-								skip=1
-							else
-								local params={position={-69.4, 1.41, -36.5}, rotation={0, 30, 0}, smooth=false, index=0}
-								if positionOrder[a]==5 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
-								params.position[1]=params.position[1]+offsetPosition
-								for a=1, 3, 1 do
-									params.position[1]=params.position[1]-(1.7)
-									local obj=safeTakeObject("SetupGame",PlayerBag,params)
-									obj.lock()
-									local b=obj.getDescription()
-									if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
-										turnOrder[1].dummyCrystals[b]=turnOrder[1].dummyCrystals[b]+1
-									else
-										turnOrder[gStates.playerCount+1].dummyCrystals[b]=turnOrder[gStates.playerCount+1].dummyCrystals[b]+1
-									end
-								end
-								break
-							end
-						else
-							params.position[1]=(params.position[1]-(offsetPosition/1.032))+(5.3*gStates.blitz)--Fame Marker
-						end
-					end
-
-					--Reputation Marker or Volkare's Avatar
-					local colorReputation={	{{34.02, 1.14, 21.26}, {34.50, 1.14, 22.57}, {34.99, 1.14, 23.91}, {33.53, 1.21, 19.98}},--(-2)
-											{{36.70, 1.20, 20.25}, {37.33, 1.14, 21.45}, {38.02, 1.14, 22.63}, {36.11, 1.14, 19.04}},--(-1)
-											{{39.87, 1.13, 19.41}, {38.79, 1.13, 18.75}, {41.16, 1.13, 19.20}, {40.33, 1.13, 20.87}},--(0)
-											{{39.03, 1.13, 16.00}, {40.18, 1.13, 16.30}, {41.37, 1.13, 16.56}, {37.87, 1.13, 15.74}}}--(+1)
-					if i==9 then
-						if (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) then--Checks if this position is a dummy
-							if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-								params.position={-37.2305, 1.6, -5.6911}--Volkare's Return Avatar position
-							else
-								params.position={-12.0297, 1.6, 8.8586}--Volkare's Quest Avatar position
-							end
-							local obj=safeTakeObject("SetupGame",PlayerBag,params)
-							--Volkare is stored in the Mage bag before the map exists. Keep him physical so the
-							--starting terrain can lift/settle him normally; setup locks him only after map completion.
-							if gStates.positionMageKnight[5]=="Volkare" and obj~=nil then obj.unlock() end
-							skip=1
-						else
-							local blitzSub=gStates.blitz
-							params.position=colorReputation[0+blitzSub-gStates.rampage+3][positionOrder[a]]--Reputation Marker
-							turnOrder[turnRef].reputation=(0+blitzSub-gStates.rampage)*2
-						end
-					end
-
-					-- or Volkare's Arrow Guide or Volkares Dice
-					if i==10 then
-						if ((positionOrder[a]<5 and gStates.positionMageKnight[positionOrder[a]]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[positionOrder[a]]=="Volkare") then
-							params.position={-72.89+offsetPosition,1.5,-33.0}--Volkare Dice
-						end
-					end
-
-					--or Volkares Scenario Reference Card
-					if i==11 then
-						if (positionOrder[a]<5 and gStates.positionMageKnight[positionOrder[a]]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[positionOrder[a]]=="Volkare" then
-							params.position={-72.5+offsetPosition, 1.06, -48.23}
-							params.callback_function=function(obj) obj.lock() end
-							if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-								params.callback_function=function(ob) local obj=ob.setState(2) obj.lock() end
-							end
-						end
-					end
-
-					--Volkare's Marker
-					if i==12 then
-						if (positionOrder[a]<5 and gStates.positionMageKnight[positionOrder[a]]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[positionOrder[a]]=="Volkare" then
-							params.position={-76+offsetPosition, 1.16, -31}
-							params.callback_function=function(obj) obj.lock() end
-						else
-							params.rotation={0.00, 180.00, 180.00}
-						end
-					end
-
-					if i==13 then
-						if (positionOrder[a]<5 and gStates.positionMageKnight[positionOrder[a]]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[positionOrder[a]]=="Volkare" then
-							if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-								params.position={-37.23, 2.5, -5.69}
-								params.rotation={0.0, 210.0, 0.0}--Volkare's Return Guide position
-								params.callback_function=function(guide)
-									safeWaitCondition("SetupGame",function()
-										guide.jointTo(getObjectFromGUID(volkare.model),{["type"]="Fixed"})
-									end,function() return guide~=nil and guide.resting==true and getObjectFromGUID(volkare.model)~=nil end,10,function()
-										error("SetupGame timed out waiting to attach Volkare's Return guide.",2)
-									end)
-								end
-							else
-								params.position={-12.03, 2.5, 8.86}--Volkare's Quest Guide position
-								params.rotation={0.0, 210.0, 0.0}
-								params.callback_function=function(guide)
-									safeWaitCondition("SetupGame",function()
-										guide.setState(2)
-										safeWaitCondition("SetupGame",function()
-											getObjectFromGUID("be2dc2").jointTo(getObjectFromGUID(volkare.model),{["type"]="Fixed"})
-										end,function() return getObjectFromGUID("be2dc2")~=nil and getObjectFromGUID(volkare.model)~=nil end,10,function()
-											error("SetupGame timed out waiting for Volkare's Quest guide state.",2)
-										end)
-									end,function() return guide~=nil and guide.resting==true and getObjectFromGUID(volkare.model)~=nil end,10,function()
-										error("SetupGame timed out waiting to prepare Volkare's Quest guide.",2)
-									end)
-								end
-							end
-							skip=1
-						end
-					end
-
-					--Volkare is Setup
-					if i==13 and (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) then break end
-
-					if positionOrder[a]==5 and i~=1 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
-					if skip==0 then
-						local obj=safeTakeObject("SetupGame",PlayerBag,params)
-						if (i==4 or i==5 or i==10 or i==11 or i==13) and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<5 then obj.lock() end--lock player board components
-						if (i==1 or i==3 or i==4 or i==5 or i==11) and (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) then obj.lock() end--lock dummy board components
-						if i==1 then turnOrder[turnRef].turnOrderTokenGUID=obj.guid end
-						if (i==4 and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4) or (i==4 and gStates.playerCount==1) then
-							turnOrder[turnRef].skillBagGUID=obj.guid
-							--Hero Challenges reserve the prescribed first Skill before the Hero's remaining Skill bag is shuffled.
-							if gStates.heroChallenges==true and positionOrder[a]<=4 and gStates.positionMageKnight[positionOrder[a]]~="nobody" then
-								local challenge=heroChallengesData[turnOrder[turnRef].mage]
-								if challenge~=nil then
-									local reserved=obj.takeObject({guid=challenge.skillGUID,position={(positionOrder[a]*40)-113.0,1.5,-48.9},rotation={0,180,0},smooth=false})
-									--turnOrder is re-sorted during play, so reserve by stable Mage Knight identity rather than array index.
-									if reserved~=nil then reserved.lock() gStates.heroChallengeReservedSkills[turnOrder[turnRef].mage]=reserved.guid end
-								end
-							end
-							obj.shuffle()
-						end
-						if i==8 and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4 then turnOrder[turnRef].fameGUID=obj.guid end
-						if i==9 and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4 then turnOrder[turnRef].reputationGUID=obj.guid end
-						if i==13 and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4 then turnOrder[turnRef].commandGUID=obj.guid end
-						local inventories={	["Arythea"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378077447/DA7FA05E7349C9E1C99C318032043429816C861D/",
-											["Braevalar"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378077718/DCE81E61A3E1B96D8BA93A4F8793A10FB665FB6B/",
-											["Goldyx"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378077961/390B23321D1B2E3F34B1A029FFB2FB9C84262763/",
-											["Jormund"]="https://steamusercontent-a.akamaihd.net/ugc/1795241588983562972/1557BE3291E3A706D57FBFDBE5A72E7FAAB2CDF1/",
-											["Mevok"]="https://steamusercontent-a.akamaihd.net/ugc/2546304515601825153/FC93E96C09CB79AC93C52094C1B5287D811FA482/",
-											["Duscenia"]="https://steamusercontent-a.akamaihd.net/ugc/2546304515601824613/3B452F1B422F9671596713E2AFAAD60D41D3D16F/",
-											["Malek"]="https://steamusercontent-a.akamaihd.net/ugc/14943218316842257893/D58F0F6FCC4FE321C759297C11AE9F56BE11B0FD/",
-											["Krang"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378078687/F80D82EF2E26084CEB57089D002A0302D97DEC6B/",
-											["Norowas"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079060/8711BC1DD995631FD7EEEC2747ADB204C806CE5C/",
-											["Tovak"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079257/2B4D0055D769A2F0A24EEBC1940C0A50F834A9C0/",
-											["Wolfhawk"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079469/999F91445334DECE8125779EB46C1A5C46687A9D/",
-											["Coral"]="https://steamusercontent-a.akamaihd.net/ugc/14667008316248124108/D5989267D0EA9DC649819CA8E597860FA8B9F92C/",
-											["Zirtae"]="https://steamusercontent-a.akamaihd.net/ugc/17952541848407306110/B100358117F2DBF3F181B3FD347B14C77AA26308/",
-											["Ymirgh"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079688/47CE3F5B6A9F817FB562B5E9864E7F761CC62F97/"}
-						if i==1 and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4 then
-							local inventoryImage=inventories[gStates.positionMageKnight[positionOrder[a]]]
-							if inventoryImage~=nil then getObjectFromGUID(playerBoard[positionOrder[a]]).addDecal({name="Mage Inventory", url=inventoryImage, position={1.735, 0.11, -0.32}, rotation={90.0, 180.0, 0.0}, scale={1.164, 1.219, 10}}) end
-							turnOrder[turnRef].playerBoardGUID=playerBoard[positionOrder[a]]
-						end
-					end
-				end
-				if gStates.positionMageKnight[positionOrder[a]]=="Mevok" then
-					local obj=safeTakeObject("SetupGame",PlayerBag,{guid="32bc89", position={-77.30+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
-					local obj=safeTakeObject("SetupGame",PlayerBag,{guid="2dbfde", position={-73.90+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
-				end
-				PlayerBag.destruct()
-			else
-				--clean up that positions area
-				getObjectFromGUID(deedDeckZones[positionOrder[a]]).destruct()
-				getObjectFromGUID(deedDeckDiscardZones[positionOrder[a]]).destruct()
-				getObjectFromGUID(colorBand[positionOrder[a]]).destruct()
-				if a~=5 then getObjectFromGUID(playerBoard[positionOrder[a]]).destruct() end
-				if getObjectFromGUID(playAreaGuideText[positionOrder[a]])~=nil then getObjectFromGUID(playAreaGuideText[positionOrder[a]]).destruct() end
-				if getObjectFromGUID(playAreaGuideBackground[positionOrder[a]])~=nil then getObjectFromGUID(playAreaGuideBackground[positionOrder[a]]).destruct() end
-			end
-		--end, time)
-		--if a<5 then
-		--	if (gStates.positionMageKnight[positionOrder[a+1]]~="nobody" and positionOrder[a+1]<=4) or (gStates.positionMageKnight[5]~="nobody" and DummyPlayedTiming==0) then
-		--		time=time+delay
-		--	end
-		--	if (gStates.positionMageKnight[positionOrder[a+1]]=="nobody" or positionOrder[a+1]==5) and gStates.positionMageKnight[5]~="nobody" then DummyPlayedTiming=1 end
-		--end
+	for orderIndex,position in ipairs(PLAYER_SETUP_POSITION_ORDER) do
+		playerSetupDeployPosition(orderIndex,position,context)
 	end
-	--The Proxy uses a visible copy of their Mage Knight's infinite Shield bag beside the Dummy setup,
-	--plus the two Apocalypse Proxy reference cards immediately to the right of the Skill reference cards.
-	if proxyPlayerActive()==true then
-		safeWaitCondition("SetupGame",function()
-			proxySetupReferenceCards()
-			proxySetupShieldBag()
-			safeWaitCondition("SetupGame",function()
-				gStates.proxySetupReady=true
-			end,function()
-				local shield=gStates.proxyShieldBagGUID~=nil and getObjectFromGUID(gStates.proxyShieldBagGUID) or nil
-				return getObjectFromGUID("0e855c")~=nil and getObjectFromGUID("dbf566")~=nil and shield~=nil
-			end,10,function() error("SetupGame timed out waiting for Proxy reference components.",2) end)
-		end,function()
-			return getObjectFromGUID(dummyBoard)~=nil and getObjectFromGUID(GUID.bag.apocalypseDragon)~=nil
-		end,10,function() error("SetupGame timed out waiting for the Proxy setup sources.",2) end)
-	end
+	playerSetupFinishProxyComponents()
 	gStates.playerSetupReady=true
 end
 
@@ -37106,10 +37981,10 @@ function volkareSetup()
 	if gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then VolkareWounds=24-(4*gStates.volkareRaceLevel) else VolkareWounds=21-(3*gStates.volkareRaceLevel)-(2*gStates.blitz) end
 	if gStates.gameScenario=="Custom" then VolkareWounds=0 end
 	for i=1, VolkareWounds, 1 do
-		getObjectFromGUID(GUID.deck.volkare).putObject(getObjectFromGUID("a8e73d").clone({position={getObjectFromGUID(GUID.deck.volkare).getPosition()[1], -2, getObjectFromGUID(GUID.deck.volkare).getPosition()[3]}}))--The wound card to Volkare's Deck
+		getObjectFromGUID(GUID.deck.volkare).putObject(getObjectFromGUID(GUID.card.volkareWoundTemplate).clone({position={getObjectFromGUID(GUID.deck.volkare).getPosition()[1], -2, getObjectFromGUID(GUID.deck.volkare).getPosition()[3]}}))--The wound card to Volkare's Deck
 	end
 	getObjectFromGUID(GUID.deck.volkare).shuffle()
-	if gStates.gameScenario~="Custom" then getObjectFromGUID("a8e73d").destruct() end--The wound card
+	if gStates.gameScenario~="Custom" then getObjectFromGUID(GUID.card.volkareWoundTemplate).destruct() end--The wound card
 
 	--Add a random skill set if solo playing
 	if gStates.playerCount==1 and gStates.volkareSkills~="All Skills" then
@@ -37549,7 +38424,7 @@ function playerBoardZoneEnterSettled(ctx)
 	--Object entered player board
 	if zoneInfo~=nil and zoneInfo.kind=="play" then
 		--increment Master of chaos skill
-		if objGUID=="1ff34f" then
+		if objGUID==GUID.skill.masterOfChaos then
 			if masterOfChaosPause==false then
 				masterOfChaosPause=true
 				if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
@@ -37559,9 +38434,7 @@ function playerBoardZoneEnterSettled(ctx)
 				for a=1, #turnOrder, 1 do
 					if turnOrder[a].masterOfChaos~=nil then turnOrder[a].masterOfChaos="used" break end
 				end
-				--Wait.frames(function()
 				obj.reload()
-				--end, 50)
 				safeWaitFrames("PlayerBoard.Events",function() masterOfChaosPause=false end, 10)
 			end
 			return true
@@ -37634,7 +38507,7 @@ function playerBoardZoneEnterSettled(ctx)
 		end
 
 		--Add command decal to banner of Command
-		if objGUID=="8dbce4" then
+		if objGUID==GUID.card.bannerOfCommandToken then
 			bannerOfCommandDecal()
 			scheduleUnitLayoutRefresh(zoneInfo.seatPos)
 		end
@@ -37756,16 +38629,16 @@ function playerBoardZoneLeave(ctx)
 			end
 		end, 0.22)
 		--Decrement Master of chaos skill
-		if obj.guid=="1ff34f" and masterOfChaosPause==false then
+		if obj.guid==GUID.skill.masterOfChaos and masterOfChaosPause==false then
 			if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
 			safeWaitFrames("PlayerBoard.Events",function() masterOfChaosWait=safeWaitCondition("PlayerBoard.Events",function()
 				for a=1, #turnOrder, 1 do
 					if turnOrder[a].masterOfChaos~=nil and turnOrder[a].masterOfChaos~="incrementented in turn" then turnOrder[a].masterOfChaos="available" break end
 				end
-				getObjectFromGUID("1ff34f").setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
-				getObjectFromGUID("1ff34f").reload()
+				getObjectFromGUID(GUID.skill.masterOfChaos).setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
+				getObjectFromGUID(GUID.skill.masterOfChaos).reload()
 				masterOfChaosWait=nil
-			end, function() return getObjectFromGUID("1ff34f").resting end) end, 5)
+			end, function() return getObjectFromGUID(GUID.skill.masterOfChaos).resting end) end, 5)
 		end
 	end
 	--A Card or whole Deck leaving the deed pile can make End Round available.
@@ -37890,14 +38763,14 @@ function unitLayoutIsCommand(obj)
 	if obj==nil then return false end
 	--Bonds of Loyalty is physically a Skill token, but while claimed in Norowas' Unit Area it provides
 	--an extra Command slot exactly like Banner of Command. Its asset does not reliably carry the GM Note.
-	return obj.getGMNotes()=="Command Token" or obj.getGMNotes()=="Bonds of Loyalty" or obj.guid=="f30dd4" or obj.guid=="8dbce4"
+	return obj.getGMNotes()=="Command Token" or obj.getGMNotes()=="Bonds of Loyalty" or obj.guid==GUID.skill.bondsOfLoyalty or obj.guid==GUID.card.bannerOfCommandToken
 end
 
 function unitLayoutCommandPriority(obj)
 	if obj==nil then return 9 end
 	if obj.getGMNotes()=="Command Token" then return 1 end
-	if obj.getGMNotes()=="Bonds of Loyalty" or obj.guid=="f30dd4" then return 2 end
-	if obj.guid=="8dbce4" then return 3 end
+	if obj.getGMNotes()=="Bonds of Loyalty" or obj.guid==GUID.skill.bondsOfLoyalty then return 2 end
+	if obj.guid==GUID.card.bannerOfCommandToken then return 3 end
 	return 9
 end
 
@@ -38555,7 +39428,7 @@ function coralQuickWittedSetAside(playerIndex)
 	if deedZone==nil then return nil end
 	for _, obj in pairs(deedZone.getObjects()) do
 		if obj.type=="Deck" and obj.getQuantity()>1 then
-			for _, cardData in pairs(obj.getObjects()) do if cardData.guid=="6ecbc6" then return obj end end
+			for _, cardData in pairs(obj.getObjects()) do if cardData.guid==GUID.card.quickWitted then return obj end end
 		end
 	end
 	return nil
@@ -38567,7 +39440,7 @@ function coralQuickWittedLastDeedCard(playerIndex)
 	if playerDetails==nil or playerDetails.mage~="Coral" or playerDetails.mage==gStates.positionMageKnight[5] or playerDetails.dropoutState~=nil then return nil end
 	local deedZone=getObjectFromGUID(deedDeckZones[playerDetails.seatPos])
 	if deedZone==nil then return nil end
-	for _, obj in pairs(deedZone.getObjects()) do if obj.type=="Card" and obj.guid=="6ecbc6" then return obj end end
+	for _, obj in pairs(deedZone.getObjects()) do if obj.type=="Card" and obj.guid==GUID.card.quickWitted then return obj end end
 	return nil
 end
 
@@ -38639,9 +39512,9 @@ function coralManualQuickWittedLeaveSource(container)
 			end
 			if inDeedZone==false then return nil end
 			for _, cardData in pairs(container.getObjects()) do
-				if cardData.guid=="6ecbc6" then return playerIndex end
+				if cardData.guid==GUID.card.quickWitted then return playerIndex end
 			end
-			if container.remainder~=nil and container.remainder.guid=="6ecbc6" then return playerIndex end
+			if container.remainder~=nil and container.remainder.guid==GUID.card.quickWitted then return playerIndex end
 			return nil
 		end
 	end
@@ -38661,7 +39534,7 @@ function coralRestoreManualDraw(playerIndex, deckGuid, card, showChoice)
 				for _, obj in pairs(deedZone.getObjects()) do
 					if obj.guid~=card.guid and (obj.type=="Deck" or obj.type=="Card") then
 						destination=obj
-						if obj.guid=="6ecbc6" then break end
+						if obj.guid==GUID.card.quickWitted then break end
 					end
 				end
 			end
@@ -38746,7 +39619,7 @@ local function coralTakeQuickWitted(playerIndex)
 	local deedDeck=coralQuickWittedSetAside(playerIndex)
 	if deedDeck==nil then return false end
 	local playerPosition=turnOrder[playerIndex].seatPos
-	safeTakeObject("PlayerBoard.CardFlow",deedDeck,{guid="6ecbc6", position={(playerPosition*40)-105, 4.59, -47.55}, rotation={0, 180, 0}, smooth=false, callback_function=function(card) card.setScale({1.5, 1, 1.5}) end})
+	safeTakeObject("PlayerBoard.CardFlow",deedDeck,{guid=GUID.card.quickWitted, position={(playerPosition*40)-105, 4.59, -47.55}, rotation={0, 180, 0}, smooth=false, callback_function=function(card) card.setScale({1.5, 1, 1.5}) end})
 	turnOrder[playerIndex].deedCount=math.max(0,(turnOrder[playerIndex].deedCount or 0)-1)
 	coralScheduleDeedRefresh(playerPosition, 4)
 	return true
@@ -39005,8 +39878,8 @@ function coralQuickWittedReadyForDraw()
 			local deedZone=getObjectFromGUID(deedDeckZones[playerDetails.seatPos])
 			if deedZone==nil then return false end
 			for _, obj in pairs(deedZone.getObjects()) do
-				if obj.type=="Card" and obj.guid=="6ecbc6" then return true end
-				if obj.type=="Deck" then for _, cardData in pairs(obj.getObjects()) do if cardData.guid=="6ecbc6" then return true end end end
+				if obj.type=="Card" and obj.guid==GUID.card.quickWitted then return true end
+				if obj.type=="Deck" then for _, cardData in pairs(obj.getObjects()) do if cardData.guid==GUID.card.quickWitted then return true end end end
 			end
 			return false
 		end
@@ -39507,7 +40380,7 @@ end
 --Keep Quick Witted Set Aside at the bottom of Coral's physical Deed Deck.
 --Taking it out and putting it back at the Deck's resting elevation inserts it at the bottom.
 function coralSetAsideQuickWitted()
-	local cardGUID="6ecbc6"
+	local cardGUID=GUID.card.quickWitted
 	for _, playerDetails in pairs(turnOrder) do
 		if playerDetails.mage=="Coral" and playerDetails.mage~=gStates.positionMageKnight[5] and playerDetails.dropoutState==nil then
 			local deedZone=getObjectFromGUID(deedDeckZones[playerDetails.seatPos])
@@ -40337,13 +41210,11 @@ function scenarioSelection(player, mouseButton, id)
 			local mage=gStates.positionMageKnight[a] or "nobody"
 			gStates.positionMageKnight[a]=mage
 			if mage~="nobody" then gStates.playerCount=gStates.playerCount+1 end
-			UI.setAttribute(MKDropDownUI[a], "interactable", "true")
-			UI.setAttribute(MKDropDownUI[a].."Image", "image", "Sliced Button/Button New Active")
+			setUIButtonEnabled(MKDropDownUI[a],true)
 			UI.setAttribute(MKDropDownUI[a].."Text", "text", translateWord[mage])
 		end
 		gStates.positionMageKnight[5]=gStates.setupDummyMageChoice or "nobody"
-		UI.setAttribute("dummyMKSelection", "interactable", "true")
-		UI.setAttribute("dummyMKSelectionImage", "image", "Sliced Button/Button New Active")
+		setUIButtonEnabled("dummyMKSelection",true)
 		UI.setAttribute("dummyMKSelectionText", "text", translateWord[gStates.positionMageKnight[5]] or translateWord["nobody"])
 		dropDownIdLink="none"
 		UI.setAttribute("DropDown", "active", "false")
@@ -40399,13 +41270,11 @@ function scenarioSelection(player, mouseButton, id)
 			UI.setAttribute("VolkareRaceSelectionText", "text", SETUP_TEXT.notUsed)
 		end
 		--Rise of the forgemaster Menu Access
-		UI.setAttribute("ROTFSelection", "interactable", "True")
+		setUIButtonEnabled("ROTFSelection",true)
 		UI.setAttribute("ROTFSelectionText", "text", SETUP_TEXT.notUsed)
-		UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Active")
 		gStates.riseOfTheForgemasters=0
 		if gStates.gameScenario=="First Reconnaissance" then
-			UI.setAttribute("ROTFSelection", "interactable", "False")
-			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Deactive")
+			setUIButtonEnabled("ROTFSelection",false)
 	 	end
 		--Changing scenario discards any previous Optional Scenario Tweaks and reloads
 		--the defaults for this scenario and the currently selected Mage Knight count.
@@ -40457,13 +41326,11 @@ function refreshHeroChallengeOptionLocks()
 	UI.setAttribute("heroChallenges","interactable",(not firstRecon and not custom and not rotf) and "True" or "False")
 	if heroOn==true then
 		UI.setAttribute("useCustomMageKnights","interactable","False")
-		UI.setAttribute("ROTFSelection","interactable","False")
-		UI.setAttribute("ROTFSelectionImage","image","Sliced Button/Button New Deactive")
+		setUIButtonEnabled("ROTFSelection",false)
 	else
 		UI.setAttribute("useCustomMageKnights","interactable",(not firstRecon and not rotf) and "True" or "False")
 		local rotfAllowed=not firstRecon and gStates.removeLostLegionExpansion~=true
-		UI.setAttribute("ROTFSelection","interactable",rotfAllowed and "True" or "False")
-		UI.setAttribute("ROTFSelectionImage","image",rotfAllowed and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("ROTFSelection",rotfAllowed)
 	end
 end
 
@@ -40519,8 +41386,7 @@ function optionsUpdate(player, value, id)
 		if id=="questMod" then UI.setAttribute("apocalypseQuestCards", "interactable", "false") elseif id=="apocalypseQuestCards" then UI.setAttribute("questMod", "interactable", "false") end
 		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", SETUP_TEXT.daylightComing) end
 		if id=="removeLostLegionExpansion" then
-			UI.setAttribute("ROTFSelection", "interactable", "False")
-			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Deactive")
+			setUIButtonEnabled("ROTFSelection",false)
 			gStates.volkareCampAsCity=false
 			UI.setAttribute("volkareCampAsCity", "isOn", "false")
 			UI.setAttribute("volkareCampAsCity", "interactable", "False")
@@ -40531,8 +41397,7 @@ function optionsUpdate(player, value, id)
 		if id=="questMod" then UI.setAttribute("apocalypseQuestCards", "interactable", "true") elseif id=="apocalypseQuestCards" then UI.setAttribute("questMod", "interactable", "true") end
 		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", SETUP_TEXT.darknessComing) end
 		if id=="removeLostLegionExpansion" then --and gStates.removeBonusCards==false) or (id=="removeBonusCards" and gStates.removeLostLegionExpansion==false)
-			UI.setAttribute("ROTFSelection", "interactable", "True")
-			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Active")
+			setUIButtonEnabled("ROTFSelection",true)
 		end
 		if id=="useCustomMageKnights" then clearCustomMageKnightSelections(false) end
 	end
@@ -40741,8 +41606,7 @@ end
 function refreshScenarioTerrainTweakLocks()
 	local locked=scenarioMapIsPredefined()
 	for _,control in ipairs({"MapDown","MapUp","CountryDown","CountryUp","CoreDown","CoreUp","CityDown","CityUp"}) do
-		UI.setAttribute(control,"interactable",locked and "False" or "True")
-		UI.setAttribute(control.."Image","image",locked and "Sliced Button/Button New Deactive" or "Sliced Button/Button New Active")
+		setUIButtonEnabled(control,not locked)
 	end
 end
 
@@ -41015,8 +41879,7 @@ local function renderMageKnightSetupAvailability()
 	for position=1,4 do
 		local available=gStates.positionMageKnight[position]~="nobody" or gStates.playerCount<maxPlayers
 		local id=MAGE_KNIGHT_CONTROL_IDS[position]
-		UI.setAttribute(id,"interactable",available and "True" or "False")
-		UI.setAttribute(id.."Image","image",available and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+		setUIButtonEnabled(id,available)
 	end
 
 	local dummyLocked=gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return"
@@ -41024,8 +41887,7 @@ local function renderMageKnightSetupAvailability()
 		gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or
 		gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="Mines Liberation"
 	local dummyAvailable=not dummyLocked and (gStates.positionMageKnight[5]=="Volkare" or not dummyPlayerLimited or gStates.playerCount<2)
-	UI.setAttribute("dummyMKSelection","interactable",dummyAvailable and "True" or "False")
-	UI.setAttribute("dummyMKSelectionImage","image",dummyAvailable and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("dummyMKSelection",dummyAvailable)
 
 	UI.setAttribute("useCustomMageKnights","isOn",gStates.useCustomMageKnights==true and "true" or "false")
 	UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[gStates.riseOfTheForgemasters or 0] or SETUP_TEXT.notUsed)
@@ -41052,18 +41914,15 @@ function refreshSetupStartButton()
 	local tooMany=gStates.playerCount>setupScenarioMaxMageKnights()
 	local heroChallengeLegal,heroChallengeReason=heroChallengeSetupLegal()
 	if tooMany then
-		UI.setAttribute("StartButton", "interactable", "False")
-		UI.setAttribute("StartButtonImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("StartButton",false)
 		UI.setAttribute("StartButtonText", "text", "{en}Too Many Mage Knights{ru}Слишком много Рыцарей-магов{zh-tw}魔法騎士過多{zh-cn}魔法骑士过多{ko}메이지 나이트가 너무 많습니다{es}Demasiados Mage Knights{fr}Trop de Mage Knights{pt-br}Mage Knights demais{de}Zu viele Mage Knights")
 		UI.setAttribute("StartButton", "active", "true")
 	elseif heroChallengeLegal~=true then
-		UI.setAttribute("StartButton", "interactable", "False")
-		UI.setAttribute("StartButtonImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("StartButton",false)
 		UI.setAttribute("StartButtonText", "text", heroChallengeReason or "{en}Hero Challenges: Invalid setup{ru}Испытания героев: недопустимая настройка{zh-tw}英雄挑戰：無效設置{zh-cn}英雄挑战：无效设置{ko}영웅 도전: 잘못된 설정{es}Desafíos de Héroes: configuración no válida{fr}Défis des Héros : configuration invalide{pt-br}Desafios de Heróis: configuração inválida{de}Heldenherausforderungen: ungültiger Aufbau")
 		UI.setAttribute("StartButton", "active", "true")
 	elseif gStates.playerCount>=2 or (gStates.playerCount>=1 and gStates.positionMageKnight[5]~="nobody") then
-		UI.setAttribute("StartButton", "interactable", "True")
-		UI.setAttribute("StartButtonImage", "image", "Sliced Button/Button New Active")
+		setUIButtonEnabled("StartButton",true)
 		if gStates.playerCount==1 then
 			UI.setAttribute("StartButtonText", "text", SETUP_TEXT.startSolo)
 		elseif gStates.positionMageKnight[5]=="nobody" then
@@ -41077,8 +41936,7 @@ function refreshSetupStartButton()
 		end
 		UI.setAttribute("StartButton", "active", "true")
 	else
-		UI.setAttribute("StartButton", "interactable", "False")
-		UI.setAttribute("StartButtonImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("StartButton",false)
 		UI.setAttribute("StartButtonText", "text", "{en}Start - Select at least two Mage Knights first{ru}Начало - Сначала выберите как минимум двух Рыцарей-магов.{zh-tw}開始 - 首先選擇至少兩位魔法騎士{zh-cn}开始 - 首先选择两位魔法骑士{ko}시작 - 먼저 두 명 이상의 플레이어를 선택하세요{es}Comenzar - Selecciona al menos dos Mage Knight {fr}Démarrer - Sélectionnez d'abord au moins deux Mages{pt-br}Início - Selecione ao menos dois Mage Knights primeiro{de}Start - Wähle vorher mindestens 2 Mage Knights")
 		UI.setAttribute("StartButton", "active", "true")
 	end
@@ -41133,10 +41991,8 @@ function scenarioInfoUpdate()
 	if showMegapolisControls then
 		local canUp=gStates.megapolis<megapolisMaximum
 		local canDown=gStates.megapolis>0
-		UI.setAttribute("MegapolisUp","interactable",canUp and "True" or "False")
-		UI.setAttribute("MegapolisDown","interactable",canDown and "True" or "False")
-		UI.setAttribute("MegapolisUpImage","image",canUp and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
-		UI.setAttribute("MegapolisDownImage","image",canDown and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("MegapolisUp",canUp)
+		setUIButtonEnabled("MegapolisDown",canDown)
 	end
 	if hasCityLevelControls then
 		UI.setAttribute("CityNote", "active", "false")
@@ -41617,6 +42473,79 @@ function heroChallengeScenarioEndText(baseText)
 end
 
 end)
+__bundle_register("PlayingGame.DeckCycle", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Shared draw-deck cycle tracking for cards returned to the bottom of standard decks.
+-- TTS may collapse/rebuild Deck objects as cards are drawn or returned, so non-Artifact piles
+-- are resolved from their scripting zones instead of assuming a persistent Deck GUID.
+
+local function standardDeckCycleZone(deckName)
+	if deckName=="Advanced Action" then return GUID.zone.actionDeck end
+	if deckName=="Spell" then return GUID.zone.spellDeck end
+	if deckName=="Regular Unit" then return GUID.zone.regularUnit end
+	if deckName=="Elite Unit" then return GUID.zone.eliteUnit end
+	return nil
+end
+
+function standardDeckCycleObject(deckName)
+	if deckName=="Artifact" then return getObjectFromGUID(GUID.deck.artifact) end
+	local zoneGUID=standardDeckCycleZone(deckName)
+	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+	if zone~=nil then
+		for _,obj in pairs(zone.getObjects()) do
+			if obj.type=="Deck" or obj.type=="Card" then return obj end
+		end
+	end
+	return nil
+end
+
+local function standardDeckCycleMarker(deckName)
+	if deckName==nil or gStates==nil or gStates.standardDeckFirstReturnedGUID==nil then return nil end
+	return gStates.standardDeckFirstReturnedGUID[deckName]
+end
+
+function standardDeckCycleMarkReturned(deckName,card)
+	if deckName==nil or gStates==nil or gStates.firstStarted~=true or card==nil then return false end
+	if gStates.standardDeckFirstReturnedGUID==nil then gStates.standardDeckFirstReturnedGUID={} end
+	if gStates.standardDeckFirstReturnedGUID[deckName]==nil then
+		gStates.standardDeckFirstReturnedGUID[deckName]=card.guid
+		return true
+	end
+	return false
+end
+
+function standardDeckCycleShuffleIfReached(deckName,deck,candidateGUID)
+	local firstReturned=standardDeckCycleMarker(deckName)
+	if firstReturned==nil then return false end
+	deck=deck or standardDeckCycleObject(deckName)
+	if deck==nil or (deck.type~="Deck" and deck.type~="Card") then return false end
+	local reachedGUID=candidateGUID
+	if reachedGUID==nil then
+		if deck.type=="Deck" then
+			local objects=deck.getObjects()
+			if objects[1]~=nil then reachedGUID=objects[1].guid end
+		else
+			reachedGUID=deck.guid
+		end
+	end
+	if reachedGUID~=firstReturned then return false end
+	gStates.standardDeckFirstReturnedGUID[deckName]=nil
+	if deck.type=="Deck" and deck.getQuantity()>1 then deck.shuffle() end
+	return true
+end
+
+function standardDeckCycleClearIfDeckShuffled(deck)
+	if deck==nil or deck.type~="Deck" or gStates==nil or gStates.standardDeckFirstReturnedGUID==nil then return false end
+	for _,deckName in ipairs({"Artifact","Regular Unit","Elite Unit","Advanced Action","Spell"}) do
+		local current=standardDeckCycleObject(deckName)
+		if current~=nil and current.guid==deck.guid then
+			gStates.standardDeckFirstReturnedGUID[deckName]=nil
+			return true
+		end
+	end
+	return false
+end
+
+end)
 __bundle_register("Shared", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Shared helpers used by more than one Global source module.
 -- Keep subsystem-owned game logic in its owning module.
@@ -41666,6 +42595,15 @@ function safeWaitCondition(scope, callback, condition, timeout, timeoutCallback)
 	return Wait.condition(safeCallbackRun,condition,timeout,safeTimeout)
 end
 
+local UI_BUTTON_ACTIVE_IMAGE="Sliced Button/Button New Active"
+local UI_BUTTON_DEACTIVE_IMAGE="Sliced Button/Button New Deactive"
+
+--Keep a button's input state and standard Active/Deactive presentation in sync.
+function setUIButtonEnabled(id,enabled,imageId)
+	UI.setAttribute(id,"interactable",enabled and "true" or "false")
+	UI.setAttribute(imageId or id.."Image","image",enabled and UI_BUTTON_ACTIVE_IMAGE or UI_BUTTON_DEACTIVE_IMAGE)
+end
+
 --Used to join a table of strings with translation brackets
 local JOIN_LANG_ORDER={"en", "ru", "zh-tw", "zh-cn", "ko", "es", "fr", "pt-br", "de"}
 local JOIN_LANG_TAGS={"{en}", "{ru}", "{zh-tw}", "{zh-cn}", "{ko}", "{es}", "{fr}", "{pt-br}", "{de}"}
@@ -41712,8 +42650,8 @@ end
 
 --Reapply translated static UI text once at load so TTS resolves language tags.
 --Use TTS's parsed XML table instead of pattern-matching the whole raw XML string.
---Only Text/Toggle contents need this workaround. Leave tooltip attributes in XML: TTS localizes
---them correctly when XML loads, while setAttribute() would expose the raw {en}/{ru}/... tags.
+--Only Text/Toggle contents need this workaround. TTS does not resolve translation tags in tooltip
+--attributes, so tooltips stay plain English and are intentionally not reapplied here.
 function reapplyXmlText()
 	local xml=UI.getXmlTable() or {}
 	local reapplied=0
@@ -41973,6 +42911,84 @@ function runtimeMapContainsGUID(guid)
 	return guid~=nil and runtimeMapObjectCache~=nil and runtimeMapObjectCache.objectGUIDs~=nil and runtimeMapObjectCache.objectGUIDs[guid]==true
 end
 
+local RUNTIME_MAP_HEX_X_STEP=2.4
+local RUNTIME_MAP_HEX_Z_STEP=2.0785
+
+function runtimeMapHexKey(hexOrTerrainGUID,bearing)
+	if hexOrTerrainGUID==nil then return nil end
+	if type(hexOrTerrainGUID)=="table" then
+		return tostring(hexOrTerrainGUID.terrainGUID).."|"..tostring(hexOrTerrainGUID.bearing)
+	end
+	return tostring(hexOrTerrainGUID).."|"..tostring(bearing)
+end
+
+function runtimeMapHexesAdjacent(a,b)
+	if a==nil or b==nil or a.position==nil or b.position==nil then return false end
+	local dx=a.position[1]-b.position[1]
+	local dz=a.position[3]-b.position[3]
+	local distanceSquared=(dx*dx)+(dz*dz)
+	return distanceSquared>4.2 and distanceSquared<7.4
+end
+
+function runtimeMapWorldToAxial(position,origin)
+	if position==nil or origin==nil then return nil,nil end
+	local r=math.floor(((position[3]-origin[3])/RUNTIME_MAP_HEX_Z_STEP)+0.5)
+	local q=math.floor(((position[1]-origin[1])/RUNTIME_MAP_HEX_X_STEP)+(r/2)+0.5)
+	return q,r
+end
+
+function runtimeMapAxialToWorld(q,r,origin,y)
+	if q==nil or r==nil or origin==nil then return nil end
+	return {
+		origin[1]+(RUNTIME_MAP_HEX_X_STEP*(q-(r/2))),
+		y or origin[2],
+		origin[3]+(RUNTIME_MAP_HEX_Z_STEP*r)
+	}
+end
+
+function runtimeMapAxialDistance(q,r)
+	if q==nil or r==nil then return nil end
+	return math.max(math.abs(q),math.abs(r),math.abs(q-r))
+end
+
+function runtimeMapWorldHexDistance(fromPos,toPos)
+	if fromPos==nil or toPos==nil then return nil end
+	local function nearest(value)
+		if value>=0 then return math.floor(value+0.5) end
+		return math.ceil(value-0.5)
+	end
+	local r=nearest((toPos[3]-fromPos[3])/RUNTIME_MAP_HEX_Z_STEP)
+	local q=nearest(((toPos[1]-fromPos[1])/RUNTIME_MAP_HEX_X_STEP)+(r/2))
+	return runtimeMapAxialDistance(q,r)
+end
+
+function terrainHexChoiceUIPlacement(key,buttonScale,splitIndex,splitCount,referenceScale)
+	if key==nil then return nil,nil end
+	local terrainGUID,bearing=tostring(key):match("^([^|]+)|(.+)$")
+	local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
+	if terrain==nil or bearing==nil then return nil,nil end
+	local hexXY=angleToXY(terrain,bearing)
+	local tilePos=terrain.getPosition()
+	local localHex=terrain.positionToLocal({hexXY[1],tilePos[2],hexXY[2]})
+	local tileScale=terrain.getScale()
+	local scaleX=tileScale.x or tileScale[1] or 2.25
+	local scaleZ=tileScale.z or tileScale[3] or 2.25
+	buttonScale=tonumber(buttonScale) or 0.38
+	referenceScale=tonumber(referenceScale) or buttonScale
+	local uiFactor=referenceScale~=0 and buttonScale/referenceScale or 1
+	local uiX=(localHex.x or localHex[1])*scaleX*110*uiFactor
+	local uiY=(localHex.z or localHex[3])*scaleZ*110*uiFactor
+	local count=math.max(1,tonumber(splitCount) or 1)
+	local slot=math.max(1,tonumber(splitIndex) or 1)
+	local height=320/count
+	if count>1 then uiY=uiY+(((count+1)/2)-slot)*height*buttonScale end
+	return terrain,{
+		x=uiX,y=uiY,depth=-40*uiFactor,
+		rotation=terrain.getRotation()[2] or 180,
+		height=height,count=count,scale=buttonScale
+	}
+end
+
 local function runtimeMapObjectSnapshot()
 	if runtimeMapObjectCache~=nil then return runtimeMapObjectCache end
 	local map=getObjectFromGUID(mapArea)
@@ -42038,21 +43054,18 @@ local function runtimeMapTerrainSnapshot()
 	local neighbors={}
 	local neighborSet={}
 	for _,hex in ipairs(hexes) do
-		local key=tostring(hex.terrainGUID).."|"..tostring(hex.bearing)
+		local key=runtimeMapHexKey(hex)
 		hexByKey[key]=hex
 		neighbors[key]={}
 		neighborSet[key]={}
 	end
 	for a=1,#hexes do
 		local first=hexes[a]
-		local firstKey=tostring(first.terrainGUID).."|"..tostring(first.bearing)
+		local firstKey=runtimeMapHexKey(first)
 		for b=a+1,#hexes do
 			local second=hexes[b]
-			local dx=first.position[1]-second.position[1]
-			local dz=first.position[3]-second.position[3]
-			local distanceSquared=(dx*dx)+(dz*dz)
-			if distanceSquared>4.2 and distanceSquared<7.4 then
-				local secondKey=tostring(second.terrainGUID).."|"..tostring(second.bearing)
+			if runtimeMapHexesAdjacent(first,second)==true then
+				local secondKey=runtimeMapHexKey(second)
 				neighbors[firstKey][#neighbors[firstKey]+1]=second
 				neighbors[secondKey][#neighbors[secondKey]+1]=first
 				neighborSet[firstKey][secondKey]=true
@@ -42082,6 +43095,50 @@ function runtimeMapSnapshot()
 		neighborSet=terrainSnapshot.neighborSet,terrainSignature=terrainSnapshot.terrainSignature
 	}
 	return runtimeMapSnapshotCache
+end
+
+function runtimeMapHexDistanceMap(hexes,starts)
+	local distances={}
+	local queue={}
+	local snapshot=runtimeMapSnapshot()
+	local useCachedTopology=hexes==snapshot.hexes
+	for _,startHex in ipairs(starts or {}) do
+		local key=runtimeMapHexKey(startHex)
+		if key~=nil and distances[key]==nil then
+			distances[key]=0
+			queue[#queue+1]=startHex
+		end
+	end
+	local head=1
+	while queue[head]~=nil do
+		local current=queue[head]
+		head=head+1
+		local currentKey=runtimeMapHexKey(current)
+		local currentDistance=distances[currentKey] or 0
+		if useCachedTopology==true then
+			for _,candidate in ipairs(snapshot.neighbors[currentKey] or {}) do
+				local key=runtimeMapHexKey(candidate)
+				if key~=nil and distances[key]==nil then
+					distances[key]=currentDistance+1
+					queue[#queue+1]=candidate
+				end
+			end
+		else
+			for _,candidate in ipairs(hexes or {}) do
+				local key=runtimeMapHexKey(candidate)
+				if key~=nil and distances[key]==nil and runtimeMapHexesAdjacent(current,candidate)==true then
+					distances[key]=currentDistance+1
+					queue[#queue+1]=candidate
+				end
+			end
+		end
+	end
+	return distances
+end
+
+function runtimeMapHexesAndObjects()
+	local snapshot=runtimeMapSnapshot()
+	return snapshot.hexes or {},snapshot.objects or {}
 end
 
 --Build a live spatial view on top of the shared runtime map. Object membership comes from the
@@ -42142,8 +43199,25 @@ function runtimeMapHexAtPosition(pos,snapshot)
 	snapshot=snapshot or runtimeMapSnapshot()
 	local terrain,bearing,hexPos,feature,hexType=terrainHexAtPosition(pos,snapshot.terrainObjects,snapshot.terrainPositions,snapshot.terrainRotations)
 	if terrain==nil or bearing==nil then return nil,nil,terrain,bearing,hexPos,feature,hexType end
-	local key=tostring(terrain.guid).."|"..tostring(bearing)
+	local key=runtimeMapHexKey(terrain.guid,bearing)
 	return snapshot.hexByKey[key],key,terrain,bearing,hexPos,feature,hexType
+end
+
+--Resolve a position against a supplied revealed-hex list. Quests can pass their synchronous refresh
+--cache; ordinary callers can omit both collections and use the shared runtime snapshot directly.
+function runtimeMapHexForPosition(hexes,position,mapObjects)
+	if position==nil then return nil end
+	local snapshot=runtimeMapSnapshot()
+	if hexes==nil or (hexes==snapshot.hexes and (mapObjects==nil or mapObjects==snapshot.objects)) then
+		return runtimeMapHexAtPosition(position,snapshot)
+	end
+	local terrain,bearing=terrainHexAtPosition(position,mapObjects)
+	if terrain==nil or bearing==nil then return nil end
+	local key=runtimeMapHexKey(terrain.guid,bearing)
+	for _,hex in ipairs(hexes or {}) do
+		if runtimeMapHexKey(hex)==key then return hex end
+	end
+	return nil
 end
 
 -- Player permission helpers
@@ -42641,7 +43715,8 @@ GUID={	deck={	artifact="ac75c4",
 				core09="cff250", 
 				core10="de7fad", 
 				core11="ed651c", 
-				core12="a33586"},
+				core12="a33586",
+				volkareCamp="835c91"},
 		bag={	forgemaster="11128e", 
 				apocalypseDragon="e4b8f4", 
 				apocalypseQuestTokens="f7bd64", 
@@ -42659,6 +43734,7 @@ GUID={	deck={	artifact="ac75c4",
 				lostLegion="aff5f6", 
 				quest="bffdc0", 
 				weatherMod="a1e972",
+				rules="d4a866",
 				terrain={	stack="966e0e", 
 							leftCore="c87444", 
 							leftCountry="37d9b4", 
@@ -42718,7 +43794,20 @@ GUID={	deck={	artifact="ac75c4",
 							darkMarauders="61ba30", 
 							orcs="ed0ec9", 
 							possessed="53b986", 
-							ruin="869a0f"}}}
+							ruin="869a0f"}},
+		card={	quickWitted="6ecbc6",
+					timeBending="2eb8e2",
+					volkareWoundTemplate="a8e73d",
+					furyOfDragonRules="8d7fb9",
+					bannerOfCommandToken="8dbce4"},
+		skill={	masterOfChaos="1ff34f",
+					bondsOfLoyalty="f30dd4",
+					manaSuppression="958209"},
+		token={	oasisReminder="a8bf9c"},
+		ui={	mapExplore="f2291a",
+				monsterReplenish="d7a165",
+				nightTint="43fa2e"},
+		object={volkareDie="9a686a"}}
 tacticZones=			{"9e319e", "32172f", "bc2046", "8363fc", "01ac7e", "582d2b"}
 tacticCard=				{"3b6922", "a000a4", "fbd7fd", "6f7af6", "ea251c", "2404f1",     "650f6f", "f6ad01", "3bb84a", "db7aaa", "6c50ac", "e2af14"}--1-6 Day, 1-6 Night
 deedDeckZones=			{"af0360", "22b532", "c10770", "aa1121", "b29524"}
@@ -42848,7 +43937,7 @@ translateWord={	["Red"]="{en}Red{ru}Красный{zh-tw}红色的{zh-cn}红色�
 				["Conquest"]="{en}Conquest{ru}Завоевание{zh-tw}征服{zh-cn}征服{ko}정식 정복{es}Conquista{fr}Conquête{pt-br}Conquista{de}Eroberung",
 				["Volkare's Quest"]="{en}Volkare's Quest{ru}Поход Волкара{zh-tw}沃卡里的使命{zh-cn}沃卡里的使命{ko}볼케어의 원정{es}La Búsqueda de Volkare{fr}La Quête de Volkare{pt-br}Missão de Volkare{de}Volkare's Suche",
 				["Volkare's Return"]="{en}Volkare's Return{ru}Возвращение Волкара{zh-tw}沃卡里的歸來{zh-cn}沃卡里的归来{ko}볼케어의 귀환{es}El Regreso de Volkare{fr}Le Retour de Volkare{pt-br}Retorno de Volkare{de}Volkare's Rückkehr",
-				["First Conquest"]="{en}First Conquest{ru}Первое Завоевание{zh-tw}首次征服{zh-cn}首次征服{ko}첫 번째 정복{es}Primera Conquista{fr}Première Conquête{pt-br}Conquista Final{de}Solo-Eroberung",
+				["First Conquest"]="{en}First Conquest{ru}Первое Завоевание{zh-tw}首次征服{zh-cn}首次征服{ko}첫 번째 정복{es}Primera Conquista{fr}Première Conquête{pt-br}Primeira Conquista{de}Erste Eroberung",
 				["First Reconnaissance"]="{en}First Reconnaissance{ru}Первая Вылазка{zh-tw}首次勘察{zh-cn}首次勘察{ko}첫 번째 정찰{es}Primer reconocimiento{fr}Première Reconnaissance{pt-br}Primeiro Reconhecimento{de}Blitz-Eroberung",
 				["Raiders of the Crusader Temple"]="{en}Raiders of the Crusader Temple{ru}Рейдеры храма крестоносцев{zh-tw}聖教軍奇兵{zh-cn}圣教军奇兵{ko}십자군 성전의 침입자{es}Asaltantes del Templo de los Cruzados{fr}Les aventuriers du temple des croisés{pt-br}Salteadores do Templo dos Cruzados{de}Räuber des Kreuzrittertempels",
 				["For the Council"]="{en}For the Council{ru}За Совет{zh-tw}為了議會{zh-cn}为了议会{ko}평의회를 위하여{es}Por el Consejo{fr}Pour le Conseil{pt-br}Pelo Conselho{de}Für den Rat",
@@ -42876,7 +43965,7 @@ translateWord={	["Red"]="{en}Red{ru}Красный{zh-tw}红色的{zh-cn}红色�
 				["Conquest Blitz"]="{en}Conquest{ru}Завоевание{zh-tw}征服{zh-cn}征服{ko}정식 정복{es}Conquista{fr}Conquête{pt-br}Conquista{de}Eroberung",
 				["Volkare's Quest Blitz"]="{en}Volkare's Quest{ru}Поход Волкара{zh-tw}沃卡里的使命{zh-cn}沃卡里的使命{ko}볼케어의 원정{es}La Búsqueda de Volkare{fr}La Quête de Volkare{pt-br}Missão de Volkare{de}Volkare's Suche",
 				["Volkare's Return Blitz"]="{en}Volkare's Return{ru}Возвращение Волкара{zh-tw}沃卡里的歸來{zh-cn}沃卡里的归来{ko}볼케어의 귀환{es}El Regreso de Volkare{fr}Le Retour de Volkare{pt-br}Retorno de Volkare{de}Volkare's Rückkehr",
-				["First Conquest Blitz"]="{en}First Conquest{ru}Первое Завоевание{zh-tw}首次征服{zh-cn}首次征服{ko}첫 번째 정복{es}Primera Conquista{fr}Première Conquête{pt-br}Conquista Final{de}Solo-Eroberung",
+				["First Conquest Blitz"]="{en}First Conquest{ru}Первое Завоевание{zh-tw}首次征服{zh-cn}首次征服{ko}첫 번째 정복{es}Primera Conquista{fr}Première Conquête{pt-br}Primeira Conquista{de}Erste Eroberung",
 				["First Reconnaissance Blitz"]="{en}First Reconnaissance{ru}Первая Вылазка{zh-tw}首次勘察{zh-cn}首次勘察{ko}첫 번째 정찰{es}Primer reconocimiento{fr}Première Reconnaissance{pt-br}Primeiro Reconhecimento{de}Blitz-Eroberung",
 				["Raiders of the Crusader Temple Blitz"]="{en}Raiders of the Crusader Temple{ru}Рейдеры храма крестоносцев{zh-tw}聖教軍奇兵{zh-cn}圣教军奇兵{ko}십자군 성전의 침입자{es}Asaltantes del Templo de los Cruzados{fr}Les aventuriers du temple des croisés{pt-br}Salteadores do Templo dos Cruzados{de}Räuber des Kreuzrittertempels",
 
@@ -43706,7 +44795,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["af7422"]={cardType="Starting", name={"Tranquility"}, color={"Green"}, action={"Heal"}},
 			["af9def"]={cardType="Starting", name={"Concentration"}, color={"Green"}, action={"Special"}},
 			["acdcb2"]={cardType="Starting", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
-			["6ecbc6"]={cardType="Starting", name={"Quick Witted"}, color={"White"}, action={"Move", "Combat", "Influence"}},
+			[GUID.card.quickWitted]={cardType="Starting", name={"Quick Witted"}, color={"White"}, action={"Move", "Combat", "Influence"}},
 			["7b7f78"]={cardType="Starting", name={"Mana Draw"}, color={"White"}, action={"Special"}},
 			["3c32e2"]={cardType="Starting", name={"Promise"}, color={"White"}, action={"Influence"}},
 			["89b27f"]={cardType="Starting", name={"Improvisation"}, color={"Red"}, action={"Influence"}},
@@ -43944,7 +45033,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["2eb8e3"]={cardType="Spell", name={"Mana Bolt", "Mana Thunderbolt"}, 		color={"Blue"}, action={"Combat"}},
 			["2eb8e4"]={cardType="Spell", name={"Snowstorm", "Blizzard"}, 				color={"Blue"}, action={"Combat"}},
 			["2eb8e0"]={cardType="Spell", name={"Chill", "Lethal Chill"}, 				color={"Blue"}, action={"Combat"}},
-			["2eb8e2"]={cardType="Spell", name={"Space Bending", "Time Bending"}, 		color={"Blue"}, action={"Move", "Special"}},
+			[GUID.card.timeBending]={cardType="Spell", name={"Space Bending", "Time Bending"}, 		color={"Blue"}, action={"Move", "Special"}},
 			["2eb8f5"]={cardType="Spell", name={"Mind Read", "Mind Steal"}, 			color={"White"}, action={"Special"}},
 			["2eb8e6"]={cardType="Spell", name={"Charm", "Possess"}, 					color={"White"}, action={"Influence", "Combat"}},
 			["2eb8e9"]={cardType="Spell", name={"Wings of Wind", "Wings of Night"}, 	color={"White"}, action={"Move", "Combat"}},
@@ -43987,8 +45076,8 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["e48e44"]={cardType="Artifact", name={"Banner of Protection"}, 		color={}, action={"Combat", "Banner"}, full="df2eae"},
 			["7d608f"]={cardType="Artifact", name={"Banner of Fortitude"}, 			color={}, action={"Heal", "Banner"}, half="596cfa"},
 			["596cfa"]={cardType="Artifact", name={"Banner of Fortitude"}, 			color={}, action={"Heal", "Banner"}, full="7d608f"},
-			["98681f"]={cardType="Artifact", name={"Banner of Command"}, 			color={}, action={"Influence", "Banner"}, half="8dbce4"},
-			["8dbce4"]={cardType="Artifact", name={"Banner of Command"}, 			color={}, action={"Influence", "Banner"}, full="98681f"},
+			["98681f"]={cardType="Artifact", name={"Banner of Command"}, 			color={}, action={"Influence", "Banner"}, half=GUID.card.bannerOfCommandToken},
+			[GUID.card.bannerOfCommandToken]={cardType="Artifact", name={"Banner of Command"}, 			color={}, action={"Influence", "Banner"}, full="98681f"},
 			["085e62"]={cardType="Artifact", name={"Amulet of Darkness"}, 			color={}, action={"Special"}},
 			["085e61"]={cardType="Artifact", name={"Amulet of The Sun"}, 			color={}, action={"Special"}},
 			["085e59"]={cardType="Artifact", name={"Golden Grail"}, 				color={}, action={"Heal"}},
@@ -44112,7 +45201,7 @@ terrainTiles={	[startTerrain.wedge]={tileType="starting", tileNumber=0,
                 [GUID.tile.core12]={tileType="core", tileNumber=12,
                     hexType=    {center="wasteland", ["0"]="swamp", ["60"]="forest", ["120"]="mountain", ["180"]="desert", ["240"]="desert", ["300"]="hills"},
                     hexFeature= {center="draconum", ["0"]="monastery", ["60"]="", ["120"]="", ["180"]="pyramid", ["240"]="oasis", ["300"]=""}},
-				["835c91"]={tileType="core", tileNumber=99,
+				[GUID.tile.volkareCamp]={tileType="core", tileNumber=99,
 					hexType=	{center="plains", ["0"]="lake", ["60"]="hills", ["120"]="desert", ["180"]="wasteland", ["240"]="mountain", ["300"]="forest"},
 					hexFeature=	{center="Volkare's Camp", ["0"]="", ["60"]="", ["120"]="village", ["180"]="draconum", ["240"]="", ["300"]="rampaging"},
 					wallList=	{center={["60"]=1, ["120"]=1}, ["60"]={["center"]=1}, ["120"]={["center"]=1, ["180"]=1}, ["180"]={["120"]=1}}},
@@ -44623,7 +45712,7 @@ REWARD_BAG_LOW_COUNT_ALT_VIEW_ANGLE={0, 180, 180} --11 or fewer tokens
 heroChallengesData={
 	Arythea={skillGUID="33d341",skillName="Power of Pain",scoreCategory="Beating",objective="Have at least 10 Wound cards in your deck and on your Units."},
 	Goldyx={skillGUID="8cea19",skillName="Glittering Fortune",scoreCategory="Knowledge",country={{"04"},{"09"},{"11"}},objective="Have at least 4 Spells in your deck and 1 crystal of each color in your Inventory."},
-	Norowas={skillGUID="f30dd4",skillName="Bonds of Loyalty",scoreCategory="Leader",objective="Have at least 10 total levels of your Units."},
+	Norowas={skillGUID=GUID.skill.bondsOfLoyalty,skillName="Bonds of Loyalty",scoreCategory="Leader",objective="Have at least 10 total levels of your Units."},
 	Tovak={skillGUID="0db913",skillName="Shield Mastery",scoreCategory="Conqueror",country={{"03"},{"04"},{"10"},{"11"}},objective="Have at least 4 Shield tokens that count towards The Greatest Conqueror."},
 	Wolfhawk={skillGUID="2c74ca",skillName="Know Your Prey",scoreCategory="Adventurer",country={{"12"},{"14"},{"07","09"},{"06","10"}},objective="Have at least 4 Shield tokens that count towards The Greatest Adventurer."},
 	Krang={skillGUID="893537",skillName="Puppet Master",scoreCategory="Knowledge",objective="Have at least 4 Enemy tokens from Puppet Master with different Fame values."},
@@ -44654,13 +45743,13 @@ skillTokens={	["1906f4"]={skillType="Turn", mage="Arythea"},				  	["33d341"]={s
 				["0fbcfe"]={skillType="Turn", mage="Krang"},					["91c8a0"]={skillType="Turn", mage="Krang", name="Arcane Disguise"},
 				["0688d8"]={skillType="Turn", mage="Krang"},					["6a33c1"]={skillType="Turn", mage="Krang"},
 				["893537"]={skillType="Turn", mage="Krang"},					["adf8ab"]={skillType="Turn", mage="Krang"},
-				["f36762"]={skillType="Turn", mage="Krang"},					["958209"]={competitiveState=true, skillType="Comp", mage="Krang", name="Mana Suppression"},
-				["1ff34f"]={skillType="Turn", mage="Krang"},					["725de9"]={skillType="Coop", mage="Krang", name="Mana Enhancement"},
+				["f36762"]={skillType="Turn", mage="Krang"},					[GUID.skill.manaSuppression]={competitiveState=true, skillType="Comp", mage="Krang", name="Mana Suppression"},
+				[GUID.skill.masterOfChaos]={skillType="Turn", mage="Krang"},					["725de9"]={skillType="Coop", mage="Krang", name="Mana Enhancement"},
 				["d8824d"]={skillType="Round", mage="Krang"},
 
 				["93c62e"]={skillType="Turn", mage="Norowas"},				  	["257c0c"]={skillType="Turn", mage="Norowas"},
 				["046187"]={skillType="Turn", mage="Norowas"},				  	["3f0f3b"]={skillType="Turn", mage="Norowas"},
-				["f30dd4"]={skillType="Round", mage="Norowas"},				  	["b2dfce"]={skillType="Round", mage="Norowas"},
+				[GUID.skill.bondsOfLoyalty]={skillType="Round", mage="Norowas"},				  	["b2dfce"]={skillType="Round", mage="Norowas"},
 				["e45fdf"]={skillType="Round", mage="Norowas"},				  	["676856"]={competitiveState=true, skillType="Comp", mage="Norowas", name="Prayer of the Weather"},
 				["3dc067"]={skillType="Round", mage="Norowas"},				  	["55e5e5"]={skillType="Coop", mage="Norowas", name="Calming the Weather"},
 				["14399f"]={skillType="Round", mage="Norowas"},
