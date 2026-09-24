@@ -1822,8 +1822,9 @@ end
 function apocalypseIsHereApplyDragonCityTerrainOverride()
 	if apocalypseIsHereActive()~=true or gStates.apocalypseHereDragonCityRevealed~=true or gStates.apocalypseDragonLair==nil then return false end
 	local key=gStates.apocalypseDragonLair.cityHexKey
-	local terrainGUID,bearing=key~=nil and tostring(key):match("^([^|]+)|(.+)$") or nil,nil
-	if terrainGUID==nil then return false end
+	local terrainGUID,bearing=nil,nil
+	if key~=nil then terrainGUID,bearing=tostring(key):match("^([^|]+)|(.+)$") end
+	if terrainGUID==nil or bearing==nil then return false end
 	return runtimeMapSetHexType(terrainGUID,bearing,"plains")
 end
 
