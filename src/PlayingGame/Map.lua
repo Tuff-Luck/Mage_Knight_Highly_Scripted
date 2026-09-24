@@ -1,6 +1,7 @@
 -- Map state, avatar location, exploration, shields and terrain-site runtime.
 
 local terrainExploreButtons={{}}
+local terrainExploreRefreshQueued=false
 local terrainPlacementEdgeCoordinates={
 	{-30.03, 15.09}, {-25.23, 19.25}, {-31.23, 21.34},
 	{-38.43, 0.54}, {-33.63, 4.70}, {-28.83, 8.86}, {-24.03, 13.02}, {-19.23, 17.17},
@@ -1262,18 +1263,39 @@ function refreshTerrainExploreOptions(compactCities)
 		local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
 		local leftCountry=getObjectFromGUID(GUID.bag.terrain.leftCountry)
 		local leftCore=getObjectFromGUID(GUID.bag.terrain.leftCore)
-		local terrainStackObjects=terrainStack.getObjects()
+		local terrainStackQuantity=terrainStack~=nil and (tonumber(terrainStack.getQuantity()) or 0) or 0
+		local terrainStackObjects=terrainStack~=nil and terrainStack.getObjects() or nil
+		--TTS destroys/rebuilds container objects while loose terrain tiles merge into the final stack.
+		--During that frame getObjects() can return nil even though getQuantity() already reports the stack.
+		--Retry the derived EXPLORE view after the merge instead of treating a transient container as empty.
+		if terrainStackQuantity>1 and type(terrainStackObjects)~="table" then
+			if terrainExploreRefreshQueued~=true then
+				terrainExploreRefreshQueued=true
+				safeWaitFrames("Map",function()
+					terrainExploreRefreshQueued=false
+					refreshTerrainExploreOptions(compactCities)
+				end,1)
+			end
+			return
+		end
+		terrainStackObjects=type(terrainStackObjects)=="table" and terrainStackObjects or {}
+		local terrainStackSingleTile=terrainStack~=nil and terrainTiles[terrainStack.guid]~=nil and terrainTiles[terrainStack.guid].tileType~="tilePile"
 		if #terrainStackObjects>0 then
-			local nextTerrainIndex=terrainStack.getQuantity()-1
+			local nextTerrainIndex=terrainStackQuantity-1
 			testTerrain=terrainStackObjects[#terrainStackObjects].guid
 			for _, containedTerrain in pairs(terrainStackObjects) do
 				if containedTerrain.index==nextTerrainIndex then testTerrain=containedTerrain.guid break end
 			end
+		elseif terrainStackSingleTile==true then
+			--A terrain stack collapses back to the final tile object when only one tile remains.
+			testTerrain=terrainStack.guid
 		else
 			nameTerrain="excess"
 			testTerrain="country"
 		end
-		if terrainStack.getQuantity()>0 or leftCountry.getQuantity()>0 or leftCore.getQuantity()>0 then
+		local leftCountryQuantity=leftCountry~=nil and (tonumber(leftCountry.getQuantity()) or 0) or 0
+		local leftCoreQuantity=leftCore~=nil and (tonumber(leftCore.getQuantity()) or 0) or 0
+		if terrainStackQuantity>0 or terrainStackSingleTile==true or leftCountryQuantity>0 or leftCoreQuantity>0 then
 			for _, terTile in pairs(terrainExploreSpots) do
 				local found=false
 				for _, mightBeMap in pairs(faceUpTerrain) do
