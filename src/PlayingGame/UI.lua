@@ -132,7 +132,7 @@ local function buildOutOfTurnUIStateKey(playerAreaCardCount, playerAreaSkillCoun
 
 	--Master of Chaos availability depends on the physical skill token's player-board position.
 	local chaosSeat=0
-	local chaos=getObjectFromGUID("1ff34f")
+	local chaos=getObjectFromGUID(GUID.skill.masterOfChaos)
 	if chaos~=nil then
 		local pos=chaos.getPosition()
 		if pos[3]<-25 then chaosSeat=math.floor(((pos[1]+107.3)/40)+0.5) end
@@ -292,7 +292,7 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 			end
 
 			--Master of Chaos
-			if playerDropoutInactive(a)==false and getObjectFromGUID("1ff34f")~=nil and getObjectFromGUID("1ff34f").getPosition()[3]<-25 and math.floor(((getObjectFromGUID("1ff34f").getPosition()[1]+107.3)/40)+0.5)==turnOrder[a].seatPos and (a~=gStates.turnNumber or (a==gStates.turnNumber and playerAreaCardCount+playerAreaSkillCount<1)) and turnOrder[a].masterOfChaos=="available" and turnOrder[a].mage~=gStates.positionMageKnight[5] then
+			if playerDropoutInactive(a)==false and getObjectFromGUID(GUID.skill.masterOfChaos)~=nil and getObjectFromGUID(GUID.skill.masterOfChaos).getPosition()[3]<-25 and math.floor(((getObjectFromGUID(GUID.skill.masterOfChaos).getPosition()[1]+107.3)/40)+0.5)==turnOrder[a].seatPos and (a~=gStates.turnNumber or (a==gStates.turnNumber and playerAreaCardCount+playerAreaSkillCount<1)) and turnOrder[a].masterOfChaos=="available" and turnOrder[a].mage~=gStates.positionMageKnight[5] then
 				UI.setAttribute("MasterOfChaos"..tostring(turnOrder[a].seatPos).."Text", "text", "{en}Increment 'Master of Chaos' Skill{ru}Передвинуть навык «Мастер магии Хаоса»{zh-tw} 推進“混亂大師”技能{zh-cn} 推进“混乱大师”技能{ko} '혼돈의 달인' 스킬 한 칸 이동{es}Incrementa la Habilidad 'Maestro del Caos'{fr}Augmenter la Compétence 'Maître du Chaos'{pt-br}Incrementar a Habilidade 'Mestre do Caos'{de}Erhöht die Fertigkeit 'Meister des Chaos'")
 				UI.setAttribute("MasterOfChaos"..tostring(turnOrder[a].seatPos), "active", "true")
 				UI.setAttribute("MasterOfChaos"..tostring(turnOrder[a].seatPos).."Image", "color", positionToColor(a))
@@ -2376,7 +2376,7 @@ end
 --Monster Replenish no longer carries its own Lua/XML. Rebuild its physical Restock button from
 --Global, and keep the old status ids as hidden targets for existing swap/status helpers.
 function monsterReplenishObjectOnLoad()
-	local obj=getObjectFromGUID("d7a165")
+	local obj=getObjectFromGUID(GUID.ui.monsterReplenish)
 	if obj==nil then return end
 	obj.UI.setXml([=[
 <Button id="d7a165replenishMonsterPiles" interactable="true"
@@ -2433,12 +2433,12 @@ end
 function nightTint(player, mouseButton, id)
 	if mouseButton=="-1" then
 		local tileColor={}
-		if getObjectFromGUID("43fa2e").UI.getAttribute("43fa2eNightTintText", "text")=="No Tint" then
-			getObjectFromGUID("43fa2e").UI.setAttribute("43fa2eNightTintText", "text", "{en}Add Tint{ru}Добавить оттенок{zh-tw}加入色調{zh-cn}加入色调{ko}색조 추가{es}Añadir Tinte{fr}Ajouter une Teinte{pt-br}Adicionar Tonalidade{de}Tönung hinzufügen")
+		if getObjectFromGUID(GUID.ui.nightTint).UI.getAttribute("43fa2eNightTintText", "text")=="No Tint" then
+			getObjectFromGUID(GUID.ui.nightTint).UI.setAttribute("43fa2eNightTintText", "text", "{en}Add Tint{ru}Добавить оттенок{zh-tw}加入色調{zh-cn}加入色调{ko}색조 추가{es}Añadir Tinte{fr}Ajouter une Teinte{pt-br}Adicionar Tonalidade{de}Tönung hinzufügen")
 			tileColor={r=1.0, g=1.0, b=1.0}
 			gStates.nightTint=false
 		else
-			getObjectFromGUID("43fa2e").UI.setAttribute("43fa2eNightTintText", "text", "{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin Tinte{fr}Sans Teinte{pt-br}Sem Tonalidade{de}Keine Tönung")
+			getObjectFromGUID(GUID.ui.nightTint).UI.setAttribute("43fa2eNightTintText", "text", "{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin Tinte{fr}Sans Teinte{pt-br}Sem Tonalidade{de}Keine Tönung")
 			tileColor={r=0.6, g=0.6, b=0.6}
 			gStates.nightTint=true
 		end
@@ -2604,11 +2604,11 @@ function changeMatImage(player, mouseButton, id)
 end
 
 function bannerOfCommandDecal()
-	if getObjectFromGUID("8dbce4").is_face_down==true then
-		getObjectFromGUID("8dbce4").UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
+	if getObjectFromGUID(GUID.card.bannerOfCommandToken).is_face_down==true then
+		getObjectFromGUID(GUID.card.bannerOfCommandToken).UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
 			height=240, width=125, position="0 -520 40", rotation="0 180 180"}}})
 	else
-		getObjectFromGUID("8dbce4").UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
+		getObjectFromGUID(GUID.card.bannerOfCommandToken).UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
 			height=240, width=125, position="0 -1066 -40", rotation="0 0 180"}}})
 	end
 end
@@ -2628,10 +2628,10 @@ function monsterImageSwap(player, mouseButton, id)
 		end
 		if gStates.useAlternatePugs==false then
 			gStates.useAlternatePugs=true
-			getObjectFromGUID("d7a165").UI.setAttribute("d7a165swapMonsterImageText", "text", "{en}Stefano Colombo's Monster Tokens - ON{ru}Жетоны монстров Stefano Colombo — ВКЛ.{zh-tw}Stefano Colombo 的怪物標記－開{zh-cn}Stefano Colombo 的怪物标记－开{ko}Stefano Colombo 몬스터 토큰 - 켬{es}Fichas de Monstruo de Stefano Colombo - ACTIVADAS{fr}Jetons de Monstre de Stefano Colombo - ACTIVÉS{pt-br}Fichas de Monstro de Stefano Colombo - ATIVADAS{de}Stefano Colombos Monstermarker - AN")
+			getObjectFromGUID(GUID.ui.monsterReplenish).UI.setAttribute("d7a165swapMonsterImageText", "text", "{en}Stefano Colombo's Monster Tokens - ON{ru}Жетоны монстров Stefano Colombo — ВКЛ.{zh-tw}Stefano Colombo 的怪物標記－開{zh-cn}Stefano Colombo 的怪物标记－开{ko}Stefano Colombo 몬스터 토큰 - 켬{es}Fichas de Monstruo de Stefano Colombo - ACTIVADAS{fr}Jetons de Monstre de Stefano Colombo - ACTIVÉS{pt-br}Fichas de Monstro de Stefano Colombo - ATIVADAS{de}Stefano Colombos Monstermarker - AN")
 		else
 			gStates.useAlternatePugs=false
-			getObjectFromGUID("d7a165").UI.setAttribute("d7a165swapMonsterImageText", "text", "{en}Stefano Colombo's Monster Tokens - OFF{ru}Жетоны монстров Stefano Colombo — ВЫКЛ.{zh-tw}Stefano Colombo 的怪物標記－關{zh-cn}Stefano Colombo 的怪物标记－关{ko}Stefano Colombo 몬스터 토큰 - 끔{es}Fichas de Monstruo de Stefano Colombo - DESACTIVADAS{fr}Jetons de Monstre de Stefano Colombo - DÉSACTIVÉS{pt-br}Fichas de Monstro de Stefano Colombo - DESATIVADAS{de}Stefano Colombos Monstermarker - AUS")
+			getObjectFromGUID(GUID.ui.monsterReplenish).UI.setAttribute("d7a165swapMonsterImageText", "text", "{en}Stefano Colombo's Monster Tokens - OFF{ru}Жетоны монстров Stefano Colombo — ВЫКЛ.{zh-tw}Stefano Colombo 的怪物標記－關{zh-cn}Stefano Colombo 的怪物标记－关{ko}Stefano Colombo 몬스터 토큰 - 끔{es}Fichas de Monstruo de Stefano Colombo - DESACTIVADAS{fr}Jetons de Monstre de Stefano Colombo - DÉSACTIVÉS{pt-br}Fichas de Monstro de Stefano Colombo - DESATIVADAS{de}Stefano Colombos Monstermarker - AUS")
 		end
 		--discard containers
 		local discardContainers={GUID.bag.discard.towerGarrison, GUID.bag.discard.keepGarrison, GUID.bag.discard.cityGarrison, GUID.bag.discard.ruin, GUID.bag.discard.draconum, GUID.bag.discard.dungeon, GUID.bag.discard.orcs, GUID.bag.discard.darkDraconum, GUID.bag.discard.darkDungeon, GUID.bag.discard.darkMarauders, GUID.bag.discard.darkReward, GUID.bag.discard.elementalistDraconum, GUID.bag.discard.elementalistDungeon, GUID.bag.discard.elementalistOrcs, GUID.bag.discard.elementalistReward, GUID.bag.discard.apocReward, GUID.bag.discard.councilReward}
