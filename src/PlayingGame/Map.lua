@@ -1535,7 +1535,7 @@ function mapHandleTerrainZoneEnter(ctx)
 										local pos={angleToXY(obj,hexLocation)[1], 1.08, angleToXY(obj,hexLocation)[2]}
 										local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject({rotation=faceUp, position=pos})
 										graveyard.lock()
-										terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
+										runtimeMapSetHexFeature(objGUID,hexLocation,"graveyard")
 										if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
 										gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
 									end
@@ -1569,7 +1569,7 @@ function mapHandleTerrainZoneEnter(ctx)
 									params.rotation=faceDown
 									local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject(params)
 									graveyard.lock()
-									terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
+									runtimeMapSetHexFeature(objGUID,hexLocation,"graveyard")
 									if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
 									gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
 									for index, reward in pairs(deploy[gStates.playedGladeTiles+1].reward) do
