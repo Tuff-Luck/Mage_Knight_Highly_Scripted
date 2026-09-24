@@ -457,7 +457,8 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 	if gStates.positionMageKnight[position]=="Mevok" then
 		local obj=safeTakeObject("SetupGame",playerBag,{guid="32bc89", position={-77.30+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
 		local obj=safeTakeObject("SetupGame",playerBag,{guid="2dbfde", position={-73.90+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
-	endend
+	end
+end
 
 local function playerSetupCleanupPosition(position)
 	getObjectFromGUID(deedDeckZones[position]).destruct()
