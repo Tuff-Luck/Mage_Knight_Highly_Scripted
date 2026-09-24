@@ -325,7 +325,7 @@ function higherLevelSkill(player, mouseButton, id, pairPosition)
 		local pairZ=pairPosition~=nil and pairPosition[3] or selectedSkill.getPosition()[3]
 		if legalPlayerCheck(player.color, tonumber(playerPosition))==true then
 			--Bonds of Loyalty goes to unit area
-			if id:sub(1,6)=="f30dd4" then
+			if id:sub(1,6)==GUID.skill.bondsOfLoyalty then
 				local bondsX=unitLayoutNextCommandX(playerPosition)
 				gStates.mageSkills[id:sub(1,6)]={bondsX,1.1,-31.19}
 				selectedSkill.setPositionSmooth({bondsX,1.1,-31.19})
@@ -352,7 +352,7 @@ function higherLevelSkill(player, mouseButton, id, pairPosition)
 			end
 			--move claimed skill to skill column. Bonds of Loyalty already moved to/recorded in the Unit Area above.
 			selectedSkill.unlock()
-			if id:sub(1,6)~="f30dd4" then
+			if id:sub(1,6)~=GUID.skill.bondsOfLoyalty then
 				local skillHome={(playerPosition*40)-107.45, 1.5, selectedSkill.getPosition()[3]}
 				selectedSkill.setPositionSmooth(skillHome)
 				gStates.mageSkills[id:sub(1,6)]=skillHome
