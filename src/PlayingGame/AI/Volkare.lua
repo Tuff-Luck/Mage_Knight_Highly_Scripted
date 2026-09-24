@@ -120,7 +120,7 @@ function volkareTurn(player, mouseButton, id)
 				gStates.blurb="{en}Volkare rests this turn{ru}Волкар отдыхает в этот ход{zh-tw}沃卡里這回合休息。{zh-cn}沃卡里这回合休息。{ko}볼케어는 이번 차례에 휴식{es}Volkare descansa este turno{fr}Volkare se repose ce tour{pt-br}Volkare descansa esse turno{de}Volkare ruht diese Runde"
 				--roll volkares dice and read result
 				gStates.volkareState="Resting"
-				local volkareDice=getObjectFromGUID("9a686a")
+				local volkareDice=getObjectFromGUID(GUID.object.volkareDie)
 				volkareDice.randomize()
 				safeWaitCondition("AI.Volkare",function()
 					local crystalData=gStates.volkareUnitCrystals~=nil and gStates.volkareUnitCrystals[volkareDice.getRotationValue()] or nil
@@ -704,7 +704,7 @@ function volkareTokenRandomize(token)--9a686a
 							["Red Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414000318/7F26EE486FD34E0FD08E0653EF4DACCB69F38A87/",
 							["Gold Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203413995197/64E0C4E59A98DAFB09633F31CA9D1279F0593CFD/",}
 	--roll volkares dice and read result
-	local volkareDice=getObjectFromGUID("9a686a")
+	local volkareDice=getObjectFromGUID(GUID.object.volkareDie)
 	if volkareDiceRolled==false then volkareDice.randomize() volkareDiceRolled=true end
 	safeWaitFrames("Volkare",function() safeWaitCondition("Volkare",function()
 		if token~=nil then
