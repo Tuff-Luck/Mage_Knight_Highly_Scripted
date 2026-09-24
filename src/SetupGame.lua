@@ -470,7 +470,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				return getObjectFromGUID(volkare.terrainHex)~=nil and getObjectFromGUID(campCityCardGUID)~=nil and getObjectFromGUID(GUID.bag.volkare)~=nil
 			end,10,function() error("SetupGame timed out waiting for Volkare Camp support objects.",2) end)
 			safeTakeObject("SetupGame",getObjectFromGUID(GUID.bag.volkare),{rotation={0.0, 180.0, 0.0}, position={39.16, 0.97, 35.00}, callback_function=function(spawnedObject) spawnedObject.setScale({7.05, 1.00, 6.51}) end, smooth=false, guid="b2ec85"})--Volkare Level Chart
-			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0,  45.0, 0.0}, position={-57.60, 1.57, -2.45}, smooth=false, guid="9a686a"})--Volker Dice
+			getObjectFromGUID(GUID.bag.volkare).takeObject({rotation={0.0,  45.0, 0.0}, position={-57.60, 1.57, -2.45}, smooth=false, guid=GUID.object.volkareDie})--Volker Dice
 		end
 
 		--display the help button
@@ -633,7 +633,7 @@ local function removeUnselectedTerrain()
 		for _,guid in ipairs({GUID.tile.country01,GUID.tile.country02}) do sendTerrainTileToTrash(countryBag,guid) end
 	end
 	--When Volkare is the automated opponent, their scenario setup has already pulled this same tile from the City bag.
-	if gStates.positionMageKnight[5]~="Volkare" and setupUsesVolkareCampCity()~=true then sendTerrainTileToTrash(cityBag,"835c91") end
+	if gStates.positionMageKnight[5]~="Volkare" and setupUsesVolkareCampCity()~=true then sendTerrainTileToTrash(cityBag,GUID.tile.volkareCamp) end
 end
 
 --Volkare is deployed before map construction, so his final lock belongs to the map-complete path.
