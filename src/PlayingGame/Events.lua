@@ -141,7 +141,7 @@ function eventsOnLoadRawBase(saved_data)
 				terrainTiles[terrainGUID].hexFeature[location]=hexFeature
 			end
 		end
-		if getObjectFromGUID("8dbce4")~=nil then bannerOfCommandDecal() end
+		if getObjectFromGUID(GUID.card.bannerOfCommandToken)~=nil then bannerOfCommandDecal() end
 		--Add decals back to Pursuing and Ambushing tokens
 		if gStates.rampageAmbush==true and gStates.rampagePursuit==false then
 			for monsterGUID, _ in pairs(gStates.ambushingMonsters) do
@@ -1373,7 +1373,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 	scheduleContainerEndRoundStateRefresh(bag)
 	--Manual Coral draw: a player-dragged card is held immediately after it leaves the Deed Deck.
 	--Scripted takeObject/deal calls also leave the Deck, but are not held, so they pass through untouched.
-	if obj~=nil and obj.type=="Card" and obj.guid~="6ecbc6" and coralDrawPending==nil and bagSearch~=bag.guid then
+	if obj~=nil and obj.type=="Card" and obj.guid~=GUID.card.quickWitted and coralDrawPending==nil and bagSearch~=bag.guid then
 		local playerIndex=coralManualQuickWittedLeaveSource(bag)
 		if playerIndex~=nil then
 			local seatPos=turnOrder[playerIndex].seatPos
@@ -1517,7 +1517,7 @@ function __onObjectRandomize_raw(randomize_object, player_color)
 					for _, obj in pairs(deedZone.getObjects()) do if obj.guid==randomize_object.guid then coralDeck=true break end end
 					if coralDeck==true then
 						for _, cardData in pairs(randomize_object.getObjects()) do
-							if cardData.guid=="6ecbc6" then
+							if cardData.guid==GUID.card.quickWitted then
 								scheduleCoralQuickWittedBottom(5)
 								break
 							end
