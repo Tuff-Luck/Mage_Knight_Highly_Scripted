@@ -14,27 +14,25 @@ function fracturedLandsTeleportRampageKey(terrainGUID, bearing)
 end
 function fracturedLandsTeleportRecordDefeatedRampager(position)
 	if gStates.gameScenario~="The Fractured Lands Blitz" or position==nil then return end
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return end
-	local terrain, bearing, _, feature=terrainHexAtPosition(position, map.getObjects())
-	if terrain==nil or bearing==nil or (feature~="rampaging" and feature~="draconum") then return end
+	local hex=runtimeMapHexAtPosition(position)
+	if hex==nil or (hex.feature~="rampaging" and hex.feature~="draconum") then return end
 	if gStates.fracturedLandsDefeatedRampagingHexes==nil then gStates.fracturedLandsDefeatedRampagingHexes={} end
-	gStates.fracturedLandsDefeatedRampagingHexes[fracturedLandsTeleportRampageKey(terrain.guid, bearing)]=true
+	gStates.fracturedLandsDefeatedRampagingHexes[fracturedLandsTeleportRampageKey(hex.terrainGUID,hex.bearing)]=true
 end
-function fracturedLandsTeleportHexSafeNoSite(terrain, bearing, feature, hexPos, objectsInPlay)
-	if terrain==nil or bearing==nil or hexPos==nil then return false end
-	feature=feature or ""
+function fracturedLandsTeleportHexSafeNoSite(hex,spatial)
+	if hex==nil or hex.position==nil or spatial==nil then return false end
+	local feature=hex.feature or ""
 	local noSite=feature=="" or feature=="portal"
-	if feature=="monastery" and gStates.monasteryBurned~=nil and gStates.monasteryBurned[terrain.guid]==true then noSite=true end
+	if feature=="monastery" and gStates.monasteryBurned~=nil and gStates.monasteryBurned[hex.terrainGUID]==true then noSite=true end
 	if feature=="rampaging" or feature=="draconum" then
 		local cleared=gStates.fracturedLandsDefeatedRampagingHexes or {}
-		noSite=cleared[fracturedLandsTeleportRampageKey(terrain.guid, bearing)]==true
+		noSite=cleared[fracturedLandsTeleportRampageKey(hex.terrainGUID,hex.bearing)]==true
 	end
 	if noSite~=true then return false end
 	--A safe destination cannot currently contain an enemy or another Mage Knight.
-	for _, obj in pairs(objectsInPlay or {}) do
-		local pos=obj.getPosition()
-		if ((pos[1]-hexPos[1])^2)+((pos[3]-hexPos[3])^2)<1 then
+	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,hex.position,1.1)) do
+		local pos=spatial.positions[obj.guid] or obj.getPosition()
+		if ((pos[1]-hex.position[1])^2)+((pos[3]-hex.position[3])^2)<1 then
 			if monsterPugs[obj.guid]~=nil then return false end
 			if feature~="portal" then
 				for _, details in pairs(mageKnights) do
@@ -71,25 +69,17 @@ function fracturedLandsTeleportDecals()
 	local decals={}
 	if gStates.gameScenario~="The Fractured Lands Blitz" or gStates.firstStarted~=true or turnOrder[gStates.turnNumber]==nil then return decals end
 	local sourcePos=fracturedLandsTeleportSourcePosition(gStates.turnNumber)
-	local map=getObjectFromGUID(mapArea)
-	if sourcePos==nil or map==nil then return decals end
-	local objectsInPlay=map.getObjects()
-	local cachedPositions={}
-	for _, obj in pairs(objectsInPlay) do if terrainTiles[obj.guid]~=nil then cachedPositions[obj.guid]=obj.getPosition() end end
-	local sourceTerrain, sourceBearing, _, _, sourceType=terrainHexAtPosition(sourcePos, objectsInPlay, cachedPositions)
-	if sourceTerrain==nil or sourceBearing==nil or fracturedLandsTeleportHexLegal(sourceType)~=true then return decals end
-	for _, terrain in pairs(objectsInPlay) do
-		local details=terrainTiles[terrain.guid]
-		if details~=nil and terrain.is_face_down==false then
-			for bearing, hexType in pairs(details.hexType or {}) do
-				if hexType==sourceType and fracturedLandsTeleportHexLegal(hexType)==true and not (terrain.guid==sourceTerrain.guid and tostring(bearing)==tostring(sourceBearing)) then
-					local xy=angleToXY(terrain, bearing)
-					local feature=(details.hexFeature or {})[bearing]
-					local hexPos={xy[1],1.12,xy[2]}
-					if fracturedLandsTeleportHexSafeNoSite(terrain, bearing, feature, hexPos, objectsInPlay)==true then
-						decals[#decals+1]={name=fracturedLandsTeleportDecalName, url=fracturedLandsTeleportDecalURL, position=hexPos, rotation={90,0,0}, scale={2.0,2.0,1}}
-					end
-				end
+	if sourcePos==nil then return decals end
+	local spatial=runtimeMapSpatialSnapshot()
+	local snapshot=spatial.topology
+	local sourceHex=runtimeMapHexAtPosition(sourcePos,snapshot)
+	if sourceHex==nil or fracturedLandsTeleportHexLegal(sourceHex.hexType)~=true then return decals end
+	local sourceKey=runtimeMapHexKey(sourceHex)
+	for _, hex in ipairs(snapshot.hexes or {}) do
+		if hex.hexType==sourceHex.hexType and fracturedLandsTeleportHexLegal(hex.hexType)==true and runtimeMapHexKey(hex)~=sourceKey then
+			if fracturedLandsTeleportHexSafeNoSite(hex,spatial)==true then
+				decals[#decals+1]={name=fracturedLandsTeleportDecalName, url=fracturedLandsTeleportDecalURL,
+					position={hex.position[1],1.12,hex.position[3]}, rotation={90,0,0}, scale={2.0,2.0,1}}
 			end
 		end
 	end
