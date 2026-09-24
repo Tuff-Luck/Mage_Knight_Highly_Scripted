@@ -2916,8 +2916,6 @@ apocalypseQuestRegisterHandler("783076").resolveEffect=function(card,playerIndex
 		apocalypseQuestLoseReputation(playerIndex,"Hunter's Moon","effect")
 		apocalypseQuestPlaceCrystalOnCard(card,"Black",0.70,-0.65,"Hunter's Moon")
 	end
-	end
-	end
 end
 
 apocalypseQuestRegisterHandler("a6d5cc").resolveEffect=function(card,playerIndex,option,finalCompletion)
