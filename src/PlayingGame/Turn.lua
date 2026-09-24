@@ -1343,18 +1343,23 @@ function __endRound_raw(rewindReady)
 	turnEndRoundFinalizeImmediateState()
 end
 
-function dayNight()
+function dayNight(targetDay, setupPreview)
+	--With no target this remains the normal round transition. Setup can target a state directly so
+	--Start at Night is visually/rules-correct before the map finishes building.
+	local targetIsDay=targetDay
+	if targetIsDay==nil then targetIsDay=gStates.dayRound~=true end
+	if targetIsDay==true then gStates.dayRound=false else gStates.dayRound=true end
 	--Swith day night board
 	local tileColor={}
 	if gStates.dayRound==false then
 		tileColor={r=1.0, g=1.0, b=1.0}
 		local nightObject={GUID.ui.nightTint, "0f95b7", "9e7de3", "ee9e66", "717bcc", "39ca3f", GUID.deck.nightWeather}
 					--Day Board, 5 Weather Tokens, weather deck
-		broadcastToAll("{en}Day has Risen{ru}Наступает день{zh-tw}天亮了{zh-cn}天亮了{ko}아침이 밝았습니다{es}El Día ha Resucitado{fr}Le Jour s'est Levé{pt-br}A Manhã Chegou{de}Der Tag ist auferstanden", {1,1,0.5})
+		if setupPreview~=true then broadcastToAll("{en}Day has Risen{ru}Наступает день{zh-tw}天亮了{zh-cn}天亮了{ko}아침이 밝았습니다{es}El Día ha Resucitado{fr}Le Jour s'est Levé{pt-br}A Manhã Chegou{de}Der Tag ist auferstanden", {1,1,0.5}) end
 		for i=1, #nightObject, 1 do
 			if getObjectFromGUID(nightObject[i])~=nil then getObjectFromGUID(nightObject[i]).setState(1) end
 		end
-		local ruinPugs={"2721c8", "3ac2d6", "3ae05e", "8ca894", "f3c6e3", "2f9a1f", "0e09cf", "a59f0b", "40fd40", "f172a4", "28cc9c", "58c5ab", "1e5666", "09a519", "21dc40"}
+		local ruinPugs=setupPreview~=true and {"2721c8", "3ac2d6", "3ae05e", "8ca894", "f3c6e3", "2f9a1f", "0e09cf", "a59f0b", "40fd40", "f172a4", "28cc9c", "58c5ab", "1e5666", "09a519", "21dc40"} or {}
 					--Day Board, 5 Weather Tokens, weather deck
 		local found=false
 		for _, ruinGUID in pairs(ruinPugs) do
@@ -1365,34 +1370,37 @@ function dayNight()
 			end
 		end
 		if found==true then broadcastToAll("{en}Ruins are revealed{ru}Все руины были раскрыты{zh-tw}废墟被探索了{zh-cn}废墟被探索了{ko}유적 공개됨{es}Las Ruinas se Revelan{fr}Les Ruines sont Révélées{pt-br}Ruinas são Reveladas{de}Ruinen werden aufgedeckt", {1,1,0.5}) end
-		safeWaitFrames("Turn",function()
-			if getObjectFromGUID(GUID.deck.dayWeather)~=nil then getObjectFromGUID(GUID.deck.dayWeather).shuffle() end
-			if getObjectFromGUID("a02b0f")~=nil then getObjectFromGUID("a02b0f").interactable=false end
-		end, 5)--shuffle day weather
+		if setupPreview~=true then
+			safeWaitFrames("Turn",function()
+				if getObjectFromGUID(GUID.deck.dayWeather)~=nil then getObjectFromGUID(GUID.deck.dayWeather).shuffle() end
+				if getObjectFromGUID("a02b0f")~=nil then getObjectFromGUID("a02b0f").interactable=false end
+			end, 5)--shuffle day weather
+		end
 		gStates.dayRound=true
 		gStates.nightTint=false
 		gStates.moveCost["forest"]=3
 		gStates.moveCost["desert"]=5
 		UI.setAttribute("MoveCostDeserText", "text", "{en}Deserts : 5{ru}Пустыни : 5{zh-tw}沙漠：5{zh-cn}沙漠：5{ko}사막 : 5{es}Desiertos : 5{fr}Déserts : 5{pt-br}Desertos : 5{de}Wüsten : 5")
 		UI.setAttribute("MoveCostForesText", "text", "{en}Forests : 3{ru}Леса : 3{zh-tw}森林：3{zh-cn}森林：3{ko}숲 : 3{es}Bosques : 3{fr}Forêts : 3{pt-br}Florestas : 3{de}Wälder : 3")
-		fakeDropAvatar()
+		if setupPreview~=true then fakeDropAvatar() end
 	else
 		tileColor={r=0.6, g=0.6, b=0.6}
 		local dayObject={"a02b0f", GUID.bag.weather.blazingSun, GUID.bag.weather.overcast, GUID.bag.weather.snowfall, GUID.bag.weather.rain, GUID.bag.weather.thunder, GUID.deck.dayWeather}
 					--Day Board, 5 Weather Tokens, weather deck
-		broadcastToAll("{en}Night has Fallen{ru}Наступает ночь{zh-tw}黑夜降临了{zh-cn}黑夜降临了{ko}밤이 되었습니다{es}La Noche ha Caído{fr}La Nuit est Tombée{pt-br}A Noite Caiu{de}Die Nacht ist hereingebrochen", {1,1,0.5})
+		if setupPreview~=true then broadcastToAll("{en}Night has Fallen{ru}Наступает ночь{zh-tw}黑夜降临了{zh-cn}黑夜降临了{ko}밤이 되었습니다{es}La Noche ha Caído{fr}La Nuit est Tombée{pt-br}A Noite Caiu{de}Die Nacht ist hereingebrochen", {1,1,0.5}) end
 		for i=1, #dayObject, 1 do
 			if getObjectFromGUID(dayObject[i])~=nil then getObjectFromGUID(dayObject[i]).setState(2) end
 		end
-		safeWaitFrames("Turn",function()
-			if getObjectFromGUID(GUID.deck.nightWeather)~=nil then getObjectFromGUID(GUID.deck.nightWeather).shuffle() end
+		local function configureNightBoard()
+			if setupPreview~=true and getObjectFromGUID(GUID.deck.nightWeather)~=nil then getObjectFromGUID(GUID.deck.nightWeather).shuffle() end
 			if getObjectFromGUID(GUID.ui.nightTint)~=nil then
 				getObjectFromGUID(GUID.ui.nightTint).UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
 					children={	{tag="Image",  attributes={id="43fa2eNightTintImage", image="Sliced Button/Button Object Active", type="Sliced"}},
 							{tag="Text",  attributes={id="43fa2eNightTintText", font="Fonts/MKCardText", fontSize="90", color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin tinte{fr}Sans teinte{pt-br}Sem tonalidade{de}Keine Tönung"}}}}})
 				getObjectFromGUID(GUID.ui.nightTint).interactable=false
 			end
-		end, 5)--shuffle night weather
+		end
+		if setupPreview==true then configureNightBoard() else safeWaitFrames("Turn",configureNightBoard,5) end
 		gStates.dayRound=false
 		gStates.nightTint=true
 		gStates.moveCost["forest"]=5
