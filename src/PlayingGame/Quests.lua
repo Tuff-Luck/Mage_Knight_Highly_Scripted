@@ -550,9 +550,8 @@ function apocalypseQuestRevealSetup(card)
 	--Some Quests keep a small reusable reward supply on the card while they are active.
 	if quest.revealBag~=nil then
 		local revealGUID=quest.revealBag
-		local revealPos
-		if card.guid=="72099f" then revealPos={cardPos[1],cardPos[2]+0.42,cardPos[3]-1.18}
-		else revealPos={cardPos[1],cardPos[2]+0.62,cardPos[3]+1.35} end
+		local handler=apocalypseQuestHandler(card)
+		local revealPos=handler~=nil and handler.revealBagPosition~=nil and handler.revealBagPosition(cardPos) or {cardPos[1],cardPos[2]+0.62,cardPos[3]+1.35}
 		local liveBag=getObjectFromGUID(revealGUID)
 		if liveBag~=nil then
 			liveBag.unlock()
@@ -1725,7 +1724,8 @@ end
 --nearby Rampaging enemy.  Generated combats (Execution, Mine of Doom, etc.) still need
 --the card Fight control because there is no enemy object to click until the fight begins.
 function apocalypseQuestUsesEnemyAttackButton(card)
-	return card~=nil and (card.guid=="8cdac4" or card.guid=="66ea80" or card.guid=="c73a1f" or card.guid=="783076")
+	local handler=apocalypseQuestHandler(card)
+	return handler~=nil and handler.enemyAttackButton==true
 end
 
 function apocalypseQuestRemoveEnemyAttackButton(enemy)
@@ -1909,12 +1909,13 @@ function apocalypseQuestCaptureRewardCompletionGate(playerIndex)
 			end
 			local requiredAction=option.completes==true and "Complete" or "Progress"
 			local resolved=fought>0 and allDefeated==true
-			--The Execution 1B must be resolved on the Quest card after either result. A win requires
-			--Complete; a loss requires Fail. Unlike ordinary Quest combats, losing this fight therefore
-			--still keeps Rewards Claimed behind the Quest-card resolution.
-			if card.guid=="8939c0" and tostring(option.key)=="1b" and fought>0 then
-				resolved=true
-				requiredAction=allDefeated==true and "Complete" or "Fail"
+			local handler=apocalypseQuestHandler(card)
+			if handler~=nil and handler.rewardCompletionGate~=nil then
+				local handled,handlerResolved,handlerAction=handler.rewardCompletionGate(card,playerIndex,option,fought,allDefeated)
+				if handled==true then
+					resolved=handlerResolved==true
+					requiredAction=handlerAction or requiredAction
+				end
 			end
 			if resolved==true then
 				apocalypseQuestSetRewardCompletionGate(card,playerIndex,requiredAction)
@@ -1943,7 +1944,11 @@ function apocalypseQuestCombatAvailable(card,playerIndex,cardObjects)
 	if card==nil or apocalypseQuestPlayerMayAct(card,playerIndex)~=true then return false end
 	local state=apocalypseQuestProgressState(card,playerIndex,false)
 	if state==nil or state.completed==true then return false end
-	if card.guid=="a6d5cc" and state.step==2 and apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,"2a")~=true then return false end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.combatAvailable~=nil then
+		local handled,available=handler.combatAvailable(card,playerIndex,state)
+		if handled==true and available~=true then return false end
+	end
 	local option=apocalypseQuestCombatOption(card,state)
 	if option==nil or apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then return false end
 	if gStates.apocalypseQuestCombatLaunches~=nil and gStates.apocalypseQuestCombatLaunches[card.guid]==apocalypseQuestCombatLaunchKey(card,state) then return false end
@@ -2191,60 +2196,10 @@ function apocalypseQuestLaunchCombat(card,playerIndex,playerColor,chosenColor,cl
 	end
 	if gStates.apocalypseQuestCombatLaunches==nil then gStates.apocalypseQuestCombatLaunches={} end
 	gStates.apocalypseQuestCombatLaunches[card.guid]=apocalypseQuestCombatLaunchKey(card,state)
-	local moved=0
-	if card.guid=="8939c0" then
-		if apocalypseQuestSpawnEnemyToCombat(card,playerIndex,"gray",false,0,0)~=nil then moved=1 end
-	elseif card.guid=="8cdac4" or card.guid=="66ea80" then
-		if clickedEnemyGUID~=nil then
-			local clicked=getObjectFromGUID(clickedEnemyGUID)
-			local onCard=false
-			for _, enemy in ipairs(apocalypseQuestObjectsOnCard(card)) do if enemy.guid==clickedEnemyGUID then onCard=true break end end
-			if clicked~=nil and onCard==true and monsterPugs[clicked.guid]~=nil and apocalypseQuestMoveEnemyToPlayer(card,playerIndex,clicked)==true then moved=1 end
-		else
-			moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
-		end
-	elseif card.guid=="485cc5" then
-		if chosenColor==nil then
-			local colors=apocalypseQuestMineDoomColors(playerIndex)
-			if #colors==1 then chosenColor=colors[1]
-			elseif #colors>1 then chosenColor=gStates.apocalypseQuestMineDoomColor~=nil and gStates.apocalypseQuestMineDoomColor[card.guid] or colors[1] end
-		end
-		moved=apocalypseQuestLaunchMineDoom(card,playerIndex,chosenColor,#apocalypseQuestMineDoomColors(playerIndex)>1 and 1 or 0) and 1 or 0
-	elseif card.guid=="82a935" then
-		if apocalypseQuestSpawnEnemyToCombat(card,playerIndex,"purple",false,0,0)~=nil then moved=1 end
-	elseif card.guid=="a6d5cc" then
-		moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,nil)
-		if moved>0 then broadcastToAll("{en}Under Siege: ignore fortification for this Quest fight and add Block 5 during the Block phase.{ru}Under Siege: игнорируйте укрепление в этом бою задания и добавьте Блок 5 во время фазы Блока.{zh-tw}Under Siege：此任務戰鬥忽略要塞化，並在格擋階段加入格擋 5。{zh-cn}Under Siege：此任务战斗忽略要塞化，并在格挡阶段加入格挡 5。{ko}Under Siege: 이 퀘스트 전투에서는 요새화를 무시하고 방어 단계에 방어 5를 추가합니다.{es}Under Siege: ignora la fortificación en este combate de Misión y añade Bloqueo 5 durante la fase de Bloqueo.{fr}Under Siege : ignorez la fortification pour ce combat de Quête et ajoutez Blocage 5 pendant la phase de Blocage.{pt-br}Under Siege: ignore fortificação neste combate da Missão e adicione Bloqueio 5 durante a fase de Bloqueio.{de}Under Siege: Ignoriere für diesen Quest-Kampf die Befestigung und füge in der Blockphase Block 5 hinzu.",positionToColor(playerIndex)) end
-	elseif card.guid=="8cff07" then
-		if apocalypseQuestSpawnEnemyToCombat(card,playerIndex,"gray",false,0,0)~=nil then moved=1 end
-	elseif card.guid=="d70436" then
-		local level=turnOrder[playerIndex].level or 1
-		local pile=level<=4 and "tan" or level<=8 and "white" or "red"
-		if apocalypseQuestSpawnEnemyToCombat(card,playerIndex,pile,false,0,0)~=nil then moved=1 end
-	elseif card.guid=="c73a1f" then
-		moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
-	elseif card.guid=="ce70fb" then
-		local level=turnOrder[playerIndex].level or 1
-		local choice=(gStates.apocalypseQuestCombatBranch~=nil and gStates.apocalypseQuestCombatBranch[card.guid]) or "2a"
-		local pile=nil
-		if choice=="2b" then pile=level<=2 and "gray" or level<=6 and "purple" or "white"
-		else pile=level<=4 and "gray" or level<=8 and "purple" or "white" end
-		local traitorEnemy=apocalypseQuestSpawnEnemyToCombat(card,playerIndex,pile,true,0,0,"Coun")
-		if traitorEnemy~=nil then
-			moved=1
-			if choice=="2b" then
-				if gStates.monsterPerks[traitorEnemy.guid]==nil then gStates.monsterPerks[traitorEnemy.guid]={} end
-				gStates.monsterPerks[traitorEnemy.guid].questHalfFame=true
-				broadcastToAll("{en}Traitor 2b: this enemy's Fame reward will be halved, rounded up.{ru}Traitor 2b: награда Славы за этого врага уменьшается вдвое с округлением вверх.{zh-tw}Traitor 2b：此敵人的聲望值獎勵減半並向上取整。{zh-cn}Traitor 2b：此敌人的声望值奖励减半并向上取整。{ko}Traitor 2b: 이 적의 명성 보상은 절반으로 줄이고 올림합니다.{es}Traitor 2b: la recompensa de Fama de este enemigo se reduce a la mitad, redondeando hacia arriba.{fr}Traitor 2b : la récompense de Renommée de cet ennemi est divisée par deux, arrondie au supérieur.{pt-br}Traitor 2b: a recompensa de Fama deste inimigo é reduzida pela metade, arredondando para cima.{de}Traitor 2b: Die Ruhmbelohnung dieses Gegners wird halbiert und aufgerundet.",positionToColor(playerIndex))
-			end
-		end
-	elseif card.guid=="dd35bb" then
-		broadcastToAll("{en}The Fog: skip the Ranged and Siege Attack phase during this Quest combat.{ru}The Fog: пропустите фазу Дальней и Осадной атаки в этом бою задания.{zh-tw}The Fog：此任務戰鬥跳過遠程與攻城攻擊階段。{zh-cn}The Fog：此任务战斗跳过远程与攻城攻击阶段。{ko}The Fog: 이 퀘스트 전투에서는 원거리 및 공성 공격 단계를 건너뜁니다.{es}The Fog: omite la fase de Ataque a Distancia y de Asedio durante este combate de Misión.{fr}The Fog : ignorez la phase d’Attaque à Distance et de Siège pendant ce combat de Quête.{pt-br}The Fog: pule a fase de Ataque à Distância e de Cerco durante este combate da Missão.{de}The Fog: Überspringe in diesem Quest-Kampf die Fern- und Belagerungsangriffsphase.",positionToColor(playerIndex))
-		moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
-	elseif card.guid=="783076" then
-		moved=apocalypseQuestMoveCardEnemiesToPlayer(card,playerIndex,1)
-		if moved>0 and apocalypseQuestCardManaColor(card)=="Black" and gStates.dayRound==true then broadcastToAll("{en}Hunter's Moon: during Day, the black mana token removes Swift from the werewolf for this combat.{ru}Hunter's Moon: Днём чёрный жетон маны убирает Быстроту у оборотня на этот бой.{zh-tw}Hunter's Moon：白天時，黑色魔力標記在此戰鬥中移除狼人身上的迅捷。{zh-cn}Hunter's Moon：白天时，黑色魔力标记在此战斗中移除狼人身上的迅捷。{ko}Hunter's Moon: 낮에는 검은 마나 토큰이 이 전투 동안 늑대인간의 신속을 제거합니다.{es}Hunter's Moon: durante el Día, la ficha de maná negra elimina Veloz del hombre lobo para este combate.{fr}Hunter's Moon : pendant le Jour, le jeton de mana noir retire Rapide au loup-garou pour ce combat.{pt-br}Hunter's Moon: durante o Dia, a ficha de mana preta remove Rápido do lobisomem neste combate.{de}Hunter's Moon: Am Tag entfernt der schwarze Manamarker für diesen Kampf Schnell vom Werwolf.",positionToColor(playerIndex)) end
-	end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.prepareCombatLaunch~=nil then handler.prepareCombatLaunch(card,playerIndex,chosenColor) end
+	local moved=handler~=nil and handler.launchCombat~=nil and handler.launchCombat(card,playerIndex,playerColor,chosenColor,clickedEnemyGUID) or 0
+
 	if moved==0 then
 		gStates.apocalypseQuestCombatLaunches[card.guid]=nil
 	else
@@ -2278,9 +2233,9 @@ function apocalypseQuestEnemyAttack(player,mouseButton,id)
 		apocalypseQuestRefreshEnemyAttackButtons(card,playerIndex)
 		return
 	end
-	--Spell Thief and Fistful move the enemy that was actually clicked. Under Siege deliberately
-	--launches both enemies when either Attack icon is clicked, matching its single combat step.
-	local clickedGUID=card.guid=="a6d5cc" and nil or enemyGUID
+	local handler=apocalypseQuestHandler(card)
+	--Most card-enemy Quests launch only the clicked enemy. A handler may explicitly launch the full group.
+	local clickedGUID=handler~=nil and handler.enemyAttackMovesAll==true and nil or enemyGUID
 	apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil,clickedGUID)
 	if getObjectFromGUID(cardGUID)~=nil then apocalypseQuestInterfaceAdd(card,true) end
 end
@@ -2573,7 +2528,8 @@ end
 
 function apocalypseQuestResolveFailureEffect(card,playerIndex,option)
 	if card==nil or option==nil then return end
-	if card.guid=="a6d5cc" and tostring(option.key)=="2b" then apocalypseQuestUnderSiegeFailure(card,playerIndex) end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.failureEffect~=nil then handler.failureEffect(card,playerIndex,option) end
 end
 
 function apocalypseQuestRichMerchantStartTurn()
@@ -3841,16 +3797,11 @@ function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 	local hex,mapObjects=apocalypseQuestCurrentPlayerHex(playerIndex)
 	if hex==nil then return false end
 
-	if card.guid=="a6d5cc" and tostring(option.key)=="1" then return apocalypseQuestUnderSiegeLocationLegal(hex,playerIndex) end
-
-	if card.guid=="082f39" and tostring(option.key)=="1" and gStates.apocalypseQuestMarkerPlacements~=nil and gStates.apocalypseQuestMarkerPlacements["afcfc1"]==true then
-		return apocalypseQuestTokenOnHex("afcfc1",hex,mapObjects)==true
-	end
-
-	--Mine of Doom is not failed by an unsuccessful fight. Once its marker has been committed, it
-	--identifies the specific mine being investigated, so later attempts must return to that mine.
-	if card.guid=="485cc5" and gStates.apocalypseQuestMarkerPlacements~=nil and gStates.apocalypseQuestMarkerPlacements["2f238c"]==true then
-		if apocalypseQuestTokenOnHex("2f238c",hex,mapObjects)~=true then return false end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.starterLocationPrecheck~=nil and handler.starterLocationPrecheck(card,playerIndex,option,hex,mapObjects)~=true then return false end
+	if handler~=nil and handler.starterLocationLegal~=nil then
+		local handled,result=handler.starterLocationLegal(card,playerIndex,option,hex,mapObjects)
+		if handled==true then return result==true end
 	end
 
 	if rule.warrens==true then
@@ -4484,7 +4435,7 @@ underSiegeHandler.bottomDeckBeforeReveal=function()
 end
 
 local burnedMonasteryHandler=apocalypseQuestRegisterHandler("82a935")
-burnedMonasteryHandler.mayAct=function(card,playerIndex)
+burnedMonasteryHandler.mayActBeforeOwnership=function(card,playerIndex)
 	if apocalypseQuestPlayerBurnedMonastery(playerIndex)==true then return true,false end
 	return false
 end
@@ -4713,13 +4664,17 @@ function apocalypseQuestPlayerMayAct(card, playerIndex)
 	if playerDetails.mage==nil or playerDetails.mage=="nobody" or playerDetails.mage==gStates.positionMageKnight[5] or playerDetails.dropoutState~=nil then return false end
 	local quest=apocalypseQuestData[card.guid]
 	if quest==nil then return false end
-	if card.guid=="82a935" and apocalypseQuestPlayerBurnedMonastery(playerIndex)==true then return false end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.mayActBeforeOwnership~=nil then
+		local handled,result=handler.mayActBeforeOwnership(card,playerIndex)
+		if handled==true then return result==true end
+	end
 	if quest.questType~="Personal" then return true end
 	local ownerIndex=apocalypseQuestPersonalShieldOwner(card)
 	if ownerIndex~=nil then return ownerIndex==playerIndex end
-	if card.guid=="a6d5cc" then
-		local readyPlayer=apocalypseQuestUnderSiegeReadyPlayer()
-		if readyPlayer~=nil and readyPlayer~=playerIndex then return false end
+	if handler~=nil and handler.mayAct~=nil then
+		local handled,result=handler.mayAct(card,playerIndex)
+		if handled==true then return result==true end
 	end
 	if apocalypseQuestPlayerHasOtherPersonalQuest(playerIndex, card.guid)==true then return false end
 	return true
@@ -4752,32 +4707,16 @@ function apocalypseQuestCurrentOptions(card, playerIndex, action)
 			elseif action=="Fail" then
 				include=option.canFail==true
 			end
-			if card.guid=="72099f" and tostring(option.key)=="1" and action=="Progress" then
-				include=apocalypseQuestGoblinAttemptReady(playerIndex)
-			end
-			if card.guid=="bbd087" and apocalypseQuestStepNumber(option.key)==3 and action=="Complete" then
-				include=include==true and apocalypseQuestCardCrystalColor(card)~=nil
-			end
-			if card.guid=="8cff07" and tostring(option.key)=="1" then
-				local rolled=gStates.apocalypseQuestRichMerchantRoll~=nil and gStates.apocalypseQuestRichMerchantRoll[card.guid] or nil
-				--Before the roll, Proceed is the Step-1 action. Once a non-Black result has resolved, the only
-				--remaining Step-1 action is Complete; Proceed must not be rolled again.
-				if action=="Progress" then include=rolled==nil end
-				if action=="Complete" then include=rolled~=nil and rolled.mage==turnOrder[playerIndex].mage and rolled.result~="Black" end
-			end
-			local veryPersonalManual=card.guid=="b401dc" and state.step==2 and (action=="Complete" or action=="Fail")
-			local freeWineResolution=card.guid=="37e2ce" and state.step==2 and (action=="Complete" or action=="Fail")
-			if freeWineResolution==true then
-				--Quest 10 resolves the already committed Keep assault. Its result remains valid after a Proxy or
-				--other turn intervenes, so do not run the generic conquered-*this-turn* location gate here.
-				include=action=="Complete" and apocalypseQuestFreeWineSuccessReady(playerIndex) or apocalypseQuestFreeWineFailureReady(playerIndex)
-			elseif include==true and veryPersonalManual~=true then
-				local failIgnoresLocation=action=="Fail" and card.guid=="08ffcf"
-				local locationReady=failIgnoresLocation or apocalypseQuestStarterLocationLegal(card,playerIndex,option)
+			local handler=apocalypseQuestHandler(card)
+			local context={include=include,skipLegality=false,skipLocation=false,skipMarker=false}
+			if handler~=nil and handler.filterOption~=nil then context=handler.filterOption(card,playerIndex,action,option,state,context) or context end
+			include=context.include==true
+			if include==true and context.skipLegality~=true then
+				local locationReady=context.skipLocation==true or apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 				local specialReady=action=="Fail" and apocalypseQuestFailureReady(card,option,playerIndex) or apocalypseQuestStepSpecialLegal(card,playerIndex,option)
 				include=locationReady==true and specialReady==true
 			end
-			if include==true and action~="Fail" and veryPersonalManual~=true and freeWineResolution~=true then
+			if include==true and action~="Fail" and context.skipMarker~=true then
 				if placementAvailable==nil then
 					local ok, available=pcall(apocalypseQuestMarkerPlacementAvailable, card, playerIndex, option)
 					if ok==true then
@@ -4795,13 +4734,15 @@ function apocalypseQuestCurrentOptions(card, playerIndex, action)
 	return options
 end
 function apocalypseQuestActionEnabled(card, playerIndex, action)
-	if action=="Fail" and card~=nil and card.guid=="ce70fb" and gStates.apocalypseQuestCombatBranch~=nil and gStates.apocalypseQuestCombatBranch[card.guid]=="2b" then return false end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.actionEnabled~=nil then
+		local handled,result=handler.actionEnabled(card,playerIndex,action)
+		if handled==true then return result==true end
+	end
 	if gStates.mineClaimPending~=nil and gStates.mineClaimPending.source=="Quest" and gStates.mineClaimPending.questCardGUID==card.guid then return false end
 	if action=="Abandon" then
 		local quest=card~=nil and apocalypseQuestData[card.guid] or nil
 		if quest==nil or quest.questType~="Personal" then return false end
-		if card.guid=="a6d5cc" and apocalypseQuestPersonalShieldOwner(card)~=nil then return false end
-		if card.guid=="82a935" and apocalypseQuestCombatStartedThisTurn(card,2)==true and gStates.apocalypseQuestDirectBranch~=nil and gStates.apocalypseQuestDirectBranch[card.guid]=="2c" then return false end
 		local ownerIndex=apocalypseQuestPersonalShieldOwner(card)
 		if ownerIndex~=nil then return ownerIndex==playerIndex end
 		if apocalypseQuestNeutralShield(card)~=nil then return apocalypseQuestPlayerMayAct(card, playerIndex)==true end
@@ -4996,10 +4937,8 @@ end
 function apocalypseQuestAdvanceProgress(card, state, option)
 	if card==nil or state==nil or option==nil then return end
 	local quest=apocalypseQuestData[card.guid]
-	if card.guid=="8cff07" and tostring(option.key)=="1" then
-		local rolled=gStates.apocalypseQuestRichMerchantRoll~=nil and gStates.apocalypseQuestRichMerchantRoll[card.guid] or nil
-		if rolled==nil or rolled.result~="Black" then return end
-	end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.advanceProgress~=nil and handler.advanceProgress(card,state,option)==true then return end
 	local repeatCount=math.max(0, tonumber(option.repeatCount) or 0)
 	if repeatCount>0 then
 		local count=(state.repeats[option.key] or 0)+1
@@ -5076,77 +5015,41 @@ function apocalypseQuestDirectChoices(card,playerIndex)
 	if state==nil or state.completed==true then return choices end
 	local already=gStates.apocalypseQuestDirectBranch~=nil and gStates.apocalypseQuestDirectBranch[card.guid] or nil
 	if already~=nil then return choices end
-	if card.guid=="72099f" and state.step==1 and apocalypseQuestGoblinAttempt(playerIndex,true)==nil then
-		choices={{key="Goblin1",action="GoblinWarrens",label="1"},{key="Goblin2",action="GoblinWarrens",label="2"},{key="Goblin3",action="GoblinWarrens",label="3"}}
-	elseif card.guid=="8939c0" and state.step==1 then choices={{key="1a",action="Complete"},{key="1b",action="Combat"},{key="1c",action="Complete"}}
-	elseif card.guid=="bbd087" and state.step==3 and apocalypseQuestCardCrystalColor(card)~=nil then
-		local option=apocalypseQuestChoiceOption(card,"3a")
-		if option~=nil and apocalypseQuestStarterLocationLegal(card,playerIndex,option)==true then
-			choices={{key="3a",action="Complete",label="3A"},{key="3b",action="Complete",label="3B"}}
-		end
-	elseif card.guid=="37e2ce" and state.step==1 then choices={{key="1a",action="Progress"},{key="1b",action="Complete"}}
-	elseif card.guid=="a6d5cc" and state.step==2 and apocalypseQuestCombatStartedThisTurn(card,2)~=true then choices={{key="2a",action="Combat",label="2A"},{key="2b",action="Fail",label="{en}2B - Fail{ru}2B - Провал{zh-tw}2B - 失敗{zh-cn}2B - 失败{ko}2B - 실패{es}2B - Fallar{fr}2B - Échouer{pt-br}2B - Falhar{de}2B - Scheitern"}}
-	elseif card.guid=="82a935" and state.step==2 then choices={{key="2a",action="Complete"},{key="2b",action="Complete"},{key="2c",action="Combat"}}
-	elseif card.guid=="8455b5" and state.step==2 and apocalypseQuestPersonalShieldOwner(card)==playerIndex then
-		--The Admiring Bard's defeated-enemy branch is player-declared. Combat cleanup removes defeated
-		--tokens before the Quest can reliably inspect them, so keep all three printed outcomes available.
-		choices={{key="2a",action="Progress",label="2A"},{key="2b",action="Progress",label="2B"},{key="2c",action="Progress",label="2C"}}
-	elseif card.guid=="ce70fb" and state.step==2 then choices={{key="2a",action="Combat"},{key="2b",action="Combat"}}
-	elseif card.guid=="783076" and state.step==1 then choices={{key="1a",action="Progress"},{key="1b",action="Progress"}} end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.directChoices~=nil then return handler.directChoices(card,playerIndex,state) or choices end
 	return choices
 end
 
 function apocalypseQuestDirectChoiceLegal(card,playerIndex,choice)
 	if card==nil or choice==nil then return false end
-	if card.guid=="bbd087" and apocalypseQuestStepNumber(choice.key)==3 and apocalypseQuestCardCrystalColor(card)==nil then return false end
-	if card.guid=="72099f" and choice.action=="GoblinWarrens" then
-		local option=apocalypseQuestChoiceOption(card,"1")
-		return option~=nil and apocalypseQuestGoblinAttempt(playerIndex,true)==nil and apocalypseQuestStarterLocationLegal(card,playerIndex,option)==true and apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)==true
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.directChoiceLegal~=nil then
+		local handled,result=handler.directChoiceLegal(card,playerIndex,choice)
+		if handled==true then return result==true end
 	end
 	local option=apocalypseQuestChoiceOption(card,choice.key)
 	if option==nil or apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then return false end
-	if card.guid=="a6d5cc" and apocalypseQuestStepNumber(choice.key)==2 and apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,choice.key)~=true then return false end
 	if choice.action~="Combat" and apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)~=true then return false end
 	return true
 end
 function apocalypseQuestButtonState(card, playerIndex)
-	local progressEnabled=apocalypseQuestActionEnabled(card, playerIndex, "Progress")
-	local completeEnabled=apocalypseQuestActionEnabled(card, playerIndex, "Complete")
-	local abandonEnabled=apocalypseQuestActionEnabled(card, playerIndex, "Abandon")
+	local result={
+		progress=apocalypseQuestActionEnabled(card,playerIndex,"Progress"),
+		progressLabel="Progress",
+		complete=apocalypseQuestActionEnabled(card,playerIndex,"Complete"),
+		abandon=apocalypseQuestActionEnabled(card,playerIndex,"Abandon"),
+		fail=apocalypseQuestActionEnabled(card,playerIndex,"Fail"),
+		failLabel="Fail"
+	}
 	local quest=apocalypseQuestData[card.guid]
-	local abandonLabel=quest~=nil and quest.questType=="Personal" and apocalypseQuestPersonalShieldOwner(card)==nil and apocalypseQuestNeutralShield(card)~=nil and "Resume" or "Abandon"
-	local failEnabled=apocalypseQuestActionEnabled(card, playerIndex, "Fail")
+	result.abandonLabel=quest~=nil and quest.questType=="Personal" and apocalypseQuestPersonalShieldOwner(card)==nil and apocalypseQuestNeutralShield(card)~=nil and "Resume" or "Abandon"
 	local enemyAttackButton=apocalypseQuestUsesEnemyAttackButton(card)==true
 	if enemyAttackButton==true then apocalypseQuestRefreshEnemyAttackButtons(card,playerIndex) end
 	local questState=apocalypseQuestProgressState(card,playerIndex,false)
-	local mineDoomAttack=card.guid=="485cc5" and questState~=nil and questState.step==2
-	local fogFinalFight=card.guid=="dd35bb" and questState~=nil and questState.step==3
-	local fightRelevant=enemyAttackButton~=true and mineDoomAttack~=true and fogFinalFight~=true and apocalypseQuestCombatRelevant(card,playerIndex)
-	local progressLabel="Progress"
-	local failLabel="Fail"
-	if mineDoomAttack==true then
-		--Mine of Doom uses the normal Quest action slot as its combat launcher instead of adding
-		--the separate Attack icon beneath the card controls.
-		progressLabel="Attack"
-		progressEnabled=apocalypseQuestCombatAvailable(card,playerIndex)
-	elseif fogFinalFight==true then
-		progressLabel="Proceed"
-		progressEnabled=apocalypseQuestFogPossessedReady(card)==true and apocalypseQuestCombatAvailable(card,playerIndex)
-	elseif card.guid=="72099f" and questState~=nil and questState.step==1 then
-		progressLabel="Proceed"
-	elseif card.guid=="8cff07" and questState~=nil and questState.step==1 then
-		progressLabel="Proceed"
-		local rolled=gStates.apocalypseQuestRichMerchantRoll~=nil and gStates.apocalypseQuestRichMerchantRoll[card.guid] or nil
-		if rolled~=nil and rolled.mage==turnOrder[playerIndex].mage and rolled.result~="Black" then
-			progressEnabled=false
-			abandonEnabled=false
-		end
-	elseif card.guid=="a6d5cc" then
-		if questState==nil or questState.step==1 then progressLabel="Proceed" end
-		if questState~=nil and questState.step==2 then failLabel="2B - Fail" end
-	end
-	return {progress=progressEnabled,progressLabel=progressLabel,complete=completeEnabled,abandon=abandonEnabled,abandonLabel=abandonLabel,fail=failEnabled,failLabel=failLabel,
-		fight=fightRelevant and apocalypseQuestCombatAvailable(card,playerIndex)}
+	result.fight=enemyAttackButton~=true and apocalypseQuestCombatRelevant(card,playerIndex) and apocalypseQuestCombatAvailable(card,playerIndex)
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.buttonState~=nil then handler.buttonState(card,playerIndex,questState,result) end
+	return result
 end
 
 function apocalypseQuestUpdateProgressButtons(card)
@@ -5332,8 +5235,9 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 		end
 		--Admiring Bard Step 2 uses three player-declared outcomes but must retain the Personal Quest
 		--Abandon action as the fourth control. Once abandoned, directChoices disappears and Resume returns.
-		local bardState=card.guid=="8455b5" and apocalypseQuestProgressState(card,interfacePlayer,false) or nil
-		if bardState~=nil and bardState.step==2 and #directChoices==3 then
+		local handler=apocalypseQuestHandler(card)
+		local directState=handler~=nil and handler.directChoicesAllowAbandon==true and apocalypseQuestProgressState(card,interfacePlayer,false) or nil
+		if directState~=nil and #directChoices==3 then
 			local abandon=apocalypseQuestActionEnabled(card,interfacePlayer,"Abandon")
 			xml[#xml+1]=questButton("Abandon","Abandon",spots[4][1],spots[4][2],abandon and "#d5b784" or "#b5b5b5",abandon)
 		end
@@ -5745,11 +5649,10 @@ end
 
 function apocalypseQuestBottomDeck(card,onComplete)
 	if card==nil then if onComplete~=nil then onComplete(false) end return false end
-	if card.guid=="a6d5cc" then gStates.apocalypseQuestUnderSiegeReady=nil gStates.apocalypseQuestUnderSiegeStep2=nil end
-	if card.guid=="37e2ce" then gStates.apocalypseQuestFreeWineAssault=nil end
-	if card.guid=="72099f" then gStates.apocalypseQuestGoblinWarrens={} end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.bottomDeckBeforeReveal~=nil then handler.bottomDeckBeforeReveal(card) end
 	apocalypseQuestReturnRevealBag(card)
-	if card.guid=="b401dc" and (gStates.apocalypseQuestVeryPersonalSuccess==nil or gStates.apocalypseQuestVeryPersonalSuccess[card.guid]~=true) then apocalypseQuestDisbandVeryPersonalUnit(card) end
+	if handler~=nil and handler.bottomDeckAfterReveal~=nil then handler.bottomDeckAfterReveal(card) end
 	--Round refresh/failure can remove an unfinished Quest after it has already granted a reminder marker.
 	--Such a card follows the same reminder rule as a normally completed Quest.
 	if apocalypseQuestHasActiveReminderToken(card)==true and (gStates.apocalypseQuestReminderCards==nil or gStates.apocalypseQuestReminderCards[card.guid]==nil) then
@@ -5906,8 +5809,11 @@ end
 end
 
 local function apocalypseQuestValidateStepResolution(card,playerIndex,action,option,playerColor,quest)
-if action=="Progress" and (card.guid=="485cc5" and tostring(option.key)=="1" or card.guid=="bb2828" and tostring(option.key)=="2") then
-	local colors=card.guid=="485cc5" and apocalypseQuestMineDoomColors(playerIndex) or apocalypseQuestArtificerAvailableColors(card,playerIndex)
+local handler=apocalypseQuestHandler(card)
+local handledColors,colors=false,nil
+if handler~=nil and handler.progressColors~=nil then handledColors,colors=handler.progressColors(card,playerIndex,action,option) end
+if handledColors==true then
+	colors=colors or {}
 	if #colors==0 then return false end
 	if gStates.apocalypseQuestStepColor==nil then gStates.apocalypseQuestStepColor={} end
 	if gStates.apocalypseQuestStepColor[card.guid]==nil and #colors>1 then
@@ -5997,7 +5903,8 @@ apocalypseQuestRegisterHandler("8cff07").progressAction=function(card,playerInde
 end
 
 local function apocalypseQuestResolveProgressAction(card,playerIndex,option,playerColor,state,questState,finishQuestResolution)
-if not (card.guid=="6175e8" and tostring(option.key)=="3") and apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)~=true then finishQuestResolution(0.5) return false end
+local handler=apocalypseQuestHandler(card)
+if apocalypseQuestUsesGenericStepMarker(card,option)==true and apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
 --Plan the offer move before any replacement/progress Shield is created so every new Shield
 --uses slot 1 immediately and is explicitly owned by this Quest during the reorder.
 apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
@@ -6015,8 +5922,9 @@ if apocalypseQuestPositionProgressShield(card, playerIndex, option)~=true then
 end
 apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
 apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-local fistfulSetup=card.guid=="66ea80" and tostring(option.key)=="1"
-local launchedNext=(card.guid=="485cc5" and tostring(option.key)=="1") or (card.guid=="d70436" and tostring(option.key)=="2")
+local key=tostring(option.key)
+local fistfulSetup=handler~=nil and handler.fistfulSetupKey==key
+local launchedNext=handler~=nil and handler.preserveCombatLaunchOnProgressKeys~=nil and handler.preserveCombatLaunchOnProgressKeys[key]==true
 --Resolve the step immediately, as before. Anything leaving the Quest card moves away now. New objects
 --created on the card are explicitly captured for the imminent offer move, so they travel with the card
 --without waiting for the scripting zone to notice them.
@@ -6030,7 +5938,7 @@ if launchedNext==true and apocalypseQuestCombatStartedThisTurn(card,state.step)=
 end
 --Commit before the offer snapshot. A Quest marker may still be travelling to the map and must not be
 --mistaken for an attachment that should follow the card left.
-apocalypseQuestCommitStepMarker(card, option)
+if apocalypseQuestUsesGenericStepMarker(card,option)==true then apocalypseQuestCommitStepMarker(card,option) end
 if fistfulSetup==true then
 	--Let the card reach slot 1 before drawing from the same gray bag twice. The short gap also
 	--ensures the first takeObject has fully left the container before the second extraction.
@@ -6255,7 +6163,7 @@ local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,play
 			completionContext=context or {}
 		end
 	end
-if not (card.guid=="6175e8" and tostring(option.key)=="3") and apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)~=true then finishQuestResolution(0.5) return false end
+if apocalypseQuestUsesGenericStepMarker(card,option)==true and apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
 if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
 	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
 	finishQuestResolution(0.5)
@@ -6263,7 +6171,7 @@ if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
 end
 apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
 apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-if not (card.guid=="6175e8" and tostring(option.key)=="3") then apocalypseQuestCommitStepMarker(card, option) end
+if apocalypseQuestUsesGenericStepMarker(card,option)==true then apocalypseQuestCommitStepMarker(card,option) end
 if quest.allPlayersComplete==true then
 	state.completed=true
 	apocalypseQuestRemovePlayerShield(card, playerIndex)
@@ -6457,68 +6365,40 @@ local function apocalypseQuestHandleCombatChoiceAction(player,card,playerIndex,a
 end
 
 local function apocalypseQuestHandleDirectAction(player,card,playerIndex,action)
-if action:sub(1,7)=="Direct_" then
+	if action:sub(1,7)~="Direct_" then return end
 	local key=action:sub(8)
 	local selected=nil
-	for _, choice in ipairs(apocalypseQuestDirectChoices(card,playerIndex)) do if choice.key==key then selected=choice break end end
+	for _,choice in ipairs(apocalypseQuestDirectChoices(card,playerIndex)) do if choice.key==key then selected=choice break end end
 	if selected==nil or apocalypseQuestDirectChoiceLegal(card,playerIndex,selected)~=true then apocalypseQuestInterfaceAdd(card,true) return end
-	if card.guid=="72099f" and selected.action=="GoblinWarrens" then
-		apocalypseQuestStartGoblinWarrens(card,playerIndex,tonumber(key:match("(%d+)$")))
-		return
-	end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.directAction~=nil and handler.directAction(player,card,playerIndex,selected,key)==true then return end
 	local option=apocalypseQuestChoiceOption(card,key)
 	if selected.action=="Combat" then
-		if card.guid~="a6d5cc" then
+		if handler==nil or handler.storeDirectCombatBranch~=false then
 			if gStates.apocalypseQuestDirectBranch==nil then gStates.apocalypseQuestDirectBranch={} end
 			gStates.apocalypseQuestDirectBranch[card.guid]=key
 		end
-		if card.guid=="ce70fb" then
-			if gStates.apocalypseQuestCombatBranch==nil then gStates.apocalypseQuestCombatBranch={} end
-			gStates.apocalypseQuestCombatBranch[card.guid]=key
-			apocalypseQuestLaunchCombat(card,playerIndex,player.color,key)
-		else apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil) end
+		local chosenColor=nil
+		if handler~=nil and handler.combatBranchChoice==true then chosenColor=key end
+		apocalypseQuestLaunchCombat(card,playerIndex,player.color,chosenColor)
 		if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end
 	else
-		if card.guid=="8939c0" or card.guid=="82a935" then
+		if handler~=nil and handler.storeDirectBranch==true then
 			if gStates.apocalypseQuestDirectBranch==nil then gStates.apocalypseQuestDirectBranch={} end
 			gStates.apocalypseQuestDirectBranch[card.guid]=key
 		end
-		--ResolveStepAction owns the refresh after its rewind transaction has advanced the Quest state.
-		--Rebuilding here used the old state and could put the just-clicked branch choices straight back.
 		apocalypseQuestResolveStepAction(card,playerIndex,selected.action,option,player.color)
 	end
-	return
-end
 end
 
 local function apocalypseQuestHandleCombatLaunchAction(player,card,playerIndex,action)
-if action=="Fight" then
-	apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil)
-	if getObjectFromGUID(card.guid)~=nil and (gStates.apocalypseQuestCombatChoice==nil or gStates.apocalypseQuestCombatChoice[card.guid]==nil) then apocalypseQuestInterfaceAdd(card,true) end
-	return
-end
-
---The Fog Step 3 uses Proceed as its final combat launcher. It becomes available only after the
---Possessed token has physically linked to the brown enemy on the Quest card.
-if action=="Progress" and card.guid=="dd35bb" then
-	local questState=apocalypseQuestProgressState(card,playerIndex,false)
-	if questState~=nil and questState.step==3 and apocalypseQuestFogPossessedReady(card)==true then
-		apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil)
-		if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end
-		return true
-	end
-end
-
---Mine of Doom Step 2 presents its combat launcher in the normal Progress/Proceed slot.
---It performs exactly the same launch path as the old separate Attack icon.
-if action=="Progress" and card.guid=="485cc5" then
-	local questState=apocalypseQuestProgressState(card,playerIndex,false)
-	if questState~=nil and questState.step==2 then
+	if action=="Fight" then
 		apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil)
 		if getObjectFromGUID(card.guid)~=nil and (gStates.apocalypseQuestCombatChoice==nil or gStates.apocalypseQuestCombatChoice[card.guid]==nil) then apocalypseQuestInterfaceAdd(card,true) end
 		return true
 	end
-end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.progressCombatLaunch~=nil then return handler.progressCombatLaunch(player,card,playerIndex,action)==true end
 	return false
 end
 
@@ -6548,11 +6428,8 @@ end
 
 local function apocalypseQuestHandlePersonalQuestAction(player,card,playerIndex,action,quest,details)
 if action=="Abandon" then
-	if card.guid=="a6d5cc" and apocalypseQuestPersonalShieldOwner(card)~=nil then
-		broadcastToColor("{en}Under Siege must be resolved with 2A or 2B; it cannot be abandoned after Step 1.{ru}Under Siege должно быть разрешено через 2A или 2B; после шага 1 его нельзя покинуть.{zh-tw}Under Siege 必須以 2A 或 2B 結算；步驟 1 後不能放棄。{zh-cn}Under Siege 必须以 2A 或 2B 结算；步骤 1 后不能放弃。{ko}Under Siege는 2A 또는 2B로 해결해야 하며 1단계 이후에는 포기할 수 없습니다.{es}Under Siege debe resolverse con 2A o 2B; no puede abandonarse después del Paso 1.{fr}Under Siege doit être résolu avec 2A ou 2B ; il ne peut pas être abandonné après l’Étape 1.{pt-br}Under Siege deve ser resolvido com 2A ou 2B; não pode ser abandonado após a Etapa 1.{de}Under Siege muss mit 2A oder 2B abgewickelt werden; nach Schritt 1 kann es nicht aufgegeben werden.",player.color,warningColor)
-		apocalypseQuestInterfaceAdd(card,true)
-		return
-	end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.personalAction~=nil and handler.personalAction(player,card,playerIndex,action)==true then return end
 	local ownerIndex, ownerShield=apocalypseQuestPersonalShieldOwner(card)
 	local neutralShield=apocalypseQuestNeutralShield(card)
 	if quest.questType=="Personal" and ownerIndex==nil and neutralShield~=nil then
@@ -6644,14 +6521,12 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 		return
 	end
 	local playerIndex=gStates.turnNumber
-	local underSiegeConfirm=false
-	if card~=nil and card.guid=="a6d5cc" and action=="Progress" then
-		local readyPlayer=apocalypseQuestUnderSiegeReadyPlayer()
-		if readyPlayer~=nil then playerIndex=readyPlayer underSiegeConfirm=true end
-	end
+	local anyHumanConfirm=false
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.actionPlayer~=nil then playerIndex,anyHumanConfirm=handler.actionPlayer(card,action,playerIndex) end
 	local details=turnOrder[playerIndex]
 	if card==nil or details==nil then return end
-	if underSiegeConfirm==true then
+	if anyHumanConfirm==true then
 		if apocalypseQuestAnyHumanMayConfirm(player.color)~=true then return end
 	elseif legalPlayerCheck(player.color, details.seatPos, "NoDummyException")~=true then return end
 	local offered=false
