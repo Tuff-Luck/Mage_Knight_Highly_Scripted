@@ -334,7 +334,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 
 		--switch rules to the matching page for scenario. Rulebooks are presentation/reference objects,
 		--so configure each returned object independently rather than making them a chained setup dependency.
-		local ruleBag=getObjectFromGUID("d4a866")
+		local ruleBag=getObjectFromGUID(GUID.bag.rules)
 		local r={main="b850ab", expansion="700e93", apocalypse="65f2b6"}
 		local scenarioRuleStates=scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates or {}
 		local needExpansionRules=scenarioRuleStates.expansion~=nil or gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false
@@ -511,7 +511,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		if gStates.removeApocalypseTerrain~=true then
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.pyramidTrap, position={-43.00, 1.30, 20.00}, rotation={0, 180, 0}, smooth=false}).lock()--Pyramid Trap Tokens
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=monsterPiles.zigguratTrap, position={-43.00, 1.30, 23.00}, rotation={0, 180, 0}, smooth=false}).lock()--Zigurat Trap Tokens
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="a8bf9c", position={-51.63, 0.97, 45.88}, rotation={0, 180, 0}, smooth=false}).lock()--Oasis Reminder token
+			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.token.oasisReminder, position={-51.63, 0.97, 45.88}, rotation={0, 180, 0}, smooth=false}).lock()--Oasis Reminder token
 			if gStates.gameScenario=="Against the Apocalypse Blitz" then
 				getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="f64a50", position={-38.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Against the Apocalypse Reminder Card
 				local startPosition={1, 4, 5, 6, 7, 9}
@@ -799,10 +799,10 @@ function setupGame(player, mouseButton, id, rewindReady)
 			end
 			--Fury's manual comes from the Apocalypse Dragon rules bag and is locked by the normal
 			--delayed rulebook pass alongside the other manuals.
-			if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID("8d7fb9")==nil then
-				local ruleBag=getObjectFromGUID("d4a866")
+			if gStates.gameScenario=="Fury of the Apocalypse Dragon" and getObjectFromGUID(GUID.card.furyOfDragonRules)==nil then
+				local ruleBag=getObjectFromGUID(GUID.bag.rules)
 				if ruleBag~=nil then
-					local furyRules=safeTakeObject("SetupGame",ruleBag,{guid="8d7fb9",position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
+					local furyRules=safeTakeObject("SetupGame",ruleBag,{guid=GUID.card.furyOfDragonRules,position={41.00,0.96,35.00},rotation={0,180,0},smooth=false})
 					setupConfigureRulebook(furyRules,nil)
 				end
 			end
