@@ -954,15 +954,15 @@ function displayScore(player, mouseButton, id)
 					assembledText="" lineFeed=0
 					local dragonPlayer=dragonScoreSummary.byMage[turnOrder[a].mage] or {levels=0,slayerBonus=0,slayerHeads={}}
 					if dragonPlayer.levels>0 then
-						local dragonScoreLabel=apocalypseHere and "{en} Head Slayer score: +{ru} Head Slayer score: +{zh-tw} Head Slayer score: +{zh-cn} Head Slayer score: +{ko} Head Slayer score: +{es} Head Slayer score: +{fr} Head Slayer score: +{pt-br} Head Slayer score: +{de} Head Slayer score: +" or "{en} Dragon Head Level(s) Reduced: +{ru} Dragon Head Level(s) Reduced: +{zh-tw} Dragon Head Level(s) Reduced: +{zh-cn} Dragon Head Level(s) Reduced: +{ko} Dragon Head Level(s) Reduced: +{es} Dragon Head Level(s) Reduced: +{fr} Dragon Head Level(s) Reduced: +{pt-br} Dragon Head Level(s) Reduced: +{de} Dragon Head Level(s) Reduced: +"
+						local dragonScoreLabel=apocalypseHere and "{en} Head Slayer score: +{ru} Счёт истребителя голов: +{zh-tw} 龍首剋星分數：+{zh-cn} 龙首克星分数：+{ko} 용 머리 처치 점수: +{es} Puntuación de cazador de cabezas: +{fr} Score de tueur de têtes : +{pt-br} Pontuação de matador de cabeças: +{de} Kopfbezwinger-Wertung: +" or "{en} Dragon Head Level(s) Reduced: +{ru} Снижено уровней голов Дракона: +{zh-tw} 降低的巨龍頭部等級：+{zh-cn} 降低的巨龙头部等级：+{ko} 감소시킨 드래곤 머리 레벨: +{es} Niveles de cabezas del Dragón reducidos: +{fr} Niveaux de têtes du Dragon réduits : +{pt-br} Níveis de cabeças do Dragão reduzidos: +{de} Reduzierte Drachenkopf-Stufen: +"
 						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{dragonPlayer.levels,dragonScoreLabel,dragonPlayer.levels})
 						totalScore=totalScore+dragonPlayer.levels
 					end
 					if dragonPlayer.slayerBonus>0 then
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{#dragonPlayer.slayerHeads,"{en} Greatest Head Slayer bonus(es): +{ru} Greatest Head Slayer bonus(es): +{zh-tw} Greatest Head Slayer bonus(es): +{zh-cn} Greatest Head Slayer bonus(es): +{ko} Greatest Head Slayer bonus(es): +{es} Greatest Head Slayer bonus(es): +{fr} Greatest Head Slayer bonus(es): +{pt-br} Greatest Head Slayer bonus(es): +{de} Greatest Head Slayer bonus(es): +",dragonPlayer.slayerBonus})
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{#dragonPlayer.slayerHeads,"{en} Greatest Head Slayer bonus(es): +{ru} Бонус лучшего истребителя голов: +{zh-tw} 最佳龍首剋星獎勵：+{zh-cn} 最佳龙首克星奖励：+{ko} 최고의 용 머리 처치자 보너스: +{es} Bonificación del mejor cazador de cabezas: +{fr} Bonus du meilleur tueur de têtes : +{pt-br} Bônus do maior matador de cabeças: +{de} Bonus des größten Kopfbezwingers: +",dragonPlayer.slayerBonus})
 						totalScore=totalScore+dragonPlayer.slayerBonus
 					end
-					UI.setAttribute("TezlaScoreHeadingText","text",apocalypseHere and "{en}Head Slayer score{ru}Head Slayer score{zh-tw}Head Slayer score{zh-cn}Head Slayer score{ko}Head Slayer score{es}Head Slayer score{fr}Head Slayer score{pt-br}Head Slayer score{de}Head Slayer score" or "{en}Dragon{ru}Dragon{zh-tw}Dragon{zh-cn}Dragon{ko}Dragon{es}Dragon{fr}Dragon{pt-br}Dragon{de}Dragon")
+					UI.setAttribute("TezlaScoreHeadingText","text",apocalypseHere and "{en}Head Slayer score{ru}Счёт истребителя голов{zh-tw}龍首剋星分數{zh-cn}龙首克星分数{ko}용 머리 처치 점수{es}Puntuación de cazador de cabezas{fr}Score de tueur de têtes{pt-br}Pontuação de matador de cabeças{de}Kopfbezwinger-Wertung" or "{en}Dragon{ru}Дракон{zh-tw}巨龍{zh-cn}巨龙{ko}드래곤{es}Dragón{fr}Dragon{pt-br}Dragão{de}Drache")
 					updateScorePannel("Tezla",lineFeed,assembledText)
 				end
 
@@ -1065,18 +1065,18 @@ function displayScore(player, mouseButton, id)
 							coopScore=coopScore+(horsemenSummary.total*3)
 						end
 						if apocalypseHere and gStates.playerCount>1 and horsemanEveryScoringPlayerDefeatedOne(horsemenSummary)==true then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Each player defeated a Horseman: +5{ru}Each player defeated a Horseman: +5{zh-tw}Each player defeated a Horseman: +5{zh-cn}Each player defeated a Horseman: +5{ko}Each player defeated a Horseman: +5{es}Each player defeated a Horseman: +5{fr}Each player defeated a Horseman: +5{pt-br}Each player defeated a Horseman: +5{de}Each player defeated a Horseman: +5"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Each player defeated a Horseman: +5{ru}Каждый игрок победил Всадника: +5{zh-tw}每位玩家都擊敗一名騎士：+5{zh-cn}每位玩家都击败一名骑士：+5{ko}각 플레이어가 기사를 한 명씩 처치: +5{es}Cada jugador derrotó a un Jinete: +5{fr}Chaque joueur a vaincu un Cavalier : +5{pt-br}Cada jogador derrotou um Cavaleiro: +5{de}Jeder Spieler besiegte einen Reiter: +5"})
 							coopScore=coopScore+5
 						end
 						if dragonScoreSummary.defeatedHeads>0 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{dragonScoreSummary.defeatedHeads,"{en} Dragon Head(s) Defeated: +{ru} Dragon Head(s) Defeated: +{zh-tw} Dragon Head(s) Defeated: +{zh-cn} Dragon Head(s) Defeated: +{ko} Dragon Head(s) Defeated: +{es} Dragon Head(s) Defeated: +{fr} Dragon Head(s) Defeated: +{pt-br} Dragon Head(s) Defeated: +{de} Dragon Head(s) Defeated: +",dragonScoreSummary.defeatedHeads*5})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{dragonScoreSummary.defeatedHeads,"{en} Dragon Head(s) Defeated: +{ru} Побеждено голов Дракона: +{zh-tw} 擊敗的巨龍頭部：+{zh-cn} 击败的巨龙头部：+{ko} 처치한 드래곤 머리: +{es} Cabezas del Dragón derrotadas: +{fr} Têtes du Dragon vaincues : +{pt-br} Cabeças do Dragão derrotadas: +{de} Besiegte Drachenköpfe: +",dragonScoreSummary.defeatedHeads*5})
 							coopScore=coopScore+(dragonScoreSummary.defeatedHeads*5)
 						end
 						if dragonScoreSummary.defeatedHeads>=4 then
-							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All Dragon Heads defeated: +15{ru}All Dragon Heads defeated: +15{zh-tw}All Dragon Heads defeated: +15{zh-cn}All Dragon Heads defeated: +15{ko}All Dragon Heads defeated: +15{es}All Dragon Heads defeated: +15{fr}All Dragon Heads defeated: +15{pt-br}All Dragon Heads defeated: +15{de}All Dragon Heads defeated: +15"})
+							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All Dragon Heads defeated: +15{ru}Все головы Дракона побеждены: +15{zh-tw}所有巨龍頭部都已擊敗：+15{zh-cn}所有巨龙头部都已击败：+15{ko}모든 드래곤 머리 처치: +15{es}Todas las cabezas del Dragón derrotadas: +15{fr}Toutes les têtes du Dragon vaincues : +15{pt-br}Todas as cabeças do Dragão derrotadas: +15{de}Alle Drachenköpfe besiegt: +15"})
 							coopScore=coopScore+15
 						end
-						UI.setAttribute("TezlaScoreHeadingText","text",apocalypseHere and "{en}Apocalypse{ru}Apocalypse{zh-tw}Apocalypse{zh-cn}Apocalypse{ko}Apocalypse{es}Apocalypse{fr}Apocalypse{pt-br}Apocalypse{de}Apocalypse" or "{en}Dragon{ru}Dragon{zh-tw}Dragon{zh-cn}Dragon{ko}Dragon{es}Dragon{fr}Dragon{pt-br}Dragon{de}Dragon")
+						UI.setAttribute("TezlaScoreHeadingText","text",apocalypseHere and "{en}Apocalypse{ru}Апокалипсис{zh-tw}末日{zh-cn}末日{ko}아포칼립스{es}Apocalipsis{fr}Apocalypse{pt-br}Apocalipse{de}Apokalypse" or "{en}Dragon{ru}Дракон{zh-tw}巨龍{zh-cn}巨龙{ko}드래곤{es}Dragón{fr}Dragon{pt-br}Dragão{de}Drache")
 						local temp=pannel
 						pannel=1
 						UI.setAttribute("Tezla1ScoreCell","columnSpan","4")
