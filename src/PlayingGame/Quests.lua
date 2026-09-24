@@ -65,7 +65,9 @@ local apocalypseQuestHandlers={
 }
 
 local function apocalypseQuestHandler(cardOrGUID)
-	local guid=type(cardOrGUID)=="table" and cardOrGUID.guid or cardOrGUID
+	if cardOrGUID==nil then return nil end
+	local valueType=type(cardOrGUID)
+	local guid=(valueType=="table" or valueType=="userdata") and cardOrGUID.guid or cardOrGUID
 	return guid~=nil and apocalypseQuestHandlers[guid] or nil
 end
 
