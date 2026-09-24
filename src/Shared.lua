@@ -358,8 +358,39 @@ function runtimeMapInvalidate()
 	runtimeMapInvalidateTerrain()
 end
 
+--Logical terrain changes are topology changes too. Keep every runtime consumer coherent whenever a
+--scenario/Quest replaces a printed feature or terrain type without physically moving the tile.
+function runtimeMapSetHexFeature(terrainGUID,bearing,feature)
+	if terrainGUID==nil or bearing==nil or terrainTiles[terrainGUID]==nil then return false end
+	local details=terrainTiles[terrainGUID]
+	details.hexFeature=details.hexFeature or {}
+	local key=tostring(bearing)
+	local value=feature or ""
+	if details.hexFeature[key]==value then return false end
+	details.hexFeature[key]=value
+	runtimeMapInvalidateTerrain()
+	return true
+end
+
+function runtimeMapSetHexType(terrainGUID,bearing,hexType)
+	if terrainGUID==nil or bearing==nil or terrainTiles[terrainGUID]==nil then return false end
+	local details=terrainTiles[terrainGUID]
+	details.hexType=details.hexType or {}
+	local key=tostring(bearing)
+	local value=hexType or ""
+	if details.hexType[key]==value then return false end
+	details.hexType[key]=value
+	runtimeMapInvalidateTerrain()
+	return true
+end
+
 function runtimeMapContainsGUID(guid)
-	return guid~=nil and runtimeMapObjectCache~=nil and runtimeMapObjectCache.objectGUIDs~=nil and runtimeMapObjectCache.objectGUIDs[guid]==true
+	if guid==nil then return false end
+	if runtimeMapObjectCache~=nil and runtimeMapObjectCache.objectGUIDs~=nil and runtimeMapObjectCache.objectGUIDs[guid]==true then return true end
+	--Object-only invalidation deliberately retains the expensive terrain cache. If that terrain is
+	--destroyed or put in a container before the object list is rebuilt, the retained topology must
+	--still be invalidated by the destroy/container fallback.
+	return runtimeMapTerrainCache~=nil and runtimeMapTerrainCache.terrainPositions~=nil and runtimeMapTerrainCache.terrainPositions[guid]~=nil
 end
 
 local RUNTIME_MAP_HEX_X_STEP=2.4
@@ -368,8 +399,10 @@ local RUNTIME_MAP_HEX_Z_STEP=2.0785
 function runtimeMapHexKey(hexOrTerrainGUID,bearing)
 	if hexOrTerrainGUID==nil then return nil end
 	if type(hexOrTerrainGUID)=="table" then
+		if hexOrTerrainGUID.terrainGUID==nil or hexOrTerrainGUID.bearing==nil then return nil end
 		return tostring(hexOrTerrainGUID.terrainGUID).."|"..tostring(hexOrTerrainGUID.bearing)
 	end
+	if bearing==nil then return nil end
 	return tostring(hexOrTerrainGUID).."|"..tostring(bearing)
 end
 
