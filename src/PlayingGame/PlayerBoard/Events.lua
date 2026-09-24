@@ -59,7 +59,7 @@ function playerBoardZoneEnterSettled(ctx)
 	--Object entered player board
 	if zoneInfo~=nil and zoneInfo.kind=="play" then
 		--increment Master of chaos skill
-		if objGUID=="1ff34f" then
+		if objGUID==GUID.skill.masterOfChaos then
 			if masterOfChaosPause==false then
 				masterOfChaosPause=true
 				if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
@@ -142,7 +142,7 @@ function playerBoardZoneEnterSettled(ctx)
 		end
 
 		--Add command decal to banner of Command
-		if objGUID=="8dbce4" then
+		if objGUID==GUID.card.bannerOfCommandToken then
 			bannerOfCommandDecal()
 			scheduleUnitLayoutRefresh(zoneInfo.seatPos)
 		end
@@ -264,16 +264,16 @@ function playerBoardZoneLeave(ctx)
 			end
 		end, 0.22)
 		--Decrement Master of chaos skill
-		if obj.guid=="1ff34f" and masterOfChaosPause==false then
+		if obj.guid==GUID.skill.masterOfChaos and masterOfChaosPause==false then
 			if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
 			safeWaitFrames("PlayerBoard.Events",function() masterOfChaosWait=safeWaitCondition("PlayerBoard.Events",function()
 				for a=1, #turnOrder, 1 do
 					if turnOrder[a].masterOfChaos~=nil and turnOrder[a].masterOfChaos~="incrementented in turn" then turnOrder[a].masterOfChaos="available" break end
 				end
-				getObjectFromGUID("1ff34f").setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
-				getObjectFromGUID("1ff34f").reload()
+				getObjectFromGUID(GUID.skill.masterOfChaos).setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
+				getObjectFromGUID(GUID.skill.masterOfChaos).reload()
 				masterOfChaosWait=nil
-			end, function() return getObjectFromGUID("1ff34f").resting end) end, 5)
+			end, function() return getObjectFromGUID(GUID.skill.masterOfChaos).resting end) end, 5)
 		end
 	end
 	--A Card or whole Deck leaving the deed pile can make End Round available.
