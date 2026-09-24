@@ -834,7 +834,7 @@ local function mainUIRefreshPlayerState(context)
 					--city rep loss
 					for cityguid, monsters in pairs(gStates.cityMonsterQty) do
 						if cityguid~=darkCrusader.terrainHex and cityguid~=elementalist.terrainHex and cityguid~=volkare.model and cityguid~=volkare.terrainHex and monsters[obj.guid]=="alive" and gStates.gainList[cityguid]==nil then
-						 	turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
+							turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
 							gStates.gainList[cityguid]={exists=true}
 							if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]={exists=true} end
 							break
@@ -848,7 +848,7 @@ local function mainUIRefreshPlayerState(context)
 					if count==2 then hiddenValleyKeep=true end
 					if cityRepLoss==false and
 					   ((monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep") or
-   							   (monsterPugs[obj.guid].pugType=="purple" and avatarLocation=="mage tower") or
+						   (monsterPugs[obj.guid].pugType=="purple" and avatarLocation=="mage tower") or
 					   ((obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2]) and hiddenValleyKeep==false)) then
 						turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
 						gStates.gainList[obj.guid].siteRepLoss=1
@@ -1189,7 +1189,7 @@ local function mainUIRefreshTurnAvailability(context,playerState)
 	local discardAreaCards=0
 	local discardZoneGUID=deedDeckDiscardZones[turnOrder[gStates.turnNumber].seatPos]
 	local discardZone=discardZoneGUID~=nil and getObjectFromGUID(discardZoneGUID) or nil
-	if discardZone==nil then return end
+	if discardZone==nil then return false end
 	for _, b in pairs(discardZone.getObjects()) do
 		if b.type=="Card" then discardAreaCards=1 break end
 		if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
@@ -1205,6 +1205,7 @@ local function mainUIRefreshTurnAvailability(context,playerState)
 		UI.setAttribute("ExtraTurnTacticButton", "interactable", "False")
 		UI.setAttribute("ExtraTurnTacticButtonImage", "image", "Sliced Button/Button New Deactive")
 	end
+	return true
 end
 
 local function mainUIRefreshExtraTurn(context,playerState)
@@ -1429,7 +1430,7 @@ function uiMainUIUpdateBase(source)
 		local playerState=mainUIRefreshPlayerState(context)
 		mainUIRefreshLevelUpTurnText(context,playerState)
 		mainUIRefreshRewardChecklist(context,playerState)
-		mainUIRefreshTurnAvailability(context,playerState)
+		if mainUIRefreshTurnAvailability(context,playerState)==false then mainUIPause=nil return end
 		mainUIRefreshExtraTurn(context,playerState)
 		mainUIRefreshFameRepMenu(context,playerState)
 		mainUIRefreshEndRound(context)
