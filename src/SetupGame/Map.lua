@@ -694,7 +694,7 @@ function mapSetup(onComplete)
 			if firstStart~=nil then standardRevealBatches[1][#standardRevealBatches[1]+1]={guid=firstStart.guid,first=true} end
 		end
 		if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-			local camp=getObjectFromGUID("835c91")
+			local camp=getObjectFromGUID(GUID.tile.volkareCamp)
 			if camp~=nil then
 				--Player setup stages the Camp off-map. Bring it into its opening hex face down, then let
 				--the normal reveal coordinator flip and populate it like every other starting terrain tile.
@@ -714,7 +714,7 @@ function mapSetup(onComplete)
 			if thirdStart~=nil then standardRevealBatches[3][#standardRevealBatches[3]+1]={guid=thirdStart.guid} end
 		end
 		if gStates.gameScenario=="Volkare's Quest" then
-			local camp=getObjectFromGUID("835c91")
+			local camp=getObjectFromGUID(GUID.tile.volkareCamp)
 			if camp~=nil then
 				--Player setup stages the Camp off-map so entering the map zone cannot start an independent
 				--terrain reveal. Put it down only after the normal three starting-terrain reveals are queued,
@@ -723,7 +723,7 @@ function mapSetup(onComplete)
 				standardRevealBatches[4][#standardRevealBatches[4]+1]={guid=camp.guid}
 			end
 		elseif gStates.gameScenario=="The War of Four" then
-			local camp=getObjectFromGUID("835c91")
+			local camp=getObjectFromGUID(GUID.tile.volkareCamp)
 			if camp~=nil then camp.setPosition({-12.0297,1.15,8.8586}) standardRevealBatches[3][#standardRevealBatches[3]+1]={guid=camp.guid} end
 		end
 	end
