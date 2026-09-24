@@ -309,7 +309,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 					else
 						params.position={-12.0297, 2.0,  8.8586}--The War of Four camp tile position
 					end
-					terrainTiles[GUID.tile.volkareCamp].hexFeature.center=""
+					runtimeMapSetHexFeature(GUID.tile.volkareCamp,"center","")
 					gStates.hexOverideSave[GUID.tile.volkareCamp]={center=""}
 					if gStates.randomTileOrientation==false then params.rotation={0, 180, 180} else params.rotation={0, math.random(1, 6)*60, 180} end
 					params.guid=GUID.tile.volkareCamp
