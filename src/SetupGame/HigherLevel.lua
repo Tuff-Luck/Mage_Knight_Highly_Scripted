@@ -347,7 +347,7 @@ function higherLevelSkill(player, mouseButton, id, pairPosition)
 				broadcastToAll("{en}Two more Regular units and 5 influence given to Norowas.{ru}Два дополнительных обычных отряда и 5 влияния даны Норовас{zh-tw}给诺罗瓦斯增加两个常规部队供应和5影响力{zh-cn}给诺罗瓦斯增加两个常规部队供应和5影响力{ko}노로워즈에게 일반 유닛 두 개와 영향력 5가 추가 지급되었습니다. {es}Dos unidades regulares más y 5 influencia dadas a Norowas.{fr}Deux autres unités régulières et 5 d'influence donnés à Norowas.{pt-br}2 unidades Regulares a mais e 5 influência dadas a Norowas{de}Zwei weitere reguläre Einheiten und 5 Einfluss an Norowas gegeben.", {1,1,0.5})
 			end
 			--Master of Chaos
-			if id:sub(1,6)=="1ff34f" then
+			if id:sub(1,6)==GUID.skill.masterOfChaos then
 				masterOfChaosSetup(playerPosition)
 			end
 			--move claimed skill to skill column. Bonds of Loyalty already moved to/recorded in the Unit Area above.
