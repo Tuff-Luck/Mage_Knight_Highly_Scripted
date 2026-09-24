@@ -73,14 +73,14 @@ function unitLayoutIsCommand(obj)
 	if obj==nil then return false end
 	--Bonds of Loyalty is physically a Skill token, but while claimed in Norowas' Unit Area it provides
 	--an extra Command slot exactly like Banner of Command. Its asset does not reliably carry the GM Note.
-	return obj.getGMNotes()=="Command Token" or obj.getGMNotes()=="Bonds of Loyalty" or obj.guid=="f30dd4" or obj.guid=="8dbce4"
+	return obj.getGMNotes()=="Command Token" or obj.getGMNotes()=="Bonds of Loyalty" or obj.guid==GUID.skill.bondsOfLoyalty or obj.guid==GUID.card.bannerOfCommandToken
 end
 
 function unitLayoutCommandPriority(obj)
 	if obj==nil then return 9 end
 	if obj.getGMNotes()=="Command Token" then return 1 end
-	if obj.getGMNotes()=="Bonds of Loyalty" or obj.guid=="f30dd4" then return 2 end
-	if obj.guid=="8dbce4" then return 3 end
+	if obj.getGMNotes()=="Bonds of Loyalty" or obj.guid==GUID.skill.bondsOfLoyalty then return 2 end
+	if obj.guid==GUID.card.bannerOfCommandToken then return 3 end
 	return 9
 end
 
