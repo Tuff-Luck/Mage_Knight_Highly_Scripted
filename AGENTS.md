@@ -40,6 +40,7 @@ For visible scripted movement, use Tabletop Simulator\'s normal/slow smooth move
 Do not add backwards-compatibility or old-save recovery code unless the user explicitly requests it.
 For Apocalypse Quests, the old Google Sheet / Quest summary sheet used during initial implementation is out of date and is not an authority. Audit and change the current Lua/card behavior directly; do not re-import or “correct” rules from that sheet.
 Put Quest-specific exceptions and resolution effects on the per-Quest handler registry instead of adding new GUID chains to generic Quest lifecycle functions. Keep shared Quest progression/offer/cleanup orchestration generic.
+Keep `apocalypseQuestResolveStepAction()` as the thin Quest resolution lifecycle: wait/validate → rewind boundary → action-specific resolver. Add new Progress/Complete/Fail behavior to the narrow action resolver or Quest handler rather than growing the dispatcher.
 
 
 ## Persistent state and source of truth

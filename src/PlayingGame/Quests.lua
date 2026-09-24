@@ -5603,57 +5603,394 @@ function apocalypseQuestClaimAbandonedPersonal(card, playerIndex)
 	apocalypseQuestRegisterMoveAttachment(card,shield,target)
 	return true
 end
-function apocalypseQuestResolveStepAction(card, playerIndex, action, option, playerColor, rewindReady)
-	if card==nil or option==nil or turnOrder[playerIndex]==nil then return false end
-	if card.isSmoothMoving()==true then
-		local cardGUID=card.guid
-		safeWaitCondition("Quests",function()
-			local live=getObjectFromGUID(cardGUID)
-			if live~=nil then apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
-		end,function()
-			local live=getObjectFromGUID(cardGUID)
-			return live==nil or live.isSmoothMoving()==false
-		end,5,function()
-			local live=getObjectFromGUID(cardGUID)
-			if live~=nil then apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
-		end)
+local function apocalypseQuestWaitForStepResolution(card,playerIndex,action,option,playerColor,rewindReady)
+if card==nil or option==nil or turnOrder[playerIndex]==nil then return false end
+if card.isSmoothMoving()==true then
+	local cardGUID=card.guid
+	safeWaitCondition("Quests",function()
+		local live=getObjectFromGUID(cardGUID)
+		if live~=nil then apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
+	end,function()
+		local live=getObjectFromGUID(cardGUID)
+		return live==nil or live.isSmoothMoving()==false
+	end,5,function()
+		local live=getObjectFromGUID(cardGUID)
+		if live~=nil then apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
+	end)
+	return true
+end
+	return nil
+end
+
+local function apocalypseQuestValidateStepResolution(card,playerIndex,action,option,playerColor,quest)
+if action=="Progress" and (card.guid=="485cc5" and tostring(option.key)=="1" or card.guid=="bb2828" and tostring(option.key)=="2") then
+	local colors=card.guid=="485cc5" and apocalypseQuestMineDoomColors(playerIndex) or apocalypseQuestArtificerAvailableColors(card,playerIndex)
+	if #colors==0 then return false end
+	if gStates.apocalypseQuestStepColor==nil then gStates.apocalypseQuestStepColor={} end
+	if gStates.apocalypseQuestStepColor[card.guid]==nil and #colors>1 then
+		if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+		gStates.apocalypseQuestCombatChoice[card.guid]={playerIndex=playerIndex,colors=colors,mode="ProgressColor",action=action,key=tostring(option.key)}
+		apocalypseQuestInterfaceAdd(card,true)
 		return true
 	end
-	local quest=apocalypseQuestData[card.guid]
-	if quest==nil then return false end
-	local state, questState=apocalypseQuestProgressState(card, playerIndex, true)
-	if state==nil or state.completed==true then return false end
-	if action=="Progress" and (card.guid=="485cc5" and tostring(option.key)=="1" or card.guid=="bb2828" and tostring(option.key)=="2") then
-		local colors=card.guid=="485cc5" and apocalypseQuestMineDoomColors(playerIndex) or apocalypseQuestArtificerAvailableColors(card,playerIndex)
-		if #colors==0 then return false end
-		if gStates.apocalypseQuestStepColor==nil then gStates.apocalypseQuestStepColor={} end
-		if gStates.apocalypseQuestStepColor[card.guid]==nil and #colors>1 then
-			if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-			gStates.apocalypseQuestCombatChoice[card.guid]={playerIndex=playerIndex,colors=colors,mode="ProgressColor",action=action,key=tostring(option.key)}
+	if gStates.apocalypseQuestStepColor[card.guid]==nil then gStates.apocalypseQuestStepColor[card.guid]=colors[1] end
+end
+local minimumReputationModifier=option.minimumReputationModifier or quest.minimumReputationModifier
+if minimumReputationModifier~=nil and action~="Fail" then
+	refreshPlayerReputationFromShield(playerIndex)
+	local effectiveReputation=math.max(-7, math.min(7, (turnOrder[playerIndex].reputation or 0)+(turnOrder[playerIndex].repGain or 0)))
+	local repData=reputationTable[effectiveReputation]
+	local repModifier=repData~=nil and tonumber(repData.repDisplay) or nil
+	if repModifier==nil or repModifier<minimumReputationModifier then
+		if playerColor~=nil then broadcastToColor(joinLang({"{en}This Quest step requires a Reputation Modifier of {ru}Этот шаг задания требует модификатор Репутации {zh-tw}此任務步驟需要聲望修正值至少為 {zh-cn}此任务步骤需要声望修正值至少为 {ko}이 퀘스트 단계에는 평판 수정치 {es}Este paso de Misión requiere un Modificador de Reputación de {fr}Cette étape de Quête exige un Modificateur de Réputation de {pt-br}Esta etapa da Missão exige um Modificador de Reputação de {de}Dieser Quest-Schritt erfordert einen Ansehensmodifikator von ",tostring(minimumReputationModifier),"{en} or higher.{ru} или выше.{zh-tw}。{zh-cn}。{ko} 이상이 필요합니다.{es} o superior.{fr} ou plus.{pt-br} ou superior.{de} oder höher."}), playerColor, warningColor) end
+		return false
+	end
+end
+if action=="Fail" and apocalypseQuestFailureReady(card,option,playerIndex)~=true then
+	if playerColor~=nil then broadcastToColor("{en}Start this Quest combat before resolving Fail.{ru}Начните бой задания перед разрешением Провала.{zh-tw}在結算失敗前先開始此任務戰鬥。{zh-cn}在结算失败前先开始此任务战斗。{ko}실패를 처리하기 전에 이 퀘스트 전투를 시작하십시오.{es}Inicia este combate de Misión antes de resolver Fallar.{fr}Commencez ce combat de Quête avant de résoudre Échouer.{pt-br}Inicie este combate da Missão antes de resolver Falhar.{de}Beginne diesen Quest-Kampf, bevor du Scheitern abwickelst.",playerColor,warningColor) end
+	return false
+end
+if action~="Fail" and apocalypseQuestStepSpecialLegal(card,playerIndex,option)~=true then
+	if playerColor~=nil then broadcastToColor(joinLang({"{en}The combat requirement for Quest step {ru}Требование боя для шага задания {zh-tw}尚未偵測到任務步驟 {zh-cn}尚未检测到任务步骤 {ko}퀘스트 단계 {es}Aún no se ha detectado el requisito de combate del paso de Misión {fr}La condition de combat de l’étape de Quête {pt-br}O requisito de combate da etapa da Missão {de}Die Kampfanforderung für Quest-Schritt ",tostring(option.key),"{en} has not been detected yet.{ru} ещё не обнаружено.{zh-tw} 的戰鬥要求。{zh-cn} 的战斗要求。{ko}의 전투 요구 사항이 아직 감지되지 않았습니다.{es}.{fr} n’a pas encore été détectée.{pt-br} ainda não foi detectado.{de} wurde noch nicht erkannt."}),playerColor,warningColor) end
+	return false
+end
+	return nil
+end
+
+local function apocalypseQuestFinishResolution(questRewindOwner,delay)
+	if delay~=nil and delay>0 then safeWaitTime("Quests",function() rewindTransactionFinish(questRewindOwner) end,delay)
+	else rewindTransactionFinish(questRewindOwner) end
+end
+
+local function apocalypseQuestResolveRichMerchantProgress(card,playerIndex,option,playerColor,state,finishQuestResolution)
+--A Rich Merchant Step 1 must use the face of a real rolled mana die. The die can appear immediately
+--over slot 1 because that destination is already known; the Quest card starts moving there at once.
+--Black advances to Step 2; the other results leave Step 1 ready to Complete.
+if apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
+if apocalypseQuestClaimAbandonedPersonal(card,playerIndex)~=true then
+	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.",playerColor,{1,0.55,0.2}) end
+	finishQuestResolution(0.5)
+	return false
+end
+apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
+if apocalypseQuestPositionProgressShield(card,playerIndex,option)~=true then
+	apocalypseQuestEndMoveAttachmentCapture(card)
+	if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.",playerColor,{1,0.55,0.2}) end
+	finishQuestResolution(0.5)
+	return false
+end
+apocalypseQuestEndMoveAttachmentCapture(card)
+apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+local started=apocalypseQuestRollVisibleManaDie(card,playerIndex,"A Rich Merchant",function(rolled,liveCard)
+	if liveCard==nil then finishQuestResolution(0.5) return end
+	if rolled==nil then
+		--Stay on Step 1 so Proceed can simply be tried again if the physical die was unreadable.
+		apocalypseQuestInterfaceAdd(liveCard,true)
+		finishQuestResolution(0.5)
+		return
+	end
+	apocalypseQuestResolveRichMerchantRoll(liveCard,playerIndex,rolled)
+	if rolled=="Black" then apocalypseQuestAdvanceProgress(liveCard,state,option) end
+	apocalypseQuestRefreshOfferButtons()
+	finishQuestResolution(0.5)
+end,apocalypseQuestOfferPosition(1))
+if started~=true then
+	if gStates.apocalypseQuestMoveAttachments~=nil then gStates.apocalypseQuestMoveAttachments[card.guid]=nil end
+	apocalypseQuestPositionProgressShield(card,playerIndex,option)
+	apocalypseQuestInterfaceAdd(card,true)
+	finishQuestResolution(0.5)
+	return false
+end
+apocalypseQuestCommitStepMarker(card,option)
+--Suppress the normal settled refresh while the visible die is still resolving; its callback refreshes
+--the Quest once the result is known. The physical offer still starts moving immediately.
+apocalypseQuestOfferMoveToLeft(card,function() end)
+return true
+end
+
+local function apocalypseQuestResolveProgressAction(card,playerIndex,option,playerColor,state,questState,finishQuestResolution)
+if not (card.guid=="6175e8" and tostring(option.key)=="3") and apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)~=true then finishQuestResolution(0.5) return false end
+--Plan the offer move before any replacement/progress Shield is created so every new Shield
+--uses slot 1 immediately and is explicitly owned by this Quest during the reorder.
+apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
+if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
+	apocalypseQuestEndMoveAttachmentCapture(card)
+	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
+	finishQuestResolution(0.5)
+	return false
+end
+if apocalypseQuestPositionProgressShield(card, playerIndex, option)~=true then
+	apocalypseQuestEndMoveAttachmentCapture(card)
+	if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.", playerColor, {1,0.55,0.2}) end
+	finishQuestResolution(0.5)
+	return false
+end
+apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
+apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+local fistfulSetup=card.guid=="66ea80" and tostring(option.key)=="1"
+local launchedNext=(card.guid=="485cc5" and tostring(option.key)=="1") or (card.guid=="d70436" and tostring(option.key)=="2")
+--Resolve the step immediately, as before. Anything leaving the Quest card moves away now. New objects
+--created on the card are explicitly captured for the imminent offer move, so they travel with the card
+--without waiting for the scripting zone to notice them.
+apocalypseQuestResolveSpecialEffect(card, playerIndex, option, false)
+apocalypseQuestEndMoveAttachmentCapture(card)
+if gStates.apocalypseQuestStepColor~=nil then gStates.apocalypseQuestStepColor[card.guid]=nil end
+apocalypseQuestAdvanceProgress(card, state, option)
+if launchedNext==true and apocalypseQuestCombatStartedThisTurn(card,state.step)==true then
+	if gStates.apocalypseQuestCombatLaunches==nil then gStates.apocalypseQuestCombatLaunches={} end
+	gStates.apocalypseQuestCombatLaunches[card.guid]=apocalypseQuestCombatLaunchKey(card,state)
+end
+--Commit before the offer snapshot. A Quest marker may still be travelling to the map and must not be
+--mistaken for an attachment that should follow the card left.
+apocalypseQuestCommitStepMarker(card, option)
+if fistfulSetup==true then
+	--Let the card reach slot 1 before drawing from the same gray bag twice. The short gap also
+	--ensures the first takeObject has fully left the container before the second extraction.
+	apocalypseQuestOfferMoveToLeft(card,function(liveCard)
+		apocalypseQuestPlaceFistfulEnemies(liveCard,function()
+			apocalypseQuestRefreshOfferButtons()
+			finishQuestResolution(0.5)
+		end)
+	end)
+else
+	apocalypseQuestOfferMoveToLeft(card)
+	finishQuestResolution(1.0)
+end
+broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} progressed a Quest ({ru} продвинул задание ({zh-tw} 推進了一個任務（{zh-cn} 推进了一个任务（{ko}이(가) 퀘스트를 진행했습니다 ({es} progresó una Misión ({fr} a fait progresser une Quête ({pt-br} progrediu uma Missão ({de} hat eine Quest vorangebracht (",tostring(option.key),")."}), positionToColor(playerIndex))
+return true
+end
+
+local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,playerColor,state,questState,quest,guardDutyDistance,finishQuestResolution)
+if not (card.guid=="6175e8" and tostring(option.key)=="3") and apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)~=true then finishQuestResolution(0.5) return false end
+if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
+	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
+	finishQuestResolution(0.5)
+	return false
+end
+apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
+apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+if not (card.guid=="6175e8" and tostring(option.key)=="3") then apocalypseQuestCommitStepMarker(card, option) end
+if quest.allPlayersComplete==true then
+	state.completed=true
+	apocalypseQuestRemovePlayerShield(card, playerIndex)
+	if apocalypseQuestAllPlayersCompleted(card)==true then
+		apocalypseQuestResolveSpecialEffect(card, playerIndex, option, true)
+		broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed the final required part of \"{ru} завершил последнюю требуемую часть \"{zh-tw} 完成了 \"{zh-cn} 完成了 \"{ko}이(가) \"{es} completó la última parte requerida de \"{fr} a terminé la dernière partie requise de \"{pt-br} concluiu a última parte necessária de \"{de} hat den letzten erforderlichen Teil von \"",quest.name,"{en}\".{ru}\".{zh-tw}\" 的最後必要部分。{zh-cn}\" 的最后必要部分。{ko}\"의 마지막 필수 부분을 완료했습니다.{es}\".{fr}\".{pt-br}\".{de}\" abgeschlossen."}), positionToColor(playerIndex))
+		apocalypseQuestFinishCompletedCard(card)
+	else
+		apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
+		apocalypseQuestResolveSpecialEffect(card, playerIndex, option, false)
+		apocalypseQuestEndMoveAttachmentCapture(card)
+		apocalypseQuestOfferMoveToLeft(card)
+		broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed their part of \"{ru} завершил свою часть \"{zh-tw} 完成了自己在 \"{zh-cn} 完成了自己在 \"{ko}이(가) \"{es} completó su parte de \"{fr} a terminé sa partie de \"{pt-br} concluiu sua parte de \"{de} hat seinen Teil von \"",quest.name,"{en}\".{ru}\".{zh-tw}\" 中的部分。{zh-cn}\" 中的部分。{ko}\"에서 자신의 부분을 완료했습니다.{es}\".{fr}\".{pt-br}\".{de}\" abgeschlossen."}), positionToColor(playerIndex))
+	end
+else
+	if card.guid=="bbd087" and tostring(option.key)=="3a" then
+		apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
+		local started=apocalypseQuestNobleWarriorRollReward(card,playerIndex,function(success,questCard,results)
+			if questCard==nil then finishQuestResolution(0.5) return end
+			if success==true then
+				local reserved={}
+				local starting={}
+				for _,basic in ipairs({"Blue","Red","Green","White"}) do starting[basic]=mineCrystalCount(playerIndex,basic) end
+				local gold=0
+				local black=0
+				for _,color in ipairs(results or {}) do
+					if color=="Gold" then gold=gold+1
+					elseif color=="Black" then black=black+1
+					elseif mineCrystalBagKey[color]~=nil then
+						local effective=math.max(mineCrystalCount(playerIndex,color),starting[color]+(reserved[color] or 0))
+						if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Noble Warrior")==true then reserved[color]=(reserved[color] or 0)+1 end
+					end
+				end
+				if black>0 then
+					turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
+					mainUIUpdate("Noble Warrior Black Fame")
+				end
+				if gold>0 then
+					local pending={playerIndex=playerIndex,mode="NobleWarriorGold",goldRemaining=gold,startCounts={},granted={}}
+					for _,color in ipairs({"Blue","Red","Green","White"}) do pending.startCounts[color]=mineCrystalCount(playerIndex,color) end
+					pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
+					if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+					gStates.apocalypseQuestCombatChoice[questCard.guid]=pending
+					apocalypseQuestInterfaceAdd(questCard,true)
+					--Keep the Quest rewind transaction open until every Gold has been chosen, or No Inventory
+					--clears the remaining Golds.
+					return
+				end
+				apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Noble Warrior (3A).{ru} завершил Noble Warrior (3A).{zh-tw} 完成 Noble Warrior（3A）。{zh-cn} 完成 Noble Warrior（3A）。{ko}이(가) Noble Warrior (3A)를 완료했습니다.{es} completó Noble Warrior (3A).{fr} a terminé Noble Warrior (3A).{pt-br} concluiu Noble Warrior (3A).{de} schloss Noble Warrior (3A) ab."}),positionToColor(playerIndex))
+				apocalypseQuestFinishCompletedCard(questCard)
+			else
+				apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+				apocalypseQuestInterfaceAdd(questCard,true)
+			end
+			finishQuestResolution(0.5)
+		end)
+		if started~=true then
+			apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 			apocalypseQuestInterfaceAdd(card,true)
+			finishQuestResolution(0.5)
+		end
+		return started
+	end
+	if card.guid=="8939c0" and tostring(option.key)=="1a" then
+		--The Execution 1A awards a random mana-die reward. Resolve it with the same visible Quest die;
+		--basic colours grant that crystal, Gold chooses a colour, and Black grants +1 Fame.
+		apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
+		local started=apocalypseQuestRollExecutionReward(card,playerIndex,function(rolled,questCard)
+			if questCard==nil then finishQuestResolution(0.5) return end
+			if rolled==nil then
+				if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[questCard.guid]=nil end
+				apocalypseQuestInterfaceAdd(questCard,true)
+				finishQuestResolution(0.5)
+				return
+			end
+			if mineCrystalBagKey[rolled]~=nil then
+				apocalypseQuestGiveCrystal(playerIndex,rolled,nil,"The Execution")
+				apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+				apocalypseQuestResolveSpecialEffect(questCard,playerIndex,option,true)
+				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}),positionToColor(playerIndex))
+				apocalypseQuestFinishCompletedCard(questCard)
+				finishQuestResolution(0.5)
+			elseif rolled=="Black" then
+				--Black replaces the crystal reward with +1 Fame, in addition to 1A's normal Fame/Reputation.
+				turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+1
+				apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+				apocalypseQuestResolveSpecialEffect(questCard,playerIndex,option,true)
+				mainUIUpdate("The Execution Black Fame")
+				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} rolled Black for The Execution and gained +1 Fame instead of a crystal.{ru} выбросил чёрный для The Execution и получил +1 Славу вместо кристалла.{zh-tw} 在 The Execution 擲出黑色，改為獲得 +1 聲望值而非水晶。{zh-cn} 在 The Execution 掷出黑色，改为获得 +1 声望值而非水晶。{ko}이(가) The Execution에서 검정을 굴려 크리스털 대신 명성 +1을 얻었습니다.{es} sacó Negro para The Execution y ganó +1 Fama en lugar de un cristal.{fr} a obtenu Noir pour The Execution et gagne +1 Renommée au lieu d’un cristal.{pt-br} rolou Preto em The Execution e ganhou +1 Fama em vez de um cristal.{de} würfelte bei The Execution Schwarz und erhielt statt eines Kristalls +1 Ruhm."}),positionToColor(playerIndex))
+				apocalypseQuestFinishCompletedCard(questCard)
+				finishQuestResolution(0.5)
+			elseif rolled=="Gold" then
+				--Gold lets the player choose any basic crystal. Keep the Quest transaction open until that
+				--mandatory choice is made, just as other Quest colour selections do.
+				if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+				gStates.apocalypseQuestCombatChoice[questCard.guid]={playerIndex=playerIndex,colors={"Blue","Red","Green","White"},mode="ExecutionGold"}
+				apocalypseQuestInterfaceAdd(questCard,true)
+			end
+		end)
+		if started~=true then
+			apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+			if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[card.guid]=nil end
+			apocalypseQuestInterfaceAdd(card,true)
+			finishQuestResolution(0.5)
+		end
+		return started
+	end
+	if card.guid=="08ffcf" and tostring(option.key)=="2" then
+		--Guard Duty pays from the shortest revealed-space distance back to the merchant marker:
+		--1-3 = one random basic crystal; 4-6 = two random basic crystals; 7+ = two chosen basic crystals.
+		apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
+		if guardDutyDistance>=7 then
+			local pending={playerIndex=playerIndex,mode="GuardDutyChoice",remaining=2,distance=guardDutyDistance,startCounts={},granted={}}
+			pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
+			if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+			gStates.apocalypseQuestCombatChoice[card.guid]=pending
+			apocalypseQuestInterfaceAdd(card,true)
+			broadcastToAll(joinLang({"{en}Guard Duty distance is {ru}Расстояние Guard Duty: {zh-tw}Guard Duty 距離為 {zh-cn}Guard Duty 距离为 {ko}Guard Duty 거리: {es}La distancia de Guard Duty es {fr}La distance de Guard Duty est de {pt-br}A distância de Guard Duty é {de}Die Entfernung bei Guard Duty beträgt ",tostring(guardDutyDistance),"{en}: choose two basic mana crystals.{ru}: выберите два базовых кристалла маны.{zh-tw}：選擇兩顆基本魔力水晶。{zh-cn}：选择两颗基本魔力水晶。{ko}: 기본 마나 크리스털 2개를 선택하십시오.{es}: elige dos cristales básicos de maná.{fr} : choisissez deux cristaux de mana de base.{pt-br}: escolha dois cristais básicos de mana.{de}: Wähle zwei Basismana-Kristalle."}),positionToColor(playerIndex))
 			return true
 		end
-		if gStates.apocalypseQuestStepColor[card.guid]==nil then gStates.apocalypseQuestStepColor[card.guid]=colors[1] end
-	end
-	local minimumReputationModifier=option.minimumReputationModifier or quest.minimumReputationModifier
-	if minimumReputationModifier~=nil and action~="Fail" then
-		refreshPlayerReputationFromShield(playerIndex)
-		local effectiveReputation=math.max(-7, math.min(7, (turnOrder[playerIndex].reputation or 0)+(turnOrder[playerIndex].repGain or 0)))
-		local repData=reputationTable[effectiveReputation]
-		local repModifier=repData~=nil and tonumber(repData.repDisplay) or nil
-		if repModifier==nil or repModifier<minimumReputationModifier then
-			if playerColor~=nil then broadcastToColor(joinLang({"{en}This Quest step requires a Reputation Modifier of {ru}Этот шаг задания требует модификатор Репутации {zh-tw}此任務步驟需要聲望修正值至少為 {zh-cn}此任务步骤需要声望修正值至少为 {ko}이 퀘스트 단계에는 평판 수정치 {es}Este paso de Misión requiere un Modificador de Reputación de {fr}Cette étape de Quête exige un Modificateur de Réputation de {pt-br}Esta etapa da Missão exige um Modificador de Reputação de {de}Dieser Quest-Schritt erfordert einen Ansehensmodifikator von ",tostring(minimumReputationModifier),"{en} or higher.{ru} или выше.{zh-tw}。{zh-cn}。{ko} 이상이 필요합니다.{es} o superior.{fr} ou plus.{pt-br} ou superior.{de} oder höher."}), playerColor, warningColor) end
-			return false
+		local crystalCount=guardDutyDistance<=3 and 1 or 2
+		local started=apocalypseQuestGuardDutyRollRandomCrystals(card,playerIndex,crystalCount,function(success,questCard,results)
+			if questCard==nil then finishQuestResolution(0.5) return end
+			if success==true then
+				local gold=0
+				local black=0
+				for _,rolled in ipairs(results or {}) do
+					if rolled=="Gold" then gold=gold+1
+					elseif rolled=="Black" then black=black+1
+					elseif mineCrystalBagKey[rolled]~=nil then apocalypseQuestGiveCrystal(playerIndex,rolled,nil,"Guard Duty") end
+				end
+				if black>0 then
+					turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
+					mainUIUpdate("Guard Duty Black Fame")
+					broadcastToAll(joinLang({"{en}Guard Duty rolled {ru}Guard Duty выбросил чёрный: {zh-tw}Guard Duty 擲出黑色結果 {zh-cn}Guard Duty 掷出黑色结果 {ko}Guard Duty에서 검정 결과 {es}Guard Duty sacó {fr}Guard Duty a obtenu {pt-br}Guard Duty rolou {de}Guard Duty würfelte ",tostring(black),"{en} Black result(s) and gained +{ru} и получил +{zh-tw} 次，並獲得 +{zh-cn} 次，并获得 +{ko}개가 나와 명성 +{es} resultado(s) Negro y ganó +{fr} résultat(s) Noir et gagne +{pt-br} resultado(s) Preto e ganhou +{de} schwarze(s) Ergebnis(se) und erhielt +",tostring(black),"{en} Fame.{ru} Славы.{zh-tw} 聲望值。{zh-cn} 声望值。{ko}을(를) 얻었습니다.{es} de Fama.{fr} Renommée.{pt-br} de Fama.{de} Ruhm."}),positionToColor(playerIndex))
+				end
+				if gold>0 then
+					local pending={playerIndex=playerIndex,mode="GuardDutyGold",goldRemaining=gold,distance=guardDutyDistance,startCounts={},granted={}}
+					for _,color in ipairs({"Blue","Red","Green","White"}) do pending.startCounts[color]=mineCrystalCount(playerIndex,color) end
+					pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
+					if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+					gStates.apocalypseQuestCombatChoice[questCard.guid]=pending
+					apocalypseQuestInterfaceAdd(questCard,true)
+					broadcastToAll(joinLang({"{en}Guard Duty rolled Gold{ru}Guard Duty выбросил золотой{zh-tw}Guard Duty 擲出金色{zh-cn}Guard Duty 掷出金色{ko}Guard Duty에서 금색이 나왔습니다{es}Guard Duty sacó Dorado{fr}Guard Duty a obtenu Or{pt-br}Guard Duty rolou Dourado{de}Guard Duty würfelte Gold",gold>1 and (" x"..tostring(gold)) or "","{en}: choose {ru}: выберите {zh-tw}：選擇 {zh-cn}：选择 {ko}: {es}: elige {fr} : choisissez {pt-br}: escolha {de}: Wähle ",gold==1 and "{en}a basic mana crystal.{ru}базовый кристалл маны.{zh-tw}一顆基本魔力水晶。{zh-cn}一颗基本魔力水晶。{ko}기본 마나 크리스털 1개를 선택하십시오.{es}un cristal básico de maná.{fr}un cristal de mana de base.{pt-br}um cristal básico de mana.{de}einen Basismana-Kristall." or joinLang({tostring(gold),"{en} basic mana crystals.{ru} базовых кристалла маны.{zh-tw} 顆基本魔力水晶。{zh-cn} 颗基本魔力水晶。{ko}개의 기본 마나 크리스털을 선택하십시오.{es} cristales básicos de maná.{fr} cristaux de mana de base.{pt-br} cristais básicos de mana.{de} Basismana-Kristalle."})}),positionToColor(playerIndex))
+					return
+				end
+				apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Guard Duty: distance {ru} завершил Guard Duty: расстояние {zh-tw} 完成 Guard Duty：距離 {zh-cn} 完成 Guard Duty：距离 {ko}이(가) Guard Duty를 완료했습니다: 거리 {es} completó Guard Duty: distancia {fr} a terminé Guard Duty : distance {pt-br} concluiu Guard Duty: distância {de} schloss Guard Duty ab: Entfernung ",tostring(guardDutyDistance),"{en}, random mana reward resolved.{ru}, случайная награда маны разрешена.{zh-tw}，隨機魔力獎勵已結算。{zh-cn}，随机魔力奖励已结算。{ko}, 무작위 마나 보상 해결 완료.{es}, recompensa aleatoria de maná resuelta.{fr}, récompense de mana aléatoire résolue.{pt-br}, recompensa aleatória de mana resolvida.{de}, zufällige Manabelohnung abgewickelt."}),positionToColor(playerIndex))
+				apocalypseQuestFinishCompletedCard(questCard)
+			else
+				apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+				apocalypseQuestInterfaceAdd(questCard,true)
+			end
+			finishQuestResolution(0.5)
+		end)
+		if started~=true then
+			apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+			apocalypseQuestInterfaceAdd(card,true)
+			finishQuestResolution(0.5)
 		end
+		return started
 	end
-	if action=="Fail" and apocalypseQuestFailureReady(card,option,playerIndex)~=true then
-		if playerColor~=nil then broadcastToColor("{en}Start this Quest combat before resolving Fail.{ru}Начните бой задания перед разрешением Провала.{zh-tw}在結算失敗前先開始此任務戰鬥。{zh-cn}在结算失败前先开始此任务战斗。{ko}실패를 처리하기 전에 이 퀘스트 전투를 시작하십시오.{es}Inicia este combate de Misión antes de resolver Fallar.{fr}Commencez ce combat de Quête avant de résoudre Échouer.{pt-br}Inicie este combate da Missão antes de resolver Falhar.{de}Beginne diesen Quest-Kampf, bevor du Scheitern abwickelst.",playerColor,warningColor) end
-		return false
+	if card.guid=="58a826" and tostring(option.key)=="3" then
+		--The Herbalist completion stays in the offer while its visible mana die is rolling. This keeps
+		--the Quest token/crystal available until the physical result has been read and transferred.
+		apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
+		local started=apocalypseQuestGiveHerbalistReward(card,playerIndex,function(success,questCard)
+			if questCard==nil then finishQuestResolution(0.5) return end
+			if success==true then
+				apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}), positionToColor(playerIndex))
+				apocalypseQuestFinishCompletedCard(questCard)
+			else
+				apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+				apocalypseQuestInterfaceAdd(questCard,true)
+			end
+			finishQuestResolution(0.5)
+		end)
+		if started~=true then
+			apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+			apocalypseQuestInterfaceAdd(card,true)
+			finishQuestResolution(0.5)
+		end
+		return started
 	end
-	if action~="Fail" and apocalypseQuestStepSpecialLegal(card,playerIndex,option)~=true then
-		if playerColor~=nil then broadcastToColor(joinLang({"{en}The combat requirement for Quest step {ru}Требование боя для шага задания {zh-tw}尚未偵測到任務步驟 {zh-cn}尚未检测到任务步骤 {ko}퀘스트 단계 {es}Aún no se ha detectado el requisito de combate del paso de Misión {fr}La condition de combat de l’étape de Quête {pt-br}O requisito de combate da etapa da Missão {de}Die Kampfanforderung für Quest-Schritt ",tostring(option.key),"{en} has not been detected yet.{ru} ещё не обнаружено.{zh-tw} 的戰鬥要求。{zh-cn} 的战斗要求。{ko}의 전투 요구 사항이 아직 감지되지 않았습니다.{es}.{fr} n’a pas encore été détectée.{pt-br} ainda não foi detectado.{de} wurde noch nicht erkannt."}),playerColor,warningColor) end
-		return false
-	end
+	apocalypseQuestResolveSpecialEffect(card, playerIndex, option, true)
+	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}), positionToColor(playerIndex))
+	apocalypseQuestFinishCompletedCard(card)
+end
+finishQuestResolution(1.0)
+return true
+end
+
+local function apocalypseQuestResolveFailAction(card,playerIndex,option,playerColor,quest,finishQuestResolution)
+if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
+	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
+	finishQuestResolution(0.5)
+	return false
+end
+apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+apocalypseQuestResolveFailureEffect(card,playerIndex,option)
+apocalypseQuestLoseReputation(playerIndex, quest.name, "fail")
+broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} failed \"{ru} провалил \"{zh-tw} 任務失敗：\"{zh-cn} 任务失败：\"{ko}이(가) \"{es} falló \"{fr} a échoué à \"{pt-br} falhou em \"{de} ist bei \"",quest.name,"{en}\".{ru}\".{zh-tw}\"。{zh-cn}\"。{ko}\"에 실패했습니다.{es}\".{fr}\".{pt-br}\".{de}\" gescheitert."}), positionToColor(playerIndex))
+apocalypseQuestBottomDeck(card)
+finishQuestResolution(1.0)
+return true
+end
+
+function apocalypseQuestResolveStepAction(card, playerIndex, action, option, playerColor, rewindReady)
+	local waiting=apocalypseQuestWaitForStepResolution(card,playerIndex,action,option,playerColor,rewindReady)
+	if waiting~=nil then return waiting end
+
+	local quest=apocalypseQuestData[card.guid]
+	if quest==nil then return false end
+	local state,questState=apocalypseQuestProgressState(card,playerIndex,true)
+	if state==nil or state.completed==true then return false end
+
+	local validation=apocalypseQuestValidateStepResolution(card,playerIndex,action,option,playerColor,quest)
+	if validation~=nil then return validation end
+
 	local questRewindOwner="Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)
 	if rewindReady~=true then
 		if rewindTransactionOwnerActive(questRewindOwner)==true then return true end
@@ -5661,9 +5998,9 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 		return true
 	end
 	local function finishQuestResolution(delay)
-		if delay~=nil and delay>0 then safeWaitTime("Quests",function() rewindTransactionFinish(questRewindOwner) end,delay)
-		else rewindTransactionFinish(questRewindOwner) end
+		apocalypseQuestFinishResolution(questRewindOwner,delay)
 	end
+
 	local guardDutyDistance=nil
 	if action=="Complete" and card.guid=="08ffcf" and tostring(option.key)=="2" then
 		guardDutyDistance=apocalypseQuestGuardDutyDistance(playerIndex)
@@ -5673,320 +6010,20 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 			return false
 		end
 	end
-	--A Rich Merchant Step 1 must use the face of a real rolled mana die. The die can appear immediately
-	--over slot 1 because that destination is already known; the Quest card starts moving there at once.
-	--Black advances to Step 2; the other results leave Step 1 ready to Complete.
+
 	if action=="Progress" and card.guid=="8cff07" and tostring(option.key)=="1" then
-		if apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
-		if apocalypseQuestClaimAbandonedPersonal(card,playerIndex)~=true then
-			if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.",playerColor,{1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
-		end
-		apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
-		if apocalypseQuestPositionProgressShield(card,playerIndex,option)~=true then
-			apocalypseQuestEndMoveAttachmentCapture(card)
-			if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.",playerColor,{1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
-		end
-		apocalypseQuestEndMoveAttachmentCapture(card)
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		local started=apocalypseQuestRollVisibleManaDie(card,playerIndex,"A Rich Merchant",function(rolled,liveCard)
-			if liveCard==nil then finishQuestResolution(0.5) return end
-			if rolled==nil then
-				--Stay on Step 1 so Proceed can simply be tried again if the physical die was unreadable.
-				apocalypseQuestInterfaceAdd(liveCard,true)
-				finishQuestResolution(0.5)
-				return
-			end
-			apocalypseQuestResolveRichMerchantRoll(liveCard,playerIndex,rolled)
-			if rolled=="Black" then apocalypseQuestAdvanceProgress(liveCard,state,option) end
-			apocalypseQuestRefreshOfferButtons()
-			finishQuestResolution(0.5)
-		end,apocalypseQuestOfferPosition(1))
-		if started~=true then
-			if gStates.apocalypseQuestMoveAttachments~=nil then gStates.apocalypseQuestMoveAttachments[card.guid]=nil end
-			apocalypseQuestPositionProgressShield(card,playerIndex,option)
-			apocalypseQuestInterfaceAdd(card,true)
-			finishQuestResolution(0.5)
-			return false
-		end
-		apocalypseQuestCommitStepMarker(card,option)
-		--Suppress the normal settled refresh while the visible die is still resolving; its callback refreshes
-		--the Quest once the result is known. The physical offer still starts moving immediately.
-		apocalypseQuestOfferMoveToLeft(card,function() end)
-		return true
-	end
-	if action=="Progress" then
-		if not (card.guid=="6175e8" and tostring(option.key)=="3") and apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)~=true then finishQuestResolution(0.5) return false end
-		--Plan the offer move before any replacement/progress Shield is created so every new Shield
-		--uses slot 1 immediately and is explicitly owned by this Quest during the reorder.
-		apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
-		if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-			apocalypseQuestEndMoveAttachmentCapture(card)
-			if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
-		end
-		if apocalypseQuestPositionProgressShield(card, playerIndex, option)~=true then
-			apocalypseQuestEndMoveAttachmentCapture(card)
-			if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.", playerColor, {1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
-		end
-		apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		local fistfulSetup=card.guid=="66ea80" and tostring(option.key)=="1"
-		local launchedNext=(card.guid=="485cc5" and tostring(option.key)=="1") or (card.guid=="d70436" and tostring(option.key)=="2")
-		--Resolve the step immediately, as before. Anything leaving the Quest card moves away now. New objects
-		--created on the card are explicitly captured for the imminent offer move, so they travel with the card
-		--without waiting for the scripting zone to notice them.
-		apocalypseQuestResolveSpecialEffect(card, playerIndex, option, false)
-		apocalypseQuestEndMoveAttachmentCapture(card)
-		if gStates.apocalypseQuestStepColor~=nil then gStates.apocalypseQuestStepColor[card.guid]=nil end
-		apocalypseQuestAdvanceProgress(card, state, option)
-		if launchedNext==true and apocalypseQuestCombatStartedThisTurn(card,state.step)==true then
-			if gStates.apocalypseQuestCombatLaunches==nil then gStates.apocalypseQuestCombatLaunches={} end
-			gStates.apocalypseQuestCombatLaunches[card.guid]=apocalypseQuestCombatLaunchKey(card,state)
-		end
-		--Commit before the offer snapshot. A Quest marker may still be travelling to the map and must not be
-		--mistaken for an attachment that should follow the card left.
-		apocalypseQuestCommitStepMarker(card, option)
-		if fistfulSetup==true then
-			--Let the card reach slot 1 before drawing from the same gray bag twice. The short gap also
-			--ensures the first takeObject has fully left the container before the second extraction.
-			apocalypseQuestOfferMoveToLeft(card,function(liveCard)
-				apocalypseQuestPlaceFistfulEnemies(liveCard,function()
-					apocalypseQuestRefreshOfferButtons()
-					finishQuestResolution(0.5)
-				end)
-			end)
-		else
-			apocalypseQuestOfferMoveToLeft(card)
-			finishQuestResolution(1.0)
-		end
-		broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} progressed a Quest ({ru} продвинул задание ({zh-tw} 推進了一個任務（{zh-cn} 推进了一个任务（{ko}이(가) 퀘스트를 진행했습니다 ({es} progresó una Misión ({fr} a fait progresser une Quête ({pt-br} progrediu uma Missão ({de} hat eine Quest vorangebracht (",tostring(option.key),")."}), positionToColor(playerIndex))
-		return true
+		return apocalypseQuestResolveRichMerchantProgress(card,playerIndex,option,playerColor,state,finishQuestResolution)
+	elseif action=="Progress" then
+		return apocalypseQuestResolveProgressAction(card,playerIndex,option,playerColor,state,questState,finishQuestResolution)
 	elseif action=="Complete" then
-		if not (card.guid=="6175e8" and tostring(option.key)=="3") and apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)~=true then finishQuestResolution(0.5) return false end
-		if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-			if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
-		end
-		apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		if not (card.guid=="6175e8" and tostring(option.key)=="3") then apocalypseQuestCommitStepMarker(card, option) end
-		if quest.allPlayersComplete==true then
-			state.completed=true
-			apocalypseQuestRemovePlayerShield(card, playerIndex)
-			if apocalypseQuestAllPlayersCompleted(card)==true then
-				apocalypseQuestResolveSpecialEffect(card, playerIndex, option, true)
-				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed the final required part of \"{ru} завершил последнюю требуемую часть \"{zh-tw} 完成了 \"{zh-cn} 完成了 \"{ko}이(가) \"{es} completó la última parte requerida de \"{fr} a terminé la dernière partie requise de \"{pt-br} concluiu a última parte necessária de \"{de} hat den letzten erforderlichen Teil von \"",quest.name,"{en}\".{ru}\".{zh-tw}\" 的最後必要部分。{zh-cn}\" 的最后必要部分。{ko}\"의 마지막 필수 부분을 완료했습니다.{es}\".{fr}\".{pt-br}\".{de}\" abgeschlossen."}), positionToColor(playerIndex))
-				apocalypseQuestFinishCompletedCard(card)
-			else
-				apocalypseQuestBeginMoveAttachmentCapture(card,apocalypseQuestOfferPosition(1))
-				apocalypseQuestResolveSpecialEffect(card, playerIndex, option, false)
-				apocalypseQuestEndMoveAttachmentCapture(card)
-				apocalypseQuestOfferMoveToLeft(card)
-				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed their part of \"{ru} завершил свою часть \"{zh-tw} 完成了自己在 \"{zh-cn} 完成了自己在 \"{ko}이(가) \"{es} completó su parte de \"{fr} a terminé sa partie de \"{pt-br} concluiu sua parte de \"{de} hat seinen Teil von \"",quest.name,"{en}\".{ru}\".{zh-tw}\" 中的部分。{zh-cn}\" 中的部分。{ko}\"에서 자신의 부분을 완료했습니다.{es}\".{fr}\".{pt-br}\".{de}\" abgeschlossen."}), positionToColor(playerIndex))
-			end
-		else
-			if card.guid=="bbd087" and tostring(option.key)=="3a" then
-				apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
-				local started=apocalypseQuestNobleWarriorRollReward(card,playerIndex,function(success,questCard,results)
-					if questCard==nil then finishQuestResolution(0.5) return end
-					if success==true then
-						local reserved={}
-						local starting={}
-						for _,basic in ipairs({"Blue","Red","Green","White"}) do starting[basic]=mineCrystalCount(playerIndex,basic) end
-						local gold=0
-						local black=0
-						for _,color in ipairs(results or {}) do
-							if color=="Gold" then gold=gold+1
-							elseif color=="Black" then black=black+1
-							elseif mineCrystalBagKey[color]~=nil then
-								local effective=math.max(mineCrystalCount(playerIndex,color),starting[color]+(reserved[color] or 0))
-								if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Noble Warrior")==true then reserved[color]=(reserved[color] or 0)+1 end
-							end
-						end
-						if black>0 then
-							turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
-							mainUIUpdate("Noble Warrior Black Fame")
-						end
-						if gold>0 then
-							local pending={playerIndex=playerIndex,mode="NobleWarriorGold",goldRemaining=gold,startCounts={},granted={}}
-							for _,color in ipairs({"Blue","Red","Green","White"}) do pending.startCounts[color]=mineCrystalCount(playerIndex,color) end
-							pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
-							if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-							gStates.apocalypseQuestCombatChoice[questCard.guid]=pending
-							apocalypseQuestInterfaceAdd(questCard,true)
-							--Keep the Quest rewind transaction open until every Gold has been chosen, or No Inventory
-							--clears the remaining Golds.
-							return
-						end
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Noble Warrior (3A).{ru} завершил Noble Warrior (3A).{zh-tw} 完成 Noble Warrior（3A）。{zh-cn} 完成 Noble Warrior（3A）。{ko}이(가) Noble Warrior (3A)를 완료했습니다.{es} completó Noble Warrior (3A).{fr} a terminé Noble Warrior (3A).{pt-br} concluiu Noble Warrior (3A).{de} schloss Noble Warrior (3A) ab."}),positionToColor(playerIndex))
-						apocalypseQuestFinishCompletedCard(questCard)
-					else
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						apocalypseQuestInterfaceAdd(questCard,true)
-					end
-					finishQuestResolution(0.5)
-				end)
-				if started~=true then
-					apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-					apocalypseQuestInterfaceAdd(card,true)
-					finishQuestResolution(0.5)
-				end
-				return started
-			end
-			if card.guid=="8939c0" and tostring(option.key)=="1a" then
-				--The Execution 1A awards a random mana-die reward. Resolve it with the same visible Quest die;
-				--basic colours grant that crystal, Gold chooses a colour, and Black grants +1 Fame.
-				apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
-				local started=apocalypseQuestRollExecutionReward(card,playerIndex,function(rolled,questCard)
-					if questCard==nil then finishQuestResolution(0.5) return end
-					if rolled==nil then
-						if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[questCard.guid]=nil end
-						apocalypseQuestInterfaceAdd(questCard,true)
-						finishQuestResolution(0.5)
-						return
-					end
-					if mineCrystalBagKey[rolled]~=nil then
-						apocalypseQuestGiveCrystal(playerIndex,rolled,nil,"The Execution")
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						apocalypseQuestResolveSpecialEffect(questCard,playerIndex,option,true)
-						broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}),positionToColor(playerIndex))
-						apocalypseQuestFinishCompletedCard(questCard)
-						finishQuestResolution(0.5)
-					elseif rolled=="Black" then
-						--Black replaces the crystal reward with +1 Fame, in addition to 1A's normal Fame/Reputation.
-						turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+1
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						apocalypseQuestResolveSpecialEffect(questCard,playerIndex,option,true)
-						mainUIUpdate("The Execution Black Fame")
-						broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} rolled Black for The Execution and gained +1 Fame instead of a crystal.{ru} выбросил чёрный для The Execution и получил +1 Славу вместо кристалла.{zh-tw} 在 The Execution 擲出黑色，改為獲得 +1 聲望值而非水晶。{zh-cn} 在 The Execution 掷出黑色，改为获得 +1 声望值而非水晶。{ko}이(가) The Execution에서 검정을 굴려 크리스털 대신 명성 +1을 얻었습니다.{es} sacó Negro para The Execution y ganó +1 Fama en lugar de un cristal.{fr} a obtenu Noir pour The Execution et gagne +1 Renommée au lieu d’un cristal.{pt-br} rolou Preto em The Execution e ganhou +1 Fama em vez de um cristal.{de} würfelte bei The Execution Schwarz und erhielt statt eines Kristalls +1 Ruhm."}),positionToColor(playerIndex))
-						apocalypseQuestFinishCompletedCard(questCard)
-						finishQuestResolution(0.5)
-					elseif rolled=="Gold" then
-						--Gold lets the player choose any basic crystal. Keep the Quest transaction open until that
-						--mandatory choice is made, just as other Quest colour selections do.
-						if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-						gStates.apocalypseQuestCombatChoice[questCard.guid]={playerIndex=playerIndex,colors={"Blue","Red","Green","White"},mode="ExecutionGold"}
-						apocalypseQuestInterfaceAdd(questCard,true)
-					end
-				end)
-				if started~=true then
-					apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-					if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[card.guid]=nil end
-					apocalypseQuestInterfaceAdd(card,true)
-					finishQuestResolution(0.5)
-				end
-				return started
-			end
-			if card.guid=="08ffcf" and tostring(option.key)=="2" then
-				--Guard Duty pays from the shortest revealed-space distance back to the merchant marker:
-				--1-3 = one random basic crystal; 4-6 = two random basic crystals; 7+ = two chosen basic crystals.
-				apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
-				if guardDutyDistance>=7 then
-					local pending={playerIndex=playerIndex,mode="GuardDutyChoice",remaining=2,distance=guardDutyDistance,startCounts={},granted={}}
-					pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
-					if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-					gStates.apocalypseQuestCombatChoice[card.guid]=pending
-					apocalypseQuestInterfaceAdd(card,true)
-					broadcastToAll(joinLang({"{en}Guard Duty distance is {ru}Расстояние Guard Duty: {zh-tw}Guard Duty 距離為 {zh-cn}Guard Duty 距离为 {ko}Guard Duty 거리: {es}La distancia de Guard Duty es {fr}La distance de Guard Duty est de {pt-br}A distância de Guard Duty é {de}Die Entfernung bei Guard Duty beträgt ",tostring(guardDutyDistance),"{en}: choose two basic mana crystals.{ru}: выберите два базовых кристалла маны.{zh-tw}：選擇兩顆基本魔力水晶。{zh-cn}：选择两颗基本魔力水晶。{ko}: 기본 마나 크리스털 2개를 선택하십시오.{es}: elige dos cristales básicos de maná.{fr} : choisissez deux cristaux de mana de base.{pt-br}: escolha dois cristais básicos de mana.{de}: Wähle zwei Basismana-Kristalle."}),positionToColor(playerIndex))
-					return true
-				end
-				local crystalCount=guardDutyDistance<=3 and 1 or 2
-				local started=apocalypseQuestGuardDutyRollRandomCrystals(card,playerIndex,crystalCount,function(success,questCard,results)
-					if questCard==nil then finishQuestResolution(0.5) return end
-					if success==true then
-						local gold=0
-						local black=0
-						for _,rolled in ipairs(results or {}) do
-							if rolled=="Gold" then gold=gold+1
-							elseif rolled=="Black" then black=black+1
-							elseif mineCrystalBagKey[rolled]~=nil then apocalypseQuestGiveCrystal(playerIndex,rolled,nil,"Guard Duty") end
-						end
-						if black>0 then
-							turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
-							mainUIUpdate("Guard Duty Black Fame")
-							broadcastToAll(joinLang({"{en}Guard Duty rolled {ru}Guard Duty выбросил чёрный: {zh-tw}Guard Duty 擲出黑色結果 {zh-cn}Guard Duty 掷出黑色结果 {ko}Guard Duty에서 검정 결과 {es}Guard Duty sacó {fr}Guard Duty a obtenu {pt-br}Guard Duty rolou {de}Guard Duty würfelte ",tostring(black),"{en} Black result(s) and gained +{ru} и получил +{zh-tw} 次，並獲得 +{zh-cn} 次，并获得 +{ko}개가 나와 명성 +{es} resultado(s) Negro y ganó +{fr} résultat(s) Noir et gagne +{pt-br} resultado(s) Preto e ganhou +{de} schwarze(s) Ergebnis(se) und erhielt +",tostring(black),"{en} Fame.{ru} Славы.{zh-tw} 聲望值。{zh-cn} 声望值。{ko}을(를) 얻었습니다.{es} de Fama.{fr} Renommée.{pt-br} de Fama.{de} Ruhm."}),positionToColor(playerIndex))
-						end
-						if gold>0 then
-							local pending={playerIndex=playerIndex,mode="GuardDutyGold",goldRemaining=gold,distance=guardDutyDistance,startCounts={},granted={}}
-							for _,color in ipairs({"Blue","Red","Green","White"}) do pending.startCounts[color]=mineCrystalCount(playerIndex,color) end
-							pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
-							if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-							gStates.apocalypseQuestCombatChoice[questCard.guid]=pending
-							apocalypseQuestInterfaceAdd(questCard,true)
-							broadcastToAll(joinLang({"{en}Guard Duty rolled Gold{ru}Guard Duty выбросил золотой{zh-tw}Guard Duty 擲出金色{zh-cn}Guard Duty 掷出金色{ko}Guard Duty에서 금색이 나왔습니다{es}Guard Duty sacó Dorado{fr}Guard Duty a obtenu Or{pt-br}Guard Duty rolou Dourado{de}Guard Duty würfelte Gold",gold>1 and (" x"..tostring(gold)) or "","{en}: choose {ru}: выберите {zh-tw}：選擇 {zh-cn}：选择 {ko}: {es}: elige {fr} : choisissez {pt-br}: escolha {de}: Wähle ",gold==1 and "{en}a basic mana crystal.{ru}базовый кристалл маны.{zh-tw}一顆基本魔力水晶。{zh-cn}一颗基本魔力水晶。{ko}기본 마나 크리스털 1개를 선택하십시오.{es}un cristal básico de maná.{fr}un cristal de mana de base.{pt-br}um cristal básico de mana.{de}einen Basismana-Kristall." or joinLang({tostring(gold),"{en} basic mana crystals.{ru} базовых кристалла маны.{zh-tw} 顆基本魔力水晶。{zh-cn} 颗基本魔力水晶。{ko}개의 기본 마나 크리스털을 선택하십시오.{es} cristales básicos de maná.{fr} cristaux de mana de base.{pt-br} cristais básicos de mana.{de} Basismana-Kristalle."})}),positionToColor(playerIndex))
-							return
-						end
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Guard Duty: distance {ru} завершил Guard Duty: расстояние {zh-tw} 完成 Guard Duty：距離 {zh-cn} 完成 Guard Duty：距离 {ko}이(가) Guard Duty를 완료했습니다: 거리 {es} completó Guard Duty: distancia {fr} a terminé Guard Duty : distance {pt-br} concluiu Guard Duty: distância {de} schloss Guard Duty ab: Entfernung ",tostring(guardDutyDistance),"{en}, random mana reward resolved.{ru}, случайная награда маны разрешена.{zh-tw}，隨機魔力獎勵已結算。{zh-cn}，随机魔力奖励已结算。{ko}, 무작위 마나 보상 해결 완료.{es}, recompensa aleatoria de maná resuelta.{fr}, récompense de mana aléatoire résolue.{pt-br}, recompensa aleatória de mana resolvida.{de}, zufällige Manabelohnung abgewickelt."}),positionToColor(playerIndex))
-						apocalypseQuestFinishCompletedCard(questCard)
-					else
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						apocalypseQuestInterfaceAdd(questCard,true)
-					end
-					finishQuestResolution(0.5)
-				end)
-				if started~=true then
-					apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-					apocalypseQuestInterfaceAdd(card,true)
-					finishQuestResolution(0.5)
-				end
-				return started
-			end
-			if card.guid=="58a826" and tostring(option.key)=="3" then
-				--The Herbalist completion stays in the offer while its visible mana die is rolling. This keeps
-				--the Quest token/crystal available until the physical result has been read and transferred.
-				apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
-				local started=apocalypseQuestGiveHerbalistReward(card,playerIndex,function(success,questCard)
-					if questCard==nil then finishQuestResolution(0.5) return end
-					if success==true then
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}), positionToColor(playerIndex))
-						apocalypseQuestFinishCompletedCard(questCard)
-					else
-						apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-						apocalypseQuestInterfaceAdd(questCard,true)
-					end
-					finishQuestResolution(0.5)
-				end)
-				if started~=true then
-					apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-					apocalypseQuestInterfaceAdd(card,true)
-					finishQuestResolution(0.5)
-				end
-				return started
-			end
-			apocalypseQuestResolveSpecialEffect(card, playerIndex, option, true)
-			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}), positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(card)
-		end
-		finishQuestResolution(1.0)
-		return true
+		return apocalypseQuestResolveCompleteAction(card,playerIndex,option,playerColor,state,questState,quest,guardDutyDistance,finishQuestResolution)
 	elseif action=="Fail" then
-		if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
-			if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
-			finishQuestResolution(0.5)
-			return false
-		end
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		apocalypseQuestResolveFailureEffect(card,playerIndex,option)
-		apocalypseQuestLoseReputation(playerIndex, quest.name, "fail")
-		broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} failed \"{ru} провалил \"{zh-tw} 任務失敗：\"{zh-cn} 任务失败：\"{ko}이(가) \"{es} falló \"{fr} a échoué à \"{pt-br} falhou em \"{de} ist bei \"",quest.name,"{en}\".{ru}\".{zh-tw}\"。{zh-cn}\"。{ko}\"에 실패했습니다.{es}\".{fr}\".{pt-br}\".{de}\" gescheitert."}), positionToColor(playerIndex))
-		apocalypseQuestBottomDeck(card)
-		finishQuestResolution(1.0)
-		return true
+		return apocalypseQuestResolveFailAction(card,playerIndex,option,playerColor,quest,finishQuestResolution)
 	end
 	finishQuestResolution(0.5)
 	return false
 end
+
 local apocalypseQuestCardActionRestWait={}
 local function apocalypseQuestHandleCombatChoiceAction(player,card,playerIndex,action)
 if action=="CombatCancel" then

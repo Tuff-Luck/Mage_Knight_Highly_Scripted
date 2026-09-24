@@ -20,7 +20,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/Offers.lua` | Artifact, Unit, Monastery and deed-offer layout/refill runtime. |
 | `src/PlayingGame/TokenPools.lua` | Monster token-pool refill plus bag scaling/discard-stack presentation. |
 | `src/PlayingGame/ManaSource.lua` | Shared/mirrored Mana Source dice state and synchronization. |
-| `src/PlayingGame/Quests.lua` | Apocalypse Quest engine, quest state, offer flow, rewards and interactions. Quest-specific legality, combat metadata and resolution effects register through the local handler registry; card UI actions route through focused action-family handlers. |
+| `src/PlayingGame/Quests.lua` | Apocalypse Quest engine, quest state, offer flow, rewards and interactions. Quest-specific legality, combat metadata and resolution effects register through the local handler registry; `ResolveStepAction` is a lifecycle dispatcher over validation and Progress/Complete/Fail phases. |
 | `src/PlayingGame/PlayerBoard/CardFlow.lua` | Player deed/deck/discard/hand flow, wound dealing and Glade discard-healing runtime. |
 | `src/PlayingGame/PlayerBoard/UnitLayout.lua` | Runtime Unit/Command-slot layout, compression and player-board unit positioning. |
 | `src/PlayingGame/PlayerBoard/Events.lua` | Player-board scripting-zone reactions and card presentation helpers dispatched by the global event layer. |
