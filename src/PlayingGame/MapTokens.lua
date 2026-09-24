@@ -79,6 +79,13 @@ function mapTokenIsShield(obj)
 	return obj~=nil and obj.getName~=nil and obj.getName()=="Shield"
 end
 
+local mapTokenPositionSensitiveShieldFeatures={maze=true,labyrinth=true,pyramid=true,ziggurat=true}
+
+local function mapTokenShieldPositionSensitiveHex(hex)
+	local feature=hex~=nil and string.lower(tostring(hex.feature or "")) or ""
+	return mapTokenPositionSensitiveShieldFeatures[feature]==true
+end
+
 function mapTokenIsBaseSite(obj)
 	--Graveyards, Destroyed Sites and Quest markers are floor layers. Ruins participate in the enemy diagonal.
 	return mapTokenIsGraveyard(obj)==true or mapTokenIsDestroyedSite(obj)==true or mapTokenIsQuestMarker(obj)==true
@@ -295,12 +302,14 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 		end
 	end
 
-	--Player/Quest Shields are always the top layer. Multiple Shields share that top layer with a small
-	--horizontal spread so co-op markers remain individually visible.
-	local shieldY=mapTokenShieldBaseY+supportY+(spreadCount*mapTokenStackStepY)
-	for index,obj in ipairs(shields) do
-		local offset=#shields>1 and mapTokenSpreadOffset(index,#shields) or {x=0,z=0}
-		changed=mapTokenMoveToSlot(obj,centerX+offset.x,shieldY,centerZ+offset.z) or changed
+	--Player/Quest Shields are normally the top layer. Maze, Labyrinth, Pyramid and Ziggurat Shields
+	--are position-sensitive gameplay pieces, so the separator must never alter their X/Z/Y placement.
+	if mapTokenShieldPositionSensitiveHex(hex)~=true then
+		local shieldY=mapTokenShieldBaseY+supportY+(spreadCount*mapTokenStackStepY)
+		for index,obj in ipairs(shields) do
+			local offset=#shields>1 and mapTokenSpreadOffset(index,#shields) or {x=0,z=0}
+			changed=mapTokenMoveToSlot(obj,centerX+offset.x,shieldY,centerZ+offset.z) or changed
+		end
 	end
 	return changed
 end
