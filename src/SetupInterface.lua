@@ -434,13 +434,11 @@ function scenarioSelection(player, mouseButton, id)
 			local mage=gStates.positionMageKnight[a] or "nobody"
 			gStates.positionMageKnight[a]=mage
 			if mage~="nobody" then gStates.playerCount=gStates.playerCount+1 end
-			UI.setAttribute(MKDropDownUI[a], "interactable", "true")
-			UI.setAttribute(MKDropDownUI[a].."Image", "image", "Sliced Button/Button New Active")
+			setUIButtonEnabled(MKDropDownUI[a],true)
 			UI.setAttribute(MKDropDownUI[a].."Text", "text", translateWord[mage])
 		end
 		gStates.positionMageKnight[5]=gStates.setupDummyMageChoice or "nobody"
-		UI.setAttribute("dummyMKSelection", "interactable", "true")
-		UI.setAttribute("dummyMKSelectionImage", "image", "Sliced Button/Button New Active")
+		setUIButtonEnabled("dummyMKSelection",true)
 		UI.setAttribute("dummyMKSelectionText", "text", translateWord[gStates.positionMageKnight[5]] or translateWord["nobody"])
 		dropDownIdLink="none"
 		UI.setAttribute("DropDown", "active", "false")
@@ -496,13 +494,11 @@ function scenarioSelection(player, mouseButton, id)
 			UI.setAttribute("VolkareRaceSelectionText", "text", SETUP_TEXT.notUsed)
 		end
 		--Rise of the forgemaster Menu Access
-		UI.setAttribute("ROTFSelection", "interactable", "True")
+		setUIButtonEnabled("ROTFSelection",true)
 		UI.setAttribute("ROTFSelectionText", "text", SETUP_TEXT.notUsed)
-		UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Active")
 		gStates.riseOfTheForgemasters=0
 		if gStates.gameScenario=="First Reconnaissance" then
-			UI.setAttribute("ROTFSelection", "interactable", "False")
-			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Deactive")
+			setUIButtonEnabled("ROTFSelection",false)
 	 	end
 		--Changing scenario discards any previous Optional Scenario Tweaks and reloads
 		--the defaults for this scenario and the currently selected Mage Knight count.
@@ -554,13 +550,11 @@ function refreshHeroChallengeOptionLocks()
 	UI.setAttribute("heroChallenges","interactable",(not firstRecon and not custom and not rotf) and "True" or "False")
 	if heroOn==true then
 		UI.setAttribute("useCustomMageKnights","interactable","False")
-		UI.setAttribute("ROTFSelection","interactable","False")
-		UI.setAttribute("ROTFSelectionImage","image","Sliced Button/Button New Deactive")
+		setUIButtonEnabled("ROTFSelection",false)
 	else
 		UI.setAttribute("useCustomMageKnights","interactable",(not firstRecon and not rotf) and "True" or "False")
 		local rotfAllowed=not firstRecon and gStates.removeLostLegionExpansion~=true
-		UI.setAttribute("ROTFSelection","interactable",rotfAllowed and "True" or "False")
-		UI.setAttribute("ROTFSelectionImage","image",rotfAllowed and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("ROTFSelection",rotfAllowed)
 	end
 end
 
@@ -616,8 +610,7 @@ function optionsUpdate(player, value, id)
 		if id=="questMod" then UI.setAttribute("apocalypseQuestCards", "interactable", "false") elseif id=="apocalypseQuestCards" then UI.setAttribute("questMod", "interactable", "false") end
 		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", SETUP_TEXT.daylightComing) end
 		if id=="removeLostLegionExpansion" then
-			UI.setAttribute("ROTFSelection", "interactable", "False")
-			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Deactive")
+			setUIButtonEnabled("ROTFSelection",false)
 			gStates.volkareCampAsCity=false
 			UI.setAttribute("volkareCampAsCity", "isOn", "false")
 			UI.setAttribute("volkareCampAsCity", "interactable", "False")
@@ -628,8 +621,7 @@ function optionsUpdate(player, value, id)
 		if id=="questMod" then UI.setAttribute("apocalypseQuestCards", "interactable", "true") elseif id=="apocalypseQuestCards" then UI.setAttribute("questMod", "interactable", "true") end
 		if id=="startAtNight" then UI.setAttribute("darknessComing", "text", SETUP_TEXT.darknessComing) end
 		if id=="removeLostLegionExpansion" then --and gStates.removeBonusCards==false) or (id=="removeBonusCards" and gStates.removeLostLegionExpansion==false)
-			UI.setAttribute("ROTFSelection", "interactable", "True")
-			UI.setAttribute("ROTFSelectionImage", "image", "Sliced Button/Button New Active")
+			setUIButtonEnabled("ROTFSelection",true)
 		end
 		if id=="useCustomMageKnights" then clearCustomMageKnightSelections(false) end
 	end
@@ -838,8 +830,7 @@ end
 function refreshScenarioTerrainTweakLocks()
 	local locked=scenarioMapIsPredefined()
 	for _,control in ipairs({"MapDown","MapUp","CountryDown","CountryUp","CoreDown","CoreUp","CityDown","CityUp"}) do
-		UI.setAttribute(control,"interactable",locked and "False" or "True")
-		UI.setAttribute(control.."Image","image",locked and "Sliced Button/Button New Deactive" or "Sliced Button/Button New Active")
+		setUIButtonEnabled(control,not locked)
 	end
 end
 
@@ -1112,8 +1103,7 @@ local function renderMageKnightSetupAvailability()
 	for position=1,4 do
 		local available=gStates.positionMageKnight[position]~="nobody" or gStates.playerCount<maxPlayers
 		local id=MAGE_KNIGHT_CONTROL_IDS[position]
-		UI.setAttribute(id,"interactable",available and "True" or "False")
-		UI.setAttribute(id.."Image","image",available and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+		setUIButtonEnabled(id,available)
 	end
 
 	local dummyLocked=gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return"
@@ -1121,8 +1111,7 @@ local function renderMageKnightSetupAvailability()
 		gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or
 		gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="Mines Liberation"
 	local dummyAvailable=not dummyLocked and (gStates.positionMageKnight[5]=="Volkare" or not dummyPlayerLimited or gStates.playerCount<2)
-	UI.setAttribute("dummyMKSelection","interactable",dummyAvailable and "True" or "False")
-	UI.setAttribute("dummyMKSelectionImage","image",dummyAvailable and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("dummyMKSelection",dummyAvailable)
 
 	UI.setAttribute("useCustomMageKnights","isOn",gStates.useCustomMageKnights==true and "true" or "false")
 	UI.setAttribute("ROTFSelectionText","text",ROTF_TEXT_BY_LEVEL[gStates.riseOfTheForgemasters or 0] or SETUP_TEXT.notUsed)
@@ -1149,18 +1138,15 @@ function refreshSetupStartButton()
 	local tooMany=gStates.playerCount>setupScenarioMaxMageKnights()
 	local heroChallengeLegal,heroChallengeReason=heroChallengeSetupLegal()
 	if tooMany then
-		UI.setAttribute("StartButton", "interactable", "False")
-		UI.setAttribute("StartButtonImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("StartButton",false)
 		UI.setAttribute("StartButtonText", "text", "{en}Too Many Mage Knights{ru}Слишком много Рыцарей-магов{zh-tw}魔法騎士過多{zh-cn}魔法骑士过多{ko}메이지 나이트가 너무 많습니다{es}Demasiados Mage Knights{fr}Trop de Mage Knights{pt-br}Mage Knights demais{de}Zu viele Mage Knights")
 		UI.setAttribute("StartButton", "active", "true")
 	elseif heroChallengeLegal~=true then
-		UI.setAttribute("StartButton", "interactable", "False")
-		UI.setAttribute("StartButtonImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("StartButton",false)
 		UI.setAttribute("StartButtonText", "text", heroChallengeReason or "{en}Hero Challenges: Invalid setup{ru}Испытания героев: недопустимая настройка{zh-tw}英雄挑戰：無效設置{zh-cn}英雄挑战：无效设置{ko}영웅 도전: 잘못된 설정{es}Desafíos de Héroes: configuración no válida{fr}Défis des Héros : configuration invalide{pt-br}Desafios de Heróis: configuração inválida{de}Heldenherausforderungen: ungültiger Aufbau")
 		UI.setAttribute("StartButton", "active", "true")
 	elseif gStates.playerCount>=2 or (gStates.playerCount>=1 and gStates.positionMageKnight[5]~="nobody") then
-		UI.setAttribute("StartButton", "interactable", "True")
-		UI.setAttribute("StartButtonImage", "image", "Sliced Button/Button New Active")
+		setUIButtonEnabled("StartButton",true)
 		if gStates.playerCount==1 then
 			UI.setAttribute("StartButtonText", "text", SETUP_TEXT.startSolo)
 		elseif gStates.positionMageKnight[5]=="nobody" then
@@ -1174,8 +1160,7 @@ function refreshSetupStartButton()
 		end
 		UI.setAttribute("StartButton", "active", "true")
 	else
-		UI.setAttribute("StartButton", "interactable", "False")
-		UI.setAttribute("StartButtonImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("StartButton",false)
 		UI.setAttribute("StartButtonText", "text", "{en}Start - Select at least two Mage Knights first{ru}Начало - Сначала выберите как минимум двух Рыцарей-магов.{zh-tw}開始 - 首先選擇至少兩位魔法騎士{zh-cn}开始 - 首先选择两位魔法骑士{ko}시작 - 먼저 두 명 이상의 플레이어를 선택하세요{es}Comenzar - Selecciona al menos dos Mage Knight {fr}Démarrer - Sélectionnez d'abord au moins deux Mages{pt-br}Início - Selecione ao menos dois Mage Knights primeiro{de}Start - Wähle vorher mindestens 2 Mage Knights")
 		UI.setAttribute("StartButton", "active", "true")
 	end
@@ -1230,10 +1215,8 @@ function scenarioInfoUpdate()
 	if showMegapolisControls then
 		local canUp=gStates.megapolis<megapolisMaximum
 		local canDown=gStates.megapolis>0
-		UI.setAttribute("MegapolisUp","interactable",canUp and "True" or "False")
-		UI.setAttribute("MegapolisDown","interactable",canDown and "True" or "False")
-		UI.setAttribute("MegapolisUpImage","image",canUp and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
-		UI.setAttribute("MegapolisDownImage","image",canDown and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("MegapolisUp",canUp)
+		setUIButtonEnabled("MegapolisDown",canDown)
 	end
 	if hasCityLevelControls then
 		UI.setAttribute("CityNote", "active", "false")
