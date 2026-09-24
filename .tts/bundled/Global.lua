@@ -24680,6 +24680,9 @@ local mapTokenEnemyFaceDownBaseY=1.18
 local mapTokenGraveyardBaseY=1.08
 local mapTokenGraveyardSupportY=0.08
 local mapTokenDestroyedBaseY=1.13
+local mapTokenQuestBaseY=1.11
+local mapTokenQuestSupportY=0.10
+local mapTokenShieldBaseY=1.14
 
 function mapTokenDestroyedSiteBaseY()
 	return mapTokenDestroyedBaseY
@@ -24723,9 +24726,24 @@ function mapTokenIsGraveyard(obj)
 	return obj~=nil and obj.getName~=nil and obj.getName()=="GraveYard"
 end
 
+function mapTokenIsQuestMarker(obj)
+	return obj~=nil and obj.guid~=nil and gStates~=nil and gStates.apocalypseQuestTokenGUIDs~=nil and gStates.apocalypseQuestTokenGUIDs[obj.guid]==true
+end
+
+function mapTokenIsShield(obj)
+	return obj~=nil and obj.getName~=nil and obj.getName()=="Shield"
+end
+
+local mapTokenPositionSensitiveShieldFeatures={maze=true,labyrinth=true,pyramid=true,ziggurat=true}
+
+local function mapTokenShieldPositionSensitiveHex(hex)
+	local feature=hex~=nil and string.lower(tostring(hex.feature or "")) or ""
+	return mapTokenPositionSensitiveShieldFeatures[feature]==true
+end
+
 function mapTokenIsBaseSite(obj)
-	--Graveyards and Destroyed Sites are floor tokens. Ruins participate in the enemy diagonal.
-	return mapTokenIsGraveyard(obj)==true or mapTokenIsDestroyedSite(obj)==true
+	--Graveyards, Destroyed Sites and Quest markers are floor layers. Ruins participate in the enemy diagonal.
+	return mapTokenIsGraveyard(obj)==true or mapTokenIsDestroyedSite(obj)==true or mapTokenIsQuestMarker(obj)==true
 end
 
 function mapTokenIsSpreadEnemy(obj)
@@ -24739,7 +24757,7 @@ function mapTokenIsSpreadEnemy(obj)
 end
 
 function mapTokenNeedsArrangement(obj)
-	return mapTokenIsSpreadEnemy(obj)==true or mapTokenIsBaseSite(obj)==true
+	return mapTokenIsSpreadEnemy(obj)==true or mapTokenIsBaseSite(obj)==true or mapTokenIsShield(obj)==true
 end
 
 --Horsemen, the single-hex Fury Dragon and Pursuit monsters are always the moving/top group.
@@ -24840,18 +24858,25 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 		seen[extraObject.guid]=true
 	end
 
+	local questMarkers={}
 	local graveyard=nil
 	local destroyed=nil
 	local enemies={}
+	local shields={}
 	for _,obj in ipairs(objects) do
-		if mapTokenIsGraveyard(obj)==true then
+		if mapTokenIsQuestMarker(obj)==true then
+			questMarkers[#questMarkers+1]=obj
+		elseif mapTokenIsGraveyard(obj)==true then
 			if graveyard==nil then graveyard=obj end
 		elseif mapTokenIsDestroyedSite(obj)==true then
 			if destroyed==nil then destroyed=obj end
+		elseif mapTokenIsShield(obj)==true then
+			shields[#shields+1]=obj
 		elseif mapTokenIsSpreadEnemy(obj)==true then
 			enemies[#enemies+1]=obj
 		end
 	end
+	table.sort(questMarkers,function(a,b) return tostring(a.guid)<tostring(b.guid) end)
 	table.sort(enemies,function(a,b)
 		local aMoving=mapTokenIsMovingPriority(a)
 		local bMoving=mapTokenIsMovingPriority(b)
@@ -24880,20 +24905,35 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 		if math.abs(aLayerY-bLayerY)>0.01 then return aLayerY<bLayerY end
 		return tostring(a.guid)<tostring(b.guid)
 	end)
+	table.sort(shields,function(a,b)
+		local ap=a.getPosition()
+		local bp=b.getPosition()
+		local aProjection=ap[1]+ap[3]
+		local bProjection=bp[1]+bp[3]
+		if math.abs(aProjection-bProjection)>0.05 then return aProjection<bProjection end
+		return tostring(a.guid)<tostring(b.guid)
+	end)
 
 	local centerX,centerZ=hex.position[1],hex.position[3]
 	local changed=false
-	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
-	local supportY=graveyard~=nil and mapTokenGraveyardSupportY or 0
+	local supportY=0
 
-	--Graveyard is always centred under the stack and does not participate in the diagonal spread.
-	--Preserve its current face; the Graveyard scenarios deliberately deploy different face orientations.
+	--Quest markers are always bottom objects. They normally cannot share a hex with another Quest
+	--marker, but stack deterministically if a future rule ever allows it.
+	for index,obj in ipairs(questMarkers) do
+		changed=mapTokenMoveToSlot(obj,centerX,mapTokenQuestBaseY+((index-1)*mapTokenStackStepY),centerZ) or changed
+	end
+	supportY=supportY+(#questMarkers*mapTokenQuestSupportY)
+
+	--Graveyard remains a centred floor/support token. If an unusual future state combines it with a
+	--Quest marker, keep the Quest marker below it rather than allowing the two floor pieces to overlap.
 	if graveyard~=nil then
-		changed=mapTokenMoveToSlot(graveyard,centerX,mapTokenGraveyardBaseY,centerZ) or changed
+		changed=mapTokenMoveToSlot(graveyard,centerX,mapTokenGraveyardBaseY+supportY,centerZ) or changed
+		supportY=supportY+mapTokenGraveyardSupportY
 	end
 
-	--Destroyed is the lowest spread token. The scenarios currently cannot combine it with a Graveyard,
-	--but if they ever do, the Graveyard remains underneath and raises Destroyed by the same support height.
+	local spreadCount=#enemies+(destroyed~=nil and 1 or 0)
+	--Destroyed is the lowest spread token above any floor support.
 	if destroyed~=nil then
 		local offset=#enemies>0 and mapTokenSpreadOffset(1,spreadCount) or {x=0,z=0}
 		local targetX,targetZ=centerX+offset.x,centerZ+offset.z
@@ -24902,21 +24942,29 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
 		changed=mapTokenMoveToSlot(destroyed,targetX,targetY,targetZ) or changed
 	end
 
-	if #enemies<1 then return changed end
 	for _,obj in ipairs(enemies) do if obj.isSmoothMoving()==true then return changed end end
-
-	--A lone enemy stays centred. Graveyard raises its measured resting origin from 1.08/1.18
-	--to 1.16/1.26; with no Graveyard the existing floor heights remain unchanged.
-	if destroyed==nil and #enemies==1 then
-		changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenEnemySlotY(enemies[1],1,supportY),centerZ) or changed
-		return changed
+	if #enemies>0 then
+		--A lone enemy stays centred. Floor layers raise it without changing the measured face-up/down origin.
+		if destroyed==nil and #enemies==1 then
+			changed=mapTokenMoveToSlot(enemies[1],centerX,mapTokenEnemySlotY(enemies[1],1,supportY),centerZ) or changed
+		else
+			local firstEnemyIndex=destroyed~=nil and 2 or 1
+			for index,obj in ipairs(enemies) do
+				local spreadIndex=firstEnemyIndex+index-1
+				local offset=mapTokenSpreadOffset(spreadIndex,spreadCount)
+				changed=mapTokenMoveToSlot(obj,centerX+offset.x,mapTokenEnemySlotY(obj,spreadIndex,supportY),centerZ+offset.z) or changed
+			end
+		end
 	end
 
-	local firstEnemyIndex=destroyed~=nil and 2 or 1
-	for index,obj in ipairs(enemies) do
-		local spreadIndex=firstEnemyIndex+index-1
-		local offset=mapTokenSpreadOffset(spreadIndex,spreadCount)
-		changed=mapTokenMoveToSlot(obj,centerX+offset.x,mapTokenEnemySlotY(obj,spreadIndex,supportY),centerZ+offset.z) or changed
+	--Player/Quest Shields are normally the top layer. Maze, Labyrinth, Pyramid and Ziggurat Shields
+	--are position-sensitive gameplay pieces, so the separator must never alter their X/Z/Y placement.
+	if mapTokenShieldPositionSensitiveHex(hex)~=true then
+		local shieldY=mapTokenShieldBaseY+supportY+(spreadCount*mapTokenStackStepY)
+		for index,obj in ipairs(shields) do
+			local offset=#shields>1 and mapTokenSpreadOffset(index,#shields) or {x=0,z=0}
+			changed=mapTokenMoveToSlot(obj,centerX+offset.x,shieldY,centerZ+offset.z) or changed
+		end
 	end
 	return changed
 end
@@ -25085,17 +25133,30 @@ local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
 	return true
 end
 
-function mapTokenArrangeAllOccupiedHexes(terrainGUID)
+local function mapTokenAfterTerrainReconcile(terrainGUID,callback)
+	if callback==nil then return end
+	safeWaitCondition("MapTokens",callback,function()
+		return mapTokenTerrainReconcilePending[terrainGUID]~=true and mapTokenTerrainReadyForReconcile(terrainGUID)==true
+	end,5,callback)
+end
+
+function mapTokenArrangeAllOccupiedHexes(terrainGUID,afterReconcile)
 	if terrainGUID==nil or mapTokenTerrainReadyForReconcile(terrainGUID)==true then
-		return mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+		local result=mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+		mapTokenAfterTerrainReconcile(terrainGUID,afterReconcile)
+		return result
 	end
-	if mapTokenTerrainReconcilePending[terrainGUID]==true then return false end
+	if mapTokenTerrainReconcilePending[terrainGUID]==true then
+		mapTokenAfterTerrainReconcile(terrainGUID,afterReconcile)
+		return false
+	end
 	mapTokenTerrainReconcilePending[terrainGUID]=true
 	local function finish()
 		mapTokenTerrainReconcilePending[terrainGUID]=nil
 		mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+		mapTokenAfterTerrainReconcile(terrainGUID,afterReconcile)
 	end
-	--Script-deployed enemies can still be falling when terrain population code itself is finished.
+	--Script-deployed map pieces can still be falling when terrain population code itself is finished.
 	--Wait for their own arrival/separator work to finish, then perform one final shared-stack pass.
 	safeWaitCondition("MapTokens",finish,function()
 		return mapTokenTerrainReadyForReconcile(terrainGUID)
@@ -26793,9 +26854,14 @@ function mapHandleTerrainZoneEnter(ctx)
 				end
 				if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals() end
 				--Only the newly populated tile can have gained a new shared-token stack. Leave established
-				--tokens elsewhere on the map completely untouched.
-				mapTokenArrangeAllOccupiedHexes(objGUID)
-				if initialSetupTerrain~=true then fakeDropAvatar() end
+				--tokens elsewhere on the map completely untouched. Runtime Auto Flip is driven by the
+				--fake avatar drop, so do not run that reveal scan until every newly deployed map token and
+				--the separator's final correction have actually settled.
+				if initialSetupTerrain~=true then
+					mapTokenArrangeAllOccupiedHexes(objGUID,function() fakeDropAvatar() end)
+				else
+					mapTokenArrangeAllOccupiedHexes(objGUID)
+				end
 				apocalypseQuestRefreshOfferButtons()
 			end
 			if startingMapSetup==true then
@@ -31714,6 +31780,9 @@ function apocalypseQuestTrackMarkerMove(token,target,terrainGUID,bearing)
 	gStates.apocalypseQuestMarkerTransit[tokenGUID]={terrainGUID=terrainGUID,bearing=bearing,position={target[1],target[2],target[3]}}
 	local finish=function()
 		if gStates.apocalypseQuestMarkerTransit~=nil then gStates.apocalypseQuestMarkerTransit[tokenGUID]=nil end
+		--Quest markers are a bottom layer in the shared map-token separator. Scripted Quest movement
+		--stays inside the map zone, so explicitly reconcile the destination after the marker settles.
+		mapTokenArrangeObject(tokenGUID)
 		apocalypseQuestRefreshOfferButtons()
 	end
 	safeWaitFrames("Quests",function()
@@ -32671,6 +32740,14 @@ goblinWarrensHandler.buttonState=function(card,playerIndex,questState,result)
 	if questState~=nil and questState.step==1 then result.progressLabel="Proceed" end
 end
 goblinWarrensHandler.bottomDeckBeforeReveal=function() gStates.apocalypseQuestGoblinWarrens={} end
+
+local randomObjectsHandler=apocalypseQuestRegisterHandler("11d244")
+randomObjectsHandler.resolveEffect=function(card,playerIndex,option,finalCompletion)
+	if finalCompletion==true and tostring(option.key)=="4" then
+		apocalypseQuestGainRandomBasicCrystal(playerIndex,"Random Objects")
+		apocalypseQuestGainRandomBasicCrystal(playerIndex,"Random Objects")
+	end
+end
 
 local executionHandler=apocalypseQuestRegisterHandler("8939c0")
 executionHandler.directChoices=function(card,playerIndex,state)
