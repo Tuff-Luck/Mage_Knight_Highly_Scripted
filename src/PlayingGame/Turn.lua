@@ -1348,7 +1348,7 @@ function dayNight()
 	local tileColor={}
 	if gStates.dayRound==false then
 		tileColor={r=1.0, g=1.0, b=1.0}
-		local nightObject={"43fa2e", "0f95b7", "9e7de3", "ee9e66", "717bcc", "39ca3f", GUID.deck.nightWeather}
+		local nightObject={GUID.ui.nightTint, "0f95b7", "9e7de3", "ee9e66", "717bcc", "39ca3f", GUID.deck.nightWeather}
 					--Day Board, 5 Weather Tokens, weather deck
 		broadcastToAll("{en}Day has Risen{ru}Наступает день{zh-tw}天亮了{zh-cn}天亮了{ko}아침이 밝았습니다{es}El Día ha Resucitado{fr}Le Jour s'est Levé{pt-br}A Manhã Chegou{de}Der Tag ist auferstanden", {1,1,0.5})
 		for i=1, #nightObject, 1 do
@@ -1386,11 +1386,11 @@ function dayNight()
 		end
 		safeWaitFrames("Turn",function()
 			if getObjectFromGUID(GUID.deck.nightWeather)~=nil then getObjectFromGUID(GUID.deck.nightWeather).shuffle() end
-			if getObjectFromGUID("43fa2e")~=nil then
-				getObjectFromGUID("43fa2e").UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
+			if getObjectFromGUID(GUID.ui.nightTint)~=nil then
+				getObjectFromGUID(GUID.ui.nightTint).UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
 					children={	{tag="Image",  attributes={id="43fa2eNightTintImage", image="Sliced Button/Button Object Active", type="Sliced"}},
 							{tag="Text",  attributes={id="43fa2eNightTintText", font="Fonts/MKCardText", fontSize="90", color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin tinte{fr}Sans teinte{pt-br}Sem tonalidade{de}Keine Tönung"}}}}})
-				getObjectFromGUID("43fa2e").interactable=false
+				getObjectFromGUID(GUID.ui.nightTint).interactable=false
 			end
 		end, 5)--shuffle night weather
 		gStates.dayRound=false
