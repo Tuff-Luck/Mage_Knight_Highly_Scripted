@@ -90,8 +90,7 @@ function eventsOnLoadRawBase(saved_data)
 					 	if mageDetails.poolCreated~=nil then
 							UI.setAttribute("Mage"..a.."CompleteButton", "onClick", "startHigherLevel")
 							UI.setAttribute("Mage"..a.."CompleteText", "text", "{en}Complete{ru}Завершить{zh-tw}完成{zh-cn}完成{ko}완료{es}Completo{fr}Compléter{pt-br}Completo{de}Fertig")
-							UI.setAttribute("Mage"..a.."CompleteButton", "interactable", "true")
-							UI.setAttribute("Mage"..a.."CompleteButtonImage", "image", "Sliced Button/Button New Active")
+							setUIButtonEnabled("Mage"..a.."CompleteButton",true)
 							UI.setAttribute("Mage"..a.."levelDown", "interactable", "false")
 							UI.setAttribute("Mage"..a.."levelUp", "interactable", "false")
 						end
@@ -111,10 +110,8 @@ function eventsOnLoadRawBase(saved_data)
 			refreshSetupStartButton()
 		end
 	else
-		UI.setAttribute("helpButtonRealImage", "image", "Sliced Button/Button New Active")
-		UI.setAttribute("helpButtonReal", "interactable", "true")
-		UI.setAttribute("MonsterButtonRealImage", "image", "Sliced Button/Button New Active")
-		UI.setAttribute("MonsterButtonReal", "interactable", "true")
+		setUIButtonEnabled("helpButtonReal",true)
+		setUIButtonEnabled("MonsterButtonReal",true)
 		UI.setAttribute("ResourceTracker", "active", "true")
 		UI.setAttribute("cameraControl", "active", "true")
 		recourceTrackerReset("update")
@@ -131,15 +128,11 @@ function eventsOnLoadRawBase(saved_data)
 		if gStates.autoFlip==true then UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Deactive") end
 		if gStates.tacticShown==true or gStates.tacticRemove==true then
 		 	UI.show("NoticeBoard")
-		 	UI.setAttribute("DrawOne", "interactable", "False")
-			UI.setAttribute("DrawOneImage", "image", "Sliced Button/Button New Deactive")
-			UI.setAttribute("ScoreButtonReal", "interactable", "False")
-			UI.setAttribute("ScoreButtonRealImage", "image", "Sliced Button/Button New Deactive")
-		 	UI.setAttribute("EndTurnButton", "interactable", "False")
-			UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
+		 	setUIButtonEnabled("DrawOne",false)
+			setUIButtonEnabled("ScoreButtonReal",false)
+		 	setUIButtonEnabled("EndTurnButton",false)
 		else
-			UI.setAttribute("ScoreButtonReal", "interactable", "True")
-			UI.setAttribute("ScoreButtonRealImage", "image", "Sliced Button/Button New Active")
+			setUIButtonEnabled("ScoreButtonReal",true)
 		end
 		--Restore the centre panel through the same owner/state renderer used during live play.
 		automatedMainPanelRefresh()
