@@ -173,11 +173,9 @@ function dropShield(location, lockToken, rotation)
 					shield.lock()
 				end, function() return shield.resting end) end, 1.5)
 			end
-			UI.setAttribute("PreEndTurn", "interactable", "false")
-			UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Deactive")
+			setUIButtonEnabled("PreEndTurn",false)
 			safeWaitTime("Map",function()
-				UI.setAttribute("PreEndTurn", "interactable", "true")
-				UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Active")
+				setUIButtonEnabled("PreEndTurn",true)
 			end, 2.1)
 			break
 		end
@@ -870,7 +868,6 @@ function straightenCrooked()
 			local rot={0.00, 180.00, 0.00}
 			if getObjectFromGUID(objGUID).getRotation()[3]>=170 and getObjectFromGUID(objGUID).getRotation()[3]<=190 then rot=({0.00, 180.00, 180.00}) end
 			getObjectFromGUID(objGUID).setRotation(rot)
-			--Wait.time(function() getObjectFromGUID(objGUID).lock() end, 0.5)
 		end
 	end
 end
