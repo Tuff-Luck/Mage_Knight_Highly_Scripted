@@ -395,7 +395,7 @@ function rewardClaimSoftLockPending(playerIndex)
 end
 
 --Deals player Hand then increments turn
-function __endTurn_raw(player, mouseButton, id, rewindReady)
+function turnEndTurnRawBase(player, mouseButton, id, rewindReady)
 	if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then --and slightPause==false
 		local rewardSeat=turnOrder[gStates.turnNumber].seatPos
 		local rewardSoftLock=rewardClaimSoftLockActive()
@@ -1699,3 +1699,8 @@ function scheduleTactic4HandBonusRefresh()
 end
 
 --Add a row of buttons to allow changing of hand color
+
+-- Preserve the public raw callback boundary while making the Fame/Reputation coordination explicit.
+function __endTurn_raw(player, mouseButton, id, rewindReady)
+	return fameReputationEndTurnRaw(player, mouseButton, id, rewindReady)
+end

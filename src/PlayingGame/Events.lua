@@ -19,7 +19,7 @@ end
 -- Event Handling functions
 ---------------
 --Save and load settings
-function __onLoad_raw(saved_data)
+function eventsOnLoadRawBase(saved_data)
 	cacheScenarioTweakDefaults()
 	local megaFreeze=  {"3d4319", "519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard, "a02b0f"}--player mats
 	for i=1, #megaFreeze, 1 do
@@ -1693,4 +1693,9 @@ function __filterObjectEnterContainer_raw(container, enter_object)
 	if container.getGMNotes()=="Command Tokens" and enter_object.getGMNotes()~="Command Token" then return false end
 	if container.getGMNotes()=="Skills" and skillTokens[enter_object.guid]==nil then return false end
 	return true -- Allows object to enter.
+end
+
+-- Final load composition includes Fame/Reputation recovery after the base table/UI restoration.
+function __onLoad_raw(saved_data)
+	return fameReputationOnLoadRaw(saved_data)
 end

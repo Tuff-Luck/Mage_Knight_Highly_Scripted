@@ -274,7 +274,7 @@ function resolveCoopAssaultLocations()
 	end
 end
 
-function applyPlayerFameReputation(playerIndex)
+function combatApplyPlayerFameReputationBase(playerIndex)
 	local player=turnOrder[playerIndex]
 	local startingFameToLevel=math.floor(math.sqrt((player.fame-(gStates.scoreIfLooped*player.scoreLoop))+1))
 	local newFame=player.fame+player.fameGain-(gStates.scoreIfLooped*player.scoreLoop)
@@ -618,7 +618,7 @@ function startCoopRewardPhase()
 	safeWaitFrames("Combat",function() safeWaitCondition("Combat",beginRewards, coopAssaultAvatarsSettled, 3, beginRewards) end, 2)
 end
 
-function advanceCoopRewardPhase()
+function combatAdvanceCoopRewardPhaseBase()
 	local entry=gStates.coopRewardQueue[gStates.coopRewardIndex]
 	if entry~=nil then
 		turnOrder[entry.player].fameGain=0
@@ -1386,7 +1386,7 @@ end
 
 --Link and Unlink the chosen enemy
 local justDetached={}
-function attachEnemy(player, mouseButton, id, obj, zone)
+function combatAttachEnemyBase(player, mouseButton, id, obj, zone)
 	--find nearest monster
 	if id=="attach" and obj~=nil then
 		local possessedGUID=obj.guid
@@ -2963,4 +2963,18 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			drawMonster(thirdFight, turnOrder[gStates.turnNumber], id)
 		end
 	end
+end
+
+-- Public Fame/Reputation-integrated entry points. The cross-cutting accounting service is loaded
+-- later, but all TTS/UI calls occur after the complete Global bundle has initialized.
+function applyPlayerFameReputation(playerIndex)
+	return fameReputationApplyPlayerFameReputation(playerIndex)
+end
+
+function advanceCoopRewardPhase()
+	return fameReputationAdvanceCoopRewardPhase()
+end
+
+function attachEnemy(player, mouseButton, id, obj, zone)
+	return fameReputationAttachEnemy(player, mouseButton, id, obj, zone)
 end

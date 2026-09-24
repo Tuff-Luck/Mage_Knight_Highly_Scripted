@@ -636,7 +636,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 end
 
 --Pillage Village, draw two cards for chosen mage and reduce Reputation by 1
-function plunderVillage(player, mouseButton, id)
+function mapPlunderVillageBase(player, mouseButton, id)
 	if mouseButton=="-1" then
 		if legalPlayerCheck(player.color, tonumber(id:sub(8,8)))==true then
 			for a=1, #turnOrder, 1 do
@@ -1721,4 +1721,9 @@ function mapHandleTerrainZoneEnter(ctx)
         end
 	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil then return true end
 	return false
+end
+
+-- The integrated implementation clamps Reputation at the track edge before applying the physical move.
+function plunderVillage(player, mouseButton, id)
+	return fameReputationPlunderVillage(player, mouseButton, id)
 end

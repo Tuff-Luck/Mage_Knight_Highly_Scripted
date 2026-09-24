@@ -27,6 +27,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/PlayerBoard/Skills.lua` | Skill offers, claims, skill state and player skill interactions. |
 | `src/PlayingGame/PlayerBoard/PuppetMaster.lua` | Krang Puppet Master enemy/puppet behaviour. |
 | `src/PlayingGame/Combat.lua` | Combat areas, attacks, assaults, combat UI/camera support, summons and pursuit. |
+| `src/PlayingGame/FameReputation.lua` | Cross-module Fame/Reputation accounting service used explicitly by Combat, UI, Map, Skills, Turn and Events entry points. |
 | `src/PlayingGame/Turn.lua` | Tactics, start/end turn, end round, final turns, dropout and day/night turn flow. |
 | `src/PlayingGame/City.lua` | City placement, levels, garrisons, city state and city runtime behaviour. |
 | `src/PlayingGame/Scenario.lua` | Scenario-specific runtime rules and scenario state transitions, including Fury elite-unit eligibility. |
@@ -47,6 +48,8 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 ## Dependency shape
 
 `Data`, `ErrorReporting` and `Shared` load first. Shared owns the generic runtime-map geometry/topology primitives (hex keys, adjacency, BFS distance maps, axial conversion and terrain-hex UI placement). Error reporting loads before Shared because the shared async/object helpers use its protected callback machinery. Setup modules then define setup-facing globals. Gameplay modules load after setup, with specialized modules defining their systems before the final UI/event/callback layers. `PlayingGame.Scenario` loads immediately before `PlayingGame.ApocalypseDragon` and `PlayingGame.Horsemen`; both shared encounter modules call scenario-owned hooks only at runtime.
+
+Cross-cutting services must not replace another module's global by load order. The owning module should keep the public entry point, give its underlying implementation a unique base name when necessary, and delegate explicitly to the service.
 
 Modules have separate lexical scope for `local` declarations. Globals are shared in the final bundled Global environment. A helper needed by multiple modules should therefore be intentionally global/shared or otherwise exposed once; copying a local helper into several files does not consolidate it.
 

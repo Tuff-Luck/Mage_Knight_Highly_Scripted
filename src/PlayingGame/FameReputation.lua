@@ -1,16 +1,6 @@
 -- Fame/Reputation accounting corrections that sit across Combat, UI, Quests, Map and Turn.
--- Loaded after the runtime/event modules so the wrappers below can consolidate cross-module behaviour
--- without duplicating the large combat/UI implementations.
-
-local fameRepOriginalApply=applyPlayerFameReputation
-local fameRepOriginalMainUIUpdate=mainUIUpdate
-local fameRepOriginalValueAdjust=valueAdjust
-local fameRepOriginalMotivation=motivation
-local fameRepOriginalPlunderVillage=plunderVillage
-local fameRepOriginalAttachEnemy=attachEnemy
-local fameRepOriginalAdvanceCoopRewardPhase=advanceCoopRewardPhase
-local fameRepOriginalEndTurnRaw=__endTurn_raw
-local fameRepOriginalOnLoadRaw=__onLoad_raw
+-- Owning modules expose the public entry points and delegate here explicitly. Their uniquely named base
+-- implementations keep cross-module sequencing visible without relying on late global redefinition.
 
 local fameRepSyncSuppressed=false
 local possessedAttachPending={}
@@ -122,7 +112,7 @@ local function syncPostCommitAdjustments(playerIndex)
 	player.fameGain=fameDelta
 	player.repGain=repDelta
 	fameRepSyncSuppressed=true
-	fameRepOriginalApply(playerIndex)
+	combatApplyPlayerFameReputationBase(playerIndex)
 	syncPlayerFameFromMarker(playerIndex)
 	fameRepSyncSuppressed=false
 	player.fameGain=displayFame
@@ -131,12 +121,12 @@ local function syncPostCommitAdjustments(playerIndex)
 	committed.rep=displayRep
 end
 
-function applyPlayerFameReputation(playerIndex)
+function fameReputationApplyPlayerFameReputation(playerIndex)
 	local player=turnOrder[playerIndex]
 	if player==nil then return end
 	normalizePendingReputation(playerIndex)
 	fameRepSyncSuppressed=true
-	fameRepOriginalApply(playerIndex)
+	combatApplyPlayerFameReputationBase(playerIndex)
 	--The original Fame placement already includes Blitz line-crossing bonuses. Read that authoritative
 	--marker back so player.fame records the same value instead of only the pre-Blitz delta.
 	syncPlayerFameFromMarker(playerIndex)
@@ -190,7 +180,7 @@ local function correctPossessedAttachmentAwards()
 	end
 end
 
-function attachEnemy(player,mouseButton,id,obj,zone)
+function fameReputationAttachEnemy(player,mouseButton,id,obj,zone)
 	if id=="attach" and obj~=nil then
 		local enemy=nearestPossessedEnemy(obj,zone)
 		if enemy~=nil then
@@ -223,12 +213,12 @@ function attachEnemy(player,mouseButton,id,obj,zone)
 			end
 		end
 	end
-	return fameRepOriginalAttachEnemy(player,mouseButton,id,obj,zone)
+	return combatAttachEnemyBase(player,mouseButton,id,obj,zone)
 end
 
-function mainUIUpdate(...)
+function fameReputationMainUIUpdate(...)
 	local previousSiteLoss=fameRepSnapshotSiteLoss()
-	local result=fameRepOriginalMainUIUpdate(...)
+	local result=uiMainUIUpdateBase(...)
 	if turnOrder[gStates.turnNumber]~=nil then normalizePendingReputation(gStates.turnNumber,previousSiteLoss) end
 	hiddenValleyNormalizeSiteLoss()
 	correctPossessedAttachmentAwards()
@@ -236,8 +226,8 @@ function mainUIUpdate(...)
 	return result
 end
 
-function valueAdjust(player,mouseButton,id)
-	local result=fameRepOriginalValueAdjust(player,mouseButton,id)
+function fameReputationValueAdjust(player,mouseButton,id)
+	local result=uiValueAdjustBase(player,mouseButton,id)
 	if turnOrder[gStates.turnNumber]~=nil then
 		normalizePendingReputation(gStates.turnNumber)
 		syncPostCommitAdjustments(gStates.turnNumber)
@@ -245,8 +235,8 @@ function valueAdjust(player,mouseButton,id)
 	return result
 end
 
-function motivation(...)
-	local result=fameRepOriginalMotivation(...)
+function fameReputationMotivation(...)
+	local result=skillsMotivationBase(...)
 	--Motivation has its own physical Fame movement and includes Blitz bonuses there. Keep every logical
 	--Fame value synchronized with its marker after that independent award path.
 	for playerIndex,_ in pairs(turnOrder) do syncPlayerFameFromMarker(playerIndex) end
@@ -254,7 +244,7 @@ function motivation(...)
 end
 
 --Plundering remains legal at -7 Reputation; the Reputation loss simply cannot move below the track.
-function plunderVillage(player,mouseButton,id)
+function fameReputationPlunderVillage(player,mouseButton,id)
 	if mouseButton=="-1" and legalPlayerCheck(player.color,tonumber(id:sub(8,8)))==true then
 		for a=1,#turnOrder do
 			if turnOrder[a].seatPos==tonumber(id:sub(8,8)) then
@@ -274,29 +264,29 @@ function plunderVillage(player,mouseButton,id)
 	end
 end
 
-function advanceCoopRewardPhase(...)
+function fameReputationAdvanceCoopRewardPhase(...)
 	local entry=gStates.coopRewardQueue~=nil and gStates.coopRewardQueue[gStates.coopRewardIndex] or nil
 	if entry~=nil then syncPostCommitAdjustments(entry.player) end
 	fameRepSyncSuppressed=true
 	if entry~=nil and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[entry.player]=nil end
-	local result=fameRepOriginalAdvanceCoopRewardPhase(...)
+	local result=combatAdvanceCoopRewardPhaseBase(...)
 	fameRepSyncSuppressed=false
 	return result
 end
 
-function __endTurn_raw(player,mouseButton,id,rewindReady)
+function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	local playerIndex=gStates.turnNumber
 	if gStates.coopAssaultPhase~="rewards" then syncPostCommitAdjustments(playerIndex) end
 	fameRepSyncSuppressed=true
-	local result=fameRepOriginalEndTurnRaw(player,mouseButton,id,rewindReady)
+	local result=turnEndTurnRawBase(player,mouseButton,id,rewindReady)
 	fameRepSyncSuppressed=false
 	--Only clear the persisted commit marker when the turn actually advanced past Rewards Claimed.
 	if gStates.preEndTurn~=true and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[playerIndex]=nil end
 	return result
 end
 
-function __onLoad_raw(saved_data)
-	local result=fameRepOriginalOnLoadRaw(saved_data)
+function fameReputationOnLoadRaw(saved_data)
+	local result=eventsOnLoadRawBase(saved_data)
 	--A save can occur after preEndTurn is set but before its delayed Fame/Rep commit callback. The absence
 	--of a persisted commit marker means the physical tracks still need the pending reward exactly once.
 	safeWaitFrames("FameReputation",function()

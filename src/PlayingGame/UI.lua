@@ -668,7 +668,7 @@ function automatedMainPanelRefresh(overrideSpec)
 	return automatedMainPanelApply(spec)
 end
 
-function mainUIUpdate(source)
+function uiMainUIUpdateBase(source)
 	if gStates.firstStarted==true then
 		if mainUIPause~=nil then Wait.stop(mainUIPause) end
 		mainUIPause=safeWaitTime("UI",function()
@@ -2154,7 +2154,7 @@ function buttonClicked(player, mouseButton, ButtonPressed)
 	end, 0.35)
 end
 
-function valueAdjust(player, mouseButton, id)
+function uiValueAdjustBase(player, mouseButton, id)
 	if mouseButton=="-1" and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
 		if id=="GrowHand" and turnOrder[gStates.turnNumber].hand+turnOrder[gStates.turnNumber].handBonus+gStates.tactic4HandBonus<20 then turnOrder[gStates.turnNumber].handBonus=turnOrder[gStates.turnNumber].handBonus+1 end
 		if id=="ShrinkHand" and turnOrder[gStates.turnNumber].hand+turnOrder[gStates.turnNumber].handBonus+gStates.tactic4HandBonus>turnOrder[gStates.turnNumber].baseHand then turnOrder[gStates.turnNumber].handBonus=turnOrder[gStates.turnNumber].handBonus-1 end
@@ -2763,4 +2763,13 @@ function refreshMonsterHoverDescription(hover_object)
 			end
 			hover_object.setDescription(monsterDescription)
 		end
+end
+
+-- Fame/Reputation accounting wraps these UI entry points explicitly rather than replacing globals by require order.
+function mainUIUpdate(...)
+	return fameReputationMainUIUpdate(...)
+end
+
+function valueAdjust(player, mouseButton, id)
+	return fameReputationValueAdjust(player, mouseButton, id)
 end

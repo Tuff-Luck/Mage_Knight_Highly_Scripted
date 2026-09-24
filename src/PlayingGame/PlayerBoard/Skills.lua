@@ -1453,7 +1453,7 @@ end
 --Bonds of Loyalty setup rather than adding cards to the live Unit Offer.
 
 -- Motivation skill runtime
-function motivation(player, mouseButton, id)
+function skillsMotivationBase(player, mouseButton, id)
 	if mouseButton=="-1" then
 		if legalPlayerCheck(player.color, tonumber(id:sub(18, 18)))==true then
 			for a=1, #turnOrder, 1 do
@@ -1517,4 +1517,9 @@ function motivation(player, mouseButton, id)
 			end
 		end
 	end
+end
+
+-- Motivation's post-award Fame synchronization is coordinated by FameReputation.
+function motivation(player, mouseButton, id)
+	return fameReputationMotivation(player, mouseButton, id)
 end

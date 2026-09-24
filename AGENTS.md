@@ -19,6 +19,7 @@ Keep changes focused. Prefer one clean commit for one logical change. Do not add
 Tabletop Simulator compatibility is validated against Lua 5.2. Do not introduce syntax that requires a newer Lua version.
 
 Keep shared helpers defined once. Cross-system helpers belong in `src/Shared.lua` or another clearly owned module; do not duplicate implementations in multiple modules. `require()` does not merge duplicate local functions.
+Do not use late module loading to redefine an existing global callback/helper. For cross-cutting behavior, keep one public owner entry point and delegate explicitly to a uniquely named service/base implementation so ownership and call order remain visible and duplicate-global validation stays meaningful.
 
 Respect module ownership documented in `ARCHITECTURE.md`. When a feature already has a module, make the change there rather than adding another implementation to `PlayingGame.lua`.
 
