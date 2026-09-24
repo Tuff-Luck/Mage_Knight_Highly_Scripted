@@ -1080,7 +1080,7 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 								local leaderDisc=getObjectFromGUID(currentLeader.disc)
 								if leaderDisc~=nil then leaderDisc.setCustomObject({image=leaderData[currentLeader.terrainHex]["dead"].discImg}) leaderDisc.reload() end
 								safeWaitTime("Combat",function()
-									for monsterGUID, state in pairs(gStates.cityMonsterQty[currentLeader.terrainHex]) do
+									for monsterGUID, _ in pairs(gStates.cityMonsterQty[currentLeader.terrainHex]) do
 										local monster=getObjectFromGUID(monsterGUID)
 									if monster~=nil and monster.getRotationValues()[2]~=nil then combatDiscardMonster(monster,false,state.cleanupContext) end
 									end

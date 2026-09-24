@@ -92,8 +92,8 @@ end
 
 --Reapply translated static UI text once at load so TTS resolves language tags.
 --Use TTS's parsed XML table instead of pattern-matching the whole raw XML string.
---Only Text/Toggle contents need this workaround. Leave tooltip attributes in XML: TTS localizes
---them correctly when XML loads, while setAttribute() would expose the raw {en}/{ru}/... tags.
+--Only Text/Toggle contents need this workaround. TTS does not resolve translation tags in tooltip
+--attributes, so tooltips stay plain English and are intentionally not reapplied here.
 function reapplyXmlText()
 	local xml=UI.getXmlTable() or {}
 	local reapplied=0

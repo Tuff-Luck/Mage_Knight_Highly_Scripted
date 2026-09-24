@@ -72,6 +72,55 @@ try {
         throw "Duplicate global function definitions found across source modules:`n$details"
     }
 
+    Write-Host "Checking risky local state/context shadowing..."
+    $shadowingIssues = @()
+    foreach ($file in $sourceLuaFiles) {
+        $lines = @(Get-Content -LiteralPath $file.FullName)
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $declaration = [regex]::Match($lines[$i], '^(?<indent>[ \t]*)local[ \t]+(?<name>state|context)[ \t]*=[ \t]*\{')
+            if (-not $declaration.Success) { continue }
+
+            $indent = $declaration.Groups['indent'].Value
+            $name = $declaration.Groups['name'].Value
+            $keys = @{}
+            $keyIndent = $null
+            $tableEnd = -1
+            for ($j = $i + 1; $j -lt [Math]::Min($lines.Count, $i + 80); $j++) {
+                if ([regex]::IsMatch($lines[$j], '^' + [regex]::Escape($indent) + '\}[,;]?[ \t]*$')) {
+                    $tableEnd = $j
+                    break
+                }
+                $keyMatch = [regex]::Match($lines[$j], '^(?<ws>[ \t]+)(?<key>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=')
+                if ($keyMatch.Success) {
+                    if ($null -eq $keyIndent) { $keyIndent = $keyMatch.Groups['ws'].Value }
+                    if ($keyMatch.Groups['ws'].Value -eq $keyIndent) {
+                        $keys[$keyMatch.Groups['key'].Value] = $true
+                    }
+                }
+            }
+            if ($tableEnd -lt 0 -or $keys.Count -eq 0) { continue }
+
+            $loopPattern = 'for[ \t]+[^,\r\n]+,[ \t]*' + [regex]::Escape($name) + '[ \t]+in[ \t]+pairs\('
+            $memberPattern = '\b' + [regex]::Escape($name) + '\.(?<member>[A-Za-z_][A-Za-z0-9_]*)'
+            for ($j = $tableEnd + 1; $j -lt $lines.Count; $j++) {
+                if ($lines[$j] -match '^(?:local[ \t]+)?function[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*\(') { break }
+                if (-not [regex]::IsMatch($lines[$j], $loopPattern)) { continue }
+
+                for ($k = $j + 1; $k -lt [Math]::Min($lines.Count, $j + 40); $k++) {
+                    $memberMatch = [regex]::Match($lines[$k], $memberPattern)
+                    if ($memberMatch.Success -and $keys.ContainsKey($memberMatch.Groups['member'].Value)) {
+                        $relative = $file.FullName.Substring($root.Length + 1)
+                        $shadowingIssues += "$relative:$($j + 1) loop variable '$name' shadows an outer table and later reads '$name.$($memberMatch.Groups['member'].Value)'."
+                        break
+                    }
+                }
+            }
+        }
+    }
+    if ($shadowingIssues.Count -gt 0) {
+        throw "Risky local state/context shadowing found:`n$($shadowingIssues -join "`n")"
+    }
+
     Write-Host "Checking Lua 5.2 syntax..."
     $compiler = Get-Command "luac5.2" -ErrorAction SilentlyContinue
     if ($null -eq $compiler) {

@@ -28,7 +28,7 @@ end
 
 --Plan each first-phase Volkare step from the card's original direction.
 --If that step needs an illegal tile, try the closest neighbouring direction and test the movement again.
-local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, objectsInPlay)
+local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, mapSnapshot)
 	local bearings={}
 	local plannedTile=nil
 	local simPos={volkarePos[1], volkarePos[2], volkarePos[3]}
@@ -39,7 +39,7 @@ local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, ob
 		for _, offset in ipairs(offsets) do
 			local bearing=normalizeVolkareBearing(originalBearing+offset)
 			local testPos={simPos[1]-(2.39*math.cos(math.rad(bearing))), 3.5, simPos[3]-(2.39*math.sin(math.rad(bearing)))}
-			local explored=terrainHexAtPosition(testPos, objectsInPlay)~=nil
+			local explored=terrainHexAtPosition(testPos,mapSnapshot.terrainObjects,mapSnapshot.terrainPositions,mapSnapshot.terrainRotations)~=nil
 			if explored==false and plannedTile~=nil then explored=math.sqrt(((testPos[1]-plannedTile[1])^2)+((testPos[3]-plannedTile[3])^2))<3.1 end
 			if explored==true then
 				chosenBearing=bearing
@@ -226,10 +226,10 @@ function volkareTurn(player, mouseButton, id)
 					--Before the city is found, each step tries the card's indicated direction first.
 					--If that step requires an illegal new tile, retry in the closest legal direction.
 					if cityDistance.key==0 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") then
-						local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
+						local mapSnapshot=runtimeMapSnapshot()
 						local originalBearing=volkareVector[gStates.gameScenario][volkareDrew.color]
 						local terrainSpot=nil
-						volkareExploreBearings, terrainSpot=planVolkareExploreMove(volkarePOS, originalBearing, volkareDrew.spell, objectsInPlay)
+						volkareExploreBearings, terrainSpot=planVolkareExploreMove(volkarePOS, originalBearing, volkareDrew.spell, mapSnapshot)
 						if terrainSpot~=nil then
 							local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
 							if terrainStack~=nil and terrainStack.getQuantity()>0 then
@@ -258,10 +258,12 @@ function volkareTurn(player, mouseButton, id)
 								--correct course if going out of bounds
 								volkarePOS=getObjectFromGUID(gStates.volkareModel).getPosition()
 								if cityDistance.key==0 and volkareExploreBearings[pass]~=nil then volkareVector[gStates.gameScenario][volkareDrew.color]=volkareExploreBearings[pass] end
-								local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
+								--Use the shared runtime-map membership/cache here. terrainHexAtPosition is kept for this
+								--one movement test so a just-explored tile remains valid during its brief face-down settle.
+								local mapSnapshot=runtimeMapSnapshot()
 								local arrowColor=volkareDrew.color
 								local volkareProjPos={volkarePOS[1]-(2.39*math.cos(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color]))), 3.5, volkarePOS[3]-(2.39*math.sin(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color])))}
-								local found=terrainHexAtPosition(volkareProjPos, objectsInPlay)~=nil
+								local found=terrainHexAtPosition(volkareProjPos,mapSnapshot.terrainObjects,mapSnapshot.terrainPositions,mapSnapshot.terrainRotations)~=nil
 								if found==false and gStates.gameScenario~="Volkare's Quest" and gStates.gameScenario~="The War of Four" and cityDistance.key>0 and (volkareDrew.color=="White" or volkareDrew.color=="Green") then volkareDrew.color="Blue" end
 								if found==false and (gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and (volkareDrew.color=="White" or volkareDrew.color=="Blue") then volkareDrew.color="Green" found=true end
 								if found==false and (gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and volkareDrew.color=="Green" then volkareDrew.color="Blue" end

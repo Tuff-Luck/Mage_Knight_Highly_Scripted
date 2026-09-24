@@ -443,13 +443,37 @@ function playMonastery()
 		if slot==nil then return end
 		local params={rotation={0,180,0},position={40.8-slot*4.8,0.98,-10.2}}
 		local drawDecks={GUID.zone.regularUnit,GUID.zone.eliteUnit,GUID.zone.actionDeck} --Zone covering Regular units draw deck, Elite Units Draw Deck, Advanced Actions Draw Deck
-		--Play an advanced action card
+		--Play an advanced action card. Deck-cycle cleanup can briefly leave the draw zone without
+		--a Card/Deck, so wait on the real source instead of spinning a Lua while loop around a callback.
 		standardDeckCycleShuffleIfReached("Advanced Action")
-		local MonasteryDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects()
-		while MonasteryDeck==nil do safeWaitFrames("Offers",function() MonasteryDeck=getObjectFromGUID(GUID.zone.actionDeck).getObjects() end, 10) end
-		local drawnCard=getObjectFromGUID(MonasteryDeck[1].guid).takeObject(params)
-		safeWaitCondition("Offers",function() drawnCard.lock() end, function() return drawnCard.resting end)
-		broadcastToAll("{en}Monastery is teaching a new Advanced Action{ru}Монастырь обучает новому Особому действию{zh-tw}修道院现在传授新的高级行动{zh-cn}修道院现在传授新的高级行动{ko}수도원에 새로운 상급 액션이 추가되었습니다{es}El Monasterio está enseñando una nueva Acción Avanzada{fr}Le Monastère enseigne une nouvelle Action Avancée{pt-br}Monastério está encinsando uma nova Ação Avançada{de}Das Kloster lehrt eine neue fortgeschrittene Aktion", {1,1,0.5})
+		local function drawMonasteryAdvancedAction()
+			local source=standardDeckCycleObject("Advanced Action")
+			if source==nil then return false end
+			local drawnCard=nil
+			if source.type=="Deck" then
+				drawnCard=safeTakeObject("Offers",source,params)
+			elseif source.type=="Card" then
+				drawnCard=source
+				drawnCard.unlock()
+				drawnCard.setPositionSmooth(params.position,false,false)
+				drawnCard.setRotationSmooth(params.rotation,false,false)
+			end
+			if drawnCard==nil then return false end
+			safeWaitCondition("Offers",function() if drawnCard~=nil then drawnCard.lock() end end,function()
+				return drawnCard==nil or drawnCard.resting==true
+			end,5,function() if drawnCard~=nil then drawnCard.lock() end end)
+			broadcastToAll("{en}Monastery is teaching a new Advanced Action{ru}Монастырь обучает новому Особому действию{zh-tw}修道院现在传授新的高级行动{zh-cn}修道院现在传授新的高级行动{ko}수도원에 새로운 상급 액션이 추가되었습니다{es}El Monasterio está enseñando una nueva Acción Avanzada{fr}Le Monastère enseigne une nouvelle Action Avancée{pt-br}Monastério está encinsando uma nova Ação Avançada{de}Das Kloster lehrt eine neue fortgeschrittene Aktion", {1,1,0.5})
+			return true
+		end
+		if drawMonasteryAdvancedAction()~=true then
+			safeWaitCondition("Offers",function()
+				if drawMonasteryAdvancedAction()~=true then error("Monastery Advanced Action source disappeared before it could be drawn.",2) end
+			end,function()
+				return standardDeckCycleObject("Advanced Action")~=nil
+			end,5,function()
+				error("Timed out waiting for the Monastery Advanced Action draw source.",2)
+			end)
+		end
 	end
 end
 
