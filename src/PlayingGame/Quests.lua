@@ -580,7 +580,7 @@ function apocalypseQuestUndoSiteToken(tokenGUID)
 	if state==nil then return false end
 	local terrainData=terrainTiles[state.terrainGUID]
 	if terrainData~=nil then
-		terrainData.hexFeature[state.bearing]=state.oldFeature or ""
+		runtimeMapSetHexFeature(state.terrainGUID,state.bearing,state.oldFeature or "")
 		if terrainData.mineColors~=nil then
 			if state.oldMineColors~=nil then terrainData.mineColors[state.bearing]=state.oldMineColors else terrainData.mineColors[state.bearing]=nil end
 		end
@@ -626,7 +626,7 @@ function apocalypseQuestSiteTokenDropped(token)
 	local oldOverride=gStates.hexOverideSave[terrain.guid]~=nil and gStates.hexOverideSave[terrain.guid][bearing] or nil
 	if gStates.apocalypseQuestSiteState==nil then gStates.apocalypseQuestSiteState={} end
 	gStates.apocalypseQuestSiteState[token.guid]={terrainGUID=terrain.guid, bearing=bearing, oldFeature=terrainData.hexFeature[bearing] or "", oldMineColors=oldMineColors, oldOverride=oldOverride, site=site}
-	terrainData.hexFeature[bearing]=site
+	runtimeMapSetHexFeature(terrain.guid,bearing,site)
 	if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 	gStates.hexOverideSave[terrain.guid][bearing]=site
 	if site=="mine" then
@@ -3199,6 +3199,16 @@ function apocalypseQuestMapHexes()
 	return hexes,objects
 end
 
+--Quest offer refreshes can query occupancy hundreds of times. Reuse one live spatial view for the
+--synchronous refresh so shield/enemy checks do not rescan every object on the map for every candidate.
+function apocalypseQuestMapSpatial()
+	local refreshCache=apocalypseQuestRefreshMapCache
+	if refreshCache~=nil and refreshCache.mapSpatial~=nil then return refreshCache.mapSpatial end
+	local spatial=runtimeMapSpatialSnapshot()
+	if refreshCache~=nil then refreshCache.mapSpatial=spatial end
+	return spatial
+end
+
 --Guard Duty measures the shortest connection between the merchant marker's pickup site and the
 --Mage Knight's current drop-off site using revealed map spaces only. apocalypseQuestMapHexes()
 --already omits unrevealed terrain, so a BFS over its adjacency graph matches the printed wording.
@@ -3236,10 +3246,12 @@ function apocalypseQuestFeatureMatches(feature, wanted)
 end
 
 function apocalypseQuestHexHasShield(hex, mapObjects, playerIndex, anyPlayer)
+	if hex==nil or hex.position==nil then return false end
 	local mage=turnOrder[playerIndex]~=nil and turnOrder[playerIndex].mage or nil
-	for _, obj in pairs(mapObjects or {}) do
+	local spatial=apocalypseQuestMapSpatial()
+	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,hex.position,1.1)) do
 		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
-			local pos=obj.getPosition()
+			local pos=spatial.positions[obj.guid] or obj.getPosition()
 			local dx=pos[1]-hex.position[1]
 			local dz=pos[3]-hex.position[3]
 			if (dx*dx)+(dz*dz)<1 then
@@ -3275,10 +3287,11 @@ function apocalypseQuestHexInteractionSite(hex,mapObjects,playerIndex)
 end
 
 function apocalypseQuestHexHasEnemy(hex, mapObjects)
-	if hex==nil then return false end
-	for _, obj in pairs(mapObjects or {}) do
+	if hex==nil or hex.position==nil then return false end
+	local spatial=apocalypseQuestMapSpatial()
+	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,hex.position,1.1)) do
 		if monsterPugs[obj.guid]~=nil then
-			local pos=obj.getPosition()
+			local pos=spatial.positions[obj.guid] or obj.getPosition()
 			local dx=pos[1]-hex.position[1]
 			local dz=pos[3]-hex.position[3]
 			if (dx*dx)+(dz*dz)<1 then return true end
@@ -3317,23 +3330,14 @@ function apocalypseQuestCurrentPlayerHex(playerIndex)
 	if refreshCache~=nil and refreshCache.playerHexes~=nil and refreshCache.playerHexes[playerIndex]~=nil then
 		return refreshCache.playerHexes[playerIndex].hex,refreshCache.mapObjects
 	end
-	local map=getObjectFromGUID(mapArea)
-	local position=fracturedLandsTeleportSourcePosition(playerIndex)
-	if map==nil or position==nil then return nil, nil end
-	local objects=refreshCache~=nil and refreshCache.mapObjects or nil
-	if objects==nil then objects=map.getObjects() end
-	local terrain,bearing,_,feature,hexType=terrainHexAtPosition(position,objects)
-	local hex=nil
-	if terrain~=nil and bearing~=nil then
-		local xy=angleToXY(terrain,bearing)
-		hex={terrain=terrain,terrainGUID=terrain.guid,bearing=bearing,position={xy[1],1.30,xy[2]},feature=feature or "",hexType=hexType or ""}
-	end
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hex=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	if refreshCache~=nil then
-		refreshCache.mapObjects=objects
+		refreshCache.mapObjects=mapObjects
 		refreshCache.playerHexes=refreshCache.playerHexes or {}
 		refreshCache.playerHexes[playerIndex]={hex=hex}
 	end
-	return hex,objects
+	return hex,mapObjects
 end
 
 function apocalypseQuestInhabitedFeature(feature)
