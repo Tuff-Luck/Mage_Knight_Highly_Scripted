@@ -425,7 +425,7 @@ function coralQuickWittedSetAside(playerIndex)
 	if deedZone==nil then return nil end
 	for _, obj in pairs(deedZone.getObjects()) do
 		if obj.type=="Deck" and obj.getQuantity()>1 then
-			for _, cardData in pairs(obj.getObjects()) do if cardData.guid=="6ecbc6" then return obj end end
+			for _, cardData in pairs(obj.getObjects()) do if cardData.guid==GUID.card.quickWitted then return obj end end
 		end
 	end
 	return nil
@@ -437,7 +437,7 @@ function coralQuickWittedLastDeedCard(playerIndex)
 	if playerDetails==nil or playerDetails.mage~="Coral" or playerDetails.mage==gStates.positionMageKnight[5] or playerDetails.dropoutState~=nil then return nil end
 	local deedZone=getObjectFromGUID(deedDeckZones[playerDetails.seatPos])
 	if deedZone==nil then return nil end
-	for _, obj in pairs(deedZone.getObjects()) do if obj.type=="Card" and obj.guid=="6ecbc6" then return obj end end
+	for _, obj in pairs(deedZone.getObjects()) do if obj.type=="Card" and obj.guid==GUID.card.quickWitted then return obj end end
 	return nil
 end
 
@@ -509,9 +509,9 @@ function coralManualQuickWittedLeaveSource(container)
 			end
 			if inDeedZone==false then return nil end
 			for _, cardData in pairs(container.getObjects()) do
-				if cardData.guid=="6ecbc6" then return playerIndex end
+				if cardData.guid==GUID.card.quickWitted then return playerIndex end
 			end
-			if container.remainder~=nil and container.remainder.guid=="6ecbc6" then return playerIndex end
+			if container.remainder~=nil and container.remainder.guid==GUID.card.quickWitted then return playerIndex end
 			return nil
 		end
 	end
@@ -531,7 +531,7 @@ function coralRestoreManualDraw(playerIndex, deckGuid, card, showChoice)
 				for _, obj in pairs(deedZone.getObjects()) do
 					if obj.guid~=card.guid and (obj.type=="Deck" or obj.type=="Card") then
 						destination=obj
-						if obj.guid=="6ecbc6" then break end
+						if obj.guid==GUID.card.quickWitted then break end
 					end
 				end
 			end
@@ -616,7 +616,7 @@ local function coralTakeQuickWitted(playerIndex)
 	local deedDeck=coralQuickWittedSetAside(playerIndex)
 	if deedDeck==nil then return false end
 	local playerPosition=turnOrder[playerIndex].seatPos
-	safeTakeObject("PlayerBoard.CardFlow",deedDeck,{guid="6ecbc6", position={(playerPosition*40)-105, 4.59, -47.55}, rotation={0, 180, 0}, smooth=false, callback_function=function(card) card.setScale({1.5, 1, 1.5}) end})
+	safeTakeObject("PlayerBoard.CardFlow",deedDeck,{guid=GUID.card.quickWitted, position={(playerPosition*40)-105, 4.59, -47.55}, rotation={0, 180, 0}, smooth=false, callback_function=function(card) card.setScale({1.5, 1, 1.5}) end})
 	turnOrder[playerIndex].deedCount=math.max(0,(turnOrder[playerIndex].deedCount or 0)-1)
 	coralScheduleDeedRefresh(playerPosition, 4)
 	return true
@@ -875,8 +875,8 @@ function coralQuickWittedReadyForDraw()
 			local deedZone=getObjectFromGUID(deedDeckZones[playerDetails.seatPos])
 			if deedZone==nil then return false end
 			for _, obj in pairs(deedZone.getObjects()) do
-				if obj.type=="Card" and obj.guid=="6ecbc6" then return true end
-				if obj.type=="Deck" then for _, cardData in pairs(obj.getObjects()) do if cardData.guid=="6ecbc6" then return true end end end
+				if obj.type=="Card" and obj.guid==GUID.card.quickWitted then return true end
+				if obj.type=="Deck" then for _, cardData in pairs(obj.getObjects()) do if cardData.guid==GUID.card.quickWitted then return true end end end
 			end
 			return false
 		end
@@ -1377,7 +1377,7 @@ end
 --Keep Quick Witted Set Aside at the bottom of Coral's physical Deed Deck.
 --Taking it out and putting it back at the Deck's resting elevation inserts it at the bottom.
 function coralSetAsideQuickWitted()
-	local cardGUID="6ecbc6"
+	local cardGUID=GUID.card.quickWitted
 	for _, playerDetails in pairs(turnOrder) do
 		if playerDetails.mage=="Coral" and playerDetails.mage~=gStates.positionMageKnight[5] and playerDetails.dropoutState==nil then
 			local deedZone=getObjectFromGUID(deedDeckZones[playerDetails.seatPos])
