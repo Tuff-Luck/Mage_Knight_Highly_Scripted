@@ -494,7 +494,6 @@ function offerAdjust(player, mouseButton, id)
 		if id=="e4372aOfferUp" then
 			--run fill slide after a wait frame.
 			fillSlide()
-			--Wait.condition(function() fillSlide() end, function() return getObjectFromGUID(GUID.deck.spell).resting end)
 		else
 			--flip existing cards if shrinking the offer.
 			for _, card in pairs(getObjectFromGUID(GUID.zone.offer).getObjects()) do
