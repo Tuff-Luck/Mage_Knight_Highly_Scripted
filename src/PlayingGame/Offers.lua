@@ -442,7 +442,6 @@ function playMonastery()
 		local slot=monasteryOfferFirstEmptySlot()
 		if slot==nil then return end
 		local params={rotation={0,180,0},position={40.8-slot*4.8,0.98,-10.2}}
-		local drawDecks={GUID.zone.regularUnit,GUID.zone.eliteUnit,GUID.zone.actionDeck} --Zone covering Regular units draw deck, Elite Units Draw Deck, Advanced Actions Draw Deck
 		--Play an advanced action card. Deck-cycle cleanup can briefly leave the draw zone without
 		--a Card/Deck, so wait on the real source instead of spinning a Lua while loop around a callback.
 		standardDeckCycleShuffleIfReached("Advanced Action")

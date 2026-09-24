@@ -110,7 +110,7 @@ try {
                     $memberMatch = [regex]::Match($lines[$k], $memberPattern)
                     if ($memberMatch.Success -and $keys.ContainsKey($memberMatch.Groups['member'].Value)) {
                         $relative = $file.FullName.Substring($root.Length + 1)
-                        $shadowingIssues += "$relative:$($j + 1) loop variable '$name' shadows an outer table and later reads '$name.$($memberMatch.Groups['member'].Value)'."
+                        $shadowingIssues += "${relative}:$($j + 1) loop variable '$name' shadows an outer table and later reads '$name.$($memberMatch.Groups['member'].Value)'."
                         break
                     }
                 }
