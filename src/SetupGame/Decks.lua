@@ -109,7 +109,7 @@ function deckSetup()
 	--Organise the Spell deck for "The Chaos Rift"
 	if gStates.gameScenario=="The Chaos Rift" then
 		getObjectFromGUID(GUID.deck.spell).setPosition({40.80, 2.0, -22.20})--Raise spell Deck
-		getObjectFromGUID(GUID.deck.spell).takeObject({guid="2eb8e2", position={40.80, 1.07, -22.20}})--Put Golden Grail under artifact Deck
+		getObjectFromGUID(GUID.deck.spell).takeObject({guid=GUID.card.timeBending, position={40.80, 1.07, -22.20}})--Put Golden Grail under artifact Deck
 	end
 
 	--Remove City-only units for scenarios without city access. Expansion filtering already removed
