@@ -506,7 +506,7 @@ function displayScore(player, mouseButton, id)
 			if gStates.gameScenario=="Mines Liberation" and greatName=="gLiberator" then ref=2 end
 			if gStates.gameScenario=="Dungeon Lords" and greatName=="gAdventurer" then ref=2 end
 			if gStates.gameScenario=="Against the Apocalypse Blitz" and (greatName=="gRestorer" or (greatName=="gAdventurer" and gStates.coop==1) or (greatName=="gAscender" and gStates.coop==0)) then ref=4 end
-			if (gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="Ultimate Conquest" or gStates.gameScenario=="Fast Forwarded Conquest") and greatName=="gCityLead" then ref=2 end
+			if (gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Ultimate Conquest" or gStates.gameScenario=="Fast Forwarded Conquest") and greatName=="gCityLead" then ref=2 end
 			if gStates.gameScenario=="The Lost Relic Blitz" and gStates.coop==0 and greatName=="gRelic" then ref=3 end
 			scoreMax=0
 			key={}
