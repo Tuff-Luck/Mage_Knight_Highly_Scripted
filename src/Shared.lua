@@ -506,21 +506,27 @@ local function runtimeMapTerrainSnapshot()
 	local neighborSet={}
 	for _,hex in ipairs(hexes) do
 		local key=runtimeMapHexKey(hex)
-		hexByKey[key]=hex
-		neighbors[key]={}
-		neighborSet[key]={}
+		if key~=nil then
+			hexByKey[key]=hex
+			neighbors[key]={}
+			neighborSet[key]={}
+		end
 	end
 	for a=1,#hexes do
 		local first=hexes[a]
 		local firstKey=runtimeMapHexKey(first)
-		for b=a+1,#hexes do
-			local second=hexes[b]
-			if runtimeMapHexesAdjacent(first,second)==true then
-				local secondKey=runtimeMapHexKey(second)
-				neighbors[firstKey][#neighbors[firstKey]+1]=second
-				neighbors[secondKey][#neighbors[secondKey]+1]=first
-				neighborSet[firstKey][secondKey]=true
-				neighborSet[secondKey][firstKey]=true
+		if firstKey~=nil then
+			for b=a+1,#hexes do
+				local second=hexes[b]
+				if runtimeMapHexesAdjacent(first,second)==true then
+					local secondKey=runtimeMapHexKey(second)
+					if secondKey~=nil then
+						neighbors[firstKey][#neighbors[firstKey]+1]=second
+						neighbors[secondKey][#neighbors[secondKey]+1]=first
+						neighborSet[firstKey][secondKey]=true
+						neighborSet[secondKey][firstKey]=true
+					end
+				end
 			end
 		end
 	end

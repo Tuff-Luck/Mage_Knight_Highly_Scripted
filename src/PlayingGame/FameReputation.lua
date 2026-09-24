@@ -264,12 +264,12 @@ function fameReputationPlunderVillage(player,mouseButton,id)
 	end
 end
 
-function fameReputationAdvanceCoopRewardPhase(...)
+function fameReputationAdvanceCoopRewardPhase()
 	local entry=gStates.coopRewardQueue~=nil and gStates.coopRewardQueue[gStates.coopRewardIndex] or nil
 	if entry~=nil then syncPostCommitAdjustments(entry.player) end
 	fameRepSyncSuppressed=true
 	if entry~=nil and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[entry.player]=nil end
-	local result=combatAdvanceCoopRewardPhaseBase(...)
+	local result=combatAdvanceCoopRewardPhaseBase()
 	fameRepSyncSuppressed=false
 	return result
 end

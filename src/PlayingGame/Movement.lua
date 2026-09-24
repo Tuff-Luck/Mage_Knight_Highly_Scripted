@@ -938,13 +938,15 @@ function renderMoveDisplay(id)
 					end
 				end
 				local world=runtimeMapAxialToWorld(tonumber(vec),tonumber(hor),startTilePos,1.22)
-				local hexGridX,hexGridZ=world[1],world[3]
-				local startingHex=tonumber(hor)==playerHexGridHorizontal and tonumber(vec)==playerHexGridAxial
-				if startingHex==false then
-					if lowestHex<=gStates.resourceTracker.move.move then
-						addMoveCostText(displayCost, hexGridX, hexGridZ, true, combatMove, multipleCosts, dualCosts)
-					elseif lowestHex<=99 and lowestHex<gStates.resourceTracker.move.move+searchLimit then
-						addMoveCostText(displayCost, hexGridX, hexGridZ, false, combatMove, multipleCosts, dualCosts)
+				if world~=nil then
+					local hexGridX,hexGridZ=world[1],world[3]
+					local startingHex=tonumber(hor)==playerHexGridHorizontal and tonumber(vec)==playerHexGridAxial
+					if startingHex==false then
+						if lowestHex<=gStates.resourceTracker.move.move then
+							addMoveCostText(displayCost, hexGridX, hexGridZ, true, combatMove, multipleCosts, dualCosts)
+						elseif lowestHex<=99 and lowestHex<gStates.resourceTracker.move.move+searchLimit then
+							addMoveCostText(displayCost, hexGridX, hexGridZ, false, combatMove, multipleCosts, dualCosts)
+						end
 					end
 				end
 			end

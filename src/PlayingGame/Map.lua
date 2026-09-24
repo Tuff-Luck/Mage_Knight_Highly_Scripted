@@ -1292,7 +1292,7 @@ function refreshTerrainExploreOptions(compactCities)
 			for _, containedTerrain in pairs(terrainStackObjects) do
 				if containedTerrain.index==nextTerrainIndex then testTerrain=containedTerrain.guid break end
 			end
-		elseif terrainStackSingleTile==true then
+		elseif terrainStackSingleTile==true and terrainStack~=nil then
 			--A terrain stack collapses back to the final tile object when only one tile remains.
 			testTerrain=terrainStack.guid
 		else

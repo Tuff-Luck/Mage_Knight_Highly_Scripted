@@ -1348,18 +1348,20 @@ function againstHorsemenDefaultNextPosition(position,center)
 		local nr=r+offset[2]
 		local inline=againstHorsemenInlineGridDistance(nq,nr)
 		local centerDistance=runtimeMapAxialDistance(nq,nr)
-		local legal=false
-		if currentInline==0 then
-			--Already on one of the three lines through the Glade: stay on it and go straight inward.
-			legal=inline==0 and centerDistance==currentCenter-1
-		else
-			--Before reaching a centre-line, simply take the adjacent hex closest to one of those lines.
-			legal=inline<currentInline
-		end
-		if legal==true and (bestQ==nil or inline<bestInline or
-			(inline==bestInline and centerDistance<bestCenter) or
-			(inline==bestInline and centerDistance==bestCenter and (nq<bestQ or (nq==bestQ and nr<bestR)))) then
-			bestQ=nq bestR=nr bestInline=inline bestCenter=centerDistance
+		if centerDistance~=nil then
+			local legal=false
+			if currentInline==0 then
+				--Already on one of the three lines through the Glade: stay on it and go straight inward.
+				legal=inline==0 and centerDistance==currentCenter-1
+			else
+				--Before reaching a centre-line, simply take the adjacent hex closest to one of those lines.
+				legal=inline<currentInline
+			end
+			if legal==true and (bestQ==nil or inline<bestInline or
+				(inline==bestInline and centerDistance<bestCenter) or
+				(inline==bestInline and centerDistance==bestCenter and (nq<bestQ or (nq==bestQ and nr<bestR)))) then
+				bestQ=nq bestR=nr bestInline=inline bestCenter=centerDistance
+			end
 		end
 	end
 	if bestQ==nil then return nil end
