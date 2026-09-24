@@ -1,5 +1,112 @@
 -- Physical player, Dummy and Volkare piece deployment during setup.
 
+local PLAYER_SETUP_POSITION_ORDER={2,3,4,1,5}
+
+local PLAYER_SETUP_COMMON_PARTS={
+	{-72.50,0.98,-38.00},{-68.60,1.37,-30.80},{-68.60,1.37,-32.40},
+	{-67.30,1.37,-30.80},{-67.30,1.37,-32.40},{-65.90,1.37,-30.80},{-65.90,1.37,-32.40},
+	{-41.95,1.08,-36.10},{-41.76,1.14,-31.10},{-41.76,1.16,-34.41},
+	{-69.30,1.35,-29.30},{-68.00,1.35,-29.30},{-66.70,1.35,-29.30},{-65.40,1.35,-29.30},
+	{-76.30,1.35,-29.30},{-75.00,1.35,-29.30},{-73.70,1.35,-29.30},{-72.40,1.35,-29.30}
+}
+
+local PLAYER_SETUP_UNIQUE_PARTS={
+	{0.40,1.55,-19.17},{-74.19,1.50,-43.16},{-72.89,1.10,-35.13},{-67.46,1.60,-36.88},
+	{-77.30,1.05,-49.00},{-73.90,1.05,-49.00},{-10.00,1.25,-27.50},{12.10,1.25,24.50},
+	{40.15,1.25,18.60},{-66.40,1.16,-34.25},{-41.76,1.16,-32.78},{-63.57,1.50,-31.19},
+	{-68.24,1.10,-34.40}
+}
+
+local PLAYER_SETUP_PORTAL_POSITIONS={
+	{-42.5,1.3,-11.4},{-45.5,1.3,-13.2},{-42.5,1.3,-13.2},{-45.5,1.3,-11.4},{-43.94,1.3,-12.36}
+}
+
+local PLAYER_SETUP_REPUTATION_POSITIONS={
+	{{34.02,1.14,21.26},{34.50,1.14,22.57},{34.99,1.14,23.91},{33.53,1.21,19.98}},
+	{{36.70,1.20,20.25},{37.33,1.14,21.45},{38.02,1.14,22.63},{36.11,1.14,19.04}},
+	{{39.87,1.13,19.41},{38.79,1.13,18.75},{41.16,1.13,19.20},{40.33,1.13,20.87}},
+	{{39.03,1.13,16.00},{40.18,1.13,16.30},{41.37,1.13,16.56},{37.87,1.13,15.74}}
+}
+
+local PLAYER_SETUP_INVENTORIES={
+	Arythea="https://steamusercontent-a.akamaihd.net/ugc/1688270498378077447/DA7FA05E7349C9E1C99C318032043429816C861D/",
+	Braevalar="https://steamusercontent-a.akamaihd.net/ugc/1688270498378077718/DCE81E61A3E1B96D8BA93A4F8793A10FB665FB6B/",
+	Goldyx="https://steamusercontent-a.akamaihd.net/ugc/1688270498378077961/390B23321D1B2E3F34B1A029FFB2FB9C84262763/",
+	Jormund="https://steamusercontent-a.akamaihd.net/ugc/1795241588983562972/1557BE3291E3A706D57FBFDBE5A72E7FAAB2CDF1/",
+	Mevok="https://steamusercontent-a.akamaihd.net/ugc/2546304515601825153/FC93E96C09CB79AC93C52094C1B5287D811FA482/",
+	Duscenia="https://steamusercontent-a.akamaihd.net/ugc/2546304515601824613/3B452F1B422F9671596713E2AFAAD60D41D3D16F/",
+	Malek="https://steamusercontent-a.akamaihd.net/ugc/14943218316842257893/D58F0F6FCC4FE321C759297C11AE9F56BE11B0FD/",
+	Krang="https://steamusercontent-a.akamaihd.net/ugc/1688270498378078687/F80D82EF2E26084CEB57089D002A0302D97DEC6B/",
+	Norowas="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079060/8711BC1DD995631FD7EEEC2747ADB204C806CE5C/",
+	Tovak="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079257/2B4D0055D769A2F0A24EEBC1940C0A50F834A9C0/",
+	Wolfhawk="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079469/999F91445334DECE8125779EB46C1A5C46687A9D/",
+	Coral="https://steamusercontent-a.akamaihd.net/ugc/14667008316248124108/D5989267D0EA9DC649819CA8E597860FA8B9F92C/",
+	Zirtae="https://steamusercontent-a.akamaihd.net/ugc/17952541848407306110/B100358117F2DBF3F181B3FD347B14C77AA26308/",
+	Ymirgh="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079688/47CE3F5B6A9F817FB562B5E9864E7F761CC62F97/"
+}
+
+local function playerSetupInitializeState()
+	gStates.playerSetupReady=false
+	gStates.proxySetupReady=proxyPlayerActive()~=true
+	gStates.volkareSetupReady=gStates.positionMageKnight[5]~="Volkare"
+	gStates.mirrorSource=gStates.mirrorSource or {}
+	gStates.mirrorSetupReady=false
+	local mirrorExpected=0
+	for seat=1,4 do
+		if gStates.positionMageKnight[seat]~="nobody" then mirrorExpected=mirrorExpected+1 end
+	end
+	if mirrorExpected==0 then gStates.mirrorSetupReady=true end
+	if gStates.heroChallenges==true then gStates.heroChallengeReservedSkills={} end
+	return mirrorExpected
+end
+
+local function playerSetupResolveRandomMages()
+	gStates.originalChoiceMageKnights={gStates.positionMageKnight[1],gStates.positionMageKnight[2],gStates.positionMageKnight[3],gStates.positionMageKnight[4],gStates.positionMageKnight[5]}
+	for position=1,5 do
+		if gStates.positionMageKnight[position]=="Random" or gStates.positionMageKnight[position]=="All Skills" then
+			local randomMK=""
+			local duplicate=true
+			while duplicate==true do
+				duplicate=false
+				randomMK=mageKnights[math.random(1,#mageKnights-3)].mage
+				for otherPosition=1,5 do
+					if randomMK==gStates.positionMageKnight[otherPosition] then duplicate=true break end
+				end
+				if gStates.useCustomMageKnights==false and customMages[randomMK]~=nil then duplicate=true end
+				if gStates.riseOfTheForgemasters~=3 and randomMK=="Jormund" then duplicate=true end
+				if duplicate==false and gStates.heroChallenges==true then
+					if heroChallengesData[randomMK]==nil then
+						duplicate=true
+					else
+						local oldChoice=gStates.positionMageKnight[position]
+						gStates.positionMageKnight[position]=randomMK
+						local assignment=heroChallengeCountryAssignment(false)
+						gStates.positionMageKnight[position]=oldChoice
+						if assignment==nil then duplicate=true end
+					end
+				end
+			end
+			gStates.positionMageKnight[position]=randomMK
+		end
+	end
+end
+
+local function playerSetupFinishProxyComponents()
+	if proxyPlayerActive()~=true then return end
+	safeWaitCondition("SetupGame",function()
+		proxySetupReferenceCards()
+		proxySetupShieldBag()
+		safeWaitCondition("SetupGame",function()
+			gStates.proxySetupReady=true
+		end,function()
+			local shield=gStates.proxyShieldBagGUID~=nil and getObjectFromGUID(gStates.proxyShieldBagGUID) or nil
+			return getObjectFromGUID("0e855c")~=nil and getObjectFromGUID("dbf566")~=nil and shield~=nil
+		end,10,function() error("SetupGame timed out waiting for Proxy reference components.",2) end)
+	end,function()
+		return getObjectFromGUID(dummyBoard)~=nil and getObjectFromGUID(GUID.bag.apocalypseDragon)~=nil
+	end,10,function() error("SetupGame timed out waiting for the Proxy setup sources.",2) end)
+end
+
 function setupPlayersReady()
 	if gStates==nil or gStates.playerSetupReady~=true or gStates.mirrorSetupReady~=true then return false end
 	if proxyPlayerActive()==true and gStates.proxySetupReady~=true then return false end
@@ -9,47 +116,9 @@ end
 
 --Go through the five player positions and put out pieces based on the game settings
 function playerSetup()
-	gStates.playerSetupReady=false
-	gStates.proxySetupReady=proxyPlayerActive()~=true
-	gStates.volkareSetupReady=gStates.positionMageKnight[5]~="Volkare"
-	gStates.mirrorSource=gStates.mirrorSource or {}
-	gStates.mirrorSetupReady=false
-	local mirrorExpected=0
-	for seat=1,4 do if gStates.positionMageKnight[seat]~="nobody" then mirrorExpected=mirrorExpected+1 end end
+	local mirrorExpected=playerSetupInitializeState()
 	local mirrorReady=0
-	if mirrorExpected==0 then gStates.mirrorSetupReady=true end
-	if gStates.heroChallenges==true then gStates.heroChallengeReservedSkills={} end
-	--generate random Mage Knights if needed
-	gStates.originalChoiceMageKnights={gStates.positionMageKnight[1], gStates.positionMageKnight[2], gStates.positionMageKnight[3], gStates.positionMageKnight[4], gStates.positionMageKnight[5]}
-	for a=1, 5, 1 do
-		if gStates.positionMageKnight[a]=="Random" or gStates.positionMageKnight[a]=="All Skills" then
-			local randomMK=""
-			local duplicate=true
-			while duplicate==true do
-				duplicate=false
-				randomMK=mageKnights[math.random(1, #mageKnights-3)].mage
-				for a=1, 5, 1 do
-					if randomMK==gStates.positionMageKnight[a] then duplicate=true break end
-				end
-				if gStates.useCustomMageKnights==false and customMages[randomMK]~=nil then duplicate=true end
-				if gStates.riseOfTheForgemasters~=3 and randomMK=="Jormund" then duplicate=true end
-				if duplicate==false and gStates.heroChallenges==true then
-					if heroChallengesData[randomMK]==nil then
-						duplicate=true
-					else
-						--Quick Random Game bypasses the setup Start-button legality check. Temporarily test the
-						--candidate here so a random Hero never creates an impossible Challenge terrain setup.
-						local oldChoice=gStates.positionMageKnight[a]
-						gStates.positionMageKnight[a]=randomMK
-						local assignment=heroChallengeCountryAssignment(false)
-						gStates.positionMageKnight[a]=oldChoice
-						if assignment==nil then duplicate=true end
-					end
-				end
-			end
-			gStates.positionMageKnight[a]=randomMK
-		end
-	end
+	playerSetupResolveRandomMages()
 
 	--The selected Mage Knight's normal Shield source may belong to a player position that is cleaned
 	--before the Dummy/Proxy position is built. Preserve a dedicated Proxy copy first.
@@ -57,28 +126,20 @@ function playerSetup()
 
 	--Setup Players Mats.
 	local DummyPlayed=0
-	local positionOrder={2, 3, 4, 1, 5}--positions are built in this order so dummy is put in the middle
-	local startPos=		{0, 0, 0, 0, 0}--records if a position has been used for a turn order token.
-	local time=0
-	local delay=1.6
-	local DummyPlayedTiming=0
+	local positionOrder=PLAYER_SETUP_POSITION_ORDER
+	local startPos={0,0,0,0,0}--records if a position has been used for a turn order token.
 	for a=1, 5, 1 do
 		--Wait.time(function()
 			local offsetPosition=positionOrder[a]*40-40
-			local CommonParts={	{-72.50, 0.98, -38.00}, {-68.60, 1.37, -30.80}, {-68.60, 1.37, -32.40},							--Dummy Board, Black Mana, Gold Mana
-								{-67.30, 1.37, -30.80}, {-67.30, 1.37, -32.40}, {-65.90, 1.37, -30.80}, {-65.9, 1.37, -32.40},	--Blue Mana, Green Mana, Red Mana, White Mana
-								{-41.95, 1.08, -36.10}, {-41.76, 1.14, -31.10}, {-41.76, 1.16, -34.41},							--Wound Cards, Wound Tokens, Keep Token
-								{-69.30, 1.35, -29.30}, {-68.00, 1.35, -29.30}, {-66.70, 1.35, -29.30}, {-65.40, 1.35, -29.30}, --Blue Shard, Green Shard, Red Shard, White Shard
-								{-76.30, 1.35, -29.30}, {-75.00, 1.35, -29.30}, {-73.70, 1.35, -29.30}, {-72.40, 1.35, -29.30}} --Blue Potion, Green Potion, Red Potion, White Potion
 			--Checks if the position has a player, dummy or Volkare required
 			if (gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4) or (gStates.positionMageKnight[5]~="nobody" and DummyPlayed==0) then
 				--Layout everything from the Common Bag if needed
 				local CommonBag=getObjectFromGUID(GUID.bag.common).clone()
 				CommonBag.setPosition({-60.0+offsetPosition, 1.5, -38.0})
-				for i=1, #CommonParts, 1 do
+				for i=1, #PLAYER_SETUP_COMMON_PARTS, 1 do
 					local skip=0
-					local params={position=CommonParts[i], rotation={0, 180, 0}, smooth=false}
-					params.position[1]=params.position[1]+offsetPosition
+					local part=PLAYER_SETUP_COMMON_PARTS[i]
+					local params={position={part[1]+offsetPosition,part[2],part[3]}, rotation={0,180,0}, smooth=false}
 					if (i>=2 and i<=7) or (i>=11 and i<=14) then params.rotation={0, 30, 0} end
 					if positionOrder[a]==5 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
 					if i==1 and positionOrder[a]<=4 and gStates.positionMageKnight[positionOrder[a]]~="nobody" then local obj=CommonBag.takeObject() obj.destruct() skip=1 end--destroy the Dummy Board if this is a player
@@ -127,17 +188,14 @@ function playerSetup()
 				end
 
 				--Layout everything from the mage bag assigned to the position
-				local UniqueParts={	{  0.40, 1.55, -19.17}, {-74.19, 1.50, -43.16}, {-72.89, 1.10, -35.13}, {-67.46, 1.60, -36.88}, {-77.30, 1.05, -49.00}, {-73.90, 1.05, -49.00}, --{-67.33, 1.99, -36.88}, {-67.33, 1.99, -36.88},
-									{-10.00, 1.25, -27.50}, { 12.10, 1.25,  24.5}, { 40.15, 1.25,  18.6}, {-66.40, 1.16, -34.25}, {-41.76, 1.16, -32.78},
-									{-63.57, 1.50, -31.19},	{-68.24, 1.10, -34.4}}
-									--1-Turn Order, 2-Unique Cards, 3-Dummy Inventory, 4-Skills, 5-Skill Reference Card 1, 6-Skill Reference Card 2,
-									--7-Avatar, 8-Shield Fame, 9-Shield Rep, 10-Shield Control, 11-Quest Marker,
-									--12-Comand token Blank, 13-5 Command Tokens
+				--1-Turn Order, 2-Unique Cards, 3-Dummy Inventory, 4-Skills, 5-Skill Reference Card 1, 6-Skill Reference Card 2,
+				--7-Avatar, 8-Shield Fame, 9-Shield Rep, 10-Shield Control, 11-Quest Marker,
+				--12-Command token Blank, 13-5 Command Tokens
 				local turnRef=1
-				for i=1, #UniqueParts, 1 do
+				for i=1, #PLAYER_SETUP_UNIQUE_PARTS, 1 do
 					local skip=0
-					local params={position=UniqueParts[i], smooth=false, setColorTint=""}
-					params.position[1]=params.position[1]+offsetPosition
+					local part=PLAYER_SETUP_UNIQUE_PARTS[i]
+					local params={position={part[1]+offsetPosition,part[2],part[3]}, smooth=false, setColorTint=""}
 					--turn markers all go in Shuffled Order
 					if i==1 then
 						if (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) then--Dummy and Volkare
@@ -235,8 +293,8 @@ function playerSetup()
 							end
 						else
 							--params.position[1]=params.position[1]-(offsetPosition/1.07)--Avatar
-							local portalPosition={{-42.5, 1.3, -11.4}, {-45.5, 1.3, -13.2}, {-42.5, 1.3, -13.2}, {-45.5, 1.3, -11.4}, {-43.94, 1.3, -12.36}}
-							params.position=portalPosition[a]
+							local portal=PLAYER_SETUP_PORTAL_POSITIONS[a]
+							params.position={portal[1],portal[2],portal[3]}
 						end
 					end
 
@@ -291,10 +349,6 @@ function playerSetup()
 					end
 
 					--Reputation Marker or Volkare's Avatar
-					local colorReputation={	{{34.02, 1.14, 21.26}, {34.50, 1.14, 22.57}, {34.99, 1.14, 23.91}, {33.53, 1.21, 19.98}},--(-2)
-											{{36.70, 1.20, 20.25}, {37.33, 1.14, 21.45}, {38.02, 1.14, 22.63}, {36.11, 1.14, 19.04}},--(-1)
-											{{39.87, 1.13, 19.41}, {38.79, 1.13, 18.75}, {41.16, 1.13, 19.20}, {40.33, 1.13, 20.87}},--(0)
-											{{39.03, 1.13, 16.00}, {40.18, 1.13, 16.30}, {41.37, 1.13, 16.56}, {37.87, 1.13, 15.74}}}--(+1)
 					if i==9 then
 						if (gStates.positionMageKnight[positionOrder[a]]=="nobody" or positionOrder[a]==5) then--Checks if this position is a dummy
 							if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
@@ -309,7 +363,8 @@ function playerSetup()
 							skip=1
 						else
 							local blitzSub=gStates.blitz
-							params.position=colorReputation[0+blitzSub-gStates.rampage+3][positionOrder[a]]--Reputation Marker
+							local reputationPosition=PLAYER_SETUP_REPUTATION_POSITIONS[blitzSub-gStates.rampage+3][positionOrder[a]]
+							params.position={reputationPosition[1],reputationPosition[2],reputationPosition[3]}--Reputation Marker
 							turnOrder[turnRef].reputation=(0+blitzSub-gStates.rampage)*2
 						end
 					end
@@ -399,22 +454,8 @@ function playerSetup()
 						if i==8 and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4 then turnOrder[turnRef].fameGUID=obj.guid end
 						if i==9 and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4 then turnOrder[turnRef].reputationGUID=obj.guid end
 						if i==13 and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4 then turnOrder[turnRef].commandGUID=obj.guid end
-						local inventories={	["Arythea"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378077447/DA7FA05E7349C9E1C99C318032043429816C861D/",
-											["Braevalar"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378077718/DCE81E61A3E1B96D8BA93A4F8793A10FB665FB6B/",
-											["Goldyx"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378077961/390B23321D1B2E3F34B1A029FFB2FB9C84262763/",
-											["Jormund"]="https://steamusercontent-a.akamaihd.net/ugc/1795241588983562972/1557BE3291E3A706D57FBFDBE5A72E7FAAB2CDF1/",
-											["Mevok"]="https://steamusercontent-a.akamaihd.net/ugc/2546304515601825153/FC93E96C09CB79AC93C52094C1B5287D811FA482/",
-											["Duscenia"]="https://steamusercontent-a.akamaihd.net/ugc/2546304515601824613/3B452F1B422F9671596713E2AFAAD60D41D3D16F/",
-											["Malek"]="https://steamusercontent-a.akamaihd.net/ugc/14943218316842257893/D58F0F6FCC4FE321C759297C11AE9F56BE11B0FD/",
-											["Krang"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378078687/F80D82EF2E26084CEB57089D002A0302D97DEC6B/",
-											["Norowas"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079060/8711BC1DD995631FD7EEEC2747ADB204C806CE5C/",
-											["Tovak"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079257/2B4D0055D769A2F0A24EEBC1940C0A50F834A9C0/",
-											["Wolfhawk"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079469/999F91445334DECE8125779EB46C1A5C46687A9D/",
-											["Coral"]="https://steamusercontent-a.akamaihd.net/ugc/14667008316248124108/D5989267D0EA9DC649819CA8E597860FA8B9F92C/",
-											["Zirtae"]="https://steamusercontent-a.akamaihd.net/ugc/17952541848407306110/B100358117F2DBF3F181B3FD347B14C77AA26308/",
-											["Ymirgh"]="https://steamusercontent-a.akamaihd.net/ugc/1688270498378079688/47CE3F5B6A9F817FB562B5E9864E7F761CC62F97/"}
 						if i==1 and gStates.positionMageKnight[positionOrder[a]]~="nobody" and positionOrder[a]<=4 then
-							local inventoryImage=inventories[gStates.positionMageKnight[positionOrder[a]]]
+							local inventoryImage=PLAYER_SETUP_INVENTORIES[gStates.positionMageKnight[positionOrder[a]]]
 							if inventoryImage~=nil then getObjectFromGUID(playerBoard[positionOrder[a]]).addDecal({name="Mage Inventory", url=inventoryImage, position={1.735, 0.11, -0.32}, rotation={90.0, 180.0, 0.0}, scale={1.164, 1.219, 10}}) end
 							turnOrder[turnRef].playerBoardGUID=playerBoard[positionOrder[a]]
 						end
@@ -442,22 +483,7 @@ function playerSetup()
 		--	if (gStates.positionMageKnight[positionOrder[a+1]]=="nobody" or positionOrder[a+1]==5) and gStates.positionMageKnight[5]~="nobody" then DummyPlayedTiming=1 end
 		--end
 	end
-	--The Proxy uses a visible copy of their Mage Knight's infinite Shield bag beside the Dummy setup,
-	--plus the two Apocalypse Proxy reference cards immediately to the right of the Skill reference cards.
-	if proxyPlayerActive()==true then
-		safeWaitCondition("SetupGame",function()
-			proxySetupReferenceCards()
-			proxySetupShieldBag()
-			safeWaitCondition("SetupGame",function()
-				gStates.proxySetupReady=true
-			end,function()
-				local shield=gStates.proxyShieldBagGUID~=nil and getObjectFromGUID(gStates.proxyShieldBagGUID) or nil
-				return getObjectFromGUID("0e855c")~=nil and getObjectFromGUID("dbf566")~=nil and shield~=nil
-			end,10,function() error("SetupGame timed out waiting for Proxy reference components.",2) end)
-		end,function()
-			return getObjectFromGUID(dummyBoard)~=nil and getObjectFromGUID(GUID.bag.apocalypseDragon)~=nil
-		end,10,function() error("SetupGame timed out waiting for the Proxy setup sources.",2) end)
-	end
+	playerSetupFinishProxyComponents()
 	gStates.playerSetupReady=true
 end
 
