@@ -309,10 +309,10 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 					else
 						params.position={-12.0297, 2.0,  8.8586}--The War of Four camp tile position
 					end
-					terrainTiles["835c91"].hexFeature.center=""
-					gStates.hexOverideSave["835c91"]={center=""}
+					terrainTiles[GUID.tile.volkareCamp].hexFeature.center=""
+					gStates.hexOverideSave[GUID.tile.volkareCamp]={center=""}
 					if gStates.randomTileOrientation==false then params.rotation={0, 180, 180} else params.rotation={0, math.random(1, 6)*60, 180} end
-					params.guid="835c91"
+					params.guid=GUID.tile.volkareCamp
 					local obj=safeTakeObject("SetupGame",cityBag,params)
 					if obj==nil then error("Volkare setup missing Camp terrain tile 835c91 from City terrain bag",2) end
 					--The Camp originated as a special Volkare component and historically had no Terrain tag.
@@ -519,10 +519,10 @@ function volkareSetup()
 	if gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then VolkareWounds=24-(4*gStates.volkareRaceLevel) else VolkareWounds=21-(3*gStates.volkareRaceLevel)-(2*gStates.blitz) end
 	if gStates.gameScenario=="Custom" then VolkareWounds=0 end
 	for i=1, VolkareWounds, 1 do
-		getObjectFromGUID(GUID.deck.volkare).putObject(getObjectFromGUID("a8e73d").clone({position={getObjectFromGUID(GUID.deck.volkare).getPosition()[1], -2, getObjectFromGUID(GUID.deck.volkare).getPosition()[3]}}))--The wound card to Volkare's Deck
+		getObjectFromGUID(GUID.deck.volkare).putObject(getObjectFromGUID(GUID.card.volkareWoundTemplate).clone({position={getObjectFromGUID(GUID.deck.volkare).getPosition()[1], -2, getObjectFromGUID(GUID.deck.volkare).getPosition()[3]}}))--The wound card to Volkare's Deck
 	end
 	getObjectFromGUID(GUID.deck.volkare).shuffle()
-	if gStates.gameScenario~="Custom" then getObjectFromGUID("a8e73d").destruct() end--The wound card
+	if gStates.gameScenario~="Custom" then getObjectFromGUID(GUID.card.volkareWoundTemplate).destruct() end--The wound card
 
 	--Add a random skill set if solo playing
 	if gStates.playerCount==1 and gStates.volkareSkills~="All Skills" then
