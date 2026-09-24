@@ -6090,16 +6090,99 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 	return false
 end
 local apocalypseQuestCardActionRestWait={}
-local function apocalypseQuestHandleCombatChoiceAction(player,card,playerIndex,action)
-if action=="CombatCancel" then
-	local pendingCombat=gStates.apocalypseQuestCombatChoice~=nil and gStates.apocalypseQuestCombatChoice[card.guid] or nil
-	if pendingCombat~=nil and (pendingCombat.mode=="ExecutionGold" or pendingCombat.mode=="NobleWarriorGold" or pendingCombat.mode=="GuardDutyChoice" or pendingCombat.mode=="GuardDutyGold") then return end
-	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
+local function apocalypseQuestRequeueCombatChoice(card,pendingCombat)
+	if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+	pendingCombat.colors=apocalypseQuestNobleGoldColors(pendingCombat.playerIndex,pendingCombat)
+	gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
 	apocalypseQuestInterfaceAdd(card,true)
-	return
 end
-if action:sub(1,12)=="CombatColor_" then
+
+local function apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,source,remainingKey,finish)
+	if color=="NoInventory" then
+		local available=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
+		if #available==1 and available[1]=="NoInventory" then finish(card,playerIndex,pendingCombat)
+		else apocalypseQuestRequeueCombatChoice(card,pendingCombat) end
+		return
+	end
+	pendingCombat.granted=pendingCombat.granted or {}
+	pendingCombat.startCounts=pendingCombat.startCounts or {}
+	if pendingCombat.startCounts[color]==nil then pendingCombat.startCounts[color]=mineCrystalCount(playerIndex,color) end
+	local effective=math.max(mineCrystalCount(playerIndex,color),pendingCombat.startCounts[color]+(pendingCombat.granted[color] or 0))
+	if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,source)==true then
+		pendingCombat.granted[color]=(pendingCombat.granted[color] or 0)+1
+		pendingCombat[remainingKey]=(pendingCombat[remainingKey] or 1)-1
+	end
+	if (pendingCombat[remainingKey] or 0)<=0 then finish(card,playerIndex,pendingCombat)
+	else apocalypseQuestRequeueCombatChoice(card,pendingCombat) end
+end
+
+local apocalypseQuestCombatChoiceModes={
+	GuardDutyChoice={
+		cancelLocked=true,
+		refreshAfter=false,
+		resolve=function(card,playerIndex,color,pendingCombat)
+			apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,"Guard Duty","remaining",function(questCard,index,pending)
+				apocalypseQuestFinishGuardDutyChoice(questCard,index,pending.distance)
+			end)
+		end
+	},
+	GuardDutyGold={
+		cancelLocked=true,
+		refreshAfter=false,
+		resolve=function(card,playerIndex,color,pendingCombat)
+			apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,"Guard Duty","goldRemaining",function(questCard,index,pending)
+				apocalypseQuestFinishGuardDutyGold(questCard,index,pending.distance)
+			end)
+		end
+	},
+	NobleWarriorGold={
+		cancelLocked=true,
+		refreshAfter=false,
+		resolve=function(card,playerIndex,color,pendingCombat)
+			apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,"Noble Warrior","goldRemaining",function(questCard,index)
+				apocalypseQuestFinishNobleGold(questCard,index)
+			end)
+		end
+	},
+	ExecutionGold={
+		cancelLocked=true,
+		refreshAfter=false,
+		resolve=function(card,playerIndex,color,pendingCombat)
+			local selected=apocalypseQuestChoiceOption(card,"1a")
+			if selected~=nil and apocalypseQuestGiveCrystal(playerIndex,color,nil,"The Execution")==true then
+				apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+				apocalypseQuestResolveSpecialEffect(card,playerIndex,selected,true)
+				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} chose a {ru} выбрал {zh-tw} 為 The Execution 選擇了 {zh-cn} 为 The Execution 选择了 {ko}이(가) The Execution에서 {es} eligió un cristal {fr} a choisi un cristal {pt-br} escolheu um cristal {de} wählte für The Execution einen ",translateWord[color] or tostring(color),"{en} crystal for The Execution.{ru} кристалл для The Execution.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털을 선택했습니다.{es} para The Execution.{fr} pour The Execution.{pt-br} para The Execution.{de}-Kristall."}),positionToColor(playerIndex))
+				apocalypseQuestFinishCompletedCard(card)
+				safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
+			else
+				--If the chosen crystal cannot be taken, keep the mandatory Gold choice open.
+				if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+				gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
+				apocalypseQuestInterfaceAdd(card,true)
+			end
+		end
+	},
+	ProgressColor={
+		resolve=function(card,playerIndex,color,pendingCombat,player)
+			if gStates.apocalypseQuestStepColor==nil then gStates.apocalypseQuestStepColor={} end
+			gStates.apocalypseQuestStepColor[card.guid]=color
+			local selected=apocalypseQuestChoiceOption(card,pendingCombat.key)
+			if selected~=nil then apocalypseQuestResolveStepAction(card,playerIndex,pendingCombat.action or "Progress",selected,player.color) end
+		end
+	}
+}
+
+local function apocalypseQuestHandleCombatChoiceAction(player,card,playerIndex,action)
 	local pendingCombat=gStates.apocalypseQuestCombatChoice~=nil and gStates.apocalypseQuestCombatChoice[card.guid] or nil
+	if action=="CombatCancel" then
+		local mode=pendingCombat~=nil and apocalypseQuestCombatChoiceModes[pendingCombat.mode] or nil
+		if mode~=nil and mode.cancelLocked==true then return end
+		if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
+		apocalypseQuestInterfaceAdd(card,true)
+		return
+	end
+	if action:sub(1,12)~="CombatColor_" then return end
 	local color=action:sub(13)
 	if pendingCombat==nil or pendingCombat.playerIndex~=playerIndex then
 		if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
@@ -6107,117 +6190,16 @@ if action:sub(1,12)=="CombatColor_" then
 		return
 	end
 	local allowed=false
-	for _, possible in ipairs(pendingCombat.colors or {}) do if possible==color then allowed=true break end end
+	for _,possible in ipairs(pendingCombat.colors or {}) do if possible==color then allowed=true break end end
 	gStates.apocalypseQuestCombatChoice[card.guid]=nil
-	if allowed==true and pendingCombat.mode=="GuardDutyChoice" then
-		if color=="NoInventory" then
-			--Nothing more can legally be gained. Consume the remaining printed choices and finish cleanly.
-			if #apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)==1 and apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)[1]=="NoInventory" then
-				apocalypseQuestFinishGuardDutyChoice(card,playerIndex,pendingCombat.distance)
-			else
-				pendingCombat.colors=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
-				gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-				apocalypseQuestInterfaceAdd(card,true)
-			end
-			return
-		end
-		pendingCombat.granted=pendingCombat.granted or {}
-		pendingCombat.startCounts=pendingCombat.startCounts or {}
-		if pendingCombat.startCounts[color]==nil then pendingCombat.startCounts[color]=mineCrystalCount(playerIndex,color) end
-		local effective=math.max(mineCrystalCount(playerIndex,color),pendingCombat.startCounts[color]+(pendingCombat.granted[color] or 0))
-		if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Guard Duty")==true then
-			pendingCombat.granted[color]=(pendingCombat.granted[color] or 0)+1
-			pendingCombat.remaining=(pendingCombat.remaining or 1)-1
-		end
-		if (pendingCombat.remaining or 0)<=0 then
-			apocalypseQuestFinishGuardDutyChoice(card,playerIndex,pendingCombat.distance)
-		else
-			pendingCombat.colors=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
-			gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-			apocalypseQuestInterfaceAdd(card,true)
-		end
-		return
-	elseif allowed==true and pendingCombat.mode=="GuardDutyGold" then
-		if color=="NoInventory" then
-			if #apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)==1 and apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)[1]=="NoInventory" then
-				apocalypseQuestFinishGuardDutyGold(card,playerIndex,pendingCombat.distance)
-			else
-				pendingCombat.colors=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
-				gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-				apocalypseQuestInterfaceAdd(card,true)
-			end
-			return
-		end
-		pendingCombat.granted=pendingCombat.granted or {}
-		pendingCombat.startCounts=pendingCombat.startCounts or {}
-		if pendingCombat.startCounts[color]==nil then pendingCombat.startCounts[color]=mineCrystalCount(playerIndex,color) end
-		local effective=math.max(mineCrystalCount(playerIndex,color),pendingCombat.startCounts[color]+(pendingCombat.granted[color] or 0))
-		if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Guard Duty")==true then
-			pendingCombat.granted[color]=(pendingCombat.granted[color] or 0)+1
-			pendingCombat.goldRemaining=(pendingCombat.goldRemaining or 1)-1
-		end
-		if (pendingCombat.goldRemaining or 0)<=0 then
-			apocalypseQuestFinishGuardDutyGold(card,playerIndex,pendingCombat.distance)
-		else
-			pendingCombat.colors=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
-			gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-			apocalypseQuestInterfaceAdd(card,true)
-		end
-		return
-	elseif allowed==true and pendingCombat.mode=="NobleWarriorGold" then
-		if color=="NoInventory" then
-			--This button is only offered when all four basic-crystal inventories are full. It consumes
-			--any remaining Gold results so the Quest can always be cleared.
-			if #apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)==1 and apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)[1]=="NoInventory" then
-				apocalypseQuestFinishNobleGold(card,playerIndex)
-			else
-				pendingCombat.colors=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
-				gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-				apocalypseQuestInterfaceAdd(card,true)
-			end
-			return
-		end
-		pendingCombat.granted=pendingCombat.granted or {}
-		pendingCombat.startCounts=pendingCombat.startCounts or {}
-		if pendingCombat.startCounts[color]==nil then pendingCombat.startCounts[color]=mineCrystalCount(playerIndex,color) end
-		local effective=math.max(mineCrystalCount(playerIndex,color),pendingCombat.startCounts[color]+(pendingCombat.granted[color] or 0))
-		if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Noble Warrior")==true then
-			pendingCombat.granted[color]=(pendingCombat.granted[color] or 0)+1
-			pendingCombat.goldRemaining=(pendingCombat.goldRemaining or 1)-1
-		end
-		if (pendingCombat.goldRemaining or 0)<=0 then
-			apocalypseQuestFinishNobleGold(card,playerIndex)
-		else
-			pendingCombat.colors=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
-			gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-			apocalypseQuestInterfaceAdd(card,true)
-		end
-		return
-	elseif allowed==true and pendingCombat.mode=="ExecutionGold" then
-		local selected=apocalypseQuestChoiceOption(card,"1a")
-		if selected~=nil and apocalypseQuestGiveCrystal(playerIndex,color,nil,"The Execution")==true then
-			apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-			apocalypseQuestResolveSpecialEffect(card,playerIndex,selected,true)
-			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} chose a {ru} выбрал {zh-tw} 為 The Execution 選擇了 {zh-cn} 为 The Execution 选择了 {ko}이(가) The Execution에서 {es} eligió un cristal {fr} a choisi un cristal {pt-br} escolheu um cristal {de} wählte für The Execution einen ",translateWord[color] or tostring(color),"{en} crystal for The Execution.{ru} кристалл для The Execution.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털을 선택했습니다.{es} para The Execution.{fr} pour The Execution.{pt-br} para The Execution.{de}-Kristall."}),positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(card)
-			safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
-		else
-			--If the chosen crystal cannot be taken (for example the Inventory already has 3), keep the
-			--Gold choice open so the player may choose another basic colour.
-			if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-			gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-			apocalypseQuestInterfaceAdd(card,true)
-		end
-		return
-	elseif allowed==true and pendingCombat.mode=="ProgressColor" then
-		if gStates.apocalypseQuestStepColor==nil then gStates.apocalypseQuestStepColor={} end
-		gStates.apocalypseQuestStepColor[card.guid]=color
-		local selected=apocalypseQuestChoiceOption(card,pendingCombat.key)
-		if selected~=nil then apocalypseQuestResolveStepAction(card,playerIndex,pendingCombat.action or "Progress",selected,player.color) end
-	elseif allowed==true then apocalypseQuestLaunchCombat(card,playerIndex,player.color,color) end
+	if allowed==true then
+		local mode=apocalypseQuestCombatChoiceModes[pendingCombat.mode]
+		if mode~=nil and mode.resolve~=nil then
+			mode.resolve(card,playerIndex,color,pendingCombat,player)
+			if mode.refreshAfter==false then return end
+		else apocalypseQuestLaunchCombat(card,playerIndex,player.color,color) end
+	end
 	if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end
-	return
-end
 end
 
 local function apocalypseQuestHandleDirectAction(player,card,playerIndex,action)
