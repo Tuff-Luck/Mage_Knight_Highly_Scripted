@@ -26,9 +26,9 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/PlayerBoard/Events.lua` | Player-board scripting-zone reactions and card presentation helpers dispatched by the global event layer. |
 | `src/PlayingGame/PlayerBoard/Skills.lua` | Skill offers, claims, skill state and player skill interactions. |
 | `src/PlayingGame/PlayerBoard/PuppetMaster.lua` | Krang Puppet Master enemy/puppet behaviour. |
-| `src/PlayingGame/Combat.lua` | Combat areas, attacks, assaults, combat UI/camera support, summons and pursuit. |
+| `src/PlayingGame/Combat.lua` | Combat areas, attacks, assaults, combat UI/camera support, summons, pursuit and physical pre-end-turn combat cleanup. The public pre-end-turn path is a phase orchestrator; generic extra-turn/reward sequencing stays in Turn. |
 | `src/PlayingGame/FameReputation.lua` | Cross-module Fame/Reputation accounting service used explicitly by Combat, UI, Map, Skills, Turn and Events entry points. |
-| `src/PlayingGame/Turn.lua` | Tactics, start/end turn, end round, final turns, dropout and day/night turn flow. |
+| `src/PlayingGame/Turn.lua` | Turn progression, reward gates, final-turn boundaries, end-of-round lifecycle, tactics and day/night transitions. End-turn and end-round are explicit phase pipelines rather than monolithic callbacks. |
 | `src/PlayingGame/City.lua` | City placement, levels, garrisons, city state and city runtime behaviour. |
 | `src/PlayingGame/Scenario.lua` | Scenario-specific runtime rules and scenario state transitions, including Fury elite-unit eligibility. |
 | `src/PlayingGame/ApocalypseDragon.lua` | Shared Apocalypse Dragon infrastructure for all Dragon scenarios: head levels/setup, landed Dragon combat, common choice helpers, and the interstitial Dragon-turn shell shared by Against the Dragon and Fury. |

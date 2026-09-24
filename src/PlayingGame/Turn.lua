@@ -230,7 +230,7 @@ function startOfTurn()
 	--A co-op assistant's combat step is not a new turn at the temporary assault location.
 	--Do not grant Glade/Hidden Valley/Necropolis/Graveyard/Oasis start-of-turn benefits.
 	if virtualCoopCombat==false and (turnOrder[gStates.turnNumber].avatarLocation=="glade" or turnOrder[gStates.turnNumber].avatarLocation=="graveyard"
-	 	or turnOrder[gStates.turnNumber].avatarLocation=="hidden valley" or turnOrder[gStates.turnNumber].avatarLocation=="necropolis") then
+		or turnOrder[gStates.turnNumber].avatarLocation=="hidden valley" or turnOrder[gStates.turnNumber].avatarLocation=="necropolis") then
 		--check if glade is conquered
 		if gladeFreeCheck()==true then
 			local params={position={(turnOrder[gStates.turnNumber].seatPos*40)-103, 1.65, -39}, rotation={0, 0, 0}, smooth=false}
@@ -395,174 +395,237 @@ function rewardClaimSoftLockPending(playerIndex)
 end
 
 --Deals player Hand then increments turn
-function turnEndTurnRawBase(player, mouseButton, id, rewindReady)
-	if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then --and slightPause==false
-		local rewardSeat=turnOrder[gStates.turnNumber].seatPos
-		local rewardSoftLock=rewardClaimSoftLockActive()
-		local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
-		if rewardSoftLock==true and questRewardPending==true then
-			apocalypseQuestRefreshOfferButtons()
-			rewardReminderCameraFocus(player.color,"questView")
-			local questGateMessage=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "Complete/Fail the Quest First" or "Complete/Progress the Quest First"
-			broadcastToColor(questGateMessage,player.color,warningColor)
-			if rewindReady==true then rewindTransactionFinish("End turn") end
-			return
+-- Turn-owned pre-end-turn work runs after Combat has opened the reward boundary but before
+-- physical combat cleanup starts. Combat calls this service at runtime after all modules are loaded.
+function turnPreparePreEndTurn(cleanupPlayer,playerColor,id)
+	if id=="ExtraTurnTacticButton" or id=="ExtraTurnChoiceTactic6" or id=="ExtraTurnChoiceTimeBending" then
+		local tacticSixAvailable,timeBendingAvailable=extraTurnOptions(cleanupPlayer)
+		local useTactic=id=="ExtraTurnChoiceTactic6" or (id=="ExtraTurnTacticButton" and tacticSixAvailable and timeBendingAvailable==false)
+		local useTimeBending=id=="ExtraTurnChoiceTimeBending" or (id=="ExtraTurnTacticButton" and timeBendingAvailable and tacticSixAvailable==false)
+		local cleanupTurnToken=getObjectFromGUID(turnOrder[cleanupPlayer].turnOrderTokenGUID)
+		if useTactic then
+			gStates.tacticSixState="Started"
+			getObjectFromGUID("2404f1").setRotationSmooth({0.00,180.00,180.00},false,false)
+			if cleanupTurnToken~=nil and cleanupTurnToken.is_face_down==true then
+				cleanupTurnToken.flip()
+				gStates.tacticSixState="Used"
+				gStates.skipTurn[cleanupPlayer]=nil
+			end
 		end
-		if rewardSoftLock==true and gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
-			local overdue=math.max(1,tonumber(gStates.apocalypseHereForcedRevealCount) or 1)
-			cameraControl(player,"-1","mapView")
-			local message=overdue==1 and "Reveal the overdue Map tile before claiming rewards." or ("Reveal "..tostring(overdue).." overdue Map tiles before claiming rewards.")
-			broadcastToColor(message,player.color,warningColor)
-			if rewindReady==true then rewindTransactionFinish("End turn") end
-			return
-		end
-		if rewardSoftLock==true and steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(rewardSeat)==true then
-			steadyTempoRefreshAll() steadyTempoUpdateRewardGate(rewardSeat)
-			cameraControl(player,"-1","playAreaView")
-			broadcastToAll("{en}Resolve Steady Tempo before claiming rewards.{ru}Разрешите «Steady Tempo» перед получением наград.{zh-tw}領取獎勵前先結算「Steady Tempo」。{zh-cn}领取奖励前先结算“Steady Tempo”。{ko}보상을 받기 전에 Steady Tempo를 해결하십시오.{es}Resuelve Steady Tempo antes de reclamar recompensas.{fr}Résolvez Steady Tempo avant de réclamer les récompenses.{pt-br}Resolva Steady Tempo antes de receber as recompensas.{de}Führe Steady Tempo aus, bevor du Belohnungen beanspruchst.", positionToColor(gStates.turnNumber))
-			if rewindReady==true then rewindTransactionFinish("End turn") end
-			return
-		end
-		if rewardSoftLock==true and gStates.mineClaimPending~=nil and (gStates.mineClaimPending.playerIndex==nil or gStates.mineClaimPending.playerIndex==gStates.turnNumber) then
-			broadcastToColor("{en}Resolve the pending crystal choice before proceeding to the next player.{ru}Сначала выберите ожидающий кристалл, прежде чем переходить к следующему игроку.{zh-tw}前往下一位玩家前，先完成尚未處理的水晶選擇。{zh-cn}前往下一位玩家前，先完成尚未处理的水晶选择。{ko}다음 플레이어로 넘어가기 전에 대기 중인 크리스털 선택을 해결하십시오.{es}Resuelve la elección de cristal pendiente antes de pasar al siguiente jugador.{fr}Résolvez le choix de cristal en attente avant de passer au joueur suivant.{pt-br}Resolva a escolha de cristal pendente antes de passar para o próximo jogador.{de}Schließe die ausstehende Kristallauswahl ab, bevor du zum nächsten Spieler wechselst.", player.color, warningColor)
-			if rewindReady==true then rewindTransactionFinish("End turn") end
-			return
-		end
-		if rewardSoftLock==true and rewardRetreatRequired~=nil and rewardRetreatRequired(gStates.turnNumber)==true then
-			cameraControl(player,"-1","mapView")
-			broadcastToColor("{en}Retreat to a safe space before claiming rewards.{ru}Отступите на безопасное поле перед получением наград.{zh-tw}領取獎勵前先撤退到安全空間。{zh-cn}领取奖励前先撤退到安全空间。{ko}보상을 받기 전에 안전한 칸으로 후퇴하십시오.{es}Retírate a un espacio seguro antes de reclamar recompensas.{fr}Retirez-vous vers un espace sûr avant de réclamer les récompenses.{pt-br}Recue para um espaço seguro antes de receber as recompensas.{de}Ziehe dich auf ein sicheres Feld zurück, bevor du Belohnungen beanspruchst.",player.color,warningColor)
-			if rewindReady==true then rewindTransactionFinish("End turn") end
-			return
-		end
-		if rewindReady~=true and rewindTransactionOwnerActive("End turn")==true then return end
-		if gStates.coopAssaultPhase=="rewards" then
-			if gStates.skillButtons==0 or rewardSoftLock~=true then
-				if rewindReady~=true then
-					rewindTransactionStart(function() endTurn(player,mouseButton,id,true) end,"End turn")
-					return
-				end
-				local function finishCoopRewardAdvance()
-					advanceCoopRewardPhase()
-					safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
-				end
-				--Co-op hand draw is delayed until Rewards Claimed, after the city result has set the final hand limit.
-				if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then drawUpTo(player, "-1", "DrawHand") end
-				--Don't switch reward players while a visible Deed transfer is still travelling or queued.
-				if cardClaim==true or deedTransferAnyBusy()==true then
-					safeWaitCondition("Turn",finishCoopRewardAdvance,function() return cardClaim~=true and deedTransferAnyBusy()~=true end,10,finishCoopRewardAdvance)
-				else
-					finishCoopRewardAdvance()
-				end
-			else
-				if rewindReady==true then rewindTransactionFinish("End turn") end
-				rewardReminderCameraFocus(player.color,"offerView")
-				broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} needs to select a skill before claiming these rewards.{ru} должен выбрать Навык перед получением наград.{zh-tw}需要先选择一项技能再领取奖励.{zh-cn}需要先选择一项技能再领取奖励.{ko}: 보상을 받기 전에 스킬을 선택하세요.{es} necesita seleccionar una habilidad antes de reclamar estas recompensas.{fr} doit sélectionner une compétence avant de réclamer ces récompenses.{pt-br} precisa selecionar uma habilidade antes de pegar estas recompensas.{de} muss eine Fertigkeit auswählen, bevor diese Belohnungen beansprucht werden."}), warningColor)
+		if useTimeBending then
+			gStates.timeBending="Started"
+			if cleanupTurnToken~=nil and cleanupTurnToken.is_face_down==true then
+				cleanupTurnToken.flip()
+				gStates.timeBending="Used"
+				gStates.skipTurn[cleanupPlayer]=nil
 			end
-			return
-		end
-		--slightPause=true
-		if gStates.skillButtons==0 or rewardSoftLock~=true then--skill reward soft-lock expires with the shared Rewards Claimed window
-			if rewindReady~=true then
-				rewindTransactionStart(function() endTurn(player,mouseButton,id,true) end,"End turn")
-				return
-			end
-
-			apocalypseQuestMineDoomEndTurnCleanup(gStates.turnNumber)
-			apocalypseQuestClearMarkerHighlights()
-			UI.setAttribute("NightTacticSix", "active", "false")
-			UI.setAttribute("zigguratPyramidInteract", "active", "false")
-			gStates.preEndTurn=false
-			rewardClaimSoftLockClear()
-			gStates.levelingUp=false
-			gStates.crytalRuin=false
-			gStates.volkareArmyReduced=false
-			turnOrder[gStates.turnNumber].fameGain=0 gStates.gainList={}
-			turnOrder[gStates.turnNumber].repGain=0
-			turnOrder[gStates.turnNumber].combatIconHide="None"
-			turnOrder[gStates.turnNumber].pillagedVillage=false
-			gStates.skippedMove=false
-			gStates.druidNightsSummon=nil
-			gStates.druidNightsCrystalReward=nil
-			gStates.locationPlace={}
-			gStates.summonStates={}
-			gStates.shieldsDropped={}
-			if gStates.endGameAchieved=="started" then gStates.endGameAchieved="true" end
-			--Update all pursuing monsters, new deployed or stunned will be on the move.
-			if gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]~=nil then
-				for guid, monster in pairs(gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]) do
-					if getObjectFromGUID(guid)~=nil then
-						local monsterObj=getObjectFromGUID(guid)
-						if monster.state=="Deployed" and monsterObj.is_face_down==true then monsterObj.flip() end
-						if monster.state=="Stunned" then monster.stunned=true monster.state="Deployed" else if monster.state=="Deployed" then monster.stunned=nil setPursuitStunnedImage(monsterObj, false) end monster.state="Pursuing" end
-						monster.location={monsterObj.getPosition()[1], monsterObj.getPosition()[2], monsterObj.getPosition()[3]}
-						gStates.monsterPlayLocation[guid]=monster.location
-					end
-				end
-				--delete the help arrows
-				for guid, _ in pairs(gStates.arrowDelete) do
-					if getObjectFromGUID(guid)~=nil then getObjectFromGUID(guid).destruct() end
-				end
-				gStates.arrowDelete={}
-			end
-
-			if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and gStates.coopAssaultPhase~="combat" then
-				--Normal turns draw here. Co-op assault hands wait until that player clicks Rewards Claimed.
-				if turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then
-					drawUpTo(player, "-1", "DrawHand")
-				end
-			end
-
-			--remove any wound cards played because of glade, regardless of which face is showing.
-			for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
-				if playAreaObj.getGMNotes()=="Wound" then
-					getObjectFromGUID(trashCan).putObject(playAreaObj)
-				end
-			end
-
-			--re-enable night tactic six buttons
-			if turnOrder[gStates.turnNumber].tactic==6 and gStates.tacticSixState~="Used" and gStates.dayRound==false then
-				gStates.tacticSixState="notClaimed"
-			end
-
-			--Update Motivation Skill status
-			for a, stats in pairs(gStates.motivationSkill) do
-				if stats.state=="used" then stats.state="deactive" end
-			end
-
-			--During a co-op Dragon assault this player's physical head tokens have now been read and
-			--returned. Mark their combat complete before asking whether another assaulter remains.
-			if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="dragon" and apocalypseDragonGroundPlayerFinished~=nil then apocalypseDragonGroundPlayerFinished(gStates.turnNumber) end
-			--During a co-op assault finish every combat before starting the reward queue.
-			if gStates.coopAssaultPhase=="combat" and coopAssaultPendingCombat()==false then
-				startCoopRewardPhase()
-			elseif gStates.volkareMovementStepPending==true and gStates.volkareMovementPaused==true and gStates.volkarePendingCombatMage==turnOrder[gStates.turnNumber].mage then
-				--A first-half Volkare attack consumed this Mage Knight's turn. Release the second movement only now, after combat/rewards are finished.
-				gStates.volkareMovementPaused=false
-				gStates.volkareAdvanceAfterMovement=true
-				gStates.volkarePendingCombatMage=nil
-			elseif againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(gStates.turnNumber)==true then
-				--The target just took their normal turn in advance. Resolve the airborne attack and release
-				--the suspended Dragon turn directly; do not return to a Dragon Processed interface.
-				againstDragonFinishAttackForPlayer(gStates.turnNumber,true)
-			elseif apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(gStates.turnNumber)==true then
-				--Dragon levels only move after the whole ground combat is over. The pre-end-turn pass has
-				--already read every physical head token and placed the player's level-marking Shields.
-				apocalypseDragonFinalizeGroundCombat(gStates.turnNumber)
-				nextTurnMerged("incrementTurn")
-			else
-				volkareQuestCombatWithdrawalReminder(turnOrder[gStates.turnNumber].mage)
-				nextTurnMerged("incrementTurn")
-			end
-			recourceTrackerReset()
-			if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
-			addAvatarButtons()
-			safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
-		else
-			if rewindReady==true then rewindTransactionFinish("End turn") end
-			rewardReminderCameraFocus(player.color,"offerView")
-			broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} needs to select a skill before you can end their Turn.{ru} должен выбрать Навык перед окончанием хода.{zh-tw}需要先选择一项技能, 然后才能结束他们的回合. {zh-cn}需要先选择一项技能, 然后才能结束他们的回合. {ko}: 차례를 넘기기 전에 스킬을 선택하세요.{es} necesita seleccionar una habilidad antes de que pueda finalizar su turno.{fr} doit sélectionner une compétence avant de pouvoir terminer son tour.{pt-br} precisa selecionar uma habilidade antes que você possa encerrar seu turno.{de} muss eine Fertigkeit wählen, bevor du seinen Zug beenden kannst."}), warningColor)
 		end
 	end
+	mainUIUpdate("Pre End Turn")
+	--Mine rewards are chosen alongside the normal Rewards Claimed stage and use its shared soft-lock window.
+	local mineTurnEligible=turnOrder[cleanupPlayer].mage~=gStates.positionMageKnight[5] and turnOrder[cleanupPlayer].endCalled~=true
+	if mineTurnEligible and gStates.coopAssaultPhase~="combat" then beginMineCrystalClaim(cleanupPlayer,playerColor) end
+end
+
+local function turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)
+	local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
+	if rewardSoftLock==true and questRewardPending==true then
+		apocalypseQuestRefreshOfferButtons()
+		rewardReminderCameraFocus(player.color,"questView")
+		local questGateMessage=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "Complete/Fail the Quest First" or "Complete/Progress the Quest First"
+		broadcastToColor(questGateMessage,player.color,warningColor)
+		if rewindReady==true then rewindTransactionFinish("End turn") end
+		return true
+	end
+	if rewardSoftLock==true and gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
+		local overdue=math.max(1,tonumber(gStates.apocalypseHereForcedRevealCount) or 1)
+		cameraControl(player,"-1","mapView")
+		local message=overdue==1 and "Reveal the overdue Map tile before claiming rewards." or ("Reveal "..tostring(overdue).." overdue Map tiles before claiming rewards.")
+		broadcastToColor(message,player.color,warningColor)
+		if rewindReady==true then rewindTransactionFinish("End turn") end
+		return true
+	end
+	if rewardSoftLock==true and steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(rewardSeat)==true then
+		steadyTempoRefreshAll() steadyTempoUpdateRewardGate(rewardSeat)
+		cameraControl(player,"-1","playAreaView")
+		broadcastToAll("{en}Resolve Steady Tempo before claiming rewards.{ru}Разрешите «Steady Tempo» перед получением наград.{zh-tw}領取獎勵前先結算「Steady Tempo」。{zh-cn}领取奖励前先结算“Steady Tempo”。{ko}보상을 받기 전에 Steady Tempo를 해결하십시오.{es}Resuelve Steady Tempo antes de reclamar recompensas.{fr}Résolvez Steady Tempo avant de réclamer les récompenses.{pt-br}Resolva Steady Tempo antes de receber as recompensas.{de}Führe Steady Tempo aus, bevor du Belohnungen beanspruchst.", positionToColor(gStates.turnNumber))
+		if rewindReady==true then rewindTransactionFinish("End turn") end
+		return true
+	end
+	if rewardSoftLock==true and gStates.mineClaimPending~=nil and (gStates.mineClaimPending.playerIndex==nil or gStates.mineClaimPending.playerIndex==gStates.turnNumber) then
+		broadcastToColor("{en}Resolve the pending crystal choice before proceeding to the next player.{ru}Сначала выберите ожидающий кристалл, прежде чем переходить к следующему игроку.{zh-tw}前往下一位玩家前，先完成尚未處理的水晶選擇。{zh-cn}前往下一位玩家前，先完成尚未处理的水晶选择。{ko}다음 플레이어로 넘어가기 전에 대기 중인 크리스털 선택을 해결하십시오.{es}Resuelve la elección de cristal pendiente antes de pasar al siguiente jugador.{fr}Résolvez le choix de cristal en attente avant de passer au joueur suivant.{pt-br}Resolva a escolha de cristal pendente antes de passar para o próximo jogador.{de}Schließe die ausstehende Kristallauswahl ab, bevor du zum nächsten Spieler wechselst.", player.color, warningColor)
+		if rewindReady==true then rewindTransactionFinish("End turn") end
+		return true
+	end
+	if rewardSoftLock==true and rewardRetreatRequired~=nil and rewardRetreatRequired(gStates.turnNumber)==true then
+		cameraControl(player,"-1","mapView")
+		broadcastToColor("{en}Retreat to a safe space before claiming rewards.{ru}Отступите на безопасное поле перед получением наград.{zh-tw}領取獎勵前先撤退到安全空間。{zh-cn}领取奖励前先撤退到安全空间。{ko}보상을 받기 전에 안전한 칸으로 후퇴하십시오.{es}Retírate a un espacio seguro antes de reclamar recompensas.{fr}Retirez-vous vers un espace sûr avant de réclamer les récompenses.{pt-br}Recue para um espaço seguro antes de receber as recompensas.{de}Ziehe dich auf ein sicheres Feld zurück, bevor du Belohnungen beanspruchst.",player.color,warningColor)
+		if rewindReady==true then rewindTransactionFinish("End turn") end
+		return true
+	end
+	return false
+end
+
+local function turnAdvanceCoopRewards(player,mouseButton,id,rewindReady,rewardSoftLock)
+	if gStates.skillButtons==0 or rewardSoftLock~=true then
+		if rewindReady~=true then
+			rewindTransactionStart(function() endTurn(player,mouseButton,id,true) end,"End turn")
+			return
+		end
+		local function finishCoopRewardAdvance()
+			advanceCoopRewardPhase()
+			safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
+		end
+		--Co-op hand draw is delayed until Rewards Claimed, after the city result has set the final hand limit.
+		if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then drawUpTo(player, "-1", "DrawHand") end
+		--Don't switch reward players while a visible Deed transfer is still travelling or queued.
+		if cardClaim==true or deedTransferAnyBusy()==true then
+			safeWaitCondition("Turn",finishCoopRewardAdvance,function() return cardClaim~=true and deedTransferAnyBusy()~=true end,10,finishCoopRewardAdvance)
+		else
+			finishCoopRewardAdvance()
+		end
+	else
+		if rewindReady==true then rewindTransactionFinish("End turn") end
+		rewardReminderCameraFocus(player.color,"offerView")
+		broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} needs to select a skill before claiming these rewards.{ru} должен выбрать Навык перед получением наград.{zh-tw}需要先选择一项技能再领取奖励.{zh-cn}需要先选择一项技能再领取奖励.{ko}: 보상을 받기 전에 스킬을 선택하세요.{es} necesita seleccionar una habilidad antes de reclamar estas recompensas.{fr} doit sélectionner une compétence avant de réclamer ces récompenses.{pt-br} precisa selecionar uma habilidade antes de pegar estas recompensas.{de} muss eine Fertigkeit auswählen, bevor diese Belohnungen beansprucht werden."}), warningColor)
+	end
+end
+
+local function turnResetCompletedTurnState()
+	apocalypseQuestMineDoomEndTurnCleanup(gStates.turnNumber)
+	apocalypseQuestClearMarkerHighlights()
+	UI.setAttribute("NightTacticSix", "active", "false")
+	UI.setAttribute("zigguratPyramidInteract", "active", "false")
+	gStates.preEndTurn=false
+	rewardClaimSoftLockClear()
+	gStates.levelingUp=false
+	gStates.crytalRuin=false
+	gStates.volkareArmyReduced=false
+	turnOrder[gStates.turnNumber].fameGain=0 gStates.gainList={}
+	turnOrder[gStates.turnNumber].repGain=0
+	turnOrder[gStates.turnNumber].combatIconHide="None"
+	turnOrder[gStates.turnNumber].pillagedVillage=false
+	gStates.skippedMove=false
+	gStates.druidNightsSummon=nil
+	gStates.druidNightsCrystalReward=nil
+	gStates.locationPlace={}
+	gStates.summonStates={}
+	gStates.shieldsDropped={}
+	if gStates.endGameAchieved=="started" then gStates.endGameAchieved="true" end
+	--Update all pursuing monsters, new deployed or stunned will be on the move.
+	if gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]~=nil then
+		for guid, monster in pairs(gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]) do
+			if getObjectFromGUID(guid)~=nil then
+				local monsterObj=getObjectFromGUID(guid)
+				if monster.state=="Deployed" and monsterObj.is_face_down==true then monsterObj.flip() end
+				if monster.state=="Stunned" then monster.stunned=true monster.state="Deployed" else if monster.state=="Deployed" then monster.stunned=nil setPursuitStunnedImage(monsterObj, false) end monster.state="Pursuing" end
+				monster.location={monsterObj.getPosition()[1], monsterObj.getPosition()[2], monsterObj.getPosition()[3]}
+				gStates.monsterPlayLocation[guid]=monster.location
+			end
+		end
+		--delete the help arrows
+		for guid, _ in pairs(gStates.arrowDelete) do
+			if getObjectFromGUID(guid)~=nil then getObjectFromGUID(guid).destruct() end
+		end
+		gStates.arrowDelete={}
+	end
+end
+
+local function turnDrawCompletedTurnHand(player)
+	if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and gStates.coopAssaultPhase~="combat" then
+		--Normal turns draw here. Co-op assault hands wait until that player clicks Rewards Claimed.
+		if turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then
+			drawUpTo(player, "-1", "DrawHand")
+		end
+	end
+end
+
+local function turnCleanupCompletedTurnBoard()
+	--remove any wound cards played because of glade, regardless of which face is showing.
+	for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
+		if playAreaObj.getGMNotes()=="Wound" then
+			getObjectFromGUID(trashCan).putObject(playAreaObj)
+		end
+	end
+
+	--re-enable night tactic six buttons
+	if turnOrder[gStates.turnNumber].tactic==6 and gStates.tacticSixState~="Used" and gStates.dayRound==false then
+		gStates.tacticSixState="notClaimed"
+	end
+
+	--Update Motivation Skill status
+	for a, stats in pairs(gStates.motivationSkill) do
+		if stats.state=="used" then stats.state="deactive" end
+	end
+end
+
+local function turnAdvanceCompletedTurnLifecycle()
+	--During a co-op Dragon assault this player's physical head tokens have now been read and
+	--returned. Mark their combat complete before asking whether another assaulter remains.
+	if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="dragon" and apocalypseDragonGroundPlayerFinished~=nil then apocalypseDragonGroundPlayerFinished(gStates.turnNumber) end
+	--During a co-op assault finish every combat before starting the reward queue.
+	if gStates.coopAssaultPhase=="combat" and coopAssaultPendingCombat()==false then
+		startCoopRewardPhase()
+	elseif gStates.volkareMovementStepPending==true and gStates.volkareMovementPaused==true and gStates.volkarePendingCombatMage==turnOrder[gStates.turnNumber].mage then
+		--A first-half Volkare attack consumed this Mage Knight's turn. Release the second movement only now, after combat/rewards are finished.
+		gStates.volkareMovementPaused=false
+		gStates.volkareAdvanceAfterMovement=true
+		gStates.volkarePendingCombatMage=nil
+	elseif againstDragonFullAttendInProgress~=nil and againstDragonFullAttendInProgress(gStates.turnNumber)==true then
+		--The target just took their normal turn in advance. Resolve the airborne attack and release
+		--the suspended Dragon turn directly; do not return to a Dragon Processed interface.
+		againstDragonFinishAttackForPlayer(gStates.turnNumber,true)
+	elseif apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(gStates.turnNumber)==true then
+		--Dragon levels only move after the whole ground combat is over. The pre-end-turn pass has
+		--already read every physical head token and placed the player's level-marking Shields.
+		apocalypseDragonFinalizeGroundCombat(gStates.turnNumber)
+		nextTurnMerged("incrementTurn")
+	else
+		volkareQuestCombatWithdrawalReminder(turnOrder[gStates.turnNumber].mage)
+		nextTurnMerged("incrementTurn")
+	end
+end
+
+local function turnFinishCompletedTurnUI()
+	recourceTrackerReset()
+	if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
+	addAvatarButtons()
+	safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
+end
+
+local function turnSkillRewardBlocked(player,rewindReady)
+	if rewindReady==true then rewindTransactionFinish("End turn") end
+	rewardReminderCameraFocus(player.color,"offerView")
+	broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} needs to select a skill before you can end their Turn.{ru} должен выбрать Навык перед окончанием хода.{zh-tw}需要先选择一项技能, 然后才能结束他们的回合. {zh-cn}需要先选择一项技能, 然后才能结束他们的回合. {ko}: 차례를 넘기기 전에 스킬을 선택하세요.{es} necesita seleccionar una habilidad antes de que pueda finalizar su turno.{fr} doit sélectionner une compétence avant de pouvoir terminer son tour.{pt-br} precisa selecionar uma habilidade antes que você possa encerrar seu turno.{de} muss eine Fertigkeit wählen, bevor du seinen Zug beenden kannst."}), warningColor)
+end
+
+function turnEndTurnRawBase(player, mouseButton, id, rewindReady)
+	if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)~=true then return end
+	local rewardSeat=turnOrder[gStates.turnNumber].seatPos
+	local rewardSoftLock=rewardClaimSoftLockActive()
+	if turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)==true then return end
+	if rewindReady~=true and rewindTransactionOwnerActive("End turn")==true then return end
+
+	if gStates.coopAssaultPhase=="rewards" then
+		turnAdvanceCoopRewards(player,mouseButton,id,rewindReady,rewardSoftLock)
+		return
+	end
+
+	--Skill reward soft-lock expires with the shared Rewards Claimed window.
+	if gStates.skillButtons~=0 and rewardSoftLock==true then
+		turnSkillRewardBlocked(player,rewindReady)
+		return
+	end
+	if rewindReady~=true then
+		rewindTransactionStart(function() endTurn(player,mouseButton,id,true) end,"End turn")
+		return
+	end
+
+	turnResetCompletedTurnState()
+	turnDrawCompletedTurnHand(player)
+	turnCleanupCompletedTurnBoard()
+	turnAdvanceCompletedTurnLifecycle()
+	turnFinishCompletedTurnUI()
 end
 
 --The first finish-line event owns the final-turn circuit.
@@ -820,7 +883,7 @@ function __PreEndRound_raw(player, mouseButton, id)
 		establishFinalTurnBoundary("endRound", gStates.turnNumber)
 		--Show Game over Screen
 		if gStates.currentRound==gStates.rounds and gStates.endGameAchieved~="true" then
-		    gStates.endGameAchieved="true"
+		gStates.endGameAchieved="true"
 			if gStates.gameScenario=="One to Return" then oneToReturnLockFinalWinner() end
 		end
 		-- if gStates.currentRound==gStates.rounds and gStates.endGameAchieved~="true" then
@@ -861,9 +924,9 @@ end
 
 --Run all the End of Round Tasks
 endRoundRewindRequestPending=false
-function __endRound_raw(rewindReady)
+local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 	if rewindReady~=true then
-		if endRoundRewindRequestPending==true then return end
+		if endRoundRewindRequestPending==true then return true end
 		--Unlike the other protected actions, the true round-reset boundary has no player button to press
 		--again after a rewind. Save a durable checkpoint marker so onLoad can resume this reset automatically.
 		gStates.endRoundResetPending=true
@@ -877,19 +940,23 @@ function __endRound_raw(rewindReady)
 			endRoundRewindRequestPending=false
 			gStates.endRoundResetPending=false
 		end)
-		return
+		return true
 	end
 	--Time Bending returns before the round reset rebuilds and shuffles the owner's Deed deck.
-	if gStates.timeBendingRemovedSeat~=nil then if reclaimTimeBending(endRound)==true then return end end
+	if gStates.timeBendingRemovedSeat~=nil then if reclaimTimeBending(endRound)==true then return true end end
 	--Against the Horsemen resolves its Round 1/2 approach, or the Round 3 ritual move, before tactics or the round reset.
-	if againstHorsemenBeginEndRoundMovement()==true then return end
+	if againstHorsemenBeginEndRoundMovement()==true then return true end
 	--A Proxy objective is part of its Deed deck between rounds, just like the physical rules.
 	if proxyPlayerActive()==true and gStates.proxyObjectiveGUID~=nil then proxyClearObjective(true) end
 	--One to Return closes the starting Portal after the first Day's final-turn circuit is complete.
 	if gStates.gameScenario=="One to Return" and gStates.currentRound==1 then
 		oneToReturnClosePortal()
-		if gStates.gameOver==true then return end
+		if gStates.gameOver==true then return true end
 	end
+	return false
+end
+
+local function turnEndRoundAdvanceWorld()
 	--Update round count and check for end of game
 	broadcastToAll("-------------------",{1,1,0.5})
 	apocalypseQuestEndRoundCleanup()
@@ -910,8 +977,8 @@ function __endRound_raw(rewindReady)
 	if gStates.darknessComing==true then broadcastToAll(joinLang({"{en}Virtual Dice rolled {ru}Виртуальный бросок кубика выпал на {zh-tw}投掷出{zh-cn}投掷出{ko}다음의 색 주사위 굴려짐: {es}Dados virtuales enrollados en {fr}Dés virtuels lancés {pt-br}Dados Virtuais Rolados {de}Virtuelle Würfel gewürfelt ", dieValue[virtualDie1], "{en} and {ru} и {zh-tw}和{zh-cn}和{ko}그리고{es} y {fr} et {pt-br} e {de} und ", dieValue[virtualDie2]}), {1,1,0.5}) end
 	if gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) then broadcastToAll("{en}Time of day has changed permenantly{ru}Время дня изменилось до конца игры{zh-tw}白昼/黑夜停止交替了{zh-cn}白昼/黑夜停止交替了{ko}낮 또는 밤이 영원히 지속됩니다{es}La hora del día ha cambiado permanentemente{fr}L'heure de la journée a changé en permanence{pt-br}Tempo do dia mudado permanentemente.{de}Die Tageszeit hat sich dauerhaft geändert", {1,1,0.5}) end
 	if gStates.darknessComing==false or (gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) and gStates.timeChanged==false) then
-	 	gStates.timeChanged=true
-	 	dayNight()
+		gStates.timeChanged=true
+		dayNight()
 	end
 
 	--return unused mana steal die
@@ -931,6 +998,9 @@ function __endRound_raw(rewindReady)
 		end
 	end, 5)
 
+end
+
+local function turnEndRoundReplenishMap()
 	--Rampage defeated sites
 	if gStates.rampage>=1 then
 		broadcastToAll("{en}Rampaging Tokens have been Replenished{ru}Клетки с яростными врагами получили новые жетоны{zh-tw}肆虐怪物标记已经补充{zh-cn}肆虐怪物标记已经补充{ko}광분하는 적 토큰이 보충되었습니다.{es}Se han reabastecido las fichas violentas.{fr}Les jetons déchaînés ont été réapprovisionnés{pt-br}Fichas Irascíveis foram Reabastecidas{de}Zornige Spielsteine wurden aufgefüllt", {1,1,0.5})
@@ -953,6 +1023,9 @@ function __endRound_raw(rewindReady)
 		end
 	end
 
+end
+
+local function turnEndRoundRefreshOffers()
 	--Update Dummy Player
 	safeWaitTime("Turn",function()
 		if gStates.positionMageKnight[5]~="nobody" and gStates.positionMageKnight[5]~="Volkare" then
@@ -1031,7 +1104,9 @@ function __endRound_raw(rewindReady)
 			fillSlide()
 		end, 1)
 	end, 1)
+end
 
+local function turnEndRoundRefreshSkillsAndUnits()
 	--Flip all skills
 	broadcastToAll("{en}All Mage Knight Skills Reset{ru}Жетоны навыков снова готовы к использованию{zh-tw}所有魔法骑士的技能重置{zh-cn}所有魔法骑士的技能重置{ko}모든 스킬이 리셋 되었습니다{es}Restablecimiento de Todas las Habilidades de Mage Knight{fr}Réinitialisation de Toutes les Compétences de Mage Knight{pt-br}Todas as Hab. de MK Redefinidas{de}Alle Magier-Ritter-Fähigkeiten zurückgesetzt", {1,1,0.5})
 	for skillGUID, skillDetails in pairs(skillTokens) do
@@ -1054,17 +1129,17 @@ function __endRound_raw(rewindReady)
 	--Ready all units
 	broadcastToAll ("{en}All Units are Ready for combat again{ru}Все отряды готовы к бою{zh-tw}所有部队准备好再次迎战了{zh-cn}所有部队准备好再次迎战了{ko}유닛이 다시 전투할 준비가 되었습니다{es}Todas las unidades están listas para el combate de nuevo.{fr}Toutes les unités sont à nouveau prêtes pour le combat{pt-br}Todas Unidades estão prontas para combater novamente{de}Alle Einheiten sind wieder bereit für den Kampf", {1,1,0.5})
 	local commandTokens={"12e399", "87cff0", "7a2083", "4af106", "ab5b0d", "88f6c1",--Braevalar Command
-						 "07eec8", "d9f39d", "ea80e4", "dbc3f1", "442ad5", "4aa025",--Krang command
-						 "a0f780", "47d922", "a8f242", "d960d3", "493833", "6bfe5b",--Ymirgh command
-						 "104cff", "20a938", "2c51b2", "519062", "31e29d", "ab61c0",--Arythea command
-						 "a345a3", "77dd3d", "c53d0a", "d55244", "4c1c1b", "2eb846",--Norowas command
-						 "c5b17e", "7c0270", "4ea3a1", "4bbe27", "867634", "0162e7",--Goldyx command
-						 "aa0a9d", "fa99cf", "10295b", "92bd25", "7e91b7", "7e6c4f",--Tovak command
-						 "07661c", "bf879c", "6b7e70", "439a0a", "fb74bd", "361a24",--Wolfhawk command
-						 "005290", "10feb1", "ff9201", "af501e", "cc32e5", "2b6131",--Coral command
-						 "22a7bb", "bb619e", "6688df", "2a2da1", "f3f02c", "8e1952",--Jormund command
-						 "fbf2cb", "405221", "787513", "2e1d38", "832228", "4b661b",--Malek command
-						 "f30dd4"}--Norowas Skill is also a command token
+						"07eec8", "d9f39d", "ea80e4", "dbc3f1", "442ad5", "4aa025",--Krang command
+						"a0f780", "47d922", "a8f242", "d960d3", "493833", "6bfe5b",--Ymirgh command
+						"104cff", "20a938", "2c51b2", "519062", "31e29d", "ab61c0",--Arythea command
+						"a345a3", "77dd3d", "c53d0a", "d55244", "4c1c1b", "2eb846",--Norowas command
+						"c5b17e", "7c0270", "4ea3a1", "4bbe27", "867634", "0162e7",--Goldyx command
+						"aa0a9d", "fa99cf", "10295b", "92bd25", "7e91b7", "7e6c4f",--Tovak command
+						"07661c", "bf879c", "6b7e70", "439a0a", "fb74bd", "361a24",--Wolfhawk command
+						"005290", "10feb1", "ff9201", "af501e", "cc32e5", "2b6131",--Coral command
+						"22a7bb", "bb619e", "6688df", "2a2da1", "f3f02c", "8e1952",--Jormund command
+						"fbf2cb", "405221", "787513", "2e1d38", "832228", "4b661b",--Malek command
+						"f30dd4"}--Norowas Skill is also a command token
 	for _, commandGUID in pairs (commandTokens) do
 		if getObjectFromGUID(commandGUID)~=nil then
 			local token=getObjectFromGUID(commandGUID)
@@ -1092,7 +1167,9 @@ function __endRound_raw(rewindReady)
 			if blurbed==false then broadcastToAll("{en}Magic Familiars are looking for more Mana to sustain them.{ru}Магические фамильяры жаждут ману для поддержания своей жизни.{zh-tw}法师们正在寻找更多的法力来供能他们。 {zh-cn}法师们正在寻找更多的法力来供能他们。 {ko}마법 패밀리어가 힘을 유지하기 위한 마나를 요구합니다.{es}Los Familiares Mágicos buscan más Maná para sustentarlos.{fr}Les Familiers Magiques recherchent plus de Mana pour les soutenir.{pt-br}Familiares Mágicos estão procurando por mais Mana para sustentá-los.{de}Magische Vertraute suchen nach mehr Mana, um sie zu unterstützen.", {1,1,0.5}) blurbed=true end
 		end
 	end
+end
 
+local function turnEndRoundResetPlayerDecks()
 	--Shuffle all discarded player decks and loose cards back to starting position and remove Magic Familiar Crystals
 	for _, playerDetails in pairs(turnOrder) do
 		--Volkare does not reset his deck
@@ -1146,11 +1223,14 @@ function __endRound_raw(rewindReady)
 	end
 	broadcastToAll ("{en}Deed Decks reset and shuffled{ru}Колоды деяний собраны и перетасованы{zh-tw}功能牌区重置并洗牌{zh-cn}功能牌区重置并洗牌{ko}카드 더미를 셔플했습니다{es}Deed Decks reiniciados y barajados{fr}Deed Decks réinitialisés et mélangés{pt-br}Baralhos de Façanhas reiniciados e embaralhados{de}Deed Decks werden zurückgesetzt und neu gemischt", {1,1,0.5})
 
+end
+
+local function turnEndRoundPrepareTurnOrder()
 	--Work out new tactics picking order
 	table.sort(turnOrder, function (k1, k2) return k1.fame < k2.fame end)
 	for a=1, #turnOrder-1, 1 do
 		if turnOrder[a].fame==turnOrder[a+1].fame and turnOrder[a].tactic<turnOrder[a+1].tactic then
-		 	local temp=turnOrder[a]
+			local temp=turnOrder[a]
 			turnOrder[a]=turnOrder[a+1]
 			turnOrder[a+1]=temp
 		end
@@ -1169,6 +1249,9 @@ function __endRound_raw(rewindReady)
 	for _, details in pairs(turnOrder) do details.endCalled=false end
 	refreshCoopCompSkillXs()
 
+end
+
+local function turnEndRoundPrepareTactics()
 	--Lay out tactics for removal
 	safeWaitFrames("Turn",function()
 		--No tactics removed Scenarios
@@ -1201,6 +1284,9 @@ function __endRound_raw(rewindReady)
 		end
 	end, 20)--long enough for dice collision on mana steal to complete
 
+end
+
+local function turnEndRoundDealHands()
 	--shuffles, deals cards
 	safeWaitTime("Turn",function()
 		--shuffle and scale decks down for more room
@@ -1235,11 +1321,27 @@ function __endRound_raw(rewindReady)
 		end, function() return coralQuickWittedReadyForDraw() end)
 	end, 2)
 
+end
+
+local function turnEndRoundFinalizeImmediateState()
 	--set discards count to 0
 	for a, b in pairs(turnOrder) do	b.discardCount=0 end
 
 	--Stops the button on last round
 	if gStates.currentRound==gStates.rounds then broadcastToAll("{en}Final Round{ru}Последний Раунд{zh-tw}最终回合{zh-cn}最终回合{ko}마지막 라운드{es}Ronda Final{fr}Tour Final{pt-br}Rodada Final{de}Letzte Runde", {1,1,0.5}) end
+end
+
+function __endRound_raw(rewindReady)
+	if turnEndRoundCheckpointAndInterrupts(rewindReady)==true then return end
+	turnEndRoundAdvanceWorld()
+	turnEndRoundReplenishMap()
+	turnEndRoundRefreshOffers()
+	turnEndRoundRefreshSkillsAndUnits()
+	turnEndRoundResetPlayerDecks()
+	turnEndRoundPrepareTurnOrder()
+	turnEndRoundPrepareTactics()
+	turnEndRoundDealHands()
+	turnEndRoundFinalizeImmediateState()
 end
 
 function dayNight()
@@ -1288,7 +1390,7 @@ function dayNight()
 			if getObjectFromGUID("43fa2e")~=nil then
 				getObjectFromGUID("43fa2e").UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
 					children={	{tag="Image",  attributes={id="43fa2eNightTintImage", image="Sliced Button/Button Object Active", type="Sliced"}},
-				    			{tag="Text",  attributes={id="43fa2eNightTintText", font="Fonts/MKCardText", fontSize="90", color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin tinte{fr}Sans teinte{pt-br}Sem tonalidade{de}Keine Tönung"}}}}})
+							{tag="Text",  attributes={id="43fa2eNightTintText", font="Fonts/MKCardText", fontSize="90", color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin tinte{fr}Sans teinte{pt-br}Sem tonalidade{de}Keine Tönung"}}}}})
 				getObjectFromGUID("43fa2e").interactable=false
 			end
 		end, 5)--shuffle night weather
