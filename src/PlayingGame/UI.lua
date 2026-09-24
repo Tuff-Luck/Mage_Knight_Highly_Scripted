@@ -1056,13 +1056,14 @@ local function mainUIRefreshLevelUpTurnText(context,playerState)
 	end
 
 
-	local function defeatedElementalistRampagerThisTurn()
-		if gStates.gameScenario~="The Hidden Valley Blitz" then return false end
-		for guid, gain in pairs(gStates.gainList or {}) do
-			if gain.tokenDirection==1 and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[guid]==true and monsterEffectiveFaction(guid)=="Elem" then return true end
-		end
-		return false
+end
+
+local function defeatedElementalistRampagerThisTurn()
+	if gStates.gameScenario~="The Hidden Valley Blitz" then return false end
+	for guid, gain in pairs(gStates.gainList or {}) do
+		if gain.tokenDirection==1 and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[guid]==true and monsterEffectiveFaction(guid)=="Elem" then return true end
 	end
+	return false
 end
 
 local function mainUIRefreshRewardChecklist(context,playerState)
