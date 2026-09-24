@@ -1555,7 +1555,7 @@ function refreshCardEffectAfterRotation(cardGUID)
 				refreshMeditationTrance()
 			elseif isSteadyTempoGUID(cardGUID)==true then
 				steadyTempoRefreshCard(cardGUID)
-			elseif cardGUID=="a000a4" and cardInPlayerPlayArea(cardGUID)==true then
+			elseif cardGUID==tacticCard[2] and cardInPlayerPlayArea(cardGUID)==true then
 				dayTactic2ButtonActivate()
 			end
 		end, function()
@@ -1568,7 +1568,7 @@ function refreshCardEffectAfterRotation(cardGUID)
 			if settledCard==nil then return end
 			if cardGUID==meditationTranceCardGUID then refreshMeditationTrance()
 			elseif isSteadyTempoGUID(cardGUID)==true then steadyTempoRefreshCard(cardGUID)
-			elseif cardGUID=="a000a4" and cardInPlayerPlayArea(cardGUID)==true then dayTactic2ButtonActivate() end
+			elseif cardGUID==tacticCard[2] and cardInPlayerPlayArea(cardGUID)==true then dayTactic2ButtonActivate() end
 		end)
 	end, 1)
 end
@@ -1609,7 +1609,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	end
 	if object.type~="Card" then return end
 	local cardGUID=object.guid
-	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true or cardGUID=="a000a4" then refreshCardEffectAfterRotation(cardGUID) end
+	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true or cardGUID==tacticCard[2] then refreshCardEffectAfterRotation(cardGUID) end
 end
 
 function __onPlayerChangeColor_raw(color)
