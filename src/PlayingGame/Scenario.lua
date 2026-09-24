@@ -193,7 +193,7 @@ function volkareRazesCity(cityKey)
 	if cityKey==nil or cityKey==0 or gStates.cityRevealed[cityKey]==nil then return end
 	local city=gStates.cityRevealed[cityKey]
 	local cityColor={[cityModel.blue]="blue", [cityModel.red]="red", [cityModel.green]="green", [cityModel.white]="white"}
-	terrainTiles[city.terrain].hexFeature.center="raised "..cityColor[city.model]
+	runtimeMapSetHexFeature(city.terrain,"center","raised "..cityColor[city.model])
 	if gStates.hexOverideSave[city.terrain]==nil then gStates.hexOverideSave[city.terrain]={} end
 	gStates.hexOverideSave[city.terrain].center="raised "..cityColor[city.model]
 	local cityZone={[cityModel.blue]=GUID.zone.blueCity, [cityModel.red]=GUID.zone.redCity, [cityModel.green]=GUID.zone.greenCity, [cityModel.white]=GUID.zone.whiteCity}
@@ -1024,7 +1024,7 @@ function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature
 			broadcastToAll("{en}Dungeon Lords: the secret entrance must be on an accessible, non-Swamp empty space adjacent to the Village or Monastery that created it.{ru}Владыки Подземелий: тайный вход должен находиться на доступной пустой клетке, не являющейся Болотом, рядом с создавшей его Деревней или Монастырём.{zh-tw}地下城領主：秘密入口必須放在建立它的村莊或修道院旁，一個可進入、非沼澤且空置的空間。{zh-cn}地下城领主：秘密入口必须放在建立它的村庄或修道院旁，一个可进入、非沼泽且空置的空间。{ko}던전 로드: 비밀 입구는 이를 생성한 마을 또는 수도원에 인접한, 접근 가능하고 늪이 아닌 빈 칸에 있어야 합니다.{es}Señores de las Mazmorras: la entrada secreta debe estar en un espacio vacío accesible, que no sea Pantano, adyacente a la Aldea o Monasterio que la creó.{fr}Seigneurs des Donjons : l’entrée secrète doit se trouver sur une case vide accessible, non-Marais, adjacente au Village ou au Monastère qui l’a créée.{pt-br}Senhores das Masmorras: a entrada secreta deve ficar em um espaço vazio acessível, que não seja Pântano, adjacente à Vila ou ao Mosteiro que a criou.{de}Kerkerfürsten: Der Geheimeingang muss auf einem zugänglichen, leeren Nicht-Sumpf-Feld neben dem Dorf oder Kloster liegen, das ihn erzeugt hat.",{1,0.55,0.2})
 			return true
 		end
-		terrainTiles[terrain.guid].hexFeature[tostring(bearing)]=site
+		runtimeMapSetHexFeature(terrain.guid,bearing,site)
 		if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 		gStates.hexOverideSave[terrain.guid][tostring(bearing)]=site
 		normalized.destinationTerrainGUID=terrain.guid
@@ -1048,7 +1048,7 @@ function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature
 			local xy=angleToXY(terrain,tostring(bearing))
 			origin=dungeonLordsFindAdjacentSecretSource(secretName,{xy[1],terrain.getPosition()[2],xy[2]}) or secretName
 		end
-		terrainTiles[terrain.guid].hexFeature[tostring(bearing)]=""
+		runtimeMapSetHexFeature(terrain.guid,bearing,"")
 		if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 		gStates.hexOverideSave[terrain.guid][tostring(bearing)]=""
 		gStates.dungeonLordsSecretSiteOrigins[obj.guid]=nil
@@ -1817,6 +1817,16 @@ function apocalypseIsHerePossessRampagersOnTile(tileGUID)
 	end
 end
 
+--The destroyed City becomes Plains for the rest of Apocalypse is Here. The terrain-type mutation is
+--derived from durable scenario state, so live reveal and save/load reconstruction share one path.
+function apocalypseIsHereApplyDragonCityTerrainOverride()
+	if apocalypseIsHereActive()~=true or gStates.apocalypseHereDragonCityRevealed~=true or gStates.apocalypseDragonLair==nil then return false end
+	local key=gStates.apocalypseDragonLair.cityHexKey
+	local terrainGUID,bearing=key~=nil and tostring(key):match("^([^|]+)|(.+)$") or nil,nil
+	if terrainGUID==nil then return false end
+	return runtimeMapSetHexType(terrainGUID,bearing,"plains")
+end
+
 function apocalypseIsHereRevealDragonCity(tile)
 	if apocalypseIsHereActive()~=true or tile==nil or gStates.apocalypseHereDragonCityRevealed==true then return false end
 	gStates.apocalypseHereDragonCityRevealed=true
@@ -1836,18 +1846,18 @@ function apocalypseIsHereRevealDragonCity(tile)
 		hexes[#hexes+1]={bearing=bearing,position=pos,formerCity=i==1}
 		if bearing~=nil then
 			local feature=terrainTiles[tile.guid].hexFeature[bearing] or ""
-			if i==1 then terrainTiles[tile.guid].hexType[bearing]="plains" end
 			--The three Dragon spaces ignore printed sites; printed rampaging enemies remain and become Possessed.
 			if feature~="rampaging" and feature~="draconum" then
 				gStates.hexOverideSave=gStates.hexOverideSave or {}
 				gStates.hexOverideSave[tile.guid]=gStates.hexOverideSave[tile.guid] or {}
 				gStates.hexOverideSave[tile.guid][bearing]=""
-				terrainTiles[tile.guid].hexFeature[bearing]=""
+				runtimeMapSetHexFeature(tile.guid,bearing,"")
 			end
 		end
 	end
 	local target={positions[1][1],1.18,positions[1][3]}
 	gStates.apocalypseDragonLair={tileGUID=tile.guid,hexes=hexes,position=target,rotation=dragonRotation,cityHexKey=tile.guid.."|"..tostring(hexes[1].bearing)}
+	apocalypseIsHereApplyDragonCityTerrainOverride()
 	local dragon=getObjectFromGUID(apocalypseDragon.model)
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 	if dragon==nil and bag~=nil then dragon=bag.takeObject({guid=apocalypseDragon.model,position=target,rotation=dragonRotation,smooth=false})
@@ -2531,7 +2541,7 @@ function destroySite(token,terrain,bearing,afterArrange)
 	if arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)~=true then return false end
 	if gStates.destroyedSites==nil then gStates.destroyedSites={} end
 	gStates.destroyedSites[token.guid]={hexFeature=feature, terrainTile=terrain.guid, hexAngle=bearing}
-	terrainTiles[terrain.guid].hexFeature[bearing]="destroyed"
+	runtimeMapSetHexFeature(terrain.guid,bearing,"destroyed")
 	if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 	gStates.hexOverideSave[terrain.guid][bearing]="destroyed"
 	broadcastToAll(joinLang({feature,"{en} Destroyed{ru} уничтожено{zh-tw} 已摧毀{zh-cn} 已摧毁{ko} 파괴됨{es} Destruido{fr} Détruit{pt-br} Destruído{de} zerstört"}))
@@ -2543,7 +2553,7 @@ function undoDestroyedSitePlacement(destroyed)
 	if destroyed==nil or gStates.destroyedSites==nil then return false end
 	local data=gStates.destroyedSites[destroyed.guid]
 	if data==nil or terrainTiles[data.terrainTile]==nil then return false end
-	terrainTiles[data.terrainTile].hexFeature[data.hexAngle]=data.hexFeature
+	runtimeMapSetHexFeature(data.terrainTile,data.hexAngle,data.hexFeature)
 	if gStates.hexOverideSave[data.terrainTile]~=nil then gStates.hexOverideSave[data.terrainTile][data.hexAngle]=nil end
 	gStates.destroyedSites[destroyed.guid]=nil
 	safeWaitFrames("Scenario",function() apocalypseQuestRefreshOfferButtons() end, 2)
@@ -2797,7 +2807,7 @@ function againstDragonRevealLair(tile)
 				gStates.hexOverideSave=gStates.hexOverideSave or {}
 				gStates.hexOverideSave[currentTile.guid]=gStates.hexOverideSave[currentTile.guid] or {}
 				gStates.hexOverideSave[currentTile.guid][hex.bearing]=""
-				terrainTiles[currentTile.guid].hexFeature[hex.bearing]=""
+				runtimeMapSetHexFeature(currentTile.guid,hex.bearing,"")
 			end
 		end
 	end
