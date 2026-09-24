@@ -2006,6 +2006,14 @@ function apocalypseIsHereClearChoiceButtons(terrainGUIDs)
 	end
 end
 
+local function apocalypseIsHereJoinHorsemenTurnReport(previous,line)
+	previous=tostring(previous or "")
+	line=tostring(line or "")
+	if previous=="" then return line end
+	if line=="" then return previous end
+	return joinLang({previous,"<size=6>\n\n</size>",line})
+end
+
 function apocalypseIsHereShowTargetChoice(name,options,previousReport,choicePlayerIndex)
 	local oldPending=gStates.apocalypseHereHorsemanPendingChoice
 	apocalypseIsHereClearChoiceButtons(oldPending~=nil and oldPending.terrainGUIDs or nil)
@@ -2052,7 +2060,7 @@ function apocalypseIsHereShowTargetChoice(name,options,previousReport,choicePlay
 	for _,group in pairs(grouped) do group.terrain.UI.setXmlTable(group.xml) end
 	gStates.apocalypseHereHorsemenUIState="WaitingChoice"
 	local choiceText=joinLang({name,"{en} has tied preferred targets. {ru} имеет несколько равноценных предпочтительных целей. {zh-tw} 有多個同等優先的目標。{zh-cn} 有多个同等优先的目标。{ko}에게 동률인 우선 목표가 있습니다. {es} tiene varios objetivos preferidos empatados. {fr} a plusieurs cibles prioritaires à égalité. {pt-br} tem vários alvos preferidos empatados. {de} hat mehrere gleichrangige bevorzugte Ziele. ",apocalypseDragonChoicePlayerLabel(pending.playerIndex),"{en} must choose which site it moves toward.{ru} должен выбрать, к какому месту он двинется.{zh-tw} 必須選擇它要朝哪個地點移動。{zh-cn} 必须选择它要朝哪个地点移动。{ko}이(가) 어느 장소로 이동할지 선택해야 합니다.{es} debe elegir hacia qué lugar se moverá.{fr} doit choisir vers quel site il se déplacera.{pt-br} deve escolher em direção a qual local ele se moverá.{de} muss wählen, auf welchen Ort er sich zubewegt."})
-	gStates.apocalypseHereHorsemenTurnReport=pending.previousReport..(pending.previousReport~="" and "<size=6>\n\n</size>" or "")..choiceText
+	gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(pending.previousReport,choiceText)
 	mainUIUpdate("Horseman target choice")
 	return true
 end
@@ -2068,7 +2076,7 @@ function apocalypseIsHereRefreshPendingTargetChoice()
 		gStates.apocalypseHereHorsemanPendingChoice=nil
 		gStates.apocalypseHereHorsemenUIState="Processing"
 		local line=joinLang({pending.name,"{en} found no remaining preferred undestroyed target and did not move.{ru} не нашёл оставшейся предпочтительной неразрушенной цели и не двигался.{zh-tw} 找不到剩餘的優先未摧毀目標，因此沒有移動。{zh-cn} 找不到剩余的优先未摧毁目标，因此没有移动。{ko}은(는) 남아 있는 선호 미파괴 목표를 찾지 못해 이동하지 않았습니다.{es} no encontró ningún objetivo preferido sin destruir y no se movió.{fr} n’a trouvé aucune cible prioritaire non détruite et ne s’est pas déplacé.{pt-br} não encontrou nenhum alvo preferido não destruído e não se moveu.{de} fand kein verbleibendes bevorzugtes unzerstörtes Ziel und bewegte sich nicht."})
-		gStates.apocalypseHereHorsemenTurnReport=previousReport..(previousReport~="" and "<size=6>\n\n</size>" or "")..line
+		gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(previousReport,line)
 		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
 		return true
 	end
@@ -2118,7 +2126,7 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
 	local action=gStates.apocalypseHereHorsemanAction
 	local function failDestruction()
 		local line=joinLang({name,"{en} could not destroy {ru} не смог уничтожить {zh-tw} 無法摧毀 {zh-cn} 无法摧毁 {ko}은(는) {es} no pudo destruir {fr} n’a pas pu détruire {pt-br} não conseguiu destruir {de} konnte ",destroyedName,"{en}; no Horseman or Dragon effects were applied.{ru}; эффекты Всадника и Дракона не применены.{zh-tw}；未套用騎士或巨龍效果。{zh-cn}；未应用骑士或巨龙效果。{ko}을(를) 파괴하지 못했습니다. 기사 및 드래곤 효과는 적용되지 않았습니다.{es}; no se aplicaron efectos del Jinete ni del Dragón.{fr} ; aucun effet du Cavalier ni du Dragon n’a été appliqué.{pt-br}; nenhum efeito do Cavaleiro ou do Dragão foi aplicado.{de} nicht zerstören; es wurden keine Reiter- oder Dracheneffekte angewendet."})
-		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(gStates.apocalypseHereHorsemenTurnReport,line)
 		mainUIUpdate("Horseman action report")
 		gStates.apocalypseHereHorsemanAction=nil
 		if afterArrange~=nil then safeWaitFrames("Scenario",afterArrange,1) end
@@ -2166,7 +2174,7 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
 	else
 		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, raising the Dragon head to level {ru}, повысив голову Дракона до уровня {zh-tw}，使巨龍頭部提升至等級 {zh-cn}，使巨龙头部提升至等级 {ko}을(를) 파괴해 드래곤 머리를 레벨 {es}, elevando la cabeza del Dragón al nivel {fr}, faisant passer la tête du Dragon au niveau {pt-br}, elevando a cabeça do Dragão ao nível {de} und erhöhte den Drachenkopf auf Stufe ",newHead,"."})
 	end
-	gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..report
+	gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(gStates.apocalypseHereHorsemenTurnReport,report)
 	mainUIUpdate("Horseman action report")
 	if action~=nil then action.stage="settling" end
 	return true
@@ -2185,7 +2193,7 @@ function apocalypseIsHereHorsemanMoveFinished(name,target,reached)
 		apocalypseIsHereHorsemanDestroyTarget(name,target,apocalypseIsHereContinueHorsemenTurn)
 	else
 		local line=joinLang({name,"{en} moved two spaces toward {ru} переместился на две клетки к {zh-tw} 朝 {zh-cn} 朝 {ko}이(가) {es} se movió dos espacios hacia {fr} s’est déplacé de deux cases vers {pt-br} moveu-se dois espaços em direção a {de} bewegte sich zwei Felder in Richtung ",proxyFeatureDisplayName(target.feature),"{en}.{ru}.{zh-tw} 移動了兩格。{zh-cn} 移动了两格。{ko} 쪽으로 두 칸 이동했습니다.{es}.{fr}.{pt-br}.{de}."})
-		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(gStates.apocalypseHereHorsemenTurnReport,line)
 		mainUIUpdate("Horseman action report")
 		gStates.apocalypseHereHorsemanAction=nil
 		apocalypseIsHereContinueHorsemenTurn()
@@ -2240,7 +2248,7 @@ function apocalypseIsHereProcessNextHorseman()
 	local options=apocalypseIsHereHorsemanTargetOptions(name)
 	if #options<1 then
 		local line=joinLang({name,"{en} found no preferred undestroyed target and did not move.{ru} не нашёл предпочтительной неразрушенной цели и не двигался.{zh-tw} 找不到優先的未摧毀目標，因此沒有移動。{zh-cn} 找不到优先的未摧毁目标，因此没有移动。{ko}은(는) 선호하는 미파괴 목표를 찾지 못해 이동하지 않았습니다.{es} no encontró ningún objetivo preferido sin destruir y no se movió.{fr} n’a trouvé aucune cible prioritaire non détruite et ne s’est pas déplacé.{pt-br} não encontrou nenhum alvo preferido não destruído e não se moveu.{de} fand kein bevorzugtes unzerstörtes Ziel und bewegte sich nicht."})
-		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(gStates.apocalypseHereHorsemenTurnReport,line)
 		mainUIUpdate("Horseman action report")
 		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
 	elseif #options>1 then apocalypseIsHereShowTargetChoice(name,options)
@@ -2274,7 +2282,7 @@ local function apocalypseIsHereHorsemenTurnDescription()
 	local heading=joinLang({"{en}Horsemen acting this turn: {ru}Всадники, действующие в этот ход: {zh-tw}本回合行動的騎士：{zh-cn}本回合行动的骑士：{ko}이번 턴에 행동하는 기사: {es}Jinetes que actúan este turno: {fr}Cavaliers agissant ce tour : {pt-br}Cavaleiros agindo neste turno: {de}In diesem Zug handelnde Reiter: ",roster})
 	local report=gStates.apocalypseHereHorsemenTurnReport or ""
 	if report=="" then return heading end
-	return heading.."<size=6>\n\n</size>"..report
+	return apocalypseIsHereJoinHorsemenTurnReport(heading,report)
 end
 
 function apocalypseIsHereBeginHorsemenTurn(nextTurnNumber,newOutOfTurn,sameTurn)
