@@ -1573,16 +1573,16 @@ end
 
 function apocalypseIsHerePositionRoundOrderToken()
 	if apocalypseIsHereActive()~=true then return false end
-	local token=getObjectFromGUID("9ba54f")
+	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 	local target={-1.90,0.97,-22.20}
-	if token==nil and bag~=nil then token=bag.takeObject({guid="9ba54f",position=target,rotation={0,180,0},smooth=false}) end
+	if token==nil and bag~=nil then token=bag.takeObject({guid=apocalypseDragon.roundOrder,position=target,rotation={0,180,0},smooth=false}) end
 	if token==nil then return false end
 	token.unlock()
 	token.setRotation({0,180,0})
 	token.setPositionSmooth(target,false,true)
-	safeWaitCondition("Scenario",function() local current=getObjectFromGUID("9ba54f") if current~=nil then current.lock() end end,
-		function() local current=getObjectFromGUID("9ba54f") return current==nil or current.isSmoothMoving()==false end)
+	safeWaitCondition("Scenario",function() local current=getObjectFromGUID(apocalypseDragon.roundOrder) if current~=nil then current.lock() end end,
+		function() local current=getObjectFromGUID(apocalypseDragon.roundOrder) return current==nil or current.isSmoothMoving()==false end)
 	return true
 end
 
@@ -1797,9 +1797,9 @@ function apocalypseIsHereRevealDragonCity(tile)
 	end
 	local target={positions[1][1],1.18,positions[1][3]}
 	gStates.apocalypseDragonLair={tileGUID=tile.guid,hexes=hexes,position=target,rotation=dragonRotation,cityHexKey=tile.guid.."|"..tostring(hexes[1].bearing)}
-	local dragon=getObjectFromGUID("105141")
+	local dragon=getObjectFromGUID(apocalypseDragon.model)
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	if dragon==nil and bag~=nil then dragon=bag.takeObject({guid="105141",position=target,rotation=dragonRotation,smooth=false})
+	if dragon==nil and bag~=nil then dragon=bag.takeObject({guid=apocalypseDragon.model,position=target,rotation=dragonRotation,smooth=false})
 	elseif dragon~=nil then dragon.unlock() dragon.setRotationSmooth(dragonRotation,false,true) dragon.setPositionSmooth(target,false,true) end
 	if dragon~=nil then apocalypseDragonLockModelWhenSettled() end
 	safeWaitFrames("Scenario",function() apocalypseIsHerePossessRampagersOnTile(tile.guid) end,35)
