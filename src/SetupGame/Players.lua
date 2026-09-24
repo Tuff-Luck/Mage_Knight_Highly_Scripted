@@ -112,352 +112,373 @@ local function playerSetupPositionNeeded(position,context)
 		(gStates.positionMageKnight[5]~="nobody" and context.dummyPlayed==0)
 end
 
-local function playerSetupDeployPosition(orderIndex,position,context)
-	local offsetPosition=position*40-40
-	--Checks if the position has a player, dummy or Volkare required
-	if playerSetupPositionNeeded(position,context) then
-		--Layout everything from the Common Bag if needed
-		local CommonBag=getObjectFromGUID(GUID.bag.common).clone()
-		CommonBag.setPosition({-60.0+offsetPosition, 1.5, -38.0})
-		for i=1, #PLAYER_SETUP_COMMON_PARTS, 1 do
-			local skip=0
-			local part=PLAYER_SETUP_COMMON_PARTS[i]
-			local params={position={part[1]+offsetPosition,part[2],part[3]}, rotation={0,180,0}, smooth=false}
-			if (i>=2 and i<=7) or (i>=11 and i<=14) then params.rotation={0, 30, 0} end
-			if position==5 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
-			if i==1 and position<=4 and gStates.positionMageKnight[position]~="nobody" then local obj=CommonBag.takeObject() obj.destruct() skip=1 end--destroy the Dummy Board if this is a player
-			if i==1 and position<=4 and gStates.positionMageKnight[position]=="nobody" then--change a player position into a dummy position
-				getObjectFromGUID(playerBoard[position]).destruct()
-				getObjectFromGUID(colorBand[position]).setScale({7.48, 0.01, 2.5})
-				getObjectFromGUID(colorBand[position]).setColorTint("Black")
-				getObjectFromGUID(colorBand[position]).setPosition({getObjectFromGUID(colorBand[position]).getPosition()[1]-12.5, 0.98, -30.0})
-				if getObjectFromGUID(playAreaGuideText[position])~=nil then getObjectFromGUID(playAreaGuideText[position]).destruct() end
-				if getObjectFromGUID(playAreaGuideBackground[position])~=nil then getObjectFromGUID(playAreaGuideBackground[position]).destruct() end
-			end
-			if i==8 and position<=4 and gStates.positionMageKnight[position]~="nobody" then--snuck the new poison card in with the regular wound cards
-				CommonBag.takeObject({guid="d1e6c3", position={-40.86+offsetPosition, 1.08, -36.10}, smooth=false}).lock()
-			end
-			if (gStates.positionMageKnight[position]=="nobody" or position==5) and ((i>=2 and gStates.positionMageKnight[5]=="Volkare") or (i>=8 and gStates.positionMageKnight[5]~="nobody")) then context.dummyPlayed=1 break end--just dummy board for Volkare
-			if i>=11 and gStates.riseOfTheForgemasters<=1 then break end
-			if i>=15 and gStates.riseOfTheForgemasters<=2 then break end
-			if skip==0 then local obj=safeTakeObject("SetupGame",CommonBag,params).lock() end
+local function playerSetupDeployCommonComponents(position,offsetPosition,context)
+	--Layout everything from the Common Bag if needed
+	local source=getObjectFromGUID(GUID.bag.common)
+	if source==nil then error("SetupGame missing common player-component bag.",2) end
+	local commonBag=source.clone()
+	commonBag.setPosition({-60.0+offsetPosition, 1.5, -38.0})
+	for i=1, #PLAYER_SETUP_COMMON_PARTS, 1 do
+		local skip=0
+		local part=PLAYER_SETUP_COMMON_PARTS[i]
+		local params={position={part[1]+offsetPosition,part[2],part[3]}, rotation={0,180,0}, smooth=false}
+		if (i>=2 and i<=7) or (i>=11 and i<=14) then params.rotation={0, 30, 0} end
+		if position==5 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
+		if i==1 and position<=4 and gStates.positionMageKnight[position]~="nobody" then local obj=commonBag.takeObject() obj.destruct() skip=1 end--destroy the Dummy Board if this is a player
+		if i==1 and position<=4 and gStates.positionMageKnight[position]=="nobody" then--change a player position into a dummy position
+			getObjectFromGUID(playerBoard[position]).destruct()
+			getObjectFromGUID(colorBand[position]).setScale({7.48, 0.01, 2.5})
+			getObjectFromGUID(colorBand[position]).setColorTint("Black")
+			getObjectFromGUID(colorBand[position]).setPosition({getObjectFromGUID(colorBand[position]).getPosition()[1]-12.5, 0.98, -30.0})
+			if getObjectFromGUID(playAreaGuideText[position])~=nil then getObjectFromGUID(playAreaGuideText[position]).destruct() end
+			if getObjectFromGUID(playAreaGuideBackground[position])~=nil then getObjectFromGUID(playAreaGuideBackground[position]).destruct() end
 		end
-		CommonBag.destruct()
-
-		--mirror source
-		if (gStates.positionMageKnight[position]~="nobody" and position~=5) then
-			local obj=getObjectFromGUID("b5a6ce").clone()
-			obj.setPosition({-58.25+offsetPosition, 0.98, -28.53})
-			safeWaitCondition("SetupGame",function()
-				obj.lock()
-				obj.setRotation({0,180,0})
-				obj.registerCollisions()
-				gStates.mirrorSource[#gStates.mirrorSource+1]=obj.guid
-				context.mirrorReady=context.mirrorReady+1
-				if context.mirrorReady>=context.mirrorExpected then gStates.mirrorSetupReady=true end
-			end,function() return obj~=nil and obj.resting==true end,10,function()
-				error("SetupGame timed out waiting for a player mirror source to settle.",2)
-			end)
+		if i==8 and position<=4 and gStates.positionMageKnight[position]~="nobody" then--snuck the new poison card in with the regular wound cards
+			commonBag.takeObject({guid="d1e6c3", position={-40.86+offsetPosition, 1.08, -36.10}, smooth=false}).lock()
 		end
-
-		--Figure out which Mage Knight is assigned to a position
-		local PlayerBag={}
-		for i=1, #mageKnights, 1 do
-			if gStates.positionMageKnight[position]==mageKnights[i].mage or (gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]==mageKnights[i].mage) then
-				PlayerBag=getObjectFromGUID(mageKnights[i].bag).clone()
-				PlayerBag.setPosition({-60.0+offsetPosition, 1.5, -38.0})
-				break
-			end
-		end
-
-		--Layout everything from the mage bag assigned to the position
-		--1-Turn Order, 2-Unique Cards, 3-Dummy Inventory, 4-Skills, 5-Skill Reference Card 1, 6-Skill Reference Card 2,
-		--7-Avatar, 8-Shield Fame, 9-Shield Rep, 10-Shield Control, 11-Quest Marker,
-		--12-Command token Blank, 13-5 Command Tokens
-		local turnRef=1
-		for i=1, #PLAYER_SETUP_UNIQUE_PARTS, 1 do
-			local skip=0
-			local part=PLAYER_SETUP_UNIQUE_PARTS[i]
-			local params={position={part[1]+offsetPosition,part[2],part[3]}, smooth=false, setColorTint=""}
-			--turn markers all go in Shuffled Order
-			if i==1 then
-				if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Dummy and Volkare
-					local dummyStats={	seatPos=position, mage=gStates.positionMageKnight[5], fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, hand=5, baseHand=5, handBonus=0, tactic=1, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, defeatedCities={}, deadDeckInventory={}, score={Glade=0, GraveYard=0},
-										dummyCrystals={["Red"]=0, Blue=0, Green=0, ["White"]=0}}
-					if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
-						params.position={-1.9, 0.96, -19.4}--if dummy draws first
-						context.startPos[1]=1
-						turnOrder[1]=dummyStats
-					else
-						params.position={-1.9, 0.96, -19.4-(gStates.playerCount*1.4)}--if dummy draw last
-						context.startPos[gStates.playerCount+1]=1
-						turnOrder[gStates.playerCount+1]=dummyStats
-						turnOrder[gStates.playerCount+1].tactic=gStates.playerCount+1
-						turnRef=gStates.playerCount+1
-					end
-				else--Mage Knights
-					local duplicate=true
-					while duplicate==true do
-						duplicate=false
-						turnRef=math.random(1, gStates.playerCount)
-						if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then turnRef=turnRef+1 end
-						if context.startPos[turnRef]==1 then duplicate=true else context.startPos[turnRef]=1 end
-					end
-					params.position={-1.9, 0.96, -19.4-((turnRef-1)*1.4)}
-					turnOrder[turnRef]={seatPos=position,mage=gStates.positionMageKnight[position], fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, level=1, levelUp=0, influence=6, hand=5, baseHand=5, handBonus=0, tactic=turnRef, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, combatIconHide="None", defeatedCities={}, levelUpComplete=false, avatarLocation="portal", deadDeckInventory={}, levelingStats={}, score={Glade=0, GraveYard=0}}
-				end
-			end
-
-			--Player Deed Deck
-			if i==2 then
-				params.rotation={180, 0, 0}--Orient cards face down
-				if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Dummy and Volkare deck go in different spot
-					params.position={-67.96+offsetPosition, 1.17, -43.17}
-				end
-				params.callback_function=function(obj) obj.shuffle() end
-			end
-
-			--Dummy Invetory Card
-			if i==3 and (gStates.positionMageKnight[position]~="nobody" and position<5) then local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1 end--Delete Dummy Inventory when this is a player
-
-			--Skills Container or Volkare's Level Chart
-			if i==4 then
-				if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Checks if this position is a dummy
-					if gStates.positionMageKnight[5]=="Volkare" then
-						params.position={39.16, 0.97, 35.00}
-						params.guid="b2ec85"--Volkare Level Chart: explicit GUID pull rather than relying on bag order.
-					else
-						if gStates.playerCount==1 and gStates.dummyAllSkills==false then
-							params.position={-78.12+offsetPosition, 1.6, -31.03}--Skills container Position
-						else
-							local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
-						end
-					end
-				end
-			end
-
-			--Skill Refernce Card 1
-			if i==5 and (gStates.positionMageKnight[position]=="nobody" or position==5) and ((gStates.positionMageKnight[5]=="Volkare" or gStates.playerCount~=1) or gStates.dummyAllSkills==true) then
-				local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
-			end
-
-			--Skill Refernce Card 2
-			if i==6 then
-				if (gStates.positionMageKnight[position]=="nobody" or position==5) and ((gStates.positionMageKnight[5]=="Volkare" or gStates.playerCount~=1) or gStates.dummyAllSkills==true) then
-					local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
-				else
-					params.callback_function=function(obj) obj.lock() end
-					if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.positionMageKnight[position]~="Ymirgh" and gStates.positionMageKnight[position]~="Malek" and gStates.positionMageKnight[position]~="Duscenia" and gStates.positionMageKnight[position]~="Mevok" and gStates.positionMageKnight[position]~="Zirtae" then
-						params.callback_function=function(ob) local obj=ob.setState(1) obj.lock() end
-					end
-				end
-			end
-
-			--Player Avater or Volkare's Wound Card
-			if i==7 then
-				if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Checks if this position is a dummy
-					if gStates.positionMageKnight[5]=="Volkare" then
-						params.rotation={180, 0, 0}
-						params.position={-67.96+offsetPosition, 1.17, -50.17}--Flip wound card over if Volkare
-						params.callback_function=volkareSetup
-					elseif proxyPlayerActive()==true then
-						--Use one of the same four Portal-card positions as a normal player whenever one is free.
-						--With four human players there is no fifth Portal position, so the Proxy starts on the Dummy board instead.
-						local proxyPos,onPortal=proxySetupAvatarPosition()
-						params.position=proxyPos
-						params.callback_function=function(obj)
-							obj.unlock()
-							gStates.proxyAvatarOffMap=(onPortal~=true)
-							local proxyIndex=proxyPlayerIndex()
-							if proxyIndex~=nil and turnOrder[proxyIndex]~=nil then turnOrder[proxyIndex].avatarLocation=onPortal==true and "portal" or nil end
-						end
-					else
-						local destr=safeTakeObject("SetupGame",PlayerBag,params) destr.destruct() skip=1
-					end
-				else
-					--params.position[1]=params.position[1]-(offsetPosition/1.07)--Avatar
-					local portal=PLAYER_SETUP_PORTAL_POSITIONS[orderIndex]
-					params.position={portal[1],portal[2],portal[3]}
-				end
-			end
-
-			--Fame Marker, Volkare's Terrain Tile or Dummy's Crystals. Dummy is Setup
-			if i==8 then
-				if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Checks if this position is a dummy
-					if position<5 then
-						getObjectFromGUID(deedDeckZones[position]).setPosition({offsetPosition-68, 1.15, -43.20})
-						getObjectFromGUID(deedDeckDiscardZones[position]).setPosition({offsetPosition-77.21, 1.15, -43.20})
-					end
-					if gStates.positionMageKnight[5]=="Volkare" then
-						local cityBag=getObjectFromGUID(GUID.bag.terrain.leftCity)
-						if cityBag==nil then error("Volkare setup missing City terrain bag",2) end
-						if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" then
-							--Keep the Camp out of the map zone until mapSetup is ready to reveal it.
-							--Quest now uses the same staging rule so its Camp cannot begin a separate reveal timer.
-							local bagPos=cityBag.getPosition()
-							params.position={bagPos.x,bagPos.y+2,bagPos.z}
-						else
-							params.position={-12.0297, 2.0,  8.8586}--The War of Four camp tile position
-						end
-						terrainTiles["835c91"].hexFeature.center=""
-						gStates.hexOverideSave["835c91"]={center=""}
-						if gStates.randomTileOrientation==false then params.rotation={0, 180, 180} else params.rotation={0, math.random(1, 6)*60, 180} end
-						params.guid="835c91"
-						local obj=safeTakeObject("SetupGame",cityBag,params)
-						if obj==nil then error("Volkare setup missing Camp terrain tile 835c91 from City terrain bag",2) end
-						--The Camp originated as a special Volkare component and historically had no Terrain tag.
-						--Now that it lives in the City terrain pool, normalize it before it ever reaches the map.
-						if obj.hasTag("Terrain")~=true then obj.addTag("Terrain") end
-						skip=1
-					else
-						local params={position={-69.4, 1.41, -36.5}, rotation={0, 30, 0}, smooth=false, index=0}
-						if position==5 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
-						params.position[1]=params.position[1]+offsetPosition
-						for a=1, 3, 1 do
-							params.position[1]=params.position[1]-(1.7)
-							local obj=safeTakeObject("SetupGame",PlayerBag,params)
-							obj.lock()
-							local b=obj.getDescription()
-							if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
-								turnOrder[1].dummyCrystals[b]=turnOrder[1].dummyCrystals[b]+1
-							else
-								turnOrder[gStates.playerCount+1].dummyCrystals[b]=turnOrder[gStates.playerCount+1].dummyCrystals[b]+1
-							end
-						end
-						break
-					end
-				else
-					params.position[1]=(params.position[1]-(offsetPosition/1.032))+(5.3*gStates.blitz)--Fame Marker
-				end
-			end
-
-			--Reputation Marker or Volkare's Avatar
-			if i==9 then
-				if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Checks if this position is a dummy
-					if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-						params.position={-37.2305, 1.6, -5.6911}--Volkare's Return Avatar position
-					else
-						params.position={-12.0297, 1.6, 8.8586}--Volkare's Quest Avatar position
-					end
-					local obj=safeTakeObject("SetupGame",PlayerBag,params)
-					--Volkare is stored in the Mage bag before the map exists. Keep him physical so the
-					--starting terrain can lift/settle him normally; setup locks him only after map completion.
-					if gStates.positionMageKnight[5]=="Volkare" and obj~=nil then obj.unlock() end
-					skip=1
-				else
-					local blitzSub=gStates.blitz
-					local reputationPosition=PLAYER_SETUP_REPUTATION_POSITIONS[blitzSub-gStates.rampage+3][position]
-					params.position={reputationPosition[1],reputationPosition[2],reputationPosition[3]}--Reputation Marker
-					turnOrder[turnRef].reputation=(0+blitzSub-gStates.rampage)*2
-				end
-			end
-
-			-- or Volkare's Arrow Guide or Volkares Dice
-			if i==10 then
-				if ((position<5 and gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[position]=="Volkare") then
-					params.position={-72.89+offsetPosition,1.5,-33.0}--Volkare Dice
-				end
-			end
-
-			--or Volkares Scenario Reference Card
-			if i==11 then
-				if (position<5 and gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[position]=="Volkare" then
-					params.position={-72.5+offsetPosition, 1.06, -48.23}
-					params.callback_function=function(obj) obj.lock() end
-					if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-						params.callback_function=function(ob) local obj=ob.setState(2) obj.lock() end
-					end
-				end
-			end
-
-			--Volkare's Marker
-			if i==12 then
-				if (position<5 and gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[position]=="Volkare" then
-					params.position={-76+offsetPosition, 1.16, -31}
-					params.callback_function=function(obj) obj.lock() end
-				else
-					params.rotation={0.00, 180.00, 180.00}
-				end
-			end
-
-			if i==13 then
-				if (position<5 and gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[position]=="Volkare" then
-					if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
-						params.position={-37.23, 2.5, -5.69}
-						params.rotation={0.0, 210.0, 0.0}--Volkare's Return Guide position
-						params.callback_function=function(guide)
-							safeWaitCondition("SetupGame",function()
-								guide.jointTo(getObjectFromGUID(volkare.model),{["type"]="Fixed"})
-							end,function() return guide~=nil and guide.resting==true and getObjectFromGUID(volkare.model)~=nil end,10,function()
-								error("SetupGame timed out waiting to attach Volkare's Return guide.",2)
-							end)
-						end
-					else
-						params.position={-12.03, 2.5, 8.86}--Volkare's Quest Guide position
-						params.rotation={0.0, 210.0, 0.0}
-						params.callback_function=function(guide)
-							safeWaitCondition("SetupGame",function()
-								guide.setState(2)
-								safeWaitCondition("SetupGame",function()
-									getObjectFromGUID("be2dc2").jointTo(getObjectFromGUID(volkare.model),{["type"]="Fixed"})
-								end,function() return getObjectFromGUID("be2dc2")~=nil and getObjectFromGUID(volkare.model)~=nil end,10,function()
-									error("SetupGame timed out waiting for Volkare's Quest guide state.",2)
-								end)
-							end,function() return guide~=nil and guide.resting==true and getObjectFromGUID(volkare.model)~=nil end,10,function()
-								error("SetupGame timed out waiting to prepare Volkare's Quest guide.",2)
-							end)
-						end
-					end
-					skip=1
-				end
-			end
-
-			--Volkare is Setup
-			if i==13 and (gStates.positionMageKnight[position]=="nobody" or position==5) then break end
-
-			if position==5 and i~=1 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
-			if skip==0 then
-				local obj=safeTakeObject("SetupGame",PlayerBag,params)
-				if (i==4 or i==5 or i==10 or i==11 or i==13) and gStates.positionMageKnight[position]~="nobody" and position<5 then obj.lock() end--lock player board components
-				if (i==1 or i==3 or i==4 or i==5 or i==11) and (gStates.positionMageKnight[position]=="nobody" or position==5) then obj.lock() end--lock dummy board components
-				if i==1 then turnOrder[turnRef].turnOrderTokenGUID=obj.guid end
-				if (i==4 and gStates.positionMageKnight[position]~="nobody" and position<=4) or (i==4 and gStates.playerCount==1) then
-					turnOrder[turnRef].skillBagGUID=obj.guid
-					--Hero Challenges reserve the prescribed first Skill before the Hero's remaining Skill bag is shuffled.
-					if gStates.heroChallenges==true and position<=4 and gStates.positionMageKnight[position]~="nobody" then
-						local challenge=heroChallengesData[turnOrder[turnRef].mage]
-						if challenge~=nil then
-							local reserved=obj.takeObject({guid=challenge.skillGUID,position={(position*40)-113.0,1.5,-48.9},rotation={0,180,0},smooth=false})
-							--turnOrder is re-sorted during play, so reserve by stable Mage Knight identity rather than array index.
-							if reserved~=nil then reserved.lock() gStates.heroChallengeReservedSkills[turnOrder[turnRef].mage]=reserved.guid end
-						end
-					end
-					obj.shuffle()
-				end
-				if i==8 and gStates.positionMageKnight[position]~="nobody" and position<=4 then turnOrder[turnRef].fameGUID=obj.guid end
-				if i==9 and gStates.positionMageKnight[position]~="nobody" and position<=4 then turnOrder[turnRef].reputationGUID=obj.guid end
-				if i==13 and gStates.positionMageKnight[position]~="nobody" and position<=4 then turnOrder[turnRef].commandGUID=obj.guid end
-				if i==1 and gStates.positionMageKnight[position]~="nobody" and position<=4 then
-					local inventoryImage=PLAYER_SETUP_INVENTORIES[gStates.positionMageKnight[position]]
-					if inventoryImage~=nil then getObjectFromGUID(playerBoard[position]).addDecal({name="Mage Inventory", url=inventoryImage, position={1.735, 0.11, -0.32}, rotation={90.0, 180.0, 0.0}, scale={1.164, 1.219, 10}}) end
-					turnOrder[turnRef].playerBoardGUID=playerBoard[position]
-				end
-			end
-		end
-		if gStates.positionMageKnight[position]=="Mevok" then
-			local obj=safeTakeObject("SetupGame",PlayerBag,{guid="32bc89", position={-77.30+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
-			local obj=safeTakeObject("SetupGame",PlayerBag,{guid="2dbfde", position={-73.90+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
-		end
-		PlayerBag.destruct()
-	else
-		--clean up that positions area
-		getObjectFromGUID(deedDeckZones[position]).destruct()
-		getObjectFromGUID(deedDeckDiscardZones[position]).destruct()
-		getObjectFromGUID(colorBand[position]).destruct()
-		if position~=5 then getObjectFromGUID(playerBoard[position]).destruct() end
-		if getObjectFromGUID(playAreaGuideText[position])~=nil then getObjectFromGUID(playAreaGuideText[position]).destruct() end
-		if getObjectFromGUID(playAreaGuideBackground[position])~=nil then getObjectFromGUID(playAreaGuideBackground[position]).destruct() end
+		if (gStates.positionMageKnight[position]=="nobody" or position==5) and ((i>=2 and gStates.positionMageKnight[5]=="Volkare") or (i>=8 and gStates.positionMageKnight[5]~="nobody")) then context.dummyPlayed=1 break end--just dummy board for Volkare
+		if i>=11 and gStates.riseOfTheForgemasters<=1 then break end
+		if i>=15 and gStates.riseOfTheForgemasters<=2 then break end
+		if skip==0 then local obj=safeTakeObject("SetupGame",commonBag,params).lock() end
 	end
+	commonBag.destruct()
+end
+
+local function playerSetupCreateMirrorSource(position,offsetPosition,context)
+	--mirror source
+	if (gStates.positionMageKnight[position]~="nobody" and position~=5) then
+		local source=getObjectFromGUID("b5a6ce")
+		if source==nil then error("SetupGame missing mirror source object b5a6ce.",2) end
+		local obj=source.clone()
+		obj.setPosition({-58.25+offsetPosition, 0.98, -28.53})
+		safeWaitCondition("SetupGame",function()
+			obj.lock()
+			obj.setRotation({0,180,0})
+			obj.registerCollisions()
+			gStates.mirrorSource[#gStates.mirrorSource+1]=obj.guid
+			context.mirrorReady=context.mirrorReady+1
+			if context.mirrorReady>=context.mirrorExpected then gStates.mirrorSetupReady=true end
+		end,function() return obj~=nil and obj.resting==true end,10,function()
+			error("SetupGame timed out waiting for a player mirror source to settle.",2)
+		end)
+	end
+end
+
+local function playerSetupMageBag(position,offsetPosition)
+	local mage=gStates.positionMageKnight[position]
+	if mage=="nobody" then mage=gStates.positionMageKnight[5] end
+	for i=1,#mageKnights do
+		if mage==mageKnights[i].mage then
+			local source=getObjectFromGUID(mageKnights[i].bag)
+			if source==nil then error("SetupGame missing Mage bag for "..tostring(mage)..".",2) end
+			local playerBag=source.clone()
+			playerBag.setPosition({-60.0+offsetPosition,1.5,-38.0})
+			return playerBag
+		end
+	end
+	error("SetupGame could not resolve a Mage bag for "..tostring(mage)..".",2)
+end
+
+local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosition,playerBag,context)
+	--Layout everything from the mage bag assigned to the position
+	--1-Turn Order, 2-Unique Cards, 3-Dummy Inventory, 4-Skills, 5-Skill Reference Card 1, 6-Skill Reference Card 2,
+	--7-Avatar, 8-Shield Fame, 9-Shield Rep, 10-Shield Control, 11-Quest Marker,
+	--12-Command token Blank, 13-5 Command Tokens
+	local turnRef=1
+	for i=1, #PLAYER_SETUP_UNIQUE_PARTS, 1 do
+		local skip=0
+		local part=PLAYER_SETUP_UNIQUE_PARTS[i]
+		local params={position={part[1]+offsetPosition,part[2],part[3]}, smooth=false, setColorTint=""}
+		--turn markers all go in Shuffled Order
+		if i==1 then
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Dummy and Volkare
+				local dummyStats={	seatPos=position, mage=gStates.positionMageKnight[5], fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, hand=5, baseHand=5, handBonus=0, tactic=1, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, defeatedCities={}, deadDeckInventory={}, score={Glade=0, GraveYard=0},
+									dummyCrystals={["Red"]=0, Blue=0, Green=0, ["White"]=0}}
+				if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
+					params.position={-1.9, 0.96, -19.4}--if dummy draws first
+					context.startPos[1]=1
+					turnOrder[1]=dummyStats
+				else
+					params.position={-1.9, 0.96, -19.4-(gStates.playerCount*1.4)}--if dummy draw last
+					context.startPos[gStates.playerCount+1]=1
+					turnOrder[gStates.playerCount+1]=dummyStats
+					turnOrder[gStates.playerCount+1].tactic=gStates.playerCount+1
+					turnRef=gStates.playerCount+1
+				end
+			else--Mage Knights
+				local duplicate=true
+				while duplicate==true do
+					duplicate=false
+					turnRef=math.random(1, gStates.playerCount)
+					if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then turnRef=turnRef+1 end
+					if context.startPos[turnRef]==1 then duplicate=true else context.startPos[turnRef]=1 end
+				end
+				params.position={-1.9, 0.96, -19.4-((turnRef-1)*1.4)}
+				turnOrder[turnRef]={seatPos=position,mage=gStates.positionMageKnight[position], fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, level=1, levelUp=0, influence=6, hand=5, baseHand=5, handBonus=0, tactic=turnRef, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, combatIconHide="None", defeatedCities={}, levelUpComplete=false, avatarLocation="portal", deadDeckInventory={}, levelingStats={}, score={Glade=0, GraveYard=0}}
+			end
+		end
+
+		--Player Deed Deck
+		if i==2 then
+			params.rotation={180, 0, 0}--Orient cards face down
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Dummy and Volkare deck go in different spot
+				params.position={-67.96+offsetPosition, 1.17, -43.17}
+			end
+			params.callback_function=function(obj) obj.shuffle() end
+		end
+
+		--Dummy Invetory Card
+		if i==3 and (gStates.positionMageKnight[position]~="nobody" and position<5) then local destr=safeTakeObject("SetupGame",playerBag,params) destr.destruct() skip=1 end--Delete Dummy Inventory when this is a player
+
+		--Skills Container or Volkare's Level Chart
+		if i==4 then
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Checks if this position is a dummy
+				if gStates.positionMageKnight[5]=="Volkare" then
+					params.position={39.16, 0.97, 35.00}
+					params.guid="b2ec85"--Volkare Level Chart: explicit GUID pull rather than relying on bag order.
+				else
+					if gStates.playerCount==1 and gStates.dummyAllSkills==false then
+						params.position={-78.12+offsetPosition, 1.6, -31.03}--Skills container Position
+					else
+						local destr=safeTakeObject("SetupGame",playerBag,params) destr.destruct() skip=1
+					end
+				end
+			end
+		end
+
+		--Skill Refernce Card 1
+		if i==5 and (gStates.positionMageKnight[position]=="nobody" or position==5) and ((gStates.positionMageKnight[5]=="Volkare" or gStates.playerCount~=1) or gStates.dummyAllSkills==true) then
+			local destr=safeTakeObject("SetupGame",playerBag,params) destr.destruct() skip=1
+		end
+
+		--Skill Refernce Card 2
+		if i==6 then
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) and ((gStates.positionMageKnight[5]=="Volkare" or gStates.playerCount~=1) or gStates.dummyAllSkills==true) then
+				local destr=safeTakeObject("SetupGame",playerBag,params) destr.destruct() skip=1
+			else
+				params.callback_function=function(obj) obj.lock() end
+				if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.positionMageKnight[position]~="Ymirgh" and gStates.positionMageKnight[position]~="Malek" and gStates.positionMageKnight[position]~="Duscenia" and gStates.positionMageKnight[position]~="Mevok" and gStates.positionMageKnight[position]~="Zirtae" then
+					params.callback_function=function(ob) local obj=ob.setState(1) obj.lock() end
+				end
+			end
+		end
+
+		--Player Avater or Volkare's Wound Card
+		if i==7 then
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Checks if this position is a dummy
+				if gStates.positionMageKnight[5]=="Volkare" then
+					params.rotation={180, 0, 0}
+					params.position={-67.96+offsetPosition, 1.17, -50.17}--Flip wound card over if Volkare
+					params.callback_function=volkareSetup
+				elseif proxyPlayerActive()==true then
+					--Use one of the same four Portal-card positions as a normal player whenever one is free.
+					--With four human players there is no fifth Portal position, so the Proxy starts on the Dummy board instead.
+					local proxyPos,onPortal=proxySetupAvatarPosition()
+					params.position=proxyPos
+					params.callback_function=function(obj)
+						obj.unlock()
+						gStates.proxyAvatarOffMap=(onPortal~=true)
+						local proxyIndex=proxyPlayerIndex()
+						if proxyIndex~=nil and turnOrder[proxyIndex]~=nil then turnOrder[proxyIndex].avatarLocation=onPortal==true and "portal" or nil end
+					end
+				else
+					local destr=safeTakeObject("SetupGame",playerBag,params) destr.destruct() skip=1
+				end
+			else
+				--params.position[1]=params.position[1]-(offsetPosition/1.07)--Avatar
+				local portal=PLAYER_SETUP_PORTAL_POSITIONS[orderIndex]
+				params.position={portal[1],portal[2],portal[3]}
+			end
+		end
+
+		--Fame Marker, Volkare's Terrain Tile or Dummy's Crystals. Dummy is Setup
+		if i==8 then
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Checks if this position is a dummy
+				if position<5 then
+					getObjectFromGUID(deedDeckZones[position]).setPosition({offsetPosition-68, 1.15, -43.20})
+					getObjectFromGUID(deedDeckDiscardZones[position]).setPosition({offsetPosition-77.21, 1.15, -43.20})
+				end
+				if gStates.positionMageKnight[5]=="Volkare" then
+					local cityBag=getObjectFromGUID(GUID.bag.terrain.leftCity)
+					if cityBag==nil then error("Volkare setup missing City terrain bag",2) end
+					if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" then
+						--Keep the Camp out of the map zone until mapSetup is ready to reveal it.
+						--Quest now uses the same staging rule so its Camp cannot begin a separate reveal timer.
+						local bagPos=cityBag.getPosition()
+						params.position={bagPos.x,bagPos.y+2,bagPos.z}
+					else
+						params.position={-12.0297, 2.0,  8.8586}--The War of Four camp tile position
+					end
+					terrainTiles["835c91"].hexFeature.center=""
+					gStates.hexOverideSave["835c91"]={center=""}
+					if gStates.randomTileOrientation==false then params.rotation={0, 180, 180} else params.rotation={0, math.random(1, 6)*60, 180} end
+					params.guid="835c91"
+					local obj=safeTakeObject("SetupGame",cityBag,params)
+					if obj==nil then error("Volkare setup missing Camp terrain tile 835c91 from City terrain bag",2) end
+					--The Camp originated as a special Volkare component and historically had no Terrain tag.
+					--Now that it lives in the City terrain pool, normalize it before it ever reaches the map.
+					if obj.hasTag("Terrain")~=true then obj.addTag("Terrain") end
+					skip=1
+				else
+					local params={position={-69.4, 1.41, -36.5}, rotation={0, 30, 0}, smooth=false, index=0}
+					if position==5 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
+					params.position[1]=params.position[1]+offsetPosition
+					for a=1, 3, 1 do
+						params.position[1]=params.position[1]-(1.7)
+						local obj=safeTakeObject("SetupGame",playerBag,params)
+						obj.lock()
+						local b=obj.getDescription()
+						if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
+							turnOrder[1].dummyCrystals[b]=turnOrder[1].dummyCrystals[b]+1
+						else
+							turnOrder[gStates.playerCount+1].dummyCrystals[b]=turnOrder[gStates.playerCount+1].dummyCrystals[b]+1
+						end
+					end
+					break
+				end
+			else
+				params.position[1]=(params.position[1]-(offsetPosition/1.032))+(5.3*gStates.blitz)--Fame Marker
+			end
+		end
+
+		--Reputation Marker or Volkare's Avatar
+		if i==9 then
+			if (gStates.positionMageKnight[position]=="nobody" or position==5) then--Checks if this position is a dummy
+				if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
+					params.position={-37.2305, 1.6, -5.6911}--Volkare's Return Avatar position
+				else
+					params.position={-12.0297, 1.6, 8.8586}--Volkare's Quest Avatar position
+				end
+				local obj=safeTakeObject("SetupGame",playerBag,params)
+				--Volkare is stored in the Mage bag before the map exists. Keep him physical so the
+				--starting terrain can lift/settle him normally; setup locks him only after map completion.
+				if gStates.positionMageKnight[5]=="Volkare" and obj~=nil then obj.unlock() end
+				skip=1
+			else
+				local blitzSub=gStates.blitz
+				local reputationPosition=PLAYER_SETUP_REPUTATION_POSITIONS[blitzSub-gStates.rampage+3][position]
+				params.position={reputationPosition[1],reputationPosition[2],reputationPosition[3]}--Reputation Marker
+				turnOrder[turnRef].reputation=(0+blitzSub-gStates.rampage)*2
+			end
+		end
+
+		-- or Volkare's Arrow Guide or Volkares Dice
+		if i==10 then
+			if ((position<5 and gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[position]=="Volkare") then
+				params.position={-72.89+offsetPosition,1.5,-33.0}--Volkare Dice
+			end
+		end
+
+		--or Volkares Scenario Reference Card
+		if i==11 then
+			if (position<5 and gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[position]=="Volkare" then
+				params.position={-72.5+offsetPosition, 1.06, -48.23}
+				params.callback_function=function(obj) obj.lock() end
+				if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
+					params.callback_function=function(ob) local obj=ob.setState(2) obj.lock() end
+				end
+			end
+		end
+
+		--Volkare's Marker
+		if i==12 then
+			if (position<5 and gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[position]=="Volkare" then
+				params.position={-76+offsetPosition, 1.16, -31}
+				params.callback_function=function(obj) obj.lock() end
+			else
+				params.rotation={0.00, 180.00, 180.00}
+			end
+		end
+
+		if i==13 then
+			if (position<5 and gStates.positionMageKnight[position]=="nobody" and gStates.positionMageKnight[5]=="Volkare") or gStates.positionMageKnight[position]=="Volkare" then
+				if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" then
+					params.position={-37.23, 2.5, -5.69}
+					params.rotation={0.0, 210.0, 0.0}--Volkare's Return Guide position
+					params.callback_function=function(guide)
+						safeWaitCondition("SetupGame",function()
+							guide.jointTo(getObjectFromGUID(volkare.model),{["type"]="Fixed"})
+						end,function() return guide~=nil and guide.resting==true and getObjectFromGUID(volkare.model)~=nil end,10,function()
+							error("SetupGame timed out waiting to attach Volkare's Return guide.",2)
+						end)
+					end
+				else
+					params.position={-12.03, 2.5, 8.86}--Volkare's Quest Guide position
+					params.rotation={0.0, 210.0, 0.0}
+					params.callback_function=function(guide)
+						safeWaitCondition("SetupGame",function()
+							guide.setState(2)
+							safeWaitCondition("SetupGame",function()
+								getObjectFromGUID("be2dc2").jointTo(getObjectFromGUID(volkare.model),{["type"]="Fixed"})
+							end,function() return getObjectFromGUID("be2dc2")~=nil and getObjectFromGUID(volkare.model)~=nil end,10,function()
+								error("SetupGame timed out waiting for Volkare's Quest guide state.",2)
+							end)
+						end,function() return guide~=nil and guide.resting==true and getObjectFromGUID(volkare.model)~=nil end,10,function()
+							error("SetupGame timed out waiting to prepare Volkare's Quest guide.",2)
+						end)
+					end
+				end
+				skip=1
+			end
+		end
+
+		--Volkare is Setup
+		if i==13 and (gStates.positionMageKnight[position]=="nobody" or position==5) then break end
+
+		if position==5 and i~=1 then params.position[1]=params.position[1]-25.2 params.position[3]=params.position[3]+21.1 end
+		if skip==0 then
+			local obj=safeTakeObject("SetupGame",playerBag,params)
+			if (i==4 or i==5 or i==10 or i==11 or i==13) and gStates.positionMageKnight[position]~="nobody" and position<5 then obj.lock() end--lock player board components
+			if (i==1 or i==3 or i==4 or i==5 or i==11) and (gStates.positionMageKnight[position]=="nobody" or position==5) then obj.lock() end--lock dummy board components
+			if i==1 then turnOrder[turnRef].turnOrderTokenGUID=obj.guid end
+			if (i==4 and gStates.positionMageKnight[position]~="nobody" and position<=4) or (i==4 and gStates.playerCount==1) then
+				turnOrder[turnRef].skillBagGUID=obj.guid
+				--Hero Challenges reserve the prescribed first Skill before the Hero's remaining Skill bag is shuffled.
+				if gStates.heroChallenges==true and position<=4 and gStates.positionMageKnight[position]~="nobody" then
+					local challenge=heroChallengesData[turnOrder[turnRef].mage]
+					if challenge~=nil then
+						local reserved=obj.takeObject({guid=challenge.skillGUID,position={(position*40)-113.0,1.5,-48.9},rotation={0,180,0},smooth=false})
+						--turnOrder is re-sorted during play, so reserve by stable Mage Knight identity rather than array index.
+						if reserved~=nil then reserved.lock() gStates.heroChallengeReservedSkills[turnOrder[turnRef].mage]=reserved.guid end
+					end
+				end
+				obj.shuffle()
+			end
+			if i==8 and gStates.positionMageKnight[position]~="nobody" and position<=4 then turnOrder[turnRef].fameGUID=obj.guid end
+			if i==9 and gStates.positionMageKnight[position]~="nobody" and position<=4 then turnOrder[turnRef].reputationGUID=obj.guid end
+			if i==13 and gStates.positionMageKnight[position]~="nobody" and position<=4 then turnOrder[turnRef].commandGUID=obj.guid end
+			if i==1 and gStates.positionMageKnight[position]~="nobody" and position<=4 then
+				local inventoryImage=PLAYER_SETUP_INVENTORIES[gStates.positionMageKnight[position]]
+				if inventoryImage~=nil then getObjectFromGUID(playerBoard[position]).addDecal({name="Mage Inventory", url=inventoryImage, position={1.735, 0.11, -0.32}, rotation={90.0, 180.0, 0.0}, scale={1.164, 1.219, 10}}) end
+				turnOrder[turnRef].playerBoardGUID=playerBoard[position]
+			end
+		end
+	end
+	if gStates.positionMageKnight[position]=="Mevok" then
+		local obj=safeTakeObject("SetupGame",playerBag,{guid="32bc89", position={-77.30+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
+		local obj=safeTakeObject("SetupGame",playerBag,{guid="2dbfde", position={-73.90+offsetPosition, 1.05, -53.65}, smooth=false, setColorTint="", callback_function=function(obj) obj.lock() end})
+	endend
+
+local function playerSetupCleanupPosition(position)
+	getObjectFromGUID(deedDeckZones[position]).destruct()
+	getObjectFromGUID(deedDeckDiscardZones[position]).destruct()
+	getObjectFromGUID(colorBand[position]).destruct()
+	if position~=5 then getObjectFromGUID(playerBoard[position]).destruct() end
+	if getObjectFromGUID(playAreaGuideText[position])~=nil then getObjectFromGUID(playAreaGuideText[position]).destruct() end
+	if getObjectFromGUID(playAreaGuideBackground[position])~=nil then getObjectFromGUID(playAreaGuideBackground[position]).destruct() end
+end
+
+local function playerSetupDeployPosition(orderIndex,position,context)
+	if playerSetupPositionNeeded(position,context)~=true then
+		playerSetupCleanupPosition(position)
+		return
+	end
+	local offsetPosition=position*40-40
+	playerSetupDeployCommonComponents(position,offsetPosition,context)
+	playerSetupCreateMirrorSource(position,offsetPosition,context)
+	local playerBag=playerSetupMageBag(position,offsetPosition)
+	playerSetupDeployUniqueComponents(orderIndex,position,offsetPosition,playerBag,context)
+	playerBag.destruct()
 end
 
 function setupPlayersReady()
