@@ -20,6 +20,7 @@ Tabletop Simulator compatibility is validated against Lua 5.2. Do not introduce 
 
 Keep shared helpers defined once. Cross-system helpers belong in `src/Shared.lua` or another clearly owned module; do not duplicate implementations in multiple modules. `require()` does not merge duplicate local functions.
 Do not use late module loading to redefine an existing global callback/helper. For cross-cutting behavior, keep one public owner entry point and delegate explicitly to a uniquely named service/base implementation so ownership and call order remain visible and duplicate-global validation stays meaningful.
+Keep `mainUIUpdate()` as a coalesced UI dispatcher. Put new presentation work in the narrowest existing refresh domain instead of growing the dispatcher; only bypass a domain for named sources that provably cannot change that domain’s state, with unknown sources always taking the full refresh path.
 
 Respect module ownership documented in `ARCHITECTURE.md`. When a feature already has a module, make the change there rather than adding another implementation to `PlayingGame.lua`.
 

@@ -40,7 +40,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/AI/Volkare.lua` | Volkare movement, combat and scenario AI. |
 | `src/PlayingGame/Movement.lua` | Movement calculator, route/terrain costs and teleport movement assistance. |
 | `src/PlayingGame/Rollers.lua` | Centralized Roll Crystal Die/object roller behaviour. |
-| `src/PlayingGame/UI.lua` | Runtime presentation, camera controls, ALT views, resource/UI helpers and object UI installers. |
+| `src/PlayingGame/UI.lua` | Runtime presentation, camera controls, ALT views, resource/UI helpers and object UI installers. `mainUIUpdate()` is a coalesced dispatcher over focused refresh domains; expensive combat Fame/Reputation reconciliation is skipped only for explicitly non-combat sources. |
 | `src/PlayingGame/Events.lua` | Thin TTS event handling, maintenance/persistence support and runtime event dispatch. |
 | `src/PlayingGame/Telemetry.lua` | Opt-in statistics, bug-report and score-report payload construction/submission. |
 | `src/PlayingGame/Callbacks.lua` | Public/safe callback boundaries exposed to TTS/UI entry points, including final `onLoad` composition. |

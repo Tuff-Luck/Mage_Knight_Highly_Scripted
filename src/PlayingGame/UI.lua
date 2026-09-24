@@ -668,681 +668,776 @@ function automatedMainPanelRefresh(overrideSpec)
 	return automatedMainPanelApply(spec)
 end
 
-function uiMainUIUpdateBase(source)
-	if gStates.firstStarted==true then
-		if mainUIPause~=nil then Wait.stop(mainUIPause) end
-		mainUIPause=safeWaitTime("UI",function()
-			local playerAreaCardCount=0
-			local playerAreaSkillCount=0
-			local nextPlayer=nextTurnMerged("nextMage")
-			local nextPlayerDetails=nextPlayer~=nil and turnOrder[nextPlayer] or nil
-			--Seat/colour changes can arrive while TTS is between player registrations. A delayed UI refresh
-			--must not dereference a transiently missing turn-order entry; the next normal refresh will rebuild it.
-			if nextPlayerDetails==nil then mainUIPause=nil return end
-			local nextPlayerEndCalled=nextPlayerDetails.endCalled
-			if nextPlayerEndCalled~=true and nextPlayerDetails.mage==gStates.positionMageKnight[5] then
-				local nextNonDummy=nextTurnMerged("nextMageSkipDummy")
-				local nextNonDummyDetails=nextNonDummy~=nil and turnOrder[nextNonDummy] or nil
-				if nextNonDummyDetails~=nil then nextPlayerEndCalled=nextNonDummyDetails.endCalled end
-			end
-			--if nextPlayerEndCalled~=true then nextPlayerEndCalled=turnOrder[nextPlayer].gameEnder end
-			--if nextPlayerEndCalled~=true then nextPlayerEndCalled=turnOrder[nextTurnMerged("nextMageSkipDummy")].gameEnder end
+-- Main UI refresh domains. mainUIUpdate remains coalesced through one delayed scheduler, but
+-- each domain now owns one kind of presentation/state work instead of one monolithic renderer.
+-- Unknown sources always take the full path; only sources known not to alter combat-area monsters
+-- skip the expensive Fame/Reputation combat-object reconciliation.
+local mainUINonCombatAccountingSources={
+	["Card Entered Hand"]=true,
+	["Object entered into deed deck or discard"]=true,
+	["Deed pile state changed"]=true,
+	["Tactic 4 Hand Bonus Changed"]=true,
+	["Value Adjusted"]=true,
+	["Quest Score Marker Dropped"]=true,
+	["Fame and Rep Shield Dropped"]=true,
+	["Player Changed Colour"]=true,
+	["Skill Claimed"]=true,
+	["Motivation Skill activated"]=true,
+	["Village Pillaged"]=true,
+	["Quest Reputation loss"]=true,
+	["Quest Reputation reward"]=true,
+	["Rich Merchant Fame"]=true,
+	["Quest Fame reward"]=true,
+	["Quest reward gate cleared"]=true,
+	["Quest Fame/Reputation reward"]=true,
+	["Noble Warrior Black Fame"]=true,
+	["The Execution Black Fame"]=true,
+	["Guard Duty Black Fame"]=true,
+	["Mine crystal pending"]=true,
+	["Mine crystal claimed"]=true,
+	["Need Token"]=true,
+	["Tactic Togle"]=true,
+	["Day Tactic 2 Used"]=true,
+	["Night Tactic 2 Used"]=true,
+	["night Tactic 4 Used"]=true,
+	["Night Tactic 6 Stored"]=true,
+	["Night Tactic 6 Claimed"]=true,
+	["Fame Gain from exploring"]=true
+}
+local mainUITimeBendingPresent=false
 
-			--Check for Game Over state. Normal final-turn completion is promoted to
-			--gStates.gameOver by nextTurnMerged("incrementTurn"), after Rewards Claimed
-			--has finished the last player's cleanup.
-			gameOver=gStates.gameOver==true or gStates.volkareWon==true
+local function mainUIBuildRefreshContext(source)
+	local currentPlayer=turnOrder[gStates.turnNumber]
+	if currentPlayer==nil then return nil end
+	local nextPlayer=nextTurnMerged("nextMage")
+	local nextPlayerDetails=nextPlayer~=nil and turnOrder[nextPlayer] or nil
+	--Seat/colour changes can arrive while TTS is between player registrations. A delayed UI refresh
+	--must not dereference a transiently missing turn-order entry; the next normal refresh will rebuild it.
+	if nextPlayerDetails==nil then return nil end
+	local nextPlayerEndCalled=nextPlayerDetails.endCalled
+	if nextPlayerEndCalled~=true and nextPlayerDetails.mage==gStates.positionMageKnight[5] then
+		local nextNonDummy=nextTurnMerged("nextMageSkipDummy")
+		local nextNonDummyDetails=nextNonDummy~=nil and turnOrder[nextNonDummy] or nil
+		if nextNonDummyDetails~=nil then nextPlayerEndCalled=nextNonDummyDetails.endCalled end
+	end
 
-			local currentPlayerGameEnder=turnOrder[gStates.turnNumber].gameEnder==true
+	--Normal final-turn completion is promoted to gStates.gameOver by nextTurnMerged("incrementTurn"),
+	--after Rewards Claimed has finished the last player's cleanup.
+	gameOver=gStates.gameOver==true or gStates.volkareWon==true
+	local playerAreaCardCount,playerAreaSkillCount=cachedPlayAreaCounts(currentPlayer.seatPos)
+	return {
+		source=source,
+		currentPlayer=currentPlayer,
+		nextPlayer=nextPlayer,
+		nextPlayerEndCalled=nextPlayerEndCalled,
+		gameOver=gameOver,
+		currentPlayerGameEnder=currentPlayer.gameEnder==true,
+		playerAreaCardCount=playerAreaCardCount,
+		playerAreaSkillCount=playerAreaSkillCount,
+		refreshCombatAccounting=mainUINonCombatAccountingSources[source]~=true
+	}
+end
 
-			--Card/skill counts come from the play-area GUID registry maintained by zone enter/leave events.
-			playerAreaCardCount, playerAreaSkillCount=cachedPlayAreaCounts(turnOrder[gStates.turnNumber].seatPos)
+local function mainUIRefreshOutOfTurn(context)
+	local hot=context.source=="Object entered into play area" or context.source=="Object removed from zone"
+	refreshOutOfTurnActions(context.playerAreaCardCount,context.playerAreaSkillCount,false,hot)
+end
+
+local function mainUIRefreshTurnControls(context)
+	local nextPlayer=context.nextPlayer
+	local nextPlayerEndCalled=context.nextPlayerEndCalled
+	local currentPlayerGameEnder=context.currentPlayerGameEnder
+	--change End turn button to say End Round on the last player turn
+	UI.setAttribute("EndTurnButton", "interactable", "True")
+	UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
+	UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Active")
+	UI.setAttribute("EndTurnButtonAlt", "interactable", "True")
+	UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Active")
+	UI.setAttribute("ExtraTurnTacticButton", "interactable", "True")
+	UI.setAttribute("ExtraTurnTacticButtonImage", "image", "Sliced Button/Button New Active")
+	UI.setAttribute("PreEndTurnText", "text", "{en}Rewards Claimed{ru}Награды получены{zh-tw}獲得獎勵{zh-cn}获得奖励{ko}보상 처리 완료{es}Recompensas Reclamadas{fr}Récompenses réclamées{pt-br}Recompensas Coletadas{de}Belohnungen Beansprucht")
+	local endText="{en}End Turn{ru}Конец хода{zh-tw}結束回合{zh-cn}结束回合{ko}차례 종료{es}Fin de Turno{fr}Fin de Tour{pt-br}Fim de Turno{de}Zug Beenden"
+	if nextPlayerEndCalled==true then
+		endText="{en}End Turn and Round{ru}Конец хода и Раунда{zh-tw}結束回合及本輪次{zh-cn}结束回合及本轮次{ko}차례 및 라운드 종료{es}Fin de Turno y Ronda{fr}Fin du Tour et du Round{pt-br}Fim de Turno e Rodada{de}Zug und Runde Beenden" end
+	if gStates.endGameAchieved=="true" and ((gStates.finalTurnReason=="victory" and currentPlayerGameEnder==true) or (gStates.finalTurnReason=="endRound" and nextPlayerEndCalled==true))==true then
+		endText="{en}End Game{ru}Конец игры{zh-tw}結束遊戲{zh-cn}结束游戏{ko}게임 종료{es}Fin del Juego{fr}Fin du Jeu{pt-br}Fim de Jogo{de}Spiel Beenden" end
+	local nextIsCoopAssaulter=gStates.coopAssaultPhase=="combat" and gStates.coopAssaultParticipants~=nil and gStates.coopAssaultParticipants[nextPlayer]~=nil
+	local nextTurnToken=nextIsCoopAssaulter and getObjectFromGUID(turnOrder[nextPlayer].turnOrderTokenGUID) or nil
+	if nextIsCoopAssaulter and turnOrder[nextPlayer].mage~=gStates.positionMageKnight[5] and nextTurnToken~=nil and nextTurnToken.is_face_down==true then
+		endText="{en}Next Assaulter{ru}Следующий штурмующий{zh-tw}換下一個襲擊者{zh-cn}换下一个袭击者{ko}다음 강습자{es}Siguiente Asaltante{fr}Prochain Agresseur{pt-br}Próximo Invasor{de}Nächster Spieler" end
+	UI.setAttribute("EndTurnButtonText", "text", endText)
+	UI.setAttribute("EndTurnButtonAltText", "text", endText)
+end
+
+local function mainUIRefreshPlayerState(context)
+	local fameForUp=0
+	if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
+		if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then turnOrder[gStates.turnNumber].fame=-1 else turnOrder[gStates.turnNumber].fame=999 end
+		return {automated=true,currentPlayer=turnOrder[gStates.turnNumber],fameForUp=0,timeBending=mainUITimeBendingPresent==true}
+	end
+
+	if againstDragonAttendanceUIRefresh==nil or againstDragonAttendanceUIRefresh()~=true then UI.setAttribute("VolkareAttacked", "active", "false") end
+	--Reputation is cached when its shield moves; no reputation-track zone scan is needed here.
+	--Resource Tracker is manually controlled by the player; mainUIUpdate does not redraw it.
+
+	--Work out how much more fame is needed until a level up is required.
+	--Fame is already cached when the shield moves, so derive its board row instead of rereading the physical shield.
+	local currentPlayer=turnOrder[gStates.turnNumber]
+	local boardFame=currentPlayer.fame-(gStates.scoreIfLooped*currentPlayer.scoreLoop)
+	if boardFame<0 then boardFame=0 end
+	local fameVerticle=math.floor(math.sqrt(boardFame+1))
+	if fameVerticle>gStates.rowsOnBoard then fameVerticle=gStates.rowsOnBoard end
+	if currentPlayer.level<gStates.rowsOnBoard then
+		local fameToLevel=math.floor(math.sqrt(currentPlayer.fame+1))
+		if fameToLevel>gStates.rowsOnBoard then fameToLevel=gStates.rowsOnBoard end
+		if fameVerticle<gStates.rowsOnBoard then fameForUp=((fameToLevel+1)*(fameToLevel+1))-1-currentPlayer.fame end
+		--see if the current fame value would cause a level up
+		currentPlayer.levelUp=0
+		if fameToLevel>currentPlayer.level then
+			if fameToLevel==2 or fameToLevel==4 or fameToLevel==6 or fameToLevel==8 or fameToLevel==10 or fameToLevel==12 or fameToLevel-currentPlayer.level>1 then gStates.levelingUp=true end
+			currentPlayer.levelUp=fameToLevel-currentPlayer.level
+			if gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat" and levelUpcalled==false then levelUpcalled=true levelUp(gStates.turnNumber) end
+		end
+	end
 
 
-			--Play-area card scaling is handled by the play-area zone callbacks.
-			--This keeps physical setScale calls out of the full main UI refresh.
-
-			--Fame is cached when a fame shield moves; ordinary UI refreshes do not reread every fame shield.
-
-			--Out of Turn Menu visibility is event-driven/cached. Ordinary card movement uses the cheap empty/non-empty hot path.
-			local outOfTurnHotPlayAreaOnly=source=="Object entered into play area" or source=="Object removed from zone"
-			refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, false, outOfTurnHotPlayAreaOnly)
-
-
-			--change End turn button to say End Round on the last player turn
-			UI.setAttribute("EndTurnButton", "interactable", "True")
-			UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
-			UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Active")
-			UI.setAttribute("EndTurnButtonAlt", "interactable", "True")
-			UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Active")
-			UI.setAttribute("ExtraTurnTacticButton", "interactable", "True")
-			UI.setAttribute("ExtraTurnTacticButtonImage", "image", "Sliced Button/Button New Active")
-			UI.setAttribute("PreEndTurnText", "text", "{en}Rewards Claimed{ru}Награды получены{zh-tw}獲得獎勵{zh-cn}获得奖励{ko}보상 처리 완료{es}Recompensas Reclamadas{fr}Récompenses réclamées{pt-br}Recompensas Coletadas{de}Belohnungen Beansprucht")
-			local endText="{en}End Turn{ru}Конец хода{zh-tw}結束回合{zh-cn}结束回合{ko}차례 종료{es}Fin de Turno{fr}Fin de Tour{pt-br}Fim de Turno{de}Zug Beenden"
-			if nextPlayerEndCalled==true then
-				endText="{en}End Turn and Round{ru}Конец хода и Раунда{zh-tw}結束回合及本輪次{zh-cn}结束回合及本轮次{ko}차례 및 라운드 종료{es}Fin de Turno y Ronda{fr}Fin du Tour et du Round{pt-br}Fim de Turno e Rodada{de}Zug und Runde Beenden" end
-			if gStates.endGameAchieved=="true" and ((gStates.finalTurnReason=="victory" and currentPlayerGameEnder==true) or (gStates.finalTurnReason=="endRound" and nextPlayerEndCalled==true))==true then
-				endText="{en}End Game{ru}Конец игры{zh-tw}結束遊戲{zh-cn}结束游戏{ko}게임 종료{es}Fin del Juego{fr}Fin du Jeu{pt-br}Fim de Jogo{de}Spiel Beenden" end
-			local nextIsCoopAssaulter=gStates.coopAssaultPhase=="combat" and gStates.coopAssaultParticipants~=nil and gStates.coopAssaultParticipants[nextPlayer]~=nil
-			local nextTurnToken=nextIsCoopAssaulter and getObjectFromGUID(turnOrder[nextPlayer].turnOrderTokenGUID) or nil
-			if nextIsCoopAssaulter and turnOrder[nextPlayer].mage~=gStates.positionMageKnight[5] and nextTurnToken~=nil and nextTurnToken.is_face_down==true then
-				endText="{en}Next Assaulter{ru}Следующий штурмующий{zh-tw}換下一個襲擊者{zh-cn}换下一个袭击者{ko}다음 강습자{es}Siguiente Asaltante{fr}Prochain Agresseur{pt-br}Próximo Invasor{de}Nächster Spieler" end
-			UI.setAttribute("EndTurnButtonText", "text", endText)
-			UI.setAttribute("EndTurnButtonAltText", "text", endText)
-
-
-			--Automated-player presentation is centralized in automatedMainPanelRefresh().
-			--Keep only the gameplay branch split here so normal-player Fame/Rep work is never run for the automated seat.
-			local fameForUp=0
-			if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
-				if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then turnOrder[gStates.turnNumber].fame=-1 else turnOrder[gStates.turnNumber].fame=999 end
-			else--normal players
-				if againstDragonAttendanceUIRefresh==nil or againstDragonAttendanceUIRefresh()~=true then UI.setAttribute("VolkareAttacked", "active", "false") end
-				--Reputation is cached when its shield moves; no reputation-track zone scan is needed here.
-				--Resource Tracker is manually controlled by the player; mainUIUpdate does not redraw it.
-
-				--Work out how much more fame is needed until a level up is required.
-				--Fame is already cached when the shield moves, so derive its board row instead of rereading the physical shield.
-				local currentPlayer=turnOrder[gStates.turnNumber]
-				local boardFame=currentPlayer.fame-(gStates.scoreIfLooped*currentPlayer.scoreLoop)
-				if boardFame<0 then boardFame=0 end
-				local fameVerticle=math.floor(math.sqrt(boardFame+1))
-				if fameVerticle>gStates.rowsOnBoard then fameVerticle=gStates.rowsOnBoard end
-				if currentPlayer.level<gStates.rowsOnBoard then
-					local fameToLevel=math.floor(math.sqrt(currentPlayer.fame+1))
-					if fameToLevel>gStates.rowsOnBoard then fameToLevel=gStates.rowsOnBoard end
-					if fameVerticle<gStates.rowsOnBoard then fameForUp=((fameToLevel+1)*(fameToLevel+1))-1-currentPlayer.fame end
-					--see if the current fame value would cause a level up
-					currentPlayer.levelUp=0
-					if fameToLevel>currentPlayer.level then
-						if fameToLevel==2 or fameToLevel==4 or fameToLevel==6 or fameToLevel==8 or fameToLevel==10 or fameToLevel==12 or fameToLevel-currentPlayer.level>1 then gStates.levelingUp=true end
-						currentPlayer.levelUp=fameToLevel-currentPlayer.level
-						if gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat" and levelUpcalled==false then levelUpcalled=true levelUp(gStates.turnNumber) end
-					end
+	--Read all objects found in play area. Used to decide on off states of "End.." buttons, plus fame and rep gains
+	local timeBending=mainUITimeBendingPresent==true
+	local avatarLocation=turnOrder[gStates.turnNumber].avatarLocation
+	if context.refreshCombatAccounting==true then
+		if gStates.preEndTurn==false then timeBending=false end
+		for a, b in pairs(gStates.gainList) do b.exists=false end
+	if gStates.preEndTurn==false then
+		local hiddenValleyKeep=false
+		for _, obj in pairs(playerCombatObjects(turnOrder[gStates.turnNumber].seatPos)) do
+			--Read Monster tokens in the current player's Play/Unit areas and update fame and reputation gain values.
+			if obj.guid=="2eb8e2" then timeBending=true end
+			if monsterPugs[obj.guid]~=nil and gStates.summonStates[obj.guid]~="summoned" and monsterPugs[obj.guid].pugType~="possessed" then
+				local doMath=false
+				local cityRepLoss=false
+				for cityguid, monsters in pairs(gStates.cityMonsterQty) do
+					if monsters[obj.guid]=="alive" then cityRepLoss=true break end
 				end
-
-
-				--Read all objects found in play area. Used to decide on off states of "End.." buttons, plus fame and rep gains
-				local timeBending=false
-				local avatarLocation=turnOrder[gStates.turnNumber].avatarLocation
-				for a, b in pairs(gStates.gainList) do b.exists=false end
-				if gStates.preEndTurn==false then
-					local hiddenValleyKeep=false
-					for _, obj in pairs(playerCombatObjects(turnOrder[gStates.turnNumber].seatPos)) do
-						--Read Monster tokens in the current player's Play/Unit areas and update fame and reputation gain values.
-						if obj.guid=="2eb8e2" then timeBending=true end
-						if monsterPugs[obj.guid]~=nil and gStates.summonStates[obj.guid]~="summoned" and monsterPugs[obj.guid].pugType~="possessed" then
-							local doMath=false
-							local cityRepLoss=false
-							for cityguid, monsters in pairs(gStates.cityMonsterQty) do
-								if monsters[obj.guid]=="alive" then cityRepLoss=true break end
-							end
-							--If no entry found create a new entry for this token
-							if gStates.gainList[obj.guid]==nil then
-								--record token orientation and do the math if face up.
-								gStates.gainList[obj.guid]={exists=true, siteRepLoss=0, keepHalfFame=false}
-								if obj.is_face_down==false then
-									gStates.gainList[obj.guid].tokenDirection=1
-									doMath=true
-								else
-									gStates.gainList[obj.guid].tokenDirection=-1
-								end
-								--store leader overkil value
-								if obj.guid==darkCrusader.token or obj.guid==elementalist.token then gStates.gainList[obj.guid].overkill=0 end
-								--just existing is enough orientation has no effect
-								--city rep loss
-								for cityguid, monsters in pairs(gStates.cityMonsterQty) do
-									if cityguid~=darkCrusader.terrainHex and cityguid~=elementalist.terrainHex and cityguid~=volkare.model and cityguid~=volkare.terrainHex and monsters[obj.guid]=="alive" and gStates.gainList[cityguid]==nil then
-									 	turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
-										gStates.gainList[cityguid]={exists=true}
-										if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]={exists=true} end
-										break
-									end
-								end
-								--Mage Tower and keep rep loss
-								local count=0
-								for c, d in pairs(gStates.gainList) do
-									if c==gStates.hiddenValleyKeep[1] or c==gStates.hiddenValleyKeep[2] then count=count+1 end
-								end
-								if count==2 then hiddenValleyKeep=true end
-								if cityRepLoss==false and
-								   ((monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep") or
-	   							   (monsterPugs[obj.guid].pugType=="purple" and avatarLocation=="mage tower") or
-								   ((obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2]) and hiddenValleyKeep==false)) then
-									turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
-									gStates.gainList[obj.guid].siteRepLoss=1
-									if obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2] then hiddenValleyKeep=true end
-								end
-								--monastery rep loss
-								if avatarLocation~=nil then
-									if monsterPugs[obj.guid].pugType=="purple" and gStates.monsterPlayLocation[obj.guid]==nil and avatarLocation=="monastery" then
-										turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-3
-										gStates.gainList[obj.guid].siteRepLoss=3
-									end
-								end
-								--Keep defenders use half Fame; remember this so reset does not depend on the avatar still being on the Keep.
-								gStates.gainList[obj.guid].keepHalfFame=gStates.monsterPlayLocation[obj.guid]==nil and monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep"
-							end
-							--existing token found, but it has been flipped
-							if (obj.is_face_down==false and gStates.gainList[obj.guid].tokenDirection==-1)
-							or (obj.is_face_down==true and gStates.gainList[obj.guid].tokenDirection==1) then
-								gStates.gainList[obj.guid].tokenDirection=gStates.gainList[obj.guid].tokenDirection*-1
-								doMath=true
-							end
-							--mines liberation corect fame and rep
-							local minesLibMonster=false
-							for terrainguid, monsters in pairs(gStates.mineMonsterQty) do
-								if monsters[obj.guid]~=nil and gStates.gameScenario~="The Hidden Valley Blitz" then
-									minesLibMonster=true--current monster has come from a mine
-									if gStates.gameScenario~="The Realm of the Dead Blitz" then
-										for monsterGUID, state in pairs(monsters) do
-											if monsterGUID~=obj.guid then--found second mine monster
-												if (state=="alive" and gStates.gainList[monsterGUID]~=nil) or state=="dead" then
-													local x=1
-													if terrainTiles[terrainguid].tileType=="core" then x=2 end--and gStates.gameScenario~="Mines Liberation"
-													if gStates.gainList[terrainguid]==nil then
-														gStates.gainList[terrainguid]={exists=true}
-														gStates.gainList[terrainguid].tokenDirection=-1
-														if gStates.gainList[obj.guid].tokenDirection==1 and (state=="dead" or gStates.gainList[monsterGUID].tokenDirection==1) then
-															gStates.gainList[terrainguid].tokenDirection=1
-															turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(x*gStates.gainList[terrainguid].tokenDirection)
-														end
-													else
-														gStates.gainList[terrainguid].exists=true
-														if (gStates.gainList[obj.guid].tokenDirection==1 and (state=="dead" or gStates.gainList[monsterGUID].tokenDirection==1) and gStates.gainList[terrainguid].tokenDirection==-1)
-														or ((gStates.gainList[obj.guid].tokenDirection==-1 or (state=="alive" and gStates.gainList[monsterGUID].tokenDirection==-1)) and gStates.gainList[terrainguid].tokenDirection==1) then
-															gStates.gainList[terrainguid].tokenDirection=gStates.gainList[terrainguid].tokenDirection*-1
-															turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(x*gStates.gainList[terrainguid].tokenDirection)
-														end
-													end
-													break
-												end
+				--If no entry found create a new entry for this token
+				if gStates.gainList[obj.guid]==nil then
+					--record token orientation and do the math if face up.
+					gStates.gainList[obj.guid]={exists=true, siteRepLoss=0, keepHalfFame=false}
+					if obj.is_face_down==false then
+						gStates.gainList[obj.guid].tokenDirection=1
+						doMath=true
+					else
+						gStates.gainList[obj.guid].tokenDirection=-1
+					end
+					--store leader overkil value
+					if obj.guid==darkCrusader.token or obj.guid==elementalist.token then gStates.gainList[obj.guid].overkill=0 end
+					--just existing is enough orientation has no effect
+					--city rep loss
+					for cityguid, monsters in pairs(gStates.cityMonsterQty) do
+						if cityguid~=darkCrusader.terrainHex and cityguid~=elementalist.terrainHex and cityguid~=volkare.model and cityguid~=volkare.terrainHex and monsters[obj.guid]=="alive" and gStates.gainList[cityguid]==nil then
+						 	turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
+							gStates.gainList[cityguid]={exists=true}
+							if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]={exists=true} end
+							break
+						end
+					end
+					--Mage Tower and keep rep loss
+					local count=0
+					for c, d in pairs(gStates.gainList) do
+						if c==gStates.hiddenValleyKeep[1] or c==gStates.hiddenValleyKeep[2] then count=count+1 end
+					end
+					if count==2 then hiddenValleyKeep=true end
+					if cityRepLoss==false and
+					   ((monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep") or
+   							   (monsterPugs[obj.guid].pugType=="purple" and avatarLocation=="mage tower") or
+					   ((obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2]) and hiddenValleyKeep==false)) then
+						turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
+						gStates.gainList[obj.guid].siteRepLoss=1
+						if obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2] then hiddenValleyKeep=true end
+					end
+					--monastery rep loss
+					if avatarLocation~=nil then
+						if monsterPugs[obj.guid].pugType=="purple" and gStates.monsterPlayLocation[obj.guid]==nil and avatarLocation=="monastery" then
+							turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-3
+							gStates.gainList[obj.guid].siteRepLoss=3
+						end
+					end
+					--Keep defenders use half Fame; remember this so reset does not depend on the avatar still being on the Keep.
+					gStates.gainList[obj.guid].keepHalfFame=gStates.monsterPlayLocation[obj.guid]==nil and monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep"
+				end
+				--existing token found, but it has been flipped
+				if (obj.is_face_down==false and gStates.gainList[obj.guid].tokenDirection==-1)
+				or (obj.is_face_down==true and gStates.gainList[obj.guid].tokenDirection==1) then
+					gStates.gainList[obj.guid].tokenDirection=gStates.gainList[obj.guid].tokenDirection*-1
+					doMath=true
+				end
+				--mines liberation corect fame and rep
+				local minesLibMonster=false
+				for terrainguid, monsters in pairs(gStates.mineMonsterQty) do
+					if monsters[obj.guid]~=nil and gStates.gameScenario~="The Hidden Valley Blitz" then
+						minesLibMonster=true--current monster has come from a mine
+						if gStates.gameScenario~="The Realm of the Dead Blitz" then
+							for monsterGUID, state in pairs(monsters) do
+								if monsterGUID~=obj.guid then--found second mine monster
+									if (state=="alive" and gStates.gainList[monsterGUID]~=nil) or state=="dead" then
+										local x=1
+										if terrainTiles[terrainguid].tileType=="core" then x=2 end--and gStates.gameScenario~="Mines Liberation"
+										if gStates.gainList[terrainguid]==nil then
+											gStates.gainList[terrainguid]={exists=true}
+											gStates.gainList[terrainguid].tokenDirection=-1
+											if gStates.gainList[obj.guid].tokenDirection==1 and (state=="dead" or gStates.gainList[monsterGUID].tokenDirection==1) then
+												gStates.gainList[terrainguid].tokenDirection=1
+												turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(x*gStates.gainList[terrainguid].tokenDirection)
+											end
+										else
+											gStates.gainList[terrainguid].exists=true
+											if (gStates.gainList[obj.guid].tokenDirection==1 and (state=="dead" or gStates.gainList[monsterGUID].tokenDirection==1) and gStates.gainList[terrainguid].tokenDirection==-1)
+											or ((gStates.gainList[obj.guid].tokenDirection==-1 or (state=="alive" and gStates.gainList[monsterGUID].tokenDirection==-1)) and gStates.gainList[terrainguid].tokenDirection==1) then
+												gStates.gainList[terrainguid].tokenDirection=gStates.gainList[terrainguid].tokenDirection*-1
+												turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(x*gStates.gainList[terrainguid].tokenDirection)
 											end
 										end
-									end
-									break
-								end
-							end
-							--Check if leader Overkill Changed
-							if gStates.gainList[obj.guid].overkill~=nil and gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill and obj.is_face_down==false then doMath=true end
-							--if allowed add or subtract fame and reputation
-							if doMath==true then
-								--All tokens Fame
-								if gStates.gainList[obj.guid].keepHalfFame==true then
-									turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(math.ceil(monsterPugs[obj.guid].fame/2)*gStates.gainList[obj.guid].tokenDirection)
-								else
-									local multiple=1
-									if obj.guid==darkCrusader.token or obj.guid==elementalist.token then
-										if gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-(monsterPugs[obj.guid].fame*gStates.gainList[obj.guid].overkill) end
-										multiple=gStates.leaderOverkill
-										gStates.gainList[obj.guid].overkill=gStates.leaderOverkill
-									end
-									if gStates.druidNightsSummon~=nil then multiple=2 end
-									local perks=0
-									if gStates.monsterPerks[obj.guid]~=nil and gStates.monsterPerks[obj.guid].fame~=nil then perks=gStates.monsterPerks[obj.guid].fame end
-									local questFame=monsterPugs[obj.guid].fame+perks
-									--Dragon heads use custom reward resolution: airborne gives Round Fame once, while
-									--landed heads give 1 Fame for each selected level reduction at combat cleanup.
-									if gStates.monsterPerks[obj.guid]~=nil and (gStates.monsterPerks[obj.guid].dragonAirborne==true or gStates.monsterPerks[obj.guid].dragonGround==true) then questFame=0 end
-									if gStates.monsterPerks[obj.guid]~=nil and gStates.monsterPerks[obj.guid].questHalfFame==true then questFame=math.ceil(questFame/2) end
-									turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(questFame*multiple*gStates.gainList[obj.guid].tokenDirection)
-								end
-								local rewardPug,rewardPerk=monsterFactionRewardFameFallback(obj.guid)
-								if rewardPug>0 or rewardPerk>0 then
-									turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+((rewardPug+rewardPerk)*gStates.gainList[obj.guid].tokenDirection)
-									if gStates.druidNightsSummon~=nil then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(rewardPug*gStates.gainList[obj.guid].tokenDirection) end
-								end
-								--Rampaging Reputation
-								if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[obj.guid]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[obj.guid]==nil) and
-									(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) and
-									obj.guid~=gStates.hiddenValleyKeep[1] and obj.guid~=gStates.hiddenValleyKeep[2] then
-									if monsterPugs[obj.guid].pugType=="green" or monsterPugs[obj.guid].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(1*gStates.gainList[obj.guid].tokenDirection) end --More Rampage! can add tan rampagers.
-									if monsterPugs[obj.guid].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(2*gStates.gainList[obj.guid].tokenDirection) end
-								end
-								--add hero and thug reputation
-								if monsterPugs[obj.guid].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(monsterPugs[obj.guid].reputation*gStates.gainList[obj.guid].tokenDirection) end
-							end
-							gStates.gainList[obj.guid].exists=true
-						end
-					end
-					--if a token has been removed subtract it's values
-					hiddenValleyKeep=false
-					for a, b in pairs(gStates.gainList) do
-						if b.exists==false and monsterPugs[a]~=nil then
-							local cityRepLoss=false
-							for cityguid, monsters in pairs(gStates.cityMonsterQty) do
-								if monsters[a]=="alive" then cityRepLoss=true break end
-							end
-							if b.tokenDirection==1 then
-								--fame
-								if b.keepHalfFame==true then
-									turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-math.ceil(monsterPugs[a].fame/2)
-								else
-									local multiple=1
-									if a==darkCrusader.token or a==elementalist.token then multiple=gStates.leaderOverkill end
-									if gStates.druidNightsSummon~=nil then multiple=2 end
-									local perks=0
-									if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].fame~=nil then perks=gStates.monsterPerks[a].fame end
-									local questFame=monsterPugs[a].fame+perks
-									--Dragon rewards are owned by their custom combat tracker. Mirror the add-side suppression
-									--here so removing a Dragon head cannot subtract ordinary monster Fame behind its back.
-									if gStates.monsterPerks[a]~=nil and (gStates.monsterPerks[a].dragonAirborne==true or gStates.monsterPerks[a].dragonGround==true) then questFame=0 end
-									if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].questHalfFame==true then questFame=math.ceil(questFame/2) end
-									turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-(questFame*multiple)
-								end
-								local rewardPug,rewardPerk=monsterFactionRewardFameFallback(a)
-								if rewardPug>0 or rewardPerk>0 then
-									turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-rewardPug-rewardPerk
-									if gStates.druidNightsSummon~=nil then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-rewardPug end
-								end
-								--Mine Liberation Reputation gStates.gameScenario=="Mines Liberation"
-								local minesLibMonster=false
-								for terrainguid, monsters in pairs(gStates.mineMonsterQty) do
-									if monsters[a]~=nil then
-										minesLibMonster=true--current monster has come from a mine
-										if gStates.gainList[terrainguid]~=nil and gStates.gainList[terrainguid].tokenDirection==1 then
-											local x=1
-											if terrainTiles[terrainguid].tileType=="core" then x=2 end
-											turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-x
-											gStates.gainList[terrainguid]=nil
-										end
 										break
 									end
 								end
-								--Rampaging reputation
-								if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[a]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[a]==nil) and
-									(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) and
-									a~=gStates.hiddenValleyKeep[1] and a~=gStates.hiddenValleyKeep[2] then
-									if monsterPugs[a].pugType=="green" or monsterPugs[a].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1 end
-									if monsterPugs[a].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-2 end
-								end
-								--Hero and thug reputation
-								if monsterPugs[a].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-monsterPugs[a].reputation end
-							end
-							--City monsters
-							for cityguid, monsters in pairs(gStates.cityMonsterQty) do
-								if cityguid~=darkCrusader.terrainHex and cityguid~=elementalist.terrainHex and monsters[a]=="alive" and gStates.gainList[cityguid]~=nil then
-									local found=false
-									for monsterGUID, state in pairs(monsters) do
-										if gStates.gainList[monsterGUID]~=nil then
-											if gStates.gainList[monsterGUID].exists==true then found=true end
-										end
-									end
-									if found==false then
-										turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+1
-										gStates.gainList[cityguid]=nil
-										if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]=nil end
-									end
-									break
-								end
-							end
-							--Refund the exact temporary Keep/Mage Tower/Hidden Valley/Monastery assault loss applied when this token entered combat.
-							--The avatar may already have been moved away to cancel/reset the combat, so do not re-check avatarLocation here.
-							if (b.siteRepLoss or 0)>0 then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+b.siteRepLoss end
-							gStates.gainList[a]=nil
-						end
-					end
-					--Cap the gain values if exceeding limits
-					if turnOrder[gStates.turnNumber].fameGain<0 then turnOrder[gStates.turnNumber].fameGain=0 end
-				end
-
-
-				--Change End turn button text if level up expected
-				if gStates.coopAssaultPhase~="combat" and (fameForUp<=turnOrder[gStates.turnNumber].fameGain or turnOrder[gStates.turnNumber].levelUp>0) and turnOrder[gStates.turnNumber].fame<gStates.scoreIfLooped and fameVerticle<gStates.rowsOnBoard then
-					UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
-					UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
-					local expectedFame=turnOrder[gStates.turnNumber].fame+turnOrder[gStates.turnNumber].fameGain
-					local excessLevels=math.floor(math.sqrt(expectedFame+1))-turnOrder[gStates.turnNumber].level
-					expectedFame=expectedFame+(1*excessLevels*gStates.blitz)
-					excessLevels=math.floor(math.sqrt(expectedFame+1))-turnOrder[gStates.turnNumber].level
-					if excessLevels>1 then
-						UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
-						UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
-					end
-					if nextPlayerEndCalled==true then
-						UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
-						UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
-						if excessLevels>1 then
-							UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
-							UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
-						end
-					end
-				end
-
-
-				local function defeatedElementalistRampagerThisTurn()
-					if gStates.gameScenario~="The Hidden Valley Blitz" then return false end
-					for guid, gain in pairs(gStates.gainList or {}) do
-						if gain.tokenDirection==1 and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[guid]==true and monsterEffectiveFaction(guid)=="Elem" then return true end
-					end
-					return false
-				end
-
-				--Change Reward text to be player location sensitive
-				local rewardChecklistActive=(gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat") or gameOver==true
-				if rewardChecklistActive then
-					local count=1
-					local rewardText="{en}Have you:-\n{ru}Проверьте, что вы:-\n{zh-tw}你是否已經：\n{zh-cn}你是否已经：\n{ko}차례 종료 과정 진행:-\n{es}Has:-\n{fr}Avez-vous:-\n{pt-br}Você já:-\n{de}Hast du:-\n"
-					local linefeed=false
-					local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
-					if questRewardPending==true then
-						local questReminder=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "{en}. Completed/Failed the Quest.{ru}. Завершили/провалили задание.{zh-tw}. 完成／失敗任務。{zh-cn}. 完成/失败任务。{ko}. 퀘스트를 완료/실패 처리했습니다.{es}. Completaste/Fallaste la Misión.{fr}. Terminé/Échoué la Quête.{pt-br}. Concluiu/Falhou a Missão.{de}. Die Quest abgeschlossen/fehlgeschlagen." or "{en}. Completed/Progressed the Quest.{ru}. Завершили/продвинули задание.{zh-tw}. 完成／推進任務。{zh-cn}. 完成/推进任务。{ko}. 퀘스트를 완료/진행했습니다.{es}. Completaste/Avanzaste la Misión.{fr}. Terminé/Progressé dans la Quête.{pt-br}. Concluiu/Avançou a Missão.{de}. Die Quest abgeschlossen/fortgesetzt."
-						rewardText=joinLang({rewardText,count,questReminder})
-						count=count+1 linefeed=true
-					end
-					if apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
-						rewardText=joinLang({rewardText,count,"{en}. Explored for Horsemen.{ru}. Исследовали местность для Всадников.{zh-tw}. 為騎士探索了地圖。{zh-cn}. 为骑士探索了地图。{ko}. 기마병을 위해 탐험했습니다.{es}. Exploraste para los Jinetes.{fr}. Exploré pour les Cavaliers.{pt-br}. Explorou para os Cavaleiros.{de}. Für die Reiter erkundet."})
-						count=count+1 linefeed=true
-					end
-					if steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(currentPlayer.seatPos)==true then
-						rewardText=joinLang({rewardText,count,"{en}. Resolved Steady Tempo.{ru}. Разыграли «Ровный темп».{zh-tw}. 已處理「穩定節奏」。{zh-cn}. 已处理“稳定节奏”。{ko}. 'Steady Tempo'를 처리했습니다.{es}. Resolviste Ritmo Constante.{fr}. Résolu Rythme Régulier.{pt-br}. Resolveu Ritmo Constante.{de}. Gleichmäßiges Tempo abgehandelt."})
-						count=count+1 linefeed=true
-					end
-					local pendingCrystal=gStates.mineClaimPending
-					if pendingCrystal~=nil and pendingCrystal.playerIndex==gStates.turnNumber then
-						local crystalSource=pendingCrystal.source=="Quest" and "{en}Quest{ru}задания{zh-tw}任務{zh-cn}任务{ko}퀘스트{es}Misión{fr}Quête{pt-br}Missão{de}Quest" or "{en}Mine{ru}шахты{zh-tw}礦山{zh-cn}矿山{ko}광산{es}Mina{fr}Mine{pt-br}Mina{de}Mine"
-						rewardText=joinLang({rewardText,count,"{en}. Claimed your {ru}. Получили кристалл {zh-tw}. 已領取你的{zh-cn}. 已领取你的{ko}. {es}. Reclamaste tu Cristal de {fr}. Récupéré votre Cristal de {pt-br}. Coletou seu Cristal de {de}. Deinen ",crystalSource,"{en} Crystal.{ru}.{zh-tw}水晶。{zh-cn}水晶。{ko} 크리스털을 획득했습니다.{es}.{fr}.{pt-br}.{de}-Kristall genommen."})
-						count=count+1 linefeed=true
-					end
-					if linefeed==true then rewardText=joinLang({rewardText,"\n"}) linefeed=false end
-					if gStates.gameScenario=="Mines Liberation" and gStates.endRoundCalled==true and gStates.turnForfeited==false then
-						rewardText=joinLang({rewardText, count, "{en}. Collected 1 Crystal from your Liberated Mine(s){ru}. Получили 1 кристалл из ваших освобожденных шахт{zh-tw}. 從你解放的礦山獲得 1 顆魔晶{zh-cn}. 从你解放的矿山获得 1 块魔晶{ko}. 해방한 광산에서 수정 1개 획득{es}. Obtenido 1 Cristal de tus Minas liberadas{fr}. Obtenu 1 cristal de vos Mines libérées{pt-br}. Ganhou 1 Cristal das suas Minas libertadas{de}. 1 Kristall aus deinen befreiten Minen erhalten"})
-						count=count+1 linefeed=true
-					end
-					if gStates.gameScenario=="Druid Nights" and gStates.druidNightsSummon~=nil then
-						local crystalReward=gStates.druidNightsCrystalReward or gStates.druidNightsSummon
-						rewardText=joinLang({rewardText, count, "{en}. Gained {ru}. Получено {zh-tw}。獲得 {zh-cn}。获得 {ko}. 획득: {es}. Obtuvo {fr}. Gagné {pt-br}. Ganhou {de}. Erhalten: ", tostring(crystalReward), "{en} Random Crystal(s) from incantation{ru} случайных кристалла(ов) от заклинания{zh-tw} 個由咒語產生的隨機魔力水晶{zh-cn} 个由咒语产生的随机魔力水晶{ko}개의 주문으로 얻은 무작위 마나 수정{es} Cristal(es) aleatorio(s) por el encantamiento{fr} Cristal(aux) aléatoire(s) grâce à l’incantation{pt-br} Cristal(is) aleatório(s) da invocação{de} zufällige(n) Kristall(e) durch die Beschwörung"})
-						count=count+1 linefeed=true
-					end
-					if defeatedElementalistRampagerThisTurn()==true then
-						rewardText=joinLang({rewardText, count, "{en}. Explored (Defeated Elementalist){ru}. Исследовали (победили Элементалиста){zh-tw}. 已探索（擊敗元素使）{zh-cn}. 已探索（击败元素使）{ko}. 탐험 완료 (원소술사 처치){es}. Exploraste (Elementalista derrotado){fr}. Exploré (Élémentaliste vaincu){pt-br}. Explorou (Elementalista derrotado){de}. Erkundet (Elementarmagier besiegt)"})
-						count=count+1 linefeed=true
-					end
-					if avatarLocation~=nil then
-						--see if a matching shield is near the avatar
-						local nearbyOwnShield=rewardNearbyOwnShield(gStates.turnNumber,avatarLocation)
-
-						--Victory Shield
-						if (avatarLocation=="glade" and gStates.gameScenario=="Druid Nights") then
-							if nearbyOwnShield=="false" and gStates.turnForfeited==false then
-								rewardText=joinLang({rewardText, count, "{en}. Placed a Victory Shield{ru}. Разместили Жетон щита{zh-tw}. 放置勝利盾徽{zh-cn}. 放置胜利盾徽{ko}. 방패 토큰 놓기{es}. Colocado un Escudo de Conquista.{fr}. Placé un Bouclier de Victoire{pt-br}. Colocou um Escudo de Vitória.{de}. Einen Siegesschild platziert"})
-								count=count+1 linefeed=true
 							end
 						end
-						--Victory Shield
-						if avatarLocation=="graveyard" and gStates.gameScenario=="The Realm of the Dead Blitz" and nearbyOwnShield=="false" and gStates.turnForfeited==false then
-							rewardText=joinLang({rewardText, count, "{en}. Paid to Seal the Graveyard{ru}. Заплатили за запечатывание Кладбища{zh-tw}. 支付魔力來封印墓地{zh-cn}. 支付魔力来封印墓地{ko}. 묘지 봉인 마나 지불(선택){es}. Pagado para Sellar el Cementerio{fr}. Payé pour Sceller le Cimetière{pt-br}Pago para Selar o Cemitério{de}. Für die Versiegelung des Friedhofs bezahlt."})
-							count=count+1 linefeed=true
-						end
-						if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-						if rewardRetreatRequired(gStates.turnNumber,avatarLocation,nearbyOwnShield)==true then
-							rewardText=joinLang({rewardText, count, "{en}. Retreated to a Safe space{ru}. Отступили в Безопасное место{zh-tw}. 撤離到一個安全位置{zh-cn}. 撤离到一个安全位置{ko}. 안전한 칸으로 후퇴{es}. Acabado en un Espacio Seguro{fr}. Retraité dans un espace sûr{pt-br}. Recuou para um espaço seguro{de}. Dich in ein sicheres Feld zurückgezogen"})
-							count=count+1 linefeed=true
-						end
-						if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-						if gStates.turnForfeited==false and gladeFreeCheck()==true and (avatarLocation=="glade" or avatarLocation=="hidden valley" or
-						(gStates.gameScenario=="The War of Four" and (avatarLocation=="necropolis" or avatarLocation=="graveyard"))) then
-							rewardText=joinLang({rewardText, count, "{en}. Removed One Wound{ru}. Вернули в стопку одну рану{zh-tw}. 移除一點創傷{zh-cn}. 移除一点创伤{ko}. 부상 하나 제거{es}. Eliminado una Herida{fr}. Suppression d'une blessure{pt-br}. Removeu Um Ferimento{de}. Eine Wunde wurde entfernt"})
-							count=count+1 linefeed=true
-						end
-						if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-						if gStates.turnForfeited==false and ((gStates.shieldsDropped[nearbyOwnShield]~=nil and (avatarLocation=="mage tower" or avatarLocation=="labyrinth"	or avatarLocation=="maze" or avatarLocation=="monastery" or avatarLocation=="monster den" or avatarLocation=="dungeon" or avatarLocation=="spawning grounds" or avatarLocation=="tomb" or avatarLocation=="ziggurat" or avatarLocation=="pyramid"
-						or (avatarLocation=="ruin" and gStates.crytalRuin~=true)
-						or ((avatarLocation=="graveyard" or avatarLocation=="glade") and gStates.gameScenario=="Life and Death")))
-						or (avatarLocation=="graveyard" and gStates.gameScenario=="The Realm of the Dead Blitz")) then
-							rewardText=joinLang({rewardText, count, "{en}. Gained Site Conquest Rewards{ru}. Получили награды за завоевание Места{zh-tw}. 獲得地點的征服獎勵{zh-cn}. 获得地点的征服奖励{ko}. 장소 정복 보상 획득{es}. Obtenido la Recompensa de Conquista{fr}. Récompenses de conquête de site obtenues{pt-br}. Ganhou As Recompensas de Conquista{de}. Gewonnene Eroberungsbelohnungen"})
-							count=count+1 linefeed=true
-						end
+						break
 					end
-					if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-					if gStates.levelingUp==true then
-						if currentPlayer.skipHeroChallengeSkillReminder~=true then
-							rewardText=joinLang({rewardText, count, "{en}. Gained a New Skill Token{ru}. Получили новый Жетон навыка{zh-tw}. 獲得新的技能{zh-cn}. 获得新的技能{ko}. 새로운 스킬 획득{es}. Obtuvo una ficha de habilidad nueva{fr}. Vous avez obtenu un nouveau jeton de compétence{pt-br}. Ganhou uma Nova Ficha de Habilidade{de}. Einen neuen Fertigkeitsmarker erhalten"})
-							count=count+1 rewardText=joinLang({rewardText, "\n"})
-						end
-						rewardText=joinLang({rewardText, count, "{en}. Gained a New Advanced Action{ru}. Получили новое Особое действие{zh-tw}. 獲得新的高級行動卡{zh-cn}. 获得新的高级行动卡{ko}. 새로운 상급 액션 획득{es}. Obtuvo una nueva acción avanzada{fr}. Vous avez obtenu une nouvelle action avancée{pt-br}. Ganhou uma Nova Ação Avançada{de}. Eine neue fortgeschrittene Aktion erhalten"})
-						count=count+1 linefeed=true
-					end
-					if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-					if gStates.volkareArmyReduced==true and gStates.endGameAchieved=="false" and gStates.volkareState=="Attacking City" then
-						if gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel)~=nil then getObjectFromGUID(gStates.volkareModel).unlock() end
-					end
-					if gStates.turnForfeited==true then
-						rewardText=joinLang({rewardText, count, "{en}. Forfeit Turn, no site Rewards{ru}. Пропустили ход, и не получаете Награды за Места{zh-tw}. 放棄回合，無地點獎勵{zh-cn}. 放弃回合，无地点奖励{ko}. 차례 포기, 장소 혜택 사용불가{es}. Saltar Turno, sin Recompensas de Lugar{fr}. Forfait Turn, pas de récompenses de site{pt-br}. Desistir do Turno. Sem Recompensas de Local{de}. Zug ausgelassen, keine Ortsbelohnung"})
-						count=count+1 linefeed=true
-					end
-					if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-					if gameOver==false then
-						rewardText=joinLang({rewardText, count, "{en}. Confirmed your hand size{ru}. Проверили предел карт в вашей руке{zh-tw}. 更新你的手牌上限{zh-cn}. 更新你的手牌上限{ko}. 카드 보유 제한 체크{es}. Confirmado tu tamaño de Mano{fr}. Confirmé votre taille de main{pt-br}. Confirmou seu tamanho de Mão{de}. Handkartenzahl bestätigt"})
+				end
+				--Check if leader Overkill Changed
+				if gStates.gainList[obj.guid].overkill~=nil and gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill and obj.is_face_down==false then doMath=true end
+				--if allowed add or subtract fame and reputation
+				if doMath==true then
+					--All tokens Fame
+					if gStates.gainList[obj.guid].keepHalfFame==true then
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(math.ceil(monsterPugs[obj.guid].fame/2)*gStates.gainList[obj.guid].tokenDirection)
 					else
-						rewardText=joinLang({rewardText, count, "{en}. Looked at your final Score{ru}. Посмотрели на ваш окончательный результат{zh-tw}. 查看你的最終分數{zh-cn}. 查看你的最终分数{ko}. 최종 점수 확인{es}. Revisado tu Puntuación Final{fr}. Regardé votre score final{pt-br}. Ollhou para a sua Pontuação Final{de}. Deine Endpunktzahl angesehen"})
+						local multiple=1
+						if obj.guid==darkCrusader.token or obj.guid==elementalist.token then
+							if gStates.gainList[obj.guid].overkill~=gStates.leaderOverkill then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-(monsterPugs[obj.guid].fame*gStates.gainList[obj.guid].overkill) end
+							multiple=gStates.leaderOverkill
+							gStates.gainList[obj.guid].overkill=gStates.leaderOverkill
+						end
+						if gStates.druidNightsSummon~=nil then multiple=2 end
+						local perks=0
+						if gStates.monsterPerks[obj.guid]~=nil and gStates.monsterPerks[obj.guid].fame~=nil then perks=gStates.monsterPerks[obj.guid].fame end
+						local questFame=monsterPugs[obj.guid].fame+perks
+						--Dragon heads use custom reward resolution: airborne gives Round Fame once, while
+						--landed heads give 1 Fame for each selected level reduction at combat cleanup.
+						if gStates.monsterPerks[obj.guid]~=nil and (gStates.monsterPerks[obj.guid].dragonAirborne==true or gStates.monsterPerks[obj.guid].dragonGround==true) then questFame=0 end
+						if gStates.monsterPerks[obj.guid]~=nil and gStates.monsterPerks[obj.guid].questHalfFame==true then questFame=math.ceil(questFame/2) end
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(questFame*multiple*gStates.gainList[obj.guid].tokenDirection)
 					end
-					UI.setAttribute("RewardNotes", "text", rewardText)
+					local rewardPug,rewardPerk=monsterFactionRewardFameFallback(obj.guid)
+					if rewardPug>0 or rewardPerk>0 then
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+((rewardPug+rewardPerk)*gStates.gainList[obj.guid].tokenDirection)
+						if gStates.druidNightsSummon~=nil then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+(rewardPug*gStates.gainList[obj.guid].tokenDirection) end
+					end
+					--Rampaging Reputation
+					if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[obj.guid]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[obj.guid]==nil) and
+						(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) and
+						obj.guid~=gStates.hiddenValleyKeep[1] and obj.guid~=gStates.hiddenValleyKeep[2] then
+						if monsterPugs[obj.guid].pugType=="green" or monsterPugs[obj.guid].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(1*gStates.gainList[obj.guid].tokenDirection) end --More Rampage! can add tan rampagers.
+						if monsterPugs[obj.guid].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(2*gStates.gainList[obj.guid].tokenDirection) end
+					end
+					--add hero and thug reputation
+					if monsterPugs[obj.guid].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(monsterPugs[obj.guid].reputation*gStates.gainList[obj.guid].tokenDirection) end
 				end
-
-
-				--lock end turn button if no cards are played or discarded
-				--discard object detection
-				local discardAreaCards=0
-				local discardZoneGUID=deedDeckDiscardZones[turnOrder[gStates.turnNumber].seatPos]
-				local discardZone=discardZoneGUID~=nil and getObjectFromGUID(discardZoneGUID) or nil
-				if discardZone==nil then return end
-				for _, b in pairs(discardZone.getObjects()) do
-					if b.type=="Card" then discardAreaCards=1 break end
-					if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
+				gStates.gainList[obj.guid].exists=true
+			end
+		end
+		--if a token has been removed subtract it's values
+		hiddenValleyKeep=false
+		for a, b in pairs(gStates.gainList) do
+			if b.exists==false and monsterPugs[a]~=nil then
+				local cityRepLoss=false
+				for cityguid, monsters in pairs(gStates.cityMonsterQty) do
+					if monsters[a]=="alive" then cityRepLoss=true break end
 				end
-				UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
-				if gStates.endRoundCalled==true then UI.setAttribute("EndTurnButton", "tooltip", "") end
-				local coopCombatButtonLocked=gStates.coopAssaultPhase=="combat" and (gStates.preEndTurn==true or playerAreaCardCount<1)
-				if (playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount) or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
-					UI.setAttribute("EndTurnButton", "interactable", "False")
-					UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
-					UI.setAttribute("EndTurnButtonAlt", "interactable", "False")
-					UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Deactive")
-					UI.setAttribute("ExtraTurnTacticButton", "interactable", "False")
-					UI.setAttribute("ExtraTurnTacticButtonImage", "image", "Sliced Button/Button New Deactive")
-				end
-
-				--Show extra-turn button. If Time Bending and Day Tactic 6 are both available, ask which one is being used.
-				local tacticSixAvailable=turnOrder[gStates.turnNumber].tactic==6 and gStates.dayRound==true and gStates.tacticSixState~="Used"
-				local timeBendingAvailable=timeBending==true
-				if (tacticSixAvailable or timeBendingAvailable) and gStates.tacticRemove==false and gStates.tacticShown==false then
-					UI.setAttribute("ExtraTurnTactic", "active", "true")
-					if tacticSixAvailable and timeBendingAvailable then
-						UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Extra Turn{ru}Дополнительный ход{zh-tw}額外回合{zh-cn}额外回合{ko}추가 턴{es}Turno Extra{fr}Tour Supplémentaire{pt-br}Turno Extra{de}Extra-Zug")
-					elseif timeBendingAvailable then
-						UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Time Bend{ru}Изгиб Времени{zh-tw}時間扭曲{zh-cn}时间扭曲{ko}시간 왜곡{es}Salto en el Tiempo{fr}Courbe du Temps{pt-br}Dobrar Tempo{de}Zeitkrümmung")
+				if b.tokenDirection==1 then
+					--fame
+					if b.keepHalfFame==true then
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-math.ceil(monsterPugs[a].fame/2)
 					else
-						UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Use Tactic{ru}Использовать Тактику{zh-tw}使用戰術卡{zh-cn}使用战术卡{ko}전략카드 사용{es}Usar la Táctica{fr}Utiliser la Tactique{pt-br}Usar Tática{de}Taktik Benutzen")
+						local multiple=1
+						if a==darkCrusader.token or a==elementalist.token then multiple=gStates.leaderOverkill end
+						if gStates.druidNightsSummon~=nil then multiple=2 end
+						local perks=0
+						if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].fame~=nil then perks=gStates.monsterPerks[a].fame end
+						local questFame=monsterPugs[a].fame+perks
+						--Dragon rewards are owned by their custom combat tracker. Mirror the add-side suppression
+						--here so removing a Dragon head cannot subtract ordinary monster Fame behind its back.
+						if gStates.monsterPerks[a]~=nil and (gStates.monsterPerks[a].dragonAirborne==true or gStates.monsterPerks[a].dragonGround==true) then questFame=0 end
+						if gStates.monsterPerks[a]~=nil and gStates.monsterPerks[a].questHalfFame==true then questFame=math.ceil(questFame/2) end
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-(questFame*multiple)
+					end
+					local rewardPug,rewardPerk=monsterFactionRewardFameFallback(a)
+					if rewardPug>0 or rewardPerk>0 then
+						turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-rewardPug-rewardPerk
+						if gStates.druidNightsSummon~=nil then turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain-rewardPug end
+					end
+					--Mine Liberation Reputation gStates.gameScenario=="Mines Liberation"
+					local minesLibMonster=false
+					for terrainguid, monsters in pairs(gStates.mineMonsterQty) do
+						if monsters[a]~=nil then
+							minesLibMonster=true--current monster has come from a mine
+							if gStates.gainList[terrainguid]~=nil and gStates.gainList[terrainguid].tokenDirection==1 then
+								local x=1
+								if terrainTiles[terrainguid].tileType=="core" then x=2 end
+								turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-x
+								gStates.gainList[terrainguid]=nil
+							end
+							break
+						end
+					end
+					--Rampaging reputation
+					if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[a]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[a]==nil) and
+						(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) and
+						a~=gStates.hiddenValleyKeep[1] and a~=gStates.hiddenValleyKeep[2] then
+						if monsterPugs[a].pugType=="green" or monsterPugs[a].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1 end
+						if monsterPugs[a].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-2 end
+					end
+					--Hero and thug reputation
+					if monsterPugs[a].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-monsterPugs[a].reputation end
+				end
+				--City monsters
+				for cityguid, monsters in pairs(gStates.cityMonsterQty) do
+					if cityguid~=darkCrusader.terrainHex and cityguid~=elementalist.terrainHex and monsters[a]=="alive" and gStates.gainList[cityguid]~=nil then
+						local found=false
+						for monsterGUID, state in pairs(monsters) do
+							if gStates.gainList[monsterGUID]~=nil then
+								if gStates.gainList[monsterGUID].exists==true then found=true end
+							end
+						end
+						if found==false then
+							turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+1
+							gStates.gainList[cityguid]=nil
+							if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]=nil end
+						end
+						break
 					end
 				end
-
-				--Update Fame and Reputation menus only when their displayed values change.
-				local fameRepPlayer=turnOrder[gStates.turnNumber]
-				local fameRepKey=table.concat({gStates.turnNumber, fameRepPlayer.fameGain, fameRepPlayer.repGain, fameRepPlayer.reputation}, "|")
-				if endTurnFameRepCache~=fameRepKey then
-					endTurnFameRepCache=fameRepKey
-					local limetedRepGain=fameRepPlayer.repGain
-					if limetedRepGain<(-7-fameRepPlayer.reputation) then limetedRepGain=(-7-fameRepPlayer.reputation) end
-					if limetedRepGain>(7-fameRepPlayer.reputation) then limetedRepGain=(7-fameRepPlayer.reputation) end
-					UI.setAttribute("EndRoundPlusFameText", "text", joinLang({"{en}Gain {ru}Получить {zh-tw}增加 {zh-cn}增加 {ko}획득 {es}Ganar {fr}Gagner {pt-br}Ganhe {de}Erhalte ", tostring(fameRepPlayer.fameGain), "{en} Fame{ru} Славу(ы){zh-tw} 名望{zh-cn} 名望{ko} 명성{es} Fama{fr} Gloire{pt-br} Fama{de} Ruhm"}))
-					local prefix="{en}Lose {ru}Потерять {zh-tw}減少 {zh-cn}减少 {ko}감소 {es}Perder {fr}Perdez {pt-br}Perca {de}Verliere "
-					if limetedRepGain>-1 then prefix="{en}Gain {ru}Получить {zh-tw}增加 {zh-cn}增加 {ko}획득 {es}Ganar {fr}Gagner {pt-br}Ganhe {de}Erhalte " end
-					local sufix1="{en} Reputation{ru} Репутацию(и){zh-tw} 聲譽{zh-cn} 声誉{ko} 평판{es} Reputación{fr} Réputation{pt-br} Reputação{de} Ansehen"
-					if limetedRepGain~=0 and (limetedRepGain<=(-7-fameRepPlayer.reputation) or limetedRepGain>=(7-fameRepPlayer.reputation)) then
-						sufix1="{en} Rep. Max.{ru} Макс. Реп.{zh-tw} 聲譽到最底{zh-cn} 声誉到最底{ko} 최대 평판{es} Rep. Máx.{fr} Rép. Max.{pt-br} Rep. Máx.{de} Ruf Max."
-					end
-					local sufix2=""
-					if limetedRepGain~=0 and reputationTable[fameRepPlayer.reputation+limetedRepGain]~=nil then
-						sufix2=" ('"..reputationTable[fameRepPlayer.reputation+limetedRepGain].repDisplay.."')"
-						if fameRepPlayer.reputation+limetedRepGain<=-7 then sufix2=" ('X')" end
-					end
-					UI.setAttribute("EndRoundPlusRepText", "text", joinLang({prefix, tostring(math.abs(limetedRepGain)), sufix1, sufix2}))
-				end
+				--Refund the exact temporary Keep/Mage Tower/Hidden Valley/Monastery assault loss applied when this token entered combat.
+				--The avatar may already have been moved away to cancel/reset the combat, so do not re-check avatarLocation here.
+				if (b.siteRepLoss or 0)>0 then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+b.siteRepLoss end
+				gStates.gainList[a]=nil
 			end
-
-
-			--Deed-pile events refresh End Round directly. During routine play/discard object updates,
-			--played-card count only matters once the current deed pile is actually empty.
-			local routineZoneUpdate=source=="Object entered into play area" or source=="Object removed from zone"
-			local currentSeat=turnOrder[gStates.turnNumber].seatPos
-			if routineZoneUpdate~=true or endRoundDeedHasCards[currentSeat]~=true then refreshEndRoundState(playerAreaCardCount) end
-
-
-			local notice=false
-			local UIColor=positionToColor(gStates.turnNumber)
-			--Display Info Pannel if pursuing monsters have two options.
-			if gStates.pursuitTwoOption==true then
-				UI.setAttribute("NoticeText", "Text", "{en}Pursuing Monster(s) have two Options for the current Player to decide between.{ru}Игрок, чьего героя преследуют, решает, на какую из двух клеток переместится враг.{zh-tw}追击的怪物有两个选项供当前玩家选择. {zh-cn}追击的怪物有两个选项供当前玩家选择. {ko}현재 플레이어는 추적 중인 몬스터의 두 옵션 중 하나를 결정하세요.{es}Los Monstruos que persiguen tienen dos Opciones para que el Jugador actual decida entre ellas.{fr}Les Monstres Poursuivants ont deux Options entre lesquelles le Joueur actuel doit choisir.{pt-br}Monstro(s) Perseguidor(es) tem 2 opções para o jogador atual escolher.{de}Verfolgende Monster haben zwei Optionen, zwischen denen der aktuelle Spieler wählen kann.")
-				UI.setAttribute("NoticeBoard", "visibility", "")
-				UI.setAttribute("NoticeBoard", "height", "50")
-				notice=true
-			end
-
-			--Display Info pannel if player needs to deploy a tomb or dungeon token
-			if #gStates.locationPlace>0 then
-				local pendingSecretName=dungeonLordsPendingSecretName(gStates.locationPlace[#gStates.locationPlace])
-				local site="{en}Village{ru}Деревней{zh-tw}\n要求2: 挨着刚翻开的村庄{zh-cn}\n要求2: 挨着刚翻开的村庄{ko}마을{es}una Aldea{fr}Village{pt-br}Vila{de}Dorf"
-				if pendingSecretName=="Secret Tomb" then site="{en}Monastery{ru}Монастырем{zh-tw}\n要求2: 挨着刚翻开的修道院{zh-cn}\n要求2: 挨着刚翻开的修道院{ko}수도원{es}un Monasterio{fr}Monastère{pt-br}Mosteiro{de}Kloster" end
-				UI.setAttribute("NoticeText", "Text", joinLang({"{en}Place a {ru}Поместите жетон {zh-tw}在地图上放置一个{zh-cn}在地图上放置一个{ko}{es}Coloca una ficha de {fr}Placer un{pt-br}Coloque uma ficha de {de}Platziere ein ", translateWord[pendingSecretName], "{en} token on an accessible non-swamp, non-feature space next to the {ru} на любую доступную клетку без болота на которой нет никаких мест, соседнюю с {zh-tw}\n要求1: 可进入、非沼泽、上面无地点{zh-cn}\n要求1: 可进入、非沼泽、上面无地点{ko}을 비어있고, 늪이 아니면서 다음의 장소 주변인 칸에 설치하세요: {es} en un espacio accesible que no sea un pantano, o no tenga ningún elemento adyacente a {fr} jeton sur un espace non marécageux accessible à côté du {pt-br} em um espaço acessível sem ser pântano ou que já tenha algo próximo a {de} plättchen auf ein zugängliches Nicht-Sumpf-, Nicht-Feature-Feld neben dem ", site}))
-				UI.setAttribute("NoticeBoard", "visibility", "")
-				UI.setAttribute("NoticeBoard", "height", "50")
-				notice=true
-			end
-
-			--Display Info pannel if End of round is immenant
-			if ((nextPlayerEndCalled==true and gStates.playerCount>1) or (gStates.endRoundCalled==true and gStates.playerCount==1)) and
-				(gStates.preEndTurn==true or turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5]) and gStates.currentRound<gStates.rounds then
-				local boxHeight=50
-				local endRoundText="{en}The game is about to experience end of round updates.\nPut Banners in discard if desired.{ru}Конец раунда. Скрипт произведет нужные обновления.\nЕсли хотите, можете сбросить знамёна с отрядов.{zh-tw}回合即将结束, 如果需要, 将清理弃牌区{zh-cn}回合即将结束, 如果需要, 将清理弃牌区{ko}이제 라운드가 종료됩니다.\n원한다면 지금 깃발 장착을 해제하세요.{es}El juego está a punto de experimentar actualizaciones de fin de ronda.\nDescarte los Banners si lo desea.{fr}Le jeu est sur le point de connaître des mises à jour de fin de manche.\nMettez les bannières au rebut si vous le souhaitez.{pt-br}O jogo está prestes a executar as atualizações de fim de Rodada.<size=6>\n\n</size>Coloque os Estandartes na pilha de descarte se assim desejar.{de}Das Spiel wird zum Ende der Runde aktualisiert.\nLegt die Banner auf den Ablagestapel, falls gewünscht."
-				if gStates.playerCount==1 then endRoundText=joinLang({endRoundText, "{en}\nDiscard the 2nd offer if playing 'Control over the Offers'{ru}\nПри 'Контроле над доступными картами', сбросьте среднюю доступную карту{zh-tw}\n如果使用“控制供应区”变体规则, 弃掉最左侧两个供应的卡牌{zh-cn}\n如果使用“控制供应区”变体规则, 弃掉最左侧两个供应的卡牌{ko}\n변형 규칙 '공급처 갱신 조정'을 적용하려면 지금 하세요.{es}\nDescarta la segunda oferta si juegas 'Control sobre las Ofertas'{fr}\nJetez la 2e offre si vous jouez à 'Contrôle des Offres'{pt-br}\nDiscarte a 2a oferta se estiver jogando com 'Controle sobre ofertas'{de}\nWirf das 2. Angebot ab, wenn du 'Kontrolle über die Angebote' spielst."}) boxHeight=boxHeight+20 end
-				if gStates.gameScenario=="Mines Liberation" then endRoundText=joinLang({endRoundText, "{en}\nCollect 1 Crystal from your liberated Mine(s).{ru}Получите 1 кристалл из каждой освобожденной вами шахты.{zh-tw}从你解放的每个矿山获得 1 块魔晶。{zh-cn}从你解放的每个矿山获得 1 块魔晶。{ko}\n해방한 각 광산에서 수정 1개를 얻으세요.{es}\nRecoge 1 Cristal de cada Mina que hayas liberado.{fr}\nRécupérez 1 cristal de chaque Mine que vous avez libérée.{pt-br}\nColete 1 Cristal de cada Mina que você libertou.{de}\nSammle 1 Kristall aus jeder Mine, die du befreit hast."}) boxHeight=boxHeight+20 end
-				UI.setAttribute("NoticeBoard", "height", boxHeight)
-				UI.setAttribute("NoticeText", "Text", endRoundText)
-				UI.setAttribute("NoticeBoard", "visibility", "")
-				notice=true
-			end
-
-			--Display Info pannel if tactics are shown
-			UI.setAttribute("DrawOne", "interactable", "true")
-			UI.setAttribute("DrawOneImage", "image", "Sliced Button/Button New Active")
-			if gStates.tacticRemove==true or gStates.tacticShown==true then
-				if gStates.tacticRemove==true then
-					UI.setAttribute("NoticeText", "Text", "{en}Choose tactic(s) to be removed from the Game{ru}Выберите тактику(и), которая будет удалена из игры{zh-tw}选择要从游戏中移除的战术卡{zh-cn}选择要从游戏中移除的战术卡{ko}게임에서 제거할 전략 카드를 고르세요.{es}Elige la táctica(s) que quieres eliminar del Juego{fr}Choisissez la tactique(s) à retirer du Jeu{pt-br}Escolha tática(s) a ser(em) removida(s) do jogo.{de}Wähle die Taktik(en), die aus dem Spiel entfernt werden sollen")
-				else
-					UI.setAttribute("NoticeText", "Text", joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} needs to choose a tactic from the center{ru} должен(на) выбрать Тактику из центра{zh-tw}需要从中间选择一个战术{zh-cn}需要从中间选择一个战术{ko}의 전략 카드를 선택하세요.{es} necesita elegir una táctica del centro{fr} doit choisir une tactique du centre{pt-br} precisa escolher uma tática do centro.{de} muss eine Taktik aus dem Zentrum wählen"}))
-				end
-				UI.setAttribute("DrawOne", "interactable", "False")
-				UI.setAttribute("DrawOneImage", "image", "Sliced Button/Button New Deactive")
-				UI.setAttribute("NoticeBoard", "visibility", "")
-				UI.setAttribute("NoticeBoard", "height", "50")
-				notice=true
-			else --turn off help notes after first round of tactic selection
-				if gStates.help==true then DisplayHelp(nil, "-1", "Game Started") end
-			end
-
-			--Remove or Display the notice board as needed
-			if notice==false and gStates.noticeShown==true then
-				UI.hide("NoticeBoard")
-				gStates.noticeShown=false
-			end
-			if notice==true and gStates.noticeShown==false then
-				UI.show("NoticeBoard")
-				gStates.noticeShown=true
-			end
-
-
-
-			UI.setAttribute("RewardCheck", "active", "false")
-			UI.setAttribute("EndGameButton", "active", "false")
-			if (gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat") or gameOver==true then
-				UI.setAttribute("RewardCheck", "active", "true")
-				UI.setAttribute("EndGameButton", "active", "true")
-				if gStates.timeBending=="Started" and gStates.turnNumber==gStates.realTurn then--or (gStates.endRoundCalled==true and gStates.currentRound>=gStates.rounds)
-					UI.setAttribute("EndGameButton", "active", "false")
-				end
-			end
-			--Steady Tempo must resolve before Rewards Claimed can refresh the hand, because Top can be the next card drawn.
-			if steadyTempoUpdateRewardGate~=nil and turnOrder[gStates.turnNumber]~=nil then steadyTempoUpdateRewardGate(turnOrder[gStates.turnNumber].seatPos) end
-			--Rewards Claimed remains clickable during a soft lock; a faint orange tint shows that clicking it
-			--will currently produce a reminder instead of advancing. The tint clears when the requirement is
-			--resolved or when the shared soft-lock window expires.
-			local rewardSoftLockTint=rewardClaimSoftLockPending~=nil and rewardClaimSoftLockPending(gStates.turnNumber)
-			UI.setAttribute("PreEndTurnImage","color",rewardSoftLockTint and "rgb(1,0.86,0.68)" or "white")
-			if UIColor=="Black" then UIColor="rgb(0,0,0)" end
-			UI.setAttribute("MainGameNotes", "color", UIColor)
-			UI.setAttribute("RewardNotes", "color", UIColor)
-
-
-			local currentPlayer=turnOrder[gStates.turnNumber]
-			local meditationBonus=(gStates.meditationDrawBonus~=nil and gStates.meditationDrawBonus[gStates.turnNumber]) or 0
-			local drawHandSize=currentPlayer.hand+currentPlayer.handBonus+gStates.tactic4HandBonus+meditationBonus
-			local cityShields=currentCityShieldInfluence(currentPlayer)
-			local handMainKey=table.concat({gStates.turnNumber, currentPlayer.mage, currentPlayer.hand, currentPlayer.handBonus, gStates.tactic4HandBonus, meditationBonus, currentPlayer.baseHand, currentPlayer.reputation, cityShields, currentPlayer.fame, currentPlayer.level, fameForUp, gStates.positionMageKnight[5]}, "|")
-			if handMainTextCache~=handMainKey then
-				handMainTextCache=handMainKey
-				UI.setAttribute("DrawHandText", "text", joinLang({"{en}Draw up to {ru}Добрать до {zh-tw}抽滿至 {zh-cn}抽满至 {ko}카드 보유 제한 {es}Roba hasta {fr}Piochez jusqu'à {pt-br}Compre até {de}Zieh auf ", tostring(drawHandSize), "{en} cards{ru} карт{zh-tw} 張手牌{zh-cn} 张手牌{ko} 장{es} cartas{fr} cartes{pt-br} cartas{de} karten"}))
-				UI.setAttribute("DrawHandText", "color", drawHandSize>currentPlayer.baseHand and "rgb(0.4, 0.1, 0.2)" or "Black")
-				if currentPlayer.mage~=gStates.positionMageKnight[5] then
-					local repDisplay=reputationTable[currentPlayer.reputation].repDisplay
-					local repLabel="{en}'s Turn</size><size=6>\n\n</size>Reputation = {ru} Ходит</size><size=6>\n\n</size>Репутация =  {zh-tw}的回合</size><size=6>\n\n</size>聲譽 = {zh-cn}的回合</size><size=6>\n\n</size>声誉 = {ko} 차례</size><size=6>\n\n</size>평판 = {es}</size><size=6>\n\n</size>Reputación = {fr}</size><size=6>\n\n</size>Réputation = {pt-br}</size><size=6>\n\n</size>Reputação = {de}'s Zug</size><size=6>\n\n</size>Ansehen = "
-					if cityShields>0 and repDisplay~="No Interaction" then
-						local repValue=tonumber(repDisplay) or 0
-						repLabel="{en}'s Turn</size><size=6>\n\n</size>Rep Bonus = {ru} Ходит</size><size=6>\n\n</size>Бонус реп. = {zh-tw}的回合</size><size=6>\n\n</size>聲譽加成 = {zh-cn}的回合</size><size=6>\n\n</size>声誉加成 = {ko} 차례</size><size=6>\n\n</size>평판 보너스 = {es}</size><size=6>\n\n</size>Bonif. Rep. = {fr}</size><size=6>\n\n</size>Bonus Rép. = {pt-br}</size><size=6>\n\n</size>Bônus Rep. = {de}'s Zug</size><size=6>\n\n</size>Rufbonus = "
-						repDisplay=joinLang({signedBonus(repValue+cityShields), " (", signedBonus(repValue), "{en} Rep + {ru} Реп. + {zh-tw} 聲譽 + {zh-cn} 声誉 + {ko} 평판 + {es} Rep. + {fr} Rép. + {pt-br} Rep. + {de} Ruf + ", cityShields, "{en} City){ru} Город){zh-tw} 城市){zh-cn} 城市){ko} 도시){es} Ciudad){fr} Ville){pt-br} Cidade){de} Stadt)"})
-					end
-					local mainText=joinLang({"{en}<size=25>{ru}<size=25>{zh-tw}<size=25>{zh-cn}<size=25>{ko}<size=25>{es}<size=25>Turno de {fr}<size=25>Au tour de {pt-br}<size=25>Turno de {de}<size=25>", translateWord[currentPlayer.mage], repLabel, repDisplay, "{en}\nFame = {ru}\nСлава = {zh-tw}\n名望 = {zh-cn}\n名望 = {ko}\n명성 = {es}\nFama = {fr}\nGloire = {pt-br}\nFama = {de}\nRuhm = ", currentPlayer.fame})
-					local levelUpType="{en}\n(Skill & Advanced Action){ru}\n(Навык и Особое действие){zh-tw}\n（技能和高級行動）{zh-cn}\n（技能和高级行动）{ko}\n(스킬 및 상급 액션){es}\n(Habilidad y Acción Avanzada){fr}\n(Compétence et Action Avancée){pt-br}\n(Habilidade e Ação Avançada){de}\n(Fähigkeit & Fortgeschrittene Aktion)"
-					if currentPlayer.level==2 or currentPlayer.level==4 or currentPlayer.level==6 or currentPlayer.level==8 or currentPlayer.level==10 or currentPlayer.level==12 then levelUpType="{en}\n(Command Token){ru}\n(Жетон командования){zh-tw}\n（指揮標記）{zh-cn}\n（指挥标记）{ko}\n(지휘 토큰){es}\n(Token de Comando){fr}\n(Jeton de Commande){pt-br}\n(Token de Comando){de}\n(Befehlsplättchen)" end
-					if fameForUp>0 then mainText=joinLang({mainText, "{en}<size=6>\n\n</size>Next Level in {ru}<size=6>\n\n</size>До повышения уровня {zh-tw}<size=6>\n\n</size>升級還需 {zh-cn}<size=6>\n\n</size>升级还需 {ko}<size=6>\n\n</size>다음 레벨까지 {es}<size=6>\n\n</size>Siguiente nivel en {fr}<size=6>\n\n</size>Niveau suivant dans {pt-br}<size=6>\n\n</size>Próximo Nível em {de}<size=6>\n\n</size>Nächstes Level in ", fameForUp, "{en} Fame{ru} Слава(ы){zh-tw} 名望{zh-cn} 名望{ko} 명성 남음{es} Fama{fr} Gloire{pt-br} Fama{de} Ruhm", levelUpType}) else mainText=joinLang({mainText, "\n "}) end
-					UI.setAttribute("MainGameNotes", "text", mainText)
-				else
-					if proxyPlayerActive()==true then
-						UI.setAttribute("MainGameNotes", "text", joinLang({"{en}<size=25>Proxy {ru}<size=25>Прокси {zh-tw}<size=25>代理玩家 {zh-cn}<size=25>代理玩家 {ko}<size=25>프록시 {es}<size=25>Proxy {fr}<size=25>Proxy {pt-br}<size=25>Proxy {de}<size=25>Proxy ", translateWord[currentPlayer.mage], "{en}'s Turn</size>{ru} Ходит</size>{zh-tw}的回合</size>{zh-cn}的回合</size>{ko} 차례</size>{es}</size>{fr}</size>{pt-br}</size>{de}'s Zug</size>"}))
-					else
-						UI.setAttribute("MainGameNotes", "text", joinLang({"{en}<size=25>Dummy {ru}<size=25>Манекен {zh-tw}<size=25>虛擬玩家 {zh-cn}<size=25>虚拟玩家 {ko}<size=25>더미{es}<size=25>Turno de Maniquí {fr}<size=25>Au tour de Mannequin {pt-br}<size=25>Turno de Manequim {de}<size=25>Dummy ", translateWord[currentPlayer.mage], "{en}'s Turn</size>{ru} Ходит</size>{zh-tw}的回合</size>{zh-cn}的回合</size>{ko} 차례</size>{es}</size>{fr}</size>{pt-br}</size>{de}'s Zug</size>"}))
-					end
-				end
-			end
-
-
-			automatedMainPanelRefresh()
-
-			UI.setAttribute("PreEndTurn", "onClick", "endTurn")
-			if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==false then
-				UI.setAttribute("EndTurnButtonText", "text", "{en}Combat Complete{ru}Бой завершён{zh-tw}戰鬥完成{zh-cn}战斗完成{ko}전투 완료{es}Combate Completo{fr}Combat Terminé{pt-br}Combate Concluído{de}Kampf Abgeschlossen")
-				UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
-			elseif gStates.coopAssaultPhase=="rewards" then
-				local nextText="{en}Finish Co-op Rewards{ru}Завершить совместные награды{zh-tw}完成合作獎勵{zh-cn}完成合作奖励{ko}협력 보상 완료{es}Finalizar Recompensas Coop.{fr}Terminer les Récompenses Coop.{pt-br}Finalizar Recompensas Coop.{de}Koop-Belohnungen Beenden"
-				if gStates.coopRewardIndex<#gStates.coopRewardQueue then nextText="{en}Rewards Claimed - Next Reward{ru}Награды получены - Следующая награда{zh-tw}獎勵完成－下一位{zh-cn}奖励完成－下一位{ko}보상 완료 - 다음 보상{es}Recompensas Reclamadas - Siguiente{fr}Récompenses Réclamées - Suivant{pt-br}Recompensas Coletadas - Próximo{de}Belohnungen Beansprucht - Weiter" end
-				UI.setAttribute("PreEndTurnText", "text", nextText)
-				UI.setAttribute("EndTurnButtonText", "text", "{en}Co-op Rewards{ru}Совместные награды{zh-tw}合作獎勵{zh-cn}合作奖励{ko}협력 보상{es}Recompensas Coop.{fr}Récompenses Coop.{pt-br}Recompensas Coop.{de}Koop-Belohnungen")
-				UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
-				UI.setAttribute("EndTurnButton", "interactable", "false")
-				UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
-				UI.setAttribute("EndTurnButtonAlt", "interactable", "false")
-				UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Deactive")
-			end
-			UI.setAttribute("ScoreButtonReal", "onClick", "displayScore")
-			if gameOver==true then
-				UI.setAttribute("PreEndTurn", "onClick", "layoutClaimedCards")
-				UI.setAttribute("PreEndTurnText", "text", "{en}Game Over - Show Score{ru}Игра окончена{zh-tw}遊戲結束{zh-cn}游戏结束{ko}게임 종료{es}Fin de Partida{fr}Jeu Terminé{pt-br}Fim de Jogo{de}Spiel Beendet")
-				UI.setAttribute("DummyButton", "onClick", "layoutClaimedCards")
-				UI.setAttribute("DummyButtonText", "Text", "{en}Game Over - Show Score{ru}Игра окончена{zh-tw}遊戲結束{zh-cn}游戏结束{ko}게임 종료{es}Fin de Partida{fr}Jeu Terminé{pt-br}Fim de Jogo{de}Spiel Beendet")
-				UI.setAttribute("ScoreButtonReal", "onClick", "layoutClaimedCards")
-				local noTurnsLeftToUndoInto=gStates.endRoundCalled==true and nextPlayerEndCalled==true and gStates.currentRound>=gStates.rounds
-				local victoryRegistered=false
-				for _, turnDetails in pairs(turnOrder) do if turnDetails.gameEnder==true then victoryRegistered=true break end end
-				local canUndoVictory=victoryRegistered==true and noTurnsLeftToUndoInto==false
-				UI.setAttribute("EndGameButton", "active", canUndoVictory and "true" or "false")
-			end
-
-
-			refreshGladeDiscardHealButton()
-			UI.show("MainGame")
-			mainUIPause=nil
-		end, 0.1)
+		end
+		--Cap the gain values if exceeding limits
+		if turnOrder[gStates.turnNumber].fameGain<0 then turnOrder[gStates.turnNumber].fameGain=0 end
 	end
+		mainUITimeBendingPresent=timeBending
+	end
+
+	return {
+		automated=false,currentPlayer=currentPlayer,fameForUp=fameForUp,
+		fameVerticle=fameVerticle,avatarLocation=avatarLocation,timeBending=timeBending
+	}
+end
+
+local function mainUIRefreshLevelUpTurnText(context,playerState)
+	if playerState.automated==true then return end
+	local fameForUp=playerState.fameForUp or 0
+	local fameVerticle=playerState.fameVerticle or 0
+	local nextPlayerEndCalled=context.nextPlayerEndCalled
+	--Change End turn button text if level up expected
+	if gStates.coopAssaultPhase~="combat" and (fameForUp<=turnOrder[gStates.turnNumber].fameGain or turnOrder[gStates.turnNumber].levelUp>0) and turnOrder[gStates.turnNumber].fame<gStates.scoreIfLooped and fameVerticle<gStates.rowsOnBoard then
+		UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
+		UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
+		local expectedFame=turnOrder[gStates.turnNumber].fame+turnOrder[gStates.turnNumber].fameGain
+		local excessLevels=math.floor(math.sqrt(expectedFame+1))-turnOrder[gStates.turnNumber].level
+		expectedFame=expectedFame+(1*excessLevels*gStates.blitz)
+		excessLevels=math.floor(math.sqrt(expectedFame+1))-turnOrder[gStates.turnNumber].level
+		if excessLevels>1 then
+			UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
+			UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
+		end
+		if nextPlayerEndCalled==true then
+			UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
+			UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
+			if excessLevels>1 then
+				UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
+				UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
+			end
+		end
+	end
+
+
+	local function defeatedElementalistRampagerThisTurn()
+		if gStates.gameScenario~="The Hidden Valley Blitz" then return false end
+		for guid, gain in pairs(gStates.gainList or {}) do
+			if gain.tokenDirection==1 and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[guid]==true and monsterEffectiveFaction(guid)=="Elem" then return true end
+		end
+		return false
+	end
+end
+
+local function mainUIRefreshRewardChecklist(context,playerState)
+	if playerState.automated==true then return end
+	local currentPlayer=playerState.currentPlayer
+	local avatarLocation=playerState.avatarLocation
+	local gameOver=context.gameOver
+	--Change Reward text to be player location sensitive
+	local rewardChecklistActive=(gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat") or gameOver==true
+	if rewardChecklistActive then
+		local count=1
+		local rewardText="{en}Have you:-\n{ru}Проверьте, что вы:-\n{zh-tw}你是否已經：\n{zh-cn}你是否已经：\n{ko}차례 종료 과정 진행:-\n{es}Has:-\n{fr}Avez-vous:-\n{pt-br}Você já:-\n{de}Hast du:-\n"
+		local linefeed=false
+		local questRewardPending,_,questRewardAction=apocalypseQuestRewardCompletionPendingForPlayer(gStates.turnNumber)
+		if questRewardPending==true then
+			local questReminder=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "{en}. Completed/Failed the Quest.{ru}. Завершили/провалили задание.{zh-tw}. 完成／失敗任務。{zh-cn}. 完成/失败任务。{ko}. 퀘스트를 완료/실패 처리했습니다.{es}. Completaste/Fallaste la Misión.{fr}. Terminé/Échoué la Quête.{pt-br}. Concluiu/Falhou a Missão.{de}. Die Quest abgeschlossen/fehlgeschlagen." or "{en}. Completed/Progressed the Quest.{ru}. Завершили/продвинули задание.{zh-tw}. 完成／推進任務。{zh-cn}. 完成/推进任务。{ko}. 퀘스트를 완료/진행했습니다.{es}. Completaste/Avanzaste la Misión.{fr}. Terminé/Progressé dans la Quête.{pt-br}. Concluiu/Avançou a Missão.{de}. Die Quest abgeschlossen/fortgesetzt."
+			rewardText=joinLang({rewardText,count,questReminder})
+			count=count+1 linefeed=true
+		end
+		if apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
+			rewardText=joinLang({rewardText,count,"{en}. Explored for Horsemen.{ru}. Исследовали местность для Всадников.{zh-tw}. 為騎士探索了地圖。{zh-cn}. 为骑士探索了地图。{ko}. 기마병을 위해 탐험했습니다.{es}. Exploraste para los Jinetes.{fr}. Exploré pour les Cavaliers.{pt-br}. Explorou para os Cavaleiros.{de}. Für die Reiter erkundet."})
+			count=count+1 linefeed=true
+		end
+		if steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(currentPlayer.seatPos)==true then
+			rewardText=joinLang({rewardText,count,"{en}. Resolved Steady Tempo.{ru}. Разыграли «Ровный темп».{zh-tw}. 已處理「穩定節奏」。{zh-cn}. 已处理“稳定节奏”。{ko}. 'Steady Tempo'를 처리했습니다.{es}. Resolviste Ritmo Constante.{fr}. Résolu Rythme Régulier.{pt-br}. Resolveu Ritmo Constante.{de}. Gleichmäßiges Tempo abgehandelt."})
+			count=count+1 linefeed=true
+		end
+		local pendingCrystal=gStates.mineClaimPending
+		if pendingCrystal~=nil and pendingCrystal.playerIndex==gStates.turnNumber then
+			local crystalSource=pendingCrystal.source=="Quest" and "{en}Quest{ru}задания{zh-tw}任務{zh-cn}任务{ko}퀘스트{es}Misión{fr}Quête{pt-br}Missão{de}Quest" or "{en}Mine{ru}шахты{zh-tw}礦山{zh-cn}矿山{ko}광산{es}Mina{fr}Mine{pt-br}Mina{de}Mine"
+			rewardText=joinLang({rewardText,count,"{en}. Claimed your {ru}. Получили кристалл {zh-tw}. 已領取你的{zh-cn}. 已领取你的{ko}. {es}. Reclamaste tu Cristal de {fr}. Récupéré votre Cristal de {pt-br}. Coletou seu Cristal de {de}. Deinen ",crystalSource,"{en} Crystal.{ru}.{zh-tw}水晶。{zh-cn}水晶。{ko} 크리스털을 획득했습니다.{es}.{fr}.{pt-br}.{de}-Kristall genommen."})
+			count=count+1 linefeed=true
+		end
+		if linefeed==true then rewardText=joinLang({rewardText,"\n"}) linefeed=false end
+		if gStates.gameScenario=="Mines Liberation" and gStates.endRoundCalled==true and gStates.turnForfeited==false then
+			rewardText=joinLang({rewardText, count, "{en}. Collected 1 Crystal from your Liberated Mine(s){ru}. Получили 1 кристалл из ваших освобожденных шахт{zh-tw}. 從你解放的礦山獲得 1 顆魔晶{zh-cn}. 从你解放的矿山获得 1 块魔晶{ko}. 해방한 광산에서 수정 1개 획득{es}. Obtenido 1 Cristal de tus Minas liberadas{fr}. Obtenu 1 cristal de vos Mines libérées{pt-br}. Ganhou 1 Cristal das suas Minas libertadas{de}. 1 Kristall aus deinen befreiten Minen erhalten"})
+			count=count+1 linefeed=true
+		end
+		if gStates.gameScenario=="Druid Nights" and gStates.druidNightsSummon~=nil then
+			local crystalReward=gStates.druidNightsCrystalReward or gStates.druidNightsSummon
+			rewardText=joinLang({rewardText, count, "{en}. Gained {ru}. Получено {zh-tw}。獲得 {zh-cn}。获得 {ko}. 획득: {es}. Obtuvo {fr}. Gagné {pt-br}. Ganhou {de}. Erhalten: ", tostring(crystalReward), "{en} Random Crystal(s) from incantation{ru} случайных кристалла(ов) от заклинания{zh-tw} 個由咒語產生的隨機魔力水晶{zh-cn} 个由咒语产生的随机魔力水晶{ko}개의 주문으로 얻은 무작위 마나 수정{es} Cristal(es) aleatorio(s) por el encantamiento{fr} Cristal(aux) aléatoire(s) grâce à l’incantation{pt-br} Cristal(is) aleatório(s) da invocação{de} zufällige(n) Kristall(e) durch die Beschwörung"})
+			count=count+1 linefeed=true
+		end
+		if defeatedElementalistRampagerThisTurn()==true then
+			rewardText=joinLang({rewardText, count, "{en}. Explored (Defeated Elementalist){ru}. Исследовали (победили Элементалиста){zh-tw}. 已探索（擊敗元素使）{zh-cn}. 已探索（击败元素使）{ko}. 탐험 완료 (원소술사 처치){es}. Exploraste (Elementalista derrotado){fr}. Exploré (Élémentaliste vaincu){pt-br}. Explorou (Elementalista derrotado){de}. Erkundet (Elementarmagier besiegt)"})
+			count=count+1 linefeed=true
+		end
+		if avatarLocation~=nil then
+			--see if a matching shield is near the avatar
+			local nearbyOwnShield=rewardNearbyOwnShield(gStates.turnNumber,avatarLocation)
+
+			--Victory Shield
+			if (avatarLocation=="glade" and gStates.gameScenario=="Druid Nights") then
+				if nearbyOwnShield=="false" and gStates.turnForfeited==false then
+					rewardText=joinLang({rewardText, count, "{en}. Placed a Victory Shield{ru}. Разместили Жетон щита{zh-tw}. 放置勝利盾徽{zh-cn}. 放置胜利盾徽{ko}. 방패 토큰 놓기{es}. Colocado un Escudo de Conquista.{fr}. Placé un Bouclier de Victoire{pt-br}. Colocou um Escudo de Vitória.{de}. Einen Siegesschild platziert"})
+					count=count+1 linefeed=true
+				end
+			end
+			--Victory Shield
+			if avatarLocation=="graveyard" and gStates.gameScenario=="The Realm of the Dead Blitz" and nearbyOwnShield=="false" and gStates.turnForfeited==false then
+				rewardText=joinLang({rewardText, count, "{en}. Paid to Seal the Graveyard{ru}. Заплатили за запечатывание Кладбища{zh-tw}. 支付魔力來封印墓地{zh-cn}. 支付魔力来封印墓地{ko}. 묘지 봉인 마나 지불(선택){es}. Pagado para Sellar el Cementerio{fr}. Payé pour Sceller le Cimetière{pt-br}Pago para Selar o Cemitério{de}. Für die Versiegelung des Friedhofs bezahlt."})
+				count=count+1 linefeed=true
+			end
+			if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
+			if rewardRetreatRequired(gStates.turnNumber,avatarLocation,nearbyOwnShield)==true then
+				rewardText=joinLang({rewardText, count, "{en}. Retreated to a Safe space{ru}. Отступили в Безопасное место{zh-tw}. 撤離到一個安全位置{zh-cn}. 撤离到一个安全位置{ko}. 안전한 칸으로 후퇴{es}. Acabado en un Espacio Seguro{fr}. Retraité dans un espace sûr{pt-br}. Recuou para um espaço seguro{de}. Dich in ein sicheres Feld zurückgezogen"})
+				count=count+1 linefeed=true
+			end
+			if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
+			if gStates.turnForfeited==false and gladeFreeCheck()==true and (avatarLocation=="glade" or avatarLocation=="hidden valley" or
+			(gStates.gameScenario=="The War of Four" and (avatarLocation=="necropolis" or avatarLocation=="graveyard"))) then
+				rewardText=joinLang({rewardText, count, "{en}. Removed One Wound{ru}. Вернули в стопку одну рану{zh-tw}. 移除一點創傷{zh-cn}. 移除一点创伤{ko}. 부상 하나 제거{es}. Eliminado una Herida{fr}. Suppression d'une blessure{pt-br}. Removeu Um Ferimento{de}. Eine Wunde wurde entfernt"})
+				count=count+1 linefeed=true
+			end
+			if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
+			if gStates.turnForfeited==false and ((gStates.shieldsDropped[nearbyOwnShield]~=nil and (avatarLocation=="mage tower" or avatarLocation=="labyrinth"	or avatarLocation=="maze" or avatarLocation=="monastery" or avatarLocation=="monster den" or avatarLocation=="dungeon" or avatarLocation=="spawning grounds" or avatarLocation=="tomb" or avatarLocation=="ziggurat" or avatarLocation=="pyramid"
+			or (avatarLocation=="ruin" and gStates.crytalRuin~=true)
+			or ((avatarLocation=="graveyard" or avatarLocation=="glade") and gStates.gameScenario=="Life and Death")))
+			or (avatarLocation=="graveyard" and gStates.gameScenario=="The Realm of the Dead Blitz")) then
+				rewardText=joinLang({rewardText, count, "{en}. Gained Site Conquest Rewards{ru}. Получили награды за завоевание Места{zh-tw}. 獲得地點的征服獎勵{zh-cn}. 获得地点的征服奖励{ko}. 장소 정복 보상 획득{es}. Obtenido la Recompensa de Conquista{fr}. Récompenses de conquête de site obtenues{pt-br}. Ganhou As Recompensas de Conquista{de}. Gewonnene Eroberungsbelohnungen"})
+				count=count+1 linefeed=true
+			end
+		end
+		if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
+		if gStates.levelingUp==true then
+			if currentPlayer.skipHeroChallengeSkillReminder~=true then
+				rewardText=joinLang({rewardText, count, "{en}. Gained a New Skill Token{ru}. Получили новый Жетон навыка{zh-tw}. 獲得新的技能{zh-cn}. 获得新的技能{ko}. 새로운 스킬 획득{es}. Obtuvo una ficha de habilidad nueva{fr}. Vous avez obtenu un nouveau jeton de compétence{pt-br}. Ganhou uma Nova Ficha de Habilidade{de}. Einen neuen Fertigkeitsmarker erhalten"})
+				count=count+1 rewardText=joinLang({rewardText, "\n"})
+			end
+			rewardText=joinLang({rewardText, count, "{en}. Gained a New Advanced Action{ru}. Получили новое Особое действие{zh-tw}. 獲得新的高級行動卡{zh-cn}. 获得新的高级行动卡{ko}. 새로운 상급 액션 획득{es}. Obtuvo una nueva acción avanzada{fr}. Vous avez obtenu une nouvelle action avancée{pt-br}. Ganhou uma Nova Ação Avançada{de}. Eine neue fortgeschrittene Aktion erhalten"})
+			count=count+1 linefeed=true
+		end
+		if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
+		if gStates.volkareArmyReduced==true and gStates.endGameAchieved=="false" and gStates.volkareState=="Attacking City" then
+			if gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel)~=nil then getObjectFromGUID(gStates.volkareModel).unlock() end
+		end
+		if gStates.turnForfeited==true then
+			rewardText=joinLang({rewardText, count, "{en}. Forfeit Turn, no site Rewards{ru}. Пропустили ход, и не получаете Награды за Места{zh-tw}. 放棄回合，無地點獎勵{zh-cn}. 放弃回合，无地点奖励{ko}. 차례 포기, 장소 혜택 사용불가{es}. Saltar Turno, sin Recompensas de Lugar{fr}. Forfait Turn, pas de récompenses de site{pt-br}. Desistir do Turno. Sem Recompensas de Local{de}. Zug ausgelassen, keine Ortsbelohnung"})
+			count=count+1 linefeed=true
+		end
+		if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
+		if gameOver==false then
+			rewardText=joinLang({rewardText, count, "{en}. Confirmed your hand size{ru}. Проверили предел карт в вашей руке{zh-tw}. 更新你的手牌上限{zh-cn}. 更新你的手牌上限{ko}. 카드 보유 제한 체크{es}. Confirmado tu tamaño de Mano{fr}. Confirmé votre taille de main{pt-br}. Confirmou seu tamanho de Mão{de}. Handkartenzahl bestätigt"})
+		else
+			rewardText=joinLang({rewardText, count, "{en}. Looked at your final Score{ru}. Посмотрели на ваш окончательный результат{zh-tw}. 查看你的最終分數{zh-cn}. 查看你的最终分数{ko}. 최종 점수 확인{es}. Revisado tu Puntuación Final{fr}. Regardé votre score final{pt-br}. Ollhou para a sua Pontuação Final{de}. Deine Endpunktzahl angesehen"})
+		end
+		UI.setAttribute("RewardNotes", "text", rewardText)
+	end
+
+end
+
+local function mainUIRefreshTurnAvailability(context,playerState)
+	if playerState.automated==true then return end
+	local playerAreaCardCount=context.playerAreaCardCount
+	--lock end turn button if no cards are played or discarded
+	--discard object detection
+	local discardAreaCards=0
+	local discardZoneGUID=deedDeckDiscardZones[turnOrder[gStates.turnNumber].seatPos]
+	local discardZone=discardZoneGUID~=nil and getObjectFromGUID(discardZoneGUID) or nil
+	if discardZone==nil then return end
+	for _, b in pairs(discardZone.getObjects()) do
+		if b.type=="Card" then discardAreaCards=1 break end
+		if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
+	end
+	UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
+	if gStates.endRoundCalled==true then UI.setAttribute("EndTurnButton", "tooltip", "") end
+	local coopCombatButtonLocked=gStates.coopAssaultPhase=="combat" and (gStates.preEndTurn==true or playerAreaCardCount<1)
+	if (playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount) or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
+		UI.setAttribute("EndTurnButton", "interactable", "False")
+		UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
+		UI.setAttribute("EndTurnButtonAlt", "interactable", "False")
+		UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Deactive")
+		UI.setAttribute("ExtraTurnTacticButton", "interactable", "False")
+		UI.setAttribute("ExtraTurnTacticButtonImage", "image", "Sliced Button/Button New Deactive")
+	end
+end
+
+local function mainUIRefreshExtraTurn(context,playerState)
+	if playerState.automated==true then return end
+	local timeBending=playerState.timeBending==true
+	--Show extra-turn button. If Time Bending and Day Tactic 6 are both available, ask which one is being used.
+	local tacticSixAvailable=turnOrder[gStates.turnNumber].tactic==6 and gStates.dayRound==true and gStates.tacticSixState~="Used"
+	local timeBendingAvailable=timeBending==true
+	if (tacticSixAvailable or timeBendingAvailable) and gStates.tacticRemove==false and gStates.tacticShown==false then
+		UI.setAttribute("ExtraTurnTactic", "active", "true")
+		if tacticSixAvailable and timeBendingAvailable then
+			UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Extra Turn{ru}Дополнительный ход{zh-tw}額外回合{zh-cn}额外回合{ko}추가 턴{es}Turno Extra{fr}Tour Supplémentaire{pt-br}Turno Extra{de}Extra-Zug")
+		elseif timeBendingAvailable then
+			UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Time Bend{ru}Изгиб Времени{zh-tw}時間扭曲{zh-cn}时间扭曲{ko}시간 왜곡{es}Salto en el Tiempo{fr}Courbe du Temps{pt-br}Dobrar Tempo{de}Zeitkrümmung")
+		else
+			UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Use Tactic{ru}Использовать Тактику{zh-tw}使用戰術卡{zh-cn}使用战术卡{ko}전략카드 사용{es}Usar la Táctica{fr}Utiliser la Tactique{pt-br}Usar Tática{de}Taktik Benutzen")
+		end
+	end
+end
+
+local function mainUIRefreshFameRepMenu(context,playerState)
+	if playerState.automated==true then return end
+	--Update Fame and Reputation menus only when their displayed values change.
+	local fameRepPlayer=turnOrder[gStates.turnNumber]
+	local fameRepKey=table.concat({gStates.turnNumber, fameRepPlayer.fameGain, fameRepPlayer.repGain, fameRepPlayer.reputation}, "|")
+	if endTurnFameRepCache~=fameRepKey then
+		endTurnFameRepCache=fameRepKey
+		local limetedRepGain=fameRepPlayer.repGain
+		if limetedRepGain<(-7-fameRepPlayer.reputation) then limetedRepGain=(-7-fameRepPlayer.reputation) end
+		if limetedRepGain>(7-fameRepPlayer.reputation) then limetedRepGain=(7-fameRepPlayer.reputation) end
+		UI.setAttribute("EndRoundPlusFameText", "text", joinLang({"{en}Gain {ru}Получить {zh-tw}增加 {zh-cn}增加 {ko}획득 {es}Ganar {fr}Gagner {pt-br}Ganhe {de}Erhalte ", tostring(fameRepPlayer.fameGain), "{en} Fame{ru} Славу(ы){zh-tw} 名望{zh-cn} 名望{ko} 명성{es} Fama{fr} Gloire{pt-br} Fama{de} Ruhm"}))
+		local prefix="{en}Lose {ru}Потерять {zh-tw}減少 {zh-cn}减少 {ko}감소 {es}Perder {fr}Perdez {pt-br}Perca {de}Verliere "
+		if limetedRepGain>-1 then prefix="{en}Gain {ru}Получить {zh-tw}增加 {zh-cn}增加 {ko}획득 {es}Ganar {fr}Gagner {pt-br}Ganhe {de}Erhalte " end
+		local sufix1="{en} Reputation{ru} Репутацию(и){zh-tw} 聲譽{zh-cn} 声誉{ko} 평판{es} Reputación{fr} Réputation{pt-br} Reputação{de} Ansehen"
+		if limetedRepGain~=0 and (limetedRepGain<=(-7-fameRepPlayer.reputation) or limetedRepGain>=(7-fameRepPlayer.reputation)) then
+			sufix1="{en} Rep. Max.{ru} Макс. Реп.{zh-tw} 聲譽到最底{zh-cn} 声誉到最底{ko} 최대 평판{es} Rep. Máx.{fr} Rép. Max.{pt-br} Rep. Máx.{de} Ruf Max."
+		end
+		local sufix2=""
+		if limetedRepGain~=0 and reputationTable[fameRepPlayer.reputation+limetedRepGain]~=nil then
+			sufix2=" ('"..reputationTable[fameRepPlayer.reputation+limetedRepGain].repDisplay.."')"
+			if fameRepPlayer.reputation+limetedRepGain<=-7 then sufix2=" ('X')" end
+		end
+		UI.setAttribute("EndRoundPlusRepText", "text", joinLang({prefix, tostring(math.abs(limetedRepGain)), sufix1, sufix2}))
+	end
+end
+
+local function mainUIRefreshEndRound(context)
+	local source=context.source
+	local playerAreaCardCount=context.playerAreaCardCount
+	--Deed-pile events refresh End Round directly. During routine play/discard object updates,
+	--played-card count only matters once the current deed pile is actually empty.
+	local routineZoneUpdate=source=="Object entered into play area" or source=="Object removed from zone"
+	local currentSeat=turnOrder[gStates.turnNumber].seatPos
+	if routineZoneUpdate~=true or endRoundDeedHasCards[currentSeat]~=true then refreshEndRoundState(playerAreaCardCount) end
+end
+
+local function mainUIRefreshNoticeBoard(context)
+	local nextPlayerEndCalled=context.nextPlayerEndCalled
+	local notice=false
+	--Display Info Pannel if pursuing monsters have two options.
+	if gStates.pursuitTwoOption==true then
+		UI.setAttribute("NoticeText", "Text", "{en}Pursuing Monster(s) have two Options for the current Player to decide between.{ru}Игрок, чьего героя преследуют, решает, на какую из двух клеток переместится враг.{zh-tw}追击的怪物有两个选项供当前玩家选择. {zh-cn}追击的怪物有两个选项供当前玩家选择. {ko}현재 플레이어는 추적 중인 몬스터의 두 옵션 중 하나를 결정하세요.{es}Los Monstruos que persiguen tienen dos Opciones para que el Jugador actual decida entre ellas.{fr}Les Monstres Poursuivants ont deux Options entre lesquelles le Joueur actuel doit choisir.{pt-br}Monstro(s) Perseguidor(es) tem 2 opções para o jogador atual escolher.{de}Verfolgende Monster haben zwei Optionen, zwischen denen der aktuelle Spieler wählen kann.")
+		UI.setAttribute("NoticeBoard", "visibility", "")
+		UI.setAttribute("NoticeBoard", "height", "50")
+		notice=true
+	end
+
+	--Display Info pannel if player needs to deploy a tomb or dungeon token
+	if #gStates.locationPlace>0 then
+		local pendingSecretName=dungeonLordsPendingSecretName(gStates.locationPlace[#gStates.locationPlace])
+		local site="{en}Village{ru}Деревней{zh-tw}\n要求2: 挨着刚翻开的村庄{zh-cn}\n要求2: 挨着刚翻开的村庄{ko}마을{es}una Aldea{fr}Village{pt-br}Vila{de}Dorf"
+		if pendingSecretName=="Secret Tomb" then site="{en}Monastery{ru}Монастырем{zh-tw}\n要求2: 挨着刚翻开的修道院{zh-cn}\n要求2: 挨着刚翻开的修道院{ko}수도원{es}un Monasterio{fr}Monastère{pt-br}Mosteiro{de}Kloster" end
+		UI.setAttribute("NoticeText", "Text", joinLang({"{en}Place a {ru}Поместите жетон {zh-tw}在地图上放置一个{zh-cn}在地图上放置一个{ko}{es}Coloca una ficha de {fr}Placer un{pt-br}Coloque uma ficha de {de}Platziere ein ", translateWord[pendingSecretName], "{en} token on an accessible non-swamp, non-feature space next to the {ru} на любую доступную клетку без болота на которой нет никаких мест, соседнюю с {zh-tw}\n要求1: 可进入、非沼泽、上面无地点{zh-cn}\n要求1: 可进入、非沼泽、上面无地点{ko}을 비어있고, 늪이 아니면서 다음의 장소 주변인 칸에 설치하세요: {es} en un espacio accesible que no sea un pantano, o no tenga ningún elemento adyacente a {fr} jeton sur un espace non marécageux accessible à côté du {pt-br} em um espaço acessível sem ser pântano ou que já tenha algo próximo a {de} plättchen auf ein zugängliches Nicht-Sumpf-, Nicht-Feature-Feld neben dem ", site}))
+		UI.setAttribute("NoticeBoard", "visibility", "")
+		UI.setAttribute("NoticeBoard", "height", "50")
+		notice=true
+	end
+
+	--Display Info pannel if End of round is immenant
+	if ((nextPlayerEndCalled==true and gStates.playerCount>1) or (gStates.endRoundCalled==true and gStates.playerCount==1)) and
+		(gStates.preEndTurn==true or turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5]) and gStates.currentRound<gStates.rounds then
+		local boxHeight=50
+		local endRoundText="{en}The game is about to experience end of round updates.\nPut Banners in discard if desired.{ru}Конец раунда. Скрипт произведет нужные обновления.\nЕсли хотите, можете сбросить знамёна с отрядов.{zh-tw}回合即将结束, 如果需要, 将清理弃牌区{zh-cn}回合即将结束, 如果需要, 将清理弃牌区{ko}이제 라운드가 종료됩니다.\n원한다면 지금 깃발 장착을 해제하세요.{es}El juego está a punto de experimentar actualizaciones de fin de ronda.\nDescarte los Banners si lo desea.{fr}Le jeu est sur le point de connaître des mises à jour de fin de manche.\nMettez les bannières au rebut si vous le souhaitez.{pt-br}O jogo está prestes a executar as atualizações de fim de Rodada.<size=6>\n\n</size>Coloque os Estandartes na pilha de descarte se assim desejar.{de}Das Spiel wird zum Ende der Runde aktualisiert.\nLegt die Banner auf den Ablagestapel, falls gewünscht."
+		if gStates.playerCount==1 then endRoundText=joinLang({endRoundText, "{en}\nDiscard the 2nd offer if playing 'Control over the Offers'{ru}\nПри 'Контроле над доступными картами', сбросьте среднюю доступную карту{zh-tw}\n如果使用“控制供应区”变体规则, 弃掉最左侧两个供应的卡牌{zh-cn}\n如果使用“控制供应区”变体规则, 弃掉最左侧两个供应的卡牌{ko}\n변형 규칙 '공급처 갱신 조정'을 적용하려면 지금 하세요.{es}\nDescarta la segunda oferta si juegas 'Control sobre las Ofertas'{fr}\nJetez la 2e offre si vous jouez à 'Contrôle des Offres'{pt-br}\nDiscarte a 2a oferta se estiver jogando com 'Controle sobre ofertas'{de}\nWirf das 2. Angebot ab, wenn du 'Kontrolle über die Angebote' spielst."}) boxHeight=boxHeight+20 end
+		if gStates.gameScenario=="Mines Liberation" then endRoundText=joinLang({endRoundText, "{en}\nCollect 1 Crystal from your liberated Mine(s).{ru}Получите 1 кристалл из каждой освобожденной вами шахты.{zh-tw}从你解放的每个矿山获得 1 块魔晶。{zh-cn}从你解放的每个矿山获得 1 块魔晶。{ko}\n해방한 각 광산에서 수정 1개를 얻으세요.{es}\nRecoge 1 Cristal de cada Mina que hayas liberado.{fr}\nRécupérez 1 cristal de chaque Mine que vous avez libérée.{pt-br}\nColete 1 Cristal de cada Mina que você libertou.{de}\nSammle 1 Kristall aus jeder Mine, die du befreit hast."}) boxHeight=boxHeight+20 end
+		UI.setAttribute("NoticeBoard", "height", boxHeight)
+		UI.setAttribute("NoticeText", "Text", endRoundText)
+		UI.setAttribute("NoticeBoard", "visibility", "")
+		notice=true
+	end
+
+	--Display Info pannel if tactics are shown
+	UI.setAttribute("DrawOne", "interactable", "true")
+	UI.setAttribute("DrawOneImage", "image", "Sliced Button/Button New Active")
+	if gStates.tacticRemove==true or gStates.tacticShown==true then
+		if gStates.tacticRemove==true then
+			UI.setAttribute("NoticeText", "Text", "{en}Choose tactic(s) to be removed from the Game{ru}Выберите тактику(и), которая будет удалена из игры{zh-tw}选择要从游戏中移除的战术卡{zh-cn}选择要从游戏中移除的战术卡{ko}게임에서 제거할 전략 카드를 고르세요.{es}Elige la táctica(s) que quieres eliminar del Juego{fr}Choisissez la tactique(s) à retirer du Jeu{pt-br}Escolha tática(s) a ser(em) removida(s) do jogo.{de}Wähle die Taktik(en), die aus dem Spiel entfernt werden sollen")
+		else
+			UI.setAttribute("NoticeText", "Text", joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} needs to choose a tactic from the center{ru} должен(на) выбрать Тактику из центра{zh-tw}需要从中间选择一个战术{zh-cn}需要从中间选择一个战术{ko}의 전략 카드를 선택하세요.{es} necesita elegir una táctica del centro{fr} doit choisir une tactique du centre{pt-br} precisa escolher uma tática do centro.{de} muss eine Taktik aus dem Zentrum wählen"}))
+		end
+		UI.setAttribute("DrawOne", "interactable", "False")
+		UI.setAttribute("DrawOneImage", "image", "Sliced Button/Button New Deactive")
+		UI.setAttribute("NoticeBoard", "visibility", "")
+		UI.setAttribute("NoticeBoard", "height", "50")
+		notice=true
+	else --turn off help notes after first round of tactic selection
+		if gStates.help==true then DisplayHelp(nil, "-1", "Game Started") end
+	end
+
+	--Remove or Display the notice board as needed
+	if notice==false and gStates.noticeShown==true then
+		UI.hide("NoticeBoard")
+		gStates.noticeShown=false
+	end
+	if notice==true and gStates.noticeShown==false then
+		UI.show("NoticeBoard")
+		gStates.noticeShown=true
+	end
+end
+
+local function mainUIRefreshStatusPanel(context,playerState)
+	local gameOver=context.gameOver
+	local nextPlayerEndCalled=context.nextPlayerEndCalled
+	local fameForUp=playerState.fameForUp or 0
+	local UIColor=positionToColor(gStates.turnNumber)
+	UI.setAttribute("RewardCheck", "active", "false")
+	UI.setAttribute("EndGameButton", "active", "false")
+	if (gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat") or gameOver==true then
+		UI.setAttribute("RewardCheck", "active", "true")
+		UI.setAttribute("EndGameButton", "active", "true")
+		if gStates.timeBending=="Started" and gStates.turnNumber==gStates.realTurn then--or (gStates.endRoundCalled==true and gStates.currentRound>=gStates.rounds)
+			UI.setAttribute("EndGameButton", "active", "false")
+		end
+	end
+	--Steady Tempo must resolve before Rewards Claimed can refresh the hand, because Top can be the next card drawn.
+	if steadyTempoUpdateRewardGate~=nil and turnOrder[gStates.turnNumber]~=nil then steadyTempoUpdateRewardGate(turnOrder[gStates.turnNumber].seatPos) end
+	--Rewards Claimed remains clickable during a soft lock; a faint orange tint shows that clicking it
+	--will currently produce a reminder instead of advancing. The tint clears when the requirement is
+	--resolved or when the shared soft-lock window expires.
+	local rewardSoftLockTint=rewardClaimSoftLockPending~=nil and rewardClaimSoftLockPending(gStates.turnNumber)
+	UI.setAttribute("PreEndTurnImage","color",rewardSoftLockTint and "rgb(1,0.86,0.68)" or "white")
+	if UIColor=="Black" then UIColor="rgb(0,0,0)" end
+	UI.setAttribute("MainGameNotes", "color", UIColor)
+	UI.setAttribute("RewardNotes", "color", UIColor)
+
+
+	local currentPlayer=turnOrder[gStates.turnNumber]
+	local meditationBonus=(gStates.meditationDrawBonus~=nil and gStates.meditationDrawBonus[gStates.turnNumber]) or 0
+	local drawHandSize=currentPlayer.hand+currentPlayer.handBonus+gStates.tactic4HandBonus+meditationBonus
+	local cityShields=currentCityShieldInfluence(currentPlayer)
+	local handMainKey=table.concat({gStates.turnNumber, currentPlayer.mage, currentPlayer.hand, currentPlayer.handBonus, gStates.tactic4HandBonus, meditationBonus, currentPlayer.baseHand, currentPlayer.reputation, cityShields, currentPlayer.fame, currentPlayer.level, fameForUp, gStates.positionMageKnight[5]}, "|")
+	if handMainTextCache~=handMainKey then
+		handMainTextCache=handMainKey
+		UI.setAttribute("DrawHandText", "text", joinLang({"{en}Draw up to {ru}Добрать до {zh-tw}抽滿至 {zh-cn}抽满至 {ko}카드 보유 제한 {es}Roba hasta {fr}Piochez jusqu'à {pt-br}Compre até {de}Zieh auf ", tostring(drawHandSize), "{en} cards{ru} карт{zh-tw} 張手牌{zh-cn} 张手牌{ko} 장{es} cartas{fr} cartes{pt-br} cartas{de} karten"}))
+		UI.setAttribute("DrawHandText", "color", drawHandSize>currentPlayer.baseHand and "rgb(0.4, 0.1, 0.2)" or "Black")
+		if currentPlayer.mage~=gStates.positionMageKnight[5] then
+			local repDisplay=reputationTable[currentPlayer.reputation].repDisplay
+			local repLabel="{en}'s Turn</size><size=6>\n\n</size>Reputation = {ru} Ходит</size><size=6>\n\n</size>Репутация =  {zh-tw}的回合</size><size=6>\n\n</size>聲譽 = {zh-cn}的回合</size><size=6>\n\n</size>声誉 = {ko} 차례</size><size=6>\n\n</size>평판 = {es}</size><size=6>\n\n</size>Reputación = {fr}</size><size=6>\n\n</size>Réputation = {pt-br}</size><size=6>\n\n</size>Reputação = {de}'s Zug</size><size=6>\n\n</size>Ansehen = "
+			if cityShields>0 and repDisplay~="No Interaction" then
+				local repValue=tonumber(repDisplay) or 0
+				repLabel="{en}'s Turn</size><size=6>\n\n</size>Rep Bonus = {ru} Ходит</size><size=6>\n\n</size>Бонус реп. = {zh-tw}的回合</size><size=6>\n\n</size>聲譽加成 = {zh-cn}的回合</size><size=6>\n\n</size>声誉加成 = {ko} 차례</size><size=6>\n\n</size>평판 보너스 = {es}</size><size=6>\n\n</size>Bonif. Rep. = {fr}</size><size=6>\n\n</size>Bonus Rép. = {pt-br}</size><size=6>\n\n</size>Bônus Rep. = {de}'s Zug</size><size=6>\n\n</size>Rufbonus = "
+				repDisplay=joinLang({signedBonus(repValue+cityShields), " (", signedBonus(repValue), "{en} Rep + {ru} Реп. + {zh-tw} 聲譽 + {zh-cn} 声誉 + {ko} 평판 + {es} Rep. + {fr} Rép. + {pt-br} Rep. + {de} Ruf + ", cityShields, "{en} City){ru} Город){zh-tw} 城市){zh-cn} 城市){ko} 도시){es} Ciudad){fr} Ville){pt-br} Cidade){de} Stadt)"})
+			end
+			local mainText=joinLang({"{en}<size=25>{ru}<size=25>{zh-tw}<size=25>{zh-cn}<size=25>{ko}<size=25>{es}<size=25>Turno de {fr}<size=25>Au tour de {pt-br}<size=25>Turno de {de}<size=25>", translateWord[currentPlayer.mage], repLabel, repDisplay, "{en}\nFame = {ru}\nСлава = {zh-tw}\n名望 = {zh-cn}\n名望 = {ko}\n명성 = {es}\nFama = {fr}\nGloire = {pt-br}\nFama = {de}\nRuhm = ", currentPlayer.fame})
+			local levelUpType="{en}\n(Skill & Advanced Action){ru}\n(Навык и Особое действие){zh-tw}\n（技能和高級行動）{zh-cn}\n（技能和高级行动）{ko}\n(스킬 및 상급 액션){es}\n(Habilidad y Acción Avanzada){fr}\n(Compétence et Action Avancée){pt-br}\n(Habilidade e Ação Avançada){de}\n(Fähigkeit & Fortgeschrittene Aktion)"
+			if currentPlayer.level==2 or currentPlayer.level==4 or currentPlayer.level==6 or currentPlayer.level==8 or currentPlayer.level==10 or currentPlayer.level==12 then levelUpType="{en}\n(Command Token){ru}\n(Жетон командования){zh-tw}\n（指揮標記）{zh-cn}\n（指挥标记）{ko}\n(지휘 토큰){es}\n(Token de Comando){fr}\n(Jeton de Commande){pt-br}\n(Token de Comando){de}\n(Befehlsplättchen)" end
+			if fameForUp>0 then mainText=joinLang({mainText, "{en}<size=6>\n\n</size>Next Level in {ru}<size=6>\n\n</size>До повышения уровня {zh-tw}<size=6>\n\n</size>升級還需 {zh-cn}<size=6>\n\n</size>升级还需 {ko}<size=6>\n\n</size>다음 레벨까지 {es}<size=6>\n\n</size>Siguiente nivel en {fr}<size=6>\n\n</size>Niveau suivant dans {pt-br}<size=6>\n\n</size>Próximo Nível em {de}<size=6>\n\n</size>Nächstes Level in ", fameForUp, "{en} Fame{ru} Слава(ы){zh-tw} 名望{zh-cn} 名望{ko} 명성 남음{es} Fama{fr} Gloire{pt-br} Fama{de} Ruhm", levelUpType}) else mainText=joinLang({mainText, "\n "}) end
+			UI.setAttribute("MainGameNotes", "text", mainText)
+		else
+			if proxyPlayerActive()==true then
+				UI.setAttribute("MainGameNotes", "text", joinLang({"{en}<size=25>Proxy {ru}<size=25>Прокси {zh-tw}<size=25>代理玩家 {zh-cn}<size=25>代理玩家 {ko}<size=25>프록시 {es}<size=25>Proxy {fr}<size=25>Proxy {pt-br}<size=25>Proxy {de}<size=25>Proxy ", translateWord[currentPlayer.mage], "{en}'s Turn</size>{ru} Ходит</size>{zh-tw}的回合</size>{zh-cn}的回合</size>{ko} 차례</size>{es}</size>{fr}</size>{pt-br}</size>{de}'s Zug</size>"}))
+			else
+				UI.setAttribute("MainGameNotes", "text", joinLang({"{en}<size=25>Dummy {ru}<size=25>Манекен {zh-tw}<size=25>虛擬玩家 {zh-cn}<size=25>虚拟玩家 {ko}<size=25>더미{es}<size=25>Turno de Maniquí {fr}<size=25>Au tour de Mannequin {pt-br}<size=25>Turno de Manequim {de}<size=25>Dummy ", translateWord[currentPlayer.mage], "{en}'s Turn</size>{ru} Ходит</size>{zh-tw}的回合</size>{zh-cn}的回合</size>{ko} 차례</size>{es}</size>{fr}</size>{pt-br}</size>{de}'s Zug</size>"}))
+			end
+		end
+	end
+
+
+	automatedMainPanelRefresh()
+
+	UI.setAttribute("PreEndTurn", "onClick", "endTurn")
+	if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==false then
+		UI.setAttribute("EndTurnButtonText", "text", "{en}Combat Complete{ru}Бой завершён{zh-tw}戰鬥完成{zh-cn}战斗完成{ko}전투 완료{es}Combate Completo{fr}Combat Terminé{pt-br}Combate Concluído{de}Kampf Abgeschlossen")
+		UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
+	elseif gStates.coopAssaultPhase=="rewards" then
+		local nextText="{en}Finish Co-op Rewards{ru}Завершить совместные награды{zh-tw}完成合作獎勵{zh-cn}完成合作奖励{ko}협력 보상 완료{es}Finalizar Recompensas Coop.{fr}Terminer les Récompenses Coop.{pt-br}Finalizar Recompensas Coop.{de}Koop-Belohnungen Beenden"
+		if gStates.coopRewardIndex<#gStates.coopRewardQueue then nextText="{en}Rewards Claimed - Next Reward{ru}Награды получены - Следующая награда{zh-tw}獎勵完成－下一位{zh-cn}奖励完成－下一位{ko}보상 완료 - 다음 보상{es}Recompensas Reclamadas - Siguiente{fr}Récompenses Réclamées - Suivant{pt-br}Recompensas Coletadas - Próximo{de}Belohnungen Beansprucht - Weiter" end
+		UI.setAttribute("PreEndTurnText", "text", nextText)
+		UI.setAttribute("EndTurnButtonText", "text", "{en}Co-op Rewards{ru}Совместные награды{zh-tw}合作獎勵{zh-cn}合作奖励{ko}협력 보상{es}Recompensas Coop.{fr}Récompenses Coop.{pt-br}Recompensas Coop.{de}Koop-Belohnungen")
+		UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
+		UI.setAttribute("EndTurnButton", "interactable", "false")
+		UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
+		UI.setAttribute("EndTurnButtonAlt", "interactable", "false")
+		UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Deactive")
+	end
+	UI.setAttribute("ScoreButtonReal", "onClick", "displayScore")
+	if gameOver==true then
+		UI.setAttribute("PreEndTurn", "onClick", "layoutClaimedCards")
+		UI.setAttribute("PreEndTurnText", "text", "{en}Game Over - Show Score{ru}Игра окончена{zh-tw}遊戲結束{zh-cn}游戏结束{ko}게임 종료{es}Fin de Partida{fr}Jeu Terminé{pt-br}Fim de Jogo{de}Spiel Beendet")
+		UI.setAttribute("DummyButton", "onClick", "layoutClaimedCards")
+		UI.setAttribute("DummyButtonText", "Text", "{en}Game Over - Show Score{ru}Игра окончена{zh-tw}遊戲結束{zh-cn}游戏结束{ko}게임 종료{es}Fin de Partida{fr}Jeu Terminé{pt-br}Fim de Jogo{de}Spiel Beendet")
+		UI.setAttribute("ScoreButtonReal", "onClick", "layoutClaimedCards")
+		local noTurnsLeftToUndoInto=gStates.endRoundCalled==true and nextPlayerEndCalled==true and gStates.currentRound>=gStates.rounds
+		local victoryRegistered=false
+		for _, turnDetails in pairs(turnOrder) do if turnDetails.gameEnder==true then victoryRegistered=true break end end
+		local canUndoVictory=victoryRegistered==true and noTurnsLeftToUndoInto==false
+		UI.setAttribute("EndGameButton", "active", canUndoVictory and "true" or "false")
+	end
+
+
+	refreshGladeDiscardHealButton()
+end
+
+function uiMainUIUpdateBase(source)
+	if gStates.firstStarted~=true then return end
+	if mainUIPause~=nil then Wait.stop(mainUIPause) end
+	mainUIPause=safeWaitTime("UI",function()
+		local context=mainUIBuildRefreshContext(source)
+		if context==nil then mainUIPause=nil return end
+		mainUIRefreshOutOfTurn(context)
+		mainUIRefreshTurnControls(context)
+		local playerState=mainUIRefreshPlayerState(context)
+		mainUIRefreshLevelUpTurnText(context,playerState)
+		mainUIRefreshRewardChecklist(context,playerState)
+		mainUIRefreshTurnAvailability(context,playerState)
+		mainUIRefreshExtraTurn(context,playerState)
+		mainUIRefreshFameRepMenu(context,playerState)
+		mainUIRefreshEndRound(context)
+		mainUIRefreshNoticeBoard(context)
+		mainUIRefreshStatusPanel(context,playerState)
+		UI.show("MainGame")
+		mainUIPause=nil
+	end,0.1)
 end
 
 --Add Icons to players Avatar and Rampaging Monsters
