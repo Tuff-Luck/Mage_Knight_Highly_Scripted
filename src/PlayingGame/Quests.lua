@@ -1091,18 +1091,10 @@ function apocalypseQuestRollVisibleManaDie(card,playerIndex,reason,callback,spaw
 	return true
 end
 
-function apocalypseQuestRollExecutionReward(card,playerIndex,callback)
-	if card==nil or turnOrder[playerIndex]==nil then return false end
-	return apocalypseQuestRollVisibleManaDie(card,playerIndex,"The Execution",function(rolled,questCard)
-		if callback~=nil then callback(rolled,questCard) end
-	end)
-end
-
---Resolve Guard Duty's 1-3 / 4-6 rewards with the physical Quest mana die. Every die face counts:
---basic colours grant that crystal, Gold lets the player choose a basic crystal, and Black grants +1 Fame.
---Roll visible Quest mana dice until the requested number of basic-colour results have been seen.
---Gold and Black are not basic crystals, so they are shown to the player and then rerolled.
-function apocalypseQuestRollRandomBasicCrystals(card,playerIndex,count,reason,callback)
+--Roll the physical Quest mana die exactly count times and return every face. The shared crystal
+--reward resolver gives those faces their standard meaning: basic colour = that crystal,
+--Gold = choose a basic crystal, Black = +1 Fame.
+function apocalypseQuestRollCrystalRewardDice(card,playerIndex,count,reason,callback)
 	if card==nil or turnOrder[playerIndex]==nil or (count or 0)<1 then return false end
 	local cardGUID=card.guid
 	local results={}
@@ -1117,37 +1109,6 @@ function apocalypseQuestRollRandomBasicCrystals(card,playerIndex,count,reason,ca
 		local questCard=getObjectFromGUID(cardGUID)
 		if questCard==nil then finish(false) return false end
 		local started=apocalypseQuestRollVisibleManaDie(questCard,playerIndex,reason,function(rolled,liveCard)
-			if liveCard==nil or rolled==nil then finish(false) return end
-			if mineCrystalBagKey[rolled]~=nil then
-				results[#results+1]=rolled
-				if #results>=count then finish(true)
-				else safeWaitFrames("Quests",rollNext,2) end
-			else
-				broadcastToAll(joinLang({tostring(reason or "Quest"),"{en} rolled {ru} выбросил {zh-tw} 擲出 {zh-cn} 掷出 {ko}에서 {es} sacó {fr} a obtenu {pt-br} rolou {de} würfelte ",translateWord[rolled] or tostring(rolled),"{en}; rerolling because the reward requires a basic mana crystal.{ru}; переброс, поскольку награда требует базовый кристалл маны.{zh-tw}；由於獎勵需要基本魔力水晶，重新擲骰。{zh-cn}；由于奖励需要基本魔力水晶，重新掷骰。{ko}. 보상은 기본 마나 크리스털이 필요하므로 다시 굴립니다.{es}; se vuelve a tirar porque la recompensa requiere un cristal básico de maná.{fr} ; nouveau lancer car la récompense exige un cristal de mana de base.{pt-br}; rolando novamente porque a recompensa exige um cristal básico de mana.{de}; erneuter Wurf, da die Belohnung einen Basismana-Kristall erfordert."}),positionToColor(playerIndex))
-				safeWaitFrames("Quests",rollNext,2)
-			end
-		end)
-		if started~=true then finish(false) end
-		return started
-	end
-	return rollNext()
-end
-
-function apocalypseQuestGuardDutyRollRandomCrystals(card,playerIndex,count,callback)
-	if card==nil or turnOrder[playerIndex]==nil or (count or 0)<1 then return false end
-	local cardGUID=card.guid
-	local results={}
-	local finished=false
-	local function finish(success)
-		if finished==true then return end
-		finished=true
-		if callback~=nil then callback(success,getObjectFromGUID(cardGUID),results) end
-	end
-	local rollNext
-	rollNext=function()
-		local questCard=getObjectFromGUID(cardGUID)
-		if questCard==nil then finish(false) return false end
-		local started=apocalypseQuestRollVisibleManaDie(questCard,playerIndex,"Guard Duty",function(rolled,liveCard)
 			if liveCard==nil or rolled==nil then finish(false) return end
 			results[#results+1]=rolled
 			if #results>=count then finish(true) else safeWaitFrames("Quests",rollNext,2) end
@@ -1534,18 +1495,7 @@ function apocalypseQuestRollManaDie()
 	return colors[math.random(1,#colors)]
 end
 
-function apocalypseQuestGainRandomBasicCrystal(playerIndex, reason)
-	for roll=1,20 do
-		local color=apocalypseQuestRollManaDie()
-		if mineCrystalBagKey[color]~=nil then
-			apocalypseQuestGiveCrystal(playerIndex,color,nil,reason)
-			return color
-		end
-	end
-	return nil
-end
-
-function apocalypseQuestPlaceCrystalAt(position,color,reason)
+function apocalypseQuestPlaceCrystalAt(position,color,reason)function apocalypseQuestPlaceCrystalAt(position,color,reason)
 	if position==nil or mineCrystalBagKey[color]==nil then return nil end
 	local bag=getObjectFromGUID(GUID.bag.mana[mineCrystalBagKey[color]])
 	if bag==nil or bag.getQuantity()==0 then
@@ -2336,7 +2286,7 @@ function apocalypseQuestNobleWarriorFinalReward(card,playerIndex,key)
 	end
 end
 
-function apocalypseQuestNobleGoldColors(playerIndex,pending)
+function apocalypseQuestCrystalChoiceColors(playerIndex,pending)
 	local colors={}
 	if turnOrder[playerIndex]==nil then return colors end
 	pending=pending or {}
@@ -2351,15 +2301,6 @@ function apocalypseQuestNobleGoldColors(playerIndex,pending)
 	return colors
 end
 
-function apocalypseQuestFinishNobleGold(card,playerIndex)
-	if card==nil or turnOrder[playerIndex]==nil then return end
-	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
-	apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Noble Warrior (3A).{ru} завершил Noble Warrior (3A).{zh-tw} 完成 Noble Warrior（3A）。{zh-cn} 完成 Noble Warrior（3A）。{ko}이(가) Noble Warrior (3A)를 완료했습니다.{es} completó Noble Warrior (3A).{fr} a terminé Noble Warrior (3A).{pt-br} concluiu Noble Warrior (3A).{de} schloss Noble Warrior (3A) ab."}),positionToColor(playerIndex))
-	apocalypseQuestFinishCompletedCard(card)
-	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
-end
-
 function apocalypseQuestFinishGuardDutyChoice(card,playerIndex,distance)
 	if card==nil or turnOrder[playerIndex]==nil then return end
 	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
@@ -2369,16 +2310,65 @@ function apocalypseQuestFinishGuardDutyChoice(card,playerIndex,distance)
 	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
 end
 
-function apocalypseQuestFinishGuardDutyGold(card,playerIndex,distance)
-	if card==nil or turnOrder[playerIndex]==nil then return end
+local function apocalypseQuestFinishCrystalRollReward(card,playerIndex,pending,finishQuestResolution)
+	if card==nil or turnOrder[playerIndex]==nil then
+		if finishQuestResolution~=nil then finishQuestResolution(0.5) end
+		return
+	end
+	pending=pending or {}
 	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
 	apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Guard Duty: distance {ru} завершил Guard Duty: расстояние {zh-tw} 完成 Guard Duty：距離 {zh-cn} 完成 Guard Duty：距离 {ko}이(가) Guard Duty를 완료했습니다: 거리 {es} completó Guard Duty: distancia {fr} a terminé Guard Duty : distance {pt-br} concluiu Guard Duty: distância {de} schloss Guard Duty ab: Entfernung ",tostring(distance or "?"),"{en}, random mana reward resolved.{ru}, случайная награда маны разрешена.{zh-tw}，隨機魔力獎勵已結算。{zh-cn}，随机魔力奖励已结算。{ko}, 무작위 마나 보상 해결 완료.{es}, recompensa aleatoria de maná resuelta.{fr}, récompense de mana aléatoire résolue.{pt-br}, recompensa aleatória de mana resolvida.{de}, zufällige Manabelohnung abgewickelt."}),positionToColor(playerIndex))
+	if pending.optionKey~=nil then
+		local option=apocalypseQuestChoiceOption(card,pending.optionKey)
+		if option~=nil then apocalypseQuestResolveSpecialEffect(card,playerIndex,option,true) end
+	end
+	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed {ru} завершил {zh-tw} 完成了 {zh-cn} 完成了 {ko}이(가) {es} completó {fr} a terminé {pt-br} concluiu {de} schloss ",tostring(pending.source or "the Quest"),"{en}; the random crystal reward is resolved.{ru}; награда случайными кристаллами разрешена.{zh-tw}；隨機水晶獎勵已結算。{zh-cn}；随机水晶奖励已结算。{ko}. 무작위 크리스털 보상이 해결되었습니다.{es}; la recompensa aleatoria de cristales está resuelta.{fr} ; la récompense aléatoire de cristaux est résolue.{pt-br}; a recompensa aleatória de cristais foi resolvida.{de}; die zufällige Kristallbelohnung ist abgewickelt."}),positionToColor(playerIndex))
 	apocalypseQuestFinishCompletedCard(card)
-	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
+	if finishQuestResolution~=nil then finishQuestResolution(0.5)
+	else safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5) end
 end
 
-function apocalypseQuestNobleWarriorRollReward(card,playerIndex,callback)
+--Shared interpretation for random Quest crystal rewards. Every die face has one consistent meaning:
+--basic colour grants that crystal; Gold queues a player choice; Black grants +1 Fame.
+function apocalypseQuestResolveCrystalRollResults(card,playerIndex,results,reason,optionKey,finishQuestResolution)
+	if card==nil or turnOrder[playerIndex]==nil then
+		if finishQuestResolution~=nil then finishQuestResolution(0.5) end
+		return false
+	end
+	local starting={}
+	local reserved={}
+	for _,color in ipairs({"Blue","Red","Green","White"}) do starting[color]=mineCrystalCount(playerIndex,color) end
+	local gold=0
+	local black=0
+	for _,rolled in ipairs(results or {}) do
+		if rolled=="Gold" then gold=gold+1
+		elseif rolled=="Black" then black=black+1
+		elseif mineCrystalBagKey[rolled]~=nil then
+			local effective=math.max(mineCrystalCount(playerIndex,rolled),starting[rolled]+(reserved[rolled] or 0))
+			if effective<3 and apocalypseQuestGiveCrystal(playerIndex,rolled,nil,reason)==true then
+				reserved[rolled]=(reserved[rolled] or 0)+1
+			end
+		end
+	end
+	if black>0 then
+		turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
+		mainUIUpdate("Quest random crystal Black Fame")
+		broadcastToAll(joinLang({tostring(reason or "Quest"),"{en} rolled {ru} выбросил {zh-tw} 擲出 {zh-cn} 掷出 {ko}에서 {es} sacó {fr} a obtenu {pt-br} rolou {de} würfelte ",tostring(black),black==1 and "{en} Black result and gained +1 Fame.{ru} чёрный результат и получил +1 Славу.{zh-tw} 次黑色並獲得 +1 聲望值。{zh-cn} 次黑色并获得 +1 声望值。{ko}개의 검정 결과가 나와 명성 +1을 얻었습니다.{es} resultado Negro y ganó +1 Fama.{fr} résultat Noir et gagne +1 Renommée.{pt-br} resultado Preto e ganhou +1 Fama.{de} schwarzes Ergebnis und erhielt +1 Ruhm." or joinLang({"{en} Black results and gained +{ru} чёрных результата и получил +{zh-tw} 次黑色並獲得 +{zh-cn} 次黑色并获得 +{ko}개의 검정 결과가 나와 명성 +{es} resultados Negros y ganó +{fr} résultats Noirs et gagne +{pt-br} resultados Pretos e ganhou +{de} schwarze Ergebnisse und erhielt +",tostring(black),"{en} Fame.{ru} Славы.{zh-tw} 聲望值。{zh-cn} 声望值。{ko}을(를) 얻었습니다.{es} Fama.{fr} Renommée.{pt-br} Fama.{de} Ruhm."})}),positionToColor(playerIndex))
+	end
+	local pending={playerIndex=playerIndex,mode="QuestCrystalGold",goldRemaining=gold,source=reason,optionKey=optionKey,startCounts=starting,granted=reserved}
+	if gold>0 then
+		pending.colors=apocalypseQuestCrystalChoiceColors(playerIndex,pending)
+		if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+		gStates.apocalypseQuestCombatChoice[card.guid]=pending
+		apocalypseQuestInterfaceAdd(card,true)
+		broadcastToAll(joinLang({tostring(reason or "Quest"),"{en} rolled Gold{ru} выбросил золотой{zh-tw} 擲出金色{zh-cn} 掷出金色{ko}에서 금색이 나왔습니다{es} sacó Dorado{fr} a obtenu Or{pt-br} rolou Dourado{de} würfelte Gold",gold>1 and (" x"..tostring(gold)) or "","{en}: choose {ru}: выберите {zh-tw}：選擇 {zh-cn}：选择 {ko}: {es}: elige {fr} : choisissez {pt-br}: escolha {de}: Wähle ",gold==1 and "{en}a basic mana crystal.{ru}базовый кристалл маны.{zh-tw}一顆基本魔力水晶。{zh-cn}一颗基本魔力水晶。{ko}기본 마나 크리스털 1개를 선택하십시오.{es}un cristal básico de maná.{fr}un cristal de mana de base.{pt-br}um cristal básico de mana.{de}einen Basismana-Kristall." or joinLang({tostring(gold),"{en} basic mana crystals.{ru} базовых кристалла маны.{zh-tw} 顆基本魔力水晶。{zh-cn} 颗基本魔力水晶。{ko}개의 기본 마나 크리스털을 선택하십시오.{es} cristales básicos de maná.{fr} cristaux de mana de base.{pt-br} cristais básicos de mana.{de} Basismana-Kristalle."})}),positionToColor(playerIndex))
+		return true
+	end
+	apocalypseQuestFinishCrystalRollReward(card,playerIndex,pending,finishQuestResolution)
+	return true
+end
+
+function apocalypseQuestNobleWarriorRollReward(card,playerIndex,callback)function apocalypseQuestNobleWarriorRollReward(card,playerIndex,callback)
 	if card==nil or turnOrder[playerIndex]==nil then return false end
 	local marker=nil
 	local markerColor=nil
@@ -5256,7 +5246,7 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 				xml[#xml+1]=questButton("CombatColor_"..color,label,spots[index][1],spots[index][2],colors[color] or "#d8c79d",true)
 			end
 		end
-		if combatPending.mode~="ExecutionGold" and combatPending.mode~="NobleWarriorGold" and combatPending.mode~="GuardDutyChoice" and combatPending.mode~="GuardDutyGold" then xml[#xml+1]=questButton("CombatCancel","Cancel",0,274,"#b5b5b5",true) end
+		if combatPending.mode~="QuestCrystalGold" and combatPending.mode~="GuardDutyChoice" then xml[#xml+1]=questButton("CombatCancel","Cancel",0,274,"#b5b5b5",true) end
 		card.UI.setXmlTable(xml)
 		return
 	end
@@ -6000,99 +5990,42 @@ local function apocalypseQuestPrepareGuardDutyCompletion(card,playerIndex,option
 	return true,true,{guardDutyDistance=distance}
 end
 
+local function apocalypseQuestCrystalRewardFailed(card,playerIndex,finishQuestResolution)
+	if card~=nil then
+		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+		apocalypseQuestInterfaceAdd(card,true)
+	end
+	finishQuestResolution(0.5)
+end
+
 local function apocalypseQuestCompleteNobleWarrior(card,playerIndex,option,playerColor,context,finishQuestResolution)
 	if tostring(option.key)~="3a" then return false end
 	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
 	local started=apocalypseQuestNobleWarriorRollReward(card,playerIndex,function(success,questCard,results)
 		if questCard==nil then finishQuestResolution(0.5) return end
 		if success==true then
-			local reserved={}
-			local starting={}
-			for _,basic in ipairs({"Blue","Red","Green","White"}) do starting[basic]=mineCrystalCount(playerIndex,basic) end
-			local gold=0
-			local black=0
-			for _,color in ipairs(results or {}) do
-				if color=="Gold" then gold=gold+1
-				elseif color=="Black" then black=black+1
-				elseif mineCrystalBagKey[color]~=nil then
-					local effective=math.max(mineCrystalCount(playerIndex,color),starting[color]+(reserved[color] or 0))
-					if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Noble Warrior")==true then reserved[color]=(reserved[color] or 0)+1 end
-				end
-			end
-			if black>0 then
-				turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
-				mainUIUpdate("Noble Warrior Black Fame")
-			end
-			if gold>0 then
-				local pending={playerIndex=playerIndex,mode="NobleWarriorGold",goldRemaining=gold,startCounts={},granted={}}
-				for _,color in ipairs({"Blue","Red","Green","White"}) do pending.startCounts[color]=mineCrystalCount(playerIndex,color) end
-				pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
-				if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-				gStates.apocalypseQuestCombatChoice[questCard.guid]=pending
-				apocalypseQuestInterfaceAdd(questCard,true)
-				--Keep the Quest rewind transaction open until every Gold has been chosen, or No Inventory
-				--clears the remaining Golds.
-				return
-			end
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Noble Warrior (3A).{ru} завершил Noble Warrior (3A).{zh-tw} 完成 Noble Warrior（3A）。{zh-cn} 完成 Noble Warrior（3A）。{ko}이(가) Noble Warrior (3A)를 완료했습니다.{es} completó Noble Warrior (3A).{fr} a terminé Noble Warrior (3A).{pt-br} concluiu Noble Warrior (3A).{de} schloss Noble Warrior (3A) ab."}),positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(questCard)
-		else
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			apocalypseQuestInterfaceAdd(questCard,true)
-		end
-		finishQuestResolution(0.5)
+			apocalypseQuestResolveCrystalRollResults(questCard,playerIndex,results,"Noble Warrior","3a",finishQuestResolution)
+		else apocalypseQuestCrystalRewardFailed(questCard,playerIndex,finishQuestResolution) end
 	end)
-	if started~=true then
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		apocalypseQuestInterfaceAdd(card,true)
-		finishQuestResolution(0.5)
-	end
+	if started~=true then apocalypseQuestCrystalRewardFailed(card,playerIndex,finishQuestResolution) end
 	return true,started
 end
 
 local function apocalypseQuestCompleteExecution(card,playerIndex,option,playerColor,context,finishQuestResolution)
 	if tostring(option.key)~="1a" then return false end
-	--The Execution 1A awards a random mana-die reward. Resolve it with the same visible Quest die;
-	--basic colours grant that crystal, Gold chooses a colour, and Black grants +1 Fame.
 	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
-	local started=apocalypseQuestRollExecutionReward(card,playerIndex,function(rolled,questCard)
+	local started=apocalypseQuestRollCrystalRewardDice(card,playerIndex,1,"The Execution",function(success,questCard,results)
 		if questCard==nil then finishQuestResolution(0.5) return end
-		if rolled==nil then
+		if success==true then
+			apocalypseQuestResolveCrystalRollResults(questCard,playerIndex,results,"The Execution","1a",finishQuestResolution)
+		else
 			if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[questCard.guid]=nil end
-			apocalypseQuestInterfaceAdd(questCard,true)
-			finishQuestResolution(0.5)
-			return
-		end
-		if mineCrystalBagKey[rolled]~=nil then
-			apocalypseQuestGiveCrystal(playerIndex,rolled,nil,"The Execution")
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			apocalypseQuestResolveSpecialEffect(questCard,playerIndex,option,true)
-			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}),positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(questCard)
-			finishQuestResolution(0.5)
-		elseif rolled=="Black" then
-			--Black replaces the crystal reward with +1 Fame, in addition to 1A's normal Fame/Reputation.
-			turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+1
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			apocalypseQuestResolveSpecialEffect(questCard,playerIndex,option,true)
-			mainUIUpdate("The Execution Black Fame")
-			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} rolled Black for The Execution and gained +1 Fame instead of a crystal.{ru} выбросил чёрный для The Execution и получил +1 Славу вместо кристалла.{zh-tw} 在 The Execution 擲出黑色，改為獲得 +1 聲望值而非水晶。{zh-cn} 在 The Execution 掷出黑色，改为获得 +1 声望值而非水晶。{ko}이(가) The Execution에서 검정을 굴려 크리스털 대신 명성 +1을 얻었습니다.{es} sacó Negro para The Execution y ganó +1 Fama en lugar de un cristal.{fr} a obtenu Noir pour The Execution et gagne +1 Renommée au lieu d’un cristal.{pt-br} rolou Preto em The Execution e ganhou +1 Fama em vez de um cristal.{de} würfelte bei The Execution Schwarz und erhielt statt eines Kristalls +1 Ruhm."}),positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(questCard)
-			finishQuestResolution(0.5)
-		elseif rolled=="Gold" then
-			--Gold lets the player choose any basic crystal. Keep the Quest transaction open until that
-			--mandatory choice is made, just as other Quest colour selections do.
-			if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-			gStates.apocalypseQuestCombatChoice[questCard.guid]={playerIndex=playerIndex,colors={"Blue","Red","Green","White"},mode="ExecutionGold"}
-			apocalypseQuestInterfaceAdd(questCard,true)
+			apocalypseQuestCrystalRewardFailed(questCard,playerIndex,finishQuestResolution)
 		end
 	end)
 	if started~=true then
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 		if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[card.guid]=nil end
-		apocalypseQuestInterfaceAdd(card,true)
-		finishQuestResolution(0.5)
+		apocalypseQuestCrystalRewardFailed(card,playerIndex,finishQuestResolution)
 	end
 	return true,started
 end
@@ -6100,12 +6033,10 @@ end
 local function apocalypseQuestCompleteGuardDuty(card,playerIndex,option,playerColor,context,finishQuestResolution)
 	if tostring(option.key)~="2" then return false end
 	local guardDutyDistance=context.guardDutyDistance
-	--Guard Duty pays from the shortest revealed-space distance back to the merchant marker:
-	--1-3 = one random basic crystal; 4-6 = two random basic crystals; 7+ = two chosen basic crystals.
 	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
 	if guardDutyDistance>=7 then
 		local pending={playerIndex=playerIndex,mode="GuardDutyChoice",remaining=2,distance=guardDutyDistance,startCounts={},granted={}}
-		pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
+		pending.colors=apocalypseQuestCrystalChoiceColors(playerIndex,pending)
 		if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
 		gStates.apocalypseQuestCombatChoice[card.guid]=pending
 		apocalypseQuestInterfaceAdd(card,true)
@@ -6113,49 +6044,30 @@ local function apocalypseQuestCompleteGuardDuty(card,playerIndex,option,playerCo
 		return true,true
 	end
 	local crystalCount=guardDutyDistance<=3 and 1 or 2
-	local started=apocalypseQuestGuardDutyRollRandomCrystals(card,playerIndex,crystalCount,function(success,questCard,results)
+	local started=apocalypseQuestRollCrystalRewardDice(card,playerIndex,crystalCount,"Guard Duty",function(success,questCard,results)
 		if questCard==nil then finishQuestResolution(0.5) return end
 		if success==true then
-			local gold=0
-			local black=0
-			for _,rolled in ipairs(results or {}) do
-				if rolled=="Gold" then gold=gold+1
-				elseif rolled=="Black" then black=black+1
-				elseif mineCrystalBagKey[rolled]~=nil then apocalypseQuestGiveCrystal(playerIndex,rolled,nil,"Guard Duty") end
-			end
-			if black>0 then
-				turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
-				mainUIUpdate("Guard Duty Black Fame")
-				broadcastToAll(joinLang({"{en}Guard Duty rolled {ru}Guard Duty выбросил чёрный: {zh-tw}Guard Duty 擲出黑色結果 {zh-cn}Guard Duty 掷出黑色结果 {ko}Guard Duty에서 검정 결과 {es}Guard Duty sacó {fr}Guard Duty a obtenu {pt-br}Guard Duty rolou {de}Guard Duty würfelte ",tostring(black),"{en} Black result(s) and gained +{ru} и получил +{zh-tw} 次，並獲得 +{zh-cn} 次，并获得 +{ko}개가 나와 명성 +{es} resultado(s) Negro y ganó +{fr} résultat(s) Noir et gagne +{pt-br} resultado(s) Preto e ganhou +{de} schwarze(s) Ergebnis(se) und erhielt +",tostring(black),"{en} Fame.{ru} Славы.{zh-tw} 聲望值。{zh-cn} 声望值。{ko}을(를) 얻었습니다.{es} de Fama.{fr} Renommée.{pt-br} de Fama.{de} Ruhm."}),positionToColor(playerIndex))
-			end
-			if gold>0 then
-				local pending={playerIndex=playerIndex,mode="GuardDutyGold",goldRemaining=gold,distance=guardDutyDistance,startCounts={},granted={}}
-				for _,color in ipairs({"Blue","Red","Green","White"}) do pending.startCounts[color]=mineCrystalCount(playerIndex,color) end
-				pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
-				if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-				gStates.apocalypseQuestCombatChoice[questCard.guid]=pending
-				apocalypseQuestInterfaceAdd(questCard,true)
-				broadcastToAll(joinLang({"{en}Guard Duty rolled Gold{ru}Guard Duty выбросил золотой{zh-tw}Guard Duty 擲出金色{zh-cn}Guard Duty 掷出金色{ko}Guard Duty에서 금색이 나왔습니다{es}Guard Duty sacó Dorado{fr}Guard Duty a obtenu Or{pt-br}Guard Duty rolou Dourado{de}Guard Duty würfelte Gold",gold>1 and (" x"..tostring(gold)) or "","{en}: choose {ru}: выберите {zh-tw}：選擇 {zh-cn}：选择 {ko}: {es}: elige {fr} : choisissez {pt-br}: escolha {de}: Wähle ",gold==1 and "{en}a basic mana crystal.{ru}базовый кристалл маны.{zh-tw}一顆基本魔力水晶。{zh-cn}一颗基本魔力水晶。{ko}기본 마나 크리스털 1개를 선택하십시오.{es}un cristal básico de maná.{fr}un cristal de mana de base.{pt-br}um cristal básico de mana.{de}einen Basismana-Kristall." or joinLang({tostring(gold),"{en} basic mana crystals.{ru} базовых кристалла маны.{zh-tw} 顆基本魔力水晶。{zh-cn} 颗基本魔力水晶。{ko}개의 기본 마나 크리스털을 선택하십시오.{es} cristales básicos de maná.{fr} cristaux de mana de base.{pt-br} cristais básicos de mana.{de} Basismana-Kristalle."})}),positionToColor(playerIndex))
-				return
-			end
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Guard Duty: distance {ru} завершил Guard Duty: расстояние {zh-tw} 完成 Guard Duty：距離 {zh-cn} 完成 Guard Duty：距离 {ko}이(가) Guard Duty를 완료했습니다: 거리 {es} completó Guard Duty: distancia {fr} a terminé Guard Duty : distance {pt-br} concluiu Guard Duty: distância {de} schloss Guard Duty ab: Entfernung ",tostring(guardDutyDistance),"{en}, random mana reward resolved.{ru}, случайная награда маны разрешена.{zh-tw}，隨機魔力獎勵已結算。{zh-cn}，随机魔力奖励已结算。{ko}, 무작위 마나 보상 해결 완료.{es}, recompensa aleatoria de maná resuelta.{fr}, récompense de mana aléatoire résolue.{pt-br}, recompensa aleatória de mana resolvida.{de}, zufällige Manabelohnung abgewickelt."}),positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(questCard)
-		else
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			apocalypseQuestInterfaceAdd(questCard,true)
-		end
-		finishQuestResolution(0.5)
+			apocalypseQuestResolveCrystalRollResults(questCard,playerIndex,results,"Guard Duty","2",finishQuestResolution)
+		else apocalypseQuestCrystalRewardFailed(questCard,playerIndex,finishQuestResolution) end
 	end)
-	if started~=true then
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		apocalypseQuestInterfaceAdd(card,true)
-		finishQuestResolution(0.5)
-	end
+	if started~=true then apocalypseQuestCrystalRewardFailed(card,playerIndex,finishQuestResolution) end
 	return true,started
 end
 
-local function apocalypseQuestCompleteHerbalist(card,playerIndex,option,playerColor,context,finishQuestResolution)
+local function apocalypseQuestCompleteRandomObjects(card,playerIndex,option,playerColor,context,finishQuestResolution)
+	if tostring(option.key)~="4" then return false end
+	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
+	local started=apocalypseQuestRollCrystalRewardDice(card,playerIndex,2,"Random Objects",function(success,questCard,results)
+		if questCard==nil then finishQuestResolution(0.5) return end
+		if success==true then
+			apocalypseQuestResolveCrystalRollResults(questCard,playerIndex,results,"Random Objects","4",finishQuestResolution)
+		else apocalypseQuestCrystalRewardFailed(questCard,playerIndex,finishQuestResolution) end
+	end)
+	if started~=true then apocalypseQuestCrystalRewardFailed(card,playerIndex,finishQuestResolution) end
+	return true,started
+end
+
+local function apocalypseQuestCompleteHerbalist(card,playerIndex,option,playerColor,context,finishQuestResolution)local function apocalypseQuestCompleteHerbalist(card,playerIndex,option,playerColor,context,finishQuestResolution)
 	if tostring(option.key)~="3" then return false end
 	--The Herbalist completion stays in the offer while its visible mana die is rolling. This keeps
 	--the Quest token/crystal available until the physical result has been read and transferred.
@@ -6184,46 +6096,10 @@ apocalypseQuestRegisterHandler("bbd087").completeAction=apocalypseQuestCompleteN
 apocalypseQuestRegisterHandler("8939c0").completeAction=apocalypseQuestCompleteExecution
 apocalypseQuestRegisterHandler("08ffcf").prepareCompleteAction=apocalypseQuestPrepareGuardDutyCompletion
 apocalypseQuestRegisterHandler("08ffcf").completeAction=apocalypseQuestCompleteGuardDuty
-local function apocalypseQuestCompleteRandomObjects(card,playerIndex,option,playerColor,context,finishQuestResolution)
-	if tostring(option.key)~="4" then return false end
-	--Random Objects pays two random basic crystals. Keep the Quest card and attachments present until
-	--both physical Quest-die results have been shown; Gold/Black are visibly rerolled.
-	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
-	local started=apocalypseQuestRollRandomBasicCrystals(card,playerIndex,2,"Random Objects",function(success,questCard,results)
-		if questCard==nil then finishQuestResolution(0.5) return end
-		if success==true then
-			--Reserve same-colour awards against the three-crystal inventory cap while smooth moves are
-			--still travelling into the inventory and therefore may not yet be counted physically.
-			local starting={}
-			local reserved={}
-			for _,color in ipairs({"Blue","Red","Green","White"}) do starting[color]=mineCrystalCount(playerIndex,color) end
-			for _,color in ipairs(results or {}) do
-				local effective=math.max(mineCrystalCount(playerIndex,color),starting[color]+(reserved[color] or 0))
-				if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Random Objects")==true then
-					reserved[color]=(reserved[color] or 0)+1
-				end
-			end
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Random Objects and resolved two random basic mana crystals.{ru} завершил Random Objects и получил два случайных базовых кристалла маны.{zh-tw} 完成 Random Objects，並結算兩顆隨機基本魔力水晶。{zh-cn} 完成 Random Objects，并结算两颗随机基本魔力水晶。{ko}이(가) Random Objects를 완료하고 무작위 기본 마나 크리스털 2개를 해결했습니다.{es} completó Random Objects y resolvió dos cristales básicos de maná aleatorios.{fr} a terminé Random Objects et résolu deux cristaux de mana de base aléatoires.{pt-br} concluiu Random Objects e resolveu dois cristais básicos de mana aleatórios.{de} schloss Random Objects ab und erhielt zwei zufällige Basismana-Kristalle."}),positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(questCard)
-		else
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			apocalypseQuestInterfaceAdd(questCard,true)
-		end
-		finishQuestResolution(0.5)
-	end)
-	if started~=true then
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		apocalypseQuestInterfaceAdd(card,true)
-		finishQuestResolution(0.5)
-	end
-	return true,started
-end
-
 apocalypseQuestRegisterHandler("58a826").completeAction=apocalypseQuestCompleteHerbalist
 apocalypseQuestRegisterHandler("11d244").completeAction=apocalypseQuestCompleteRandomObjects
 
-local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,playerColor,state,questState,quest,finishQuestResolution)
+local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,playerColor,state,questState,quest,finishQuestResolution)local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,playerColor,state,questState,quest,finishQuestResolution)
 	local handler=apocalypseQuestHandler(card)
 	local completionContext={}
 	if handler~=nil and handler.prepareCompleteAction~=nil then
@@ -6324,14 +6200,14 @@ end
 local apocalypseQuestCardActionRestWait={}
 local function apocalypseQuestRequeueCombatChoice(card,pendingCombat)
 	if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-	pendingCombat.colors=apocalypseQuestNobleGoldColors(pendingCombat.playerIndex,pendingCombat)
+	pendingCombat.colors=apocalypseQuestCrystalChoiceColors(pendingCombat.playerIndex,pendingCombat)
 	gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
 	apocalypseQuestInterfaceAdd(card,true)
 end
 
 local function apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,source,remainingKey,finish)
 	if color=="NoInventory" then
-		local available=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
+		local available=apocalypseQuestCrystalChoiceColors(playerIndex,pendingCombat)
 		if #available==1 and available[1]=="NoInventory" then finish(card,playerIndex,pendingCombat)
 		else apocalypseQuestRequeueCombatChoice(card,pendingCombat) end
 		return
@@ -6358,44 +6234,16 @@ local apocalypseQuestCombatChoiceModes={
 			end)
 		end
 	},
-	GuardDutyGold={
+	QuestCrystalGold={
 		cancelLocked=true,
 		refreshAfter=false,
 		resolve=function(card,playerIndex,color,pendingCombat)
-			apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,"Guard Duty","goldRemaining",function(questCard,index,pending)
-				apocalypseQuestFinishGuardDutyGold(questCard,index,pending.distance)
+			apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,pendingCombat.source or "Quest","goldRemaining",function(questCard,index,pending)
+				apocalypseQuestFinishCrystalRollReward(questCard,index,pending,nil)
 			end)
 		end
 	},
-	NobleWarriorGold={
-		cancelLocked=true,
-		refreshAfter=false,
-		resolve=function(card,playerIndex,color,pendingCombat)
-			apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,"Noble Warrior","goldRemaining",function(questCard,index)
-				apocalypseQuestFinishNobleGold(questCard,index)
-			end)
-		end
-	},
-	ExecutionGold={
-		cancelLocked=true,
-		refreshAfter=false,
-		resolve=function(card,playerIndex,color,pendingCombat)
-			local selected=apocalypseQuestChoiceOption(card,"1a")
-			if selected~=nil and apocalypseQuestGiveCrystal(playerIndex,color,nil,"The Execution")==true then
-				apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-				apocalypseQuestResolveSpecialEffect(card,playerIndex,selected,true)
-				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} chose a {ru} выбрал {zh-tw} 為 The Execution 選擇了 {zh-cn} 为 The Execution 选择了 {ko}이(가) The Execution에서 {es} eligió un cristal {fr} a choisi un cristal {pt-br} escolheu um cristal {de} wählte für The Execution einen ",translateWord[color] or tostring(color),"{en} crystal for The Execution.{ru} кристалл для The Execution.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털을 선택했습니다.{es} para The Execution.{fr} pour The Execution.{pt-br} para The Execution.{de}-Kristall."}),positionToColor(playerIndex))
-				apocalypseQuestFinishCompletedCard(card)
-				safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
-			else
-				--If the chosen crystal cannot be taken, keep the mandatory Gold choice open.
-				if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-				gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-				apocalypseQuestInterfaceAdd(card,true)
-			end
-		end
-	},
-	ProgressColor={
+	ProgressColor={	ProgressColor={
 		resolve=function(card,playerIndex,color,pendingCombat,player)
 			if gStates.apocalypseQuestStepColor==nil then gStates.apocalypseQuestStepColor={} end
 			gStates.apocalypseQuestStepColor[card.guid]=color
