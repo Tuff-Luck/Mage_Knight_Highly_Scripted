@@ -74,13 +74,11 @@ function refreshEndRoundState(playerAreaCardCount)
 	if endRoundUIStateKey==stateKey then return end
 	endRoundUIStateKey=stateKey
 
-	UI.setAttribute("EndRoundButton", "interactable", "False")
-	UI.setAttribute("EndRoundButtonImage", "image", "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("EndRoundButton",false)
 	UI.setAttribute("EndRoundButtonText", "text", joinLang({"{en}Call End of Round {ru}Объявить конец Раунда {zh-tw}聲明結束輪次 {zh-cn}声明结束轮次 {ko}라운드 종료 선언 {es}Llamar a Fin de Ronda {fr}Appel fin de Round{pt-br}Fim da Rodada {de}Ende der Runde Einläuten ", gStates.currentRound, "{en} of {ru} из {zh-tw} / {zh-cn} / {ko} / {es} / {fr} de {pt-br} de {de} von ", gStates.rounds}))
 	if gStates.currentRound>=gStates.rounds then UI.setAttribute("EndRoundButtonText", "text", "{en}Call End of Game{ru}Объявить конец игры{zh-tw}宣告遊戲結束{zh-cn}宣布游戏结束{ko}게임 종료 선언{es}Declarar Fin del Juego{fr}Déclarer la Fin de la Partie{pt-br}Declarar Fim do Jogo{de}Spielende Ausrufen") end
 	if hasDeedCards==false and playerStats.mage~=gStates.positionMageKnight[5] and tokenFaceDown==false and gStates.tacticShown==false and gStates.tacticRemove==false and gStates.endRoundCalled==false and gStates.endGameAchieved=="false" and playerAreaCardCount<1 then
-		UI.setAttribute("EndRoundButton", "interactable", "True")
-		UI.setAttribute("EndRoundButtonImage", "image", "Sliced Button/Button New Active")
+		setUIButtonEnabled("EndRoundButton",true)
 	end
 	if gStates.endRoundCalled==true then
 		UI.setAttribute("EndRoundButtonText", "text", joinLang({"{en}Ending Round {ru}Завершение Раунда {zh-tw}正在結束輪次 {zh-cn}正在结束轮次 {ko}라운드 종료 중 {es}Terminando Ronda {fr}Fin du Round {pt-br}Terminando Rodada {de}Runde wird beendet ", gStates.currentRound, "{en} of {ru} из {zh-tw} / {zh-cn} / {ko} / {es} de {fr} sur {pt-br} de {de} von ", gStates.rounds}))
@@ -486,8 +484,7 @@ function automatedAttackResponseButton(id,textId,imageId,spec)
 	if spec.onClick~=nil then UI.setAttribute(id,"onClick",spec.onClick) end
 	if spec.text~=nil then UI.setAttribute(textId,"text",spec.text) end
 	UI.setAttribute(id,"tooltip",spec.tooltip or "")
-	UI.setAttribute(id,"interactable",enabled and "true" or "false")
-	UI.setAttribute(imageId,"image",enabled and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	setUIButtonEnabled(id,enabled,imageId)
 end
 
 function automatedAttackResponseUI(spec)
@@ -641,8 +638,7 @@ function automatedMainPanelApply(spec)
 	if spec.onClick~=nil then UI.setAttribute("DummyButton","onClick",spec.onClick) end
 	if spec.label~=nil then UI.setAttribute("DummyButtonText","Text",spec.label) end
 	local enabled=spec.interactable~=false
-	UI.setAttribute("DummyButton","interactable",enabled and "True" or "False")
-	UI.setAttribute("DummyButtonImage","image",enabled and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("DummyButton",enabled)
 	if spec.proxyManaChoice~=nil and proxyManaChoiceUI~=nil then proxyManaChoiceUI(spec.proxyManaChoice) end
 	return true
 end
@@ -748,13 +744,10 @@ local function mainUIRefreshTurnControls(context)
 	local nextPlayerEndCalled=context.nextPlayerEndCalled
 	local currentPlayerGameEnder=context.currentPlayerGameEnder
 	--change End turn button to say End Round on the last player turn
-	UI.setAttribute("EndTurnButton", "interactable", "True")
+	setUIButtonEnabled("EndTurnButton",true)
 	UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
-	UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Active")
-	UI.setAttribute("EndTurnButtonAlt", "interactable", "True")
-	UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Active")
-	UI.setAttribute("ExtraTurnTacticButton", "interactable", "True")
-	UI.setAttribute("ExtraTurnTacticButtonImage", "image", "Sliced Button/Button New Active")
+	setUIButtonEnabled("EndTurnButtonAlt",true)
+	setUIButtonEnabled("ExtraTurnTacticButton",true)
 	UI.setAttribute("PreEndTurnText", "text", "{en}Rewards Claimed{ru}Награды получены{zh-tw}獲得獎勵{zh-cn}获得奖励{ko}보상 처리 완료{es}Recompensas Reclamadas{fr}Récompenses réclamées{pt-br}Recompensas Coletadas{de}Belohnungen Beansprucht")
 	local endText="{en}End Turn{ru}Конец хода{zh-tw}結束回合{zh-cn}结束回合{ko}차례 종료{es}Fin de Turno{fr}Fin de Tour{pt-br}Fim de Turno{de}Zug Beenden"
 	if nextPlayerEndCalled==true then
@@ -1198,12 +1191,9 @@ local function mainUIRefreshTurnAvailability(context,playerState)
 	if gStates.endRoundCalled==true then UI.setAttribute("EndTurnButton", "tooltip", "") end
 	local coopCombatButtonLocked=gStates.coopAssaultPhase=="combat" and (gStates.preEndTurn==true or playerAreaCardCount<1)
 	if (playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount) or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
-		UI.setAttribute("EndTurnButton", "interactable", "False")
-		UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
-		UI.setAttribute("EndTurnButtonAlt", "interactable", "False")
-		UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Deactive")
-		UI.setAttribute("ExtraTurnTacticButton", "interactable", "False")
-		UI.setAttribute("ExtraTurnTacticButtonImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("EndTurnButton",false)
+		setUIButtonEnabled("EndTurnButtonAlt",false)
+		setUIButtonEnabled("ExtraTurnTacticButton",false)
 	end
 	return true
 end
@@ -1298,16 +1288,14 @@ local function mainUIRefreshNoticeBoard(context)
 	end
 
 	--Display Info pannel if tactics are shown
-	UI.setAttribute("DrawOne", "interactable", "true")
-	UI.setAttribute("DrawOneImage", "image", "Sliced Button/Button New Active")
+	setUIButtonEnabled("DrawOne",true)
 	if gStates.tacticRemove==true or gStates.tacticShown==true then
 		if gStates.tacticRemove==true then
 			UI.setAttribute("NoticeText", "Text", "{en}Choose tactic(s) to be removed from the Game{ru}Выберите тактику(и), которая будет удалена из игры{zh-tw}选择要从游戏中移除的战术卡{zh-cn}选择要从游戏中移除的战术卡{ko}게임에서 제거할 전략 카드를 고르세요.{es}Elige la táctica(s) que quieres eliminar del Juego{fr}Choisissez la tactique(s) à retirer du Jeu{pt-br}Escolha tática(s) a ser(em) removida(s) do jogo.{de}Wähle die Taktik(en), die aus dem Spiel entfernt werden sollen")
 		else
 			UI.setAttribute("NoticeText", "Text", joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} needs to choose a tactic from the center{ru} должен(на) выбрать Тактику из центра{zh-tw}需要从中间选择一个战术{zh-cn}需要从中间选择一个战术{ko}의 전략 카드를 선택하세요.{es} necesita elegir una táctica del centro{fr} doit choisir une tactique du centre{pt-br} precisa escolher uma tática do centro.{de} muss eine Taktik aus dem Zentrum wählen"}))
 		end
-		UI.setAttribute("DrawOne", "interactable", "False")
-		UI.setAttribute("DrawOneImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("DrawOne",false)
 		UI.setAttribute("NoticeBoard", "visibility", "")
 		UI.setAttribute("NoticeBoard", "height", "50")
 		notice=true
@@ -1396,10 +1384,8 @@ local function mainUIRefreshStatusPanel(context,playerState)
 		UI.setAttribute("PreEndTurnText", "text", nextText)
 		UI.setAttribute("EndTurnButtonText", "text", "{en}Co-op Rewards{ru}Совместные награды{zh-tw}合作獎勵{zh-cn}合作奖励{ko}협력 보상{es}Recompensas Coop.{fr}Récompenses Coop.{pt-br}Recompensas Coop.{de}Koop-Belohnungen")
 		UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
-		UI.setAttribute("EndTurnButton", "interactable", "false")
-		UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
-		UI.setAttribute("EndTurnButtonAlt", "interactable", "false")
-		UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("EndTurnButton",false)
+		setUIButtonEnabled("EndTurnButtonAlt",false)
 	end
 	UI.setAttribute("ScoreButtonReal", "onClick", "displayScore")
 	if gameOver==true then
