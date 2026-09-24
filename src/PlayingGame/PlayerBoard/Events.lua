@@ -69,9 +69,7 @@ function playerBoardZoneEnterSettled(ctx)
 				for a=1, #turnOrder, 1 do
 					if turnOrder[a].masterOfChaos~=nil then turnOrder[a].masterOfChaos="used" break end
 				end
-				--Wait.frames(function()
 				obj.reload()
-				--end, 50)
 				safeWaitFrames("PlayerBoard.Events",function() masterOfChaosPause=false end, 10)
 			end
 			return true
