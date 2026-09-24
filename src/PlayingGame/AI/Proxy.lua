@@ -1353,7 +1353,7 @@ end
 function proxyChoiceMapRefresh(pending)
 	--Keep the ordinary Explore controls on the map UI; Proxy destination/route choices live on the
 	--actual terrain tiles so each square button floats over the exact chosen hex.
-	local mapUI=getObjectFromGUID("f2291a")
+	local mapUI=getObjectFromGUID(GUID.ui.mapExplore)
 	if mapUI~=nil then
 		local xml={}
 		for _,button in pairs(terrainExploreOptions()) do xml[#xml+1]=button end
