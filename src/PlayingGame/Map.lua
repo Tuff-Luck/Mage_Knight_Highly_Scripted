@@ -1686,9 +1686,14 @@ function mapHandleTerrainZoneEnter(ctx)
 				end
 				if gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRefreshReveals() end
 				--Only the newly populated tile can have gained a new shared-token stack. Leave established
-				--tokens elsewhere on the map completely untouched.
-				mapTokenArrangeAllOccupiedHexes(objGUID)
-				if initialSetupTerrain~=true then fakeDropAvatar() end
+				--tokens elsewhere on the map completely untouched. Runtime Auto Flip is driven by the
+				--fake avatar drop, so do not run that reveal scan until every newly deployed map token and
+				--the separator's final correction have actually settled.
+				if initialSetupTerrain~=true then
+					mapTokenArrangeAllOccupiedHexes(objGUID,function() fakeDropAvatar() end)
+				else
+					mapTokenArrangeAllOccupiedHexes(objGUID)
+				end
 				apocalypseQuestRefreshOfferButtons()
 			end
 			if startingMapSetup==true then
