@@ -290,7 +290,7 @@ translateWord={	["Red"]="{en}Red{ru}Красный{zh-tw}红色的{zh-cn}红色�
 				["Conquest"]="{en}Conquest{ru}Завоевание{zh-tw}征服{zh-cn}征服{ko}정식 정복{es}Conquista{fr}Conquête{pt-br}Conquista{de}Eroberung",
 				["Volkare's Quest"]="{en}Volkare's Quest{ru}Поход Волкара{zh-tw}沃卡里的使命{zh-cn}沃卡里的使命{ko}볼케어의 원정{es}La Búsqueda de Volkare{fr}La Quête de Volkare{pt-br}Missão de Volkare{de}Volkare's Suche",
 				["Volkare's Return"]="{en}Volkare's Return{ru}Возвращение Волкара{zh-tw}沃卡里的歸來{zh-cn}沃卡里的归来{ko}볼케어의 귀환{es}El Regreso de Volkare{fr}Le Retour de Volkare{pt-br}Retorno de Volkare{de}Volkare's Rückkehr",
-				["First Conquest"]="{en}First Conquest{ru}Первое Завоевание{zh-tw}首次征服{zh-cn}首次征服{ko}첫 번째 정복{es}Primera Conquista{fr}Première Conquête{pt-br}Conquista Final{de}Solo-Eroberung",
+				["First Conquest"]="{en}First Conquest{ru}Первое Завоевание{zh-tw}首次征服{zh-cn}首次征服{ko}첫 번째 정복{es}Primera Conquista{fr}Première Conquête{pt-br}Primeira Conquista{de}Erste Eroberung",
 				["First Reconnaissance"]="{en}First Reconnaissance{ru}Первая Вылазка{zh-tw}首次勘察{zh-cn}首次勘察{ko}첫 번째 정찰{es}Primer reconocimiento{fr}Première Reconnaissance{pt-br}Primeiro Reconhecimento{de}Blitz-Eroberung",
 				["Raiders of the Crusader Temple"]="{en}Raiders of the Crusader Temple{ru}Рейдеры храма крестоносцев{zh-tw}聖教軍奇兵{zh-cn}圣教军奇兵{ko}십자군 성전의 침입자{es}Asaltantes del Templo de los Cruzados{fr}Les aventuriers du temple des croisés{pt-br}Salteadores do Templo dos Cruzados{de}Räuber des Kreuzrittertempels",
 				["For the Council"]="{en}For the Council{ru}За Совет{zh-tw}為了議會{zh-cn}为了议会{ko}평의회를 위하여{es}Por el Consejo{fr}Pour le Conseil{pt-br}Pelo Conselho{de}Für den Rat",
@@ -318,7 +318,7 @@ translateWord={	["Red"]="{en}Red{ru}Красный{zh-tw}红色的{zh-cn}红色�
 				["Conquest Blitz"]="{en}Conquest{ru}Завоевание{zh-tw}征服{zh-cn}征服{ko}정식 정복{es}Conquista{fr}Conquête{pt-br}Conquista{de}Eroberung",
 				["Volkare's Quest Blitz"]="{en}Volkare's Quest{ru}Поход Волкара{zh-tw}沃卡里的使命{zh-cn}沃卡里的使命{ko}볼케어의 원정{es}La Búsqueda de Volkare{fr}La Quête de Volkare{pt-br}Missão de Volkare{de}Volkare's Suche",
 				["Volkare's Return Blitz"]="{en}Volkare's Return{ru}Возвращение Волкара{zh-tw}沃卡里的歸來{zh-cn}沃卡里的归来{ko}볼케어의 귀환{es}El Regreso de Volkare{fr}Le Retour de Volkare{pt-br}Retorno de Volkare{de}Volkare's Rückkehr",
-				["First Conquest Blitz"]="{en}First Conquest{ru}Первое Завоевание{zh-tw}首次征服{zh-cn}首次征服{ko}첫 번째 정복{es}Primera Conquista{fr}Première Conquête{pt-br}Conquista Final{de}Solo-Eroberung",
+				["First Conquest Blitz"]="{en}First Conquest{ru}Первое Завоевание{zh-tw}首次征服{zh-cn}首次征服{ko}첫 번째 정복{es}Primera Conquista{fr}Première Conquête{pt-br}Primeira Conquista{de}Erste Eroberung",
 				["First Reconnaissance Blitz"]="{en}First Reconnaissance{ru}Первая Вылазка{zh-tw}首次勘察{zh-cn}首次勘察{ko}첫 번째 정찰{es}Primer reconocimiento{fr}Première Reconnaissance{pt-br}Primeiro Reconhecimento{de}Blitz-Eroberung",
 				["Raiders of the Crusader Temple Blitz"]="{en}Raiders of the Crusader Temple{ru}Рейдеры храма крестоносцев{zh-tw}聖教軍奇兵{zh-cn}圣教军奇兵{ko}십자군 성전의 침입자{es}Asaltantes del Templo de los Cruzados{fr}Les aventuriers du temple des croisés{pt-br}Salteadores do Templo dos Cruzados{de}Räuber des Kreuzrittertempels",
 
