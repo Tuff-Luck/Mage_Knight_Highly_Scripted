@@ -1091,32 +1091,86 @@ function apocalypseQuestRollVisibleManaDie(card,playerIndex,reason,callback,spaw
 	return true
 end
 
---Roll the physical Quest mana die exactly count times and return every face. The shared crystal
---reward resolver gives those faces their standard meaning: basic colour = that crystal,
---Gold = choose a basic crystal, Black = +1 Fame.
+local function apocalypseQuestCrystalDiceOffsets(count)
+	if count<=1 then return {{0,1.25}} end
+	if count==2 then return {{-1.05,1.25},{1.05,1.25}} end
+	if count==3 then return {{-1.05,0.55},{1.05,0.55},{0,1.95}} end
+	if count==4 then return {{-1.05,0.55},{1.05,0.55},{-1.05,1.95},{1.05,1.95}} end
+	local offsets={}
+	local columns=math.ceil(math.sqrt(count))
+	local rows=math.ceil(count/columns)
+	local spacing=1.05
+	for index=1,count do
+		local column=(index-1)%columns
+		local row=math.floor((index-1)/columns)
+		offsets[index]={((column-(columns-1)/2)*spacing),0.55+((rows-1-row)*1.15)}
+	end
+	return offsets
+end
+
+--Random Quest crystal rewards use Noble Warrior's presentation by default: clone every required
+--Quest mana die, roll the whole group together, leave all faces visible briefly, then resolve them.
 function apocalypseQuestRollCrystalRewardDice(card,playerIndex,count,reason,callback)
 	if card==nil or turnOrder[playerIndex]==nil or (count or 0)<1 then return false end
+	local sourceDie=apocalypseQuestSetupDie()
+	if sourceDie==nil then
+		broadcastToAll(joinLang({"{en}Quest roll: could not find the Quest setup mana die for {ru}Бросок задания: не удалось найти кубик маны подготовки задания для {zh-tw}任務擲骰：找不到任務設置魔力骰，任務：{zh-cn}任务掷骰：找不到任务设置魔力骰，任务：{ko}퀘스트 굴림: 퀘스트 설정 마나 주사위를 찾지 못했습니다: {es}Tirada de Misión: no se pudo encontrar el dado de maná de preparación para {fr}Jet de Quête : impossible de trouver le dé de mana de mise en place pour {pt-br}Rolagem da Missão: não foi possível encontrar o dado de mana de preparação para {de}Quest-Wurf: Der Quest-Aufbau-Manawürfel wurde nicht gefunden für ",tostring(reason or "this Quest"),"."}),{1,0.55,0.2})
+		return false
+	end
 	local cardGUID=card.guid
-	local results={}
+	local cardPos=card.getPosition()
+	local offsets=apocalypseQuestCrystalDiceOffsets(count)
+	local dice={}
+	for index=1,count do
+		local offset=offsets[index] or {0,1.25}
+		local die=sourceDie.clone({position={cardPos[1]+offset[1],cardPos[2]+0.70,cardPos[3]+offset[2]}})
+		if die~=nil then
+			die.unlock()
+			dice[#dice+1]=die.guid
+			if gStates.apocalypseQuestRollDice==nil then gStates.apocalypseQuestRollDice={} end
+			gStates.apocalypseQuestRollDice[die.guid]=true
+		end
+	end
+	local function clearDice()
+		for _,guid in ipairs(dice) do
+			local die=getObjectFromGUID(guid)
+			if die~=nil then die.destruct() end
+			if gStates.apocalypseQuestRollDice~=nil then gStates.apocalypseQuestRollDice[guid]=nil end
+		end
+	end
+	if #dice~=count then
+		clearDice()
+		broadcastToAll(joinLang({"{en}Quest roll: could not create every mana die for {ru}Бросок задания: не удалось создать все кубики маны для {zh-tw}任務擲骰：無法建立所有魔力骰，任務：{zh-cn}任务掷骰：无法创建所有魔力骰，任务：{ko}퀘스트 굴림: 모든 마나 주사위를 만들 수 없습니다: {es}Tirada de Misión: no se pudieron crear todos los dados de maná para {fr}Jet de Quête : impossible de créer tous les dés de mana pour {pt-br}Rolagem da Missão: não foi possível criar todos os dados de mana para {de}Quest-Wurf: Es konnten nicht alle Manawürfel erstellt werden für ",tostring(reason or "this Quest"),"."}),{1,0.55,0.2})
+		return false
+	end
+	apocalypseQuestInterfaceRemove(card)
+	broadcastToAll(joinLang({tostring(reason or "Quest"),"{en} is rolling {ru} бросает {zh-tw} 正在擲 {zh-cn} 正在掷 {ko}에서 마나 주사위 {es} está tirando {fr} lance {pt-br} está rolando {de} würfelt ",tostring(count),count==1 and "{en} mana die.{ru} кубик маны.{zh-tw} 顆魔力骰。{zh-cn} 颗魔力骰。{ko}개를 굴립니다.{es} dado de maná.{fr} dé de mana.{pt-br} dado de mana.{de} Manawürfel." or "{en} mana dice together.{ru} кубика маны вместе.{zh-tw} 顆魔力骰。{zh-cn} 颗魔力骰。{ko}개를 함께 굴립니다.{es} dados de maná juntos.{fr} dés de mana ensemble.{pt-br} dados de mana juntos.{de} Manawürfel gleichzeitig."}),positionToColor(playerIndex))
+
 	local finished=false
-	local function finish(success)
+	local function failRoll()
 		if finished==true then return end
 		finished=true
-		if callback~=nil then callback(success,getObjectFromGUID(cardGUID),results) end
+		clearDice()
+		if callback~=nil then callback(false,getObjectFromGUID(cardGUID),nil) end
 	end
-	local rollNext
-	rollNext=function()
-		local questCard=getObjectFromGUID(cardGUID)
-		if questCard==nil then finish(false) return false end
-		local started=apocalypseQuestRollVisibleManaDie(questCard,playerIndex,reason,function(rolled,liveCard)
-			if liveCard==nil or rolled==nil then finish(false) return end
-			results[#results+1]=rolled
-			if #results>=count then finish(true) else safeWaitFrames("Quests",rollNext,2) end
-		end)
-		if started~=true then finish(false) end
-		return started
+	local function finishRoll()
+		if finished==true then return end
+		local results={}
+		for _,guid in ipairs(dice) do
+			local die=getObjectFromGUID(guid)
+			if die==nil then failRoll() return end
+			local color=apocalypseQuestManaDieColor(die)
+			if color==nil then failRoll() return end
+			results[#results+1]=color
+		end
+		finished=true
+		safeWaitTime("Quests",function()
+			clearDice()
+			if callback~=nil then callback(true,getObjectFromGUID(cardGUID),results) end
+		end,0.8)
 	end
-	return rollNext()
+	apocalypseQuestPhysicalDiceRoll(dice,finishRoll,failRoll)
+	return true
 end
 
 function apocalypseQuestGoblinAttempt(playerIndex,currentOnly)
@@ -2384,9 +2438,7 @@ function apocalypseQuestNobleWarriorRollReward(card,playerIndex,callback)
 	if markerBag~=nil then apocalypseQuestStageIntoContainer(marker,markerBag) else marker.destruct() end
 	local cardGUID=card.guid
 	local cardPos=card.getPosition()
-	local offsets=count==1 and {{0,1.25}} or count==2 and {{-1.05,1.25},{1.05,1.25}} or
-		count==3 and {{-1.05,0.55},{1.05,0.55},{0,1.95}} or
-		{{-1.05,0.55},{1.05,0.55},{-1.05,1.95},{1.05,1.95}}
+	local offsets=apocalypseQuestCrystalDiceOffsets(count)
 	local dice={}
 	for i=1,count do
 		local die=sourceDie.clone({position={cardPos[1]+offsets[i][1],cardPos[2]+0.70,cardPos[3]+offsets[i][2]}})
