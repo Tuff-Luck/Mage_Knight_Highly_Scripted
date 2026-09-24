@@ -2340,7 +2340,8 @@ function apocalypseIsHereRestoreScenarioState()
 
 	local action=gStates.apocalypseHereHorsemanAction
 	if action~=nil then
-		local hexes=runtimeMapSnapshot()
+		local snapshot=runtimeMapSnapshot()
+		local hexes=snapshot.hexes or {}
 		local destination=apocalypseIsHereHexByKey(action.destinationKey,hexes)
 		local target=apocalypseIsHereHexByKey(action.targetKey,hexes)
 		local state=gStates.horsemen~=nil and gStates.horsemen[action.name] or nil
@@ -2359,7 +2360,7 @@ function apocalypseIsHereRestoreScenarioState()
 			end
 			return true
 		end
-		if token~=nil and destination~=nil and target~=nil then
+		if token~=nil and state~=nil and destination~=nil and target~=nil then
 			state.terrainGUID=destination.terrainGUID
 			state.bearing=destination.bearing
 			action.stage="moving"
