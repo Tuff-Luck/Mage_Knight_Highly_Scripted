@@ -1100,6 +1100,39 @@ end
 
 --Resolve Guard Duty's 1-3 / 4-6 rewards with the physical Quest mana die. Every die face counts:
 --basic colours grant that crystal, Gold lets the player choose a basic crystal, and Black grants +1 Fame.
+--Roll visible Quest mana dice until the requested number of basic-colour results have been seen.
+--Gold and Black are not basic crystals, so they are shown to the player and then rerolled.
+function apocalypseQuestRollRandomBasicCrystals(card,playerIndex,count,reason,callback)
+	if card==nil or turnOrder[playerIndex]==nil or (count or 0)<1 then return false end
+	local cardGUID=card.guid
+	local results={}
+	local finished=false
+	local function finish(success)
+		if finished==true then return end
+		finished=true
+		if callback~=nil then callback(success,getObjectFromGUID(cardGUID),results) end
+	end
+	local rollNext
+	rollNext=function()
+		local questCard=getObjectFromGUID(cardGUID)
+		if questCard==nil then finish(false) return false end
+		local started=apocalypseQuestRollVisibleManaDie(questCard,playerIndex,reason,function(rolled,liveCard)
+			if liveCard==nil or rolled==nil then finish(false) return end
+			if mineCrystalBagKey[rolled]~=nil then
+				results[#results+1]=rolled
+				if #results>=count then finish(true)
+				else safeWaitFrames("Quests",rollNext,2) end
+			else
+				broadcastToAll(joinLang({tostring(reason or "Quest"),"{en} rolled {ru} выбросил {zh-tw} 擲出 {zh-cn} 掷出 {ko}에서 {es} sacó {fr} a obtenu {pt-br} rolou {de} würfelte ",translateWord[rolled] or tostring(rolled),"{en}; rerolling because the reward requires a basic mana crystal.{ru}; переброс, поскольку награда требует базовый кристалл маны.{zh-tw}；由於獎勵需要基本魔力水晶，重新擲骰。{zh-cn}；由于奖励需要基本魔力水晶，重新掷骰。{ko}. 보상은 기본 마나 크리스털이 필요하므로 다시 굴립니다.{es}; se vuelve a tirar porque la recompensa requiere un cristal básico de maná.{fr} ; nouveau lancer car la récompense exige un cristal de mana de base.{pt-br}; rolando novamente porque a recompensa exige um cristal básico de mana.{de}; erneuter Wurf, da die Belohnung einen Basismana-Kristall erfordert."}),positionToColor(playerIndex))
+				safeWaitFrames("Quests",rollNext,2)
+			end
+		end)
+		if started~=true then finish(false) end
+		return started
+	end
+	return rollNext()
+end
+
 function apocalypseQuestGuardDutyRollRandomCrystals(card,playerIndex,count,callback)
 	if card==nil or turnOrder[playerIndex]==nil or (count or 0)<1 then return false end
 	local cardGUID=card.guid
@@ -4331,14 +4364,6 @@ goblinWarrensHandler.buttonState=function(card,playerIndex,questState,result)
 end
 goblinWarrensHandler.bottomDeckBeforeReveal=function() gStates.apocalypseQuestGoblinWarrens={} end
 
-local randomObjectsHandler=apocalypseQuestRegisterHandler("11d244")
-randomObjectsHandler.resolveEffect=function(card,playerIndex,option,finalCompletion)
-	if finalCompletion==true and tostring(option.key)=="4" then
-		apocalypseQuestGainRandomBasicCrystal(playerIndex,"Random Objects")
-		apocalypseQuestGainRandomBasicCrystal(playerIndex,"Random Objects")
-	end
-end
-
 local executionHandler=apocalypseQuestRegisterHandler("8939c0")
 executionHandler.directChoices=function(card,playerIndex,state)
 	if state.step==1 then return {{key="1a",action="Complete"},{key="1b",action="Combat"},{key="1c",action="Complete"}} end
@@ -6159,7 +6184,44 @@ apocalypseQuestRegisterHandler("bbd087").completeAction=apocalypseQuestCompleteN
 apocalypseQuestRegisterHandler("8939c0").completeAction=apocalypseQuestCompleteExecution
 apocalypseQuestRegisterHandler("08ffcf").prepareCompleteAction=apocalypseQuestPrepareGuardDutyCompletion
 apocalypseQuestRegisterHandler("08ffcf").completeAction=apocalypseQuestCompleteGuardDuty
+local function apocalypseQuestCompleteRandomObjects(card,playerIndex,option,playerColor,context,finishQuestResolution)
+	if tostring(option.key)~="4" then return false end
+	--Random Objects pays two random basic crystals. Keep the Quest card and attachments present until
+	--both physical Quest-die results have been shown; Gold/Black are visibly rerolled.
+	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
+	local started=apocalypseQuestRollRandomBasicCrystals(card,playerIndex,2,"Random Objects",function(success,questCard,results)
+		if questCard==nil then finishQuestResolution(0.5) return end
+		if success==true then
+			--Reserve same-colour awards against the three-crystal inventory cap while smooth moves are
+			--still travelling into the inventory and therefore may not yet be counted physically.
+			local starting={}
+			local reserved={}
+			for _,color in ipairs({"Blue","Red","Green","White"}) do starting[color]=mineCrystalCount(playerIndex,color) end
+			for _,color in ipairs(results or {}) do
+				local effective=math.max(mineCrystalCount(playerIndex,color),starting[color]+(reserved[color] or 0))
+				if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Random Objects")==true then
+					reserved[color]=(reserved[color] or 0)+1
+				end
+			end
+			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Random Objects and resolved two random basic mana crystals.{ru} завершил Random Objects и получил два случайных базовых кристалла маны.{zh-tw} 完成 Random Objects，並結算兩顆隨機基本魔力水晶。{zh-cn} 完成 Random Objects，并结算两颗随机基本魔力水晶。{ko}이(가) Random Objects를 완료하고 무작위 기본 마나 크리스털 2개를 해결했습니다.{es} completó Random Objects y resolvió dos cristales básicos de maná aleatorios.{fr} a terminé Random Objects et résolu deux cristaux de mana de base aléatoires.{pt-br} concluiu Random Objects e resolveu dois cristais básicos de mana aleatórios.{de} schloss Random Objects ab und erhielt zwei zufällige Basismana-Kristalle."}),positionToColor(playerIndex))
+			apocalypseQuestFinishCompletedCard(questCard)
+		else
+			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
+			apocalypseQuestInterfaceAdd(questCard,true)
+		end
+		finishQuestResolution(0.5)
+	end)
+	if started~=true then
+		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+		apocalypseQuestInterfaceAdd(card,true)
+		finishQuestResolution(0.5)
+	end
+	return true,started
+end
+
 apocalypseQuestRegisterHandler("58a826").completeAction=apocalypseQuestCompleteHerbalist
+apocalypseQuestRegisterHandler("11d244").completeAction=apocalypseQuestCompleteRandomObjects
 
 local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,playerColor,state,questState,quest,finishQuestResolution)
 	local handler=apocalypseQuestHandler(card)
