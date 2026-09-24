@@ -487,12 +487,12 @@ function fameReputationPlunderVillage(player,mouseButton,id)
 	end
 end
 
-function fameReputationAdvanceCoopRewardPhase(...)
+function fameReputationAdvanceCoopRewardPhase()
 	local entry=gStates.coopRewardQueue~=nil and gStates.coopRewardQueue[gStates.coopRewardIndex] or nil
 	if entry~=nil then syncPostCommitAdjustments(entry.player) end
 	fameRepSyncSuppressed=true
 	if entry~=nil and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[entry.player]=nil end
-	local result=combatAdvanceCoopRewardPhaseBase(...)
+	local result=combatAdvanceCoopRewardPhaseBase()
 	fameRepSyncSuppressed=false
 	return result
 end
@@ -667,9 +667,12 @@ function eventsOnLoadRawBase(saved_data)
 		automatedMainPanelRefresh()
 		for terrainGUID, hexOveride in pairs(gStates.hexOverideSave) do
 			for location, hexFeature in pairs(hexOveride) do
-				terrainTiles[terrainGUID].hexFeature[location]=hexFeature
+				runtimeMapSetHexFeature(terrainGUID,location,hexFeature)
 			end
 		end
+		--Apocalypse is Here derives the destroyed City's Plains terrain from durable scenario state;
+		--do not save a second digital-map copy just to preserve this one logical terrain override.
+		apocalypseIsHereApplyDragonCityTerrainOverride()
 		if getObjectFromGUID(GUID.card.bannerOfCommandToken)~=nil then bannerOfCommandDecal() end
 		--Add decals back to Pursuing and Ambushing tokens
 		if gStates.rampageAmbush==true and gStates.rampagePursuit==false then
@@ -1462,11 +1465,10 @@ local function handleMapVisualZoneEnter(ctx)
 		--fortified
 		if monsterPugs[objGUID]~=nil and monsterPugs[objGUID].unfortified==nil then
 			local target=gStates.monsterPlayLocation[objGUID]
-			local mapObjects=getObjectFromGUID(mapArea).getObjects()
-			local terTile, monsterhexBearing=terrainHexAtPosition(target, mapObjects)
-			if terTile~=nil and monsterhexBearing~=nil then
+			local targetHex, _, terTile, monsterhexBearing=runtimeMapHexAtPosition(target)
+			if targetHex~=nil and terTile~=nil and monsterhexBearing~=nil then
 				--Add Fortified Site Icon
-				if terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="mage tower" or terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="keep" then
+				if targetHex.feature=="mage tower" or targetHex.feature=="keep" then
 					--Add Icon
 					local found=false
 					local existingDecals=obj.getDecals() or {}
@@ -5473,27 +5475,25 @@ function fracturedLandsTeleportRampageKey(terrainGUID, bearing)
 end
 function fracturedLandsTeleportRecordDefeatedRampager(position)
 	if gStates.gameScenario~="The Fractured Lands Blitz" or position==nil then return end
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return end
-	local terrain, bearing, _, feature=terrainHexAtPosition(position, map.getObjects())
-	if terrain==nil or bearing==nil or (feature~="rampaging" and feature~="draconum") then return end
+	local hex=runtimeMapHexAtPosition(position)
+	if hex==nil or (hex.feature~="rampaging" and hex.feature~="draconum") then return end
 	if gStates.fracturedLandsDefeatedRampagingHexes==nil then gStates.fracturedLandsDefeatedRampagingHexes={} end
-	gStates.fracturedLandsDefeatedRampagingHexes[fracturedLandsTeleportRampageKey(terrain.guid, bearing)]=true
+	gStates.fracturedLandsDefeatedRampagingHexes[fracturedLandsTeleportRampageKey(hex.terrainGUID,hex.bearing)]=true
 end
-function fracturedLandsTeleportHexSafeNoSite(terrain, bearing, feature, hexPos, objectsInPlay)
-	if terrain==nil or bearing==nil or hexPos==nil then return false end
-	feature=feature or ""
+function fracturedLandsTeleportHexSafeNoSite(hex,spatial)
+	if hex==nil or hex.position==nil or spatial==nil then return false end
+	local feature=hex.feature or ""
 	local noSite=feature=="" or feature=="portal"
-	if feature=="monastery" and gStates.monasteryBurned~=nil and gStates.monasteryBurned[terrain.guid]==true then noSite=true end
+	if feature=="monastery" and gStates.monasteryBurned~=nil and gStates.monasteryBurned[hex.terrainGUID]==true then noSite=true end
 	if feature=="rampaging" or feature=="draconum" then
 		local cleared=gStates.fracturedLandsDefeatedRampagingHexes or {}
-		noSite=cleared[fracturedLandsTeleportRampageKey(terrain.guid, bearing)]==true
+		noSite=cleared[fracturedLandsTeleportRampageKey(hex.terrainGUID,hex.bearing)]==true
 	end
 	if noSite~=true then return false end
 	--A safe destination cannot currently contain an enemy or another Mage Knight.
-	for _, obj in pairs(objectsInPlay or {}) do
-		local pos=obj.getPosition()
-		if ((pos[1]-hexPos[1])^2)+((pos[3]-hexPos[3])^2)<1 then
+	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,hex.position,1.1)) do
+		local pos=spatial.positions[obj.guid] or obj.getPosition()
+		if ((pos[1]-hex.position[1])^2)+((pos[3]-hex.position[3])^2)<1 then
 			if monsterPugs[obj.guid]~=nil then return false end
 			if feature~="portal" then
 				for _, details in pairs(mageKnights) do
@@ -5530,25 +5530,17 @@ function fracturedLandsTeleportDecals()
 	local decals={}
 	if gStates.gameScenario~="The Fractured Lands Blitz" or gStates.firstStarted~=true or turnOrder[gStates.turnNumber]==nil then return decals end
 	local sourcePos=fracturedLandsTeleportSourcePosition(gStates.turnNumber)
-	local map=getObjectFromGUID(mapArea)
-	if sourcePos==nil or map==nil then return decals end
-	local objectsInPlay=map.getObjects()
-	local cachedPositions={}
-	for _, obj in pairs(objectsInPlay) do if terrainTiles[obj.guid]~=nil then cachedPositions[obj.guid]=obj.getPosition() end end
-	local sourceTerrain, sourceBearing, _, _, sourceType=terrainHexAtPosition(sourcePos, objectsInPlay, cachedPositions)
-	if sourceTerrain==nil or sourceBearing==nil or fracturedLandsTeleportHexLegal(sourceType)~=true then return decals end
-	for _, terrain in pairs(objectsInPlay) do
-		local details=terrainTiles[terrain.guid]
-		if details~=nil and terrain.is_face_down==false then
-			for bearing, hexType in pairs(details.hexType or {}) do
-				if hexType==sourceType and fracturedLandsTeleportHexLegal(hexType)==true and not (terrain.guid==sourceTerrain.guid and tostring(bearing)==tostring(sourceBearing)) then
-					local xy=angleToXY(terrain, bearing)
-					local feature=(details.hexFeature or {})[bearing]
-					local hexPos={xy[1],1.12,xy[2]}
-					if fracturedLandsTeleportHexSafeNoSite(terrain, bearing, feature, hexPos, objectsInPlay)==true then
-						decals[#decals+1]={name=fracturedLandsTeleportDecalName, url=fracturedLandsTeleportDecalURL, position=hexPos, rotation={90,0,0}, scale={2.0,2.0,1}}
-					end
-				end
+	if sourcePos==nil then return decals end
+	local spatial=runtimeMapSpatialSnapshot()
+	local snapshot=spatial.topology
+	local sourceHex=runtimeMapHexAtPosition(sourcePos,snapshot)
+	if sourceHex==nil or fracturedLandsTeleportHexLegal(sourceHex.hexType)~=true then return decals end
+	local sourceKey=runtimeMapHexKey(sourceHex)
+	for _, hex in ipairs(snapshot.hexes or {}) do
+		if hex.hexType==sourceHex.hexType and fracturedLandsTeleportHexLegal(hex.hexType)==true and runtimeMapHexKey(hex)~=sourceKey then
+			if fracturedLandsTeleportHexSafeNoSite(hex,spatial)==true then
+				decals[#decals+1]={name=fracturedLandsTeleportDecalName, url=fracturedLandsTeleportDecalURL,
+					position={hex.position[1],1.12,hex.position[3]}, rotation={90,0,0}, scale={2.0,2.0,1}}
 			end
 		end
 	end
@@ -6397,13 +6389,15 @@ function renderMoveDisplay(id)
 					end
 				end
 				local world=runtimeMapAxialToWorld(tonumber(vec),tonumber(hor),startTilePos,1.22)
-				local hexGridX,hexGridZ=world[1],world[3]
-				local startingHex=tonumber(hor)==playerHexGridHorizontal and tonumber(vec)==playerHexGridAxial
-				if startingHex==false then
-					if lowestHex<=gStates.resourceTracker.move.move then
-						addMoveCostText(displayCost, hexGridX, hexGridZ, true, combatMove, multipleCosts, dualCosts)
-					elseif lowestHex<=99 and lowestHex<gStates.resourceTracker.move.move+searchLimit then
-						addMoveCostText(displayCost, hexGridX, hexGridZ, false, combatMove, multipleCosts, dualCosts)
+				if world~=nil then
+					local hexGridX,hexGridZ=world[1],world[3]
+					local startingHex=tonumber(hor)==playerHexGridHorizontal and tonumber(vec)==playerHexGridAxial
+					if startingHex==false then
+						if lowestHex<=gStates.resourceTracker.move.move then
+							addMoveCostText(displayCost, hexGridX, hexGridZ, true, combatMove, multipleCosts, dualCosts)
+						elseif lowestHex<=99 and lowestHex<gStates.resourceTracker.move.move+searchLimit then
+							addMoveCostText(displayCost, hexGridX, hexGridZ, false, combatMove, multipleCosts, dualCosts)
+						end
 					end
 				end
 			end
@@ -7823,13 +7817,19 @@ function proxyLocalizedTerm(value)
 	return terms[text] or translateWord[text] or text
 end
 
-function proxyLocalizedColorList(colors)
+function proxyLocalizedList(values,separator)
 	local parts={}
-	for color in tostring(colors or ""):gmatch("[^/]+") do
-		if #parts>0 then parts[#parts+1]="/" end
-		parts[#parts+1]=translateWord[color] or color
+	for _,value in ipairs(values or {}) do
+		if #parts>0 then parts[#parts+1]=separator or ", " end
+		parts[#parts+1]=value
 	end
 	return #parts>0 and joinLang(parts) or ""
+end
+
+function proxyLocalizedColorList(colors)
+	local values={}
+	for color in tostring(colors or ""):gmatch("[^/]+") do values[#values+1]=translateWord[color] or color end
+	return proxyLocalizedList(values,"/")
 end
 
 function proxyLocalizedReason(reason,colors)
@@ -7924,16 +7924,14 @@ function proxyTurnReportText()
 		if report.choiceTargets~=nil then
 			local translated={}
 			for _,choice in ipairs(report.choiceTargets) do translated[#translated+1]=proxyLocalizedTerm(choice) end
-			local joined={}
-			for i,choice in ipairs(translated) do if i>1 then joined[#joined+1]=", " end joined[#joined+1]=choice end
-			choices=joinLang(joined)
+			choices=proxyLocalizedList(translated,", ")
 		else choices=joinLang({tostring(report.choiceCount),"{en} equally close{ru} равноудалённых{zh-tw} 個同樣接近{zh-cn} 个同样接近{ko}개의 동일 거리{es} igualmente cercanos{fr} à égale distance{pt-br} igualmente próximos{de} gleich nahe"}) end
 		choiceLine=joinLang({"{en}\n\nMultiple targets: {ru}\n\nНесколько целей: {zh-tw}\n\n多個目標：{zh-cn}\n\n多个目标：{ko}\n\n여러 목표: {es}\n\nMúltiples objetivos: {fr}\n\nPlusieurs cibles : {pt-br}\n\nVários alvos: {de}\n\nMehrere Ziele: ",choices})
 	end
 
 	local interactionLine=""
 	if gStates.proxyState=="PickCard" and (report.interactionChoiceCount or 0)>1 then
-		local choices=report.interactionChoiceNames~=nil and table.concat(report.interactionChoiceNames,", ") or tostring(report.interactionChoiceCount)
+		local choices=report.interactionChoiceNames~=nil and proxyLocalizedList(report.interactionChoiceNames,", ") or tostring(report.interactionChoiceCount)
 		interactionLine=joinLang({"{en}\n\nMultiple interaction choices: {ru}\n\nНесколько вариантов взаимодействия: {zh-tw}\n\n多個互動選擇：{zh-cn}\n\n多个互动选择：{ko}\n\n여러 상호작용 선택: {es}\n\nMúltiples opciones de interacción: {fr}\n\nPlusieurs choix d’interaction : {pt-br}\n\nVárias escolhas de interação: {de}\n\nMehrere Interaktionsmöglichkeiten: ",choices})
 	end
 
@@ -8053,8 +8051,8 @@ function proxyExploreTarget(hexes,distances)
 	--draw a new terrain tile. The same <26 edge test used by ordinary Explore buttons identifies the
 	--revealed map hex from which this tile can be explored.
 	if gStates.mapShapeKey=="predefined" then
-		local map=getObjectFromGUID(mapArea)
-		for _,tile in pairs(map~=nil and map.getObjects() or {}) do
+		local snapshot=runtimeMapSnapshot()
+		for _,tile in pairs(snapshot.terrainObjects or {}) do
 			local details=terrainTiles[tile.guid]
 			if details~=nil and details.tileType~="tilePile" and tile.is_face_down==true and gStates.playedAllready[tile.guid]~=true then
 				local p=tile.getPosition()
@@ -8518,10 +8516,9 @@ function proxyTargetLoad(saved,hexes)
 end
 
 function proxyDestinationChoiceClearButtons()
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return end
 	local marker="ProxyDestinationChoice"
-	for _,terrain in pairs(map.getObjects()) do
+	local snapshot=runtimeMapSnapshot()
+	for _,terrain in pairs(snapshot.terrainObjects or {}) do
 		if terrainTiles[terrain.guid]~=nil then
 			local xml=terrain.UI.getXmlTable() or {}
 			local changed=false
@@ -8647,14 +8644,17 @@ function proxyBeginDestinationChoice(targets,proxyIndex,move,reason)
 		if saved~=nil and saved.choicePosition~=nil then
 			pending.options[#pending.options+1]=saved
 			local label=target.action=="explore" and "{en}Explore{ru}Исследовать{zh-tw}探索{zh-cn}探索{ko}탐험{es}Explorar{fr}Explorer{pt-br}Explorar{de}Erkunden" or proxyLocalizedTerm(proxyFeatureDisplayName(target.hex~=nil and target.hex.feature or nil))
-			if target.choiceObjectiveColor~=nil then label=label.." ("..tostring(target.choiceObjectiveColor).." "..proxyDestinationChoiceActionText(saved):match("\n(.+)$")..")" end
+			if target.choiceObjectiveColor~=nil then
+				local colorLabel=translateWord[target.choiceObjectiveColor] or tostring(target.choiceObjectiveColor)
+				label=joinLang({label," (",colorLabel," ",proxyDestinationChoiceActionText(saved):match("\n(.+)$"),")"})
+			end
 			names[#names+1]=label
 		end
 	end
 	if #pending.options<2 then return false end
 	gStates.proxyPendingChoice=pending
 	proxyChoiceMapRefresh(pending)
-	broadcastToAll(joinLang({"{en}Proxy has {ru}У Прокси есть {zh-tw}代理玩家有 {zh-cn}代理玩家有 {ko}프록시에게 {es}El Proxy tiene {fr}Le Proxy a {pt-br}O Proxy tem {de}Der Proxy hat ",tostring(#pending.options),"{en} equally close legal choices: {ru} равноудалённых допустимых вариантов: {zh-tw} 個距離相同的合法選擇：{zh-cn} 个距离相同的合法选择：{ko}개의 동일 거리 합법 선택지가 있습니다: {es} opciones legales igualmente cercanas: {fr} choix légaux à égale distance : {pt-br} escolhas válidas igualmente próximas: {de} gleich nahe gültige Optionen: ",table.concat(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать один.{zh-tw} 必須選擇一個。{zh-cn} 必须选择一个。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir una.{fr} doit en choisir une.{pt-br} deve escolher uma.{de} muss eine auswählen."}),{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}Proxy has {ru}У Прокси есть {zh-tw}代理玩家有 {zh-cn}代理玩家有 {ko}프록시에게 {es}El Proxy tiene {fr}Le Proxy a {pt-br}O Proxy tem {de}Der Proxy hat ",tostring(#pending.options),"{en} equally close legal choices: {ru} равноудалённых допустимых вариантов: {zh-tw} 個距離相同的合法選擇：{zh-cn} 个距离相同的合法选择：{ko}개의 동일 거리 합법 선택지가 있습니다: {es} opciones legales igualmente cercanas: {fr} choix légaux à égale distance : {pt-br} escolhas válidas igualmente próximas: {de} gleich nahe gültige Optionen: ",proxyLocalizedList(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать один.{zh-tw} 必須選擇一個。{zh-cn} 必须选择一个。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir una.{fr} doit en choisir une.{pt-br} deve escolher uma.{de} muss eine auswählen."}),{1,0.75,0.2})
 	return proxyChoiceSetWaiting(pending)
 end
 
@@ -8836,13 +8836,7 @@ function proxyMultiFloorNext(hex,mapObjects)
 	local terrain=hex.terrain or getObjectFromGUID(hex.terrainGUID)
 	if terrain==nil then return nil end
 	local occupied={}
-	local objects={}
-	if mapObjects~=nil then
-		objects=mapObjects
-	else
-		local map=getObjectFromGUID(mapArea)
-		if map~=nil then objects=map.getObjects() end
-	end
+	local objects=mapObjects or runtimeMapSnapshot().objects or {}
 	for _,obj in pairs(objects) do
 		if obj~=nil and obj.getName~=nil and obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
 			local pos=obj.getPosition()
@@ -9001,7 +8995,7 @@ function proxyBeginEnemyChoice(enemies,context,proxyIndex)
 	if #pending.order<2 then return false end
 	gStates.proxyPendingChoice=pending
 	for _,guid in ipairs(pending.order) do local enemy=getObjectFromGUID(guid) if enemy~=nil then proxyEnemyChoiceButton(enemy) end end
-	broadcastToAll(joinLang({"{en}Proxy must choose between tied lowest-Fame enemies: {ru}Прокси должен выбрать между врагами с одинаковой наименьшей Славой: {zh-tw}代理玩家必須在聲望值同為最低的敵人中選擇：{zh-cn}代理玩家必须在声望值同为最低的敌人中选择：{ko}프록시는 명성이 공동 최저인 적 중 선택해야 합니다: {es}El Proxy debe elegir entre los enemigos empatados con la Fama más baja: {fr}Le Proxy doit choisir parmi les ennemis à égalité pour la Renommée la plus faible : {pt-br}O Proxy deve escolher entre os inimigos empatados com a menor Fama: {de}Der Proxy muss zwischen den Gegnern mit gleich niedrigstem Ruhm wählen: ",table.concat(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать одного.{zh-tw} 必須選擇一個。{zh-cn} 必须选择一个。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir uno.{fr} doit en choisir un.{pt-br} deve escolher um.{de} muss einen auswählen."}),{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}Proxy must choose between tied lowest-Fame enemies: {ru}Прокси должен выбрать между врагами с одинаковой наименьшей Славой: {zh-tw}代理玩家必須在聲望值同為最低的敵人中選擇：{zh-cn}代理玩家必须在声望值同为最低的敌人中选择：{ko}프록시는 명성이 공동 최저인 적 중 선택해야 합니다: {es}El Proxy debe elegir entre los enemigos empatados con la Fama más baja: {fr}Le Proxy doit choisir parmi les ennemis à égalité pour la Renommée la plus faible : {pt-br}O Proxy deve escolher entre os inimigos empatados com a menor Fama: {de}Der Proxy muss zwischen den Gegnern mit gleich niedrigstem Ruhm wählen: ",proxyLocalizedList(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать одного.{zh-tw} 必須選擇一個。{zh-cn} 必须选择一个。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir uno.{fr} doit en choisir un.{pt-br} deve escolher um.{de} muss einen auswählen."}),{1,0.75,0.2})
 	return proxyChoiceSetWaiting(pending)
 end
 
@@ -9248,7 +9242,7 @@ function proxyBeginCardChoice(choices,proxyIndex)
 	if #pending.order<2 then return false end
 	gStates.proxyPendingChoice=pending
 	for _,guid in ipairs(pending.order) do local card=getObjectFromGUID(guid) if card~=nil then proxyInteractionChoiceButton(card) end end
-	broadcastToAll(joinLang({"{en}Proxy has {ru}У Прокси есть {zh-tw}代理玩家有 {zh-cn}代理玩家有 {ko}프록시에게 {es}El Proxy tiene {fr}Le Proxy a {pt-br}O Proxy tem {de}Der Proxy hat ",tostring(#pending.order),"{en} equally valid lowest-cost cards: {ru} равно допустимых карт с наименьшей стоимостью: {zh-tw} 張同樣有效且費用最低的牌：{zh-cn} 张同样有效且费用最低的牌：{ko}개의 동일하게 유효한 최저 비용 카드가 있습니다: {es} cartas de coste mínimo igualmente válidas: {fr} cartes de coût minimal également valides : {pt-br} cartas de menor custo igualmente válidas: {de} gleich gültige Karten mit den niedrigsten Kosten: ",table.concat(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать одну.{zh-tw} 必須選擇一張。{zh-cn} 必须选择一张。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir una.{fr} doit en choisir une.{pt-br} deve escolher uma.{de} muss eine auswählen."}),{1,0.75,0.2})
+	broadcastToAll(joinLang({"{en}Proxy has {ru}У Прокси есть {zh-tw}代理玩家有 {zh-cn}代理玩家有 {ko}프록시에게 {es}El Proxy tiene {fr}Le Proxy a {pt-br}O Proxy tem {de}Der Proxy hat ",tostring(#pending.order),"{en} equally valid lowest-cost cards: {ru} равно допустимых карт с наименьшей стоимостью: {zh-tw} 張同樣有效且費用最低的牌：{zh-cn} 张同样有效且费用最低的牌：{ko}개의 동일하게 유효한 최저 비용 카드가 있습니다: {es} cartas de coste mínimo igualmente válidas: {fr} cartes de coût minimal également valides : {pt-br} cartas de menor custo igualmente válidas: {de} gleich gültige Karten mit den niedrigsten Kosten: ",proxyLocalizedList(names,", "),". ",proxyChoicePlayerLabel(chooser),"{en} must choose one.{ru} должен выбрать одну.{zh-tw} 必須選擇一張。{zh-cn} 必须选择一张。{ko}이(가) 하나를 선택해야 합니다.{es} debe elegir una.{fr} doit en choisir une.{pt-br} deve escolher uma.{de} muss eine auswählen."}),{1,0.75,0.2})
 	return proxyChoiceSetWaiting(pending)
 end
 
@@ -12745,7 +12739,7 @@ function volkareRazesCity(cityKey)
 	if cityKey==nil or cityKey==0 or gStates.cityRevealed[cityKey]==nil then return end
 	local city=gStates.cityRevealed[cityKey]
 	local cityColor={[cityModel.blue]="blue", [cityModel.red]="red", [cityModel.green]="green", [cityModel.white]="white"}
-	terrainTiles[city.terrain].hexFeature.center="raised "..cityColor[city.model]
+	runtimeMapSetHexFeature(city.terrain,"center","raised "..cityColor[city.model])
 	if gStates.hexOverideSave[city.terrain]==nil then gStates.hexOverideSave[city.terrain]={} end
 	gStates.hexOverideSave[city.terrain].center="raised "..cityColor[city.model]
 	local cityZone={[cityModel.blue]=GUID.zone.blueCity, [cityModel.red]=GUID.zone.redCity, [cityModel.green]=GUID.zone.greenCity, [cityModel.white]=GUID.zone.whiteCity}
@@ -13576,7 +13570,7 @@ function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature
 			broadcastToAll("{en}Dungeon Lords: the secret entrance must be on an accessible, non-Swamp empty space adjacent to the Village or Monastery that created it.{ru}Владыки Подземелий: тайный вход должен находиться на доступной пустой клетке, не являющейся Болотом, рядом с создавшей его Деревней или Монастырём.{zh-tw}地下城領主：秘密入口必須放在建立它的村莊或修道院旁，一個可進入、非沼澤且空置的空間。{zh-cn}地下城领主：秘密入口必须放在建立它的村庄或修道院旁，一个可进入、非沼泽且空置的空间。{ko}던전 로드: 비밀 입구는 이를 생성한 마을 또는 수도원에 인접한, 접근 가능하고 늪이 아닌 빈 칸에 있어야 합니다.{es}Señores de las Mazmorras: la entrada secreta debe estar en un espacio vacío accesible, que no sea Pantano, adyacente a la Aldea o Monasterio que la creó.{fr}Seigneurs des Donjons : l’entrée secrète doit se trouver sur une case vide accessible, non-Marais, adjacente au Village ou au Monastère qui l’a créée.{pt-br}Senhores das Masmorras: a entrada secreta deve ficar em um espaço vazio acessível, que não seja Pântano, adjacente à Vila ou ao Mosteiro que a criou.{de}Kerkerfürsten: Der Geheimeingang muss auf einem zugänglichen, leeren Nicht-Sumpf-Feld neben dem Dorf oder Kloster liegen, das ihn erzeugt hat.",{1,0.55,0.2})
 			return true
 		end
-		terrainTiles[terrain.guid].hexFeature[tostring(bearing)]=site
+		runtimeMapSetHexFeature(terrain.guid,bearing,site)
 		if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 		gStates.hexOverideSave[terrain.guid][tostring(bearing)]=site
 		normalized.destinationTerrainGUID=terrain.guid
@@ -13600,7 +13594,7 @@ function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature
 			local xy=angleToXY(terrain,tostring(bearing))
 			origin=dungeonLordsFindAdjacentSecretSource(secretName,{xy[1],terrain.getPosition()[2],xy[2]}) or secretName
 		end
-		terrainTiles[terrain.guid].hexFeature[tostring(bearing)]=""
+		runtimeMapSetHexFeature(terrain.guid,bearing,"")
 		if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 		gStates.hexOverideSave[terrain.guid][tostring(bearing)]=""
 		gStates.dungeonLordsSecretSiteOrigins[obj.guid]=nil
@@ -13900,18 +13894,20 @@ function againstHorsemenDefaultNextPosition(position,center)
 		local nr=r+offset[2]
 		local inline=againstHorsemenInlineGridDistance(nq,nr)
 		local centerDistance=runtimeMapAxialDistance(nq,nr)
-		local legal=false
-		if currentInline==0 then
-			--Already on one of the three lines through the Glade: stay on it and go straight inward.
-			legal=inline==0 and centerDistance==currentCenter-1
-		else
-			--Before reaching a centre-line, simply take the adjacent hex closest to one of those lines.
-			legal=inline<currentInline
-		end
-		if legal==true and (bestQ==nil or inline<bestInline or
-			(inline==bestInline and centerDistance<bestCenter) or
-			(inline==bestInline and centerDistance==bestCenter and (nq<bestQ or (nq==bestQ and nr<bestR)))) then
-			bestQ=nq bestR=nr bestInline=inline bestCenter=centerDistance
+		if centerDistance~=nil then
+			local legal=false
+			if currentInline==0 then
+				--Already on one of the three lines through the Glade: stay on it and go straight inward.
+				legal=inline==0 and centerDistance==currentCenter-1
+			else
+				--Before reaching a centre-line, simply take the adjacent hex closest to one of those lines.
+				legal=inline<currentInline
+			end
+			if legal==true and (bestQ==nil or inline<bestInline or
+				(inline==bestInline and centerDistance<bestCenter) or
+				(inline==bestInline and centerDistance==bestCenter and (nq<bestQ or (nq==bestQ and nr<bestR)))) then
+				bestQ=nq bestR=nr bestInline=inline bestCenter=centerDistance
+			end
 		end
 	end
 	if bestQ==nil then return nil end
@@ -14367,6 +14363,17 @@ function apocalypseIsHerePossessRampagersOnTile(tileGUID)
 	end
 end
 
+--The destroyed City becomes Plains for the rest of Apocalypse is Here. The terrain-type mutation is
+--derived from durable scenario state, so live reveal and save/load reconstruction share one path.
+function apocalypseIsHereApplyDragonCityTerrainOverride()
+	if apocalypseIsHereActive()~=true or gStates.apocalypseHereDragonCityRevealed~=true or gStates.apocalypseDragonLair==nil then return false end
+	local key=gStates.apocalypseDragonLair.cityHexKey
+	local terrainGUID,bearing=nil,nil
+	if key~=nil then terrainGUID,bearing=tostring(key):match("^([^|]+)|(.+)$") end
+	if terrainGUID==nil or bearing==nil then return false end
+	return runtimeMapSetHexType(terrainGUID,bearing,"plains")
+end
+
 function apocalypseIsHereRevealDragonCity(tile)
 	if apocalypseIsHereActive()~=true or tile==nil or gStates.apocalypseHereDragonCityRevealed==true then return false end
 	gStates.apocalypseHereDragonCityRevealed=true
@@ -14386,18 +14393,18 @@ function apocalypseIsHereRevealDragonCity(tile)
 		hexes[#hexes+1]={bearing=bearing,position=pos,formerCity=i==1}
 		if bearing~=nil then
 			local feature=terrainTiles[tile.guid].hexFeature[bearing] or ""
-			if i==1 then terrainTiles[tile.guid].hexType[bearing]="plains" end
 			--The three Dragon spaces ignore printed sites; printed rampaging enemies remain and become Possessed.
 			if feature~="rampaging" and feature~="draconum" then
 				gStates.hexOverideSave=gStates.hexOverideSave or {}
 				gStates.hexOverideSave[tile.guid]=gStates.hexOverideSave[tile.guid] or {}
 				gStates.hexOverideSave[tile.guid][bearing]=""
-				terrainTiles[tile.guid].hexFeature[bearing]=""
+				runtimeMapSetHexFeature(tile.guid,bearing,"")
 			end
 		end
 	end
 	local target={positions[1][1],1.18,positions[1][3]}
 	gStates.apocalypseDragonLair={tileGUID=tile.guid,hexes=hexes,position=target,rotation=dragonRotation,cityHexKey=tile.guid.."|"..tostring(hexes[1].bearing)}
+	apocalypseIsHereApplyDragonCityTerrainOverride()
 	local dragon=getObjectFromGUID(apocalypseDragon.model)
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 	if dragon==nil and bag~=nil then dragon=bag.takeObject({guid=apocalypseDragon.model,position=target,rotation=dragonRotation,smooth=false})
@@ -14545,6 +14552,14 @@ function apocalypseIsHereClearChoiceButtons(terrainGUIDs)
 	end
 end
 
+local function apocalypseIsHereJoinHorsemenTurnReport(previous,line)
+	previous=tostring(previous or "")
+	line=tostring(line or "")
+	if previous=="" then return line end
+	if line=="" then return previous end
+	return joinLang({previous,"<size=6>\n\n</size>",line})
+end
+
 function apocalypseIsHereShowTargetChoice(name,options,previousReport,choicePlayerIndex)
 	local oldPending=gStates.apocalypseHereHorsemanPendingChoice
 	apocalypseIsHereClearChoiceButtons(oldPending~=nil and oldPending.terrainGUIDs or nil)
@@ -14591,7 +14606,7 @@ function apocalypseIsHereShowTargetChoice(name,options,previousReport,choicePlay
 	for _,group in pairs(grouped) do group.terrain.UI.setXmlTable(group.xml) end
 	gStates.apocalypseHereHorsemenUIState="WaitingChoice"
 	local choiceText=joinLang({name,"{en} has tied preferred targets. {ru} имеет несколько равноценных предпочтительных целей. {zh-tw} 有多個同等優先的目標。{zh-cn} 有多个同等优先的目标。{ko}에게 동률인 우선 목표가 있습니다. {es} tiene varios objetivos preferidos empatados. {fr} a plusieurs cibles prioritaires à égalité. {pt-br} tem vários alvos preferidos empatados. {de} hat mehrere gleichrangige bevorzugte Ziele. ",apocalypseDragonChoicePlayerLabel(pending.playerIndex),"{en} must choose which site it moves toward.{ru} должен выбрать, к какому месту он двинется.{zh-tw} 必須選擇它要朝哪個地點移動。{zh-cn} 必须选择它要朝哪个地点移动。{ko}이(가) 어느 장소로 이동할지 선택해야 합니다.{es} debe elegir hacia qué lugar se moverá.{fr} doit choisir vers quel site il se déplacera.{pt-br} deve escolher em direção a qual local ele se moverá.{de} muss wählen, auf welchen Ort er sich zubewegt."})
-	gStates.apocalypseHereHorsemenTurnReport=pending.previousReport..(pending.previousReport~="" and "<size=6>\n\n</size>" or "")..choiceText
+	gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(pending.previousReport,choiceText)
 	mainUIUpdate("Horseman target choice")
 	return true
 end
@@ -14607,7 +14622,7 @@ function apocalypseIsHereRefreshPendingTargetChoice()
 		gStates.apocalypseHereHorsemanPendingChoice=nil
 		gStates.apocalypseHereHorsemenUIState="Processing"
 		local line=joinLang({pending.name,"{en} found no remaining preferred undestroyed target and did not move.{ru} не нашёл оставшейся предпочтительной неразрушенной цели и не двигался.{zh-tw} 找不到剩餘的優先未摧毀目標，因此沒有移動。{zh-cn} 找不到剩余的优先未摧毁目标，因此没有移动。{ko}은(는) 남아 있는 선호 미파괴 목표를 찾지 못해 이동하지 않았습니다.{es} no encontró ningún objetivo preferido sin destruir y no se movió.{fr} n’a trouvé aucune cible prioritaire non détruite et ne s’est pas déplacé.{pt-br} não encontrou nenhum alvo preferido não destruído e não se moveu.{de} fand kein verbleibendes bevorzugtes unzerstörtes Ziel und bewegte sich nicht."})
-		gStates.apocalypseHereHorsemenTurnReport=previousReport..(previousReport~="" and "<size=6>\n\n</size>" or "")..line
+		gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(previousReport,line)
 		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
 		return true
 	end
@@ -14657,7 +14672,8 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
 	local action=gStates.apocalypseHereHorsemanAction
 	local function failDestruction()
 		local line=joinLang({name,"{en} could not destroy {ru} не смог уничтожить {zh-tw} 無法摧毀 {zh-cn} 无法摧毁 {ko}은(는) {es} no pudo destruir {fr} n’a pas pu détruire {pt-br} não conseguiu destruir {de} konnte ",destroyedName,"{en}; no Horseman or Dragon effects were applied.{ru}; эффекты Всадника и Дракона не применены.{zh-tw}；未套用騎士或巨龍效果。{zh-cn}；未应用骑士或巨龙效果。{ko}을(를) 파괴하지 못했습니다. 기사 및 드래곤 효과는 적용되지 않았습니다.{es}; no se aplicaron efectos del Jinete ni del Dragón.{fr} ; aucun effet du Cavalier ni du Dragon n’a été appliqué.{pt-br}; nenhum efeito do Cavaleiro ou do Dragão foi aplicado.{de} nicht zerstören; es wurden keine Reiter- oder Dracheneffekte angewendet."})
-		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(gStates.apocalypseHereHorsemenTurnReport,line)
+		mainUIUpdate("Horseman action report")
 		gStates.apocalypseHereHorsemanAction=nil
 		if afterArrange~=nil then safeWaitFrames("Scenario",afterArrange,1) end
 	end
@@ -14700,11 +14716,12 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
 	elseif (tonumber(state.level) or 1)>1 then
 		state.level=state.level-1
 		setHorsemanLevel(name,state.level,false)
-		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, losing a level (now {ru}, потеряв уровень (теперь {zh-tw}，降低一級（現為 {zh-cn}，降低一级（现为 {ko}을(를) 파괴해 레벨이 감소했습니다(현재 {es}, perdiendo un nivel (ahora {fr}, perdant un niveau (désormais {pt-br}, perdendo um nível (agora {de} und verlor eine Stufe (jetzt ",state.level,"{en}) while raising the Dragon head to level {ru}), одновременно повысив голову Дракона до уровня {zh-tw}），同時使巨龍頭部提升至等級 {zh-cn}），同时使巨龙头部提升至等级 {ko}) 그리고 드래곤 머리를 레벨 {es}) mientras elevaba la cabeza del Dragón al nivel {fr}) tout en faisant passer la tête du Dragon au niveau {pt-br}) enquanto elevava a cabeça do Dragão ao nível {de}) und erhöhte dabei den Drachenkopf auf Stufe ",newHead,"."})
+		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, losing a level while raising the Dragon head to level {ru}, потеряв уровень и одновременно повысив голову Дракона до уровня {zh-tw}，降低一級，同時使巨龍頭部提升至等級 {zh-cn}，降低一级，同时使巨龙头部提升至等级 {ko}을(를) 파괴해 레벨이 감소하고 드래곤 머리를 레벨 {es}, perdiendo un nivel mientras elevaba la cabeza del Dragón al nivel {fr}, perdant un niveau tout en faisant passer la tête du Dragon au niveau {pt-br}, perdendo um nível enquanto elevava a cabeça do Dragão ao nível {de} und verlor eine Stufe, während der Drachenkopf auf Stufe ",newHead,"."})
 	else
 		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, raising the Dragon head to level {ru}, повысив голову Дракона до уровня {zh-tw}，使巨龍頭部提升至等級 {zh-cn}，使巨龙头部提升至等级 {ko}을(를) 파괴해 드래곤 머리를 레벨 {es}, elevando la cabeza del Dragón al nivel {fr}, faisant passer la tête du Dragon au niveau {pt-br}, elevando a cabeça do Dragão ao nível {de} und erhöhte den Drachenkopf auf Stufe ",newHead,"."})
 	end
-	gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..report
+	gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(gStates.apocalypseHereHorsemenTurnReport,report)
+	mainUIUpdate("Horseman action report")
 	if action~=nil then action.stage="settling" end
 	return true
 end
@@ -14722,7 +14739,8 @@ function apocalypseIsHereHorsemanMoveFinished(name,target,reached)
 		apocalypseIsHereHorsemanDestroyTarget(name,target,apocalypseIsHereContinueHorsemenTurn)
 	else
 		local line=joinLang({name,"{en} moved two spaces toward {ru} переместился на две клетки к {zh-tw} 朝 {zh-cn} 朝 {ko}이(가) {es} se movió dos espacios hacia {fr} s’est déplacé de deux cases vers {pt-br} moveu-se dois espaços em direção a {de} bewegte sich zwei Felder in Richtung ",proxyFeatureDisplayName(target.feature),"{en}.{ru}.{zh-tw} 移動了兩格。{zh-cn} 移动了两格。{ko} 쪽으로 두 칸 이동했습니다.{es}.{fr}.{pt-br}.{de}."})
-		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(gStates.apocalypseHereHorsemenTurnReport,line)
+		mainUIUpdate("Horseman action report")
 		gStates.apocalypseHereHorsemanAction=nil
 		apocalypseIsHereContinueHorsemenTurn()
 	end
@@ -14776,7 +14794,8 @@ function apocalypseIsHereProcessNextHorseman()
 	local options=apocalypseIsHereHorsemanTargetOptions(name)
 	if #options<1 then
 		local line=joinLang({name,"{en} found no preferred undestroyed target and did not move.{ru} не нашёл предпочтительной неразрушенной цели и не двигался.{zh-tw} 找不到優先的未摧毀目標，因此沒有移動。{zh-cn} 找不到优先的未摧毁目标，因此没有移动。{ko}은(는) 선호하는 미파괴 목표를 찾지 못해 이동하지 않았습니다.{es} no encontró ningún objetivo preferido sin destruir y no se movió.{fr} n’a trouvé aucune cible prioritaire non détruite et ne s’est pas déplacé.{pt-br} não encontrou nenhum alvo preferido não destruído e não se moveu.{de} fand kein bevorzugtes unzerstörtes Ziel und bewegte sich nicht."})
-		gStates.apocalypseHereHorsemenTurnReport=(gStates.apocalypseHereHorsemenTurnReport or "")..((gStates.apocalypseHereHorsemenTurnReport or "")~="" and "<size=6>\n\n</size>" or "")..line
+		gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(gStates.apocalypseHereHorsemenTurnReport,line)
+		mainUIUpdate("Horseman action report")
 		safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,1)
 	elseif #options>1 then apocalypseIsHereShowTargetChoice(name,options)
 	else apocalypseIsHereResolveHorsemanTarget(name,options[1]) end
@@ -14796,6 +14815,20 @@ function apocalypseIsHereActiveHorsemen()
 		if state~=nil and data~=nil and state.revealed==true and state.defeated~=true and state.retired~=true and getObjectFromGUID(data.tokenGUID)~=nil then list[#list+1]=name end
 	end
 	return list
+end
+
+local function apocalypseIsHereHorsemenTurnDescription()
+	local queue=gStates.apocalypseHereHorsemenQueue or {}
+	local parts={}
+	for index,name in ipairs(queue) do
+		if index>1 then parts[#parts+1]=", " end
+		parts[#parts+1]=translateWord[name] or name
+	end
+	local roster=#parts>0 and joinLang(parts) or joinLang({"{en}None{ru}Нет{zh-tw}無{zh-cn}无{ko}없음{es}Ninguno{fr}Aucun{pt-br}Nenhum{de}Keine"})
+	local heading=joinLang({"{en}Horsemen acting this turn: {ru}Всадники, действующие в этот ход: {zh-tw}本回合行動的騎士：{zh-cn}本回合行动的骑士：{ko}이번 턴에 행동하는 기사: {es}Jinetes que actúan este turno: {fr}Cavaliers agissant ce tour : {pt-br}Cavaleiros agindo neste turno: {de}In diesem Zug handelnde Reiter: ",roster})
+	local report=gStates.apocalypseHereHorsemenTurnReport or ""
+	if report=="" then return heading end
+	return apocalypseIsHereJoinHorsemenTurnReport(heading,report)
 end
 
 function apocalypseIsHereBeginHorsemenTurn(nextTurnNumber,newOutOfTurn,sameTurn)
@@ -14828,7 +14861,7 @@ function apocalypseIsHereMainUIPanelSpec()
 	elseif state=="WaitingChoice" then
 		label="{en}Pick Target{ru}Выбрать цель{zh-tw}選擇目標{zh-cn}选择目标{ko}목표 선택{es}Elegir objetivo{fr}Choisir la cible{pt-br}Escolher alvo{de}Ziel wählen"
 	end
-	return {actor="horsemen",mainText="{en}<size=25>Horsemen's Turn</size>{ru}<size=25>Ход Всадников</size>{zh-tw}<size=25>騎士回合</size>{zh-cn}<size=25>骑士回合</size>{ko}<size=25>기사들의 턴</size>{es}<size=25>Turno de los Jinetes</size>{fr}<size=25>Tour des Cavaliers</size>{pt-br}<size=25>Turno dos Cavaleiros</size>{de}<size=25>Zug der Reiter</size>",notes=gStates.apocalypseHereHorsemenTurnReport or "{en}Process the Horsemen.{ru}Выполните ход Всадников.{zh-tw}處理騎士回合。{zh-cn}处理骑士回合。{ko}기사들의 턴을 처리하십시오.{es}Procesa a los Jinetes.{fr}Traitez le tour des Cavaliers.{pt-br}Processe os Cavaleiros.{de}Führe den Zug der Reiter aus.",onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
+	return {actor="horsemen",mainText="{en}<size=25>Horsemen's Turn</size>{ru}<size=25>Ход Всадников</size>{zh-tw}<size=25>騎士回合</size>{zh-cn}<size=25>骑士回合</size>{ko}<size=25>기사들의 턴</size>{es}<size=25>Turno de los Jinetes</size>{fr}<size=25>Tour des Cavaliers</size>{pt-br}<size=25>Turno dos Cavaleiros</size>{de}<size=25>Zug der Reiter</size>",notes=apocalypseIsHereHorsemenTurnDescription(),onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
 end
 
 function apocalypseIsHereMainUIRefresh()
@@ -15081,7 +15114,7 @@ function destroySite(token,terrain,bearing,afterArrange)
 	if arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)~=true then return false end
 	if gStates.destroyedSites==nil then gStates.destroyedSites={} end
 	gStates.destroyedSites[token.guid]={hexFeature=feature, terrainTile=terrain.guid, hexAngle=bearing}
-	terrainTiles[terrain.guid].hexFeature[bearing]="destroyed"
+	runtimeMapSetHexFeature(terrain.guid,bearing,"destroyed")
 	if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 	gStates.hexOverideSave[terrain.guid][bearing]="destroyed"
 	broadcastToAll(joinLang({feature,"{en} Destroyed{ru} уничтожено{zh-tw} 已摧毀{zh-cn} 已摧毁{ko} 파괴됨{es} Destruido{fr} Détruit{pt-br} Destruído{de} zerstört"}))
@@ -15093,7 +15126,7 @@ function undoDestroyedSitePlacement(destroyed)
 	if destroyed==nil or gStates.destroyedSites==nil then return false end
 	local data=gStates.destroyedSites[destroyed.guid]
 	if data==nil or terrainTiles[data.terrainTile]==nil then return false end
-	terrainTiles[data.terrainTile].hexFeature[data.hexAngle]=data.hexFeature
+	runtimeMapSetHexFeature(data.terrainTile,data.hexAngle,data.hexFeature)
 	if gStates.hexOverideSave[data.terrainTile]~=nil then gStates.hexOverideSave[data.terrainTile][data.hexAngle]=nil end
 	gStates.destroyedSites[destroyed.guid]=nil
 	safeWaitFrames("Scenario",function() apocalypseQuestRefreshOfferButtons() end, 2)
@@ -15347,7 +15380,7 @@ function againstDragonRevealLair(tile)
 				gStates.hexOverideSave=gStates.hexOverideSave or {}
 				gStates.hexOverideSave[currentTile.guid]=gStates.hexOverideSave[currentTile.guid] or {}
 				gStates.hexOverideSave[currentTile.guid][hex.bearing]=""
-				terrainTiles[currentTile.guid].hexFeature[hex.bearing]=""
+				runtimeMapSetHexFeature(currentTile.guid,hex.bearing,"")
 			end
 		end
 	end
@@ -18144,18 +18177,23 @@ function __endRound_raw(rewindReady)
 	turnEndRoundFinalizeImmediateState()
 end
 
-function dayNight()
+function dayNight(targetDay, setupPreview)
+	--With no target this remains the normal round transition. Setup can target a state directly so
+	--Start at Night is visually/rules-correct before the map finishes building.
+	local targetIsDay=targetDay
+	if targetIsDay==nil then targetIsDay=gStates.dayRound~=true end
+	if targetIsDay==true then gStates.dayRound=false else gStates.dayRound=true end
 	--Swith day night board
 	local tileColor={}
 	if gStates.dayRound==false then
 		tileColor={r=1.0, g=1.0, b=1.0}
 		local nightObject={GUID.ui.nightTint, "0f95b7", "9e7de3", "ee9e66", "717bcc", "39ca3f", GUID.deck.nightWeather}
 					--Day Board, 5 Weather Tokens, weather deck
-		broadcastToAll("{en}Day has Risen{ru}Наступает день{zh-tw}天亮了{zh-cn}天亮了{ko}아침이 밝았습니다{es}El Día ha Resucitado{fr}Le Jour s'est Levé{pt-br}A Manhã Chegou{de}Der Tag ist auferstanden", {1,1,0.5})
+		if setupPreview~=true then broadcastToAll("{en}Day has Risen{ru}Наступает день{zh-tw}天亮了{zh-cn}天亮了{ko}아침이 밝았습니다{es}El Día ha Resucitado{fr}Le Jour s'est Levé{pt-br}A Manhã Chegou{de}Der Tag ist auferstanden", {1,1,0.5}) end
 		for i=1, #nightObject, 1 do
 			if getObjectFromGUID(nightObject[i])~=nil then getObjectFromGUID(nightObject[i]).setState(1) end
 		end
-		local ruinPugs={"2721c8", "3ac2d6", "3ae05e", "8ca894", "f3c6e3", "2f9a1f", "0e09cf", "a59f0b", "40fd40", "f172a4", "28cc9c", "58c5ab", "1e5666", "09a519", "21dc40"}
+		local ruinPugs=setupPreview~=true and {"2721c8", "3ac2d6", "3ae05e", "8ca894", "f3c6e3", "2f9a1f", "0e09cf", "a59f0b", "40fd40", "f172a4", "28cc9c", "58c5ab", "1e5666", "09a519", "21dc40"} or {}
 					--Day Board, 5 Weather Tokens, weather deck
 		local found=false
 		for _, ruinGUID in pairs(ruinPugs) do
@@ -18166,34 +18204,37 @@ function dayNight()
 			end
 		end
 		if found==true then broadcastToAll("{en}Ruins are revealed{ru}Все руины были раскрыты{zh-tw}废墟被探索了{zh-cn}废墟被探索了{ko}유적 공개됨{es}Las Ruinas se Revelan{fr}Les Ruines sont Révélées{pt-br}Ruinas são Reveladas{de}Ruinen werden aufgedeckt", {1,1,0.5}) end
-		safeWaitFrames("Turn",function()
-			if getObjectFromGUID(GUID.deck.dayWeather)~=nil then getObjectFromGUID(GUID.deck.dayWeather).shuffle() end
-			if getObjectFromGUID("a02b0f")~=nil then getObjectFromGUID("a02b0f").interactable=false end
-		end, 5)--shuffle day weather
+		if setupPreview~=true then
+			safeWaitFrames("Turn",function()
+				if getObjectFromGUID(GUID.deck.dayWeather)~=nil then getObjectFromGUID(GUID.deck.dayWeather).shuffle() end
+				if getObjectFromGUID("a02b0f")~=nil then getObjectFromGUID("a02b0f").interactable=false end
+			end, 5)--shuffle day weather
+		end
 		gStates.dayRound=true
 		gStates.nightTint=false
 		gStates.moveCost["forest"]=3
 		gStates.moveCost["desert"]=5
 		UI.setAttribute("MoveCostDeserText", "text", "{en}Deserts : 5{ru}Пустыни : 5{zh-tw}沙漠：5{zh-cn}沙漠：5{ko}사막 : 5{es}Desiertos : 5{fr}Déserts : 5{pt-br}Desertos : 5{de}Wüsten : 5")
 		UI.setAttribute("MoveCostForesText", "text", "{en}Forests : 3{ru}Леса : 3{zh-tw}森林：3{zh-cn}森林：3{ko}숲 : 3{es}Bosques : 3{fr}Forêts : 3{pt-br}Florestas : 3{de}Wälder : 3")
-		fakeDropAvatar()
+		if setupPreview~=true then fakeDropAvatar() end
 	else
 		tileColor={r=0.6, g=0.6, b=0.6}
 		local dayObject={"a02b0f", GUID.bag.weather.blazingSun, GUID.bag.weather.overcast, GUID.bag.weather.snowfall, GUID.bag.weather.rain, GUID.bag.weather.thunder, GUID.deck.dayWeather}
 					--Day Board, 5 Weather Tokens, weather deck
-		broadcastToAll("{en}Night has Fallen{ru}Наступает ночь{zh-tw}黑夜降临了{zh-cn}黑夜降临了{ko}밤이 되었습니다{es}La Noche ha Caído{fr}La Nuit est Tombée{pt-br}A Noite Caiu{de}Die Nacht ist hereingebrochen", {1,1,0.5})
+		if setupPreview~=true then broadcastToAll("{en}Night has Fallen{ru}Наступает ночь{zh-tw}黑夜降临了{zh-cn}黑夜降临了{ko}밤이 되었습니다{es}La Noche ha Caído{fr}La Nuit est Tombée{pt-br}A Noite Caiu{de}Die Nacht ist hereingebrochen", {1,1,0.5}) end
 		for i=1, #dayObject, 1 do
 			if getObjectFromGUID(dayObject[i])~=nil then getObjectFromGUID(dayObject[i]).setState(2) end
 		end
-		safeWaitFrames("Turn",function()
-			if getObjectFromGUID(GUID.deck.nightWeather)~=nil then getObjectFromGUID(GUID.deck.nightWeather).shuffle() end
+		local function configureNightBoard()
+			if setupPreview~=true and getObjectFromGUID(GUID.deck.nightWeather)~=nil then getObjectFromGUID(GUID.deck.nightWeather).shuffle() end
 			if getObjectFromGUID(GUID.ui.nightTint)~=nil then
 				getObjectFromGUID(GUID.ui.nightTint).UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
 					children={	{tag="Image",  attributes={id="43fa2eNightTintImage", image="Sliced Button/Button Object Active", type="Sliced"}},
 							{tag="Text",  attributes={id="43fa2eNightTintText", font="Fonts/MKCardText", fontSize="90", color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin tinte{fr}Sans teinte{pt-br}Sem tonalidade{de}Keine Tönung"}}}}})
 				getObjectFromGUID(GUID.ui.nightTint).interactable=false
 			end
-		end, 5)--shuffle night weather
+		end
+		if setupPreview==true then configureNightBoard() else safeWaitFrames("Turn",configureNightBoard,5) end
 		gStates.dayRound=false
 		gStates.nightTint=true
 		gStates.moveCost["forest"]=5
@@ -26460,7 +26501,7 @@ function refreshTerrainExploreOptions(compactCities)
 			for _, containedTerrain in pairs(terrainStackObjects) do
 				if containedTerrain.index==nextTerrainIndex then testTerrain=containedTerrain.guid break end
 			end
-		elseif terrainStackSingleTile==true then
+		elseif terrainStackSingleTile==true and terrainStack~=nil then
 			--A terrain stack collapses back to the final tile object when only one tile remains.
 			testTerrain=terrainStack.guid
 		else
@@ -26611,6 +26652,18 @@ function mapHandleTerrainZoneEnter(ctx)
 				local tokenWait=0
 				local tokenRefillFrame=nil
 				local setupPopulationPending=0
+				--Keep/Mage Tower garrisons are spawned directly onto the newly revealed tile. Their map-zone
+				--entry can occur after terrain population itself has finished, so schedule one authoritative
+				--avatar refresh from the token's own completed arrival as well. This guarantees Auto Flip sees
+				--the new garrison even if an earlier runtime-map snapshot was built before the token entered.
+				local function refreshAutoFlipAfterGarrisonArrival(token)
+					if initialSetupTerrain==true or token==nil then return end
+					mapTokenAfterArrivalComplete(token.guid,function(liveToken)
+						if liveToken==nil then return end
+						runtimeMapInvalidateObjects()
+						fakeDropAvatar()
+					end)
+				end
 				--Normal exploration keeps the familiar staggered token reveal. During initial setup, the
 				--map coordinator already serializes terrain tiles, so do not serialize every hex behind
 				--another fixed eight-frame pause. Run each deployment on the next frame and let the tile's
@@ -26703,7 +26756,7 @@ function mapHandleTerrainZoneEnter(ctx)
 										local pos={angleToXY(obj,hexLocation)[1], 1.08, angleToXY(obj,hexLocation)[2]}
 										local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject({rotation=faceUp, position=pos})
 										graveyard.lock()
-										terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
+										runtimeMapSetHexFeature(objGUID,hexLocation,"graveyard")
 										if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
 										gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
 									end
@@ -26737,7 +26790,7 @@ function mapHandleTerrainZoneEnter(ctx)
 									params.rotation=faceDown
 									local graveyard=getObjectFromGUID(GUID.bag.cemetery).takeObject(params)
 									graveyard.lock()
-									terrainTiles[objGUID].hexFeature[hexLocation]="graveyard"
+									runtimeMapSetHexFeature(objGUID,hexLocation,"graveyard")
 									if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
 									gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
 									for index, reward in pairs(deploy[gStates.playedGladeTiles+1].reward) do
@@ -26768,6 +26821,7 @@ function mapHandleTerrainZoneEnter(ctx)
 								if getObjectFromGUID(monsterPiles.purple).getQuantity()>0 then
 									local token=getObjectFromGUID(monsterPiles.purple).takeObject(params)
 									gStates.monsterPlayLocation[token.guid]=params.position
+									refreshAutoFlipAfterGarrisonArrival(token)
 								else
 									broadcastToAll("{en}Sorry, there are no Purple tokens left to deploy{ru}Извините, фиолетовые жетоны закончились.{zh-tw}抱歉，沒有紫色標記可供部署{zh-cn}抱歉，没有紫色标记可供部署{ko}여분의 보라색 토큰이 없습니다{es}Lo sentimos, no quedan tokens púrpuras para implementar{fr}Désolé, il n'y a plus de jetons violets à déployer{pt-br}Desculpe, Não tem Fichas Roxas sobrando para distribuir{de}Leider gibt es keine violetten Plättchen mehr zum Einsetzen", warningColor)
 								end
@@ -26786,6 +26840,7 @@ function mapHandleTerrainZoneEnter(ctx)
 										local token=takeFactionMonster("green", "Elem", params)
 										if token~=nil then
 											gStates.monsterPlayLocation[token.guid]=params.position
+											refreshAutoFlipAfterGarrisonArrival(token)
 											gStates.hiddenValleyKeep[i]=token.guid
 											gStates.mineMonsterQty[objGUID][token.guid]="alive"
 										else
@@ -26796,6 +26851,7 @@ function mapHandleTerrainZoneEnter(ctx)
 									if getObjectFromGUID(monsterPiles.gray).getQuantity()>0 then
 										local token=getObjectFromGUID(monsterPiles.gray).takeObject(params)
 										gStates.monsterPlayLocation[token.guid]=params.position
+										refreshAutoFlipAfterGarrisonArrival(token)
 									else
 										broadcastToAll("{en}Sorry, there are no Gray tokens left to deploy{ru}Извините, серые жетоны закончились.{zh-tw}抱歉，没有灰色标记可供部署{zh-cn}抱歉，没有灰色标记可供部署{ko}여분의 회색 토큰이 없습니다.{es}Lo sentimos, no quedan tokens grises para desplegar{fr}Désolé, il n'y a plus de jetons gris à déployer{pt-br}Desculpe, Não tem Fichas Cinza sobrando para distribuir{de}Entschuldigung, es gibt keine grauen Plättchen mehr zum Auslegen", warningColor)
 									end
@@ -27462,7 +27518,7 @@ function megapolisSuppressTerrainHex(terrainObj,originalFeature,removeDeployedOb
 		if feature=="graveyard" then megapolisRemoveGraveyardMarker(terrainObj,hexLocation) end
 		if feature=="monastery" then megapolisRemoveMonasteryOffer() end
 	end
-	terrainTiles[terrainObj.guid].hexFeature[hexLocation]="city"
+	runtimeMapSetHexFeature(terrainObj.guid,hexLocation,"city")
 	gStates.hexOverideSave[terrainObj.guid]=gStates.hexOverideSave[terrainObj.guid] or {}
 	gStates.hexOverideSave[terrainObj.guid][hexLocation]="city"
 	return feature,hexLocation
@@ -27506,7 +27562,7 @@ end
 function megapolisRestoreTerrainHex(terrainObj,feature)
 	if terrainObj==nil or terrainTiles[terrainObj.guid]==nil then return end
 	local hexLocation=cityTerrainRotationKey(terrainObj)
-	terrainTiles[terrainObj.guid].hexFeature[hexLocation]=feature or ""
+	runtimeMapSetHexFeature(terrainObj.guid,hexLocation,feature or "")
 	gStates.hexOverideSave[terrainObj.guid]=gStates.hexOverideSave[terrainObj.guid] or {}
 	gStates.hexOverideSave[terrainObj.guid][hexLocation]=feature or ""
 	if feature=="monastery" then playMonastery() return end
@@ -27527,7 +27583,7 @@ function megapolisRestoreTerrainHex(terrainObj,feature)
 		local elementalist=startBearing<=northBearing or (((startBearing<=northBearing+1 and gStates.coop==1) or (gStates.coop==0 and pos[3]<-7 and pos[3]>-8 and pos[1]<-31 and pos[1]>-32)) and math.random(1,2)==1)
 		if elementalist then megapolisDeployWarOfFourGlade(terrainObj,hexLocation,"Elem",false)
 		else
-			terrainTiles[terrainObj.guid].hexFeature[hexLocation]="graveyard"
+			runtimeMapSetHexFeature(terrainObj.guid,hexLocation,"graveyard")
 			gStates.hexOverideSave[terrainObj.guid][hexLocation]="graveyard"
 			megapolisDeployWarOfFourGlade(terrainObj,hexLocation,"Dark",true)
 		end
@@ -27570,7 +27626,7 @@ function createCityMegapolisPair(cityGUID, terrainObj)
 		if storedOriginal==nil then storedOriginal=megapolisSuppressTerrainHex(terrainObj,nil,true) end
 		data.extra.megapolisOriginalFeature=storedOriginal
 		if gStates.megapolisOriginalFeatureByTerrain~=nil then gStates.megapolisOriginalFeatureByTerrain[terrainGUID]=nil end
-		terrainTiles[terrainGUID].hexFeature[rotationKey]=CITY_NAME_BY_GUID[pair]
+		runtimeMapSetHexFeature(terrainGUID,rotationKey,CITY_NAME_BY_GUID[pair])
 		if gStates.hexOverideSave[terrainGUID]==nil then gStates.hexOverideSave[terrainGUID]={} end
 		gStates.hexOverideSave[terrainGUID][rotationKey]=CITY_NAME_BY_GUID[pair]
 		local terrainPos=terrainObj.getPosition()
@@ -27727,7 +27783,7 @@ function resolveCityForTerrain(obj, hexFeature, dropped)
 		local available={}
 		for _, possible in ipairs(choices) do if cityPlayedContains(possible)==false then available[#available+1]=possible end end
 		if #available>0 then cityGUID=available[math.random(1,#available)] end
-		terrainTiles[obj.guid].hexFeature.center=CITY_NAME_BY_GUID[cityGUID]
+		runtimeMapSetHexFeature(obj.guid,"center",CITY_NAME_BY_GUID[cityGUID])
 		gStates.hexOverideSave[obj.guid].center=CITY_NAME_BY_GUID[cityGUID]
 	end
 	if gStates.gameScenario=="The Gauntlet" and (hexFeature or ""):sub(6,8)=="red" then cityGUID=cityModel.red end
@@ -27783,11 +27839,11 @@ function playCity(obj, hexFeature, dropped)
 			gStates.cityLevels[order]=leaderLevel
 			setFactionLeaderLevel(cityGUID,leaderLevel)
 			if leader==elementalist then
-				terrainTiles[obj.guid].hexFeature.center="hidden valley"
+				runtimeMapSetHexFeature(obj.guid,"center","hidden valley")
 				gStates.hexOverideSave[obj.guid].center="hidden valley"
 				gStates.monsterPlayLocation[elementalist.token]={-55.3,1.5,15.3}
 			else
-				terrainTiles[obj.guid].hexFeature.center="necropolis"
+				runtimeMapSetHexFeature(obj.guid,"center","necropolis")
 				gStates.hexOverideSave[obj.guid].center="necropolis"
 				gStates.monsterPlayLocation[darkCrusader.token]={-55.3,1.5,6.7}
 			end
@@ -28476,7 +28532,9 @@ local apocalypseQuestHandlers={
 }
 
 local function apocalypseQuestHandler(cardOrGUID)
-	local guid=type(cardOrGUID)=="table" and cardOrGUID.guid or cardOrGUID
+	if cardOrGUID==nil then return nil end
+	local valueType=type(cardOrGUID)
+	local guid=(valueType=="table" or valueType=="userdata") and cardOrGUID.guid or cardOrGUID
 	return guid~=nil and apocalypseQuestHandlers[guid] or nil
 end
 
@@ -28991,7 +29049,7 @@ function apocalypseQuestUndoSiteToken(tokenGUID)
 	if state==nil then return false end
 	local terrainData=terrainTiles[state.terrainGUID]
 	if terrainData~=nil then
-		terrainData.hexFeature[state.bearing]=state.oldFeature or ""
+		runtimeMapSetHexFeature(state.terrainGUID,state.bearing,state.oldFeature or "")
 		if terrainData.mineColors~=nil then
 			if state.oldMineColors~=nil then terrainData.mineColors[state.bearing]=state.oldMineColors else terrainData.mineColors[state.bearing]=nil end
 		end
@@ -29037,7 +29095,7 @@ function apocalypseQuestSiteTokenDropped(token)
 	local oldOverride=gStates.hexOverideSave[terrain.guid]~=nil and gStates.hexOverideSave[terrain.guid][bearing] or nil
 	if gStates.apocalypseQuestSiteState==nil then gStates.apocalypseQuestSiteState={} end
 	gStates.apocalypseQuestSiteState[token.guid]={terrainGUID=terrain.guid, bearing=bearing, oldFeature=terrainData.hexFeature[bearing] or "", oldMineColors=oldMineColors, oldOverride=oldOverride, site=site}
-	terrainData.hexFeature[bearing]=site
+	runtimeMapSetHexFeature(terrain.guid,bearing,site)
 	if gStates.hexOverideSave[terrain.guid]==nil then gStates.hexOverideSave[terrain.guid]={} end
 	gStates.hexOverideSave[terrain.guid][bearing]=site
 	if site=="mine" then
@@ -29502,38 +29560,86 @@ function apocalypseQuestRollVisibleManaDie(card,playerIndex,reason,callback,spaw
 	return true
 end
 
-function apocalypseQuestRollExecutionReward(card,playerIndex,callback)
-	if card==nil or turnOrder[playerIndex]==nil then return false end
-	return apocalypseQuestRollVisibleManaDie(card,playerIndex,"The Execution",function(rolled,questCard)
-		if callback~=nil then callback(rolled,questCard) end
-	end)
+local function apocalypseQuestCrystalDiceOffsets(count)
+	if count<=1 then return {{0,1.25}} end
+	if count==2 then return {{-1.05,1.25},{1.05,1.25}} end
+	if count==3 then return {{-1.05,0.55},{1.05,0.55},{0,1.95}} end
+	if count==4 then return {{-1.05,0.55},{1.05,0.55},{-1.05,1.95},{1.05,1.95}} end
+	local offsets={}
+	local columns=math.ceil(math.sqrt(count))
+	local rows=math.ceil(count/columns)
+	local spacing=1.05
+	for index=1,count do
+		local column=(index-1)%columns
+		local row=math.floor((index-1)/columns)
+		offsets[index]={((column-(columns-1)/2)*spacing),0.55+((rows-1-row)*1.15)}
+	end
+	return offsets
 end
 
---Resolve Guard Duty's 1-3 / 4-6 rewards with the physical Quest mana die. Every die face counts:
---basic colours grant that crystal, Gold lets the player choose a basic crystal, and Black grants +1 Fame.
-function apocalypseQuestGuardDutyRollRandomCrystals(card,playerIndex,count,callback)
+--Random Quest crystal rewards use Noble Warrior's presentation by default: clone every required
+--Quest mana die, roll the whole group together, leave all faces visible briefly, then resolve them.
+function apocalypseQuestRollCrystalRewardDice(card,playerIndex,count,reason,callback)
 	if card==nil or turnOrder[playerIndex]==nil or (count or 0)<1 then return false end
+	local sourceDie=apocalypseQuestSetupDie()
+	if sourceDie==nil then
+		broadcastToAll(joinLang({"{en}Quest roll: could not find the Quest setup mana die for {ru}Бросок задания: не удалось найти кубик маны подготовки задания для {zh-tw}任務擲骰：找不到任務設置魔力骰，任務：{zh-cn}任务掷骰：找不到任务设置魔力骰，任务：{ko}퀘스트 굴림: 퀘스트 설정 마나 주사위를 찾지 못했습니다: {es}Tirada de Misión: no se pudo encontrar el dado de maná de preparación para {fr}Jet de Quête : impossible de trouver le dé de mana de mise en place pour {pt-br}Rolagem da Missão: não foi possível encontrar o dado de mana de preparação para {de}Quest-Wurf: Der Quest-Aufbau-Manawürfel wurde nicht gefunden für ",tostring(reason or "this Quest"),"."}),{1,0.55,0.2})
+		return false
+	end
 	local cardGUID=card.guid
-	local results={}
+	local cardPos=card.getPosition()
+	local offsets=apocalypseQuestCrystalDiceOffsets(count)
+	local dice={}
+	for index=1,count do
+		local offset=offsets[index] or {0,1.25}
+		local die=sourceDie.clone({position={cardPos[1]+offset[1],cardPos[2]+0.70,cardPos[3]+offset[2]}})
+		if die~=nil then
+			die.unlock()
+			dice[#dice+1]=die.guid
+			if gStates.apocalypseQuestRollDice==nil then gStates.apocalypseQuestRollDice={} end
+			gStates.apocalypseQuestRollDice[die.guid]=true
+		end
+	end
+	local function clearDice()
+		for _,guid in ipairs(dice) do
+			local die=getObjectFromGUID(guid)
+			if die~=nil then die.destruct() end
+			if gStates.apocalypseQuestRollDice~=nil then gStates.apocalypseQuestRollDice[guid]=nil end
+		end
+	end
+	if #dice~=count then
+		clearDice()
+		broadcastToAll(joinLang({"{en}Quest roll: could not create every mana die for {ru}Бросок задания: не удалось создать все кубики маны для {zh-tw}任務擲骰：無法建立所有魔力骰，任務：{zh-cn}任务掷骰：无法创建所有魔力骰，任务：{ko}퀘스트 굴림: 모든 마나 주사위를 만들 수 없습니다: {es}Tirada de Misión: no se pudieron crear todos los dados de maná para {fr}Jet de Quête : impossible de créer tous les dés de mana pour {pt-br}Rolagem da Missão: não foi possível criar todos os dados de mana para {de}Quest-Wurf: Es konnten nicht alle Manawürfel erstellt werden für ",tostring(reason or "this Quest"),"."}),{1,0.55,0.2})
+		return false
+	end
+	apocalypseQuestInterfaceRemove(card)
+	broadcastToAll(joinLang({tostring(reason or "Quest"),"{en} is rolling {ru} бросает {zh-tw} 正在擲 {zh-cn} 正在掷 {ko}에서 마나 주사위 {es} está tirando {fr} lance {pt-br} está rolando {de} würfelt ",tostring(count),count==1 and "{en} mana die.{ru} кубик маны.{zh-tw} 顆魔力骰。{zh-cn} 颗魔力骰。{ko}개를 굴립니다.{es} dado de maná.{fr} dé de mana.{pt-br} dado de mana.{de} Manawürfel." or "{en} mana dice together.{ru} кубика маны вместе.{zh-tw} 顆魔力骰。{zh-cn} 颗魔力骰。{ko}개를 함께 굴립니다.{es} dados de maná juntos.{fr} dés de mana ensemble.{pt-br} dados de mana juntos.{de} Manawürfel gleichzeitig."}),positionToColor(playerIndex))
+
 	local finished=false
-	local function finish(success)
+	local function failRoll()
 		if finished==true then return end
 		finished=true
-		if callback~=nil then callback(success,getObjectFromGUID(cardGUID),results) end
+		clearDice()
+		if callback~=nil then callback(false,getObjectFromGUID(cardGUID),nil) end
 	end
-	local rollNext
-	rollNext=function()
-		local questCard=getObjectFromGUID(cardGUID)
-		if questCard==nil then finish(false) return false end
-		local started=apocalypseQuestRollVisibleManaDie(questCard,playerIndex,"Guard Duty",function(rolled,liveCard)
-			if liveCard==nil or rolled==nil then finish(false) return end
-			results[#results+1]=rolled
-			if #results>=count then finish(true) else safeWaitFrames("Quests",rollNext,2) end
-		end)
-		if started~=true then finish(false) end
-		return started
+	local function finishRoll()
+		if finished==true then return end
+		local results={}
+		for _,guid in ipairs(dice) do
+			local die=getObjectFromGUID(guid)
+			if die==nil then failRoll() return end
+			local color=apocalypseQuestManaDieColor(die)
+			if color==nil then failRoll() return end
+			results[#results+1]=color
+		end
+		finished=true
+		safeWaitTime("Quests",function()
+			clearDice()
+			if callback~=nil then callback(true,getObjectFromGUID(cardGUID),results) end
+		end,0.8)
 	end
-	return rollNext()
+	apocalypseQuestPhysicalDiceRoll(dice,finishRoll,failRoll)
+	return true
 end
 
 function apocalypseQuestGoblinAttempt(playerIndex,currentOnly)
@@ -29910,17 +30016,6 @@ end
 function apocalypseQuestRollManaDie()
 	local colors={"Red","Blue","Green","White","Gold","Black"}
 	return colors[math.random(1,#colors)]
-end
-
-function apocalypseQuestGainRandomBasicCrystal(playerIndex, reason)
-	for roll=1,20 do
-		local color=apocalypseQuestRollManaDie()
-		if mineCrystalBagKey[color]~=nil then
-			apocalypseQuestGiveCrystal(playerIndex,color,nil,reason)
-			return color
-		end
-	end
-	return nil
 end
 
 function apocalypseQuestPlaceCrystalAt(position,color,reason)
@@ -30651,12 +30746,12 @@ function apocalypseQuestRestoreBurnedMonastery(card,playerIndex)
 	local marker=getObjectFromGUID("81b6f2")
 	local map=getObjectFromGUID(mapArea)
 	if marker==nil or map==nil then return false end
-	local terrain,bearing=terrainHexAtPosition(marker.getPosition(),map.getObjects())
-	if terrain==nil or bearing==nil then return false end
-	for _, obj in pairs(map.getObjects()) do
-		local pos=obj.getPosition()
-		local xy=angleToXY(terrain,bearing)
-		if ((pos[1]-xy[1])^2)+((pos[3]-xy[2])^2)<1 then
+	local hex=runtimeMapHexAtPosition(marker.getPosition())
+	if hex==nil then return false end
+	local spatial=runtimeMapSpatialSnapshot()
+	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,hex.position,1.1)) do
+		local pos=spatial.positions[obj.guid] or obj.getPosition()
+		if ((pos[1]-hex.position[1])^2)+((pos[3]-hex.position[3])^2)<1 then
 			if gStates.destroyedSites~=nil and gStates.destroyedSites[obj.guid]~=nil and gStates.destroyedSites[obj.guid].hexFeature=="monastery" then
 				undoDestroyedSitePlacement(obj)
 				local bag=getObjectFromGUID(GUID.bag.destroyedSite)
@@ -30714,7 +30809,7 @@ function apocalypseQuestNobleWarriorFinalReward(card,playerIndex,key)
 	end
 end
 
-function apocalypseQuestNobleGoldColors(playerIndex,pending)
+function apocalypseQuestCrystalChoiceColors(playerIndex,pending)
 	local colors={}
 	if turnOrder[playerIndex]==nil then return colors end
 	pending=pending or {}
@@ -30729,15 +30824,6 @@ function apocalypseQuestNobleGoldColors(playerIndex,pending)
 	return colors
 end
 
-function apocalypseQuestFinishNobleGold(card,playerIndex)
-	if card==nil or turnOrder[playerIndex]==nil then return end
-	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
-	apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Noble Warrior (3A).{ru} завершил Noble Warrior (3A).{zh-tw} 完成 Noble Warrior（3A）。{zh-cn} 完成 Noble Warrior（3A）。{ko}이(가) Noble Warrior (3A)를 완료했습니다.{es} completó Noble Warrior (3A).{fr} a terminé Noble Warrior (3A).{pt-br} concluiu Noble Warrior (3A).{de} schloss Noble Warrior (3A) ab."}),positionToColor(playerIndex))
-	apocalypseQuestFinishCompletedCard(card)
-	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
-end
-
 function apocalypseQuestFinishGuardDutyChoice(card,playerIndex,distance)
 	if card==nil or turnOrder[playerIndex]==nil then return end
 	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
@@ -30747,13 +30833,62 @@ function apocalypseQuestFinishGuardDutyChoice(card,playerIndex,distance)
 	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
 end
 
-function apocalypseQuestFinishGuardDutyGold(card,playerIndex,distance)
-	if card==nil or turnOrder[playerIndex]==nil then return end
+local function apocalypseQuestFinishCrystalRollReward(card,playerIndex,pending,finishQuestResolution)
+	if card==nil or turnOrder[playerIndex]==nil then
+		if finishQuestResolution~=nil then finishQuestResolution(0.5) end
+		return
+	end
+	pending=pending or {}
 	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
 	apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Guard Duty: distance {ru} завершил Guard Duty: расстояние {zh-tw} 完成 Guard Duty：距離 {zh-cn} 完成 Guard Duty：距离 {ko}이(가) Guard Duty를 완료했습니다: 거리 {es} completó Guard Duty: distancia {fr} a terminé Guard Duty : distance {pt-br} concluiu Guard Duty: distância {de} schloss Guard Duty ab: Entfernung ",tostring(distance or "?"),"{en}, random mana reward resolved.{ru}, случайная награда маны разрешена.{zh-tw}，隨機魔力獎勵已結算。{zh-cn}，随机魔力奖励已结算。{ko}, 무작위 마나 보상 해결 완료.{es}, recompensa aleatoria de maná resuelta.{fr}, récompense de mana aléatoire résolue.{pt-br}, recompensa aleatória de mana resolvida.{de}, zufällige Manabelohnung abgewickelt."}),positionToColor(playerIndex))
+	if pending.optionKey~=nil then
+		local option=apocalypseQuestChoiceOption(card,pending.optionKey)
+		if option~=nil then apocalypseQuestResolveSpecialEffect(card,playerIndex,option,true) end
+	end
+	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed {ru} завершил {zh-tw} 完成了 {zh-cn} 完成了 {ko}이(가) {es} completó {fr} a terminé {pt-br} concluiu {de} schloss ",tostring(pending.source or "the Quest"),"{en}; the random crystal reward is resolved.{ru}; награда случайными кристаллами разрешена.{zh-tw}；隨機水晶獎勵已結算。{zh-cn}；随机水晶奖励已结算。{ko}. 무작위 크리스털 보상이 해결되었습니다.{es}; la recompensa aleatoria de cristales está resuelta.{fr} ; la récompense aléatoire de cristaux est résolue.{pt-br}; a recompensa aleatória de cristais foi resolvida.{de}; die zufällige Kristallbelohnung ist abgewickelt."}),positionToColor(playerIndex))
 	apocalypseQuestFinishCompletedCard(card)
-	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
+	if finishQuestResolution~=nil then finishQuestResolution(0.5)
+	else safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5) end
+end
+
+--Shared interpretation for random Quest crystal rewards. Every die face has one consistent meaning:
+--basic colour grants that crystal; Gold queues a player choice; Black grants +1 Fame.
+function apocalypseQuestResolveCrystalRollResults(card,playerIndex,results,reason,optionKey,finishQuestResolution)
+	if card==nil or turnOrder[playerIndex]==nil then
+		if finishQuestResolution~=nil then finishQuestResolution(0.5) end
+		return false
+	end
+	local starting={}
+	local reserved={}
+	for _,color in ipairs({"Blue","Red","Green","White"}) do starting[color]=mineCrystalCount(playerIndex,color) end
+	local gold=0
+	local black=0
+	for _,rolled in ipairs(results or {}) do
+		if rolled=="Gold" then gold=gold+1
+		elseif rolled=="Black" then black=black+1
+		elseif mineCrystalBagKey[rolled]~=nil then
+			local effective=math.max(mineCrystalCount(playerIndex,rolled),starting[rolled]+(reserved[rolled] or 0))
+			if effective<3 and apocalypseQuestGiveCrystal(playerIndex,rolled,nil,reason)==true then
+				reserved[rolled]=(reserved[rolled] or 0)+1
+			end
+		end
+	end
+	if black>0 then
+		turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
+		mainUIUpdate("Quest random crystal Black Fame")
+		broadcastToAll(joinLang({tostring(reason or "Quest"),"{en} rolled {ru} выбросил {zh-tw} 擲出 {zh-cn} 掷出 {ko}에서 {es} sacó {fr} a obtenu {pt-br} rolou {de} würfelte ",tostring(black),black==1 and "{en} Black result and gained +1 Fame.{ru} чёрный результат и получил +1 Славу.{zh-tw} 次黑色並獲得 +1 聲望值。{zh-cn} 次黑色并获得 +1 声望值。{ko}개의 검정 결과가 나와 명성 +1을 얻었습니다.{es} resultado Negro y ganó +1 Fama.{fr} résultat Noir et gagne +1 Renommée.{pt-br} resultado Preto e ganhou +1 Fama.{de} schwarzes Ergebnis und erhielt +1 Ruhm." or joinLang({"{en} Black results and gained +{ru} чёрных результата и получил +{zh-tw} 次黑色並獲得 +{zh-cn} 次黑色并获得 +{ko}개의 검정 결과가 나와 명성 +{es} resultados Negros y ganó +{fr} résultats Noirs et gagne +{pt-br} resultados Pretos e ganhou +{de} schwarze Ergebnisse und erhielt +",tostring(black),"{en} Fame.{ru} Славы.{zh-tw} 聲望值。{zh-cn} 声望值。{ko}을(를) 얻었습니다.{es} Fama.{fr} Renommée.{pt-br} Fama.{de} Ruhm."})}),positionToColor(playerIndex))
+	end
+	local pending={playerIndex=playerIndex,mode="QuestCrystalGold",goldRemaining=gold,source=reason,optionKey=optionKey,startCounts=starting,granted=reserved}
+	if gold>0 then
+		pending.colors=apocalypseQuestCrystalChoiceColors(playerIndex,pending)
+		if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
+		gStates.apocalypseQuestCombatChoice[card.guid]=pending
+		apocalypseQuestInterfaceAdd(card,true)
+		broadcastToAll(joinLang({tostring(reason or "Quest"),"{en} rolled Gold{ru} выбросил золотой{zh-tw} 擲出金色{zh-cn} 掷出金色{ko}에서 금색이 나왔습니다{es} sacó Dorado{fr} a obtenu Or{pt-br} rolou Dourado{de} würfelte Gold",gold>1 and (" x"..tostring(gold)) or "","{en}: choose {ru}: выберите {zh-tw}：選擇 {zh-cn}：选择 {ko}: {es}: elige {fr} : choisissez {pt-br}: escolha {de}: Wähle ",gold==1 and "{en}a basic mana crystal.{ru}базовый кристалл маны.{zh-tw}一顆基本魔力水晶。{zh-cn}一颗基本魔力水晶。{ko}기본 마나 크리스털 1개를 선택하십시오.{es}un cristal básico de maná.{fr}un cristal de mana de base.{pt-br}um cristal básico de mana.{de}einen Basismana-Kristall." or joinLang({tostring(gold),"{en} basic mana crystals.{ru} базовых кристалла маны.{zh-tw} 顆基本魔力水晶。{zh-cn} 颗基本魔力水晶。{ko}개의 기본 마나 크리스털을 선택하십시오.{es} cristales básicos de maná.{fr} cristaux de mana de base.{pt-br} cristais básicos de mana.{de} Basismana-Kristalle."})}),positionToColor(playerIndex))
+		return true
+	end
+	apocalypseQuestFinishCrystalRollReward(card,playerIndex,pending,finishQuestResolution)
+	return true
 end
 
 function apocalypseQuestNobleWarriorRollReward(card,playerIndex,callback)
@@ -30772,9 +30907,7 @@ function apocalypseQuestNobleWarriorRollReward(card,playerIndex,callback)
 	if markerBag~=nil then apocalypseQuestStageIntoContainer(marker,markerBag) else marker.destruct() end
 	local cardGUID=card.guid
 	local cardPos=card.getPosition()
-	local offsets=count==1 and {{0,1.25}} or count==2 and {{-1.05,1.25},{1.05,1.25}} or
-		count==3 and {{-1.05,0.55},{1.05,0.55},{0,1.95}} or
-		{{-1.05,0.55},{1.05,0.55},{-1.05,1.95},{1.05,1.95}}
+	local offsets=apocalypseQuestCrystalDiceOffsets(count)
 	local dice={}
 	for i=1,count do
 		local die=sourceDie.clone({position={cardPos[1]+offsets[i][1],cardPos[2]+0.70,cardPos[3]+offsets[i][2]}})
@@ -30833,13 +30966,11 @@ function apocalypseQuestUnderSiegeFailure(card,playerIndex)
 	local marker=getObjectFromGUID("4c5f97")
 	if marker==nil then return end
 	local pos=marker.getPosition()
-	local map=getObjectFromGUID(mapArea)
-	if map~=nil then
-		for _, obj in pairs(map.getObjects()) do
-			if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true and turnOrder[playerIndex]~=nil and obj.getDescription()==turnOrder[playerIndex].mage then
-				local p=obj.getPosition()
-				if ((p[1]-pos[1])^2)+((p[3]-pos[3])^2)<1 then obj.destruct() break end
-			end
+	local spatial=runtimeMapSpatialSnapshot()
+	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,pos,1.1)) do
+		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true and turnOrder[playerIndex]~=nil and obj.getDescription()==turnOrder[playerIndex].mage then
+			local p=spatial.positions[obj.guid] or obj.getPosition()
+			if ((p[1]-pos[1])^2)+((p[3]-pos[3])^2)<1 then obj.destruct() break end
 		end
 	end
 	local enemies={}
@@ -31610,6 +31741,16 @@ function apocalypseQuestMapHexes()
 	return hexes,objects
 end
 
+--Quest offer refreshes can query occupancy hundreds of times. Reuse one live spatial view for the
+--synchronous refresh so shield/enemy checks do not rescan every object on the map for every candidate.
+function apocalypseQuestMapSpatial()
+	local refreshCache=apocalypseQuestRefreshMapCache
+	if refreshCache~=nil and refreshCache.mapSpatial~=nil then return refreshCache.mapSpatial end
+	local spatial=runtimeMapSpatialSnapshot()
+	if refreshCache~=nil then refreshCache.mapSpatial=spatial end
+	return spatial
+end
+
 --Guard Duty measures the shortest connection between the merchant marker's pickup site and the
 --Mage Knight's current drop-off site using revealed map spaces only. apocalypseQuestMapHexes()
 --already omits unrevealed terrain, so a BFS over its adjacency graph matches the printed wording.
@@ -31647,10 +31788,12 @@ function apocalypseQuestFeatureMatches(feature, wanted)
 end
 
 function apocalypseQuestHexHasShield(hex, mapObjects, playerIndex, anyPlayer)
+	if hex==nil or hex.position==nil then return false end
 	local mage=turnOrder[playerIndex]~=nil and turnOrder[playerIndex].mage or nil
-	for _, obj in pairs(mapObjects or {}) do
+	local spatial=apocalypseQuestMapSpatial()
+	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,hex.position,1.1)) do
 		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
-			local pos=obj.getPosition()
+			local pos=spatial.positions[obj.guid] or obj.getPosition()
 			local dx=pos[1]-hex.position[1]
 			local dz=pos[3]-hex.position[3]
 			if (dx*dx)+(dz*dz)<1 then
@@ -31686,10 +31829,11 @@ function apocalypseQuestHexInteractionSite(hex,mapObjects,playerIndex)
 end
 
 function apocalypseQuestHexHasEnemy(hex, mapObjects)
-	if hex==nil then return false end
-	for _, obj in pairs(mapObjects or {}) do
+	if hex==nil or hex.position==nil then return false end
+	local spatial=apocalypseQuestMapSpatial()
+	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,hex.position,1.1)) do
 		if monsterPugs[obj.guid]~=nil then
-			local pos=obj.getPosition()
+			local pos=spatial.positions[obj.guid] or obj.getPosition()
 			local dx=pos[1]-hex.position[1]
 			local dz=pos[3]-hex.position[3]
 			if (dx*dx)+(dz*dz)<1 then return true end
@@ -31728,23 +31872,14 @@ function apocalypseQuestCurrentPlayerHex(playerIndex)
 	if refreshCache~=nil and refreshCache.playerHexes~=nil and refreshCache.playerHexes[playerIndex]~=nil then
 		return refreshCache.playerHexes[playerIndex].hex,refreshCache.mapObjects
 	end
-	local map=getObjectFromGUID(mapArea)
-	local position=fracturedLandsTeleportSourcePosition(playerIndex)
-	if map==nil or position==nil then return nil, nil end
-	local objects=refreshCache~=nil and refreshCache.mapObjects or nil
-	if objects==nil then objects=map.getObjects() end
-	local terrain,bearing,_,feature,hexType=terrainHexAtPosition(position,objects)
-	local hex=nil
-	if terrain~=nil and bearing~=nil then
-		local xy=angleToXY(terrain,bearing)
-		hex={terrain=terrain,terrainGUID=terrain.guid,bearing=bearing,position={xy[1],1.30,xy[2]},feature=feature or "",hexType=hexType or ""}
-	end
+	local hexes,mapObjects=apocalypseQuestMapHexes()
+	local hex=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	if refreshCache~=nil then
-		refreshCache.mapObjects=objects
+		refreshCache.mapObjects=mapObjects
 		refreshCache.playerHexes=refreshCache.playerHexes or {}
 		refreshCache.playerHexes[playerIndex]={hex=hex}
 	end
-	return hex,objects
+	return hex,mapObjects
 end
 
 function apocalypseQuestInhabitedFeature(feature)
@@ -32318,10 +32453,9 @@ end
 function apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)
 	if token==nil then return false end
 	local target=fracturedLandsTeleportSourcePosition(playerIndex)
-	local map=getObjectFromGUID(mapArea)
-	if target==nil or map==nil then return false end
-	local terrain,bearing=terrainHexAtPosition(target,map.getObjects())
-	if terrain==nil or bearing==nil then return false end
+	if target==nil then return false end
+	local hex,_,terrain,bearing=runtimeMapHexAtPosition(target)
+	if hex==nil or terrain==nil or bearing==nil then return false end
 	--Never stack a new Quest lift on top of an unfinished one for this Hero.
 	apocalypseQuestRestoreRaisedAvatar(playerIndex,true)
 	local avatar=coopAssaultAvatarObject(playerIndex)
@@ -32740,14 +32874,6 @@ goblinWarrensHandler.buttonState=function(card,playerIndex,questState,result)
 	if questState~=nil and questState.step==1 then result.progressLabel="Proceed" end
 end
 goblinWarrensHandler.bottomDeckBeforeReveal=function() gStates.apocalypseQuestGoblinWarrens={} end
-
-local randomObjectsHandler=apocalypseQuestRegisterHandler("11d244")
-randomObjectsHandler.resolveEffect=function(card,playerIndex,option,finalCompletion)
-	if finalCompletion==true and tostring(option.key)=="4" then
-		apocalypseQuestGainRandomBasicCrystal(playerIndex,"Random Objects")
-		apocalypseQuestGainRandomBasicCrystal(playerIndex,"Random Objects")
-	end
-end
 
 local executionHandler=apocalypseQuestRegisterHandler("8939c0")
 executionHandler.directChoices=function(card,playerIndex,state)
@@ -33641,7 +33767,7 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 				xml[#xml+1]=questButton("CombatColor_"..color,label,spots[index][1],spots[index][2],colors[color] or "#d8c79d",true)
 			end
 		end
-		if combatPending.mode~="ExecutionGold" and combatPending.mode~="NobleWarriorGold" and combatPending.mode~="GuardDutyChoice" and combatPending.mode~="GuardDutyGold" then xml[#xml+1]=questButton("CombatCancel","Cancel",0,274,"#b5b5b5",true) end
+		if combatPending.mode~="QuestCrystalGold" and combatPending.mode~="GuardDutyChoice" then xml[#xml+1]=questButton("CombatCancel","Cancel",0,274,"#b5b5b5",true) end
 		card.UI.setXmlTable(xml)
 		return
 	end
@@ -34385,99 +34511,42 @@ local function apocalypseQuestPrepareGuardDutyCompletion(card,playerIndex,option
 	return true,true,{guardDutyDistance=distance}
 end
 
+local function apocalypseQuestCrystalRewardFailed(card,playerIndex,finishQuestResolution)
+	if card~=nil then
+		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
+		apocalypseQuestInterfaceAdd(card,true)
+	end
+	finishQuestResolution(0.5)
+end
+
 local function apocalypseQuestCompleteNobleWarrior(card,playerIndex,option,playerColor,context,finishQuestResolution)
 	if tostring(option.key)~="3a" then return false end
 	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
 	local started=apocalypseQuestNobleWarriorRollReward(card,playerIndex,function(success,questCard,results)
 		if questCard==nil then finishQuestResolution(0.5) return end
 		if success==true then
-			local reserved={}
-			local starting={}
-			for _,basic in ipairs({"Blue","Red","Green","White"}) do starting[basic]=mineCrystalCount(playerIndex,basic) end
-			local gold=0
-			local black=0
-			for _,color in ipairs(results or {}) do
-				if color=="Gold" then gold=gold+1
-				elseif color=="Black" then black=black+1
-				elseif mineCrystalBagKey[color]~=nil then
-					local effective=math.max(mineCrystalCount(playerIndex,color),starting[color]+(reserved[color] or 0))
-					if effective<3 and apocalypseQuestGiveCrystal(playerIndex,color,nil,"Noble Warrior")==true then reserved[color]=(reserved[color] or 0)+1 end
-				end
-			end
-			if black>0 then
-				turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
-				mainUIUpdate("Noble Warrior Black Fame")
-			end
-			if gold>0 then
-				local pending={playerIndex=playerIndex,mode="NobleWarriorGold",goldRemaining=gold,startCounts={},granted={}}
-				for _,color in ipairs({"Blue","Red","Green","White"}) do pending.startCounts[color]=mineCrystalCount(playerIndex,color) end
-				pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
-				if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-				gStates.apocalypseQuestCombatChoice[questCard.guid]=pending
-				apocalypseQuestInterfaceAdd(questCard,true)
-				--Keep the Quest rewind transaction open until every Gold has been chosen, or No Inventory
-				--clears the remaining Golds.
-				return
-			end
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Noble Warrior (3A).{ru} завершил Noble Warrior (3A).{zh-tw} 完成 Noble Warrior（3A）。{zh-cn} 完成 Noble Warrior（3A）。{ko}이(가) Noble Warrior (3A)를 완료했습니다.{es} completó Noble Warrior (3A).{fr} a terminé Noble Warrior (3A).{pt-br} concluiu Noble Warrior (3A).{de} schloss Noble Warrior (3A) ab."}),positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(questCard)
-		else
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			apocalypseQuestInterfaceAdd(questCard,true)
-		end
-		finishQuestResolution(0.5)
+			apocalypseQuestResolveCrystalRollResults(questCard,playerIndex,results,"Noble Warrior","3a",finishQuestResolution)
+		else apocalypseQuestCrystalRewardFailed(questCard,playerIndex,finishQuestResolution) end
 	end)
-	if started~=true then
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		apocalypseQuestInterfaceAdd(card,true)
-		finishQuestResolution(0.5)
-	end
+	if started~=true then apocalypseQuestCrystalRewardFailed(card,playerIndex,finishQuestResolution) end
 	return true,started
 end
 
 local function apocalypseQuestCompleteExecution(card,playerIndex,option,playerColor,context,finishQuestResolution)
 	if tostring(option.key)~="1a" then return false end
-	--The Execution 1A awards a random mana-die reward. Resolve it with the same visible Quest die;
-	--basic colours grant that crystal, Gold chooses a colour, and Black grants +1 Fame.
 	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
-	local started=apocalypseQuestRollExecutionReward(card,playerIndex,function(rolled,questCard)
+	local started=apocalypseQuestRollCrystalRewardDice(card,playerIndex,1,"The Execution",function(success,questCard,results)
 		if questCard==nil then finishQuestResolution(0.5) return end
-		if rolled==nil then
+		if success==true then
+			apocalypseQuestResolveCrystalRollResults(questCard,playerIndex,results,"The Execution","1a",finishQuestResolution)
+		else
 			if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[questCard.guid]=nil end
-			apocalypseQuestInterfaceAdd(questCard,true)
-			finishQuestResolution(0.5)
-			return
-		end
-		if mineCrystalBagKey[rolled]~=nil then
-			apocalypseQuestGiveCrystal(playerIndex,rolled,nil,"The Execution")
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			apocalypseQuestResolveSpecialEffect(questCard,playerIndex,option,true)
-			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}),positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(questCard)
-			finishQuestResolution(0.5)
-		elseif rolled=="Black" then
-			--Black replaces the crystal reward with +1 Fame, in addition to 1A's normal Fame/Reputation.
-			turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+1
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			apocalypseQuestResolveSpecialEffect(questCard,playerIndex,option,true)
-			mainUIUpdate("The Execution Black Fame")
-			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} rolled Black for The Execution and gained +1 Fame instead of a crystal.{ru} выбросил чёрный для The Execution и получил +1 Славу вместо кристалла.{zh-tw} 在 The Execution 擲出黑色，改為獲得 +1 聲望值而非水晶。{zh-cn} 在 The Execution 掷出黑色，改为获得 +1 声望值而非水晶。{ko}이(가) The Execution에서 검정을 굴려 크리스털 대신 명성 +1을 얻었습니다.{es} sacó Negro para The Execution y ganó +1 Fama en lugar de un cristal.{fr} a obtenu Noir pour The Execution et gagne +1 Renommée au lieu d’un cristal.{pt-br} rolou Preto em The Execution e ganhou +1 Fama em vez de um cristal.{de} würfelte bei The Execution Schwarz und erhielt statt eines Kristalls +1 Ruhm."}),positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(questCard)
-			finishQuestResolution(0.5)
-		elseif rolled=="Gold" then
-			--Gold lets the player choose any basic crystal. Keep the Quest transaction open until that
-			--mandatory choice is made, just as other Quest colour selections do.
-			if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-			gStates.apocalypseQuestCombatChoice[questCard.guid]={playerIndex=playerIndex,colors={"Blue","Red","Green","White"},mode="ExecutionGold"}
-			apocalypseQuestInterfaceAdd(questCard,true)
+			apocalypseQuestCrystalRewardFailed(questCard,playerIndex,finishQuestResolution)
 		end
 	end)
 	if started~=true then
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 		if gStates.apocalypseQuestDirectBranch~=nil then gStates.apocalypseQuestDirectBranch[card.guid]=nil end
-		apocalypseQuestInterfaceAdd(card,true)
-		finishQuestResolution(0.5)
+		apocalypseQuestCrystalRewardFailed(card,playerIndex,finishQuestResolution)
 	end
 	return true,started
 end
@@ -34485,12 +34554,10 @@ end
 local function apocalypseQuestCompleteGuardDuty(card,playerIndex,option,playerColor,context,finishQuestResolution)
 	if tostring(option.key)~="2" then return false end
 	local guardDutyDistance=context.guardDutyDistance
-	--Guard Duty pays from the shortest revealed-space distance back to the merchant marker:
-	--1-3 = one random basic crystal; 4-6 = two random basic crystals; 7+ = two chosen basic crystals.
 	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
 	if guardDutyDistance>=7 then
 		local pending={playerIndex=playerIndex,mode="GuardDutyChoice",remaining=2,distance=guardDutyDistance,startCounts={},granted={}}
-		pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
+		pending.colors=apocalypseQuestCrystalChoiceColors(playerIndex,pending)
 		if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
 		gStates.apocalypseQuestCombatChoice[card.guid]=pending
 		apocalypseQuestInterfaceAdd(card,true)
@@ -34498,45 +34565,26 @@ local function apocalypseQuestCompleteGuardDuty(card,playerIndex,option,playerCo
 		return true,true
 	end
 	local crystalCount=guardDutyDistance<=3 and 1 or 2
-	local started=apocalypseQuestGuardDutyRollRandomCrystals(card,playerIndex,crystalCount,function(success,questCard,results)
+	local started=apocalypseQuestRollCrystalRewardDice(card,playerIndex,crystalCount,"Guard Duty",function(success,questCard,results)
 		if questCard==nil then finishQuestResolution(0.5) return end
 		if success==true then
-			local gold=0
-			local black=0
-			for _,rolled in ipairs(results or {}) do
-				if rolled=="Gold" then gold=gold+1
-				elseif rolled=="Black" then black=black+1
-				elseif mineCrystalBagKey[rolled]~=nil then apocalypseQuestGiveCrystal(playerIndex,rolled,nil,"Guard Duty") end
-			end
-			if black>0 then
-				turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+black
-				mainUIUpdate("Guard Duty Black Fame")
-				broadcastToAll(joinLang({"{en}Guard Duty rolled {ru}Guard Duty выбросил чёрный: {zh-tw}Guard Duty 擲出黑色結果 {zh-cn}Guard Duty 掷出黑色结果 {ko}Guard Duty에서 검정 결과 {es}Guard Duty sacó {fr}Guard Duty a obtenu {pt-br}Guard Duty rolou {de}Guard Duty würfelte ",tostring(black),"{en} Black result(s) and gained +{ru} и получил +{zh-tw} 次，並獲得 +{zh-cn} 次，并获得 +{ko}개가 나와 명성 +{es} resultado(s) Negro y ganó +{fr} résultat(s) Noir et gagne +{pt-br} resultado(s) Preto e ganhou +{de} schwarze(s) Ergebnis(se) und erhielt +",tostring(black),"{en} Fame.{ru} Славы.{zh-tw} 聲望值。{zh-cn} 声望值。{ko}을(를) 얻었습니다.{es} de Fama.{fr} Renommée.{pt-br} de Fama.{de} Ruhm."}),positionToColor(playerIndex))
-			end
-			if gold>0 then
-				local pending={playerIndex=playerIndex,mode="GuardDutyGold",goldRemaining=gold,distance=guardDutyDistance,startCounts={},granted={}}
-				for _,color in ipairs({"Blue","Red","Green","White"}) do pending.startCounts[color]=mineCrystalCount(playerIndex,color) end
-				pending.colors=apocalypseQuestNobleGoldColors(playerIndex,pending)
-				if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-				gStates.apocalypseQuestCombatChoice[questCard.guid]=pending
-				apocalypseQuestInterfaceAdd(questCard,true)
-				broadcastToAll(joinLang({"{en}Guard Duty rolled Gold{ru}Guard Duty выбросил золотой{zh-tw}Guard Duty 擲出金色{zh-cn}Guard Duty 掷出金色{ko}Guard Duty에서 금색이 나왔습니다{es}Guard Duty sacó Dorado{fr}Guard Duty a obtenu Or{pt-br}Guard Duty rolou Dourado{de}Guard Duty würfelte Gold",gold>1 and (" x"..tostring(gold)) or "","{en}: choose {ru}: выберите {zh-tw}：選擇 {zh-cn}：选择 {ko}: {es}: elige {fr} : choisissez {pt-br}: escolha {de}: Wähle ",gold==1 and "{en}a basic mana crystal.{ru}базовый кристалл маны.{zh-tw}一顆基本魔力水晶。{zh-cn}一颗基本魔力水晶。{ko}기본 마나 크리스털 1개를 선택하십시오.{es}un cristal básico de maná.{fr}un cristal de mana de base.{pt-br}um cristal básico de mana.{de}einen Basismana-Kristall." or joinLang({tostring(gold),"{en} basic mana crystals.{ru} базовых кристалла маны.{zh-tw} 顆基本魔力水晶。{zh-cn} 颗基本魔力水晶。{ko}개의 기본 마나 크리스털을 선택하십시오.{es} cristales básicos de maná.{fr} cristaux de mana de base.{pt-br} cristais básicos de mana.{de} Basismana-Kristalle."})}),positionToColor(playerIndex))
-				return
-			end
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Guard Duty: distance {ru} завершил Guard Duty: расстояние {zh-tw} 完成 Guard Duty：距離 {zh-cn} 完成 Guard Duty：距离 {ko}이(가) Guard Duty를 완료했습니다: 거리 {es} completó Guard Duty: distancia {fr} a terminé Guard Duty : distance {pt-br} concluiu Guard Duty: distância {de} schloss Guard Duty ab: Entfernung ",tostring(guardDutyDistance),"{en}, random mana reward resolved.{ru}, случайная награда маны разрешена.{zh-tw}，隨機魔力獎勵已結算。{zh-cn}，随机魔力奖励已结算。{ko}, 무작위 마나 보상 해결 완료.{es}, recompensa aleatoria de maná resuelta.{fr}, récompense de mana aléatoire résolue.{pt-br}, recompensa aleatória de mana resolvida.{de}, zufällige Manabelohnung abgewickelt."}),positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(questCard)
-		else
-			apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			apocalypseQuestInterfaceAdd(questCard,true)
-		end
-		finishQuestResolution(0.5)
+			apocalypseQuestResolveCrystalRollResults(questCard,playerIndex,results,"Guard Duty","2",finishQuestResolution)
+		else apocalypseQuestCrystalRewardFailed(questCard,playerIndex,finishQuestResolution) end
 	end)
-	if started~=true then
-		apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		apocalypseQuestInterfaceAdd(card,true)
-		finishQuestResolution(0.5)
-	end
+	if started~=true then apocalypseQuestCrystalRewardFailed(card,playerIndex,finishQuestResolution) end
+	return true,started
+end
+
+local function apocalypseQuestCompleteRandomObjects(card,playerIndex,option,playerColor,context,finishQuestResolution)
+	if tostring(option.key)~="4" then return false end
+	apocalypseQuestSetRewardCompletionGate(card,playerIndex,"Complete")
+	local started=apocalypseQuestRollCrystalRewardDice(card,playerIndex,2,"Random Objects",function(success,questCard,results)
+		if questCard==nil then finishQuestResolution(0.5) return end
+		if success==true then
+			apocalypseQuestResolveCrystalRollResults(questCard,playerIndex,results,"Random Objects","4",finishQuestResolution)
+		else apocalypseQuestCrystalRewardFailed(questCard,playerIndex,finishQuestResolution) end
+	end)
+	if started~=true then apocalypseQuestCrystalRewardFailed(card,playerIndex,finishQuestResolution) end
 	return true,started
 end
 
@@ -34570,6 +34618,7 @@ apocalypseQuestRegisterHandler("8939c0").completeAction=apocalypseQuestCompleteE
 apocalypseQuestRegisterHandler("08ffcf").prepareCompleteAction=apocalypseQuestPrepareGuardDutyCompletion
 apocalypseQuestRegisterHandler("08ffcf").completeAction=apocalypseQuestCompleteGuardDuty
 apocalypseQuestRegisterHandler("58a826").completeAction=apocalypseQuestCompleteHerbalist
+apocalypseQuestRegisterHandler("11d244").completeAction=apocalypseQuestCompleteRandomObjects
 
 local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,playerColor,state,questState,quest,finishQuestResolution)
 	local handler=apocalypseQuestHandler(card)
@@ -34672,14 +34721,14 @@ end
 local apocalypseQuestCardActionRestWait={}
 local function apocalypseQuestRequeueCombatChoice(card,pendingCombat)
 	if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-	pendingCombat.colors=apocalypseQuestNobleGoldColors(pendingCombat.playerIndex,pendingCombat)
+	pendingCombat.colors=apocalypseQuestCrystalChoiceColors(pendingCombat.playerIndex,pendingCombat)
 	gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
 	apocalypseQuestInterfaceAdd(card,true)
 end
 
 local function apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,source,remainingKey,finish)
 	if color=="NoInventory" then
-		local available=apocalypseQuestNobleGoldColors(playerIndex,pendingCombat)
+		local available=apocalypseQuestCrystalChoiceColors(playerIndex,pendingCombat)
 		if #available==1 and available[1]=="NoInventory" then finish(card,playerIndex,pendingCombat)
 		else apocalypseQuestRequeueCombatChoice(card,pendingCombat) end
 		return
@@ -34706,41 +34755,13 @@ local apocalypseQuestCombatChoiceModes={
 			end)
 		end
 	},
-	GuardDutyGold={
+	QuestCrystalGold={
 		cancelLocked=true,
 		refreshAfter=false,
 		resolve=function(card,playerIndex,color,pendingCombat)
-			apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,"Guard Duty","goldRemaining",function(questCard,index,pending)
-				apocalypseQuestFinishGuardDutyGold(questCard,index,pending.distance)
+			apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,pendingCombat.source or "Quest","goldRemaining",function(questCard,index,pending)
+				apocalypseQuestFinishCrystalRollReward(questCard,index,pending,nil)
 			end)
-		end
-	},
-	NobleWarriorGold={
-		cancelLocked=true,
-		refreshAfter=false,
-		resolve=function(card,playerIndex,color,pendingCombat)
-			apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,"Noble Warrior","goldRemaining",function(questCard,index)
-				apocalypseQuestFinishNobleGold(questCard,index)
-			end)
-		end
-	},
-	ExecutionGold={
-		cancelLocked=true,
-		refreshAfter=false,
-		resolve=function(card,playerIndex,color,pendingCombat)
-			local selected=apocalypseQuestChoiceOption(card,"1a")
-			if selected~=nil and apocalypseQuestGiveCrystal(playerIndex,color,nil,"The Execution")==true then
-				apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-				apocalypseQuestResolveSpecialEffect(card,playerIndex,selected,true)
-				broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} chose a {ru} выбрал {zh-tw} 為 The Execution 選擇了 {zh-cn} 为 The Execution 选择了 {ko}이(가) The Execution에서 {es} eligió un cristal {fr} a choisi un cristal {pt-br} escolheu um cristal {de} wählte für The Execution einen ",translateWord[color] or tostring(color),"{en} crystal for The Execution.{ru} кристалл для The Execution.{zh-tw} 水晶。{zh-cn} 水晶。{ko} 크리스털을 선택했습니다.{es} para The Execution.{fr} pour The Execution.{pt-br} para The Execution.{de}-Kristall."}),positionToColor(playerIndex))
-				apocalypseQuestFinishCompletedCard(card)
-				safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
-			else
-				--If the chosen crystal cannot be taken, keep the mandatory Gold choice open.
-				if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
-				gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-				apocalypseQuestInterfaceAdd(card,true)
-			end
 		end
 	},
 	ProgressColor={
@@ -35584,6 +35605,10 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			end
 		end
 
+		--Apply the chosen starting time immediately. setupPreview updates the Source board, rules state,
+		--movement costs/UI and terrain tint without running round-transition-only work.
+		dayNight(gStates.startAtNight~=true,true)
+
 		--Put solo player in prefered positions
 		if gStates.playerCount==1 then
 			for posPriority=1, 4, 1 do
@@ -35674,6 +35699,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			if weatherRules==nil then error("SetupGame could not deploy the Weather rules.",2) end
 			weatherRules.lock()
 			deployedWeather[GUID.deck.dayWeather].unlock()
+			dayNight(gStates.startAtNight~=true,true)
 		end
 		if getObjectFromGUID(GUID.bag.weatherMod)~=nil then getObjectFromGUID(GUID.bag.weatherMod).destruct() end
 
@@ -35967,8 +35993,7 @@ end
 local function finalizeSetup()
 	if setupFinalizationStarted==true then return end
 	setupFinalizationStarted=true
-	if gStates.startAtNight==true then gStates.dayRound=true end
-	dayNight()--dayNight need to be after map setup to change the tile tint
+	dayNight(gStates.startAtNight~=true)--repeat after map setup for map-dependent reveal/weather work and final terrain tint
 	gStates.firstStarted=true
 	gStates.turnNumber=1
 	refreshAllPlayerFameReputationFromShields()
@@ -36228,7 +36253,7 @@ function furyDragonSetupLair(tile)
 	gStates.furyDragonAwaitingCombat=nil
 	gStates.furyDragonRoundPrepared=nil
 	--Core tile 1's Tomb is the Dragon Lair in Fury and no longer counts as a Tomb.
-	terrainTiles[tile.guid].hexFeature[bearing]=""
+	runtimeMapSetHexFeature(tile.guid,bearing,"")
 	gStates.hexOverideSave=gStates.hexOverideSave or {}
 	gStates.hexOverideSave[tile.guid]=gStates.hexOverideSave[tile.guid] or {}
 	gStates.hexOverideSave[tile.guid][bearing]=""
@@ -36365,7 +36390,7 @@ function mapSetup(onComplete)
 		for _,coord in ipairs(cityCoords) do furyCityTilePos[#furyCityTilePos+1]=furyPos(coord) end
 		gStates.furyHeroEnteredCity=false
 		--Suppress the Tomb before Core 1 enters the map zone, so setup never treats the Fury Lair as a Tomb.
-		terrainTiles[GUID.tile.core01].hexFeature["240"]=""
+		runtimeMapSetHexFeature(GUID.tile.core01,"240","")
 		gStates.hexOverideSave=gStates.hexOverideSave or {}
 		gStates.hexOverideSave[GUID.tile.core01]=gStates.hexOverideSave[GUID.tile.core01] or {}
 		gStates.hexOverideSave[GUID.tile.core01]["240"]=""
@@ -37848,7 +37873,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 					else
 						params.position={-12.0297, 2.0,  8.8586}--The War of Four camp tile position
 					end
-					terrainTiles[GUID.tile.volkareCamp].hexFeature.center=""
+					runtimeMapSetHexFeature(GUID.tile.volkareCamp,"center","")
 					gStates.hexOverideSave[GUID.tile.volkareCamp]={center=""}
 					if gStates.randomTileOrientation==false then params.rotation={0, 180, 180} else params.rotation={0, math.random(1, 6)*60, 180} end
 					params.guid=GUID.tile.volkareCamp
@@ -42984,8 +43009,39 @@ function runtimeMapInvalidate()
 	runtimeMapInvalidateTerrain()
 end
 
+--Logical terrain changes are topology changes too. Keep every runtime consumer coherent whenever a
+--scenario/Quest replaces a printed feature or terrain type without physically moving the tile.
+function runtimeMapSetHexFeature(terrainGUID,bearing,feature)
+	if terrainGUID==nil or bearing==nil or terrainTiles[terrainGUID]==nil then return false end
+	local details=terrainTiles[terrainGUID]
+	details.hexFeature=details.hexFeature or {}
+	local key=tostring(bearing)
+	local value=feature or ""
+	if details.hexFeature[key]==value then return false end
+	details.hexFeature[key]=value
+	runtimeMapInvalidateTerrain()
+	return true
+end
+
+function runtimeMapSetHexType(terrainGUID,bearing,hexType)
+	if terrainGUID==nil or bearing==nil or terrainTiles[terrainGUID]==nil then return false end
+	local details=terrainTiles[terrainGUID]
+	details.hexType=details.hexType or {}
+	local key=tostring(bearing)
+	local value=hexType or ""
+	if details.hexType[key]==value then return false end
+	details.hexType[key]=value
+	runtimeMapInvalidateTerrain()
+	return true
+end
+
 function runtimeMapContainsGUID(guid)
-	return guid~=nil and runtimeMapObjectCache~=nil and runtimeMapObjectCache.objectGUIDs~=nil and runtimeMapObjectCache.objectGUIDs[guid]==true
+	if guid==nil then return false end
+	if runtimeMapObjectCache~=nil and runtimeMapObjectCache.objectGUIDs~=nil and runtimeMapObjectCache.objectGUIDs[guid]==true then return true end
+	--Object-only invalidation deliberately retains the expensive terrain cache. If that terrain is
+	--destroyed or put in a container before the object list is rebuilt, the retained topology must
+	--still be invalidated by the destroy/container fallback.
+	return runtimeMapTerrainCache~=nil and runtimeMapTerrainCache.terrainPositions~=nil and runtimeMapTerrainCache.terrainPositions[guid]~=nil
 end
 
 local RUNTIME_MAP_HEX_X_STEP=2.4
@@ -42994,8 +43050,10 @@ local RUNTIME_MAP_HEX_Z_STEP=2.0785
 function runtimeMapHexKey(hexOrTerrainGUID,bearing)
 	if hexOrTerrainGUID==nil then return nil end
 	if type(hexOrTerrainGUID)=="table" then
+		if hexOrTerrainGUID.terrainGUID==nil or hexOrTerrainGUID.bearing==nil then return nil end
 		return tostring(hexOrTerrainGUID.terrainGUID).."|"..tostring(hexOrTerrainGUID.bearing)
 	end
+	if bearing==nil then return nil end
 	return tostring(hexOrTerrainGUID).."|"..tostring(bearing)
 end
 
@@ -43132,21 +43190,27 @@ local function runtimeMapTerrainSnapshot()
 	local neighborSet={}
 	for _,hex in ipairs(hexes) do
 		local key=runtimeMapHexKey(hex)
-		hexByKey[key]=hex
-		neighbors[key]={}
-		neighborSet[key]={}
+		if key~=nil then
+			hexByKey[key]=hex
+			neighbors[key]={}
+			neighborSet[key]={}
+		end
 	end
 	for a=1,#hexes do
 		local first=hexes[a]
 		local firstKey=runtimeMapHexKey(first)
-		for b=a+1,#hexes do
-			local second=hexes[b]
-			if runtimeMapHexesAdjacent(first,second)==true then
-				local secondKey=runtimeMapHexKey(second)
-				neighbors[firstKey][#neighbors[firstKey]+1]=second
-				neighbors[secondKey][#neighbors[secondKey]+1]=first
-				neighborSet[firstKey][secondKey]=true
-				neighborSet[secondKey][firstKey]=true
+		if firstKey~=nil then
+			for b=a+1,#hexes do
+				local second=hexes[b]
+				if runtimeMapHexesAdjacent(first,second)==true then
+					local secondKey=runtimeMapHexKey(second)
+					if secondKey~=nil then
+						neighbors[firstKey][#neighbors[firstKey]+1]=second
+						neighbors[secondKey][#neighbors[secondKey]+1]=first
+						neighborSet[firstKey][secondKey]=true
+						neighborSet[secondKey][firstKey]=true
+					end
+				end
 			end
 		end
 	end
@@ -43379,7 +43443,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="430"
+local automaticLuaErrorReporterVersion="431"
 
 function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
