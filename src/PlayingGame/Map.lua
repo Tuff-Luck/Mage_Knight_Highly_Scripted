@@ -1263,21 +1263,27 @@ function refreshTerrainExploreOptions(compactCities)
 		local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
 		local leftCountry=getObjectFromGUID(GUID.bag.terrain.leftCountry)
 		local leftCore=getObjectFromGUID(GUID.bag.terrain.leftCore)
-		local terrainStackQuantity=terrainStack~=nil and (tonumber(terrainStack.getQuantity()) or 0) or 0
-		local terrainStackObjects=terrainStack~=nil and terrainStack.getObjects() or nil
-		--TTS destroys/rebuilds container objects while loose terrain tiles merge into the final stack.
-		--During that frame getObjects() can return nil even though getQuantity() already reports the stack.
-		--Retry the derived EXPLORE view after the merge instead of treating a transient container as empty.
-		if terrainStackQuantity>1 and type(terrainStackObjects)~="table" then
-			if terrainExploreRefreshQueued~=true then
-				terrainExploreRefreshQueued=true
-				safeWaitFrames("Map",function()
-					terrainExploreRefreshQueued=false
-					refreshTerrainExploreOptions(compactCities)
-				end,1)
-			end
-			return
+		local function retryTerrainExploreRefresh()
+			if terrainExploreRefreshQueued==true then return end
+			terrainExploreRefreshQueued=true
+			safeWaitFrames("Map",function()
+				terrainExploreRefreshQueued=false
+				refreshTerrainExploreOptions(compactCities)
+			end,1)
 		end
+		local terrainStackQuantity=0
+		local terrainStackObjects=nil
+		if terrainStack~=nil then
+			--TTS can destroy/rebuild the terrain container while loose tiles merge into the final stack.
+			--During that frame even getQuantity() can throw from the transient container proxy, so protect
+			--both reads and retry the derived EXPLORE view once the replacement object exists.
+			local quantityOK, quantity=pcall(function() return terrainStack.getQuantity() end)
+			local objectsOK, objects=pcall(function() return terrainStack.getObjects() end)
+			if quantityOK~=true or objectsOK~=true then retryTerrainExploreRefresh() return end
+			terrainStackQuantity=tonumber(quantity) or 0
+			terrainStackObjects=objects
+		end
+		if terrainStackQuantity>1 and type(terrainStackObjects)~="table" then retryTerrainExploreRefresh() return end
 		terrainStackObjects=type(terrainStackObjects)=="table" and terrainStackObjects or {}
 		local terrainStackSingleTile=terrainStack~=nil and terrainTiles[terrainStack.guid]~=nil and terrainTiles[terrainStack.guid].tileType~="tilePile"
 		if #terrainStackObjects>0 then
