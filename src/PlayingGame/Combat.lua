@@ -1,5 +1,33 @@
 -- Combat, enemy staging, cooperative assault and combat reward runtime.
 
+local function combatAllAttackBonusDecalURL(bonus)
+	bonus=tonumber(bonus) or 0
+	if bonus==1 then return "https://steamusercontent-a.akamaihd.net/ugc/15079936556037598648/4230C9B5103E634683302A5818A744A4B14CD8CF/" end
+	if bonus==2 then return "https://steamusercontent-a.akamaihd.net/ugc/10898261749964477479/1CE17B450996B940608CA7CEBB7269B0FBC7EB9A/" end
+	if bonus==3 then return "https://steamusercontent-a.akamaihd.net/ugc/9640160926418445784/88929ADF524E4BC2A53D4CDB2B942A925BB53625/" end
+	return nil
+end
+
+--Shared presentation helper for temporary Attack modifiers on enemies and Dragon heads.
+function combatSyncNamedAttackBonusDecal(obj,prefix,bonus,position)
+	if obj==nil or prefix==nil or position==nil then return false end
+	local decals={}
+	for _,decalDetails in pairs(obj.getDecals() or {}) do
+		if tostring(decalDetails.name or ""):sub(1,#prefix)~=prefix then decals[#decals+1]=decalDetails end
+	end
+	local url=combatAllAttackBonusDecalURL(bonus)
+	if url~=nil then decals[#decals+1]={name=prefix..tostring(bonus),url=url,position=position,rotation={90,180,0},scale={0.72,0.72,1}} end
+	obj.setDecals(decals)
+	return true
+end
+
+--Visual reminder for temporary +X to every Attack. Use the same decal placement/scale as
+--the Green City Poison bonus so this behaves like the mod's existing monster bonus markers.
+function combatAddAllAttackBonusDecal(enemy,bonus)
+	if enemy==nil then return end
+	combatSyncNamedAttackBonusDecal(enemy,"AllAttack+",bonus,{1.1,0.15,0.25})
+end
+
 local coopAssaultNormalText="{en}Nearby Mage Knights can choose to join this assault by skipping their next turn. This tool randomly gives the amount of defenders chosen to each player. (Remember to pay movement costs){ru}Ближайшие Рыцари-маги могут присоединиться к этому штурму, пропустив свой следующий ход. Этот инструмент случайно распределяет выбранное количество защитников между игроками. (Не забудьте оплатить стоимость движения.){zh-tw}附近的魔法騎士可以選擇加入突襲。此工具會依據數量隨機分配守軍給每位參與者。（記得支付移動點數）{zh-cn}附近的魔法骑士可以选择加入突袭。此工具会依据数量随机分配守军给每位参与者。（记得支付移动点数）{ko}근처의 메이지 나이트들은 다음 차례를 건너뛰고 이 강습에 참여할 수 있습니다. 이 도구는 선택한 수의 수비자를 각 플레이어에게 무작위로 배정합니다. (이동 비용을 지불하는 것을 잊지 마세요){es}Los Caballeros Mago cercanos pueden unirse a este asalto saltándose su próximo turno. Esta herramienta reparte al azar entre los jugadores la cantidad de defensores elegida. (Recuerda pagar los costes de movimiento){fr}Les Chevaliers-Mages proches peuvent rejoindre cet assaut en sautant leur prochain tour. Cet outil répartit aléatoirement entre les joueurs le nombre de défenseurs choisi. (N’oubliez pas de payer les coûts de mouvement){pt-br}Mage Knights próximos podem participar deste ataque pulando o próximo turno. Esta ferramenta distribui aleatoriamente entre os jogadores a quantidade escolhida de defensores. (Lembre-se de pagar os custos de movimento){de}Mage Knights in der Nähe können sich diesem Angriff anschließen, indem sie ihren nächsten Zug aussetzen. Dieses Werkzeug verteilt die gewählte Anzahl Verteidiger zufällig auf die Spieler. (Denke daran, die Bewegungskosten zu bezahlen)"
 local combatFactionRewards={
 	Dark={pile=monsterPiles.rewardDark,key="dark"},Elem={pile=monsterPiles.rewardElem,key="elementalist"},

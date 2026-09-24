@@ -341,61 +341,6 @@ local function apocalypseQuestTuckedCardDestination(card)
 	if cardType=="Elite Unit" or name=="Elite Unit" then return GUID.deck.eliteUnit, "Elite Unit" end
 	return nil, nil
 end
-local function standardDeckCycleZone(deckName)
-	if deckName=="Advanced Action" then return GUID.zone.actionDeck end
-	if deckName=="Spell" then return GUID.zone.spellDeck end
-	if deckName=="Regular Unit" then return GUID.zone.regularUnit end
-	if deckName=="Elite Unit" then return GUID.zone.eliteUnit end
-	return nil
-end
-function standardDeckCycleObject(deckName)
-	if deckName=="Artifact" then return getObjectFromGUID(GUID.deck.artifact) end
-	local zoneGUID=standardDeckCycleZone(deckName)
-	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-	if zone~=nil then
-		for _, obj in pairs(zone.getObjects()) do if obj.type=="Deck" or obj.type=="Card" then return obj end end
-	end
-	return nil
-end
-local function standardDeckCycleMarker(deckName)
-	if deckName==nil or gStates==nil or gStates.standardDeckFirstReturnedGUID==nil then return nil end
-	return gStates.standardDeckFirstReturnedGUID[deckName]
-end
-function standardDeckCycleMarkReturned(deckName, card)
-	if deckName==nil or gStates==nil or gStates.firstStarted~=true or card==nil then return false end
-	if gStates.standardDeckFirstReturnedGUID==nil then gStates.standardDeckFirstReturnedGUID={} end
-	if gStates.standardDeckFirstReturnedGUID[deckName]==nil then gStates.standardDeckFirstReturnedGUID[deckName]=card.guid return true end
-	return false
-end
-
-function standardDeckCycleShuffleIfReached(deckName, deck, candidateGUID)
-	local firstReturned=standardDeckCycleMarker(deckName)
-	if firstReturned==nil then return false end
-	deck=deck or standardDeckCycleObject(deckName)
-	if deck==nil or (deck.type~="Deck" and deck.type~="Card") then return false end
-	local reachedGUID=candidateGUID
-	if reachedGUID==nil then
-		if deck.type=="Deck" then
-			local objects=deck.getObjects()
-			if objects[1]~=nil then reachedGUID=objects[1].guid end
-		else
-			reachedGUID=deck.guid
-		end
-	end
-	if reachedGUID~=firstReturned then return false end
-	gStates.standardDeckFirstReturnedGUID[deckName]=nil
-	if deck.type=="Deck" and deck.getQuantity()>1 then deck.shuffle() end
-	return true
-end
-function standardDeckCycleClearIfDeckShuffled(deck)
-	if deck==nil or deck.type~="Deck" or gStates==nil or gStates.standardDeckFirstReturnedGUID==nil then return false end
-	for _, deckName in ipairs({"Artifact", "Regular Unit", "Elite Unit", "Advanced Action", "Spell"}) do
-		local current=standardDeckCycleObject(deckName)
-		if current~=nil and current.guid==deck.guid then gStates.standardDeckFirstReturnedGUID[deckName]=nil return true end
-	end
-	return false
-end
-
 function apocalypseQuestStageIntoContainer(obj,container)
 	if obj==nil or container==nil then return false end
 	local objectGUID=obj.guid
@@ -749,16 +694,6 @@ function apocalypseQuestManaTokenColor(obj)
 	if name=="Gold Mana" then return "Gold" end
 	if name=="Black Mana" then return "Black" end
 	return nil
-end
-
---Keep every scripted mana crystal/token draw at the same display angle as a manual bag draw.
---Preserve any intentional X/Z rotation supplied by the caller, but normalize Y to 30 degrees.
-function takeManaCrystal(bag, params)
-	if bag==nil then return nil end
-	params=params or {}
-	local rotation=params.rotation or {0,0,0}
-	params.rotation={rotation[1] or rotation.x or 0,30,rotation[3] or rotation.z or 0}
-	return bag.takeObject(params)
 end
 
 function apocalypseQuestManaBag(color)
@@ -2111,42 +2046,6 @@ function apocalypseQuestSpawnEnemyToCombat(card,playerIndex,pileName,possessed,o
 	return enemy
 end
 
-function allAttackBonusDecalURL(bonus)
-	bonus=tonumber(bonus) or 0
-	if bonus==1 then return "https://steamusercontent-a.akamaihd.net/ugc/15079936556037598648/4230C9B5103E634683302A5818A744A4B14CD8CF/" end
-	if bonus==2 then return "https://steamusercontent-a.akamaihd.net/ugc/10898261749964477479/1CE17B450996B940608CA7CEBB7269B0FBC7EB9A/" end
-	if bonus==3 then return "https://steamusercontent-a.akamaihd.net/ugc/9640160926418445784/88929ADF524E4BC2A53D4CDB2B942A925BB53625/" end
-	return nil
-end
-
-function syncNamedAttackBonusDecal(obj,prefix,bonus,position)
-	if obj==nil or prefix==nil or position==nil then return false end
-	local decals={}
-	for _, decalDetails in pairs(obj.getDecals() or {}) do
-		if tostring(decalDetails.name or ""):sub(1,#prefix)~=prefix then decals[#decals+1]=decalDetails end
-	end
-	local url=allAttackBonusDecalURL(bonus)
-	if url~=nil then decals[#decals+1]={name=prefix..tostring(bonus), url=url, position=position, rotation={90,180,0}, scale={0.72,0.72,1}} end
-	obj.setDecals(decals)
-	return true
-end
-
---Visual reminder for temporary +X to every Attack. Use the same decal placement/scale as
---the Green City Poison bonus so this behaves like the mod's existing monster bonus markers.
-function addAllAttackBonusDecal(enemy,bonus)
-	if enemy==nil then return end
-	syncNamedAttackBonusDecal(enemy,"AllAttack+",bonus,{1.1,0.15,0.25})
-end
-
-function syncDragonHeadAttackBonusDecal(tokenGUID,bonus)
-	local token=tokenGUID~=nil and getObjectFromGUID(tokenGUID) or nil
-	if token==nil then return false end
-	--The head tokens sit at 180 degrees, so positive local X is visually left.
-	--Keep the Control bonus centred vertically rather than using the Quest possessed-token offset.
-	syncNamedAttackBonusDecal(token,"DragonAllAttack+",bonus,{1.1,0.15,0})
-	return true
-end
-
 function apocalypseQuestFogEnemy(card)
 	if card==nil then return nil end
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
@@ -2208,7 +2107,7 @@ function apocalypseQuestAddEnemyAttackBonus(enemyGUID,bonus)
 	local source=gStates.monsterPerks[enemyGUID].attack or base.attack
 	if source==nil then
 		gStates.monsterPerks[enemyGUID].boost=(gStates.monsterPerks[enemyGUID].boost or 0)+bonus
-		addAllAttackBonusDecal(enemy,bonus)
+		combatAddAllAttackBonusDecal(enemy,bonus)
 		return true
 	end
 	local adjusted={}
@@ -2217,7 +2116,7 @@ function apocalypseQuestAddEnemyAttackBonus(enemyGUID,bonus)
 		for index,value in pairs(values) do adjusted[attackType][index]=value+bonus end
 	end
 	gStates.monsterPerks[enemyGUID].attack=adjusted
-	addAllAttackBonusDecal(enemy,bonus)
+	combatAddAllAttackBonusDecal(enemy,bonus)
 	setMonsterObjectButtons(enemy,true)
 	return true
 end
@@ -3922,11 +3821,11 @@ function apocalypseQuestDisbandVeryPersonalUnit(card)
 	local unit=apocalypseQuestVeryPersonalUnit(card)
 	if unit==nil then return false end
 	local cardType=gameCardType(unit)
-	local deckGUID=cardType=="Elite Unit" and GUID.deck.eliteUnit or GUID.deck.regularUnit
-	local deck=getObjectFromGUID(deckGUID)
+	local deckName=cardType=="Elite Unit" and "Elite Unit" or cardType=="Regular Unit" and "Regular Unit" or nil
+	local deck=deckName~=nil and standardDeckCycleObject(deckName) or nil
 	if deck~=nil then
-		unit.unlock()
-		deck.putObject(unit)
+		standardDeckCycleMarkReturned(deckName,unit)
+		putCardAtBottom(deck,unit)
 		broadcastToAll("{en}A Very Personal Quest: the marked Unit was disbanded when the Quest left play.{ru}A Very Personal Quest: отмеченный отряд был распущен, когда задание покинуло игру.{zh-tw}A Very Personal Quest：任務離場時，帶有標記的部隊已被解散。{zh-cn}A Very Personal Quest：任务离场时，带有标记的部队已被解散。{ko}A Very Personal Quest: 퀘스트가 플레이에서 제거될 때 표시된 유닛이 해산되었습니다.{es}A Very Personal Quest: la Unidad marcada fue disuelta cuando la Misión salió del juego.{fr}A Very Personal Quest : l’Unité marquée a été dissoute lorsque la Quête a quitté le jeu.{pt-br}A Very Personal Quest: a Unidade marcada foi dispensada quando a Missão saiu de jogo.{de}A Very Personal Quest: Die markierte Einheit wurde aufgelöst, als die Quest das Spiel verließ.",{1,1,0.5})
 		return true
 	end

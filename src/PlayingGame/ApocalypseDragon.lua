@@ -1,6 +1,15 @@
 -- Shared Apocalypse Dragon entity, head-level and landed-combat helpers.
 -- Scenario-specific AI/turn rules remain in Scenario.lua.
 
+function syncDragonHeadAttackBonusDecal(tokenGUID,bonus)
+	local token=tokenGUID~=nil and getObjectFromGUID(tokenGUID) or nil
+	if token==nil then return false end
+	--The head tokens sit at 180 degrees, so positive local X is visually left.
+	--Keep the Control bonus centred vertically rather than using the Quest possessed-token offset.
+	combatSyncNamedAttackBonusDecal(token,"DragonAllAttack+",bonus,{1.1,0.15,0})
+	return true
+end
+
 function apocalypseDragonPossessSummonedEnemy(enemyGUID,target)
 	local enemy=getObjectFromGUID(enemyGUID)
 	if target==nil then

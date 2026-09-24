@@ -4,6 +4,7 @@
 require("Data")
 require("ErrorReporting")
 require("Shared")
+require("PlayingGame.DeckCycle")
 require("SetupGame.HeroChallenges")
 require("SetupInterface")
 require("PlayingGame.Help")

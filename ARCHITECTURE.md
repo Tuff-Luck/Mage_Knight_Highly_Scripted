@@ -7,6 +7,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/Data.lua` | Static game data: cards, monsters, scenarios, GUID mappings and other large lookup tables. |
 | `src/ErrorReporting.lua` | Automatic Lua error reporting, protected callback helpers, breadcrumbs and diagnostic context builders. |
 | `src/Shared.lua` | Shared helpers used across setup/runtime modules, including protected asynchronous/callback helpers. |
+| `src/PlayingGame/DeckCycle.lua` | Shared live-pile lookup and bottom-return cycle tracking for Artifact, Unit, Advanced Action and Spell decks. |
 | `src/SetupInterface.lua` | Setup menu/UI state, scenario/variant option presentation, cross-option locks and setup-facing controls. |
 | `src/SetupGame.lua` | Setup orchestration: Start handling, final option normalization, delayed completion and setup callback boundary. |
 | `src/SetupGame/Components.lua` | Monster pools and setup-time expansion bag merging. |
@@ -47,7 +48,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 
 ## Dependency shape
 
-`Data`, `ErrorReporting` and `Shared` load first. Shared owns the generic runtime-map geometry/topology primitives (hex keys, adjacency, BFS distance maps, axial conversion and terrain-hex UI placement). Error reporting loads before Shared because the shared async/object helpers use its protected callback machinery. Setup modules then define setup-facing globals. Gameplay modules load after setup, with specialized modules defining their systems before the final UI/event/callback layers. `PlayingGame.Scenario` loads immediately before `PlayingGame.ApocalypseDragon` and `PlayingGame.Horsemen`; both shared encounter modules call scenario-owned hooks only at runtime.
+`Data`, `ErrorReporting`, `Shared` and `PlayingGame.DeckCycle` load first. DeckCycle owns the standard returned-card cycle and live draw-pile lookup used across Quest, Offer, Turn and player-board flows. Shared owns the generic runtime-map geometry/topology primitives (hex keys, adjacency, BFS distance maps, axial conversion and terrain-hex UI placement). Error reporting loads before Shared because the shared async/object helpers use its protected callback machinery. Setup modules then define setup-facing globals. Gameplay modules load after setup, with specialized modules defining their systems before the final UI/event/callback layers. `PlayingGame.Scenario` loads immediately before `PlayingGame.ApocalypseDragon` and `PlayingGame.Horsemen`; both shared encounter modules call scenario-owned hooks only at runtime.
 
 Cross-cutting services must not replace another module's global by load order. The owning module should keep the public entry point, give its underlying implementation a unique base name when necessary, and delegate explicitly to the service.
 

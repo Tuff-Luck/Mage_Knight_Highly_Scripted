@@ -1,5 +1,15 @@
 -- Mirrored Mana Source runtime.
 
+--Keep every scripted mana crystal/token draw at the same display angle as a manual bag draw.
+--Preserve any intentional X/Z rotation supplied by the caller, but normalize Y to 30 degrees.
+function takeManaCrystal(bag,params)
+	if bag==nil then return nil end
+	params=params or {}
+	local rotation=params.rotation or {0,0,0}
+	params.rotation={rotation[1] or rotation.x or 0,30,rotation[3] or rotation.z or 0}
+	return bag.takeObject(params)
+end
+
 -- Shared Mana Source mirrors
 exitWaitID={}
 mirrorSpawnEnterIgnore={}
