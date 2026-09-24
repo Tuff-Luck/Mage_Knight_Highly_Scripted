@@ -804,7 +804,7 @@ local function mainUIRefreshPlayerState(context)
 		local hiddenValleyKeep=false
 		for _, obj in pairs(playerCombatObjects(turnOrder[gStates.turnNumber].seatPos)) do
 			--Read Monster tokens in the current player's Play/Unit areas and update fame and reputation gain values.
-			if obj.guid=="2eb8e2" then timeBending=true end
+			if obj.guid==GUID.card.timeBending then timeBending=true end
 			if monsterPugs[obj.guid]~=nil and gStates.summonStates[obj.guid]~="summoned" and monsterPugs[obj.guid].pugType~="possessed" then
 				local doMath=false
 				local cityRepLoss=false
