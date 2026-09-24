@@ -46,6 +46,15 @@ function safeWaitCondition(scope, callback, condition, timeout, timeoutCallback)
 	return Wait.condition(safeCallbackRun,condition,timeout,safeTimeout)
 end
 
+local UI_BUTTON_ACTIVE_IMAGE="Sliced Button/Button New Active"
+local UI_BUTTON_DEACTIVE_IMAGE="Sliced Button/Button New Deactive"
+
+--Keep a button's input state and standard Active/Deactive presentation in sync.
+function setUIButtonEnabled(id,enabled,imageId)
+	UI.setAttribute(id,"interactable",enabled and "true" or "false")
+	UI.setAttribute(imageId or id.."Image","image",enabled and UI_BUTTON_ACTIVE_IMAGE or UI_BUTTON_DEACTIVE_IMAGE)
+end
+
 --Used to join a table of strings with translation brackets
 local JOIN_LANG_ORDER={"en", "ru", "zh-tw", "zh-cn", "ko", "es", "fr", "pt-br", "de"}
 local JOIN_LANG_TAGS={"{en}", "{ru}", "{zh-tw}", "{zh-cn}", "{ko}", "{es}", "{fr}", "{pt-br}", "{de}"}
