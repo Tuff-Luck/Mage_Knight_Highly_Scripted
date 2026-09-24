@@ -404,8 +404,8 @@
 	</Panel>
 	<Panel id="AutoFlipButton" active="false" rectAlignment="UpperLeft" offsetXY="0 -30" width="110" height="30" outlineSize="0 0">
 		<Button id="AutoFlipButtonReal" onClick="autoflip" tooltipPosition="Below" tooltipOffset="5" tooltip="Dropping a Mage Knight next to a Fortified site will reveal the Garrisons for you.">
-			<Image id="AutoFlipButtonRealImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-			<VerticalLayout padding="6 6 6 6"><Text id="AutoFlipButtonRealText" class="Text18" offsetXY="0 1">{en}Auto Flip{ru}Авто-переворот{zh-tw}自动翻转{zh-cn}自动翻转{ko}자동 공개{es}Volteo Automático{fr}Retournement auto{pt-br}Auto-Virar{de}Auto-Flip</Text></VerticalLayout>
+			<Image id="AutoFlipButtonRealImage" image="Sliced Button/Button New Active" type="Sliced"/>
+			<VerticalLayout padding="6 6 6 6"><Text id="AutoFlipButtonRealText" class="Text18" offsetXY="0 1">{en}Auto Flip - Off{ru}Авто-переворот - Выкл.{zh-tw}自動翻轉 - 關{zh-cn}自动翻转 - 关{ko}자동 공개 - 꺼짐{es}Volteo Automático - No{fr}Retournement auto - Non{pt-br}Auto-Virar - Desligado{de}Auto-Flip - Aus</Text></VerticalLayout>
 		</Button>
 	</Panel>
 	<Panel id="MonsterButton" active="false" rectAlignment="UpperLeft" offsetXY="110 -30" width="110" height="30" outlineSize="0 0">
