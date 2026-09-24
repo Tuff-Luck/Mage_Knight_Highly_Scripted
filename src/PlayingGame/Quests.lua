@@ -69,6 +69,11 @@ local function apocalypseQuestHandler(cardOrGUID)
 	return guid~=nil and apocalypseQuestHandlers[guid] or nil
 end
 
+local function apocalypseQuestRegisterHandler(guid)
+	if apocalypseQuestHandlers[guid]==nil then apocalypseQuestHandlers[guid]={} end
+	return apocalypseQuestHandlers[guid]
+end
+
 local function apocalypseQuestCombatRuleForStep(card,step)
 	local handler=apocalypseQuestHandler(card)
 	return handler~=nil and handler.combatSteps~=nil and handler.combatSteps[tonumber(step)] or nil
@@ -2669,10 +2674,9 @@ function apocalypseQuestRichMerchantStartTurn()
 	return true
 end
 
-function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCompletion)
-	if card==nil or option==nil or turnOrder[playerIndex]==nil then return end
+-- Quest-specific resolution effects live on the same per-Quest handlers as legality/combat metadata.
+apocalypseQuestRegisterHandler("8939c0").resolveEffect=function(card,playerIndex,option,finalCompletion)
 	local key=tostring(option.key)
-	if card.guid=="8939c0" then
 		if key=="1a" then
 			turnOrder[playerIndex].fameGain=(turnOrder[playerIndex].fameGain or 0)+1
 			apocalypseQuestGainReputation(playerIndex,"The Execution")
@@ -2685,34 +2689,62 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			apocalypseQuestLoseReputation(playerIndex,"The Execution","effect")
 			mainUIUpdate("Quest Fame reward")
 		end
-	elseif card.guid=="58a826" then
+end
+
+apocalypseQuestRegisterHandler("58a826").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="2" then
 			local hex=apocalypseQuestCurrentPlayerHex(playerIndex)
 			local terrainColor=hex~=nil and ({plains="White",forest="Green",wasteland="Red",swamp="Blue"})[hex.hexType] or nil
 			if terrainColor~=nil then apocalypseQuestPlaceCrystalOnCard(card,terrainColor,0,-0.55,"The Eager Herbalist") end
 		end
-	elseif card.guid=="734740" and key=="3" then
+end
+
+apocalypseQuestRegisterHandler("734740").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="3" then
 		apocalypseQuestGiveProveYourselfReward(card,playerIndex)
-	elseif card.guid=="72099f" then
+	end
+end
+
+apocalypseQuestRegisterHandler("72099f").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="1" and turnOrder[playerIndex]~=nil and gStates.apocalypseQuestGoblinWarrens~=nil then
 			gStates.apocalypseQuestGoblinWarrens[turnOrder[playerIndex].mage]=nil
 		elseif key=="2" and finalCompletion==true then
 			apocalypseQuestFlipSiteToken("02f996")
 		end
-	elseif card.guid=="8cdac4" then
+end
+
+apocalypseQuestRegisterHandler("8cdac4").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="2" then
 			local level=turnOrder[playerIndex].level or 1
 			apocalypseQuestPlaceEnemy(card,level<=3 and "gray" or level<=6 and "purple" or "white",true,0)
 		elseif key=="3" then
 			apocalypseQuestGiveTuckedCard(playerIndex,card,"Spell")
 		end
-	elseif card.guid=="66ea80" and key=="1" then
+end
+
+apocalypseQuestRegisterHandler("66ea80").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="1" then
 		--Fistful's two gray enemies are placed after the Quest offer finishes moving. Drawing both from the
 		--same bag while the card is also relocating can lose a spawn/attachment race in TTS.
 		return
-	elseif card.guid=="37e2ce" and key=="1a" then
+	end
+end
+
+apocalypseQuestRegisterHandler("37e2ce").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="1a" then
 		apocalypseQuestFreeWineStartAssault(card,playerIndex)
-	elseif card.guid=="485cc5" and key=="1" then
+	end
+end
+
+apocalypseQuestRegisterHandler("485cc5").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="1" then
 		local color=gStates.apocalypseQuestStepColor~=nil and gStates.apocalypseQuestStepColor[card.guid] or nil
 		local colors=apocalypseQuestMineDoomColors(playerIndex)
 		if color~=nil then
@@ -2721,9 +2753,14 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			local launched=apocalypseQuestLaunchMineDoom(card,playerIndex,color,#colors>1 and 1 or 0)
 			if launched==true then apocalypseQuestMarkCombatStarted(card,2) end
 		end
-	elseif card.guid=="485cc5" and key=="2" and finalCompletion==true then
+	end
+	if key=="2" and finalCompletion==true then
 		broadcastToAll("{en}Mine of Doom reward: gain an Artifact.{ru}Награда Mine of Doom: получите Артефакт.{zh-tw}Mine of Doom 獎勵：獲得一件神器。{zh-cn}Mine of Doom 奖励：获得一件神器。{ko}Mine of Doom 보상: 유물 하나를 얻습니다.{es}Recompensa de Mine of Doom: gana un Artefacto.{fr}Récompense de Mine of Doom : gagnez un Artefact.{pt-br}Recompensa de Mine of Doom: ganhe um Artefato.{de}Belohnung für Mine of Doom: Erhalte ein Artefakt.",positionToColor(playerIndex))
-	elseif card.guid=="b401dc" then
+	end
+end
+
+apocalypseQuestRegisterHandler("b401dc").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="1" then
 			local token=getObjectFromGUID("7e4e4c")
 			if token~=nil then apocalypseQuestHighlightMarker(token) end
@@ -2733,11 +2770,19 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			gStates.apocalypseQuestVeryPersonalSuccess[card.guid]=true
 			broadcastToAll("{en}A Very Personal Quest: the protected Unit survived the Mage Tower rescue; its Quest marker will be returned.{ru}A Very Personal Quest: защищаемый отряд пережил спасение Башни мага; его жетон задания будет возвращён.{zh-tw}A Very Personal Quest：受保護部隊在法師塔救援中存活；其任務標記將被歸還。{zh-cn}A Very Personal Quest：受保护部队在法师塔救援中存活；其任务标记将被归还。{ko}A Very Personal Quest: 보호 대상 유닛이 마법사 탑 구출에서 살아남았습니다. 퀘스트 토큰을 반환합니다.{es}A Very Personal Quest: la Unidad protegida sobrevivió al rescate de la Torre de Mago; se devolverá su ficha de Misión.{fr}A Very Personal Quest : l’Unité protégée a survécu au sauvetage de la Tour de Mage ; son jeton de Quête sera rendu.{pt-br}A Very Personal Quest: a Unidade protegida sobreviveu ao resgate da Torre de Mago; sua ficha de Missão será devolvida.{de}A Very Personal Quest: Die geschützte Einheit hat die Rettung am Magierturm überlebt; ihr Questmarker wird zurückgegeben.",positionToColor(playerIndex))
 		end
-	elseif card.guid=="82a935" and key=="2a" then
+end
+
+apocalypseQuestRegisterHandler("82a935").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="2a" then
 		apocalypseQuestRestoreBurnedMonastery(card,playerIndex)
 		apocalypseQuestAddAdvancedActionToUnitOffer()
 		apocalypseQuestGainReputation(playerIndex,"The Burned Monastery")
-	elseif card.guid=="8455b5" then
+	end
+end
+
+apocalypseQuestRegisterHandler("8455b5").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="1" then
 			broadcastToAll("{en}The Admiring Bard: defeat an enemy token to continue. Non-Red/non-Tan = 2a (Green), Tan = 2b (Blue), Red = 2c (Red).{ru}The Admiring Bard: победите жетон врага, чтобы продолжить. Не красный/не бежевый = 2a (зелёный), бежевый = 2b (синий), красный = 2c (красный).{zh-tw}The Admiring Bard：擊敗一個敵人標記以繼續。非紅／非棕 = 2a（綠），棕 = 2b（藍），紅 = 2c（紅）。{zh-cn}The Admiring Bard：击败一个敌人标记以继续。非红／非棕 = 2a（绿），棕 = 2b（蓝），红 = 2c（红）。{ko}The Admiring Bard: 계속하려면 적 토큰 하나를 처치하십시오. 빨강/황갈색 아님 = 2a(녹색), 황갈색 = 2b(파란색), 빨강 = 2c(빨간색).{es}The Admiring Bard: derrota una ficha de enemigo para continuar. No Rojo/no Canela = 2a (Verde), Canela = 2b (Azul), Rojo = 2c (Rojo).{fr}The Admiring Bard : vainquez un jeton Ennemi pour continuer. Ni Rouge ni Fauve = 2a (Vert), Fauve = 2b (Bleu), Rouge = 2c (Rouge).{pt-br}The Admiring Bard: derrote uma ficha de inimigo para continuar. Não Vermelho/não Bege = 2a (Verde), Bege = 2b (Azul), Vermelho = 2c (Vermelho).{de}The Admiring Bard: Besiege einen Gegnermarker, um fortzufahren. Nicht Rot/nicht Hellbraun = 2a (Grün), Hellbraun = 2b (Blau), Rot = 2c (Rot).",positionToColor(playerIndex))
 		elseif key=="2a" then
@@ -2752,7 +2797,10 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 		elseif key=="3" then
 			apocalypseQuestGiveBardReward(card,playerIndex)
 		end
-	elseif card.guid=="abd4fb" then
+end
+
+apocalypseQuestRegisterHandler("abd4fb").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="1" then
 			if gStates.apocalypseQuestCursedHero==nil then gStates.apocalypseQuestCursedHero={} end
 			apocalypseQuestCursedMarkHolder(card,playerIndex)
@@ -2777,7 +2825,10 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			apocalypseQuestGainReputation(playerIndex,"Cursed")
 			if gStates.apocalypseQuestCursedHero~=nil then gStates.apocalypseQuestCursedHero[card.guid]=nil end
 		end
-	elseif card.guid=="d70436" then
+end
+
+apocalypseQuestRegisterHandler("d70436").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="2" then
 			local level=turnOrder[playerIndex].level or 1
 			local pile=level<=4 and "tan" or level<=8 and "white" or "red"
@@ -2796,22 +2847,56 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 			local reward=level<=4 and "an Advanced Action" or level<=8 and "a Spell" or "an Artifact"
 			broadcastToAll(joinLang({"{en}A Mysterious Island reward: gain {ru}Награда A Mysterious Island: получите {zh-tw}A Mysterious Island 獎勵：獲得 {zh-cn}A Mysterious Island 奖励：获得 {ko}A Mysterious Island 보상: {es}Recompensa de A Mysterious Island: gana {fr}Récompense de A Mysterious Island : gagnez {pt-br}Recompensa de A Mysterious Island: ganhe {de}Belohnung für A Mysterious Island: Erhalte ",reward,"."}),positionToColor(playerIndex))
 		end
-	elseif card.guid=="c73a1f" and key=="3" and finalCompletion==true then
+end
+
+apocalypseQuestRegisterHandler("c73a1f").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="3" and finalCompletion==true then
 		broadcastToAll("{en}Tomb of the Lost King reward: gain an Artifact.{ru}Награда Tomb of the Lost King: получите Артефакт.{zh-tw}Tomb of the Lost King 獎勵：獲得一件神器。{zh-cn}Tomb of the Lost King 奖励：获得一件神器。{ko}Tomb of the Lost King 보상: 유물 하나를 얻습니다.{es}Recompensa de Tomb of the Lost King: gana un Artefacto.{fr}Récompense de Tomb of the Lost King : gagnez un Artefact.{pt-br}Recompensa de Tomb of the Lost King: ganhe um Artefato.{de}Belohnung für Tomb of the Lost King: Erhalte ein Artefakt.",positionToColor(playerIndex))
-	elseif card.guid=="77bbac" and key=="2" then
+	end
+	if key=="2" and apocalypseQuestCardHasEnemyType(card,"white")~=true then
+		apocalypseQuestPlaceEnemy(card,"white",false,0)
+	end
+end
+
+apocalypseQuestRegisterHandler("77bbac").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="2" then
 		broadcastToAll("{en}The Child Seer: resolve the destiny matching the mana token on your Shield (or pay matching mana to choose another destiny).{ru}The Child Seer: разрешите судьбу, соответствующую жетону маны на вашем Щите (или заплатите совпадающую ману, чтобы выбрать другую судьбу).{zh-tw}The Child Seer：結算與你盾牌上魔力標記相符的命運（或支付相符魔力以選擇另一個命運）。{zh-cn}The Child Seer：结算与你盾牌上魔力标记相符的命运（或支付相符魔力以选择另一个命运）。{ko}The Child Seer: 방패 위의 마나 토큰과 일치하는 운명을 해결하십시오(또는 일치하는 마나를 지불해 다른 운명을 선택하십시오).{es}The Child Seer: resuelve el destino que coincida con la ficha de maná de tu Escudo (o paga maná coincidente para elegir otro destino).{fr}The Child Seer : résolvez le destin correspondant au jeton de mana sur votre Bouclier (ou payez le mana correspondant pour choisir un autre destin).{pt-br}The Child Seer: resolva o destino correspondente à ficha de mana em seu Escudo (ou pague mana correspondente para escolher outro destino).{de}The Child Seer: Führe das Schicksal aus, das dem Manamarker auf deinem Schild entspricht (oder zahle passendes Mana, um ein anderes Schicksal zu wählen).",positionToColor(playerIndex))
-	elseif card.guid=="8cff07" and key=="1" and finalCompletion~=true then
+	end
+	if key=="1" then
+		apocalypseQuestPlaceRandomCrystalOnShield(card,playerIndex)
+	end
+end
+
+apocalypseQuestRegisterHandler("8cff07").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="1" and finalCompletion~=true then
 		--A Rich Merchant Step 1 is resolved by the visible physical mana-die path in ResolveStepAction.
 		return
-	elseif card.guid=="082f39" and key=="1" then
+	end
+end
+
+apocalypseQuestRegisterHandler("082f39").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="1" then
 		apocalypseQuestTravellingMerchantRelocate(card,playerIndex)
-	elseif card.guid=="ce70fb" and apocalypseQuestStepNumber(key)==2 then
+	end
+end
+
+apocalypseQuestRegisterHandler("ce70fb").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if apocalypseQuestStepNumber(key)==2 then
 		local level=turnOrder[playerIndex].level or 1
 		local reward=nil
 		if key=="2a" then reward=level<=4 and "a random mana crystal" or level<=8 and "an Advanced Action" or "a Spell"
 		else reward=level<=2 and "an Advanced Action" or level<=6 and "a Spell" or "an Artifact" end
 		broadcastToAll(joinLang({"{en}Traitor {ru}Traitor {zh-tw}Traitor {zh-cn}Traitor {ko}Traitor {es}Traitor {fr}Traitor {pt-br}Traitor {de}Traitor ",key,"{en} reward: gain {ru}, награда: получите {zh-tw} 獎勵：獲得 {zh-cn} 奖励：获得 {ko} 보상: {es}, recompensa: gana {fr}, récompense : gagnez {pt-br}, recompensa: ganhe {de}, Belohnung: Erhalte ",reward,"{en}. The generated Possessed enemy is Council of the Void faction.{ru}. Созданный Одержимый враг относится к фракции Совета Пустоты.{zh-tw}。產生的附身敵人屬於虛空議會陣營。{zh-cn}。产生的附身敌人属于虚空议会阵营。{ko}. 생성된 빙의 적은 공허의 의회 진영입니다.{es}. El enemigo Poseído generado pertenece a la facción Consejo del Vacío.{fr}. L’ennemi Possédé généré appartient à la faction Conseil du Vide.{pt-br}. O inimigo Possuído gerado pertence à facção Conselho do Vácuo.{de}. Der erzeugte Besessen-Gegner gehört zur Fraktion Rat der Leere."}),positionToColor(playerIndex))
-	elseif card.guid=="dd35bb" then
+	end
+end
+
+apocalypseQuestRegisterHandler("dd35bb").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="1" then
 			if apocalypseQuestFogEnemy(card)==nil then apocalypseQuestPlaceEnemy(card,"tan",true,0) end
 		elseif key=="2" then
@@ -2820,45 +2905,88 @@ function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCom
 		elseif key=="3" and finalCompletion==true then
 			broadcastToAll("{en}The Fog reward: gain an Artifact.{ru}Награда The Fog: получите Артефакт.{zh-tw}The Fog 獎勵：獲得一件神器。{zh-cn}The Fog 奖励：获得一件神器。{ko}The Fog 보상: 유물 하나를 얻습니다.{es}Recompensa de The Fog: gana un Artefacto.{fr}Récompense de The Fog : gagnez un Artefact.{pt-br}Recompensa de The Fog: ganhe um Artefato.{de}Belohnung für The Fog: Erhalte ein Artefakt.",positionToColor(playerIndex))
 		end
-	elseif card.guid=="783076" and key=="2" and finalCompletion==true then
+end
+
+apocalypseQuestRegisterHandler("783076").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="2" and finalCompletion==true then
 		broadcastToAll("{en}Hunter's Moon reward: gain an Artifact.{ru}Награда Hunter's Moon: получите Артефакт.{zh-tw}Hunter's Moon 獎勵：獲得一件神器。{zh-cn}Hunter's Moon 奖励：获得一件神器。{ko}Hunter's Moon 보상: 유물 하나를 얻습니다.{es}Recompensa de Hunter's Moon: gana un Artefacto.{fr}Récompense de Hunter's Moon : gagnez un Artefact.{pt-br}Recompensa de Hunter's Moon: ganhe um Artefato.{de}Belohnung für Hunter's Moon: Erhalte ein Artefakt.",positionToColor(playerIndex))
-	elseif card.guid=="a6d5cc" and key=="1" then
+	end
+	if key=="1b" then
+		apocalypseQuestLoseReputation(playerIndex,"Hunter's Moon","effect")
+		apocalypseQuestPlaceCrystalOnCard(card,"Black",0.70,-0.65,"Hunter's Moon")
+	end
+	end
+	end
+end
+
+apocalypseQuestRegisterHandler("a6d5cc").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="1" then
 		gStates.apocalypseQuestUnderSiegeReady=nil
 		gStates.apocalypseQuestUnderSiegeStep2={player=playerIndex,mage=turnOrder[playerIndex].mage,serial=gStates.apocalypseQuestTurnSerial or 0,movedSerial=nil}
 		apocalypseQuestPlaceEnemy(card,"gray",true,-0.45)
 		apocalypseQuestPlaceEnemy(card,"purple",true,0.45)
-	elseif card.guid=="bbd087" then
+	end
+end
+
+apocalypseQuestRegisterHandler("bbd087").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		if key=="1" then
 			broadcastToAll("{en}Noble Warrior: the companion Quest marker is now at this site.{ru}Noble Warrior: сопровождающий жетон задания теперь находится в этом месте.{zh-tw}Noble Warrior：同伴任務標記現在位於此地點。{zh-cn}Noble Warrior：同伴任务标记现在位于此地点。{ko}Noble Warrior: 동료 퀘스트 마커가 이제 이 장소에 있습니다.{es}Noble Warrior: la ficha de Misión compañera está ahora en este lugar.{fr}Noble Warrior : le marqueur de Quête compagnon se trouve maintenant sur ce site.{pt-br}Noble Warrior: o marcador de Missão companheiro agora está neste local.{de}Noble Warrior: Der begleitende Questmarker befindet sich jetzt an diesem Ort.",positionToColor(playerIndex))
 		elseif key=="3a" or key=="3b" then
 			apocalypseQuestNobleWarriorFinalReward(card,playerIndex,key)
 		end
-	elseif card.guid=="c73a1f" and key=="2" and apocalypseQuestCardHasEnemyType(card,"white")~=true then
-		apocalypseQuestPlaceEnemy(card,"white",false,0)
-	elseif card.guid=="77bbac" and key=="1" then
-		apocalypseQuestPlaceRandomCrystalOnShield(card,playerIndex)
-	elseif card.guid=="c5dec8" and key=="3" then
+end
+
+apocalypseQuestRegisterHandler("c5dec8").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="3" then
 		apocalypseQuestGiveQuestTokenToInventory(playerIndex,"186613","Stray")
-	elseif card.guid=="3009b4" then
+	end
+end
+
+apocalypseQuestRegisterHandler("3009b4").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
 		local tokens={["1"]="adc752",["2"]="c92844",["3"]="0143e0",["4"]="7a56a0"}
 		if tokens[key]~=nil then apocalypseQuestGiveQuestTokenToInventory(playerIndex,tokens[key],"Ill Omens") end
-	elseif card.guid=="6175e8" and key=="3" then
+end
+
+apocalypseQuestRegisterHandler("6175e8").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="3" then
 		apocalypseQuestMagicOverloadPlaceSite(card,playerIndex)
-	elseif card.guid=="00a4fe" and key=="2" then
+	end
+end
+
+apocalypseQuestRegisterHandler("00a4fe").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="2" then
 		apocalypseQuestGiveQuestTokenToInventory(playerIndex,"3c89b8","Misadventure")
-	elseif card.guid=="bb2828" and key=="2" then
+	end
+end
+
+apocalypseQuestRegisterHandler("bb2828").resolveEffect=function(card,playerIndex,option,finalCompletion)
+	local key=tostring(option.key)
+	if key=="2" then
 		local color=gStates.apocalypseQuestStepColor~=nil and gStates.apocalypseQuestStepColor[card.guid] or nil
 		if color~=nil then apocalypseQuestPlaceCrystalOnCard(card,color,0,-0.55,"The Artificer") end
-	elseif card.guid=="bb2828" and key=="3" then
+	end
+	if key=="3" then
 		--The three Step 2 crystals are temporary progress markers. The Artificer keeps its Quest card
 		--as a reminder after completion, so normal bottom-deck cleanup never gets a chance to remove them.
 		for _,obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
 			if apocalypseQuestBasicCrystalColor(obj)~=nil then obj.destruct() end
 		end
 		apocalypseQuestGiveQuestTokenToInventory(playerIndex,"cd8313","The Artificer")
-	elseif card.guid=="783076" and key=="1b" then
-		apocalypseQuestLoseReputation(playerIndex,"Hunter's Moon","effect")
-		apocalypseQuestPlaceCrystalOnCard(card,"Black",0.70,-0.65,"Hunter's Moon")
+	end
+end
+
+function apocalypseQuestResolveSpecialEffect(card, playerIndex, option, finalCompletion)
+	if card==nil or option==nil or turnOrder[playerIndex]==nil then return end
+	local handler=apocalypseQuestHandler(card)
+	if handler~=nil and handler.resolveEffect~=nil then
+		return handler.resolveEffect(card,playerIndex,option,finalCompletion)
 	end
 end
 
