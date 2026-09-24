@@ -125,7 +125,7 @@ function eventsOnLoadRawBase(saved_data)
 		UI.setAttribute("helpButtonRealText", "Text", "{en}Help{ru}Помощь{zh-tw}帮  助{zh-cn}帮  助{ko}도움말{es}Ayudar{fr}Aider{pt-br}Ajuda{de}Hilfe")
 		UI.setAttribute("helpButtonReal", "onClick", "DisplayHelp")
 		if gStates.gameScenario=="One to Return" then UI.hide("ScoreButton") end
-		if gStates.autoFlip==true then UI.setAttribute("AutoFlipButtonRealImage", "image", "Sliced Button/Button New Deactive") end
+		refreshAutoFlipButton()
 		if gStates.tacticShown==true or gStates.tacticRemove==true then
 		 	UI.show("NoticeBoard")
 		 	setUIButtonEnabled("DrawOne",false)
