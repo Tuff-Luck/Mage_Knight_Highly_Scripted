@@ -846,8 +846,8 @@ function proxyExploreTarget(hexes,distances)
 	--draw a new terrain tile. The same <26 edge test used by ordinary Explore buttons identifies the
 	--revealed map hex from which this tile can be explored.
 	if gStates.mapShapeKey=="predefined" then
-		local map=getObjectFromGUID(mapArea)
-		for _,tile in pairs(map~=nil and map.getObjects() or {}) do
+		local snapshot=runtimeMapSnapshot()
+		for _,tile in pairs(snapshot.terrainObjects or {}) do
 			local details=terrainTiles[tile.guid]
 			if details~=nil and details.tileType~="tilePile" and tile.is_face_down==true and gStates.playedAllready[tile.guid]~=true then
 				local p=tile.getPosition()
@@ -1311,10 +1311,9 @@ function proxyTargetLoad(saved,hexes)
 end
 
 function proxyDestinationChoiceClearButtons()
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return end
 	local marker="ProxyDestinationChoice"
-	for _,terrain in pairs(map.getObjects()) do
+	local snapshot=runtimeMapSnapshot()
+	for _,terrain in pairs(snapshot.terrainObjects or {}) do
 		if terrainTiles[terrain.guid]~=nil then
 			local xml=terrain.UI.getXmlTable() or {}
 			local changed=false
@@ -1629,13 +1628,7 @@ function proxyMultiFloorNext(hex,mapObjects)
 	local terrain=hex.terrain or getObjectFromGUID(hex.terrainGUID)
 	if terrain==nil then return nil end
 	local occupied={}
-	local objects={}
-	if mapObjects~=nil then
-		objects=mapObjects
-	else
-		local map=getObjectFromGUID(mapArea)
-		if map~=nil then objects=map.getObjects() end
-	end
+	local objects=mapObjects or runtimeMapSnapshot().objects or {}
 	for _,obj in pairs(objects) do
 		if obj~=nil and obj.getName~=nil and obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
 			local pos=obj.getPosition()
