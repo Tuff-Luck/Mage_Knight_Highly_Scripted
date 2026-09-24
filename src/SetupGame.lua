@@ -288,6 +288,10 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			end
 		end
 
+		--Apply the chosen starting time immediately. setupPreview updates the Source board, rules state,
+		--movement costs/UI and terrain tint without running round-transition-only work.
+		dayNight(gStates.startAtNight~=true,true)
+
 		--Put solo player in prefered positions
 		if gStates.playerCount==1 then
 			for posPriority=1, 4, 1 do
@@ -378,6 +382,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			if weatherRules==nil then error("SetupGame could not deploy the Weather rules.",2) end
 			weatherRules.lock()
 			deployedWeather[GUID.deck.dayWeather].unlock()
+			dayNight(gStates.startAtNight~=true,true)
 		end
 		if getObjectFromGUID(GUID.bag.weatherMod)~=nil then getObjectFromGUID(GUID.bag.weatherMod).destruct() end
 
@@ -671,8 +676,7 @@ end
 local function finalizeSetup()
 	if setupFinalizationStarted==true then return end
 	setupFinalizationStarted=true
-	if gStates.startAtNight==true then gStates.dayRound=true end
-	dayNight()--dayNight need to be after map setup to change the tile tint
+	dayNight(gStates.startAtNight~=true)--repeat after map setup for map-dependent reveal/weather work and final terrain tint
 	gStates.firstStarted=true
 	gStates.turnNumber=1
 	refreshAllPlayerFameReputationFromShields()
