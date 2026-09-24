@@ -518,14 +518,11 @@ function volkareTurn(player, mouseButton, id)
 		broadcastToAll("{en}Fully Attend is unavailable: the attacked Mage Knight's Round Order token is already face down, or they have no non-Wound cards in hand.{ru}Полное участие недоступно: жетон порядка хода атакованного Рыцаря-мага уже лежит лицом вниз или у него в руке нет карт, кроме Ран.{zh-tw}無法完全參戰：遭攻擊魔法騎士的回合順位標記已翻面，或手牌中沒有非創傷牌。{zh-cn}无法完全参战：遭攻击魔法骑士的回合顺序标记已翻面，或手牌中没有非创伤牌。{ko}완전 참전할 수 없습니다. 공격받은 마법 기사의 라운드 순서 토큰이 이미 뒷면이거나 손에 부상 이외의 카드가 없습니다.{es}No se puede Asistir por Completo: la ficha de Orden de Ronda del Caballero Mago atacado ya está boca abajo o no tiene cartas que no sean Heridas en la mano.{fr}Participation complète indisponible : le jeton d’Ordre de Manche du Chevalier-Mage attaqué est déjà face cachée, ou sa main ne contient aucune carte autre que des Blessures.{pt-br}Não é possível Participar por Completo: a ficha de Ordem da Rodada do Cavaleiro-Mago atacado já está virada para baixo, ou ele não tem cartas que não sejam Ferimentos na mão.{de}Vollständige Teilnahme ist nicht möglich: Der Rundenreihenfolgemarker des angegriffenen Magieritters liegt bereits verdeckt oder er hat nur Wunden auf der Hand.", warningColor)
 		return
 	end
-	UI.setAttribute("VolkareAttackedFull", "interactable", "false")
-	UI.setAttribute("VolkareAttackedFullImage", "image", "Sliced Button/Button New Deactive")
-	UI.setAttribute("VolkareAttackedPartial", "interactable", "false")
-	UI.setAttribute("VolkareAttackedPartialImage", "image", "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("VolkareAttackedFull",false)
+	setUIButtonEnabled("VolkareAttackedPartial",false)
 	UI.setAttribute("VolkareAttackedPartialText", "text", "{en}Partially Attend the Battle{ru}Быстрая подготовка к битве{zh-tw}部分參戰{zh-cn}部分参战{ko}전투 부분 참여{es}Asiste Parcialmente a la Batalla{fr}Participez Partiellement à la Bataille{pt-br}Participe Parcialmente da Batalha{de}Teilweise an der Schlacht teilnehmen")
 	UI.setAttribute("VolkareRetreat", "active", "true")
-	UI.setAttribute("VolkareRetreat", "interactable", "false")
-	UI.setAttribute("VolkareRetreatImage", "image", "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("VolkareRetreat",false)
 	if id=="VolkareAttackedFull" or id=="VolkareRetreat" or id=="VolkareAttackedPartial" then
 		--find mage knight affected
 		for x, mageDetails in pairs(turnOrder) do
@@ -590,17 +587,13 @@ function volkarePartial(player, mouseButton, id)
 		if dropoutCoopDefensePrompt==true then dropoutCoopDefensePrompt=false applyColorBarButtons() end
 		UI.setAttribute("VolkareAttackedPartial", "onClick", "volkareTurn")
 		UI.setAttribute("VolkareAttackedPartialText", "text", "{en}Finished Partially Attending{ru}Завершено Частичное участие{zh-tw}部分參戰結束{zh-cn}部分参战结束{ko}전투 부분 참여 완료{es}Finalizada la Participación Parcial{fr}Fini Partiellement Participant{pt-br}Participar Parcialmente do Combate{de}Teilweise Teilnahme an der Schlacht beendet")
-		UI.setAttribute("VolkareAttackedFull", "interactable", "false")
-		UI.setAttribute("VolkareAttackedFullImage", "image", "Sliced Button/Button New Deactive")
-		UI.setAttribute("VolkareRetreat", "interactable", "false")
-		UI.setAttribute("VolkareRetreatImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("VolkareAttackedFull",false)
+		setUIButtonEnabled("VolkareRetreat",false)
 		--find mage knight affected
 		for _, mageDetails in pairs(turnOrder) do
 			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
 				--place Volkare's Army
-				--Wait.time(function()
 				attackLocation("", "-1", "Volkar"..mageDetails.mage)
-				--end, 1)
 				break
 			end
 		end
@@ -649,10 +642,8 @@ function volkareRetreat(player, mouseButton, id)
 		local playerRetreat=retreatText:sub(1, 11)=="{en}Retreat"
 		UI.setAttribute("VolkareRetreat", "onClick", "volkareTurn")
 		UI.setAttribute("VolkareRetreatText", "text", "{en}Finished Retreating{ru}Завершено отступление{zh-tw}完成撤退{zh-cn}完成撤退{ko}후퇴 완료{es}Terminar de Retirarse{fr}Retraite Terminée{pt-br}Retiro Acabado{de}Beendeter Rückzug")
-		UI.setAttribute("VolkareAttackedFull", "interactable", "false")
-		UI.setAttribute("VolkareAttackedFullImage", "image", "Sliced Button/Button New Deactive")
-		UI.setAttribute("VolkareAttackedPartial", "interactable", "false")
-		UI.setAttribute("VolkareAttackedPartialImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("VolkareAttackedFull",false)
+		setUIButtonEnabled("VolkareAttackedPartial",false)
 		--find mage knight affected
 		for x, mageDetails in pairs(turnOrder) do
 			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
@@ -689,10 +680,8 @@ end
 
 function volkareCoopDefense(player, mouseButton, id)
 	if mouseButton=="-1" then
-		UI.setAttribute("VolkareAttackedFull", "interactable", "false")
-		UI.setAttribute("VolkareAttackedFullImage", "image", "Sliced Button/Button New Deactive")
-		UI.setAttribute("VolkareRetreat", "interactable", "false")
-		UI.setAttribute("VolkareRetreatImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("VolkareAttackedFull",false)
+		setUIButtonEnabled("VolkareRetreat",false)
 		--load the coop Interface
 		for _, mageDetails in pairs(turnOrder) do
 			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
