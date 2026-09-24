@@ -1443,6 +1443,18 @@ function mapHandleTerrainZoneEnter(ctx)
 				local tokenWait=0
 				local tokenRefillFrame=nil
 				local setupPopulationPending=0
+				--Keep/Mage Tower garrisons are spawned directly onto the newly revealed tile. Their map-zone
+				--entry can occur after terrain population itself has finished, so schedule one authoritative
+				--avatar refresh from the token's own completed arrival as well. This guarantees Auto Flip sees
+				--the new garrison even if an earlier runtime-map snapshot was built before the token entered.
+				local function refreshAutoFlipAfterGarrisonArrival(token)
+					if initialSetupTerrain==true or token==nil then return end
+					mapTokenAfterArrivalComplete(token.guid,function(liveToken)
+						if liveToken==nil then return end
+						runtimeMapInvalidateObjects()
+						fakeDropAvatar()
+					end)
+				end
 				--Normal exploration keeps the familiar staggered token reveal. During initial setup, the
 				--map coordinator already serializes terrain tiles, so do not serialize every hex behind
 				--another fixed eight-frame pause. Run each deployment on the next frame and let the tile's
@@ -1600,6 +1612,7 @@ function mapHandleTerrainZoneEnter(ctx)
 								if getObjectFromGUID(monsterPiles.purple).getQuantity()>0 then
 									local token=getObjectFromGUID(monsterPiles.purple).takeObject(params)
 									gStates.monsterPlayLocation[token.guid]=params.position
+									refreshAutoFlipAfterGarrisonArrival(token)
 								else
 									broadcastToAll("{en}Sorry, there are no Purple tokens left to deploy{ru}Извините, фиолетовые жетоны закончились.{zh-tw}抱歉，沒有紫色標記可供部署{zh-cn}抱歉，没有紫色标记可供部署{ko}여분의 보라색 토큰이 없습니다{es}Lo sentimos, no quedan tokens púrpuras para implementar{fr}Désolé, il n'y a plus de jetons violets à déployer{pt-br}Desculpe, Não tem Fichas Roxas sobrando para distribuir{de}Leider gibt es keine violetten Plättchen mehr zum Einsetzen", warningColor)
 								end
@@ -1618,6 +1631,7 @@ function mapHandleTerrainZoneEnter(ctx)
 										local token=takeFactionMonster("green", "Elem", params)
 										if token~=nil then
 											gStates.monsterPlayLocation[token.guid]=params.position
+											refreshAutoFlipAfterGarrisonArrival(token)
 											gStates.hiddenValleyKeep[i]=token.guid
 											gStates.mineMonsterQty[objGUID][token.guid]="alive"
 										else
@@ -1628,6 +1642,7 @@ function mapHandleTerrainZoneEnter(ctx)
 									if getObjectFromGUID(monsterPiles.gray).getQuantity()>0 then
 										local token=getObjectFromGUID(monsterPiles.gray).takeObject(params)
 										gStates.monsterPlayLocation[token.guid]=params.position
+										refreshAutoFlipAfterGarrisonArrival(token)
 									else
 										broadcastToAll("{en}Sorry, there are no Gray tokens left to deploy{ru}Извините, серые жетоны закончились.{zh-tw}抱歉，没有灰色标记可供部署{zh-cn}抱歉，没有灰色标记可供部署{ko}여분의 회색 토큰이 없습니다.{es}Lo sentimos, no quedan tokens grises para desplegar{fr}Désolé, il n'y a plus de jetons gris à déployer{pt-br}Desculpe, Não tem Fichas Cinza sobrando para distribuir{de}Entschuldigung, es gibt keine grauen Plättchen mehr zum Auslegen", warningColor)
 									end
