@@ -3369,6 +3369,9 @@ function apocalypseQuestTrackMarkerMove(token,target,terrainGUID,bearing)
 	gStates.apocalypseQuestMarkerTransit[tokenGUID]={terrainGUID=terrainGUID,bearing=bearing,position={target[1],target[2],target[3]}}
 	local finish=function()
 		if gStates.apocalypseQuestMarkerTransit~=nil then gStates.apocalypseQuestMarkerTransit[tokenGUID]=nil end
+		--Quest markers are a bottom layer in the shared map-token separator. Scripted Quest movement
+		--stays inside the map zone, so explicitly reconcile the destination after the marker settles.
+		mapTokenArrangeObject(tokenGUID)
 		apocalypseQuestRefreshOfferButtons()
 	end
 	safeWaitFrames("Quests",function()
@@ -4326,6 +4329,14 @@ goblinWarrensHandler.buttonState=function(card,playerIndex,questState,result)
 	if questState~=nil and questState.step==1 then result.progressLabel="Proceed" end
 end
 goblinWarrensHandler.bottomDeckBeforeReveal=function() gStates.apocalypseQuestGoblinWarrens={} end
+
+local randomObjectsHandler=apocalypseQuestRegisterHandler("11d244")
+randomObjectsHandler.resolveEffect=function(card,playerIndex,option,finalCompletion)
+	if finalCompletion==true and tostring(option.key)=="4" then
+		apocalypseQuestGainRandomBasicCrystal(playerIndex,"Random Objects")
+		apocalypseQuestGainRandomBasicCrystal(playerIndex,"Random Objects")
+	end
+end
 
 local executionHandler=apocalypseQuestRegisterHandler("8939c0")
 executionHandler.directChoices=function(card,playerIndex,state)
