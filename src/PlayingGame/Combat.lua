@@ -693,10 +693,8 @@ local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	if gStates.coopAssaultPhase=="combat" then
 		coopCombatReward={player=cleanupPlayer, mage=turnOrder[cleanupPlayer].mage, fame=turnOrder[cleanupPlayer].fameGain, reputation=turnOrder[cleanupPlayer].repGain, factionRewards={dark=0, elementalist=0, apocalypse=0, council=0}}
 		gStates.coopRewardQueue[#gStates.coopRewardQueue+1]=coopCombatReward
-		UI.setAttribute("EndTurnButton", "interactable", "false")
-		UI.setAttribute("EndTurnButtonImage", "image", "Sliced Button/Button New Deactive")
-		UI.setAttribute("EndTurnButtonAlt", "interactable", "false")
-		UI.setAttribute("EndTurnButtonAltImage", "image", "Sliced Button/Button New Deactive")
+		setUIButtonEnabled("EndTurnButton",false)
+		setUIButtonEnabled("EndTurnButtonAlt",false)
 	end
 	--reset variables for next turn
 	gStates.preEndTurn=true
@@ -717,8 +715,7 @@ local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	if turnOrder[cleanupPlayer].masterOfChaos~=nil then turnOrder[cleanupPlayer].masterOfChaos="available" end
 	addAvatarButtons()
 	if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
-	UI.setAttribute("PreEndTurn", "interactable", "false")
-	UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("PreEndTurn",false)
 	rewardClaimDelayWait=safeWaitTime("Combat",function()
 		rewardClaimDelayWait=nil
 		local function finishRewardDelay()
@@ -727,8 +724,7 @@ local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 				rewardClaimSoftLockStart()
 				if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[cleanupPlayer].seatPos)
 				else
-					UI.setAttribute("PreEndTurn", "interactable", "true")
-					UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Active")
+					setUIButtonEnabled("PreEndTurn",true)
 				end
 			end
 			rewindTransactionFinish("Pre-end-turn cleanup")
@@ -2359,15 +2355,11 @@ function coopAssaultUIUpdate()
 		local sourceTotal=coopAssaultDividableCount(sourcePrimary)+coopAssaultDividableCount(sourceSecondary)
 		local canGiveBack=cityMinimum==false or assignedTotal>1
 		local canTakeFromSource=cityMinimum==false or sourceTotal>1
-		if primaryCount>=1 and canAdjust and canGiveBack then UI.setAttribute("Mage"..entry.."AssaultAdjustPrimDo", "interactable", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustPrimDoImage", "image", "Sliced Button/Button New Active")
-		else UI.setAttribute("Mage"..entry.."AssaultAdjustPrimDo", "interactable", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustPrimDoImage", "image", "Sliced Button/Button New Deactive") end
-		if coopAssaultDividableCount(sourcePrimary)>=1 and canAdjust and canTakeFromSource then UI.setAttribute("Mage"..entry.."AssaultAdjustPrimUp", "interactable", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustPrimUpImage", "image", "Sliced Button/Button New Active")
-		else UI.setAttribute("Mage"..entry.."AssaultAdjustPrimUp", "interactable", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustPrimUpImage", "image", "Sliced Button/Button New Deactive") end
+		setUIButtonEnabled("Mage"..entry.."AssaultAdjustPrimDo",primaryCount>=1 and canAdjust and canGiveBack)
+		setUIButtonEnabled("Mage"..entry.."AssaultAdjustPrimUp",coopAssaultDividableCount(sourcePrimary)>=1 and canAdjust and canTakeFromSource)
 		if secondaryCount>=1 then UI.setAttribute("Mage"..entry.."AssaulterAmountTwo", "text", tostring(secondaryCount)) elseif joined then UI.setAttribute("Mage"..entry.."AssaulterAmountTwo", "text", noneText) else UI.setAttribute("Mage"..entry.."AssaulterAmountTwo", "text", "") end
-		if secondaryCount>=1 and canAdjust and canGiveBack then UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDo", "interactable", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDoImage", "image", "Sliced Button/Button New Active")
-		else UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDo", "interactable", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDoImage", "image", "Sliced Button/Button New Deactive") end
-		if coopAssaultDividableCount(sourceSecondary)>=1 and canAdjust and canTakeFromSource then UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUp", "interactable", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUpImage", "image", "Sliced Button/Button New Active")
-		else UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUp", "interactable", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUpImage", "image", "Sliced Button/Button New Deactive") end
+		setUIButtonEnabled("Mage"..entry.."AssaultAdjustSecoDo",secondaryCount>=1 and canAdjust and canGiveBack)
+		setUIButtonEnabled("Mage"..entry.."AssaultAdjustSecoUp",coopAssaultDividableCount(sourceSecondary)>=1 and canAdjust and canTakeFromSource)
 		if size=="full" then UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUp", "active", "true") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDo", "active", "true") else UI.setAttribute("Mage"..entry.."AssaultAdjustSecoUp", "active", "false") UI.setAttribute("Mage"..entry.."AssaultAdjustSecoDo", "active", "false") end
 	end
 	if assaultType=="dragon" then
@@ -2387,8 +2379,7 @@ function coopAssaultUIUpdate()
 		UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
 	end
 	local ready=coopAssaultReadyToBegin()
-	UI.setAttribute("startAssault", "interactable", ready and "true" or "false")
-	UI.setAttribute("startAssaultImage", "image", ready and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+	setUIButtonEnabled("startAssault",ready)
 	UI.setAttribute("CoopAssault", "width", "525")
 	UI.setAttribute("CoopAssault", "height", tostring(((rowCount+1)*30)+90))
 	UI.setAttribute("CoopAssaultMainTableHeading", "columnSpan", "5")
