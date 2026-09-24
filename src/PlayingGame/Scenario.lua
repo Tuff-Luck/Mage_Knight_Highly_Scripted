@@ -1606,6 +1606,7 @@ function apocalypseIsHereSetup()
 	gStates.apocalypseHereHorsemenQueue={}
 	gStates.apocalypseHereHorsemenQueueIndex=1
 	gStates.apocalypseHereHorsemanPendingChoice=nil
+	gStates.apocalypseHereHorsemanAction=nil
 	gStates.apocalypseHerePossessedPending={}
 	gStates.apocalypseHereDragonCityRevealed=false
 	gStates.apocalypseDragonAssaultFortifiedInitiator=false
@@ -2315,13 +2316,15 @@ function apocalypseIsHereRestoreScenarioState()
 	--Reveal callbacks are not serialized. Resume any successfully reserved reveal from its persisted tile;
 	--failed physical deployment rolls the reservation back through the normal reveal path.
 	for _,name in ipairs(gStates.apocalypseHereHorsemanOrder or {}) do
-		local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+		local reservedName=name
+		local state=gStates.horsemen~=nil and gStates.horsemen[reservedName] or nil
 		if state~=nil and state.revealPending==true then
 			local tile=state.revealTileGUID~=nil and getObjectFromGUID(state.revealTileGUID) or nil
 			if tile~=nil and workingOnTerrain~=nil and workingOnTerrain[tile.guid]==true then
-				safeWaitCondition("Scenario",function() apocalypseIsHereDeployReservedHorseman(name) end,function() return workingOnTerrain[tile.guid]~=true end)
+				local tileGUID=tile.guid
+				safeWaitCondition("Scenario",function() apocalypseIsHereDeployReservedHorseman(reservedName) end,function() return workingOnTerrain[tileGUID]~=true end)
 			else
-				apocalypseIsHereDeployReservedHorseman(name)
+				apocalypseIsHereDeployReservedHorseman(reservedName)
 			end
 		end
 	end
