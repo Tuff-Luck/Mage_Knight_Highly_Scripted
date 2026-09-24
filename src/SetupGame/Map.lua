@@ -117,7 +117,7 @@ function furyDragonSetupLair(tile)
 	gStates.furyDragonAwaitingCombat=nil
 	gStates.furyDragonRoundPrepared=nil
 	--Core tile 1's Tomb is the Dragon Lair in Fury and no longer counts as a Tomb.
-	terrainTiles[tile.guid].hexFeature[bearing]=""
+	runtimeMapSetHexFeature(tile.guid,bearing,"")
 	gStates.hexOverideSave=gStates.hexOverideSave or {}
 	gStates.hexOverideSave[tile.guid]=gStates.hexOverideSave[tile.guid] or {}
 	gStates.hexOverideSave[tile.guid][bearing]=""
@@ -254,7 +254,7 @@ function mapSetup(onComplete)
 		for _,coord in ipairs(cityCoords) do furyCityTilePos[#furyCityTilePos+1]=furyPos(coord) end
 		gStates.furyHeroEnteredCity=false
 		--Suppress the Tomb before Core 1 enters the map zone, so setup never treats the Fury Lair as a Tomb.
-		terrainTiles[GUID.tile.core01].hexFeature["240"]=""
+		runtimeMapSetHexFeature(GUID.tile.core01,"240","")
 		gStates.hexOverideSave=gStates.hexOverideSave or {}
 		gStates.hexOverideSave[GUID.tile.core01]=gStates.hexOverideSave[GUID.tile.core01] or {}
 		gStates.hexOverideSave[GUID.tile.core01]["240"]=""
