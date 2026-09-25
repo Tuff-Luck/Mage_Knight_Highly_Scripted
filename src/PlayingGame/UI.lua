@@ -1,3 +1,8 @@
+-- Module-private helpers. Predeclared so forward references keep resolving locally.
+local refreshPlayAreaCardScale, automatedAttackResponseButton, automatedPanelHasDeedCards, automatedPanelEndRoundText, automatedDummyPanelSpec
+local automatedVolkarePanelSpec, automatedCurrentPlayerPanelSpec, avatarButtonBucketKey, avatarButtonNearbyObjects, avatarButtonXmlSignature
+local legacyObjectButtonImage, buildMageKnightFastLookups, mageKnightAvatarObjectByName
+
 -- UI-private helpers. Predeclared so forward references keep resolving locally.
 local refreshPlayAreaCardScale, automatedAttackResponseButton, automatedPanelHasDeedCards, automatedPanelEndRoundText, automatedDummyPanelSpec
 local automatedVolkarePanelSpec, automatedCurrentPlayerPanelSpec, avatarButtonBucketKey, avatarButtonNearbyObjects, avatarButtonXmlSignature
