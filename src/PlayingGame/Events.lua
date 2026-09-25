@@ -1,3 +1,7 @@
+-- Module-private helpers. Predeclared so forward references keep resolving locally.
+local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, refreshLiftHeightWarning, __maintenanceTick_raw
+local startMaintenanceTick
+
 -- Events-private helpers. Predeclared so forward references keep resolving locally.
 local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, refreshLiftHeightWarning, __maintenanceTick_raw, startMaintenanceTick
 
