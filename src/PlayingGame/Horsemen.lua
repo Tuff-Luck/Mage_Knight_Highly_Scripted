@@ -1,3 +1,6 @@
+-- Horsemen-private helpers. Predeclared so forward references keep resolving locally.
+local horsemanDefeatedInventoryPosition, horsemanMarkDefeatedToken
+
 -- Shared Four Horsemen entity/combat helpers.
 -- Scenario-specific reveal, movement, ritual and AI rules remain in Scenario.lua.
 
@@ -120,7 +123,7 @@ end
 
 --Defeated Horsemen are trophies as well as saved scoring state. Keep a tidy 2x2 group in the
 --slayer's Inventory and make their defeated status obvious without changing the level artwork.
-function horsemanDefeatedInventoryPosition(playerIndex,name)
+horsemanDefeatedInventoryPosition=function(playerIndex,name)
 	local player=turnOrder[playerIndex]
 	local state=name~=nil and gStates.horsemen~=nil and gStates.horsemen[name] or nil
 	if player==nil then return {55,2,20} end
@@ -130,7 +133,7 @@ function horsemanDefeatedInventoryPosition(playerIndex,name)
 	return {(player.seatPos*40)-115.8+(col*3.2),1.35,-32.7-(row*2.7)}
 end
 
-function horsemanMarkDefeatedToken(token,name,playerIndex,smooth)
+horsemanMarkDefeatedToken=function(token,name,playerIndex,smooth)
 	local state=name~=nil and gStates.horsemen~=nil and gStates.horsemen[name] or nil
 	local player=turnOrder[playerIndex]
 	if token==nil or state==nil or player==nil then return false end
