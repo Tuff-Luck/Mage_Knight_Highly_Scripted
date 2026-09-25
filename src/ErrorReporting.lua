@@ -2,7 +2,7 @@
 
 -- Error-report boundaries for callbacks that TTS invokes after the originating function has returned.
 -- These helpers deliberately keep the native Wait signatures so existing timing/return behaviour is unchanged.
-function automaticLuaTraceback(errorText)
+local function automaticLuaTraceback(errorText)
 	if debug and debug.traceback then return debug.traceback(tostring(errorText),2) end
 	return tostring(errorText)
 end
@@ -37,39 +37,39 @@ local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
 local automaticLuaErrorReporterVersion="431"
 
-function automaticLuaErrorValue(callback, fallback)
+local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
 	if ok==true and value~=nil then return value end
 	return fallback
 end
 
-function automaticLuaErrorStateValue(key, fallback)
+local function automaticLuaErrorStateValue(key, fallback)
 	return automaticLuaErrorValue(function()
 		if gStates==nil then return nil end
 		return gStates[key]
 	end, fallback)
 end
 
-function automaticLuaErrorScenarioValue(key, fallback)
+local function automaticLuaErrorScenarioValue(key, fallback)
 	return automaticLuaErrorValue(function()
 		return scenarioList[gStates.scenarioRef][gStates.playersRef][key]
 	end, fallback)
 end
 
-function automaticLuaErrorMageValue(position)
+local function automaticLuaErrorMageValue(position)
 	local value=automaticLuaErrorValue(function() return gStates.positionMageKnight[position] end, "")
 	local randomChoice=automaticLuaErrorValue(function() return gStates.originalChoiceMageKnights[position] end, "")
 	if value~="" and (randomChoice=="Random" or randomChoice=="All Skills") then value=tostring(value).." [R]" end
 	return value
 end
 
-function automaticLuaErrorMapShape()
+local function automaticLuaErrorMapShape()
 	local key=automaticLuaErrorScenarioValue("mapShapeKey","")
 	local labels={wedgeUnlimited="Wedge",wedge="Wedge",open3="3 Columns",open4="4 Columns",open="Fully Open",predefined="Predefined"}
 	return labels[key] or tostring(key)
 end
 
-function automaticLuaErrorCityLevel()
+local function automaticLuaErrorCityLevel()
 	return automaticLuaErrorValue(function()
 		local text="[ "
 		for _, level in pairs(gStates.cityLevels) do text=text..tostring(level).." " end
@@ -77,7 +77,7 @@ function automaticLuaErrorCityLevel()
 	end, "")
 end
 
-function automaticLuaErrorGameType()
+local function automaticLuaErrorGameType()
 	return automaticLuaErrorValue(function()
 		if gStates.playerCount==1 then return "Solo" end
 		if gStates.playerCount>1 and (gStates.coop==0 or gStates.WarOfFourComp==true) then return "Comp" end
@@ -85,7 +85,7 @@ function automaticLuaErrorGameType()
 	end, "")
 end
 
-function automaticLuaErrorMultiHand()
+local function automaticLuaErrorMultiHand()
 	return automaticLuaErrorValue(function()
 		local count=0
 		for _, color in pairs(Player.getAvailableColors()) do if Player[color].seated==true then count=count+1 end end
@@ -95,7 +95,7 @@ function automaticLuaErrorMultiHand()
 end
 
 --Keep the existing per-seat fields for endpoint compatibility.
-function automaticLuaErrorSteamName(position)
+local function automaticLuaErrorSteamName(position)
 	return automaticLuaErrorValue(function()
 		for _, color in pairs(Player.getAvailableColors()) do
 			local seatedPlayer=Player[color]
@@ -110,7 +110,7 @@ end
 
 --The bug-report sheet exposes the reporter field as its visible User column. Include every seated
 --Steam user here because an automatic global callback cannot reliably identify which player caused it.
-function automaticLuaErrorReporter()
+local function automaticLuaErrorReporter()
 	return automaticLuaErrorValue(function()
 		local names={}
 		local seen={}
@@ -130,7 +130,7 @@ function automaticLuaErrorReporter()
 	end, "Automatic Lua Error")
 end
 
-function sendAutomaticLuaErrorRequest(comment)
+local function sendAutomaticLuaErrorRequest(comment)
 	-- Build the normal bug-report context, but protect every lookup independently.
 	-- A broken game-state field must never be able to stop the emergency report.
 	local gameRecord={Comment=comment, reporter=automaticLuaErrorReporter(), reporterVersion=automaticLuaErrorReporterVersion,
@@ -198,7 +198,7 @@ function sendAutomaticLuaErrorRequest(comment)
 	end)
 end
 
-function automaticLuaBreadcrumb(label)
+local function automaticLuaBreadcrumb(label)
 	label=tostring(label or "")
 	if label=="" or label=="maintenanceTick" or label=="onObjectHover" or label:find(" / Wait.",1,true)~=nil then return end
 	if automaticLuaErrorBreadcrumbs[#automaticLuaErrorBreadcrumbs]==label then return end
@@ -206,17 +206,17 @@ function automaticLuaBreadcrumb(label)
 	while #automaticLuaErrorBreadcrumbs>automaticLuaErrorBreadcrumbLimit do table.remove(automaticLuaErrorBreadcrumbs,1) end
 end
 
-function automaticLuaBreadcrumbText()
+local function automaticLuaBreadcrumbText()
 	if #automaticLuaErrorBreadcrumbs==0 then return "" end
 	return table.concat(automaticLuaErrorBreadcrumbs," -> ")
 end
 
-function automaticLuaErrorSignature(functionName,errorText)
+local function automaticLuaErrorSignature(functionName,errorText)
 	local firstLine=tostring(errorText or ""):match("[^\n]+") or ""
 	return tostring(functionName).."|"..firstLine
 end
 
-function reportAutomaticLuaError(functionName, errorText, context)
+local function reportAutomaticLuaError(functionName, errorText, context)
 	if automaticLuaErrorReporting then return end
 	local now=os.time()
 	local signature=automaticLuaErrorSignature(functionName,errorText)
