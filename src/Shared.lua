@@ -1,3 +1,6 @@
+-- Shared-module private helpers. Predeclared so forward references keep resolving locally.
+local safeSpawnObjectData, rewindTransactionForceRelease, tableCopy
+
 -- Shared helpers used by more than one Global source module.
 -- Keep subsystem-owned game logic in its owning module.
 
@@ -20,7 +23,7 @@ function safeSpawnObject(scope, params)
 	return spawnObject(safeObjectCallbackParams(scope,params))
 end
 
-function safeSpawnObjectData(scope, params)
+safeSpawnObjectData=function(scope, params)
 	return spawnObjectData(safeObjectCallbackParams(scope,params))
 end
 
@@ -241,7 +244,7 @@ function rewindTransactionFinish(owner)
 	rewindTransactionGeneration=(rewindTransactionGeneration or 0)+1
 end
 
-function rewindTransactionForceRelease()
+rewindTransactionForceRelease=function()
 	rewindTransactionOwners={}
 	rewindTransactionPending={}
 	rewindTransactionPendingOwners={}
@@ -738,7 +741,7 @@ function isTacticCard(obj)
 end
 
 -- Shared table copy helper
-function tableCopy(obj, seen)
+tableCopy=function(obj, seen)
 	local seen=seen or {}
 	if type(obj)~='table' then return obj end
 	if seen[obj] then return seen[obj] end
