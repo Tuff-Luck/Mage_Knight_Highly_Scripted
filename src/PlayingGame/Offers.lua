@@ -1,3 +1,7 @@
+-- Offer-private helpers. Predeclared so forward references keep resolving locally.
+local unitOfferLayoutX, unitOfferCardScale, unitOfferPosition, volkareUnitCrystalRefreshPositions, unitOfferIsUnit
+local monasteryOfferIsCard, refreshUnitOfferSnapPoints, unitOfferCards, reflowUnitOffer, monasteryOfferFirstEmptySlot
+
 -- Artifact, Unit, Monastery and deed-offer runtime.
 
 -- Artifact reward offer
@@ -59,22 +63,22 @@ end
 unitOfferLayoutConfig={nativeSlots=8,firstX=36.0,lastX=2.4,y=0.98,z=-4.2,cardScale=1.5}
 
 -- Unit offer layout and refill
-function unitOfferLayoutX(slot,count)
+unitOfferLayoutX=function(slot,count)
 	local displayCount=math.max(unitOfferLayoutConfig.nativeSlots,count or unitOfferLayoutConfig.nativeSlots)
 	local spacing=(unitOfferLayoutConfig.firstX-unitOfferLayoutConfig.lastX)/(displayCount-1)
 	return unitOfferLayoutConfig.firstX-((slot-1)*spacing)
 end
 
-function unitOfferCardScale(count)
+unitOfferCardScale=function(count)
 	if count==nil or count<=unitOfferLayoutConfig.nativeSlots then return unitOfferLayoutConfig.cardScale end
 	return unitOfferLayoutConfig.cardScale*((unitOfferLayoutConfig.nativeSlots-1)/(count-1))
 end
 
-function unitOfferPosition(slot,count,y)
+unitOfferPosition=function(slot,count,y)
 	return {unitOfferLayoutX(slot,count),y or unitOfferLayoutConfig.y,unitOfferLayoutConfig.z}
 end
 
-function volkareUnitCrystalRefreshPositions(count)
+volkareUnitCrystalRefreshPositions=function(count)
 	if gStates==nil or gStates.volkareUnitCrystals==nil then return end
 	local displayCount=math.max(unitOfferLayoutConfig.nativeSlots,tonumber(count) or tonumber(gStates.unitOfferDisplayCount) or tonumber(gStates.totalUnitCount) or unitOfferLayoutConfig.nativeSlots)
 	for _,details in pairs(gStates.volkareUnitCrystals) do
@@ -105,13 +109,13 @@ function mainOfferFirstCardByType(cardType)
 	return mainOfferCardsByType(cardType)[1]
 end
 
-function unitOfferIsUnit(obj)
+unitOfferIsUnit=function(obj)
 	if obj==nil or obj.type~="Card" then return false end
 	local cardType=gameCardType(obj)
 	return cardType=="Regular Unit" or cardType=="Elite Unit"
 end
 
-function monasteryOfferIsCard(obj)
+monasteryOfferIsCard=function(obj)
 	if obj==nil or obj.type~="Card" or gameCardType(obj)~="Advanced Action" then return false end
 	return math.abs(obj.getPosition()[3]+10.2)<=1
 end
@@ -173,7 +177,7 @@ local function unitOfferSnapTarget()
 	return nil,nil,nil
 end
 
-function refreshUnitOfferSnapPoints(count)
+refreshUnitOfferSnapPoints=function(count)
 	local displayCount=math.max(unitOfferLayoutConfig.nativeSlots,count or unitOfferLayoutConfig.nativeSlots)
 	gStates.unitOfferDisplayCount=displayCount
 	volkareUnitCrystalRefreshPositions(displayCount)
@@ -203,7 +207,7 @@ function refreshUnitOfferSnapPoints(count)
 	return true
 end
 
-function unitOfferCards()
+unitOfferCards=function()
 	local cards={}
 	local zone=getObjectFromGUID(GUID.zone.unitOffer)
 	if zone~=nil then
@@ -259,7 +263,7 @@ local function moveUnitOfferCard(obj,slot,count)
 	end)
 end
 
-function reflowUnitOffer(targetCount)
+reflowUnitOffer=function(targetCount)
 	local cards=unitOfferCards()
 	local displayCount=math.max(targetCount or #cards,#cards)
 	refreshUnitOfferSnapPoints(displayCount)
@@ -413,7 +417,7 @@ function unitOffer()
 end
 
 -- Monastery offer
-function monasteryOfferFirstEmptySlot()
+monasteryOfferFirstEmptySlot=function()
 	local occupied={}
 	local zone=getObjectFromGUID(GUID.zone.unitOffer)
 	if zone~=nil then
