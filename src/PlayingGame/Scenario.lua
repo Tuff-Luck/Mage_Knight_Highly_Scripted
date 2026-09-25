@@ -1,3 +1,29 @@
+-- Scenario-private helpers. Predeclared so forward references keep resolving locally.
+local volkareCampMapPositionForPlayer, volkareCampHexInfoAtPosition, volkarePursuitHexUsed, volkarePursuitDropShield, oneToReturnPortalTile
+local oneToReturnSetPortalClosedDecal, oneToReturnPortalOccupant, currentMageAvatarPosition, mineLiberatedForClaim, mineClaimData
+local clearScenarioEndAchieved, dungeonLordsSecretSourceFeature, dungeonLordsSecretSourcePosition, dungeonLordsSecretSpaceBasicLegal, dungeonLordsFindAdjacentSecretSource
+local dungeonLordsSecretDestinationLegal, dungeonLordsSecretLegalDestinationCount, dungeonLordsSecretRequestMatches, dungeonLordsQueueSecretRequest, dungeonLordsPruneImpossibleSecretRequests
+local againstHorsemenRitualDefenders, againstHorsemenPortalCardLayout, againstHorsemenEliminateCentralPlayers, againstHorsemenPrepareRitual, againstHorsemenRefreshHorseman
+local againstHorsemenGladePosition, againstHorsemenInlineGridDistance, againstHorsemenDefaultNextPosition, againstHorsemenFinalizeMoveWave, againstHorsemenAnimateMoveWave
+local againstHorsemenContinueEndRoundMovement, againstHorsemenStartingLevel, apocalypseIsHereHorsemanStartingLevel, apocalypseIsHereRevealThreshold, apocalypseIsHereRecomputeNextHorseman
+local apocalypseIsHereCancelReservedReveal, apocalypseIsHereDeployReservedHorseman, apocalypseIsHereRevealNextHorseman, apocalypseIsHerePossessEnemy, apocalypseIsHerePossessRampagersOnTile
+local apocalypseIsHereRevealDragonCity, apocalypseIsHereCurrentHorsemanHex, apocalypseIsHereHorsemanTargetOptions, apocalypseIsHereHorsemanDestination, apocalypseIsHereClearChoiceButtons
+local apocalypseIsHereShowTargetChoice, apocalypseIsHereRefreshPendingTargetChoice, apocalypseIsHereHorsemanClearTarget, apocalypseIsHereHorsemanDestroyTarget, apocalypseIsHereHexByKey
+local apocalypseIsHereHorsemanMoveFinished, apocalypseIsHereResolveHorsemanTarget, apocalypseIsHereProcessNextHorseman, apocalypseIsHereContinueHorsemenTurn, apocalypseIsHereActiveHorsemen
+local apocalypseIsHereMainUIRefresh, apocalypseIsHereFinishHorsemenTurn, takeDestroyedSiteToken, arrangeDestroyedSiteHex, againstApocalypseObjectivesComplete
+local againstApocalypseCheckCompletion, againstApocalypseMarkPossessedRampager, restoreDestroyedSite, furyDragonEliteConditionMet, againstDragonActive
+local againstDragonPlayerIndexForMage, againstDragonClearBlackManaMarkers, againstDragonPlayerMarked, againstDragonMarkPlayer, againstDragonTargetChoiceButton
+local againstDragonShowMapChoice, againstDragonShowOffMapChoice, againstDragonMapHexByKey, againstDragonDistanceStarts, againstDragonDistanceChoices
+local againstDragonPlayerHex, againstDragonSiteEligible, againstDragonDestroyCandidates, againstDragonActionLabel, againstDragonFinalReport
+local againstDragonResolveDestroyOption, againstDragonGainFame, againstDragonAttendanceAuthorized, againstDragonFullAttendAllowed, againstDragonAirborneTokenPosition
+local againstDragonAirborneMonsterData, againstDragonDeployAirborneHeads, againstDragonAirborneProtectionLocation, againstDragonAirborneProtectionReminder, againstDragonCaptureAirborneSuppression
+local againstDragonAttendPartial, againstDragonBeginManualAttack, againstDragonResolveOffMapPlayer, againstDragonTurnAction, furyDragonCompleteTurn
+local furyDragonFeatureMatches, furyDragonHexHasLiveRampager, furyDragonTargetCategory, furyDragonMapTilesAdjacent, furyDragonCurrentHex
+local furyDragonLairTarget, furyDragonLowestHead, furyDragonTargetHead, furyDragonTargetWouldOverflow, furyDragonChooseTarget
+local furyDragonCityModelGUID, furyDragonCityCard, furyDragonTargetPosition, furyDragonManaColor, furyDragonTargetLabel
+local furyDragonMoveMarkerOffMap, furyDragonBeginLandedTurn, furyDragonPlayersOnTarget, furyDragonDiscardHexEnemies, furyDragonDestroyHex
+local furyDragonRemoveCityDefender, furyDragonIncreaseHead, furyDragonResolveArrivalEffect, furyDragonBeginInFlightTurn
+
 -- Scenario and variant runtime systems. Setup/menu construction remains in SetupGame.
 
 -- Fractured Lands terrain-orientation controls used by the generic exploration flow.
@@ -79,7 +105,7 @@ function volkarePursuitShieldRegistered(obj)
 	return gStates.volkarePursuitShields~=nil and gStates.volkarePursuitShields[obj.guid]~=nil
 end
 
-function volkareCampMapPositionForPlayer(playerIndex)
+volkareCampMapPositionForPlayer=function(playerIndex)
 	local player=turnOrder[playerIndex]
 	if player==nil then return nil end
 	local cityGUID=player.avatarSwapCity
@@ -99,7 +125,7 @@ function volkareCampMapPositionForPlayer(playerIndex)
 	return mageKnightAvatarPosition(playerIndex)
 end
 
-function volkareCampHexInfoAtPosition(position)
+volkareCampHexInfoAtPosition=function(position)
 	if volkareCampAsCityConquered()~=true or position==nil then return nil end
 	local campTerrain=getObjectFromGUID(gStates.cityVolkareTile)
 	if campTerrain==nil then return nil end
@@ -127,7 +153,7 @@ function volkareCampContributionShieldCount(playerRef)
 	return count
 end
 
-function volkarePursuitHexUsed(hexKey)
+volkarePursuitHexUsed=function(hexKey)
 	if hexKey==nil then return false end
 	if gStates.volkarePursuitShields==nil then gStates.volkarePursuitShields={} end
 	for guid,storedKey in pairs(gStates.volkarePursuitShields) do
@@ -153,7 +179,7 @@ function volkarePursuitActionInfo(playerIndex)
 	return info
 end
 
-function volkarePursuitDropShield(playerIndex,combat)
+volkarePursuitDropShield=function(playerIndex,combat)
 	local player=turnOrder[playerIndex]
 	if player==nil or combat==nil or combat.position==nil then return nil end
 	local details=mageKnightsByName[player.mage]
@@ -258,11 +284,11 @@ end
 
 --One to Return: the starting Portal closes after the first Day, eliminating anyone still on it.
 --After that it is an ordinary single-occupancy plains hex until it reopens at the end of the second Night.
-function oneToReturnPortalTile()
+oneToReturnPortalTile=function()
 	return volkareQuestPortalTile()
 end
 
-function oneToReturnSetPortalClosedDecal(closed)
+oneToReturnSetPortalClosedDecal=function(closed)
 	local portalTile=oneToReturnPortalTile()
 	if portalTile==nil then return end
 	local decals=portalTile.getDecals() or {}
@@ -304,7 +330,7 @@ function oneToReturnClosePortal()
 	return true
 end
 
-function oneToReturnPortalOccupant()
+oneToReturnPortalOccupant=function()
 	if gStates.gameScenario~="One to Return" then return nil,nil end
 	local portalTile=oneToReturnPortalTile()
 	if portalTile==nil then return nil,nil end
@@ -375,7 +401,7 @@ function realmDeadEnemiesAtPosition(position)
 	return false
 end
 
-function currentMageAvatarPosition(playerIndex)
+currentMageAvatarPosition=function(playerIndex)
 	local player=turnOrder[playerIndex]
 	if player==nil then return nil end
 	for _, avatar in pairs(mageKnights) do
@@ -696,7 +722,7 @@ function mineCrystalCount(playerIndex, color)
 	return count
 end
 
-function mineLiberatedForClaim(playerIndex, terrainGUID, hexPos)
+mineLiberatedForClaim=function(playerIndex, terrainGUID, hexPos)
 	if gStates.gameScenario~="Mines Liberation" then return true end
 	local map=getObjectFromGUID(mapArea)
 	if map~=nil then
@@ -724,7 +750,7 @@ function mineLiberatedForClaim(playerIndex, terrainGUID, hexPos)
 	return found
 end
 
-function mineClaimData(playerIndex)
+mineClaimData=function(playerIndex)
 	local avatar=coopAssaultAvatarObject(playerIndex)
 	if avatar==nil then return nil end
 	local terrain, bearing, hexPos, feature=terrainHexAtPosition(avatar.getPosition())
@@ -865,7 +891,7 @@ function markScenarioEndAchieved(endImmediately)
 	return true
 end
 
-function clearScenarioEndAchieved()
+clearScenarioEndAchieved=function()
 	if gStates.endGameAchieved=="false" then return false end
 	UI.setAttribute("EndGameButtonText", "text", "{en}Scenario End Achieved - No{ru}Конец сценария достигнут - Нет{zh-tw}達成劇本結束 - 否{zh-cn}達成剧本结束 - 否{ko}시나리오 종료 조건 충족 전{es}Escenario Fin Realizados - No{fr}Scénario Fin Atteint - Non{pt-br}Fim do Cenário Alcançado - Não{de}Szenarioziel Erreicht – Nein")
 	UI.setAttribute("EndGameButtonImage", "image", "Sliced Button/Button New Active")
@@ -894,13 +920,13 @@ function dungeonLordsPendingSecretName(entry)
 	return entry
 end
 
-function dungeonLordsSecretSourceFeature(secretName)
+dungeonLordsSecretSourceFeature=function(secretName)
 	if secretName=="Secret Dungeon" then return "village" end
 	if secretName=="Secret Tomb" then return "monastery" end
 	return nil
 end
 
-function dungeonLordsSecretSourcePosition(entry)
+dungeonLordsSecretSourcePosition=function(entry)
 	if type(entry)~="table" then return nil end
 	local terrain=entry.sourceTerrainGUID~=nil and getObjectFromGUID(entry.sourceTerrainGUID) or nil
 	if terrain~=nil and entry.sourceBearing~=nil then
@@ -910,7 +936,7 @@ function dungeonLordsSecretSourcePosition(entry)
 	return entry.sourcePosition
 end
 
-function dungeonLordsSecretSpaceBasicLegal(terrain,bearing)
+dungeonLordsSecretSpaceBasicLegal=function(terrain,bearing)
 	if terrain==nil or bearing==nil or terrainTiles[terrain.guid]==nil then return false end
 	local details=terrainTiles[terrain.guid]
 	local key=tostring(bearing)
@@ -920,7 +946,7 @@ function dungeonLordsSecretSpaceBasicLegal(terrain,bearing)
 	return noSite==true and terrainType~=nil and terrainType~="swamp" and terrainType~="lake" and terrainType~="mountain" and terrainType~="ocean"
 end
 
-function dungeonLordsFindAdjacentSecretSource(secretName,destinationPosition)
+dungeonLordsFindAdjacentSecretSource=function(secretName,destinationPosition)
 	local sourceFeature=dungeonLordsSecretSourceFeature(secretName)
 	local map=getObjectFromGUID(mapArea)
 	if sourceFeature==nil or destinationPosition==nil or map==nil then return nil end
@@ -941,7 +967,7 @@ function dungeonLordsFindAdjacentSecretSource(secretName,destinationPosition)
 	return nil
 end
 
-function dungeonLordsSecretDestinationLegal(terrain,bearing,request)
+dungeonLordsSecretDestinationLegal=function(terrain,bearing,request)
 	if dungeonLordsSecretSpaceBasicLegal(terrain,bearing)~=true then return false,nil end
 	local xy=angleToXY(terrain,tostring(bearing))
 	local destinationPosition={xy[1],terrain.getPosition()[2],xy[2]}
@@ -952,7 +978,7 @@ function dungeonLordsSecretDestinationLegal(terrain,bearing,request)
 	return true,normalized
 end
 
-function dungeonLordsSecretLegalDestinationCount(request)
+dungeonLordsSecretLegalDestinationCount=function(request)
 	local map=getObjectFromGUID(mapArea)
 	if map==nil then return 0 end
 	local count=0
@@ -967,13 +993,13 @@ function dungeonLordsSecretLegalDestinationCount(request)
 	return count
 end
 
-function dungeonLordsSecretRequestMatches(a,b)
+dungeonLordsSecretRequestMatches=function(a,b)
 	if dungeonLordsPendingSecretName(a)~=dungeonLordsPendingSecretName(b) then return false end
 	if type(a)~="table" or type(b)~="table" then return false end
 	return a.sourceTerrainGUID==b.sourceTerrainGUID and tostring(a.sourceBearing)==tostring(b.sourceBearing)
 end
 
-function dungeonLordsQueueSecretRequest(request,quiet)
+dungeonLordsQueueSecretRequest=function(request,quiet)
 	if request==nil then return false end
 	gStates.locationPlace=gStates.locationPlace or {}
 	for _,existing in ipairs(gStates.locationPlace) do if dungeonLordsSecretRequestMatches(existing,request)==true then return false end end
@@ -988,7 +1014,7 @@ function dungeonLordsQueueSecretRequest(request,quiet)
 	return true
 end
 
-function dungeonLordsPruneImpossibleSecretRequests()
+dungeonLordsPruneImpossibleSecretRequests=function()
 	gStates.locationPlace=gStates.locationPlace or {}
 	local removed=false
 	for i=#gStates.locationPlace,1,-1 do
@@ -1116,7 +1142,7 @@ function againstHorsemenRegisterTimeoutLoss()
 	return true
 end
 
-function againstHorsemenRitualDefenders()
+againstHorsemenRitualDefenders=function()
 	local defenders={}
 	for name,state in pairs(gStates~=nil and gStates.horsemen or {}) do
 		local data=horsemanData~=nil and horsemanData[name] or nil
@@ -1130,7 +1156,7 @@ end
 
 --The Portal card becomes the Round-4 garrison display. The tokens are physical there, but each
 --surviving Horseman's logical map location remains the central Glade. Layouts stay centered for 1-4.
-function againstHorsemenPortalCardLayout(count)
+againstHorsemenPortalCardLayout=function(count)
 	local cx,cz=-44.0,-12.30
 	if count<=1 then return {{cx,1.22,cz}} end
 	if count==2 then return {{cx-1.25,1.22,cz},{cx+1.25,1.22,cz}} end
@@ -1196,7 +1222,7 @@ function againstHorsemenRestoreScenarioState()
 	end
 end
 
-function againstHorsemenEliminateCentralPlayers()
+againstHorsemenEliminateCentralPlayers=function()
 	for playerIndex,details in pairs(turnOrder or {}) do
 		--The standard Dummy has no Glade figure and therefore never matches this test; an active Proxy
 		--does have a Mage Knight figure and is eliminated by the ritual like any other player.
@@ -1218,7 +1244,7 @@ function againstHorsemenEliminateCentralPlayers()
 	applyColorBarButtons()
 end
 
-function againstHorsemenPrepareRitual()
+againstHorsemenPrepareRitual=function()
 	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" or gStates.againstHorsemenRitualStarted==true then return end
 	gStates.againstHorsemenRitualStarted=true
 	againstHorsemenEliminateCentralPlayers()
@@ -1295,7 +1321,7 @@ end
 
 --Against the Horsemen reveals a token as soon as the map space under it is revealed. The token's
 --rotation hides the real level image before that point; once revealed it stays face up for the scenario.
-function againstHorsemenRefreshHorseman(name)
+againstHorsemenRefreshHorseman=function(name)
 	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" or name==nil then return false end
 	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
 	local data=horsemanData~=nil and horsemanData[name] or nil
@@ -1332,7 +1358,7 @@ end
 --Against the Horsemen uses a fixed hex grid around Countryside 1. There is no reason to build a
 --map graph or run path-finding here: convert the token position directly to axial coordinates, take
 --one deterministic step toward the nearest centre-line, then keep following that line into the Glade.
-function againstHorsemenGladePosition()
+againstHorsemenGladePosition=function()
 	local terrain=getObjectFromGUID(GUID.tile.country01)
 	if terrain==nil then return nil end
 	local xy=angleToXY(terrain,"center")
@@ -1340,11 +1366,11 @@ function againstHorsemenGladePosition()
 	return {xy[1],1.45,xy[2]}
 end
 
-function againstHorsemenInlineGridDistance(q,r)
+againstHorsemenInlineGridDistance=function(q,r)
 	return math.min(math.abs(q),math.abs(r),math.abs(q-r))
 end
 
-function againstHorsemenDefaultNextPosition(position,center)
+againstHorsemenDefaultNextPosition=function(position,center)
 	local q,r=runtimeMapWorldToAxial(position,center)
 	if q==nil or r==nil or (q==0 and r==0) then return nil end
 	local currentCenter=runtimeMapAxialDistance(q,r)
@@ -1377,7 +1403,7 @@ function againstHorsemenDefaultNextPosition(position,center)
 	return runtimeMapAxialToWorld(bestQ,bestR,center,1.45)
 end
 
-function againstHorsemenFinalizeMoveWave()
+againstHorsemenFinalizeMoveWave=function()
 	local pending=gStates~=nil and gStates.againstHorsemenMovePending or nil
 	if pending==nil or pending.movingTargets==nil then return end
 	--Round 3's ritual state is committed only after every surviving Horseman has physically
@@ -1392,7 +1418,7 @@ function againstHorsemenFinalizeMoveWave()
 	safeWaitFrames("Scenario",function() againstHorsemenContinueEndRoundMovement() end,4)
 end
 
-function againstHorsemenAnimateMoveWave(targets)
+againstHorsemenAnimateMoveWave=function(targets)
 	local pending=gStates~=nil and gStates.againstHorsemenMovePending or nil
 	if pending==nil or targets==nil then return end
 	pending.movingTargets=targets
@@ -1420,7 +1446,7 @@ function againstHorsemenAnimateMoveWave(targets)
 	if remaining==0 then againstHorsemenFinalizeMoveWave() end
 end
 
-function againstHorsemenContinueEndRoundMovement()
+againstHorsemenContinueEndRoundMovement=function()
 	local pending=gStates~=nil and gStates.againstHorsemenMovePending or nil
 	if pending==nil then return end
 	--If a save/load happens while a wave is moving, reissue the same destinations together.
@@ -1511,7 +1537,7 @@ function againstHorsemenBeginEndRoundMovement()
 	return true
 end
 
-function againstHorsemenStartingLevel()
+againstHorsemenStartingLevel=function()
 	if gStates.playerCount==1 then return 2 end
 	if gStates.coop==1 then return math.min(6,gStates.playerCount+2) end
 	return math.max(1,math.min(6,gStates.playerCount))
@@ -1575,7 +1601,7 @@ function apocalypseIsHereActive()
 	return gStates~=nil and gStates.gameScenario=="Apocalypse is Here"
 end
 
-function apocalypseIsHereHorsemanStartingLevel()
+apocalypseIsHereHorsemanStartingLevel=function()
 	if apocalypseIsHereActive()~=true then return nil end
 	if gStates.playerCount==1 then return 4 end
 	if gStates.coop==1 then return 6 end
@@ -1641,7 +1667,7 @@ function apocalypseIsHereSetup()
 	return true
 end
 
-function apocalypseIsHereRevealThreshold(index)
+apocalypseIsHereRevealThreshold=function(index)
 	local thresholds=nil
 	if (gStates.playerCount or 1)<=2 then thresholds={1,2,4,6}
 	elseif gStates.playerCount==3 then thresholds={1,3,5,7}
@@ -1649,7 +1675,7 @@ function apocalypseIsHereRevealThreshold(index)
 	return thresholds[index]
 end
 
-function apocalypseIsHereRecomputeNextHorseman()
+apocalypseIsHereRecomputeNextHorseman=function()
 	local order=gStates.apocalypseHereHorsemanOrder or {}
 	for index,name in ipairs(order) do
 		local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
@@ -1662,7 +1688,7 @@ function apocalypseIsHereRecomputeNextHorseman()
 	return gStates.apocalypseHereNextHorseman
 end
 
-function apocalypseIsHereCancelReservedReveal(state)
+apocalypseIsHereCancelReservedReveal=function(state)
 	if state==nil then return false end
 	local forced=state.revealForced==true
 	state.revealPending=nil
@@ -1677,7 +1703,7 @@ function apocalypseIsHereCancelReservedReveal(state)
 	return true
 end
 
-function apocalypseIsHereDeployReservedHorseman(name)
+apocalypseIsHereDeployReservedHorseman=function(name)
 	if apocalypseIsHereActive()~=true then return false end
 	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
 	local data=horsemanData~=nil and horsemanData[name] or nil
@@ -1728,7 +1754,7 @@ function apocalypseIsHereDeployReservedHorseman(name)
 	return true
 end
 
-function apocalypseIsHereRevealNextHorseman(tile,forced)
+apocalypseIsHereRevealNextHorseman=function(tile,forced)
 	if apocalypseIsHereActive()~=true or gStates.apocalypseHereHorsemenEnded==true or tile==nil then return false end
 	local index=tonumber(gStates.apocalypseHereNextHorseman) or 1
 	local name=(gStates.apocalypseHereHorsemanOrder or {})[index]
@@ -1786,7 +1812,7 @@ function apocalypseIsHereRoundStart()
 	return true
 end
 
-function apocalypseIsHerePossessEnemy(enemy)
+apocalypseIsHerePossessEnemy=function(enemy)
 	if enemy==nil or apocalypseIsHereActive()~=true then return false end
 	gStates.apocalypseHerePossessedPending=gStates.apocalypseHerePossessedPending or {}
 	if gStates.apocalypseHerePossessedPending[enemy.guid]==true then return false end
@@ -1814,7 +1840,7 @@ function apocalypseIsHerePossessEnemy(enemy)
 	return true
 end
 
-function apocalypseIsHerePossessRampagersOnTile(tileGUID)
+apocalypseIsHerePossessRampagersOnTile=function(tileGUID)
 	if apocalypseIsHereActive()~=true or tileGUID==nil then return end
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	for _,hex in ipairs(hexes) do
@@ -1837,7 +1863,7 @@ function apocalypseIsHereApplyDragonCityTerrainOverride()
 	return runtimeMapSetHexType(terrainGUID,bearing,"plains")
 end
 
-function apocalypseIsHereRevealDragonCity(tile)
+apocalypseIsHereRevealDragonCity=function(tile)
 	if apocalypseIsHereActive()~=true or tile==nil or gStates.apocalypseHereDragonCityRevealed==true then return false end
 	gStates.apocalypseHereDragonCityRevealed=true
 	gStates.apocalypseDragonLairRevealed=true
@@ -1907,7 +1933,7 @@ function apocalypseIsHereTerrainRevealed(tile)
 	return true
 end
 
-function apocalypseIsHereCurrentHorsemanHex(name,hexes)
+apocalypseIsHereCurrentHorsemanHex=function(name,hexes)
 	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
 	local data=horsemanData~=nil and horsemanData[name] or nil
 	local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
@@ -1919,7 +1945,7 @@ function apocalypseIsHereCurrentHorsemanHex(name,hexes)
 	return nil
 end
 
-function apocalypseIsHereHorsemanTargetOptions(name)
+apocalypseIsHereHorsemanTargetOptions=function(name)
 	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
 	local data=horsemanData~=nil and horsemanData[name] or nil
 	if state==nil or data==nil or state.defeated==true or state.retired==true then return {} end
@@ -1953,7 +1979,7 @@ function apocalypseIsHereHorsemanTargetOptions(name)
 	return {},startHex,hexes,mapObjects
 end
 
-function apocalypseIsHereHorsemanDestination(startHex,targetHex,hexes,horsemanName,mapObjects)
+apocalypseIsHereHorsemanDestination=function(startHex,targetHex,hexes,horsemanName,mapObjects)
 	if startHex==nil or targetHex==nil then return startHex end
 	local fromTarget=runtimeMapHexDistanceMap(hexes,{targetHex})
 	local current=startHex
@@ -1994,7 +2020,7 @@ function apocalypseIsHereHorsemanDestination(startHex,targetHex,hexes,horsemanNa
 	return current
 end
 
-function apocalypseIsHereClearChoiceButtons(terrainGUIDs)
+apocalypseIsHereClearChoiceButtons=function(terrainGUIDs)
 	local pending=gStates~=nil and gStates.apocalypseHereHorsemanPendingChoice or nil
 	local guids=terrainGUIDs or (pending~=nil and pending.terrainGUIDs) or {}
 	local seen={}
@@ -2023,7 +2049,7 @@ local function apocalypseIsHereJoinHorsemenTurnReport(previous,line)
 	return joinLang({previous,"<size=6>\n\n</size>",line})
 end
 
-function apocalypseIsHereShowTargetChoice(name,options,previousReport,choicePlayerIndex)
+apocalypseIsHereShowTargetChoice=function(name,options,previousReport,choicePlayerIndex)
 	local oldPending=gStates.apocalypseHereHorsemanPendingChoice
 	apocalypseIsHereClearChoiceButtons(oldPending~=nil and oldPending.terrainGUIDs or nil)
 	local targetKeys={}
@@ -2074,7 +2100,7 @@ function apocalypseIsHereShowTargetChoice(name,options,previousReport,choicePlay
 	return true
 end
 
-function apocalypseIsHereRefreshPendingTargetChoice()
+apocalypseIsHereRefreshPendingTargetChoice=function()
 	local pending=gStates.apocalypseHereHorsemanPendingChoice
 	if pending==nil then return false end
 	local liveOptions=apocalypseIsHereHorsemanTargetOptions(pending.name)
@@ -2118,7 +2144,7 @@ function apocalypseIsHereHorsemanTargetSelect(player,mouseButton,id)
 	apocalypseIsHereResolveHorsemanTarget(pending.name,option)
 end
 
-function apocalypseIsHereHorsemanClearTarget(targetHex)
+apocalypseIsHereHorsemanClearTarget=function(targetHex)
 	if targetHex==nil then return false end
 	local _,mapObjects=runtimeMapHexesAndObjects()
 	for _,enemy in ipairs(proxyMonstersOnHex(targetHex,mapObjects)) do
@@ -2127,7 +2153,7 @@ function apocalypseIsHereHorsemanClearTarget(targetHex)
 	return true
 end
 
-function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
+apocalypseIsHereHorsemanDestroyTarget=function(name,targetHex,afterArrange)
 	local state=gStates.horsemen[name]
 	local data=horsemanData[name]
 	if state==nil or data==nil or targetHex==nil then return false end
@@ -2189,13 +2215,13 @@ function apocalypseIsHereHorsemanDestroyTarget(name,targetHex,afterArrange)
 	return true
 end
 
-function apocalypseIsHereHexByKey(key,hexes)
+apocalypseIsHereHexByKey=function(key,hexes)
 	if key==nil then return nil end
 	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
 	return nil
 end
 
-function apocalypseIsHereHorsemanMoveFinished(name,target,reached)
+apocalypseIsHereHorsemanMoveFinished=function(name,target,reached)
 	if reached==true then
 		local action=gStates.apocalypseHereHorsemanAction
 		if action~=nil then action.stage="destroying" end
@@ -2209,7 +2235,7 @@ function apocalypseIsHereHorsemanMoveFinished(name,target,reached)
 	end
 end
 
-function apocalypseIsHereResolveHorsemanTarget(name,option)
+apocalypseIsHereResolveHorsemanTarget=function(name,option)
 	local options,startHex,hexes,mapObjects=apocalypseIsHereHorsemanTargetOptions(name)
 	local target=option~=nil and option.hex or nil
 	if startHex==nil or target==nil then apocalypseIsHereContinueHorsemenTurn() return false end
@@ -2240,7 +2266,7 @@ function apocalypseIsHereResolveHorsemanTarget(name,option)
 	return true
 end
 
-function apocalypseIsHereProcessNextHorseman()
+apocalypseIsHereProcessNextHorseman=function()
 	if gStates.apocalypseHereHorsemenTurnActive~=true then return end
 	local queue=gStates.apocalypseHereHorsemenQueue or {}
 	local index=tonumber(gStates.apocalypseHereHorsemenQueueIndex) or 1
@@ -2264,13 +2290,13 @@ function apocalypseIsHereProcessNextHorseman()
 	else apocalypseIsHereResolveHorsemanTarget(name,options[1]) end
 end
 
-function apocalypseIsHereContinueHorsemenTurn()
+apocalypseIsHereContinueHorsemenTurn=function()
 	if gStates.apocalypseHereHorsemenTurnActive~=true then return end
 	gStates.apocalypseHereHorsemenUIState="Processing"
 	safeWaitFrames("Scenario",apocalypseIsHereProcessNextHorseman,2)
 end
 
-function apocalypseIsHereActiveHorsemen()
+apocalypseIsHereActiveHorsemen=function()
 	local list={}
 	for _,name in ipairs(gStates.apocalypseHereHorsemanOrder or {}) do
 		local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
@@ -2327,7 +2353,7 @@ function apocalypseIsHereMainUIPanelSpec()
 	return {actor="horsemen",mainText="{en}<size=25>Horsemen's Turn</size>{ru}<size=25>Ход Всадников</size>{zh-tw}<size=25>騎士回合</size>{zh-cn}<size=25>骑士回合</size>{ko}<size=25>기사들의 턴</size>{es}<size=25>Turno de los Jinetes</size>{fr}<size=25>Tour des Cavaliers</size>{pt-br}<size=25>Turno dos Cavaleiros</size>{de}<size=25>Zug der Reiter</size>",notes=apocalypseIsHereHorsemenTurnDescription(),onClick="apocalypseIsHereProcessHorsemenUI",label=label,interactable=active}
 end
 
-function apocalypseIsHereMainUIRefresh()
+apocalypseIsHereMainUIRefresh=function()
 	local spec=apocalypseIsHereMainUIPanelSpec()
 	if spec==nil then return false end
 	return automatedMainPanelApply(spec)
@@ -2342,7 +2368,7 @@ function apocalypseIsHereProcessHorsemenUI(player,mouseButton,id)
 	apocalypseIsHereProcessNextHorseman()
 end
 
-function apocalypseIsHereFinishHorsemenTurn()
+apocalypseIsHereFinishHorsemenTurn=function()
 	if gStates.apocalypseHereHorsemenTurnActive~=true then return false end
 	local pending=gStates.apocalypseHereHorsemanPendingChoice
 	apocalypseIsHereClearChoiceButtons(pending~=nil and pending.terrainGUIDs or nil)
@@ -2542,7 +2568,7 @@ end
 
 --Draw a Destroyed Site beside its Infinite Bag. destroySite()/arrangeDestroyedSiteHex() owns the
 --visible smooth move to the target hex, so every scripted destruction follows the same placement path.
-function takeDestroyedSiteToken(terrain,bearing)
+takeDestroyedSiteToken=function(terrain,bearing)
 	if terrain==nil or bearing==nil then return nil end
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
 	local center=angleToXY(terrain,bearing)
@@ -2553,7 +2579,7 @@ end
 
 --A Destroyed Site is always slot 1. Smooth it to its measured resting origin at Y 1.13; after it
 --settles, the shared arranger can apply the tiny X/Z separation and place any enemies above it.
-function arrangeDestroyedSiteHex(token,terrain,bearing,afterArrange)
+arrangeDestroyedSiteHex=function(token,terrain,bearing,afterArrange)
 	if token==nil or terrain==nil or bearing==nil then return false end
 	local center=angleToXY(terrain,bearing)
 	if center==nil then return false end
@@ -2598,7 +2624,7 @@ end
 
 --Against the Apocalypse keeps its completion rule in one place so both combat cleanup and
 --non-combat site restoration can finish the scenario through the same objective test.
-function againstApocalypseObjectivesComplete()
+againstApocalypseObjectivesComplete=function()
 	if gStates==nil or gStates.gameScenario~="Against the Apocalypse Blitz" then return false end
 	local map=getObjectFromGUID(mapArea)
 	if map==nil then return false end
@@ -2637,7 +2663,7 @@ function againstApocalypseObjectivesComplete()
 	return clearedSiteCount==sitesRequired and floorCount>=progressRequired and restoredCount>=progressRequired
 end
 
-function againstApocalypseCheckCompletion()
+againstApocalypseCheckCompletion=function()
 	if gStates==nil or gStates.gameScenario~="Against the Apocalypse Blitz" or gStates.endGameAchieved~="false" or gStates.tacticShown==true then return false end
 	if againstApocalypseObjectivesComplete()~=true then return false end
 	if gStates.coopAssaultPhase=="combat" then gStates.coopAssaultScenarioEndPending=true else markScenarioEndAchieved() end
@@ -2646,7 +2672,7 @@ end
 
 --Only the Possessed token placed by this scenario's terrain-destruction roll grants Destroyed Site
 --tokens. Quest and other Possessed enemies deliberately remain unmarked.
-function againstApocalypseMarkPossessedRampager(possessed)
+againstApocalypseMarkPossessedRampager=function(possessed)
 	if possessed==nil then return false end
 	gStates.againstApocalypseRampagerPossessedTokens=gStates.againstApocalypseRampagerPossessedTokens or {}
 	gStates.againstApocalypseRampagerPossessedTokens[possessed.guid]=true
@@ -2670,7 +2696,7 @@ function againstApocalypseRampagerDestroyedSiteRewards(enemy)
 	return 0
 end
 
-function restoreDestroyedSite(destroyed, player)
+restoreDestroyedSite=function(destroyed, player)
 	if destroyed==nil or player==nil or gStates.destroyedSites==nil then return false end
 	local data=gStates.destroyedSites[destroyed.guid]
 	if data==nil or terrainTiles[data.terrainTile]==nil then return false end
@@ -2780,7 +2806,7 @@ end
 --Fury begins with Regular Units even though all Core tiles are already face up. Elite Units only
 --join subsequent Round offers after a Countryside tile adjacent to a City has been revealed, or after
 --a Hero has entered either City at least once.
-function furyDragonEliteConditionMet()
+furyDragonEliteConditionMet=function()
 	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" then return false end
 	if gStates.furyHeroEnteredCity==true then return true end
 	local map=getObjectFromGUID(mapArea)
@@ -2901,7 +2927,7 @@ end
 --The Apocalypse Dragon is deliberately NOT inserted into turnOrder. It acts between normal turn
 --circuits so the rest of the mod can continue to assume that every turnOrder entry is a Mage Knight,
 --Dummy/Proxy, or Volkare.
-function againstDragonActive()
+againstDragonActive=function()
 	return gStates~=nil and gStates.gameScenario=="Against the Dragon Blitz"
 end
 
@@ -2923,12 +2949,12 @@ function againstDragonPositionRoundOrderToken()
 	return true
 end
 
-function againstDragonPlayerIndexForMage(mage)
+againstDragonPlayerIndexForMage=function(mage)
 	for index,details in ipairs(turnOrder or {}) do if details~=nil and details.mage==mage then return index end end
 	return nil
 end
 
-function againstDragonClearBlackManaMarkers()
+againstDragonClearBlackManaMarkers=function()
 	for _,guid in pairs(gStates.apocalypseDragonBlackMana or {}) do
 		local token=guid~=nil and getObjectFromGUID(guid) or nil
 		if token~=nil then token.destruct() end
@@ -2937,13 +2963,13 @@ function againstDragonClearBlackManaMarkers()
 	gStates.apocalypseDragonAttackedThisRound={}
 end
 
-function againstDragonPlayerMarked(playerIndex)
+againstDragonPlayerMarked=function(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil then return true end
 	return gStates.apocalypseDragonAttackedThisRound~=nil and gStates.apocalypseDragonAttackedThisRound[details.mage]==true
 end
 
-function againstDragonMarkPlayer(playerIndex)
+againstDragonMarkPlayer=function(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil or againstDragonPlayerMarked(playerIndex)==true then return false end
 	gStates.apocalypseDragonAttackedThisRound=gStates.apocalypseDragonAttackedThisRound or {}
@@ -3023,7 +3049,7 @@ function againstDragonOffMapChoiceClearButtons()
 	end
 end
 
-function againstDragonTargetChoiceButton(option,index,xml,splitIndex,splitCount)
+againstDragonTargetChoiceButton=function(option,index,xml,splitIndex,splitCount)
 	if option==nil or option.key==nil then return nil,xml end
 	local terrain,placement=terrainHexChoiceUIPlacement(option.key,0.38,splitIndex,splitCount,0.38)
 	if terrain==nil or placement==nil then return nil,xml end
@@ -3038,7 +3064,7 @@ function againstDragonTargetChoiceButton(option,index,xml,splitIndex,splitCount)
 	return terrain,xml
 end
 
-function againstDragonShowMapChoice(pending)
+againstDragonShowMapChoice=function(pending)
 	apocalypseDragonTurnChoiceClearButtons()
 	if pending==nil or pending.options==nil then return false end
 	local byTerrain={}
@@ -3060,7 +3086,7 @@ function againstDragonShowMapChoice(pending)
 	return true
 end
 
-function againstDragonShowOffMapChoice(pending)
+againstDragonShowOffMapChoice=function(pending)
 	apocalypseDragonTurnChoiceClearButtons()
 	if pending==nil or pending.options==nil then return false end
 	for index,option in ipairs(pending.options) do
@@ -3080,12 +3106,12 @@ function againstDragonShowOffMapChoice(pending)
 	return true
 end
 
-function againstDragonMapHexByKey(hexes,key)
+againstDragonMapHexByKey=function(hexes,key)
 	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
 	return nil
 end
 
-function againstDragonDistanceStarts(hexes,mapObjects)
+againstDragonDistanceStarts=function(hexes,mapObjects)
 	local starts={}
 	if gStates.apocalypseDragonLairRevealed==true and gStates.apocalypseDragonLair~=nil then
 		for _,saved in ipairs(gStates.apocalypseDragonLair.hexes or {}) do
@@ -3100,7 +3126,7 @@ function againstDragonDistanceStarts(hexes,mapObjects)
 	return starts
 end
 
-function againstDragonDistanceChoices(options,hexes,mapObjects)
+againstDragonDistanceChoices=function(options,hexes,mapObjects)
 	local starts=againstDragonDistanceStarts(hexes,mapObjects)
 	if #starts<1 then return {} end
 	local distances=runtimeMapHexDistanceMap(hexes,starts)
@@ -3122,7 +3148,7 @@ function againstDragonDistanceChoices(options,hexes,mapObjects)
 	return tied,best
 end
 
-function againstDragonPlayerHex(hexes,mapObjects,playerIndex)
+againstDragonPlayerHex=function(hexes,mapObjects,playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil then return nil end
 	if details.avatarLocation=="portal" then
@@ -3145,14 +3171,14 @@ function againstDragonPlayerHex(hexes,mapObjects,playerIndex)
 	return avatar~=nil and runtimeMapHexForPosition(hexes,avatar,mapObjects) or nil
 end
 
-function againstDragonSiteEligible(hex)
+againstDragonSiteEligible=function(hex)
 	if hex==nil then return false end
 	local feature=string.lower(tostring(hex.feature or ""))
 	if feature=="monastery" and gStates.monasteryBurned~=nil and gStates.monasteryBurned[hex.terrainGUID]==true then return false end
 	return feature=="village" or feature=="monastery" or feature=="keep" or feature=="mage tower" or feature=="oasis" or feature=="camp" or feature=="mine"
 end
 
-function againstDragonDestroyCandidates(hexes,mapObjects)
+againstDragonDestroyCandidates=function(hexes,mapObjects)
 	local candidates={}
 	local destroyedBag=getObjectFromGUID(GUID.bag.destroyedSite)
 	local siteTokensAvailable=destroyedBag~=nil
@@ -3170,13 +3196,13 @@ function againstDragonDestroyCandidates(hexes,mapObjects)
 	return candidates,siteTokensAvailable
 end
 
-function againstDragonActionLabel(action)
+againstDragonActionLabel=function(action)
 	if action=="attack" then return "attack a player" end
 	if action=="destroy" then return "destroy a site or Rampaging Enemy" end
 	return "take no action"
 end
 
-function againstDragonFinalReport(text)
+againstDragonFinalReport=function(text)
 	local prefix=gStates~=nil and gStates.apocalypseDragonTurnReportPrefix or nil
 	if prefix~=nil and prefix~="" then return prefix.."\n"..tostring(text or "") end
 	return tostring(text or "")
@@ -3203,7 +3229,7 @@ function againstDragonAttendanceResponseSpec()
 	}
 end
 
-function againstDragonResolveDestroyOption(option)
+againstDragonResolveDestroyOption=function(option)
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local hex=option~=nil and againstDragonMapHexByKey(hexes,option.key) or nil
 	if hex==nil then
@@ -3289,7 +3315,7 @@ function againstDragonBeginDestroy()
 	return true
 end
 
-function againstDragonGainFame(playerIndex,amount)
+againstDragonGainFame=function(playerIndex,amount)
 	local details=turnOrder[playerIndex]
 	if details==nil or details.mage==gStates.positionMageKnight[5] then return false end
 	--Airborne Dragon Fame is a normal pending Fame gain. Keeping it in fameGain makes the
@@ -3315,7 +3341,7 @@ function againstDragonFullAttendInProgress(playerIndex)
 	return pending~=nil and pending.phase=="full" and pending.playerIndex==playerIndex
 end
 
-function againstDragonAttendanceAuthorized(player,pending)
+againstDragonAttendanceAuthorized=function(player,pending)
 	if pending==nil or pending.playerIndex==nil then return false end
 	local details=turnOrder[pending.playerIndex]
 	if details==nil then return false end
@@ -3326,7 +3352,7 @@ function againstDragonAttendanceAuthorized(player,pending)
 	return false
 end
 
-function againstDragonFullAttendAllowed(playerIndex)
+againstDragonFullAttendAllowed=function(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil then return false end
 	local token=getObjectFromGUID(details.turnOrderTokenGUID)
@@ -3340,14 +3366,14 @@ function againstDragonAttendanceUIRefresh()
 	return true
 end
 
-function againstDragonAirborneTokenPosition(playerIndex,slot)
+againstDragonAirborneTokenPosition=function(playerIndex,slot)
 	local details=turnOrder[playerIndex]
 	if details==nil then return nil end
 	--Match the landed Dragon spacing offset and keep the aerial fight clear of the left-side combat controls.
 	return {(details.seatPos*40)-98.75+((slot-1)*2.5),1.5,-39.25}
 end
 
-function againstDragonAirborneMonsterData(headName,round)
+againstDragonAirborneMonsterData=function(headName,round)
 	local data=apocalypseDragonMonsterData(headName,round)
 	if data==nil then return nil end
 	--These heads cannot be attacked during the airborne combat. Keep only attack-side information.
@@ -3359,7 +3385,7 @@ function againstDragonAirborneMonsterData(headName,round)
 	return data
 end
 
-function againstDragonDeployAirborneHeads(playerIndex)
+againstDragonDeployAirborneHeads=function(playerIndex)
 	local pending=gStates.apocalypseDragonPendingAttack
 	local details=turnOrder[playerIndex]
 	if pending==nil or pending.playerIndex~=playerIndex or details==nil then return false end
@@ -3398,7 +3424,7 @@ function againstDragonDeployAirborneHeads(playerIndex)
 	return true
 end
 
-function againstDragonAirborneProtectionLocation(playerIndex)
+againstDragonAirborneProtectionLocation=function(playerIndex)
 	local avatar=coopAssaultAvatarObject~=nil and coopAssaultAvatarObject(playerIndex) or nil
 	if avatar==nil then return nil end
 	local terrain,bearing,_,feature=terrainHexAtPosition(avatar.getPosition())
@@ -3406,7 +3432,7 @@ function againstDragonAirborneProtectionLocation(playerIndex)
 	return {terrainGUID=terrain.guid,bearing=bearing,feature=feature}
 end
 
-function againstDragonAirborneProtectionReminder(location)
+againstDragonAirborneProtectionReminder=function(location)
 	if location==nil then return "No Dragon-head protection from this space." end
 	local feature=string.lower(tostring(location.feature or ""))
 	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(location.feature) or tostring(location.feature or "space")
@@ -3436,7 +3462,7 @@ function againstDragonAirborneProtectionDestroysSite(feature)
 		value=="monastery" or value=="oasis" or value=="camp" or value=="glade"
 end
 
-function againstDragonCaptureAirborneSuppression()
+againstDragonCaptureAirborneSuppression=function()
 	local pending=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
 	if pending==nil or pending.suppressionCaptured==true then return false end
 	pending.suppressionCaptured=true
@@ -3535,7 +3561,7 @@ function againstDragonFinishAttackForPlayer(playerIndex,finishDragonImmediately)
 	return true
 end
 
-function againstDragonAttendPartial(player,mouseButton,id)
+againstDragonAttendPartial=function(player,mouseButton,id)
 	if mouseButton~="-1" then return end
 	againstDragonFinishPartial(player,mouseButton,id)
 end
@@ -3580,7 +3606,7 @@ function againstDragonAttendFull(player,mouseButton,id)
 	if token~=nil then safeWaitCondition("Scenario",beginAdvancedTurn,function() return token==nil or token.resting end,4,beginAdvancedTurn) else beginAdvancedTurn() end
 end
 
-function againstDragonBeginManualAttack(playerIndex)
+againstDragonBeginManualAttack=function(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil then
 		againstDragonSetTurnReport("The Dragon's selected player could no longer be found.","Processing")
@@ -3601,7 +3627,7 @@ function againstDragonBeginManualAttack(playerIndex)
 	return true
 end
 
-function againstDragonResolveOffMapPlayer(playerIndex)
+againstDragonResolveOffMapPlayer=function(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil then
 		againstDragonSetTurnReport("The Dragon's selected Portal player could no longer be found.","Processing")
@@ -3710,7 +3736,7 @@ function againstDragonAttackComplete(player,mouseButton,id)
 	againstDragonFinishAttackForPlayer(pending.playerIndex)
 end
 
-function againstDragonTurnAction(turnNumber)
+againstDragonTurnAction=function(turnNumber)
 	local players=tonumber(gStates.playerCount) or 1
 	local n=tonumber(turnNumber) or 1
 	if n>=5 then return "destroy" end
@@ -3868,7 +3894,7 @@ function furyDragonBeginTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	return true
 end
 
-function furyDragonCompleteTurn(text)
+furyDragonCompleteTurn=function(text)
 	if furyDragonIsActive()~=true then return false end
 	gStates.apocalypseDragonUIState="ReadyToEnd"
 	gStates.apocalypseDragonTurnReport=text or "The Apocalypse Dragon finished its turn."
@@ -3877,13 +3903,13 @@ function furyDragonCompleteTurn(text)
 	return true
 end
 
-function furyDragonFeatureMatches(feature,wanted)
+furyDragonFeatureMatches=function(feature,wanted)
 	local name=string.lower(tostring(feature or ""))
 	if wanted=="city" then return name:sub(1,4)=="city" end
 	return name==wanted
 end
 
-function furyDragonHexHasLiveRampager(hex,mapObjects)
+furyDragonHexHasLiveRampager=function(hex,mapObjects)
 	if hex==nil then return false end
 	for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
 		if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[enemy.guid]==true then return true end
@@ -3891,7 +3917,7 @@ function furyDragonHexHasLiveRampager(hex,mapObjects)
 	return false
 end
 
-function furyDragonTargetCategory(hex,color,mapObjects)
+furyDragonTargetCategory=function(hex,color,mapObjects)
 	local categoryOrder=apocalypseDragon.furyColorCategories[color] or {}
 	for categoryIndex,category in ipairs(categoryOrder) do
 		for featureIndex,wanted in ipairs(apocalypseDragon.furyTargetCategories[category] or {}) do
@@ -3905,7 +3931,7 @@ function furyDragonTargetCategory(hex,color,mapObjects)
 	return nil,nil,nil
 end
 
-function furyDragonMapTilesAdjacent(a,b)
+furyDragonMapTilesAdjacent=function(a,b)
 	if a==nil or b==nil then return false end
 	if a.guid==b.guid then return true end
 	local ap=a.getPosition()
@@ -3914,12 +3940,12 @@ function furyDragonMapTilesAdjacent(a,b)
 	return d>36 and d<45
 end
 
-function furyDragonCurrentHex(hexes)
+furyDragonCurrentHex=function(hexes)
 	if gStates.furyDragonCurrentHexKey==nil then return nil end
 	return againstDragonMapHexByKey(hexes,gStates.furyDragonCurrentHexKey)
 end
 
-function furyDragonLairTarget(hexes)
+furyDragonLairTarget=function(hexes)
 	local lair=gStates.apocalypseDragonLair
 	if lair==nil then return nil end
 	local key=lair.cityHexKey
@@ -3929,7 +3955,7 @@ function furyDragonLairTarget(hexes)
 	return {key=key,terrainGUID=hex.terrainGUID,bearing=hex.bearing,feature="",category="lair",isLair=true}
 end
 
-function furyDragonLowestHead()
+furyDragonLowestHead=function()
 	local chosen=nil
 	local chosenLevel=nil
 	for _,headName in ipairs(apocalypseDragon.furyLowestHeadOrder or {}) do
@@ -3939,7 +3965,7 @@ function furyDragonLowestHead()
 	return chosen,chosenLevel
 end
 
-function furyDragonTargetHead(target)
+furyDragonTargetHead=function(target)
 	if target==nil then return nil end
 	local fixed=apocalypseDragon.furyCategoryHead[target.category]
 	if fixed~=nil then return fixed end
@@ -3947,14 +3973,14 @@ function furyDragonTargetHead(target)
 	return nil
 end
 
-function furyDragonTargetWouldOverflow(target)
+furyDragonTargetWouldOverflow=function(target)
 	local head=furyDragonTargetHead(target)
 	if head==nil then return false end
 	local level=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[head] or 0) or 0
 	return level>=12
 end
 
-function furyDragonChooseTarget(color,hexes,mapObjects)
+furyDragonChooseTarget=function(color,hexes,mapObjects)
 	--The mod's Destroyed Site supply is an Infinite Bag, so Fury intentionally omits the printed
 	--"all 16 Destroyed Site tokens used" redirect and only applies the no-target / level-12 redirects.
 	local current=furyDragonCurrentHex(hexes)
@@ -3992,18 +4018,18 @@ function furyDragonChooseTarget(color,hexes,mapObjects)
 	return target
 end
 
-function furyDragonCityModelGUID(feature)
+furyDragonCityModelGUID=function(feature)
 	local color=string.lower(tostring(feature or "")):match("^city%s+(%a+)")
 	return color~=nil and cityModel[color] or nil
 end
 
-function furyDragonCityCard(feature)
+furyDragonCityCard=function(feature)
 	local cityGUID=furyDragonCityModelGUID(feature)
 	local cardGUID=cityGUID~=nil and gStates.cityCard~=nil and gStates.cityCard[cityGUID] or nil
 	return cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
 end
 
-function furyDragonTargetPosition(target,hexes,forDragon)
+furyDragonTargetPosition=function(target,hexes,forDragon)
 	if target==nil then return nil end
 	if furyDragonCityModelGUID(target.feature)~=nil then
 		local card=furyDragonCityCard(target.feature)
@@ -4017,20 +4043,20 @@ function furyDragonTargetPosition(target,hexes,forDragon)
 	return {hex.position[1],forDragon==true and 1.45 or 1.65,hex.position[3]}
 end
 
-function furyDragonManaColor(die)
+furyDragonManaColor=function(die)
 	if die==nil then return nil end
 	local value=string.lower(tostring(die.getRotationValue() or ""))
 	return value:match("^(%a+)")
 end
 
-function furyDragonTargetLabel(target)
+furyDragonTargetLabel=function(target)
 	if target==nil then return "the Lair" end
 	if target.isLair==true then return "the Lair" end
 	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(target.feature) or tostring(target.feature or "space")
 	return tostring(label)
 end
 
-function furyDragonMoveMarkerOffMap()
+furyDragonMoveMarkerOffMap=function()
 	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
 	if marker==nil then return false end
 	--Leaving a shared map hex may let the pieces left behind collapse back toward the centre.
@@ -4045,7 +4071,7 @@ function furyDragonMoveMarkerOffMap()
 	return true
 end
 
-function furyDragonBeginLandedTurn()
+furyDragonBeginLandedTurn=function()
 	if furyDragonIsActive()~=true then return false end
 	gStates.apocalypseDragonUIState="Processing"
 	gStates.apocalypseDragonTurnReport="The landed Apocalypse Dragon is rolling its mana die."
@@ -4118,7 +4144,7 @@ function furyDragonBeginLandedTurn()
 	return true
 end
 
-function furyDragonPlayersOnTarget(target,hexes,mapObjects)
+furyDragonPlayersOnTarget=function(target,hexes,mapObjects)
 	local players={}
 	for playerIndex,details in ipairs(turnOrder or {}) do
 		if details~=nil and details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then
@@ -4135,13 +4161,13 @@ function furyDragonPlayersOnTarget(target,hexes,mapObjects)
 	return players
 end
 
-function furyDragonDiscardHexEnemies(hex,mapObjects)
+furyDragonDiscardHexEnemies=function(hex,mapObjects)
 	for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
 		if getObjectFromGUID(enemy.guid)~=nil then proxyDiscardMonster(enemy) end
 	end
 end
 
-function furyDragonDestroyHex(hex,mapObjects,removeEnemies)
+furyDragonDestroyHex=function(hex,mapObjects,removeEnemies)
 	if hex==nil then return false end
 	if removeEnemies==true then furyDragonDiscardHexEnemies(hex,mapObjects) end
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
@@ -4154,7 +4180,7 @@ function furyDragonDestroyHex(hex,mapObjects,removeEnemies)
 	return destroySite(token,hex.terrain,hex.bearing)
 end
 
-function furyDragonRemoveCityDefender(feature)
+furyDragonRemoveCityDefender=function(feature)
 	local cityGUID=furyDragonCityModelGUID(feature)
 	local defenders=cityGUID~=nil and gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID] or nil
 	if defenders==nil then return false,nil end
@@ -4178,14 +4204,14 @@ function furyDragonRemoveCityDefender(feature)
 	return true,name
 end
 
-function furyDragonIncreaseHead(headName)
+furyDragonIncreaseHead=function(headName)
 	if headName==nil then return false end
 	local current=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or 0) or 0
 	if current>=12 then return false end
 	return apocalypseDragonSetHeadLevel(headName,current+1)
 end
 
-function furyDragonResolveArrivalEffect(target,hex,mapObjects)
+furyDragonResolveArrivalEffect=function(target,hex,mapObjects)
 	if target==nil or hex==nil then return "The Dragon landed, but its target could not be resolved." end
 	if target.isLair==true or target.category=="lair" then
 		local head=furyDragonLowestHead()
@@ -4231,7 +4257,7 @@ function furyDragonResolveArrivalEffect(target,hex,mapObjects)
 	return action
 end
 
-function furyDragonBeginInFlightTurn()
+furyDragonBeginInFlightTurn=function()
 	if furyDragonIsActive()~=true then return false end
 	local target=gStates.furyDragonFlightTarget
 	if target==nil then return furyDragonBeginLandedTurn() end
