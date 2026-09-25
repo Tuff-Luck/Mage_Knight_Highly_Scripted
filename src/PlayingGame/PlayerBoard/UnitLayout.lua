@@ -1,3 +1,7 @@
+-- Module-private helpers. Predeclared so forward references keep resolving locally.
+local unitLayoutSnapType, refreshUnitLayoutSnapPoints, unitLayoutCommandPriority, unitLayoutX, unitLayoutObjects
+local unitLayoutSnapshot, unitLayoutIsCompanion, refreshUnitLayout, unitLayoutObjectInUnitArea
+
 -- Runtime Unit/Command-slot layout and compression on player boards.
 
 unitLayoutConfig={nativeSlots=6, firstOffset=-103.57, nativeSpacing=3.84, cardScale=1.5, associationRadius=2.05}
@@ -7,7 +11,7 @@ unitLayoutExpanded=unitLayoutExpanded or {}
 --Each native Unit slot has six attached player-board snap points:
 --1 Banner, 2 Command (one also tagged Unit), and 3 Wound. When overflow compresses the
 --Unit columns, rebuild only this snap family at the same dynamic X centres.
-function unitLayoutSnapType(point)
+unitLayoutSnapType=function(point)
 	if point==nil then return nil end
 	local banner=false
 	local wound=false
@@ -26,7 +30,7 @@ function unitLayoutSnapType(point)
 	return nil
 end
 
-function refreshUnitLayoutSnapPoints(seatPos,commandCount)
+refreshUnitLayoutSnapPoints=function(seatPos,commandCount)
 	if seatPos==nil then return end
 	local board=getObjectFromGUID(playerBoard[seatPos])
 	if board==nil then return end
@@ -76,7 +80,7 @@ function unitLayoutIsCommand(obj)
 	return obj.getGMNotes()=="Command Token" or obj.getGMNotes()=="Bonds of Loyalty" or obj.guid==GUID.skill.bondsOfLoyalty or obj.guid==GUID.card.bannerOfCommandToken
 end
 
-function unitLayoutCommandPriority(obj)
+unitLayoutCommandPriority=function(obj)
 	if obj==nil then return 9 end
 	if obj.getGMNotes()=="Command Token" then return 1 end
 	if obj.getGMNotes()=="Bonds of Loyalty" or obj.guid==GUID.skill.bondsOfLoyalty then return 2 end
@@ -84,7 +88,7 @@ function unitLayoutCommandPriority(obj)
 	return 9
 end
 
-function unitLayoutX(seatPos, slot, commandCount)
+unitLayoutX=function(seatPos, slot, commandCount)
 	local displayCount=math.max(unitLayoutConfig.nativeSlots, commandCount or unitLayoutConfig.nativeSlots)
 	local width=unitLayoutConfig.nativeSpacing*(unitLayoutConfig.nativeSlots-1)
 	local spacing=width/(displayCount-1)
@@ -97,13 +101,13 @@ function unitLayoutCardScale(commandCount)
 end
 
 --Only the Unit scripting zone defines Unit capacity; this preserves the Banner/Bonds behaviour the recruitment code already relied on.
-function unitLayoutObjects(seatPos)
+unitLayoutObjects=function(seatPos)
 	local unitZone=getObjectFromGUID(playerUnitAreas[seatPos])
 	if unitZone==nil then return {} end
 	return unitZone.getObjects()
 end
 
-function unitLayoutSnapshot(seatPos)
+unitLayoutSnapshot=function(seatPos)
 	local objects=unitLayoutObjects(seatPos)
 	local commands={}
 	local units={}
@@ -212,7 +216,7 @@ function unitLayoutNearestUnit(objects, x)
 	return nearest, nearestDistance
 end
 
-function unitLayoutIsCompanion(obj)
+unitLayoutIsCompanion=function(obj)
 	if obj==nil or unitLayoutIsUnit(obj) or unitLayoutIsCommand(obj) then return false end
 	if obj.getGMNotes()=="Unit Wound" or obj.type=="Dice" or obj.type=="Figurine" then return true end
 	if skillTokens[obj.guid]~=nil or monsterPugs[obj.guid]~=nil then return true end
@@ -228,7 +232,7 @@ function unitLayoutObjectInAnyUnitArea(guid)
 	return false
 end
 
-function refreshUnitLayout(seatPos)
+refreshUnitLayout=function(seatPos)
 	if seatPos==nil then return end
 	local layout=unitLayoutSnapshot(seatPos)
 	local commandCount=#layout.commands
@@ -287,7 +291,7 @@ function scheduleUnitLayoutRefresh(seatPos)
 	end,0.2)
 end
 
-function unitLayoutObjectInUnitArea(guid,seatPos)
+unitLayoutObjectInUnitArea=function(guid,seatPos)
 	local zone=seatPos~=nil and getObjectFromGUID(playerUnitAreas[seatPos]) or nil
 	if zone~=nil then for _,obj in pairs(zone.getObjects()) do if obj.guid==guid then return true end end end
 	return false
