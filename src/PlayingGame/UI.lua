@@ -1,3 +1,8 @@
+-- UI-private helpers. Predeclared so forward references keep resolving locally.
+local refreshPlayAreaCardScale, automatedAttackResponseButton, automatedPanelHasDeedCards, automatedPanelEndRoundText, automatedDummyPanelSpec
+local automatedVolkarePanelSpec, automatedCurrentPlayerPanelSpec, avatarButtonBucketKey, avatarButtonNearbyObjects, avatarButtonXmlSignature
+local legacyObjectButtonImage, buildMageKnightFastLookups, mageKnightAvatarObjectByName
+
 -- Gameplay presentation, cached interface state and camera/object UI helpers.
 
 local volkarePursuitButtonImageURL="https://steamusercontent-a.akamaihd.net/ugc/13293042467654760772/E72DCC400EC451ABB80DC722F3657A631FC30C70/"
@@ -311,7 +316,7 @@ end
 --Play-area card scaling is driven directly by the play-area zones rather than mainUIUpdate.
 --Cards cannot merge into Decks in the play area during normal play, so use the same loose-object counts as the original UI logic.
 local playAreaScaleWait={}
-function refreshPlayAreaCardScale(seatPos)
+refreshPlayAreaCardScale=function(seatPos)
 	local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
 	if zone==nil then return end
 	local objects=zone.getObjects()
@@ -475,7 +480,7 @@ end
 
 --Shared presentation layer for every scripted/non-player turn that borrows the centre Dummy panel.
 --Gameplay stays in the owning system; these helpers only decide and render the current UI state.
-function automatedAttackResponseButton(id,textId,imageId,spec)
+automatedAttackResponseButton=function(id,textId,imageId,spec)
 	if spec==nil then UI.setAttribute(id,"active","false") return end
 	local visible=spec.active~=false
 	local enabled=visible and spec.interactable~=false
@@ -495,7 +500,7 @@ function automatedAttackResponseUI(spec)
 	return spec.visible~=false
 end
 
-function automatedPanelHasDeedCards(stats)
+automatedPanelHasDeedCards=function(stats)
 	if stats==nil or stats.seatPos==nil then return false end
 	local cached=endRoundDeedHasCards[stats.seatPos]
 	if cached~=nil then return cached end
@@ -505,7 +510,7 @@ function automatedPanelHasDeedCards(stats)
 	return count>0
 end
 
-function automatedPanelEndRoundText()
+automatedPanelEndRoundText=function()
 	if gStates.currentRound>=gStates.rounds then return "{en}Call End of Game{ru}Объявить конец игры{zh-tw}宣告遊戲結束{zh-cn}宣布游戏结束{ko}게임 종료 선언{es}Declarar Fin del Juego{fr}Déclarer la Fin de la Partie{pt-br}Declarar Fim do Jogo{de}Spielende Ausrufen" end
 	return joinLang({"{en}Call End of Round {ru}Объявить конец Раунда {zh-tw}聲明結束輪次 {zh-cn}声明结束轮次 {ko}라운드 종료 선언 {es}Llamar a Fin de Ronda {fr}Appel fin de Round{pt-br}Fim da Rodada {de}Ende der Runde Einläuten ",gStates.currentRound,"{en} of {ru} из {zh-tw} / {zh-cn} / {ko} / {es} / {fr} de {pt-br} de {de} von ",gStates.rounds})
 end
@@ -550,7 +555,7 @@ function automatedProxyPanelSpec(stats,stateOverride)
 	return spec
 end
 
-function automatedDummyPanelSpec(stats)
+automatedDummyPanelSpec=function(stats)
 	local spec={actor="dummy",onClick="dummyTurn",interactable=true,label="{en}Process Dummy{ru}Ход виртуального игрока{zh-tw}虛擬玩家行動{zh-cn}虚拟玩家行动{ko}가상 플레이어 진행{es}Procesar Jugador Virtual{fr}Processus fantôme{pt-br}Processar Jog.Fictício{de}Dummy aktivieren"}
 	if stats.dummyProcessedThisTurn~=true and automatedPanelHasDeedCards(stats)==false and gStates.endRoundCalled==false and gStates.endGameAchieved=="false" then
 		spec.onClick="PreEndRound"
@@ -571,7 +576,7 @@ function automatedDummyPanelSpec(stats)
 	return spec
 end
 
-function automatedVolkarePanelSpec(stats)
+automatedVolkarePanelSpec=function(stats)
 	local state=gStates.volkareState or "Start"
 	local spec={actor="volkare",onClick="volkareTurn",interactable=true,preserveResponse=true,label="{en}Process Volkare{ru}Ход Волкара{zh-tw}沃卡里行動{zh-cn}沃卡里行动{ko}볼케어 진행{es}Procesar Volkare{fr}Processus Volkare{pt-br}Processar Volkare{de}Volkare Aktivieren"}
 	if state=="Start" then
@@ -603,7 +608,7 @@ function automatedVolkarePanelSpec(stats)
 	return spec
 end
 
-function automatedCurrentPlayerPanelSpec()
+automatedCurrentPlayerPanelSpec=function()
 	if gStates==nil or gStates.turnNumber==nil or turnOrder[gStates.turnNumber]==nil or gStates.positionMageKnight==nil then return nil end
 	local stats=turnOrder[gStates.turnNumber]
 	if stats.mage~=gStates.positionMageKnight[5] then return nil end
@@ -1432,11 +1437,11 @@ local addAvatarPause=true
 avatarButtonXmlState={}
 avatarButtonSpatialCell=3
 
-function avatarButtonBucketKey(pos)
+avatarButtonBucketKey=function(pos)
 	return tostring(math.floor(pos[1]/avatarButtonSpatialCell))..":"..tostring(math.floor(pos[3]/avatarButtonSpatialCell))
 end
 
-function avatarButtonNearbyObjects(buckets, pos)
+avatarButtonNearbyObjects=function(buckets, pos)
 	local nearby={}
 	local baseX=math.floor(pos[1]/avatarButtonSpatialCell)
 	local baseZ=math.floor(pos[3]/avatarButtonSpatialCell)
@@ -1449,7 +1454,7 @@ function avatarButtonNearbyObjects(buckets, pos)
 	return nearby
 end
 
-function avatarButtonXmlSignature(xml, scale, rotation)
+avatarButtonXmlSignature=function(xml, scale, rotation)
 	if xml==nil or xml[1]==nil or xml[1].tag==nil then return "empty" end
 	local signature={tostring(scale), tostring(math.floor((rotation or 0)*10+0.5)/10)}
 	for _, child in ipairs(xml[1].children or {}) do
@@ -2165,7 +2170,7 @@ function refreshResourceTracker()
 	end
 	refreshResourceTrackerText()
 end
-function legacyObjectButtonImage(id,image)
+legacyObjectButtonImage=function(id,image)
 	if id==nil then return false end
 	local obj=getObjectFromGUID(tostring(id):sub(1,6))
 	if obj==nil then return false end
@@ -2250,7 +2255,7 @@ end
 
 function closeSplash() UI.hide("welcome") end
 
-function buildMageKnightFastLookups()
+buildMageKnightFastLookups=function()
 	mageKnightsByName={}
 	mageKnightAvatarGUIDs={}
 	for _, details in pairs(mageKnights) do
@@ -2264,7 +2269,7 @@ function buildMageKnightFastLookups()
 end
 buildMageKnightFastLookups()
 
-function mageKnightAvatarObjectByName(mage, preferStandee)
+mageKnightAvatarObjectByName=function(mage, preferStandee)
 	local details=mageKnightsByName[mage]
 	if details==nil then return nil end
 	local first=preferStandee==true and details.standee or details.model
