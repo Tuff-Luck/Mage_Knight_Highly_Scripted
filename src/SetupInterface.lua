@@ -324,7 +324,7 @@ function cacheScenarioTweakDefaults()
 	end
 end
 
-function setupPlayersRef()
+local function setupPlayersRef()
 	local playersRef=gStates.playerCount
 	if (gStates.coop==0 or gStates.WarOfFourComp==true) and playersRef<=1 then playersRef=2 end
 	if gStates.coop==1 then playersRef=playersRef+4 if playersRef==4 then playersRef=5 end end
@@ -340,7 +340,7 @@ function setupPlayersRef()
 	return playersRef
 end
 
-function resetCurrentScenarioTweaks()
+local function resetCurrentScenarioTweaks()
 	cacheScenarioTweakDefaults()
 	local scenarioRef=scenarioRefForName(gStates.gameScenario)
 	local playersRef=setupPlayersRef()
@@ -532,7 +532,7 @@ function BlitzSelection(player, value, id)
 end
 
 -- Cross-option setup locks for Rise of the Forgemasters and Hero Challenges.
-function applyForgemasterExpansionRequirements()
+local function applyForgemasterExpansionRequirements()
 	local level=gStates.riseOfTheForgemasters or 0
 	if level<=0 then return end
 	gStates.useCustomMageKnights=true
@@ -540,7 +540,7 @@ function applyForgemasterExpansionRequirements()
 	gStates.removeBonusCards=level==1
 end
 
-function refreshHeroChallengeOptionLocks()
+local function refreshHeroChallengeOptionLocks()
 	if gStates==nil then return end
 	local heroOn=gStates.heroChallenges==true
 	local rotf=(gStates.riseOfTheForgemasters or 0)>0
@@ -583,7 +583,7 @@ local function renderLostLegionExpansionOption()
 	end
 end
 
-function refreshLostLegionExpansionOption()
+local function refreshLostLegionExpansionOption()
 	if gStates==nil then return end
 	reconcileLostLegionExpansionState()
 	renderLostLegionExpansionOption()
@@ -820,14 +820,14 @@ function ToolTipUpdate(id)
 	UI.setAttribute("toolTip", "height", tooltip[id].height)
 end
 
-function scenarioMapIsPredefined()
+local function scenarioMapIsPredefined()
 	local scenario=gStates~=nil and scenarioList[gStates.scenarioRef] or nil
 	local setup=scenario~=nil and scenario[gStates.playersRef] or nil
 	--Custom Predefined is a player-built sandbox, so only scenario-owned predefined maps lock these setup controls.
 	return setup~=nil and setup.mapShapeKey=="predefined" and gStates.gameScenario~="Custom"
 end
 
-function refreshScenarioTerrainTweakLocks()
+local function refreshScenarioTerrainTweakLocks()
 	local locked=scenarioMapIsPredefined()
 	for _,control in ipairs({"MapDown","MapUp","CountryDown","CountryUp","CoreDown","CoreUp","CityDown","CityUp"}) do
 		setUIButtonEnabled(control,not locked)
@@ -981,7 +981,7 @@ function baseValueTweak(player, mouseButton, id)
 	end
 end
 
-function setupScenarioMaxMageKnights()
+local function setupScenarioMaxMageKnights()
 	--These scenarios are always solo. The other limited scenarios only become solo when a dummy is selected.
 	if gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest" or
 		gStates.gameScenario=="Quest for the Golden Grail" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" then return 1 end
@@ -1073,7 +1073,7 @@ local function renderVolkareCampAsCityOption(setup)
 	UI.setAttribute("volkareCampAsCity","interactable",enabled and "True" or "False")
 end
 
-function reconcileSetupState()
+local function reconcileSetupState()
 	if gStates==nil then return end
 
 	local customLocked,customValue=scenarioOptionHardLock("useCustomMageKnights")
@@ -1126,7 +1126,7 @@ local function renderMageKnightSetupAvailability()
 	refreshHeroChallengeOptionLocks()
 end
 
-function refreshMageKnightSetupAvailability()
+local function refreshMageKnightSetupAvailability()
 	reconcileSetupState()
 	renderMageKnightSetupAvailability()
 end

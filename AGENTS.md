@@ -19,6 +19,7 @@ Keep changes focused. Prefer one clean commit for one logical change. Do not add
 Tabletop Simulator compatibility is validated against Lua 5.2. Do not introduce syntax that requires a newer Lua version.
 
 Keep shared helpers defined once. Cross-system helpers belong in `src/Shared.lua` or another clearly owned module; do not duplicate implementations in multiple modules. `require()` does not merge duplicate local functions.
+Default file-private helpers to `local function`; keep a function global only when TTS/UI must resolve it by name or another module intentionally calls it as part of that subsystem's public API.
 Do not use late module loading to redefine an existing global callback/helper. For cross-cutting behavior, keep one public owner entry point and delegate explicitly to a uniquely named service/base implementation so ownership and call order remain visible and duplicate-global validation stays meaningful.
 Keep `mainUIUpdate()` as a coalesced UI dispatcher. Put new presentation work in the narrowest existing refresh domain instead of growing the dispatcher; only bypass a domain for named sources that provably cannot change that domain’s state, with unknown sources always taking the full refresh path.
 Keep turn lifecycle callbacks thin. `endTurn` should read as reward gates → per-turn reset → transition; `endRound` should read as checkpoint/interrupts → world refresh → offers/pieces/decks → turn order/tactics → hand deal. Physical combat-object cleanup remains owned by Combat, while generic turn choices and reward sequencing belong in Turn.

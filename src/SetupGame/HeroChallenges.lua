@@ -2,7 +2,7 @@
 
 -- Apocalypse Dragon Hero Challenges play variant.
 -- The variant overlays the selected scenario; the scenario's own end condition remains authoritative.
-function heroChallengeCountryGUID(number)
+local function heroChallengeCountryGUID(number)
 	return GUID.tile["country"..tostring(number)]
 end
 
@@ -11,7 +11,7 @@ local function heroChallengeGUIDInList(guid,list)
 	return false
 end
 
-function heroChallengeCountryAvailable(guid)
+local function heroChallengeCountryAvailable(guid)
 	if guid==nil then return false end
 	if gStates.removeTerrain==true and (guid==GUID.tile.country01 or guid==GUID.tile.country02) then return false end
 	if gStates.removeLostLegionExpansion==true and heroChallengeGUIDInList(guid,setupContentRoster.lostLegion.terrain.country) then return false end
@@ -19,12 +19,12 @@ function heroChallengeCountryAvailable(guid)
 	return terrainTiles[guid]~=nil and terrainTiles[guid].tileType=="country"
 end
 
-function heroChallengeCountryIn(guid, numbers)
+local function heroChallengeCountryIn(guid, numbers)
 	for _, number in ipairs(numbers or {}) do if guid==heroChallengeCountryGUID(number) then return true end end
 	return false
 end
 
-function heroChallengeCountryHasVillage(guid)
+local function heroChallengeCountryHasVillage(guid)
 	local data=terrainTiles[guid]
 	if data==nil or data.hexFeature==nil then return false end
 	for _, feature in pairs(data.hexFeature) do if feature=="village" then return true end end
@@ -33,7 +33,7 @@ end
 
 --Mirror the scenario-specific Countryside pools used by mapSetup(). This lets setup legality be tested
 --before Start is pressed and lets Hero Challenges safely combine the requirements of several Heroes.
-function heroChallengeCountrySlotAllows(guid, slot)
+local function heroChallengeCountrySlotAllows(guid, slot)
 	if heroChallengeCountryAvailable(guid)~=true then return false end
 	local scenario=gStates.gameScenario
 	local countryCount=scenarioList[gStates.scenarioRef][gStates.playersRef].countryTiles
@@ -92,7 +92,7 @@ function heroChallengeShuffleCopy(array)
 	return result
 end
 
-function heroChallengeRequirementSets()
+local function heroChallengeRequirementSets()
 	local sets={{}}
 	for seat=1,4 do
 		local mage=gStates.positionMageKnight[seat]

@@ -1,6 +1,6 @@
 -- Start-at-higher-level setup flow and its temporary player pools.
 
-function higherLevelRelocateUnits(playerIndex)
+local function higherLevelRelocateUnits(playerIndex)
 	local playerData=turnOrder[playerIndex]
 	if playerData==nil or playerData.poolCreated~=true or playerData.seatPos==nil then return end
 	local playArea=getObjectFromGUID(playerPlayAreas[playerData.seatPos])

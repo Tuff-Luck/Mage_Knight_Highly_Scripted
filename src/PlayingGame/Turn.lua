@@ -277,7 +277,7 @@ function activeMageKnightCount()
 end
 
 
-function commitPendingDropouts()
+local function commitPendingDropouts()
 	if dropoutCoopLocked()==true then return false end
 	local changed=false
 	for a, playerData in pairs(turnOrder) do
@@ -340,7 +340,7 @@ function reclaimTimeBending(callback)
 end
 
 --Returns which immediate extra-turn effects are currently available to the active player.
-function extraTurnOptions(playerIndex)
+local function extraTurnOptions(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil then return false, false end
 	local tacticSixAvailable=details.tactic==6 and gStates.dayRound==true and gStates.tacticSixState~="Used" and gStates.tacticRemove==false and gStates.tacticShown==false
@@ -1431,7 +1431,7 @@ end
 --Day Tactic 2 is fully Global-owned. The physical tactic card only hosts this XML-style button.
 --Use the tactic card's actual board position to identify its owner. During tactic selection,
 --turnOrder can temporarily contain duplicate tactic numbers until everybody has chosen.
-function dayTactic2Owner()
+local function dayTactic2Owner()
 	local tactic=getObjectFromGUID(tacticCard[2])
 	if tactic==nil or gStates.dayRound~=true or gStates.tacticRemove==true then return nil, nil end
 	local tacticPos=tactic.getPosition()
@@ -1468,7 +1468,7 @@ function dayTactic2ButtonActivate()
 	end, 10)
 end
 
-function dayTactic2SetUsed()
+local function dayTactic2SetUsed()
 	if gStates.tacticTwoState=="Used" then return end
 	gStates.tacticTwoState="Used"
 	local tactic=getObjectFromGUID(tacticCard[2])

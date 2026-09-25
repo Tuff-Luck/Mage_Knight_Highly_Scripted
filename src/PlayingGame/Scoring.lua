@@ -2,11 +2,11 @@
 
 --Hero Challenges are an optional Apocalypse-rulebook overlay. Keep all scoring/objective
 --math here so the underlying scenario can retain its normal victory and end conditions.
-function heroChallengeActive(playerIndex)
+local function heroChallengeActive(playerIndex)
 	return gStates~=nil and gStates.heroChallenges==true and turnOrder[playerIndex]~=nil and heroChallengesData[turnOrder[playerIndex].mage]~=nil
 end
 
-function heroChallengeRecordCard(stats, guid)
+local function heroChallengeRecordCard(stats, guid)
 	if stats==nil or guid==nil or stats.cardSeen[guid]==true then return end
 	stats.cardSeen[guid]=true
 	local card=gameCards[guid]
@@ -19,7 +19,7 @@ function heroChallengeRecordCard(stats, guid)
 	end
 end
 
-function heroChallengeCrystalColor(obj)
+local function heroChallengeCrystalColor(obj)
 	if obj==nil then return nil end
 	local note=obj.getGMNotes()
 	if note=="Red" or note=="Blue" or note=="Green" or note=="White" then return note end
@@ -29,7 +29,7 @@ function heroChallengeCrystalColor(obj)
 end
 
 --Hero Challenge scoring counts only Puppets explicitly accepted by the Puppet Master system.
-function heroChallengePuppetFame(obj)
+local function heroChallengePuppetFame(obj)
 	if obj==nil or gStates.puppetMasterPuppets==nil then return nil end
 	local record=gStates.puppetMasterPuppets[obj.guid]
 	if record==nil or record.played==true then return nil end
@@ -41,7 +41,7 @@ end
 
 --A dual-colour Advanced Action may satisfy only one colour. Matching four colours to four distinct
 --cards implements that directly instead of simply checking whether every colour appears somewhere.
-function heroChallengeAACoversAllColors(stats)
+local function heroChallengeAACoversAllColors(stats)
 	if stats==nil then return false end
 	local colors={"Red","Blue","Green","White"}
 	local used={}
@@ -59,7 +59,7 @@ function heroChallengeAACoversAllColors(stats)
 	return assign(1)
 end
 
-function heroChallengeFinalMapPosition(playerIndex)
+local function heroChallengeFinalMapPosition(playerIndex)
 	local player=turnOrder[playerIndex]
 	if player==nil then return nil end
 	--Shared map spaces park inactive avatars off-map. Score the logical hex, not the storage position.
@@ -75,7 +75,7 @@ function heroChallengeFinalMapPosition(playerIndex)
 	return fracturedLandsTeleportSourcePosition(playerIndex)
 end
 
-function heroChallengeFinalTerrainBonus(playerIndex, objectsInPlay)
+local function heroChallengeFinalTerrainBonus(playerIndex, objectsInPlay)
 	if heroChallengeActive(playerIndex)~=true or turnOrder[playerIndex].mage~="Braevalar" then return 0 end
 	local pos=heroChallengeFinalMapPosition(playerIndex)
 	if pos==nil then return 0 end
@@ -84,12 +84,12 @@ function heroChallengeFinalTerrainBonus(playerIndex, objectsInPlay)
 	return nightCost[string.lower(tostring(hexType or ""))] or 0
 end
 
-function heroChallengeBeatingScore(playerIndex)
+local function heroChallengeBeatingScore(playerIndex)
 	if heroChallengeActive(playerIndex)==true and turnOrder[playerIndex].mage=="Arythea" then return 0 end
 	return turnOrder[playerIndex].score.Wound*2
 end
 
-function heroChallengeKnowledgeScore(playerIndex)
+local function heroChallengeKnowledgeScore(playerIndex)
 	local score=turnOrder[playerIndex].score
 	local mage=heroChallengeActive(playerIndex) and turnOrder[playerIndex].mage or nil
 	local aaRate=mage=="Braevalar" and 2 or 1
@@ -97,7 +97,7 @@ function heroChallengeKnowledgeScore(playerIndex)
 	return (score.AdvanceAction*aaRate)+(score.Spell*spellRate)
 end
 
-function heroChallengeLootScore(playerIndex)
+local function heroChallengeLootScore(playerIndex)
 	local score=turnOrder[playerIndex].score
 	local mage=heroChallengeActive(playerIndex) and turnOrder[playerIndex].mage or nil
 	local artifactRate=mage=="Coral" and 4 or 2
@@ -105,7 +105,7 @@ function heroChallengeLootScore(playerIndex)
 	return (score.Artifact*artifactRate)+crystalScore+score.Potion
 end
 
-function heroChallengeLeaderScore(playerIndex)
+local function heroChallengeLeaderScore(playerIndex)
 	local score=turnOrder[playerIndex].score
 	local mage=heroChallengeActive(playerIndex) and turnOrder[playerIndex].mage or nil
 	local healthy=mage=="Norowas" and score.UnitsLevel*2 or score.UnitsLevel
@@ -113,7 +113,7 @@ function heroChallengeLeaderScore(playerIndex)
 	return healthy+wounded
 end
 
-function heroChallengeAdventurerScore(playerIndex, ref)
+local function heroChallengeAdventurerScore(playerIndex, ref)
 	local score=turnOrder[playerIndex].score
 	local wolfhawk=heroChallengeActive(playerIndex) and turnOrder[playerIndex].mage=="Wolfhawk"
 	if ref==2 then
@@ -125,13 +125,13 @@ function heroChallengeAdventurerScore(playerIndex, ref)
 	return (score.DungeonTomb+score.SpawningDen+score.Ruin+score.Maze+score.ZigguratPyramid)*(wolfhawk and 4 or 2)
 end
 
-function heroChallengeConquerorScore(playerIndex)
+local function heroChallengeConquerorScore(playerIndex)
 	local score=turnOrder[playerIndex].score
 	local rate=heroChallengeActive(playerIndex) and turnOrder[playerIndex].mage=="Tovak" and 4 or 2
 	return ((score.Keep+score.MageTower+score.Monastery)*rate)+score.VolkareCamp
 end
 
-function heroChallengeEvaluate(playerIndex, objectsInPlay)
+local function heroChallengeEvaluate(playerIndex, objectsInPlay)
 	if heroChallengeActive(playerIndex)~=true then return nil end
 	local playerData=turnOrder[playerIndex]
 	local score=playerData.score
