@@ -1,3 +1,6 @@
+-- Module-private helpers. Predeclared so forward references keep resolving locally.
+local removeCardRemoveDecal
+
 -- Player-board scripting-zone reactions dispatched by PlayingGame.Events.
 
 local crystalManaNames={["Red Mana"]=true,["Green Mana"]=true,["Blue Mana"]=true,["White Mana"]=true,["Black Mana"]=true,["Gold Mana"]=true}
@@ -11,7 +14,7 @@ function cardInPlayerPlayArea(cardGUID)
 	end
 	return false
 end
-function removeCardRemoveDecal(card)
+removeCardRemoveDecal=function(card)
 	if card==nil then return end
 	local decals={}
 	local changed=false
