@@ -2,6 +2,10 @@
 local unitOfferLayoutX, unitOfferCardScale, unitOfferPosition, volkareUnitCrystalRefreshPositions, unitOfferIsUnit
 local monasteryOfferIsCard, refreshUnitOfferSnapPoints, unitOfferCards, reflowUnitOffer, monasteryOfferFirstEmptySlot
 
+-- Offer-private helpers. Predeclared so forward references keep resolving locally.
+local unitOfferLayoutX, unitOfferCardScale, unitOfferPosition, volkareUnitCrystalRefreshPositions, unitOfferIsUnit
+local monasteryOfferIsCard, refreshUnitOfferSnapPoints, unitOfferCards, reflowUnitOffer, monasteryOfferFirstEmptySlot
+
 -- Artifact, Unit, Monastery and deed-offer runtime.
 
 -- Artifact reward offer
