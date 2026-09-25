@@ -1,3 +1,6 @@
+-- Module-private helpers. Predeclared so forward references keep resolving locally.
+local joinLangParse
+
 -- Shared-module private helpers. Predeclared so forward references keep resolving locally.
 local safeSpawnObjectData, rewindTransactionForceRelease, tableCopy
 
@@ -65,7 +68,7 @@ local joinLangParseCache={}
 local joinLangCacheCount=0
 local JOIN_LANG_CACHE_LIMIT=2048
 
-function joinLangParse(text)
+joinLangParse=function(text)
 	local cached=joinLangParseCache[text]
 	if cached~=nil then return cached end
 	local firstStart, firstEnd, firstLang=text:find("{([%a%-]+)}", 1)
