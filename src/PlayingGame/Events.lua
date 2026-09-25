@@ -1,3 +1,6 @@
+-- Events-private helpers. Predeclared so forward references keep resolving locally.
+local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, refreshLiftHeightWarning, __maintenanceTick_raw, startMaintenanceTick
+
 -- TTS persistence, raw event handling, maintenance and runtime event dispatch.
 
 function __tryObjectEnterContainer_raw(container, object)
@@ -260,14 +263,14 @@ local zigguratPyramidUISaveAttributes={
 	{id="zigguratPyramidInteractText2", attribute="text"},
 	{id="zigguratPyramidInteractClimb1Text", attribute="text"},
 	{id="zigguratPyramidInteractClimb2Text", attribute="text"}}
-function saveZigguratPyramidUI()
+saveZigguratPyramidUI=function()
     if gStates==nil then return end
     gStates.zigguratPyramidUI={}
     for _, details in ipairs(zigguratPyramidUISaveAttributes) do
         gStates.zigguratPyramidUI[details.id.."|"..details.attribute]=UI.getAttribute(details.id, details.attribute)
     end
 end
-function restoreZigguratPyramidUI()
+restoreZigguratPyramidUI=function()
     if gStates==nil or gStates.zigguratPyramidUI==nil then return end
     for _, details in ipairs(zigguratPyramidUISaveAttributes) do
         local value=gStates.zigguratPyramidUI[details.id.."|"..details.attribute]
@@ -1520,7 +1523,7 @@ function __onObjectRandomize_raw(randomize_object, player_color)
 end
 
 cardEffectRotationGeneration={}
-function refreshCardEffectAfterRotation(cardGUID)
+refreshCardEffectAfterRotation=function(cardGUID)
 	if cardGUID==nil then return end
 	cardEffectRotationGeneration[cardGUID]=(cardEffectRotationGeneration[cardGUID] or 0)+1
 	local generation=cardEffectRotationGeneration[cardGUID]
@@ -1631,7 +1634,7 @@ end
 local maintenanceWait=nil
 local liftHeightLowDetected=false
 
-function refreshLiftHeightWarning()
+refreshLiftHeightWarning=function()
 	local lowDetected=false
 	for _, color in pairs(Player.getAvailableColors()) do
 		if Player[color].lift_height~=-1 and Player[color].lift_height<0.1 then lowDetected=true break end
@@ -1648,7 +1651,7 @@ function refreshLiftHeightWarning()
 	end
 end
 
-function __maintenanceTick_raw()
+__maintenanceTick_raw=function()
 	refreshCityRevealControls()
 	refreshLiftHeightWarning()
 end
@@ -1658,7 +1661,7 @@ function maintenanceTick()
 	maintenanceWait=safeWaitTime("Events",maintenanceTick, 2)
 end
 
-function startMaintenanceTick()
+startMaintenanceTick=function()
 	if maintenanceWait~=nil then Wait.stop(maintenanceWait) end
 	maintenanceWait=safeWaitTime("Events",maintenanceTick, 2)
 end
