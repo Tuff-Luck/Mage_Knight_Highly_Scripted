@@ -1063,7 +1063,6 @@ function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature
 	return true
 end
 
-local pause=false
 
 --Apocalypse is Here is the only scenario that uses the Horsemen's roaming target priorities.
 local function apocalypseIsHereHorsemanPriorityLocalizedList(text)

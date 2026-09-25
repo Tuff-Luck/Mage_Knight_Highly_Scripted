@@ -1301,7 +1301,6 @@ function SetupMenu(player, mouseButton, id)
 		UI.setAttribute("Setup", "active", "true")
 		UI.setAttribute("helpButtonRealImage", "image", "Sliced Button/Button New Deactive")
 		UI.setAttribute("helpButtonReal", "interactable", "false")
-		--UI.hide("HelpButton")
 	end
 end
 

@@ -353,11 +353,6 @@ function runtimeMapInvalidateTerrain()
 	runtimeMapSnapshotCache=nil
 end
 
---Compatibility for any external/custom call sites: the old broad invalidation remains safe.
-function runtimeMapInvalidate()
-	runtimeMapInvalidateTerrain()
-end
-
 --Logical terrain changes are topology changes too. Keep every runtime consumer coherent whenever a
 --scenario/Quest replaces a printed feature or terrain type without physically moving the tile.
 function runtimeMapSetHexFeature(terrainGUID,bearing,feature)

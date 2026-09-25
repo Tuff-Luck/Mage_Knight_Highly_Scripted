@@ -1258,8 +1258,6 @@ function layoutClaimedCards()
 	displayScore("all", "-1", nil)
 	for _, turnDetails in pairs(turnOrder) do
 		if turnDetails.mage~=gStates.positionMageKnight[5] then
-			--UI.setAttribute("PreEndTurn", "interactable", "False")
-			--UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Deactive")
 			local obj={}
 			local OffsetX={["Advanced Action"]=0, ["Spell"]=0, ["Artifact"]=0, ["Wound"]=0}
 			local OffsetY={["Advanced Action"]=0, ["Spell"]=0, ["Artifact"]=0, ["Wound"]=0}

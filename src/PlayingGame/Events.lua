@@ -61,8 +61,6 @@ function eventsOnLoadRawBase(saved_data)
 	UI.hide("ExtraTurnChoice")
 	refreshProxySetupLabel()
 	UI.setAttribute("followEnemyView", "isOn", gStates.cameraFollowEnemy and "true" or "false")
-	--UI.setAttribute("questViewText", "color", "Black")
-	--UI.setAttribute("questView", "active", "false")
 	--Restore the visible setup selections from saved state. Previously these labels were always reset to "nobody" on load,
 	--which could make a saved Mage Knight appear missing because the dropdown correctly hides already-selected characters.
 	local setupMageText={"firstMKSelectionText", "secondMKSelectionText", "thirdMKSelectionText", "fourthMKSelectionText"}
@@ -848,11 +846,6 @@ local function handleMapLocationZoneEnter(ctx)
 		end
 		if objectName=="Shield" then gStates.shieldsDropped[objGUID]=true end
 	end
-
-	--Manually destroy a hex
-	--if zoneGUID==mapArea and obj.getGMnotes()="Destroyed" then
-	--	destroyRestoreLocation(nil, "-1", "id", "manualDestroy", obj)
-	--end
 
 end
 

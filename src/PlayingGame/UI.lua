@@ -51,7 +51,6 @@ function readDeedPileCardCount(seatPos)
 	end
 	return count
 end
-local function readDeedPileHasCards(seatPos) return readDeedPileCardCount(seatPos)>0 end
 local function countEndRoundPlayAreaCards(seatPos)
 	local cardCount=cachedPlayAreaCounts(seatPos)
 	return cardCount
@@ -2022,7 +2021,6 @@ function resourceTracker(player, mouseButton, id)
 			local temp2=-1
 			if UI.getAttribute(IDConvert[id][1], "active")=="false" then temp="true" temp2=1 end
 			UI.setAttribute(IDConvert[id][1], "active", temp)
-			local existingHeight=tonumber(UI.getAttribute("ResourceTracker", "height"))
 			UI.setAttribute("ResourceTracker", "height", tonumber(UI.getAttribute("ResourceTracker", "height"))+(IDConvert[id][2]*temp2))
 			UI.setAttribute("ResourceTrackerDetail", "height", tonumber(UI.getAttribute("ResourceTrackerDetail", "height"))+(IDConvert[id][2]*temp2))
 			return

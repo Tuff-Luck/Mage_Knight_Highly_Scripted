@@ -732,7 +732,6 @@ end
 -- Nearby Mage lookup
 function findNearbyMages(origin, distance)--origin={x, y, z}, distance=x
 	local mageList={}
-	--for _, posibleMage in pairs(getObjectFromGUID(mapArea).getObjects()) do
 	--see if the object is a mageKnight
 	for _, avatar in pairs(mageKnights) do
 		local posibleMage=nil
@@ -864,7 +863,6 @@ function straightenCrooked()
 	local sendToBottom={dummyBoard, gStates.cityCard[cityModel.blue], gStates.cityCard[cityModel.red], gStates.cityCard[cityModel.green], gStates.cityCard[cityModel.white], "e47fc3", "62d3c3", "12a3b1", "6f815c", "94c021", "d9c252", "7a56fa", "19c6ce", "aa6c1d", "d80815", "fdbc08", "0b57b9"}
 	for _, objGUID in pairs(sendToBottom) do
 		if getObjectFromGUID(objGUID)~=nil then
-			--getObjectFromGUID(objGUID).unlock()
 			getObjectFromGUID(objGUID).setPosition({getObjectFromGUID(objGUID).getPosition()[1], 0.98, getObjectFromGUID(objGUID).getPosition()[3]})
 			local rot={0.00, 180.00, 0.00}
 			if getObjectFromGUID(objGUID).getRotation()[3]>=170 and getObjectFromGUID(objGUID).getRotation()[3]<=190 then rot=({0.00, 180.00, 180.00}) end

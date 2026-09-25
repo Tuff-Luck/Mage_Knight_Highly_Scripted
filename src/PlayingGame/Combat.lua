@@ -2332,7 +2332,6 @@ function coopAssaultUIUpdate()
 		if entry>rowCount then rowCount=entry end
 		local primaryCount=coopAssaultDividableCount(assignedMonsters.primary)
 		local secondaryCount=coopAssaultDividableCount(assignedMonsters.secondary)
-		local hasLeader=coopAssaultHasLeader(assignedMonsters.primary) or coopAssaultHasLeader(assignedMonsters.secondary)
 		local joined=assignedMonsters.joined==true
 		if entry>=3 then UI.setAttribute("Mage"..entry.."Assault", "active", "true") end
 		UI.setAttribute("Mage"..entry.."AssaultJoin", "interactable", (defense or entry==1) and "false" or "true")

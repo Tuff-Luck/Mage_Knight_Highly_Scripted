@@ -246,7 +246,6 @@ function cardPool(player, mouseButton, id)
 								for e=1, 2, 1 do
 									local container={["Red"]=GUID.bag.mana.red, ["Blue"]=GUID.bag.mana.blue, ["Green"]=GUID.bag.mana.green, ["White"]=GUID.bag.mana.white}
 									local obj=takeManaCrystal(getObjectFromGUID(container[d.crystals[e]]),{position={(mageDetails.seatPos*40)-116.53+(1.76*e), 2.00, -36.80},smooth=false})
-									--obj.setVar("state", "Starting")
 									if obj~=nil then gStates.startingHigherLevelCrystal[obj.guid]=true end
 								end
 								break

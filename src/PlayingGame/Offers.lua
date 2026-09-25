@@ -32,7 +32,6 @@ function offerArtifacts(player, mouseButton, id)
 				end
 				for a=1, gStates.artifactRewards+1, 1 do
 					standardDeckCycleShuffleIfReached("Artifact", artifactDeck)
-					--artifactDeck=getObjectFromGUID(GUID.deck.artifact)
 					local dealtArtifact=artifactDeck.takeObject({position={artifactDeck.getPosition()[1]+(((artifactDeck.getScale()[1]/1.5)*4.8)*a), 2.0, artifactDeck.getPosition()[3]}, rotation={0, 180, 0}, smooth=true})
 					dealtArtifact.setHiddenFrom(hide)
 					dealtArtifact.UI.setXmlTable({createClaimButton(dealtArtifact.guid, "artifactReward")})

@@ -885,10 +885,6 @@ function __PreEndRound_raw(player, mouseButton, id)
 		gStates.endGameAchieved="true"
 			if gStates.gameScenario=="One to Return" then oneToReturnLockFinalWinner() end
 		end
-		-- if gStates.currentRound==gStates.rounds and gStates.endGameAchieved~="true" then
-		-- 	if gStates.playersRef==5 and turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] then UI.setAttribute("GameOver", "active", "true") layoutClaimedCards() return end
-		-- 	gStates.endGameAchieved="true"
-		-- end--GameOver
 
 		--End of Round marks an advisory timing boundary only. Interactive skills advance through normal
 		--completed-turn cleanup, so calling End of Round never gives active skills an artificial extra step.

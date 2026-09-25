@@ -751,7 +751,6 @@ local function finalizeSetup()
 	--record data
 	safeWaitTime("SetupGame",function()
             if getObjectFromGUID("e7de55")~=nil then SendDataRequest("skip", "-1", "SendDataRequestYes") end
-		--UI.setAttribute("SendDataRequest", "active", "true")
 	end, 400)--time in seconds, 1800=1/2 hour, 3600=1 hour 400
 	safeWaitTime("SetupGame",function() straightenCrooked() end, 10)
 	dealStartingHandsWhenReady()

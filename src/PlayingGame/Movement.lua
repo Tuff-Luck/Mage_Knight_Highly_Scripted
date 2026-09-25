@@ -99,7 +99,6 @@ moveDisplayAutoPause=nil
 moveDisplayBaseVectorLines=nil
 moveDisplayRefreshDelay=0.75
 moveDisplayTerrainCache={signature=nil, hexMap=nil}
-moveDisplayLegacyDecalsCleaned=false
 moveDisplayTextSlotRequests={}
 moveDisplayTextSpawning={}
 MOVE_DISPLAY_HEX_BEARINGS={"center", "0", "60", "120", "180", "240", "300"}
@@ -362,17 +361,6 @@ function renderMoveDisplay(id)
 	gStates.moveDisplayTextGUIDs=gStates.moveDisplayTextGUIDs or {}
 	gStates.moveDisplayTextActiveCount=0
 
-	--Old saves may still contain the image-based movement highlights. Remove those once; the current
-	--3DText display never creates them, so rereading/replacing every Global decal on each redraw is wasted work.
-	if moveDisplayLegacyDecalsCleaned~=true then
-		local existingDecals=Global.getDecals()
-		local cleanedDecals={}
-		if existingDecals~=nil then
-			for _, decal in pairs(existingDecals) do if decal.name~="Hex Highlight" then cleanedDecals[#cleanedDecals+1]=decal end end
-		end
-		Global.setDecals(cleanedDecals)
-		moveDisplayLegacyDecalsCleaned=true
-	end
 	if moveValue<=0 then
 		moveDisplayHideUnusedText(0)
 		if moveDisplayBaseVectorLines~=nil then Global.setVectorLines(moveDisplayBaseVectorLines) moveDisplayBaseVectorLines=nil end
@@ -579,28 +567,6 @@ function renderMoveDisplay(id)
 			end
 			return false
 		end
-		--add explore hex to boundary
-		-- for _, buttonDetail in pairs(gStates.exploreButtons) do
-		-- 	if buttonDetail.attributes~=nil then
-		-- 		local hexGridHorizontal=math.floor(((buttonDetail.attributes.tilePosZ-startTilePos[3])/2.0785)+0.5)
-		-- 		local hexGridAxial=math.floor(((buttonDetail.attributes.tilePosX-startTilePos[1])/2.4)+(hexGridHorizontal/2)+0.5)
-		-- 		local bearingAdjust={{1,0}, {0,-1}, {-1,-1}, {-1,0}, {0,1}, {1,1}, {1,0}, {0,-1}}--Each end are wrap around values.
-		-- 		for primaryHexLoop=2, 7 ,1 do
-		-- 			local hexGridHorizontal2=hexGridHorizontal+bearingAdjust[primaryHexLoop][1]
-		-- 			local hexGridAxial2=hexGridAxial+bearingAdjust[primaryHexLoop][2]
-		-- 			for secondaryHexLoop=primaryHexLoop-1, primaryHexLoop+1, 1 do
-		-- 				local hexGridHorizontal3=hexGridHorizontal2+bearingAdjust[secondaryHexLoop][1]
-		-- 				local hexGridAxial3=hexGridAxial2+bearingAdjust[secondaryHexLoop][2]
-		-- 				if hexMap[tostring(hexGridHorizontal3)]~=nil and hexMap[tostring(hexGridHorizontal3)][tostring(hexGridAxial3)]~=nil then
-		-- 					if hexMap[tostring(hexGridHorizontal2)]==nil then hexMap[tostring(hexGridHorizontal2)]={} end
-		-- 					hexMap[tostring(hexGridHorizontal2)][tostring(hexGridAxial2)]={hexType="explore"}
-		-- 					break
-		-- 				end
-		-- 			end
-		-- 		end
-		-- 	end
-		-- end
-
 		--work out players hex grid position from the actual start tile; Fury's four-player
 		--predefined map deliberately relocates the open start tile.
 		local playerPos={startTilePos[1],0.97,startTilePos[3]}
