@@ -1,3 +1,7 @@
+-- Mana Source-private helpers. Predeclared so forward references keep resolving locally.
+local manaSourceDieGUID, mirrorSourceBusy, manaSourceZoneHasDie, scheduleReturnedSourceMirror, scheduleMirrorSourceUpdate
+local mirrorSourceState, mirrorSourcePlayers, mirrorSourceSyncExisting, mirrorSourceFaceSync
+
 -- Mirrored Mana Source runtime.
 
 --Keep every scripted mana crystal/token draw at the same display angle as a manual bag draw.
@@ -20,24 +24,24 @@ mirrorSourceRefreshWait=nil
 mirrorManualRandomize={}
 mirrorRepositionIgnore={}
 spentMirrorDice={}
-function manaSourceDieGUID(guid)
+manaSourceDieGUID=function(guid)
 	if guid==nil or gStates.manaSource==nil then return false end
 	for _, die in pairs(gStates.manaSource) do if die.manaDie==guid then return true end end
 	return false
 end
-function mirrorSourceBusy()
+mirrorSourceBusy=function()
 	for _, waitfunction in pairs(exitWaitID) do if waitfunction~=nil then return true end end
 	for _, claim in pairs(mirrorSourceClaim) do if claim~=nil then return true end end
 	for _, sourceGUID in pairs(mirrorManualRandomize) do if sourceGUID~=nil then return true end end
 	return false
 end
-function manaSourceZoneHasDie(guid)
+manaSourceZoneHasDie=function(guid)
 	local zone=getObjectFromGUID(GUID.zone.mana)
 	if zone==nil or guid==nil then return false end
 	for _, obj in pairs(zone.getObjects()) do if obj.guid==guid then return true end end
 	return false
 end
-function scheduleReturnedSourceMirror(sourceDie)
+scheduleReturnedSourceMirror=function(sourceDie)
 	if sourceDie==nil or sourceDie.guid==nil then return end
 	local sourceGUID=sourceDie.guid
 	--Do not make mirror restoration depend solely on the generic zone-enter callback. As soon as this exact
@@ -56,7 +60,7 @@ function scheduleReturnedSourceMirror(sourceDie)
 		return getObjectFromGUID(sourceGUID)==nil or manaSourceZoneHasDie(sourceGUID)==true
 	end)
 end
-function scheduleMirrorSourceUpdate(from, delay)
+scheduleMirrorSourceUpdate=function(from, delay)
 	if mirrorSourceRefreshWait~=nil then Wait.stop(mirrorSourceRefreshWait) end
 	mirrorSourceRefreshWait=safeWaitTime("ManaSource",function()
 		mirrorSourceRefreshWait=nil
@@ -70,7 +74,7 @@ function scheduleMirrorSourceUpdate(from, delay)
 		end
 	end, delay or 0.1)
 end
-function mirrorSourceState()
+mirrorSourceState=function()
 	local colorConvert={["Blue Mana"]=1, ["White Mana"]=2, ["Green Mana"]=3, ["Red Mana"]=4, ["Gold Mana"]=5, ["Black Mana"]=6}
 	if gStates.dayRound==false then colorConvert["Gold Mana"]=6 colorConvert["Black Mana"]=5 end
 	local colorRotate={{0, 0, 0}, {0, 0, 270}, {0, 0, 90}, {0, 0, 180}, {90, 0, 0}, {270, 0, 0}}
@@ -88,7 +92,7 @@ function mirrorSourceState()
 	return sourceDice, colorRotate, seperate
 end
 
-function mirrorSourcePlayers()
+mirrorSourcePlayers=function()
 	local players={}
 	for playerIndex, playerDetails in ipairs(turnOrder) do
 		if playerDetails.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then players[#players+1]=playerDetails end
@@ -100,7 +104,7 @@ end
 --Face changes do not need new physical dice. Reuse the existing copies, update their faces and
 --slide them into the same sorted positions a rebuild would have produced. If the Source set changed,
 --return false so mirrorSourceUpdate can fall back to the structural rebuild.
-function mirrorSourceSyncExisting(sourceDice, colorRotate, seperate)
+mirrorSourceSyncExisting=function(sourceDice, colorRotate, seperate)
 	if gStates.manaMirror==nil then return false end
 	local players=mirrorSourcePlayers()
 	local expected=#sourceDice*#players
@@ -197,7 +201,7 @@ function mirrorSourceUpdate(from)
 	end
 end
 
-function mirrorSourceFaceSync(diceGUID, sourceGUID, from)
+mirrorSourceFaceSync=function(diceGUID, sourceGUID, from)
 	mirrorFaceWaitID[diceGUID]=nil
 	local dice=getObjectFromGUID(diceGUID)
 	local source=getObjectFromGUID(sourceGUID)
