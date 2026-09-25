@@ -2,6 +2,10 @@
 local manaSourceDieGUID, mirrorSourceBusy, manaSourceZoneHasDie, scheduleReturnedSourceMirror, scheduleMirrorSourceUpdate
 local mirrorSourceState, mirrorSourcePlayers, mirrorSourceSyncExisting, mirrorSourceFaceSync
 
+-- Mana Source-private helpers. Predeclared so forward references keep resolving locally.
+local manaSourceDieGUID, mirrorSourceBusy, manaSourceZoneHasDie, scheduleReturnedSourceMirror, scheduleMirrorSourceUpdate
+local mirrorSourceState, mirrorSourcePlayers, mirrorSourceSyncExisting, mirrorSourceFaceSync
+
 -- Mirrored Mana Source runtime.
 
 --Keep every scripted mana crystal/token draw at the same display angle as a manual bag draw.
