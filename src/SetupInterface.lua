@@ -1,3 +1,6 @@
+-- Setup-interface private helpers.
+local ToolTipUpdate, scenarioInfoUpdate
+
 -- Pre-game setup interface: scenario/variant selection, setup options and setup-menu controls.
 
 ---------------
@@ -813,7 +816,7 @@ function VolkareRaceSelection(player, mouseButton, id)
 	end
 end
 
-function ToolTipUpdate(id)
+ToolTipUpdate=function(id)
 	UI.show("toolTip")
 	UI.setAttribute("toolTipTitle", "text", tooltip[id].title)
 	UI.setAttribute("toolTipText", "text", tooltip[id].text)
@@ -1166,7 +1169,7 @@ function refreshSetupStartButton()
 	end
 end
 
-function scenarioInfoUpdate()
+scenarioInfoUpdate=function()
 	reconcileSetupState()
 	local scenario=scenarioList[gStates.scenarioRef]
 	local setup=scenario[gStates.playersRef]
