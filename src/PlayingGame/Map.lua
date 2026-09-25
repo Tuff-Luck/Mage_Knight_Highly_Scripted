@@ -1,3 +1,6 @@
+-- Map-private helpers. Predeclared so forward references keep resolving locally.
+local avatarLocationMapSnapshot, avatarLocationRelevantObjects, mapPlunderVillageBase, avatarMovedFromPickedUpHex
+
 -- Map state, avatar location, exploration, shields and terrain-site runtime.
 
 local terrainExploreButtons={{}}
@@ -406,12 +409,12 @@ terrainPlacementNeighbourOffsets={
 --Avatar-location scans use the shared live spatial view, so Map, Combat, Movement and AI all
 --derive their local object/hex queries from the same physical-table snapshot.
 avatarLocationSpatialCell=3
-function avatarLocationMapSnapshot()
+avatarLocationMapSnapshot=function()
 	local spatial=runtimeMapSpatialSnapshot(avatarLocationSpatialCell)
 	return spatial.objects,spatial.positions,spatial.terrainObjects,spatial.terrainRotations,spatial.buckets,spatial
 end
 
-function avatarLocationRelevantObjects(locatedTerrain,pos,spatial)
+avatarLocationRelevantObjects=function(locatedTerrain,pos,spatial)
 	return runtimeMapSpatialNearbyObjects(spatial,pos,avatarLocationSpatialCell,locatedTerrain)
 end
 
@@ -635,7 +638,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 end
 
 --Pillage Village, draw two cards for chosen mage and reduce Reputation by 1
-function mapPlunderVillageBase(player, mouseButton, id)
+mapPlunderVillageBase=function(player, mouseButton, id)
 	if mouseButton=="-1" then
 		if legalPlayerCheck(player.color, tonumber(id:sub(8,8)))==true then
 			for a=1, #turnOrder, 1 do
@@ -718,7 +721,7 @@ function avatarHexIdentity(pos)
 	local terrain, bearing=terrainHexAtPosition(pos)
 	if terrain~=nil then return {terrainGUID=terrain.guid, bearing=bearing} end
 end
-function avatarMovedFromPickedUpHex(pos)
+avatarMovedFromPickedUpHex=function(pos)
 	local droppedHex=avatarHexIdentity(pos)
 	if playerPickedUpHex~=nil and droppedHex~=nil then
 		return playerPickedUpHex.terrainGUID~=droppedHex.terrainGUID or playerPickedUpHex.bearing~=droppedHex.bearing
