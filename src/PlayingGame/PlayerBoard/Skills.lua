@@ -1005,17 +1005,23 @@ function doingTheRounds(skillGUID, nextPlayer, count, reset)
 	end
 	if gStates.doingTheRounds[skillGUID]==nextPlayer or roundVisitedLoop==true or gStates.soloCoop[skillGUID]==true or reset==true then
 		if gStates.playerCount>1 or gStates.soloCoop[skillGUID]==true or reset==true then
-			--Flip and return completed skill
-			getObjectFromGUID(skillGUID).setPositionSmooth({gStates.mageSkills[skillGUID][1], 1.5, gStates.mageSkills[skillGUID][3]})
-			if reset~=true then getObjectFromGUID(skillGUID).setRotationSmooth({0.0, 180.0, 180.0}) end
+			--Return the completed skill when its physical token/home still exists. A stale rotation record must
+			--never abort the whole round reset; clear the logical circulation state either way.
+			local skill=getObjectFromGUID(skillGUID)
+			local skillHome=gStates.mageSkills~=nil and gStates.mageSkills[skillGUID] or nil
+			if skill~=nil and skillHome~=nil and skillHome[1]~=nil and skillHome[3]~=nil then
+				skill.setPositionSmooth({skillHome[1], 1.5, skillHome[3]},false,false)
+				if reset~=true then skill.setRotationSmooth({0.0, 180.0, 180.0},false,false) end
+			end
 			gStates.doingTheRounds[skillGUID]=nil
 			gStates.soloCoop[skillGUID]=nil
 			if gStates.doingTheRoundsVisited~=nil then gStates.doingTheRoundsVisited[skillGUID]=nil end
 			deactivateCoopCompSkill(skillGUID, true)
-			if sharedSkillAboveZone[skillGUID]~=nil then
-				for _, b in pairs(getObjectFromGUID(sharedSkillAboveZone[skillGUID]).getObjects()) do
-					if b.type=="Figurine" then getObjectFromGUID(trashCan).putObject(b) end
-				end
+			local zoneGUID=sharedSkillAboveZone[skillGUID]
+			local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+			local trash=getObjectFromGUID(trashCan)
+			if zone~=nil and trash~=nil then
+				for _, b in pairs(zone.getObjects()) do if b.type=="Figurine" then trash.putObject(b) end end
 			end
 		else
 			--place next to owner skill for solo cooperative play
