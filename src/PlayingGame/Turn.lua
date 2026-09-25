@@ -1,3 +1,6 @@
+-- Module-private helpers. Predeclared so forward references keep resolving locally.
+local dayTactic2Discarded
+
 -- Turn-private helper.
 local dayTactic2Discarded
 
