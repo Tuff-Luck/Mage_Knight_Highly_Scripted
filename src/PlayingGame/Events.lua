@@ -192,7 +192,7 @@ function eventsOnLoadRawBase(saved_data)
 		safeWaitFrames("Events",function() refreshLeaderOverkillButtons() end, 3)
 		refreshTerrainExploreOptions(false)
 		skillButtonActivate()
-		refreshCoopCompSkillXs()
+		refreshCoopCompSkillWarnings()
 		claimButtonRefresh()
 		dayTactic2ButtonActivate()
 		safeWaitFrames("Events",function() refreshMeditationTrance() steadyTempoRefreshAll() end, 3)
@@ -411,21 +411,8 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		tomeSkillDropped(dropped_object.guid, dropped_object.getPosition())
 		local coopCompSkill=(skillTokens[dropped_object.guid].skillType=="Coop" or skillTokens[dropped_object.guid].skillType=="Comp")
 		if coopCompSkill==true then coopCompSkillDropped(dropped_object.guid, dropped_object.getPosition()) end
-		local coopCompLockedAtDrop=coopCompSkill==true and coopCompSkillPlayLocked()==true
 		safeWaitFrames("Events",function() safeWaitCondition("Events.skillDrop",function()
 			if getObjectFromGUID(dropped_object.guid)~=nil then
-				if coopCompSkill==true then
-					local playAreaPlayer=coopCompSkillPlayAreaPlayer(dropped_object.guid)
-					if playAreaPlayer~=nil then
-						local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[dropped_object.guid]~=nil
-						local inRotation=gStates.doingTheRounds[dropped_object.guid]~=nil and paused==false
-						if coopCompLockedAtDrop==true and inRotation==false then pauseLateCoopCompSkill(dropped_object.guid, playAreaPlayer)
-						elseif coopCompLockedAtDrop==false then
-							if gStates.coopCompSkillLegalThisRound==nil then gStates.coopCompSkillLegalThisRound={} end
-							gStates.coopCompSkillLegalThisRound[dropped_object.guid]=true
-						end
-					end
-				end
 				local objPos=getObjectFromGUID(dropped_object.guid).getPosition()
 				if 	(objPos[3]>-25 or
 					(objPos[3]<-35 and objPos[1]>-68 and objPos[1]<-66) or
@@ -589,7 +576,7 @@ function __onObjectSpawn_raw(spawn_object)
 		gStates.mageSkills[spawn_object.guid]={spawn_object.getPosition()[1], spawn_object.getPosition()[2], spawn_object.getPosition()[3]}
 		if gStates.firstStarted==true then skillButtonActivate() else higherLevelSkillClaimButons() end
 	end
-	if skillTokens[spawn_object.guid]~=nil and (skillTokens[spawn_object.guid].skillType=="Coop" or skillTokens[spawn_object.guid].skillType=="Comp") and coopCompSkillPlayLocked()==true then safeWaitFrames("Events",function() refreshCoopCompSkillXs() end, 2) end
+	if skillTokens[spawn_object.guid]~=nil and (skillTokens[spawn_object.guid].skillType=="Coop" or skillTokens[spawn_object.guid].skillType=="Comp") and coopCompSkillBoundaryActive()==true then safeWaitFrames("Events",function() refreshCoopCompSkillWarnings() end, 2) end
 end
 
 --Alter Fame board Values, Skill register, and Add icons when changing avatar **This script runs when exiting the game**
@@ -1411,7 +1398,7 @@ function __onObjectLeaveContainer_raw(bag, obj)
 					if locking~=nil then locking.lock() end
 					--setState replaces the object/GUID and clears its object UI. Rebuild reward Claim buttons on the live state.
 					if gStates.skillButtons~=nil and gStates.skillButtons>0 then skillButtonActivate() end
-					if coopCompSkillPlayLocked()==true then refreshCoopCompSkillXs() end
+					if coopCompSkillBoundaryActive()==true then refreshCoopCompSkillWarnings() end
 				end, 2)
 			end, function() return obj.resting end) end, 10)
 		end

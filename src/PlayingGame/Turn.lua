@@ -890,16 +890,9 @@ function __PreEndRound_raw(player, mouseButton, id)
 		-- 	gStates.endGameAchieved="true"
 		-- end--GameOver
 
-		--move on coop skills
-		local nextPlayer=nextTurnMerged("nextMageSkipDummy")
-		local count=0
-		for skillGUID, details in pairs(gStates.doingTheRounds) do
-			if gStates.coopCompSkillPaused==nil or gStates.coopCompSkillPaused[skillGUID]==nil then
-				data=doingTheRounds(skillGUID, nextPlayer, count)
-				count=data[2]
-			end
-		end
-		refreshCoopCompSkillXs()
+		--End of Round marks an advisory timing boundary only. Interactive skills advance through normal
+		--completed-turn cleanup, so calling End of Round never gives active skills an artificial extra step.
+		refreshCoopCompSkillWarnings()
 
 		--Unlock the second card in each broad offer row for manual offer control.
 		--The former per-slot scripting zones no longer exist.
@@ -1115,13 +1108,11 @@ local function turnEndRoundRefreshSkillsAndUnits()
 	for a, stats in pairs(gStates.motivationSkill) do
 		if stats.state~="notClaimed" then stats.state="active" end
 	end
-	--Reset Coop and Comp Skills, including any that were illegally played after the previous round ended.
+	--Reset Coop and Comp Skills at the real round boundary.
 	for skillGUID, details in pairs(gStates.doingTheRounds) do
 		doingTheRounds(skillGUID, "", 0, true)
 	end
 	for skillGUID, _ in pairs(gStates.competitiveSkillReminders or {}) do clearCompetitiveSkillReminders(skillGUID) end
-	gStates.coopCompSkillPaused={}
-	gStates.coopCompSkillLegalThisRound={}
 	gStates.coopCompSkillActivation={}
 	gStates.tomeSkillSwapPending={}
 
@@ -1246,7 +1237,7 @@ local function turnEndRoundPrepareTurnOrder()
 	gStates.endRoundCalled=false
 	clearFinalTurnBoundary()
 	for _, details in pairs(turnOrder) do details.endCalled=false end
-	refreshCoopCompSkillXs()
+	refreshCoopCompSkillWarnings()
 
 end
 

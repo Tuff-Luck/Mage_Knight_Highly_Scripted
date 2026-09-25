@@ -592,13 +592,16 @@ function activateCoopCompSkill(skillGUID, playerIndex)
 	local active=coopCompSkillActivationTable()
 	local record=active[skillGUID]
 	if record==nil then
-		--A newly played Interactive skill is illegal once End of Round / Scenario End has locked new plays.
-		if coopCompSkillPlayLocked~=nil and coopCompSkillPlayLocked()==true then return end
+		local afterBoundary=coopCompSkillBoundaryActive~=nil and coopCompSkillBoundaryActive()==true
 		record={player=playerIndex, round=gStates.currentRound, location="play"}
 		local pending=tomeSkillSwapTable()[playerIndex]
 		if pending~=nil and pending.replacementGUID==skillGUID then record.tomeReplacement=true end
 		active[skillGUID]=record
 		coopCompSkillBroadcast("{en}Skill Activated{ru}Навык активирован{zh-tw}技能已啟動{zh-cn}技能已激活{ko}스킬 활성화됨{es}Habilidad activada{fr}Compétence activée{pt-br}Habilidade ativada{de}Fertigkeit aktiviert", playerIndex)
+		if afterBoundary==true then
+			coopCompSkillBroadcast("{en}End of Round / Scenario End has already been called. Interactive Skill timing may be rules-sensitive. The script will continue; players decide whether this use is allowed.{ru}Конец раунда / конец сценария уже объявлен. Время использования интерактивного навыка может зависеть от трактовки правил. Скрипт продолжит обработку; игроки решают, разрешено ли это использование.{zh-tw}已宣布回合結束／劇本結束。互動技能的使用時機可能取決於規則解讀。腳本會繼續處理，由玩家決定此次使用是否允許。{zh-cn}已宣布回合结束／剧本结束。互动技能的使用时机可能取决于规则解读。脚本会继续处理，由玩家决定此次使用是否允许。{ko}라운드 종료 / 시나리오 종료가 이미 선언되었습니다. 상호작용 스킬의 사용 시점은 규칙 해석에 따라 달라질 수 있습니다. 스크립트는 계속 처리하며, 사용 가능 여부는 플레이어가 결정합니다.{es}Ya se ha declarado el Fin de Ronda / Fin del Escenario. El momento de uso de una Habilidad interactiva puede depender de la interpretación de las reglas. El script continuará; los jugadores deciden si este uso está permitido.{fr}La Fin de Manche / Fin du Scénario a déjà été annoncée. Le moment d'utilisation d'une Compétence interactive peut dépendre de l'interprétation des règles. Le script continuera ; les joueurs décident si cette utilisation est autorisée.{pt-br}O Fim da Rodada / Fim do Cenário já foi declarado. O momento de uso de uma Habilidade interativa pode depender da interpretação das regras. O script continuará; os jogadores decidem se este uso é permitido.{de}Rundenende / Szenarioende wurde bereits ausgerufen. Der Zeitpunkt für interaktive Fertigkeiten kann von der Regelauslegung abhängen. Das Skript fährt fort; die Spieler entscheiden, ob diese Nutzung erlaubt ist.", playerIndex)
+		end
+		refreshCoopCompSkillWarnings()
 	else
 		if record.player==nil then record.player=playerIndex end
 		record.location="play"
@@ -653,8 +656,9 @@ local function unlockCommonSkillPoolTokens()
 	end
 end
 
---Coop/competitive skills cannot be newly played after End of Round or Scenario End.
-function coopCompSkillPlayLocked()
+--End of Round / Scenario End is an advisory timing boundary for Interactive skills.
+--The script keeps automating the physical skill lifecycle and leaves ambiguous legality calls to the players.
+function coopCompSkillBoundaryActive()
 	return gStates.endRoundCalled==true or (gStates.endGameAchieved~=nil and gStates.endGameAchieved~="false")
 end
 
@@ -670,45 +674,30 @@ function coopCompSkillPlayAreaPlayer(skillGUID)
 	return nil
 end
 
---Mark Coop/Competitive skills that cannot be newly played. Skills already legally doing the rounds stay available.
-function coopCompSkillXClick() end
-local function clearCoopCompSkillX(skill)
+function coopCompSkillWarningClick() end
+local function clearCoopCompSkillWarning(skill)
 	local remove={}
-	for _, button in pairs(skill.getButtons() or {}) do if button.click_function=="coopCompSkillXClick" then remove[#remove+1]=button.index end end
+	for _, button in pairs(skill.getButtons() or {}) do
+		if button.click_function=="coopCompSkillWarningClick" or button.click_function=="coopCompSkillXClick" then remove[#remove+1]=button.index end
+	end
 	table.sort(remove, function(a,b) return a>b end)
 	for _, index in ipairs(remove) do skill.removeButton(index) end
 end
-function refreshCoopCompSkillXs()
-	local locked=coopCompSkillPlayLocked()
+
+function refreshCoopCompSkillWarnings()
+	local boundaryActive=coopCompSkillBoundaryActive()
 	for skillGUID, details in pairs(skillTokens) do
 		if details.skillType=="Coop" or details.skillType=="Comp" then
 			local skill=getObjectFromGUID(skillGUID)
 			if skill~=nil then
-				clearCoopCompSkillX(skill)
-				local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[skillGUID]~=nil
-				local inRotation=gStates.doingTheRounds[skillGUID]~=nil and paused==false
-				if locked==true and inRotation==false then
-					skill.createButton({click_function="coopCompSkillXClick", function_owner=Global, label="X", position={0,0.25,0}, rotation={0,0,0}, width=0, height=0, font_size=800, font_color={1,0.1,0.1}, tooltip="{en}Unavailable after End of Round / Scenario End{ru}Недоступно после объявления конца раунда / окончания сценария{zh-tw}宣布回合結束／達成劇本結束後不可使用{zh-cn}宣布回合结束／达成剧本结束后不可使用{ko}라운드 종료 선언 / 시나리오 종료 후에는 사용할 수 없습니다{es}No disponible después de Fin de Ronda / Fin del Escenario{fr}Indisponible après la Fin de la Manche / la Fin du Scénario{pt-br}Indisponível após o Fim da Rodada / Fim do Cenário{de}Nach Rundenende / Szenarioende nicht verfügbar"})
+				clearCoopCompSkillWarning(skill)
+				local inRotation=gStates.doingTheRounds[skillGUID]~=nil
+				if boundaryActive==true and inRotation==false then
+					skill.createButton({click_function="coopCompSkillWarningClick", function_owner=Global, label="!", position={0,0.25,0}, rotation={0,0,0}, width=0, height=0, font_size=800, font_color={1,0.65,0.1}, tooltip="End of Round / Scenario End has been called. Interactive Skill timing may be restricted; the script will not prevent this play."})
 				end
 			end
 		end
 	end
-end
-
-function pauseLateCoopCompSkill(skillGUID, playerIndex)
-	if skillTokens[skillGUID]==nil or (skillTokens[skillGUID].skillType~="Coop" and skillTokens[skillGUID].skillType~="Comp") then return false end
-	if coopCompSkillPlayLocked()==false then return false end
-	if playerIndex==nil then playerIndex=coopCompSkillPlayAreaPlayer(skillGUID) end
-	if playerIndex==nil then return false end
-	if gStates.coopCompSkillPaused==nil then gStates.coopCompSkillPaused={} end
-	if gStates.coopCompSkillPaused[skillGUID]==nil then
-		gStates.coopCompSkillPaused[skillGUID]={round=gStates.currentRound, player=playerIndex}
-		--Keep it registered as doing the rounds so the normal next-round reset returns it home, but skip movement until then.
-		if gStates.doingTheRounds[skillGUID]==nil then gStates.doingTheRounds[skillGUID]=playerIndex end
-		broadcastToAll("{en}Cooperative and Competitive Skills cannot be played after End of Round has been called or Scenario End has been achieved. Skill automation is paused until the next round.{ru}Кооперативные и соревновательные навыки нельзя разыгрывать после объявления конца раунда или достижения конца сценария. Автоматизация навыков приостановлена до следующего раунда.{zh-tw}宣布回合結束或達成劇本結束後，不能再打出合作或競爭技能。技能自動處理會暫停到下一回合。{zh-cn}宣布回合结束或达成剧本结束后，不能再打出合作或竞争技能。技能自动处理会暂停到下一回合。{ko}라운드 종료가 선언되었거나 시나리오 종료 조건이 달성된 뒤에는 협력/경쟁 스킬을 사용할 수 없습니다. 스킬 자동 처리는 다음 라운드까지 일시 중지됩니다.{es}Las Habilidades Cooperativas y Competitivas no pueden jugarse después de declarar el Fin de Ronda o alcanzar el Fin del Escenario. La automatización de Habilidades queda pausada hasta la siguiente ronda.{fr}Les Compétences Coopératives et Compétitives ne peuvent plus être jouées après l'annonce de la Fin de la Manche ou lorsque la Fin du Scénario est atteinte. L'automatisation des Compétences est suspendue jusqu'à la manche suivante.{pt-br}Habilidades Cooperativas e Competitivas não podem ser jogadas após o Fim da Rodada ser declarado ou o Fim do Cenário ser alcançado. A automação das Habilidades fica pausada até a próxima rodada.{de}Kooperative und kompetitive Fertigkeiten können nicht mehr gespielt werden, nachdem das Rundenende ausgerufen oder das Szenarioende erreicht wurde. Die Fertigkeitsautomatik pausiert bis zur nächsten Runde.", {1,0.5,0})
-		refreshCoopCompSkillXs()
-	end
-	return true
 end
 
 --Competitive skill clones are reminders only and are never registered as skills. Source Freeze and Mana Suppression stay played for their owner reward.
@@ -1094,21 +1083,15 @@ function cleanupPlayedSkillAtEndTurn(playAreaObj, cleanupPlayer)
 	end
 
 	if cleanupSkillDetails.skillType=="Coop" or cleanupSkillDetails.skillType=="Comp" then
-		local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[cleanupSkillGUID]~=nil
-		local playedBeforeLock=gStates.coopCompSkillLegalThisRound~=nil and gStates.coopCompSkillLegalThisRound[cleanupSkillGUID]==true
-		local inRotation=gStates.doingTheRounds[cleanupSkillGUID]~=nil and paused==false
-		if paused==false and coopCompSkillPlayLocked()==true and playedBeforeLock==false and inRotation==false then paused=pauseLateCoopCompSkill(cleanupSkillGUID,cleanupPlayer) end
-		if paused==false then
-			if gStates.doingTheRounds[cleanupSkillGUID]==nil then
-				gStates.doingTheRounds[cleanupSkillGUID]=cleanupPlayer
-				if cleanupSkillDetails.skillType=="Comp" then createCompetitiveSkillReminders(cleanupSkillGUID,cleanupPlayer)
-				else
-					if gStates.doingTheRoundsVisited==nil then gStates.doingTheRoundsVisited={} end
-					gStates.doingTheRoundsVisited[cleanupSkillGUID]={[cleanupPlayer]=true}
-				end
-			elseif cleanupSkillDetails.skillType=="Coop" then
-				gStates.doingTheRounds[cleanupSkillGUID]=nextTurnMerged("nextMageSkipDummy")
+		if gStates.doingTheRounds[cleanupSkillGUID]==nil then
+			gStates.doingTheRounds[cleanupSkillGUID]=cleanupPlayer
+			if cleanupSkillDetails.skillType=="Comp" then createCompetitiveSkillReminders(cleanupSkillGUID,cleanupPlayer)
+			else
+				if gStates.doingTheRoundsVisited==nil then gStates.doingTheRoundsVisited={} end
+				gStates.doingTheRoundsVisited[cleanupSkillGUID]={[cleanupPlayer]=true}
 			end
+		elseif cleanupSkillDetails.skillType=="Coop" then
+			gStates.doingTheRounds[cleanupSkillGUID]=nextTurnMerged("nextMageSkipDummy")
 		end
 	end
 	return true
@@ -1132,14 +1115,14 @@ function prepareEndTurnSkillRotation(cleanupPlayer, nextPlayer)
 		local skill=getObjectFromGUID(skillGUID)
 		if skill~=nil then
 			if skillDetails.skillType=="Turn" and skill.is_face_down==true then skill.flip() end
-			if gStates.doingTheRounds[skillGUID]~=nil and (gStates.coopCompSkillPaused==nil or gStates.coopCompSkillPaused[skillGUID]==nil) then
+			if gStates.doingTheRounds[skillGUID]~=nil then
 				local data=doingTheRounds(skillGUID,nextPlayer,count)
 				count=data[2]
 				for saveObjGuid, _ in pairs(data[1]) do keepSafe[saveObjGuid]=true end
 			end
 		end
 	end
-	if coopCompSkillPlayLocked()==true then refreshCoopCompSkillXs() end
+	refreshCoopCompSkillWarnings()
 	return keepSafe
 end
 
@@ -1149,21 +1132,15 @@ function cleanupUnitAreaSkillAtEndTurn(unitAreaObj, cleanupPlayer)
 	local details=skillTokens[unitAreaObj.guid]
 	if details==nil then return false end
 	if details.skillType=="Coop" or details.skillType=="Comp" then
-		local paused=gStates.coopCompSkillPaused~=nil and gStates.coopCompSkillPaused[unitAreaObj.guid]~=nil
-		local playedBeforeLock=gStates.coopCompSkillLegalThisRound~=nil and gStates.coopCompSkillLegalThisRound[unitAreaObj.guid]==true
-		local inRotation=gStates.doingTheRounds[unitAreaObj.guid]~=nil and paused==false
-		if paused==false and coopCompSkillPlayLocked()==true and playedBeforeLock==false and inRotation==false then paused=pauseLateCoopCompSkill(unitAreaObj.guid,cleanupPlayer) end
-		if paused==false then
-			if gStates.doingTheRounds[unitAreaObj.guid]==nil then
-				gStates.doingTheRounds[unitAreaObj.guid]=cleanupPlayer
-				if details.skillType=="Comp" then createCompetitiveSkillReminders(unitAreaObj.guid,cleanupPlayer)
-				else
-					if gStates.doingTheRoundsVisited==nil then gStates.doingTheRoundsVisited={} end
-					gStates.doingTheRoundsVisited[unitAreaObj.guid]={[cleanupPlayer]=true}
-				end
-			elseif details.skillType=="Coop" then
-				gStates.doingTheRounds[unitAreaObj.guid]=nextTurnMerged("nextMageSkipDummy")
+		if gStates.doingTheRounds[unitAreaObj.guid]==nil then
+			gStates.doingTheRounds[unitAreaObj.guid]=cleanupPlayer
+			if details.skillType=="Comp" then createCompetitiveSkillReminders(unitAreaObj.guid,cleanupPlayer)
+			else
+				if gStates.doingTheRoundsVisited==nil then gStates.doingTheRoundsVisited={} end
+				gStates.doingTheRoundsVisited[unitAreaObj.guid]={[cleanupPlayer]=true}
 			end
+		elseif details.skillType=="Coop" then
+			gStates.doingTheRounds[unitAreaObj.guid]=nextTurnMerged("nextMageSkipDummy")
 		end
 	end
 	if unitAreaObj.guid~=GUID.skill.bondsOfLoyalty and gStates.mageSkills[unitAreaObj.guid]~=nil and gStates.doingTheRounds[unitAreaObj.guid]==nil then

@@ -38,6 +38,13 @@ Prefer compact Lua and direct changes. Add nil guards when they prevent a real r
 For visible scripted movement, use Tabletop Simulator\'s normal/slow smooth movement by default. Pass `fast=false` explicitly (`setPositionSmooth(..., false, false)` / `setRotationSmooth(..., false, false)`) when touching movement code so the intent is unambiguous. Do not use the fast smooth-move mode unless the user explicitly asks for it. Container `takeObject({smooth=true})` is fine when extracting an object; do not replace normal visible movement with fast smooth movement.
 
 Do not add backwards-compatibility or old-save recovery code unless the user explicitly requests it.
+
+## Gameplay automation philosophy
+
+**Scripts should help, remind, and warn — not prevent.** When a player action may depend on an ambiguous rule, table ruling, optional interpretation, or deliberate manual correction, preserve the player's physical choice and continue the normal bookkeeping/automation. Give a concise warning or reminder when useful, but do not silently undo the action, disable the relevant control, pause the subsystem, or otherwise force the script's interpretation.
+
+Use hard prevention only when it protects a mechanical/script invariant, prevents an impossible or corrupt state, or implements an unambiguous rule the project explicitly intends to enforce. When the physical table clearly shows a deliberate player choice, prefer assisting that state over overruling it. Soft safeguards such as the Rewards Claimed reminder pattern are preferred whenever player judgment can resolve the situation.
+
 For Apocalypse Quests, the old Google Sheet / Quest summary sheet used during initial implementation is out of date and is not an authority. Audit and change the current Lua/card behavior directly; do not re-import or “correct” rules from that sheet.
 Put Quest-specific exceptions and resolution effects on the per-Quest handler registry instead of adding new GUID chains to generic Quest lifecycle functions. Keep shared Quest progression/offer/cleanup orchestration generic.
 Keep `apocalypseQuestResolveStepAction()` as the thin Quest resolution lifecycle: wait/validate → rewind boundary → action-specific resolver. Add new Progress/Complete/Fail behavior to the narrow action resolver or Quest handler rather than growing the dispatcher.

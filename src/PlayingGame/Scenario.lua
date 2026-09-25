@@ -874,7 +874,7 @@ function scenarioEnd(endImmediately)
 		broadcastToAll("{en}Turn order resumed{ru}Порядок хода восстановлен{zh-tw}回合顺序恢复了{zh-cn}回合顺序恢复了{ko}턴 순서가 재개되었습니다{es}Se reanudó el orden de turno{fr}L'ordre des tours a repris{pt-br}Ordem de Turno retomada{de}Reihenfolge der Drehung wieder aufgenommen", {1,1,0.5})
 		mainUIUpdate("Scenario End")
 	end
-	refreshCoopCompSkillXs()
+	refreshCoopCompSkillWarnings()
 end
 
 --Dungeon Lords secret entrances remember the exact Village/Monastery that created each placement request.
