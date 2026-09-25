@@ -1,3 +1,10 @@
+-- Apocalypse Dragon-private helpers. Predeclared so forward references keep resolving locally.
+local apocalypseDragonStartingLevel, apocalypseDragonHeadTokenPosition, apocalypseDragonPositionHeadToken, apocalypseDragonCopyAttack, apocalypseDragonRefreshRuntimeData
+local apocalypseDragonDeployHeadToken, apocalypseDragonLevelMarkerPosition, apocalypseDragonLockLevelMarker, apocalypseDragonDefeatedHeadCount, apocalypseDragonSyncControlLevel
+local apocalypseDragonCheckAndResolveDefeat, apocalypseDragonHeadStateChanged, apocalypseDragonGroundReduction, apocalypseDragonGroundMarkedThroughOne, apocalypseDragonGroundControlGUIDs
+local apocalypseDragonGroundReductionAdjust, apocalypseDragonGroundPrepareColoredHead, apocalypseDragonGroundPrepareControl, apocalypseDragonNewGroundCombat, apocalypseDragonGroundTokenInPlayerArea
+local apocalypseDragonCoopAdjacentPlayers, apocalypseDragonAssaultOriginData, apocalypseDragonGroundApplyFinalLevels, apocalypseDragonGroundCleanupRuntime
+
 -- Shared Apocalypse Dragon entity, head-level and landed-combat helpers.
 -- Scenario-specific AI/turn rules remain in Scenario.lua.
 
@@ -41,7 +48,7 @@ function apocalypseDragonScenario()
 	return gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon")
 end
 
-function apocalypseDragonStartingLevel()
+apocalypseDragonStartingLevel=function()
 	if apocalypseDragonScenario()~=true then return nil end
 	if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
 		if gStates.playerCount==1 then return 1 end
@@ -69,12 +76,12 @@ function apocalypseDragonCurrentLevelData(headName,level)
 	return data.levels~=nil and data.levels[level] or nil
 end
 
-function apocalypseDragonHeadTokenPosition(headData)
+apocalypseDragonHeadTokenPosition=function(headData)
 	if headData==nil or headData.position==nil then return nil end
 	return {headData.position[1],headData.position[2]+0.12,headData.position[3]}
 end
 
-function apocalypseDragonPositionHeadToken(headData)
+apocalypseDragonPositionHeadToken=function(headData)
 	if headData==nil or headData.tokenGUID==nil then return false end
 	local token=getObjectFromGUID(headData.tokenGUID)
 	local target=apocalypseDragonHeadTokenPosition(headData)
@@ -88,7 +95,7 @@ function apocalypseDragonPositionHeadToken(headData)
 	return moved
 end
 
-function apocalypseDragonCopyAttack(attack,bonus)
+apocalypseDragonCopyAttack=function(attack,bonus)
 	if type(attack)~="table" then return nil end
 	local copied={}
 	for attackType,values in pairs(attack) do
@@ -118,7 +125,7 @@ end
 
 --Refresh the persistent small head token stats. Printed level data lives in monsterPugs; Control's
 --whole-head Attack bonus is a runtime monsterPerks attack override so every displayed attack gets it.
-function apocalypseDragonRefreshRuntimeData()
+apocalypseDragonRefreshRuntimeData=function()
 	if gStates==nil then return end
 	local monsterPerks=gStates.monsterPerks
 	if monsterPerks==nil then
@@ -183,7 +190,7 @@ function apocalypseDragonApplyHeadLevel(headName,level)
 	return true
 end
 
-function apocalypseDragonDeployHeadToken(headData,bag)
+apocalypseDragonDeployHeadToken=function(headData,bag)
 	if headData==nil or headData.tokenGUID==nil then return nil end
 	local target=apocalypseDragonHeadTokenPosition(headData)
 	if target==nil then return nil end
@@ -201,14 +208,14 @@ end
 
 --The Dragon heads use the same 12-position circular level layout as the Shades of Tezla leader discs.
 --Level 1 is at the top, then levels advance clockwise in 30-degree steps.
-function apocalypseDragonLevelMarkerPosition(head,level)
+apocalypseDragonLevelMarkerPosition=function(head,level)
 	if head==nil or level==nil or level<1 then return nil end
 	local angle=math.rad(120-(30*level))
 	local pos=head.getPosition()
 	return {pos[1]+(math.cos(angle)*apocalypseDragon.levelMarkerRadius),1.12,pos[3]+(math.sin(angle)*apocalypseDragon.levelMarkerRadius)}
 end
 
-function apocalypseDragonLockLevelMarker(marker,target)
+apocalypseDragonLockLevelMarker=function(marker,target)
 	if marker==nil or target==nil then return end
 	marker.setLock(false)
 	marker.setPosition(target)
@@ -225,7 +232,7 @@ function apocalypseDragonColoredHeadsDefeated()
 	return true
 end
 
-function apocalypseDragonDefeatedHeadCount()
+apocalypseDragonDefeatedHeadCount=function()
 	if gStates==nil or type(gStates.apocalypseDragonHeadLevels)~="table" then return 0 end
 	local count=0
 	for _,headName in ipairs(apocalypseDragonColoredHeads) do
@@ -234,7 +241,7 @@ function apocalypseDragonDefeatedHeadCount()
 	return count
 end
 
-function apocalypseDragonSyncControlLevel()
+apocalypseDragonSyncControlLevel=function()
 	if gStates==nil or type(gStates.apocalypseDragonHeadLevels)~="table" then return false end
 	local highest=0
 	local found=false
@@ -250,7 +257,7 @@ function apocalypseDragonSyncControlLevel()
 	return apocalypseDragonSetHeadLevel("Control",highest)
 end
 
-function apocalypseDragonCheckAndResolveDefeat()
+apocalypseDragonCheckAndResolveDefeat=function()
 	if gStates==nil or (gStates.gameScenario~="Against the Dragon Blitz" and gStates.gameScenario~="Apocalypse is Here") or gStates.apocalypseDragonDefeated==true then return false end
 	if apocalypseDragonColoredHeadsDefeated()~=true then return false end
 
@@ -272,7 +279,7 @@ function apocalypseDragonCheckAndResolveDefeat()
 	return true
 end
 
-function apocalypseDragonHeadStateChanged(headName)
+apocalypseDragonHeadStateChanged=function(headName)
 	if headName~="Control" then apocalypseDragonSyncControlLevel() end
 	if gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here") then apocalypseDragonCheckAndResolveDefeat() end
 end
@@ -562,13 +569,13 @@ function apocalypseDragonGroundTokenPosition(playerIndex,slot)
 	return {(details.seatPos*40)-100+((slot-1)*2.5),1.5,-39.25}
 end
 
-function apocalypseDragonGroundReduction(headName)
+apocalypseDragonGroundReduction=function(headName)
 	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
 	if combat==nil or combat.reductions==nil then return 1 end
 	return math.max(1,math.floor(tonumber(combat.reductions[headName]) or 1))
 end
 
-function apocalypseDragonGroundMarkedThroughOne(headName)
+apocalypseDragonGroundMarkedThroughOne=function(headName)
 	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
 	if combat==nil then return false end
 	if combat.headMarkedToOne~=nil and combat.headMarkedToOne[headName]==true then return true end
@@ -584,7 +591,7 @@ function apocalypseDragonGroundMarkedThroughOne(headName)
 	return token.is_face_down==false and apocalypseDragonGroundReduction(headName)>=level
 end
 
-function apocalypseDragonGroundControlGUIDs()
+apocalypseDragonGroundControlGUIDs=function()
 	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
 	local guids={}
 	if combat==nil then return guids end
@@ -644,7 +651,7 @@ function apocalypseDragonRefreshGroundAttackSuppression()
 	return true
 end
 
-function apocalypseDragonGroundReductionAdjust(player,mouseButton,id)
+apocalypseDragonGroundReductionAdjust=function(player,mouseButton,id)
 	if mouseButton~="-1" then return end
 	local guid=tostring(id or ""):sub(1,6)
 	local active,headName=apocalypseDragonGroundHeadToken(guid)
@@ -684,7 +691,7 @@ function apocalypseDragonGroundHeadButtons(obj)
 	}
 end
 
-function apocalypseDragonGroundPrepareColoredHead(combat,headName,playerIndex)
+apocalypseDragonGroundPrepareColoredHead=function(combat,headName,playerIndex)
 	local headData=apocalypseDragonHeadData(headName)
 	local level=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or 0) or 0
 	if headData==nil or level<=0 then return false end
@@ -711,7 +718,7 @@ function apocalypseDragonGroundPrepareColoredHead(combat,headName,playerIndex)
 	return true
 end
 
-function apocalypseDragonGroundPrepareControl(combat,playerIndex,slot,useOriginal)
+apocalypseDragonGroundPrepareControl=function(combat,playerIndex,slot,useOriginal)
 	local controlData=apocalypseDragonHeadData("Control")
 	local level=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels.Control or 0) or 0
 	if controlData==nil or level<=0 then return nil end
@@ -744,11 +751,11 @@ function apocalypseDragonGroundPrepareControl(combat,playerIndex,slot,useOrigina
 	return token
 end
 
-function apocalypseDragonNewGroundCombat(coop)
+apocalypseDragonNewGroundCombat=function(coop)
 	return {coop=coop==true,players={},headOwners={},deployed={},reductions={},processedTokens={},headMarkedToOne={},fameByPlayer={},previewFameByPlayer={},finishedPlayers={},controlClones={},fortifiedPlayers={},finished=false,levelsApplied=false}
 end
 
-function apocalypseDragonGroundTokenInPlayerArea(tokenGUID,playerIndex)
+apocalypseDragonGroundTokenInPlayerArea=function(tokenGUID,playerIndex)
 	local details=turnOrder[playerIndex]
 	if tokenGUID==nil or details==nil then return false end
 	for _,obj in pairs(playerCombatObjects(details.seatPos)) do if obj.guid==tokenGUID then return true end end
@@ -815,7 +822,7 @@ function apocalypseDragonBeginGroundCombat(playerIndex)
 	return true
 end
 
-function apocalypseDragonCoopAdjacentPlayers(playerIndex)
+apocalypseDragonCoopAdjacentPlayers=function(playerIndex)
 	local result={}
 	if gStates==nil or gStates.apocalypseDragonLair==nil then return result end
 	for candidate,details in ipairs(turnOrder or {}) do
@@ -838,7 +845,7 @@ function apocalypseDragonCoopAdjacentPlayers(playerIndex)
 	return result
 end
 
-function apocalypseDragonAssaultOriginData(approachPosition)
+apocalypseDragonAssaultOriginData=function(approachPosition)
 	local origin={avatarLocation="",avatarSharedHex=nil,avatarSwapCity=nil,position=nil}
 	if approachPosition~=nil then
 		origin.position={approachPosition[1],approachPosition[2],approachPosition[3]}
@@ -996,7 +1003,7 @@ function apocalypseDragonGroundPlayerFinished(playerIndex)
 	return true
 end
 
-function apocalypseDragonGroundApplyFinalLevels(combat)
+apocalypseDragonGroundApplyFinalLevels=function(combat)
 	for _,headName in ipairs(apocalypseDragonColoredHeads) do
 		local reduction=tonumber(combat.reductions[headName]) or 0
 		if reduction>0 then
@@ -1022,7 +1029,7 @@ function apocalypseDragonGroundTryApplyLevelsBeforeRewards(playerIndex)
 	return true
 end
 
-function apocalypseDragonGroundCleanupRuntime(combat)
+apocalypseDragonGroundCleanupRuntime=function(combat)
 	for guid,_ in pairs(combat.controlClones or {}) do
 		local clone=getObjectFromGUID(guid)
 		if clone~=nil then clone.destruct() end
