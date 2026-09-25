@@ -1808,6 +1808,9 @@ function attackLocation(playerDud, mouseButton, id)
 								cityGUID=volkare.model
 							end
 						end
+						--Standard City garrisons remain player-editable until the first assault. Freeze the
+						--physical display now so solo/co-op assignment and City defeat checks share one roster.
+						if cityGUID~=nil and gStates.gameScenario~="The Lost Relic Blitz" and isStandardCityGUID(cityGUID)==true then cityLockCombatRoster(cityGUID) end
 						--detect if coop assault possible
 						if cityGUID~=nil and gStates.gameScenario~="The Lost Relic Blitz" then
 							local cityPositionGUID=cityGUID

@@ -32,8 +32,8 @@ function refreshCityScriptZones()
 	end
 end
 
---Standard cities use the printed level data through 11. Higher levels keep the level 11 model art
---and extend the garrison by repeating the 9/10/11 pattern with one extra White token every 3 levels.
+--Standard cities use the printed level data through 11. Levels 12-22 keep the level 11 model art
+--and build the garrison by adding two balanced printed levels (for example 21=10+11 and 22=11+11).
 function isStandardCityGUID(cityGUID)
 	return cityGUID==cityModel.red or cityGUID==cityModel.green or cityGUID==cityModel.blue or cityGUID==cityModel.white
 end
@@ -148,7 +148,7 @@ function cityControlLockedByReveal(cityGUID, terrainGUID)
 	end
 	if type(data)=="table" then
 		local extra=rawget(data,"extra")
-		if type(extra)=="table" and extra.levelLocked==true then return true end
+		if type(extra)=="table" and (extra.levelLocked==true or extra.combatRosterLocked==true) then return true end
 	end
 
 	local revealed=false
@@ -257,13 +257,137 @@ function cityArmyLevelData(cityGUID, cityLevel)
 	local cityArmy=CITY_ARMY_DATA[cityGUID]
 	local cityArmyLevel=cityArmy~=nil and cityLevel~=nil and cityArmy[cityLevel] or nil
 	if cityArmyLevel==nil and isStandardCityGUID(cityGUID) and cityLevel~=nil and cityLevel>11 then
-		local baseLevel=9+((cityLevel-9)%3)
-		local extraWhite=math.floor((cityLevel-baseLevel)/3)
-		cityArmyLevel={}
-		for index=1, 6 do cityArmyLevel[index]=cityArmy[baseLevel][index] end
-		cityArmyLevel[1]=cityArmyLevel[1]+extraWhite
+		local lowerLevel=math.floor(cityLevel/2)
+		local upperLevel=math.ceil(cityLevel/2)
+		if cityArmy[lowerLevel]~=nil and cityArmy[upperLevel]~=nil then
+			cityArmyLevel={}
+			for index=1, 6 do cityArmyLevel[index]=(cityArmy[lowerLevel][index] or 0)+(cityArmy[upperLevel][index] or 0) end
+			return cityArmyLevel, lowerLevel, upperLevel
+		end
 	end
 	return cityArmyLevel
+end
+
+local CITY_GARRISON_MANUAL_RADIUS=6
+local CITY_GARRISON_KNOWN_RADIUS=9
+local CITY_GARRISON_MIN_Y=0.75
+local CITY_GARRISON_MAX_Y=3.6
+local CITY_GARRISON_PUG_TYPES={white=true,purple=true,tan=true,gray=true,red=true,green=true}
+
+local function standardCityGarrisonOwner(cityGUID)
+	if isStandardCityGUID(cityGUID)~=true then return cityGUID end
+	local data=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID] or nil
+	if data==nil or data.extra==nil or data.extra.megapolisPair~=cityGUID then return cityGUID end
+	for otherGUID, otherData in pairs(gStates.cityMonsterQty or {}) do
+		if otherGUID~=cityGUID and isStandardCityGUID(otherGUID)==true and otherData==data then return otherGUID end
+	end
+	return cityGUID
+end
+
+local function cityGarrisonCardOwners()
+	local owners={}
+	local seen={}
+	for cityGUID, data in pairs(gStates.cityMonsterQty or {}) do
+		if isStandardCityGUID(cityGUID)==true and type(data)=="table" and type(rawget(data,"extra"))=="table" and data.extra.terainGUID~=nil then
+			local ownerGUID=standardCityGarrisonOwner(cityGUID)
+			if seen[ownerGUID]~=true then
+				local cardGUID=gStates.cityCard~=nil and gStates.cityCard[ownerGUID] or nil
+				local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
+				if card~=nil then
+					seen[ownerGUID]=true
+					owners[#owners+1]={guid=ownerGUID, position=card.getPosition()}
+				end
+			end
+		end
+	end
+	return owners
+end
+
+local function cityGarrisonNearestOwner(position, owners)
+	local nearest=nil
+	local nearestDistSq=nil
+	for _, details in ipairs(owners or {}) do
+		local dx=position[1]-details.position[1]
+		local dz=position[3]-details.position[3]
+		local distSq=(dx*dx)+(dz*dz)
+		if nearestDistSq==nil or distSq<nearestDistSq then nearest=details.guid nearestDistSq=distSq end
+	end
+	return nearest, nearestDistSq
+end
+
+local function cityGarrisonRegisteredElsewhere(monsterGUID, targetData)
+	for _, otherData in pairs(gStates.cityMonsterQty or {}) do
+		if otherData~=targetData and type(otherData)=="table" and rawget(otherData,monsterGUID)=="alive" then return true end
+	end
+	return false
+end
+
+local function cityGarrisonClearDeadRegistrations(monsterGUID, targetData)
+	for _, otherData in pairs(gStates.cityMonsterQty or {}) do
+		if otherData~=targetData and type(otherData)=="table" and rawget(otherData,monsterGUID)=="dead" then otherData[monsterGUID]=nil end
+	end
+end
+
+--Until a standard City is attacked, players may physically correct or fan out its garrison.
+--At first assault, reconcile the loose display beside the City card and freeze that roster for combat/history.
+function cityLockCombatRoster(cityGUID)
+	if isStandardCityGUID(cityGUID)~=true then return false end
+	local ownerGUID=standardCityGarrisonOwner(cityGUID)
+	local data=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[ownerGUID] or nil
+	if data==nil or type(rawget(data,"extra"))~="table" then return false end
+	if data.extra.combatRosterLocked==true then return true end
+
+	local owners=cityGarrisonCardOwners()
+	local ownerFound=false
+	for _, details in ipairs(owners) do if details.guid==ownerGUID then ownerFound=true break end end
+	if ownerFound~=true then return false end
+
+	local oldRoster={}
+	for monsterGUID, state in pairs(data) do
+		if monsterGUID~="extra" and monsterGUID~="shieldNeeded" then oldRoster[monsterGUID]=state end
+	end
+
+	local mapSnapshot=runtimeMapSnapshot()
+	local physicalRoster={}
+	for _, obj in pairs(getAllObjects()) do
+		local monster=monsterPugs[obj.guid]
+		if monster~=nil and CITY_GARRISON_PUG_TYPES[monster.pugType]==true and cityGarrisonRegisteredElsewhere(obj.guid,data)~=true then
+			local pos=obj.getPosition()
+			if pos[2]>=CITY_GARRISON_MIN_Y and pos[2]<=CITY_GARRISON_MAX_Y then
+				local _, _, terrain=runtimeMapHexAtPosition(pos,mapSnapshot)
+				if terrain==nil then
+					local nearestOwner, distSq=cityGarrisonNearestOwner(pos,owners)
+					local radius=oldRoster[obj.guid]~=nil and CITY_GARRISON_KNOWN_RADIUS or CITY_GARRISON_MANUAL_RADIUS
+					if nearestOwner==ownerGUID and distSq~=nil and distSq<=(radius*radius) then
+						physicalRoster[obj.guid]={pos[1],pos[2],pos[3]}
+					end
+				end
+			end
+		end
+	end
+
+	local oldKeys={}
+	for monsterGUID, _ in pairs(oldRoster) do oldKeys[#oldKeys+1]=monsterGUID end
+	for _, monsterGUID in ipairs(oldKeys) do data[monsterGUID]=nil end
+	for monsterGUID, pos in pairs(physicalRoster) do
+		cityGarrisonClearDeadRegistrations(monsterGUID,data)
+		data[monsterGUID]="alive"
+		gStates.monsterPlayLocation[monsterGUID]={pos[1],pos[2],pos[3]}
+	end
+	for monsterGUID, _ in pairs(oldRoster) do
+		if physicalRoster[monsterGUID]==nil then
+			local monster=getObjectFromGUID(monsterGUID)
+			if monster==nil then gStates.monsterPlayLocation[monsterGUID]=nil
+			else
+				local pos=monster.getPosition()
+				gStates.monsterPlayLocation[monsterGUID]={pos[1],pos[2],pos[3]}
+			end
+		end
+	end
+
+	data.extra.combatRosterLocked=true
+	refreshLockedCityControl(ownerGUID,data,true)
+	return true
 end
 
 function cityDefenderPile(cityGUID, tokenType)
@@ -313,7 +437,7 @@ end
 --Standalone City army deployment. startDelay/stackIndex let both halves of a Megapolis share one orderly stack
 --without relying on a closure created inside playCity(). Returns the next delay and stack index.
 function cityArmyPlace(cityGUID, cityLevel, basePosition, rotation, startDelay, stackIndex, ownerGUID)
-	local army=cityArmyLevelData(cityGUID, cityLevel)
+	local army, lowerLevel, upperLevel=cityArmyLevelData(cityGUID, cityLevel)
 	if army==nil then
 		broadcastToAll(joinLang({"{en}Unable to deploy City army: no data for GUID {ru}Не удалось разместить армию Города: нет данных для GUID {zh-tw}無法部署城市軍隊：找不到 GUID {zh-cn}无法部署城市军队：找不到 GUID {ko}도시 군대를 배치할 수 없습니다. GUID {es}No se puede desplegar el ejército de la Ciudad: no hay datos para el GUID {fr}Impossible de déployer l’armée de la Cité : aucune donnée pour le GUID {pt-br}Não foi possível posicionar o exército da Cidade: não há dados para o GUID {de}Stadtarmee konnte nicht eingesetzt werden: keine Daten für GUID ",tostring(cityGUID),"{en} at level {ru} на уровне {zh-tw}，等級 {zh-cn}，等级 {ko}, 레벨 {es} en el nivel {fr} au niveau {pt-br} no nível {de} auf Stufe ",tostring(cityLevel),"."}), warningColor)
 		return startDelay or 0, stackIndex or 0
@@ -321,6 +445,9 @@ function cityArmyPlace(cityGUID, cityLevel, basePosition, rotation, startDelay, 
 	ownerGUID=ownerGUID or cityGUID
 	local ownerData=gStates.cityMonsterQty[ownerGUID]
 	if ownerData==nil then return startDelay or 0, stackIndex or 0 end
+	if lowerLevel~=nil and upperLevel~=nil then
+		broadcastToAll(joinLang({"{en}City level {ru}Защитники города уровня {zh-tw}城市等級 {zh-cn}城市等级 {ko}도시 레벨 {es}Defensores de la Ciudad de nivel {fr}Défenseurs de la Cité de niveau {pt-br}Defensores da Cidade de nível {de}Verteidiger der Stadt Stufe ",tostring(cityLevel),"{en} defenders: using levels {ru}: используются уровни {zh-tw} 的守軍：使用等級 {zh-cn} 的守军：使用等级 {ko} 수비대: 레벨 {es}: se usan los niveles {fr} : niveaux utilisés {pt-br}: usando os níveis {de}: verwendet werden Stufen ",tostring(lowerLevel)," + ",tostring(upperLevel),"."}), {1,1,0.5})
+	end
 	local delay=startDelay or 0
 	local stack=stackIndex or 0
 	for tokenType=1, 6 do
