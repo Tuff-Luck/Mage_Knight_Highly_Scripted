@@ -302,7 +302,7 @@ local function apocalypseQuestObjectsOnCard(card)
 	local source=card.getPosition()
 	local known=gStates.apocalypseQuestCardGUIDs or {}
 	local areaObjects=QuestPrivate.apocalypseQuestAreaObjects()
-	local offerCards=apocalypseQuestOfferCards(areaObjects)
+	local offerCards=QuestPrivate.apocalypseQuestOfferCards(areaObjects)
 	for _, obj in pairs(areaObjects) do
 		if obj.guid~=card.guid and known[obj.guid]~=true then
 			local explicitOwner=apocalypseQuestMoveAttachmentOwnerGUID~=nil and apocalypseQuestMoveAttachmentOwnerGUID(obj.guid) or nil
@@ -314,7 +314,7 @@ local function apocalypseQuestObjectsOnCard(card)
 				local normalFootprint=math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5 and pos[2]>source[2]-1.5 and pos[2]<source[2]+3.0
 				--Independent rows can reach into a neighbouring Quest's normal footprint. Give row Shields/mana
 				--tokens to the Quest whose row slot they are actually nearest, rather than letting both cards claim them.
-				local rowOwner=apocalypseQuestIndependentShieldRowOwnerGUID~=nil and apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards) or nil
+				local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID~=nil and QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards) or nil
 				if rowOwner==card.guid or (rowOwner==nil and normalFootprint) then
 					objects[#objects+1]=obj
 					seen[obj.guid]=true
@@ -523,7 +523,7 @@ apocalypseQuestRevealSetup=function(card)
 		gStates.apocalypseQuestRevealDone[cardGUID]=true
 		gStates.apocalypseQuestRevealPending[cardGUID]=nil
 		live.lock()
-		if rebuild==true then apocalypseQuestInterfaceAdd(live,true) end
+		if rebuild==true then QuestPrivate.apocalypseQuestInterfaceAdd(live,true) end
 	end
 	local function scheduleRevealWait()
 		if apocalypseQuestRevealWaitScheduled[cardGUID]==true then return end
@@ -883,7 +883,7 @@ apocalypseQuestPlaceFistfulEnemies=function(card, callback)
 	local success=true
 	local function finish()
 		local live=getObjectFromGUID(cardGUID)
-		if live~=nil then apocalypseQuestInterfaceAdd(live,true) end
+		if live~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(live,true) end
 		if callback~=nil then callback(success) end
 	end
 	local function drawNext()
@@ -1236,13 +1236,13 @@ function apocalypseQuestGoblinRecordCleanup(enemyGUID,defeated)
 		local playerIndex=nil
 		for index,details in ipairs(turnOrder or {}) do if details.mage==enemyRecord.mage then playerIndex=index break end end
 		if card~=nil and playerIndex~=nil then
-			local option=apocalypseQuestChoiceOption(card,"1")
+			local option=QuestPrivate.apocalypseQuestChoiceOption(card,"1")
 			local state,questState=QuestPrivate.apocalypseQuestProgressState(card,playerIndex,true)
 			if option~=nil and state~=nil and state.step==1 then
 				--The printed condition is only for the Quest point: fighting the chosen Goblins completes
 				--Step 1 either way. A win earns the green-check point; a loss simply advances without it.
-				if allDefeated==true then apocalypseQuestAwardStepPoint(card,playerIndex,option,state,questState) end
-				apocalypseQuestAdvanceProgress(card,state,option)
+				if allDefeated==true then QuestPrivate.apocalypseQuestAwardStepPoint(card,playerIndex,option,state,questState) end
+				QuestPrivate.apocalypseQuestAdvanceProgress(card,state,option)
 				QuestPrivate.apocalypseQuestGoblinWarrensRemoveBagIfReady(card)
 			end
 			warrens[enemyRecord.mage]=nil
@@ -1292,8 +1292,8 @@ end
 apocalypseQuestStartGoblinWarrens=function(card,playerIndex,chosen)
 	if card==nil or card.guid~="72099f" or turnOrder[playerIndex]==nil or chosen==nil or chosen<1 or chosen>3 then return false end
 	if apocalypseQuestGoblinAttempt(playerIndex,true)~=nil then return false end
-	local option=apocalypseQuestChoiceOption(card,"1")
-	if option==nil or apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true or apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)~=true then return false end
+	local option=QuestPrivate.apocalypseQuestChoiceOption(card,"1")
+	if option==nil or QuestPrivate.apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true or QuestPrivate.apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)~=true then return false end
 	if gStates.apocalypseQuestGoblinWarrens==nil then gStates.apocalypseQuestGoblinWarrens={} end
 	local mage=turnOrder[playerIndex].mage
 	--Reserve immediately, then perform map/card setup without waiting for the offer animation. The Quest
@@ -1304,19 +1304,19 @@ apocalypseQuestStartGoblinWarrens=function(card,playerIndex,chosen)
 	local function failStart(questCard,message)
 		if gStates.apocalypseQuestGoblinWarrens~=nil and gStates.apocalypseQuestGoblinWarrens[mage]==record then gStates.apocalypseQuestGoblinWarrens[mage]=nil end
 		if message~=nil then broadcastToAll(message,{1,0.55,0.2}) end
-		if questCard~=nil then apocalypseQuestInterfaceAdd(questCard,true) end
+		if questCard~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(questCard,true) end
 	end
-	if apocalypseQuestPlaceStepMarker(card,playerIndex,option,nil)~=true then failStart(card,"The Goblin Warrens could not place its Quest marker.") return false end
+	if QuestPrivate.apocalypseQuestPlaceStepMarker(card,playerIndex,option,nil)~=true then failStart(card,"The Goblin Warrens could not place its Quest marker.") return false end
 	--The map marker must leave from the Quest's current position, but the Shield belongs to the card after
 	--it is promoted to offer slot 1. Enter the same planned-move lifecycle used by normal Quest Progress.
 	apocalypseQuestBeginMoveAttachmentCapture(card,QuestPrivate.apocalypseQuestOfferPosition(1))
-	if apocalypseQuestPositionProgressShield(card,playerIndex,option)~=true then
+	if QuestPrivate.apocalypseQuestPositionProgressShield(card,playerIndex,option)~=true then
 		apocalypseQuestEndMoveAttachmentCapture(card)
 		failStart(card,"The Goblin Warrens could not place the required Quest Shield.")
 		return false
 	end
 	apocalypseQuestEndMoveAttachmentCapture(card)
-	apocalypseQuestCommitStepMarker(card,option)
+	QuestPrivate.apocalypseQuestCommitStepMarker(card,option)
 	record.preparing=false
 	record.rolling=true
 	local started=apocalypseQuestRollVisibleManaDie(card,playerIndex,"The Goblin Warrens",function(rolled,liveCard)
@@ -1324,7 +1324,7 @@ apocalypseQuestStartGoblinWarrens=function(card,playerIndex,chosen)
 		if liveCard==nil or current~=record then return end
 		if rolled==nil then
 			gStates.apocalypseQuestGoblinWarrens[mage]=nil
-			apocalypseQuestInterfaceAdd(liveCard,true)
+			QuestPrivate.apocalypseQuestInterfaceAdd(liveCard,true)
 			return
 		end
 		local bonus=(rolled=="Red" or rolled=="Green") and 1 or (rolled=="Black" and 2 or 0)
@@ -1333,7 +1333,7 @@ apocalypseQuestStartGoblinWarrens=function(card,playerIndex,chosen)
 		if bag==nil then
 			broadcastToAll("{en}The Goblin Warrens could not find its Goblin infinite bag.{ru}The Goblin Warrens не смогло найти бесконечный мешок гоблинов.{zh-tw}The Goblin Warrens 找不到哥布林無限袋。{zh-cn}The Goblin Warrens 找不到哥布林无限袋。{ko}The Goblin Warrens에서 고블린 무한 주머니를 찾지 못했습니다.{es}The Goblin Warrens no pudo encontrar su bolsa infinita de Goblins.{fr}The Goblin Warrens n’a pas pu trouver son sac infini de Gobelins.{pt-br}The Goblin Warrens não conseguiu encontrar sua bolsa infinita de Goblins.{de}The Goblin Warrens konnte seinen unendlichen Goblin-Beutel nicht finden.",{1,0.55,0.2})
 			gStates.apocalypseQuestGoblinWarrens[mage]=nil
-			apocalypseQuestInterfaceAdd(liveCard,true)
+			QuestPrivate.apocalypseQuestInterfaceAdd(liveCard,true)
 			return
 		end
 		record.rolling=false
@@ -1357,11 +1357,11 @@ apocalypseQuestStartGoblinWarrens=function(card,playerIndex,chosen)
 			combatCameraFocus(playerIndex)
 			broadcastToAll(joinLang({translateWord[mage] or tostring(mage),"{en} chose {ru} выбрал {zh-tw} 選擇 {zh-cn} 选择 {ko}이(가) {es} eligió {fr} a choisi {pt-br} escolheu {de} wählte ",tostring(chosen),"{en}, rolled {ru}, выбросил {zh-tw}，擲出 {zh-cn}，掷出 {ko}을(를) 선택하고 {es}, sacó {fr}, a obtenu {pt-br}, rolou {de}, würfelte ",tostring(rolled),"{en}, and must fight {ru} и должен сразиться с {zh-tw}，必須與 {zh-cn}，必须与 {ko}을(를) 굴려 고블린 {es}, y debe luchar contra {fr}, et doit combattre {pt-br}, e deve lutar contra {de} und muss gegen ",tostring(count),count==1 and "{en} Goblin.{ru} гоблином.{zh-tw} 個哥布林戰鬥。{zh-cn} 个哥布林战斗。{ko}마리와 싸워야 합니다.{es} Goblin.{fr} Gobelin.{pt-br} Goblin.{de} Goblin kämpfen." or "{en} Goblins.{ru} гоблинами.{zh-tw} 個哥布林戰鬥。{zh-cn} 个哥布林战斗。{ko}마리와 싸워야 합니다.{es} Goblins.{fr} Gobelins.{pt-br} Goblins.{de} Goblins kämpfen."}),positionToColor(playerIndex))
 		end
-		apocalypseQuestInterfaceAdd(liveCard,true)
+		QuestPrivate.apocalypseQuestInterfaceAdd(liveCard,true)
 	end,QuestPrivate.apocalypseQuestOfferPosition(1))
 	if started~=true then failStart(card,"The Goblin Warrens could not start its Quest die roll.") return false end
 	--As with Rich Merchant, let the roll result own the next UI rebuild while the offer itself moves now.
-	apocalypseQuestOfferMoveToLeft(card,function() end)
+	QuestPrivate.apocalypseQuestOfferMoveToLeft(card,function() end)
 	return true
 end
 
@@ -1462,7 +1462,7 @@ apocalypseQuestGiveHerbalistReward=function(card, playerIndex, callback)
 	local function failRoll()
 		clearHerbalistRoll()
 		local questCard=getObjectFromGUID(cardGUID)
-		if questCard~=nil then apocalypseQuestInterfaceAdd(questCard,true) end
+		if questCard~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(questCard,true) end
 	end
 	local function finishRoll()
 		local settledDie=getObjectFromGUID(dieGUID)
@@ -1667,9 +1667,9 @@ apocalypseQuestCursedAutoShield=function(card,playerIndex,targetIndex)
 	--Use the source Shield's planned destination if the offer is already moving there.
 	local sourcePos=apocalypseQuestMoveAttachmentTarget(card,sourceShield) or apocalypseQuestPlannedWorldPosition(card,sourceShield.getPosition())
 	local shield=QuestPrivate.apocalypseQuestPlayerShield(card,targetIndex)
-	local target=apocalypseQuestRaisedPiecePosition(sourcePos)
+	local target=QuestPrivate.apocalypseQuestRaisedPiecePosition(sourcePos)
 	if shield==nil then
-		shield=apocalypseQuestTakePlayerShield(targetIndex,sourcePos)
+		shield=QuestPrivate.apocalypseQuestTakePlayerShield(targetIndex,sourcePos)
 	elseif shield.guid~=sourceShield.guid then
 		shield.unlock()
 		shield.setPositionSmooth(target)
@@ -1728,13 +1728,13 @@ apocalypseQuestHandlers["bb2828"].specialLegal=function(card,playerIndex,option)
 	return false
 end
 apocalypseQuestHandlers["37e2ce"].failureReady=function(card,playerIndex,option)
-	if tostring(option.key)=="2" then return true,apocalypseQuestFreeWineFailureReady(playerIndex or gStates.turnNumber) end
+	if tostring(option.key)=="2" then return true,QuestPrivate.apocalypseQuestFreeWineFailureReady(playerIndex or gStates.turnNumber) end
 	return false
 end
 apocalypseQuestHandlers["a6d5cc"].failureReady=function(card,playerIndex,option)
 	if tostring(option.key)=="2b" then
 		local index=playerIndex or gStates.turnNumber
-		return true,QuestPrivate.apocalypseQuestCombatStartedThisTurn(card,2)~=true and apocalypseQuestUnderSiegeStep2ChoiceLegal(index,"2b")
+		return true,QuestPrivate.apocalypseQuestCombatStartedThisTurn(card,2)~=true and QuestPrivate.apocalypseQuestUnderSiegeStep2ChoiceLegal(index,"2b")
 	end
 	return false
 end
@@ -1767,7 +1767,7 @@ apocalypseQuestCombatOption=function(card,state)
 	if card==nil or state==nil then return nil end
 	local key=apocalypseQuestCombatRuleSelectedKey(card,state)
 	if key==nil then return nil end
-	return apocalypseQuestChoiceOption(card,key)
+	return QuestPrivate.apocalypseQuestChoiceOption(card,key)
 end
 
 apocalypseQuestCombatRelevant=function(card,playerIndex)
@@ -1945,7 +1945,7 @@ function apocalypseQuestCaptureRewardCompletionGate(playerIndex)
 	if gStates.apocalypseQuestRewardCompletionPending==nil then gStates.apocalypseQuestRewardCompletionPending={} end
 	local serial=gStates.apocalypseQuestTurnSerial or 0
 	local captured=false
-	for _, card in ipairs(apocalypseQuestOfferCards()) do
+	for _, card in ipairs(QuestPrivate.apocalypseQuestOfferCards()) do
 		local state=QuestPrivate.apocalypseQuestProgressState(card,playerIndex,false)
 		local option=state~=nil and state.completed~=true and apocalypseQuestCombatOption(card,state) or nil
 		local quest=apocalypseQuestData[card.guid]
@@ -1997,7 +1997,7 @@ function QuestPrivate.apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 end
 
 function QuestPrivate.apocalypseQuestCombatAvailable(card,playerIndex,cardObjects)
-	if card==nil or apocalypseQuestPlayerMayAct(card,playerIndex)~=true then return false end
+	if card==nil or QuestPrivate.apocalypseQuestPlayerMayAct(card,playerIndex)~=true then return false end
 	local state=QuestPrivate.apocalypseQuestProgressState(card,playerIndex,false)
 	if state==nil or state.completed==true then return false end
 	local handler=apocalypseQuestHandler(card)
@@ -2006,7 +2006,7 @@ function QuestPrivate.apocalypseQuestCombatAvailable(card,playerIndex,cardObject
 		if handled==true and available~=true then return false end
 	end
 	local option=apocalypseQuestCombatOption(card,state)
-	if option==nil or apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then return false end
+	if option==nil or QuestPrivate.apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then return false end
 	if gStates.apocalypseQuestCombatLaunches~=nil and gStates.apocalypseQuestCombatLaunches[card.guid]==QuestPrivate.apocalypseQuestCombatLaunchKey(card,state) then return false end
 	if apocalypseQuestUsesEnemyAttackButton(card)==true then
 		for _, obj in ipairs(cardObjects or apocalypseQuestObjectsOnCard(card)) do if monsterPugs[obj.guid]~=nil then return true end end
@@ -2183,7 +2183,7 @@ function QuestPrivate.apocalypseQuestAddEnemyAttackBonus(enemyGUID,bonus)
 end
 
 function QuestPrivate.apocalypseQuestMineDoomColors(playerIndex)
-	local hex=apocalypseQuestCurrentPlayerHex(playerIndex)
+	local hex=QuestPrivate.apocalypseQuestCurrentPlayerHex(playerIndex)
 	if hex==nil or QuestPrivate.apocalypseQuestFeatureMatches(hex.feature,"mine")~=true then return {} end
 	local details=terrainTiles[hex.terrainGUID]
 	local colors=details~=nil and details.mineColors~=nil and details.mineColors[hex.bearing] or nil
@@ -2241,9 +2241,9 @@ function QuestPrivate.apocalypseQuestLaunchCombat(card,playerIndex,playerColor,c
 	local combatOption=apocalypseQuestCombatOption(card,state)
 	if combatOption~=nil then
 		local markerRule=QuestPrivate.apocalypseQuestMarkerRule(card,QuestPrivate.apocalypseQuestStepNumber(combatOption.key))
-		if markerRule~=nil and apocalypseQuestMarkerPlacementCommitted(markerRule)~=true then
-			if apocalypseQuestPlaceStepMarker(card,playerIndex,combatOption,playerColor)~=true then return false end
-			apocalypseQuestCommitStepMarker(card,combatOption)
+		if markerRule~=nil and QuestPrivate.apocalypseQuestMarkerPlacementCommitted(markerRule)~=true then
+			if QuestPrivate.apocalypseQuestPlaceStepMarker(card,playerIndex,combatOption,playerColor)~=true then return false end
+			QuestPrivate.apocalypseQuestCommitStepMarker(card,combatOption)
 		end
 	end
 	if gStates.apocalypseQuestCombatLaunches==nil then gStates.apocalypseQuestCombatLaunches={} end
@@ -2280,7 +2280,7 @@ function apocalypseQuestEnemyAttack(player,mouseButton,id)
 	local details=turnOrder[playerIndex]
 	if card==nil or enemy==nil or details==nil or legalPlayerCheck(player.color,details.seatPos,"NoDummyException")~=true then return end
 	local offered=false
-	for _, offerCard in ipairs(apocalypseQuestOfferCards()) do if offerCard.guid==cardGUID then offered=true break end end
+	for _, offerCard in ipairs(QuestPrivate.apocalypseQuestOfferCards()) do if offerCard.guid==cardGUID then offered=true break end end
 	if offered~=true or apocalypseQuestUsesEnemyAttackButton(card)~=true or QuestPrivate.apocalypseQuestCombatAvailable(card,playerIndex)~=true then
 		QuestPrivate.apocalypseQuestRefreshEnemyAttackButtons(card,playerIndex)
 		return
@@ -2289,7 +2289,7 @@ function apocalypseQuestEnemyAttack(player,mouseButton,id)
 	--Most card-enemy Quests launch only the clicked enemy. A handler may explicitly launch the full group.
 	local clickedGUID=handler~=nil and handler.enemyAttackMovesAll==true and nil or enemyGUID
 	QuestPrivate.apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil,clickedGUID)
-	if getObjectFromGUID(cardGUID)~=nil then apocalypseQuestInterfaceAdd(card,true) end
+	if getObjectFromGUID(cardGUID)~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(card,true) end
 end
 
 function QuestPrivate.apocalypseQuestRestoreBurnedMonastery(card,playerIndex)
@@ -2379,7 +2379,7 @@ function QuestPrivate.apocalypseQuestFinishGuardDutyChoice(card,playerIndex,dist
 	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
 	QuestPrivate.apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed Guard Duty: distance {ru} завершил Guard Duty: расстояние {zh-tw} 完成 Guard Duty：距離 {zh-cn} 完成 Guard Duty：距离 {ko}이(가) Guard Duty를 완료했습니다: 거리 {es} completó Guard Duty: distancia {fr} a terminé Guard Duty : distance {pt-br} concluiu Guard Duty: distância {de} schloss Guard Duty ab: Entfernung ",tostring(distance or "?"),"{en}, two chosen mana crystals.{ru}, два выбранных кристалла маны.{zh-tw}，兩顆自選魔力水晶。{zh-cn}，两颗自选魔力水晶。{ko}, 선택한 마나 크리스털 2개.{es}, dos cristales de maná elegidos.{fr}, deux cristaux de mana choisis.{pt-br}, dois cristais de mana escolhidos.{de}, zwei gewählte Manakristalle."}),positionToColor(playerIndex))
-	apocalypseQuestFinishCompletedCard(card)
+	QuestPrivate.apocalypseQuestFinishCompletedCard(card)
 	safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5)
 end
 
@@ -2392,11 +2392,11 @@ local function apocalypseQuestFinishCrystalRollReward(card,playerIndex,pending,f
 	if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
 	QuestPrivate.apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 	if pending.optionKey~=nil then
-		local option=apocalypseQuestChoiceOption(card,pending.optionKey)
+		local option=QuestPrivate.apocalypseQuestChoiceOption(card,pending.optionKey)
 		if option~=nil then QuestPrivate.apocalypseQuestResolveSpecialEffect(card,playerIndex,option,true) end
 	end
 	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed {ru} завершил {zh-tw} 完成了 {zh-cn} 完成了 {ko}이(가) {es} completó {fr} a terminé {pt-br} concluiu {de} schloss ",tostring(pending.source or "the Quest"),"{en}; the random crystal reward is resolved.{ru}; награда случайными кристаллами разрешена.{zh-tw}；隨機水晶獎勵已結算。{zh-cn}；随机水晶奖励已结算。{ko}. 무작위 크리스털 보상이 해결되었습니다.{es}; la recompensa aleatoria de cristales está resuelta.{fr} ; la récompense aléatoire de cristaux est résolue.{pt-br}; a recompensa aleatória de cristais foi resolvida.{de}; die zufällige Kristallbelohnung ist abgewickelt."}),positionToColor(playerIndex))
-	apocalypseQuestFinishCompletedCard(card)
+	QuestPrivate.apocalypseQuestFinishCompletedCard(card)
 	if finishQuestResolution~=nil then finishQuestResolution(0.5)
 	else safeWaitTime("Quests",function() rewindTransactionFinish("Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)) end,0.5) end
 end
@@ -2433,7 +2433,7 @@ function QuestPrivate.apocalypseQuestResolveCrystalRollResults(card,playerIndex,
 		pending.colors=QuestPrivate.apocalypseQuestCrystalChoiceColors(playerIndex,pending)
 		if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
 		gStates.apocalypseQuestCombatChoice[card.guid]=pending
-		apocalypseQuestInterfaceAdd(card,true)
+		QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
 		broadcastToAll(joinLang({tostring(reason or "Quest"),"{en} rolled Gold{ru} выбросил золотой{zh-tw} 擲出金色{zh-cn} 掷出金色{ko}에서 금색이 나왔습니다{es} sacó Dorado{fr} a obtenu Or{pt-br} rolou Dourado{de} würfelte Gold",gold>1 and (" x"..tostring(gold)) or "","{en}: choose {ru}: выберите {zh-tw}：選擇 {zh-cn}：选择 {ko}: {es}: elige {fr} : choisissez {pt-br}: escolha {de}: Wähle ",gold==1 and "{en}a basic mana crystal.{ru}базовый кристалл маны.{zh-tw}一顆基本魔力水晶。{zh-cn}一颗基本魔力水晶。{ko}기본 마나 크리스털 1개를 선택하십시오.{es}un cristal básico de maná.{fr}un cristal de mana de base.{pt-br}um cristal básico de mana.{de}einen Basismana-Kristall." or joinLang({tostring(gold),"{en} basic mana crystals.{ru} базовых кристалла маны.{zh-tw} 顆基本魔力水晶。{zh-cn} 颗基本魔力水晶。{ko}개의 기본 마나 크리스털을 선택하십시오.{es} cristales básicos de maná.{fr} cristaux de mana de base.{pt-br} cristais básicos de mana.{de} Basismana-Kristalle."})}),positionToColor(playerIndex))
 		return true
 	end
@@ -2635,7 +2635,7 @@ function apocalypseQuestRichMerchantStartTurn()
 	if gStates.apocalypseQuestCombatLaunches==nil then gStates.apocalypseQuestCombatLaunches={} end
 	gStates.apocalypseQuestCombatLaunches[card.guid]=QuestPrivate.apocalypseQuestCombatLaunchKey(card,state)
 	broadcastToAll(joinLang({"{en}A Rich Merchant: the hidden ally attacks at the start of {ru}A Rich Merchant: скрытый союзник атакует в начале хода {zh-tw}A Rich Merchant：隱藏盟友在 {zh-cn}A Rich Merchant：隐藏盟友在 {ko}A Rich Merchant: 숨겨진 동료가 {es}A Rich Merchant: el aliado oculto ataca al comienzo del turno de {fr}A Rich Merchant : l’allié caché attaque au début du tour de {pt-br}A Rich Merchant: o aliado oculto ataca no início do turno de {de}A Rich Merchant: Der verborgene Verbündete greift zu Beginn des Zuges von ",translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en}'s turn.{ru}.{zh-tw} 的回合開始時攻擊。{zh-cn} 的回合开始时攻击。{ko}의 턴 시작에 공격합니다.{es}.{fr}.{pt-br}.{de} an."}),positionToColor(playerIndex))
-	safeWaitFrames("Quests",function() if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end end,2)
+	safeWaitFrames("Quests",function() if getObjectFromGUID(card.guid)~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(card,true) end end,2)
 	return true
 end
 
@@ -2659,7 +2659,7 @@ end
 apocalypseQuestRegisterHandler("58a826").resolveEffect=function(card,playerIndex,option,finalCompletion)
 	local key=tostring(option.key)
 		if key=="2" then
-			local hex=apocalypseQuestCurrentPlayerHex(playerIndex)
+			local hex=QuestPrivate.apocalypseQuestCurrentPlayerHex(playerIndex)
 			local terrainColor=hex~=nil and ({plains="White",forest="Green",wasteland="Red",swamp="Blue"})[hex.hexType] or nil
 			if terrainColor~=nil then apocalypseQuestPlaceCrystalOnCard(card,terrainColor,0,-0.55,"The Eager Herbalist") end
 		end
@@ -2703,7 +2703,7 @@ end
 apocalypseQuestRegisterHandler("37e2ce").resolveEffect=function(card,playerIndex,option,finalCompletion)
 	local key=tostring(option.key)
 	if key=="1a" then
-		apocalypseQuestFreeWineStartAssault(card,playerIndex)
+		QuestPrivate.apocalypseQuestFreeWineStartAssault(card,playerIndex)
 	end
 end
 
@@ -2728,7 +2728,7 @@ apocalypseQuestRegisterHandler("b401dc").resolveEffect=function(card,playerIndex
 	local key=tostring(option.key)
 		if key=="1" then
 			local token=getObjectFromGUID("7e4e4c")
-			if token~=nil then apocalypseQuestHighlightMarker(token) end
+			if token~=nil then QuestPrivate.apocalypseQuestHighlightMarker(token) end
 			broadcastToAll("{en}A Very Personal Quest: recruit an eligible Unit here for free and place the highlighted Quest token on that Unit.{ru}A Very Personal Quest: бесплатно наймите здесь подходящий отряд и поместите выделенный жетон задания на этот отряд.{zh-tw}A Very Personal Quest：在此免費招募符合條件的部隊，並將高亮任務標記放在該部隊上。{zh-cn}A Very Personal Quest：在此免费招募符合条件的部队，并将高亮任务标记放在该部队上。{ko}A Very Personal Quest: 여기서 조건에 맞는 유닛 하나를 무료로 모집하고 강조된 퀘스트 토큰을 그 유닛 위에 놓으십시오.{es}A Very Personal Quest: recluta aquí gratis una Unidad válida y coloca la ficha de Misión resaltada sobre esa Unidad.{fr}A Very Personal Quest : recrutez gratuitement ici une Unité éligible et placez le jeton de Quête surligné sur cette Unité.{pt-br}A Very Personal Quest: recrute aqui gratuitamente uma Unidade elegível e coloque a ficha de Missão destacada nessa Unidade.{de}A Very Personal Quest: Rekrutiere hier kostenlos eine geeignete Einheit und lege den hervorgehobenen Questmarker auf diese Einheit.",positionToColor(playerIndex))
 		elseif key=="2" then
 			if gStates.apocalypseQuestVeryPersonalSuccess==nil then gStates.apocalypseQuestVeryPersonalSuccess={} end
@@ -2845,7 +2845,7 @@ end
 apocalypseQuestRegisterHandler("082f39").resolveEffect=function(card,playerIndex,option,finalCompletion)
 	local key=tostring(option.key)
 	if key=="1" then
-		apocalypseQuestTravellingMerchantRelocate(card,playerIndex)
+		QuestPrivate.apocalypseQuestTravellingMerchantRelocate(card,playerIndex)
 	end
 end
 
@@ -2918,7 +2918,7 @@ end
 apocalypseQuestRegisterHandler("6175e8").resolveEffect=function(card,playerIndex,option,finalCompletion)
 	local key=tostring(option.key)
 	if key=="3" then
-		apocalypseQuestMagicOverloadPlaceSite(card,playerIndex)
+		QuestPrivate.apocalypseQuestMagicOverloadPlaceSite(card,playerIndex)
 	end
 end
 
@@ -2966,7 +2966,7 @@ end
 function apocalypseQuestEndRoundCleanup()
 	if apocalypseQuestsUsed()~=true or gStates.firstStarted~=true then return false end
 	if gStates.currentRound>=gStates.rounds then return false end
-	local cards=apocalypseQuestOfferCards()
+	local cards=QuestPrivate.apocalypseQuestOfferCards()
 	if #cards==0 then return false end
 	local removeCount=math.min(2,#cards)
 	local firstRemoved=#cards-removeCount+1
@@ -3000,7 +3000,7 @@ function apocalypseQuestEndRoundCleanup()
 				end
 			end
 		end
-		apocalypseQuestBottomDeck(card,function(success)
+		QuestPrivate.apocalypseQuestBottomDeck(card,function(success)
 			if shieldCount>0 then broadcastToAll(joinLang({"{en}Quest cleanup: removed {ru}Очистка задания: удалено {zh-tw}任務清理：從 \"{zh-cn}任务清理：从 \"{ko}퀘스트 정리: \"{es}Limpieza de Misión: se retiraron {fr}Nettoyage de Quête : retrait de {pt-br}Limpeza da Missão: foram removidos {de}Quest-Bereinigung: ",tostring(shieldCount),shieldCount==1 and "{en} Shield from \"{ru} Щит из \"{zh-tw}\" 移除 1 個盾牌。{zh-cn}\" 移除 1 个盾牌。{ko}\"에서 방패 1개를 제거했습니다.{es} Escudo de \"{fr} Bouclier de \"{pt-br} Escudo de \"{de} Schild aus \"" or "{en} Shields from \"{ru} Щитов из \"{zh-tw}\" 移除盾牌。{zh-cn}\" 移除盾牌。{ko}\"에서 방패를 제거했습니다.{es} Escudos de \"{fr} Boucliers de \"{pt-br} Escudos de \"{de} Schilde aus \"",questName,"\"."}),{1,1,0.5}) end
 			if gStates.apocalypseQuestReminderCards~=nil and gStates.apocalypseQuestReminderCards[card.guid]~=nil then
 				broadcastToAll(joinLang({"{en}Quest cleanup: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" remains beside the Quest Shield bags as a reminder.{ru}\" остаётся рядом с мешками Щитов задания как напоминание.{zh-tw}\" 留在任務盾牌袋旁作為提醒。{zh-cn}\" 留在任务盾牌袋旁作为提醒。{ko}\"이(가) 알림으로 퀘스트 방패 주머니 옆에 남습니다.{es}\" permanece junto a las bolsas de Escudos de Misión como recordatorio.{fr}\" reste à côté des sacs de Boucliers de Quête comme rappel.{pt-br}\" permanece ao lado das bolsas de Escudos da Missão como lembrete.{de}\" bleibt als Erinnerung neben den Quest-Schild-Beuteln."}),{1,1,0.5})
@@ -3243,7 +3243,7 @@ end
 function QuestPrivate.apocalypseQuestPlayerHasOtherPersonalQuest(playerIndex, excludeGUID)
 	if turnOrder[playerIndex]==nil then return false end
 	local mage=turnOrder[playerIndex].mage
-	for _, questCard in ipairs(apocalypseQuestOfferCards()) do
+	for _, questCard in ipairs(QuestPrivate.apocalypseQuestOfferCards()) do
 		if questCard.guid~=excludeGUID then
 			local quest=apocalypseQuestData[questCard.guid]
 			if quest~=nil and quest.questType=="Personal" then
@@ -3359,9 +3359,9 @@ function apocalypseQuestHexHasShield(hex, mapObjects, playerIndex, anyPlayer)
 	return false
 end
 
-function apocalypseQuestHexSiteInteractable(hex, mapObjects, playerIndex)
+function QuestPrivate.apocalypseQuestHexSiteInteractable(hex, mapObjects, playerIndex)
 	local feature=string.lower(tostring(hex.feature or ""))
-	if apocalypseQuestHexDestroyedMonastery~=nil and apocalypseQuestHexDestroyedMonastery(hex)==true then return false end
+	if QuestPrivate.apocalypseQuestHexDestroyedMonastery~=nil and QuestPrivate.apocalypseQuestHexDestroyedMonastery(hex)==true then return false end
 	if feature=="monastery" and gStates.monasteryBurned~=nil and gStates.monasteryBurned[hex.terrainGUID]==true then return false end
 	if feature=="keep" or feature=="mage tower" or apocalypseQuestFeatureIsCity(feature)==true or feature=="volkare's camp" then
 		return apocalypseQuestHexHasShield(hex,mapObjects,playerIndex,gStates.coop==1)
@@ -3375,10 +3375,10 @@ function apocalypseQuestHexInteractionSite(hex,mapObjects,playerIndex)
 	local interaction=feature=="village" or feature=="monastery" or feature=="keep" or feature=="mage tower" or
 		apocalypseQuestFeatureIsCity(feature)==true or feature=="camp" or feature=="oasis" or feature=="volkare's camp"
 	if interaction~=true then return false end
-	return apocalypseQuestHexSiteInteractable(hex,mapObjects,playerIndex)==true
+	return QuestPrivate.apocalypseQuestHexSiteInteractable(hex,mapObjects,playerIndex)==true
 end
 
-function apocalypseQuestHexHasEnemy(hex, mapObjects)
+function QuestPrivate.apocalypseQuestHexHasEnemy(hex, mapObjects)
 	if hex==nil or hex.position==nil then return false end
 	local spatial=QuestPrivate.apocalypseQuestMapSpatial()
 	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,hex.position,1.1)) do
@@ -3392,13 +3392,13 @@ function apocalypseQuestHexHasEnemy(hex, mapObjects)
 	return false
 end
 
-function apocalypseQuestHexSafe(hex, mapObjects, playerIndex)
+function QuestPrivate.apocalypseQuestHexSafe(hex, mapObjects, playerIndex)
 	if hex==nil or hex.hexType=="lake" or hex.hexType=="mountain" or hex.hexType=="ocean" then return false end
 	local feature=string.lower(tostring(hex.feature or ""))
 	--Rampaging/Draconum labels describe the printed spawn space; once the enemy is gone the space is safe again.
-	if apocalypseQuestHexHasEnemy(hex,mapObjects)==true then return false end
+	if QuestPrivate.apocalypseQuestHexHasEnemy(hex,mapObjects)==true then return false end
 	if feature=="keep" or feature=="mage tower" or apocalypseQuestFeatureIsCity(feature)==true or feature=="volkare's camp" then
-		return apocalypseQuestHexSiteInteractable(hex,mapObjects,playerIndex)
+		return QuestPrivate.apocalypseQuestHexSiteInteractable(hex,mapObjects,playerIndex)
 	end
 	return true
 end
@@ -3410,14 +3410,14 @@ function apocalypseQuestHexAdventureSite(hex)
 		feature=="maze" or feature=="labyrinth" or feature=="graveyard" or feature=="ziggurat" or feature=="pyramid"
 end
 
-function apocalypseQuestStarterLocationRule(card, option)
+function QuestPrivate.apocalypseQuestStarterLocationRule(card, option)
 	if card==nil or option==nil then return nil end
 	local rules=apocalypseQuestStepLocationRules[card.guid]
 	if rules==nil then return nil end
 	return rules[tostring(option.key)] or rules[tostring(QuestPrivate.apocalypseQuestStepNumber(option.key))]
 end
 
-function apocalypseQuestCurrentPlayerHex(playerIndex)
+function QuestPrivate.apocalypseQuestCurrentPlayerHex(playerIndex)
 	local refreshCache=apocalypseQuestRefreshMapCache or {}
 	if refreshCache~=nil and refreshCache.playerHexes~=nil and refreshCache.playerHexes[playerIndex]~=nil then
 		return refreshCache.playerHexes[playerIndex].hex,refreshCache.mapObjects
@@ -3432,13 +3432,13 @@ function apocalypseQuestCurrentPlayerHex(playerIndex)
 	return hex,mapObjects
 end
 
-function apocalypseQuestInhabitedFeature(feature)
+function QuestPrivate.apocalypseQuestInhabitedFeature(feature)
 	local name=string.lower(tostring(feature or ""))
 	return name=="village" or name=="monastery" or name=="keep" or name=="mage tower" or
 		apocalypseQuestFeatureIsCity(name)==true or name=="oasis" or name=="camp"
 end
 
-function apocalypseQuestHexNoSite(hex)
+function QuestPrivate.apocalypseQuestHexNoSite(hex)
 	if hex==nil then return false end
 	local feature=string.lower(tostring(hex.feature or ""))
 	if feature=="" or feature=="portal" or feature=="destroyed" or feature=="rampaging" or feature=="draconum" then return true end
@@ -3446,7 +3446,7 @@ function apocalypseQuestHexNoSite(hex)
 	return false
 end
 
-function apocalypseQuestTokenOnHex(tokenGUID, hex, mapObjects)
+function QuestPrivate.apocalypseQuestTokenOnHex(tokenGUID, hex, mapObjects)
 	if tokenGUID==nil or hex==nil then return false end
 	local transit=gStates.apocalypseQuestMarkerTransit~=nil and gStates.apocalypseQuestMarkerTransit[tokenGUID] or nil
 	if transit~=nil then
@@ -3458,7 +3458,7 @@ function apocalypseQuestTokenOnHex(tokenGUID, hex, mapObjects)
 	return terrain~=nil and bearing~=nil and terrain.guid==hex.terrainGUID and tostring(bearing)==tostring(hex.bearing)
 end
 
-function apocalypseQuestTrackMarkerMove(token,target,terrainGUID,bearing)
+function QuestPrivate.apocalypseQuestTrackMarkerMove(token,target,terrainGUID,bearing)
 	if token==nil or target==nil then return end
 	if gStates.apocalypseQuestMarkerTransit==nil then gStates.apocalypseQuestMarkerTransit={} end
 	local tokenGUID=token.guid
@@ -3482,7 +3482,7 @@ function apocalypseQuestTrackMarkerMove(token,target,terrainGUID,bearing)
 	end,2)
 end
 
-function apocalypseQuestHexesInStraightLine(a,b)
+function QuestPrivate.apocalypseQuestHexesInStraightLine(a,b)
 	if a==nil or b==nil then return false end
 	local dx=b.position[1]-a.position[1]
 	local dz=b.position[3]-a.position[3]
@@ -3493,7 +3493,7 @@ function apocalypseQuestHexesInStraightLine(a,b)
 	return remainder<1.5 or remainder>58.5
 end
 
-function apocalypseQuestRandomObjectsTreasureLocation(hex,mapObjects)
+function QuestPrivate.apocalypseQuestRandomObjectsTreasureLocation(hex,mapObjects)
 	if hex==nil then return false end
 	local tokenGUIDs={"cef3a2","746a47","97ba49"}
 	for _, tokenGUID in ipairs(tokenGUIDs) do
@@ -3504,18 +3504,18 @@ function apocalypseQuestRandomObjectsTreasureLocation(hex,mapObjects)
 		local xy=angleToXY(terrain,bearing)
 		local tokenHex={terrainGUID=terrain.guid,bearing=bearing,position={xy[1],1.30,xy[2]}}
 		if terrain.guid==hex.terrainGUID and tostring(bearing)==tostring(hex.bearing) then return false end
-		if apocalypseQuestHexesInStraightLine(hex,tokenHex)~=true then return false end
+		if QuestPrivate.apocalypseQuestHexesInStraightLine(hex,tokenHex)~=true then return false end
 	end
 	return true
 end
 
-function apocalypseQuestFreeWineLocationLegal(hex,mapObjects,playerIndex)
+function QuestPrivate.apocalypseQuestFreeWineLocationLegal(hex,mapObjects,playerIndex)
 	if hex==nil then return false end
 	local originOK=false
 	for _, feature in ipairs({"village","monastery","oasis","camp"}) do
 		if QuestPrivate.apocalypseQuestFeatureMatches(hex.feature,feature)==true then originOK=true break end
 	end
-	if originOK~=true or apocalypseQuestHexSiteInteractable(hex,mapObjects,playerIndex)~=true then return false end
+	if originOK~=true or QuestPrivate.apocalypseQuestHexSiteInteractable(hex,mapObjects,playerIndex)~=true then return false end
 	local hexes=QuestPrivate.apocalypseQuestMapHexes()
 	local start=nil
 	for _, candidate in ipairs(hexes) do
@@ -3532,7 +3532,7 @@ function apocalypseQuestFreeWineLocationLegal(hex,mapObjects,playerIndex)
 	return false
 end
 
-function apocalypseQuestFreeWineKeepTargets(playerIndex)
+function QuestPrivate.apocalypseQuestFreeWineKeepTargets(playerIndex)
 	local hexes,mapObjects=QuestPrivate.apocalypseQuestMapHexes()
 	local start=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
 	if start==nil then return {} end
@@ -3547,7 +3547,7 @@ function apocalypseQuestFreeWineKeepTargets(playerIndex)
 	return result
 end
 
-function apocalypseQuestFreeWineAssaultRecord(playerIndex)
+function QuestPrivate.apocalypseQuestFreeWineAssaultRecord(playerIndex)
 	local record=gStates.apocalypseQuestFreeWineAssault
 	if record==nil or record.player~=playerIndex or turnOrder[playerIndex]==nil then return nil end
 	--Quest 10 may still be awaiting its card resolution after a Proxy/other turn has intervened. The
@@ -3562,16 +3562,16 @@ function apocalypseQuestFreeWineMarkAssaultStarted(playerIndex)
 	if card==nil or state==nil or state.step~=2 or turnOrder[playerIndex]==nil then return false end
 	--Once this branch has an outcome, keep it until Complete/Fail is actually pressed. The shared
 	--Rewards Claimed soft-lock timeout must not erase which assault Quest 10 is resolving.
-	local existing=apocalypseQuestFreeWineAssaultRecord(playerIndex)
+	local existing=QuestPrivate.apocalypseQuestFreeWineAssaultRecord(playerIndex)
 	if existing~=nil then return true end
-	local hex=apocalypseQuestCurrentPlayerHex(playerIndex)
+	local hex=QuestPrivate.apocalypseQuestCurrentPlayerHex(playerIndex)
 	gStates.apocalypseQuestFreeWineAssault={player=playerIndex,mage=turnOrder[playerIndex].mage,serial=gStates.apocalypseQuestTurnSerial or 0,
 		terrainGUID=hex~=nil and hex.terrainGUID or nil,bearing=hex~=nil and hex.bearing or nil,result=nil}
 	return true
 end
 
-function apocalypseQuestFreeWineSuccessReady(playerIndex)
-	local record=apocalypseQuestFreeWineAssaultRecord(playerIndex)
+function QuestPrivate.apocalypseQuestFreeWineSuccessReady(playerIndex)
+	local record=QuestPrivate.apocalypseQuestFreeWineAssaultRecord(playerIndex)
 	if record==nil then return false end
 	if record.result=="Complete" then return true end
 	if record.result=="Fail" then return false end
@@ -3592,16 +3592,16 @@ function apocalypseQuestFreeWineSuccessReady(playerIndex)
 	return false
 end
 
-function apocalypseQuestFreeWineFailureReady(playerIndex)
-	local record=apocalypseQuestFreeWineAssaultRecord(playerIndex)
+function QuestPrivate.apocalypseQuestFreeWineFailureReady(playerIndex)
+	local record=QuestPrivate.apocalypseQuestFreeWineAssaultRecord(playerIndex)
 	return record~=nil and record.result=="Fail"
 end
 
-function apocalypseQuestFreeWineCombatOutcome(playerIndex)
-	local record=apocalypseQuestFreeWineAssaultRecord(playerIndex)
+function QuestPrivate.apocalypseQuestFreeWineCombatOutcome(playerIndex)
+	local record=QuestPrivate.apocalypseQuestFreeWineAssaultRecord(playerIndex)
 	if record==nil then return nil end
 	if record.result=="Complete" or record.result=="Fail" then return record.result end
-	if apocalypseQuestFreeWineSuccessReady(playerIndex)==true then return "Complete" end
+	if QuestPrivate.apocalypseQuestFreeWineSuccessReady(playerIndex)==true then return "Complete" end
 	--At pre-end-turn the Keep Shield has not been dropped yet; that happens later in monster cleanup.
 	--Read the actual garrison result while attackedMonsters still contains its original map position.
 	local target=nil
@@ -3627,9 +3627,9 @@ end
 function apocalypseQuestCaptureFreeWineResolutionGate(playerIndex)
 	local card=getObjectFromGUID("37e2ce")
 	local state=card~=nil and QuestPrivate.apocalypseQuestProgressState(card,playerIndex,false) or nil
-	local record=apocalypseQuestFreeWineAssaultRecord(playerIndex)
+	local record=QuestPrivate.apocalypseQuestFreeWineAssaultRecord(playerIndex)
 	if card==nil or state==nil or state.step~=2 or record==nil then return false end
-	local action=apocalypseQuestFreeWineCombatOutcome(playerIndex)
+	local action=QuestPrivate.apocalypseQuestFreeWineCombatOutcome(playerIndex)
 	if action==nil then return false end
 	--Create the normal pending reward resolution when the combat outcome is known, not when 1A first
 	--sends the Hero toward the Keep. The 12-second soft-lock window starts later at Rewards Claimed.
@@ -3638,20 +3638,20 @@ function apocalypseQuestCaptureFreeWineResolutionGate(playerIndex)
 	return true
 end
 
-function apocalypseQuestFreeWineStartAssault(card,playerIndex)
+function QuestPrivate.apocalypseQuestFreeWineStartAssault(card,playerIndex)
 	if card==nil or turnOrder[playerIndex]==nil then return false end
 	local pos=card.getPosition()
 	--1A's reminder Shield knows the Quest's planned slot, so send it straight to the matching future position.
 	local surface=apocalypseQuestPlannedWorldPosition(card,{pos[1]+0.62,pos[2]+0.65,pos[3]+0.15})
-	local target=apocalypseQuestRaisedPiecePosition(surface)
-	local shield=apocalypseQuestTakePlayerShield(playerIndex,surface)
+	local target=QuestPrivate.apocalypseQuestRaisedPiecePosition(surface)
+	local shield=QuestPrivate.apocalypseQuestTakePlayerShield(playerIndex,surface)
 	apocalypseQuestRegisterMoveAttachment(card,shield,target)
 	if shield~=nil then shield.unlock() end
 	--1A commits the player to resolving this Keep assault. Do not create the Rewards Claimed resolution
 	--gate yet: the combat itself can take as long as needed. The outcome gate is created at the rewards
 	--boundary after success/failure can actually be determined.
 	gStates.apocalypseQuestFreeWineAssault=nil
-	local targets=apocalypseQuestFreeWineKeepTargets(playerIndex)
+	local targets=QuestPrivate.apocalypseQuestFreeWineKeepTargets(playerIndex)
 	if #targets==1 then
 		local avatar=coopAssaultAvatarObject(playerIndex)
 		if avatar~=nil then
@@ -3669,7 +3669,7 @@ function apocalypseQuestFreeWineStartAssault(card,playerIndex)
 				if finished==true then return end
 				finished=true
 				local movedAvatar=getObjectFromGUID(avatarGUID)
-				if movedAvatar==nil or apocalypseQuestFreeWineAssaultRecord(playerIndex)~=nil then return end
+				if movedAvatar==nil or QuestPrivate.apocalypseQuestFreeWineAssaultRecord(playerIndex)~=nil then return end
 				local current=movedAvatar.getPosition()
 				local dx=current[1]-targets[1].position[1]
 				local dz=current[3]-targets[1].position[3]
@@ -3686,7 +3686,7 @@ function apocalypseQuestFreeWineStartAssault(card,playerIndex)
 	return true
 end
 
-function apocalypseQuestConqueredThisTurnLocationLegal(hex,playerIndex)
+function QuestPrivate.apocalypseQuestConqueredThisTurnLocationLegal(hex,playerIndex)
 	if hex==nil or turnOrder[playerIndex]==nil then return false end
 	local records=gStates.apocalypseQuestConqueredThisTurn
 	local record=records~=nil and records[turnOrder[playerIndex].mage] or nil
@@ -3698,7 +3698,7 @@ end
 --that must be clicked during the tiny post-combat window. Keep that conquest available through the
 --other players' turns; it expires only when its Hero starts playing their next turn, or another Hero
 --conquers a new eligible site and therefore becomes the latest claimant.
-function apocalypseQuestUnderSiegeReadyPlayer()
+function QuestPrivate.apocalypseQuestUnderSiegeReadyPlayer()
 	local ready=gStates.apocalypseQuestUnderSiegeReady
 	if ready==nil then return nil,nil end
 	local details=turnOrder[ready.player]
@@ -3724,23 +3724,23 @@ function apocalypseQuestUnderSiegeRecordConquest(playerIndex,terrainGUID,bearing
 	return true
 end
 
-function apocalypseQuestUnderSiegeLocationLegal(hex,playerIndex)
-	local readyPlayer,ready=apocalypseQuestUnderSiegeReadyPlayer()
+function QuestPrivate.apocalypseQuestUnderSiegeLocationLegal(hex,playerIndex)
+	local readyPlayer,ready=QuestPrivate.apocalypseQuestUnderSiegeReadyPlayer()
 	if hex==nil or readyPlayer~=playerIndex or ready==nil then return false end
 	if ready.terrainGUID~=hex.terrainGUID or tostring(ready.bearing)~=tostring(hex.bearing) then return false end
-	local _,mapObjects=apocalypseQuestCurrentPlayerHex(playerIndex)
+	local _,mapObjects=QuestPrivate.apocalypseQuestCurrentPlayerHex(playerIndex)
 	return apocalypseQuestHexHasShield(hex,mapObjects,playerIndex,false)==true
 end
 
-function apocalypseQuestUnderSiegeInterfacePlayerIndex(card)
+function QuestPrivate.apocalypseQuestUnderSiegeInterfacePlayerIndex(card)
 	if card==nil or card.guid~="a6d5cc" then return gStates.turnNumber end
 	local ownerIndex=QuestPrivate.apocalypseQuestPersonalShieldOwner(card)
 	if ownerIndex~=nil then return ownerIndex end
-	local readyPlayer=apocalypseQuestUnderSiegeReadyPlayer()
+	local readyPlayer=QuestPrivate.apocalypseQuestUnderSiegeReadyPlayer()
 	return readyPlayer or gStates.turnNumber
 end
 
-function apocalypseQuestUnderSiegeMovedThisTurn(playerIndex)
+function QuestPrivate.apocalypseQuestUnderSiegeMovedThisTurn(playerIndex)
 	local pending=gStates.apocalypseQuestUnderSiegeStep2
 	local details=turnOrder[playerIndex]
 	if pending==nil or details==nil or pending.player~=playerIndex or pending.mage~=details.mage or (gStates.apocalypseQuestTurnSerial or 0)<= (pending.serial or 0) then return false end
@@ -3761,11 +3761,11 @@ function apocalypseQuestUnderSiegeMarkMoved(playerIndex)
 	end
 end
 
-function apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,key)
+function QuestPrivate.apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,key)
 	local pending=gStates.apocalypseQuestUnderSiegeStep2
 	local details=turnOrder[playerIndex]
 	if pending==nil or details==nil or pending.player~=playerIndex or pending.mage~=details.mage or gStates.turnNumber~=playerIndex or (gStates.apocalypseQuestTurnSerial or 0)<= (pending.serial or 0) then return false end
-	local moved=apocalypseQuestUnderSiegeMovedThisTurn(playerIndex)
+	local moved=QuestPrivate.apocalypseQuestUnderSiegeMovedThisTurn(playerIndex)
 	--2B is always a legal voluntary failure once Step 2 is active. 2A remains available only while
 	--the Hero has stayed at the Quest marker and can still stand and fight.
 	if tostring(key)=="2b" then return true end
@@ -3774,7 +3774,7 @@ function apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,key)
 end
 
 function apocalypseQuestUnderSiegeCardPlayed(zone,obj)
-	local readyPlayer,ready=apocalypseQuestUnderSiegeReadyPlayer()
+	local readyPlayer,ready=QuestPrivate.apocalypseQuestUnderSiegeReadyPlayer()
 	if readyPlayer==nil or ready==nil or zone==nil or obj==nil or gStates.turnNumber~=readyPlayer then return false end
 	local details=turnOrder[readyPlayer]
 	if details==nil or zone.guid~=playerPlayAreas[details.seatPos] or obj.type~="Card" or gameCards[obj.guid]==nil or obj.getGMNotes()=="Wound" then return false end
@@ -3782,11 +3782,11 @@ function apocalypseQuestUnderSiegeCardPlayed(zone,obj)
 	if (gStates.apocalypseQuestTurnSerial or 0)<= (ready.serial or 0) then return false end
 	gStates.apocalypseQuestUnderSiegeReady=nil
 	local card=getObjectFromGUID("a6d5cc")
-	if card~=nil then safeWaitFrames("Quests",function() local live=getObjectFromGUID("a6d5cc") if live~=nil then apocalypseQuestInterfaceAdd(live,true) end end,2) end
+	if card~=nil then safeWaitFrames("Quests",function() local live=getObjectFromGUID("a6d5cc") if live~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(live,true) end end,2) end
 	return true
 end
 
-function apocalypseQuestAnyHumanMayConfirm(playerColor)
+function QuestPrivate.apocalypseQuestAnyHumanMayConfirm(playerColor)
 	if playerColor=="Black" then return true end
 	if playerColor==nil or playerColor=="Grey" or Player[playerColor]==nil or Player[playerColor].seated~=true then return false end
 	local hand=Player[playerColor].getHandTransform()
@@ -3798,7 +3798,7 @@ function apocalypseQuestAnyHumanMayConfirm(playerColor)
 	return false
 end
 
-function apocalypseQuestTravellingMerchantRelocate(card,playerIndex)
+function QuestPrivate.apocalypseQuestTravellingMerchantRelocate(card,playerIndex)
 	if card==nil then return false end
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
 		local color=apocalypseQuestManaTokenColor(obj)
@@ -3814,25 +3814,25 @@ function apocalypseQuestTravellingMerchantRelocate(card,playerIndex)
 	local distances=runtimeMapHexDistanceMap(hexes,{start})
 	local candidates={}
 	for _, hex in ipairs(hexes) do
-		if distances[runtimeMapHexKey(hex)]==3 and apocalypseQuestHexSafe(hex,mapObjects,playerIndex)==true and apocalypseQuestHexHasOtherQuestMarker(hex,token.guid)~=true then candidates[#candidates+1]=hex end
+		if distances[runtimeMapHexKey(hex)]==3 and QuestPrivate.apocalypseQuestHexSafe(hex,mapObjects,playerIndex)==true and QuestPrivate.apocalypseQuestHexHasOtherQuestMarker(hex,token.guid)~=true then candidates[#candidates+1]=hex end
 	end
 	if #candidates==0 then
 		broadcastToAll("{en}Travelling Merchant: no legal safe space exactly 3 revealed spaces away was found; move the highlighted Quest marker manually.{ru}Travelling Merchant: не найдено допустимой безопасной клетки ровно в 3 открытых клетках; переместите выделенный жетон задания вручную.{zh-tw}Travelling Merchant：找不到正好相距 3 個已揭示空間的合法安全空間；請手動移動高亮任務標記。{zh-cn}Travelling Merchant：找不到正好相距 3 个已揭示空间的合法安全空间；请手动移动高亮任务标记。{ko}Travelling Merchant: 공개된 칸 기준 정확히 3칸 떨어진 합법적인 안전 칸을 찾지 못했습니다. 강조된 퀘스트 마커를 수동으로 이동하십시오.{es}Travelling Merchant: no se encontró un espacio seguro legal exactamente a 3 espacios revelados; mueve manualmente el marcador de Misión resaltado.{fr}Travelling Merchant : aucune case sûre légale à exactement 3 cases révélées n’a été trouvée ; déplacez manuellement le marqueur de Quête surligné.{pt-br}Travelling Merchant: não foi encontrado espaço seguro válido exatamente a 3 espaços revelados; mova manualmente o marcador de Missão destacado.{de}Travelling Merchant: Es wurde kein gültiges sicheres Feld in genau 3 aufgedeckten Feldern Entfernung gefunden; bewege den hervorgehobenen Questmarker manuell.",positionToColor(playerIndex))
-		apocalypseQuestHighlightMarker(token)
+		QuestPrivate.apocalypseQuestHighlightMarker(token)
 		return true
 	end
 	local target=candidates[1]
-	apocalypseQuestTrackMarkerMove(token,{target.position[1],1.45,target.position[3]},target.terrainGUID,target.bearing)
+	QuestPrivate.apocalypseQuestTrackMarkerMove(token,{target.position[1],1.45,target.position[3]},target.terrainGUID,target.bearing)
 	token.unlock()
 	token.setPositionSmooth({target.position[1],1.45,target.position[3]})
 	if #candidates>1 then
-		apocalypseQuestHighlightMarker(token)
+		QuestPrivate.apocalypseQuestHighlightMarker(token)
 		broadcastToAll(joinLang({"{en}Travelling Merchant: {ru}Travelling Merchant: доступно допустимых мест назначения: {zh-tw}Travelling Merchant：共有 {zh-cn}Travelling Merchant：共有 {ko}Travelling Merchant: 합법적인 목적지가 {es}Travelling Merchant: existen {fr}Travelling Merchant : {pt-br}Travelling Merchant: existem {de}Travelling Merchant: Es gibt ",tostring(#candidates),"{en} legal destinations exist. The first was selected; move the highlighted marker if you prefer another.{ru}. Выбрано первое; переместите выделенный жетон, если предпочитаете другое.{zh-tw} 個合法目的地。已選擇第一個；若偏好其他位置，請移動高亮標記。{zh-cn} 个合法目的地。已选择第一个；若偏好其他位置，请移动高亮标记。{ko}개 있습니다. 첫 번째를 선택했습니다. 다른 곳을 원하면 강조된 마커를 이동하십시오.{es} destinos legales. Se seleccionó el primero; mueve el marcador resaltado si prefieres otro.{fr} destinations légales existent. La première a été sélectionnée ; déplacez le marqueur surligné si vous en préférez une autre.{pt-br} destinos válidos. O primeiro foi selecionado; mova o marcador destacado se preferir outro.{de} gültige Ziele. Das erste wurde ausgewählt; bewege den hervorgehobenen Marker, wenn du ein anderes bevorzugst."}),positionToColor(playerIndex))
-	else apocalypseQuestClearMarkerHighlight(token) end
+	else QuestPrivate.apocalypseQuestClearMarkerHighlight(token) end
 	return true
 end
 
-function apocalypseQuestMagicOverloadPlaceSite(card,playerIndex)
+function QuestPrivate.apocalypseQuestMagicOverloadPlaceSite(card,playerIndex)
 	local highest=0
 	for _, details in ipairs(turnOrder) do
 		if details.mage~=nil and details.mage~="nobody" and details.mage~=gStates.positionMageKnight[5] and details.dropoutState==nil then highest=math.max(highest,details.level or 1) end
@@ -3841,7 +3841,7 @@ function apocalypseQuestMagicOverloadPlaceSite(card,playerIndex)
 	local unused=chosen=="a4777c" and "963031" or "a4777c"
 	local token=getObjectFromGUID(chosen)
 	if token==nil then return false end
-	if apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)~=true then return false end
+	if QuestPrivate.apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)~=true then return false end
 	if gStates.apocalypseQuestMarkerPlacements==nil then gStates.apocalypseQuestMarkerPlacements={} end
 	gStates.apocalypseQuestMarkerPlacements[chosen]=true
 	local spare=getObjectFromGUID(unused)
@@ -3852,7 +3852,7 @@ function apocalypseQuestMagicOverloadPlaceSite(card,playerIndex)
 	return true
 end
 
-function apocalypseQuestVeryPersonalUnit(card)
+function QuestPrivate.apocalypseQuestVeryPersonalUnit(card)
 	local token=getObjectFromGUID("7e4e4c")
 	if token==nil then return nil end
 	local pos=token.getPosition()
@@ -3868,8 +3868,8 @@ function apocalypseQuestVeryPersonalUnit(card)
 	return bestDistance<2.5 and best or nil
 end
 
-function apocalypseQuestDisbandVeryPersonalUnit(card)
-	local unit=apocalypseQuestVeryPersonalUnit(card)
+function QuestPrivate.apocalypseQuestDisbandVeryPersonalUnit(card)
+	local unit=QuestPrivate.apocalypseQuestVeryPersonalUnit(card)
 	if unit==nil then return false end
 	local cardType=gameCardType(unit)
 	local deckName=cardType=="Elite Unit" and "Elite Unit" or cardType=="Regular Unit" and "Regular Unit" or nil
@@ -3883,13 +3883,13 @@ function apocalypseQuestDisbandVeryPersonalUnit(card)
 	return false
 end
 
-function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
+function QuestPrivate.apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 	if card==nil or option==nil then return true end
 	local quest=apocalypseQuestData[card.guid]
 	if quest==nil then return true end
-	local rule=apocalypseQuestStarterLocationRule(card,option)
+	local rule=QuestPrivate.apocalypseQuestStarterLocationRule(card,option)
 	if rule==nil then return true end
-	local hex,mapObjects=apocalypseQuestCurrentPlayerHex(playerIndex)
+	local hex,mapObjects=QuestPrivate.apocalypseQuestCurrentPlayerHex(playerIndex)
 	if hex==nil then return false end
 
 	local handler=apocalypseQuestHandler(card)
@@ -3900,7 +3900,7 @@ function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 	end
 
 	if rule.warrens==true then
-		if hex.hexType~="hills" or apocalypseQuestHexNoSite(hex)~=true then return false end
+		if hex.hexType~="hills" or QuestPrivate.apocalypseQuestHexNoSite(hex)~=true then return false end
 		local transit=gStates.apocalypseQuestMarkerTransit~=nil and gStates.apocalypseQuestMarkerTransit["02f996"] or nil
 		if transit~=nil then return transit.terrainGUID==hex.terrainGUID and tostring(transit.bearing)==tostring(hex.bearing) end
 		local token=getObjectFromGUID("02f996")
@@ -3911,8 +3911,8 @@ function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 		end
 		return true
 	end
-	if rule.inhabited==true and apocalypseQuestInhabitedFeature(hex.feature)~=true then return false end
-	if rule.safe==true and apocalypseQuestHexSafe(hex,mapObjects,playerIndex)~=true then return false end
+	if rule.inhabited==true and QuestPrivate.apocalypseQuestInhabitedFeature(hex.feature)~=true then return false end
+	if rule.safe==true and QuestPrivate.apocalypseQuestHexSafe(hex,mapObjects,playerIndex)~=true then return false end
 	if rule.unconqueredAdventure==true then
 		if apocalypseQuestHexAdventureSite(hex)~=true or apocalypseQuestHexHasShield(hex,mapObjects,playerIndex,true)==true then return false end
 	end
@@ -3953,7 +3953,7 @@ function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 	end
 	if rule.coastalTile==true then
 		local hexes=QuestPrivate.apocalypseQuestMapHexes()
-		if apocalypseQuestTerrainTileCoastal(hexes,hex.terrain)~=true then return false end
+		if QuestPrivate.apocalypseQuestTerrainTileCoastal(hexes,hex.terrain)~=true then return false end
 	end
 	if rule.features~=nil then
 		local matches=false
@@ -3965,16 +3965,16 @@ function apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 		for _, terrainType in ipairs(rule.terrains) do if hex.hexType==terrainType then matches=true break end end
 		if matches~=true then return false end
 	end
-	if rule.noSite==true and apocalypseQuestHexNoSite(hex)~=true then return false end
-	if rule.destroyedMonastery==true and apocalypseQuestHexDestroyedMonastery(hex)~=true then return false end
+	if rule.noSite==true and QuestPrivate.apocalypseQuestHexNoSite(hex)~=true then return false end
+	if rule.destroyedMonastery==true and QuestPrivate.apocalypseQuestHexDestroyedMonastery(hex)~=true then return false end
 	if rule.unconquered==true and apocalypseQuestHexHasShield(hex,mapObjects,playerIndex,true)==true then return false end
-	if rule.freeWine==true and apocalypseQuestFreeWineLocationLegal(hex,mapObjects,playerIndex)~=true then return false end
-	if rule.conqueredThisTurn==true and apocalypseQuestConqueredThisTurnLocationLegal(hex,playerIndex)~=true then return false end
+	if rule.freeWine==true and QuestPrivate.apocalypseQuestFreeWineLocationLegal(hex,mapObjects,playerIndex)~=true then return false end
+	if rule.conqueredThisTurn==true and QuestPrivate.apocalypseQuestConqueredThisTurnLocationLegal(hex,playerIndex)~=true then return false end
 	if rule.interactionSite==true and apocalypseQuestHexInteractionSite(hex,mapObjects,playerIndex)~=true then return false end
-	if rule.requireInteractable==true and apocalypseQuestHexSiteInteractable(hex,mapObjects,playerIndex)~=true then return false end
-	if rule.sameToken~=nil and apocalypseQuestTokenOnHex(rule.sameToken,hex,mapObjects)~=true then return false end
-	if rule.excludeToken~=nil and apocalypseQuestTokenOnHex(rule.excludeToken,hex,mapObjects)==true then return false end
-	if rule.randomObjectsTreasure==true and apocalypseQuestRandomObjectsTreasureLocation(hex,mapObjects)~=true then return false end
+	if rule.requireInteractable==true and QuestPrivate.apocalypseQuestHexSiteInteractable(hex,mapObjects,playerIndex)~=true then return false end
+	if rule.sameToken~=nil and QuestPrivate.apocalypseQuestTokenOnHex(rule.sameToken,hex,mapObjects)~=true then return false end
+	if rule.excludeToken~=nil and QuestPrivate.apocalypseQuestTokenOnHex(rule.excludeToken,hex,mapObjects)==true then return false end
+	if rule.randomObjectsTreasure==true and QuestPrivate.apocalypseQuestRandomObjectsTreasureLocation(hex,mapObjects)~=true then return false end
 	return true
 end
 
@@ -4000,7 +4000,7 @@ end
 
 --Place an "on your site" Quest marker directly beneath the acting Mage Knight. Raise the avatar first,
 --using the same technique as end-of-turn site cleanup, so the token does not strike the model and tip over.
-function apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)
+function QuestPrivate.apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)
 	if token==nil then return false end
 	local target=fracturedLandsTeleportSourcePosition(playerIndex)
 	if target==nil then return false end
@@ -4025,7 +4025,7 @@ function apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)
 	apocalypseQuestUndoSiteToken(token.guid)
 	token.unlock()
 	token.setRotationSmooth({0,180,0})
-	apocalypseQuestTrackMarkerMove(token,{target[1],1.22,target[3]},terrain.guid,bearing)
+	QuestPrivate.apocalypseQuestTrackMarkerMove(token,{target[1],1.22,target[3]},terrain.guid,bearing)
 	token.setPositionSmooth({target[1],1.22,target[3]})
 	if avatar~=nil and avatarPos~=nil then
 		local tokenGUID=token.guid
@@ -4039,7 +4039,7 @@ function apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)
 	return true
 end
 
-function apocalypseQuestHexDestroyedMonastery(hex)
+function QuestPrivate.apocalypseQuestHexDestroyedMonastery(hex)
 	if hex==nil then return false end
 	if hex.feature=="monastery" and gStates.monasteryBurned~=nil and gStates.monasteryBurned[hex.terrainGUID]==true then return true end
 	if hex.feature=="destroyed" and gStates.destroyedSites~=nil then
@@ -4050,7 +4050,7 @@ function apocalypseQuestHexDestroyedMonastery(hex)
 	return false
 end
 
-function apocalypseQuestHexHasOtherQuestMarker(hex, movingTokenGUID)
+function QuestPrivate.apocalypseQuestHexHasOtherQuestMarker(hex, movingTokenGUID)
 	if hex==nil or gStates.apocalypseQuestTokenGUIDs==nil then return false end
 	for tokenGUID, _ in pairs(gStates.apocalypseQuestTokenGUIDs) do
 		if tokenGUID~=movingTokenGUID then
@@ -4071,7 +4071,7 @@ function apocalypseQuestHexHasOtherQuestMarker(hex, movingTokenGUID)
 	return false
 end
 
-function apocalypseQuestTerrainTileOnCurrentMapEdge(hexes, terrainGUID)
+function QuestPrivate.apocalypseQuestTerrainTileOnCurrentMapEdge(hexes, terrainGUID)
 	for _, hex in ipairs(hexes or {}) do
 		if hex.terrainGUID==terrainGUID then
 			local neighbours=0
@@ -4084,7 +4084,7 @@ function apocalypseQuestTerrainTileOnCurrentMapEdge(hexes, terrainGUID)
 	return false
 end
 
-function apocalypseQuestTerrainTileCoastal(hexes, terrain)
+function QuestPrivate.apocalypseQuestTerrainTileCoastal(hexes, terrain)
 	if terrain==nil then return false end
 	local wedgeUsed=false
 	for _, hex in ipairs(hexes or {}) do
@@ -4103,10 +4103,10 @@ function apocalypseQuestTerrainTileCoastal(hexes, terrain)
 	end
 	--Open maps do not use the wedge bearing restriction. Use the currently revealed outer edge;
 	--the highlighted marker remains movable when several edge villages are available.
-	return apocalypseQuestTerrainTileOnCurrentMapEdge(hexes,terrain.guid)
+	return QuestPrivate.apocalypseQuestTerrainTileOnCurrentMapEdge(hexes,terrain.guid)
 end
 
-function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
+function QuestPrivate.apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 	if card==nil or rule==nil or token==nil then return {} end
 	local hexes,mapObjects=QuestPrivate.apocalypseQuestMapHexes()
 	if #hexes==0 then return {} end
@@ -4146,10 +4146,10 @@ function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 			legal=false
 			for _, feature in ipairs(rule.features) do if QuestPrivate.apocalypseQuestFeatureMatches(hex.feature,feature)==true then legal=true break end end
 		end
-		if legal and rule.requireInteractable==true and apocalypseQuestHexSiteInteractable(hex,mapObjects,playerIndex)~=true then legal=false end
-		if legal and rule.destroyedMonastery==true and apocalypseQuestHexDestroyedMonastery(hex)~=true then legal=false end
-		if legal and rule.safe==true and apocalypseQuestHexSafe(hex,mapObjects,playerIndex)~=true then legal=false end
-		if legal and rule.noSite==true and apocalypseQuestHexNoSite(hex)~=true then legal=false end
+		if legal and rule.requireInteractable==true and QuestPrivate.apocalypseQuestHexSiteInteractable(hex,mapObjects,playerIndex)~=true then legal=false end
+		if legal and rule.destroyedMonastery==true and QuestPrivate.apocalypseQuestHexDestroyedMonastery(hex)~=true then legal=false end
+		if legal and rule.safe==true and QuestPrivate.apocalypseQuestHexSafe(hex,mapObjects,playerIndex)~=true then legal=false end
+		if legal and rule.noSite==true and QuestPrivate.apocalypseQuestHexNoSite(hex)~=true then legal=false end
 		if legal and rule.unconqueredAdventure==true then
 			if apocalypseQuestHexAdventureSite(hex)~=true or apocalypseQuestHexHasShield(hex,mapObjects,playerIndex,true)==true then legal=false end
 		end
@@ -4157,7 +4157,7 @@ function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 		if legal and rule.accessibleNoSite==true then
 			local feature=string.lower(tostring(hex.feature or ""))
 			local noSite=feature=="" or feature=="portal" or feature=="destroyed" or
-				((feature=="rampaging" or feature=="draconum") and apocalypseQuestHexHasEnemy(hex,mapObjects)~=true) or
+				((feature=="rampaging" or feature=="draconum") and QuestPrivate.apocalypseQuestHexHasEnemy(hex,mapObjects)~=true) or
 				(feature=="monastery" and gStates.monasteryBurned~=nil and gStates.monasteryBurned[hex.terrainGUID]==true)
 			if hex.hexType=="lake" or hex.hexType=="mountain" or hex.hexType=="ocean" or noSite~=true then legal=false end
 		end
@@ -4187,10 +4187,10 @@ function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 			if legal and rule.distanceFromMarkerMin~=nil and distance<rule.distanceFromMarkerMin then legal=false end
 		end
 		if legal and rule.coastalTile==true then
-			if coastalCache[hex.terrainGUID]==nil then coastalCache[hex.terrainGUID]=apocalypseQuestTerrainTileCoastal(hexes,hex.terrain) end
+			if coastalCache[hex.terrainGUID]==nil then coastalCache[hex.terrainGUID]=QuestPrivate.apocalypseQuestTerrainTileCoastal(hexes,hex.terrain) end
 			if coastalCache[hex.terrainGUID]~=true then legal=false end
 		end
-		if legal and apocalypseQuestHexHasOtherQuestMarker(hex,token.guid)==true then legal=false end
+		if legal and QuestPrivate.apocalypseQuestHexHasOtherQuestMarker(hex,token.guid)==true then legal=false end
 		if legal then candidates[#candidates+1]=hex end
 	end
 	local sourceHex=apocalypseQuestPlayerHex(hexes,mapObjects,playerIndex)
@@ -4215,7 +4215,7 @@ function apocalypseQuestMarkerLegalHexes(card, playerIndex, rule, token)
 	return candidates,hexes,mapObjects
 end
 
-function apocalypseQuestMarkerCurrentHexLegal(token,candidates,hexes,mapObjects)
+function QuestPrivate.apocalypseQuestMarkerCurrentHexLegal(token,candidates,hexes,mapObjects)
 	if token==nil then return false end
 	local current=runtimeMapHexForPosition(hexes,token.getPosition(),mapObjects)
 	if current==nil then return false end
@@ -4226,14 +4226,14 @@ function apocalypseQuestMarkerCurrentHexLegal(token,candidates,hexes,mapObjects)
 	return false
 end
 
-function apocalypseQuestHighlightMarker(token)
+function QuestPrivate.apocalypseQuestHighlightMarker(token)
 	if token==nil then return end
 	if gStates.apocalypseQuestHighlightedTokens==nil then gStates.apocalypseQuestHighlightedTokens={} end
 	token.highlightOn({1,0.9,0})
 	gStates.apocalypseQuestHighlightedTokens[token.guid]=true
 end
 
-function apocalypseQuestClearMarkerHighlight(token)
+function QuestPrivate.apocalypseQuestClearMarkerHighlight(token)
 	if token==nil then return end
 	token.highlightOff({1,0.9,0})
 	if gStates.apocalypseQuestHighlightedTokens~=nil then gStates.apocalypseQuestHighlightedTokens[token.guid]=nil end
@@ -4248,7 +4248,7 @@ function apocalypseQuestClearMarkerHighlights()
 	gStates.apocalypseQuestHighlightedTokens={}
 end
 
-function apocalypseQuestMarkerPlacementCommitted(rule)
+function QuestPrivate.apocalypseQuestMarkerPlacementCommitted(rule)
 	if rule==nil or gStates.apocalypseQuestMarkerPlacements==nil then return false end
 	for _, guid in ipairs(rule.tokens or {}) do
 		if gStates.apocalypseQuestMarkerPlacements[guid]==true then return true end
@@ -4256,7 +4256,7 @@ function apocalypseQuestMarkerPlacementCommitted(rule)
 	return false
 end
 
-function apocalypseQuestCommitStepMarker(card, option)
+function QuestPrivate.apocalypseQuestCommitStepMarker(card, option)
 	if card==nil or option==nil then return end
 	local rule=QuestPrivate.apocalypseQuestMarkerRule(card,QuestPrivate.apocalypseQuestStepNumber(option.key))
 	if rule==nil then return end
@@ -4266,7 +4266,7 @@ function apocalypseQuestCommitStepMarker(card, option)
 	gStates.apocalypseQuestMarkerPlacements[token.guid]=true
 end
 
-function apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)
+function QuestPrivate.apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)
 	if card==nil or option==nil then return true end
 	local rule=QuestPrivate.apocalypseQuestMarkerRule(card,QuestPrivate.apocalypseQuestStepNumber(option.key))
 	if rule==nil then return true end
@@ -4275,29 +4275,29 @@ function apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)
 		if playerColor~=nil then broadcastToColor("{en}The required Quest marker could not be found.{ru}Не удалось найти требуемый жетон задания.{zh-tw}找不到所需的任務標記。{zh-cn}找不到所需的任务标记。{ko}필요한 퀘스트 마커를 찾지 못했습니다.{es}No se pudo encontrar el marcador de Misión requerido.{fr}Le marqueur de Quête requis est introuvable.{pt-br}O marcador de Missão necessário não foi encontrado.{de}Der erforderliche Questmarker wurde nicht gefunden.", playerColor, {1,0.55,0.2}) end
 		return false
 	end
-	if rule.relocate~=true and apocalypseQuestMarkerPlacementCommitted(rule)==true then return true end
+	if rule.relocate~=true and QuestPrivate.apocalypseQuestMarkerPlacementCommitted(rule)==true then return true end
 	if rule.atPlayer==true then
-		if apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then
+		if QuestPrivate.apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then
 			if playerColor~=nil then broadcastToColor("{en}Your Mage Knight is not at a valid location for this Quest step.{ru}Ваш Рыцарь-маг находится не в допустимом месте для этого шага задания.{zh-tw}你的魔法騎士不在此任務步驟的合法地點。{zh-cn}你的魔法骑士不在此任务步骤的合法地点。{ko}마법 기사가 이 퀘스트 단계에 유효한 장소에 있지 않습니다.{es}Tu Caballero Mago no está en un lugar válido para este paso de Misión.{fr}Votre Chevalier-Mage ne se trouve pas sur un lieu valide pour cette étape de Quête.{pt-br}Seu Cavaleiro-Mago não está em um local válido para esta etapa da Missão.{de}Dein Magieritter befindet sich nicht an einem gültigen Ort für diesen Quest-Schritt.", playerColor, warningColor) end
 			return false
 		end
-		local playerHex=apocalypseQuestCurrentPlayerHex(playerIndex)
-		if playerHex==nil or apocalypseQuestHexHasOtherQuestMarker(playerHex,token.guid)==true then
+		local playerHex=QuestPrivate.apocalypseQuestCurrentPlayerHex(playerIndex)
+		if playerHex==nil or QuestPrivate.apocalypseQuestHexHasOtherQuestMarker(playerHex,token.guid)==true then
 			if playerColor~=nil then broadcastToColor("{en}That map space already contains a Quest marker. Only one Quest marker may be placed in a map space.{ru}На этой клетке карты уже есть жетон задания. На одной клетке может находиться только один жетон задания.{zh-tw}該地圖空間已有任務標記。每個地圖空間只能放置一個任務標記。{zh-cn}该地图空间已有任务标记。每个地图空间只能放置一个任务标记。{ko}해당 지도 칸에 이미 퀘스트 마커가 있습니다. 한 지도 칸에는 퀘스트 마커를 하나만 놓을 수 있습니다.{es}Ese espacio del mapa ya contiene un marcador de Misión. Solo puede colocarse un marcador de Misión en cada espacio.{fr}Cette case de carte contient déjà un marqueur de Quête. Un seul marqueur de Quête peut être placé par case.{pt-br}Esse espaço do mapa já contém um marcador de Missão. Apenas um marcador de Missão pode ser colocado em cada espaço.{de}Dieses Kartenfeld enthält bereits einen Questmarker. Pro Kartenfeld darf nur ein Questmarker platziert werden.", playerColor, warningColor) end
 			return false
 		end
-		local placed=apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)
+		local placed=QuestPrivate.apocalypseQuestPlaceMarkerAtPlayer(token,playerIndex)
 		if placed~=true and playerColor~=nil then broadcastToColor("{en}The Quest marker could not be placed at your Mage Knight.{ru}Жетон задания не удалось разместить у вашего Рыцаря-мага.{zh-tw}無法在你的魔法騎士位置放置任務標記。{zh-cn}无法在你的魔法骑士位置放置任务标记。{ko}마법 기사 위치에 퀘스트 마커를 놓지 못했습니다.{es}No se pudo colocar el marcador de Misión junto a tu Caballero Mago.{fr}Le marqueur de Quête n’a pas pu être placé sur votre Chevalier-Mage.{pt-br}O marcador de Missão não pôde ser colocado em seu Cavaleiro-Mago.{de}Der Questmarker konnte nicht bei deinem Magieritter platziert werden.", playerColor, {1,0.55,0.2}) end
 		return placed==true
 	end
-	local candidates,hexes,mapObjects=apocalypseQuestMarkerLegalHexes(card,playerIndex,rule,token)
+	local candidates,hexes,mapObjects=QuestPrivate.apocalypseQuestMarkerLegalHexes(card,playerIndex,rule,token)
 	if #candidates==0 then
-		apocalypseQuestClearMarkerHighlight(token)
+		QuestPrivate.apocalypseQuestClearMarkerHighlight(token)
 		if playerColor~=nil then broadcastToColor("{en}There is no legal map space for this Quest marker yet.{ru}Для этого жетона задания пока нет допустимой клетки карты.{zh-tw}目前沒有可合法放置此任務標記的地圖空間。{zh-cn}目前没有可合法放置此任务标记的地图空间。{ko}아직 이 퀘스트 마커를 놓을 수 있는 합법적인 지도 칸이 없습니다.{es}Todavía no hay un espacio legal en el mapa para este marcador de Misión.{fr}Il n’existe pas encore de case de carte légale pour ce marqueur de Quête.{pt-br}Ainda não há espaço válido no mapa para este marcador de Missão.{de}Es gibt noch kein gültiges Kartenfeld für diesen Questmarker.", playerColor, warningColor) end
 		apocalypseQuestUpdateProgressButtons(card)
 		return false
 	end
-	local currentLegal=apocalypseQuestMarkerCurrentHexLegal(token,candidates,hexes,mapObjects)
+	local currentLegal=QuestPrivate.apocalypseQuestMarkerCurrentHexLegal(token,candidates,hexes,mapObjects)
 	local target=candidates[1]
 	if rule.closestToPlayer==true then
 		local current=runtimeMapHexForPosition(hexes,token.getPosition(),mapObjects)
@@ -4305,34 +4305,34 @@ function apocalypseQuestPlaceStepMarker(card, playerIndex, option, playerColor)
 	end
 	if currentLegal~=true then
 		token.unlock()
-		apocalypseQuestTrackMarkerMove(token,{target.position[1],1.45,target.position[3]},target.terrainGUID,target.bearing)
+		QuestPrivate.apocalypseQuestTrackMarkerMove(token,{target.position[1],1.45,target.position[3]},target.terrainGUID,target.bearing)
 		token.setPositionSmooth({target.position[1],1.45,target.position[3]})
 	end
 	if #candidates>1 then
-		apocalypseQuestHighlightMarker(token)
+		QuestPrivate.apocalypseQuestHighlightMarker(token)
 		if playerColor~=nil then
 			broadcastToColor(joinLang({tostring(#candidates),"{en} legal spaces are available. The first was selected; move the highlighted Quest marker if you prefer another.{ru} допустимых клеток доступно. Выбрана первая; переместите выделенный жетон задания, если предпочитаете другую.{zh-tw} 個合法空間可用。已選擇第一個；若偏好其他位置，請移動高亮任務標記。{zh-cn} 个合法空间可用。已选择第一个；若偏好其他位置，请移动高亮任务标记。{ko}개의 합법적인 칸이 있습니다. 첫 번째를 선택했습니다. 다른 곳을 원하면 강조된 퀘스트 마커를 이동하십시오.{es} espacios legales disponibles. Se seleccionó el primero; mueve el marcador de Misión resaltado si prefieres otro.{fr} cases légales disponibles. La première a été sélectionnée ; déplacez le marqueur de Quête surligné si vous en préférez une autre.{pt-br} espaços válidos disponíveis. O primeiro foi selecionado; mova o marcador de Missão destacado se preferir outro.{de} gültige Felder sind verfügbar. Das erste wurde ausgewählt; bewege den hervorgehobenen Questmarker, wenn du ein anderes bevorzugst."}), playerColor, {1,1,0.5})
 		end
 	else
-		apocalypseQuestClearMarkerHighlight(token)
+		QuestPrivate.apocalypseQuestClearMarkerHighlight(token)
 	end
 	return true
 end
 
-function apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)
+function QuestPrivate.apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)
 	if option==nil then return true end
 	local rule=QuestPrivate.apocalypseQuestMarkerRule(card,QuestPrivate.apocalypseQuestStepNumber(option.key))
 	if rule==nil then return true end
 	local token=QuestPrivate.apocalypseQuestMarkerObject(rule)
 	if token==nil then return false end
-	if rule.relocate~=true and apocalypseQuestMarkerPlacementCommitted(rule)==true then return true end
+	if rule.relocate~=true and QuestPrivate.apocalypseQuestMarkerPlacementCommitted(rule)==true then return true end
 	if rule.atPlayer==true then
-		if apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then return false end
-		local playerHex=apocalypseQuestCurrentPlayerHex(playerIndex)
-		return playerHex~=nil and apocalypseQuestHexHasOtherQuestMarker(playerHex,token.guid)~=true
+		if QuestPrivate.apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then return false end
+		local playerHex=QuestPrivate.apocalypseQuestCurrentPlayerHex(playerIndex)
+		return playerHex~=nil and QuestPrivate.apocalypseQuestHexHasOtherQuestMarker(playerHex,token.guid)~=true
 	end
-	local candidates,hexes,mapObjects=apocalypseQuestMarkerLegalHexes(card,playerIndex,rule,token)
-	if apocalypseQuestMarkerCurrentHexLegal(token,candidates,hexes,mapObjects)==true then return true end
+	local candidates,hexes,mapObjects=QuestPrivate.apocalypseQuestMarkerLegalHexes(card,playerIndex,rule,token)
+	if QuestPrivate.apocalypseQuestMarkerCurrentHexLegal(token,candidates,hexes,mapObjects)==true then return true end
 	return #candidates>0
 end
 
@@ -4349,7 +4349,7 @@ function apocalypseQuestRefreshOfferButtons()
 	--the permanent Quest-area scripting zone, so one small zone snapshot replaces a whole-table scan.
 	--Identify the offer once and pre-group attachments for every offer card from that same snapshot.
 	local allObjects=QuestPrivate.apocalypseQuestAreaObjects()
-	local offerCards=apocalypseQuestOfferCards(allObjects)
+	local offerCards=QuestPrivate.apocalypseQuestOfferCards(allObjects)
 	local objectCache={}
 	local cardPositions={}
 	for _, questCard in ipairs(offerCards) do
@@ -4362,7 +4362,7 @@ function apocalypseQuestRefreshOfferButtons()
 	apocalypseQuestRefreshOfferCardsCache=offerCards
 	for _, obj in pairs(allObjects) do
 		if known[obj.guid]~=true then
-			local rowOwner=apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
+			local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
 			if rowOwner~=nil and objectCache[rowOwner]~=nil then
 				objectCache[rowOwner][#objectCache[rowOwner]+1]=obj
 			else
@@ -4390,7 +4390,7 @@ function apocalypseQuestRefreshOfferButtons()
 	apocalypseQuestRefreshOfferCardsCache=nil
 end
 
-function apocalypseQuestRefreshAfterMarkerChange()
+function QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
 	--Bag returns are effectively immediate, while reward/relocation markers may still be smooth-moving.
 	--Refresh once now and once after the motion has had time to clear its old hex.
 	safeWaitFrames("Quests",function() apocalypseQuestRefreshOfferButtons() end,3)
@@ -4412,8 +4412,8 @@ goblinWarrensHandler.directChoices=function(card,playerIndex,state)
 end
 goblinWarrensHandler.directChoiceLegal=function(card,playerIndex,choice)
 	if choice.action~="GoblinWarrens" then return false end
-	local option=apocalypseQuestChoiceOption(card,"1")
-	return true,option~=nil and apocalypseQuestGoblinAttempt(playerIndex,true)==nil and apocalypseQuestStarterLocationLegal(card,playerIndex,option)==true and apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)==true
+	local option=QuestPrivate.apocalypseQuestChoiceOption(card,"1")
+	return true,option~=nil and apocalypseQuestGoblinAttempt(playerIndex,true)==nil and QuestPrivate.apocalypseQuestStarterLocationLegal(card,playerIndex,option)==true and QuestPrivate.apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)==true
 end
 goblinWarrensHandler.directAction=function(player,card,playerIndex,selected,key)
 	if selected.action~="GoblinWarrens" then return false end
@@ -4446,8 +4446,8 @@ nobleWarriorHandler.filterOption=function(card,playerIndex,action,option,state,c
 end
 nobleWarriorHandler.directChoices=function(card,playerIndex,state)
 	if state.step~=3 or apocalypseQuestCardCrystalColor(card)==nil then return nil end
-	local option=apocalypseQuestChoiceOption(card,"3a")
-	if option~=nil and apocalypseQuestStarterLocationLegal(card,playerIndex,option)==true then
+	local option=QuestPrivate.apocalypseQuestChoiceOption(card,"3a")
+	if option~=nil and QuestPrivate.apocalypseQuestStarterLocationLegal(card,playerIndex,option)==true then
 		return {{key="3a",action="Complete",label="3A"},{key="3b",action="Complete",label="3B"}}
 	end
 end
@@ -4459,7 +4459,7 @@ end
 local freeWineHandler=apocalypseQuestRegisterHandler("37e2ce")
 freeWineHandler.filterOption=function(card,playerIndex,action,option,state,context)
 	if state.step==2 and (action=="Complete" or action=="Fail") then
-		context.include=action=="Complete" and apocalypseQuestFreeWineSuccessReady(playerIndex) or apocalypseQuestFreeWineFailureReady(playerIndex)
+		context.include=action=="Complete" and QuestPrivate.apocalypseQuestFreeWineSuccessReady(playerIndex) or QuestPrivate.apocalypseQuestFreeWineFailureReady(playerIndex)
 		context.skipLegality=true
 		context.skipMarker=true
 	end
@@ -4472,7 +4472,7 @@ freeWineHandler.bottomDeckBeforeReveal=function() gStates.apocalypseQuestFreeWin
 
 local underSiegeHandler=apocalypseQuestRegisterHandler("a6d5cc")
 underSiegeHandler.mayAct=function(card,playerIndex)
-	local readyPlayer=apocalypseQuestUnderSiegeReadyPlayer()
+	local readyPlayer=QuestPrivate.apocalypseQuestUnderSiegeReadyPlayer()
 	if readyPlayer~=nil and readyPlayer~=playerIndex then return true,false end
 	return false
 end
@@ -4486,7 +4486,7 @@ underSiegeHandler.directChoices=function(card,playerIndex,state)
 	end
 end
 underSiegeHandler.directChoiceLegal=function(card,playerIndex,choice)
-	if QuestPrivate.apocalypseQuestStepNumber(choice.key)==2 and apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,choice.key)~=true then return true,false end
+	if QuestPrivate.apocalypseQuestStepNumber(choice.key)==2 and QuestPrivate.apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,choice.key)~=true then return true,false end
 	return false
 end
 underSiegeHandler.buttonState=function(card,playerIndex,questState,result)
@@ -4494,7 +4494,7 @@ underSiegeHandler.buttonState=function(card,playerIndex,questState,result)
 	if questState~=nil and questState.step==2 then result.failLabel="2B - Fail" end
 end
 underSiegeHandler.combatAvailable=function(card,playerIndex,state)
-	if state.step==2 and apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,"2a")~=true then return true,false end
+	if state.step==2 and QuestPrivate.apocalypseQuestUnderSiegeStep2ChoiceLegal(playerIndex,"2a")~=true then return true,false end
 	return false
 end
 underSiegeHandler.storeDirectCombatBranch=false
@@ -4508,18 +4508,18 @@ underSiegeHandler.failureEffect=function(card,playerIndex,option)
 	if tostring(option.key)=="2b" then QuestPrivate.apocalypseQuestUnderSiegeFailure(card,playerIndex) end
 end
 underSiegeHandler.starterLocationLegal=function(card,playerIndex,option,hex)
-	if tostring(option.key)=="1" then return true,apocalypseQuestUnderSiegeLocationLegal(hex,playerIndex) end
+	if tostring(option.key)=="1" then return true,QuestPrivate.apocalypseQuestUnderSiegeLocationLegal(hex,playerIndex) end
 	return false
 end
 underSiegeHandler.personalAction=function(player,card)
 	if QuestPrivate.apocalypseQuestPersonalShieldOwner(card)==nil then return false end
 	broadcastToColor("{en}Under Siege must be resolved with 2A or 2B; it cannot be abandoned after Step 1.{ru}Under Siege должно быть разрешено через 2A или 2B; после шага 1 его нельзя покинуть.{zh-tw}Under Siege 必須以 2A 或 2B 結算；步驟 1 後不能放棄。{zh-cn}Under Siege 必须以 2A 或 2B 结算；步骤 1 后不能放弃。{ko}Under Siege는 2A 또는 2B로 해결해야 하며 1단계 이후에는 포기할 수 없습니다.{es}Under Siege debe resolverse con 2A o 2B; no puede abandonarse después del Paso 1.{fr}Under Siege doit être résolu avec 2A ou 2B ; il ne peut pas être abandonné après l’Étape 1.{pt-br}Under Siege deve ser resolvido com 2A ou 2B; não pode ser abandonado após a Etapa 1.{de}Under Siege muss mit 2A oder 2B abgewickelt werden; nach Schritt 1 kann es nicht aufgegeben werden.",player.color,warningColor)
-	apocalypseQuestInterfaceAdd(card,true)
+	QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
 	return true
 end
 underSiegeHandler.actionPlayer=function(card,action,defaultIndex)
 	if action~="Progress" then return defaultIndex,false end
-	local readyPlayer=apocalypseQuestUnderSiegeReadyPlayer()
+	local readyPlayer=QuestPrivate.apocalypseQuestUnderSiegeReadyPlayer()
 	if readyPlayer~=nil then return readyPlayer,true end
 	return defaultIndex,false
 end
@@ -4640,13 +4640,13 @@ veryPersonalHandler.filterOption=function(card,playerIndex,action,option,state,c
 	return context
 end
 veryPersonalHandler.bottomDeckAfterReveal=function(card)
-	if gStates.apocalypseQuestVeryPersonalSuccess==nil or gStates.apocalypseQuestVeryPersonalSuccess[card.guid]~=true then apocalypseQuestDisbandVeryPersonalUnit(card) end
+	if gStates.apocalypseQuestVeryPersonalSuccess==nil or gStates.apocalypseQuestVeryPersonalSuccess[card.guid]~=true then QuestPrivate.apocalypseQuestDisbandVeryPersonalUnit(card) end
 end
 
 local mineDoomHandler=apocalypseQuestRegisterHandler("485cc5")
 mineDoomHandler.starterLocationPrecheck=function(card,playerIndex,option,hex,mapObjects)
 	if gStates.apocalypseQuestMarkerPlacements~=nil and gStates.apocalypseQuestMarkerPlacements["2f238c"]==true then
-		return apocalypseQuestTokenOnHex("2f238c",hex,mapObjects)==true
+		return QuestPrivate.apocalypseQuestTokenOnHex("2f238c",hex,mapObjects)==true
 	end
 	return true
 end
@@ -4666,7 +4666,7 @@ mineDoomHandler.progressCombatLaunch=function(player,card,playerIndex,action)
 	local questState=QuestPrivate.apocalypseQuestProgressState(card,playerIndex,false)
 	if questState==nil or questState.step~=2 then return false end
 	QuestPrivate.apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil)
-	if getObjectFromGUID(card.guid)~=nil and (gStates.apocalypseQuestCombatChoice==nil or gStates.apocalypseQuestCombatChoice[card.guid]==nil) then apocalypseQuestInterfaceAdd(card,true) end
+	if getObjectFromGUID(card.guid)~=nil and (gStates.apocalypseQuestCombatChoice==nil or gStates.apocalypseQuestCombatChoice[card.guid]==nil) then QuestPrivate.apocalypseQuestInterfaceAdd(card,true) end
 	return true
 end
 mineDoomHandler.preserveCombatLaunchOnProgressKeys={["1"]=true}
@@ -4692,7 +4692,7 @@ fogHandler.progressCombatLaunch=function(player,card,playerIndex,action)
 	local questState=QuestPrivate.apocalypseQuestProgressState(card,playerIndex,false)
 	if questState==nil or questState.step~=3 or QuestPrivate.apocalypseQuestFogPossessedReady(card)~=true then return false end
 	QuestPrivate.apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil)
-	if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end
+	if getObjectFromGUID(card.guid)~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(card,true) end
 	return true
 end
 fogHandler.launchCombat=function(card,playerIndex)
@@ -4742,7 +4742,7 @@ magicOverloadHandler.skipGenericStepMarker=function(card,option) return tostring
 local misadventureHandler=apocalypseQuestRegisterHandler("082f39")
 misadventureHandler.starterLocationLegal=function(card,playerIndex,option,hex,mapObjects)
 	if tostring(option.key)=="1" and gStates.apocalypseQuestMarkerPlacements~=nil and gStates.apocalypseQuestMarkerPlacements["afcfc1"]==true then
-		return true,apocalypseQuestTokenOnHex("afcfc1",hex,mapObjects)==true
+		return true,QuestPrivate.apocalypseQuestTokenOnHex("afcfc1",hex,mapObjects)==true
 	end
 	return false
 end
@@ -4752,7 +4752,7 @@ local function apocalypseQuestUsesGenericStepMarker(card,option)
 	return handler==nil or handler.skipGenericStepMarker==nil or handler.skipGenericStepMarker(card,option)~=true
 end
 
-function apocalypseQuestPlayerMayAct(card, playerIndex)
+function QuestPrivate.apocalypseQuestPlayerMayAct(card, playerIndex)
 	if card==nil or turnOrder[playerIndex]==nil then return false end
 	local playerDetails=turnOrder[playerIndex]
 	if playerDetails.mage==nil or playerDetails.mage=="nobody" or playerDetails.mage==gStates.positionMageKnight[5] or playerDetails.dropoutState~=nil then return false end
@@ -4773,10 +4773,10 @@ function apocalypseQuestPlayerMayAct(card, playerIndex)
 	if QuestPrivate.apocalypseQuestPlayerHasOtherPersonalQuest(playerIndex, card.guid)==true then return false end
 	return true
 end
-function apocalypseQuestCurrentOptions(card, playerIndex, action)
+function QuestPrivate.apocalypseQuestCurrentOptions(card, playerIndex, action)
 	local options={}
 	local quest=card~=nil and apocalypseQuestData[card.guid] or nil
-	if quest==nil or apocalypseQuestPlayerMayAct(card, playerIndex)~=true then return options end
+	if quest==nil or QuestPrivate.apocalypseQuestPlayerMayAct(card, playerIndex)~=true then return options end
 	--An abandoned Personal Quest must be explicitly resumed before any further step action.
 	--The Resume button swaps the neutral Shield back to the acting player's Shield in place.
 	if quest.questType=="Personal" and QuestPrivate.apocalypseQuestNeutralShield(card)~=nil then return options end
@@ -4784,7 +4784,7 @@ function apocalypseQuestCurrentOptions(card, playerIndex, action)
 	if state==nil or state.completed==true then return options end
 	local groupStepReady=true
 	if quest.allPlayersMustCompleteStep~=nil and state.step>quest.allPlayersMustCompleteStep then
-		groupStepReady=apocalypseQuestAllPlayersCompletedStep(card, quest.allPlayersMustCompleteStep)
+		groupStepReady=QuestPrivate.apocalypseQuestAllPlayersCompletedStep(card, quest.allPlayersMustCompleteStep)
 	end
 	local placementAvailable=nil
 	for _, option in ipairs(quest.steps or {}) do
@@ -4806,13 +4806,13 @@ function apocalypseQuestCurrentOptions(card, playerIndex, action)
 			if handler~=nil and handler.filterOption~=nil then context=handler.filterOption(card,playerIndex,action,option,state,context) or context end
 			include=context.include==true
 			if include==true and context.skipLegality~=true then
-				local locationReady=context.skipLocation==true or apocalypseQuestStarterLocationLegal(card,playerIndex,option)
+				local locationReady=context.skipLocation==true or QuestPrivate.apocalypseQuestStarterLocationLegal(card,playerIndex,option)
 				local specialReady=action=="Fail" and apocalypseQuestFailureReady(card,option,playerIndex) or apocalypseQuestStepSpecialLegal(card,playerIndex,option)
 				include=locationReady==true and specialReady==true
 			end
 			if include==true and action~="Fail" and context.skipMarker~=true then
 				if placementAvailable==nil then
-					local ok, available=pcall(apocalypseQuestMarkerPlacementAvailable, card, playerIndex, option)
+					local ok, available=pcall(QuestPrivate.apocalypseQuestMarkerPlacementAvailable, card, playerIndex, option)
 					if ok==true then
 						placementAvailable=available
 					else
@@ -4827,7 +4827,7 @@ function apocalypseQuestCurrentOptions(card, playerIndex, action)
 	end
 	return options
 end
-function apocalypseQuestActionEnabled(card, playerIndex, action)
+function QuestPrivate.apocalypseQuestActionEnabled(card, playerIndex, action)
 	local handler=apocalypseQuestHandler(card)
 	if handler~=nil and handler.actionEnabled~=nil then
 		local handled,result=handler.actionEnabled(card,playerIndex,action)
@@ -4839,12 +4839,12 @@ function apocalypseQuestActionEnabled(card, playerIndex, action)
 		if quest==nil or quest.questType~="Personal" then return false end
 		local ownerIndex=QuestPrivate.apocalypseQuestPersonalShieldOwner(card)
 		if ownerIndex~=nil then return ownerIndex==playerIndex end
-		if QuestPrivate.apocalypseQuestNeutralShield(card)~=nil then return apocalypseQuestPlayerMayAct(card, playerIndex)==true end
+		if QuestPrivate.apocalypseQuestNeutralShield(card)~=nil then return QuestPrivate.apocalypseQuestPlayerMayAct(card, playerIndex)==true end
 		return false
 	end
-	return #apocalypseQuestCurrentOptions(card, playerIndex, action)>0
+	return #QuestPrivate.apocalypseQuestCurrentOptions(card, playerIndex, action)>0
 end
-function apocalypseQuestSnapWorldPosition(card, stepKey, leftOffset)
+function QuestPrivate.apocalypseQuestSnapWorldPosition(card, stepKey, leftOffset)
 	if card==nil then return nil end
 	local quest=apocalypseQuestData[card.guid]
 	if quest==nil or quest.snapOrder==nil then return nil end
@@ -4874,20 +4874,20 @@ function apocalypseQuestSnapWorldPosition(card, stepKey, leftOffset)
 	return {bx+((dx/length)*offset),base.y or base[2],bz+((dz/length)*offset)}
 end
 
-function apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
+function QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
 	if obj==nil then return nil end
 	local name=obj.getName()
 	if name~="Shield" and name~="Red Mana" and name~="Blue Mana" and name~="Green Mana" and name~="White Mana" and name~="Gold Mana" and name~="Black Mana" then return nil end
 	local pos=obj.getPosition()
 	local bestGUID=nil
 	local bestDistance=0.31
-	for _, questCard in ipairs(offerCards or apocalypseQuestOfferCards()) do
+	for _, questCard in ipairs(offerCards or QuestPrivate.apocalypseQuestOfferCards()) do
 		local quest=apocalypseQuestData[questCard.guid]
 		if quest~=nil and quest.questType=="Independent" and quest.snapOrder~=nil then
 			local maxSlot=math.max(0,(tonumber(gStates.playerCount) or 4)-1)
 			for _, key in ipairs(quest.snapOrder) do
 				for slot=0,maxSlot do
-					local target=apocalypseQuestSnapWorldPosition(questCard,key,slot)
+					local target=QuestPrivate.apocalypseQuestSnapWorldPosition(questCard,key,slot)
 					if target~=nil then
 						local dx=pos[1]-target[1]
 						local dz=pos[3]-target[3]
@@ -4901,7 +4901,7 @@ function apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
 	return bestGUID
 end
 
-function apocalypseQuestNearestRowSlot(position, targets, maxSlot)
+function QuestPrivate.apocalypseQuestNearestRowSlot(position, targets, maxSlot)
 	local nearestSlot=nil
 	local nearestDistance=nil
 	for slot=0,maxSlot do
@@ -4916,22 +4916,22 @@ function apocalypseQuestNearestRowSlot(position, targets, maxSlot)
 	return nearestSlot,nearestDistance
 end
 
-function apocalypseQuestIndependentShieldRowPosition(card,stepKey,movingShieldGUID)
+function QuestPrivate.apocalypseQuestIndependentShieldRowPosition(card,stepKey,movingShieldGUID)
 	if card==nil then return nil end
 	local quest=apocalypseQuestData[card.guid]
-	if quest==nil or quest.questType~="Independent" then return apocalypseQuestSnapWorldPosition(card,stepKey) end
+	if quest==nil or quest.questType~="Independent" then return QuestPrivate.apocalypseQuestSnapWorldPosition(card,stepKey) end
 	local maxSlot=math.max(0,(tonumber(gStates.playerCount) or 4)-1)
 	local targets={}
-	for slot=0,maxSlot do targets[slot]=apocalypseQuestSnapWorldPosition(card,stepKey,slot) end
+	for slot=0,maxSlot do targets[slot]=QuestPrivate.apocalypseQuestSnapWorldPosition(card,stepKey,slot) end
 	if targets[0]==nil then return nil end
 	local occupied={}
 	local areaObjects=QuestPrivate.apocalypseQuestAreaObjects()
-	local offerCards=apocalypseQuestOfferCards(areaObjects)
+	local offerCards=QuestPrivate.apocalypseQuestOfferCards(areaObjects)
 	for _, obj in pairs(areaObjects) do
 		if obj.guid~=movingShieldGUID and obj.getName()=="Shield" and obj.getDescription()~="Neutral" then
-			local rowOwner=apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
+			local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
 			if rowOwner==nil or rowOwner==card.guid then
-				local nearestSlot,nearestDistance=apocalypseQuestNearestRowSlot(obj.getPosition(),targets,maxSlot)
+				local nearestSlot,nearestDistance=QuestPrivate.apocalypseQuestNearestRowSlot(obj.getPosition(),targets,maxSlot)
 				--Each existing Shield claims only its nearest row slot. This keeps a manually shifted Shield
 				--from accidentally blocking both neighbouring one-unit slots.
 				if nearestSlot~=nil and nearestDistance<0.31 then occupied[nearestSlot]=true end
@@ -4942,40 +4942,40 @@ function apocalypseQuestIndependentShieldRowPosition(card,stepKey,movingShieldGU
 	local moving=movingShieldGUID~=nil and getObjectFromGUID(movingShieldGUID) or nil
 	if moving~=nil then
 		local pos=moving.getPosition()
-		local nearestSlot,nearestDistance=apocalypseQuestNearestRowSlot(pos,targets,maxSlot)
+		local nearestSlot,nearestDistance=QuestPrivate.apocalypseQuestNearestRowSlot(pos,targets,maxSlot)
 		if nearestSlot~=nil and nearestDistance<0.31 and occupied[nearestSlot]~=true then return pos end
 	end
 	for slot=0,maxSlot do if occupied[slot]~=true then return targets[slot] end end
 	--This should only happen after an unexpected extra Shield; continue the row rather than stacking.
-	return apocalypseQuestSnapWorldPosition(card,stepKey,maxSlot+1)
+	return QuestPrivate.apocalypseQuestSnapWorldPosition(card,stepKey,maxSlot+1)
 end
-function apocalypseQuestRaisedPiecePosition(position,height)
+function QuestPrivate.apocalypseQuestRaisedPiecePosition(position,height)
 	if position==nil then return nil end
 	return {position[1],position[2]+(height or 0.20),position[3]}
 end
-function apocalypseQuestShieldSupplyBag(owner)
+function QuestPrivate.apocalypseQuestShieldSupplyBag(owner)
 	local bags=gStates.apocalypseQuestShieldBagGUIDs
 	if bags==nil then return nil end
 	local guid=bags[owner]
 	if guid==nil then return nil end
 	return getObjectFromGUID(guid)
 end
-function apocalypseQuestTakePlayerShield(playerIndex, position)
+function QuestPrivate.apocalypseQuestTakePlayerShield(playerIndex, position)
 	local playerDetails=turnOrder[playerIndex]
 	if playerDetails==nil then return nil end
-	local shieldBag=apocalypseQuestShieldSupplyBag(playerDetails.mage)
+	local shieldBag=QuestPrivate.apocalypseQuestShieldSupplyBag(playerDetails.mage)
 	if shieldBag==nil then return nil end
-	return shieldBag.takeObject({position=apocalypseQuestRaisedPiecePosition(position),rotation={0,180,0},smooth=true})
+	return shieldBag.takeObject({position=QuestPrivate.apocalypseQuestRaisedPiecePosition(position),rotation={0,180,0},smooth=true})
 end
-function apocalypseQuestTakeNeutralShield(position)
-	local shieldBag=apocalypseQuestShieldSupplyBag("Neutral")
+function QuestPrivate.apocalypseQuestTakeNeutralShield(position)
+	local shieldBag=QuestPrivate.apocalypseQuestShieldSupplyBag("Neutral")
 	if shieldBag==nil then return nil end
-	return shieldBag.takeObject({position=apocalypseQuestRaisedPiecePosition(position),rotation={0,180,0},smooth=true})
+	return shieldBag.takeObject({position=QuestPrivate.apocalypseQuestRaisedPiecePosition(position),rotation={0,180,0},smooth=true})
 end
-function apocalypseQuestPositionProgressShield(card, playerIndex, option)
+function QuestPrivate.apocalypseQuestPositionProgressShield(card, playerIndex, option)
 	local quest=card~=nil and apocalypseQuestData[card.guid] or nil
 	if quest==nil or quest.questType=="Simple" then return true end
-	local world=apocalypseQuestSnapWorldPosition(card, option.key)
+	local world=QuestPrivate.apocalypseQuestSnapWorldPosition(card, option.key)
 	if world==nil then
 		--Repeatable steps such as Under Siege 2a and Cursed 2a deliberately have no new snap:
 		--the Shield remains on the previous numbered step. Travelling Merchant needs no physical move.
@@ -4986,7 +4986,7 @@ function apocalypseQuestPositionProgressShield(card, playerIndex, option)
 		shield=QuestPrivate.apocalypseQuestNeutralShield(card)
 	elseif quest.questType=="Independent" then
 		shield=QuestPrivate.apocalypseQuestPlayerShield(card, playerIndex)
-		world=apocalypseQuestIndependentShieldRowPosition(card,option.key,shield~=nil and shield.guid or nil)
+		world=QuestPrivate.apocalypseQuestIndependentShieldRowPosition(card,option.key,shield~=nil and shield.guid or nil)
 	else
 		shield=QuestPrivate.apocalypseQuestPlayerShield(card, playerIndex)
 		if shield==nil then
@@ -4995,9 +4995,9 @@ function apocalypseQuestPositionProgressShield(card, playerIndex, option)
 		end
 	end
 	world=apocalypseQuestPlannedWorldPosition(card,world)
-	local target=apocalypseQuestRaisedPiecePosition(world)
+	local target=QuestPrivate.apocalypseQuestRaisedPiecePosition(world)
 	if shield==nil then
-		shield=quest.questType=="Collective" and apocalypseQuestTakeNeutralShield(world) or apocalypseQuestTakePlayerShield(playerIndex,world)
+		shield=quest.questType=="Collective" and QuestPrivate.apocalypseQuestTakeNeutralShield(world) or QuestPrivate.apocalypseQuestTakePlayerShield(playerIndex,world)
 	end
 	if shield==nil then return false end
 	shield.unlock()
@@ -5005,12 +5005,12 @@ function apocalypseQuestPositionProgressShield(card, playerIndex, option)
 	apocalypseQuestRegisterMoveAttachment(card,shield,target)
 	return true
 end
-function apocalypseQuestRemovePlayerShield(card, playerIndex)
+function QuestPrivate.apocalypseQuestRemovePlayerShield(card, playerIndex)
 	local shield=QuestPrivate.apocalypseQuestPlayerShield(card, playerIndex)
 	if shield~=nil and getObjectFromGUID(shield.guid)~=nil then shield.destruct() return true end
 	return false
 end
-function apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
+function QuestPrivate.apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
 	if option==nil or option.point~=true or state==nil or questState==nil then return false end
 	local quest=apocalypseQuestData[card.guid]
 	local limit=math.max(0, tonumber(option.pointLimit) or 1)
@@ -5025,10 +5025,10 @@ function apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questSt
 		if used>=limit then return false end
 		state.points[option.key]=used+1
 	end
-	apocalypseQuestScoreGain(playerIndex, 1)
+	QuestPrivate.apocalypseQuestScoreGain(playerIndex, 1)
 	return true
 end
-function apocalypseQuestAdvanceProgress(card, state, option)
+function QuestPrivate.apocalypseQuestAdvanceProgress(card, state, option)
 	if card==nil or state==nil or option==nil then return end
 	local quest=apocalypseQuestData[card.guid]
 	local handler=apocalypseQuestHandler(card)
@@ -5046,7 +5046,7 @@ function apocalypseQuestAdvanceProgress(card, state, option)
 		if nextStep~=nil then state.step=nextStep end
 	end
 end
-function apocalypseQuestAllPlayersCompleted(card)
+function QuestPrivate.apocalypseQuestAllPlayersCompleted(card)
 	local quest=card~=nil and apocalypseQuestData[card.guid] or nil
 	if quest==nil or quest.allPlayersComplete~=true then return false end
 	local questState=gStates.apocalypseQuestProgress~=nil and gStates.apocalypseQuestProgress[card.guid] or nil
@@ -5061,7 +5061,7 @@ function apocalypseQuestAllPlayersCompleted(card)
 	end
 	return active>0
 end
-function apocalypseQuestAllPlayersCompletedStep(card, requiredStep)
+function QuestPrivate.apocalypseQuestAllPlayersCompletedStep(card, requiredStep)
 	local quest=card~=nil and apocalypseQuestData[card.guid] or nil
 	local questState=gStates.apocalypseQuestProgress~=nil and gStates.apocalypseQuestProgress[card.guid] or nil
 	if quest==nil or quest.questType~="Independent" or questState==nil or questState.players==nil then return false end
@@ -5075,36 +5075,36 @@ function apocalypseQuestAllPlayersCompletedStep(card, requiredStep)
 	end
 	return active>0
 end
-function apocalypseQuestOptionsNeedChoice(card, action, options)
+function QuestPrivate.apocalypseQuestOptionsNeedChoice(card, action, options)
 	if options==nil or #options<=1 then return false end
 	--Different printed branches can have the same Quest-point value but different consequences.
 	--If more than one Progress/Complete branch is legal, always let the player choose the printed branch.
 	return action=="Progress" or action=="Complete"
 end
-function apocalypseQuestChoiceKeys(options)
+function QuestPrivate.apocalypseQuestChoiceKeys(options)
 	local keys={}
 	for _, option in ipairs(options or {}) do keys[#keys+1]=option.key end
 	return keys
 end
-function apocalypseQuestChoiceOption(card, key)
+function QuestPrivate.apocalypseQuestChoiceOption(card, key)
 	local quest=card~=nil and apocalypseQuestData[card.guid] or nil
 	if quest==nil then return nil end
 	for _, option in ipairs(quest.steps or {}) do if option.key==key then return option end end
 	return nil
 end
-function apocalypseQuestShowChoice(card, playerIndex, action, options)
+function QuestPrivate.apocalypseQuestShowChoice(card, playerIndex, action, options)
 	if card==nil or options==nil or #options==0 then return false end
 	if gStates.apocalypseQuestPendingChoice==nil then gStates.apocalypseQuestPendingChoice={} end
-	gStates.apocalypseQuestPendingChoice[card.guid]={playerIndex=playerIndex, action=action, keys=apocalypseQuestChoiceKeys(options)}
+	gStates.apocalypseQuestPendingChoice[card.guid]={playerIndex=playerIndex, action=action, keys=QuestPrivate.apocalypseQuestChoiceKeys(options)}
 	--Rebuild the card UI in one setXmlTable call. TTS does not apply a UI removal synchronously,
 	--so remove-then-add in the same frame could leave the card blank until a later refresh.
-	apocalypseQuestInterfaceAdd(card, true)
+	QuestPrivate.apocalypseQuestInterfaceAdd(card, true)
 	return true
 end
 
-function apocalypseQuestDirectChoices(card,playerIndex)
+function QuestPrivate.apocalypseQuestDirectChoices(card,playerIndex)
 	local choices={}
-	if card==nil or apocalypseQuestPlayerMayAct(card,playerIndex)~=true then return choices end
+	if card==nil or QuestPrivate.apocalypseQuestPlayerMayAct(card,playerIndex)~=true then return choices end
 	local state=QuestPrivate.apocalypseQuestProgressState(card,playerIndex,false)
 	if state==nil or state.completed==true then return choices end
 	local already=gStates.apocalypseQuestDirectBranch~=nil and gStates.apocalypseQuestDirectBranch[card.guid] or nil
@@ -5114,25 +5114,25 @@ function apocalypseQuestDirectChoices(card,playerIndex)
 	return choices
 end
 
-function apocalypseQuestDirectChoiceLegal(card,playerIndex,choice)
+function QuestPrivate.apocalypseQuestDirectChoiceLegal(card,playerIndex,choice)
 	if card==nil or choice==nil then return false end
 	local handler=apocalypseQuestHandler(card)
 	if handler~=nil and handler.directChoiceLegal~=nil then
 		local handled,result=handler.directChoiceLegal(card,playerIndex,choice)
 		if handled==true then return result==true end
 	end
-	local option=apocalypseQuestChoiceOption(card,choice.key)
-	if option==nil or apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then return false end
-	if choice.action~="Combat" and apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)~=true then return false end
+	local option=QuestPrivate.apocalypseQuestChoiceOption(card,choice.key)
+	if option==nil or QuestPrivate.apocalypseQuestStarterLocationLegal(card,playerIndex,option)~=true then return false end
+	if choice.action~="Combat" and QuestPrivate.apocalypseQuestMarkerPlacementAvailable(card,playerIndex,option)~=true then return false end
 	return true
 end
-function apocalypseQuestButtonState(card, playerIndex)
+function QuestPrivate.apocalypseQuestButtonState(card, playerIndex)
 	local result={
-		progress=apocalypseQuestActionEnabled(card,playerIndex,"Progress"),
+		progress=QuestPrivate.apocalypseQuestActionEnabled(card,playerIndex,"Progress"),
 		progressLabel="Progress",
-		complete=apocalypseQuestActionEnabled(card,playerIndex,"Complete"),
-		abandon=apocalypseQuestActionEnabled(card,playerIndex,"Abandon"),
-		fail=apocalypseQuestActionEnabled(card,playerIndex,"Fail"),
+		complete=QuestPrivate.apocalypseQuestActionEnabled(card,playerIndex,"Complete"),
+		abandon=QuestPrivate.apocalypseQuestActionEnabled(card,playerIndex,"Abandon"),
+		fail=QuestPrivate.apocalypseQuestActionEnabled(card,playerIndex,"Fail"),
 		failLabel="Fail"
 	}
 	local quest=apocalypseQuestData[card.guid]
@@ -5154,8 +5154,8 @@ function apocalypseQuestUpdateProgressButtons(card)
 	end
 	if gStates.apocalypseQuestPendingChoice~=nil and gStates.apocalypseQuestPendingChoice[card.guid]~=nil then return end
 	if gStates.apocalypseQuestCombatChoice~=nil and gStates.apocalypseQuestCombatChoice[card.guid]~=nil then return end
-	local interfacePlayer=apocalypseQuestUnderSiegeInterfacePlayerIndex(card)
-	if #apocalypseQuestDirectChoices(card,interfacePlayer)>0 then apocalypseQuestInterfaceAdd(card,true) return end
+	local interfacePlayer=QuestPrivate.apocalypseQuestUnderSiegeInterfacePlayerIndex(card)
+	if #QuestPrivate.apocalypseQuestDirectChoices(card,interfacePlayer)>0 then QuestPrivate.apocalypseQuestInterfaceAdd(card,true) return end
 	local prefix="ApocalypseQuest"..card.guid
 	--A direct branch UI has no normal Fight/Progress/Complete controls to update. Once the branch
 	--advances the Quest, rebuild the interface instead of trying to set attributes on missing elements.
@@ -5163,8 +5163,8 @@ function apocalypseQuestUpdateProgressButtons(card)
 	for _,element in ipairs(card.UI.getXmlTable() or {}) do
 		if element.attributes~=nil and element.attributes.id==prefix.."Fight" then normalControls=true break end
 	end
-	if normalControls~=true then apocalypseQuestInterfaceAdd(card,true) return end
-	local state=apocalypseQuestButtonState(card,interfacePlayer)
+	if normalControls~=true then QuestPrivate.apocalypseQuestInterfaceAdd(card,true) return end
+	local state=QuestPrivate.apocalypseQuestButtonState(card,interfacePlayer)
 	local function enabledChanged(id,wanted)
 		local current=string.lower(tostring(card.UI.getAttribute(prefix..id,"interactable") or "false"))=="true"
 		return current~=(wanted==true)
@@ -5174,7 +5174,7 @@ function apocalypseQuestUpdateProgressButtons(card)
 	if rebuild==true and card.isSmoothMoving()==false then
 		--Quest cards can remain resting=false indefinitely when a Shield/enemy is touching them. Scripted
 		--movement is the real lifecycle boundary: once setPositionSmooth has finished, rebuild immediately.
-		apocalypseQuestInterfaceAdd(card,true)
+		QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
 		return
 	end
 	--While a scripted offer move is still running, parent Button attributes are safe to update in place.
@@ -5202,17 +5202,17 @@ function apocalypseQuestUpdateProgressButtons(card)
 		local cardGUID=card.guid
 		safeWaitCondition("Quests",function()
 			local live=getObjectFromGUID(cardGUID)
-			if live~=nil then apocalypseQuestInterfaceAdd(live,true) end
+			if live~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(live,true) end
 		end,function()
 			local live=getObjectFromGUID(cardGUID)
 			return live==nil or live.isSmoothMoving()==false
 		end,5,function()
 			local live=getObjectFromGUID(cardGUID)
-			if live~=nil then apocalypseQuestInterfaceAdd(live,true) end
+			if live~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(live,true) end
 		end)
 	end
 end
-function apocalypseQuestWhenResting(objectGUID,callback,timeout)
+function QuestPrivate.apocalypseQuestWhenResting(objectGUID,callback,timeout)
 	local obj=objectGUID~=nil and getObjectFromGUID(objectGUID) or nil
 	if obj==nil then return false end
 	if obj.resting==true then callback(obj) return true end
@@ -5225,12 +5225,12 @@ function apocalypseQuestWhenResting(objectGUID,callback,timeout)
 	end,timeout or 5,function()
 		--Do not run position-sensitive Quest setup while an object is still moving. Retry the resting
 		--gate instead; this helper is intended to be reused as more Quest components return to smooth move.
-		if getObjectFromGUID(objectGUID)~=nil then apocalypseQuestWhenResting(objectGUID,callback,timeout) end
+		if getObjectFromGUID(objectGUID)~=nil then QuestPrivate.apocalypseQuestWhenResting(objectGUID,callback,timeout) end
 	end)
 	return true
 end
 
-function apocalypseQuestInterfaceAdd(card, forceRebuild)
+function QuestPrivate.apocalypseQuestInterfaceAdd(card, forceRebuild)
 	if card==nil or card.type~="Card" then return end
 	card.lock()
 	--Reminder cards are deliberately parked outside the live Quest offer and must never regain their
@@ -5247,13 +5247,13 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 		local cardGUID=card.guid
 		safeWaitCondition("Quests",function()
 			local live=getObjectFromGUID(cardGUID)
-			if live~=nil then apocalypseQuestInterfaceAdd(live,forceRebuild) end
+			if live~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(live,forceRebuild) end
 		end,function()
 			local live=getObjectFromGUID(cardGUID)
 			return live==nil or live.isSmoothMoving()==false
 		end,5,function()
 			local live=getObjectFromGUID(cardGUID)
-			if live~=nil then apocalypseQuestInterfaceAdd(live,forceRebuild) end
+			if live~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(live,forceRebuild) end
 		end)
 		return
 	end
@@ -5272,8 +5272,8 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 			kept[#kept+1]=element
 		end
 	end
-	local interfacePlayer=apocalypseQuestUnderSiegeInterfacePlayerIndex(card)
-	local directChoices=apocalypseQuestDirectChoices(card,interfacePlayer)
+	local interfacePlayer=QuestPrivate.apocalypseQuestUnderSiegeInterfacePlayerIndex(card)
+	local directChoices=QuestPrivate.apocalypseQuestDirectChoices(card,interfacePlayer)
 	if existing==true and fightExisting==true and forceRebuild~=true and pending==nil and combatPending==nil and #directChoices==0 then
 		apocalypseQuestUpdateProgressButtons(card)
 		return
@@ -5284,7 +5284,7 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 	local questDetails=apocalypseQuestData[card.guid]
 	if questDetails~=nil and questDetails.questTokens~=nil and #questDetails.questTokens>0 and getObjectFromGUID(GUID.bag.apocalypseQuestTokens)==nil then
 		local cardGUID=card.guid
-		safeWaitFrames("Quests",function() local questCard=getObjectFromGUID(cardGUID) if questCard~=nil then apocalypseQuestInterfaceAdd(questCard) end end, 3)
+		safeWaitFrames("Quests",function() local questCard=getObjectFromGUID(cardGUID) if questCard~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(questCard) end end, 3)
 		return
 	end
 	if apocalypseQuestRevealSetup(card)~=true then return end
@@ -5324,7 +5324,7 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 	if #directChoices>0 then
 		local spots={{50,180},{-50,180},{50,227},{-50,227}}
 		for index, choice in ipairs(directChoices) do
-			local legal=apocalypseQuestDirectChoiceLegal(card,interfacePlayer,choice)
+			local legal=QuestPrivate.apocalypseQuestDirectChoiceLegal(card,interfacePlayer,choice)
 			if spots[index]~=nil then xml[#xml+1]=questButton("Direct_"..choice.key,choice.label or string.upper(choice.key),spots[index][1],spots[index][2],legal and "#d8c79d" or "#b5b5b5",legal) end
 		end
 		--Admiring Bard Step 2 uses three player-declared outcomes but must retain the Personal Quest
@@ -5332,13 +5332,13 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 		local handler=apocalypseQuestHandler(card)
 		local directState=handler~=nil and handler.directChoicesAllowAbandon==true and QuestPrivate.apocalypseQuestProgressState(card,interfacePlayer,false) or nil
 		if directState~=nil and #directChoices==3 then
-			local abandon=apocalypseQuestActionEnabled(card,interfacePlayer,"Abandon")
+			local abandon=QuestPrivate.apocalypseQuestActionEnabled(card,interfacePlayer,"Abandon")
 			xml[#xml+1]=questButton("Abandon","Abandon",spots[4][1],spots[4][2],abandon and "#d5b784" or "#b5b5b5",abandon)
 		end
 		card.UI.setXmlTable(xml)
 		return
 	end
-	local state=apocalypseQuestButtonState(card,interfacePlayer)
+	local state=QuestPrivate.apocalypseQuestButtonState(card,interfacePlayer)
 	--The old text Fight button sat at y=133, which puts it on top of the Quest card where the card
 	--itself can occlude attached UI. Put the standard Attack icon on a third row below the 2x2 controls.
 	xml[#xml+1]=questAttackButton(state.fight)
@@ -5348,7 +5348,7 @@ function apocalypseQuestInterfaceAdd(card, forceRebuild)
 	xml[#xml+1]=questButton("Fail", state.failLabel or "Fail", -50, 227, state.fail and "#c99090" or "#b5b5b5", state.fail)
 	card.UI.setXmlTable(xml)
 end
-function apocalypseQuestOfferCards(areaObjects)
+function QuestPrivate.apocalypseQuestOfferCards(areaObjects)
 	if areaObjects==nil and apocalypseQuestRefreshOfferCardsCache~=nil then return apocalypseQuestRefreshOfferCardsCache end
 	local cards={}
 	local known=gStates.apocalypseQuestCardGUIDs
@@ -5363,10 +5363,10 @@ function apocalypseQuestOfferCards(areaObjects)
 	table.sort(cards, function(a,b) return a.getPosition()[1]<b.getPosition()[1] end)
 	return cards
 end
-function apocalypseQuestMoveCard(card, target, areaObjects, offerCards)
+function QuestPrivate.apocalypseQuestMoveCard(card, target, areaObjects, offerCards)
 	if card==nil or target==nil then return {} end
 	areaObjects=areaObjects or QuestPrivate.apocalypseQuestAreaObjects()
-	offerCards=offerCards or apocalypseQuestOfferCards(areaObjects)
+	offerCards=offerCards or QuestPrivate.apocalypseQuestOfferCards(areaObjects)
 	local source=card.getPosition()
 	local dx, dz=target[1]-source[1], target[3]-source[3]
 	local carried={}
@@ -5402,7 +5402,7 @@ function apocalypseQuestMoveCard(card, target, areaObjects, offerCards)
 		if objectGUID~=nil and objectGUID~=card.guid and carriedGUIDs[objectGUID]~=true and known[objectGUID]~=true and movingQuestMarker~=true and explicitOwner==nil then
 			local pos=obj.getPosition()
 			local normalFootprint=math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5 and pos[2]>source[2]-1.5 and pos[2]<source[2]+3.0
-			local rowOwner=apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
+			local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
 			if rowOwner==card.guid or (rowOwner==nil and normalFootprint) then
 				carried[#carried+1]={obj=obj, position={pos[1]+dx, pos[2], pos[3]+dz}}
 				movedGUIDs[#movedGUIDs+1]=obj.guid
@@ -5417,7 +5417,7 @@ function apocalypseQuestMoveCard(card, target, areaObjects, offerCards)
 	end
 	return movedGUIDs
 end
-function apocalypseQuestOfferMoveToLeft(card,onSettled)
+function QuestPrivate.apocalypseQuestOfferMoveToLeft(card,onSettled)
 	if card==nil then return false end
 	if gStates.apocalypseQuestOfferMoving==true then
 		gStates.apocalypseQuestOfferButtonRefreshPending=true
@@ -5426,14 +5426,14 @@ function apocalypseQuestOfferMoveToLeft(card,onSettled)
 	gStates.apocalypseQuestOfferMoving=true
 	local cardGUID=card.guid
 	local areaObjects=QuestPrivate.apocalypseQuestAreaObjects()
-	local offerCards=apocalypseQuestOfferCards(areaObjects)
+	local offerCards=QuestPrivate.apocalypseQuestOfferCards(areaObjects)
 	local ordered={card}
 	local movedGUIDs={}
 	for _, offerCard in pairs(offerCards) do if offerCard.guid~=card.guid then ordered[#ordered+1]=offerCard end end
 	local orderedGUIDs={}
 	for i=#ordered, 1, -1 do
 		orderedGUIDs[#orderedGUIDs+1]=ordered[i].guid
-		for _,guid in ipairs(apocalypseQuestMoveCard(ordered[i], QuestPrivate.apocalypseQuestOfferPosition(i), areaObjects, offerCards)) do movedGUIDs[guid]=true end
+		for _,guid in ipairs(QuestPrivate.apocalypseQuestMoveCard(ordered[i], QuestPrivate.apocalypseQuestOfferPosition(i), areaObjects, offerCards)) do movedGUIDs[guid]=true end
 	end
 	--isSmoothMoving() is the offer lifecycle boundary. Quest cards are locked, so physics/resting state is
 	--irrelevant; newly spawned explicit attachments only get a short grace period to become addressable.
@@ -5546,7 +5546,7 @@ function apocalypseQuestRefreshScoreMarkers()
 		if details.mage~=nil and details.mage~=gStates.positionMageKnight[5] then apocalypseQuestRestoreScoreMarker(playerIndex,true) end
 	end
 end
-function apocalypseQuestScoreGain(playerIndex, amount)
+function QuestPrivate.apocalypseQuestScoreGain(playerIndex, amount)
 	if apocalypseQuestScoringActive()~=true then return true end
 	local details=turnOrder[playerIndex]
 	if details==nil then return false end
@@ -5589,12 +5589,12 @@ local function apocalypseQuestRemoveShields(card)
 	local source=card.getPosition()
 	local shields={}
 	local areaObjects=QuestPrivate.apocalypseQuestAreaObjects()
-	local offerCards=apocalypseQuestOfferCards(areaObjects)
+	local offerCards=QuestPrivate.apocalypseQuestOfferCards(areaObjects)
 	for _, obj in pairs(areaObjects) do
 		if obj.guid~=card.guid and obj.getName()=="Shield" then
 			local pos=obj.getPosition()
 			local normalFootprint=math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5 and pos[2]>source[2]-0.25 and pos[2]<source[2]+3.0
-			local rowOwner=apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
+			local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
 			if rowOwner==card.guid or (rowOwner==nil and normalFootprint) then shields[#shields+1]=obj end
 		end
 	end
@@ -5620,7 +5620,7 @@ local function apocalypseQuestShuffleIfCycleReached(deck)
 	if deck.type=="Deck" and deck.getQuantity()>1 then deck.shuffle() end
 	return true
 end
-function apocalypseQuestReminderPosition(slot)
+function QuestPrivate.apocalypseQuestReminderPosition(slot)
 	slot=math.max(1, tonumber(slot) or 1)
 	--The first five reminder slots line up directly above the neutral + player Quest Shield bags.
 	--Additional reminders wrap into another row while staying in the same Quest component area.
@@ -5628,7 +5628,7 @@ function apocalypseQuestReminderPosition(slot)
 	local row=math.floor((slot-1)/5)
 	return {59.25+(column*4.20), 1.14, 18.61+(row*5.10)}
 end
-function apocalypseQuestReminderSlot(cardGUID)
+function QuestPrivate.apocalypseQuestReminderSlot(cardGUID)
 	if gStates.apocalypseQuestReminderCards==nil then gStates.apocalypseQuestReminderCards={} end
 	local existing=gStates.apocalypseQuestReminderCards[cardGUID]
 	if existing~=nil then return existing end
@@ -5642,7 +5642,7 @@ function apocalypseQuestReminderSlot(cardGUID)
 	gStates.apocalypseQuestReminderCards[cardGUID]=slot
 	return slot
 end
-function apocalypseQuestHasActiveReminderToken(card)
+function QuestPrivate.apocalypseQuestHasActiveReminderToken(card)
 	if card==nil then return false end
 	local quest=apocalypseQuestData[card.guid]
 	if quest==nil or quest.keepToken~=true or quest.questTokens==nil then return false end
@@ -5652,7 +5652,7 @@ function apocalypseQuestHasActiveReminderToken(card)
 	end
 	return false
 end
-function apocalypseQuestParkReminder(card)
+function QuestPrivate.apocalypseQuestParkReminder(card)
 	if card==nil then return false end
 	local quest=apocalypseQuestData[card.guid]
 	if quest==nil or quest.keepToken~=true then return false end
@@ -5661,13 +5661,13 @@ function apocalypseQuestParkReminder(card)
 	if gStates.apocalypseQuestPendingChoice~=nil then gStates.apocalypseQuestPendingChoice[card.guid]=nil end
 	QuestPrivate.apocalypseQuestInterfaceRemove(card)
 	apocalypseQuestRemoveShields(card)
-	local slot=apocalypseQuestReminderSlot(card.guid)
+	local slot=QuestPrivate.apocalypseQuestReminderSlot(card.guid)
 	card.lock()
 	card.setRotationSmooth({0,180,0})
-	card.setPositionSmooth(apocalypseQuestReminderPosition(slot))
+	card.setPositionSmooth(QuestPrivate.apocalypseQuestReminderPosition(slot))
 	broadcastToAll(joinLang({"{en}Quest reminder: \"{ru}Напоминание задания: \"{zh-tw}任務提醒：\"{zh-cn}任务提醒：\"{ko}퀘스트 알림: \"{es}Recordatorio de Misión: \"{fr}Rappel de Quête : \"{pt-br}Lembrete da Missão: \"{de}Quest-Erinnerung: \"",apocalypseQuestName(card),"{en}\" moved beside the Quest Shield bags until its Quest marker(s) are discarded.{ru}\" перемещено рядом с мешками Щитов задания до сброса его жетонов задания.{zh-tw}\" 已移到任務盾牌袋旁，直到其任務標記被棄掉。{zh-cn}\" 已移到任务盾牌袋旁，直到其任务标记被弃掉。{ko}\"을(를) 퀘스트 마커가 버려질 때까지 퀘스트 방패 주머니 옆으로 옮겼습니다.{es}\" se movió junto a las bolsas de Escudos de Misión hasta que se descarten sus marcadores de Misión.{fr}\" a été déplacée près des sacs de Boucliers de Quête jusqu’à ce que ses marqueurs de Quête soient défaussés.{pt-br}\" foi movida para junto das bolsas de Escudos da Missão até que seus marcadores sejam descartados.{de}\" wurde neben die Quest-Schild-Beutel verschoben, bis seine Questmarker abgeworfen wurden."}), {1,1,0.5})
 	safeWaitFrames("Quests",function() apocalypseQuestRefreshReminderCards() end, 3)
-	apocalypseQuestRefreshAfterMarkerChange()
+	QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
 	return true
 end
 function apocalypseQuestRefreshReminderCards()
@@ -5692,16 +5692,16 @@ function apocalypseQuestRefreshReminderCards()
 	end
 	for _,card in ipairs(ready) do
 		broadcastToAll(joinLang({"{en}Quest reminder: all markers from \"{ru}Напоминание задания: все жетоны из \"{zh-tw}任務提醒：\"{zh-cn}任务提醒：\"{ko}퀘스트 알림: \"{es}Recordatorio de Misión: todos los marcadores de \"{fr}Rappel de Quête : tous les marqueurs de \"{pt-br}Lembrete da Missão: todos os marcadores de \"{de}Quest-Erinnerung: Alle Marker von \"",apocalypseQuestName(card),"{en}\" were returned; the Quest card is returning to the Quest deck cycle.{ru}\" возвращены; карта задания возвращается в цикл колоды заданий.{zh-tw}\" 的所有標記都已歸還；任務牌返回任務牌庫循環。{zh-cn}\" 的所有标记都已归还；任务牌返回任务牌库循环。{ko}\"의 모든 마커가 반환되었습니다. 퀘스트 카드는 퀘스트 덱 순환으로 돌아갑니다.{es}\" fueron devueltos; la carta de Misión vuelve al ciclo del mazo de Misiones.{fr}\" ont été rendus ; la carte de Quête retourne dans le cycle du paquet de Quêtes.{pt-br}\" foram devolvidos; a carta de Missão está voltando ao ciclo do baralho de Missões.{de}\" wurden zurückgegeben; die Questkarte kehrt in den Queststapel-Zyklus zurück."}), {1,1,0.5})
-		apocalypseQuestBottomDeck(card)
+		QuestPrivate.apocalypseQuestBottomDeck(card)
 	end
 	return #ready>0
 end
-function apocalypseQuestFinishCompletedCard(card)
+function QuestPrivate.apocalypseQuestFinishCompletedCard(card)
 	if card==nil then return false end
 	if gStates.apocalypseQuestMoveAttachments~=nil then gStates.apocalypseQuestMoveAttachments[card.guid]=nil end
 	local quest=apocalypseQuestData[card.guid]
-	if quest~=nil and quest.keepToken==true then return apocalypseQuestParkReminder(card) end
-	return apocalypseQuestBottomDeck(card)
+	if quest~=nil and quest.keepToken==true then return QuestPrivate.apocalypseQuestParkReminder(card) end
+	return QuestPrivate.apocalypseQuestBottomDeck(card)
 end
 local apocalypseQuestCardRuntimeStores={
 	"apocalypseQuestReminderCards",
@@ -5741,7 +5741,7 @@ local function apocalypseQuestClearCardRuntime(cardGUID)
 	if apocalypseQuestRevealWaitScheduled~=nil then apocalypseQuestRevealWaitScheduled[cardGUID]=nil end
 end
 
-function apocalypseQuestBottomDeck(card,onComplete)
+function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	if card==nil then if onComplete~=nil then onComplete(false) end return false end
 	local handler=apocalypseQuestHandler(card)
 	if handler~=nil and handler.bottomDeckBeforeReveal~=nil then handler.bottomDeckBeforeReveal(card) end
@@ -5749,14 +5749,14 @@ function apocalypseQuestBottomDeck(card,onComplete)
 	if handler~=nil and handler.bottomDeckAfterReveal~=nil then handler.bottomDeckAfterReveal(card) end
 	--Round refresh/failure can remove an unfinished Quest after it has already granted a reminder marker.
 	--Such a card follows the same reminder rule as a normally completed Quest.
-	if apocalypseQuestHasActiveReminderToken(card)==true and (gStates.apocalypseQuestReminderCards==nil or gStates.apocalypseQuestReminderCards[card.guid]==nil) then
-		local parked=apocalypseQuestParkReminder(card)
+	if QuestPrivate.apocalypseQuestHasActiveReminderToken(card)==true and (gStates.apocalypseQuestReminderCards==nil or gStates.apocalypseQuestReminderCards[card.guid]==nil) then
+		local parked=QuestPrivate.apocalypseQuestParkReminder(card)
 		if onComplete~=nil then onComplete(parked==true) end
 		return parked
 	end
 	apocalypseQuestClearCardRuntime(card.guid)
 	QuestPrivate.apocalypseQuestInterfaceRemove(card)
-	local deck=apocalypseQuestLiveDeck()
+	local deck=QuestPrivate.apocalypseQuestLiveDeck()
 	if deck==nil or deck.guid==card.guid then if onComplete~=nil then onComplete(false) end return false end
 
 	--Face-down Quest tokens are only markers, so they always return with the Quest. A keepToken Quest
@@ -5830,7 +5830,7 @@ function apocalypseQuestBottomDeck(card,onComplete)
 	local function finishBottomDeck()
 		local liveCard=getObjectFromGUID(cardGUID)
 		if liveCard==nil then return end
-		local liveDeck=apocalypseQuestLiveDeck()
+		local liveDeck=QuestPrivate.apocalypseQuestLiveDeck()
 		if liveDeck==nil or liveDeck.guid==liveCard.guid then return end
 		apocalypseQuestMarkReturned(liveCard)
 		liveCard.unlock()
@@ -5842,17 +5842,17 @@ function apocalypseQuestBottomDeck(card,onComplete)
 		liveCard.setPosition({pos[1]+3.0,math.max(0.2,pos[2]-0.6),pos[3]})
 		safeWaitFrames("Quests",function()
 			local stagedCard=getObjectFromGUID(cardGUID)
-			local stagedDeck=getObjectFromGUID(deckGUID) or apocalypseQuestLiveDeck()
+			local stagedDeck=getObjectFromGUID(deckGUID) or QuestPrivate.apocalypseQuestLiveDeck()
 			if stagedCard==nil or stagedDeck==nil or stagedDeck.guid==stagedCard.guid then
 				if onComplete~=nil then onComplete(false) end
 				return
 			end
 			--The caller may start the next return only after the physical drop has actually merged.
 			putCardAtBottom(stagedDeck,stagedCard,function(merged)
-				local liveDeck=merged~=nil and (merged.type=="Deck" or merged.type=="Card") and merged or apocalypseQuestLiveDeck()
+				local liveDeck=merged~=nil and (merged.type=="Deck" or merged.type=="Card") and merged or QuestPrivate.apocalypseQuestLiveDeck()
 				if liveDeck~=nil then GUID.deck.apocalypseQuest=liveDeck.guid end
 				refreshOutOfTurnActions(nil,nil,true)
-				apocalypseQuestRefreshAfterMarkerChange()
+				QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
 				if onComplete~=nil then onComplete(liveDeck~=nil) end
 			end)
 		end,2)
@@ -5861,7 +5861,7 @@ function apocalypseQuestBottomDeck(card,onComplete)
 	else safeWaitCondition("Quests",finishBottomDeck,attachmentsClear,2.0,finishBottomDeck) end
 	return true
 end
-function apocalypseQuestClaimAbandonedPersonal(card, playerIndex)
+function QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card, playerIndex)
 	local quest=card~=nil and apocalypseQuestData[card.guid] or nil
 	if quest==nil or quest.questType~="Personal" then return true end
 	if QuestPrivate.apocalypseQuestPersonalShieldOwner(card)~=nil then return true end
@@ -5873,8 +5873,8 @@ function apocalypseQuestClaimAbandonedPersonal(card, playerIndex)
 	--bag cannot lose the Quest marker. If this action is about to reorder the offer, create the replacement
 	--at the Quest's planned destination rather than flashing it over the old offer slot first.
 	local surface=apocalypseQuestPlannedWorldPosition(card,position)
-	local target=apocalypseQuestRaisedPiecePosition(surface)
-	local shield=apocalypseQuestTakePlayerShield(playerIndex, surface)
+	local target=QuestPrivate.apocalypseQuestRaisedPiecePosition(surface)
+	local shield=QuestPrivate.apocalypseQuestTakePlayerShield(playerIndex, surface)
 	if shield==nil then return false end
 	neutral.destruct()
 	shield.unlock()
@@ -5889,13 +5889,13 @@ if card.isSmoothMoving()==true then
 	local cardGUID=card.guid
 	safeWaitCondition("Quests",function()
 		local live=getObjectFromGUID(cardGUID)
-		if live~=nil then apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
+		if live~=nil then QuestPrivate.apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
 	end,function()
 		local live=getObjectFromGUID(cardGUID)
 		return live==nil or live.isSmoothMoving()==false
 	end,5,function()
 		local live=getObjectFromGUID(cardGUID)
-		if live~=nil then apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
+		if live~=nil then QuestPrivate.apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
 	end)
 	return true
 end
@@ -5913,7 +5913,7 @@ if handledColors==true then
 	if gStates.apocalypseQuestStepColor[card.guid]==nil and #colors>1 then
 		if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
 		gStates.apocalypseQuestCombatChoice[card.guid]={playerIndex=playerIndex,colors=colors,mode="ProgressColor",action=action,key=tostring(option.key)}
-		apocalypseQuestInterfaceAdd(card,true)
+		QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
 		return true
 	end
 	if gStates.apocalypseQuestStepColor[card.guid]==nil then gStates.apocalypseQuestStepColor[card.guid]=colors[1] end
@@ -5949,14 +5949,14 @@ local function apocalypseQuestResolveRichMerchantProgress(card,playerIndex,optio
 --A Rich Merchant Step 1 must use the face of a real rolled mana die. The die can appear immediately
 --over slot 1 because that destination is already known; the Quest card starts moving there at once.
 --Black advances to Step 2; the other results leave Step 1 ready to Complete.
-if apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
-if apocalypseQuestClaimAbandonedPersonal(card,playerIndex)~=true then
+if QuestPrivate.apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
+if QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card,playerIndex)~=true then
 	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.",playerColor,{1,0.55,0.2}) end
 	finishQuestResolution(0.5)
 	return false
 end
 apocalypseQuestBeginMoveAttachmentCapture(card,QuestPrivate.apocalypseQuestOfferPosition(1))
-if apocalypseQuestPositionProgressShield(card,playerIndex,option)~=true then
+if QuestPrivate.apocalypseQuestPositionProgressShield(card,playerIndex,option)~=true then
 	apocalypseQuestEndMoveAttachmentCapture(card)
 	if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.",playerColor,{1,0.55,0.2}) end
 	finishQuestResolution(0.5)
@@ -5968,26 +5968,26 @@ local started=apocalypseQuestRollVisibleManaDie(card,playerIndex,"A Rich Merchan
 	if liveCard==nil then finishQuestResolution(0.5) return end
 	if rolled==nil then
 		--Stay on Step 1 so Proceed can simply be tried again if the physical die was unreadable.
-		apocalypseQuestInterfaceAdd(liveCard,true)
+		QuestPrivate.apocalypseQuestInterfaceAdd(liveCard,true)
 		finishQuestResolution(0.5)
 		return
 	end
 	apocalypseQuestResolveRichMerchantRoll(liveCard,playerIndex,rolled)
-	if rolled=="Black" then apocalypseQuestAdvanceProgress(liveCard,state,option) end
+	if rolled=="Black" then QuestPrivate.apocalypseQuestAdvanceProgress(liveCard,state,option) end
 	apocalypseQuestRefreshOfferButtons()
 	finishQuestResolution(0.5)
 end,QuestPrivate.apocalypseQuestOfferPosition(1))
 if started~=true then
 	if gStates.apocalypseQuestMoveAttachments~=nil then gStates.apocalypseQuestMoveAttachments[card.guid]=nil end
-	apocalypseQuestPositionProgressShield(card,playerIndex,option)
-	apocalypseQuestInterfaceAdd(card,true)
+	QuestPrivate.apocalypseQuestPositionProgressShield(card,playerIndex,option)
+	QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
 	finishQuestResolution(0.5)
 	return false
 end
-apocalypseQuestCommitStepMarker(card,option)
+QuestPrivate.apocalypseQuestCommitStepMarker(card,option)
 --Suppress the normal settled refresh while the visible die is still resolving; its callback refreshes
 --the Quest once the result is known. The physical offer still starts moving immediately.
-apocalypseQuestOfferMoveToLeft(card,function() end)
+QuestPrivate.apocalypseQuestOfferMoveToLeft(card,function() end)
 return true
 end
 
@@ -5998,23 +5998,23 @@ end
 
 local function apocalypseQuestResolveProgressAction(card,playerIndex,option,playerColor,state,questState,finishQuestResolution)
 local handler=apocalypseQuestHandler(card)
-if apocalypseQuestUsesGenericStepMarker(card,option)==true and apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
+if apocalypseQuestUsesGenericStepMarker(card,option)==true and QuestPrivate.apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
 --Plan the offer move before any replacement/progress Shield is created so every new Shield
 --uses slot 1 immediately and is explicitly owned by this Quest during the reorder.
 apocalypseQuestBeginMoveAttachmentCapture(card,QuestPrivate.apocalypseQuestOfferPosition(1))
-if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
+if QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
 	apocalypseQuestEndMoveAttachmentCapture(card)
 	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
 	finishQuestResolution(0.5)
 	return false
 end
-if apocalypseQuestPositionProgressShield(card, playerIndex, option)~=true then
+if QuestPrivate.apocalypseQuestPositionProgressShield(card, playerIndex, option)~=true then
 	apocalypseQuestEndMoveAttachmentCapture(card)
 	if playerColor~=nil then broadcastToColor("{en}Quest progress could not place the required Shield.{ru}При продвижении задания не удалось разместить требуемый Щит.{zh-tw}任務進度無法放置所需盾牌。{zh-cn}任务进度无法放置所需盾牌。{ko}퀘스트 진행 중 필요한 방패를 놓지 못했습니다.{es}El progreso de la Misión no pudo colocar el Escudo requerido.{fr}La progression de la Quête n’a pas pu placer le Bouclier requis.{pt-br}O progresso da Missão não conseguiu colocar o Escudo necessário.{de}Beim Quest-Fortschritt konnte der erforderliche Schild nicht platziert werden.", playerColor, {1,0.55,0.2}) end
 	finishQuestResolution(0.5)
 	return false
 end
-apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
+QuestPrivate.apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
 QuestPrivate.apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 local key=tostring(option.key)
 local fistfulSetup=handler~=nil and handler.fistfulSetupKey==key
@@ -6025,25 +6025,25 @@ local launchedNext=handler~=nil and handler.preserveCombatLaunchOnProgressKeys~=
 QuestPrivate.apocalypseQuestResolveSpecialEffect(card, playerIndex, option, false)
 apocalypseQuestEndMoveAttachmentCapture(card)
 if gStates.apocalypseQuestStepColor~=nil then gStates.apocalypseQuestStepColor[card.guid]=nil end
-apocalypseQuestAdvanceProgress(card, state, option)
+QuestPrivate.apocalypseQuestAdvanceProgress(card, state, option)
 if launchedNext==true and QuestPrivate.apocalypseQuestCombatStartedThisTurn(card,state.step)==true then
 	if gStates.apocalypseQuestCombatLaunches==nil then gStates.apocalypseQuestCombatLaunches={} end
 	gStates.apocalypseQuestCombatLaunches[card.guid]=QuestPrivate.apocalypseQuestCombatLaunchKey(card,state)
 end
 --Commit before the offer snapshot. A Quest marker may still be travelling to the map and must not be
 --mistaken for an attachment that should follow the card left.
-if apocalypseQuestUsesGenericStepMarker(card,option)==true then apocalypseQuestCommitStepMarker(card,option) end
+if apocalypseQuestUsesGenericStepMarker(card,option)==true then QuestPrivate.apocalypseQuestCommitStepMarker(card,option) end
 if fistfulSetup==true then
 	--Let the card reach slot 1 before drawing from the same gray bag twice. The short gap also
 	--ensures the first takeObject has fully left the container before the second extraction.
-	apocalypseQuestOfferMoveToLeft(card,function(liveCard)
+	QuestPrivate.apocalypseQuestOfferMoveToLeft(card,function(liveCard)
 		apocalypseQuestPlaceFistfulEnemies(liveCard,function()
 			apocalypseQuestRefreshOfferButtons()
 			finishQuestResolution(0.5)
 		end)
 	end)
 else
-	apocalypseQuestOfferMoveToLeft(card)
+	QuestPrivate.apocalypseQuestOfferMoveToLeft(card)
 	finishQuestResolution(1.0)
 end
 broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} progressed a Quest ({ru} продвинул задание ({zh-tw} 推進了一個任務（{zh-cn} 推进了一个任务（{ko}이(가) 퀘스트를 진행했습니다 ({es} progresó una Misión ({fr} a fait progresser une Quête ({pt-br} progrediu uma Missão ({de} hat eine Quest vorangebracht (",tostring(option.key),")."}), positionToColor(playerIndex))
@@ -6064,7 +6064,7 @@ end
 local function apocalypseQuestCrystalRewardFailed(card,playerIndex,finishQuestResolution)
 	if card~=nil then
 		QuestPrivate.apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		apocalypseQuestInterfaceAdd(card,true)
+		QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
 	end
 	finishQuestResolution(0.5)
 end
@@ -6110,7 +6110,7 @@ local function apocalypseQuestCompleteGuardDuty(card,playerIndex,option,playerCo
 		pending.colors=QuestPrivate.apocalypseQuestCrystalChoiceColors(playerIndex,pending)
 		if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
 		gStates.apocalypseQuestCombatChoice[card.guid]=pending
-		apocalypseQuestInterfaceAdd(card,true)
+		QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
 		broadcastToAll(joinLang({"{en}Guard Duty distance is {ru}Расстояние Guard Duty: {zh-tw}Guard Duty 距離為 {zh-cn}Guard Duty 距离为 {ko}Guard Duty 거리: {es}La distancia de Guard Duty es {fr}La distance de Guard Duty est de {pt-br}A distância de Guard Duty é {de}Die Entfernung bei Guard Duty beträgt ",tostring(guardDutyDistance),"{en}: choose two basic mana crystals.{ru}: выберите два базовых кристалла маны.{zh-tw}：選擇兩顆基本魔力水晶。{zh-cn}：选择两颗基本魔力水晶。{ko}: 기본 마나 크리스털 2개를 선택하십시오.{es}: elige dos cristales básicos de maná.{fr} : choisissez deux cristaux de mana de base.{pt-br}: escolha dois cristais básicos de mana.{de}: Wähle zwei Basismana-Kristalle."}),positionToColor(playerIndex))
 		return true,true
 	end
@@ -6148,16 +6148,16 @@ local function apocalypseQuestCompleteHerbalist(card,playerIndex,option,playerCo
 		if success==true then
 			QuestPrivate.apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
 			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}), positionToColor(playerIndex))
-			apocalypseQuestFinishCompletedCard(questCard)
+			QuestPrivate.apocalypseQuestFinishCompletedCard(questCard)
 		else
 			QuestPrivate.apocalypseQuestClearRewardCompletionGate(questCard,playerIndex)
-			apocalypseQuestInterfaceAdd(questCard,true)
+			QuestPrivate.apocalypseQuestInterfaceAdd(questCard,true)
 		end
 		finishQuestResolution(0.5)
 	end)
 	if started~=true then
 		QuestPrivate.apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-		apocalypseQuestInterfaceAdd(card,true)
+		QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
 		finishQuestResolution(0.5)
 	end
 	return true,started
@@ -6180,27 +6180,27 @@ local function apocalypseQuestResolveCompleteAction(card,playerIndex,option,play
 			completionContext=context or {}
 		end
 	end
-if apocalypseQuestUsesGenericStepMarker(card,option)==true and apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
-if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
+if apocalypseQuestUsesGenericStepMarker(card,option)==true and QuestPrivate.apocalypseQuestPlaceStepMarker(card,playerIndex,option,playerColor)~=true then finishQuestResolution(0.5) return false end
+if QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
 	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
 	finishQuestResolution(0.5)
 	return false
 end
-apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
+QuestPrivate.apocalypseQuestAwardStepPoint(card, playerIndex, option, state, questState)
 QuestPrivate.apocalypseQuestClearRewardCompletionGate(card,playerIndex)
-if apocalypseQuestUsesGenericStepMarker(card,option)==true then apocalypseQuestCommitStepMarker(card,option) end
+if apocalypseQuestUsesGenericStepMarker(card,option)==true then QuestPrivate.apocalypseQuestCommitStepMarker(card,option) end
 if quest.allPlayersComplete==true then
 	state.completed=true
-	apocalypseQuestRemovePlayerShield(card, playerIndex)
-	if apocalypseQuestAllPlayersCompleted(card)==true then
+	QuestPrivate.apocalypseQuestRemovePlayerShield(card, playerIndex)
+	if QuestPrivate.apocalypseQuestAllPlayersCompleted(card)==true then
 		QuestPrivate.apocalypseQuestResolveSpecialEffect(card, playerIndex, option, true)
 		broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed the final required part of \"{ru} завершил последнюю требуемую часть \"{zh-tw} 完成了 \"{zh-cn} 完成了 \"{ko}이(가) \"{es} completó la última parte requerida de \"{fr} a terminé la dernière partie requise de \"{pt-br} concluiu a última parte necessária de \"{de} hat den letzten erforderlichen Teil von \"",quest.name,"{en}\".{ru}\".{zh-tw}\" 的最後必要部分。{zh-cn}\" 的最后必要部分。{ko}\"의 마지막 필수 부분을 완료했습니다.{es}\".{fr}\".{pt-br}\".{de}\" abgeschlossen."}), positionToColor(playerIndex))
-		apocalypseQuestFinishCompletedCard(card)
+		QuestPrivate.apocalypseQuestFinishCompletedCard(card)
 	else
 		apocalypseQuestBeginMoveAttachmentCapture(card,QuestPrivate.apocalypseQuestOfferPosition(1))
 		QuestPrivate.apocalypseQuestResolveSpecialEffect(card, playerIndex, option, false)
 		apocalypseQuestEndMoveAttachmentCapture(card)
-		apocalypseQuestOfferMoveToLeft(card)
+		QuestPrivate.apocalypseQuestOfferMoveToLeft(card)
 		broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed their part of \"{ru} завершил свою часть \"{zh-tw} 完成了自己在 \"{zh-cn} 完成了自己在 \"{ko}이(가) \"{es} completó su parte de \"{fr} a terminé sa partie de \"{pt-br} concluiu sua parte de \"{de} hat seinen Teil von \"",quest.name,"{en}\".{ru}\".{zh-tw}\" 中的部分。{zh-cn}\" 中的部分。{ko}\"에서 자신의 부분을 완료했습니다.{es}\".{fr}\".{pt-br}\".{de}\" abgeschlossen."}), positionToColor(playerIndex))
 	end
 else
@@ -6210,14 +6210,14 @@ else
 	end
 	QuestPrivate.apocalypseQuestResolveSpecialEffect(card, playerIndex, option, true)
 	broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} completed a Quest ({ru} завершил задание ({zh-tw} 完成了一個任務（{zh-cn} 完成了一个任务（{ko}이(가) 퀘스트를 완료했습니다 ({es} completó una Misión ({fr} a terminé une Quête ({pt-br} concluiu uma Missão ({de} hat eine Quest abgeschlossen (",tostring(option.key),")."}), positionToColor(playerIndex))
-	apocalypseQuestFinishCompletedCard(card)
+	QuestPrivate.apocalypseQuestFinishCompletedCard(card)
 end
 finishQuestResolution(1.0)
 return true
 end
 
 local function apocalypseQuestResolveFailAction(card,playerIndex,option,playerColor,quest,finishQuestResolution)
-if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
+if QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
 	if playerColor~=nil then broadcastToColor("{en}The Personal Quest Shield could not be claimed.{ru}Щит личного задания не удалось получить.{zh-tw}無法取得個人任務盾牌。{zh-cn}无法取得个人任务盾牌。{ko}개인 퀘스트 방패를 획득하지 못했습니다.{es}No se pudo reclamar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être récupéré.{pt-br}O Escudo de Missão Pessoal não pôde ser recebido.{de}Der Schild der persönlichen Quest konnte nicht beansprucht werden.", playerColor, {1,0.55,0.2}) end
 	finishQuestResolution(0.5)
 	return false
@@ -6226,12 +6226,12 @@ QuestPrivate.apocalypseQuestClearRewardCompletionGate(card,playerIndex)
 QuestPrivate.apocalypseQuestResolveFailureEffect(card,playerIndex,option)
 apocalypseQuestLoseReputation(playerIndex, quest.name, "fail")
 broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} failed \"{ru} провалил \"{zh-tw} 任務失敗：\"{zh-cn} 任务失败：\"{ko}이(가) \"{es} falló \"{fr} a échoué à \"{pt-br} falhou em \"{de} ist bei \"",quest.name,"{en}\".{ru}\".{zh-tw}\"。{zh-cn}\"。{ko}\"에 실패했습니다.{es}\".{fr}\".{pt-br}\".{de}\" gescheitert."}), positionToColor(playerIndex))
-apocalypseQuestBottomDeck(card)
+QuestPrivate.apocalypseQuestBottomDeck(card)
 finishQuestResolution(1.0)
 return true
 end
 
-function apocalypseQuestResolveStepAction(card, playerIndex, action, option, playerColor, rewindReady)
+function QuestPrivate.apocalypseQuestResolveStepAction(card, playerIndex, action, option, playerColor, rewindReady)
 	local waiting=apocalypseQuestWaitForStepResolution(card,playerIndex,action,option,playerColor,rewindReady)
 	if waiting~=nil then return waiting end
 
@@ -6246,7 +6246,7 @@ function apocalypseQuestResolveStepAction(card, playerIndex, action, option, pla
 	local questRewindOwner="Quest resolve "..tostring(card.guid).." "..tostring(playerIndex)
 	if rewindReady~=true then
 		if rewindTransactionOwnerActive(questRewindOwner)==true then return true end
-		rewindTransactionStart(function() apocalypseQuestResolveStepAction(card,playerIndex,action,option,playerColor,true) end,questRewindOwner)
+		rewindTransactionStart(function() QuestPrivate.apocalypseQuestResolveStepAction(card,playerIndex,action,option,playerColor,true) end,questRewindOwner)
 		return true
 	end
 	local function finishQuestResolution(delay)
@@ -6273,7 +6273,7 @@ local function apocalypseQuestRequeueCombatChoice(card,pendingCombat)
 	if gStates.apocalypseQuestCombatChoice==nil then gStates.apocalypseQuestCombatChoice={} end
 	pendingCombat.colors=QuestPrivate.apocalypseQuestCrystalChoiceColors(pendingCombat.playerIndex,pendingCombat)
 	gStates.apocalypseQuestCombatChoice[card.guid]=pendingCombat
-	apocalypseQuestInterfaceAdd(card,true)
+	QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
 end
 
 local function apocalypseQuestTrackedCrystalChoice(card,playerIndex,color,pendingCombat,source,remainingKey,finish)
@@ -6318,8 +6318,8 @@ local apocalypseQuestCombatChoiceModes={
 		resolve=function(card,playerIndex,color,pendingCombat,player)
 			if gStates.apocalypseQuestStepColor==nil then gStates.apocalypseQuestStepColor={} end
 			gStates.apocalypseQuestStepColor[card.guid]=color
-			local selected=apocalypseQuestChoiceOption(card,pendingCombat.key)
-			if selected~=nil then apocalypseQuestResolveStepAction(card,playerIndex,pendingCombat.action or "Progress",selected,player.color) end
+			local selected=QuestPrivate.apocalypseQuestChoiceOption(card,pendingCombat.key)
+			if selected~=nil then QuestPrivate.apocalypseQuestResolveStepAction(card,playerIndex,pendingCombat.action or "Progress",selected,player.color) end
 		end
 	}
 }
@@ -6330,14 +6330,14 @@ local function apocalypseQuestHandleCombatChoiceAction(player,card,playerIndex,a
 		local mode=pendingCombat~=nil and apocalypseQuestCombatChoiceModes[pendingCombat.mode] or nil
 		if mode~=nil and mode.cancelLocked==true then return end
 		if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
-		apocalypseQuestInterfaceAdd(card,true)
+		QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
 		return
 	end
 	if action:sub(1,12)~="CombatColor_" then return end
 	local color=action:sub(13)
 	if pendingCombat==nil or pendingCombat.playerIndex~=playerIndex then
 		if gStates.apocalypseQuestCombatChoice~=nil then gStates.apocalypseQuestCombatChoice[card.guid]=nil end
-		apocalypseQuestInterfaceAdd(card,true)
+		QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
 		return
 	end
 	local allowed=false
@@ -6350,18 +6350,18 @@ local function apocalypseQuestHandleCombatChoiceAction(player,card,playerIndex,a
 			if mode.refreshAfter==false then return end
 		else QuestPrivate.apocalypseQuestLaunchCombat(card,playerIndex,player.color,color) end
 	end
-	if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end
+	if getObjectFromGUID(card.guid)~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(card,true) end
 end
 
 local function apocalypseQuestHandleDirectAction(player,card,playerIndex,action)
 	if action:sub(1,7)~="Direct_" then return end
 	local key=action:sub(8)
 	local selected=nil
-	for _,choice in ipairs(apocalypseQuestDirectChoices(card,playerIndex)) do if choice.key==key then selected=choice break end end
-	if selected==nil or apocalypseQuestDirectChoiceLegal(card,playerIndex,selected)~=true then apocalypseQuestInterfaceAdd(card,true) return end
+	for _,choice in ipairs(QuestPrivate.apocalypseQuestDirectChoices(card,playerIndex)) do if choice.key==key then selected=choice break end end
+	if selected==nil or QuestPrivate.apocalypseQuestDirectChoiceLegal(card,playerIndex,selected)~=true then QuestPrivate.apocalypseQuestInterfaceAdd(card,true) return end
 	local handler=apocalypseQuestHandler(card)
 	if handler~=nil and handler.directAction~=nil and handler.directAction(player,card,playerIndex,selected,key)==true then return end
-	local option=apocalypseQuestChoiceOption(card,key)
+	local option=QuestPrivate.apocalypseQuestChoiceOption(card,key)
 	if selected.action=="Combat" then
 		if handler==nil or handler.storeDirectCombatBranch~=false then
 			if gStates.apocalypseQuestDirectBranch==nil then gStates.apocalypseQuestDirectBranch={} end
@@ -6370,20 +6370,20 @@ local function apocalypseQuestHandleDirectAction(player,card,playerIndex,action)
 		local chosenColor=nil
 		if handler~=nil and handler.combatBranchChoice==true then chosenColor=key end
 		QuestPrivate.apocalypseQuestLaunchCombat(card,playerIndex,player.color,chosenColor)
-		if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card,true) end
+		if getObjectFromGUID(card.guid)~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(card,true) end
 	else
 		if handler~=nil and handler.storeDirectBranch==true then
 			if gStates.apocalypseQuestDirectBranch==nil then gStates.apocalypseQuestDirectBranch={} end
 			gStates.apocalypseQuestDirectBranch[card.guid]=key
 		end
-		apocalypseQuestResolveStepAction(card,playerIndex,selected.action,option,player.color)
+		QuestPrivate.apocalypseQuestResolveStepAction(card,playerIndex,selected.action,option,player.color)
 	end
 end
 
 local function apocalypseQuestHandleCombatLaunchAction(player,card,playerIndex,action)
 	if action=="Fight" then
 		QuestPrivate.apocalypseQuestLaunchCombat(card,playerIndex,player.color,nil)
-		if getObjectFromGUID(card.guid)~=nil and (gStates.apocalypseQuestCombatChoice==nil or gStates.apocalypseQuestCombatChoice[card.guid]==nil) then apocalypseQuestInterfaceAdd(card,true) end
+		if getObjectFromGUID(card.guid)~=nil and (gStates.apocalypseQuestCombatChoice==nil or gStates.apocalypseQuestCombatChoice[card.guid]==nil) then QuestPrivate.apocalypseQuestInterfaceAdd(card,true) end
 		return true
 	end
 	local handler=apocalypseQuestHandler(card)
@@ -6394,23 +6394,23 @@ end
 local function apocalypseQuestHandlePendingChoiceAction(player,card,playerIndex,action)
 if action=="ChoiceCancel" then
 	if gStates.apocalypseQuestPendingChoice~=nil then gStates.apocalypseQuestPendingChoice[card.guid]=nil end
-	apocalypseQuestInterfaceAdd(card, true)
+	QuestPrivate.apocalypseQuestInterfaceAdd(card, true)
 	return
 end
 if action:sub(1,7)=="Choice_" then
 	local pending=gStates.apocalypseQuestPendingChoice~=nil and gStates.apocalypseQuestPendingChoice[card.guid] or nil
 	if pending==nil or pending.playerIndex~=playerIndex then
 		if gStates.apocalypseQuestPendingChoice~=nil then gStates.apocalypseQuestPendingChoice[card.guid]=nil end
-		apocalypseQuestInterfaceAdd(card, true)
+		QuestPrivate.apocalypseQuestInterfaceAdd(card, true)
 		return
 	end
 	local key=action:sub(8)
 	local selected=nil
-	for _, option in ipairs(apocalypseQuestCurrentOptions(card, playerIndex, pending.action)) do if option.key==key then selected=option break end end
+	for _, option in ipairs(QuestPrivate.apocalypseQuestCurrentOptions(card, playerIndex, pending.action)) do if option.key==key then selected=option break end end
 	gStates.apocalypseQuestPendingChoice[card.guid]=nil
-	if selected==nil then apocalypseQuestInterfaceAdd(card, true) return end
-	apocalypseQuestResolveStepAction(card, playerIndex, pending.action, selected, player.color)
-	if getObjectFromGUID(card.guid)~=nil then apocalypseQuestInterfaceAdd(card, true) end
+	if selected==nil then QuestPrivate.apocalypseQuestInterfaceAdd(card, true) return end
+	QuestPrivate.apocalypseQuestResolveStepAction(card, playerIndex, pending.action, selected, player.color)
+	if getObjectFromGUID(card.guid)~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(card, true) end
 	return
 end
 end
@@ -6422,12 +6422,12 @@ if action=="Abandon" then
 	local ownerIndex, ownerShield=QuestPrivate.apocalypseQuestPersonalShieldOwner(card)
 	local neutralShield=QuestPrivate.apocalypseQuestNeutralShield(card)
 	if quest.questType=="Personal" and ownerIndex==nil and neutralShield~=nil then
-		if apocalypseQuestPlayerMayAct(card, playerIndex)~=true then
+		if QuestPrivate.apocalypseQuestPlayerMayAct(card, playerIndex)~=true then
 			broadcastToColor("{en}You cannot resume this Personal Quest while you have another Personal Quest.{ru}Нельзя возобновить это личное задание, пока у вас есть другое личное задание.{zh-tw}當你有另一個個人任務時，不能恢復此個人任務。{zh-cn}当你有另一个个人任务时，不能恢复此个人任务。{ko}다른 개인 퀘스트를 보유한 동안에는 이 개인 퀘스트를 재개할 수 없습니다.{es}No puedes reanudar esta Misión Personal mientras tengas otra Misión Personal.{fr}Vous ne pouvez pas reprendre cette Quête Personnelle tant que vous en avez une autre.{pt-br}Você não pode retomar esta Missão Pessoal enquanto tiver outra Missão Pessoal.{de}Du kannst diese persönliche Quest nicht fortsetzen, solange du eine andere persönliche Quest hast.", player.color, warningColor)
 			apocalypseQuestUpdateProgressButtons(card)
 			return
 		end
-		if apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
+		if QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card, playerIndex)~=true then
 			broadcastToColor("{en}The Personal Quest Shield could not be resumed.{ru}Щит личного задания не удалось восстановить.{zh-tw}無法恢復個人任務盾牌。{zh-cn}无法恢复个人任务盾牌。{ko}개인 퀘스트 방패를 재개하지 못했습니다.{es}No se pudo reanudar el Escudo de Misión Personal.{fr}Le Bouclier de Quête Personnelle n’a pas pu être repris.{pt-br}O Escudo de Missão Pessoal não pôde ser retomado.{de}Der Schild der persönlichen Quest konnte nicht wieder aufgenommen werden.", player.color, {1,0.55,0.2})
 			return
 		end
@@ -6440,7 +6440,7 @@ if action=="Abandon" then
 		apocalypseQuestUpdateProgressButtons(card)
 		return
 	end
-	if apocalypseQuestShieldSupplyBag("Neutral")==nil then
+	if QuestPrivate.apocalypseQuestShieldSupplyBag("Neutral")==nil then
 		broadcastToColor("{en}The neutral Quest Shield bag could not be found.{ru}Мешок нейтральных Щитов задания не найден.{zh-tw}找不到中立任務盾牌袋。{zh-cn}找不到中立任务盾牌袋。{ko}중립 퀘스트 방패 주머니를 찾지 못했습니다.{es}No se encontró la bolsa de Escudos de Misión neutrales.{fr}Le sac de Boucliers de Quête neutres est introuvable.{pt-br}A bolsa de Escudos de Missão neutros não foi encontrada.{de}Der Beutel mit neutralen Quest-Schilden wurde nicht gefunden.", player.color, {1,0.55,0.2})
 		return
 	end
@@ -6448,8 +6448,8 @@ if action=="Abandon" then
 	local shieldRot=ownerShield.getRotation()
 	apocalypseQuestBeginMoveAttachmentCapture(card,QuestPrivate.apocalypseQuestOfferPosition(1))
 	local surface=apocalypseQuestPlannedWorldPosition(card,{shieldPos[1],shieldPos[2]+0.08,shieldPos[3]})
-	local target=apocalypseQuestRaisedPiecePosition(surface)
-	local neutralShield=apocalypseQuestTakeNeutralShield(surface)
+	local target=QuestPrivate.apocalypseQuestRaisedPiecePosition(surface)
+	local neutralShield=QuestPrivate.apocalypseQuestTakeNeutralShield(surface)
 	if neutralShield==nil then
 		apocalypseQuestEndMoveAttachmentCapture(card)
 		broadcastToColor("{en}A neutral Quest Shield could not be placed.{ru}Нейтральный Щит задания не удалось разместить.{zh-tw}無法放置中立任務盾牌。{zh-cn}无法放置中立任务盾牌。{ko}중립 퀘스트 방패를 놓지 못했습니다.{es}No se pudo colocar un Escudo de Misión neutral.{fr}Un Bouclier de Quête neutre n’a pas pu être placé.{pt-br}Um Escudo de Missão neutro não pôde ser colocado.{de}Ein neutraler Quest-Schild konnte nicht platziert werden.", player.color, {1,0.55,0.2})
@@ -6463,7 +6463,7 @@ if action=="Abandon" then
 		if shield.getName()=="Shield" and shield.getDescription()==ownerMage and getObjectFromGUID(shield.guid)~=nil then shield.destruct() end
 	end
 	apocalypseQuestLoseReputation(playerIndex, quest.name, "abandon")
-	apocalypseQuestOfferMoveToLeft(card)
+	QuestPrivate.apocalypseQuestOfferMoveToLeft(card)
 	broadcastToAll(joinLang({translateWord[details.mage] or tostring(details.mage),"{en} abandoned a Quest.{ru} отказался от задания.{zh-tw} 放棄了一個任務。{zh-cn} 放弃了一个任务。{ko}이(가) 퀘스트를 포기했습니다.{es} abandonó una Misión.{fr} a abandonné une Quête.{pt-br} abandonou uma Missão.{de} hat eine Quest aufgegeben."}), positionToColor(playerIndex))
 	return
 end
@@ -6471,7 +6471,7 @@ end
 
 local function apocalypseQuestHandleStandardAction(player,card,playerIndex,action)
 if action~="Progress" and action~="Complete" and action~="Fail" then return end
-local options=apocalypseQuestCurrentOptions(card, playerIndex, action)
+local options=QuestPrivate.apocalypseQuestCurrentOptions(card, playerIndex, action)
 if #options==0 then
 	local state=QuestPrivate.apocalypseQuestProgressState(card, playerIndex, false)
 	local step=state~=nil and state.step or 1
@@ -6479,11 +6479,11 @@ if #options==0 then
 	apocalypseQuestUpdateProgressButtons(card)
 	return
 end
-if apocalypseQuestOptionsNeedChoice(card, action, options)==true then
-	apocalypseQuestShowChoice(card, playerIndex, action, options)
+if QuestPrivate.apocalypseQuestOptionsNeedChoice(card, action, options)==true then
+	QuestPrivate.apocalypseQuestShowChoice(card, playerIndex, action, options)
 	return
 end
-apocalypseQuestResolveStepAction(card, playerIndex, action, options[1], player.color)
+QuestPrivate.apocalypseQuestResolveStepAction(card, playerIndex, action, options[1], player.color)
 end
 
 function apocalypseQuestCardAction(player, mouseButton, id)
@@ -6516,10 +6516,10 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 	local details=turnOrder[playerIndex]
 	if card==nil or details==nil then return end
 	if anyHumanConfirm==true then
-		if apocalypseQuestAnyHumanMayConfirm(player.color)~=true then return end
+		if QuestPrivate.apocalypseQuestAnyHumanMayConfirm(player.color)~=true then return end
 	elseif legalPlayerCheck(player.color, details.seatPos, "NoDummyException")~=true then return end
 	local offered=false
-	for _, offerCard in pairs(apocalypseQuestOfferCards()) do if offerCard.guid==guid then offered=true break end end
+	for _, offerCard in pairs(QuestPrivate.apocalypseQuestOfferCards()) do if offerCard.guid==guid then offered=true break end end
 	if offered~=true then QuestPrivate.apocalypseQuestInterfaceRemove(card) return end
 	local quest=apocalypseQuestData[card.guid]
 	if quest==nil then return end
@@ -6548,7 +6548,7 @@ function apocalypseQuestCardAction(player, mouseButton, id)
 end
 --Quest Deck GUIDs can change when TTS collapses/rebuilds a Deck while completed Quests are returned.
 --Recover the live pile by its fixed table position and known Quest contents, then remember the new GUID.
-function apocalypseQuestLiveDeck()
+function QuestPrivate.apocalypseQuestLiveDeck()
 	local deck=getObjectFromGUID(GUID.deck.apocalypseQuest)
 	if deck~=nil and (deck.type=="Deck" or deck.type=="Card") then return deck end
 	local known=gStates.apocalypseQuestCardGUIDs or {}
@@ -6594,19 +6594,19 @@ function apocalypseQuestOfferRefresh(attempt)
 		end
 	end
 	local areaObjects=QuestPrivate.apocalypseQuestAreaObjects()
-	local cards=apocalypseQuestOfferCards(areaObjects)
+	local cards=QuestPrivate.apocalypseQuestOfferCards(areaObjects)
 	local currentQuestTurnSerial=gStates.apocalypseQuestTurnSerial or 0
 	if #cards>=QuestPrivate.apocalypseQuestOfferTarget() or gStates.apocalypseQuestOfferDrawSerial==currentQuestTurnSerial then
 		--The offer can legitimately remain short. Once this human turn has drawn its one replacement,
 		--later UI/location refreshes may rebuild the buttons but must not take another Quest.
 		for _, card in pairs(cards) do
-			local ok, err=pcall(apocalypseQuestInterfaceAdd, card)
+			local ok, err=pcall(QuestPrivate.apocalypseQuestInterfaceAdd, card)
 			if ok~=true then print("QUEST START-OF-TURN REFRESH ERROR: "..tostring(apocalypseQuestName(card))..": "..tostring(err)) end
 		end
 		return false
 	end
 
-	local deck=apocalypseQuestLiveDeck()
+	local deck=QuestPrivate.apocalypseQuestLiveDeck()
 	if deck==nil then
 		attempt=attempt or 1
 		if attempt<12 then
@@ -6639,7 +6639,7 @@ function apocalypseQuestOfferRefresh(attempt)
 	local settleChecks=0
 	local function offerSettled()
 		settleChecks=settleChecks+1
-		local liveCards=apocalypseQuestOfferCards()
+		local liveCards=QuestPrivate.apocalypseQuestOfferCards()
 		if #liveCards<expectedCount then return false end
 		for guid,_ in pairs(refillMovedGUIDs) do
 			local obj=getObjectFromGUID(guid)
@@ -6674,9 +6674,9 @@ function apocalypseQuestOfferRefresh(attempt)
 		gStates.apocalypseQuestOfferMoving=false
 		gStates.apocalypseQuestOfferRefreshPending=nil
 		gStates.apocalypseQuestOfferButtonRefreshPending=nil
-		for _, questCard in pairs(apocalypseQuestOfferCards()) do
+		for _, questCard in pairs(QuestPrivate.apocalypseQuestOfferCards()) do
 			questCard.lock()
-			local ok, err=pcall(apocalypseQuestInterfaceAdd, questCard)
+			local ok, err=pcall(QuestPrivate.apocalypseQuestInterfaceAdd, questCard)
 			if ok~=true then print("QUEST REFILL FINAL REFRESH ERROR: "..tostring(apocalypseQuestName(questCard))..": "..tostring(err)) end
 		end
 		refreshOutOfTurnActions(nil,nil,true)
@@ -6688,7 +6688,7 @@ function apocalypseQuestOfferRefresh(attempt)
 	local shuffled=apocalypseQuestShuffleIfCycleReached(deck)
 	for i=#cards, 1, -1 do
 		shiftedCardGUIDs[#shiftedCardGUIDs+1]=cards[i].guid
-		for _,guid in ipairs(apocalypseQuestMoveCard(cards[i], QuestPrivate.apocalypseQuestOfferPosition(i+1), areaObjects, cards)) do refillMovedGUIDs[guid]=true end
+		for _,guid in ipairs(QuestPrivate.apocalypseQuestMoveCard(cards[i], QuestPrivate.apocalypseQuestOfferPosition(i+1), areaObjects, cards)) do refillMovedGUIDs[guid]=true end
 	end
 	local pos=QuestPrivate.apocalypseQuestOfferPosition(1)
 	--A player may manually cut/re-stack the Quest deck while testing. TTS can briefly expose the Deck
@@ -6697,7 +6697,7 @@ function apocalypseQuestOfferRefresh(attempt)
 	--then track the replacement itself only with isSmoothMoving().
 	local function drawQuestReplacement(attempt)
 		attempt=attempt or 1
-		local liveDeck=apocalypseQuestLiveDeck()
+		local liveDeck=QuestPrivate.apocalypseQuestLiveDeck()
 		if liveDeck==nil then
 			if attempt<12 then safeWaitFrames("Quests",function() drawQuestReplacement(attempt+1) end, 3)
 			else print("QUEST REFILL ERROR: Quest deck could not be found after manual re-stack.") finishQuestOfferRefill() end
@@ -6809,7 +6809,7 @@ function apocalypseQuestDeckSetup(questDeck)
 				card.lock()
 				print("QUEST SETUP DRAW: slot "..tostring(slot).." <- "..tostring(apocalypseQuestName(card)).." ["..tostring(card.guid).."].")
 				safeWaitCondition("Quests",function()
-					apocalypseQuestInterfaceAdd(card)
+					QuestPrivate.apocalypseQuestInterfaceAdd(card)
 					offerReady=offerReady+1
 					if offerReady>=2 then gStates.apocalypseQuestSetupReady=true end
 				end,function()
