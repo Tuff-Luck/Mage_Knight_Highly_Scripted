@@ -1,3 +1,6 @@
+-- Turn-private helper.
+local dayTactic2Discarded
+
 -- Turn, round, tactic and final-turn runtime.
 
 local dropoutMatImage="https://steamusercontent-a.akamaihd.net/ugc/9970617178500111609/C9D8D7517B7FAF114F10D8195AC38269F0504E37/"
@@ -1489,7 +1492,7 @@ function dayTactic2ExpireIfCardPlayed(seatPos)
 end
 
 --Give replacement cards for Day Tactic 2, then shuffle the discarded cards back into the Deed Deck.
-function dayTactic2Discarded(player, mouseButton, id)
+dayTactic2Discarded=function(player, mouseButton, id)
 	if mouseButton~="-1" or player==nil then return end
 	local tactic=getObjectFromGUID(tacticCard[2])
 	if tactic==nil then return end
