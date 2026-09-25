@@ -1,3 +1,14 @@
+-- City-private helpers. Predeclared so forward references keep resolving locally.
+local cityModelDisplayLevel, initializeCityStaticData, cityMegapolisPending, cityHasMegapolis, cityPlayedContains, cityRemoveFromPlayed
+local refreshUltimateConquestCityCounts, ultimateConquestLeaderLevel, cityControlLockedByReveal, cityControlState, setCityDisplayLevel, factionLeaderForCity
+local setFactionLeaderLevel, cityArmyLevelData, cityDefenderPile, takeCityDefender, cityGarrisonBasePosition, cityArmyPlace
+local returnCityGarrisonTokens, resetCityGarrisonData, cityObjectsAreReady, disableCityControls, rebuildCityGarrisonNow, rebuildCityGarrison
+local scheduleCityRebuild, megapolisTerrainBearingData, megapolisReturnHexMonsters, megapolisRemoveGraveyardMarker, megapolisRemoveMonasteryOffer, megapolisWarOfFourGladeOnFactionEdge
+local megapolisDeployWarOfFourGlade, megapolisRestoreTerrainHex, chooseMegapolisPair, cityTerrainRotationKey, createCityMegapolisPair, addCityMegapolis
+local removeCityMegapolis, cityShouldCreateMegapolis, cityRegisterDeployOrder, cityLeaderDeployOrder, deployFriendlyCityShields, resolveCityForTerrain
+local revealCityInfoCard, cityLevelReadoutOnly, adjustCityLevel, cityCardMapSnapshot, cityCardExploreGroup, cityCardPositionForbidden
+local cityCardExploreSpaceFree, findCityCardPosition, moveCityCardExploreGroup, positionCityCardForExplore, cityControlTerrainGUID, refreshLockedCityControl
+
 -- City, Megapolis, garrison, City-card placement and ownership runtime.
 
 --Keep City scripting zones and stored defender return positions aligned with their City cards.
@@ -38,14 +49,14 @@ function isStandardCityGUID(cityGUID)
 	return cityGUID==cityModel.red or cityGUID==cityModel.green or cityGUID==cityModel.blue or cityGUID==cityModel.white
 end
 
-function cityModelDisplayLevel(cityGUID, cityLevel)
+cityModelDisplayLevel=function(cityGUID, cityLevel)
 	if isStandardCityGUID(cityGUID) then return math.min(tonumber(cityLevel) or 1, 11) end
 	return tonumber(cityLevel) or 1
 end
 
 --Static City deployment data. Keeping this outside playCity() avoids rebuilding the same large tables
 --every time a City is deployed or its level is changed.
-function initializeCityStaticData()
+initializeCityStaticData=function()
 	CITY_NAME_BY_GUID={[cityModel.green]="city green", [cityModel.blue]="city blue", [cityModel.white]="city white", [cityModel.red]="city red", [volkare.terrainHex]="Volkare's Camp"}
 	CITY_BASE_CARD={[cityModel.white]="a37b57", [cityModel.blue]="79a723", [cityModel.red]="bd6ab1", [cityModel.green]="8de450"}
 	CITY_START_LOCATION={
@@ -94,25 +105,25 @@ function cityMegapolisPair(cityGUID)
 	return data.extra.megapolisPair
 end
 
-function cityMegapolisPending(cityGUID)
+cityMegapolisPending=function(cityGUID)
 	local data=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID] or nil
 	return data~=nil and data.extra~=nil and data.extra.megapolisPending==true
 end
 
-function cityHasMegapolis(cityGUID)
+cityHasMegapolis=function(cityGUID)
 	return cityMegapolisPair(cityGUID)~=nil or cityMegapolisPending(cityGUID)==true
 end
 
-function cityPlayedContains(cityGUID)
+cityPlayedContains=function(cityGUID)
 	for _, playedGUID in ipairs(gStates.citiesPlayed or {}) do if playedGUID==cityGUID then return true end end
 	return false
 end
 
-function cityRemoveFromPlayed(cityGUID)
+cityRemoveFromPlayed=function(cityGUID)
 	for index=#(gStates.citiesPlayed or {}), 1, -1 do if gStates.citiesPlayed[index]==cityGUID then table.remove(gStates.citiesPlayed, index) end end
 end
 
-function refreshUltimateConquestCityCounts()
+refreshUltimateConquestCityCounts=function()
 	if gStates.gameScenario~="Ultimate Conquest" then return 0 end
 	local cityCount=-(gStates.megapolisPlayed or 0)
 	gStates.ultimateLeaders=0
@@ -126,7 +137,7 @@ function refreshUltimateConquestCityCounts()
 	return cityCount
 end
 
-function ultimateConquestLeaderLevel(cityCount)
+ultimateConquestLeaderLevel=function(cityCount)
 	if cityCount>0 and gStates.cityLevels[cityCount]~=nil then return gStates.cityLevels[cityCount] end
 	local lowest=nil
 	for cityIndex=1, gStates.cityTiles do
@@ -140,7 +151,7 @@ cityMaintenanceLockSeen={}
 
 --Once a City/Volkare garrison or faction leader reveals new information, its setup controls are permanently locked.
 --The physical checks remain here as a last-line guard so a fast click can never beat the UI refresh.
-function cityControlLockedByReveal(cityGUID, terrainGUID)
+cityControlLockedByReveal=function(cityGUID, terrainGUID)
 	if cityGUID==nil then return false end
 	local data=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID] or nil
 	if data==nil and terrainGUID=="Volkar" and gStates.cityMonsterQty~=nil then
@@ -177,7 +188,7 @@ function cityControlLockedByReveal(cityGUID, terrainGUID)
 	return revealed
 end
 
-function cityControlState(cityGUID, terrainGUID)
+cityControlState=function(cityGUID, terrainGUID)
 	local state={level=0, minLevel=0, maxLevel=0, canLevelUp=false, canLevelDown=false, canAddMegapolis=false, canRemoveMegapolis=false, showLevel=false}
 	if terrainGUID=="Volkar" then
 		state.level=tonumber(gStates.volkareLevel) or 4
@@ -212,7 +223,7 @@ function cityControlState(cityGUID, terrainGUID)
 	return state
 end
 
-function setCityDisplayLevel(cityGUID, level)
+setCityDisplayLevel=function(cityGUID, level)
 	local cityObj=getObjectFromGUID(cityGUID)
 	local images=cityLevelImage[cityGUID]
 	local imageLevel=cityModelDisplayLevel(cityGUID, level)
@@ -227,13 +238,13 @@ function setCityDisplayLevel(cityGUID, level)
 end
 
 
-function factionLeaderForCity(cityGUID)
+factionLeaderForCity=function(cityGUID)
 	if cityGUID==elementalist.terrainHex then return elementalist end
 	if cityGUID==darkCrusader.terrainHex then return darkCrusader end
 	return nil
 end
 
-function setFactionLeaderLevel(cityGUID, level)
+setFactionLeaderLevel=function(cityGUID, level)
 	local currentLeader=factionLeaderForCity(cityGUID)
 	local levelData=currentLeader~=nil and leaderData[currentLeader.terrainHex] or nil
 	level=math.min(tonumber(level) or 1, 12)
@@ -252,7 +263,7 @@ function setFactionLeaderLevel(cityGUID, level)
 	return true
 end
 
-function cityArmyLevelData(cityGUID, cityLevel)
+cityArmyLevelData=function(cityGUID, cityLevel)
 	cityLevel=tonumber(cityLevel)
 	local cityArmy=CITY_ARMY_DATA[cityGUID]
 	local cityArmyLevel=cityArmy~=nil and cityLevel~=nil and cityArmy[cityLevel] or nil
@@ -390,7 +401,7 @@ function cityLockCombatRoster(cityGUID)
 	return true
 end
 
-function cityDefenderPile(cityGUID, tokenType)
+cityDefenderPile=function(cityGUID, tokenType)
 	local standardGUID=CITY_STANDARD_PILES[tokenType]
 	local faction=cityGUID==elementalist.terrainHex and "Elem" or cityGUID==darkCrusader.terrainHex and "Dark" or nil
 	local pileGUID, substitute=factionMonsterPileGUID(standardGUID, faction)
@@ -399,7 +410,7 @@ function cityDefenderPile(cityGUID, tokenType)
 	return nil, nil
 end
 
-function takeCityDefender(cityGUID, tokenType, position, rotation)
+takeCityDefender=function(cityGUID, tokenType, position, rotation)
 	local pile, substituteFaction=cityDefenderPile(cityGUID, tokenType)
 	if pile==nil then
 		broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
@@ -416,7 +427,7 @@ function takeCityDefender(cityGUID, tokenType, position, rotation)
 	return token
 end
 
-function cityGarrisonBasePosition(cityGUID, ownerGUID, megapolis)
+cityGarrisonBasePosition=function(cityGUID, ownerGUID, megapolis)
 	local currentLeader=factionLeaderForCity(cityGUID)
 	if cityGUID==volkare.terrainHex then
 		local disc=getObjectFromGUID(volkare.disc)
@@ -436,7 +447,7 @@ end
 
 --Standalone City army deployment. startDelay/stackIndex let both halves of a Megapolis share one orderly stack
 --without relying on a closure created inside playCity(). Returns the next delay and stack index.
-function cityArmyPlace(cityGUID, cityLevel, basePosition, rotation, startDelay, stackIndex, ownerGUID)
+cityArmyPlace=function(cityGUID, cityLevel, basePosition, rotation, startDelay, stackIndex, ownerGUID)
 	local army, lowerLevel, upperLevel=cityArmyLevelData(cityGUID, cityLevel)
 	if army==nil then
 		broadcastToAll(joinLang({"{en}Unable to deploy City army: no data for GUID {ru}Не удалось разместить армию Города: нет данных для GUID {zh-tw}無法部署城市軍隊：找不到 GUID {zh-cn}无法部署城市军队：找不到 GUID {ko}도시 군대를 배치할 수 없습니다. GUID {es}No se puede desplegar el ejército de la Ciudad: no hay datos para el GUID {fr}Impossible de déployer l’armée de la Cité : aucune donnée pour le GUID {pt-br}Não foi possível posicionar o exército da Cidade: não há dados para o GUID {de}Stadtarmee konnte nicht eingesetzt werden: keine Daten für GUID ",tostring(cityGUID),"{en} at level {ru} на уровне {zh-tw}，等級 {zh-cn}，等级 {ko}, 레벨 {es} en el nivel {fr} au niveau {pt-br} no nível {de} auf Stufe ",tostring(cityLevel),"."}), warningColor)
@@ -474,7 +485,7 @@ function cityArmyPlace(cityGUID, cityLevel, basePosition, rotation, startDelay, 
 	return delay, stack
 end
 
-function returnCityGarrisonTokens(cityGUID)
+returnCityGarrisonTokens=function(cityGUID)
 	local data=gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID] or nil
 	if data==nil then return end
 	local leader=factionLeaderForCity(cityGUID)
@@ -499,7 +510,7 @@ function returnCityGarrisonTokens(cityGUID)
 	end
 end
 
-function resetCityGarrisonData(cityGUID)
+resetCityGarrisonData=function(cityGUID)
 	cityMaintenanceLockSeen[cityGUID]=nil
 	local oldData=gStates.cityMonsterQty[cityGUID] or {extra={}}
 	local storedExtra=rawget(oldData,"extra")
@@ -520,7 +531,7 @@ function resetCityGarrisonData(cityGUID)
 	return newData
 end
 
-function cityObjectsAreReady(cityGUID)
+cityObjectsAreReady=function(cityGUID)
 	if cityMegapolisPending(cityGUID)==true then return false end
 	local cityObj=getObjectFromGUID(cityGUID)
 	if cityObj~=nil and cityObj.resting~=true then return false end
@@ -535,13 +546,13 @@ function cityObjectsAreReady(cityGUID)
 	return true
 end
 
-function disableCityControls(cityGUID, terrainGUID)
+disableCityControls=function(cityGUID, terrainGUID)
 	local cityObj=getObjectFromGUID(cityGUID)
 	if cityObj==nil then return end
 	for _, suffix in ipairs({"LevelUp", "LevelDown", "MegapolisAdd", "MegapolisSubtract"}) do cityObj.UI.setAttribute(cityGUID..terrainGUID..suffix, "onClick", "") end
 end
 
-function rebuildCityGarrisonNow(cityGUID, terrainGUID)
+rebuildCityGarrisonNow=function(cityGUID, terrainGUID)
 	if terrainGUID=="Volkar" then volkareArmy() cityLevelButtons(cityGUID, terrainGUID) return end
 	local order=gStates.cityDeployOrder[cityGUID]
 	local level=order~=nil and gStates.cityLevels[order] or nil
@@ -579,11 +590,11 @@ function rebuildCityGarrisonNow(cityGUID, terrainGUID)
 	end, delay+5)
 end
 
-function rebuildCityGarrison(cityGUID, terrainGUID)
+rebuildCityGarrison=function(cityGUID, terrainGUID)
 	safeWaitCondition("City",function() rebuildCityGarrisonNow(cityGUID, terrainGUID) end, function() return cityObjectsAreReady(cityGUID) end)
 end
 
-function scheduleCityRebuild(cityGUID, terrainGUID)
+scheduleCityRebuild=function(cityGUID, terrainGUID)
 	if cityRebuildPause[cityGUID]~=nil then Wait.stop(cityRebuildPause[cityGUID]) end
 	cityRebuildPause[cityGUID]=safeWaitTime("City",function()
 		cityRebuildPause[cityGUID]=nil
@@ -592,7 +603,7 @@ function scheduleCityRebuild(cityGUID, terrainGUID)
 	end, 0.5)
 end
 
-function megapolisTerrainBearingData(terrainObj)
+megapolisTerrainBearingData=function(terrainObj)
 	local northBearing=40
 	local startTileGUID=gStates.gameScenario=="Against the Horsemen Blitz" and GUID.tile.country01 or startTerrain.open
 	if getObjectFromGUID(startTileGUID)==nil and gStates.gameScenario~="Against the Horsemen Blitz" then startTileGUID=startTerrain.wedge northBearing=70 end
@@ -603,7 +614,7 @@ function megapolisTerrainBearingData(terrainObj)
 	return math.deg(math.atan2(pos[3]-startPos[3],pos[1]-startPos[1])),northBearing
 end
 
-function megapolisReturnHexMonsters(terrainObj,hexLocation)
+megapolisReturnHexMonsters=function(terrainObj,hexLocation)
 	if terrainObj==nil then return end
 	local center=angleToXY(terrainObj,hexLocation)
 	local returning={}
@@ -624,7 +635,7 @@ function megapolisReturnHexMonsters(terrainObj,hexLocation)
 	end
 end
 
-function megapolisRemoveGraveyardMarker(terrainObj,hexLocation)
+megapolisRemoveGraveyardMarker=function(terrainObj,hexLocation)
 	if terrainObj==nil then return end
 	local center=angleToXY(terrainObj,hexLocation)
 	local map=getObjectFromGUID(mapArea)
@@ -637,7 +648,7 @@ function megapolisRemoveGraveyardMarker(terrainObj,hexLocation)
 	end
 end
 
-function megapolisRemoveMonasteryOffer()
+megapolisRemoveMonasteryOffer=function()
 	if (gStates.monasteryCount or 0)<=0 then return end
 	local card=monasteryOfferCards()[1]
 	if card~=nil then
@@ -665,7 +676,7 @@ function megapolisSuppressTerrainHex(terrainObj,originalFeature,removeDeployedOb
 	return feature,hexLocation
 end
 
-function megapolisWarOfFourGladeOnFactionEdge(terrainObj)
+megapolisWarOfFourGladeOnFactionEdge=function(terrainObj)
 	if terrainObj==nil then return false end
 	local pos=terrainObj.getPosition()
 	local edgeCoordinates={{-38.43,0.54},{-33.63,4.70},{-28.83,8.86},{-24.03,13.02},{0,0},{-37.23,-5.69},{-32.43,-1.52},{-27.63,2.62},{-22.83,6.79},{-18.02,10.94},{-30.03,-14.01},{-25.23,-9.84},{-20.43,-5.69},{-15.63,-1.54},{-10.81,2.63},{-24.03,-16.08},{-19.23,-11.93},{-14.43,-7.77},{-9.63,-3.61}}
@@ -673,7 +684,7 @@ function megapolisWarOfFourGladeOnFactionEdge(terrainObj)
 	return false
 end
 
-function megapolisDeployWarOfFourGlade(terrainObj,hexLocation,faction,graveyard)
+megapolisDeployWarOfFourGlade=function(terrainObj,hexLocation,faction,graveyard)
 	local center=angleToXY(terrainObj,hexLocation)
 	gStates.mineMonsterQty[terrainObj.guid]=gStates.mineMonsterQty[terrainObj.guid] or {}
 	if graveyard==true then
@@ -700,7 +711,7 @@ function megapolisDeployWarOfFourGlade(terrainObj,hexLocation,faction,graveyard)
 	end
 end
 
-function megapolisRestoreTerrainHex(terrainObj,feature)
+megapolisRestoreTerrainHex=function(terrainObj,feature)
 	if terrainObj==nil or terrainTiles[terrainObj.guid]==nil then return end
 	local hexLocation=cityTerrainRotationKey(terrainObj)
 	runtimeMapSetHexFeature(terrainObj.guid,hexLocation,feature or "")
@@ -736,21 +747,21 @@ function megapolisRestoreTerrainHex(terrainObj,feature)
 	end
 end
 
-function chooseMegapolisPair(cityGUID)
+chooseMegapolisPair=function(cityGUID)
 	local choices={}
 	for _, possible in ipairs({cityModel.red, cityModel.green, cityModel.blue, cityModel.white}) do if possible~=cityGUID and cityPlayedContains(possible)==false then choices[#choices+1]=possible end end
 	if #choices<1 then return nil end
 	return choices[math.random(1,#choices)]
 end
 
-function cityTerrainRotationKey(terrainObj)
+cityTerrainRotationKey=function(terrainObj)
 	local rotation=math.floor(((terrainObj.getRotation()[2] or 0)/60)+0.5)*60
 	if rotation<0 then rotation=rotation+360 end
 	if rotation>=360 then rotation=rotation-360 end
 	return tostring(rotation)
 end
 
-function createCityMegapolisPair(cityGUID, terrainObj)
+createCityMegapolisPair=function(cityGUID, terrainObj)
 	local data=gStates.cityMonsterQty[cityGUID]
 	if data==nil or data.extra==nil or data.extra.megapolisPair~=nil or data.extra.megapolisPending==true then return false end
 	local pair=chooseMegapolisPair(cityGUID)
@@ -798,7 +809,7 @@ function createCityMegapolisPair(cityGUID, terrainObj)
 	return true
 end
 
-function addCityMegapolis(cityGUID, terrainGUID)
+addCityMegapolis=function(cityGUID, terrainGUID)
 	local state=cityControlState(cityGUID, terrainGUID)
 	if state.canAddMegapolis~=true then return false end
 	local terrain=getObjectFromGUID(terrainGUID)
@@ -810,7 +821,7 @@ function addCityMegapolis(cityGUID, terrainGUID)
 	return true
 end
 
-function removeCityMegapolis(cityGUID, terrainGUID)
+removeCityMegapolis=function(cityGUID, terrainGUID)
 	local state=cityControlState(cityGUID, terrainGUID)
 	local data=gStates.cityMonsterQty[cityGUID]
 	local pair=data~=nil and data.extra~=nil and data.extra.megapolisPair or nil
@@ -848,7 +859,7 @@ function removeCityMegapolis(cityGUID, terrainGUID)
 	return true
 end
 
-function cityShouldCreateMegapolis(cityGUID, ultimateCitiesPlayed)
+cityShouldCreateMegapolis=function(cityGUID, ultimateCitiesPlayed)
 	if (gStates.megapolis or 0)<=0 or (gStates.megapolisPlayed or 0)>=(gStates.megapolis or 0) or isStandardCityGUID(cityGUID)==false then return false end
 	if gStates.gameScenario=="Ultimate Conquest" then return ultimateCitiesPlayed>(gStates.cityTiles-gStates.megapolis) end
 	return gStates.megapolis>gStates.cityTiles-#gStates.citiesPlayed
@@ -868,7 +879,7 @@ function cityInitialCardPosition(cityGUID, terrainObj)
 	return card.getPosition()
 end
 
-function cityRegisterDeployOrder(cityGUID, ultimateCitiesPlayed)
+cityRegisterDeployOrder=function(cityGUID, ultimateCitiesPlayed)
 	if gStates.cityDeployOrder[cityGUID]~=nil then return gStates.cityDeployOrder[cityGUID] end
 	local playedCities=#gStates.citiesPlayed-(gStates.megapolisPlayed or 0)
 	if gStates.gameScenario=="Ultimate Conquest" then playedCities=ultimateCitiesPlayed end
@@ -877,7 +888,7 @@ function cityRegisterDeployOrder(cityGUID, ultimateCitiesPlayed)
 	return playedCities
 end
 
-function cityLeaderDeployOrder(cityGUID, ultimateCitiesPlayed, leaderLevel)
+cityLeaderDeployOrder=function(cityGUID, ultimateCitiesPlayed, leaderLevel)
 	if gStates.cityDeployOrder[cityGUID]~=nil then return gStates.cityDeployOrder[cityGUID], gStates.cityLevels[gStates.cityDeployOrder[cityGUID]] end
 	local leaderOrder=#gStates.citiesPlayed-(gStates.megapolisPlayed or 0)
 	if gStates.gameScenario=="Ultimate Conquest" then leaderOrder=#gStates.cityLevels+1 gStates.cityLevels[leaderOrder]=leaderLevel end
@@ -885,7 +896,7 @@ function cityLeaderDeployOrder(cityGUID, ultimateCitiesPlayed, leaderLevel)
 	return leaderOrder, leaderLevel
 end
 
-function deployFriendlyCityShields(cityGUID)
+deployFriendlyCityShields=function(cityGUID)
 	if gStates.friendlyCity==nil then gStates.friendlyCity={} end
 	gStates.friendlyCity[cityGUID]=true
 	local cityObj=getObjectFromGUID(cityGUID)
@@ -909,7 +920,7 @@ function deployFriendlyCityShields(cityGUID)
 	end,10)
 end
 
-function resolveCityForTerrain(obj, hexFeature, dropped)
+resolveCityForTerrain=function(obj, hexFeature, dropped)
 	local cityGUID=""
 	if gStates.gameScenario~="Life and Death" and (hexFeature or ""):sub(6,8)=="red" then cityGUID=cityModel.red end
 	if gStates.gameScenario~="Life and Death" and (hexFeature or ""):sub(6,10)=="green" then cityGUID=cityModel.green end
@@ -940,7 +951,7 @@ function resolveCityForTerrain(obj, hexFeature, dropped)
 	return cityGUID
 end
 
-function revealCityInfoCard(cityGUID)
+revealCityInfoCard=function(cityGUID)
 	local infoGUID=CITY_BASE_CARD[cityGUID]
 	if infoGUID==nil then return end
 	local info=getObjectFromGUID(infoGUID)
@@ -1020,7 +1031,7 @@ function playCity(obj, hexFeature, dropped)
 end
 
 --Keep the non-interactive City level readout visible after its garrison is revealed.
-function cityLevelReadoutOnly(cityGUID, terrainGUID)
+cityLevelReadoutOnly=function(cityGUID, terrainGUID)
 	local cityObj=getObjectFromGUID(cityGUID)
 	if cityObj==nil then return end
 	local state=cityControlState(cityGUID,terrainGUID)
@@ -1059,7 +1070,7 @@ function cityLevelButtons(cityGUID, terrainGUID)
 end
 
 --Change an already-deployed City's stored level/Megapolis state, then rebuild only its display and garrison.
-function adjustCityLevel(player, mouseButton, id)
+adjustCityLevel=function(player, mouseButton, id)
 	if mouseButton~="-1" then return end
 	local cityGUID=id:sub(1,6)
 	local terrainGUID=id:sub(7,12)
@@ -1091,7 +1102,7 @@ function addCityButtons()
 	end
 end
 
-function cityCardMapSnapshot()
+cityCardMapSnapshot=function()
 	local mapObj=getObjectFromGUID(mapArea)
 	if mapObj==nil then return {} end
 	local mapObjects={}
@@ -1106,7 +1117,7 @@ local function cityCardExploreGroupObject(obj)
 	return terrainTiles[obj.guid]==nil
 end
 
-function cityCardExploreGroup(cityZone)
+cityCardExploreGroup=function(cityZone)
 	local details=cityScriptZones[cityZone]
 	local cityGUID=details~=nil and details.cityGUID or nil
 	local cityData=cityGUID~=nil and gStates.cityMonsterQty[cityGUID] or nil
@@ -1134,13 +1145,13 @@ function cityCardExploreGroup(cityZone)
 	return {cityGUID=cityGUID, card=card, city=cityModelObj, zones=zonesToMove, movingGUIDs=movingGUIDs}
 end
 
-function cityCardPositionForbidden(desiredLocation)
+cityCardPositionForbidden=function(desiredLocation)
 	local x=desiredLocation[1]
 	local z=desiredLocation[3]
 	return (x>-18.5 and x<-18.0 and z>-18.5 and z<-18.0) or (x>-13.5 and x<-13.0 and z>-14.5 and z<-13.5)
 end
 
-function cityCardExploreSpaceFree(mapObjects, desiredLocation, movingGUIDs, extraBlockedPos, reservedPositions)
+cityCardExploreSpaceFree=function(mapObjects, desiredLocation, movingGUIDs, extraBlockedPos, reservedPositions)
 	if cityCardPositionForbidden(desiredLocation)==true then return false end
 	if extraBlockedPos~=nil then
 		local blockZ=extraBlockedPos[3] or extraBlockedPos[2]
@@ -1162,7 +1173,7 @@ end
 
 --Shared placement engine used both when a City first deploys and whenever EXPLORE positions later force
 --City-card groups to move. preferredOffset is used by The Gauntlet's fixed City-card side when it is legal.
-function findCityCardPosition(cityPos, mapObjects, movingGUIDs, extraBlockedPos, reservedPositions, preferredOffset)
+findCityCardPosition=function(cityPos, mapObjects, movingGUIDs, extraBlockedPos, reservedPositions, preferredOffset)
 	if preferredOffset~=nil and cityCardExploreOffsets[preferredOffset]~=nil then
 		local offset=cityCardExploreOffsets[preferredOffset]
 		local preferred={cityPos[1]+offset[1],1.09,cityPos[3]+offset[3]}
@@ -1183,7 +1194,7 @@ function findCityCardPosition(cityPos, mapObjects, movingGUIDs, extraBlockedPos,
 	return best,bestDistance
 end
 
-function moveCityCardExploreGroup(group, desiredLocation, movedCityZones, mapObjects)
+moveCityCardExploreGroup=function(group, desiredLocation, movedCityZones, mapObjects)
 	local cardPos=group.card.getPosition()
 	local deltaX=desiredLocation[1]-cardPos[1]
 	local deltaZ=desiredLocation[3]-cardPos[3]
@@ -1217,7 +1228,7 @@ end
 
 --Place one City-card group at the closest currently legal ring position. If its present position is already
 --equally close and legal, leave it alone. If the present position is blocked by EXPLORE, moving outward is allowed.
-function positionCityCardForExplore(cityZone, extraBlockedPos, movedCityZones, reservedPositions, mapObjects)
+positionCityCardForExplore=function(cityZone, extraBlockedPos, movedCityZones, reservedPositions, mapObjects)
 	if movedCityZones~=nil and movedCityZones[cityZone]==true then return false end
 	local group=cityCardExploreGroup(cityZone)
 	if group==nil then return false end
@@ -1360,13 +1371,13 @@ function cityBonusDecals(obj1, obj2)--obj2 is the rare case of a summoned monste
 	end
 end
 
-function cityControlTerrainGUID(city, monsterList)
+cityControlTerrainGUID=function(city, monsterList)
 	if city==volkare.model or city==gStates.volkareModel then return "Volkar" end
 	if type(monsterList)=="table" and type(rawget(monsterList,"extra"))=="table" and monsterList.extra.terainGUID~=nil then return monsterList.extra.terainGUID end
 	return city
 end
 
-function refreshLockedCityControl(city, monsterList, force)
+refreshLockedCityControl=function(city, monsterList, force)
 	local terrainGUID=cityControlTerrainGUID(city, monsterList)
 	if cityControlLockedByReveal(city, terrainGUID)~=true then cityMaintenanceLockSeen[city]=nil return false end
 	if force~=true and cityMaintenanceLockSeen[city]==true then return true end
