@@ -97,7 +97,7 @@ function eventsOnLoadRawBase(saved_data)
 					end
 				end
 			end
-			mageLevelBoard()
+			refreshHigherLevelSetupUI()
 			UI.show("LevelUpRules")
 		else
 			UI.setAttribute("Setup", "active", "true")
@@ -112,7 +112,7 @@ function eventsOnLoadRawBase(saved_data)
 		setUIButtonEnabled("MonsterButtonReal",true)
 		UI.setAttribute("ResourceTracker", "active", "true")
 		UI.setAttribute("cameraControl", "active", "true")
-		recourceTrackerReset("update")
+		refreshResourceTracker()
 		getObjectFromGUID(GUID.deck.spell).UI.setXmlTable({	{tag="Button", attributes={id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=240, position="60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
 														children={	{tag="Image", attributes={id="e4372aOfferUpImage", image="Sliced Button/Button Object Active", type="Sliced"}},
 																	{tag="Text", attributes={font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text=">"}}}},
@@ -207,7 +207,7 @@ function eventsOnLoadRawBase(saved_data)
 			local mirrorObj=getObjectFromGUID(mirrorGUID)
 			if mirrorObj~=nil then mirrorObj.registerCollisions() end
 		end
-		straightenCrooked()
+		normalizeSetupTableObjects()
 		for seatPos=1,4 do scheduleUnitLayoutRefresh(seatPos) end
 
 		--stop unit wound creep and keep units cards under all the tokens.
@@ -286,7 +286,7 @@ function __onObjectPickUp_raw(player_color, picked_up_object)
 	if player_color~=nil and picked_up_object.getGMNotes()=="Destroyed" and gStates.destroyedSites~=nil and gStates.destroyedSites[picked_up_object.guid]~=nil then
 		if undoDestroyedSitePlacement(picked_up_object)==true then
 			broadcastToAll("{en}Destroyed Site placement undone.{ru}Размещение жетона разрушенного места отменено.{zh-tw}已撤銷「被摧毀地點」標記的放置。{zh-cn}已撤销“被摧毁地点”标记的放置。{ko}파괴된 장소 토큰 배치를 취소했습니다.{es}Se deshizo la colocación del Sitio Destruido.{fr}Le placement du Site Détruit a été annulé.{pt-br}A colocação do Local Destruído foi desfeita.{de}Die Platzierung des zerstörten Ortes wurde rückgängig gemacht.")
-			fakeDropAvatar()
+			scheduleAvatarDropRefresh()
 		end
 	end
 	if 	picked_up_object.guid==cityModel.blue or
@@ -400,7 +400,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 					if player_color~=nil and playerPosition~=nil and wasAlreadyClaimed==false and originalPlayer==playerPosition and originalSkillPos[3]<-35 then
 						higherLevelSkill({color=player_color}, "-1", dropped_object.guid.."higherLevelSkill", originalSkillPos)
 					else
-						higherLevelSkillClaimButons()
+						refreshHigherLevelSkillClaimButtons()
 					end
 				end
 			end, function() return getObjectFromGUID(dropped_object.guid)==nil or getObjectFromGUID(dropped_object.guid).resting end) end, 5)
@@ -441,7 +441,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 	if player_color~=nil and dropped_object.getGMNotes()=="Destroyed" and (gStates.destroyedSites==nil or gStates.destroyedSites[dropped_object.guid]==nil) then
 		local terrain, bearing=terrainHexAtPosition(dropped_object.getPosition())
 		if terrain~=nil then
-			if destroySite(dropped_object, terrain, bearing)==true then fakeDropAvatar()
+			if destroySite(dropped_object, terrain, bearing)==true then scheduleAvatarDropRefresh()
 			else broadcastToAll("{en}That location cannot be destroyed.{ru}Это место нельзя уничтожить.{zh-tw}該地點不能被摧毀。{zh-cn}该地点不能被摧毁。{ko}그 장소는 파괴할 수 없습니다.{es}Ese lugar no puede ser destruido.{fr}Ce lieu ne peut pas être détruit.{pt-br}Esse local não pode ser destruído.{de}Dieser Ort kann nicht zerstört werden.", {1,1,0.5}) end
 		end
 		return
@@ -455,7 +455,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 			local currentMage=turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].mage or nil
 			--A human may correct the Proxy Hero's physical location. Track that drop, but never run the
 			--normal player's assault/site/hand-size machinery for the automated Proxy.
-			if player_color~=nil and gStates.firstStarted==true and proxyPlayerActive()==true and avatar.mage==gStates.positionMageKnight[5] and avatarPlayerIndex~=nil then
+			if player_color~=nil and gStates.firstStarted==true and proxyPlayerIsActive()==true and avatar.mage==gStates.positionMageKnight[5] and avatarPlayerIndex~=nil then
 				local function finishProxyManualDrop()
 					if getObjectFromGUID(dropped_object.guid)~=nil then
 						refreshAvatarLocationOnly(avatarPlayerIndex,dropped_object)
@@ -572,7 +572,7 @@ function __onObjectSpawn_raw(spawn_object)
 	--Update competitive-state skills from the canonical skill metadata.
 	if skillTokens[spawn_object.guid]~=nil and skillTokens[spawn_object.guid].competitiveState==true then
 		gStates.mageSkills[spawn_object.guid]={spawn_object.getPosition()[1], spawn_object.getPosition()[2], spawn_object.getPosition()[3]}
-		if gStates.firstStarted==true then skillButtonActivate() else higherLevelSkillClaimButons() end
+		if gStates.firstStarted==true then skillButtonActivate() else refreshHigherLevelSkillClaimButtons() end
 	end
 	if skillTokens[spawn_object.guid]~=nil and (skillTokens[spawn_object.guid].skillType=="Coop" or skillTokens[spawn_object.guid].skillType=="Comp") and coopCompSkillBoundaryActive()==true then safeWaitFrames("Events",function() refreshCoopCompSkillWarnings() end, 2) end
 end
@@ -1061,7 +1061,7 @@ local function handlePreGameZoneEnter(ctx)
 	local zoneInfo=ctx.zoneInfo
 	--Update Mage Level Boards before the game starts.
 	if gStates.mageKnightLevels==true then
-		if zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then mageLevelBoard() end
+		if zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then refreshHigherLevelSetupUI() end
 	end
 end
 
@@ -1212,7 +1212,7 @@ local function handlePreGameZoneLeave(ctx)
 	local zoneInfo=ctx.zoneInfo
 	--Update Mage Level Boards before the game starts.
 	if gStates.mageKnightLevels==true and zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then
-		mageLevelBoard()
+		refreshHigherLevelSetupUI()
 	end
 end
 
@@ -1293,7 +1293,7 @@ function __onObjectEnterContainer_raw(bag, obj)
 	end
 	if obj~=nil and isSteadyTempoGUID(obj.guid)==true and gStates.steadyTempoPending~=nil and gStates.steadyTempoPending[obj.guid]~=nil then steadyTempoClearPending(obj.guid) end
 	meditationTranceContainerEnter(bag, obj)
-	scaleBags(bag, obj, "enter")
+	refreshTokenContainerPresentation(bag, obj, "enter")
 	scheduleContainerDeckDescriptionRefresh(bag)
 	scheduleContainerEndRoundStateRefresh(bag)
 
@@ -1456,8 +1456,8 @@ function __onObjectLeaveContainer_raw(bag, obj)
 		obj.setCustomObject({image=monsterPugs[obj.guid].original})
 	end
 
-	--scaleBags reapplies monster-bag ALT orientation after setting the final scale.
-	scaleBags(bag, obj, "exit")
+	--refreshTokenContainerPresentation reapplies monster-bag ALT orientation after setting the final scale.
+	refreshTokenContainerPresentation(bag, obj, "exit")
 end
 
 local bagSearchGeneration={}
@@ -1487,7 +1487,7 @@ function __onObjectSearchEnd_raw(object, player_color)
 end
 
 function __onObjectRandomize_raw(randomize_object, player_color)
-	if randomize_object.type=="Bag" or randomize_object.type=="Deck" then safeWaitFrames("Events",function() scaleBags(randomize_object, "dud", "shuffle") end, 5) end
+	if randomize_object.type=="Bag" or randomize_object.type=="Deck" then safeWaitFrames("Events",function() refreshTokenContainerPresentation(randomize_object, "dud", "shuffle") end, 5) end
 	if randomize_object.type=="Deck" and gStates~=nil and gStates.firstStarted==true then standardDeckCycleClearIfDeckShuffled(randomize_object) end
 	--If Coral's Deed Deck is manually shuffled, restore Quick Witted to the bottom after the shuffle settles.
 	if randomize_object.type=="Deck" then

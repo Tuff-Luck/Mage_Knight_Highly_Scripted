@@ -89,7 +89,7 @@ end
 
 --Advanced Action and Spell rows share one resizable scripting zone. Derive slot order from the
 --cards themselves so expanding/shrinking the offer never needs matching per-slot zones.
-function mainOfferCards(cardType)
+function mainOfferCardsByType(cardType)
 	local cards={}
 	local zone=getObjectFromGUID(GUID.zone.offer)
 	if zone~=nil then
@@ -101,8 +101,8 @@ function mainOfferCards(cardType)
 	return cards
 end
 
-function mainOfferFirstCard(cardType)
-	return mainOfferCards(cardType)[1]
+function mainOfferFirstCardByType(cardType)
+	return mainOfferCardsByType(cardType)[1]
 end
 
 function unitOfferIsUnit(obj)
@@ -431,7 +431,7 @@ function monasteryOfferFirstEmptySlot()
 	return nil
 end
 
-function playMonastery()
+function handleMonasteryRevealed()
 	gStates.monasteryCount=gStates.monasteryCount+1
 	--Initial terrain reveals happen before the starting offers are built. Record the monastery now,
 	--then let the first unitOffer() deal its Advanced Action once so setup does not deal-and-return it.
@@ -492,7 +492,7 @@ function offerAdjust(player, mouseButton, id)
 		getObjectFromGUID(GUID.zone.offer).setPosition({(2.4*(gStates.offerSize-1))+26.4, 1.13, -19.2})
 		if id=="e4372aOfferUp" then
 			--run fill slide after a wait frame.
-			fillSlide()
+			compactAndRefillDeedOffer()
 		else
 			--flip existing cards if shrinking the offer.
 			for _, card in pairs(getObjectFromGUID(GUID.zone.offer).getObjects()) do

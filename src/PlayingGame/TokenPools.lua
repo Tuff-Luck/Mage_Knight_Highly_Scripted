@@ -83,7 +83,7 @@ function withTokenPoolReady(pileGUID, callback, context)
 end
 
 --Object UI callback for the Monster Replenish panel. The refill logic itself is shared with automatic refills.
-function returnPugs(player, mouseButton, id)
+function refillMonsterTokenPiles(player, mouseButton, id)
 	if mouseButton=="-1" then tokenRefill(true) end
 end
 
@@ -92,7 +92,7 @@ bagSearch=nil
 local possessedBagBottomY={}
 local delayFaceChange=nil
 local discardFace={}
-function scaleBags(bag, obj, state)
+function refreshTokenContainerPresentation(bag, obj, state)
 	if bag==nil then return end
 	local currentBag=getObjectFromGUID(bag.guid)
 	if currentBag==nil then return end

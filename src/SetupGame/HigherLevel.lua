@@ -39,7 +39,7 @@ end
 
 --Create and Update Level Interface for Player count
 local higherLevelUIPause=true
-function mageLevelBoard()
+function refreshHigherLevelSetupUI()
 	if higherLevelUIPause==true then safeWaitCondition("SetupGame",function()
 		if gStates.magesSetup==true then
 			--Create an interface for all players in the game
@@ -183,7 +183,7 @@ function mageLevelBoard()
 end
 
 --Change level and Infuence for Player(s)
-function mageKnightLevel(player, mouseButton, id)
+function adjustHigherLevelSetupValue(player, mouseButton, id)
 	if mouseButton=="-1" then
 		--check if player was alowed to click those buttons
 		local playerPosition=id:sub(5,5)
@@ -204,7 +204,7 @@ function mageKnightLevel(player, mouseButton, id)
 					else
 						if b[id:sub(6, c-1)]>1 then b[id:sub(6, c-1)]=b[id:sub(6, c-1)]-1 end
 					end
-					mageLevelBoard()
+					refreshHigherLevelSetupUI()
 					break
 				end
 			end
@@ -213,7 +213,7 @@ function mageKnightLevel(player, mouseButton, id)
 end
 
 --Create Start at Higher level Card Pool for Player
-function cardPool(player, mouseButton, id)
+function createHigherLevelCardPool(player, mouseButton, id)
 	if mouseButton=="-1" then
 		local playerPosition=id:sub(5,5)
 		if legalPlayerCheck(player.color, tonumber(playerPosition))==true then
@@ -272,7 +272,7 @@ function cardPool(player, mouseButton, id)
 					end
 					--Add claim buttons as soon as the last dealt Skill has actually settled.
 					safeWaitCondition("SetupGame",function()
-						higherLevelSkillClaimButons()
+						refreshHigherLevelSkillClaimButtons()
 					end,function() return obj==nil or obj.resting==true end,10,function()
 						error("SetupGame timed out waiting for higher-level Skill choices to settle.",2)
 					end)
@@ -290,7 +290,7 @@ function cardPool(player, mouseButton, id)
 end
 
 --activate skill buttons for non claimed skills.
-function higherLevelSkillClaimButons()
+function refreshHigherLevelSkillClaimButtons()
 	for skillGUID, skillDetails in pairs(skillTokens) do
 		if getObjectFromGUID(skillGUID)~=nil and getObjectFromGUID(skillGUID).UI.getXml()=="" then
 			local objPos=getObjectFromGUID(skillGUID).getPosition()
@@ -475,9 +475,9 @@ function startHigherLevel(player, mouseButton, id)
 						objToDel.destruct()
 					end
 				end
-				--Return to regular setup. afterLoad now owns the real readiness barrier.
+				--Return to regular setup. startMapSetupStage now owns the real readiness barrier.
 				UI.hide("LevelUpRules")
-				afterLoad()
+				startMapSetupStage()
 			end
 		end
 	end

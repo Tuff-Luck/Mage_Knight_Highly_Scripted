@@ -634,7 +634,7 @@ function startCoopRewardPhase()
 			--Do not end immediately after a victorious co-op assault. The normal turn
 			--engine must first consume assisting players' flipped turn tokens, then
 			--return to the victory owner for their final turn.
-			scenarioEnd(false)
+			markScenarioEndAchieved(false)
 			if gStates.gameOver==true then return end
 			if gStates.endGameAchieved=="started" then gStates.endGameAchieved="true" end
 		end
@@ -667,12 +667,13 @@ function combatAdvanceCoopRewardPhaseBase()
 			--Victory is registered here, but gameOver waits for nextTurnMerged.
 			--That lets an assister's skipped turn flip their token upright and lets
 			--the initiating victory owner receive their required final turn.
-			scenarioEnd(false)
+			markScenarioEndAchieved(false)
 			if gStates.gameOver==true then return end
 			if gStates.endGameAchieved=="started" then gStates.endGameAchieved="true" end
 		end
 		nextTurnMerged("incrementTurn")
-		recourceTrackerReset()
+		resetResourceTrackerState()
+	refreshResourceTracker()
 		claimButtonRefresh()
 		addAvatarButtons()
 	end
@@ -872,13 +873,13 @@ end
 local function combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait)
 	--Adjust hand size and Check for scenario completion to Start the final round of turns.
 	--A completed City assault has just changed both monster state and physical shields. Rebuild ownership once,
-	--at this settled cleanup boundary, before fakeDropAvatar reads Lead/Assist for the new hand limit.
+	--at this settled cleanup boundary, before scheduleAvatarDropRefresh reads Lead/Assist for the new hand limit.
 	--Other cleanup only needs the cheaper defeat-state refresh; co-op combat rebuilds ownership in its reward phase.
 	safeWaitFrames("Combat",function() safeWaitCondition("Combat",function()
 		local cleanupLocation=turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation or ""
-		if gStates.coopAssaultPhase~="combat" and (cleanupLocation:sub(1,4)=="city" or cleanupLocation:sub(1,6)=="raised") then cityBeatCheck()
+		if gStates.coopAssaultPhase~="combat" and (cleanupLocation:sub(1,4)=="city" or cleanupLocation:sub(1,6)=="raised") then refreshCityControlAndScoring()
 		else refreshCityDefeatState() end
-		fakeDropAvatar(cleanupPlayer)
+		scheduleAvatarDropRefresh(cleanupPlayer)
 		scenarioCombatCleanupCheck(cleanupPlayer)
 		--Combat Complete is the only confirmation during the combat stage. Advance as soon as cleanup is finished.
 		if gStates.endGameAchieved=="false" and gStates.tacticShown==false and gStates.coopAssaultPhase=="combat" then

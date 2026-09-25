@@ -520,7 +520,7 @@ function resetCityGarrisonData(cityGUID)
 	return newData
 end
 
-function cityObjectsReady(cityGUID)
+function cityObjectsAreReady(cityGUID)
 	if cityMegapolisPending(cityGUID)==true then return false end
 	local cityObj=getObjectFromGUID(cityGUID)
 	if cityObj~=nil and cityObj.resting~=true then return false end
@@ -580,7 +580,7 @@ function rebuildCityGarrisonNow(cityGUID, terrainGUID)
 end
 
 function rebuildCityGarrison(cityGUID, terrainGUID)
-	safeWaitCondition("City",function() rebuildCityGarrisonNow(cityGUID, terrainGUID) end, function() return cityObjectsReady(cityGUID) end)
+	safeWaitCondition("City",function() rebuildCityGarrisonNow(cityGUID, terrainGUID) end, function() return cityObjectsAreReady(cityGUID) end)
 end
 
 function scheduleCityRebuild(cityGUID, terrainGUID)
@@ -706,7 +706,7 @@ function megapolisRestoreTerrainHex(terrainObj,feature)
 	runtimeMapSetHexFeature(terrainObj.guid,hexLocation,feature or "")
 	gStates.hexOverideSave[terrainObj.guid]=gStates.hexOverideSave[terrainObj.guid] or {}
 	gStates.hexOverideSave[terrainObj.guid][hexLocation]=feature or ""
-	if feature=="monastery" then playMonastery() return end
+	if feature=="monastery" then handleMonasteryRevealed() return end
 	if feature=="keep" then
 		local pile=getObjectFromGUID(monsterPiles.gray)
 		if pile~=nil and pile.getQuantity()>0 then local pos=angleToXY(terrainObj,hexLocation) local token=pile.takeObject({rotation={0,180,180},position={pos[1],2,pos[2]}}) if token~=nil then gStates.monsterPlayLocation[token.guid]={pos[1],2,pos[2]} end end
@@ -904,7 +904,7 @@ function deployFriendlyCityShields(cityGUID)
 				if mage~=nil and mageName~="nobody" then getObjectFromGUID(mage.shieldContainer).takeObject({position={tempPos[1]-2.5+seatPos,2,tempPos[3]}}) end
 			end
 			--Standard Dummies never place friendly-City shields. The Proxy is a map player and does.
-			if proxyPlayerActive()==true then proxyTakeShield({tempPos[1]+2.5,2,tempPos[3]},false) end
+			if proxyPlayerIsActive()==true then proxyTakeShield({tempPos[1]+2.5,2,tempPos[3]},false) end
 		end, function() return cityObj==nil or cityObj.resting==true end)
 	end,10)
 end
@@ -1039,19 +1039,19 @@ function cityLevelButtons(cityGUID, terrainGUID)
 		local state=cityControlState(cityGUID,terrainGUID)
 		local buttonXML={}
 		if state.canLevelUp then
-			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."LevelUp",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/addjustCityLevel",height=50,width=50,color="rgba(0,0,0,0.0)",position="-65 60 -30",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."LevelUpImage",image="Overkill Up"}}}}
+			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."LevelUp",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/adjustCityLevel",height=50,width=50,color="rgba(0,0,0,0.0)",position="-65 60 -30",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."LevelUpImage",image="Overkill Up"}}}}
 		end
 		if state.showLevel then
 			buttonXML[#buttonXML+1]={tag="Image",attributes={image="Overkill Text",height=50,width=50,position="0 60 -30",rotation="0 0 180"},children={{tag="Text",attributes={id=cityGUID..terrainGUID.."Overkill",color="rgb(0,0,0)",fontSize="35",fontStyle="Bold",alignment="MiddleCenter",text=state.level}}}}
 		end
 		if state.canLevelDown then
-			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."LevelDown",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/addjustCityLevel",height=50,width=50,color="rgba(0,0,0,0.0)",position="65 60 -30",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."LevelDownImage",image="Overkill Down"}}}}
+			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."LevelDown",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/adjustCityLevel",height=50,width=50,color="rgba(0,0,0,0.0)",position="65 60 -30",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."LevelDownImage",image="Overkill Down"}}}}
 		end
 		if state.canAddMegapolis then
-			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."MegapolisAdd",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/addjustCityLevel",height=80,width=80,color="rgba(0,0,0,0.0)",position="-100 0 -25",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."MegapolisAddImage",image="Megapolis Add"}}}}
+			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."MegapolisAdd",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/adjustCityLevel",height=80,width=80,color="rgba(0,0,0,0.0)",position="-100 0 -25",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."MegapolisAddImage",image="Megapolis Add"}}}}
 		end
 		if state.canRemoveMegapolis then
-			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."MegapolisSubtract",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/addjustCityLevel",height=80,width=80,color="rgba(0,0,0,0.0)",position="-100 0 -25",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."MegapolisSubtractImage",image="Megapolis Subtract"}}}}
+			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."MegapolisSubtract",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/adjustCityLevel",height=80,width=80,color="rgba(0,0,0,0.0)",position="-100 0 -25",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."MegapolisSubtractImage",image="Megapolis Subtract"}}}}
 		end
 		if #buttonXML==0 then buttonXML={{}} end
 		cityObj.UI.setXmlTable(buttonXML)
@@ -1059,7 +1059,7 @@ function cityLevelButtons(cityGUID, terrainGUID)
 end
 
 --Change an already-deployed City's stored level/Megapolis state, then rebuild only its display and garrison.
-function addjustCityLevel(player, mouseButton, id)
+function adjustCityLevel(player, mouseButton, id)
 	if mouseButton~="-1" then return end
 	local cityGUID=id:sub(1,6)
 	local terrainGUID=id:sub(7,12)
@@ -1453,7 +1453,7 @@ function refreshCityDefeatState()
 end
 
 --Authoritative rebuild of city/faction ownership and scoring. Use only when shields/scoring can have changed.
-function cityBeatCheck()
+function refreshCityControlAndScoring()
 	refreshCityDefeatState()
 	local leadTest={}
 	local factionAssistTest={}

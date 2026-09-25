@@ -642,7 +642,7 @@ function mapSetup(onComplete)
 		--Reveal one tile at a time, but continue immediately when its normal terrain population finishes.
 		local batches={}
 		for _,guid in ipairs(furyRevealGUIDs) do batches[#batches+1]={{guid=guid}} end
-		revealWhenStartReady(batches,function() fakeDropAvatar() finishMapSetup(true) end)
+		revealWhenStartReady(batches,function() scheduleAvatarDropRefresh() finishMapSetup(true) end)
 		return
 	end
 

@@ -250,7 +250,7 @@ function apocalypseDragonSyncControlLevel()
 	return apocalypseDragonSetHeadLevel("Control",highest)
 end
 
-function apocalypseDragonDefeatCheck()
+function apocalypseDragonCheckAndResolveDefeat()
 	if gStates==nil or (gStates.gameScenario~="Against the Dragon Blitz" and gStates.gameScenario~="Apocalypse is Here") or gStates.apocalypseDragonDefeated==true then return false end
 	if apocalypseDragonColoredHeadsDefeated()~=true then return false end
 
@@ -268,13 +268,13 @@ function apocalypseDragonDefeatCheck()
 	broadcastToAll("{en}The Apocalypse Dragon has been defeated! All players have one final turn.{ru}The Apocalypse Dragon has been defeated! All players have one final turn.{zh-tw}The Apocalypse Dragon has been defeated! All players have one final turn.{zh-cn}The Apocalypse Dragon has been defeated! All players have one final turn.{ko}The Apocalypse Dragon has been defeated! All players have one final turn.{es}The Apocalypse Dragon has been defeated! All players have one final turn.{fr}The Apocalypse Dragon has been defeated! All players have one final turn.{pt-br}The Apocalypse Dragon has been defeated! All players have one final turn.{de}The Apocalypse Dragon has been defeated! All players have one final turn.",{1,1,0.5})
 	local coopDragon=gStates.coopAssaultPhase=="combat" and coopAssaultTargetType~=nil and coopAssaultTargetType()=="dragon"
 	if coopDragon==true then gStates.coopAssaultScenarioEndPending=true
-	elseif gStates.endGameAchieved=="false" then scenarioEnd() end
+	elseif gStates.endGameAchieved=="false" then markScenarioEndAchieved() end
 	return true
 end
 
 function apocalypseDragonHeadStateChanged(headName)
 	if headName~="Control" then apocalypseDragonSyncControlLevel() end
-	if gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here") then apocalypseDragonDefeatCheck() end
+	if gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here") then apocalypseDragonCheckAndResolveDefeat() end
 end
 
 --Read the physical player Shields on the four large coloured head boards.
@@ -1017,7 +1017,7 @@ function apocalypseDragonGroundTryApplyLevelsBeforeRewards(playerIndex)
 	end
 	combat.levelsApplied=true
 	apocalypseDragonGroundApplyFinalLevels(combat)
-	apocalypseDragonDefeatCheck()
+	apocalypseDragonCheckAndResolveDefeat()
 	mainUIUpdate("Apocalypse Dragon Levels Resolved")
 	return true
 end
@@ -1070,7 +1070,7 @@ function apocalypseDragonFinalizeGroundCombat(playerIndex)
 	apocalypseDragonGroundCleanupRuntime(combat)
 	gStates.apocalypseDragonGroundCombat=nil
 	if fame>0 then broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} reduced the Apocalypse Dragon by {ru} снизил уровень Дракона Апокалипсиса суммарно на {zh-tw} 總共降低末日巨龍 {zh-cn} 总共降低末日巨龙 {ko}이(가) 아포칼립스 드래곤의 총 레벨을 {es} redujo al Dragón del Apocalipsis un total de {fr} a réduit le Dragon de l’Apocalypse de {pt-br} reduziu o Dragão do Apocalipse em um total de {de} hat den Apokalypse-Drachen insgesamt um ",tostring(fame),"{en} total level(s) and gains {ru} уровней и получает {zh-tw} 個等級，並獲得 {zh-cn} 个等级，并获得 {ko}만큼 낮추고 명성 {es} nivel(es) y gana {fr} niveau(x) au total et gagne {pt-br} nível(is) e ganha {de} Stufe(n) reduziert und erhält ",tostring(fame),"{en} Fame.{ru} Славы.{zh-tw} 聲望值。{zh-cn} 声望值。{ko}을(를) 얻습니다.{es} de Fama.{fr} de Renommée.{pt-br} de Fama.{de} Ruhm."}),positionToColor(playerIndex)) end
-	apocalypseDragonDefeatCheck()
+	apocalypseDragonCheckAndResolveDefeat()
 	mainUIUpdate("Apocalypse Dragon Ground Combat Complete")
 	return true
 end
@@ -1103,7 +1103,7 @@ function finalizeCoopDragonCombat()
 	end
 	apocalypseDragonGroundCleanupRuntime(combat)
 	gStates.apocalypseDragonGroundCombat=nil
-	apocalypseDragonDefeatCheck()
+	apocalypseDragonCheckAndResolveDefeat()
 	return true
 end
 
@@ -1201,7 +1201,7 @@ function apocalypseDragonProcessUI(player,mouseButton,id)
 		apocalypseDragonFinishTurn()
 		return
 	end
-	if furyDragonActive~=nil and furyDragonActive()==true then
+	if furyDragonIsActive~=nil and furyDragonIsActive()==true then
 		furyDragonProcessTurn()
 		return
 	end

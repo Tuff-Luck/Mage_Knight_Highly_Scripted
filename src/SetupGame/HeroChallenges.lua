@@ -212,7 +212,7 @@ function heroChallengeCountryAssignment(randomize)
 	return nil,"Hero Challenges: Required terrain cannot fit this setup"
 end
 
-function heroChallengeSetupLegal()
+function heroChallengeSetupIsLegal()
 	if gStates.heroChallenges~=true then return true,nil end
 	if gStates.useCustomMageKnights==true then return false,"Hero Challenges cannot use fan-made Mage Knights" end
 	if (gStates.riseOfTheForgemasters or 0)>0 then return false,"Hero Challenges cannot use Rise of the Forgemasters" end

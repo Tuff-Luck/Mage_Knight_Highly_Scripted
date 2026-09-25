@@ -22,7 +22,7 @@ local function setDropoutMatImage(playerData, droppingOut)
 	board.reload()
 end
 
-function dropOutPlayer(player, mouseButton, id)
+function togglePlayerDropoutRequest(player, mouseButton, id)
 	if mouseButton~="-1" then return end
 	local barGUID=id:sub(1,6)
 	local playerIndex=nil
@@ -162,7 +162,7 @@ function startOfTurn()
 		portalSwap("startOfTurn", gStates.turnNumber)
 		horsemenGladeReturned=true
 	end
-	local proxyStart=virtualCoopCombat==false and proxyPlayerActive()==true and currentPlayer~=nil and currentPlayer.mage==gStates.positionMageKnight[5]
+	local proxyStart=virtualCoopCombat==false and proxyPlayerIsActive()==true and currentPlayer~=nil and currentPlayer.mage==gStates.positionMageKnight[5]
 	if virtualCoopCombat==false and currentPlayer~=nil and currentPlayer.mage==gStates.positionMageKnight[5] and gStates.positionMageKnight[5]~="Volkare" then
 		currentPlayer.dummyProcessedThisTurn=false
 		if proxyStart==true then gStates.proxyState="Start" end
@@ -231,7 +231,7 @@ function startOfTurn()
 	if virtualCoopCombat==false and (turnOrder[gStates.turnNumber].avatarLocation=="glade" or turnOrder[gStates.turnNumber].avatarLocation=="graveyard"
 		or turnOrder[gStates.turnNumber].avatarLocation=="hidden valley" or turnOrder[gStates.turnNumber].avatarLocation=="necropolis") then
 		--check if glade is conquered
-		if gladeFreeCheck()==true then
+		if scenarioRestLocationIsAvailable()==true then
 			local params={position={(turnOrder[gStates.turnNumber].seatPos*40)-103, 1.65, -39}, rotation={0, 0, 0}, smooth=false}
 			if gStates.dayRound==true and turnOrder[gStates.turnNumber].avatarLocation~="graveyard" and turnOrder[gStates.turnNumber].avatarLocation~="necropolis" then
 				getObjectFromGUID("4a836f").takeObject(params)
@@ -586,7 +586,8 @@ local function turnAdvanceCompletedTurnLifecycle()
 end
 
 local function turnFinishCompletedTurnUI()
-	recourceTrackerReset()
+	resetResourceTrackerState()
+	refreshResourceTracker()
 	if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
 	addAvatarButtons()
 	safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
@@ -685,7 +686,7 @@ function mergedTurnCommit(nextTurnNumber,newOutOfTurn,sameTurn)
 	broadcastToAll(joinLang({"{en}It is now {ru}Ходит {zh-tw}现在是{zh-cn}现在是{ko}{es}Ahora es el turno de {fr}C'est maintenant au tour de {pt-br}é agora turno de {de}Jetzt ist ", translateWord[turnOrder[gStates.turnNumber].mage], "{en}'s turn.{ru} {zh-tw}的回合{zh-cn}的回合{ko}의 차례입니다.{es}.{fr}.{pt-br}.{de} an der Reihe."}), positionToColor(gStates.turnNumber))
 	if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType~=nil and coopAssaultTargetType()=="dragon" and apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(gStates.turnNumber)==true then apocalypseDragonRefreshGroundAttackSuppression() end
 	if gStates.tacticShown==false then startOfTurn() else claimButtonRefresh() end
-	fakeDropAvatar()
+	scheduleAvatarDropRefresh()
 	return gStates.turnNumber
 end
 
@@ -892,9 +893,9 @@ function __PreEndRound_raw(player, mouseButton, id)
 
 		--Unlock the second card in each broad offer row for manual offer control.
 		--The former per-slot scripting zones no longer exist.
-		local actionCards=mainOfferCards("Advanced Action")
+		local actionCards=mainOfferCardsByType("Advanced Action")
 		if actionCards[2]~=nil then actionCards[2].unlock() end
-		local spellCards=mainOfferCards("Spell")
+		local spellCards=mainOfferCardsByType("Spell")
 		if spellCards[2]~=nil then spellCards[2].unlock() end
 
 		if activeMageKnightCount()>1 or turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
@@ -935,7 +936,7 @@ local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 	--Against the Horsemen resolves its Round 1/2 approach, or the Round 3 ritual move, before tactics or the round reset.
 	if againstHorsemenBeginEndRoundMovement()==true then return true end
 	--A Proxy objective is part of its Deed deck between rounds, just like the physical rules.
-	if proxyPlayerActive()==true and gStates.proxyObjectiveGUID~=nil then proxyClearObjective(true) end
+	if proxyPlayerIsActive()==true and gStates.proxyObjectiveGUID~=nil then proxyClearObjective(true) end
 	--One to Return closes the starting Portal after the first Day's final-turn circuit is complete.
 	if gStates.gameScenario=="One to Return" and gStates.currentRound==1 then
 		oneToReturnClosePortal()
@@ -1018,8 +1019,8 @@ local function turnEndRoundRefreshOffers()
 	safeWaitTime("Turn",function()
 		if gStates.positionMageKnight[5]~="nobody" and gStates.positionMageKnight[5]~="Volkare" then
 			--Put advanced action in dummy deck
-			broadcastToAll(proxyPlayerActive()==true and "{en}Proxy Collected The First Advanced Action Card{ru}Прокси получил первую карту Продвинутого действия{zh-tw}代理玩家拿到了第一张高级行动卡{zh-cn}代理玩家拿到了第一张高级行动卡{ko}프록시가 첫 번째 상급 액션 카드를 가져갔습니다{es}Proxy consiguió la primera carta de Acción Avanzada.{fr}Le Proxy a récupéré la première carte d’Action Avancée{pt-br}Proxy pegou a primeira Carta de Ação Avançada{de}Proxy hat die erste Fortgeschrittene Aktionskarte genommen" or "{en}Dummy Collected The First Advance Action Card{ru}Нижняя карта из доступных Особых действий, добавлена в колоду деяний виртуального игрока{zh-tw}虚拟玩家拿到了第一张行动卡{zh-cn}虚拟玩家拿到了第一张行动卡{ko}마지막 상급 액션이 가상 플레이어 더미에 추가되었습니다{es}El muñeco ha conseguido la Primera carta de Acción Avanzada.{fr}Mannequin a récupéré la Première carte d'Action Avancée{pt-br}Jog. Fictício Clamou a primeira Carta de Ação{de}Dummy hat die erste Vorstoß-Aktionskarte gesammelt", {1,1,0.5})
-			local firstAction=mainOfferFirstCard("Advanced Action")
+			broadcastToAll(proxyPlayerIsActive()==true and "{en}Proxy Collected The First Advanced Action Card{ru}Прокси получил первую карту Продвинутого действия{zh-tw}代理玩家拿到了第一张高级行动卡{zh-cn}代理玩家拿到了第一张高级行动卡{ko}프록시가 첫 번째 상급 액션 카드를 가져갔습니다{es}Proxy consiguió la primera carta de Acción Avanzada.{fr}Le Proxy a récupéré la première carte d’Action Avancée{pt-br}Proxy pegou a primeira Carta de Ação Avançada{de}Proxy hat die erste Fortgeschrittene Aktionskarte genommen" or "{en}Dummy Collected The First Advance Action Card{ru}Нижняя карта из доступных Особых действий, добавлена в колоду деяний виртуального игрока{zh-tw}虚拟玩家拿到了第一张行动卡{zh-cn}虚拟玩家拿到了第一张行动卡{ko}마지막 상급 액션이 가상 플레이어 더미에 추가되었습니다{es}El muñeco ha conseguido la Primera carta de Acción Avanzada.{fr}Mannequin a récupéré la Première carte d'Action Avancée{pt-br}Jog. Fictício Clamou a primeira Carta de Ação{de}Dummy hat die erste Vorstoß-Aktionskarte gesammelt", {1,1,0.5})
+			local firstAction=mainOfferFirstCardByType("Advanced Action")
 			if firstAction~=nil then
 				firstAction.unlock()
 				firstAction.setRotationSmooth({0,180,180})
@@ -1028,10 +1029,10 @@ local function turnEndRoundRefreshOffers()
 			--Put spell colored crystal in the automated player's inventory. A damaged/empty Spell offer
 			--must not leave obj pointing at a mana bag and then try to count the bag as a crystal.
 			local spellColor=""--read information from the card in the first spell position
-			local firstSpell=mainOfferFirstCard("Spell")
+			local firstSpell=mainOfferFirstCardByType("Spell")
 			if firstSpell~=nil then spellColor=firstSpell.getDescription() end
 			if spellColor=="Red" or spellColor=="Blue" or spellColor=="Green" or spellColor=="White" then
-				broadcastToAll(joinLang({proxyPlayerActive()==true and "{en}Proxy added a {ru}Прокси получил {zh-tw}代理玩家添加了一个{zh-cn}代理玩家添加了一个{ko}프록시 저장 칸에 {es}Proxy agregó un cristal de maná {fr}Le Proxy a ajouté un cristal de mana {pt-br}Proxy adicionou um(a) {de}Der Proxy hat einen " or "{en}Dummy added a {ru}Виртуальный игрок получил {zh-tw}虚拟玩家添加了一个{zh-cn}虚拟玩家添加了一个{ko}가상 플레이어 저장 칸에 {es}Dummy agregó un cristal de maná {fr}Le mannequin a ajouté un cristal de mana {pt-br}Jog. Fictício adicionou um(a) {de}Die Puppe hat einen ", translateWord[spellColor], "{en} mana crystal to its inventory.{ru} кристалл маны{zh-tw}魔晶到他的装备区. {zh-cn}魔晶到他的装备区. {ko}수정을 추가했습니다{es} a su inventario.{fr} à son inventaire.{pt-br} Cristal de Mana para seu inventário.{de} manakristall in sein Inventar aufgenommen."}), {1,1,0.5})
+				broadcastToAll(joinLang({proxyPlayerIsActive()==true and "{en}Proxy added a {ru}Прокси получил {zh-tw}代理玩家添加了一个{zh-cn}代理玩家添加了一个{ko}프록시 저장 칸에 {es}Proxy agregó un cristal de maná {fr}Le Proxy a ajouté un cristal de mana {pt-br}Proxy adicionou um(a) {de}Der Proxy hat einen " or "{en}Dummy added a {ru}Виртуальный игрок получил {zh-tw}虚拟玩家添加了一个{zh-cn}虚拟玩家添加了一个{ko}가상 플레이어 저장 칸에 {es}Dummy agregó un cristal de maná {fr}Le mannequin a ajouté un cristal de mana {pt-br}Jog. Fictício adicionou um(a) {de}Die Puppe hat einen ", translateWord[spellColor], "{en} mana crystal to its inventory.{ru} кристалл маны{zh-tw}魔晶到他的装备区. {zh-cn}魔晶到他的装备区. {ko}수정을 추가했습니다{es} a su inventario.{fr} à son inventaire.{pt-br} Cristal de Mana para seu inventário.{de} manakristall in sein Inventar aufgenommen."}), {1,1,0.5})
 				local params={position={0, 1.65, 0}, rotation={0, 30, 0}, smooth=false}
 				local obj=nil
 				local crystalsPerRow=3
@@ -1060,7 +1061,7 @@ local function turnEndRoundRefreshOffers()
 		else
 			--Discards an Advance Action
 			local MainDeck=standardDeckCycleObject("Advanced Action")
-			local discard=mainOfferFirstCard("Advanced Action")
+			local discard=mainOfferFirstCardByType("Advanced Action")
 			if discard~=nil and MainDeck~=nil then
 				standardDeckCycleMarkReturned("Advanced Action",discard)
 				putCardAtBottom(MainDeck,discard)
@@ -1068,7 +1069,7 @@ local function turnEndRoundRefreshOffers()
 		end
 		--Discards the last Spell
 		local MainDeck=standardDeckCycleObject("Spell")
-		local discard=mainOfferFirstCard("Spell")
+		local discard=mainOfferFirstCardByType("Spell")
 		if discard~=nil and MainDeck~=nil then
 			standardDeckCycleMarkReturned("Spell",discard)
 			putCardAtBottom(MainDeck,discard)
@@ -1089,7 +1090,7 @@ local function turnEndRoundRefreshOffers()
 			broadcastToAll("{en}Advanced Actions and Spells cycled.{ru}Особые действия и Заклинания обновлены.{zh-tw}高级动作卡和法术卡供应区更新了{zh-cn}高级动作卡和法术卡供应区更新了{ko}상급 액션과 마법 카드 공급처가 갱신되었습니다.{es}Acciones Avanzadas y Hechizos ciclados.{fr}Actions Avancées et Sorts cyclés.{pt-br}Ações Avançadas e Feitiços reciclados.{de}Fortgeschrittene Aktionen und Zaubersprüche gewirkt.", {1,1,0.5})
 			broadcastToAll("-------------------", {1,1,0.5})
 			unitOffer()
-			fillSlide()
+			compactAndRefillDeedOffer()
 		end, 1)
 	end, 1)
 end
@@ -1369,7 +1370,7 @@ function dayNight(targetDay, setupPreview)
 		gStates.moveCost["desert"]=5
 		UI.setAttribute("MoveCostDeserText", "text", "{en}Deserts : 5{ru}Пустыни : 5{zh-tw}沙漠：5{zh-cn}沙漠：5{ko}사막 : 5{es}Desiertos : 5{fr}Déserts : 5{pt-br}Desertos : 5{de}Wüsten : 5")
 		UI.setAttribute("MoveCostForesText", "text", "{en}Forests : 3{ru}Леса : 3{zh-tw}森林：3{zh-cn}森林：3{ko}숲 : 3{es}Bosques : 3{fr}Forêts : 3{pt-br}Florestas : 3{de}Wälder : 3")
-		if setupPreview~=true then fakeDropAvatar() end
+		if setupPreview~=true then scheduleAvatarDropRefresh() end
 	else
 		tileColor={r=0.6, g=0.6, b=0.6}
 		local dayObject={"a02b0f", GUID.bag.weather.blazingSun, GUID.bag.weather.overcast, GUID.bag.weather.snowfall, GUID.bag.weather.rain, GUID.bag.weather.thunder, GUID.deck.dayWeather}

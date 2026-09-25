@@ -73,7 +73,7 @@ function portalSwap(state, playerIndex)
 	if player.avatarLocation=="portal" and portalClosed==true then return end
 	local portalPosition={{-45.5, 1.1, -11.4}, {-42.5, 1.1, -11.4}, {-45.5, 1.1, -13.2}, {-42.5, 1.1, -13.2}}
 	local cityConvert={["red"]=cityModel.red, ["whi"]=cityModel.white, ["blu"]=cityModel.blue, ["gre"]=cityModel.green}
-	local isProxy=proxyPlayerActive()==true and player.mage==gStates.positionMageKnight[5]
+	local isProxy=proxyPlayerIsActive()==true and player.mage==gStates.positionMageKnight[5]
 	local parkingSeat=isProxy==true and gStates.proxyParkingSeat or player.seatPos
 
 	local function dummyBoardParking()
@@ -85,7 +85,7 @@ function portalSwap(state, playerIndex)
 	local function portalParking(index)
 		local details=turnOrder[index]
 		if details==nil then return nil end
-		if proxyPlayerActive()==true and details.mage==gStates.positionMageKnight[5] then
+		if proxyPlayerIsActive()==true and details.mage==gStates.positionMageKnight[5] then
 			local seat=gStates.proxyParkingSeat
 			return seat~=nil and portalPosition[seat] or dummyBoardParking()
 		end
@@ -219,7 +219,7 @@ function shieldLocation(obj, zone, status)
 							if hexFeature=="keep" and obj.getGMNotes()~="Burned Monastery" then
 								broadcastToAll("{en}Keep Released{ru}Крепость освобождена{zh-tw}保持释放{zh-cn}保持释放{ko}성 정복 해제됨{es}Mantener Liberado{fr}Garder Libéré{pt-br}Forte Liberado{de}Behalten freigelassen", positionToColor(b))
 								mageSearch.keepsBeat=mageSearch.keepsBeat-1
-								fakeDropAvatar()
+								scheduleAvatarDropRefresh()
 							end
 							if hexFeature=="monastery" and gStates.monasteryBurned[terTile.guid]==true then
 								if gStates.monasteryBurnedBy~=nil then gStates.monasteryBurnedBy[terTile.guid]=nil end
@@ -270,7 +270,7 @@ function shieldLocation(obj, zone, status)
 							if hexFeature=="keep" and obj.getGMNotes()~="Burned Monastery" then
 								broadcastToAll("{en}'War is too serious a matter to leave to soldiers.'{ru}Война - слишком серьезная вещь, чтобы доверять её военным'{zh-tw}对于小兵来说, 战争太过残酷了{zh-cn}对于小兵来说, 战争太过残酷了{ko}성 정복됨.{es}Mantener Atacado con Exito{fr}Gardez avec Succès Agressé{pt-br}'Guerra é um assunto sério demais para deixar na mão de soldados'{de}Krieg ist eine zu ernste Angelegenheit, um sie Soldaten zu überlassen.'", positionToColor(b))
 								mageSearch.keepsBeat=mageSearch.keepsBeat+1
-								fakeDropAvatar()
+								scheduleAvatarDropRefresh()
 								break
 							end
 							if hexFeature=="glade" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="Druid Nights" then
@@ -322,7 +322,7 @@ function shieldLocation(obj, zone, status)
 						broadcastToAll(joinLang({"{en}City is Friendly to {ru}Город дружественный для {zh-tw}城市友善的对象: {zh-cn}城市友善的对象: {ko}도시는 우호적입니다: {es}La Ciudad es Amigable con {fr}La Ville est Amicale avec {pt-br}Cidade é Amistosa a {de}Stadt ist befreundet mit ", translateWord[mageSearch.mage]}), positionToColor(b))
 					else
 						if zone.guid==GUID.zone.blueCity or zone.guid==GUID.zone.redCity or zone.guid==GUID.zone.greenCity or zone.guid==GUID.zone.whiteCity then
-							cityBeatCheck()
+							refreshCityControlAndScoring()
 							if mageSearch.defeatedCities[cityScriptZones[zone.guid].cityGUID]~=nil then
 								broadcastToAll("{en}City has been Conquered{ru}Город был захвачен{zh-tw}城市被征服了{zh-cn}城市被征服了{ko}도시가 정복되었습니다{es}La Ciudad ha sido Conquistada{fr}La Ville a été Conquise{pt-br}Cidade foi Conquistada.{de}Die Stadt wurde erobert", positionToColor(b))
 							else
@@ -331,7 +331,7 @@ function shieldLocation(obj, zone, status)
 						end
 					end
 					if zone.guid==darkCrusader.discZone or zone.guid==elementalist.discZone then
-						cityBeatCheck()
+						refreshCityControlAndScoring()
 						if gStates.defeatedFactionTest[cityScriptZones[zone.guid].cityGUID]~=nil then
 							broadcastToAll("{en}Leader has been Defeated{ru}Лидер был побежден{zh-tw}首领被打败了{zh-cn}首领被打败了{ko}지도자를 처치했습니다{es}El Líder ha sido Derrotado{fr}Le Chef a été Vaincu{pt-br}Líder foi Derrotado{de}Anführer wurde besiegt", positionToColor(b))
 						else
@@ -339,7 +339,7 @@ function shieldLocation(obj, zone, status)
 						end
 					end
 					if zone.guid==volkare.discZone then
-						cityBeatCheck()
+						refreshCityControlAndScoring()
 						if mageSearch.defeatedCities[cityScriptZones[zone.guid].cityGUID]~=nil then
 							broadcastToAll("{en}Volkare is Defeated{ru}Волкар побежден{zh-tw}沃里卡认怂了{zh-cn}沃里卡认怂了{ko}볼케어 장군을 처치했습니다{es}Volkare es derrotado{fr}Volkare est vaincu{pt-br}Volkare foi Derrotado{de}Volkare ist besiegt", positionToColor(b))
 							registerVolkareCampAsCityKeep()
@@ -347,7 +347,7 @@ function shieldLocation(obj, zone, status)
 							broadcastToAll("{en}Volkare's Army Reduced{ru}Армия Волкара уменьшилась{zh-tw}沃里卡军队减少了{zh-cn}沃里卡军队减少了{ko}볼케어의 군대가 줄었습니다{es}Ejército de Volkare reducido{fr}Armée de Volkare réduite{pt-br}Exército de Volkare Reduzido{de}Volkares Armee wurde verkleinert", positionToColor(b))
 						end
 					end
-					fakeDropAvatar()
+					scheduleAvatarDropRefresh()
 					break
 				end
 			end
@@ -362,7 +362,7 @@ end
 -- Avatar refresh scheduling
 local adjustHandSizePause=nil
 
-function fakeDropAvatar(playerIndex)
+function scheduleAvatarDropRefresh(playerIndex)
 	local dropPlayer=playerIndex or gStates.turnNumber
 	if turnOrder[dropPlayer]==nil then return end
 	if coopAssaultVirtualPlayer(dropPlayer)==true then
@@ -858,7 +858,7 @@ function exploreMap(player, mouseButton, id)
 	end
 end
 
-function straightenCrooked()
+function normalizeSetupTableObjects()
 	--send city cards to bottom so tokens don't spawn under.
 	local sendToBottom={dummyBoard, gStates.cityCard[cityModel.blue], gStates.cityCard[cityModel.red], gStates.cityCard[cityModel.green], gStates.cityCard[cityModel.white], "e47fc3", "62d3c3", "12a3b1", "6f815c", "94c021", "d9c252", "7a56fa", "19c6ce", "aa6c1d", "d80815", "fdbc08", "0b57b9"}
 	for _, objGUID in pairs(sendToBottom) do
@@ -1115,7 +1115,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 					outOfTurnUIStateKey=nil
 					mainUIUpdate("Updated player location Details")
 					--Quest step availability can depend on the active Mage Knight's current map hex.
-					--Use the serialized offer refresh instead of touching Object UI directly here. fakeDropAvatar()
+					--Use the serialized offer refresh instead of touching Object UI directly here. scheduleAvatarDropRefresh()
 					--can reach this delayed location callback while a Quest offer refill is still physically moving cards;
 					--apocalypseQuestRefreshOfferButtons() defers safely until that refill has settled.
 					if apocalypseQuestsUsed()==true then apocalypseQuestRefreshOfferButtons() end
@@ -1434,7 +1434,7 @@ function mapHandleTerrainZoneEnter(ctx)
 
 			--Against the Apocalypse destroyed terrain
 			if initialSetupTerrain~=true and gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.tacticShown==false and enteredTileName~="excess" then
-				destroyRestoreLocation(nil, "-1", "id", "destroy", obj)
+				destroyNextAgainstApocalypseSite(obj)
 			end
 
 				--Play the correct pugs for the terrain tile
@@ -1450,7 +1450,7 @@ function mapHandleTerrainZoneEnter(ctx)
 					mapTokenAfterArrivalComplete(token.guid,function(liveToken)
 						if liveToken==nil then return end
 						runtimeMapInvalidateObjects()
-						fakeDropAvatar()
+						scheduleAvatarDropRefresh()
 					end)
 				end
 				--Normal exploration keeps the familiar staggered token reveal. During initial setup, the
@@ -1492,7 +1492,7 @@ function mapHandleTerrainZoneEnter(ctx)
 								dungeonLordsQueueSecretSite(obj,hexLocation,hexFeature)
 							end
 							--if a monastery tile is placed start dealing advanced actions
-							if hexFeature=="monastery" then playMonastery() end
+							if hexFeature=="monastery" then handleMonasteryRevealed() end
 
 							local tokenPileGreen=monsterPiles.green--Standard green Tokens
 							local tokenPileBrown=monsterPiles.tan--Standard Brown Tokens
@@ -1703,7 +1703,7 @@ function mapHandleTerrainZoneEnter(ctx)
 				--fake avatar drop, so do not run that reveal scan until every newly deployed map token and
 				--the separator's final correction have actually settled.
 				if initialSetupTerrain~=true then
-					mapTokenArrangeAllOccupiedHexes(objGUID,function() fakeDropAvatar() end)
+					mapTokenArrangeAllOccupiedHexes(objGUID,function() scheduleAvatarDropRefresh() end)
 				else
 					mapTokenArrangeAllOccupiedHexes(objGUID)
 				end

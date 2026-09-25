@@ -47,7 +47,7 @@ local PLAYER_SETUP_INVENTORIES={
 
 local function playerSetupInitializeState()
 	gStates.playerSetupReady=false
-	gStates.proxySetupReady=proxyPlayerActive()~=true
+	gStates.proxySetupReady=proxyPlayerIsActive()~=true
 	gStates.volkareSetupReady=gStates.positionMageKnight[5]~="Volkare"
 	gStates.mirrorSource=gStates.mirrorSource or {}
 	gStates.mirrorSetupReady=false
@@ -92,7 +92,7 @@ local function playerSetupResolveRandomMages()
 end
 
 local function playerSetupFinishProxyComponents()
-	if proxyPlayerActive()~=true then return end
+	if proxyPlayerIsActive()~=true then return end
 	safeWaitCondition("SetupGame",function()
 		proxySetupReferenceCards()
 		proxySetupShieldBag()
@@ -270,7 +270,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 					params.rotation={180, 0, 0}
 					params.position={-67.96+offsetPosition, 1.17, -50.17}--Flip wound card over if Volkare
 					params.callback_function=volkareSetup
-				elseif proxyPlayerActive()==true then
+				elseif proxyPlayerIsActive()==true then
 					--Use one of the same four Portal-card positions as a normal player whenever one is free.
 					--With four human players there is no fifth Portal position, so the Proxy starts on the Dummy board instead.
 					local proxyPos,onPortal=proxySetupAvatarPosition()
@@ -484,7 +484,7 @@ end
 
 function setupPlayersReady()
 	if gStates==nil or gStates.playerSetupReady~=true or gStates.mirrorSetupReady~=true then return false end
-	if proxyPlayerActive()==true and gStates.proxySetupReady~=true then return false end
+	if proxyPlayerIsActive()==true and gStates.proxySetupReady~=true then return false end
 	if gStates.positionMageKnight[5]=="Volkare" and gStates.volkareSetupReady~=true then return false end
 	return true
 end
@@ -501,7 +501,7 @@ function playerSetup()
 
 	--The selected Mage Knight's normal Shield source may belong to a player position that is cleaned
 	--before the Dummy/Proxy position is built. Preserve a dedicated Proxy copy first.
-	if proxyPlayerActive()==true then proxyStageShieldBag() end
+	if proxyPlayerIsActive()==true then proxyStageShieldBag() end
 
 	for orderIndex,position in ipairs(PLAYER_SETUP_POSITION_ORDER) do
 		playerSetupDeployPosition(orderIndex,position,context)

@@ -3,7 +3,7 @@
 -----------------
 -- Setup the Game
 -----------------
-function randomCitiesAllowedForScenario(scenario)
+function scenarioAllowsRandomCities(scenario)
 	scenario=scenario or gStates.gameScenario
 	return scenario~="First Reconnaissance" and scenario~="The Lost Relic" and scenario~="The Lost Relic Blitz" and scenario~="The Gauntlet"
 end
@@ -117,7 +117,7 @@ end
 local function setupFinishDeckStage()
 	local Wounds={[GUID.deck.spell]={"5c38e4","ab778d"},[GUID.deck.regularUnit]={"b5048c","718f39"}}
 	if gStates.mageKnightLevels==false then
-		afterLoad()
+		startMapSetupStage()
 		for _,woundCard in pairs(Wounds) do getObjectFromGUID(woundCard[1]).destruct() getObjectFromGUID(woundCard[2]).destruct() end
 	else
 		for destDeck,woundCards in pairs(Wounds) do
@@ -127,7 +127,7 @@ local function setupFinishDeckStage()
 			end
 		end
 		gStates.magesSetup=true
-		mageLevelBoard()
+		refreshHigherLevelSetupUI()
 		UI.show("LevelUpRules")
 		--Automated setup has handed control to the players. Do not hold the rewind transaction
 		--open while they spend an arbitrary amount of time choosing their higher-level start.
@@ -449,7 +449,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 
 		--Add mana dice
 		gStates.diceNeeded=gStates.playerCount+2+gStates.blitz
-		if gStates.positionMageKnight[5]=="Volkare" or proxyPlayerActive()==true or gStates.gameScenario=="The Chaos Rift" then gStates.diceNeeded=gStates.diceNeeded+1 end
+		if gStates.positionMageKnight[5]=="Volkare" or proxyPlayerIsActive()==true or gStates.gameScenario=="The Chaos Rift" then gStates.diceNeeded=gStates.diceNeeded+1 end
 		for i=1, gStates.diceNeeded do
 			local obj=getObjectFromGUID(GUID.bag.spareDice).takeObject({position={-12+(math.random()*6), 2.7+(1.1*i), -25+(math.random()*4)}, smooth=false})--Mana Dice Container {-12+(math.random()*6), 2.7+(1.1*i), -25+(math.random()*4)}
 			obj.randomize()
@@ -716,9 +716,9 @@ local function finalizeSetup()
 	mirrorSourceUpdate("first started game")
 	--Draw all the offers will double draw if I don't get the timing right.
 	gStates.totalUnitCount=gStates.playerCount+gStates.blitz+2
-	if gStates.positionMageKnight[5]=="Volkare" or proxyPlayerActive()==true then gStates.totalUnitCount=gStates.totalUnitCount+1 end
+	if gStates.positionMageKnight[5]=="Volkare" or proxyPlayerIsActive()==true then gStates.totalUnitCount=gStates.totalUnitCount+1 end
 	unitOffer()
-	fillSlide()
+	compactAndRefillDeedOffer()
 	--display the help boxes
 	DisplayHelp(nil, "-1", nil)
 	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDownImage", "image", "Overkill Down")
@@ -752,7 +752,7 @@ local function finalizeSetup()
 	safeWaitTime("SetupGame",function()
             if getObjectFromGUID("e7de55")~=nil then SendDataRequest("skip", "-1", "SendDataRequestYes") end
 	end, 400)--time in seconds, 1800=1/2 hour, 3600=1 hour 400
-	safeWaitTime("SetupGame",function() straightenCrooked() end, 10)
+	safeWaitTime("SetupGame",function() normalizeSetupTableObjects() end, 10)
 	dealStartingHandsWhenReady()
 	--All automated setup dependencies have completed. Any remaining smooth movement is presentation-only,
 	--so release the setup rewind guard immediately rather than relying on its 59-second failsafe.
@@ -760,7 +760,7 @@ local function finalizeSetup()
 end
 
 --Build the map only after monster/player/component setup has reached its real readiness conditions.
-function afterLoad()
+function startMapSetupStage()
 	if setupMapStarted==true then return end
 	local function beginMap()
 		if setupMapStarted==true then return end

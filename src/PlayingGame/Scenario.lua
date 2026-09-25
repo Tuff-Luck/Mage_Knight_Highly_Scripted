@@ -143,7 +143,7 @@ function volkarePursuitHexUsed(hexKey)
 	return false
 end
 
-function volkarePursuitAvailable(playerIndex)
+function volkarePursuitActionInfo(playerIndex)
 	local player=turnOrder[playerIndex]
 	if player==nil or gStates.preEndTurn==true or playerIndex~=gStates.turnNumber or player.combatIconHide~="None" then return nil end
 	local token=getObjectFromGUID(player.turnOrderTokenGUID)
@@ -397,7 +397,7 @@ function hiddenValleyLiberated()
 	return false
 end
 
-function gladeFreeCheck()
+function scenarioRestLocationIsAvailable()
 	local player=turnOrder[gStates.turnNumber]
 	if player==nil then return true end
 	local location=player.avatarLocation
@@ -457,7 +457,7 @@ function againstHorsemenSetStartingAvatarLocations()
 	for playerIndex,player in pairs(turnOrder or {}) do
 		--The standard Dummy has no map figure. Human Mage Knights and the optional Proxy do, including
 		--the five-avatar case where the Proxy's physical storage starts on the Dummy board.
-		local proxyAvatar=proxyPlayerActive()==true and player.mage==gStates.positionMageKnight[5]
+		local proxyAvatar=proxyPlayerIsActive()==true and player.mage==gStates.positionMageKnight[5]
 		if (player.avatarLocation~=nil or proxyAvatar==true) and player.mage~=nil and player.mage~="nobody" and player.mage~="Volkare" then
 			player.avatarLocation="glade"
 			player.avatarSharedHex=againstHorsemenSharedHexKey
@@ -662,7 +662,7 @@ function scenarioCombatCleanupCheck(cleanupPlayer)
 		(gStates.gameScenario=="Against the Dragon Blitz" and apocalypseDragonColoredHeadsDefeated()==true) or
 		(gStates.gameScenario=="Against the Apocalypse Blitz" and againstApocalypseObjectivesComplete~=nil and againstApocalypseObjectivesComplete()==true)
 	if complete==true then
-		if gStates.coopAssaultPhase=="combat" then gStates.coopAssaultScenarioEndPending=true else scenarioEnd() end
+		if gStates.coopAssaultPhase=="combat" then gStates.coopAssaultScenarioEndPending=true else markScenarioEndAchieved() end
 	end
 
 	--Judge Volkare's Return city defense only when the entire defense is complete; co-op kills are combined across all defenders.
@@ -841,40 +841,50 @@ function mineClaimChoice(player, mouseButton, id)
 	if mainUIUpdate~=nil then mainUIUpdate("Mine crystal claimed") end
 end
 
-function scenarioEnd(endImmediately)
-	if gStates.endGameAchieved=="false" then
-		UI.setAttribute("EndGameButtonText", "text", "{en}Scenario End Achieved - Yes{ru}Конец сценария достигнут - Да{zh-tw}達成劇本結束 - 是{zh-cn}達成剧本结束 - 是{ko}시나리오 종료 조건 충족 됨{es}Escenario Fin Realizados - Sí{fr}Scénario Fin Atteint - Oui{pt-br}Fim do Cenário Alcançado - Sim{de}Szenarioziel Erreicht – Ja")
-		UI.setAttribute("EndGameButtonImage", "image", "Sliced Button/Button New Deactive")
-		UI.setAttribute("EndGameButtonImage", "color", "rgb(1.0,0.7,0.2)")
-		gStates.endGameAchieved="started"
-		turnOrder[gStates.realTurn].gameEnder=true
-		establishFinalTurnBoundary("victory", gStates.realTurn)
-		if gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Quest for the Golden Grail" then
-			broadcastToAll("{en}Congratulations{ru}Поздравляем{zh-tw}恭喜{zh-cn}恭喜{ko}축하합니다{es}Felicidades{fr}Toutes nos félicitations{pt-br}Parabéns{de}Glückwunsch", {1,1,0.5})
-			gStates.endGameAchieved="true"
-			gStates.gameOver=true
-			mainUIUpdate("Scenario End")
-		elseif endImmediately==true then
-			gStates.endGameAchieved="true"
-			gStates.gameOver=true
-			mainUIUpdate("Game Over")
-		else
-			broadcastToAll("{en}Final Round of Turns Started{ru}Начался последний круг ходов{zh-tw}最终轮的回合开始了{zh-cn}最终轮的回合开始了{ko}마지막 턴 시작{es}Inicio de la Ultima Ronda de Turnos{fr}Dernier Rounde de Tours Commencé{pt-br}Rodada Final de Turnos começou{de}Die letzte Runde hat begonnen", {1,1,0.5})
-		end
-	else
-		UI.setAttribute("EndGameButtonText", "text", "{en}Scenario End Achieved - No{ru}Конец сценария достигнут - Нет{zh-tw}達成劇本結束 - 否{zh-cn}達成剧本结束 - 否{ko}시나리오 종료 조건 충족 전{es}Escenario Fin Realizados - No{fr}Scénario Fin Atteint - Non{pt-br}Fim do Cenário Alcançado - Não{de}Szenarioziel Erreicht – Nein")
-		UI.setAttribute("EndGameButtonImage", "image", "Sliced Button/Button New Active")
-		UI.setAttribute("EndGameButtonImage", "color", "white")
-		UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Active")
-		UI.setAttribute("PreEndTurn", "interactable", "True")
-		gStates.gameOver=false
-		for _, turnDetails in pairs(turnOrder) do turnDetails.gameEnder=false end
-		if gStates.finalTurnReason=="victory" then clearFinalTurnBoundary() else ensureFinalTurnBoundary() end
-		gStates.endGameAchieved=(gStates.finalTurnReason=="endRound" and gStates.currentRound==gStates.rounds) and "true" or "false"
-		broadcastToAll("{en}Turn order resumed{ru}Порядок хода восстановлен{zh-tw}回合顺序恢复了{zh-cn}回合顺序恢复了{ko}턴 순서가 재개되었습니다{es}Se reanudó el orden de turno{fr}L'ordre des tours a repris{pt-br}Ordem de Turno retomada{de}Reihenfolge der Drehung wieder aufgenommen", {1,1,0.5})
+function markScenarioEndAchieved(endImmediately)
+	if gStates.endGameAchieved~="false" then return false end
+	UI.setAttribute("EndGameButtonText", "text", "{en}Scenario End Achieved - Yes{ru}Конец сценария достигнут - Да{zh-tw}達成劇本結束 - 是{zh-cn}達成剧本结束 - 是{ko}시나리오 종료 조건 충족 됨{es}Escenario Fin Realizados - Sí{fr}Scénario Fin Atteint - Oui{pt-br}Fim do Cenário Alcançado - Sim{de}Szenarioziel Erreicht – Ja")
+	UI.setAttribute("EndGameButtonImage", "image", "Sliced Button/Button New Deactive")
+	UI.setAttribute("EndGameButtonImage", "color", "rgb(1.0,0.7,0.2)")
+	gStates.endGameAchieved="started"
+	turnOrder[gStates.realTurn].gameEnder=true
+	establishFinalTurnBoundary("victory", gStates.realTurn)
+	if gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Quest for the Golden Grail" then
+		broadcastToAll("{en}Congratulations{ru}Поздравляем{zh-tw}恭喜{zh-cn}恭喜{ko}축하합니다{es}Felicidades{fr}Toutes nos félicitations{pt-br}Parabéns{de}Glückwunsch", {1,1,0.5})
+		gStates.endGameAchieved="true"
+		gStates.gameOver=true
 		mainUIUpdate("Scenario End")
+	elseif endImmediately==true then
+		gStates.endGameAchieved="true"
+		gStates.gameOver=true
+		mainUIUpdate("Game Over")
+	else
+		broadcastToAll("{en}Final Round of Turns Started{ru}Начался последний круг ходов{zh-tw}最终轮的回合开始了{zh-cn}最终轮的回合开始了{ko}마지막 턴 시작{es}Inicio de la Ultima Ronda de Turnos{fr}Dernier Rounde de Tours Commencé{pt-br}Rodada Final de Turnos começou{de}Die letzte Runde hat begonnen", {1,1,0.5})
 	end
 	refreshCoopCompSkillWarnings()
+	return true
+end
+
+function clearScenarioEndAchieved()
+	if gStates.endGameAchieved=="false" then return false end
+	UI.setAttribute("EndGameButtonText", "text", "{en}Scenario End Achieved - No{ru}Конец сценария достигнут - Нет{zh-tw}達成劇本結束 - 否{zh-cn}達成剧本结束 - 否{ko}시나리오 종료 조건 충족 전{es}Escenario Fin Realizados - No{fr}Scénario Fin Atteint - Non{pt-br}Fim do Cenário Alcançado - Não{de}Szenarioziel Erreicht – Nein")
+	UI.setAttribute("EndGameButtonImage", "image", "Sliced Button/Button New Active")
+	UI.setAttribute("EndGameButtonImage", "color", "white")
+	UI.setAttribute("PreEndTurnImage", "image", "Sliced Button/Button New Active")
+	UI.setAttribute("PreEndTurn", "interactable", "True")
+	gStates.gameOver=false
+	for _, turnDetails in pairs(turnOrder) do turnDetails.gameEnder=false end
+	if gStates.finalTurnReason=="victory" then clearFinalTurnBoundary() else ensureFinalTurnBoundary() end
+	gStates.endGameAchieved=(gStates.finalTurnReason=="endRound" and gStates.currentRound==gStates.rounds) and "true" or "false"
+	broadcastToAll("{en}Turn order resumed{ru}Порядок хода восстановлен{zh-tw}回合顺序恢复了{zh-cn}回合顺序恢复了{ko}턴 순서가 재개되었습니다{es}Se reanudó el orden de turno{fr}L'ordre des tours a repris{pt-br}Ordem de Turno retomada{de}Reihenfolge der Drehung wieder aufgenommen", {1,1,0.5})
+	mainUIUpdate("Scenario End")
+	refreshCoopCompSkillWarnings()
+	return true
+end
+
+function toggleScenarioEndAchieved(player, mouseButton, id)
+	if gStates.endGameAchieved=="false" then return markScenarioEndAchieved(false) end
+	return clearScenarioEndAchieved()
 end
 
 --Dungeon Lords secret entrances remember the exact Village/Monastery that created each placement request.
@@ -2462,7 +2472,7 @@ function volkarePursuitAction(playerDud,mouseButton,id)
 	for index,details in pairs(turnOrder) do if details.mage==mage then playerIndex=index break end end
 	if playerIndex==nil or playerIndex~=gStates.turnNumber then return end
 	if playerDud~=nil and playerDud.color~=nil and legalPlayerCheck(playerDud.color,turnOrder[playerIndex].seatPos)~=true then return end
-	local info=volkarePursuitAvailable(playerIndex)
+	local info=volkarePursuitActionInfo(playerIndex)
 	if info==nil then gStates.volkarePursuitChoicePlayer=nil addAvatarButtons() return end
 	if id:sub(1,12)=="VPursuitOpen" then gStates.volkarePursuitChoicePlayer=playerIndex addAvatarButtons() return end
 	local choice=id:match("^VPursuit([^|]+)")
@@ -2630,7 +2640,7 @@ end
 function againstApocalypseCheckCompletion()
 	if gStates==nil or gStates.gameScenario~="Against the Apocalypse Blitz" or gStates.endGameAchieved~="false" or gStates.tacticShown==true then return false end
 	if againstApocalypseObjectivesComplete()~=true then return false end
-	if gStates.coopAssaultPhase=="combat" then gStates.coopAssaultScenarioEndPending=true else scenarioEnd() end
+	if gStates.coopAssaultPhase=="combat" then gStates.coopAssaultScenarioEndPending=true else markScenarioEndAchieved() end
 	return true
 end
 
@@ -2670,7 +2680,7 @@ function restoreDestroyedSite(destroyed, player)
 		player.fameGain=player.fameGain+1
 		broadcastToAll("{en}and Fame Gained{ru}и получена Слава{zh-tw}並獲得聲望值{zh-cn}并获得声望值{ko}및 명성 획득{es}y Fama Ganada{fr}et Renommée Gagnée{pt-br}e Fama Ganha{de}und Ruhm erhalten")
 	end
-	if data.hexFeature=="monastery" then playMonastery() end
+	if data.hexFeature=="monastery" then handleMonasteryRevealed() end
 	if data.hexFeature=="village" or data.hexFeature=="oasis" or data.hexFeature=="camp" then
 		player.repGain=player.repGain+1
 		broadcastToAll("{en}and Reputation Gained{ru}и получена Репутация{zh-tw}並獲得聲望{zh-cn}并获得声望{ko}및 평판 획득{es}y Reputación Ganada{fr}et Réputation Gagnée{pt-br}e Reputação Ganha{de}und Ansehen erhalten")
@@ -2679,7 +2689,7 @@ function restoreDestroyedSite(destroyed, player)
 	undoDestroyedSitePlacement(destroyed)
 	destroyed.unlock()
 	destroyed.setPositionSmooth({(player.seatPos*40)-117.2+(math.random()*6.5), 3, -35+(math.random()*3.2)})
-	fakeDropAvatar()
+	scheduleAvatarDropRefresh()
 	--The restored token must actually enter its inventory zone before the objective helper counts it.
 	--Check one frame after it settles; still run the check on timeout so an odd physics state cannot strand victory.
 	if gStates.gameScenario=="Against the Apocalypse Blitz" then
@@ -2696,7 +2706,7 @@ function restoreDestroyedSite(destroyed, player)
 	return true
 end
 
-function destroyRestoreLocation(playerDud, mouseButton, id, type, obj)
+local function destroyRestoreLocationInternal(playerDud, mouseButton, id, type, obj)
 	if mouseButton=="-1" then
 		if type=="destroy" then
 			--destroy
@@ -2753,6 +2763,14 @@ function destroyRestoreLocation(playerDud, mouseButton, id, type, obj)
 			end
 		end
 	end
+end
+
+function destroyNextAgainstApocalypseSite(obj)
+	return destroyRestoreLocationInternal(nil,"-1","id","destroy",obj)
+end
+
+function restoreDestroyedSiteAtCurrentPlayer(player, mouseButton, id)
+	return destroyRestoreLocationInternal(player,mouseButton,id,"restore",nil)
 end
 
 --City-card positions are arranged in rings around the City. EXPLORE refreshes use the complete current
@@ -3782,12 +3800,12 @@ end
 --between Landed and In Flight. A stored flight target means the Dragon is in flight; nil means landed.
 --This is intentionally new-game state only: Fury setup initializes the current Lair hex and no
 --old-save recovery is attempted.
-function furyDragonActive()
+function furyDragonIsActive()
 	return gStates~=nil and gStates.gameScenario=="Fury of the Apocalypse Dragon"
 end
 
 function furyDragonPositionRoundOrderToken()
-	if furyDragonActive()~=true then return false end
+	if furyDragonIsActive()~=true then return false end
 	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 	local target={-1.90,0.97,-18.00-(1.4*((#turnOrder or 0)+1))}
@@ -3807,7 +3825,7 @@ function furyDragonPositionRoundOrderToken()
 end
 
 function furyDragonRoundStart()
-	if furyDragonActive()~=true then return false end
+	if furyDragonIsActive()~=true then return false end
 	if gStates.furyDragonRoundPrepared==gStates.currentRound then
 		furyDragonPositionRoundOrderToken()
 		return false
@@ -3832,7 +3850,7 @@ function furyDragonRoundStart()
 end
 
 function furyDragonBeginTurn(nextTurnNumber,newOutOfTurn,sameTurn)
-	if furyDragonActive()~=true or gStates.tacticShown==true or gStates.tacticRemove==true then return false end
+	if furyDragonIsActive()~=true or gStates.tacticShown==true or gStates.tacticRemove==true then return false end
 	if gStates.endRoundCalled==true or gStates.gameOver==true or gStates.apocalypseDragonDefeated==true then return false end
 	if gStates.apocalypseDragonTurnActive==true then return true end
 	gStates.apocalypseDragonTurnActive=true
@@ -3851,7 +3869,7 @@ function furyDragonBeginTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 end
 
 function furyDragonCompleteTurn(text)
-	if furyDragonActive()~=true then return false end
+	if furyDragonIsActive()~=true then return false end
 	gStates.apocalypseDragonUIState="ReadyToEnd"
 	gStates.apocalypseDragonTurnReport=text or "The Apocalypse Dragon finished its turn."
 	apocalypseDragonMainUIRefresh()
@@ -4028,7 +4046,7 @@ function furyDragonMoveMarkerOffMap()
 end
 
 function furyDragonBeginLandedTurn()
-	if furyDragonActive()~=true then return false end
+	if furyDragonIsActive()~=true then return false end
 	gStates.apocalypseDragonUIState="Processing"
 	gStates.apocalypseDragonTurnReport="The landed Apocalypse Dragon is rolling its mana die."
 	apocalypseDragonMainUIRefresh()
@@ -4214,7 +4232,7 @@ function furyDragonResolveArrivalEffect(target,hex,mapObjects)
 end
 
 function furyDragonBeginInFlightTurn()
-	if furyDragonActive()~=true then return false end
+	if furyDragonIsActive()~=true then return false end
 	local target=gStates.furyDragonFlightTarget
 	if target==nil then return furyDragonBeginLandedTurn() end
 	gStates.apocalypseDragonUIState="Processing"
@@ -4267,7 +4285,7 @@ function furyDragonBeginInFlightTurn()
 end
 
 function furyDragonProcessTurn()
-	if furyDragonActive()~=true or gStates.apocalypseDragonTurnActive~=true then return false end
+	if furyDragonIsActive()~=true or gStates.apocalypseDragonTurnActive~=true then return false end
 	if gStates.apocalypseDragonUIState=="WaitingCombat" then
 		gStates.furyDragonAwaitingCombat=nil
 		return furyDragonBeginLandedTurn()

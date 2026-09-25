@@ -3,13 +3,13 @@
 --Apocalypse Dragon Proxy Player variant. It shares the normal Dummy deck/tactic machinery, but keeps its Hero on the map and resolves its turn visibly.
 proxyStandardBasicNames={Stamina=true,Determination=true,Crystallize=true,March=true,Tranquility=true,Concentration=true,Swiftness=true,["Mana Draw"]=true,Promise=true,Improvisation=true,Threaten=true,Rage=true}
 
-function proxyPlayerActive()
+function proxyPlayerIsActive()
 	return gStates~=nil and gStates.proxyPlayer==true and gStates.positionMageKnight~=nil and gStates.positionMageKnight[5]~=nil and gStates.positionMageKnight[5]~="nobody" and gStates.positionMageKnight[5]~="Volkare"
 end
 
 function automatedPlayerTurnFunction()
 	if gStates.positionMageKnight[5]=="Volkare" then return "volkareTurn" end
-	if proxyPlayerActive()==true then return "proxyTurn" end
+	if proxyPlayerIsActive()==true then return "proxyTurn" end
 	return "dummyTurn"
 end
 
@@ -25,7 +25,7 @@ end
 --Deploy the two Apocalypse Proxy reference cards relative to the live Dummy board so they follow
 --whichever setup slot the Proxy actually occupies.
 function proxySetupReferenceCards()
-	if proxyPlayerActive()~=true then return end
+	if proxyPlayerIsActive()~=true then return end
 	local board=getObjectFromGUID(dummyBoard)
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 	if board==nil or bag==nil then return end
@@ -55,7 +55,7 @@ function proxySetupAvatarPosition()
 end
 
 function proxyMageDetails()
-	if proxyPlayerActive()~=true then return nil end
+	if proxyPlayerIsActive()~=true then return nil end
 	for _,details in ipairs(mageKnights or {}) do
 		if details.mage==gStates.positionMageKnight[5] then return details end
 	end
@@ -66,7 +66,7 @@ end
 --Normally the live source can simply be cloned. If that source is already inside its Mage component bag,
 --clone the component bag and extract the same contained index without altering the master setup bag.
 function proxyStageShieldBag()
-	if proxyPlayerActive()~=true then return nil end
+	if proxyPlayerIsActive()~=true then return nil end
 	if gStates.proxyShieldBagGUID~=nil then
 		local existing=getObjectFromGUID(gStates.proxyShieldBagGUID)
 		if existing~=nil then return existing end
@@ -104,7 +104,7 @@ function proxyStageShieldBag()
 end
 
 function proxySetupShieldBag()
-	if proxyPlayerActive()~=true then return nil end
+	if proxyPlayerIsActive()~=true then return nil end
 	local bag=nil
 	if gStates.proxyShieldBagGUID~=nil then bag=getObjectFromGUID(gStates.proxyShieldBagGUID) end
 	if bag==nil then bag=proxyStageShieldBag() end
@@ -120,13 +120,13 @@ function proxySetupShieldBag()
 	return bag
 end
 function proxyPlayerIndex()
-	if proxyPlayerActive()~=true then return nil end
+	if proxyPlayerIsActive()~=true then return nil end
 	for a,details in ipairs(turnOrder or {}) do if details.mage==gStates.positionMageKnight[5] then return a end end
 	return nil
 end
 
 function proxyAvatarObject()
-	if proxyPlayerActive()~=true then return nil end
+	if proxyPlayerIsActive()~=true then return nil end
 	for _,details in ipairs(mageKnights or {}) do
 		if details.mage==gStates.positionMageKnight[5] then
 			local obj=nil
@@ -140,7 +140,7 @@ function proxyAvatarObject()
 end
 
 function proxyShieldContainer()
-	if proxyPlayerActive()~=true then return nil end
+	if proxyPlayerIsActive()~=true then return nil end
 	if gStates.proxyShieldBagGUID~=nil then
 		local bag=getObjectFromGUID(gStates.proxyShieldBagGUID)
 		if bag~=nil then return bag end
@@ -440,7 +440,7 @@ function proxyInteractionOfferCache(crystals)
 			end
 		end
 	end
-	local card=mainOfferFirstCard("Spell")
+	local card=mainOfferFirstCardByType("Spell")
 	if card~=nil then
 		for _,color in ipairs(dummyCardColors(card)) do
 			if (crystals[color] or 0)>0 then
@@ -2018,7 +2018,7 @@ function proxyTakeInteractionChoice(choice)
 	local kind=choice.kind=="unit" and "Unit" or (choice.kind=="spell" and "Spell" or "Advanced Action")
 	proxyTurnReportSetAction("took "..cardName.." ("..kind..") from the offer")
 	proxyReturnOfferCard(choice.card)
-	if choice.kind~="unit" then safeWaitFrames("AI.Proxy",function() fillSlide() end,2) end
+	if choice.kind~="unit" then safeWaitFrames("AI.Proxy",function() compactAndRefillDeedOffer() end,2) end
 	proxyClearObjective(true)
 	broadcastToAll(joinLang({"{en}Proxy took {ru}Прокси взял {zh-tw}代理玩家從供應中取得 {zh-cn}代理玩家从供应中取得 {ko}프록시가 제안에서 {es}El Proxy tomó {fr}Le Proxy a pris {pt-br}O Proxy pegou {de}Der Proxy nahm ",cardName,"{en} from the offer.{ru} из предложения.{zh-tw}。{zh-cn}。{ko}을(를) 가져갔습니다.{es} de la oferta.{fr} dans l’offre.{pt-br} da oferta.{de} aus dem Angebot."}),{1,0.75,0.2})
 	return true
@@ -2340,7 +2340,7 @@ function proxyProcessTurn(proxyIndex)
 end
 
 function proxyTurn(player,mouseButton,id)
-	if mouseButton~="-1" or proxyPlayerActive()~=true then return end
+	if mouseButton~="-1" or proxyPlayerIsActive()~=true then return end
 	if gStates.tacticShown==true then
 		automatedTurnRewindStart(function()
 			automatedPlayerRandomTactic()

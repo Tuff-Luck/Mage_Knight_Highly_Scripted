@@ -396,7 +396,7 @@ function randomSetup(player, value, id)
 		UI.setAttribute("DropDown", "active", "false")
 		dropDownIdLink="ROTFSelection"
 		local choice={"ROTF1Selection", "ROTF2Selection", "ROTF3Selection"}
-		riseOfTheForgemastersOption(nil, "-1", choice[math.random(1,3)])
+		riseOfTheForgemasterOption(nil, "-1", choice[math.random(1,3)])
 	end
 end
 
@@ -466,7 +466,7 @@ function scenarioSelection(player, mouseButton, id)
 		--Reset ordinary setup toggles from one policy table, then apply scenario-specific overrides.
 		--Hero Challenges intentionally survives scenario browsing and is therefore not part of this reset.
 		applyScenarioToggleDefaults()
-		if randomCitiesAllowedForScenario()==false then UI.setAttribute("randomCities","interactable","False") end
+		if scenarioAllowsRandomCities()==false then UI.setAttribute("randomCities","interactable","False") end
 		refreshProxySetupLabel()
 
 		--Rampage uses a three-state value instead of a normal boolean toggle.
@@ -669,7 +669,7 @@ function RampageSelection(player, value, id)
 	ToolTipUpdate(id)
 end
 
-function riseOfTheForgemastersOption(player, mouseButton, id)
+function riseOfTheForgemasterOption(player, mouseButton, id)
 	if mouseButton=="-1" then
 		local level=ROTF_SELECTION_LEVEL_BY_ID[id]
 		if level==nil then return end
@@ -1136,7 +1136,7 @@ function refreshSetupStartButton()
 	UI.setAttribute("StartButton", "active", "false")
 	UI.setAttribute("StartButton", "width", "1000")
 	local tooMany=gStates.playerCount>setupScenarioMaxMageKnights()
-	local heroChallengeLegal,heroChallengeReason=heroChallengeSetupLegal()
+	local heroChallengeLegal,heroChallengeReason=heroChallengeSetupIsLegal()
 	if tooMany then
 		setUIButtonEnabled("StartButton",false)
 		UI.setAttribute("StartButtonText", "text", "{en}Too Many Mage Knights{ru}Слишком много Рыцарей-магов{zh-tw}魔法騎士過多{zh-cn}魔法骑士过多{ko}메이지 나이트가 너무 많습니다{es}Demasiados Mage Knights{fr}Trop de Mage Knights{pt-br}Mage Knights demais{de}Zu viele Mage Knights")

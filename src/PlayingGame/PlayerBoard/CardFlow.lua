@@ -289,7 +289,7 @@ end
 
 --Move's an offer or tactic card to a player's location
 local fillWait=false
-function claimMove(player, mouseButton, id, rewindReady)
+function processCardClaim(player, mouseButton, id, rewindReady)
 	if mouseButton~="-3" then
 		if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true and turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] then
 			local claimedCard=getObjectFromGUID(id:sub(1, 6))
@@ -301,7 +301,7 @@ function claimMove(player, mouseButton, id, rewindReady)
 				--the bookkeeping without also starting the physical transfer.
 				if source~="unit" and mouseButton=="-1" and rewindReady~=true then
 					if rewindTransactionOwnerActive(cardClaimRewindOwner)==true then return end
-					rewindTransactionStart(function() claimMove(player,mouseButton,id,true) end,cardClaimRewindOwner)
+					rewindTransactionStart(function() processCardClaim(player,mouseButton,id,true) end,cardClaimRewindOwner)
 					return
 				end
 				--Unit cards remain locked in the offer until recruitment is actually approved.
@@ -338,7 +338,7 @@ function claimMove(player, mouseButton, id, rewindReady)
 						claimedCard.flip()
 						claimedCard.setPositionSmooth({(turnOrder[gStates.turnNumber].seatPos*40)-114.19 , 3.0, -43.16},false,false)
 					end
-					if source=="offer" and fillWait==false then fillWait=true safeWaitTime("PlayerBoard.CardFlow",function() fillSlide() fillWait=false end, 1.2) end
+					if source=="offer" and fillWait==false then fillWait=true safeWaitTime("PlayerBoard.CardFlow",function() compactAndRefillDeedOffer() fillWait=false end, 1.2) end
 					if source=="artifactReward" then
 						if turnOrder[gStates.turnNumber].avatarLocation:sub(1, 4)=="city" then gStates.theGauntletArtifactClaimed=true end
 						gStates.dealtArtifacts[id:sub(1, 6)]=false
@@ -1434,7 +1434,7 @@ function dealAllHands()
 end
 
 --Fill any gaps in the offer by sliding more cards down the line
-local function fillSlideRaw()
+local function compactAndRefillDeedOfferRaw()
 	local offerList={{}, {}}
 	local sourceDeck={GUID.zone.actionDeck, GUID.zone.spellDeck}
 	for _, obj in pairs(getObjectFromGUID(GUID.zone.offer).getObjects()) do
@@ -1483,8 +1483,8 @@ local function fillSlideRaw()
 	end
 end
 
-function fillSlide()
-	return safeCallback("fillSlide",function() return fillSlideRaw() end)
+function compactAndRefillDeedOffer()
+	return safeCallback("compactAndRefillDeedOffer",function() return compactAndRefillDeedOfferRaw() end)
 end
 
 -- Glade discard healing
@@ -1533,7 +1533,7 @@ function refreshGladeDiscardHealButton()
 	if details==nil or details.mage==gStates.positionMageKnight[5] or playerDropoutInactive(playerIndex)==true then return end
 	if gStates.preEndTurn~=true or gStates.coopAssaultPhase=="combat" or gameOver==true or UI.getAttribute("RewardCheck", "active")~="true" then return end
 	if details.avatarLocation~="glade" and not (gStates.gameScenario=="The Hidden Valley Blitz" and details.avatarLocation=="hidden valley") then return end
-	if gladeFreeCheck()~=true then return end
+	if scenarioRestLocationIsAvailable()~=true then return end
 	if gStates.gladeDiscardHealUsed==nil then gStates.gladeDiscardHealUsed={} end
 	if gStates.gladeDiscardHealUsed[details.seatPos]==true then return end
 	local discardObj=gladeDiscardWound(playerIndex)
@@ -1554,7 +1554,7 @@ function gladeDiscardHeal(obj, playerColor, altClick)
 	local details=turnOrder[playerIndex]
 	if details==nil or legalPlayerCheck(playerColor, details.seatPos)~=true then return end
 	if gStates.preEndTurn~=true or gStates.coopAssaultPhase=="combat" or gameOver==true or UI.getAttribute("RewardCheck", "active")~="true" or
-		(details.avatarLocation~="glade" and not (gStates.gameScenario=="The Hidden Valley Blitz" and details.avatarLocation=="hidden valley")) or gladeFreeCheck()~=true then refreshGladeDiscardHealButton() return end
+		(details.avatarLocation~="glade" and not (gStates.gameScenario=="The Hidden Valley Blitz" and details.avatarLocation=="hidden valley")) or scenarioRestLocationIsAvailable()~=true then refreshGladeDiscardHealButton() return end
 	if gStates.gladeDiscardHealUsed==nil then gStates.gladeDiscardHealUsed={} end
 	if gStates.gladeDiscardHealUsed[details.seatPos]==true then refreshGladeDiscardHealButton() return end
 	local source, woundGUID=gladeDiscardWound(playerIndex)

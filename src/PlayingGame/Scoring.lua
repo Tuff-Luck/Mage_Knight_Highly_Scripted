@@ -398,7 +398,7 @@ function displayScore(player, mouseButton, id)
 			end
 		end
 		--Figure out who leads and assisted in cities
-		cityBeatCheck()
+		refreshCityControlAndScoring()
 		local forTheCouncil=gStates.gameScenario=="For the Council"
 		local againstHorsemen=gStates.gameScenario=="Against the Horsemen Blitz"
 		local apocalypseHere=gStates.gameScenario=="Apocalypse is Here"

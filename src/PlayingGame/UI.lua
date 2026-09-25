@@ -608,7 +608,7 @@ function automatedCurrentPlayerPanelSpec()
 	local stats=turnOrder[gStates.turnNumber]
 	if stats.mage~=gStates.positionMageKnight[5] then return nil end
 	if gStates.positionMageKnight[5]=="Volkare" then return automatedVolkarePanelSpec(stats) end
-	if proxyPlayerActive~=nil and proxyPlayerActive()==true then return automatedProxyPanelSpec(stats) end
+	if proxyPlayerIsActive~=nil and proxyPlayerIsActive()==true then return automatedProxyPanelSpec(stats) end
 	return automatedDummyPanelSpec(stats)
 end
 
@@ -788,7 +788,7 @@ local function mainUIRefreshPlayerState(context)
 		if fameToLevel>currentPlayer.level then
 			if fameToLevel==2 or fameToLevel==4 or fameToLevel==6 or fameToLevel==8 or fameToLevel==10 or fameToLevel==12 or fameToLevel-currentPlayer.level>1 then gStates.levelingUp=true end
 			currentPlayer.levelUp=fameToLevel-currentPlayer.level
-			if gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat" and levelUpcalled==false then levelUpcalled=true levelUp(gStates.turnNumber) end
+			if gStates.preEndTurn==true and gStates.coopAssaultPhase~="combat" and levelUpcalled==false then levelUpcalled=true processPlayerLevelUps(gStates.turnNumber) end
 		end
 	end
 
@@ -1132,7 +1132,7 @@ local function mainUIRefreshRewardChecklist(context,playerState)
 				count=count+1 linefeed=true
 			end
 			if linefeed==true then rewardText=joinLang({rewardText, "\n"}) linefeed=false end
-			if gStates.turnForfeited==false and gladeFreeCheck()==true and (avatarLocation=="glade" or avatarLocation=="hidden valley" or
+			if gStates.turnForfeited==false and scenarioRestLocationIsAvailable()==true and (avatarLocation=="glade" or avatarLocation=="hidden valley" or
 			(gStates.gameScenario=="The War of Four" and (avatarLocation=="necropolis" or avatarLocation=="graveyard"))) then
 				rewardText=joinLang({rewardText, count, "{en}. Removed One Wound{ru}. Вернули в стопку одну рану{zh-tw}. 移除一點創傷{zh-cn}. 移除一点创伤{ko}. 부상 하나 제거{es}. Eliminado una Herida{fr}. Suppression d'une blessure{pt-br}. Removeu Um Ferimento{de}. Eine Wunde wurde entfernt"})
 				count=count+1 linefeed=true
@@ -1363,7 +1363,7 @@ local function mainUIRefreshStatusPanel(context,playerState)
 			if fameForUp>0 then mainText=joinLang({mainText, "{en}<size=6>\n\n</size>Next Level in {ru}<size=6>\n\n</size>До повышения уровня {zh-tw}<size=6>\n\n</size>升級還需 {zh-cn}<size=6>\n\n</size>升级还需 {ko}<size=6>\n\n</size>다음 레벨까지 {es}<size=6>\n\n</size>Siguiente nivel en {fr}<size=6>\n\n</size>Niveau suivant dans {pt-br}<size=6>\n\n</size>Próximo Nível em {de}<size=6>\n\n</size>Nächstes Level in ", fameForUp, "{en} Fame{ru} Слава(ы){zh-tw} 名望{zh-cn} 名望{ko} 명성 남음{es} Fama{fr} Gloire{pt-br} Fama{de} Ruhm", levelUpType}) else mainText=joinLang({mainText, "\n "}) end
 			UI.setAttribute("MainGameNotes", "text", mainText)
 		else
-			if proxyPlayerActive()==true then
+			if proxyPlayerIsActive()==true then
 				UI.setAttribute("MainGameNotes", "text", joinLang({"{en}<size=25>Proxy {ru}<size=25>Прокси {zh-tw}<size=25>代理玩家 {zh-cn}<size=25>代理玩家 {ko}<size=25>프록시 {es}<size=25>Proxy {fr}<size=25>Proxy {pt-br}<size=25>Proxy {de}<size=25>Proxy ", translateWord[currentPlayer.mage], "{en}'s Turn</size>{ru} Ходит</size>{zh-tw}的回合</size>{zh-cn}的回合</size>{ko} 차례</size>{es}</size>{fr}</size>{pt-br}</size>{de}'s Zug</size>"}))
 			else
 				UI.setAttribute("MainGameNotes", "text", joinLang({"{en}<size=25>Dummy {ru}<size=25>Манекен {zh-tw}<size=25>虛擬玩家 {zh-cn}<size=25>虚拟玩家 {ko}<size=25>더미{es}<size=25>Turno de Maniquí {fr}<size=25>Au tour de Mannequin {pt-br}<size=25>Turno de Manequim {de}<size=25>Dummy ", translateWord[currentPlayer.mage], "{en}'s Turn</size>{ru} Ходит</size>{zh-tw}的回合</size>{zh-cn}的回合</size>{ko} 차례</size>{es}</size>{fr}</size>{pt-br}</size>{de}'s Zug</size>"}))
@@ -1611,7 +1611,7 @@ function addAvatarButtons()
 								existingButtons=keptButtons
 								if player.combatIconHide~="Both" and turnTokenFaceUp==true and avatarToObjDistSquared<9.61 and avatarToObjDistSquared>1 then
 									existingButtons[#existingButtons+1]={tag="Button", attributes={id=mapDetails.guid..details.mage,
-										onClick="global/destroyRestoreLocation",
+										onClick="global/restoreDestroyedSiteAtCurrentPlayer",
 										height=100/0.9, width=100/0.9,
 										position="0 "..tostring(120/0.9).." "..tostring(-20/0.9), rotation="0 0 180",
 										color="rgba(0,0,0,0.0)"},
@@ -1717,7 +1717,7 @@ function addAvatarButtons()
 						end
 					end
 					--Conquered Camp-as-City Pursuit. The fourth slot is shared with Druid Nights; if both are legal, Druid moves one slot higher.
-					local pursuitInfo=volkarePursuitAvailable(order)
+					local pursuitInfo=volkarePursuitActionInfo(order)
 					if pursuitInfo~=nil then
 						combatAttackOptionCounts[order]=combatAttackOptionCounts[order]+1
 						if gStates.volkarePursuitChoicePlayer==order then
@@ -1743,7 +1743,7 @@ function addAvatarButtons()
 					--Restore Site. The Apocalypse expansion only permits restoration in Against the Apocalypse.
 					if gStates.gameScenario=="Against the Apocalypse Blitz" and player.avatarLocation~=nil and order==gStates.turnNumber and player.combatIconHide=="None" and turnTokenFaceUp==true and player.avatarLocation=="destroyed" then
 						avatarButton[1].children[#avatarButton[1].children+1]={tag="Button", attributes={id="Restor"..details.mage,
-							onClick="global/destroyRestoreLocation",
+							onClick="global/restoreDestroyedSiteAtCurrentPlayer",
 							height=70/scale, width=70/scale,
 							position="0 "..tostring(100/scale).." "..tostring(-25/scale), rotation="0 0 180",
 							color="rgba(0,0,0,0.0)"},
@@ -1842,7 +1842,7 @@ function applyColorBarButtons()
 				end
 				if dropVisible==true then
 					--The color bar is a cube scaled {19.80, 0.01, 2.50}; counter-scale X/Z so this renders like a normal Claim-style button.
-					buttons[#buttons+1]={tag="Button", attributes={id=barGUID.."DropOut", onClick="global/dropOutPlayer", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+					buttons[#buttons+1]={tag="Button", attributes={id=barGUID.."DropOut", onClick="global/togglePlayerDropoutRequest", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
 						height=200, width=800, position="-70 30 -40", rotation="0 0 0", scale="0.01778 0.1408", interactable=dropInteractable},
 						children={{tag="Image", attributes={id=barGUID.."DropOutImage", image=dropImage, type="Sliced"}},
 							{tag="Text", attributes={id=barGUID.."DropOutText", font="Fonts/MKCardText", fontSize=90, fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize=90, text=dropText}}}}
@@ -1854,11 +1854,11 @@ function applyColorBarButtons()
 end
 
 
-function bugReport(player, value, id)
+function openBugReportPanel(player, value, id)
 	UI.setAttribute("SendBugRequest", "active", true)
 end
 
-function updateComment(player, value, id)
+function setBugReportComment(player, value, id)
 	UI.setAttribute(id, "text", value)
 end
 
@@ -2145,8 +2145,7 @@ function refreshResourceTrackerText()
 	end
 end
 
-function recourceTrackerReset(type)
-	if type~="update" then
+function resetResourceTrackerState()
 		gStates.resourceTracker={move=		{move=0},
 								siege=		{physical=0, fire=0, ice=0, iceFire=0},
 								ranged=		{physical=0, fire=0, ice=0, iceFire=0},
@@ -2156,7 +2155,9 @@ function recourceTrackerReset(type)
 								healing=	{healing=0}}
 		gStates.moveCost={["plains"]=2, ["hills"]=3, ["forest"]=5, ["wasteland"]=4, ["desert"]=3, ["swamp"]=5, ["lake"]=999, ["mountain"]=999, ["city"]=2, ["explore"]=2}
 		if gStates.dayRound==true then gStates.moveCost={["plains"]=2, ["hills"]=3, ["forest"]=3, ["wasteland"]=4, ["desert"]=5, ["swamp"]=5, ["lake"]=999, ["mountain"]=999, ["city"]=2, ["explore"]=2} end
-	end
+end
+
+function refreshResourceTracker()
 	updateMoveDisplay()
 	gStates.resourceTracker.influence.reputation=-99
 	if reputationTable[turnOrder[gStates.turnNumber].reputation].repDisplay~="No Interaction" then
@@ -2379,7 +2380,7 @@ function monsterReplenishObjectOnLoad()
 	if obj==nil then return end
 	obj.UI.setXml([=[
 <Button id="d7a165replenishMonsterPiles" interactable="true"
-    onClick="global/returnPugs"
+    onClick="global/refillMonsterTokenPiles"
     tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
     width="900" height="200" color="#7F7F7F" textColor="#FFFFFF"
     position="200 270 -100" rotation="0 0 0" scale="0.48 0.48"
@@ -2452,7 +2453,7 @@ end
 
 -- Shared object claim button builder
 function createClaimButton(objGUID, source)
-	local onClick="global/claimMove"
+	local onClick="global/processCardClaim"
 	local width=500
 	local height=150
 	local scale=0.32
@@ -2506,7 +2507,7 @@ function createClaimButton(objGUID, source)
 				position="0 211 -29"
 				onClick=("global/"..automatedPlayerTurnFunction())
 				text="{en}Pick Random for Dummy{ru}Случайный для виртуального игрока{zh-tw}為虛擬玩家隨機選擇戰術卡{zh-cn}为虚拟玩家随机选择战术卡{ko}가상 플레이어 무작위 선택{es}Elija al Azar para el Maniquí{fr}Elija al Azar Para el Maniquí{pt-br}Escolha Aleatória para o Dummy{de}Zufallsauswahl für Dummy"
-				if proxyPlayerActive()==true then text="{en}Pick Random for Proxy{ru}Случайная тактика для прокси{zh-tw}為代理玩家隨機選擇戰術卡{zh-cn}为代理玩家随机选择战术卡{ko}프록시 무작위 선택{es}Elegir al Azar para Proxy{fr}Tirer au Sort pour le Proxy{pt-br}Escolha Aleatória para o Proxy{de}Zufallsauswahl für Proxy" end
+				if proxyPlayerIsActive()==true then text="{en}Pick Random for Proxy{ru}Случайная тактика для прокси{zh-tw}為代理玩家隨機選擇戰術卡{zh-cn}为代理玩家随机选择战术卡{ko}프록시 무작위 선택{es}Elegir al Azar para Proxy{fr}Tirer au Sort pour le Proxy{pt-br}Escolha Aleatória para o Proxy{de}Zufallsauswahl für Proxy" end
 				if gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" then
 					text="{en}Pick Random for Volkare{ru}Случайный для Волкара{zh-tw}為沃卡里隨機選擇戰術卡{zh-cn}为沃卡里随机选择战术卡{ko}볼케어 무작위 선택{es}Elige al Azar para Volkare{fr}Tirez au Sort pour Volkare{pt-br}Escolha Aleatório para Volkare{de}Zufallsauswahl für Volkare"
 				end

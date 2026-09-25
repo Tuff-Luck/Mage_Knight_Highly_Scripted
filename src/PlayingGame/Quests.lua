@@ -590,7 +590,7 @@ function apocalypseQuestUndoSiteToken(tokenGUID)
 		if state.oldOverride~=nil then gStates.hexOverideSave[state.terrainGUID][state.bearing]=state.oldOverride else gStates.hexOverideSave[state.terrainGUID][state.bearing]=nil end
 	end
 	gStates.apocalypseQuestSiteState[tokenGUID]=nil
-	fakeDropAvatar()
+	scheduleAvatarDropRefresh()
 	return true
 end
 
@@ -645,7 +645,7 @@ function apocalypseQuestSiteTokenDropped(token)
 	end
 	token.lock()
 	broadcastToAll(joinLang({"{en}Quest site placed: {ru}Место задания размещено: {zh-tw}已放置任務地點：{zh-cn}已放置任务地点：{ko}퀘스트 장소 배치: {es}Lugar de Misión colocado: {fr}Site de Quête placé : {pt-br}Local da Missão colocado: {de}Quest-Ort platziert: ",site,"."}), {1,1,0.5})
-	fakeDropAvatar()
+	scheduleAvatarDropRefresh()
 	return true
 end
 local function apocalypseQuestLoseReputation(playerIndex, questName, reason)

@@ -31,7 +31,7 @@ rewardSkillHighlightColor={1,0.9,0}
 function clearRewardSkillChoiceHighlights(keepFirstAction)
 	local keepGUID=nil
 	if keepFirstAction==true then
-		local firstAction=mainOfferFirstCard("Advanced Action")
+		local firstAction=mainOfferFirstCardByType("Advanced Action")
 		if firstAction~=nil then keepGUID=firstAction.guid end
 	end
 	local kept={}
@@ -53,7 +53,7 @@ function addRewardSkillChoiceHighlight(obj)
 end
 
 function rewardSkillChoiceActionCards()
-	return mainOfferCards("Advanced Action")
+	return mainOfferCardsByType("Advanced Action")
 end
 
 function rewardSkillChoiceActionHighlights(allCards)
@@ -290,7 +290,7 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 			--turn off skill claim buttons
 			local found=false
 			for a=1, #turnOrder, 1 do
-				if turnOrder[a].seatPos==gStates.skillButtons and turnOrder[a].levelUp>0 then levelUp(a) found=true end
+				if turnOrder[a].seatPos==gStates.skillButtons and turnOrder[a].levelUp>0 then processPlayerLevelUps(a) found=true end
 			end
 			if found==false then
 				gStates.skillButtons=0
@@ -1229,7 +1229,7 @@ function heroChallengeClaimReservedSkill(playerIndex,higherLevel)
 end
 
 --perform Level Up
-function levelUp(playerTurnSequence)
+function processPlayerLevelUps(playerTurnSequence)
 	if turnOrder[playerTurnSequence].levelUp>0 then
 		--The prescribed level-2 Hero Challenge Skill is automatic, so it does not need the normal
 		--end-turn "Gained a New Skill Token" reminder. Reset this for every live level-up sequence;

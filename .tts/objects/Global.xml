@@ -139,7 +139,7 @@
 			</VerticalLayout>
 		</Panel>
 		<Panel id="EndGameButton" class="MainGameSubPanel" active="false" outlineSize="0 0" rectAlignment="LowerLeft" offsetXY="0 -45" height="30">
-			<ToggleButton id="EndGameButtonReal" onClick="scenarioEnd"
+			<ToggleButton id="EndGameButtonReal" onClick="toggleScenarioEndAchieved"
 				tooltipPosition="Left" tooltipOffset="20" tooltip="Toggle to trigger final round of turns">
 				<Image id="EndGameButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
 				<Text id="EndGameButtonText" class="Text18" offsetXY="0 1">{en}Scenario End Achieved - No{ru}Конец сценария достигнут - Нет{zh-tw}声明结束剧本-否{zh-cn}声明结束剧本-否{ko}시나리오 종료 조건 충족 전{es}Escenario Fin Realizados - No{fr}Scénario Fin Atteint - Non{pt-br}Fim do Cenário Alcançado - Não{de}Szenarioziel Erreicht – Nein</Text>
@@ -385,7 +385,7 @@
 
 <Panel id="topButtons" active="true" rectAlignment="UpperLeft" offsetXY="130 -5" width="330" height="60" outlineSize="0 0" class="Floating">
 	<Panel id="sendBugReportButton"	active="false" visibility="Admin" rectAlignment="UpperLeft" offsetXY="0 0" width="110" height="30" outlineSize="0 0">
-		<Button id="sendBugReportButtonReal" onClick="bugReport">
+		<Button id="sendBugReportButtonReal" onClick="openBugReportPanel">
 			<Image id="sendBugReportButtonRealImage" image="Sliced Button/Button New Active" type="Sliced"/>
 			<VerticalLayout padding="6 6 6 6"><Text id="sendBugReportButtonRealText" class="Text18" offsetXY="0 1">{en}Feedback{ru}Обратная связь{zh-tw}回饋意見{zh-cn}反馈{ko}피드백{es}Realimentación{fr}Retour{pt-br}Comentários{de}Feedback</Text></VerticalLayout>
 		</Button>
@@ -607,12 +607,12 @@
 		<Panel preferredHeight="35">
 			<VerticalLayout padding="4 4 2 2">
 				<Row>
-					<Button id="Mage1levelDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="mageKnightLevel">
+					<Button id="Mage1levelDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage1levelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 					</Button>
 					<Text id="Mage1levelText" class="Text17" alignment="MiddleCenter">{en}Start at Level {ru}Начать с уровнем {zh-cn}开始的级别：{ko}시작 레벨: {es}Empezar en el Nivel {fr}Début Niveau {pt-br}Iníciar no Nível {de}Start bei Level </Text>
-					<Button id="Mage1levelUp" class="ScenarioTweak" rectAlignment="MiddleRight" onClick="mageKnightLevel">
+					<Button id="Mage1levelUp" class="ScenarioTweak" rectAlignment="MiddleRight" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage1levelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 					</Button>
@@ -622,12 +622,12 @@
 		<Panel preferredHeight="85">
 			<VerticalLayout padding="4 4 2 2">
 				<Row>
-					<Button id="Mage1influenceDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="mageKnightLevel">
+					<Button id="Mage1influenceDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage1influenceDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 					</Button>
 					<Text id="Mage1influenceText" class="Text17" alignment="MiddleCenter">{en} Influence Per Level{ru} Влияние(я) за ур.{zh-cn}影响力/级{ko} 영향력*레벨{es} Influencia por Nivel{fr} Influence par Niveau{pt-br} Influência por Nível{de} Einfluss pro Stufe</Text>
-					<Button id="Mage1influenceUp" class="ScenarioTweak" Text="+" rectAlignment="MiddleRight" onClick="mageKnightLevel">
+					<Button id="Mage1influenceUp" class="ScenarioTweak" Text="+" rectAlignment="MiddleRight" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage1influenceUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 					</Button>
@@ -648,7 +648,7 @@
 		<Panel preferredHeight="70">
 			<VerticalLayout padding="4 4 2 2">
 				<Row><Text id="Mage1RemainingText" class="Text17">{en}Remaining : {ru}Остаток: {zh-cn}剩余影响力 : {ko}남은 영향력 : {es}Restante : {fr}Restant : {pt-br}Restando : {de}Verbleibend : </Text></Row>
-				<Row><Button id="Mage1CompleteButton" height="30" shadow="rgb(0,0,0)" rectAlignment="MiddleCenter" onClick="cardPool">
+				<Row><Button id="Mage1CompleteButton" height="30" shadow="rgb(0,0,0)" rectAlignment="MiddleCenter" onClick="createHigherLevelCardPool">
 						<Image id="Mage1CompleteButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text id="Mage1CompleteText" class="Text17" offsetXY="0 1">{en}Create Card Pool{ru}Создать пул карт{zh-tw}创建卡池{zh-cn}创建卡池{ko}카드 풀 생성{es}Crear Grupo de Cartas{fr}Créer un Pool de Cartes{pt-br}Criar Conjunto de Cartas{de}Kartenpool erstellen</Text>
 					</Button>
@@ -667,12 +667,12 @@
 		<Panel preferredHeight="35">
 			<VerticalLayout padding="4 4 2 2">
 				<Row>
-					<Button id="Mage2levelDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="mageKnightLevel">
+					<Button id="Mage2levelDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage2levelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 					</Button>
 					<Text id="Mage2levelText" class="Text17" alignment="MiddleCenter">{en}Start at Level {ru}Начать с уровнем {zh-cn}开始的级别：{ko}시작 레벨: {es}Empezar en el Nivel {fr}Début Niveau {pt-br}Iníciar no Nível {de}Start bei Level </Text>
-					<Button id="Mage2levelUp" class="ScenarioTweak" rectAlignment="MiddleRight" onClick="mageKnightLevel">
+					<Button id="Mage2levelUp" class="ScenarioTweak" rectAlignment="MiddleRight" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage2levelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 					</Button>
@@ -682,12 +682,12 @@
 		<Panel preferredHeight="85">
 			<VerticalLayout padding="4 4 2 2">
 				<Row>
-					<Button id="Mage2influenceDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="mageKnightLevel">
+					<Button id="Mage2influenceDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage2influenceDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 					</Button>
 					<Text id="Mage2influenceText" class="Text17" alignment="MiddleCenter">{en} Influence Per Level{ru} Влияние(я) за ур.{zh-cn}影响力/级{ko} 영향력*레벨{es} Influencia por Nivel{fr} Influence par Niveau{pt-br} Influência por Nível{de} Einfluss pro Stufe</Text>
-					<Button id="Mage2influenceUp" class="ScenarioTweak" Text="+" rectAlignment="MiddleRight" onClick="mageKnightLevel">
+					<Button id="Mage2influenceUp" class="ScenarioTweak" Text="+" rectAlignment="MiddleRight" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage2influenceUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 					</Button>
@@ -708,7 +708,7 @@
 		<Panel preferredHeight="70">
 			<VerticalLayout padding="4 4 2 2">
 				<Row><Text id="Mage2RemainingText" class="Text17">{en}Remaining : {ru}Остаток: {zh-cn}剩余影响力 : {ko}남은 영향력 : {es}Restante : {fr}Restant : {pt-br}Restando : {de}Verbleibend : </Text></Row>
-				<Row><Button id="Mage2CompleteButton" height="30" shadow="rgb(0,0,0)" rectAlignment="MiddleCenter" onClick="cardPool">
+				<Row><Button id="Mage2CompleteButton" height="30" shadow="rgb(0,0,0)" rectAlignment="MiddleCenter" onClick="createHigherLevelCardPool">
 						<Image id="Mage2CompleteButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text id="Mage2CompleteText" class="Text17" offsetXY="0 1">{en}Create Card Pool{ru}Создать пул карт{zh-tw}创建卡池{zh-cn}创建卡池{ko}카드 풀 생성{es}Crear Grupo de Cartas{fr}Créer un Pool de Cartes{pt-br}Criar Conjunto de Cartas{de}Kartenpool erstellen</Text>
 					</Button>
@@ -727,12 +727,12 @@
 		<Panel preferredHeight="35">
 			<VerticalLayout padding="4 4 2 2">
 				<Row>
-					<Button id="Mage3levelDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="mageKnightLevel">
+					<Button id="Mage3levelDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage3levelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 					</Button>
 					<Text id="Mage3levelText" class="Text17" alignment="MiddleCenter">{en}Start at Level {ru}Начать с уровнем {zh-cn}开始的级别：{ko}시작 레벨: {es}Empezar en el Nivel {fr}Début Niveau {pt-br}Iníciar no Nível {de}Start bei Level </Text>
-					<Button id="Mage3levelUp" class="ScenarioTweak" rectAlignment="MiddleRight" onClick="mageKnightLevel">
+					<Button id="Mage3levelUp" class="ScenarioTweak" rectAlignment="MiddleRight" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage3levelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 					</Button>
@@ -742,12 +742,12 @@
 		<Panel preferredHeight="85">
 			<VerticalLayout padding="4 4 2 2">
 				<Row>
-					<Button id="Mage3influenceDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="mageKnightLevel">
+					<Button id="Mage3influenceDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage3influenceDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 					</Button>
 					<Text id="Mage3influenceText" class="Text17" alignment="MiddleCenter">{en} Influence Per Level{ru} Влияние(я) за ур.{zh-cn}影响力/级{ko} 영향력*레벨{es} Influencia por Nivel{fr} Influence par Niveau{pt-br} Influência por Nível{de} Einfluss pro Stufe</Text>
-					<Button id="Mage3influenceUp" class="ScenarioTweak" Text="+" rectAlignment="MiddleRight" onClick="mageKnightLevel">
+					<Button id="Mage3influenceUp" class="ScenarioTweak" Text="+" rectAlignment="MiddleRight" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage3influenceUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 					</Button>
@@ -768,7 +768,7 @@
 		<Panel preferredHeight="70">
 			<VerticalLayout padding="4 4 2 2">
 				<Row><Text id="Mage3RemainingText" class="Text17">{en}Remaining : {ru}Остаток: {zh-cn}剩余影响力 : {ko}남은 영향력 : {es}Restante : {fr}Restant : {pt-br}Restando : {de}Verbleibend : </Text></Row>
-				<Row><Button id="Mage3CompleteButton" height="30" shadow="rgb(0,0,0)" rectAlignment="MiddleCenter" onClick="cardPool">
+				<Row><Button id="Mage3CompleteButton" height="30" shadow="rgb(0,0,0)" rectAlignment="MiddleCenter" onClick="createHigherLevelCardPool">
 						<Image id="Mage3CompleteButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text id="Mage3CompleteText" class="Text17" offsetXY="0 1">{en}Create Card Pool{ru}Создать пул карт{zh-tw}创建卡池{zh-cn}创建卡池{ko}카드 풀 생성{es}Crear Grupo de Cartas{fr}Créer un Pool de Cartes{pt-br}Criar Conjunto de Cartas{de}Kartenpool erstellen</Text>
 					</Button>
@@ -787,12 +787,12 @@
 		<Panel preferredHeight="35">
 			<VerticalLayout padding="4 4 2 2">
 				<Row>
-					<Button id="Mage4levelDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="mageKnightLevel">
+					<Button id="Mage4levelDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage4levelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 					</Button>
 					<Text id="Mage4levelText" class="Text17" alignment="MiddleCenter">{en}Start at Level {ru}Начать с уровнем {zh-cn}开始的级别：{ko}시작 레벨: {es}Empezar en el Nivel {fr}Début Niveau {pt-br}Iníciar no Nível {de}Start bei Level </Text>
-					<Button id="Mage4levelUp" class="ScenarioTweak" rectAlignment="MiddleRight" onClick="mageKnightLevel">
+					<Button id="Mage4levelUp" class="ScenarioTweak" rectAlignment="MiddleRight" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage4levelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 					</Button>
@@ -802,12 +802,12 @@
 		<Panel preferredHeight="85">
 			<VerticalLayout padding="4 4 2 2">
 				<Row>
-					<Button id="Mage4influenceDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="mageKnightLevel">
+					<Button id="Mage4influenceDown" class="ScenarioTweak" rectAlignment="MiddleLeft" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage4influenceDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 					</Button>
 					<Text id="Mage4influenceText" class="Text17" alignment="MiddleCenter">{en} Influence Per Level{ru} Влияние(я) за ур.{zh-cn}影响力/级{ko} 영향력*레벨{es} Influencia por Nivel{fr} Influence par Niveau{pt-br} Influência por Nível{de} Einfluss pro Stufe</Text>
-					<Button id="Mage4influenceUp" class="ScenarioTweak" Text="+" rectAlignment="MiddleRight" onClick="mageKnightLevel">
+					<Button id="Mage4influenceUp" class="ScenarioTweak" Text="+" rectAlignment="MiddleRight" onClick="adjustHigherLevelSetupValue">
 						<Image id="Mage4influenceUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
 					</Button>
@@ -828,7 +828,7 @@
 		<Panel preferredHeight="70">
 			<VerticalLayout padding="4 4 2 2">
 				<Row><Text id="Mage4RemainingText" class="Text17">{en}Remaining : {ru}Остаток: {zh-cn}剩余影响力 : {ko}남은 영향력 : {es}Restante : {fr}Restant : {pt-br}Restando : {de}Verbleibend : </Text></Row>
-				<Row><Button id="Mage4CompleteButton" height="30" shadow="rgb(0,0,0)" rectAlignment="MiddleCenter" onClick="cardPool">
+				<Row><Button id="Mage4CompleteButton" height="30" shadow="rgb(0,0,0)" rectAlignment="MiddleCenter" onClick="createHigherLevelCardPool">
 						<Image id="Mage4CompleteButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<Text id="Mage4CompleteText" class="Text17" offsetXY="0 1">{en}Create Card Pool{ru}Создать пул карт{zh-tw}创建卡池{zh-cn}创建卡池{ko}카드 풀 생성{es}Crear Grupo de Cartas{fr}Créer un Pool de Cartes{pt-br}Criar Conjunto de Cartas{de}Kartenpool erstellen</Text>
 					</Button>
@@ -2545,25 +2545,25 @@ Einheiten</Text></Cell>
 				</Button>
 			</Row>
 			<Row id="ROTF0Row">
-				<Button id="ROTF0Selection" onClick="riseOfTheForgemastersOption">
+				<Button id="ROTF0Selection" onClick="riseOfTheForgemasterOption">
 					<Image id="ROTF0SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ROTF0SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet</Text>
 				</Button>
 			</Row>
 			<Row id="ROTF1Row">
-				<Button id="ROTF1Selection" onClick="riseOfTheForgemastersOption">
+				<Button id="ROTF1Selection" onClick="riseOfTheForgemasterOption">
 					<Image id="ROTF1SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ROTF1SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}1. New Beginning{ru}1. Новое начало{zh-tw}新的開始{zh-cn}新的开始{ko}1.새로운 시작{es}1. Un nuevo comienzo{fr}1. Nouveau départ{pt-br}1. Novo Começo{de}1. Neubeginn</Text>
 				</Button>
 			</Row>
 			<Row id="ROTF2Row">
-				<Button id="ROTF2Selection" onClick="riseOfTheForgemastersOption">
+				<Button id="ROTF2Selection" onClick="riseOfTheForgemasterOption">
 					<Image id="ROTF2SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ROTF2SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}2. Spoils of War{ru}2. Военные трофеи{zh-tw}戰爭犒賞{zh-cn}战争犒赏{ko}2.전쟁의 전리품{es}2. Botín de Guerra{fr}2. Butin de Guerre{pt-br}2. Despojos de Guerra{de}2. Kriegsbeute</Text>
 				</Button>
 			</Row>
 			<Row id="ROTF3Row">
-				<Button id="ROTF3Selection" onClick="riseOfTheForgemastersOption">
+				<Button id="ROTF3Selection" onClick="riseOfTheForgemasterOption">
 					<Image id="ROTF3SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ROTF3SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier</Text>
 				</Button>
@@ -2654,7 +2654,7 @@ Einheiten</Text></Cell>
 &lt;/size&gt;Ich lese zwar das gesamte Feedback, aber wenn Sie möchten, dass ich auf Ihr Problem antworte, ist es am besten, stattdessen auf der Mod-Workshop-Seite zu posten.</Text>
 	</VerticalLayout>
 	<Panel rectAlignment="LowerCenter" offsetXY="0 -60" width="350" height="60" outlineSize="0 0">
-		<InputField id="SendBugComment" lineType="MultiLineNewLine" height="60" width="350" onEndEdit="updateComment"></InputField>
+		<InputField id="SendBugComment" lineType="MultiLineNewLine" height="60" width="350" onEndEdit="setBugReportComment"></InputField>
 	</Panel>
 	<Panel rectAlignment="LowerLeft" offsetXY="0 -90" width="175" height="30" outlineSize="0 0">
 		<Button id="SendBugRequestYes" onClick="SendDataRequest">
@@ -2726,7 +2726,7 @@ Einheiten</Text></Cell>
 &lt;/size&gt;Geben Sie optional etwas ein, das Ihnen hilft, Ihren Eintrag in der Liste zu finden. Dh 'Volkare durch epischen Feuerballangriff getötet'</Text>
 	</VerticalLayout>
 	<Panel rectAlignment="LowerCenter" offsetXY="0 -60" width="300" height="60" outlineSize="0 0">
-		<InputField id="SendScoreComment" lineType="MultiLineNewLine" height="60" width="300" onEndEdit="updateComment"></InputField>
+		<InputField id="SendScoreComment" lineType="MultiLineNewLine" height="60" width="300" onEndEdit="setBugReportComment"></InputField>
 	</Panel>
 	<Panel rectAlignment="LowerLeft" offsetXY="0 -90" width="150" height="30" outlineSize="0 0">
 		<Button id="SendScoreRequestYes" onClick="SendDataRequest">

@@ -36,7 +36,7 @@ function dummyProcessTurn(dummyIndex,dummySeat)
 end
 
 function dummyTurn(player, mouseButton, id)
-	if mouseButton~="-1" or gStates.positionMageKnight[5]=="Volkare" or proxyPlayerActive()==true then return end
+	if mouseButton~="-1" or gStates.positionMageKnight[5]=="Volkare" or proxyPlayerIsActive()==true then return end
 	if gStates.tacticShown==true then
 		automatedTurnRewindStart(function()
 			automatedPlayerRandomTactic()
