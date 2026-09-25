@@ -1,3 +1,12 @@
+-- Combat-private helpers. Predeclared so forward references keep resolving locally.
+local clearCoopLeaderPreviewClones, clearCoopAssaultRuntime, createCoopLeaderPreviewClones, promoteCoopLeaderPreview, moveCoopAssaultAvatarToCityCard
+local coopAssaultTargetDefeated, restoreCoopAssaultAvatar, resolveCoopAssaultLocations, factionRewardPileGUID, takeFactionRewardToken
+local awardFactionRewardToken, giveQueuedFactionReward, showCoopReward, coopAssaultAvatarsSettled, finalizeCoopLeaderCombat
+local assaultOriginAdjacent, assaultTargetHasWall, resolveAssaultWallFortified, assaultCrossesWall, setAssaultWallFortified
+local settleAssaultWallFortified, applyCurrentAssaultWallFortified, combatCameraPlayerIndex, combatNearbyRampagerChoice, combatAttackOptionCount
+local coopAssaultDividableCount, coopAssaultHasLeader, coopAssaultLeadMage, coopAssaultAssignmentSource, coopAssaultCityMinimumEnemyRule
+local coopAssaultReadyToBegin, factionMonsterPreferredPileGUID, summonMonster, adjustOverkill
+
 -- Combat, enemy staging, cooperative assault and combat reward runtime.
 
 local function combatAllAttackBonusDecalURL(bonus)
@@ -101,7 +110,7 @@ function coopAssaultPendingCombat()
 end
 
 --Faction-leader co-op participants get unlocked planning copies. These clones are visual only and are never registered as monsters.
-function clearCoopLeaderPreviewClones()
+clearCoopLeaderPreviewClones=function()
 	for playerIndex, cloneGUID in pairs(gStates.coopLeaderPreviewClones or {}) do
 		local clone=getObjectFromGUID(cloneGUID)
 		if clone~=nil then clone.destruct() end
@@ -109,7 +118,7 @@ function clearCoopLeaderPreviewClones()
 	gStates.coopLeaderPreviewClones={}
 end
 
-function clearCoopAssaultRuntime(keepAssignments)
+clearCoopAssaultRuntime=function(keepAssignments)
 	gStates.coopAssaultPhase=nil
 	if keepAssignments~=true then
 		gStates.assaultData={}
@@ -125,7 +134,7 @@ function clearCoopAssaultRuntime(keepAssignments)
 	gStates.coopAssaultMode=nil
 end
 
-function createCoopLeaderPreviewClones()
+createCoopLeaderPreviewClones=function()
 	clearCoopLeaderPreviewClones()
 	if gStates.coopAssaultPhase~="combat" or coopAssaultTargetType()~="leader" then return end
 	local leaderGUID=elementalist.token
@@ -146,7 +155,7 @@ function createCoopLeaderPreviewClones()
 end
 
 --Replace the next player's movable planning copy with the real leader token and its combat controls.
-function promoteCoopLeaderPreview(playerIndex, leaderObj)
+promoteCoopLeaderPreview=function(playerIndex, leaderObj)
 	if leaderObj==nil or turnOrder[playerIndex]==nil then return end
 	local destination={turnOrder[playerIndex].seatPos*40-100, 1.5, -39.41}
 	local cloneGUID=gStates.coopLeaderPreviewClones~=nil and gStates.coopLeaderPreviewClones[playerIndex] or nil
@@ -181,7 +190,7 @@ function coopAssaultVirtualPlayer(playerIndex)
 	return gStates.coopAssaultPhase=="combat" and gStates.coopAssaultParticipants~=nil and gStates.coopAssaultParticipants[playerIndex]~=nil
 end
 
-function moveCoopAssaultAvatarToCityCard(playerIndex)
+moveCoopAssaultAvatarToCityCard=function(playerIndex)
 	local cityGUID=gStates.coopAssaultCityGUID
 	local cardGUID=cityGUID~=nil and gStates.cityCard[cityGUID] or nil
 	local cardObj=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
@@ -208,7 +217,7 @@ function coopAssaultTargetType()
 	return "city"
 end
 
-function coopAssaultTargetDefeated()
+coopAssaultTargetDefeated=function()
 	local target=gStates.coopAssaultCityGUID
 	local assaultType=coopAssaultTargetType()
 
@@ -239,7 +248,7 @@ function coopAssaultTargetDefeated()
 	return cityTargetDefeated(target)
 end
 
-function restoreCoopAssaultAvatar(playerIndex, original)
+restoreCoopAssaultAvatar=function(playerIndex, original)
 	if turnOrder[playerIndex]==nil or original==nil then return end
 	turnOrder[playerIndex].avatarLocation=original.avatarLocation
 	turnOrder[playerIndex].avatarSharedHex=original.avatarSharedHex
@@ -248,7 +257,7 @@ function restoreCoopAssaultAvatar(playerIndex, original)
 	if avatar~=nil and original.position~=nil then avatar.setPositionSmooth(original.position,false,false) end
 end
 
-function resolveCoopAssaultLocations()
+resolveCoopAssaultLocations=function()
 	if gStates.coopAssaultParticipants==nil or gStates.coopAssaultCityGUID==nil then return end
 	gStates.coopAssaultType=coopAssaultTargetType()
 	gStates.coopAssaultConquered=coopAssaultTargetDefeated()
@@ -328,7 +337,7 @@ function combatApplyPlayerFameReputationBase(playerIndex)
 	player.reputation=player.reputation+player.repGain
 end
 
-function factionRewardPileGUID(faction)
+factionRewardPileGUID=function(faction)
 	local reward=combatFactionRewards[faction]
 	return reward~=nil and reward.pile or nil
 end
@@ -353,7 +362,7 @@ function monsterFactionRewardFameFallback(monsterGUID)
 	return printedReward, perkReward
 end
 
-function takeFactionRewardToken(playerIndex, pileGUID, position)
+takeFactionRewardToken=function(playerIndex, pileGUID, position)
 	local pile=pileGUID~=nil and getObjectFromGUID(pileGUID) or nil
 	if pile==nil then return false, "justFame" end
 	if pile.getQuantity()==0 then
@@ -368,7 +377,7 @@ function takeFactionRewardToken(playerIndex, pileGUID, position)
 	return false, "empty"
 end
 
-function awardFactionRewardToken(playerIndex, pileGUID, coopCombatReward, rewardKey)
+awardFactionRewardToken=function(playerIndex, pileGUID, coopCombatReward, rewardKey)
 	if pileGUID==nil or getObjectFromGUID(pileGUID)==nil then return false, "justFame" end
 	if coopCombatReward~=nil then
 		coopCombatReward.factionRewards[rewardKey]=(coopCombatReward.factionRewards[rewardKey] or 0)+1
@@ -378,7 +387,7 @@ function awardFactionRewardToken(playerIndex, pileGUID, coopCombatReward, reward
 	return takeFactionRewardToken(playerIndex, pileGUID)
 end
 
-function giveQueuedFactionReward(playerIndex, pileGUID)
+giveQueuedFactionReward=function(playerIndex, pileGUID)
 	local claimed, reason=takeFactionRewardToken(playerIndex, pileGUID)
 	if claimed~=true and reason~="justFame" then broadcastToAll("{en}No faction reward tokens remain to claim.{ru}Жетонов наград фракции для получения больше не осталось.{zh-tw}沒有剩餘的派系獎勵標記可供領取。{zh-cn}没有剩余的派系奖励标记可供领取。{ko}획득할 수 있는 세력 보상 토큰이 더 이상 없습니다.{es}No quedan fichas de recompensa de facción por reclamar.{fr}Il ne reste plus de jetons de récompense de faction à réclamer.{pt-br}Não restam fichas de recompensa de facção para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker mehr zum Beanspruchen übrig.", positionToColor(playerIndex)) end
 end
@@ -538,7 +547,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	return true
 end
 
-function showCoopReward()
+showCoopReward=function()
 	local entry=gStates.coopRewardQueue[gStates.coopRewardIndex]
 	if entry==nil then return end
 	gStates.turnNumber=entry.player
@@ -569,7 +578,7 @@ function showCoopReward()
 	safeWaitFrames("Combat",function() mainUIUpdate("Co-op Rewards") end, 2)
 end
 
-function coopAssaultAvatarsSettled()
+coopAssaultAvatarsSettled=function()
 	if gStates.coopAssaultParticipants==nil then return true end
 	for playerIndex, _ in pairs(gStates.coopAssaultParticipants) do
 		local avatar=coopAssaultAvatarObject(playerIndex)
@@ -579,7 +588,7 @@ function coopAssaultAvatarsSettled()
 end
 
 --Faction-leader level changes are resolved only after every participant in a cooperative assault has finished combat.
-function finalizeCoopLeaderCombat()
+finalizeCoopLeaderCombat=function()
 	if gStates.coopAssaultPhase~="combat" or coopAssaultTargetType()~="leader" then return end
 	clearCoopLeaderPreviewClones()
 	if (gStates.leaderReduction or 0)<=0 then return end
@@ -1183,7 +1192,7 @@ wallAssaultChoiceResult=nil
 local wallAssaultPending=nil
 
 --The initiator's pickup position only tells us the entry side when it was an adjacent hex.
-function assaultOriginAdjacent(targetPos, attackerPos)
+assaultOriginAdjacent=function(targetPos, attackerPos)
 	if targetPos==nil or attackerPos==nil then return false end
 	local _, _, targetHexPos=terrainHexAtPosition(targetPos)
 	local _, _, attackerHexPos=terrainHexAtPosition(attackerPos)
@@ -1192,7 +1201,7 @@ function assaultOriginAdjacent(targetPos, attackerPos)
 	return dist>1 and dist<2.8
 end
 
-function assaultTargetHasWall(targetPos)
+assaultTargetHasWall=function(targetPos)
 	if targetPos==nil then return false end
 	local terrain, targetBearing=terrainHexAtPosition(targetPos)
 	return terrain~=nil and targetBearing~=nil and terrainTiles[terrain.guid]~=nil and terrainTiles[terrain.guid].wallList~=nil and terrainTiles[terrain.guid].wallList[targetBearing]~=nil and next(terrainTiles[terrain.guid].wallList[targetBearing])~=nil
@@ -1242,7 +1251,7 @@ function wallAssaultChoice(player, mouseButton, id)
 	end
 end
 
-function resolveAssaultWallFortified(targetPos, attackerPos, useManualChoice)
+resolveAssaultWallFortified=function(targetPos, attackerPos, useManualChoice)
 	if targetPos==nil or assaultTargetHasWall(targetPos)~=true then return false end
 	if useManualChoice~=false and wallAssaultChoiceResult~=nil and assaultOriginAdjacent(targetPos, attackerPos)==false then return wallAssaultChoiceResult end
 	return assaultCrossesWall(targetPos, attackerPos)
@@ -1260,7 +1269,7 @@ function clearPendingCoopAssault()
 end
 
 --Test whether an assault from attackerPos to targetPos crosses a printed wall on the target terrain tile.
-function assaultCrossesWall(targetPos, attackerPos)
+assaultCrossesWall=function(targetPos, attackerPos)
 	if targetPos==nil or attackerPos==nil then return false end
 	local terrain, targetBearing=terrainHexAtPosition(targetPos)
 	if terrain==nil or targetBearing==nil or terrainTiles[terrain.guid]==nil or terrainTiles[terrain.guid].wallList==nil or terrainTiles[terrain.guid].wallList[targetBearing]==nil then return false end
@@ -1269,7 +1278,7 @@ function assaultCrossesWall(targetPos, attackerPos)
 	return terrainTiles[terrain.guid].wallList[targetBearing][attackerBearing]~=nil
 end
 
-function setAssaultWallFortified(monster, fortified)
+setAssaultWallFortified=function(monster, fortified)
 	if monster==nil or monsterPugs[monster.guid]==nil then return end
 	local wallFound=false
 	for _, decal in pairs(monster.getDecals() or {}) do if decal.name=="WallFortified" then wallFound=true break end end
@@ -1287,7 +1296,7 @@ function setAssaultWallFortified(monster, fortified)
 end
 
 --Smooth movement can trigger zone decal cleanup after fortification was assigned. Re-apply the visual once the defender settles.
-function settleAssaultWallFortified(monsterGUID, fortified)
+settleAssaultWallFortified=function(monsterGUID, fortified)
 	local function apply() local monster=getObjectFromGUID(monsterGUID) if monster~=nil then setAssaultWallFortified(monster, fortified) end end
 	safeWaitFrames("Combat",function() safeWaitCondition("Combat",apply, function() local monster=getObjectFromGUID(monsterGUID) return monster==nil or monster.resting==true end, 3, apply) end, 2)
 end
@@ -1318,7 +1327,7 @@ function resolveManualMonsterWallFortified(monster)
 	settleAssaultWallFortified(monster.guid, fortified)
 end
 
-function applyCurrentAssaultWallFortified(fortified)
+applyCurrentAssaultWallFortified=function(fortified)
 	for monsterGUID, _ in pairs(gStates.attackedMonsters) do
 		local monster=getObjectFromGUID(monsterGUID)
 		if monster~=nil and monsterPugs[monsterGUID]~=nil then
@@ -1506,7 +1515,7 @@ end
 
 --Optional combat camera support. Follow Enemy is a global Camera Control option and also drives the Black Game Master camera.
 --It now uses the exact Player Board camera view directly; no camera is attached to moving enemy objects.
-function combatCameraPlayerIndex(playerRef)
+combatCameraPlayerIndex=function(playerRef)
 	if type(playerRef)=="number" then return turnOrder[playerRef]~=nil and playerRef or nil end
 	if type(playerRef)~="table" then return nil end
 	for playerIndex, details in pairs(turnOrder) do
@@ -1536,7 +1545,7 @@ end
 --Avatar drops can immediately begin a Keep/Mage Tower assault before addAvatarButtons has refreshed
 --the new hex. Resolve nearby optional Rampagers directly so Follow Enemy does not pull the camera away
 --before the player has had a chance to add one to that combat.
-function combatNearbyRampagerChoice(playerIndex)
+combatNearbyRampagerChoice=function(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil or gStates.preEndTurn==true or details.combatIconHide=="Both" then return false end
 	local turnToken=getObjectFromGUID(details.turnOrderTokenGUID)
@@ -1557,7 +1566,7 @@ end
 --Count the attack choices that are actually being offered right now rather than duplicating all of
 --addAvatarButtons' legality rules. IDs are de-duplicated because an Avatar UI can be mirrored onto its
 --model/token/standee representation.
-function combatAttackOptionCount(playerIndex)
+combatAttackOptionCount=function(playerIndex)
 	if turnOrder[playerIndex]==nil then return 0 end
 	local cached=combatAttackOptionCounts~=nil and (combatAttackOptionCounts[playerIndex] or 0) or 0
 	local cachedHorse=combatAttackHorsemanOptionCounts~=nil and (combatAttackHorsemanOptionCounts[playerIndex] or 0) or 0
@@ -2257,7 +2266,7 @@ function attackCity(player, mouseButton, id)
 end
 
 --Faction leader tokens stay with the assault flow and are passed between participants, but are not defenders to divide.
-function coopAssaultDividableCount(monsters)
+coopAssaultDividableCount=function(monsters)
 	local count=0
 	for _, monsterGUID in pairs(monsters or {}) do
 		if monsterGUID~=elementalist.token and monsterGUID~=darkCrusader.token then count=count+1 end
@@ -2265,14 +2274,14 @@ function coopAssaultDividableCount(monsters)
 	return count
 end
 
-function coopAssaultHasLeader(monsters)
+coopAssaultHasLeader=function(monsters)
 	for _, monsterGUID in pairs(monsters or {}) do
 		if monsterGUID==elementalist.token or monsterGUID==darkCrusader.token then return true end
 	end
 	return false
 end
 
-function coopAssaultLeadMage()
+coopAssaultLeadMage=function()
 	local leadMage=turnOrder[gStates.turnNumber].mage
 	if leadMage==gStates.positionMageKnight[5] then
 		for mage, assignedMonsters in pairs(gStates.assaultData) do if assignedMonsters.UIPos[1]==1 then leadMage=mage break end end
@@ -2280,7 +2289,7 @@ function coopAssaultLeadMage()
 	return leadMage
 end
 
-function coopAssaultAssignmentSource(army)
+coopAssaultAssignmentSource=function(army)
 	if coopAssaultTargetType()=="volkare" then
 		if gStates.coopAssaultUnassigned==nil then gStates.coopAssaultUnassigned={primary={}, secondary={}} end
 		if gStates.coopAssaultUnassigned[army]==nil then gStates.coopAssaultUnassigned[army]={} end
@@ -2290,12 +2299,12 @@ function coopAssaultAssignmentSource(army)
 	return gStates.assaultData[leadMage]~=nil and gStates.assaultData[leadMage][army] or nil
 end
 
-function coopAssaultCityMinimumEnemyRule()
+coopAssaultCityMinimumEnemyRule=function()
 	local assaultType=coopAssaultTargetType()
 	return (assaultType=="city" or assaultType=="horsemen" or assaultType=="dragon") and gStates.coopAssaultMode~="defense"
 end
 
-function coopAssaultReadyToBegin()
+coopAssaultReadyToBegin=function()
 	local assaultType=coopAssaultTargetType()
 	local joined=0
 	if assaultType=="volkare" then
@@ -2493,7 +2502,7 @@ function markMonsterFactionSubstitute(token, faction)
 	return token
 end
 
-function factionMonsterPreferredPileGUID(standardGUID, faction)
+factionMonsterPreferredPileGUID=function(standardGUID, faction)
 	if monsterPiles[standardGUID]~=nil then standardGUID=monsterPiles[standardGUID] end
 	local suffix=faction=="Dark" and "Dark" or faction=="Elem" and "Elem" or nil
 	if suffix~=nil then
@@ -2530,7 +2539,7 @@ function takeFactionMonster(standardGUID, faction, params)
 end
 
 --summon monsters to the left of a summoner.
-function summonMonster(player, mouseButton, id)
+summonMonster=function(player, mouseButton, id)
 	if mouseButton~="-1" then return end
 	local summoner=getObjectFromGUID(id)
 	local monsterData=monsterPugs[id]
@@ -2587,7 +2596,7 @@ function summonMonster(player, mouseButton, id)
 end
 
 --Leader overkill adjust
-function adjustOverkill(player, mouseButton, id)
+adjustOverkill=function(player, mouseButton, id)
 	if mouseButton=="-1" then
 		local level=gStates.elementalistLevel-gStates.leaderReduction
 		if id:sub(1,6)==darkCrusader.token then level=gStates.darkCrusaderLevel-gStates.leaderReduction end
