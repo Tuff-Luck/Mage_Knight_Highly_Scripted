@@ -299,7 +299,7 @@ apocalypseDragonHeadStateChanged=function(headName)
 end
 
 --Read the physical player Shields on the four large coloured head boards.
---Against the Dragon and Apocalypse is Here both use this shared scoring summary; a one-off getAllObjects() scan is acceptable.
+--All Dragon scenarios use this shared scoring summary; a one-off getAllObjects() scan is acceptable.
 function apocalypseDragonCompetitiveScoreSummary()
 	local summary={defeatedHeads=apocalypseDragonDefeatedHeadCount(),byMage={},heads={}}
 	local mageToPlayer={}
@@ -356,28 +356,37 @@ function apocalypseDragonCompetitiveScoreSummary()
 		end
 	end
 
+	local fury=gStates.gameScenario=="Fury of the Apocalypse Dragon"
 	for headName,headSummary in pairs(summary.heads) do
 		local bestCount=0
 		local bestHighest=0
-		local winner=nil
+		local leaders={}
 		for mage,_ in pairs(mageToPlayer) do
 			local count=headSummary.countByMage[mage] or 0
 			local highest=headSummary.highestByMage[mage] or 0
 			if count>bestCount or (count==bestCount and count>0 and highest>bestHighest) then
 				bestCount=count
 				bestHighest=highest
-				winner=mage
+				leaders={mage}
 			elseif count==bestCount and count>0 and highest==bestHighest then
-				--A genuine game cannot place two different player Shields on the same highest level.
-				--If a malformed board does, leave the +5 unresolved rather than inventing a tiebreaker.
-				winner=nil
+				leaders[#leaders+1]=mage
 			end
 		end
-		headSummary.winner=winner
+		headSummary.winners=leaders
+		headSummary.winner=#leaders==1 and leaders[1] or nil
+		local bonusByMage={}
+		if #leaders==1 then
+			bonusByMage[leaders[1]]=5
+		elseif fury==true and #leaders>1 then
+			--Fury explicitly keeps an unresolved tie after the highest-level tiebreaker: every tied
+			--Mage Knight receives +3 instead of one player receiving the +5 Greatest Slayer bonus.
+			for _,mage in ipairs(leaders) do bonusByMage[mage]=3 end
+		end
 		for mage,data in pairs(summary.byMage) do
 			data.levels=data.levels+(headSummary.countByMage[mage] or 0)
-			if winner==mage then
-				data.slayerBonus=data.slayerBonus+5
+			local bonus=bonusByMage[mage] or 0
+			if bonus>0 then
+				data.slayerBonus=data.slayerBonus+bonus
 				data.slayerHeads[#data.slayerHeads+1]=headName
 			end
 		end
@@ -1159,6 +1168,18 @@ function apocalypseDragonFinalizeFuryDefense()
 	return true
 end
 
+function apocalypseDragonDropScoringShield(playerIndex,position)
+	local details=turnOrder[playerIndex]
+	if details==nil or position==nil then return false end
+	local mage=mageKnightsByName~=nil and mageKnightsByName[details.mage] or nil
+	if mage==nil then
+		for _,candidate in ipairs(mageKnights or {}) do if candidate.mage==details.mage then mage=candidate break end end
+	end
+	local bag=mage~=nil and mage.shieldContainer~=nil and getObjectFromGUID(mage.shieldContainer) or nil
+	if bag==nil then return false end
+	return bag.takeObject({position=position,smooth=false})~=nil
+end
+
 function apocalypseDragonGroundResolveToken(obj)
 	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
 	if combat==nil or obj==nil or combat.processedTokens[obj.guid]==true then return false end
@@ -1206,7 +1227,7 @@ function apocalypseDragonGroundResolveToken(obj)
 		if disc~=nil then
 			for step=0,reduction-1 do
 				local target=apocalypseDragonLevelMarkerPosition(disc,current-step)
-				if target~=nil then dropShield({target[1],2+(step*0.15),target[3]},false) end
+				if target~=nil then apocalypseDragonDropScoringShield(owner,{target[1],2+(step*0.15),target[3]}) end
 			end
 		end
 	else
