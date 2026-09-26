@@ -1449,22 +1449,25 @@ function apocalypseDragonFinishTurn(force)
 	gStates.apocalypseDragonTurnActive=false
 	local resume=gStates.apocalypseDragonResumeTurn
 	local fullAttendPlayer=gStates.apocalypseDragonFullAttendPlayer
+	local furyFullAttendPlayers=gStates.furyDragonFullAttendPlayers or {}
 	gStates.apocalypseDragonResumeTurn=nil
 	gStates.apocalypseDragonPendingChoice=nil
 	gStates.apocalypseDragonPendingAttack=nil
 	gStates.apocalypseDragonFullAttendPlayer=nil
+	gStates.furyDragonFullAttendPlayers={}
 	gStates.apocalypseDragonUIState=nil
 	gStates.apocalypseDragonTurnAction=nil
 	gStates.apocalypseDragonTurnReport=nil
 	gStates.apocalypseDragonTurnReportPrefix=nil
 	if resume~=nil and mergedTurnCommit~=nil then
 		local resumeTurn=resume.turnNumber
-		if fullAttendPlayer~=nil and resumeTurn==fullAttendPlayer and gStates.skipTurn[fullAttendPlayer]==true then
-			gStates.skipTurn[fullAttendPlayer]=nil
-			local skipped=turnOrder[fullAttendPlayer]
+		local resumeFullyAttended=(fullAttendPlayer~=nil and resumeTurn==fullAttendPlayer) or furyFullAttendPlayers[resumeTurn]==true
+		if resumeFullyAttended==true and gStates.skipTurn[resumeTurn]==true then
+			gStates.skipTurn[resumeTurn]=nil
+			local skipped=turnOrder[resumeTurn]
 			local token=skipped~=nil and getObjectFromGUID(skipped.turnOrderTokenGUID) or nil
 			if token~=nil and token.is_face_down==true then token.flip() end
-			if skipped~=nil then broadcastToAll(joinLang({translateWord[skipped.mage] or tostring(skipped.mage),"{en} skips their normal turn because they fully attended the Dragon attack.{ru} пропускает обычный ход, потому что полностью участвовал в атаке Дракона.{zh-tw} 因完全參與巨龍攻擊而跳過正常回合。{zh-cn} 因完全参与巨龙攻击而跳过正常回合。{ko}은(는) 드래곤 공격에 완전히 참가했으므로 일반 턴을 건너뜁니다.{es} se salta su turno normal porque participó por completo en el ataque del Dragón.{fr} saute son tour normal car il a pleinement participé à l’attaque du Dragon.{pt-br} pula seu turno normal porque participou completamente do ataque do Dragão.{de} überspringt den normalen Zug, weil vollständig am Drachenangriff teilgenommen wurde."}),positionToColor(fullAttendPlayer)) end
+			if skipped~=nil then broadcastToAll(joinLang({translateWord[skipped.mage] or tostring(skipped.mage),"{en} skips their normal turn because they fully attended the Dragon attack.{ru} пропускает обычный ход, потому что полностью участвовал в атаке Дракона.{zh-tw} 因完全參與巨龍攻擊而跳過正常回合。{zh-cn} 因完全参与巨龙攻击而跳过正常回合。{ko}은(는) 드래곤 공격에 완전히 참가했으므로 일반 턴을 건너뜁니다.{es} se salta su turno normal porque participó por completo en el ataque del Dragón.{fr} saute son tour normal car il a pleinement participé à l’attaque du Dragon.{pt-br} pula seu turno normal porque participou completamente do ataque do Dragão.{de} überspringt den normalen Zug, weil vollständig am Drachenangriff teilgenommen wurde."}),positionToColor(resumeTurn)) end
 			for _=1,#turnOrder do
 				resumeTurn=resumeTurn+1
 				if resumeTurn>#turnOrder then resumeTurn=1 end
