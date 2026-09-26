@@ -1,5 +1,5 @@
 -- Apocalypse Dragon-private helpers. Predeclared so forward references keep resolving locally.
-local apocalypseDragonStartingLevel, apocalypseDragonHeadTokenPosition, apocalypseDragonPositionHeadToken, apocalypseDragonCopyAttack, apocalypseDragonRefreshRuntimeData
+local apocalypseDragonHeadTokenPosition, apocalypseDragonPositionHeadToken, apocalypseDragonCopyAttack, apocalypseDragonRefreshRuntimeData
 local apocalypseDragonDeployHeadToken, apocalypseDragonLevelMarkerPosition, apocalypseDragonLockLevelMarker, apocalypseDragonDefeatedHeadCount, apocalypseDragonSyncControlLevel
 local apocalypseDragonCheckAndResolveDefeat, apocalypseDragonHeadStateChanged, apocalypseDragonGroundReduction, apocalypseDragonGroundMarkedThroughOne, apocalypseDragonGroundControlGUIDs
 local apocalypseDragonGroundReductionAdjust, apocalypseDragonGroundPrepareColoredHead, apocalypseDragonGroundPrepareControl, apocalypseDragonNewGroundCombat, apocalypseDragonGroundTokenInPlayerArea
@@ -48,8 +48,10 @@ function apocalypseDragonScenario()
 	return gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon")
 end
 
-apocalypseDragonStartingLevel=function()
+function apocalypseDragonStartingLevel()
 	if apocalypseDragonScenario()~=true then return nil end
+	local override=tonumber(gStates.apocalypseDragonStartingLevelOverride)
+	if override~=nil and override>=1 and override<=12 then return math.floor(override) end
 	if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
 		if gStates.playerCount==1 then return 1 end
 		return gStates.coop==1 and gStates.playerCount or gStates.playerCount-1

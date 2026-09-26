@@ -273,29 +273,41 @@ local function clearCustomMageKnightSelections(preserveRememberedDummy)
 	if preserveRememberedDummy~=true and customMages[gStates.setupDummyMageChoice]~=nil then gStates.setupDummyMageChoice="nobody" end
 end
 
+local function setupUsesApocalypseDragonLevel()
+	return gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or
+		gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon")
+end
+
+local function refreshApocalypseDragonLevelSetup()
+	local active=setupUsesApocalypseDragonLevel()
+	UI.setAttribute("ApocalypseDragonLevelSelectionRow","active",active and "true" or "false")
+	if active then
+		local level=type(apocalypseDragonStartingLevel)=="function" and apocalypseDragonStartingLevel() or 1
+		UI.setAttribute("ApocalypseDragonLevelSelectionText","text",tostring(level or 1))
+	end
+	return active
+end
+
 local function renderDummySetupSection()
 	local volkareOn=gStates.positionMageKnight~=nil and gStates.positionMageKnight[5]=="Volkare"
+	local showRace=volkareOn and gStates.gameScenario~="The War of Four"
+	local dragonLevelOn=refreshApocalypseDragonLevelSetup()
 	UI.setAttribute("VolkareLevelSelectionRow","active",volkareOn and "true" or "false")
-	UI.setAttribute("VolkareRaceSelectionRow","active",volkareOn and gStates.gameScenario~="The War of Four" and "true" or "false")
+	UI.setAttribute("VolkareRaceSelectionRow","active",showRace and "true" or "false")
 	if volkareOn then
 		UI.setAttribute("DummyPosText","text",SETUP_TEXT.volkareSkills)
 		UI.setAttribute("dummyMKSelectionText","text",translateWord[gStates.volkareSkills or "Random"] or translateWord["Random"])
-		local showRace=gStates.gameScenario~="The War of Four"
-		UI.setAttribute("MageKnightDetails","height",showRace and "240" or "210")
-		UI.setAttribute("Setup1Details","height",showRace and "406" or "436")
-		UI.setAttribute("Setup2Details","height",showRace and "406" or "436")
-		UI.setAttribute("Setup1DetailsSub","height",showRace and "346" or "376")
-		UI.setAttribute("Setup2DetailsSub","height",showRace and "346" or "376")
 	else
 		UI.setAttribute("DummyPosText","text",SETUP_TEXT.dummyMageKnight)
 		local dummy=gStates.positionMageKnight~=nil and (gStates.positionMageKnight[5] or "nobody") or "nobody"
 		UI.setAttribute("dummyMKSelectionText","text",translateWord[dummy] or translateWord["nobody"])
-		UI.setAttribute("MageKnightDetails","height","180")
-		UI.setAttribute("Setup1Details","height","466")
-		UI.setAttribute("Setup2Details","height","466")
-		UI.setAttribute("Setup1DetailsSub","height","406")
-		UI.setAttribute("Setup2DetailsSub","height","406")
 	end
+	local extraRows=(volkareOn and 1 or 0)+(showRace and 1 or 0)+(dragonLevelOn and 1 or 0)
+	UI.setAttribute("MageKnightDetails","height",tostring(180+(30*extraRows)))
+	UI.setAttribute("Setup1Details","height",tostring(466-(30*extraRows)))
+	UI.setAttribute("Setup2Details","height",tostring(466-(30*extraRows)))
+	UI.setAttribute("Setup1DetailsSub","height",tostring(406-(30*extraRows)))
+	UI.setAttribute("Setup2DetailsSub","height",tostring(406-(30*extraRows)))
 end
 
 local function copyScenarioCityLevels(source)
@@ -427,6 +439,7 @@ function scenarioSelection(player, mouseButton, id)
 			gStates.setupDummyMageChoice="nobody"
 		end
 		gStates.gameScenario=SCENARIO_SELECTION_BY_ID[id] or id
+		gStates.apocalypseDragonStartingLevelOverride=nil
 		UI.setAttribute("ScenarioSelectionText", "text", translateWord[gStates.gameScenario])
 		UI.setAttribute("ScenarioSelectionImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
@@ -814,6 +827,20 @@ function VolkareRaceSelection(player, mouseButton, id)
 		ToolTipUpdate(dropDownIdLink)
 		dropDownIdLink="none"
 	end
+end
+
+function apocalypseDragonLevelSelection(player, mouseButton, id)
+	if mouseButton~="-1" or setupUsesApocalypseDragonLevel()~=true then return end
+	local level=tonumber(apocalypseDragonStartingLevel()) or 1
+	if id=="ApocalypseDragonLevelDown" then
+		level=math.max(1,level-1)
+	elseif id=="ApocalypseDragonLevelUp" then
+		level=math.min(12,level+1)
+	else
+		return
+	end
+	gStates.apocalypseDragonStartingLevelOverride=level
+	UI.setAttribute("ApocalypseDragonLevelSelectionText","text",tostring(level))
 end
 
 ToolTipUpdate=function(id)

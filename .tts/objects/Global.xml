@@ -1763,6 +1763,19 @@ Einheiten</Text></Cell>
 						<Text id="dummyMKSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}nobody{ru}никто{zh-cn}关闭的{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand</Text>
 					</Button>
 				</Row>
+				<Row id="ApocalypseDragonLevelSelectionRow" active="false" preferredHeight="30">
+					<Text alignment="MiddleRight" offsetXY="-140 0" id="ApocalypseDragonLevelText">{en}Apocalypse Dragon Level -{ru}Уровень Дракона Апокалипсиса -{zh-tw}末日巨龍等級：{zh-cn}末日巨龙等级：{ko}아포칼립스 드래곤 레벨 -{es}Nivel del Dragón del Apocalipsis -{fr}Niveau du Dragon de l'Apocalypse -{pt-br}Nível do Dragão do Apocalipse -{de}Apokalypse-Drachen-Level -</Text>
+					<Image image="Sliced Button/Button New Active" type="Sliced" rectAlignment="MiddleRight" width="130" height="30"/>
+					<Button id="ApocalypseDragonLevelDown" onClick="apocalypseDragonLevelSelection" offsetXY="-100 0" rectAlignment="MiddleRight" width="30" height="30">
+						<Image image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+					</Button>
+					<Text id="ApocalypseDragonLevelSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="-30 0" rectAlignment="MiddleRight" width="70">1</Text>
+					<Button id="ApocalypseDragonLevelUp" onClick="apocalypseDragonLevelSelection" offsetXY="0 0" rectAlignment="MiddleRight" width="30" height="30">
+						<Image image="Sliced Button/Button New Active" type="Sliced"/>
+						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+					</Button>
+				</Row>
 				<Row id="VolkareLevelSelectionRow" active="false" preferredHeight="30">
 					<Text alignment="MiddleRight" offsetXY="-140 0" id="VolkareCombatText">{en}Volkare's Combat Level -{ru}Уровень битвы Волкара -{zh-tw}沃卡里的戰鬥等級：{zh-cn}沃卡里的战斗等级： {ko}볼케어 전투 레벨 -{es}Nivel de Combate de Volkare -{fr}Niveau de Combat de Volkare -{pt-br}Nível de combate de Volkare -{de}Volkare´s Kampf Level -</Text>
 					<Button id="VolkareLevelSelection" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="130" height="30" onMouseDown="" onMouseUp="">
