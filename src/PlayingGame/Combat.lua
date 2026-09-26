@@ -2024,7 +2024,7 @@ function attackLocation(playerDud, mouseButton, id)
 	end
 end
 
-function drawMonster(color, player, id, possessedFaction)
+function drawMonster(color, player, id, possessedFaction, drawPosition)
 	local drawID=tostring(id or "")
 	local volkarePursuitDraw=drawID:sub(1,7)=="VPDraw|"
 	local function takeDraw()
@@ -2033,7 +2033,8 @@ function drawMonster(color, player, id, possessedFaction)
 			broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения больше не осталось.{zh-tw}抱歉，沒有可部署的標記了。{zh-cn}抱歉，没有token可供部署{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan tokens para implementar{fr}Désolé, il n'y a plus de jetons à déployer{pt-br}Desculpe, Não tem Fichas sobrando para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig.",warningColor)
 			return
 		end
-		local monsterDrawn=pile.takeObject({position={(player.seatPos*40)-96+gStates.monsterOffsetX,2.5,-39-gStates.monsterOffsetZ},rotation={0.00,180.00,0.00}})
+		local deployPosition=drawPosition or {(player.seatPos*40)-96+gStates.monsterOffsetX,2.5,-39-gStates.monsterOffsetZ}
+		local monsterDrawn=pile.takeObject({position=deployPosition,rotation={0.00,180.00,0.00}})
 		if monsterDrawn==nil then return end
 		if color==monsterPiles.possessed and possessedFaction~=nil then
 			if gStates.apocalypsePossessedFactionByToken==nil then gStates.apocalypsePossessedFactionByToken={} end
@@ -2911,6 +2912,16 @@ function leaveAvatarSite(player)
 end
 
 -- Ziggurat and Pyramid interaction
+local function zigguratPyramidStartFloor3Fight(player,thirdFight)
+	gStates.zigguratPyramidFightFloor=3
+	UI.setAttribute("zigguratPyramidInteractFight3", "interactable", "false")
+	UI.setAttribute("zigguratPyramidInteractFight3Image", "color", "Yellow")
+	--Floor 3 is mandatory once the Hero ascends: the final trap and possessed enemy are dealt with
+	--together. Keep the same possessed+faction pairing used by the former separate Fight button.
+	drawMonster(monsterPiles.possessed, player, "zigguratPyramidInteractFight3", "Apoc")
+	drawMonster(thirdFight, player, "zigguratPyramidInteractFight3")
+end
+
 function zigguratPyramidInteract(_, mouseButton, id)
 	if mouseButton=="-1" then
 		local trapBag=monsterPiles.pyramidTrap
@@ -2957,11 +2968,15 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			UI.setAttribute("zigguratPyramidInteractClimb2", "interactable", "false")
 			UI.setAttribute("zigguratPyramidInteractFight2Image", "color", "Gray")
 			UI.setAttribute("zigguratPyramidInteractFight2", "interactable", "false")
-			UI.setAttribute("zigguratPyramidInteractFight3Image", "color", "White")
-			UI.setAttribute("zigguratPyramidInteractFight3", "interactable", "true")
 			gStates.monsterOffsetX=0
 			gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5
-			drawMonster(trapBag, turnOrder[gStates.turnNumber], id)
+			local currentPlayer=turnOrder[gStates.turnNumber]
+			--The old two-click flow moved the dealt-with Floor 3 trap left before spawning its enemy.
+			--Now that ascent starts both at once, deploy the trap directly in that same reminder position
+			--so it cannot overlap the possessed/faction enemy pair.
+			local trapPosition={(currentPlayer.seatPos*40)-101,2.5,-39-gStates.monsterOffsetZ}
+			drawMonster(trapBag,currentPlayer,id,nil,trapPosition)
+			zigguratPyramidStartFloor3Fight(currentPlayer,thirdFight)
 		end
 		if id=="zigguratPyramidInteractFight1" then
 			gStates.zigguratPyramidFightFloor=1
@@ -2986,11 +3001,7 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			drawMonster(secondFight, turnOrder[gStates.turnNumber], id)
 		end
 		if id=="zigguratPyramidInteractFight3" then
-			gStates.zigguratPyramidFightFloor=3
-			UI.setAttribute("zigguratPyramidInteractFight3", "interactable", "false")
-			UI.setAttribute("zigguratPyramidInteractFight3Image", "color", "Yellow")
-			drawMonster(monsterPiles.possessed, turnOrder[gStates.turnNumber], id, "Apoc")
-			drawMonster(thirdFight, turnOrder[gStates.turnNumber], id)
+			zigguratPyramidStartFloor3Fight(turnOrder[gStates.turnNumber],thirdFight)
 		end
 	end
 end
