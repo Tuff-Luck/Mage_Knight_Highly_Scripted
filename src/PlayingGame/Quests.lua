@@ -550,6 +550,7 @@ apocalypseQuestRevealSetup=function(card)
 		return obj
 	end
 	local cardPos=card.getPosition()
+	local handler=apocalypseQuestHandler(card)
 
 	--Put this Quest's physical marker(s) face down on the card. Face-down Quest tokens are inert markers;
 	--players move them to the printed location, and only a face-up token can become a site/reward/effect.
@@ -561,7 +562,9 @@ apocalypseQuestRevealSetup=function(card)
 				local tokenGUID=questTokens[tokenIndex]
 				local fanOffset=(tokenIndex-1)*0.16
 				local layerOffset=(#questTokens-tokenIndex)*0.12
-				track(tokenBag.takeObject({guid=tokenGUID,position={cardPos[1],cardPos[2]+0.45+layerOffset,cardPos[3]-0.15+fanOffset},rotation={0,180,0},smooth=false}))
+				local tokenPos=handler~=nil and handler.revealTokenPosition~=nil and handler.revealTokenPosition(cardPos,tokenIndex,#questTokens) or
+					{cardPos[1],cardPos[2]+0.45+layerOffset,cardPos[3]-0.15+fanOffset}
+				track(tokenBag.takeObject({guid=tokenGUID,position=tokenPos,rotation={0,180,0},smooth=false}))
 			end
 		end
 	end
@@ -569,7 +572,6 @@ apocalypseQuestRevealSetup=function(card)
 	--Some Quests keep a small reusable reward supply on the card while they are active.
 	if quest.revealBag~=nil then
 		local revealGUID=quest.revealBag
-		local handler=apocalypseQuestHandler(card)
 		local revealPos=handler~=nil and handler.revealBagPosition~=nil and handler.revealBagPosition(cardPos) or {cardPos[1],cardPos[2]+0.62,cardPos[3]+1.35}
 		local liveBag=getObjectFromGUID(revealGUID)
 		if liveBag~=nil then
@@ -4411,6 +4413,9 @@ end
 --Quest-specific lifecycle hooks. Generic Quest flow dispatches through these instead of
 --branching on card GUIDs; individual Quest helpers still own their detailed rules.
 local goblinWarrensHandler=apocalypseQuestRegisterHandler("72099f")
+--Goblin Warrens has a taller printed header area than the standard Quest marker position. Keep its
+--marker aligned to the card rather than a fixed table coordinate so offer-layout changes remain safe.
+goblinWarrensHandler.revealTokenPosition=function(cardPos) return {cardPos[1],cardPos[2]+0.45,cardPos[3]+0.77} end
 goblinWarrensHandler.revealBagPosition=function(cardPos) return {cardPos[1],cardPos[2]+0.42,cardPos[3]-1.18} end
 goblinWarrensHandler.filterOption=function(card,playerIndex,action,option,state,context)
 	if tostring(option.key)=="1" and action=="Progress" then context.include=apocalypseQuestGoblinAttemptReady(playerIndex) end
