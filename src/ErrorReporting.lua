@@ -11,11 +11,17 @@ function automaticLuaAsyncLabel(scope, kind)
 	return tostring(scope or "Async").." / "..tostring(kind or "callback")
 end
 
+local function automaticLuaUnpackArgs(args,index)
+	index=index or 1
+	if index>args.n then return end
+	return args[index],automaticLuaUnpackArgs(args,index+1)
+end
+
 function safeAsyncCallback(label, callback, contextCallback)
 	if type(callback)~="function" then return callback end
 	return function(...)
 		local args={n=select("#",...),...}
-		return safeCallback(label,function() return callback(table.unpack(args,1,args.n)) end,contextCallback)
+		return safeCallback(label,function() return callback(automaticLuaUnpackArgs(args,1)) end,contextCallback)
 	end
 end
 
