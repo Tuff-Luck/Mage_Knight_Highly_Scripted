@@ -2024,7 +2024,7 @@ function attackLocation(playerDud, mouseButton, id)
 	end
 end
 
-function drawMonster(color, player, id, possessedFaction, drawPosition)
+function drawMonster(color, player, id, possessedFaction)
 	local drawID=tostring(id or "")
 	local volkarePursuitDraw=drawID:sub(1,7)=="VPDraw|"
 	local function takeDraw()
@@ -2033,8 +2033,7 @@ function drawMonster(color, player, id, possessedFaction, drawPosition)
 			broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения больше не осталось.{zh-tw}抱歉，沒有可部署的標記了。{zh-cn}抱歉，没有token可供部署{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan tokens para implementar{fr}Désolé, il n'y a plus de jetons à déployer{pt-br}Desculpe, Não tem Fichas sobrando para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig.",warningColor)
 			return
 		end
-		local deployPosition=drawPosition or {(player.seatPos*40)-96+gStates.monsterOffsetX,2.5,-39-gStates.monsterOffsetZ}
-		local monsterDrawn=pile.takeObject({position=deployPosition,rotation={0.00,180.00,0.00}})
+		local monsterDrawn=pile.takeObject({position={(player.seatPos*40)-96+gStates.monsterOffsetX,2.5,-39-gStates.monsterOffsetZ},rotation={0.00,180.00,0.00}})
 		if monsterDrawn==nil then return end
 		if color==monsterPiles.possessed and possessedFaction~=nil then
 			if gStates.apocalypsePossessedFactionByToken==nil then gStates.apocalypsePossessedFactionByToken={} end
@@ -2971,11 +2970,10 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			gStates.monsterOffsetX=0
 			gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5
 			local currentPlayer=turnOrder[gStates.turnNumber]
-			--The old two-click flow moved the dealt-with Floor 3 trap left before spawning its enemy.
-			--Now that ascent starts both at once, deploy the trap directly in that same reminder position
-			--so it cannot overlap the possessed/faction enemy pair.
-			local trapPosition={(currentPlayer.seatPos*40)-101,2.5,-39-gStates.monsterOffsetZ}
-			drawMonster(trapBag,currentPlayer,id,nil,trapPosition)
+			--Floor 3 still deploys its trap in the normal combat-row slot. drawMonster() advances one
+			--slot after that trap; skip one more slot before placing the mandatory possessed enemy pair.
+			drawMonster(trapBag,currentPlayer,id)
+			gStates.monsterOffsetX=gStates.monsterOffsetX+2.5
 			zigguratPyramidStartFloor3Fight(currentPlayer,thirdFight)
 		end
 		if id=="zigguratPyramidInteractFight1" then
