@@ -260,7 +260,7 @@ apocalypseDragonSyncControlLevel=function()
 end
 
 apocalypseDragonCheckAndResolveDefeat=function()
-	if gStates==nil or (gStates.gameScenario~="Against the Dragon Blitz" and gStates.gameScenario~="Apocalypse is Here") or gStates.apocalypseDragonDefeated==true then return false end
+	if gStates==nil or (gStates.gameScenario~="Against the Dragon Blitz" and gStates.gameScenario~="Apocalypse is Here" and gStates.gameScenario~="Fury of the Apocalypse Dragon") or gStates.apocalypseDragonDefeated==true then return false end
 	if apocalypseDragonColoredHeadsDefeated()~=true then return false end
 
 	gStates.apocalypseDragonDefeated=true
@@ -268,10 +268,22 @@ apocalypseDragonCheckAndResolveDefeat=function()
 	gStates.apocalypseDragonLairAttacked=true
 	if tonumber(gStates.apocalypseDragonHeadLevels.Control)~=0 then apocalypseDragonSetHeadLevel("Control",0) end
 
-	local dragon=getObjectFromGUID(apocalypseDragon.model)
+	local dragonGUID=gStates.gameScenario=="Fury of the Apocalypse Dragon" and apocalypseDragon.furyMarker or apocalypseDragon.model
+	local dragon=getObjectFromGUID(dragonGUID)
 	if dragon~=nil then
 		local trash=getObjectFromGUID(trashCan)
-		if trash~=nil then trash.putObject(dragon) else dragon.destruct() end
+		if trash~=nil then dragon.unlock() trash.putObject(dragon) else dragon.destruct() end
+	end
+	if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
+		local die=gStates.furyDragonManaDieGUID~=nil and getObjectFromGUID(gStates.furyDragonManaDieGUID) or nil
+		local spare=getObjectFromGUID(GUID.bag.spareDice)
+		if die~=nil then
+			die.unlock()
+			if spare~=nil then spare.putObject(die) else die.destruct() end
+		end
+		gStates.furyDragonManaDieGUID=nil
+		gStates.furyDragonFlightTarget=nil
+		gStates.furyDragonAwaitingCombat=nil
 	end
 
 	broadcastToAll("{en}The Apocalypse Dragon has been defeated! All players have one final turn.{ru}The Apocalypse Dragon has been defeated! All players have one final turn.{zh-tw}The Apocalypse Dragon has been defeated! All players have one final turn.{zh-cn}The Apocalypse Dragon has been defeated! All players have one final turn.{ko}The Apocalypse Dragon has been defeated! All players have one final turn.{es}The Apocalypse Dragon has been defeated! All players have one final turn.{fr}The Apocalypse Dragon has been defeated! All players have one final turn.{pt-br}The Apocalypse Dragon has been defeated! All players have one final turn.{de}The Apocalypse Dragon has been defeated! All players have one final turn.",{1,1,0.5})
@@ -283,7 +295,7 @@ end
 
 apocalypseDragonHeadStateChanged=function(headName)
 	if headName~="Control" then apocalypseDragonSyncControlLevel() end
-	if gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here") then apocalypseDragonCheckAndResolveDefeat() end
+	if gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon") then apocalypseDragonCheckAndResolveDefeat() end
 end
 
 --Read the physical player Shields on the four large coloured head boards.
@@ -517,6 +529,51 @@ function apocalypseDragonLairContainsPosition(pos)
 	return false
 end
 
+--The shared Dragon combat helpers need the Dragon's current footprint, not necessarily its original
+--Lair. Fury uses a single marker which alternates between a landed map/City space and off-map flight.
+function apocalypseDragonCombatHexes()
+	if gStates==nil or gStates.apocalypseDragonLairRevealed~=true then return {} end
+	if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
+		if gStates.furyDragonFlightTarget~=nil or gStates.furyDragonCurrentHexKey==nil then return {} end
+		local key=tostring(gStates.furyDragonCurrentHexKey)
+		local tileGUID,bearing=key:match("^([^|]+)|(.+)$")
+		local tile=tileGUID~=nil and getObjectFromGUID(tileGUID) or nil
+		if tile==nil or bearing==nil then return {} end
+		local xy=angleToXY(tile,bearing)
+		return {{tileGUID=tileGUID,bearing=bearing,key=key,position={xy[1],0.97,xy[2]}}}
+	end
+	return gStates.apocalypseDragonLair~=nil and (gStates.apocalypseDragonLair.hexes or {}) or {}
+end
+
+function apocalypseDragonCombatContainsPosition(pos)
+	if pos==nil or gStates==nil or gStates.apocalypseDragonDefeated==true then return false end
+	for _,hex in ipairs(apocalypseDragonCombatHexes()) do
+		local p=hex.position
+		if p~=nil and ((pos[1]-p[1])^2)+((pos[3]-p[3])^2)<2.25 then return true end
+	end
+	return false
+end
+
+--Fury fortifies the Dragon only when the Mage Knights attack it in its Lair, or in an undefended
+--City which has not been destroyed. When the Dragon attacks the Heroes, the underlying site is ignored.
+function apocalypseDragonFuryAttackFortified()
+	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" or gStates.furyDragonFlightTarget~=nil then return false end
+	local key=gStates.furyDragonCurrentHexKey
+	if key==nil then return false end
+	if gStates.apocalypseDragonLair~=nil and key==gStates.apocalypseDragonLair.cityHexKey then return true end
+	local tileGUID,bearing=tostring(key):match("^([^|]+)|(.+)$")
+	local details=tileGUID~=nil and terrainTiles[tileGUID] or nil
+	local feature=details~=nil and details.hexFeature~=nil and details.hexFeature[bearing] or ""
+	if tostring(feature):sub(1,4)~="city" then return false end
+	local color=tostring(feature):lower():match("^city%s+(%a+)")
+	local cityGUID=color~=nil and cityModel[color] or nil
+	local defenders=cityGUID~=nil and gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID] or nil
+	for guid,state in pairs(defenders or {}) do
+		if guid~="extra" and state=="alive" then return false end
+	end
+	return true
+end
+
 function apocalypseDragonGroundCombatForPlayer(playerIndex)
 	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
 	if combat==nil or combat.finished==true then return false end
@@ -589,7 +646,8 @@ apocalypseDragonGroundMarkedThroughOne=function(headName)
 	--Future co-op participants cannot suppress the current player's Control attack by pre-adjusting
 	--their head before their own combat. Only resolved earlier heads plus the current participant count.
 	local owner=apocalypseDragonGroundHeadOwner(headName)
-	if combat.coop==true and owner~=gStates.turnNumber then return false end
+	local activePlayer=combat.activePlayerIndex or gStates.turnNumber
+	if combat.coop==true and owner~=activePlayer then return false end
 	return token.is_face_down==false and apocalypseDragonGroundReduction(headName)>=level
 end
 
@@ -796,7 +854,11 @@ function apocalypseDragonBeginGroundCombat(playerIndex)
 	if gStates.apocalypseDragonGroundCombat~=nil then return apocalypseDragonGroundCombatForPlayer(playerIndex) end
 	local details=turnOrder[playerIndex]
 	if details==nil or details.mage==gStates.positionMageKnight[5] then return false end
-	gStates.apocalypseDragonLairAttacked=true --from the first lair attack onward the Dragon takes no more automated turns
+	if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
+		gStates.apocalypseDragonAssaultFortifiedInitiator=apocalypseDragonFuryAttackFortified()
+	else
+		gStates.apocalypseDragonLairAttacked=true --Against/Here stop their automated Dragon/Horsemen sequence after the first assault.
+	end
 	local combat=apocalypseDragonNewGroundCombat(false)
 	combat.playerIndex=playerIndex
 	combat.mage=details.mage
@@ -826,14 +888,16 @@ end
 
 apocalypseDragonCoopAdjacentPlayers=function(playerIndex)
 	local result={}
-	if gStates==nil or gStates.apocalypseDragonLair==nil then return result end
+	if gStates==nil then return result end
+	local dragonHexes=apocalypseDragonCombatHexes()
+	if #dragonHexes<1 then return result end
 	for candidate,details in ipairs(turnOrder or {}) do
 		if candidate~=playerIndex and details~=nil and details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(candidate)==false then
 			local pos=fracturedLandsTeleportSourcePosition~=nil and fracturedLandsTeleportSourcePosition(candidate) or nil
 			if pos==nil then local avatar=coopAssaultAvatarObject(candidate) if avatar~=nil then pos=avatar.getPosition() end end
 			local adjacent=false
 			if pos~=nil then
-				for _,hex in ipairs(gStates.apocalypseDragonLair.hexes or {}) do
+				for _,hex in ipairs(dragonHexes) do
 					local p=hex.position
 					if p~=nil then
 						local d=((pos[1]-p[1])^2)+((pos[3]-p[3])^2)
@@ -863,7 +927,11 @@ function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
 	local player=turnOrder[playerIndex]
 	if player==nil or playerIndex~=gStates.turnNumber or playerDropoutInactive(playerIndex)==true then return false end
 	local endHorsemenOnStart=gStates.gameScenario=="Apocalypse is Here" and gStates.apocalypseDragonLairAttacked~=true and apocalypseIsHereEndHorsemen~=nil
-	gStates.apocalypseDragonAssaultFortifiedInitiator=gStates.gameScenario=="Apocalypse is Here" and apocalypseIsHereDragonCitySpacePlayer~=nil and apocalypseIsHereDragonCitySpacePlayer(playerIndex)==true
+	if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
+		gStates.apocalypseDragonAssaultFortifiedInitiator=apocalypseDragonFuryAttackFortified()
+	else
+		gStates.apocalypseDragonAssaultFortifiedInitiator=gStates.gameScenario=="Apocalypse is Here" and apocalypseIsHereDragonCitySpacePlayer~=nil and apocalypseIsHereDragonCitySpacePlayer(playerIndex)==true
+	end
 	local liveHeads={}
 	for _,headName in ipairs(apocalypseDragonColoredHeads) do
 		local level=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or 0) or 0
@@ -909,11 +977,15 @@ function apocalypseDragonBeginCoopGroundCombat()
 	if gStates.apocalypseDragonGroundCombat~=nil then return true end
 	local combat=apocalypseDragonNewGroundCombat(true)
 	combat.initiator=gStates.coopAssaultInitiator or gStates.turnNumber
-	if gStates.apocalypseDragonAssaultFortifiedInitiator==true then combat.fortifiedPlayers[combat.initiator]=true end
 	gStates.apocalypseDragonGroundCombat=combat
-	gStates.apocalypseDragonLairAttacked=true
+	if gStates.gameScenario~="Fury of the Apocalypse Dragon" then gStates.apocalypseDragonLairAttacked=true end
 	gStates.monsterPerks=gStates.monsterPerks or {}
-	for playerIndex,_ in pairs(gStates.coopAssaultParticipants or {}) do combat.players[playerIndex]=true combat.fameByPlayer[playerIndex]=0 end
+	for playerIndex,_ in pairs(gStates.coopAssaultParticipants or {}) do
+		combat.players[playerIndex]=true
+		combat.fameByPlayer[playerIndex]=0
+		if gStates.gameScenario=="Fury of the Apocalypse Dragon" and gStates.apocalypseDragonAssaultFortifiedInitiator==true then combat.fortifiedPlayers[playerIndex]=true end
+	end
+	if gStates.gameScenario~="Fury of the Apocalypse Dragon" and gStates.apocalypseDragonAssaultFortifiedInitiator==true then combat.fortifiedPlayers[combat.initiator]=true end
 	for playerIndex,details in ipairs(turnOrder or {}) do
 		local assigned=details~=nil and gStates.assaultData~=nil and gStates.assaultData[details.mage] or nil
 		if assigned~=nil and assigned.joined==true then
@@ -930,6 +1002,143 @@ function apocalypseDragonBeginCoopGroundCombat()
 	apocalypseDragonRefreshGroundAttackSuppression()
 	for playerIndex,_ in pairs(combat.players or {}) do apocalypseDragonRefreshGroundFameGain(playerIndex) end
 	broadcastToAll("{en}The cooperative assault on the Apocalypse Dragon begins. The coloured heads have been divided between the participating Mage Knights; every participant also faces the Control head.{ru}Начинается совместный штурм Дракона Апокалипсиса. Цветные головы распределены между участвующими Рыцарями-магами; каждый участник также сражается с головой Контроля.{zh-tw}對末日巨龍的合作攻城開始。彩色龍首已分配給參戰的魔法騎士；每名參戰者也都要面對控制龍首。{zh-cn}对末日巨龙的合作攻城开始。彩色龙首已分配给参战的魔法骑士；每名参战者也都要面对控制龙首。{ko}아포칼립스 드래곤 협동 공격이 시작됩니다. 색깔 머리는 참가한 마법 기사들에게 나뉘어 배정되며, 모든 참가자는 제어 머리도 상대합니다.{es}Comienza el asalto cooperativo al Dragón del Apocalipsis. Las cabezas de colores se han repartido entre los Caballeros Mago participantes; cada participante también se enfrenta a la cabeza de Control.{fr}L’assaut coopératif contre le Dragon de l’Apocalypse commence. Les têtes colorées ont été réparties entre les Chevaliers-Mages participants ; chacun affronte également la tête de Contrôle.{pt-br}Começa o assalto cooperativo ao Dragão do Apocalipse. As cabeças coloridas foram divididas entre os Cavaleiros-Magos participantes; cada participante também enfrenta a cabeça de Controle.{de}Der kooperative Angriff auf den Apokalypse-Drachen beginnt. Die farbigen Köpfe wurden auf die teilnehmenden Magieritter verteilt; jeder Teilnehmer stellt sich außerdem dem Kontrollkopf.",{1,0.75,0.2})
+	return true
+end
+
+--Fury defensive combat uses the same landed head engine, but the Dragon is the attacker.
+--When several Heroes share a City, every Hero participates. Coloured heads are randomly dealt in
+--reverse Round order while every participant receives a Control-head clone. All level reductions are
+--applied together after the last participant, preserving the combat's starting head levels.
+function apocalypseDragonBeginFuryDefenseCombat(players)
+	if gStates==nil or gStates.gameScenario~="Fury of the Apocalypse Dragon" or gStates.apocalypseDragonDefeated==true or type(players)~="table" or #players<1 then return false end
+	if gStates.apocalypseDragonGroundCombat~=nil then return false end
+	local ordered={}
+	for _,playerIndex in ipairs(players) do
+		local details=turnOrder[playerIndex]
+		if details~=nil and details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then ordered[#ordered+1]=playerIndex end
+	end
+	table.sort(ordered)
+	if #ordered<1 then return false end
+
+	local combat=apocalypseDragonNewGroundCombat(true)
+	combat.furyDefense=true
+	combat.assignments={}
+	gStates.apocalypseDragonGroundCombat=combat
+	gStates.monsterPerks=gStates.monsterPerks or {}
+	for _,playerIndex in ipairs(ordered) do
+		combat.players[playerIndex]=true
+		combat.fameByPlayer[playerIndex]=0
+		combat.assignments[playerIndex]={}
+	end
+
+	local liveHeads={}
+	for _,headName in ipairs(apocalypseDragonColoredHeads) do
+		if (tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or 0) or 0)>0 then liveHeads[#liveHeads+1]=headName end
+	end
+	for i=#liveHeads,2,-1 do
+		local j=math.random(1,i)
+		liveHeads[i],liveHeads[j]=liveHeads[j],liveHeads[i]
+	end
+	local recipient=#ordered
+	for _,headName in ipairs(liveHeads) do
+		local playerIndex=ordered[recipient]
+		combat.assignments[playerIndex][#combat.assignments[playerIndex]+1]=headName
+		recipient=recipient-1
+		if recipient<1 then recipient=#ordered end
+	end
+
+	for _,playerIndex in ipairs(ordered) do
+		apocalypseDragonGroundPrepareControl(combat,playerIndex,1,false)
+		local slot=2
+		for _,headName in ipairs(combat.assignments[playerIndex]) do
+			if apocalypseDragonGroundPrepareColoredHead(combat,headName,playerIndex)==true then
+				local headData=apocalypseDragonHeadData(headName)
+				local token=headData~=nil and getObjectFromGUID(headData.tokenGUID) or nil
+				local target=apocalypseDragonGroundTokenPosition(playerIndex,slot)
+				if token~=nil and target~=nil then token.setPositionSmooth(target,false,true) end
+				slot=slot+1
+			end
+		end
+	end
+	apocalypseDragonRefreshGroundAttackSuppression()
+	for _,playerIndex in ipairs(ordered) do apocalypseDragonRefreshGroundFameGain(playerIndex) end
+	return true
+end
+
+function apocalypseDragonFuryDefenseSetActivePlayer(playerIndex)
+	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
+	if combat==nil or combat.furyDefense~=true or combat.players[playerIndex]~=true or combat.finishedPlayers[playerIndex]==true then return false end
+	combat.activePlayerIndex=playerIndex
+	apocalypseDragonRefreshGroundAttackSuppression()
+	apocalypseDragonRefreshGroundFameGain(playerIndex)
+	combatCameraFocus(playerIndex)
+	mainUIUpdate("Fury Dragon Defense")
+	return true
+end
+
+function apocalypseDragonFuryDefenseFinishPlayer(playerIndex,fullAttend)
+	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
+	local details=turnOrder[playerIndex]
+	if combat==nil or combat.furyDefense~=true or details==nil or combat.players[playerIndex]~=true or combat.finishedPlayers[playerIndex]==true then return false end
+	for _,headName in ipairs(apocalypseDragonColoredHeads) do
+		if combat.headOwners[headName]==playerIndex then
+			local headData=apocalypseDragonHeadData(headName)
+			local token=headData~=nil and getObjectFromGUID(headData.tokenGUID) or nil
+			if token~=nil and combat.processedTokens[token.guid]~=true then apocalypseDragonGroundResolveToken(token) end
+		end
+	end
+	local controls={}
+	for guid,owner in pairs(combat.controlClones or {}) do if owner==playerIndex then controls[#controls+1]=guid end end
+	for _,guid in ipairs(controls) do
+		local token=getObjectFromGUID(guid)
+		if token~=nil and combat.processedTokens[guid]~=true then apocalypseDragonGroundResolveToken(token) end
+	end
+	apocalypseDragonRefreshGroundFameGain(playerIndex)
+	local dragonFame=tonumber(combat.previewFameByPlayer~=nil and combat.previewFameByPlayer[playerIndex] or 0) or 0
+	if fullAttend~=true and dragonFame>0 then
+		local pendingFame=tonumber(details.fameGain) or 0
+		local otherFame=math.max(0,pendingFame-dragonFame)
+		local oldRepGain=details.repGain or 0
+		details.fameGain=dragonFame
+		details.repGain=0
+		applyPlayerFameReputation(playerIndex)
+		details.fameGain=otherFame
+		details.repGain=oldRepGain
+	end
+	combat.finishedPlayers[playerIndex]=true
+	combat.activePlayerIndex=nil
+	return true
+end
+
+function apocalypseDragonFinalizeFuryDefense()
+	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
+	if combat==nil or combat.furyDefense~=true or combat.finished==true then return false end
+	combat.finished=true
+	for headName,_ in pairs(combat.deployed or {}) do
+		if headName~="Control" then
+			local headData=apocalypseDragonHeadData(headName)
+			local token=headData~=nil and getObjectFromGUID(headData.tokenGUID) or nil
+			if token~=nil and combat.processedTokens[token.guid]~=true then
+				combat.reductions[headName]=0
+				combat.headMarkedToOne[headName]=false
+				token.UI.setXmlTable({{}})
+				token.setRotation({0,180,0})
+				local home=apocalypseDragonHeadTokenPosition(headData)
+				if home~=nil then token.setPositionSmooth(home,false,true) end
+			end
+		end
+	end
+	apocalypseDragonGroundApplyFinalLevels(combat)
+	combat.levelsApplied=true
+	for playerIndex,fame in pairs(combat.fameByPlayer or {}) do
+		if fame>0 and turnOrder[playerIndex]~=nil then
+			broadcastToAll(joinLang({translateWord[turnOrder[playerIndex].mage] or tostring(turnOrder[playerIndex].mage),"{en} reduced the Apocalypse Dragon by {ru} снизил уровень Дракона Апокалипсиса суммарно на {zh-tw} 總共降低末日巨龍 {zh-cn} 总共降低末日巨龙 {ko}이(가) 아포칼립스 드래곤의 총 레벨을 {es} redujo al Dragón del Apocalipsis un total de {fr} a réduit le Dragon de l’Apocalypse de {pt-br} reduziu o Dragão do Apocalipse em um total de {de} hat den Apokalypse-Drachen insgesamt um ",tostring(fame),"{en} total level(s).{ru} уровней.{zh-tw} 個等級。{zh-cn} 个等级。{ko}만큼 낮췄습니다.{es} nivel(es).{fr} niveau(x) au total.{pt-br} nível(is).{de} Stufe(n)."}),positionToColor(playerIndex))
+		end
+	end
+	apocalypseDragonGroundCleanupRuntime(combat)
+	gStates.apocalypseDragonGroundCombat=nil
+	apocalypseDragonCheckAndResolveDefeat()
+	mainUIUpdate("Fury Dragon Defense Complete")
 	return true
 end
 
