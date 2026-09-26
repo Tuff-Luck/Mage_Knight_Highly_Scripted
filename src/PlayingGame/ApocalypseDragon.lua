@@ -454,6 +454,7 @@ function setupApocalypseDragonHeads()
 	gStates.apocalypseDragonHeadsSetupReady=false
 	gStates.apocalypseDragonHeadLevels={}
 	gStates.apocalypseDragonLevelMarkers={}
+	gStates.furyDragonEverDefeatedHeads=gStates.gameScenario=="Fury of the Apocalypse Dragon" and {} or nil
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 	if gStates.gameScenario=="Against the Dragon Blitz" then
 		local roundToken=getObjectFromGUID(apocalypseDragon.roundOrder)
