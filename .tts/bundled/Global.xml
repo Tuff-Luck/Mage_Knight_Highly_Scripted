@@ -1,7 +1,7 @@
 <Defaults>
 	<Panel	color="rgb(0.7, 0.7, 0.7)" rectAlignment="MiddleCenter" active="true"
 			allowDragging="false" returnToOriginalPositionWhenReleased="true" raycastTarget="true"
-			hideAnimation="None" showAnimation="None" animationDuration="0.5" visibility=""
+			hideAnimation="None" showAnimation="None" animationDuration="0.5"
 			outline="rgb(0, 0, 0)" outlineSize="1 -1" offsetXY="0 0"/>
 	<Panel	class="Floating" allowDragging="true" returnToOriginalPositionWhenReleased="false"/>
 	<Panel	class="MainGamePanel" width="300" allowDragging="true" returnToOriginalPositionWhenReleased="false"/>
@@ -17,7 +17,7 @@
 	<Text 	class="Title18" fontSize="18" font="Fonts/MKCardTittle" resizeTextForBestFit="true" resizeTextMaxSize="18"/>
 	<Text 	class="Text26" fontSize="26" resizeTextForBestFit="true" resizeTextMaxSize="26"/>
 	<Text 	class="Text24" fontSize="24" resizeTextForBestFit="true" resizeTextMaxSize="24"/>
-	<text	class="Text20" fontSize="20" resizeTextForBestFit="true" resizeTextMaxSize="20"/>	
+	<Text 	class="Text20" fontSize="20" resizeTextForBestFit="true" resizeTextMaxSize="20"/>	
 	<Text 	class="Text18" fontSize="18" resizeTextForBestFit="true" resizeTextMaxSize="18"/>
 	<Text 	class="Text17" fontSize="17" resizeTextForBestFit="true" resizeTextMaxSize="17"/>
 	<Text 	class="Text16" fontSize="16" resizeTextForBestFit="true" resizeTextMaxSize="16"/>
@@ -1706,9 +1706,9 @@ Einheiten</Text></Cell>
 					<Row><HorizontalLayout padding="6 6 1 1"><Toggle id="rampageAmbush" class="Toggle18" onValueChanged="optionsUpdate">{en}Ambushing Rampager{ru}Враги в Засаде{zh-tw}怪物伏擊{zh-cn}怪物伏击{ko}매복하는 적{es}Emboscada de Acechadores{fr}Saccageurs Embusqués{pt-br}Irascível Emboscador{de}Hinterhalt Rampager</Toggle>
 						<Toggle id="rampagePursuit" class="Toggle18" onValueChanged="optionsUpdate">{en}Pursuing Rampager{ru}Преследующие враги{zh-tw}怪物追擊{zh-cn}怪物追击{ko}추적하는 적{es}Acechadores Perseguidores{fr}Poursuivre les Saccageurs{pt-br}Irascível Perseguidor{de}Rampager Verfolgen</Toggle></HorizontalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="darknessComing" class="Toggle18" onValueChanged="optionsUpdate">{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel</Toggle></VerticalLayout></Row>
-					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="apocalypseQuestCards" class="Toggle18" onValueChanged="optionsUpdate">{en}Apocalypse Dragon Quest Cards [BETA]{ru}Apocalypse Dragon Quest Cards [BETA]{zh-tw}Apocalypse Dragon Quest Cards [BETA]{zh-cn}Apocalypse Dragon Quest Cards [BETA]{ko}Apocalypse Dragon Quest Cards [BETA]{es}Apocalypse Dragon Quest Cards [BETA]{fr}Apocalypse Dragon Quest Cards [BETA]{pt-br}Apocalypse Dragon Quest Cards [BETA]{de}Apocalypse Dragon Quest Cards [BETA]</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="apocalypseQuestCards" class="Toggle18" onValueChanged="optionsUpdate">{en}Apocalypse Dragon Quest Cards{ru}Apocalypse Dragon Quest Cards{zh-tw}Apocalypse Dragon Quest Cards{zh-cn}Apocalypse Dragon Quest Cards{ko}Apocalypse Dragon Quest Cards{es}Apocalypse Dragon Quest Cards{fr}Apocalypse Dragon Quest Cards{pt-br}Apocalypse Dragon Quest Cards{de}Apocalypse Dragon Quest Cards</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="heroChallenges" class="Toggle18" onValueChanged="optionsUpdate">{en}Hero Challenges{ru}Испытания героев{zh-tw}英雄挑戰{zh-cn}英雄挑战{ko}영웅 도전{es}Desafíos de Héroes{fr}Défis des Héros{pt-br}Desafios de Heróis{de}Heldenherausforderungen</Toggle></VerticalLayout></Row>
-					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="proxyPlayer" class="Toggle18" onValueChanged="optionsUpdate">{en}Proxy Player [BETA]{ru}Прокси-игрок [BETA]{zh-tw}代理玩家 [BETA]{zh-cn}代理玩家 [BETA]{ko}프록시 플레이어 [BETA]{es}Jugador Proxy [BETA]{fr}Joueur Proxy [BETA]{pt-br}Jogador Proxy [BETA]{de}Proxy-Spieler [BETA]</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="proxyPlayer" class="Toggle18" onValueChanged="optionsUpdate">{en}Proxy Player{ru}Прокси-игрок{zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시 플레이어{es}Jugador Proxy{fr}Joueur Proxy{pt-br}Jogador Proxy{de}Proxy-Spieler</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="weatherMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Atlantean Weather Custom Mod{ru}Пользовательский мод Погоды Атлантиды{zh-tw}亞特蘭提斯天氣{zh-cn}亚特兰蒂斯天气{ko}아틀란티안 날씨{es}Tiempo Atlante{fr}Météo Atlante{pt-br}Clima Atlânteano{de}Atlantisches Wetter</Toggle></VerticalLayout></Row>
 		            <Row><VerticalLayout padding="6 6 1 1"><Toggle id="questMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Quest Cards Custom Mod{ru}Пользовательский мод Квест карт{zh-tw}自製任務卡{zh-cn}自制任务卡{ko}퀘스트 카드{es}Cartas de Misión{fr}Cartes de Quête{pt-br}Cartas de Missão{de}Quest Karten</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="itemShopMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Item Shop Custom Mod{ru}&lt;size=16&gt;Пользовательский мод магазина предметов&lt;/size&gt;{zh-tw}物品商店{zh-cn}物品商店{ko}아이템 상점{es}Tienda de artículos{fr}Boutique d'articles{pt-br}Loja de itens{de}Artikel Shop</Toggle></VerticalLayout></Row>
@@ -1971,7 +1971,7 @@ Einheiten</Text></Cell>
 	</Panel>
 	<Panel id="ScenarioDetails"	active="false" outlineSize="0 0" rectAlignment="MiddleRight" width="610" height="700">
 		<Image image="Sliced Button/Button New Active" type="Sliced"/>
-		<Panel active="true" outlineSize="0 0" rectAlignment="UpperCenter" width="610" height="478" color="clear">
+		<Panel id="ScenarioSummaryPanel" active="true" outlineSize="0 0" rectAlignment="UpperCenter" width="610" height="478" color="clear">
 			<VerticalLayout childForceExpandHeight="False">
 				<TableLayout preferredHeight="30">
 					<Image image="Sliced Button/Title Border Tan" type="Sliced" width="610" height="30" rectAlignment="UpperCenter"/>
@@ -1998,8 +1998,8 @@ Einheiten</Text></Cell>
 				</TableLayout>				
 			</VerticalLayout>
 		</Panel>
-		<Panel active="true" outlineSize="0 0" rectAlignment="LowerCenter" width="610" height="210">
-			<TableLayout preferredHeight="208">
+		<Panel id="ScenarioTweaksPanel" active="true" outlineSize="0 0" rectAlignment="LowerCenter" width="610" height="210">
+			<TableLayout id="ScenarioTweaksTable" preferredHeight="208">
 				<Row preferredHeight="30" dontUseTableRowBackground="true" >
 					<Image image="Sliced Button/Title Border Tan" type="Sliced" width="610" height="30"/>
 					<VerticalLayout padding="6 6 5 5"><Text id="scenarioTweaksText" class="Title22">{en}4. Optional Scenario Tweaks{ru}4. Дополнительные настройки сценария{zh-tw}4. 劇本設定調整{zh-cn}4. 剧本设置调整{ko}4. 시나리오 조정{es}4. Ajustes Opcionales del Escenario{fr}4. Ajustements Facultatifs du Scénario{pt-br}4. Ajustes Opcionais do Cenário{de}4. Optionale Änderungen am Szenario</Text></VerticalLayout>
@@ -2155,6 +2155,39 @@ Einheiten</Text></Cell>
 				<Row preferredHeight="30" id="CityDescriptionRow" active="false">
 					<Image image="Sliced Button/Button New Deactive" type="Sliced" width="610"/>
 					<VerticalLayout padding="6 6 6 6"><Text id="CityNote" class="Text18" offsetXY="0 1">City Level(s) - No attacking</Text></VerticalLayout>
+				</Row>
+				<Row preferredHeight="30" id="ScenarioEnemyLevelsRow" active="false">
+					<TableLayout id="ScenarioEnemyLevelsChange" columnWidths="0 0" cellBackgroundColor="Clear">
+						<Image image="Sliced Button/Button New Deactive" type="Sliced" width="610" height="30"/>
+						<Row>
+							<Cell id="ApocalypseDragonLevelCell" active="false">
+								<Row>
+									<Button id="ApocalypseDragonLevelDown" class="ScenarioTweak" onClick="apocalypseDragonLevelSelection" rectAlignment="MiddleLeft" width="28" height="30">
+										<Image id="ApocalypseDragonLevelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+									</Button>
+									<VerticalLayout padding="6 6 6 6"><Text id="ApocalypseDragonLevelSelectionText" class="Text18" offsetXY="0 1">Dragon, Level 1</Text></VerticalLayout>
+									<Button id="ApocalypseDragonLevelUp" class="ScenarioTweak" onClick="apocalypseDragonLevelSelection" rectAlignment="MiddleRight" width="28" height="30">
+										<Image id="ApocalypseDragonLevelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+									</Button>
+								</Row>
+							</Cell>
+							<Cell id="HorsemenLevelCell" active="false">
+								<Row>
+									<Button id="HorsemenLevelDown" class="ScenarioTweak" onClick="horsemanLevelSelection" rectAlignment="MiddleLeft" width="28" height="30">
+										<Image id="HorsemenLevelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+									</Button>
+									<VerticalLayout padding="6 6 6 6"><Text id="HorsemenLevelSelectionText" class="Text18" offsetXY="0 1">Horsemen, Level 1</Text></VerticalLayout>
+									<Button id="HorsemenLevelUp" class="ScenarioTweak" onClick="horsemanLevelSelection" rectAlignment="MiddleRight" width="28" height="30">
+										<Image id="HorsemenLevelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+									</Button>
+								</Row>
+							</Cell>
+						</Row>
+					</TableLayout>
 				</Row>
 			</TableLayout>
 		</Panel>
@@ -2482,7 +2515,7 @@ Einheiten</Text></Cell>
 			<Row id="FuryOfTheApocalypseDragonRow">
 				<Button id="FuryOfTheApocalypseDragonSelection" onClick="scenarioSelection">
 					<Image id="FuryOfTheApocalypseDragonSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="FuryOfTheApocalypseDragonSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Gray">{en}Fury of the Apocalypse Dragon{ru}Ярость Дракона Апокалипсиса{zh-tw}末日巨龍之怒{zh-cn}末日巨龙之怒{ko}아포칼립스 드래곤의 분노{es}La Furia del Dragón del Apocalipsis{fr}La Fureur du Dragon de l'Apocalypse{pt-br}A Fúria do Dragão do Apocalipse{de}Der Zorn des Apokalypse-Drachen</Text>
+					<Text id="FuryOfTheApocalypseDragonSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Fury of the Apocalypse Dragon{ru}Ярость Дракона Апокалипсиса{zh-tw}末日巨龍之怒{zh-cn}末日巨龙之怒{ko}아포칼립스 드래곤의 분노{es}La Furia del Dragón del Apocalipsis{fr}La Fureur du Dragon de l'Apocalypse{pt-br}A Fúria do Dragão do Apocalipse{de}Der Zorn des Apokalypse-Drachen</Text>
 				</Button>
 			</Row>
 			<Row id="TheFracturedLandsRow">
