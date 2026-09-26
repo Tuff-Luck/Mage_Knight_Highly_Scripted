@@ -408,12 +408,13 @@ function renderMoveDisplay(id)
 	local snapshot=runtimeMapSnapshot()
 	local playAreaObjects=snapshot.objects or {}
 	local hexMap=moveDisplayBaseHexMap(playAreaObjects, startTileGUID, startTilePos)
-	--The Dragon's three lair spaces keep their printed terrain Move cost, but entering any of them
-	--starts the Dragon assault. Mark them as combat-only destinations so the movement helper shows
-	--the cost in orange and never routes onward through the Lair as though it were a safe space.
-	if gStates.gameScenario=="Against the Dragon Blitz" and gStates.apocalypseDragonLairRevealed==true and gStates.apocalypseDragonDefeated~=true and gStates.apocalypseDragonLair~=nil then
-		for _,lairHex in ipairs(gStates.apocalypseDragonLair.hexes or {}) do
-			local p=lairHex.position
+	--Dragon combat spaces keep their printed Move cost, but entering one starts the assault.
+	--Against the Dragon uses its three-space Lair; Fury uses the single space where its marker is
+	--currently landed. An in-flight Fury Dragon therefore contributes no combat destination.
+	local dragonCombatScenario=gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon"
+	if dragonCombatScenario==true and gStates.apocalypseDragonLairRevealed==true and gStates.apocalypseDragonDefeated~=true and apocalypseDragonCombatHexes~=nil then
+		for _,dragonHex in ipairs(apocalypseDragonCombatHexes()) do
+			local p=dragonHex.position
 			if p~=nil then
 				local lairVecNumber,lairHorNumber=runtimeMapWorldToAxial(p,startTilePos)
 				local lairHor=tostring(lairHorNumber)
