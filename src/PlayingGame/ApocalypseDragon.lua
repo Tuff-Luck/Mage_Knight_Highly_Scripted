@@ -286,7 +286,11 @@ apocalypseDragonCheckAndResolveDefeat=function()
 		gStates.furyDragonAwaitingCombat=nil
 	end
 
-	broadcastToAll("{en}The Apocalypse Dragon has been defeated! All players have one final turn.{ru}The Apocalypse Dragon has been defeated! All players have one final turn.{zh-tw}The Apocalypse Dragon has been defeated! All players have one final turn.{zh-cn}The Apocalypse Dragon has been defeated! All players have one final turn.{ko}The Apocalypse Dragon has been defeated! All players have one final turn.{es}The Apocalypse Dragon has been defeated! All players have one final turn.{fr}The Apocalypse Dragon has been defeated! All players have one final turn.{pt-br}The Apocalypse Dragon has been defeated! All players have one final turn.{de}The Apocalypse Dragon has been defeated! All players have one final turn.",{1,1,0.5})
+	local defeatMessage="{en}The Apocalypse Dragon has been defeated! All players have one final turn.{ru}Дракон Апокалипсиса побеждён! У всех игроков остался один последний ход.{zh-tw}末日巨龍已被擊敗！所有玩家各有最後一個回合。{zh-cn}末日巨龙已被击败！所有玩家各有最后一个回合。{ko}아포칼립스 드래곤을 쓰러뜨렸습니다! 모든 플레이어에게 마지막 한 턴이 남았습니다.{es}¡El Dragón del Apocalipsis ha sido derrotado! Todos los jugadores tienen un último turno.{fr}Le Dragon de l’Apocalypse a été vaincu ! Tous les joueurs ont un dernier tour.{pt-br}O Dragão do Apocalipse foi derrotado! Todos os jogadores têm um último turno.{de}Der Apokalypse-Drache wurde besiegt! Alle Spieler haben noch einen letzten Zug."
+	if gStates.gameScenario=="Fury of the Apocalypse Dragon" and (gStates.coop==1 or gStates.playerCount==1) then
+		defeatMessage="{en}The Apocalypse Dragon has been defeated! Each Mage Knight has one final turn; the Dummy player does not.{ru}Дракон Апокалипсиса побеждён! У каждого Рыцаря-мага остался один последний ход; у виртуального игрока его нет.{zh-tw}末日巨龍已被擊敗！每位魔法騎士各有最後一個回合；虛擬玩家沒有。{zh-cn}末日巨龙已被击败！每位魔法骑士各有最后一个回合；虚拟玩家没有。{ko}아포칼립스 드래곤을 쓰러뜨렸습니다! 각 마법 기사에게 마지막 한 턴이 남으며, 더미 플레이어에게는 없습니다.{es}¡El Dragón del Apocalipsis ha sido derrotado! Cada Caballero Mago tiene un último turno; el Jugador Virtual no.{fr}Le Dragon de l’Apocalypse a été vaincu ! Chaque Chevalier-Mage a un dernier tour ; le joueur fantôme n’en a pas.{pt-br}O Dragão do Apocalipse foi derrotado! Cada Cavaleiro-Mago tem um último turno; o Jogador Fictício não.{de}Der Apokalypse-Drache wurde besiegt! Jeder Magieritter hat noch einen letzten Zug; der Dummy-Spieler nicht."
+	end
+	broadcastToAll(defeatMessage,{1,1,0.5})
 	local coopDragon=gStates.coopAssaultPhase=="combat" and coopAssaultTargetType~=nil and coopAssaultTargetType()=="dragon"
 	if coopDragon==true then gStates.coopAssaultScenarioEndPending=true
 	elseif gStates.endGameAchieved=="false" then markScenarioEndAchieved() end
@@ -294,6 +298,13 @@ apocalypseDragonCheckAndResolveDefeat=function()
 end
 
 apocalypseDragonHeadStateChanged=function(headName)
+	if gStates~=nil and gStates.gameScenario=="Fury of the Apocalypse Dragon" and headName~="Control" and
+		tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or -1)==0 then
+		--Fury scoring remembers every coloured head defeated at least once, even if a later Dragon turn
+		--raises that head back to level 1. Victory still depends on the live levels below.
+		gStates.furyDragonEverDefeatedHeads=gStates.furyDragonEverDefeatedHeads or {}
+		gStates.furyDragonEverDefeatedHeads[headName]=true
+	end
 	if headName~="Control" then apocalypseDragonSyncControlLevel() end
 	if gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon") then apocalypseDragonCheckAndResolveDefeat() end
 end
@@ -301,7 +312,15 @@ end
 --Read the physical player Shields on the four large coloured head boards.
 --All Dragon scenarios use this shared scoring summary; a one-off getAllObjects() scan is acceptable.
 function apocalypseDragonCompetitiveScoreSummary()
-	local summary={defeatedHeads=apocalypseDragonDefeatedHeadCount(),byMage={},heads={}}
+	local defeatedHeads=apocalypseDragonDefeatedHeadCount()
+	if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
+		defeatedHeads=0
+		local everDefeated=gStates.furyDragonEverDefeatedHeads or {}
+		for _,headName in ipairs(apocalypseDragonColoredHeads) do
+			if everDefeated[headName]==true or tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or -1)==0 then defeatedHeads=defeatedHeads+1 end
+		end
+	end
+	local summary={defeatedHeads=defeatedHeads,byMage={},heads={}}
 	local mageToPlayer={}
 	for playerIndex,details in ipairs(turnOrder or {}) do
 		if details~=nil and details.mage~=gStates.positionMageKnight[5] then
