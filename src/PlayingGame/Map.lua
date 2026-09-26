@@ -415,7 +415,32 @@ avatarLocationMapSnapshot=function()
 end
 
 avatarLocationRelevantObjects=function(locatedTerrain,pos,spatial)
-	return runtimeMapSpatialNearbyObjects(spatial,pos,avatarLocationSpatialCell,locatedTerrain)
+	local result=runtimeMapSpatialNearbyObjects(spatial,pos,avatarLocationSpatialCell,locatedTerrain)
+	local seen={}
+	for _,obj in ipairs(result) do if obj~=nil and obj.guid~=nil then seen[obj.guid]=true end end
+
+	--City models are moved independently of terrain and can sit high enough that TTS does not always
+	--report a clean map-zone membership transition. The shared spatial cache therefore cannot be the
+	--sole authority for these few pieces. Merge nearby live City models explicitly so adjacency still
+	--reveals the actual deployed City army (including Random Cities/Megapolis rather than inferring
+	--the City colour from the printed terrain feature).
+	local cityCandidates={cityModel.white,cityModel.blue,cityModel.red,cityModel.green,volkare.model,"938cd3","a0d7b3"}
+	if gStates~=nil and gStates.volkareModel~=nil then cityCandidates[#cityCandidates+1]=gStates.volkareModel end
+	for _,guid in ipairs(cityCandidates) do
+		if guid~=nil and seen[guid]~=true then
+			local obj=getObjectFromGUID(guid)
+			if obj~=nil then
+				local objPos=obj.getPosition()
+				local dx=objPos[1]-pos[1]
+				local dz=objPos[3]-pos[3]
+				if (dx*dx)+(dz*dz)<=(avatarLocationSpatialCell*avatarLocationSpatialCell) then
+					result[#result+1]=obj
+					seen[guid]=true
+				end
+			end
+		end
+	end
+	return result
 end
 
 --Refresh only the stored location of a manually moved off-turn Mage Knight.
