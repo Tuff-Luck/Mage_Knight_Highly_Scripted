@@ -5,7 +5,7 @@ local awardFactionRewardToken, giveQueuedFactionReward, showCoopReward, coopAssa
 local assaultOriginAdjacent, assaultTargetHasWall, resolveAssaultWallFortified, assaultCrossesWall, setAssaultWallFortified
 local settleAssaultWallFortified, applyCurrentAssaultWallFortified, combatCameraPlayerIndex, combatNearbyRampagerChoice, combatAttackOptionCount
 local coopAssaultDividableCount, coopAssaultHasLeader, coopAssaultLeadMage, coopAssaultAssignmentSource, coopAssaultCityMinimumEnemyRule
-local coopAssaultReadyToBegin, factionMonsterPreferredPileGUID, summonMonster, adjustOverkill
+local coopAssaultReadyToBegin, factionMonsterPreferredPileGUID
 
 -- Combat, enemy staging, cooperative assault and combat reward runtime.
 
