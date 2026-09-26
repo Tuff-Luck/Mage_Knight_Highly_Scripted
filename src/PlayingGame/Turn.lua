@@ -1,9 +1,3 @@
--- Module-private helpers. Predeclared so forward references keep resolving locally.
-local dayTactic2Discarded
-
--- Turn-private helper.
-local dayTactic2Discarded
-
 -- Turn, round, tactic and final-turn runtime.
 
 local dropoutMatImage="https://steamusercontent-a.akamaihd.net/ugc/9970617178500111609/C9D8D7517B7FAF114F10D8195AC38269F0504E37/"
