@@ -659,8 +659,8 @@ scenarioList={
 		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4}},
 		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=12,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4}},
 		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={4,4}},
-		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={4,4}},
-		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={4,4}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,dummyTacticSelection="F",cityLevels={4,4}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,dummyTacticSelection="F",cityLevels={4,4}},
 		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=12,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,dummyTacticSelection="F",cityLevels={4,4}},
 		scenarioDetails={
 			megapolisPossible=false,blitzPossible="Off Only",ruleStates={},
