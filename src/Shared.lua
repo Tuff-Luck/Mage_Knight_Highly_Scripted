@@ -136,6 +136,14 @@ joinLangParse=function(text)
 	return parsed
 end
 
+--Tooltips cannot resolve translation tags. Keep the parser private and expose only the
+--plain-English fragment needed by other modules.
+function joinLangEnglish(text)
+	local parsed=joinLangParse(tostring(text or ""))
+	if type(parsed)=="table" then return tostring(parsed.en or "") end
+	return tostring(parsed or "")
+end
+
 --Join strings/numbers while preserving TTS translation tags. Tagged strings are parsed once and cached.
 function joinLang(full_string)
 	local parts={}

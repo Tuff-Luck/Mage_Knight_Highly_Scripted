@@ -785,8 +785,15 @@ function drawUpTo(player, mouseButton, id)
 					safeWaitFrames("PlayerBoard.CardFlow",function() mainUIUpdate("Meditation Draw Bonus Used") end, 1)
 				end
 			end
+			local deedZoneGUID=deedDeckZones[playerPosition]
+			local deedZone=deedZoneGUID~=nil and getObjectFromGUID(deedZoneGUID) or nil
+			if deedZone==nil then
+				log("drawUpTo missing Deed Deck zone for seat "..tostring(playerPosition))
+				broadcastToColor("Could not find your Deed Deck area. Draw to your hand manually and include the save with any bug report.",player.color,warningColor)
+				return
+			end
 			local deedDeck=nil
-			for _, possibleDeck in pairs(getObjectFromGUID(deedDeckZones[playerPosition]).getObjects()) do
+			for _, possibleDeck in pairs(deedZone.getObjects()) do
 				if possibleDeck.type=="Deck" or possibleDeck.type=="Card" then deedDeck=possibleDeck break end
 			end
 			--Quick Witted is already physically in Coral's Deed Deck; when it is the final card it resolves as a normal single-card Deed Deck.
