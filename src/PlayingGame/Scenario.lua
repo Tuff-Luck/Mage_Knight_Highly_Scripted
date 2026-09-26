@@ -23,6 +23,7 @@ local furyDragonLairTarget, furyDragonLowestHead, furyDragonTargetHead, furyDrag
 local furyDragonCityModelGUID, furyDragonCityCard, furyDragonTargetPosition, furyDragonManaColor, furyDragonTargetLabel
 local furyDragonMoveMarkerOffMap, furyDragonBeginLandedTurn, furyDragonPlayersOnTarget, furyDragonDiscardHexEnemies, furyDragonDestroyHex
 local furyDragonRemoveCityDefender, furyDragonIncreaseHead, furyDragonResolveArrivalEffect, furyDragonBeginInFlightTurn
+local furyDragonDestroyedSiteLimitReached, furyDragonBeginDefense, furyDragonStartDefenseParticipant, furyDragonFinishDefenseParticipant
 
 -- Scenario and variant runtime systems. Setup/menu construction remains in SetupGame.
 
@@ -3535,6 +3536,7 @@ function againstDragonFinishAttackForPlayer(playerIndex,finishDragonImmediately)
 	local pending=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
 	local details=turnOrder[playerIndex]
 	if pending==nil or details==nil or pending.playerIndex~=playerIndex then return false end
+	if pending.furyGround==true then return furyDragonFinishDefenseParticipant(playerIndex,pending.phase=="full") end
 	local attendance=pending.phase=="full" and "fully attended" or pending.phase=="partial" and "partially attended" or "resolved"
 	againstDragonReturnAirborneHeads()
 	againstDragonResolveAirborneProtection(pending)
@@ -3601,8 +3603,16 @@ function againstDragonAttendFull(player,mouseButton,id)
 	if details==nil then return end
 	pending.phase="full"
 	gStates.apocalypseDragonFullAttendPlayer=playerIndex
+	if pending.furyGround==true then
+		gStates.furyDragonFullAttendPlayers=gStates.furyDragonFullAttendPlayers or {}
+		gStates.furyDragonFullAttendPlayers[playerIndex]=true
+	end
 	gStates.apocalypseDragonUIState="FullAttend"
-	gStates.apocalypseDragonTurnReport="The Dragon attacked "..tostring(details.mage).." at level "..tostring(pending.round or gStates.currentRound)..".\n"..tostring(details.mage).." is fully attacking and taking their turn in advance."
+	if pending.furyGround==true then
+		gStates.apocalypseDragonTurnReport="The Apocalypse Dragon attacked "..tostring(details.mage)..".\n"..tostring(details.mage).." is fully defending and taking their turn in advance; movement, exploration and other actions remain unavailable during this combat."
+	else
+		gStates.apocalypseDragonTurnReport="The Dragon attacked "..tostring(details.mage).." at level "..tostring(pending.round or gStates.currentRound)..".\n"..tostring(details.mage).." is fully attacking and taking their turn in advance."
+	end
 	--The Dragon interface is finished now. The heads remain on this player's board while they take
 	--a normal out-of-turn turn; their end-turn cleanup resolves the Dragon reward and resumes play
 	--directly, without returning to Dragon Processed.
@@ -3788,6 +3798,8 @@ function againstDragonRoundStart()
 	gStates.apocalypseDragonTurnAction=nil
 	gStates.apocalypseDragonTurnReport=nil
 	gStates.apocalypseDragonTurnReportPrefix=nil
+	gStates.furyDragonAwaitingCombat=nil
+	gStates.furyDragonFullAttendPlayers={}
 	UI.setAttribute("DummyTurn","active","false")
 	automatedAttackResponseUI(nil)
 	apocalypseDragonTurnChoiceClearButtons()
@@ -3992,11 +4004,22 @@ furyDragonTargetWouldOverflow=function(target)
 	return level>=12
 end
 
+furyDragonDestroyedSiteLimitReached=function()
+	local count=0
+	for _ in pairs(gStates~=nil and gStates.destroyedSites or {}) do
+		count=count+1
+		if count>=16 then return true end
+	end
+	return false
+end
+
 furyDragonChooseTarget=function(color,hexes,mapObjects)
-	--The mod's Destroyed Site supply is an Infinite Bag, so Fury intentionally omits the printed
-	--"all 16 Destroyed Site tokens used" redirect and only applies the no-target / level-12 redirects.
 	local current=furyDragonCurrentHex(hexes)
 	local lair=furyDragonLairTarget(hexes)
+	--The physical expansion has 16 Destroyed Site tokens. The mod uses an Infinite Bag for robustness,
+	--so preserve the printed limit from durable placement state instead of relying on bag quantity.
+	local normalized=string.lower(tostring(color or ""))
+	if furyDragonDestroyedSiteLimitReached()==true and ({blue=true,green=true,white=true,gold=true,black=true})[normalized]==true then return lair end
 	if current==nil then return lair end
 	local allowed={}
 	for _,hex in ipairs(hexes or {}) do
@@ -4173,6 +4196,70 @@ furyDragonPlayersOnTarget=function(target,hexes,mapObjects)
 	return players
 end
 
+furyDragonStartDefenseParticipant=function()
+	local state=gStates~=nil and gStates.furyDragonAwaitingCombat or nil
+	if state==nil or type(state.players)~="table" then return false end
+	local playerIndex=state.players[state.index or 1]
+	while playerIndex~=nil and (turnOrder[playerIndex]==nil or playerDropoutInactive(playerIndex)==true) do
+		state.index=(state.index or 1)+1
+		playerIndex=state.players[state.index]
+	end
+	if playerIndex==nil then
+		apocalypseDragonFinalizeFuryDefense()
+		gStates.furyDragonAwaitingCombat=nil
+		if gStates.apocalypseDragonDefeated==true then return furyDragonCompleteTurn("The Apocalypse Dragon was defeated while attacking the Heroes.") end
+		return furyDragonBeginLandedTurn()
+	end
+	if apocalypseDragonFuryDefenseSetActivePlayer(playerIndex)~=true then return false end
+	local details=turnOrder[playerIndex]
+	gStates.apocalypseDragonPendingAttack={playerIndex=playerIndex,mage=details.mage,phase="choose",furyGround=true}
+	gStates.apocalypseDragonUIState="WaitingAttendance"
+	local count=#state.players
+	local sequence=count>1 and (" Participant "..tostring(state.index).." of "..tostring(count)..".") or ""
+	local fullText=againstDragonFullAttendAllowed(playerIndex) and " Choose Fully Defend, or resolve the restricted combat and click Partial Complete." or " Their Round Order token is already face down, so resolve the restricted combat and click Partial Complete."
+	gStates.apocalypseDragonTurnReport="The Apocalypse Dragon attacks "..tostring(details.mage).."."..sequence..fullText.." The site in this space is ignored for this combat."
+	apocalypseDragonMainUIRefresh()
+	againstDragonAttendanceUIRefresh()
+	combatCameraFocus(playerIndex)
+	mainUIUpdate("Fury Dragon Defensive Combat")
+	return true
+end
+
+furyDragonBeginDefense=function(players,target)
+	if type(players)~="table" or #players<1 then return false end
+	table.sort(players)
+	if apocalypseDragonBeginFuryDefenseCombat(players)~=true then return false end
+	gStates.furyDragonAwaitingCombat={players=players,target=target,index=1}
+	gStates.furyDragonFullAttendPlayers=gStates.furyDragonFullAttendPlayers or {}
+	return furyDragonStartDefenseParticipant()
+end
+
+furyDragonFinishDefenseParticipant=function(playerIndex,fullAttend)
+	local state=gStates~=nil and gStates.furyDragonAwaitingCombat or nil
+	if state==nil or state.players[state.index or 1]~=playerIndex then return false end
+	if apocalypseDragonFuryDefenseFinishPlayer(playerIndex,fullAttend==true)~=true then return false end
+	gStates.apocalypseDragonPendingAttack=nil
+	gStates.apocalypseDragonFullAttendPlayer=nil
+	automatedAttackResponseUI(nil)
+	state.index=(state.index or 1)+1
+	if state.index<=#state.players then
+		gStates.apocalypseDragonUIState="Processing"
+		gStates.apocalypseDragonTurnReport="The Apocalypse Dragon's attack is moving to the next Hero."
+		apocalypseDragonMainUIRefresh()
+		safeWaitFrames("Scenario",function() furyDragonStartDefenseParticipant() end,1)
+		return true
+	end
+	apocalypseDragonFinalizeFuryDefense()
+	gStates.furyDragonAwaitingCombat=nil
+	gStates.apocalypseDragonPendingAttack=nil
+	if gStates.apocalypseDragonDefeated==true then
+		return furyDragonCompleteTurn("The Apocalypse Dragon was defeated while attacking the Heroes.")
+	end
+	--Being attacked never leaves the Dragon sitting on the site after combat: it immediately takes
+	--the required landed turn, rolling and placing its next mana die before this Dragon turn can end.
+	return furyDragonBeginLandedTurn()
+end
+
 furyDragonDiscardHexEnemies=function(hex,mapObjects)
 	for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
 		if getObjectFromGUID(enemy.guid)~=nil then proxyDiscardMonster(enemy) end
@@ -4306,13 +4393,14 @@ furyDragonBeginInFlightTurn=function()
 		end
 		local players=furyDragonPlayersOnTarget(target,currentHexes,currentMapObjects)
 		if #players>0 then
+			if furyDragonBeginDefense(players,target)==true then return end
 			local names={}
 			for _,playerIndex in ipairs(players) do names[#names+1]=tostring(turnOrder[playerIndex].mage) end
 			gStates.furyDragonAwaitingCombat={players=players,target=target}
 			gStates.apocalypseDragonUIState="WaitingCombat"
-			gStates.apocalypseDragonTurnReport="The Apocalypse Dragon attacks "..table.concat(names,", ")..". Resolve combat against the landed Dragon. When combat is finished, click Combat Resolved; the Dragon will immediately take its required landed turn."
+			gStates.apocalypseDragonTurnReport="The Apocalypse Dragon attacks "..table.concat(names,", ")..", but the automated defensive combat could not start. Resolve it manually, then click Combat Resolved."
 			apocalypseDragonMainUIRefresh()
-			mainUIUpdate("Fury Dragon Combat")
+			mainUIUpdate("Fury Dragon Combat Fallback")
 			return
 		end
 		local result=furyDragonResolveArrivalEffect(target,currentHex,currentMapObjects)
