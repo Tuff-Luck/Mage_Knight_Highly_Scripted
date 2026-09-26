@@ -397,8 +397,9 @@ function displayScore(player, mouseButton, id)
 		local forTheCouncil=gStates.gameScenario=="For the Council"
 		local againstHorsemen=gStates.gameScenario=="Against the Horsemen Blitz"
 		local apocalypseHere=gStates.gameScenario=="Apocalypse is Here"
+		local furyDragon=gStates.gameScenario=="Fury of the Apocalypse Dragon"
 		local horsemenSummary=(againstHorsemen or apocalypseHere) and horsemanDefeatSummary() or {total=0,byMage={},fameByMage={}}
-		local againstDragon=gStates.gameScenario=="Against the Dragon Blitz" or apocalypseHere
+		local againstDragon=gStates.gameScenario=="Against the Dragon Blitz" or apocalypseHere or furyDragon
 		local dragonScoreSummary=againstDragon and apocalypseDragonCompetitiveScoreSummary() or {defeatedHeads=0,byMage={},heads={}}
 		local fracturedLandsNoCityScore=gStates.gameScenario=="The Fractured Lands Blitz"
 		if againstHorsemen then
@@ -943,8 +944,8 @@ function displayScore(player, mouseButton, id)
 					updateScorePannel("Tezla",lineFeed,assembledText)
 				end
 
-				--Against the Dragon competitive scoring. Every Shield on a coloured head is one
-				--level reduced and therefore +1 score. Each head also awards one +5 Greatest Slayer.
+				--Dragon competitive scoring. Every player Shield on a coloured head is +1 Fame.
+				--Fury follows its printed per-head Greatest Slayer tiebreaker, including +3 each if still tied.
 				if againstDragon and gStates.coop==0 then
 					assembledText="" lineFeed=0
 					local dragonPlayer=dragonScoreSummary.byMage[turnOrder[a].mage] or {levels=0,slayerBonus=0,slayerHeads={}}
@@ -954,10 +955,12 @@ function displayScore(player, mouseButton, id)
 						totalScore=totalScore+dragonPlayer.levels
 					end
 					if dragonPlayer.slayerBonus>0 then
-						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{#dragonPlayer.slayerHeads,"{en} Greatest Head Slayer bonus(es): +{ru} Бонус лучшего истребителя голов: +{zh-tw} 最佳龍首剋星獎勵：+{zh-cn} 最佳龙首克星奖励：+{ko} 최고의 용 머리 처치자 보너스: +{es} Bonificación del mejor cazador de cabezas: +{fr} Bonus du meilleur tueur de têtes : +{pt-br} Bônus do maior matador de cabeças: +{de} Bonus des größten Kopfbezwingers: +",dragonPlayer.slayerBonus})
+						local slayerLabel=furyDragon and "{en} Head Slayer bonus(es): +{ru} Бонус истребителя голов: +{zh-tw} 龍首剋星獎勵：+{zh-cn} 龙首克星奖励：+{ko} 용 머리 처치자 보너스: +{es} Bonificación de cazador de cabezas: +{fr} Bonus de tueur de têtes : +{pt-br} Bônus de matador de cabeças: +{de} Kopfbezwinger-Bonus: +" or "{en} Greatest Head Slayer bonus(es): +{ru} Бонус лучшего истребителя голов: +{zh-tw} 最佳龍首剋星獎勵：+{zh-cn} 最佳龙首克星奖励：+{ko} 최고의 용 머리 처치자 보너스: +{es} Bonificación del mejor cazador de cabezas: +{fr} Bonus du meilleur tueur de têtes : +{pt-br} Bônus do maior matador de cabeças: +{de} Bonus des größten Kopfbezwingers: +"
+						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{#dragonPlayer.slayerHeads,slayerLabel,dragonPlayer.slayerBonus})
 						totalScore=totalScore+dragonPlayer.slayerBonus
 					end
-					UI.setAttribute("TezlaScoreHeadingText","text",apocalypseHere and "{en}Head Slayer score{ru}Счёт истребителя голов{zh-tw}龍首剋星分數{zh-cn}龙首克星分数{ko}용 머리 처치 점수{es}Puntuación de cazador de cabezas{fr}Score de tueur de têtes{pt-br}Pontuação de matador de cabeças{de}Kopfbezwinger-Wertung" or "{en}Dragon{ru}Дракон{zh-tw}巨龍{zh-cn}巨龙{ko}드래곤{es}Dragón{fr}Dragon{pt-br}Dragão{de}Drache")
+					local dragonHeading=apocalypseHere and "{en}Head Slayer score{ru}Счёт истребителя голов{zh-tw}龍首剋星分數{zh-cn}龙首克星分数{ko}용 머리 처치 점수{es}Puntuación de cazador de cabezas{fr}Score de tueur de têtes{pt-br}Pontuação de matador de cabeças{de}Kopfbezwinger-Wertung" or (furyDragon and "{en}Apocalypse Dragon{ru}Дракон Апокалипсиса{zh-tw}末日巨龍{zh-cn}末日巨龙{ko}아포칼립스 드래곤{es}Dragón del Apocalipsis{fr}Dragon de l'Apocalypse{pt-br}Dragão do Apocalipse{de}Apokalypse-Drache" or "{en}Dragon{ru}Дракон{zh-tw}巨龍{zh-cn}巨龙{ko}드래곤{es}Dragón{fr}Dragon{pt-br}Dragão{de}Drache")
+					UI.setAttribute("TezlaScoreHeadingText","text",dragonHeading)
 					updateScorePannel("Tezla",lineFeed,assembledText)
 				end
 
@@ -1051,8 +1054,8 @@ function displayScore(player, mouseButton, id)
 						pannel=temp
 					end
 
-					--Against the Dragon cooperative/solo goal scoring. Generic efficiency scoring above
-					--already handles early Rounds, Dummy cards left, and the uncalled End-of-Round +5.
+					--Dragon cooperative/solo goal scoring. Fury's generic efficiency scoring above already
+					--handles +30 per unused Round, +1 per Dummy card left, and uncalled End-of-Round +5.
 					if againstDragon then
 						assembledText="" lineFeed=0
 						if apocalypseHere and horsemenSummary.total>0 then
@@ -1071,7 +1074,8 @@ function displayScore(player, mouseButton, id)
 							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}All Dragon Heads defeated: +15{ru}Все головы Дракона побеждены: +15{zh-tw}所有巨龍頭部都已擊敗：+15{zh-cn}所有巨龙头部都已击败：+15{ko}모든 드래곤 머리 처치: +15{es}Todas las cabezas del Dragón derrotadas: +15{fr}Toutes les têtes du Dragon vaincues : +15{pt-br}Todas as cabeças do Dragão derrotadas: +15{de}Alle Drachenköpfe besiegt: +15"})
 							coopScore=coopScore+15
 						end
-						UI.setAttribute("TezlaScoreHeadingText","text",apocalypseHere and "{en}Apocalypse{ru}Апокалипсис{zh-tw}末日{zh-cn}末日{ko}아포칼립스{es}Apocalipsis{fr}Apocalypse{pt-br}Apocalipse{de}Apokalypse" or "{en}Dragon{ru}Дракон{zh-tw}巨龍{zh-cn}巨龙{ko}드래곤{es}Dragón{fr}Dragon{pt-br}Dragão{de}Drache")
+						local dragonGoalHeading=apocalypseHere and "{en}Apocalypse{ru}Апокалипсис{zh-tw}末日{zh-cn}末日{ko}아포칼립스{es}Apocalipsis{fr}Apocalypse{pt-br}Apocalipse{de}Apokalypse" or (furyDragon and "{en}Apocalypse Dragon{ru}Дракон Апокалипсиса{zh-tw}末日巨龍{zh-cn}末日巨龙{ko}아포칼립스 드래곤{es}Dragón del Apocalipsis{fr}Dragon de l'Apocalypse{pt-br}Dragão do Apocalipse{de}Apokalypse-Drache" or "{en}Dragon{ru}Дракон{zh-tw}巨龍{zh-cn}巨龙{ko}드래곤{es}Dragón{fr}Dragon{pt-br}Dragão{de}Drache")
+						UI.setAttribute("TezlaScoreHeadingText","text",dragonGoalHeading)
 						local temp=pannel
 						pannel=1
 						UI.setAttribute("Tezla1ScoreCell","columnSpan","4")
@@ -1206,8 +1210,10 @@ function displayScore(player, mouseButton, id)
 				else
 					UI.setAttribute("CoopScoreText", "text", joinLang({"{en}Final Fame: {ru}Итого Славы: {zh-tw}最终名望: {zh-cn}最终名望: {ko}최종 명성: {es}Fama Final: {fr}Gloire Finale: {pt-br}Fama Final: {de}Endgültiger Ruhm: ", coopScore}))
 				end
-				for count=1, #turnOrder-1 ,1 do
-					turnOrder[count].score.finalScore=coopScore
+				--The Dummy can be first or last in turnOrder depending on scenario Tactic rules.
+				--Assign the team score by identity instead of assuming the final array entry is always the Dummy.
+				for _,details in ipairs(turnOrder) do
+					if details.mage~=gStates.positionMageKnight[5] then details.score.finalScore=coopScore end
 				end
 			end
 		end
