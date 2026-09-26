@@ -914,7 +914,14 @@ deployFriendlyCityShields=function(cityGUID)
 				local mage=mageKnightsByName~=nil and mageKnightsByName[mageName] or nil
 				if mage~=nil and mageName~="nobody" then getObjectFromGUID(mage.shieldContainer).takeObject({position={tempPos[1]-2.5+seatPos,2,tempPos[3]}}) end
 			end
-			--Standard Dummies never place friendly-City shields. The Proxy is a map player and does.
+			--Standard Dummies normally never place friendly-City shields. Fury Solo is the printed exception:
+			--both the Hero and the standard Dummy mark each friendly defended City, with neither becoming Leader.
+			if gStates.gameScenario=="Fury of the Apocalypse Dragon" and gStates.playerCount==1 and proxyPlayerIsActive()~=true then
+				local dummyName=gStates.positionMageKnight[5]
+				local dummy=mageKnightsByName~=nil and mageKnightsByName[dummyName] or nil
+				local shields=dummy~=nil and dummy.shieldContainer~=nil and getObjectFromGUID(dummy.shieldContainer) or nil
+				if shields~=nil then shields.takeObject({position={tempPos[1]+2.5,2,tempPos[3]}}) end
+			end
 			if proxyPlayerIsActive()==true then proxyTakeShield({tempPos[1]+2.5,2,tempPos[3]},false) end
 		end, function() return cityObj==nil or cityObj.resting==true end)
 	end,10)
