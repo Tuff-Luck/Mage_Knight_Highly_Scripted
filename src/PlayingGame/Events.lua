@@ -43,6 +43,7 @@ function eventsOnLoadRawBase(saved_data)
 		turnOrder=loaded_data.turnOrder
 		gStates=loaded_data.gStates
 	end
+	resetGlobalUIVisibility()
 	--Refresh saved Puppets so presentation changes (decal/hover data) also apply to existing accepted Puppets.
 	safeWaitFrames("Events",function() for guid,record in pairs(gStates.puppetMasterPuppets or {}) do puppetMasterRefreshPresentation(getObjectFromGUID(guid),record) end end,2)
 	--Goblin Warrens enemies come from an Infinite Bag and therefore receive new GUIDs. Restore their
@@ -1601,12 +1602,19 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true or cardGUID==tacticCard[2] then refreshCardEffectAfterRotation(cardGUID) end
 end
 
+function __onPlayerConnect_raw(player)
+	--Give the joining client a couple of frames to receive the Global UI, then reassert the server runtime visibility.
+	safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
+end
+
 function __onPlayerChangeColor_raw(color)
 	if gStates.firstStarted==true then
 		refreshPlayerSeatColors()
 		outOfTurnUIStateKey=nil
 		mainUIUpdate("Player Changed Colour")
 	end
+	--Seating is the other point where TTS has historically lost XML visibility for a client.
+	safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
 end
 
 --Picking up or long-clicking Coral's whole Deed Deck is not a draw.
@@ -1645,7 +1653,7 @@ refreshLiftHeightWarning=function()
 	end
 	if lowDetected==true and liftHeightLowDetected~=true then
 		UI.setAttribute("NoticeText", "Text", "{en}'Lift Height' needs to be higher to avoid the scripting zones.          (Top Right Icon of a Man Lifting Weights){ru}Параметр 'Lift Height' нужно увеличить, чтобы не задевать скриптовые зоны.          (значок человека с гирей справа вверху){zh-tw}需要提高「Lift Height」，以避開腳本區域。          （右上角舉重人物圖示）{zh-cn}需要提高“Lift Height”，以避开脚本区域。          （右上角举重人物图标）{ko}스크립팅 영역을 피하려면 'Lift Height'를 더 높여야 합니다.          (오른쪽 위 역기를 드는 사람 아이콘){es}'Lift Height' debe estar más alto para evitar las zonas de script.          (Icono superior derecho de una persona levantando pesas){fr}'Lift Height' doit être plus élevé pour éviter les zones de script.          (Icône en haut à droite d’une personne soulevant des poids){pt-br}'Lift Height' precisa estar mais alto para evitar as zonas de script.          (Ícone no canto superior direito de uma pessoa levantando pesos){de}'Lift Height' muss höher eingestellt sein, damit die Skriptzonen nicht berührt werden.          (Symbol oben rechts mit einer gewichthebenden Person)")
-		UI.setAttribute("NoticeBoard", "visibility", "")
+		setUIVisibility("NoticeBoard")
 		UI.setAttribute("NoticeBoard", "height", "50")
 		UI.show("NoticeBoard")
 		liftHeightLowDetected=true

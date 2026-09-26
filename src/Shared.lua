@@ -61,6 +61,56 @@ function setUIButtonEnabled(id,enabled,imageId)
 	UI.setAttribute(imageId or id.."Image","image",enabled and UI_BUTTON_ACTIVE_IMAGE or UI_BUTTON_DEACTIVE_IMAGE)
 end
 
+--Centralize Global UI visibility so late-joining/seating players receive a fresh, consistent runtime state.
+--nil means public. A viewer table must contain at least one valid entry because an empty TTS visibility
+--string means "visible to everyone".
+local GLOBAL_UI_PUBLIC_VISIBILITY_IDS={
+	"MainGame","NoticeBoard","topButtons","Mage1LevelBoard","Mage2LevelBoard","Mage3LevelBoard","Mage4LevelBoard",
+	"LevelUpRules","PlayerSeating","ObjectRotating","ResourceTracker","Setup","GameReminder","EndReminder","welcome",
+	"CoopAssault","cameraControl","zigguratPyramidInteract",
+}
+local GLOBAL_UI_RUNTIME_VISIBILITY_IDS={
+	"ScoreBoard","ExtraTurnChoice","WallAssaultChoice","CoralDrawChoice","MineClaimChoice","cameraControlDetail",
+}
+
+function setUIVisibility(id,viewers)
+	local visibility=""
+	if viewers~=nil then
+		if type(viewers)=="table" then
+			local clean={}
+			local seen={}
+			for _,viewer in ipairs(viewers) do
+				if type(viewer)=="string" and viewer~="" and seen[viewer]~=true then
+					seen[viewer]=true
+					clean[#clean+1]=viewer
+				end
+			end
+			if #clean<1 then return false end
+			visibility=table.concat(clean,"|")
+		else
+			visibility=tostring(viewers)
+		end
+	end
+	UI.setAttribute(id,"visibility",visibility)
+	return true
+end
+
+--A load starts from source XML, so clear all non-admin runtime visibility filters before restoring UI state.
+function resetGlobalUIVisibility()
+	for _,id in ipairs(GLOBAL_UI_PUBLIC_VISIBILITY_IDS) do setUIVisibility(id) end
+	for _,id in ipairs(GLOBAL_UI_RUNTIME_VISIBILITY_IDS) do setUIVisibility(id) end
+end
+
+--Late joiners/color changes have historically been fragile in TTS XML visibility. Reassert public roots and
+--the current runtime filter for player-specific panels without changing who is allowed to see an open choice.
+function reassertGlobalUIVisibility()
+	for _,id in ipairs(GLOBAL_UI_PUBLIC_VISIBILITY_IDS) do setUIVisibility(id) end
+	for _,id in ipairs(GLOBAL_UI_RUNTIME_VISIBILITY_IDS) do
+		local visibility=UI.getAttribute(id,"visibility")
+		UI.setAttribute(id,"visibility",visibility or "")
+	end
+end
+
 --Used to join a table of strings with translation brackets
 local JOIN_LANG_ORDER={"en", "ru", "zh-tw", "zh-cn", "ko", "es", "fr", "pt-br", "de"}
 local JOIN_LANG_TAGS={"{en}", "{ru}", "{zh-tw}", "{zh-cn}", "{ko}", "{es}", "{fr}", "{pt-br}", "{de}"}

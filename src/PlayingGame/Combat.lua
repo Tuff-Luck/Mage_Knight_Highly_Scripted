@@ -1214,7 +1214,7 @@ end
 
 function showWallAssaultChoice(mode, id, viewerColor)
 	wallAssaultPending={mode=mode, id=id}
-	UI.setAttribute("WallAssaultChoice", "visibility", (viewerColor or positionToColor(gStates.turnNumber)).."|Black")
+	setUIVisibility("WallAssaultChoice",{viewerColor or positionToColor(gStates.turnNumber),"Black"})
 	if mode=="rampagerAttack" or mode=="manualMonster" then
 		UI.setAttribute("WallAssaultChoiceQuestion", "text", "{en}The attack approach is unclear.\nDid your attack cross a wall?{ru}Направление атаки неясно.\nВаша атака проходила через стену?{zh-tw}攻擊的方向不明確。\n你的攻擊是否穿過城牆？{zh-cn}攻击的方向不明确。\n你的攻击是否穿过城墙？{ko}공격 방향이 불분명합니다.\n공격 중 성벽을 넘었습니까?{es}La dirección del ataque no está clara.\n¿Tu ataque cruzó una muralla?{fr}La direction de l'attaque n'est pas claire.\nVotre attaque a-t-elle franchi un mur ?{pt-br}A direção do ataque não está clara.\nSeu ataque atravessou uma muralha?{de}Die Angriffsrichtung ist unklar.\nHat dein Angriff eine Mauer überquert?")
 	else

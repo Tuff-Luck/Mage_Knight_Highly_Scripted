@@ -1268,7 +1268,7 @@ local function mainUIRefreshNoticeBoard(context)
 	--Display Info Pannel if pursuing monsters have two options.
 	if gStates.pursuitTwoOption==true then
 		UI.setAttribute("NoticeText", "Text", "{en}Pursuing Monster(s) have two Options for the current Player to decide between.{ru}Игрок, чьего героя преследуют, решает, на какую из двух клеток переместится враг.{zh-tw}追击的怪物有两个选项供当前玩家选择. {zh-cn}追击的怪物有两个选项供当前玩家选择. {ko}현재 플레이어는 추적 중인 몬스터의 두 옵션 중 하나를 결정하세요.{es}Los Monstruos que persiguen tienen dos Opciones para que el Jugador actual decida entre ellas.{fr}Les Monstres Poursuivants ont deux Options entre lesquelles le Joueur actuel doit choisir.{pt-br}Monstro(s) Perseguidor(es) tem 2 opções para o jogador atual escolher.{de}Verfolgende Monster haben zwei Optionen, zwischen denen der aktuelle Spieler wählen kann.")
-		UI.setAttribute("NoticeBoard", "visibility", "")
+		setUIVisibility("NoticeBoard")
 		UI.setAttribute("NoticeBoard", "height", "50")
 		notice=true
 	end
@@ -1279,7 +1279,7 @@ local function mainUIRefreshNoticeBoard(context)
 		local site="{en}Village{ru}Деревней{zh-tw}\n要求2: 挨着刚翻开的村庄{zh-cn}\n要求2: 挨着刚翻开的村庄{ko}마을{es}una Aldea{fr}Village{pt-br}Vila{de}Dorf"
 		if pendingSecretName=="Secret Tomb" then site="{en}Monastery{ru}Монастырем{zh-tw}\n要求2: 挨着刚翻开的修道院{zh-cn}\n要求2: 挨着刚翻开的修道院{ko}수도원{es}un Monasterio{fr}Monastère{pt-br}Mosteiro{de}Kloster" end
 		UI.setAttribute("NoticeText", "Text", joinLang({"{en}Place a {ru}Поместите жетон {zh-tw}在地图上放置一个{zh-cn}在地图上放置一个{ko}{es}Coloca una ficha de {fr}Placer un{pt-br}Coloque uma ficha de {de}Platziere ein ", translateWord[pendingSecretName], "{en} token on an accessible non-swamp, non-feature space next to the {ru} на любую доступную клетку без болота на которой нет никаких мест, соседнюю с {zh-tw}\n要求1: 可进入、非沼泽、上面无地点{zh-cn}\n要求1: 可进入、非沼泽、上面无地点{ko}을 비어있고, 늪이 아니면서 다음의 장소 주변인 칸에 설치하세요: {es} en un espacio accesible que no sea un pantano, o no tenga ningún elemento adyacente a {fr} jeton sur un espace non marécageux accessible à côté du {pt-br} em um espaço acessível sem ser pântano ou que já tenha algo próximo a {de} plättchen auf ein zugängliches Nicht-Sumpf-, Nicht-Feature-Feld neben dem ", site}))
-		UI.setAttribute("NoticeBoard", "visibility", "")
+		setUIVisibility("NoticeBoard")
 		UI.setAttribute("NoticeBoard", "height", "50")
 		notice=true
 	end
@@ -1293,7 +1293,7 @@ local function mainUIRefreshNoticeBoard(context)
 		if gStates.gameScenario=="Mines Liberation" then endRoundText=joinLang({endRoundText, "{en}\nCollect 1 Crystal from your liberated Mine(s).{ru}Получите 1 кристалл из каждой освобожденной вами шахты.{zh-tw}从你解放的每个矿山获得 1 块魔晶。{zh-cn}从你解放的每个矿山获得 1 块魔晶。{ko}\n해방한 각 광산에서 수정 1개를 얻으세요.{es}\nRecoge 1 Cristal de cada Mina que hayas liberado.{fr}\nRécupérez 1 cristal de chaque Mine que vous avez libérée.{pt-br}\nColete 1 Cristal de cada Mina que você libertou.{de}\nSammle 1 Kristall aus jeder Mine, die du befreit hast."}) boxHeight=boxHeight+20 end
 		UI.setAttribute("NoticeBoard", "height", boxHeight)
 		UI.setAttribute("NoticeText", "Text", endRoundText)
-		UI.setAttribute("NoticeBoard", "visibility", "")
+		setUIVisibility("NoticeBoard")
 		notice=true
 	end
 
@@ -1306,7 +1306,7 @@ local function mainUIRefreshNoticeBoard(context)
 			UI.setAttribute("NoticeText", "Text", joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} needs to choose a tactic from the center{ru} должен(на) выбрать Тактику из центра{zh-tw}需要从中间选择一个战术{zh-cn}需要从中间选择一个战术{ko}의 전략 카드를 선택하세요.{es} necesita elegir una táctica del centro{fr} doit choisir une tactique du centre{pt-br} precisa escolher uma tática do centro.{de} muss eine Taktik aus dem Zentrum wählen"}))
 		end
 		setUIButtonEnabled("DrawOne",false)
-		UI.setAttribute("NoticeBoard", "visibility", "")
+		setUIVisibility("NoticeBoard")
 		UI.setAttribute("NoticeBoard", "height", "50")
 		notice=true
 	else --turn off help notes after first round of tactic selection
@@ -1929,12 +1929,7 @@ function cameraControl(player, mouseButton, id)
 				return
 			end
 
-			local visibility=""
-			for a=1, #cameraControlViewing, 1 do
-				visibility=visibility..cameraControlViewing[a]
-				if a<#cameraControlViewing then visibility=visibility.."|" end
-			end
-			UI.setAttribute("cameraControlDetail", "visibility", visibility)
+			setUIVisibility("cameraControlDetail",cameraControlViewing)
 			UI.setAttribute("cameraControlDetail", "active", "true")
 			UI.setAttribute("cameraControl", "height", tostring(height))
 			UI.setAttribute("cameraControlDetail", "height", tostring(height-35))

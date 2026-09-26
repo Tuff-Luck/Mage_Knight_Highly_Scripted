@@ -815,7 +815,7 @@ function refreshMineClaimPanel()
 		if color~=nil then UI.setAttribute("MineClaimButtonText"..i, "text", translateWord[color] or color) end
 	end
 	UI.setAttribute("MineClaimRow2", "active", #pending.colors>2 and "true" or "false")
-	UI.setAttribute("MineClaimChoice", "visibility", positionToColor(pending.playerIndex).."|Black")
+	setUIVisibility("MineClaimChoice",{positionToColor(pending.playerIndex),"Black"})
 	UI.show("MineClaimChoice")
 end
 

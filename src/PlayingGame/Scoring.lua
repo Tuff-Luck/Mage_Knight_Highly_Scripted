@@ -186,12 +186,7 @@ function closePanel(player, mouseButton, id)
 			UI.hide("ScoreBoard")
 			scoreViewing={}
 		else
-			local visibility=""
-			for a=1, #scoreViewing, 1 do
-				visibility=visibility..scoreViewing[a]
-				if a<#scoreViewing then visibility=visibility.."|" end
-			end
-			UI.setAttribute("ScoreBoard", "visibility", visibility)
+			setUIVisibility("ScoreBoard",scoreViewing)
 		end
 	end
 end
@@ -1218,16 +1213,13 @@ function displayScore(player, mouseButton, id)
 		end
 
 		--final scoreboard tweaks
-		UI.show("ScoreBoard")
-		local visibility=""
-		if player~="all" then
+		if player=="all" then
+			setUIVisibility("ScoreBoard")
+		else
 			scoreViewing[#scoreViewing+1]=player.color
-			for a=1, #scoreViewing, 1 do
-				visibility=visibility..scoreViewing[a]
-				if a<#scoreViewing then visibility=visibility.."|" end
-			end
+			setUIVisibility("ScoreBoard",scoreViewing)
 		end
-		UI.setAttribute("ScoreBoard", "visibility", visibility)
+		UI.show("ScoreBoard")
 		for a, b in pairs(heights) do
 			if b>24 and a~="Reward" then totalHeight=totalHeight+30 end
 		end

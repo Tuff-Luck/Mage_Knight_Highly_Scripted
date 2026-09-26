@@ -363,7 +363,7 @@ function extraTurnButton(player, mouseButton, id)
 	if mouseButton~="-1" or legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)~=true then return end
 	local tacticSixAvailable, timeBendingAvailable=extraTurnOptions(gStates.turnNumber)
 	if tacticSixAvailable and timeBendingAvailable then
-		UI.setAttribute("ExtraTurnChoice", "visibility", positionToColor(gStates.turnNumber).."|Black")
+		setUIVisibility("ExtraTurnChoice",{positionToColor(gStates.turnNumber),"Black"})
 		UI.show("ExtraTurnChoice")
 		return
 	end

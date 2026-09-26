@@ -99,6 +99,10 @@ function onObjectRotate(object, spin, flip, player_color, old_spin, old_flip)
 	return safeCallback("onObjectRotate", function() __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_flip) end)
 end
 
+function onPlayerConnect(player)
+	return safeCallback("onPlayerConnect", function() __onPlayerConnect_raw(player) end)
+end
+
 function onPlayerChangeColor(color)
 	return safeCallback("onPlayerChangeColor", function() __onPlayerChangeColor_raw(color) end)
 end

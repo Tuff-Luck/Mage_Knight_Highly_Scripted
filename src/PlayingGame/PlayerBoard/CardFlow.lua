@@ -464,7 +464,7 @@ function showCoralDrawChoice(playerIndex, drawCount, sourceId)
 	end
 	UI.setAttribute("CoralDrawChoiceQuestion", "text", joinLang({drawCount,"{en} card draw(s) remaining. Replace one draw with Quick Witted?{ru} доборов карт осталось. Заменить один добор на Quick Witted?{zh-tw} 次抽牌剩餘。用 Quick Witted 取代其中一次抽牌？{zh-cn} 次抽牌剩余。用 Quick Witted 替代其中一次抽牌？{ko}번의 카드 뽑기가 남았습니다. 한 번을 Quick Witted로 대체하시겠습니까?{es} robos de carta restantes. ¿Reemplazar un robo por Quick Witted?{fr} pioches restantes. Remplacer une pioche par Quick Witted ?{pt-br} compras de carta restantes. Substituir uma compra por Quick Witted?{de} Kartenziehungen verbleiben. Einen Zug durch Quick Witted ersetzen?"}))
 	UI.setAttribute("CoralDrawFullPanel", "active", drawCount>1 and "true" or "false")
-	UI.setAttribute("CoralDrawChoice", "visibility", positionToColor(playerIndex).."|Black")
+	setUIVisibility("CoralDrawChoice",{positionToColor(playerIndex),"Black"})
 	UI.show("CoralDrawChoice")
 end
 

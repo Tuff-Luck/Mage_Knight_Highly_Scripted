@@ -1,7 +1,7 @@
 <Defaults>
 	<Panel	color="rgb(0.7, 0.7, 0.7)" rectAlignment="MiddleCenter" active="true"
 			allowDragging="false" returnToOriginalPositionWhenReleased="true" raycastTarget="true"
-			hideAnimation="None" showAnimation="None" animationDuration="0.5" visibility=""
+			hideAnimation="None" showAnimation="None" animationDuration="0.5"
 			outline="rgb(0, 0, 0)" outlineSize="1 -1" offsetXY="0 0"/>
 	<Panel	class="Floating" allowDragging="true" returnToOriginalPositionWhenReleased="false"/>
 	<Panel	class="MainGamePanel" width="300" allowDragging="true" returnToOriginalPositionWhenReleased="false"/>
