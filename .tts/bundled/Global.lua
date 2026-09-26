@@ -243,6 +243,56 @@ local function fameRepClamp(value,minimum,maximum)
 	return value
 end
 
+--Reputation is a cache of the physical Reputation shield. Normally setup/load keeps both in sync,
+--but a missing cache must not make reward cleanup explode. Rebuild it from the table before doing
+--any arithmetic; only virtual players, which have no Reputation marker, legitimately fall back to 0.
+local function fameRepCurrentReputation(playerIndex)
+	local player=turnOrder[playerIndex]
+	if player==nil then return nil end
+	local cached=tonumber(player.reputation)
+	if cached~=nil then
+		player.reputation=cached
+		return cached
+	end
+
+	if player.reputationGUID==nil and player.mage==gStates.positionMageKnight[5] then
+		player.reputation=0
+		return 0
+	end
+
+	if refreshPlayerReputationFromShield~=nil and refreshPlayerReputationFromShield(playerIndex)==true then
+		cached=tonumber(player.reputation)
+		if cached~=nil then return cached end
+	end
+
+	local shield=player.reputationGUID~=nil and getObjectFromGUID(player.reputationGUID) or nil
+	if shield~=nil then
+		local position=shield.getPosition()
+		local nearestValue=nil
+		local nearestDistance=nil
+		for value,details in pairs(reputationTable or {}) do
+			local target=details.reputationPos
+			if type(value)=="number" and target~=nil then
+				local dx=position[1]-target[1]
+				local dz=position[3]-target[3]
+				local distance=(dx*dx)+(dz*dz)
+				if nearestDistance==nil or distance<nearestDistance then
+					nearestDistance=distance
+					nearestValue=value
+				end
+			end
+		end
+		--Starting shields are offset by player colour so they do not overlap. 3.5 units comfortably
+		--covers those legal offsets while refusing to invent Reputation for a marker moved off the track.
+		if nearestValue~=nil and nearestDistance<=12.25 then
+			player.reputation=nearestValue
+			return nearestValue
+		end
+	end
+
+	error("Fame/Reputation could not resolve the current Reputation for "..tostring(player.mage or playerIndex)..".",2)
+end
+
 --Pending Reputation is always an effective-track delta. Clamp after every externally visible
 --accounting pass instead of waiting until Rewards Claimed, so reaching +/-7 consumes the excess
 --immediately and a later opposite change still moves away from the edge correctly.
@@ -251,8 +301,9 @@ local function normalizePendingReputation(playerIndex, previousSiteLoss)
 	if player==nil then return end
 	player.repGain=player.repGain or 0
 	local raw=player.repGain
-	local minimum=-7-player.reputation
-	local maximum=7-player.reputation
+	local reputation=fameRepCurrentReputation(playerIndex)
+	local minimum=-7-reputation
+	local maximum=7-reputation
 	local clipped=fameRepClamp(raw,minimum,maximum)
 	local lowerOverflow=clipped-raw
 	player.repGain=clipped
@@ -330,7 +381,8 @@ local function syncPostCommitAdjustments(playerIndex)
 	local repDelta=repTotal-(committed.rep or 0)
 	if fameDelta==0 and repDelta==0 then return end
 
-	repDelta=fameRepClamp(repDelta,-7-player.reputation,7-player.reputation)
+	local reputation=fameRepCurrentReputation(playerIndex)
+	repDelta=fameRepClamp(repDelta,-7-reputation,7-reputation)
 	player.repGain=(committed.rep or 0)+repDelta
 	repTotal=player.repGain
 
@@ -445,6 +497,7 @@ end
 
 function fameReputationMainUIUpdate(...)
 	local previousSiteLoss=fameRepSnapshotSiteLoss()
+	if turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].reputation==nil then fameRepCurrentReputation(gStates.turnNumber) end
 	local result=uiMainUIUpdateBase(...)
 	if turnOrder[gStates.turnNumber]~=nil then normalizePendingReputation(gStates.turnNumber,previousSiteLoss) end
 	hiddenValleyNormalizeSiteLoss()
@@ -454,6 +507,7 @@ function fameReputationMainUIUpdate(...)
 end
 
 function fameReputationValueAdjust(player,mouseButton,id)
+	if turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].reputation==nil then fameRepCurrentReputation(gStates.turnNumber) end
 	local result=uiValueAdjustBase(player,mouseButton,id)
 	if turnOrder[gStates.turnNumber]~=nil then
 		normalizePendingReputation(gStates.turnNumber)
@@ -475,6 +529,7 @@ function fameReputationPlunderVillage(player,mouseButton,id)
 	if mouseButton=="-1" and legalPlayerCheck(player.color,tonumber(id:sub(8,8)))==true then
 		for a=1,#turnOrder do
 			if turnOrder[a].seatPos==tonumber(id:sub(8,8)) then
+				fameRepCurrentReputation(a)
 				broadcastToAll(joinLang({translateWord[turnOrder[a].mage],"{en} just Plundered their Village.{ru} разграбляет деревню.{zh-tw}刚刚劫掠了他们的村庄{zh-cn}刚刚劫掠了他们的村庄{ko}: 마을을 약탈했습니다.{es} acaba de saquear su aldea.{fr} vient de Piller leur Village.{pt-br} acabou de Saquear a Vila{de} hat gerade ihr Dorf geplündert. "}),positionToColor(a))
 				drawExactDeedCards(a,2,"DrawOne")
 				if turnOrder[a].reputation>-7 then
@@ -11521,7 +11576,8 @@ apocalypseDragonCheckAndResolveDefeat=function()
 		gStates.furyDragonAwaitingCombat=nil
 	end
 
-	broadcastToAll("{en}The Apocalypse Dragon has been defeated! All players have one final turn.{ru}The Apocalypse Dragon has been defeated! All players have one final turn.{zh-tw}The Apocalypse Dragon has been defeated! All players have one final turn.{zh-cn}The Apocalypse Dragon has been defeated! All players have one final turn.{ko}The Apocalypse Dragon has been defeated! All players have one final turn.{es}The Apocalypse Dragon has been defeated! All players have one final turn.{fr}The Apocalypse Dragon has been defeated! All players have one final turn.{pt-br}The Apocalypse Dragon has been defeated! All players have one final turn.{de}The Apocalypse Dragon has been defeated! All players have one final turn.",{1,1,0.5})
+	local defeatMessage="{en}The Apocalypse Dragon has been defeated! Each Mage Knight has one final turn; the Dummy player does not.{ru}Дракон Апокалипсиса побеждён! У каждого Рыцаря-мага остался один последний ход; у виртуального игрока его нет.{zh-tw}末日巨龍已被擊敗！每位魔法騎士各有最後一個回合；虛擬玩家沒有。{zh-cn}末日巨龙已被击败！每位魔法骑士各有最后一个回合；虚拟玩家没有。{ko}아포칼립스 드래곤을 쓰러뜨렸습니다! 각 마법 기사에게 마지막 한 턴이 남으며, 더미 플레이어에게는 없습니다.{es}¡El Dragón del Apocalipsis ha sido derrotado! Cada Caballero Mago tiene un último turno; el Jugador Virtual no.{fr}Le Dragon de l’Apocalypse a été vaincu ! Chaque Chevalier-Mage a un dernier tour ; le joueur fantôme n’en a pas.{pt-br}O Dragão do Apocalipse foi derrotado! Cada Cavaleiro-Mago tem um último turno; o Jogador Fictício não.{de}Der Apokalypse-Drache wurde besiegt! Jeder Magieritter hat noch einen letzten Zug; der Dummy-Spieler nicht."
+	broadcastToAll(defeatMessage,{1,1,0.5})
 	local coopDragon=gStates.coopAssaultPhase=="combat" and coopAssaultTargetType~=nil and coopAssaultTargetType()=="dragon"
 	if coopDragon==true then gStates.coopAssaultScenarioEndPending=true
 	elseif gStates.endGameAchieved=="false" then markScenarioEndAchieved() end
@@ -11529,6 +11585,13 @@ apocalypseDragonCheckAndResolveDefeat=function()
 end
 
 apocalypseDragonHeadStateChanged=function(headName)
+	if gStates~=nil and gStates.gameScenario=="Fury of the Apocalypse Dragon" and headName~="Control" and
+		tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or -1)==0 then
+		--Fury scoring remembers every coloured head defeated at least once, even if a later Dragon turn
+		--raises that head back to level 1. Victory still depends on the live levels below.
+		gStates.furyDragonEverDefeatedHeads=gStates.furyDragonEverDefeatedHeads or {}
+		gStates.furyDragonEverDefeatedHeads[headName]=true
+	end
 	if headName~="Control" then apocalypseDragonSyncControlLevel() end
 	if gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon") then apocalypseDragonCheckAndResolveDefeat() end
 end
@@ -11536,7 +11599,15 @@ end
 --Read the physical player Shields on the four large coloured head boards.
 --All Dragon scenarios use this shared scoring summary; a one-off getAllObjects() scan is acceptable.
 function apocalypseDragonCompetitiveScoreSummary()
-	local summary={defeatedHeads=apocalypseDragonDefeatedHeadCount(),byMage={},heads={}}
+	local defeatedHeads=apocalypseDragonDefeatedHeadCount()
+	if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
+		defeatedHeads=0
+		local everDefeated=gStates.furyDragonEverDefeatedHeads or {}
+		for _,headName in ipairs(apocalypseDragonColoredHeads) do
+			if everDefeated[headName]==true or tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or -1)==0 then defeatedHeads=defeatedHeads+1 end
+		end
+	end
+	local summary={defeatedHeads=defeatedHeads,byMage={},heads={}}
 	local mageToPlayer={}
 	for playerIndex,details in ipairs(turnOrder or {}) do
 		if details~=nil and details.mage~=gStates.positionMageKnight[5] then
@@ -11670,6 +11741,7 @@ function setupApocalypseDragonHeads()
 	gStates.apocalypseDragonHeadsSetupReady=false
 	gStates.apocalypseDragonHeadLevels={}
 	gStates.apocalypseDragonLevelMarkers={}
+	gStates.furyDragonEverDefeatedHeads=gStates.gameScenario=="Fury of the Apocalypse Dragon" and {} or nil
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 	if gStates.gameScenario=="Against the Dragon Blitz" then
 		local roundToken=getObjectFromGUID(apocalypseDragon.roundOrder)
@@ -21921,6 +21993,16 @@ function leaveAvatarSite(player)
 end
 
 -- Ziggurat and Pyramid interaction
+local function zigguratPyramidStartFloor3Fight(player,thirdFight)
+	gStates.zigguratPyramidFightFloor=3
+	UI.setAttribute("zigguratPyramidInteractFight3", "interactable", "false")
+	UI.setAttribute("zigguratPyramidInteractFight3Image", "color", "Yellow")
+	--Floor 3 is mandatory once the Hero ascends: the final trap and possessed enemy are dealt with
+	--together. Keep the same possessed+faction pairing used by the former separate Fight button.
+	drawMonster(monsterPiles.possessed, player, "zigguratPyramidInteractFight3", "Apoc")
+	drawMonster(thirdFight, player, "zigguratPyramidInteractFight3")
+end
+
 function zigguratPyramidInteract(_, mouseButton, id)
 	if mouseButton=="-1" then
 		local trapBag=monsterPiles.pyramidTrap
@@ -21967,11 +22049,14 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			UI.setAttribute("zigguratPyramidInteractClimb2", "interactable", "false")
 			UI.setAttribute("zigguratPyramidInteractFight2Image", "color", "Gray")
 			UI.setAttribute("zigguratPyramidInteractFight2", "interactable", "false")
-			UI.setAttribute("zigguratPyramidInteractFight3Image", "color", "White")
-			UI.setAttribute("zigguratPyramidInteractFight3", "interactable", "true")
 			gStates.monsterOffsetX=0
 			gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5
-			drawMonster(trapBag, turnOrder[gStates.turnNumber], id)
+			local currentPlayer=turnOrder[gStates.turnNumber]
+			--Floor 3 still deploys its trap in the normal combat-row slot. drawMonster() advances one
+			--slot after that trap; skip one more slot before placing the mandatory possessed enemy pair.
+			drawMonster(trapBag,currentPlayer,id)
+			gStates.monsterOffsetX=gStates.monsterOffsetX+2.5
+			zigguratPyramidStartFloor3Fight(currentPlayer,thirdFight)
 		end
 		if id=="zigguratPyramidInteractFight1" then
 			gStates.zigguratPyramidFightFloor=1
@@ -21996,11 +22081,7 @@ function zigguratPyramidInteract(_, mouseButton, id)
 			drawMonster(secondFight, turnOrder[gStates.turnNumber], id)
 		end
 		if id=="zigguratPyramidInteractFight3" then
-			gStates.zigguratPyramidFightFloor=3
-			UI.setAttribute("zigguratPyramidInteractFight3", "interactable", "false")
-			UI.setAttribute("zigguratPyramidInteractFight3Image", "color", "Yellow")
-			drawMonster(monsterPiles.possessed, turnOrder[gStates.turnNumber], id, "Apoc")
-			drawMonster(thirdFight, turnOrder[gStates.turnNumber], id)
+			zigguratPyramidStartFloor3Fight(turnOrder[gStates.turnNumber],thirdFight)
 		end
 	end
 end
@@ -29548,6 +29629,7 @@ apocalypseQuestRevealSetup=function(card)
 		return obj
 	end
 	local cardPos=card.getPosition()
+	local handler=apocalypseQuestHandler(card)
 
 	--Put this Quest's physical marker(s) face down on the card. Face-down Quest tokens are inert markers;
 	--players move them to the printed location, and only a face-up token can become a site/reward/effect.
@@ -29559,7 +29641,9 @@ apocalypseQuestRevealSetup=function(card)
 				local tokenGUID=questTokens[tokenIndex]
 				local fanOffset=(tokenIndex-1)*0.16
 				local layerOffset=(#questTokens-tokenIndex)*0.12
-				track(tokenBag.takeObject({guid=tokenGUID,position={cardPos[1],cardPos[2]+0.45+layerOffset,cardPos[3]-0.15+fanOffset},rotation={0,180,0},smooth=false}))
+				local tokenPos=handler~=nil and handler.revealTokenPosition~=nil and handler.revealTokenPosition(cardPos,tokenIndex,#questTokens) or
+					{cardPos[1],cardPos[2]+0.45+layerOffset,cardPos[3]-0.15+fanOffset}
+				track(tokenBag.takeObject({guid=tokenGUID,position=tokenPos,rotation={0,180,0},smooth=false}))
 			end
 		end
 	end
@@ -29567,7 +29651,6 @@ apocalypseQuestRevealSetup=function(card)
 	--Some Quests keep a small reusable reward supply on the card while they are active.
 	if quest.revealBag~=nil then
 		local revealGUID=quest.revealBag
-		local handler=apocalypseQuestHandler(card)
 		local revealPos=handler~=nil and handler.revealBagPosition~=nil and handler.revealBagPosition(cardPos) or {cardPos[1],cardPos[2]+0.62,cardPos[3]+1.35}
 		local liveBag=getObjectFromGUID(revealGUID)
 		if liveBag~=nil then
@@ -32253,6 +32336,17 @@ function QuestPrivate.apocalypseQuestPlayerHasOtherPersonalQuest(playerIndex, ex
 	end
 	return false
 end
+function QuestPrivate.apocalypseQuestPersonalBlockedByOther(card, playerIndex)
+	if card==nil or turnOrder[playerIndex]==nil then return false end
+	local quest=apocalypseQuestData[card.guid]
+	if quest==nil or quest.questType~="Personal" then return false end
+	--A Personal Quest owned by another Hero is unavailable for a different reason. The large restriction
+	--notice is specifically for an otherwise claimable/resumable Personal Quest blocked by this Hero
+	--already owning a different Personal Quest.
+	local ownerIndex=QuestPrivate.apocalypseQuestPersonalShieldOwner(card)
+	if ownerIndex~=nil then return false end
+	return QuestPrivate.apocalypseQuestPlayerHasOtherPersonalQuest(playerIndex,card.guid)==true
+end
 function QuestPrivate.apocalypseQuestPlayerBurnedMonastery(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil or gStates.monasteryBurnedBy==nil then return false end
@@ -33398,6 +33492,9 @@ end
 --Quest-specific lifecycle hooks. Generic Quest flow dispatches through these instead of
 --branching on card GUIDs; individual Quest helpers still own their detailed rules.
 local goblinWarrensHandler=apocalypseQuestRegisterHandler("72099f")
+--Goblin Warrens has a taller printed header area than the standard Quest marker position. Keep its
+--marker aligned to the card rather than a fixed table coordinate so offer-layout changes remain safe.
+goblinWarrensHandler.revealTokenPosition=function(cardPos) return {cardPos[1],cardPos[2]+0.45,cardPos[3]+0.77} end
 goblinWarrensHandler.revealBagPosition=function(cardPos) return {cardPos[1],cardPos[2]+0.42,cardPos[3]-1.18} end
 goblinWarrensHandler.filterOption=function(card,playerIndex,action,option,state,context)
 	if tostring(option.key)=="1" and action=="Progress" then context.include=apocalypseQuestGoblinAttemptReady(playerIndex) end
@@ -34153,6 +34250,10 @@ function apocalypseQuestUpdateProgressButtons(card)
 	if gStates.apocalypseQuestPendingChoice~=nil and gStates.apocalypseQuestPendingChoice[card.guid]~=nil then return end
 	if gStates.apocalypseQuestCombatChoice~=nil and gStates.apocalypseQuestCombatChoice[card.guid]~=nil then return end
 	local interfacePlayer=QuestPrivate.apocalypseQuestUnderSiegeInterfacePlayerIndex(card)
+	if QuestPrivate.apocalypseQuestPersonalBlockedByOther(card,interfacePlayer)==true then
+		QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
+		return
+	end
 	if #QuestPrivate.apocalypseQuestDirectChoices(card,interfacePlayer)>0 then QuestPrivate.apocalypseQuestInterfaceAdd(card,true) return end
 	local prefix="ApocalypseQuest"..card.guid
 	--A direct branch UI has no normal Fight/Progress/Complete controls to update. Once the branch
@@ -34294,6 +34395,10 @@ function QuestPrivate.apocalypseQuestInterfaceAdd(card, forceRebuild)
 	local function questAttackButton(active)
 		return {tag="Button", attributes={id=prefix.."Fight", onClick="global/apocalypseQuestCardAction", width=240, height=240, position="0 274 -12", rotation="0 0 180", scale=buttonScale, color="rgba(0,0,0,0.0)", active=active and "true" or "false", interactable=active and "true" or "false"}, children={{tag="Image", attributes={image="Attack Button"}}}}
 	end
+	local function questRestrictionButton(label)
+		--855x365 at this scale covers the same footprint as the normal 2x2 action-button block.
+		return {tag="Button", attributes={id=prefix.."PersonalRestriction", width=855, height=365, position="0 203.5 -12", rotation="0 0 180", scale=buttonScale, color="#b5b5b5", interactable="false"}, children={{tag="Text", attributes={id=prefix.."PersonalRestrictionText", font="Fonts/MKCardText", fontSize=72, color="#777777", alignment="MiddleCenter", text=label}}}}
+	end
 	if pending~=nil then
 		local spots={{50,180},{-50,180},{50,227},{-50,227}}
 		for index, key in ipairs(pending.keys or {}) do
@@ -34316,6 +34421,11 @@ function QuestPrivate.apocalypseQuestInterfaceAdd(card, forceRebuild)
 			end
 		end
 		if combatPending.mode~="QuestCrystalGold" and combatPending.mode~="GuardDutyChoice" then xml[#xml+1]=questButton("CombatCancel","Cancel",0,274,"#b5b5b5",true) end
+		card.UI.setXmlTable(xml)
+		return
+	end
+	if QuestPrivate.apocalypseQuestPersonalBlockedByOther(card,interfacePlayer)==true then
+		xml[#xml+1]=questRestrictionButton("One Personal\nquest at\na time")
 		card.UI.setXmlTable(xml)
 		return
 	end
@@ -44186,7 +44296,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="433"
+local automaticLuaErrorReporterVersion="434"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -45175,8 +45285,8 @@ scenarioList={
 		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4}},
 		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=12,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4}},
 		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=2,dTW=2,dummyTacticSelection="L",cityLevels={4,4}},
-		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={4,4}},
-		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=1,dTW=1,dummyTacticSelection="F",cityLevels={4,4}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,dummyTacticSelection="F",cityLevels={4,4}},
+		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,dummyTacticSelection="F",cityLevels={4,4}},
 		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=12,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,dummyTacticSelection="F",cityLevels={4,4}},
 		scenarioDetails={
 			megapolisPossible=false,blitzPossible="Off Only",ruleStates={},
