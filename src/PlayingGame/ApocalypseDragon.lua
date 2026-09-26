@@ -554,6 +554,23 @@ function apocalypseDragonCombatContainsPosition(pos)
 	return false
 end
 
+function apocalypseDragonCombatContainsPlayer(playerIndex)
+	if gStates==nil or gStates.apocalypseDragonDefeated==true or turnOrder[playerIndex]==nil then return false end
+	local pos=mageKnightAvatarPosition~=nil and mageKnightAvatarPosition(playerIndex) or nil
+	if pos~=nil and apocalypseDragonCombatContainsPosition(pos)==true then return true end
+	if gStates.gameScenario~="Fury of the Apocalypse Dragon" or gStates.furyDragonFlightTarget~=nil then return false end
+	local key=gStates.furyDragonCurrentHexKey
+	if key==nil then return false end
+	local tileGUID,bearing=tostring(key):match("^([^|]+)|(.+)$")
+	local details=tileGUID~=nil and terrainTiles[tileGUID] or nil
+	local feature=details~=nil and details.hexFeature~=nil and details.hexFeature[bearing] or ""
+	if tostring(feature):sub(1,4)~="city" then return false end
+	local color=tostring(feature):lower():match("^city%s+(%a+)")
+	local cityGUID=color~=nil and cityModel[color] or nil
+	local player=turnOrder[playerIndex]
+	return cityGUID~=nil and (player.avatarSwapCity==cityGUID or player.avatarLocation==feature)
+end
+
 --Fury fortifies the Dragon only when the Mage Knights attack it in its Lair, or in an undefended
 --City which has not been destroyed. When the Dragon attacks the Heroes, the underlying site is ignored.
 function apocalypseDragonFuryAttackFortified()
