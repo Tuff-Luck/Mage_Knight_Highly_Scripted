@@ -3255,6 +3255,17 @@ function QuestPrivate.apocalypseQuestPlayerHasOtherPersonalQuest(playerIndex, ex
 	end
 	return false
 end
+function QuestPrivate.apocalypseQuestPersonalBlockedByOther(card, playerIndex)
+	if card==nil or turnOrder[playerIndex]==nil then return false end
+	local quest=apocalypseQuestData[card.guid]
+	if quest==nil or quest.questType~="Personal" then return false end
+	--A Personal Quest owned by another Hero is unavailable for a different reason. The large restriction
+	--notice is specifically for an otherwise claimable/resumable Personal Quest blocked by this Hero
+	--already owning a different Personal Quest.
+	local ownerIndex=QuestPrivate.apocalypseQuestPersonalShieldOwner(card)
+	if ownerIndex~=nil then return false end
+	return QuestPrivate.apocalypseQuestPlayerHasOtherPersonalQuest(playerIndex,card.guid)==true
+end
 function QuestPrivate.apocalypseQuestPlayerBurnedMonastery(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil or gStates.monasteryBurnedBy==nil then return false end
@@ -5155,6 +5166,10 @@ function apocalypseQuestUpdateProgressButtons(card)
 	if gStates.apocalypseQuestPendingChoice~=nil and gStates.apocalypseQuestPendingChoice[card.guid]~=nil then return end
 	if gStates.apocalypseQuestCombatChoice~=nil and gStates.apocalypseQuestCombatChoice[card.guid]~=nil then return end
 	local interfacePlayer=QuestPrivate.apocalypseQuestUnderSiegeInterfacePlayerIndex(card)
+	if QuestPrivate.apocalypseQuestPersonalBlockedByOther(card,interfacePlayer)==true then
+		QuestPrivate.apocalypseQuestInterfaceAdd(card,true)
+		return
+	end
 	if #QuestPrivate.apocalypseQuestDirectChoices(card,interfacePlayer)>0 then QuestPrivate.apocalypseQuestInterfaceAdd(card,true) return end
 	local prefix="ApocalypseQuest"..card.guid
 	--A direct branch UI has no normal Fight/Progress/Complete controls to update. Once the branch
@@ -5296,6 +5311,10 @@ function QuestPrivate.apocalypseQuestInterfaceAdd(card, forceRebuild)
 	local function questAttackButton(active)
 		return {tag="Button", attributes={id=prefix.."Fight", onClick="global/apocalypseQuestCardAction", width=240, height=240, position="0 274 -12", rotation="0 0 180", scale=buttonScale, color="rgba(0,0,0,0.0)", active=active and "true" or "false", interactable=active and "true" or "false"}, children={{tag="Image", attributes={image="Attack Button"}}}}
 	end
+	local function questRestrictionButton(label)
+		--855x365 at this scale covers the same footprint as the normal 2x2 action-button block.
+		return {tag="Button", attributes={id=prefix.."PersonalRestriction", width=855, height=365, position="0 203.5 -12", rotation="0 0 180", scale=buttonScale, color="#b5b5b5", interactable="false"}, children={{tag="Text", attributes={id=prefix.."PersonalRestrictionText", font="Fonts/MKCardText", fontSize=72, color="#777777", alignment="MiddleCenter", text=label}}}}
+	end
 	if pending~=nil then
 		local spots={{50,180},{-50,180},{50,227},{-50,227}}
 		for index, key in ipairs(pending.keys or {}) do
@@ -5318,6 +5337,11 @@ function QuestPrivate.apocalypseQuestInterfaceAdd(card, forceRebuild)
 			end
 		end
 		if combatPending.mode~="QuestCrystalGold" and combatPending.mode~="GuardDutyChoice" then xml[#xml+1]=questButton("CombatCancel","Cancel",0,274,"#b5b5b5",true) end
+		card.UI.setXmlTable(xml)
+		return
+	end
+	if QuestPrivate.apocalypseQuestPersonalBlockedByOther(card,interfacePlayer)==true then
+		xml[#xml+1]=questRestrictionButton("One Personal\nquest at\na time")
 		card.UI.setXmlTable(xml)
 		return
 	end
