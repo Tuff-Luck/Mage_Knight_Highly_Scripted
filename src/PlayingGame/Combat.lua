@@ -1643,9 +1643,8 @@ function rewardRetreatRequired(playerIndex,avatarLocation,nearbyOwnShield)
 		end
 	end
 	local dragonRetreatRequired=false
-	if gStates.apocalypseDragonDefeated~=true and apocalypseDragonCombatContainsPosition~=nil then
-		local dragonAvatarPos=mageKnightAvatarPosition(playerIndex)
-		dragonRetreatRequired=dragonAvatarPos~=nil and apocalypseDragonCombatContainsPosition(dragonAvatarPos)==true
+	if gStates.apocalypseDragonDefeated~=true and apocalypseDragonCombatContainsPlayer~=nil then
+		dragonRetreatRequired=apocalypseDragonCombatContainsPlayer(playerIndex)==true
 	end
 	return dragonRetreatRequired==true or
 		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false") or
