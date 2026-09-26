@@ -1087,7 +1087,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						end
 					end
 					if turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and avatarChangedHex==true and
-						apocalypseDragonLairContainsPosition~=nil and apocalypseDragonLairContainsPosition(dropped_object.getPosition())==true and
+						apocalypseDragonCombatContainsPosition~=nil and apocalypseDragonCombatContainsPosition(dropped_object.getPosition())==true and
 						gStates.apocalypseDragonDefeated~=true then
 						attackedLocation=nil
 						local dragonApproach=nil
