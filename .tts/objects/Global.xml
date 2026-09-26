@@ -17,7 +17,7 @@
 	<Text 	class="Title18" fontSize="18" font="Fonts/MKCardTittle" resizeTextForBestFit="true" resizeTextMaxSize="18"/>
 	<Text 	class="Text26" fontSize="26" resizeTextForBestFit="true" resizeTextMaxSize="26"/>
 	<Text 	class="Text24" fontSize="24" resizeTextForBestFit="true" resizeTextMaxSize="24"/>
-	<text	class="Text20" fontSize="20" resizeTextForBestFit="true" resizeTextMaxSize="20"/>	
+	<Text 	class="Text20" fontSize="20" resizeTextForBestFit="true" resizeTextMaxSize="20"/>	
 	<Text 	class="Text18" fontSize="18" resizeTextForBestFit="true" resizeTextMaxSize="18"/>
 	<Text 	class="Text17" fontSize="17" resizeTextForBestFit="true" resizeTextMaxSize="17"/>
 	<Text 	class="Text16" fontSize="16" resizeTextForBestFit="true" resizeTextMaxSize="16"/>

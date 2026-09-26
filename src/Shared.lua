@@ -156,29 +156,89 @@ function joinLang(full_string)
 end
 
 --Reapply translated static UI text once at load so TTS resolves language tags.
---Use TTS's parsed XML table instead of pattern-matching the whole raw XML string.
---Only Text/Toggle contents need this workaround. TTS does not resolve translation tags in tooltip
---attributes, so tooltips stay plain English and are intentionally not reapplied here.
+--Do not use UI.getXmlTable() here. The parsed tree includes <Defaults>, and walking that complete
+--runtime tree is a poor fit for late-joining clients. Read the raw XML instead and deliberately
+--start after </Defaults> so only real rendered controls are ever considered.
+--Tooltips stay plain English because TTS does not resolve translation tags in tooltip attributes.
+local function decodeXmlUiText(value)
+	return value
+		:gsub("&lt;", "<")
+		:gsub("&gt;", ">")
+		:gsub("&#60;", "<")
+		:gsub("&#62;", ">")
+		:gsub("&#10;", "\n")
+		:gsub("&#13;", "\r")
+		:gsub("&quot;", '"')
+		:gsub("&#34;", '"')
+		:gsub("&apos;", "'")
+		:gsub("&#39;", "'")
+		:gsub("&amp;", "&")
+end
+
+local function xmlOpeningTagEnd(xml,startPos)
+	local quote=nil
+	for i=startPos, #xml do
+		local ch=xml:sub(i,i)
+		if quote~=nil then
+			if ch==quote then quote=nil end
+		elseif ch=='"' or ch=="'" then
+			quote=ch
+		elseif ch==">" then
+			return i
+		end
+	end
+	return nil
+end
+
+local function xmlAttribute(openingTag,name)
+	local value=openingTag:match(name..'%s*=%s*"([^"]*)"')
+	if value==nil then value=openingTag:match(name.."%s*=%s*'([^']*)'") end
+	return value
+end
+
 function reapplyXmlText()
-	local xml=UI.getXmlTable() or {}
+	local xml=UI.getXml()
+	if type(xml)~="string" or xml=="" then return 0 end
+	local defaultsEnd=xml:find("</Defaults>",1,true)
+	local scanStart=defaultsEnd~=nil and defaultsEnd+#"</Defaults>" or 1
 	local reapplied=0
-	local function visit(node)
-		if type(node)~="table" then return end
-		local attributes=node.attributes or {}
-		local id=attributes.id
-		if id~=nil then
-			if node.tag=="Text" or node.tag=="Toggle" then
-				local value=attributes.text
-				if value==nil then value=node.value end
-				if type(value)=="string" and value:find("{en}",1,true)~=nil then
-					UI.setAttribute(id,"text",value)
+
+	local function reapplyTag(tag)
+		local opening="<"..tag
+		local closing="</"..tag..">"
+		local pos=scanStart
+		while true do
+			local startPos=xml:find(opening,pos,true)
+			if startPos==nil then break end
+			local nameEnd=startPos+#opening
+			local following=xml:sub(nameEnd,nameEnd)
+			if following~=" " and following~="\t" and following~="\r" and following~="\n" and following~=">" and following~="/" then
+				pos=nameEnd
+			else
+				local openEnd=xmlOpeningTagEnd(xml,nameEnd)
+				if openEnd==nil then break end
+				local openingTag=xml:sub(startPos,openEnd)
+				local id=xmlAttribute(openingTag,"id")
+				local value=xmlAttribute(openingTag,"text")
+				local selfClosing=openingTag:match("/%s*>$")~=nil
+				local nextPos=openEnd+1
+				if selfClosing~=true then
+					local closeStart,closeEnd=xml:find(closing,openEnd+1,true)
+					if closeStart==nil then break end
+					if value==nil then value=xml:sub(openEnd+1,closeStart-1) end
+					nextPos=closeEnd+1
+				end
+				if id~=nil and type(value)=="string" and value:find("{en}",1,true)~=nil then
+					UI.setAttribute(id,"text",decodeXmlUiText(value))
 					reapplied=reapplied+1
 				end
+				pos=nextPos
 			end
 		end
-		for _,child in ipairs(node.children or {}) do visit(child) end
 	end
-	for _,node in ipairs(xml) do visit(node) end
+
+	reapplyTag("Text")
+	reapplyTag("Toggle")
 	return reapplied
 end
 
