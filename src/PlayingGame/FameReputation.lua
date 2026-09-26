@@ -16,6 +16,56 @@ local function fameRepClamp(value,minimum,maximum)
 	return value
 end
 
+--Reputation is a cache of the physical Reputation shield. Normally setup/load keeps both in sync,
+--but a missing cache must not make reward cleanup explode. Rebuild it from the table before doing
+--any arithmetic; only virtual players, which have no Reputation marker, legitimately fall back to 0.
+local function fameRepCurrentReputation(playerIndex)
+	local player=turnOrder[playerIndex]
+	if player==nil then return nil end
+	local cached=tonumber(player.reputation)
+	if cached~=nil then
+		player.reputation=cached
+		return cached
+	end
+
+	if player.reputationGUID==nil and player.mage==gStates.positionMageKnight[5] then
+		player.reputation=0
+		return 0
+	end
+
+	if refreshPlayerReputationFromShield~=nil and refreshPlayerReputationFromShield(playerIndex)==true then
+		cached=tonumber(player.reputation)
+		if cached~=nil then return cached end
+	end
+
+	local shield=player.reputationGUID~=nil and getObjectFromGUID(player.reputationGUID) or nil
+	if shield~=nil then
+		local position=shield.getPosition()
+		local nearestValue=nil
+		local nearestDistance=nil
+		for value,details in pairs(reputationTable or {}) do
+			local target=details.reputationPos
+			if type(value)=="number" and target~=nil then
+				local dx=position[1]-target[1]
+				local dz=position[3]-target[3]
+				local distance=(dx*dx)+(dz*dz)
+				if nearestDistance==nil or distance<nearestDistance then
+					nearestDistance=distance
+					nearestValue=value
+				end
+			end
+		end
+		--Starting shields are offset by player colour so they do not overlap. 3.5 units comfortably
+		--covers those legal offsets while refusing to invent Reputation for a marker moved off the track.
+		if nearestValue~=nil and nearestDistance<=12.25 then
+			player.reputation=nearestValue
+			return nearestValue
+		end
+	end
+
+	error("Fame/Reputation could not resolve the current Reputation for "..tostring(player.mage or playerIndex)..".",2)
+end
+
 --Pending Reputation is always an effective-track delta. Clamp after every externally visible
 --accounting pass instead of waiting until Rewards Claimed, so reaching +/-7 consumes the excess
 --immediately and a later opposite change still moves away from the edge correctly.
@@ -24,8 +74,9 @@ local function normalizePendingReputation(playerIndex, previousSiteLoss)
 	if player==nil then return end
 	player.repGain=player.repGain or 0
 	local raw=player.repGain
-	local minimum=-7-player.reputation
-	local maximum=7-player.reputation
+	local reputation=fameRepCurrentReputation(playerIndex)
+	local minimum=-7-reputation
+	local maximum=7-reputation
 	local clipped=fameRepClamp(raw,minimum,maximum)
 	local lowerOverflow=clipped-raw
 	player.repGain=clipped
@@ -103,7 +154,8 @@ local function syncPostCommitAdjustments(playerIndex)
 	local repDelta=repTotal-(committed.rep or 0)
 	if fameDelta==0 and repDelta==0 then return end
 
-	repDelta=fameRepClamp(repDelta,-7-player.reputation,7-player.reputation)
+	local reputation=fameRepCurrentReputation(playerIndex)
+	repDelta=fameRepClamp(repDelta,-7-reputation,7-reputation)
 	player.repGain=(committed.rep or 0)+repDelta
 	repTotal=player.repGain
 
@@ -218,6 +270,7 @@ end
 
 function fameReputationMainUIUpdate(...)
 	local previousSiteLoss=fameRepSnapshotSiteLoss()
+	if turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].reputation==nil then fameRepCurrentReputation(gStates.turnNumber) end
 	local result=uiMainUIUpdateBase(...)
 	if turnOrder[gStates.turnNumber]~=nil then normalizePendingReputation(gStates.turnNumber,previousSiteLoss) end
 	hiddenValleyNormalizeSiteLoss()
@@ -227,6 +280,7 @@ function fameReputationMainUIUpdate(...)
 end
 
 function fameReputationValueAdjust(player,mouseButton,id)
+	if turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].reputation==nil then fameRepCurrentReputation(gStates.turnNumber) end
 	local result=uiValueAdjustBase(player,mouseButton,id)
 	if turnOrder[gStates.turnNumber]~=nil then
 		normalizePendingReputation(gStates.turnNumber)
@@ -248,6 +302,7 @@ function fameReputationPlunderVillage(player,mouseButton,id)
 	if mouseButton=="-1" and legalPlayerCheck(player.color,tonumber(id:sub(8,8)))==true then
 		for a=1,#turnOrder do
 			if turnOrder[a].seatPos==tonumber(id:sub(8,8)) then
+				fameRepCurrentReputation(a)
 				broadcastToAll(joinLang({translateWord[turnOrder[a].mage],"{en} just Plundered their Village.{ru} разграбляет деревню.{zh-tw}刚刚劫掠了他们的村庄{zh-cn}刚刚劫掠了他们的村庄{ko}: 마을을 약탈했습니다.{es} acaba de saquear su aldea.{fr} vient de Piller leur Village.{pt-br} acabou de Saquear a Vila{de} hat gerade ihr Dorf geplündert. "}),positionToColor(a))
 				drawExactDeedCards(a,2,"DrawOne")
 				if turnOrder[a].reputation>-7 then
