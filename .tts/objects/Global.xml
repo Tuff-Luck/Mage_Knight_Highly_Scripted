@@ -1763,19 +1763,6 @@ Einheiten</Text></Cell>
 						<Text id="dummyMKSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}nobody{ru}никто{zh-cn}关闭的{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand</Text>
 					</Button>
 				</Row>
-				<Row id="ApocalypseDragonLevelSelectionRow" active="false" preferredHeight="30">
-					<Text alignment="MiddleRight" offsetXY="-140 0" id="ApocalypseDragonLevelText">{en}Apocalypse Dragon Level -{ru}Уровень Дракона Апокалипсиса -{zh-tw}末日巨龍等級：{zh-cn}末日巨龙等级：{ko}아포칼립스 드래곤 레벨 -{es}Nivel del Dragón del Apocalipsis -{fr}Niveau du Dragon de l'Apocalypse -{pt-br}Nível do Dragão do Apocalipse -{de}Apokalypse-Drachen-Level -</Text>
-					<Image image="Sliced Button/Button New Active" type="Sliced" rectAlignment="MiddleRight" width="130" height="30"/>
-					<Button id="ApocalypseDragonLevelDown" onClick="apocalypseDragonLevelSelection" offsetXY="-100 0" rectAlignment="MiddleRight" width="30" height="30">
-						<Image image="Sliced Button/Button New Active" type="Sliced"/>
-						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-					</Button>
-					<Text id="ApocalypseDragonLevelSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="-30 0" rectAlignment="MiddleRight" width="70">1</Text>
-					<Button id="ApocalypseDragonLevelUp" onClick="apocalypseDragonLevelSelection" offsetXY="0 0" rectAlignment="MiddleRight" width="30" height="30">
-						<Image image="Sliced Button/Button New Active" type="Sliced"/>
-						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-					</Button>
-				</Row>
 				<Row id="VolkareLevelSelectionRow" active="false" preferredHeight="30">
 					<Text alignment="MiddleRight" offsetXY="-140 0" id="VolkareCombatText">{en}Volkare's Combat Level -{ru}Уровень битвы Волкара -{zh-tw}沃卡里的戰鬥等級：{zh-cn}沃卡里的战斗等级： {ko}볼케어 전투 레벨 -{es}Nivel de Combate de Volkare -{fr}Niveau de Combat de Volkare -{pt-br}Nível de combate de Volkare -{de}Volkare´s Kampf Level -</Text>
 					<Button id="VolkareLevelSelection" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="130" height="30" onMouseDown="" onMouseUp="">
@@ -1984,7 +1971,7 @@ Einheiten</Text></Cell>
 	</Panel>
 	<Panel id="ScenarioDetails"	active="false" outlineSize="0 0" rectAlignment="MiddleRight" width="610" height="700">
 		<Image image="Sliced Button/Button New Active" type="Sliced"/>
-		<Panel active="true" outlineSize="0 0" rectAlignment="UpperCenter" width="610" height="478" color="clear">
+		<Panel id="ScenarioSummaryPanel" active="true" outlineSize="0 0" rectAlignment="UpperCenter" width="610" height="478" color="clear">
 			<VerticalLayout childForceExpandHeight="False">
 				<TableLayout preferredHeight="30">
 					<Image image="Sliced Button/Title Border Tan" type="Sliced" width="610" height="30" rectAlignment="UpperCenter"/>
@@ -2011,8 +1998,8 @@ Einheiten</Text></Cell>
 				</TableLayout>				
 			</VerticalLayout>
 		</Panel>
-		<Panel active="true" outlineSize="0 0" rectAlignment="LowerCenter" width="610" height="210">
-			<TableLayout preferredHeight="208">
+		<Panel id="ScenarioTweaksPanel" active="true" outlineSize="0 0" rectAlignment="LowerCenter" width="610" height="210">
+			<TableLayout id="ScenarioTweaksTable" preferredHeight="208">
 				<Row preferredHeight="30" dontUseTableRowBackground="true" >
 					<Image image="Sliced Button/Title Border Tan" type="Sliced" width="610" height="30"/>
 					<VerticalLayout padding="6 6 5 5"><Text id="scenarioTweaksText" class="Title22">{en}4. Optional Scenario Tweaks{ru}4. Дополнительные настройки сценария{zh-tw}4. 劇本設定調整{zh-cn}4. 剧本设置调整{ko}4. 시나리오 조정{es}4. Ajustes Opcionales del Escenario{fr}4. Ajustements Facultatifs du Scénario{pt-br}4. Ajustes Opcionais do Cenário{de}4. Optionale Änderungen am Szenario</Text></VerticalLayout>
@@ -2168,6 +2155,39 @@ Einheiten</Text></Cell>
 				<Row preferredHeight="30" id="CityDescriptionRow" active="false">
 					<Image image="Sliced Button/Button New Deactive" type="Sliced" width="610"/>
 					<VerticalLayout padding="6 6 6 6"><Text id="CityNote" class="Text18" offsetXY="0 1">City Level(s) - No attacking</Text></VerticalLayout>
+				</Row>
+				<Row preferredHeight="30" id="ScenarioEnemyLevelsRow" active="false">
+					<TableLayout id="ScenarioEnemyLevelsChange" columnWidths="0 0" cellBackgroundColor="Clear">
+						<Image image="Sliced Button/Button New Deactive" type="Sliced" width="610" height="30"/>
+						<Row>
+							<Cell id="ApocalypseDragonLevelCell" active="false">
+								<Row>
+									<Button id="ApocalypseDragonLevelDown" class="ScenarioTweak" onClick="apocalypseDragonLevelSelection" rectAlignment="MiddleLeft" width="28" height="30">
+										<Image id="ApocalypseDragonLevelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+									</Button>
+									<VerticalLayout padding="6 6 6 6"><Text id="ApocalypseDragonLevelSelectionText" class="Text18" offsetXY="0 1">Dragon, Level 1</Text></VerticalLayout>
+									<Button id="ApocalypseDragonLevelUp" class="ScenarioTweak" onClick="apocalypseDragonLevelSelection" rectAlignment="MiddleRight" width="28" height="30">
+										<Image id="ApocalypseDragonLevelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+									</Button>
+								</Row>
+							</Cell>
+							<Cell id="HorsemenLevelCell" active="false">
+								<Row>
+									<Button id="HorsemenLevelDown" class="ScenarioTweak" onClick="horsemanLevelSelection" rectAlignment="MiddleLeft" width="28" height="30">
+										<Image id="HorsemenLevelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+									</Button>
+									<VerticalLayout padding="6 6 6 6"><Text id="HorsemenLevelSelectionText" class="Text18" offsetXY="0 1">Horsemen, Level 1</Text></VerticalLayout>
+									<Button id="HorsemenLevelUp" class="ScenarioTweak" onClick="horsemanLevelSelection" rectAlignment="MiddleRight" width="28" height="30">
+										<Image id="HorsemenLevelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+										<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+									</Button>
+								</Row>
+							</Cell>
+						</Row>
+					</TableLayout>
 				</Row>
 			</TableLayout>
 		</Panel>

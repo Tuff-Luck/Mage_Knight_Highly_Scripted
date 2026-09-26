@@ -1537,10 +1537,24 @@ function againstHorsemenBeginEndRoundMovement()
 	return true
 end
 
+function horsemanStartingLevel()
+	if gStates==nil then return nil end
+	if gStates.gameScenario~="Against the Horsemen Blitz" and gStates.gameScenario~="Apocalypse is Here" then return nil end
+	local override=tonumber(gStates.horsemanStartingLevelOverride)
+	if override~=nil and override>=1 and override<=6 then return math.floor(override) end
+	if gStates.gameScenario=="Against the Horsemen Blitz" then
+		if gStates.playerCount==1 then return 2 end
+		if gStates.coop==1 then return math.min(6,gStates.playerCount+2) end
+		return math.max(1,math.min(6,gStates.playerCount))
+	end
+	if gStates.playerCount==1 then return 4 end
+	if gStates.coop==1 then return 6 end
+	return 5
+end
+
 againstHorsemenStartingLevel=function()
-	if gStates.playerCount==1 then return 2 end
-	if gStates.coop==1 then return math.min(6,gStates.playerCount+2) end
-	return math.max(1,math.min(6,gStates.playerCount))
+	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return nil end
+	return horsemanStartingLevel()
 end
 
 function againstHorsemenSetupTokens(coreTileGUIDs, coreTilePositions)
@@ -1603,9 +1617,7 @@ end
 
 apocalypseIsHereHorsemanStartingLevel=function()
 	if apocalypseIsHereActive()~=true then return nil end
-	if gStates.playerCount==1 then return 4 end
-	if gStates.coop==1 then return 6 end
-	return 5
+	return horsemanStartingLevel()
 end
 
 function apocalypseIsHerePositionRoundOrderToken()

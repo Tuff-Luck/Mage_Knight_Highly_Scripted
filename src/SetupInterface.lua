@@ -278,36 +278,54 @@ local function setupUsesApocalypseDragonLevel()
 		gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon")
 end
 
-local function refreshApocalypseDragonLevelSetup()
-	local active=setupUsesApocalypseDragonLevel()
-	UI.setAttribute("ApocalypseDragonLevelSelectionRow","active",active and "true" or "false")
-	if active then
+local function setupUsesHorsemanLevel()
+	return gStates~=nil and (gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Apocalypse is Here")
+end
+
+local function refreshScenarioEnemyLevelTweaks()
+	local showDragon=setupUsesApocalypseDragonLevel()
+	local showHorsemen=setupUsesHorsemanLevel()
+	local showAny=showDragon or showHorsemen
+	UI.setAttribute("ScenarioEnemyLevelsRow","active",showAny and "true" or "false")
+	UI.setAttribute("ApocalypseDragonLevelCell","active",showDragon and "true" or "false")
+	UI.setAttribute("HorsemenLevelCell","active",showHorsemen and "true" or "false")
+	if showDragon then
 		local level=type(apocalypseDragonStartingLevel)=="function" and apocalypseDragonStartingLevel() or 1
-		UI.setAttribute("ApocalypseDragonLevelSelectionText","text",tostring(level or 1))
+		UI.setAttribute("ApocalypseDragonLevelSelectionText","text",joinLang({"{en}Dragon, Level {ru}Дракон, ур. {zh-tw}巨龍，等級 {zh-cn}巨龙，等级 {ko}드래곤, 레벨 {es}Dragón, Nivel {fr}Dragon, Niveau {pt-br}Dragão, Nível {de}Drache, Level ",tostring(level or 1)}))
 	end
-	return active
+	if showHorsemen then
+		local level=type(horsemanStartingLevel)=="function" and horsemanStartingLevel() or 1
+		UI.setAttribute("HorsemenLevelSelectionText","text",joinLang({"{en}Horsemen, Level {ru}Всадники, ур. {zh-tw}騎士，等級 {zh-cn}骑士，等级 {ko}기수, 레벨 {es}Jinetes, Nivel {fr}Cavaliers, Niveau {pt-br}Cavaleiros, Nível {de}Reiter, Level ",tostring(level or 1)}))
+	end
+	UI.setAttribute("ScenarioEnemyLevelsChange","columnWidths",showDragon and showHorsemen and "0 0" or "0")
+	UI.setAttribute("ScenarioSummaryPanel","height",showAny and "448" or "478")
+	UI.setAttribute("ScenarioTweaksPanel","height",showAny and "240" or "210")
+	UI.setAttribute("ScenarioTweaksTable","preferredHeight",showAny and "238" or "208")
 end
 
 local function renderDummySetupSection()
 	local volkareOn=gStates.positionMageKnight~=nil and gStates.positionMageKnight[5]=="Volkare"
-	local showRace=volkareOn and gStates.gameScenario~="The War of Four"
-	local dragonLevelOn=refreshApocalypseDragonLevelSetup()
 	UI.setAttribute("VolkareLevelSelectionRow","active",volkareOn and "true" or "false")
-	UI.setAttribute("VolkareRaceSelectionRow","active",showRace and "true" or "false")
+	UI.setAttribute("VolkareRaceSelectionRow","active",volkareOn and gStates.gameScenario~="The War of Four" and "true" or "false")
 	if volkareOn then
 		UI.setAttribute("DummyPosText","text",SETUP_TEXT.volkareSkills)
 		UI.setAttribute("dummyMKSelectionText","text",translateWord[gStates.volkareSkills or "Random"] or translateWord["Random"])
+		local showRace=gStates.gameScenario~="The War of Four"
+		UI.setAttribute("MageKnightDetails","height",showRace and "240" or "210")
+		UI.setAttribute("Setup1Details","height",showRace and "406" or "436")
+		UI.setAttribute("Setup2Details","height",showRace and "406" or "436")
+		UI.setAttribute("Setup1DetailsSub","height",showRace and "346" or "376")
+		UI.setAttribute("Setup2DetailsSub","height",showRace and "346" or "376")
 	else
 		UI.setAttribute("DummyPosText","text",SETUP_TEXT.dummyMageKnight)
 		local dummy=gStates.positionMageKnight~=nil and (gStates.positionMageKnight[5] or "nobody") or "nobody"
 		UI.setAttribute("dummyMKSelectionText","text",translateWord[dummy] or translateWord["nobody"])
+		UI.setAttribute("MageKnightDetails","height","180")
+		UI.setAttribute("Setup1Details","height","466")
+		UI.setAttribute("Setup2Details","height","466")
+		UI.setAttribute("Setup1DetailsSub","height","406")
+		UI.setAttribute("Setup2DetailsSub","height","406")
 	end
-	local extraRows=(volkareOn and 1 or 0)+(showRace and 1 or 0)+(dragonLevelOn and 1 or 0)
-	UI.setAttribute("MageKnightDetails","height",tostring(180+(30*extraRows)))
-	UI.setAttribute("Setup1Details","height",tostring(466-(30*extraRows)))
-	UI.setAttribute("Setup2Details","height",tostring(466-(30*extraRows)))
-	UI.setAttribute("Setup1DetailsSub","height",tostring(406-(30*extraRows)))
-	UI.setAttribute("Setup2DetailsSub","height",tostring(406-(30*extraRows)))
 end
 
 local function copyScenarioCityLevels(source)
@@ -440,6 +458,7 @@ function scenarioSelection(player, mouseButton, id)
 		end
 		gStates.gameScenario=SCENARIO_SELECTION_BY_ID[id] or id
 		gStates.apocalypseDragonStartingLevelOverride=nil
+		gStates.horsemanStartingLevelOverride=nil
 		UI.setAttribute("ScenarioSelectionText", "text", translateWord[gStates.gameScenario])
 		UI.setAttribute("ScenarioSelectionImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
@@ -840,7 +859,21 @@ function apocalypseDragonLevelSelection(player, mouseButton, id)
 		return
 	end
 	gStates.apocalypseDragonStartingLevelOverride=level
-	UI.setAttribute("ApocalypseDragonLevelSelectionText","text",tostring(level))
+	refreshScenarioEnemyLevelTweaks()
+end
+
+function horsemanLevelSelection(player, mouseButton, id)
+	if mouseButton~="-1" or setupUsesHorsemanLevel()~=true then return end
+	local level=tonumber(horsemanStartingLevel()) or 1
+	if id=="HorsemenLevelDown" then
+		level=math.max(1,level-1)
+	elseif id=="HorsemenLevelUp" then
+		level=math.min(6,level+1)
+	else
+		return
+	end
+	gStates.horsemanStartingLevelOverride=level
+	refreshScenarioEnemyLevelTweaks()
 end
 
 ToolTipUpdate=function(id)
@@ -1203,6 +1236,7 @@ scenarioInfoUpdate=function()
 	local details=scenario.scenarioDetails
 	renderMageKnightSetupAvailability()
 	renderDummySetupSection()
+	refreshScenarioEnemyLevelTweaks()
 	--Update Scenario Infos
 	UI.setAttribute("ScenarioDetails", "active", "true")
 	UI.setAttribute("IntroBoard", "active", "false")
@@ -1457,4 +1491,5 @@ end
 function restoreMageKnightSetupSection()
 	if gStates==nil then return end
 	renderDummySetupSection()
+	refreshScenarioEnemyLevelTweaks()
 end
