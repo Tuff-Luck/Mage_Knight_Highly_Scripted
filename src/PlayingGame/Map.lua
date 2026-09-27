@@ -198,13 +198,17 @@ end
 -- Shield location bookkeeping
 function shieldLocation(obj, zone, status)
 	if volkarePursuitShieldRegistered(obj)==true then return end
+	--These object properties were previously read repeatedly through the large rules branch below.
+	--Cache them once per placement/removal; they are stable for the duration of this callback.
+	local objectName=obj.getName()
+	local objectNotes=obj.getGMNotes()
+	local objectDescription=obj.getDescription()
 	if zone.guid==mapArea then
-		local objectsInPlay=nil
-		if getObjectFromGUID(mapArea)~=nil then objectsInPlay=getObjectFromGUID(mapArea).getObjects() end
-		if objectsInPlay~=nil then
-			table.sort(objectsInPlay, function (k1, k2) return k1.getPosition()[2]<k2.getPosition()[2] end)
+		local mapSnapshot=runtimeMapSnapshot()
+		local objectsInPlay=mapSnapshot.terrainObjects or {}
+		if #objectsInPlay>0 then
 			local shieldPos=obj.getPosition()
-			local terTile, bearing, _, hexFeature=terrainHexAtPosition(shieldPos, objectsInPlay)
+			local terTile, bearing, _, hexFeature=terrainHexAtPosition(shieldPos, objectsInPlay, mapSnapshot.terrainPositions, mapSnapshot.terrainRotations)
 			local secretPlacement=gStates.dungeonLordsSecretSiteOrigins~=nil and gStates.dungeonLordsSecretSiteOrigins[obj.guid] or nil
 			if status=="remove" and secretPlacement~=nil and secretPlacement.destinationTerrainGUID~=nil and secretPlacement.destinationBearing~=nil then
 				local recordedTerrain=getObjectFromGUID(secretPlacement.destinationTerrainGUID)
@@ -216,17 +220,17 @@ function shieldLocation(obj, zone, status)
 			end
 			if terTile~=nil and bearing~=nil then
 				local hexLocation=bearing
-				if obj.getName()=="Secret Dungeon" or obj.getName()=="Secret Tomb" then
+				if objectName=="Secret Dungeon" or objectName=="Secret Tomb" then
 					dungeonLordsHandleSecretSiteToken(obj,status,terTile,bearing,hexFeature)
 					addAvatarButtons()
 					return
 				end
 				local found=false
 				for b, mageSearch in pairs(turnOrder) do
-					if mageSearch.mage==obj.getDescription() or obj.getGMNotes()=="Burned Monastery" then
+					if mageSearch.mage==objectDescription or objectNotes=="Burned Monastery" then
 						found=true
 						if status=="remove" then
-							if hexFeature=="keep" and obj.getGMNotes()~="Burned Monastery" then
+							if hexFeature=="keep" and objectNotes~="Burned Monastery" then
 								broadcastToAll("{en}Keep Released{ru}Крепость освобождена{zh-tw}保持释放{zh-cn}保持释放{ko}성 정복 해제됨{es}Mantener Liberado{fr}Garder Libéré{pt-br}Forte Liberado{de}Behalten freigelassen", positionToColor(b))
 								mageSearch.keepsBeat=mageSearch.keepsBeat-1
 								scheduleAvatarDropRefresh()
@@ -237,7 +241,7 @@ function shieldLocation(obj, zone, status)
 								gStates.monasteryCount=gStates.monasteryCount+1
 								gStates.monasteryBurned[terTile.guid]=false
 							end
-							if hexFeature=="glade" and obj.getGMNotes()~="Burned Monastery" and (gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Life and Death") then
+							if hexFeature=="glade" and objectNotes~="Burned Monastery" and (gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Life and Death") then
 								broadcastToAll("{en}Glade Deactivated{ru}Магическая поляна деактивирована{zh-tw}林地解除了{zh-cn}林地解除了{ko}숲속 빈터 비활성화{es}Glade Desactivado{fr}Clairière Désactivée{pt-br}Clareira Desativada{de}Lichtung Deaktiviert", positionToColor(b))
 								if gStates.gameScenario=="Druid Nights" then
 									for index, shields in pairs(mageSearch.gladesMarked) do
@@ -245,28 +249,28 @@ function shieldLocation(obj, zone, status)
 									end
 								end
 							end
-							if hexFeature=="graveyard" and obj.getGMNotes()~="Burned Monastery" then
+							if hexFeature=="graveyard" and objectNotes~="Burned Monastery" then
 								if gStates.gameScenario=="The Realm of the Dead Blitz" then
 									broadcastToAll("{en}Graveyard Unsealed{ru}Кладбище распечатано{zh-tw}墓地解封了{zh-cn}墓地解封了{ko}봉인되지 않은 묘지{es}Cementerio Sin Sellar{fr}Cimetière Non Scellé{pt-br}Cemitério Não Selado{de}Friedhof Unversiegelt", positionToColor(b))
 								else
 									broadcastToAll("{en}Graveyard Deactivated{ru}Кладбище деактивировано{zh-tw}墓地停用了{zh-cn}墓地停用了{ko}묘지 비활성화{es}Cementerio Desactivado{fr}Cimetière Désactivé{pt-br}Cemitério Desativado{de}Friedhof Deaktiviert", positionToColor(b))
 								end
 							end
-							if hexFeature=="mine" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="Mines Liberation" then
+							if hexFeature=="mine" and objectNotes~="Burned Monastery" and gStates.gameScenario=="Mines Liberation" then
 								broadcastToAll("{en}Mine Undone{ru}Шахта больше не побеждена{zh-tw}矿山未解放{zh-cn}矿山未解放{ko}광산 해방 해제됨{es}Mina Deshecha{fr}Mine Défaite{pt-br}Mina Desfeita{de}Mine rückgängig gemacht", positionToColor(b))
 							end
-							if hexFeature=="mage tower" and obj.getGMNotes()~="Burned Monastery" then
+							if hexFeature=="mage tower" and objectNotes~="Burned Monastery" then
 								broadcastToAll("{en}Mage Tower Released{ru}Башня магов освобождена{zh-tw}法师塔释放{zh-cn}法师塔释放{ko}마법사의 탑 정복 해제됨{es}Lanzamiento de la Torre de Magos{fr}Sortie de la Tour des Mages{pt-br}Torre do Mago Liberada{de}Magierturm befreit", positionToColor(b))
 							end
-							if (hexFeature=="monster den" or hexFeature=="spawning grounds" or hexFeature=="maze" or hexFeature=="labyrinth" or hexFeature=="ruin" or hexFeature=="dungeon" or hexFeature=="tomb" or hexFeature=="ziggurat" or hexFeature=="pyramid") and obj.getGMNotes()~="Burned Monastery" then
+							if (hexFeature=="monster den" or hexFeature=="spawning grounds" or hexFeature=="maze" or hexFeature=="labyrinth" or hexFeature=="ruin" or hexFeature=="dungeon" or hexFeature=="tomb" or hexFeature=="ziggurat" or hexFeature=="pyramid") and objectNotes~="Burned Monastery" then
 								broadcastToAll("{en}Adventure Site Undone{ru}Место для приключений больше не побеждено{zh-tw}冒险地点未击败{zh-cn}冒险地点未击败{ko}모험 장소 정복 해제됨{es}Sitio de Aventuras Deshecho{fr}Site d'Aventure Annulé{pt-br}Lugar de Aventura Desfeito{de}Abenteuerseite rückgängig gemacht", positionToColor(b))
 							end
-							if (hexFeature or ""):sub(1, 4)=="city" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="The Lost Relic Blitz" then
+							if (hexFeature or ""):sub(1, 4)=="city" and objectNotes~="Burned Monastery" and gStates.gameScenario=="The Lost Relic Blitz" then
 								broadcastToAll("{en}Relic Piece Replaced{ru}Часть древней реликвии была заменена{zh-tw}圣物碎片重置了{zh-cn}圣物碎片重置了{ko}유물 조각 교체됨{es}Pieza de Reliquia Reemplazada{fr}Pièce de Relique Remplacée{pt-br}Pedaço da Relíquia Substituído{de}Reliktteil ausgetauscht", positionToColor(b))
 							end
 							break
 						else
-							if (hexFeature=="keep" or hexFeature=="mage tower") and obj.getGMNotes()~="Burned Monastery" then
+							if (hexFeature=="keep" or hexFeature=="mage tower") and objectNotes~="Burned Monastery" then
 								if gStates.apocalypseQuestConqueredThisTurn==nil then gStates.apocalypseQuestConqueredThisTurn={} end
 								gStates.apocalypseQuestConqueredThisTurn[mageSearch.mage]={serial=gStates.apocalypseQuestTurnSerial or 0, terrainGUID=terTile.guid, bearing=hexLocation, feature=hexFeature}
 								apocalypseQuestUnderSiegeRecordConquest(b,terTile.guid,hexLocation,hexFeature)
@@ -277,39 +281,39 @@ function shieldLocation(obj, zone, status)
 								gStates.monasteryCount=gStates.monasteryCount-1
 								gStates.monasteryBurned[terTile.guid]=true
 							end
-							if hexFeature=="keep" and obj.getGMNotes()~="Burned Monastery" then
+							if hexFeature=="keep" and objectNotes~="Burned Monastery" then
 								broadcastToAll("{en}'War is too serious a matter to leave to soldiers.'{ru}Война - слишком серьезная вещь, чтобы доверять её военным'{zh-tw}对于小兵来说, 战争太过残酷了{zh-cn}对于小兵来说, 战争太过残酷了{ko}성 정복됨.{es}Mantener Atacado con Exito{fr}Gardez avec Succès Agressé{pt-br}'Guerra é um assunto sério demais para deixar na mão de soldados'{de}Krieg ist eine zu ernste Angelegenheit, um sie Soldaten zu überlassen.'", positionToColor(b))
 								mageSearch.keepsBeat=mageSearch.keepsBeat+1
 								scheduleAvatarDropRefresh()
 								break
 							end
-							if hexFeature=="glade" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="Druid Nights" then
+							if hexFeature=="glade" and objectNotes~="Burned Monastery" and gStates.gameScenario=="Druid Nights" then
 								broadcastToAll("{en}Glade Activated{ru}Магическая поляна активирована{zh-tw}林地激活了{zh-cn}林地激活了{ko}숲속 빈터 활성화{es}Glade Activado{fr}Clairière Activée{pt-br}Clareira Ativada{de}Glade Aktiviert", positionToColor(b))
 								mageSearch.gladesMarked[#mageSearch.gladesMarked+1]=obj.guid
 							end
-							if hexFeature=="glade" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="Life and Death" then
+							if hexFeature=="glade" and objectNotes~="Burned Monastery" and gStates.gameScenario=="Life and Death" then
 								broadcastToAll("{en}Glade Liberated{ru}Магическая поляна освобождена{zh-tw}林地解放了{zh-cn}林地解放了{ko}숲속 빈터 해방됨{es}Glade Liberado{fr}Clairière Libérée{pt-br}Clareira Liberada{de}Lichtung befreit", positionToColor(b))
 							end
-							if hexFeature=="graveyard" and obj.getGMNotes()~="Burned Monastery" then
+							if hexFeature=="graveyard" and objectNotes~="Burned Monastery" then
 								if gStates.gameScenario=="The Realm of the Dead Blitz" then
 									broadcastToAll("{en}Graveyard Sealed{ru}Кладбище запечатано{zh-tw}墓地封印了{zh-cn}墓地封印了{ko}봉인된 묘지{es}Cementerio Sellado{fr}Cimetière Scellé{pt-br}Cemitério Selado{de}Friedhof versiegelt", positionToColor(b))
 								else
 									broadcastToAll("{en}Graveyard Liberated{ru}Кладбище освобождено{zh-tw}墓地解放了{zh-cn}墓地解放了{ko}묘지 해방됨{es}Cementerio Liberado{fr}Cimetière Libéré{pt-br}Cemitério Liberado{de}Friedhof befreit", positionToColor(b))
 								end
 							end
-							if hexFeature=="mine" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="Mines Liberation" then
+							if hexFeature=="mine" and objectNotes~="Burned Monastery" and gStates.gameScenario=="Mines Liberation" then
 								broadcastToAll("{en}Mine Liberated{ru}Шахта освобождена{zh-tw}矿山解放了{zh-cn}矿山解放了{ko}광산 해방됨{es}Mina Liberada{fr}Mine Libérée{pt-br}Mina Liberada{de}Mine befreit", positionToColor(b))
 							end
-							if hexFeature=="mage tower" and obj.getGMNotes()~="Burned Monastery" then
+							if hexFeature=="mage tower" and objectNotes~="Burned Monastery" then
 								broadcastToAll("{en}Mage Tower Conquered{ru}Башня мага захвачена{zh-tw}法師塔已被征服{zh-cn}法师塔被征服{ko}마법사의 탑 정복됨{es}Torre de Magos Conquistada{fr}Tour des Mages Conquise{pt-br}Torre do Mago Conquistada{de}Magierturm erobert", positionToColor(b))
 							end
-							if (hexFeature=="monster den" or hexFeature=="spawning grounds") and obj.getGMNotes()~="Burned Monastery" then
+							if (hexFeature=="monster den" or hexFeature=="spawning grounds") and objectNotes~="Burned Monastery" then
 								broadcastToAll("{en}'They mostly come at night...Mostly.'{ru}«Они в основном приходят ночью... В основном.»{zh-tw}“他们大多是晚上来的……大多是. ”{zh-cn}“他们大多是晚上来的……大多是. ”{ko}‘징한 놈의 이 세상, 한탕 신나게 놀고 가면 그 뿐.’{es}'Vienen sobre todo por la noche ... sobre todo.'{fr}'Ils viennent surtout la nuit… surtout.'{pt-br}'Eles vem a maioria das vezes a noite....a maioria das vezes.'{de}Sie kommen meistens nachts ... meistens.", positionToColor(b))
 							end
-							if (hexFeature=="maze" or hexFeature=="labyrinth" or hexFeature=="ruin" or hexFeature=="dungeon" or hexFeature=="tomb" or hexFeature=="ziggurat" or hexFeature=="pyramid") and obj.getGMNotes()~="Burned Monastery" then
+							if (hexFeature=="maze" or hexFeature=="labyrinth" or hexFeature=="ruin" or hexFeature=="dungeon" or hexFeature=="tomb" or hexFeature=="ziggurat" or hexFeature=="pyramid") and objectNotes~="Burned Monastery" then
 								broadcastToAll("{en}Adventure Site Beaten{ru}Место для приключений побеждено{zh-tw}冒险地点被打败{zh-cn}冒险地点被打败{ko}모험 장소 정복됨{es}Sitio de Aventuras Batido{fr}Site d'Aventure Battu{pt-br}Lugar de Aventura Vencido{de}Abenteuerstätte besiegt", positionToColor(b))
 							end
-							if (hexFeature or ""):sub(1, 4)=="city" and obj.getGMNotes()~="Burned Monastery" and gStates.gameScenario=="The Lost Relic Blitz" then
+							if (hexFeature or ""):sub(1, 4)=="city" and objectNotes~="Burned Monastery" and gStates.gameScenario=="The Lost Relic Blitz" then
 								broadcastToAll("{en}Relic Piece Recovered{ru}Часть древней реликвии была найдена{zh-tw}找到了圣物碎片{zh-cn}找到了圣物碎片{ko}유물 조각 복구{es}Pieza de Reliquia Recuperada{fr}Pièce de Relique Récupérée{pt-br}Pedaço da Relíquia Recuperado{de}Reliktstück wiederhergestellt", positionToColor(b))
 							end
 							break
@@ -318,13 +322,13 @@ function shieldLocation(obj, zone, status)
 				end
 			end
 			addAvatarButtons()
-			if gStates.gameScenario=="The Fractured Lands Blitz" and obj.getGMNotes()=="Burned Monastery" then safeWaitFrames("Map",function() refreshFracturedLandsTeleportHighlights() end, 1) end
+			if gStates.gameScenario=="The Fractured Lands Blitz" and objectNotes=="Burned Monastery" then safeWaitFrames("Map",function() refreshFracturedLandsTeleportHighlights() end, 1) end
 		end
 	end
 	if zone.guid~=mapArea then
 		if pause==false then pause=true safeWaitFrames("Map",function()
 			for b, mageSearch in pairs(turnOrder) do
-				if mageSearch.mage==obj.getDescription() then
+				if mageSearch.mage==objectDescription then
 					if zone.guid~=elementalist.discZone and zone.guid~=darkCrusader.discZone and (gStates.gameScenario=="The Gauntlet"
 					or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The Realm of the Dead Blitz"
 					or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Dungeon Lords"
