@@ -169,11 +169,15 @@ end
 --start after </Defaults> so only real rendered controls are ever considered.
 --Tooltips stay plain English because TTS does not resolve translation tags in tooltip attributes.
 local function decodeXmlUiText(value)
+	--UI.setAttribute() text is replicated to late joiners and TTS can serialize Unity rich-text
+	--markup back into the Global XML without escaping it. A value such as <size=6> is then parsed
+	--as XML and fails at the '=' character when a client joins. Keep the language tags/content,
+	--but strip escaped rich-text formatting on this runtime reapply path. The source XML still
+	--contains the formatting for its initial build.
+	value=value
+		:gsub("&lt;/?[%a][^&]-&gt;", "")
+		:gsub("&#60;/?[%a][^&]-&#62;", "")
 	return value
-		:gsub("&lt;", "<")
-		:gsub("&gt;", ">")
-		:gsub("&#60;", "<")
-		:gsub("&#62;", ">")
 		:gsub("&#10;", "\n")
 		:gsub("&#13;", "\r")
 		:gsub("&quot;", '"')
