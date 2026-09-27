@@ -160,7 +160,7 @@ function eventsOnLoadRawBase(saved_data)
 						if xmlParent.attributes~=nil and xmlParent.attributes.id=="Ambush Circle" then table.remove(existingButtons, xmlKey) end
 					end
 					existingButtons[#existingButtons+1]={tag="Image", attributes={id="Ambush Circle", height=1100, width=1100, position="0 0 -1", rotation="0 0 0", image="Ambush Circle"}}
-					getObjectFromGUID(monsterGUID).UI.setXmlTable(existingButtons)
+					setTrackedMapObjectUI(getObjectFromGUID(monsterGUID),existingButtons)
 				end
 			end
 		end
@@ -179,7 +179,7 @@ function eventsOnLoadRawBase(saved_data)
 								existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursue Shield", height=90, width=90, position="0 0 -15", rotation="0 0 180", image="Shield Button "..mage1}}
 								local pursuit=monsters[monsterGUID]
 								if pursuit.stunned==true or pursuit.state=="Stunned" then existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageURL}} end
-								getObjectFromGUID(monsterGUID).UI.setXmlTable(existingButtons)
+								setTrackedMapObjectUI(getObjectFromGUID(monsterGUID),existingButtons)
 								break
 							end
 						end
@@ -911,7 +911,7 @@ function refreshRampagerMapVisual(obj)
 	end
 	if uiChanged==true then
 		if #existingButtons==0 then existingButtons={{}} end
-		obj.UI.setXmlTable(existingButtons)
+		setTrackedMapObjectUI(obj,existingButtons)
 	end
 end
 
@@ -1220,7 +1220,7 @@ local function handleMapZoneLeave(ctx)
 			if liveObj==nil or mapZoneMembership[objGUID]==true then return end
 			cleanupMapTransientDecals(liveObj)
 			if objGUID~=volkare.model and objGUID~=elementalist.terrainHex and objGUID~=darkCrusader.terrainHex then
-				liveObj.UI.setXmlTable({{}})
+				clearMapObjectUIOnExit(liveObj)
 			end
 		end,1)
 	end
