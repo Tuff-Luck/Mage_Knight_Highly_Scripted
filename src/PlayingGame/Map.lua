@@ -820,11 +820,9 @@ function findNearbyMages(origin, distance)--origin={x, y, z}, distance=x
 					local cityZone=getObjectFromGUID(zone)
 					if cityZone~=nil then
 						for _, cityObj in pairs(cityZone.getObjects()) do
-							local avatar=eventsAvatarDropDetails~=nil and eventsAvatarDropDetails(cityObj.guid) or nil
-							if avatar==nil then
-								for _, candidate in pairs(mageKnights) do
-									if cityObj.guid==candidate.model or cityObj.guid==candidate.standee or cityObj.guid==candidate.token then avatar=candidate break end
-								end
+							local avatar=nil
+							for _, candidate in pairs(mageKnights) do
+								if cityObj.guid==candidate.model or cityObj.guid==candidate.standee or cityObj.guid==candidate.token then avatar=candidate break end
 							end
 							if avatar~=nil and avatar.mage~="Volkare" then
 								for turn, mageSearch in pairs(turnOrder) do
