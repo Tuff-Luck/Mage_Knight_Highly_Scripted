@@ -1442,7 +1442,42 @@ end
 --Add Icons to players Avatar and Rampaging Monsters
 local addAvatarPause=true
 avatarButtonXmlState={}
+mapObjectScriptUIState={}
 avatarButtonSpatialCell=3
+
+local function mapObjectXmlHasContent(xml)
+	for _,node in ipairs(xml or {}) do
+		if node~=nil and node.tag~=nil then return true end
+	end
+	return false
+end
+
+--Map presentation UI is transient. Track writes from the common map UI paths so leaving the scripting
+--zone can clear only objects that actually carry script UI. The exit helper still inspects untracked
+--legacy/special-case UI before clearing, preserving the old catch-all behaviour without blind writes.
+function setTrackedMapObjectUI(obj,xml)
+	if obj==nil then return false end
+	obj.UI.setXmlTable(xml)
+	if mapObjectXmlHasContent(xml)==true then mapObjectScriptUIState[obj.guid]=true
+	else mapObjectScriptUIState[obj.guid]=nil end
+	return true
+end
+
+function clearMapObjectUIOnExit(obj)
+	if obj==nil or obj.guid==nil then return false end
+	local guid=obj.guid
+	if mapObjectScriptUIState[guid]~=true then
+		local existing=obj.UI.getXmlTable() or {}
+		if mapObjectXmlHasContent(existing)~=true then
+			avatarButtonXmlState[guid]=nil
+			return false
+		end
+	end
+	obj.UI.setXmlTable({{}})
+	mapObjectScriptUIState[guid]=nil
+	avatarButtonXmlState[guid]=nil
+	return true
+end
 
 avatarButtonBucketKey=function(pos)
 	return tostring(math.floor(pos[1]/avatarButtonSpatialCell))..":"..tostring(math.floor(pos[3]/avatarButtonSpatialCell))
@@ -1477,7 +1512,7 @@ function applyAvatarButtonXml(obj, xml, signature)
 	if obj==nil then return end
 	local guid=obj.guid
 	if avatarButtonXmlState[guid]~=signature then
-		obj.UI.setXmlTable(xml)
+		setTrackedMapObjectUI(obj,xml)
 		avatarButtonXmlState[guid]=signature
 	end
 end
@@ -1614,7 +1649,7 @@ function addAvatarButtons()
 									combatAttackOptionCounts[order]=combatAttackOptionCounts[order]+1
 								end
 								if #existingButtons==0 then existingButtons={{}} end
-								mapObject.UI.setXmlTable(existingButtons)
+								setTrackedMapObjectUI(mapObject,existingButtons)
 							end
 							if gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.destroyedSites~=nil and gStates.destroyedSites[mapDetails.guid]~=nil then
 								local existingButtons=mapObject.UI.getXmlTable() or {}
@@ -1630,7 +1665,7 @@ function addAvatarButtons()
 									children={{tag="Image", attributes={image="Restore Button"}}}}
 								end
 								if #existingButtons==0 then existingButtons={{}} end
-								mapObject.UI.setXmlTable(existingButtons)
+								setTrackedMapObjectUI(mapObject,existingButtons)
 							end
 						end
 					end
