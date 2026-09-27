@@ -807,15 +807,26 @@ function findNearbyMages(origin, distance)--origin={x, y, z}, distance=x
 			end
 		end
 	end
-	for _, posibleMage in pairs(getObjectFromGUID(mapArea).getObjects()) do
-		for zone, cityData in pairs(cityScriptZones) do
-			if posibleMage.guid==cityData.cityGUID then
+	--City models are a tiny registered set. Use runtime map membership to decide which are actually
+	--in play instead of walking every object in the map scripting zone just to find those models.
+	local mapObjectGUIDs=runtimeMapSnapshot().objectGUIDs or {}
+	for zone, cityData in pairs(cityScriptZones) do
+		if mapObjectGUIDs[cityData.cityGUID]==true then
+			local posibleMage=getObjectFromGUID(cityData.cityGUID)
+			if posibleMage~=nil then
 				local pos={posibleMage.getPosition()[1], 1.17, posibleMage.getPosition()[3]}--done this way so math can be done to the values
 				local mageDist=math.floor(math.sqrt(((origin[1]-pos[1])^2)+((origin[3]-pos[3])^2))+0.5)
 				if mageDist<distance then
-					for _, cityObj in pairs(getObjectFromGUID(zone).getObjects()) do
-						for _, avatar in pairs(mageKnights) do
-							if (cityObj.guid==avatar.model or cityObj.guid==avatar.standee or cityObj.guid==avatar.token) and avatar.mage~="Volkare" then
+					local cityZone=getObjectFromGUID(zone)
+					if cityZone~=nil then
+						for _, cityObj in pairs(cityZone.getObjects()) do
+							local avatar=eventsAvatarDropDetails~=nil and eventsAvatarDropDetails(cityObj.guid) or nil
+							if avatar==nil then
+								for _, candidate in pairs(mageKnights) do
+									if cityObj.guid==candidate.model or cityObj.guid==candidate.standee or cityObj.guid==candidate.token then avatar=candidate break end
+								end
+							end
+							if avatar~=nil and avatar.mage~="Volkare" then
 								for turn, mageSearch in pairs(turnOrder) do
 									if mageSearch.mage==avatar.mage and playerDropoutInactive(turn)==false then
 										mageList[#mageList+1]={mage=mageSearch.mage, distance=mageDist, fame=mageSearch.fame, turn=turn}
@@ -827,7 +838,6 @@ function findNearbyMages(origin, distance)--origin={x, y, z}, distance=x
 						end
 					end
 				end
-				break
 			end
 		end
 	end
@@ -1282,16 +1292,15 @@ local function terrainPositionLegal(obj, faceUpTerrain, northBearing, result)--.
 end
 
 
---Rebuild EXPLORE buttons directly from the physical map. This path has no terrain-entry side effects.
+--Rebuild EXPLORE buttons from the shared runtime map. This path has no terrain-entry side effects.
 function refreshTerrainExploreOptions(compactCities)
 	if gStates==nil then return end
-	local zone=getObjectFromGUID(mapArea)
-	if zone==nil then return end
-	local playAreaObjects=zone.getObjects()
+	local mapSnapshot=runtimeMapSnapshot()
+	local playAreaObjects=mapSnapshot.objects or {}
 	local faceUpTerrain={}
 	local mapObjectPositions={}
 	for _,mapObject in pairs(playAreaObjects) do
-		local mapObjectPosition=mapObject.getPosition()
+		local mapObjectPosition=mapSnapshot.terrainPositions[mapObject.guid] or mapObject.getPosition()
 		mapObjectPositions[#mapObjectPositions+1]={guid=mapObject.guid,position=mapObjectPosition}
 		if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
 			faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObjectPosition}
