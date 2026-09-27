@@ -312,14 +312,25 @@ function unitOffer()
 	local monasteryPlace=	{{36.0, 0.98, -10.2}, {31.2, 0.98, -10.2}, {26.4, 0.98, -10.2}, {21.6, 0.98, -10.2}, {16.8, 0.98, -10.2}, {12.0, 0.98, -10.2}}
 	local drawDecks=		{["Regular Unit"]=GUID.zone.regularUnit, ["Elite Unit"]=GUID.zone.eliteUnit, ["Advanced Action"]=GUID.zone.actionDeck}--Zone covering Regular units draw deck, Elite Units Draw Deck, Advanced Actions Draw Deck
 	local skip=false
-	--Place existing cards under raised decks
+	--Place existing cards under raised decks. A source pile may currently be either a Deck or one
+	--loose Card; if it is completely empty, the first returned offer card becomes the new source.
 	for _, offerCards in pairs(getObjectFromGUID("a3d99b").getObjects()) do--Zone where units and monastery cards are played
 		local offerCardType=gameCardType(offerCards)
 		if offerCards.type=="Card" and drawDecks[offerCardType]~=nil then
 			offerCards.unlock()
 			if offerCardType=="Regular Unit" or offerCardType=="Elite Unit" then offerCards.setScale({unitOfferLayoutConfig.cardScale,1,unitOfferLayoutConfig.cardScale}) end
 			standardDeckCycleMarkReturned(offerCardType, offerCards)
-			getObjectFromGUID(getObjectFromGUID(drawDecks[offerCardType]).getObjects()[1].guid).putObject(offerCards)
+			local destination=standardDeckCycleObject(offerCardType)
+			if destination~=nil and destination.guid~=offerCards.guid then
+				destination.putObject(offerCards)
+			else
+				local sourceZone=getObjectFromGUID(drawDecks[offerCardType])
+				if sourceZone~=nil then
+					local pos=sourceZone.getPosition()
+					offerCards.setPosition({pos[1],1.2,pos[3]})
+					offerCards.setRotation({0,180,0})
+				end
+			end
 		end
 		if offerCards.type=="Deck" then
 			for j=1, offerCards.getQuantity(), 1 do
