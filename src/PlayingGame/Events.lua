@@ -702,6 +702,9 @@ local function zoneObjectCanBeMapMarker(ctx)
 end
 
 local settledZoneEntrySerial={}
+--Track only live map-zone boundary membership so deferred presentation work can validate an entry/exit
+--without asking the scripting zone for its entire object list again.
+local mapZoneMembership={}
 local function zoneContainsGUID(zone,guid)
 	if zone==nil or guid==nil then return false end
 	for _,candidate in pairs(zone.getObjects()) do if candidate.guid==guid then return true end end
@@ -978,7 +981,7 @@ local function handleMapVisualZoneEnter(ctx)
 	safeWaitFrames("Events",function()
 		local liveObj=getObjectFromGUID(objGUID)
 		local liveZone=getObjectFromGUID(mapArea)
-		if liveObj==nil or liveZone==nil or zoneContainsGUID(liveZone,objGUID)~=true then return end
+		if liveObj==nil or liveZone==nil or mapZoneMembership[objGUID]~=true then return end
 		local liveCtx=zoneEventContext(liveZone,liveObj)
 		if liveCtx~=nil then handleMapVisualZoneEnterNow(liveCtx) end
 	end,1)
@@ -1150,6 +1153,7 @@ end
 
 function __onObjectEnterZone_raw(zone, obj)
 	if zone~=nil and zone.guid==mapArea then
+		if obj~=nil and obj.guid~=nil then mapZoneMembership[obj.guid]=true end
 		if obj~=nil and terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
 	local ctx=zoneEventContext(zone,obj)
@@ -1213,9 +1217,7 @@ local function handleMapZoneLeave(ctx)
 		--if the object immediately re-enters the map, leave its newly-restored presentation alone.
 		safeWaitFrames("Events",function()
 			local liveObj=getObjectFromGUID(objGUID)
-			local mapZone=getObjectFromGUID(mapArea)
-			if liveObj==nil then return end
-			if mapZone~=nil and zoneContainsGUID(mapZone,objGUID)==true then return end
+			if liveObj==nil or mapZoneMembership[objGUID]==true then return end
 			cleanupMapTransientDecals(liveObj)
 			if objGUID~=volkare.model and objGUID~=elementalist.terrainHex and objGUID~=darkCrusader.terrainHex then
 				liveObj.UI.setXmlTable({{}})
@@ -1266,6 +1268,7 @@ end
 
 function __onObjectLeaveZone_raw(zone, obj)
 	if zone~=nil and zone.guid==mapArea then
+		if obj~=nil and obj.guid~=nil then mapZoneMembership[obj.guid]=nil end
 		if obj~=nil and terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
 	local ctx=zoneEventContext(zone,obj)
