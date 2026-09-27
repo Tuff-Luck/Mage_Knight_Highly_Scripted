@@ -4,6 +4,9 @@
 
 local fameRepSyncSuppressed=false
 local possessedAttachPending={}
+--mainUIUpdate() is already debounced by UI.lua. Keep Fame/Reputation bookkeeping attached to that
+--same refresh batch so rapid zone/card events do not repeatedly snapshot and reconcile identical state.
+local fameRepMainUIBatch=nil
 
 local function fameRepCommitTable()
 	if gStates.fameRepCommitted==nil then gStates.fameRepCommitted={} end
@@ -190,11 +193,36 @@ function fameReputationApplyPlayerFameReputation(playerIndex)
 	gStates.hiddenValleyRepLossActive=nil
 end
 
+local function possessedEnemyCandidates(possessed,zone)
+	if zone~=nil then return zone.getObjects() end
+	local candidates={}
+	local seen={}
+	local function add(list)
+		for _,candidate in pairs(list or {}) do
+			if candidate~=nil and candidate.guid~=nil and seen[candidate.guid]~=true then
+				seen[candidate.guid]=true
+				candidates[#candidates+1]=candidate
+			end
+		end
+	end
+
+	--A dropped Possessed token can be on the map or in a player's combat area. Search those two
+	--bounded domains instead of the historical getAllObjects() fallback across the whole table.
+	local pos=possessed~=nil and possessed.getPosition() or nil
+	if pos~=nil then
+		local spatial=runtimeMapSpatialSnapshot(1)
+		add(runtimeMapSpatialNearbyObjects(spatial,pos,1))
+	end
+	for _,details in pairs(turnOrder or {}) do
+		if details.seatPos~=nil then add(playerCombatObjects(details.seatPos)) end
+	end
+	return candidates
+end
+
 local function nearestPossessedEnemy(possessed,zone)
 	if possessed==nil then return nil end
-	local candidates=zone~=nil and zone.getObjects() or getAllObjects()
 	local pos=possessed.getPosition()
-	for _,enemy in pairs(candidates) do
+	for _,enemy in pairs(possessedEnemyCandidates(possessed,zone)) do
 		if enemy.guid~=possessed.guid and monsterPugs[enemy.guid]~=nil and monsterPugs[enemy.guid].pugType~="possessed" then
 			local enemyPos=enemy.getPosition()
 			if math.abs(enemyPos[1]-pos[1])<0.5 and math.abs(enemyPos[3]-pos[3])<0.5 then return enemy end
@@ -268,15 +296,28 @@ function fameReputationAttachEnemy(player,mouseButton,id,obj,zone)
 	return combatAttachEnemyBase(player,mouseButton,id,obj,zone)
 end
 
-function fameReputationMainUIUpdate(...)
-	local previousSiteLoss=fameRepSnapshotSiteLoss()
-	if turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].reputation==nil then fameRepCurrentReputation(gStates.turnNumber) end
-	local result=uiMainUIUpdateBase(...)
-	if turnOrder[gStates.turnNumber]~=nil then normalizePendingReputation(gStates.turnNumber,previousSiteLoss) end
+local function fameRepFinishMainUIBatch()
+	local pending=fameRepMainUIBatch
+	fameRepMainUIBatch=nil
+	if pending==nil then return end
+	local playerIndex=pending.playerIndex
+	if turnOrder[playerIndex]~=nil then normalizePendingReputation(playerIndex,pending.previousSiteLoss) end
 	hiddenValleyNormalizeSiteLoss()
 	correctPossessedAttachmentAwards()
-	if turnOrder[gStates.turnNumber]~=nil then syncPostCommitAdjustments(gStates.turnNumber) end
-	return result
+	if turnOrder[playerIndex]~=nil then syncPostCommitAdjustments(playerIndex) end
+end
+
+function fameReputationMainUIUpdate(...)
+	if gStates.firstStarted~=true then return uiMainUIUpdateBase(...) end
+	local playerIndex=gStates.turnNumber
+	--A turn transition should not carry the previous player's accounting baseline into the new turn.
+	--Flush that rare boundary synchronously, then start a fresh coalesced batch for the current player.
+	if fameRepMainUIBatch~=nil and fameRepMainUIBatch.playerIndex~=playerIndex then fameRepFinishMainUIBatch() end
+	if fameRepMainUIBatch==nil then
+		if turnOrder[playerIndex]~=nil and turnOrder[playerIndex].reputation==nil then fameRepCurrentReputation(playerIndex) end
+		fameRepMainUIBatch={playerIndex=playerIndex,previousSiteLoss=fameRepSnapshotSiteLoss()}
+	end
+	return uiMainUIUpdateBase(select(1,...),fameRepFinishMainUIBatch)
 end
 
 function fameReputationValueAdjust(player,mouseButton,id)
