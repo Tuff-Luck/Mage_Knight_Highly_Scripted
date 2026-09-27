@@ -2,10 +2,6 @@
 local unitOfferLayoutX, unitOfferCardScale, unitOfferPosition, volkareUnitCrystalRefreshPositions, unitOfferIsUnit
 local monasteryOfferIsCard, refreshUnitOfferSnapPoints, unitOfferCards, reflowUnitOffer, monasteryOfferFirstEmptySlot
 
--- Offer-private helpers. Predeclared so forward references keep resolving locally.
-local unitOfferLayoutX, unitOfferCardScale, unitOfferPosition, volkareUnitCrystalRefreshPositions, unitOfferIsUnit
-local monasteryOfferIsCard, refreshUnitOfferSnapPoints, unitOfferCards, reflowUnitOffer, monasteryOfferFirstEmptySlot
-
 -- Artifact, Unit, Monastery and deed-offer runtime.
 
 -- Artifact reward offer
@@ -410,12 +406,35 @@ function unitOffer()
 				end
 			})
 		end
-		--Place Monastery offer cards
+		--Place Monastery offer cards. Resolve the live source each time because TTS replaces a
+		--two-card Deck with a single Card object when the penultimate card is drawn.
 		for i=1, gStates.monasteryCount, 1 do
 			params.position=monasteryPlace[i]
 			standardDeckCycleShuffleIfReached("Advanced Action")
-			local drawnCard=getObjectFromGUID(getObjectFromGUID(drawDecks["Advanced Action"]).getObjects()[1].guid).takeObject(params)
-			safeWaitCondition("Offers",function() drawnCard.lock() end, function() return drawnCard.resting end)
+			local source=standardDeckCycleObject("Advanced Action")
+			if source==nil then
+				broadcastToAll("{en}The Advanced Action deck is empty; the Monastery offer could not be fully refilled.{ru}Колода Продвинутых действий пуста; предложение Монастыря не удалось полностью пополнить.{zh-tw}進階行動牌庫已空；修道院供應無法完全補滿。{zh-cn}高级行动牌库已空；修道院供应无法完全补满。{ko}고급 행동 덱이 비어 수도원 제안을 완전히 채울 수 없습니다.{es}El mazo de Acciones Avanzadas está vacío; la oferta del Monasterio no pudo rellenarse por completo.{fr}Le paquet d’Actions Avancées est vide ; l’offre du Monastère n’a pas pu être entièrement remplie.{pt-br}O baralho de Ações Avançadas está vazio; a oferta do Monastério não pôde ser totalmente reabastecida.{de}Der Stapel der Fortgeschrittenen Aktionen ist leer; das Klosterangebot konnte nicht vollständig aufgefüllt werden.",warningColor)
+				break
+			end
+			local drawnCard=nil
+			if source.type=="Deck" then
+				drawnCard=safeTakeObject("Offers",source,params)
+			elseif source.type=="Card" then
+				drawnCard=source
+				drawnCard.unlock()
+				drawnCard.setPositionSmooth(params.position,false,false)
+				drawnCard.setRotationSmooth(params.rotation,false,false)
+			end
+			if drawnCard~=nil then
+				local drawnGUID=drawnCard.guid
+				safeWaitCondition("Offers",function()
+					local live=getObjectFromGUID(drawnGUID)
+					if live~=nil then live.lock() end
+				end,function()
+					local live=getObjectFromGUID(drawnGUID)
+					return live==nil or live.resting==true
+				end)
+			end
 		end
 	end
 end
@@ -484,43 +503,106 @@ function handleMonasteryRevealed()
 end
 
 -- Main deed offer resizing
+local DEED_OFFER_MIN_SIZE=1
+local DEED_OFFER_MAX_SIZE=7
 local OfferPause=false
+
+function deedOfferBoundedSize(value)
+	local size=math.floor(tonumber(value) or 3)
+	if size<DEED_OFFER_MIN_SIZE then return DEED_OFFER_MIN_SIZE end
+	if size>DEED_OFFER_MAX_SIZE then return DEED_OFFER_MAX_SIZE end
+	return size
+end
+
+local function deedOfferAdjustButtonXml(size)
+	local upEnabled=size<DEED_OFFER_MAX_SIZE
+	local downEnabled=size>DEED_OFFER_MIN_SIZE
+	local activeImage="Sliced Button/Button Object Active"
+	local inactiveImage="Sliced Button/Button Object Deactive"
+	return {
+		{tag="Button", attributes={id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", interactable=upEnabled and "true" or "false", height=150, width=240, position="60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
+			children={{tag="Image", attributes={id="e4372aOfferUpImage", image=upEnabled and activeImage or inactiveImage, type="Sliced"}},
+					  {tag="Text", attributes={font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text=">"}}}},
+		{tag="Button", attributes={id="e4372aOfferDown", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", interactable=downEnabled and "true" or "false", height=150, width=240, position="-60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
+			children={{tag="Image", attributes={id="e4372aOfferDownImage", image=downEnabled and activeImage or inactiveImage, type="Sliced"}},
+					  {tag="Text", attributes={font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text="<"}}}}
+	}
+end
+
+function refreshDeedOfferAdjustUI()
+	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+	if spellSource==nil then return false end
+	local size=deedOfferBoundedSize(gStates.offerSize)
+	gStates.offerSize=size
+	spellSource.UI.setXmlTable(deedOfferAdjustButtonXml(size))
+	return true
+end
+
+local function deedOfferMoveSource(deckName,position)
+	local source=standardDeckCycleObject(deckName)
+	if source~=nil then source.setPositionSmooth(position,false,false) end
+end
+
 function offerAdjust(player, mouseButton, id)
-	if mouseButton=="-1" and OfferPause==false then
-		OfferPause=true
-		--update Offer size expected.
-		if id=="e4372aOfferUp" then gStates.offerSize=gStates.offerSize+1 else gStates.offerSize=gStates.offerSize-1 end
-		--move both decks and their detecting Zones, drop the decks onto existing cards.
-		getObjectFromGUID(GUID.deck.spell).setPositionSmooth({(4.8*(gStates.offerSize+1))+21.6, 2.5, -22.2})
-		getObjectFromGUID(GUID.deck.action).setPositionSmooth({(4.8*(gStates.offerSize+1))+21.6, 2.5, -16.2})
-		getObjectFromGUID(GUID.zone.spellDeck).setPosition({(4.8*(gStates.offerSize+1))+21.6, 2.05, -22.2})
-		getObjectFromGUID(GUID.zone.actionDeck).setPosition({(4.8*(gStates.offerSize+1))+21.6, 2.05, -16.2})
-		--change size of offer Zone
-		getObjectFromGUID(GUID.zone.offer).setScale({4.8*gStates.offerSize, 0.3, 9.57})
-		getObjectFromGUID(GUID.zone.offer).setPosition({(2.4*(gStates.offerSize-1))+26.4, 1.13, -19.2})
-		if id=="e4372aOfferUp" then
-			--run fill slide after a wait frame.
-			compactAndRefillDeedOffer()
-		else
-			--flip existing cards if shrinking the offer.
-			for _, card in pairs(getObjectFromGUID(GUID.zone.offer).getObjects()) do
-				if math.floor(((card.getPosition()[1]-21.6)/4.8)+0.5)==gStates.offerSize+1 and card.type=="Card" then
-					standardDeckCycleMarkReturned(gameCardType(card), card)
-					card.unlock()
-					card.setRotation({0.00, 180.00, 180.00})
+	if mouseButton~="-1" or OfferPause==true then return end
+	local delta=id=="e4372aOfferUp" and 1 or id=="e4372aOfferDown" and -1 or nil
+	if delta==nil then return end
+
+	local oldSize=deedOfferBoundedSize(gStates.offerSize)
+	gStates.offerSize=oldSize
+	local newSize=deedOfferBoundedSize(oldSize+delta)
+	if newSize==oldSize then
+		refreshDeedOfferAdjustUI()
+		return
+	end
+
+	OfferPause=true
+	--Capture the outgoing column before shrinking the broad offer zone; once the zone is resized,
+	--that column is no longer guaranteed to be returned by zone.getObjects().
+	local returnedCards={}
+	if delta<0 then
+		local offerZone=getObjectFromGUID(GUID.zone.offer)
+		if offerZone~=nil then
+			for _,card in pairs(offerZone.getObjects()) do
+				if card.type=="Card" and math.floor(((card.getPosition()[1]-21.6)/4.8)+0.5)==oldSize then
+					returnedCards[#returnedCards+1]=card
 				end
 			end
 		end
-		safeWaitFrames("Offers",function()
-			OfferPause=false
-			getObjectFromGUID(GUID.deck.spell).UI.setXmlTable({	{tag="Button", attributes={id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=240, position="60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
-															children={	{tag="Image", attributes={id="e4372aOfferUpImage", image="Sliced Button/Button Object Active", type="Sliced"}},
-																		{tag="Text", attributes={fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text=">"}}}},
-															{tag="Button", attributes={id="e4372aOfferDown", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=240, position="-60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
-															children={	{tag="Image", attributes={id="e4372aOfferDownImage", image="Sliced Button/Button Object Active", type="Sliced"}},
-																		{tag="Text", attributes={fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text="<"}}}}})
-		end, 60)
 	end
+
+	gStates.offerSize=newSize
+	local sourceX=(4.8*(newSize+1))+21.6
+	--Move the live source object rather than the setup-time Deck GUID. TTS changes GUID identity when
+	--a Deck collapses to one Card or reforms after a returned card is merged.
+	deedOfferMoveSource("Spell",{sourceX,2.5,-22.2})
+	deedOfferMoveSource("Advanced Action",{sourceX,2.5,-16.2})
+	local spellZone=getObjectFromGUID(GUID.zone.spellDeck)
+	local actionZone=getObjectFromGUID(GUID.zone.actionDeck)
+	local offerZone=getObjectFromGUID(GUID.zone.offer)
+	if spellZone~=nil then spellZone.setPosition({sourceX,2.05,-22.2}) end
+	if actionZone~=nil then actionZone.setPosition({sourceX,2.05,-16.2}) end
+	if offerZone~=nil then
+		offerZone.setScale({4.8*newSize,0.3,9.57})
+		offerZone.setPosition({(2.4*(newSize-1))+26.4,1.13,-19.2})
+	end
+
+	if delta>0 then
+		compactAndRefillDeedOffer()
+	else
+		for _,card in ipairs(returnedCards) do
+			if card~=nil then
+				standardDeckCycleMarkReturned(gameCardType(card),card)
+				card.unlock()
+				card.setRotation({0,180,180})
+			end
+		end
+	end
+
+	safeWaitFrames("Offers",function()
+		OfferPause=false
+		refreshDeedOfferAdjustUI()
+	end,60)
 end
 
 --Change a hand's color and refresh.
