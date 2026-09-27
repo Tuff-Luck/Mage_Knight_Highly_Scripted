@@ -728,6 +728,17 @@ local settledZoneEntrySerial={}
 --without asking the scripting zone for its entire object list again.
 local mapZoneMembership={}
 
+local function settledZoneContainsGUID(zone,objGUID)
+	if zone==nil or objGUID==nil then return false end
+	--Map entry/exit is already cached on the hot zone boundary path. Reuse it here instead of scanning
+	--the large map scripting zone after every deferred presentation callback.
+	if zone.guid==mapArea then return mapZoneMembership[objGUID]==true end
+	for _,candidate in ipairs(zone.getObjects()) do
+		if candidate~=nil and candidate.guid==objGUID then return true end
+	end
+	return false
+end
+
 local function scheduleSettledZoneEntry(ctx,callback,channel)
 	if ctx==nil or callback==nil then return end
 	local zoneGUID=ctx.zoneGUID
@@ -741,7 +752,7 @@ local function scheduleSettledZoneEntry(ctx,callback,channel)
 		settledZoneEntrySerial[key]=nil
 		local liveZone=getObjectFromGUID(zoneGUID)
 		local liveObj=getObjectFromGUID(objGUID)
-		if liveZone==nil or liveObj==nil or zoneContainsGUID(liveZone,objGUID)~=true then return end
+		if liveZone==nil or liveObj==nil or settledZoneContainsGUID(liveZone,objGUID)~=true then return end
 		local liveCtx=zoneEventContext(liveZone,liveObj)
 		if liveCtx~=nil then callback(liveCtx) end
 	end,function()
