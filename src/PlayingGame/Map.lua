@@ -529,25 +529,32 @@ function zigguratPyramidFloorFromPosition(terrain, sitePos, shieldPos)
 	return closestFloor
 end
 
+local rampageBlockingNames={
+	["Marauding Orcs"]=true,["Marauding Elementalist"]=true,["Marauding Dark Crusader"]=true,
+	["Draconum"]=true,["Elementalist Draconum"]=true,["Dark Crusader Draconum"]=true,
+	Arythea=true,Braevalar=true,Goldyx=true,Krang=true,Norowas=true,Tovak=true,Volkare=true,Wolfhawk=true,
+	Coral=true,Ymirgh=true,Jormund=true,Mevok=true,Duscenia=true,Malek=true,Zirtae=true
+}
+
 --Plays rampaging tokens. Both onObjectEnterScriptingZone and endRound call this routine.
 --Setup terrain still receives its normal Rampaging enemy, but not player-exploration Ambush/Pursuit effects.
-function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, dropped, explorationEffectsEligible)
+function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, dropped, explorationEffectsEligible, mapSpatial)
 	if explorationEffectsEligible==nil then explorationEffectsEligible=true end
 	local free=true
 	--set position of terrain hex in real world coordinates
 	local params={position={angleToXY(obj, hexLocation)[1], 2, angleToXY(obj, hexLocation)[2]}}
-	--Check if the hex has any existing tokens for Rampage Variant
+	--Only objects in the target spatial buckets can block a Rampage spawn. The old path walked every
+	--object in the map zone and rebuilt the same name list for each Rampaging hex.
 	if gStates.rampage>0 then
-		for _, shield in pairs(getObjectFromGUID(mapArea).getObjects()) do
-			if math.sqrt(((shield.getPosition()[1]-params.position[1])^2)+((shield.getPosition()[3]-params.position[3])^2))<1 then
-				local name=nil
-				if shield.getRotationValues()[2]~=nil then name=shield.getRotationValues()[2].value else name=shield.getName() end
-				local nameList={"Marauding Orcs", "Marauding Elementalist", "Marauding Dark Crusader",
-								"Draconum", "Elementalist Draconum", "Dark Crusader Draconum",
-								"Arythea", "Braevalar", "Goldyx", "Krang", "Norowas", "Tovak", "Volkare", "Wolfhawk", "Coral", "Ymirgh", "Jormund", "Mevok", "Duscenia", "Malek", "Zirtae"}
-				for _, h in pairs(nameList) do
-					if name==h then free=false break end
-				end
+		mapSpatial=mapSpatial or runtimeMapSpatialSnapshot()
+		for _,candidate in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,params.position,1)) do
+			local candidatePos=mapSpatial.positions[candidate.guid] or candidate.getPosition()
+			local dx=candidatePos[1]-params.position[1]
+			local dz=candidatePos[3]-params.position[3]
+			if (dx*dx)+(dz*dz)<1 then
+				local rotationValues=candidate.getRotationValues()
+				local name=rotationValues[2]~=nil and rotationValues[2].value or candidate.getName()
+				if rampageBlockingNames[name]==true then free=false break end
 			end
 		end
 	end
@@ -851,11 +858,10 @@ function exploreMap(player, mouseButton, id)
 			if button.attributes~=nil and button.attributes.id==id then exploreStillLegal=true break end
 		end
 		if exploreStillLegal==false then explorePause=false return end
-		for _, mapObject in pairs(getObjectFromGUID(mapArea).getObjects()) do
-			if terrainTiles[mapObject.guid]~=nil then
-				local mapPos=mapObject.getPosition()
-				if ((pos[1]-mapPos[1])^2)+((pos[2]-mapPos[3])^2)<1 then explorePause=false return end
-			end
+		local exploreSnapshot=runtimeMapSnapshot()
+		for _,mapObject in ipairs(exploreSnapshot.terrainObjects or {}) do
+			local mapPos=exploreSnapshot.terrainPositions[mapObject.guid] or mapObject.getPosition()
+			if ((pos[1]-mapPos[1])^2)+((pos[2]-mapPos[3])^2)<1 then explorePause=false return end
 		end
 		--From here on exploration mutates the table. Take the safe rewind point before moving the city card
 		--or revealing the random terrain tile, and release it once the new tile is in a stable state.
@@ -1388,18 +1394,19 @@ local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBea
 	end
 end
 
---Day/night tint changes need to restore the red illegal-placement tint on predefined maps.
---Do this directly from the real map zone instead of faking a TTS onObjectEnterZone callback.
-function refreshPredefinedTerrainTint()
-	local mapZone=getObjectFromGUID(mapArea)
-	if mapZone==nil or mapZone.getObjects==nil then return end
-	local playAreaObjects=mapZone.getObjects()
+local function runtimeTerrainPlacementView()
+	local snapshot=runtimeMapSnapshot()
 	local faceUpTerrain={}
-	for _,mapObject in pairs(playAreaObjects) do
-		if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
-			faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObject.getPosition()}
-		end
+	for _,entry in ipairs(snapshot.terrainEntries or {}) do
+		faceUpTerrain[#faceUpTerrain+1]={guid=entry.guid,position=entry.position}
 	end
+	return snapshot, snapshot.objects or {}, faceUpTerrain
+end
+
+--Day/night tint changes need to restore the red illegal-placement tint on predefined maps.
+--Reuse the same runtime terrain view used by movement/exploration instead of rescanning the scripting zone.
+function refreshPredefinedTerrainTint()
+	local _,playAreaObjects,faceUpTerrain=runtimeTerrainPlacementView()
 	local northBearing=getObjectFromGUID(startTerrain.open)==nil and 70 or 40
 	applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,0,northBearing)
 end
@@ -1417,18 +1424,9 @@ function mapHandleTerrainZoneEnter(ctx)
 		workingOnTerrain[objGUID]=true
 		--Setup terrain still needs normal site/enemy population, but player-exploration UI/effects wait for actual play.
 		if initialSetupTerrain~=true then safeWaitTime("Map",function() addAvatarButtons() end, 1.5) end
-		local mapZone=getObjectFromGUID(mapArea)
-		if mapZone==nil or mapZone.getObjects==nil then
-			workingOnTerrain[objGUID]=nil
-			return true
-		end
-		local playAreaObjects=mapZone.getObjects()
-		local faceUpTerrain={}
-		for _,mapObject in pairs(playAreaObjects) do
-			if terrainTiles[mapObject.guid]~=nil and mapObject.is_face_down==false then
-				faceUpTerrain[#faceUpTerrain+1]={guid=mapObject.guid,position=mapObject.getPosition()}
-			end
-		end
+		--onObjectEnterZone already invalidated the runtime terrain cache for this tile. Build that view
+		--once here and reuse it for placement/tint/population instead of immediately scanning mapArea again.
+		local mapSnapshot,playAreaObjects,faceUpTerrain=runtimeTerrainPlacementView()
 		local core=0
 		local exploreRefreshedBeforeCity=false
 		local faceUp=	{0.0, 180.0,   0.0}
@@ -1491,6 +1489,7 @@ function mapHandleTerrainZoneEnter(ctx)
 				local tokenWait=0
 				local tokenRefillFrame=nil
 				local setupPopulationPending=0
+				local rampageSpatial=nil
 				--Keep/Mage Tower garrisons are spawned directly onto the newly revealed tile. Their map-zone
 				--entry can occur after terrain population itself has finished, so schedule one authoritative
 				--avatar refresh from the token's own completed arrival as well. This guarantees Auto Flip sees
@@ -1550,7 +1549,8 @@ function mapHandleTerrainZoneEnter(ctx)
 							--Rampaging Orcs & Draconum
 							if hexFeature=="rampaging" or hexFeature=="draconum" or
 								(gStates.gameScenario=="The Chaos Rift" and (hexFeature=="village" or ((hexFeature=="mine" or hexFeature=="") and objGUID==GUID.tile.city08))) then
-								playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, true, initialSetupTerrain~=true)
+								if gStates.rampage>0 and rampageSpatial==nil then rampageSpatial=runtimeMapSpatialSnapshot() end
+								playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFeature, true, initialSetupTerrain~=true, rampageSpatial)
 							end
 
 							--Mine
