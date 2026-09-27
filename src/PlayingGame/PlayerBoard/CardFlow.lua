@@ -1441,12 +1441,13 @@ function dealAllHands()
 end
 
 --Fill any gaps in the offer by sliding more cards down the line
-local function compactAndRefillDeedOfferRaw()
+local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh)
 	local offerSize=deedOfferBoundedSize(gStates.offerSize)
 	gStates.offerSize=offerSize
 	local offerList={{}, {}}
+	local movedCards={}
 	local offerZone=getObjectFromGUID(GUID.zone.offer)
-	if offerZone==nil then return false end
+	if offerZone==nil then return movedCards end
 
 	local function lockOfferCardWhenResting(cardGUID)
 		safeWaitCondition("PlayerBoard.CardFlow",function()
@@ -1485,6 +1486,7 @@ local function compactAndRefillDeedOfferRaw()
 							cardMove.setPositionSmooth({(column*4.8)+21.6,1.5,-((row*6)+10.2)},false,false)
 							cardMove.setRotationSmooth({0,180,0},false,false)
 							lockOfferCardWhenResting(moveGUID)
+							movedCards[#movedCards+1]=moveGUID
 							offerList[row][column]=moveGUID
 							offerList[row][replaceColumn]=nil
 							filled=true
@@ -1510,6 +1512,7 @@ local function compactAndRefillDeedOfferRaw()
 						end
 						if newCard~=nil then
 							offerList[row][column]=newCard.guid
+							movedCards[#movedCards+1]=newCard.guid
 							lockOfferCardWhenResting(newCard.guid)
 						end
 					end
@@ -1517,12 +1520,12 @@ local function compactAndRefillDeedOfferRaw()
 			end
 		end
 	end
-	if refreshDeedOfferAdjustUI~=nil then safeWaitFrames("PlayerBoard.CardFlow",refreshDeedOfferAdjustUI,2) end
-	return true
+	if suppressAdjustUIRefresh~=true and refreshDeedOfferAdjustUI~=nil then safeWaitFrames("PlayerBoard.CardFlow",refreshDeedOfferAdjustUI,2) end
+	return movedCards
 end
 
-function compactAndRefillDeedOffer()
-	return safeCallback("compactAndRefillDeedOffer",function() return compactAndRefillDeedOfferRaw() end)
+function compactAndRefillDeedOffer(suppressAdjustUIRefresh)
+	return safeCallback("compactAndRefillDeedOffer",function() return compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh) end)
 end
 
 -- Glade discard healing
