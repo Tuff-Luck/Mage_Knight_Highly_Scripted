@@ -465,7 +465,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 					if cityguid~=volkare.terrainHex or (monsterData.pugType=="red" or monsterData.pugType=="white") or volkareCityShield==1 then
 						if volkareCityShield==1 then volkareCityShield=0 end
 						monsters.extra.shieldsThere=monsters.extra.shieldsThere+1
-						dropShield(location,true)
+						dropShield(location,true,nil,cleanupPlayer)
 					end
 					context.volkareCityShield=volkareCityShield
 				end
@@ -510,7 +510,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		end
 		if shieldExists==false then
 			if gStates.monsterPlayLocation[monsterGUID]~=nil then
-				dropShield(gStates.monsterPlayLocation[monsterGUID],true)
+				dropShield(gStates.monsterPlayLocation[monsterGUID],true,nil,cleanupPlayer)
 				if trackSiteShield==true then context.siteShieldExists=true end
 				coralTalesSiteShield(cleanupLocation)
 			elseif avatarPos[1]~=nil and avatarPos[3]~=nil then
@@ -522,7 +522,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 					if terrain~=nil then shieldRotation={0,terrain.getRotation()[2],0} end
 					if floor~=nil then shieldPos=zigguratPyramidFloorPosition(terrain,sitePos or avatarPos,floor) end
 				end
-				dropShield(shieldPos,true,shieldRotation)
+				dropShield(shieldPos,true,shieldRotation,cleanupPlayer)
 				if trackSiteShield==true then context.siteShieldExists=true end
 				coralTalesSiteShield(cleanupLocation)
 			end
@@ -536,7 +536,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		for _, monsters in pairs(gStates.mineMonsterQty) do
 			if monsters[monsterGUID]~=nil then
 				for otherGUID, monsterState in pairs(monsters) do
-					if otherGUID~=monsterGUID and monsterState=="dead" and avatarPos[1]~=nil and avatarPos[3]~=nil then dropShield({avatarPos[1],2,avatarPos[3]},true) break end
+					if otherGUID~=monsterGUID and monsterState=="dead" and avatarPos[1]~=nil and avatarPos[3]~=nil then dropShield({avatarPos[1],2,avatarPos[3]},true,nil,cleanupPlayer) break end
 				end
 				break
 			end
@@ -844,7 +844,7 @@ local function combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avat
 			avatarDropFinished=true
 			--place shield or replenish monster in spawning grounds
 			if turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
-				if state.cleanupContext.spawningGroundMonstersBeat==2 then dropShield({avatarPos[1], 2, avatarPos[3]}, true) coralTalesSiteShield("spawning grounds") end
+				if state.cleanupContext.spawningGroundMonstersBeat==2 then dropShield({avatarPos[1], 2, avatarPos[3]}, true, nil, cleanupPlayer) coralTalesSiteShield("spawning grounds") end
 				if state.spawningGroundMonstersReturned==1 then
 					local newMonster=getObjectFromGUID(monsterPiles.tan).takeObject({position={avatarPos[1]+0.22, 2.12, avatarPos[3]}, smooth=false})
 					gStates.monsterPlayLocation[newMonster.guid]={avatarPos[1]+0.22, 2.12, avatarPos[3]}
@@ -1082,7 +1082,7 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 								if playAreaObj.guid==darkCrusader.token then hexRotationRad=math.rad(-1*(-120+tonumber(30*(gStates.darkCrusaderLevel-gStates.leaderReduction-(b-1))))) end
 								local discPos=leaderDisc.getPosition()
 								local location={discPos[1]+(math.cos(hexRotationRad)*2.9),2+(b*1.5),discPos[3]+(math.sin(hexRotationRad)*2.9)}
-								dropShield(location,false)
+								dropShield(location,false,nil,cleanupPlayer)
 							end
 						end
 						--Record damage to the faction leader, but during a cooperative assault do not move its

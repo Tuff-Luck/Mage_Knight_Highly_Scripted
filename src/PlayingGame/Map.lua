@@ -168,10 +168,17 @@ end
 
 --Physical activation state is kept separately from doingTheRounds. Tome/Circlet can move a real token
 --after it has been played, while the effect that token created may still need to survive.
-function dropShield(location, lockToken, rotation)
-	for a, details in pairs(mageKnights) do
-		if details.mage==turnOrder[gStates.turnNumber].mage then
-			local shield=getObjectFromGUID(details.shieldContainer).takeObject({position=location, rotation=rotation, smooth=false})
+function dropShield(location, lockToken, rotation, playerIndex)
+	--Delayed combat cleanup can finish after the active turn has advanced (including to Volkare).
+	--Use the player whose action created the shield when supplied; ordinary callers still use the current turn.
+	local owner=turnOrder[playerIndex or gStates.turnNumber]
+	if owner==nil then return end
+	for _, details in pairs(mageKnights) do
+		if details.mage==owner.mage then
+			local shieldContainer=details.shieldContainer~=nil and getObjectFromGUID(details.shieldContainer) or nil
+			if shieldContainer==nil then return end
+			local shield=shieldContainer.takeObject({position=location, rotation=rotation, smooth=false})
+			if shield==nil then return end
 			if lockToken==true then
 				safeWaitTime("Map",function() safeWaitCondition("Map",function()
 					shield.lock()

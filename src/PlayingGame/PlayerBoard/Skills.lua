@@ -1315,6 +1315,9 @@ function skillButtonActivate()
 	unlockCommonSkillPoolTokens()
 	if gStates.skillButtons~=nil and gStates.skillButtons>0 then startRewardSkillChoiceHighlights() end
 	safeWaitTime("PlayerBoard.Skills",function()
+		--The claim may finish during this half-second presentation delay.
+		--Read the live seat once and treat a cleared/nil claim as no skill buttons to rebuild.
+		local skillButtonSeat=tonumber(gStates.skillButtons) or 0
 		--blank existing claim buttons
 		for skillGUID, x in pairs(gStates.mageSkills) do
 			if getObjectFromGUID(skillGUID)~=nil then getObjectFromGUID(skillGUID).UI.setXmlTable({{}}) end
@@ -1322,12 +1325,12 @@ function skillButtonActivate()
 		if gStates.tacticShown==false and gStates.tacticRemove==false then
 			--Work out which skills exist where.
 			local skillSort={currentPlayer={}}
-			if gStates.skillButtons>0 then
+			if skillButtonSeat>0 then
 				for skillGUID, skillPos in pairs(gStates.mageSkills) do
 					if skillPos[3]>-30 then
 						local skillColumn=math.ceil((skillPos[1]-12.85)/3.7)
 						local skillRow=math.ceil((skillPos[3]+24.625)/1.35)
-						if gStates.skillButtons~=skillColumn+1 then
+						if skillButtonSeat~=skillColumn+1 then
 							skillSort[(skillColumn*8)+skillRow]=skillGUID
 						else
 							skillSort.currentPlayer[#skillSort.currentPlayer+1]={skillGUID, skillPos[3], (skillColumn*8)+skillRow}
@@ -1338,8 +1341,8 @@ function skillButtonActivate()
 			--Add claim buttons for skills that are legal
 			table.sort(skillSort.currentPlayer, function (k1, k2) return k1[2] > k2[2] end)
 			for buttonNumber=1, 32, 1 do
-				if gStates.skillButtons>0 then
-					if math.ceil(buttonNumber/8)~=gStates.skillButtons then
+				if skillButtonSeat>0 then
+					if math.ceil(buttonNumber/8)~=skillButtonSeat then
 						if gStates.heroChallenges~=true and skillSort[buttonNumber]~=nil then
 							local skill=getObjectFromGUID(skillSort[buttonNumber])
 							if skill~=nil then skill.UI.setXmlTable({createClaimButton(skillSort[buttonNumber], tostring(buttonNumber))}) end
