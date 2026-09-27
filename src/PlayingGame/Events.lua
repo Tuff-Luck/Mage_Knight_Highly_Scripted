@@ -684,6 +684,23 @@ local function zoneEventContext(zone, obj)
 	}
 end
 
+local function zoneEventObjectName(ctx)
+	if ctx.objName==nil then ctx.objName=ctx.obj.getName() end
+	return ctx.objName
+end
+
+local function zoneEventObjectNotes(ctx)
+	if ctx.objNotes==nil then ctx.objNotes=ctx.obj.getGMNotes() end
+	return ctx.objNotes
+end
+
+local function zoneObjectCanBeMapMarker(ctx)
+	if ctx==nil or ctx.objGUID==nil then return false end
+	if terrainTiles[ctx.objGUID]~=nil or monsterPugs[ctx.objGUID]~=nil then return false end
+	local objType=ctx.objType
+	return objType~="Card" and objType~="Deck" and objType~="Dice" and objType~="Bag" and objType~="Infinite_Bag"
+end
+
 local settledZoneEntrySerial={}
 local function zoneContainsGUID(zone,guid)
 	if zone==nil or guid==nil then return false end
@@ -718,7 +735,7 @@ local function handleZoneEnterPrelude(ctx)
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
-	if ctx.isMap and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(obj)==true then
+	if ctx.isMap and terrainTiles[objGUID]==nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(obj,ctx)==true then
 		--A held object will be handled once by onObjectDrop; retries here are only for scripted arrivals.
 		if obj.held_by_color==nil then mapTokenScheduleObject(objGUID) end
 	end
@@ -819,8 +836,10 @@ local function handleMapLocationZoneEnter(ctx)
 	local objGUID=ctx.objGUID
 		--Check if a shield, avatar, secret Dungeon, or Secret Tomb has been played to cities or board
 	if zoneGUID==mapArea or zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity or zoneGUID==volkare.discZone or zoneGUID==darkCrusader.discZone or zoneGUID==elementalist.discZone then
-		local objectName=obj.getName()
-		local objectNotes=obj.getGMNotes()
+		if monsterPugs[objGUID]~=nil then return end
+		if zoneObjectCanBeMapMarker(ctx)~=true and mageKnightAvatarGUIDs[objGUID]~=true then return end
+		local objectName=zoneEventObjectName(ctx)
+		local objectNotes=zoneEventObjectNotes(ctx)
 		if (objectName=="Shield" or objectNotes=="Burned Monastery" or objectName=="Secret Dungeon" or objectName=="Secret Tomb") and obj.getLock()==false then
 			scheduleShieldLocation(obj, zone, "enter")
 		else
@@ -893,28 +912,30 @@ function refreshRampagerMapVisual(obj)
 	end
 end
 
-local function handleMapVisualZoneEnter(ctx)
+local function cleanupMapTransientDecals(obj)
+	if obj==nil or obj.guid==gStates.volkareModel then return end
+	local existingDecals=obj.getDecals() or {}
+	local decalTable={}
+	local decalsChanged=false
+	for _, decalDetails in pairs(existingDecals) do
+		if decalDetails.name=="Fortified" or decalDetails.name=="Elemental" or decalDetails.name=="Brutal" or decalDetails.name=="Poison" or decalDetails.name=="Defense" or decalDetails.name:sub(1,4)=="Mine" or decalDetails.name=="NightRules" or decalDetails.name=="Reward" then
+			decalTable[#decalTable+1]=decalDetails
+		else
+			decalsChanged=true
+		end
+	end
+	if decalsChanged==true then obj.setDecals(decalTable) end
+end
+
+local function handleMapVisualZoneEnterNow(ctx)
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
 	--Map entry normally restores Rampager UI. Scripted deployment can register Ambush/Pursuit
 	--state just after this event, so playRampagingTokens() also calls the same helper once registered.
-	if zoneGUID==mapArea then refreshRampagerMapVisual(obj) end
-
-	--Remove transient decals from anything entering the map, but only write the decal table back
-	--when at least one decal actually needs removing.
-	if zoneGUID==mapArea and objGUID~=gStates.volkareModel then
-		local existingDecals=obj.getDecals() or {}
-		local decalTable={}
-		local decalsChanged=false
-		for _, decalDetails in pairs(existingDecals) do
-			if decalDetails.name=="Fortified" or decalDetails.name=="Elemental" or decalDetails.name=="Brutal" or decalDetails.name=="Poison" or decalDetails.name=="Defense" or decalDetails.name:sub(1,4)=="Mine" or decalDetails.name=="NightRules" or decalDetails.name=="Reward" then
-				decalTable[#decalTable+1]=decalDetails
-			else
-				decalsChanged=true
-			end
-		end
-		if decalsChanged==true then obj.setDecals(decalTable) end
+	if zoneGUID==mapArea then
+		refreshRampagerMapVisual(obj)
+		cleanupMapTransientDecals(obj)
 		--reset wallFortified
 		if gStates.monsterPerks[objGUID]~=nil and gStates.monsterPerks[objGUID].wallFortified~=nil then gStates.monsterPerks[objGUID].wallFortified=nil end
 	end
@@ -928,7 +949,6 @@ local function handleMapVisualZoneEnter(ctx)
 			if targetHex~=nil and terTile~=nil and monsterhexBearing~=nil then
 				--Add Fortified Site Icon
 				if targetHex.feature=="mage tower" or targetHex.feature=="keep" then
-					--Add Icon
 					local found=false
 					local existingDecals=obj.getDecals() or {}
 					for _, decalDetails in pairs(existingDecals) do
@@ -945,7 +965,23 @@ local function handleMapVisualZoneEnter(ctx)
 		cityBonusDecals(obj, obj)
 		safeWaitFrames("Events",function() addAvatarButtons() end, 5)
 	end
+end
 
+local function handleMapVisualZoneEnter(ctx)
+	if ctx.zoneGUID~=mapArea then
+		handleMapVisualZoneEnterNow(ctx)
+		return
+	end
+	--Object UI/decal inspection crosses the TTS engine boundary and was visible as a hitch on the exact
+	--map-zone entry frame. It is presentation-only, so defer it one frame and verify the object stayed in the map.
+	local objGUID=ctx.objGUID
+	safeWaitFrames("Events",function()
+		local liveObj=getObjectFromGUID(objGUID)
+		local liveZone=getObjectFromGUID(mapArea)
+		if liveObj==nil or liveZone==nil or zoneContainsGUID(liveZone,objGUID)~=true then return end
+		local liveCtx=zoneEventContext(liveZone,liveObj)
+		if liveCtx~=nil then handleMapVisualZoneEnterNow(liveCtx) end
+	end,1)
 end
 
 local function handleHandZoneEnter(ctx)
@@ -1170,33 +1206,34 @@ end
 local function handleMapZoneLeave(ctx)
 	local zone=ctx.zone
 	local obj=ctx.obj
-	--remove decals from anything lifted from the map.
-	if zone.guid==mapArea and obj.guid~=gStates.volkareModel then
-		local existingDecals=obj.getDecals() or {}
-		local decalTable={}
-		local decalsChanged=false
-		for _, decalDetails in pairs(existingDecals) do
-			if decalDetails.name=="Fortified" or decalDetails.name=="Elemental" or decalDetails.name=="Brutal" or decalDetails.name=="Poison" or decalDetails.name=="Defense" or decalDetails.name:sub(1,4)=="Mine" or decalDetails.name=="NightRules" or decalDetails.name=="Reward" then
-				decalTable[#decalTable+1]=decalDetails
-			else
-				decalsChanged=true
+	local objGUID=ctx.objGUID
+
+	if zone.guid==mapArea then
+		--Decal reads and Object-UI writes are presentation cleanup. Move them off the boundary frame;
+		--if the object immediately re-enters the map, leave its newly-restored presentation alone.
+		safeWaitFrames("Events",function()
+			local liveObj=getObjectFromGUID(objGUID)
+			local mapZone=getObjectFromGUID(mapArea)
+			if liveObj==nil then return end
+			if mapZone~=nil and zoneContainsGUID(mapZone,objGUID)==true then return end
+			cleanupMapTransientDecals(liveObj)
+			if objGUID~=volkare.model and objGUID~=elementalist.terrainHex and objGUID~=darkCrusader.terrainHex then
+				liveObj.UI.setXmlTable({{}})
 			end
-		end
-		if decalsChanged==true then obj.setDecals(decalTable) end
+		end,1)
 	end
 
-	if zone.guid==mapArea and obj.guid~=volkare.model and obj.guid~=elementalist.terrainHex and obj.guid~=darkCrusader.terrainHex then
-		obj.UI.setXmlTable({{}})
-	end
-
-	--Check if a shield has been removed
-	if (zone.guid==mapArea)--or zone.guid==GUID.zone.blueCity or zone.guid==GUID.zone.redCity or zone.guid==GUID.zone.greenCity or zone.guid==GUID.zone.whiteCity or zone.guid==volkare.discZone or zone.guid==darkCrusader.discZone or zone.guid==elementalist.discZone)
-		and (obj.getName()=="Shield" or obj.getGMNotes()=="Burned Monastery" or obj.getName()=="Secret Dungeon" or obj.getName()=="Secret Tomb") and obj.getLock()==false then
-		scheduleShieldLocation(obj, zone, "remove")
+	--Check if a shield/site marker has been removed. Known cards/decks/dice/terrain/enemies skip
+	--Name/GM Notes entirely; only marker-like objects cross those TTS properties.
+	if zone.guid==mapArea and zoneObjectCanBeMapMarker(ctx)==true and obj.getLock()==false then
+		local objectName=zoneEventObjectName(ctx)
+		local marker=objectName=="Shield" or objectName=="Secret Dungeon" or objectName=="Secret Tomb"
+		if marker~=true then marker=zoneEventObjectNotes(ctx)=="Burned Monastery" end
+		if marker==true then scheduleShieldLocation(obj, zone, "remove") end
 	end
 
 	--remove red tint when lifting out terrain tile.
-	if zone.guid==mapArea and terrainTiles[obj.guid]~=nil then
+	if zone.guid==mapArea and terrainTiles[objGUID]~=nil then
 		if startingMapSetup==true then
 			if gStates.startAtNight==true then obj.setColorTint({r=0.6, g=0.6, b=0.6}) else obj.setColorTint({r=1.0, g=1.0, b=1.0}) end
 		elseif gStates.dayRound==false then
