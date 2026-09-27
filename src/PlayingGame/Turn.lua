@@ -340,14 +340,20 @@ function reclaimTimeBending(callback)
 end
 
 --Returns which immediate extra-turn effects are currently available to the active player.
-local function extraTurnOptions(playerIndex)
+--The UI and click handlers both use this helper so they cannot disagree about eligibility.
+function extraTurnOptions(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil then return false, false end
 	local tacticSixAvailable=details.tactic==6 and gStates.dayRound==true and gStates.tacticSixState~="Used" and gStates.tacticRemove==false and gStates.tacticShown==false
 	local timeBendingAvailable=false
 	local playArea=getObjectFromGUID(playerPlayAreas[details.seatPos])
 	if playArea~=nil then
-		for _, obj in pairs(playArea.getObjects()) do if obj.guid==GUID.card.timeBending then timeBendingAvailable=true break end end
+		for _, obj in pairs(playArea.getObjects()) do
+			if obj.guid==GUID.card.timeBending and obj.is_face_down==false and cardEffectIsVertical(obj)==true then
+				timeBendingAvailable=true
+				break
+			end
+		end
 	end
 	return tacticSixAvailable, timeBendingAvailable
 end
@@ -378,6 +384,11 @@ function extraTurnChoice(player, mouseButton, id)
 	elseif id=="ExtraTurnChoiceTactic6" and tacticSixAvailable then
 		UI.hide("ExtraTurnChoice")
 		preEndTurn(player, "-1", "ExtraTurnChoiceTactic6")
+	else
+		--The card/tactic state can change while this chooser is open. Close stale choices and
+		--let the normal UI refresh expose whichever option is still legal.
+		UI.hide("ExtraTurnChoice")
+		mainUIUpdate("Extra Turn Choice Changed")
 	end
 end
 

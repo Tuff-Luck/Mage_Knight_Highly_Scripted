@@ -119,7 +119,7 @@
 		</Panel>
 		<Panel id="ExtraTurnTactic"	class="MainGameSubPanel" active="false" color="rgb(0.2, 0.2, 0.2)" outlineSize="0 0" rectAlignment="LowerCenter" offsetXY="0 33" height="34">
 			<HorizontalLayout>
-				<Button id="EndTurnButtonAlt" height="1" onClick="preEndTurn">
+				<Button id="EndTurnButtonAlt" height="1" onClick="preEndTurn" tooltip="At least one card must be played or discarded to 'End Your Turn'.">
 					<Image id="EndTurnButtonAltImage" image="Sliced Button/Button New Active" type="Sliced"/>
 					<HorizontalLayout padding="6 6 6 6"><Text id="EndTurnButtonAltText" class="Text20" offsetXY="0 1">{en}End Turn{ru}Конец хода{zh-tw}結束回合{zh-cn}结束回合{ko}차례 종료{es}Fin de Turno{fr}Fin de Tour{pt-br}Fim de Turno{de}Zug Beenden</Text></HorizontalLayout>
 				</Button>

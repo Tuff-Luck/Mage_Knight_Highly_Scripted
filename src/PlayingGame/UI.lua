@@ -624,7 +624,6 @@ end
 function automatedMainPanelApply(spec)
 	if spec==nil then
 		UI.setAttribute("DummyTurn","active","false")
-		UI.setAttribute("ExtraTurnTactic","active","false")
 		UI.setAttribute("DummyChoiceButtons","active","false")
 		automatedAttackResponseUI(nil)
 		return false
@@ -708,8 +707,6 @@ local mainUINonCombatAccountingSources={
 	["Night Tactic 6 Claimed"]=true,
 	["Fame Gain from exploring"]=true
 }
-local mainUITimeBendingPresent=false
-
 local function mainUIBuildRefreshContext(source)
 	local currentPlayer=turnOrder[gStates.turnNumber]
 	if currentPlayer==nil then return nil end
@@ -754,6 +751,7 @@ local function mainUIRefreshTurnControls(context)
 	--change End turn button to say End Round on the last player turn
 	setUIButtonEnabled("EndTurnButton",true)
 	UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
+	UI.setAttribute("EndTurnButtonAlt", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
 	setUIButtonEnabled("EndTurnButtonAlt",true)
 	setUIButtonEnabled("ExtraTurnTacticButton",true)
 	UI.setAttribute("PreEndTurnText", "text", "{en}Rewards Claimed{ru}Награды получены{zh-tw}獲得獎勵{zh-cn}获得奖励{ko}보상 처리 완료{es}Recompensas Reclamadas{fr}Récompenses réclamées{pt-br}Recompensas Coletadas{de}Belohnungen Beansprucht")
@@ -774,7 +772,7 @@ local function mainUIRefreshPlayerState(context)
 	local fameForUp=0
 	if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
 		if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then turnOrder[gStates.turnNumber].fame=-1 else turnOrder[gStates.turnNumber].fame=999 end
-		return {automated=true,currentPlayer=turnOrder[gStates.turnNumber],fameForUp=0,timeBending=mainUITimeBendingPresent==true}
+		return {automated=true,currentPlayer=turnOrder[gStates.turnNumber],fameForUp=0}
 	end
 
 	if againstDragonAttendanceUIRefresh==nil or againstDragonAttendanceUIRefresh()~=true then UI.setAttribute("VolkareAttacked", "active", "false") end
@@ -803,16 +801,13 @@ local function mainUIRefreshPlayerState(context)
 
 
 	--Read all objects found in play area. Used to decide on off states of "End.." buttons, plus fame and rep gains
-	local timeBending=mainUITimeBendingPresent==true
 	local avatarLocation=turnOrder[gStates.turnNumber].avatarLocation
 	if context.refreshCombatAccounting==true then
-		if gStates.preEndTurn==false then timeBending=false end
 		for a, b in pairs(gStates.gainList) do b.exists=false end
 	if gStates.preEndTurn==false then
 		local hiddenValleyKeep=false
 		for _, obj in pairs(playerCombatObjects(turnOrder[gStates.turnNumber].seatPos)) do
 			--Read Monster tokens in the current player's Play/Unit areas and update fame and reputation gain values.
-			if obj.guid==GUID.card.timeBending then timeBending=true end
 			if monsterPugs[obj.guid]~=nil and gStates.summonStates[obj.guid]~="summoned" and monsterPugs[obj.guid].pugType~="possessed" then
 				local doMath=false
 				local cityRepLoss=false
@@ -1027,12 +1022,11 @@ local function mainUIRefreshPlayerState(context)
 		--Cap the gain values if exceeding limits
 		if turnOrder[gStates.turnNumber].fameGain<0 then turnOrder[gStates.turnNumber].fameGain=0 end
 	end
-		mainUITimeBendingPresent=timeBending
 	end
 
 	return {
 		automated=false,currentPlayer=currentPlayer,fameForUp=fameForUp,
-		fameVerticle=fameVerticle,avatarLocation=avatarLocation,timeBending=timeBending
+		fameVerticle=fameVerticle,avatarLocation=avatarLocation
 	}
 end
 
@@ -1197,7 +1191,11 @@ local function mainUIRefreshTurnAvailability(context,playerState)
 		if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
 	end
 	UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
-	if gStates.endRoundCalled==true then UI.setAttribute("EndTurnButton", "tooltip", "") end
+	UI.setAttribute("EndTurnButtonAlt", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
+	if gStates.endRoundCalled==true then
+		UI.setAttribute("EndTurnButton", "tooltip", "")
+		UI.setAttribute("EndTurnButtonAlt", "tooltip", "")
+	end
 	local coopCombatButtonLocked=gStates.coopAssaultPhase=="combat" and (gStates.preEndTurn==true or playerAreaCardCount<1)
 	if (playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount) or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
 		setUIButtonEnabled("EndTurnButton",false)
@@ -1208,12 +1206,17 @@ local function mainUIRefreshTurnAvailability(context,playerState)
 end
 
 local function mainUIRefreshExtraTurn(context,playerState)
-	if playerState.automated==true then return end
-	local timeBending=playerState.timeBending==true
-	--Show extra-turn button. If Time Bending and Day Tactic 6 are both available, ask which one is being used.
-	local tacticSixAvailable=turnOrder[gStates.turnNumber].tactic==6 and gStates.dayRound==true and gStates.tacticSixState~="Used"
-	local timeBendingAvailable=timeBending==true
-	if (tacticSixAvailable or timeBendingAvailable) and gStates.tacticRemove==false and gStates.tacticShown==false then
+	--This renderer owns the human extra-turn panel. Automated/interstitial turns hide it again
+	--through automatedMainPanelApply(spec), but a nil human spec must not undo this decision later.
+	UI.setAttribute("ExtraTurnTactic", "active", "false")
+	if playerState.automated==true or gStates.preEndTurn==true then
+		UI.hide("ExtraTurnChoice")
+		return
+	end
+	--Use the exact same eligibility check as the click handler so the UI cannot advertise a stale option.
+	local tacticSixAvailable,timeBendingAvailable=extraTurnOptions(gStates.turnNumber)
+	if tacticSixAvailable~=true or timeBendingAvailable~=true then UI.hide("ExtraTurnChoice") end
+	if tacticSixAvailable or timeBendingAvailable then
 		UI.setAttribute("ExtraTurnTactic", "active", "true")
 		if tacticSixAvailable and timeBendingAvailable then
 			UI.setAttribute("ExtraTurnTacticButtonText", "text", "{en}Extra Turn{ru}Дополнительный ход{zh-tw}額外回合{zh-cn}额外回合{ko}추가 턴{es}Turno Extra{fr}Tour Supplémentaire{pt-br}Turno Extra{de}Extra-Zug")
