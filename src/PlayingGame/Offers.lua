@@ -549,9 +549,48 @@ function refreshDeedOfferAdjustUI()
 	return true
 end
 
+local function hideDeedOfferAdjustUI()
+	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+	if spellSource~=nil then spellSource.UI.setXmlTable({}) end
+end
+
 local function deedOfferMoveSource(deckName,position)
 	local source=standardDeckCycleObject(deckName)
-	if source~=nil then source.setPositionSmooth(position,false,false) end
+	if source==nil then return nil end
+	local guid=source.guid
+	source.setPositionSmooth(position,false,false)
+	return guid
+end
+
+local function deedOfferMovedSourcesSettled(sourceGUIDs)
+	for deckName,guid in pairs(sourceGUIDs) do
+		local source=getObjectFromGUID(guid)
+		if source==nil then source=standardDeckCycleObject(deckName) end
+		if source~=nil and (source.isSmoothMoving()==true or source.resting~=true) then return false end
+	end
+	return true
+end
+
+local function deedOfferMovedCardsSettled(cardGUIDs)
+	for _,guid in ipairs(cardGUIDs or {}) do
+		local card=getObjectFromGUID(guid)
+		if card~=nil and (card.isSmoothMoving()==true or card.resting~=true) then return false end
+	end
+	return true
+end
+
+local function deedOfferReturnedCardsAbsorbed(returnedCards,sourceGUIDs)
+	for _,entry in ipairs(returnedCards or {}) do
+		local card=getObjectFromGUID(entry.guid)
+		if card~=nil and card.type=="Card" then
+			--If there was no source pile before the resize, the returned card itself legitimately becomes
+			--the new one-card source. Otherwise keep waiting until it has physically merged into the pile.
+			if sourceGUIDs[entry.deckName]~=nil then return false end
+			local source=standardDeckCycleObject(entry.deckName)
+			if source==nil or source.guid~=entry.guid or source.isSmoothMoving()==true or source.resting~=true then return false end
+		end
+	end
+	return true
 end
 
 function offerAdjust(player, mouseButton, id)
@@ -568,6 +607,8 @@ function offerAdjust(player, mouseButton, id)
 	end
 
 	OfferPause=true
+	hideDeedOfferAdjustUI()
+
 	--Capture the outgoing column before shrinking the broad offer zone; once the zone is resized,
 	--that column is no longer guaranteed to be returned by zone.getObjects().
 	local returnedCards={}
@@ -576,7 +617,10 @@ function offerAdjust(player, mouseButton, id)
 		if offerZone~=nil then
 			for _,card in pairs(offerZone.getObjects()) do
 				if card.type=="Card" and math.floor(((card.getPosition()[1]-21.6)/4.8)+0.5)==oldSize then
-					returnedCards[#returnedCards+1]=card
+					local deckName=gameCardType(card)
+					if deckName=="Advanced Action" or deckName=="Spell" then
+						returnedCards[#returnedCards+1]={card=card,guid=card.guid,deckName=deckName}
+					end
 				end
 			end
 		end
@@ -584,10 +628,12 @@ function offerAdjust(player, mouseButton, id)
 
 	gStates.offerSize=newSize
 	local sourceX=(4.8*(newSize+1))+21.6
-	--Move the live source object rather than the setup-time Deck GUID. TTS changes GUID identity when
-	--a Deck collapses to one Card or reforms after a returned card is merged.
-	deedOfferMoveSource("Spell",{sourceX,2.5,-22.2})
-	deedOfferMoveSource("Advanced Action",{sourceX,2.5,-16.2})
+	--Move the live source objects rather than the setup-time Deck GUIDs. Keep their current GUIDs so
+	--the completion gate follows the moving piles even before they re-enter their relocated zones.
+	local sourceGUIDs={
+		["Spell"]=deedOfferMoveSource("Spell",{sourceX,2.5,-22.2}),
+		["Advanced Action"]=deedOfferMoveSource("Advanced Action",{sourceX,2.5,-16.2}),
+	}
 	local spellZone=getObjectFromGUID(GUID.zone.spellDeck)
 	local actionZone=getObjectFromGUID(GUID.zone.actionDeck)
 	local offerZone=getObjectFromGUID(GUID.zone.offer)
@@ -598,22 +644,41 @@ function offerAdjust(player, mouseButton, id)
 		offerZone.setPosition({(2.4*(newSize-1))+26.4,1.13,-19.2})
 	end
 
-	if delta>0 then
-		compactAndRefillDeedOffer()
-	else
-		for _,card in ipairs(returnedCards) do
+	local function finishResize()
+		OfferPause=false
+		refreshDeedOfferAdjustUI()
+	end
+
+	if delta<0 then
+		for _,entry in ipairs(returnedCards) do
+			local card=entry.card
 			if card~=nil then
-				standardDeckCycleMarkReturned(gameCardType(card),card)
+				standardDeckCycleMarkReturned(entry.deckName,card)
 				card.unlock()
 				card.setRotation({0,180,180})
 			end
 		end
+		--The controls stay absent until both moving source piles have landed and every outgoing card
+		--has either merged into that pile or, for an exhausted source, become the new one-card pile.
+		safeWaitCondition("Offers",finishResize,function()
+			return deedOfferMovedSourcesSettled(sourceGUIDs)==true
+				and deedOfferReturnedCardsAbsorbed(returnedCards,sourceGUIDs)==true
+		end)
+		return
 	end
 
-	safeWaitFrames("Offers",function()
-		OfferPause=false
-		refreshDeedOfferAdjustUI()
-	end,60)
+	--When growing, first let the source piles finish moving into their relocated zones. Only then draw
+	--the new column, so refill cannot race the zone move or resolve an empty source while it is in flight.
+	safeWaitCondition("Offers",function()
+		local movedCards=compactAndRefillDeedOffer(true)
+		if type(movedCards)~="table" then movedCards={} end
+		safeWaitCondition("Offers",finishResize,function()
+			return deedOfferMovedSourcesSettled(sourceGUIDs)==true
+				and deedOfferMovedCardsSettled(movedCards)==true
+		end)
+	end,function()
+		return deedOfferMovedSourcesSettled(sourceGUIDs)==true
+	end)
 end
 
 --Change a hand's color and refresh.
