@@ -106,12 +106,11 @@ function playerBoardZoneEnterSettled(ctx)
 					end
 				end
 			end
-			local mapObjects=getObjectFromGUID(mapArea).getObjects()
-			local terTile, monsterhexBearing=terrainHexAtPosition(target, mapObjects)
-			if terTile~=nil and monsterhexBearing~=nil and gStates.volkareState~=nil and gStates.volkareState:sub(1, 9)~="Attacking" then
+			local targetHex, _, terTile, monsterhexBearing=runtimeMapHexAtPosition(target)
+			if targetHex~=nil and terTile~=nil and monsterhexBearing~=nil and gStates.volkareState~=nil and gStates.volkareState:sub(1, 9)~="Attacking" then
 
 				--fortified for Volkare's Army
-				if attackingVolkare==true and monsterPugs[objGUID].unfortified==nil and (terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="mage tower" or terrainTiles[terTile.guid].hexFeature[monsterhexBearing]=="keep") then
+				if attackingVolkare==true and monsterPugs[objGUID].unfortified==nil and (targetHex.feature=="mage tower" or targetHex.feature=="keep") then
 					local found=false
 					local existingDecals=obj.getDecals() or {}
 					for _, decalDetails in pairs(existingDecals) do
