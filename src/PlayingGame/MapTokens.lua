@@ -101,8 +101,28 @@ function mapTokenIsSpreadEnemy(obj)
 	return true
 end
 
-function mapTokenNeedsArrangement(obj)
-	return mapTokenIsSpreadEnemy(obj)==true or mapTokenIsBaseSite(obj)==true or mapTokenIsShield(obj)==true
+function mapTokenNeedsArrangement(obj,metadata)
+	if obj==nil or obj.guid==nil then return false end
+	--Registered enemies and Quest markers can be identified entirely in Lua without crossing the
+	--TTS object boundary for Name/GM Notes. Terrain/cards/decks/dice are also known non-participants.
+	if mapTokenIsSpreadEnemy(obj)==true or mapTokenIsQuestMarker(obj)==true then return true end
+	if terrainTiles~=nil and terrainTiles[obj.guid]~=nil then return false end
+	local objType=obj.type
+	if objType=="Card" or objType=="Deck" or objType=="Dice" or objType=="Bag" or objType=="Infinite_Bag" then return false end
+
+	local objectName=metadata~=nil and metadata.objName or nil
+	if objectName==nil then
+		objectName=obj.getName()
+		if metadata~=nil then metadata.objName=objectName end
+	end
+	if objectName=="GraveYard" or objectName=="Shield" then return true end
+
+	local objectNotes=metadata~=nil and metadata.objNotes or nil
+	if objectNotes==nil then
+		objectNotes=obj.getGMNotes()
+		if metadata~=nil then metadata.objNotes=objectNotes end
+	end
+	return objectNotes=="Destroyed"
 end
 
 --Horsemen, the single-hex Fury Dragon and Pursuit monsters are always the moving/top group.
@@ -188,11 +208,12 @@ end
 --horizontal spread slot. Destroyed, when present, is the first spread token above that support.
 --Ordinary enemies follow in arrival order. Horsemen, the single-hex Dragon and pursuing enemies
 --form the moving group at the top-right end, also in arrival order.
-function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject)
+function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,candidates)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
 	local seen={}
-	for _,obj in pairs(mapObjects or {}) do
+	--Callers that already grouped one hex can pass only those candidates and avoid rescanning the map.
+	for _,obj in pairs(candidates or mapObjects or {}) do
 		if obj~=nil and obj.guid~=ignoreGUID and mapTokenOnHex(obj,hex)==true and mapTokenNeedsArrangement(obj)==true then
 			objects[#objects+1]=obj
 			seen[obj.guid]=true
@@ -440,6 +461,7 @@ function mapTokenReleaseObject(obj)
 end
 
 local mapTokenTerrainReconcilePending={}
+local mapTokenTerrainReconcileCallbacks={}
 
 local function mapTokenTerrainReadyForReconcile(terrainGUID)
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
@@ -456,55 +478,81 @@ end
 
 local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
-	local touched={}
+	local groups={}
 	for _,obj in pairs(mapObjects or {}) do
 		if mapTokenNeedsArrangement(obj)==true then
 			local hex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
 			local key=hex~=nil and runtimeMapHexKey(hex) or nil
-			--Terrain completion only reconciles shared stacks on the tile that just finished population.
-			if hex~=nil and key~=nil and touched[key]~=true and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
-				touched[key]=true
-				local participantCount=0
-				for _,candidate in pairs(mapObjects or {}) do
-					if candidate~=nil and mapTokenNeedsArrangement(candidate)==true and mapTokenOnHex(candidate,hex)==true then
-						participantCount=participantCount+1
-					end
+			if hex~=nil and key~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
+				local group=groups[key]
+				if group==nil then
+					group={hex=hex,objects={}}
+					groups[key]=group
 				end
-				--A lone token has nothing to separate. Leaving it alone avoids the old Keep/Mage Tower shimmer.
-				if participantCount>1 then mapTokenArrangeHex(hex,mapObjects,nil,nil) end
+				group.objects[#group.objects+1]=obj
 			end
 		end
+	end
+	for _,group in pairs(groups) do
+		--A lone token has nothing to separate. Leaving it alone avoids the old Keep/Mage Tower shimmer.
+		if #group.objects>1 then mapTokenArrangeHex(group.hex,mapObjects,nil,nil,group.objects) end
 	end
 	return true
 end
 
-local function mapTokenAfterTerrainReconcile(terrainGUID,callback)
-	if callback==nil then return end
-	safeWaitCondition("MapTokens",callback,function()
-		return mapTokenTerrainReconcilePending[terrainGUID]~=true and mapTokenTerrainReadyForReconcile(terrainGUID)==true
-	end,5,callback)
+local function mapTokenQueueTerrainReconcileCallback(terrainGUID,callback)
+	if callback==nil or terrainGUID==nil then return end
+	local callbacks=mapTokenTerrainReconcileCallbacks[terrainGUID]
+	if callbacks==nil then callbacks={} mapTokenTerrainReconcileCallbacks[terrainGUID]=callbacks end
+	callbacks[#callbacks+1]=callback
+end
+
+local function mapTokenFlushTerrainReconcileCallbacks(terrainGUID)
+	local callbacks=mapTokenTerrainReconcileCallbacks[terrainGUID]
+	mapTokenTerrainReconcileCallbacks[terrainGUID]=nil
+	if callbacks==nil then return end
+	for _,callback in ipairs(callbacks) do
+		safeWaitFrames("MapTokens",callback,1)
+	end
+end
+
+local function mapTokenFinishTerrainReconcile(terrainGUID)
+	mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+	mapTokenTerrainReconcilePending[terrainGUID]=nil
+	mapTokenFlushTerrainReconcileCallbacks(terrainGUID)
+end
+
+local function mapTokenPollTerrainReconcile(terrainGUID,attempts)
+	if mapTokenTerrainReconcilePending[terrainGUID]~=true then return end
+	if attempts<=0 or mapTokenTerrainReadyForReconcile(terrainGUID)==true then
+		mapTokenFinishTerrainReconcile(terrainGUID)
+		return
+	end
+	--Readiness used to rescan the full map every frame, once per waiter. One shared probe every
+	--three frames is more than responsive enough for falling/smooth-moving map pieces.
+	safeWaitFrames("MapTokens",function()
+		mapTokenPollTerrainReconcile(terrainGUID,attempts-1)
+	end,3)
 end
 
 function mapTokenArrangeAllOccupiedHexes(terrainGUID,afterReconcile)
-	if terrainGUID==nil or mapTokenTerrainReadyForReconcile(terrainGUID)==true then
-		local result=mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
-		mapTokenAfterTerrainReconcile(terrainGUID,afterReconcile)
+	if terrainGUID==nil then
+		local result=mapTokenArrangeAllOccupiedHexesNow(nil)
+		if afterReconcile~=nil then safeWaitFrames("MapTokens",afterReconcile,1) end
 		return result
 	end
-	if mapTokenTerrainReconcilePending[terrainGUID]==true then
-		mapTokenAfterTerrainReconcile(terrainGUID,afterReconcile)
-		return false
+
+	mapTokenQueueTerrainReconcileCallback(terrainGUID,afterReconcile)
+	if mapTokenTerrainReconcilePending[terrainGUID]==true then return false end
+
+	if mapTokenTerrainReadyForReconcile(terrainGUID)==true then
+		local result=mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
+		mapTokenFlushTerrainReconcileCallbacks(terrainGUID)
+		return result
 	end
+
 	mapTokenTerrainReconcilePending[terrainGUID]=true
-	local function finish()
-		mapTokenTerrainReconcilePending[terrainGUID]=nil
-		mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
-		mapTokenAfterTerrainReconcile(terrainGUID,afterReconcile)
-	end
-	--Script-deployed map pieces can still be falling when terrain population code itself is finished.
-	--Wait for their own arrival/separator work to finish, then perform one final shared-stack pass.
-	safeWaitCondition("MapTokens",finish,function()
-		return mapTokenTerrainReadyForReconcile(terrainGUID)
-	end,5,finish)
+	--100 probes at three-frame intervals preserves the old roughly five-second fallback window.
+	mapTokenPollTerrainReconcile(terrainGUID,100)
 	return false
 end
