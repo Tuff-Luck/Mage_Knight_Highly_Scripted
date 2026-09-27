@@ -393,11 +393,22 @@ function scheduleAvatarDropRefresh(playerIndex)
 				local avatarObj=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
 				if avatarObj~=nil then
 					found=true
+					local avatarDetails=avatar
 					safeWaitFrames("Map",function()
-						--The active avatar representation can be replaced while this delayed fake drop is waiting.
-						--Resolve all three forms again so we never deliberately call onObjectDrop with a stale nil object.
+						--This refresh used to fake a global onObjectDrop(), making the avatar traverse every unrelated
+						--drop handler before reaching mapAvatarLocationDetails(). Resolve the live representation and
+						--call the actual location refresh directly instead.
 						local currentAvatar=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
-						if currentAvatar~=nil then onObjectDrop(nil, currentAvatar) end
+						if currentAvatar==nil then return end
+						local function refresh()
+							local liveAvatar=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
+							if liveAvatar~=nil then mapAvatarLocationDetails(nil,avatarDetails,liveAvatar) end
+						end
+						if currentAvatar.resting==true then refresh()
+						else safeWaitCondition("Map.avatarRefresh",refresh,function()
+							local liveAvatar=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
+							return liveAvatar==nil or liveAvatar.resting==true
+						end,1.5,refresh) end
 					end, 50)
 				end
 				break
