@@ -23,10 +23,10 @@ removeCardRemoveDecal=function(card)
 	end
 	if changed==true then card.setDecals(decals) end
 end
-function refreshCardRemoveDecal(card)
+function refreshCardRemoveDecal(card, knownInPlayArea)
 	if card==nil or card.type~="Card" or not (gameCards[card.guid]==nil or gameCards[card.guid].full==nil) then return end
 	removeCardRemoveDecal(card)
-	if card.is_face_down==true and cardInPlayerPlayArea(card.guid)==true then
+	if card.is_face_down==true and (knownInPlayArea==true or cardInPlayerPlayArea(card.guid)==true) then
 		--Face-down cards are rotated over, so put the decal on the card's local underside.
 		card.addDecal({name="Card Remove", url=cardRemoveDecalURL, position={0,-0.5,0}, rotation={270,180,180}, scale={1.7,2.0,1}})
 	end
@@ -40,6 +40,9 @@ function playerBoardPlayAreaZoneEnterImmediate(ctx)
 	if obj==nil then return end
 	local seatPos=zoneInfo.seatPos
 	updatePlayAreaObjectState(seatPos,obj,true)
+	--The face-down remove image depends only on play-area membership and face state, not final position.
+	--Apply it on zone entry so it appears while the card is still falling/sliding into place.
+	if obj.type=="Card" and (gameCards[obj.guid]==nil or gameCards[obj.guid].full==nil) then refreshCardRemoveDecal(obj,true) end
 	dayTactic2ExpireIfCardPlayed(seatPos)
 	schedulePlayAreaCardScale(seatPos)
 	mainUIUpdate("Object entered into play area")
@@ -147,10 +150,6 @@ function playerBoardZoneEnterSettled(ctx)
 			end
 		end
 
-		--Add/remove the Card Remove decal when a normal card enters the player play area.
-		if objType=="Card" and (gameCards[objGUID]==nil or gameCards[objGUID].full==nil) then
-			safeWaitFrames("PlayerBoard.Events",function() local card=getObjectFromGUID(objGUID) if card~=nil then refreshCardRemoveDecal(card) end end, 2)
-		end
 
 		--Add command decal to banner of Command
 		if objGUID==GUID.card.bannerOfCommandToken then
