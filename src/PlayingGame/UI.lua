@@ -1417,18 +1417,29 @@ local function mainUIRefreshStatusPanel(context,playerState)
 	refreshGladeDiscardHealButton()
 end
 
-function uiMainUIUpdateBase(source)
-	if gStates.firstStarted~=true then return end
+function uiMainUIUpdateBase(source,afterRefresh)
+	if gStates.firstStarted~=true then
+		if afterRefresh~=nil then afterRefresh(false) end
+		return
+	end
 	if mainUIPause~=nil then Wait.stop(mainUIPause) end
 	mainUIPause=safeWaitTime("UI",function()
 		local context=mainUIBuildRefreshContext(source)
-		if context==nil then mainUIPause=nil return end
+		if context==nil then
+			mainUIPause=nil
+			if afterRefresh~=nil then afterRefresh(false) end
+			return
+		end
 		mainUIRefreshOutOfTurn(context)
 		mainUIRefreshTurnControls(context)
 		local playerState=mainUIRefreshPlayerState(context)
 		mainUIRefreshLevelUpTurnText(context,playerState)
 		mainUIRefreshRewardChecklist(context,playerState)
-		if mainUIRefreshTurnAvailability(context,playerState)==false then mainUIPause=nil return end
+		if mainUIRefreshTurnAvailability(context,playerState)==false then
+			mainUIPause=nil
+			if afterRefresh~=nil then afterRefresh(true) end
+			return
+		end
 		mainUIRefreshExtraTurn(context,playerState)
 		mainUIRefreshFameRepMenu(context,playerState)
 		mainUIRefreshEndRound(context)
@@ -1436,6 +1447,7 @@ function uiMainUIUpdateBase(source)
 		mainUIRefreshStatusPanel(context,playerState)
 		UI.show("MainGame")
 		mainUIPause=nil
+		if afterRefresh~=nil then afterRefresh(true) end
 	end,0.1)
 end
 
@@ -1526,19 +1538,20 @@ function addAvatarButtons()
 		--rampager/destroyed-site controls remain a small dedicated list because stale remote buttons must be cleared.
 		local mapButtonBuckets={}
 		local mapActionObjects={}
-		local mapObj=getObjectFromGUID(mapArea)
-		if mapObj~=nil then
-			for _, playObj in pairs(mapObj.getObjects()) do
-				local guid=playObj.guid
-				local name=playObj.getName()
-				if name=="Shield" or name:sub(-6)=="Marker" or monsterPugs[guid]~=nil or gStates.rampagingMonsters[guid]==true or (gStates.destroyedSites~=nil and gStates.destroyedSites[guid]~=nil) then
-					local position=playObj.getPosition()
-					local details={obj=playObj, guid=guid, name=name, position=position, description=name=="Shield" and playObj.getDescription() or nil}
-					local key=avatarButtonBucketKey(position)
-					if mapButtonBuckets[key]==nil then mapButtonBuckets[key]={} end
-					mapButtonBuckets[key][#mapButtonBuckets[key]+1]=details
-					if gStates.rampagingMonsters[guid]==true or (gStates.destroyedSites~=nil and gStates.destroyedSites[guid]~=nil) then mapActionObjects[#mapActionObjects+1]=details end
-				end
+		--Map membership is already maintained by the shared runtime cache. Avoid asking the scripting
+		--zone for its full object list again every time avatar controls refresh; sample positions only
+		--for the small subset that can actually receive or influence map UI.
+		local mapSnapshot=runtimeMapSnapshot()
+		for _, playObj in pairs(mapSnapshot.objects or {}) do
+			local guid=playObj.guid
+			local name=playObj.getName()
+			if name=="Shield" or name:sub(-6)=="Marker" or monsterPugs[guid]~=nil or gStates.rampagingMonsters[guid]==true or (gStates.destroyedSites~=nil and gStates.destroyedSites[guid]~=nil) then
+				local position=playObj.getPosition()
+				local details={obj=playObj, guid=guid, name=name, position=position, description=name=="Shield" and playObj.getDescription() or nil}
+				local key=avatarButtonBucketKey(position)
+				if mapButtonBuckets[key]==nil then mapButtonBuckets[key]={} end
+				mapButtonBuckets[key][#mapButtonBuckets[key]+1]=details
+				if gStates.rampagingMonsters[guid]==true or (gStates.destroyedSites~=nil and gStates.destroyedSites[guid]~=nil) then mapActionObjects[#mapActionObjects+1]=details end
 			end
 		end
 
