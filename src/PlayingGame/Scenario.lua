@@ -1562,6 +1562,7 @@ function againstHorsemenSetupTokens(coreTileGUIDs, coreTilePositions)
 	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return false,"HORSEMEN SETUP ERROR: wrong scenario state" end
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 	if bag==nil then return false,"HORSEMEN SETUP ERROR: Apocalypse setup bag is missing" end
+	deployHorsemenPreload()
 	local names={"Famine","Pestilence","Death","War"}
 	for i=#names,2,-1 do
 		local j=math.random(i)
@@ -1664,6 +1665,7 @@ function apocalypseIsHereSetup()
 	gStates.horsemenDefeatedBy={}
 	local level=apocalypseIsHereHorsemanStartingLevel()
 	local componentBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+	deployHorsemenPreload()
 	--The four Horsemen are randomized into four face-down matched stacks. Each stack has its
 	--Horseman card underneath its matching face-down token.
 	for i,name in ipairs(names) do

@@ -4,6 +4,24 @@ local horsemanDefeatedInventoryPosition, horsemanMarkDefeatedToken
 -- Shared Four Horsemen entity/combat helpers.
 -- Scenario-specific reveal, movement, ritual and AI rules remain in Scenario.lua.
 
+function horsemenTokensUsed()
+	return gStates~=nil and (gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Apocalypse is Here")
+end
+
+function deployHorsemenPreload()
+	if horsemenTokensUsed()~=true then return nil end
+	local preload=getObjectFromGUID(apocalypseDragon.horsemenPreload)
+	local target=apocalypseDragon.horsemenPreloadPosition
+	if preload==nil then
+		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+		if bag==nil then return nil end
+		preload=bag.takeObject({guid=apocalypseDragon.horsemenPreload,position=target,smooth=false})
+	elseif target~=nil then
+		preload.setPosition(target)
+	end
+	return preload
+end
+
 --Four Horsemen helpers. The Horsemen use one persistent Custom_Tile GUID each; setHorsemanLevel()
 --swaps only the front image (once level art is supplied) and replaces that GUID's normal monster data.
 --Cards/neutral level Shields are therefore not required by the scripted implementation.
