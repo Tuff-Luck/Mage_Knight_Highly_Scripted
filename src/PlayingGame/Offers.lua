@@ -549,13 +549,16 @@ function refreshDeedOfferAdjustUI()
 	return true
 end
 
-local function hideDeedOfferAdjustUI()
-	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
-	if spellSource~=nil then spellSource.UI.setXmlTable({}) end
+local function hideDeedOfferAdjustUI(spellSource)
+	spellSource=spellSource or standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+	if spellSource==nil then return end
+	--Hide the existing controls rather than rebuilding them disabled. They are rebuilt on the live
+	--Spell source once the resize movement has finished.
+	spellSource.UI.setAttribute("e4372aOfferUp","active","false")
+	spellSource.UI.setAttribute("e4372aOfferDown","active","false")
 end
 
-local function deedOfferMoveSource(deckName,position)
-	local source=standardDeckCycleObject(deckName)
+local function deedOfferMoveSource(source,position)
 	if source==nil then return nil end
 	local guid=source.guid
 	source.setPositionSmooth(position,false,false)
@@ -567,28 +570,6 @@ local function deedOfferMovedSourcesSettled(sourceGUIDs)
 		local source=getObjectFromGUID(guid)
 		if source==nil then source=standardDeckCycleObject(deckName) end
 		if source~=nil and (source.isSmoothMoving()==true or source.resting~=true) then return false end
-	end
-	return true
-end
-
-local function deedOfferMovedCardsSettled(cardGUIDs)
-	for _,guid in ipairs(cardGUIDs or {}) do
-		local card=getObjectFromGUID(guid)
-		if card~=nil and (card.isSmoothMoving()==true or card.resting~=true) then return false end
-	end
-	return true
-end
-
-local function deedOfferReturnedCardsAbsorbed(returnedCards,sourceGUIDs)
-	for _,entry in ipairs(returnedCards or {}) do
-		local card=getObjectFromGUID(entry.guid)
-		if card~=nil and card.type=="Card" then
-			--If there was no source pile before the resize, the returned card itself legitimately becomes
-			--the new one-card source. Otherwise keep waiting until it has physically merged into the pile.
-			if sourceGUIDs[entry.deckName]~=nil then return false end
-			local source=standardDeckCycleObject(entry.deckName)
-			if source==nil or source.guid~=entry.guid or source.isSmoothMoving()==true or source.resting~=true then return false end
-		end
 	end
 	return true
 end
@@ -606,8 +587,15 @@ function offerAdjust(player, mouseButton, id)
 		return
 	end
 
+	--Capture both live sources before moving their zones. Growing can then draw from those exact objects
+	--while they move outward, recreating the original simultaneous deck-out/card-in animation.
+	local sourceObjects={
+		["Spell"]=standardDeckCycleObject("Spell"),
+		["Advanced Action"]=standardDeckCycleObject("Advanced Action"),
+	}
+
 	OfferPause=true
-	hideDeedOfferAdjustUI()
+	hideDeedOfferAdjustUI(sourceObjects["Spell"])
 
 	--Capture the outgoing column before shrinking the broad offer zone; once the zone is resized,
 	--that column is no longer guaranteed to be returned by zone.getObjects().
@@ -619,7 +607,7 @@ function offerAdjust(player, mouseButton, id)
 				if card.type=="Card" and math.floor(((card.getPosition()[1]-21.6)/4.8)+0.5)==oldSize then
 					local deckName=gameCardType(card)
 					if deckName=="Advanced Action" or deckName=="Spell" then
-						returnedCards[#returnedCards+1]={card=card,guid=card.guid,deckName=deckName}
+						returnedCards[#returnedCards+1]={card=card,deckName=deckName}
 					end
 				end
 			end
@@ -628,11 +616,9 @@ function offerAdjust(player, mouseButton, id)
 
 	gStates.offerSize=newSize
 	local sourceX=(4.8*(newSize+1))+21.6
-	--Move the live source objects rather than the setup-time Deck GUIDs. Keep their current GUIDs so
-	--the completion gate follows the moving piles even before they re-enter their relocated zones.
 	local sourceGUIDs={
-		["Spell"]=deedOfferMoveSource("Spell",{sourceX,2.5,-22.2}),
-		["Advanced Action"]=deedOfferMoveSource("Advanced Action",{sourceX,2.5,-16.2}),
+		["Spell"]=deedOfferMoveSource(sourceObjects["Spell"],{sourceX,2.5,-22.2}),
+		["Advanced Action"]=deedOfferMoveSource(sourceObjects["Advanced Action"],{sourceX,2.5,-16.2}),
 	}
 	local spellZone=getObjectFromGUID(GUID.zone.spellDeck)
 	local actionZone=getObjectFromGUID(GUID.zone.actionDeck)
@@ -644,12 +630,11 @@ function offerAdjust(player, mouseButton, id)
 		offerZone.setPosition({(2.4*(newSize-1))+26.4,1.13,-19.2})
 	end
 
-	local function finishResize()
-		OfferPause=false
-		refreshDeedOfferAdjustUI()
-	end
-
-	if delta<0 then
+	if delta>0 then
+		--Do this immediately: the decks move outward while the drawn cards travel into the spaces
+		--the decks just vacated. The source override keeps refill attached to the moving Deck/Card objects.
+		compactAndRefillDeedOffer(true,sourceObjects)
+	else
 		for _,entry in ipairs(returnedCards) do
 			local card=entry.card
 			if card~=nil then
@@ -658,24 +643,13 @@ function offerAdjust(player, mouseButton, id)
 				card.setRotation({0,180,180})
 			end
 		end
-		--The controls stay absent until both moving source piles have landed and every outgoing card
-		--has either merged into that pile or, for an exhausted source, become the new one-card pile.
-		safeWaitCondition("Offers",finishResize,function()
-			return deedOfferMovedSourcesSettled(sourceGUIDs)==true
-				and deedOfferReturnedCardsAbsorbed(returnedCards,sourceGUIDs)==true
-		end)
-		return
 	end
 
-	--When growing, first let the source piles finish moving into their relocated zones. Only then draw
-	--the new column, so refill cannot race the zone move or resolve an empty source while it is in flight.
+	--The controls remain completely hidden only while the source piles are moving. Once both live
+	--AA/Spell sources are resting, rebuild the controls on the current Spell source.
 	safeWaitCondition("Offers",function()
-		local movedCards=compactAndRefillDeedOffer(true)
-		if type(movedCards)~="table" then movedCards={} end
-		safeWaitCondition("Offers",finishResize,function()
-			return deedOfferMovedSourcesSettled(sourceGUIDs)==true
-				and deedOfferMovedCardsSettled(movedCards)==true
-		end)
+		OfferPause=false
+		refreshDeedOfferAdjustUI()
 	end,function()
 		return deedOfferMovedSourcesSettled(sourceGUIDs)==true
 	end)
