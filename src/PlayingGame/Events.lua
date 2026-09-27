@@ -345,8 +345,40 @@ function __onObjectHover_raw(player_color, hover_object)
 	refreshMonsterHoverDescription(hover_object)
 end
 
+--Cache the static GUID routing used by onObjectDrop. The old callback walked every Mage Knight and
+--every progress marker for every object dropped anywhere on the table.
+local eventsAvatarDropByGUID=nil
+local eventsProgressMarkerDropByGUID=nil
+
+local function eventsAvatarDropDetails(guid)
+	if guid==nil then return nil end
+	if eventsAvatarDropByGUID==nil then
+		eventsAvatarDropByGUID={}
+		for _,avatar in pairs(mageKnights or {}) do
+			if avatar.model~=nil then eventsAvatarDropByGUID[avatar.model]=avatar end
+			if avatar.standee~=nil then eventsAvatarDropByGUID[avatar.standee]=avatar end
+			if avatar.token~=nil then eventsAvatarDropByGUID[avatar.token]=avatar end
+		end
+	end
+	return eventsAvatarDropByGUID[guid]
+end
+
+local function eventsProgressMarkerDropDetails(guid)
+	if guid==nil then return nil end
+	if eventsProgressMarkerDropByGUID==nil then
+		eventsProgressMarkerDropByGUID={}
+		for playerIndex,details in pairs(turnOrder or {}) do
+			if details.fameGUID~=nil then eventsProgressMarkerDropByGUID[details.fameGUID]={playerIndex=playerIndex,kind="fame"} end
+			if details.reputationGUID~=nil then eventsProgressMarkerDropByGUID[details.reputationGUID]={playerIndex=playerIndex,kind="reputation"} end
+			if details.questScoreGUID~=nil then eventsProgressMarkerDropByGUID[details.questScoreGUID]={playerIndex=playerIndex,kind="quest"} end
+		end
+	end
+	return eventsProgressMarkerDropByGUID[guid]
+end
+
 --Update skill Locations, Update Players Location details, and Update the UI and trigger a Level up if a mage shield was moved manually
 function __onObjectDrop_raw(player_color, dropped_object)
+	if dropped_object==nil or dropped_object.guid==nil then return end
 	local droppedGUID=dropped_object.guid
 	if terrainTiles[droppedGUID]~=nil then
 		runtimeMapInvalidateTerrain()
@@ -367,8 +399,8 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		--drop now; the shared settle helper waits for the real physics landing before arranging the hex.
 		mapTokenSettleArrival(droppedGUID,nil,{force=true})
 	end
-	puppetMasterDropped(dropped_object)
-	puppetMasterCheckManualCopyWhenResting(dropped_object)
+	if puppetMasterPickup~=nil and puppetMasterPickup[droppedGUID]~=nil then puppetMasterDropped(dropped_object) end
+	if puppetMasterManualCopyDropEligible~=nil and puppetMasterManualCopyDropEligible(dropped_object)==true then puppetMasterCheckManualCopyWhenResting(dropped_object) end
 	if dropped_object~=nil and monsterPugs[dropped_object.guid]~=nil and monsterPugs[dropped_object.guid].pugType=="possessed" then
 		attachEnemy(nil,nil,"attach",dropped_object,nil)
 	end
@@ -456,61 +488,56 @@ function __onObjectDrop_raw(player_color, dropped_object)
 	end
 
 	--Update Players Location details.
-	for _, avatar in pairs(mageKnights) do
-		if (dropped_object.guid==avatar.model or dropped_object.guid==avatar.standee or dropped_object.guid==avatar.token) then --and avatar.mage~="Volkare" then
-			local avatarPlayerIndex=nil
-			for playerIndex, playerDetails in pairs(turnOrder) do if playerDetails.mage==avatar.mage then avatarPlayerIndex=playerIndex break end end
-			local currentMage=turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].mage or nil
-			--A human may correct the Proxy Hero's physical location. Track that drop, but never run the
-			--normal player's assault/site/hand-size machinery for the automated Proxy.
-			if player_color~=nil and gStates.firstStarted==true and proxyPlayerIsActive()==true and avatar.mage==gStates.positionMageKnight[5] and avatarPlayerIndex~=nil then
-				local function finishProxyManualDrop()
-					if getObjectFromGUID(dropped_object.guid)~=nil then
-						refreshAvatarLocationOnly(avatarPlayerIndex,dropped_object)
-						--Do not infer off-map status from avatarLocation: featureless terrain legitimately has no
-						--location label. Record whether the physical figure is actually on a revealed map hex.
-						local proxyHexes,proxyMapObjects=runtimeMapHexesAndObjects()
-						gStates.proxyAvatarOffMap=runtimeMapHexForPosition(proxyHexes,dropped_object.getPosition(),proxyMapObjects)==nil
-					end
+	local avatar=eventsAvatarDropDetails(droppedGUID)
+	if avatar~=nil then
+		local avatarPlayerIndex=nil
+		for playerIndex, playerDetails in pairs(turnOrder) do if playerDetails.mage==avatar.mage then avatarPlayerIndex=playerIndex break end end
+		local currentMage=turnOrder[gStates.turnNumber]~=nil and turnOrder[gStates.turnNumber].mage or nil
+		--A human may correct the Proxy Hero's physical location. Track that drop, but never run the
+		--normal player's assault/site/hand-size machinery for the automated Proxy.
+		if player_color~=nil and gStates.firstStarted==true and proxyPlayerIsActive()==true and avatar.mage==gStates.positionMageKnight[5] and avatarPlayerIndex~=nil then
+			local function finishProxyManualDrop()
+				if getObjectFromGUID(droppedGUID)~=nil then
+					refreshAvatarLocationOnly(avatarPlayerIndex,dropped_object)
+					--Do not infer off-map status from avatarLocation: featureless terrain legitimately has no
+					--location label. Record whether the physical figure is actually on a revealed map hex.
+					local proxyHexes,proxyMapObjects=runtimeMapHexesAndObjects()
+					gStates.proxyAvatarOffMap=runtimeMapHexForPosition(proxyHexes,dropped_object.getPosition(),proxyMapObjects)==nil
 				end
-				safeWaitCondition("Events.proxyDrop",finishProxyManualDrop,function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end,1.5,finishProxyManualDrop)
-				return
 			end
-			if player_color~=nil and gStates.firstStarted==true and avatar.mage~="Volkare" and avatarPlayerIndex~=nil and currentMage~=avatar.mage then
-				safeWaitCondition("Events.outOfTurnAvatarDrop",function() if coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end, function() return getObjectFromGUID(dropped_object.guid)==nil or dropped_object.resting end, 1.5, function() if getObjectFromGUID(dropped_object.guid)~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end)
-				return
-			end
-			local avatarGUID=dropped_object.guid
-			local function updateAvatarLocation()
-				local liveAvatar=getObjectFromGUID(avatarGUID)
-				if liveAvatar~=nil then mapAvatarLocationDetails(player_color,avatar,liveAvatar) end
-			end
-			safeWaitCondition("Events.avatarDrop",updateAvatarLocation,function()
-				local liveAvatar=getObjectFromGUID(avatarGUID)
-				return liveAvatar==nil or liveAvatar.resting
-			end,1.5,updateAvatarLocation)
+			safeWaitCondition("Events.proxyDrop",finishProxyManualDrop,function() return getObjectFromGUID(droppedGUID)==nil or dropped_object.resting end,1.5,finishProxyManualDrop)
 			return
 		end
+		if player_color~=nil and gStates.firstStarted==true and avatar.mage~="Volkare" and avatarPlayerIndex~=nil and currentMage~=avatar.mage then
+			safeWaitCondition("Events.outOfTurnAvatarDrop",function() if coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end, function() return getObjectFromGUID(droppedGUID)==nil or dropped_object.resting end, 1.5, function() if getObjectFromGUID(droppedGUID)~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end)
+			return
+		end
+		local avatarGUID=droppedGUID
+		local function updateAvatarLocation()
+			local liveAvatar=getObjectFromGUID(avatarGUID)
+			if liveAvatar~=nil then mapAvatarLocationDetails(player_color,avatar,liveAvatar) end
+		end
+		safeWaitCondition("Events.avatarDrop",updateAvatarLocation,function()
+			local liveAvatar=getObjectFromGUID(avatarGUID)
+			return liveAvatar==nil or liveAvatar.resting
+		end,1.5,updateAvatarLocation)
+		return
 	end
 
 	--Update the UI and trigger a Level up if a mage shield was moved manually
 	if gStates.firstStarted==true then
 		--Fame, Reputation and Quest Score are cached values. If a player manually corrects a physical
 		--marker, read the settled marker position back into the same state used by scoring/reporting.
-		for a=1, #turnOrder, 1 do
-			local fameMoved=dropped_object.guid==turnOrder[a].fameGUID
-			local reputationMoved=dropped_object.guid==turnOrder[a].reputationGUID
-			local questScoreMoved=dropped_object.guid==turnOrder[a].questScoreGUID
-			if fameMoved or reputationMoved or questScoreMoved then
-				local playerIndex=a
-				safeWaitCondition("Events.progressMarkerDrop",function()
-					if fameMoved then refreshPlayerFameFromShield(playerIndex)
-					elseif reputationMoved then refreshPlayerReputationFromShield(playerIndex)
-					else refreshPlayerQuestScoreFromMarker(playerIndex) end
-					mainUIUpdate(questScoreMoved and "Quest Score Marker Dropped" or "Fame and Rep Shield Dropped")
-				end, function() return dropped_object.resting end)
-				break
-			end
+		local marker=eventsProgressMarkerDropDetails(droppedGUID)
+		if marker~=nil then
+			local playerIndex=marker.playerIndex
+			local markerKind=marker.kind
+			safeWaitCondition("Events.progressMarkerDrop",function()
+				if markerKind=="fame" then refreshPlayerFameFromShield(playerIndex)
+				elseif markerKind=="reputation" then refreshPlayerReputationFromShield(playerIndex)
+				else refreshPlayerQuestScoreFromMarker(playerIndex) end
+				mainUIUpdate(markerKind=="quest" and "Quest Score Marker Dropped" or "Fame and Rep Shield Dropped")
+			end, function() return dropped_object.resting end)
 		end
 	end
 
@@ -527,7 +554,7 @@ end
 function __onObjectSpawn_raw(spawn_object)
 	if spawn_object==nil or spawn_object.guid==nil then return end
 	applyAltViewAngle(spawn_object)
-	puppetMasterCheckManualCopyWhenResting(spawn_object)
+	if puppetMasterManualCopyDropEligible~=nil and puppetMasterManualCopyDropEligible(spawn_object)==true then puppetMasterCheckManualCopyWhenResting(spawn_object) end
 	--code stops objects getting a GUID of a registered object.
 	if spawn_object.getGMNotes()=="Wound" or spawn_object.type=="Figurine" or spawn_object.type=="Deck" then
 		if gameCards[spawn_object.guid]~=nil or terrainTiles[spawn_object.guid]~=nil or monsterPugs[spawn_object.guid]~=nil or skillTokens[spawn_object.guid]~=nil then
@@ -705,11 +732,6 @@ local settledZoneEntrySerial={}
 --Track only live map-zone boundary membership so deferred presentation work can validate an entry/exit
 --without asking the scripting zone for its entire object list again.
 local mapZoneMembership={}
-local function zoneContainsGUID(zone,guid)
-	if zone==nil or guid==nil then return false end
-	for _,candidate in pairs(zone.getObjects()) do if candidate.guid==guid then return true end end
-	return false
-end
 
 local function scheduleSettledZoneEntry(ctx,callback,channel)
 	if ctx==nil or callback==nil then return end
