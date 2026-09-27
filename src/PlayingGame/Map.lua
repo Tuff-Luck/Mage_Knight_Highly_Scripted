@@ -1380,11 +1380,13 @@ function refreshTerrainExploreOptions(compactCities)
 	end
 end
 
-local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBearing,northBearing)
+local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBearing,northBearing,mapSnapshot)
 	if gStates.mapShapeKey~="predefined" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then return end
 	for _, mightBeMap in pairs(playAreaObjects) do
 		if terrainTiles[mightBeMap.guid]~=nil then
-			if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mightBeMap.getPosition()[1], 0, mightBeMap.getPosition()[3]}},faceUpTerrain,northBearing,{})==false then
+			local cachedPosition=mapSnapshot~=nil and mapSnapshot.terrainPositions~=nil and mapSnapshot.terrainPositions[mightBeMap.guid] or nil
+			local mapPosition=cachedPosition or mightBeMap.getPosition()
+			if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mapPosition[1], 0, mapPosition[3]}},faceUpTerrain,northBearing,{})==false then
 				mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
 			else
 				local useNightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
@@ -1406,9 +1408,9 @@ end
 --Day/night tint changes need to restore the red illegal-placement tint on predefined maps.
 --Reuse the same runtime terrain view used by movement/exploration instead of rescanning the scripting zone.
 function refreshPredefinedTerrainTint()
-	local _,playAreaObjects,faceUpTerrain=runtimeTerrainPlacementView()
+	local mapSnapshot,playAreaObjects,faceUpTerrain=runtimeTerrainPlacementView()
 	local northBearing=getObjectFromGUID(startTerrain.open)==nil and 70 or 40
-	applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,0,northBearing)
+	applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,0,northBearing,mapSnapshot)
 end
 
 function mapHandleTerrainZoneEnter(ctx)
@@ -1452,7 +1454,7 @@ function mapHandleTerrainZoneEnter(ctx)
 
 
 		--make predefined maps highlight red
-		applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBearing,northBearing)
+		applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBearing,northBearing,mapSnapshot)
 
 
 
