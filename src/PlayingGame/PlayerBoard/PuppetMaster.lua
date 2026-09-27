@@ -187,6 +187,20 @@ function puppetMasterObjectImage(obj)
 	return custom.image or custom.image_url or custom.ImageURL or custom.diffuse or custom.DiffuseURL
 end
 
+--Manual copy/paste can only produce a loose custom token while Puppet Master is owned. Keep this
+--as a cheap front-door test so global spawn/drop callbacks do not call getCustomObject() for every
+--card, die, figurine, deck and ordinary scripted object on the table.
+function puppetMasterManualCopyDropEligible(obj)
+	if obj==nil or obj.guid==nil or gStates.firstStarted~=true then return false end
+	if monsterPugs[obj.guid]~=nil then return false end
+	if gStates.puppetMasterPuppets~=nil and gStates.puppetMasterPuppets[obj.guid]~=nil then return false end
+	if obj.type~="Custom_Token" and obj.type~="Token" then return false end
+	for playerIndex,details in pairs(turnOrder or {}) do
+		if details.mage~=gStates.positionMageKnight[5] and puppetMasterOwnsSkill(playerIndex)==true then return true end
+	end
+	return false
+end
+
 function puppetMasterDataForSourceGUID(sourceGUID)
 	if sourceGUID==nil then return nil,nil end
 	local details=monsterPugs[sourceGUID]
