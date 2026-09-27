@@ -1441,7 +1441,7 @@ function dealAllHands()
 end
 
 --Fill any gaps in the offer by sliding more cards down the line
-local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh)
+local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverrides)
 	local offerSize=deedOfferBoundedSize(gStates.offerSize)
 	gStates.offerSize=offerSize
 	local offerList={{}, {}}
@@ -1498,7 +1498,8 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh)
 				if filled~=true then
 					local deckName=row==1 and "Advanced Action" or "Spell"
 					standardDeckCycleShuffleIfReached(deckName)
-					local source=standardDeckCycleObject(deckName)
+					local source=sourceOverrides~=nil and sourceOverrides[deckName] or nil
+					if source==nil or (source.type~="Deck" and source.type~="Card") then source=standardDeckCycleObject(deckName) end
 					if source~=nil then
 						local target={(column*4.8)+21.6,1.5,-((row*6)+10.2)}
 						local newCard=nil
@@ -1524,8 +1525,8 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh)
 	return movedCards
 end
 
-function compactAndRefillDeedOffer(suppressAdjustUIRefresh)
-	return safeCallback("compactAndRefillDeedOffer",function() return compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh) end)
+function compactAndRefillDeedOffer(suppressAdjustUIRefresh,sourceOverrides)
+	return safeCallback("compactAndRefillDeedOffer",function() return compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverrides) end)
 end
 
 -- Glade discard healing
