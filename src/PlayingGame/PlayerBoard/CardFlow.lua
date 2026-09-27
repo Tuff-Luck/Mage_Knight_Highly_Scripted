@@ -1442,52 +1442,83 @@ end
 
 --Fill any gaps in the offer by sliding more cards down the line
 local function compactAndRefillDeedOfferRaw()
+	local offerSize=deedOfferBoundedSize(gStates.offerSize)
+	gStates.offerSize=offerSize
 	local offerList={{}, {}}
-	local sourceDeck={GUID.zone.actionDeck, GUID.zone.spellDeck}
-	for _, obj in pairs(getObjectFromGUID(GUID.zone.offer).getObjects()) do
-		if obj.type=="Card" then --and obj.resting==true then
+	local offerZone=getObjectFromGUID(GUID.zone.offer)
+	if offerZone==nil then return false end
+
+	local function lockOfferCardWhenResting(cardGUID)
+		safeWaitCondition("PlayerBoard.CardFlow",function()
+			local card=getObjectFromGUID(cardGUID)
+			if card~=nil then safeWaitTime("PlayerBoard.CardFlow",function()
+				local live=getObjectFromGUID(cardGUID)
+				if live~=nil then live.lock() end
+			end,1) end
+		end,function()
+			local card=getObjectFromGUID(cardGUID)
+			return card==nil or card.resting==true
+		end)
+	end
+
+	for _,obj in pairs(offerZone.getObjects()) do
+		if obj.type=="Card" then
 			local cardSpot=obj.getPosition()
-			offerList[math.floor(((-cardSpot[3]-10.2)/6)+0.5)][math.floor(((cardSpot[1]-21.6)/4.8)+0.5)]=obj.guid
+			local row=math.floor(((-cardSpot[3]-10.2)/6)+0.5)
+			local column=math.floor(((cardSpot[1]-21.6)/4.8)+0.5)
+			--The broad scripting zone can contain a manually dropped card near an edge. Only cards
+			--that resolve to one of the two deed-offer rows and a real offer column belong in this grid.
+			if row>=1 and row<=2 and column>=1 and column<=offerSize then offerList[row][column]=obj.guid end
 		end
 	end
-	--fill gaps in the offer
-	for column=1, gStates.offerSize, 1 do
-		for row=1, 2, 1 do
+
+	for column=1,offerSize do
+		for row=1,2 do
 			if offerList[row][column]==nil then
-				for replaceColumn=column+1, gStates.offerSize+1, 1 do
-					if replaceColumn<gStates.offerSize+1 then
-						--fill empty spaces with cards further up the offer
-						if offerList[row][replaceColumn]~=nil then
-							local cardMove=getObjectFromGUID(offerList[row][replaceColumn])
+				local filled=false
+				for replaceColumn=column+1,offerSize do
+					local moveGUID=offerList[row][replaceColumn]
+					if moveGUID~=nil then
+						local cardMove=getObjectFromGUID(moveGUID)
+						if cardMove~=nil then
 							cardMove.unlock()
-							cardMove.setPositionSmooth({(column*4.8)+21.6, 1.5, -((row*6)+10.2)})
-							cardMove.setRotationSmooth({0, 180, 0})
-							safeWaitCondition("PlayerBoard.CardFlow",function() safeWaitTime("PlayerBoard.CardFlow",function() cardMove.lock() end, 1) end, function() return cardMove.resting end)
-							offerList[row][column]=offerList[row][replaceColumn]
+							cardMove.setPositionSmooth({(column*4.8)+21.6,1.5,-((row*6)+10.2)},false,false)
+							cardMove.setRotationSmooth({0,180,0},false,false)
+							lockOfferCardWhenResting(moveGUID)
+							offerList[row][column]=moveGUID
 							offerList[row][replaceColumn]=nil
+							filled=true
 							break
 						end
-					else
-						--fill empty spaces from deck when no cards are found
-						local deckName=row==1 and "Advanced Action" or "Spell"
-						standardDeckCycleShuffleIfReached(deckName)
-						local MainDeck=getObjectFromGUID(sourceDeck[row]).getObjects()
-						if MainDeck[1]~=nil then
-							if MainDeck[1].type=="Deck" then
-								local newcard=MainDeck[1].takeObject({position={((column*4.8)+21.6), 1.5, -((row*6)+10.2)}, rotation={0, 180, 0}})
-								offerList[row][column]=newcard.guid
-								safeWaitCondition("PlayerBoard.CardFlow",function() safeWaitTime("PlayerBoard.CardFlow",function() newcard.lock() end, 1) end, function() return newcard.resting end)
-							else
-								MainDeck[1].setPositionSmooth({(column*4.8)+21.6, 1.5, -((row*6)+10.2)})
-								MainDeck[1].setRotationSmooth({0, 180, 0})
-								MainDeck[1]=nil
-							end
+						offerList[row][replaceColumn]=nil
+					end
+				end
+				if filled~=true then
+					local deckName=row==1 and "Advanced Action" or "Spell"
+					standardDeckCycleShuffleIfReached(deckName)
+					local source=standardDeckCycleObject(deckName)
+					if source~=nil then
+						local target={(column*4.8)+21.6,1.5,-((row*6)+10.2)}
+						local newCard=nil
+						if source.type=="Deck" then
+							newCard=safeTakeObject("PlayerBoard.CardFlow",source,{position=target,rotation={0,180,0},smooth=true})
+						elseif source.type=="Card" then
+							newCard=source
+							newCard.unlock()
+							newCard.setPositionSmooth(target,false,false)
+							newCard.setRotationSmooth({0,180,0},false,false)
+						end
+						if newCard~=nil then
+							offerList[row][column]=newCard.guid
+							lockOfferCardWhenResting(newCard.guid)
 						end
 					end
 				end
 			end
 		end
 	end
+	if refreshDeedOfferAdjustUI~=nil then safeWaitFrames("PlayerBoard.CardFlow",refreshDeedOfferAdjustUI,2) end
+	return true
 end
 
 function compactAndRefillDeedOffer()
