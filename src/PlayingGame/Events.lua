@@ -1056,6 +1056,9 @@ end
 local function handlePlayerBoardZoneEnter(ctx)
 	local zoneInfo=ctx.zoneInfo
 	if ctx.settledPlayerZoneEntry~=true and zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="unit" or zoneInfo.kind=="crystal") then
+		--Play-area UI only depends on zone membership, not the object's final transform. Update it as
+		--soon as TTS reports entry; keep position-sensitive player-board effects on the settled path.
+		if zoneInfo.kind=="play" then playerBoardPlayAreaZoneEnterImmediate(ctx) end
 		scheduleSettledZoneEntry(ctx,function(liveCtx)
 			liveCtx.settledPlayerZoneEntry=true
 			playerBoardZoneEnterSettled(liveCtx)

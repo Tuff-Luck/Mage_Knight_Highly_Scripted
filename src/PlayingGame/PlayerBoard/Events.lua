@@ -32,6 +32,19 @@ function refreshCardRemoveDecal(card)
 	end
 end
 
+function playerBoardPlayAreaZoneEnterImmediate(ctx)
+	if ctx==nil or gStates.turnNumber<=0 then return end
+	local zoneInfo=ctx.zoneInfo
+	if zoneInfo==nil or zoneInfo.kind~="play" or turnOrderIndexAtSeat(zoneInfo.seatPos)==nil then return end
+	local obj=ctx.obj
+	if obj==nil then return end
+	local seatPos=zoneInfo.seatPos
+	updatePlayAreaObjectState(seatPos,obj,true)
+	dayTactic2ExpireIfCardPlayed(seatPos)
+	schedulePlayAreaCardScale(seatPos)
+	mainUIUpdate("Object entered into play area")
+end
+
 function playerBoardZoneEnterSettled(ctx)
 	local zone=ctx.zone
 	local obj=ctx.obj
@@ -39,10 +52,10 @@ function playerBoardZoneEnterSettled(ctx)
 	local objGUID=ctx.objGUID
 	local zoneInfo=ctx.zoneInfo
 	local objType=ctx.objType
-	--Updates Main UI buttons when anything is played to a mage's play area/deed deck/discard.
-	--Keep play-area refreshes distinct so mainUIUpdate can skip deck bookkeeping that cannot have changed.
+	--Deed/discard bookkeeping can run on entry. Play-area UI bookkeeping already ran immediately
+	--before the settled player-board path so the interface does not wait for physics to finish.
 	if gStates.turnNumber>0 then--makes sure end of round doesn't have errors
-		if zoneInfo~=nil and (zoneInfo.kind=="play" or zoneInfo.kind=="deed" or zoneInfo.kind=="discard") and turnOrderIndexAtSeat(zoneInfo.seatPos)~=nil then
+		if zoneInfo~=nil and (zoneInfo.kind=="deed" or zoneInfo.kind=="discard") and turnOrderIndexAtSeat(zoneInfo.seatPos)~=nil then
 			local seatPos=zoneInfo.seatPos
 			if zoneInfo.kind=="deed" and (objType=="Card" or objType=="Deck") then
 				if objType=="Deck" then obj.max_typed_number=1 end
@@ -50,12 +63,7 @@ function playerBoardZoneEnterSettled(ctx)
 			end
 			--remove banner card from register if returned to deck.
 			if zoneInfo.kind=="discard" and gameCards[objGUID]~=nil and gameCards[objGUID].half~=nil then gStates.bannercard[gameCards[objGUID].half]=nil end
-			if zoneInfo.kind=="play" then
-				updatePlayAreaObjectState(seatPos, obj, true)
-				dayTactic2ExpireIfCardPlayed(seatPos)
-				schedulePlayAreaCardScale(seatPos)
-				mainUIUpdate("Object entered into play area")
-			else mainUIUpdate("Object entered into deed deck or discard") end
+			mainUIUpdate("Object entered into deed deck or discard")
 		end
 	end
 
