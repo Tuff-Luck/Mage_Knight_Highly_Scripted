@@ -23,8 +23,9 @@ function __tryObjectEnterContainer_raw(container, object)
     return true -- Allows object to enter.
 end
 
---TEMP LATE-JOIN TEST: sanitize Unity rich-text markup in the complete runtime XML table.
---Unlike UI.setAttribute-only cleanup, this also covers Text node inner values that TTS serializes directly.
+--TTS can serialize Unity rich-text from runtime Text values as malformed XML for late joiners.
+--Inspect the full runtime tree so inner Text values are found, but update only the affected controls;
+--never replace the complete Global UI tree here, because that disrupts already-connected clients.
 local function stripRuntimeRichText(value)
 	if type(value)~="string" or value:find("<",1,true)==nil then return value,false end
 	local clean=value
@@ -37,41 +38,35 @@ local function stripRuntimeRichText(value)
 	return clean,clean~=value
 end
 
-local function sanitizeRuntimeXmlTreeForLateJoin()
+local function sanitizeRuntimeUITextForLateJoin()
 	local xml=UI.getXmlTable()
 	if type(xml)~="table" or #xml==0 then return 0 end
 	local changed=0
 
+	local function applyText(id,attribute,value)
+		if id==nil then return end
+		local clean,didChange=stripRuntimeRichText(value)
+		if didChange then
+			UI.setAttribute(id,attribute,clean)
+			changed=changed+1
+		end
+	end
+
 	local function walk(node)
 		if type(node)~="table" then return end
-		if type(node.attributes)=="table" then
-			for key,value in pairs(node.attributes) do
-				local clean,didChange=stripRuntimeRichText(value)
-				if didChange then
-					node.attributes[key]=clean
-					changed=changed+1
-				end
-			end
+		local attrs=node.attributes
+		local id=type(attrs)=="table" and attrs.id or nil
+		if type(attrs)=="table" then
+			applyText(id,"text",attrs.text)
+			applyText(id,"Text",attrs.Text)
 		end
-		if node.value~=nil then
-			local clean,didChange=stripRuntimeRichText(node.value)
-			if didChange then
-				node.value=clean
-				changed=changed+1
-			end
-		end
-		if node.content~=nil then
-			local clean,didChange=stripRuntimeRichText(node.content)
-			if didChange then
-				node.content=clean
-				changed=changed+1
-			end
-		end
+		--getXmlTable stores normal <Text>...</Text> contents here rather than in attributes.text.
+		applyText(id,"text",node.value)
+		applyText(id,"text",node.content)
 		for _,child in ipairs(node.children or {}) do walk(child) end
 	end
 
 	for _,node in ipairs(xml) do walk(node) end
-	if changed>0 then UI.setXmlTable(xml) end
 	return changed
 end
 
@@ -281,7 +276,7 @@ function eventsOnLoadRawBase(saved_data)
 		end
 	end
 	--Run once after the normal load restoration so late joiners receive XML-safe runtime text.
-	sanitizeRuntimeXmlTreeForLateJoin()
+	sanitizeRuntimeUITextForLateJoin()
 end
 
 function onSave()
