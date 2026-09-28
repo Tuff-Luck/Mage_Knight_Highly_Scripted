@@ -1,7 +1,3 @@
--- Module-private helpers. Predeclared so forward references keep resolving locally.
-local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, refreshLiftHeightWarning, __maintenanceTick_raw
-local startMaintenanceTick
-
 -- Events-private helpers. Predeclared so forward references keep resolving locally.
 local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, refreshLiftHeightWarning, __maintenanceTick_raw, startMaintenanceTick
 
@@ -23,8 +19,8 @@ function __tryObjectEnterContainer_raw(container, object)
     return true -- Allows object to enter.
 end
 
---TEMP LATE-JOIN TEST: sanitize Unity rich-text markup in the complete runtime XML table.
---Unlike UI.setAttribute-only cleanup, this also covers Text node inner values that TTS serializes directly.
+--TTS can serialize runtime Unity rich-text into malformed Global XML for late joiners.
+--Normalize the complete runtime tree, including Text node inner values, before restoring live UI state.
 local function stripRuntimeRichText(value)
 	if type(value)~="string" or value:find("<",1,true)==nil then return value,false end
 	local clean=value
@@ -37,7 +33,7 @@ local function stripRuntimeRichText(value)
 	return clean,clean~=value
 end
 
-local function sanitizeRuntimeXmlTreeForLateJoin()
+local function sanitizeRuntimeGlobalUI()
 	local xml=UI.getXmlTable()
 	if type(xml)~="table" or #xml==0 then return 0 end
 	local changed=0
@@ -114,7 +110,7 @@ function eventsOnLoadRawBase(saved_data)
 	--Clean the serialized runtime tree before normal load-time UI state is restored.
 	--Do this before reapplying translations: setXmlTable rebuilds the tree and would otherwise restore
 	--the untranslated multi-language source text for clients already connected during a host recompile.
-	sanitizeRuntimeXmlTreeForLateJoin()
+	sanitizeRuntimeGlobalUI()
 	--Static translated UI text lives in Global.xml; reapply it after the rebuild so every connected client
 	--receives the resolved language text.
 	reapplyXmlText()
