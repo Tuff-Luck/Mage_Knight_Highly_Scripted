@@ -82,7 +82,18 @@ local function setupQueuedDeckMergesComplete()
 	if setupDeckMergesPending~=0 then return false end
 	for guid,expected in pairs(setupDeckExpectedQuantity) do
 		local deck=getObjectFromGUID(guid)
-		if deck==nil or deck.getQuantity()<expected then return false end
+		if deck==nil or deck.getQuantity()<expected or deck.resting~=true or deck.isSmoothMoving()==true then return false end
+	end
+	return true
+end
+
+local function setupDeckStageReady()
+	if setupQueuedDeckMergesComplete()~=true then return false end
+	--Forgemaster 2/3 rewrites freshly deployed player Deed decks. Wait for playerSetup's real
+	--completion signals and for every live replacement target to settle before touching those decks.
+	if (gStates.riseOfTheForgemasters or 0)>1 then
+		if gStates.playerSetupReady~=true or gStates.mirrorSetupReady~=true then return false end
+		if forgemasterStarterDecksReady~=nil and forgemasterStarterDecksReady()~=true then return false end
 	end
 	return true
 end
@@ -596,13 +607,14 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			allSkills.destruct()
 		end
 
-		--Deck setup can begin as soon as every queued additive Forgemaster pack has joined its destination
-		--deck. Check merged quantities before deckSetup intentionally removes scenario/replaced cards.
-		if setupQueuedDeckMergesComplete()==true then
+		--Deck setup can begin once additive Forgemaster packs are fully merged and settled. Levels 2/3
+		--also wait for the freshly deployed player Deed decks that their starter-card replacements modify.
+		if setupDeckStageReady()==true then
 			setupStartDeckStage()
 		else
-			safeWaitCondition("SetupGame",setupStartDeckStage,setupQueuedDeckMergesComplete,10,function()
-				error("SetupGame timed out waiting for Forgemaster cards to merge into the main decks.",2)
+			safeWaitCondition("SetupGame",setupStartDeckStage,setupDeckStageReady,10,function()
+				setupReleaseRewind()
+				error("SetupGame timed out waiting for Forgemaster deck setup dependencies.",2)
 			end)
 		end
 	end
