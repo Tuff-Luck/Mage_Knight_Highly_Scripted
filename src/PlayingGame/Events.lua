@@ -1673,9 +1673,22 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true or cardGUID==tacticCard[2] then refreshCardEffectAfterRotation(cardGUID) end
 end
 
+local function rebuildGlobalUIForLateJoin()
+	local xml=UI.getXmlTable()
+	if type(xml)~="table" or #xml==0 then return end
+	UI.setXmlTable(xml)
+	safeWaitCondition(
+		"Events",
+		function() reassertGlobalUIVisibility() end,
+		function() return UI.loading~=true end,
+		5
+	)
+end
+
 function __onPlayerConnect_raw(player)
-	--Give the joining client a couple of frames to receive the Global UI, then reassert the server runtime visibility.
-	safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
+	--Late joiners can receive a malformed snapshot of the host's already-mutated Global UI.
+	--Once the client is established, force TTS to rebuild the current UI tree, then restore runtime visibility.
+	safeWaitTime("Events",function() rebuildGlobalUIForLateJoin() end,0.5)
 end
 
 function __onPlayerChangeColor_raw(color)
