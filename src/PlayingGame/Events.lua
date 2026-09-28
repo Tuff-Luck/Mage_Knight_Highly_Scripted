@@ -23,9 +23,9 @@ function __tryObjectEnterContainer_raw(container, object)
     return true -- Allows object to enter.
 end
 
---TTS can serialize Unity rich-text from runtime Text values as malformed XML for late joiners.
---Inspect the full runtime tree so inner Text values are found, but update only the affected controls;
---never replace the complete Global UI tree here, because that disrupts already-connected clients.
+--TTS can serialize Unity rich-text from the parsed runtime tree as malformed XML for players
+--who join after the host has loaded. Sanitize the complete tree once when the host is alone.
+--Do not replace the Global UI while another client is already connected: TTS can blank that client's UI.
 local function stripRuntimeRichText(value)
 	if type(value)~="string" or value:find("<",1,true)==nil then return value,false end
 	local clean=value
@@ -38,35 +38,45 @@ local function stripRuntimeRichText(value)
 	return clean,clean~=value
 end
 
-local function sanitizeRuntimeUITextForLateJoin()
+local function nonHostPlayerConnected()
+	for _,player in ipairs(Player.getPlayers() or {}) do
+		if player.host~=true then return true end
+	end
+	for _,player in ipairs(Player.getSpectators() or {}) do
+		if player.host~=true then return true end
+	end
+	return false
+end
+
+local function sanitizeRuntimeXmlTreeForLateJoin()
+	if nonHostPlayerConnected()==true then return 0 end
+
 	local xml=UI.getXmlTable()
 	if type(xml)~="table" or #xml==0 then return 0 end
 	local changed=0
 
-	local function applyText(id,attribute,value)
-		if id==nil then return end
+	local function cleanValue(owner,key,value)
 		local clean,didChange=stripRuntimeRichText(value)
 		if didChange then
-			UI.setAttribute(id,attribute,clean)
+			owner[key]=clean
 			changed=changed+1
 		end
 	end
 
 	local function walk(node)
 		if type(node)~="table" then return end
-		local attrs=node.attributes
-		local id=type(attrs)=="table" and attrs.id or nil
-		if type(attrs)=="table" then
-			applyText(id,"text",attrs.text)
-			applyText(id,"Text",attrs.Text)
+		if type(node.attributes)=="table" then
+			for key,value in pairs(node.attributes) do
+				cleanValue(node.attributes,key,value)
+			end
 		end
-		--getXmlTable stores normal <Text>...</Text> contents here rather than in attributes.text.
-		applyText(id,"text",node.value)
-		applyText(id,"text",node.content)
+		if node.value~=nil then cleanValue(node,"value",node.value) end
+		if node.content~=nil then cleanValue(node,"content",node.content) end
 		for _,child in ipairs(node.children or {}) do walk(child) end
 	end
 
 	for _,node in ipairs(xml) do walk(node) end
+	if changed>0 then UI.setXmlTable(xml) end
 	return changed
 end
 
@@ -276,7 +286,7 @@ function eventsOnLoadRawBase(saved_data)
 		end
 	end
 	--Run once after the normal load restoration so late joiners receive XML-safe runtime text.
-	sanitizeRuntimeUITextForLateJoin()
+	sanitizeRuntimeXmlTreeForLateJoin()
 end
 
 function onSave()
