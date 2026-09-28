@@ -280,9 +280,8 @@ function eventsOnLoadRawBase(saved_data)
 			safeWaitFrames("Events",function() if gStates.endRoundResetPending==true then endRound() end end,10)
 		end
 	end
-	--Run after the normal load restoration and once more after delayed UI refreshes have settled.
+	--Run once after the normal load restoration so late joiners receive XML-safe runtime text.
 	sanitizeRuntimeXmlTreeForLateJoin()
-	safeWaitTime("Events",function() sanitizeRuntimeXmlTreeForLateJoin() end,1)
 end
 
 function onSave()
