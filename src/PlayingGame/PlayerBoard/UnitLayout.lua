@@ -1,6 +1,6 @@
 -- Module-private helpers. Predeclared so forward references keep resolving locally.
-local unitLayoutSnapType, refreshUnitLayoutSnapPoints, unitLayoutCommandPriority, unitLayoutX, unitLayoutObjects
-local unitLayoutSnapshot, unitLayoutIsCompanion, refreshUnitLayout, unitLayoutObjectInUnitArea
+local unitLayoutSnapType, refreshUnitLayoutSnapPoints, unitLayoutCommandPriority, unitLayoutObjects
+local unitLayoutIsCompanion, refreshUnitLayout, unitLayoutObjectInUnitArea
 
 -- Runtime Unit/Command-slot layout and compression on player boards.
 
