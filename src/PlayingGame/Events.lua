@@ -1,6 +1,6 @@
 -- Events-private helpers. Predeclared so forward references keep resolving locally.
 local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, refreshLiftHeightWarning, __maintenanceTick_raw, startMaintenanceTick
-local globalUILoadProfile=nil
+globalUILoadProfile=nil
 
 local function uiLoadProfileClockMs()
 	return os.clock()*1000
