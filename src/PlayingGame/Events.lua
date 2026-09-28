@@ -21,18 +21,49 @@ end
 
 --TTS can serialize runtime Unity rich-text into malformed Global XML for late joiners.
 --Normalize the complete runtime tree, including Text node inner values, before restoring live UI state.
-local function stripRuntimeRichText(value)
-	if type(value)~="string" or value:find("<",1,true)==nil then return value,false end
-	local clean=value
-		:gsub("</?size[^>]*>","")
-		:gsub("</?color[^>]*>","")
-		:gsub("</?i[^>]*>","")
-		:gsub("</?b[^>]*>","")
-		:gsub("</?voffset[^>]*>","")
-		:gsub("</?line%-height[^>]*>","")
-	return clean,clean~=value
+local RUNTIME_RICH_TEXT_TAGS={size=true,color=true,i=true,b=true,voffset=true,["line-height"]=true}
+
+local function runtimeRichTextTag(raw)
+	if type(raw)~="string" or #raw<3 or raw:sub(1,1)~="<" or raw:sub(-1)~=">" then return false end
+	local inner=raw:sub(2,-2):lower()
+	local index=1
+	while index<=#inner and (inner:sub(index,index)==" " or inner:sub(index,index)=="\t" or inner:sub(index,index)=="\r" or inner:sub(index,index)=="\n") do index=index+1 end
+	if inner:sub(index,index)=="/" then index=index+1 end
+	while index<=#inner and (inner:sub(index,index)==" " or inner:sub(index,index)=="\t" or inner:sub(index,index)=="\r" or inner:sub(index,index)=="\n") do index=index+1 end
+	local nameStart=index
+	while index<=#inner do
+		local ch=inner:sub(index,index)
+		local byte=string.byte(ch)
+		local alpha=byte~=nil and ((byte>=97 and byte<=122) or (byte>=48 and byte<=57))
+		if alpha or ch=="-" then index=index+1 else break end
+	end
+	if index==nameStart then return false end
+	return RUNTIME_RICH_TEXT_TAGS[inner:sub(nameStart,index-1)]==true
 end
 
+local function stripRuntimeRichText(value)
+	if type(value)~="string" or value:find("<",1,true)==nil then return value,false end
+	local pieces={}
+	local cursor=1
+	local changed=false
+	while cursor<=#value do
+		local open=value:find("<",cursor,true)
+		if open==nil then
+			pieces[#pieces+1]=value:sub(cursor)
+			break
+		end
+		if open>cursor then pieces[#pieces+1]=value:sub(cursor,open-1) end
+		local close=value:find(">",open+1,true)
+		if close==nil then
+			pieces[#pieces+1]=value:sub(open)
+			break
+		end
+		local raw=value:sub(open,close)
+		if runtimeRichTextTag(raw)==true then changed=true else pieces[#pieces+1]=raw end
+		cursor=close+1
+	end
+	return table.concat(pieces),changed
+end
 local function sanitizeRuntimeGlobalUI()
 	local xml=UI.getXmlTable()
 	if type(xml)~="table" or #xml==0 then return 0 end
