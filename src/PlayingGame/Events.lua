@@ -1,28 +1,5 @@
 -- Events-private helpers. Predeclared so forward references keep resolving locally.
 local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, refreshLiftHeightWarning, __maintenanceTick_raw, startMaintenanceTick
-globalUILoadProfile=nil
-
-local function uiLoadProfileClockMs()
-	return os.clock()*1000
-end
-
-local function uiLoadProfilePrint()
-	local p=globalUILoadProfile
-	if p==nil or p.printed==true or p.syncComplete~=true then return end
-	p.printed=true
-	local sanitizeTotal=(p.sanitizeGetXmlMs or 0)+(p.sanitizeWalkMs or 0)+(p.sanitizeSetXmlMs or 0)
-	local translateTotal=(p.translateGetXmlMs or 0)+(p.translateScanMs or 0)+(p.translateWriteMs or 0)
-	print(string.format(
-		"[UI LOAD PROFILE] total %.1fms | pre %.1fms (defaults %.1f, base %.1f, visibility %.1f, queued restores %.1f) | sanitizer %.1fms (getXmlTable %.1f, walk %.1f, setXmlTable %.1f, changed %d) | translations %.1fms (getXml %.1f, scan %.1f, setAttribute %.1f, reapplied %d) | remaining %.1fms",
-		p.totalSyncMs or 0,
-		p.preSanitizeMs or 0,p.preDefaultsMs or 0,p.preBaseMs or 0,p.preVisibilityMs or 0,p.preQueuedMs or 0,
-		sanitizeTotal,p.sanitizeGetXmlMs or 0,p.sanitizeWalkMs or 0,p.sanitizeSetXmlMs or 0,p.sanitizeChanged or 0,
-		translateTotal,p.translateGetXmlMs or 0,p.translateScanMs or 0,p.translateWriteMs or 0,p.translateReapplied or 0,
-		p.remainingLoadMs or 0
-	))
-end
-
-
 -- TTS persistence, raw event handling, maintenance and runtime event dispatch.
 
 function __tryObjectEnterContainer_raw(container, object)
@@ -87,14 +64,10 @@ local function stripRuntimeRichText(value)
 	return table.concat(pieces),changed
 end
 local function sanitizeRuntimeGlobalUI()
-	local profile=globalUILoadProfile
-	local getXmlStart=uiLoadProfileClockMs()
 	local xml=UI.getXmlTable()
-	if profile~=nil then profile.sanitizeGetXmlMs=uiLoadProfileClockMs()-getXmlStart end
 	if type(xml)~="table" or #xml==0 then return 0,nil end
 	local changed=0
 	local translatedText={}
-	local walkStart=uiLoadProfileClockMs()
 
 	local function walk(node)
 		if type(node)~="table" then return end
@@ -134,47 +107,13 @@ local function sanitizeRuntimeGlobalUI()
 	end
 
 	for _,node in ipairs(xml) do walk(node) end
-	if profile~=nil then profile.sanitizeWalkMs=uiLoadProfileClockMs()-walkStart end
-	if changed>0 then
-		local rebuildStartClock=uiLoadProfileClockMs()
-		local rebuildStartTime=Time.time
-		UI.setXmlTable(xml)
-		if profile~=nil then
-			profile.sanitizeSetXmlMs=uiLoadProfileClockMs()-rebuildStartClock
-			profile.sanitizeChanged=changed
-			safeWaitCondition(
-				"Events",
-				function()
-					profile.uiRebuildWaitMs=(Time.time-rebuildStartTime)*1000
-					print(string.format("[UI LOAD PROFILE] UI.loading cleared %.0fms after setXmlTable",profile.uiRebuildWaitMs))
-				end,
-				function() return UI.loading~=true end,
-				5
-			)
-		end
-	elseif profile~=nil then
-		profile.sanitizeSetXmlMs=0
-		profile.sanitizeChanged=0
-	end
+	if changed>0 then UI.setXmlTable(xml) end
 	return changed,translatedText
 end
 
 local function reapplyCollectedXmlText(translatedText)
 	if type(translatedText)~="table" or #translatedText==0 then return false end
-	local profile=globalUILoadProfile
-	local start=uiLoadProfileClockMs()
-	local writeMs=0
-	for _,entry in ipairs(translatedText) do
-		local writeStart=uiLoadProfileClockMs()
-		UI.setAttribute(entry.id,"text",entry.value)
-		writeMs=writeMs+(uiLoadProfileClockMs()-writeStart)
-	end
-	if profile~=nil then
-		profile.translateGetXmlMs=0
-		profile.translateWriteMs=writeMs
-		profile.translateScanMs=math.max(0,(uiLoadProfileClockMs()-start)-writeMs)
-		profile.translateReapplied=#translatedText
-	end
+	for _,entry in ipairs(translatedText) do UI.setAttribute(entry.id,"text",entry.value) end
 	return true
 end
 
@@ -182,12 +121,7 @@ end
 ---------------
 --Save and load settings
 function eventsOnLoadRawBase(saved_data)
-	globalUILoadProfile={startMs=uiLoadProfileClockMs()}
-	local profile=globalUILoadProfile
-	local phaseStart=uiLoadProfileClockMs()
 	cacheScenarioTweakDefaults()
-	profile.preDefaultsMs=uiLoadProfileClockMs()-phaseStart
-	phaseStart=uiLoadProfileClockMs()
 	local megaFreeze=  {"3d4319", "519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard, "a02b0f"}--player mats
 	for i=1, #megaFreeze, 1 do
 		local obj=getObjectFromGUID(megaFreeze[i])
@@ -203,11 +137,7 @@ function eventsOnLoadRawBase(saved_data)
 		turnOrder=loaded_data.turnOrder
 		gStates=loaded_data.gStates
 	end
-	profile.preBaseMs=uiLoadProfileClockMs()-phaseStart
-	phaseStart=uiLoadProfileClockMs()
 	resetGlobalUIVisibility()
-	profile.preVisibilityMs=uiLoadProfileClockMs()-phaseStart
-	phaseStart=uiLoadProfileClockMs()
 	--Refresh saved Puppets so presentation changes (decal/hover data) also apply to existing accepted Puppets.
 	safeWaitFrames("Events",function() for guid,record in pairs(gStates.puppetMasterPuppets or {}) do puppetMasterRefreshPresentation(getObjectFromGUID(guid),record) end end,2)
 	--Goblin Warrens enemies come from an Infinite Bag and therefore receive new GUIDs. Restore their
@@ -223,14 +153,11 @@ function eventsOnLoadRawBase(saved_data)
 	if gStates.finalTurnReason~=nil then ensureFinalTurnBoundary() end
 	safeWaitFrames("Events",function() horsemanRestoreRuntimeState() end,2)
 	startMaintenanceTick()
-	profile.preQueuedMs=uiLoadProfileClockMs()-phaseStart
-	profile.preSanitizeMs=uiLoadProfileClockMs()-profile.startMs
 	--Clean the serialized runtime tree before normal load-time UI state is restored.
 	--Collect translated Text/Toggle values during that same traversal so the translation repair does not
 	--need to serialize and rescan the complete Global UI a second time.
 	local _,translatedText=sanitizeRuntimeGlobalUI()
 	if reapplyCollectedXmlText(translatedText)~=true then reapplyXmlText() end
-	if globalUILoadProfile~=nil then globalUILoadProfile.remainingStartMs=uiLoadProfileClockMs() end
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
@@ -399,13 +326,6 @@ function eventsOnLoadRawBase(saved_data)
 		end
 	end
 
-	if globalUILoadProfile~=nil then
-		local now=uiLoadProfileClockMs()
-		globalUILoadProfile.remainingLoadMs=now-(globalUILoadProfile.remainingStartMs or now)
-		globalUILoadProfile.totalSyncMs=now-(globalUILoadProfile.startMs or now)
-		globalUILoadProfile.syncComplete=true
-		uiLoadProfilePrint()
-	end
 end
 
 function onSave()
