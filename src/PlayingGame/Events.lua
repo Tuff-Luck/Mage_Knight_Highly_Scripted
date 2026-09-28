@@ -19,14 +19,87 @@ function __tryObjectEnterContainer_raw(container, object)
     return true -- Allows object to enter.
 end
 
-local function nonHostPlayerConnected()
-	for _,player in ipairs(Player.getPlayers() or {}) do
-		if player.host~=true then return true end
+--TTS can serialize runtime Unity rich-text into malformed Global XML for late joiners.
+--Normalize the complete runtime tree, including Text node inner values, before restoring live UI state.
+local RUNTIME_RICH_TEXT_TAGS={size=true,color=true,i=true,b=true,voffset=true,["line-height"]=true}
+
+local function runtimeRichTextTag(raw)
+	if type(raw)~="string" or #raw<3 or raw:sub(1,1)~="<" or raw:sub(-1)~=">" then return false end
+	local inner=raw:sub(2,-2):lower()
+	local index=1
+	while index<=#inner and (inner:sub(index,index)==" " or inner:sub(index,index)=="\t" or inner:sub(index,index)=="\r" or inner:sub(index,index)=="\n") do index=index+1 end
+	if inner:sub(index,index)=="/" then index=index+1 end
+	while index<=#inner and (inner:sub(index,index)==" " or inner:sub(index,index)=="\t" or inner:sub(index,index)=="\r" or inner:sub(index,index)=="\n") do index=index+1 end
+	local nameStart=index
+	while index<=#inner do
+		local ch=inner:sub(index,index)
+		local byte=string.byte(ch)
+		local alpha=byte~=nil and ((byte>=97 and byte<=122) or (byte>=48 and byte<=57))
+		if alpha or ch=="-" then index=index+1 else break end
 	end
-	for _,player in ipairs(Player.getSpectators() or {}) do
-		if player.host~=true then return true end
+	if index==nameStart then return false end
+	return RUNTIME_RICH_TEXT_TAGS[inner:sub(nameStart,index-1)]==true
+end
+
+local function stripRuntimeRichText(value)
+	if type(value)~="string" or value:find("<",1,true)==nil then return value,false end
+	local pieces={}
+	local cursor=1
+	local changed=false
+	while cursor<=#value do
+		local open=value:find("<",cursor,true)
+		if open==nil then
+			pieces[#pieces+1]=value:sub(cursor)
+			break
+		end
+		if open>cursor then pieces[#pieces+1]=value:sub(cursor,open-1) end
+		local close=value:find(">",open+1,true)
+		if close==nil then
+			pieces[#pieces+1]=value:sub(open)
+			break
+		end
+		local raw=value:sub(open,close)
+		if runtimeRichTextTag(raw)==true then changed=true else pieces[#pieces+1]=raw end
+		cursor=close+1
 	end
-	return false
+	return table.concat(pieces),changed
+end
+local function sanitizeRuntimeGlobalUI()
+	local xml=UI.getXmlTable()
+	if type(xml)~="table" or #xml==0 then return 0 end
+	local changed=0
+
+	local function walk(node)
+		if type(node)~="table" then return end
+		if type(node.attributes)=="table" then
+			for key,value in pairs(node.attributes) do
+				local clean,didChange=stripRuntimeRichText(value)
+				if didChange then
+					node.attributes[key]=clean
+					changed=changed+1
+				end
+			end
+		end
+		if node.value~=nil then
+			local clean,didChange=stripRuntimeRichText(node.value)
+			if didChange then
+				node.value=clean
+				changed=changed+1
+			end
+		end
+		if node.content~=nil then
+			local clean,didChange=stripRuntimeRichText(node.content)
+			if didChange then
+				node.content=clean
+				changed=changed+1
+			end
+		end
+		for _,child in ipairs(node.children or {}) do walk(child) end
+	end
+
+	for _,node in ipairs(xml) do walk(node) end
+	if changed>0 then UI.setXmlTable(xml) end
+	return changed
 end
 
 -- Event Handling functions
@@ -65,9 +138,13 @@ function eventsOnLoadRawBase(saved_data)
 	if gStates.finalTurnReason~=nil then ensureFinalTurnBoundary() end
 	safeWaitFrames("Events",function() horsemanRestoreRuntimeState() end,2)
 	startMaintenanceTick()
-	--Normal startup uses Global.xml directly. Only repair static translated text when another client
-	--is already connected (the host-recompile case that leaves those clients showing raw language tags).
-	if nonHostPlayerConnected()==true then reapplyXmlText() end
+	--Clean the serialized runtime tree before normal load-time UI state is restored.
+	--Do this before reapplying translations: setXmlTable rebuilds the tree and would otherwise restore
+	--the untranslated multi-language source text for clients already connected during a host recompile.
+	sanitizeRuntimeGlobalUI()
+	--Static translated UI text lives in Global.xml; reapply it after the rebuild so every connected client
+	--receives the resolved language text.
+	reapplyXmlText()
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
