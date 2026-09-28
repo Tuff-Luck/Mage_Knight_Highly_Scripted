@@ -113,6 +113,9 @@ function eventsOnLoadRawBase(saved_data)
 	startMaintenanceTick()
 	--Static translated UI text lives in Global.xml; reapply it once so TTS resolves language tags.
 	reapplyXmlText()
+	--Clean the serialized runtime tree before normal load-time UI state is restored.
+	--This prevents late-join XML corruption without wiping UI.show/UI.hide state after it has been established.
+	sanitizeRuntimeXmlTreeForLateJoin()
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
@@ -280,9 +283,7 @@ function eventsOnLoadRawBase(saved_data)
 			safeWaitFrames("Events",function() if gStates.endRoundResetPending==true then endRound() end end,10)
 		end
 	end
-	--Run after the normal load restoration and once more after delayed UI refreshes have settled.
-	sanitizeRuntimeXmlTreeForLateJoin()
-	safeWaitTime("Events",function() sanitizeRuntimeXmlTreeForLateJoin() end,1)
+
 end
 
 function onSave()
