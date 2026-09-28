@@ -23,9 +23,8 @@ function __tryObjectEnterContainer_raw(container, object)
     return true -- Allows object to enter.
 end
 
---TTS can serialize Unity rich-text from the parsed runtime tree as malformed XML for players
---who join after the host has loaded. Sanitize the complete tree once when the host is alone.
---Do not replace the Global UI while another client is already connected: TTS can blank that client's UI.
+--TEMP LATE-JOIN TEST: sanitize Unity rich-text markup in the complete runtime XML table.
+--Unlike UI.setAttribute-only cleanup, this also covers Text node inner values that TTS serializes directly.
 local function stripRuntimeRichText(value)
 	if type(value)~="string" or value:find("<",1,true)==nil then return value,false end
 	local clean=value
@@ -38,40 +37,36 @@ local function stripRuntimeRichText(value)
 	return clean,clean~=value
 end
 
-local function nonHostPlayerConnected()
-	for _,player in ipairs(Player.getPlayers() or {}) do
-		if player.host~=true then return true end
-	end
-	for _,player in ipairs(Player.getSpectators() or {}) do
-		if player.host~=true then return true end
-	end
-	return false
-end
-
 local function sanitizeRuntimeXmlTreeForLateJoin()
-	if nonHostPlayerConnected()==true then return 0 end
-
 	local xml=UI.getXmlTable()
 	if type(xml)~="table" or #xml==0 then return 0 end
 	local changed=0
-
-	local function cleanValue(owner,key,value)
-		local clean,didChange=stripRuntimeRichText(value)
-		if didChange then
-			owner[key]=clean
-			changed=changed+1
-		end
-	end
 
 	local function walk(node)
 		if type(node)~="table" then return end
 		if type(node.attributes)=="table" then
 			for key,value in pairs(node.attributes) do
-				cleanValue(node.attributes,key,value)
+				local clean,didChange=stripRuntimeRichText(value)
+				if didChange then
+					node.attributes[key]=clean
+					changed=changed+1
+				end
 			end
 		end
-		if node.value~=nil then cleanValue(node,"value",node.value) end
-		if node.content~=nil then cleanValue(node,"content",node.content) end
+		if node.value~=nil then
+			local clean,didChange=stripRuntimeRichText(node.value)
+			if didChange then
+				node.value=clean
+				changed=changed+1
+			end
+		end
+		if node.content~=nil then
+			local clean,didChange=stripRuntimeRichText(node.content)
+			if didChange then
+				node.content=clean
+				changed=changed+1
+			end
+		end
 		for _,child in ipairs(node.children or {}) do walk(child) end
 	end
 
@@ -285,8 +280,9 @@ function eventsOnLoadRawBase(saved_data)
 			safeWaitFrames("Events",function() if gStates.endRoundResetPending==true then endRound() end end,10)
 		end
 	end
-	--Run once after the normal load restoration so late joiners receive XML-safe runtime text.
+	--Run after the normal load restoration and once more after delayed UI refreshes have settled.
 	sanitizeRuntimeXmlTreeForLateJoin()
+	safeWaitTime("Events",function() sanitizeRuntimeXmlTreeForLateJoin() end,1)
 end
 
 function onSave()
