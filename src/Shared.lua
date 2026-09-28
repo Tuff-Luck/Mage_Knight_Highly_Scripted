@@ -209,11 +209,24 @@ local function xmlAttribute(openingTag,name)
 end
 
 function reapplyXmlText()
+	local profile=globalUILoadProfile
+	local profileClock=function() return os.clock()*1000 end
+	local totalStart=profileClock()
+	local getXmlStart=profileClock()
 	local xml=UI.getXml()
-	if type(xml)~="string" or xml=="" then return 0 end
+	if profile~=nil then profile.translateGetXmlMs=profileClock()-getXmlStart end
+	if type(xml)~="string" or xml=="" then
+		if profile~=nil then
+			profile.translateScanMs=0
+			profile.translateWriteMs=0
+			profile.translateReapplied=0
+		end
+		return 0
+	end
 	local defaultsEnd=xml:find("</Defaults>",1,true)
 	local scanStart=defaultsEnd~=nil and defaultsEnd+#"</Defaults>" or 1
 	local reapplied=0
+	local writeMs=0
 
 	local function reapplyTag(tag)
 		local opening="<"..tag
@@ -241,7 +254,9 @@ function reapplyXmlText()
 					nextPos=closeEnd+1
 				end
 				if id~=nil and type(value)=="string" and value:find("{en}",1,true)~=nil then
+					local writeStart=profileClock()
 					UI.setAttribute(id,"text",decodeXmlUiText(value))
+					writeMs=writeMs+(profileClock()-writeStart)
 					reapplied=reapplied+1
 				end
 				pos=nextPos
@@ -251,6 +266,12 @@ function reapplyXmlText()
 
 	reapplyTag("Text")
 	reapplyTag("Toggle")
+	if profile~=nil then
+		local totalMs=profileClock()-totalStart
+		profile.translateWriteMs=writeMs
+		profile.translateScanMs=math.max(0,totalMs-(profile.translateGetXmlMs or 0)-writeMs)
+		profile.translateReapplied=reapplied
+	end
 	return reapplied
 end
 
