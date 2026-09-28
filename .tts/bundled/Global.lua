@@ -627,13 +627,8 @@ end
 
 end)
 __bundle_register("PlayingGame.Events", function(require, _LOADED, __bundle_register, __bundle_modules)
--- Module-private helpers. Predeclared so forward references keep resolving locally.
-local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, refreshLiftHeightWarning, __maintenanceTick_raw
-local startMaintenanceTick
-
 -- Events-private helpers. Predeclared so forward references keep resolving locally.
 local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, refreshLiftHeightWarning, __maintenanceTick_raw, startMaintenanceTick
-
 -- TTS persistence, raw event handling, maintenance and runtime event dispatch.
 
 function __tryObjectEnterContainer_raw(container, object)
@@ -650,6 +645,105 @@ function __tryObjectEnterContainer_raw(container, object)
 		end
 	end
     return true -- Allows object to enter.
+end
+
+--TTS can serialize runtime Unity rich-text into malformed Global XML for late joiners.
+--Normalize the complete runtime tree, including Text node inner values, before restoring live UI state.
+local RUNTIME_RICH_TEXT_TAGS={size=true,color=true,i=true,b=true,voffset=true,["line-height"]=true}
+
+local function runtimeRichTextTag(raw)
+	if type(raw)~="string" or #raw<3 or raw:sub(1,1)~="<" or raw:sub(-1)~=">" then return false end
+	local inner=raw:sub(2,-2):lower()
+	local index=1
+	while index<=#inner and (inner:sub(index,index)==" " or inner:sub(index,index)=="\t" or inner:sub(index,index)=="\r" or inner:sub(index,index)=="\n") do index=index+1 end
+	if inner:sub(index,index)=="/" then index=index+1 end
+	while index<=#inner and (inner:sub(index,index)==" " or inner:sub(index,index)=="\t" or inner:sub(index,index)=="\r" or inner:sub(index,index)=="\n") do index=index+1 end
+	local nameStart=index
+	while index<=#inner do
+		local ch=inner:sub(index,index)
+		local byte=string.byte(ch)
+		local alpha=byte~=nil and ((byte>=97 and byte<=122) or (byte>=48 and byte<=57))
+		if alpha or ch=="-" then index=index+1 else break end
+	end
+	if index==nameStart then return false end
+	return RUNTIME_RICH_TEXT_TAGS[inner:sub(nameStart,index-1)]==true
+end
+
+local function stripRuntimeRichText(value)
+	if type(value)~="string" or value:find("<",1,true)==nil then return value,false end
+	local pieces={}
+	local cursor=1
+	local changed=false
+	while cursor<=#value do
+		local open=value:find("<",cursor,true)
+		if open==nil then
+			pieces[#pieces+1]=value:sub(cursor)
+			break
+		end
+		if open>cursor then pieces[#pieces+1]=value:sub(cursor,open-1) end
+		local close=value:find(">",open+1,true)
+		if close==nil then
+			pieces[#pieces+1]=value:sub(open)
+			break
+		end
+		local raw=value:sub(open,close)
+		if runtimeRichTextTag(raw)==true then changed=true else pieces[#pieces+1]=raw end
+		cursor=close+1
+	end
+	return table.concat(pieces),changed
+end
+local function sanitizeRuntimeGlobalUI()
+	local xml=UI.getXmlTable()
+	if type(xml)~="table" or #xml==0 then return 0,nil end
+	local changed=0
+	local translatedText={}
+
+	local function walk(node)
+		if type(node)~="table" then return end
+		if type(node.attributes)=="table" then
+			for key,value in pairs(node.attributes) do
+				local clean,didChange=stripRuntimeRichText(value)
+				if didChange then
+					node.attributes[key]=clean
+					changed=changed+1
+				end
+			end
+		end
+		if node.value~=nil then
+			local clean,didChange=stripRuntimeRichText(node.value)
+			if didChange then
+				node.value=clean
+				changed=changed+1
+			end
+		end
+		if node.content~=nil then
+			local clean,didChange=stripRuntimeRichText(node.content)
+			if didChange then
+				node.content=clean
+				changed=changed+1
+			end
+		end
+		local attributes=node.attributes
+		if (node.tag=="Text" or node.tag=="Toggle") and type(attributes)=="table" and attributes.id~=nil then
+			local value=attributes.text
+			if value==nil then value=node.value end
+			if value==nil then value=node.content end
+			if type(value)=="string" and value:find("{en}",1,true)~=nil then
+				translatedText[#translatedText+1]={id=attributes.id,value=value}
+			end
+		end
+		for _,child in ipairs(node.children or {}) do walk(child) end
+	end
+
+	for _,node in ipairs(xml) do walk(node) end
+	if changed>0 then UI.setXmlTable(xml) end
+	return changed,translatedText
+end
+
+local function reapplyCollectedXmlText(translatedText)
+	if type(translatedText)~="table" or #translatedText==0 then return false end
+	for _,entry in ipairs(translatedText) do UI.setAttribute(entry.id,"text",entry.value) end
+	return true
 end
 
 -- Event Handling functions
@@ -688,8 +782,11 @@ function eventsOnLoadRawBase(saved_data)
 	if gStates.finalTurnReason~=nil then ensureFinalTurnBoundary() end
 	safeWaitFrames("Events",function() horsemanRestoreRuntimeState() end,2)
 	startMaintenanceTick()
-	--Static translated UI text lives in Global.xml; reapply it once so TTS resolves language tags.
-	reapplyXmlText()
+	--Clean the serialized runtime tree before normal load-time UI state is restored.
+	--Collect translated Text/Toggle values during that same traversal so the translation repair does not
+	--need to serialize and rescan the complete Global UI a second time.
+	local _,translatedText=sanitizeRuntimeGlobalUI()
+	if reapplyCollectedXmlText(translatedText)~=true then reapplyXmlText() end
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
@@ -857,6 +954,7 @@ function eventsOnLoadRawBase(saved_data)
 			safeWaitFrames("Events",function() if gStates.endRoundResetPending==true then endRound() end end,10)
 		end
 	end
+
 end
 
 function onSave()
@@ -2303,7 +2401,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 end
 
 function __onPlayerConnect_raw(player)
-	--Give the joining client a couple of frames to receive the Global UI, then reassert the server runtime visibility.
+	--Late joiners/color changes can lose Global UI visibility. Reassert the current runtime filters only.
 	safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
 end
 
@@ -25185,6 +25283,26 @@ local function deedOfferMovedSourcesSettled(sourceGUIDs)
 	return true
 end
 
+function setDeedOfferSizeForSetup(value)
+	local size=deedOfferBoundedSize(value)
+	gStates.offerSize=size
+	local sourceX=(4.8*(size+1))+21.6
+	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+	local actionSource=standardDeckCycleObject("Advanced Action") or getObjectFromGUID(GUID.deck.action)
+	if spellSource~=nil then spellSource.setPositionSmooth({sourceX,2.5,-22.2},false,false) end
+	if actionSource~=nil then actionSource.setPositionSmooth({sourceX,2.5,-16.2},false,false) end
+	local spellZone=getObjectFromGUID(GUID.zone.spellDeck)
+	local actionZone=getObjectFromGUID(GUID.zone.actionDeck)
+	local offerZone=getObjectFromGUID(GUID.zone.offer)
+	if spellZone~=nil then spellZone.setPosition({sourceX,2.05,-22.2}) end
+	if actionZone~=nil then actionZone.setPosition({sourceX,2.05,-16.2}) end
+	if offerZone~=nil then
+		offerZone.setScale({4.8*size,0.3,9.57})
+		offerZone.setPosition({(2.4*(size-1))+26.4,1.13,-19.2})
+	end
+	return true
+end
+
 function offerAdjust(player, mouseButton, id)
 	if mouseButton~="-1" or OfferPause==true then return end
 	local delta=id=="e4372aOfferUp" and 1 or id=="e4372aOfferDown" and -1 or nil
@@ -36479,7 +36597,18 @@ local function setupQueuedDeckMergesComplete()
 	if setupDeckMergesPending~=0 then return false end
 	for guid,expected in pairs(setupDeckExpectedQuantity) do
 		local deck=getObjectFromGUID(guid)
-		if deck==nil or deck.getQuantity()<expected then return false end
+		if deck==nil or deck.getQuantity()<expected or deck.resting~=true or deck.isSmoothMoving()==true then return false end
+	end
+	return true
+end
+
+local function setupDeckStageReady()
+	if setupQueuedDeckMergesComplete()~=true then return false end
+	--Forgemaster 2/3 rewrites freshly deployed player Deed decks. Wait for playerSetup's real
+	--completion signals and for every live replacement target to settle before touching those decks.
+	if (gStates.riseOfTheForgemasters or 0)>1 then
+		if gStates.playerSetupReady~=true or gStates.mirrorSetupReady~=true then return false end
+		if forgemasterStarterDecksReady~=nil and forgemasterStarterDecksReady()~=true then return false end
 	end
 	return true
 end
@@ -36993,13 +37122,14 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			allSkills.destruct()
 		end
 
-		--Deck setup can begin as soon as every queued additive Forgemaster pack has joined its destination
-		--deck. Check merged quantities before deckSetup intentionally removes scenario/replaced cards.
-		if setupQueuedDeckMergesComplete()==true then
+		--Deck setup can begin once additive Forgemaster packs are fully merged and settled. Levels 2/3
+		--also wait for the freshly deployed player Deed decks that their starter-card replacements modify.
+		if setupDeckStageReady()==true then
 			setupStartDeckStage()
 		else
-			safeWaitCondition("SetupGame",setupStartDeckStage,setupQueuedDeckMergesComplete,10,function()
-				error("SetupGame timed out waiting for Forgemaster cards to merge into the main decks.",2)
+			safeWaitCondition("SetupGame",setupStartDeckStage,setupDeckStageReady,10,function()
+				setupReleaseRewind()
+				error("SetupGame timed out waiting for Forgemaster deck setup dependencies.",2)
 			end)
 		end
 	end
@@ -38450,6 +38580,30 @@ end)
 __bundle_register("SetupGame.Decks", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Deck construction, shuffling and setup-time card-pool preparation.
 
+local FORGEMASTER_CONCENTRATION_SWAPS={
+	{deck="73b4e9",old="450562"},
+	{deck="1b9c29",old="450568"},
+	{deck="5d8084",old="450595"},
+	{deck="8bc5fe",old="450581"},
+	{deck=GUID.deck.krang,old="450575"},
+	{deck="c75919",old="450588"},
+	{deck="e2c66d",old="450552"},
+	{deck="8ad524",old="9a67a9"},
+	{deck="c05bd0",old="124af4"},
+	{deck="160535",old="e77fa9"},
+	{deck="3c7b00",old="8ec305"}
+}
+local FORGEMASTER_CONCENTRATION_REPLACEMENTS={"d339f6","0b071b","4db67c","0f7f81","66fcf4"}
+
+function forgemasterStarterDecksReady()
+	if (gStates.riseOfTheForgemasters or 0)<=1 then return true end
+	for _,entry in ipairs(FORGEMASTER_CONCENTRATION_SWAPS) do
+		local deck=getObjectFromGUID(entry.deck)
+		if deck~=nil and (deck.resting~=true or deck.isSmoothMoving()==true) then return false end
+	end
+	return true
+end
+
 --Deck Setup
 function deckSetup()
 	gStates.standardDeckFirstReturnedGUID={}
@@ -38608,26 +38762,49 @@ function deckSetup()
 		if gStates.riseOfTheForgemasters>=level and gStates.riseOfTheForgemasters~=0 then removeForgemasterReplacedCard(GUID.deck.action,card) end
 	end
 	if gStates.riseOfTheForgemasters>1 then
-		offerAdjust(player, "-1", "e4372aOfferUp")
-		if getObjectFromGUID(GUID.deck.goldyx)~=nil then--Goldyx modified Starting Card
-			getObjectFromGUID(GUID.deck.goldyx).takeObject({guid="acd316"}).destruct()
-			getObjectFromGUID(GUID.deck.goldyx).putObject(getObjectFromGUID(GUID.bag.forgemaster).takeObject({guid="911ddb", smooth=false}))
-			getObjectFromGUID(GUID.deck.goldyx).shuffle()
+		--Setup only needs the larger geometry. Do not invoke the live offer-resize flow here: it can
+		--draw/return offer cards and run play-time movement while setup decks are still being prepared.
+		setDeedOfferSizeForSetup((gStates.offerSize or 3)+1)
+
+		local function replaceStarterCard(deckGUID,oldGUID,newGUID,label)
+			local deck=getObjectFromGUID(deckGUID)
+			if deck==nil then return false end
+			local oldPresent=false
+			for _,entry in ipairs(deck.getObjects()) do
+				if entry.guid==oldGUID then oldPresent=true break end
+			end
+			if oldPresent~=true then
+				error("SetupGame could not find Forgemaster "..tostring(label).." card "..tostring(oldGUID).." in starter deck "..tostring(deckGUID)..".",2)
+			end
+			local oldCard=safeTakeObject("SetupGame",deck,{guid=oldGUID,smooth=false})
+			if oldCard==nil then
+				error("SetupGame could not extract Forgemaster "..tostring(label).." card "..tostring(oldGUID).." from starter deck "..tostring(deckGUID)..".",2)
+			end
+			local forgemasterBag=getObjectFromGUID(GUID.bag.forgemaster)
+			if forgemasterBag==nil then error("SetupGame missing Rise of the Forgemasters bag during starter-card replacement.",2) end
+			local replacement=safeTakeObject("SetupGame",forgemasterBag,{guid=newGUID,smooth=false})
+			if replacement==nil then
+				error("SetupGame could not extract Forgemaster replacement card "..tostring(newGUID).." for starter deck "..tostring(deckGUID)..".",2)
+			end
+			oldCard.destruct()
+			deck.putObject(replacement)
+			deck.shuffle()
+			return true
 		end
-		if getObjectFromGUID(GUID.deck.krang)~=nil then--Krang modified Starting Card
-			getObjectFromGUID(GUID.deck.krang).takeObject({guid="450573"}).destruct()
-			getObjectFromGUID(GUID.deck.krang).putObject(getObjectFromGUID(GUID.bag.forgemaster).takeObject({guid="e8747d", smooth=false}))
-			getObjectFromGUID(GUID.deck.krang).shuffle()
-		end
-		local concentrationSwap={["73b4e9"]="450562", ["1b9c29"]="450568", ["5d8084"]="450595", ["8bc5fe"]="450581", [GUID.deck.krang]="450575", ["c75919"]="450588", ["e2c66d"]="450552", ["8ad524"]="9a67a9", ["c05bd0"]="124af4", ["160535"]="e77fa9", ["3c7b00"]="8ec305"}
-		local swapped={"d339f6", "0b071b", "4db67c", "0f7f81", "66fcf4"}
-		local count=1
-		for Deck, swap in pairs(concentrationSwap) do
-			if getObjectFromGUID(Deck)~=nil then
-				getObjectFromGUID(Deck).takeObject({guid=swap}).destruct()
-				getObjectFromGUID(Deck).putObject(getObjectFromGUID(GUID.bag.forgemaster).takeObject({guid=swapped[count], smooth=false}))
-				getObjectFromGUID(Deck).shuffle()
-				count=count+1
+
+		--Character-specific level-2 starter upgrades.
+		replaceStarterCard(GUID.deck.goldyx,"acd316","911ddb","Goldyx")
+		replaceStarterCard(GUID.deck.krang,"450573","e8747d","Krang")
+
+		--Each active eligible Mage Knight gets one of the five physical replacement Concentration cards.
+		--Use a stable order so setup is deterministic instead of consuming replacements through pairs().
+		local replacementIndex=1
+		for _,entry in ipairs(FORGEMASTER_CONCENTRATION_SWAPS) do
+			if getObjectFromGUID(entry.deck)~=nil then
+				local replacementGUID=FORGEMASTER_CONCENTRATION_REPLACEMENTS[replacementIndex]
+				if replacementGUID==nil then error("SetupGame found more than five Forgemaster Concentration replacement targets.",2) end
+				replaceStarterCard(entry.deck,entry.old,replacementGUID,"Concentration")
+				replacementIndex=replacementIndex+1
 			end
 		end
 	end
@@ -39873,8 +40050,8 @@ end
 end)
 __bundle_register("PlayingGame.PlayerBoard.UnitLayout", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Module-private helpers. Predeclared so forward references keep resolving locally.
-local unitLayoutSnapType, refreshUnitLayoutSnapPoints, unitLayoutCommandPriority, unitLayoutX, unitLayoutObjects
-local unitLayoutSnapshot, unitLayoutIsCompanion, refreshUnitLayout, unitLayoutObjectInUnitArea
+local unitLayoutSnapType, refreshUnitLayoutSnapPoints, unitLayoutCommandPriority, unitLayoutObjects
+local unitLayoutIsCompanion, refreshUnitLayout, unitLayoutObjectInUnitArea
 
 -- Runtime Unit/Command-slot layout and compression on player boards.
 
@@ -44758,7 +44935,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="435"
+local automaticLuaErrorReporterVersion="436"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
