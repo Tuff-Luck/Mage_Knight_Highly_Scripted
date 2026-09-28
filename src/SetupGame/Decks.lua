@@ -1,5 +1,29 @@
 -- Deck construction, shuffling and setup-time card-pool preparation.
 
+local FORGEMASTER_CONCENTRATION_SWAPS={
+	{deck="73b4e9",old="450562"},
+	{deck="1b9c29",old="450568"},
+	{deck="5d8084",old="450595"},
+	{deck="8bc5fe",old="450581"},
+	{deck=GUID.deck.krang,old="450575"},
+	{deck="c75919",old="450588"},
+	{deck="e2c66d",old="450552"},
+	{deck="8ad524",old="9a67a9"},
+	{deck="c05bd0",old="124af4"},
+	{deck="160535",old="e77fa9"},
+	{deck="3c7b00",old="8ec305"}
+}
+local FORGEMASTER_CONCENTRATION_REPLACEMENTS={"d339f6","0b071b","4db67c","0f7f81","66fcf4"}
+
+function forgemasterStarterDecksReady()
+	if (gStates.riseOfTheForgemasters or 0)<=1 then return true end
+	for _,entry in ipairs(FORGEMASTER_CONCENTRATION_SWAPS) do
+		local deck=getObjectFromGUID(entry.deck)
+		if deck~=nil and (deck.resting~=true or deck.isSmoothMoving()==true) then return false end
+	end
+	return true
+end
+
 --Deck Setup
 function deckSetup()
 	gStates.standardDeckFirstReturnedGUID={}
@@ -158,26 +182,49 @@ function deckSetup()
 		if gStates.riseOfTheForgemasters>=level and gStates.riseOfTheForgemasters~=0 then removeForgemasterReplacedCard(GUID.deck.action,card) end
 	end
 	if gStates.riseOfTheForgemasters>1 then
-		offerAdjust(player, "-1", "e4372aOfferUp")
-		if getObjectFromGUID(GUID.deck.goldyx)~=nil then--Goldyx modified Starting Card
-			getObjectFromGUID(GUID.deck.goldyx).takeObject({guid="acd316"}).destruct()
-			getObjectFromGUID(GUID.deck.goldyx).putObject(getObjectFromGUID(GUID.bag.forgemaster).takeObject({guid="911ddb", smooth=false}))
-			getObjectFromGUID(GUID.deck.goldyx).shuffle()
+		--Setup only needs the larger geometry. Do not invoke the live offer-resize flow here: it can
+		--draw/return offer cards and run play-time movement while setup decks are still being prepared.
+		setDeedOfferSizeForSetup((gStates.offerSize or 3)+1)
+
+		local function replaceStarterCard(deckGUID,oldGUID,newGUID,label)
+			local deck=getObjectFromGUID(deckGUID)
+			if deck==nil then return false end
+			local oldPresent=false
+			for _,entry in ipairs(deck.getObjects()) do
+				if entry.guid==oldGUID then oldPresent=true break end
+			end
+			if oldPresent~=true then
+				error("SetupGame could not find Forgemaster "..tostring(label).." card "..tostring(oldGUID).." in starter deck "..tostring(deckGUID)..".",2)
+			end
+			local oldCard=safeTakeObject("SetupGame",deck,{guid=oldGUID,smooth=false})
+			if oldCard==nil then
+				error("SetupGame could not extract Forgemaster "..tostring(label).." card "..tostring(oldGUID).." from starter deck "..tostring(deckGUID)..".",2)
+			end
+			local forgemasterBag=getObjectFromGUID(GUID.bag.forgemaster)
+			if forgemasterBag==nil then error("SetupGame missing Rise of the Forgemasters bag during starter-card replacement.",2) end
+			local replacement=safeTakeObject("SetupGame",forgemasterBag,{guid=newGUID,smooth=false})
+			if replacement==nil then
+				error("SetupGame could not extract Forgemaster replacement card "..tostring(newGUID).." for starter deck "..tostring(deckGUID)..".",2)
+			end
+			oldCard.destruct()
+			deck.putObject(replacement)
+			deck.shuffle()
+			return true
 		end
-		if getObjectFromGUID(GUID.deck.krang)~=nil then--Krang modified Starting Card
-			getObjectFromGUID(GUID.deck.krang).takeObject({guid="450573"}).destruct()
-			getObjectFromGUID(GUID.deck.krang).putObject(getObjectFromGUID(GUID.bag.forgemaster).takeObject({guid="e8747d", smooth=false}))
-			getObjectFromGUID(GUID.deck.krang).shuffle()
-		end
-		local concentrationSwap={["73b4e9"]="450562", ["1b9c29"]="450568", ["5d8084"]="450595", ["8bc5fe"]="450581", [GUID.deck.krang]="450575", ["c75919"]="450588", ["e2c66d"]="450552", ["8ad524"]="9a67a9", ["c05bd0"]="124af4", ["160535"]="e77fa9", ["3c7b00"]="8ec305"}
-		local swapped={"d339f6", "0b071b", "4db67c", "0f7f81", "66fcf4"}
-		local count=1
-		for Deck, swap in pairs(concentrationSwap) do
-			if getObjectFromGUID(Deck)~=nil then
-				getObjectFromGUID(Deck).takeObject({guid=swap}).destruct()
-				getObjectFromGUID(Deck).putObject(getObjectFromGUID(GUID.bag.forgemaster).takeObject({guid=swapped[count], smooth=false}))
-				getObjectFromGUID(Deck).shuffle()
-				count=count+1
+
+		--Character-specific level-2 starter upgrades.
+		replaceStarterCard(GUID.deck.goldyx,"acd316","911ddb","Goldyx")
+		replaceStarterCard(GUID.deck.krang,"450573","e8747d","Krang")
+
+		--Each active eligible Mage Knight gets one of the five physical replacement Concentration cards.
+		--Use a stable order so setup is deterministic instead of consuming replacements through pairs().
+		local replacementIndex=1
+		for _,entry in ipairs(FORGEMASTER_CONCENTRATION_SWAPS) do
+			if getObjectFromGUID(entry.deck)~=nil then
+				local replacementGUID=FORGEMASTER_CONCENTRATION_REPLACEMENTS[replacementIndex]
+				if replacementGUID==nil then error("SetupGame found more than five Forgemaster Concentration replacement targets.",2) end
+				replaceStarterCard(entry.deck,entry.old,replacementGUID,"Concentration")
+				replacementIndex=replacementIndex+1
 			end
 		end
 	end
