@@ -25234,6 +25234,26 @@ function deedOfferBoundedSize(value)
 	return size
 end
 
+local DEED_OFFER_TEXT_MIN_SIZE=3
+local deedOfferTextLayout={
+	{guid="8dc73f",baseX=42.8}, -- Spells
+	{guid="9f67cd",baseX=42.8}, -- Advanced Actions
+	{guid="55405d",baseX=45.68}, -- Offers
+}
+
+local function moveDeedOfferText(size)
+	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
+	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
+	for _,details in ipairs(deedOfferTextLayout) do
+		local textObject=getObjectFromGUID(details.guid)
+		if textObject~=nil then
+			local position=textObject.getPosition()
+			position.x=details.baseX+xOffset
+			textObject.setPositionSmooth(position,false,false)
+		end
+	end
+end
+
 local function deedOfferAdjustButtonXml(size)
 	local upEnabled=size<DEED_OFFER_MAX_SIZE
 	local downEnabled=size>DEED_OFFER_MIN_SIZE
@@ -25300,6 +25320,7 @@ function setDeedOfferSizeForSetup(value)
 		offerZone.setScale({4.8*size,0.3,9.57})
 		offerZone.setPosition({(2.4*(size-1))+26.4,1.13,-19.2})
 	end
+	moveDeedOfferText(size)
 	return true
 end
 
@@ -25358,6 +25379,7 @@ function offerAdjust(player, mouseButton, id)
 		offerZone.setScale({4.8*newSize,0.3,9.57})
 		offerZone.setPosition({(2.4*(newSize-1))+26.4,1.13,-19.2})
 	end
+	moveDeedOfferText(newSize)
 
 	if delta>0 then
 		--Do this immediately: the decks move outward while the drawn cards travel into the spaces
@@ -44935,7 +44957,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="436"
+local automaticLuaErrorReporterVersion="437"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
