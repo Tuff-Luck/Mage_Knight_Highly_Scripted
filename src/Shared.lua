@@ -111,6 +111,46 @@ function reassertGlobalUIVisibility()
 	end
 end
 
+--Global UI runtime text is serialized for late joiners. Unity rich-text tags inserted at runtime
+--can be emitted back as malformed XML, so strip only the formatting tags TTS recognizes there.
+local GLOBAL_UI_RICH_TEXT_TAGS={size=true,color=true,i=true,b=true,voffset=true,["line-height"]=true}
+
+local function globalUiRichTextTag(raw)
+	if type(raw)~="string" or #raw<3 or raw:sub(1,1)~="<" or raw:sub(-1)~=">" then return false end
+	local inner=raw:sub(2,-2):lower()
+	local index=1
+	while index<=#inner and (inner:sub(index,index)==" " or inner:sub(index,index)=="\t" or inner:sub(index,index)=="\r" or inner:sub(index,index)=="\n") do index=index+1 end
+	if inner:sub(index,index)=="/" then index=index+1 end
+	while index<=#inner and (inner:sub(index,index)==" " or inner:sub(index,index)=="\t" or inner:sub(index,index)=="\r" or inner:sub(index,index)=="\n") do index=index+1 end
+	local nameStart=index
+	while index<=#inner do
+		local ch=inner:sub(index,index)
+		local byte=string.byte(ch)
+		local alpha=byte~=nil and ((byte>=97 and byte<=122) or (byte>=48 and byte<=57))
+		if alpha or ch=="-" then index=index+1 else break end
+	end
+	if index==nameStart then return false end
+	return GLOBAL_UI_RICH_TEXT_TAGS[inner:sub(nameStart,index-1)]==true
+end
+
+function globalUiSafeText(value)
+	value=tostring(value or "")
+	if value:find("<",1,true)==nil then return value end
+	local pieces={}
+	local cursor=1
+	while cursor<=#value do
+		local open=value:find("<",cursor,true)
+		if open==nil then pieces[#pieces+1]=value:sub(cursor) break end
+		if open>cursor then pieces[#pieces+1]=value:sub(cursor,open-1) end
+		local close=value:find(">",open+1,true)
+		if close==nil then pieces[#pieces+1]=value:sub(open) break end
+		local raw=value:sub(open,close)
+		if globalUiRichTextTag(raw)~=true then pieces[#pieces+1]=raw end
+		cursor=close+1
+	end
+	return table.concat(pieces)
+end
+
 --Used to join a table of strings with translation brackets
 local JOIN_LANG_ORDER={"en", "ru", "zh-tw", "zh-cn", "ko", "es", "fr", "pt-br", "de"}
 local JOIN_LANG_TAGS={"{en}", "{ru}", "{zh-tw}", "{zh-cn}", "{ko}", "{es}", "{fr}", "{pt-br}", "{de}"}
@@ -160,7 +200,7 @@ function joinLang(full_string)
 			end
 		end
 	end
-	return table.concat(output)
+	return globalUiSafeText(table.concat(output))
 end
 
 --Reapply translated static UI text once at load so TTS resolves language tags.
