@@ -111,11 +111,13 @@ function eventsOnLoadRawBase(saved_data)
 	if gStates.finalTurnReason~=nil then ensureFinalTurnBoundary() end
 	safeWaitFrames("Events",function() horsemanRestoreRuntimeState() end,2)
 	startMaintenanceTick()
-	--Static translated UI text lives in Global.xml; reapply it once so TTS resolves language tags.
-	reapplyXmlText()
 	--Clean the serialized runtime tree before normal load-time UI state is restored.
-	--This prevents late-join XML corruption without wiping UI.show/UI.hide state after it has been established.
+	--Do this before reapplying translations: setXmlTable rebuilds the tree and would otherwise restore
+	--the untranslated multi-language source text for clients already connected during a host recompile.
 	sanitizeRuntimeXmlTreeForLateJoin()
+	--Static translated UI text lives in Global.xml; reapply it after the rebuild so every connected client
+	--receives the resolved language text.
+	reapplyXmlText()
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
