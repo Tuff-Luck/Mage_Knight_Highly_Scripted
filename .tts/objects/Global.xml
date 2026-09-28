@@ -1652,13 +1652,17 @@ Einheiten</Text></Cell>
 				</Row>
 				<Row preferredHeight="30">
 					<cell rectAlignment="MiddleLeft" width="198">
-						<Text id="Setup1Text" alignment="MiddleCenter" class="Text18">{en}Setup Variants{ru}&lt;size=16&gt;Параметры сценария&lt;/size&gt;{zh-tw}變體設定{zh-cn}变体设置{ko}세팅 설정{es}Variantes de Instalación{fr}Variantes d'Installation{pt-br}Variantes de Instalação{de}Setup-Varianten</Text>
+						<VerticalLayout padding="6 6 1 1">
+							<Text id="Setup1Text" alignment="MiddleCenter" class="Text18">{en}Setup Variants{ru}Параметры сценария{zh-tw}變體設定{zh-cn}变体设置{ko}세팅 설정{es}Variantes de Instalación{fr}Variantes d'Installation{pt-br}Variantes de Instalação{de}Setup-Varianten</Text>
+						</VerticalLayout>
 					</cell>
-					<cell rectAlignment="MiddleRight" width="198" >
+					<cell rectAlignment="MiddleRight" width="198" padding="20 20 1 1">
 					</cell>
 					<Button id="Setup2Selection" onClick="switchSetup" offsetXY="0 3" rectAlignment="MiddleRight" width="198" height="30" onMouseDown="buttonClicked" onMouseUp="buttonClicked">
 						<Image id="Setup2SelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
-						<Text id="Setup2SelectionText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Play Variants{ru}&lt;size=16&gt;Опциональные правила&lt;/size&gt;{zh-tw}變體玩法{zh-cn}变体玩法{ko}플레이 설정{es}Variantes de Juego{fr}Variantes de Jeu{pt-br}Variantes de Jogo{de}Spiel-Varianten</Text>
+						<VerticalLayout padding="6 6 1 1">
+							<Text id="Setup2SelectionText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Play Variants{ru}Опциональные правила{zh-tw}變體玩法{zh-cn}变体玩法{ko}플레이 설정{es}Variantes de Juego{fr}Variantes de Jeu{pt-br}Variantes de Jogo{de}Spiel-Varianten</Text>
+						</VerticalLayout>
 					</Button>
 				</Row>
 			</TableLayout>
@@ -1688,12 +1692,15 @@ Einheiten</Text></Cell>
 					<cell rectAlignment="MiddleLeft" width="198" >
 					</cell>
 					<cell rectAlignment="MiddleRight" width="198">
-						<!-- alignment="MiddleCenter" offsetXY="10 100" -->
-						<Text id="Setup2Text" class="Text18">{en}Play Variants{ru}&lt;size=16&gt;Опциональные правила&lt;/size&gt;{zh-tw}變體玩法{zh-cn}变体玩法{ko}플레이 설정{es}Variantes de Juego{fr}Variantes de Jeu{pt-br}Variantes de Jogo{de}Spiel-Varianten</Text>
+						<VerticalLayout padding="6 6 1 1">
+							<Text id="Setup2Text" class="Text18">{en}Play Variants{ru}Опциональные правила{zh-tw}變體玩法{zh-cn}变体玩法{ko}플레이 설정{es}Variantes de Juego{fr}Variantes de Jeu{pt-br}Variantes de Jogo{de}Spiel-Varianten</Text>
+						</VerticalLayout>
 					</cell>
 					<Button id="Setup1Selection" onClick="switchSetup" offsetXY="0 3" rectAlignment="MiddleLeft" width="198" height="30" onMouseDown="buttonClicked" onMouseUp="buttonClicked">
 						<Image id="Setup1SelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
-						<Text id="Setup1SelectionText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Setup Variants{ru}&lt;size=16&gt;Параметры сценария&lt;/size&gt;{zh-tw}變體設定{zh-cn}变体设置{ko}세팅 설정{es}Variantes de Instalación{fr}Variantes d'Installation{pt-br}Variantes de Instalação{de}Setup-Varianten</Text>
+						<VerticalLayout padding="6 6 1 1">
+							<Text id="Setup1SelectionText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Setup Variants{ru}Параметры сценария{zh-tw}變體設定{zh-cn}变体设置{ko}세팅 설정{es}Variantes de Instalación{fr}Variantes d'Installation{pt-br}Variantes de Instalação{de}Setup-Varianten</Text>
+						</VerticalLayout>
 					</Button>
 				</Row>
 			</TableLayout>
@@ -1701,19 +1708,35 @@ Einheiten</Text></Cell>
 				<VerticalLayout padding="6 8 0 0">
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="randomTileOrientation" class="Toggle18" onValueChanged="optionsUpdate">{en}Random Terrain Tile Orientation{ru}Случайная ориентация Земель{zh-tw}隨機的地圖板塊方向{zh-cn}随机的地图板块方向{ko}타일 방향 무작위로 놓기{es}Orientación del Terreno al Azar{fr}Orientation Aléatoire des Tuiles de Terrain{pt-br}Orientação Aleatória de Peças de Mapa{de}Zufällige Ausrichtung der Geländekacheln</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="randomCities" class="Toggle18" onValueChanged="optionsUpdate">{en}Random Cities{ru}Случайные города{zh-tw}隨機城市{zh-cn}随机城市{ko}무작위의 도시들{es}Ciudades Aleatorias{fr}Citées Aléatoire{pt-br}Cidades Aleatórias{de}Zufällige Städte</Toggle></VerticalLayout></Row>
-					<Row><HorizontalLayout padding="6 6 1 1"><Toggle id="RampageSelection" class="Toggle18" onValueChanged="RampageSelection">{en}Rampage!{ru}Темные времена!{zh-tw}怪物肆虐！{zh-cn}怪物肆虐！{ko}광분하라!{es}Al Acecho!{fr}Déchainement!{pt-br}Tempos de Violência!{de}Amoklauf!</Toggle>
-						<Toggle id="MoreRampageSelection" class="Toggle18" onValueChanged="MoreRampageSelection">{en}More Rampage!{ru}Тьма сгущается!{zh-tw}怪物橫行！{zh-cn}怪物横行！{ko}더욱더 광분하라!{es}Máximo Acecho!{fr}Plus de Déchainement!{pt-br}Mais Violência!{de}Mehr Rampage!</Toggle></HorizontalLayout></Row>
-					<Row><HorizontalLayout padding="6 6 1 1"><Toggle id="rampageAmbush" class="Toggle18" onValueChanged="optionsUpdate">{en}Ambushing Rampager{ru}Враги в Засаде{zh-tw}怪物伏擊{zh-cn}怪物伏击{ko}매복하는 적{es}Emboscada de Acechadores{fr}Saccageurs Embusqués{pt-br}Irascível Emboscador{de}Hinterhalt Rampager</Toggle>
-						<Toggle id="rampagePursuit" class="Toggle18" onValueChanged="optionsUpdate">{en}Pursuing Rampager{ru}Преследующие враги{zh-tw}怪物追擊{zh-cn}怪物追击{ko}추적하는 적{es}Acechadores Perseguidores{fr}Poursuivre les Saccageurs{pt-br}Irascível Perseguidor{de}Rampager Verfolgen</Toggle></HorizontalLayout></Row>
+					<Row>
+						<cell rectAlignment="MiddleLeft" width="198" padding="6 6 1 1">
+							<Toggle id="RampageSelection" class="Toggle18" onValueChanged="RampageSelection">{en}Rampage!{ru}Темные времена!{zh-tw}怪物肆虐！{zh-cn}怪物肆虐！{ko}광분하라!{es}Al Acecho!{fr}Déchainement!{pt-br}Tempos de Violência!{de}Amoklauf!</Toggle>
+						</cell>
+						<cell rectAlignment="MiddleRight" width="180" padding="6 6 1 1">
+							<Toggle id="MoreRampageSelection" class="Toggle18" onValueChanged="MoreRampageSelection">{en}More Rampage!{ru}Тьма сгущается!{zh-tw}怪物橫行！{zh-cn}怪物横行！{ko}더욱더 광분하라!{es}Máximo Acecho!{fr}Plus de Déchainement!{pt-br}Mais Violência!{de}Mehr Rampage!</Toggle>
+						</cell>
+					</Row>
+					<Row>
+						<cell rectAlignment="MiddleLeft" width="198" padding="6 6 1 1">
+							<Toggle id="rampageAmbush" class="Toggle18" onValueChanged="optionsUpdate">{en}Ambushing Rampager{ru}Враги в Засаде{zh-tw}怪物伏擊{zh-cn}怪物伏击{ko}매복하는 적{es}Emboscada de Acechadores{fr}Saccageurs Embusqués{pt-br}Irascível Emboscador{de}Hinterhalt Rampager</Toggle>
+						</cell>
+						<cell rectAlignment="MiddleRight" width="180" padding="6 6 1 1">
+							<Toggle id="rampagePursuit" class="Toggle18" onValueChanged="optionsUpdate">{en}Pursuing Rampager{ru}Преследующие враги{zh-tw}怪物追擊{zh-cn}怪物追击{ko}추적하는 적{es}Acechadores Perseguidores{fr}Poursuivre les Saccageurs{pt-br}Irascível Perseguidor{de}Rampager Verfolgen</Toggle>
+						</cell>
+					</Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="darknessComing" class="Toggle18" onValueChanged="optionsUpdate">{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel</Toggle></VerticalLayout></Row>
-					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="apocalypseQuestCards" class="Toggle18" onValueChanged="optionsUpdate">{en}Apocalypse Dragon Quest Cards{ru}Apocalypse Dragon Quest Cards{zh-tw}Apocalypse Dragon Quest Cards{zh-cn}Apocalypse Dragon Quest Cards{ko}Apocalypse Dragon Quest Cards{es}Apocalypse Dragon Quest Cards{fr}Apocalypse Dragon Quest Cards{pt-br}Apocalypse Dragon Quest Cards{de}Apocalypse Dragon Quest Cards</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="apocalypseQuestCards" class="Toggle18" onValueChanged="optionsUpdate">{en}Apocalypse Dragon Quest Cards{ru}Карты заданий Дракона Апокалипсиса{zh-tw}末日巨龍任務卡{zh-cn}末日巨龙任务卡{ko}아포칼립스 드래곤 퀘스트 카드{es}Cartas de misión del Dragón del Apocalipsis{fr}Cartes de quête du Dragon de l’Apocalypse{pt-br}Cartas de Missão do Dragão do Apocalipse{de}Questkarten des Apokalypse-Drachen</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="heroChallenges" class="Toggle18" onValueChanged="optionsUpdate">{en}Hero Challenges{ru}Испытания героев{zh-tw}英雄挑戰{zh-cn}英雄挑战{ko}영웅 도전{es}Desafíos de Héroes{fr}Défis des Héros{pt-br}Desafios de Heróis{de}Heldenherausforderungen</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="proxyPlayer" class="Toggle18" onValueChanged="optionsUpdate">{en}Proxy Player{ru}Прокси-игрок{zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시 플레이어{es}Jugador Proxy{fr}Joueur Proxy{pt-br}Jogador Proxy{de}Proxy-Spieler</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="weatherMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Atlantean Weather Custom Mod{ru}Пользовательский мод Погоды Атлантиды{zh-tw}亞特蘭提斯天氣{zh-cn}亚特兰蒂斯天气{ko}아틀란티안 날씨{es}Tiempo Atlante{fr}Météo Atlante{pt-br}Clima Atlânteano{de}Atlantisches Wetter</Toggle></VerticalLayout></Row>
 		            <Row><VerticalLayout padding="6 6 1 1"><Toggle id="questMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Quest Cards Custom Mod{ru}Пользовательский мод Квест карт{zh-tw}自製任務卡{zh-cn}自制任务卡{ko}퀘스트 카드{es}Cartas de Misión{fr}Cartes de Quête{pt-br}Cartas de Missão{de}Quest Karten</Toggle></VerticalLayout></Row>
-					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="itemShopMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Item Shop Custom Mod{ru}&lt;size=16&gt;Пользовательский мод магазина предметов&lt;/size&gt;{zh-tw}物品商店{zh-cn}物品商店{ko}아이템 상점{es}Tienda de artículos{fr}Boutique d'articles{pt-br}Loja de itens{de}Artikel Shop</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="itemShopMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Item Shop Custom Mod{ru}Пользовательский мод магазина предметов{zh-tw}物品商店{zh-cn}物品商店{ko}아이템 상점{es}Tienda de artículos{fr}Boutique d'articles{pt-br}Loja de itens{de}Artikel Shop</Toggle></VerticalLayout></Row>
 					<Row preferredHeight="30">
-						<Text id="ROTFText" alignment="MiddleRight" offsetXY="-160 0" Color="brown">{en}Rise of the Forgemasters -{ru}&lt;size=16&gt;Восстание Мастеров Кузни -&lt;/size&gt;{zh-tw}鍛造師崛起{zh-cn}锻造师崛起{ko}라이즈 오브 포지마스터{es}El Ascenso de los Forjadores - {fr}L'essor des Maîtres de Forge -{pt-br}Ascensão dos Forjadores -{de}Aufstieg der Schmiedemeister -</Text>
+						<cell rectAlignment="MiddleLeft" height="25" width="235" padding="6 6 1 1">
+							<Text id="ROTFText" alignment="MiddleLeft" offsetXY="0 0" Color="brown" class="Text18">{en}Rise of the Forgemasters -{ru}Восстание Мастеров Кузни -{zh-tw}鍛造師崛起{zh-cn}锻造师崛起{ko}라이즈 오브 포지마스터{es}El Ascenso de los Forjadores - {fr}L'essor des Maîtres de Forge -{pt-br}Ascensão dos Forjadores -{de}Aufstieg der Schmiedemeister -</Text>
+						</cell>
+						<cell rectAlignment="MiddleRight" width="150" padding="6 6 1 1">
+						</cell>
 						<Button id="ROTFSelection" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="150" height="30" onMouseDown="" onMouseUp="">
 							<Image id="ROTFSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text id="ROTFSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet</Text>
@@ -2329,7 +2352,7 @@ Einheiten</Text></Cell>
 			<Row id="CoralRow">
 				<Button id="CoralSelection" onClick="PlayerChosen">
 					<Image id="CoralSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="CoralSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Coral{ru}Coral{zh-tw}Coral{zh-cn}Coral{ko}Coral{es}Coral{fr}Coral{pt-br}Coral{de}Coral</Text>
+					<Text id="CoralSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Coral{ru}Коралл{zh-tw}珊瑚{zh-cn}珊瑚{ko}코랄{es}Coral{fr}Coral{pt-br}Coral{de}Coral</Text>
 				</Button>
 			</Row>
 			<Row id="JormundRow">
@@ -2359,13 +2382,13 @@ Einheiten</Text></Cell>
 			<Row id="MalekRow">
 				<Button id="MalekSelection" onClick="PlayerChosen">
 					<Image id="MalekSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="MalekSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Malek{ru}Malek{zh-tw}馬萊克{zh-cn}马莱克{ko}Malek{es}Malek{fr}Malek{pt-br}Malek{de}Malek</Text>
+					<Text id="MalekSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Malek{ru}Малек{zh-tw}馬萊克{zh-cn}马莱克{ko}Malek{es}Malek{fr}Malek{pt-br}Malek{de}Malek</Text>
 				</Button>
 			</Row>
 			<Row id="ZirtaeRow">
 				<Button id="ZirtaeSelection" onClick="PlayerChosen">
 					<Image id="ZirtaeSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="ZirtaeSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Zirtae{ru}Zirtae{zh-tw}齊爾泰{zh-cn}齐尔泰{ko}Zirtae{es}Zirtae{fr}Zirtae{pt-br}Zirtae{de}Zirtae</Text>
+					<Text id="ZirtaeSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Zirtae{ru}Зиртэй{zh-tw}齊爾泰{zh-cn}齐尔泰{ko}지르테이{es}Zirtae{fr}Zirtae{pt-br}Zirtae{de}Zirtae</Text>
 				</Button>
 			</Row>
 			<Row id="DaringRow">
@@ -2485,7 +2508,7 @@ Einheiten</Text></Cell>
 			<Row id="ForTheCouncilRow">
 				<Button id="ForTheCouncilSelection" onClick="scenarioSelection">
 					<Image id="ForTheCouncilSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="ForTheCouncilSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}For the Council{ru}For the Council{zh-tw}For the Council{zh-cn}For the Council{ko}For the Council{es}For the Council{fr}For the Council{pt-br}For the Council{de}For the Council</Text>
+					<Text id="ForTheCouncilSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}For the Council{ru}За Совет{zh-tw}為了議會{zh-cn}为了议会{ko}평의회를 위하여{es}Por el Consejo{fr}Pour le Conseil{pt-br}Pelo Conselho{de}Für den Rat</Text>
 				</Button>
 			</Row>
 			<Row id="AgainsttheApocalypseRow">
@@ -2497,7 +2520,7 @@ Einheiten</Text></Cell>
 			<Row id="AgainsttheHorsemenRow">
 				<Button id="AgainsttheHorsemenSelection" onClick="scenarioSelection">
 					<Image id="AgainsttheHorsemenSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="AgainsttheHorsemenSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Against the Horsemen{ru}Against the Horsemen{zh-tw}Against the Horsemen{zh-cn}Against the Horsemen{ko}Against the Horsemen{es}Against the Horsemen{fr}Against the Horsemen{pt-br}Against the Horsemen{de}Against the Horsemen</Text>
+					<Text id="AgainsttheHorsemenSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Against the Horsemen{ru}Против Всадников{zh-tw}對抗四騎士{zh-cn}对抗四骑士{ko}사기사들에 맞서{es}Contra los Caballeros{fr}Contre les Cavaliers{pt-br}Contra os Cavaleiros{de}Gegen die Reiter</Text>
 				</Button>
 			</Row>
 			<Row id="AgainsttheDragonRow">
@@ -2521,7 +2544,7 @@ Einheiten</Text></Cell>
 			<Row id="TheFracturedLandsRow">
 				<Button id="TheFracturedLandsSelection" onClick="scenarioSelection">
 					<Image id="TheFracturedLandsSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="TheFracturedLandsSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Fractured Lands{ru}The Fractured Lands{zh-tw}The Fractured Lands{zh-cn}The Fractured Lands{ko}The Fractured Lands{es}The Fractured Lands{fr}The Fractured Lands{pt-br}The Fractured Lands{de}The Fractured Lands</Text>
+					<Text id="TheFracturedLandsSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Fractured Lands{ru}Расколотые Земли{zh-tw}破碎之地{zh-cn}破碎之地{ko}분열된 대지{es}Las Tierras Fracturadas{fr}Les Terres Fracturées{pt-br}As Terras Fraturadas{de}Die Zersplitterten Lande</Text>
 				</Button>
 			</Row>
 			<Row id="FirstConquestRow">
