@@ -43,8 +43,7 @@ function eventsOnLoadRawBase(saved_data)
 		turnOrder=loaded_data.turnOrder
 		gStates=loaded_data.gStates
 	end
-	--TEMP LATE-JOIN TEST: disable centralized Global UI visibility reset.
-	--resetGlobalUIVisibility()
+	resetGlobalUIVisibility()
 	--Refresh saved Puppets so presentation changes (decal/hover data) also apply to existing accepted Puppets.
 	safeWaitFrames("Events",function() for guid,record in pairs(gStates.puppetMasterPuppets or {}) do puppetMasterRefreshPresentation(getObjectFromGUID(guid),record) end end,2)
 	--Goblin Warrens enemies come from an Infinite Bag and therefore receive new GUIDs. Restore their
@@ -1687,8 +1686,9 @@ local function rebuildGlobalUIForLateJoin()
 end
 
 function __onPlayerConnect_raw(player)
-	--TEMP LATE-JOIN TEST: no Global UI rebuild/reassert. Testing behavior before recent late-join repair code.
-	--safeWaitTime("Events",function() rebuildGlobalUIForLateJoin() end,0.5)
+	--Late joiners can receive a malformed snapshot of the host's already-mutated Global UI.
+	--Once the client is established, force TTS to rebuild the current UI tree, then restore runtime visibility.
+	safeWaitTime("Events",function() rebuildGlobalUIForLateJoin() end,0.5)
 end
 
 function __onPlayerChangeColor_raw(color)
@@ -1697,8 +1697,8 @@ function __onPlayerChangeColor_raw(color)
 		outOfTurnUIStateKey=nil
 		mainUIUpdate("Player Changed Colour")
 	end
-	--TEMP LATE-JOIN TEST: disable centralized visibility reassert on seating/color change.
-	--safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
+	--Seating is the other point where TTS has historically lost XML visibility for a client.
+	safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
 end
 
 --Picking up or long-clicking Coral's whole Deed Deck is not a draw.
