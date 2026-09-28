@@ -59,8 +59,8 @@ function eventsOnLoadRawBase(saved_data)
 	if gStates.finalTurnReason~=nil then ensureFinalTurnBoundary() end
 	safeWaitFrames("Events",function() horsemanRestoreRuntimeState() end,2)
 	startMaintenanceTick()
-	--TEMP TEST: disabled to rule out translated XML text reapplication as the cause of late-join UI corruption.
-	--reapplyXmlText()
+	--Static translated UI text lives in Global.xml; reapply it once so TTS resolves language tags.
+	reapplyXmlText()
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
