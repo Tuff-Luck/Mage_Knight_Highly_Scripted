@@ -22957,14 +22957,20 @@ function rewardSkillChoiceHighlightsReady()
 	return true
 end
 
+local function rewardSkillChoicePlayerLevel(seatPos)
+	for _, details in pairs(turnOrder or {}) do
+		if details.seatPos==seatPos then return tonumber(details.level) end
+	end
+	return nil
+end
+
 function rewardSkillChoiceSkillHighlights(ownSkills)
 	if gStates.mageSkills==nil or gStates.skillButtons==nil or gStates.skillButtons<=0 then return end
 	local currentPlayerSkills=rewardSkillChoiceCurrentSkills()
-	local playerLevel=0
-	for _, details in pairs(turnOrder) do if details.seatPos==gStates.skillButtons then playerLevel=details.level or 0 break end end
+	local playerLevel=rewardSkillChoicePlayerLevel(gStates.skillButtons)
 	if ownSkills==true then
 		if currentPlayerSkills[1]~=nil then addRewardSkillChoiceHighlight(currentPlayerSkills[1].obj) end
-		if currentPlayerSkills[2]~=nil and playerLevel<=10 then addRewardSkillChoiceHighlight(currentPlayerSkills[2].obj) end
+		if currentPlayerSkills[2]~=nil and playerLevel~=nil and playerLevel<=10 then addRewardSkillChoiceHighlight(currentPlayerSkills[2].obj) end
 	else
 		for skillGUID, skillPos in pairs(gStates.mageSkills) do
 			local skill=getObjectFromGUID(skillGUID)
@@ -24171,6 +24177,7 @@ function skillButtonActivate()
 		--The claim may finish during this half-second presentation delay.
 		--Read the live seat once and treat a cleared/nil claim as no skill buttons to rebuild.
 		local skillButtonSeat=tonumber(gStates.skillButtons) or 0
+		local skillButtonPlayerLevel=rewardSkillChoicePlayerLevel(skillButtonSeat)
 		--blank existing claim buttons
 		for skillGUID, x in pairs(gStates.mageSkills) do
 			if getObjectFromGUID(skillGUID)~=nil then getObjectFromGUID(skillGUID).UI.setXmlTable({{}}) end
@@ -24205,7 +24212,7 @@ function skillButtonActivate()
 							local skill=getObjectFromGUID(skillSort.currentPlayer[1][1])
 							if skill~=nil then skill.UI.setXmlTable({createClaimButton(skillSort.currentPlayer[1][1], tostring(buttonNumber))}) end
 						end
-						if skillSort.currentPlayer[2]~=nil and buttonNumber==skillSort.currentPlayer[2][3] and turnOrder[gStates.turnNumber].level<=10 then
+						if skillSort.currentPlayer[2]~=nil and buttonNumber==skillSort.currentPlayer[2][3] and skillButtonPlayerLevel~=nil and skillButtonPlayerLevel<=10 then
 							local skill=getObjectFromGUID(skillSort.currentPlayer[2][1])
 							if skill~=nil then skill.UI.setXmlTable({createClaimButton(skillSort.currentPlayer[2][1], tostring(buttonNumber))}) end
 						end
