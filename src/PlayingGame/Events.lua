@@ -19,6 +19,16 @@ function __tryObjectEnterContainer_raw(container, object)
     return true -- Allows object to enter.
 end
 
+local function nonHostPlayerConnected()
+	for _,player in ipairs(Player.getPlayers() or {}) do
+		if player.host~=true then return true end
+	end
+	for _,player in ipairs(Player.getSpectators() or {}) do
+		if player.host~=true then return true end
+	end
+	return false
+end
+
 -- Event Handling functions
 ---------------
 --Save and load settings
@@ -55,8 +65,9 @@ function eventsOnLoadRawBase(saved_data)
 	if gStates.finalTurnReason~=nil then ensureFinalTurnBoundary() end
 	safeWaitFrames("Events",function() horsemanRestoreRuntimeState() end,2)
 	startMaintenanceTick()
-	--Global.xml is loaded directly by TTS. Runtime text writes are kept XML-safe at their entry points,
-	--so normal startup does not serialize or rebuild the complete Global UI.
+	--Normal startup uses Global.xml directly. Only repair static translated text when another client
+	--is already connected (the host-recompile case that leaves those clients showing raw language tags).
+	if nonHostPlayerConnected()==true then reapplyXmlText() end
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
