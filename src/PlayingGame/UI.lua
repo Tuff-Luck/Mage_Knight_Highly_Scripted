@@ -638,12 +638,12 @@ function automatedMainPanelApply(spec)
 		return true
 	end
 	UI.setAttribute("DummyTurn","active","true")
-	if spec.mainText~=nil then UI.setAttribute("MainGameNotes","text",globalUiSafeText(spec.mainText)) UI.setAttribute("MainGameNotes","color","white") end
-	if spec.notes~=nil then UI.setAttribute("DummyNotes","Text",globalUiSafeText(spec.notes)) end
+	if spec.mainText~=nil then UI.setAttribute("MainGameNotes","text",spec.mainText) UI.setAttribute("MainGameNotes","color","white") end
+	if spec.notes~=nil then UI.setAttribute("DummyNotes","Text",spec.notes) end
 	if spec.actor=="proxy" and proxyManaChoiceUI~=nil then proxyManaChoiceUI(nil) else UI.setAttribute("DummyChoiceButtons","active","false") end
 	UI.setAttribute("DummyButton","active",spec.buttonVisible==false and "false" or "true")
 	if spec.onClick~=nil then UI.setAttribute("DummyButton","onClick",spec.onClick) end
-	if spec.label~=nil then UI.setAttribute("DummyButtonText","Text",globalUiSafeText(spec.label)) end
+	if spec.label~=nil then UI.setAttribute("DummyButtonText","Text",spec.label) end
 	local enabled=spec.interactable~=false
 	setUIButtonEnabled("DummyButton",enabled)
 	if spec.proxyManaChoice~=nil and proxyManaChoiceUI~=nil then proxyManaChoiceUI(spec.proxyManaChoice) end
