@@ -64,35 +64,62 @@ local function stripRuntimeRichText(value)
 	end
 	return table.concat(pieces),changed
 end
+local function runtimeGlobalUIHasUnsafeRichText()
+	local xml=UI.getXml()
+	if type(xml)~="string" or xml=="" then return false end
+	local cursor=1
+	while cursor<=#xml do
+		local open=xml:find("<",cursor,true)
+		if open==nil then break end
+		local close=xml:find(">",open+1,true)
+		if close==nil then break end
+		if runtimeRichTextTag(xml:sub(open,close))==true then return true end
+		cursor=close+1
+	end
+	return false
+end
+
 local function sanitizeRuntimeGlobalUI()
+	--The source Global.xml contains intentionally escaped rich text. getXmlTable() decodes that
+	--markup, so blindly walking/rebuilding the table makes every normal load pay for a full UI rebuild.
+	--Only take the proven rebuild path when the serialized runtime XML itself contains raw rich text,
+	--which is the form that breaks late joiners.
+	if runtimeGlobalUIHasUnsafeRichText()~=true then return 0 end
+
 	local xml=UI.getXmlTable()
 	if type(xml)~="table" or #xml==0 then return 0 end
 	local changed=0
 
-	local function applyClean(id,attribute,value)
-		local clean,didChange=stripRuntimeRichText(value)
-		if didChange~=true or id==nil then return end
-		UI.setAttribute(id,attribute,clean)
-		changed=changed+1
-	end
-
 	local function walk(node)
 		if type(node)~="table" then return end
-		local attributes=type(node.attributes)=="table" and node.attributes or nil
-		local id=attributes~=nil and attributes.id or nil
-		if id~=nil then
-			for key,value in pairs(attributes) do
-				if key~="id" then applyClean(id,key,value) end
+		if type(node.attributes)=="table" then
+			for key,value in pairs(node.attributes) do
+				local clean,didChange=stripRuntimeRichText(value)
+				if didChange then
+					node.attributes[key]=clean
+					changed=changed+1
+				end
 			end
-			--Inner Text/Toggle values are returned as node.value/content by getXmlTable().
-			--Update them through the public text attribute instead of rebuilding the entire Global UI tree.
-			if node.value~=nil then applyClean(id,"text",node.value) end
-			if node.content~=nil then applyClean(id,"text",node.content) end
+		end
+		if node.value~=nil then
+			local clean,didChange=stripRuntimeRichText(node.value)
+			if didChange then
+				node.value=clean
+				changed=changed+1
+			end
+		end
+		if node.content~=nil then
+			local clean,didChange=stripRuntimeRichText(node.content)
+			if didChange then
+				node.content=clean
+				changed=changed+1
+			end
 		end
 		for _,child in ipairs(node.children or {}) do walk(child) end
 	end
 
 	for _,node in ipairs(xml) do walk(node) end
+	if changed>0 then UI.setXmlTable(xml) end
 	return changed
 end
 
