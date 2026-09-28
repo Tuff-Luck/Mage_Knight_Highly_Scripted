@@ -1686,9 +1686,9 @@ local function rebuildGlobalUIForLateJoin()
 end
 
 function __onPlayerConnect_raw(player)
-	--Late joiners can receive a malformed snapshot of the host's already-mutated Global UI.
-	--Once the client is established, force TTS to rebuild the current UI tree, then restore runtime visibility.
-	safeWaitTime("Events",function() rebuildGlobalUIForLateJoin() end,0.5)
+	--Late joiners/color changes can lose Global UI visibility. Reassert the current runtime filters only;
+	--do not rebuild the whole UI tree, because runtime rich-text values can make TTS serialize invalid XML.
+	safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
 end
 
 function __onPlayerChangeColor_raw(color)
