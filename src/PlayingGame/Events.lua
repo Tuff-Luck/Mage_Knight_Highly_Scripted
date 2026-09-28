@@ -23,6 +23,36 @@ function __tryObjectEnterContainer_raw(container, object)
     return true -- Allows object to enter.
 end
 
+--TEMP LATE-JOIN TEST: strip Unity rich-text markup that has been injected into runtime text attributes.
+--TTS can serialize those values into malformed XML for clients that join after the host has loaded.
+local function sanitizeRuntimeUITextAttributes()
+	local xml=UI.getXmlTable()
+	if type(xml)~="table" then return 0 end
+	local changed=0
+	local function walk(nodes)
+		for _,node in ipairs(nodes or {}) do
+			if type(node)=="table" then
+				local attrs=node.attributes
+				if type(attrs)=="table" and attrs.id~=nil then
+					for _,attribute in ipairs({"text","Text"}) do
+						local value=attrs[attribute]
+						if type(value)=="string" and value:find("<",1,true)~=nil then
+							local clean=value:gsub("</?[%a][^>]->","")
+							if clean~=value then
+								UI.setAttribute(attrs.id,attribute,clean)
+								changed=changed+1
+							end
+						end
+					end
+				end
+				walk(node.children)
+			end
+		end
+	end
+	walk(xml)
+	return changed
+end
+
 -- Event Handling functions
 ---------------
 --Save and load settings
@@ -228,6 +258,9 @@ function eventsOnLoadRawBase(saved_data)
 			safeWaitFrames("Events",function() if gStates.endRoundResetPending==true then endRound() end end,10)
 		end
 	end
+	--Run after the normal load restoration and once more after delayed UI refreshes have settled.
+	sanitizeRuntimeUITextAttributes()
+	safeWaitTime("Events",function() sanitizeRuntimeUITextAttributes() end,1)
 end
 
 function onSave()
@@ -1673,41 +1706,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true or cardGUID==tacticCard[2] then refreshCardEffectAfterRotation(cardGUID) end
 end
 
-local function reportLateJoinRuntimeXmlRichText()
-	local xml=UI.getXml()
-	if type(xml)~="string" or xml=="" then
-		printToAll("[Late Join UI] UI.getXml() returned no XML.", {1,0.6,0.2})
-		return
-	end
-
-	local hitCount=0
-	local reported=0
-	local lineNumber=0
-	for line in (xml.."\n"):gmatch("(.-)\n") do
-		lineNumber=lineNumber+1
-		local tagPos=line:find("<size=",1,true)
-			or line:find("<color=",1,true)
-			or line:find("<voffset=",1,true)
-			or line:find("<line%-height=")
-		if tagPos~=nil then
-			hitCount=hitCount+1
-			if reported<12 then
-				local before=line:sub(1,tagPos)
-				local id=before:match('.*id="([^"]+)"') or before:match(".*id='([^']+)'") or "unknown"
-				local from=math.max(1,tagPos-80)
-				local to=math.min(#line,tagPos+160)
-				local snippet=line:sub(from,to):gsub("%s+"," ")
-				printToAll("[Late Join UI] raw rich text at XML line "..lineNumber.." near id="..id..": "..snippet, {1,0.6,0.2})
-				reported=reported+1
-			end
-		end
-	end
-	printToAll("[Late Join UI] raw rich-text hits in runtime XML: "..hitCount, hitCount>0 and {1,0.3,0.2} or {0.4,1,0.4})
-end
-
 function __onPlayerConnect_raw(player)
-	--Read-only diagnostic: runtime rich text serialized without XML escaping can corrupt Global UI for late joiners.
-	reportLateJoinRuntimeXmlRichText()
 	--Late joiners/color changes can lose Global UI visibility. Reassert the current runtime filters only.
 	safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
 end
