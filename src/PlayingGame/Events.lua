@@ -1673,21 +1673,42 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true or cardGUID==tacticCard[2] then refreshCardEffectAfterRotation(cardGUID) end
 end
 
-local function rebuildGlobalUIForLateJoin()
-	local xml=UI.getXmlTable()
-	if type(xml)~="table" or #xml==0 then return end
-	UI.setXmlTable(xml)
-	safeWaitCondition(
-		"Events",
-		function() reassertGlobalUIVisibility() end,
-		function() return UI.loading~=true end,
-		5
-	)
+local function reportLateJoinRuntimeXmlRichText()
+	local xml=UI.getXml()
+	if type(xml)~="string" or xml=="" then
+		printToAll("[Late Join UI] UI.getXml() returned no XML.", {1,0.6,0.2})
+		return
+	end
+
+	local hitCount=0
+	local reported=0
+	local lineNumber=0
+	for line in (xml.."\n"):gmatch("(.-)\n") do
+		lineNumber=lineNumber+1
+		local tagPos=line:find("<size=",1,true)
+			or line:find("<color=",1,true)
+			or line:find("<voffset=",1,true)
+			or line:find("<line%-height=")
+		if tagPos~=nil then
+			hitCount=hitCount+1
+			if reported<12 then
+				local before=line:sub(1,tagPos)
+				local id=before:match('.*id="([^"]+)"') or before:match(".*id='([^']+)'") or "unknown"
+				local from=math.max(1,tagPos-80)
+				local to=math.min(#line,tagPos+160)
+				local snippet=line:sub(from,to):gsub("%s+"," ")
+				printToAll("[Late Join UI] raw rich text at XML line "..lineNumber.." near id="..id..": "..snippet, {1,0.6,0.2})
+				reported=reported+1
+			end
+		end
+	end
+	printToAll("[Late Join UI] raw rich-text hits in runtime XML: "..hitCount, hitCount>0 and {1,0.3,0.2} or {0.4,1,0.4})
 end
 
 function __onPlayerConnect_raw(player)
-	--Late joiners/color changes can lose Global UI visibility. Reassert the current runtime filters only;
-	--do not rebuild the whole UI tree, because runtime rich-text values can make TTS serialize invalid XML.
+	--Read-only diagnostic: runtime rich text serialized without XML escaping can corrupt Global UI for late joiners.
+	reportLateJoinRuntimeXmlRichText()
+	--Late joiners/color changes can lose Global UI visibility. Reassert the current runtime filters only.
 	safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
 end
 
