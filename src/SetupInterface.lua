@@ -1243,7 +1243,9 @@ scenarioInfoUpdate=function()
 	UI.setAttribute("ScenarioName", "text", joinLang({translateWord[gStates.gameScenario], "{en} Purpose{ru} Цель{zh-tw} 目的{zh-cn} 目的{ko} 목적{es} Propósito{fr} Objectif{pt-br} Finalidade{de} Zweck"}))
 	UI.setAttribute("PlayerCount", "text", details.playerDetails)
 	UI.setAttribute("ScenarioLength", "text", joinLang({"{en}Length - {ru}Продолжительность - {zh-tw}遊戲時長：{zh-cn}游戏时长：{ko}길이 - {es}Duración - {fr}Longueur - {pt-br}Duração - {de}Länge - ", setup.rounds, "{en} Rounds{ru} Раунд(а/ов){zh-tw} 輪次{zh-cn} 轮次{ko}라운드{es} Rondas{fr} Rounds{pt-br} Rodadas{de} Runden"}))
-	UI.setAttribute("ScenarioPurpose", "text", details.scenarioPurpose)
+	--TEMP LATE-JOIN TEST: scenarioPurpose contains raw rich-text tags (<size>, <color>, <i>).
+	--Disable this runtime mutation to test whether TTS serializes it into malformed XML for late joiners.
+	--UI.setAttribute("ScenarioPurpose", "text", details.scenarioPurpose)
 	UI.setAttribute("ScenarioShape", "text", joinLang({"{en}Map Shape - {ru}Форма поля - {zh-tw}地圖形狀：{zh-cn}地图形状：{ko}지도 모양 - {es}Forma del Mapa - {fr}Forme de la Carte - {pt-br}Formato de Mapa - {de}Karten Form - ", setup.mapShape}))
 	--Display the amount of country tiles and any rules
 	if details.countryRules~=nil then
