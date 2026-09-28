@@ -979,58 +979,58 @@ Einheiten</Text></Cell>
 <Panel id="PlayerSeating" active="false" rectAlignment="UpperRight" offsetXY="-219 -5" width="250" height="205">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<VerticalLayout padding="5 5 5 5">
-		<Text class="Text15" id="PlayerSeatingText1">{en}This mod runs it own Turn System, which makes 'Hot Seat' unnecessary.
+		<Text class="Text15" id="PlayerSeatingText1">{en}This mod runs it own Turn System, which makes 'Hot Seat' unnecessary.&lt;size=6&gt;
 
-To switch to another Mage Knight Click the name to the right and 'Change Color'. For Multi Hand play you should choose the Black Game Master Color in the Center.
+&lt;/size&gt;To switch to another Mage Knight Click the name to the right and &lt;b&gt;'Change Color'&lt;/b&gt;. For Multi Hand play you should choose the &lt;b&gt;Black Game Master Color&lt;/b&gt; in the Center.&lt;size=6&gt;
 
-Cooperative Players should also choose the same team to see each others hands.{ru}Этот мод использует собственную Систему Ходов, что делает «Hot seat» ненужным.
+&lt;/size&gt;&lt;b&gt;Cooperative&lt;/b&gt; Players should also choose the same team to see each others hands.{ru}Этот мод использует собственную Систему Ходов, что делает «Hot seat» ненужным.&lt;size=6&gt;
 
-Чтобы переключиться на другого героя, щелкните имя в правом верхем углу экрана и «Изменить цвет». Для игры сразу несколькими героями вам следует выбрать «Черный Game Master» в центре.
+&lt;/size&gt;Чтобы переключиться на другого героя, щелкните имя в правом верхем углу экрана и &lt;b&gt;«Изменить цвет»&lt;/b&gt;. Для игры сразу несколькими героями вам следует выбрать &lt;b&gt;«Черный Game Master»&lt;/b&gt; в центре.&lt;size=6&gt;
 
-Кооперативные Игроки также должны выбрать одну и ту же команду, чтобы видеть руки друг друга.{zh-tw}这个模组使用它自己的回合系统，
-所以你无需使用“热座”模式。
+&lt;/size&gt;&lt;b&gt;Кооперативные&lt;/b&gt; Игроки также должны выбрать одну и ту же команду, чтобы видеть руки друг друга.{zh-tw}这个模组使用它自己的回合系统，
+所以你无需使用“热座”模式。&lt;size=6&gt;
 
-切换到另一个魔法骑士点击右边
-的名字和'改变颜色'。 对于多人游
-戏，您应该在版图中间选黑色。
+&lt;/size&gt;切换到另一个魔法骑士点击右边
+的名字和&lt;b&gt;'改变颜色'。&lt;/b&gt; 对于多人游
+戏，您应该在版图中间选&lt;b&gt;黑色。&lt;/b&gt;&lt;size=6&gt;
 
-合作模式 玩家们应该选择同一
+&lt;/size&gt;&lt;b&gt;合作模式&lt;/b&gt; 玩家们应该选择同一
 支队伍以便看队友的手牌。{zh-cn}这个模组使用它自己的回合系统，
-所以你无需使用“热座”模式。
+所以你无需使用“热座”模式。&lt;size=6&gt;
 
-切换到另一个魔法骑士点击右边
-的名字和'改变颜色'。 对于多人游
-戏，您应该在版图中间选黑色。
+&lt;/size&gt;切换到另一个魔法骑士点击右边
+的名字和&lt;b&gt;'改变颜色'。&lt;/b&gt; 对于多人游
+戏，您应该在版图中间选&lt;b&gt;黑色。&lt;/b&gt;&lt;size=6&gt;
 
-合作模式 玩家们应该选择同一
-支队伍以便看队友的手牌。{ko}이 모드는 자체 턴 시스템을 실행하므로 '핫 시트'를 따로 필요로 하지 않습니다.
+&lt;/size&gt;&lt;b&gt;合作模式&lt;/b&gt; 玩家们应该选择同一
+支队伍以便看队友的手牌。{ko}이 모드는 자체 턴 시스템을 실행하므로 '핫 시트'를 따로 필요로 하지 않습니다.&lt;size=6&gt;
 
-다른 자리로 바꾸려면 우측 상단의 이름을 클릭하고  '색상 변경'을 클릭하세요. 다중 핸드로 플레이할 경우 중앙에서  검정(게임 마스터 색상) 을 선택하세요.
+&lt;/size&gt;다른 자리로 바꾸려면 우측 상단의 이름을 클릭하고 &lt;b&gt; '색상 변경'&lt;/b&gt;을 클릭하세요. 다중 핸드로 플레이할 경우 중앙에서 &lt;b&gt; 검정(게임 마스터 색상) &lt;/b&gt;을 선택하세요.&lt;size=6&gt;
 
- 협동 임무  플레이시, 같은 팀을 선택해야 서로의 핸드를 볼 수 있습니다. {es}Este mod lleva su propio sistema de turnos, lo que hace que el 'Hot Seat' sea innecesario.
+&lt;/size&gt;&lt;b&gt; 협동 임무&lt;/b&gt;  플레이시, 같은 팀을 선택해야 서로의 핸드를 볼 수 있습니다. {es}Este mod lleva su propio sistema de turnos, lo que hace que el 'Hot Seat' sea innecesario.&lt;size=6&gt;
 
-Para cambiar a otro Mage Knight pulsa el nombre a la derecha y 'Change Color'. Para jugar con múltiples magos deberías escoger el Black Game Master Color en el centro.
+&lt;/size&gt;Para cambiar a otro Mage Knight pulsa el nombre a la derecha y &lt;b&gt;'Change Color'&lt;/b&gt;. Para jugar con múltiples magos deberías escoger el &lt;b&gt;Black Game Master Color&lt;/b&gt; en el centro.&lt;size=6&gt;
 
-Cooperativo Los jugadores deberían elegir el mismo equipo para poder verse las manos.{fr}Ce mod exécute son propre système de virage, ce qui rend inutile le « siège chaud ».
+&lt;/size&gt;&lt;b&gt;Cooperativo&lt;/b&gt; Los jugadores deberían elegir el mismo equipo para poder verse las manos.{fr}Ce mod exécute son propre système de virage, ce qui rend inutile le « siège chaud ».&lt;size=6&gt;
 
-Pour passer à un autre Mage Cliquez sur le nom à droite et 'Changer de couleur'. Pour le jeu à plusieurs mains, vous devez choisir la Couleur Black Game Master au centre.
+&lt;/size&gt;Pour passer à un autre Mage Cliquez sur le nom à droite et &lt;b&gt;'Changer de couleur'&lt;/b&gt;. Pour le jeu à plusieurs mains, vous devez choisir la &lt;b&gt;Couleur Black Game Master&lt;/b&gt; au centre.&lt;size=6&gt;
 
-Coopératif Les joueurs doivent également choisir la même équipe pour se voir les mains.{pt-br}Este Mod usa seu próprio sistema de turnos, o que faz 'Hot sear' desnecessário.
+&lt;/size&gt;&lt;b&gt;Coopératif&lt;/b&gt; Les joueurs doivent également choisir la même équipe pour se voir les mains.{pt-br}Este Mod usa seu próprio sistema de turnos, o que faz 'Hot sear' desnecessário.&lt;size=6&gt;
 
-Para mudar para outro Mage Knight clique o nome a direita e 'Mudar Cor'. Para jogar com multi jogadores escolha a Cor Negra de Mestre de jogo no Centro.
+&lt;/size&gt;Para mudar para outro Mage Knight clique o nome a direita e &lt;b&gt;'Mudar Cor'&lt;/b&gt;. Para jogar com multi jogadores escolha a &lt;b&gt;Cor Negra de Mestre de jogo&lt;/b&gt; no Centro.&lt;size=6&gt;
 
-Cooperativo Jogadores deveriam também escolher o mesmo time para ver a mão um do outro.{de}Dieser Mod verfügt über ein eigenes Turn-System, das den „Hot Seat“ überflüssig macht.
+&lt;/size&gt;&lt;b&gt;Cooperativo&lt;/b&gt; Jogadores deveriam também escolher o mesmo time para ver a mão um do outro.{de}Dieser Mod verfügt über ein eigenes Turn-System, das den „Hot Seat“ überflüssig macht.&lt;size=6&gt;
 
-To switch to another Mage Knight Click the name to the right and 'Change Color'. For Multi Hand play you should choose the Black Game Master Color in the Center.
+&lt;/size&gt;To switch to another Mage Knight Click the name to the right and &lt;b&gt;'Change Color'&lt;/b&gt;. For Multi Hand play you should choose the &lt;b&gt;Black Game Master Color&lt;/b&gt; in the Center.&lt;size=6&gt;
 
-Kooperativ Die Spieler sollten auch das gleiche Team wählen, um die Hände der anderen zu sehen.</Text>
+&lt;/size&gt;&lt;b&gt;Kooperativ&lt;/b&gt; Die Spieler sollten auch das gleiche Team wählen, um die Hände der anderen zu sehen.</Text>
 	</VerticalLayout>
 </Panel>
 
 <Panel id="ObjectRotating" active="false" rectAlignment="UpperRight" offsetXY="-500 -75" width="200" height="50">
 	<Image image="Sliced Button/Button New Active" type="Sliced"/>
 	<VerticalLayout padding="5 5 5 5">
-		<Text class="Text15" id="ObjectRotatingText">{en}30deg Rotation will allow everthing to align properly.{ru}Поворот на 30 градусов позволит всему работать правильно.{zh-tw}30 度 旋转将使所有东西正确对齐。{zh-cn}30 度 旋转将使所有东西正确对齐。{ko}편리한 정렬을 위해  30도  회전 세팅을 추천합니다.{es}La rotación de  30 grados  permitirá que todo se alinee correctamente.{fr}30 deg La rotation permettra à tout de s'aligner correctement.{pt-br}Rotação de 30deg permitirá que tudo se alinhe adequadamente.{de}Eine 30 Grad Drehung ermöglicht es, alles richtig auszurichten.</Text>
+		<Text class="Text15" id="ObjectRotatingText">{en}&lt;b&gt;30deg&lt;/b&gt; Rotation will allow everthing to align properly.{ru}Поворот на &lt;b&gt;30 градусов&lt;/b&gt; позволит всему работать правильно.{zh-tw}&lt;b&gt;30 度&lt;/b&gt; 旋转将使所有东西正确对齐。{zh-cn}&lt;b&gt;30 度&lt;/b&gt; 旋转将使所有东西正确对齐。{ko}편리한 정렬을 위해 &lt;b&gt; 30도 &lt;/b&gt; 회전 세팅을 추천합니다.{es}La rotación de &lt;b&gt; 30 grados &lt;/b&gt; permitirá que todo se alinee correctamente.{fr}&lt;b&gt;30 deg&lt;/b&gt; La rotation permettra à tout de s'aligner correctement.{pt-br}Rotação de &lt;b&gt;30deg&lt;/b&gt; permitirá que tudo se alinhe adequadamente.{de}Eine &lt;b&gt;30 Grad&lt;/b&gt; Drehung ermöglicht es, alles richtig auszurichten.</Text>
 	</VerticalLayout>
 </Panel>
 
@@ -1652,13 +1652,13 @@ Kooperativ Die Spieler sollten auch das gleiche Team wählen, um die Hände der 
 				</Row>
 				<Row preferredHeight="30">
 					<cell rectAlignment="MiddleLeft" width="198">
-						<Text id="Setup1Text" alignment="MiddleCenter" class="Text18">{en}Setup Variants{ru}Параметры сценария{zh-tw}變體設定{zh-cn}变体设置{ko}세팅 설정{es}Variantes de Instalación{fr}Variantes d'Installation{pt-br}Variantes de Instalação{de}Setup-Varianten</Text>
+						<Text id="Setup1Text" alignment="MiddleCenter" class="Text18">{en}Setup Variants{ru}&lt;size=16&gt;Параметры сценария&lt;/size&gt;{zh-tw}變體設定{zh-cn}变体设置{ko}세팅 설정{es}Variantes de Instalación{fr}Variantes d'Installation{pt-br}Variantes de Instalação{de}Setup-Varianten</Text>
 					</cell>
 					<cell rectAlignment="MiddleRight" width="198" >
 					</cell>
 					<Button id="Setup2Selection" onClick="switchSetup" offsetXY="0 3" rectAlignment="MiddleRight" width="198" height="30" onMouseDown="buttonClicked" onMouseUp="buttonClicked">
 						<Image id="Setup2SelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
-						<Text id="Setup2SelectionText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Play Variants{ru}Опциональные правила{zh-tw}變體玩法{zh-cn}变体玩法{ko}플레이 설정{es}Variantes de Juego{fr}Variantes de Jeu{pt-br}Variantes de Jogo{de}Spiel-Varianten</Text>
+						<Text id="Setup2SelectionText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Play Variants{ru}&lt;size=16&gt;Опциональные правила&lt;/size&gt;{zh-tw}變體玩法{zh-cn}变体玩法{ko}플레이 설정{es}Variantes de Juego{fr}Variantes de Jeu{pt-br}Variantes de Jogo{de}Spiel-Varianten</Text>
 					</Button>
 				</Row>
 			</TableLayout>
@@ -1672,9 +1672,9 @@ Kooperativ Die Spieler sollten auch das gleiche Team wählen, um die Hände der 
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="removeShadesOfTezlaMonsters" class="Toggle18" onValueChanged="optionsUpdate">{en}Remove 'Shades of Tezla' Monsters{ru}Убрать врагов из «Тени Тезлы»{zh-tw}移除「特茲拉之影」怪物{zh-cn}移除“特兹拉之影”怪物{ko}'테즐라의 그림자' 적 토큰 제거{es}Quitar Monstruos de 'Sombras de Tezla'{fr}Retirer les Monstres de 'Ombres de Tezla'{pt-br}Remover Monstros de 'Sombras de Tezla'{de}'Shades of Tezla'-Monster entfernen</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="removeBonusCards" class="Toggle18" onValueChanged="optionsUpdate">{en}Remove Ultimate Edition Bonus Cards{ru}Убрать карты Полного Издания{zh-tw}移除終極版的額外卡牌{zh-cn}移除终极版的额外卡牌{ko}UE 카드 제거{es}Eliminar las tarjetas de bonificación de Ultimate Edition{fr}Supprimer les cartes bonus Ultimate Edition{pt-br}Remova os cartões de bônus da Ultimate Edition{de}Bonuskarten der Ultimate Edition Entfernen</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="removeApocalypseTerrain" class="Toggle18" onValueChanged="optionsUpdate">{en}Remove 'Apocalypse Dragon' Terrain{ru}Убрать ландшафт «Апокалиптический дракон»{zh-tw}移除「末日巨龍」地形{zh-cn}移除“末日巨龙”地形{ko}'아포칼립스 드래곤' 지형 제거{es}Quitar el terreno 'Dragón del Apocalipsis'{fr}Retirer le terrain 'Apocalypse Dragon'{pt-br}Remover o terreno 'Apocalypse Dragon'{de}'Apocalypse Dragon'-Gelände entfernen</Toggle></VerticalLayout></Row>
-					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="useCustomMageKnights" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Add custom Mage Knights{ru}Добавить пользовательских Рыцарей-магов{zh-tw}加入玩家自創的魔法騎士{zh-cn}加入玩家自创的魔法骑士{ko}커스텀 영웅 추가{es}Añadir Caballeros Mago personalizados{fr}Ajouter des chevaliers mages personnalisés{pt-br}Adicionar Mage Knights personalizados{de}Magier-Ritter hinzufügen</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="useCustomMageKnights" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Add custom Mage Knights{ru}&lt;size=17&gt;Добавить пользовательских Рыцарей-магов&lt;/size&gt;{zh-tw}加入玩家自創的魔法騎士{zh-cn}加入玩家自创的魔法骑士{ko}커스텀 영웅 추가{es}Añadir Caballeros Mago personalizados{fr}Ajouter des chevaliers mages personnalisés{pt-br}Adicionar Mage Knights personalizados{de}Magier-Ritter hinzufügen</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="removeTerrain" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Remove Easier Terrain Tiles 1 and 2{ru}Убрать плитки простых земель 1 и 2{zh-tw}移除簡易地形板塊 1 和 2{zh-cn}移除简易地形块板 1 和 2{ko}쉬운 지형 타일 1, 2 제거{es}Eliminar las Baldosas de Terreno más Fáciles 1 y 2{fr}Supprimer les Tuiles 1 et 2 du Terrain le Plus Facile{pt-br}Remover os Blocos de Terreno Mais Fáceis 1 e 2{de}Einfachere Geländekacheln 1 und 2 Entfernen</Toggle></VerticalLayout></Row>
-					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="useAlternatePugs" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Use Alternate Monster Tokens{ru}Использовать альтернативные жетоны врагов{zh-tw}使用另一種怪物標記{zh-cn}使用另一種怪物標記{ko}몬스터 토큰 대체{es}Usar Fichas de Monstruo Alternativas{fr}Utiliser des Jetons de Monstres Alternatifs{pt-br}Use Fichas de Monstro Alternativas{de}Alternative Monstermarken Verwenden</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="useAlternatePugs" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Use Alternate Monster Tokens{ru}&lt;size=15&gt;Использовать альтернативные жетоны врагов&lt;/size&gt;{zh-tw}使用另一種怪物標記{zh-cn}使用另一種怪物標記{ko}몬스터 토큰 대체{es}Usar Fichas de Monstruo Alternativas{fr}Utiliser des Jetons de Monstres Alternatifs{pt-br}Use Fichas de Monstro Alternativas{de}Alternative Monstermarken Verwenden</Toggle></VerticalLayout></Row>
 				</VerticalLayout>
 			</Panel>
 		</Panel>
@@ -1689,11 +1689,11 @@ Kooperativ Die Spieler sollten auch das gleiche Team wählen, um die Hände der 
 					</cell>
 					<cell rectAlignment="MiddleRight" width="198">
 						<!-- alignment="MiddleCenter" offsetXY="10 100" -->
-						<Text id="Setup2Text" class="Text18">{en}Play Variants{ru}Опциональные правила{zh-tw}變體玩法{zh-cn}变体玩法{ko}플레이 설정{es}Variantes de Juego{fr}Variantes de Jeu{pt-br}Variantes de Jogo{de}Spiel-Varianten</Text>
+						<Text id="Setup2Text" class="Text18">{en}Play Variants{ru}&lt;size=16&gt;Опциональные правила&lt;/size&gt;{zh-tw}變體玩法{zh-cn}变体玩法{ko}플레이 설정{es}Variantes de Juego{fr}Variantes de Jeu{pt-br}Variantes de Jogo{de}Spiel-Varianten</Text>
 					</cell>
 					<Button id="Setup1Selection" onClick="switchSetup" offsetXY="0 3" rectAlignment="MiddleLeft" width="198" height="30" onMouseDown="buttonClicked" onMouseUp="buttonClicked">
 						<Image id="Setup1SelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
-						<Text id="Setup1SelectionText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Setup Variants{ru}Параметры сценария{zh-tw}變體設定{zh-cn}变体设置{ko}세팅 설정{es}Variantes de Instalación{fr}Variantes d'Installation{pt-br}Variantes de Instalação{de}Setup-Varianten</Text>
+						<Text id="Setup1SelectionText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Setup Variants{ru}&lt;size=16&gt;Параметры сценария&lt;/size&gt;{zh-tw}變體設定{zh-cn}变体设置{ko}세팅 설정{es}Variantes de Instalación{fr}Variantes d'Installation{pt-br}Variantes de Instalação{de}Setup-Varianten</Text>
 					</Button>
 				</Row>
 			</TableLayout>
@@ -1711,9 +1711,9 @@ Kooperativ Die Spieler sollten auch das gleiche Team wählen, um die Hände der 
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="proxyPlayer" class="Toggle18" onValueChanged="optionsUpdate">{en}Proxy Player{ru}Прокси-игрок{zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시 플레이어{es}Jugador Proxy{fr}Joueur Proxy{pt-br}Jogador Proxy{de}Proxy-Spieler</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="weatherMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Atlantean Weather Custom Mod{ru}Пользовательский мод Погоды Атлантиды{zh-tw}亞特蘭提斯天氣{zh-cn}亚特兰蒂斯天气{ko}아틀란티안 날씨{es}Tiempo Atlante{fr}Météo Atlante{pt-br}Clima Atlânteano{de}Atlantisches Wetter</Toggle></VerticalLayout></Row>
 		            <Row><VerticalLayout padding="6 6 1 1"><Toggle id="questMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Quest Cards Custom Mod{ru}Пользовательский мод Квест карт{zh-tw}自製任務卡{zh-cn}自制任务卡{ko}퀘스트 카드{es}Cartas de Misión{fr}Cartes de Quête{pt-br}Cartas de Missão{de}Quest Karten</Toggle></VerticalLayout></Row>
-					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="itemShopMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Item Shop Custom Mod{ru}Пользовательский мод магазина предметов{zh-tw}物品商店{zh-cn}物品商店{ko}아이템 상점{es}Tienda de artículos{fr}Boutique d'articles{pt-br}Loja de itens{de}Artikel Shop</Toggle></VerticalLayout></Row>
+					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="itemShopMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Item Shop Custom Mod{ru}&lt;size=16&gt;Пользовательский мод магазина предметов&lt;/size&gt;{zh-tw}物品商店{zh-cn}物品商店{ko}아이템 상점{es}Tienda de artículos{fr}Boutique d'articles{pt-br}Loja de itens{de}Artikel Shop</Toggle></VerticalLayout></Row>
 					<Row preferredHeight="30">
-						<Text id="ROTFText" alignment="MiddleRight" offsetXY="-160 0" Color="brown">{en}Rise of the Forgemasters -{ru}Восстание Мастеров Кузни -{zh-tw}鍛造師崛起{zh-cn}锻造师崛起{ko}라이즈 오브 포지마스터{es}El Ascenso de los Forjadores - {fr}L'essor des Maîtres de Forge -{pt-br}Ascensão dos Forjadores -{de}Aufstieg der Schmiedemeister -</Text>
+						<Text id="ROTFText" alignment="MiddleRight" offsetXY="-160 0" Color="brown">{en}Rise of the Forgemasters -{ru}&lt;size=16&gt;Восстание Мастеров Кузни -&lt;/size&gt;{zh-tw}鍛造師崛起{zh-cn}锻造师崛起{ko}라이즈 오브 포지마스터{es}El Ascenso de los Forjadores - {fr}L'essor des Maîtres de Forge -{pt-br}Ascensão dos Forjadores -{de}Aufstieg der Schmiedemeister -</Text>
 						<Button id="ROTFSelection" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="150" height="30" onMouseDown="" onMouseUp="">
 							<Image id="ROTFSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
 							<Text id="ROTFSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet</Text>
@@ -1786,173 +1786,173 @@ Kooperativ Die Spieler sollten auch das gleiche Team wählen, um die Hände der 
 			<Row dontUseTableRowBackground="true">
 				<VerticalLayout spacing="0" padding="8 8 0 0" childForceExpandHeight="true">
 					<Text id="IntroBoard1" class="Text26">{en}Welcome to my Mage Knight Highly Scripted Table.{ru}Добро пожаловать в мой мод с высоким уровнем заскриптованности сценариев для настольной игры Mage Knight.{zh-tw}歡迎遊玩我製作的高度腳本化魔法騎士。{zh-cn}欢迎游玩我制作的智能脚本版魔法骑士。{ko}메이지 나이트(하이 스크립트)에 오신 것을 환영합니다.{es}Bienvenido a mi mesa altamente escrita de Mage Knight.{fr}Bienvenue sur ma table hautement scriptée Mage Knight.{pt-br}Bem-vindo à minha mesa de Mage Knight Altamente Scriptada.{de}Willkommen zu Mage Knight fully scripted</Text>
-					<Text id="IntroBoard2" class="Text18" alignment="MiddleLeft">{en}Use this menu to configure your game, and have it setup for you. Mage Knight has lots of Variants and Adjustments experienced players can apply to increase the challenge if they wish. Despite this, the default settings are recommended for most games.
+					<Text id="IntroBoard2" class="Text18" alignment="MiddleLeft">{en}Use this menu to configure your game, and have it setup for you. Mage Knight has lots of Variants and Adjustments experienced players can apply to increase the challenge if they wish. Despite this, the default settings are recommended for most games.&lt;size=6&gt;
 
-During the Game, a LOT of things are automated. I tried to make things intuitive to use, or work with multiple play styles. I recommend not being shy, and just experimenting. The scripts save their data properly, making the 'Rewind' button safe to use.
+&lt;/size&gt;During the Game, a LOT of things are automated. I tried to make things intuitive to use, or work with multiple play styles. I recommend not being shy, and just experimenting. The scripts save their data properly, making the 'Rewind' button safe to use.&lt;size=6&gt;
 
-My work on this Table is never ending and feels like it's constantly evolving. I'm always keen to hear of ways I can improve things, or new ideas entirely. You can leave me a comment using the feedback button (top left of Screen), or on the workshop page.
+&lt;/size&gt;My work on this Table is never ending and feels like it's constantly evolving. I'm always keen to hear of ways I can improve things, or new ideas entirely. You can leave me a comment using the feedback button (top left of Screen), or on the workshop page.&lt;size=6&gt;
 
-Mage Knight is designed by Vlaada Chvátil and published by the good folk at WizKids Games using amazing art from J.Lonnee. It is highly encouraged you purchase a copy for yourself.
+&lt;/size&gt;Mage Knight is designed by Vlaada Chvátil and published by the good folk at WizKids Games using amazing art from J.Lonnee. It is highly encouraged you purchase a copy for yourself.&lt;size=6&gt;
 
-----------------------
+&lt;/size&gt;&lt;b&gt;----------------------
 1. Choose your Scenario
 2. Select any Optional Variants.
 3. Pick the Mage Knights that are playing.
 4. Customize the Scenario if desired.
 5. Click Start.
-----------------------
+----------------------&lt;/b&gt;&lt;size=6&gt;
 
-The Start Button unlocks when you have two or more Mage Knights selected. Picking a Dummy Mage Knight implies you are playing Solo or Cooperative, otherwise it's Competitive.{ru}Используйте это меню для настройки игры и автоматической настройки параметров. В игре «Mage Knight» предусмотрено множество вариантов и настроек, которые опытные игроки могут применять по желанию, чтобы повысить уровень сложности. Тем не менее для большинства партий рекомендуется использовать настройки по умолчанию.
+&lt;/size&gt;The Start Button unlocks when you have two or more Mage Knights selected. Picking a Dummy Mage Knight implies you are playing Solo or Cooperative, otherwise it's Competitive.{ru}Используйте это меню для настройки игры и автоматической настройки параметров. В игре «Mage Knight» предусмотрено множество вариантов и настроек, которые опытные игроки могут применять по желанию, чтобы повысить уровень сложности. Тем не менее для большинства партий рекомендуется использовать настройки по умолчанию.&lt;size=6&gt;
 
-В ходе игры ОЧЕНЬ МНОГОЕ происходит автоматически. Я постарался сделать интерфейс интуитивно понятным и адаптированным к различным стилям игры. Рекомендую не стесняться и просто экспериментировать. Скрипты надёжно сохраняют данные, поэтому кнопку «Перемотка» можно использовать без опасений.
+&lt;/size&gt;В ходе игры ОЧЕНЬ МНОГОЕ происходит автоматически. Я постарался сделать интерфейс интуитивно понятным и адаптированным к различным стилям игры. Рекомендую не стесняться и просто экспериментировать. Скрипты надёжно сохраняют данные, поэтому кнопку «Перемотка» можно использовать без опасений.&lt;size=6&gt;
 
-Моя работа над этой таблицей никогда не заканчивается, и мне кажется, что она постоянно развивается. Я всегда рад услышать предложения по улучшению или совершенно новые идеи. Вы можете оставить мне комментарий, воспользовавшись кнопкой обратной связи (в левом верхнем углу экрана) или на странице в Workshop.
+&lt;/size&gt;Моя работа над этой таблицей никогда не заканчивается, и мне кажется, что она постоянно развивается. Я всегда рад услышать предложения по улучшению или совершенно новые идеи. Вы можете оставить мне комментарий, воспользовавшись кнопкой обратной связи (в левом верхнем углу экрана) или на странице в Workshop.&lt;size=6&gt;
 
-Игра «Mage Knight» разработана Владой Чватилом и издана замечательной командой WizKids Games с использованием потрясающих иллюстраций от J.Lonnee. Настоятельно рекомендую приобрести себе экземпляр этой игры.
+&lt;/size&gt;Игра «Mage Knight» разработана Владой Чватилом и издана замечательной командой WizKids Games с использованием потрясающих иллюстраций от J.Lonnee. Настоятельно рекомендую приобрести себе экземпляр этой игры.&lt;size=6&gt;
 
-----------------------
+&lt;/size&gt;&lt;b&gt;----------------------
 1. Выберите сценарий.
 2. Выберите любые дополнительные варианты.
 3. Выберите «Маг-рыцарей», которые будут участвовать в игре.
 4. При желании настройте сценарий.
 5. Нажмите «Старт».
---------------------- -
+--------------------- -&lt;/b&gt;&lt;size=6&gt;
 
-Кнопка «Старт» становится доступной, когда выбраны два или более «Магических рыцарей». Выбор фиктивного «Магического рыцаря» означает, что вы играете в одиночном или кооперативном режиме, в противном случае игра проходит в соревновательном режиме.{zh-tw}使用此選單調整你的遊戲，系統將幫你自動完成設置。
+&lt;/size&gt;Кнопка «Старт» становится доступной, когда выбраны два или более «Магических рыцарей». Выбор фиктивного «Магического рыцаря» означает, что вы играете в одиночном или кооперативном режиме, в противном случае игра проходит в соревновательном режиме.{zh-tw}使用此選單調整你的遊戲，系統將幫你自動完成設置。
 魔法騎士有許多變體規則和調整選項，
 經驗豐富的玩家可以根據需求，調整選項來增加遊戲難度。
-儘管如此，建議大多數遊戲仍然使用預設設置。
+儘管如此，建議大多數遊戲仍然使用預設設置。&lt;size=6&gt;
 
-遊戲中有許多操作會由腳本自動完成，
+&lt;/size&gt;遊戲中有許多操作會由腳本自動完成，
 我儘量讓操作介面簡單易用，並支援各種遊玩方式。
 建議你不用拘謹，多嘗試操作。
-腳本會自動儲存數據，所以你可以放心使用“回溯”按鈕。
+腳本會自動儲存數據，所以你可以放心使用“回溯”按鈕。&lt;size=8&gt;
 
-我對這個模組的開發永無止境，讓它會不斷進化與改進。
+&lt;/size&gt;我對這個模組的開發永無止境，讓它會不斷進化與改進。
 我很樂意接受各種改善建議，或是任何新的想法。
-你可以透過回饋按鈕（螢幕左上角）或是工作坊頁面來留言給我。
+你可以透過回饋按鈕（螢幕左上角）或是工作坊頁面來留言給我。&lt;size=6&gt;
 
-魔法騎士是規則由Vlaada Chvátil設計，插圖由J.Lonnee繪製，
-並由WizKids Games出版的遊戲。強烈建議你自己購買一份實體版。
+&lt;/size&gt;魔法騎士是規則由Vlaada Chvátil設計，插圖由J.Lonnee繪製，
+並由WizKids Games出版的遊戲。強烈建議你自己購買一份實體版。&lt;size=6&gt;
 
-----------------------
+&lt;/size&gt;&lt;b&gt;----------------------
 1. 選擇要玩的劇本
 2. 調整任何變體規則選項
 3. 挑選要遊玩的魔法騎士。
 4. 如果有需要，調整劇本的設置內容
 5. 點擊“開始”。
-----------------------
+----------------------&lt;/b&gt;&lt;size=6&gt;
 
-“開始遊戲”按鈕會在你選擇至少兩個魔法騎士出場後解鎖，
+&lt;/size&gt;“開始遊戲”按鈕會在你選擇至少兩個魔法騎士出場後解鎖，
 要進行單人或合作模式需要再選一個“虛擬玩家”的魔法騎士，
 否則會以對抗模式開始遊戲。{zh-cn}使用此菜单调整你的游戏，系统将帮你自动完成设置。
 魔法骑士有许多变体规则和调整选项，
 经验丰富的玩家可以根据需求，调整选项来增加游戏难度。
-尽管如此，建议大多数游戏仍然使用默认设置。 
+尽管如此，建议大多数游戏仍然使用默认设置。 &lt;size=6&gt;
 
-游戏中有许多操作会由脚本自动完成，
+&lt;/size&gt;游戏中有许多操作会由脚本自动完成，
 我尽量让操作介面简单易用，并支援各种游玩方式。
 建议你不用拘谨，多尝试操作。
-脚本会自动保存数据，所以你可以放心使用“回溯”按钮。 
+脚本会自动保存数据，所以你可以放心使用“回溯”按钮。 &lt;size=8&gt;
 
-我对这个模组的开发永无止尽，让它会不断进化与改进。
+&lt;/size&gt;我对这个模组的开发永无止尽，让它会不断进化与改进。
 我很乐意接受各种改善建议，或是任何新的想法。
-你可以通过反馈按钮（屏幕左上角）或是创意工坊页面来留言给我。 
+你可以通过反馈按钮（屏幕左上角）或是创意工坊页面来留言给我。 &lt;size=6&gt;
 
-魔法骑士是规则由Vlaada Chvátil设计，插图由J.Lonnee绘制，
-并由WizKids Games出版的游戏。强烈建议你自己购买一份实体版。 
+&lt;/size&gt;魔法骑士是规则由Vlaada Chvátil设计，插图由J.Lonnee绘制，
+并由WizKids Games出版的游戏。强烈建议你自己购买一份实体版。 &lt;size=6&gt;
 
-----------------------
+&lt;/size&gt;&lt;b&gt;----------------------
 1. 选择要玩的剧本
 2. 调整任何变体规则选项
 3. 挑选要游玩的魔法骑士。 
 4. 如果有需要，调整剧本的设置内容
 5. 点击“开始”。 
-----------------------
+----------------------&lt;/b&gt;&lt;size=6&gt;
 
-“开始游戏”按钮会在你选择至少两个魔法骑士出场后解锁，
+&lt;/size&gt;“开始游戏”按钮会在你选择至少两个魔法骑士出场后解锁，
 要进行单人或合作模式需要再选一个“虚拟玩家”的魔法骑士，
-否则会以对抗模式开始游戏。{ko}이 메뉴를 사용하여 게임을 구성하고, 원하는 대로 설정을 조정하세요. 숙련된 플레이어를 위한 더 높은 난도를 적용할 수 있는 다양한 변형 규칙과 조정 사항을 제공합니다. 그러나 대부분의 게임에서 기본 설정을 사용하는 것을 권장합니다.
+否则会以对抗模式开始游戏。{ko}이 메뉴를 사용하여 게임을 구성하고, 원하는 대로 설정을 조정하세요. 숙련된 플레이어를 위한 더 높은 난도를 적용할 수 있는 다양한 변형 규칙과 조정 사항을 제공합니다. 그러나 대부분의 게임에서 기본 설정을 사용하는 것을 권장합니다.&lt;size=6&gt;
 
-게임 중에는 정말 많은 부분이 자동화되어 있습니다. 사용법이 직관적이고 다양한 플레이 스타일에 맞게 작동하도록 노력했습니다. 주저하지 말고 마음껏 실험해 보시길 권합니다. 스크립트가 데이터를 제대로 저장하므로 ‘되감기’ 버튼을 안전하게 사용할 수 있습니다.
+&lt;/size&gt;게임 중에는 정말 많은 부분이 자동화되어 있습니다. 사용법이 직관적이고 다양한 플레이 스타일에 맞게 작동하도록 노력했습니다. 주저하지 말고 마음껏 실험해 보시길 권합니다. 스크립트가 데이터를 제대로 저장하므로 ‘되감기’ 버튼을 안전하게 사용할 수 있습니다.&lt;size=6&gt;
 
-이 테이블에 대한 제 작업은 끝이 없으며, 끊임없이 진화하고 있는 느낌입니다. 개선할 수 있는 방법이나 완전히 새로운 아이디어가 있다면 언제든지 기꺼이 듣고 싶습니다. 화면 왼쪽 상단의 피드백 버튼을 이용하거나 워크숍 페이지에 댓글을 남겨 주시면 됩니다.
+&lt;/size&gt;이 테이블에 대한 제 작업은 끝이 없으며, 끊임없이 진화하고 있는 느낌입니다. 개선할 수 있는 방법이나 완전히 새로운 아이디어가 있다면 언제든지 기꺼이 듣고 싶습니다. 화면 왼쪽 상단의 피드백 버튼을 이용하거나 워크숍 페이지에 댓글을 남겨 주시면 됩니다.&lt;size=6&gt;
 
-『Mage Knight』는 Vlaada Chvátil이 디자인했으며, J.Lonnee의 멋진 일러스트와 함께 WizKids Games에서 출시했습니다. 실물 게임을 구매해 보시기를 적극 권장합니다.
+&lt;/size&gt;『Mage Knight』는 Vlaada Chvátil이 디자인했으며, J.Lonnee의 멋진 일러스트와 함께 WizKids Games에서 출시했습니다. 실물 게임을 구매해 보시기를 적극 권장합니다.&lt;size=6&gt;
 
-----------------------
+&lt;/size&gt;&lt;b&gt;----------------------
 1. 시나리오를 선택하세요.
 2. 원하는 추가 설정을 선택하세요.
 3. 플레이할 메이지 나이트를 선택하세요.
 4. 원한다면 시나리오를 커스텀 설정하세요.
 5. ‘시작’을 클릭하세요.
---------------------- -
+--------------------- -&lt;/b&gt;&lt;size=6&gt;
 
-시작 버튼은 두 명 이상의 영웅(Mage Knight)을 선택했을 때 활성화됩니다. 더미 플레이어의 영웅을 설정하면 솔로 또는 협동 모드로 플레이하는 것이며, 그렇지 않은 경우 경쟁 모드로 진행됩니다.{es}Utiliza este menú para configurar tu partida y dejar que el juego se ajuste automáticamente a tus preferencias. Mage Knight cuenta con numerosas variantes y ajustes que los jugadores experimentados pueden aplicar para aumentar la dificultad si así lo desean. A pesar de ello, se recomienda utilizar la configuración predeterminada para la mayoría de las partidas.
+&lt;/size&gt;시작 버튼은 두 명 이상의 영웅(Mage Knight)을 선택했을 때 활성화됩니다. 더미 플레이어의 영웅을 설정하면 솔로 또는 협동 모드로 플레이하는 것이며, 그렇지 않은 경우 경쟁 모드로 진행됩니다.{es}Utiliza este menú para configurar tu partida y dejar que el juego se ajuste automáticamente a tus preferencias. Mage Knight cuenta con numerosas variantes y ajustes que los jugadores experimentados pueden aplicar para aumentar la dificultad si así lo desean. A pesar de ello, se recomienda utilizar la configuración predeterminada para la mayoría de las partidas.&lt;size=6&gt;
 
-Durante la partida, MUCHAS cosas están automatizadas. He intentado que todo resulte intuitivo y se adapte a distintos estilos de juego. Te recomiendo que no te cortes y simplemente experimentes. Los scripts guardan los datos correctamente, por lo que el botón «Rebobinar» es seguro de usar.
+&lt;/size&gt;Durante la partida, MUCHAS cosas están automatizadas. He intentado que todo resulte intuitivo y se adapte a distintos estilos de juego. Te recomiendo que no te cortes y simplemente experimentes. Los scripts guardan los datos correctamente, por lo que el botón «Rebobinar» es seguro de usar.&lt;size=6&gt;
 
-Mi trabajo en esta mesa es interminable y parece que está en constante evolución. Siempre estoy dispuesto a escuchar sugerencias sobre cómo puedo mejorar las cosas o ideas completamente nuevas. Puedes dejarme un comentario utilizando el botón de comentarios (arriba a la izquierda de la pantalla) o en la página del taller.
+&lt;/size&gt;Mi trabajo en esta mesa es interminable y parece que está en constante evolución. Siempre estoy dispuesto a escuchar sugerencias sobre cómo puedo mejorar las cosas o ideas completamente nuevas. Puedes dejarme un comentario utilizando el botón de comentarios (arriba a la izquierda de la pantalla) o en la página del taller.&lt;size=6&gt;
 
-«Mage Knight» ha sido diseñado por Vlaada Chvátil y publicado por la gente de WizKids Games, con las increíbles ilustraciones de J. Lonnee. Te recomiendo encarecidamente que compres un ejemplar para ti.
+&lt;/size&gt;«Mage Knight» ha sido diseñado por Vlaada Chvátil y publicado por la gente de WizKids Games, con las increíbles ilustraciones de J. Lonnee. Te recomiendo encarecidamente que compres un ejemplar para ti.&lt;size=6&gt;
 
-----------------------
+&lt;/size&gt;&lt;b&gt;----------------------
 1. Elige tu escenario
 2. Selecciona cualquier variante opcional.
 3. Elige los Mage Knights que van a jugar.
 4. Personaliza el escenario si lo deseas.
 5. Haz clic en «Empezar».
---------------------- -
+--------------------- -&lt;/b&gt;&lt;size=6&gt;
 
-El botón «Empezar» se desbloquea cuando tienes seleccionados dos o más Caballeros Magos. Elegir un Caballero Mago ficticio implica que estás jugando en modo individual o cooperativo; de lo contrario, se trata de un modo competitivo.{fr}Utilisez ce menu pour configurer votre partie et la personnaliser selon vos préférences. Mage Knight propose de nombreuses variantes et options que les joueurs expérimentés peuvent appliquer pour augmenter la difficulté s’ils le souhaitent. Malgré cela, les paramètres par défaut sont recommandés pour la plupart des parties.
+&lt;/size&gt;El botón «Empezar» se desbloquea cuando tienes seleccionados dos o más Caballeros Magos. Elegir un Caballero Mago ficticio implica que estás jugando en modo individual o cooperativo; de lo contrario, se trata de un modo competitivo.{fr}Utilisez ce menu pour configurer votre partie et la personnaliser selon vos préférences. Mage Knight propose de nombreuses variantes et options que les joueurs expérimentés peuvent appliquer pour augmenter la difficulté s’ils le souhaitent. Malgré cela, les paramètres par défaut sont recommandés pour la plupart des parties.&lt;size=6&gt;
 
-Pendant la partie, de TRÈS nombreux éléments sont automatisés. J’ai essayé de rendre l’interface intuitive et adaptée à différents styles de jeu. Je vous recommande de ne pas hésiter et de vous lancer dans l’expérimentation. Les scripts enregistrent correctement leurs données, ce qui permet d’utiliser le bouton « Rewind » en toute sécurité.
+&lt;/size&gt;Pendant la partie, de TRÈS nombreux éléments sont automatisés. J’ai essayé de rendre l’interface intuitive et adaptée à différents styles de jeu. Je vous recommande de ne pas hésiter et de vous lancer dans l’expérimentation. Les scripts enregistrent correctement leurs données, ce qui permet d’utiliser le bouton « Rewind » en toute sécurité.&lt;size=6&gt;
 
-Mon travail sur cette table est sans fin et j’ai l’impression qu’elle évolue constamment. Je suis toujours ravi d’entendre des suggestions d’amélioration ou de découvrir de nouvelles idées. Vous pouvez me laisser un commentaire via le bouton « Feedback » (en haut à gauche de l’écran) ou sur la page de l’Atelier.
+&lt;/size&gt;Mon travail sur cette table est sans fin et j’ai l’impression qu’elle évolue constamment. Je suis toujours ravi d’entendre des suggestions d’amélioration ou de découvrir de nouvelles idées. Vous pouvez me laisser un commentaire via le bouton « Feedback » (en haut à gauche de l’écran) ou sur la page de l’Atelier.&lt;size=6&gt;
 
-Mage Knight a été conçu par Vlaada Chvátil et publié par la formidable équipe de WizKids Games, avec les superbes illustrations de J.Lonnee. Je vous encourage vivement à vous procurer un exemplaire.
+&lt;/size&gt;Mage Knight a été conçu par Vlaada Chvátil et publié par la formidable équipe de WizKids Games, avec les superbes illustrations de J.Lonnee. Je vous encourage vivement à vous procurer un exemplaire.&lt;size=6&gt;
 
-----------------------
+&lt;/size&gt;&lt;b&gt;----------------------
 1. Choisissez votre scénario
 2. Sélectionnez les variantes optionnelles de votre choix.
 3. Choisissez les Mage Knights qui participent à la partie.
 4. Personnalisez le scénario si vous le souhaitez.
 5. Cliquez sur « Démarrer ».
---------------------- -
+--------------------- -&lt;/b&gt;&lt;size=6&gt;
 
-Le bouton « Démarrer » se déverrouille lorsque vous avez sélectionné au moins deux Mage Knights. Choisir un Mage Knight factice signifie que vous jouez en solo ou en mode coopératif ; dans le cas contraire, le jeu se déroule en mode compétitif.{pt-br}Use este menu para configurar seu jogo e deixar tudo pronto para você. O Mage Knight possui diversas variantes e ajustes que jogadores experientes podem aplicar para aumentar o desafio, se assim desejarem. Apesar disso, as configurações padrão são recomendadas para a maioria das partidas.
+&lt;/size&gt;Le bouton « Démarrer » se déverrouille lorsque vous avez sélectionné au moins deux Mage Knights. Choisir un Mage Knight factice signifie que vous jouez en solo ou en mode coopératif ; dans le cas contraire, le jeu se déroule en mode compétitif.{pt-br}Use este menu para configurar seu jogo e deixar tudo pronto para você. O Mage Knight possui diversas variantes e ajustes que jogadores experientes podem aplicar para aumentar o desafio, se assim desejarem. Apesar disso, as configurações padrão são recomendadas para a maioria das partidas.&lt;size=6&gt;
 
-Durante o jogo, MUITAS coisas são automatizadas. Tentei tornar tudo intuitivo de usar e compatível com vários estilos de jogo. Recomendo que você não tenha vergonha e simplesmente experimente. Os scripts salvam seus dados corretamente, tornando o botão “Rewind” seguro para uso.
+&lt;/size&gt;Durante o jogo, MUITAS coisas são automatizadas. Tentei tornar tudo intuitivo de usar e compatível com vários estilos de jogo. Recomendo que você não tenha vergonha e simplesmente experimente. Os scripts salvam seus dados corretamente, tornando o botão “Rewind” seguro para uso.&lt;size=6&gt;
 
-Meu trabalho nesta mesa é interminável e parece estar em constante evolução. Estou sempre aberto a sugestões de como posso melhorar as coisas ou a novas ideias completamente diferentes. Você pode me deixar um comentário usando o botão de feedback (canto superior esquerdo da tela) ou na página do Workshop.
+&lt;/size&gt;Meu trabalho nesta mesa é interminável e parece estar em constante evolução. Estou sempre aberto a sugestões de como posso melhorar as coisas ou a novas ideias completamente diferentes. Você pode me deixar um comentário usando o botão de feedback (canto superior esquerdo da tela) ou na página do Workshop.&lt;size=6&gt;
 
-Mage Knight foi criado por Vlaada Chvátil e publicado pela equipe da WizKids Games, com a incrível arte de J.Lonnee. Recomendo fortemente que você compre um exemplar para si mesmo.
+&lt;/size&gt;Mage Knight foi criado por Vlaada Chvátil e publicado pela equipe da WizKids Games, com a incrível arte de J.Lonnee. Recomendo fortemente que você compre um exemplar para si mesmo.&lt;size=6&gt;
 
-----------------------
+&lt;/size&gt;&lt;b&gt;----------------------
 1. Escolha seu Cenário
 2. Selecione quaisquer Variantes Opcionais.
 3. Escolha os Mage Knights que vão jogar.
 4. Personalize o Cenário, se desejar.
 5. Clique em Iniciar.
---------------------- -
+--------------------- -&lt;/b&gt;&lt;size=6&gt;
 
-O botão “Iniciar” é desbloqueado quando você seleciona dois ou mais Cavaleiros Magos. Escolher um Cavaleiro Mago fictício significa que você está jogando no modo Solo ou Cooperativo; caso contrário, o modo é Competitivo.{de}Verwende dieses Menü, um dein Spiel zu konfigurieren und die Einstellungen für dich vornehmen zu lassen. Mage Knight bietet zahlreiche Varianten und Anpassungsmöglichkeiten, mit denen erfahrene Spieler den Schwierigkeitsgrad nach Belieben erhöhen können. Dennoch werden für die meisten Spiele die Standardeinstellungen empfohlen.
+&lt;/size&gt;O botão “Iniciar” é desbloqueado quando você seleciona dois ou mais Cavaleiros Magos. Escolher um Cavaleiro Mago fictício significa que você está jogando no modo Solo ou Cooperativo; caso contrário, o modo é Competitivo.{de}Verwende dieses Menü, um dein Spiel zu konfigurieren und die Einstellungen für dich vornehmen zu lassen. Mage Knight bietet zahlreiche Varianten und Anpassungsmöglichkeiten, mit denen erfahrene Spieler den Schwierigkeitsgrad nach Belieben erhöhen können. Dennoch werden für die meisten Spiele die Standardeinstellungen empfohlen.&lt;size=6&gt;
 
-Während des Spiels laufen VIELE Abläufe automatisch ab. Ich habe versucht, die Bedienung intuitiv zu gestalten und sie für verschiedene Spielstile geeignet zu machen. Ich empfehle, sich nicht zu scheuen und einfach zu experimentieren. Die Skripte speichern ihre Daten ordnungsgemäß, sodass die Rewind-Schaltfläche sicher verwendet werden kann.
+&lt;/size&gt;Während des Spiels laufen VIELE Abläufe automatisch ab. Ich habe versucht, die Bedienung intuitiv zu gestalten und sie für verschiedene Spielstile geeignet zu machen. Ich empfehle, sich nicht zu scheuen und einfach zu experimentieren. Die Skripte speichern ihre Daten ordnungsgemäß, sodass die Rewind-Schaltfläche sicher verwendet werden kann.&lt;size=6&gt;
 
-Meine Arbeit an diesem Spieltisch ist nie abgeschlossen und es fühlt sich an, als würde er sich ständig weiterentwickeln. Ich bin immer daran interessiert, Vorschläge zur Verbesserung oder ganz neue Ideen zu hören. Ihr könnt mir über die Feedback-Schaltfläche (oben links auf dem Bildschirm) oder auf der Workshop-Seite einen Kommentar hinterlassen.
+&lt;/size&gt;Meine Arbeit an diesem Spieltisch ist nie abgeschlossen und es fühlt sich an, als würde er sich ständig weiterentwickeln. Ich bin immer daran interessiert, Vorschläge zur Verbesserung oder ganz neue Ideen zu hören. Ihr könnt mir über die Feedback-Schaltfläche (oben links auf dem Bildschirm) oder auf der Workshop-Seite einen Kommentar hinterlassen.&lt;size=6&gt;
 
-Mage Knight wurde von Vlaada Chvátil entworfen und von den netten Leuten bei WizKids Games unter Verwendung der fantastischen Illustrationen von J. Lonnee veröffentlicht. Ich kann euch nur wärmstens empfehlen, euch ein Exemplar zu kaufen.
+&lt;/size&gt;Mage Knight wurde von Vlaada Chvátil entworfen und von den netten Leuten bei WizKids Games unter Verwendung der fantastischen Illustrationen von J. Lonnee veröffentlicht. Ich kann euch nur wärmstens empfehlen, euch ein Exemplar zu kaufen.&lt;size=6&gt;
 
---------------------
+&lt;/size&gt;&lt;b&gt;--------------------
 1. Wähle dein Szenario aus.
 2. Wähle beliebige optionale Varianten aus.
 3. Wähle die Mage Knights aus, die mitspielen sollen.
 4. Passe das Szenario nach Wunsch an.
 5. Klicke auf Start.
---------------------- -
+--------------------- -&lt;/b&gt;&lt;size=6&gt;
 
-Die Schaltfläche Start wird freigeschaltet, sobald Sie zwei oder mehr Magierritter ausgewählt haben. Die Auswahl eines Dummy-Magierritters bedeutet, dass Sie im Solo- oder Kooperationsmodus spielen; andernfalls handelt es sich um einen Wettkampfangang.</Text>
+&lt;/size&gt;Die Schaltfläche Start wird freigeschaltet, sobald Sie zwei oder mehr Magierritter ausgewählt haben. Die Auswahl eines Dummy-Magierritters bedeutet, dass Sie im Solo- oder Kooperationsmodus spielen; andernfalls handelt es sich um einen Wettkampfangang.</Text>
 				</VerticalLayout>
 			</Row>
 			<Row preferredHeight="90" dontUseTableRowBackground="true">
@@ -2213,55 +2213,55 @@ Die Schaltfläche Start wird freigeschaltet, sobald Sie zwei oder mehr Magierrit
 					<Text id="MegapolisReminderTitle" class="Title18">{en}Megapolis Available{ru}Мегаполис Доступен{zh-tw}可以使用大型城市{zh-cn}可以使用大型城市{ko}거대도시 옵션{es}Megapolis Disponible{fr}Megapolis Disponible{pt-br}Megalópole Disponível{de}Metropole Vorhanden</Text>
 				</Row>
 			</TableLayout>
-			<HorizontalLayout padding="0 0 0 0"><Text id="MegapolisReminderText1" class="Text16" alignment="MiddleCenter">{en}Use the arrows next to the City Levels, to change a City into a Megapolis.
+			<HorizontalLayout padding="0 0 0 0"><Text id="MegapolisReminderText1" class="Text16" alignment="MiddleCenter">{en}Use the arrows next to the City Levels, to change a City into a Megapolis.&lt;size=6&gt;
 
-When a city deploys in game, a second random city also deploys with it (each at half the level chosen here). Their two garrisons combine and get the bonuses from both cities applied.
+&lt;/size&gt;When a city deploys in game, a second random city also deploys with it (each at half the level chosen here). Their two garrisons combine and get the bonuses from both cities applied.&lt;size=6&gt;
 
-After conquering the Megapolis, interactions from either city can be accessed.{ru}Используйте стрелки рядом с ур. города, чтобы из Города сделать Мегаполис.
+&lt;/size&gt;After conquering the Megapolis, interactions from either city can be accessed.{ru}Используйте стрелки рядом с ур. города, чтобы из Города сделать Мегаполис.&lt;size=6&gt;
 
-Вместо одного Города, появятся сразу два. Уровень каждого равен половине ур. выбранного здесь. Оба их гарнизона объединяются и получают бонусы от обоих городов.
+&lt;/size&gt;Вместо одного Города, появятся сразу два. Уровень каждого равен половине ур. выбранного здесь. Оба их гарнизона объединяются и получают бонусы от обоих городов.&lt;size=6&gt;
 
-Завоеванный Мегаполис позволяет взаимодействовать с каждым из городов.{zh-tw}使用城市等級選項旁邊的箭頭按鈕，
-來將一個城市更換成大型城市。
+&lt;/size&gt;Завоеванный Мегаполис позволяет взаимодействовать с каждым из городов.{zh-tw}使用城市等級選項旁邊的箭頭按鈕，
+來將一個城市更換成大型城市。&lt;size=3&gt;
 
-當一個城市在遊戲中部署時，
+&lt;/size&gt;當一個城市在遊戲中部署時，
 會跟著部屬另一個隨機城市在它旁邊。
 （每座城市的等級為選項中的一半。）
 兩座城市的守軍會合併，全部具有城防，
-並同時受到兩座城市的戰鬥加成。
+並同時受到兩座城市的戰鬥加成。&lt;size=3&gt;
 
-征服大型城市後，無論位於哪片城區，
+&lt;/size&gt;征服大型城市後，無論位於哪片城區，
 在交涉時都可以選擇任意城區的購買選項。{zh-cn}使用城市等级选项旁边的箭头按钮，
-来将一个城市更换成大型城市。
+来将一个城市更换成大型城市。&lt;size=3&gt;
 
-当一个城市在游戏中部署时，
+&lt;/size&gt;当一个城市在游戏中部署时，
 会跟着部属另一个随机城市在它旁边。
 （每座城市的等级为选项中的一半。）
 两座城市的守军会合并，全部具有城防，
-并同时受到两座城市的战斗加成。
+并同时受到两座城市的战斗加成。&lt;size=3&gt;
 
-征服大型城市后，无论位于哪片城区，
-在交涉时都可以选择任意城区的购买选项。{ko}거대도시를 사용하려면, 도시 레벨 옆 화살표를 누르세요.
+&lt;/size&gt;征服大型城市后，无论位于哪片城区，
+在交涉时都可以选择任意城区的购买选项。{ko}거대도시를 사용하려면, 도시 레벨 옆 화살표를 누르세요.&lt;size=6&gt;
 
-도시가 놓일 때, 두 번째 도시가 무작위로 선택되어 좌측에 같이 놓입니다.(각각 절반의 레벨)두 도시의 수비대가 합쳐지고 두 도시의 전투 보너스를 동시에 적용받습니다.
+&lt;/size&gt;도시가 놓일 때, 두 번째 도시가 무작위로 선택되어 좌측에 같이 놓입니다.(각각 절반의 레벨)두 도시의 수비대가 합쳐지고 두 도시의 전투 보너스를 동시에 적용받습니다.&lt;size=6&gt;
 
-정복된 후, 플레이어는 도시 어느 부분에 있던지 두 도시의 모든 교류 혜택을 사용할 수 있습니다.{es}Usa las flechas al lado de los niveles de la ciudad para convertir una ciudad en una Megapolis.
+&lt;/size&gt;정복된 후, 플레이어는 도시 어느 부분에 있던지 두 도시의 모든 교류 혜택을 사용할 수 있습니다.{es}Usa las flechas al lado de los niveles de la ciudad para convertir una ciudad en una Megapolis.&lt;size=6&gt;
 
-Cuando una ciudad se despliega en el juego, también se despliega una segunda ciudad aleatoria con ella (cada una a la mitad del nivel elegido aquí). Sus dos guarniciones se combinan y se aplican las bonificaciones de ambas ciudades.
+&lt;/size&gt;Cuando una ciudad se despliega en el juego, también se despliega una segunda ciudad aleatoria con ella (cada una a la mitad del nivel elegido aquí). Sus dos guarniciones se combinan y se aplican las bonificaciones de ambas ciudades.&lt;size=6&gt;
 
-Después de conquistar la Megalópolis, se puede acceder a las interacciones de cualquiera de las ciudades.{fr}Utilisez les flèches à côté des niveaux de la ville pour transformer une ville en Mégapole.
+&lt;/size&gt;Después de conquistar la Megalópolis, se puede acceder a las interacciones de cualquiera de las ciudades.{fr}Utilisez les flèches à côté des niveaux de la ville pour transformer une ville en Mégapole.&lt;size=6&gt;
 
-Lorsqu'une ville se déploie en jeu, une seconde ville aléatoire se déploie également avec elle (chacune à la moitié du niveau choisi ici). Leurs deux garnisons se combinent et obtiennent les bonus des deux villes appliqués.
+&lt;/size&gt;Lorsqu'une ville se déploie en jeu, une seconde ville aléatoire se déploie également avec elle (chacune à la moitié du niveau choisi ici). Leurs deux garnisons se combinent et obtiennent les bonus des deux villes appliqués.&lt;size=6&gt;
 
-Après avoir conquis la Mégapole, les interactions de l'une ou l'autre ville sont accessibles.{pt-br}Use as setas próximas ao níveis da Cidade, para transformar uma Cidade em uma Megalópole.
+&lt;/size&gt;Après avoir conquis la Mégapole, les interactions de l'une ou l'autre ville sont accessibles.{pt-br}Use as setas próximas ao níveis da Cidade, para transformar uma Cidade em uma Megalópole.&lt;size=6&gt;
 
-Quando uma cidade é implementada no jogo, uma segunda cidade aleatória também é implementada com ela (cada uma a metade do nível escolhido aqui). Suas duas Guarnições combinam e ganham os bônus de ambas as cidades.
+&lt;/size&gt;Quando uma cidade é implementada no jogo, uma segunda cidade aleatória também é implementada com ela (cada uma a metade do nível escolhido aqui). Suas duas Guarnições combinam e ganham os bônus de ambas as cidades.&lt;size=6&gt;
 
-Depois de conquistar a Megalópolis, interações de ambras cidades podem ser acessadas.{de}Verwenden Sie die Pfeile neben den Stadtebenen, um eine Stadt in eine Metropole zu verwandeln.
+&lt;/size&gt;Depois de conquistar a Megalópolis, interações de ambras cidades podem ser acessadas.{de}Verwenden Sie die Pfeile neben den Stadtebenen, um eine Stadt in eine Metropole zu verwandeln.&lt;size=6&gt;
 
-Wenn eine Stadt im Spiel aufgestellt wird, wird auch eine zweite zufällige Stadt aufgestellt (jeweils auf der Hälfte des hier gewählten Levels). Ihre beiden Garnisonen verbinden sich und bekommen die Boni aus beiden Städten zugerechnet.
+&lt;/size&gt;Wenn eine Stadt im Spiel aufgestellt wird, wird auch eine zweite zufällige Stadt aufgestellt (jeweils auf der Hälfte des hier gewählten Levels). Ihre beiden Garnisonen verbinden sich und bekommen die Boni aus beiden Städten zugerechnet.&lt;size=6&gt;
 
-Nach der Eroberung der Metropole kann auf Interaktionen aus beiden Städten zugegriffen werden.</Text></HorizontalLayout>
+&lt;/size&gt;Nach der Eroberung der Metropole kann auf Interaktionen aus beiden Städten zugegriffen werden.</Text></HorizontalLayout>
 		</VerticalLayout>
 	</Panel>
 	<Panel id="DropDown" active="false" offsetXY="-100 -275" width="120" outlineSize="1 -1" scale="1">
@@ -2640,51 +2640,51 @@ Nach der Eroberung der Metropole kann auf Interaktionen aus beiden Städten zuge
 		<VerticalLayout padding="5 5 5 5"><Text id="FeedbackTitle" class="Title20" alignment="MiddleCenter">{en}Feedback{ru}Обратная связь{zh-tw}回饋意見{zh-cn}反馈{ko}피드백{es}Realimentación{fr}Retour{pt-br}Comentários{de}Feedback</Text></VerticalLayout>
 	</Panel>
 	<VerticalLayout padding="5 5 5 5">
-		<Text id="FeedbackText1" class="Text14">{en}I'm just one guy, and I can't test every possible combination of this mod before releasing a patch. Your feedback is appreciated, and will improve the mod for everyone else.
+		<Text id="FeedbackText1" class="Text14">{en}I'm just one guy, and I can't test every possible combination of this mod before releasing a patch. Your feedback is appreciated, and will improve the mod for everyone else.&lt;size=6&gt;
 
-Let me know anything, big or small, that has caused you problems, or could make your game better. I have programmed for the way I play, so I may not have considered every interaction possible.
+&lt;/size&gt;Let me know anything, big or small, that has caused you problems, or could make your game better. I have programmed for the way I play, so I may not have considered every interaction possible.&lt;size=6&gt;
 
-While I read all the Feedback, if you want me to reply about your problem, it's best to post to the Mod's Workshop page instead.{ru}Я в одиночку работаю над модом, и я не могу протестировать все возможные комбинации этого мода перед выпуском патча. Обратная связь приветствуется, и позволит улучшить мод для всех остальных.
+&lt;/size&gt;While I read all the Feedback, if you want me to reply about your problem, it's best to post to the Mod's Workshop page instead.{ru}Я в одиночку работаю над модом, и я не могу протестировать все возможные комбинации этого мода перед выпуском патча. Обратная связь приветствуется, и позволит улучшить мод для всех остальных.&lt;size=6&gt;
 
-Дайте мне знать о любой мелочи, которая вызывает у вас проблемы, или которая может улучшить вашу игру. При разработке я учитывал свой стиль игры, поэтому я мог не учесть все возможные взаимодействия.
+&lt;/size&gt;Дайте мне знать о любой мелочи, которая вызывает у вас проблемы, или которая может улучшить вашу игру. При разработке я учитывал свой стиль игры, поэтому я мог не учесть все возможные взаимодействия.&lt;size=6&gt;
 
-Я читаю все отзывы, но если вы хотите, чтобы я ответил на вашу проблему, лучше всего разместить сообщение на странице Мастерской этого мода.{zh-tw}我只有一個人，無法在發布更新前測試模組的每種可能。
-感謝你的意見，這能協助改善模組讓玩家有更好的體驗。
+&lt;/size&gt;Я читаю все отзывы, но если вы хотите, чтобы я ответил на вашу проблему, лучше всего разместить сообщение на странице Мастерской этого мода.{zh-tw}我只有一個人，無法在發布更新前測試模組的每種可能。
+感謝你的意見，這能協助改善模組讓玩家有更好的體驗。&lt;size=6&gt;
 
-無論問題大小，只要有造成你困擾的地方，或是改善遊戲
+&lt;/size&gt;無論問題大小，只要有造成你困擾的地方，或是改善遊戲
 的建議，歡迎告訴我。我在製作此模組時，主要是照自己
-的遊玩方式來製作，因此可能會沒考慮到其他情境。
+的遊玩方式來製作，因此可能會沒考慮到其他情境。&lt;size=6&gt;
 
-我會閱讀所有的意見，但若希望我直接回覆你，建議直接
+&lt;/size&gt;我會閱讀所有的意見，但若希望我直接回覆你，建議直接
 留言在模組的工作坊頁面。{zh-cn}我只有一个人，无法在发布更新前测试模组的每种可能。
-感谢你的反馈，这能协助改善模组让玩家有更好的体验。
+感谢你的反馈，这能协助改善模组让玩家有更好的体验。&lt;size=6&gt;
 
-无论问题大小，只要有造成你困扰的地方，或是改善游戏
+&lt;/size&gt;无论问题大小，只要有造成你困扰的地方，或是改善游戏
 的建议，欢迎告诉我。我在制作此模组时，主要是照自己
-的游玩方式来制作，因此可能会没考虑到其他情境。
+的游玩方式来制作，因此可能会没考虑到其他情境。&lt;size=6&gt;
 
-我会阅读所有的反馈，但若希望我直接回覆你，建议直接
-留言在模组的创意工坊页面。{ko}피드백 해주셔서 감사합니다. 모든 사항이 패치에 반영되지 않을 수 있음에 양해바랍니다.
+&lt;/size&gt;我会阅读所有的反馈，但若希望我直接回覆你，建议直接
+留言在模组的创意工坊页面。{ko}피드백 해주셔서 감사합니다. 모든 사항이 패치에 반영되지 않을 수 있음에 양해바랍니다.&lt;size=6&gt;
 
-심각하거나 사소하거나, 어떤 버그나 질문이 있다면 스크립트의 발전을 위해 보고해주세요.  만약 직접 답변을 원한다면, 스팀워크샵에 문의하세요.
+&lt;/size&gt;심각하거나 사소하거나, 어떤 버그나 질문이 있다면 스크립트의 발전을 위해 보고해주세요.  만약 직접 답변을 원한다면, 스팀워크샵에 문의하세요.&lt;size=6&gt;
 
-한국어 번역에 문의 사항이 있다면, chamena1110@gmail.com으로 메일하시면 피드백 드리겠습니다.{es}Solo soy un tipo y no puedo probar todas las combinaciones posibles de este mod antes de lanzar un parche. Se agradecen sus comentarios y mejorarán la modificación para todos los demás.
+&lt;/size&gt;한국어 번역에 문의 사항이 있다면, chamena1110@gmail.com으로 메일하시면 피드백 드리겠습니다.{es}Solo soy un tipo y no puedo probar todas las combinaciones posibles de este mod antes de lanzar un parche. Se agradecen sus comentarios y mejorarán la modificación para todos los demás.&lt;size=6&gt;
 
-Dime cualquier cosa, grande o pequeña, que te haya causado problemas o que pueda mejorar tu juego. He programado para mi forma de jugar, por lo que es posible que no haya considerado todas las interacciones posibles.
+&lt;/size&gt;Dime cualquier cosa, grande o pequeña, que te haya causado problemas o que pueda mejorar tu juego. He programado para mi forma de jugar, por lo que es posible que no haya considerado todas las interacciones posibles.&lt;size=6&gt;
 
-Mientras leo todos los comentarios, si quieres que te responda sobre tu problema, lo mejor es publicar en la página del taller del mod.{fr}Je ne suis qu'un gars, et je ne peux pas tester toutes les combinaisons possibles de ce mod avant de sortir un patch. Vos commentaires sont appréciés et amélioreront le mod pour tout le monde.
+&lt;/size&gt;Mientras leo todos los comentarios, si quieres que te responda sobre tu problema, lo mejor es publicar en la página del taller del mod.{fr}Je ne suis qu'un gars, et je ne peux pas tester toutes les combinaisons possibles de ce mod avant de sortir un patch. Vos commentaires sont appréciés et amélioreront le mod pour tout le monde.&lt;size=6&gt;
 
-Faites-moi savoir tout ce qui, petit ou grand, vous a causé des problèmes ou pourrait améliorer votre jeu. J'ai programmé pour ma façon de jouer, donc je n'ai peut-être pas envisagé toutes les interactions possibles.
+&lt;/size&gt;Faites-moi savoir tout ce qui, petit ou grand, vous a causé des problèmes ou pourrait améliorer votre jeu. J'ai programmé pour ma façon de jouer, donc je n'ai peut-être pas envisagé toutes les interactions possibles.&lt;size=6&gt;
 
-Pendant que je lis tous les commentaires, si vous voulez que je réponde à votre problème, il est préférable de poster à la place sur la page de l'atelier du mod.{pt-br}Eu sou apenas um cara, e Eu não posso testar cada possível combinação deste mod antes de liberar uma atualização. Seu comentário é apreciado e melhorará o mod para todo mundo.
+&lt;/size&gt;Pendant que je lis tous les commentaires, si vous voulez que je réponde à votre problème, il est préférable de poster à la place sur la page de l'atelier du mod.{pt-br}Eu sou apenas um cara, e Eu não posso testar cada possível combinação deste mod antes de liberar uma atualização. Seu comentário é apreciado e melhorará o mod para todo mundo.&lt;size=6&gt;
 
-deixe-me saber de tudo, coisas grandes ou pequenas, que causaram problemas, ou poderia fazer seu jogo melhor. Eu tenho programado pela forma que Eu jogo, então Eu posso não ter considerado toda interação possível.
+&lt;/size&gt;deixe-me saber de tudo, coisas grandes ou pequenas, que causaram problemas, ou poderia fazer seu jogo melhor. Eu tenho programado pela forma que Eu jogo, então Eu posso não ter considerado toda interação possível.&lt;size=6&gt;
 
-Apesar de eu ler todos os comentários, se você me quiser respondendo sobre o seu problema, é melhor postá-lo na página do Mod na Oficina.{de}Ich bin nur ein Typ, und ich kann nicht jede mögliche Kombination dieses Mods testen, bevor ich einen Patch veröffentliche. Ihr Feedback wird geschätzt und wird den Mod für alle anderen verbessern.
+&lt;/size&gt;Apesar de eu ler todos os comentários, se você me quiser respondendo sobre o seu problema, é melhor postá-lo na página do Mod na Oficina.{de}Ich bin nur ein Typ, und ich kann nicht jede mögliche Kombination dieses Mods testen, bevor ich einen Patch veröffentliche. Ihr Feedback wird geschätzt und wird den Mod für alle anderen verbessern.&lt;size=6&gt;
 
-Lassen Sie mich alles wissen, ob groß oder klein, das Ihnen Probleme bereitet hat oder Ihr Spiel verbessern könnte. Ich habe für meine Spielweise programmiert, also habe ich vielleicht nicht jede Interaktion für möglich gehalten.
+&lt;/size&gt;Lassen Sie mich alles wissen, ob groß oder klein, das Ihnen Probleme bereitet hat oder Ihr Spiel verbessern könnte. Ich habe für meine Spielweise programmiert, also habe ich vielleicht nicht jede Interaktion für möglich gehalten.&lt;size=6&gt;
 
-Ich lese zwar das gesamte Feedback, aber wenn Sie möchten, dass ich auf Ihr Problem antworte, ist es am besten, stattdessen auf der Mod-Workshop-Seite zu posten.</Text>
+&lt;/size&gt;Ich lese zwar das gesamte Feedback, aber wenn Sie möchten, dass ich auf Ihr Problem antworte, ist es am besten, stattdessen auf der Mod-Workshop-Seite zu posten.</Text>
 	</VerticalLayout>
 	<Panel rectAlignment="LowerCenter" offsetXY="0 -60" width="350" height="60" outlineSize="0 0">
 		<InputField id="SendBugComment" lineType="MultiLineNewLine" height="60" width="350" onEndEdit="setBugReportComment"></InputField>
@@ -2710,53 +2710,53 @@ Ich lese zwar das gesamte Feedback, aber wenn Sie möchten, dass ich auf Ihr Pro
 		<VerticalLayout padding="5 5 5 5"><Text id="SendScoreRequestText1" class="Text20" alignment="MiddleCenter">{en}Record Your Score{ru}Записать свой результат{zh-tw}記錄你的分數{zh-cn}记录你的分数{ko}점수 기록{es}Registre su puntaje{fr}Enregistrez votre score{pt-br}Grave Sua Pontuação{de}Punktzahl Aufzeichnen</Text></VerticalLayout>
 	</Panel>
 	<VerticalLayout padding="5 5 5 5">
-		<Text id="SendScoreRequestText2" class="Text14">{en}Would you like to record this games score(s) on the Public List? (Find a link to it on the Mod's Workshop Page)
+		<Text id="SendScoreRequestText2" class="Text14">{en}Would you like to record this games score(s) on the Public List? (Find a link to it on the Mod's Workshop Page)&lt;size=6&gt;
 
-The list contains the game setups and scores of other players across the world. You can see how well you did compared to others. See what the average score is for a scenario. Try to beat your existing score.
+&lt;/size&gt;The list contains the game setups and scores of other players across the world. You can see how well you did compared to others. See what the average score is for a scenario. Try to beat your existing score.&lt;size=6&gt;
 
-Optionally type something to help you find your entry in the list. Ie 'Volkare killed by epic fireball attack'{ru}Хотите ли вы записать результаты этой игры в публичный список? (Ссылку на него можно найти на странице мастерской мода)
+&lt;/size&gt;Optionally type something to help you find your entry in the list. Ie 'Volkare killed by epic fireball attack'{ru}Хотите ли вы записать результаты этой игры в публичный список? (Ссылку на него можно найти на странице мастерской мода)&lt;size=6&gt;
 
-Список содержит настройки игры и результаты других игроков по всему миру. Вы можете увидеть, насколько хорошо вы справились по сравнению с другими. Увидеть, какой средний результат за сценарий. Попробуйте превзойти свой текущий результат!
+&lt;/size&gt;Список содержит настройки игры и результаты других игроков по всему миру. Вы можете увидеть, насколько хорошо вы справились по сравнению с другими. Увидеть, какой средний результат за сценарий. Попробуйте превзойти свой текущий результат!&lt;size=6&gt;
 
-При желании, можно написать что-нибудь, что поможет вам найти вашу запись в списке. Например, «Волкар был убит эпической атакой огненного шара».{zh-tw}你想要將你的分數紀錄在公開的清單嗎？
-(可以在此mod的頁面看到這個連結)
+&lt;/size&gt;При желании, можно написать что-нибудь, что поможет вам найти вашу запись в списке. Например, «Волкар был убит эпической атакой огненного шара».{zh-tw}你想要將你的分數紀錄在公開的清單嗎？
+(可以在此mod的頁面看到這個連結)&lt;size=6&gt;
 
-清單中會有世界各地玩家的遊戲設置與分數。
+&lt;/size&gt;清單中會有世界各地玩家的遊戲設置與分數。
 你可以跟其它人比較你的成績如何。
 看看劇本的平均分數是多少。
-試著超越你原有的分數。
+試著超越你原有的分數。&lt;size=6&gt;
 
-你可以隨意輸入些什麼來幫助你從列表中找
+&lt;/size&gt;你可以隨意輸入些什麼來幫助你從列表中找
 到你的項目，例如沃卡里被史詩級火球擊殺。{zh-cn}你想要将你的分数纪录在公开的列表吗？
-(可以在此mod的页面看到这个链接)
+(可以在此mod的页面看到这个链接)&lt;size=6&gt;
 
-列表中会有世界各地玩家的游戏设置与分数。
+&lt;/size&gt;列表中会有世界各地玩家的游戏设置与分数。
 你可以跟其它人比较你的成绩如何。
 看看剧本的平均分数是多少。
-试着超越你原有的分数。
+试着超越你原有的分数。&lt;size=6&gt;
 
-你可以随意输入些什么来帮助你从列表中找
-到你的项目，例如沃卡里被史诗级火球击杀。{ko}공개 리스트에 점수를 기록할까요? (스팀 워크샵에 링크가 있습니다)
+&lt;/size&gt;你可以随意输入些什么来帮助你从列表中找
+到你的项目，例如沃卡里被史诗级火球击杀。{ko}공개 리스트에 점수를 기록할까요? (스팀 워크샵에 링크가 있습니다)&lt;size=6&gt;
 
-공개 리스트는 전세계의 플레이어들의 점수를 기록합니다. 평균 점수를 확인하고 비교해보세요. 그리고 기존 기록을 갱신해보세요.
+&lt;/size&gt;공개 리스트는 전세계의 플레이어들의 점수를 기록합니다. 평균 점수를 확인하고 비교해보세요. 그리고 기존 기록을 갱신해보세요.&lt;size=6&gt;
 
-리스트에서 쉽게 찾으려면, '정의의 검으로 볼케어 뚝배기를 깼다'와 같은 특별한 메모를 하셔도 됩니다.{es}¿Le gustaría registrar la (s) puntuación (s) de este juego en la lista pública? (Encuentre un enlace en la página de taller del Mod)
+&lt;/size&gt;리스트에서 쉽게 찾으려면, '정의의 검으로 볼케어 뚝배기를 깼다'와 같은 특별한 메모를 하셔도 됩니다.{es}¿Le gustaría registrar la (s) puntuación (s) de este juego en la lista pública? (Encuentre un enlace en la página de taller del Mod)&lt;size=6&gt;
 
-La lista contiene las configuraciones del juego y las puntuaciones de otros jugadores de todo el mundo. Puede ver lo bien que lo hizo en comparación con los demás. Vea cuál es la puntuación media de un escenario. Intenta superar tu puntuación actual.
+&lt;/size&gt;La lista contiene las configuraciones del juego y las puntuaciones de otros jugadores de todo el mundo. Puede ver lo bien que lo hizo en comparación con los demás. Vea cuál es la puntuación media de un escenario. Intenta superar tu puntuación actual.&lt;size=6&gt;
 
-Opcionalmente, escriba algo que le ayude a encontrar su entrada en la lista. Es decir, 'Volkare asesinado por un épico ataque con bola de fuego'{fr}Souhaitez-vous enregistrer le(s) score(s) de ce jeu sur la liste publique ? (Trouvez un lien vers celui-ci sur la page de l'atelier du mod)
+&lt;/size&gt;Opcionalmente, escriba algo que le ayude a encontrar su entrada en la lista. Es decir, 'Volkare asesinado por un épico ataque con bola de fuego'{fr}Souhaitez-vous enregistrer le(s) score(s) de ce jeu sur la liste publique ? (Trouvez un lien vers celui-ci sur la page de l'atelier du mod)&lt;size=6&gt;
 
-La liste contient les configurations de jeu et les scores des autres joueurs à travers le monde. Vous pouvez voir à quel point vous avez réussi par rapport aux autres. Voyez quel est le score moyen pour un scénario. Essayez de battre votre score existant.
+&lt;/size&gt;La liste contient les configurations de jeu et les scores des autres joueurs à travers le monde. Vous pouvez voir à quel point vous avez réussi par rapport aux autres. Voyez quel est le score moyen pour un scénario. Essayez de battre votre score existant.&lt;size=6&gt;
 
-Tapez éventuellement quelque chose pour vous aider à trouver votre entrée dans la liste. C'est-à-dire 'Volkare tué par une attaque épique de boule de feu'{pt-br}Você gostaria de gravar a pontuação destes jogos numa lista pública? (Encontre um link para ele na página da Oficina do Mod)
+&lt;/size&gt;Tapez éventuellement quelque chose pour vous aider à trouver votre entrée dans la liste. C'est-à-dire 'Volkare tué par une attaque épique de boule de feu'{pt-br}Você gostaria de gravar a pontuação destes jogos numa lista pública? (Encontre um link para ele na página da Oficina do Mod)&lt;size=6&gt;
 
-A lista contém as configurações dos jogos e pontuações dos jogadores ao redor do mundo. Você pode ver o quão bem você foi comparado aos outros. Veja qual a pontuação média de um cenário. Tente derrotar sua pontuação existente.
+&lt;/size&gt;A lista contém as configurações dos jogos e pontuações dos jogadores ao redor do mundo. Você pode ver o quão bem você foi comparado aos outros. Veja qual a pontuação média de um cenário. Tente derrotar sua pontuação existente.&lt;size=6&gt;
 
-Opcionalmente digite algo para ajudar você a encontrar sua entrada na lista. Ex. 'Volkare morto por ataque épico de Bola de fogo'{de}Möchten Sie diese Spielergebnisse in die öffentliche Liste aufnehmen? (Einen Link dazu finden Sie auf der Workshop-Seite des Mods)
+&lt;/size&gt;Opcionalmente digite algo para ajudar você a encontrar sua entrada na lista. Ex. 'Volkare morto por ataque épico de Bola de fogo'{de}Möchten Sie diese Spielergebnisse in die öffentliche Liste aufnehmen? (Einen Link dazu finden Sie auf der Workshop-Seite des Mods)&lt;size=6&gt;
 
-Die Liste enthält die Spielaufbauten und Punktzahlen anderer Spieler auf der ganzen Welt. Sie können sehen, wie gut Sie im Vergleich zu anderen abgeschnitten haben. Sehen Sie, was die durchschnittliche Punktzahl für ein Szenario ist. Versuchen Sie, Ihre vorhandene Punktzahl zu schlagen.
+&lt;/size&gt;Die Liste enthält die Spielaufbauten und Punktzahlen anderer Spieler auf der ganzen Welt. Sie können sehen, wie gut Sie im Vergleich zu anderen abgeschnitten haben. Sehen Sie, was die durchschnittliche Punktzahl für ein Szenario ist. Versuchen Sie, Ihre vorhandene Punktzahl zu schlagen.&lt;size=6&gt;
 
-Geben Sie optional etwas ein, das Ihnen hilft, Ihren Eintrag in der Liste zu finden. Dh 'Volkare durch epischen Feuerballangriff getötet'</Text>
+&lt;/size&gt;Geben Sie optional etwas ein, das Ihnen hilft, Ihren Eintrag in der Liste zu finden. Dh 'Volkare durch epischen Feuerballangriff getötet'</Text>
 	</VerticalLayout>
 	<Panel rectAlignment="LowerCenter" offsetXY="0 -60" width="300" height="60" outlineSize="0 0">
 		<InputField id="SendScoreComment" lineType="MultiLineNewLine" height="60" width="300" onEndEdit="setBugReportComment"></InputField>
