@@ -574,6 +574,26 @@ local function deedOfferMovedSourcesSettled(sourceGUIDs)
 	return true
 end
 
+function setDeedOfferSizeForSetup(value)
+	local size=deedOfferBoundedSize(value)
+	gStates.offerSize=size
+	local sourceX=(4.8*(size+1))+21.6
+	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+	local actionSource=standardDeckCycleObject("Advanced Action") or getObjectFromGUID(GUID.deck.action)
+	if spellSource~=nil then spellSource.setPositionSmooth({sourceX,2.5,-22.2},false,false) end
+	if actionSource~=nil then actionSource.setPositionSmooth({sourceX,2.5,-16.2},false,false) end
+	local spellZone=getObjectFromGUID(GUID.zone.spellDeck)
+	local actionZone=getObjectFromGUID(GUID.zone.actionDeck)
+	local offerZone=getObjectFromGUID(GUID.zone.offer)
+	if spellZone~=nil then spellZone.setPosition({sourceX,2.05,-22.2}) end
+	if actionZone~=nil then actionZone.setPosition({sourceX,2.05,-16.2}) end
+	if offerZone~=nil then
+		offerZone.setScale({4.8*size,0.3,9.57})
+		offerZone.setPosition({(2.4*(size-1))+26.4,1.13,-19.2})
+	end
+	return true
+end
+
 function offerAdjust(player, mouseButton, id)
 	if mouseButton~="-1" or OfferPause==true then return end
 	local delta=id=="e4372aOfferUp" and 1 or id=="e4372aOfferDown" and -1 or nil
