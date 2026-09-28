@@ -23,33 +23,55 @@ function __tryObjectEnterContainer_raw(container, object)
     return true -- Allows object to enter.
 end
 
---TEMP LATE-JOIN TEST: strip Unity rich-text markup that has been injected into runtime text attributes.
---TTS can serialize those values into malformed XML for clients that join after the host has loaded.
-local function sanitizeRuntimeUITextAttributes()
+--TEMP LATE-JOIN TEST: sanitize Unity rich-text markup in the complete runtime XML table.
+--Unlike UI.setAttribute-only cleanup, this also covers Text node inner values that TTS serializes directly.
+local function stripRuntimeRichText(value)
+	if type(value)~="string" or value:find("<",1,true)==nil then return value,false end
+	local clean=value
+		:gsub("</?size[^>]*>","")
+		:gsub("</?color[^>]*>","")
+		:gsub("</?i[^>]*>","")
+		:gsub("</?b[^>]*>","")
+		:gsub("</?voffset[^>]*>","")
+		:gsub("</?line%-height[^>]*>","")
+	return clean,clean~=value
+end
+
+local function sanitizeRuntimeXmlTreeForLateJoin()
 	local xml=UI.getXmlTable()
-	if type(xml)~="table" then return 0 end
+	if type(xml)~="table" or #xml==0 then return 0 end
 	local changed=0
-	local function walk(nodes)
-		for _,node in ipairs(nodes or {}) do
-			if type(node)=="table" then
-				local attrs=node.attributes
-				if type(attrs)=="table" and attrs.id~=nil then
-					for _,attribute in ipairs({"text","Text"}) do
-						local value=attrs[attribute]
-						if type(value)=="string" and value:find("<",1,true)~=nil then
-							local clean=value:gsub("</?[%a][^>]->","")
-							if clean~=value then
-								UI.setAttribute(attrs.id,attribute,clean)
-								changed=changed+1
-							end
-						end
-					end
+
+	local function walk(node)
+		if type(node)~="table" then return end
+		if type(node.attributes)=="table" then
+			for key,value in pairs(node.attributes) do
+				local clean,didChange=stripRuntimeRichText(value)
+				if didChange then
+					node.attributes[key]=clean
+					changed=changed+1
 				end
-				walk(node.children)
 			end
 		end
+		if node.value~=nil then
+			local clean,didChange=stripRuntimeRichText(node.value)
+			if didChange then
+				node.value=clean
+				changed=changed+1
+			end
+		end
+		if node.content~=nil then
+			local clean,didChange=stripRuntimeRichText(node.content)
+			if didChange then
+				node.content=clean
+				changed=changed+1
+			end
+		end
+		for _,child in ipairs(node.children or {}) do walk(child) end
 	end
-	walk(xml)
+
+	for _,node in ipairs(xml) do walk(node) end
+	if changed>0 then UI.setXmlTable(xml) end
 	return changed
 end
 
@@ -259,8 +281,8 @@ function eventsOnLoadRawBase(saved_data)
 		end
 	end
 	--Run after the normal load restoration and once more after delayed UI refreshes have settled.
-	sanitizeRuntimeUITextAttributes()
-	safeWaitTime("Events",function() sanitizeRuntimeUITextAttributes() end,1)
+	sanitizeRuntimeXmlTreeForLateJoin()
+	safeWaitTime("Events",function() sanitizeRuntimeXmlTreeForLateJoin() end,1)
 end
 
 function onSave()
