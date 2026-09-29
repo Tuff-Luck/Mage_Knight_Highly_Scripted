@@ -929,9 +929,6 @@ end
 --Starting Deed Decks are taken from bags and shuffled asynchronously. Deal only after every active
 --Mage Knight's complete Deed pile is registered in its scripting zone and has finished moving.
 function startingDeedDecksReadyForDraw()
-	--A pile can already look settled in its scripting zone while the serialized Deed-transfer
-	--queue still has bookkeeping to finish. Do not start the setup hand deal in that gap.
-	if deedTransferAnyBusy()==true then return false end
 	for playerIndex, playerDetails in ipairs(turnOrder) do
 		if playerDetails.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then
 			local deedZone=getObjectFromGUID(deedDeckZones[playerDetails.seatPos])
@@ -947,6 +944,29 @@ function startingDeedDecksReadyForDraw()
 		end
 	end
 	return true
+end
+
+--Replace the old four-second setup cushion with actual Deck readiness. Coral preparation runs once
+--after all Deed Decks exist; the timeout retains a final fallback if TTS never reports a settled state.
+function dealStartingHandsWhenReady()
+	local coralPrepared=false
+	local function finishStartingHandsDeal()
+		dealAllHands()
+		--Give the dealt cards a few frames to leave their Deck objects before automatic rewind snapshots resume.
+		safeWaitFrames("PlayerBoard.CardFlow",function() rewindTransactionFinish("Game setup") end,15)
+	end
+	safeWaitCondition("PlayerBoard.CardFlow",finishStartingHandsDeal, function()
+		if startingDeedDecksReadyForDraw()==false then return false end
+		if coralPrepared==false then
+			coralPrepared=true
+			coralSetAsideQuickWitted()
+			return false
+		end
+		return coralQuickWittedReadyForDraw()
+	end, 10, function()
+		coralSetAsideQuickWitted()
+		safeWaitFrames("PlayerBoard.CardFlow",finishStartingHandsDeal, 5)
+	end)
 end
 
 --Meditation / Trance card smarts. Top/Bot starts as Meditation; adding discard cards to the Deed Deck tells the script Trance was powered.
@@ -1406,147 +1426,24 @@ function coralSetAsideQuickWitted()
 	end
 end
 
---Setup hands use the normal draw engine, but setup owns the retry lifecycle.
---Do not leave one Wait.condition per player: those callbacks can wake at different moments and
---race the changing turn/tactic state. Instead every pass attempts only seats whose Deed pile is
---physically ready, then one central post-condition check decides whether another pass is required.
-local function startingHandTarget(playerIndex)
-	local details=turnOrder[playerIndex]
-	if details==nil then return 0 end
-	return (details.hand or 0)+(details.handBonus or 0)+(gStates.tactic4HandBonus or 0)
-end
-
-local function startingHandCount(playerIndex)
-	local details=turnOrder[playerIndex]
-	if details==nil or details.seatPos==nil then return 0 end
-	local handZone=getObjectFromGUID(handZones[details.seatPos])
-	if handZone==nil then return 0 end
-	local count=0
-	for _, obj in pairs(handZone.getObjects()) do if obj.type=="Card" then count=count+1 end end
-	return count
-end
-
-local function startingHandsComplete()
-	for playerIndex, details in ipairs(turnOrder) do
-		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then
-			if startingHandCount(playerIndex)<startingHandTarget(playerIndex) then return false end
-		end
-	end
-	return true
-end
-
-local function startingDeedPileReadyForPlayer(playerIndex)
-	local details=turnOrder[playerIndex]
-	if details==nil or details.seatPos==nil then return false end
-	local seatPos=details.seatPos
-	if deedTransferBusy(seatPos)==true then return false end
-	local deedZone=getObjectFromGUID(deedDeckZones[seatPos])
-	if deedZone==nil then return false end
-	for _, obj in pairs(deedZone.getObjects()) do
-		if obj.type=="Deck" or obj.type=="Card" then
-			if obj.resting~=true then return false end
-			if obj.isSmoothMoving~=nil and obj.isSmoothMoving()==true then return false end
-			return true
-		end
-	end
-	return false
-end
-
-local function dealStartingHandForPlayer(playerIndex)
-	local details=turnOrder[playerIndex]
-	if details==nil or details.mage==gStates.positionMageKnight[5] or playerDropoutInactive(playerIndex)==true then return false end
-	if startingHandCount(playerIndex)>=startingHandTarget(playerIndex) then return true end
-	if startingDeedPileReadyForPlayer(playerIndex)==false then return false end
-	--If Coral is currently choosing whether Quick Witted replaces a draw, wait for that decision
-	--instead of repeatedly adding the same missing starting-hand draws to the choice.
-	if coralDrawPending~=nil and coralDrawPending.seatPos==details.seatPos then return false end
-
-	local previousTurn=gStates.turnNumber
-	gStates.turnNumber=playerIndex
-	drawUpTo({color="Black"}, "-1", "DrawHand")
-	gStates.turnNumber=previousTurn
-	return true
-end
-
+--Deals all the hands by fast forwarding through the turns
 function dealAllHands()
-	for playerIndex=1, #turnOrder do dealStartingHandForPlayer(playerIndex) end
+	local temp=gStates.turnNumber
+	for a=1, #turnOrder, 1 do
+		gStates.turnNumber=a
+		if turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] and playerDropoutInactive(gStates.turnNumber)==false then drawUpTo({color="Black"}, "-1", "DrawHand") end--color is only there to stop error
+	end
+	gStates.turnNumber=temp
 	safeWaitTime("PlayerBoard.CardFlow",function()
-		for x=1, #turnOrder do
-			local zone=getObjectFromGUID(deedDeckZones[turnOrder[x].seatPos])
-			if zone~=nil then
-				turnOrder[x].deedCount=0
-				for _, b in pairs(zone.getObjects()) do
-					if b.type=="Card" then turnOrder[x].deedCount=1 end
-					if b.type=="Deck" then turnOrder[x].deedCount=b.getQuantity() end
-				end
+		for x=1, #turnOrder, 1 do
+			--Records current amount of cards in deed deck
+			turnOrder[x].deedCount=0
+			for _, b in pairs(getObjectFromGUID(deedDeckZones[turnOrder[x].seatPos]).getObjects()) do
+				if b.type=="Card" then turnOrder[x].deedCount=1 end
+				if b.type=="Deck" then turnOrder[x].deedCount=b.getQuantity() end
 			end
 		end
-	end,0.5)
-end
-
---Verified setup deal. Keep this below the local starting-hand helpers so Lua closes over the
---actual locals rather than looking for same-named globals.
-local startingHandRepairWait=nil
-function dealStartingHandsWhenReady(onComplete)
-	local coralPrepared=false
-	local repairAttempts=0
-	local completionSent=false
-
-	local function handStateText()
-		local parts={}
-		for playerIndex, details in ipairs(turnOrder) do
-			if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then
-				parts[#parts+1]=tostring(details.mage).." "..tostring(startingHandCount(playerIndex)).."/"..tostring(startingHandTarget(playerIndex))
-			end
-		end
-		return table.concat(parts,", ")
-	end
-
-	local function finishStartingHandSetup()
-		if completionSent==true then return end
-		completionSent=true
-		log("SETUP HANDS: verified complete - "..handStateText())
-		rewindTransactionFinish("Game setup")
-		if onComplete~=nil then
-			log("SETUP HANDS: invoking completion callback")
-			onComplete()
-		end
-	end
-
-	local function verifyAndRepairStartingHands()
-		startingHandRepairWait=nil
-		if startingHandsComplete()==true then
-			finishStartingHandSetup()
-			return
-		end
-		repairAttempts=repairAttempts+1
-		log("SETUP HANDS: repair pass "..tostring(repairAttempts).." - "..handStateText())
-		dealAllHands()
-		startingHandRepairWait=safeWaitTime("PlayerBoard.CardFlow",verifyAndRepairStartingHands,2)
-	end
-
-	local function beginVerifiedDeal()
-		log("SETUP HANDS: beginning deal - "..handStateText())
-		dealAllHands()
-		if startingHandRepairWait~=nil then Wait.stop(startingHandRepairWait) end
-		startingHandRepairWait=safeWaitTime("PlayerBoard.CardFlow",verifyAndRepairStartingHands,2)
-	end
-
-	log("SETUP HANDS: waiting for Deed piles")
-	safeWaitCondition("PlayerBoard.CardFlow",beginVerifiedDeal, function()
-		if startingDeedDecksReadyForDraw()==false then return false end
-		if coralPrepared==false then
-			coralPrepared=true
-			log("SETUP HANDS: Deed piles ready; preparing Coral if present")
-			coralSetAsideQuickWitted()
-			return false
-		end
-		return coralQuickWittedReadyForDraw()
-	end, 10, function()
-		log("SETUP HANDS: readiness wait timed out; forcing verified deal path")
-		coralSetAsideQuickWitted()
-		safeWaitFrames("PlayerBoard.CardFlow",beginVerifiedDeal, 5)
-	end)
+	end, 0.5)
 end
 
 --Fill any gaps in the offer by sliding more cards down the line
