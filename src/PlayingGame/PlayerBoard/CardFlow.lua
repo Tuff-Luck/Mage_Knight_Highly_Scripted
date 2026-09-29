@@ -949,64 +949,6 @@ function startingDeedDecksReadyForDraw()
 	return true
 end
 
---Replace timing guesses with a verified setup post-condition: every active Mage Knight must
---actually have their full starting hand. TTS can report a freshly shuffled Deck as resting before
---its first takeObject succeeds, so merely attempting the deal is not enough.
-local startingHandRepairWait=nil
-function dealStartingHandsWhenReady(onComplete)
-	local coralPrepared=false
-	local repairAttempts=0
-	local completionSent=false
-	local function finishStartingHandSetup()
-		if completionSent==true then return end
-		completionSent=true
-		rewindTransactionFinish("Game setup")
-		if onComplete~=nil then onComplete() end
-	end
-	local function verifyAndRepairStartingHands()
-		startingHandRepairWait=nil
-		if startingHandsComplete()==true then
-			--Only continue setup after the physical hand zones confirm the deal.
-			finishStartingHandSetup()
-			return
-		end
-		repairAttempts=repairAttempts+1
-		dealAllHands()
-		if repairAttempts==30 then
-			local missing={}
-			for playerIndex, details in ipairs(turnOrder) do
-				if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then
-					local have=startingHandCount(playerIndex)
-					local target=startingHandTarget(playerIndex)
-					if have<target then missing[#missing+1]=tostring(details.mage).." "..tostring(have).."/"..tostring(target) end
-				end
-			end
-			log("Starting hand verification is taking unusually long: "..table.concat(missing,", "))
-		end
-		--Allow the current smooth draw to reach the hand zone before checking again. Because the
-		--next pass calculates only the remaining gap, successful partial deals are naturally repaired.
-		--Do not abandon the mechanical setup invariant after an arbitrary timeout.
-		startingHandRepairWait=safeWaitTime("PlayerBoard.CardFlow",verifyAndRepairStartingHands,2)
-	end
-	local function beginVerifiedDeal()
-		dealAllHands()
-		if startingHandRepairWait~=nil then Wait.stop(startingHandRepairWait) end
-		startingHandRepairWait=safeWaitTime("PlayerBoard.CardFlow",verifyAndRepairStartingHands,2)
-	end
-	safeWaitCondition("PlayerBoard.CardFlow",beginVerifiedDeal, function()
-		if startingDeedDecksReadyForDraw()==false then return false end
-		if coralPrepared==false then
-			coralPrepared=true
-			coralSetAsideQuickWitted()
-			return false
-		end
-		return coralQuickWittedReadyForDraw()
-	end, 10, function()
-		coralSetAsideQuickWitted()
-		safeWaitFrames("PlayerBoard.CardFlow",beginVerifiedDeal, 5)
-	end)
-end
-
 --Meditation / Trance card smarts. Top/Bot starts as Meditation; adding discard cards to the Deed Deck tells the script Trance was powered.
 meditationTranceCardGUID="2eb8d0"
 local function meditationPlayerIndex(card)
@@ -1540,6 +1482,71 @@ function dealAllHands()
 			end
 		end
 	end,0.5)
+end
+
+--Verified setup deal. Keep this below the local starting-hand helpers so Lua closes over the
+--actual locals rather than looking for same-named globals.
+local startingHandRepairWait=nil
+function dealStartingHandsWhenReady(onComplete)
+	local coralPrepared=false
+	local repairAttempts=0
+	local completionSent=false
+
+	local function handStateText()
+		local parts={}
+		for playerIndex, details in ipairs(turnOrder) do
+			if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then
+				parts[#parts+1]=tostring(details.mage).." "..tostring(startingHandCount(playerIndex)).."/"..tostring(startingHandTarget(playerIndex))
+			end
+		end
+		return table.concat(parts,", ")
+	end
+
+	local function finishStartingHandSetup()
+		if completionSent==true then return end
+		completionSent=true
+		log("SETUP HANDS: verified complete - "..handStateText())
+		rewindTransactionFinish("Game setup")
+		if onComplete~=nil then
+			log("SETUP HANDS: invoking completion callback")
+			onComplete()
+		end
+	end
+
+	local function verifyAndRepairStartingHands()
+		startingHandRepairWait=nil
+		if startingHandsComplete()==true then
+			finishStartingHandSetup()
+			return
+		end
+		repairAttempts=repairAttempts+1
+		log("SETUP HANDS: repair pass "..tostring(repairAttempts).." - "..handStateText())
+		dealAllHands()
+		startingHandRepairWait=safeWaitTime("PlayerBoard.CardFlow",verifyAndRepairStartingHands,2)
+	end
+
+	local function beginVerifiedDeal()
+		log("SETUP HANDS: beginning deal - "..handStateText())
+		dealAllHands()
+		if startingHandRepairWait~=nil then Wait.stop(startingHandRepairWait) end
+		startingHandRepairWait=safeWaitTime("PlayerBoard.CardFlow",verifyAndRepairStartingHands,2)
+	end
+
+	log("SETUP HANDS: waiting for Deed piles")
+	safeWaitCondition("PlayerBoard.CardFlow",beginVerifiedDeal, function()
+		if startingDeedDecksReadyForDraw()==false then return false end
+		if coralPrepared==false then
+			coralPrepared=true
+			log("SETUP HANDS: Deed piles ready; preparing Coral if present")
+			coralSetAsideQuickWitted()
+			return false
+		end
+		return coralQuickWittedReadyForDraw()
+	end, 10, function()
+		log("SETUP HANDS: readiness wait timed out; forcing verified deal path")
+		coralSetAsideQuickWitted()
+		safeWaitFrames("PlayerBoard.CardFlow",beginVerifiedDeal, 5)
+	end)
 end
 
 --Fill any gaps in the offer by sliding more cards down the line
