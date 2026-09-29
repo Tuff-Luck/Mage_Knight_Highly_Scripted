@@ -2061,6 +2061,56 @@ function cameraControlTopDown(player, value, id)
 	end
 end
 
+local RESOURCE_TRACKER_EXPANDERS={	["DisplayMoveCosts"]={"MoveCosts", 240},
+					["DisplaySiegeDetails"]={"SiegeAmountDetails", 120},
+					["DisplayRangeDetails"]={"RangeAmountDetails", 120},
+					["DisplayBlockDetails"]={"BlockAmountDetails", 120},
+					["DisplayAttacDetails"]={"AttacAmountDetails", 120},
+					["DisplayInfluDetails"]={"InfluAmountDetails", 90}}
+
+local RESOURCE_TRACKER_FIELDS={	["MovemAmountPlain"]={"move", "move", "{en}Move : {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동 : {es}Mover : {fr}Se déplacer : {pt-br}Mover : {de}Bewegen : "},
+					["SiegeAmountPlain"]={"siege", "physical", "{en}Siege : {ru}Осадная: {zh-tw}攻城：{zh-cn}攻城：{ko}공성 : {es}Asedio : {fr}Siège : {pt-br}Cerco : {de}Belagerung : "},
+					["SiegeAmountPhysi"]={"siege", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
+					["SiegeAmountFirex"]={"siege", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
+					["SiegeAmountIcexx"]={"siege", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
+					["SiegeAmountColdF"]={"siege", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["RangeAmountPlain"]={"ranged", "physical", "{en}Range : {ru}Дальняя: {zh-tw}遠程：{zh-cn}远程：{ko}원거리 : {es}Rango : {fr}Gamme : {pt-br}Distância : {de}Reichweite : "},
+					["RangeAmountPhysi"]={"ranged", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
+					["RangeAmountFirex"]={"ranged", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
+					["RangeAmountIcexx"]={"ranged", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
+					["RangeAmountColdF"]={"ranged", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["BlockAmountPlain"]={"block", "physical", "{en}Block : {ru}Блок: {zh-tw}格擋：{zh-cn}格档：{ko}방어 : {es}Bloqueo : {fr}Blocage : {pt-br}Bloqueio : {de}Blockieren : "},
+					["BlockAmountPhysi"]={"block", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
+					["BlockAmountFirex"]={"block", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
+					["BlockAmountIcexx"]={"block", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
+					["BlockAmountColdF"]={"block", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["AttacAmountPlain"]={"attack", "physical", "{en}Attack : {ru}Атака: {zh-tw}攻擊：{zh-cn}攻击：{ko}공격 : {es}Ataque : {fr}Attaque : {pt-br}Ataque : {de}Angriff : "},
+					["AttacAmountPhysi"]={"attack", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
+					["AttacAmountFirex"]={"attack", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
+					["AttacAmountIcexx"]={"attack", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
+					["AttacAmountColdF"]={"attack", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["InfluAmountPlain"]={"influence", "generated", "{en}Influence : {ru}Влияние: {zh-tw}影響力：{zh-cn}影响力：{ko}영향력 : {es}Influencia : {fr}Influence : {pt-br}Influência : {de}Einfluss : "},
+					["InfluAmountPhysi"]={"influence", "generated", "{en}Generated : {ru}Сгенерировано: {zh-tw}產生的：{zh-cn}产生的：{ko}사용 : {es}Generación : {fr}Généré : {pt-br}Gerado : {de}Erzeugt : "},
+					["InfluAmountReput"]={"influence", "reputation", "{en}Reputation : {ru}Репутация: {zh-tw}聲譽：{zh-cn}声誉：{ko}평판 : {es}Reputación : {fr}Réputation : {pt-br}Reputação : {de}Reputation : "},
+					["InfluAmountCityS"]={"influence", "cityShields", "{en}City Shields : {ru}Щиты на городе: {zh-tw}城市的盾徽：{zh-cn}城市的盾徽：{ko}도시 방패 토큰 : {es}Escudos de la Ciudad : {fr}Boucliers de Ville : {pt-br}Escudos das Cidades : {de}Stadtschilde : "},
+					["HealiAmountPlain"]={"healing", "healing", "{en}Healing : {ru}Лечение: {zh-tw}治療：{zh-cn}治疗：{ko}치유 : {es}Curación : {fr}Guérison : {pt-br}Cura : {de}Heilung : "}}
+local RESOURCE_TRACKER_TOTAL_FIELDS={
+	SiegeAmountPlain="siege",
+	RangeAmountPlain="ranged",
+	BlockAmountPlain="block",
+	AttacAmountPlain="attack",
+	InfluAmountPlain="influence"
+}
+
+local MOVE_COST_FIELDS={	["Plain"]={"plains", "{en}Plains : {ru}Равнины: {zh-tw}平原：{zh-cn}平原：{ko}평지 :{es}Llanuras : {fr}Plaines : {pt-br}Planícies : {de}Ebenen : "},
+				["Hills"]={"hills", "{en}Hills : {ru}Холмы: {zh-tw}丘陵：{zh-cn}丘陵：{ko}언덕 : {es}Colinas : {fr}Collines : {pt-br}Colinas : {de}Hügel : "},
+				["Fores"]={"forest", "{en}Forests : {ru}Леса: {zh-tw}森林：{zh-cn}森林：{ko}숲 : {es}Bosques : {fr}Forêts : {pt-br}Florestas : {de}Wälder : "},
+				["Waste"]={"wasteland", "{en}Wastelands : {ru}Пустоши: {zh-tw}荒原：{zh-cn}荒原：{ko}황무지 : {es}Páramos : {fr}Terrains Vagues : {pt-br}Terras Devastadas : {de}Ödland : "},
+				["Deser"]={"desert", "{en}Deserts : {ru}Пустыни: {zh-tw}沙漠：{zh-cn}沙漠：{ko}사막 : {es}Desiertos : {fr}Déserts : {pt-br}Desertos : {de}Wüsten : "},
+				["Swamp"]={"swamp", "{en}Swamps : {ru}Болота: {zh-tw}沼澤：{zh-cn}沼泽：{ko}늪 : {es}Pantanos : {fr}Marécages : {pt-br}Pântanos : {de}Sümpfe : "},
+				["Lakes"]={"lake", "{en}Lakes : {ru}Озера: {zh-tw}湖泊：{zh-cn}湖泊：{ko}호수 : {es}Lagos : {fr}Lacs : {pt-br}Lagos : {de}Seen : "},
+				["Mount"]={"mountain", "{en}Mountains : {ru}Горы: {zh-tw}山脈：{zh-cn}山脉：{ko}산 : {es}Montañas : {fr}Montagnes : {pt-br}Montanhas : {de}Berge : "}}
+
 function resourceTracker(player, mouseButton, id)
 	if mouseButton=="-1" then--and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
 		--expand Resource Tracker
@@ -2080,12 +2130,7 @@ function resourceTracker(player, mouseButton, id)
 			return
 		end
 		--expander buttons
-		local IDConvert={	["DisplayMoveCosts"]={"MoveCosts", 240},
-							["DisplaySiegeDetails"]={"SiegeAmountDetails", 120},
-							["DisplayRangeDetails"]={"RangeAmountDetails", 120},
-							["DisplayBlockDetails"]={"BlockAmountDetails", 120},
-							["DisplayAttacDetails"]={"AttacAmountDetails", 120},
-							["DisplayInfluDetails"]={"InfluAmountDetails", 90}}
+		local IDConvert=RESOURCE_TRACKER_EXPANDERS
 		if IDConvert[id]~=nil then
 			local temp="false"
 			local temp2=-1
@@ -2096,32 +2141,7 @@ function resourceTracker(player, mouseButton, id)
 			return
 		end
 		--resource tracking
-		local IDConvert={	["MovemAmountPlain"]={"move", "move", "{en}Move : {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동 : {es}Mover : {fr}Se déplacer : {pt-br}Mover : {de}Bewegen : "},
-							["SiegeAmountPlain"]={"siege", "physical", "{en}Siege : {ru}Осадная: {zh-tw}攻城：{zh-cn}攻城：{ko}공성 : {es}Asedio : {fr}Siège : {pt-br}Cerco : {de}Belagerung : "},
-							["SiegeAmountPhysi"]={"siege", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
-							["SiegeAmountFirex"]={"siege", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
-							["SiegeAmountIcexx"]={"siege", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
-							["SiegeAmountColdF"]={"siege", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
-							["RangeAmountPlain"]={"ranged", "physical", "{en}Range : {ru}Дальняя: {zh-tw}遠程：{zh-cn}远程：{ko}원거리 : {es}Rango : {fr}Gamme : {pt-br}Distância : {de}Reichweite : "},
-							["RangeAmountPhysi"]={"ranged", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
-							["RangeAmountFirex"]={"ranged", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
-							["RangeAmountIcexx"]={"ranged", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
-							["RangeAmountColdF"]={"ranged", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
-							["BlockAmountPlain"]={"block", "physical", "{en}Block : {ru}Блок: {zh-tw}格擋：{zh-cn}格档：{ko}방어 : {es}Bloqueo : {fr}Blocage : {pt-br}Bloqueio : {de}Blockieren : "},
-							["BlockAmountPhysi"]={"block", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
-							["BlockAmountFirex"]={"block", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
-							["BlockAmountIcexx"]={"block", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
-							["BlockAmountColdF"]={"block", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
-							["AttacAmountPlain"]={"attack", "physical", "{en}Attack : {ru}Атака: {zh-tw}攻擊：{zh-cn}攻击：{ko}공격 : {es}Ataque : {fr}Attaque : {pt-br}Ataque : {de}Angriff : "},
-							["AttacAmountPhysi"]={"attack", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
-							["AttacAmountFirex"]={"attack", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
-							["AttacAmountIcexx"]={"attack", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
-							["AttacAmountColdF"]={"attack", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
-							["InfluAmountPlain"]={"influence", "generated", "{en}Influence : {ru}Влияние: {zh-tw}影響力：{zh-cn}影响力：{ko}영향력 : {es}Influencia : {fr}Influence : {pt-br}Influência : {de}Einfluss : "},
-							["InfluAmountPhysi"]={"influence", "generated", "{en}Generated : {ru}Сгенерировано: {zh-tw}產生的：{zh-cn}产生的：{ko}사용 : {es}Generación : {fr}Généré : {pt-br}Gerado : {de}Erzeugt : "},
-							["InfluAmountReput"]={"influence", "reputation", "{en}Reputation : {ru}Репутация: {zh-tw}聲譽：{zh-cn}声誉：{ko}평판 : {es}Reputación : {fr}Réputation : {pt-br}Reputação : {de}Reputation : "},
-							["InfluAmountCityS"]={"influence", "cityShields", "{en}City Shields : {ru}Щиты на городе: {zh-tw}城市的盾徽：{zh-cn}城市的盾徽：{ko}도시 방패 토큰 : {es}Escudos de la Ciudad : {fr}Boucliers de Ville : {pt-br}Escudos das Cidades : {de}Stadtschilde : "},
-							["HealiAmountPlain"]={"healing", "healing", "{en}Healing : {ru}Лечение: {zh-tw}治療：{zh-cn}治疗：{ko}치유 : {es}Curación : {fr}Guérison : {pt-br}Cura : {de}Heilung : "}}
+		local IDConvert=RESOURCE_TRACKER_FIELDS
 		if IDConvert[id:sub(1,16)]~=nil then
 			local resourceTotal=0
 			for type, value in pairs(gStates.resourceTracker[IDConvert[id:sub(1,16)][1]]) do
@@ -2145,14 +2165,7 @@ function resourceTracker(player, mouseButton, id)
 		if id:sub(1,8)=="MoveCost" then
 			local temp="1"
 			if id:sub(14,17)=="Down" then temp="-1" end
-			local convert={	["Plain"]={"plains", "{en}Plains : {ru}Равнины: {zh-tw}平原：{zh-cn}平原：{ko}평지 :{es}Llanuras : {fr}Plaines : {pt-br}Planícies : {de}Ebenen : "},
-							["Hills"]={"hills", "{en}Hills : {ru}Холмы: {zh-tw}丘陵：{zh-cn}丘陵：{ko}언덕 : {es}Colinas : {fr}Collines : {pt-br}Colinas : {de}Hügel : "},
-							["Fores"]={"forest", "{en}Forests : {ru}Леса: {zh-tw}森林：{zh-cn}森林：{ko}숲 : {es}Bosques : {fr}Forêts : {pt-br}Florestas : {de}Wälder : "},
-							["Waste"]={"wasteland", "{en}Wastelands : {ru}Пустоши: {zh-tw}荒原：{zh-cn}荒原：{ko}황무지 : {es}Páramos : {fr}Terrains Vagues : {pt-br}Terras Devastadas : {de}Ödland : "},
-							["Deser"]={"desert", "{en}Deserts : {ru}Пустыни: {zh-tw}沙漠：{zh-cn}沙漠：{ko}사막 : {es}Desiertos : {fr}Déserts : {pt-br}Desertos : {de}Wüsten : "},
-							["Swamp"]={"swamp", "{en}Swamps : {ru}Болота: {zh-tw}沼澤：{zh-cn}沼泽：{ko}늪 : {es}Pantanos : {fr}Marécages : {pt-br}Pântanos : {de}Sümpfe : "},
-							["Lakes"]={"lake", "{en}Lakes : {ru}Озера: {zh-tw}湖泊：{zh-cn}湖泊：{ko}호수 : {es}Lagos : {fr}Lacs : {pt-br}Lagos : {de}Seen : "},
-							["Mount"]={"mountain", "{en}Mountains : {ru}Горы: {zh-tw}山脈：{zh-cn}山脉：{ko}산 : {es}Montañas : {fr}Montagnes : {pt-br}Montanhas : {de}Berge : "}}
+			local convert=MOVE_COST_FIELDS
 			if (temp=="1" and gStates.moveCost[convert[id:sub(9,13)][1]]<900) or (temp=="-1" and gStates.moveCost[convert[id:sub(9,13)][1]]>0) then
 				gStates.moveCost[convert[id:sub(9,13)][1]]=gStates.moveCost[convert[id:sub(9,13)][1]]+tonumber(temp)
 			end
@@ -2168,50 +2181,21 @@ end
 
 function refreshResourceTrackerText()
 	if gStates.resourceTracker==nil or gStates.moveCost==nil then return end
-	local mountain="X" if gStates.moveCost.mountain<7 then mountain=tostring(gStates.moveCost.mountain) end
-	local lake="X" if gStates.moveCost.lake<7 then lake=tostring(gStates.moveCost.lake) end
 	local resourceTotal={siege=0, ranged=0, block=0, attack=0, influence=0}
-	for type, value in pairs(resourceTotal) do
-		for _, value2 in pairs(gStates.resourceTracker[type]) do
-			resourceTotal[type]=resourceTotal[type]+value2
+	for resourceType in pairs(resourceTotal) do
+		for _, value in pairs(gStates.resourceTracker[resourceType]) do
+			resourceTotal[resourceType]=resourceTotal[resourceType]+value
 		end
 	end
-	local baseValues={	HealiAmountPlainText=joinLang({"{en}Healing : {ru}Лечение: {zh-tw}治療：{zh-cn}治疗：{ko}치유 : {es}Curación : {fr}Guérison : {pt-br}Cura : {de}Heilung : ", gStates.resourceTracker.healing.healing}),
-						SiegeAmountPlainText=joinLang({"{en}Siege : {ru}Осадная: {zh-tw}攻城：{zh-cn}攻城：{ko}공성 : {es}Asedio : {fr}Siège : {pt-br}Cerco : {de}Belagerung : ", resourceTotal.siege}),
-							SiegeAmountPhysiText=joinLang({"{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : ", gStates.resourceTracker.siege.physical}),
-							SiegeAmountFirexText=joinLang({"{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : ", gStates.resourceTracker.siege.fire}),
-							SiegeAmountIcexxText=joinLang({"{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : ", gStates.resourceTracker.siege.ice}),
-							SiegeAmountColdFText=joinLang({"{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : ", gStates.resourceTracker.siege.iceFire}),
-						RangeAmountPlainText=joinLang({"{en}Range : {ru}Дальняя: {zh-tw}遠程：{zh-cn}远程：{ko}원거리 : {es}Rango : {fr}Gamme : {pt-br}Distância : {de}Reichweite : ", resourceTotal.ranged}),
-							RangeAmountPhysiText=joinLang({"{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : ", gStates.resourceTracker.ranged.physical}),
-							RangeAmountFirexText=joinLang({"{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : ", gStates.resourceTracker.ranged.fire}),
-							RangeAmountIcexxText=joinLang({"{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : ", gStates.resourceTracker.ranged.ice}),
-							RangeAmountColdFText=joinLang({"{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : ", gStates.resourceTracker.ranged.iceFire}),
-						BlockAmountPlainText=joinLang({"{en}Block : {ru}Блок: {zh-tw}格擋：{zh-cn}格档：{ko}방어 : {es}Bloqueo : {fr}Blocage : {pt-br}Bloqueio : {de}Blockieren : ", resourceTotal.block}),
-							BlockAmountPhysiText=joinLang({"{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : ", gStates.resourceTracker.block.physical}),
-							BlockAmountFirexText=joinLang({"{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : ", gStates.resourceTracker.block.fire}),
-							BlockAmountIcexxText=joinLang({"{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : ", gStates.resourceTracker.block.ice}),
-							BlockAmountColdFText=joinLang({"{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : ", gStates.resourceTracker.block.iceFire}),
-						AttacAmountPlainText=joinLang({"{en}Attack : {ru}Атака: {zh-tw}攻擊：{zh-cn}攻击：{ko}공격 : {es}Ataque : {fr}Attaque : {pt-br}Ataque : {de}Angriff : ", resourceTotal.attack}),
-							AttacAmountPhysiText=joinLang({"{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : ", gStates.resourceTracker.attack.physical}),
-							AttacAmountFirexText=joinLang({"{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : ", gStates.resourceTracker.attack.fire}),
-							AttacAmountIcexxText=joinLang({"{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : ", gStates.resourceTracker.attack.ice}),
-							AttacAmountColdFText=joinLang({"{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : ", gStates.resourceTracker.attack.iceFire}),
-						InfluAmountPlainText=joinLang({"{en}Influence : {ru}Влияние: {zh-tw}影響力：{zh-cn}影响力：{ko}영향력 : {es}Influencia : {fr}Influence : {pt-br}Influência : {de}Einfluss : ", resourceTotal.influence}),
-							InfluAmountPhysiText=joinLang({"{en}Generated : {ru}Сгенерировано: {zh-tw}產生的：{zh-cn}产生的：{ko}사용 : {es}Generación : {fr}Généré : {pt-br}Gerado : {de}Erzeugt : ", gStates.resourceTracker.influence.generated}),
-							InfluAmountReputText=joinLang({"{en}Reputation : {ru}Репутация: {zh-tw}聲譽：{zh-cn}声誉：{ko}평판 : {es}Reputación : {fr}Réputation : {pt-br}Reputação : {de}Reputation : ", gStates.resourceTracker.influence.reputation}),
-							InfluAmountCitySText=joinLang({"{en}City Shields : {ru}Щиты на городе: {zh-tw}城市的盾徽：{zh-cn}城市的盾徽：{ko}도시 방패 토큰 : {es}Escudos de la Ciudad : {fr}Boucliers de Ville : {pt-br}Escudos das Cidades : {de}Stadtschilde : ", gStates.resourceTracker.influence.cityShields}),
-						MovemAmountPlainText=joinLang({"{en}Move : {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동 : {es}Mover : {fr}Se déplacer : {pt-br}Mover : {de}Bewegen : ", gStates.resourceTracker.move.move}),
-							MoveCostPlainText=joinLang({"{en}Plains : {ru}Равнины: {zh-tw}平原：{zh-cn}平原：{ko}평지 :{es}Llanuras : {fr}Plaines : {pt-br}Planícies : {de}Ebenen : ", gStates.moveCost.plains}),
-							MoveCostHillsText=joinLang({"{en}Hills : {ru}Холмы: {zh-tw}丘陵：{zh-cn}丘陵：{ko}언덕 : {es}Colinas : {fr}Collines : {pt-br}Colinas : {de}Hügel : ", gStates.moveCost.hills}),
-							MoveCostForesText=joinLang({"{en}Forests : {ru}Леса: {zh-tw}森林：{zh-cn}森林：{ko}숲 : {es}Bosques : {fr}Forêts : {pt-br}Florestas : {de}Wälder : ", gStates.moveCost.forest}),
-							MoveCostWasteText=joinLang({"{en}Wastelands : {ru}Пустоши: {zh-tw}荒原：{zh-cn}荒原：{ko}황무지 : {es}Páramos : {fr}Terrains Vagues : {pt-br}Terras Devastadas : {de}Ödland : ", gStates.moveCost.wasteland}),
-							MoveCostDeserText=joinLang({"{en}Deserts : {ru}Пустыни: {zh-tw}沙漠：{zh-cn}沙漠：{ko}사막 : {es}Desiertos : {fr}Déserts : {pt-br}Desertos : {de}Wüsten : ", gStates.moveCost.desert}),
-							MoveCostSwampText=joinLang({"{en}Swamps : {ru}Болота: {zh-tw}沼澤：{zh-cn}沼泽：{ko}늪 : {es}Pantanos : {fr}Marécages : {pt-br}Pântanos : {de}Sümpfe : ", gStates.moveCost.swamp}),
-							MoveCostLakesText=joinLang({"{en}Lakes : {ru}Озера: {zh-tw}湖泊：{zh-cn}湖泊：{ko}호수 : {es}Lagos : {fr}Lacs : {pt-br}Lagos : {de}Seen : ", lake}),
-							MoveCostMountText=joinLang({"{en}Mountains : {ru}Горы: {zh-tw}山脈：{zh-cn}山脉：{ko}산 : {es}Montañas : {fr}Montagnes : {pt-br}Montanhas : {de}Berge : ", mountain})}
-	for element, value in pairs(baseValues) do
-		UI.setAttribute(element, "text", value)
+	for fieldId, spec in pairs(RESOURCE_TRACKER_FIELDS) do
+		local totalType=RESOURCE_TRACKER_TOTAL_FIELDS[fieldId]
+		local value=totalType~=nil and resourceTotal[totalType] or gStates.resourceTracker[spec[1]][spec[2]]
+		UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
+	end
+	for fieldId, spec in pairs(MOVE_COST_FIELDS) do
+		local value=gStates.moveCost[spec[1]]
+		local display=value>900 and "X" or tostring(value)
+		UI.setAttribute("MoveCost"..fieldId.."Text","text",joinLang({spec[2],display}))
 	end
 end
 
