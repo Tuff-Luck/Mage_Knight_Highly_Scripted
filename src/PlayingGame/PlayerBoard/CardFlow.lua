@@ -773,7 +773,7 @@ function drawUpTo(player, mouseButton, id)
 		local playerPosition=turnOrder[gStates.turnNumber].seatPos
 		if legalPlayerCheck(player.color, playerPosition)==true then
 			if deedTransferBusy(playerPosition)==true then
-				safeWaitCondition("PlayerBoard.CardFlow",function() drawExactDeedCards(turnAffected, excess, "DrawHand") end,function() return deedTransferBusy(playerPosition)~=true end,10,function() drawUpTo(player,mouseButton,id) end)
+				safeWaitCondition("PlayerBoard.CardFlow",function() drawUpTo(player,mouseButton,id) end,function() return deedTransferBusy(playerPosition)~=true end,10,function() drawUpTo(player,mouseButton,id) end)
 				return
 			end
 			local meditationBonus=0
@@ -867,9 +867,8 @@ function drawUpTo(player, mouseButton, id)
 									end
 									broadcastToAll("{en}Night Tactic Two was used to refill the Deed Deck with up to 3 random discards{ru}Ночная Тактика 2 была использована, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний{zh-tw}夜間戰術 2 已用最多 3 張隨機棄牌補充行動牌庫{zh-cn}夜间战术 2 已用最多 3 张随机弃牌补充行动牌库{ko}밤 전략 2로 버린 카드 중 무작위로 최대 3장을 행동 덱에 되돌렸습니다{es}La Táctica Nocturna 2 se usó para devolver hasta 3 descartes aleatorios al mazo de Proezas{fr}La Tactique de Nuit 2 a remis jusqu'à 3 défausses aléatoires dans le paquet d'Actions{pt-br}A Tática Noturna 2 devolveu até 3 descartes aleatórios ao Baralho de Façanhas{de}Nachttaktik 2 hat bis zu 3 zufällige Ablagekarten in das Handlungskartendeck zurückgelegt", positionToColor(turnAffected))
 									mainUIUpdate("Night Tactic 2 Used")
-									--The refill pause has finished; restart the normal Draw Hand flow so it
-									--recalculates the hand and draws exactly however many cards are still owed.
-									drawUpTo(player,mouseButton,id)
+									--The refill pause has finished; resume the interrupted player's exact remaining draw.
+									drawExactDeedCards(turnAffected, excess, "DrawHand")
 								end)
 							end
 						end, 2)
