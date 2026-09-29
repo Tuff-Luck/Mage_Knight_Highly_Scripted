@@ -122,7 +122,7 @@ end
 deedTransferState={queues={},active={},transit={}}
 function deedTransferBusy(seatPos)
 	local queue=deedTransferState.queues[seatPos]
-	return deedTransferState.active[seatPos]~=nil or (queue~=nil and #queue>0)
+	return (nightTacticTwoBusy~=nil and nightTacticTwoBusy[seatPos]==true) or deedTransferState.active[seatPos]~=nil or (queue~=nil and #queue>0)
 end
 
 function deedTransferAnyBusy()
@@ -697,7 +697,12 @@ local function nightTacticTwoFindCard(zone, guid)
 	return nil,nil
 end
 
-local function nightTacticTwoRefillAndDraw(playerIndex, drawCount, done)
+nightTacticTwoBusy=nightTacticTwoBusy or {}
+
+--Canonical Long Night resolver. drawCount is zero for a manual use, or the number of cards still
+--owed when Long Night interrupts Draw Hand. The deliberately visible pacing also gives TTS time
+--to finish Deck->Card collapse/merge updates before the next physical step begins.
+function nightTacticTwoResolve(playerIndex, drawCount, done)
 	local details=turnOrder[playerIndex]
 	if details==nil then if done~=nil then done(0,0) end return end
 	local seatPos=details.seatPos
@@ -707,22 +712,42 @@ local function nightTacticTwoRefillAndDraw(playerIndex, drawCount, done)
 	local available=nightTacticTwoCardGUIDs(discardZone)
 	local selected={}
 	for a=1, math.min(3,#available) do selected[a]=available[a] end
+	if #selected<1 then if done~=nil then done(0,0) end return end
+
+	drawCount=math.max(0,tonumber(drawCount) or 0)
+	nightTacticTwoBusy[seatPos]=true
 	local deckPos=deedZone.getPosition()
 	deckPos={deckPos[1],1.50,deckPos[3]}
+	local returnTarget={deckPos[1],deckPos[2]+0.9,deckPos[3]}
 	local returned=0
 
 	local function finish(drawn)
-		safeWaitFrames("PlayerBoard.CardFlow",function()
+		nightTacticTwoBusy[seatPos]=nil
+		safeWaitTime("PlayerBoard.CardFlow",function()
 			turnOrder[playerIndex].deedCount=readDeedPileCardCount(seatPos)
 			scheduleDeedPileDescriptionRefresh(seatPos,"deed")
 			scheduleDeedPileDescriptionRefresh(seatPos,"discard")
 			scheduleEndRoundDeedStateRefresh(seatPos)
 			if done~=nil then done(returned,drawn) end
-		end,4)
+		end,0.35)
 	end
 
-	local function drawReturned(index, drawn)
-		if index>drawCount then finish(drawn) return end
+	local function waitForMove(guid,target,nextStep)
+		safeWaitCondition("PlayerBoard.CardFlow",function()
+			safeWaitTime("PlayerBoard.CardFlow",nextStep,0.30)
+		end,function()
+			local card=getObjectFromGUID(guid)
+			if card==nil then return true end
+			local pos=card.getPosition()
+			return math.abs(pos[1]-target[1])<0.30 and math.abs(pos[3]-target[3])<0.30
+		end,2.5,function()
+			safeWaitTime("PlayerBoard.CardFlow",nextStep,0.30)
+		end)
+	end
+
+	local drawReturned
+	drawReturned=function(index, drawn)
+		if index>drawCount or index>returned then finish(drawn) return end
 		local pile=nil
 		for _, obj in pairs(deedZone.getObjects()) do
 			if obj.type=="Deck" then pile=obj break end
@@ -730,36 +755,45 @@ local function nightTacticTwoRefillAndDraw(playerIndex, drawCount, done)
 		end
 		if pile==nil then finish(drawn) return end
 		local handPos={(seatPos*40)-105-(index*0.2),4.59,-47.55}
+		local moved=nil
 		if pile.type=="Deck" then
-			local card=pile.takeObject({position=handPos,rotation={0,180,0},smooth=false})
-			if card==nil then finish(drawn) return end
+			moved=safeTakeObject("PlayerBoard.CardFlow",pile,{position=handPos,rotation={0,180,0},smooth=true})
+			if moved==nil then finish(drawn) return end
 		else
-			pile.setScale({1.5,1,1.5})
-			pile.setRotation({0,180,0})
-			pile.setPosition(handPos)
+			moved=pile
+			moved.setScale({1.5,1,1.5})
+			moved.setRotationSmooth({0,180,0},false,false)
+			moved.setPositionSmooth(handPos,false,false)
 		end
-		safeWaitFrames("PlayerBoard.CardFlow",function() drawReturned(index+1,drawn+1) end,2)
+		waitForMove(moved.guid,handPos,function() drawReturned(index+1,drawn+1) end)
 	end
 
-	local function returnSelected(index)
+	local returnSelected
+	returnSelected=function(index)
 		if index>#selected then
-			safeWaitFrames("PlayerBoard.CardFlow",function() drawReturned(1,0) end,4)
+			safeWaitTime("PlayerBoard.CardFlow",function() drawReturned(1,0) end,0.70)
 			return
 		end
 		local loose,deck=nightTacticTwoFindCard(discardZone,selected[index])
 		local function placed(card)
-			if card~=nil then
-				card.setScale({1.5,1,1.5})
-				card.setRotation({0,180,180})
-				card.setPosition({deckPos[1],deckPos[2]+1.0,deckPos[3]})
-				returned=returned+1
+			if card==nil then
+				safeWaitTime("PlayerBoard.CardFlow",function() returnSelected(index+1) end,0.20)
+				return
 			end
-			safeWaitFrames("PlayerBoard.CardFlow",function() returnSelected(index+1) end,3)
+			card.setScale({1.5,1,1.5})
+			card.setRotationSmooth({0,180,180},false,false)
+			card.setPositionSmooth(returnTarget,false,false)
+			returned=returned+1
+			waitForMove(card.guid,returnTarget,function() returnSelected(index+1) end)
 		end
-		if loose~=nil then placed(loose)
+		if loose~=nil then
+			placed(loose)
 		elseif deck~=nil then
-			safeTakeObject("PlayerBoard.CardFlow",deck,{guid=selected[index],position={deckPos[1],deckPos[2]+1.0,deckPos[3]},rotation={0,180,180},smooth=false,callback_function=placed})
-		else returnSelected(index+1) end
+			local taken=safeTakeObject("PlayerBoard.CardFlow",deck,{guid=selected[index],position=returnTarget,rotation={0,180,180},smooth=true,callback_function=placed})
+			if taken==nil then safeWaitTime("PlayerBoard.CardFlow",function() returnSelected(index+1) end,0.20) end
+		else
+			safeWaitTime("PlayerBoard.CardFlow",function() returnSelected(index+1) end,0.20)
+		end
 	end
 
 	returnSelected(1)
@@ -853,17 +887,25 @@ function drawUpTo(player, mouseButton, id)
 						end
 						cardClaim=false
 						safeWaitFrames("PlayerBoard.CardFlow",function()
-							safeWaitTime("PlayerBoard.CardFlow",function()
-								--Night tactic 2 grab three random discards back to deck if draw will reduce to 0.
-								if id=="DrawHand" and excess>0 and gStates.endRoundCalled==false and turnOrder[turnAffected].tactic==2 and gStates.dayRound==false and gStates.tacticTwoState~="Used" and turnOrder[turnAffected].mage~=gStates.positionMageKnight[5] then
-									gStates.tacticTwoState="Used"
-									nightTacticTwoRefillAndDraw(turnAffected,excess,function()
+							--Long Night may interrupt drawing as soon as the Deed deck becomes empty. Mark it
+							--used before the visible refill starts so its manual button cannot race this resolver.
+							if id=="DrawHand" and excess>0 and turnOrder[turnAffected].tactic==2 and gStates.dayRound==false and gStates.tacticTwoState~="Used" and turnOrder[turnAffected].mage~=gStates.positionMageKnight[5] then
+								gStates.tacticTwoState="Used"
+								mainUIUpdate("Night Tactic 2 Resolving")
+								safeWaitTime("PlayerBoard.CardFlow",function()
+									nightTacticTwoResolve(turnAffected,excess,function(returned)
+										if returned<1 then
+											gStates.tacticTwoState="notUsed"
+											mainUIUpdate("Night Tactic 2 Unused")
+											return
+										end
 										local tactic=getObjectFromGUID("f6ad01")
 										if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
 										broadcastToAll("{en}Night Tactic Two was used to refill the Deed Deck with up to 3 random discards{ru}Ночная Тактика 2 была использована, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний{zh-tw}夜間戰術 2 已用最多 3 張隨機棄牌補充行動牌庫{zh-cn}夜间战术 2 已用最多 3 张随机弃牌补充行动牌库{ko}밤 전략 2로 버린 카드 중 무작위로 최대 3장을 행동 덱에 되돌렸습니다{es}La Táctica Nocturna 2 se usó para devolver hasta 3 descartes aleatorios al mazo de Proezas{fr}La Tactique de Nuit 2 a remis jusqu'à 3 défausses aléatoires dans le paquet d'Actions{pt-br}A Tática Noturna 2 devolveu até 3 descartes aleatórios ao Baralho de Façanhas{de}Nachttaktik 2 hat bis zu 3 zufällige Ablagekarten in das Handlungskartendeck zurückgelegt", positionToColor(turnAffected))
+										mainUIUpdate("Night Tactic 2 Used")
 									end)
-								end
-							end, 0.5)
+								end,0.5)
+							end
 						end, 2)
 					end
 					if cardClaim==true then safeWaitTime("PlayerBoard.CardFlow",function() drawCardstoHand() end, 1.5) else drawCardstoHand() end--make sure the card has entered the deck
