@@ -122,7 +122,7 @@ end
 deedTransferState={queues={},active={},transit={}}
 function deedTransferBusy(seatPos)
 	local queue=deedTransferState.queues[seatPos]
-	return (nightTacticTwoBusy~=nil and nightTacticTwoBusy[seatPos]==true) or deedTransferState.active[seatPos]~=nil or (queue~=nil and #queue>0)
+	return deedTransferState.active[seatPos]~=nil or (queue~=nil and #queue>0)
 end
 
 function deedTransferAnyBusy()
@@ -675,8 +675,6 @@ end
 
 --Night Tactic 2 resolves as three visible phases: shuffle/flip, refill, then resume the normal draw flow.
 --The refill is launched as one batch; only the two deliberate presentation pauses remain.
-nightTacticTwoBusy=nightTacticTwoBusy or {}
-
 function nightTacticTwoResolve(playerIndex, done)
 	local details=turnOrder[playerIndex]
 	if details==nil then if done~=nil then done(0) end return end
@@ -694,7 +692,6 @@ function nightTacticTwoResolve(playerIndex, done)
 	local returnCount=discards.type=="Deck" and math.min(3,discards.getQuantity()) or 1
 	if returnCount<1 then if done~=nil then done(0) end return end
 
-	nightTacticTwoBusy[seatPos]=true
 	if discards.type=="Deck" then discards.shuffle() end
 	local tactic=getObjectFromGUID("f6ad01")
 	if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
@@ -703,7 +700,6 @@ function nightTacticTwoResolve(playerIndex, done)
 	local returnTarget={deckPos[1],2.40,deckPos[3]}
 
 	local function finish(returned)
-		nightTacticTwoBusy[seatPos]=nil
 		turnOrder[playerIndex].deedCount=readDeedPileCardCount(seatPos)
 		scheduleDeedPileDescriptionRefresh(seatPos,"deed")
 		scheduleDeedPileDescriptionRefresh(seatPos,"discard")
