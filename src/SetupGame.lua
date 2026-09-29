@@ -693,7 +693,8 @@ local function finalizeSetup()
 	gStates.turnNumber=1
 	refreshAllPlayerFameReputationFromShields()
 	refreshMageSkillLocations()
-	tacticToggle()
+	--Do not expose tactic selection until the physical starting hands are confirmed. This keeps
+	--turn/tactic state stable while the setup draw pipeline finishes.
 	--Map setup is now complete and startingMapSetup has been released. Build the first EXPLORE view
 	--from the final physical terrain positions instead of whichever setup callback happened last.
 	refreshTerrainExploreOptions()
@@ -755,7 +756,10 @@ local function finalizeSetup()
             if getObjectFromGUID("e7de55")~=nil then SendDataRequest("skip", "-1", "SendDataRequestYes") end
 	end, 400)--time in seconds, 1800=1/2 hour, 3600=1 hour 400
 	safeWaitTime("SetupGame",function() normalizeSetupTableObjects() end, 10)
-	dealStartingHandsWhenReady()
+	dealStartingHandsWhenReady(function()
+		--The first player-facing round action starts only after every active Mage Knight has a full hand.
+		tacticToggle()
+	end)
 	--All automated setup dependencies have completed. Any remaining smooth movement is presentation-only,
 	--so release the setup rewind guard immediately rather than relying on its 59-second failsafe.
 	setupReleaseRewind()
