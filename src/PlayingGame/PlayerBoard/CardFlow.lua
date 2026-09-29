@@ -786,6 +786,20 @@ function nightTacticTwoResolve(playerIndex, done)
 	end,0.75)
 end
 
+--Shared destination/animation for Deed cards entering a player's hand.
+--Night Tactic 6 uses this too so stored cards visibly join the hand exactly like a normal draw.
+function deedHandDrawPosition(seatPos, drawIndex)
+	local index=drawIndex or 0
+	return {(seatPos*40)-105-(index*0.2), 4.59, -47.55}
+end
+
+function animateDeedCardToHand(card, seatPos, drawIndex)
+	if card==nil then return end
+	card.setScale({1.5, 1, 1.5})
+	card.setPositionSmooth(deedHandDrawPosition(seatPos, drawIndex),false,false)
+	card.setRotationSmooth({0, 180, 0},false,false)
+end
+
 --Draw cards from a deed deck into that positions hand
 cardClaim=false
 function drawUpTo(player, mouseButton, id)
@@ -844,7 +858,7 @@ function drawUpTo(player, mouseButton, id)
 								local takeRemainder=drawNow==deckQuantity
 								if takeRemainder==true then deckTakes=math.max(0,deckQuantity-1) end
 								for x=1, deckTakes do
-									local drawn=deedDeck.takeObject({position={(playerPosition*40)-105-(x*0.2), 4.59, -47.55}, rotation={0, 180, 0}})
+									local drawn=deedDeck.takeObject({position=deedHandDrawPosition(playerPosition,x), rotation={0, 180, 0}, smooth=true})
 									if drawn~=nil then turnOrder[turnAffected].deedCount=math.max(0,(turnOrder[turnAffected].deedCount or 0)-1) end
 								end
 								if takeRemainder==true then
@@ -853,9 +867,7 @@ function drawUpTo(player, mouseButton, id)
 										if deedZone==nil then return end
 										for _, remainder in pairs(deedZone.getObjects()) do
 											if remainder.type=="Card" then
-												remainder.setScale({1.5, 1, 1.5})
-												remainder.setPositionSmooth({(playerPosition*40)-105-(drawNow*0.2), 4.59, -47.55})
-												remainder.setRotationSmooth({0, 180, 0})
+												animateDeedCardToHand(remainder,playerPosition,drawNow)
 												turnOrder[turnAffected].deedCount=math.max(0,(turnOrder[turnAffected].deedCount or 0)-1)
 												break
 											end
@@ -865,9 +877,7 @@ function drawUpTo(player, mouseButton, id)
 								end
 							else
 								excess=drawNeeded-1
-								deedDeck.setScale({1.5, 1, 1.5})
-								deedDeck.setPositionSmooth({(playerPosition*40)-105, 4.59, -47.55})
-								deedDeck.setRotationSmooth({0, 180, 0})
+								animateDeedCardToHand(deedDeck,playerPosition,0)
 								turnOrder[turnAffected].deedCount=math.max(0,(turnOrder[turnAffected].deedCount or 0)-1)
 							end
 							coralScheduleDeedRefresh(turnOrder[turnAffected].seatPos, 4)
