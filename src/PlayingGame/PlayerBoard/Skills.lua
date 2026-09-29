@@ -398,12 +398,7 @@ function claimButtonRefresh()
 			if count==0 then
 				local artifactDeck=getObjectFromGUID(GUID.deck.artifact)
 				if artifactDeck~=nil then
-					artifactDeck.UI.setAttribute("ac75c4ArtifactDown", "active", "true")
-					artifactDeck.UI.setAttribute("ac75c4ArtifactOffer", "active", "true")
-					artifactDeck.UI.setAttribute("ac75c4ArtifactUp", "active", "true")
-					artifactDeck.UI.setAttribute("ac75c4ArtifactDownImage", "image", "Overkill Down")
-					artifactDeck.UI.setAttribute("ac75c4ArtifactOfferImage", "image", "Sliced Button/Button Object Active")
-					artifactDeck.UI.setAttribute("ac75c4ArtifactUpImage", "image", "Overkill Up")
+					artifactOfferControlsRestore()
 				end
 			end
 		end
@@ -727,10 +722,9 @@ local function lockCompetitiveSkillCloneWhenSettled(clone)
 end
 
 local function competitiveSkillPlayerForSeat(seatPos)
-	for playerIndex, details in pairs(turnOrder) do
-		if details.seatPos==seatPos and details.seatPos<5 and details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then return playerIndex end
-	end
-	return nil
+	return turnOrderIndexAtSeat(seatPos,function(playerIndex,details)
+		return details.seatPos<5 and details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false
+	end)
 end
 
 local function competitiveSkillReminderCount(seatPos)

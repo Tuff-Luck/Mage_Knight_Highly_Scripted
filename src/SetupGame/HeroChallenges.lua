@@ -24,13 +24,6 @@ local function heroChallengeCountryIn(guid, numbers)
 	return false
 end
 
-local function heroChallengeCountryHasVillage(guid)
-	local data=terrainTiles[guid]
-	if data==nil or data.hexFeature==nil then return false end
-	for _, feature in pairs(data.hexFeature) do if feature=="village" then return true end end
-	return false
-end
-
 --Mirror the scenario-specific Countryside pools used by mapSetup(). This lets setup legality be tested
 --before Start is pressed and lets Hero Challenges safely combine the requirements of several Heroes.
 local function heroChallengeCountrySlotAllows(guid, slot)
@@ -132,10 +125,10 @@ function heroChallengeCountryAssignment(randomize)
 	local expandedSets={}
 	for _,required in ipairs(requirementSets) do
 		local hasVillage=false
-		for guid,_ in pairs(required) do if heroChallengeCountryHasVillage(guid)==true then hasVillage=true break end end
+		for guid,_ in pairs(required) do if terrainTileHasFeature(guid,"village")==true then hasVillage=true break end end
 		if apocalypseQuestsUsed()==true and hasVillage==false then
 			for _,guid in ipairs(available) do
-				if heroChallengeCountryHasVillage(guid)==true then
+				if terrainTileHasFeature(guid,"village")==true then
 					local copy={} for existing,_ in pairs(required) do copy[existing]=true end copy[guid]=true
 					expandedSets[#expandedSets+1]=copy
 				end

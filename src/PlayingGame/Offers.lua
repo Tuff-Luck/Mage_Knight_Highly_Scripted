@@ -4,6 +4,36 @@ local monasteryOfferIsCard, refreshUnitOfferSnapPoints, unitOfferCards, reflowUn
 
 -- Artifact, Unit, Monastery and deed-offer runtime.
 
+local ARTIFACT_CONTROL_IDS={"ac75c4ArtifactDown","ac75c4ArtifactOffer","ac75c4ArtifactUp"}
+
+local function artifactOfferDeck()
+	return getObjectFromGUID(GUID.deck.artifact)
+end
+
+function artifactOfferControlsHide()
+	local deck=artifactOfferDeck()
+	if deck==nil then return false end
+	for _,id in ipairs(ARTIFACT_CONTROL_IDS) do deck.UI.setAttribute(id,"active","false") end
+	return true
+end
+
+function artifactOfferControlsRestore()
+	local deck=artifactOfferDeck()
+	if deck==nil then return false end
+	deck.UI.setAttribute("ac75c4ArtifactDownImage","image","Overkill Down")
+	deck.UI.setAttribute("ac75c4ArtifactOfferImage","image","Sliced Button/Button Object Active")
+	deck.UI.setAttribute("ac75c4ArtifactUpImage","image","Overkill Up")
+	for _,id in ipairs(ARTIFACT_CONTROL_IDS) do deck.UI.setAttribute(id,"active","true") end
+	return true
+end
+
+function artifactOfferRewardTextRefresh()
+	local deck=artifactOfferDeck()
+	if deck==nil then return false end
+	deck.UI.setAttribute("ac75c4ArtifactOfferText","text",joinLang({"{en}Reward {ru}Награда {zh-tw}獎勵{zh-cn}奖励{ko}보상 {es}Premiar {fr}Reward {pt-br}Premiar {de}Belohnung ",gStates.artifactRewards}))
+	return true
+end
+
 -- Artifact reward offer
 --Adjust artifact rewards claim amount
 function artifactAdjust(player, mouseButton, id)
@@ -15,7 +45,7 @@ function artifactAdjust(player, mouseButton, id)
 			gStates.artifactRewards=gStates.artifactRewards+1
 			if gStates.artifactRewards>4 then gStates.artifactRewards=4 end
 		end
-		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferText", "text", joinLang({"{en}Reward {ru}Награда {zh-tw}獎勵{zh-cn}奖励{ko}보상 {es}Premiar {fr}Reward {pt-br}Premiar {de}Belohnung ", gStates.artifactRewards}))
+		artifactOfferRewardTextRefresh()
 	end
 end
 
@@ -43,9 +73,7 @@ function offerArtifacts(player, mouseButton, id)
 					gStates.dealtArtifacts[dealtArtifact.guid]=true
 				end
 				--remove reward and arrow buttons.
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "false")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOffer", "active", "false")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUp", "active", "false")
+				artifactOfferControlsHide()
 			else
 				broadcastToAll("{en}Choose a tactic first{ru}Сперва выберите Тактику{zh-tw}先选一张战术卡吧{zh-cn}先选一张战术卡吧{ko}먼저 전략 카드를 고르세요{es}Elige una táctica primero{fr}Choisissez d'abord une tactique{pt-br}Escolha uma Tática primeiro{de}Wähle zuerst eine Taktik",warningColor)
 			end

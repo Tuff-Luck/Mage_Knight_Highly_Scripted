@@ -8,12 +8,12 @@ local againstHorsemenGladePosition, againstHorsemenInlineGridDistance, againstHo
 local againstHorsemenContinueEndRoundMovement, againstHorsemenStartingLevel, apocalypseIsHereHorsemanStartingLevel, apocalypseIsHereRevealThreshold, apocalypseIsHereRecomputeNextHorseman
 local apocalypseIsHereCancelReservedReveal, apocalypseIsHereDeployReservedHorseman, apocalypseIsHereRevealNextHorseman, apocalypseIsHerePossessEnemy, apocalypseIsHerePossessRampagersOnTile
 local apocalypseIsHereRevealDragonCity, apocalypseIsHereCurrentHorsemanHex, apocalypseIsHereHorsemanTargetOptions, apocalypseIsHereHorsemanDestination, apocalypseIsHereClearChoiceButtons
-local apocalypseIsHereShowTargetChoice, apocalypseIsHereRefreshPendingTargetChoice, apocalypseIsHereHorsemanClearTarget, apocalypseIsHereHorsemanDestroyTarget, apocalypseIsHereHexByKey
+local apocalypseIsHereShowTargetChoice, apocalypseIsHereRefreshPendingTargetChoice, apocalypseIsHereHorsemanClearTarget, apocalypseIsHereHorsemanDestroyTarget
 local apocalypseIsHereHorsemanMoveFinished, apocalypseIsHereResolveHorsemanTarget, apocalypseIsHereProcessNextHorseman, apocalypseIsHereContinueHorsemenTurn, apocalypseIsHereActiveHorsemen
 local apocalypseIsHereMainUIRefresh, apocalypseIsHereFinishHorsemenTurn, takeDestroyedSiteToken, arrangeDestroyedSiteHex, againstApocalypseObjectivesComplete
 local againstApocalypseCheckCompletion, againstApocalypseMarkPossessedRampager, restoreDestroyedSite, furyDragonEliteConditionMet, againstDragonActive
 local againstDragonPlayerIndexForMage, againstDragonClearBlackManaMarkers, againstDragonPlayerMarked, againstDragonMarkPlayer, againstDragonTargetChoiceButton
-local againstDragonShowMapChoice, againstDragonShowOffMapChoice, againstDragonMapHexByKey, againstDragonDistanceStarts, againstDragonDistanceChoices
+local againstDragonShowMapChoice, againstDragonShowOffMapChoice, againstDragonDistanceStarts, againstDragonDistanceChoices
 local againstDragonPlayerHex, againstDragonSiteEligible, againstDragonDestroyCandidates, againstDragonActionLabel, againstDragonFinalReport
 local againstDragonResolveDestroyOption, againstDragonGainFame, againstDragonAttendanceAuthorized, againstDragonFullAttendAllowed, againstDragonAirborneTokenPosition
 local againstDragonAirborneMonsterData, againstDragonDeployAirborneHeads, againstDragonAirborneProtectionLocation, againstDragonAirborneProtectionReminder, againstDragonCaptureAirborneSuppression
@@ -1268,16 +1268,6 @@ againstHorsemenPrepareRitual=function()
 	addAvatarButtons()
 end
 
-function againstHorsemenAssaultOrigin(approachPosition)
-	local origin={avatarLocation="",avatarSharedHex=nil,avatarSwapCity=nil,position=nil}
-	if approachPosition~=nil then
-		origin.position={approachPosition[1],approachPosition[2],approachPosition[3]}
-		local terrain,bearing,_,feature=terrainHexAtPosition(approachPosition)
-		if terrain~=nil and bearing~=nil then origin.avatarLocation=feature or "" end
-	end
-	return origin
-end
-
 --Dropping the active Mage Knight onto the post-ritual Glade declares the assault. From here the
 --existing city/co-op assault machinery owns defender allocation, skipped turns, combat order and rewards.
 function againstHorsemenBeginGladeAssault(playerIndex,approachPosition)
@@ -1288,7 +1278,7 @@ function againstHorsemenBeginGladeAssault(playerIndex,approachPosition)
 	if #defenders<1 then return false end
 	local gladePos=againstHorsemenCentralGladePosition(1.45)
 	if gladePos==nil then return false end
-	gStates.againstHorsemenAssaultOrigin=againstHorsemenAssaultOrigin(approachPosition)
+	gStates.againstHorsemenAssaultOrigin=assaultOriginFromPosition(approachPosition)
 	gStates.assaultData={[player.mage]={primary={},secondary={},UIPos={1},joined=true}}
 	for _,entry in ipairs(defenders) do
 		gStates.assaultData[player.mage].primary[#gStates.assaultData[player.mage].primary+1]=entry.guid
@@ -1956,8 +1946,7 @@ apocalypseIsHereCurrentHorsemanHex=function(name,hexes)
 	local terrain,bearing=terrainHexAtPosition(token.getPosition())
 	if terrain~=nil and bearing~=nil then state.terrainGUID=terrain.guid state.bearing=bearing end
 	local key=tostring(state.terrainGUID).."|"..tostring(state.bearing)
-	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
-	return nil
+	return runtimeMapHexByKey(hexes,key)
 end
 
 apocalypseIsHereHorsemanTargetOptions=function(name)
@@ -2038,22 +2027,7 @@ end
 apocalypseIsHereClearChoiceButtons=function(terrainGUIDs)
 	local pending=gStates~=nil and gStates.apocalypseHereHorsemanPendingChoice or nil
 	local guids=terrainGUIDs or (pending~=nil and pending.terrainGUIDs) or {}
-	local seen={}
-	for _,terrainGUID in ipairs(guids) do
-		if seen[terrainGUID]~=true then
-			seen[terrainGUID]=true
-			local terrain=getObjectFromGUID(terrainGUID)
-			if terrain~=nil then
-				local xml=terrain.UI.getXmlTable() or {}
-				local changed=false
-				for i=#xml,1,-1 do
-					local id=xml[i].attributes~=nil and tostring(xml[i].attributes.id or "") or ""
-					if id:find("ApocalypseHorsemanTarget",1,true)~=nil then table.remove(xml,i) changed=true end
-				end
-				if changed then if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end end
-			end
-		end
-	end
+	clearTerrainChoiceButtons("ApocalypseHorsemanTarget",guids)
 end
 
 local function apocalypseIsHereJoinHorsemenTurnReport(previous,line)
@@ -2228,12 +2202,6 @@ apocalypseIsHereHorsemanDestroyTarget=function(name,targetHex,afterArrange)
 	mainUIUpdate("Horseman action report")
 	if action~=nil then action.stage="settling" end
 	return true
-end
-
-apocalypseIsHereHexByKey=function(key,hexes)
-	if key==nil then return nil end
-	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
-	return nil
 end
 
 apocalypseIsHereHorsemanMoveFinished=function(name,target,reached)
@@ -2434,8 +2402,8 @@ function apocalypseIsHereRestoreScenarioState()
 	if action~=nil then
 		local snapshot=runtimeMapSnapshot()
 		local hexes=snapshot.hexes or {}
-		local destination=apocalypseIsHereHexByKey(action.destinationKey,hexes)
-		local target=apocalypseIsHereHexByKey(action.targetKey,hexes)
+		local destination=runtimeMapHexByKey(hexes,action.destinationKey)
+		local target=runtimeMapHexByKey(hexes,action.targetKey)
 		local state=gStates.horsemen~=nil and gStates.horsemen[action.name] or nil
 		local data=horsemanData~=nil and horsemanData[action.name] or nil
 		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
@@ -3030,53 +2998,24 @@ function againstDragonAttackControlUI(show)
 end
 
 function againstDragonTargetChoiceClearButtons()
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return end
-	for _,terrain in pairs(map.getObjects()) do
-		if terrainTiles[terrain.guid]~=nil then
-			local xml=terrain.UI.getXmlTable() or {}
-			local changed=false
-			for i=#xml,1,-1 do
-				local id=xml[i].attributes~=nil and tostring(xml[i].attributes.id or "") or ""
-				if id:find("DragonTargetChoice",1,true)~=nil then table.remove(xml,i) changed=true end
-			end
-			if changed==true then
-				if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end
-			end
-		end
-	end
+	clearTerrainChoiceButtons("DragonTargetChoice")
 end
 
 function againstDragonOffMapChoiceClearButtons()
 	for _,details in ipairs(turnOrder or {}) do
 		local token=details~=nil and getObjectFromGUID(details.turnOrderTokenGUID) or nil
-		if token~=nil then
-			local xml=token.UI.getXmlTable() or {}
-			local changed=false
-			for i=#xml,1,-1 do
-				local id=xml[i].attributes~=nil and tostring(xml[i].attributes.id or "") or ""
-				if id:find("DragonOffMapChoice",1,true)~=nil then table.remove(xml,i) changed=true end
-			end
-			if changed==true then
-				if #xml>0 then token.UI.setXmlTable(xml) else token.UI.setXml("") end
-			end
-		end
+		if token~=nil then objectUIRemoveIdContaining(token,"DragonOffMapChoice") end
 	end
 end
 
 againstDragonTargetChoiceButton=function(option,index,xml,splitIndex,splitCount)
 	if option==nil or option.key==nil then return nil,xml end
-	local terrain,placement=terrainHexChoiceUIPlacement(option.key,0.38,splitIndex,splitCount,0.38)
-	if terrain==nil or placement==nil then return nil,xml end
 	local label="{en}Dragon\nDestroy{ru}Дракон\nУничтожает{zh-tw}巨龍\n摧毀{zh-cn}巨龙\n摧毁{ko}드래곤\n파괴{es}Dragón\nDestruir{fr}Dragon\nDétruire{pt-br}Dragão\nDestruir{de}Drache\nZerstört"
 	if option.kind=="attack" then label=joinLang({"{en}Attack\n{ru}Атака\n{zh-tw}攻擊\n{zh-cn}攻击\n{ko}공격\n{es}Atacar\n{fr}Attaquer\n{pt-br}Atacar\n{de}Angriff\n",tostring(option.mage or joinLang({"{en}Player{ru}Игрок{zh-tw}玩家{zh-cn}玩家{ko}플레이어{es}Jugador{fr}Joueur{pt-br}Jogador{de}Spieler"}))}) end
-	local id=terrain.guid.."DragonTargetChoice"..tostring(index)
-	xml=xml or terrain.UI.getXmlTable() or {}
-	xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/againstDragonTargetChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-		height=placement.height,width=320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
-		children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
-			{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize=placement.count>1 and "60" or "72",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=placement.count>1 and "60" or "72",text=label}}}}}}
-	return terrain,xml
+	return appendTerrainHexChoiceButton(option.key,index,xml,splitIndex,splitCount,{
+		idPrefix="DragonTargetChoice",onClick="global/againstDragonTargetChoiceSelect",
+		buttonScale=0.38,referenceScale=0.38,splitFontSize=60,fontSize=72,text=label
+	})
 end
 
 againstDragonShowMapChoice=function(pending)
@@ -3119,11 +3058,6 @@ againstDragonShowOffMapChoice=function(pending)
 		end
 	end
 	return true
-end
-
-againstDragonMapHexByKey=function(hexes,key)
-	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
-	return nil
 end
 
 againstDragonDistanceStarts=function(hexes,mapObjects)
@@ -3246,7 +3180,7 @@ end
 
 againstDragonResolveDestroyOption=function(option)
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
-	local hex=option~=nil and againstDragonMapHexByKey(hexes,option.key) or nil
+	local hex=option~=nil and runtimeMapHexByKey(hexes,option.key) or nil
 	if hex==nil then
 		broadcastToAll("{en}The Apocalypse Dragon's selected destruction target could no longer be found.{ru}Выбранная цель уничтожения Дракона Апокалипсиса больше не найдена.{zh-tw}找不到末日巨龍先前選定的摧毀目標。{zh-cn}找不到末日巨龙先前选定的摧毁目标。{ko}아포칼립스 드래곤이 선택한 파괴 대상을 더 이상 찾을 수 없습니다.{es}Ya no se pudo encontrar el objetivo de destrucción elegido por el Dragón del Apocalipsis.{fr}La cible de destruction choisie par le Dragon de l’Apocalypse est introuvable.{pt-br}O alvo de destruição escolhido pelo Dragão do Apocalipse não pôde mais ser encontrado.{de}Das ausgewählte Zerstörungsziel des Apokalypse-Drachen konnte nicht mehr gefunden werden.",warningColor)
 		againstDragonSetTurnReport(againstDragonFinalReport("The selected destruction target could no longer be found."),"Processing")
@@ -3968,7 +3902,7 @@ end
 
 furyDragonCurrentHex=function(hexes)
 	if gStates.furyDragonCurrentHexKey==nil then return nil end
-	return againstDragonMapHexByKey(hexes,gStates.furyDragonCurrentHexKey)
+	return runtimeMapHexByKey(hexes,gStates.furyDragonCurrentHexKey)
 end
 
 furyDragonLairTarget=function(hexes)
@@ -3976,7 +3910,7 @@ furyDragonLairTarget=function(hexes)
 	if lair==nil then return nil end
 	local key=lair.cityHexKey
 	if key==nil and lair.tileGUID~=nil and lair.hexes~=nil and lair.hexes[1]~=nil then key=lair.tileGUID.."|"..tostring(lair.hexes[1].bearing) end
-	local hex=key~=nil and againstDragonMapHexByKey(hexes,key) or nil
+	local hex=key~=nil and runtimeMapHexByKey(hexes,key) or nil
 	if hex==nil then return nil end
 	return {key=key,terrainGUID=hex.terrainGUID,bearing=hex.bearing,feature="",category="lair",isLair=true}
 end
@@ -4075,7 +4009,7 @@ furyDragonTargetPosition=function(target,hexes,forDragon)
 			return {p[1],p[2]+(forDragon==true and 1.30 or 0.85),p[3]}
 		end
 	end
-	local hex=againstDragonMapHexByKey(hexes,target.key)
+	local hex=runtimeMapHexByKey(hexes,target.key)
 	if hex==nil then return nil end
 	return {hex.position[1],forDragon==true and 1.45 or 1.65,hex.position[3]}
 end
@@ -4366,7 +4300,7 @@ furyDragonBeginInFlightTurn=function()
 	gStates.apocalypseDragonTurnReport="The Apocalypse Dragon is flying to "..furyDragonTargetLabel(target).."."
 	apocalypseDragonMainUIRefresh()
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
-	local hex=againstDragonMapHexByKey(hexes,target.key)
+	local hex=runtimeMapHexByKey(hexes,target.key)
 	local destination=furyDragonTargetPosition(target,hexes,true)
 	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
 	if hex==nil or destination==nil or marker==nil then
@@ -4388,7 +4322,7 @@ furyDragonBeginInFlightTurn=function()
 		gStates.furyDragonCurrentHexKey=target.key
 		gStates.furyDragonFlightTarget=nil
 		local currentHexes,currentMapObjects=runtimeMapHexesAndObjects()
-		local currentHex=againstDragonMapHexByKey(currentHexes,target.key)
+		local currentHex=runtimeMapHexByKey(currentHexes,target.key)
 		if currentHex==nil then
 			furyDragonCompleteTurn("The Apocalypse Dragon landed, but the destination space could no longer be resolved.")
 			return

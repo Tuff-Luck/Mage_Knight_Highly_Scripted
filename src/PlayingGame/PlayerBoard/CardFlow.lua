@@ -355,12 +355,10 @@ function processCardClaim(player, mouseButton, id, rewindReady)
 								returnedArtifact.UI.setXmlTable({{}})
 							end
 							--reset buttons
-							getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "true")
-							getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOffer", "active", "true")
-							getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUp", "active", "true")
+							artifactOfferControlsRestore()
 							gStates.artifactRewards=1
 							gStates.dealtArtifacts=nil
-							getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferText", "text", joinLang({"{en}Reward {ru}Награда {zh-tw}獎勵{zh-cn}奖励{ko}보상 {es}Premiar {fr}Reward {pt-br}Premiar {de}Belohnung ", gStates.artifactRewards}))
+							artifactOfferRewardTextRefresh()
 						end
 					end
 					if gameCards[claimedCard.guid]~=nil and source~="artifactReward" then
@@ -1033,29 +1031,16 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	return cardDestination
 end
 
-local function meditationStripXmlButtons(card)
-	local xml=card.UI.getXmlTable() or {}
-	for a=#xml, 1, -1 do
-		local id=xml[a].attributes~=nil and xml[a].attributes.id or nil
-		if id==card.guid.."meditationTop" or id==card.guid.."meditationBot" or id==card.guid.."tranceTop" or id==card.guid.."tranceBot" then table.remove(xml,a) end
-	end
-	return xml
-end
-
+local MEDITATION_BUTTON_SUFFIXES={"meditationTop","meditationBot","tranceTop","tranceBot"}
 local function meditationRemoveButtons(card)
-	if card==nil then return end
-	local before=card.UI.getXmlTable() or {}
-	local xml=meditationStripXmlButtons(card)
-	if #xml~=#before then
-		if #xml>0 then card.UI.setXmlTable(xml) else card.UI.setXml("") end
-	end
+	if card~=nil then objectUIRemoveSuffixes(card,MEDITATION_BUTTON_SUFFIXES) end
 end
 
 local function meditationAddButtons(card, tranceReady)
 	if card==nil then return end
 	if cardEffectIsVertical(card)==false then meditationRemoveButtons(card) return end
 	--Replace only our two controls, preserving any unrelated object UI on the card.
-	local xml=meditationStripXmlButtons(card)
+	local xml=objectUIWithoutSuffixes(card,MEDITATION_BUTTON_SUFFIXES)
 	if tranceReady==true then
 		xml[#xml+1]=createClaimButton(card.guid, "tranceTop") xml[#xml+1]=createClaimButton(card.guid, "tranceBot")
 	else
@@ -1236,11 +1221,6 @@ function meditationTranceBot(player, mouseButton, id) if mouseButton~="-3" then 
 --during cleanup, then these small card-attached buttons decide where it goes.
 local steadyTempoGUIDs={ ["1f362f"]=true, ["6e506a"]=true }
 function isSteadyTempoGUID(guid) return guid~=nil and steadyTempoGUIDs[guid]==true end
-local function steadyTempoPlayerIndex(seatPos)
-	for playerIndex, details in pairs(turnOrder) do if details.seatPos==seatPos then return playerIndex end end
-	return nil
-end
-
 function steadyTempoPendingForSeat(seatPos)
 	if seatPos==nil or gStates.steadyTempoPending==nil then return false end
 	for _, pendingSeat in pairs(gStates.steadyTempoPending) do if pendingSeat==seatPos then return true end end
@@ -1256,20 +1236,9 @@ function steadyTempoUpdateRewardGate(seatPos)
 	UI.setAttribute("PreEndTurnImage", "image", blocked and "Sliced Button/Button New Deactive" or "Sliced Button/Button New Active")
 end
 
-local function steadyTempoStripButtons(card)
-	local xml=card~=nil and (card.UI.getXmlTable() or {}) or {}
-	for a=#xml, 1, -1 do
-		local id=xml[a].attributes~=nil and xml[a].attributes.id or nil
-		if id==card.guid.."steadyTempoDiscard" or id==card.guid.."steadyTempoBot" or id==card.guid.."steadyTempoTop" then table.remove(xml,a) end
-	end
-	return xml
-end
-
+local STEADY_TEMPO_BUTTON_SUFFIXES={"steadyTempoDiscard","steadyTempoBot","steadyTempoTop"}
 function steadyTempoRemoveButtons(card)
-	if card==nil then return end
-	local before=card.UI.getXmlTable() or {}
-	local xml=steadyTempoStripButtons(card)
-	if #xml~=#before then if #xml>0 then card.UI.setXmlTable(xml) else card.UI.setXml("") end end
+	if card~=nil then objectUIRemoveSuffixes(card,STEADY_TEMPO_BUTTON_SUFFIXES) end
 end
 
 local function steadyTempoHasDeedPile(playerIndex)
@@ -1290,7 +1259,7 @@ end
 local function steadyTempoAddButtons(card, playerIndex)
 	if card==nil or turnOrder[playerIndex]==nil then return end
 	if cardEffectIsVertical(card)==false then steadyTempoRemoveButtons(card) return end
-	local xml=steadyTempoStripButtons(card)
+	local xml=objectUIWithoutSuffixes(card,STEADY_TEMPO_BUTTON_SUFFIXES)
 	xml[#xml+1]=createClaimButton(card.guid, "steadyTempoDiscard")
 	--The printed basic effect only permits the bottom option while the Deed deck is not empty.
 	if steadyTempoHasDeedPile(playerIndex)==true then xml[#xml+1]=createClaimButton(card.guid, "steadyTempoBot") end
@@ -1322,7 +1291,7 @@ function steadyTempoRefreshCard(cardGUID)
 	if gStates.steadyTempoPending==nil then return end
 	local seatPos=gStates.steadyTempoPending[cardGUID]
 	local card=seatPos~=nil and getObjectFromGUID(cardGUID) or nil
-	local playerIndex=seatPos~=nil and steadyTempoPlayerIndex(seatPos) or nil
+	local playerIndex=seatPos~=nil and turnOrderIndexAtSeat(seatPos) or nil
 	if card==nil or playerIndex==nil then return end
 	if steadyTempoCardInPlayArea(card, seatPos)==true and card.is_face_down==false and cardEffectIsVertical(card)==true then steadyTempoAddButtons(card, playerIndex) else steadyTempoRemoveButtons(card) end
 end
@@ -1354,7 +1323,7 @@ function steadyTempoChoice(player, mouseButton, id)
 	local cardGUID=id:sub(1,6)
 	if isSteadyTempoGUID(cardGUID)==false or gStates.steadyTempoPending==nil then return end
 	local seatPos=gStates.steadyTempoPending[cardGUID]
-	local playerIndex=seatPos~=nil and steadyTempoPlayerIndex(seatPos) or nil
+	local playerIndex=seatPos~=nil and turnOrderIndexAtSeat(seatPos) or nil
 	local card=getObjectFromGUID(cardGUID)
 	if playerIndex==nil or card==nil or legalPlayerCheck(player.color, seatPos)~=true then return end
 	local choice=id:sub(7)

@@ -519,21 +519,15 @@ function mapSetup(onComplete)
 
 	--Pull Country Tiles
 	local CountryGauntletTiles=			{GUID.tile.country01, GUID.tile.country02, GUID.tile.country03, GUID.tile.country04, GUID.tile.country05, GUID.tile.country06, GUID.tile.country07, GUID.tile.country08, GUID.tile.country09, GUID.tile.country10, GUID.tile.country12, GUID.tile.country13, GUID.tile.country14, GUID.tile.country15, GUID.tile.country16, GUID.tile.country17} CountryGauntletTiles=listShuffle(CountryGauntletTiles)
-	local function countryTileHasVillage(guid)
-		local data=terrainTiles[guid]
-		if data==nil or data.hexFeature==nil then return false end
-		for _, feature in pairs(data.hexFeature) do if feature=="village" then return true end end
-		return false
-	end
 	local function questVillageFirst(array)
 		if apocalypseQuestsUsed()==false then return array end
 		for i, guid in ipairs(array) do
-			if countryTileHasVillage(guid) then array[1], array[i]=array[i], array[1] break end
+			if terrainTileHasFeature(guid,"village") then array[1], array[i]=array[i], array[1] break end
 		end
 		return array
 	end
 	local CountryVillageTiles={}
-	for guid, data in pairs(terrainTiles) do if data.tileType=="country" and countryTileHasVillage(guid) then CountryVillageTiles[#CountryVillageTiles+1]=guid end end
+	for guid, data in pairs(terrainTiles) do if data.tileType=="country" and terrainTileHasFeature(guid,"village") then CountryVillageTiles[#CountryVillageTiles+1]=guid end end
 	CountryVillageTiles=listShuffle(CountryVillageTiles)
 	local CountryTileOrder=				{GUID.tile.country03, GUID.tile.country04, GUID.tile.country05, GUID.tile.country06, GUID.tile.country07, GUID.tile.country08, GUID.tile.country09, GUID.tile.country10, GUID.tile.country11, GUID.tile.country02, GUID.tile.country01}--tiles 01 and 02 at end to deploy corectly at start
 	local CountryNonMonasteryTiles=		{GUID.tile.country01, GUID.tile.country02, GUID.tile.country03, GUID.tile.country04, GUID.tile.country06, GUID.tile.country08, GUID.tile.country09, GUID.tile.country10, GUID.tile.country11, GUID.tile.country13, GUID.tile.country14, GUID.tile.country15, GUID.tile.country16, GUID.tile.country17} CountryNonMonasteryTiles=listShuffle(CountryNonMonasteryTiles)
@@ -593,7 +587,7 @@ function mapSetup(onComplete)
 		--Record a Village supplied by the scenario scheme. If this is an unrestricted slot and none has been
 		--selected yet, use an available Village here instead of overriding a scenario-specific terrain requirement.
 		if apocalypseQuestsUsed()==true and questVillageGUID==nil then
-			if params.guid~=nil and countryTileHasVillage(params.guid) then
+			if params.guid~=nil and terrainTileHasFeature(params.guid,"village") then
 				questVillageGUID=params.guid
 			elseif params.guid==nil and CountryVillageTiles[1]~=nil then
 				params.guid=CountryVillageTiles[1]

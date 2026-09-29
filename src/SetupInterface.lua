@@ -273,18 +273,9 @@ local function clearCustomMageKnightSelections(preserveRememberedDummy)
 	if preserveRememberedDummy~=true and customMages[gStates.setupDummyMageChoice]~=nil then gStates.setupDummyMageChoice="nobody" end
 end
 
-local function setupUsesApocalypseDragonLevel()
-	return gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or
-		gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon")
-end
-
-local function setupUsesHorsemanLevel()
-	return gStates~=nil and (gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Apocalypse is Here")
-end
-
 local function refreshScenarioEnemyLevelTweaks()
-	local showDragon=setupUsesApocalypseDragonLevel()
-	local showHorsemen=setupUsesHorsemanLevel()
+	local showDragon=scenarioUsesApocalypseDragon()
+	local showHorsemen=scenarioUsesHorsemen()
 	local showAny=showDragon or showHorsemen
 	UI.setAttribute("ScenarioEnemyLevelsRow","active",showAny and "true" or "false")
 	UI.setAttribute("ApocalypseDragonLevelCell","active",showDragon and "true" or "false")
@@ -688,20 +679,31 @@ function optionsUpdate(player, value, id)
 	toggleDropDown(nil, "-1", dropDownIdLink)
 end
 
-function RampageSelection(player, value, id)
-	if value=="True" then
-		gStates.rampage=1
-		UI.setAttribute("MoreRampageSelection", "interactable", "False")
-		UI.setAttribute("MoreRampageSelection", "isOn", "false")
-		UI.setAttribute("RampageSelection", "interactable", "True")
-		UI.setAttribute("RampageSelection", "isOn", "true")
+local function setRampageMode(mode,id,sourceId)
+	gStates.rampage=mode
+	if mode==1 then
+		UI.setAttribute("MoreRampageSelection","interactable","False")
+		UI.setAttribute("MoreRampageSelection","isOn","false")
+		UI.setAttribute("RampageSelection","interactable","True")
+		UI.setAttribute("RampageSelection","isOn","true")
+	elseif mode==2 then
+		UI.setAttribute("RampageSelection","interactable","False")
+		UI.setAttribute("RampageSelection","isOn","false")
+		UI.setAttribute("MoreRampageSelection","interactable","True")
+		UI.setAttribute("MoreRampageSelection","isOn","true")
+	elseif sourceId=="RampageSelection" then
+		UI.setAttribute("MoreRampageSelection","interactable","True")
+		UI.setAttribute("RampageSelection","isOn","false")
 	else
-		gStates.rampage=0
-		UI.setAttribute("MoreRampageSelection", "interactable", "True")
-		UI.setAttribute("RampageSelection", "isOn", "false")
+		UI.setAttribute("RampageSelection","interactable","True")
+		UI.setAttribute("MoreRampageSelection","isOn","false")
 	end
 	scenarioInfoUpdate()
 	ToolTipUpdate(id)
+end
+
+function RampageSelection(player,value,id)
+	setRampageMode(value=="True" and 1 or 0,id,"RampageSelection")
 end
 
 function riseOfTheForgemasterOption(player, mouseButton, id)
@@ -720,20 +722,8 @@ function riseOfTheForgemasterOption(player, mouseButton, id)
 	end
 end
 
-function MoreRampageSelection(player, value, id)
-	if value=="True" then
-		gStates.rampage=2
-		UI.setAttribute("RampageSelection", "interactable", "False")
-		UI.setAttribute("RampageSelection", "isOn", "false")
-		UI.setAttribute("MoreRampageSelection", "interactable", "True")
-		UI.setAttribute("MoreRampageSelection", "isOn", "true")
-	else
-		gStates.rampage=0
-		UI.setAttribute("RampageSelection", "interactable", "True")
-		UI.setAttribute("MoreRampageSelection", "isOn", "false")
-	end
-	scenarioInfoUpdate()
-	ToolTipUpdate(id)
+function MoreRampageSelection(player,value,id)
+	setRampageMode(value=="True" and 2 or 0,id,"MoreRampageSelection")
 end
 
 dropDownIdLink="none"
@@ -849,7 +839,7 @@ function VolkareRaceSelection(player, mouseButton, id)
 end
 
 function apocalypseDragonLevelSelection(player, mouseButton, id)
-	if mouseButton~="-1" or setupUsesApocalypseDragonLevel()~=true then return end
+	if mouseButton~="-1" or scenarioUsesApocalypseDragon()~=true then return end
 	local level=tonumber(apocalypseDragonStartingLevel()) or 1
 	if id=="ApocalypseDragonLevelDown" then
 		level=math.max(1,level-1)
@@ -863,7 +853,7 @@ function apocalypseDragonLevelSelection(player, mouseButton, id)
 end
 
 function horsemanLevelSelection(player, mouseButton, id)
-	if mouseButton~="-1" or setupUsesHorsemanLevel()~=true then return end
+	if mouseButton~="-1" or scenarioUsesHorsemen()~=true then return end
 	local level=tonumber(horsemanStartingLevel()) or 1
 	if id=="HorsemenLevelDown" then
 		level=math.max(1,level-1)

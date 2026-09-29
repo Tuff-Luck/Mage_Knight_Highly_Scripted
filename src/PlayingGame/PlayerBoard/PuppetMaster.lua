@@ -38,11 +38,9 @@ local function puppetMasterDisplayName(name,fallback)
 end
 
 function puppetMasterPlayerIndexForSeat(seatPos)
-	if seatPos==nil then return nil end
-	for playerIndex, details in pairs(turnOrder or {}) do
-		if details.seatPos==seatPos and details.mage~=gStates.positionMageKnight[5] then return playerIndex end
-	end
-	return nil
+	return turnOrderIndexAtSeat(seatPos,function(_,details)
+		return details.mage~=gStates.positionMageKnight[5]
+	end)
 end
 
 function puppetMasterPlayerIndexForMage(mage)

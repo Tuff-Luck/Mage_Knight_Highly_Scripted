@@ -3,7 +3,7 @@ local apocalypseDragonHeadTokenPosition, apocalypseDragonPositionHeadToken, apoc
 local apocalypseDragonDeployHeadToken, apocalypseDragonLevelMarkerPosition, apocalypseDragonLockLevelMarker, apocalypseDragonDefeatedHeadCount, apocalypseDragonSyncControlLevel
 local apocalypseDragonCheckAndResolveDefeat, apocalypseDragonHeadStateChanged, apocalypseDragonGroundReduction, apocalypseDragonGroundMarkedThroughOne, apocalypseDragonGroundControlGUIDs
 local apocalypseDragonGroundPrepareColoredHead, apocalypseDragonGroundPrepareControl, apocalypseDragonNewGroundCombat, apocalypseDragonGroundTokenInPlayerArea
-local apocalypseDragonCoopAdjacentPlayers, apocalypseDragonAssaultOriginData, apocalypseDragonGroundApplyFinalLevels, apocalypseDragonGroundCleanupRuntime
+local apocalypseDragonCoopAdjacentPlayers, apocalypseDragonGroundApplyFinalLevels, apocalypseDragonGroundCleanupRuntime
 
 -- Shared Apocalypse Dragon entity, head-level and landed-combat helpers.
 -- Scenario-specific AI/turn rules remain in Scenario.lua.
@@ -45,7 +45,7 @@ function apocalypseDragonPossessSummonedEnemy(enemyGUID,target)
 end
 
 function apocalypseDragonScenario()
-	return gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon")
+	return scenarioUsesApocalypseDragon()
 end
 
 function apocalypseDragonStartingLevel()
@@ -954,16 +954,6 @@ apocalypseDragonCoopAdjacentPlayers=function(playerIndex)
 	return result
 end
 
-apocalypseDragonAssaultOriginData=function(approachPosition)
-	local origin={avatarLocation="",avatarSharedHex=nil,avatarSwapCity=nil,position=nil}
-	if approachPosition~=nil then
-		origin.position={approachPosition[1],approachPosition[2],approachPosition[3]}
-		local terrain,bearing,_,feature=terrainHexAtPosition(approachPosition)
-		if terrain~=nil and bearing~=nil then origin.avatarLocation=feature or "" end
-	end
-	return origin
-end
-
 function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
 	if apocalypseDragonScenario()~=true or gStates.apocalypseDragonLairRevealed~=true or gStates.apocalypseDragonDefeated==true then return false end
 	if gStates.coopAssaultPhase~=nil or gStates.apocalypseDragonGroundCombat~=nil then return false end
@@ -989,7 +979,7 @@ function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
 		return started
 	end
 
-	gStates.apocalypseDragonAssaultOrigin=apocalypseDragonAssaultOriginData(approachPosition)
+	gStates.apocalypseDragonAssaultOrigin=assaultOriginFromPosition(approachPosition)
 	gStates.assaultData={[player.mage]={primary={},secondary={},UIPos={1},joined=true}}
 	for _,guid in ipairs(liveHeads) do
 		gStates.assaultData[player.mage].primary[#gStates.assaultData[player.mage].primary+1]=guid

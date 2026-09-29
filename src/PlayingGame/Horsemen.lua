@@ -5,7 +5,7 @@ local horsemanDefeatedInventoryPosition, horsemanMarkDefeatedToken
 -- Scenario-specific reveal, movement, ritual and AI rules remain in Scenario.lua.
 
 function horsemenTokensUsed()
-	return gStates~=nil and (gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Apocalypse is Here")
+	return scenarioUsesHorsemen()
 end
 
 function deployHorsemenPreload()

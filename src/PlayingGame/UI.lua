@@ -464,11 +464,6 @@ local function signedBonus(value)
 	return tostring(value)
 end
 
-function turnOrderIndexAtSeat(seatPos)
-	for playerIndex, details in pairs(turnOrder) do if details.seatPos==seatPos then return playerIndex end end
-	return nil
-end
-
 --Only inspect a Unit Area when that area actually changes; routine UI refreshes no longer scan it.
 function separateCombinedUnitsInArea(seatPos)
 	local zoneGUID=playerUnitAreas[seatPos]

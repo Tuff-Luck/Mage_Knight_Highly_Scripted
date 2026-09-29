@@ -1293,8 +1293,7 @@ end
 
 function proxyTargetLoad(saved,hexes)
 	if saved==nil or saved.key==nil then return nil end
-	local hex=nil
-	for _,candidate in ipairs(hexes or {}) do if runtimeMapHexKey(candidate)==saved.key then hex=candidate break end end
+	local hex=runtimeMapHexByKey(hexes,saved.key)
 	if hex==nil then return nil end
 	local target={hex=hex,action=saved.action,fortified=saved.fortified,proxyReason=saved.proxyReason,choiceObjectiveColor=saved.choiceObjectiveColor}
 	if saved.action=="explore" then
@@ -1315,23 +1314,7 @@ function proxyTargetLoad(saved,hexes)
 end
 
 function proxyDestinationChoiceClearButtons()
-	local marker="ProxyDestinationChoice"
-	local snapshot=runtimeMapSnapshot()
-	for _,terrain in pairs(snapshot.terrainObjects or {}) do
-		if terrainTiles[terrain.guid]~=nil then
-			local xml=terrain.UI.getXmlTable() or {}
-			local changed=false
-			for i=#xml,1,-1 do
-				local attributes=xml[i].attributes
-				local id=attributes~=nil and tostring(attributes.id or "") or ""
-				local suffix=id:sub(7)
-				if suffix:sub(1,#marker)==marker then table.remove(xml,i) changed=true end
-			end
-			if changed==true then
-				if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end
-			end
-		end
-	end
+	clearTerrainChoiceButtons("ProxyDestinationChoice")
 end
 
 function proxyDestinationChoiceActionText(saved)
@@ -1342,15 +1325,11 @@ end
 
 function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 	if saved==nil or saved.key==nil then return nil,xml end
-	local terrain,placement=terrainHexChoiceUIPlacement(saved.key,0.16,splitIndex,splitCount,0.38)
-	if terrain==nil or placement==nil then return nil,xml end
-	local id=terrain.guid.."ProxyDestinationChoice"..tostring(index)
-	xml=xml or terrain.UI.getXmlTable() or {}
-	xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/proxyDestinationChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-		height=placement.height,width=320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
-		children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
-			{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize=placement.count>1 and "62" or "76",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=placement.count>1 and "62" or "76",text=proxyDestinationChoiceActionText(saved)}}}}}}
-	return terrain,xml
+	return appendTerrainHexChoiceButton(saved.key,index,xml,splitIndex,splitCount,{
+		idPrefix="ProxyDestinationChoice",onClick="global/proxyDestinationChoiceSelect",
+		buttonScale=0.16,referenceScale=0.38,splitFontSize=62,fontSize=76,
+		text=proxyDestinationChoiceActionText(saved)
+	})
 end
 
 function proxyChoiceMapRefresh(pending)
@@ -1477,7 +1456,7 @@ end
 function proxyRouteChoiceAnimatePrefix(pending,target,hexes,mapObjects,index,callback)
 	local key=(pending.prefix or {})[index]
 	if key==nil then callback() return end
-	local hex=proxyHexByKey(hexes,key)
+	local hex=runtimeMapHexByKey(hexes,key)
 	if hex==nil then callback() return end
 	proxyAnimateStep(hex,hexes,mapObjects,pending.proxyIndex,function() proxyRouteChoiceAnimatePrefix(pending,target,hexes,mapObjects,index+1,callback) end)
 end
@@ -1491,7 +1470,7 @@ function proxyResolveRouteChoice(pending,saved)
 	proxyRouteChoiceAnimatePrefix(pending,target,hexes,mapObjects,1,function()
 		local freshHexes,freshObjects=runtimeMapHexesAndObjects()
 		local current=runtimeMapHexForPosition(freshHexes,avatar.getPosition(),freshObjects)
-		local nextHex=proxyHexByKey(freshHexes,saved.key)
+		local nextHex=runtimeMapHexByKey(freshHexes,saved.key)
 		if current==nil or nextHex==nil then proxyFinishTurn(freshHexes,freshObjects,pending.proxyIndex) return end
 		local context=proxyRouteContext(freshHexes,freshObjects,pending.proxyIndex)
 		local hazard=proxyMovementHazard(current,nextHex,freshHexes,freshObjects,pending.proxyIndex,context)
@@ -1733,12 +1712,6 @@ function proxyRemoveOtherKeepShield(hex,mapObjects,proxyIndex)
 	end
 end
 
-function proxyHexByKey(hexes,key)
-	if key==nil then return nil end
-	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
-	return nil
-end
-
 function proxyLowestFameEnemies(enemies)
 	local lowest=nil
 	local tied={}
@@ -1832,7 +1805,7 @@ end
 function proxyResolveEnemyChoice(pending,selectedGUID)
 	if pending==nil or pending.context==nil then automatedTurnRewindRelease() return end
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
-	local hex=proxyHexByKey(hexes,pending.context.hexKey)
+	local hex=runtimeMapHexByKey(hexes,pending.context.hexKey)
 	if hex==nil then proxyFinishTurn(hexes,mapObjects,pending.proxyIndex) return end
 	if pending.context.kind=="ruin" then
 		local enemy=getObjectFromGUID(selectedGUID)
@@ -1844,7 +1817,7 @@ function proxyResolveEnemyChoice(pending,selectedGUID)
 		proxyClearObjective(true)
 		broadcastToAll("{en}Proxy resolved the tied Ruins enemy choice.{ru}Прокси разрешил ничью при выборе врага в Руинах.{zh-tw}代理玩家已解決遺跡敵人選擇的平手。{zh-cn}代理玩家已解决遗迹敌人选择的平手。{ko}프록시가 유적 적 선택의 동률을 해결했습니다.{es}El Proxy resolvió el empate en la elección de enemigo de las Ruinas.{fr}Le Proxy a résolu l’égalité du choix d’ennemi des Ruines.{pt-br}O Proxy resolveu o empate na escolha de inimigo das Ruínas.{de}Der Proxy hat den Gleichstand bei der Gegnerwahl in den Ruinen aufgelöst.",{1,0.75,0.2})
 	elseif pending.context.kind=="city" then
-		local lastSafe=proxyHexByKey(hexes,pending.context.lastSafeKey)
+		local lastSafe=runtimeMapHexByKey(hexes,pending.context.lastSafeKey)
 		proxyResolveCitySelectedEnemy(hex,mapObjects,pending.proxyIndex,lastSafe,selectedGUID)
 		proxyClearObjective(true)
 		broadcastToAll("{en}Proxy resolved the tied City defender choice.{ru}Прокси разрешил ничью при выборе защитника Города.{zh-tw}代理玩家已解決城市防守者選擇的平手。{zh-cn}代理玩家已解决城市防守者选择的平手。{ko}프록시가 도시 수비자 선택의 동률을 해결했습니다.{es}El Proxy resolvió el empate en la elección de defensor de la Ciudad.{fr}Le Proxy a résolu l’égalité du choix de défenseur de la Cité.{pt-br}O Proxy resolveu o empate na escolha de defensor da Cidade.{de}Der Proxy hat den Gleichstand bei der Verteidigerwahl der Stadt aufgelöst.",{1,0.75,0.2})

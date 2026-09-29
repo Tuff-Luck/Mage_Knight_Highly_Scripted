@@ -61,6 +61,49 @@ function setUIButtonEnabled(id,enabled,imageId)
 	UI.setAttribute(imageId or id.."Image","image",enabled and UI_BUTTON_ACTIVE_IMAGE or UI_BUTTON_DEACTIVE_IMAGE)
 end
 
+--Shared object-UI surgery. Callers supply only the IDs/patterns they own; unrelated object UI is preserved.
+local function objectUIApplyXml(obj,xml)
+	if obj==nil or obj.UI==nil then return false end
+	if #xml>0 then obj.UI.setXmlTable(xml) else obj.UI.setXml("") end
+	return true
+end
+
+function objectUIFilteredXml(obj,removeId)
+	local xml=obj~=nil and obj.UI~=nil and (obj.UI.getXmlTable() or {}) or {}
+	if type(removeId)~="function" then return xml,false end
+	local changed=false
+	for i=#xml,1,-1 do
+		local attributes=xml[i].attributes
+		local id=attributes~=nil and tostring(attributes.id or "") or ""
+		if removeId(id,xml[i])==true then table.remove(xml,i) changed=true end
+	end
+	return xml,changed
+end
+
+function objectUIRemoveMatching(obj,removeId)
+	local xml,changed=objectUIFilteredXml(obj,removeId)
+	if changed==true then objectUIApplyXml(obj,xml) end
+	return changed,xml
+end
+
+function objectUIWithoutSuffixes(obj,suffixes)
+	if obj==nil then return {},false end
+	local ids={}
+	for _,suffix in ipairs(suffixes or {}) do ids[tostring(obj.guid or "")..tostring(suffix)]=true end
+	return objectUIFilteredXml(obj,function(id) return ids[id]==true end)
+end
+
+function objectUIRemoveSuffixes(obj,suffixes)
+	local xml,changed=objectUIWithoutSuffixes(obj,suffixes)
+	if changed==true then objectUIApplyXml(obj,xml) end
+	return changed,xml
+end
+
+function objectUIRemoveIdContaining(obj,marker)
+	if marker==nil or marker=="" then return false end
+	return objectUIRemoveMatching(obj,function(id) return id:find(marker,1,true)~=nil end)
+end
+
 --Centralize Global UI visibility so late-joining/seating players receive a fresh, consistent runtime state.
 --nil means public. A viewer table must contain at least one valid entry because an empty TTS visibility
 --string means "visible to everyone".
@@ -270,6 +313,25 @@ function positionToColor(turnNumber)
 	return color
 end
 
+--Shared turn-order/scenario identity. Keep scenario membership in one place so setup and runtime cannot drift.
+function turnOrderIndexAtSeat(seatPos,predicate)
+	if seatPos==nil then return nil end
+	for playerIndex,details in pairs(turnOrder or {}) do
+		if details.seatPos==seatPos and (predicate==nil or predicate(playerIndex,details)==true) then return playerIndex end
+	end
+	return nil
+end
+
+function scenarioUsesApocalypseDragon()
+	local scenario=gStates~=nil and gStates.gameScenario or nil
+	return scenario=="Against the Dragon Blitz" or scenario=="Apocalypse is Here" or scenario=="Fury of the Apocalypse Dragon"
+end
+
+function scenarioUsesHorsemen()
+	local scenario=gStates~=nil and gStates.gameScenario or nil
+	return scenario=="Against the Horsemen Blitz" or scenario=="Apocalypse is Here"
+end
+
 --Rewards Claimed soft locks are player reminders, not hard disables. They share one short window
 --from the moment the Rewards Claimed stage begins, then allow the player to continue manually.
 REWARD_CLAIM_SOFT_LOCK_SECONDS=30
@@ -462,6 +524,25 @@ function terrainHexAtPosition(pos, objectsInPlay, cachedPositions, cachedRotatio
 end
 
 
+--Static terrain-data query shared by setup systems.
+function terrainTileHasFeature(terrainGUID,feature)
+	local data=terrainGUID~=nil and terrainTiles[terrainGUID] or nil
+	if data==nil or data.hexFeature==nil then return false end
+	for _,candidate in pairs(data.hexFeature) do if candidate==feature then return true end end
+	return false
+end
+
+--Capture the common pre-assault avatar origin used by Dragon/Horsemen assaults.
+function assaultOriginFromPosition(approachPosition)
+	local origin={avatarLocation="",avatarSharedHex=nil,avatarSwapCity=nil,position=nil}
+	if approachPosition~=nil then
+		origin.position={approachPosition[1],approachPosition[2],approachPosition[3]}
+		local terrain,bearing,_,feature=terrainHexAtPosition(approachPosition)
+		if terrain~=nil and bearing~=nil then origin.avatarLocation=feature or "" end
+	end
+	return origin
+end
+
 -- Shared runtime map snapshots. The physical TTS table is authoritative; these are only derived
 -- in-memory indexes and must never be persisted in gStates. Ordinary map membership changes invalidate
 -- only the cheap object list. Terrain membership/transform/face changes also invalidate the expensive
@@ -596,6 +677,46 @@ function terrainHexChoiceUIPlacement(key,buttonScale,splitIndex,splitCount,refer
 	}
 end
 
+--Build the common transparent choice button used directly on terrain hexes.
+function appendTerrainHexChoiceButton(key,index,xml,splitIndex,splitCount,spec)
+	spec=spec or {}
+	if key==nil or spec.idPrefix==nil or spec.onClick==nil then return nil,xml end
+	local terrain,placement=terrainHexChoiceUIPlacement(key,spec.buttonScale or 0.38,splitIndex,splitCount,spec.referenceScale or spec.buttonScale or 0.38)
+	if terrain==nil or placement==nil then return nil,xml end
+	local id=terrain.guid..tostring(spec.idPrefix)..tostring(index)
+	local split=placement.count>1
+	local fontSize=tostring(split and (spec.splitFontSize or 60) or (spec.fontSize or 72))
+	xml=xml or terrain.UI.getXmlTable() or {}
+	xml[#xml+1]={tag="Button",attributes={id=id,onClick=spec.onClick,onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+		height=placement.height,width=spec.width or 320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
+		children={{tag="Image",attributes={id=id.."Image",image=spec.image or "Sliced Button/Button Object Active",type="Sliced"}},
+			{tag="HorizontalLayout",attributes={padding=spec.padding or "20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font=spec.font or "Fonts/MKCardText",offsetXY=spec.offsetXY or "0 1",fontSize=fontSize,fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=fontSize,text=spec.text or ""}}}}}}
+	return terrain,xml
+end
+
+--Remove one subsystem's terrain-attached choice controls without disturbing other terrain UI.
+function clearTerrainChoiceButtons(marker,terrainGUIDs)
+	if marker==nil or marker=="" then return false end
+	local objects={}
+	if terrainGUIDs~=nil then
+		local seen={}
+		for _,guid in pairs(terrainGUIDs) do
+			if seen[guid]~=true then
+				seen[guid]=true
+				local terrain=getObjectFromGUID(guid)
+				if terrain~=nil then objects[#objects+1]=terrain end
+			end
+		end
+	else
+		objects=runtimeMapSnapshot().terrainObjects or {}
+	end
+	local changed=false
+	for _,terrain in ipairs(objects) do
+		if terrainTiles[terrain.guid]~=nil and objectUIRemoveIdContaining(terrain,marker)==true then changed=true end
+	end
+	return changed
+end
+
 local function runtimeMapObjectSnapshot()
 	if runtimeMapObjectCache~=nil then return runtimeMapObjectCache end
 	local map=getObjectFromGUID(mapArea)
@@ -708,6 +829,14 @@ function runtimeMapSnapshot()
 		neighborSet=terrainSnapshot.neighborSet,terrainSignature=terrainSnapshot.terrainSignature
 	}
 	return runtimeMapSnapshotCache
+end
+
+function runtimeMapHexByKey(hexes,key)
+	if key==nil or hexes==nil then return nil end
+	local snapshot=runtimeMapSnapshot()
+	if hexes==snapshot.hexes then return snapshot.hexByKey[key] end
+	for _,hex in ipairs(hexes) do if runtimeMapHexKey(hex)==key then return hex end end
+	return nil
 end
 
 function runtimeMapHexDistanceMap(hexes,starts)
