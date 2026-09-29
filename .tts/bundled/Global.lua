@@ -2815,6 +2815,15 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 		UI.setAttribute("OutOfTurnActions", "active", "false")
 	local count=0
 	if gStates.tacticRemove==false and gStates.tacticShown==false then
+		local currentPlayerHasPursuingMonster=false
+		local pursuingStates=gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]
+		if pursuingStates~=nil then
+			for _, state in pairs(pursuingStates) do
+				if state~=nil and state.state=="Pursuing" then currentPlayerHasPursuingMonster=true break end
+			end
+		end
+		local masterOfChaosObj=getObjectFromGUID(GUID.skill.masterOfChaos)
+		local masterOfChaosPos=masterOfChaosObj~=nil and masterOfChaosObj.getPosition() or nil
 		for a=1, #turnOrder, 1 do
 			UI.setAttribute("Plunder"..tostring(turnOrder[a].seatPos), "active", "false")
 			UI.setAttribute("Pursuit"..tostring(turnOrder[a].seatPos), "active", "false")
@@ -2837,13 +2846,7 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 			end
 
 			--skip movement button.
-			local found=false
-			if gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]~=nil then
-				for _, state in pairs(gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]) do
-					if state~=nil and state.state=="Pursuing" then found=true end
-				end
-			end
-			if playerDropoutInactive(a)==false and found==true and a==gStates.turnNumber and gStates.skippedMove==false and gStates.preEndTurn==false then
+			if playerDropoutInactive(a)==false and currentPlayerHasPursuingMonster==true and a==gStates.turnNumber and gStates.skippedMove==false and gStates.preEndTurn==false then
 				local playerPos=mageKnightAvatarPosition(gStates.turnNumber) or {}
 				if math.sqrt(((turnOrder[gStates.turnNumber].turnStartLoc.x-playerPos[1])^2)+((turnOrder[gStates.turnNumber].turnStartLoc.z-playerPos[3])^2))<1.5 then
 					UI.setAttribute("Pursuit"..tostring(turnOrder[gStates.turnNumber].seatPos), "active", "true")
@@ -2877,7 +2880,7 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 			end
 
 			--Night Tactic 6 Buttons - and a~=gStates.turnNumber
-			if playerDropoutInactive(a)==false and turnOrder[a].tactic==6 and (a~=gStates.turnNumber or (a==gStates.turnNumber and playerAreaCardCount+playerAreaSkillCount<1)) and gStates.dayRound==false and gStates.tacticSixState~="Stored" and gStates.tacticSixState~="Used" and turnOrder[a].mage~=gStates.positionMageKnight[5] then
+			if playerDropoutInactive(a)==false and turnOrder[a].tactic==6 and (a~=gStates.turnNumber or (a==gStates.turnNumber and playerAreaCardCount+playerAreaSkillCount<1)) and gStates.dayRound==false and gStates.tacticSixState~="Stored" and gStates.tacticSixState~="Claiming" and gStates.tacticSixState~="Used" and turnOrder[a].mage~=gStates.positionMageKnight[5] then
 				local found=(deedPileCardCount[turnOrder[a].seatPos] or 0)>0
 				if found==true then
 					UI.setAttribute("NightTactic6Store"..tostring(turnOrder[a].seatPos), "active", "true")
@@ -2925,7 +2928,7 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 			end
 
 			--Master of Chaos
-			if playerDropoutInactive(a)==false and getObjectFromGUID(GUID.skill.masterOfChaos)~=nil and getObjectFromGUID(GUID.skill.masterOfChaos).getPosition()[3]<-25 and math.floor(((getObjectFromGUID(GUID.skill.masterOfChaos).getPosition()[1]+107.3)/40)+0.5)==turnOrder[a].seatPos and (a~=gStates.turnNumber or (a==gStates.turnNumber and playerAreaCardCount+playerAreaSkillCount<1)) and turnOrder[a].masterOfChaos=="available" and turnOrder[a].mage~=gStates.positionMageKnight[5] then
+			if playerDropoutInactive(a)==false and masterOfChaosPos~=nil and masterOfChaosPos[3]<-25 and math.floor(((masterOfChaosPos[1]+107.3)/40)+0.5)==turnOrder[a].seatPos and (a~=gStates.turnNumber or (a==gStates.turnNumber and playerAreaCardCount+playerAreaSkillCount<1)) and turnOrder[a].masterOfChaos=="available" and turnOrder[a].mage~=gStates.positionMageKnight[5] then
 				UI.setAttribute("MasterOfChaos"..tostring(turnOrder[a].seatPos).."Text", "text", "{en}Increment 'Master of Chaos' Skill{ru}Передвинуть навык «Мастер магии Хаоса»{zh-tw} 推進“混亂大師”技能{zh-cn} 推进“混乱大师”技能{ko} '혼돈의 달인' 스킬 한 칸 이동{es}Incrementa la Habilidad 'Maestro del Caos'{fr}Augmenter la Compétence 'Maître du Chaos'{pt-br}Incrementar a Habilidade 'Mestre do Caos'{de}Erhöht die Fertigkeit 'Meister des Chaos'")
 				UI.setAttribute("MasterOfChaos"..tostring(turnOrder[a].seatPos), "active", "true")
 				UI.setAttribute("MasterOfChaos"..tostring(turnOrder[a].seatPos).."Image", "color", positionToColor(a))
@@ -3089,11 +3092,6 @@ local function signedBonus(value)
 	return tostring(value)
 end
 
-function turnOrderIndexAtSeat(seatPos)
-	for playerIndex, details in pairs(turnOrder) do if details.seatPos==seatPos then return playerIndex end end
-	return nil
-end
-
 --Only inspect a Unit Area when that area actually changes; routine UI refreshes no longer scan it.
 function separateCombinedUnitsInArea(seatPos)
 	local zoneGUID=playerUnitAreas[seatPos]
@@ -3109,7 +3107,7 @@ end
 
 --Shared presentation layer for every scripted/non-player turn that borrows the centre Dummy panel.
 --Gameplay stays in the owning system; these helpers only decide and render the current UI state.
-automatedAttackResponseButton=function(id,textId,imageId,spec)
+local function automatedAttackResponseButton(id,textId,imageId,spec)
 	if spec==nil then UI.setAttribute(id,"active","false") return end
 	local visible=spec.active~=false
 	local enabled=visible and spec.interactable~=false
@@ -3129,7 +3127,7 @@ function automatedAttackResponseUI(spec)
 	return spec.visible~=false
 end
 
-automatedPanelHasDeedCards=function(stats)
+local function automatedPanelHasDeedCards(stats)
 	if stats==nil or stats.seatPos==nil then return false end
 	local cached=endRoundDeedHasCards[stats.seatPos]
 	if cached~=nil then return cached end
@@ -3139,7 +3137,7 @@ automatedPanelHasDeedCards=function(stats)
 	return count>0
 end
 
-automatedPanelEndRoundText=function()
+local function automatedPanelEndRoundText()
 	if gStates.currentRound>=gStates.rounds then return "{en}Call End of Game{ru}Объявить конец игры{zh-tw}宣告遊戲結束{zh-cn}宣布游戏结束{ko}게임 종료 선언{es}Declarar Fin del Juego{fr}Déclarer la Fin de la Partie{pt-br}Declarar Fim do Jogo{de}Spielende Ausrufen" end
 	return joinLang({"{en}Call End of Round {ru}Объявить конец Раунда {zh-tw}聲明結束輪次 {zh-cn}声明结束轮次 {ko}라운드 종료 선언 {es}Llamar a Fin de Ronda {fr}Appel fin de Round{pt-br}Fim da Rodada {de}Ende der Runde Einläuten ",gStates.currentRound,"{en} of {ru} из {zh-tw} / {zh-cn} / {ko} / {es} / {fr} de {pt-br} de {de} von ",gStates.rounds})
 end
@@ -3184,7 +3182,7 @@ function automatedProxyPanelSpec(stats,stateOverride)
 	return spec
 end
 
-automatedDummyPanelSpec=function(stats)
+local function automatedDummyPanelSpec(stats)
 	local spec={actor="dummy",onClick="dummyTurn",interactable=true,label="{en}Process Dummy{ru}Ход виртуального игрока{zh-tw}虛擬玩家行動{zh-cn}虚拟玩家行动{ko}가상 플레이어 진행{es}Procesar Jugador Virtual{fr}Processus fantôme{pt-br}Processar Jog.Fictício{de}Dummy aktivieren"}
 	if stats.dummyProcessedThisTurn~=true and automatedPanelHasDeedCards(stats)==false and gStates.endRoundCalled==false and gStates.endGameAchieved=="false" then
 		spec.onClick="PreEndRound"
@@ -3205,7 +3203,7 @@ automatedDummyPanelSpec=function(stats)
 	return spec
 end
 
-automatedVolkarePanelSpec=function(stats)
+local function automatedVolkarePanelSpec(stats)
 	local state=gStates.volkareState or "Start"
 	local spec={actor="volkare",onClick="volkareTurn",interactable=true,preserveResponse=true,label="{en}Process Volkare{ru}Ход Волкара{zh-tw}沃卡里行動{zh-cn}沃卡里行动{ko}볼케어 진행{es}Procesar Volkare{fr}Processus Volkare{pt-br}Processar Volkare{de}Volkare Aktivieren"}
 	if state=="Start" then
@@ -3237,7 +3235,7 @@ automatedVolkarePanelSpec=function(stats)
 	return spec
 end
 
-automatedCurrentPlayerPanelSpec=function()
+local function automatedCurrentPlayerPanelSpec()
 	if gStates==nil or gStates.turnNumber==nil or turnOrder[gStates.turnNumber]==nil or gStates.positionMageKnight==nil then return nil end
 	local stats=turnOrder[gStates.turnNumber]
 	if stats.mage~=gStates.positionMageKnight[5] then return nil end
@@ -3332,6 +3330,16 @@ local mainUINonCombatAccountingSources={
 	["Night Tactic 6 Claimed"]=true,
 	["Fame Gain from exploring"]=true
 }
+local function setEndTurnText(text)
+	UI.setAttribute("EndTurnButtonText","text",text)
+	UI.setAttribute("EndTurnButtonAltText","text",text)
+end
+
+local function setEndTurnTooltip(text)
+	UI.setAttribute("EndTurnButton","tooltip",text)
+	UI.setAttribute("EndTurnButtonAlt","tooltip",text)
+end
+
 local function mainUIBuildRefreshContext(source)
 	local currentPlayer=turnOrder[gStates.turnNumber]
 	if currentPlayer==nil then return nil end
@@ -3375,8 +3383,7 @@ local function mainUIRefreshTurnControls(context)
 	local currentPlayerGameEnder=context.currentPlayerGameEnder
 	--change End turn button to say End Round on the last player turn
 	setUIButtonEnabled("EndTurnButton",true)
-	UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
-	UI.setAttribute("EndTurnButtonAlt", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
+	setEndTurnTooltip("At least one card must be played or discarded to 'End Your Turn'.")
 	setUIButtonEnabled("EndTurnButtonAlt",true)
 	setUIButtonEnabled("ExtraTurnTacticButton",true)
 	UI.setAttribute("PreEndTurnText", "text", "{en}Rewards Claimed{ru}Награды получены{zh-tw}獲得獎勵{zh-cn}获得奖励{ko}보상 처리 완료{es}Recompensas Reclamadas{fr}Récompenses réclamées{pt-br}Recompensas Coletadas{de}Belohnungen Beansprucht")
@@ -3389,8 +3396,7 @@ local function mainUIRefreshTurnControls(context)
 	local nextTurnToken=nextIsCoopAssaulter and getObjectFromGUID(turnOrder[nextPlayer].turnOrderTokenGUID) or nil
 	if nextIsCoopAssaulter and turnOrder[nextPlayer].mage~=gStates.positionMageKnight[5] and nextTurnToken~=nil and nextTurnToken.is_face_down==true then
 		endText="{en}Next Assaulter{ru}Следующий штурмующий{zh-tw}換下一個襲擊者{zh-cn}换下一个袭击者{ko}다음 강습자{es}Siguiente Asaltante{fr}Prochain Agresseur{pt-br}Próximo Invasor{de}Nächster Spieler" end
-	UI.setAttribute("EndTurnButtonText", "text", endText)
-	UI.setAttribute("EndTurnButtonAltText", "text", endText)
+	setEndTurnText(endText)
 end
 
 local function mainUIRefreshPlayerState(context)
@@ -3662,22 +3668,18 @@ local function mainUIRefreshLevelUpTurnText(context,playerState)
 	local nextPlayerEndCalled=context.nextPlayerEndCalled
 	--Change End turn button text if level up expected
 	if gStates.coopAssaultPhase~="combat" and (fameForUp<=turnOrder[gStates.turnNumber].fameGain or turnOrder[gStates.turnNumber].levelUp>0) and turnOrder[gStates.turnNumber].fame<gStates.scoreIfLooped and fameVerticle<gStates.rowsOnBoard then
-		UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
-		UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
+		setEndTurnText("{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
 		local expectedFame=turnOrder[gStates.turnNumber].fame+turnOrder[gStates.turnNumber].fameGain
 		local excessLevels=math.floor(math.sqrt(expectedFame+1))-turnOrder[gStates.turnNumber].level
 		expectedFame=expectedFame+(1*excessLevels*gStates.blitz)
 		excessLevels=math.floor(math.sqrt(expectedFame+1))-turnOrder[gStates.turnNumber].level
 		if excessLevels>1 then
-			UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
-			UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
+			setEndTurnText(joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
 		end
 		if nextPlayerEndCalled==true then
-			UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
-			UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
+			setEndTurnText("{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
 			if excessLevels>1 then
-				UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
-				UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
+				setEndTurnText(joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
 			end
 		end
 	end
@@ -3815,12 +3817,8 @@ local function mainUIRefreshTurnAvailability(context,playerState)
 		if b.type=="Card" then discardAreaCards=1 break end
 		if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
 	end
-	UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
-	UI.setAttribute("EndTurnButtonAlt", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
-	if gStates.endRoundCalled==true then
-		UI.setAttribute("EndTurnButton", "tooltip", "")
-		UI.setAttribute("EndTurnButtonAlt", "tooltip", "")
-	end
+	setEndTurnTooltip("At least one card must be played or discarded to 'End Your Turn'.")
+	if gStates.endRoundCalled==true then setEndTurnTooltip("") end
 	local coopCombatButtonLocked=gStates.coopAssaultPhase=="combat" and (gStates.preEndTurn==true or playerAreaCardCount<1)
 	if (playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount) or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
 		setUIButtonEnabled("EndTurnButton",false)
@@ -4013,14 +4011,12 @@ local function mainUIRefreshStatusPanel(context,playerState)
 
 	UI.setAttribute("PreEndTurn", "onClick", "endTurn")
 	if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==false then
-		UI.setAttribute("EndTurnButtonText", "text", "{en}Combat Complete{ru}Бой завершён{zh-tw}戰鬥完成{zh-cn}战斗完成{ko}전투 완료{es}Combate Completo{fr}Combat Terminé{pt-br}Combate Concluído{de}Kampf Abgeschlossen")
-		UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
+		setEndTurnText("{en}Combat Complete{ru}Бой завершён{zh-tw}戰鬥完成{zh-cn}战斗完成{ko}전투 완료{es}Combate Completo{fr}Combat Terminé{pt-br}Combate Concluído{de}Kampf Abgeschlossen")
 	elseif gStates.coopAssaultPhase=="rewards" then
 		local nextText="{en}Finish Co-op Rewards{ru}Завершить совместные награды{zh-tw}完成合作獎勵{zh-cn}完成合作奖励{ko}협력 보상 완료{es}Finalizar Recompensas Coop.{fr}Terminer les Récompenses Coop.{pt-br}Finalizar Recompensas Coop.{de}Koop-Belohnungen Beenden"
 		if gStates.coopRewardIndex<#gStates.coopRewardQueue then nextText="{en}Rewards Claimed - Next Reward{ru}Награды получены - Следующая награда{zh-tw}獎勵完成－下一位{zh-cn}奖励完成－下一位{ko}보상 완료 - 다음 보상{es}Recompensas Reclamadas - Siguiente{fr}Récompenses Réclamées - Suivant{pt-br}Recompensas Coletadas - Próximo{de}Belohnungen Beansprucht - Weiter" end
 		UI.setAttribute("PreEndTurnText", "text", nextText)
-		UI.setAttribute("EndTurnButtonText", "text", "{en}Co-op Rewards{ru}Совместные награды{zh-tw}合作獎勵{zh-cn}合作奖励{ko}협력 보상{es}Recompensas Coop.{fr}Récompenses Coop.{pt-br}Recompensas Coop.{de}Koop-Belohnungen")
-		UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
+		setEndTurnText("{en}Co-op Rewards{ru}Совместные награды{zh-tw}合作獎勵{zh-cn}合作奖励{ko}협력 보상{es}Recompensas Coop.{fr}Récompenses Coop.{pt-br}Recompensas Coop.{de}Koop-Belohnungen")
 		setUIButtonEnabled("EndTurnButton",false)
 		setUIButtonEnabled("EndTurnButtonAlt",false)
 	end
@@ -4049,6 +4045,7 @@ function uiMainUIUpdateBase(source,afterRefresh)
 	end
 	if mainUIPause~=nil then Wait.stop(mainUIPause) end
 	mainUIPause=safeWaitTime("UI",function()
+		if refreshNightTactic6StoredCount~=nil then refreshNightTactic6StoredCount() end
 		local context=mainUIBuildRefreshContext(source)
 		if context==nil then
 			mainUIPause=nil
@@ -4077,7 +4074,7 @@ function uiMainUIUpdateBase(source,afterRefresh)
 end
 
 --Add Icons to players Avatar and Rampaging Monsters
-local addAvatarPause=true
+local avatarButtonRefreshPending=false
 avatarButtonXmlState={}
 mapObjectScriptUIState={}
 avatarButtonSpatialCell=3
@@ -4116,11 +4113,11 @@ function clearMapObjectUIOnExit(obj)
 	return true
 end
 
-avatarButtonBucketKey=function(pos)
+local function avatarButtonBucketKey(pos)
 	return tostring(math.floor(pos[1]/avatarButtonSpatialCell))..":"..tostring(math.floor(pos[3]/avatarButtonSpatialCell))
 end
 
-avatarButtonNearbyObjects=function(buckets, pos)
+local function avatarButtonNearbyObjects(buckets, pos)
 	local nearby={}
 	local baseX=math.floor(pos[1]/avatarButtonSpatialCell)
 	local baseZ=math.floor(pos[3]/avatarButtonSpatialCell)
@@ -4133,7 +4130,7 @@ avatarButtonNearbyObjects=function(buckets, pos)
 	return nearby
 end
 
-avatarButtonXmlSignature=function(xml, scale, rotation)
+local function avatarButtonXmlSignature(xml, scale, rotation)
 	if xml==nil or xml[1]==nil or xml[1].tag==nil then return "empty" end
 	local signature={tostring(scale), tostring(math.floor((rotation or 0)*10+0.5)/10)}
 	for _, child in ipairs(xml[1].children or {}) do
@@ -4158,7 +4155,10 @@ combatAttackOptionCounts=combatAttackOptionCounts or {}
 combatAttackHorsemanOptionCounts=combatAttackHorsemanOptionCounts or {}
 
 function addAvatarButtons()
-	if addAvatarPause==true then safeWaitFrames("UI",function()
+	if avatarButtonRefreshPending==true then return end
+	avatarButtonRefreshPending=true
+	safeWaitFrames("UI",function()
+		avatarButtonRefreshPending=false
 		--Snapshot relevant map objects once. Nearby shield/marker/ruin checks use spatial buckets;
 		--rampager/destroyed-site controls remain a small dedicated list because stale remote buttons must be cleared.
 		local mapButtonBuckets={}
@@ -4213,7 +4213,7 @@ function addAvatarButtons()
 					local turnTokenFaceUp=turnTokenObj~=nil and turnTokenObj.is_face_down==false
 
 					--Use City Model location as Avatar Location if in City.
-					if player.avatarLocation:sub(1, 4)=="city" or player.avatarLocation=="Volkare's Camp" then
+					if player.avatarLocation~=nil and (player.avatarLocation:sub(1, 4)=="city" or player.avatarLocation=="Volkare's Camp") then
 						for zoneGUID, citySearch in pairs(cityScriptZones) do
 							local zoneObj=getObjectFromGUID(zoneGUID)
 							if zoneObj~=nil then
@@ -4442,9 +4442,7 @@ function addAvatarButtons()
 				end
 			end
 		end
-		addAvatarPause=true
-	end, 5) end
-	addAvatarPause=false
+	end, 5)
 end
 
 --drop a shield or marker on avatar location
@@ -4540,28 +4538,33 @@ end
 
 
 function openBugReportPanel(player, value, id)
-	UI.setAttribute("SendBugRequest", "active", true)
+	UI.setAttribute("SendBugRequest", "active", "true")
 end
 
 function setBugReportComment(player, value, id)
 	UI.setAttribute(id, "text", value)
 end
 
+local LOWER_TABLE_GUID="3d4319"
+local LOWER_TABLE_SURFACE_GUID="519f96"
 function lowerTable(player, mouseButton, id)
-	if mouseButton=="-1" then
-		if getObjectFromGUID("3d4319").getPosition()[2]==0 then
-			getObjectFromGUID("3d4319").setPosition({0.00, -0.2, -5.00})
-			getObjectFromGUID("519f96").setScale({200, 1, 200})
-			getObjectFromGUID("519f96").setPosition({0.00, 0.77, -5.00})
-			skillButtonActivate()
-			return
-		end
-		if getObjectFromGUID("3d4319").getPosition()[2]<0 then
-			getObjectFromGUID("3d4319").setPosition({0.00, 0.0, -5.00})
-			getObjectFromGUID("519f96").setScale({1, 1, 1})
-			getObjectFromGUID("519f96").setPosition({0.00, -0.2, -5.00})
-			skillButtonActivate()
-		end
+	if mouseButton~="-1" then return end
+	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
+	local surfaceObj=getObjectFromGUID(LOWER_TABLE_SURFACE_GUID)
+	if tableObj==nil or surfaceObj==nil then return end
+	local tableY=tableObj.getPosition()[2]
+	if tableY==0 then
+		tableObj.setPosition({0.00, -0.2, -5.00})
+		surfaceObj.setScale({200, 1, 200})
+		surfaceObj.setPosition({0.00, 0.77, -5.00})
+		skillButtonActivate()
+		return
+	end
+	if tableY<0 then
+		tableObj.setPosition({0.00, 0.0, -5.00})
+		surfaceObj.setScale({1, 1, 1})
+		surfaceObj.setPosition({0.00, -0.2, -5.00})
+		skillButtonActivate()
 	end
 end
 
@@ -4619,21 +4622,31 @@ function cameraControl(player, mouseButton, id)
 				return
 			end
 			local lookAtPos={0, 0, 0}
-			if id=="dummyView" and getObjectFromGUID(dummyBoard)~=nil then lookAtPos=getObjectFromGUID(dummyBoard).getPosition() end--dummy board position
+			if id=="dummyView" then
+				local dummyObj=getObjectFromGUID(dummyBoard)
+				if dummyObj~=nil then lookAtPos=dummyObj.getPosition() end
+			end--dummy board position
 			for turn, playerDetails in pairs(turnOrder) do
 				if (player.color~="Black" and Player[player.color].getHandTransform()~=nil and playerDetails.seatPos==math.ceil((Player[player.color].getHandTransform().position[1]+97.59)/40)) or
 				   (player.color=="Black" and turn==gStates.turnNumber) then
 					if id=="mapView" then
 						for indexMage=1, #mageKnights, 1 do
 							if mageKnights[indexMage].mage==playerDetails.mage then--figures out which Mage is in that position
-								if getObjectFromGUID(mageKnights[indexMage].model)~=nil then lookAtPos=getObjectFromGUID(mageKnights[indexMage].model).getPosition() end
-								if getObjectFromGUID(mageKnights[indexMage].standee)~=nil then lookAtPos=getObjectFromGUID(mageKnights[indexMage].standee).getPosition() end
-								if getObjectFromGUID(mageKnights[indexMage].token)~=nil then lookAtPos=getObjectFromGUID(mageKnights[indexMage].token).getPosition() end
+								local modelObj=getObjectFromGUID(mageKnights[indexMage].model)
+								local standeeObj=getObjectFromGUID(mageKnights[indexMage].standee)
+								local tokenObj=getObjectFromGUID(mageKnights[indexMage].token)
+								if modelObj~=nil then lookAtPos=modelObj.getPosition() end
+								if standeeObj~=nil then lookAtPos=standeeObj.getPosition() end
+								if tokenObj~=nil then lookAtPos=tokenObj.getPosition() end
 								if lookAtPos[1]<-42 then
 									if gStates.gameScenario=="Against the Horsemen Blitz" then
 										lookAtPos=againstHorsemenCentralGladePosition(0) or lookAtPos
-									elseif getObjectFromGUID(startTerrain.wedge)~=nil then lookAtPos=getObjectFromGUID(startTerrain.wedge).getPosition()
-									elseif getObjectFromGUID(startTerrain.open)~=nil then lookAtPos=getObjectFromGUID(startTerrain.open).getPosition() end
+									else
+										local wedgeObj=getObjectFromGUID(startTerrain.wedge)
+										local openObj=getObjectFromGUID(startTerrain.open)
+										if wedgeObj~=nil then lookAtPos=wedgeObj.getPosition()
+										elseif openObj~=nil then lookAtPos=openObj.getPosition() end
+									end
 								end
 								break
 							end
@@ -4654,7 +4667,8 @@ function cameraControl(player, mouseButton, id)
 						["rulesView"]={pos={63.12, 0, 34.0}, pitch=gStates.cameraControlTopDown, yaw=0, dist=20},
 						["monsterInfoView"]={pos={-12.7, 0, 34.5}, pitch=gStates.cameraControlTopDown, yaw=0, dist=17},
 						["siteInfoView"]={pos={-62.0, 0, -16.5}, pitch=gStates.cameraControlTopDown, yaw=0, dist=18}}
-			Player[player.color].lookAt({position=data[id].pos, pitch=data[id].pitch, yaw=data[id].yaw, distance=data[id].dist})
+			local view=data[id]
+			if view~=nil then Player[player.color].lookAt({position=view.pos, pitch=view.pitch, yaw=view.yaw, distance=view.dist}) end
 		end
 	end
 end
@@ -4670,6 +4684,56 @@ function cameraControlTopDown(player, value, id)
 		gStates.cameraControlTopDown=75
 	end
 end
+
+local RESOURCE_TRACKER_EXPANDERS={	["DisplayMoveCosts"]={"MoveCosts", 240},
+					["DisplaySiegeDetails"]={"SiegeAmountDetails", 120},
+					["DisplayRangeDetails"]={"RangeAmountDetails", 120},
+					["DisplayBlockDetails"]={"BlockAmountDetails", 120},
+					["DisplayAttacDetails"]={"AttacAmountDetails", 120},
+					["DisplayInfluDetails"]={"InfluAmountDetails", 90}}
+
+local RESOURCE_TRACKER_FIELDS={	["MovemAmountPlain"]={"move", "move", "{en}Move : {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동 : {es}Mover : {fr}Se déplacer : {pt-br}Mover : {de}Bewegen : "},
+					["SiegeAmountPlain"]={"siege", "physical", "{en}Siege : {ru}Осадная: {zh-tw}攻城：{zh-cn}攻城：{ko}공성 : {es}Asedio : {fr}Siège : {pt-br}Cerco : {de}Belagerung : "},
+					["SiegeAmountPhysi"]={"siege", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
+					["SiegeAmountFirex"]={"siege", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
+					["SiegeAmountIcexx"]={"siege", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
+					["SiegeAmountColdF"]={"siege", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["RangeAmountPlain"]={"ranged", "physical", "{en}Range : {ru}Дальняя: {zh-tw}遠程：{zh-cn}远程：{ko}원거리 : {es}Rango : {fr}Gamme : {pt-br}Distância : {de}Reichweite : "},
+					["RangeAmountPhysi"]={"ranged", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
+					["RangeAmountFirex"]={"ranged", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
+					["RangeAmountIcexx"]={"ranged", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
+					["RangeAmountColdF"]={"ranged", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["BlockAmountPlain"]={"block", "physical", "{en}Block : {ru}Блок: {zh-tw}格擋：{zh-cn}格档：{ko}방어 : {es}Bloqueo : {fr}Blocage : {pt-br}Bloqueio : {de}Blockieren : "},
+					["BlockAmountPhysi"]={"block", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
+					["BlockAmountFirex"]={"block", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
+					["BlockAmountIcexx"]={"block", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
+					["BlockAmountColdF"]={"block", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["AttacAmountPlain"]={"attack", "physical", "{en}Attack : {ru}Атака: {zh-tw}攻擊：{zh-cn}攻击：{ko}공격 : {es}Ataque : {fr}Attaque : {pt-br}Ataque : {de}Angriff : "},
+					["AttacAmountPhysi"]={"attack", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
+					["AttacAmountFirex"]={"attack", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
+					["AttacAmountIcexx"]={"attack", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
+					["AttacAmountColdF"]={"attack", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
+					["InfluAmountPlain"]={"influence", "generated", "{en}Influence : {ru}Влияние: {zh-tw}影響力：{zh-cn}影响力：{ko}영향력 : {es}Influencia : {fr}Influence : {pt-br}Influência : {de}Einfluss : "},
+					["InfluAmountPhysi"]={"influence", "generated", "{en}Generated : {ru}Сгенерировано: {zh-tw}產生的：{zh-cn}产生的：{ko}사용 : {es}Generación : {fr}Généré : {pt-br}Gerado : {de}Erzeugt : "},
+					["InfluAmountReput"]={"influence", "reputation", "{en}Reputation : {ru}Репутация: {zh-tw}聲譽：{zh-cn}声誉：{ko}평판 : {es}Reputación : {fr}Réputation : {pt-br}Reputação : {de}Reputation : "},
+					["InfluAmountCityS"]={"influence", "cityShields", "{en}City Shields : {ru}Щиты на городе: {zh-tw}城市的盾徽：{zh-cn}城市的盾徽：{ko}도시 방패 토큰 : {es}Escudos de la Ciudad : {fr}Boucliers de Ville : {pt-br}Escudos das Cidades : {de}Stadtschilde : "},
+					["HealiAmountPlain"]={"healing", "healing", "{en}Healing : {ru}Лечение: {zh-tw}治療：{zh-cn}治疗：{ko}치유 : {es}Curación : {fr}Guérison : {pt-br}Cura : {de}Heilung : "}}
+local RESOURCE_TRACKER_TOTAL_FIELDS={
+	SiegeAmountPlain="siege",
+	RangeAmountPlain="ranged",
+	BlockAmountPlain="block",
+	AttacAmountPlain="attack",
+	InfluAmountPlain="influence"
+}
+
+local MOVE_COST_FIELDS={	["Plain"]={"plains", "{en}Plains : {ru}Равнины: {zh-tw}平原：{zh-cn}平原：{ko}평지 :{es}Llanuras : {fr}Plaines : {pt-br}Planícies : {de}Ebenen : "},
+				["Hills"]={"hills", "{en}Hills : {ru}Холмы: {zh-tw}丘陵：{zh-cn}丘陵：{ko}언덕 : {es}Colinas : {fr}Collines : {pt-br}Colinas : {de}Hügel : "},
+				["Fores"]={"forest", "{en}Forests : {ru}Леса: {zh-tw}森林：{zh-cn}森林：{ko}숲 : {es}Bosques : {fr}Forêts : {pt-br}Florestas : {de}Wälder : "},
+				["Waste"]={"wasteland", "{en}Wastelands : {ru}Пустоши: {zh-tw}荒原：{zh-cn}荒原：{ko}황무지 : {es}Páramos : {fr}Terrains Vagues : {pt-br}Terras Devastadas : {de}Ödland : "},
+				["Deser"]={"desert", "{en}Deserts : {ru}Пустыни: {zh-tw}沙漠：{zh-cn}沙漠：{ko}사막 : {es}Desiertos : {fr}Déserts : {pt-br}Desertos : {de}Wüsten : "},
+				["Swamp"]={"swamp", "{en}Swamps : {ru}Болота: {zh-tw}沼澤：{zh-cn}沼泽：{ko}늪 : {es}Pantanos : {fr}Marécages : {pt-br}Pântanos : {de}Sümpfe : "},
+				["Lakes"]={"lake", "{en}Lakes : {ru}Озера: {zh-tw}湖泊：{zh-cn}湖泊：{ko}호수 : {es}Lagos : {fr}Lacs : {pt-br}Lagos : {de}Seen : "},
+				["Mount"]={"mountain", "{en}Mountains : {ru}Горы: {zh-tw}山脈：{zh-cn}山脉：{ko}산 : {es}Montañas : {fr}Montagnes : {pt-br}Montanhas : {de}Berge : "}}
 
 function resourceTracker(player, mouseButton, id)
 	if mouseButton=="-1" then--and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
@@ -4690,12 +4754,7 @@ function resourceTracker(player, mouseButton, id)
 			return
 		end
 		--expander buttons
-		local IDConvert={	["DisplayMoveCosts"]={"MoveCosts", 240},
-							["DisplaySiegeDetails"]={"SiegeAmountDetails", 120},
-							["DisplayRangeDetails"]={"RangeAmountDetails", 120},
-							["DisplayBlockDetails"]={"BlockAmountDetails", 120},
-							["DisplayAttacDetails"]={"AttacAmountDetails", 120},
-							["DisplayInfluDetails"]={"InfluAmountDetails", 90}}
+		local IDConvert=RESOURCE_TRACKER_EXPANDERS
 		if IDConvert[id]~=nil then
 			local temp="false"
 			local temp2=-1
@@ -4706,32 +4765,7 @@ function resourceTracker(player, mouseButton, id)
 			return
 		end
 		--resource tracking
-		local IDConvert={	["MovemAmountPlain"]={"move", "move", "{en}Move : {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동 : {es}Mover : {fr}Se déplacer : {pt-br}Mover : {de}Bewegen : "},
-							["SiegeAmountPlain"]={"siege", "physical", "{en}Siege : {ru}Осадная: {zh-tw}攻城：{zh-cn}攻城：{ko}공성 : {es}Asedio : {fr}Siège : {pt-br}Cerco : {de}Belagerung : "},
-							["SiegeAmountPhysi"]={"siege", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
-							["SiegeAmountFirex"]={"siege", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
-							["SiegeAmountIcexx"]={"siege", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
-							["SiegeAmountColdF"]={"siege", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
-							["RangeAmountPlain"]={"ranged", "physical", "{en}Range : {ru}Дальняя: {zh-tw}遠程：{zh-cn}远程：{ko}원거리 : {es}Rango : {fr}Gamme : {pt-br}Distância : {de}Reichweite : "},
-							["RangeAmountPhysi"]={"ranged", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
-							["RangeAmountFirex"]={"ranged", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
-							["RangeAmountIcexx"]={"ranged", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
-							["RangeAmountColdF"]={"ranged", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
-							["BlockAmountPlain"]={"block", "physical", "{en}Block : {ru}Блок: {zh-tw}格擋：{zh-cn}格档：{ko}방어 : {es}Bloqueo : {fr}Blocage : {pt-br}Bloqueio : {de}Blockieren : "},
-							["BlockAmountPhysi"]={"block", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
-							["BlockAmountFirex"]={"block", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
-							["BlockAmountIcexx"]={"block", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
-							["BlockAmountColdF"]={"block", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
-							["AttacAmountPlain"]={"attack", "physical", "{en}Attack : {ru}Атака: {zh-tw}攻擊：{zh-cn}攻击：{ko}공격 : {es}Ataque : {fr}Attaque : {pt-br}Ataque : {de}Angriff : "},
-							["AttacAmountPhysi"]={"attack", "physical", "{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : "},
-							["AttacAmountFirex"]={"attack", "fire", "{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : "},
-							["AttacAmountIcexx"]={"attack", "ice", "{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : "},
-							["AttacAmountColdF"]={"attack", "iceFire", "{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : "},
-							["InfluAmountPlain"]={"influence", "generated", "{en}Influence : {ru}Влияние: {zh-tw}影響力：{zh-cn}影响力：{ko}영향력 : {es}Influencia : {fr}Influence : {pt-br}Influência : {de}Einfluss : "},
-							["InfluAmountPhysi"]={"influence", "generated", "{en}Generated : {ru}Сгенерировано: {zh-tw}產生的：{zh-cn}产生的：{ko}사용 : {es}Generación : {fr}Généré : {pt-br}Gerado : {de}Erzeugt : "},
-							["InfluAmountReput"]={"influence", "reputation", "{en}Reputation : {ru}Репутация: {zh-tw}聲譽：{zh-cn}声誉：{ko}평판 : {es}Reputación : {fr}Réputation : {pt-br}Reputação : {de}Reputation : "},
-							["InfluAmountCityS"]={"influence", "cityShields", "{en}City Shields : {ru}Щиты на городе: {zh-tw}城市的盾徽：{zh-cn}城市的盾徽：{ko}도시 방패 토큰 : {es}Escudos de la Ciudad : {fr}Boucliers de Ville : {pt-br}Escudos das Cidades : {de}Stadtschilde : "},
-							["HealiAmountPlain"]={"healing", "healing", "{en}Healing : {ru}Лечение: {zh-tw}治療：{zh-cn}治疗：{ko}치유 : {es}Curación : {fr}Guérison : {pt-br}Cura : {de}Heilung : "}}
+		local IDConvert=RESOURCE_TRACKER_FIELDS
 		if IDConvert[id:sub(1,16)]~=nil then
 			local resourceTotal=0
 			for type, value in pairs(gStates.resourceTracker[IDConvert[id:sub(1,16)][1]]) do
@@ -4755,14 +4789,7 @@ function resourceTracker(player, mouseButton, id)
 		if id:sub(1,8)=="MoveCost" then
 			local temp="1"
 			if id:sub(14,17)=="Down" then temp="-1" end
-			local convert={	["Plain"]={"plains", "{en}Plains : {ru}Равнины: {zh-tw}平原：{zh-cn}平原：{ko}평지 :{es}Llanuras : {fr}Plaines : {pt-br}Planícies : {de}Ebenen : "},
-							["Hills"]={"hills", "{en}Hills : {ru}Холмы: {zh-tw}丘陵：{zh-cn}丘陵：{ko}언덕 : {es}Colinas : {fr}Collines : {pt-br}Colinas : {de}Hügel : "},
-							["Fores"]={"forest", "{en}Forests : {ru}Леса: {zh-tw}森林：{zh-cn}森林：{ko}숲 : {es}Bosques : {fr}Forêts : {pt-br}Florestas : {de}Wälder : "},
-							["Waste"]={"wasteland", "{en}Wastelands : {ru}Пустоши: {zh-tw}荒原：{zh-cn}荒原：{ko}황무지 : {es}Páramos : {fr}Terrains Vagues : {pt-br}Terras Devastadas : {de}Ödland : "},
-							["Deser"]={"desert", "{en}Deserts : {ru}Пустыни: {zh-tw}沙漠：{zh-cn}沙漠：{ko}사막 : {es}Desiertos : {fr}Déserts : {pt-br}Desertos : {de}Wüsten : "},
-							["Swamp"]={"swamp", "{en}Swamps : {ru}Болота: {zh-tw}沼澤：{zh-cn}沼泽：{ko}늪 : {es}Pantanos : {fr}Marécages : {pt-br}Pântanos : {de}Sümpfe : "},
-							["Lakes"]={"lake", "{en}Lakes : {ru}Озера: {zh-tw}湖泊：{zh-cn}湖泊：{ko}호수 : {es}Lagos : {fr}Lacs : {pt-br}Lagos : {de}Seen : "},
-							["Mount"]={"mountain", "{en}Mountains : {ru}Горы: {zh-tw}山脈：{zh-cn}山脉：{ko}산 : {es}Montañas : {fr}Montagnes : {pt-br}Montanhas : {de}Berge : "}}
+			local convert=MOVE_COST_FIELDS
 			if (temp=="1" and gStates.moveCost[convert[id:sub(9,13)][1]]<900) or (temp=="-1" and gStates.moveCost[convert[id:sub(9,13)][1]]>0) then
 				gStates.moveCost[convert[id:sub(9,13)][1]]=gStates.moveCost[convert[id:sub(9,13)][1]]+tonumber(temp)
 			end
@@ -4778,50 +4805,21 @@ end
 
 function refreshResourceTrackerText()
 	if gStates.resourceTracker==nil or gStates.moveCost==nil then return end
-	local mountain="X" if gStates.moveCost.mountain<7 then mountain=tostring(gStates.moveCost.mountain) end
-	local lake="X" if gStates.moveCost.lake<7 then lake=tostring(gStates.moveCost.lake) end
 	local resourceTotal={siege=0, ranged=0, block=0, attack=0, influence=0}
-	for type, value in pairs(resourceTotal) do
-		for _, value2 in pairs(gStates.resourceTracker[type]) do
-			resourceTotal[type]=resourceTotal[type]+value2
+	for resourceType in pairs(resourceTotal) do
+		for _, value in pairs(gStates.resourceTracker[resourceType]) do
+			resourceTotal[resourceType]=resourceTotal[resourceType]+value
 		end
 	end
-	local baseValues={	HealiAmountPlainText=joinLang({"{en}Healing : {ru}Лечение: {zh-tw}治療：{zh-cn}治疗：{ko}치유 : {es}Curación : {fr}Guérison : {pt-br}Cura : {de}Heilung : ", gStates.resourceTracker.healing.healing}),
-						SiegeAmountPlainText=joinLang({"{en}Siege : {ru}Осадная: {zh-tw}攻城：{zh-cn}攻城：{ko}공성 : {es}Asedio : {fr}Siège : {pt-br}Cerco : {de}Belagerung : ", resourceTotal.siege}),
-							SiegeAmountPhysiText=joinLang({"{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : ", gStates.resourceTracker.siege.physical}),
-							SiegeAmountFirexText=joinLang({"{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : ", gStates.resourceTracker.siege.fire}),
-							SiegeAmountIcexxText=joinLang({"{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : ", gStates.resourceTracker.siege.ice}),
-							SiegeAmountColdFText=joinLang({"{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : ", gStates.resourceTracker.siege.iceFire}),
-						RangeAmountPlainText=joinLang({"{en}Range : {ru}Дальняя: {zh-tw}遠程：{zh-cn}远程：{ko}원거리 : {es}Rango : {fr}Gamme : {pt-br}Distância : {de}Reichweite : ", resourceTotal.ranged}),
-							RangeAmountPhysiText=joinLang({"{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : ", gStates.resourceTracker.ranged.physical}),
-							RangeAmountFirexText=joinLang({"{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : ", gStates.resourceTracker.ranged.fire}),
-							RangeAmountIcexxText=joinLang({"{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : ", gStates.resourceTracker.ranged.ice}),
-							RangeAmountColdFText=joinLang({"{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : ", gStates.resourceTracker.ranged.iceFire}),
-						BlockAmountPlainText=joinLang({"{en}Block : {ru}Блок: {zh-tw}格擋：{zh-cn}格档：{ko}방어 : {es}Bloqueo : {fr}Blocage : {pt-br}Bloqueio : {de}Blockieren : ", resourceTotal.block}),
-							BlockAmountPhysiText=joinLang({"{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : ", gStates.resourceTracker.block.physical}),
-							BlockAmountFirexText=joinLang({"{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : ", gStates.resourceTracker.block.fire}),
-							BlockAmountIcexxText=joinLang({"{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : ", gStates.resourceTracker.block.ice}),
-							BlockAmountColdFText=joinLang({"{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : ", gStates.resourceTracker.block.iceFire}),
-						AttacAmountPlainText=joinLang({"{en}Attack : {ru}Атака: {zh-tw}攻擊：{zh-cn}攻击：{ko}공격 : {es}Ataque : {fr}Attaque : {pt-br}Ataque : {de}Angriff : ", resourceTotal.attack}),
-							AttacAmountPhysiText=joinLang({"{en}Physical : {ru}Физическая(ий): {zh-tw}物理：{zh-cn}物理：{ko}물리 : {es}Físico : {fr}Physique : {pt-br}Físico : {de}Physikalisch : ", gStates.resourceTracker.attack.physical}),
-							AttacAmountFirexText=joinLang({"{en}Fire : {ru}Огненная(ый): {zh-tw}火焰：{zh-cn}火焰：{ko}불 : {es}Fuego : {fr}Feu : {pt-br}Fogo : {de}Feuer : ", gStates.resourceTracker.attack.fire}),
-							AttacAmountIcexxText=joinLang({"{en}Ice : {ru}Ледяная(ой): {zh-tw}寒冰：{zh-cn}寒冰：{ko}얼음 : {es}Hielo : {fr}Glace : {pt-br}Gelo : {de}Eis : ", gStates.resourceTracker.attack.ice}),
-							AttacAmountColdFText=joinLang({"{en}Cold Fire : {ru}Холодный огонь: {zh-tw}冰火：{zh-cn}冰火：{ko}차가운 불 : {es}Fuego Frío :{fr}Feu Froid : {pt-br}Fogo Frio : {de}Kaltes Feuer : ", gStates.resourceTracker.attack.iceFire}),
-						InfluAmountPlainText=joinLang({"{en}Influence : {ru}Влияние: {zh-tw}影響力：{zh-cn}影响力：{ko}영향력 : {es}Influencia : {fr}Influence : {pt-br}Influência : {de}Einfluss : ", resourceTotal.influence}),
-							InfluAmountPhysiText=joinLang({"{en}Generated : {ru}Сгенерировано: {zh-tw}產生的：{zh-cn}产生的：{ko}사용 : {es}Generación : {fr}Généré : {pt-br}Gerado : {de}Erzeugt : ", gStates.resourceTracker.influence.generated}),
-							InfluAmountReputText=joinLang({"{en}Reputation : {ru}Репутация: {zh-tw}聲譽：{zh-cn}声誉：{ko}평판 : {es}Reputación : {fr}Réputation : {pt-br}Reputação : {de}Reputation : ", gStates.resourceTracker.influence.reputation}),
-							InfluAmountCitySText=joinLang({"{en}City Shields : {ru}Щиты на городе: {zh-tw}城市的盾徽：{zh-cn}城市的盾徽：{ko}도시 방패 토큰 : {es}Escudos de la Ciudad : {fr}Boucliers de Ville : {pt-br}Escudos das Cidades : {de}Stadtschilde : ", gStates.resourceTracker.influence.cityShields}),
-						MovemAmountPlainText=joinLang({"{en}Move : {ru}Движение: {zh-tw}移動：{zh-cn}移动：{ko}이동 : {es}Mover : {fr}Se déplacer : {pt-br}Mover : {de}Bewegen : ", gStates.resourceTracker.move.move}),
-							MoveCostPlainText=joinLang({"{en}Plains : {ru}Равнины: {zh-tw}平原：{zh-cn}平原：{ko}평지 :{es}Llanuras : {fr}Plaines : {pt-br}Planícies : {de}Ebenen : ", gStates.moveCost.plains}),
-							MoveCostHillsText=joinLang({"{en}Hills : {ru}Холмы: {zh-tw}丘陵：{zh-cn}丘陵：{ko}언덕 : {es}Colinas : {fr}Collines : {pt-br}Colinas : {de}Hügel : ", gStates.moveCost.hills}),
-							MoveCostForesText=joinLang({"{en}Forests : {ru}Леса: {zh-tw}森林：{zh-cn}森林：{ko}숲 : {es}Bosques : {fr}Forêts : {pt-br}Florestas : {de}Wälder : ", gStates.moveCost.forest}),
-							MoveCostWasteText=joinLang({"{en}Wastelands : {ru}Пустоши: {zh-tw}荒原：{zh-cn}荒原：{ko}황무지 : {es}Páramos : {fr}Terrains Vagues : {pt-br}Terras Devastadas : {de}Ödland : ", gStates.moveCost.wasteland}),
-							MoveCostDeserText=joinLang({"{en}Deserts : {ru}Пустыни: {zh-tw}沙漠：{zh-cn}沙漠：{ko}사막 : {es}Desiertos : {fr}Déserts : {pt-br}Desertos : {de}Wüsten : ", gStates.moveCost.desert}),
-							MoveCostSwampText=joinLang({"{en}Swamps : {ru}Болота: {zh-tw}沼澤：{zh-cn}沼泽：{ko}늪 : {es}Pantanos : {fr}Marécages : {pt-br}Pântanos : {de}Sümpfe : ", gStates.moveCost.swamp}),
-							MoveCostLakesText=joinLang({"{en}Lakes : {ru}Озера: {zh-tw}湖泊：{zh-cn}湖泊：{ko}호수 : {es}Lagos : {fr}Lacs : {pt-br}Lagos : {de}Seen : ", lake}),
-							MoveCostMountText=joinLang({"{en}Mountains : {ru}Горы: {zh-tw}山脈：{zh-cn}山脉：{ko}산 : {es}Montañas : {fr}Montagnes : {pt-br}Montanhas : {de}Berge : ", mountain})}
-	for element, value in pairs(baseValues) do
-		UI.setAttribute(element, "text", value)
+	for fieldId, spec in pairs(RESOURCE_TRACKER_FIELDS) do
+		local totalType=RESOURCE_TRACKER_TOTAL_FIELDS[fieldId]
+		local value=totalType~=nil and resourceTotal[totalType] or gStates.resourceTracker[spec[1]][spec[2]]
+		UI.setAttribute(fieldId.."Text","text",joinLang({spec[3],value}))
+	end
+	for fieldId, spec in pairs(MOVE_COST_FIELDS) do
+		local value=gStates.moveCost[spec[1]]
+		local display=value>900 and "X" or tostring(value)
+		UI.setAttribute("MoveCost"..fieldId.."Text","text",joinLang({spec[2],display}))
 	end
 end
 
@@ -4930,7 +4928,7 @@ end
 
 function closeSplash() UI.hide("welcome") end
 
-buildMageKnightFastLookups=function()
+local function buildMageKnightFastLookups()
 	mageKnightsByName={}
 	mageKnightAvatarGUIDs={}
 	for _, details in pairs(mageKnights) do
@@ -4944,7 +4942,7 @@ buildMageKnightFastLookups=function()
 end
 buildMageKnightFastLookups()
 
-mageKnightAvatarObjectByName=function(mage, preferStandee)
+local function mageKnightAvatarObjectByName(mage, preferStandee)
 	local details=mageKnightsByName[mage]
 	if details==nil then return nil end
 	local first=preferStandee==true and details.standee or details.model
@@ -5205,8 +5203,33 @@ function createClaimButton(objGUID, source)
 end
 
 -- Player colour and board presentation controls
+local COLOR_BAR_TO_SEAT={[colorBand[1]]=1, [colorBand[2]]=2, [colorBand[3]]=3, [colorBand[4]]=4}
+local COLOR_BAR_TO_BOARD={[colorBand[1]]=playerBoard[1], [colorBand[2]]=playerBoard[2], [colorBand[3]]=playerBoard[3], [colorBand[4]]=playerBoard[4]}
+local PLAYER_BOARD_IMAGES={	"https://steamusercontent-a.akamaihd.net/ugc/1684895445424376912/3EE3230EE7EDE9465FBACB66989433E76889EE1B/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553574/3C342119E5460E99D2CBA90E02703DEFE192A8D2/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553344/A14FCE5B44805580B609C6331AE493DBF57DFF16/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553120/FDF4B2E37BB40F81AD7A1DFC45FD3080EDBDD479/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424552867/531D8782F39294923F405B4A8BD33749FFCDC397/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424552298/DCE7288AD482269EF78E138258AEF64E02FB75F0/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424551898/6ED5EFA1552854F7F03E318B5DF1181E4A6388F1/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424551449/B2E1AD69C97515E4AA0B3B99B899DF3F00303E3A/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553771/4BC2365C114D1D2EFA40127F12FE662927D7A658/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553972/80BE3DDEAA19CADEAACE68ED263F52DB65465CF6/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424554181/1E919EDF42F1F900A53EE84DC6B24E0CCAE551B0/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424555147/6F7C91142DBDC2CC969E4C55760359791F0D89F8/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424601741/960077146FB0A7EFA4F5F54B6BD5B477BDFF5A6F/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424554674/5FC29A5A6972EED68545A897F9280FA3C954179F/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424554433/5E1CAFCDD9764C7370E9CA387E1E250FFBE95EEA/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424467915/9C5DD81B7345C49DB8ED3F9A5BA9E1E867855EF7/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445424555440/E6D119CAA5633518305C512D82D87D033BCD27F2/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445440810937/BD5AB7FC76EBA62C6041C19BEDFF187A191B9A3C/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445440811336/57CCCDB1CA59C7EC8D78F36A8F41D867232E751A/",
+					"https://steamusercontent-a.akamaihd.net/ugc/1684895445440811734/D2494176727E75376EC01F16BBB70E8AE1799238/",
+					"https://steamusercontent-a.akamaihd.net/ugc/2546304515596768692/19801470032E2AD7FBC69C3817AD64A01998963F/",
+					"https://steamusercontent-a.akamaihd.net/ugc/2546304515596768226/A7A269B1B5492AF4E3692015A1588B3EBD7A0414/"}
+
 function changePositionColor(player, mouseButton, id)
-	local barConversion={[colorBand[1]]=1, [colorBand[2]]=2, [colorBand[3]]=3, [colorBand[4]]=4}
+	local barConversion=COLOR_BAR_TO_SEAT
 	local barGUID=id:sub(1,6)
 	local newColor=id:sub(7, string.len(id))
 	local currentColor=Hands.getHands()[barConversion[barGUID]].getValue()
@@ -5231,64 +5254,56 @@ function changePositionColor(player, mouseButton, id)
 		refreshPlayerSeatColors()
 		outOfTurnUIStateKey=nil
 		mainUIUpdate("Player Changed Colour")
-		safeWaitFrames("UI",function() Player[newColor].lookAt({position={getObjectFromGUID(barGUID).getPosition()[1], getObjectFromGUID(barGUID).getPosition()[2], getObjectFromGUID(barGUID).getPosition()[3]-10}, pitch=75, yaw=0, distance=30}) end, 2)
+		safeWaitFrames("UI",function()
+			local barObj=getObjectFromGUID(barGUID)
+			if barObj==nil then return end
+			local barPos=barObj.getPosition()
+			Player[newColor].lookAt({position={barPos[1],barPos[2],barPos[3]-10}, pitch=75, yaw=0, distance=30})
+		end, 2)
 	end
 end
 
 function changeMatImage(player, mouseButton, id)
-	local barConversion={[colorBand[1]]=1, [colorBand[2]]=2, [colorBand[3]]=3, [colorBand[4]]=4}
+	local barConversion=COLOR_BAR_TO_SEAT
 	if mouseButton=="-1" and legalPlayerCheck(player.color, gStates.handColors[Hands.getHands()[barConversion[id:sub(1,6)]].getValue()], "NoDummyException")==true then
-		local convert={[colorBand[1]]=playerBoard[1], [colorBand[2]]=playerBoard[2], [colorBand[3]]=playerBoard[3], [colorBand[4]]=playerBoard[4]}
+		local convert=COLOR_BAR_TO_BOARD
 		local board=getObjectFromGUID(convert[id:sub(1, 6)])
+		if board==nil then return end
 		local direction=1
-		local boardImages={	"https://steamusercontent-a.akamaihd.net/ugc/1684895445424376912/3EE3230EE7EDE9465FBACB66989433E76889EE1B/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553574/3C342119E5460E99D2CBA90E02703DEFE192A8D2/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553344/A14FCE5B44805580B609C6331AE493DBF57DFF16/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553120/FDF4B2E37BB40F81AD7A1DFC45FD3080EDBDD479/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424552867/531D8782F39294923F405B4A8BD33749FFCDC397/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424552298/DCE7288AD482269EF78E138258AEF64E02FB75F0/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424551898/6ED5EFA1552854F7F03E318B5DF1181E4A6388F1/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424551449/B2E1AD69C97515E4AA0B3B99B899DF3F00303E3A/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553771/4BC2365C114D1D2EFA40127F12FE662927D7A658/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424553972/80BE3DDEAA19CADEAACE68ED263F52DB65465CF6/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424554181/1E919EDF42F1F900A53EE84DC6B24E0CCAE551B0/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424555147/6F7C91142DBDC2CC969E4C55760359791F0D89F8/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424601741/960077146FB0A7EFA4F5F54B6BD5B477BDFF5A6F/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424554674/5FC29A5A6972EED68545A897F9280FA3C954179F/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424554433/5E1CAFCDD9764C7370E9CA387E1E250FFBE95EEA/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424467915/9C5DD81B7345C49DB8ED3F9A5BA9E1E867855EF7/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445424555440/E6D119CAA5633518305C512D82D87D033BCD27F2/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445440810937/BD5AB7FC76EBA62C6041C19BEDFF187A191B9A3C/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445440811336/57CCCDB1CA59C7EC8D78F36A8F41D867232E751A/",
-							"https://steamusercontent-a.akamaihd.net/ugc/1684895445440811734/D2494176727E75376EC01F16BBB70E8AE1799238/",
-							"https://steamusercontent-a.akamaihd.net/ugc/2546304515596768692/19801470032E2AD7FBC69C3817AD64A01998963F/",
-							"https://steamusercontent-a.akamaihd.net/ugc/2546304515596768226/A7A269B1B5492AF4E3692015A1588B3EBD7A0414/"}
+		local boardImages=PLAYER_BOARD_IMAGES
 		if id:sub(7, 17)=="changeMatUp" then direction=-1 end
+		local currentImage=board.getCustomObject().image
 		for a=1, #boardImages, 1 do
-			if boardImages[a]==board.getCustomObject().image and ((a>1 and direction==-1) or (a<#boardImages and direction==1)) then
+			if boardImages[a]==currentImage and ((a>1 and direction==-1) or (a<#boardImages and direction==1)) then
 				board.setCustomObject({image=boardImages[a+direction]})
 				break
 			end
-			if boardImages[a]==board.getCustomObject().image and a==#boardImages then
+			if boardImages[a]==currentImage and a==#boardImages then
 				board.setCustomObject({image=boardImages[1]})
 				break
 			end
-			if boardImages[a]==board.getCustomObject().image and a==1 then
+			if boardImages[a]==currentImage and a==1 then
 				board.setCustomObject({image=boardImages[#boardImages]})
 				break
 			end
 		end
 		board.reload()
-		safeWaitTime("UI",function() getObjectFromGUID(convert[id:sub(1, 6)]).interactable=false end, 0.2)
+		local boardGUID=convert[id:sub(1, 6)]
+		safeWaitTime("UI",function()
+			local currentBoard=getObjectFromGUID(boardGUID)
+			if currentBoard~=nil then currentBoard.interactable=false end
+		end, 0.2)
 	end
 end
 
 function bannerOfCommandDecal()
-	if getObjectFromGUID(GUID.card.bannerOfCommandToken).is_face_down==true then
-		getObjectFromGUID(GUID.card.bannerOfCommandToken).UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
+	local token=getObjectFromGUID(GUID.card.bannerOfCommandToken)
+	if token==nil then return end
+	if token.is_face_down==true then
+		token.UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
 			height=240, width=125, position="0 -520 40", rotation="0 180 180"}}})
 	else
-		getObjectFromGUID(GUID.card.bannerOfCommandToken).UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
+		token.UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
 			height=240, width=125, position="0 -1066 -40", rotation="0 0 180"}}})
 	end
 end
@@ -5346,9 +5361,53 @@ function autoflip()
 end
 
 -- Build monster hover descriptions outside the raw TTS event boundary.
+local MONSTER_ATTACK_TYPE_TEXT={
+	["P"]="{en}[00ff00]PHYSICAL ATTACK: [-]{ru}[00ff00]ФИЗИЧЕСКАЯ АТАКА: [-]{zh-tw}[00ff00]物理攻击：[-]{zh-cn}[00ff00]物理攻击：[-]{ko}[00ff00]물리 공격: [-]{es}[00ff00]ATAQUE FÍSICO: [-]{fr}[00ff00]ATTAQUE PHYSIQUE : [-]{pt-br}[00ff00]ATAQUE FÍSICO: [-]{de}[00ff00]PHYSISCHER ANGRIFF: [-]",
+	["F"]="{en}[ff0000]FIRE ATTACK: [-]{ru}[ff0000]ОГНЕННАЯ АТАКА: [-]{zh-tw}[ff0000]火焰攻击：[-]{zh-cn}[ff0000]火焰攻击：[-]{ko}[ff0000]불 공격: [-]{es}[ff0000]ATAQUE DE FUEGO: [-]{fr}[ff0000]ATTAQUE DE FEU : [-]{pt-br}[ff0000]ATAQUE DE FOGO: [-]{de}[ff0000]FEUERANSCHLAG: [-]",
+	["I"]="{en}[5a5aff]ICE ATTACK: [-]{ru}[5a5aff]ЛЕДЯНАЯ АТАКА: [-]{zh-tw}[5a5aff]寒冰攻击：[-]{zh-cn}[5a5aff]寒冰攻击：[-]{ko}[5a5aff]얼음 공격: [-]{es}[5a5aff]ATAQUE DE HIELO: [-]{fr}[5a5aff]ATTAQUE DE GLACE : [-]{pt-br}[5a5aff]ATAQUE DE GELO: [-]{de}[5a5aff]EISANGRIFF: [-]",
+	["M"]="{en}[ffda00]PSYCHIC ATTACK: [-]{ru}[ffda00]ПСИХИЧЕСКОЕ НАПАДЕНИЕ: [-]{zh-tw}[ffda00]心靈攻擊：[-]{zh-cn}[ffda00]心灵攻击：[-]{ko}[ffda00]정신 공격: [-]{es}[ffda00]ATAQUE PSÍQUICO: [-]{fr}[ffda00]ATTAQUE PSYCHIQUE : [-]{pt-br}[ffda00]ATAQUE PSÍQUICO: [-]{de}[ffda00]PSYCHISCHER ANGRIFF: [-]",
+	["IF"]="{en}[ff00fe]COLD FIRE ATTACK: [-]{ru}[ff00fe]ОГНЕННО-ЛЕДЯНАЯ АТАКА: [-]{zh-tw}[ff00fe]冰火攻击：[-]{zh-cn}[ff00fe]冰火攻击：[-]{ko}[ff00fe]차가운불 공격: [-]{es}[ff00fe]ATAQUE DE FUEGO FRÍO: [-]{fr}[ff00fe]ATTAQUE DE FEU FROID : [-]{pt-br}[ff00fe]ATAQUE DE FOGO FRIO: [-]{de}[ff00fe]KALTER FEUERANSCHLAG: [-]"}
+
+local MONSTER_ATTACK_TYPE_DESCRIPTION={
+	["F"]="{en}(Your Physical and Fire Blocks are halved){ru}(Значения Физических и Огненных блоков делятся на 2, с округлением вниз){zh-tw}（您的物理和火焰属性减半）{zh-cn}（您的物理和火焰属性减半）{ko}(물리 및 불 방어가 절반으로 감소합니다.){es}(Tus Bloques Físicos y de Fuego se reducen a la mitad){fr}(Vos blocs de physique et de feu sont réduits de moitié){pt-br}(Seus bloqueios Físico e de Fogo são reduzidos à metade){de}(Deine Physikalischen und Feuer-Blöcke werden halbiert)",
+	["I"]="{en}(Your Physical and Ice Blocks are halved){ru}(Значения Физических и Ледяных блоков делятся на 2, с округлением вниз){zh-tw}（您的物理和寒冰属性减半）{zh-cn}（您的物理和寒冰属性减半）{ko}(물리 및 얼음 방어가 절반으로 감소합니다.){es}(Tus Bloques Físicos y de Hielo se reducen a la mitad){fr}(Vos blocs de physique et de glace sont divisés par deux){pt-br}(Seus bloqueios Físico e de Gelo são reduzidos à metade){de}(Ihre physischen und Eis-Blöcke werden halbiert)",
+	["M"]="{en}(All your Blocks are halved. Influence points may be spent as full Psychic Block){ru}(Все ваши блоки уменьшаются вдвое. Очки влияния можно тратить как полноценный психический блок){zh-tw}（你所有的格檔效果減半，影響力可以完全轉換成心靈格檔）{zh-cn}（你所有的格档效果减半，影响力可以完全转换成心灵格档）{ko}(모든 방어 수치가 절반으로 감소. 영향력을 지불하여 온전한 정신 방어로 사용 가능){es}(Todos tus bloqueos se reducen a la mitad. Los puntos de influencia se pueden gastar como un bloqueo psíquico completo){fr}(Tous vos blocages sont réduits de moitié. Les points d'influence peuvent être utilisés pour obtenir un blocage psychique complet.){pt-br}(Todos os seus bloqueios são reduzidos pela metade. Os pontos de influência podem ser usados como um bloqueio psíquico completo){de}(Alle deine Blöcke werden halbiert. Einflusspunkte können als vollständiger psychischer Block ausgegeben werden.)",
+	["IF"]="{en}(Your Physical, Fire and Ice Blocks are halved){ru}(Значения Физических, Ледяных и Огненных блоков делятся на 2, с округлением вниз){zh-tw}（你的物理、火焰和寒冰格挡减半）{zh-cn}（你的物理、火焰和寒冰格挡减半）{ko}(물리, 불, 얼음 방어가 절반으로 감소합니다.){es}(Tus Bloques Físico, Fuego y Hielo se reducen a la mitad){fr}(Vos blocs de physique, de feu et de glace sont réduits de moitié){pt-br}(Seus bloqueios Físico, de Fogo e de Gelo são reduzidos à metade){de}(Deine Physischen, Feuer- und Eis-Blöcke werden halbiert)"}
+
+local MONSTER_BLOCK_TYPE_TEXT={
+	["P"]="{en}[00ff00]PHYSICAL BLOCK: [-]{ru}[00ff00]ФИЗИЧЕСКИЙ БЛОК: [-]{zh-tw}[00ff00]物理格挡：[-]{zh-cn}[00ff00]物理格挡：[-]{ko}[00ff00]물리 방어: [-]{es}[00ff00]BLOQUEO FÍSICO: [-]{fr}[00ff00]BLOC PHYSIQUE : [-]{pt-br}[00ff00]BLOQUEIO FÍSICO: [-]{de}[00ff00]PHYSISCHER BLOCK: [-]",
+	["F"]="{en}[ff0000]FIRE BLOCK: [-]{ru}[ff0000]ОГНЕННЫЙ БЛОК: [-]{zh-tw}[ff0000]火焰格挡：[-]{zh-cn}[ff0000]火焰格挡：[-]{ko}[ff0000]불 방어: [-]{es}[ff0000]BLOQUEO DE FUEGO: [-]{fr}[ff0000]BLOC DE FEU : [-]{pt-br}[ff0000]BLOQUEIO DE FOGO: [-]{de}[ff0000]FEUER-BLOCK: [-]",
+	["I"]="{en}[5a5aff]ICE BLOCK: [-]{ru}[5a5aff]ЛЕДЯНОЙ БЛОК: [-]{zh-tw}[5a5aff]寒冰格挡：[-]{zh-cn}[5a5aff]寒冰格挡：[-]{ko}[5a5aff]얼음 방어: [-]{es}[5a5aff]BLOQUEO DE HIELO: [-]{fr}[5a5aff]BLOC DE GLACE : [-]{pt-br}[5a5aff]BLOQUEIO DE GELO: [-]{de}[5a5aff]EIS-BLOCK: [-]",
+	["M"]="{en}[ffda00]PSYCHIC BLOCK: [-]{ru}[ffda00]ПСИХИЧЕСКИЙ БЛОК: [-]{zh-tw}[ffda00]心靈格檔：[-]{zh-cn}[ffda00]心灵格挡：[-]{ko}[ffda00]정신 방어: [-]{es}[ffda00]BLOQUEO PSÍQUICO: [-]{fr}[ffda00]BLOC PSYCHIQUE : [-]{pt-br}[ffda00]BLOQUEIO PSÍQUICO: [-]{de}[ffda00]PSYCHISCHER BLOCK: [-]",
+	["IF"]="{en}[ff00fe]COLD FIRE BLOCK: [-]{ru}[ff00fe]ОГНЕННО-ЛЕДЯНОЙ БЛОК: [-]{zh-tw}[ff00fe]冰火格挡：[-]{zh-cn}[ff00fe]冰火格挡：[-]{ko}[ff00fe]차가운불 방어: [-]{es}[ff00fe]BLOQUEO DE FUEGO FRÍO: [-]{fr}[ff00fe]BLOC DE FEU FROID : [-]{pt-br}[ff00fe]BLOQUEIO DE FOGO FRIO: [-]{de}[ff00fe]KALTFEUER-BLOCK: [-]"}
+
+local MONSTER_COLOR_LABELS={
+	["gray"]="{en}Keep Garison (Gray){ru}Гарнизон крепости (Серый){zh-tw}要塞守军（灰色）{zh-cn}要塞守军（灰色）{ko}성 수비대 (회색){es}Mantener Garison (Gris){fr}Garder Garison (Gris){pt-br}Forte Guarnição (Cinza){de}Garison behalten (Grau)",
+	["tan"]="{en}Dungeon Monster (Tan){ru}Монстр из подземелья (Коричневый){zh-tw}地下城怪物（棕色）{zh-cn}地下城怪物（棕色）{ko}던전 몬스터 (갈색){es}Monstruo de Mazmorra (Marrón){fr}Monstre du donjon (Tan){pt-br}Monstro de Masmorra (Bronze){de}Kerkermonster (Braun)",
+	["green"]="{en}Maraudering Orcs (Green){ru}Орк-мародер (Зеленый){zh-tw}兽人劫掠队（绿色）{zh-cn}兽人劫掠队（绿色）{ko}오크 습격자 (녹색){es}Orkos Merodeadores (Verde){fr}Orques maraudeurs (Vert){pt-br}Orks saqueadores (Verde){de}Marodierende Orks (Grün)",
+	["red"]="{en}Draconum (Red){ru}Драконум (красный){zh-tw}龍族（紅色）{zh-cn}龙族（红色）{ko}드라코넘 (적색){es}Draconum (Rojo){fr}Draconum (Rouge){pt-br}Draconum (Vermelho){de}Draconum (Rot)",
+	["purple"]="{en}Mage Tower Garison (Purple){ru}Гарнизон башни магов (Фиолетовый){zh-tw}法师塔守军（紫色）{zh-cn}法师塔守军（紫色）{ko}마법사 탑 수비대 (보라색){es}Torre de Mago Garison (Morado){fr}Tour des mages Garison (Violet){pt-br}Guarnição da Torre do Mago (Roxo){de}Magierturm Garison (Violett)",
+	["white"]="{en}City Garison (white){ru}Гарнизон города (Белый){zh-tw}城市守军（白色）{zh-cn}城市守军（白色）{ko}도시 수비대 (흰색){es}Ciudad Garison (Blanco){fr}Garison de la ville (Blanc){pt-br}Guarnição da cidade (Branco){de}Stadt Garison (Weiß)"}
+
+local MONSTER_FACTION_TRANSLATE=({	["Dark"]="{en}Dark Crusader{ru}Тёмный крестоносец{zh-tw}黑暗遠征軍{zh-cn}黑暗远征军{ko}암흑 십자군{es}Cruzado Oscuro{fr}Croisé des ténèbres{pt-br}Cruzado das Trevas{de}Dunkler Kreuzritter",
+							["Elem"]="{en}Elementalist{ru}Элементалист{zh-tw}元素之力{zh-cn}元素之力{ko}원소술사{es}Elementalista{fr}Élémentaliste{pt-br}Elementalista{de}Elementarist",
+							["Apoc"]="{en}Apocalypse Cult{ru}Культ Апокалипсиса{zh-tw}末日教團{zh-cn}末日教团{ko}아포칼립스 컬트{es}Culto del Apocalipsis{fr}Culte de l'Apocalypse{pt-br}Culto do Apocalipse{de}Apokalypse-Kult",
+							["Coun"]="{en}Council of the Void{ru}Совет Пустоты{zh-tw}虛空議會{zh-cn}虚空议会{ko}공허 의회{es}Consejo del Vacío{fr}Conseil du Vide{pt-br}Conselho do Vazio{de}Rat der Leere"})
+
+local SPECIAL_YELLOW_DEFENDER_DESCRIPTIONS={
+	["f3c6e3"]="{en}[00ff00]ENEMIES DEFENDING: [-]Two Maraudering Orcs(Green).\n{ru}[00ff00]ОХРАНА: [-]Два Орка-мародер (Зеленый).\n{zh-tw}[00ff00]驻守敌人：[-]两个兽人劫掠队（绿色）。\n{zh-cn}[00ff00]驻守敌人：[-]两个兽人劫掠队（绿色）。\n{ko}[00ff00]방어 중인 적: [-]2개의 오크(녹색).\n{es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Dos Orkos Merodeadores(Verde).\n{fr}[00ff00]ENNEMIES DEFENDANTS : [-]Deux Orks maraudeurs (vert).\n{pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Dois Orks saqueadores(verde).\n{de}[00ff00]ENEMIES DEFENDING: [-]Zwei marodierende Orks(grün).\n",
+	["28cc9c"]="{en}[00ff00]ENEMIES DEFENDING: [-]Two Mage Tower Garisons(Purple).\n{ru}[00ff00]ОХРАНА: [-]Два Гарнизона башни магов (Фиолетовый).\n{zh-tw}[00ff00]驻守敌人：[-]两个法师塔守军（紫色）。\n{zh-cn}[00ff00]驻守敌人：[-]两个法师塔守军（紫色）。\n{ko}[00ff00]방어 중인 적: [-]2개의 마법사 탑 수비대(보라색).\n{es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Dos Mage Tower Garisons(Purple).\n{fr}[00ff00]ENEMIS EN DEFENSE : [-]Deux Garisons de la Tour des Mages (Pourpre).\n{pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Duas Guarnições da Torre do Mago (Roxo).\n{de}[00ff00]ENEMIES DEFENDING: [-]Zwei Magierturm-Garisons(Lila).\n",
+	["2f9a1f"]="{en}[00ff00]ENEMIES DEFENDING: [-]Three Maraudering Orcs(Green).\n{ru}[00ff00]ОХРАНА: [-]Три Орка-мародер (Зеленый).\n{zh-tw}[00ff00]驻守敌人：[-]三个兽人劫掠队（绿色）。\n{zh-cn}[00ff00]驻守敌人：[-]三个兽人劫掠队（绿色）。\n{ko}[00ff00]방어 중인 적: [-]3개의 오크(녹색).\n{es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Tres Orkos Merodeadores(Verde).\n{fr}[00ff00]ENEMIS EN DEFENSE : [-]Trois Orks maraudeurs(Vert).\n{pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Três Orcs Saqueadores(Verde).\n{de}[00ff00]ENEMIES DEFENDING: [-]Drei marodierende Orks(Grün).\n"
+}
+
 function refreshMonsterHoverDescription(hover_object)
+	if hover_object==nil then return end
+	local guid=hover_object.guid
+	local monsterData=monsterPugs[guid]
+	local perkData=(gStates.monsterPerks or {})[guid]
+	local summonState=(gStates.summonStates or {})[guid]
 	--monster token tooltip update.
-		if hover_object~=nil and (monsterPugs[hover_object.guid]~=nil or gStates.monsterPerks[hover_object.guid]~=nil) then
+		if monsterData~=nil or perkData~=nil then
 			local monsterDescription=""
 			if hover_object.is_face_down==false then
 				--Attack Descriptions
@@ -5361,51 +5420,42 @@ function refreshMonsterHoverDescription(hover_object)
 					monsterDescription="{en}He can't be attacked directly, but Volkare attacks along with his army.\n\nDefeat Volkare's Army and you Defeat General Volkare.\n\n{ru}Волкара нельзя атаковать напрямую, но он атакует вместе со своей армией.\n\nПобедите армию Волкара — и вы победите генерала Волкара.\n\n{zh-tw}不能直接攻擊沃卡里；他會與自己的軍隊一同進攻。\n\n擊敗沃卡里的軍隊，就能擊敗沃卡里將軍。\n\n{zh-cn}不能直接攻击沃卡里；他会与自己的军队一同进攻。\n\n击败沃卡里的军队，就能击败沃卡里将军。\n\n{ko}볼케어는 직접 공격할 수 없으며 그의 군대와 함께 공격합니다.\n\n볼케어의 군대를 물리치면 볼케어 장군도 패배합니다.\n\n{es}No puede ser atacado directamente, pero Volkare ataca junto con su ejército.\n\nDerrota al ejército de Volkare y derrotarás al general Volkare.\n\n{fr}Il ne peut pas être attaqué directement, mais Volkare attaque avec son armée.\n\nBattez l’armée de Volkare et vous vaincrez le général Volkare.\n\n{pt-br}Ele não pode ser atacado diretamente, mas Volkare ataca junto com seu exército.\n\nDerrote o Exército de Volkare e você derrotará o General Volkare.\n\n{de}Volkare kann nicht direkt angegriffen werden, greift aber gemeinsam mit seiner Armee an.\n\nBesiegt Volkares Armee und ihr besiegt General Volkare.\n\n"
 				end
 				--Leader Blurb
-				if hover_object.guid==darkCrusader.token or hover_object.guid==elementalist.token then
+				if guid==darkCrusader.token or guid==elementalist.token then
 					monsterDescription="{en}Faction Leaders are attacked and blocked in the same way as other enemies.\n\nDealing damage to beat the Leaders armour value will reduce his level by 1.\n\nYou may attack with enough damage to do multiple of the Leaders armour value and reduce his level more.\n\nThe leader will reduce level for the next fight if not reduced to zero level\n\n{ru}Лидеры фракций атакуются и блокируются так же, как и другие враги.\n\nНанесение урона, превышающего значение брони лидера, снизит его уровень на 1.\n\nВы можете нанести урон, превышающий значение брони лидера, и снизить его уровень еще больше.\n\nЛидер снизит уровень для следующего боя, если он не будет снижен до нуля.{zh-tw}派系首领的攻击与防御机制与其他敌人相同。\n\n造成超过首领护甲值的伤害可使其等级降低1级。\n\n若单次攻击伤害值达到首领护甲值的倍数，可使其等级多次递减。\n\n若首领未被降至零级，其等级将在下次战斗中继续递减。{zh-cn}派系首领的攻击与防御机制与其他敌人相同。\n\n造成超过首领护甲值的伤害可使其等级降低1级。\n\n若单次攻击伤害值达到首领护甲值的倍数，可使其等级多次递减。\n\n若首领未被降至零级，其等级将在下次战斗中继续递减。{ko}파벌 지도자는 다른 적과 동일한 방식으로 공격 및 차단됩니다.\n\n지도자의 방어력 수치를 초과하는 피해를 입히면 그의 레벨이 1 감소합니다.\n\n지도자의 방어력 수치보다 큰 피해를 입혀 레벨을 더 많이 감소시킬 수 있습니다.\n\n지도자의 레벨이 0이 되지 않은 경우, 다음 전투에서 레벨이 감소합니다.{es}Los líderes de facción son atacados y bloqueados de la misma manera que otros enemigos.\n\nInfligir daño que supere el valor de armadura del líder reducirá su nivel en 1.\n\nPuedes atacar con suficiente daño como para superar varias veces el valor de armadura del líder y reducir aún más su nivel.\n\nEl líder reducirá su nivel para la siguiente lucha si no se reduce a cero.{fr}Les chefs de faction sont attaqués et bloqués de la même manière que les autres ennemis.\n\nInfliger des dégâts supérieurs à la valeur d'armure du chef réduira son niveau de 1.\n\nVous pouvez attaquer en infligeant des dégâts supérieurs à la valeur d'armure du chef et réduire davantage son niveau.\n\nLe chef réduira son niveau pour le prochain combat s'il n'est pas réduit à zéro.{pt-br}Os líderes das facções são atacados e bloqueados da mesma forma que outros inimigos.\n\nCausar danos que superem o valor da armadura do líder reduzirá o seu nível em 1.\n\nPode atacar com danos suficientes para causar múltiplos do valor da armadura do líder e reduzir ainda mais o seu nível.\n\nO líder reduzirá o nível para a próxima luta se não for reduzido ao nível zero.{de}Fraktionsanführer werden genauso angegriffen und geblockt wie andere Gegner. \n\nWenn du Schaden verursachst, der den Rüstungswert des Anführers übersteigt, sinkt sein Level um 1. \n\nDu kannst mit ausreichend Schaden angreifen, um den Rüstungswert des Anführers mehrfach zu übertreffen und sein Level weiter zu senken. \n\nDer Anführer senkt sein Level für den nächsten Kampf, wenn es nicht auf Null gesunken ist. \n\n"
 				end
 				--Airborne Dragon attacks reuse the normal attack/ability renderer, but the heads are attackers only:
 				--no Armour/resistance data is registered and the displayed Fame is the single Round reward.
-				local airbornePerks=gStates.monsterPerks~=nil and gStates.monsterPerks[hover_object.guid] or nil
+				local airbornePerks=gStates.monsterPerks~=nil and perkData or nil
 				if airbornePerks~=nil and airbornePerks.dragonAirborne==true then
 					local airborneRound=tonumber(airbornePerks.dragonAirborneRound) or tonumber(gStates.currentRound) or 1
 					monsterDescription=joinLang({monsterDescription,"{en}[ffda00]AIRBORNE DRAGON ATTACK — ROUND {ru}[ffda00]ВОЗДУШНАЯ АТАКА ДРАКОНА — РАУНД {zh-tw}[ffda00]空中巨龍攻擊 — 回合 {zh-cn}[ffda00]空中巨龙攻击 — 回合 {ko}[ffda00]공중 드래곤 공격 — 라운드 {es}[ffda00]ATAQUE AÉREO DEL DRAGÓN — RONDA {fr}[ffda00]ATTAQUE AÉRIENNE DU DRAGON — MANCHE {pt-br}[ffda00]ATAQUE AÉREO DO DRAGÃO — RODADA {de}[ffda00]LUFTANGRIFF DES DRACHEN — RUNDE ",tostring(airborneRound),"{en}[-]\n[i]This head is only attacking; it cannot be attacked or defeated in this combat. Flip the chosen heads face down if you are site fortified.[/i]\n\n[00ff00]DRAGON ATTACK REWARD: [-]{ru}[-]\n[i]Эта голова только атакует; её нельзя атаковать или победить в этом бою. Переверните выбранные головы лицом вниз, если вы укреплены местом.[/i]\n\n[00ff00]НАГРАДА ЗА АТАКУ ДРАКОНА: [-]{zh-tw}[-]\n[i]此龍首只會攻擊；本次戰鬥中無法攻擊或擊敗它。若你受到地點防禦，將選中的龍首翻至背面。[/i]\n\n[00ff00]巨龍攻擊獎勵：[-]{zh-cn}[-]\n[i]此龙首只会攻击；本次战斗中无法攻击或击败它。若你受到地点防御，将选中的龙首翻至背面。[/i]\n\n[00ff00]巨龙攻击奖励：[-]{ko}[-]\n[i]이 머리는 공격만 하며 이번 전투에서 공격하거나 처치할 수 없습니다. 장소 요새화를 받고 있다면 선택한 머리를 뒷면으로 뒤집으십시오.[/i]\n\n[00ff00]드래곤 공격 보상: [-]{es}[-]\n[i]Esta cabeza solo ataca; no puede ser atacada ni derrotada en este combate. Voltea boca abajo las cabezas elegidas si estás fortificado por el sitio.[/i]\n\n[00ff00]RECOMPENSA DEL ATAQUE DEL DRAGÓN: [-]{fr}[-]\n[i]Cette tête ne fait qu’attaquer ; elle ne peut ni être attaquée ni vaincue pendant ce combat. Retournez face cachée les têtes choisies si le site vous fortifie.[/i]\n\n[00ff00]RÉCOMPENSE DE L’ATTAQUE DU DRAGON : [-]{pt-br}[-]\n[i]Esta cabeça apenas ataca; ela não pode ser atacada nem derrotada neste combate. Vire as cabeças escolhidas para baixo se o local estiver fortificando você.[/i]\n\n[00ff00]RECOMPENSA DO ATAQUE DO DRAGÃO: [-]{de}[-]\n[i]Dieser Kopf greift nur an; er kann in diesem Kampf weder angegriffen noch besiegt werden. Dreht die gewählten Köpfe auf die Rückseite, wenn ihr durch den Ort befestigt seid.[/i]\n\n[00ff00]BELOHNUNG FÜR DEN DRACHENANGRIFF: [-]",tostring(airborneRound),"{en} Fame\n\n{ru} Славы\n\n{zh-tw} 點名望\n\n{zh-cn} 点名望\n\n{ko} 명성\n\n{es} de Fama\n\n{fr} de Gloire\n\n{pt-br} de Fama\n\n{de} Ruhm\n\n"})
 				end
 				--Horseman priorities. Combat stats/abilities below continue through the normal monster hover renderer.
-				local horsemanName=horsemanTokenToName~=nil and horsemanTokenToName[hover_object.guid] or nil
+				local horsemanName=horsemanTokenToName~=nil and horsemanTokenToName[guid] or nil
 				if horsemanName~=nil and gStates.gameScenario~="Against the Horsemen Blitz" then monsterDescription=joinLang({monsterDescription,apocalypseIsHereHorsemanPriorityDescription(horsemanName)}) end
 				--Night Rules
-				if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].nightRules~=nil and gStates.summonStates[hover_object.guid]~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]NIGHT RULES[-][i] - For this fight, Gold mana can't be used, Black mana can be used, and affected Skills use their night version.[/i]\n\n{ru}[00ff00]НОЧНЫЕ ПРАВИЛА[-][i] - Считайте, что битва проходит ночью: нельзя использовать золотую ману, можно использовать черную ману, а навыки используют свою ночную версию.[/i]\n\n{zh-tw}[00ff00]夜晚規則[-][i] - 在這場戰鬥中，金色法力不能使用，黑色法力可以使用，受影響的技能使用其夜間版本。[/i]\n\n{zh-cn}[00ff00]夜晚規則[-][i] - 在這場戰鬥中，金色法力不能使用，黑色法力可以使用，受影響的技能使用其夜間版本。[/i]\n\n{ko}[00ff00]밤 규칙[-][i] - 이 전투에서 금색 마나를 사용할 수 없고, 흑색 마나를 사용할 수 있으며, 스킬 또한 밤 효과로 사용합니다.[/i]\n\n{es}[00ff00]REGLAS NOCTURNAS[-][i] - Para este combate, no se puede usar Maná Dorado, se puede usar Maná Negro y las Habilidades afectadas usan su versión nocturna.[/i]\n\n{fr}[00ff00]RÈGLES DE LA NUIT[-][i] - Pour ce combat, le mana d'or ne peut pas être utilisé, le mana noir peut être utilisé et les compétences affectées utilisent leur version nocturne.[/i]\n\n{pt-br}[00ff00]REGRAS NOTURNAS[-][i] - Nesta luta, a mana dourada não pode ser usada, a mana preta pode ser usada e as habilidades afetadas usam sua versão noturna.[/i]\n\n{de}[00ff00]REGELN FÜR DIE NACHT[-][i] - Für diesen Kampf kann kein Goldmana verwendet werden, Schwarzmana kann verwendet werden, und die betroffenen Fertigkeiten verwenden ihre Nachtversion.[/i]\n\n"}) end
+				if perkData~=nil and perkData.nightRules~=nil and summonState~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]NIGHT RULES[-][i] - For this fight, Gold mana can't be used, Black mana can be used, and affected Skills use their night version.[/i]\n\n{ru}[00ff00]НОЧНЫЕ ПРАВИЛА[-][i] - Считайте, что битва проходит ночью: нельзя использовать золотую ману, можно использовать черную ману, а навыки используют свою ночную версию.[/i]\n\n{zh-tw}[00ff00]夜晚規則[-][i] - 在這場戰鬥中，金色法力不能使用，黑色法力可以使用，受影響的技能使用其夜間版本。[/i]\n\n{zh-cn}[00ff00]夜晚規則[-][i] - 在這場戰鬥中，金色法力不能使用，黑色法力可以使用，受影響的技能使用其夜間版本。[/i]\n\n{ko}[00ff00]밤 규칙[-][i] - 이 전투에서 금색 마나를 사용할 수 없고, 흑색 마나를 사용할 수 있으며, 스킬 또한 밤 효과로 사용합니다.[/i]\n\n{es}[00ff00]REGLAS NOCTURNAS[-][i] - Para este combate, no se puede usar Maná Dorado, se puede usar Maná Negro y las Habilidades afectadas usan su versión nocturna.[/i]\n\n{fr}[00ff00]RÈGLES DE LA NUIT[-][i] - Pour ce combat, le mana d'or ne peut pas être utilisé, le mana noir peut être utilisé et les compétences affectées utilisent leur version nocturne.[/i]\n\n{pt-br}[00ff00]REGRAS NOTURNAS[-][i] - Nesta luta, a mana dourada não pode ser usada, a mana preta pode ser usada e as habilidades afetadas usam sua versão noturna.[/i]\n\n{de}[00ff00]REGELN FÜR DIE NACHT[-][i] - Für diesen Kampf kann kein Goldmana verwendet werden, Schwarzmana kann verwendet werden, und die betroffenen Fertigkeiten verwenden ihre Nachtversion.[/i]\n\n"}) end
 				--No Units
-				if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].noUnits~=nil and gStates.summonStates[hover_object.guid]~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]NO UNITS[-][i] - No Units can be used for this Fight.[/i]\n\n{ru}[00ff00]БЕЗ ОТРЯДОВ[-][i] - В этом бою герой не может использовать отряды.[/i]\n\n{zh-tw}[00ff00]禁用部队[-][i] - 本次战斗不能使用任何部队。[/i]\n\n{zh-cn}[00ff00]禁用部队[-][i] - 本次战斗不能使用任何部队。[/i]\n\n{ko}[00ff00]유닛 사용불가[-][i] - 이 전투에는 유닛을 사용할 수 없습니다.[/i]\n\n{es}[00ff00]SIN UNIDADES[-][i] - No se pueden utilizar unidades para este combate.[/i]\n\n{fr}[00ff00]PAS D'UNITÉS[-][i] - Aucune unité ne peut être utilisée pour ce combat.[/i]\n\n{pt-br}[00ff00]SEM UNIDADES[-][i] - Nenhuma unidade pode ser usada para essa luta.[/i]\n\n{de}[00ff00]KEINE EINHEITEN[-][i] - Für diesen Kampf können keine Einheiten verwendet werden.[/i]\n\n"}) end
+				if perkData~=nil and perkData.noUnits~=nil and summonState~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]NO UNITS[-][i] - No Units can be used for this Fight.[/i]\n\n{ru}[00ff00]БЕЗ ОТРЯДОВ[-][i] - В этом бою герой не может использовать отряды.[/i]\n\n{zh-tw}[00ff00]禁用部队[-][i] - 本次战斗不能使用任何部队。[/i]\n\n{zh-cn}[00ff00]禁用部队[-][i] - 本次战斗不能使用任何部队。[/i]\n\n{ko}[00ff00]유닛 사용불가[-][i] - 이 전투에는 유닛을 사용할 수 없습니다.[/i]\n\n{es}[00ff00]SIN UNIDADES[-][i] - No se pueden utilizar unidades para este combate.[/i]\n\n{fr}[00ff00]PAS D'UNITÉS[-][i] - Aucune unité ne peut être utilisée pour ce combat.[/i]\n\n{pt-br}[00ff00]SEM UNIDADES[-][i] - Nenhuma unidade pode ser usada para essa luta.[/i]\n\n{de}[00ff00]KEINE EINHEITEN[-][i] - Für diesen Kampf können keine Einheiten verwendet werden.[/i]\n\n"}) end
 				--One Unit
-				if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].oneUnit~=nil and gStates.summonStates[hover_object.guid]~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ONE UNIT[-][i] - Only one Unit can be used for this Fight[/i]\n\n{ru}[00ff00]ОДИН ОТРЯД[-][i] - В этом бою герой может использовать только один отряд.[/i]\n\n{zh-tw}[00ff00]单个部队[-][i] - 本场比赛只能使用一个部队。[/i]\n\n{zh-cn}[00ff00]单个部队[-][i] - 本场比赛只能使用一个部队。[/i]\n\n{ko}[00ff00]유닛 하나[-][i] - 이 전투에는 유닛 하나만 사용할 수 있습니다.[/i]\n\n{es}[00ff00]UNA UNIDAD[-][i] - Sólo se puede utilizar una unidad para este combate.[/i]\n\n{fr}[00ff00]UNE UNITÉ[-][i] - Une seule unité peut être utilisée pour ce combat.[/i]\n\n{pt-br}[00ff00]UMA UNIDADE[-][i] - Somente uma unidade pode ser usada para essa luta.[/i]\n\n{de}[00ff00]EINE EINHEIT[-][i] - Für diesen Kampf kann nur eine Einheit verwendet werden.[/i]\n\n"}) end
+				if perkData~=nil and perkData.oneUnit~=nil and summonState~="summoned" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ONE UNIT[-][i] - Only one Unit can be used for this Fight[/i]\n\n{ru}[00ff00]ОДИН ОТРЯД[-][i] - В этом бою герой может использовать только один отряд.[/i]\n\n{zh-tw}[00ff00]单个部队[-][i] - 本场比赛只能使用一个部队。[/i]\n\n{zh-cn}[00ff00]单个部队[-][i] - 本场比赛只能使用一个部队。[/i]\n\n{ko}[00ff00]유닛 하나[-][i] - 이 전투에는 유닛 하나만 사용할 수 있습니다.[/i]\n\n{es}[00ff00]UNA UNIDAD[-][i] - Sólo se puede utilizar una unidad para este combate.[/i]\n\n{fr}[00ff00]UNE UNITÉ[-][i] - Une seule unité peut être utilisée pour ce combat.[/i]\n\n{pt-br}[00ff00]UMA UNIDADE[-][i] - Somente uma unidade pode ser usada para essa luta.[/i]\n\n{de}[00ff00]EINE EINHEIT[-][i] - Für diesen Kampf kann nur eine Einheit verwendet werden.[/i]\n\n"}) end
 				--Attack values
-				if ((monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].attack~=nil and monsterPugs[hover_object.guid].monsters==nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].attack~=nil)) then
-					local attackTypeConvert={
-						["P"]="{en}[00ff00]PHYSICAL ATTACK: [-]{ru}[00ff00]ФИЗИЧЕСКАЯ АТАКА: [-]{zh-tw}[00ff00]物理攻击：[-]{zh-cn}[00ff00]物理攻击：[-]{ko}[00ff00]물리 공격: [-]{es}[00ff00]ATAQUE FÍSICO: [-]{fr}[00ff00]ATTAQUE PHYSIQUE : [-]{pt-br}[00ff00]ATAQUE FÍSICO: [-]{de}[00ff00]PHYSISCHER ANGRIFF: [-]",
-						["F"]="{en}[ff0000]FIRE ATTACK: [-]{ru}[ff0000]ОГНЕННАЯ АТАКА: [-]{zh-tw}[ff0000]火焰攻击：[-]{zh-cn}[ff0000]火焰攻击：[-]{ko}[ff0000]불 공격: [-]{es}[ff0000]ATAQUE DE FUEGO: [-]{fr}[ff0000]ATTAQUE DE FEU : [-]{pt-br}[ff0000]ATAQUE DE FOGO: [-]{de}[ff0000]FEUERANSCHLAG: [-]",
-						["I"]="{en}[5a5aff]ICE ATTACK: [-]{ru}[5a5aff]ЛЕДЯНАЯ АТАКА: [-]{zh-tw}[5a5aff]寒冰攻击：[-]{zh-cn}[5a5aff]寒冰攻击：[-]{ko}[5a5aff]얼음 공격: [-]{es}[5a5aff]ATAQUE DE HIELO: [-]{fr}[5a5aff]ATTAQUE DE GLACE : [-]{pt-br}[5a5aff]ATAQUE DE GELO: [-]{de}[5a5aff]EISANGRIFF: [-]",
-						["M"]="{en}[ffda00]PSYCHIC ATTACK: [-]{ru}[ffda00]ПСИХИЧЕСКОЕ НАПАДЕНИЕ: [-]{zh-tw}[ffda00]心靈攻擊：[-]{zh-cn}[ffda00]心灵攻击：[-]{ko}[ffda00]정신 공격: [-]{es}[ffda00]ATAQUE PSÍQUICO: [-]{fr}[ffda00]ATTAQUE PSYCHIQUE : [-]{pt-br}[ffda00]ATAQUE PSÍQUICO: [-]{de}[ffda00]PSYCHISCHER ANGRIFF: [-]",
-						["IF"]="{en}[ff00fe]COLD FIRE ATTACK: [-]{ru}[ff00fe]ОГНЕННО-ЛЕДЯНАЯ АТАКА: [-]{zh-tw}[ff00fe]冰火攻击：[-]{zh-cn}[ff00fe]冰火攻击：[-]{ko}[ff00fe]차가운불 공격: [-]{es}[ff00fe]ATAQUE DE FUEGO FRÍO: [-]{fr}[ff00fe]ATTAQUE DE FEU FROID : [-]{pt-br}[ff00fe]ATAQUE DE FOGO FRIO: [-]{de}[ff00fe]KALTER FEUERANSCHLAG: [-]"}
-					local attackTypeDescription={
-						["F"]="{en}(Your Physical and Fire Blocks are halved){ru}(Значения Физических и Огненных блоков делятся на 2, с округлением вниз){zh-tw}（您的物理和火焰属性减半）{zh-cn}（您的物理和火焰属性减半）{ko}(물리 및 불 방어가 절반으로 감소합니다.){es}(Tus Bloques Físicos y de Fuego se reducen a la mitad){fr}(Vos blocs de physique et de feu sont réduits de moitié){pt-br}(Seus bloqueios Físico e de Fogo são reduzidos à metade){de}(Deine Physikalischen und Feuer-Blöcke werden halbiert)",
-						["I"]="{en}(Your Physical and Ice Blocks are halved){ru}(Значения Физических и Ледяных блоков делятся на 2, с округлением вниз){zh-tw}（您的物理和寒冰属性减半）{zh-cn}（您的物理和寒冰属性减半）{ko}(물리 및 얼음 방어가 절반으로 감소합니다.){es}(Tus Bloques Físicos y de Hielo se reducen a la mitad){fr}(Vos blocs de physique et de glace sont divisés par deux){pt-br}(Seus bloqueios Físico e de Gelo são reduzidos à metade){de}(Ihre physischen und Eis-Blöcke werden halbiert)",
-						["M"]="{en}(All your Blocks are halved. Influence points may be spent as full Psychic Block){ru}(Все ваши блоки уменьшаются вдвое. Очки влияния можно тратить как полноценный психический блок){zh-tw}（你所有的格檔效果減半，影響力可以完全轉換成心靈格檔）{zh-cn}（你所有的格档效果减半，影响力可以完全转换成心灵格档）{ko}(모든 방어 수치가 절반으로 감소. 영향력을 지불하여 온전한 정신 방어로 사용 가능){es}(Todos tus bloqueos se reducen a la mitad. Los puntos de influencia se pueden gastar como un bloqueo psíquico completo){fr}(Tous vos blocages sont réduits de moitié. Les points d'influence peuvent être utilisés pour obtenir un blocage psychique complet.){pt-br}(Todos os seus bloqueios são reduzidos pela metade. Os pontos de influência podem ser usados como um bloqueio psíquico completo){de}(Alle deine Blöcke werden halbiert. Einflusspunkte können als vollständiger psychischer Block ausgegeben werden.)",
-						["IF"]="{en}(Your Physical, Fire and Ice Blocks are halved){ru}(Значения Физических, Ледяных и Огненных блоков делятся на 2, с округлением вниз){zh-tw}（你的物理、火焰和寒冰格挡减半）{zh-cn}（你的物理、火焰和寒冰格挡减半）{ko}(물리, 불, 얼음 방어가 절반으로 감소합니다.){es}(Tus Bloques Físico, Fuego y Hielo se reducen a la mitad){fr}(Vos blocs de physique, de feu et de glace sont réduits de moitié){pt-br}(Seus bloqueios Físico, de Fogo e de Gelo são reduzidos à metade){de}(Deine Physischen, Feuer- und Eis-Blöcke werden halbiert)"}
+				if ((monsterData~=nil and monsterData.attack~=nil and monsterData.monsters==nil) or (perkData~=nil and perkData.attack~=nil)) then
+					local attackTypeConvert=MONSTER_ATTACK_TYPE_TEXT
+					local attackTypeDescription=MONSTER_ATTACK_TYPE_DESCRIPTION
 					--this method works as Volkare token, Trap Tokens and Possessed tokens don't overlap they're damage types. Suspect in future I may need to add the two.
 					local boostDone=false
 					for attackType, _ in pairs(attackTypeConvert) do
-						if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].attack~=nil and monsterPugs[hover_object.guid].attack[attackType]~=nil) or
-							(gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].attack~=nil and gStates.monsterPerks[hover_object.guid].attack[attackType]~=nil) then
+						if (monsterData~=nil and monsterData.attack~=nil and monsterData.attack[attackType]~=nil) or
+							(perkData~=nil and perkData.attack~=nil and perkData.attack[attackType]~=nil) then
 							local elementalBonus=0
-							if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].elemental~=nil then if attackType=="IF" then elementalBonus=1 else elementalBonus=2 end end
-							local damageToScan={}--monsterPugs[hover_object.guid].attack[attackType]
-							if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].attack~=nil and monsterPugs[hover_object.guid].attack[attackType]~=nil then damageToScan=monsterPugs[hover_object.guid].attack[attackType] end
-							if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].attack~=nil and gStates.monsterPerks[hover_object.guid].attack[attackType]~=nil then damageToScan=gStates.monsterPerks[hover_object.guid].attack[attackType] end
+							if perkData~=nil and perkData.elemental~=nil then if attackType=="IF" then elementalBonus=1 else elementalBonus=2 end end
+							local damageToScan={}--monsterData.attack[attackType]
+							if monsterData~=nil and monsterData.attack~=nil and monsterData.attack[attackType]~=nil then damageToScan=monsterData.attack[attackType] end
+							if perkData~=nil and perkData.attack~=nil and perkData.attack[attackType]~=nil then damageToScan=perkData.attack[attackType] end
 							for count, v in pairs(damageToScan) do
 								local boost=0
-								if count==1 and boostDone==false and gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].boost~=nil then boost=gStates.monsterPerks[hover_object.guid].boost boostDone=true end
+								if count==1 and boostDone==false and perkData~=nil and perkData.boost~=nil then boost=perkData.boost boostDone=true end
 								monsterDescription=joinLang({monsterDescription, attackTypeConvert[tostring(attackType)], tostring(v+elementalBonus+boost), "\n"})
 							end
 							if tostring(attackType)~="P" and hover_object.getGMNotes()~="Puppet Master" then monsterDescription=joinLang({monsterDescription, "[i]", attackTypeDescription[tostring(attackType)], "[/i]\n"}) end
@@ -5414,25 +5464,20 @@ function refreshMonsterHoverDescription(hover_object)
 				end
 				--Block values. Puppet Master uses this generic monsterPerks field so kept tokens can reuse
 				--the normal hover system without pretending the Puppet is still an enemy.
-				if gStates.monsterPerks[hover_object.guid]~=nil and type(gStates.monsterPerks[hover_object.guid].block)=="table" then
+				if perkData~=nil and type(perkData.block)=="table" then
 					--Puppets only show their usable Attack and Block values. Put the visual separator
 					--between those groups instead of leaving an empty line at the bottom of the tooltip.
 					if hover_object.getGMNotes()=="Puppet Master" then monsterDescription=joinLang({monsterDescription, "\n"}) end
-					local blockTypeConvert={
-						["P"]="{en}[00ff00]PHYSICAL BLOCK: [-]{ru}[00ff00]ФИЗИЧЕСКИЙ БЛОК: [-]{zh-tw}[00ff00]物理格挡：[-]{zh-cn}[00ff00]物理格挡：[-]{ko}[00ff00]물리 방어: [-]{es}[00ff00]BLOQUEO FÍSICO: [-]{fr}[00ff00]BLOC PHYSIQUE : [-]{pt-br}[00ff00]BLOQUEIO FÍSICO: [-]{de}[00ff00]PHYSISCHER BLOCK: [-]",
-						["F"]="{en}[ff0000]FIRE BLOCK: [-]{ru}[ff0000]ОГНЕННЫЙ БЛОК: [-]{zh-tw}[ff0000]火焰格挡：[-]{zh-cn}[ff0000]火焰格挡：[-]{ko}[ff0000]불 방어: [-]{es}[ff0000]BLOQUEO DE FUEGO: [-]{fr}[ff0000]BLOC DE FEU : [-]{pt-br}[ff0000]BLOQUEIO DE FOGO: [-]{de}[ff0000]FEUER-BLOCK: [-]",
-						["I"]="{en}[5a5aff]ICE BLOCK: [-]{ru}[5a5aff]ЛЕДЯНОЙ БЛОК: [-]{zh-tw}[5a5aff]寒冰格挡：[-]{zh-cn}[5a5aff]寒冰格挡：[-]{ko}[5a5aff]얼음 방어: [-]{es}[5a5aff]BLOQUEO DE HIELO: [-]{fr}[5a5aff]BLOC DE GLACE : [-]{pt-br}[5a5aff]BLOQUEIO DE GELO: [-]{de}[5a5aff]EIS-BLOCK: [-]",
-						["M"]="{en}[ffda00]PSYCHIC BLOCK: [-]{ru}[ffda00]ПСИХИЧЕСКИЙ БЛОК: [-]{zh-tw}[ffda00]心靈格檔：[-]{zh-cn}[ffda00]心灵格挡：[-]{ko}[ffda00]정신 방어: [-]{es}[ffda00]BLOQUEO PSÍQUICO: [-]{fr}[ffda00]BLOC PSYCHIQUE : [-]{pt-br}[ffda00]BLOQUEIO PSÍQUICO: [-]{de}[ffda00]PSYCHISCHER BLOCK: [-]",
-						["IF"]="{en}[ff00fe]COLD FIRE BLOCK: [-]{ru}[ff00fe]ОГНЕННО-ЛЕДЯНОЙ БЛОК: [-]{zh-tw}[ff00fe]冰火格挡：[-]{zh-cn}[ff00fe]冰火格挡：[-]{ko}[ff00fe]차가운불 방어: [-]{es}[ff00fe]BLOQUEO DE FUEGO FRÍO: [-]{fr}[ff00fe]BLOC DE FEU FROID : [-]{pt-br}[ff00fe]BLOQUEIO DE FOGO FRIO: [-]{de}[ff00fe]KALTFEUER-BLOCK: [-]"}
+					local blockTypeConvert=MONSTER_BLOCK_TYPE_TEXT
 					for _, blockType in ipairs({"P","F","I","IF","M"}) do
-						local values=gStates.monsterPerks[hover_object.guid].block[blockType]
+						local values=perkData.block[blockType]
 						if type(values)=="table" then for _, value in ipairs(values) do monsterDescription=joinLang({monsterDescription,blockTypeConvert[blockType],tostring(value),"\n"}) end end
 					end
 				end
 				--summoners
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].monsters~=nil and monsterPugs[hover_object.guid].pugType~="yellow" then
+				if monsterData~=nil and monsterData.monsters~=nil and monsterData.pugType~="yellow" then
 					local count=0
-					for _, summon in pairs(monsterPugs[hover_object.guid].monsters) do count=count+1 end
+					for _, summon in pairs(monsterData.monsters) do count=count+1 end
 					if count>1 then
 						monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMY SUMMONS: [-]{ru}[00ff00]ПРИЗЫВ: [-]{zh-tw}[00ff00]敌人召唤：[-]{zh-cn}[00ff00]敌人召唤：[-]{ko}[00ff00]적 소환수: [-]{es}[00ff00]CONVOCATORIA ENEMIGA: [-]{fr}[00ff00]SOMMES ENNEMIES: [-]{pt-br}[00ff00]CONVOCAÇÕES INIMIGAS: [-]{de}[00ff00]ENEMY SUMMONS: [-]", tostring(count), "\n"})
 					else
@@ -5440,77 +5485,67 @@ function refreshMonsterHoverDescription(hover_object)
 					end
 				end
 				--ruins
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].monsters~=nil and monsterPugs[hover_object.guid].pugType=="yellow" and hover_object.guid~="f3c6e3" and hover_object.guid~="28cc9c" and hover_object.guid~="2f9a1f" then
-					colorConvert={
-						["gray"]="{en}Keep Garison (Gray){ru}Гарнизон крепости (Серый){zh-tw}要塞守军（灰色）{zh-cn}要塞守军（灰色）{ko}성 수비대 (회색){es}Mantener Garison (Gris){fr}Garder Garison (Gris){pt-br}Forte Guarnição (Cinza){de}Garison behalten (Grau)",
-						["tan"]="{en}Dungeon Monster (Tan){ru}Монстр из подземелья (Коричневый){zh-tw}地下城怪物（棕色）{zh-cn}地下城怪物（棕色）{ko}던전 몬스터 (갈색){es}Monstruo de Mazmorra (Marrón){fr}Monstre du donjon (Tan){pt-br}Monstro de Masmorra (Bronze){de}Kerkermonster (Braun)",
-						["green"]="{en}Maraudering Orcs (Green){ru}Орк-мародер (Зеленый){zh-tw}兽人劫掠队（绿色）{zh-cn}兽人劫掠队（绿色）{ko}오크 습격자 (녹색){es}Orkos Merodeadores (Verde){fr}Orques maraudeurs (Vert){pt-br}Orks saqueadores (Verde){de}Marodierende Orks (Grün)",
-						["red"]="{en}Draconum (Red){ru}Драконум (красный){zh-tw}龍族（紅色）{zh-cn}龙族（红色）{ko}드라코넘 (적색){es}Draconum (Rojo){fr}Draconum (Rouge){pt-br}Draconum (Vermelho){de}Draconum (Rot)",
-						["purple"]="{en}Mage Tower Garison (Purple){ru}Гарнизон башни магов (Фиолетовый){zh-tw}法师塔守军（紫色）{zh-cn}法师塔守军（紫色）{ko}마법사 탑 수비대 (보라색){es}Torre de Mago Garison (Morado){fr}Tour des mages Garison (Violet){pt-br}Guarnição da Torre do Mago (Roxo){de}Magierturm Garison (Violett)",
-						["white"]="{en}City Garison (white){ru}Гарнизон города (Белый){zh-tw}城市守军（白色）{zh-cn}城市守军（白色）{ko}도시 수비대 (흰색){es}Ciudad Garison (Blanco){fr}Garison de la ville (Blanc){pt-br}Guarnição da cidade (Branco){de}Stadt Garison (Weiß)"}
-					monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]One {ru}[00ff00]ОХРАНА: [-]Один {zh-tw}[00ff00]防守的敌人：[-]一个{zh-cn}[00ff00]防守的敌人：[-]一个{ko}[00ff00]방어 중인 적: [-]1개의 {es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Uno {fr}[00ff00]ENNEMIS EN DÉFENSE : [-]Un {pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Um {de}[00ff00]ENEMIES DEFENDING: [-]Einer ", colorConvert[monsterPugs[hover_object.guid].monsters[1]], "{en} and one {ru} и один {zh-tw}和一个{zh-cn}和一个{ko} 그리고 1개의 {es} y uno {fr} et un {pt-br} e um {de} und einer ", colorConvert[monsterPugs[hover_object.guid].monsters[2]], "{en}.\n{zh-tw}。\n{zh-cn}。\n"})
+				if monsterData~=nil and monsterData.monsters~=nil and monsterData.pugType=="yellow" and SPECIAL_YELLOW_DEFENDER_DESCRIPTIONS[guid]==nil then
+					colorConvert=MONSTER_COLOR_LABELS
+					monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]One {ru}[00ff00]ОХРАНА: [-]Один {zh-tw}[00ff00]防守的敌人：[-]一个{zh-cn}[00ff00]防守的敌人：[-]一个{ko}[00ff00]방어 중인 적: [-]1개의 {es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Uno {fr}[00ff00]ENNEMIS EN DÉFENSE : [-]Un {pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Um {de}[00ff00]ENEMIES DEFENDING: [-]Einer ", colorConvert[monsterData.monsters[1]], "{en} and one {ru} и один {zh-tw}和一个{zh-cn}和一个{ko} 그리고 1개의 {es} y uno {fr} et un {pt-br} e um {de} und einer ", colorConvert[monsterData.monsters[2]], "{en}.\n{zh-tw}。\n{zh-cn}。\n"})
 				end
-				if hover_object.guid=="f3c6e3" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]Two Maraudering Orcs(Green).\n{ru}[00ff00]ОХРАНА: [-]Два Орка-мародер (Зеленый).\n{zh-tw}[00ff00]驻守敌人：[-]两个兽人劫掠队（绿色）。\n{zh-cn}[00ff00]驻守敌人：[-]两个兽人劫掠队（绿色）。\n{ko}[00ff00]방어 중인 적: [-]2개의 오크(녹색).\n{es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Dos Orkos Merodeadores(Verde).\n{fr}[00ff00]ENNEMIES DEFENDANTS : [-]Deux Orks maraudeurs (vert).\n{pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Dois Orks saqueadores(verde).\n{de}[00ff00]ENEMIES DEFENDING: [-]Zwei marodierende Orks(grün).\n"}) end
-				if hover_object.guid=="28cc9c" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]Two Mage Tower Garisons(Purple).\n{ru}[00ff00]ОХРАНА: [-]Два Гарнизона башни магов (Фиолетовый).\n{zh-tw}[00ff00]驻守敌人：[-]两个法师塔守军（紫色）。\n{zh-cn}[00ff00]驻守敌人：[-]两个法师塔守军（紫色）。\n{ko}[00ff00]방어 중인 적: [-]2개의 마법사 탑 수비대(보라색).\n{es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Dos Mage Tower Garisons(Purple).\n{fr}[00ff00]ENEMIS EN DEFENSE : [-]Deux Garisons de la Tour des Mages (Pourpre).\n{pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Duas Guarnições da Torre do Mago (Roxo).\n{de}[00ff00]ENEMIES DEFENDING: [-]Zwei Magierturm-Garisons(Lila).\n"}) end
-				if hover_object.guid=="2f9a1f" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ENEMIES DEFENDING: [-]Three Maraudering Orcs(Green).\n{ru}[00ff00]ОХРАНА: [-]Три Орка-мародер (Зеленый).\n{zh-tw}[00ff00]驻守敌人：[-]三个兽人劫掠队（绿色）。\n{zh-cn}[00ff00]驻守敌人：[-]三个兽人劫掠队（绿色）。\n{ko}[00ff00]방어 중인 적: [-]3개의 오크(녹색).\n{es}[00ff00]ENEMIGOS DEFENDIENDO: [-]Tres Orkos Merodeadores(Verde).\n{fr}[00ff00]ENEMIS EN DEFENSE : [-]Trois Orks maraudeurs(Vert).\n{pt-br}[00ff00]INIMIGOS DEFENDENDO: [-]Três Orcs Saqueadores(Verde).\n{de}[00ff00]ENEMIES DEFENDING: [-]Drei marodierende Orks(Grün).\n"}) end
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].required~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ALTER REQUIRES: [-]{ru}[00ff00]ПОДНОШЕНИЕ АЛТАРЮ: [-]{zh-tw}[00ff00]改变要求：[-]{zh-cn}[00ff00]改变要求：[-]{ko}[00ff00]재단 활성화: [-]{es}[00ff00]ALTER REQUIRE: [-]{fr}[00ff00]ALTER REQUIRES : [-]{pt-br}[00ff00]ALTERAR REQUISITOS: [-]{de}[00ff00]ALTER ERFORDERT: [-]", monsterPugs[hover_object.guid].required, "{en}.\n{zh-tw}。\n{zh-cn}。\n"}) end
+				local specialDefenderDescription=SPECIAL_YELLOW_DEFENDER_DESCRIPTIONS[guid]
+				if specialDefenderDescription~=nil then monsterDescription=joinLang({monsterDescription,specialDefenderDescription}) end
+				if monsterData~=nil and monsterData.required~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ALTER REQUIRES: [-]{ru}[00ff00]ПОДНОШЕНИЕ АЛТАРЮ: [-]{zh-tw}[00ff00]改变要求：[-]{zh-cn}[00ff00]改变要求：[-]{ko}[00ff00]재단 활성화: [-]{es}[00ff00]ALTER REQUIRE: [-]{fr}[00ff00]ALTER REQUIRES : [-]{pt-br}[00ff00]ALTERAR REQUISITOS: [-]{de}[00ff00]ALTER ERFORDERT: [-]", monsterData.required, "{en}.\n{zh-tw}。\n{zh-cn}。\n"}) end
 				if hover_object.getGMNotes()~="Puppet Master" then monsterDescription=joinLang({monsterDescription, "\n"}) end
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].reward~=nil and monsterPugs[hover_object.guid].pugType=="yellow" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]REWARD FOR DEFEATING: [-]{ru}[00ff00]НАГРАДА ЗА ПОБЕДУ: [-]{zh-tw}[00ff00]击败奖励：[-]{zh-cn}[00ff00]击败奖励：[-]{ko}[00ff00]정복 보상: [-]{es}[00ff00]RECOMPENSA POR DERROTA: [-]{fr}[00ff00]RÉCOMPENSE POUR LA DÉFENSE : [-]{pt-br}[00ff00]RECOMPENSA PELA DEFESA: [-]{de}[00ff00]BELOHNUNG FÜR DIE BESIEGUNG: [-]", monsterPugs[hover_object.guid].reward, "{en}.{zh-tw}。{zh-cn}。"}) end
+				if monsterData~=nil and monsterData.reward~=nil and monsterData.pugType=="yellow" then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]REWARD FOR DEFEATING: [-]{ru}[00ff00]НАГРАДА ЗА ПОБЕДУ: [-]{zh-tw}[00ff00]击败奖励：[-]{zh-cn}[00ff00]击败奖励：[-]{ko}[00ff00]정복 보상: [-]{es}[00ff00]RECOMPENSA POR DERROTA: [-]{fr}[00ff00]RÉCOMPENSE POUR LA DÉFENSE : [-]{pt-br}[00ff00]RECOMPENSA PELA DEFESA: [-]{de}[00ff00]BELOHNUNG FÜR DIE BESIEGUNG: [-]", monsterData.reward, "{en}.{zh-tw}。{zh-cn}。"}) end
 				--swiftness
-				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].swiftness~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].swiftness~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]SWIFTNESS[-][i] - This enemy's attack is doubled when trying to Block it.[/i]\n\n{ru}[00ff00]БЫСТРАЯ АТАКА[-][i] - Блокирование атаки врага требует вдвое больше очков блока, чем обычно.[/i]\n\n{zh-tw}[00ff00]迅捷[-][i] - 当试图阻挡敌人时，该敌人的攻击力会加倍。[/i]\n\n{zh-cn}[00ff00]迅捷[-][i] - 当试图阻挡敌人时，该敌人的攻击力会加倍。[/i]\n\n{ko}[00ff00]신속[-][i] - 이 공격을 방어할 때는 두 배의 수치가 필요.[/i]\n\n{es}[00ff00]VELOCIDAD[-][i] - El ataque de este enemigo se duplica al intentar Bloquearlo[/i]\n\n{fr}[00ff00]SOUPLESSE[-][i] - L'attaque de cet ennemi est doublée lorsque l'on tente de le bloquer.[/i]\n\n{pt-br}[00ff00]AGILIDADE[-][i] - O ataque deste inimigo é dobrado ao tentar bloqueá-lo.[/i]\n\n{de}[00ff00]GESCHWINDIGKEIT[-][i] - Der Angriff dieses Gegners wird verdoppelt, wenn man versucht, ihn zu blocken.[/i]\n\n"}) end
+				if (monsterData~=nil and monsterData.swiftness~=nil) or (perkData~=nil and perkData.swiftness~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]SWIFTNESS[-][i] - This enemy's attack is doubled when trying to Block it.[/i]\n\n{ru}[00ff00]БЫСТРАЯ АТАКА[-][i] - Блокирование атаки врага требует вдвое больше очков блока, чем обычно.[/i]\n\n{zh-tw}[00ff00]迅捷[-][i] - 当试图阻挡敌人时，该敌人的攻击力会加倍。[/i]\n\n{zh-cn}[00ff00]迅捷[-][i] - 当试图阻挡敌人时，该敌人的攻击力会加倍。[/i]\n\n{ko}[00ff00]신속[-][i] - 이 공격을 방어할 때는 두 배의 수치가 필요.[/i]\n\n{es}[00ff00]VELOCIDAD[-][i] - El ataque de este enemigo se duplica al intentar Bloquearlo[/i]\n\n{fr}[00ff00]SOUPLESSE[-][i] - L'attaque de cet ennemi est doublée lorsque l'on tente de le bloquer.[/i]\n\n{pt-br}[00ff00]AGILIDADE[-][i] - O ataque deste inimigo é dobrado ao tentar bloqueá-lo.[/i]\n\n{de}[00ff00]GESCHWINDIGKEIT[-][i] - Der Angriff dieses Gegners wird verdoppelt, wenn man versucht, ihn zu blocken.[/i]\n\n"}) end
 				--cumbersome
-				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].cumbersome~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].cumbersome~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]CUMBERSOME[-][i] - This enemy's attack can be reduced by the amount of Move a player spends.[/i]\n\n{ru}[00ff00]НЕПОВОРОТЛИВЫЙ[-][i] - В фазе блока вы можете потратить очки Движения, уменьшив значение Атаки врага на 1 за каждое очко. Атака, уменьшенная до 0, успешно заблокирована.[/i]\n\n{zh-tw}[00ff00]笨重[-][i] - 该敌人的攻击力可以被玩家消耗的移动力减少。[/i]\n\n{zh-cn}[00ff00]笨重[-][i] - 该敌人的攻击力可以被玩家消耗的移动力减少。[/i]\n\n{ko}[00ff00]육중함[-][i] - 플레이어가 소비한 이동력만큼 이 적의 공격력이 감소.[/i]\n\n{es}[00ff00]CUMBERSOME[-][i] - El ataque de este enemigo puede ser reducido por la cantidad de Movimiento que gaste el jugador.[/i]\n\n{fr}[00ff00]CUMBERSOME[-][i] - L'attaque de cet ennemi peut être réduite par la quantité de Mouvement dépensée par le joueur.[/i]\n\n{pt-br}[00ff00]CORPULENTO-][i] - O ataque desse inimigo pode ser reduzido pela quantidade de movimento que o jogador gasta.[/i]\n\n{de}[00ff00]GESCHWINDIGKEIT[-][i] - Der Angriff dieses Gegners kann um die Menge an Bewegung reduziert werden, die ein Spieler ausgibt.[/i]\n\n"}) end
+				if (monsterData~=nil and monsterData.cumbersome~=nil) or (perkData~=nil and perkData.cumbersome~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]CUMBERSOME[-][i] - This enemy's attack can be reduced by the amount of Move a player spends.[/i]\n\n{ru}[00ff00]НЕПОВОРОТЛИВЫЙ[-][i] - В фазе блока вы можете потратить очки Движения, уменьшив значение Атаки врага на 1 за каждое очко. Атака, уменьшенная до 0, успешно заблокирована.[/i]\n\n{zh-tw}[00ff00]笨重[-][i] - 该敌人的攻击力可以被玩家消耗的移动力减少。[/i]\n\n{zh-cn}[00ff00]笨重[-][i] - 该敌人的攻击力可以被玩家消耗的移动力减少。[/i]\n\n{ko}[00ff00]육중함[-][i] - 플레이어가 소비한 이동력만큼 이 적의 공격력이 감소.[/i]\n\n{es}[00ff00]CUMBERSOME[-][i] - El ataque de este enemigo puede ser reducido por la cantidad de Movimiento que gaste el jugador.[/i]\n\n{fr}[00ff00]CUMBERSOME[-][i] - L'attaque de cet ennemi peut être réduite par la quantité de Mouvement dépensée par le joueur.[/i]\n\n{pt-br}[00ff00]CORPULENTO-][i] - O ataque desse inimigo pode ser reduzido pela quantidade de movimento que o jogador gasta.[/i]\n\n{de}[00ff00]GESCHWINDIGKEIT[-][i] - Der Angriff dieses Gegners kann um die Menge an Bewegung reduziert werden, die ein Spieler ausgibt.[/i]\n\n"}) end
 				--poison
-				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].poison~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].poison~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]POISON[-][i] - The Player adds an extra wound to their discard pile for each wound from this enemy. Units get two wounds if taking a wound.[/i]\n\n{ru}[00ff00]ЯДОВИТАЯ АТАКА[-][i] - Отряд получает две карты ран вместо одной от атаки ядовитого врага. За каждую рану, полученную героем от этой атаки, он также кладет одну карту раны в свой сброс.[/i]\n\n{zh-tw}[00ff00]剧毒[-][i] - 此敌人每造成一次伤害，玩家就会在弃牌堆中额外增加一次伤害。如果受伤，单位会获得两个伤口。[/i]\n\n{zh-cn}[00ff00]剧毒[-][i] - 此敌人每造成一次伤害，玩家就会在弃牌堆中额外增加一次伤害。如果受伤，单位会获得两个伤口。[/i]\n\n{ko}[00ff00]독성[-][i] - 이 적에게 받는 부상 하나당, 자신의 버린 카드 더미에 부상 하나를 추가. 유닛이 부상을 받을 경우 두 개를 받음.[/i]\n\n{es}[00ff00]VENENO[-][i] - El Jugador añade una herida extra a su pila de descartes por cada herida de este enemigo. Las unidades reciben dos heridas si reciben una herida.[/i]\n\n{fr}[00ff00]POISON[-][i] - Le joueur ajoute une blessure supplémentaire à sa pile de défausse pour chaque blessure infligée par cet ennemi.[/i]\n\n{pt-br}[00ff00]VENENO[-][i] - O jogador adiciona um ferimento extra à sua pilha de descarte para cada ferimento desse inimigo. As unidades recebem dois ferimentos se receberem um ferimento.[/i]\n\n{de}[00ff00]GIFT[-][i] - Der Spieler legt für jede Verwundung durch diesen Feind eine zusätzliche Wunde auf seinen Ablagestapel. Einheiten erhalten zwei Verwundungen, wenn sie eine Verwundung erleiden.[/i]\n\n"}) end
+				if (monsterData~=nil and monsterData.poison~=nil) or (perkData~=nil and perkData.poison~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]POISON[-][i] - The Player adds an extra wound to their discard pile for each wound from this enemy. Units get two wounds if taking a wound.[/i]\n\n{ru}[00ff00]ЯДОВИТАЯ АТАКА[-][i] - Отряд получает две карты ран вместо одной от атаки ядовитого врага. За каждую рану, полученную героем от этой атаки, он также кладет одну карту раны в свой сброс.[/i]\n\n{zh-tw}[00ff00]剧毒[-][i] - 此敌人每造成一次伤害，玩家就会在弃牌堆中额外增加一次伤害。如果受伤，单位会获得两个伤口。[/i]\n\n{zh-cn}[00ff00]剧毒[-][i] - 此敌人每造成一次伤害，玩家就会在弃牌堆中额外增加一次伤害。如果受伤，单位会获得两个伤口。[/i]\n\n{ko}[00ff00]독성[-][i] - 이 적에게 받는 부상 하나당, 자신의 버린 카드 더미에 부상 하나를 추가. 유닛이 부상을 받을 경우 두 개를 받음.[/i]\n\n{es}[00ff00]VENENO[-][i] - El Jugador añade una herida extra a su pila de descartes por cada herida de este enemigo. Las unidades reciben dos heridas si reciben una herida.[/i]\n\n{fr}[00ff00]POISON[-][i] - Le joueur ajoute une blessure supplémentaire à sa pile de défausse pour chaque blessure infligée par cet ennemi.[/i]\n\n{pt-br}[00ff00]VENENO[-][i] - O jogador adiciona um ferimento extra à sua pilha de descarte para cada ferimento desse inimigo. As unidades recebem dois ferimentos se receberem um ferimento.[/i]\n\n{de}[00ff00]GIFT[-][i] - Der Spieler legt für jede Verwundung durch diesen Feind eine zusätzliche Wunde auf seinen Ablagestapel. Einheiten erhalten zwei Verwundungen, wenn sie eine Verwundung erleiden.[/i]\n\n"}) end
 				--brutal
-				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].brutal~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].brutal~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]BRUTAL[-][i] - This enemy's attack is doubled if not blocked.[/i]\n\n{ru}[00ff00]ЖЕСТОКАЯ АТАКА[-][i] - Если враг не заблокирован, он наносит вдвое больше урона, чем его значение Атаки.[/i]\n\n{zh-tw}[00ff00]残暴[-][i] - 如果没有被阻挡，这个敌人的攻击会加倍。[/i]\n\n{zh-cn}[00ff00]残暴[-][i] - 如果没有被阻挡，这个敌人的攻击会加倍。[/i]\n\n{ko}[00ff00]난폭[-][i] - 방어하지 못하면, 공격력의 두 배만큼의 대미지를 받음.[/i]\n\n{es}[00ff00]BRUTAL[-][i] - El ataque de este enemigo se duplica si no es bloqueado.[/i]\n\n{fr}[00ff00]BRUTAL[-][i] - L'attaque de cet ennemi est doublée si elle n'est pas bloquée.[/i]\n\n{pt-br}[00ff00]BRUTAL[-][i] - O ataque desse inimigo é dobrado se não for bloqueado.[/i]\n\n{de}[00ff00]BRUTAL[-][i] - Der Angriff dieses Feindes wird verdoppelt, wenn er nicht geblockt wird.[/i]\n\n"}) end
+				if (monsterData~=nil and monsterData.brutal~=nil) or (perkData~=nil and perkData.brutal~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]BRUTAL[-][i] - This enemy's attack is doubled if not blocked.[/i]\n\n{ru}[00ff00]ЖЕСТОКАЯ АТАКА[-][i] - Если враг не заблокирован, он наносит вдвое больше урона, чем его значение Атаки.[/i]\n\n{zh-tw}[00ff00]残暴[-][i] - 如果没有被阻挡，这个敌人的攻击会加倍。[/i]\n\n{zh-cn}[00ff00]残暴[-][i] - 如果没有被阻挡，这个敌人的攻击会加倍。[/i]\n\n{ko}[00ff00]난폭[-][i] - 방어하지 못하면, 공격력의 두 배만큼의 대미지를 받음.[/i]\n\n{es}[00ff00]BRUTAL[-][i] - El ataque de este enemigo se duplica si no es bloqueado.[/i]\n\n{fr}[00ff00]BRUTAL[-][i] - L'attaque de cet ennemi est doublée si elle n'est pas bloquée.[/i]\n\n{pt-br}[00ff00]BRUTAL[-][i] - O ataque desse inimigo é dobrado se não for bloqueado.[/i]\n\n{de}[00ff00]BRUTAL[-][i] - Der Angriff dieses Feindes wird verdoppelt, wenn er nicht geblockt wird.[/i]\n\n"}) end
 				--vampiric
-				if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].vampiric~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]VAMPIRIC[-][i] - Increase the armour of this enemy by the amount of wounds this enemy has dealt to the player and units.[/i]\n\n{ru}[00ff00]ВАМПИРИЗМ[-][i] - Броня врага с вампиризмом увеличивается на 1 до конца битвы каждый раз, когда в результате его атаки отряд получает рану или игрок берёт карту раны в руку.[/i]\n\n{zh-tw}[00ff00]吸血[-][i] - 增加该敌人的护甲，数值为该敌人对玩家和单位造成的伤害值。[/i]\n\n{zh-cn}[00ff00]吸血[-][i] - 增加该敌人的护甲，数值为该敌人对玩家和单位造成的伤害值。[/i]\n\n{ko}[00ff00]흡혈[-][i] - 이 적의 방어구가, 플레이어와 유닛에게 준 부상의 개수만큼 증가합니다.[/i]\n\n{es}[00ff00]VAMPÍRICO[-][i] - Aumenta la armadura de este enemigo por la cantidad de heridas que este enemigo haya infligido al jugador y a las unidades.[/i]\n\n{fr}[00ff00]VAMPIRIC[-][i] - Augmente l'armure de cet ennemi du nombre de blessures qu'il a infligées au joueur et à ses unités.[/i]\n\n{pt-br}[00ff00]VAMPÍRICO[-][i] - Aumenta a armadura desse inimigo pela quantidade de ferimentos que esse inimigo causou ao jogador e às unidades.[/i]\n\n{de}[00ff00]VAMPIRISCH[-][i] - Erhöht die Rüstung dieses Feindes um die Anzahl der Wunden, die dieser Feind dem Spieler und seinen Einheiten zugefügt hat.[/i]\n\n"}) end
+				if monsterData~=nil and monsterData.vampiric~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]VAMPIRIC[-][i] - Increase the armour of this enemy by the amount of wounds this enemy has dealt to the player and units.[/i]\n\n{ru}[00ff00]ВАМПИРИЗМ[-][i] - Броня врага с вампиризмом увеличивается на 1 до конца битвы каждый раз, когда в результате его атаки отряд получает рану или игрок берёт карту раны в руку.[/i]\n\n{zh-tw}[00ff00]吸血[-][i] - 增加该敌人的护甲，数值为该敌人对玩家和单位造成的伤害值。[/i]\n\n{zh-cn}[00ff00]吸血[-][i] - 增加该敌人的护甲，数值为该敌人对玩家和单位造成的伤害值。[/i]\n\n{ko}[00ff00]흡혈[-][i] - 이 적의 방어구가, 플레이어와 유닛에게 준 부상의 개수만큼 증가합니다.[/i]\n\n{es}[00ff00]VAMPÍRICO[-][i] - Aumenta la armadura de este enemigo por la cantidad de heridas que este enemigo haya infligido al jugador y a las unidades.[/i]\n\n{fr}[00ff00]VAMPIRIC[-][i] - Augmente l'armure de cet ennemi du nombre de blessures qu'il a infligées au joueur et à ses unités.[/i]\n\n{pt-br}[00ff00]VAMPÍRICO[-][i] - Aumenta a armadura desse inimigo pela quantidade de ferimentos que esse inimigo causou ao jogador e às unidades.[/i]\n\n{de}[00ff00]VAMPIRISCH[-][i] - Erhöht die Rüstung dieses Feindes um die Anzahl der Wunden, die dieser Feind dem Spieler und seinen Einheiten zugefügt hat.[/i]\n\n"}) end
 				--Paralyse
-				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].paralyse~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].paralyse~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]PARALYZE[-][i] - Player discards all non-wound cards when taking a wound from this enemy. Units are destroyed if taking a wound.[/i]\n\n{ru}[00ff00]ПАРАЛИЗУЮЩАЯ АТАКА[-][i] - Отряд, получивший рану от такой атаки, немедленно уничтожается. Если герой получает раны от такой атаки, управляющий им игрок немедленно сбрасывает с руки все карты, кроме карт ран.[/i]\n\n{zh-tw}[00ff00]瘫痪[-][i] - 玩家在受到该敌人的伤害时会丢弃所有非受伤的牌。如果受伤，单位将被摧毁。[/i]\n\n{zh-cn}[00ff00]瘫痪[-][i] - 玩家在受到该敌人的伤害时会丢弃所有非受伤的牌。如果受伤，单位将被摧毁。[/i]\n\n{ko}[00ff00]마비[-][i] - 플레이어가 이 공격으로 한 장 이상의 부상을 받으면, 즉시 손에서 부상을 제외한 모든 카드를 버림. 부상을 받은 유닛은 게임에서 제거됨.[/i]\n\n{es}[00ff00]PARALYSE[-][i] - El jugador descarta todas las cartas no heridas al recibir una herida de este enemigo. Las unidades son destruidas si reciben una herida.[/i]\n\n{fr}[00ff00]PARALYSE[-][i] - Le joueur défausse toutes les cartes non blessées lorsqu'il est blessé par cet ennemi. Les unités sont détruites si elles subissent une blessure.[/i]\n\n{pt-br}[00ff00]PARALISIA[-][i] - O jogador descarta todas as cartas não feridas ao receber um ferimento desse inimigo. As unidades são destruídas se receberem um ferimento.[/i]\n\n{de}[00ff00]PARALYSE[-][i] - Der Spieler wirft alle Karten ab, die nicht verwundet sind, wenn er eine Verwundung durch diesen Feind erleidet. Einheiten werden zerstört, wenn sie eine Verwundung erleiden.[/i]\n\n"}) end
+				if (monsterData~=nil and monsterData.paralyse~=nil) or (perkData~=nil and perkData.paralyse~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]PARALYZE[-][i] - Player discards all non-wound cards when taking a wound from this enemy. Units are destroyed if taking a wound.[/i]\n\n{ru}[00ff00]ПАРАЛИЗУЮЩАЯ АТАКА[-][i] - Отряд, получивший рану от такой атаки, немедленно уничтожается. Если герой получает раны от такой атаки, управляющий им игрок немедленно сбрасывает с руки все карты, кроме карт ран.[/i]\n\n{zh-tw}[00ff00]瘫痪[-][i] - 玩家在受到该敌人的伤害时会丢弃所有非受伤的牌。如果受伤，单位将被摧毁。[/i]\n\n{zh-cn}[00ff00]瘫痪[-][i] - 玩家在受到该敌人的伤害时会丢弃所有非受伤的牌。如果受伤，单位将被摧毁。[/i]\n\n{ko}[00ff00]마비[-][i] - 플레이어가 이 공격으로 한 장 이상의 부상을 받으면, 즉시 손에서 부상을 제외한 모든 카드를 버림. 부상을 받은 유닛은 게임에서 제거됨.[/i]\n\n{es}[00ff00]PARALYSE[-][i] - El jugador descarta todas las cartas no heridas al recibir una herida de este enemigo. Las unidades son destruidas si reciben una herida.[/i]\n\n{fr}[00ff00]PARALYSE[-][i] - Le joueur défausse toutes les cartes non blessées lorsqu'il est blessé par cet ennemi. Les unités sont détruites si elles subissent une blessure.[/i]\n\n{pt-br}[00ff00]PARALISIA[-][i] - O jogador descarta todas as cartas não feridas ao receber um ferimento desse inimigo. As unidades são destruídas se receberem um ferimento.[/i]\n\n{de}[00ff00]PARALYSE[-][i] - Der Spieler wirft alle Karten ab, die nicht verwundet sind, wenn er eine Verwundung durch diesen Feind erleidet. Einheiten werden zerstört, wenn sie eine Verwundung erleiden.[/i]\n\n"}) end
 				--assassination
-				if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].assassination~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].assassination~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ASSASSINATION[-][i] - This enemy's attack damage can only be assigned to the player.[/i]\n\n{ru}[00ff00]НАЕМНЫЙ УБИЙЦА[-][i] - Урон от атаки врага не может быть распределён на отряды. Если враг не заблокирован, урон получает только герой.[/i]\n\n{zh-tw}[00ff00]刺杀[-][i] - 该敌人的攻击伤害只能分配给玩家。[/i]\n\n{zh-cn}[00ff00]刺杀[-][i] - 该敌人的攻击伤害只能分配给玩家。[/i]\n\n{ko}[00ff00]암살[-][i] - 이 적의 대미지는 유닛에게 할당 불가.[/i]\n\n{es}[00ff00]ASESINATO[-][i] - El daño de ataque de este enemigo sólo puede ser asignado al jugador.[/i]\n\n{fr}[00ff00]ASSASSINATION[-][i] - Les dégâts d'attaque de cet ennemi ne peuvent être attribués qu'au joueur.[/i]\n\n{pt-br}[00ff00]ASSASSINATO[-][i] - O dano de ataque desse inimigo só pode ser atribuído ao jogador.[/i]\n\n{de}[00ff00]ASSASSINATION[-][i] - Der Angriffsschaden dieses Feindes kann nur dem Spieler zugewiesen werden.[/i]\n\n"}) end
-				if gStates.summonStates[hover_object.guid]~="summoned" then
+				if (monsterData~=nil and monsterData.assassination~=nil) or (perkData~=nil and perkData.assassination~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ASSASSINATION[-][i] - This enemy's attack damage can only be assigned to the player.[/i]\n\n{ru}[00ff00]НАЕМНЫЙ УБИЙЦА[-][i] - Урон от атаки врага не может быть распределён на отряды. Если враг не заблокирован, урон получает только герой.[/i]\n\n{zh-tw}[00ff00]刺杀[-][i] - 该敌人的攻击伤害只能分配给玩家。[/i]\n\n{zh-cn}[00ff00]刺杀[-][i] - 该敌人的攻击伤害只能分配给玩家。[/i]\n\n{ko}[00ff00]암살[-][i] - 이 적의 대미지는 유닛에게 할당 불가.[/i]\n\n{es}[00ff00]ASESINATO[-][i] - El daño de ataque de este enemigo sólo puede ser asignado al jugador.[/i]\n\n{fr}[00ff00]ASSASSINATION[-][i] - Les dégâts d'attaque de cet ennemi ne peuvent être attribués qu'au joueur.[/i]\n\n{pt-br}[00ff00]ASSASSINATO[-][i] - O dano de ataque desse inimigo só pode ser atribuído ao jogador.[/i]\n\n{de}[00ff00]ASSASSINATION[-][i] - Der Angriffsschaden dieses Feindes kann nur dem Spieler zugewiesen werden.[/i]\n\n"}) end
+				if summonState~="summoned" then
 					--armour
 					local bonus=0
-					if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].armour~=nil then bonus=gStates.monsterPerks[hover_object.guid].armour end
-					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].armour~=nil and monsterPugs[hover_object.guid].elusive==nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARMOUR: [-]{ru}[00ff00]БРОНЯ: [-]{zh-tw}[00ff00]护甲：[-]{zh-cn}[00ff00]护甲：[-]{ko}[00ff00]방어구: [-]{es}[00ff00]ARMADURA: [-]{fr}[00ff00]ARMURE : [-]{pt-br}[00ff00] ARMADURA: [-]{de}[00ff00]RÜSTUNG: [-]", tostring(monsterPugs[hover_object.guid].armour+bonus), "\n\n"}) end
-					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].armour~=nil and monsterPugs[hover_object.guid].elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARMOUR: [-]{ru}[00ff00]БРОНЯ: [-]{zh-tw}[00ff00]护甲：[-]{zh-cn}[00ff00]护甲：[-]{ko}[00ff00]방어구: [-]{es}[00ff00]ARMADURA: [-]{fr}[00ff00]ARMURE : [-]{pt-br}[00ff00] ARMADURA: [-]{de}[00ff00]RÜSTUNG: [-]", tostring(monsterPugs[hover_object.guid].armour+bonus), "[7b7b7b]/", tostring((monsterPugs[hover_object.guid].armour*2)+bonus), "[-]\n\n"}) end
+					if perkData~=nil and perkData.armour~=nil then bonus=perkData.armour end
+					if monsterData~=nil and monsterData.armour~=nil and monsterData.elusive==nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARMOUR: [-]{ru}[00ff00]БРОНЯ: [-]{zh-tw}[00ff00]护甲：[-]{zh-cn}[00ff00]护甲：[-]{ko}[00ff00]방어구: [-]{es}[00ff00]ARMADURA: [-]{fr}[00ff00]ARMURE : [-]{pt-br}[00ff00] ARMADURA: [-]{de}[00ff00]RÜSTUNG: [-]", tostring(monsterData.armour+bonus), "\n\n"}) end
+					if monsterData~=nil and monsterData.armour~=nil and monsterData.elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARMOUR: [-]{ru}[00ff00]БРОНЯ: [-]{zh-tw}[00ff00]护甲：[-]{zh-cn}[00ff00]护甲：[-]{ko}[00ff00]방어구: [-]{es}[00ff00]ARMADURA: [-]{fr}[00ff00]ARMURE : [-]{pt-br}[00ff00] ARMADURA: [-]{de}[00ff00]RÜSTUNG: [-]", tostring(monsterData.armour+bonus), "[7b7b7b]/", tostring((monsterData.armour*2)+bonus), "[-]\n\n"}) end
 					--Elusive
-					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ELUSIVE[-][i] - This enemy's higher Armour value is used until successfully Blocked.[/i]\n\n{ru}[00ff00]НЕУЛОВИМЫЙ[-][i] - Меньшее значение брони используется только в фазе ближнего боя и только если все атаки этого врага были успешно заблокированы.[/i]\n\n{zh-tw}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{zh-cn}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{ko}[00ff00]은밀함[-][i] - 이 공격을 성공적으로 방어하기 전 까지, 더 높은 방어구 수치를 적용.[/i]\n\n{es}[00ff00]ELUSIVO[-][i] - El valor de Armadura más alto de este enemigo se utiliza hasta que es Bloqueado con éxito.[/i]\n\n{fr}[00ff00]ELUSIVE[-][i] - La valeur d'armure la plus élevée de cet ennemi est utilisée jusqu'à ce qu'il soit bloqué avec succès.[/i]\n\n{pt-br}[00ff00]ELUSIVO[-][i] - O valor mais alto de Armadura desse inimigo é usado até que ele seja bloqueado com sucesso[/i]\n\n{de}[00ff00]ELUSIV[-][i] - Der höhere Rüstungswert dieses Gegners wird verwendet, bis er erfolgreich geblockt wird[/i]\n\n"}) end
+					if monsterData~=nil and monsterData.elusive~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ELUSIVE[-][i] - This enemy's higher Armour value is used until successfully Blocked.[/i]\n\n{ru}[00ff00]НЕУЛОВИМЫЙ[-][i] - Меньшее значение брони используется только в фазе ближнего боя и только если все атаки этого врага были успешно заблокированы.[/i]\n\n{zh-tw}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{zh-cn}[00ff00]盾逸 [-][i]-该敌人的较高护甲值会被使用，直到成功阻挡。[/i]\n\n{ko}[00ff00]은밀함[-][i] - 이 공격을 성공적으로 방어하기 전 까지, 더 높은 방어구 수치를 적용.[/i]\n\n{es}[00ff00]ELUSIVO[-][i] - El valor de Armadura más alto de este enemigo se utiliza hasta que es Bloqueado con éxito.[/i]\n\n{fr}[00ff00]ELUSIVE[-][i] - La valeur d'armure la plus élevée de cet ennemi est utilisée jusqu'à ce qu'il soit bloqué avec succès.[/i]\n\n{pt-br}[00ff00]ELUSIVO[-][i] - O valor mais alto de Armadura desse inimigo é usado até que ele seja bloqueado com sucesso[/i]\n\n{de}[00ff00]ELUSIV[-][i] - Der höhere Rüstungswert dieses Gegners wird verwendet, bis er erfolgreich geblockt wird[/i]\n\n"}) end
 					--defender
-					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].defend~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DEFENDER[-][i] - The first enemy attacked by the player gets {ru}[00ff00]ПРИКРЫТИЕ[-][i] - Первый враг, атакованный игроком, получает {zh-tw}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{zh-cn}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{ko}[00ff00]수비[-][i] - 플레이어가 처음 공격하는 적에게{es}[00ff00]DEFENSOR[-][i] - El primer enemigo atacado por el jugador obtiene {fr}[00ff00]DEFENDER[-][i] - Le premier ennemi attaqué par le joueur voit son armure augmentée {pt-br}[00ff00]DEFENSOR[-][i] - O primeiro inimigo atacado pelo jogador recebe {de}[00ff00]VERTEIDIGER[-][i] - Der erste vom Spieler angegriffene Feind erhält ", monsterPugs[hover_object.guid].defend, "{en} added to its armour.[/i]\n\n{ru} к его броне.[/i]\n\n{zh-tw}增加其护甲。[/i]\n\n{zh-cn}增加其护甲。[/i]\n\n{ko}방어구를 추가.[/i]\n\n{es} se añade a su armadura.[/i]\n\n{fr}ajouté à son armure.[/i]\n\n{pt-br} adicionado à sua armadura.[/i]\n\n{de} zu seiner Rüstung hinzugefügt.[/i]\n\n"}) end
+					if monsterData~=nil and monsterData.defend~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DEFENDER[-][i] - The first enemy attacked by the player gets {ru}[00ff00]ПРИКРЫТИЕ[-][i] - Первый враг, атакованный игроком, получает {zh-tw}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{zh-cn}[00ff00]守护[-][i] - 第一个被玩家攻击的敌人会被增加护甲。{ko}[00ff00]수비[-][i] - 플레이어가 처음 공격하는 적에게{es}[00ff00]DEFENSOR[-][i] - El primer enemigo atacado por el jugador obtiene {fr}[00ff00]DEFENDER[-][i] - Le premier ennemi attaqué par le joueur voit son armure augmentée {pt-br}[00ff00]DEFENSOR[-][i] - O primeiro inimigo atacado pelo jogador recebe {de}[00ff00]VERTEIDIGER[-][i] - Der erste vom Spieler angegriffene Feind erhält ", monsterData.defend, "{en} added to its armour.[/i]\n\n{ru} к его броне.[/i]\n\n{zh-tw}增加其护甲。[/i]\n\n{zh-cn}增加其护甲。[/i]\n\n{ko}방어구를 추가.[/i]\n\n{es} se añade a su armadura.[/i]\n\n{fr}ajouté à son armure.[/i]\n\n{pt-br} adicionado à sua armadura.[/i]\n\n{de} zu seiner Rüstung hinzugefügt.[/i]\n\n"}) end
 					--Fortified
-					if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fortified~=nil and (gStates.monsterPerks[hover_object.guid]==nil or (gStates.monsterPerks[hover_object.guid].fortified==nil and gStates.monsterPerks[hover_object.guid].wallFortified==nil))) or (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fortified==nil and gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].fortified~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]FORTIFIED[-][i] - This enemy can't be attacked with Ranged attacks in the Range phase.[/i]\n\n{ru}[00ff00]УКРЕПЛЕННЫЙ[-][i] - Во время фазы боя на расстоянии против врага можно играть только Осадные атаки.[/i]\n\n{zh-tw}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{zh-cn}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{ko}[00ff00]요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]FORTIFICADO[-][i] - Este enemigo no puede ser atacado con ataques a distancia en la fase de Alcance.[/i]\n\n{fr}[00ff00]FORTIFIÉ[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance lors de la phase de portée.[/i]\n\n{pt-br}[00ff00]FORTIFICADO[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance na fase de alcance[/i]\n\n{de}[00ff00]VERTEIDIGT[-][i] - Dieser Gegner kann in der Fernkampfphase nicht mit Fernkampfangriffen angegriffen werden.[/i]\n\n"}) end
+					if (monsterData~=nil and monsterData.fortified~=nil and (perkData==nil or (perkData.fortified==nil and perkData.wallFortified==nil))) or (monsterData~=nil and monsterData.fortified==nil and perkData~=nil and perkData.fortified~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]FORTIFIED[-][i] - This enemy can't be attacked with Ranged attacks in the Range phase.[/i]\n\n{ru}[00ff00]УКРЕПЛЕННЫЙ[-][i] - Во время фазы боя на расстоянии против врага можно играть только Осадные атаки.[/i]\n\n{zh-tw}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{zh-cn}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{ko}[00ff00]요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]FORTIFICADO[-][i] - Este enemigo no puede ser atacado con ataques a distancia en la fase de Alcance.[/i]\n\n{fr}[00ff00]FORTIFIÉ[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance lors de la phase de portée.[/i]\n\n{pt-br}[00ff00]FORTIFICADO[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance na fase de alcance[/i]\n\n{de}[00ff00]VERTEIDIGT[-][i] - Dieser Gegner kann in der Fernkampfphase nicht mit Fernkampfangriffen angegriffen werden.[/i]\n\n"}) end
 					--double Fortified
-					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fortified~=nil and gStates.monsterPerks[hover_object.guid]~=nil and (gStates.monsterPerks[hover_object.guid].fortified~=nil or gStates.monsterPerks[hover_object.guid].wallFortified~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DOUBLE FORTIFIED[-][i] - This enemy can't be attacked with Ranged or Siege attacks in the Range phase.[/i]\n\n{ru}[00ff00]ДВАЖДЫ УКРЕПЛЕННЫЙ[-][i] - Враг не может быть атакован во время фазы боя на расстоянии.[/i]\n\n{zh-tw}[00ff00]双重城防[-][i] - 在远程攻击阶段不能使用远程攻击或攻城攻击攻击该敌人。[/i]\n\n{zh-cn}[00ff00]双重城防[-][i] - 在远程攻击阶段不能使用远程攻击或攻城攻击攻击该敌人。[/i]\n\n{ko}[00ff00]이중 요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격이나 공성 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]DOBLE FORTIFICADO[-][i] - Este enemigo no puede ser atacado con ataques a distancia o de asedio en la fase de alcance.[/i]\n\n{fr}[00ff00]DOUBLE FORTIFIÉ[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance ou de siège lors de la phase à distance.[/i]\n\n{pt-br}[00ff00]DUPLAMENTE FORTIFICADO[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance ou de cerco na fase de alcance[/i]\n\n{de}[00ff00]DOPPELT BEFESTIGT[-][i] - Dieser Feind kann in der Fernkampfphase nicht mit Fernkampf- oder Belagerungsangriffen angegriffen werden[/i]\n\n"}) end
+					if monsterData~=nil and monsterData.fortified~=nil and perkData~=nil and (perkData.fortified~=nil or perkData.wallFortified~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]DOUBLE FORTIFIED[-][i] - This enemy can't be attacked with Ranged or Siege attacks in the Range phase.[/i]\n\n{ru}[00ff00]ДВАЖДЫ УКРЕПЛЕННЫЙ[-][i] - Враг не может быть атакован во время фазы боя на расстоянии.[/i]\n\n{zh-tw}[00ff00]双重城防[-][i] - 在远程攻击阶段不能使用远程攻击或攻城攻击攻击该敌人。[/i]\n\n{zh-cn}[00ff00]双重城防[-][i] - 在远程攻击阶段不能使用远程攻击或攻城攻击攻击该敌人。[/i]\n\n{ko}[00ff00]이중 요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격이나 공성 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]DOBLE FORTIFICADO[-][i] - Este enemigo no puede ser atacado con ataques a distancia o de asedio en la fase de alcance.[/i]\n\n{fr}[00ff00]DOUBLE FORTIFIÉ[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance ou de siège lors de la phase à distance.[/i]\n\n{pt-br}[00ff00]DUPLAMENTE FORTIFICADO[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance ou de cerco na fase de alcance[/i]\n\n{de}[00ff00]DOPPELT BEFESTIGT[-][i] - Dieser Feind kann in der Fernkampfphase nicht mit Fernkampf- oder Belagerungsangriffen angegriffen werden[/i]\n\n"}) end
 					--Wall Fortified
-					if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].wallFortified~=nil and (monsterPugs[hover_object.guid]==nil or monsterPugs[hover_object.guid].fortified==nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]WALL FORTIFIED[-][i] - This enemy can't be attacked with Ranged attacks in the Range phase.[/i]\n\n{ru}[00ff00]УКРЕПЛЕННЫЙ ЗА СТЕНОЙ[-][i] - Во время фазы боя на расстоянии против врага можно играть только Осадные атаки.[/i]\n\n{zh-tw}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{zh-cn}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{ko}[00ff00]벽 요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]PARED FORTIFICADA[-][i] - Este enemigo no puede ser atacado con ataques a distancia en la fase de Alcance.[/i]\n\n{fr}[00ff00]FORTIFIÉ PAR UN MUR[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance lors de la phase de portée.[/i]\n\n{pt-br}[00ff00]PAREDE FORTIFICADA[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance na fase de alcance[/i]\n\n{de}[00ff00]DURCH MAUER BEFESTIGT[-][i] - Dieser Gegner kann in der Fernkampfphase nicht mit Fernkampfangriffen angegriffen werden.[/i]\n\n"}) end
+					if perkData~=nil and perkData.wallFortified~=nil and (monsterData==nil or monsterData.fortified==nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]WALL FORTIFIED[-][i] - This enemy can't be attacked with Ranged attacks in the Range phase.[/i]\n\n{ru}[00ff00]УКРЕПЛЕННЫЙ ЗА СТЕНОЙ[-][i] - Во время фазы боя на расстоянии против врага можно играть только Осадные атаки.[/i]\n\n{zh-tw}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{zh-cn}[00ff00]城防[-][i] - 在远程攻击阶段，该敌人无法受到远程攻击。[/i]\n\n{ko}[00ff00]벽 요새화[-][i] - 이 적을 원거리 단계에서 원거리 공격으로 공격할 수 없음.[/i]\n\n{es}[00ff00]PARED FORTIFICADA[-][i] - Este enemigo no puede ser atacado con ataques a distancia en la fase de Alcance.[/i]\n\n{fr}[00ff00]FORTIFIÉ PAR UN MUR[-][i] - Cet ennemi ne peut pas être attaqué avec des attaques à distance lors de la phase de portée.[/i]\n\n{pt-br}[00ff00]PAREDE FORTIFICADA[-][i] - Esse inimigo não pode ser atacado com ataques de longo alcance na fase de alcance[/i]\n\n{de}[00ff00]DURCH MAUER BEFESTIGT[-][i] - Dieser Gegner kann in der Fernkampfphase nicht mit Fernkampfangriffen angegriffen werden.[/i]\n\n"}) end
 					--Unfortified
-					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].unfortified~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]UN-FORTIFIED[-][i] - This enemy ignores site fortifications, and can be attacked with Range and Siege attacks.[/i]\n\n{ru}[00ff00]НЕУКРЕПЛЕННЫЙ[-][i] - Этот враг игнорирует все местные укрепления и может быть атакован с помощью Дальних и Осадных атак.[/i]\n\n{zh-tw}[00ff00]不设城防[-][i] - 该敌人无视地点城防，可以使用远程攻击和攻城攻击。[/i]\n\n{zh-cn}[00ff00]不设城防[-][i] - 该敌人无视地点城防，可以使用远程攻击和攻城攻击。[/i]\n\n{ko}[00ff00]무방비[-][i] - 이 적을 요새화를 무시하고 원거리 및 공성 공격으로 공격할 수 있음.[/i]\n\n{es}[00ff00]NO FORTIFICADO[-][i] - Este enemigo ignora las fortificaciones del sitio, y puede ser atacado con ataques de Alcance y Asedio.[/i]\n\n{fr}[00ff00]NON FORTIFIE[-][i] - Cet ennemi ignore les fortifications du site et peut être attaqué avec des attaques à distance et de siège.[/i]\n\n{pt-br}[00ff00]NÃO FORTIFICADO[-][i] - Esse inimigo ignora as fortificações do local e pode ser atacado com ataques de longo alcance e de cerco.[/i]\n\n{de}[00ff00]UNVERBESSERT[-][i] - Dieser Feind ignoriert Standortbefestigungen und kann mit Fernkampf- und Belagerungsangriffen angegriffen werden.[/i]\n\n"}) end
+					if monsterData~=nil and monsterData.unfortified~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]UN-FORTIFIED[-][i] - This enemy ignores site fortifications, and can be attacked with Range and Siege attacks.[/i]\n\n{ru}[00ff00]НЕУКРЕПЛЕННЫЙ[-][i] - Этот враг игнорирует все местные укрепления и может быть атакован с помощью Дальних и Осадных атак.[/i]\n\n{zh-tw}[00ff00]不设城防[-][i] - 该敌人无视地点城防，可以使用远程攻击和攻城攻击。[/i]\n\n{zh-cn}[00ff00]不设城防[-][i] - 该敌人无视地点城防，可以使用远程攻击和攻城攻击。[/i]\n\n{ko}[00ff00]무방비[-][i] - 이 적을 요새화를 무시하고 원거리 및 공성 공격으로 공격할 수 있음.[/i]\n\n{es}[00ff00]NO FORTIFICADO[-][i] - Este enemigo ignora las fortificaciones del sitio, y puede ser atacado con ataques de Alcance y Asedio.[/i]\n\n{fr}[00ff00]NON FORTIFIE[-][i] - Cet ennemi ignore les fortifications du site et peut être attaqué avec des attaques à distance et de siège.[/i]\n\n{pt-br}[00ff00]NÃO FORTIFICADO[-][i] - Esse inimigo ignora as fortificações do local e pode ser atacado com ataques de longo alcance e de cerco.[/i]\n\n{de}[00ff00]UNVERBESSERT[-][i] - Dieser Feind ignoriert Standortbefestigungen und kann mit Fernkampf- und Belagerungsangriffen angegriffen werden.[/i]\n\n"}) end
 					--physical resistance
-					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].pResist~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]PHYSICAL RESISTANCE[-][i] - Physical attacks are halved against this enemy.[/i]\n\n{ru}[00ff00]ФИЗИЧЕСКОЕ СОПРОТИВЛЕНИЕ[-][i] - Значения Физических атак делятся на 2, с округлением вниз[/i]\n\n{zh-tw}[00ff00]物理抗性[-][i] - 对该敌人的物理攻击减半。[/i]\n\n{zh-cn}[00ff00]物理抗性[-][i] - 对该敌人的物理攻击减半。[/i]\n\n{ko}[00ff00]물리 저항[-][i] - 모든 물리 공격이 반감됨.[/i]\n\n{es}[00ff00]RESISTENCIA FÍSICA[-][i] - Los ataques físicos se reducen a la mitad contra este enemigo.[/i]\n\n{fr}[00ff00]RÉSISTANCE PHYSIQUE[-][i] - Les attaques physiques sont réduites de moitié contre cet ennemi.[/i]\n\n{pt-br}[00ff00]RESISTÊNCIA FÍSICA[-][i] - Os ataques físicos são reduzidos à metade contra esse inimigo.[/i]\n\n{de}[00ff00]PHYSISCHE RESISTENZ[-][i] - Physische Angriffe werden gegen diesen Feind halbiert.[/i]\n\n"}) end
+					if monsterData~=nil and monsterData.pResist~=nil then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]PHYSICAL RESISTANCE[-][i] - Physical attacks are halved against this enemy.[/i]\n\n{ru}[00ff00]ФИЗИЧЕСКОЕ СОПРОТИВЛЕНИЕ[-][i] - Значения Физических атак делятся на 2, с округлением вниз[/i]\n\n{zh-tw}[00ff00]物理抗性[-][i] - 对该敌人的物理攻击减半。[/i]\n\n{zh-cn}[00ff00]物理抗性[-][i] - 对该敌人的物理攻击减半。[/i]\n\n{ko}[00ff00]물리 저항[-][i] - 모든 물리 공격이 반감됨.[/i]\n\n{es}[00ff00]RESISTENCIA FÍSICA[-][i] - Los ataques físicos se reducen a la mitad contra este enemigo.[/i]\n\n{fr}[00ff00]RÉSISTANCE PHYSIQUE[-][i] - Les attaques physiques sont réduites de moitié contre cet ennemi.[/i]\n\n{pt-br}[00ff00]RESISTÊNCIA FÍSICA[-][i] - Os ataques físicos são reduzidos à metade contra esse inimigo.[/i]\n\n{de}[00ff00]PHYSISCHE RESISTENZ[-][i] - Physische Angriffe werden gegen diesen Feind halbiert.[/i]\n\n"}) end
 					--fire resistance
-					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fResist~=nil and monsterPugs[hover_object.guid].iResist==nil then monsterDescription=joinLang({monsterDescription, "{en}[ff0000]FIRE RESISTANCE[-][i] - Fire attacks are halved against this enemy. This enemy can't be targeted by Unit abilities powered by Red Mana, nor from non-attack effects of Red cards.[/i]\n\n{ru}[ff0000]СОПРОТИВЛЕНИЕ ОГНЮ[-][i] - Значения Огненных атак делятся на 2, с округлением вниз. Этот отряд игнорирует все эффекты карт и способности отрядов, сыгранные за красную ману (кроме эффектов Атак).[/i]\n\n{zh-tw}[ff0000]火焰抗性[-][i] - 对该敌人的火焰攻击减半。该敌人无法成为由红色法力驱动的单位能力的目标，也无法成为红色卡牌的非攻击效果的目标。[/i]\n\n{zh-cn}[ff0000]火焰抗性[-][i] - 对该敌人的火焰攻击减半。该敌人无法成为由红色法力驱动的单位能力的目标，也无法成为红色卡牌的非攻击效果的目标。[/i]\n\n{ko}[ff0000]불 저항[-][i] - 모든 불 공격이 반감됨. 이 적은 적색 카드나 적색 마나로 강화한 유닛의 (공격이 아닌) 특수 효과를 무시함.[/i]\n\n{es}[ff0000]RESISTENCIA AL FUEGO[-][i] - Los ataques de fuego se reducen a la mitad contra este enemigo. Este enemigo no puede ser objetivo de habilidades de Unidad potenciadas con Maná Rojo, ni de efectos de no-ataque de cartas Rojas.[/i]\n\n{fr}[ff0000]RÉSISTANCE AU FEU[-][i] - Les attaques de feu sont réduites de moitié contre cet ennemi. Cet ennemi ne peut pas être ciblé par des capacités d'unité alimentées par du mana rouge, ni par des effets de cartes rouges qui n'attaquent pas.[/i]\n\n{pt-br}[ff0000]RESISTÊNCIA AO FOGO[-][i] - Os ataques de fogo são reduzidos à metade contra esse inimigo. Esse inimigo não pode ser alvo de habilidades de unidade alimentadas por Mana vermelha nem de efeitos de cartas vermelhas que não sejam de ataque.[/i]\n\n{de}[ff0000]FEUERWIDERSTAND[-][i] - Feuerangriffe werden gegen diesen Feind halbiert. Dieser Feind kann weder von Einheitenfähigkeiten, die durch rotes Mana angetrieben werden, noch von Nicht-Angriffseffekten roter Karten angegriffen werden.[/i]\n\n"}) end
+					if monsterData~=nil and monsterData.fResist~=nil and monsterData.iResist==nil then monsterDescription=joinLang({monsterDescription, "{en}[ff0000]FIRE RESISTANCE[-][i] - Fire attacks are halved against this enemy. This enemy can't be targeted by Unit abilities powered by Red Mana, nor from non-attack effects of Red cards.[/i]\n\n{ru}[ff0000]СОПРОТИВЛЕНИЕ ОГНЮ[-][i] - Значения Огненных атак делятся на 2, с округлением вниз. Этот отряд игнорирует все эффекты карт и способности отрядов, сыгранные за красную ману (кроме эффектов Атак).[/i]\n\n{zh-tw}[ff0000]火焰抗性[-][i] - 对该敌人的火焰攻击减半。该敌人无法成为由红色法力驱动的单位能力的目标，也无法成为红色卡牌的非攻击效果的目标。[/i]\n\n{zh-cn}[ff0000]火焰抗性[-][i] - 对该敌人的火焰攻击减半。该敌人无法成为由红色法力驱动的单位能力的目标，也无法成为红色卡牌的非攻击效果的目标。[/i]\n\n{ko}[ff0000]불 저항[-][i] - 모든 불 공격이 반감됨. 이 적은 적색 카드나 적색 마나로 강화한 유닛의 (공격이 아닌) 특수 효과를 무시함.[/i]\n\n{es}[ff0000]RESISTENCIA AL FUEGO[-][i] - Los ataques de fuego se reducen a la mitad contra este enemigo. Este enemigo no puede ser objetivo de habilidades de Unidad potenciadas con Maná Rojo, ni de efectos de no-ataque de cartas Rojas.[/i]\n\n{fr}[ff0000]RÉSISTANCE AU FEU[-][i] - Les attaques de feu sont réduites de moitié contre cet ennemi. Cet ennemi ne peut pas être ciblé par des capacités d'unité alimentées par du mana rouge, ni par des effets de cartes rouges qui n'attaquent pas.[/i]\n\n{pt-br}[ff0000]RESISTÊNCIA AO FOGO[-][i] - Os ataques de fogo são reduzidos à metade contra esse inimigo. Esse inimigo não pode ser alvo de habilidades de unidade alimentadas por Mana vermelha nem de efeitos de cartas vermelhas que não sejam de ataque.[/i]\n\n{de}[ff0000]FEUERWIDERSTAND[-][i] - Feuerangriffe werden gegen diesen Feind halbiert. Dieser Feind kann weder von Einheitenfähigkeiten, die durch rotes Mana angetrieben werden, noch von Nicht-Angriffseffekten roter Karten angegriffen werden.[/i]\n\n"}) end
 					--ice resistance
-					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].iResist~=nil and monsterPugs[hover_object.guid].fResist==nil then monsterDescription=joinLang({monsterDescription, "{en}[5a5aff]ICE RESISTANCE[-][i] - Ice attacks are halved against this enemy. This enemy can't be targeted by Unit abilities powered by Blue Mana, nor from non-attack effects of Blue cards.[/i]\n\n{ru}[5a5aff]СОПРОТИВЛЕНИЕ ЛЬДУ[-][i] - Значения Ледяных атак делятся на 2, с округлением вниз. Этот отряд игнорирует все эффекты карт и способности отрядов, сыгранные за синюю ману (кроме эффектов Атак).[/i]\n\n{zh-tw}[5a5aff]寒冰抗性[-][i] - 此敌人受到的寒冰攻击减半。该敌人不能成为由蓝色法力驱动的单位异能的目标，也不能成为蓝色卡牌非攻击效果的目标。[/i]\n\n{zh-cn}[5a5aff]寒冰抗性[-][i] - 此敌人受到的寒冰攻击减半。该敌人不能成为由蓝色法力驱动的单位异能的目标，也不能成为蓝色卡牌非攻击效果的目标。[/i]\n\n{ko}[5a5aff]얼음 저항[-][i] - 모든 얼음 공격이 반감됨. 이 적은 청색 카드나 총색 마나로 강화한 유닛의 (공격이 아닌) 특수 효과를 무시함.[/i]\n\n{es}[5a5aff]RESISTENCIA AL HIELO[-][i] - Los ataques de hielo se reducen a la mitad contra este enemigo. Este enemigo no puede ser objetivo de habilidades de Unidad potenciadas con Maná Azul, ni de efectos de no-ataque de cartas Azules.[/i]\n\n{fr}[5a5aff]RÉSISTANCE À LA GLACE[-][i] - Les attaques de glace sont réduites de moitié contre cet ennemi. Cet ennemi ne peut pas être ciblé par les capacités d'unité alimentées par du mana bleu, ni par les effets non offensifs des cartes bleues.[/i]\n\n{pt-br}[5a5aff]RESISTÊNCIA AO GELO[-][i] - Os ataques de gelo são reduzidos à metade contra esse inimigo. Esse inimigo não pode ser alvo de habilidades de Unidade alimentadas por Mana Azul nem de efeitos de cartas Azuis que não sejam de ataque.[/i]\n\n{de}[5a5aff]EISWIDERSTAND[-][i] - Eisangriffe werden gegen diesen Feind halbiert. Dieser Feind kann weder von Einheitenfähigkeiten, die durch blaues Mana angetrieben werden, noch von Nicht-Angriffseffekten blauer Karten angegriffen werden.[/i]\n\n"}) end
+					if monsterData~=nil and monsterData.iResist~=nil and monsterData.fResist==nil then monsterDescription=joinLang({monsterDescription, "{en}[5a5aff]ICE RESISTANCE[-][i] - Ice attacks are halved against this enemy. This enemy can't be targeted by Unit abilities powered by Blue Mana, nor from non-attack effects of Blue cards.[/i]\n\n{ru}[5a5aff]СОПРОТИВЛЕНИЕ ЛЬДУ[-][i] - Значения Ледяных атак делятся на 2, с округлением вниз. Этот отряд игнорирует все эффекты карт и способности отрядов, сыгранные за синюю ману (кроме эффектов Атак).[/i]\n\n{zh-tw}[5a5aff]寒冰抗性[-][i] - 此敌人受到的寒冰攻击减半。该敌人不能成为由蓝色法力驱动的单位异能的目标，也不能成为蓝色卡牌非攻击效果的目标。[/i]\n\n{zh-cn}[5a5aff]寒冰抗性[-][i] - 此敌人受到的寒冰攻击减半。该敌人不能成为由蓝色法力驱动的单位异能的目标，也不能成为蓝色卡牌非攻击效果的目标。[/i]\n\n{ko}[5a5aff]얼음 저항[-][i] - 모든 얼음 공격이 반감됨. 이 적은 청색 카드나 총색 마나로 강화한 유닛의 (공격이 아닌) 특수 효과를 무시함.[/i]\n\n{es}[5a5aff]RESISTENCIA AL HIELO[-][i] - Los ataques de hielo se reducen a la mitad contra este enemigo. Este enemigo no puede ser objetivo de habilidades de Unidad potenciadas con Maná Azul, ni de efectos de no-ataque de cartas Azules.[/i]\n\n{fr}[5a5aff]RÉSISTANCE À LA GLACE[-][i] - Les attaques de glace sont réduites de moitié contre cet ennemi. Cet ennemi ne peut pas être ciblé par les capacités d'unité alimentées par du mana bleu, ni par les effets non offensifs des cartes bleues.[/i]\n\n{pt-br}[5a5aff]RESISTÊNCIA AO GELO[-][i] - Os ataques de gelo são reduzidos à metade contra esse inimigo. Esse inimigo não pode ser alvo de habilidades de Unidade alimentadas por Mana Azul nem de efeitos de cartas Azuis que não sejam de ataque.[/i]\n\n{de}[5a5aff]EISWIDERSTAND[-][i] - Eisangriffe werden gegen diesen Feind halbiert. Dieser Feind kann weder von Einheitenfähigkeiten, die durch blaues Mana angetrieben werden, noch von Nicht-Angriffseffekten blauer Karten angegriffen werden.[/i]\n\n"}) end
 					--cold fire resistance
-					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].iResist~=nil and monsterPugs[hover_object.guid].fResist~=nil then monsterDescription=joinLang({monsterDescription, "{en}[ff00fe]COLD FIRE RESISTANCE[-][i] - Fire, Ice and Cold Fire attacks are halved against this enemy. This enemy can't be targeted by Unit abilities powered by Red or Blue Mana, nor from non-attack effects of Red or Blue cards.[/i]\n\n{ru}[ff00fe]СОПРОТИВЛЕНИЕ ОГНЮ И ЛЬДУ[-][i] - Значения Огненных, Ледяных и Огненно-ледяных атак делятся на 2, с округлением вниз. Этот отряд игнорирует все эффекты карт и способности отрядов, сыгранные за красную или синюю ману (кроме эффектов Атак).[/i]\n\n{zh-tw}[ff00fe]冰火抗性[-][i] - 此敌人受到的火、冰和冰火攻击减半。该敌人不能成为由红色或蓝色法力驱动的单位能力的目标，也不能成为红色或蓝色卡牌的非攻击效果的目标。[/i]\n\n{zh-cn}[ff00fe]冰火抗性[-][i] - 此敌人受到的火、冰和冰火攻击减半。该敌人不能成为由红色或蓝色法力驱动的单位能力的目标，也不能成为红色或蓝色卡牌的非攻击效果的目标。[/i]\n\n{ko}[ff00fe]차가운불 저항[-][i] - 모든 불, 얼음, 차가운 불 공격이 반감됨. 이 적은 청,적색 카드나 청,적색 마나로 강화한 유닛의 (공격이 아닌) 특수 효과를 무시함..[/i]\n\n{es}[ff00fe]RESISTENCIA AL FUEGO FRÍO[-][i] - Los ataques de Fuego, Hielo y Fuego Frío se reducen a la mitad contra este enemigo. Este enemigo no puede ser objetivo de habilidades de Unidad potenciadas con Maná Rojo o Azul, ni de efectos de no-ataque de cartas Rojas o Azules.[/i]\n\n{fr}[ff00fe]RÉSISTANCE AU FEU FROID[-][i] - Les attaques de Feu, de Glace et de Feu froid sont réduites de moitié contre cet ennemi. Cet ennemi ne peut pas être ciblé par des capacités d'unité alimentées par du mana rouge ou bleu, ni par des effets non offensifs de cartes rouges ou bleues.[/i]\n\n{pt-br}[ff00fe]RESISTÊNCIA A FOGO FRIO[-][i] - Os ataques de Fogo, Gelo e Fogo Frio são reduzidos à metade contra esse inimigo. Esse inimigo não pode ser alvo de habilidades de unidade alimentadas por Mana vermelha ou azul, nem de efeitos que não sejam de ataque de cartas vermelhas ou azuis.[/i]\n\n{de}[ff00fe]KALTE FEUERWIDERSTAND[-][i] - Feuer-, Eis- und Kältefeuer-Angriffe werden gegen diesen Feind halbiert. Dieser Feind kann weder von Einheitenfähigkeiten, die durch rotes oder blaues Mana angetrieben werden, noch von Nicht-Angriffseffekten roter oder blauer Karten angegriffen werden.[/i]\n\n"}) end
+					if monsterData~=nil and monsterData.iResist~=nil and monsterData.fResist~=nil then monsterDescription=joinLang({monsterDescription, "{en}[ff00fe]COLD FIRE RESISTANCE[-][i] - Fire, Ice and Cold Fire attacks are halved against this enemy. This enemy can't be targeted by Unit abilities powered by Red or Blue Mana, nor from non-attack effects of Red or Blue cards.[/i]\n\n{ru}[ff00fe]СОПРОТИВЛЕНИЕ ОГНЮ И ЛЬДУ[-][i] - Значения Огненных, Ледяных и Огненно-ледяных атак делятся на 2, с округлением вниз. Этот отряд игнорирует все эффекты карт и способности отрядов, сыгранные за красную или синюю ману (кроме эффектов Атак).[/i]\n\n{zh-tw}[ff00fe]冰火抗性[-][i] - 此敌人受到的火、冰和冰火攻击减半。该敌人不能成为由红色或蓝色法力驱动的单位能力的目标，也不能成为红色或蓝色卡牌的非攻击效果的目标。[/i]\n\n{zh-cn}[ff00fe]冰火抗性[-][i] - 此敌人受到的火、冰和冰火攻击减半。该敌人不能成为由红色或蓝色法力驱动的单位能力的目标，也不能成为红色或蓝色卡牌的非攻击效果的目标。[/i]\n\n{ko}[ff00fe]차가운불 저항[-][i] - 모든 불, 얼음, 차가운 불 공격이 반감됨. 이 적은 청,적색 카드나 청,적색 마나로 강화한 유닛의 (공격이 아닌) 특수 효과를 무시함..[/i]\n\n{es}[ff00fe]RESISTENCIA AL FUEGO FRÍO[-][i] - Los ataques de Fuego, Hielo y Fuego Frío se reducen a la mitad contra este enemigo. Este enemigo no puede ser objetivo de habilidades de Unidad potenciadas con Maná Rojo o Azul, ni de efectos de no-ataque de cartas Rojas o Azules.[/i]\n\n{fr}[ff00fe]RÉSISTANCE AU FEU FROID[-][i] - Les attaques de Feu, de Glace et de Feu froid sont réduites de moitié contre cet ennemi. Cet ennemi ne peut pas être ciblé par des capacités d'unité alimentées par du mana rouge ou bleu, ni par des effets non offensifs de cartes rouges ou bleues.[/i]\n\n{pt-br}[ff00fe]RESISTÊNCIA A FOGO FRIO[-][i] - Os ataques de Fogo, Gelo e Fogo Frio são reduzidos à metade contra esse inimigo. Esse inimigo não pode ser alvo de habilidades de unidade alimentadas por Mana vermelha ou azul, nem de efeitos que não sejam de ataque de cartas vermelhas ou azuis.[/i]\n\n{de}[ff00fe]KALTE FEUERWIDERSTAND[-][i] - Feuer-, Eis- und Kältefeuer-Angriffe werden gegen diesen Feind halbiert. Dieser Feind kann weder von Einheitenfähigkeiten, die durch rotes oder blaues Mana angetrieben werden, noch von Nicht-Angriffseffekten roter oder blauer Karten angegriffen werden.[/i]\n\n"}) end
 					--arcane immunity
-					if (monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].arcaneImmunity~=nil) or (gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].arcaneImmunity~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARCANE IMMUNITY[-][i] - This enemy can't be targeted by non-Attack or non-Block effects from any source. Effects that directly affect an enemy's attack(s) still apply.[/i]\n\n{ru}[00ff00]ЗАЩИТА ОТ МАГИИ[-][i] - На врага не влияют никакие эффекты, кроме атак и блоков. Эффекты, действующие напрямую на атаку этого врага, по-прежнему можно использовать.[/i]\n\n{zh-tw}[00ff00]魔法免疫[-][i] - 该敌人无法成为任何来源的非攻击或非阻断效果的目标。直接影响敌人攻击的效果仍然适用。[/i]\n\n{zh-cn}[00ff00]魔法免疫[-][i] - 该敌人无法成为任何来源的非攻击或非阻断效果的目标。直接影响敌人攻击的效果仍然适用。[/i]\n\n{ko}[00ff00]마법 면역[-][i] - 이 적은 공격, 방어를 제외한 그 어떠한 특수 효과를 무시함. 적의 공격에 직접 영향을 주는 효과는 여전히 적용.[/i]\n\n{es}[00ff00]INMUNIDAD ARCANA[-][i] - Este enemigo no puede ser objetivo de efectos que no sean de Ataque o Bloqueo de ninguna fuente. Los efectos que afectan directamente a los ataques de un enemigo se siguen aplicando.[/i]\n\n{fr}[00ff00]IMMUNITÉ DE L'ARCANE[-][i] - Cet ennemi ne peut pas être ciblé par des effets autres qu'une attaque ou un blocage, quelle qu'en soit la source. Les effets qui affectent directement les attaques de l'ennemi s'appliquent toujours.[/i]\n\n{pt-br}[00ff00]IMUNIDADE ARCANA[-][i] - Esse inimigo não pode ser alvo de efeitos que não sejam de ataque ou de bloqueio de nenhuma fonte. Os efeitos que afetam diretamente o(s) ataque(s) de um inimigo ainda se aplicam.[/i]\n\n{de}[00ff00]ARKANE IMMUNITÄT[-][i] - Dieser Feind kann nicht durch Nicht-Angriffs- oder Nicht-Block-Effekte aus irgendeiner Quelle angegriffen werden. Effekte, die sich direkt auf die Attacke(n) des Feindes auswirken, gelten weiterhin.[/i]\n\n"}) end
+					if (monsterData~=nil and monsterData.arcaneImmunity~=nil) or (perkData~=nil and perkData.arcaneImmunity~=nil) then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]ARCANE IMMUNITY[-][i] - This enemy can't be targeted by non-Attack or non-Block effects from any source. Effects that directly affect an enemy's attack(s) still apply.[/i]\n\n{ru}[00ff00]ЗАЩИТА ОТ МАГИИ[-][i] - На врага не влияют никакие эффекты, кроме атак и блоков. Эффекты, действующие напрямую на атаку этого врага, по-прежнему можно использовать.[/i]\n\n{zh-tw}[00ff00]魔法免疫[-][i] - 该敌人无法成为任何来源的非攻击或非阻断效果的目标。直接影响敌人攻击的效果仍然适用。[/i]\n\n{zh-cn}[00ff00]魔法免疫[-][i] - 该敌人无法成为任何来源的非攻击或非阻断效果的目标。直接影响敌人攻击的效果仍然适用。[/i]\n\n{ko}[00ff00]마법 면역[-][i] - 이 적은 공격, 방어를 제외한 그 어떠한 특수 효과를 무시함. 적의 공격에 직접 영향을 주는 효과는 여전히 적용.[/i]\n\n{es}[00ff00]INMUNIDAD ARCANA[-][i] - Este enemigo no puede ser objetivo de efectos que no sean de Ataque o Bloqueo de ninguna fuente. Los efectos que afectan directamente a los ataques de un enemigo se siguen aplicando.[/i]\n\n{fr}[00ff00]IMMUNITÉ DE L'ARCANE[-][i] - Cet ennemi ne peut pas être ciblé par des effets autres qu'une attaque ou un blocage, quelle qu'en soit la source. Les effets qui affectent directement les attaques de l'ennemi s'appliquent toujours.[/i]\n\n{pt-br}[00ff00]IMUNIDADE ARCANA[-][i] - Esse inimigo não pode ser alvo de efeitos que não sejam de ataque ou de bloqueio de nenhuma fonte. Os efeitos que afetam diretamente o(s) ataque(s) de um inimigo ainda se aplicam.[/i]\n\n{de}[00ff00]ARKANE IMMUNITÄT[-][i] - Dieser Feind kann nicht durch Nicht-Angriffs- oder Nicht-Block-Effekte aus irgendeiner Quelle angegriffen werden. Effekte, die sich direkt auf die Attacke(n) des Feindes auswirken, gelten weiterhin.[/i]\n\n"}) end
 					--reward
-					local factionTranslate=({	["Dark"]="{en}Dark Crusader{ru}Тёмный крестоносец{zh-tw}黑暗遠征軍{zh-cn}黑暗远征军{ko}암흑 십자군{es}Cruzado Oscuro{fr}Croisé des ténèbres{pt-br}Cruzado das Trevas{de}Dunkler Kreuzritter",
-												["Elem"]="{en}Elementalist{ru}Элементалист{zh-tw}元素之力{zh-cn}元素之力{ko}원소술사{es}Elementalista{fr}Élémentaliste{pt-br}Elementalista{de}Elementarist",
-												["Apoc"]="{en}Apocalypse Cult{ru}Культ Апокалипсиса{zh-tw}末日教團{zh-cn}末日教团{ko}아포칼립스 컬트{es}Culto del Apocalipsis{fr}Culte de l'Apocalypse{pt-br}Culto do Apocalipse{de}Apokalypse-Kult",
-												["Coun"]="{en}Council of the Void{ru}Совет Пустоты{zh-tw}虛空議會{zh-cn}虚空议会{ko}공허 의회{es}Consejo del Vacío{fr}Conseil du Vide{pt-br}Conselho do Vazio{de}Rat der Leere"})
+					local factionTranslate=MONSTER_FACTION_TRANSLATE
 					local used=false
 					local rewardLabel="{en}[00ff00]FACTION REWARD:[-] {ru}[00ff00]НАГРАДЫ ФРАКЦИИ:[-] {zh-tw}[00ff00]派系奖励：[-] {zh-cn}[00ff00]派系奖励：[-] {ko}[00ff00]세력 보상:[-] {es}[00ff00]RECOMPENSA DE FACCIÓN:[-] {fr}[00ff00]RÉCOMPENSE DE FACTION:[-] {pt-br}[00ff00]RECOMPENSA DE FAÇÃO:[-] {de}[00ff00]FRAKTIONSBELOHNUNG:[-] "
-					local printed=monsterPugs[hover_object.guid]
+					local printed=monsterData
 					if printed~=nil and printed.pugType~="yellow" and type(printed.reward)=="number" and printed.reward>0 and factionRewardUsesJustFame(printed.faction)~=true then
 						local faction=factionTranslate[printed.faction]
 						if faction~=nil then monsterDescription=joinLang({monsterDescription,rewardLabel,faction}) used=true end
 					end
-					local perks=gStates.monsterPerks[hover_object.guid]
+					local perks=perkData
 					if perks~=nil and type(perks.reward)=="number" and perks.reward>0 and factionRewardUsesJustFame(perks.faction)~=true then
 						local faction=factionTranslate[perks.faction]
 						if faction~=nil then
@@ -5521,13 +5556,13 @@ function refreshMonsterHoverDescription(hover_object)
 					end
 					if used==true then monsterDescription=joinLang({monsterDescription,"\n\n"}) end
 					--fame: each faction independently uses +1 Fame when its own reward pile has been removed.
-					local rewardPug,rewardPerk=monsterFactionRewardFameFallback(hover_object.guid)
+					local rewardPug,rewardPerk=monsterFactionRewardFameFallback(guid)
 					local reward=rewardPug+rewardPerk
 					local bonus=0
-					if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].fame~=nil then bonus=gStates.monsterPerks[hover_object.guid].fame end
-					if monsterPugs[hover_object.guid]~=nil and monsterPugs[hover_object.guid].fame~=nil and monsterPugs[hover_object.guid].fame>0 then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]FAME: [-]{ru}[00ff00]СЛАВА: [-]{zh-tw}[00ff00]名望：[-]{zh-cn}[00ff00]名望：[-]{ko}[00ff00]명성: [-]{es}[00ff00]FAMA: [-]{fr}[00ff00]FAME : [-]{pt-br}[00ff00]FAMA: [-]{de}[00ff00]RUHM: [-]", tostring(monsterPugs[hover_object.guid].fame+reward+bonus)}) end
-					if gStates.monsterPerks[hover_object.guid]~=nil and gStates.monsterPerks[hover_object.guid].dragonGround==true then
-						local headName=apocalypseDragonGroundHeadNameForGUID(hover_object.guid)
+					if perkData~=nil and perkData.fame~=nil then bonus=perkData.fame end
+					if monsterData~=nil and monsterData.fame~=nil and monsterData.fame>0 then monsterDescription=joinLang({monsterDescription, "{en}[00ff00]FAME: [-]{ru}[00ff00]СЛАВА: [-]{zh-tw}[00ff00]名望：[-]{zh-cn}[00ff00]名望：[-]{ko}[00ff00]명성: [-]{es}[00ff00]FAMA: [-]{fr}[00ff00]FAME : [-]{pt-br}[00ff00]FAMA: [-]{de}[00ff00]RUHM: [-]", tostring(monsterData.fame+reward+bonus)}) end
+					if perkData~=nil and perkData.dragonGround==true then
+						local headName=apocalypseDragonGroundHeadNameForGUID(guid)
 						if headName=="Control" then monsterDescription=joinLang({monsterDescription,"{en}\n[00ff00]CONTROL HEAD[-] - This head may never be attacked.{ru}\n[00ff00]ГОЛОВА КОНТРОЛЯ[-] - Эту голову нельзя атаковать.{zh-tw}\n[00ff00]控制龍首[-] - 此龍首永遠不能被攻擊。{zh-cn}\n[00ff00]控制龙首[-] - 此龙首永远不能被攻击。{ko}\n[00ff00]통제 머리[-] - 이 머리는 공격할 수 없습니다.{es}\n[00ff00]CABEZA DE CONTROL[-] - Esta cabeza nunca puede ser atacada.{fr}\n[00ff00]TÊTE DE CONTRÔLE[-] - Cette tête ne peut jamais être attaquée.{pt-br}\n[00ff00]CABEÇA DE CONTROLE[-] - Esta cabeça nunca pode ser atacada.{de}\n[00ff00]KONTROLLKOPF[-] - Dieser Kopf kann niemals angegriffen werden."}) end
 					end
 				end
@@ -6404,6 +6439,53 @@ function renderMoveDisplay(id)
 		--Search fringe hexes recorded from the previous loop
 		local searchLimit=10
 		local noMove=false
+
+		local function moveRecordedCost(hor,vec)
+			local row=moveMap[tostring(hor)]
+			local move=row~=nil and row[tostring(vec)] or nil
+			if move==nil then return 100 end
+			return move.tricky~=nil and move.tricky or move.main or 100
+		end
+
+		local function moveDestination(hor,vec)
+			local horKey=tostring(hor)
+			local vecKey=tostring(vec)
+			if moveMap[horKey]==nil then moveMap[horKey]={} end
+			if moveMap[horKey][vecKey]==nil then moveMap[horKey][vecKey]={} end
+			return moveMap[horKey][vecKey]
+		end
+
+		local function queueMoveFringe(hor,vec)
+			local fringeKey=tostring(hor)..":"..tostring(vec)
+			if tempFringeSet[fringeKey]==true then return end
+			tempFringeSet[fringeKey]=true
+			tempFringe[#tempFringe+1]={coord={hor,vec}}
+			noMove=false
+		end
+
+		local function recordSafeMoveDestination(hor,vec,hexCost,predecessor,allowFringe)
+			local recordedMoveTotal=moveRecordedCost(hor,vec)
+			if hexCost>=gStates.resourceTracker.move.move+searchLimit or hexCost>recordedMoveTotal then return false end
+			local destinationMove=moveDestination(hor,vec)
+			if hexCost==recordedMoveTotal then
+				local existingPrev=destinationMove.tricky~=nil and destinationMove.trickyPrev or destinationMove.mainPrev
+				if existingPrev~=nil and continuationPenalty(predecessor.hor,predecessor.vec,predecessor.state)<continuationPenalty(existingPrev.hor,existingPrev.vec,existingPrev.state) then
+					if destinationMove.tricky~=nil then destinationMove.trickyPrev=predecessor else destinationMove.mainPrev=predecessor end
+				end
+				return true
+			end
+			if destinationMove.tricky==nil then
+				destinationMove.main=hexCost
+				destinationMove.mainPrev=predecessor
+				destinationMove.mainCombat=false
+			else
+				destinationMove.tricky=hexCost
+				destinationMove.trickyPrev=predecessor
+				destinationMove.trickyCombat=false
+			end
+			if allowFringe==true then queueMoveFringe(hor,vec) end
+			return true
+		end
 		while noMove==false do
 			noMove=true
 			--check every hex added in the last round
@@ -6427,14 +6509,9 @@ function renderMoveDisplay(id)
 						local wallhor=hexDetail.coord[1]+(vector[1]/2)
 						local wallvec=hexDetail.coord[2]+(vector[2]/2)
 						if hexMap[tostring(wallhor)]~=nil and hexMap[tostring(wallhor)][tostring(wallvec)]~=nil then hexCost=hexCost+1 end
-						local recordedMoveTotal=100
-						if moveMap[tostring(hor)]~=nil and moveMap[tostring(hor)][tostring(vec)]~=nil then
-							recordedMoveTotal=moveMap[tostring(hor)][tostring(vec)].main
-							if moveMap[tostring(hor)][tostring(vec)].tricky~=nil then recordedMoveTotal=moveMap[tostring(hor)][tostring(vec)].tricky end
-						end
+						local recordedMoveTotal=moveRecordedCost(hor,vec)
 						if hexCost<=99 and hexCost<gStates.resourceTracker.move.move+searchLimit and hexCost<=recordedMoveTotal then
-							if moveMap[tostring(hor)]==nil then moveMap[tostring(hor)]={} end
-							if moveMap[tostring(hor)][tostring(vec)]==nil then moveMap[tostring(hor)][tostring(vec)]={} end
+							local destinationMove=moveDestination(hor,vec)
 							--Don't add hex to fringe if passing a rampager
 							local rampageHor={tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][1]), tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][1])}
 							local rampageVec={tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][2]), tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][2])}
@@ -6445,7 +6522,6 @@ function renderMoveDisplay(id)
 							local rampageNeighbor=normalRampager or ambusherProvoked(hexDetail.coord[1], hexDetail.coord[2], hor, vec)
 							local dragonLairDestination=hexMap[tostring(hor)][tostring(vec)].dragonLair==true
 							local forcedCombatDestination=rampageNeighbor or dragonLairDestination
-							local destinationMove=moveMap[tostring(hor)][tostring(vec)]
 							local predecessor={hor=hexDetail.coord[1], vec=hexDetail.coord[2], state=sourceState, teleport=false}
 							if hexCost==recordedMoveTotal then
 								--Equal-cost safe routes do not change reachability, but a cleaner predecessor can
@@ -6474,24 +6550,8 @@ function renderMoveDisplay(id)
 										destinationMove.mainCombat=true
 									end
 								else
-									if destinationMove.tricky==nil then
-										destinationMove.main=hexCost
-										destinationMove.mainPrev=predecessor
-										destinationMove.mainCombat=false
-									else
-										destinationMove.tricky=hexCost
-										destinationMove.trickyPrev=predecessor
-										destinationMove.trickyCombat=false
-									end
-								end
-								--Fortified sites and forced-combat destinations may be reached but never used as onward fringe.
-								if forcedCombatDestination==false and hexMap[tostring(hor)][tostring(vec)].hexType~="explore" and (hexMap[tostring(hor)][tostring(vec)].fortified==nil or hexMap[tostring(hor)][tostring(vec)].fortified=="shield") then
-									local fringeKey=tostring(hor)..":"..tostring(vec)
-									if tempFringeSet[fringeKey]~=true then
-										tempFringeSet[fringeKey]=true
-										tempFringe[#tempFringe+1]={coord={hor, vec}}
-										noMove=false
-									end
+									local canContinue=hexMap[tostring(hor)][tostring(vec)].hexType~="explore" and (hexMap[tostring(hor)][tostring(vec)].fortified==nil or hexMap[tostring(hor)][tostring(vec)].fortified=="shield")
+									recordSafeMoveDestination(hor,vec,hexCost,predecessor,canContinue)
 								end
 							end
 						end
@@ -6505,39 +6565,8 @@ function renderMoveDisplay(id)
 					local hor=tunnel.hor
 					local vec=tunnel.vec
 					local hexCost=moveSpent+tunnel.cost
-					local recordedMoveTotal=100
-					if moveMap[tostring(hor)]~=nil and moveMap[tostring(hor)][tostring(vec)]~=nil then
-						recordedMoveTotal=moveMap[tostring(hor)][tostring(vec)].main
-						if moveMap[tostring(hor)][tostring(vec)].tricky~=nil then recordedMoveTotal=moveMap[tostring(hor)][tostring(vec)].tricky end
-					end
-					if hexCost<gStates.resourceTracker.move.move+searchLimit and hexCost<=recordedMoveTotal then
-						if moveMap[tostring(hor)]==nil then moveMap[tostring(hor)]={} end
-						if moveMap[tostring(hor)][tostring(vec)]==nil then moveMap[tostring(hor)][tostring(vec)]={} end
-						local destinationMove=moveMap[tostring(hor)][tostring(vec)]
-						local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state=sourceState,teleport=false,tunnel=true,tunnelPath=tunnel.path}
-						if hexCost==recordedMoveTotal then
-							local existingPrev=destinationMove.tricky~=nil and destinationMove.trickyPrev or destinationMove.mainPrev
-							if existingPrev~=nil and continuationPenalty(predecessor.hor,predecessor.vec,predecessor.state)<continuationPenalty(existingPrev.hor,existingPrev.vec,existingPrev.state) then
-								if destinationMove.tricky~=nil then destinationMove.trickyPrev=predecessor else destinationMove.mainPrev=predecessor end
-							end
-						else
-							if destinationMove.tricky==nil then
-								destinationMove.main=hexCost
-								destinationMove.mainPrev=predecessor
-								destinationMove.mainCombat=false
-							else
-								destinationMove.tricky=hexCost
-								destinationMove.trickyPrev=predecessor
-								destinationMove.trickyCombat=false
-							end
-							local fringeKey=tostring(hor)..":"..tostring(vec)
-							if tempFringeSet[fringeKey]~=true then
-								tempFringeSet[fringeKey]=true
-								tempFringe[#tempFringe+1]={coord={hor,vec}}
-								noMove=false
-							end
-						end
-					end
+					local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state=sourceState,teleport=false,tunnel=true,tunnelPath=tunnel.path}
+					recordSafeMoveDestination(hor,vec,hexCost,predecessor,true)
 				end
 
 				--Fractured Lands teleport edges. A teleport is always a safe, non-combat route and can itself become
@@ -6551,39 +6580,8 @@ function renderMoveDisplay(id)
 						local vec=teleportHex.coord[2]
 						if hor~=hexDetail.coord[1] or vec~=hexDetail.coord[2] then
 							local hexCost=moveSpent+1
-							local recordedMoveTotal=100
-							if moveMap[tostring(hor)]~=nil and moveMap[tostring(hor)][tostring(vec)]~=nil then
-								recordedMoveTotal=moveMap[tostring(hor)][tostring(vec)].main
-								if moveMap[tostring(hor)][tostring(vec)].tricky~=nil then recordedMoveTotal=moveMap[tostring(hor)][tostring(vec)].tricky end
-							end
-							if hexCost<gStates.resourceTracker.move.move+searchLimit and hexCost<=recordedMoveTotal then
-								if moveMap[tostring(hor)]==nil then moveMap[tostring(hor)]={} end
-								if moveMap[tostring(hor)][tostring(vec)]==nil then moveMap[tostring(hor)][tostring(vec)]={} end
-								local destinationMove=moveMap[tostring(hor)][tostring(vec)]
-								local predecessor={hor=hexDetail.coord[1], vec=hexDetail.coord[2], state=sourceState, teleport=true}
-								if hexCost==recordedMoveTotal then
-									local existingPrev=destinationMove.tricky~=nil and destinationMove.trickyPrev or destinationMove.mainPrev
-									if existingPrev~=nil and continuationPenalty(predecessor.hor,predecessor.vec,predecessor.state)<continuationPenalty(existingPrev.hor,existingPrev.vec,existingPrev.state) then
-										if destinationMove.tricky~=nil then destinationMove.trickyPrev=predecessor else destinationMove.mainPrev=predecessor end
-									end
-								else
-									if destinationMove.tricky==nil then
-										destinationMove.main=hexCost
-										destinationMove.mainPrev=predecessor
-										destinationMove.mainCombat=false
-									else
-										destinationMove.tricky=hexCost
-										destinationMove.trickyPrev=predecessor
-										destinationMove.trickyCombat=false
-									end
-									local fringeKey=tostring(hor)..":"..tostring(vec)
-									if tempFringeSet[fringeKey]~=true then
-										tempFringeSet[fringeKey]=true
-										tempFringe[#tempFringe+1]={coord={hor, vec}}
-										noMove=false
-									end
-								end
-							end
+							local predecessor={hor=hexDetail.coord[1], vec=hexDetail.coord[2], state=sourceState, teleport=true}
+							recordSafeMoveDestination(hor,vec,hexCost,predecessor,true)
 						end
 					end
 				end
@@ -8309,24 +8307,28 @@ function proxyExploreButtonPosition(button)
 	return {pos[1],1.3,pos[2]}
 end
 
+local function proxyNearestReachableHex(hexes,distances,position)
+	if position==nil then return nil,nil,nil end
+	local bestHex,bestTravel,bestEdge=nil,nil,nil
+	for _,hex in ipairs(hexes or {}) do
+		local travel=distances[runtimeMapHexKey(hex)]
+		if travel~=nil then
+			local dx=hex.position[1]-position[1]
+			local dz=hex.position[3]-position[3]
+			local edge=(dx*dx)+(dz*dz)
+			if edge<26 and (bestTravel==nil or travel<bestTravel or (travel==bestTravel and edge<bestEdge)) then bestHex,bestTravel,bestEdge=hex,travel,edge end
+		end
+	end
+	return bestHex,bestTravel,bestEdge
+end
+
 function proxyExploreTarget(hexes,distances)
 	local candidates={}
 	--Ordinary maps expose legal Explore buttons. Use those exactly as before.
 	for _,button in pairs(terrainExploreOptions()) do
 		local p=proxyExploreButtonPosition(button)
 		if p~=nil then
-			local bestHex,bestTravel,bestEdge=nil,nil,nil
-			for _,hex in ipairs(hexes or {}) do
-				local travel=distances[runtimeMapHexKey(hex)]
-				if travel~=nil then
-					local dx=hex.position[1]-p[1]
-					local dz=hex.position[3]-p[3]
-					local edge=(dx*dx)+(dz*dz)
-					if edge<26 and (bestTravel==nil or travel<bestTravel or (travel==bestTravel and edge<bestEdge)) then
-						bestHex,bestTravel,bestEdge=hex,travel,edge
-					end
-				end
-			end
+			local bestHex,bestTravel,bestEdge=proxyNearestReachableHex(hexes,distances,p)
 			if bestHex~=nil then candidates[#candidates+1]={hex=bestHex,action="explore",button=button,edge=bestEdge,proxyExplorePosition=p,proxyDistance=bestTravel} end
 		end
 	end
@@ -8341,18 +8343,7 @@ function proxyExploreTarget(hexes,distances)
 			local details=terrainTiles[tile.guid]
 			if details~=nil and details.tileType~="tilePile" and tile.is_face_down==true and gStates.playedAllready[tile.guid]~=true then
 				local p=tile.getPosition()
-				local bestHex,bestTravel,bestEdge=nil,nil,nil
-				for _,hex in ipairs(hexes or {}) do
-					local travel=distances[runtimeMapHexKey(hex)]
-					if travel~=nil then
-						local dx=hex.position[1]-p[1]
-						local dz=hex.position[3]-p[3]
-						local edge=(dx*dx)+(dz*dz)
-						if edge<26 and (bestTravel==nil or travel<bestTravel or (travel==bestTravel and edge<bestEdge)) then
-							bestHex,bestTravel,bestEdge=hex,travel,edge
-						end
-					end
-				end
+				local bestHex,bestTravel,bestEdge=proxyNearestReachableHex(hexes,distances,p)
 				if bestHex~=nil then
 					candidates[#candidates+1]={hex=bestHex,action="explore",predefinedTileGUID=tile.guid,edge=bestEdge,proxyExplorePosition={p[1],p[2],p[3]},proxyDistance=bestTravel}
 				end
@@ -8534,13 +8525,11 @@ function proxyMovementHazard(fromHex,toHex,hexes,mapObjects,proxyIndex,context)
 	return hazard
 end
 
-function proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,forcedFirstKey,sharedContext)
-	if startHex==nil or target==nil or target.hex==nil then return {},nil,nil end
-	local context=sharedContext or proxyRouteContext(hexes,mapObjects,proxyIndex)
-	local toTarget=proxyDistanceMap(hexes,{target.hex},proxyIndex,context)
+local function proxySafeRunEvaluator(target,hexes,mapObjects,proxyIndex,context,toTarget)
 	local targetKey=runtimeMapHexKey(target.hex)
 	local safeMemo={}
-	local function safeRun(hex)
+	local safeRun
+	safeRun=function(hex)
 		local key=runtimeMapHexKey(hex)
 		if key==nil or key==targetKey then return 0 end
 		if safeMemo[key]~=nil then return safeMemo[key] end
@@ -8548,7 +8537,8 @@ function proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,forcedF
 		if distance==nil or distance<=0 then safeMemo[key]=0 return 0 end
 		local best=-1
 		for _,candidate in ipairs(context.neighbors[key] or {}) do
-			if context.passable[runtimeMapHexKey(candidate)]==true and toTarget[runtimeMapHexKey(candidate)]==distance-1 then
+			local candidateKey=runtimeMapHexKey(candidate)
+			if context.passable[candidateKey]==true and toTarget[candidateKey]==distance-1 then
 				local hazard=proxyMovementHazard(hex,candidate,hexes,mapObjects,proxyIndex,context)
 				local score=hazard~=nil and 0 or (1+safeRun(candidate))
 				if score>best then best=score end
@@ -8558,6 +8548,14 @@ function proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,forcedF
 		safeMemo[key]=best
 		return best
 	end
+	return safeRun,targetKey
+end
+
+function proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,forcedFirstKey,sharedContext)
+	if startHex==nil or target==nil or target.hex==nil then return {},nil,nil end
+	local context=sharedContext or proxyRouteContext(hexes,mapObjects,proxyIndex)
+	local toTarget=proxyDistanceMap(hexes,{target.hex},proxyIndex,context)
+	local safeRun,targetKey=proxySafeRunEvaluator(target,hexes,mapObjects,proxyIndex,context,toTarget)
 	local current=startHex
 	local route={}
 	local lastSafe=startHex
@@ -8619,24 +8617,7 @@ function proxyFindRouteChoice(startHex,target,hexes,mapObjects,proxyIndex,move)
 	if startHex==nil or target==nil or target.hex==nil or (move or 0)<=0 then return nil end
 	local context=proxyRouteContext(hexes,mapObjects,proxyIndex)
 	local toTarget=proxyDistanceMap(hexes,{target.hex},proxyIndex,context)
-	local targetKey=runtimeMapHexKey(target.hex)
-	local safeMemo={}
-	local function safeRun(hex)
-		local key=runtimeMapHexKey(hex)
-		if key==nil or key==targetKey then return 0 end
-		if safeMemo[key]~=nil then return safeMemo[key] end
-		local distance=toTarget[key]
-		if distance==nil or distance<=0 then safeMemo[key]=0 return 0 end
-		local best=-1
-		for _,candidate in ipairs(context.neighbors[key] or {}) do
-			if context.passable[runtimeMapHexKey(candidate)]==true and toTarget[runtimeMapHexKey(candidate)]==distance-1 then
-				local h=proxyMovementHazard(hex,candidate,hexes,mapObjects,proxyIndex,context)
-				local score=h~=nil and 0 or (1+safeRun(candidate))
-				if score>best then best=score end
-			end
-		end
-		if best<0 then best=0 end safeMemo[key]=best return best
-	end
+	local safeRun,targetKey=proxySafeRunEvaluator(target,hexes,mapObjects,proxyIndex,context,toTarget)
 	local current=startHex
 	local prefix={}
 	for step=1,move do
@@ -8779,8 +8760,7 @@ end
 
 function proxyTargetLoad(saved,hexes)
 	if saved==nil or saved.key==nil then return nil end
-	local hex=nil
-	for _,candidate in ipairs(hexes or {}) do if runtimeMapHexKey(candidate)==saved.key then hex=candidate break end end
+	local hex=runtimeMapHexByKey(hexes,saved.key)
 	if hex==nil then return nil end
 	local target={hex=hex,action=saved.action,fortified=saved.fortified,proxyReason=saved.proxyReason,choiceObjectiveColor=saved.choiceObjectiveColor}
 	if saved.action=="explore" then
@@ -8801,23 +8781,7 @@ function proxyTargetLoad(saved,hexes)
 end
 
 function proxyDestinationChoiceClearButtons()
-	local marker="ProxyDestinationChoice"
-	local snapshot=runtimeMapSnapshot()
-	for _,terrain in pairs(snapshot.terrainObjects or {}) do
-		if terrainTiles[terrain.guid]~=nil then
-			local xml=terrain.UI.getXmlTable() or {}
-			local changed=false
-			for i=#xml,1,-1 do
-				local attributes=xml[i].attributes
-				local id=attributes~=nil and tostring(attributes.id or "") or ""
-				local suffix=id:sub(7)
-				if suffix:sub(1,#marker)==marker then table.remove(xml,i) changed=true end
-			end
-			if changed==true then
-				if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end
-			end
-		end
-	end
+	clearTerrainChoiceButtons("ProxyDestinationChoice")
 end
 
 function proxyDestinationChoiceActionText(saved)
@@ -8828,15 +8792,11 @@ end
 
 function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 	if saved==nil or saved.key==nil then return nil,xml end
-	local terrain,placement=terrainHexChoiceUIPlacement(saved.key,0.16,splitIndex,splitCount,0.38)
-	if terrain==nil or placement==nil then return nil,xml end
-	local id=terrain.guid.."ProxyDestinationChoice"..tostring(index)
-	xml=xml or terrain.UI.getXmlTable() or {}
-	xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/proxyDestinationChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-		height=placement.height,width=320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
-		children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
-			{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize=placement.count>1 and "62" or "76",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=placement.count>1 and "62" or "76",text=proxyDestinationChoiceActionText(saved)}}}}}}
-	return terrain,xml
+	return appendTerrainHexChoiceButton(saved.key,index,xml,splitIndex,splitCount,{
+		idPrefix="ProxyDestinationChoice",onClick="global/proxyDestinationChoiceSelect",
+		buttonScale=0.16,referenceScale=0.38,splitFontSize=62,fontSize=76,
+		text=proxyDestinationChoiceActionText(saved)
+	})
 end
 
 function proxyChoiceMapRefresh(pending)
@@ -8963,7 +8923,7 @@ end
 function proxyRouteChoiceAnimatePrefix(pending,target,hexes,mapObjects,index,callback)
 	local key=(pending.prefix or {})[index]
 	if key==nil then callback() return end
-	local hex=proxyHexByKey(hexes,key)
+	local hex=runtimeMapHexByKey(hexes,key)
 	if hex==nil then callback() return end
 	proxyAnimateStep(hex,hexes,mapObjects,pending.proxyIndex,function() proxyRouteChoiceAnimatePrefix(pending,target,hexes,mapObjects,index+1,callback) end)
 end
@@ -8977,7 +8937,7 @@ function proxyResolveRouteChoice(pending,saved)
 	proxyRouteChoiceAnimatePrefix(pending,target,hexes,mapObjects,1,function()
 		local freshHexes,freshObjects=runtimeMapHexesAndObjects()
 		local current=runtimeMapHexForPosition(freshHexes,avatar.getPosition(),freshObjects)
-		local nextHex=proxyHexByKey(freshHexes,saved.key)
+		local nextHex=runtimeMapHexByKey(freshHexes,saved.key)
 		if current==nil or nextHex==nil then proxyFinishTurn(freshHexes,freshObjects,pending.proxyIndex) return end
 		local context=proxyRouteContext(freshHexes,freshObjects,pending.proxyIndex)
 		local hazard=proxyMovementHazard(current,nextHex,freshHexes,freshObjects,pending.proxyIndex,context)
@@ -9219,12 +9179,6 @@ function proxyRemoveOtherKeepShield(hex,mapObjects,proxyIndex)
 	end
 end
 
-function proxyHexByKey(hexes,key)
-	if key==nil then return nil end
-	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
-	return nil
-end
-
 function proxyLowestFameEnemies(enemies)
 	local lowest=nil
 	local tied={}
@@ -9318,7 +9272,7 @@ end
 function proxyResolveEnemyChoice(pending,selectedGUID)
 	if pending==nil or pending.context==nil then automatedTurnRewindRelease() return end
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
-	local hex=proxyHexByKey(hexes,pending.context.hexKey)
+	local hex=runtimeMapHexByKey(hexes,pending.context.hexKey)
 	if hex==nil then proxyFinishTurn(hexes,mapObjects,pending.proxyIndex) return end
 	if pending.context.kind=="ruin" then
 		local enemy=getObjectFromGUID(selectedGUID)
@@ -9330,7 +9284,7 @@ function proxyResolveEnemyChoice(pending,selectedGUID)
 		proxyClearObjective(true)
 		broadcastToAll("{en}Proxy resolved the tied Ruins enemy choice.{ru}Прокси разрешил ничью при выборе врага в Руинах.{zh-tw}代理玩家已解決遺跡敵人選擇的平手。{zh-cn}代理玩家已解决遗迹敌人选择的平手。{ko}프록시가 유적 적 선택의 동률을 해결했습니다.{es}El Proxy resolvió el empate en la elección de enemigo de las Ruinas.{fr}Le Proxy a résolu l’égalité du choix d’ennemi des Ruines.{pt-br}O Proxy resolveu o empate na escolha de inimigo das Ruínas.{de}Der Proxy hat den Gleichstand bei der Gegnerwahl in den Ruinen aufgelöst.",{1,0.75,0.2})
 	elseif pending.context.kind=="city" then
-		local lastSafe=proxyHexByKey(hexes,pending.context.lastSafeKey)
+		local lastSafe=runtimeMapHexByKey(hexes,pending.context.lastSafeKey)
 		proxyResolveCitySelectedEnemy(hex,mapObjects,pending.proxyIndex,lastSafe,selectedGUID)
 		proxyClearObjective(true)
 		broadcastToAll("{en}Proxy resolved the tied City defender choice.{ru}Прокси разрешил ничью при выборе защитника Города.{zh-tw}代理玩家已解決城市防守者選擇的平手。{zh-cn}代理玩家已解决城市防守者选择的平手。{ko}프록시가 도시 수비자 선택의 동률을 해결했습니다.{es}El Proxy resolvió el empate en la elección de defensor de la Ciudad.{fr}Le Proxy a résolu l’égalité du choix de défenseur de la Cité.{pt-br}O Proxy resolveu o empate na escolha de defensor da Cidade.{de}Der Proxy hat den Gleichstand bei der Verteidigerwahl der Stadt aufgelöst.",{1,0.75,0.2})
@@ -11291,7 +11245,7 @@ local horsemanDefeatedInventoryPosition, horsemanMarkDefeatedToken
 -- Scenario-specific reveal, movement, ritual and AI rules remain in Scenario.lua.
 
 function horsemenTokensUsed()
-	return gStates~=nil and (gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Apocalypse is Here")
+	return scenarioUsesHorsemen()
 end
 
 function deployHorsemenPreload()
@@ -11572,7 +11526,7 @@ local apocalypseDragonHeadTokenPosition, apocalypseDragonPositionHeadToken, apoc
 local apocalypseDragonDeployHeadToken, apocalypseDragonLevelMarkerPosition, apocalypseDragonLockLevelMarker, apocalypseDragonDefeatedHeadCount, apocalypseDragonSyncControlLevel
 local apocalypseDragonCheckAndResolveDefeat, apocalypseDragonHeadStateChanged, apocalypseDragonGroundReduction, apocalypseDragonGroundMarkedThroughOne, apocalypseDragonGroundControlGUIDs
 local apocalypseDragonGroundPrepareColoredHead, apocalypseDragonGroundPrepareControl, apocalypseDragonNewGroundCombat, apocalypseDragonGroundTokenInPlayerArea
-local apocalypseDragonCoopAdjacentPlayers, apocalypseDragonAssaultOriginData, apocalypseDragonGroundApplyFinalLevels, apocalypseDragonGroundCleanupRuntime
+local apocalypseDragonCoopAdjacentPlayers, apocalypseDragonGroundApplyFinalLevels, apocalypseDragonGroundCleanupRuntime
 
 -- Shared Apocalypse Dragon entity, head-level and landed-combat helpers.
 -- Scenario-specific AI/turn rules remain in Scenario.lua.
@@ -11614,7 +11568,7 @@ function apocalypseDragonPossessSummonedEnemy(enemyGUID,target)
 end
 
 function apocalypseDragonScenario()
-	return gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon")
+	return scenarioUsesApocalypseDragon()
 end
 
 function apocalypseDragonStartingLevel()
@@ -12523,16 +12477,6 @@ apocalypseDragonCoopAdjacentPlayers=function(playerIndex)
 	return result
 end
 
-apocalypseDragonAssaultOriginData=function(approachPosition)
-	local origin={avatarLocation="",avatarSharedHex=nil,avatarSwapCity=nil,position=nil}
-	if approachPosition~=nil then
-		origin.position={approachPosition[1],approachPosition[2],approachPosition[3]}
-		local terrain,bearing,_,feature=terrainHexAtPosition(approachPosition)
-		if terrain~=nil and bearing~=nil then origin.avatarLocation=feature or "" end
-	end
-	return origin
-end
-
 function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
 	if apocalypseDragonScenario()~=true or gStates.apocalypseDragonLairRevealed~=true or gStates.apocalypseDragonDefeated==true then return false end
 	if gStates.coopAssaultPhase~=nil or gStates.apocalypseDragonGroundCombat~=nil then return false end
@@ -12558,7 +12502,7 @@ function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
 		return started
 	end
 
-	gStates.apocalypseDragonAssaultOrigin=apocalypseDragonAssaultOriginData(approachPosition)
+	gStates.apocalypseDragonAssaultOrigin=assaultOriginFromPosition(approachPosition)
 	gStates.assaultData={[player.mage]={primary={},secondary={},UIPos={1},joined=true}}
 	for _,guid in ipairs(liveHeads) do
 		gStates.assaultData[player.mage].primary[#gStates.assaultData[player.mage].primary+1]=guid
@@ -12999,6 +12943,51 @@ function positionApocalypseDragonHeads()
 end
 
 -- Shared interstitial Dragon-turn shell used by Against the Dragon and Fury.
+function apocalypseDragonResetTurnRuntime()
+	gStates.apocalypseDragonTurn=0
+	gStates.apocalypseDragonTurnActive=false
+	gStates.apocalypseDragonResumeTurn=nil
+	gStates.apocalypseDragonPendingChoice=nil
+	gStates.apocalypseDragonPendingAttack=nil
+	gStates.apocalypseDragonFullAttendPlayer=nil
+	gStates.apocalypseDragonUIState=nil
+	gStates.apocalypseDragonTurnAction=nil
+	gStates.apocalypseDragonTurnReport=nil
+	gStates.apocalypseDragonTurnReportPrefix=nil
+end
+
+function apocalypseDragonBeginInterstitialTurn(nextTurnNumber,newOutOfTurn,sameTurn,action,report,source)
+	gStates.apocalypseDragonTurnActive=true
+	gStates.apocalypseDragonResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn==true,sameTurn=sameTurn==true}
+	gStates.apocalypseDragonTurn=(gStates.apocalypseDragonTurn or 0)+1
+	local dragonTurn=gStates.apocalypseDragonTurn
+	local resolvedAction=type(action)=="function" and action(dragonTurn) or action
+	gStates.apocalypseDragonTurnAction=resolvedAction
+	gStates.apocalypseDragonUIState="ReadyToProcess"
+	gStates.apocalypseDragonTurnReportPrefix=nil
+	gStates.apocalypseDragonTurnReport=type(report)=="function" and report(dragonTurn,resolvedAction) or report
+	apocalypseDragonMainUIRefresh()
+	mainUIUpdate(source)
+	return true
+end
+
+function apocalypseDragonCompleteInterstitialTurn(text,source,clearPending)
+	if clearPending==true then
+		gStates.apocalypseDragonPendingChoice=nil
+		gStates.apocalypseDragonPendingAttack=nil
+		gStates.apocalypseDragonTurnAction=nil
+	end
+	gStates.apocalypseDragonUIState="ReadyToEnd"
+	if text~=nil then
+		gStates.apocalypseDragonTurnReport=text
+	elseif gStates.apocalypseDragonTurnReport==nil or gStates.apocalypseDragonTurnReport=="" then
+		gStates.apocalypseDragonTurnReport="The Apocalypse Dragon finished its turn."
+	end
+	apocalypseDragonMainUIRefresh()
+	mainUIUpdate(source)
+	return true
+end
+
 function apocalypseDragonTurnOrdinal(turnNumber)
 	local n=tonumber(turnNumber) or 1
 	if n==1 then return "1st" end
@@ -13132,12 +13121,12 @@ local againstHorsemenGladePosition, againstHorsemenInlineGridDistance, againstHo
 local againstHorsemenContinueEndRoundMovement, againstHorsemenStartingLevel, apocalypseIsHereHorsemanStartingLevel, apocalypseIsHereRevealThreshold, apocalypseIsHereRecomputeNextHorseman
 local apocalypseIsHereCancelReservedReveal, apocalypseIsHereDeployReservedHorseman, apocalypseIsHereRevealNextHorseman, apocalypseIsHerePossessEnemy, apocalypseIsHerePossessRampagersOnTile
 local apocalypseIsHereRevealDragonCity, apocalypseIsHereCurrentHorsemanHex, apocalypseIsHereHorsemanTargetOptions, apocalypseIsHereHorsemanDestination, apocalypseIsHereClearChoiceButtons
-local apocalypseIsHereShowTargetChoice, apocalypseIsHereRefreshPendingTargetChoice, apocalypseIsHereHorsemanClearTarget, apocalypseIsHereHorsemanDestroyTarget, apocalypseIsHereHexByKey
+local apocalypseIsHereShowTargetChoice, apocalypseIsHereRefreshPendingTargetChoice, apocalypseIsHereHorsemanClearTarget, apocalypseIsHereHorsemanDestroyTarget
 local apocalypseIsHereHorsemanMoveFinished, apocalypseIsHereResolveHorsemanTarget, apocalypseIsHereProcessNextHorseman, apocalypseIsHereContinueHorsemenTurn, apocalypseIsHereActiveHorsemen
 local apocalypseIsHereMainUIRefresh, apocalypseIsHereFinishHorsemenTurn, takeDestroyedSiteToken, arrangeDestroyedSiteHex, againstApocalypseObjectivesComplete
 local againstApocalypseCheckCompletion, againstApocalypseMarkPossessedRampager, restoreDestroyedSite, furyDragonEliteConditionMet, againstDragonActive
 local againstDragonPlayerIndexForMage, againstDragonClearBlackManaMarkers, againstDragonPlayerMarked, againstDragonMarkPlayer, againstDragonTargetChoiceButton
-local againstDragonShowMapChoice, againstDragonShowOffMapChoice, againstDragonMapHexByKey, againstDragonDistanceStarts, againstDragonDistanceChoices
+local againstDragonShowMapChoice, againstDragonShowOffMapChoice, againstDragonDistanceStarts, againstDragonDistanceChoices
 local againstDragonPlayerHex, againstDragonSiteEligible, againstDragonDestroyCandidates, againstDragonActionLabel, againstDragonFinalReport
 local againstDragonResolveDestroyOption, againstDragonGainFame, againstDragonAttendanceAuthorized, againstDragonFullAttendAllowed, againstDragonAirborneTokenPosition
 local againstDragonAirborneMonsterData, againstDragonDeployAirborneHeads, againstDragonAirborneProtectionLocation, againstDragonAirborneProtectionReminder, againstDragonCaptureAirborneSuppression
@@ -13362,6 +13351,21 @@ function volkareQuestPortalTile()
 	if portalTile==nil then portalTile=getObjectFromGUID(startTerrain.wedge) end
 	return portalTile
 end
+local function scenarioEliminatePlayersAtPortal(message)
+	local eliminated=0
+	for playerIndex,details in pairs(turnOrder) do
+		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false and details.avatarLocation=="portal" then
+			details.dropoutState="dropped"
+			gStates.skipTurn[playerIndex]=nil
+			local token=getObjectFromGUID(details.turnOrderTokenGUID)
+			if token~=nil and token.is_face_down==true then token.flip() end
+			broadcastToAll(joinLang({translateWord[details.mage],message}),positionToColor(playerIndex))
+			eliminated=eliminated+1
+		end
+	end
+	return eliminated
+end
+
 function volkareQuestPortalStatus()
 	if gStates.gameScenario~="Volkare's Quest" or gStates.volkarePortalClosed==true then return false end
 	local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
@@ -13386,15 +13390,7 @@ function volkareQuestPortalStatus()
 	for _, decal in pairs(decals) do if decal.name=="Portal Closed" then marked=true break end end
 	if marked==false then portalTile.addDecal({name="Portal Closed",url=volkarePortalClosedDecalURL,position={0,0.15,0},rotation={90,180,0},scale={0.88,0.88,1}}) end
 	broadcastToAll("{en}The Council of the Void has closed the Portal. From now on it is an ordinary space, and Volkare may be attacked there.{ru}Совет Пустоты закрыл Портал. Теперь это обычная клетка, и Волкара можно атаковать там.{zh-tw}虛空議會已關閉傳送門。從現在起它視為一般空間，沃卡里可在此被攻擊。{zh-cn}虚空议会已关闭传送门。从现在起它视为一般空间，沃卡里可在此被攻击。{ko}공허의 의회가 포털을 닫았습니다. 이제 일반 칸으로 취급하며 그곳에서 볼케어를 공격할 수 있습니다.{es}El Consejo del Vacío ha cerrado el Portal. A partir de ahora es un espacio normal y Volkare puede ser atacado allí.{fr}Le Conseil du Vide a fermé le Portail. Désormais, il s’agit d’une case ordinaire et Volkare peut y être attaqué.{pt-br}O Conselho do Vácuo fechou o Portal. A partir de agora ele é um espaço comum, e Volkare pode ser atacado ali.{de}Der Rat der Leere hat das Portal geschlossen. Von nun an ist es ein normales Feld, und Volkare kann dort angegriffen werden.", {1,0.45,0.15})
-	for playerIndex, details in pairs(turnOrder) do
-		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false and details.avatarLocation=="portal" then
-			details.dropoutState="dropped"
-			gStates.skipTurn[playerIndex]=nil
-			local token=getObjectFromGUID(details.turnOrderTokenGUID)
-			if token~=nil and token.is_face_down==true then token.flip() end
-			broadcastToAll(joinLang({translateWord[details.mage], "{en} was caught on the Portal when it closed and is out of the game.{ru} оказался на Портале в момент его закрытия и выбывает из игры.{zh-tw} 在傳送門關閉時仍站在其上，因此退出遊戲。{zh-cn} 在传送门关闭时仍站在其上，因此退出游戏。{ko} 포탈이 닫힐 때 그 위에 있어 게임에서 탈락합니다.{es} estaba en el Portal cuando se cerró y queda fuera de la partida.{fr} se trouvait sur le Portail lors de sa fermeture et est éliminé de la partie.{pt-br} estava no Portal quando ele se fechou e está fora do jogo.{de} befand sich beim Schließen auf dem Portal und scheidet aus dem Spiel aus."}), positionToColor(playerIndex))
-		end
-	end
+	scenarioEliminatePlayersAtPortal("{en} was caught on the Portal when it closed and is out of the game.{ru} оказался на Портале в момент его закрытия и выбывает из игры.{zh-tw} 在傳送門關閉時仍站在其上，因此退出遊戲。{zh-cn} 在传送门关闭时仍站在其上，因此退出游戏。{ko} 포탈이 닫힐 때 그 위에 있어 게임에서 탈락합니다.{es} estaba en el Portal cuando se cerró y queda fuera de la partida.{fr} se trouvait sur le Portail lors de sa fermeture et est éliminé de la partie.{pt-br} estava no Portal quando ele se fechou e está fora do jogo.{de} befand sich beim Schließen auf dem Portal und scheidet aus dem Spiel aus.")
 	applyColorBarButtons()
 	addAvatarButtons()
 	volkareQuestCheckSkipTurn()
@@ -13432,15 +13428,7 @@ function oneToReturnClosePortal()
 	gStates.oneToReturnPortalClosed=true
 	oneToReturnSetPortalClosedDecal(true)
 	broadcastToAll("{en}The Portal has closed. From now on it is an ordinary plains space until the end of the second Night.{ru}Портал закрылся. До конца второй Ночи это обычная клетка Равнины.{zh-tw}傳送門已關閉。從現在起直到第二個夜晚結束，它視為一般平原空間。{zh-cn}传送门已关闭。从现在起直到第二个夜晚结束，它视为一般平原空间。{ko}포털이 닫혔습니다. 두 번째 밤이 끝날 때까지 일반 평원 칸으로 취급합니다.{es}El Portal se ha cerrado. Hasta el final de la segunda Noche es un espacio normal de Llanura.{fr}Le Portail s’est fermé. Jusqu’à la fin de la deuxième Nuit, il s’agit d’une case de Plaine ordinaire.{pt-br}O Portal se fechou. Até o fim da segunda Noite ele é um espaço comum de Planície.{de}Das Portal hat sich geschlossen. Bis zum Ende der zweiten Nacht ist es ein normales Ebenenfeld.", warningColor)
-	for playerIndex, details in pairs(turnOrder) do
-		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false and details.avatarLocation=="portal" then
-			details.dropoutState="dropped"
-			gStates.skipTurn[playerIndex]=nil
-			local token=getObjectFromGUID(details.turnOrderTokenGUID)
-			if token~=nil and token.is_face_down==true then token.flip() end
-			broadcastToAll(joinLang({translateWord[details.mage], "{en} was still on the Portal when it closed and is out of the game.{ru} оставался на Портале, когда он закрылся, и выбывает из игры.{zh-tw} 在傳送門關閉時仍站在其上，因此退出遊戲。{zh-cn} 在传送门关闭时仍站在其上，因此退出游戏。{ko} 포탈이 닫힐 때 그 위에 있어 게임에서 탈락합니다.{es} seguía en el Portal cuando se cerró y queda fuera de la partida.{fr} se trouvait encore sur le Portail lorsqu'il s'est fermé et est éliminé de la partie.{pt-br} ainda estava no Portal quando ele se fechou e está fora do jogo.{de} befand sich noch auf dem Portal, als es sich schloss, und scheidet aus dem Spiel aus."}), positionToColor(playerIndex))
-		end
-	end
+	scenarioEliminatePlayersAtPortal("{en} was still on the Portal when it closed and is out of the game.{ru} оставался на Портале, когда он закрылся, и выбывает из игры.{zh-tw} 在傳送門關閉時仍站在其上，因此退出遊戲。{zh-cn} 在传送门关闭时仍站在其上，因此退出游戏。{ko} 포탈이 닫힐 때 그 위에 있어 게임에서 탈락합니다.{es} seguía en el Portal cuando se cerró y queda fuera de la partida.{fr} se trouvait encore sur le Portail lorsqu'il s'est fermé et est éliminé de la partie.{pt-br} ainda estava no Portal quando ele se fechou e está fora do jogo.{de} befand sich noch auf dem Portal, als es sich schloss, und scheidet aus dem Spiel aus.")
 	applyColorBarButtons()
 	addAvatarButtons()
 	if activeMageKnightCount()==0 then
@@ -14392,16 +14380,6 @@ againstHorsemenPrepareRitual=function()
 	addAvatarButtons()
 end
 
-function againstHorsemenAssaultOrigin(approachPosition)
-	local origin={avatarLocation="",avatarSharedHex=nil,avatarSwapCity=nil,position=nil}
-	if approachPosition~=nil then
-		origin.position={approachPosition[1],approachPosition[2],approachPosition[3]}
-		local terrain,bearing,_,feature=terrainHexAtPosition(approachPosition)
-		if terrain~=nil and bearing~=nil then origin.avatarLocation=feature or "" end
-	end
-	return origin
-end
-
 --Dropping the active Mage Knight onto the post-ritual Glade declares the assault. From here the
 --existing city/co-op assault machinery owns defender allocation, skipped turns, combat order and rewards.
 function againstHorsemenBeginGladeAssault(playerIndex,approachPosition)
@@ -14412,7 +14390,7 @@ function againstHorsemenBeginGladeAssault(playerIndex,approachPosition)
 	if #defenders<1 then return false end
 	local gladePos=againstHorsemenCentralGladePosition(1.45)
 	if gladePos==nil then return false end
-	gStates.againstHorsemenAssaultOrigin=againstHorsemenAssaultOrigin(approachPosition)
+	gStates.againstHorsemenAssaultOrigin=assaultOriginFromPosition(approachPosition)
 	gStates.assaultData={[player.mage]={primary={},secondary={},UIPos={1},joined=true}}
 	for _,entry in ipairs(defenders) do
 		gStates.assaultData[player.mage].primary[#gStates.assaultData[player.mage].primary+1]=entry.guid
@@ -15080,8 +15058,7 @@ apocalypseIsHereCurrentHorsemanHex=function(name,hexes)
 	local terrain,bearing=terrainHexAtPosition(token.getPosition())
 	if terrain~=nil and bearing~=nil then state.terrainGUID=terrain.guid state.bearing=bearing end
 	local key=tostring(state.terrainGUID).."|"..tostring(state.bearing)
-	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
-	return nil
+	return runtimeMapHexByKey(hexes,key)
 end
 
 apocalypseIsHereHorsemanTargetOptions=function(name)
@@ -15162,22 +15139,7 @@ end
 apocalypseIsHereClearChoiceButtons=function(terrainGUIDs)
 	local pending=gStates~=nil and gStates.apocalypseHereHorsemanPendingChoice or nil
 	local guids=terrainGUIDs or (pending~=nil and pending.terrainGUIDs) or {}
-	local seen={}
-	for _,terrainGUID in ipairs(guids) do
-		if seen[terrainGUID]~=true then
-			seen[terrainGUID]=true
-			local terrain=getObjectFromGUID(terrainGUID)
-			if terrain~=nil then
-				local xml=terrain.UI.getXmlTable() or {}
-				local changed=false
-				for i=#xml,1,-1 do
-					local id=xml[i].attributes~=nil and tostring(xml[i].attributes.id or "") or ""
-					if id:find("ApocalypseHorsemanTarget",1,true)~=nil then table.remove(xml,i) changed=true end
-				end
-				if changed then if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end end
-			end
-		end
-	end
+	clearTerrainChoiceButtons("ApocalypseHorsemanTarget",guids)
 end
 
 local function apocalypseIsHereJoinHorsemenTurnReport(previous,line)
@@ -15352,12 +15314,6 @@ apocalypseIsHereHorsemanDestroyTarget=function(name,targetHex,afterArrange)
 	mainUIUpdate("Horseman action report")
 	if action~=nil then action.stage="settling" end
 	return true
-end
-
-apocalypseIsHereHexByKey=function(key,hexes)
-	if key==nil then return nil end
-	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
-	return nil
 end
 
 apocalypseIsHereHorsemanMoveFinished=function(name,target,reached)
@@ -15558,8 +15514,8 @@ function apocalypseIsHereRestoreScenarioState()
 	if action~=nil then
 		local snapshot=runtimeMapSnapshot()
 		local hexes=snapshot.hexes or {}
-		local destination=apocalypseIsHereHexByKey(action.destinationKey,hexes)
-		local target=apocalypseIsHereHexByKey(action.targetKey,hexes)
+		local destination=runtimeMapHexByKey(hexes,action.destinationKey)
+		local target=runtimeMapHexByKey(hexes,action.targetKey)
 		local state=gStates.horsemen~=nil and gStates.horsemen[action.name] or nil
 		local data=horsemanData~=nil and horsemanData[action.name] or nil
 		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
@@ -16154,53 +16110,24 @@ function againstDragonAttackControlUI(show)
 end
 
 function againstDragonTargetChoiceClearButtons()
-	local map=getObjectFromGUID(mapArea)
-	if map==nil then return end
-	for _,terrain in pairs(map.getObjects()) do
-		if terrainTiles[terrain.guid]~=nil then
-			local xml=terrain.UI.getXmlTable() or {}
-			local changed=false
-			for i=#xml,1,-1 do
-				local id=xml[i].attributes~=nil and tostring(xml[i].attributes.id or "") or ""
-				if id:find("DragonTargetChoice",1,true)~=nil then table.remove(xml,i) changed=true end
-			end
-			if changed==true then
-				if #xml>0 then terrain.UI.setXmlTable(xml) else terrain.UI.setXml("") end
-			end
-		end
-	end
+	clearTerrainChoiceButtons("DragonTargetChoice")
 end
 
 function againstDragonOffMapChoiceClearButtons()
 	for _,details in ipairs(turnOrder or {}) do
 		local token=details~=nil and getObjectFromGUID(details.turnOrderTokenGUID) or nil
-		if token~=nil then
-			local xml=token.UI.getXmlTable() or {}
-			local changed=false
-			for i=#xml,1,-1 do
-				local id=xml[i].attributes~=nil and tostring(xml[i].attributes.id or "") or ""
-				if id:find("DragonOffMapChoice",1,true)~=nil then table.remove(xml,i) changed=true end
-			end
-			if changed==true then
-				if #xml>0 then token.UI.setXmlTable(xml) else token.UI.setXml("") end
-			end
-		end
+		if token~=nil then objectUIRemoveIdContaining(token,"DragonOffMapChoice") end
 	end
 end
 
 againstDragonTargetChoiceButton=function(option,index,xml,splitIndex,splitCount)
 	if option==nil or option.key==nil then return nil,xml end
-	local terrain,placement=terrainHexChoiceUIPlacement(option.key,0.38,splitIndex,splitCount,0.38)
-	if terrain==nil or placement==nil then return nil,xml end
 	local label="{en}Dragon\nDestroy{ru}Дракон\nУничтожает{zh-tw}巨龍\n摧毀{zh-cn}巨龙\n摧毁{ko}드래곤\n파괴{es}Dragón\nDestruir{fr}Dragon\nDétruire{pt-br}Dragão\nDestruir{de}Drache\nZerstört"
 	if option.kind=="attack" then label=joinLang({"{en}Attack\n{ru}Атака\n{zh-tw}攻擊\n{zh-cn}攻击\n{ko}공격\n{es}Atacar\n{fr}Attaquer\n{pt-br}Atacar\n{de}Angriff\n",tostring(option.mage or joinLang({"{en}Player{ru}Игрок{zh-tw}玩家{zh-cn}玩家{ko}플레이어{es}Jugador{fr}Joueur{pt-br}Jogador{de}Spieler"}))}) end
-	local id=terrain.guid.."DragonTargetChoice"..tostring(index)
-	xml=xml or terrain.UI.getXmlTable() or {}
-	xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/againstDragonTargetChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-		height=placement.height,width=320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
-		children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
-			{tag="HorizontalLayout",attributes={padding="20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",offsetXY="0 1",fontSize=placement.count>1 and "60" or "72",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=placement.count>1 and "60" or "72",text=label}}}}}}
-	return terrain,xml
+	return appendTerrainHexChoiceButton(option.key,index,xml,splitIndex,splitCount,{
+		idPrefix="DragonTargetChoice",onClick="global/againstDragonTargetChoiceSelect",
+		buttonScale=0.38,referenceScale=0.38,splitFontSize=60,fontSize=72,text=label
+	})
 end
 
 againstDragonShowMapChoice=function(pending)
@@ -16243,11 +16170,6 @@ againstDragonShowOffMapChoice=function(pending)
 		end
 	end
 	return true
-end
-
-againstDragonMapHexByKey=function(hexes,key)
-	for _,hex in ipairs(hexes or {}) do if runtimeMapHexKey(hex)==key then return hex end end
-	return nil
 end
 
 againstDragonDistanceStarts=function(hexes,mapObjects)
@@ -16370,7 +16292,7 @@ end
 
 againstDragonResolveDestroyOption=function(option)
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
-	local hex=option~=nil and againstDragonMapHexByKey(hexes,option.key) or nil
+	local hex=option~=nil and runtimeMapHexByKey(hexes,option.key) or nil
 	if hex==nil then
 		broadcastToAll("{en}The Apocalypse Dragon's selected destruction target could no longer be found.{ru}Выбранная цель уничтожения Дракона Апокалипсиса больше не найдена.{zh-tw}找不到末日巨龍先前選定的摧毀目標。{zh-cn}找不到末日巨龙先前选定的摧毁目标。{ko}아포칼립스 드래곤이 선택한 파괴 대상을 더 이상 찾을 수 없습니다.{es}Ya no se pudo encontrar el objetivo de destrucción elegido por el Dragón del Apocalipsis.{fr}La cible de destruction choisie par le Dragon de l’Apocalypse est introuvable.{pt-br}O alvo de destruição escolhido pelo Dragão do Apocalipse não pôde mais ser encontrado.{de}Das ausgewählte Zerstörungsziel des Apokalypse-Drachen konnte nicht mehr gefunden werden.",warningColor)
 		againstDragonSetTurnReport(againstDragonFinalReport("The selected destruction target could no longer be found."),"Processing")
@@ -16914,16 +16836,7 @@ function againstDragonRoundStart()
 		return false
 	end
 	gStates.apocalypseDragonRoundPrepared=gStates.currentRound
-	gStates.apocalypseDragonTurn=0
-	gStates.apocalypseDragonTurnActive=false
-	gStates.apocalypseDragonResumeTurn=nil
-	gStates.apocalypseDragonPendingChoice=nil
-	gStates.apocalypseDragonPendingAttack=nil
-	gStates.apocalypseDragonFullAttendPlayer=nil
-	gStates.apocalypseDragonUIState=nil
-	gStates.apocalypseDragonTurnAction=nil
-	gStates.apocalypseDragonTurnReport=nil
-	gStates.apocalypseDragonTurnReportPrefix=nil
+	apocalypseDragonResetTurnRuntime()
 	gStates.furyDragonAwaitingCombat=nil
 	gStates.furyDragonFullAttendPlayers={}
 	UI.setAttribute("DummyTurn","active","false")
@@ -16939,19 +16852,11 @@ function againstDragonBeginTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	if againstDragonActive()~=true or gStates.tacticShown==true or gStates.tacticRemove==true then return false end
 	if gStates.endRoundCalled==true or gStates.gameOver==true or gStates.apocalypseDragonLairAttacked==true then return false end
 	if gStates.apocalypseDragonTurnActive==true then return true end
-	gStates.apocalypseDragonTurnActive=true
-	gStates.apocalypseDragonResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn==true,sameTurn=sameTurn==true}
-	gStates.apocalypseDragonTurn=(gStates.apocalypseDragonTurn or 0)+1
-	local dragonTurn=gStates.apocalypseDragonTurn
-	local action=againstDragonTurnAction(dragonTurn) or "none"
-	local ordinal=apocalypseDragonTurnOrdinal(dragonTurn)
-	gStates.apocalypseDragonTurnAction=action
-	gStates.apocalypseDragonUIState="ReadyToProcess"
-	gStates.apocalypseDragonTurnReportPrefix=nil
-	gStates.apocalypseDragonTurnReport="The Apocalypse Dragon's "..ordinal.." turn will "..againstDragonActionLabel(action)..".\nClick Process Dragon to continue."
-	apocalypseDragonMainUIRefresh()
-	mainUIUpdate("Dragon Turn Ready")
-	return true
+	return apocalypseDragonBeginInterstitialTurn(nextTurnNumber,newOutOfTurn,sameTurn,function(dragonTurn)
+		return againstDragonTurnAction(dragonTurn) or "none"
+	end,function(dragonTurn,action)
+		return "The Apocalypse Dragon's "..apocalypseDragonTurnOrdinal(dragonTurn).." turn will "..againstDragonActionLabel(action)..".\nClick Process Dragon to continue."
+	end,"Dragon Turn Ready")
 end
 
 function againstDragonCompleteTurn()
@@ -16959,16 +16864,7 @@ function againstDragonCompleteTurn()
 	apocalypseDragonTurnChoiceClearButtons()
 	againstDragonAttackControlUI(false)
 	automatedAttackResponseUI(nil)
-	gStates.apocalypseDragonPendingChoice=nil
-	gStates.apocalypseDragonPendingAttack=nil
-	gStates.apocalypseDragonTurnAction=nil
-	gStates.apocalypseDragonUIState="ReadyToEnd"
-	if gStates.apocalypseDragonTurnReport==nil or gStates.apocalypseDragonTurnReport=="" then
-		gStates.apocalypseDragonTurnReport="The Apocalypse Dragon finished its turn."
-	end
-	apocalypseDragonMainUIRefresh()
-	mainUIUpdate("Dragon Processed")
-	return true
+	return apocalypseDragonCompleteInterstitialTurn(nil,"Dragon Processed",true)
 end
 
 --Fury of the Apocalypse Dragon turn system --------------------------------------
@@ -17007,16 +16903,7 @@ function furyDragonRoundStart()
 		return false
 	end
 	gStates.furyDragonRoundPrepared=gStates.currentRound
-	gStates.apocalypseDragonTurn=0
-	gStates.apocalypseDragonTurnActive=false
-	gStates.apocalypseDragonResumeTurn=nil
-	gStates.apocalypseDragonPendingChoice=nil
-	gStates.apocalypseDragonPendingAttack=nil
-	gStates.apocalypseDragonFullAttendPlayer=nil
-	gStates.apocalypseDragonUIState=nil
-	gStates.apocalypseDragonTurnAction=nil
-	gStates.apocalypseDragonTurnReport=nil
-	gStates.apocalypseDragonTurnReportPrefix=nil
+	apocalypseDragonResetTurnRuntime()
 	UI.setAttribute("DummyTurn","active","false")
 	automatedAttackResponseUI(nil)
 	apocalypseDragonTurnChoiceClearButtons()
@@ -17029,28 +16916,15 @@ function furyDragonBeginTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	if furyDragonIsActive()~=true or gStates.tacticShown==true or gStates.tacticRemove==true then return false end
 	if gStates.endRoundCalled==true or gStates.gameOver==true or gStates.apocalypseDragonDefeated==true then return false end
 	if gStates.apocalypseDragonTurnActive==true then return true end
-	gStates.apocalypseDragonTurnActive=true
-	gStates.apocalypseDragonResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn==true,sameTurn=sameTurn==true}
-	gStates.apocalypseDragonTurn=(gStates.apocalypseDragonTurn or 0)+1
-	local dragonTurn=gStates.apocalypseDragonTurn
-	local ordinal=apocalypseDragonTurnOrdinal(dragonTurn)
-	local state=gStates.furyDragonFlightTarget~=nil and "in flight" or "landed"
-	gStates.apocalypseDragonTurnAction="fury"
-	gStates.apocalypseDragonUIState="ReadyToProcess"
-	gStates.apocalypseDragonTurnReportPrefix=nil
-	gStates.apocalypseDragonTurnReport="The Apocalypse Dragon is "..state.." for its "..ordinal.." turn.\nClick Process Dragon to continue."
-	apocalypseDragonMainUIRefresh()
-	mainUIUpdate("Fury Dragon Turn Ready")
-	return true
+	return apocalypseDragonBeginInterstitialTurn(nextTurnNumber,newOutOfTurn,sameTurn,"fury",function(dragonTurn)
+		local state=gStates.furyDragonFlightTarget~=nil and "in flight" or "landed"
+		return "The Apocalypse Dragon is "..state.." for its "..apocalypseDragonTurnOrdinal(dragonTurn).." turn.\nClick Process Dragon to continue."
+	end,"Fury Dragon Turn Ready")
 end
 
 furyDragonCompleteTurn=function(text)
 	if furyDragonIsActive()~=true then return false end
-	gStates.apocalypseDragonUIState="ReadyToEnd"
-	gStates.apocalypseDragonTurnReport=text or "The Apocalypse Dragon finished its turn."
-	apocalypseDragonMainUIRefresh()
-	mainUIUpdate("Dragon Processed")
-	return true
+	return apocalypseDragonCompleteInterstitialTurn(text or "The Apocalypse Dragon finished its turn.","Dragon Processed",false)
 end
 
 furyDragonFeatureMatches=function(feature,wanted)
@@ -17092,7 +16966,7 @@ end
 
 furyDragonCurrentHex=function(hexes)
 	if gStates.furyDragonCurrentHexKey==nil then return nil end
-	return againstDragonMapHexByKey(hexes,gStates.furyDragonCurrentHexKey)
+	return runtimeMapHexByKey(hexes,gStates.furyDragonCurrentHexKey)
 end
 
 furyDragonLairTarget=function(hexes)
@@ -17100,7 +16974,7 @@ furyDragonLairTarget=function(hexes)
 	if lair==nil then return nil end
 	local key=lair.cityHexKey
 	if key==nil and lair.tileGUID~=nil and lair.hexes~=nil and lair.hexes[1]~=nil then key=lair.tileGUID.."|"..tostring(lair.hexes[1].bearing) end
-	local hex=key~=nil and againstDragonMapHexByKey(hexes,key) or nil
+	local hex=key~=nil and runtimeMapHexByKey(hexes,key) or nil
 	if hex==nil then return nil end
 	return {key=key,terrainGUID=hex.terrainGUID,bearing=hex.bearing,feature="",category="lair",isLair=true}
 end
@@ -17199,7 +17073,7 @@ furyDragonTargetPosition=function(target,hexes,forDragon)
 			return {p[1],p[2]+(forDragon==true and 1.30 or 0.85),p[3]}
 		end
 	end
-	local hex=againstDragonMapHexByKey(hexes,target.key)
+	local hex=runtimeMapHexByKey(hexes,target.key)
 	if hex==nil then return nil end
 	return {hex.position[1],forDragon==true and 1.45 or 1.65,hex.position[3]}
 end
@@ -17490,7 +17364,7 @@ furyDragonBeginInFlightTurn=function()
 	gStates.apocalypseDragonTurnReport="The Apocalypse Dragon is flying to "..furyDragonTargetLabel(target).."."
 	apocalypseDragonMainUIRefresh()
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
-	local hex=againstDragonMapHexByKey(hexes,target.key)
+	local hex=runtimeMapHexByKey(hexes,target.key)
 	local destination=furyDragonTargetPosition(target,hexes,true)
 	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
 	if hex==nil or destination==nil or marker==nil then
@@ -17512,7 +17386,7 @@ furyDragonBeginInFlightTurn=function()
 		gStates.furyDragonCurrentHexKey=target.key
 		gStates.furyDragonFlightTarget=nil
 		local currentHexes,currentMapObjects=runtimeMapHexesAndObjects()
-		local currentHex=againstDragonMapHexByKey(currentHexes,target.key)
+		local currentHex=runtimeMapHexByKey(currentHexes,target.key)
 		if currentHex==nil then
 			furyDragonCompleteTurn("The Apocalypse Dragon landed, but the destination space could no longer be resolved.")
 			return
@@ -17559,6 +17433,7 @@ __bundle_register("PlayingGame.Turn", function(require, _LOADED, __bundle_regist
 
 local dropoutMatImage="https://steamusercontent-a.akamaihd.net/ugc/9970617178500111609/C9D8D7517B7FAF114F10D8195AC38269F0504E37/"
 local bannerGUIDs={"596cfa", "986216", "0b5b32", "e48e44", GUID.card.bannerOfCommandToken, "8e4b92", "75a627"}
+local claimNightTactic6StoredCards
 
 --Player seat colors only change during setup/load or when a player uses the color controls.
 --Keep physical tinting out of mainUIUpdate so ordinary card play never recolors unchanged objects.
@@ -17626,10 +17501,10 @@ end
 --Tactic Showing and Hiding
 function tacticToggle()
 	--rearanges the turn order tokens
-	function turnOrderSort()
+	local function turnOrderSort()
 		for a=1, #turnOrder, 1 do
 			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).unlock()
-			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)})
+			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)},false,false)
 		end
 		if againstDragonPositionRoundOrderToken~=nil then againstDragonPositionRoundOrderToken() end
 		if furyDragonPositionRoundOrderToken~=nil then furyDragonPositionRoundOrderToken() end
@@ -17999,16 +17874,19 @@ local function turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)
 	if rewardSoftLock==true and questRewardPending==true then
 		apocalypseQuestRefreshOfferButtons()
 		rewardReminderCameraFocus(player.color,"questView")
-		local questGateMessage=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "Complete/Fail the Quest First" or "Complete/Progress the Quest First"
+		local questGateMessage
+		if questRewardAction=="Fail" or questRewardAction=="CompleteOrFail" then
+			questGateMessage="{en}Complete or Fail the Quest first.{ru}Сначала завершите или провалите Задание.{zh-tw}請先完成或失敗任務。{zh-cn}请先完成或失败任务。{ko}먼저 퀘스트를 완료하거나 실패 처리하세요.{es}Completa o falla la Misión primero.{fr}Terminez ou échouez d’abord la Quête.{pt-br}Conclua ou falhe a Missão primeiro.{de}Schließe die Quest zuerst ab oder lasse sie scheitern."
+		else
+			questGateMessage="{en}Complete or Progress the Quest first.{ru}Сначала завершите или продвиньте Задание.{zh-tw}請先完成或推進任務。{zh-cn}请先完成或推进任务。{ko}먼저 퀘스트를 완료하거나 진행하세요.{es}Completa o progresa la Misión primero.{fr}Terminez ou faites d’abord progresser la Quête.{pt-br}Conclua ou avance a Missão primeiro.{de}Schließe die Quest zuerst ab oder setze sie fort."
+		end
 		broadcastToColor(questGateMessage,player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
 	if rewardSoftLock==true and gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
-		local overdue=math.max(1,tonumber(gStates.apocalypseHereForcedRevealCount) or 1)
 		cameraControl(player,"-1","mapView")
-		local message=overdue==1 and "Reveal the overdue Map tile before claiming rewards." or ("Reveal "..tostring(overdue).." overdue Map tiles before claiming rewards.")
-		broadcastToColor(message,player.color,warningColor)
+		broadcastToColor("{en}Reveal the overdue Map tile(s) before claiming rewards.{ru}Откройте просроченные тайлы карты перед получением наград.{zh-tw}領取獎勵前，先揭示逾期的地圖板塊。{zh-cn}领取奖励前，先揭示逾期的地图板块。{ko}보상을 받기 전에 지연된 지도 타일을 공개하세요.{es}Revela las losetas de Mapa pendientes antes de reclamar recompensas.{fr}Révélez les tuiles Carte en retard avant de réclamer les récompenses.{pt-br}Revele as peças de Mapa atrasadas antes de receber as recompensas.{de}Decke die überfälligen Kartenteile auf, bevor du Belohnungen beanspruchst.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
@@ -18033,6 +17911,14 @@ local function turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)
 	return false
 end
 
+local function completedTurnCanDrawHand()
+	if gStates.timeBending=="Started" and gStates.turnNumber==gStates.realTurn then return false end
+	local nextMage=nextTurnMerged("nextMage")
+	local nextMageSkipDummy=nextTurnMerged("nextMageSkipDummy")
+	return turnOrder[nextMage]~=nil and turnOrder[nextMage].endCalled~=true and
+		turnOrder[nextMageSkipDummy]~=nil and turnOrder[nextMageSkipDummy].endCalled~=true
+end
+
 local function turnAdvanceCoopRewards(player,mouseButton,id,rewindReady,rewardSoftLock)
 	if gStates.skillButtons==0 or rewardSoftLock~=true then
 		if rewindReady~=true then
@@ -18044,7 +17930,7 @@ local function turnAdvanceCoopRewards(player,mouseButton,id,rewindReady,rewardSo
 			safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
 		end
 		--Co-op hand draw is delayed until Rewards Claimed, after the city result has set the final hand limit.
-		if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then drawUpTo(player, "-1", "DrawHand") end
+		if completedTurnCanDrawHand()==true then drawUpTo(player, "-1", "DrawHand") end
 		--Don't switch reward players while a visible Deed transfer is still travelling or queued.
 		if cardClaim==true or deedTransferAnyBusy()==true then
 			safeWaitCondition("Turn",finishCoopRewardAdvance,function() return cardClaim~=true and deedTransferAnyBusy()~=true end,10,finishCoopRewardAdvance)
@@ -18099,11 +17985,9 @@ local function turnResetCompletedTurnState()
 end
 
 local function turnDrawCompletedTurnHand(player)
-	if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and gStates.coopAssaultPhase~="combat" then
+	if gStates.coopAssaultPhase~="combat" and completedTurnCanDrawHand()==true then
 		--Normal turns draw here. Co-op assault hands wait until that player clicks Rewards Claimed.
-		if turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then
-			drawUpTo(player, "-1", "DrawHand")
-		end
+		drawUpTo(player, "-1", "DrawHand")
 	end
 end
 
@@ -18116,7 +18000,7 @@ local function turnCleanupCompletedTurnBoard()
 	end
 
 	--re-enable night tactic six buttons
-	if turnOrder[gStates.turnNumber].tactic==6 and gStates.tacticSixState~="Used" and gStates.dayRound==false then
+	if turnOrder[gStates.turnNumber].tactic==6 and gStates.tacticSixState~="Used" and gStates.tacticSixState~="Claiming" and gStates.dayRound==false then
 		gStates.tacticSixState="notClaimed"
 	end
 
@@ -18480,7 +18364,7 @@ function __PreEndRound_raw(player, mouseButton, id)
 end
 
 --Run all the End of Round Tasks
-endRoundRewindRequestPending=false
+local endRoundRewindRequestPending=false
 local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 	if rewindReady~=true then
 		if endRoundRewindRequestPending==true then return true end
@@ -18501,6 +18385,41 @@ local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 	end
 	--Time Bending returns before the round reset rebuilds and shuffles the owner's Deed deck.
 	if gStates.timeBendingRemovedSeat~=nil then if reclaimTimeBending(endRound)==true then return true end end
+	--Sparing Power cards are still part of the owner's Deed deck at round end. Return them before
+	--the normal deck reset so cards merged under the Tactic cannot be orphaned when powerStored clears.
+	if gStates.powerStored~=nil and #gStates.powerStored>0 then
+		local storedSeat=nil
+		for _, stored in ipairs(gStates.powerStored) do
+			if stored.seatPos~=nil then storedSeat=stored.seatPos break end
+		end
+		if storedSeat==nil then
+			for _, details in pairs(turnOrder) do
+				if details.tactic==6 and details.mage~=gStates.positionMageKnight[5] then storedSeat=details.seatPos break end
+			end
+		end
+		if storedSeat==nil then
+			local tactic=getObjectFromGUID(tacticCard[12])
+			if tactic~=nil then
+				local inferredSeat=math.ceil((tactic.getPosition()[1]+78)/40)
+				if inferredSeat>=1 and inferredSeat<=4 then storedSeat=inferredSeat end
+			end
+		end
+		if storedSeat~=nil then
+			local discardZone=getObjectFromGUID(deedDeckDiscardZones[storedSeat])
+			local discardPos=discardZone~=nil and discardZone.getPosition() or {(storedSeat*40)-110.32,1.12,-43.20}
+			claimNightTactic6StoredCards(storedSeat,function(failed)
+				--The round reset must resume exactly once. At this point a failed GUID is genuinely missing
+				--from the live table, so retaining it would just re-enter this recovery forever.
+				if #failed>0 then log("Night Tactic 6 could not return "..tostring(#failed).." stored card(s) during end-of-round cleanup.") end
+				gStates.powerStored={}
+				refreshNightTactic6StoredCount()
+				scheduleDeedPileDescriptionRefresh(storedSeat, "deed")
+				safeWaitFrames("Turn",function() endRound(true) end,2)
+			end,{discardPos[1],discardPos[2]+1.5,discardPos[3]})
+			return true
+		end
+		log("Night Tactic 6 has stored cards but no owner seat could be resolved during end-of-round cleanup.")
+	end
 	--Against the Horsemen resolves its Round 1/2 approach, or the Round 3 ritual move, before tactics or the round reset.
 	if againstHorsemenBeginEndRoundMovement()==true then return true end
 	--A Proxy objective is part of its Deed deck between rounds, just like the physical rules.
@@ -18519,10 +18438,9 @@ local function turnEndRoundAdvanceWorld()
 	apocalypseQuestEndRoundCleanup()
 	gStates.currentRound=gStates.currentRound+1
 	apocalypseQuestRefreshStrayToken()
-	gStates.powerStored={}
 	for _, details in pairs(turnOrder) do if details.tactic==6 then scheduleDeedPileDescriptionRefresh(details.seatPos, "deed") end end
 
-	--Switch Day/Night Objects for Darkness is Comming
+	--Switch Day/Night Objects for Darkness is Coming
 	local dieValue={"{en}Red{ru}Красный{zh-tw}红色的{zh-cn}红色的{ko}빨간색{es}Rojo{fr}Rouge{pt-br}Vermelho{de}Rote",
 					"{en}Green{ru}Зеленый{zh-tw}绿色的{zh-cn}绿色的{ko}녹색{es}Verde{fr}Vert{pt-br}Verde{de}Grüne",
 					"{en}Blue{ru}Синий{zh-tw}蓝色的{zh-cn}蓝色的{ko}파란색{es}Azul{fr}Bleu{pt-br}Azul{de}Blaue",
@@ -18532,7 +18450,7 @@ local function turnEndRoundAdvanceWorld()
 	local virtualDie1=math.random(1,6)
 	local virtualDie2=math.random(1,6)
 	if gStates.darknessComing==true then broadcastToAll(joinLang({"{en}Virtual Dice rolled {ru}Виртуальный бросок кубика выпал на {zh-tw}投掷出{zh-cn}投掷出{ko}다음의 색 주사위 굴려짐: {es}Dados virtuales enrollados en {fr}Dés virtuels lancés {pt-br}Dados Virtuais Rolados {de}Virtuelle Würfel gewürfelt ", dieValue[virtualDie1], "{en} and {ru} и {zh-tw}和{zh-cn}和{ko}그리고{es} y {fr} et {pt-br} e {de} und ", dieValue[virtualDie2]}), {1,1,0.5}) end
-	if gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) then broadcastToAll("{en}Time of day has changed permenantly{ru}Время дня изменилось до конца игры{zh-tw}白昼/黑夜停止交替了{zh-cn}白昼/黑夜停止交替了{ko}낮 또는 밤이 영원히 지속됩니다{es}La hora del día ha cambiado permanentemente{fr}L'heure de la journée a changé en permanence{pt-br}Tempo do dia mudado permanentemente.{de}Die Tageszeit hat sich dauerhaft geändert", {1,1,0.5}) end
+	if gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) then broadcastToAll("{en}Time of day has changed permanently{ru}Время дня изменилось до конца игры{zh-tw}白昼/黑夜停止交替了{zh-cn}白昼/黑夜停止交替了{ko}낮 또는 밤이 영원히 지속됩니다{es}La hora del día ha cambiado permanentemente{fr}L'heure de la journée a changé en permanence{pt-br}Tempo do dia mudado permanentemente.{de}Die Tageszeit hat sich dauerhaft geändert", {1,1,0.5}) end
 	if gStates.darknessComing==false or (gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) and gStates.timeChanged==false) then
 		gStates.timeChanged=true
 		dayNight()
@@ -18591,8 +18509,8 @@ local function turnEndRoundRefreshOffers()
 			local firstAction=mainOfferFirstCardByType("Advanced Action")
 			if firstAction~=nil then
 				firstAction.unlock()
-				firstAction.setRotationSmooth({0,180,180})
-				firstAction.setPositionSmooth({getObjectFromGUID(dummyBoard).getPosition()[1]+4.5,1.17,getObjectFromGUID(dummyBoard).getPosition()[3]-5.2})
+				firstAction.setRotationSmooth({0,180,180},false,false)
+				firstAction.setPositionSmooth({getObjectFromGUID(dummyBoard).getPosition()[1]+4.5,1.17,getObjectFromGUID(dummyBoard).getPosition()[3]-5.2},false,false)
 			end
 			--Put spell colored crystal in the automated player's inventory. A damaged/empty Spell offer
 			--must not leave obj pointing at a mana bag and then try to count the bag as a crystal.
@@ -18667,7 +18585,7 @@ local function turnEndRoundRefreshSkillsAndUnits()
 	--Flip all skills
 	broadcastToAll("{en}All Mage Knight Skills Reset{ru}Жетоны навыков снова готовы к использованию{zh-tw}所有魔法骑士的技能重置{zh-cn}所有魔法骑士的技能重置{ko}모든 스킬이 리셋 되었습니다{es}Restablecimiento de Todas las Habilidades de Mage Knight{fr}Réinitialisation de Toutes les Compétences de Mage Knight{pt-br}Todas as Hab. de MK Redefinidas{de}Alle Magier-Ritter-Fähigkeiten zurückgesetzt", {1,1,0.5})
 	for skillGUID, skillDetails in pairs(skillTokens) do
-		if getObjectFromGUID(skillGUID)~=nil then getObjectFromGUID(skillGUID).setRotationSmooth({0.0, 180.0, 0.0}) end
+		if getObjectFromGUID(skillGUID)~=nil then getObjectFromGUID(skillGUID).setRotationSmooth({0.0, 180.0, 0.0},false,false) end
 	end
 	--Update Motivation Skills status
 	for a, stats in pairs(gStates.motivationSkill) do
@@ -18704,7 +18622,7 @@ local function turnEndRoundRefreshSkillsAndUnits()
 
 	--Flip banner Cards
 	for _, bannerGUID in pairs(bannerGUIDs) do
-		if getObjectFromGUID(bannerGUID)~=nil then getObjectFromGUID(bannerGUID).setRotationSmooth({0, 180, 0}) end
+		if getObjectFromGUID(bannerGUID)~=nil then getObjectFromGUID(bannerGUID).setRotationSmooth({0, 180, 0},false,false) end
 	end
 	if getObjectFromGUID(GUID.card.bannerOfCommandToken)~=nil then
 		safeWaitFrames("Turn",function() safeWaitCondition("Turn",function()
@@ -18718,7 +18636,7 @@ local function turnEndRoundRefreshSkillsAndUnits()
 	for _, magicFamiliarGUID in pairs(magicFamiliars) do
 		if getObjectFromGUID(magicFamiliarGUID)~=nil and getObjectFromGUID(magicFamiliarGUID).getPosition()[3]<-30 then
 			local pos=getObjectFromGUID(magicFamiliarGUID).getPosition()
-			getObjectFromGUID(magicFamiliarGUID).setPositionSmooth({pos[1], pos[2], pos[3]-3})
+			getObjectFromGUID(magicFamiliarGUID).setPositionSmooth({pos[1], pos[2], pos[3]-3},false,false)
 			if blurbed==false then broadcastToAll("{en}Magic Familiars are looking for more Mana to sustain them.{ru}Магические фамильяры жаждут ману для поддержания своей жизни.{zh-tw}法师们正在寻找更多的法力来供能他们。 {zh-cn}法师们正在寻找更多的法力来供能他们。 {ko}마법 패밀리어가 힘을 유지하기 위한 마나를 요구합니다.{es}Los Familiares Mágicos buscan más Maná para sustentarlos.{fr}Les Familiers Magiques recherchent plus de Mana pour les soutenir.{pt-br}Familiares Mágicos estão procurando por mais Mana para sustentá-los.{de}Magische Vertraute suchen nach mehr Mana, um sie zu unterstützen.", {1,1,0.5}) blurbed=true end
 		end
 	end
@@ -18734,7 +18652,7 @@ local function turnEndRoundResetPlayerDecks()
 			for _, obj in pairs(getObjectFromGUID(deedDeckDiscardZones[playerDetails.seatPos]).getObjects()) do
 				if obj.type=="Deck" then
 					newDeck=obj
-					newDeck.setRotationSmooth({0.0, 180.0, 180.0})
+					newDeck.setRotationSmooth({0.0, 180.0, 180.0},false,false)
 					newDeck.setPosition({getObjectFromGUID(deedDeckZones[playerDetails.seatPos]).getPosition()[1], 1.2, getObjectFromGUID(deedDeckZones[playerDetails.seatPos]).getPosition()[3]})
 					test=1
 					break
@@ -18781,15 +18699,12 @@ local function turnEndRoundResetPlayerDecks()
 end
 
 local function turnEndRoundPrepareTurnOrder()
-	--Work out new tactics picking order
-	table.sort(turnOrder, function (k1, k2) return k1.fame < k2.fame end)
-	for a=1, #turnOrder-1, 1 do
-		if turnOrder[a].fame==turnOrder[a+1].fame and turnOrder[a].tactic<turnOrder[a+1].tactic then
-			local temp=turnOrder[a]
-			turnOrder[a]=turnOrder[a+1]
-			turnOrder[a+1]=temp
-		end
-	end
+	--Work out new tactics picking order. Lower Fame chooses first; ties use the later
+	--previous-round turn order (higher tactic number) first.
+	table.sort(turnOrder, function(k1, k2)
+		if k1.fame~=k2.fame then return k1.fame<k2.fame end
+		return (k1.tactic or 0)>(k2.tactic or 0)
+	end)
 	gStates.turnNumber=1
 	for a=1, #turnOrder, 1 do if playerDropoutInactive(a)==false then gStates.turnNumber=a break end end
 	gStates.realTurn=gStates.turnNumber
@@ -19139,7 +19054,7 @@ dayTactic2Discarded=function(player, mouseButton, id)
 			for _, possibleDeck in pairs(getObjectFromGUID(deedDeckZones[playerPosition]).getObjects()) do if possibleDeck.tag=="Deck" or possibleDeck.tag=="Card" then deedDeck=possibleDeck break end end
 			if deedDeck~=nil then
 				if deedDeck.tag=="Deck" then for a=1, drawCount, 1 do deedDeck.takeObject({position={(playerPosition*40)-100-(a*0.2), 4.59, -47.55}, rotation={0,180,0}}) end
-				elseif drawCount>0 then deedDeck.setPositionSmooth({(playerPosition*40)-100, 4.59, -47.55}) deedDeck.setRotationSmooth({0,180,0}) end
+				elseif drawCount>0 then deedDeck.setPositionSmooth({(playerPosition*40)-100, 4.59, -47.55},false,false) deedDeck.setRotationSmooth({0,180,0},false,false) end
 			end
 			safeWaitTime("Turn",finishDayTactic2, 0.5)
 		end
@@ -19147,34 +19062,45 @@ dayTactic2Discarded=function(player, mouseButton, id)
 end
 
 function nightTactic2(player, mouseButton, id)
-	if mouseButton=="-1" then
-		if legalPlayerCheck(player.color, tonumber(id:sub(14,14)))==true then
-			for a=1, #turnOrder, 1 do
-				if turnOrder[a].seatPos==tonumber(id:sub(14,14)) then
-					--Find Discard Deck
-					for b, discards in pairs(getObjectFromGUID(deedDeckDiscardZones[turnOrder[a].seatPos]).getObjects()) do
-						if discards.type=="Deck" then
-							--shuffle discard
-							discards.shuffle()
-							--put three discards in deed deck
-							safeWaitTime("Turn",function()
-								local deckPos={-74.19+(40*(turnOrder[a].seatPos-1)), 1.50, -43.16}
-								discards.takeObject({position=deckPos, smooth=true, rotation={0, 180, 180}})
-								discards.takeObject({position=deckPos, smooth=true, rotation={0, 180, 180}})
-								discards.takeObject({position=deckPos, smooth=true, rotation={0, 180, 180}})
-							end, 0.5)
-							break
-						end
-					end
-					--stop from repeating
-					gStates.tacticTwoState="Used"
-					--flip over tactic
-					if getObjectFromGUID(tacticCard[8]).is_face_down==false then getObjectFromGUID(tacticCard[8]).flip() end
-					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic to refill Deed Deck with 3 Random discards{ru} использует Тактику 2 и кладет 3 карты из сброса в Колоду деяний{zh-tw}使用战术从弃牌堆中随机拿了3张手牌{zh-cn}使用战术从弃牌堆中随机拿了3张手牌{ko}: 전략 카드 2 사용. 3장의 버려진 카드로 더미를 채웁니다.{es} usó Táctica para rellenar Deed Deck con 3 descartes aleatorios{fr} utilisé Tactic pour remplir Deed Deck avec 3 défausse aléatoires{pt-br} usou Tática para preencher o Baralho de Façanhas com 3 cartas aleatórias do Discarte.{de} taktik benutzt, um das Tatendeck mit 3 zufälligen Abwürfen aufzufüllen"}), positionToColor(a))
-					mainUIUpdate("Night Tactic 2 Used")
-					break
+	if mouseButton~="-1" then return end
+	local seatPos=tonumber(id:sub(14,14))
+	if seatPos==nil or legalPlayerCheck(player.color, seatPos)~=true then return end
+	for a=1, #turnOrder, 1 do
+		if turnOrder[a].seatPos==seatPos then
+			--The UI only offers Long Night while this owner's Deed deck is empty, but revalidate here
+			--as well so a stale button or delayed click cannot consume the tactic illegally.
+			if turnOrder[a].tactic~=2 or gStates.dayRound~=false or gStates.tacticTwoState=="Used" or turnOrder[a].mage==gStates.positionMageKnight[5] then return end
+			if readDeedPileCardCount(seatPos)>0 then
+				mainUIUpdate("Night Tactic 2 unavailable")
+				return
+			end
+
+			local discardZone=getObjectFromGUID(deedDeckDiscardZones[seatPos])
+			local discards=nil
+			if discardZone~=nil then
+				for _, obj in pairs(discardZone.getObjects()) do
+					if obj.type=="Deck" or obj.type=="Card" then discards=obj break end
 				end
 			end
+			if discards==nil then
+				broadcastToColor("{en}Night Tactic 2: there are no discarded Deed cards to return.{ru}Ночная тактика 2: нет сброшенных карт Действий для возврата.{zh-tw}夜間戰術 2：沒有可放回的已棄行動牌。{zh-cn}夜间战术 2：没有可放回的已弃行动牌。{ko}야간 전술 2: 되돌릴 버린 행동 카드가 없습니다.{es}Táctica Nocturna 2: no hay cartas de Acción descartadas para devolver.{fr}Tactique Nocturne 2 : aucune carte Action défaussée ne peut être remise.{pt-br}Tática Noturna 2: não há cartas de Ação descartadas para devolver.{de}Nachttaktik 2: Es gibt keine abgeworfenen Aktionskarten zum Zurücklegen.",player.color,warningColor)
+				return
+			end
+
+			--Consume the UI state before the animated resolver begins. This prevents a second click while
+			--the three cards are visibly travelling back to the Deed deck.
+			gStates.tacticTwoState="Used"
+			mainUIUpdate("Night Tactic 2 Resolving")
+			nightTacticTwoResolve(a,function(returned)
+				if returned<1 then
+					gStates.tacticTwoState="notUsed"
+					mainUIUpdate("Night Tactic 2 Unused")
+					return
+				end
+				broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic 2 to return up to 3 random discards to their Deed Deck.{ru} использует Тактику 2, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний.{zh-tw}使用戰術 2，將最多 3 張隨機棄牌放回行動牌庫。{zh-cn}使用战术 2，将最多 3 张随机弃牌放回行动牌库。{ko}: 전술 2를 사용해 무작위 버린 카드 최대 3장을 행동 덱으로 되돌립니다.{es} usó la Táctica 2 para devolver hasta 3 descartes aleatorios a su mazo de Acciones.{fr} utilise la Tactique 2 pour remettre jusqu’à 3 cartes défaussées aléatoires dans son paquet Action.{pt-br} usou a Tática 2 para devolver até 3 descartes aleatórios ao Baralho de Ações.{de} verwendet Taktik 2, um bis zu 3 zufällige Abwürfe in das Aktionsdeck zurückzulegen."}), positionToColor(a))
+				mainUIUpdate("Night Tactic 2 Used")
+			end)
+			break
 		end
 	end
 end
@@ -19215,16 +19141,79 @@ function nightTactic4(player, mouseButton, id)
 	end
 end
 
+--A small non-interactive counter lives on Sparing Power while cards are stored beneath it.
+function nightTactic6StoredCountNoop() end
+
+function refreshNightTactic6StoredCount()
+	local tactic=getObjectFromGUID(tacticCard[12])
+	if tactic==nil then return end
+	local count=#(gStates.powerStored or {})
+	local counterIndex=nil
+	local counterLabel=nil
+	for _, button in pairs(tactic.getButtons() or {}) do
+		if button.click_function=="nightTactic6StoredCountNoop" then
+			counterIndex=button.index
+			counterLabel=button.label
+			break
+		end
+	end
+	if count<1 then
+		if counterIndex~=nil then tactic.removeButton(counterIndex) end
+		return
+	end
+	if counterIndex~=nil then
+		if tostring(counterLabel)~=tostring(count) then tactic.editButton({index=counterIndex,label=tostring(count)}) end
+	else
+		tactic.createButton({
+			click_function="nightTactic6StoredCountNoop",
+			function_owner=Global,
+			label=tostring(count),
+			position={0.82,0.30,-1.18},
+			rotation={0,0,0},
+			width=0,
+			height=0,
+			font_size=220,
+			font_color={1,1,1,1}
+		})
+	end
+end
+
 --Claim Night Tactic 6 cards from the GUIDs recorded when they were stored. Stored cards may
 --be loose or may have merged into a Deck, so resolve one GUID at a time and reacquire its container.
-local function claimNightTactic6StoredCards(seatPos, callback)
+--Normal claims use the same smooth hand destination/animation as drawUpTo(); end-of-round recovery
+--can still provide a direct destination override for cleanup.
+claimNightTactic6StoredCards=function(seatPos, callback, destinationOverride)
 	local storedGUIDs={}
-	for _, stored in ipairs(gStates.powerStored or {}) do if stored.guid~=nil then storedGUIDs[#storedGUIDs+1]=stored.guid end end
-	local destination={(seatPos*40)-100, 4.59, -47.55}
+	for _, stored in ipairs(gStates.powerStored or {}) do
+		if stored.guid~=nil then storedGUIDs[#storedGUIDs+1]=stored.guid end
+	end
+	local drawToHand=destinationOverride==nil
+	local destination=destinationOverride
 	local failed={}
+	local function cardDestination(index)
+		if drawToHand==true then return deedHandDrawPosition(seatPos,index) end
+		return {destination[1]+((index-1)*0.15), destination[2], destination[3]}
+	end
+	--Each extraction can collapse or replace the Deck object that contained the remaining stored
+	--cards. Resolve the live container again for every GUID instead of retaining stale Deck handles.
+	local function findStoredContainer(guid)
+		for _, object in pairs(getObjects()) do
+			if object.type=="Deck" then
+				for _, cardData in pairs(object.getObjects()) do
+					if cardData.guid==guid then return object end
+				end
+			end
+		end
+		return nil
+	end
 	local function moveCard(card, index)
-		card.setPosition({destination[1]+((index-1)*0.15), destination[2], destination[3]})
-		card.setRotation({0, 180, 0})
+		if drawToHand==true then
+			animateDeedCardToHand(card,seatPos,index)
+		else
+			local target=cardDestination(index)
+			card.setPosition(target)
+			card.setRotation({0, 180, 0})
+		end
 	end
 	local function resolve(index)
 		if index>#storedGUIDs then if callback~=nil then callback(failed) end return end
@@ -19236,22 +19225,17 @@ local function claimNightTactic6StoredCards(seatPos, callback)
 			return
 		end
 
-		--A stored pile can become a Deck. Find the current Deck containing this exact GUID.
-		for _, object in pairs(getObjects()) do
-			if object.type=="Deck" then
-				for _, cardData in pairs(object.getObjects()) do
-					if cardData.guid==guid then
-						safeTakeObject("Turn",object,{guid=guid, position={destination[1]+((index-1)*0.15), destination[2], destination[3]}, rotation={0,180,0}, smooth=false, callback_function=function(taken)
-							moveCard(taken, index)
-							safeWaitFrames("Turn",function() resolve(index+1) end, 1)
-						end})
-						return
-					end
-				end
-			end
+		local container=findStoredContainer(guid)
+		if container~=nil then
+			local taken=safeTakeObject("Turn",container,{guid=guid, position=cardDestination(index), rotation={0,180,0}, smooth=drawToHand, callback_function=function(takenCard)
+				moveCard(takenCard, index)
+				safeWaitFrames("Turn",function() resolve(index+1) end, 1)
+			end})
+			if taken~=nil then return end
 		end
+		--A failed extraction must not strand the recursive resolver forever.
 		failed[#failed+1]=guid
-		resolve(index+1)
+		safeWaitFrames("Turn",function() resolve(index+1) end,1)
 	end
 	resolve(1)
 end
@@ -19274,7 +19258,7 @@ function nightTactic6(player, mouseButton, id)
 						if deedZoneObj.type=="Card" then
 							--Quick Witted is set aside, so skip it and keep looking for a normal Deed card.
 							if not (turnOrder[playerIndex].mage=="Coral" and deedZoneObj.guid==GUID.card.quickWitted) then
-								deedZoneObj.setPositionSmooth({tactic.getPosition()[1], 1.2, tactic.getPosition()[3]})
+								deedZoneObj.setPositionSmooth({tactic.getPosition()[1], 1.2, tactic.getPosition()[3]},false,false)
 								deedZoneObj.setRotation({0, 180, 180})
 								drawn=deedZoneObj
 								break
@@ -19298,29 +19282,42 @@ function nightTactic6(player, mouseButton, id)
 
 					--The stored card is no longer in the Deed deck and will later be claimed to hand.
 					turnOrder[playerIndex].deedCount=math.max(0,(turnOrder[playerIndex].deedCount or 0)-1)
-					gStates.powerStored[#gStates.powerStored+1]={["guid"]=drawn.guid}
+					gStates.powerStored[#gStates.powerStored+1]={guid=drawn.guid, seatPos=seatPos}
 					gStates.tacticSixState="Stored"
+					refreshNightTactic6StoredCount()
 					scheduleDeedPileDescriptionRefresh(seatPos, "deed")
 					mainUIUpdate("Night Tactic 6 Stored")
 				end
 
-				--Let Coral's physical set-aside card settle back on the bottom before taking the top card.
-				if turnOrder[playerIndex].mage=="Coral" then coralSetAsideQuickWitted() safeWaitFrames("Turn",storeTopCard, 5)
-				else storeTopCard() end
-				tactic.setPositionSmooth({tactic.getPosition()[1], 4, tactic.getPosition()[3]})
+				--Wait for Quick Witted to be physically back inside Coral's Deed Deck before taking the
+				--top normal card. A fixed frame delay can race a slow host or a moving/collapsing Deck.
+				if turnOrder[playerIndex].mage=="Coral" then
+					coralSetAsideQuickWitted()
+					safeWaitCondition("Turn",storeTopCard,function() return coralQuickWittedReadyForDraw()==true end,5,function()
+						log("Night Tactic 6 could not store a card because Coral's Quick Witted did not return to the Deed Deck.")
+					end)
+				else
+					storeTopCard()
+				end
+				tactic.setPositionSmooth({tactic.getPosition()[1], 4, tactic.getPosition()[3]},false,false)
 			end
 			if id:sub(1,17)=="NightTactic6Claim" then
 				local seatPos=tonumber(id:sub(18,18))
-				if seatPos==nil then return end
+				if seatPos==nil or gStates.tacticSixState=="Claiming" then return end
+				gStates.tacticSixState="Claiming"
 				claimNightTactic6StoredCards(seatPos, function(failed)
 					if #failed>0 then
+						gStates.tacticSixState="notClaimed"
 						broadcastToAll(joinLang({"{en}Night Tactic 6 could not find {ru}Ночная тактика 6 не смогла найти {zh-tw}夜間戰術 6 找不到 {zh-cn}夜间战术 6 找不到 {ko}야간 전술 6에서 저장한 카드 {es}Táctica Nocturna 6 no pudo encontrar {fr}Tactique Nocturne 6 n’a pas pu retrouver {pt-br}Tática Noturna 6 não conseguiu encontrar {de}Nachttaktik 6 konnte ",tostring(#failed),"{en} stored card(s).{ru} сохранённых карт(ы).{zh-tw} 張已儲存的牌。{zh-cn} 张已储存的牌。{ko}장을 찾지 못했습니다.{es} carta(s) guardada(s).{fr} carte(s) conservée(s).{pt-br} carta(s) guardada(s).{de} gespeicherte Karte(n) nicht finden."}), warningColor)
+						outOfTurnUIStateKey=nil
+						mainUIUpdate("Night Tactic 6 Claim Failed")
 						return
 					end
 					--Only finish the tactic after every recorded stored card has actually been returned.
+					gStates.powerStored={}
+					refreshNightTactic6StoredCount()
 					local tactic=getObjectFromGUID(tacticCard[12])
 					if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
-					gStates.powerStored={}
 					gStates.tacticSixState="Used"
 					scheduleDeedPileDescriptionRefresh(seatPos, "deed")
 					outOfTurnUIStateKey=nil
@@ -22434,11 +22431,9 @@ local function puppetMasterDisplayName(name,fallback)
 end
 
 function puppetMasterPlayerIndexForSeat(seatPos)
-	if seatPos==nil then return nil end
-	for playerIndex, details in pairs(turnOrder or {}) do
-		if details.seatPos==seatPos and details.mage~=gStates.positionMageKnight[5] then return playerIndex end
-	end
-	return nil
+	return turnOrderIndexAtSeat(seatPos,function(_,details)
+		return details.mage~=gStates.positionMageKnight[5]
+	end)
 end
 
 function puppetMasterPlayerIndexForMage(mage)
@@ -23251,12 +23246,7 @@ function claimButtonRefresh()
 			if count==0 then
 				local artifactDeck=getObjectFromGUID(GUID.deck.artifact)
 				if artifactDeck~=nil then
-					artifactDeck.UI.setAttribute("ac75c4ArtifactDown", "active", "true")
-					artifactDeck.UI.setAttribute("ac75c4ArtifactOffer", "active", "true")
-					artifactDeck.UI.setAttribute("ac75c4ArtifactUp", "active", "true")
-					artifactDeck.UI.setAttribute("ac75c4ArtifactDownImage", "image", "Overkill Down")
-					artifactDeck.UI.setAttribute("ac75c4ArtifactOfferImage", "image", "Sliced Button/Button Object Active")
-					artifactDeck.UI.setAttribute("ac75c4ArtifactUpImage", "image", "Overkill Up")
+					artifactOfferControlsRestore()
 				end
 			end
 		end
@@ -23580,10 +23570,9 @@ local function lockCompetitiveSkillCloneWhenSettled(clone)
 end
 
 local function competitiveSkillPlayerForSeat(seatPos)
-	for playerIndex, details in pairs(turnOrder) do
-		if details.seatPos==seatPos and details.seatPos<5 and details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then return playerIndex end
-	end
-	return nil
+	return turnOrderIndexAtSeat(seatPos,function(playerIndex,details)
+		return details.seatPos<5 and details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false
+	end)
 end
 
 local function competitiveSkillReminderCount(seatPos)
@@ -23800,6 +23789,21 @@ function createCompetitiveSkillReminders(skillGUID, owner)
 	end
 end
 
+local function clearCirculatingSkillState(skillGUID)
+	gStates.doingTheRounds[skillGUID]=nil
+	gStates.soloCoop[skillGUID]=nil
+	if gStates.doingTheRoundsVisited~=nil then gStates.doingTheRoundsVisited[skillGUID]=nil end
+	deactivateCoopCompSkill(skillGUID,true)
+end
+
+local function trashSharedSkillMarkers(skillGUID)
+	local zoneGUID=sharedSkillAboveZone[skillGUID]
+	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+	local trash=getObjectFromGUID(trashCan)
+	if zone==nil or trash==nil then return end
+	for _,marker in pairs(zone.getObjects()) do if marker.type=="Figurine" then trash.putObject(marker) end end
+end
+
 local function finishCompetitiveSkill(skillGUID, reset)
 	clearCompetitiveSkillReminders(skillGUID)
 	local skill=getObjectFromGUID(skillGUID)
@@ -23807,13 +23811,8 @@ local function finishCompetitiveSkill(skillGUID, reset)
 		skill.setPositionSmooth({gStates.mageSkills[skillGUID][1], 1.5, gStates.mageSkills[skillGUID][3]})
 		if reset~=true then skill.setRotationSmooth({0,180,180}) end
 	end
-	gStates.doingTheRounds[skillGUID]=nil
-	gStates.soloCoop[skillGUID]=nil
-	if gStates.doingTheRoundsVisited~=nil then gStates.doingTheRoundsVisited[skillGUID]=nil end
-	deactivateCoopCompSkill(skillGUID, true)
-	local zoneGUID=sharedSkillAboveZone[skillGUID]
-	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-	if zone~=nil then for _, marker in pairs(zone.getObjects()) do if marker.type=="Figurine" then getObjectFromGUID(trashCan).putObject(marker) end end end
+	clearCirculatingSkillState(skillGUID)
+	trashSharedSkillMarkers(skillGUID)
 end
 
 --Move cooperative skills to the next player. Competitive reminders are removed as each affected player's turn finishes.
@@ -23872,16 +23871,8 @@ function doingTheRounds(skillGUID, nextPlayer, count, reset)
 				skill.setPositionSmooth({skillHome[1], 1.5, skillHome[3]},false,false)
 				if reset~=true then skill.setRotationSmooth({0.0, 180.0, 180.0},false,false) end
 			end
-			gStates.doingTheRounds[skillGUID]=nil
-			gStates.soloCoop[skillGUID]=nil
-			if gStates.doingTheRoundsVisited~=nil then gStates.doingTheRoundsVisited[skillGUID]=nil end
-			deactivateCoopCompSkill(skillGUID, true)
-			local zoneGUID=sharedSkillAboveZone[skillGUID]
-			local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-			local trash=getObjectFromGUID(trashCan)
-			if zone~=nil and trash~=nil then
-				for _, b in pairs(zone.getObjects()) do if b.type=="Figurine" then trash.putObject(b) end end
-			end
+			clearCirculatingSkillState(skillGUID)
+			trashSharedSkillMarkers(skillGUID)
 		else
 			--place next to owner skill for solo cooperative play
 			if sharedSkillAboveZone[skillGUID]~=nil then
@@ -24720,6 +24711,36 @@ local monasteryOfferIsCard, refreshUnitOfferSnapPoints, unitOfferCards, reflowUn
 
 -- Artifact, Unit, Monastery and deed-offer runtime.
 
+local ARTIFACT_CONTROL_IDS={"ac75c4ArtifactDown","ac75c4ArtifactOffer","ac75c4ArtifactUp"}
+
+local function artifactOfferDeck()
+	return getObjectFromGUID(GUID.deck.artifact)
+end
+
+function artifactOfferControlsHide()
+	local deck=artifactOfferDeck()
+	if deck==nil then return false end
+	for _,id in ipairs(ARTIFACT_CONTROL_IDS) do deck.UI.setAttribute(id,"active","false") end
+	return true
+end
+
+function artifactOfferControlsRestore()
+	local deck=artifactOfferDeck()
+	if deck==nil then return false end
+	deck.UI.setAttribute("ac75c4ArtifactDownImage","image","Overkill Down")
+	deck.UI.setAttribute("ac75c4ArtifactOfferImage","image","Sliced Button/Button Object Active")
+	deck.UI.setAttribute("ac75c4ArtifactUpImage","image","Overkill Up")
+	for _,id in ipairs(ARTIFACT_CONTROL_IDS) do deck.UI.setAttribute(id,"active","true") end
+	return true
+end
+
+function artifactOfferRewardTextRefresh()
+	local deck=artifactOfferDeck()
+	if deck==nil then return false end
+	deck.UI.setAttribute("ac75c4ArtifactOfferText","text",joinLang({"{en}Reward {ru}Награда {zh-tw}獎勵{zh-cn}奖励{ko}보상 {es}Premiar {fr}Reward {pt-br}Premiar {de}Belohnung ",gStates.artifactRewards}))
+	return true
+end
+
 -- Artifact reward offer
 --Adjust artifact rewards claim amount
 function artifactAdjust(player, mouseButton, id)
@@ -24731,7 +24752,7 @@ function artifactAdjust(player, mouseButton, id)
 			gStates.artifactRewards=gStates.artifactRewards+1
 			if gStates.artifactRewards>4 then gStates.artifactRewards=4 end
 		end
-		getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferText", "text", joinLang({"{en}Reward {ru}Награда {zh-tw}獎勵{zh-cn}奖励{ko}보상 {es}Premiar {fr}Reward {pt-br}Premiar {de}Belohnung ", gStates.artifactRewards}))
+		artifactOfferRewardTextRefresh()
 	end
 end
 
@@ -24759,9 +24780,7 @@ function offerArtifacts(player, mouseButton, id)
 					gStates.dealtArtifacts[dealtArtifact.guid]=true
 				end
 				--remove reward and arrow buttons.
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "false")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOffer", "active", "false")
-				getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUp", "active", "false")
+				artifactOfferControlsHide()
 			else
 				broadcastToAll("{en}Choose a tactic first{ru}Сперва выберите Тактику{zh-tw}先选一张战术卡吧{zh-cn}先选一张战术卡吧{ko}먼저 전략 카드를 고르세요{es}Elige una táctica primero{fr}Choisissez d'abord une tactique{pt-br}Escolha uma Tática primeiro{de}Wähle zuerst eine Taktik",warningColor)
 			end
@@ -25023,6 +25042,10 @@ function addRegularUnitsToOffer(amount)
 end
 
 --Unit and Monastery Offer update
+--Forward declaration: unitOffer() needs this helper during initial Monastery setup.
+--Keeping the local binding in scope here prevents Lua from resolving the later definition as a nil global.
+local offerDrawOrMoveCard
+
 function unitOffer()
 	refreshUnitOfferSnapPoints(gStates.totalUnitCount)
 	local monasteryPlace=	{{36.0, 0.98, -10.2}, {31.2, 0.98, -10.2}, {26.4, 0.98, -10.2}, {21.6, 0.98, -10.2}, {16.8, 0.98, -10.2}, {12.0, 0.98, -10.2}}
@@ -25143,15 +25166,7 @@ function unitOffer()
 				broadcastToAll("{en}The Advanced Action deck is empty; the Monastery offer could not be fully refilled.{ru}Колода Продвинутых действий пуста; предложение Монастыря не удалось полностью пополнить.{zh-tw}進階行動牌庫已空；修道院供應無法完全補滿。{zh-cn}高级行动牌库已空；修道院供应无法完全补满。{ko}고급 행동 덱이 비어 수도원 제안을 완전히 채울 수 없습니다.{es}El mazo de Acciones Avanzadas está vacío; la oferta del Monasterio no pudo rellenarse por completo.{fr}Le paquet d’Actions Avancées est vide ; l’offre du Monastère n’a pas pu être entièrement remplie.{pt-br}O baralho de Ações Avançadas está vazio; a oferta do Monastério não pôde ser totalmente reabastecida.{de}Der Stapel der Fortgeschrittenen Aktionen ist leer; das Klosterangebot konnte nicht vollständig aufgefüllt werden.",warningColor)
 				break
 			end
-			local drawnCard=nil
-			if source.type=="Deck" then
-				drawnCard=safeTakeObject("Offers",source,params)
-			elseif source.type=="Card" then
-				drawnCard=source
-				drawnCard.unlock()
-				drawnCard.setPositionSmooth(params.position,false,false)
-				drawnCard.setRotationSmooth(params.rotation,false,false)
-			end
+			local drawnCard=offerDrawOrMoveCard(source,params)
 			if drawnCard~=nil then
 				local drawnGUID=drawnCard.guid
 				safeWaitCondition("Offers",function()
@@ -25167,6 +25182,16 @@ function unitOffer()
 end
 
 -- Monastery offer
+offerDrawOrMoveCard=function(source,params)
+	if source==nil then return nil end
+	if source.type=="Deck" then return safeTakeObject("Offers",source,params) end
+	if source.type~="Card" then return nil end
+	source.unlock()
+	source.setPositionSmooth(params.position,false,false)
+	source.setRotationSmooth(params.rotation,false,false)
+	return source
+end
+
 monasteryOfferFirstEmptySlot=function()
 	local occupied={}
 	local zone=getObjectFromGUID(GUID.zone.unitOffer)
@@ -25201,15 +25226,7 @@ function handleMonasteryRevealed()
 		local function drawMonasteryAdvancedAction()
 			local source=standardDeckCycleObject("Advanced Action")
 			if source==nil then return false end
-			local drawnCard=nil
-			if source.type=="Deck" then
-				drawnCard=safeTakeObject("Offers",source,params)
-			elseif source.type=="Card" then
-				drawnCard=source
-				drawnCard.unlock()
-				drawnCard.setPositionSmooth(params.position,false,false)
-				drawnCard.setRotationSmooth(params.rotation,false,false)
-			end
+			local drawnCard=offerDrawOrMoveCard(source,params)
 			if drawnCard==nil then return false end
 			safeWaitCondition("Offers",function() if drawnCard~=nil then drawnCard.lock() end end,function()
 				return drawnCard==nil or drawnCard.resting==true
@@ -25310,14 +25327,8 @@ local function deedOfferMovedSourcesSettled(sourceGUIDs)
 	return true
 end
 
-function setDeedOfferSizeForSetup(value)
-	local size=deedOfferBoundedSize(value)
-	gStates.offerSize=size
-	local sourceX=(4.8*(size+1))+21.6
-	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
-	local actionSource=standardDeckCycleObject("Advanced Action") or getObjectFromGUID(GUID.deck.action)
-	if spellSource~=nil then spellSource.setPositionSmooth({sourceX,2.5,-22.2},false,false) end
-	if actionSource~=nil then actionSource.setPositionSmooth({sourceX,2.5,-16.2},false,false) end
+local function applyDeedOfferGeometry(size,sourceX)
+	sourceX=sourceX or ((4.8*(size+1))+21.6)
 	local spellZone=getObjectFromGUID(GUID.zone.spellDeck)
 	local actionZone=getObjectFromGUID(GUID.zone.actionDeck)
 	local offerZone=getObjectFromGUID(GUID.zone.offer)
@@ -25328,6 +25339,17 @@ function setDeedOfferSizeForSetup(value)
 		offerZone.setPosition({(2.4*(size-1))+26.4,1.13,-19.2})
 	end
 	moveDeedOfferText(size)
+end
+
+function setDeedOfferSizeForSetup(value)
+	local size=deedOfferBoundedSize(value)
+	gStates.offerSize=size
+	local sourceX=(4.8*(size+1))+21.6
+	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+	local actionSource=standardDeckCycleObject("Advanced Action") or getObjectFromGUID(GUID.deck.action)
+	if spellSource~=nil then spellSource.setPositionSmooth({sourceX,2.5,-22.2},false,false) end
+	if actionSource~=nil then actionSource.setPositionSmooth({sourceX,2.5,-16.2},false,false) end
+	applyDeedOfferGeometry(size,sourceX)
 	return true
 end
 
@@ -25377,16 +25399,7 @@ function offerAdjust(player, mouseButton, id)
 		["Spell"]=deedOfferMoveSource(sourceObjects["Spell"],{sourceX,2.5,-22.2}),
 		["Advanced Action"]=deedOfferMoveSource(sourceObjects["Advanced Action"],{sourceX,2.5,-16.2}),
 	}
-	local spellZone=getObjectFromGUID(GUID.zone.spellDeck)
-	local actionZone=getObjectFromGUID(GUID.zone.actionDeck)
-	local offerZone=getObjectFromGUID(GUID.zone.offer)
-	if spellZone~=nil then spellZone.setPosition({sourceX,2.05,-22.2}) end
-	if actionZone~=nil then actionZone.setPosition({sourceX,2.05,-16.2}) end
-	if offerZone~=nil then
-		offerZone.setScale({4.8*newSize,0.3,9.57})
-		offerZone.setPosition({(2.4*(newSize-1))+26.4,1.13,-19.2})
-	end
-	moveDeedOfferText(newSize)
+	applyDeedOfferGeometry(newSize,sourceX)
 
 	if delta>0 then
 		--Do this immediately: the decks move outward while the drawn cards travel into the spaces
@@ -30777,50 +30790,41 @@ local function apocalypseQuestCrystalDiceOffsets(count)
 	return offsets
 end
 
---Random Quest crystal rewards use Noble Warrior's presentation by default: clone every required
---Quest mana die, roll the whole group together, leave all faces visible briefly, then resolve them.
-apocalypseQuestRollCrystalRewardDice=function(card,playerIndex,count,reason,callback)
-	if card==nil or turnOrder[playerIndex]==nil or (count or 0)<1 then return false end
-	local sourceDie=apocalypseQuestSetupDie()
-	if sourceDie==nil then
-		broadcastToAll(joinLang({"{en}Quest roll: could not find the Quest setup mana die for {ru}Бросок задания: не удалось найти кубик маны подготовки задания для {zh-tw}任務擲骰：找不到任務設置魔力骰，任務：{zh-cn}任务掷骰：找不到任务设置魔力骰，任务：{ko}퀘스트 굴림: 퀘스트 설정 마나 주사위를 찾지 못했습니다: {es}Tirada de Misión: no se pudo encontrar el dado de maná de preparación para {fr}Jet de Quête : impossible de trouver le dé de mana de mise en place pour {pt-br}Rolagem da Missão: não foi possível encontrar o dado de mana de preparação para {de}Quest-Wurf: Der Quest-Aufbau-Manawürfel wurde nicht gefunden für ",tostring(reason or "this Quest"),"."}),{1,0.55,0.2})
-		return false
+local function apocalypseQuestTrackRollDie(die,dice)
+	if die==nil then return false end
+	die.unlock()
+	dice[#dice+1]=die.guid
+	if gStates.apocalypseQuestRollDice==nil then gStates.apocalypseQuestRollDice={} end
+	gStates.apocalypseQuestRollDice[die.guid]=true
+	return true
+end
+
+local function apocalypseQuestClearRollDice(dice)
+	for _,guid in ipairs(dice or {}) do
+		local die=getObjectFromGUID(guid)
+		if die~=nil then die.destruct() end
+		if gStates.apocalypseQuestRollDice~=nil then gStates.apocalypseQuestRollDice[guid]=nil end
 	end
-	local cardGUID=card.guid
-	local cardPos=card.getPosition()
-	local offsets=apocalypseQuestCrystalDiceOffsets(count)
+end
+
+local function apocalypseQuestCloneManaDice(sourceDie,cardPos,offsets,count)
 	local dice={}
 	for index=1,count do
 		local offset=offsets[index] or {0,1.25}
-		local die=sourceDie.clone({position={cardPos[1]+offset[1],cardPos[2]+0.70,cardPos[3]+offset[2]}})
-		if die~=nil then
-			die.unlock()
-			dice[#dice+1]=die.guid
-			if gStates.apocalypseQuestRollDice==nil then gStates.apocalypseQuestRollDice={} end
-			gStates.apocalypseQuestRollDice[die.guid]=true
-		end
+		apocalypseQuestTrackRollDie(sourceDie.clone({position={cardPos[1]+offset[1],cardPos[2]+0.70,cardPos[3]+offset[2]}}),dice)
 	end
-	local function clearDice()
-		for _,guid in ipairs(dice) do
-			local die=getObjectFromGUID(guid)
-			if die~=nil then die.destruct() end
-			if gStates.apocalypseQuestRollDice~=nil then gStates.apocalypseQuestRollDice[guid]=nil end
-		end
-	end
-	if #dice~=count then
-		clearDice()
-		broadcastToAll(joinLang({"{en}Quest roll: could not create every mana die for {ru}Бросок задания: не удалось создать все кубики маны для {zh-tw}任務擲骰：無法建立所有魔力骰，任務：{zh-cn}任务掷骰：无法创建所有魔力骰，任务：{ko}퀘스트 굴림: 모든 마나 주사위를 만들 수 없습니다: {es}Tirada de Misión: no se pudieron crear todos los dados de maná para {fr}Jet de Quête : impossible de créer tous les dés de mana pour {pt-br}Rolagem da Missão: não foi possível criar todos os dados de mana para {de}Quest-Wurf: Es konnten nicht alle Manawürfel erstellt werden für ",tostring(reason or "this Quest"),"."}),{1,0.55,0.2})
-		return false
-	end
-	QuestPrivate.apocalypseQuestInterfaceRemove(card)
-	broadcastToAll(joinLang({tostring(reason or "Quest"),"{en} is rolling {ru} бросает {zh-tw} 正在擲 {zh-cn} 正在掷 {ko}에서 마나 주사위 {es} está tirando {fr} lance {pt-br} está rolando {de} würfelt ",tostring(count),count==1 and "{en} mana die.{ru} кубик маны.{zh-tw} 顆魔力骰。{zh-cn} 颗魔力骰。{ko}개를 굴립니다.{es} dado de maná.{fr} dé de mana.{pt-br} dado de mana.{de} Manawürfel." or "{en} mana dice together.{ru} кубика маны вместе.{zh-tw} 顆魔力骰。{zh-cn} 颗魔力骰。{ko}개를 함께 굴립니다.{es} dados de maná juntos.{fr} dés de mana ensemble.{pt-br} dados de mana juntos.{de} Manawürfel gleichzeitig."}),positionToColor(playerIndex))
+	return dice
+end
 
+local function apocalypseQuestRunManaDiceRoll(dice,cardGUID,callback,onFailure)
 	local finished=false
 	local function failRoll()
 		if finished==true then return end
 		finished=true
-		clearDice()
-		if callback~=nil then callback(false,getObjectFromGUID(cardGUID),nil) end
+		apocalypseQuestClearRollDice(dice)
+		local liveCard=getObjectFromGUID(cardGUID)
+		if onFailure~=nil then onFailure(liveCard) end
+		if callback~=nil then callback(false,liveCard,nil) end
 	end
 	local function finishRoll()
 		if finished==true then return end
@@ -30834,12 +30838,36 @@ apocalypseQuestRollCrystalRewardDice=function(card,playerIndex,count,reason,call
 		end
 		finished=true
 		safeWaitTime("Quests",function()
-			clearDice()
+			apocalypseQuestClearRollDice(dice)
 			if callback~=nil then callback(true,getObjectFromGUID(cardGUID),results) end
 		end,0.8)
 	end
 	apocalypseQuestPhysicalDiceRoll(dice,finishRoll,failRoll)
 	return true
+end
+
+--Random Quest crystal rewards use Noble Warrior's presentation by default: clone every required
+--Quest mana die, roll the whole group together, leave all faces visible briefly, then resolve them.
+apocalypseQuestRollCrystalRewardDice=function(card,playerIndex,count,reason,callback)
+	if card==nil or turnOrder[playerIndex]==nil or (count or 0)<1 then return false end
+	local sourceDie=apocalypseQuestSetupDie()
+	if sourceDie==nil then
+		broadcastToAll(joinLang({"{en}Quest roll: could not find the Quest setup mana die for {ru}Бросок задания: не удалось найти кубик маны подготовки задания для {zh-tw}任務擲骰：找不到任務設置魔力骰，任務：{zh-cn}任务掷骰：找不到任务设置魔力骰，任务：{ko}퀘스트 굴림: 퀘스트 설정 마나 주사위를 찾지 못했습니다: {es}Tirada de Misión: no se pudo encontrar el dado de maná de preparación para {fr}Jet de Quête : impossible de trouver le dé de mana de mise en place pour {pt-br}Rolagem da Missão: não foi possível encontrar o dado de mana de preparação para {de}Quest-Wurf: Der Quest-Aufbau-Manawürfel wurde nicht gefunden für ",tostring(reason or "this Quest"),"."}),{1,0.55,0.2})
+		return false
+	end
+	local cardGUID=card.guid
+	local cardPos=card.getPosition()
+	local offsets=apocalypseQuestCrystalDiceOffsets(count)
+	local dice=apocalypseQuestCloneManaDice(sourceDie,cardPos,offsets,count)
+	if #dice~=count then
+		apocalypseQuestClearRollDice(dice)
+		broadcastToAll(joinLang({"{en}Quest roll: could not create every mana die for {ru}Бросок задания: не удалось создать все кубики маны для {zh-tw}任務擲骰：無法建立所有魔力骰，任務：{zh-cn}任务掷骰：无法创建所有魔力骰，任务：{ko}퀘스트 굴림: 모든 마나 주사위를 만들 수 없습니다: {es}Tirada de Misión: no se pudieron crear todos los dados de maná para {fr}Jet de Quête : impossible de créer tous les dés de mana pour {pt-br}Rolagem da Missão: não foi possível criar todos os dados de mana para {de}Quest-Wurf: Es konnten nicht alle Manawürfel erstellt werden für ",tostring(reason or "this Quest"),"."}),{1,0.55,0.2})
+		return false
+	end
+	QuestPrivate.apocalypseQuestInterfaceRemove(card)
+	broadcastToAll(joinLang({tostring(reason or "Quest"),"{en} is rolling {ru} бросает {zh-tw} 正在擲 {zh-cn} 正在掷 {ko}에서 마나 주사위 {es} está tirando {fr} lance {pt-br} está rolando {de} würfelt ",tostring(count),count==1 and "{en} mana die.{ru} кубик маны.{zh-tw} 顆魔力骰。{zh-cn} 颗魔力骰。{ko}개를 굴립니다.{es} dado de maná.{fr} dé de mana.{pt-br} dado de mana.{de} Manawürfel." or "{en} mana dice together.{ru} кубика маны вместе.{zh-tw} 顆魔力骰。{zh-cn} 颗魔力骰。{ko}개를 함께 굴립니다.{es} dados de maná juntos.{fr} dés de mana ensemble.{pt-br} dados de mana juntos.{de} Manawürfel gleichzeitig."}),positionToColor(playerIndex))
+
+	return apocalypseQuestRunManaDiceRoll(dice,cardGUID,callback)
 end
 
 apocalypseQuestGoblinAttempt=function(playerIndex,currentOnly)
@@ -32108,58 +32136,18 @@ function QuestPrivate.apocalypseQuestNobleWarriorRollReward(card,playerIndex,cal
 	local cardGUID=card.guid
 	local cardPos=card.getPosition()
 	local offsets=apocalypseQuestCrystalDiceOffsets(count)
-	local dice={}
-	for i=1,count do
-		local die=sourceDie.clone({position={cardPos[1]+offsets[i][1],cardPos[2]+0.70,cardPos[3]+offsets[i][2]}})
-		if die~=nil then
-			die.unlock()
-			dice[#dice+1]=die.guid
-			if gStates.apocalypseQuestRollDice==nil then gStates.apocalypseQuestRollDice={} end
-			gStates.apocalypseQuestRollDice[die.guid]=true
-		end
-	end
+	local dice=apocalypseQuestCloneManaDice(sourceDie,cardPos,offsets,count)
 	if #dice~=count then
-		for _,guid in ipairs(dice) do local die=getObjectFromGUID(guid) if die~=nil then die.destruct() end end
+		apocalypseQuestClearRollDice(dice)
 		apocalypseQuestPlaceCrystalOnCard(card,markerColor,0,-0.55,"Noble Warrior")
 		return false
 	end
 	QuestPrivate.apocalypseQuestInterfaceRemove(card)
 	broadcastToAll(joinLang({"{en}Noble Warrior is rolling {ru}Noble Warrior бросает {zh-tw}Noble Warrior 正在擲 {zh-cn}Noble Warrior 正在掷 {ko}Noble Warrior가 무작위 크리스털 주사위 {es}Noble Warrior está tirando {fr}Noble Warrior lance {pt-br}Noble Warrior está rolando {de}Noble Warrior würfelt ",tostring(count),count==1 and "{en} random crystal die.{ru} случайный кубик кристалла.{zh-tw} 顆隨機水晶骰。{zh-cn} 颗随机水晶骰。{ko}개를 굴립니다.{es} dado aleatorio de cristal.{fr} dé de cristal aléatoire.{pt-br} dado aleatório de cristal.{de} zufälligen Kristallwürfel." or "{en} random crystal dice.{ru} случайных кубика кристалла.{zh-tw} 顆隨機水晶骰。{zh-cn} 颗随机水晶骰。{ko}개를 굴립니다.{es} dados aleatorios de cristal.{fr} dés de cristal aléatoires.{pt-br} dados aleatórios de cristal.{de} zufällige Kristallwürfel."}),positionToColor(playerIndex))
 
-	local finished=false
-	local function clearDice()
-		for _,guid in ipairs(dice) do
-			local die=getObjectFromGUID(guid)
-			if die~=nil then die.destruct() end
-			if gStates.apocalypseQuestRollDice~=nil then gStates.apocalypseQuestRollDice[guid]=nil end
-		end
-	end
-	local function failRoll()
-		if finished==true then return end
-		finished=true
-		clearDice()
-		local liveCard=getObjectFromGUID(cardGUID)
+	return apocalypseQuestRunManaDiceRoll(dice,cardGUID,callback,function(liveCard)
 		if liveCard~=nil then apocalypseQuestPlaceCrystalOnCard(liveCard,markerColor,0,-0.55,"Noble Warrior") end
-		if callback~=nil then callback(false,liveCard,nil) end
-	end
-	local function finishRoll()
-		if finished==true then return end
-		local results={}
-		for _,guid in ipairs(dice) do
-			local die=getObjectFromGUID(guid)
-			if die==nil then failRoll() return end
-			local color=apocalypseQuestManaDieColor(die)
-			if color==nil then failRoll() return end
-			results[#results+1]=color
-		end
-		finished=true
-		safeWaitTime("Quests",function()
-			clearDice()
-			if callback~=nil then callback(true,getObjectFromGUID(cardGUID),results) end
-		end,0.8)
-	end
-	apocalypseQuestPhysicalDiceRoll(dice,finishRoll,failRoll)
-	return true
+	end)
 end
 
 function QuestPrivate.apocalypseQuestUnderSiegeFailure(card,playerIndex)
@@ -34867,19 +34855,26 @@ function apocalypseQuestUpdateProgressButtons(card)
 	card.UI.setAttribute(prefix.."FailText", "text", state.failLabel or "{en}Fail{ru}Провал{zh-tw}失敗{zh-cn}失败{ko}실패{es}Fallar{fr}Échouer{pt-br}Falhar{de}Scheitern")
 	card.UI.setAttribute(prefix.."FailText", "color", state.fail and "#000000" or "#777777")
 	if rebuild==true then
-		local cardGUID=card.guid
-		safeWaitCondition("Quests",function()
-			local live=getObjectFromGUID(cardGUID)
-			if live~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(live,true) end
-		end,function()
-			local live=getObjectFromGUID(cardGUID)
-			return live==nil or live.isSmoothMoving()==false
-		end,5,function()
-			local live=getObjectFromGUID(cardGUID)
-			if live~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(live,true) end
-		end)
+		QuestPrivate.apocalypseQuestWhenSmoothMoveDone(card.guid,function(live) QuestPrivate.apocalypseQuestInterfaceAdd(live,true) end)
 	end
 end
+function QuestPrivate.apocalypseQuestWhenSmoothMoveDone(objectGUID,callback,timeout)
+	local obj=objectGUID~=nil and getObjectFromGUID(objectGUID) or nil
+	if obj==nil then return false end
+	if obj.isSmoothMoving()==false then callback(obj) return true end
+	safeWaitCondition("Quests",function()
+		local live=getObjectFromGUID(objectGUID)
+		if live~=nil then callback(live) end
+	end,function()
+		local live=getObjectFromGUID(objectGUID)
+		return live==nil or live.isSmoothMoving()==false
+	end,timeout or 5,function()
+		local live=getObjectFromGUID(objectGUID)
+		if live~=nil then callback(live) end
+	end)
+	return true
+end
+
 function QuestPrivate.apocalypseQuestWhenResting(objectGUID,callback,timeout)
 	local obj=objectGUID~=nil and getObjectFromGUID(objectGUID) or nil
 	if obj==nil then return false end
@@ -34912,17 +34907,7 @@ function QuestPrivate.apocalypseQuestInterfaceAdd(card, forceRebuild)
 		return
 	end
 	if card.isSmoothMoving()==true then
-		local cardGUID=card.guid
-		safeWaitCondition("Quests",function()
-			local live=getObjectFromGUID(cardGUID)
-			if live~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(live,forceRebuild) end
-		end,function()
-			local live=getObjectFromGUID(cardGUID)
-			return live==nil or live.isSmoothMoving()==false
-		end,5,function()
-			local live=getObjectFromGUID(cardGUID)
-			if live~=nil then QuestPrivate.apocalypseQuestInterfaceAdd(live,forceRebuild) end
-		end)
+		QuestPrivate.apocalypseQuestWhenSmoothMoveDone(card.guid,function(live) QuestPrivate.apocalypseQuestInterfaceAdd(live,forceRebuild) end)
 		return
 	end
 	local xml=card.UI.getXmlTable() or {}
@@ -35563,16 +35548,8 @@ end
 local function apocalypseQuestWaitForStepResolution(card,playerIndex,action,option,playerColor,rewindReady)
 if card==nil or option==nil or turnOrder[playerIndex]==nil then return false end
 if card.isSmoothMoving()==true then
-	local cardGUID=card.guid
-	safeWaitCondition("Quests",function()
-		local live=getObjectFromGUID(cardGUID)
-		if live~=nil then QuestPrivate.apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
-	end,function()
-		local live=getObjectFromGUID(cardGUID)
-		return live==nil or live.isSmoothMoving()==false
-	end,5,function()
-		local live=getObjectFromGUID(cardGUID)
-		if live~=nil then QuestPrivate.apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady) end
+	QuestPrivate.apocalypseQuestWhenSmoothMoveDone(card.guid,function(live)
+		QuestPrivate.apocalypseQuestResolveStepAction(live,playerIndex,action,option,playerColor,rewindReady)
 	end)
 	return true
 end
@@ -36669,6 +36646,26 @@ local function setupMainDecksSettled()
 	return true
 end
 
+--Reference/reminder cards are useful setup aids, but a missing copy must not abort the whole game.
+--Reuse an already-deployed copy on a setup retry; otherwise take it from its source bag and lock it.
+local function setupDeployLockedReferenceCard(container,guid,position,label)
+	local rotation={0,180,0}
+	local card=getObjectFromGUID(guid)
+	if card~=nil then
+		card.setPosition(position)
+		card.setRotation(rotation)
+		card.lock()
+		return card
+	end
+	card=safeTakeObject("SetupGame",container,{guid=guid,position=position,rotation=rotation,smooth=false})
+	if card==nil then
+		print("SETUP WARNING: "..tostring(label or guid).." ("..tostring(guid)..") was not available in its setup bag.")
+		return nil
+	end
+	card.lock()
+	return card
+end
+
 local function setupFinishDeckStage()
 	local Wounds={[GUID.deck.spell]={"5c38e4","ab778d"},[GUID.deck.regularUnit]={"b5048c","718f39"}}
 	if gStates.mageKnightLevels==false then
@@ -37058,8 +37055,9 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			end
 		end
 		if apocalypseTokenSupportNeeded==true then
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="c584ff", position={-53.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Apocalypse Cult Reward Card
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="071cc6", position={-49.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Council of the Void Reward Card
+			local apocalypseBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+			setupDeployLockedReferenceCard(apocalypseBag,"c584ff",{-53.50,0.98,21.50},"Apocalypse Cult Reward Card")
+			setupDeployLockedReferenceCard(apocalypseBag,"071cc6",{-49.50,0.98,21.50},"Council of the Void Reward Card")
 		end
 
 		--The Apocalypse systems share the same infinite Neutral Shield bag.
@@ -37277,13 +37275,8 @@ local function finalizeSetup()
 	compactAndRefillDeedOffer()
 	--display the help boxes
 	DisplayHelp(nil, "-1", nil)
-	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDownImage", "image", "Overkill Down")
-	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferImage", "image", "Sliced Button/Button Object Active")
-	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUpImage", "image", "Overkill Up")
-	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "true")
-	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOffer", "active", "true")
-	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUp", "active", "true")
-	getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferText", "text", joinLang({"{en}Reward {ru}Награда {zh-tw}獎勵{zh-cn}奖励{ko}보상 {es}Premiar {fr}Reward {pt-br}Premiar {de}Belohnung ", gStates.artifactRewards}))
+	artifactOfferControlsRestore()
+	artifactOfferRewardTextRefresh()
 	UI.setAttribute("ResourceTracker", "active", "true")
 	UI.setAttribute("cameraControl", "active", "true")
 	if gStates.gameScenario=="One to Return" then UI.hide("ScoreButton") end
@@ -37888,21 +37881,15 @@ function mapSetup(onComplete)
 
 	--Pull Country Tiles
 	local CountryGauntletTiles=			{GUID.tile.country01, GUID.tile.country02, GUID.tile.country03, GUID.tile.country04, GUID.tile.country05, GUID.tile.country06, GUID.tile.country07, GUID.tile.country08, GUID.tile.country09, GUID.tile.country10, GUID.tile.country12, GUID.tile.country13, GUID.tile.country14, GUID.tile.country15, GUID.tile.country16, GUID.tile.country17} CountryGauntletTiles=listShuffle(CountryGauntletTiles)
-	local function countryTileHasVillage(guid)
-		local data=terrainTiles[guid]
-		if data==nil or data.hexFeature==nil then return false end
-		for _, feature in pairs(data.hexFeature) do if feature=="village" then return true end end
-		return false
-	end
 	local function questVillageFirst(array)
 		if apocalypseQuestsUsed()==false then return array end
 		for i, guid in ipairs(array) do
-			if countryTileHasVillage(guid) then array[1], array[i]=array[i], array[1] break end
+			if terrainTileHasFeature(guid,"village") then array[1], array[i]=array[i], array[1] break end
 		end
 		return array
 	end
 	local CountryVillageTiles={}
-	for guid, data in pairs(terrainTiles) do if data.tileType=="country" and countryTileHasVillage(guid) then CountryVillageTiles[#CountryVillageTiles+1]=guid end end
+	for guid, data in pairs(terrainTiles) do if data.tileType=="country" and terrainTileHasFeature(guid,"village") then CountryVillageTiles[#CountryVillageTiles+1]=guid end end
 	CountryVillageTiles=listShuffle(CountryVillageTiles)
 	local CountryTileOrder=				{GUID.tile.country03, GUID.tile.country04, GUID.tile.country05, GUID.tile.country06, GUID.tile.country07, GUID.tile.country08, GUID.tile.country09, GUID.tile.country10, GUID.tile.country11, GUID.tile.country02, GUID.tile.country01}--tiles 01 and 02 at end to deploy corectly at start
 	local CountryNonMonasteryTiles=		{GUID.tile.country01, GUID.tile.country02, GUID.tile.country03, GUID.tile.country04, GUID.tile.country06, GUID.tile.country08, GUID.tile.country09, GUID.tile.country10, GUID.tile.country11, GUID.tile.country13, GUID.tile.country14, GUID.tile.country15, GUID.tile.country16, GUID.tile.country17} CountryNonMonasteryTiles=listShuffle(CountryNonMonasteryTiles)
@@ -37962,7 +37949,7 @@ function mapSetup(onComplete)
 		--Record a Village supplied by the scenario scheme. If this is an unrestricted slot and none has been
 		--selected yet, use an available Village here instead of overriding a scenario-specific terrain requirement.
 		if apocalypseQuestsUsed()==true and questVillageGUID==nil then
-			if params.guid~=nil and countryTileHasVillage(params.guid) then
+			if params.guid~=nil and terrainTileHasFeature(params.guid,"village") then
 				questVillageGUID=params.guid
 			elseif params.guid==nil and CountryVillageTiles[1]~=nil then
 				params.guid=CountryVillageTiles[1]
@@ -40752,12 +40739,10 @@ function processCardClaim(player, mouseButton, id, rewindReady)
 								returnedArtifact.UI.setXmlTable({{}})
 							end
 							--reset buttons
-							getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactDown", "active", "true")
-							getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOffer", "active", "true")
-							getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactUp", "active", "true")
+							artifactOfferControlsRestore()
 							gStates.artifactRewards=1
 							gStates.dealtArtifacts=nil
-							getObjectFromGUID(GUID.deck.artifact).UI.setAttribute("ac75c4ArtifactOfferText", "text", joinLang({"{en}Reward {ru}Награда {zh-tw}獎勵{zh-cn}奖励{ko}보상 {es}Premiar {fr}Reward {pt-br}Premiar {de}Belohnung ", gStates.artifactRewards}))
+							artifactOfferRewardTextRefresh()
 						end
 					end
 					if gameCards[claimedCard.guid]~=nil and source~="artifactReward" then
@@ -41072,96 +41057,131 @@ function coralDrawChoice(player, mouseButton, id)
 	end
 end
 
---Night Tactic 2 can rebuild a Deed pile from either a Deck or its final loose Card.
---Resolve one physical card at a time so TTS Deck->Card collapse cannot invalidate the next takeObject call.
-local function nightTacticTwoCardGUIDs(zone)
-	local guids={}
-	if zone==nil then return guids end
-	for _, obj in pairs(zone.getObjects()) do
-		if obj.type=="Card" then guids[#guids+1]=obj.guid
-		elseif obj.type=="Deck" then for _, data in pairs(obj.getObjects()) do guids[#guids+1]=data.guid end end
-	end
-	for a=#guids,2,-1 do local b=math.random(a) guids[a],guids[b]=guids[b],guids[a] end
-	return guids
-end
-
-local function nightTacticTwoFindCard(zone, guid)
-	if zone==nil or guid==nil then return nil,nil end
-	for _, obj in pairs(zone.getObjects()) do
-		if obj.type=="Card" and obj.guid==guid then return obj,nil end
-		if obj.type=="Deck" then
-			for _, data in pairs(obj.getObjects()) do if data.guid==guid then return nil,obj end end
-		end
-	end
-	return nil,nil
-end
-
-local function nightTacticTwoRefillAndDraw(playerIndex, drawCount, done)
+--Night Tactic 2 resolves as three visible phases: shuffle/flip, refill, then resume the normal draw flow.
+--The refill is launched as one batch; only the two deliberate presentation pauses remain.
+function nightTacticTwoResolve(playerIndex, done)
 	local details=turnOrder[playerIndex]
-	if details==nil then if done~=nil then done(0,0) end return end
+	if details==nil then if done~=nil then done(0) end return end
 	local seatPos=details.seatPos
 	local discardZone=getObjectFromGUID(deedDeckDiscardZones[seatPos])
 	local deedZone=getObjectFromGUID(deedDeckZones[seatPos])
-	if discardZone==nil or deedZone==nil then if done~=nil then done(0,0) end return end
-	local available=nightTacticTwoCardGUIDs(discardZone)
-	local selected={}
-	for a=1, math.min(3,#available) do selected[a]=available[a] end
+	if discardZone==nil or deedZone==nil then if done~=nil then done(0) end return end
+
+	local discards=nil
+	for _, obj in pairs(discardZone.getObjects()) do
+		if obj.type=="Deck" or obj.type=="Card" then discards=obj break end
+	end
+	if discards==nil then if done~=nil then done(0) end return end
+
+	local returnCount=discards.type=="Deck" and math.min(3,discards.getQuantity()) or 1
+	if returnCount<1 then if done~=nil then done(0) end return end
+
+	if discards.type=="Deck" then discards.shuffle() end
+	local tactic=getObjectFromGUID("f6ad01")
+	if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
+
 	local deckPos=deedZone.getPosition()
-	deckPos={deckPos[1],1.50,deckPos[3]}
-	local returned=0
+	local returnTarget={deckPos[1],2.40,deckPos[3]}
 
-	local function finish(drawn)
-		safeWaitFrames("PlayerBoard.CardFlow",function()
-			turnOrder[playerIndex].deedCount=readDeedPileCardCount(seatPos)
-			scheduleDeedPileDescriptionRefresh(seatPos,"deed")
-			scheduleDeedPileDescriptionRefresh(seatPos,"discard")
-			scheduleEndRoundDeedStateRefresh(seatPos)
-			if done~=nil then done(returned,drawn) end
-		end,4)
+	local function finish(returned)
+		turnOrder[playerIndex].deedCount=readDeedPileCardCount(seatPos)
+		scheduleDeedPileDescriptionRefresh(seatPos,"deed")
+		scheduleDeedPileDescriptionRefresh(seatPos,"discard")
+		scheduleEndRoundDeedStateRefresh(seatPos)
+		if done~=nil then done(returned) end
 	end
 
-	local function drawReturned(index, drawn)
-		if index>drawCount then finish(drawn) return end
+	--Pause after the visible shuffle/tactic flip, then launch every returned card together.
+	safeWaitTime("PlayerBoard.CardFlow",function()
 		local pile=nil
-		for _, obj in pairs(deedZone.getObjects()) do
-			if obj.type=="Deck" then pile=obj break end
-			if obj.type=="Card" then pile=obj end
+		for _, obj in pairs(discardZone.getObjects()) do
+			if obj.type=="Deck" or obj.type=="Card" then pile=obj break end
 		end
-		if pile==nil then finish(drawn) return end
-		local handPos={(seatPos*40)-105-(index*0.2),4.59,-47.55}
-		if pile.type=="Deck" then
-			local card=pile.takeObject({position=handPos,rotation={0,180,0},smooth=false})
-			if card==nil then finish(drawn) return end
-		else
+		if pile==nil then finish(0) return end
+
+		local returned=0
+		if pile.type=="Card" then
 			pile.setScale({1.5,1,1.5})
-			pile.setRotation({0,180,0})
-			pile.setPosition(handPos)
-		end
-		safeWaitFrames("PlayerBoard.CardFlow",function() drawReturned(index+1,drawn+1) end,2)
-	end
+			pile.setRotationSmooth({0,180,180},false,false)
+			pile.setPositionSmooth(returnTarget,false,false)
+			returned=1
+		else
+			local quantity=pile.getQuantity()
+			local drawCount=math.min(3,quantity)
+			local deckTakes=drawCount
+			local takeRemainder=drawCount==quantity
+			if takeRemainder==true then deckTakes=math.max(0,drawCount-1) end
 
-	local function returnSelected(index)
-		if index>#selected then
-			safeWaitFrames("PlayerBoard.CardFlow",function() drawReturned(1,0) end,4)
-			return
-		end
-		local loose,deck=nightTacticTwoFindCard(discardZone,selected[index])
-		local function placed(card)
-			if card~=nil then
-				card.setScale({1.5,1,1.5})
-				card.setRotation({0,180,180})
-				card.setPosition({deckPos[1],deckPos[2]+1.0,deckPos[3]})
-				returned=returned+1
+			local function moveRemainder()
+				for _, remainder in pairs(discardZone.getObjects()) do
+					if remainder.type=="Card" then
+						remainder.setScale({1.5,1,1.5})
+						remainder.setRotationSmooth({0,180,180},false,false)
+						remainder.setPositionSmooth({returnTarget[1],returnTarget[2]+(deckTakes*0.08),returnTarget[3]},false,false)
+						returned=returned+1
+						break
+					end
+				end
 			end
-			safeWaitFrames("PlayerBoard.CardFlow",function() returnSelected(index+1) end,3)
-		end
-		if loose~=nil then placed(loose)
-		elseif deck~=nil then
-			safeTakeObject("PlayerBoard.CardFlow",deck,{guid=selected[index],position={deckPos[1],deckPos[2]+1.0,deckPos[3]},rotation={0,180,180},smooth=false,callback_function=placed})
-		else returnSelected(index+1) end
-	end
 
-	returnSelected(1)
+			for x=1, deckTakes do
+				local params={
+					position={returnTarget[1],returnTarget[2]+((x-1)*0.08),returnTarget[3]},
+					rotation={0,180,180},
+					smooth=true
+				}
+				--When this take collapses the discard Deck to its last Card, move that remainder
+				--from the take callback instead of adding another timed step.
+				if takeRemainder==true and x==deckTakes then params.callback_function=moveRemainder end
+				local card=safeTakeObject("PlayerBoard.CardFlow",pile,params)
+				if card~=nil then
+					card.setScale({1.5,1,1.5})
+					returned=returned+1
+				end
+			end
+		end
+
+		--One pause for the whole refill animation. After that pause, wait only for the rebuilt
+		--Deed pile as a whole to contain every returned card; there are no per-card movement waits.
+		local function deedPileCount()
+			local count=0
+			for _, obj in pairs(deedZone.getObjects()) do
+				if obj.type=="Card" then count=count+1
+				elseif obj.type=="Deck" then count=count+obj.getQuantity() end
+			end
+			return count
+		end
+		safeWaitTime("PlayerBoard.CardFlow",function()
+			local function resume()
+				local readyCount=deedPileCount()
+				finish(math.min(returnCount,readyCount))
+			end
+			if deedPileCount()>=returnCount then resume() return end
+			safeWaitCondition("PlayerBoard.CardFlow",resume,function()
+				return deedPileCount()>=returnCount
+			end,2.5,function()
+				local readyCount=deedPileCount()
+				if readyCount<returnCount then
+					log("Night Tactic 2 refill only registered "..tostring(readyCount).." of "..tostring(returnCount).." returned cards.")
+				end
+				finish(math.min(returnCount,readyCount))
+			end)
+		end,1.0)
+	end,0.75)
+end
+
+--Shared destination/animation for Deed cards entering a player's hand.
+--Night Tactic 6 uses this too so stored cards visibly join the hand exactly like a normal draw.
+function deedHandDrawPosition(seatPos, drawIndex)
+	local index=drawIndex or 0
+	return {(seatPos*40)-105-(index*0.2), 4.59, -47.55}
+end
+
+function animateDeedCardToHand(card, seatPos, drawIndex)
+	if card==nil then return end
+	card.setScale({1.5, 1, 1.5})
+	card.setPositionSmooth(deedHandDrawPosition(seatPos, drawIndex),false,false)
+	card.setRotationSmooth({0, 180, 0},false,false)
 end
 
 --Draw cards from a deed deck into that positions hand
@@ -41222,7 +41242,7 @@ function drawUpTo(player, mouseButton, id)
 								local takeRemainder=drawNow==deckQuantity
 								if takeRemainder==true then deckTakes=math.max(0,deckQuantity-1) end
 								for x=1, deckTakes do
-									local drawn=deedDeck.takeObject({position={(playerPosition*40)-105-(x*0.2), 4.59, -47.55}, rotation={0, 180, 0}})
+									local drawn=deedDeck.takeObject({position=deedHandDrawPosition(playerPosition,x), rotation={0, 180, 0}, smooth=true})
 									if drawn~=nil then turnOrder[turnAffected].deedCount=math.max(0,(turnOrder[turnAffected].deedCount or 0)-1) end
 								end
 								if takeRemainder==true then
@@ -41231,9 +41251,7 @@ function drawUpTo(player, mouseButton, id)
 										if deedZone==nil then return end
 										for _, remainder in pairs(deedZone.getObjects()) do
 											if remainder.type=="Card" then
-												remainder.setScale({1.5, 1, 1.5})
-												remainder.setPositionSmooth({(playerPosition*40)-105-(drawNow*0.2), 4.59, -47.55})
-												remainder.setRotationSmooth({0, 180, 0})
+												animateDeedCardToHand(remainder,playerPosition,drawNow)
 												turnOrder[turnAffected].deedCount=math.max(0,(turnOrder[turnAffected].deedCount or 0)-1)
 												break
 											end
@@ -41243,26 +41261,30 @@ function drawUpTo(player, mouseButton, id)
 								end
 							else
 								excess=drawNeeded-1
-								deedDeck.setScale({1.5, 1, 1.5})
-								deedDeck.setPositionSmooth({(playerPosition*40)-105, 4.59, -47.55})
-								deedDeck.setRotationSmooth({0, 180, 0})
+								animateDeedCardToHand(deedDeck,playerPosition,0)
 								turnOrder[turnAffected].deedCount=math.max(0,(turnOrder[turnAffected].deedCount or 0)-1)
 							end
 							coralScheduleDeedRefresh(turnOrder[turnAffected].seatPos, 4)
 						end
 						cardClaim=false
 						safeWaitFrames("PlayerBoard.CardFlow",function()
-							safeWaitTime("PlayerBoard.CardFlow",function()
-								--Night tactic 2 grab three random discards back to deck if draw will reduce to 0.
-								if id=="DrawHand" and excess>0 and gStates.endRoundCalled==false and turnOrder[turnAffected].tactic==2 and gStates.dayRound==false and gStates.tacticTwoState~="Used" and turnOrder[turnAffected].mage~=gStates.positionMageKnight[5] then
-									gStates.tacticTwoState="Used"
-									nightTacticTwoRefillAndDraw(turnAffected,excess,function()
-										local tactic=getObjectFromGUID("f6ad01")
-										if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
-										broadcastToAll("{en}Night Tactic Two was used to refill the Deed Deck with up to 3 random discards{ru}Ночная Тактика 2 была использована, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний{zh-tw}夜間戰術 2 已用最多 3 張隨機棄牌補充行動牌庫{zh-cn}夜间战术 2 已用最多 3 张随机弃牌补充行动牌库{ko}밤 전략 2로 버린 카드 중 무작위로 최대 3장을 행동 덱에 되돌렸습니다{es}La Táctica Nocturna 2 se usó para devolver hasta 3 descartes aleatorios al mazo de Proezas{fr}La Tactique de Nuit 2 a remis jusqu'à 3 défausses aléatoires dans le paquet d'Actions{pt-br}A Tática Noturna 2 devolveu até 3 descartes aleatórios ao Baralho de Façanhas{de}Nachttaktik 2 hat bis zu 3 zufällige Ablagekarten in das Handlungskartendeck zurückgelegt", positionToColor(turnAffected))
-									end)
-								end
-							end, 0.5)
+							--Long Night may interrupt drawing as soon as the Deed deck becomes empty. Mark it
+							--used before the visible refill starts so its manual button cannot race this resolver.
+							if id=="DrawHand" and excess>0 and turnOrder[turnAffected].tactic==2 and gStates.dayRound==false and gStates.tacticTwoState~="Used" and turnOrder[turnAffected].mage~=gStates.positionMageKnight[5] then
+								gStates.tacticTwoState="Used"
+								mainUIUpdate("Night Tactic 2 Resolving")
+									nightTacticTwoResolve(turnAffected,function(returned)
+									if returned<1 then
+										gStates.tacticTwoState="notUsed"
+										mainUIUpdate("Night Tactic 2 Unused")
+										return
+									end
+									broadcastToAll("{en}Night Tactic Two was used to refill the Deed Deck with up to 3 random discards{ru}Ночная Тактика 2 была использована, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний{zh-tw}夜間戰術 2 已用最多 3 張隨機棄牌補充行動牌庫{zh-cn}夜间战术 2 已用最多 3 张随机弃牌补充行动牌库{ko}밤 전략 2로 버린 카드 중 무작위로 최대 3장을 행동 덱에 되돌렸습니다{es}La Táctica Nocturna 2 se usó para devolver hasta 3 descartes aleatorios al mazo de Proezas{fr}La Tactique de Nuit 2 a remis jusqu'à 3 défausses aléatoires dans le paquet d'Actions{pt-br}A Tática Noturna 2 devolveu até 3 descartes aleatórios ao Baralho de Façanhas{de}Nachttaktik 2 hat bis zu 3 zufällige Ablagekarten in das Handlungskartendeck zurückgelegt", positionToColor(turnAffected))
+									mainUIUpdate("Night Tactic 2 Used")
+									--The refill pause has finished; resume the interrupted player's exact remaining draw.
+									drawExactDeedCards(turnAffected, excess, "DrawHand")
+								end)
+							end
 						end, 2)
 					end
 					if cardClaim==true then safeWaitTime("PlayerBoard.CardFlow",function() drawCardstoHand() end, 1.5) else drawCardstoHand() end--make sure the card has entered the deck
@@ -41430,29 +41452,16 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	return cardDestination
 end
 
-local function meditationStripXmlButtons(card)
-	local xml=card.UI.getXmlTable() or {}
-	for a=#xml, 1, -1 do
-		local id=xml[a].attributes~=nil and xml[a].attributes.id or nil
-		if id==card.guid.."meditationTop" or id==card.guid.."meditationBot" or id==card.guid.."tranceTop" or id==card.guid.."tranceBot" then table.remove(xml,a) end
-	end
-	return xml
-end
-
+local MEDITATION_BUTTON_SUFFIXES={"meditationTop","meditationBot","tranceTop","tranceBot"}
 local function meditationRemoveButtons(card)
-	if card==nil then return end
-	local before=card.UI.getXmlTable() or {}
-	local xml=meditationStripXmlButtons(card)
-	if #xml~=#before then
-		if #xml>0 then card.UI.setXmlTable(xml) else card.UI.setXml("") end
-	end
+	if card~=nil then objectUIRemoveSuffixes(card,MEDITATION_BUTTON_SUFFIXES) end
 end
 
 local function meditationAddButtons(card, tranceReady)
 	if card==nil then return end
 	if cardEffectIsVertical(card)==false then meditationRemoveButtons(card) return end
 	--Replace only our two controls, preserving any unrelated object UI on the card.
-	local xml=meditationStripXmlButtons(card)
+	local xml=objectUIWithoutSuffixes(card,MEDITATION_BUTTON_SUFFIXES)
 	if tranceReady==true then
 		xml[#xml+1]=createClaimButton(card.guid, "tranceTop") xml[#xml+1]=createClaimButton(card.guid, "tranceBot")
 	else
@@ -41633,11 +41642,6 @@ function meditationTranceBot(player, mouseButton, id) if mouseButton~="-3" then 
 --during cleanup, then these small card-attached buttons decide where it goes.
 local steadyTempoGUIDs={ ["1f362f"]=true, ["6e506a"]=true }
 function isSteadyTempoGUID(guid) return guid~=nil and steadyTempoGUIDs[guid]==true end
-local function steadyTempoPlayerIndex(seatPos)
-	for playerIndex, details in pairs(turnOrder) do if details.seatPos==seatPos then return playerIndex end end
-	return nil
-end
-
 function steadyTempoPendingForSeat(seatPos)
 	if seatPos==nil or gStates.steadyTempoPending==nil then return false end
 	for _, pendingSeat in pairs(gStates.steadyTempoPending) do if pendingSeat==seatPos then return true end end
@@ -41653,20 +41657,9 @@ function steadyTempoUpdateRewardGate(seatPos)
 	UI.setAttribute("PreEndTurnImage", "image", blocked and "Sliced Button/Button New Deactive" or "Sliced Button/Button New Active")
 end
 
-local function steadyTempoStripButtons(card)
-	local xml=card~=nil and (card.UI.getXmlTable() or {}) or {}
-	for a=#xml, 1, -1 do
-		local id=xml[a].attributes~=nil and xml[a].attributes.id or nil
-		if id==card.guid.."steadyTempoDiscard" or id==card.guid.."steadyTempoBot" or id==card.guid.."steadyTempoTop" then table.remove(xml,a) end
-	end
-	return xml
-end
-
+local STEADY_TEMPO_BUTTON_SUFFIXES={"steadyTempoDiscard","steadyTempoBot","steadyTempoTop"}
 function steadyTempoRemoveButtons(card)
-	if card==nil then return end
-	local before=card.UI.getXmlTable() or {}
-	local xml=steadyTempoStripButtons(card)
-	if #xml~=#before then if #xml>0 then card.UI.setXmlTable(xml) else card.UI.setXml("") end end
+	if card~=nil then objectUIRemoveSuffixes(card,STEADY_TEMPO_BUTTON_SUFFIXES) end
 end
 
 local function steadyTempoHasDeedPile(playerIndex)
@@ -41687,7 +41680,7 @@ end
 local function steadyTempoAddButtons(card, playerIndex)
 	if card==nil or turnOrder[playerIndex]==nil then return end
 	if cardEffectIsVertical(card)==false then steadyTempoRemoveButtons(card) return end
-	local xml=steadyTempoStripButtons(card)
+	local xml=objectUIWithoutSuffixes(card,STEADY_TEMPO_BUTTON_SUFFIXES)
 	xml[#xml+1]=createClaimButton(card.guid, "steadyTempoDiscard")
 	--The printed basic effect only permits the bottom option while the Deed deck is not empty.
 	if steadyTempoHasDeedPile(playerIndex)==true then xml[#xml+1]=createClaimButton(card.guid, "steadyTempoBot") end
@@ -41719,7 +41712,7 @@ function steadyTempoRefreshCard(cardGUID)
 	if gStates.steadyTempoPending==nil then return end
 	local seatPos=gStates.steadyTempoPending[cardGUID]
 	local card=seatPos~=nil and getObjectFromGUID(cardGUID) or nil
-	local playerIndex=seatPos~=nil and steadyTempoPlayerIndex(seatPos) or nil
+	local playerIndex=seatPos~=nil and turnOrderIndexAtSeat(seatPos) or nil
 	if card==nil or playerIndex==nil then return end
 	if steadyTempoCardInPlayArea(card, seatPos)==true and card.is_face_down==false and cardEffectIsVertical(card)==true then steadyTempoAddButtons(card, playerIndex) else steadyTempoRemoveButtons(card) end
 end
@@ -41751,7 +41744,7 @@ function steadyTempoChoice(player, mouseButton, id)
 	local cardGUID=id:sub(1,6)
 	if isSteadyTempoGUID(cardGUID)==false or gStates.steadyTempoPending==nil then return end
 	local seatPos=gStates.steadyTempoPending[cardGUID]
-	local playerIndex=seatPos~=nil and steadyTempoPlayerIndex(seatPos) or nil
+	local playerIndex=seatPos~=nil and turnOrderIndexAtSeat(seatPos) or nil
 	local card=getObjectFromGUID(cardGUID)
 	if playerIndex==nil or card==nil or legalPlayerCheck(player.color, seatPos)~=true then return end
 	local choice=id:sub(7)
@@ -42479,18 +42472,9 @@ local function clearCustomMageKnightSelections(preserveRememberedDummy)
 	if preserveRememberedDummy~=true and customMages[gStates.setupDummyMageChoice]~=nil then gStates.setupDummyMageChoice="nobody" end
 end
 
-local function setupUsesApocalypseDragonLevel()
-	return gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or
-		gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon")
-end
-
-local function setupUsesHorsemanLevel()
-	return gStates~=nil and (gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Apocalypse is Here")
-end
-
 local function refreshScenarioEnemyLevelTweaks()
-	local showDragon=setupUsesApocalypseDragonLevel()
-	local showHorsemen=setupUsesHorsemanLevel()
+	local showDragon=scenarioUsesApocalypseDragon()
+	local showHorsemen=scenarioUsesHorsemen()
 	local showAny=showDragon or showHorsemen
 	UI.setAttribute("ScenarioEnemyLevelsRow","active",showAny and "true" or "false")
 	UI.setAttribute("ApocalypseDragonLevelCell","active",showDragon and "true" or "false")
@@ -42894,20 +42878,31 @@ function optionsUpdate(player, value, id)
 	toggleDropDown(nil, "-1", dropDownIdLink)
 end
 
-function RampageSelection(player, value, id)
-	if value=="True" then
-		gStates.rampage=1
-		UI.setAttribute("MoreRampageSelection", "interactable", "False")
-		UI.setAttribute("MoreRampageSelection", "isOn", "false")
-		UI.setAttribute("RampageSelection", "interactable", "True")
-		UI.setAttribute("RampageSelection", "isOn", "true")
+local function setRampageMode(mode,id,sourceId)
+	gStates.rampage=mode
+	if mode==1 then
+		UI.setAttribute("MoreRampageSelection","interactable","False")
+		UI.setAttribute("MoreRampageSelection","isOn","false")
+		UI.setAttribute("RampageSelection","interactable","True")
+		UI.setAttribute("RampageSelection","isOn","true")
+	elseif mode==2 then
+		UI.setAttribute("RampageSelection","interactable","False")
+		UI.setAttribute("RampageSelection","isOn","false")
+		UI.setAttribute("MoreRampageSelection","interactable","True")
+		UI.setAttribute("MoreRampageSelection","isOn","true")
+	elseif sourceId=="RampageSelection" then
+		UI.setAttribute("MoreRampageSelection","interactable","True")
+		UI.setAttribute("RampageSelection","isOn","false")
 	else
-		gStates.rampage=0
-		UI.setAttribute("MoreRampageSelection", "interactable", "True")
-		UI.setAttribute("RampageSelection", "isOn", "false")
+		UI.setAttribute("RampageSelection","interactable","True")
+		UI.setAttribute("MoreRampageSelection","isOn","false")
 	end
 	scenarioInfoUpdate()
 	ToolTipUpdate(id)
+end
+
+function RampageSelection(player,value,id)
+	setRampageMode(value=="True" and 1 or 0,id,"RampageSelection")
 end
 
 function riseOfTheForgemasterOption(player, mouseButton, id)
@@ -42926,20 +42921,8 @@ function riseOfTheForgemasterOption(player, mouseButton, id)
 	end
 end
 
-function MoreRampageSelection(player, value, id)
-	if value=="True" then
-		gStates.rampage=2
-		UI.setAttribute("RampageSelection", "interactable", "False")
-		UI.setAttribute("RampageSelection", "isOn", "false")
-		UI.setAttribute("MoreRampageSelection", "interactable", "True")
-		UI.setAttribute("MoreRampageSelection", "isOn", "true")
-	else
-		gStates.rampage=0
-		UI.setAttribute("RampageSelection", "interactable", "True")
-		UI.setAttribute("MoreRampageSelection", "isOn", "false")
-	end
-	scenarioInfoUpdate()
-	ToolTipUpdate(id)
+function MoreRampageSelection(player,value,id)
+	setRampageMode(value=="True" and 2 or 0,id,"MoreRampageSelection")
 end
 
 dropDownIdLink="none"
@@ -43055,7 +43038,7 @@ function VolkareRaceSelection(player, mouseButton, id)
 end
 
 function apocalypseDragonLevelSelection(player, mouseButton, id)
-	if mouseButton~="-1" or setupUsesApocalypseDragonLevel()~=true then return end
+	if mouseButton~="-1" or scenarioUsesApocalypseDragon()~=true then return end
 	local level=tonumber(apocalypseDragonStartingLevel()) or 1
 	if id=="ApocalypseDragonLevelDown" then
 		level=math.max(1,level-1)
@@ -43069,7 +43052,7 @@ function apocalypseDragonLevelSelection(player, mouseButton, id)
 end
 
 function horsemanLevelSelection(player, mouseButton, id)
-	if mouseButton~="-1" or setupUsesHorsemanLevel()~=true then return end
+	if mouseButton~="-1" or scenarioUsesHorsemen()~=true then return end
 	local level=tonumber(horsemanStartingLevel()) or 1
 	if id=="HorsemenLevelDown" then
 		level=math.max(1,level-1)
@@ -43728,13 +43711,6 @@ local function heroChallengeCountryIn(guid, numbers)
 	return false
 end
 
-local function heroChallengeCountryHasVillage(guid)
-	local data=terrainTiles[guid]
-	if data==nil or data.hexFeature==nil then return false end
-	for _, feature in pairs(data.hexFeature) do if feature=="village" then return true end end
-	return false
-end
-
 --Mirror the scenario-specific Countryside pools used by mapSetup(). This lets setup legality be tested
 --before Start is pressed and lets Hero Challenges safely combine the requirements of several Heroes.
 local function heroChallengeCountrySlotAllows(guid, slot)
@@ -43836,10 +43812,10 @@ function heroChallengeCountryAssignment(randomize)
 	local expandedSets={}
 	for _,required in ipairs(requirementSets) do
 		local hasVillage=false
-		for guid,_ in pairs(required) do if heroChallengeCountryHasVillage(guid)==true then hasVillage=true break end end
+		for guid,_ in pairs(required) do if terrainTileHasFeature(guid,"village")==true then hasVillage=true break end end
 		if apocalypseQuestsUsed()==true and hasVillage==false then
 			for _,guid in ipairs(available) do
-				if heroChallengeCountryHasVillage(guid)==true then
+				if terrainTileHasFeature(guid,"village")==true then
 					local copy={} for existing,_ in pairs(required) do copy[existing]=true end copy[guid]=true
 					expandedSets[#expandedSets+1]=copy
 				end
@@ -44104,6 +44080,49 @@ function setUIButtonEnabled(id,enabled,imageId)
 	UI.setAttribute(imageId or id.."Image","image",enabled and UI_BUTTON_ACTIVE_IMAGE or UI_BUTTON_DEACTIVE_IMAGE)
 end
 
+--Shared object-UI surgery. Callers supply only the IDs/patterns they own; unrelated object UI is preserved.
+local function objectUIApplyXml(obj,xml)
+	if obj==nil or obj.UI==nil then return false end
+	if #xml>0 then obj.UI.setXmlTable(xml) else obj.UI.setXml("") end
+	return true
+end
+
+function objectUIFilteredXml(obj,removeId)
+	local xml=obj~=nil and obj.UI~=nil and (obj.UI.getXmlTable() or {}) or {}
+	if type(removeId)~="function" then return xml,false end
+	local changed=false
+	for i=#xml,1,-1 do
+		local attributes=xml[i].attributes
+		local id=attributes~=nil and tostring(attributes.id or "") or ""
+		if removeId(id,xml[i])==true then table.remove(xml,i) changed=true end
+	end
+	return xml,changed
+end
+
+function objectUIRemoveMatching(obj,removeId)
+	local xml,changed=objectUIFilteredXml(obj,removeId)
+	if changed==true then objectUIApplyXml(obj,xml) end
+	return changed,xml
+end
+
+function objectUIWithoutSuffixes(obj,suffixes)
+	if obj==nil then return {},false end
+	local ids={}
+	for _,suffix in ipairs(suffixes or {}) do ids[tostring(obj.guid or "")..tostring(suffix)]=true end
+	return objectUIFilteredXml(obj,function(id) return ids[id]==true end)
+end
+
+function objectUIRemoveSuffixes(obj,suffixes)
+	local xml,changed=objectUIWithoutSuffixes(obj,suffixes)
+	if changed==true then objectUIApplyXml(obj,xml) end
+	return changed,xml
+end
+
+function objectUIRemoveIdContaining(obj,marker)
+	if marker==nil or marker=="" then return false end
+	return objectUIRemoveMatching(obj,function(id) return id:find(marker,1,true)~=nil end)
+end
+
 --Centralize Global UI visibility so late-joining/seating players receive a fresh, consistent runtime state.
 --nil means public. A viewer table must contain at least one valid entry because an empty TTS visibility
 --string means "visible to everyone".
@@ -44313,6 +44332,25 @@ function positionToColor(turnNumber)
 	return color
 end
 
+--Shared turn-order/scenario identity. Keep scenario membership in one place so setup and runtime cannot drift.
+function turnOrderIndexAtSeat(seatPos,predicate)
+	if seatPos==nil then return nil end
+	for playerIndex,details in pairs(turnOrder or {}) do
+		if details.seatPos==seatPos and (predicate==nil or predicate(playerIndex,details)==true) then return playerIndex end
+	end
+	return nil
+end
+
+function scenarioUsesApocalypseDragon()
+	local scenario=gStates~=nil and gStates.gameScenario or nil
+	return scenario=="Against the Dragon Blitz" or scenario=="Apocalypse is Here" or scenario=="Fury of the Apocalypse Dragon"
+end
+
+function scenarioUsesHorsemen()
+	local scenario=gStates~=nil and gStates.gameScenario or nil
+	return scenario=="Against the Horsemen Blitz" or scenario=="Apocalypse is Here"
+end
+
 --Rewards Claimed soft locks are player reminders, not hard disables. They share one short window
 --from the moment the Rewards Claimed stage begins, then allow the player to continue manually.
 REWARD_CLAIM_SOFT_LOCK_SECONDS=30
@@ -44505,6 +44543,25 @@ function terrainHexAtPosition(pos, objectsInPlay, cachedPositions, cachedRotatio
 end
 
 
+--Static terrain-data query shared by setup systems.
+function terrainTileHasFeature(terrainGUID,feature)
+	local data=terrainGUID~=nil and terrainTiles[terrainGUID] or nil
+	if data==nil or data.hexFeature==nil then return false end
+	for _,candidate in pairs(data.hexFeature) do if candidate==feature then return true end end
+	return false
+end
+
+--Capture the common pre-assault avatar origin used by Dragon/Horsemen assaults.
+function assaultOriginFromPosition(approachPosition)
+	local origin={avatarLocation="",avatarSharedHex=nil,avatarSwapCity=nil,position=nil}
+	if approachPosition~=nil then
+		origin.position={approachPosition[1],approachPosition[2],approachPosition[3]}
+		local terrain,bearing,_,feature=terrainHexAtPosition(approachPosition)
+		if terrain~=nil and bearing~=nil then origin.avatarLocation=feature or "" end
+	end
+	return origin
+end
+
 -- Shared runtime map snapshots. The physical TTS table is authoritative; these are only derived
 -- in-memory indexes and must never be persisted in gStates. Ordinary map membership changes invalidate
 -- only the cheap object list. Terrain membership/transform/face changes also invalidate the expensive
@@ -44639,6 +44696,46 @@ function terrainHexChoiceUIPlacement(key,buttonScale,splitIndex,splitCount,refer
 	}
 end
 
+--Build the common transparent choice button used directly on terrain hexes.
+function appendTerrainHexChoiceButton(key,index,xml,splitIndex,splitCount,spec)
+	spec=spec or {}
+	if key==nil or spec.idPrefix==nil or spec.onClick==nil then return nil,xml end
+	local terrain,placement=terrainHexChoiceUIPlacement(key,spec.buttonScale or 0.38,splitIndex,splitCount,spec.referenceScale or spec.buttonScale or 0.38)
+	if terrain==nil or placement==nil then return nil,xml end
+	local id=terrain.guid..tostring(spec.idPrefix)..tostring(index)
+	local split=placement.count>1
+	local fontSize=tostring(split and (spec.splitFontSize or 60) or (spec.fontSize or 72))
+	xml=xml or terrain.UI.getXmlTable() or {}
+	xml[#xml+1]={tag="Button",attributes={id=id,onClick=spec.onClick,onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+		height=placement.height,width=spec.width or 320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
+		children={{tag="Image",attributes={id=id.."Image",image=spec.image or "Sliced Button/Button Object Active",type="Sliced"}},
+			{tag="HorizontalLayout",attributes={padding=spec.padding or "20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font=spec.font or "Fonts/MKCardText",offsetXY=spec.offsetXY or "0 1",fontSize=fontSize,fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=fontSize,text=spec.text or ""}}}}}}
+	return terrain,xml
+end
+
+--Remove one subsystem's terrain-attached choice controls without disturbing other terrain UI.
+function clearTerrainChoiceButtons(marker,terrainGUIDs)
+	if marker==nil or marker=="" then return false end
+	local objects={}
+	if terrainGUIDs~=nil then
+		local seen={}
+		for _,guid in pairs(terrainGUIDs) do
+			if seen[guid]~=true then
+				seen[guid]=true
+				local terrain=getObjectFromGUID(guid)
+				if terrain~=nil then objects[#objects+1]=terrain end
+			end
+		end
+	else
+		objects=runtimeMapSnapshot().terrainObjects or {}
+	end
+	local changed=false
+	for _,terrain in ipairs(objects) do
+		if terrainTiles[terrain.guid]~=nil and objectUIRemoveIdContaining(terrain,marker)==true then changed=true end
+	end
+	return changed
+end
+
 local function runtimeMapObjectSnapshot()
 	if runtimeMapObjectCache~=nil then return runtimeMapObjectCache end
 	local map=getObjectFromGUID(mapArea)
@@ -44751,6 +44848,14 @@ function runtimeMapSnapshot()
 		neighborSet=terrainSnapshot.neighborSet,terrainSignature=terrainSnapshot.terrainSignature
 	}
 	return runtimeMapSnapshotCache
+end
+
+function runtimeMapHexByKey(hexes,key)
+	if key==nil or hexes==nil then return nil end
+	local snapshot=runtimeMapSnapshot()
+	if hexes==snapshot.hexes then return snapshot.hexByKey[key] end
+	for _,hex in ipairs(hexes) do if runtimeMapHexKey(hex)==key then return hex end end
+	return nil
 end
 
 function runtimeMapHexDistanceMap(hexes,starts)
@@ -44964,7 +45069,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="437"
+local automaticLuaErrorReporterVersion="438"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
