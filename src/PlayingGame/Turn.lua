@@ -981,6 +981,7 @@ local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 				--from the live table, so retaining it would just re-enter this recovery forever.
 				if #failed>0 then log("Night Tactic 6 could not return "..tostring(#failed).." stored card(s) during end-of-round cleanup.") end
 				gStates.powerStored={}
+				refreshNightTactic6StoredCount()
 				scheduleDeedPileDescriptionRefresh(storedSeat, "deed")
 				safeWaitFrames("Turn",function() endRound(true) end,2)
 			end,{discardPos[1],discardPos[2]+1.5,discardPos[3]})
@@ -1709,15 +1710,54 @@ function nightTactic4(player, mouseButton, id)
 	end
 end
 
+--A small non-interactive counter lives on Sparing Power while cards are stored beneath it.
+function nightTactic6StoredCountNoop() end
+
+function refreshNightTactic6StoredCount()
+	local tactic=getObjectFromGUID(tacticCard[12])
+	if tactic==nil then return end
+	local count=#(gStates.powerStored or {})
+	local counterIndex=nil
+	for _, button in pairs(tactic.getButtons() or {}) do
+		if button.click_function=="nightTactic6StoredCountNoop" then counterIndex=button.index break end
+	end
+	if count<1 then
+		if counterIndex~=nil then tactic.removeButton(counterIndex) end
+		return
+	end
+	if counterIndex~=nil then
+		tactic.editButton({index=counterIndex,label=tostring(count)})
+	else
+		tactic.createButton({
+			click_function="nightTactic6StoredCountNoop",
+			function_owner=Global,
+			label=tostring(count),
+			position={0.82,0.30,-1.18},
+			rotation={0,0,0},
+			width=0,
+			height=0,
+			font_size=220,
+			font_color={1,1,1,1}
+		})
+	end
+end
+
 --Claim Night Tactic 6 cards from the GUIDs recorded when they were stored. Stored cards may
 --be loose or may have merged into a Deck, so resolve one GUID at a time and reacquire its container.
+--Normal claims use the same smooth hand destination/animation as drawUpTo(); end-of-round recovery
+--can still provide a direct destination override for cleanup.
 claimNightTactic6StoredCards=function(seatPos, callback, destinationOverride)
 	local storedGUIDs={}
 	for _, stored in ipairs(gStates.powerStored or {}) do
 		if stored.guid~=nil then storedGUIDs[#storedGUIDs+1]=stored.guid end
 	end
-	local destination=destinationOverride or {(seatPos*40)-100, 4.59, -47.55}
+	local drawToHand=destinationOverride==nil
+	local destination=destinationOverride
 	local failed={}
+	local function cardDestination(index)
+		if drawToHand==true then return deedHandDrawPosition(seatPos,index) end
+		return {destination[1]+((index-1)*0.15), destination[2], destination[3]}
+	end
 	--Each extraction can collapse or replace the Deck object that contained the remaining stored
 	--cards. Resolve the live container again for every GUID instead of retaining stale Deck handles.
 	local function findStoredContainer(guid)
@@ -1731,8 +1771,13 @@ claimNightTactic6StoredCards=function(seatPos, callback, destinationOverride)
 		return nil
 	end
 	local function moveCard(card, index)
-		card.setPosition({destination[1]+((index-1)*0.15), destination[2], destination[3]})
-		card.setRotation({0, 180, 0})
+		if drawToHand==true then
+			animateDeedCardToHand(card,seatPos,index)
+		else
+			local target=cardDestination(index)
+			card.setPosition(target)
+			card.setRotation({0, 180, 0})
+		end
 	end
 	local function resolve(index)
 		if index>#storedGUIDs then if callback~=nil then callback(failed) end return end
@@ -1746,7 +1791,7 @@ claimNightTactic6StoredCards=function(seatPos, callback, destinationOverride)
 
 		local container=findStoredContainer(guid)
 		if container~=nil then
-			local taken=safeTakeObject("Turn",container,{guid=guid, position={destination[1]+((index-1)*0.15), destination[2], destination[3]}, rotation={0,180,0}, smooth=false, callback_function=function(takenCard)
+			local taken=safeTakeObject("Turn",container,{guid=guid, position=cardDestination(index), rotation={0,180,0}, smooth=drawToHand, callback_function=function(takenCard)
 				moveCard(takenCard, index)
 				safeWaitFrames("Turn",function() resolve(index+1) end, 1)
 			end})
@@ -1803,6 +1848,7 @@ function nightTactic6(player, mouseButton, id)
 					turnOrder[playerIndex].deedCount=math.max(0,(turnOrder[playerIndex].deedCount or 0)-1)
 					gStates.powerStored[#gStates.powerStored+1]={guid=drawn.guid, seatPos=seatPos}
 					gStates.tacticSixState="Stored"
+					refreshNightTactic6StoredCount()
 					scheduleDeedPileDescriptionRefresh(seatPos, "deed")
 					mainUIUpdate("Night Tactic 6 Stored")
 				end
@@ -1821,16 +1867,21 @@ function nightTactic6(player, mouseButton, id)
 			end
 			if id:sub(1,17)=="NightTactic6Claim" then
 				local seatPos=tonumber(id:sub(18,18))
-				if seatPos==nil then return end
+				if seatPos==nil or gStates.tacticSixState=="Claiming" then return end
+				gStates.tacticSixState="Claiming"
 				claimNightTactic6StoredCards(seatPos, function(failed)
 					if #failed>0 then
+						gStates.tacticSixState="notClaimed"
 						broadcastToAll(joinLang({"{en}Night Tactic 6 could not find {ru}Ночная тактика 6 не смогла найти {zh-tw}夜間戰術 6 找不到 {zh-cn}夜间战术 6 找不到 {ko}야간 전술 6에서 저장한 카드 {es}Táctica Nocturna 6 no pudo encontrar {fr}Tactique Nocturne 6 n’a pas pu retrouver {pt-br}Tática Noturna 6 não conseguiu encontrar {de}Nachttaktik 6 konnte ",tostring(#failed),"{en} stored card(s).{ru} сохранённых карт(ы).{zh-tw} 張已儲存的牌。{zh-cn} 张已储存的牌。{ko}장을 찾지 못했습니다.{es} carta(s) guardada(s).{fr} carte(s) conservée(s).{pt-br} carta(s) guardada(s).{de} gespeicherte Karte(n) nicht finden."}), warningColor)
+						outOfTurnUIStateKey=nil
+						mainUIUpdate("Night Tactic 6 Claim Failed")
 						return
 					end
 					--Only finish the tactic after every recorded stored card has actually been returned.
+					gStates.powerStored={}
+					refreshNightTactic6StoredCount()
 					local tactic=getObjectFromGUID(tacticCard[12])
 					if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
-					gStates.powerStored={}
 					gStates.tacticSixState="Used"
 					scheduleDeedPileDescriptionRefresh(seatPos, "deed")
 					outOfTurnUIStateKey=nil
