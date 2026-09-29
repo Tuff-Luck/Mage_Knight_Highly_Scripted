@@ -1424,24 +1424,62 @@ function coralSetAsideQuickWitted()
 	end
 end
 
---Deals all the hands by fast forwarding through the turns
-function dealAllHands()
-	local temp=gStates.turnNumber
-	for a=1, #turnOrder, 1 do
-		gStates.turnNumber=a
-		if turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5] and playerDropoutInactive(gStates.turnNumber)==false then drawUpTo({color="Black"}, "-1", "DrawHand") end--color is only there to stop error
+--Setup hand dealing must stay bound to each player. Do not fast-forward gStates.turnNumber
+--through every seat: a Deed pile can still be entering its zone and an async retry would otherwise
+--resume against whichever turn happens to be current later.
+local function dealStartingHandForPlayer(playerIndex)
+	local details=turnOrder[playerIndex]
+	if details==nil or details.mage==gStates.positionMageKnight[5] or playerDropoutInactive(playerIndex)==true then return end
+	local seatPos=details.seatPos
+	local deedZone=getObjectFromGUID(deedDeckZones[seatPos])
+	local handZone=getObjectFromGUID(handZones[seatPos])
+	if deedZone==nil or handZone==nil then return end
+
+	local function ready()
+		if deedTransferBusy(seatPos)==true then return false end
+		for _, obj in pairs(deedZone.getObjects()) do
+			if (obj.type=="Deck" or obj.type=="Card") and obj.resting==true then return true end
+		end
+		return false
 	end
-	gStates.turnNumber=temp
+
+	local function draw()
+		local cardsInHand=0
+		for _, obj in pairs(handZone.getObjects()) do if obj.type=="Card" then cardsInHand=cardsInHand+1 end end
+		local handSize=(details.hand or 0)+(details.handBonus or 0)+(gStates.tactic4HandBonus or 0)
+		local missing=math.max(0,handSize-cardsInHand)
+		if missing<1 then return end
+
+		--Use the normal draw engine, but pin the temporary turn only for this synchronous entry.
+		--The pre-check above prevents its generic transfer-busy retry from ever owning setup timing.
+		local previousTurn=gStates.turnNumber
+		gStates.turnNumber=playerIndex
+		drawUpTo({color="Black"}, "-1", "DrawHand")
+		gStates.turnNumber=previousTurn
+	end
+
+	if ready()==true then draw() return end
+	safeWaitCondition("PlayerBoard.CardFlow",draw,ready,10,function()
+		--Keep setup recoverable if TTS misses a zone/resting transition; a later idempotent
+		--dealAllHands() retry will try this player again.
+		log("Starting hand still waiting for "..tostring(details.mage).." Deed pile.")
+	end)
+end
+
+function dealAllHands()
+	for playerIndex=1, #turnOrder do dealStartingHandForPlayer(playerIndex) end
 	safeWaitTime("PlayerBoard.CardFlow",function()
-		for x=1, #turnOrder, 1 do
-			--Records current amount of cards in deed deck
-			turnOrder[x].deedCount=0
-			for _, b in pairs(getObjectFromGUID(deedDeckZones[turnOrder[x].seatPos]).getObjects()) do
-				if b.type=="Card" then turnOrder[x].deedCount=1 end
-				if b.type=="Deck" then turnOrder[x].deedCount=b.getQuantity() end
+		for x=1, #turnOrder do
+			local zone=getObjectFromGUID(deedDeckZones[turnOrder[x].seatPos])
+			if zone~=nil then
+				turnOrder[x].deedCount=0
+				for _, b in pairs(zone.getObjects()) do
+					if b.type=="Card" then turnOrder[x].deedCount=1 end
+					if b.type=="Deck" then turnOrder[x].deedCount=b.getQuantity() end
+				end
 			end
 		end
-	end, 0.5)
+	end,0.5)
 end
 
 --Fill any gaps in the offer by sliding more cards down the line
