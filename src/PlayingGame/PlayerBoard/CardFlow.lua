@@ -953,19 +953,26 @@ end
 --actually have their full starting hand. TTS can report a freshly shuffled Deck as resting before
 --its first takeObject succeeds, so merely attempting the deal is not enough.
 local startingHandRepairWait=nil
-function dealStartingHandsWhenReady()
+function dealStartingHandsWhenReady(onComplete)
 	local coralPrepared=false
 	local repairAttempts=0
+	local completionSent=false
+	local function finishStartingHandSetup()
+		if completionSent==true then return end
+		completionSent=true
+		rewindTransactionFinish("Game setup")
+		if onComplete~=nil then onComplete() end
+	end
 	local function verifyAndRepairStartingHands()
 		startingHandRepairWait=nil
 		if startingHandsComplete()==true then
-			--Only release the setup transaction after the physical hand zones confirm the deal.
-			rewindTransactionFinish("Game setup")
+			--Only continue setup after the physical hand zones confirm the deal.
+			finishStartingHandSetup()
 			return
 		end
 		repairAttempts=repairAttempts+1
 		dealAllHands()
-		if repairAttempts>=30 then
+		if repairAttempts==30 then
 			local missing={}
 			for playerIndex, details in ipairs(turnOrder) do
 				if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then
@@ -974,11 +981,11 @@ function dealStartingHandsWhenReady()
 					if have<target then missing[#missing+1]=tostring(details.mage).." "..tostring(have).."/"..tostring(target) end
 				end
 			end
-			log("Starting hand verification still incomplete after retries: "..table.concat(missing,", "))
-			return
+			log("Starting hand verification is taking unusually long: "..table.concat(missing,", "))
 		end
 		--Allow the current smooth draw to reach the hand zone before checking again. Because the
 		--next pass calculates only the remaining gap, successful partial deals are naturally repaired.
+		--Do not abandon the mechanical setup invariant after an arbitrary timeout.
 		startingHandRepairWait=safeWaitTime("PlayerBoard.CardFlow",verifyAndRepairStartingHands,2)
 	end
 	local function beginVerifiedDeal()
