@@ -732,32 +732,32 @@ function nightTacticTwoResolve(playerIndex, done)
 			local takeRemainder=drawCount==quantity
 			if takeRemainder==true then deckTakes=math.max(0,drawCount-1) end
 
+			local function moveRemainder()
+				for _, remainder in pairs(discardZone.getObjects()) do
+					if remainder.type=="Card" then
+						remainder.setScale({1.5,1,1.5})
+						remainder.setRotationSmooth({0,180,180},false,false)
+						remainder.setPositionSmooth({returnTarget[1],returnTarget[2]+(deckTakes*0.08),returnTarget[3]},false,false)
+						returned=returned+1
+						break
+					end
+				end
+			end
+
 			for x=1, deckTakes do
-				local card=safeTakeObject("PlayerBoard.CardFlow",pile,{
+				local params={
 					position={returnTarget[1],returnTarget[2]+((x-1)*0.08),returnTarget[3]},
 					rotation={0,180,180},
 					smooth=true
-				})
+				}
+				--When this take collapses the discard Deck to its last Card, move that remainder
+				--from the take callback instead of adding another timed step.
+				if takeRemainder==true and x==deckTakes then params.callback_function=moveRemainder end
+				local card=safeTakeObject("PlayerBoard.CardFlow",pile,params)
 				if card~=nil then
 					card.setScale({1.5,1,1.5})
 					returned=returned+1
 				end
-			end
-
-			--If all cards are being returned, the Deck collapses to its final loose Card.
-			--Move that remainder on the next frame; this is a TTS object-state handoff, not a presentation wait.
-			if takeRemainder==true then
-				safeWaitFrames("PlayerBoard.CardFlow",function()
-					for _, remainder in pairs(discardZone.getObjects()) do
-						if remainder.type=="Card" then
-							remainder.setScale({1.5,1,1.5})
-							remainder.setRotationSmooth({0,180,180},false,false)
-							remainder.setPositionSmooth({returnTarget[1],returnTarget[2]+(deckTakes*0.08),returnTarget[3]},false,false)
-							returned=returned+1
-							break
-						end
-					end
-				end,1)
 			end
 		end
 
