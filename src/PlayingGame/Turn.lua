@@ -977,18 +977,10 @@ local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 			local discardZone=getObjectFromGUID(deedDeckDiscardZones[storedSeat])
 			local discardPos=discardZone~=nil and discardZone.getPosition() or {(storedSeat*40)-110.32,1.12,-43.20}
 			claimNightTactic6StoredCards(storedSeat,function(failed)
-				if #failed>0 then
-					local failedGUIDs={}
-					for _, guid in ipairs(failed) do failedGUIDs[guid]=true end
-					local unresolved={}
-					for _, stored in ipairs(gStates.powerStored or {}) do
-						if failedGUIDs[stored.guid]==true then unresolved[#unresolved+1]=stored end
-					end
-					gStates.powerStored=unresolved
-					log("Night Tactic 6 could not return "..tostring(#failed).." stored card(s) during end-of-round cleanup.")
-				else
-					gStates.powerStored={}
-				end
+				--The round reset must resume exactly once. At this point a failed GUID is genuinely missing
+				--from the live table, so retaining it would just re-enter this recovery forever.
+				if #failed>0 then log("Night Tactic 6 could not return "..tostring(#failed).." stored card(s) during end-of-round cleanup.") end
+				gStates.powerStored={}
 				scheduleDeedPileDescriptionRefresh(storedSeat, "deed")
 				safeWaitFrames("Turn",function() endRound(true) end,2)
 			end,{discardPos[1],discardPos[2]+1.5,discardPos[3]})
