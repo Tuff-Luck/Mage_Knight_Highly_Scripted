@@ -1635,6 +1635,14 @@ function nightTactic2(player, mouseButton, id)
 	if seatPos==nil or legalPlayerCheck(player.color, seatPos)~=true then return end
 	for a=1, #turnOrder, 1 do
 		if turnOrder[a].seatPos==seatPos then
+			--The UI only offers Long Night while this owner's Deed deck is empty, but revalidate here
+			--as well so a stale button or delayed click cannot consume the tactic illegally.
+			if turnOrder[a].tactic~=2 or gStates.dayRound~=false or gStates.tacticTwoState=="Used" or turnOrder[a].mage==gStates.positionMageKnight[5] then return end
+			if readDeedPileCardCount(seatPos)>0 then
+				mainUIUpdate("Night Tactic 2 unavailable")
+				return
+			end
+
 			local discardZone=getObjectFromGUID(deedDeckDiscardZones[seatPos])
 			local discards=nil
 			if discardZone~=nil then
@@ -1647,33 +1655,21 @@ function nightTactic2(player, mouseButton, id)
 				return
 			end
 
-			local returnCount=discards.type=="Deck" and math.min(3,discards.getQuantity()) or 1
-			local deckZone=getObjectFromGUID(deedDeckZones[seatPos])
-			local deckPos=deckZone~=nil and deckZone.getPosition() or {-74.19+(40*(seatPos-1)), 1.50, -43.16}
-			if discards.type=="Deck" and discards.getQuantity()>3 then
-				discards.shuffle()
-				local function returnRandomDiscard(remaining)
-					if remaining<=0 then return end
-					local taken=safeTakeObject("Turn",discards,{position={deckPos[1],1.50,deckPos[3]}, smooth=true, rotation={0,180,180}, callback_function=function()
-						safeWaitFrames("Turn",function() returnRandomDiscard(remaining-1) end,1)
-					end})
-					if taken==nil then log("Night Tactic 2 could not return a discard card.") end
-				end
-				safeWaitTime("Turn",function() returnRandomDiscard(returnCount) end,0.5)
-			else
-				--With three or fewer discards the whole pile is the required result. Moving it as one
-				--object also avoids a Deck collapsing into a Card midway through repeated takeObject calls.
-				if discards.type=="Deck" then discards.shuffle() end
-				discards.setRotationSmooth({0,180,180},false,false)
-				discards.setPositionSmooth({deckPos[1],1.50,deckPos[3]},false,false)
-			end
-
-			--Only consume the tactic after a real discard pile was found and the return has started.
+			--Consume the UI state before the animated resolver begins. This prevents a second click while
+			--the three cards are visibly travelling back to the Deed deck.
 			gStates.tacticTwoState="Used"
-			local tactic=getObjectFromGUID(tacticCard[8])
-			if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
-			broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic 2 to return up to 3 random discards to their Deed Deck.{ru} использует Тактику 2, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний.{zh-tw}使用戰術 2，將最多 3 張隨機棄牌放回行動牌庫。{zh-cn}使用战术 2，将最多 3 张随机弃牌放回行动牌库。{ko}: 전술 2를 사용해 무작위 버린 카드 최대 3장을 행동 덱으로 되돌립니다.{es} usó la Táctica 2 para devolver hasta 3 descartes aleatorios a su mazo de Acciones.{fr} utilise la Tactique 2 pour remettre jusqu’à 3 cartes défaussées aléatoires dans son paquet Action.{pt-br} usou a Tática 2 para devolver até 3 descartes aleatórios ao Baralho de Ações.{de} verwendet Taktik 2, um bis zu 3 zufällige Abwürfe in das Aktionsdeck zurückzulegen."}), positionToColor(a))
-			mainUIUpdate("Night Tactic 2 Used")
+			mainUIUpdate("Night Tactic 2 Resolving")
+			nightTacticTwoResolve(a,0,function(returned)
+				if returned<1 then
+					gStates.tacticTwoState="notUsed"
+					mainUIUpdate("Night Tactic 2 Unused")
+					return
+				end
+				local tactic=getObjectFromGUID(tacticCard[8])
+				if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
+				broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic 2 to return up to 3 random discards to their Deed Deck.{ru} использует Тактику 2, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний.{zh-tw}使用戰術 2，將最多 3 張隨機棄牌放回行動牌庫。{zh-cn}使用战术 2，将最多 3 张随机弃牌放回行动牌库。{ko}: 전술 2를 사용해 무작위 버린 카드 최대 3장을 행동 덱으로 되돌립니다.{es} usó la Táctica 2 para devolver hasta 3 descartes aleatorios a su mazo de Acciones.{fr} utilise la Tactique 2 pour remettre jusqu’à 3 cartes défaussées aléatoires dans son paquet Action.{pt-br} usou a Tática 2 para devolver até 3 descartes aleatórios ao Baralho de Ações.{de} verwendet Taktik 2, um bis zu 3 zufällige Abwürfe in das Aktionsdeck zurückzulegen."}), positionToColor(a))
+				mainUIUpdate("Night Tactic 2 Used")
+			end)
 			break
 		end
 	end
