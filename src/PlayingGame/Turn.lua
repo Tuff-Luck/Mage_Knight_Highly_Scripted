@@ -1659,14 +1659,12 @@ function nightTactic2(player, mouseButton, id)
 			--the three cards are visibly travelling back to the Deed deck.
 			gStates.tacticTwoState="Used"
 			mainUIUpdate("Night Tactic 2 Resolving")
-			nightTacticTwoResolve(a,0,function(returned)
+			nightTacticTwoResolve(a,function(returned)
 				if returned<1 then
 					gStates.tacticTwoState="notUsed"
 					mainUIUpdate("Night Tactic 2 Unused")
 					return
 				end
-				local tactic=getObjectFromGUID(tacticCard[8])
-				if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
 				broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic 2 to return up to 3 random discards to their Deed Deck.{ru} использует Тактику 2, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний.{zh-tw}使用戰術 2，將最多 3 張隨機棄牌放回行動牌庫。{zh-cn}使用战术 2，将最多 3 张随机弃牌放回行动牌库。{ko}: 전술 2를 사용해 무작위 버린 카드 최대 3장을 행동 덱으로 되돌립니다.{es} usó la Táctica 2 para devolver hasta 3 descartes aleatorios a su mazo de Acciones.{fr} utilise la Tactique 2 pour remettre jusqu’à 3 cartes défaussées aléatoires dans son paquet Action.{pt-br} usou a Tática 2 para devolver até 3 descartes aleatórios ao Baralho de Ações.{de} verwendet Taktik 2, um bis zu 3 zufällige Abwürfe in das Aktionsdeck zurückzulegen."}), positionToColor(a))
 				mainUIUpdate("Night Tactic 2 Used")
 			end)
