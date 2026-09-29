@@ -569,7 +569,7 @@ local function turnCleanupCompletedTurnBoard()
 	end
 
 	--re-enable night tactic six buttons
-	if turnOrder[gStates.turnNumber].tactic==6 and gStates.tacticSixState~="Used" and gStates.dayRound==false then
+	if turnOrder[gStates.turnNumber].tactic==6 and gStates.tacticSixState~="Used" and gStates.tacticSixState~="Claiming" and gStates.dayRound==false then
 		gStates.tacticSixState="notClaimed"
 	end
 
@@ -1718,15 +1718,20 @@ function refreshNightTactic6StoredCount()
 	if tactic==nil then return end
 	local count=#(gStates.powerStored or {})
 	local counterIndex=nil
+	local counterLabel=nil
 	for _, button in pairs(tactic.getButtons() or {}) do
-		if button.click_function=="nightTactic6StoredCountNoop" then counterIndex=button.index break end
+		if button.click_function=="nightTactic6StoredCountNoop" then
+			counterIndex=button.index
+			counterLabel=button.label
+			break
+		end
 	end
 	if count<1 then
 		if counterIndex~=nil then tactic.removeButton(counterIndex) end
 		return
 	end
 	if counterIndex~=nil then
-		tactic.editButton({index=counterIndex,label=tostring(count)})
+		if tostring(counterLabel)~=tostring(count) then tactic.editButton({index=counterIndex,label=tostring(count)}) end
 	else
 		tactic.createButton({
 			click_function="nightTactic6StoredCountNoop",
