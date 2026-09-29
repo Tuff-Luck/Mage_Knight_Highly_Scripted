@@ -1618,11 +1618,14 @@ function nightTactic2(player, mouseButton, id)
 			local deckPos=deckZone~=nil and deckZone.getPosition() or {-74.19+(40*(seatPos-1)), 1.50, -43.16}
 			if discards.type=="Deck" and discards.getQuantity()>3 then
 				discards.shuffle()
-				safeWaitTime("Turn",function()
-					for _=1, returnCount, 1 do
-						safeTakeObject("Turn",discards,{position={deckPos[1],1.50,deckPos[3]}, smooth=true, rotation={0,180,180}})
-					end
-				end,0.5)
+				local function returnRandomDiscard(remaining)
+					if remaining<=0 then return end
+					local taken=safeTakeObject("Turn",discards,{position={deckPos[1],1.50,deckPos[3]}, smooth=true, rotation={0,180,180}, callback_function=function()
+						safeWaitFrames("Turn",function() returnRandomDiscard(remaining-1) end,1)
+					end})
+					if taken==nil then log("Night Tactic 2 could not return a discard card.") end
+				end
+				safeWaitTime("Turn",function() returnRandomDiscard(returnCount) end,0.5)
 			else
 				--With three or fewer discards the whole pile is the required result. Moving it as one
 				--object also avoids a Deck collapsing into a Card midway through repeated takeObject calls.
