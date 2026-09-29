@@ -255,7 +255,7 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 			end
 
 			--Night Tactic 6 Buttons - and a~=gStates.turnNumber
-			if playerDropoutInactive(a)==false and turnOrder[a].tactic==6 and (a~=gStates.turnNumber or (a==gStates.turnNumber and playerAreaCardCount+playerAreaSkillCount<1)) and gStates.dayRound==false and gStates.tacticSixState~="Stored" and gStates.tacticSixState~="Used" and turnOrder[a].mage~=gStates.positionMageKnight[5] then
+			if playerDropoutInactive(a)==false and turnOrder[a].tactic==6 and (a~=gStates.turnNumber or (a==gStates.turnNumber and playerAreaCardCount+playerAreaSkillCount<1)) and gStates.dayRound==false and gStates.tacticSixState~="Stored" and gStates.tacticSixState~="Claiming" and gStates.tacticSixState~="Used" and turnOrder[a].mage~=gStates.positionMageKnight[5] then
 				local found=(deedPileCardCount[turnOrder[a].seatPos] or 0)>0
 				if found==true then
 					UI.setAttribute("NightTactic6Store"..tostring(turnOrder[a].seatPos), "active", "true")
@@ -1420,6 +1420,7 @@ function uiMainUIUpdateBase(source,afterRefresh)
 	end
 	if mainUIPause~=nil then Wait.stop(mainUIPause) end
 	mainUIPause=safeWaitTime("UI",function()
+		if refreshNightTactic6StoredCount~=nil then refreshNightTactic6StoredCount() end
 		local context=mainUIBuildRefreshContext(source)
 		if context==nil then
 			mainUIPause=nil
