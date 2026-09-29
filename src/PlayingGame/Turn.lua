@@ -2,6 +2,7 @@
 
 local dropoutMatImage="https://steamusercontent-a.akamaihd.net/ugc/9970617178500111609/C9D8D7517B7FAF114F10D8195AC38269F0504E37/"
 local bannerGUIDs={"596cfa", "986216", "0b5b32", "e48e44", GUID.card.bannerOfCommandToken, "8e4b92", "75a627"}
+local claimNightTactic6StoredCards
 
 --Player seat colors only change during setup/load or when a player uses the color controls.
 --Keep physical tinting out of mainUIUpdate so ordinary card play never recolors unchanged objects.
@@ -72,7 +73,7 @@ function tacticToggle()
 	local function turnOrderSort()
 		for a=1, #turnOrder, 1 do
 			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).unlock()
-			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)})
+			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)},false,false)
 		end
 		if againstDragonPositionRoundOrderToken~=nil then againstDragonPositionRoundOrderToken() end
 		if furyDragonPositionRoundOrderToken~=nil then furyDragonPositionRoundOrderToken() end
@@ -932,7 +933,7 @@ function __PreEndRound_raw(player, mouseButton, id)
 end
 
 --Run all the End of Round Tasks
-endRoundRewindRequestPending=false
+local endRoundRewindRequestPending=false
 local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 	if rewindReady~=true then
 		if endRoundRewindRequestPending==true then return true end
@@ -953,6 +954,48 @@ local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 	end
 	--Time Bending returns before the round reset rebuilds and shuffles the owner's Deed deck.
 	if gStates.timeBendingRemovedSeat~=nil then if reclaimTimeBending(endRound)==true then return true end end
+	--Sparing Power cards are still part of the owner's Deed deck at round end. Return them before
+	--the normal deck reset so cards merged under the Tactic cannot be orphaned when powerStored clears.
+	if gStates.powerStored~=nil and #gStates.powerStored>0 then
+		local storedSeat=nil
+		for _, stored in ipairs(gStates.powerStored) do
+			if stored.seatPos~=nil then storedSeat=stored.seatPos break end
+		end
+		if storedSeat==nil then
+			for _, details in pairs(turnOrder) do
+				if details.tactic==6 and details.mage~=gStates.positionMageKnight[5] then storedSeat=details.seatPos break end
+			end
+		end
+		if storedSeat==nil then
+			local tactic=getObjectFromGUID(tacticCard[12])
+			if tactic~=nil then
+				local inferredSeat=math.ceil((tactic.getPosition()[1]+78)/40)
+				if inferredSeat>=1 and inferredSeat<=4 then storedSeat=inferredSeat end
+			end
+		end
+		if storedSeat~=nil then
+			local discardZone=getObjectFromGUID(deedDeckDiscardZones[storedSeat])
+			local discardPos=discardZone~=nil and discardZone.getPosition() or {(storedSeat*40)-110.32,1.12,-43.20}
+			claimNightTactic6StoredCards(storedSeat,function(failed)
+				if #failed>0 then
+					local failedGUIDs={}
+					for _, guid in ipairs(failed) do failedGUIDs[guid]=true end
+					local unresolved={}
+					for _, stored in ipairs(gStates.powerStored or {}) do
+						if failedGUIDs[stored.guid]==true then unresolved[#unresolved+1]=stored end
+					end
+					gStates.powerStored=unresolved
+					log("Night Tactic 6 could not return "..tostring(#failed).." stored card(s) during end-of-round cleanup.")
+				else
+					gStates.powerStored={}
+				end
+				scheduleDeedPileDescriptionRefresh(storedSeat, "deed")
+				safeWaitFrames("Turn",function() endRound(true) end,2)
+			end,{discardPos[1],discardPos[2]+1.5,discardPos[3]})
+			return true
+		end
+		log("Night Tactic 6 has stored cards but no owner seat could be resolved during end-of-round cleanup.")
+	end
 	--Against the Horsemen resolves its Round 1/2 approach, or the Round 3 ritual move, before tactics or the round reset.
 	if againstHorsemenBeginEndRoundMovement()==true then return true end
 	--A Proxy objective is part of its Deed deck between rounds, just like the physical rules.
@@ -971,7 +1014,6 @@ local function turnEndRoundAdvanceWorld()
 	apocalypseQuestEndRoundCleanup()
 	gStates.currentRound=gStates.currentRound+1
 	apocalypseQuestRefreshStrayToken()
-	gStates.powerStored={}
 	for _, details in pairs(turnOrder) do if details.tactic==6 then scheduleDeedPileDescriptionRefresh(details.seatPos, "deed") end end
 
 	--Switch Day/Night Objects for Darkness is Coming
@@ -1043,8 +1085,8 @@ local function turnEndRoundRefreshOffers()
 			local firstAction=mainOfferFirstCardByType("Advanced Action")
 			if firstAction~=nil then
 				firstAction.unlock()
-				firstAction.setRotationSmooth({0,180,180})
-				firstAction.setPositionSmooth({getObjectFromGUID(dummyBoard).getPosition()[1]+4.5,1.17,getObjectFromGUID(dummyBoard).getPosition()[3]-5.2})
+				firstAction.setRotationSmooth({0,180,180},false,false)
+				firstAction.setPositionSmooth({getObjectFromGUID(dummyBoard).getPosition()[1]+4.5,1.17,getObjectFromGUID(dummyBoard).getPosition()[3]-5.2},false,false)
 			end
 			--Put spell colored crystal in the automated player's inventory. A damaged/empty Spell offer
 			--must not leave obj pointing at a mana bag and then try to count the bag as a crystal.
@@ -1119,7 +1161,7 @@ local function turnEndRoundRefreshSkillsAndUnits()
 	--Flip all skills
 	broadcastToAll("{en}All Mage Knight Skills Reset{ru}Жетоны навыков снова готовы к использованию{zh-tw}所有魔法骑士的技能重置{zh-cn}所有魔法骑士的技能重置{ko}모든 스킬이 리셋 되었습니다{es}Restablecimiento de Todas las Habilidades de Mage Knight{fr}Réinitialisation de Toutes les Compétences de Mage Knight{pt-br}Todas as Hab. de MK Redefinidas{de}Alle Magier-Ritter-Fähigkeiten zurückgesetzt", {1,1,0.5})
 	for skillGUID, skillDetails in pairs(skillTokens) do
-		if getObjectFromGUID(skillGUID)~=nil then getObjectFromGUID(skillGUID).setRotationSmooth({0.0, 180.0, 0.0}) end
+		if getObjectFromGUID(skillGUID)~=nil then getObjectFromGUID(skillGUID).setRotationSmooth({0.0, 180.0, 0.0},false,false) end
 	end
 	--Update Motivation Skills status
 	for a, stats in pairs(gStates.motivationSkill) do
@@ -1156,7 +1198,7 @@ local function turnEndRoundRefreshSkillsAndUnits()
 
 	--Flip banner Cards
 	for _, bannerGUID in pairs(bannerGUIDs) do
-		if getObjectFromGUID(bannerGUID)~=nil then getObjectFromGUID(bannerGUID).setRotationSmooth({0, 180, 0}) end
+		if getObjectFromGUID(bannerGUID)~=nil then getObjectFromGUID(bannerGUID).setRotationSmooth({0, 180, 0},false,false) end
 	end
 	if getObjectFromGUID(GUID.card.bannerOfCommandToken)~=nil then
 		safeWaitFrames("Turn",function() safeWaitCondition("Turn",function()
@@ -1170,7 +1212,7 @@ local function turnEndRoundRefreshSkillsAndUnits()
 	for _, magicFamiliarGUID in pairs(magicFamiliars) do
 		if getObjectFromGUID(magicFamiliarGUID)~=nil and getObjectFromGUID(magicFamiliarGUID).getPosition()[3]<-30 then
 			local pos=getObjectFromGUID(magicFamiliarGUID).getPosition()
-			getObjectFromGUID(magicFamiliarGUID).setPositionSmooth({pos[1], pos[2], pos[3]-3})
+			getObjectFromGUID(magicFamiliarGUID).setPositionSmooth({pos[1], pos[2], pos[3]-3},false,false)
 			if blurbed==false then broadcastToAll("{en}Magic Familiars are looking for more Mana to sustain them.{ru}Магические фамильяры жаждут ману для поддержания своей жизни.{zh-tw}法师们正在寻找更多的法力来供能他们。 {zh-cn}法师们正在寻找更多的法力来供能他们。 {ko}마법 패밀리어가 힘을 유지하기 위한 마나를 요구합니다.{es}Los Familiares Mágicos buscan más Maná para sustentarlos.{fr}Les Familiers Magiques recherchent plus de Mana pour les soutenir.{pt-br}Familiares Mágicos estão procurando por mais Mana para sustentá-los.{de}Magische Vertraute suchen nach mehr Mana, um sie zu unterstützen.", {1,1,0.5}) blurbed=true end
 		end
 	end
@@ -1186,7 +1228,7 @@ local function turnEndRoundResetPlayerDecks()
 			for _, obj in pairs(getObjectFromGUID(deedDeckDiscardZones[playerDetails.seatPos]).getObjects()) do
 				if obj.type=="Deck" then
 					newDeck=obj
-					newDeck.setRotationSmooth({0.0, 180.0, 180.0})
+					newDeck.setRotationSmooth({0.0, 180.0, 180.0},false,false)
 					newDeck.setPosition({getObjectFromGUID(deedDeckZones[playerDetails.seatPos]).getPosition()[1], 1.2, getObjectFromGUID(deedDeckZones[playerDetails.seatPos]).getPosition()[3]})
 					test=1
 					break
@@ -1588,7 +1630,7 @@ dayTactic2Discarded=function(player, mouseButton, id)
 			for _, possibleDeck in pairs(getObjectFromGUID(deedDeckZones[playerPosition]).getObjects()) do if possibleDeck.tag=="Deck" or possibleDeck.tag=="Card" then deedDeck=possibleDeck break end end
 			if deedDeck~=nil then
 				if deedDeck.tag=="Deck" then for a=1, drawCount, 1 do deedDeck.takeObject({position={(playerPosition*40)-100-(a*0.2), 4.59, -47.55}, rotation={0,180,0}}) end
-				elseif drawCount>0 then deedDeck.setPositionSmooth({(playerPosition*40)-100, 4.59, -47.55}) deedDeck.setRotationSmooth({0,180,0}) end
+				elseif drawCount>0 then deedDeck.setPositionSmooth({(playerPosition*40)-100, 4.59, -47.55},false,false) deedDeck.setRotationSmooth({0,180,0},false,false) end
 			end
 			safeWaitTime("Turn",finishDayTactic2, 0.5)
 		end
@@ -1630,8 +1672,8 @@ function nightTactic2(player, mouseButton, id)
 				--With three or fewer discards the whole pile is the required result. Moving it as one
 				--object also avoids a Deck collapsing into a Card midway through repeated takeObject calls.
 				if discards.type=="Deck" then discards.shuffle() end
-				discards.setRotationSmooth({0,180,180})
-				discards.setPositionSmooth({deckPos[1],1.50,deckPos[3]})
+				discards.setRotationSmooth({0,180,180},false,false)
+				discards.setPositionSmooth({deckPos[1],1.50,deckPos[3]},false,false)
 			end
 
 			--Only consume the tactic after a real discard pile was found and the return has started.
@@ -1683,28 +1725,24 @@ end
 
 --Claim Night Tactic 6 cards from the GUIDs recorded when they were stored. Stored cards may
 --be loose or may have merged into a Deck, so resolve one GUID at a time and reacquire its container.
-local function claimNightTactic6StoredCards(seatPos, callback)
+claimNightTactic6StoredCards=function(seatPos, callback, destinationOverride)
 	local storedGUIDs={}
-	local wantedGUIDs={}
 	for _, stored in ipairs(gStates.powerStored or {}) do
-		if stored.guid~=nil then
-			storedGUIDs[#storedGUIDs+1]=stored.guid
-			wantedGUIDs[stored.guid]=true
-		end
+		if stored.guid~=nil then storedGUIDs[#storedGUIDs+1]=stored.guid end
 	end
-	local destination={(seatPos*40)-100, 4.59, -47.55}
+	local destination=destinationOverride or {(seatPos*40)-100, 4.59, -47.55}
 	local failed={}
-	--Stored cards can merge into Decks. Index the relevant containers once instead of scanning
-	--every table object and every Deck again for each individual stored card.
-	local deckByGUID={}
-	if next(wantedGUIDs)~=nil then
+	--Each extraction can collapse or replace the Deck object that contained the remaining stored
+	--cards. Resolve the live container again for every GUID instead of retaining stale Deck handles.
+	local function findStoredContainer(guid)
 		for _, object in pairs(getObjects()) do
 			if object.type=="Deck" then
 				for _, cardData in pairs(object.getObjects()) do
-					if wantedGUIDs[cardData.guid]==true then deckByGUID[cardData.guid]=object end
+					if cardData.guid==guid then return object end
 				end
 			end
 		end
+		return nil
 	end
 	local function moveCard(card, index)
 		card.setPosition({destination[1]+((index-1)*0.15), destination[2], destination[3]})
@@ -1720,7 +1758,7 @@ local function claimNightTactic6StoredCards(seatPos, callback)
 			return
 		end
 
-		local container=deckByGUID[guid]
+		local container=findStoredContainer(guid)
 		if container~=nil then
 			local taken=safeTakeObject("Turn",container,{guid=guid, position={destination[1]+((index-1)*0.15), destination[2], destination[3]}, rotation={0,180,0}, smooth=false, callback_function=function(takenCard)
 				moveCard(takenCard, index)
@@ -1753,7 +1791,7 @@ function nightTactic6(player, mouseButton, id)
 						if deedZoneObj.type=="Card" then
 							--Quick Witted is set aside, so skip it and keep looking for a normal Deed card.
 							if not (turnOrder[playerIndex].mage=="Coral" and deedZoneObj.guid==GUID.card.quickWitted) then
-								deedZoneObj.setPositionSmooth({tactic.getPosition()[1], 1.2, tactic.getPosition()[3]})
+								deedZoneObj.setPositionSmooth({tactic.getPosition()[1], 1.2, tactic.getPosition()[3]},false,false)
 								deedZoneObj.setRotation({0, 180, 180})
 								drawn=deedZoneObj
 								break
@@ -1777,16 +1815,23 @@ function nightTactic6(player, mouseButton, id)
 
 					--The stored card is no longer in the Deed deck and will later be claimed to hand.
 					turnOrder[playerIndex].deedCount=math.max(0,(turnOrder[playerIndex].deedCount or 0)-1)
-					gStates.powerStored[#gStates.powerStored+1]={["guid"]=drawn.guid}
+					gStates.powerStored[#gStates.powerStored+1]={guid=drawn.guid, seatPos=seatPos}
 					gStates.tacticSixState="Stored"
 					scheduleDeedPileDescriptionRefresh(seatPos, "deed")
 					mainUIUpdate("Night Tactic 6 Stored")
 				end
 
-				--Let Coral's physical set-aside card settle back on the bottom before taking the top card.
-				if turnOrder[playerIndex].mage=="Coral" then coralSetAsideQuickWitted() safeWaitFrames("Turn",storeTopCard, 5)
-				else storeTopCard() end
-				tactic.setPositionSmooth({tactic.getPosition()[1], 4, tactic.getPosition()[3]})
+				--Wait for Quick Witted to be physically back inside Coral's Deed Deck before taking the
+				--top normal card. A fixed frame delay can race a slow host or a moving/collapsing Deck.
+				if turnOrder[playerIndex].mage=="Coral" then
+					coralSetAsideQuickWitted()
+					safeWaitCondition("Turn",storeTopCard,function() return coralQuickWittedReadyForDraw()==true end,5,function()
+						log("Night Tactic 6 could not store a card because Coral's Quick Witted did not return to the Deed Deck.")
+					end)
+				else
+					storeTopCard()
+				end
+				tactic.setPositionSmooth({tactic.getPosition()[1], 4, tactic.getPosition()[3]},false,false)
 			end
 			if id:sub(1,17)=="NightTactic6Claim" then
 				local seatPos=tonumber(id:sub(18,18))
