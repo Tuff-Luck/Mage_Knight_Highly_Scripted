@@ -768,23 +768,19 @@ end
 
 --Draw cards from a deed deck into that positions hand
 cardClaim=false
-function drawUpTo(player, mouseButton, id, forcedTurnAffected, forcedDrawCount)
+function drawUpTo(player, mouseButton, id)
 	if mouseButton=="-1" then
-		--Async draw continuations must stay bound to the player whose draw started them.
-		--gStates.turnNumber may already have advanced (for example to the dummy) while cards animate.
-		local turnAffected=forcedTurnAffected or gStates.turnNumber
-		if turnOrder[turnAffected]==nil then return end
-		local playerPosition=turnOrder[turnAffected].seatPos
+		local playerPosition=turnOrder[gStates.turnNumber].seatPos
 		if legalPlayerCheck(player.color, playerPosition)==true then
 			if deedTransferBusy(playerPosition)==true then
-				safeWaitCondition("PlayerBoard.CardFlow",function() drawUpTo(player,mouseButton,id,turnAffected,forcedDrawCount) end,function() return deedTransferBusy(playerPosition)~=true end,10,function() drawUpTo(player,mouseButton,id,turnAffected,forcedDrawCount) end)
+				safeWaitCondition("PlayerBoard.CardFlow",function() drawExactDeedCards(turnAffected, excess, "DrawHand") end,function() return deedTransferBusy(playerPosition)~=true end,10,function() drawUpTo(player,mouseButton,id) end)
 				return
 			end
 			local meditationBonus=0
-			if forcedDrawCount==nil and id=="DrawHand" and gStates.meditationDrawBonus~=nil then
-				meditationBonus=gStates.meditationDrawBonus[turnAffected] or 0
+			if id=="DrawHand" and gStates.meditationDrawBonus~=nil then
+				meditationBonus=gStates.meditationDrawBonus[gStates.turnNumber] or 0
 				if meditationBonus>0 then
-					gStates.meditationDrawBonus[turnAffected]=nil
+					gStates.meditationDrawBonus[gStates.turnNumber]=nil
 					safeWaitFrames("PlayerBoard.CardFlow",function() mainUIUpdate("Meditation Draw Bonus Used") end, 1)
 				end
 			end
@@ -800,16 +796,17 @@ function drawUpTo(player, mouseButton, id, forcedTurnAffected, forcedDrawCount)
 				if possibleDeck.type=="Deck" or possibleDeck.type=="Card" then deedDeck=possibleDeck break end
 			end
 			--Quick Witted is already physically in Coral's Deed Deck; when it is the final card it resolves as a normal single-card Deed Deck.
-			if deedDeck~=nil or (id=="DrawHand" and turnOrder[turnAffected].tactic==2 and gStates.dayRound==false and gStates.tacticTwoState~="Used" and turnOrder[turnAffected].mage~=gStates.positionMageKnight[5]) then
+			if deedDeck~=nil or (id=="DrawHand" and turnOrder[gStates.turnNumber].tactic==2 and gStates.dayRound==false and gStates.tacticTwoState~="Used" and turnOrder[gStates.turnNumber].mage~=gStates.positionMageKnight[5]) then
 				local cardsInHand=0
-				local handSize=turnOrder[turnAffected].hand+turnOrder[turnAffected].handBonus+gStates.tactic4HandBonus+meditationBonus
+				local handSize=turnOrder[gStates.turnNumber].hand+turnOrder[gStates.turnNumber].handBonus+gStates.tactic4HandBonus+meditationBonus
 				if id=="DrawHand" then
 					for _, possibleCards in pairs(getObjectFromGUID(handZones[playerPosition]).getObjects()) do if possibleCards.type=="Card" then cardsInHand=cardsInHand+1 end end
 				else--Draw one
 					cardsInHand=handSize-1
 				end
-				local drawNeeded=forcedDrawCount or coralDrawExactCount or (handSize-cardsInHand)
+				local drawNeeded=coralDrawExactCount or (handSize-cardsInHand)
 				if drawNeeded>0 then
+					local turnAffected=gStates.turnNumber
 					--While normal Deed cards remain, Coral may replace any individual card draw with Quick Witted.
 					if coralDrawBypass==false and deedDeck~=nil and coralQuickWittedSetAside(turnAffected)~=nil then
 						showCoralDrawChoice(turnAffected, drawNeeded, id)
@@ -872,7 +869,7 @@ function drawUpTo(player, mouseButton, id, forcedTurnAffected, forcedDrawCount)
 									mainUIUpdate("Night Tactic 2 Used")
 									--The refill pause has finished; restart the normal Draw Hand flow so it
 									--recalculates the hand and draws exactly however many cards are still owed.
-									drawUpTo(player,mouseButton,id,turnAffected,excess)
+									drawUpTo(player,mouseButton,id)
 								end)
 							end
 						end, 2)
