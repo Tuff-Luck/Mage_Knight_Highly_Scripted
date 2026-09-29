@@ -1043,22 +1043,18 @@ local function mainUIRefreshLevelUpTurnText(context,playerState)
 	local nextPlayerEndCalled=context.nextPlayerEndCalled
 	--Change End turn button text if level up expected
 	if gStates.coopAssaultPhase~="combat" and (fameForUp<=turnOrder[gStates.turnNumber].fameGain or turnOrder[gStates.turnNumber].levelUp>0) and turnOrder[gStates.turnNumber].fame<gStates.scoreIfLooped and fameVerticle<gStates.rowsOnBoard then
-		UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
-		UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
+		setEndTurnText("{en}End Turn & Level Up{ru}Конец хода и Повышение уровня{zh-tw}結束回合並升級{zh-cn}结束回合并升级{ko}차례 종료 & 레벨 업{es}Fin de turno y Subir Nivel{fr}Fin du Tour et Level Up{pt-br}Finalizar Turno e Subir Nível{de}Zug beenden und aufleveln")
 		local expectedFame=turnOrder[gStates.turnNumber].fame+turnOrder[gStates.turnNumber].fameGain
 		local excessLevels=math.floor(math.sqrt(expectedFame+1))-turnOrder[gStates.turnNumber].level
 		expectedFame=expectedFame+(1*excessLevels*gStates.blitz)
 		excessLevels=math.floor(math.sqrt(expectedFame+1))-turnOrder[gStates.turnNumber].level
 		if excessLevels>1 then
-			UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
-			UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
+			setEndTurnText(joinLang({"{en}End Turn & {ru}Конец хода и {zh-tw}結束回合 & {zh-cn}结束回合 & {ko}차례 종료 & {es}Fin de Turno & {fr}Fin du tour & {pt-br}Fim do turno & {de}Zug beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
 		end
 		if nextPlayerEndCalled==true then
-			UI.setAttribute("EndTurnButtonText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
-			UI.setAttribute("EndTurnButtonAltText", "text", "{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
+			setEndTurnText("{en}End Turn, Rnd & Lev Up{ru}Завершить ход, раунд и повысить уровень{zh-tw}結束回合、回合輪並升級{zh-cn}结束回合、回合轮并升级{ko}턴·라운드 종료 및 레벨업{es}Fin de Turno, Ronda y Subir Nivel{fr}Fin du Tour, de la Manche et Niveau +{pt-br}Fim do Turno, Rodada e Subir Nível{de}Zug & Runde beenden, Stufe aufsteigen")
 			if excessLevels>1 then
-				UI.setAttribute("EndTurnButtonText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
-				UI.setAttribute("EndTurnButtonAltText", "text", joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
+				setEndTurnText(joinLang({"{en}End Turn, Rnd & {ru}Конец хода, Раунда и {zh-tw}結束回合，輪次 & {zh-cn}结束回合，轮次 & {ko}차례 및 라운드 종료 & {es}Fin de turno, ronda y {fr}Fin du tour, Rnd & {pt-br}Fim de turno, ronda & {de}Zug, Runde beenden & ", excessLevels, "{en} Level Ups{ru} Повышения уровня{zh-tw} 等提升{zh-cn} 等提升{ko} 레벨 업{es} Subidas de nivel{fr} Montée en niveau{pt-br} Subidas de nível{de}Stufenaufstiege"}))
 			end
 		end
 	end
@@ -1390,14 +1386,12 @@ local function mainUIRefreshStatusPanel(context,playerState)
 
 	UI.setAttribute("PreEndTurn", "onClick", "endTurn")
 	if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==false then
-		UI.setAttribute("EndTurnButtonText", "text", "{en}Combat Complete{ru}Бой завершён{zh-tw}戰鬥完成{zh-cn}战斗完成{ko}전투 완료{es}Combate Completo{fr}Combat Terminé{pt-br}Combate Concluído{de}Kampf Abgeschlossen")
-		UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
+		setEndTurnText("{en}Combat Complete{ru}Бой завершён{zh-tw}戰鬥完成{zh-cn}战斗完成{ko}전투 완료{es}Combate Completo{fr}Combat Terminé{pt-br}Combate Concluído{de}Kampf Abgeschlossen")
 	elseif gStates.coopAssaultPhase=="rewards" then
 		local nextText="{en}Finish Co-op Rewards{ru}Завершить совместные награды{zh-tw}完成合作獎勵{zh-cn}完成合作奖励{ko}협력 보상 완료{es}Finalizar Recompensas Coop.{fr}Terminer les Récompenses Coop.{pt-br}Finalizar Recompensas Coop.{de}Koop-Belohnungen Beenden"
 		if gStates.coopRewardIndex<#gStates.coopRewardQueue then nextText="{en}Rewards Claimed - Next Reward{ru}Награды получены - Следующая награда{zh-tw}獎勵完成－下一位{zh-cn}奖励完成－下一位{ko}보상 완료 - 다음 보상{es}Recompensas Reclamadas - Siguiente{fr}Récompenses Réclamées - Suivant{pt-br}Recompensas Coletadas - Próximo{de}Belohnungen Beansprucht - Weiter" end
 		UI.setAttribute("PreEndTurnText", "text", nextText)
-		UI.setAttribute("EndTurnButtonText", "text", "{en}Co-op Rewards{ru}Совместные награды{zh-tw}合作獎勵{zh-cn}合作奖励{ko}협력 보상{es}Recompensas Coop.{fr}Récompenses Coop.{pt-br}Recompensas Coop.{de}Koop-Belohnungen")
-		UI.setAttribute("EndTurnButtonAltText", "text", UI.getAttribute("EndTurnButtonText", "text"))
+		setEndTurnText("{en}Co-op Rewards{ru}Совместные награды{zh-tw}合作獎勵{zh-cn}合作奖励{ko}협력 보상{es}Recompensas Coop.{fr}Récompenses Coop.{pt-br}Recompensas Coop.{de}Koop-Belohnungen")
 		setUIButtonEnabled("EndTurnButton",false)
 		setUIButtonEnabled("EndTurnButtonAlt",false)
 	end
@@ -2021,8 +2015,12 @@ function cameraControl(player, mouseButton, id)
 								if lookAtPos[1]<-42 then
 									if gStates.gameScenario=="Against the Horsemen Blitz" then
 										lookAtPos=againstHorsemenCentralGladePosition(0) or lookAtPos
-									elseif getObjectFromGUID(startTerrain.wedge)~=nil then lookAtPos=getObjectFromGUID(startTerrain.wedge).getPosition()
-									elseif getObjectFromGUID(startTerrain.open)~=nil then lookAtPos=getObjectFromGUID(startTerrain.open).getPosition() end
+									else
+										local wedgeObj=getObjectFromGUID(startTerrain.wedge)
+										local openObj=getObjectFromGUID(startTerrain.open)
+										if wedgeObj~=nil then lookAtPos=wedgeObj.getPosition()
+										elseif openObj~=nil then lookAtPos=openObj.getPosition() end
+									end
 								end
 								break
 							end
