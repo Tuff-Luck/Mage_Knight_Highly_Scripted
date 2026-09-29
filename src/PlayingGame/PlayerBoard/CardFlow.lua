@@ -919,6 +919,9 @@ end
 --Starting Deed Decks are taken from bags and shuffled asynchronously. Deal only after every active
 --Mage Knight's complete Deed pile is registered in its scripting zone and has finished moving.
 function startingDeedDecksReadyForDraw()
+	--A pile can already look settled in its scripting zone while the serialized Deed-transfer
+	--queue still has bookkeeping to finish. Do not start the setup hand deal in that gap.
+	if deedTransferAnyBusy()==true then return false end
 	for playerIndex, playerDetails in ipairs(turnOrder) do
 		if playerDetails.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then
 			local deedZone=getObjectFromGUID(deedDeckZones[playerDetails.seatPos])
@@ -957,6 +960,11 @@ function dealStartingHandsWhenReady()
 		coralSetAsideQuickWitted()
 		safeWaitFrames("PlayerBoard.CardFlow",finishStartingHandsDeal, 5)
 	end)
+
+	--Keep the historical idempotent setup retry. TTS can occasionally miss a zone/resting
+	--transition during the large setup burst; drawUpTo() only fills missing hand cards, so a
+	--successful first deal is unchanged while a missed first deal repairs itself.
+	safeWaitTime("PlayerBoard.CardFlow",function() dealAllHands() end,11)
 end
 
 --Meditation / Trance card smarts. Top/Bot starts as Meditation; adding discard cards to the Deed Deck tells the script Trance was powered.
