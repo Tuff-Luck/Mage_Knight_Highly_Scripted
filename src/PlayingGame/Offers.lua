@@ -335,6 +335,10 @@ function addRegularUnitsToOffer(amount)
 end
 
 --Unit and Monastery Offer update
+--Forward declaration: unitOffer() needs this helper during initial Monastery setup.
+--Keeping the local binding in scope here prevents Lua from resolving the later definition as a nil global.
+local offerDrawOrMoveCard
+
 function unitOffer()
 	refreshUnitOfferSnapPoints(gStates.totalUnitCount)
 	local monasteryPlace=	{{36.0, 0.98, -10.2}, {31.2, 0.98, -10.2}, {26.4, 0.98, -10.2}, {21.6, 0.98, -10.2}, {16.8, 0.98, -10.2}, {12.0, 0.98, -10.2}}
@@ -471,7 +475,7 @@ function unitOffer()
 end
 
 -- Monastery offer
-local function offerDrawOrMoveCard(source,params)
+offerDrawOrMoveCard=function(source,params)
 	if source==nil then return nil end
 	if source.type=="Deck" then return safeTakeObject("Offers",source,params) end
 	if source.type~="Card" then return nil end
