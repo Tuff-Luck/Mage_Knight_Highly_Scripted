@@ -190,6 +190,15 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 		UI.setAttribute("OutOfTurnActions", "active", "false")
 	local count=0
 	if gStates.tacticRemove==false and gStates.tacticShown==false then
+		local currentPlayerHasPursuingMonster=false
+		local pursuingStates=gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]
+		if pursuingStates~=nil then
+			for _, state in pairs(pursuingStates) do
+				if state~=nil and state.state=="Pursuing" then currentPlayerHasPursuingMonster=true break end
+			end
+		end
+		local masterOfChaosObj=getObjectFromGUID(GUID.skill.masterOfChaos)
+		local masterOfChaosPos=masterOfChaosObj~=nil and masterOfChaosObj.getPosition() or nil
 		for a=1, #turnOrder, 1 do
 			UI.setAttribute("Plunder"..tostring(turnOrder[a].seatPos), "active", "false")
 			UI.setAttribute("Pursuit"..tostring(turnOrder[a].seatPos), "active", "false")
@@ -212,13 +221,7 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 			end
 
 			--skip movement button.
-			local found=false
-			if gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]~=nil then
-				for _, state in pairs(gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]) do
-					if state~=nil and state.state=="Pursuing" then found=true end
-				end
-			end
-			if playerDropoutInactive(a)==false and found==true and a==gStates.turnNumber and gStates.skippedMove==false and gStates.preEndTurn==false then
+			if playerDropoutInactive(a)==false and currentPlayerHasPursuingMonster==true and a==gStates.turnNumber and gStates.skippedMove==false and gStates.preEndTurn==false then
 				local playerPos=mageKnightAvatarPosition(gStates.turnNumber) or {}
 				if math.sqrt(((turnOrder[gStates.turnNumber].turnStartLoc.x-playerPos[1])^2)+((turnOrder[gStates.turnNumber].turnStartLoc.z-playerPos[3])^2))<1.5 then
 					UI.setAttribute("Pursuit"..tostring(turnOrder[gStates.turnNumber].seatPos), "active", "true")
@@ -300,7 +303,7 @@ function refreshOutOfTurnActions(playerAreaCardCount, playerAreaSkillCount, forc
 			end
 
 			--Master of Chaos
-			if playerDropoutInactive(a)==false and getObjectFromGUID(GUID.skill.masterOfChaos)~=nil and getObjectFromGUID(GUID.skill.masterOfChaos).getPosition()[3]<-25 and math.floor(((getObjectFromGUID(GUID.skill.masterOfChaos).getPosition()[1]+107.3)/40)+0.5)==turnOrder[a].seatPos and (a~=gStates.turnNumber or (a==gStates.turnNumber and playerAreaCardCount+playerAreaSkillCount<1)) and turnOrder[a].masterOfChaos=="available" and turnOrder[a].mage~=gStates.positionMageKnight[5] then
+			if playerDropoutInactive(a)==false and masterOfChaosPos~=nil and masterOfChaosPos[3]<-25 and math.floor(((masterOfChaosPos[1]+107.3)/40)+0.5)==turnOrder[a].seatPos and (a~=gStates.turnNumber or (a==gStates.turnNumber and playerAreaCardCount+playerAreaSkillCount<1)) and turnOrder[a].masterOfChaos=="available" and turnOrder[a].mage~=gStates.positionMageKnight[5] then
 				UI.setAttribute("MasterOfChaos"..tostring(turnOrder[a].seatPos).."Text", "text", "{en}Increment 'Master of Chaos' Skill{ru}Передвинуть навык «Мастер магии Хаоса»{zh-tw} 推進“混亂大師”技能{zh-cn} 推进“混乱大师”技能{ko} '혼돈의 달인' 스킬 한 칸 이동{es}Incrementa la Habilidad 'Maestro del Caos'{fr}Augmenter la Compétence 'Maître du Chaos'{pt-br}Incrementar a Habilidade 'Mestre do Caos'{de}Erhöht die Fertigkeit 'Meister des Chaos'")
 				UI.setAttribute("MasterOfChaos"..tostring(turnOrder[a].seatPos), "active", "true")
 				UI.setAttribute("MasterOfChaos"..tostring(turnOrder[a].seatPos).."Image", "color", positionToColor(a))
@@ -479,7 +482,7 @@ end
 
 --Shared presentation layer for every scripted/non-player turn that borrows the centre Dummy panel.
 --Gameplay stays in the owning system; these helpers only decide and render the current UI state.
-automatedAttackResponseButton=function(id,textId,imageId,spec)
+local function automatedAttackResponseButton(id,textId,imageId,spec)
 	if spec==nil then UI.setAttribute(id,"active","false") return end
 	local visible=spec.active~=false
 	local enabled=visible and spec.interactable~=false
@@ -499,7 +502,7 @@ function automatedAttackResponseUI(spec)
 	return spec.visible~=false
 end
 
-automatedPanelHasDeedCards=function(stats)
+local function automatedPanelHasDeedCards(stats)
 	if stats==nil or stats.seatPos==nil then return false end
 	local cached=endRoundDeedHasCards[stats.seatPos]
 	if cached~=nil then return cached end
@@ -509,7 +512,7 @@ automatedPanelHasDeedCards=function(stats)
 	return count>0
 end
 
-automatedPanelEndRoundText=function()
+local function automatedPanelEndRoundText()
 	if gStates.currentRound>=gStates.rounds then return "{en}Call End of Game{ru}Объявить конец игры{zh-tw}宣告遊戲結束{zh-cn}宣布游戏结束{ko}게임 종료 선언{es}Declarar Fin del Juego{fr}Déclarer la Fin de la Partie{pt-br}Declarar Fim do Jogo{de}Spielende Ausrufen" end
 	return joinLang({"{en}Call End of Round {ru}Объявить конец Раунда {zh-tw}聲明結束輪次 {zh-cn}声明结束轮次 {ko}라운드 종료 선언 {es}Llamar a Fin de Ronda {fr}Appel fin de Round{pt-br}Fim da Rodada {de}Ende der Runde Einläuten ",gStates.currentRound,"{en} of {ru} из {zh-tw} / {zh-cn} / {ko} / {es} / {fr} de {pt-br} de {de} von ",gStates.rounds})
 end
@@ -554,7 +557,7 @@ function automatedProxyPanelSpec(stats,stateOverride)
 	return spec
 end
 
-automatedDummyPanelSpec=function(stats)
+local function automatedDummyPanelSpec(stats)
 	local spec={actor="dummy",onClick="dummyTurn",interactable=true,label="{en}Process Dummy{ru}Ход виртуального игрока{zh-tw}虛擬玩家行動{zh-cn}虚拟玩家行动{ko}가상 플레이어 진행{es}Procesar Jugador Virtual{fr}Processus fantôme{pt-br}Processar Jog.Fictício{de}Dummy aktivieren"}
 	if stats.dummyProcessedThisTurn~=true and automatedPanelHasDeedCards(stats)==false and gStates.endRoundCalled==false and gStates.endGameAchieved=="false" then
 		spec.onClick="PreEndRound"
@@ -575,7 +578,7 @@ automatedDummyPanelSpec=function(stats)
 	return spec
 end
 
-automatedVolkarePanelSpec=function(stats)
+local function automatedVolkarePanelSpec(stats)
 	local state=gStates.volkareState or "Start"
 	local spec={actor="volkare",onClick="volkareTurn",interactable=true,preserveResponse=true,label="{en}Process Volkare{ru}Ход Волкара{zh-tw}沃卡里行動{zh-cn}沃卡里行动{ko}볼케어 진행{es}Procesar Volkare{fr}Processus Volkare{pt-br}Processar Volkare{de}Volkare Aktivieren"}
 	if state=="Start" then
@@ -607,7 +610,7 @@ automatedVolkarePanelSpec=function(stats)
 	return spec
 end
 
-automatedCurrentPlayerPanelSpec=function()
+local function automatedCurrentPlayerPanelSpec()
 	if gStates==nil or gStates.turnNumber==nil or turnOrder[gStates.turnNumber]==nil or gStates.positionMageKnight==nil then return nil end
 	local stats=turnOrder[gStates.turnNumber]
 	if stats.mage~=gStates.positionMageKnight[5] then return nil end
@@ -702,6 +705,16 @@ local mainUINonCombatAccountingSources={
 	["Night Tactic 6 Claimed"]=true,
 	["Fame Gain from exploring"]=true
 }
+local function setEndTurnText(text)
+	UI.setAttribute("EndTurnButtonText","text",text)
+	UI.setAttribute("EndTurnButtonAltText","text",text)
+end
+
+local function setEndTurnTooltip(text)
+	UI.setAttribute("EndTurnButton","tooltip",text)
+	UI.setAttribute("EndTurnButtonAlt","tooltip",text)
+end
+
 local function mainUIBuildRefreshContext(source)
 	local currentPlayer=turnOrder[gStates.turnNumber]
 	if currentPlayer==nil then return nil end
@@ -745,8 +758,7 @@ local function mainUIRefreshTurnControls(context)
 	local currentPlayerGameEnder=context.currentPlayerGameEnder
 	--change End turn button to say End Round on the last player turn
 	setUIButtonEnabled("EndTurnButton",true)
-	UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
-	UI.setAttribute("EndTurnButtonAlt", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
+	setEndTurnTooltip("At least one card must be played or discarded to 'End Your Turn'.")
 	setUIButtonEnabled("EndTurnButtonAlt",true)
 	setUIButtonEnabled("ExtraTurnTacticButton",true)
 	UI.setAttribute("PreEndTurnText", "text", "{en}Rewards Claimed{ru}Награды получены{zh-tw}獲得獎勵{zh-cn}获得奖励{ko}보상 처리 완료{es}Recompensas Reclamadas{fr}Récompenses réclamées{pt-br}Recompensas Coletadas{de}Belohnungen Beansprucht")
@@ -759,8 +771,7 @@ local function mainUIRefreshTurnControls(context)
 	local nextTurnToken=nextIsCoopAssaulter and getObjectFromGUID(turnOrder[nextPlayer].turnOrderTokenGUID) or nil
 	if nextIsCoopAssaulter and turnOrder[nextPlayer].mage~=gStates.positionMageKnight[5] and nextTurnToken~=nil and nextTurnToken.is_face_down==true then
 		endText="{en}Next Assaulter{ru}Следующий штурмующий{zh-tw}換下一個襲擊者{zh-cn}换下一个袭击者{ko}다음 강습자{es}Siguiente Asaltante{fr}Prochain Agresseur{pt-br}Próximo Invasor{de}Nächster Spieler" end
-	UI.setAttribute("EndTurnButtonText", "text", endText)
-	UI.setAttribute("EndTurnButtonAltText", "text", endText)
+	setEndTurnText(endText)
 end
 
 local function mainUIRefreshPlayerState(context)
@@ -1185,12 +1196,8 @@ local function mainUIRefreshTurnAvailability(context,playerState)
 		if b.type=="Card" then discardAreaCards=1 break end
 		if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
 	end
-	UI.setAttribute("EndTurnButton", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
-	UI.setAttribute("EndTurnButtonAlt", "tooltip", "At least one card must be played or discarded to 'End Your Turn'.")
-	if gStates.endRoundCalled==true then
-		UI.setAttribute("EndTurnButton", "tooltip", "")
-		UI.setAttribute("EndTurnButtonAlt", "tooltip", "")
-	end
+	setEndTurnTooltip("At least one card must be played or discarded to 'End Your Turn'.")
+	if gStates.endRoundCalled==true then setEndTurnTooltip("") end
 	local coopCombatButtonLocked=gStates.coopAssaultPhase=="combat" and (gStates.preEndTurn==true or playerAreaCardCount<1)
 	if (playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount) or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
 		setUIButtonEnabled("EndTurnButton",false)
@@ -1447,7 +1454,7 @@ function uiMainUIUpdateBase(source,afterRefresh)
 end
 
 --Add Icons to players Avatar and Rampaging Monsters
-local addAvatarPause=true
+local avatarButtonRefreshPending=false
 avatarButtonXmlState={}
 mapObjectScriptUIState={}
 avatarButtonSpatialCell=3
@@ -1486,11 +1493,11 @@ function clearMapObjectUIOnExit(obj)
 	return true
 end
 
-avatarButtonBucketKey=function(pos)
+local function avatarButtonBucketKey(pos)
 	return tostring(math.floor(pos[1]/avatarButtonSpatialCell))..":"..tostring(math.floor(pos[3]/avatarButtonSpatialCell))
 end
 
-avatarButtonNearbyObjects=function(buckets, pos)
+local function avatarButtonNearbyObjects(buckets, pos)
 	local nearby={}
 	local baseX=math.floor(pos[1]/avatarButtonSpatialCell)
 	local baseZ=math.floor(pos[3]/avatarButtonSpatialCell)
@@ -1503,7 +1510,7 @@ avatarButtonNearbyObjects=function(buckets, pos)
 	return nearby
 end
 
-avatarButtonXmlSignature=function(xml, scale, rotation)
+local function avatarButtonXmlSignature(xml, scale, rotation)
 	if xml==nil or xml[1]==nil or xml[1].tag==nil then return "empty" end
 	local signature={tostring(scale), tostring(math.floor((rotation or 0)*10+0.5)/10)}
 	for _, child in ipairs(xml[1].children or {}) do
@@ -1528,7 +1535,10 @@ combatAttackOptionCounts=combatAttackOptionCounts or {}
 combatAttackHorsemanOptionCounts=combatAttackHorsemanOptionCounts or {}
 
 function addAvatarButtons()
-	if addAvatarPause==true then safeWaitFrames("UI",function()
+	if avatarButtonRefreshPending==true then return end
+	avatarButtonRefreshPending=true
+	safeWaitFrames("UI",function()
+		avatarButtonRefreshPending=false
 		--Snapshot relevant map objects once. Nearby shield/marker/ruin checks use spatial buckets;
 		--rampager/destroyed-site controls remain a small dedicated list because stale remote buttons must be cleared.
 		local mapButtonBuckets={}
@@ -1583,7 +1593,7 @@ function addAvatarButtons()
 					local turnTokenFaceUp=turnTokenObj~=nil and turnTokenObj.is_face_down==false
 
 					--Use City Model location as Avatar Location if in City.
-					if player.avatarLocation:sub(1, 4)=="city" or player.avatarLocation=="Volkare's Camp" then
+					if player.avatarLocation~=nil and (player.avatarLocation:sub(1, 4)=="city" or player.avatarLocation=="Volkare's Camp") then
 						for zoneGUID, citySearch in pairs(cityScriptZones) do
 							local zoneObj=getObjectFromGUID(zoneGUID)
 							if zoneObj~=nil then
@@ -1812,9 +1822,7 @@ function addAvatarButtons()
 				end
 			end
 		end
-		addAvatarPause=true
-	end, 5) end
-	addAvatarPause=false
+	end, 5)
 end
 
 --drop a shield or marker on avatar location
@@ -1910,28 +1918,33 @@ end
 
 
 function openBugReportPanel(player, value, id)
-	UI.setAttribute("SendBugRequest", "active", true)
+	UI.setAttribute("SendBugRequest", "active", "true")
 end
 
 function setBugReportComment(player, value, id)
 	UI.setAttribute(id, "text", value)
 end
 
+local LOWER_TABLE_GUID="3d4319"
+local LOWER_TABLE_SURFACE_GUID="519f96"
 function lowerTable(player, mouseButton, id)
-	if mouseButton=="-1" then
-		if getObjectFromGUID("3d4319").getPosition()[2]==0 then
-			getObjectFromGUID("3d4319").setPosition({0.00, -0.2, -5.00})
-			getObjectFromGUID("519f96").setScale({200, 1, 200})
-			getObjectFromGUID("519f96").setPosition({0.00, 0.77, -5.00})
-			skillButtonActivate()
-			return
-		end
-		if getObjectFromGUID("3d4319").getPosition()[2]<0 then
-			getObjectFromGUID("3d4319").setPosition({0.00, 0.0, -5.00})
-			getObjectFromGUID("519f96").setScale({1, 1, 1})
-			getObjectFromGUID("519f96").setPosition({0.00, -0.2, -5.00})
-			skillButtonActivate()
-		end
+	if mouseButton~="-1" then return end
+	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
+	local surfaceObj=getObjectFromGUID(LOWER_TABLE_SURFACE_GUID)
+	if tableObj==nil or surfaceObj==nil then return end
+	local tableY=tableObj.getPosition()[2]
+	if tableY==0 then
+		tableObj.setPosition({0.00, -0.2, -5.00})
+		surfaceObj.setScale({200, 1, 200})
+		surfaceObj.setPosition({0.00, 0.77, -5.00})
+		skillButtonActivate()
+		return
+	end
+	if tableY<0 then
+		tableObj.setPosition({0.00, 0.0, -5.00})
+		surfaceObj.setScale({1, 1, 1})
+		surfaceObj.setPosition({0.00, -0.2, -5.00})
+		skillButtonActivate()
 	end
 end
 
@@ -1989,16 +2002,22 @@ function cameraControl(player, mouseButton, id)
 				return
 			end
 			local lookAtPos={0, 0, 0}
-			if id=="dummyView" and getObjectFromGUID(dummyBoard)~=nil then lookAtPos=getObjectFromGUID(dummyBoard).getPosition() end--dummy board position
+			if id=="dummyView" then
+				local dummyObj=getObjectFromGUID(dummyBoard)
+				if dummyObj~=nil then lookAtPos=dummyObj.getPosition() end
+			end--dummy board position
 			for turn, playerDetails in pairs(turnOrder) do
 				if (player.color~="Black" and Player[player.color].getHandTransform()~=nil and playerDetails.seatPos==math.ceil((Player[player.color].getHandTransform().position[1]+97.59)/40)) or
 				   (player.color=="Black" and turn==gStates.turnNumber) then
 					if id=="mapView" then
 						for indexMage=1, #mageKnights, 1 do
 							if mageKnights[indexMage].mage==playerDetails.mage then--figures out which Mage is in that position
-								if getObjectFromGUID(mageKnights[indexMage].model)~=nil then lookAtPos=getObjectFromGUID(mageKnights[indexMage].model).getPosition() end
-								if getObjectFromGUID(mageKnights[indexMage].standee)~=nil then lookAtPos=getObjectFromGUID(mageKnights[indexMage].standee).getPosition() end
-								if getObjectFromGUID(mageKnights[indexMage].token)~=nil then lookAtPos=getObjectFromGUID(mageKnights[indexMage].token).getPosition() end
+								local modelObj=getObjectFromGUID(mageKnights[indexMage].model)
+								local standeeObj=getObjectFromGUID(mageKnights[indexMage].standee)
+								local tokenObj=getObjectFromGUID(mageKnights[indexMage].token)
+								if modelObj~=nil then lookAtPos=modelObj.getPosition() end
+								if standeeObj~=nil then lookAtPos=standeeObj.getPosition() end
+								if tokenObj~=nil then lookAtPos=tokenObj.getPosition() end
 								if lookAtPos[1]<-42 then
 									if gStates.gameScenario=="Against the Horsemen Blitz" then
 										lookAtPos=againstHorsemenCentralGladePosition(0) or lookAtPos
@@ -2024,7 +2043,8 @@ function cameraControl(player, mouseButton, id)
 						["rulesView"]={pos={63.12, 0, 34.0}, pitch=gStates.cameraControlTopDown, yaw=0, dist=20},
 						["monsterInfoView"]={pos={-12.7, 0, 34.5}, pitch=gStates.cameraControlTopDown, yaw=0, dist=17},
 						["siteInfoView"]={pos={-62.0, 0, -16.5}, pitch=gStates.cameraControlTopDown, yaw=0, dist=18}}
-			Player[player.color].lookAt({position=data[id].pos, pitch=data[id].pitch, yaw=data[id].yaw, distance=data[id].dist})
+			local view=data[id]
+			if view~=nil then Player[player.color].lookAt({position=view.pos, pitch=view.pitch, yaw=view.yaw, distance=view.dist}) end
 		end
 	end
 end
@@ -2300,7 +2320,7 @@ end
 
 function closeSplash() UI.hide("welcome") end
 
-buildMageKnightFastLookups=function()
+local function buildMageKnightFastLookups()
 	mageKnightsByName={}
 	mageKnightAvatarGUIDs={}
 	for _, details in pairs(mageKnights) do
@@ -2314,7 +2334,7 @@ buildMageKnightFastLookups=function()
 end
 buildMageKnightFastLookups()
 
-mageKnightAvatarObjectByName=function(mage, preferStandee)
+local function mageKnightAvatarObjectByName(mage, preferStandee)
 	local details=mageKnightsByName[mage]
 	if details==nil then return nil end
 	local first=preferStandee==true and details.standee or details.model
@@ -2654,11 +2674,13 @@ function changeMatImage(player, mouseButton, id)
 end
 
 function bannerOfCommandDecal()
-	if getObjectFromGUID(GUID.card.bannerOfCommandToken).is_face_down==true then
-		getObjectFromGUID(GUID.card.bannerOfCommandToken).UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
+	local token=getObjectFromGUID(GUID.card.bannerOfCommandToken)
+	if token==nil then return end
+	if token.is_face_down==true then
+		token.UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
 			height=240, width=125, position="0 -520 40", rotation="0 180 180"}}})
 	else
-		getObjectFromGUID(GUID.card.bannerOfCommandToken).UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
+		token.UI.setXmlTable({{tag="Image", attributes={id="Command", image="Banner Command",
 			height=240, width=125, position="0 -1066 -40", rotation="0 0 180"}}})
 	end
 end
