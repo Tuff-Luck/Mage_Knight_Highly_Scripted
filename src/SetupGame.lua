@@ -125,6 +125,26 @@ local function setupMainDecksSettled()
 	return true
 end
 
+--Reference/reminder cards are useful setup aids, but a missing copy must not abort the whole game.
+--Reuse an already-deployed copy on a setup retry; otherwise take it from its source bag and lock it.
+local function setupDeployLockedReferenceCard(container,guid,position,label)
+	local rotation={0,180,0}
+	local card=getObjectFromGUID(guid)
+	if card~=nil then
+		card.setPosition(position)
+		card.setRotation(rotation)
+		card.lock()
+		return card
+	end
+	card=safeTakeObject("SetupGame",container,{guid=guid,position=position,rotation=rotation,smooth=false})
+	if card==nil then
+		print("SETUP WARNING: "..tostring(label or guid).." ("..tostring(guid)..") was not available in its setup bag.")
+		return nil
+	end
+	card.lock()
+	return card
+end
+
 local function setupFinishDeckStage()
 	local Wounds={[GUID.deck.spell]={"5c38e4","ab778d"},[GUID.deck.regularUnit]={"b5048c","718f39"}}
 	if gStates.mageKnightLevels==false then
@@ -514,8 +534,9 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			end
 		end
 		if apocalypseTokenSupportNeeded==true then
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="c584ff", position={-53.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Apocalypse Cult Reward Card
-			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid="071cc6", position={-49.50, 0.98, 21.50}, rotation={0, 180, 0}, smooth=false}).lock()--Council of the Void Reward Card
+			local apocalypseBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+			setupDeployLockedReferenceCard(apocalypseBag,"c584ff",{-53.50,0.98,21.50},"Apocalypse Cult Reward Card")
+			setupDeployLockedReferenceCard(apocalypseBag,"071cc6",{-49.50,0.98,21.50},"Council of the Void Reward Card")
 		end
 
 		--The Apocalypse systems share the same infinite Neutral Shield bag.
