@@ -758,7 +758,9 @@ local function finalizeSetup()
 	safeWaitTime("SetupGame",function() normalizeSetupTableObjects() end, 10)
 	dealStartingHandsWhenReady(function()
 		--The first player-facing round action starts only after every active Mage Knight has a full hand.
+		log("SETUP HANDS: completion reached SetupGame; opening tactic selection")
 		tacticToggle()
+		log("SETUP HANDS: tacticToggle returned; tacticShown="..tostring(gStates.tacticShown))
 	end)
 	--All automated setup dependencies have completed. Any remaining smooth movement is presentation-only,
 	--so release the setup rewind guard immediately rather than relying on its 59-second failsafe.
