@@ -1420,6 +1420,51 @@ function positionApocalypseDragonHeads()
 end
 
 -- Shared interstitial Dragon-turn shell used by Against the Dragon and Fury.
+function apocalypseDragonResetTurnRuntime()
+	gStates.apocalypseDragonTurn=0
+	gStates.apocalypseDragonTurnActive=false
+	gStates.apocalypseDragonResumeTurn=nil
+	gStates.apocalypseDragonPendingChoice=nil
+	gStates.apocalypseDragonPendingAttack=nil
+	gStates.apocalypseDragonFullAttendPlayer=nil
+	gStates.apocalypseDragonUIState=nil
+	gStates.apocalypseDragonTurnAction=nil
+	gStates.apocalypseDragonTurnReport=nil
+	gStates.apocalypseDragonTurnReportPrefix=nil
+end
+
+function apocalypseDragonBeginInterstitialTurn(nextTurnNumber,newOutOfTurn,sameTurn,action,report,source)
+	gStates.apocalypseDragonTurnActive=true
+	gStates.apocalypseDragonResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn==true,sameTurn=sameTurn==true}
+	gStates.apocalypseDragonTurn=(gStates.apocalypseDragonTurn or 0)+1
+	local dragonTurn=gStates.apocalypseDragonTurn
+	local resolvedAction=type(action)=="function" and action(dragonTurn) or action
+	gStates.apocalypseDragonTurnAction=resolvedAction
+	gStates.apocalypseDragonUIState="ReadyToProcess"
+	gStates.apocalypseDragonTurnReportPrefix=nil
+	gStates.apocalypseDragonTurnReport=type(report)=="function" and report(dragonTurn,resolvedAction) or report
+	apocalypseDragonMainUIRefresh()
+	mainUIUpdate(source)
+	return true
+end
+
+function apocalypseDragonCompleteInterstitialTurn(text,source,clearPending)
+	if clearPending==true then
+		gStates.apocalypseDragonPendingChoice=nil
+		gStates.apocalypseDragonPendingAttack=nil
+		gStates.apocalypseDragonTurnAction=nil
+	end
+	gStates.apocalypseDragonUIState="ReadyToEnd"
+	if text~=nil then
+		gStates.apocalypseDragonTurnReport=text
+	elseif gStates.apocalypseDragonTurnReport==nil or gStates.apocalypseDragonTurnReport=="" then
+		gStates.apocalypseDragonTurnReport="The Apocalypse Dragon finished its turn."
+	end
+	apocalypseDragonMainUIRefresh()
+	mainUIUpdate(source)
+	return true
+end
+
 function apocalypseDragonTurnOrdinal(turnNumber)
 	local n=tonumber(turnNumber) or 1
 	if n==1 then return "1st" end

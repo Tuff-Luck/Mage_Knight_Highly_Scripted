@@ -941,6 +941,21 @@ function createCompetitiveSkillReminders(skillGUID, owner)
 	end
 end
 
+local function clearCirculatingSkillState(skillGUID)
+	gStates.doingTheRounds[skillGUID]=nil
+	gStates.soloCoop[skillGUID]=nil
+	if gStates.doingTheRoundsVisited~=nil then gStates.doingTheRoundsVisited[skillGUID]=nil end
+	deactivateCoopCompSkill(skillGUID,true)
+end
+
+local function trashSharedSkillMarkers(skillGUID)
+	local zoneGUID=sharedSkillAboveZone[skillGUID]
+	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+	local trash=getObjectFromGUID(trashCan)
+	if zone==nil or trash==nil then return end
+	for _,marker in pairs(zone.getObjects()) do if marker.type=="Figurine" then trash.putObject(marker) end end
+end
+
 local function finishCompetitiveSkill(skillGUID, reset)
 	clearCompetitiveSkillReminders(skillGUID)
 	local skill=getObjectFromGUID(skillGUID)
@@ -948,13 +963,8 @@ local function finishCompetitiveSkill(skillGUID, reset)
 		skill.setPositionSmooth({gStates.mageSkills[skillGUID][1], 1.5, gStates.mageSkills[skillGUID][3]})
 		if reset~=true then skill.setRotationSmooth({0,180,180}) end
 	end
-	gStates.doingTheRounds[skillGUID]=nil
-	gStates.soloCoop[skillGUID]=nil
-	if gStates.doingTheRoundsVisited~=nil then gStates.doingTheRoundsVisited[skillGUID]=nil end
-	deactivateCoopCompSkill(skillGUID, true)
-	local zoneGUID=sharedSkillAboveZone[skillGUID]
-	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-	if zone~=nil then for _, marker in pairs(zone.getObjects()) do if marker.type=="Figurine" then getObjectFromGUID(trashCan).putObject(marker) end end end
+	clearCirculatingSkillState(skillGUID)
+	trashSharedSkillMarkers(skillGUID)
 end
 
 --Move cooperative skills to the next player. Competitive reminders are removed as each affected player's turn finishes.
@@ -1013,16 +1023,8 @@ function doingTheRounds(skillGUID, nextPlayer, count, reset)
 				skill.setPositionSmooth({skillHome[1], 1.5, skillHome[3]},false,false)
 				if reset~=true then skill.setRotationSmooth({0.0, 180.0, 180.0},false,false) end
 			end
-			gStates.doingTheRounds[skillGUID]=nil
-			gStates.soloCoop[skillGUID]=nil
-			if gStates.doingTheRoundsVisited~=nil then gStates.doingTheRoundsVisited[skillGUID]=nil end
-			deactivateCoopCompSkill(skillGUID, true)
-			local zoneGUID=sharedSkillAboveZone[skillGUID]
-			local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
-			local trash=getObjectFromGUID(trashCan)
-			if zone~=nil and trash~=nil then
-				for _, b in pairs(zone.getObjects()) do if b.type=="Figurine" then trash.putObject(b) end end
-			end
+			clearCirculatingSkillState(skillGUID)
+			trashSharedSkillMarkers(skillGUID)
 		else
 			--place next to owner skill for solo cooperative play
 			if sharedSkillAboveZone[skillGUID]~=nil then

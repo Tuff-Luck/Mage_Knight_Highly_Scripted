@@ -823,24 +823,28 @@ function proxyExploreButtonPosition(button)
 	return {pos[1],1.3,pos[2]}
 end
 
+local function proxyNearestReachableHex(hexes,distances,position)
+	if position==nil then return nil,nil,nil end
+	local bestHex,bestTravel,bestEdge=nil,nil,nil
+	for _,hex in ipairs(hexes or {}) do
+		local travel=distances[runtimeMapHexKey(hex)]
+		if travel~=nil then
+			local dx=hex.position[1]-position[1]
+			local dz=hex.position[3]-position[3]
+			local edge=(dx*dx)+(dz*dz)
+			if edge<26 and (bestTravel==nil or travel<bestTravel or (travel==bestTravel and edge<bestEdge)) then bestHex,bestTravel,bestEdge=hex,travel,edge end
+		end
+	end
+	return bestHex,bestTravel,bestEdge
+end
+
 function proxyExploreTarget(hexes,distances)
 	local candidates={}
 	--Ordinary maps expose legal Explore buttons. Use those exactly as before.
 	for _,button in pairs(terrainExploreOptions()) do
 		local p=proxyExploreButtonPosition(button)
 		if p~=nil then
-			local bestHex,bestTravel,bestEdge=nil,nil,nil
-			for _,hex in ipairs(hexes or {}) do
-				local travel=distances[runtimeMapHexKey(hex)]
-				if travel~=nil then
-					local dx=hex.position[1]-p[1]
-					local dz=hex.position[3]-p[3]
-					local edge=(dx*dx)+(dz*dz)
-					if edge<26 and (bestTravel==nil or travel<bestTravel or (travel==bestTravel and edge<bestEdge)) then
-						bestHex,bestTravel,bestEdge=hex,travel,edge
-					end
-				end
-			end
+			local bestHex,bestTravel,bestEdge=proxyNearestReachableHex(hexes,distances,p)
 			if bestHex~=nil then candidates[#candidates+1]={hex=bestHex,action="explore",button=button,edge=bestEdge,proxyExplorePosition=p,proxyDistance=bestTravel} end
 		end
 	end
@@ -855,18 +859,7 @@ function proxyExploreTarget(hexes,distances)
 			local details=terrainTiles[tile.guid]
 			if details~=nil and details.tileType~="tilePile" and tile.is_face_down==true and gStates.playedAllready[tile.guid]~=true then
 				local p=tile.getPosition()
-				local bestHex,bestTravel,bestEdge=nil,nil,nil
-				for _,hex in ipairs(hexes or {}) do
-					local travel=distances[runtimeMapHexKey(hex)]
-					if travel~=nil then
-						local dx=hex.position[1]-p[1]
-						local dz=hex.position[3]-p[3]
-						local edge=(dx*dx)+(dz*dz)
-						if edge<26 and (bestTravel==nil or travel<bestTravel or (travel==bestTravel and edge<bestEdge)) then
-							bestHex,bestTravel,bestEdge=hex,travel,edge
-						end
-					end
-				end
+				local bestHex,bestTravel,bestEdge=proxyNearestReachableHex(hexes,distances,p)
 				if bestHex~=nil then
 					candidates[#candidates+1]={hex=bestHex,action="explore",predefinedTileGUID=tile.guid,edge=bestEdge,proxyExplorePosition={p[1],p[2],p[3]},proxyDistance=bestTravel}
 				end
@@ -1048,13 +1041,11 @@ function proxyMovementHazard(fromHex,toHex,hexes,mapObjects,proxyIndex,context)
 	return hazard
 end
 
-function proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,forcedFirstKey,sharedContext)
-	if startHex==nil or target==nil or target.hex==nil then return {},nil,nil end
-	local context=sharedContext or proxyRouteContext(hexes,mapObjects,proxyIndex)
-	local toTarget=proxyDistanceMap(hexes,{target.hex},proxyIndex,context)
+local function proxySafeRunEvaluator(target,hexes,mapObjects,proxyIndex,context,toTarget)
 	local targetKey=runtimeMapHexKey(target.hex)
 	local safeMemo={}
-	local function safeRun(hex)
+	local safeRun
+	safeRun=function(hex)
 		local key=runtimeMapHexKey(hex)
 		if key==nil or key==targetKey then return 0 end
 		if safeMemo[key]~=nil then return safeMemo[key] end
@@ -1062,7 +1053,8 @@ function proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,forcedF
 		if distance==nil or distance<=0 then safeMemo[key]=0 return 0 end
 		local best=-1
 		for _,candidate in ipairs(context.neighbors[key] or {}) do
-			if context.passable[runtimeMapHexKey(candidate)]==true and toTarget[runtimeMapHexKey(candidate)]==distance-1 then
+			local candidateKey=runtimeMapHexKey(candidate)
+			if context.passable[candidateKey]==true and toTarget[candidateKey]==distance-1 then
 				local hazard=proxyMovementHazard(hex,candidate,hexes,mapObjects,proxyIndex,context)
 				local score=hazard~=nil and 0 or (1+safeRun(candidate))
 				if score>best then best=score end
@@ -1072,6 +1064,14 @@ function proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,forcedF
 		safeMemo[key]=best
 		return best
 	end
+	return safeRun,targetKey
+end
+
+function proxyPlanRoute(startHex,target,hexes,mapObjects,proxyIndex,move,forcedFirstKey,sharedContext)
+	if startHex==nil or target==nil or target.hex==nil then return {},nil,nil end
+	local context=sharedContext or proxyRouteContext(hexes,mapObjects,proxyIndex)
+	local toTarget=proxyDistanceMap(hexes,{target.hex},proxyIndex,context)
+	local safeRun,targetKey=proxySafeRunEvaluator(target,hexes,mapObjects,proxyIndex,context,toTarget)
 	local current=startHex
 	local route={}
 	local lastSafe=startHex
@@ -1133,24 +1133,7 @@ function proxyFindRouteChoice(startHex,target,hexes,mapObjects,proxyIndex,move)
 	if startHex==nil or target==nil or target.hex==nil or (move or 0)<=0 then return nil end
 	local context=proxyRouteContext(hexes,mapObjects,proxyIndex)
 	local toTarget=proxyDistanceMap(hexes,{target.hex},proxyIndex,context)
-	local targetKey=runtimeMapHexKey(target.hex)
-	local safeMemo={}
-	local function safeRun(hex)
-		local key=runtimeMapHexKey(hex)
-		if key==nil or key==targetKey then return 0 end
-		if safeMemo[key]~=nil then return safeMemo[key] end
-		local distance=toTarget[key]
-		if distance==nil or distance<=0 then safeMemo[key]=0 return 0 end
-		local best=-1
-		for _,candidate in ipairs(context.neighbors[key] or {}) do
-			if context.passable[runtimeMapHexKey(candidate)]==true and toTarget[runtimeMapHexKey(candidate)]==distance-1 then
-				local h=proxyMovementHazard(hex,candidate,hexes,mapObjects,proxyIndex,context)
-				local score=h~=nil and 0 or (1+safeRun(candidate))
-				if score>best then best=score end
-			end
-		end
-		if best<0 then best=0 end safeMemo[key]=best return best
-	end
+	local safeRun,targetKey=proxySafeRunEvaluator(target,hexes,mapObjects,proxyIndex,context,toTarget)
 	local current=startHex
 	local prefix={}
 	for step=1,move do

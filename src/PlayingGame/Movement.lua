@@ -625,6 +625,53 @@ function renderMoveDisplay(id)
 		--Search fringe hexes recorded from the previous loop
 		local searchLimit=10
 		local noMove=false
+
+		local function moveRecordedCost(hor,vec)
+			local row=moveMap[tostring(hor)]
+			local move=row~=nil and row[tostring(vec)] or nil
+			if move==nil then return 100 end
+			return move.tricky~=nil and move.tricky or move.main or 100
+		end
+
+		local function moveDestination(hor,vec)
+			local horKey=tostring(hor)
+			local vecKey=tostring(vec)
+			if moveMap[horKey]==nil then moveMap[horKey]={} end
+			if moveMap[horKey][vecKey]==nil then moveMap[horKey][vecKey]={} end
+			return moveMap[horKey][vecKey]
+		end
+
+		local function queueMoveFringe(hor,vec)
+			local fringeKey=tostring(hor)..":"..tostring(vec)
+			if tempFringeSet[fringeKey]==true then return end
+			tempFringeSet[fringeKey]=true
+			tempFringe[#tempFringe+1]={coord={hor,vec}}
+			noMove=false
+		end
+
+		local function recordSafeMoveDestination(hor,vec,hexCost,predecessor,allowFringe)
+			local recordedMoveTotal=moveRecordedCost(hor,vec)
+			if hexCost>=gStates.resourceTracker.move.move+searchLimit or hexCost>recordedMoveTotal then return false end
+			local destinationMove=moveDestination(hor,vec)
+			if hexCost==recordedMoveTotal then
+				local existingPrev=destinationMove.tricky~=nil and destinationMove.trickyPrev or destinationMove.mainPrev
+				if existingPrev~=nil and continuationPenalty(predecessor.hor,predecessor.vec,predecessor.state)<continuationPenalty(existingPrev.hor,existingPrev.vec,existingPrev.state) then
+					if destinationMove.tricky~=nil then destinationMove.trickyPrev=predecessor else destinationMove.mainPrev=predecessor end
+				end
+				return true
+			end
+			if destinationMove.tricky==nil then
+				destinationMove.main=hexCost
+				destinationMove.mainPrev=predecessor
+				destinationMove.mainCombat=false
+			else
+				destinationMove.tricky=hexCost
+				destinationMove.trickyPrev=predecessor
+				destinationMove.trickyCombat=false
+			end
+			if allowFringe==true then queueMoveFringe(hor,vec) end
+			return true
+		end
 		while noMove==false do
 			noMove=true
 			--check every hex added in the last round
@@ -648,14 +695,9 @@ function renderMoveDisplay(id)
 						local wallhor=hexDetail.coord[1]+(vector[1]/2)
 						local wallvec=hexDetail.coord[2]+(vector[2]/2)
 						if hexMap[tostring(wallhor)]~=nil and hexMap[tostring(wallhor)][tostring(wallvec)]~=nil then hexCost=hexCost+1 end
-						local recordedMoveTotal=100
-						if moveMap[tostring(hor)]~=nil and moveMap[tostring(hor)][tostring(vec)]~=nil then
-							recordedMoveTotal=moveMap[tostring(hor)][tostring(vec)].main
-							if moveMap[tostring(hor)][tostring(vec)].tricky~=nil then recordedMoveTotal=moveMap[tostring(hor)][tostring(vec)].tricky end
-						end
+						local recordedMoveTotal=moveRecordedCost(hor,vec)
 						if hexCost<=99 and hexCost<gStates.resourceTracker.move.move+searchLimit and hexCost<=recordedMoveTotal then
-							if moveMap[tostring(hor)]==nil then moveMap[tostring(hor)]={} end
-							if moveMap[tostring(hor)][tostring(vec)]==nil then moveMap[tostring(hor)][tostring(vec)]={} end
+							local destinationMove=moveDestination(hor,vec)
 							--Don't add hex to fringe if passing a rampager
 							local rampageHor={tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][1]), tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][1])}
 							local rampageVec={tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][2]), tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][2])}
@@ -666,7 +708,6 @@ function renderMoveDisplay(id)
 							local rampageNeighbor=normalRampager or ambusherProvoked(hexDetail.coord[1], hexDetail.coord[2], hor, vec)
 							local dragonLairDestination=hexMap[tostring(hor)][tostring(vec)].dragonLair==true
 							local forcedCombatDestination=rampageNeighbor or dragonLairDestination
-							local destinationMove=moveMap[tostring(hor)][tostring(vec)]
 							local predecessor={hor=hexDetail.coord[1], vec=hexDetail.coord[2], state=sourceState, teleport=false}
 							if hexCost==recordedMoveTotal then
 								--Equal-cost safe routes do not change reachability, but a cleaner predecessor can
@@ -695,24 +736,8 @@ function renderMoveDisplay(id)
 										destinationMove.mainCombat=true
 									end
 								else
-									if destinationMove.tricky==nil then
-										destinationMove.main=hexCost
-										destinationMove.mainPrev=predecessor
-										destinationMove.mainCombat=false
-									else
-										destinationMove.tricky=hexCost
-										destinationMove.trickyPrev=predecessor
-										destinationMove.trickyCombat=false
-									end
-								end
-								--Fortified sites and forced-combat destinations may be reached but never used as onward fringe.
-								if forcedCombatDestination==false and hexMap[tostring(hor)][tostring(vec)].hexType~="explore" and (hexMap[tostring(hor)][tostring(vec)].fortified==nil or hexMap[tostring(hor)][tostring(vec)].fortified=="shield") then
-									local fringeKey=tostring(hor)..":"..tostring(vec)
-									if tempFringeSet[fringeKey]~=true then
-										tempFringeSet[fringeKey]=true
-										tempFringe[#tempFringe+1]={coord={hor, vec}}
-										noMove=false
-									end
+									local canContinue=hexMap[tostring(hor)][tostring(vec)].hexType~="explore" and (hexMap[tostring(hor)][tostring(vec)].fortified==nil or hexMap[tostring(hor)][tostring(vec)].fortified=="shield")
+									recordSafeMoveDestination(hor,vec,hexCost,predecessor,canContinue)
 								end
 							end
 						end
@@ -726,39 +751,8 @@ function renderMoveDisplay(id)
 					local hor=tunnel.hor
 					local vec=tunnel.vec
 					local hexCost=moveSpent+tunnel.cost
-					local recordedMoveTotal=100
-					if moveMap[tostring(hor)]~=nil and moveMap[tostring(hor)][tostring(vec)]~=nil then
-						recordedMoveTotal=moveMap[tostring(hor)][tostring(vec)].main
-						if moveMap[tostring(hor)][tostring(vec)].tricky~=nil then recordedMoveTotal=moveMap[tostring(hor)][tostring(vec)].tricky end
-					end
-					if hexCost<gStates.resourceTracker.move.move+searchLimit and hexCost<=recordedMoveTotal then
-						if moveMap[tostring(hor)]==nil then moveMap[tostring(hor)]={} end
-						if moveMap[tostring(hor)][tostring(vec)]==nil then moveMap[tostring(hor)][tostring(vec)]={} end
-						local destinationMove=moveMap[tostring(hor)][tostring(vec)]
-						local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state=sourceState,teleport=false,tunnel=true,tunnelPath=tunnel.path}
-						if hexCost==recordedMoveTotal then
-							local existingPrev=destinationMove.tricky~=nil and destinationMove.trickyPrev or destinationMove.mainPrev
-							if existingPrev~=nil and continuationPenalty(predecessor.hor,predecessor.vec,predecessor.state)<continuationPenalty(existingPrev.hor,existingPrev.vec,existingPrev.state) then
-								if destinationMove.tricky~=nil then destinationMove.trickyPrev=predecessor else destinationMove.mainPrev=predecessor end
-							end
-						else
-							if destinationMove.tricky==nil then
-								destinationMove.main=hexCost
-								destinationMove.mainPrev=predecessor
-								destinationMove.mainCombat=false
-							else
-								destinationMove.tricky=hexCost
-								destinationMove.trickyPrev=predecessor
-								destinationMove.trickyCombat=false
-							end
-							local fringeKey=tostring(hor)..":"..tostring(vec)
-							if tempFringeSet[fringeKey]~=true then
-								tempFringeSet[fringeKey]=true
-								tempFringe[#tempFringe+1]={coord={hor,vec}}
-								noMove=false
-							end
-						end
-					end
+					local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state=sourceState,teleport=false,tunnel=true,tunnelPath=tunnel.path}
+					recordSafeMoveDestination(hor,vec,hexCost,predecessor,true)
 				end
 
 				--Fractured Lands teleport edges. A teleport is always a safe, non-combat route and can itself become
@@ -772,39 +766,8 @@ function renderMoveDisplay(id)
 						local vec=teleportHex.coord[2]
 						if hor~=hexDetail.coord[1] or vec~=hexDetail.coord[2] then
 							local hexCost=moveSpent+1
-							local recordedMoveTotal=100
-							if moveMap[tostring(hor)]~=nil and moveMap[tostring(hor)][tostring(vec)]~=nil then
-								recordedMoveTotal=moveMap[tostring(hor)][tostring(vec)].main
-								if moveMap[tostring(hor)][tostring(vec)].tricky~=nil then recordedMoveTotal=moveMap[tostring(hor)][tostring(vec)].tricky end
-							end
-							if hexCost<gStates.resourceTracker.move.move+searchLimit and hexCost<=recordedMoveTotal then
-								if moveMap[tostring(hor)]==nil then moveMap[tostring(hor)]={} end
-								if moveMap[tostring(hor)][tostring(vec)]==nil then moveMap[tostring(hor)][tostring(vec)]={} end
-								local destinationMove=moveMap[tostring(hor)][tostring(vec)]
-								local predecessor={hor=hexDetail.coord[1], vec=hexDetail.coord[2], state=sourceState, teleport=true}
-								if hexCost==recordedMoveTotal then
-									local existingPrev=destinationMove.tricky~=nil and destinationMove.trickyPrev or destinationMove.mainPrev
-									if existingPrev~=nil and continuationPenalty(predecessor.hor,predecessor.vec,predecessor.state)<continuationPenalty(existingPrev.hor,existingPrev.vec,existingPrev.state) then
-										if destinationMove.tricky~=nil then destinationMove.trickyPrev=predecessor else destinationMove.mainPrev=predecessor end
-									end
-								else
-									if destinationMove.tricky==nil then
-										destinationMove.main=hexCost
-										destinationMove.mainPrev=predecessor
-										destinationMove.mainCombat=false
-									else
-										destinationMove.tricky=hexCost
-										destinationMove.trickyPrev=predecessor
-										destinationMove.trickyCombat=false
-									end
-									local fringeKey=tostring(hor)..":"..tostring(vec)
-									if tempFringeSet[fringeKey]~=true then
-										tempFringeSet[fringeKey]=true
-										tempFringe[#tempFringe+1]={coord={hor, vec}}
-										noMove=false
-									end
-								end
-							end
+							local predecessor={hor=hexDetail.coord[1], vec=hexDetail.coord[2], state=sourceState, teleport=true}
+							recordSafeMoveDestination(hor,vec,hexCost,predecessor,true)
 						end
 					end
 				end

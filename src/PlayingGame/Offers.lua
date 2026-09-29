@@ -455,15 +455,7 @@ function unitOffer()
 				broadcastToAll("{en}The Advanced Action deck is empty; the Monastery offer could not be fully refilled.{ru}Колода Продвинутых действий пуста; предложение Монастыря не удалось полностью пополнить.{zh-tw}進階行動牌庫已空；修道院供應無法完全補滿。{zh-cn}高级行动牌库已空；修道院供应无法完全补满。{ko}고급 행동 덱이 비어 수도원 제안을 완전히 채울 수 없습니다.{es}El mazo de Acciones Avanzadas está vacío; la oferta del Monasterio no pudo rellenarse por completo.{fr}Le paquet d’Actions Avancées est vide ; l’offre du Monastère n’a pas pu être entièrement remplie.{pt-br}O baralho de Ações Avançadas está vazio; a oferta do Monastério não pôde ser totalmente reabastecida.{de}Der Stapel der Fortgeschrittenen Aktionen ist leer; das Klosterangebot konnte nicht vollständig aufgefüllt werden.",warningColor)
 				break
 			end
-			local drawnCard=nil
-			if source.type=="Deck" then
-				drawnCard=safeTakeObject("Offers",source,params)
-			elseif source.type=="Card" then
-				drawnCard=source
-				drawnCard.unlock()
-				drawnCard.setPositionSmooth(params.position,false,false)
-				drawnCard.setRotationSmooth(params.rotation,false,false)
-			end
+			local drawnCard=offerDrawOrMoveCard(source,params)
 			if drawnCard~=nil then
 				local drawnGUID=drawnCard.guid
 				safeWaitCondition("Offers",function()
@@ -479,6 +471,16 @@ function unitOffer()
 end
 
 -- Monastery offer
+local function offerDrawOrMoveCard(source,params)
+	if source==nil then return nil end
+	if source.type=="Deck" then return safeTakeObject("Offers",source,params) end
+	if source.type~="Card" then return nil end
+	source.unlock()
+	source.setPositionSmooth(params.position,false,false)
+	source.setRotationSmooth(params.rotation,false,false)
+	return source
+end
+
 monasteryOfferFirstEmptySlot=function()
 	local occupied={}
 	local zone=getObjectFromGUID(GUID.zone.unitOffer)
@@ -513,15 +515,7 @@ function handleMonasteryRevealed()
 		local function drawMonasteryAdvancedAction()
 			local source=standardDeckCycleObject("Advanced Action")
 			if source==nil then return false end
-			local drawnCard=nil
-			if source.type=="Deck" then
-				drawnCard=safeTakeObject("Offers",source,params)
-			elseif source.type=="Card" then
-				drawnCard=source
-				drawnCard.unlock()
-				drawnCard.setPositionSmooth(params.position,false,false)
-				drawnCard.setRotationSmooth(params.rotation,false,false)
-			end
+			local drawnCard=offerDrawOrMoveCard(source,params)
 			if drawnCard==nil then return false end
 			safeWaitCondition("Offers",function() if drawnCard~=nil then drawnCard.lock() end end,function()
 				return drawnCard==nil or drawnCard.resting==true
@@ -622,14 +616,8 @@ local function deedOfferMovedSourcesSettled(sourceGUIDs)
 	return true
 end
 
-function setDeedOfferSizeForSetup(value)
-	local size=deedOfferBoundedSize(value)
-	gStates.offerSize=size
-	local sourceX=(4.8*(size+1))+21.6
-	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
-	local actionSource=standardDeckCycleObject("Advanced Action") or getObjectFromGUID(GUID.deck.action)
-	if spellSource~=nil then spellSource.setPositionSmooth({sourceX,2.5,-22.2},false,false) end
-	if actionSource~=nil then actionSource.setPositionSmooth({sourceX,2.5,-16.2},false,false) end
+local function applyDeedOfferGeometry(size,sourceX)
+	sourceX=sourceX or ((4.8*(size+1))+21.6)
 	local spellZone=getObjectFromGUID(GUID.zone.spellDeck)
 	local actionZone=getObjectFromGUID(GUID.zone.actionDeck)
 	local offerZone=getObjectFromGUID(GUID.zone.offer)
@@ -640,6 +628,17 @@ function setDeedOfferSizeForSetup(value)
 		offerZone.setPosition({(2.4*(size-1))+26.4,1.13,-19.2})
 	end
 	moveDeedOfferText(size)
+end
+
+function setDeedOfferSizeForSetup(value)
+	local size=deedOfferBoundedSize(value)
+	gStates.offerSize=size
+	local sourceX=(4.8*(size+1))+21.6
+	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+	local actionSource=standardDeckCycleObject("Advanced Action") or getObjectFromGUID(GUID.deck.action)
+	if spellSource~=nil then spellSource.setPositionSmooth({sourceX,2.5,-22.2},false,false) end
+	if actionSource~=nil then actionSource.setPositionSmooth({sourceX,2.5,-16.2},false,false) end
+	applyDeedOfferGeometry(size,sourceX)
 	return true
 end
 
@@ -689,16 +688,7 @@ function offerAdjust(player, mouseButton, id)
 		["Spell"]=deedOfferMoveSource(sourceObjects["Spell"],{sourceX,2.5,-22.2}),
 		["Advanced Action"]=deedOfferMoveSource(sourceObjects["Advanced Action"],{sourceX,2.5,-16.2}),
 	}
-	local spellZone=getObjectFromGUID(GUID.zone.spellDeck)
-	local actionZone=getObjectFromGUID(GUID.zone.actionDeck)
-	local offerZone=getObjectFromGUID(GUID.zone.offer)
-	if spellZone~=nil then spellZone.setPosition({sourceX,2.05,-22.2}) end
-	if actionZone~=nil then actionZone.setPosition({sourceX,2.05,-16.2}) end
-	if offerZone~=nil then
-		offerZone.setScale({4.8*newSize,0.3,9.57})
-		offerZone.setPosition({(2.4*(newSize-1))+26.4,1.13,-19.2})
-	end
-	moveDeedOfferText(newSize)
+	applyDeedOfferGeometry(newSize,sourceX)
 
 	if delta>0 then
 		--Do this immediately: the decks move outward while the drawn cards travel into the spaces

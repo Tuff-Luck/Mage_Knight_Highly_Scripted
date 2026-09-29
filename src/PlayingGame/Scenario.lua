@@ -238,6 +238,21 @@ function volkareQuestPortalTile()
 	if portalTile==nil then portalTile=getObjectFromGUID(startTerrain.wedge) end
 	return portalTile
 end
+local function scenarioEliminatePlayersAtPortal(message)
+	local eliminated=0
+	for playerIndex,details in pairs(turnOrder) do
+		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false and details.avatarLocation=="portal" then
+			details.dropoutState="dropped"
+			gStates.skipTurn[playerIndex]=nil
+			local token=getObjectFromGUID(details.turnOrderTokenGUID)
+			if token~=nil and token.is_face_down==true then token.flip() end
+			broadcastToAll(joinLang({translateWord[details.mage],message}),positionToColor(playerIndex))
+			eliminated=eliminated+1
+		end
+	end
+	return eliminated
+end
+
 function volkareQuestPortalStatus()
 	if gStates.gameScenario~="Volkare's Quest" or gStates.volkarePortalClosed==true then return false end
 	local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
@@ -262,15 +277,7 @@ function volkareQuestPortalStatus()
 	for _, decal in pairs(decals) do if decal.name=="Portal Closed" then marked=true break end end
 	if marked==false then portalTile.addDecal({name="Portal Closed",url=volkarePortalClosedDecalURL,position={0,0.15,0},rotation={90,180,0},scale={0.88,0.88,1}}) end
 	broadcastToAll("{en}The Council of the Void has closed the Portal. From now on it is an ordinary space, and Volkare may be attacked there.{ru}Совет Пустоты закрыл Портал. Теперь это обычная клетка, и Волкара можно атаковать там.{zh-tw}虛空議會已關閉傳送門。從現在起它視為一般空間，沃卡里可在此被攻擊。{zh-cn}虚空议会已关闭传送门。从现在起它视为一般空间，沃卡里可在此被攻击。{ko}공허의 의회가 포털을 닫았습니다. 이제 일반 칸으로 취급하며 그곳에서 볼케어를 공격할 수 있습니다.{es}El Consejo del Vacío ha cerrado el Portal. A partir de ahora es un espacio normal y Volkare puede ser atacado allí.{fr}Le Conseil du Vide a fermé le Portail. Désormais, il s’agit d’une case ordinaire et Volkare peut y être attaqué.{pt-br}O Conselho do Vácuo fechou o Portal. A partir de agora ele é um espaço comum, e Volkare pode ser atacado ali.{de}Der Rat der Leere hat das Portal geschlossen. Von nun an ist es ein normales Feld, und Volkare kann dort angegriffen werden.", {1,0.45,0.15})
-	for playerIndex, details in pairs(turnOrder) do
-		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false and details.avatarLocation=="portal" then
-			details.dropoutState="dropped"
-			gStates.skipTurn[playerIndex]=nil
-			local token=getObjectFromGUID(details.turnOrderTokenGUID)
-			if token~=nil and token.is_face_down==true then token.flip() end
-			broadcastToAll(joinLang({translateWord[details.mage], "{en} was caught on the Portal when it closed and is out of the game.{ru} оказался на Портале в момент его закрытия и выбывает из игры.{zh-tw} 在傳送門關閉時仍站在其上，因此退出遊戲。{zh-cn} 在传送门关闭时仍站在其上，因此退出游戏。{ko} 포탈이 닫힐 때 그 위에 있어 게임에서 탈락합니다.{es} estaba en el Portal cuando se cerró y queda fuera de la partida.{fr} se trouvait sur le Portail lors de sa fermeture et est éliminé de la partie.{pt-br} estava no Portal quando ele se fechou e está fora do jogo.{de} befand sich beim Schließen auf dem Portal und scheidet aus dem Spiel aus."}), positionToColor(playerIndex))
-		end
-	end
+	scenarioEliminatePlayersAtPortal("{en} was caught on the Portal when it closed and is out of the game.{ru} оказался на Портале в момент его закрытия и выбывает из игры.{zh-tw} 在傳送門關閉時仍站在其上，因此退出遊戲。{zh-cn} 在传送门关闭时仍站在其上，因此退出游戏。{ko} 포탈이 닫힐 때 그 위에 있어 게임에서 탈락합니다.{es} estaba en el Portal cuando se cerró y queda fuera de la partida.{fr} se trouvait sur le Portail lors de sa fermeture et est éliminé de la partie.{pt-br} estava no Portal quando ele se fechou e está fora do jogo.{de} befand sich beim Schließen auf dem Portal und scheidet aus dem Spiel aus.")
 	applyColorBarButtons()
 	addAvatarButtons()
 	volkareQuestCheckSkipTurn()
@@ -308,15 +315,7 @@ function oneToReturnClosePortal()
 	gStates.oneToReturnPortalClosed=true
 	oneToReturnSetPortalClosedDecal(true)
 	broadcastToAll("{en}The Portal has closed. From now on it is an ordinary plains space until the end of the second Night.{ru}Портал закрылся. До конца второй Ночи это обычная клетка Равнины.{zh-tw}傳送門已關閉。從現在起直到第二個夜晚結束，它視為一般平原空間。{zh-cn}传送门已关闭。从现在起直到第二个夜晚结束，它视为一般平原空间。{ko}포털이 닫혔습니다. 두 번째 밤이 끝날 때까지 일반 평원 칸으로 취급합니다.{es}El Portal se ha cerrado. Hasta el final de la segunda Noche es un espacio normal de Llanura.{fr}Le Portail s’est fermé. Jusqu’à la fin de la deuxième Nuit, il s’agit d’une case de Plaine ordinaire.{pt-br}O Portal se fechou. Até o fim da segunda Noite ele é um espaço comum de Planície.{de}Das Portal hat sich geschlossen. Bis zum Ende der zweiten Nacht ist es ein normales Ebenenfeld.", warningColor)
-	for playerIndex, details in pairs(turnOrder) do
-		if details.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false and details.avatarLocation=="portal" then
-			details.dropoutState="dropped"
-			gStates.skipTurn[playerIndex]=nil
-			local token=getObjectFromGUID(details.turnOrderTokenGUID)
-			if token~=nil and token.is_face_down==true then token.flip() end
-			broadcastToAll(joinLang({translateWord[details.mage], "{en} was still on the Portal when it closed and is out of the game.{ru} оставался на Портале, когда он закрылся, и выбывает из игры.{zh-tw} 在傳送門關閉時仍站在其上，因此退出遊戲。{zh-cn} 在传送门关闭时仍站在其上，因此退出游戏。{ko} 포탈이 닫힐 때 그 위에 있어 게임에서 탈락합니다.{es} seguía en el Portal cuando se cerró y queda fuera de la partida.{fr} se trouvait encore sur le Portail lorsqu'il s'est fermé et est éliminé de la partie.{pt-br} ainda estava no Portal quando ele se fechou e está fora do jogo.{de} befand sich noch auf dem Portal, als es sich schloss, und scheidet aus dem Spiel aus."}), positionToColor(playerIndex))
-		end
-	end
+	scenarioEliminatePlayersAtPortal("{en} was still on the Portal when it closed and is out of the game.{ru} оставался на Портале, когда он закрылся, и выбывает из игры.{zh-tw} 在傳送門關閉時仍站在其上，因此退出遊戲。{zh-cn} 在传送门关闭时仍站在其上，因此退出游戏。{ko} 포탈이 닫힐 때 그 위에 있어 게임에서 탈락합니다.{es} seguía en el Portal cuando se cerró y queda fuera de la partida.{fr} se trouvait encore sur le Portail lorsqu'il s'est fermé et est éliminé de la partie.{pt-br} ainda estava no Portal quando ele se fechou e está fora do jogo.{de} befand sich noch auf dem Portal, als es sich schloss, und scheidet aus dem Spiel aus.")
 	applyColorBarButtons()
 	addAvatarButtons()
 	if activeMageKnightCount()==0 then
@@ -3724,16 +3723,7 @@ function againstDragonRoundStart()
 		return false
 	end
 	gStates.apocalypseDragonRoundPrepared=gStates.currentRound
-	gStates.apocalypseDragonTurn=0
-	gStates.apocalypseDragonTurnActive=false
-	gStates.apocalypseDragonResumeTurn=nil
-	gStates.apocalypseDragonPendingChoice=nil
-	gStates.apocalypseDragonPendingAttack=nil
-	gStates.apocalypseDragonFullAttendPlayer=nil
-	gStates.apocalypseDragonUIState=nil
-	gStates.apocalypseDragonTurnAction=nil
-	gStates.apocalypseDragonTurnReport=nil
-	gStates.apocalypseDragonTurnReportPrefix=nil
+	apocalypseDragonResetTurnRuntime()
 	gStates.furyDragonAwaitingCombat=nil
 	gStates.furyDragonFullAttendPlayers={}
 	UI.setAttribute("DummyTurn","active","false")
@@ -3749,19 +3739,11 @@ function againstDragonBeginTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	if againstDragonActive()~=true or gStates.tacticShown==true or gStates.tacticRemove==true then return false end
 	if gStates.endRoundCalled==true or gStates.gameOver==true or gStates.apocalypseDragonLairAttacked==true then return false end
 	if gStates.apocalypseDragonTurnActive==true then return true end
-	gStates.apocalypseDragonTurnActive=true
-	gStates.apocalypseDragonResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn==true,sameTurn=sameTurn==true}
-	gStates.apocalypseDragonTurn=(gStates.apocalypseDragonTurn or 0)+1
-	local dragonTurn=gStates.apocalypseDragonTurn
-	local action=againstDragonTurnAction(dragonTurn) or "none"
-	local ordinal=apocalypseDragonTurnOrdinal(dragonTurn)
-	gStates.apocalypseDragonTurnAction=action
-	gStates.apocalypseDragonUIState="ReadyToProcess"
-	gStates.apocalypseDragonTurnReportPrefix=nil
-	gStates.apocalypseDragonTurnReport="The Apocalypse Dragon's "..ordinal.." turn will "..againstDragonActionLabel(action)..".\nClick Process Dragon to continue."
-	apocalypseDragonMainUIRefresh()
-	mainUIUpdate("Dragon Turn Ready")
-	return true
+	return apocalypseDragonBeginInterstitialTurn(nextTurnNumber,newOutOfTurn,sameTurn,function(dragonTurn)
+		return againstDragonTurnAction(dragonTurn) or "none"
+	end,function(dragonTurn,action)
+		return "The Apocalypse Dragon's "..apocalypseDragonTurnOrdinal(dragonTurn).." turn will "..againstDragonActionLabel(action)..".\nClick Process Dragon to continue."
+	end,"Dragon Turn Ready")
 end
 
 function againstDragonCompleteTurn()
@@ -3769,16 +3751,7 @@ function againstDragonCompleteTurn()
 	apocalypseDragonTurnChoiceClearButtons()
 	againstDragonAttackControlUI(false)
 	automatedAttackResponseUI(nil)
-	gStates.apocalypseDragonPendingChoice=nil
-	gStates.apocalypseDragonPendingAttack=nil
-	gStates.apocalypseDragonTurnAction=nil
-	gStates.apocalypseDragonUIState="ReadyToEnd"
-	if gStates.apocalypseDragonTurnReport==nil or gStates.apocalypseDragonTurnReport=="" then
-		gStates.apocalypseDragonTurnReport="The Apocalypse Dragon finished its turn."
-	end
-	apocalypseDragonMainUIRefresh()
-	mainUIUpdate("Dragon Processed")
-	return true
+	return apocalypseDragonCompleteInterstitialTurn(nil,"Dragon Processed",true)
 end
 
 --Fury of the Apocalypse Dragon turn system --------------------------------------
@@ -3817,16 +3790,7 @@ function furyDragonRoundStart()
 		return false
 	end
 	gStates.furyDragonRoundPrepared=gStates.currentRound
-	gStates.apocalypseDragonTurn=0
-	gStates.apocalypseDragonTurnActive=false
-	gStates.apocalypseDragonResumeTurn=nil
-	gStates.apocalypseDragonPendingChoice=nil
-	gStates.apocalypseDragonPendingAttack=nil
-	gStates.apocalypseDragonFullAttendPlayer=nil
-	gStates.apocalypseDragonUIState=nil
-	gStates.apocalypseDragonTurnAction=nil
-	gStates.apocalypseDragonTurnReport=nil
-	gStates.apocalypseDragonTurnReportPrefix=nil
+	apocalypseDragonResetTurnRuntime()
 	UI.setAttribute("DummyTurn","active","false")
 	automatedAttackResponseUI(nil)
 	apocalypseDragonTurnChoiceClearButtons()
@@ -3839,28 +3803,15 @@ function furyDragonBeginTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	if furyDragonIsActive()~=true or gStates.tacticShown==true or gStates.tacticRemove==true then return false end
 	if gStates.endRoundCalled==true or gStates.gameOver==true or gStates.apocalypseDragonDefeated==true then return false end
 	if gStates.apocalypseDragonTurnActive==true then return true end
-	gStates.apocalypseDragonTurnActive=true
-	gStates.apocalypseDragonResumeTurn={turnNumber=nextTurnNumber,newOutOfTurn=newOutOfTurn==true,sameTurn=sameTurn==true}
-	gStates.apocalypseDragonTurn=(gStates.apocalypseDragonTurn or 0)+1
-	local dragonTurn=gStates.apocalypseDragonTurn
-	local ordinal=apocalypseDragonTurnOrdinal(dragonTurn)
-	local state=gStates.furyDragonFlightTarget~=nil and "in flight" or "landed"
-	gStates.apocalypseDragonTurnAction="fury"
-	gStates.apocalypseDragonUIState="ReadyToProcess"
-	gStates.apocalypseDragonTurnReportPrefix=nil
-	gStates.apocalypseDragonTurnReport="The Apocalypse Dragon is "..state.." for its "..ordinal.." turn.\nClick Process Dragon to continue."
-	apocalypseDragonMainUIRefresh()
-	mainUIUpdate("Fury Dragon Turn Ready")
-	return true
+	return apocalypseDragonBeginInterstitialTurn(nextTurnNumber,newOutOfTurn,sameTurn,"fury",function(dragonTurn)
+		local state=gStates.furyDragonFlightTarget~=nil and "in flight" or "landed"
+		return "The Apocalypse Dragon is "..state.." for its "..apocalypseDragonTurnOrdinal(dragonTurn).." turn.\nClick Process Dragon to continue."
+	end,"Fury Dragon Turn Ready")
 end
 
 furyDragonCompleteTurn=function(text)
 	if furyDragonIsActive()~=true then return false end
-	gStates.apocalypseDragonUIState="ReadyToEnd"
-	gStates.apocalypseDragonTurnReport=text or "The Apocalypse Dragon finished its turn."
-	apocalypseDragonMainUIRefresh()
-	mainUIUpdate("Dragon Processed")
-	return true
+	return apocalypseDragonCompleteInterstitialTurn(text or "The Apocalypse Dragon finished its turn.","Dragon Processed",false)
 end
 
 furyDragonFeatureMatches=function(feature,wanted)
