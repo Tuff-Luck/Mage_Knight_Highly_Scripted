@@ -673,130 +673,97 @@ function coralDrawChoice(player, mouseButton, id)
 	end
 end
 
---Night Tactic 2 can rebuild a Deed pile from either a Deck or its final loose Card.
---Resolve one physical card at a time so TTS Deck->Card collapse cannot invalidate the next takeObject call.
-local function nightTacticTwoCardGUIDs(zone)
-	local guids={}
-	if zone==nil then return guids end
-	for _, obj in pairs(zone.getObjects()) do
-		if obj.type=="Card" then guids[#guids+1]=obj.guid
-		elseif obj.type=="Deck" then for _, data in pairs(obj.getObjects()) do guids[#guids+1]=data.guid end end
-	end
-	for a=#guids,2,-1 do local b=math.random(a) guids[a],guids[b]=guids[b],guids[a] end
-	return guids
-end
-
-local function nightTacticTwoFindCard(zone, guid)
-	if zone==nil or guid==nil then return nil,nil end
-	for _, obj in pairs(zone.getObjects()) do
-		if obj.type=="Card" and obj.guid==guid then return obj,nil end
-		if obj.type=="Deck" then
-			for _, data in pairs(obj.getObjects()) do if data.guid==guid then return nil,obj end end
-		end
-	end
-	return nil,nil
-end
-
+--Night Tactic 2 resolves as three visible phases: shuffle/flip, refill, then resume the normal draw flow.
+--The refill is launched as one batch; only the two deliberate presentation pauses remain.
 nightTacticTwoBusy=nightTacticTwoBusy or {}
 
---Canonical Long Night resolver. drawCount is zero for a manual use, or the number of cards still
---owed when Long Night interrupts Draw Hand. The deliberately visible pacing also gives TTS time
---to finish Deck->Card collapse/merge updates before the next physical step begins.
-function nightTacticTwoResolve(playerIndex, drawCount, done)
+function nightTacticTwoResolve(playerIndex, done)
 	local details=turnOrder[playerIndex]
-	if details==nil then if done~=nil then done(0,0) end return end
+	if details==nil then if done~=nil then done(0) end return end
 	local seatPos=details.seatPos
 	local discardZone=getObjectFromGUID(deedDeckDiscardZones[seatPos])
 	local deedZone=getObjectFromGUID(deedDeckZones[seatPos])
-	if discardZone==nil or deedZone==nil then if done~=nil then done(0,0) end return end
-	local available=nightTacticTwoCardGUIDs(discardZone)
-	local selected={}
-	for a=1, math.min(3,#available) do selected[a]=available[a] end
-	if #selected<1 then if done~=nil then done(0,0) end return end
+	if discardZone==nil or deedZone==nil then if done~=nil then done(0) end return end
 
-	drawCount=math.max(0,tonumber(drawCount) or 0)
+	local discards=nil
+	for _, obj in pairs(discardZone.getObjects()) do
+		if obj.type=="Deck" or obj.type=="Card" then discards=obj break end
+	end
+	if discards==nil then if done~=nil then done(0) end return end
+
+	local returnCount=discards.type=="Deck" and math.min(3,discards.getQuantity()) or 1
+	if returnCount<1 then if done~=nil then done(0) end return end
+
 	nightTacticTwoBusy[seatPos]=true
+	if discards.type=="Deck" then discards.shuffle() end
+	local tactic=getObjectFromGUID("f6ad01")
+	if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
+
 	local deckPos=deedZone.getPosition()
-	deckPos={deckPos[1],1.50,deckPos[3]}
-	local returnTarget={deckPos[1],deckPos[2]+0.9,deckPos[3]}
-	local returned=0
+	local returnTarget={deckPos[1],2.40,deckPos[3]}
 
-	local function finish(drawn)
+	local function finish(returned)
 		nightTacticTwoBusy[seatPos]=nil
-		safeWaitTime("PlayerBoard.CardFlow",function()
-			turnOrder[playerIndex].deedCount=readDeedPileCardCount(seatPos)
-			scheduleDeedPileDescriptionRefresh(seatPos,"deed")
-			scheduleDeedPileDescriptionRefresh(seatPos,"discard")
-			scheduleEndRoundDeedStateRefresh(seatPos)
-			if done~=nil then done(returned,drawn) end
-		end,0.35)
+		turnOrder[playerIndex].deedCount=readDeedPileCardCount(seatPos)
+		scheduleDeedPileDescriptionRefresh(seatPos,"deed")
+		scheduleDeedPileDescriptionRefresh(seatPos,"discard")
+		scheduleEndRoundDeedStateRefresh(seatPos)
+		if done~=nil then done(returned) end
 	end
 
-	local function waitForMove(guid,target,nextStep)
-		safeWaitCondition("PlayerBoard.CardFlow",function()
-			safeWaitTime("PlayerBoard.CardFlow",nextStep,0.30)
-		end,function()
-			local card=getObjectFromGUID(guid)
-			if card==nil then return true end
-			local pos=card.getPosition()
-			return math.abs(pos[1]-target[1])<0.30 and math.abs(pos[3]-target[3])<0.30
-		end,2.5,function()
-			safeWaitTime("PlayerBoard.CardFlow",nextStep,0.30)
-		end)
-	end
-
-	local drawReturned
-	drawReturned=function(index, drawn)
-		if index>drawCount or index>returned then finish(drawn) return end
+	--Pause after the visible shuffle/tactic flip, then launch every returned card together.
+	safeWaitTime("PlayerBoard.CardFlow",function()
 		local pile=nil
-		for _, obj in pairs(deedZone.getObjects()) do
-			if obj.type=="Deck" then pile=obj break end
-			if obj.type=="Card" then pile=obj end
+		for _, obj in pairs(discardZone.getObjects()) do
+			if obj.type=="Deck" or obj.type=="Card" then pile=obj break end
 		end
-		if pile==nil then finish(drawn) return end
-		local handPos={(seatPos*40)-105-(index*0.2),4.59,-47.55}
-		local moved=nil
-		if pile.type=="Deck" then
-			moved=safeTakeObject("PlayerBoard.CardFlow",pile,{position=handPos,rotation={0,180,0},smooth=true})
-			if moved==nil then finish(drawn) return end
-		else
-			moved=pile
-			moved.setScale({1.5,1,1.5})
-			moved.setRotationSmooth({0,180,0},false,false)
-			moved.setPositionSmooth(handPos,false,false)
-		end
-		waitForMove(moved.guid,handPos,function() drawReturned(index+1,drawn+1) end)
-	end
+		if pile==nil then finish(0) return end
 
-	local returnSelected
-	returnSelected=function(index)
-		if index>#selected then
-			safeWaitTime("PlayerBoard.CardFlow",function() drawReturned(1,0) end,0.70)
-			return
-		end
-		local loose,deck=nightTacticTwoFindCard(discardZone,selected[index])
-		local function placed(card)
-			if card==nil then
-				safeWaitTime("PlayerBoard.CardFlow",function() returnSelected(index+1) end,0.20)
-				return
+		local returned=0
+		if pile.type=="Card" then
+			pile.setScale({1.5,1,1.5})
+			pile.setRotationSmooth({0,180,180},false,false)
+			pile.setPositionSmooth(returnTarget,false,false)
+			returned=1
+		else
+			local quantity=pile.getQuantity()
+			local drawCount=math.min(3,quantity)
+			local deckTakes=drawCount
+			local takeRemainder=drawCount==quantity
+			if takeRemainder==true then deckTakes=math.max(0,drawCount-1) end
+
+			for x=1, deckTakes do
+				local card=safeTakeObject("PlayerBoard.CardFlow",pile,{
+					position={returnTarget[1],returnTarget[2]+((x-1)*0.08),returnTarget[3]},
+					rotation={0,180,180},
+					smooth=true
+				})
+				if card~=nil then
+					card.setScale({1.5,1,1.5})
+					returned=returned+1
+				end
 			end
-			card.setScale({1.5,1,1.5})
-			card.setRotationSmooth({0,180,180},false,false)
-			card.setPositionSmooth(returnTarget,false,false)
-			returned=returned+1
-			waitForMove(card.guid,returnTarget,function() returnSelected(index+1) end)
-		end
-		if loose~=nil then
-			placed(loose)
-		elseif deck~=nil then
-			local taken=safeTakeObject("PlayerBoard.CardFlow",deck,{guid=selected[index],position=returnTarget,rotation={0,180,180},smooth=true,callback_function=placed})
-			if taken==nil then safeWaitTime("PlayerBoard.CardFlow",function() returnSelected(index+1) end,0.20) end
-		else
-			safeWaitTime("PlayerBoard.CardFlow",function() returnSelected(index+1) end,0.20)
-		end
-	end
 
-	returnSelected(1)
+			--If all cards are being returned, the Deck collapses to its final loose Card.
+			--Move that remainder on the next frame; this is a TTS object-state handoff, not a presentation wait.
+			if takeRemainder==true then
+				safeWaitFrames("PlayerBoard.CardFlow",function()
+					for _, remainder in pairs(discardZone.getObjects()) do
+						if remainder.type=="Card" then
+							remainder.setScale({1.5,1,1.5})
+							remainder.setRotationSmooth({0,180,180},false,false)
+							remainder.setPositionSmooth({returnTarget[1],returnTarget[2]+(deckTakes*0.08),returnTarget[3]},false,false)
+							returned=returned+1
+							break
+						end
+					end
+				end,1)
+			end
+		end
+
+		--One pause for the whole refill animation, then hand drawing resumes through the normal draw path.
+		safeWaitTime("PlayerBoard.CardFlow",function() finish(returned) end,1.0)
+	end,0.75)
 end
 
 --Draw cards from a deed deck into that positions hand
