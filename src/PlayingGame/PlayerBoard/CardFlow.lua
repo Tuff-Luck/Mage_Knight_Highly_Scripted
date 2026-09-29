@@ -761,8 +761,32 @@ function nightTacticTwoResolve(playerIndex, done)
 			end
 		end
 
-		--One pause for the whole refill animation, then hand drawing resumes through the normal draw path.
-		safeWaitTime("PlayerBoard.CardFlow",function() finish(returned) end,1.0)
+		--One pause for the whole refill animation. After that pause, wait only for the rebuilt
+		--Deed pile as a whole to contain every returned card; there are no per-card movement waits.
+		local function deedPileCount()
+			local count=0
+			for _, obj in pairs(deedZone.getObjects()) do
+				if obj.type=="Card" then count=count+1
+				elseif obj.type=="Deck" then count=count+obj.getQuantity() end
+			end
+			return count
+		end
+		safeWaitTime("PlayerBoard.CardFlow",function()
+			local function resume()
+				local readyCount=deedPileCount()
+				finish(math.min(returnCount,readyCount))
+			end
+			if deedPileCount()>=returnCount then resume() return end
+			safeWaitCondition("PlayerBoard.CardFlow",resume,function()
+				return deedPileCount()>=returnCount
+			end,2.5,function()
+				local readyCount=deedPileCount()
+				if readyCount<returnCount then
+					log("Night Tactic 2 refill only registered "..tostring(readyCount).." of "..tostring(returnCount).." returned cards.")
+				end
+				finish(math.min(returnCount,readyCount))
+			end)
+		end,1.0)
 	end,0.75)
 end
 
