@@ -69,7 +69,7 @@ end
 --Tactic Showing and Hiding
 function tacticToggle()
 	--rearanges the turn order tokens
-	function turnOrderSort()
+	local function turnOrderSort()
 		for a=1, #turnOrder, 1 do
 			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).unlock()
 			getObjectFromGUID(turnOrder[a].turnOrderTokenGUID).setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)})
@@ -442,16 +442,19 @@ local function turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)
 	if rewardSoftLock==true and questRewardPending==true then
 		apocalypseQuestRefreshOfferButtons()
 		rewardReminderCameraFocus(player.color,"questView")
-		local questGateMessage=(questRewardAction=="Fail" or questRewardAction=="CompleteOrFail") and "Complete/Fail the Quest First" or "Complete/Progress the Quest First"
+		local questGateMessage
+		if questRewardAction=="Fail" or questRewardAction=="CompleteOrFail" then
+			questGateMessage="{en}Complete or Fail the Quest first.{ru}Сначала завершите или провалите Задание.{zh-tw}請先完成或失敗任務。{zh-cn}请先完成或失败任务。{ko}먼저 퀘스트를 완료하거나 실패 처리하세요.{es}Completa o falla la Misión primero.{fr}Terminez ou échouez d’abord la Quête.{pt-br}Conclua ou falhe a Missão primeiro.{de}Schließe die Quest zuerst ab oder lasse sie scheitern."
+		else
+			questGateMessage="{en}Complete or Progress the Quest first.{ru}Сначала завершите или продвиньте Задание.{zh-tw}請先完成或推進任務。{zh-cn}请先完成或推进任务。{ko}먼저 퀘스트를 완료하거나 진행하세요.{es}Completa o progresa la Misión primero.{fr}Terminez ou faites d’abord progresser la Quête.{pt-br}Conclua ou avance a Missão primeiro.{de}Schließe die Quest zuerst ab oder setze sie fort."
+		end
 		broadcastToColor(questGateMessage,player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
 	if rewardSoftLock==true and gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
-		local overdue=math.max(1,tonumber(gStates.apocalypseHereForcedRevealCount) or 1)
 		cameraControl(player,"-1","mapView")
-		local message=overdue==1 and "Reveal the overdue Map tile before claiming rewards." or ("Reveal "..tostring(overdue).." overdue Map tiles before claiming rewards.")
-		broadcastToColor(message,player.color,warningColor)
+		broadcastToColor("{en}Reveal the overdue Map tile(s) before claiming rewards.{ru}Откройте просроченные тайлы карты перед получением наград.{zh-tw}領取獎勵前，先揭示逾期的地圖板塊。{zh-cn}领取奖励前，先揭示逾期的地图板块。{ko}보상을 받기 전에 지연된 지도 타일을 공개하세요.{es}Revela las losetas de Mapa pendientes antes de reclamar recompensas.{fr}Révélez les tuiles Carte en retard avant de réclamer les récompenses.{pt-br}Revele as peças de Mapa atrasadas antes de receber as recompensas.{de}Decke die überfälligen Kartenteile auf, bevor du Belohnungen beanspruchst.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
@@ -476,6 +479,14 @@ local function turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)
 	return false
 end
 
+local function completedTurnCanDrawHand()
+	if gStates.timeBending=="Started" and gStates.turnNumber==gStates.realTurn then return false end
+	local nextMage=nextTurnMerged("nextMage")
+	local nextMageSkipDummy=nextTurnMerged("nextMageSkipDummy")
+	return turnOrder[nextMage]~=nil and turnOrder[nextMage].endCalled~=true and
+		turnOrder[nextMageSkipDummy]~=nil and turnOrder[nextMageSkipDummy].endCalled~=true
+end
+
 local function turnAdvanceCoopRewards(player,mouseButton,id,rewindReady,rewardSoftLock)
 	if gStates.skillButtons==0 or rewardSoftLock~=true then
 		if rewindReady~=true then
@@ -487,7 +498,7 @@ local function turnAdvanceCoopRewards(player,mouseButton,id,rewindReady,rewardSo
 			safeWaitFrames("Turn",function() rewindTransactionFinish("End turn") end,10)
 		end
 		--Co-op hand draw is delayed until Rewards Claimed, after the city result has set the final hand limit.
-		if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then drawUpTo(player, "-1", "DrawHand") end
+		if completedTurnCanDrawHand()==true then drawUpTo(player, "-1", "DrawHand") end
 		--Don't switch reward players while a visible Deed transfer is still travelling or queued.
 		if cardClaim==true or deedTransferAnyBusy()==true then
 			safeWaitCondition("Turn",finishCoopRewardAdvance,function() return cardClaim~=true and deedTransferAnyBusy()~=true end,10,finishCoopRewardAdvance)
@@ -542,11 +553,9 @@ local function turnResetCompletedTurnState()
 end
 
 local function turnDrawCompletedTurnHand(player)
-	if (gStates.timeBending~="Started" or gStates.turnNumber~=gStates.realTurn) and gStates.coopAssaultPhase~="combat" then
+	if gStates.coopAssaultPhase~="combat" and completedTurnCanDrawHand()==true then
 		--Normal turns draw here. Co-op assault hands wait until that player clicks Rewards Claimed.
-		if turnOrder[nextTurnMerged("nextMage")].endCalled~=true and turnOrder[nextTurnMerged("nextMageSkipDummy")].endCalled~=true then
-			drawUpTo(player, "-1", "DrawHand")
-		end
+		drawUpTo(player, "-1", "DrawHand")
 	end
 end
 
@@ -965,7 +974,7 @@ local function turnEndRoundAdvanceWorld()
 	gStates.powerStored={}
 	for _, details in pairs(turnOrder) do if details.tactic==6 then scheduleDeedPileDescriptionRefresh(details.seatPos, "deed") end end
 
-	--Switch Day/Night Objects for Darkness is Comming
+	--Switch Day/Night Objects for Darkness is Coming
 	local dieValue={"{en}Red{ru}Красный{zh-tw}红色的{zh-cn}红色的{ko}빨간색{es}Rojo{fr}Rouge{pt-br}Vermelho{de}Rote",
 					"{en}Green{ru}Зеленый{zh-tw}绿色的{zh-cn}绿色的{ko}녹색{es}Verde{fr}Vert{pt-br}Verde{de}Grüne",
 					"{en}Blue{ru}Синий{zh-tw}蓝色的{zh-cn}蓝色的{ko}파란색{es}Azul{fr}Bleu{pt-br}Azul{de}Blaue",
@@ -975,7 +984,7 @@ local function turnEndRoundAdvanceWorld()
 	local virtualDie1=math.random(1,6)
 	local virtualDie2=math.random(1,6)
 	if gStates.darknessComing==true then broadcastToAll(joinLang({"{en}Virtual Dice rolled {ru}Виртуальный бросок кубика выпал на {zh-tw}投掷出{zh-cn}投掷出{ko}다음의 색 주사위 굴려짐: {es}Dados virtuales enrollados en {fr}Dés virtuels lancés {pt-br}Dados Virtuais Rolados {de}Virtuelle Würfel gewürfelt ", dieValue[virtualDie1], "{en} and {ru} и {zh-tw}和{zh-cn}和{ko}그리고{es} y {fr} et {pt-br} e {de} und ", dieValue[virtualDie2]}), {1,1,0.5}) end
-	if gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) then broadcastToAll("{en}Time of day has changed permenantly{ru}Время дня изменилось до конца игры{zh-tw}白昼/黑夜停止交替了{zh-cn}白昼/黑夜停止交替了{ko}낮 또는 밤이 영원히 지속됩니다{es}La hora del día ha cambiado permanentemente{fr}L'heure de la journée a changé en permanence{pt-br}Tempo do dia mudado permanentemente.{de}Die Tageszeit hat sich dauerhaft geändert", {1,1,0.5}) end
+	if gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) then broadcastToAll("{en}Time of day has changed permanently{ru}Время дня изменилось до конца игры{zh-tw}白昼/黑夜停止交替了{zh-cn}白昼/黑夜停止交替了{ko}낮 또는 밤이 영원히 지속됩니다{es}La hora del día ha cambiado permanentemente{fr}L'heure de la journée a changé en permanence{pt-br}Tempo do dia mudado permanentemente.{de}Die Tageszeit hat sich dauerhaft geändert", {1,1,0.5}) end
 	if gStates.darknessComing==false or (gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) and gStates.timeChanged==false) then
 		gStates.timeChanged=true
 		dayNight()
@@ -1224,15 +1233,12 @@ local function turnEndRoundResetPlayerDecks()
 end
 
 local function turnEndRoundPrepareTurnOrder()
-	--Work out new tactics picking order
-	table.sort(turnOrder, function (k1, k2) return k1.fame < k2.fame end)
-	for a=1, #turnOrder-1, 1 do
-		if turnOrder[a].fame==turnOrder[a+1].fame and turnOrder[a].tactic<turnOrder[a+1].tactic then
-			local temp=turnOrder[a]
-			turnOrder[a]=turnOrder[a+1]
-			turnOrder[a+1]=temp
-		end
-	end
+	--Work out new tactics picking order. Lower Fame chooses first; ties use the later
+	--previous-round turn order (higher tactic number) first.
+	table.sort(turnOrder, function(k1, k2)
+		if k1.fame~=k2.fame then return k1.fame<k2.fame end
+		return (k1.tactic or 0)>(k2.tactic or 0)
+	end)
 	gStates.turnNumber=1
 	for a=1, #turnOrder, 1 do if playerDropoutInactive(a)==false then gStates.turnNumber=a break end end
 	gStates.realTurn=gStates.turnNumber
@@ -1590,34 +1596,48 @@ dayTactic2Discarded=function(player, mouseButton, id)
 end
 
 function nightTactic2(player, mouseButton, id)
-	if mouseButton=="-1" then
-		if legalPlayerCheck(player.color, tonumber(id:sub(14,14)))==true then
-			for a=1, #turnOrder, 1 do
-				if turnOrder[a].seatPos==tonumber(id:sub(14,14)) then
-					--Find Discard Deck
-					for b, discards in pairs(getObjectFromGUID(deedDeckDiscardZones[turnOrder[a].seatPos]).getObjects()) do
-						if discards.type=="Deck" then
-							--shuffle discard
-							discards.shuffle()
-							--put three discards in deed deck
-							safeWaitTime("Turn",function()
-								local deckPos={-74.19+(40*(turnOrder[a].seatPos-1)), 1.50, -43.16}
-								discards.takeObject({position=deckPos, smooth=true, rotation={0, 180, 180}})
-								discards.takeObject({position=deckPos, smooth=true, rotation={0, 180, 180}})
-								discards.takeObject({position=deckPos, smooth=true, rotation={0, 180, 180}})
-							end, 0.5)
-							break
-						end
-					end
-					--stop from repeating
-					gStates.tacticTwoState="Used"
-					--flip over tactic
-					if getObjectFromGUID(tacticCard[8]).is_face_down==false then getObjectFromGUID(tacticCard[8]).flip() end
-					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic to refill Deed Deck with 3 Random discards{ru} использует Тактику 2 и кладет 3 карты из сброса в Колоду деяний{zh-tw}使用战术从弃牌堆中随机拿了3张手牌{zh-cn}使用战术从弃牌堆中随机拿了3张手牌{ko}: 전략 카드 2 사용. 3장의 버려진 카드로 더미를 채웁니다.{es} usó Táctica para rellenar Deed Deck con 3 descartes aleatorios{fr} utilisé Tactic pour remplir Deed Deck avec 3 défausse aléatoires{pt-br} usou Tática para preencher o Baralho de Façanhas com 3 cartas aleatórias do Discarte.{de} taktik benutzt, um das Tatendeck mit 3 zufälligen Abwürfen aufzufüllen"}), positionToColor(a))
-					mainUIUpdate("Night Tactic 2 Used")
-					break
+	if mouseButton~="-1" then return end
+	local seatPos=tonumber(id:sub(14,14))
+	if seatPos==nil or legalPlayerCheck(player.color, seatPos)~=true then return end
+	for a=1, #turnOrder, 1 do
+		if turnOrder[a].seatPos==seatPos then
+			local discardZone=getObjectFromGUID(deedDeckDiscardZones[seatPos])
+			local discards=nil
+			if discardZone~=nil then
+				for _, obj in pairs(discardZone.getObjects()) do
+					if obj.type=="Deck" or obj.type=="Card" then discards=obj break end
 				end
 			end
+			if discards==nil then
+				broadcastToColor("{en}Night Tactic 2: there are no discarded Deed cards to return.{ru}Ночная тактика 2: нет сброшенных карт Действий для возврата.{zh-tw}夜間戰術 2：沒有可放回的已棄行動牌。{zh-cn}夜间战术 2：没有可放回的已弃行动牌。{ko}야간 전술 2: 되돌릴 버린 행동 카드가 없습니다.{es}Táctica Nocturna 2: no hay cartas de Acción descartadas para devolver.{fr}Tactique Nocturne 2 : aucune carte Action défaussée ne peut être remise.{pt-br}Tática Noturna 2: não há cartas de Ação descartadas para devolver.{de}Nachttaktik 2: Es gibt keine abgeworfenen Aktionskarten zum Zurücklegen.",player.color,warningColor)
+				return
+			end
+
+			local returnCount=discards.type=="Deck" and math.min(3,discards.getQuantity()) or 1
+			local deckZone=getObjectFromGUID(deedDeckZones[seatPos])
+			local deckPos=deckZone~=nil and deckZone.getPosition() or {-74.19+(40*(seatPos-1)), 1.50, -43.16}
+			if discards.type=="Deck" and discards.getQuantity()>3 then
+				discards.shuffle()
+				safeWaitTime("Turn",function()
+					for _=1, returnCount, 1 do
+						safeTakeObject("Turn",discards,{position={deckPos[1],1.50,deckPos[3]}, smooth=true, rotation={0,180,180}})
+					end
+				end,0.5)
+			else
+				--With three or fewer discards the whole pile is the required result. Moving it as one
+				--object also avoids a Deck collapsing into a Card midway through repeated takeObject calls.
+				if discards.type=="Deck" then discards.shuffle() end
+				discards.setRotationSmooth({0,180,180})
+				discards.setPositionSmooth({deckPos[1],1.50,deckPos[3]})
+			end
+
+			--Only consume the tactic after a real discard pile was found and the return has started.
+			gStates.tacticTwoState="Used"
+			local tactic=getObjectFromGUID(tacticCard[8])
+			if tactic~=nil and tactic.is_face_down==false then tactic.flip() end
+			broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic 2 to return up to 3 random discards to their Deed Deck.{ru} использует Тактику 2, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний.{zh-tw}使用戰術 2，將最多 3 張隨機棄牌放回行動牌庫。{zh-cn}使用战术 2，将最多 3 张随机弃牌放回行动牌库。{ko}: 전술 2를 사용해 무작위 버린 카드 최대 3장을 행동 덱으로 되돌립니다.{es} usó la Táctica 2 para devolver hasta 3 descartes aleatorios a su mazo de Acciones.{fr} utilise la Tactique 2 pour remettre jusqu’à 3 cartes défaussées aléatoires dans son paquet Action.{pt-br} usou a Tática 2 para devolver até 3 descartes aleatórios ao Baralho de Ações.{de} verwendet Taktik 2, um bis zu 3 zufällige Abwürfe in das Aktionsdeck zurückzulegen."}), positionToColor(a))
+			mainUIUpdate("Night Tactic 2 Used")
+			break
 		end
 	end
 end
@@ -1662,9 +1682,27 @@ end
 --be loose or may have merged into a Deck, so resolve one GUID at a time and reacquire its container.
 local function claimNightTactic6StoredCards(seatPos, callback)
 	local storedGUIDs={}
-	for _, stored in ipairs(gStates.powerStored or {}) do if stored.guid~=nil then storedGUIDs[#storedGUIDs+1]=stored.guid end end
+	local wantedGUIDs={}
+	for _, stored in ipairs(gStates.powerStored or {}) do
+		if stored.guid~=nil then
+			storedGUIDs[#storedGUIDs+1]=stored.guid
+			wantedGUIDs[stored.guid]=true
+		end
+	end
 	local destination={(seatPos*40)-100, 4.59, -47.55}
 	local failed={}
+	--Stored cards can merge into Decks. Index the relevant containers once instead of scanning
+	--every table object and every Deck again for each individual stored card.
+	local deckByGUID={}
+	if next(wantedGUIDs)~=nil then
+		for _, object in pairs(getObjects()) do
+			if object.type=="Deck" then
+				for _, cardData in pairs(object.getObjects()) do
+					if wantedGUIDs[cardData.guid]==true then deckByGUID[cardData.guid]=object end
+				end
+			end
+		end
+	end
 	local function moveCard(card, index)
 		card.setPosition({destination[1]+((index-1)*0.15), destination[2], destination[3]})
 		card.setRotation({0, 180, 0})
@@ -1679,22 +1717,17 @@ local function claimNightTactic6StoredCards(seatPos, callback)
 			return
 		end
 
-		--A stored pile can become a Deck. Find the current Deck containing this exact GUID.
-		for _, object in pairs(getObjects()) do
-			if object.type=="Deck" then
-				for _, cardData in pairs(object.getObjects()) do
-					if cardData.guid==guid then
-						safeTakeObject("Turn",object,{guid=guid, position={destination[1]+((index-1)*0.15), destination[2], destination[3]}, rotation={0,180,0}, smooth=false, callback_function=function(taken)
-							moveCard(taken, index)
-							safeWaitFrames("Turn",function() resolve(index+1) end, 1)
-						end})
-						return
-					end
-				end
-			end
+		local container=deckByGUID[guid]
+		if container~=nil then
+			local taken=safeTakeObject("Turn",container,{guid=guid, position={destination[1]+((index-1)*0.15), destination[2], destination[3]}, rotation={0,180,0}, smooth=false, callback_function=function(takenCard)
+				moveCard(takenCard, index)
+				safeWaitFrames("Turn",function() resolve(index+1) end, 1)
+			end})
+			if taken~=nil then return end
 		end
+		--A failed extraction must not strand the recursive resolver forever.
 		failed[#failed+1]=guid
-		resolve(index+1)
+		safeWaitFrames("Turn",function() resolve(index+1) end,1)
 	end
 	resolve(1)
 end
