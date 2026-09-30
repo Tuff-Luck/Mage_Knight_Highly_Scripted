@@ -120,6 +120,7 @@ end
 
 clearCoopAssaultRuntime=function(keepAssignments)
 	gStates.coopAssaultPhase=nil
+	gStates.coopCombatHandoffReady=nil
 	if keepAssignments~=true then
 		gStates.assaultData={}
 		gStates.coopAssaultUnassigned={}
@@ -694,15 +695,17 @@ rewardClaimDelayActive=false
 local rewardClaimDelayWait=nil
 --local slightPause=true
 local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
+	local coopCombatCleanup=gStates.coopAssaultPhase=="combat"
 	volkarePursuitResolveCombat(cleanupPlayer)
 	puppetMasterCleanupPlayedPuppets(cleanupPlayer)
 	--A Quest marker may still be settling under this Hero. Finish that temporary lift before the older
 	--end-turn site-cleanup lift records avatarPos/locks the same object, or it can be left floating.
 	apocalypseQuestRestoreRaisedAvatar(cleanupPlayer,true)
 	local coopCombatReward=nil
-	if gStates.coopAssaultPhase=="combat" then
+	if coopCombatCleanup==true then
 		coopCombatReward={player=cleanupPlayer, mage=turnOrder[cleanupPlayer].mage, fame=turnOrder[cleanupPlayer].fameGain, reputation=turnOrder[cleanupPlayer].repGain, factionRewards={dark=0, elementalist=0, apocalypse=0, council=0}}
 		gStates.coopRewardQueue[#gStates.coopRewardQueue+1]=coopCombatReward
+		gStates.coopCombatHandoffReady=false
 		setUIButtonEnabled("EndTurnButton",false)
 		setUIButtonEnabled("EndTurnButtonAlt",false)
 	end
@@ -724,13 +727,15 @@ local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	turnOrder[cleanupPlayer].combatIconHide="Both"
 	if turnOrder[cleanupPlayer].masterOfChaos~=nil then turnOrder[cleanupPlayer].masterOfChaos="available" end
 	addAvatarButtons()
-	if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
+	if coopCombatCleanup~=true then claimButtonRefresh() end
 	setUIButtonEnabled("PreEndTurn",false)
 	rewardClaimDelayWait=safeWaitTime("Combat",function()
 		rewardClaimDelayWait=nil
 		local function finishRewardDelay()
 			rewardClaimDelayActive=false
-			if gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
+			--Co-op combat defers every reward gate until all participants have fought.
+			--Do not start the Rewards Claimed soft lock during the combat-to-combat handoff.
+			if coopCombatCleanup~=true and gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
 				rewardClaimSoftLockStart()
 				if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[cleanupPlayer].seatPos)
 				else
@@ -880,6 +885,19 @@ local function combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avat
 end
 
 local function combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait)
+	local handoffScheduled=false
+	local function finishCoopCombatHandoff()
+		if gStates.coopAssaultPhase~="combat" or gStates.preEndTurn~=true or gStates.turnNumber~=cleanupPlayer then return end
+		gStates.coopCombatHandoffReady=true
+		mainUIUpdate("Co-op combat handoff ready")
+		if handoffScheduled==true then return end
+		handoffScheduled=true
+		safeWaitFrames("Combat",function()
+			if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true and gStates.turnNumber==cleanupPlayer and gStates.coopCombatHandoffReady==true then
+				endTurn(player,"-1","CoopCombatComplete")
+			end
+		end,2)
+	end
 	--Adjust hand size and Check for scenario completion to Start the final round of turns.
 	--A completed City assault has just changed both monster state and physical shields. Rebuild ownership once,
 	--at this settled cleanup boundary, before scheduleAvatarDropRefresh reads Lead/Assist for the new hand limit.
@@ -890,14 +908,11 @@ local function combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,t
 		else refreshCityDefeatState() end
 		scheduleAvatarDropRefresh(cleanupPlayer)
 		scenarioCombatCleanupCheck(cleanupPlayer)
-		--Combat Complete is the only confirmation during the combat stage. Advance as soon as cleanup is finished.
-		if gStates.endGameAchieved=="false" and gStates.tacticShown==false and gStates.coopAssaultPhase=="combat" then
-			safeWaitFrames("Combat",function()
-				if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then endTurn(player,"-1","CoopCombatComplete") end
-			end,2)
-		end
+		--Combat Complete is the only confirmation during the combat stage. Once cleanup reaches this
+		--boundary, expose a safe manual fallback and also attempt the normal automatic handoff.
+		if gStates.endGameAchieved=="false" and gStates.tacticShown==false and gStates.coopAssaultPhase=="combat" then finishCoopCombatHandoff() end
 	end, function() return state.lastObject==nil or state.lastObject.resting end, 2, function()
-		if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then endTurn(player, "-1", "CoopCombatComplete") end
+		finishCoopCombatHandoff()
 	end) end, tokenWait+50)
 end
 
@@ -1167,6 +1182,12 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		return
 	end
 	if mouseButton~="-1" or legalPlayerCheck(player.color,turnOrder[gStates.turnNumber].seatPos)~=true then return end
+	--If co-op cleanup has already reached its handoff boundary, this button is a recovery path:
+	--advance the assault instead of running pre-end-turn cleanup a second time.
+	if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then
+		if gStates.coopCombatHandoffReady==true then endTurn(player,"-1","CoopCombatComplete") end
+		return
+	end
 	if gStates.mineClaimPending~=nil then
 		broadcastToColor("{en}Resolve the pending crystal choice before ending the turn.{ru}Завершите ожидающий выбор кристалла, прежде чем заканчивать ход.{zh-tw}結束回合前，請先完成尚未處理的魔晶選擇。{zh-cn}结束回合前，请先完成尚未处理的魔晶选择。{ko}턴을 끝내기 전에 대기 중인 수정 선택을 완료하세요.{es}Resuelve la elección de cristal pendiente antes de terminar el turno.{fr}Résolvez le choix de cristal en attente avant de terminer le tour.{pt-br}Resolva a escolha de cristal pendente antes de encerrar o turno.{de}Schließe die ausstehende Kristallauswahl ab, bevor du den Zug beendest.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("Pre-end-turn cleanup") end
