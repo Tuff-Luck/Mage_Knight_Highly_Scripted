@@ -1004,8 +1004,12 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 				end
 				if player_color~=nil and turnOrder[gStates.turnNumber].mage==avatar.mage then playerPickedUpHex=nil end
 				if getObjectFromGUID(dropped_object.guid)~=nil then
+					local avatarPlayerIndex=nil
+					local avatarPlayerDetails=nil
 					for playerIndex, playerDetails in pairs(turnOrder) do
 						if playerDetails.mage==avatar.mage then
+							avatarPlayerIndex=playerIndex
+							avatarPlayerDetails=playerDetails
 							playerDetails.avatarLocation=""
 							playerDetails.avatarSharedHex=nil
 							local droppedPos=dropped_object.getPosition()
@@ -1160,6 +1164,11 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 							break
 						end
 					end
+					--The location scan above owns playerIndex/playerDetails only inside the generic-for scope.
+					--Keep the matched owner explicitly for the hand/UI tail that intentionally runs after that scan.
+					local playerIndex=avatarPlayerIndex
+					local playerDetails=avatarPlayerDetails
+					if playerDetails==nil then return end
 					if turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and avatarChangedHex==true and
 						apocalypseDragonCombatContainsPosition~=nil and apocalypseDragonCombatContainsPosition(dropped_object.getPosition())==true and
 						gStates.apocalypseDragonDefeated~=true then
