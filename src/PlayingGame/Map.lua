@@ -244,7 +244,7 @@ function shieldLocation(obj, zone, status)
 							if hexFeature=="keep" and objectNotes~="Burned Monastery" then
 								broadcastToAll("{en}Keep Released{ru}Крепость освобождена{zh-tw}保持释放{zh-cn}保持释放{ko}성 정복 해제됨{es}Mantener Liberado{fr}Garder Libéré{pt-br}Forte Liberado{de}Behalten freigelassen", positionToColor(b))
 								mageSearch.keepsBeat=mageSearch.keepsBeat-1
-								scheduleAvatarDropRefresh()
+								scheduleAvatarDropRefresh(b)
 							end
 							if hexFeature=="monastery" and gStates.monasteryBurned[terTile.guid]==true then
 								if gStates.monasteryBurnedBy~=nil then gStates.monasteryBurnedBy[terTile.guid]=nil end
@@ -295,7 +295,7 @@ function shieldLocation(obj, zone, status)
 							if hexFeature=="keep" and objectNotes~="Burned Monastery" then
 								broadcastToAll("{en}'War is too serious a matter to leave to soldiers.'{ru}Война - слишком серьезная вещь, чтобы доверять её военным'{zh-tw}对于小兵来说, 战争太过残酷了{zh-cn}对于小兵来说, 战争太过残酷了{ko}성 정복됨.{es}Mantener Atacado con Exito{fr}Gardez avec Succès Agressé{pt-br}'Guerra é um assunto sério demais para deixar na mão de soldados'{de}Krieg ist eine zu ernste Angelegenheit, um sie Soldaten zu überlassen.'", positionToColor(b))
 								mageSearch.keepsBeat=mageSearch.keepsBeat+1
-								scheduleAvatarDropRefresh()
+								scheduleAvatarDropRefresh(b)
 								break
 							end
 							if hexFeature=="glade" and objectNotes~="Burned Monastery" and gStates.gameScenario=="Druid Nights" then
@@ -337,34 +337,34 @@ function shieldLocation(obj, zone, status)
 		end
 	end
 	if zone.guid~=mapArea then
-		safeWaitFrames("Map",function()
-			for b, mageSearch in pairs(turnOrder) do
-				if mageSearch.mage==objectDescription then
-					if zone.guid~=elementalist.discZone and zone.guid~=darkCrusader.discZone and (gStates.gameScenario=="The Gauntlet"
+		for b, mageSearch in pairs(turnOrder) do
+			if mageSearch.mage==objectDescription then
+				local standardCity=zone.guid==GUID.zone.blueCity or zone.guid==GUID.zone.redCity or zone.guid==GUID.zone.greenCity or zone.guid==GUID.zone.whiteCity
+				local factionLeader=zone.guid==darkCrusader.discZone or zone.guid==elementalist.discZone
+				local volkareZone=zone.guid==volkare.discZone
+				if standardCity or factionLeader or volkareZone then refreshCityControlAndScoring() end
+				--Removal is source-of-truth bookkeeping only. Enter broadcasts retain the existing flavour/status messages.
+				if status~="remove" then
+					if standardCity and (gStates.gameScenario=="The Gauntlet"
 					or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The Realm of the Dead Blitz"
 					or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Dungeon Lords"
 					or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Mines Liberation") then
 						broadcastToAll(joinLang({"{en}City is Friendly to {ru}Город дружественный для {zh-tw}城市友善的对象: {zh-cn}城市友善的对象: {ko}도시는 우호적입니다: {es}La Ciudad es Amigable con {fr}La Ville est Amicale avec {pt-br}Cidade é Amistosa a {de}Stadt ist befreundet mit ", translateWord[mageSearch.mage]}), positionToColor(b))
-					else
-						if zone.guid==GUID.zone.blueCity or zone.guid==GUID.zone.redCity or zone.guid==GUID.zone.greenCity or zone.guid==GUID.zone.whiteCity then
-							refreshCityControlAndScoring()
-							if mageSearch.defeatedCities[cityScriptZones[zone.guid].cityGUID]~=nil then
-								broadcastToAll("{en}City has been Conquered{ru}Город был захвачен{zh-tw}城市被征服了{zh-cn}城市被征服了{ko}도시가 정복되었습니다{es}La Ciudad ha sido Conquistada{fr}La Ville a été Conquise{pt-br}Cidade foi Conquistada.{de}Die Stadt wurde erobert", positionToColor(b))
-							else
-								broadcastToAll("{en}City Defender Defeated{ru}Защитник города побежден{zh-tw}城防守军被击败了{zh-cn}城防守军被击败了{ko}도시 수비자를 처치했습니다{es}Defensor de la Ciudad Derrotado{fr}Défenseur de la Ville Vaincu{pt-br}Defensor da Cidade Derrotado.{de}Stadtverteidiger besiegt", positionToColor(b))
-							end
+					elseif standardCity then
+						if mageSearch.defeatedCities[cityScriptZones[zone.guid].cityGUID]~=nil then
+							broadcastToAll("{en}City has been Conquered{ru}Город был захвачен{zh-tw}城市被征服了{zh-cn}城市被征服了{ko}도시가 정복되었습니다{es}La Ciudad ha sido Conquistada{fr}La Ville a été Conquise{pt-br}Cidade foi Conquistada.{de}Die Stadt wurde erobert", positionToColor(b))
+						else
+							broadcastToAll("{en}City Defender Defeated{ru}Защитник города побежден{zh-tw}城防守军被击败了{zh-cn}城防守军被击败了{ko}도시 수비자를 처치했습니다{es}Defensor de la Ciudad Derrotado{fr}Défenseur de la Ville Vaincu{pt-br}Defensor da Cidade Derrotado.{de}Stadtverteidiger besiegt", positionToColor(b))
 						end
 					end
-					if zone.guid==darkCrusader.discZone or zone.guid==elementalist.discZone then
-						refreshCityControlAndScoring()
+					if factionLeader then
 						if gStates.defeatedFactionTest[cityScriptZones[zone.guid].cityGUID]~=nil then
 							broadcastToAll("{en}Leader has been Defeated{ru}Лидер был побежден{zh-tw}首领被打败了{zh-cn}首领被打败了{ko}지도자를 처치했습니다{es}El Líder ha sido Derrotado{fr}Le Chef a été Vaincu{pt-br}Líder foi Derrotado{de}Anführer wurde besiegt", positionToColor(b))
 						else
 							broadcastToAll("{en}Leader Level Reduced{ru}Уровень лидера понижен{zh-tw}首领级别降低{zh-cn}首领级别降低{ko}지도자 레벨 감소됨{es}Nivel de Líder Reducido{fr}Niveau de Leader Réduit{pt-br}Nível do Líder foi Reduzido{de}Anführerlevel reduziert", positionToColor(b))
 						end
 					end
-					if zone.guid==volkare.discZone then
-						refreshCityControlAndScoring()
+					if volkareZone then
 						if mageSearch.defeatedCities[cityScriptZones[zone.guid].cityGUID]~=nil then
 							broadcastToAll("{en}Volkare is Defeated{ru}Волкар побежден{zh-tw}沃里卡认怂了{zh-cn}沃里卡认怂了{ko}볼케어 장군을 처치했습니다{es}Volkare es derrotado{fr}Volkare est vaincu{pt-br}Volkare foi Derrotado{de}Volkare ist besiegt", positionToColor(b))
 							registerVolkareCampAsCityKeep()
@@ -372,12 +372,12 @@ function shieldLocation(obj, zone, status)
 							broadcastToAll("{en}Volkare's Army Reduced{ru}Армия Волкара уменьшилась{zh-tw}沃里卡军队减少了{zh-cn}沃里卡军队减少了{ko}볼케어의 군대가 줄었습니다{es}Ejército de Volkare reducido{fr}Armée de Volkare réduite{pt-br}Exército de Volkare Reduzido{de}Volkares Armee wurde verkleinert", positionToColor(b))
 						end
 					end
-					scheduleAvatarDropRefresh()
-					break
 				end
+				scheduleAvatarDropRefresh(b)
+				break
 			end
-			addAvatarButtons()
-		end, 5)
+		end
+		addAvatarButtons()
 	end
 end
 
@@ -444,7 +444,15 @@ terrainPlacementNeighbourOffsets={
 local avatarLocationSpatialCell=3
 avatarLocationMapSnapshot=function()
 	local spatial=runtimeMapSpatialSnapshot(avatarLocationSpatialCell)
-	return spatial.objects,spatial.positions,spatial.terrainObjects,spatial.terrainRotations,spatial.buckets,spatial
+	return spatial.positions,spatial.terrainObjects,spatial.terrainRotations,spatial
+end
+
+local function registeredCityAnchor(cityGUID)
+	if cityGUID==nil then return nil end
+	if cityGUID==portal.terrainHex then return getObjectFromGUID(cityGUID) end
+	local cityData=gStates~=nil and gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID] or nil
+	if cityData==nil or cityData.extra==nil or cityData.extra.terainGUID==nil then return nil end
+	return getObjectFromGUID(cityGUID)
 end
 
 avatarLocationRelevantObjects=function(locatedTerrain,pos,spatial)
@@ -452,12 +460,21 @@ avatarLocationRelevantObjects=function(locatedTerrain,pos,spatial)
 	local seen={}
 	for _,obj in ipairs(result) do if obj~=nil and obj.guid~=nil then seen[obj.guid]=true end end
 
-	--City models are moved independently of terrain and can sit high enough that TTS does not always
-	--report a clean map-zone membership transition. The shared spatial cache therefore cannot be the
-	--sole authority for these few pieces. Merge nearby live City models explicitly so adjacency still
-	--reveals the actual deployed City army (including Random Cities/Megapolis rather than inferring
-	--the City colour from the printed terrain feature).
-	local cityCandidates={cityModel.white,cityModel.blue,cityModel.red,cityModel.green,volkare.model,"938cd3","a0d7b3"}
+	--City deployment is authoritative game state; map-zone membership is only a physics/cache detail.
+	--playCity() registers the final City (including Random Cities and Megapolis pairs) through
+	--cityMonsterQty[cityGUID].extra.terainGUID, so merge those live registered models explicitly.
+	local cityCandidates={}
+	for _,cityData in pairs(cityScriptZones) do
+		if cityData.cityGUID~=portal.terrainHex and registeredCityAnchor(cityData.cityGUID)~=nil then cityCandidates[#cityCandidates+1]=cityData.cityGUID end
+	end
+	for _,avatar in pairs(mageKnights) do
+		if avatar.mage=="Volkare" then
+			if avatar.model~=nil then cityCandidates[#cityCandidates+1]=avatar.model end
+			if avatar.token~=nil then cityCandidates[#cityCandidates+1]=avatar.token end
+			if avatar.standee~=nil then cityCandidates[#cityCandidates+1]=avatar.standee end
+			break
+		end
+	end
 	if gStates~=nil and gStates.volkareModel~=nil then cityCandidates[#cityCandidates+1]=gStates.volkareModel end
 	for _,guid in ipairs(cityCandidates) do
 		if guid~=nil and seen[guid]~=true then
@@ -714,9 +731,8 @@ function shieldDrop(player, mouseButton, id)
 	if mouseButton=="-1" then
 		for _, details in pairs(mageKnights) do
 			local tempPos={}
-			if getObjectFromGUID(details.model)~=nil then tempPos=getObjectFromGUID(details.model).getPosition() end
-			if getObjectFromGUID(details.token)~=nil then tempPos=getObjectFromGUID(details.token).getPosition() end
-			if getObjectFromGUID(details.standee)~=nil then tempPos=getObjectFromGUID(details.standee).getPosition() end
+			local avatarObj=getObjectFromGUID(details.standee) or getObjectFromGUID(details.token) or getObjectFromGUID(details.model)
+			if avatarObj~=nil then tempPos=avatarObj.getPosition() end
 			if details.shieldContainer==id:sub(1, 6) then
 				local sitePlayer=nil
 				local sitePlayerIndex=nil
@@ -732,9 +748,7 @@ function shieldDrop(player, mouseButton, id)
 					return
 				end
 				if gStates.gameScenario=="Dungeon Lords" and sitePlayer~=nil and (sitePlayer.avatarLocation=="dungeon" or sitePlayer.avatarLocation=="tomb") then
-					broadcastToAll("{en}Dungeon Lords: Dungeons and Tombs are marked only after their combat is won.{ru}Владыки Подземелий: Подземелья и Гробницы отмечаются только после победы в их бою.{zh-tw}地下城領主：只有在戰鬥獲勝後才標記地下城與墓穴。{zh-cn}地下城领主：只有在战斗获胜后才标记地下城与墓穴。{ko}던전 로드: 던전과 무덤은 전투에서 승리한 뒤에만 표시됩니다.{es}Señores de las Mazmorras: las Mazmorras y Tumbas solo se marcan después de ganar su combate.{fr}Seigneurs des Donjons : les Donjons et Tombeaux ne sont marqués qu’après avoir remporté leur combat.{pt-br}Senhores das Masmorras: Masmorras e Tumbas só são marcadas após vencer o combate.{de}Kerkerfürsten: Kerker und Gräber werden erst markiert, nachdem ihr Kampf gewonnen wurde.",positionToColor(gStates.turnNumber))
-					addAvatarButtons()
-					return
+					broadcastToAll("{en}Dungeon Lords reminder: Dungeons and Tombs are normally marked only after their combat is won.{ru}Владыки Подземелий: обычно Подземелья и Гробницы отмечаются только после победы в их бою.{zh-tw}地下城領主提醒：地下城與墓穴通常只在戰鬥獲勝後才標記。{zh-cn}地下城领主提醒：地下城与墓穴通常只在战斗获胜后才标记。{ko}던전 로드 알림: 던전과 무덤은 보통 전투에서 승리한 뒤에 표시합니다.{es}Recordatorio de Señores de las Mazmorras: normalmente las Mazmorras y Tumbas solo se marcan después de ganar su combate.{fr}Rappel Seigneurs des Donjons : les Donjons et Tombeaux sont normalement marqués après avoir remporté leur combat.{pt-br}Lembrete de Senhores das Masmorras: normalmente Masmorras e Tumbas são marcadas após vencer o combate.{de}Kerkerfürsten-Erinnerung: Kerker und Gräber werden normalerweise erst nach gewonnenem Kampf markiert.",positionToColor(sitePlayerIndex or gStates.turnNumber))
 				end
 				local shield=getObjectFromGUID(details.shieldContainer).takeObject({position={tempPos[1], 3, tempPos[3]}})
 				if shield~=nil and gStates.gameScenario=="The Realm of the Dead Blitz" and sitePlayer~=nil and sitePlayer.avatarLocation=="graveyard" and sitePlayerIndex~=nil then
@@ -807,30 +821,28 @@ function findNearbyMages(origin, distance)--origin={x, y, z}, distance=x
 			end
 		end
 	end
-	--City models are a tiny registered set. Use runtime map membership to decide which are actually
-	--in play instead of walking every object in the map scripting zone just to find those models.
-	local mapObjectGUIDs=runtimeMapSnapshot().objectGUIDs or {}
+	--Players parked on City/Portal cards need their logical map position rather than their physical
+	--off-map parking slot. City deployment is registered explicitly by playCity(); do not infer it from
+	--whether the runtime map cache happened to observe the model crossing the map scripting-zone boundary.
 	for zone, cityData in pairs(cityScriptZones) do
-		if mapObjectGUIDs[cityData.cityGUID]==true then
-			local possibleCity=getObjectFromGUID(cityData.cityGUID)
-			if possibleCity~=nil then
-				local cityPos=possibleCity.getPosition()
-				local mageDist=math.floor(math.sqrt(((origin[1]-cityPos[1])^2)+((origin[3]-cityPos[3])^2))+0.5)
-				if mageDist<distance then
-					local cityZone=getObjectFromGUID(zone)
-					if cityZone~=nil then
-						for _, cityObj in pairs(cityZone.getObjects()) do
-							local avatar=nil
-							for _, candidate in pairs(mageKnights) do
-								if cityObj.guid==candidate.model or cityObj.guid==candidate.standee or cityObj.guid==candidate.token then avatar=candidate break end
-							end
-							if avatar~=nil and avatar.mage~="Volkare" and seenMage[avatar.mage]~=true then
-								for turn, mageSearch in pairs(turnOrder) do
-									if mageSearch.mage==avatar.mage and playerDropoutInactive(turn)==false then
-										mageList[#mageList+1]={mage=mageSearch.mage,distance=mageDist,fame=mageSearch.fame,turn=turn}
-										seenMage[mageSearch.mage]=true
-										break
-									end
+		local possibleCity=registeredCityAnchor(cityData.cityGUID)
+		if possibleCity~=nil then
+			local cityPos=possibleCity.getPosition()
+			local mageDist=math.floor(math.sqrt(((origin[1]-cityPos[1])^2)+((origin[3]-cityPos[3])^2))+0.5)
+			if mageDist<distance then
+				local cityZone=getObjectFromGUID(zone)
+				if cityZone~=nil then
+					for _, cityObj in pairs(cityZone.getObjects()) do
+						local avatar=nil
+						for _, candidate in pairs(mageKnights) do
+							if cityObj.guid==candidate.model or cityObj.guid==candidate.standee or cityObj.guid==candidate.token then avatar=candidate break end
+						end
+						if avatar~=nil and avatar.mage~="Volkare" and seenMage[avatar.mage]~=true then
+							for turn, mageSearch in pairs(turnOrder) do
+								if mageSearch.mage==avatar.mage and playerDropoutInactive(turn)==false then
+									mageList[#mageList+1]={mage=mageSearch.mage,distance=mageDist,fame=mageSearch.fame,turn=turn}
+									seenMage[mageSearch.mage]=true
+									break
 								end
 							end
 						end
@@ -964,7 +976,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						clearPendingCoopAssault()
 					end
 				end
-				playerPickedUpHex=nil
+				if player_color~=nil and turnOrder[gStates.turnNumber].mage==avatar.mage then playerPickedUpHex=nil end
 				if getObjectFromGUID(dropped_object.guid)~=nil then
 					for playerIndex, playerDetails in pairs(turnOrder) do
 						if playerDetails.mage==avatar.mage then
@@ -992,11 +1004,11 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 							end
 							--Use one cached map snapshot for the current hex and its six neighbours.
 							local volkareCampKeepAllowed=volkareCampAsCityConquered()==true and volkareCampContributionShieldCount(playerDetails)>0
-							local mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, _, mapSpatial=avatarLocationMapSnapshot()
+							local mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapSpatial=avatarLocationMapSnapshot()
 								for keepSearch=1, 7, 1 do
 									--Volkare can remove a City model during this loop, so retain the old live-refresh behaviour for him.
 									if keepSearch>1 and playerDetails.mage=="Volkare" then
-										mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, _, mapSpatial=avatarLocationMapSnapshot()
+										mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapSpatial=avatarLocationMapSnapshot()
 									end
 									local locatedTerrain, bearing, _, hexFeature=terrainHexAtPosition(avatarPos, mapTerrainObjects, mapObjectPositions, mapTerrainRotations)
 								hexFeature=hexFeature or ""
@@ -1189,7 +1201,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 					if apocalypseQuestsUsed()==true then apocalypseQuestRefreshOfferButtons() end
 					if turnOrder[gStates.turnNumber].mage==avatar.mage then refreshFracturedLandsTeleportHighlights() end
 					addAvatarButtons()
-					if gStates.rampagePursuit==true and gStates.preEndTurn==false then pursuingRampagers(nil, "-1", nil) end
+					if turnOrder[gStates.turnNumber].mage==avatar.mage and gStates.rampagePursuit==true and gStates.preEndTurn==false then pursuingRampagers(nil, "-1", nil) end
 				end
 			end
 
@@ -1332,23 +1344,19 @@ function refreshTerrainExploreOptions(compactCities)
 		--container at quantity zero, so ordinary guarded container reads are sufficient here.
 		local terrainStackQuantity=terrainStack~=nil and (tonumber(terrainStack.getQuantity()) or 0) or 0
 		local terrainStackObjects=terrainStack~=nil and terrainStack.getObjects() or {}
-		local terrainStackSingleTile=terrainStack~=nil and terrainTiles[terrainStack.guid]~=nil and terrainTiles[terrainStack.guid].tileType~="tilePile"
 		if #terrainStackObjects>0 then
 			local nextTerrainIndex=terrainStackQuantity-1
 			testTerrain=terrainStackObjects[#terrainStackObjects].guid
 			for _, containedTerrain in pairs(terrainStackObjects) do
 				if containedTerrain.index==nextTerrainIndex then testTerrain=containedTerrain.guid break end
 			end
-		elseif terrainStackSingleTile==true and terrainStack~=nil then
-			--A terrain stack collapses back to the final tile object when only one tile remains.
-			testTerrain=terrainStack.guid
 		else
 			nameTerrain="excess"
 			testTerrain="country"
 		end
 		local leftCountryQuantity=leftCountry~=nil and (tonumber(leftCountry.getQuantity()) or 0) or 0
 		local leftCoreQuantity=leftCore~=nil and (tonumber(leftCore.getQuantity()) or 0) or 0
-		if terrainStackQuantity>0 or terrainStackSingleTile==true or leftCountryQuantity>0 or leftCoreQuantity>0 then
+		if terrainStackQuantity>0 or leftCountryQuantity>0 or leftCoreQuantity>0 then
 			for _, terTile in pairs(terrainExploreSpots) do
 				local found=false
 				for _, mightBeMap in pairs(faceUpTerrain) do
@@ -1414,6 +1422,7 @@ function mapHandleTerrainZoneEnter(ctx)
 	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
 		if startingMapSetup==true then startingMapTiles[objGUID]=true end
 		local initialSetupTerrain=startingMapTiles~=nil and startingMapTiles[objGUID]==true
+		local newTerrainReveal=gStates.playedAllready[objGUID]~=true
 		workingOnTerrain[objGUID]=true
 		--Setup terrain still needs normal site/enemy population, but player-exploration UI/effects wait for actual play.
 		if initialSetupTerrain~=true then safeWaitTime("Map",function() addAvatarButtons() end, 1.5) end
@@ -1457,12 +1466,12 @@ function mapHandleTerrainZoneEnter(ctx)
 			if startingMapSetup==true then
 				if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
 			end
-			if initialSetupTerrain~=true then
+			if initialSetupTerrain~=true and newTerrainReveal==true then
 				againstDragonRevealLair(obj)
 				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
 			end
 			--Check if the object is a core tile and unlock elite units
-			if terrainTiles[objGUID].tileType=="core" and (objGUID~=GUID.tile.volkareCamp or (objGUID==GUID.tile.volkareCamp and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
+			if newTerrainReveal==true and terrainTiles[objGUID].tileType=="core" and (objGUID~=GUID.tile.volkareCamp or (objGUID==GUID.tile.volkareCamp and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
 				gStates.playedCoreTiles=gStates.playedCoreTiles+1
 				gStates.eliteUnitsUsed=true
 				if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
@@ -1474,7 +1483,7 @@ function mapHandleTerrainZoneEnter(ctx)
 			end
 
 			--Against the Apocalypse destroyed terrain
-			if initialSetupTerrain~=true and gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.tacticShown==false and enteredTileName~="excess" then
+			if initialSetupTerrain~=true and newTerrainReveal==true and gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.tacticShown==false and enteredTileName~="excess" then
 				destroyNextAgainstApocalypseSite(obj)
 			end
 
@@ -1764,7 +1773,7 @@ function mapHandleTerrainZoneEnter(ctx)
 
 			--Fame is awarded only for terrain actually explored during play. Initial setup terrain is
 			--tagged when it enters the map and never counts as exploration in these scenarios.
-			if initialSetupTerrain~=true and
+			if initialSetupTerrain~=true and newTerrainReveal==true and
 				(gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
 				turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
 				local centerFeature=terrainTiles[objGUID].hexFeature["center"] or ""
