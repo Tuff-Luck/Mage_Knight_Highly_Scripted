@@ -107,6 +107,7 @@ function withTokenPoolsReady(pileGUIDs, callback, context)
 						if discard~=nil and #discard.getObjects()>0 then refillable[pileGUID]=true end
 						break
 					end
+				end
 			end
 		end
 	end
