@@ -775,9 +775,12 @@ local function scheduleShieldLocation(obj, zone, status)
 	local guid=obj~=nil and obj.guid or nil
 	local zoneGUID=zone~=nil and zone.guid or nil
 	if guid==nil or zoneGUID==nil then return end
-	if shieldLocationWait[guid]~=nil then Wait.stop(shieldLocationWait[guid]) end
-	shieldLocationWait[guid]=safeWaitFrames("Events",function()
-		shieldLocationWait[guid]=nil
+	--Debounce churn within one zone, but do not let entering a new meaningful zone cancel the leave
+	--bookkeeping for the previous one (for example moving a City Shield onto the map).
+	local waitKey=guid.."|"..zoneGUID
+	if shieldLocationWait[waitKey]~=nil then Wait.stop(shieldLocationWait[waitKey]) end
+	shieldLocationWait[waitKey]=safeWaitFrames("Events",function()
+		shieldLocationWait[waitKey]=nil
 		local liveObj=getObjectFromGUID(guid)
 		local liveZone=getObjectFromGUID(zoneGUID)
 		if liveObj==nil or liveZone==nil then return end
