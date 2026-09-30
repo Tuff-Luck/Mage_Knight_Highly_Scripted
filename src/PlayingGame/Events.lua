@@ -786,6 +786,12 @@ local function scheduleShieldLocation(obj, zone, status)
 		if status=="enter" and apocalypseQuestsUsed()==true then apocalypseQuestRefreshOfferButtons() end
 	end,2)
 end
+
+local function mapMarkerTrackingZone(zoneGUID)
+	return zoneGUID==mapArea or zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or
+		zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity or zoneGUID==volkare.discZone or
+		zoneGUID==darkCrusader.discZone or zoneGUID==elementalist.discZone
+end
 local function zoneEventContext(zone, obj)
 	if zone==nil or obj==nil then return nil end
 	local zoneGUID=zone.guid
@@ -964,7 +970,7 @@ local function handleMapLocationZoneEnter(ctx)
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
 		--Check if a shield, avatar, secret Dungeon, or Secret Tomb has been played to cities or board
-	if zoneGUID==mapArea or zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity or zoneGUID==volkare.discZone or zoneGUID==darkCrusader.discZone or zoneGUID==elementalist.discZone then
+	if mapMarkerTrackingZone(zoneGUID)==true then
 		if monsterPugs[objGUID]~=nil then return end
 		if zoneObjectCanBeMapMarker(ctx)~=true and mageKnightAvatarGUIDs[objGUID]~=true then return end
 		local objectName=zoneEventObjectName(ctx)
@@ -1353,10 +1359,13 @@ local function handleMapZoneLeave(ctx)
 
 	--Check if a shield/site marker has been removed. Known cards/decks/dice/terrain/enemies skip
 	--Name/GM Notes entirely; only marker-like objects cross those TTS properties.
-	if zone.guid==mapArea and zoneObjectCanBeMapMarker(ctx)==true and obj.getLock()==false then
+	if mapMarkerTrackingZone(zone.guid)==true and zoneObjectCanBeMapMarker(ctx)==true and obj.getLock()==false then
 		local objectName=zoneEventObjectName(ctx)
-		local marker=objectName=="Shield" or objectName=="Secret Dungeon" or objectName=="Secret Tomb"
-		if marker~=true then marker=zoneEventObjectNotes(ctx)=="Burned Monastery" end
+		local marker=objectName=="Shield"
+		if zone.guid==mapArea then
+			marker=marker or objectName=="Secret Dungeon" or objectName=="Secret Tomb"
+			if marker~=true then marker=zoneEventObjectNotes(ctx)=="Burned Monastery" end
+		end
 		if marker==true then scheduleShieldLocation(obj, zone, "remove") end
 	end
 
