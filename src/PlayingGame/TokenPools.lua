@@ -1,6 +1,7 @@
 -- Monster token-pool replenishment and bag presentation runtime.
 
 -- Token pile refill
+local tokenPoolRefillPending={}
 local tokenPileLinks={	{discard=GUID.bag.discard.towerGarrison, destination=monsterPiles.purple},--Mage Towers Discard-->Main
 						{discard=GUID.bag.discard.keepGarrison, destination=monsterPiles.gray},--Keeps Discard-->Main
 						{discard=GUID.bag.discard.cityGarrison, destination=monsterPiles.white},--Cities Discard-->Main
@@ -34,12 +35,18 @@ function tokenRefill(reportResult)
 				emptyPile=true
 				local discardObjects=discardObj.getObjects()
 				if #discardObjects>0 then
+					local destinationGUID=tokenPileLinks[a].destination
+					tokenPoolRefillPending[destinationGUID]=true
 					discardObj.shuffle()
 					for _=1, #discardObjects do
 						local obj=discardObj.takeObject()
 						gStates.monsterPlayLocation[obj.guid]=nil
 						destinationObj.putObject(obj)
 					end
+					safeWaitCondition("TokenPools.refill",function() tokenPoolRefillPending[destinationGUID]=nil end,function()
+						local target=getObjectFromGUID(destinationGUID)
+						return target==nil or target.getQuantity()~=0
+					end,2,function() tokenPoolRefillPending[destinationGUID]=nil end)
 					noWait=false
 				end
 			end
@@ -63,11 +70,11 @@ function withTokenPoolReady(pileGUID, callback, context)
 	local pile=pileGUID~=nil and getObjectFromGUID(pileGUID) or nil
 	if pile==nil or pile.getQuantity()~=0 then callback() return end
 
-	local refillable=false
+	local refillable=tokenPoolRefillPending[pileGUID]==true
 	for _, link in ipairs(tokenPileLinks) do
 		if link.destination==pileGUID then
 			local discard=getObjectFromGUID(link.discard)
-			refillable=discard~=nil and #discard.getObjects()>0
+			if discard~=nil and #discard.getObjects()>0 then refillable=true end
 			break
 		end
 	end
@@ -93,6 +100,7 @@ function withTokenPoolsReady(pileGUIDs, callback, context)
 			requested[pileGUID]=true
 			local pile=getObjectFromGUID(pileGUID)
 			if pile~=nil and pile.getQuantity()==0 then
+				if tokenPoolRefillPending[pileGUID]==true then refillable[pileGUID]=true end
 				for _, link in ipairs(tokenPileLinks) do
 					if link.destination==pileGUID then
 						local discard=getObjectFromGUID(link.discard)
