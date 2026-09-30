@@ -1450,6 +1450,7 @@ end
 
 --Add Icons to players Avatar and Rampaging Monsters
 local avatarButtonRefreshPending=false
+local avatarButtonRefreshQueued=false
 avatarButtonXmlState={}
 mapObjectScriptUIState={}
 avatarButtonSpatialCell=3
@@ -1530,10 +1531,20 @@ combatAttackOptionCounts=combatAttackOptionCounts or {}
 combatAttackHorsemanOptionCounts=combatAttackHorsemanOptionCounts or {}
 
 function addAvatarButtons()
-	if avatarButtonRefreshPending==true then return end
+	if avatarButtonRefreshPending==true then
+		--Avatar pickup deliberately clears its old controls. Never discard a later location refresh just
+		--because another rebuild is already waiting; one queued pass guarantees the settled hex wins.
+		avatarButtonRefreshQueued=true
+		return
+	end
 	avatarButtonRefreshPending=true
 	safeWaitFrames("UI",function()
+		local refreshAgain=avatarButtonRefreshQueued
+		avatarButtonRefreshQueued=false
 		avatarButtonRefreshPending=false
+		--Schedule a coalesced follow-up before doing the current rebuild so even an unexpected error in
+		--this pass cannot strand an avatar with the pickup-time empty UI.
+		if refreshAgain==true then safeWaitFrames("UI",function() addAvatarButtons() end,1) end
 		--Snapshot relevant map objects once. Nearby shield/marker/ruin checks use spatial buckets;
 		--rampager/destroyed-site controls remain a small dedicated list because stale remote buttons must be cleared.
 		local mapButtonBuckets={}
