@@ -2174,7 +2174,8 @@ function resourceTracker(player, mouseButton, id)
 			if gStates.moveCost[convert[id:sub(9,13)][1]]>900 then temp="X" end
 			UI.setAttribute(id:sub(1,13).."Text", "text", joinLang({convert[id:sub(9,13)][2], temp}))
 		end
-		if id~="DisplayMoveCosts" then updateMoveDisplay(id) end
+		local movementChanged=id:sub(1,16)=="MovemAmountPlain" or id=="MovemAmountUpdate" or id:sub(1,8)=="MoveCost"
+		if movementChanged==true then updateMoveDisplay(id) end
 	end
 end
 
