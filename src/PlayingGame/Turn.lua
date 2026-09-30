@@ -1006,6 +1006,7 @@ local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 		local cleanupRound=gStates.currentRound
 		local started=apocalypseQuestEndRoundCleanup(function()
 			if gStates.currentRound~=cleanupRound then return end
+			gStates.apocalypseQuestEndRoundCleanupDoneRound=cleanupRound
 			safeWaitFrames("Turn",function()
 				if gStates.currentRound==cleanupRound then endRound(true) end
 			end,2)
