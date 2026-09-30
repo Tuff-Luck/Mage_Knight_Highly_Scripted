@@ -17,19 +17,6 @@ local apocalypseQuestCombatRelevant, apocalypseQuestUsesEnemyAttackButton, apoca
 
 -- Apocalypse Quest system: quest cards, progression, markers, combat, rewards, offer and scoring.
 
---Temporary end-round cleanup trace. The native TTS "Value cannot be null / key" error is raised below
---Lua's protected-callback boundary, so bracket the handful of engine/container calls with visible steps.
---This is deliberately active only while the scripted end-of-round Quest retirement is processing.
-local apocalypseQuestCleanupTraceContext=nil
-local function apocalypseQuestCleanupTrace(message)
-	local context=apocalypseQuestCleanupTraceContext
-	if context==nil then return end
-	context.step=(context.step or 0)+1
-	local line="QUEST CLEANUP TRACE "..tostring(context.step).." ["..tostring(context.name or context.guid or "?").."]: "..tostring(message or "")
-	broadcastToAll(line,{0.55,0.85,1})
-	log(line)
-end
-
 --Apocalypse Dragon Quest Setup
 function apocalypseQuestsUsed()
 	return gStates.apocalypseQuestCards==true or gStates.gameScenario=="For the Council" or gStates.gameScenario=="The Fractured Lands Blitz"
@@ -378,21 +365,11 @@ apocalypseQuestStageIntoContainer=function(obj,container,onComplete)
 	local objectGUID=obj.guid
 	local containerGUID=container.guid
 	if objectGUID==nil or containerGUID==nil then if onComplete~=nil then onComplete(false) end return false end
-
-	--There is no longer any physical staging before a Quest attachment enters its destination, so there
-	--is no reason to defer this native container operation. The diagnostic trace showed the remaining
-	--native null-key error occurring entirely inside the two-frame Wait.frames gap before this callback
-	--ever began. Put the object away synchronously and let putObject's return be the lifecycle boundary.
-	apocalypseQuestCleanupTrace("BEFORE unlock "..tostring(objectGUID))
+	--Return directly to the destination container. Deferring this putObject by two frames produced an
+	--intermittent native TTS null-key error during end-of-round Quest cleanup.
 	obj.unlock()
-	apocalypseQuestCleanupTrace("AFTER unlock "..tostring(objectGUID))
-	apocalypseQuestCleanupTrace("BEFORE immediate putObject "..tostring(objectGUID).." -> "..tostring(containerGUID))
 	container.putObject(obj)
-	apocalypseQuestCleanupTrace("AFTER immediate putObject "..tostring(objectGUID).." -> "..tostring(containerGUID))
-	if onComplete~=nil then
-		apocalypseQuestCleanupTrace("container return complete "..tostring(objectGUID))
-		onComplete(true)
-	end
+	if onComplete~=nil then onComplete(true) end
 	return true
 end
 
@@ -429,9 +406,7 @@ local function apocalypseQuestReturnTuckedCard(card, questName, onComplete)
 			if onComplete~=nil then onComplete(false) end
 			return
 		end
-		apocalypseQuestCleanupTrace("BEFORE tucked putCardAtBottom "..tostring(cardGUID).." -> "..tostring(liveDestination.guid))
 		putCardAtBottom(liveDestination,liveCard,function(merged)
-			apocalypseQuestCleanupTrace("AFTER tucked putCardAtBottom callback "..tostring(cardGUID))
 			broadcastToAll(joinLang({"{en}Quest cleanup: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",cardTitle,"{en}\" returned to the bottom of the {ru}\" возвращена на дно колоды {zh-tw}\" 已歸還到 {zh-cn}\" 已归还到 {ko}\" 카드를 {es}\" volvió al fondo del mazo de {fr}\" a été remise sous le paquet {pt-br}\" voltou para o fundo do baralho {de}\" wurde unter den Stapel ",destinationName,"{en} deck.{ru}.{zh-tw} 牌庫底部。{zh-cn} 牌库底部。{ko} 덱 맨 아래로 돌려놓았습니다.{es}.{fr}.{pt-br}.{de} gelegt."}), {1,1,0.5})
 			if onComplete~=nil then onComplete(merged~=nil) end
 		end)
@@ -2985,8 +2960,6 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 		local card=queue[index]
 		if card==nil then cleanNext(index+1) return end
 		local questName=apocalypseQuestName(card)
-		apocalypseQuestCleanupTraceContext={guid=card.guid,name=questName,step=0}
-		apocalypseQuestCleanupTrace("begin end-round retirement; guid "..tostring(card.guid))
 		local questDetails=apocalypseQuestData[card.guid] or {}
 		local objects=apocalypseQuestObjectsOnCard(card)
 		local shieldCount=0
@@ -3006,7 +2979,6 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 			end
 		end
 		QuestPrivate.apocalypseQuestBottomDeck(card,function(success)
-			apocalypseQuestCleanupTrace("Quest retirement callback success="..tostring(success))
 			if shieldCount>0 then broadcastToAll(joinLang({"{en}Quest cleanup: removed {ru}Очистка задания: удалено {zh-tw}任務清理：從 \"{zh-cn}任务清理：从 \"{ko}퀘스트 정리: \"{es}Limpieza de Misión: se retiraron {fr}Nettoyage de Quête : retrait de {pt-br}Limpeza da Missão: foram removidos {de}Quest-Bereinigung: ",tostring(shieldCount),shieldCount==1 and "{en} Shield from \"{ru} Щит из \"{zh-tw}\" 移除 1 個盾牌。{zh-cn}\" 移除 1 个盾牌。{ko}\"에서 방패 1개를 제거했습니다.{es} Escudo de \"{fr} Bouclier de \"{pt-br} Escudo de \"{de} Schild aus \"" or "{en} Shields from \"{ru} Щитов из \"{zh-tw}\" 移除盾牌。{zh-cn}\" 移除盾牌。{ko}\"에서 방패를 제거했습니다.{es} Escudos de \"{fr} Boucliers de \"{pt-br} Escudos de \"{de} Schilde aus \"",questName,"\"."}),{1,1,0.5}) end
 			if gStates.apocalypseQuestReminderCards~=nil and gStates.apocalypseQuestReminderCards[card.guid]~=nil then
 				broadcastToAll(joinLang({"{en}Quest cleanup: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" remains beside the Quest Shield bags as a reminder.{ru}\" остаётся рядом с мешками Щитов задания как напоминание.{zh-tw}\" 留在任務盾牌袋旁作為提醒。{zh-cn}\" 留在任务盾牌袋旁作为提醒。{ko}\"이(가) 알림으로 퀘스트 방패 주머니 옆에 남습니다.{es}\" permanece junto a las bolsas de Escudos de Misión como recordatorio.{fr}\" reste à côté des sacs de Boucliers de Quête comme rappel.{pt-br}\" permanece ao lado das bolsas de Escudos da Missão como lembrete.{de}\" bleibt als Erinnerung neben den Quest-Schild-Beuteln."}),{1,1,0.5})
@@ -3017,8 +2989,6 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 			end
 			--Only now may the next retiring Quest begin its deck return. This prevents the two loose
 			--cards from combining with each other and becoming a stray two-card deck beside the real deck.
-			apocalypseQuestCleanupTrace("end end-round retirement")
-			apocalypseQuestCleanupTraceContext=nil
 			safeWaitFrames("Quests",function() cleanNext(index+1) end,1)
 		end)
 	end
@@ -5620,8 +5590,7 @@ local function apocalypseQuestRemoveShields(card,attachmentGUIDs)
 	if card==nil then return end
 	local shields={}
 	if attachmentGUIDs~=nil then
-		--Bottom-deck cleanup snapshots ownership before moving anything. Reuse that stable list instead of
-		--asking the Quest scripting zone for another object snapshot while cards/tokens are entering containers.
+		--Bottom-deck cleanup can reuse its stable attachment snapshot instead of rescanning the Quest area.
 		for _,guid in ipairs(attachmentGUIDs) do
 			local obj=guid~=nil and getObjectFromGUID(guid) or nil
 			if obj~=nil and obj.getName()=="Shield" then shields[#shields+1]=obj end
@@ -5784,18 +5753,13 @@ end
 
 function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	if card==nil then if onComplete~=nil then onComplete(false) end return false end
-	--TTS can throw an uncatchable .NET null-key error if a scripting-zone object snapshot is requested
-	--while objects in that zone are simultaneously entering containers/decks. Snapshot Quest ownership once,
-	--before any cleanup movement starts, then resolve those GUIDs against the live table as each step runs.
+	--Snapshot Quest attachments before cleanup starts so later returns do not need to rescan a moving offer.
 	local cleanupAttachmentGUIDs={}
 	for _,obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
 		if obj~=nil and obj.guid~=nil then cleanupAttachmentGUIDs[#cleanupAttachmentGUIDs+1]=obj.guid end
 	end
-	apocalypseQuestCleanupTrace("snapshot captured "..tostring(#cleanupAttachmentGUIDs).." attachment(s)")
-	--Resolve the Quest deck while the Quest area is still physically stable as well. The live-deck fallback
-	--may inspect the Quest scripting zone if TTS has rebuilt the deck GUID.
+	--Resolve the Quest deck before cleanup movement starts; the fallback may inspect the Quest area.
 	local cleanupDeck=QuestPrivate.apocalypseQuestLiveDeck()
-	apocalypseQuestCleanupTrace("Quest deck resolved as "..tostring(cleanupDeck~=nil and cleanupDeck.guid or "nil"))
 	local attachmentReturnsPending=0
 	local attachmentBarrierArmed=false
 	local attachmentBarrierFinished=false
@@ -5803,25 +5767,22 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	local function tryFinishAttachmentBarrier()
 		if attachmentBarrierArmed~=true or attachmentBarrierFinished==true or attachmentReturnsPending>0 or finishBottomDeck==nil then return end
 		attachmentBarrierFinished=true
-		--Every tracked return callback now represents a real container/deck merge. Give TTS one quiet frame
-		--after the final callback, then move the Quest card; no per-frame Wait.condition polling is needed.
+		--Give TTS one quiet frame after the final attachment return before moving the Quest card.
 		safeWaitFrames("Quests",finishBottomDeck,1)
 	end
-	local function beginAttachmentReturn(label)
+	local function beginAttachmentReturn()
 		attachmentReturnsPending=attachmentReturnsPending+1
-		apocalypseQuestCleanupTrace("begin "..tostring(label or "attachment").." (pending "..tostring(attachmentReturnsPending)..")")
 	end
-	local function finishAttachmentReturn(label)
+	local function finishAttachmentReturn()
 		attachmentReturnsPending=math.max(0,attachmentReturnsPending-1)
-		apocalypseQuestCleanupTrace("finish "..tostring(label or "attachment").." (pending "..tostring(attachmentReturnsPending)..")")
 		tryFinishAttachmentBarrier()
 	end
 	local handler=apocalypseQuestHandler(card)
 	if handler~=nil and handler.bottomDeckBeforeReveal~=nil then handler.bottomDeckBeforeReveal(card) end
 	local questForReveal=apocalypseQuestData[card.guid]
 	if questForReveal~=nil and questForReveal.revealBag~=nil and getObjectFromGUID(questForReveal.revealBag)~=nil then
-		beginAttachmentReturn("reveal bag "..tostring(questForReveal.revealBag))
-		apocalypseQuestReturnRevealBag(card,function() finishAttachmentReturn("reveal bag "..tostring(questForReveal.revealBag)) end)
+		beginAttachmentReturn())
+		apocalypseQuestReturnRevealBag(card,function() finishAttachmentReturn()) end)
 	end
 	if handler~=nil and handler.bottomDeckAfterReveal~=nil then handler.bottomDeckAfterReveal(card) end
 	--Round refresh/failure can remove an unfinished Quest after it has already granted a reminder marker.
@@ -5832,12 +5793,7 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 		return parked
 	end
 	apocalypseQuestClearCardRuntime(card.guid)
-	--Do not rewrite Object UI while the retiring Quest is still live in the offer. TTS applies Object UI
-	--changes asynchronously, and the native null-key error consistently lands a frame or two after this
-	--cleanup starts, before any attachment callback executes. The card is about to enter the Quest deck,
-	--where its Object UI is invisible; apocalypseQuestInterfaceAdd() already rebuilds/revalidates that UI
-	--when the card is drawn into the offer again.
-	apocalypseQuestCleanupTrace("Quest object UI removal skipped for deck retirement")
+	QuestPrivate.apocalypseQuestInterfaceRemove(card)
 	local deck=cleanupDeck
 	if deck==nil or deck.guid==card.guid then if onComplete~=nil then onComplete(false) end return false end
 
@@ -5854,9 +5810,8 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 			local token=getObjectFromGUID(tokenGUID)
 			if token~=nil and (questDetails.keepToken~=true or apocalypseQuestTokenFaceUp(token)~=true) then
 				if tokenBag~=nil then
-					local markerLabel="Quest marker "..tostring(tokenGUID)
-					beginAttachmentReturn(markerLabel)
-					apocalypseQuestStageIntoContainer(token,tokenBag,function() finishAttachmentReturn(markerLabel) end)
+					beginAttachmentReturn()
+					apocalypseQuestStageIntoContainer(token,tokenBag,finishAttachmentReturn)
 					broadcastToAll(joinLang({"{en}Quest cleanup: a Quest marker from \"{ru}Очистка задания: жетон задания из \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: un marcador de Misión de \"{fr}Nettoyage de Quête : un marqueur de Quête de \"{pt-br}Limpeza da Missão: um marcador de Missão de \"{de}Quest-Bereinigung: Ein Questmarker von \"",apocalypseQuestName(card),"{en}\" returned to the Quest Token bag.{ru}\" возвращён в мешок жетонов задания.{zh-tw}\" 的任務標記已歸還任務標記袋。{zh-cn}\" 的任务标记已归还任务标记袋。{ko}\"의 퀘스트 마커가 퀘스트 토큰 주머니로 돌아갔습니다.{es}\" volvió a la bolsa de fichas de Misión.{fr}\" a été remis dans le sac de jetons de Quête.{pt-br}\" voltou para a bolsa de fichas de Missão.{de}\" wurde in den Questmarker-Beutel zurückgelegt."}), {1,1,0.5})
 				else
 					broadcastToAll(joinLang({"{en}Quest cleanup: a Quest marker from \"{ru}Очистка задания: жетон задания из \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: un marcador de Misión de \"{fr}Nettoyage de Quête : un marqueur de Quête de \"{pt-br}Limpeza da Missão: um marcador de Missão de \"{de}Quest-Bereinigung: Ein Questmarker von \"",apocalypseQuestName(card),"{en}\" could not be returned because the Quest Token bag is missing.{ru}\" не удалось вернуть, потому что мешок жетонов задания отсутствует.{zh-tw}\" 的任務標記無法歸還，因為任務標記袋遺失。{zh-cn}\" 的任务标记无法归还，因为任务标记袋遗失。{ko}\"의 퀘스트 마커를 반환하지 못했습니다. 퀘스트 토큰 주머니가 없습니다.{es}\" no pudo devolverse porque falta la bolsa de fichas de Misión.{fr}\" n’a pas pu être rendu car le sac de jetons de Quête est manquant.{pt-br}\" não pôde ser devolvido porque a bolsa de fichas de Missão está ausente.{de}\" konnte nicht zurückgegeben werden, da der Questmarker-Beutel fehlt."}), {1,0.55,0.2})
@@ -5873,42 +5828,34 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 		local color=apocalypseQuestManaTokenColor(obj)
 		local bag=color~=nil and apocalypseQuestManaBag(color) or nil
 		if bag~=nil then
-			local returnLabel="mana "..tostring(obj.guid).." -> "..tostring(bag.guid)
-			beginAttachmentReturn(returnLabel)
-			apocalypseQuestStageIntoContainer(obj,bag,function() finishAttachmentReturn(returnLabel) end)
+			beginAttachmentReturn()
+			apocalypseQuestStageIntoContainer(obj,bag,finishAttachmentReturn)
 		elseif monsterPugs[obj.guid]~=nil then
 			--Quest enemies always leave through their discard piles, defeated or not. Their original source
 			--pile is not restored when the Quest leaves play.
 			apocalypseQuestDetachPossessedForDiscard(obj)
 			local destination=apocalypseQuestEnemyDiscardDestination(obj)
 			if destination~=nil then
-				local returnLabel="enemy "..tostring(obj.guid).." -> "..tostring(destination.guid)
-				beginAttachmentReturn(returnLabel)
-				apocalypseQuestStageIntoContainer(obj,destination,function() finishAttachmentReturn(returnLabel) end)
+				beginAttachmentReturn()
+				apocalypseQuestStageIntoContainer(obj,destination,finishAttachmentReturn)
 			end
 		elseif obj.type=="Card" then
 			--BottomDeck owns tucked-card detachment for completion, failure and end-of-round expiry alike.
 			--The attachment-clear gate below keeps the Quest card still until this fast return has finished.
-			local returnLabel="tucked card "..tostring(obj.guid)
-			beginAttachmentReturn(returnLabel)
-			apocalypseQuestReturnTuckedCard(obj,apocalypseQuestName(card),function() finishAttachmentReturn(returnLabel) end)
+			beginAttachmentReturn()
+			apocalypseQuestReturnTuckedCard(obj,apocalypseQuestName(card),finishAttachmentReturn)
 		end
 		end
 	end
 
 	--Player and neutral Quest shields come from infinite bags, so they can be safely deleted when
 	--the Quest leaves the offer. Progress/Abandon do not call this function, so their shields remain.
-	--Capture everything else still physically overlapping the Quest before deleting its Shields. During
-	--round refresh, tucked cards and Quest markers have just been sent back to their own decks/bag; TTS
-	--needs a few frames to finish those container moves. Moving the Quest card immediately could carry
-	--those objects toward the Quest deck before their return completed (Spell Thief / Prove Yourself).
-	apocalypseQuestCleanupTrace("BEFORE optional Quest-shield removal")
+	--Player and neutral Quest shields come from infinite bags, so they can be safely deleted when
+	--the Quest leaves the offer. Progress/Abandon do not call this function, so their shields remain.
 	apocalypseQuestRemoveShields(card,cleanupAttachmentGUIDs)
-	apocalypseQuestCleanupTrace("AFTER optional Quest-shield removal")
 
 	local cardGUID=card.guid
 	finishBottomDeck=function()
-		apocalypseQuestCleanupTrace("attachment barrier clear; starting Quest card return")
 		local liveCard=getObjectFromGUID(cardGUID)
 		if liveCard==nil then return end
 		local liveDeck=QuestPrivate.apocalypseQuestLiveDeck()
@@ -5929,9 +5876,7 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 				return
 			end
 			--The caller may start the next return only after the physical drop has actually merged.
-			apocalypseQuestCleanupTrace("BEFORE Quest putCardAtBottom "..tostring(cardGUID).." -> "..tostring(stagedDeck.guid))
 			putCardAtBottom(stagedDeck,stagedCard,function(merged)
-				apocalypseQuestCleanupTrace("AFTER Quest putCardAtBottom callback "..tostring(cardGUID))
 				local liveDeck=merged~=nil and (merged.type=="Deck" or merged.type=="Card") and merged or QuestPrivate.apocalypseQuestLiveDeck()
 				if liveDeck~=nil then GUID.deck.apocalypseQuest=liveDeck.guid end
 				refreshOutOfTurnActions(nil,nil,true)
@@ -5940,10 +5885,9 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 			end)
 		end,2)
 	end
-	--All cleanup movements have now been scheduled. From here the explicit return callbacks own the
-	--barrier; the final one resumes the Quest-card return without touching TTS Wait.condition.
+	--All cleanup movements have now been scheduled. The final completion callback resumes the
+	--Quest-card return, so the Quest itself cannot move while a tucked card or token is still returning.
 	attachmentBarrierArmed=true
-	apocalypseQuestCleanupTrace("attachment callback barrier armed (pending "..tostring(attachmentReturnsPending)..")")
 	tryFinishAttachmentBarrier()
 	return true
 end
