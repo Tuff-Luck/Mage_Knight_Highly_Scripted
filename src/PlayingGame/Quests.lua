@@ -364,16 +364,51 @@ apocalypseQuestStageIntoContainer=function(obj,container)
 	if obj==nil or container==nil then return false end
 	local objectGUID=obj.guid
 	local containerGUID=container.guid
+	if objectGUID==nil or containerGUID==nil then return false end
 	local target=container.getPosition()
 	obj.unlock()
 	--Teleport clear of the Quest first. Direct putObject while a tucked object is still physically under
 	--the Quest lets the Quest collider carry it when the Quest card moves in the same cleanup frame.
 	obj.setPosition({target[1],target[2]+2.2,target[3]})
-	safeWaitFrames("Quests",function()
-		local live=getObjectFromGUID(objectGUID)
+
+	--A Quest can return several objects to the same bag at once (Goblin Warrens returns both its marker
+	--and reveal bag). TTS can throw an internal null-key error when two putObject calls hit one container
+	--in the same frame, so serialize returns per destination and wait for each object to actually enter.
+	QuestPrivate.containerStageQueues=QuestPrivate.containerStageQueues or {}
+	local queue=QuestPrivate.containerStageQueues[containerGUID]
+	if queue==nil then
+		queue={}
+		QuestPrivate.containerStageQueues[containerGUID]=queue
+	end
+	queue[#queue+1]=objectGUID
+	if #queue>1 then return true end
+
+	local function stageNext()
+		local pending=QuestPrivate.containerStageQueues[containerGUID]
+		local guid=pending~=nil and pending[1] or nil
+		if guid==nil then
+			QuestPrivate.containerStageQueues[containerGUID]=nil
+			return
+		end
+		local live=getObjectFromGUID(guid)
 		local liveContainer=getObjectFromGUID(containerGUID)
-		if live~=nil and liveContainer~=nil then liveContainer.putObject(live) end
-	end,2)
+		if live==nil or liveContainer==nil then
+			table.remove(pending,1)
+			stageNext()
+			return
+		end
+		liveContainer.putObject(live)
+		local function advance()
+			local active=QuestPrivate.containerStageQueues[containerGUID]
+			if active~=nil and active[1]==guid then table.remove(active,1) end
+			if active~=nil and active[1]~=nil then stageNext()
+			else QuestPrivate.containerStageQueues[containerGUID]=nil end
+		end
+		safeWaitCondition("Quests",advance,function()
+			return getObjectFromGUID(guid)==nil
+		end,2,advance)
+	end
+	safeWaitFrames("Quests",stageNext,2)
 	return true
 end
 
