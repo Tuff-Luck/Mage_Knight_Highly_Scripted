@@ -2,7 +2,7 @@
 local joinLangParse
 
 -- Shared-module private helpers. Predeclared so forward references keep resolving locally.
-local safeSpawnObjectData, rewindTransactionForceRelease, tableCopy
+local rewindTransactionForceRelease
 
 -- Shared helpers used by more than one Global source module.
 -- Keep subsystem-owned game logic in its owning module.
@@ -26,9 +26,6 @@ function safeSpawnObject(scope, params)
 	return spawnObject(safeObjectCallbackParams(scope,params))
 end
 
-safeSpawnObjectData=function(scope, params)
-	return spawnObjectData(safeObjectCallbackParams(scope,params))
-end
 
 function safeWaitFrames(scope, callback, frames)
 	local label=automaticLuaAsyncLabel(scope,"Wait.frames")
@@ -68,7 +65,7 @@ local function objectUIApplyXml(obj,xml)
 	return true
 end
 
-function objectUIFilteredXml(obj,removeId)
+local function objectUIFilteredXml(obj,removeId)
 	local xml=obj~=nil and obj.UI~=nil and (obj.UI.getXmlTable() or {}) or {}
 	if type(removeId)~="function" then return xml,false end
 	local changed=false
@@ -80,7 +77,7 @@ function objectUIFilteredXml(obj,removeId)
 	return xml,changed
 end
 
-function objectUIRemoveMatching(obj,removeId)
+local function objectUIRemoveMatching(obj,removeId)
 	local xml,changed=objectUIFilteredXml(obj,removeId)
 	if changed==true then objectUIApplyXml(obj,xml) end
 	return changed,xml
@@ -303,7 +300,8 @@ function positionToColor(turnNumber)
 	local color="Black"
 	local turnDetails=turnOrder[turnNumber]
 	if turnDetails==nil then return color end
-	if turnDetails.mage~=gStates.positionMageKnight[5] then
+	local dummyMage=gStates~=nil and gStates.positionMageKnight~=nil and gStates.positionMageKnight[5] or nil
+	if turnDetails.mage~=dummyMage then
 		for _, handColor in pairs(Player.getAvailableColors()) do
 			local handPlayer=Player[handColor]
 			local handTransform=handPlayer~=nil and handPlayer.getHandTransform() or nil
@@ -334,7 +332,7 @@ end
 
 --Rewards Claimed soft locks are player reminders, not hard disables. They share one short window
 --from the moment the Rewards Claimed stage begins, then allow the player to continue manually.
-REWARD_CLAIM_SOFT_LOCK_SECONDS=30
+local REWARD_CLAIM_SOFT_LOCK_SECONDS=30
 
 function rewardClaimSoftLockStart()
 	if gStates==nil then return end
@@ -368,7 +366,6 @@ end
 --for one seat can share the same rewind transaction without releasing the outer transaction early.
 --TTS storeRewindState captures a full engine rewind snapshot before protected scripted actions.
 --Keep the transaction ownership/sequencing and store the safe rewind point before mutations begin.
-local rewindTransactionStoreEnabled=true
 local rewindTransactionStorePending=false
 local rewindTransactionBlocked=false
 local rewindTransactionGeneration=0
@@ -389,7 +386,7 @@ function rewindTransactionStart(andThen,owner,onFailure)
 		andThen()
 		return true
 	end
-	if rewindTransactionStoreEnabled~=true or type(storeRewindState)~="function" then
+	if type(storeRewindState)~="function" then
 		rewindTransactionOwners[owner]=true
 		andThen()
 		return true
@@ -547,9 +544,9 @@ end
 -- in-memory indexes and must never be persisted in gStates. Ordinary map membership changes invalidate
 -- only the cheap object list. Terrain membership/transform/face changes also invalidate the expensive
 -- terrain hex topology.
-runtimeMapObjectCache=nil
-runtimeMapTerrainCache=nil
-runtimeMapSnapshotCache=nil
+local runtimeMapObjectCache=nil
+local runtimeMapTerrainCache=nil
+local runtimeMapSnapshotCache=nil
 
 function runtimeMapInvalidateObjects()
 	runtimeMapObjectCache=nil
@@ -650,7 +647,7 @@ function runtimeMapWorldHexDistance(fromPos,toPos)
 	return runtimeMapAxialDistance(q,r)
 end
 
-function terrainHexChoiceUIPlacement(key,buttonScale,splitIndex,splitCount,referenceScale)
+local function terrainHexChoiceUIPlacement(key,buttonScale,splitIndex,splitCount,referenceScale)
 	if key==nil then return nil,nil end
 	local terrainGUID,bearing=tostring(key):match("^([^|]+)|(.+)$")
 	local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
@@ -833,8 +830,8 @@ end
 
 function runtimeMapHexByKey(hexes,key)
 	if key==nil or hexes==nil then return nil end
-	local snapshot=runtimeMapSnapshot()
-	if hexes==snapshot.hexes then return snapshot.hexByKey[key] end
+	local terrainCache=runtimeMapTerrainCache
+	if terrainCache~=nil and hexes==terrainCache.hexes then return terrainCache.hexByKey[key] end
 	for _,hex in ipairs(hexes) do if runtimeMapHexKey(hex)==key then return hex end end
 	return nil
 end
@@ -842,8 +839,8 @@ end
 function runtimeMapHexDistanceMap(hexes,starts)
 	local distances={}
 	local queue={}
-	local snapshot=runtimeMapSnapshot()
-	local useCachedTopology=hexes==snapshot.hexes
+	local terrainCache=runtimeMapTerrainCache
+	local useCachedTopology=terrainCache~=nil and hexes==terrainCache.hexes
 	for _,startHex in ipairs(starts or {}) do
 		local key=runtimeMapHexKey(startHex)
 		if key~=nil and distances[key]==nil then
@@ -858,7 +855,7 @@ function runtimeMapHexDistanceMap(hexes,starts)
 		local currentKey=runtimeMapHexKey(current)
 		local currentDistance=distances[currentKey] or 0
 		if useCachedTopology==true then
-			for _,candidate in ipairs(snapshot.neighbors[currentKey] or {}) do
+			for _,candidate in ipairs(terrainCache.neighbors[currentKey] or {}) do
 				local key=runtimeMapHexKey(candidate)
 				if key~=nil and distances[key]==nil then
 					distances[key]=currentDistance+1
@@ -886,7 +883,7 @@ end
 --Build a live spatial view on top of the shared runtime map. Object membership comes from the
 --invalidated runtime map cache, while positions are intentionally sampled fresh so ordinary movement
 --inside the map zone is immediately authoritative without persisting another map copy in gStates.
-runtimeMapSpatialCell=3
+local runtimeMapSpatialCell=3
 function runtimeMapSpatialSnapshot(cellSize)
 	cellSize=cellSize or runtimeMapSpatialCell
 	local snapshot=runtimeMapSnapshot()
@@ -949,14 +946,17 @@ end
 --cache; ordinary callers can omit both collections and use the shared runtime snapshot directly.
 function runtimeMapHexForPosition(hexes,position,mapObjects)
 	if position==nil then return nil end
-	local snapshot=runtimeMapSnapshot()
-	if hexes==nil or (hexes==snapshot.hexes and (mapObjects==nil or mapObjects==snapshot.objects)) then
-		return runtimeMapHexAtPosition(position,snapshot)
+	if hexes==nil then return runtimeMapHexAtPosition(position,runtimeMapSnapshot()) end
+	local terrainCache=runtimeMapTerrainCache
+	local objectCache=runtimeMapObjectCache
+	if terrainCache~=nil and hexes==terrainCache.hexes and
+		(mapObjects==nil or (objectCache~=nil and mapObjects==objectCache.objects)) then
+		return runtimeMapHexAtPosition(position,terrainCache)
 	end
 	local terrain,bearing=terrainHexAtPosition(position,mapObjects)
 	if terrain==nil or bearing==nil then return nil end
 	local key=runtimeMapHexKey(terrain.guid,bearing)
-	for _,hex in ipairs(hexes or {}) do
+	for _,hex in ipairs(hexes) do
 		if runtimeMapHexKey(hex)==key then return hex end
 	end
 	return nil
@@ -967,13 +967,21 @@ end
 function legalPlayerCheck(clickingPlayersColor, playerPosExpected, rule)
 	--converts player color in to a posiion value
 	local playerPosition=0
-	if clickingPlayersColor~="Grey" and clickingPlayersColor~="Black" and Player[clickingPlayersColor].seated==true and Player[clickingPlayersColor].getHandTransform()~=nil then playerPosition=math.ceil((Player[clickingPlayersColor].getHandTransform().position[1]+97.59)/40) end
-	if playerPosition==playerPosExpected or clickingPlayersColor=="Black" or (rule==nil and turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5]) then
+	local clickingPlayer=type(clickingPlayersColor)=="string" and Player[clickingPlayersColor] or nil
+	if clickingPlayersColor~="Grey" and clickingPlayersColor~="Black" and clickingPlayer~=nil and clickingPlayer.seated==true then
+		local handTransform=clickingPlayer.getHandTransform()
+		if handTransform~=nil and handTransform.position~=nil then playerPosition=math.ceil((handTransform.position[1]+97.59)/40) end
+	end
+	local currentTurn=gStates~=nil and gStates.turnNumber~=nil and turnOrder[gStates.turnNumber] or nil
+	local dummyMage=gStates~=nil and gStates.positionMageKnight~=nil and gStates.positionMageKnight[5] or nil
+	if playerPosition==playerPosExpected or clickingPlayersColor=="Black" or
+		(rule==nil and currentTurn~=nil and dummyMage~=nil and currentTurn.mage==dummyMage) then
 		return true
 	else
 		for a=1, #turnOrder, 1 do
-			if turnOrder[a].seatPos==playerPosExpected then
-				broadcastToAll(joinLang({"{en}Only player sitting at {ru}Только игрок, сидящий на месте {zh-tw}只有{zh-cn}只有{ko}오직 플레이어 {es}Solo el jugador sentado en {fr}Seul le joueur assis à {pt-br}Único jogador sentando em {de}Nur Spieler, die auf ", translateWord[turnOrder[a].mage], "{en} or Game Master(Black) may press this.\n(Change seats by left clicking your Name found in the upper right corner){ru} или на месте Game Master (Черный) может нажать сюда.\n(Чтобы сменить место, щелкните ЛКМ по своему имени, указанному в правом верхнем углу){zh-tw}和黑色玩家可以操作(你可以单击右上角你的名字更改颜色){zh-cn}和黑色玩家可以操作(你可以单击右上角你的名字更改颜色){ko}본인이나 게임 마스터(검정)만이 클릭할 수 있습니다.\n(자리를 바꾸려면 우상단의 버튼에서 닉네임을 클릭하세요){es} o Game Master (Negro) puede presionar esto.\n(Cambie de asiento haciendo clic izquierdo en su nombre que se encuentra en la esquina superior derecha){fr} ou au Game Master (Black) peut appuyer dessus.\n(Changez de siège en cliquant avec le bouton gauche sur votre nom trouvé dans le coin supérieur droit){pt-br} Jogador Mestre (Preto) pode pressionar isto.\nMude assentos apertando no seu nome no canto superior direito{de} oder Game Master(Black) kann dies drücken.\n(Wechseln Sie den Sitzplatz, indem Sie mit der linken Maustaste auf Ihren Namen in der oberen rechten Ecke klicken)"}), warningColor)
+			local details=turnOrder[a]
+			if details~=nil and details.seatPos==playerPosExpected then
+				broadcastToAll(joinLang({"{en}Only player sitting at {ru}Только игрок, сидящий на месте {zh-tw}只有{zh-cn}只有{ko}오직 플레이어 {es}Solo el jugador sentado en {fr}Seul le joueur assis à {pt-br}Único jogador sentando em {de}Nur Spieler, die auf ", translateWord[details.mage], "{en} or Game Master(Black) may press this.\n(Change seats by left clicking your Name found in the upper right corner){ru} или на месте Game Master (Черный) может нажать сюда.\n(Чтобы сменить место, щелкните ЛКМ по своему имени, указанному в правом верхнем углу){zh-tw}和黑色玩家可以操作(你可以单击右上角你的名字更改颜色){zh-cn}和黑色玩家可以操作(你可以单击右上角你的名字更改颜色){ko}본인이나 게임 마스터(검정)만이 클릭할 수 있습니다.\n(자리를 바꾸려면 우상단의 버튼에서 닉네임을 클릭하세요){es} o Game Master (Negro) puede presionar esto.\n(Cambie de asiento haciendo clic izquierdo en su nombre que se encuentra en la esquina superior derecha){fr} ou au Game Master (Black) peut appuyer dessus.\n(Changez de siège en cliquant avec le bouton gauche sur votre nom trouvé dans le coin supérieur droit){pt-br} Jogador Mestre (Preto) pode pressionar isto.\nMude assentos apertando no seu nome no canto superior direito{de} oder Game Master(Black) kann dies drücken.\n(Wechseln Sie den Sitzplatz, indem Sie mit der linken Maustaste auf Ihren Namen in der oberen rechten Ecke klicken)"}), warningColor)
 				break
 			end
 		end
@@ -994,13 +1002,3 @@ function isTacticCard(obj)
 	return false
 end
 
--- Shared table copy helper
-tableCopy=function(obj, seen)
-	local seen=seen or {}
-	if type(obj)~='table' then return obj end
-	if seen[obj] then return seen[obj] end
-	local res=setmetatable({}, getmetatable(obj))
-	seen[obj]=res
-	for key, value in pairs(obj) do res[tableCopy(key, seen)]=tableCopy(value, seen) end
-	return res
-end
