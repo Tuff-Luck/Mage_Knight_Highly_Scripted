@@ -5776,6 +5776,12 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	for _,obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
 		if obj~=nil and obj.guid~=nil then cleanupAttachmentGUIDs[#cleanupAttachmentGUIDs+1]=obj.guid end
 	end
+	--Resolve the Quest deck while the Quest area is still physically stable as well. The live-deck fallback
+	--may inspect the Quest scripting zone if TTS has rebuilt the deck GUID.
+	local cleanupDeck=QuestPrivate.apocalypseQuestLiveDeck()
+	local attachmentReturnsPending=0
+	local function beginAttachmentReturn() attachmentReturnsPending=attachmentReturnsPending+1 end
+	local function finishAttachmentReturn() attachmentReturnsPending=math.max(0,attachmentReturnsPending-1) end
 	local handler=apocalypseQuestHandler(card)
 	if handler~=nil and handler.bottomDeckBeforeReveal~=nil then handler.bottomDeckBeforeReveal(card) end
 	local questForReveal=apocalypseQuestData[card.guid]
@@ -5793,12 +5799,8 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	end
 	apocalypseQuestClearCardRuntime(card.guid)
 	QuestPrivate.apocalypseQuestInterfaceRemove(card)
-	local deck=QuestPrivate.apocalypseQuestLiveDeck()
+	local deck=cleanupDeck
 	if deck==nil or deck.guid==card.guid then if onComplete~=nil then onComplete(false) end return false end
-
-	local attachmentReturnsPending=0
-	local function beginAttachmentReturn() attachmentReturnsPending=attachmentReturnsPending+1 end
-	local function finishAttachmentReturn() attachmentReturnsPending=math.max(0,attachmentReturnsPending-1) end
 
 	--Face-down Quest tokens are only markers, so they always return with the Quest. A keepToken Quest
 	--leaves its token behind only after that token has been flipped face up into its lasting reward/site/effect.
