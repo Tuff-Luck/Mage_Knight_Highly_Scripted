@@ -5781,8 +5781,8 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	if handler~=nil and handler.bottomDeckBeforeReveal~=nil then handler.bottomDeckBeforeReveal(card) end
 	local questForReveal=apocalypseQuestData[card.guid]
 	if questForReveal~=nil and questForReveal.revealBag~=nil and getObjectFromGUID(questForReveal.revealBag)~=nil then
-		beginAttachmentReturn())
-		apocalypseQuestReturnRevealBag(card,function() finishAttachmentReturn()) end)
+		beginAttachmentReturn()
+		apocalypseQuestReturnRevealBag(card,finishAttachmentReturn)
 	end
 	if handler~=nil and handler.bottomDeckAfterReveal~=nil then handler.bottomDeckAfterReveal(card) end
 	--Round refresh/failure can remove an unfinished Quest after it has already granted a reminder marker.
@@ -5848,8 +5848,6 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 		end
 	end
 
-	--Player and neutral Quest shields come from infinite bags, so they can be safely deleted when
-	--the Quest leaves the offer. Progress/Abandon do not call this function, so their shields remain.
 	--Player and neutral Quest shields come from infinite bags, so they can be safely deleted when
 	--the Quest leaves the offer. Progress/Abandon do not call this function, so their shields remain.
 	apocalypseQuestRemoveShields(card,cleanupAttachmentGUIDs)
