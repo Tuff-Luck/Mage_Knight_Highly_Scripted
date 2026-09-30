@@ -390,12 +390,12 @@ local avatarRefreshGeneration={}
 function scheduleAvatarDropRefresh(playerIndex)
 	local dropPlayer=playerIndex or gStates.turnNumber
 	if turnOrder[dropPlayer]==nil then return end
+	avatarRefreshGeneration[dropPlayer]=(avatarRefreshGeneration[dropPlayer] or 0)+1
+	local generation=avatarRefreshGeneration[dropPlayer]
 	if coopAssaultVirtualPlayer(dropPlayer)==true then
 		if gStates.preEndTurn~=true then mainUIUpdate("Co-op virtual city location") end
 		return
 	end
-	avatarRefreshGeneration[dropPlayer]=(avatarRefreshGeneration[dropPlayer] or 0)+1
-	local generation=avatarRefreshGeneration[dropPlayer]
 	if adjustHandSizePause[dropPlayer]~=nil then Wait.stop(adjustHandSizePause[dropPlayer]) end
 	adjustHandSizePause[dropPlayer]=safeWaitTime("Map",function()
 		if avatarRefreshGeneration[dropPlayer]~=generation then return end
