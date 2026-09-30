@@ -44,7 +44,7 @@ function onObjectPickUp(player_color, picked_up_object)
 end
 
 function onObjectHover(player_color, hover_object)
-	return safeCallback("onObjectHover", function() return __onObjectHover_raw(player_color, hover_object) end)
+	return safeDirectCallback("onObjectHover", __onObjectHover_raw, player_color, hover_object)
 end
 
 function onObjectDrop(player_color, dropped_object)
@@ -100,11 +100,13 @@ function onObjectRotate(object, spin, flip, player_color, old_spin, old_flip)
 end
 
 function onPlayerConnect(player)
-	return safeCallback("onPlayerConnect", function() __onPlayerConnect_raw(player) end)
+	return safeCallback("onPlayerConnect", function() __onPlayerConnect_raw(player) end,
+		function() return automaticLuaPlayerContext(player,"Player connected") end)
 end
 
 function onPlayerChangeColor(color)
-	return safeCallback("onPlayerChangeColor", function() __onPlayerChangeColor_raw(color) end)
+	return safeCallback("onPlayerChangeColor", function() __onPlayerChangeColor_raw(color) end,
+		function() return automaticLuaPlayerContext(color,"Player changed color") end)
 end
 
 function onObjectNumberTyped(object, player_color, number, alt)
@@ -123,6 +125,40 @@ function onPlayerAction(player, action, targets)
 	return safeCallback("onPlayerAction", function() return __onPlayerAction_raw(player, action, targets) end)
 end
 
+--Global XML and Object UI callbacks bypass the normal TTS lifecycle wrappers above. Install their
+--error boundaries here, after every gameplay module has loaded, so the owning implementations stay
+--unchanged and UI names continue resolving exactly as before.
+local function protectPublicUICallback(name)
+	local callback=_G[name]
+	if type(callback)=="function" then _G[name]=safePublicCallback(name,callback,automaticLuaUICallbackContext) end
+end
+
+local protectedUICallbacks={
+	--Global XML setup/general controls
+	"BlitzSelection","DisplayScore","MoreRampageSelection","PlayerChosen","RampageSelection","SendDataRequest",
+	"SetupMenu","VolkareLevelSelection","VolkareRaceSelection","adjustHigherLevelSetupValue",
+	"apocalypseDragonLevelSelection","assaultAdjust","attackCity","autoflip","baseValueTweak","buttonClicked",
+	"cameraControl","cameraControlFollowEnemy","cameraControlTopDown","closePanel","closeSplash","coopAssaultJoin",
+	"coralDrawChoice","createHigherLevelCardPool","drawUpTo","dummyTurn","extraTurnButton","extraTurnChoice",
+	"horsemanLevelSelection","lowerTable","masterOfChaos","mineClaimChoice","monsterImageSwap","motivation",
+	"nightTactic2","nightTactic4","nightTactic6","openBugReportPanel","optionsUpdate","plunderVillage",
+	"proxyManaChoiceSelect","pursuingRampagers","randomSetup","resourceTracker","riseOfTheForgemasterOption",
+	"scenarioSelection","setBugReportComment","switchSetup","toggleDropDown","toggleScenarioEndAchieved","valueAdjust",
+	"volkarePartial","volkareRetreat","wallAssaultChoice","zigguratPyramidInteract",
+	--Dynamic Object UI / scenario controls
+	"adjustCityLevel","adjustOverkill","againstDragonAttackComplete","againstDragonAttendFull",
+	"againstDragonFinishPartial","againstDragonOffMapChoiceSelect","againstDragonTargetChoiceSelect",
+	"apocalypseDragonGroundReductionAdjust","apocalypseDragonProcessUI","apocalypseIsHereHorsemanTargetSelect",
+	"apocalypseIsHereProcessHorsemenUI","apocalypseQuestCardAction","apocalypseQuestEnemyAttack","artifactAdjust",
+	"attachEnemy","attackLocation","ButtonClickDown","ButtonClickDownOverkill","ButtonClickUp","ButtonClickUpOverkill",
+	"changeMatImage","changePositionColor","dayTactic2Discarded","druidNightsRitualAction","exploreMap",
+	"fracturedLandsOrientationDone","fracturedLandsRotateLeft","fracturedLandsRotateRight","gladeDiscardHealUI",
+	"higherLevelSkill","horsemanAttackAction","layoutClaimedCards","nightTint","offerAdjust","offerArtifacts",
+	"processCardClaim","proxyDestinationChoiceSelect","proxyEnemyChoiceSelect","proxyInteractionChoiceSelect",
+	"proxyTurn","refillMonsterTokenPiles","removeTactic","restoreDestroyedSiteAtCurrentPlayer","shieldDrop",
+	"steadyTempoChoice","summonMonster","togglePlayerDropoutRequest","volkarePursuitAction","volkareTurn"
+}
+for _,name in ipairs(protectedUICallbacks) do protectPublicUICallback(name) end
 
 function onChat(message, player)
 	if player~=nil and player.admin==true then
