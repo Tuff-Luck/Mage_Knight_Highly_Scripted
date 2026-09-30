@@ -378,40 +378,21 @@ apocalypseQuestStageIntoContainer=function(obj,container,onComplete)
 	local objectGUID=obj.guid
 	local containerGUID=container.guid
 	if objectGUID==nil or containerGUID==nil then if onComplete~=nil then onComplete(false) end return false end
-	--The cleanup barrier keeps the Quest card stationary until every attachment has actually entered
-	--its destination. Do not alter the attachment at all until the delayed container callback runs;
-	--this keeps the two-frame diagnostic window free of hidden object-state changes.
-	apocalypseQuestCleanupTrace("container return scheduled "..tostring(objectGUID).." -> "..tostring(containerGUID))
-	safeWaitFrames("Quests",function()
-		local live=getObjectFromGUID(objectGUID)
-		local liveContainer=getObjectFromGUID(containerGUID)
-		if live==nil then
-			apocalypseQuestCleanupTrace("container stage object already absent "..tostring(objectGUID))
-			if onComplete~=nil then onComplete(true) end
-			return
-		end
-		if liveContainer==nil then
-			apocalypseQuestCleanupTrace("container stage destination missing "..tostring(containerGUID))
-			if onComplete~=nil then onComplete(false) end
-			return
-		end
-		apocalypseQuestCleanupTrace("BEFORE unlock "..tostring(objectGUID))
-		live.unlock()
-		apocalypseQuestCleanupTrace("AFTER unlock "..tostring(objectGUID))
-		apocalypseQuestCleanupTrace("BEFORE putObject "..tostring(objectGUID).." -> "..tostring(containerGUID))
-		liveContainer.putObject(live)
-		apocalypseQuestCleanupTrace("AFTER putObject "..tostring(objectGUID).." -> "..tostring(containerGUID))
-		if onComplete~=nil then
-			local function finish()
-				local entered=getObjectFromGUID(objectGUID)==nil
-				apocalypseQuestCleanupTrace((entered and "container confirmed " or "container wait timed out ")..tostring(objectGUID))
-				onComplete(entered)
-			end
-			safeWaitCondition("Quests.containerReturn",finish,function()
-				return getObjectFromGUID(objectGUID)==nil
-			end,2,finish)
-		end
-	end,2)
+
+	--There is no longer any physical staging before a Quest attachment enters its destination, so there
+	--is no reason to defer this native container operation. The diagnostic trace showed the remaining
+	--native null-key error occurring entirely inside the two-frame Wait.frames gap before this callback
+	--ever began. Put the object away synchronously and let putObject's return be the lifecycle boundary.
+	apocalypseQuestCleanupTrace("BEFORE unlock "..tostring(objectGUID))
+	obj.unlock()
+	apocalypseQuestCleanupTrace("AFTER unlock "..tostring(objectGUID))
+	apocalypseQuestCleanupTrace("BEFORE immediate putObject "..tostring(objectGUID).." -> "..tostring(containerGUID))
+	container.putObject(obj)
+	apocalypseQuestCleanupTrace("AFTER immediate putObject "..tostring(objectGUID).." -> "..tostring(containerGUID))
+	if onComplete~=nil then
+		apocalypseQuestCleanupTrace("container return complete "..tostring(objectGUID))
+		onComplete(true)
+	end
 	return true
 end
 
