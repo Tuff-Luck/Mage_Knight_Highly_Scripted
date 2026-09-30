@@ -82,6 +82,40 @@ function withTokenPoolReady(pileGUID, callback, context)
 	else safeWaitCondition(context or "TokenPools",callback,ready,2,callback) end
 end
 
+--Wait once for every requested pool that is genuinely being refilled. This is used by map effects
+--that may choose between several token colours only after the refill has physically reached the bags.
+function withTokenPoolsReady(pileGUIDs, callback, context)
+	if callback==nil then return end
+	local requested={}
+	local refillable={}
+	for _, pileGUID in ipairs(pileGUIDs or {}) do
+		if pileGUID~=nil and requested[pileGUID]~=true then
+			requested[pileGUID]=true
+			local pile=getObjectFromGUID(pileGUID)
+			if pile~=nil and pile.getQuantity()==0 then
+				for _, link in ipairs(tokenPileLinks) do
+					if link.destination==pileGUID then
+						local discard=getObjectFromGUID(link.discard)
+						if discard~=nil and #discard.getObjects()>0 then refillable[pileGUID]=true end
+						break
+					end
+			end
+		end
+	end
+	if next(refillable)==nil then callback() return end
+
+	tokenRefill()
+	local function ready()
+		for pileGUID, _ in pairs(refillable) do
+			local target=getObjectFromGUID(pileGUID)
+			if target~=nil and target.getQuantity()==0 then return false end
+		end
+		return true
+	end
+	if ready()==true then callback()
+	else safeWaitCondition(context or "TokenPools",callback,ready,2,callback) end
+end
+
 --Object UI callback for the Monster Replenish panel. The refill logic itself is shared with automatic refills.
 function refillMonsterTokenPiles(player, mouseButton, id)
 	if mouseButton=="-1" then tokenRefill(true) end
