@@ -709,19 +709,10 @@ end
 function __onObjectDestroy_raw(destroyedObj)
 	if destroyedObj==nil then return end
 	local destroyedGuid=destroyedObj.guid
-	--Capture map membership before invalidating the runtime cache. onObjectDestroy also fires for Shields
-	--used purely by UI systems such as Apocalypse Quests; those must never be treated as conquered-site
-	--Shields and pushed through map/terrain bookkeeping during destruction.
-	local destroyedOnMap=destroyedGuid~=nil and runtimeMapContainsGUID(destroyedGuid)==true
-	if destroyedOnMap==true then
+	if runtimeMapContainsGUID(destroyedGuid)==true then
 		if terrainTiles[destroyedGuid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
-	--Only map pieces need separator-release bookkeeping. Quest/UI Shields are also recognised by
-	--mapTokenNeedsArrangement(), but destroying one off-map must not send its dying object through the
-	--map-token release path.
-	if destroyedOnMap==true and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj)==true then
-		mapTokenReleaseObject(destroyedObj)
-	end
+	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj)==true then mapTokenReleaseObject(destroyedObj) end
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
 	if questScorePlayer~=nil then
 		if apocalypseQuestScoresRequired()==true then
@@ -750,17 +741,11 @@ function __onObjectDestroy_raw(destroyedObj)
 		if gStates.mageSkills[destroyedGuid]~=nil and getObjectFromGUID(destroyedGuid)==nil then gStates.mageSkills[destroyedGuid]=nil end
 	end
 
-	--Check if a shield/site marker has been removed from the map. Non-map Shields (Quest progress,
-	--offer UI, score helpers, etc.) have no map location to undo and calling shieldLocation for them can
-	--race their destruction against TTS object-property/map queries.
+	--Check if a shield has been removed
 	local destroyedPursuit=volkarePursuitShieldRegistered(destroyedObj)
 	if destroyedPursuit==true and destroyedGuid~=nil and gStates.volkarePursuitShields~=nil then gStates.volkarePursuitShields[destroyedGuid]=nil end
-	if destroyedOnMap==true then
-		local destroyedName=destroyedObj.getName()
-		local destroyedNotes=destroyedObj.getGMNotes()
-		if destroyedName=="Shield" or destroyedNotes=="Burned Monastery" or destroyedName=="Secret Dungeon" or destroyedName=="Secret Tomb" then
-			shieldLocation(destroyedObj, {guid=mapArea}, "remove")
-		end
+	if destroyedObj.getName()~=nil and (destroyedObj.getName()=="Shield" or destroyedObj.getGMNotes()=="Burned Monastery" or destroyedObj.getName()=="Secret Dungeon" or destroyedObj.getName()=="Secret Tomb") then
+		shieldLocation(destroyedObj, {guid=mapArea}, "remove")
 	end
 end
 
