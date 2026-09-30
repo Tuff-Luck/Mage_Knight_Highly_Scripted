@@ -716,7 +716,12 @@ function __onObjectDestroy_raw(destroyedObj)
 	if destroyedOnMap==true then
 		if terrainTiles[destroyedGuid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
-	if mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj)==true then mapTokenReleaseObject(destroyedObj) end
+	--Only map pieces need separator-release bookkeeping. Quest/UI Shields are also recognised by
+	--mapTokenNeedsArrangement(), but destroying one off-map must not send its dying object through the
+	--map-token release path.
+	if destroyedOnMap==true and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(destroyedObj)==true then
+		mapTokenReleaseObject(destroyedObj)
+	end
 	local questScorePlayer=apocalypseQuestScoreMarkerPlayerIndex(destroyedGuid)
 	if questScorePlayer~=nil then
 		if apocalypseQuestScoresRequired()==true then
