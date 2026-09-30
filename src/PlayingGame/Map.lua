@@ -4,7 +4,6 @@ local avatarLocationMapSnapshot, avatarLocationRelevantObjects, avatarMovedFromP
 -- Map state, avatar location, exploration, shields and terrain-site runtime.
 
 local terrainExploreButtons={{}}
-local terrainExploreRefreshQueued=false
 local terrainPlacementEdgeCoordinates={
 	{-30.03, 15.09}, {-25.23, 19.25}, {-31.23, 21.34},
 	{-38.43, 0.54}, {-33.63, 4.70}, {-28.83, 8.86}, {-24.03, 13.02}, {-19.23, 17.17},
@@ -1172,7 +1171,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						playerDetails.hand=playerDetails.baseHand
 					end
 					if playerDetails.hand~=previousHand then
-						if handBonusSource=="City" then broadcastToAll("{en}Hand size increased from proximity to City{ru}Предел карт в руке увеличен из-за близости города{zh-tw}手牌数量因靠近城市而增加{zh-cn}手牌数量因靠近城市而增加{ko}인접한 도시에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Ciudad.{fr}La taille de la main a augmenté de proximité à la Ville{pt-br}O tamanho da mão aumentou devido à proximidade da Cidade{de}Handgröße durch Nähe zur Stadt erhöht",positionToColor(playerIndex)) end
+						if handBonusSource=="City" then broadcastToAll("{en}Hand size increased from proximity to City{ru}Предел карт в руке увеличен из-за близости города{zh-tw}手牌数量因靠近城市而增加{zh-cn}手牌数量因靠近城市而增加{ko}인접한 도시에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Ciudad.{fr}La taille de la main a augmenté de la proximité à la Ville{pt-br}O tamanho da mão aumentou devido à proximidade da Cidade{de}Handgröße durch Nähe zur Stadt erhöht",positionToColor(playerIndex)) end
 						if handBonusSource=="Keep" then broadcastToAll("{en}Hand size increased from proximity to Keep{ru}Предел карт в руке увеличен из-за близости крепости{zh-tw}手牌数量增加到最大值{zh-cn}手牌数量增加到最大值{ko}인접한 성에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Fortaleza{fr}La taille de la main a augmenté de la proximité à la Keep{pt-br}O tamanho da mão aumentou com a proximidade de Keep{de}Handgröße erhöht sich durch die Nähe zu Keep",positionToColor(playerIndex)) end
 					end
 					--Reset attack icon and interaction after leaving a hex, but preserve an interaction if the avatar was only repositioned on the same hex.
@@ -1329,28 +1328,10 @@ function refreshTerrainExploreOptions(compactCities)
 		local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
 		local leftCountry=getObjectFromGUID(GUID.bag.terrain.leftCountry)
 		local leftCore=getObjectFromGUID(GUID.bag.terrain.leftCore)
-		local function retryTerrainExploreRefresh()
-			if terrainExploreRefreshQueued==true then return end
-			terrainExploreRefreshQueued=true
-			safeWaitFrames("Map",function()
-				terrainExploreRefreshQueued=false
-				refreshTerrainExploreOptions(compactCities)
-			end,1)
-		end
-		local terrainStackQuantity=0
-		local terrainStackObjects=nil
-		if terrainStack~=nil then
-			--TTS can destroy/rebuild the terrain container while loose tiles merge into the final stack.
-			--During that frame even getQuantity() can throw from the transient container proxy, so protect
-			--both reads and retry the derived EXPLORE view once the replacement object exists.
-			local quantityOK, quantity=pcall(function() return terrainStack.getQuantity() end)
-			local objectsOK, objects=pcall(function() return terrainStack.getObjects() end)
-			if quantityOK~=true or objectsOK~=true then retryTerrainExploreRefresh() return end
-			terrainStackQuantity=tonumber(quantity) or 0
-			terrainStackObjects=objects
-		end
-		if terrainStackQuantity>1 and type(terrainStackObjects)~="table" then retryTerrainExploreRefresh() return end
-		terrainStackObjects=type(terrainStackObjects)=="table" and terrainStackObjects or {}
+		--The terrain stack is a persistent model bag, not a collapsing Deck. It remains a valid
+		--container at quantity zero, so ordinary guarded container reads are sufficient here.
+		local terrainStackQuantity=terrainStack~=nil and (tonumber(terrainStack.getQuantity()) or 0) or 0
+		local terrainStackObjects=terrainStack~=nil and terrainStack.getObjects() or {}
 		local terrainStackSingleTile=terrainStack~=nil and terrainTiles[terrainStack.guid]~=nil and terrainTiles[terrainStack.guid].tileType~="tilePile"
 		if #terrainStackObjects>0 then
 			local nextTerrainIndex=terrainStackQuantity-1
