@@ -378,11 +378,10 @@ apocalypseQuestStageIntoContainer=function(obj,container,onComplete)
 	local objectGUID=obj.guid
 	local containerGUID=container.guid
 	if objectGUID==nil or containerGUID==nil then if onComplete~=nil then onComplete(false) end return false end
-	obj.unlock()
-	--The cleanup barrier now keeps the Quest card stationary until every attachment has actually entered
-	--its destination. That makes the old pre-teleport unnecessary. Besides being redundant, teleporting
-	--several Quest markers out of the Quest scripting zone in the same frame could provoke TTS's native
-	--"Value cannot be null / key" zone bookkeeping error before putObject even ran.
+	--The cleanup barrier keeps the Quest card stationary until every attachment has actually entered
+	--its destination. Do not alter the attachment at all until the delayed container callback runs;
+	--this keeps the two-frame diagnostic window free of hidden object-state changes.
+	apocalypseQuestCleanupTrace("container return scheduled "..tostring(objectGUID).." -> "..tostring(containerGUID))
 	safeWaitFrames("Quests",function()
 		local live=getObjectFromGUID(objectGUID)
 		local liveContainer=getObjectFromGUID(containerGUID)
@@ -396,6 +395,9 @@ apocalypseQuestStageIntoContainer=function(obj,container,onComplete)
 			if onComplete~=nil then onComplete(false) end
 			return
 		end
+		apocalypseQuestCleanupTrace("BEFORE unlock "..tostring(objectGUID))
+		live.unlock()
+		apocalypseQuestCleanupTrace("AFTER unlock "..tostring(objectGUID))
 		apocalypseQuestCleanupTrace("BEFORE putObject "..tostring(objectGUID).." -> "..tostring(containerGUID))
 		liveContainer.putObject(live)
 		apocalypseQuestCleanupTrace("AFTER putObject "..tostring(objectGUID).." -> "..tostring(containerGUID))
@@ -5838,7 +5840,9 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 		return parked
 	end
 	apocalypseQuestClearCardRuntime(card.guid)
+	apocalypseQuestCleanupTrace("BEFORE Quest object UI removal")
 	QuestPrivate.apocalypseQuestInterfaceRemove(card)
+	apocalypseQuestCleanupTrace("AFTER Quest object UI removal")
 	local deck=cleanupDeck
 	if deck==nil or deck.guid==card.guid then if onComplete~=nil then onComplete(false) end return false end
 
@@ -5908,9 +5912,9 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 		local obj=getObjectFromGUID(guid)
 		if obj~=nil and obj.getName()~="Shield" then attachmentGUIDs[#attachmentGUIDs+1]=guid end
 	end
-	apocalypseQuestCleanupTrace("BEFORE shield cleanup")
+	apocalypseQuestCleanupTrace("BEFORE optional Quest-shield removal")
 	apocalypseQuestRemoveShields(card,cleanupAttachmentGUIDs)
-	apocalypseQuestCleanupTrace("AFTER shield cleanup")
+	apocalypseQuestCleanupTrace("AFTER optional Quest-shield removal")
 
 	local cardGUID=card.guid
 	local function attachmentsClear()
@@ -5961,7 +5965,11 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 		end,2)
 	end
 	if attachmentsClear()==true then finishBottomDeck()
-	else safeWaitCondition("Quests",finishBottomDeck,attachmentsClear,2.0,finishBottomDeck) end
+	else
+		apocalypseQuestCleanupTrace("BEFORE attachment Wait.condition registration")
+		safeWaitCondition("Quests",finishBottomDeck,attachmentsClear,2.0,finishBottomDeck)
+		apocalypseQuestCleanupTrace("AFTER attachment Wait.condition registration")
+	end
 	return true
 end
 function QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card, playerIndex)
