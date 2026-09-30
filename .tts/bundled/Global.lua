@@ -136,7 +136,7 @@ function onObjectPickUp(player_color, picked_up_object)
 end
 
 function onObjectHover(player_color, hover_object)
-	return safeCallback("onObjectHover", function() return __onObjectHover_raw(player_color, hover_object) end)
+	return safeDirectCallback("onObjectHover", __onObjectHover_raw, player_color, hover_object)
 end
 
 function onObjectDrop(player_color, dropped_object)
@@ -192,11 +192,13 @@ function onObjectRotate(object, spin, flip, player_color, old_spin, old_flip)
 end
 
 function onPlayerConnect(player)
-	return safeCallback("onPlayerConnect", function() __onPlayerConnect_raw(player) end)
+	return safeCallback("onPlayerConnect", function() __onPlayerConnect_raw(player) end,
+		function() return automaticLuaPlayerContext(player,"Player connected") end)
 end
 
 function onPlayerChangeColor(color)
-	return safeCallback("onPlayerChangeColor", function() __onPlayerChangeColor_raw(color) end)
+	return safeCallback("onPlayerChangeColor", function() __onPlayerChangeColor_raw(color) end,
+		function() return automaticLuaPlayerContext(color,"Player changed color") end)
 end
 
 function onObjectNumberTyped(object, player_color, number, alt)
@@ -215,6 +217,40 @@ function onPlayerAction(player, action, targets)
 	return safeCallback("onPlayerAction", function() return __onPlayerAction_raw(player, action, targets) end)
 end
 
+--Global XML and Object UI callbacks bypass the normal TTS lifecycle wrappers above. Install their
+--error boundaries here, after every gameplay module has loaded, so the owning implementations stay
+--unchanged and UI names continue resolving exactly as before.
+local function protectPublicUICallback(name)
+	local callback=_G[name]
+	if type(callback)=="function" then _G[name]=safePublicCallback(name,callback,automaticLuaUICallbackContext) end
+end
+
+local protectedUICallbacks={
+	--Global XML setup/general controls
+	"BlitzSelection","DisplayScore","MoreRampageSelection","PlayerChosen","RampageSelection","SendDataRequest",
+	"SetupMenu","VolkareLevelSelection","VolkareRaceSelection","adjustHigherLevelSetupValue",
+	"apocalypseDragonLevelSelection","assaultAdjust","attackCity","autoflip","baseValueTweak","buttonClicked",
+	"cameraControl","cameraControlFollowEnemy","cameraControlTopDown","closePanel","closeSplash","coopAssaultJoin",
+	"coralDrawChoice","createHigherLevelCardPool","drawUpTo","dummyTurn","extraTurnButton","extraTurnChoice",
+	"horsemanLevelSelection","lowerTable","masterOfChaos","mineClaimChoice","monsterImageSwap","motivation",
+	"nightTactic2","nightTactic4","nightTactic6","openBugReportPanel","optionsUpdate","plunderVillage",
+	"proxyManaChoiceSelect","pursuingRampagers","randomSetup","resourceTracker","riseOfTheForgemasterOption",
+	"scenarioSelection","setBugReportComment","switchSetup","toggleDropDown","toggleScenarioEndAchieved","valueAdjust",
+	"volkarePartial","volkareRetreat","wallAssaultChoice","zigguratPyramidInteract",
+	--Dynamic Object UI / scenario controls
+	"adjustCityLevel","adjustOverkill","againstDragonAttackComplete","againstDragonAttendFull",
+	"againstDragonFinishPartial","againstDragonOffMapChoiceSelect","againstDragonTargetChoiceSelect",
+	"apocalypseDragonGroundReductionAdjust","apocalypseDragonProcessUI","apocalypseIsHereHorsemanTargetSelect",
+	"apocalypseIsHereProcessHorsemenUI","apocalypseQuestCardAction","apocalypseQuestEnemyAttack","artifactAdjust",
+	"attachEnemy","attackLocation","ButtonClickDown","ButtonClickDownOverkill","ButtonClickUp","ButtonClickUpOverkill",
+	"changeMatImage","changePositionColor","dayTactic2Discarded","druidNightsRitualAction","exploreMap",
+	"fracturedLandsOrientationDone","fracturedLandsRotateLeft","fracturedLandsRotateRight","gladeDiscardHealUI",
+	"higherLevelSkill","horsemanAttackAction","layoutClaimedCards","nightTint","offerAdjust","offerArtifacts",
+	"processCardClaim","proxyDestinationChoiceSelect","proxyEnemyChoiceSelect","proxyInteractionChoiceSelect",
+	"proxyTurn","refillMonsterTokenPiles","removeTactic","restoreDestroyedSiteAtCurrentPlayer","shieldDrop",
+	"steadyTempoChoice","summonMonster","togglePlayerDropoutRequest","volkarePursuitAction","volkareTurn"
+}
+for _,name in ipairs(protectedUICallbacks) do protectPublicUICallback(name) end
 
 function onChat(message, player)
 	if player~=nil and player.admin==true then
@@ -1404,9 +1440,12 @@ local function scheduleShieldLocation(obj, zone, status)
 	local guid=obj~=nil and obj.guid or nil
 	local zoneGUID=zone~=nil and zone.guid or nil
 	if guid==nil or zoneGUID==nil then return end
-	if shieldLocationWait[guid]~=nil then Wait.stop(shieldLocationWait[guid]) end
-	shieldLocationWait[guid]=safeWaitFrames("Events",function()
-		shieldLocationWait[guid]=nil
+	--Debounce churn within one zone, but do not let entering a new meaningful zone cancel the leave
+	--bookkeeping for the previous one (for example moving a City Shield onto the map).
+	local waitKey=guid.."|"..zoneGUID
+	if shieldLocationWait[waitKey]~=nil then Wait.stop(shieldLocationWait[waitKey]) end
+	shieldLocationWait[waitKey]=safeWaitFrames("Events",function()
+		shieldLocationWait[waitKey]=nil
 		local liveObj=getObjectFromGUID(guid)
 		local liveZone=getObjectFromGUID(zoneGUID)
 		if liveObj==nil or liveZone==nil then return end
@@ -1414,6 +1453,12 @@ local function scheduleShieldLocation(obj, zone, status)
 		mainUIUpdate(status=="enter" and "Shield Dropped" or "Shield Removed")
 		if status=="enter" and apocalypseQuestsUsed()==true then apocalypseQuestRefreshOfferButtons() end
 	end,2)
+end
+
+local function mapMarkerTrackingZone(zoneGUID)
+	return zoneGUID==mapArea or zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or
+		zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity or zoneGUID==volkare.discZone or
+		zoneGUID==darkCrusader.discZone or zoneGUID==elementalist.discZone
 end
 local function zoneEventContext(zone, obj)
 	if zone==nil or obj==nil then return nil end
@@ -1593,7 +1638,7 @@ local function handleMapLocationZoneEnter(ctx)
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
 		--Check if a shield, avatar, secret Dungeon, or Secret Tomb has been played to cities or board
-	if zoneGUID==mapArea or zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity or zoneGUID==volkare.discZone or zoneGUID==darkCrusader.discZone or zoneGUID==elementalist.discZone then
+	if mapMarkerTrackingZone(zoneGUID)==true then
 		if monsterPugs[objGUID]~=nil then return end
 		if zoneObjectCanBeMapMarker(ctx)~=true and mageKnightAvatarGUIDs[objGUID]~=true then return end
 		local objectName=zoneEventObjectName(ctx)
@@ -1982,10 +2027,13 @@ local function handleMapZoneLeave(ctx)
 
 	--Check if a shield/site marker has been removed. Known cards/decks/dice/terrain/enemies skip
 	--Name/GM Notes entirely; only marker-like objects cross those TTS properties.
-	if zone.guid==mapArea and zoneObjectCanBeMapMarker(ctx)==true and obj.getLock()==false then
+	if mapMarkerTrackingZone(zone.guid)==true and zoneObjectCanBeMapMarker(ctx)==true and obj.getLock()==false then
 		local objectName=zoneEventObjectName(ctx)
-		local marker=objectName=="Shield" or objectName=="Secret Dungeon" or objectName=="Secret Tomb"
-		if marker~=true then marker=zoneEventObjectNotes(ctx)=="Burned Monastery" end
+		local marker=objectName=="Shield"
+		if zone.guid==mapArea then
+			marker=marker or objectName=="Secret Dungeon" or objectName=="Secret Tomb"
+			if marker~=true then marker=zoneEventObjectNotes(ctx)=="Burned Monastery" end
+		end
 		if marker==true then scheduleShieldLocation(obj, zone, "remove") end
 	end
 
@@ -3817,10 +3865,14 @@ local function mainUIRefreshTurnAvailability(context,playerState)
 		if b.type=="Card" then discardAreaCards=1 break end
 		if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
 	end
-	setEndTurnTooltip("At least one card must be played or discarded to 'End Your Turn'.")
+	local coopCombat=gStates.coopAssaultPhase=="combat"
+	setEndTurnTooltip(coopCombat and "" or "At least one card must be played or discarded to 'End Your Turn'.")
 	if gStates.endRoundCalled==true then setEndTurnTooltip("") end
-	local coopCombatButtonLocked=gStates.coopAssaultPhase=="combat" and (gStates.preEndTurn==true or playerAreaCardCount<1)
-	if (playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount) or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
+	--Combat Complete is not a normal End Turn: a co-op participant may legitimately resolve combat
+	--without playing a Deed card. During cleanup keep it locked only until the safe handoff boundary.
+	local normalTurnActionLocked=coopCombat~=true and playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount
+	local coopCombatButtonLocked=coopCombat==true and gStates.preEndTurn==true and gStates.coopCombatHandoffReady~=true
+	if normalTurnActionLocked or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
 		setUIButtonEnabled("EndTurnButton",false)
 		setUIButtonEnabled("EndTurnButtonAlt",false)
 		setUIButtonEnabled("ExtraTurnTacticButton",false)
@@ -4075,6 +4127,7 @@ end
 
 --Add Icons to players Avatar and Rampaging Monsters
 local avatarButtonRefreshPending=false
+local avatarButtonRefreshQueued=false
 avatarButtonXmlState={}
 mapObjectScriptUIState={}
 avatarButtonSpatialCell=3
@@ -4155,10 +4208,20 @@ combatAttackOptionCounts=combatAttackOptionCounts or {}
 combatAttackHorsemanOptionCounts=combatAttackHorsemanOptionCounts or {}
 
 function addAvatarButtons()
-	if avatarButtonRefreshPending==true then return end
+	if avatarButtonRefreshPending==true then
+		--Avatar pickup deliberately clears its old controls. Never discard a later location refresh just
+		--because another rebuild is already waiting; one queued pass guarantees the settled hex wins.
+		avatarButtonRefreshQueued=true
+		return
+	end
 	avatarButtonRefreshPending=true
 	safeWaitFrames("UI",function()
+		local refreshAgain=avatarButtonRefreshQueued
+		avatarButtonRefreshQueued=false
 		avatarButtonRefreshPending=false
+		--Schedule a coalesced follow-up before doing the current rebuild so even an unexpected error in
+		--this pass cannot strand an avatar with the pickup-time empty UI.
+		if refreshAgain==true then safeWaitFrames("UI",function() addAvatarButtons() end,1) end
 		--Snapshot relevant map objects once. Nearby shield/marker/ruin checks use spatial buckets;
 		--rampager/destroyed-site controls remain a small dedicated list because stale remote buttons must be cleared.
 		local mapButtonBuckets={}
@@ -4799,7 +4862,8 @@ function resourceTracker(player, mouseButton, id)
 			if gStates.moveCost[convert[id:sub(9,13)][1]]>900 then temp="X" end
 			UI.setAttribute(id:sub(1,13).."Text", "text", joinLang({convert[id:sub(9,13)][2], temp}))
 		end
-		if id~="DisplayMoveCosts" then updateMoveDisplay(id) end
+		local movementChanged=id:sub(1,16)=="MovemAmountPlain" or id=="MovemAmountUpdate" or id:sub(1,8)=="MoveCost"
+		if movementChanged==true then updateMoveDisplay(id) end
 	end
 end
 
@@ -5915,7 +5979,6 @@ moveDisplayRefreshDelay=0.75
 moveDisplayTerrainCache={signature=nil, hexMap=nil}
 moveDisplayTextSlotRequests={}
 moveDisplayTextSpawning={}
-MOVE_DISPLAY_HEX_BEARINGS={"center", "0", "60", "120", "180", "240", "300"}
 MOVE_DISPLAY_BEARING_ADJUST={center={0,0}, ["0"]={0,-1}, ["60"]={-1,-1}, ["120"]={-1,0}, ["180"]={0,1}, ["240"]={1,1}, ["300"]={1,0}}
 MOVE_DISPLAY_WALL_ADJUST={
 	["0"]={ ["300"]={0.5,-0.5}, ["center"]={0,-0.5}, ["60"]={-0.5,-0.5}},
@@ -6027,7 +6090,7 @@ end
 --Cache only the terrain/wall portion of the digital movement map. Dynamic shields, Cities and
 --monsters are overlaid fresh each render. Position, rotation and printed hex data are part of the
 --signature so a changed tile/site automatically rebuilds the base graph.
-function moveDisplayBaseHexMap(playAreaObjects, startTileGUID, startTilePos)
+function moveDisplayBaseHexMap(startTileGUID, startTilePos)
 	local snapshot=runtimeMapSnapshot()
 	local terrainEntries=snapshot.terrainEntries or {}
 	local signature=startTileGUID.."@"..string.format("%.3f,%.3f", startTilePos[1], startTilePos[3]).."|"..(snapshot.terrainSignature or "")
@@ -6143,13 +6206,23 @@ function moveDisplayHideUnusedText(usedCount)
 	end
 end
 
+function clearMoveDisplayVisuals()
+	if moveDisplayAutoPause~=nil then Wait.stop(moveDisplayAutoPause) moveDisplayAutoPause=nil end
+	gStates.moveDisplayGeneration=(gStates.moveDisplayGeneration or 0)+1
+	moveDisplayTextSlotRequests={}
+	moveDisplayHideUnusedText(0)
+	if moveDisplayBaseVectorLines~=nil then
+		Global.setVectorLines(moveDisplayBaseVectorLines)
+		moveDisplayBaseVectorLines=nil
+	end
+end
+
 function updateMoveDisplay(id)
 	--With zero Move and no active markers there is nothing for the movement display to do.
 	local moveValue=gStates.resourceTracker~=nil and gStates.resourceTracker.move~=nil and gStates.resourceTracker.move.move or 0
 	local hasMoveMarkers=(gStates.moveDisplayTextActiveCount or 0)>0
 	if moveValue<=0 and hasMoveMarkers==false then
-		if moveDisplayAutoPause~=nil then Wait.stop(moveDisplayAutoPause) moveDisplayAutoPause=nil end
-		if moveDisplayBaseVectorLines~=nil then Global.setVectorLines(moveDisplayBaseVectorLines) moveDisplayBaseVectorLines=nil end
+		clearMoveDisplayVisuals()
 		return
 	end
 
@@ -6176,8 +6249,7 @@ function renderMoveDisplay(id)
 	gStates.moveDisplayTextActiveCount=0
 
 	if moveValue<=0 then
-		moveDisplayHideUnusedText(0)
-		if moveDisplayBaseVectorLines~=nil then Global.setVectorLines(moveDisplayBaseVectorLines) moveDisplayBaseVectorLines=nil end
+		clearMoveDisplayVisuals()
 		return
 	end
 
@@ -6216,12 +6288,11 @@ function renderMoveDisplay(id)
 	local startTileGUID=gStates.gameScenario=="Against the Horsemen Blitz" and GUID.tile.country01 or startTerrain.open
 	local startTile=getObjectFromGUID(startTileGUID)
 	if startTile==nil and gStates.gameScenario~="Against the Horsemen Blitz" then startTileGUID=startTerrain.wedge startTile=getObjectFromGUID(startTileGUID) end
-	local mapObject=getObjectFromGUID(mapArea)
-	if startTile==nil or mapObject==nil then moveDisplayHideUnusedText(0) return end
+	if startTile==nil or getObjectFromGUID(mapArea)==nil then clearMoveDisplayVisuals() return end
 	local startTilePos=startTile.getPosition()
 	local snapshot=runtimeMapSnapshot()
 	local playAreaObjects=snapshot.objects or {}
-	local hexMap=moveDisplayBaseHexMap(playAreaObjects, startTileGUID, startTilePos)
+	local hexMap=moveDisplayBaseHexMap(startTileGUID, startTilePos)
 	--Dragon combat spaces keep their printed Move cost, but entering one starts the assault.
 	--Against the Dragon uses its three-space Lair; Fury uses the single space where its marker is
 	--currently landed. An in-flight Fury Dragon therefore contributes no combat destination.
@@ -6243,7 +6314,7 @@ function renderMoveDisplay(id)
 		local guid=mightBeMap.guid
 		local cityObject=cityGUIDs[guid]==true
 		local monsterDetails=monsterPugs[guid]
-		local rampager=monsterDetails~=nil and (monsterDetails.pugType=="green" or monsterDetails.pugType=="red")
+		local rampager=monsterDetails~=nil and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[guid]==true
 		local shield=false
 		if cityObject==false and rampager==false and mightBeMap.getName()=="Shield" and volkarePursuitShieldRegistered(mightBeMap)~=true then
 			shield=(gStates.coop==1 or mightBeMap.getDescription()==turnOrder[gStates.turnNumber].mage)
@@ -6274,7 +6345,7 @@ function renderMoveDisplay(id)
 				end
 				if cityBeaten==true then cityHex.fortified="shield" end
 			end
-			if rampager==true and objectPosition[2]<1.09 then
+			if rampager==true then
 				if hexMap[hor][vec]==nil then hexMap[hor][vec]={} end
 				local rampagerHex=hexMap[hor][vec]
 				if rampagerHex.terrainType==nil and rampagerHex.hexType~=nil and rampagerHex.hexType~="rampager" then rampagerHex.terrainType=rampagerHex.hexType end
@@ -6292,43 +6363,18 @@ function renderMoveDisplay(id)
 		local fracturedLandsTeleport=gStates.gameScenario=="The Fractured Lands Blitz"
 		local teleportHexesByTerrain={}
 		if fracturedLandsTeleport==true then
-			local occupiedByOtherMage={}
-			for playerIndex, playerDetails in pairs(turnOrder) do
-				if playerIndex~=gStates.turnNumber and playerDetails.mage~="Volkare" then
-					local otherPos=fracturedLandsTeleportSourcePosition(playerIndex)
-					if otherPos~=nil then
-						local otherVec,otherHor=runtimeMapWorldToAxial(otherPos,startTilePos)
-						occupiedByOtherMage[tostring(otherHor)..":"..tostring(otherVec)]=true
-					end
-				end
-			end
-			--Match the teleport-logo safety test: any enemy token physically occupying a hex blocks teleporting there.
-			--Do not rely on the rampager map flag here, because that flag has extra movement-specific filtering.
-			local occupiedByMonster={}
-			for _, mapObject in pairs(playAreaObjects) do
-				if monsterPugs[mapObject.guid]~=nil then
-					local monsterPos=mapObject.getPosition()
-					local monsterVec,monsterHor=runtimeMapWorldToAxial(monsterPos,startTilePos)
-					occupiedByMonster[tostring(monsterHor)..":"..tostring(monsterVec)]=true
-				end
-			end
-			for hor, rowOfHexes in pairs(hexMap) do
-				for vec, hex in pairs(rowOfHexes) do
-					local terrain=hex.terrainType
-					local feature=hex.feature or ""
-					local clearedRampager=false
-					if (feature=="rampaging" or feature=="draconum") and hex.tileGUID~=nil and hex.bearing~=nil then
-						local cleared=gStates.fracturedLandsDefeatedRampagingHexes or {}
-						clearedRampager=cleared[fracturedLandsTeleportRampageKey(hex.tileGUID,hex.bearing)]==true
-					end
-					local noSite=feature=="" or feature=="portal" or clearedRampager or
-						(feature=="monastery" and gStates.monasteryBurned[hex.tileGUID]==true)
-					local terrainAccessible=terrain~=nil and gStates.moveCost[terrain]~=nil and gStates.moveCost[terrain]<900
-					local occupancyKey=tostring(hor)..":"..tostring(vec)
-					local occupied=(feature~="portal" and occupiedByOtherMage[occupancyKey]==true) or occupiedByMonster[occupancyKey]==true
-					if noSite==true and terrainAccessible==true and occupied==false and hex.rampager~=true then
+			local teleportSpatial=runtimeMapSpatialSnapshot()
+			for _,runtimeHex in ipairs(teleportSpatial.topology.hexes or {}) do
+				if fracturedLandsTeleportHexLegal(runtimeHex.hexType)==true and fracturedLandsTeleportHexSafeNoSite(runtimeHex,teleportSpatial)==true then
+					local vecNumber,horNumber=runtimeMapWorldToAxial(runtimeHex.position,startTilePos)
+					local hor=tostring(horNumber)
+					local vec=tostring(vecNumber)
+					local row=hexMap[hor]
+					local hex=row~=nil and row[vec] or nil
+					local terrain=hex~=nil and (hex.terrainType or hex.hexType) or runtimeHex.hexType
+					if terrain~=nil then
 						if teleportHexesByTerrain[terrain]==nil then teleportHexesByTerrain[terrain]={} end
-						teleportHexesByTerrain[terrain][#teleportHexesByTerrain[terrain]+1]={coord={tonumber(hor), tonumber(vec)}}
+						teleportHexesByTerrain[terrain][#teleportHexesByTerrain[terrain]+1]={coord={horNumber,vecNumber}}
 					end
 				end
 			end
@@ -6393,7 +6439,7 @@ function renderMoveDisplay(id)
 			gStates.resourceTracker.playerPos={turnOrder[gStates.turnNumber].turnStartLoc[1], turnOrder[gStates.turnNumber].turnStartLoc[2], turnOrder[gStates.turnNumber].turnStartLoc[3]}--{0, 0, 0}
 		end
 		if id=="MovemAmountUpdate" then
-			for b, details in pairs(mageKnights) do
+			for _, details in pairs(mageKnights) do
 				if details.mage==turnOrder[gStates.turnNumber].mage then
 					if getObjectFromGUID(details.model)~=nil then gStates.resourceTracker.playerPos={getObjectFromGUID(details.model).getPosition()[1], getObjectFromGUID(details.model).getPosition()[2], getObjectFromGUID(details.model).getPosition()[3]} end
 					if getObjectFromGUID(details.token)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.token).getPosition() end
@@ -6421,31 +6467,12 @@ function renderMoveDisplay(id)
 		end
 
 		local playerHexGridAxial,playerHexGridHorizontal=runtimeMapWorldToAxial(playerPos,startTilePos)
-		local moveMap={[tostring(playerHexGridHorizontal)]={[tostring(playerHexGridAxial)]={main=0}}}
+		local moveMap={[tostring(playerHexGridHorizontal)]={[tostring(playerHexGridAxial)]={safe=0}}}
 		local fringe={{coord={playerHexGridHorizontal, playerHexGridAxial}}}
 		local tempFringe={}
 		local tempFringeSet={}
-		--When two onward routes cost the same, prefer the predecessor that is already using its
-		--cheapest state. This avoids choosing the 5 side of a 4/5 hex when an ordinary 5 route is equal.
-		local function continuationPenalty(hor, vec, state)
-			local row=moveMap[tostring(hor)]
-			local move=row~=nil and row[tostring(vec)] or nil
-			if move==nil or move[state or "main"]==nil then return 0 end
-			local cheapest=move.main or 99
-			if move.tricky~=nil and move.tricky<cheapest then cheapest=move.tricky end
-			return move[state or "main"]>cheapest and 1 or 0
-		end
-
-		--Search fringe hexes recorded from the previous loop
 		local searchLimit=10
 		local noMove=false
-
-		local function moveRecordedCost(hor,vec)
-			local row=moveMap[tostring(hor)]
-			local move=row~=nil and row[tostring(vec)] or nil
-			if move==nil then return 100 end
-			return move.tricky~=nil and move.tricky or move.main or 100
-		end
 
 		local function moveDestination(hor,vec)
 			local horKey=tostring(hor)
@@ -6463,96 +6490,56 @@ function renderMoveDisplay(id)
 			noMove=false
 		end
 
-		local function recordSafeMoveDestination(hor,vec,hexCost,predecessor,allowFringe)
-			local recordedMoveTotal=moveRecordedCost(hor,vec)
-			if hexCost>=gStates.resourceTracker.move.move+searchLimit or hexCost>recordedMoveTotal then return false end
+		local function recordMoveDestination(hor,vec,state,hexCost,predecessor,allowFringe)
+			if hexCost>=gStates.resourceTracker.move.move+searchLimit then return false end
 			local destinationMove=moveDestination(hor,vec)
-			if hexCost==recordedMoveTotal then
-				local existingPrev=destinationMove.tricky~=nil and destinationMove.trickyPrev or destinationMove.mainPrev
-				if existingPrev~=nil and continuationPenalty(predecessor.hor,predecessor.vec,predecessor.state)<continuationPenalty(existingPrev.hor,existingPrev.vec,existingPrev.state) then
-					if destinationMove.tricky~=nil then destinationMove.trickyPrev=predecessor else destinationMove.mainPrev=predecessor end
-				end
-				return true
+			local recordedCost=destinationMove[state] or 100
+			if hexCost>recordedCost then return false end
+			if hexCost<recordedCost then
+				destinationMove[state]=hexCost
+				destinationMove[state.."Prev"]=predecessor
+				if state=="safe" and allowFringe==true then queueMoveFringe(hor,vec) end
 			end
-			if destinationMove.tricky==nil then
-				destinationMove.main=hexCost
-				destinationMove.mainPrev=predecessor
-				destinationMove.mainCombat=false
-			else
-				destinationMove.tricky=hexCost
-				destinationMove.trickyPrev=predecessor
-				destinationMove.trickyCombat=false
-			end
-			if allowFringe==true then queueMoveFringe(hor,vec) end
 			return true
 		end
+
 		while noMove==false do
 			noMove=true
-			--check every hex added in the last round
-			for checkingHex, hexDetail in pairs(fringe) do
-				local moveSpent=99
-				local sourceState="main"
-				if moveMap[tostring(hexDetail.coord[1])]~=nil and moveMap[tostring(hexDetail.coord[1])][tostring(hexDetail.coord[2])]~=nil then
-					local sourceMove=moveMap[tostring(hexDetail.coord[1])][tostring(hexDetail.coord[2])]
-					moveSpent=sourceMove.main
-					if sourceMove.tricky~=nil then moveSpent=sourceMove.tricky sourceState="tricky" end
-				end
+			--Only safe states are ever queued. Combat-ending routes remain displayable but can never
+			--become the source of later movement.
+			for _,hexDetail in pairs(fringe) do
+				local sourceRow=moveMap[tostring(hexDetail.coord[1])]
+				local sourceMove=sourceRow~=nil and sourceRow[tostring(hexDetail.coord[2])] or nil
+				local moveSpent=sourceMove~=nil and sourceMove.safe or 99
 
 				--figure out the move cost to reach surrounding hexs
 				for currentVector, vector in pairs(MOVE_DISPLAY_VECTORS) do
 					local hor=hexDetail.coord[1]+vector[1]
 					local vec=hexDetail.coord[2]+vector[2]
-					--See if the destination hex has a recorded terrain type
-					if hexMap~=nil and hexMap[tostring(hor)]~=nil and hexMap[tostring(hor)][tostring(vec)]~=nil then
+					local destinationHex=hexMap~=nil and hexMap[tostring(hor)]~=nil and hexMap[tostring(hor)][tostring(vec)] or nil
+					if destinationHex~=nil then
 						local hexCost=999
-						if hexMap[tostring(hor)][tostring(vec)].hexType~=nil and gStates.moveCost[hexMap[tostring(hor)][tostring(vec)].hexType]~=nil then hexCost=gStates.moveCost[hexMap[tostring(hor)][tostring(vec)].hexType]+moveSpent end
+						if destinationHex.hexType~=nil and gStates.moveCost[destinationHex.hexType]~=nil then hexCost=gStates.moveCost[destinationHex.hexType]+moveSpent end
 						local wallhor=hexDetail.coord[1]+(vector[1]/2)
 						local wallvec=hexDetail.coord[2]+(vector[2]/2)
 						if hexMap[tostring(wallhor)]~=nil and hexMap[tostring(wallhor)][tostring(wallvec)]~=nil then hexCost=hexCost+1 end
-						local recordedMoveTotal=moveRecordedCost(hor,vec)
-						if hexCost<=99 and hexCost<gStates.resourceTracker.move.move+searchLimit and hexCost<=recordedMoveTotal then
-							local destinationMove=moveDestination(hor,vec)
-							--Don't add hex to fringe if passing a rampager
+						if hexCost<=99 and hexCost<gStates.resourceTracker.move.move+searchLimit then
+							--Don't add hex to fringe if passing a rampager.
 							local rampageHor={tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][1]), tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][1])}
 							local rampageVec={tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector][2]), tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_ADJACENT[currentVector+2][2])}
 							local rampageWallHor={tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_WALL[currentVector][1]), tostring(hexDetail.coord[1]+MOVE_DISPLAY_RAMPAGE_WALL[currentVector+1][1])}
 							local rampageWallVec={tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_WALL[currentVector][2]), tostring(hexDetail.coord[2]+MOVE_DISPLAY_RAMPAGE_WALL[currentVector+1][2])}
 							local normalRampager=(hexMap[rampageHor[1]]~=nil and hexMap[rampageHor[1]][rampageVec[1]]~=nil and hexMap[rampageHor[1]][rampageVec[1]].hexType=="rampager" and (hexMap[rampageWallHor[1]]==nil or hexMap[rampageWallHor[1]][rampageWallVec[1]]==nil)) or
 								(hexMap[rampageHor[2]]~=nil and hexMap[rampageHor[2]][rampageVec[2]]~=nil and hexMap[rampageHor[2]][rampageVec[2]].hexType=="rampager" and (hexMap[rampageWallHor[2]]==nil or hexMap[rampageWallHor[2]][rampageWallVec[2]]==nil))
-							local rampageNeighbor=normalRampager or ambusherProvoked(hexDetail.coord[1], hexDetail.coord[2], hor, vec)
-							local dragonLairDestination=hexMap[tostring(hor)][tostring(vec)].dragonLair==true
-							local forcedCombatDestination=rampageNeighbor or dragonLairDestination
-							local predecessor={hor=hexDetail.coord[1], vec=hexDetail.coord[2], state=sourceState, teleport=false}
-							if hexCost==recordedMoveTotal then
-								--Equal-cost safe routes do not change reachability, but a cleaner predecessor can
-								--remove an otherwise unnecessary dual-cost label from the displayed route tree.
-								if forcedCombatDestination==false then
-									local existingPrev=destinationMove.tricky~=nil and destinationMove.trickyPrev or destinationMove.mainPrev
-									if existingPrev~=nil and continuationPenalty(predecessor.hor,predecessor.vec,predecessor.state)<continuationPenalty(existingPrev.hor,existingPrev.vec,existingPrev.state) then
-										if destinationMove.tricky~=nil then destinationMove.trickyPrev=predecessor else destinationMove.mainPrev=predecessor end
-									end
-								end
+							local rampageNeighbor=normalRampager or ambusherProvoked(hexDetail.coord[1],hexDetail.coord[2],hor,vec)
+							local fortifiedDestination=destinationHex.hexType~="explore" and destinationHex.fortified~=nil and destinationHex.fortified~="shield"
+							local combatDestination=rampageNeighbor or destinationHex.dragonLair==true or fortifiedDestination
+							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state="safe",teleport=false}
+							if combatDestination==true then
+								recordMoveDestination(hor,vec,"combat",hexCost,predecessor,false)
 							else
-								if forcedCombatDestination==true then
-									if destinationMove.main~=nil then
-										destinationMove.tricky=destinationMove.main
-										destinationMove.trickyPrev=destinationMove.mainPrev
-										destinationMove.trickyCombat=destinationMove.mainCombat==true
-										destinationMove.main=hexCost
-										destinationMove.mainPrev=predecessor
-										destinationMove.mainCombat=true
-									else
-										destinationMove.main=hexCost
-										destinationMove.mainPrev=predecessor
-										destinationMove.tricky=99--combat-only route is displayable but cannot be used to continue movement
-										destinationMove.trickyPrev=nil
-										destinationMove.trickyCombat=false
-										destinationMove.mainCombat=true
-									end
-								else
-									local canContinue=hexMap[tostring(hor)][tostring(vec)].hexType~="explore" and (hexMap[tostring(hor)][tostring(vec)].fortified==nil or hexMap[tostring(hor)][tostring(vec)].fortified=="shield")
-									recordSafeMoveDestination(hor,vec,hexCost,predecessor,canContinue)
-								end
+								local canContinue=destinationHex.hexType~="explore"
+								recordMoveDestination(hor,vec,"safe",hexCost,predecessor,canContinue)
 							end
 						end
 					end
@@ -6565,23 +6552,23 @@ function renderMoveDisplay(id)
 					local hor=tunnel.hor
 					local vec=tunnel.vec
 					local hexCost=moveSpent+tunnel.cost
-					local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state=sourceState,teleport=false,tunnel=true,tunnelPath=tunnel.path}
-					recordSafeMoveDestination(hor,vec,hexCost,predecessor,true)
+					local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state="safe",teleport=false,tunnel=true,tunnelPath=tunnel.path}
+					recordMoveDestination(hor,vec,"safe",hexCost,predecessor,true)
 				end
 
 				--Fractured Lands teleport edges. A teleport is always a safe, non-combat route and can itself become
 				--the source of later normal moves or further teleports.
 				if fracturedLandsTeleport==true then
-					local sourceRow=hexMap[tostring(hexDetail.coord[1])]
-					local sourceHex=sourceRow~=nil and sourceRow[tostring(hexDetail.coord[2])] or nil
+					local sourceHexRow=hexMap[tostring(hexDetail.coord[1])]
+					local sourceHex=sourceHexRow~=nil and sourceHexRow[tostring(hexDetail.coord[2])] or nil
 					local sourceTerrain=sourceHex~=nil and (sourceHex.terrainType or sourceHex.hexType) or nil
-					for _, teleportHex in pairs(teleportHexesByTerrain[sourceTerrain] or {}) do
+					for _,teleportHex in pairs(teleportHexesByTerrain[sourceTerrain] or {}) do
 						local hor=teleportHex.coord[1]
 						local vec=teleportHex.coord[2]
 						if hor~=hexDetail.coord[1] or vec~=hexDetail.coord[2] then
 							local hexCost=moveSpent+1
-							local predecessor={hor=hexDetail.coord[1], vec=hexDetail.coord[2], state=sourceState, teleport=true}
-							recordSafeMoveDestination(hor,vec,hexCost,predecessor,true)
+							local predecessor={hor=hexDetail.coord[1],vec=hexDetail.coord[2],state="safe",teleport=true}
+							recordMoveDestination(hor,vec,"safe",hexCost,predecessor,true)
 						end
 					end
 				end
@@ -6606,8 +6593,10 @@ function renderMoveDisplay(id)
 				if routeSegmentSeen[key]==true then return end
 				routeSegmentSeen[key]=true
 				local color={0.50,0.50,0.50}
-				if mode=="teleport" then color={0.20,0.70,1.00} elseif mode=="tunnel" then color={0.72,0.45,1.00} end
-				routeLines[#routeLines+1]={points={routeWorldPosition(aHor,aVec),routeWorldPosition(bHor,bVec)},color=color,thickness=0.07,rotation={0,0,0}}
+				local thickness=0.07
+				if mode=="teleport" then color={0.20,0.70,1.00} thickness=0.12
+				elseif mode=="tunnel" then color={0.72,0.45,1.00} end
+				routeLines[#routeLines+1]={points={routeWorldPosition(aHor,aVec),routeWorldPosition(bHor,bVec)},color=color,thickness=thickness,rotation={0,0,0}}
 			end
 			if tunnelPath~=nil and #tunnelPath>1 then
 				for i=1,#tunnelPath-1 do addOne(tunnelPath[i].hor,tunnelPath[i].vec,tunnelPath[i+1].hor,tunnelPath[i+1].vec,"tunnel") end
@@ -6623,10 +6612,10 @@ function renderMoveDisplay(id)
 		end
 		for hor, rowOfHexes in pairs(moveMap) do
 			for vec, moveDetails in pairs(rowOfHexes) do
-				local routeCost=moveDetails.main
-				local routeState="main"
-				if moveDetails.tricky~=nil and moveDetails.tricky<routeCost then routeCost=moveDetails.tricky routeState="tricky" end
-				if routeCost~=nil and routeCost<=99 and routeCost<moveValue+searchLimit then queueRouteState(tonumber(hor), tonumber(vec), routeState) end
+				local routeCost=moveDetails.safe
+				local routeState="safe"
+				if moveDetails.combat~=nil and (routeCost==nil or moveDetails.combat<routeCost) then routeCost=moveDetails.combat routeState="combat" end
+				if routeCost~=nil and routeCost<=99 and routeCost<moveValue+searchLimit then queueRouteState(tonumber(hor),tonumber(vec),routeState) end
 			end
 		end
 		while #routeStack>0 do
@@ -6637,49 +6626,45 @@ function renderMoveDisplay(id)
 				local previous=routeMove~=nil and routeMove[current.state.."Prev"] or nil
 				if previous~=nil then
 					addRouteSegment(previous.hor, previous.vec, current.hor, current.vec, previous.teleport, previous.tunnelPath)
-					--Only a state that lies on the retained cheapest-route tree deserves an alternate
-					--slash value. Discovered-but-redundant continuations no longer create 4/5-style noise.
+					--Only a safe state used by a retained onward route deserves an alternate slash value.
 					local sourceRow=moveMap[tostring(previous.hor)]
 					local sourceMove=sourceRow~=nil and sourceRow[tostring(previous.vec)] or nil
-					if sourceMove~=nil then sourceMove[(previous.state or "main").."UsedOnward"]=1 end
-					queueRouteState(previous.hor, previous.vec, previous.state or "main")
+					if sourceMove~=nil and previous.state=="safe" then sourceMove.safeUsedOnward=1 end
+					queueRouteState(previous.hor,previous.vec,previous.state or "safe")
 				end
 			end
 		end
 		Global.setVectorLines(routeLines)
 
 		--Highlight movement costs with spawned text instead of numbered image decals.
-		for hor, rowOfHexes in pairs(moveMap) do
-			for vec, hexCost in pairs(rowOfHexes) do
-				local lowestHex=hexCost.main
-				local lowestState="main"
-				if hexCost.tricky~=nil and hexCost.tricky<lowestHex then lowestHex=hexCost.tricky lowestState="tricky" end
-				local displayCost=tostring(lowestHex)
-				local multipleCosts=false
-				local dualCosts=nil
-				local destinationHex=hexMap[tostring(hor)]~=nil and hexMap[tostring(hor)][tostring(vec)] or nil
-				local destinationCombat=destinationHex~=nil and (destinationHex.dragonLair==true or (destinationHex.hexType~="explore" and destinationHex.fortified~=nil and destinationHex.fortified~="shield"))
-				local combatMove=destinationCombat or (lowestState=="main" and hexCost.mainCombat==true) or (lowestState=="tricky" and hexCost.trickyCombat==true)
-				if hexCost.main~=nil and hexCost.main<99 and hexCost.tricky~=nil and hexCost.tricky<99 and hexCost.main~=hexCost.tricky then
-					local higherHex=math.max(hexCost.main, hexCost.tricky)
-					local higherState=higherHex==hexCost.main and "main" or "tricky"
-					if hexCost[higherState.."UsedOnward"]==1 then
-						displayCost=tostring(lowestHex).."/"..tostring(higherHex)
+		for hor,rowOfHexes in pairs(moveMap) do
+			for vec,hexCost in pairs(rowOfHexes) do
+				local safeCost=hexCost.safe
+				local combatCost=hexCost.combat
+				local lowestHex=safeCost
+				local lowestCombat=false
+				if combatCost~=nil and (lowestHex==nil or combatCost<lowestHex) then lowestHex=combatCost lowestCombat=true end
+				if lowestHex~=nil then
+					local displayCost=tostring(lowestHex)
+					local multipleCosts=false
+					local dualCosts=nil
+					--A cheaper combat route cannot be used onward. If a more expensive safe route is actually
+					--part of the retained route tree, show both values so the onward path remains explainable.
+					if combatCost~=nil and safeCost~=nil and combatCost<safeCost and hexCost.safeUsedOnward==1 then
+						displayCost=tostring(combatCost).."/"..tostring(safeCost)
 						multipleCosts=true
-						dualCosts={low=lowestHex,high=higherHex,
-							lowCombat=destinationCombat or (lowestState=="main" and hexCost.mainCombat==true) or (lowestState=="tricky" and hexCost.trickyCombat==true),
-							highCombat=destinationCombat or (higherState=="main" and hexCost.mainCombat==true) or (higherState=="tricky" and hexCost.trickyCombat==true)}
+						dualCosts={low=combatCost,high=safeCost,lowCombat=true,highCombat=false}
 					end
-				end
-				local world=runtimeMapAxialToWorld(tonumber(vec),tonumber(hor),startTilePos,1.22)
-				if world~=nil then
-					local hexGridX,hexGridZ=world[1],world[3]
-					local startingHex=tonumber(hor)==playerHexGridHorizontal and tonumber(vec)==playerHexGridAxial
-					if startingHex==false then
-						if lowestHex<=gStates.resourceTracker.move.move then
-							addMoveCostText(displayCost, hexGridX, hexGridZ, true, combatMove, multipleCosts, dualCosts)
-						elseif lowestHex<=99 and lowestHex<gStates.resourceTracker.move.move+searchLimit then
-							addMoveCostText(displayCost, hexGridX, hexGridZ, false, combatMove, multipleCosts, dualCosts)
+					local world=runtimeMapAxialToWorld(tonumber(vec),tonumber(hor),startTilePos,1.22)
+					if world~=nil then
+						local hexGridX,hexGridZ=world[1],world[3]
+						local startingHex=tonumber(hor)==playerHexGridHorizontal and tonumber(vec)==playerHexGridAxial
+						if startingHex==false then
+							if lowestHex<=gStates.resourceTracker.move.move then
+								addMoveCostText(displayCost,hexGridX,hexGridZ,true,lowestCombat,multipleCosts,dualCosts)
+							elseif lowestHex<=99 and lowestHex<gStates.resourceTracker.move.move+searchLimit then
+								addMoveCostText(displayCost,hexGridX,hexGridZ,false,lowestCombat,multipleCosts,dualCosts)
+							end
 						end
 					end
 				end
@@ -18429,13 +18414,29 @@ local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 		oneToReturnClosePortal()
 		if gStates.gameOver==true then return true end
 	end
+
+	--Quest expiry is asynchronous because markers, tucked cards and the Quest cards themselves have to
+	--finish physical container/deck moves. Treat it like the other round-reset interrupts: nothing from
+	--the new round may start until the exact retirement queue has completed.
+	if gStates.apocalypseQuestEndRoundCleanupDoneRound~=gStates.currentRound then
+		local cleanupRound=gStates.currentRound
+		local started=apocalypseQuestEndRoundCleanup(function()
+			if gStates.currentRound~=cleanupRound then return end
+			gStates.apocalypseQuestEndRoundCleanupDoneRound=cleanupRound
+			safeWaitFrames("Turn",function()
+				if gStates.currentRound==cleanupRound then endRound(true) end
+			end,2)
+		end)
+		if started==true then return true end
+		gStates.apocalypseQuestEndRoundCleanupDoneRound=cleanupRound
+	end
 	return false
 end
 
 local function turnEndRoundAdvanceWorld()
-	--Update round count and check for end of game
+	--Update round count and check for end of game. Quest expiry has already completed at the
+	--checkpoint barrier, so no old-round Quest object can overlap new-round offer/tactic/deck work.
 	broadcastToAll("-------------------",{1,1,0.5})
-	apocalypseQuestEndRoundCleanup()
 	gStates.currentRound=gStates.currentRound+1
 	apocalypseQuestRefreshStrayToken()
 	for _, details in pairs(turnOrder) do if details.tactic==6 then scheduleDeedPileDescriptionRefresh(details.seatPos, "deed") end end
@@ -19491,6 +19492,7 @@ end
 
 clearCoopAssaultRuntime=function(keepAssignments)
 	gStates.coopAssaultPhase=nil
+	gStates.coopCombatHandoffReady=nil
 	if keepAssignments~=true then
 		gStates.assaultData={}
 		gStates.coopAssaultUnassigned={}
@@ -20065,15 +20067,17 @@ rewardClaimDelayActive=false
 local rewardClaimDelayWait=nil
 --local slightPause=true
 local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
+	local coopCombatCleanup=gStates.coopAssaultPhase=="combat"
 	volkarePursuitResolveCombat(cleanupPlayer)
 	puppetMasterCleanupPlayedPuppets(cleanupPlayer)
 	--A Quest marker may still be settling under this Hero. Finish that temporary lift before the older
 	--end-turn site-cleanup lift records avatarPos/locks the same object, or it can be left floating.
 	apocalypseQuestRestoreRaisedAvatar(cleanupPlayer,true)
 	local coopCombatReward=nil
-	if gStates.coopAssaultPhase=="combat" then
+	if coopCombatCleanup==true then
 		coopCombatReward={player=cleanupPlayer, mage=turnOrder[cleanupPlayer].mage, fame=turnOrder[cleanupPlayer].fameGain, reputation=turnOrder[cleanupPlayer].repGain, factionRewards={dark=0, elementalist=0, apocalypse=0, council=0}}
 		gStates.coopRewardQueue[#gStates.coopRewardQueue+1]=coopCombatReward
+		gStates.coopCombatHandoffReady=false
 		setUIButtonEnabled("EndTurnButton",false)
 		setUIButtonEnabled("EndTurnButtonAlt",false)
 	end
@@ -20095,13 +20099,15 @@ local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	turnOrder[cleanupPlayer].combatIconHide="Both"
 	if turnOrder[cleanupPlayer].masterOfChaos~=nil then turnOrder[cleanupPlayer].masterOfChaos="available" end
 	addAvatarButtons()
-	if gStates.coopAssaultPhase~="combat" then claimButtonRefresh() end
+	if coopCombatCleanup~=true then claimButtonRefresh() end
 	setUIButtonEnabled("PreEndTurn",false)
 	rewardClaimDelayWait=safeWaitTime("Combat",function()
 		rewardClaimDelayWait=nil
 		local function finishRewardDelay()
 			rewardClaimDelayActive=false
-			if gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
+			--Co-op combat defers every reward gate until all participants have fought.
+			--Do not start the Rewards Claimed soft lock during the combat-to-combat handoff.
+			if coopCombatCleanup~=true and gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
 				rewardClaimSoftLockStart()
 				if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[cleanupPlayer].seatPos)
 				else
@@ -20251,6 +20257,19 @@ local function combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avat
 end
 
 local function combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait)
+	local handoffScheduled=false
+	local function finishCoopCombatHandoff()
+		if gStates.coopAssaultPhase~="combat" or gStates.preEndTurn~=true or gStates.turnNumber~=cleanupPlayer then return end
+		gStates.coopCombatHandoffReady=true
+		mainUIUpdate("Co-op combat handoff ready")
+		if handoffScheduled==true then return end
+		handoffScheduled=true
+		safeWaitFrames("Combat",function()
+			if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true and gStates.turnNumber==cleanupPlayer and gStates.coopCombatHandoffReady==true then
+				endTurn(player,"-1","CoopCombatComplete")
+			end
+		end,2)
+	end
 	--Adjust hand size and Check for scenario completion to Start the final round of turns.
 	--A completed City assault has just changed both monster state and physical shields. Rebuild ownership once,
 	--at this settled cleanup boundary, before scheduleAvatarDropRefresh reads Lead/Assist for the new hand limit.
@@ -20261,14 +20280,11 @@ local function combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,t
 		else refreshCityDefeatState() end
 		scheduleAvatarDropRefresh(cleanupPlayer)
 		scenarioCombatCleanupCheck(cleanupPlayer)
-		--Combat Complete is the only confirmation during the combat stage. Advance as soon as cleanup is finished.
-		if gStates.endGameAchieved=="false" and gStates.tacticShown==false and gStates.coopAssaultPhase=="combat" then
-			safeWaitFrames("Combat",function()
-				if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then endTurn(player,"-1","CoopCombatComplete") end
-			end,2)
-		end
+		--Combat Complete is the only confirmation during the combat stage. Once cleanup reaches this
+		--boundary, expose a safe manual fallback and also attempt the normal automatic handoff.
+		if gStates.endGameAchieved=="false" and gStates.tacticShown==false and gStates.coopAssaultPhase=="combat" then finishCoopCombatHandoff() end
 	end, function() return state.lastObject==nil or state.lastObject.resting end, 2, function()
-		if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then endTurn(player, "-1", "CoopCombatComplete") end
+		finishCoopCombatHandoff()
 	end) end, tokenWait+50)
 end
 
@@ -20538,6 +20554,12 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 		return
 	end
 	if mouseButton~="-1" or legalPlayerCheck(player.color,turnOrder[gStates.turnNumber].seatPos)~=true then return end
+	--If co-op cleanup has already reached its handoff boundary, this button is a recovery path:
+	--advance the assault instead of running pre-end-turn cleanup a second time.
+	if gStates.coopAssaultPhase=="combat" and gStates.preEndTurn==true then
+		if gStates.coopCombatHandoffReady==true then endTurn(player,"-1","CoopCombatComplete") end
+		return
+	end
 	if gStates.mineClaimPending~=nil then
 		broadcastToColor("{en}Resolve the pending crystal choice before ending the turn.{ru}Завершите ожидающий выбор кристалла, прежде чем заканчивать ход.{zh-tw}結束回合前，請先完成尚未處理的魔晶選擇。{zh-cn}结束回合前，请先完成尚未处理的魔晶选择。{ko}턴을 끝내기 전에 대기 중인 수정 선택을 완료하세요.{es}Resuelve la elección de cristal pendiente antes de terminar el turno.{fr}Résolvez le choix de cristal en attente avant de terminer le tour.{pt-br}Resolva a escolha de cristal pendente antes de encerrar o turno.{de}Schließe die ausstehende Kristallauswahl ab, bevor du den Zug beendest.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("Pre-end-turn cleanup") end
@@ -25433,6 +25455,7 @@ __bundle_register("PlayingGame.TokenPools", function(require, _LOADED, __bundle_
 -- Monster token-pool replenishment and bag presentation runtime.
 
 -- Token pile refill
+local tokenPoolRefillPending={}
 local tokenPileLinks={	{discard=GUID.bag.discard.towerGarrison, destination=monsterPiles.purple},--Mage Towers Discard-->Main
 						{discard=GUID.bag.discard.keepGarrison, destination=monsterPiles.gray},--Keeps Discard-->Main
 						{discard=GUID.bag.discard.cityGarrison, destination=monsterPiles.white},--Cities Discard-->Main
@@ -25466,12 +25489,18 @@ function tokenRefill(reportResult)
 				emptyPile=true
 				local discardObjects=discardObj.getObjects()
 				if #discardObjects>0 then
+					local destinationGUID=tokenPileLinks[a].destination
+					tokenPoolRefillPending[destinationGUID]=true
 					discardObj.shuffle()
 					for _=1, #discardObjects do
 						local obj=discardObj.takeObject()
 						gStates.monsterPlayLocation[obj.guid]=nil
 						destinationObj.putObject(obj)
 					end
+					safeWaitCondition("TokenPools.refill",function() tokenPoolRefillPending[destinationGUID]=nil end,function()
+						local target=getObjectFromGUID(destinationGUID)
+						return target==nil or target.getQuantity()~=0
+					end,2,function() tokenPoolRefillPending[destinationGUID]=nil end)
 					noWait=false
 				end
 			end
@@ -25495,11 +25524,11 @@ function withTokenPoolReady(pileGUID, callback, context)
 	local pile=pileGUID~=nil and getObjectFromGUID(pileGUID) or nil
 	if pile==nil or pile.getQuantity()~=0 then callback() return end
 
-	local refillable=false
+	local refillable=tokenPoolRefillPending[pileGUID]==true
 	for _, link in ipairs(tokenPileLinks) do
 		if link.destination==pileGUID then
 			local discard=getObjectFromGUID(link.discard)
-			refillable=discard~=nil and #discard.getObjects()>0
+			if discard~=nil and #discard.getObjects()>0 then refillable=true end
 			break
 		end
 	end
@@ -25509,6 +25538,42 @@ function withTokenPoolReady(pileGUID, callback, context)
 	local function ready()
 		local target=getObjectFromGUID(pileGUID)
 		return target==nil or target.getQuantity()~=0
+	end
+	if ready()==true then callback()
+	else safeWaitCondition(context or "TokenPools",callback,ready,2,callback) end
+end
+
+--Wait once for every requested pool that is genuinely being refilled. This is used by map effects
+--that may choose between several token colours only after the refill has physically reached the bags.
+function withTokenPoolsReady(pileGUIDs, callback, context)
+	if callback==nil then return end
+	local requested={}
+	local refillable={}
+	for _, pileGUID in ipairs(pileGUIDs or {}) do
+		if pileGUID~=nil and requested[pileGUID]~=true then
+			requested[pileGUID]=true
+			local pile=getObjectFromGUID(pileGUID)
+			if pile~=nil and pile.getQuantity()==0 then
+				if tokenPoolRefillPending[pileGUID]==true then refillable[pileGUID]=true end
+				for _, link in ipairs(tokenPileLinks) do
+					if link.destination==pileGUID then
+						local discard=getObjectFromGUID(link.discard)
+						if discard~=nil and #discard.getObjects()>0 then refillable[pileGUID]=true end
+						break
+					end
+				end
+			end
+		end
+	end
+	if next(refillable)==nil then callback() return end
+
+	tokenRefill()
+	local function ready()
+		for pileGUID, _ in pairs(refillable) do
+			local target=getObjectFromGUID(pileGUID)
+			if target~=nil and target.getQuantity()==0 then return false end
+		end
+		return true
 	end
 	if ready()==true then callback()
 	else safeWaitCondition(context or "TokenPools",callback,ready,2,callback) end
@@ -26207,12 +26272,11 @@ end
 end)
 __bundle_register("PlayingGame.Map", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Map-private helpers. Predeclared so forward references keep resolving locally.
-local avatarLocationMapSnapshot, avatarLocationRelevantObjects, mapPlunderVillageBase, avatarMovedFromPickedUpHex
+local avatarLocationMapSnapshot, avatarLocationRelevantObjects, avatarMovedFromPickedUpHex
 
 -- Map state, avatar location, exploration, shields and terrain-site runtime.
 
 local terrainExploreButtons={{}}
-local terrainExploreRefreshQueued=false
 local terrainPlacementEdgeCoordinates={
 	{-30.03, 15.09}, {-25.23, 19.25}, {-31.23, 21.34},
 	{-38.43, 0.54}, {-33.63, 4.70}, {-28.83, 8.86}, {-24.03, 13.02}, {-19.23, 17.17},
@@ -26307,9 +26371,12 @@ function portalSwap(state, playerIndex)
 		if turnOrder[index]==nil or destination==nil then return end
 		for _, details in pairs(mageKnights) do
 			if details.mage==turnOrder[index].mage then
-				if getObjectFromGUID(details.model)~=nil then getObjectFromGUID(details.model).setPositionSmooth(destination) end
-				if getObjectFromGUID(details.token)~=nil then getObjectFromGUID(details.token).setPositionSmooth(destination) end
-				if getObjectFromGUID(details.standee)~=nil then getObjectFromGUID(details.standee).setPositionSmooth(destination) end
+				local model=getObjectFromGUID(details.model)
+				local token=getObjectFromGUID(details.token)
+				local standee=getObjectFromGUID(details.standee)
+				if model~=nil then model.setPositionSmooth(destination) end
+				if token~=nil then token.setPositionSmooth(destination) end
+				if standee~=nil then standee.setPositionSmooth(destination) end
 				break
 			end
 		end
@@ -26376,6 +26443,8 @@ end
 
 --Physical activation state is kept separately from doingTheRounds. Tome/Circlet can move a real token
 --after it has been played, while the effect that token created may still need to survive.
+local shieldDropUnlockSerial=0
+
 function dropShield(location, lockToken, rotation, playerIndex)
 	--Delayed combat cleanup can finish after the active turn has advanced (including to Volkare).
 	--Use the player whose action created the shield when supplied; ordinary callers still use the current turn.
@@ -26392,9 +26461,18 @@ function dropShield(location, lockToken, rotation, playerIndex)
 					shield.lock()
 				end, function() return shield.resting end) end, 1.5)
 			end
+			shieldDropUnlockSerial=shieldDropUnlockSerial+1
+			local unlockSerial=shieldDropUnlockSerial
 			setUIButtonEnabled("PreEndTurn",false)
 			safeWaitTime("Map",function()
-				setUIButtonEnabled("PreEndTurn",true)
+				if unlockSerial~=shieldDropUnlockSerial then return end
+				local currentPlayer=gStates~=nil and turnOrder[gStates.turnNumber] or nil
+				if gStates~=nil and gStates.preEndTurn==true and currentPlayer~=nil and steadyTempoUpdateRewardGate~=nil then
+					--Respect Combat's reward-settling gate instead of blindly re-enabling Rewards Claimed.
+					steadyTempoUpdateRewardGate(currentPlayer.seatPos)
+				elseif rewardClaimDelayActive~=true then
+					setUIButtonEnabled("PreEndTurn",true)
+				end
 			end, 2.1)
 			break
 		end
@@ -26433,15 +26511,13 @@ function shieldLocation(obj, zone, status)
 					addAvatarButtons()
 					return
 				end
-				local found=false
 				for b, mageSearch in pairs(turnOrder) do
 					if mageSearch.mage==objectDescription or objectNotes=="Burned Monastery" then
-						found=true
 						if status=="remove" then
 							if hexFeature=="keep" and objectNotes~="Burned Monastery" then
 								broadcastToAll("{en}Keep Released{ru}Крепость освобождена{zh-tw}保持释放{zh-cn}保持释放{ko}성 정복 해제됨{es}Mantener Liberado{fr}Garder Libéré{pt-br}Forte Liberado{de}Behalten freigelassen", positionToColor(b))
 								mageSearch.keepsBeat=mageSearch.keepsBeat-1
-								scheduleAvatarDropRefresh()
+								scheduleAvatarDropRefresh(b)
 							end
 							if hexFeature=="monastery" and gStates.monasteryBurned[terTile.guid]==true then
 								if gStates.monasteryBurnedBy~=nil then gStates.monasteryBurnedBy[terTile.guid]=nil end
@@ -26492,7 +26568,7 @@ function shieldLocation(obj, zone, status)
 							if hexFeature=="keep" and objectNotes~="Burned Monastery" then
 								broadcastToAll("{en}'War is too serious a matter to leave to soldiers.'{ru}Война - слишком серьезная вещь, чтобы доверять её военным'{zh-tw}对于小兵来说, 战争太过残酷了{zh-cn}对于小兵来说, 战争太过残酷了{ko}성 정복됨.{es}Mantener Atacado con Exito{fr}Gardez avec Succès Agressé{pt-br}'Guerra é um assunto sério demais para deixar na mão de soldados'{de}Krieg ist eine zu ernste Angelegenheit, um sie Soldaten zu überlassen.'", positionToColor(b))
 								mageSearch.keepsBeat=mageSearch.keepsBeat+1
-								scheduleAvatarDropRefresh()
+								scheduleAvatarDropRefresh(b)
 								break
 							end
 							if hexFeature=="glade" and objectNotes~="Burned Monastery" and gStates.gameScenario=="Druid Nights" then
@@ -26534,34 +26610,34 @@ function shieldLocation(obj, zone, status)
 		end
 	end
 	if zone.guid~=mapArea then
-		if pause==false then pause=true safeWaitFrames("Map",function()
-			for b, mageSearch in pairs(turnOrder) do
-				if mageSearch.mage==objectDescription then
-					if zone.guid~=elementalist.discZone and zone.guid~=darkCrusader.discZone and (gStates.gameScenario=="The Gauntlet"
+		for b, mageSearch in pairs(turnOrder) do
+			if mageSearch.mage==objectDescription then
+				local standardCity=zone.guid==GUID.zone.blueCity or zone.guid==GUID.zone.redCity or zone.guid==GUID.zone.greenCity or zone.guid==GUID.zone.whiteCity
+				local factionLeader=zone.guid==darkCrusader.discZone or zone.guid==elementalist.discZone
+				local volkareZone=zone.guid==volkare.discZone
+				if standardCity or factionLeader or volkareZone then refreshCityControlAndScoring() end
+				--Removal is source-of-truth bookkeeping only. Enter broadcasts retain the existing flavour/status messages.
+				if status~="remove" then
+					if standardCity and (gStates.gameScenario=="The Gauntlet"
 					or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The Realm of the Dead Blitz"
 					or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Dungeon Lords"
 					or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Mines Liberation") then
 						broadcastToAll(joinLang({"{en}City is Friendly to {ru}Город дружественный для {zh-tw}城市友善的对象: {zh-cn}城市友善的对象: {ko}도시는 우호적입니다: {es}La Ciudad es Amigable con {fr}La Ville est Amicale avec {pt-br}Cidade é Amistosa a {de}Stadt ist befreundet mit ", translateWord[mageSearch.mage]}), positionToColor(b))
-					else
-						if zone.guid==GUID.zone.blueCity or zone.guid==GUID.zone.redCity or zone.guid==GUID.zone.greenCity or zone.guid==GUID.zone.whiteCity then
-							refreshCityControlAndScoring()
-							if mageSearch.defeatedCities[cityScriptZones[zone.guid].cityGUID]~=nil then
-								broadcastToAll("{en}City has been Conquered{ru}Город был захвачен{zh-tw}城市被征服了{zh-cn}城市被征服了{ko}도시가 정복되었습니다{es}La Ciudad ha sido Conquistada{fr}La Ville a été Conquise{pt-br}Cidade foi Conquistada.{de}Die Stadt wurde erobert", positionToColor(b))
-							else
-								broadcastToAll("{en}City Defender Defeated{ru}Защитник города побежден{zh-tw}城防守军被击败了{zh-cn}城防守军被击败了{ko}도시 수비자를 처치했습니다{es}Defensor de la Ciudad Derrotado{fr}Défenseur de la Ville Vaincu{pt-br}Defensor da Cidade Derrotado.{de}Stadtverteidiger besiegt", positionToColor(b))
-							end
+					elseif standardCity then
+						if mageSearch.defeatedCities[cityScriptZones[zone.guid].cityGUID]~=nil then
+							broadcastToAll("{en}City has been Conquered{ru}Город был захвачен{zh-tw}城市被征服了{zh-cn}城市被征服了{ko}도시가 정복되었습니다{es}La Ciudad ha sido Conquistada{fr}La Ville a été Conquise{pt-br}Cidade foi Conquistada.{de}Die Stadt wurde erobert", positionToColor(b))
+						else
+							broadcastToAll("{en}City Defender Defeated{ru}Защитник города побежден{zh-tw}城防守军被击败了{zh-cn}城防守军被击败了{ko}도시 수비자를 처치했습니다{es}Defensor de la Ciudad Derrotado{fr}Défenseur de la Ville Vaincu{pt-br}Defensor da Cidade Derrotado.{de}Stadtverteidiger besiegt", positionToColor(b))
 						end
 					end
-					if zone.guid==darkCrusader.discZone or zone.guid==elementalist.discZone then
-						refreshCityControlAndScoring()
+					if factionLeader then
 						if gStates.defeatedFactionTest[cityScriptZones[zone.guid].cityGUID]~=nil then
 							broadcastToAll("{en}Leader has been Defeated{ru}Лидер был побежден{zh-tw}首领被打败了{zh-cn}首领被打败了{ko}지도자를 처치했습니다{es}El Líder ha sido Derrotado{fr}Le Chef a été Vaincu{pt-br}Líder foi Derrotado{de}Anführer wurde besiegt", positionToColor(b))
 						else
 							broadcastToAll("{en}Leader Level Reduced{ru}Уровень лидера понижен{zh-tw}首领级别降低{zh-cn}首领级别降低{ko}지도자 레벨 감소됨{es}Nivel de Líder Reducido{fr}Niveau de Leader Réduit{pt-br}Nível do Líder foi Reduzido{de}Anführerlevel reduziert", positionToColor(b))
 						end
 					end
-					if zone.guid==volkare.discZone then
-						refreshCityControlAndScoring()
+					if volkareZone then
 						if mageSearch.defeatedCities[cityScriptZones[zone.guid].cityGUID]~=nil then
 							broadcastToAll("{en}Volkare is Defeated{ru}Волкар побежден{zh-tw}沃里卡认怂了{zh-cn}沃里卡认怂了{ko}볼케어 장군을 처치했습니다{es}Volkare es derrotado{fr}Volkare est vaincu{pt-br}Volkare foi Derrotado{de}Volkare ist besiegt", positionToColor(b))
 							registerVolkareCampAsCityKeep()
@@ -26569,30 +26645,34 @@ function shieldLocation(obj, zone, status)
 							broadcastToAll("{en}Volkare's Army Reduced{ru}Армия Волкара уменьшилась{zh-tw}沃里卡军队减少了{zh-cn}沃里卡军队减少了{ko}볼케어의 군대가 줄었습니다{es}Ejército de Volkare reducido{fr}Armée de Volkare réduite{pt-br}Exército de Volkare Reduzido{de}Volkares Armee wurde verkleinert", positionToColor(b))
 						end
 					end
-					scheduleAvatarDropRefresh()
-					break
 				end
+				scheduleAvatarDropRefresh(b)
+				break
 			end
-			pause=false
-			addAvatarButtons()
-		end, 5) end
+		end
+		addAvatarButtons()
 	end
 end
 
 --new XML buttons on skills, offer and tactic cards
 
 -- Avatar refresh scheduling
-local adjustHandSizePause=nil
+local adjustHandSizePause={}
+local avatarRefreshGeneration={}
 
 function scheduleAvatarDropRefresh(playerIndex)
 	local dropPlayer=playerIndex or gStates.turnNumber
 	if turnOrder[dropPlayer]==nil then return end
+	avatarRefreshGeneration[dropPlayer]=(avatarRefreshGeneration[dropPlayer] or 0)+1
+	local generation=avatarRefreshGeneration[dropPlayer]
 	if coopAssaultVirtualPlayer(dropPlayer)==true then
 		if gStates.preEndTurn~=true then mainUIUpdate("Co-op virtual city location") end
 		return
 	end
-	if adjustHandSizePause~=nil then Wait.stop(adjustHandSizePause) end
-	adjustHandSizePause=safeWaitTime("Map",function()
+	if adjustHandSizePause[dropPlayer]~=nil then Wait.stop(adjustHandSizePause[dropPlayer]) end
+	adjustHandSizePause[dropPlayer]=safeWaitTime("Map",function()
+		if avatarRefreshGeneration[dropPlayer]~=generation then return end
+		adjustHandSizePause[dropPlayer]=nil
 		if turnOrder[dropPlayer]==nil then return end
 		local found=false
 		for _, avatar in pairs(mageKnights) do
@@ -26603,17 +26683,19 @@ function scheduleAvatarDropRefresh(playerIndex)
 					found=true
 					local avatarDetails=avatar
 					safeWaitFrames("Map",function()
-						--This refresh used to fake a global onObjectDrop(), making the avatar traverse every unrelated
-						--drop handler before reaching mapAvatarLocationDetails(). Resolve the live representation and
-						--call the actual location refresh directly instead.
+						if avatarRefreshGeneration[dropPlayer]~=generation then return end
+						--The historical settling delay may outlive a newer refresh request. The generation gate keeps
+						--only the latest request active through the complete delayed/resting transaction.
 						local currentAvatar=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
 						if currentAvatar==nil then return end
 						local function refresh()
+							if avatarRefreshGeneration[dropPlayer]~=generation then return end
 							local liveAvatar=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
 							if liveAvatar~=nil then mapAvatarLocationDetails(nil,avatarDetails,liveAvatar) end
 						end
 						if currentAvatar.resting==true then refresh()
 						else safeWaitCondition("Map.avatarRefresh",refresh,function()
+							if avatarRefreshGeneration[dropPlayer]~=generation then return true end
 							local liveAvatar=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
 							return liveAvatar==nil or liveAvatar.resting==true
 						end,1.5,refresh) end
@@ -26622,7 +26704,7 @@ function scheduleAvatarDropRefresh(playerIndex)
 				break
 			end
 		end
-		if found==false then mainUIUpdate("Incremented to Dummy's Turn") end
+		if found==false and avatarRefreshGeneration[dropPlayer]==generation then mainUIUpdate("Incremented to Dummy's Turn") end
 	end, 0.1)
 end
 
@@ -26638,10 +26720,18 @@ terrainPlacementNeighbourOffsets={
 
 --Avatar-location scans use the shared live spatial view, so Map, Combat, Movement and AI all
 --derive their local object/hex queries from the same physical-table snapshot.
-avatarLocationSpatialCell=3
+local avatarLocationSpatialCell=3
 avatarLocationMapSnapshot=function()
 	local spatial=runtimeMapSpatialSnapshot(avatarLocationSpatialCell)
-	return spatial.objects,spatial.positions,spatial.terrainObjects,spatial.terrainRotations,spatial.buckets,spatial
+	return spatial.positions,spatial.terrainObjects,spatial.terrainRotations,spatial
+end
+
+local function registeredCityAnchor(cityGUID)
+	if cityGUID==nil then return nil end
+	if cityGUID==portal.terrainHex then return getObjectFromGUID(cityGUID) end
+	local cityData=gStates~=nil and gStates.cityMonsterQty~=nil and gStates.cityMonsterQty[cityGUID] or nil
+	if cityData==nil or cityData.extra==nil or cityData.extra.terainGUID==nil then return nil end
+	return getObjectFromGUID(cityGUID)
 end
 
 avatarLocationRelevantObjects=function(locatedTerrain,pos,spatial)
@@ -26649,12 +26739,21 @@ avatarLocationRelevantObjects=function(locatedTerrain,pos,spatial)
 	local seen={}
 	for _,obj in ipairs(result) do if obj~=nil and obj.guid~=nil then seen[obj.guid]=true end end
 
-	--City models are moved independently of terrain and can sit high enough that TTS does not always
-	--report a clean map-zone membership transition. The shared spatial cache therefore cannot be the
-	--sole authority for these few pieces. Merge nearby live City models explicitly so adjacency still
-	--reveals the actual deployed City army (including Random Cities/Megapolis rather than inferring
-	--the City colour from the printed terrain feature).
-	local cityCandidates={cityModel.white,cityModel.blue,cityModel.red,cityModel.green,volkare.model,"938cd3","a0d7b3"}
+	--City deployment is authoritative game state; map-zone membership is only a physics/cache detail.
+	--playCity() registers the final City (including Random Cities and Megapolis pairs) through
+	--cityMonsterQty[cityGUID].extra.terainGUID, so merge those live registered models explicitly.
+	local cityCandidates={}
+	for _,cityData in pairs(cityScriptZones) do
+		if cityData.cityGUID~=portal.terrainHex and registeredCityAnchor(cityData.cityGUID)~=nil then cityCandidates[#cityCandidates+1]=cityData.cityGUID end
+	end
+	for _,avatar in pairs(mageKnights) do
+		if avatar.mage=="Volkare" then
+			if avatar.model~=nil then cityCandidates[#cityCandidates+1]=avatar.model end
+			if avatar.token~=nil then cityCandidates[#cityCandidates+1]=avatar.token end
+			if avatar.standee~=nil then cityCandidates[#cityCandidates+1]=avatar.standee end
+			break
+		end
+	end
 	if gStates~=nil and gStates.volkareModel~=nil then cityCandidates[#cityCandidates+1]=gStates.volkareModel end
 	for _,guid in ipairs(cityCandidates) do
 		if guid~=nil and seen[guid]~=true then
@@ -26772,10 +26871,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 		if gStates.rampage==2 then dice=getObjectFromGUID("48089f").clone(params) end
 	end
 	if dice~=nil then safeWaitTime("Map",function() dice.destruct() end, 10) end
-	safeWaitFrames("Map",function()--wait for clone to spawn
-		if dice~=nil then dice.unlock() dice.shuffle() end
-		safeWaitFrames("Map",function()
-			safeWaitCondition("Map",function()
+	local function resolveRampageDeployment()
 				if dice~=nil then
 					dice.setPosition({params.position[1], 3.0, params.position[3]})
 					dice.lock()
@@ -26791,10 +26887,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 						local warOfFourLoc="center"
 						if gStates.gameScenario=="The War of Four" then --Open Limited to ? Columns
 							local pos=obj.getPosition()
-							local edgeCoordinates={	{-38.43,  0.54},  {-33.63,  4.70},  {-28.83,  8.86}, {-24.03, 13.02}, {0, 0},--Far North Column Coordinates
-													{-37.23, -5.69},  {-32.43, -1.52},  {-27.63,  2.62}, {-22.83,  6.79}, {-18.02, 10.94},--North Column Coordinates
-													{-30.03, -14.01}, {-25.23, -9.84},  {-20.43, -5.69}, {-15.63, -1.54}, {-10.81,  2.63},--South Column Coordinates
-													{-24.03, -16.08}, {-19.23, -11.93}, {-14.43, -7.77}, {-9.63,  -3.61}}--Far South Column Coordinates
+							local edgeCoordinates=warOfFourGladeEdgeCoordinates
 							for tileLoc, coords in pairs(edgeCoordinates) do
 								if math.sqrt(((pos[1]-coords[1])^2)+((pos[3]-coords[2])^2))<1 then
 									if math.ceil(tileLoc/5)==1 then warOfFourLoc="FarNorth" end
@@ -26894,42 +26987,51 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 						end
 					end
 				end
-			end, function() return dice==nil or dice.resting end)
-		end, 5)
-	end, 5)
+	end
+	local function resolveRampageAfterRefill()
+		local relevantPools={monsterPiles.green,monsterPiles.tan,monsterPiles.red}
+		if gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four" then
+			relevantPools[#relevantPools+1]=monsterPiles.greenElem
+			relevantPools[#relevantPools+1]=monsterPiles.tanElem
+			relevantPools[#relevantPools+1]=monsterPiles.redElem
+			relevantPools[#relevantPools+1]=monsterPiles.greenDark
+			relevantPools[#relevantPools+1]=monsterPiles.tanDark
+			relevantPools[#relevantPools+1]=monsterPiles.redDark
+		elseif gStates.gameScenario=="The Realm of the Dead Blitz" then
+			relevantPools[#relevantPools+1]=monsterPiles.greenDark
+			relevantPools[#relevantPools+1]=monsterPiles.tanDark
+			relevantPools[#relevantPools+1]=monsterPiles.redDark
+		elseif gStates.gameScenario=="The Hidden Valley Blitz" then
+			relevantPools[#relevantPools+1]=monsterPiles.greenElem
+			relevantPools[#relevantPools+1]=monsterPiles.tanElem
+			relevantPools[#relevantPools+1]=monsterPiles.redElem
+		end
+		withTokenPoolsReady(relevantPools,resolveRampageDeployment,"Map.rampageRefill")
+	end
+	if dice==nil then
+		--Terrain-entry rampagers have no roll to display. Deploy them immediately so setup/population
+		--completion reflects the real token state instead of finishing ahead of two fixed frame delays.
+		resolveRampageDeployment()
+	else
+		safeWaitFrames("Map",function()--wait for clone to spawn
+			dice.unlock()
+			dice.shuffle()
+			safeWaitFrames("Map",function()
+				safeWaitCondition("Map",resolveRampageAfterRefill,function() return dice==nil or dice.resting end)
+			end,5)
+		end,5)
+	end
 end
 
 --Pillage Village, draw two cards for chosen mage and reduce Reputation by 1
-mapPlunderVillageBase=function(player, mouseButton, id)
-	if mouseButton=="-1" then
-		if legalPlayerCheck(player.color, tonumber(id:sub(8,8)))==true then
-			for a=1, #turnOrder, 1 do
-				if turnOrder[a].seatPos==tonumber(id:sub(8,8)) then
-					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} just Plundered their Village.{ru} разграбляет деревню.{zh-tw}刚刚劫掠了他们的村庄{zh-cn}刚刚劫掠了他们的村庄{ko}: 마을을 약탈했습니다.{es} acaba de saquear su aldea.{fr} vient de Piller leur Village.{pt-br} acabou de Saquear a Vila{de} hat gerade ihr Dorf geplündert. "}), positionToColor(a))
-					--One exact two-card request avoids competing Quick Witted prompts for Coral.
-					drawExactDeedCards(a, 2, "DrawOne")
-					--reduce Reputation by 1
-					local repPos=reputationTable[turnOrder[a].reputation-1].reputationPos
-					getObjectFromGUID(turnOrder[a].reputationGUID).setPosition({repPos[1], repPos[2], repPos[3]})
-					turnOrder[a].reputation=turnOrder[a].reputation-1
-					--only alow once per turn
-					turnOrder[a].pillagedVillage=true
-					mainUIUpdate("Village Pillaged")
-					break
-				end
-			end
-		end
-	end
-end
 
 -- Manual shield/marker placement and avatar hex tracking
 function shieldDrop(player, mouseButton, id)
 	if mouseButton=="-1" then
 		for _, details in pairs(mageKnights) do
 			local tempPos={}
-			if getObjectFromGUID(details.model)~=nil then tempPos=getObjectFromGUID(details.model).getPosition() end
-			if getObjectFromGUID(details.token)~=nil then tempPos=getObjectFromGUID(details.token).getPosition() end
-			if getObjectFromGUID(details.standee)~=nil then tempPos=getObjectFromGUID(details.standee).getPosition() end
+			local avatarObj=getObjectFromGUID(details.standee) or getObjectFromGUID(details.token) or getObjectFromGUID(details.model)
+			if avatarObj~=nil then tempPos=avatarObj.getPosition() end
 			if details.shieldContainer==id:sub(1, 6) then
 				local sitePlayer=nil
 				local sitePlayerIndex=nil
@@ -26945,9 +27047,7 @@ function shieldDrop(player, mouseButton, id)
 					return
 				end
 				if gStates.gameScenario=="Dungeon Lords" and sitePlayer~=nil and (sitePlayer.avatarLocation=="dungeon" or sitePlayer.avatarLocation=="tomb") then
-					broadcastToAll("{en}Dungeon Lords: Dungeons and Tombs are marked only after their combat is won.{ru}Владыки Подземелий: Подземелья и Гробницы отмечаются только после победы в их бою.{zh-tw}地下城領主：只有在戰鬥獲勝後才標記地下城與墓穴。{zh-cn}地下城领主：只有在战斗获胜后才标记地下城与墓穴。{ko}던전 로드: 던전과 무덤은 전투에서 승리한 뒤에만 표시됩니다.{es}Señores de las Mazmorras: las Mazmorras y Tumbas solo se marcan después de ganar su combate.{fr}Seigneurs des Donjons : les Donjons et Tombeaux ne sont marqués qu’après avoir remporté leur combat.{pt-br}Senhores das Masmorras: Masmorras e Tumbas só são marcadas após vencer o combate.{de}Kerkerfürsten: Kerker und Gräber werden erst markiert, nachdem ihr Kampf gewonnen wurde.",positionToColor(gStates.turnNumber))
-					addAvatarButtons()
-					return
+					broadcastToAll("{en}Dungeon Lords reminder: Dungeons and Tombs are normally marked only after their combat is won.{ru}Владыки Подземелий: обычно Подземелья и Гробницы отмечаются только после победы в их бою.{zh-tw}地下城領主提醒：地下城與墓穴通常只在戰鬥獲勝後才標記。{zh-cn}地下城领主提醒：地下城与墓穴通常只在战斗获胜后才标记。{ko}던전 로드 알림: 던전과 무덤은 보통 전투에서 승리한 뒤에 표시합니다.{es}Recordatorio de Señores de las Mazmorras: normalmente las Mazmorras y Tumbas solo se marcan después de ganar su combate.{fr}Rappel Seigneurs des Donjons : les Donjons et Tombeaux sont normalement marqués après avoir remporté leur combat.{pt-br}Lembrete de Senhores das Masmorras: normalmente Masmorras e Tumbas são marcadas após vencer o combate.{de}Kerkerfürsten-Erinnerung: Kerker und Gräber werden normalerweise erst nach gewonnenem Kampf markiert.",positionToColor(sitePlayerIndex or gStates.turnNumber))
 				end
 				local shield=getObjectFromGUID(details.shieldContainer).takeObject({position={tempPos[1], 3, tempPos[3]}})
 				if shield~=nil and gStates.gameScenario=="The Realm of the Dead Blitz" and sitePlayer~=nil and sitePlayer.avatarLocation=="graveyard" and sitePlayerIndex~=nil then
@@ -26997,49 +27097,52 @@ end
 -- Nearby Mage lookup
 function findNearbyMages(origin, distance)--origin={x, y, z}, distance=x
 	local mageList={}
-	--see if the object is a mageKnight
+	local seenMage={}
+	--See if the live map representation is a Mage Knight.
 	for _, avatar in pairs(mageKnights) do
-		local posibleMage=nil
-		if getObjectFromGUID(avatar.model)~=nil and avatar.mage~="Volkare" then posibleMage=getObjectFromGUID(avatar.model) end
-		if getObjectFromGUID(avatar.standee)~=nil and avatar.mage~="Volkare" then posibleMage=getObjectFromGUID(avatar.standee) end
-		if getObjectFromGUID(avatar.token)~=nil and avatar.mage~="Volkare" then posibleMage=getObjectFromGUID(avatar.token) end
-		if posibleMage~=nil then
-			local pos={posibleMage.getPosition()[1], 1.17, posibleMage.getPosition()[3]}--done this way so math can be done to the values
+		local possibleMage=nil
+		if avatar.mage~="Volkare" then
+			--Preserve the old representation priority: token, then standee, then model.
+			possibleMage=getObjectFromGUID(avatar.token) or getObjectFromGUID(avatar.standee) or getObjectFromGUID(avatar.model)
+		end
+		if possibleMage~=nil then
+			local objectPos=possibleMage.getPosition()
+			local pos={objectPos[1],1.17,objectPos[3]}
 			local mageDist=math.sqrt(((origin[1]-pos[1])^2)+((origin[3]-pos[3])^2))
 			if mageDist<distance then
 				for turn, mageSearch in pairs(turnOrder) do
-					if mageSearch.mage==avatar.mage and playerDropoutInactive(turn)==false then
-						mageList[#mageList+1]={mage=mageSearch.mage, distance=mageDist, fame=mageSearch.fame, turn=turn}
+					if mageSearch.mage==avatar.mage and playerDropoutInactive(turn)==false and seenMage[mageSearch.mage]~=true then
+						mageList[#mageList+1]={mage=mageSearch.mage,distance=mageDist,fame=mageSearch.fame,turn=turn}
+						seenMage[mageSearch.mage]=true
+						break
 					end
 				end
 			end
 		end
 	end
-	--City models are a tiny registered set. Use runtime map membership to decide which are actually
-	--in play instead of walking every object in the map scripting zone just to find those models.
-	local mapObjectGUIDs=runtimeMapSnapshot().objectGUIDs or {}
+	--Players parked on City/Portal cards need their logical map position rather than their physical
+	--off-map parking slot. City deployment is registered explicitly by playCity(); do not infer it from
+	--whether the runtime map cache happened to observe the model crossing the map scripting-zone boundary.
 	for zone, cityData in pairs(cityScriptZones) do
-		if mapObjectGUIDs[cityData.cityGUID]==true then
-			local posibleMage=getObjectFromGUID(cityData.cityGUID)
-			if posibleMage~=nil then
-				local pos={posibleMage.getPosition()[1], 1.17, posibleMage.getPosition()[3]}--done this way so math can be done to the values
-				local mageDist=math.floor(math.sqrt(((origin[1]-pos[1])^2)+((origin[3]-pos[3])^2))+0.5)
-				if mageDist<distance then
-					local cityZone=getObjectFromGUID(zone)
-					if cityZone~=nil then
-						for _, cityObj in pairs(cityZone.getObjects()) do
-							local avatar=nil
-							for _, candidate in pairs(mageKnights) do
-								if cityObj.guid==candidate.model or cityObj.guid==candidate.standee or cityObj.guid==candidate.token then avatar=candidate break end
-							end
-							if avatar~=nil and avatar.mage~="Volkare" then
-								for turn, mageSearch in pairs(turnOrder) do
-									if mageSearch.mage==avatar.mage and playerDropoutInactive(turn)==false then
-										mageList[#mageList+1]={mage=mageSearch.mage, distance=mageDist, fame=mageSearch.fame, turn=turn}
-										break
-									end
+		local possibleCity=registeredCityAnchor(cityData.cityGUID)
+		if possibleCity~=nil then
+			local cityPos=possibleCity.getPosition()
+			local mageDist=math.floor(math.sqrt(((origin[1]-cityPos[1])^2)+((origin[3]-cityPos[3])^2))+0.5)
+			if mageDist<distance then
+				local cityZone=getObjectFromGUID(zone)
+				if cityZone~=nil then
+					for _, cityObj in pairs(cityZone.getObjects()) do
+						local avatar=nil
+						for _, candidate in pairs(mageKnights) do
+							if cityObj.guid==candidate.model or cityObj.guid==candidate.standee or cityObj.guid==candidate.token then avatar=candidate break end
+						end
+						if avatar~=nil and avatar.mage~="Volkare" and seenMage[avatar.mage]~=true then
+							for turn, mageSearch in pairs(turnOrder) do
+								if mageSearch.mage==avatar.mage and playerDropoutInactive(turn)==false then
+									mageList[#mageList+1]={mage=mageSearch.mage,distance=mageDist,fame=mageSearch.fame,turn=turn}
+									seenMage[mageSearch.mage]=true
+									break
 								end
-								break
 							end
 						end
 					end
@@ -27048,7 +27151,7 @@ function findNearbyMages(origin, distance)--origin={x, y, z}, distance=x
 		end
 	end
 	--Closest first; ties use highest Fame, then earlier turn order. One comparator avoids relying on sort stability.
-	table.sort(mageList, function(k1,k2)
+	table.sort(mageList,function(k1,k2)
 		if math.abs(k1.distance-k2.distance)>0.01 then return k1.distance<k2.distance end
 		if k1.fame~=k2.fame then return k1.fame>k2.fame end
 		return k1.turn<k2.turn
@@ -27134,11 +27237,14 @@ function normalizeSetupTableObjects()
 	--send city cards to bottom so tokens don't spawn under.
 	local sendToBottom={dummyBoard, gStates.cityCard[cityModel.blue], gStates.cityCard[cityModel.red], gStates.cityCard[cityModel.green], gStates.cityCard[cityModel.white], "e47fc3", "62d3c3", "12a3b1", "6f815c", "94c021", "d9c252", "7a56fa", "19c6ce", "aa6c1d", "d80815", "fdbc08", "0b57b9"}
 	for _, objGUID in pairs(sendToBottom) do
-		if getObjectFromGUID(objGUID)~=nil then
-			getObjectFromGUID(objGUID).setPosition({getObjectFromGUID(objGUID).getPosition()[1], 0.98, getObjectFromGUID(objGUID).getPosition()[3]})
-			local rot={0.00, 180.00, 0.00}
-			if getObjectFromGUID(objGUID).getRotation()[3]>=170 and getObjectFromGUID(objGUID).getRotation()[3]<=190 then rot=({0.00, 180.00, 180.00}) end
-			getObjectFromGUID(objGUID).setRotation(rot)
+		local obj=getObjectFromGUID(objGUID)
+		if obj~=nil then
+			local pos=obj.getPosition()
+			obj.setPosition({pos[1],0.98,pos[3]})
+			local rot={0.00,180.00,0.00}
+			local zRotation=obj.getRotation()[3]
+			if zRotation>=170 and zRotation<=190 then rot={0.00,180.00,180.00} end
+			obj.setRotation(rot)
 		end
 	end
 end
@@ -27169,10 +27275,14 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						clearPendingCoopAssault()
 					end
 				end
-				playerPickedUpHex=nil
+				if player_color~=nil and turnOrder[gStates.turnNumber].mage==avatar.mage then playerPickedUpHex=nil end
 				if getObjectFromGUID(dropped_object.guid)~=nil then
-					for _, playerDetails in pairs(turnOrder) do
+					local avatarPlayerIndex=nil
+					local avatarPlayerDetails=nil
+					for playerIndex, playerDetails in pairs(turnOrder) do
 						if playerDetails.mage==avatar.mage then
+							avatarPlayerIndex=playerIndex
+							avatarPlayerDetails=playerDetails
 							playerDetails.avatarLocation=""
 							playerDetails.avatarSharedHex=nil
 							local droppedPos=dropped_object.getPosition()
@@ -27197,11 +27307,11 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 							end
 							--Use one cached map snapshot for the current hex and its six neighbours.
 							local volkareCampKeepAllowed=volkareCampAsCityConquered()==true and volkareCampContributionShieldCount(playerDetails)>0
-							local mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets, mapSpatial=avatarLocationMapSnapshot()
+							local mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapSpatial=avatarLocationMapSnapshot()
 								for keepSearch=1, 7, 1 do
 									--Volkare can remove a City model during this loop, so retain the old live-refresh behaviour for him.
 									if keepSearch>1 and playerDetails.mage=="Volkare" then
-										mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets, mapSpatial=avatarLocationMapSnapshot()
+										mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapSpatial=avatarLocationMapSnapshot()
 									end
 									local locatedTerrain, bearing, _, hexFeature=terrainHexAtPosition(avatarPos, mapTerrainObjects, mapObjectPositions, mapTerrainRotations)
 								hexFeature=hexFeature or ""
@@ -27267,11 +27377,8 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 													end
 												end
 												if broadcast==true then
-													if temp==volkare.model then
-														broadcastToAll("{en}Volkare's Army Revealed{ru}Армия Волкара раскрыта{zh-tw}沃里卡军队揭示了{zh-cn}沃里卡军队揭示了{ko}볼케어의 군대가 공개되었습니다{es}Se revela el ejército de Volkare{fr}L'armée de Volkare révélée{pt-br}Exército de Volkare Revelado{de}Volkare's Armee aufgedeckt", {1,1,0.5})
-													else
+													--Volkare's moving army is deliberately excluded from proximity Auto Flip; attackCity() reveals it when combat starts.
 														broadcastToAll("{en}Site Garrison Revealed{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5})
-													end
 												end
 											end
 											--Assult Volkare
@@ -27294,7 +27401,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 												end
 											end
 											if gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="The Hidden Valley Blitz"
-												or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The Realm of the Dead Blitz"
+												or gStates.gameScenario=="The Realm of the Dead Blitz"
 												or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Dungeon Lords"
 												or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Mines Liberation" then
 												keepShieldMatch[keepSearch]["cityShield"]=true
@@ -27330,6 +27437,11 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 							break
 						end
 					end
+					--The location scan above owns playerIndex/playerDetails only inside the generic-for scope.
+					--Keep the matched owner explicitly for the hand/UI tail that intentionally runs after that scan.
+					local playerIndex=avatarPlayerIndex
+					local playerDetails=avatarPlayerDetails
+					if playerDetails==nil then return end
 					if turnOrder[gStates.turnNumber].mage==avatar.mage and player_color~=nil and gStates.preEndTurn==false and avatarChangedHex==true and
 						apocalypseDragonCombatContainsPosition~=nil and apocalypseDragonCombatContainsPosition(dropped_object.getPosition())==true and
 						gStates.apocalypseDragonDefeated~=true then
@@ -27355,28 +27467,29 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						if (targetFeature=="keep" or targetFeature=="mage tower") and wallAssaultChoiceResult==nil and wallAssaultChoiceNeeded(assaultTargetPosition, assaultApproachOrigin)==true then showWallAssaultChoice("attackLocation", attackedLocation, player_color)
 						else attackLocation(nil, "-1", attackedLocation) end
 					end
-					--adjust the hand size
-					local cityConversion={["White City"]=GUID.zone.whiteCity, ["Blue City"]=GUID.zone.blueCity, ["Red City"]=GUID.zone.redCity, ["Green City"]=GUID.zone.greenCity}
-					local previousHand=turnOrder[gStates.turnNumber].hand
+					--Adjust the hand size for the avatar owner. Delayed combat cleanup can refresh a
+					--non-current Mage Knight after the turn has advanced, so never apply this location to gStates.turnNumber.
+					local cityConversion={["White City"]=GUID.zone.whiteCity,["Blue City"]=GUID.zone.blueCity,["Red City"]=GUID.zone.redCity,["Green City"]=GUID.zone.greenCity}
+					local previousHand=playerDetails.hand
 					local handBonusSource=nil
 					local raisedReturnCity=(gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") and gStates.volkareRaisedCity==true
-					local nearCityForHand=turnOrder[gStates.turnNumber].nearCity==true and raisedReturnCity~=true
-					if (turnOrder[gStates.turnNumber].mage==avatar.mage and turnOrder[gStates.turnNumber].nearKeep==true) or nearCityForHand then
+					local nearCityForHand=playerDetails.nearCity==true and raisedReturnCity~=true
+					if (playerDetails.nearKeep==true) or nearCityForHand then
 						if nearCityForHand and cityFound~="False" then
-							if turnOrder[gStates.turnNumber].defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Lead" then turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+2 handBonusSource="City" end
-							if turnOrder[gStates.turnNumber].defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Assist" then turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+1 handBonusSource="City" end
+							if playerDetails.defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Lead" then playerDetails.hand=playerDetails.baseHand+2 handBonusSource="City" end
+							if playerDetails.defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Assist" then playerDetails.hand=playerDetails.baseHand+1 handBonusSource="City" end
 						end
-						if (turnOrder[gStates.turnNumber].nearKeep==true and nearCityForHand==false) or
-							(turnOrder[gStates.turnNumber].nearKeep==true and nearCityForHand==true and turnOrder[gStates.turnNumber].keepsBeat>1) then
-							turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+turnOrder[gStates.turnNumber].keepsBeat
-							if turnOrder[gStates.turnNumber].keepsBeat>0 then handBonusSource="Keep" end
+						if (playerDetails.nearKeep==true and nearCityForHand==false) or
+							(playerDetails.nearKeep==true and nearCityForHand==true and playerDetails.keepsBeat>1) then
+							playerDetails.hand=playerDetails.baseHand+playerDetails.keepsBeat
+							if playerDetails.keepsBeat>0 then handBonusSource="Keep" end
 						end
 					else
-						turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand
+						playerDetails.hand=playerDetails.baseHand
 					end
-					if turnOrder[gStates.turnNumber].hand~=previousHand then
-						if handBonusSource=="City" then broadcastToAll("{en}Hand size increased from proximity to City{ru}Предел карт в руке увеличен из-за близости города{zh-tw}手牌数量因靠近城市而增加{zh-cn}手牌数量因靠近城市而增加{ko}인접한 도시에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Ciudad.{fr}La taille de la main a augmenté de la proximité à la Ville{pt-br}O tamanho da mão aumentou devido à proximidade da Cidade{de}Handgröße durch Nähe zur Stadt erhöht", positionToColor(gStates.turnNumber)) end
-						if handBonusSource=="Keep" then broadcastToAll("{en}Hand size increased from proximity to Keep{ru}Предел карт в руке увеличен из-за близости крепости{zh-tw}手牌数量增加到最大值{zh-cn}手牌数量增加到最大值{ko}인접한 성에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Fortaleza{fr}La taille de la main a augmenté de la proximité à la Keep{pt-br}O tamanho da mão aumentou com a proximidade de Keep{de}Handgröße erhöht sich durch die Nähe zu Keep", positionToColor(gStates.turnNumber)) end
+					if playerDetails.hand~=previousHand then
+						if handBonusSource=="City" then broadcastToAll("{en}Hand size increased from proximity to City{ru}Предел карт в руке увеличен из-за близости города{zh-tw}手牌数量因靠近城市而增加{zh-cn}手牌数量因靠近城市而增加{ko}인접한 도시에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Ciudad.{fr}La taille de la main a augmenté de la proximité à la Ville{pt-br}O tamanho da mão aumentou devido à proximidade da Cidade{de}Handgröße durch Nähe zur Stadt erhöht",positionToColor(playerIndex)) end
+						if handBonusSource=="Keep" then broadcastToAll("{en}Hand size increased from proximity to Keep{ru}Предел карт в руке увеличен из-за близости крепости{zh-tw}手牌数量增加到最大值{zh-cn}手牌数量增加到最大值{ko}인접한 성에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Fortaleza{fr}La taille de la main a augmenté de la proximité à la Keep{pt-br}O tamanho da mão aumentou com a proximidade de Keep{de}Handgröße erhöht sich durch die Nähe zu Keep",positionToColor(playerIndex)) end
 					end
 					--Reset attack icon and interaction after leaving a hex, but preserve an interaction if the avatar was only repositioned on the same hex.
 					if turnOrder[gStates.turnNumber].mage==avatar.mage and attackedLocation==nil and horsemenGladeAssault==false and (avatarChangedHex==true or (next(gStates.attackedMonsters)==nil and UI.getAttribute("zigguratPyramidInteract", "active")~="true")) then
@@ -27393,7 +27506,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 					if apocalypseQuestsUsed()==true then apocalypseQuestRefreshOfferButtons() end
 					if turnOrder[gStates.turnNumber].mage==avatar.mage then refreshFracturedLandsTeleportHighlights() end
 					addAvatarButtons()
-					if gStates.rampagePursuit==true and gStates.preEndTurn==false then pursuingRampagers(nil, "-1", nil) end
+					if turnOrder[gStates.turnNumber].mage==avatar.mage and gStates.rampagePursuit==true and gStates.preEndTurn==false then pursuingRampagers(nil, "-1", nil) end
 				end
 			end
 
@@ -27532,45 +27645,23 @@ function refreshTerrainExploreOptions(compactCities)
 		local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
 		local leftCountry=getObjectFromGUID(GUID.bag.terrain.leftCountry)
 		local leftCore=getObjectFromGUID(GUID.bag.terrain.leftCore)
-		local function retryTerrainExploreRefresh()
-			if terrainExploreRefreshQueued==true then return end
-			terrainExploreRefreshQueued=true
-			safeWaitFrames("Map",function()
-				terrainExploreRefreshQueued=false
-				refreshTerrainExploreOptions(compactCities)
-			end,1)
-		end
-		local terrainStackQuantity=0
-		local terrainStackObjects=nil
-		if terrainStack~=nil then
-			--TTS can destroy/rebuild the terrain container while loose tiles merge into the final stack.
-			--During that frame even getQuantity() can throw from the transient container proxy, so protect
-			--both reads and retry the derived EXPLORE view once the replacement object exists.
-			local quantityOK, quantity=pcall(function() return terrainStack.getQuantity() end)
-			local objectsOK, objects=pcall(function() return terrainStack.getObjects() end)
-			if quantityOK~=true or objectsOK~=true then retryTerrainExploreRefresh() return end
-			terrainStackQuantity=tonumber(quantity) or 0
-			terrainStackObjects=objects
-		end
-		if terrainStackQuantity>1 and type(terrainStackObjects)~="table" then retryTerrainExploreRefresh() return end
-		terrainStackObjects=type(terrainStackObjects)=="table" and terrainStackObjects or {}
-		local terrainStackSingleTile=terrainStack~=nil and terrainTiles[terrainStack.guid]~=nil and terrainTiles[terrainStack.guid].tileType~="tilePile"
+		--The terrain stack is a persistent model bag, not a collapsing Deck. It remains a valid
+		--container at quantity zero, so ordinary guarded container reads are sufficient here.
+		local terrainStackQuantity=terrainStack~=nil and (tonumber(terrainStack.getQuantity()) or 0) or 0
+		local terrainStackObjects=terrainStack~=nil and terrainStack.getObjects() or {}
 		if #terrainStackObjects>0 then
 			local nextTerrainIndex=terrainStackQuantity-1
 			testTerrain=terrainStackObjects[#terrainStackObjects].guid
 			for _, containedTerrain in pairs(terrainStackObjects) do
 				if containedTerrain.index==nextTerrainIndex then testTerrain=containedTerrain.guid break end
 			end
-		elseif terrainStackSingleTile==true and terrainStack~=nil then
-			--A terrain stack collapses back to the final tile object when only one tile remains.
-			testTerrain=terrainStack.guid
 		else
 			nameTerrain="excess"
 			testTerrain="country"
 		end
 		local leftCountryQuantity=leftCountry~=nil and (tonumber(leftCountry.getQuantity()) or 0) or 0
 		local leftCoreQuantity=leftCore~=nil and (tonumber(leftCore.getQuantity()) or 0) or 0
-		if terrainStackQuantity>0 or terrainStackSingleTile==true or leftCountryQuantity>0 or leftCoreQuantity>0 then
+		if terrainStackQuantity>0 or leftCountryQuantity>0 or leftCoreQuantity>0 then
 			for _, terTile in pairs(terrainExploreSpots) do
 				local found=false
 				for _, mightBeMap in pairs(faceUpTerrain) do
@@ -27595,13 +27686,18 @@ function refreshTerrainExploreOptions(compactCities)
 	end
 end
 
-local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBearing,northBearing,mapSnapshot)
+local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,northBearing,mapSnapshot)
 	if gStates.mapShapeKey~="predefined" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then return end
+	local startGUID=getObjectFromGUID(startTerrain.open)~=nil and startTerrain.open or startTerrain.wedge
+	local startObj=getObjectFromGUID(startGUID)
+	if startObj==nil then return end
+	local startPosition=(mapSnapshot~=nil and mapSnapshot.terrainPositions~=nil and mapSnapshot.terrainPositions[startGUID]) or startObj.getPosition()
 	for _, mightBeMap in pairs(playAreaObjects) do
 		if terrainTiles[mightBeMap.guid]~=nil then
 			local cachedPosition=mapSnapshot~=nil and mapSnapshot.terrainPositions~=nil and mapSnapshot.terrainPositions[mightBeMap.guid] or nil
 			local mapPosition=cachedPosition or mightBeMap.getPosition()
-			if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mapPosition[1], 0, mapPosition[3]}},faceUpTerrain,northBearing,{})==false then
+			local tileBearing=math.deg(math.atan2(mapPosition[3]-startPosition[3],mapPosition[1]-startPosition[1]))
+			if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=tileBearing, objName=mightBeMap.getName(), position={mapPosition[1], 0, mapPosition[3]}},faceUpTerrain,northBearing,{})==false then
 				mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
 			else
 				local useNightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
@@ -27625,19 +27721,18 @@ end
 function refreshPredefinedTerrainTint()
 	local mapSnapshot,playAreaObjects,faceUpTerrain=runtimeTerrainPlacementView()
 	local northBearing=getObjectFromGUID(startTerrain.open)==nil and 70 or 40
-	applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,0,northBearing,mapSnapshot)
+	applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,northBearing,mapSnapshot)
 end
 
 function mapHandleTerrainZoneEnter(ctx)
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	--Check if a terrain tile has entered the play area
 	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
 		if startingMapSetup==true then startingMapTiles[objGUID]=true end
 		local initialSetupTerrain=startingMapTiles~=nil and startingMapTiles[objGUID]==true
+		local newTerrainReveal=gStates.playedAllready[objGUID]~=true
 		workingOnTerrain[objGUID]=true
 		--Setup terrain still needs normal site/enemy population, but player-exploration UI/effects wait for actual play.
 		if initialSetupTerrain~=true then safeWaitTime("Map",function() addAvatarButtons() end, 1.5) end
@@ -27669,7 +27764,7 @@ function mapHandleTerrainZoneEnter(ctx)
 
 
 		--make predefined maps highlight red
-		applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBearing,northBearing,mapSnapshot)
+		applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,northBearing,mapSnapshot)
 
 
 
@@ -27681,12 +27776,12 @@ function mapHandleTerrainZoneEnter(ctx)
 			if startingMapSetup==true then
 				if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
 			end
-			if initialSetupTerrain~=true then
+			if initialSetupTerrain~=true and newTerrainReveal==true then
 				againstDragonRevealLair(obj)
 				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
 			end
 			--Check if the object is a core tile and unlock elite units
-			if terrainTiles[objGUID].tileType=="core" and (objGUID~=GUID.tile.volkareCamp or (objGUID==GUID.tile.volkareCamp and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
+			if newTerrainReveal==true and terrainTiles[objGUID].tileType=="core" and (objGUID~=GUID.tile.volkareCamp or (objGUID==GUID.tile.volkareCamp and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
 				gStates.playedCoreTiles=gStates.playedCoreTiles+1
 				gStates.eliteUnitsUsed=true
 				if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
@@ -27698,7 +27793,7 @@ function mapHandleTerrainZoneEnter(ctx)
 			end
 
 			--Against the Apocalypse destroyed terrain
-			if initialSetupTerrain~=true and gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.tacticShown==false and enteredTileName~="excess" then
+			if initialSetupTerrain~=true and newTerrainReveal==true and gStates.gameScenario=="Against the Apocalypse Blitz" and gStates.tacticShown==false and enteredTileName~="excess" then
 				destroyNextAgainstApocalypseSite(obj)
 			end
 
@@ -27988,7 +28083,7 @@ function mapHandleTerrainZoneEnter(ctx)
 
 			--Fame is awarded only for terrain actually explored during play. Initial setup terrain is
 			--tagged when it enters the map and never counts as exploration in these scenarios.
-			if initialSetupTerrain~=true and
+			if initialSetupTerrain~=true and newTerrainReveal==true and
 				(gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="The Lost Relic Blitz" or gStates.gameScenario=="The Fractured Lands Blitz") and gStates.tacticShown==false then
 				turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
 				local centerFeature=terrainTiles[objGUID].hexFeature["center"] or ""
@@ -29661,6 +29756,7 @@ end)
 __bundle_register("PlayingGame.Quests", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Quest-private helpers share one namespace to avoid Lua's top-level local-variable limit.
 local QuestPrivate={}
+QuestPrivate.apocalypseQuestRetiringCards={}
 
 -- Quest-private helpers. This batch deliberately leaves local-variable headroom for future Quest work.
 local apocalypseQuestStageIntoContainer, apocalypseQuestReturnRevealBag, apocalypseQuestRevealSetup, apocalypseQuestUndoSiteToken, apocalypseQuestTokenFaceUp
@@ -30023,18 +30119,11 @@ local function apocalypseQuestTuckedCardDestination(card)
 end
 apocalypseQuestStageIntoContainer=function(obj,container)
 	if obj==nil or container==nil then return false end
-	local objectGUID=obj.guid
-	local containerGUID=container.guid
-	local target=container.getPosition()
+	if obj.guid==nil or container.guid==nil then return false end
+	--Return directly to the destination container. Deferring this operation by two frames caused an
+	--intermittent native TTS "Value cannot be null / key" error during end-of-round Quest cleanup.
 	obj.unlock()
-	--Teleport clear of the Quest first. Direct putObject while a tucked object is still physically under
-	--the Quest lets the Quest collider carry it when the Quest card moves in the same cleanup frame.
-	obj.setPosition({target[1],target[2]+2.2,target[3]})
-	safeWaitFrames("Quests",function()
-		local live=getObjectFromGUID(objectGUID)
-		local liveContainer=getObjectFromGUID(containerGUID)
-		if live~=nil and liveContainer~=nil then liveContainer.putObject(live) end
-	end,2)
+	container.putObject(obj)
 	return true
 end
 
@@ -32601,7 +32690,7 @@ function apocalypseQuestRefreshStrayToken()
 	return true
 end
 
-function apocalypseQuestEndRoundCleanup()
+function apocalypseQuestEndRoundCleanup(onComplete)
 	if apocalypseQuestsUsed()~=true or gStates.firstStarted~=true then return false end
 	if gStates.currentRound>=gStates.rounds then return false end
 	local cards=QuestPrivate.apocalypseQuestOfferCards()
@@ -32615,6 +32704,7 @@ function apocalypseQuestEndRoundCleanup()
 	local function cleanNext(index)
 		if index>#queue then
 			broadcastToAll("{en}Quest cleanup complete. The Quest offer will refill normally as player turns begin.{ru}Очистка заданий завершена. Предложение заданий будет пополняться обычным образом с началом ходов игроков.{zh-tw}任務清理完成。玩家回合開始後，任務供應將正常補充。{zh-cn}任务清理完成。玩家回合开始后，任务供应将正常补充。{ko}퀘스트 정리가 완료되었습니다. 플레이어 턴이 시작되면 퀘스트 제안이 정상적으로 보충됩니다.{es}Limpieza de Misiones completada. La oferta de Misiones se rellenará normalmente al comenzar los turnos de los jugadores.{fr}Nettoyage des Quêtes terminé. L’offre de Quêtes se remplira normalement au début des tours des joueurs.{pt-br}Limpeza das Missões concluída. A oferta de Missões será reabastecida normalmente quando os turnos dos jogadores começarem.{de}Quest-Bereinigung abgeschlossen. Das Quest-Angebot wird zu Beginn der Spielerzüge normal aufgefüllt.",{1,1,0.5})
+			if onComplete~=nil then onComplete(true) end
 			return
 		end
 		local card=queue[index]
@@ -34800,6 +34890,10 @@ end
 
 function apocalypseQuestUpdateProgressButtons(card)
 	if card==nil then return end
+	if QuestPrivate.apocalypseQuestRetiringCards[card.guid]==true then
+		QuestPrivate.apocalypseQuestInterfaceRemove(card)
+		return
+	end
 	if gStates.apocalypseQuestOfferRefilling==true or gStates.apocalypseQuestOfferMoving==true then
 		gStates.apocalypseQuestOfferButtonRefreshPending=true
 		return
@@ -34895,6 +34989,13 @@ end
 
 function QuestPrivate.apocalypseQuestInterfaceAdd(card, forceRebuild)
 	if card==nil or card.type~="Card" then return end
+	--A delayed offer/button refresh can fire after BottomDeck has already cleared this Quest's runtime
+	--state. Never let that callback relock the retiring card or rerun reveal setup, which would recreate
+	--its buttons, markers and tucked cards while the card is on its way back to the Quest deck.
+	if QuestPrivate.apocalypseQuestRetiringCards[card.guid]==true then
+		QuestPrivate.apocalypseQuestInterfaceRemove(card)
+		return
+	end
 	card.lock()
 	--Reminder cards are deliberately parked outside the live Quest offer and must never regain their
 	--Progress/Complete UI from a delayed resting/refresh callback left over from their final action.
@@ -35405,6 +35506,9 @@ end
 
 function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	if card==nil then if onComplete~=nil then onComplete(false) end return false end
+	local cardGUID=card.guid
+	if cardGUID==nil then if onComplete~=nil then onComplete(false) end return false end
+	QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=true
 	local handler=apocalypseQuestHandler(card)
 	if handler~=nil and handler.bottomDeckBeforeReveal~=nil then handler.bottomDeckBeforeReveal(card) end
 	apocalypseQuestReturnRevealBag(card)
@@ -35413,13 +35517,18 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	--Such a card follows the same reminder rule as a normally completed Quest.
 	if QuestPrivate.apocalypseQuestHasActiveReminderToken(card)==true and (gStates.apocalypseQuestReminderCards==nil or gStates.apocalypseQuestReminderCards[card.guid]==nil) then
 		local parked=QuestPrivate.apocalypseQuestParkReminder(card)
+		QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
 		if onComplete~=nil then onComplete(parked==true) end
 		return parked
 	end
 	apocalypseQuestClearCardRuntime(card.guid)
 	QuestPrivate.apocalypseQuestInterfaceRemove(card)
 	local deck=QuestPrivate.apocalypseQuestLiveDeck()
-	if deck==nil or deck.guid==card.guid then if onComplete~=nil then onComplete(false) end return false end
+	if deck==nil or deck.guid==card.guid then
+		QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
+		if onComplete~=nil then onComplete(false) end
+		return false
+	end
 
 	--Face-down Quest tokens are only markers, so they always return with the Quest. A keepToken Quest
 	--leaves its token behind only after that token has been flipped face up into its lasting reward/site/effect.
@@ -35475,7 +35584,6 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	end
 	apocalypseQuestRemoveShields(card)
 
-	local cardGUID=card.guid
 	local function attachmentsClear()
 		local liveCard=getObjectFromGUID(cardGUID)
 		if liveCard==nil then return true end
@@ -35491,9 +35599,17 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	end
 	local function finishBottomDeck()
 		local liveCard=getObjectFromGUID(cardGUID)
-		if liveCard==nil then return end
+		if liveCard==nil then
+			QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
+			if onComplete~=nil then onComplete(false) end
+			return
+		end
 		local liveDeck=QuestPrivate.apocalypseQuestLiveDeck()
-		if liveDeck==nil or liveDeck.guid==liveCard.guid then return end
+		if liveDeck==nil or liveDeck.guid==liveCard.guid then
+			QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
+			if onComplete~=nil then onComplete(false) end
+			return
+		end
 		apocalypseQuestMarkReturned(liveCard)
 		liveCard.unlock()
 		local deckGUID=liveDeck.guid
@@ -35506,6 +35622,7 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 			local stagedCard=getObjectFromGUID(cardGUID)
 			local stagedDeck=getObjectFromGUID(deckGUID) or QuestPrivate.apocalypseQuestLiveDeck()
 			if stagedCard==nil or stagedDeck==nil or stagedDeck.guid==stagedCard.guid then
+				QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
 				if onComplete~=nil then onComplete(false) end
 				return
 			end
@@ -35515,6 +35632,7 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 				if liveDeck~=nil then GUID.deck.apocalypseQuest=liveDeck.guid end
 				refreshOutOfTurnActions(nil,nil,true)
 				QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
+				QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
 				if onComplete~=nil then onComplete(liveDeck~=nil) end
 			end)
 		end,2)
@@ -41902,6 +42020,10 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 							newCard.setRotationSmooth({0,180,0},false,false)
 						end
 						if newCard~=nil then
+							--The resize arrows belong only to the live Spell source. TTS can carry object UI onto a
+							--card extracted while a source pile is merging/splitting (notably during round cleanup),
+							--so strip inherited source UI before this card becomes an offer card.
+							if deckName=="Spell" then newCard.UI.setXmlTable({{}}) end
 							offerList[row][column]=newCard.guid
 							movedCards[#movedCards+1]=newCard.guid
 							lockOfferCardWhenResting(newCard.guid)
@@ -44021,7 +44143,7 @@ __bundle_register("Shared", function(require, _LOADED, __bundle_register, __bund
 local joinLangParse
 
 -- Shared-module private helpers. Predeclared so forward references keep resolving locally.
-local safeSpawnObjectData, rewindTransactionForceRelease, tableCopy
+local rewindTransactionForceRelease
 
 -- Shared helpers used by more than one Global source module.
 -- Keep subsystem-owned game logic in its owning module.
@@ -44045,9 +44167,6 @@ function safeSpawnObject(scope, params)
 	return spawnObject(safeObjectCallbackParams(scope,params))
 end
 
-safeSpawnObjectData=function(scope, params)
-	return spawnObjectData(safeObjectCallbackParams(scope,params))
-end
 
 function safeWaitFrames(scope, callback, frames)
 	local label=automaticLuaAsyncLabel(scope,"Wait.frames")
@@ -44087,7 +44206,7 @@ local function objectUIApplyXml(obj,xml)
 	return true
 end
 
-function objectUIFilteredXml(obj,removeId)
+local function objectUIFilteredXml(obj,removeId)
 	local xml=obj~=nil and obj.UI~=nil and (obj.UI.getXmlTable() or {}) or {}
 	if type(removeId)~="function" then return xml,false end
 	local changed=false
@@ -44099,7 +44218,7 @@ function objectUIFilteredXml(obj,removeId)
 	return xml,changed
 end
 
-function objectUIRemoveMatching(obj,removeId)
+local function objectUIRemoveMatching(obj,removeId)
 	local xml,changed=objectUIFilteredXml(obj,removeId)
 	if changed==true then objectUIApplyXml(obj,xml) end
 	return changed,xml
@@ -44322,7 +44441,8 @@ function positionToColor(turnNumber)
 	local color="Black"
 	local turnDetails=turnOrder[turnNumber]
 	if turnDetails==nil then return color end
-	if turnDetails.mage~=gStates.positionMageKnight[5] then
+	local dummyMage=gStates~=nil and gStates.positionMageKnight~=nil and gStates.positionMageKnight[5] or nil
+	if turnDetails.mage~=dummyMage then
 		for _, handColor in pairs(Player.getAvailableColors()) do
 			local handPlayer=Player[handColor]
 			local handTransform=handPlayer~=nil and handPlayer.getHandTransform() or nil
@@ -44353,7 +44473,7 @@ end
 
 --Rewards Claimed soft locks are player reminders, not hard disables. They share one short window
 --from the moment the Rewards Claimed stage begins, then allow the player to continue manually.
-REWARD_CLAIM_SOFT_LOCK_SECONDS=30
+local REWARD_CLAIM_SOFT_LOCK_SECONDS=30
 
 function rewardClaimSoftLockStart()
 	if gStates==nil then return end
@@ -44387,7 +44507,6 @@ end
 --for one seat can share the same rewind transaction without releasing the outer transaction early.
 --TTS storeRewindState captures a full engine rewind snapshot before protected scripted actions.
 --Keep the transaction ownership/sequencing and store the safe rewind point before mutations begin.
-local rewindTransactionStoreEnabled=true
 local rewindTransactionStorePending=false
 local rewindTransactionBlocked=false
 local rewindTransactionGeneration=0
@@ -44408,7 +44527,7 @@ function rewindTransactionStart(andThen,owner,onFailure)
 		andThen()
 		return true
 	end
-	if rewindTransactionStoreEnabled~=true or type(storeRewindState)~="function" then
+	if type(storeRewindState)~="function" then
 		rewindTransactionOwners[owner]=true
 		andThen()
 		return true
@@ -44566,9 +44685,9 @@ end
 -- in-memory indexes and must never be persisted in gStates. Ordinary map membership changes invalidate
 -- only the cheap object list. Terrain membership/transform/face changes also invalidate the expensive
 -- terrain hex topology.
-runtimeMapObjectCache=nil
-runtimeMapTerrainCache=nil
-runtimeMapSnapshotCache=nil
+local runtimeMapObjectCache=nil
+local runtimeMapTerrainCache=nil
+local runtimeMapSnapshotCache=nil
 
 function runtimeMapInvalidateObjects()
 	runtimeMapObjectCache=nil
@@ -44669,7 +44788,7 @@ function runtimeMapWorldHexDistance(fromPos,toPos)
 	return runtimeMapAxialDistance(q,r)
 end
 
-function terrainHexChoiceUIPlacement(key,buttonScale,splitIndex,splitCount,referenceScale)
+local function terrainHexChoiceUIPlacement(key,buttonScale,splitIndex,splitCount,referenceScale)
 	if key==nil then return nil,nil end
 	local terrainGUID,bearing=tostring(key):match("^([^|]+)|(.+)$")
 	local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
@@ -44852,8 +44971,8 @@ end
 
 function runtimeMapHexByKey(hexes,key)
 	if key==nil or hexes==nil then return nil end
-	local snapshot=runtimeMapSnapshot()
-	if hexes==snapshot.hexes then return snapshot.hexByKey[key] end
+	local terrainCache=runtimeMapTerrainCache
+	if terrainCache~=nil and hexes==terrainCache.hexes then return terrainCache.hexByKey[key] end
 	for _,hex in ipairs(hexes) do if runtimeMapHexKey(hex)==key then return hex end end
 	return nil
 end
@@ -44861,8 +44980,8 @@ end
 function runtimeMapHexDistanceMap(hexes,starts)
 	local distances={}
 	local queue={}
-	local snapshot=runtimeMapSnapshot()
-	local useCachedTopology=hexes==snapshot.hexes
+	local terrainCache=runtimeMapTerrainCache
+	local useCachedTopology=terrainCache~=nil and hexes==terrainCache.hexes
 	for _,startHex in ipairs(starts or {}) do
 		local key=runtimeMapHexKey(startHex)
 		if key~=nil and distances[key]==nil then
@@ -44877,7 +44996,7 @@ function runtimeMapHexDistanceMap(hexes,starts)
 		local currentKey=runtimeMapHexKey(current)
 		local currentDistance=distances[currentKey] or 0
 		if useCachedTopology==true then
-			for _,candidate in ipairs(snapshot.neighbors[currentKey] or {}) do
+			for _,candidate in ipairs(terrainCache.neighbors[currentKey] or {}) do
 				local key=runtimeMapHexKey(candidate)
 				if key~=nil and distances[key]==nil then
 					distances[key]=currentDistance+1
@@ -44905,7 +45024,7 @@ end
 --Build a live spatial view on top of the shared runtime map. Object membership comes from the
 --invalidated runtime map cache, while positions are intentionally sampled fresh so ordinary movement
 --inside the map zone is immediately authoritative without persisting another map copy in gStates.
-runtimeMapSpatialCell=3
+local runtimeMapSpatialCell=3
 function runtimeMapSpatialSnapshot(cellSize)
 	cellSize=cellSize or runtimeMapSpatialCell
 	local snapshot=runtimeMapSnapshot()
@@ -44968,14 +45087,17 @@ end
 --cache; ordinary callers can omit both collections and use the shared runtime snapshot directly.
 function runtimeMapHexForPosition(hexes,position,mapObjects)
 	if position==nil then return nil end
-	local snapshot=runtimeMapSnapshot()
-	if hexes==nil or (hexes==snapshot.hexes and (mapObjects==nil or mapObjects==snapshot.objects)) then
-		return runtimeMapHexAtPosition(position,snapshot)
+	if hexes==nil then return runtimeMapHexAtPosition(position,runtimeMapSnapshot()) end
+	local terrainCache=runtimeMapTerrainCache
+	local objectCache=runtimeMapObjectCache
+	if terrainCache~=nil and hexes==terrainCache.hexes and
+		(mapObjects==nil or (objectCache~=nil and mapObjects==objectCache.objects)) then
+		return runtimeMapHexAtPosition(position,terrainCache)
 	end
 	local terrain,bearing=terrainHexAtPosition(position,mapObjects)
 	if terrain==nil or bearing==nil then return nil end
 	local key=runtimeMapHexKey(terrain.guid,bearing)
-	for _,hex in ipairs(hexes or {}) do
+	for _,hex in ipairs(hexes) do
 		if runtimeMapHexKey(hex)==key then return hex end
 	end
 	return nil
@@ -44986,13 +45108,21 @@ end
 function legalPlayerCheck(clickingPlayersColor, playerPosExpected, rule)
 	--converts player color in to a posiion value
 	local playerPosition=0
-	if clickingPlayersColor~="Grey" and clickingPlayersColor~="Black" and Player[clickingPlayersColor].seated==true and Player[clickingPlayersColor].getHandTransform()~=nil then playerPosition=math.ceil((Player[clickingPlayersColor].getHandTransform().position[1]+97.59)/40) end
-	if playerPosition==playerPosExpected or clickingPlayersColor=="Black" or (rule==nil and turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5]) then
+	local clickingPlayer=type(clickingPlayersColor)=="string" and Player[clickingPlayersColor] or nil
+	if clickingPlayersColor~="Grey" and clickingPlayersColor~="Black" and clickingPlayer~=nil and clickingPlayer.seated==true then
+		local handTransform=clickingPlayer.getHandTransform()
+		if handTransform~=nil and handTransform.position~=nil then playerPosition=math.ceil((handTransform.position[1]+97.59)/40) end
+	end
+	local currentTurn=gStates~=nil and gStates.turnNumber~=nil and turnOrder[gStates.turnNumber] or nil
+	local dummyMage=gStates~=nil and gStates.positionMageKnight~=nil and gStates.positionMageKnight[5] or nil
+	if playerPosition==playerPosExpected or clickingPlayersColor=="Black" or
+		(rule==nil and currentTurn~=nil and dummyMage~=nil and currentTurn.mage==dummyMage) then
 		return true
 	else
 		for a=1, #turnOrder, 1 do
-			if turnOrder[a].seatPos==playerPosExpected then
-				broadcastToAll(joinLang({"{en}Only player sitting at {ru}Только игрок, сидящий на месте {zh-tw}只有{zh-cn}只有{ko}오직 플레이어 {es}Solo el jugador sentado en {fr}Seul le joueur assis à {pt-br}Único jogador sentando em {de}Nur Spieler, die auf ", translateWord[turnOrder[a].mage], "{en} or Game Master(Black) may press this.\n(Change seats by left clicking your Name found in the upper right corner){ru} или на месте Game Master (Черный) может нажать сюда.\n(Чтобы сменить место, щелкните ЛКМ по своему имени, указанному в правом верхнем углу){zh-tw}和黑色玩家可以操作(你可以单击右上角你的名字更改颜色){zh-cn}和黑色玩家可以操作(你可以单击右上角你的名字更改颜色){ko}본인이나 게임 마스터(검정)만이 클릭할 수 있습니다.\n(자리를 바꾸려면 우상단의 버튼에서 닉네임을 클릭하세요){es} o Game Master (Negro) puede presionar esto.\n(Cambie de asiento haciendo clic izquierdo en su nombre que se encuentra en la esquina superior derecha){fr} ou au Game Master (Black) peut appuyer dessus.\n(Changez de siège en cliquant avec le bouton gauche sur votre nom trouvé dans le coin supérieur droit){pt-br} Jogador Mestre (Preto) pode pressionar isto.\nMude assentos apertando no seu nome no canto superior direito{de} oder Game Master(Black) kann dies drücken.\n(Wechseln Sie den Sitzplatz, indem Sie mit der linken Maustaste auf Ihren Namen in der oberen rechten Ecke klicken)"}), warningColor)
+			local details=turnOrder[a]
+			if details~=nil and details.seatPos==playerPosExpected then
+				broadcastToAll(joinLang({"{en}Only player sitting at {ru}Только игрок, сидящий на месте {zh-tw}只有{zh-cn}只有{ko}오직 플레이어 {es}Solo el jugador sentado en {fr}Seul le joueur assis à {pt-br}Único jogador sentando em {de}Nur Spieler, die auf ", translateWord[details.mage], "{en} or Game Master(Black) may press this.\n(Change seats by left clicking your Name found in the upper right corner){ru} или на месте Game Master (Черный) может нажать сюда.\n(Чтобы сменить место, щелкните ЛКМ по своему имени, указанному в правом верхнем углу){zh-tw}和黑色玩家可以操作(你可以单击右上角你的名字更改颜色){zh-cn}和黑色玩家可以操作(你可以单击右上角你的名字更改颜色){ko}본인이나 게임 마스터(검정)만이 클릭할 수 있습니다.\n(자리를 바꾸려면 우상단의 버튼에서 닉네임을 클릭하세요){es} o Game Master (Negro) puede presionar esto.\n(Cambie de asiento haciendo clic izquierdo en su nombre que se encuentra en la esquina superior derecha){fr} ou au Game Master (Black) peut appuyer dessus.\n(Changez de siège en cliquant avec le bouton gauche sur votre nom trouvé dans le coin supérieur droit){pt-br} Jogador Mestre (Preto) pode pressionar isto.\nMude assentos apertando no seu nome no canto superior direito{de} oder Game Master(Black) kann dies drücken.\n(Wechseln Sie den Sitzplatz, indem Sie mit der linken Maustaste auf Ihren Namen in der oberen rechten Ecke klicken)"}), warningColor)
 				break
 			end
 		end
@@ -45013,20 +45143,11 @@ function isTacticCard(obj)
 	return false
 end
 
--- Shared table copy helper
-tableCopy=function(obj, seen)
-	local seen=seen or {}
-	if type(obj)~='table' then return obj end
-	if seen[obj] then return seen[obj] end
-	local res=setmetatable({}, getmetatable(obj))
-	seen[obj]=res
-	for key, value in pairs(obj) do res[tableCopy(key, seen)]=tableCopy(value, seen) end
-	return res
-end
-
 end)
 __bundle_register("ErrorReporting", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
+
+local automaticLuaZoneContext
 
 -- Error-report boundaries for callbacks that TTS invokes after the originating function has returned.
 -- These helpers deliberately keep the native Wait signatures so existing timing/return behaviour is unchanged.
@@ -45053,6 +45174,20 @@ function safeAsyncCallback(label, callback, contextCallback)
 	end
 end
 
+--Wrap a named public callback after all modules have loaded without rewriting the owning subsystem.
+--This is primarily used for XML/Object UI callbacks, which TTS invokes directly by global name.
+function safePublicCallback(label, callback, contextCallback)
+	if type(callback)~="function" then return callback end
+	return function(...)
+		local args={n=select("#",...),...}
+		local contextFactory=nil
+		if type(contextCallback)=="function" then
+			contextFactory=function() return contextCallback(automaticLuaUnpackArgs(args,1)) end
+		end
+		return safeCallback(label,function() return callback(automaticLuaUnpackArgs(args,1)) end,contextFactory)
+	end
+end
+
 function safeObjectCallbackParams(scope, params)
 	if type(params)~="table" or type(params.callback_function)~="function" then return params end
 	local safeParams={}
@@ -45063,13 +45198,12 @@ end
 
 -- Automatic Lua error reporting
 local automaticLuaErrorReporting=false
-local automaticLuaErrorLastReport=0 --kept for the manual test hook / compatibility
 local automaticLuaErrorCooldown=10
 local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="438"
+local automaticLuaErrorReporterVersion="439"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -45106,7 +45240,7 @@ end
 local function automaticLuaErrorCityLevel()
 	return automaticLuaErrorValue(function()
 		local text="[ "
-		for _, level in pairs(gStates.cityLevels) do text=text..tostring(level).." " end
+		for _, level in ipairs(gStates.cityLevels) do text=text..tostring(level).." " end
 		return text.."]"
 	end, "")
 end
@@ -45207,6 +45341,7 @@ local function sendAutomaticLuaErrorRequest(comment)
 		darknessComing=automaticLuaErrorStateValue("darknessComing", ""),
 		startAtNight=automaticLuaErrorStateValue("startAtNight", ""),
 		heroChallenges=automaticLuaErrorStateValue("heroChallenges", ""),
+		apocalypseQuestCards=automaticLuaErrorStateValue("apocalypseQuestCards", false),
 		questMod=automaticLuaErrorStateValue("questMod", ""),
 		weatherMod=automaticLuaErrorStateValue("weatherMod", ""),
 		itemShopMod=automaticLuaErrorStateValue("itemShopMod", ""),
@@ -45228,7 +45363,15 @@ local function sendAutomaticLuaErrorRequest(comment)
 	--nil/error lookups have already been converted to their fallback (normally an empty string).
 	for key, value in pairs(gameRecord) do gameRecord[tostring(key)]=tostring(value) end
 	WebRequest.post(automaticLuaErrorURL, gameRecord, function(w)
-		log("Automatic Lua error report response: "..tostring(w.text))
+		local isError=w==nil or w.is_error==true
+		local responseCode=w~=nil and tonumber(w.response_code) or nil
+		local httpError=responseCode~=nil and responseCode~=0 and (responseCode<200 or responseCode>=300)
+		if isError or httpError then
+			local reason=w~=nil and (w.error or w.text) or "No WebRequest response"
+			log("Automatic Lua error report delivery failed (HTTP "..tostring(responseCode or "?").."): "..tostring(reason).."\n"..comment)
+		else
+			log("Automatic Lua error report response: "..tostring(w~=nil and w.text or ""))
+		end
 	end)
 end
 
@@ -45257,7 +45400,6 @@ local function reportAutomaticLuaError(functionName, errorText, context)
 	local last=automaticLuaErrorSignatures[signature]
 	if last~=nil and now-last<automaticLuaErrorCooldown then return end
 	automaticLuaErrorSignatures[signature]=now
-	automaticLuaErrorLastReport=now
 	--Keep the signature table bounded during very long sessions.
 	local signatureCount=0
 	for key,when in pairs(automaticLuaErrorSignatures) do
@@ -45271,7 +45413,6 @@ local function reportAutomaticLuaError(functionName, errorText, context)
 	local breadcrumbs=automaticLuaBreadcrumbText()
 	if breadcrumbs~="" then comment=comment.."\nRecent script actions: "..breadcrumbs end
 	comment=comment.."\n\n"..tostring(errorText)
-	pcall(function() UI.setAttribute("SendBugComment", "text", comment) end)
 	local ok, reportError=pcall(function() sendAutomaticLuaErrorRequest(comment) end)
 	if not ok then log("Automatic Lua error report failed: "..tostring(reportError).."\n"..comment) end
 	automaticLuaErrorReporting=false
@@ -45308,9 +45449,10 @@ end
 -- Lightweight boundary for hot TTS callbacks where allocating the normal safeCallback closure/breadcrumb
 -- path on every event is unnecessary. Detailed context can be added by the callback itself if needed.
 function safeDirectCallback(functionName, callback, first, second)
-	local ok, result=pcall(callback,first,second)
+	local ok, result=xpcall(callback,automaticLuaTraceback,first,second)
 	if not ok then
-		reportAutomaticLuaError(functionName,tostring(result))
+		automaticLuaBreadcrumb(functionName)
+		reportAutomaticLuaError(functionName,result)
 		return false
 	end
 	return result
@@ -45328,7 +45470,6 @@ function testAutomaticLuaError()
 		return rawError
 	end)
 	if ok==true then return end
-	automaticLuaErrorLastReport=0
 	automaticLuaErrorSignatures={}
 	reportAutomaticLuaError("TEST - automatic Lua error reporting", err, "Intentional test error triggered with !testerror")
 	error(rawError or "Intentional automatic Lua error reporting test", 0)
@@ -45339,7 +45480,7 @@ function testAutomaticLuaAsyncError()
 	safeWaitFrames("TEST async",function() error("Intentional asynchronous automatic Lua error reporting test",0) end,1)
 end
 
-function automaticLuaZoneContext(zone, obj)
+automaticLuaZoneContext=function(zone, obj)
 	local objectGUID=obj~=nil and obj.guid or "nil"
 	local zoneGUID=zone~=nil and zone.guid or "nil"
 	local objectType=obj~=nil and obj.type or "nil"
@@ -45369,6 +45510,29 @@ function automaticLuaTurnPhaseContext(player, id)
 	local context="Turn: "..tostring(automaticLuaErrorStateValue("turnNumber", "")).." / Round: "..tostring(automaticLuaErrorStateValue("currentRound", ""))
 	if player~=nil then context=context.."\nPlayer: "..tostring(player.color or player) end
 	if id~=nil then context=context.."\nAction: "..tostring(id) end
+	return context
+end
+
+function automaticLuaUICallbackContext(player, value, id)
+	local context=automaticLuaTurnPhaseContext(player,id)
+	if value~=nil then context=context.."\nInput: "..tostring(value) end
+	return context
+end
+
+function automaticLuaPlayerContext(playerOrColor, action)
+	local color=""
+	local steamName=""
+	if type(playerOrColor)=="table" then
+		color=tostring(playerOrColor.color or "")
+		steamName=tostring(playerOrColor.steam_name or "")
+	else
+		color=tostring(playerOrColor or "")
+		local livePlayer=color~="" and Player[color] or nil
+		if livePlayer~=nil then steamName=tostring(livePlayer.steam_name or "") end
+	end
+	local context=automaticLuaTurnPhaseContext(nil,action)
+	if color~="" then context=context.."\nPlayer color: "..color end
+	if steamName~="" then context=context.."\nSteam user: "..steamName end
 	return context
 end
 
