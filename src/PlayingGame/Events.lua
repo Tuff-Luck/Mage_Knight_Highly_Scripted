@@ -65,48 +65,65 @@ local function stripRuntimeRichText(value)
 end
 local function sanitizeRuntimeGlobalUI()
 	local xml=UI.getXmlTable()
-	if type(xml)~="table" or #xml==0 then return 0,nil end
+	if type(xml)~="table" or next(xml)==nil then return 0,nil end
 	local changed=0
 	local translatedText={}
 
 	local function walk(node)
 		if type(node)~="table" then return end
-		if type(node.attributes)=="table" then
-			for key,value in pairs(node.attributes) do
+		-- Runtime XML can contain malformed/proxy nodes. Use raw table access throughout this traversal
+		-- so presentation cleanup cannot invoke a bad metamethod and abort the entire onLoad path.
+		local attributes=rawget(node,"attributes")
+		if type(attributes)=="table" then
+			for key,value in next,attributes do
 				local clean,didChange=stripRuntimeRichText(value)
 				if didChange then
-					node.attributes[key]=clean
+					rawset(attributes,key,clean)
 					changed=changed+1
 				end
 			end
 		end
-		if node.value~=nil then
-			local clean,didChange=stripRuntimeRichText(node.value)
+
+		local nodeValue=rawget(node,"value")
+		if nodeValue~=nil then
+			local clean,didChange=stripRuntimeRichText(nodeValue)
 			if didChange then
-				node.value=clean
+				rawset(node,"value",clean)
+				nodeValue=clean
 				changed=changed+1
 			end
 		end
-		if node.content~=nil then
-			local clean,didChange=stripRuntimeRichText(node.content)
+
+		local nodeContent=rawget(node,"content")
+		if nodeContent~=nil then
+			local clean,didChange=stripRuntimeRichText(nodeContent)
 			if didChange then
-				node.content=clean
+				rawset(node,"content",clean)
+				nodeContent=clean
 				changed=changed+1
 			end
 		end
-		local attributes=node.attributes
-		if (node.tag=="Text" or node.tag=="Toggle") and type(attributes)=="table" and attributes.id~=nil then
-			local value=attributes.text
-			if value==nil then value=node.value end
-			if value==nil then value=node.content end
-			if type(value)=="string" and value:find("{en}",1,true)~=nil then
-				translatedText[#translatedText+1]={id=attributes.id,value=value}
+
+		local tag=rawget(node,"tag")
+		if (tag=="Text" or tag=="Toggle") and type(attributes)=="table" then
+			local id=rawget(attributes,"id")
+			if id~=nil then
+				local value=rawget(attributes,"text")
+				if value==nil then value=nodeValue end
+				if value==nil then value=nodeContent end
+				if type(value)=="string" and value:find("{en}",1,true)~=nil then
+					translatedText[#translatedText+1]={id=id,value=value}
+				end
 			end
 		end
-		for _,child in ipairs(node.children or {}) do walk(child) end
+
+		local children=rawget(node,"children")
+		if type(children)=="table" then
+			for _,child in next,children do walk(child) end
+		end
 	end
 
-	for _,node in ipairs(xml) do walk(node) end
+	for _,node in next,xml do walk(node) end
 	if changed>0 then UI.setXmlTable(xml) end
 	return changed,translatedText
 end
