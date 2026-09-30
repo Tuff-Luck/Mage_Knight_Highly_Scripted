@@ -1,5 +1,5 @@
 -- Map-private helpers. Predeclared so forward references keep resolving locally.
-local avatarLocationMapSnapshot, avatarLocationRelevantObjects, mapPlunderVillageBase, avatarMovedFromPickedUpHex
+local avatarLocationMapSnapshot, avatarLocationRelevantObjects, avatarMovedFromPickedUpHex
 
 -- Map state, avatar location, exploration, shields and terrain-site runtime.
 
@@ -99,9 +99,12 @@ function portalSwap(state, playerIndex)
 		if turnOrder[index]==nil or destination==nil then return end
 		for _, details in pairs(mageKnights) do
 			if details.mage==turnOrder[index].mage then
-				if getObjectFromGUID(details.model)~=nil then getObjectFromGUID(details.model).setPositionSmooth(destination) end
-				if getObjectFromGUID(details.token)~=nil then getObjectFromGUID(details.token).setPositionSmooth(destination) end
-				if getObjectFromGUID(details.standee)~=nil then getObjectFromGUID(details.standee).setPositionSmooth(destination) end
+				local model=getObjectFromGUID(details.model)
+				local token=getObjectFromGUID(details.token)
+				local standee=getObjectFromGUID(details.standee)
+				if model~=nil then model.setPositionSmooth(destination) end
+				if token~=nil then token.setPositionSmooth(destination) end
+				if standee~=nil then standee.setPositionSmooth(destination) end
 				break
 			end
 		end
@@ -168,6 +171,8 @@ end
 
 --Physical activation state is kept separately from doingTheRounds. Tome/Circlet can move a real token
 --after it has been played, while the effect that token created may still need to survive.
+local shieldDropUnlockSerial=0
+
 function dropShield(location, lockToken, rotation, playerIndex)
 	--Delayed combat cleanup can finish after the active turn has advanced (including to Volkare).
 	--Use the player whose action created the shield when supplied; ordinary callers still use the current turn.
@@ -184,9 +189,18 @@ function dropShield(location, lockToken, rotation, playerIndex)
 					shield.lock()
 				end, function() return shield.resting end) end, 1.5)
 			end
+			shieldDropUnlockSerial=shieldDropUnlockSerial+1
+			local unlockSerial=shieldDropUnlockSerial
 			setUIButtonEnabled("PreEndTurn",false)
 			safeWaitTime("Map",function()
-				setUIButtonEnabled("PreEndTurn",true)
+				if unlockSerial~=shieldDropUnlockSerial then return end
+				local currentPlayer=gStates~=nil and turnOrder[gStates.turnNumber] or nil
+				if gStates~=nil and gStates.preEndTurn==true and currentPlayer~=nil and steadyTempoUpdateRewardGate~=nil then
+					--Respect Combat's reward-settling gate instead of blindly re-enabling Rewards Claimed.
+					steadyTempoUpdateRewardGate(currentPlayer.seatPos)
+				elseif rewardClaimDelayActive~=true then
+					setUIButtonEnabled("PreEndTurn",true)
+				end
 			end, 2.1)
 			break
 		end
@@ -225,10 +239,8 @@ function shieldLocation(obj, zone, status)
 					addAvatarButtons()
 					return
 				end
-				local found=false
 				for b, mageSearch in pairs(turnOrder) do
 					if mageSearch.mage==objectDescription or objectNotes=="Burned Monastery" then
-						found=true
 						if status=="remove" then
 							if hexFeature=="keep" and objectNotes~="Burned Monastery" then
 								broadcastToAll("{en}Keep Released{ru}Крепость освобождена{zh-tw}保持释放{zh-cn}保持释放{ko}성 정복 해제됨{es}Mantener Liberado{fr}Garder Libéré{pt-br}Forte Liberado{de}Behalten freigelassen", positionToColor(b))
@@ -326,7 +338,7 @@ function shieldLocation(obj, zone, status)
 		end
 	end
 	if zone.guid~=mapArea then
-		if pause==false then pause=true safeWaitFrames("Map",function()
+		safeWaitFrames("Map",function()
 			for b, mageSearch in pairs(turnOrder) do
 				if mageSearch.mage==objectDescription then
 					if zone.guid~=elementalist.discZone and zone.guid~=darkCrusader.discZone and (gStates.gameScenario=="The Gauntlet"
@@ -365,16 +377,15 @@ function shieldLocation(obj, zone, status)
 					break
 				end
 			end
-			pause=false
 			addAvatarButtons()
-		end, 5) end
+		end, 5)
 	end
 end
 
 --new XML buttons on skills, offer and tactic cards
 
 -- Avatar refresh scheduling
-local adjustHandSizePause=nil
+local adjustHandSizePause={}
 
 function scheduleAvatarDropRefresh(playerIndex)
 	local dropPlayer=playerIndex or gStates.turnNumber
@@ -383,8 +394,9 @@ function scheduleAvatarDropRefresh(playerIndex)
 		if gStates.preEndTurn~=true then mainUIUpdate("Co-op virtual city location") end
 		return
 	end
-	if adjustHandSizePause~=nil then Wait.stop(adjustHandSizePause) end
-	adjustHandSizePause=safeWaitTime("Map",function()
+	if adjustHandSizePause[dropPlayer]~=nil then Wait.stop(adjustHandSizePause[dropPlayer]) end
+	adjustHandSizePause[dropPlayer]=safeWaitTime("Map",function()
+		adjustHandSizePause[dropPlayer]=nil
 		if turnOrder[dropPlayer]==nil then return end
 		local found=false
 		for _, avatar in pairs(mageKnights) do
@@ -430,7 +442,7 @@ terrainPlacementNeighbourOffsets={
 
 --Avatar-location scans use the shared live spatial view, so Map, Combat, Movement and AI all
 --derive their local object/hex queries from the same physical-table snapshot.
-avatarLocationSpatialCell=3
+local avatarLocationSpatialCell=3
 avatarLocationMapSnapshot=function()
 	local spatial=runtimeMapSpatialSnapshot(avatarLocationSpatialCell)
 	return spatial.objects,spatial.positions,spatial.terrainObjects,spatial.terrainRotations,spatial.buckets,spatial
@@ -564,10 +576,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 		if gStates.rampage==2 then dice=getObjectFromGUID("48089f").clone(params) end
 	end
 	if dice~=nil then safeWaitTime("Map",function() dice.destruct() end, 10) end
-	safeWaitFrames("Map",function()--wait for clone to spawn
-		if dice~=nil then dice.unlock() dice.shuffle() end
-		safeWaitFrames("Map",function()
-			safeWaitCondition("Map",function()
+	local function resolveRampageDeployment()
 				if dice~=nil then
 					dice.setPosition({params.position[1], 3.0, params.position[3]})
 					dice.lock()
@@ -583,10 +592,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 						local warOfFourLoc="center"
 						if gStates.gameScenario=="The War of Four" then --Open Limited to ? Columns
 							local pos=obj.getPosition()
-							local edgeCoordinates={	{-38.43,  0.54},  {-33.63,  4.70},  {-28.83,  8.86}, {-24.03, 13.02}, {0, 0},--Far North Column Coordinates
-													{-37.23, -5.69},  {-32.43, -1.52},  {-27.63,  2.62}, {-22.83,  6.79}, {-18.02, 10.94},--North Column Coordinates
-													{-30.03, -14.01}, {-25.23, -9.84},  {-20.43, -5.69}, {-15.63, -1.54}, {-10.81,  2.63},--South Column Coordinates
-													{-24.03, -16.08}, {-19.23, -11.93}, {-14.43, -7.77}, {-9.63,  -3.61}}--Far South Column Coordinates
+							local edgeCoordinates=warOfFourGladeEdgeCoordinates
 							for tileLoc, coords in pairs(edgeCoordinates) do
 								if math.sqrt(((pos[1]-coords[1])^2)+((pos[3]-coords[2])^2))<1 then
 									if math.ceil(tileLoc/5)==1 then warOfFourLoc="FarNorth" end
@@ -686,33 +692,23 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 						end
 					end
 				end
-			end, function() return dice==nil or dice.resting end)
-		end, 5)
-	end, 5)
+	end
+	if dice==nil then
+		--Terrain-entry rampagers have no roll to display. Deploy them immediately so setup/population
+		--completion reflects the real token state instead of finishing ahead of two fixed frame delays.
+		resolveRampageDeployment()
+	else
+		safeWaitFrames("Map",function()--wait for clone to spawn
+			dice.unlock()
+			dice.shuffle()
+			safeWaitFrames("Map",function()
+				safeWaitCondition("Map",resolveRampageDeployment,function() return dice==nil or dice.resting end)
+			end,5)
+		end,5)
+	end
 end
 
 --Pillage Village, draw two cards for chosen mage and reduce Reputation by 1
-mapPlunderVillageBase=function(player, mouseButton, id)
-	if mouseButton=="-1" then
-		if legalPlayerCheck(player.color, tonumber(id:sub(8,8)))==true then
-			for a=1, #turnOrder, 1 do
-				if turnOrder[a].seatPos==tonumber(id:sub(8,8)) then
-					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} just Plundered their Village.{ru} разграбляет деревню.{zh-tw}刚刚劫掠了他们的村庄{zh-cn}刚刚劫掠了他们的村庄{ko}: 마을을 약탈했습니다.{es} acaba de saquear su aldea.{fr} vient de Piller leur Village.{pt-br} acabou de Saquear a Vila{de} hat gerade ihr Dorf geplündert. "}), positionToColor(a))
-					--One exact two-card request avoids competing Quick Witted prompts for Coral.
-					drawExactDeedCards(a, 2, "DrawOne")
-					--reduce Reputation by 1
-					local repPos=reputationTable[turnOrder[a].reputation-1].reputationPos
-					getObjectFromGUID(turnOrder[a].reputationGUID).setPosition({repPos[1], repPos[2], repPos[3]})
-					turnOrder[a].reputation=turnOrder[a].reputation-1
-					--only alow once per turn
-					turnOrder[a].pillagedVillage=true
-					mainUIUpdate("Village Pillaged")
-					break
-				end
-			end
-		end
-	end
-end
 
 -- Manual shield/marker placement and avatar hex tracking
 function shieldDrop(player, mouseButton, id)
@@ -789,19 +785,24 @@ end
 -- Nearby Mage lookup
 function findNearbyMages(origin, distance)--origin={x, y, z}, distance=x
 	local mageList={}
-	--see if the object is a mageKnight
+	local seenMage={}
+	--See if the live map representation is a Mage Knight.
 	for _, avatar in pairs(mageKnights) do
-		local posibleMage=nil
-		if getObjectFromGUID(avatar.model)~=nil and avatar.mage~="Volkare" then posibleMage=getObjectFromGUID(avatar.model) end
-		if getObjectFromGUID(avatar.standee)~=nil and avatar.mage~="Volkare" then posibleMage=getObjectFromGUID(avatar.standee) end
-		if getObjectFromGUID(avatar.token)~=nil and avatar.mage~="Volkare" then posibleMage=getObjectFromGUID(avatar.token) end
-		if posibleMage~=nil then
-			local pos={posibleMage.getPosition()[1], 1.17, posibleMage.getPosition()[3]}--done this way so math can be done to the values
+		local possibleMage=nil
+		if avatar.mage~="Volkare" then
+			--Preserve the old representation priority: token, then standee, then model.
+			possibleMage=getObjectFromGUID(avatar.token) or getObjectFromGUID(avatar.standee) or getObjectFromGUID(avatar.model)
+		end
+		if possibleMage~=nil then
+			local objectPos=possibleMage.getPosition()
+			local pos={objectPos[1],1.17,objectPos[3]}
 			local mageDist=math.sqrt(((origin[1]-pos[1])^2)+((origin[3]-pos[3])^2))
 			if mageDist<distance then
 				for turn, mageSearch in pairs(turnOrder) do
-					if mageSearch.mage==avatar.mage and playerDropoutInactive(turn)==false then
-						mageList[#mageList+1]={mage=mageSearch.mage, distance=mageDist, fame=mageSearch.fame, turn=turn}
+					if mageSearch.mage==avatar.mage and playerDropoutInactive(turn)==false and seenMage[mageSearch.mage]~=true then
+						mageList[#mageList+1]={mage=mageSearch.mage,distance=mageDist,fame=mageSearch.fame,turn=turn}
+						seenMage[mageSearch.mage]=true
+						break
 					end
 				end
 			end
@@ -812,10 +813,10 @@ function findNearbyMages(origin, distance)--origin={x, y, z}, distance=x
 	local mapObjectGUIDs=runtimeMapSnapshot().objectGUIDs or {}
 	for zone, cityData in pairs(cityScriptZones) do
 		if mapObjectGUIDs[cityData.cityGUID]==true then
-			local posibleMage=getObjectFromGUID(cityData.cityGUID)
-			if posibleMage~=nil then
-				local pos={posibleMage.getPosition()[1], 1.17, posibleMage.getPosition()[3]}--done this way so math can be done to the values
-				local mageDist=math.floor(math.sqrt(((origin[1]-pos[1])^2)+((origin[3]-pos[3])^2))+0.5)
+			local possibleCity=getObjectFromGUID(cityData.cityGUID)
+			if possibleCity~=nil then
+				local cityPos=possibleCity.getPosition()
+				local mageDist=math.floor(math.sqrt(((origin[1]-cityPos[1])^2)+((origin[3]-cityPos[3])^2))+0.5)
 				if mageDist<distance then
 					local cityZone=getObjectFromGUID(zone)
 					if cityZone~=nil then
@@ -824,14 +825,14 @@ function findNearbyMages(origin, distance)--origin={x, y, z}, distance=x
 							for _, candidate in pairs(mageKnights) do
 								if cityObj.guid==candidate.model or cityObj.guid==candidate.standee or cityObj.guid==candidate.token then avatar=candidate break end
 							end
-							if avatar~=nil and avatar.mage~="Volkare" then
+							if avatar~=nil and avatar.mage~="Volkare" and seenMage[avatar.mage]~=true then
 								for turn, mageSearch in pairs(turnOrder) do
 									if mageSearch.mage==avatar.mage and playerDropoutInactive(turn)==false then
-										mageList[#mageList+1]={mage=mageSearch.mage, distance=mageDist, fame=mageSearch.fame, turn=turn}
+										mageList[#mageList+1]={mage=mageSearch.mage,distance=mageDist,fame=mageSearch.fame,turn=turn}
+										seenMage[mageSearch.mage]=true
 										break
 									end
 								end
-								break
 							end
 						end
 					end
@@ -840,7 +841,7 @@ function findNearbyMages(origin, distance)--origin={x, y, z}, distance=x
 		end
 	end
 	--Closest first; ties use highest Fame, then earlier turn order. One comparator avoids relying on sort stability.
-	table.sort(mageList, function(k1,k2)
+	table.sort(mageList,function(k1,k2)
 		if math.abs(k1.distance-k2.distance)>0.01 then return k1.distance<k2.distance end
 		if k1.fame~=k2.fame then return k1.fame>k2.fame end
 		return k1.turn<k2.turn
@@ -926,11 +927,14 @@ function normalizeSetupTableObjects()
 	--send city cards to bottom so tokens don't spawn under.
 	local sendToBottom={dummyBoard, gStates.cityCard[cityModel.blue], gStates.cityCard[cityModel.red], gStates.cityCard[cityModel.green], gStates.cityCard[cityModel.white], "e47fc3", "62d3c3", "12a3b1", "6f815c", "94c021", "d9c252", "7a56fa", "19c6ce", "aa6c1d", "d80815", "fdbc08", "0b57b9"}
 	for _, objGUID in pairs(sendToBottom) do
-		if getObjectFromGUID(objGUID)~=nil then
-			getObjectFromGUID(objGUID).setPosition({getObjectFromGUID(objGUID).getPosition()[1], 0.98, getObjectFromGUID(objGUID).getPosition()[3]})
-			local rot={0.00, 180.00, 0.00}
-			if getObjectFromGUID(objGUID).getRotation()[3]>=170 and getObjectFromGUID(objGUID).getRotation()[3]<=190 then rot=({0.00, 180.00, 180.00}) end
-			getObjectFromGUID(objGUID).setRotation(rot)
+		local obj=getObjectFromGUID(objGUID)
+		if obj~=nil then
+			local pos=obj.getPosition()
+			obj.setPosition({pos[1],0.98,pos[3]})
+			local rot={0.00,180.00,0.00}
+			local zRotation=obj.getRotation()[3]
+			if zRotation>=170 and zRotation<=190 then rot={0.00,180.00,180.00} end
+			obj.setRotation(rot)
 		end
 	end
 end
@@ -963,7 +967,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 				end
 				playerPickedUpHex=nil
 				if getObjectFromGUID(dropped_object.guid)~=nil then
-					for _, playerDetails in pairs(turnOrder) do
+					for playerIndex, playerDetails in pairs(turnOrder) do
 						if playerDetails.mage==avatar.mage then
 							playerDetails.avatarLocation=""
 							playerDetails.avatarSharedHex=nil
@@ -989,11 +993,11 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 							end
 							--Use one cached map snapshot for the current hex and its six neighbours.
 							local volkareCampKeepAllowed=volkareCampAsCityConquered()==true and volkareCampContributionShieldCount(playerDetails)>0
-							local mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets, mapSpatial=avatarLocationMapSnapshot()
+							local mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, _, mapSpatial=avatarLocationMapSnapshot()
 								for keepSearch=1, 7, 1 do
 									--Volkare can remove a City model during this loop, so retain the old live-refresh behaviour for him.
 									if keepSearch>1 and playerDetails.mage=="Volkare" then
-										mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, mapObjectBuckets, mapSpatial=avatarLocationMapSnapshot()
+										mapObjects, mapObjectPositions, mapTerrainObjects, mapTerrainRotations, _, mapSpatial=avatarLocationMapSnapshot()
 									end
 									local locatedTerrain, bearing, _, hexFeature=terrainHexAtPosition(avatarPos, mapTerrainObjects, mapObjectPositions, mapTerrainRotations)
 								hexFeature=hexFeature or ""
@@ -1086,7 +1090,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 												end
 											end
 											if gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="The Hidden Valley Blitz"
-												or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The Realm of the Dead Blitz"
+												or gStates.gameScenario=="The Realm of the Dead Blitz"
 												or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Dungeon Lords"
 												or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Mines Liberation" then
 												keepShieldMatch[keepSearch]["cityShield"]=true
@@ -1147,28 +1151,29 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						if (targetFeature=="keep" or targetFeature=="mage tower") and wallAssaultChoiceResult==nil and wallAssaultChoiceNeeded(assaultTargetPosition, assaultApproachOrigin)==true then showWallAssaultChoice("attackLocation", attackedLocation, player_color)
 						else attackLocation(nil, "-1", attackedLocation) end
 					end
-					--adjust the hand size
-					local cityConversion={["White City"]=GUID.zone.whiteCity, ["Blue City"]=GUID.zone.blueCity, ["Red City"]=GUID.zone.redCity, ["Green City"]=GUID.zone.greenCity}
-					local previousHand=turnOrder[gStates.turnNumber].hand
+					--Adjust the hand size for the avatar owner. Delayed combat cleanup can refresh a
+					--non-current Mage Knight after the turn has advanced, so never apply this location to gStates.turnNumber.
+					local cityConversion={["White City"]=GUID.zone.whiteCity,["Blue City"]=GUID.zone.blueCity,["Red City"]=GUID.zone.redCity,["Green City"]=GUID.zone.greenCity}
+					local previousHand=playerDetails.hand
 					local handBonusSource=nil
 					local raisedReturnCity=(gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") and gStates.volkareRaisedCity==true
-					local nearCityForHand=turnOrder[gStates.turnNumber].nearCity==true and raisedReturnCity~=true
-					if (turnOrder[gStates.turnNumber].mage==avatar.mage and turnOrder[gStates.turnNumber].nearKeep==true) or nearCityForHand then
+					local nearCityForHand=playerDetails.nearCity==true and raisedReturnCity~=true
+					if (playerDetails.nearKeep==true) or nearCityForHand then
 						if nearCityForHand and cityFound~="False" then
-							if turnOrder[gStates.turnNumber].defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Lead" then turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+2 handBonusSource="City" end
-							if turnOrder[gStates.turnNumber].defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Assist" then turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+1 handBonusSource="City" end
+							if playerDetails.defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Lead" then playerDetails.hand=playerDetails.baseHand+2 handBonusSource="City" end
+							if playerDetails.defeatedCities[cityScriptZones[cityConversion[cityFound]].cityGUID]=="Assist" then playerDetails.hand=playerDetails.baseHand+1 handBonusSource="City" end
 						end
-						if (turnOrder[gStates.turnNumber].nearKeep==true and nearCityForHand==false) or
-							(turnOrder[gStates.turnNumber].nearKeep==true and nearCityForHand==true and turnOrder[gStates.turnNumber].keepsBeat>1) then
-							turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand+turnOrder[gStates.turnNumber].keepsBeat
-							if turnOrder[gStates.turnNumber].keepsBeat>0 then handBonusSource="Keep" end
+						if (playerDetails.nearKeep==true and nearCityForHand==false) or
+							(playerDetails.nearKeep==true and nearCityForHand==true and playerDetails.keepsBeat>1) then
+							playerDetails.hand=playerDetails.baseHand+playerDetails.keepsBeat
+							if playerDetails.keepsBeat>0 then handBonusSource="Keep" end
 						end
 					else
-						turnOrder[gStates.turnNumber].hand=turnOrder[gStates.turnNumber].baseHand
+						playerDetails.hand=playerDetails.baseHand
 					end
-					if turnOrder[gStates.turnNumber].hand~=previousHand then
-						if handBonusSource=="City" then broadcastToAll("{en}Hand size increased from proximity to City{ru}Предел карт в руке увеличен из-за близости города{zh-tw}手牌数量因靠近城市而增加{zh-cn}手牌数量因靠近城市而增加{ko}인접한 도시에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Ciudad.{fr}La taille de la main a augmenté de la proximité à la Ville{pt-br}O tamanho da mão aumentou devido à proximidade da Cidade{de}Handgröße durch Nähe zur Stadt erhöht", positionToColor(gStates.turnNumber)) end
-						if handBonusSource=="Keep" then broadcastToAll("{en}Hand size increased from proximity to Keep{ru}Предел карт в руке увеличен из-за близости крепости{zh-tw}手牌数量增加到最大值{zh-cn}手牌数量增加到最大值{ko}인접한 성에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Fortaleza{fr}La taille de la main a augmenté de la proximité à la Keep{pt-br}O tamanho da mão aumentou com a proximidade de Keep{de}Handgröße erhöht sich durch die Nähe zu Keep", positionToColor(gStates.turnNumber)) end
+					if playerDetails.hand~=previousHand then
+						if handBonusSource=="City" then broadcastToAll("{en}Hand size increased from proximity to City{ru}Предел карт в руке увеличен из-за близости города{zh-tw}手牌数量因靠近城市而增加{zh-cn}手牌数量因靠近城市而增加{ko}인접한 도시에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Ciudad.{fr}La taille de la main a augmenté de proximité à la Ville{pt-br}O tamanho da mão aumentou devido à proximidade da Cidade{de}Handgröße durch Nähe zur Stadt erhöht",positionToColor(playerIndex)) end
+						if handBonusSource=="Keep" then broadcastToAll("{en}Hand size increased from proximity to Keep{ru}Предел карт в руке увеличен из-за близости крепости{zh-tw}手牌数量增加到最大值{zh-cn}手牌数量增加到最大值{ko}인접한 성에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Fortaleza{fr}La taille de la main a augmenté de la proximité à la Keep{pt-br}O tamanho da mão aumentou com a proximidade de Keep{de}Handgröße erhöht sich durch die Nähe zu Keep",positionToColor(playerIndex)) end
 					end
 					--Reset attack icon and interaction after leaving a hex, but preserve an interaction if the avatar was only repositioned on the same hex.
 					if turnOrder[gStates.turnNumber].mage==avatar.mage and attackedLocation==nil and horsemenGladeAssault==false and (avatarChangedHex==true or (next(gStates.attackedMonsters)==nil and UI.getAttribute("zigguratPyramidInteract", "active")~="true")) then
@@ -1424,8 +1429,6 @@ function mapHandleTerrainZoneEnter(ctx)
 	local obj=ctx.obj
 	local zoneGUID=ctx.zoneGUID
 	local objGUID=ctx.objGUID
-	local zoneInfo=ctx.zoneInfo
-	local objType=ctx.objType
 	--Check if a terrain tile has entered the play area
 	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
 		if startingMapSetup==true then startingMapTiles[objGUID]=true end
