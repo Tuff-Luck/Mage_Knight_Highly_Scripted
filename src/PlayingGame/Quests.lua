@@ -378,11 +378,11 @@ apocalypseQuestStageIntoContainer=function(obj,container,onComplete)
 	local objectGUID=obj.guid
 	local containerGUID=container.guid
 	if objectGUID==nil or containerGUID==nil then if onComplete~=nil then onComplete(false) end return false end
-	local target=container.getPosition()
 	obj.unlock()
-	--Teleport clear of the Quest first. Direct putObject while a tucked object is still physically under
-	--the Quest lets the Quest collider carry it when the Quest card moves in the same cleanup frame.
-	obj.setPosition({target[1],target[2]+2.2,target[3]})
+	--The cleanup barrier now keeps the Quest card stationary until every attachment has actually entered
+	--its destination. That makes the old pre-teleport unnecessary. Besides being redundant, teleporting
+	--several Quest markers out of the Quest scripting zone in the same frame could provoke TTS's native
+	--"Value cannot be null / key" zone bookkeeping error before putObject even ran.
 	safeWaitFrames("Quests",function()
 		local live=getObjectFromGUID(objectGUID)
 		local liveContainer=getObjectFromGUID(containerGUID)
