@@ -998,13 +998,28 @@ local function turnEndRoundCheckpointAndInterrupts(rewindReady)
 		oneToReturnClosePortal()
 		if gStates.gameOver==true then return true end
 	end
+
+	--Quest expiry is asynchronous because markers, tucked cards and the Quest cards themselves have to
+	--finish physical container/deck moves. Treat it like the other round-reset interrupts: nothing from
+	--the new round may start until the exact retirement queue has completed.
+	if gStates.apocalypseQuestEndRoundCleanupDoneRound~=gStates.currentRound then
+		local cleanupRound=gStates.currentRound
+		local started=apocalypseQuestEndRoundCleanup(function()
+			if gStates.currentRound~=cleanupRound then return end
+			safeWaitFrames("Turn",function()
+				if gStates.currentRound==cleanupRound then endRound(true) end
+			end,2)
+		end)
+		if started==true then return true end
+		gStates.apocalypseQuestEndRoundCleanupDoneRound=cleanupRound
+	end
 	return false
 end
 
 local function turnEndRoundAdvanceWorld()
-	--Update round count and check for end of game
+	--Update round count and check for end of game. Quest expiry has already completed at the
+	--checkpoint barrier, so no old-round Quest object can overlap new-round offer/tactic/deck work.
 	broadcastToAll("-------------------",{1,1,0.5})
-	apocalypseQuestEndRoundCleanup()
 	gStates.currentRound=gStates.currentRound+1
 	apocalypseQuestRefreshStrayToken()
 	for _, details in pairs(turnOrder) do if details.tactic==6 then scheduleDeedPileDescriptionRefresh(details.seatPos, "deed") end end
