@@ -385,6 +385,7 @@ end
 
 -- Avatar refresh scheduling
 local adjustHandSizePause={}
+local avatarRefreshGeneration={}
 
 function scheduleAvatarDropRefresh(playerIndex)
 	local dropPlayer=playerIndex or gStates.turnNumber
@@ -393,8 +394,11 @@ function scheduleAvatarDropRefresh(playerIndex)
 		if gStates.preEndTurn~=true then mainUIUpdate("Co-op virtual city location") end
 		return
 	end
+	avatarRefreshGeneration[dropPlayer]=(avatarRefreshGeneration[dropPlayer] or 0)+1
+	local generation=avatarRefreshGeneration[dropPlayer]
 	if adjustHandSizePause[dropPlayer]~=nil then Wait.stop(adjustHandSizePause[dropPlayer]) end
 	adjustHandSizePause[dropPlayer]=safeWaitTime("Map",function()
+		if avatarRefreshGeneration[dropPlayer]~=generation then return end
 		adjustHandSizePause[dropPlayer]=nil
 		if turnOrder[dropPlayer]==nil then return end
 		local found=false
@@ -406,17 +410,19 @@ function scheduleAvatarDropRefresh(playerIndex)
 					found=true
 					local avatarDetails=avatar
 					safeWaitFrames("Map",function()
-						--This refresh used to fake a global onObjectDrop(), making the avatar traverse every unrelated
-						--drop handler before reaching mapAvatarLocationDetails(). Resolve the live representation and
-						--call the actual location refresh directly instead.
+						if avatarRefreshGeneration[dropPlayer]~=generation then return end
+						--The historical settling delay may outlive a newer refresh request. The generation gate keeps
+						--only the latest request active through the complete delayed/resting transaction.
 						local currentAvatar=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
 						if currentAvatar==nil then return end
 						local function refresh()
+							if avatarRefreshGeneration[dropPlayer]~=generation then return end
 							local liveAvatar=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
 							if liveAvatar~=nil then mapAvatarLocationDetails(nil,avatarDetails,liveAvatar) end
 						end
 						if currentAvatar.resting==true then refresh()
 						else safeWaitCondition("Map.avatarRefresh",refresh,function()
+							if avatarRefreshGeneration[dropPlayer]~=generation then return true end
 							local liveAvatar=getObjectFromGUID(modelGUID) or getObjectFromGUID(tokenGUID) or getObjectFromGUID(standeeGUID)
 							return liveAvatar==nil or liveAvatar.resting==true
 						end,1.5,refresh) end
@@ -425,7 +431,7 @@ function scheduleAvatarDropRefresh(playerIndex)
 				break
 			end
 		end
-		if found==false then mainUIUpdate("Incremented to Dummy's Turn") end
+		if found==false and avatarRefreshGeneration[dropPlayer]==generation then mainUIUpdate("Incremented to Dummy's Turn") end
 	end, 0.1)
 end
 
@@ -709,6 +715,26 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 					end
 				end
 	end
+	local function resolveRampageAfterRefill()
+		local relevantPools={monsterPiles.green,monsterPiles.tan,monsterPiles.red}
+		if gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four" then
+			relevantPools[#relevantPools+1]=monsterPiles.greenElem
+			relevantPools[#relevantPools+1]=monsterPiles.tanElem
+			relevantPools[#relevantPools+1]=monsterPiles.redElem
+			relevantPools[#relevantPools+1]=monsterPiles.greenDark
+			relevantPools[#relevantPools+1]=monsterPiles.tanDark
+			relevantPools[#relevantPools+1]=monsterPiles.redDark
+		elseif gStates.gameScenario=="The Realm of the Dead Blitz" then
+			relevantPools[#relevantPools+1]=monsterPiles.greenDark
+			relevantPools[#relevantPools+1]=monsterPiles.tanDark
+			relevantPools[#relevantPools+1]=monsterPiles.redDark
+		elseif gStates.gameScenario=="The Hidden Valley Blitz" then
+			relevantPools[#relevantPools+1]=monsterPiles.greenElem
+			relevantPools[#relevantPools+1]=monsterPiles.tanElem
+			relevantPools[#relevantPools+1]=monsterPiles.redElem
+		end
+		withTokenPoolsReady(relevantPools,resolveRampageDeployment,"Map.rampageRefill")
+	end
 	if dice==nil then
 		--Terrain-entry rampagers have no roll to display. Deploy them immediately so setup/population
 		--completion reflects the real token state instead of finishing ahead of two fixed frame delays.
@@ -718,7 +744,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 			dice.unlock()
 			dice.shuffle()
 			safeWaitFrames("Map",function()
-				safeWaitCondition("Map",resolveRampageDeployment,function() return dice==nil or dice.resting end)
+				safeWaitCondition("Map",resolveRampageAfterRefill,function() return dice==nil or dice.resting end)
 			end,5)
 		end,5)
 	end
@@ -1074,11 +1100,8 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 													end
 												end
 												if broadcast==true then
-													if temp==volkare.model then
-														broadcastToAll("{en}Volkare's Army Revealed{ru}Армия Волкара раскрыта{zh-tw}沃里卡军队揭示了{zh-cn}沃里卡军队揭示了{ko}볼케어의 군대가 공개되었습니다{es}Se revela el ejército de Volkare{fr}L'armée de Volkare révélée{pt-br}Exército de Volkare Revelado{de}Volkare's Armee aufgedeckt", {1,1,0.5})
-													else
+													--Volkare's moving army is deliberately excluded from proximity Auto Flip; attackCity() reveals it when combat starts.
 														broadcastToAll("{en}Site Garrison Revealed{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5})
-													end
 												end
 											end
 											--Assult Volkare
@@ -1381,13 +1404,18 @@ function refreshTerrainExploreOptions(compactCities)
 	end
 end
 
-local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBearing,northBearing,mapSnapshot)
+local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,northBearing,mapSnapshot)
 	if gStates.mapShapeKey~="predefined" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Against the Horsemen Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" then return end
+	local startGUID=getObjectFromGUID(startTerrain.open)~=nil and startTerrain.open or startTerrain.wedge
+	local startObj=getObjectFromGUID(startGUID)
+	if startObj==nil then return end
+	local startPosition=(mapSnapshot~=nil and mapSnapshot.terrainPositions~=nil and mapSnapshot.terrainPositions[startGUID]) or startObj.getPosition()
 	for _, mightBeMap in pairs(playAreaObjects) do
 		if terrainTiles[mightBeMap.guid]~=nil then
 			local cachedPosition=mapSnapshot~=nil and mapSnapshot.terrainPositions~=nil and mapSnapshot.terrainPositions[mightBeMap.guid] or nil
 			local mapPosition=cachedPosition or mightBeMap.getPosition()
-			if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=startBearing, objName=mightBeMap.getName(), position={mapPosition[1], 0, mapPosition[3]}},faceUpTerrain,northBearing,{})==false then
+			local tileBearing=math.deg(math.atan2(mapPosition[3]-startPosition[3],mapPosition[1]-startPosition[1]))
+			if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=tileBearing, objName=mightBeMap.getName(), position={mapPosition[1], 0, mapPosition[3]}},faceUpTerrain,northBearing,{})==false then
 				mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
 			else
 				local useNightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
@@ -1411,7 +1439,7 @@ end
 function refreshPredefinedTerrainTint()
 	local mapSnapshot,playAreaObjects,faceUpTerrain=runtimeTerrainPlacementView()
 	local northBearing=getObjectFromGUID(startTerrain.open)==nil and 70 or 40
-	applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,0,northBearing,mapSnapshot)
+	applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,northBearing,mapSnapshot)
 end
 
 function mapHandleTerrainZoneEnter(ctx)
@@ -1454,7 +1482,7 @@ function mapHandleTerrainZoneEnter(ctx)
 
 
 		--make predefined maps highlight red
-		applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,startBearing,northBearing,mapSnapshot)
+		applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,northBearing,mapSnapshot)
 
 
 
