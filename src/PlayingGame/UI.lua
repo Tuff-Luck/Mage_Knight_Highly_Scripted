@@ -1192,10 +1192,14 @@ local function mainUIRefreshTurnAvailability(context,playerState)
 		if b.type=="Card" then discardAreaCards=1 break end
 		if b.type=="Deck" then discardAreaCards=b.getQuantity() break end
 	end
-	setEndTurnTooltip("At least one card must be played or discarded to 'End Your Turn'.")
+	local coopCombat=gStates.coopAssaultPhase=="combat"
+	setEndTurnTooltip(coopCombat and "" or "At least one card must be played or discarded to 'End Your Turn'.")
 	if gStates.endRoundCalled==true then setEndTurnTooltip("") end
-	local coopCombatButtonLocked=gStates.coopAssaultPhase=="combat" and (gStates.preEndTurn==true or playerAreaCardCount<1)
-	if (playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount) or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
+	--Combat Complete is not a normal End Turn: a co-op participant may legitimately resolve combat
+	--without playing a Deed card. During cleanup keep it locked only until the safe handoff boundary.
+	local normalTurnActionLocked=coopCombat~=true and playerAreaCardCount<1 and gStates.endRoundCalled==false and discardAreaCards==turnOrder[gStates.turnNumber].discardCount
+	local coopCombatButtonLocked=coopCombat==true and gStates.preEndTurn==true and gStates.coopCombatHandoffReady~=true
+	if normalTurnActionLocked or coopCombatButtonLocked or gStates.tacticShown==true or gStates.tacticRemove==true then
 		setUIButtonEnabled("EndTurnButton",false)
 		setUIButtonEnabled("EndTurnButtonAlt",false)
 		setUIButtonEnabled("ExtraTurnTacticButton",false)
