@@ -1,5 +1,7 @@
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 
+local automaticLuaZoneContext
+
 -- Error-report boundaries for callbacks that TTS invokes after the originating function has returned.
 -- These helpers deliberately keep the native Wait signatures so existing timing/return behaviour is unchanged.
 local function automaticLuaTraceback(errorText)
@@ -25,6 +27,20 @@ function safeAsyncCallback(label, callback, contextCallback)
 	end
 end
 
+--Wrap a named public callback after all modules have loaded without rewriting the owning subsystem.
+--This is primarily used for XML/Object UI callbacks, which TTS invokes directly by global name.
+function safePublicCallback(label, callback, contextCallback)
+	if type(callback)~="function" then return callback end
+	return function(...)
+		local args={n=select("#",...),...}
+		local contextFactory=nil
+		if type(contextCallback)=="function" then
+			contextFactory=function() return contextCallback(automaticLuaUnpackArgs(args,1)) end
+		end
+		return safeCallback(label,function() return callback(automaticLuaUnpackArgs(args,1)) end,contextFactory)
+	end
+end
+
 function safeObjectCallbackParams(scope, params)
 	if type(params)~="table" or type(params.callback_function)~="function" then return params end
 	local safeParams={}
@@ -35,7 +51,6 @@ end
 
 -- Automatic Lua error reporting
 local automaticLuaErrorReporting=false
-local automaticLuaErrorLastReport=0 --kept for the manual test hook / compatibility
 local automaticLuaErrorCooldown=10
 local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
@@ -78,7 +93,7 @@ end
 local function automaticLuaErrorCityLevel()
 	return automaticLuaErrorValue(function()
 		local text="[ "
-		for _, level in pairs(gStates.cityLevels) do text=text..tostring(level).." " end
+		for _, level in ipairs(gStates.cityLevels) do text=text..tostring(level).." " end
 		return text.."]"
 	end, "")
 end
@@ -179,6 +194,7 @@ local function sendAutomaticLuaErrorRequest(comment)
 		darknessComing=automaticLuaErrorStateValue("darknessComing", ""),
 		startAtNight=automaticLuaErrorStateValue("startAtNight", ""),
 		heroChallenges=automaticLuaErrorStateValue("heroChallenges", ""),
+		apocalypseQuestCards=automaticLuaErrorStateValue("apocalypseQuestCards", false),
 		questMod=automaticLuaErrorStateValue("questMod", ""),
 		weatherMod=automaticLuaErrorStateValue("weatherMod", ""),
 		itemShopMod=automaticLuaErrorStateValue("itemShopMod", ""),
@@ -200,7 +216,15 @@ local function sendAutomaticLuaErrorRequest(comment)
 	--nil/error lookups have already been converted to their fallback (normally an empty string).
 	for key, value in pairs(gameRecord) do gameRecord[tostring(key)]=tostring(value) end
 	WebRequest.post(automaticLuaErrorURL, gameRecord, function(w)
-		log("Automatic Lua error report response: "..tostring(w.text))
+		local isError=w==nil or w.is_error==true
+		local responseCode=w~=nil and tonumber(w.response_code) or nil
+		local httpError=responseCode~=nil and responseCode~=0 and (responseCode<200 or responseCode>=300)
+		if isError or httpError then
+			local reason=w~=nil and (w.error or w.text) or "No WebRequest response"
+			log("Automatic Lua error report delivery failed (HTTP "..tostring(responseCode or "?").."): "..tostring(reason).."\n"..comment)
+		else
+			log("Automatic Lua error report response: "..tostring(w~=nil and w.text or ""))
+		end
 	end)
 end
 
@@ -229,7 +253,6 @@ local function reportAutomaticLuaError(functionName, errorText, context)
 	local last=automaticLuaErrorSignatures[signature]
 	if last~=nil and now-last<automaticLuaErrorCooldown then return end
 	automaticLuaErrorSignatures[signature]=now
-	automaticLuaErrorLastReport=now
 	--Keep the signature table bounded during very long sessions.
 	local signatureCount=0
 	for key,when in pairs(automaticLuaErrorSignatures) do
@@ -243,7 +266,6 @@ local function reportAutomaticLuaError(functionName, errorText, context)
 	local breadcrumbs=automaticLuaBreadcrumbText()
 	if breadcrumbs~="" then comment=comment.."\nRecent script actions: "..breadcrumbs end
 	comment=comment.."\n\n"..tostring(errorText)
-	pcall(function() UI.setAttribute("SendBugComment", "text", comment) end)
 	local ok, reportError=pcall(function() sendAutomaticLuaErrorRequest(comment) end)
 	if not ok then log("Automatic Lua error report failed: "..tostring(reportError).."\n"..comment) end
 	automaticLuaErrorReporting=false
@@ -280,9 +302,10 @@ end
 -- Lightweight boundary for hot TTS callbacks where allocating the normal safeCallback closure/breadcrumb
 -- path on every event is unnecessary. Detailed context can be added by the callback itself if needed.
 function safeDirectCallback(functionName, callback, first, second)
-	local ok, result=pcall(callback,first,second)
+	local ok, result=xpcall(callback,automaticLuaTraceback,first,second)
 	if not ok then
-		reportAutomaticLuaError(functionName,tostring(result))
+		automaticLuaBreadcrumb(functionName)
+		reportAutomaticLuaError(functionName,result)
 		return false
 	end
 	return result
@@ -300,7 +323,6 @@ function testAutomaticLuaError()
 		return rawError
 	end)
 	if ok==true then return end
-	automaticLuaErrorLastReport=0
 	automaticLuaErrorSignatures={}
 	reportAutomaticLuaError("TEST - automatic Lua error reporting", err, "Intentional test error triggered with !testerror")
 	error(rawError or "Intentional automatic Lua error reporting test", 0)
@@ -311,7 +333,7 @@ function testAutomaticLuaAsyncError()
 	safeWaitFrames("TEST async",function() error("Intentional asynchronous automatic Lua error reporting test",0) end,1)
 end
 
-function automaticLuaZoneContext(zone, obj)
+automaticLuaZoneContext=function(zone, obj)
 	local objectGUID=obj~=nil and obj.guid or "nil"
 	local zoneGUID=zone~=nil and zone.guid or "nil"
 	local objectType=obj~=nil and obj.type or "nil"
@@ -341,6 +363,29 @@ function automaticLuaTurnPhaseContext(player, id)
 	local context="Turn: "..tostring(automaticLuaErrorStateValue("turnNumber", "")).." / Round: "..tostring(automaticLuaErrorStateValue("currentRound", ""))
 	if player~=nil then context=context.."\nPlayer: "..tostring(player.color or player) end
 	if id~=nil then context=context.."\nAction: "..tostring(id) end
+	return context
+end
+
+function automaticLuaUICallbackContext(player, value, id)
+	local context=automaticLuaTurnPhaseContext(player,id)
+	if value~=nil then context=context.."\nInput: "..tostring(value) end
+	return context
+end
+
+function automaticLuaPlayerContext(playerOrColor, action)
+	local color=""
+	local steamName=""
+	if type(playerOrColor)=="table" then
+		color=tostring(playerOrColor.color or "")
+		steamName=tostring(playerOrColor.steam_name or "")
+	else
+		color=tostring(playerOrColor or "")
+		local livePlayer=color~="" and Player[color] or nil
+		if livePlayer~=nil then steamName=tostring(livePlayer.steam_name or "") end
+	end
+	local context=automaticLuaTurnPhaseContext(nil,action)
+	if color~="" then context=context.."\nPlayer color: "..color end
+	if steamName~="" then context=context.."\nSteam user: "..steamName end
 	return context
 end
 
