@@ -5851,9 +5851,12 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 		return parked
 	end
 	apocalypseQuestClearCardRuntime(card.guid)
-	apocalypseQuestCleanupTrace("BEFORE Quest object UI removal")
-	QuestPrivate.apocalypseQuestInterfaceRemove(card)
-	apocalypseQuestCleanupTrace("AFTER Quest object UI removal")
+	--Do not rewrite Object UI while the retiring Quest is still live in the offer. TTS applies Object UI
+	--changes asynchronously, and the native null-key error consistently lands a frame or two after this
+	--cleanup starts, before any attachment callback executes. The card is about to enter the Quest deck,
+	--where its Object UI is invisible; apocalypseQuestInterfaceAdd() already rebuilds/revalidates that UI
+	--when the card is drawn into the offer again.
+	apocalypseQuestCleanupTrace("Quest object UI removal skipped for deck retirement")
 	local deck=cleanupDeck
 	if deck==nil or deck.guid==card.guid then if onComplete~=nil then onComplete(false) end return false end
 
