@@ -1,5 +1,6 @@
 -- Quest-private helpers share one namespace to avoid Lua's top-level local-variable limit.
 local QuestPrivate={}
+QuestPrivate.apocalypseQuestRetiringCards={}
 
 -- Quest-private helpers. This batch deliberately leaves local-variable headroom for future Quest work.
 local apocalypseQuestStageIntoContainer, apocalypseQuestReturnRevealBag, apocalypseQuestRevealSetup, apocalypseQuestUndoSiteToken, apocalypseQuestTokenFaceUp
@@ -5133,6 +5134,10 @@ end
 
 function apocalypseQuestUpdateProgressButtons(card)
 	if card==nil then return end
+	if QuestPrivate.apocalypseQuestRetiringCards[card.guid]==true then
+		QuestPrivate.apocalypseQuestInterfaceRemove(card)
+		return
+	end
 	if gStates.apocalypseQuestOfferRefilling==true or gStates.apocalypseQuestOfferMoving==true then
 		gStates.apocalypseQuestOfferButtonRefreshPending=true
 		return
@@ -5228,6 +5233,13 @@ end
 
 function QuestPrivate.apocalypseQuestInterfaceAdd(card, forceRebuild)
 	if card==nil or card.type~="Card" then return end
+	--A delayed offer/button refresh can fire after BottomDeck has already cleared this Quest's runtime
+	--state. Never let that callback relock the retiring card or rerun reveal setup, which would recreate
+	--its buttons, markers and tucked cards while the card is on its way back to the Quest deck.
+	if QuestPrivate.apocalypseQuestRetiringCards[card.guid]==true then
+		QuestPrivate.apocalypseQuestInterfaceRemove(card)
+		return
+	end
 	card.lock()
 	--Reminder cards are deliberately parked outside the live Quest offer and must never regain their
 	--Progress/Complete UI from a delayed resting/refresh callback left over from their final action.
@@ -5738,6 +5750,9 @@ end
 
 function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	if card==nil then if onComplete~=nil then onComplete(false) end return false end
+	local cardGUID=card.guid
+	if cardGUID==nil then if onComplete~=nil then onComplete(false) end return false end
+	QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=true
 	local handler=apocalypseQuestHandler(card)
 	if handler~=nil and handler.bottomDeckBeforeReveal~=nil then handler.bottomDeckBeforeReveal(card) end
 	apocalypseQuestReturnRevealBag(card)
@@ -5746,13 +5761,18 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	--Such a card follows the same reminder rule as a normally completed Quest.
 	if QuestPrivate.apocalypseQuestHasActiveReminderToken(card)==true and (gStates.apocalypseQuestReminderCards==nil or gStates.apocalypseQuestReminderCards[card.guid]==nil) then
 		local parked=QuestPrivate.apocalypseQuestParkReminder(card)
+		QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
 		if onComplete~=nil then onComplete(parked==true) end
 		return parked
 	end
 	apocalypseQuestClearCardRuntime(card.guid)
 	QuestPrivate.apocalypseQuestInterfaceRemove(card)
 	local deck=QuestPrivate.apocalypseQuestLiveDeck()
-	if deck==nil or deck.guid==card.guid then if onComplete~=nil then onComplete(false) end return false end
+	if deck==nil or deck.guid==card.guid then
+		QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
+		if onComplete~=nil then onComplete(false) end
+		return false
+	end
 
 	--Face-down Quest tokens are only markers, so they always return with the Quest. A keepToken Quest
 	--leaves its token behind only after that token has been flipped face up into its lasting reward/site/effect.
@@ -5808,7 +5828,6 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	end
 	apocalypseQuestRemoveShields(card)
 
-	local cardGUID=card.guid
 	local function attachmentsClear()
 		local liveCard=getObjectFromGUID(cardGUID)
 		if liveCard==nil then return true end
@@ -5824,9 +5843,17 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	end
 	local function finishBottomDeck()
 		local liveCard=getObjectFromGUID(cardGUID)
-		if liveCard==nil then return end
+		if liveCard==nil then
+			QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
+			if onComplete~=nil then onComplete(false) end
+			return
+		end
 		local liveDeck=QuestPrivate.apocalypseQuestLiveDeck()
-		if liveDeck==nil or liveDeck.guid==liveCard.guid then return end
+		if liveDeck==nil or liveDeck.guid==liveCard.guid then
+			QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
+			if onComplete~=nil then onComplete(false) end
+			return
+		end
 		apocalypseQuestMarkReturned(liveCard)
 		liveCard.unlock()
 		local deckGUID=liveDeck.guid
@@ -5839,6 +5866,7 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 			local stagedCard=getObjectFromGUID(cardGUID)
 			local stagedDeck=getObjectFromGUID(deckGUID) or QuestPrivate.apocalypseQuestLiveDeck()
 			if stagedCard==nil or stagedDeck==nil or stagedDeck.guid==stagedCard.guid then
+				QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
 				if onComplete~=nil then onComplete(false) end
 				return
 			end
@@ -5848,6 +5876,7 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 				if liveDeck~=nil then GUID.deck.apocalypseQuest=liveDeck.guid end
 				refreshOutOfTurnActions(nil,nil,true)
 				QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
+				QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
 				if onComplete~=nil then onComplete(liveDeck~=nil) end
 			end)
 		end,2)
