@@ -2942,59 +2942,30 @@ function apocalypseQuestRefreshStrayToken()
 end
 
 function apocalypseQuestEndRoundCleanup(onComplete)
-	if apocalypseQuestsUsed()~=true or gStates.firstStarted~=true or gStates.currentRound>=gStates.rounds then return false end
+	if apocalypseQuestsUsed()~=true or gStates.firstStarted~=true then return false end
+	if gStates.currentRound>=gStates.rounds then return false end
+	local cards=QuestPrivate.apocalypseQuestOfferCards()
+	if #cards==0 then return false end
+	local removeCount=math.min(2,#cards)
+	local firstRemoved=#cards-removeCount+1
+	local queue={}
+	for i=firstRemoved,#cards do if cards[i]~=nil then queue[#queue+1]=cards[i] end end
+	broadcastToAll(joinLang({"{en}Quest cleanup started: removing the {ru}Очистка заданий началась: удаляется {zh-tw}任務清理開始：從供應中移除最右側 {zh-cn}任务清理开始：从供应中移除最右侧 {ko}퀘스트 정리 시작: 제안 오른쪽 끝에서 퀘스트 {es}Limpieza de Misiones iniciada: se retiran las {fr}Nettoyage des Quêtes commencé : retrait des {pt-br}Limpeza das Missões iniciada: removendo as {de}Quest-Bereinigung gestartet: Entferne die ",tostring(#queue),#queue==1 and "{en} rightmost Quest from the offer.{ru} крайнее справа задание из предложения.{zh-tw} 張任務。{zh-cn} 张任务。{ko}개를 제거합니다.{es} Misión más a la derecha de la oferta.{fr} Quête la plus à droite de l’offre.{pt-br} Missão mais à direita da oferta.{de} am weitesten rechts liegende Quest aus dem Angebot." or "{en} rightmost Quests from the offer.{ru} крайних справа заданий из предложения.{zh-tw} 張任務。{zh-cn} 张任务。{ko}개를 제거합니다.{es} Misiones más a la derecha de la oferta.{fr} Quêtes les plus à droite de l’offre.{pt-br} Missões mais à direita da oferta.{de} am weitesten rechts liegenden Quests aus dem Angebot."}),{1,1,0.5})
 
-	--End-of-round cleanup is a blocking part of the round transition. Persist the exact retirement queue
-	--so a save/load or interrupted reset resumes these same Quests instead of selecting two more.
-	local pending=gStates.apocalypseQuestEndRoundCleanupPending
-	if type(pending)~="table" or pending.round~=gStates.currentRound or type(pending.queue)~="table" then
-		local cards=QuestPrivate.apocalypseQuestOfferCards()
-		if #cards==0 then return false end
-		local removeCount=math.min(2,#cards)
-		local firstRemoved=#cards-removeCount+1
-		local queue={}
-		for i=firstRemoved,#cards do if cards[i]~=nil and cards[i].guid~=nil then queue[#queue+1]=cards[i].guid end end
-		if #queue==0 then return false end
-		pending={round=gStates.currentRound,queue=queue,index=1,announced=false}
-		gStates.apocalypseQuestEndRoundCleanupPending=pending
-	end
-
-	if pending.announced~=true then
-		pending.announced=true
-		broadcastToAll(joinLang({"{en}Quest cleanup started: removing the {ru}Очистка заданий началась: удаляется {zh-tw}任務清理開始：從供應中移除最右側 {zh-cn}任务清理开始：从供应中移除最右侧 {ko}퀘스트 정리 시작: 제안 오른쪽 끝에서 퀘스트 {es}Limpieza de Misiones iniciada: se retiran las {fr}Nettoyage des Quêtes commencé : retrait des {pt-br}Limpeza das Missões iniciada: removendo as {de}Quest-Bereinigung gestartet: Entferne die ",tostring(#pending.queue),#pending.queue==1 and "{en} rightmost Quest from the offer.{ru} крайнее справа задание из предложения.{zh-tw} 張任務。{zh-cn} 张任务。{ko}개를 제거합니다.{es} Misión más a la derecha de la oferta.{fr} Quête la plus à droite de l’offre.{pt-br} Missão mais à direita da oferta.{de} am weitesten rechts liegende Quest aus dem Angebot." or "{en} rightmost Quests from the offer.{ru} крайних справа заданий из предложения.{zh-tw} 張任務。{zh-cn} 张任务。{ko}개를 제거합니다.{es} Misiones más a la derecha de la oferta.{fr} Quêtes les plus à droite de l’offre.{pt-br} Missões mais à direita da oferta.{de} am weitesten rechts liegenden Quests aus dem Angebot."}),{1,1,0.5})
-	end
-
-	local cleanupRound=pending.round
-	local function finishCleanup()
-		gStates.apocalypseQuestEndRoundCleanupPending=nil
-		gStates.apocalypseQuestEndRoundCleanupDoneRound=cleanupRound
-		broadcastToAll("{en}Quest cleanup complete. The Quest offer will refill normally as player turns begin.{ru}Очистка заданий завершена. Предложение заданий будет пополняться обычным образом с началом ходов игроков.{zh-tw}任務清理完成。玩家回合開始後，任務供應將正常補充。{zh-cn}任务清理完成。玩家回合开始后，任务供应将正常补充。{ko}퀘스트 정리가 완료되었습니다. 플레이어 턴이 시작되면 퀘스트 제안이 정상적으로 보충됩니다.{es}Limpieza de Misiones completada. La oferta de Misiones se rellenará normalmente al comenzar los turnos de los jugadores.{fr}Nettoyage des Quêtes terminé. L’offre de Quêtes se remplira normalement au début des tours des joueurs.{pt-br}Limpeza das Missões concluída. A oferta de Missões será reabastecida normalmente quando os turnos dos jogadores começarem.{de}Quest-Bereinigung abgeschlossen. Das Quest-Angebot wird zu Beginn der Spielerzüge normal aufgefüllt.",{1,1,0.5})
-		if onComplete~=nil then onComplete(true) end
-	end
-
-	local function cleanNext()
-		local livePending=gStates.apocalypseQuestEndRoundCleanupPending
-		if type(livePending)~="table" or livePending.round~=cleanupRound then
-			if onComplete~=nil then onComplete(false) end
+	local function cleanNext(index)
+		if index>#queue then
+			broadcastToAll("{en}Quest cleanup complete. The Quest offer will refill normally as player turns begin.{ru}Очистка заданий завершена. Предложение заданий будет пополняться обычным образом с началом ходов игроков.{zh-tw}任務清理完成。玩家回合開始後，任務供應將正常補充。{zh-cn}任务清理完成。玩家回合开始后，任务供应将正常补充。{ko}퀘스트 정리가 완료되었습니다. 플레이어 턴이 시작되면 퀘스트 제안이 정상적으로 보충됩니다.{es}Limpieza de Misiones completada. La oferta de Misiones se rellenará normalmente al comenzar los turnos de los jugadores.{fr}Nettoyage des Quêtes terminé. L’offre de Quêtes se remplira normalement au début des tours des joueurs.{pt-br}Limpeza das Missões concluída. A oferta de Missões será reabastecida normalmente quando os turnos dos jogadores começarem.{de}Quest-Bereinigung abgeschlossen. Das Quest-Angebot wird zu Beginn der Spielerzüge normal aufgefüllt.",{1,1,0.5})
+			if onComplete~=nil then onComplete(true) end
 			return
 		end
-		local index=tonumber(livePending.index) or 1
-		if index>#livePending.queue then finishCleanup() return end
-		local cardGUID=livePending.queue[index]
-		local card=cardGUID~=nil and getObjectFromGUID(cardGUID) or nil
-		if card==nil then
-			--If a save caught the previous card after it merged but before its callback advanced the index,
-			--its GUID is now inside the Quest deck. Treat that item as already retired and continue.
-			livePending.index=index+1
-			safeWaitFrames("Quests",cleanNext,1)
-			return
-		end
+		local card=queue[index]
+		if card==nil then cleanNext(index+1) return end
 		local questName=apocalypseQuestName(card)
 		local questDetails=apocalypseQuestData[card.guid] or {}
 		local objects=apocalypseQuestObjectsOnCard(card)
 		local shieldCount=0
 		local penalized={}
-		broadcastToAll(joinLang({"{en}Quest cleanup: "{ru}Очистка задания: "{zh-tw}任務清理："{zh-cn}任务清理："{ko}퀘스트 정리: "{es}Limpieza de Misión: "{fr}Nettoyage de Quête : "{pt-br}Limpeza da Missão: "{de}Quest-Bereinigung: "",questName,"" (",tostring(questDetails.questType or "Unknown"),"){en} is leaving the offer.{ru} покидает предложение.{zh-tw} 正在離開供應。{zh-cn} 正在离开供应。{ko}이(가) 제안에서 제거됩니다.{es} sale de la oferta.{fr} quitte l’offre.{pt-br} está saindo da oferta.{de} verlässt das Angebot."}),{1,1,0.5})
+		broadcastToAll(joinLang({"{en}Quest cleanup: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"\" (",tostring(questDetails.questType or "Unknown"),"){en} is leaving the offer.{ru} покидает предложение.{zh-tw} 正在離開供應。{zh-cn} 正在离开供应。{ko}이(가) 제안에서 제거됩니다.{es} sale de la oferta.{fr} quitte l’offre.{pt-br} está saindo da oferta.{de} verlässt das Angebot."}),{1,1,0.5})
 		for _,obj in ipairs(objects) do
 			if obj.getName()=="Shield" then
 				shieldCount=shieldCount+1
@@ -3009,24 +2980,22 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 			end
 		end
 		QuestPrivate.apocalypseQuestBottomDeck(card,function(success)
-			if shieldCount>0 then broadcastToAll(joinLang({"{en}Quest cleanup: removed {ru}Очистка задания: удалено {zh-tw}任務清理：從 "{zh-cn}任务清理：从 "{ko}퀘스트 정리: "{es}Limpieza de Misión: se retiraron {fr}Nettoyage de Quête : retrait de {pt-br}Limpeza da Missão: foram removidos {de}Quest-Bereinigung: ",tostring(shieldCount),shieldCount==1 and "{en} Shield from "{ru} Щит из "{zh-tw}" 移除 1 個盾牌。{zh-cn}" 移除 1 个盾牌。{ko}"에서 방패 1개를 제거했습니다.{es} Escudo de "{fr} Bouclier de "{pt-br} Escudo de "{de} Schild aus "" or "{en} Shields from "{ru} Щитов из "{zh-tw}" 移除盾牌。{zh-cn}" 移除盾牌。{ko}"에서 방패를 제거했습니다.{es} Escudos de "{fr} Boucliers de "{pt-br} Escudos de "{de} Schilde aus "",questName,""."}),{1,1,0.5}) end
+			if shieldCount>0 then broadcastToAll(joinLang({"{en}Quest cleanup: removed {ru}Очистка задания: удалено {zh-tw}任務清理：從 \"{zh-cn}任务清理：从 \"{ko}퀘스트 정리: \"{es}Limpieza de Misión: se retiraron {fr}Nettoyage de Quête : retrait de {pt-br}Limpeza da Missão: foram removidos {de}Quest-Bereinigung: ",tostring(shieldCount),shieldCount==1 and "{en} Shield from \"{ru} Щит из \"{zh-tw}\" 移除 1 個盾牌。{zh-cn}\" 移除 1 个盾牌。{ko}\"에서 방패 1개를 제거했습니다.{es} Escudo de \"{fr} Bouclier de \"{pt-br} Escudo de \"{de} Schild aus \"" or "{en} Shields from \"{ru} Щитов из \"{zh-tw}\" 移除盾牌。{zh-cn}\" 移除盾牌。{ko}\"에서 방패를 제거했습니다.{es} Escudos de \"{fr} Boucliers de \"{pt-br} Escudos de \"{de} Schilde aus \"",questName,"\"."}),{1,1,0.5}) end
 			if gStates.apocalypseQuestReminderCards~=nil and gStates.apocalypseQuestReminderCards[card.guid]~=nil then
-				broadcastToAll(joinLang({"{en}Quest cleanup: "{ru}Очистка задания: "{zh-tw}任務清理："{zh-cn}任务清理："{ko}퀘스트 정리: "{es}Limpieza de Misión: "{fr}Nettoyage de Quête : "{pt-br}Limpeza da Missão: "{de}Quest-Bereinigung: "",questName,"{en}" remains beside the Quest Shield bags as a reminder.{ru}" остаётся рядом с мешками Щитов задания как напоминание.{zh-tw}" 留在任務盾牌袋旁作為提醒。{zh-cn}" 留在任务盾牌袋旁作为提醒。{ko}"이(가) 알림으로 퀘스트 방패 주머니 옆에 남습니다.{es}" permanece junto a las bolsas de Escudos de Misión como recordatorio.{fr}" reste à côté des sacs de Boucliers de Quête comme rappel.{pt-br}" permanece ao lado das bolsas de Escudos da Missão como lembrete.{de}" bleibt als Erinnerung neben den Quest-Schild-Beuteln."}),{1,1,0.5})
+				broadcastToAll(joinLang({"{en}Quest cleanup: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" remains beside the Quest Shield bags as a reminder.{ru}\" остаётся рядом с мешками Щитов задания как напоминание.{zh-tw}\" 留在任務盾牌袋旁作為提醒。{zh-cn}\" 留在任务盾牌袋旁作为提醒。{ko}\"이(가) 알림으로 퀘스트 방패 주머니 옆에 남습니다.{es}\" permanece junto a las bolsas de Escudos de Misión como recordatorio.{fr}\" reste à côté des sacs de Boucliers de Quête comme rappel.{pt-br}\" permanece ao lado das bolsas de Escudos da Missão como lembrete.{de}\" bleibt als Erinnerung neben den Quest-Schild-Beuteln."}),{1,1,0.5})
 			elseif success==true then
-				broadcastToAll(joinLang({"{en}Quest cleanup: "{ru}Очистка задания: "{zh-tw}任務清理："{zh-cn}任务清理："{ko}퀘스트 정리: "{es}Limpieza de Misión: "{fr}Nettoyage de Quête : "{pt-br}Limpeza da Missão: "{de}Quest-Bereinigung: "",questName,"{en}" returned to the bottom of the Quest deck.{ru}" возвращено на дно колоды заданий.{zh-tw}" 已歸還到任務牌庫底部。{zh-cn}" 已归还到任务牌库底部。{ko}"이(가) 퀘스트 덱 맨 아래로 돌아갔습니다.{es}" volvió al fondo del mazo de Misiones.{fr}" a été remis sous le paquet de Quêtes.{pt-br}" voltou para o fundo do baralho de Missões.{de}" wurde unter den Queststapel gelegt."}),{1,1,0.5})
+				broadcastToAll(joinLang({"{en}Quest cleanup: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" returned to the bottom of the Quest deck.{ru}\" возвращено на дно колоды заданий.{zh-tw}\" 已歸還到任務牌庫底部。{zh-cn}\" 已归还到任务牌库底部。{ko}\"이(가) 퀘스트 덱 맨 아래로 돌아갔습니다.{es}\" volvió al fondo del mazo de Misiones.{fr}\" a été remis sous le paquet de Quêtes.{pt-br}\" voltou para o fundo do baralho de Missões.{de}\" wurde unter den Queststapel gelegt."}),{1,1,0.5})
 			else
-				broadcastToAll(joinLang({"{en}Quest cleanup: "{ru}Очистка задания: "{zh-tw}任務清理："{zh-cn}任务清理："{ko}퀘스트 정리: "{es}Limpieza de Misión: "{fr}Nettoyage de Quête : "{pt-br}Limpeza da Missão: "{de}Quest-Bereinigung: "",questName,"{en}" could not be returned to the Quest deck.{ru}" не удалось вернуть в колоду заданий.{zh-tw}" 無法歸還到任務牌庫。{zh-cn}" 无法归还到任务牌库。{ko}"을(를) 퀘스트 덱으로 돌려놓지 못했습니다.{es}" no pudo devolverse al mazo de Misiones.{fr}" n’a pas pu être remise dans le paquet de Quêtes.{pt-br}" não pôde ser devolvida ao baralho de Misiones.{de}" konnte nicht in den Queststapel zurückgelegt werden."}),{1,0.2,0.2})
+				broadcastToAll(joinLang({"{en}Quest cleanup: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" could not be returned to the Quest deck.{ru}\" не удалось вернуть в колоду заданий.{zh-tw}\" 無法歸還到任務牌庫。{zh-cn}\" 无法归还到任务牌库。{ko}\"을(를) 퀘스트 덱으로 돌려놓지 못했습니다.{es}\" no pudo devolverse al mazo de Misiones.{fr}\" n’a pas pu être remise dans le paquet de Quêtes.{pt-br}\" não pôde ser devolvida ao baralho de Missões.{de}\" konnte nicht in den Queststapel zurückgelegt werden."}),{1,0.2,0.2})
 			end
-			livePending.index=index+1
 			--Only now may the next retiring Quest begin its deck return. This prevents the two loose
 			--cards from combining with each other and becoming a stray two-card deck beside the real deck.
-			safeWaitFrames("Quests",cleanNext,1)
+			safeWaitFrames("Quests",function() cleanNext(index+1) end,1)
 		end)
 	end
-	cleanNext()
+	cleanNext(1)
 	return true
 end
-
 function QuestPrivate.apocalypseQuestOfferTarget()
 	if gStates.playerCount==1 then return 4 end
 	return (gStates.playerCount or 0)+2
