@@ -5816,6 +5816,16 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	local cleanupDeck=QuestPrivate.apocalypseQuestLiveDeck()
 	apocalypseQuestCleanupTrace("Quest deck resolved as "..tostring(cleanupDeck~=nil and cleanupDeck.guid or "nil"))
 	local attachmentReturnsPending=0
+	local attachmentBarrierArmed=false
+	local attachmentBarrierFinished=false
+	local finishBottomDeck=nil
+	local function tryFinishAttachmentBarrier()
+		if attachmentBarrierArmed~=true or attachmentBarrierFinished==true or attachmentReturnsPending>0 or finishBottomDeck==nil then return end
+		attachmentBarrierFinished=true
+		--Every tracked return callback now represents a real container/deck merge. Give TTS one quiet frame
+		--after the final callback, then move the Quest card; no per-frame Wait.condition polling is needed.
+		safeWaitFrames("Quests",finishBottomDeck,1)
+	end
 	local function beginAttachmentReturn(label)
 		attachmentReturnsPending=attachmentReturnsPending+1
 		apocalypseQuestCleanupTrace("begin "..tostring(label or "attachment").." (pending "..tostring(attachmentReturnsPending)..")")
@@ -5823,6 +5833,7 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	local function finishAttachmentReturn(label)
 		attachmentReturnsPending=math.max(0,attachmentReturnsPending-1)
 		apocalypseQuestCleanupTrace("finish "..tostring(label or "attachment").." (pending "..tostring(attachmentReturnsPending)..")")
+		tryFinishAttachmentBarrier()
 	end
 	local handler=apocalypseQuestHandler(card)
 	if handler~=nil and handler.bottomDeckBeforeReveal~=nil then handler.bottomDeckBeforeReveal(card) end
@@ -5907,31 +5918,12 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	--round refresh, tucked cards and Quest markers have just been sent back to their own decks/bag; TTS
 	--needs a few frames to finish those container moves. Moving the Quest card immediately could carry
 	--those objects toward the Quest deck before their return completed (Spell Thief / Prove Yourself).
-	local attachmentGUIDs={}
-	for _,guid in ipairs(cleanupAttachmentGUIDs) do
-		local obj=getObjectFromGUID(guid)
-		if obj~=nil and obj.getName()~="Shield" then attachmentGUIDs[#attachmentGUIDs+1]=guid end
-	end
 	apocalypseQuestCleanupTrace("BEFORE optional Quest-shield removal")
 	apocalypseQuestRemoveShields(card,cleanupAttachmentGUIDs)
 	apocalypseQuestCleanupTrace("AFTER optional Quest-shield removal")
 
 	local cardGUID=card.guid
-	local function attachmentsClear()
-		if attachmentReturnsPending>0 then return false end
-		local liveCard=getObjectFromGUID(cardGUID)
-		if liveCard==nil then return true end
-		local source=liveCard.getPosition()
-		for _,guid in ipairs(attachmentGUIDs) do
-			local obj=getObjectFromGUID(guid)
-			if obj~=nil then
-				local pos=obj.getPosition()
-				if math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5 and pos[2]>source[2]-1.5 and pos[2]<source[2]+3.0 then return false end
-			end
-		end
-		return true
-	end
-	local function finishBottomDeck()
+	finishBottomDeck=function()
 		apocalypseQuestCleanupTrace("attachment barrier clear; starting Quest card return")
 		local liveCard=getObjectFromGUID(cardGUID)
 		if liveCard==nil then return end
@@ -5964,12 +5956,11 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 			end)
 		end,2)
 	end
-	if attachmentsClear()==true then finishBottomDeck()
-	else
-		apocalypseQuestCleanupTrace("BEFORE attachment Wait.condition registration")
-		safeWaitCondition("Quests",finishBottomDeck,attachmentsClear,2.0,finishBottomDeck)
-		apocalypseQuestCleanupTrace("AFTER attachment Wait.condition registration")
-	end
+	--All cleanup movements have now been scheduled. From here the explicit return callbacks own the
+	--barrier; the final one resumes the Quest-card return without touching TTS Wait.condition.
+	attachmentBarrierArmed=true
+	apocalypseQuestCleanupTrace("attachment callback barrier armed (pending "..tostring(attachmentReturnsPending)..")")
+	tryFinishAttachmentBarrier()
 	return true
 end
 function QuestPrivate.apocalypseQuestClaimAbandonedPersonal(card, playerIndex)
