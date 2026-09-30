@@ -1001,4 +1001,3 @@ function isTacticCard(obj)
 	for i=1, #tacticCard do if obj.guid==tacticCard[i] then return true end end
 	return false
 end
-
