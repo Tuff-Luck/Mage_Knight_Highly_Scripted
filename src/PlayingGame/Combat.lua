@@ -3038,3 +3038,17 @@ end
 function attachEnemy(player, mouseButton, id, obj, zone)
 	return fameReputationAttachEnemy(player, mouseButton, id, obj, zone)
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	assaultAdjust=assaultAdjust,
+	attackCity=attackCity,
+	coopAssaultJoin=coopAssaultJoin,
+	pursuingRampagers=pursuingRampagers,
+	wallAssaultChoice=wallAssaultChoice,
+	zigguratPyramidInteract=zigguratPyramidInteract,
+	adjustOverkill=adjustOverkill,
+	attachEnemy=attachEnemy,
+	attackLocation=attackLocation,
+	summonMonster=summonMonster
+})
