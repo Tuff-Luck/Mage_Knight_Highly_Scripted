@@ -1304,3 +1304,10 @@ function layoutClaimedCards()
 end
 
 --Swap Day and Night items
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	displayScore=displayScore,
+	closePanel=closePanel,
+	layoutClaimedCards=layoutClaimedCards
+})
