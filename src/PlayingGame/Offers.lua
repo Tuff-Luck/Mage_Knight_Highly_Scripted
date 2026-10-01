@@ -596,11 +596,26 @@ local function applyDeedOfferAdjustState(spellSource,size)
 	spellSource.UI.setAttribute("e4372aOfferDown","interactable",downEnabled and "true" or "false")
 	spellSource.UI.setAttribute("e4372aOfferUpImage","image",upEnabled and activeImage or inactiveImage)
 	spellSource.UI.setAttribute("e4372aOfferDownImage","image",downEnabled and activeImage or inactiveImage)
-	--Use literal characters through the UI API. XML entity text can be mangled when the authored
-	--Spell UI is captured and later copied from Deck to Card.
+	return true
+end
+
+function deedOfferArrowTextRefresh(spellSource)
+	spellSource=spellSource or standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+	if spellSource==nil then return false end
 	spellSource.UI.setAttribute("e4372aOfferUpText","text",">")
 	spellSource.UI.setAttribute("e4372aOfferDownText","text","<")
 	return true
+end
+
+local function scheduleDeedOfferSourceTextRefresh(sourceGUID)
+	safeWaitFrames("Offers",function()
+		local live=sourceGUID~=nil and getObjectFromGUID(sourceGUID) or nil
+		if live==nil then live=standardDeckCycleObject("Spell") end
+		if live~=nil then
+			deedOfferArrowTextRefresh(live)
+			reapplyObjectXmlText(live)
+		end
+	end,2)
 end
 
 function refreshDeedOfferAdjustUI()
@@ -620,16 +635,14 @@ function refreshDeedOfferAdjustUI()
 		safeWaitFrames("Offers",function()
 			local live=getObjectFromGUID(sourceGUID)
 			if live==nil then live=standardDeckCycleObject("Spell") end
-			if live~=nil then
-				applyDeedOfferAdjustState(live,size)
-				reapplyObjectXmlText(live)
-			end
+			if live~=nil then applyDeedOfferAdjustState(live,size) end
 		end,1)
+		scheduleDeedOfferSourceTextRefresh(sourceGUID)
 		return true
 	end
 
 	applyDeedOfferAdjustState(spellSource,size)
-	reapplyObjectXmlText(spellSource)
+	scheduleDeedOfferSourceTextRefresh(spellSource.guid)
 	return true
 end
 
