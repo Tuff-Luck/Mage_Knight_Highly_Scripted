@@ -1,8 +1,0 @@
-<Defaults>
-	<Text font="Fonts/MKCardTittle"
-		  color="#FFFFFF"
-		  alignment="MiddleCenter"
-		  resizeTextForBestFit="true"
-		  resizeTextMinSize="30"
-		  raycastTarget="false"/>
-</Defaults>

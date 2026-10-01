@@ -125,11 +125,13 @@ function onLoad(saved_data)
 		--proven load-time setAttribute pass once TTS has had two frames to build/localise the object UI.
 		monsterReplenishObjectOnLoad()
 		artifactOnLoad()
+		siteDescriptionObjectOnLoad()
 		rollerOnLoad(rollerSavedState(loadedData))
 		local result=__onLoad_raw(saved_data,loadedData)
 		safeWaitFrames("Callbacks",function()
 			monsterReplenishTranslationRefresh()
 			artifactOfferRewardTextRefresh()
+			siteDescriptionTranslationRefresh()
 			deedOfferArrowTextRefresh()
 		end,2)
 		return result
@@ -4654,7 +4656,39 @@ function refreshTurnOrderHelpVisibility()
 	return true
 end
 
-local DISTRIBUTED_TABLE_LABEL_GUIDS={"938554","e0945c"}
+local SITE_DESCRIPTION_HOST_GUID="03de4d"
+local SITE_DESCRIPTION_LABEL_ID="TableSiteDescriptionsLabel"
+local SITE_DESCRIPTION_TEXT="{en}Site Descriptions{ru}Описание Мест{zh-tw}地點說明{zh-cn}地点说明{ko}장소 참고 카드{es}Descripción de Lugares{fr}Descriptions du site{pt-br}Descrição de Local{de}Website-Beschreibungen"
+local DISTRIBUTED_TABLE_LABEL_GUIDS={SITE_DESCRIPTION_HOST_GUID,"e0945c"}
+
+function siteDescriptionObjectOnLoad()
+	local host=getObjectFromGUID(SITE_DESCRIPTION_HOST_GUID)
+	if host==nil then return false end
+	--03de4d is the permanent Roll Dungeon Die bag near the Site Descriptions area.
+	--Its transform is roughly {-65.23,1.03,-26.03}, scale 1, Y rotation 180. These local UI
+	--coordinates start the label near the old F8 world position {-60.08,1.00,-25.07}.
+	local xml=[=[
+<Defaults>
+    <Text font="Fonts/MKCardTittle" color="#FFFFFF" alignment="MiddleCenter"
+          resizeTextForBestFit="true" resizeTextMinSize="30" raycastTarget="false"/>
+</Defaults>
+<Text id="TableSiteDescriptionsLabel"
+      width="1100" height="200"
+      position="-516 -20 -10"
+      rotation="0 0 180"
+      scale="0.91 0.91"
+      resizeTextMaxSize="100">]=]..SITE_DESCRIPTION_TEXT..[=[</Text>
+]=]
+	host.UI.setXml(xml)
+	return true
+end
+
+function siteDescriptionTranslationRefresh()
+	local host=getObjectFromGUID(SITE_DESCRIPTION_HOST_GUID)
+	if host==nil then return false end
+	host.UI.setAttribute(SITE_DESCRIPTION_LABEL_ID,"text",SITE_DESCRIPTION_TEXT)
+	return true
+end
 
 function refreshTableExtensionUI()
 	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
@@ -25691,69 +25725,56 @@ local function moveDeedOfferText(size)
 	end
 end
 
-local deedOfferSourceUiTemplate=nil
-
-local function copyUiTable(value)
-	if type(value)~="table" then return value end
-	local result={}
-	for key,entry in pairs(value) do result[copyUiTable(key)]=copyUiTable(entry) end
-	return result
-end
-
-local function findUiNodeById(nodes,id)
-	if type(nodes)~="table" then return nil end
-	for _,node in ipairs(nodes) do
-		if type(node)=="table" then
-			if type(node.attributes)=="table" and node.attributes.id==id then return node end
-			local found=findUiNodeById(node.children,id)
-			if found~=nil then return found end
-		end
-	end
-	return nil
-end
-
-local function deedOfferSourceUiTable(spellSource)
-	if spellSource==nil then return nil end
-	local current=spellSource.UI.getXmlTable()
-	if type(current)=="table" and findUiNodeById(current,"TableSpellLabel")~=nil then
-		deedOfferSourceUiTemplate=copyUiTable(current)
-		return current
-	end
-	if deedOfferSourceUiTemplate~=nil then return copyUiTable(deedOfferSourceUiTemplate) end
-	return nil
-end
-
-local function prepareDeedOfferSourceUiTable(uiTable,size)
-	if type(uiTable)~="table" then return false end
+local function deedOfferSourceUiXml(size)
 	local upEnabled=size<DEED_OFFER_MAX_SIZE
 	local downEnabled=size>DEED_OFFER_MIN_SIZE
 	local activeImage="Sliced Button/Button Object Active"
 	local inactiveImage="Sliced Button/Button Object Deactive"
-
-	local up=findUiNodeById(uiTable,"e4372aOfferUp")
-	local down=findUiNodeById(uiTable,"e4372aOfferDown")
-	local upImage=findUiNodeById(uiTable,"e4372aOfferUpImage")
-	local downImage=findUiNodeById(uiTable,"e4372aOfferDownImage")
-	local upText=findUiNodeById(uiTable,"e4372aOfferUpText")
-	local downText=findUiNodeById(uiTable,"e4372aOfferDownText")
-	if up==nil or down==nil or upImage==nil or downImage==nil or upText==nil or downText==nil then return false end
-
-	up.attributes.active="true"
-	down.attributes.active="true"
-	up.attributes.interactable=upEnabled and "true" or "false"
-	down.attributes.interactable=downEnabled and "true" or "false"
-	upImage.attributes.image=upEnabled and activeImage or inactiveImage
-	downImage.attributes.image=downEnabled and activeImage or inactiveImage
-
-	--Use the same representation that previously rendered correctly: literal Text attributes in a UI table.
-	--Do not put these characters through XML entities or setAttribute().
-	upText.attributes.text=">"
-	downText.attributes.text="<"
-	upText.attributes.color="#000000"
-	downText.attributes.color="#000000"
-	upText.value=nil
-	downText.value=nil
-	return true
+	return {
+		{tag="Text", attributes={
+			id="TableSpellLabel", width=400, height=250,
+			position="208 0 -10", rotation="0 180 -90", scale="0.667 0.667",
+			alignment="UpperCenter", resizeTextForBestFit="true", resizeTextMinSize="30", resizeTextMaxSize="100",
+			font="Fonts/MKCardTittle", color="#FFFFFF", raycastTarget="false",
+			text="{en}Spells{ru}Заклинания{zh-tw}法術卡{zh-cn}法术卡{ko}마법{es}Hechizos{fr}Sorts{pt-br}Feitiços{de}Zaubersprüche"
+		}},
+		{tag="Text", attributes={
+			id="TableAdvancedActionLabel", width=400, height=250,
+			position="208 -400 -10", rotation="0 180 -90", scale="0.667 0.667",
+			alignment="UpperCenter", resizeTextForBestFit="true", resizeTextMinSize="30", resizeTextMaxSize="100",
+			font="Fonts/MKCardTittle", color="#FFFFFF", raycastTarget="false",
+			text="{en}Advanced Actions{ru}Особые Действия{zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션{es}Acciones Avanzadas{fr}Actions avancées{pt-br}Ações Avançadas{de}Fortgeschrittene Aktionen"
+		}},
+		{tag="Text", attributes={
+			id="TableOfferLabel", width=1000, height=180,
+			position="325 -600 -10", rotation="0 180 -90", scale="0.667 0.667",
+			alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMinSize="30", resizeTextMaxSize="200",
+			font="Fonts/MKCardTittle", color="#FFFFFF", raycastTarget="false",
+			text="{en}Offers{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote"
+		}},
+		{tag="Button", attributes={
+			id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+			interactable=upEnabled and "true" or "false", active="true",
+			height=150, width=240, position="60 190 -10", rotation="0 180 180", scale="0.32 0.32"
+		}, children={
+			{tag="Image", attributes={id="e4372aOfferUpImage", image=upEnabled and activeImage or inactiveImage, type="Sliced"}},
+			{tag="Text", attributes={
+				id="e4372aOfferUpText", font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", color="#000000",
+				alignment="MiddleCenter", resizeTextForBestFit="false", text=">"
+			}}
+		}},
+		{tag="Button", attributes={
+			id="e4372aOfferDown", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+			interactable=downEnabled and "true" or "false", active="true",
+			height=150, width=240, position="-60 190 -10", rotation="0 180 180", scale="0.32 0.32"
+		}, children={
+			{tag="Image", attributes={id="e4372aOfferDownImage", image=downEnabled and activeImage or inactiveImage, type="Sliced"}},
+			{tag="Text", attributes={
+				id="e4372aOfferDownText", font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", color="#000000",
+				alignment="MiddleCenter", resizeTextForBestFit="false", text="<"
+			}}
+		}}
+	}
 end
 
 function refreshDeedOfferAdjustUI()
@@ -25761,14 +25782,9 @@ function refreshDeedOfferAdjustUI()
 	if spellSource==nil then return false end
 	local size=deedOfferBoundedSize(gStates.offerSize)
 	gStates.offerSize=size
-
-	--Read the current authored object UI so XML remains authoritative for all positions, rotations and scales.
-	--If the Spell source has collapsed from Deck to Card, reuse the captured authored table on the new source.
-	local uiTable=deedOfferSourceUiTable(spellSource)
-	if uiTable==nil or prepareDeedOfferSourceUiTable(uiTable,size)~=true then return false end
-	spellSource.UI.setXmlTable(uiTable)
-
-	--setXmlTable is asynchronous. Reapply tagged label translations once the rebuilt tree is ready.
+	--The live Spell source may change from Deck to Card, so rebuild the complete local UI on
+	--whichever object currently owns the source. Positions are intentionally defined here.
+	spellSource.UI.setXmlTable(deedOfferSourceUiXml(size))
 	local sourceGUID=spellSource.guid
 	safeWaitFrames("Offers",function()
 		local live=getObjectFromGUID(sourceGUID)
@@ -25779,8 +25795,8 @@ function refreshDeedOfferAdjustUI()
 end
 
 function deedOfferArrowTextRefresh()
-	--Kept as the load-time repair entry point used by Callbacks. Rebuilding from the authored UI table
-	--also restores literal black arrow glyphs, so there is no separate Text timing path anymore.
+	--Callbacks keeps using this established load-time entry point; rebuilding the whole Spell UI
+	--restores the literal black arrow glyphs and current enabled/disabled state together.
 	return refreshDeedOfferAdjustUI()
 end
 

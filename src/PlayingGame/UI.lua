@@ -1980,9 +1980,9 @@ function siteDescriptionObjectOnLoad()
 </Defaults>
 <Text id="TableSiteDescriptionsLabel"
       width="1100" height="200"
-      position="-516 96 -10"
-      rotation="0 180 180"
-      scale="0.4 0.91"
+      position="-516 -20 -10"
+      rotation="0 0 180"
+      scale="0.91 0.91"
       resizeTextMaxSize="100">]=]..SITE_DESCRIPTION_TEXT..[=[</Text>
 ]=]
 	host.UI.setXml(xml)
