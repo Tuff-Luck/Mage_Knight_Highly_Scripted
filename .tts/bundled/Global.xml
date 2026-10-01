@@ -415,7 +415,7 @@
 		</Button>
 	</Panel>
 	<Panel id="ScoreButton" active="false" rectAlignment="UpperLeft" offsetXY="220 -30" width="110" height="30" outlineSize="0 0">
-		<Button id="ScoreButtonReal" onClick="DisplayScore" interactable="false">
+		<Button id="ScoreButtonReal" onClick="displayScore" interactable="false">
 			<Image id="ScoreButtonRealImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 			<VerticalLayout padding="6 6 6 6"><Text id="ScoreButtonRealText" class="Text18" offsetXY="0 1">{en}Score{ru}Результат{zh-tw}得  分{zh-cn}得  分{ko}점수{es}Puntuación{fr}Score{pt-br}Pontuação{de}Ergebnis</Text></VerticalLayout>
 		</Button>

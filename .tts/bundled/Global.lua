@@ -92,6 +92,8 @@ end)
 __bundle_register("PlayingGame.Callbacks", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Public error-wrapped gameplay and TTS callback boundaries.
 
+local validatePublicUICallbacks
+
 --Object-UI Skill claims are not TTS event callbacks, so give them the same automatic error-report boundary.
 function skillMove(player, mouseButton, id, rewindReady)
 	return safeCallback("skillMove", function() return __skillMove_raw(player, mouseButton, id, rewindReady) end, function() return automaticLuaSkillClaimContext(player,id) end)
@@ -116,15 +118,15 @@ end
 -- Wrap TTS event callbacks so unexpected Lua errors are reported automatically.
 function onLoad(saved_data)
 	return safeCallback("onLoad",function()
-		monsterReplenishObjectOnLoad()
-		artifactOnLoad()
-		rollerOnLoad(rollerSavedState(saved_data))
-		local result=__onLoad_raw(saved_data)
+		validatePublicUICallbacks()
+		local loadedData=nil
+		if type(saved_data)=="string" and saved_data~="" then loadedData=JSON.decode(saved_data) end
+		rollerOnLoad(rollerSavedState(loadedData))
+		local result=__onLoad_raw(saved_data,loadedData)
+		--Object UIs exist with the table, but TTS localisation is not reliably ready at the first onLoad
+		--instruction. Install each XML once after the same short delay that made the Artifact UI reliable.
 		safeWaitFrames("Callbacks",function()
-			local monsterReplenish=getObjectFromGUID(GUID.ui.monsterReplenish)
-			if monsterReplenish~=nil then
-				monsterReplenish.UI.setAttribute("d7a165replenishMonsterPilesText", "text", "{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen")
-			end
+			monsterReplenishObjectOnLoad()
 			artifactOnLoad()
 		end,2)
 		return result
@@ -220,14 +222,9 @@ end
 --Global XML and Object UI callbacks bypass the normal TTS lifecycle wrappers above. Install their
 --error boundaries here, after every gameplay module has loaded, so the owning implementations stay
 --unchanged and UI names continue resolving exactly as before.
-local function protectPublicUICallback(name)
-	local callback=_G[name]
-	if type(callback)=="function" then _G[name]=safePublicCallback(name,callback,automaticLuaUICallbackContext) end
-end
-
-local protectedUICallbacks={
+local expectedProtectedUICallbacks={
 	--Global XML setup/general controls
-	"BlitzSelection","DisplayScore","MoreRampageSelection","PlayerChosen","RampageSelection","SendDataRequest",
+	"BlitzSelection","displayScore","MoreRampageSelection","PlayerChosen","RampageSelection","SendDataRequest",
 	"SetupMenu","VolkareLevelSelection","VolkareRaceSelection","adjustHigherLevelSetupValue",
 	"apocalypseDragonLevelSelection","assaultAdjust","attackCity","autoflip","baseValueTweak","buttonClicked",
 	"cameraControl","cameraControlFollowEnemy","cameraControlTopDown","closePanel","closeSplash","coopAssaultJoin",
@@ -236,7 +233,7 @@ local protectedUICallbacks={
 	"nightTactic2","nightTactic4","nightTactic6","openBugReportPanel","optionsUpdate","plunderVillage",
 	"proxyManaChoiceSelect","pursuingRampagers","randomSetup","resourceTracker","riseOfTheForgemasterOption",
 	"scenarioSelection","setBugReportComment","switchSetup","toggleDropDown","toggleScenarioEndAchieved","valueAdjust",
-	"volkarePartial","volkareRetreat","wallAssaultChoice","zigguratPyramidInteract",
+	"volkarePartial","volkareRetreat","wallAssaultChoice","zigguratPyramidInteract","MKRollDieButton",
 	--Dynamic Object UI / scenario controls
 	"adjustCityLevel","adjustOverkill","againstDragonAttackComplete","againstDragonAttendFull",
 	"againstDragonFinishPartial","againstDragonOffMapChoiceSelect","againstDragonTargetChoiceSelect",
@@ -248,9 +245,29 @@ local protectedUICallbacks={
 	"higherLevelSkill","horsemanAttackAction","layoutClaimedCards","nightTint","offerAdjust","offerArtifacts",
 	"processCardClaim","proxyDestinationChoiceSelect","proxyEnemyChoiceSelect","proxyInteractionChoiceSelect",
 	"proxyTurn","refillMonsterTokenPiles","removeTactic","restoreDestroyedSiteAtCurrentPlayer","shieldDrop",
-	"steadyTempoChoice","summonMonster","togglePlayerDropoutRequest","volkarePursuitAction","volkareTurn"
+	"steadyTempoChoice","summonMonster","togglePlayerDropoutRequest","volkarePursuitAction","volkareTurn",
+	"coopCompSkillWarningClick","nightTactic6StoredCountNoop"
 }
-for _,name in ipairs(protectedUICallbacks) do protectPublicUICallback(name) end
+
+validatePublicUICallbacks=function()
+	local missing={}
+	local unprotected={}
+	for _,name in ipairs(expectedProtectedUICallbacks) do
+		if type(_G[name])~="function" then
+			missing[#missing+1]=name
+		elseif automaticLuaPublicUICallbackProtected(name)~=true then
+			unprotected[#unprotected+1]=name
+		end
+	end
+	if #missing==0 and #unprotected==0 then return true end
+	local details={}
+	if #missing>0 then details[#details+1]="Missing public UI callback(s): "..table.concat(missing,", ") end
+	if #unprotected>0 then details[#details+1]="Unprotected public UI callback(s): "..table.concat(unprotected,", ") end
+	safeCallback("Callbacks UI registration",function()
+		error(table.concat(details,"\n"),2)
+	end)
+	return false
+end
 
 function onChat(message, player)
 	if player~=nil and player.admin==true then
@@ -644,8 +661,8 @@ function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	return result
 end
 
-function fameReputationOnLoadRaw(saved_data)
-	local result=eventsOnLoadRawBase(saved_data)
+function fameReputationOnLoadRaw(saved_data, loaded_data)
+	local result=eventsOnLoadRawBase(saved_data,loaded_data)
 	--A save can occur after preEndTurn is set but before its delayed Fame/Rep commit callback. The absence
 	--of a persisted commit marker means the physical tracks still need the pending reward exactly once.
 	safeWaitFrames("FameReputation",function()
@@ -785,9 +802,10 @@ end
 -- Event Handling functions
 ---------------
 --Save and load settings
-function eventsOnLoadRawBase(saved_data)
+function eventsOnLoadRawBase(saved_data, loaded_data)
 	cacheScenarioTweakDefaults()
-	local megaFreeze=  {"3d4319", "519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard, "a02b0f"}--player mats
+	-- TEMP TABLE XML EDITING: "3d4319" intentionally omitted so Table Extension remains right-click interactable. RESTORE AFTER EDITING.
+	local megaFreeze=  {"519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard, "a02b0f"}--player mats
 	for i=1, #megaFreeze, 1 do
 		local obj=getObjectFromGUID(megaFreeze[i])
 		if obj~=nil then obj.interactable=false end --some boards may be missing depending on their states
@@ -798,7 +816,7 @@ function eventsOnLoadRawBase(saved_data)
 	end
 	--load saved data
 	if saved_data~="" then
-		local loaded_data=JSON.decode(saved_data)
+		loaded_data=loaded_data or JSON.decode(saved_data)
 		turnOrder=loaded_data.turnOrder
 		gStates=loaded_data.gStates
 	end
@@ -963,6 +981,12 @@ function eventsOnLoadRawBase(saved_data)
 		refreshAllPlayerFameReputationFromShields()
 		refreshTactic4HandBonus(false)
 		mainUIUpdate("Save Loaded")
+		--Delayed Combat callbacks do not survive a TTS reload. Restore any open wall question and
+		--resume only the unfinished parts of a persisted pre-end-turn cleanup checkpoint.
+		safeWaitFrames("Events",function()
+			restoreWallAssaultChoice()
+			combatRecoverPreEndTurn()
+		end,4)
 		restoreZigguratPyramidUI()
 		addAvatarButtons()
 		addCityButtons()
@@ -1420,21 +1444,6 @@ dieRollEnterPause=nil
 workingOnTerrain={}
 local shieldLocationWait={}--Per-object debounce so simultaneous shield/site moves cannot cancel each other.
 masterOfChaosWait=nil
-randomizePause=nil
-local sourceRandomizeFences={{"7e09c6", 7.40}, {"0a7c95", 3.60}, {"ec49dd", 7.40}, {"c17ca2", 3.60}}
-local function pulseSourceRandomizeFences()
-	for _, fenceDetails in ipairs(sourceRandomizeFences) do
-		local fence=getObjectFromGUID(fenceDetails[1])
-		if fence~=nil then fence.setScale({0.10, 20.00, fenceDetails[2]}) end
-	end
-	if randomizePause~=nil then Wait.stop(randomizePause) end
-	randomizePause=safeWaitTime("Events",function()
-		for _, fenceDetails in ipairs(sourceRandomizeFences) do
-			local fence=getObjectFromGUID(fenceDetails[1])
-			if fence~=nil then fence.setScale({0.10, 0.1, fenceDetails[2]}) end
-		end
-	end, 3)
-end
 
 local function scheduleShieldLocation(obj, zone, status)
 	local guid=obj~=nil and obj.guid or nil
@@ -2532,8 +2541,8 @@ function __filterObjectEnterContainer_raw(container, enter_object)
 end
 
 -- Final load composition includes Fame/Reputation recovery after the base table/UI restoration.
-function __onLoad_raw(saved_data)
-	return fameReputationOnLoadRaw(saved_data)
+function __onLoad_raw(saved_data, loaded_data)
+	return fameReputationOnLoadRaw(saved_data,loaded_data)
 end
 
 end)
@@ -2668,6 +2677,11 @@ function SendDataRequest(player, mouseButton, id)
 		end
 	end
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	SendDataRequest=SendDataRequest
+})
 
 end)
 __bundle_register("PlayingGame.UI", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -4610,6 +4624,16 @@ end
 
 local LOWER_TABLE_GUID="3d4319"
 local LOWER_TABLE_SURFACE_GUID="519f96"
+local TABLE_LABELS_ROOT_ID="TableLabelsRoot"
+local TABLE_LABELS_EXTENSION_UP="0 0 -100"
+local TABLE_LABELS_EXTENSION_DOWN="0 0 -120"
+
+local function setTableLabelHeight(tableObj,position)
+	if tableObj==nil or tableObj.UI.getAttribute(TABLE_LABELS_ROOT_ID,"position")==nil then return end
+	--The labels remain at roughly the same world height while the Table Extension itself moves 0.2.
+	tableObj.UI.setAttribute(TABLE_LABELS_ROOT_ID,"position",position)
+end
+
 function lowerTable(player, mouseButton, id)
 	if mouseButton~="-1" then return end
 	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
@@ -4620,6 +4644,7 @@ function lowerTable(player, mouseButton, id)
 		tableObj.setPosition({0.00, -0.2, -5.00})
 		surfaceObj.setScale({200, 1, 200})
 		surfaceObj.setPosition({0.00, 0.77, -5.00})
+		setTableLabelHeight(tableObj,TABLE_LABELS_EXTENSION_DOWN)
 		skillButtonActivate()
 		return
 	end
@@ -4627,6 +4652,7 @@ function lowerTable(player, mouseButton, id)
 		tableObj.setPosition({0.00, 0.0, -5.00})
 		surfaceObj.setScale({1, 1, 1})
 		surfaceObj.setPosition({0.00, -0.2, -5.00})
+		setTableLabelHeight(tableObj,TABLE_LABELS_EXTENSION_UP)
 		skillButtonActivate()
 	end
 end
@@ -5115,12 +5141,17 @@ end
 -- these catches errors from nested cleanup such as monster/Quest disposal that TTS UI callbacks would
 -- otherwise report only locally. Keep the public names unchanged for XML and internal callers.
 
+local function installExistingObjectUI(guid, xml)
+	local obj=getObjectFromGUID(guid)
+	if obj==nil then return false end
+	obj.UI.setXml(xml)
+	return true
+end
+
 --Monster Replenish no longer carries its own Lua/XML. Rebuild its physical Restock button from
 --Global, and keep the old status ids as hidden targets for existing swap/status helpers.
 function monsterReplenishObjectOnLoad()
-	local obj=getObjectFromGUID(GUID.ui.monsterReplenish)
-	if obj==nil then return end
-	obj.UI.setXml([=[
+	return installExistingObjectUI(GUID.ui.monsterReplenish,[=[
 <Button id="d7a165replenishMonsterPiles" interactable="true"
     onClick="global/refillMonsterTokenPiles"
     tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
@@ -5156,19 +5187,14 @@ local ARTIFACT_UI = [=[
 </Button>
 ]=]
 
-local function installArtifactUI(attempt)
-    local artifacts = getObjectFromGUID(ARTIFACT_GUID)
-    if artifacts ~= nil then
-        --Keep the localization tags in the XML itself. TTS resolves those when setXml loads the
-        --object UI; reapplying the same tagged string through setAttribute displays every language.
-        artifacts.UI.setXml(ARTIFACT_UI)
-        return
-    end
-    if attempt < 60 then safeWaitFrames("UI",function() installArtifactUI(attempt + 1) end, 1) end
+local function installArtifactUI()
+    --Keep the localization tags in the XML itself. TTS resolves those when setXml loads the
+    --object UI; both object UIs are installed once from Callbacks after localisation is ready.
+    return installExistingObjectUI(ARTIFACT_GUID,ARTIFACT_UI)
 end
 
 function artifactOnLoad()
-    installArtifactUI(1)
+    return installArtifactUI()
 end
 
 -- Day/night tint control
@@ -5644,6 +5670,29 @@ function valueAdjust(player, mouseButton, id)
 	return fameReputationValueAdjust(player, mouseButton, id)
 end
 
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	autoflip=autoflip,
+	buttonClicked=buttonClicked,
+	cameraControl=cameraControl,
+	cameraControlFollowEnemy=cameraControlFollowEnemy,
+	cameraControlTopDown=cameraControlTopDown,
+	closeSplash=closeSplash,
+	lowerTable=lowerTable,
+	monsterImageSwap=monsterImageSwap,
+	openBugReportPanel=openBugReportPanel,
+	resourceTracker=resourceTracker,
+	setBugReportComment=setBugReportComment,
+	valueAdjust=valueAdjust,
+	ButtonClickDown=ButtonClickDown,
+	ButtonClickDownOverkill=ButtonClickDownOverkill,
+	ButtonClickUp=ButtonClickUp,
+	ButtonClickUpOverkill=ButtonClickUpOverkill,
+	changeMatImage=changeMatImage,
+	changePositionColor=changePositionColor,
+	nightTint=nightTint
+})
+
 end)
 __bundle_register("PlayingGame.Rollers", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Centralised dice-roller logic for the Roll Crystal Die / Roll Dungeon Die bags.
@@ -5867,12 +5916,15 @@ function rollerOnLoad(savedState)
     installRollers(1)
 end
 
-function rollerSavedState(saved_data)
-	if type(saved_data)~="string" or saved_data=="" then return nil end
-	local ok,data=pcall(JSON.decode,saved_data)
-	if ok and type(data)=="table" then return data.rollerDice end
+function rollerSavedState(loaded_data)
+	if type(loaded_data)=="table" then return loaded_data.rollerDice end
 	return nil
 end
+
+-- Public UI callback ownership: classic TTS button entry point.
+publishPublicUICallbacks({
+	MKRollDieButton=MKRollDieButton
+})
 
 end)
 __bundle_register("PlayingGame.Movement", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -6435,8 +6487,10 @@ function renderMoveDisplay(id)
 			local gladePos=againstHorsemenCentralGladePosition(0.97)
 			if gladePos~=nil then playerPos=gladePos end
 		end
-		if gStates.resourceTracker.playerPos==nil and turnOrder[gStates.turnNumber].turnStartLoc[1]~=nil and turnOrder[gStates.turnNumber].turnStartLoc[1]>-42 then
-			gStates.resourceTracker.playerPos={turnOrder[gStates.turnNumber].turnStartLoc[1], turnOrder[gStates.turnNumber].turnStartLoc[2], turnOrder[gStates.turnNumber].turnStartLoc[3]}--{0, 0, 0}
+		local currentTurn=turnOrder[gStates.turnNumber]
+		local turnStartLoc=currentTurn~=nil and currentTurn.turnStartLoc or nil
+		if gStates.resourceTracker.playerPos==nil and turnStartLoc~=nil and turnStartLoc[1]~=nil and turnStartLoc[1]>-42 then
+			gStates.resourceTracker.playerPos={turnStartLoc[1], turnStartLoc[2], turnStartLoc[3]}--{0, 0, 0}
 		end
 		if id=="MovemAmountUpdate" then
 			for _, details in pairs(mageKnights) do
@@ -7405,6 +7459,13 @@ function volkareTokenRandomize(token)--9a686a
 	end, function() return token==nil or (token.resting and volkareDice.resting) end) end, 2)
 end
 
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	volkarePartial=volkarePartial,
+	volkareRetreat=volkareRetreat,
+	volkareTurn=volkareTurn
+})
+
 end)
 __bundle_register("PlayingGame.AI.Dummy", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Standard Dummy runtime.
@@ -7464,6 +7525,11 @@ function dummyTurn(player, mouseButton, id)
 	if dummyStats.dummyProcessedThisTurn==true then return end
 	automatedTurnRewindStart(function() dummyProcessTurn(dummyIndex,dummySeat) end)
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	dummyTurn=dummyTurn
+})
 
 end)
 __bundle_register("PlayingGame.AI.Proxy", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -9794,6 +9860,15 @@ function proxyTurn(player,mouseButton,id)
 	automatedTurnRewindStart(function() proxyProcessTurn(proxyIndex) end)
 end
 
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	proxyManaChoiceSelect=proxyManaChoiceSelect,
+	proxyDestinationChoiceSelect=proxyDestinationChoiceSelect,
+	proxyEnemyChoiceSelect=proxyEnemyChoiceSelect,
+	proxyInteractionChoiceSelect=proxyInteractionChoiceSelect,
+	proxyTurn=proxyTurn
+})
+
 end)
 __bundle_register("PlayingGame.AI.Common", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Shared automated-player helpers for Dummy, Proxy and Volkare.
@@ -11221,6 +11296,13 @@ end
 
 --Swap Day and Night items
 
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	displayScore=displayScore,
+	closePanel=closePanel,
+	layoutClaimedCards=layoutClaimedCards
+})
+
 end)
 __bundle_register("PlayingGame.Horsemen", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Horsemen-private helpers. Predeclared so forward references keep resolving locally.
@@ -11504,12 +11586,17 @@ function horsemanResolveDefeat(token,playerIndex,coopCombatReward)
 	return true
 end
 
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	horsemanAttackAction=horsemanAttackAction
+})
+
 end)
 __bundle_register("PlayingGame.ApocalypseDragon", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Apocalypse Dragon-private helpers. Predeclared so forward references keep resolving locally.
 local apocalypseDragonHeadTokenPosition, apocalypseDragonPositionHeadToken, apocalypseDragonCopyAttack, apocalypseDragonRefreshRuntimeData
 local apocalypseDragonDeployHeadToken, apocalypseDragonLevelMarkerPosition, apocalypseDragonLockLevelMarker, apocalypseDragonDefeatedHeadCount, apocalypseDragonSyncControlLevel
-local apocalypseDragonCheckAndResolveDefeat, apocalypseDragonHeadStateChanged, apocalypseDragonGroundReduction, apocalypseDragonGroundMarkedThroughOne, apocalypseDragonGroundControlGUIDs
+local apocalypseDragonCheckAndResolveDefeat, apocalypseDragonHeadStateChanged, apocalypseDragonGroundReduction, apocalypseDragonGroundControlGUIDs
 local apocalypseDragonGroundPrepareColoredHead, apocalypseDragonGroundPrepareControl, apocalypseDragonNewGroundCombat, apocalypseDragonGroundTokenInPlayerArea
 local apocalypseDragonCoopAdjacentPlayers, apocalypseDragonGroundApplyFinalLevels, apocalypseDragonGroundCleanupRuntime
 
@@ -11691,12 +11778,17 @@ function apocalypseDragonApplyHeadLevel(headName,level)
 		if type(image)=="string" and image~="" then token.setCustomObject({image=image}) end
 		token.setName(level>0 and (headName.." Dragon Head Level "..tostring(level)) or (headName.." Dragon Head Defeated"))
 		token.reload()
+		--Refresh logical data immediately, then repeat the object-dependent refresh after reload()
+		--has produced fresh userdata so Control attack-bonus decals are applied deterministically.
+		apocalypseDragonRefreshRuntimeData()
 		safeWaitFrames("Scenario",function()
 			local current=getObjectFromGUID(headData.tokenGUID)
 			if current~=nil then apocalypseDragonPositionHeadToken(headData) end
+			apocalypseDragonRefreshRuntimeData()
 		end,1)
+	else
+		apocalypseDragonRefreshRuntimeData()
 	end
-	apocalypseDragonRefreshRuntimeData()
 	return true
 end
 
@@ -12050,19 +12142,6 @@ function apocalypseDragonLockModelWhenSettled()
 	end,5,lockDragon)
 end
 
---Against the Dragon: Core non-City tile 3 reveals the Dragon's three-space lair.
---The Dragon keeps its normal map orientation. Its model origin is the centre of the front hex,
---so it is placed directly on the main/centre hex and the two rear hexes fall behind it.
---Random Tile Orientation rotates the printed hexes underneath this fixed footprint.
-function apocalypseDragonLairContainsPosition(pos)
-	if pos==nil or gStates==nil or gStates.apocalypseDragonLairRevealed~=true or gStates.apocalypseDragonLair==nil then return false end
-	for _,hex in ipairs(gStates.apocalypseDragonLair.hexes or {}) do
-		local p=hex.position
-		if p~=nil and ((pos[1]-p[1])^2)+((pos[3]-p[3])^2)<2.25 then return true end
-	end
-	return false
-end
-
 --The shared Dragon combat helpers need the Dragon's current footprint, not necessarily its original
 --Lair. Fury uses a single marker which alternates between a landed map/City space and off-map flight.
 function apocalypseDragonCombatHexes()
@@ -12183,23 +12262,6 @@ apocalypseDragonGroundReduction=function(headName)
 	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
 	if combat==nil or combat.reductions==nil then return 1 end
 	return math.max(1,math.floor(tonumber(combat.reductions[headName]) or 1))
-end
-
-apocalypseDragonGroundMarkedThroughOne=function(headName)
-	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
-	if combat==nil then return false end
-	if combat.headMarkedToOne~=nil and combat.headMarkedToOne[headName]==true then return true end
-	local level=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or 0) or 0
-	if level<=0 then return true end
-	local headData=apocalypseDragonHeadData(headName)
-	local token=headData~=nil and getObjectFromGUID(headData.tokenGUID) or nil
-	if token==nil or combat.processedTokens~=nil and combat.processedTokens[token.guid]==true then return false end
-	--Future co-op participants cannot suppress the current player's Control attack by pre-adjusting
-	--their head before their own combat. Only resolved earlier heads plus the current participant count.
-	local owner=apocalypseDragonGroundHeadOwner(headName)
-	local activePlayer=combat.activePlayerIndex or gStates.turnNumber
-	if combat.coop==true and owner~=activePlayer then return false end
-	return token.is_face_down==false and apocalypseDragonGroundReduction(headName)>=level
 end
 
 apocalypseDragonGroundControlGUIDs=function()
@@ -12363,7 +12425,7 @@ apocalypseDragonGroundPrepareControl=function(combat,playerIndex,slot,useOrigina
 end
 
 apocalypseDragonNewGroundCombat=function(coop)
-	return {coop=coop==true,players={},headOwners={},deployed={},reductions={},processedTokens={},headMarkedToOne={},fameByPlayer={},previewFameByPlayer={},finishedPlayers={},controlClones={},fortifiedPlayers={},finished=false,levelsApplied=false}
+	return {coop=coop==true,players={},headOwners={},deployed={},reductions={},processedTokens={},fameByPlayer={},previewFameByPlayer={},finishedPlayers={},controlClones={},fortifiedPlayers={},finished=false,levelsApplied=false}
 end
 
 apocalypseDragonGroundTokenInPlayerArea=function(tokenGUID,playerIndex)
@@ -12530,11 +12592,10 @@ function apocalypseDragonBeginCoopGroundCombat()
 	for playerIndex,details in ipairs(turnOrder or {}) do
 		local assigned=details~=nil and gStates.assaultData~=nil and gStates.assaultData[details.mage] or nil
 		if assigned~=nil and assigned.joined==true then
-			local assignedCount=0
 			for _,army in ipairs({"primary","secondary"}) do
 				for _,guid in ipairs(assigned[army] or {}) do
 					local headName=apocalypseDragonGroundHeadNameForGUID(guid)
-					if headName~=nil and headName~="Control" and apocalypseDragonGroundPrepareColoredHead(combat,headName,playerIndex)==true then assignedCount=assignedCount+1 end
+					if headName~=nil and headName~="Control" then apocalypseDragonGroundPrepareColoredHead(combat,headName,playerIndex) end
 				end
 			end
 			apocalypseDragonGroundPrepareControl(combat,playerIndex,1,false)
@@ -12661,7 +12722,6 @@ function apocalypseDragonFinalizeFuryDefense()
 			local token=headData~=nil and getObjectFromGUID(headData.tokenGUID) or nil
 			if token~=nil and combat.processedTokens[token.guid]~=true then
 				combat.reductions[headName]=0
-				combat.headMarkedToOne[headName]=false
 				token.UI.setXmlTable({{}})
 				token.setRotation({0,180,0})
 				local home=apocalypseDragonHeadTokenPosition(headData)
@@ -12733,10 +12793,8 @@ function apocalypseDragonGroundResolveToken(obj)
 		local reduction=math.min(current,apocalypseDragonGroundReduction(headName))
 		combat.reductions=combat.reductions or {}
 		combat.fameByPlayer=combat.fameByPlayer or {}
-		combat.headMarkedToOne=combat.headMarkedToOne or {}
 		combat.reductions[headName]=reduction
 		combat.fameByPlayer[owner]=(combat.fameByPlayer[owner] or 0)+reduction
-		combat.headMarkedToOne[headName]=reduction>=current and current>0
 		local headData=apocalypseDragonHeadData(headName)
 		local disc=headData~=nil and getObjectFromGUID(headData.guid) or nil
 		if disc~=nil then
@@ -12747,9 +12805,7 @@ function apocalypseDragonGroundResolveToken(obj)
 		end
 	else
 		combat.reductions=combat.reductions or {}
-		combat.headMarkedToOne=combat.headMarkedToOne or {}
 		combat.reductions[headName]=0
-		combat.headMarkedToOne[headName]=false
 	end
 	local headData=apocalypseDragonHeadData(headName)
 	local home=headData~=nil and apocalypseDragonHeadTokenPosition(headData) or nil
@@ -12815,13 +12871,30 @@ apocalypseDragonGroundCleanupRuntime=function(combat)
 			token.UI.setXmlTable({{}})
 			token.setLock(false)
 			token.setRotation({0,180,0})
-			if home~=nil then token.setPositionSmooth(home,false,true) end
+			if home~=nil then
+				local settlingHeadData=headData
+				local tokenGUID=settlingHeadData.tokenGUID
+				token.setPositionSmooth(home,false,true)
+				safeWaitCondition("Scenario",function()
+					local current=getObjectFromGUID(tokenGUID)
+					if current~=nil then apocalypseDragonPositionHeadToken(settlingHeadData) end
+				end,function()
+					local current=getObjectFromGUID(tokenGUID)
+					return current==nil or current.isSmoothMoving()==false
+				end,5,function()
+					local current=getObjectFromGUID(tokenGUID)
+					if current~=nil then apocalypseDragonPositionHeadToken(settlingHeadData) end
+				end)
+			else
+				token.setLock(true)
+			end
 		end
-		local level=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headData.name] or 0) or 0
-		apocalypseDragonApplyHeadLevel(headData.name,level)
 		gStates.monsterPlayLocation[headData.tokenGUID]=nil
 		if gStates.attackedMonsters~=nil then gStates.attackedMonsters[headData.tokenGUID]=nil end
 	end
+	--Final levels were already applied before cleanup. Rebuild the normal head stats/perks once
+	--without reloading every persistent token a second time.
+	apocalypseDragonRefreshRuntimeData()
 end
 
 function apocalypseDragonFinalizeGroundCombat(playerIndex)
@@ -12858,7 +12931,6 @@ function finalizeCoopDragonCombat()
 			local token=headData~=nil and getObjectFromGUID(headData.tokenGUID) or nil
 			if token~=nil and combat.processedTokens[token.guid]~=true then
 				combat.reductions[headName]=0
-				combat.headMarkedToOne[headName]=false
 				local home=apocalypseDragonHeadTokenPosition(headData)
 				token.UI.setXmlTable({{}})
 				token.setRotation({0,180,0})
@@ -12986,7 +13058,6 @@ function apocalypseDragonMainUIPanelSpec()
 	if gStates==nil or gStates.apocalypseDragonTurnActive~=true then return nil end
 	local pending=gStates.apocalypseDragonPendingAttack
 	local turnNumber=tonumber(gStates.apocalypseDragonTurn) or 1
-	local ordinal=apocalypseDragonTurnOrdinal(turnNumber)
 	local mainText=joinLang({"{en}<size=25>Apocalypse Dragon's Turn</size><size=6>\n\n</size><size=18>Round {ru}<size=25>Ход Дракона Апокалипсиса</size><size=6>\n\n</size><size=18>Раунд {zh-tw}<size=25>末日巨龍回合</size><size=6>\n\n</size><size=18>回合輪 {zh-cn}<size=25>末日巨龙回合</size><size=6>\n\n</size><size=18>回合轮 {ko}<size=25>아포칼립스 드래곤의 턴</size><size=6>\n\n</size><size=18>라운드 {es}<size=25>Turno del Dragón del Apocalipsis</size><size=6>\n\n</size><size=18>Ronda {fr}<size=25>Tour du Dragon de l'Apocalypse</size><size=6>\n\n</size><size=18>Manche {pt-br}<size=25>Turno do Dragão do Apocalipse</size><size=6>\n\n</size><size=18>Rodada {de}<size=25>Zug des Apokalypse-Drachen</size><size=6>\n\n</size><size=18>Runde ",tostring(gStates.currentRound or 1),"{en} - Dragon turn {ru} — ход Дракона {zh-tw}－巨龍回合 {zh-cn}－巨龙回合 {ko} - 드래곤 턴 {es} - turno del Dragón {fr} - tour du Dragon {pt-br} - turno do Dragão {de} - Drachenzug ",tostring(turnNumber),"</size><size=4>\n</size>"})
 	if pending~=nil then
 		if pending.phase=="choose" then
@@ -13001,7 +13072,7 @@ function apocalypseDragonMainUIPanelSpec()
 	elseif state=="ReadyToEnd" then label="{en}Dragon Processed{ru}Дракон обработан{zh-tw}巨龍行動結束{zh-cn}巨龙行动结束{ko}드래곤 처리 완료{es}Dragón Procesado{fr}Dragon traité{pt-br}Dragão Processado{de}Drache verarbeitet" active=true
 	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Выберите цель{zh-tw}選擇目標{zh-cn}选择目标{ko}대상 선택{es}Elige Objetivo{fr}Choisir la Cible{pt-br}Escolha o Alvo{de}Ziel wählen"
 	elseif state=="WaitingCombat" then label="{en}Combat Resolved{ru}Бой завершён{zh-tw}戰鬥已解決{zh-cn}战斗已解决{ko}전투 해결 완료{es}Combate resuelto{fr}Combat résolu{pt-br}Combate resolvido{de}Kampf beendet" active=true end
-	return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or joinLang({"{en}The Apocalypse Dragon is preparing its {ru}Дракон Апокалипсиса готовится к своему {zh-tw}末日巨龍正在準備第 {zh-cn}末日巨龙正在准备第 {ko}아포칼립스 드래곤이 {es}El Dragón del Apocalipsis prepara su {fr}Le Dragon de l’Apocalypse prépare son {pt-br}O Dragão do Apocalipse está preparando seu {de}Der Apokalypse-Drache bereitet seinen ",ordinal,"{en} turn.{ru} ходу.{zh-tw} 個回合。{zh-cn} 个回合。{ko}번째 턴을 준비하고 있습니다.{es} turno.{fr} tour.{pt-br} turno.{de} Zug vor."}),onClick="apocalypseDragonProcessUI",label=label,interactable=active}
+	return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or joinLang({"{en}The Apocalypse Dragon is preparing for turn {ru}Дракон Апокалипсиса готовится к ходу {zh-tw}末日巨龍正在準備第 {zh-cn}末日巨龙正在准备第 {ko}아포칼립스 드래곤이 {es}El Dragón del Apocalipsis prepara el turno {fr}Le Dragon de l’Apocalypse prépare le tour {pt-br}O Dragão do Apocalipse está preparando o turno {de}Der Apokalypse-Drache bereitet Zug ",tostring(turnNumber),"{en}.{ru}.{zh-tw} 個回合。{zh-cn} 个回合。{ko}번째 턴을 준비하고 있습니다.{es}.{fr}.{pt-br}.{de} vor."}),onClick="apocalypseDragonProcessUI",label=label,interactable=active}
 end
 
 function apocalypseDragonMainUIRefresh()
@@ -13093,6 +13164,12 @@ function apocalypseDragonTurnChoiceClearButtons()
 	againstDragonTargetChoiceClearButtons()
 	againstDragonOffMapChoiceClearButtons()
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	apocalypseDragonGroundReductionAdjust=apocalypseDragonGroundReductionAdjust,
+	apocalypseDragonProcessUI=apocalypseDragonProcessUI
+})
 
 end)
 __bundle_register("PlayingGame.Scenario", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -17412,6 +17489,25 @@ cityCardExploreOffsets={{-1.2, 1.09, 6.23},{4.8, 1.09, 4.15},{-6, 1.09, 2.08},{6
 	{-3.6, 1.09, 18.69},{-8.4, 1.09, 14.54},{-13.2, 1.09, 10.39},{-18, 1.09, 6.24},
 	{18, 1.09, -6.24},{13.2, 1.09, -10.39},{8.4, 1.09, -14.54},{3.6, 1.09, -18.69}}
 
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	mineClaimChoice=mineClaimChoice,
+	toggleScenarioEndAchieved=toggleScenarioEndAchieved,
+	againstDragonAttackComplete=againstDragonAttackComplete,
+	againstDragonAttendFull=againstDragonAttendFull,
+	againstDragonFinishPartial=againstDragonFinishPartial,
+	againstDragonOffMapChoiceSelect=againstDragonOffMapChoiceSelect,
+	againstDragonTargetChoiceSelect=againstDragonTargetChoiceSelect,
+	apocalypseIsHereHorsemanTargetSelect=apocalypseIsHereHorsemanTargetSelect,
+	apocalypseIsHereProcessHorsemenUI=apocalypseIsHereProcessHorsemenUI,
+	druidNightsRitualAction=druidNightsRitualAction,
+	fracturedLandsOrientationDone=fracturedLandsOrientationDone,
+	fracturedLandsRotateLeft=fracturedLandsRotateLeft,
+	fracturedLandsRotateRight=fracturedLandsRotateRight,
+	restoreDestroyedSiteAtCurrentPlayer=restoreDestroyedSiteAtCurrentPlayer,
+	volkarePursuitAction=volkarePursuitAction
+})
+
 end)
 __bundle_register("PlayingGame.Turn", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Turn, round, tactic and final-turn runtime.
@@ -17466,7 +17562,8 @@ function togglePlayerDropoutRequest(player, mouseButton, id)
 	if playerData.dropoutState=="dropped" then return end
 	if playerData.dropoutState=="pending" then
 		playerData.dropoutState=nil
-		setDropoutMatImage(playerData, false)
+		setDropoutMatImage(playerData,false)
+		if gStates.firstStarted==true then mirrorSourceUpdate("player dropout cancelled") end
 		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} cancelled dropping out.{ru} отменил выход из игры.{zh-tw} 取消了退出遊戲。{zh-cn} 取消了退出游戏。{ko} 게임 나가기를 취소했습니다.{es} canceló su abandono de la partida.{fr} a annulé son départ de la partie.{pt-br} cancelou a saída do jogo.{de} hat das Verlassen des Spiels abgebrochen."}), positionToColor(playerIndex))
 	else
 		--Never allow dropouts to reduce the game below two active Mage Knights.
@@ -17476,7 +17573,8 @@ function togglePlayerDropoutRequest(player, mouseButton, id)
 			return
 		end
 		playerData.dropoutState="pending"
-		setDropoutMatImage(playerData, true)
+		setDropoutMatImage(playerData,true)
+		if gStates.firstStarted==true then mirrorSourceUpdate("player dropout requested") end
 		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} will drop out when turn order next advances. Press Undo Drop Out before then to cancel.{ru} выйдет из игры при следующем переходе хода. До этого можно отменить выход.{zh-tw} 將在下一次推進回合順序時退出遊戲；在此之前可按撤銷退出。{zh-cn} 将在下一次推进回合顺序时退出游戏；在此之前可按撤销退出。{ko} 다음 차례 진행 시 게임에서 나갑니다. 그 전까지 나가기 취소를 누를 수 있습니다.{es} abandonará la partida cuando avance el orden de turno. Puede deshacerlo antes de entonces.{fr} quittera la partie au prochain changement de tour. Vous pouvez annuler avant cela.{pt-br} sairá do jogo quando a ordem de turno avançar. Você pode desfazer antes disso.{de} verlässt das Spiel beim nächsten Zugwechsel. Bis dahin kann der Austritt rückgängig gemacht werden."}), positionToColor(playerIndex))
 	end
 	applyColorBarButtons()
@@ -17708,6 +17806,7 @@ local function commitPendingDropouts()
 		end
 	end
 	if changed==true then
+		mirrorSourceUpdate("player dropout committed")
 		applyColorBarButtons()
 		volkareQuestCheckSkipTurn()
 	end
@@ -19368,6 +19467,19 @@ function __endTurn_raw(player, mouseButton, id, rewindReady)
 	return fameReputationEndTurnRaw(player, mouseButton, id, rewindReady)
 end
 
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	extraTurnButton=extraTurnButton,
+	extraTurnChoice=extraTurnChoice,
+	nightTactic2=nightTactic2,
+	nightTactic4=nightTactic4,
+	nightTactic6=nightTactic6,
+	removeTactic=removeTactic,
+	togglePlayerDropoutRequest=togglePlayerDropoutRequest,
+	dayTactic2Discarded=dayTactic2Discarded,
+	nightTactic6StoredCountNoop=nightTactic6StoredCountNoop
+})
+
 end)
 __bundle_register("PlayingGame.Combat", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Combat-private helpers. Predeclared so forward references keep resolving locally.
@@ -19417,6 +19529,10 @@ local combatFactionRewards={
 local combatRewardDiscardByNotes={
 	["Dark Crusader Reward"]=GUID.bag.discard.darkReward,["Elementalist Reward"]=GUID.bag.discard.elementalistReward,
 	["Apocalypse Cult Reward"]=GUID.bag.discard.apocReward,["Council of the Void Reward"]=GUID.bag.discard.councilReward
+}
+local combatFactionRewardDiscardByPile={
+	[monsterPiles.rewardDark]=GUID.bag.discard.darkReward,[monsterPiles.rewardElem]=GUID.bag.discard.elementalistReward,
+	[monsterPiles.rewardApoc]=GUID.bag.discard.apocReward,[monsterPiles.rewardCouncil]=GUID.bag.discard.councilReward
 }
 local combatCityZones={
 	[cityModel.blue]=GUID.zone.blueCity,[cityModel.red]=GUID.zone.redCity,[cityModel.green]=GUID.zone.greenCity,
@@ -19738,16 +19854,30 @@ end
 takeFactionRewardToken=function(playerIndex, pileGUID, position)
 	local pile=pileGUID~=nil and getObjectFromGUID(pileGUID) or nil
 	if pile==nil then return false, "justFame" end
-	if pile.getQuantity()==0 then
-		tokenRefill()
-		pile=getObjectFromGUID(pileGUID)
+	local function rewardPosition()
+		return position or {(turnOrder[playerIndex].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}
 	end
-	if pile~=nil and pile.getQuantity()>0 then
-		position=position or {(turnOrder[playerIndex].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}
-		pile.takeObject({position=position})
+	local function takeReady()
+		local readyPile=getObjectFromGUID(pileGUID)
+		if readyPile~=nil and readyPile.getQuantity()>0 then
+			readyPile.takeObject({position=rewardPosition()})
+			return true
+		end
+		return false
+	end
+	if pile.getQuantity()>0 then
+		takeReady()
 		return true
 	end
-	return false, "empty"
+	local discardGUID=combatFactionRewardDiscardByPile[pileGUID]
+	local discard=discardGUID~=nil and getObjectFromGUID(discardGUID) or nil
+	if discard==nil or #discard.getObjects()==0 then return false, "empty" end
+	withTokenPoolReady(pileGUID,function()
+		if takeReady()~=true then
+			broadcastToAll("{en}No faction reward tokens remain to claim.{ru}Жетонов наград фракции для получения больше не осталось.{zh-tw}沒有剩餘的派系獎勵標記可供領取。{zh-cn}没有剩余的派系奖励标记可供领取。{ko}획득할 수 있는 세력 보상 토큰이 더 이상 없습니다.{es}No quedan fichas de recompensa de facción por reclamar.{fr}Il ne reste plus de jetons de récompense de faction à réclamer.{pt-br}Não restam fichas de recompensa de facção para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker mehr zum Beanspruchen übrig.", positionToColor(playerIndex))
+		end
+	end,"Combat")
+	return true, "pending"
 end
 
 awardFactionRewardToken=function(playerIndex, pileGUID, coopCombatReward, rewardKey)
@@ -20010,8 +20140,7 @@ function startCoopRewardPhase()
 	resolveCoopAssaultLocations()
 	if gStates.coopRewardQueue==nil or #gStates.coopRewardQueue==0 then
 		local scenarioEndPending=gStates.coopAssaultScenarioEndPending==true
-		gStates.coopAssaultPhase=nil
-		gStates.coopAssaultScenarioEndPending=false
+		clearCoopAssaultRuntime()
 		if scenarioEndPending then
 			--Do not end immediately after a victorious co-op assault. The normal turn
 			--engine must first consume assisting players' flipped turn tokens, then
@@ -20066,8 +20195,50 @@ end
 rewardClaimDelayActive=false
 local rewardClaimDelayWait=nil
 --local slightPause=true
+
+local function combatPreEndTurnRecoveryTryFinish(recovery)
+	if recovery==nil or gStates.combatPreEndTurnRecovery~=recovery then return end
+	if recovery.rewardBoundaryDone==true and recovery.avatarDropDone==true and recovery.stateRefreshDone==true and recovery.skillCleanupDone==true and recovery.unitCleanupDone==true then
+		gStates.combatPreEndTurnRecovery=nil
+	end
+end
+
+local function combatScheduleRewardBoundary(cleanupPlayer,coopCombatCleanup,recovery)
+	rewardClaimDelayActive=true
+	if rewardClaimDelayWait~=nil then Wait.stop(rewardClaimDelayWait) rewardClaimDelayWait=nil end
+	rewardClaimDelayWait=safeWaitTime("Combat",function()
+		rewardClaimDelayWait=nil
+		local function finishRewardDelay()
+			rewardClaimDelayActive=false
+			--Co-op combat defers every reward gate until all participants have fought.
+			--Do not start the Rewards Claimed soft lock during the combat-to-combat handoff.
+			if coopCombatCleanup~=true and gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
+				rewardClaimSoftLockStart()
+				if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[cleanupPlayer].seatPos)
+				else setUIButtonEnabled("PreEndTurn",true) end
+			end
+			if recovery~=nil then
+				recovery.rewardBoundaryDone=true
+				combatPreEndTurnRecoveryTryFinish(recovery)
+			end
+			rewindTransactionFinish("Pre-end-turn cleanup")
+		end
+		local dragonCombat=gStates.apocalypseDragonGroundCombat
+		if dragonCombat~=nil and dragonCombat.coop~=true and dragonCombat.playerIndex==cleanupPlayer and dragonCombat.levelsApplied~=true then
+			safeWaitCondition("Combat",finishRewardDelay,function()
+				local current=gStates.apocalypseDragonGroundCombat
+				return current==nil or current.levelsApplied==true
+			end,5,finishRewardDelay)
+		else
+			finishRewardDelay()
+		end
+	end,2.0)
+end
+
 local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	local coopCombatCleanup=gStates.coopAssaultPhase=="combat"
+	local recovery={player=cleanupPlayer,coop=coopCombatCleanup==true,processedObjects={},rewardBoundaryDone=false,avatarDropDone=false,stateRefreshDone=false,skillCleanupDone=false,unitCleanupDone=false}
+	gStates.combatPreEndTurnRecovery=recovery
 	volkarePursuitResolveCombat(cleanupPlayer)
 	puppetMasterCleanupPlayedPuppets(cleanupPlayer)
 	--A Quest marker may still be settling under this Hero. Finish that temporary lift before the older
@@ -20081,17 +20252,9 @@ local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 		setUIButtonEnabled("EndTurnButton",false)
 		setUIButtonEnabled("EndTurnButtonAlt",false)
 	end
-	--reset variables for next turn
 	gStates.preEndTurn=true
-	--Before combat cleanup moves/discards Quest enemies, remember successful combat-gated Quest
-	--resolutions. This gives Rewards Claimed its soft warning gate while that Quest action is pending.
 	apocalypseQuestCaptureRewardCompletionGate(cleanupPlayer)
-	--Free Wine uses a normal Keep assault rather than a Quest-spawned combat, so capture its outcome
-	--separately now that the rewards boundary has been reached.
 	apocalypseQuestCaptureFreeWineResolutionGate(cleanupPlayer)
-	--Mine of Doom enemies now use the normal end-of-turn combat cleanup with every other enemy.
-	rewardClaimDelayActive=true
-	if rewardClaimDelayWait~=nil then Wait.stop(rewardClaimDelayWait) rewardClaimDelayWait=nil end
 	gStates.monsterOffsetX=0
 	gStates.monsterOffsetZ=0
 	gStates.attackedMonsters={}
@@ -20101,32 +20264,8 @@ local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	addAvatarButtons()
 	if coopCombatCleanup~=true then claimButtonRefresh() end
 	setUIButtonEnabled("PreEndTurn",false)
-	rewardClaimDelayWait=safeWaitTime("Combat",function()
-		rewardClaimDelayWait=nil
-		local function finishRewardDelay()
-			rewardClaimDelayActive=false
-			--Co-op combat defers every reward gate until all participants have fought.
-			--Do not start the Rewards Claimed soft lock during the combat-to-combat handoff.
-			if coopCombatCleanup~=true and gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
-				rewardClaimSoftLockStart()
-				if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[cleanupPlayer].seatPos)
-				else
-					setUIButtonEnabled("PreEndTurn",true)
-				end
-			end
-			rewindTransactionFinish("Pre-end-turn cleanup")
-		end
-		local dragonCombat=gStates.apocalypseDragonGroundCombat
-		if dragonCombat~=nil and dragonCombat.coop~=true and dragonCombat.playerIndex==cleanupPlayer and dragonCombat.levelsApplied~=true then
-			safeWaitCondition("Combat",finishRewardDelay,function()
-				local current=gStates.apocalypseDragonGroundCombat
-				return current==nil or current.levelsApplied==true
-			end,5,finishRewardDelay)
-		else
-			finishRewardDelay()
-		end
-	end, 2.0)
-	return coopCombatReward
+	combatScheduleRewardBoundary(cleanupPlayer,coopCombatCleanup,recovery)
+	return coopCombatReward,recovery
 end
 
 local function combatPreEndTurnRaiseAvatar(cleanupPlayer)
@@ -20159,22 +20298,22 @@ local function combatPreEndTurnRaiseAvatar(cleanupPlayer)
 end
 
 local function combatReturnPreEndTurnDie(cleanupPlayer,diceGUID)
-	--make sure coop assault isn't happening before returning dice.
 	gStates.coopAssaultDice[#gStates.coopAssaultDice+1]=diceGUID
-	if getObjectFromGUID(turnOrder[nextTurnMerged("nextMageSkipDummy")].turnOrderTokenGUID).is_face_down==false or #turnOrder<=2 then
-		for _, diceG in pairs(gStates.coopAssaultDice) do
-			local die=getObjectFromGUID(diceG)
-			if die~=nil then
-				die.setPosition({-12.5+(math.random()*7),2.7,-25.0+(math.random()*4.0)})
-				die.randomize()
-				onObjectRandomize({type="Dice"})
-			end
+	--Only a real combined assault holds dice between participants. A face-down turn token can also
+	--mean an unrelated out-of-order turn, so it is not a reliable proxy for this lifecycle.
+	if gStates.coopAssaultPhase=="combat" and coopAssaultPendingCombat()==true then return end
+	for _, diceG in pairs(gStates.coopAssaultDice) do
+		local die=getObjectFromGUID(diceG)
+		if die~=nil then
+			die.setPosition({-12.5+(math.random()*7),2.7,-25.0+(math.random()*4.0)})
+			die.randomize()
+			onObjectRandomize({type="Dice"})
 		end
-		gStates.coopAssaultDice={}
 	end
+	gStates.coopAssaultDice={}
 end
 
-local function combatPreEndTurnPreparePlayArea(cleanupPlayer)
+local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 	--locate discard deck
 	local cardDestination=nil
 	for _, deckSearch in pairs(getObjectFromGUID(deedDeckDiscardZones[turnOrder[cleanupPlayer].seatPos]).getObjects()) do
@@ -20182,8 +20321,10 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer)
 	end
 
 	--separate any decks and possessed tokens found. Unit Area monsters use the same combat cleanup path.
+	local combatObjects=playerCombatObjects(turnOrder[cleanupPlayer].seatPos)
+	if recovery~=nil and recovery.playAreaPrepared==true then return cardDestination,#combatObjects>0 and 40 or 0 end
 	local tokenWait=0
-	for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
+	for _, playAreaObj in pairs(combatObjects) do
 		--separate decks
 		if playAreaObj.type=="Deck" then
 			for count=1, #playAreaObj.getObjects()-1, 1 do
@@ -20206,43 +20347,69 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer)
 		end
 		tokenWait=40
 	end
+	if recovery~=nil then recovery.playAreaPrepared=true end
 	return cardDestination,tokenWait
 end
 
-local function combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avatarPos,avatarModel,state,tokenWait)
-	--Drop Avatar after a pause. A returning undefeated monster can still be smooth-moving when the
-	--two-second settle check expires (Quest failures make this common). The old wait had no timeout
-	--handler, so the avatar could remain locked at +2 height forever. Run the same finish routine on
-	--either a normal settle or timeout.
+local function combatTrackReturningObject(state,obj)
+	if state==nil or obj==nil or obj.guid==nil then return end
+	state.returningObjects=state.returningObjects or {}
+	state.returningObjects[obj.guid]=true
+end
+
+local function combatReturningObjectsSettled(state)
+	for guid, _ in pairs(state~=nil and state.returningObjects or {}) do
+		local obj=getObjectFromGUID(guid)
+		if obj~=nil and obj.resting~=true then return false end
+	end
+	return true
+end
+
+local function combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avatarPos,avatarModel,state,tokenWait,recovery)
+	if recovery~=nil and recovery.avatarDropDone==true then return end
+	--Drop Avatar only after every returning combat object has settled. The timeout still protects
+	--against a permanently non-resting TTS object, but one fast token no longer hides a slower one.
 	safeWaitFrames("Combat",function()
 		local avatarDropFinished=false
 		local function finishAvatarDrop()
 			if avatarDropFinished==true then return end
 			avatarDropFinished=true
-			--place shield or replenish monster in spawning grounds
-			if turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
-				if state.cleanupContext.spawningGroundMonstersBeat==2 then dropShield({avatarPos[1], 2, avatarPos[3]}, true, nil, cleanupPlayer) coralTalesSiteShield("spawning grounds") end
-				if state.spawningGroundMonstersReturned==1 then
-					local newMonster=getObjectFromGUID(monsterPiles.tan).takeObject({position={avatarPos[1]+0.22, 2.12, avatarPos[3]}, smooth=false})
-					gStates.monsterPlayLocation[newMonster.guid]={avatarPos[1]+0.22, 2.12, avatarPos[3]}
-				end
+			if turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" and state.cleanupContext.spawningGroundMonstersBeat==2 then
+				dropShield({avatarPos[1],2,avatarPos[3]},true,nil,cleanupPlayer)
+				coralTalesSiteShield("spawning grounds")
 			end
-			local horsemenReturn=againstHorsemenFinishSoloAssault(cleanupPlayer)
-			if horsemenReturn~=nil then
+			local function finishAfterSpawning()
+				local horsemenReturn=againstHorsemenFinishSoloAssault(cleanupPlayer)
+				if horsemenReturn~=nil then
+					if avatarModel~=nil then avatarPos={horsemenReturn[1],horsemenReturn[2],horsemenReturn[3]}
+					else
+						local horsemenAvatar=coopAssaultAvatarObject(cleanupPlayer)
+						if horsemenAvatar~=nil then horsemenAvatar.setPositionSmooth(horsemenReturn,false,false) end
+					end
+				end
 				if avatarModel~=nil then
-					avatarPos={horsemenReturn[1],horsemenReturn[2],horsemenReturn[3]}
-				else
-					local horsemenAvatar=coopAssaultAvatarObject(cleanupPlayer)
-					if horsemenAvatar~=nil then horsemenAvatar.setPositionSmooth(horsemenReturn,false,false) end
+					avatarModel.setLock(false)
+					avatarModel.setPositionSmooth({avatarPos[1],avatarPos[2]+1.0,avatarPos[3]},false,false)
+				end
+				if recovery~=nil then
+					recovery.avatarDropDone=true
+					combatPreEndTurnRecoveryTryFinish(recovery)
 				end
 			end
-			if avatarModel~=nil then
-				avatarModel.setLock(false)
-				avatarModel.setPositionSmooth({avatarPos[1], avatarPos[2]+1.0, avatarPos[3]},false,false)
+			if turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" and state.spawningGroundMonstersReturned==1 then
+				withTokenPoolReady(monsterPiles.tan,function()
+					local tanPile=getObjectFromGUID(monsterPiles.tan)
+					local newMonster=tanPile~=nil and tanPile.getQuantity()>0 and tanPile.takeObject({position={avatarPos[1]+0.22,2.12,avatarPos[3]},smooth=false}) or nil
+					if newMonster~=nil then gStates.monsterPlayLocation[newMonster.guid]={avatarPos[1]+0.22,2.12,avatarPos[3]} end
+					finishAfterSpawning()
+				end,"Combat")
+			else
+				finishAfterSpawning()
 			end
 		end
-		safeWaitCondition("Combat",finishAvatarDrop, function()
-			if tokenRaised<=0 or (state.lastObject~=nil and state.lastObject.resting~=true) then return false end
+		safeWaitCondition("Combat",finishAvatarDrop,function()
+			if combatReturningObjectsSettled(state)~=true then return false end
+			if tokenRaised<=0 then return true end
 			local pendingDragonAttack=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
 			local destroyedGUID=pendingDragonAttack~=nil and pendingDragonAttack.destroyedSiteTokenGUID or nil
 			if destroyedGUID~=nil then
@@ -20252,11 +20419,12 @@ local function combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avat
 				if math.abs(destroyedPos[2]-1.13)>0.05 then return false end
 			end
 			return true
-		end, 5, finishAvatarDrop)
-	end, tokenWait+3)
+		end,5,finishAvatarDrop)
+	end,tokenWait+3)
 end
 
-local function combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait)
+local function combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait,recovery)
+	if recovery~=nil and recovery.stateRefreshDone==true then return end
 	local handoffScheduled=false
 	local function finishCoopCombatHandoff()
 		if gStates.coopAssaultPhase~="combat" or gStates.preEndTurn~=true or gStates.turnNumber~=cleanupPlayer then return end
@@ -20270,25 +20438,30 @@ local function combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,t
 			end
 		end,2)
 	end
-	--Adjust hand size and Check for scenario completion to Start the final round of turns.
-	--A completed City assault has just changed both monster state and physical shields. Rebuild ownership once,
-	--at this settled cleanup boundary, before scheduleAvatarDropRefresh reads Lead/Assist for the new hand limit.
-	--Other cleanup only needs the cheaper defeat-state refresh; co-op combat rebuilds ownership in its reward phase.
-	safeWaitFrames("Combat",function() safeWaitCondition("Combat",function()
+	local stateRefreshFinished=false
+	local function finishStateRefresh()
+		if stateRefreshFinished==true then return end
+		stateRefreshFinished=true
 		local cleanupLocation=turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation or ""
 		if gStates.coopAssaultPhase~="combat" and (cleanupLocation:sub(1,4)=="city" or cleanupLocation:sub(1,6)=="raised") then refreshCityControlAndScoring()
 		else refreshCityDefeatState() end
 		scheduleAvatarDropRefresh(cleanupPlayer)
 		scenarioCombatCleanupCheck(cleanupPlayer)
+		if recovery~=nil then
+			recovery.stateRefreshDone=true
+			combatPreEndTurnRecoveryTryFinish(recovery)
+		end
 		--Combat Complete is the only confirmation during the combat stage. Once cleanup reaches this
 		--boundary, expose a safe manual fallback and also attempt the normal automatic handoff.
 		if gStates.endGameAchieved=="false" and gStates.tacticShown==false and gStates.coopAssaultPhase=="combat" then finishCoopCombatHandoff() end
-	end, function() return state.lastObject==nil or state.lastObject.resting end, 2, function()
-		finishCoopCombatHandoff()
-	end) end, tokenWait+50)
+	end
+	safeWaitFrames("Combat",function()
+		safeWaitCondition("Combat",finishStateRefresh,function() return combatReturningObjectsSettled(state) end,2,finishStateRefresh)
+	end,tokenWait+50)
 end
 
-local function combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait)
+local function combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait,recovery)
+	if recovery~=nil and recovery.skillCleanupDone==true then return end
 	--Skills own circulation/return rules; Combat retains the same delayed cleanup boundary.
 	local nextPlayer=nextTurnMerged("nextMageSkipDummy")
 	safeWaitFrames("Combat",function()
@@ -20302,10 +20475,15 @@ local function combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait)
 				if trash~=nil then trash.putObject(playAreaObj) end
 			end
 		end
+		if recovery~=nil then
+			recovery.skillCleanupDone=true
+			combatPreEndTurnRecoveryTryFinish(recovery)
+		end
 	end,tokenWait+3)
 end
 
-local function combatCleanupPreEndTurnUnitArea(cleanupPlayer)
+local function combatCleanupPreEndTurnUnitArea(cleanupPlayer,recovery)
+	if recovery~=nil and recovery.unitCleanupDone==true then return end
 	--Remove crystals and dice used to power Units
 	local crystalsToDestroy={}
 	local unitAreaObjects=getObjectFromGUID(playerUnitAreas[turnOrder[cleanupPlayer].seatPos]).getObjects()
@@ -20334,13 +20512,17 @@ local function combatCleanupPreEndTurnUnitArea(cleanupPlayer)
 	--Use the player whose cleanup started, not whatever turn happens to be current when
 	--this delayed callback fires. This prevents two Mage Knights being left on the portal.
 	if coopAssaultVirtualPlayer(cleanupPlayer)==false then portalSwap("endOfTurn", cleanupPlayer) end
+	if recovery~=nil then
+		recovery.unitCleanupDone=true
+		combatPreEndTurnRecoveryTryFinish(recovery)
+	end
 end
 
-local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait)
+local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait,recovery)
 	safeWaitFrames("Combat",function()
 		--Get objects from player area to clean them up
 		local state={
-			lastObject=nil,
+			returningObjects={},
 			spawningGroundMonstersReturned=0,
 			cleanupContext={player=cleanupPlayer,coopCombatReward=coopCombatReward,avatarPos=avatarPos,volkareCityShield=0,volkarePaused=false,spawningGroundMonstersBeat=0,mapSpatial=runtimeMapSpatialSnapshot()}
 		}
@@ -20350,6 +20532,11 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 		for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
 			local cleanupObjectGUID=playAreaObj.guid
 			safeWaitFrames("Combat",function()
+				if recovery~=nil then
+					recovery.processedObjects=recovery.processedObjects or {}
+					if recovery.processedObjects[cleanupObjectGUID]==true then return end
+					recovery.processedObjects[cleanupObjectGUID]=true
+				end
 				--Returning an airborne Dragon head restores its real image with reload(), which invalidates
 				--the old TTS Object userdata for all four captured head objects. Identify them by GUID before
 				--touching that userdata, return the set once, and stop this object's ordinary cleanup here.
@@ -20407,6 +20594,7 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 						end
 					end
 					if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then
+						combatTrackReturningObject(state,playAreaObj)
 						if gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage]~=nil and gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]~=nil then
 							local pursuit=gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]
 							pursuit.state="Stunned" pursuit.stunned=true
@@ -20423,7 +20611,7 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 							--Each Horseman is assigned to exactly one participant; a survivor returns to its Portal-card slot.
 							playAreaObj.setRotation({0,180,0})
 							playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-							state.lastObject=playAreaObj
+							combatTrackReturningObject(state,playAreaObj)
 						elseif gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" and (playAreaObj.guid==elementalist.token or playAreaObj.guid==darkCrusader.token) then
 							--A face-down leader means this player defeated no leader levels. Advance the real token through
 							--the same preview handoff used by a face-up surviving leader so the next planning copy is consumed.
@@ -20446,7 +20634,7 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 							end
 							if gStates.monsterPerks[playAreaObj.guid]~=nil and gStates.monsterPerks[playAreaObj.guid].wallFortified~=nil then setAssaultWallFortified(playAreaObj, false) end
 							playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-							state.lastObject=playAreaObj
+							combatTrackReturningObject(state,playAreaObj)
 						end
 					end
 				end
@@ -20459,6 +20647,7 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 					elseif playAreaObj.getRotationValues()[2]~=nil then
 						combatDiscardMonster(playAreaObj,true,state.cleanupContext)
 					else--process leaders
+						combatTrackReturningObject(state,playAreaObj)
 						local currentLeader=elementalist
 						if playAreaObj.guid==darkCrusader.token then currentLeader=darkCrusader end
 						--drop shield(s) on leader disc
@@ -20541,11 +20730,40 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 		end
 		safeWaitFrames("Combat",function() tokenRefill() end,tokenWait+1)
 
-		combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avatarPos,avatarModel,state,tokenWait)
-		combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait)
-		combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait)
-		combatCleanupPreEndTurnUnitArea(cleanupPlayer)
+		combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avatarPos,avatarModel,state,tokenWait,recovery)
+		combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait,recovery)
+		combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait,recovery)
+		combatCleanupPreEndTurnUnitArea(cleanupPlayer,recovery)
 	end,tokenWait)
+end
+
+function combatRecoverPreEndTurn()
+	local recovery=gStates~=nil and gStates.combatPreEndTurnRecovery or nil
+	if recovery==nil or gStates.preEndTurn~=true then return false end
+	local cleanupPlayer=tonumber(recovery.player)
+	if cleanupPlayer==nil or turnOrder[cleanupPlayer]==nil then gStates.combatPreEndTurnRecovery=nil return false end
+	recovery.processedObjects=recovery.processedObjects or {}
+	local coopCombatCleanup=recovery.coop==true and gStates.coopAssaultPhase=="combat"
+	local coopCombatReward=nil
+	if coopCombatCleanup==true then
+		for index=#(gStates.coopRewardQueue or {}),1,-1 do
+			local entry=gStates.coopRewardQueue[index]
+			if entry~=nil and entry.player==cleanupPlayer then coopCombatReward=entry break end
+		end
+		gStates.coopCombatHandoffReady=false
+		setUIButtonEnabled("EndTurnButton",false)
+		setUIButtonEnabled("EndTurnButtonAlt",false)
+	end
+	if recovery.rewardBoundaryDone~=true then combatScheduleRewardBoundary(cleanupPlayer,coopCombatCleanup,recovery) end
+	local avatarModel=recovery.avatarModelGUID~=nil and getObjectFromGUID(recovery.avatarModelGUID) or nil
+	if avatarModel==nil and (recovery.tokenRaised or 0)>0 then avatarModel=mageKnightAvatarObject(cleanupPlayer,false) end
+	local avatarPos=recovery.avatarPos or {}
+	local tokenRaised=tonumber(recovery.tokenRaised) or 0
+	local cardDestination,tokenWait=combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
+	local color=positionToColor(cleanupPlayer)
+	local playerObj=Player[color] or {color=color}
+	combatSchedulePreEndTurnCleanup(playerObj,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait,recovery)
+	return true
 end
 
 function __preEndTurn_raw(player, mouseButton, id, rewindReady)
@@ -20572,11 +20790,14 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 	end
 
 	local cleanupPlayer=gStates.turnNumber
-	local coopCombatReward=combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
+	local coopCombatReward,recovery=combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	turnPreparePreEndTurn(cleanupPlayer,player.color,id)
 	local tokenRaised,avatarPos,avatarModel=combatPreEndTurnRaiseAvatar(cleanupPlayer)
-	local cardDestination,tokenWait=combatPreEndTurnPreparePlayArea(cleanupPlayer)
-	combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait)
+	recovery.tokenRaised=tokenRaised
+	recovery.avatarPos={avatarPos[1],avatarPos[2],avatarPos[3]}
+	recovery.avatarModelGUID=avatarModel~=nil and avatarModel.guid or nil
+	local cardDestination,tokenWait=combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
+	combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait,recovery)
 end
 
 assaultApproachOrigin=nil
@@ -20606,8 +20827,14 @@ function wallAssaultChoiceNeeded(targetPos, attackerPos)
 end
 
 function showWallAssaultChoice(mode, id, viewerColor)
+	local visibleColor=viewerColor or positionToColor(gStates.turnNumber)
 	wallAssaultPending={mode=mode, id=id}
-	setUIVisibility("WallAssaultChoice",{viewerColor or positionToColor(gStates.turnNumber),"Black"})
+	gStates.wallAssaultPending={
+		mode=mode,id=id,viewerColor=visibleColor,
+		approachOrigin=assaultApproachOrigin~=nil and {assaultApproachOrigin[1],assaultApproachOrigin[2],assaultApproachOrigin[3]} or nil,
+		targetPosition=assaultTargetPosition~=nil and {assaultTargetPosition[1],assaultTargetPosition[2],assaultTargetPosition[3]} or nil
+	}
+	setUIVisibility("WallAssaultChoice",{visibleColor,"Black"})
 	if mode=="rampagerAttack" or mode=="manualMonster" then
 		UI.setAttribute("WallAssaultChoiceQuestion", "text", "{en}The attack approach is unclear.\nDid your attack cross a wall?{ru}Направление атаки неясно.\nВаша атака проходила через стену?{zh-tw}攻擊的方向不明確。\n你的攻擊是否穿過城牆？{zh-cn}攻击的方向不明确。\n你的攻击是否穿过城墙？{ko}공격 방향이 불분명합니다.\n공격 중 성벽을 넘었습니까?{es}La dirección del ataque no está clara.\n¿Tu ataque cruzó una muralla?{fr}La direction de l'attaque n'est pas claire.\nVotre attaque a-t-elle franchi un mur ?{pt-br}A direção do ataque não está clara.\nSeu ataque atravessou uma muralha?{de}Die Angriffsrichtung ist unklar.\nHat dein Angriff eine Mauer überquert?")
 	else
@@ -20619,7 +20846,17 @@ end
 function clearWallAssaultChoice()
 	wallAssaultChoiceResult=nil
 	wallAssaultPending=nil
+	if gStates~=nil then gStates.wallAssaultPending=nil end
 	UI.hide("WallAssaultChoice")
+end
+
+function restoreWallAssaultChoice()
+	local saved=gStates~=nil and gStates.wallAssaultPending or nil
+	if saved==nil or saved.mode==nil or saved.id==nil then return false end
+	assaultApproachOrigin=saved.approachOrigin~=nil and {saved.approachOrigin[1],saved.approachOrigin[2],saved.approachOrigin[3]} or nil
+	assaultTargetPosition=saved.targetPosition~=nil and {saved.targetPosition[1],saved.targetPosition[2],saved.targetPosition[3]} or nil
+	showWallAssaultChoice(saved.mode,saved.id,saved.viewerColor)
+	return true
 end
 
 function wallAssaultChoice(player, mouseButton, id)
@@ -20628,7 +20865,14 @@ function wallAssaultChoice(player, mouseButton, id)
 	elseif id=="WallAssaultChoiceNo" then wallAssaultChoiceResult=false
 	else return end
 	local pending=wallAssaultPending
+	if pending==nil and gStates.wallAssaultPending~=nil then
+		local saved=gStates.wallAssaultPending
+		assaultApproachOrigin=saved.approachOrigin~=nil and {saved.approachOrigin[1],saved.approachOrigin[2],saved.approachOrigin[3]} or nil
+		assaultTargetPosition=saved.targetPosition~=nil and {saved.targetPosition[1],saved.targetPosition[2],saved.targetPosition[3]} or nil
+		pending={mode=saved.mode,id=saved.id}
+	end
 	wallAssaultPending=nil
+	gStates.wallAssaultPending=nil
 	UI.hide("WallAssaultChoice")
 	if pending~=nil then
 		if pending.mode=="attackLocation" or pending.mode=="rampagerAttack" then attackLocation(nil, "-1", pending.id)
@@ -20811,6 +21055,29 @@ function clearPossessedEnemy(obj)
 	return detached
 end
 
+local function combatPossessedEnemyCandidates(possessed,zone)
+	if zone~=nil then return zone.getObjects() end
+	local candidates={}
+	local seen={}
+	local function add(list)
+		for _, candidate in pairs(list or {}) do
+			if candidate~=nil and candidate.guid~=nil and seen[candidate.guid]~=true then
+				seen[candidate.guid]=true
+				candidates[#candidates+1]=candidate
+			end
+		end
+	end
+	local pos=possessed~=nil and possessed.getPosition() or nil
+	if pos~=nil then
+		local spatial=runtimeMapSpatialSnapshot(1)
+		add(runtimeMapSpatialNearbyObjects(spatial,pos,1))
+	end
+	for _, details in pairs(turnOrder or {}) do
+		if details.seatPos~=nil then add(playerCombatObjects(details.seatPos)) end
+	end
+	return candidates
+end
+
 --Link and Unlink the chosen enemy
 local justDetached={}
 function combatAttachEnemyBase(player, mouseButton, id, obj, zone)
@@ -20827,7 +21094,7 @@ function combatAttachEnemyBase(player, mouseButton, id, obj, zone)
 			if possessed~=nil then
 				if gStates.apocalypsePossessedEnemyByToken~=nil and gStates.apocalypsePossessedEnemyByToken[possessedGUID]~=nil then return end
 				local zoneObj=attachZoneGUID~=nil and getObjectFromGUID(attachZoneGUID) or nil
-				local candidates=zoneObj~=nil and zoneObj.getObjects() or getAllObjects()
+				local candidates=combatPossessedEnemyCandidates(possessed,zoneObj)
 				for _, nearEnemy in pairs(candidates) do
 					if nearEnemy.guid~=possessedGUID and monsterPugs[nearEnemy.guid]~=nil and monsterPugs[nearEnemy.guid].pugType~="possessed" and justDetached[nearEnemy.guid]~=true and
 						nearEnemy.getPosition()[1]-possessed.getPosition()[1]>-0.5 and nearEnemy.getPosition()[1]-possessed.getPosition()[1]<0.5 and nearEnemy.getPosition()[3]-possessed.getPosition()[3]>-0.5 and nearEnemy.getPosition()[3]-possessed.getPosition()[3]<0.5 then
@@ -21231,13 +21498,14 @@ function attackLocation(playerDud, mouseButton, id)
 										end
 									end
 								end
-								local magesInRangeTwo=findNearbyMages({secondCity.getPosition()[1], secondCity.getPosition()[2], secondCity.getPosition()[3]}, 2.5)
-								for _, mageNameTwo in pairs (magesInRangeTwo) do
-									local found=false
-									for _, mageName in pairs (magesInRange) do
-										if mageName.mage==mageNameTwo.mage then found=true end
+								if secondCity~=nil then
+									local secondCityPos=secondCity.getPosition()
+									local magesInRangeTwo=findNearbyMages({secondCityPos[1],secondCityPos[2],secondCityPos[3]},2.5)
+									for _, mageNameTwo in pairs(magesInRangeTwo) do
+										local found=false
+										for _, mageName in pairs(magesInRange) do if mageName.mage==mageNameTwo.mage then found=true break end end
+										if found==false then magesInRange[#magesInRange+1]=mageNameTwo end
 									end
-									if found==false then magesInRange[#magesInRange+1]=mageNameTwo end
 								end
 							end
 							local count=1
@@ -22020,6 +22288,15 @@ function pursuingRampagers(player, mouseButton, id)
 		gStates.pursuitTwoOption=false
 		--loop through all recorded pursuing monsters
 		if gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]~=nil and gStates.tacticShown==false then
+			local pursuing=gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]
+			local stale={}
+			for monsterGUID, _ in pairs(pursuing) do if getObjectFromGUID(monsterGUID)==nil then stale[#stale+1]=monsterGUID end end
+			for _, monsterGUID in ipairs(stale) do
+				pursuing[monsterGUID]=nil
+				gStates.rampagingMonsters[monsterGUID]=nil
+				gStates.ambushingMonsters[monsterGUID]=nil
+				gStates.monsterPlayLocation[monsterGUID]=nil
+			end
 			--delete the help arrows
 			for guid, _ in pairs(gStates.arrowDelete) do
 				local arrow=getObjectFromGUID(guid)
@@ -22196,7 +22473,8 @@ function pursuingRampagers(player, mouseButton, id)
 							if gStates.monsterOffsetX>12 then gStates.monsterOffsetX=0 gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5 end
 							noMove=false
 							gStates.monsterPlayLocation[monsterGUID]=monsterDetails.location
-							getObjectFromGUID(monsterGUID).UI.setXmlTable({{}})
+							local attackingMonster=getObjectFromGUID(monsterGUID)
+							if attackingMonster~=nil then attackingMonster.UI.setXmlTable({{}}) end
 							broadcastToAll(joinLang({"{en}Pursuing Monster Attacked {ru}Преследующие враги напали на {zh-tw}追擊怪物攻擊了 {zh-cn}被追击怪物所攻击{ko}추적 중인 몬스터의 공격: {es}Persecución de Monstruos Atacados por {fr}Poursuivant le Monstre Attaqué {pt-br}Monstro Perseguidor Atacado {de}Verfolgtes Monster angegriffen ", translateWord[turnOrder[gStates.turnNumber].mage]}), positionToColor(gStates.turnNumber))
 						end
 					end
@@ -22410,6 +22688,20 @@ end
 function attachEnemy(player, mouseButton, id, obj, zone)
 	return fameReputationAttachEnemy(player, mouseButton, id, obj, zone)
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	assaultAdjust=assaultAdjust,
+	attackCity=attackCity,
+	coopAssaultJoin=coopAssaultJoin,
+	pursuingRampagers=pursuingRampagers,
+	wallAssaultChoice=wallAssaultChoice,
+	zigguratPyramidInteract=zigguratPyramidInteract,
+	adjustOverkill=adjustOverkill,
+	attachEnemy=attachEnemy,
+	attackLocation=attackLocation,
+	summonMonster=summonMonster
+})
 
 end)
 __bundle_register("PlayingGame.PlayerBoard.PuppetMaster", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -24383,15 +24675,18 @@ function motivation(player, mouseButton, id)
 	return fameReputationMotivation(player, mouseButton, id)
 end
 
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	masterOfChaos=masterOfChaos,
+	motivation=motivation,
+	coopCompSkillWarningClick=coopCompSkillWarningClick
+})
+
 end)
 __bundle_register("PlayingGame.ManaSource", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Mana Source-private helpers. Predeclared so forward references keep resolving locally.
 local manaSourceDieGUID, mirrorSourceBusy, manaSourceZoneHasDie, scheduleReturnedSourceMirror, scheduleMirrorSourceUpdate
-local mirrorSourceState, mirrorSourcePlayers, mirrorSourceSyncExisting, mirrorSourceFaceSync
-
--- Mana Source-private helpers. Predeclared so forward references keep resolving locally.
-local manaSourceDieGUID, mirrorSourceBusy, manaSourceZoneHasDie, scheduleReturnedSourceMirror, scheduleMirrorSourceUpdate
-local mirrorSourceState, mirrorSourcePlayers, mirrorSourceSyncExisting, mirrorSourceFaceSync
+local mirrorSourceState, mirrorSourcePlayers, mirrorSourceTarget, mirrorSourceSyncExisting, mirrorSourceFaceSync
 
 -- Mirrored Mana Source runtime.
 
@@ -24405,16 +24700,34 @@ function takeManaCrystal(bag,params)
 	return bag.takeObject(params)
 end
 
--- Shared Mana Source mirrors
-exitWaitID={}
-mirrorSpawnEnterIgnore={}
-mirrorDestroyIgnore={}
-mirrorSourceClaim={}
-mirrorFaceWaitID={}
-mirrorSourceRefreshWait=nil
-mirrorManualRandomize={}
-mirrorRepositionIgnore={}
-spentMirrorDice={}
+-- Mana Source runtime state. These tables are owned entirely by this module.
+local exitWaitID={}
+local mirrorSpawnEnterIgnore={}
+local mirrorDestroyIgnore={}
+local mirrorSourceClaim={}
+local mirrorFaceWaitID={}
+local mirrorSourceRefreshWait=nil
+local mirrorManualRandomize={}
+local mirrorRepositionIgnore={}
+local spentMirrorDice={}
+
+--Temporarily raise the Source fences while mana dice are being randomized so rolling dice stay contained.
+local sourceRandomizeFences={{"7e09c6",7.40},{"0a7c95",3.60},{"ec49dd",7.40},{"c17ca2",3.60}}
+local sourceRandomizePause=nil
+function pulseSourceRandomizeFences()
+	for _,fenceDetails in ipairs(sourceRandomizeFences) do
+		local fence=getObjectFromGUID(fenceDetails[1])
+		if fence~=nil then fence.setScale({0.10,20.00,fenceDetails[2]}) end
+	end
+	if sourceRandomizePause~=nil then Wait.stop(sourceRandomizePause) end
+	sourceRandomizePause=safeWaitTime("ManaSource",function()
+		sourceRandomizePause=nil
+		for _,fenceDetails in ipairs(sourceRandomizeFences) do
+			local fence=getObjectFromGUID(fenceDetails[1])
+			if fence~=nil then fence.setScale({0.10,0.10,fenceDetails[2]}) end
+		end
+	end,3)
+end
 manaSourceDieGUID=function(guid)
 	if guid==nil or gStates.manaSource==nil then return false end
 	for _, die in pairs(gStates.manaSource) do if die.manaDie==guid then return true end end
@@ -24437,18 +24750,26 @@ scheduleReturnedSourceMirror=function(sourceDie)
 	local sourceGUID=sourceDie.guid
 	--Do not make mirror restoration depend solely on the generic zone-enter callback. As soon as this exact
 	--returned die is physically inside the real Source, rebuild the missing copies; correct its face again after settling.
-	safeWaitCondition("ManaSource",function()
+	--Both waits are bounded so a displaced/non-resting die cannot leave a permanent per-frame condition running.
+	local function settleTimeout()
+		if getObjectFromGUID(sourceGUID)~=nil then mirrorSourceUpdate("returned die settle timeout") end
+	end
+	local function enteredSource()
 		local die=getObjectFromGUID(sourceGUID)
 		if die==nil then return end
 		mirrorSourceUpdate("returned die entered real Source")
 		safeWaitCondition("ManaSource",function()
 			if getObjectFromGUID(sourceGUID)~=nil then mirrorSourceUpdate("returned die settled in real Source") end
-		end, function()
+		end,function()
 			local current=getObjectFromGUID(sourceGUID)
 			return current==nil or current.resting
-		end)
-	end, function()
+		end,10,settleTimeout)
+	end
+	safeWaitCondition("ManaSource",enteredSource,function()
 		return getObjectFromGUID(sourceGUID)==nil or manaSourceZoneHasDie(sourceGUID)==true
+	end,10,function()
+		--A timeout means the physical die never reached the real Source. Refresh from the actual zone contents and stop polling.
+		mirrorSourceUpdate("returned die source-entry timeout")
 	end)
 end
 scheduleMirrorSourceUpdate=function(from, delay)
@@ -24465,37 +24786,47 @@ scheduleMirrorSourceUpdate=function(from, delay)
 		end
 	end, delay or 0.1)
 end
-mirrorSourceState=function()
+mirrorSourceState=function(sourceZone)
 	local colorConvert={["Blue Mana"]=1, ["White Mana"]=2, ["Green Mana"]=3, ["Red Mana"]=4, ["Gold Mana"]=5, ["Black Mana"]=6}
 	if gStates.dayRound==false then colorConvert["Gold Mana"]=6 colorConvert["Black Mana"]=5 end
-	local colorRotate={{0, 0, 0}, {0, 0, 270}, {0, 0, 90}, {0, 0, 180}, {90, 0, 0}, {270, 0, 0}}
-	if gStates.dayRound==false then colorRotate[5]={270, 0, 0} colorRotate[6]={90, 0, 0} end
+	local colorRotate={{0,0,0},{0,0,270},{0,0,90},{0,0,180},{90,0,0},{270,0,0}}
+	if gStates.dayRound==false then colorRotate[5]={270,0,0} colorRotate[6]={90,0,0} end
 	local sourceDice={}
-	local seperate=0
-	for _, manaDie in pairs(getObjectFromGUID(GUID.zone.mana).getObjects()) do
+	local separate=0
+	sourceZone=sourceZone or getObjectFromGUID(GUID.zone.mana)
+	if sourceZone==nil then return sourceDice,colorRotate,separate end
+	for _,manaDie in ipairs(sourceZone.getObjects()) do
 		local color=manaDie.type=="Dice" and colorConvert[manaDie.getRotationValue()] or nil
 		if color~=nil then
-			sourceDice[#sourceDice+1]={manaDie=manaDie.guid, color=color}
-			if color==6 then seperate=0.25 end
+			sourceDice[#sourceDice+1]={manaDie=manaDie.guid,color=color}
+			if color==6 then separate=0.25 end
 		end
 	end
-	table.sort(sourceDice, function(k1, k2) return k1.color<k2.color end)
-	return sourceDice, colorRotate, seperate
+	--Keep equal-colour dice deterministic so harmless zone enumeration changes do not reshuffle mirror ownership.
+	table.sort(sourceDice,function(a,b)
+		if a.color==b.color then return tostring(a.manaDie)<tostring(b.manaDie) end
+		return a.color<b.color
+	end)
+	return sourceDice,colorRotate,separate
 end
 
 mirrorSourcePlayers=function()
 	local players={}
-	for playerIndex, playerDetails in ipairs(turnOrder) do
+	for playerIndex,playerDetails in ipairs(turnOrder) do
 		if playerDetails.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then players[#players+1]=playerDetails end
 	end
-	table.sort(players, function(a, b) return (a.seatPos or 99)<(b.seatPos or 99) end)
+	table.sort(players,function(a,b) return (a.seatPos or 99)<(b.seatPos or 99) end)
 	return players
+end
+
+mirrorSourceTarget=function(playerDetails,pos,spacing,separate)
+	return {-105+(40*playerDetails.seatPos)+((1.5*pos)+spacing)+(((8-gStates.diceNeeded)/2)*1.5)-separate,1.57,-28.1}
 end
 
 --Face changes do not need new physical dice. Reuse the existing copies, update their faces and
 --slide them into the same sorted positions a rebuild would have produced. If the Source set changed,
 --return false so mirrorSourceUpdate can fall back to the structural rebuild.
-mirrorSourceSyncExisting=function(sourceDice, colorRotate, seperate)
+mirrorSourceSyncExisting=function(sourceDice,colorRotate,separate)
 	if gStates.manaMirror==nil then return false end
 	local players=mirrorSourcePlayers()
 	local expected=#sourceDice*#players
@@ -24517,13 +24848,13 @@ mirrorSourceSyncExisting=function(sourceDice, colorRotate, seperate)
 	for _, playerDetails in ipairs(players) do
 		local spacing=0
 		local first=false
-		local localSeperate=seperate
+		local localSeparate=separate
 		for pos, die in ipairs(sourceDice) do
 			if die.color==6 and first==false then
 				spacing=0.5 first=true
-				if pos==1 then localSeperate=0 spacing=0 end
+				if pos==1 then localSeparate=0 spacing=0 end
 			end
-			local target={-105+(40*playerDetails.seatPos)+((1.5*pos)+spacing)+(((8-gStates.diceNeeded)/2)*1.5)-localSeperate, 1.57, -28.1}
+			local target=mirrorSourceTarget(playerDetails,pos,spacing,localSeparate)
 			local best=nil
 			local bestDist=99999
 			for _, mirror in ipairs(mirrorsBySource[die.manaDie]) do
@@ -24549,11 +24880,13 @@ end
 
 function mirrorSourceUpdate(from)
 	--Never alter mirror dice while a player is physically resolving one.
-	if mirrorSourceBusy()==true then scheduleMirrorSourceUpdate(from, 0.05) return end
-	if getObjectFromGUID(GUID.zone.mana)==nil or getObjectFromGUID(GUID.bag.spareDice)==nil then return end
-	local sourceDice, colorRotate, seperate=mirrorSourceState()
+	if mirrorSourceBusy()==true then scheduleMirrorSourceUpdate(from,0.05) return end
+	local sourceZone=getObjectFromGUID(GUID.zone.mana)
+	local spareDice=getObjectFromGUID(GUID.bag.spareDice)
+	if sourceZone==nil or spareDice==nil then return end
+	local sourceDice,colorRotate,separate=mirrorSourceState(sourceZone)
 	--The normal fast path: same Source GUIDs, so only update/re-sort the existing physical copies.
-	if mirrorSourceSyncExisting(sourceDice, colorRotate, seperate)==true then return end
+	if mirrorSourceSyncExisting(sourceDice,colorRotate,separate)==true then return end
 
 	--Structural change (die spent/returned/added, player set changed, stale save): rebuild the mirror set.
 	if gStates.manaMirror~=nil then
@@ -24577,13 +24910,13 @@ function mirrorSourceUpdate(from)
 	for _, playerDetails in ipairs(players) do
 		local spacing=0
 		local first=false
-		local localSeperate=seperate
+		local localSeparate=separate
 		for pos, die in ipairs(sourceDice) do
 			if die.color==6 and first==false then
 				spacing=0.5 first=true
-				if pos==1 then localSeperate=0 spacing=0 end
+				if pos==1 then localSeparate=0 spacing=0 end
 			end
-			local mirrorDie=getObjectFromGUID(GUID.bag.spareDice).takeObject({position={-105+(40*playerDetails.seatPos)+((1.5*pos)+spacing)+(((8-gStates.diceNeeded)/2)*1.5)-localSeperate, 1.57, -28.1}, rotation=colorRotate[die.color], smooth=false})
+			local mirrorDie=spareDice.takeObject({position=mirrorSourceTarget(playerDetails,pos,spacing,localSeparate),rotation=colorRotate[die.color],smooth=false})
 			gStates.manaMirror[mirrorDie.guid]=die.manaDie
 			mirrorSpawnEnterIgnore[mirrorDie.guid]=true
 			local mirrorGUID=mirrorDie.guid
@@ -24681,7 +25014,7 @@ function diceResting(dice, state)
 			local returnedSource=spareDice.takeObject({position={-12.5+(math.random()*7), 1.5 , -24.0+(math.random()*3.5)}, rotation=currentDice.getRotation(), smooth=false})--Mana Dice Container
 			spentMirrorDice[diceGUID]=nil
 			scheduleReturnedSourceMirror(returnedSource)
-			onObjectRandomize({type="Dice"})
+			pulseSourceRandomizeFences()
 			currentDice.destruct()
 		end
 		exitWaitID[diceGUID]=safeWaitCondition("ManaSource",returnDieToSource, function()
@@ -25281,6 +25614,9 @@ function deedOfferBoundedSize(value)
 end
 
 local DEED_OFFER_TEXT_MIN_SIZE=3
+local DEED_OFFER_TABLE_GUID="3d4319"
+local DEED_OFFER_LABEL_PANEL_ID="DeedOfferLabels"
+local DEED_OFFER_LABEL_PANEL_BASE_X=42.8
 local deedOfferTextLayout={
 	{guid="8dc73f",baseX=42.8}, -- Spells
 	{guid="9f67cd",baseX=42.8}, -- Advanced Actions
@@ -25290,13 +25626,22 @@ local deedOfferTextLayout={
 local function moveDeedOfferText(size)
 	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
 	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
+	local tableObj=getObjectFromGUID(DEED_OFFER_TABLE_GUID)
 	for _,details in ipairs(deedOfferTextLayout) do
+		--Keep the old F8 text moving during the XML alignment pass. Remove this physical fallback
+		--once the replacement labels have been visually confirmed on both table surfaces.
 		local textObject=getObjectFromGUID(details.guid)
 		if textObject~=nil then
 			local position=textObject.getPosition()
 			position.x=details.baseX+xOffset
 			textObject.setPositionSmooth(position,false,false)
 		end
+	end
+	if tableObj~=nil and tableObj.UI.getAttribute(DEED_OFFER_LABEL_PANEL_ID,"position")~=nil then
+		--All three XML labels share one parent, so offer resizing only moves this panel.
+		--Table Extension is rotated 180 degrees, so increasing world X is decreasing object-UI X.
+		local uiX=-(DEED_OFFER_LABEL_PANEL_BASE_X+xOffset)*100
+		tableObj.UI.setAttribute(DEED_OFFER_LABEL_PANEL_ID,"position",string.format("%.0f 0 0",uiX))
 	end
 end
 
@@ -25449,6 +25794,13 @@ function offerAdjust(player, mouseButton, id)
 end
 
 --Change a hand's color and refresh.
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	artifactAdjust=artifactAdjust,
+	offerAdjust=offerAdjust,
+	offerArtifacts=offerArtifacts
+})
 
 end)
 __bundle_register("PlayingGame.TokenPools", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -25707,6 +26059,11 @@ function refreshTokenContainerPresentation(bag, obj, state)
 		end, 2)
 	end
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	refillMonsterTokenPiles=refillMonsterTokenPiles
+})
 
 end)
 __bundle_register("PlayingGame.MapTokens", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -28133,6 +28490,13 @@ function plunderVillage(player, mouseButton, id)
 	return fameReputationPlunderVillage(player, mouseButton, id)
 end
 
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	plunderVillage=plunderVillage,
+	exploreMap=exploreMap,
+	shieldDrop=shieldDrop
+})
+
 end)
 __bundle_register("PlayingGame.City", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- City-private helpers. Predeclared so forward references keep resolving locally.
@@ -29751,6 +30115,11 @@ end
 
 -- Build static City lookup data after the City module has defined its initializer.
 initializeCityStaticData()
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	adjustCityLevel=adjustCityLevel
+})
 
 end)
 __bundle_register("PlayingGame.Quests", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -36635,6 +37004,12 @@ function apocalypseQuestDeckSetup(questDeck)
 	takeReserved(1)
 end
 
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	apocalypseQuestCardAction=apocalypseQuestCardAction,
+	apocalypseQuestEnemyAttack=apocalypseQuestEnemyAttack
+})
+
 end)
 __bundle_register("SetupGame", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Game construction and delayed setup: builds the selected game once Start is pressed.
@@ -37401,7 +37776,8 @@ local function finalizeSetup()
 
 	broadcastToAll("-------------------", {1,1,0.5})
 	--Stop player boards and dummy board from alt zooming
-	local megaFreeze=  {"3d4319", "519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard}--player mats
+	-- TEMP TABLE XML EDITING: "3d4319" intentionally omitted so Table Extension remains right-click interactable. RESTORE AFTER EDITING.
+	local megaFreeze=  {"519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard}--player mats
 	for i=1, #megaFreeze, 1 do
 		local obj=getObjectFromGUID(megaFreeze[i])
 		if obj~=nil then obj.interactable=false end --some boards may be missing depending on their states
@@ -38709,6 +39085,13 @@ function startHigherLevel(player, mouseButton, id)
 		end
 	end
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	adjustHigherLevelSetupValue=adjustHigherLevelSetupValue,
+	createHigherLevelCardPool=createHigherLevelCardPool,
+	higherLevelSkill=higherLevelSkill
+})
 
 end)
 __bundle_register("SetupGame.Decks", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -42151,6 +42534,15 @@ function DealWound(paramaters)
 	end
 end
 
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	coralDrawChoice=coralDrawChoice,
+	drawUpTo=drawUpTo,
+	gladeDiscardHealUI=gladeDiscardHealUI,
+	processCardClaim=processCardClaim,
+	steadyTempoChoice=steadyTempoChoice
+})
+
 end)
 __bundle_register("PlayingGame.Help", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Cross-module help/reminder UI callback.
@@ -43805,6 +44197,26 @@ function restoreMageKnightSetupSection()
 	refreshScenarioEnemyLevelTweaks()
 end
 
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	BlitzSelection=BlitzSelection,
+	MoreRampageSelection=MoreRampageSelection,
+	PlayerChosen=PlayerChosen,
+	RampageSelection=RampageSelection,
+	SetupMenu=SetupMenu,
+	VolkareLevelSelection=VolkareLevelSelection,
+	VolkareRaceSelection=VolkareRaceSelection,
+	apocalypseDragonLevelSelection=apocalypseDragonLevelSelection,
+	baseValueTweak=baseValueTweak,
+	horsemanLevelSelection=horsemanLevelSelection,
+	optionsUpdate=optionsUpdate,
+	randomSetup=randomSetup,
+	riseOfTheForgemasterOption=riseOfTheForgemasterOption,
+	scenarioSelection=scenarioSelection,
+	switchSetup=switchSetup,
+	toggleDropDown=toggleDropDown
+})
+
 end)
 __bundle_register("SetupGame.HeroChallenges", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Hero Challenge setup validation, terrain assignment and objective text.
@@ -44863,9 +45275,16 @@ local function runtimeMapObjectSnapshot()
 		return runtimeMapObjectCache
 	end
 	local objects=map.getObjects()
+	local validObjects={}
 	local objectGUIDs={}
-	for _,obj in pairs(objects) do objectGUIDs[obj.guid]=true end
-	runtimeMapObjectCache={objects=objects,objectGUIDs=objectGUIDs}
+	for _,obj in pairs(objects) do
+		local guid=obj~=nil and obj.guid or nil
+		if guid~=nil then
+			validObjects[#validObjects+1]=obj
+			objectGUIDs[guid]=true
+		end
+	end
+	runtimeMapObjectCache={objects=validObjects,objectGUIDs=objectGUIDs}
 	return runtimeMapObjectCache
 end
 
@@ -45148,6 +45567,8 @@ __bundle_register("ErrorReporting", function(require, _LOADED, __bundle_register
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 
 local automaticLuaZoneContext
+local automaticLuaProtectedCallbackDepth=0
+local automaticLuaPublicUICallbackRegistry={}
 
 -- Error-report boundaries for callbacks that TTS invokes after the originating function has returned.
 -- These helpers deliberately keep the native Wait signatures so existing timing/return behaviour is unchanged.
@@ -45174,18 +45595,37 @@ function safeAsyncCallback(label, callback, contextCallback)
 	end
 end
 
---Wrap a named public callback after all modules have loaded without rewriting the owning subsystem.
---This is primarily used for XML/Object UI callbacks, which TTS invokes directly by global name.
+--Build a protected public UI boundary in the module that owns the callback. When a public callback is
+--re-entered from another protected callback, let the existing outer boundary report the error so internal
+--calls keep normal Lua propagation semantics instead of silently turning failures into false.
 function safePublicCallback(label, callback, contextCallback)
 	if type(callback)~="function" then return callback end
 	return function(...)
 		local args={n=select("#",...),...}
+		if automaticLuaProtectedCallbackDepth>0 then return callback(automaticLuaUnpackArgs(args,1)) end
 		local contextFactory=nil
 		if type(contextCallback)=="function" then
 			contextFactory=function() return contextCallback(automaticLuaUnpackArgs(args,1)) end
 		end
 		return safeCallback(label,function() return callback(automaticLuaUnpackArgs(args,1)) end,contextFactory)
 	end
+end
+
+--Publish UI callbacks from their owning module instead of patching another module's globals later from
+--Callbacks.lua. Passing the implementation explicitly also supports callbacks intentionally kept local.
+function publishPublicUICallbacks(callbacks)
+	if type(callbacks)~="table" then error("publishPublicUICallbacks expected a callback table.",2) end
+	for name,callback in pairs(callbacks) do
+		if type(name)~="string" or type(callback)~="function" then
+			error("Invalid public UI callback registration for "..tostring(name)..".",2)
+		end
+		_G[name]=safePublicCallback(name,callback,automaticLuaUICallbackContext)
+		automaticLuaPublicUICallbackRegistry[name]=true
+	end
+end
+
+function automaticLuaPublicUICallbackProtected(name)
+	return automaticLuaPublicUICallbackRegistry[tostring(name or "")]==true
 end
 
 function safeObjectCallbackParams(scope, params)
@@ -45203,7 +45643,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="439"
+local automaticLuaErrorReporterVersion="440"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -45420,7 +45860,9 @@ end
 
 function safeCallback(functionName, callback, contextCallback)
 	automaticLuaBreadcrumb(functionName)
+	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth+1
 	local ok, result=xpcall(callback, automaticLuaTraceback)
+	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth-1
 	if not ok then
 		local context=nil
 		if contextCallback~=nil then
@@ -45437,7 +45879,9 @@ end
 --do not allocate breadcrumb/context closures. xpcall preserves the dispatcher/helper traceback, while the
 --breadcrumb and detailed zone context are only built after an actual failure.
 function safeZoneCallback(functionName, callback, zone, obj)
+	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth+1
 	local ok, result=xpcall(callback,automaticLuaTraceback,zone,obj)
+	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth-1
 	if not ok then
 		automaticLuaBreadcrumb(functionName)
 		reportAutomaticLuaError(functionName,result,automaticLuaZoneContext(zone,obj))
@@ -45449,7 +45893,9 @@ end
 -- Lightweight boundary for hot TTS callbacks where allocating the normal safeCallback closure/breadcrumb
 -- path on every event is unnecessary. Detailed context can be added by the callback itself if needed.
 function safeDirectCallback(functionName, callback, first, second)
+	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth+1
 	local ok, result=xpcall(callback,automaticLuaTraceback,first,second)
+	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth-1
 	if not ok then
 		automaticLuaBreadcrumb(functionName)
 		reportAutomaticLuaError(functionName,result)
