@@ -553,7 +553,8 @@ end
 
 local DEED_OFFER_TEXT_MIN_SIZE=3
 local DEED_OFFER_TABLE_GUID="3d4319"
-local DEED_OFFER_LABEL_SLIDER_ID="DeedOfferLabelsSlide"
+local DEED_OFFER_LABEL_PANEL_ID="DeedOfferLabels"
+local deedOfferLabelHomePosition=nil
 local deedOfferTextLayout={
 	{guid="8dc73f",baseX=42.8}, -- Spells
 	{guid="9f67cd",baseX=42.8}, -- Advanced Actions
@@ -576,15 +577,29 @@ local function moveDeedOfferText(size)
 	refreshDeedOfferTableLabelPosition(size)
 end
 
+local function deedOfferLabelHome(tableObj)
+	if deedOfferLabelHomePosition~=nil then return deedOfferLabelHomePosition end
+	local position=tableObj.UI.getAttribute(DEED_OFFER_LABEL_PANEL_ID,"position")
+	if type(position)~="string" then return nil end
+	local x,y,z=position:match("^%s*([%+%-]?[%d%.]+)%s+([%+%-]?[%d%.]+)%s+([%+%-]?[%d%.]+)%s*$")
+	x,y,z=tonumber(x),tonumber(y),tonumber(z)
+	if x==nil or y==nil or z==nil then return nil end
+	deedOfferLabelHomePosition={x=x,y=y,z=z}
+	return deedOfferLabelHomePosition
+end
+
 function refreshDeedOfferTableLabelPosition(size)
 	local tableObj=getObjectFromGUID(DEED_OFFER_TABLE_GUID)
-	if tableObj==nil or tableObj.UI.getAttribute(DEED_OFFER_LABEL_SLIDER_ID,"position")==nil then return false end
+	if tableObj==nil then return false end
+	local home=deedOfferLabelHome(tableObj)
+	if home==nil then return false end
 	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
 	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
-	--The authored DeedOfferLabels parent is the size-3 home position. Never overwrite it:
-	--only move this zeroed child relative to that parent so manual XML calibration remains authoritative.
+	--Move the proven parent panel directly. Its authored XML position is captured as the size-3
+	--home, so manual XML calibration remains authoritative and nested-panel clipping is avoided.
 	--Table Extension is rotated 180 degrees, so increasing world X is decreasing object-UI X.
-	tableObj.UI.setAttribute(DEED_OFFER_LABEL_SLIDER_ID,"position",string.format("%.0f 0 0",-(xOffset*100)))
+	tableObj.UI.setAttribute(DEED_OFFER_LABEL_PANEL_ID,"position",
+		string.format("%.0f %.0f %.0f",home.x-(xOffset*100),home.y,home.z))
 	return true
 end
 
