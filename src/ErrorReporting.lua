@@ -1,6 +1,8 @@
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
 
 local automaticLuaZoneContext
+local automaticLuaProtectedCallbackDepth=0
+local automaticLuaPublicUICallbackRegistry={}
 
 -- Error-report boundaries for callbacks that TTS invokes after the originating function has returned.
 -- These helpers deliberately keep the native Wait signatures so existing timing/return behaviour is unchanged.
@@ -27,18 +29,37 @@ function safeAsyncCallback(label, callback, contextCallback)
 	end
 end
 
---Wrap a named public callback after all modules have loaded without rewriting the owning subsystem.
---This is primarily used for XML/Object UI callbacks, which TTS invokes directly by global name.
+--Build a protected public UI boundary in the module that owns the callback. When a public callback is
+--re-entered from another protected callback, let the existing outer boundary report the error so internal
+--calls keep normal Lua propagation semantics instead of silently turning failures into false.
 function safePublicCallback(label, callback, contextCallback)
 	if type(callback)~="function" then return callback end
 	return function(...)
 		local args={n=select("#",...),...}
+		if automaticLuaProtectedCallbackDepth>0 then return callback(automaticLuaUnpackArgs(args,1)) end
 		local contextFactory=nil
 		if type(contextCallback)=="function" then
 			contextFactory=function() return contextCallback(automaticLuaUnpackArgs(args,1)) end
 		end
 		return safeCallback(label,function() return callback(automaticLuaUnpackArgs(args,1)) end,contextFactory)
 	end
+end
+
+--Publish UI callbacks from their owning module instead of patching another module's globals later from
+--Callbacks.lua. Passing the implementation explicitly also supports callbacks intentionally kept local.
+function publishPublicUICallbacks(callbacks)
+	if type(callbacks)~="table" then error("publishPublicUICallbacks expected a callback table.",2) end
+	for name,callback in pairs(callbacks) do
+		if type(name)~="string" or type(callback)~="function" then
+			error("Invalid public UI callback registration for "..tostring(name)..".",2)
+		end
+		_G[name]=safePublicCallback(name,callback,automaticLuaUICallbackContext)
+		automaticLuaPublicUICallbackRegistry[name]=true
+	end
+end
+
+function automaticLuaPublicUICallbackProtected(name)
+	return automaticLuaPublicUICallbackRegistry[tostring(name or "")]==true
 end
 
 function safeObjectCallbackParams(scope, params)
@@ -273,7 +294,9 @@ end
 
 function safeCallback(functionName, callback, contextCallback)
 	automaticLuaBreadcrumb(functionName)
+	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth+1
 	local ok, result=xpcall(callback, automaticLuaTraceback)
+	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth-1
 	if not ok then
 		local context=nil
 		if contextCallback~=nil then
@@ -290,7 +313,9 @@ end
 --do not allocate breadcrumb/context closures. xpcall preserves the dispatcher/helper traceback, while the
 --breadcrumb and detailed zone context are only built after an actual failure.
 function safeZoneCallback(functionName, callback, zone, obj)
+	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth+1
 	local ok, result=xpcall(callback,automaticLuaTraceback,zone,obj)
+	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth-1
 	if not ok then
 		automaticLuaBreadcrumb(functionName)
 		reportAutomaticLuaError(functionName,result,automaticLuaZoneContext(zone,obj))
@@ -302,7 +327,9 @@ end
 -- Lightweight boundary for hot TTS callbacks where allocating the normal safeCallback closure/breadcrumb
 -- path on every event is unnecessary. Detailed context can be added by the callback itself if needed.
 function safeDirectCallback(functionName, callback, first, second)
+	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth+1
 	local ok, result=xpcall(callback,automaticLuaTraceback,first,second)
+	automaticLuaProtectedCallbackDepth=automaticLuaProtectedCallbackDepth-1
 	if not ok then
 		automaticLuaBreadcrumb(functionName)
 		reportAutomaticLuaError(functionName,result)
