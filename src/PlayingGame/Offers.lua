@@ -552,8 +552,6 @@ function deedOfferBoundedSize(value)
 end
 
 local DEED_OFFER_TEXT_MIN_SIZE=3
-local DEED_OFFER_TABLE_GUID="3d4319"
-local DEED_OFFER_LABEL_SLIDER_ID="DeedOfferLabelsSlide"
 local deedOfferTextLayout={
 	{guid="8dc73f",baseX=42.8}, -- Spells
 	{guid="9f67cd",baseX=42.8}, -- Advanced Actions
@@ -564,8 +562,8 @@ local function moveDeedOfferText(size)
 	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
 	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
 	for _,details in ipairs(deedOfferTextLayout) do
-		--Keep the old F8 text moving during the XML alignment pass. Remove this physical fallback
-		--once the replacement labels have been visually confirmed on both table surfaces.
+		--Keep the old F8 text moving during the XML alignment pass. The replacement XML labels now
+		--ride on the Spell source itself and therefore move automatically with offer expansion.
 		local textObject=getObjectFromGUID(details.guid)
 		if textObject~=nil then
 			local position=textObject.getPosition()
@@ -573,27 +571,20 @@ local function moveDeedOfferText(size)
 			textObject.setPositionSmooth(position,false,false)
 		end
 	end
-	refreshDeedOfferTableLabelPosition(size)
 end
 
-function refreshDeedOfferTableLabelPosition(size)
-	local tableObj=getObjectFromGUID(DEED_OFFER_TABLE_GUID)
-	if tableObj==nil or tableObj.UI.getAttribute(DEED_OFFER_LABEL_SLIDER_ID,"position")==nil then return false end
-	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
-	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
-	--The authored DeedOfferLabels parent remains the size-3 home position.
-	--Only move this relative child, so manual XML calibration remains authoritative.
-	--Table Extension is rotated 180 degrees, so increasing world X is decreasing object-UI X.
-	tableObj.UI.setAttribute(DEED_OFFER_LABEL_SLIDER_ID,"position",string.format("%.0f 0 0",-(xOffset*100)))
-	return true
-end
-
-local function deedOfferAdjustButtonXml(size)
+local function deedOfferSourceUiXml(size)
 	local upEnabled=size<DEED_OFFER_MAX_SIZE
 	local downEnabled=size>DEED_OFFER_MIN_SIZE
 	local activeImage="Sliced Button/Button Object Active"
 	local inactiveImage="Sliced Button/Button Object Deactive"
 	return {
+		{tag="Text", attributes={id="TableSpellLabel", width=400, height=250, position="-133 0 -10", rotation="0 180 90", scale="0.667 0.667", alignment="UpperCenter", resizeTextForBestFit="true", resizeTextMinSize="30", resizeTextMaxSize="100", font="Fonts/MKCardTittle", color="#FFFFFF", raycastTarget="false",
+			text="{en}Spells{ru}Заклинания{zh-tw}法術卡{zh-cn}法术卡{ko}마법{es}Hechizos{fr}Sorts{pt-br}Feitiços{de}Zaubersprüche"}},
+		{tag="Text", attributes={id="TableAdvancedActionLabel", width=400, height=250, position="-133 -400 -10", rotation="0 180 90", scale="0.667 0.667", alignment="UpperCenter", resizeTextForBestFit="true", resizeTextMinSize="30", resizeTextMaxSize="100", font="Fonts/MKCardTittle", color="#FFFFFF", raycastTarget="false",
+			text="{en}Advanced Actions{ru}Особые Действия{zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션{es}Acciones Avanzadas{fr}Actions avancées{pt-br}Ações Avançadas{de}Fortgeschrittene Aktionen"}},
+		{tag="Text", attributes={id="TableOfferLabel", width=1000, height=180, position="-325 -600 -10", rotation="0 180 90", scale="0.667 0.667", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMinSize="30", resizeTextMaxSize="200", font="Fonts/MKCardTittle", color="#FFFFFF", raycastTarget="false",
+			text="{en}Offers{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote"}},
 		{tag="Button", attributes={id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", interactable=upEnabled and "true" or "false", height=150, width=240, position="60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
 			children={{tag="Image", attributes={id="e4372aOfferUpImage", image=upEnabled and activeImage or inactiveImage, type="Sliced"}},
 					  {tag="Text", attributes={font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text=">"}}}},
@@ -608,7 +599,15 @@ function refreshDeedOfferAdjustUI()
 	if spellSource==nil then return false end
 	local size=deedOfferBoundedSize(gStates.offerSize)
 	gStates.offerSize=size
-	spellSource.UI.setXmlTable(deedOfferAdjustButtonXml(size))
+	spellSource.UI.setXmlTable(deedOfferSourceUiXml(size))
+	--The live Spell source can change from Deck to Card during play. Reapply language tags after
+	--the freshly assigned object UI exists so the labels stay translated on either object type.
+	local sourceGUID=spellSource.guid
+	safeWaitFrames("Offers",function()
+		local live=getObjectFromGUID(sourceGUID)
+		if live==nil then live=standardDeckCycleObject("Spell") end
+		if live~=nil then reapplyObjectXmlText(live) end
+	end,1)
 	return true
 end
 
