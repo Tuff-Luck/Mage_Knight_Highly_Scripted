@@ -572,7 +572,7 @@ local function moveDeedOfferText(size)
 			position.x=details.baseX+xOffset
 			textObject.setPositionSmooth(position,false,false)
 		end
-		if tableObj~=nil then
+		if tableObj~=nil and tableObj.UI.getAttribute(details.uiId,"position")~=nil then
 			--Table Extension is rotated 180 degrees, so increasing world X is decreasing object-UI X.
 			local uiX=-(details.baseX+xOffset)*100
 			tableObj.UI.setAttribute(details.uiId,"position",string.format("%.0f %.0f 0",uiX,details.uiY))
