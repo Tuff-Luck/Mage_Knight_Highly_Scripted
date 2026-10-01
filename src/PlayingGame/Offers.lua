@@ -578,12 +578,13 @@ end
 
 function refreshDeedOfferTableLabelPosition(size)
 	local tableObj=getObjectFromGUID(DEED_OFFER_TABLE_GUID)
-	if tableObj==nil or tableObj.UI.getAttribute(DEED_OFFER_LABEL_SLIDER_ID,"offsetXY")==nil then return false end
+	if tableObj==nil or tableObj.UI.getAttribute(DEED_OFFER_LABEL_SLIDER_ID,"position")==nil then return false end
 	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
 	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
 	--The authored DeedOfferLabels parent is the size-3 home position. Never overwrite it:
-	--only slide this zeroed child so manual XML calibration remains authoritative.
-	tableObj.UI.setAttribute(DEED_OFFER_LABEL_SLIDER_ID,"offsetXY",string.format("%.0f 0",-(xOffset*100)))
+	--only move this zeroed child relative to that parent so manual XML calibration remains authoritative.
+	--Table Extension is rotated 180 degrees, so increasing world X is decreasing object-UI X.
+	tableObj.UI.setAttribute(DEED_OFFER_LABEL_SLIDER_ID,"position",string.format("%.0f 0 0",-(xOffset*100)))
 	return true
 end
 
