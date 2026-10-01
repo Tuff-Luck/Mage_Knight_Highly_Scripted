@@ -557,8 +557,10 @@ function renderMoveDisplay(id)
 			local gladePos=againstHorsemenCentralGladePosition(0.97)
 			if gladePos~=nil then playerPos=gladePos end
 		end
-		if gStates.resourceTracker.playerPos==nil and turnOrder[gStates.turnNumber].turnStartLoc[1]~=nil and turnOrder[gStates.turnNumber].turnStartLoc[1]>-42 then
-			gStates.resourceTracker.playerPos={turnOrder[gStates.turnNumber].turnStartLoc[1], turnOrder[gStates.turnNumber].turnStartLoc[2], turnOrder[gStates.turnNumber].turnStartLoc[3]}--{0, 0, 0}
+		local currentTurn=turnOrder[gStates.turnNumber]
+		local turnStartLoc=currentTurn~=nil and currentTurn.turnStartLoc or nil
+		if gStates.resourceTracker.playerPos==nil and turnStartLoc~=nil and turnStartLoc[1]~=nil and turnStartLoc[1]>-42 then
+			gStates.resourceTracker.playerPos={turnStartLoc[1], turnStartLoc[2], turnStartLoc[3]}--{0, 0, 0}
 		end
 		if id=="MovemAmountUpdate" then
 			for _, details in pairs(mageKnights) do

@@ -722,9 +722,16 @@ local function runtimeMapObjectSnapshot()
 		return runtimeMapObjectCache
 	end
 	local objects=map.getObjects()
+	local validObjects={}
 	local objectGUIDs={}
-	for _,obj in pairs(objects) do objectGUIDs[obj.guid]=true end
-	runtimeMapObjectCache={objects=objects,objectGUIDs=objectGUIDs}
+	for _,obj in pairs(objects) do
+		local guid=obj~=nil and obj.guid or nil
+		if guid~=nil then
+			validObjects[#validObjects+1]=obj
+			objectGUIDs[guid]=true
+		end
+	end
+	runtimeMapObjectCache={objects=validObjects,objectGUIDs=objectGUIDs}
 	return runtimeMapObjectCache
 end
 
