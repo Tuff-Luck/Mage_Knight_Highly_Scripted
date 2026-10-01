@@ -949,7 +949,7 @@ local function handleTurnOrderZoneEnter(ctx)
 						end
 						--update turnorder sequence to match token order
 						if inOrder==true then
-							if getObjectFromGUID("0934f2")~=nil then table.sort(turnOrder, function (k1, k2) return k1.customSort < k2.customSort end) end
+							if gStates.turnOrderHelpDismissed~=true then table.sort(turnOrder, function (k1, k2) return k1.customSort < k2.customSort end) end
 							broadcastToAll("{en}Turn order updated{ru}Порядок хода обновлен{zh-tw}回合顺序更新了{zh-cn}回合顺序更新了{ko}라운드 순서가 업데이트되었습니다{es}Orden de giro actualizado{fr}Ordre de rotation mis à jour{pt-br}Ordem de Turno atualizada{de}Zugreihenfolge aktualisiert", {1,1,0.5})
 							mainUIUpdate("Turn marker entered it's zone")
 						end
