@@ -2476,19 +2476,15 @@ local function installExistingObjectUI(guid, xml)
 	local obj=getObjectFromGUID(guid)
 	if obj==nil then return false end
 	obj.UI.setXml(xml)
-	--setXml() returns before TTS has necessarily finished constructing the object's UI tree.
-	--Reapply translated Text/Toggle values on the following frame, once setAttribute can see the new ids.
-	safeWaitFrames("UI",function()
-		local live=getObjectFromGUID(guid)
-		if live~=nil then reapplyObjectXmlText(live) end
-	end,1)
 	return true
 end
+
+local MONSTER_REPLENISH_TEXT="{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen"
 
 --Monster Replenish no longer carries its own Lua/XML. Rebuild its physical Restock button from
 --Global, and keep the old status ids as hidden targets for existing swap/status helpers.
 function monsterReplenishObjectOnLoad()
-	return installExistingObjectUI(GUID.ui.monsterReplenish,[=[
+	local xml=[=[
 <Button id="d7a165replenishMonsterPiles" interactable="true"
     onClick="global/refillMonsterTokenPiles"
     tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
@@ -2499,12 +2495,20 @@ function monsterReplenishObjectOnLoad()
     <HorizontalLayout padding="30 30 30 30">
         <Text id="d7a165replenishMonsterPilesText" fontSize="90" font="Fonts/MKCardText" fontStyle="Normal"
             textColor="rgb(0, 0, 0)" offsetXY="0 1" alignment="MiddleCenter"
-            resizeTextForBestFit="true" resizeTextMaxSize="90">{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen</Text>
+            resizeTextForBestFit="true" resizeTextMaxSize="90">]=]..MONSTER_REPLENISH_TEXT..[=[</Text>
     </HorizontalLayout>
 </Button>
 <Text id="d7a165swapMonsterImageText" active="false"></Text>
 <Text id="d7a165swapTableText" active="false"></Text>
-]=])
+]=]
+	return installExistingObjectUI(GUID.ui.monsterReplenish,xml)
+end
+
+function monsterReplenishTranslationRefresh()
+	local obj=getObjectFromGUID(GUID.ui.monsterReplenish)
+	if obj==nil then return false end
+	obj.UI.setAttribute("d7a165replenishMonsterPilesText","text",MONSTER_REPLENISH_TEXT)
+	return true
 end
 
 local ARTIFACT_GUID = "ac75c4"
