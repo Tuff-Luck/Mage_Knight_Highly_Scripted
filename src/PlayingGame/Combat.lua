@@ -829,7 +829,7 @@ local function combatReturnPreEndTurnDie(cleanupPlayer,diceGUID)
 	gStates.coopAssaultDice={}
 end
 
-local function combatPreEndTurnPreparePlayArea(cleanupPlayer)
+local function combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
 	--locate discard deck
 	local cardDestination=nil
 	for _, deckSearch in pairs(getObjectFromGUID(deedDeckDiscardZones[turnOrder[cleanupPlayer].seatPos]).getObjects()) do
@@ -837,8 +837,10 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer)
 	end
 
 	--separate any decks and possessed tokens found. Unit Area monsters use the same combat cleanup path.
+	local combatObjects=playerCombatObjects(turnOrder[cleanupPlayer].seatPos)
+	if recovery~=nil and recovery.playAreaPrepared==true then return cardDestination,#combatObjects>0 and 40 or 0 end
 	local tokenWait=0
-	for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
+	for _, playAreaObj in pairs(combatObjects) do
 		--separate decks
 		if playAreaObj.type=="Deck" then
 			for count=1, #playAreaObj.getObjects()-1, 1 do
@@ -861,43 +863,69 @@ local function combatPreEndTurnPreparePlayArea(cleanupPlayer)
 		end
 		tokenWait=40
 	end
+	if recovery~=nil then recovery.playAreaPrepared=true end
 	return cardDestination,tokenWait
 end
 
-local function combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avatarPos,avatarModel,state,tokenWait)
-	--Drop Avatar after a pause. A returning undefeated monster can still be smooth-moving when the
-	--two-second settle check expires (Quest failures make this common). The old wait had no timeout
-	--handler, so the avatar could remain locked at +2 height forever. Run the same finish routine on
-	--either a normal settle or timeout.
+local function combatTrackReturningObject(state,obj)
+	if state==nil or obj==nil or obj.guid==nil then return end
+	state.returningObjects=state.returningObjects or {}
+	state.returningObjects[obj.guid]=true
+end
+
+local function combatReturningObjectsSettled(state)
+	for guid, _ in pairs(state~=nil and state.returningObjects or {}) do
+		local obj=getObjectFromGUID(guid)
+		if obj~=nil and obj.resting~=true then return false end
+	end
+	return true
+end
+
+local function combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avatarPos,avatarModel,state,tokenWait,recovery)
+	if recovery~=nil and recovery.avatarDropDone==true then return end
+	--Drop Avatar only after every returning combat object has settled. The timeout still protects
+	--against a permanently non-resting TTS object, but one fast token no longer hides a slower one.
 	safeWaitFrames("Combat",function()
 		local avatarDropFinished=false
 		local function finishAvatarDrop()
 			if avatarDropFinished==true then return end
 			avatarDropFinished=true
-			--place shield or replenish monster in spawning grounds
-			if turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" then
-				if state.cleanupContext.spawningGroundMonstersBeat==2 then dropShield({avatarPos[1], 2, avatarPos[3]}, true, nil, cleanupPlayer) coralTalesSiteShield("spawning grounds") end
-				if state.spawningGroundMonstersReturned==1 then
-					local newMonster=getObjectFromGUID(monsterPiles.tan).takeObject({position={avatarPos[1]+0.22, 2.12, avatarPos[3]}, smooth=false})
-					gStates.monsterPlayLocation[newMonster.guid]={avatarPos[1]+0.22, 2.12, avatarPos[3]}
-				end
+			if turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" and state.cleanupContext.spawningGroundMonstersBeat==2 then
+				dropShield({avatarPos[1],2,avatarPos[3]},true,nil,cleanupPlayer)
+				coralTalesSiteShield("spawning grounds")
 			end
-			local horsemenReturn=againstHorsemenFinishSoloAssault(cleanupPlayer)
-			if horsemenReturn~=nil then
+			local function finishAfterSpawning()
+				local horsemenReturn=againstHorsemenFinishSoloAssault(cleanupPlayer)
+				if horsemenReturn~=nil then
+					if avatarModel~=nil then avatarPos={horsemenReturn[1],horsemenReturn[2],horsemenReturn[3]}
+					else
+						local horsemenAvatar=coopAssaultAvatarObject(cleanupPlayer)
+						if horsemenAvatar~=nil then horsemenAvatar.setPositionSmooth(horsemenReturn,false,false) end
+					end
+				end
 				if avatarModel~=nil then
-					avatarPos={horsemenReturn[1],horsemenReturn[2],horsemenReturn[3]}
-				else
-					local horsemenAvatar=coopAssaultAvatarObject(cleanupPlayer)
-					if horsemenAvatar~=nil then horsemenAvatar.setPositionSmooth(horsemenReturn,false,false) end
+					avatarModel.setLock(false)
+					avatarModel.setPositionSmooth({avatarPos[1],avatarPos[2]+1.0,avatarPos[3]},false,false)
+				end
+				if recovery~=nil then
+					recovery.avatarDropDone=true
+					combatPreEndTurnRecoveryTryFinish(recovery)
 				end
 			end
-			if avatarModel~=nil then
-				avatarModel.setLock(false)
-				avatarModel.setPositionSmooth({avatarPos[1], avatarPos[2]+1.0, avatarPos[3]},false,false)
+			if turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation=="spawning grounds" and state.spawningGroundMonstersReturned==1 then
+				withTokenPoolReady(monsterPiles.tan,function()
+					local tanPile=getObjectFromGUID(monsterPiles.tan)
+					local newMonster=tanPile~=nil and tanPile.getQuantity()>0 and tanPile.takeObject({position={avatarPos[1]+0.22,2.12,avatarPos[3]},smooth=false}) or nil
+					if newMonster~=nil then gStates.monsterPlayLocation[newMonster.guid]={avatarPos[1]+0.22,2.12,avatarPos[3]} end
+					finishAfterSpawning()
+				end,"Combat")
+			else
+				finishAfterSpawning()
 			end
 		end
-		safeWaitCondition("Combat",finishAvatarDrop, function()
-			if tokenRaised<=0 or (state.lastObject~=nil and state.lastObject.resting~=true) then return false end
+		safeWaitCondition("Combat",finishAvatarDrop,function()
+			if combatReturningObjectsSettled(state)~=true then return false end
+			if tokenRaised<=0 then return true end
 			local pendingDragonAttack=gStates~=nil and gStates.apocalypseDragonPendingAttack or nil
 			local destroyedGUID=pendingDragonAttack~=nil and pendingDragonAttack.destroyedSiteTokenGUID or nil
 			if destroyedGUID~=nil then
@@ -907,11 +935,12 @@ local function combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avat
 				if math.abs(destroyedPos[2]-1.13)>0.05 then return false end
 			end
 			return true
-		end, 5, finishAvatarDrop)
-	end, tokenWait+3)
+		end,5,finishAvatarDrop)
+	end,tokenWait+3)
 end
 
-local function combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait)
+local function combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait,recovery)
+	if recovery~=nil and recovery.stateRefreshDone==true then return end
 	local handoffScheduled=false
 	local function finishCoopCombatHandoff()
 		if gStates.coopAssaultPhase~="combat" or gStates.preEndTurn~=true or gStates.turnNumber~=cleanupPlayer then return end
@@ -925,25 +954,30 @@ local function combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,t
 			end
 		end,2)
 	end
-	--Adjust hand size and Check for scenario completion to Start the final round of turns.
-	--A completed City assault has just changed both monster state and physical shields. Rebuild ownership once,
-	--at this settled cleanup boundary, before scheduleAvatarDropRefresh reads Lead/Assist for the new hand limit.
-	--Other cleanup only needs the cheaper defeat-state refresh; co-op combat rebuilds ownership in its reward phase.
-	safeWaitFrames("Combat",function() safeWaitCondition("Combat",function()
+	local stateRefreshFinished=false
+	local function finishStateRefresh()
+		if stateRefreshFinished==true then return end
+		stateRefreshFinished=true
 		local cleanupLocation=turnOrder[cleanupPlayer]~=nil and turnOrder[cleanupPlayer].avatarLocation or ""
 		if gStates.coopAssaultPhase~="combat" and (cleanupLocation:sub(1,4)=="city" or cleanupLocation:sub(1,6)=="raised") then refreshCityControlAndScoring()
 		else refreshCityDefeatState() end
 		scheduleAvatarDropRefresh(cleanupPlayer)
 		scenarioCombatCleanupCheck(cleanupPlayer)
+		if recovery~=nil then
+			recovery.stateRefreshDone=true
+			combatPreEndTurnRecoveryTryFinish(recovery)
+		end
 		--Combat Complete is the only confirmation during the combat stage. Once cleanup reaches this
 		--boundary, expose a safe manual fallback and also attempt the normal automatic handoff.
 		if gStates.endGameAchieved=="false" and gStates.tacticShown==false and gStates.coopAssaultPhase=="combat" then finishCoopCombatHandoff() end
-	end, function() return state.lastObject==nil or state.lastObject.resting end, 2, function()
-		finishCoopCombatHandoff()
-	end) end, tokenWait+50)
+	end
+	safeWaitFrames("Combat",function()
+		safeWaitCondition("Combat",finishStateRefresh,function() return combatReturningObjectsSettled(state) end,2,finishStateRefresh)
+	end,tokenWait+50)
 end
 
-local function combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait)
+local function combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait,recovery)
+	if recovery~=nil and recovery.skillCleanupDone==true then return end
 	--Skills own circulation/return rules; Combat retains the same delayed cleanup boundary.
 	local nextPlayer=nextTurnMerged("nextMageSkipDummy")
 	safeWaitFrames("Combat",function()
@@ -957,10 +991,15 @@ local function combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait)
 				if trash~=nil then trash.putObject(playAreaObj) end
 			end
 		end
+		if recovery~=nil then
+			recovery.skillCleanupDone=true
+			combatPreEndTurnRecoveryTryFinish(recovery)
+		end
 	end,tokenWait+3)
 end
 
-local function combatCleanupPreEndTurnUnitArea(cleanupPlayer)
+local function combatCleanupPreEndTurnUnitArea(cleanupPlayer,recovery)
+	if recovery~=nil and recovery.unitCleanupDone==true then return end
 	--Remove crystals and dice used to power Units
 	local crystalsToDestroy={}
 	local unitAreaObjects=getObjectFromGUID(playerUnitAreas[turnOrder[cleanupPlayer].seatPos]).getObjects()
@@ -989,13 +1028,17 @@ local function combatCleanupPreEndTurnUnitArea(cleanupPlayer)
 	--Use the player whose cleanup started, not whatever turn happens to be current when
 	--this delayed callback fires. This prevents two Mage Knights being left on the portal.
 	if coopAssaultVirtualPlayer(cleanupPlayer)==false then portalSwap("endOfTurn", cleanupPlayer) end
+	if recovery~=nil then
+		recovery.unitCleanupDone=true
+		combatPreEndTurnRecoveryTryFinish(recovery)
+	end
 end
 
-local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait)
+local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait,recovery)
 	safeWaitFrames("Combat",function()
 		--Get objects from player area to clean them up
 		local state={
-			lastObject=nil,
+			returningObjects={},
 			spawningGroundMonstersReturned=0,
 			cleanupContext={player=cleanupPlayer,coopCombatReward=coopCombatReward,avatarPos=avatarPos,volkareCityShield=0,volkarePaused=false,spawningGroundMonstersBeat=0,mapSpatial=runtimeMapSpatialSnapshot()}
 		}
@@ -1005,6 +1048,11 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 		for _, playAreaObj in pairs(playerCombatObjects(turnOrder[cleanupPlayer].seatPos)) do
 			local cleanupObjectGUID=playAreaObj.guid
 			safeWaitFrames("Combat",function()
+				if recovery~=nil then
+					recovery.processedObjects=recovery.processedObjects or {}
+					if recovery.processedObjects[cleanupObjectGUID]==true then return end
+					recovery.processedObjects[cleanupObjectGUID]=true
+				end
 				--Returning an airborne Dragon head restores its real image with reload(), which invalidates
 				--the old TTS Object userdata for all four captured head objects. Identify them by GUID before
 				--touching that userdata, return the set once, and stop this object's ordinary cleanup here.
@@ -1062,6 +1110,7 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 						end
 					end
 					if gStates.monsterPlayLocation[playAreaObj.guid]~=nil then
+						combatTrackReturningObject(state,playAreaObj)
 						if gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage]~=nil and gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]~=nil then
 							local pursuit=gStates.pursuingMonsters[turnOrder[cleanupPlayer].mage][playAreaObj.guid]
 							pursuit.state="Stunned" pursuit.stunned=true
@@ -1078,7 +1127,7 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 							--Each Horseman is assigned to exactly one participant; a survivor returns to its Portal-card slot.
 							playAreaObj.setRotation({0,180,0})
 							playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-							state.lastObject=playAreaObj
+							combatTrackReturningObject(state,playAreaObj)
 						elseif gStates.coopAssaultPhase=="combat" and coopAssaultTargetType()=="leader" and (playAreaObj.guid==elementalist.token or playAreaObj.guid==darkCrusader.token) then
 							--A face-down leader means this player defeated no leader levels. Advance the real token through
 							--the same preview handoff used by a face-up surviving leader so the next planning copy is consumed.
@@ -1101,7 +1150,7 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 							end
 							if gStates.monsterPerks[playAreaObj.guid]~=nil and gStates.monsterPerks[playAreaObj.guid].wallFortified~=nil then setAssaultWallFortified(playAreaObj, false) end
 							playAreaObj.setPositionSmooth(gStates.monsterPlayLocation[playAreaObj.guid],false,false)
-							state.lastObject=playAreaObj
+							combatTrackReturningObject(state,playAreaObj)
 						end
 					end
 				end
@@ -1114,6 +1163,7 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 					elseif playAreaObj.getRotationValues()[2]~=nil then
 						combatDiscardMonster(playAreaObj,true,state.cleanupContext)
 					else--process leaders
+						combatTrackReturningObject(state,playAreaObj)
 						local currentLeader=elementalist
 						if playAreaObj.guid==darkCrusader.token then currentLeader=darkCrusader end
 						--drop shield(s) on leader disc
@@ -1196,11 +1246,40 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 		end
 		safeWaitFrames("Combat",function() tokenRefill() end,tokenWait+1)
 
-		combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avatarPos,avatarModel,state,tokenWait)
-		combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait)
-		combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait)
-		combatCleanupPreEndTurnUnitArea(cleanupPlayer)
+		combatSchedulePreEndTurnAvatarDrop(cleanupPlayer,tokenRaised,avatarPos,avatarModel,state,tokenWait,recovery)
+		combatSchedulePreEndTurnStateRefresh(player,cleanupPlayer,state,tokenWait,recovery)
+		combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait,recovery)
+		combatCleanupPreEndTurnUnitArea(cleanupPlayer,recovery)
 	end,tokenWait)
+end
+
+function combatRecoverPreEndTurn()
+	local recovery=gStates~=nil and gStates.combatPreEndTurnRecovery or nil
+	if recovery==nil or gStates.preEndTurn~=true then return false end
+	local cleanupPlayer=tonumber(recovery.player)
+	if cleanupPlayer==nil or turnOrder[cleanupPlayer]==nil then gStates.combatPreEndTurnRecovery=nil return false end
+	recovery.processedObjects=recovery.processedObjects or {}
+	local coopCombatCleanup=recovery.coop==true and gStates.coopAssaultPhase=="combat"
+	local coopCombatReward=nil
+	if coopCombatCleanup==true then
+		for index=#(gStates.coopRewardQueue or {}),1,-1 do
+			local entry=gStates.coopRewardQueue[index]
+			if entry~=nil and entry.player==cleanupPlayer then coopCombatReward=entry break end
+		end
+		gStates.coopCombatHandoffReady=false
+		setUIButtonEnabled("EndTurnButton",false)
+		setUIButtonEnabled("EndTurnButtonAlt",false)
+	end
+	if recovery.rewardBoundaryDone~=true then combatScheduleRewardBoundary(cleanupPlayer,coopCombatCleanup,recovery) end
+	local avatarModel=recovery.avatarModelGUID~=nil and getObjectFromGUID(recovery.avatarModelGUID) or nil
+	if avatarModel==nil and (recovery.tokenRaised or 0)>0 then avatarModel=mageKnightAvatarObject(cleanupPlayer,false) end
+	local avatarPos=recovery.avatarPos or {}
+	local tokenRaised=tonumber(recovery.tokenRaised) or 0
+	local cardDestination,tokenWait=combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
+	local color=positionToColor(cleanupPlayer)
+	local playerObj=Player[color] or {color=color}
+	combatSchedulePreEndTurnCleanup(playerObj,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait,recovery)
+	return true
 end
 
 function __preEndTurn_raw(player, mouseButton, id, rewindReady)
@@ -1227,11 +1306,14 @@ function __preEndTurn_raw(player, mouseButton, id, rewindReady)
 	end
 
 	local cleanupPlayer=gStates.turnNumber
-	local coopCombatReward=combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
+	local coopCombatReward,recovery=combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	turnPreparePreEndTurn(cleanupPlayer,player.color,id)
 	local tokenRaised,avatarPos,avatarModel=combatPreEndTurnRaiseAvatar(cleanupPlayer)
-	local cardDestination,tokenWait=combatPreEndTurnPreparePlayArea(cleanupPlayer)
-	combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait)
+	recovery.tokenRaised=tokenRaised
+	recovery.avatarPos={avatarPos[1],avatarPos[2],avatarPos[3]}
+	recovery.avatarModelGUID=avatarModel~=nil and avatarModel.guid or nil
+	local cardDestination,tokenWait=combatPreEndTurnPreparePlayArea(cleanupPlayer,recovery)
+	combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatReward,tokenRaised,avatarPos,avatarModel,cardDestination,tokenWait,recovery)
 end
 
 assaultApproachOrigin=nil
