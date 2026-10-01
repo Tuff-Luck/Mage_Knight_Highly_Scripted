@@ -31,8 +31,8 @@ function onLoad(saved_data)
 		if type(saved_data)=="string" and saved_data~="" then loadedData=JSON.decode(saved_data) end
 		rollerOnLoad(rollerSavedState(loadedData))
 		local result=__onLoad_raw(saved_data,loadedData)
-		--Object UIs exist with the table, but TTS localisation is not reliably ready at the first onLoad
-		--instruction. Install each XML once after the same short delay that made the Artifact UI reliable.
+		--Object UIs exist with the table, but their XML is installed after the Global load path settles.
+		--installExistingObjectUI() also reapplies tagged Text/Toggle values through the UI API so localisation resolves.
 		safeWaitFrames("Callbacks",function()
 			monsterReplenishObjectOnLoad()
 			artifactOnLoad()
