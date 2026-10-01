@@ -111,8 +111,12 @@ function tacticToggle()
 		safeWaitFrames("Turn",function()
 			dayTactic2ButtonActivate()
 		end, 5)
-		--remove note about re-areanging turn tokens
-		if getObjectFromGUID("0934f2")~=nil then getObjectFromGUID("0934f2").destruct()	end
+		--The initial turn-order helper replaces the old 0934f2 F8 text. Once the first tactic
+		--selection is complete, keep it hidden for the rest of the game (including save/reload).
+		if gStates.turnOrderHelpDismissed~=true then
+			gStates.turnOrderHelpDismissed=true
+			refreshTurnOrderHelpVisibility()
+		end
 	else
 		gStates.tacticSixState="notClaimed"
 		gStates.tacticShown=true
@@ -135,7 +139,9 @@ function tacticToggle()
 			end
 		end
 		setUIButtonEnabled("ScoreButtonReal",false)
-		if getObjectFromGUID("0934f2")==nil then turnOrderSort() end
+		--During the very first tactic selection, leave the randomly placed tokens alone so players
+		--can still rearrange them manually. Later rounds can immediately return them to sorted slots.
+		if gStates.turnOrderHelpDismissed==true then turnOrderSort() end
 		mainUIUpdate("Tactic Togle")
 	end
 	claimButtonRefresh()
