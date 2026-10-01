@@ -1343,8 +1343,14 @@ function wallAssaultChoiceNeeded(targetPos, attackerPos)
 end
 
 function showWallAssaultChoice(mode, id, viewerColor)
+	local visibleColor=viewerColor or positionToColor(gStates.turnNumber)
 	wallAssaultPending={mode=mode, id=id}
-	setUIVisibility("WallAssaultChoice",{viewerColor or positionToColor(gStates.turnNumber),"Black"})
+	gStates.wallAssaultPending={
+		mode=mode,id=id,viewerColor=visibleColor,
+		approachOrigin=assaultApproachOrigin~=nil and {assaultApproachOrigin[1],assaultApproachOrigin[2],assaultApproachOrigin[3]} or nil,
+		targetPosition=assaultTargetPosition~=nil and {assaultTargetPosition[1],assaultTargetPosition[2],assaultTargetPosition[3]} or nil
+	}
+	setUIVisibility("WallAssaultChoice",{visibleColor,"Black"})
 	if mode=="rampagerAttack" or mode=="manualMonster" then
 		UI.setAttribute("WallAssaultChoiceQuestion", "text", "{en}The attack approach is unclear.\nDid your attack cross a wall?{ru}Направление атаки неясно.\nВаша атака проходила через стену?{zh-tw}攻擊的方向不明確。\n你的攻擊是否穿過城牆？{zh-cn}攻击的方向不明确。\n你的攻击是否穿过城墙？{ko}공격 방향이 불분명합니다.\n공격 중 성벽을 넘었습니까?{es}La dirección del ataque no está clara.\n¿Tu ataque cruzó una muralla?{fr}La direction de l'attaque n'est pas claire.\nVotre attaque a-t-elle franchi un mur ?{pt-br}A direção do ataque não está clara.\nSeu ataque atravessou uma muralha?{de}Die Angriffsrichtung ist unklar.\nHat dein Angriff eine Mauer überquert?")
 	else
@@ -1356,7 +1362,17 @@ end
 function clearWallAssaultChoice()
 	wallAssaultChoiceResult=nil
 	wallAssaultPending=nil
+	if gStates~=nil then gStates.wallAssaultPending=nil end
 	UI.hide("WallAssaultChoice")
+end
+
+function restoreWallAssaultChoice()
+	local saved=gStates~=nil and gStates.wallAssaultPending or nil
+	if saved==nil or saved.mode==nil or saved.id==nil then return false end
+	assaultApproachOrigin=saved.approachOrigin~=nil and {saved.approachOrigin[1],saved.approachOrigin[2],saved.approachOrigin[3]} or nil
+	assaultTargetPosition=saved.targetPosition~=nil and {saved.targetPosition[1],saved.targetPosition[2],saved.targetPosition[3]} or nil
+	showWallAssaultChoice(saved.mode,saved.id,saved.viewerColor)
+	return true
 end
 
 function wallAssaultChoice(player, mouseButton, id)
@@ -1365,7 +1381,14 @@ function wallAssaultChoice(player, mouseButton, id)
 	elseif id=="WallAssaultChoiceNo" then wallAssaultChoiceResult=false
 	else return end
 	local pending=wallAssaultPending
+	if pending==nil and gStates.wallAssaultPending~=nil then
+		local saved=gStates.wallAssaultPending
+		assaultApproachOrigin=saved.approachOrigin~=nil and {saved.approachOrigin[1],saved.approachOrigin[2],saved.approachOrigin[3]} or nil
+		assaultTargetPosition=saved.targetPosition~=nil and {saved.targetPosition[1],saved.targetPosition[2],saved.targetPosition[3]} or nil
+		pending={mode=saved.mode,id=saved.id}
+	end
 	wallAssaultPending=nil
+	gStates.wallAssaultPending=nil
 	UI.hide("WallAssaultChoice")
 	if pending~=nil then
 		if pending.mode=="attackLocation" or pending.mode=="rampagerAttack" then attackLocation(nil, "-1", pending.id)
@@ -1548,6 +1571,29 @@ function clearPossessedEnemy(obj)
 	return detached
 end
 
+local function combatPossessedEnemyCandidates(possessed,zone)
+	if zone~=nil then return zone.getObjects() end
+	local candidates={}
+	local seen={}
+	local function add(list)
+		for _, candidate in pairs(list or {}) do
+			if candidate~=nil and candidate.guid~=nil and seen[candidate.guid]~=true then
+				seen[candidate.guid]=true
+				candidates[#candidates+1]=candidate
+			end
+		end
+	end
+	local pos=possessed~=nil and possessed.getPosition() or nil
+	if pos~=nil then
+		local spatial=runtimeMapSpatialSnapshot(1)
+		add(runtimeMapSpatialNearbyObjects(spatial,pos,1))
+	end
+	for _, details in pairs(turnOrder or {}) do
+		if details.seatPos~=nil then add(playerCombatObjects(details.seatPos)) end
+	end
+	return candidates
+end
+
 --Link and Unlink the chosen enemy
 local justDetached={}
 function combatAttachEnemyBase(player, mouseButton, id, obj, zone)
@@ -1564,7 +1610,7 @@ function combatAttachEnemyBase(player, mouseButton, id, obj, zone)
 			if possessed~=nil then
 				if gStates.apocalypsePossessedEnemyByToken~=nil and gStates.apocalypsePossessedEnemyByToken[possessedGUID]~=nil then return end
 				local zoneObj=attachZoneGUID~=nil and getObjectFromGUID(attachZoneGUID) or nil
-				local candidates=zoneObj~=nil and zoneObj.getObjects() or getAllObjects()
+				local candidates=combatPossessedEnemyCandidates(possessed,zoneObj)
 				for _, nearEnemy in pairs(candidates) do
 					if nearEnemy.guid~=possessedGUID and monsterPugs[nearEnemy.guid]~=nil and monsterPugs[nearEnemy.guid].pugType~="possessed" and justDetached[nearEnemy.guid]~=true and
 						nearEnemy.getPosition()[1]-possessed.getPosition()[1]>-0.5 and nearEnemy.getPosition()[1]-possessed.getPosition()[1]<0.5 and nearEnemy.getPosition()[3]-possessed.getPosition()[3]>-0.5 and nearEnemy.getPosition()[3]-possessed.getPosition()[3]<0.5 then
@@ -1968,13 +2014,14 @@ function attackLocation(playerDud, mouseButton, id)
 										end
 									end
 								end
-								local magesInRangeTwo=findNearbyMages({secondCity.getPosition()[1], secondCity.getPosition()[2], secondCity.getPosition()[3]}, 2.5)
-								for _, mageNameTwo in pairs (magesInRangeTwo) do
-									local found=false
-									for _, mageName in pairs (magesInRange) do
-										if mageName.mage==mageNameTwo.mage then found=true end
+								if secondCity~=nil then
+									local secondCityPos=secondCity.getPosition()
+									local magesInRangeTwo=findNearbyMages({secondCityPos[1],secondCityPos[2],secondCityPos[3]},2.5)
+									for _, mageNameTwo in pairs(magesInRangeTwo) do
+										local found=false
+										for _, mageName in pairs(magesInRange) do if mageName.mage==mageNameTwo.mage then found=true break end end
+										if found==false then magesInRange[#magesInRange+1]=mageNameTwo end
 									end
-									if found==false then magesInRange[#magesInRange+1]=mageNameTwo end
 								end
 							end
 							local count=1
@@ -2757,6 +2804,15 @@ function pursuingRampagers(player, mouseButton, id)
 		gStates.pursuitTwoOption=false
 		--loop through all recorded pursuing monsters
 		if gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]~=nil and gStates.tacticShown==false then
+			local pursuing=gStates.pursuingMonsters[turnOrder[gStates.turnNumber].mage]
+			local stale={}
+			for monsterGUID, _ in pairs(pursuing) do if getObjectFromGUID(monsterGUID)==nil then stale[#stale+1]=monsterGUID end end
+			for _, monsterGUID in ipairs(stale) do
+				pursuing[monsterGUID]=nil
+				gStates.rampagingMonsters[monsterGUID]=nil
+				gStates.ambushingMonsters[monsterGUID]=nil
+				gStates.monsterPlayLocation[monsterGUID]=nil
+			end
 			--delete the help arrows
 			for guid, _ in pairs(gStates.arrowDelete) do
 				local arrow=getObjectFromGUID(guid)
@@ -2933,7 +2989,8 @@ function pursuingRampagers(player, mouseButton, id)
 							if gStates.monsterOffsetX>12 then gStates.monsterOffsetX=0 gStates.monsterOffsetZ=gStates.monsterOffsetZ+2.5 end
 							noMove=false
 							gStates.monsterPlayLocation[monsterGUID]=monsterDetails.location
-							getObjectFromGUID(monsterGUID).UI.setXmlTable({{}})
+							local attackingMonster=getObjectFromGUID(monsterGUID)
+							if attackingMonster~=nil then attackingMonster.UI.setXmlTable({{}}) end
 							broadcastToAll(joinLang({"{en}Pursuing Monster Attacked {ru}Преследующие враги напали на {zh-tw}追擊怪物攻擊了 {zh-cn}被追击怪物所攻击{ko}추적 중인 몬스터의 공격: {es}Persecución de Monstruos Atacados por {fr}Poursuivant le Monstre Attaqué {pt-br}Monstro Perseguidor Atacado {de}Verfolgtes Monster angegriffen ", translateWord[turnOrder[gStates.turnNumber].mage]}), positionToColor(gStates.turnNumber))
 						end
 					end
