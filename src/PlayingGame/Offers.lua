@@ -575,47 +575,67 @@ end
 
 local deedOfferSourceUiTemplate=nil
 
-local function captureDeedOfferSourceUiTemplate(spellSource)
-	if deedOfferSourceUiTemplate~=nil then return true end
-	if spellSource==nil then return false end
-	local xml=spellSource.UI.getXml()
-	if type(xml)~="string" or xml=="" or xml:find('id="TableSpellLabel"',1,true)==nil then return false end
-	deedOfferSourceUiTemplate=xml
-	return true
+local function copyUiTable(value)
+	if type(value)~="table" then return value end
+	local result={}
+	for key,entry in pairs(value) do result[copyUiTable(key)]=copyUiTable(entry) end
+	return result
 end
 
-local function applyDeedOfferAdjustState(spellSource,size)
-	if spellSource==nil then return false end
+local function findUiNodeById(nodes,id)
+	if type(nodes)~="table" then return nil end
+	for _,node in ipairs(nodes) do
+		if type(node)=="table" then
+			if type(node.attributes)=="table" and node.attributes.id==id then return node end
+			local found=findUiNodeById(node.children,id)
+			if found~=nil then return found end
+		end
+	end
+	return nil
+end
+
+local function deedOfferSourceUiTable(spellSource)
+	if spellSource==nil then return nil end
+	local current=spellSource.UI.getXmlTable()
+	if type(current)=="table" and findUiNodeById(current,"TableSpellLabel")~=nil then
+		deedOfferSourceUiTemplate=copyUiTable(current)
+		return current
+	end
+	if deedOfferSourceUiTemplate~=nil then return copyUiTable(deedOfferSourceUiTemplate) end
+	return nil
+end
+
+local function prepareDeedOfferSourceUiTable(uiTable,size)
+	if type(uiTable)~="table" then return false end
 	local upEnabled=size<DEED_OFFER_MAX_SIZE
 	local downEnabled=size>DEED_OFFER_MIN_SIZE
 	local activeImage="Sliced Button/Button Object Active"
 	local inactiveImage="Sliced Button/Button Object Deactive"
-	spellSource.UI.setAttribute("e4372aOfferUp","active","true")
-	spellSource.UI.setAttribute("e4372aOfferDown","active","true")
-	spellSource.UI.setAttribute("e4372aOfferUp","interactable",upEnabled and "true" or "false")
-	spellSource.UI.setAttribute("e4372aOfferDown","interactable",downEnabled and "true" or "false")
-	spellSource.UI.setAttribute("e4372aOfferUpImage","image",upEnabled and activeImage or inactiveImage)
-	spellSource.UI.setAttribute("e4372aOfferDownImage","image",downEnabled and activeImage or inactiveImage)
-	return true
-end
 
-function deedOfferArrowTextRefresh(spellSource)
-	spellSource=spellSource or standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
-	if spellSource==nil then return false end
-	spellSource.UI.setAttribute("e4372aOfferUpText","text",">")
-	spellSource.UI.setAttribute("e4372aOfferDownText","text","<")
-	return true
-end
+	local up=findUiNodeById(uiTable,"e4372aOfferUp")
+	local down=findUiNodeById(uiTable,"e4372aOfferDown")
+	local upImage=findUiNodeById(uiTable,"e4372aOfferUpImage")
+	local downImage=findUiNodeById(uiTable,"e4372aOfferDownImage")
+	local upText=findUiNodeById(uiTable,"e4372aOfferUpText")
+	local downText=findUiNodeById(uiTable,"e4372aOfferDownText")
+	if up==nil or down==nil or upImage==nil or downImage==nil or upText==nil or downText==nil then return false end
 
-local function scheduleDeedOfferSourceTextRefresh(sourceGUID)
-	safeWaitFrames("Offers",function()
-		local live=sourceGUID~=nil and getObjectFromGUID(sourceGUID) or nil
-		if live==nil then live=standardDeckCycleObject("Spell") end
-		if live~=nil then
-			deedOfferArrowTextRefresh(live)
-			reapplyObjectXmlText(live)
-		end
-	end,2)
+	up.attributes.active="true"
+	down.attributes.active="true"
+	up.attributes.interactable=upEnabled and "true" or "false"
+	down.attributes.interactable=downEnabled and "true" or "false"
+	upImage.attributes.image=upEnabled and activeImage or inactiveImage
+	downImage.attributes.image=downEnabled and activeImage or inactiveImage
+
+	--Use the same representation that previously rendered correctly: literal Text attributes in a UI table.
+	--Do not put these characters through XML entities or setAttribute().
+	upText.attributes.text=">"
+	downText.attributes.text="<"
+	upText.attributes.color="#000000"
+	downText.attributes.color="#000000"
+	upText.value=nil
+	downText.value=nil
+	return true
 end
 
 function refreshDeedOfferAdjustUI()
@@ -624,26 +644,26 @@ function refreshDeedOfferAdjustUI()
 	local size=deedOfferBoundedSize(gStates.offerSize)
 	gStates.offerSize=size
 
-	--The authored e4372a.xml is the single source of truth for label/button positions.
-	--Capture it once, then reuse it only when the live Spell source changes from Deck to Card.
-	captureDeedOfferSourceUiTemplate(spellSource)
-	local currentXml=spellSource.UI.getXml()
-	local hasTemplateUi=type(currentXml)=="string" and currentXml:find('id="TableSpellLabel"',1,true)~=nil
-	if hasTemplateUi~=true and deedOfferSourceUiTemplate~=nil then
-		spellSource.UI.setXml(deedOfferSourceUiTemplate)
-		local sourceGUID=spellSource.guid
-		safeWaitFrames("Offers",function()
-			local live=getObjectFromGUID(sourceGUID)
-			if live==nil then live=standardDeckCycleObject("Spell") end
-			if live~=nil then applyDeedOfferAdjustState(live,size) end
-		end,1)
-		scheduleDeedOfferSourceTextRefresh(sourceGUID)
-		return true
-	end
+	--Read the current authored object UI so XML remains authoritative for all positions, rotations and scales.
+	--If the Spell source has collapsed from Deck to Card, reuse the captured authored table on the new source.
+	local uiTable=deedOfferSourceUiTable(spellSource)
+	if uiTable==nil or prepareDeedOfferSourceUiTable(uiTable,size)~=true then return false end
+	spellSource.UI.setXmlTable(uiTable)
 
-	applyDeedOfferAdjustState(spellSource,size)
-	scheduleDeedOfferSourceTextRefresh(spellSource.guid)
+	--setXmlTable is asynchronous. Reapply tagged label translations once the rebuilt tree is ready.
+	local sourceGUID=spellSource.guid
+	safeWaitFrames("Offers",function()
+		local live=getObjectFromGUID(sourceGUID)
+		if live==nil then live=standardDeckCycleObject("Spell") end
+		if live~=nil then reapplyObjectXmlText(live) end
+	end,2)
 	return true
+end
+
+function deedOfferArrowTextRefresh()
+	--Kept as the load-time repair entry point used by Callbacks. Rebuilding from the authored UI table
+	--also restores literal black arrow glyphs, so there is no separate Text timing path anymore.
+	return refreshDeedOfferAdjustUI()
 end
 
 local function hideDeedOfferAdjustUI(spellSource)
