@@ -46,6 +46,10 @@ local combatRewardDiscardByNotes={
 	["Dark Crusader Reward"]=GUID.bag.discard.darkReward,["Elementalist Reward"]=GUID.bag.discard.elementalistReward,
 	["Apocalypse Cult Reward"]=GUID.bag.discard.apocReward,["Council of the Void Reward"]=GUID.bag.discard.councilReward
 }
+local combatFactionRewardDiscardByPile={
+	[monsterPiles.rewardDark]=GUID.bag.discard.darkReward,[monsterPiles.rewardElem]=GUID.bag.discard.elementalistReward,
+	[monsterPiles.rewardApoc]=GUID.bag.discard.apocReward,[monsterPiles.rewardCouncil]=GUID.bag.discard.councilReward
+}
 local combatCityZones={
 	[cityModel.blue]=GUID.zone.blueCity,[cityModel.red]=GUID.zone.redCity,[cityModel.green]=GUID.zone.greenCity,
 	[cityModel.white]=GUID.zone.whiteCity,[volkare.terrainHex]=volkare.discZone
@@ -366,16 +370,30 @@ end
 takeFactionRewardToken=function(playerIndex, pileGUID, position)
 	local pile=pileGUID~=nil and getObjectFromGUID(pileGUID) or nil
 	if pile==nil then return false, "justFame" end
-	if pile.getQuantity()==0 then
-		tokenRefill()
-		pile=getObjectFromGUID(pileGUID)
+	local function rewardPosition()
+		return position or {(turnOrder[playerIndex].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}
 	end
-	if pile~=nil and pile.getQuantity()>0 then
-		position=position or {(turnOrder[playerIndex].seatPos*40)-117.2+(math.random()*6.5), 2, -35+(math.random()*3.2)}
-		pile.takeObject({position=position})
+	local function takeReady()
+		local readyPile=getObjectFromGUID(pileGUID)
+		if readyPile~=nil and readyPile.getQuantity()>0 then
+			readyPile.takeObject({position=rewardPosition()})
+			return true
+		end
+		return false
+	end
+	if pile.getQuantity()>0 then
+		takeReady()
 		return true
 	end
-	return false, "empty"
+	local discardGUID=combatFactionRewardDiscardByPile[pileGUID]
+	local discard=discardGUID~=nil and getObjectFromGUID(discardGUID) or nil
+	if discard==nil or #discard.getObjects()==0 then return false, "empty" end
+	withTokenPoolReady(pileGUID,function()
+		if takeReady()~=true then
+			broadcastToAll("{en}No faction reward tokens remain to claim.{ru}Жетонов наград фракции для получения больше не осталось.{zh-tw}沒有剩餘的派系獎勵標記可供領取。{zh-cn}没有剩余的派系奖励标记可供领取。{ko}획득할 수 있는 세력 보상 토큰이 더 이상 없습니다.{es}No quedan fichas de recompensa de facción por reclamar.{fr}Il ne reste plus de jetons de récompense de faction à réclamer.{pt-br}Não restam fichas de recompensa de facção para reivindicar.{de}Es sind keine Fraktionsbelohnungsmarker mehr zum Beanspruchen übrig.", positionToColor(playerIndex))
+		end
+	end,"Combat")
+	return true, "pending"
 end
 
 awardFactionRewardToken=function(playerIndex, pileGUID, coopCombatReward, rewardKey)
@@ -638,8 +656,7 @@ function startCoopRewardPhase()
 	resolveCoopAssaultLocations()
 	if gStates.coopRewardQueue==nil or #gStates.coopRewardQueue==0 then
 		local scenarioEndPending=gStates.coopAssaultScenarioEndPending==true
-		gStates.coopAssaultPhase=nil
-		gStates.coopAssaultScenarioEndPending=false
+		clearCoopAssaultRuntime()
 		if scenarioEndPending then
 			--Do not end immediately after a victorious co-op assault. The normal turn
 			--engine must first consume assisting players' flipped turn tokens, then
