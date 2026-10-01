@@ -1740,12 +1740,6 @@ end
 
 function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_flip)
 	if object==nil then return end
-	if object.guid=="938554" then
-		--The Site Descriptions label is hosted on this reference card. Counter-rotate the Object UI
-		--after a player flips the card so the table label stays readable from above.
-		local targetFlip=flip
-		safeWaitFrames("Events",function() refreshSiteDescriptionLabelOrientation(targetFlip) end,1)
-	end
 	if terrainTiles[object.guid]~=nil then runtimeMapInvalidateTerrain() end
 	if apocalypseDragonGroundHeadToken~=nil and select(1,apocalypseDragonGroundHeadToken(object.guid))==true then
 		local _,dragonHeadName=apocalypseDragonGroundHeadToken(object.guid)
