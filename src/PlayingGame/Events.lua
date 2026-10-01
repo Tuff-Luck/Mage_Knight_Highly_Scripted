@@ -159,6 +159,9 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	--need to serialize and rescan the complete Global UI a second time.
 	local _,translatedText=sanitizeRuntimeGlobalUI()
 	if reapplyCollectedXmlText(translatedText)~=true then reapplyXmlText() end
+	--Object XML is loaded independently of Global XML. Initialize the Table Extension once its UI exists,
+	--so its translated labels render immediately and saved offer/table positions are restored without a toggle.
+	safeWaitCondition("Events",function() refreshTableExtensionUI() end,function() return tableExtensionUIReady()==true end,5)
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
