@@ -553,8 +553,7 @@ end
 
 local DEED_OFFER_TEXT_MIN_SIZE=3
 local DEED_OFFER_TABLE_GUID="3d4319"
-local DEED_OFFER_LABEL_PANEL_ID="DeedOfferLabels"
-local DEED_OFFER_LABEL_PANEL_BASE_UI_X=-4370
+local DEED_OFFER_LABEL_SLIDER_ID="DeedOfferLabelsSlide"
 local deedOfferTextLayout={
 	{guid="8dc73f",baseX=42.8}, -- Spells
 	{guid="9f67cd",baseX=42.8}, -- Advanced Actions
@@ -564,7 +563,6 @@ local deedOfferTextLayout={
 local function moveDeedOfferText(size)
 	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
 	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
-	local tableObj=getObjectFromGUID(DEED_OFFER_TABLE_GUID)
 	for _,details in ipairs(deedOfferTextLayout) do
 		--Keep the old F8 text moving during the XML alignment pass. Remove this physical fallback
 		--once the replacement labels have been visually confirmed on both table surfaces.
@@ -580,13 +578,12 @@ end
 
 function refreshDeedOfferTableLabelPosition(size)
 	local tableObj=getObjectFromGUID(DEED_OFFER_TABLE_GUID)
-	if tableObj==nil or tableObj.UI.getAttribute(DEED_OFFER_LABEL_PANEL_ID,"position")==nil then return false end
+	if tableObj==nil or tableObj.UI.getAttribute(DEED_OFFER_LABEL_SLIDER_ID,"offsetXY")==nil then return false end
 	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
 	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
-	--All three XML labels share one parent, so offer resizing only moves this panel.
-	--The calibrated XML home is -4370 at offer size 3; each additional world-space 4.8 is 480 UI units.
-	local uiX=DEED_OFFER_LABEL_PANEL_BASE_UI_X-(xOffset*100)
-	tableObj.UI.setAttribute(DEED_OFFER_LABEL_PANEL_ID,"position",string.format("%.0f 0 0",uiX))
+	--The authored DeedOfferLabels parent is the size-3 home position. Never overwrite it:
+	--only slide this zeroed child so manual XML calibration remains authoritative.
+	tableObj.UI.setAttribute(DEED_OFFER_LABEL_SLIDER_ID,"offsetXY",string.format("%.0f 0",-(xOffset*100)))
 	return true
 end
 
