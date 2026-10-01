@@ -2529,8 +2529,8 @@ local ARTIFACT_UI = [=[
 ]=]
 
 local function installArtifactUI()
-    --Keep the localization tags in the XML itself. TTS resolves those when setXml loads the
-    --object UI; both object UIs are installed once from Callbacks after localisation is ready.
+    --Keep the localization tags in the XML source; Callbacks performs the proven load-time
+    --setAttribute refresh after TTS has built the object UI.
     return installExistingObjectUI(ARTIFACT_GUID,ARTIFACT_UI)
 end
 
