@@ -38,6 +38,7 @@ function onLoad(saved_data)
 		safeWaitFrames("Callbacks",function()
 			monsterReplenishTranslationRefresh()
 			artifactOfferRewardTextRefresh()
+			deedOfferArrowTextRefresh()
 		end,2)
 		return result
 	end)
