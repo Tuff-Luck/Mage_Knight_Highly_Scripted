@@ -552,21 +552,30 @@ function deedOfferBoundedSize(value)
 end
 
 local DEED_OFFER_TEXT_MIN_SIZE=3
+local DEED_OFFER_TABLE_GUID="3d4319"
 local deedOfferTextLayout={
-	{guid="8dc73f",baseX=42.8}, -- Spells
-	{guid="9f67cd",baseX=42.8}, -- Advanced Actions
-	{guid="55405d",baseX=45.68}, -- Offers
+	{guid="8dc73f",uiId="TableSpellLabel",baseX=42.8,uiY=1721}, -- Spells
+	{guid="9f67cd",uiId="TableAdvancedActionLabel",baseX=42.8,uiY=1121}, -- Advanced Actions
+	{guid="55405d",uiId="TableOfferLabel",baseX=45.68,uiY=821}, -- Offers
 }
 
 local function moveDeedOfferText(size)
 	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
 	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
+	local tableObj=getObjectFromGUID(DEED_OFFER_TABLE_GUID)
 	for _,details in ipairs(deedOfferTextLayout) do
+		--Keep the old F8 text moving during the XML alignment pass. Remove this physical fallback
+		--once the replacement labels have been visually confirmed on both table surfaces.
 		local textObject=getObjectFromGUID(details.guid)
 		if textObject~=nil then
 			local position=textObject.getPosition()
 			position.x=details.baseX+xOffset
 			textObject.setPositionSmooth(position,false,false)
+		end
+		if tableObj~=nil then
+			--Table Extension is rotated 180 degrees, so increasing world X is decreasing object-UI X.
+			local uiX=-(details.baseX+xOffset)*100
+			tableObj.UI.setAttribute(details.uiId,"position",string.format("%.0f %.0f 0",uiX,details.uiY))
 		end
 	end
 end
