@@ -1962,7 +1962,7 @@ function refreshTurnOrderHelpVisibility()
 	return true
 end
 
-local SITE_DESCRIPTION_HOST_GUID="bffe58"
+local SITE_DESCRIPTION_HOST_GUID="03de4d"
 local SITE_DESCRIPTION_LABEL_ID="TableSiteDescriptionsLabel"
 local SITE_DESCRIPTION_TEXT="{en}Site Descriptions{ru}Описание Мест{zh-tw}地點說明{zh-cn}地点说明{ko}장소 참고 카드{es}Descripción de Lugares{fr}Descriptions du site{pt-br}Descrição de Local{de}Website-Beschreibungen"
 local DISTRIBUTED_TABLE_LABEL_GUIDS={SITE_DESCRIPTION_HOST_GUID,"e0945c"}
@@ -1970,8 +1970,9 @@ local DISTRIBUTED_TABLE_LABEL_GUIDS={SITE_DESCRIPTION_HOST_GUID,"e0945c"}
 function siteDescriptionObjectOnLoad()
 	local host=getObjectFromGUID(SITE_DESCRIPTION_HOST_GUID)
 	if host==nil then return false end
-	--bffe58 is a permanent locked strip at {-60,0.98,-30}. Its non-uniform model scale is
-	--compensated here so this reproduces the old F8 label at roughly {-60.075,1.0015,-25.069}.
+	--03de4d is the permanent Roll Dungeon Die bag near the Site Descriptions area.
+	--Its transform is roughly {-65.23,1.03,-26.03}, scale 1, Y rotation 180. These local UI
+	--coordinates start the label near the old F8 world position {-60.08,1.00,-25.07}.
 	local xml=[=[
 <Defaults>
     <Text font="Fonts/MKCardTittle" color="#FFFFFF" alignment="MiddleCenter"
@@ -1979,9 +1980,9 @@ function siteDescriptionObjectOnLoad()
 </Defaults>
 <Text id="TableSiteDescriptionsLabel"
       width="1100" height="200"
-      position="0 197 -1000"
-      rotation="0 0 0"
-      scale="0.0222 0.4"
+      position="-516 96 -10"
+      rotation="0 180 180"
+      scale="0.4 0.91"
       resizeTextMaxSize="100">]=]..SITE_DESCRIPTION_TEXT..[=[</Text>
 ]=]
 	host.UI.setXml(xml)
