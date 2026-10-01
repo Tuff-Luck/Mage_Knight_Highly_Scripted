@@ -12,7 +12,7 @@
 	The physical 3DText objects remain in place temporarily so position/scale can be compared in TTS.
 	Table Extension GUID: 3d4319
 -->
-<Panel id="TableLabelsRoot" position="0 100 0">
+<Panel id="TableLabelsRoot" position="0 0 -120">
 	<!-- Move this panel as one unit when the deed offer expands or contracts. -->
 	<Panel id="DeedOfferLabels" position="-4370 0 0">
 		<Text id="TableAdvancedActionLabel"
