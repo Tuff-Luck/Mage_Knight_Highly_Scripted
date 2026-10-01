@@ -55,3 +55,8 @@ function dummyTurn(player, mouseButton, id)
 	if dummyStats.dummyProcessedThisTurn==true then return end
 	automatedTurnRewindStart(function() dummyProcessTurn(dummyIndex,dummySeat) end)
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	dummyTurn=dummyTurn
+})
