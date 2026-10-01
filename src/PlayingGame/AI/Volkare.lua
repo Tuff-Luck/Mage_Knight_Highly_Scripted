@@ -727,3 +727,10 @@ function volkareTokenRandomize(token)--9a686a
 		end
 	end, function() return token==nil or (token.resting and volkareDice.resting) end) end, 2)
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	volkarePartial=volkarePartial,
+	volkareRetreat=volkareRetreat,
+	volkareTurn=volkareTurn
+})
