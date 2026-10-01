@@ -1962,21 +1962,36 @@ function refreshTurnOrderHelpVisibility()
 	return true
 end
 
-local DISTRIBUTED_TABLE_LABEL_GUIDS={"938554","e0945c"}
-local SITE_DESCRIPTION_GUID="938554"
+local SITE_DESCRIPTION_HOST_GUID="bffe58"
 local SITE_DESCRIPTION_LABEL_ID="TableSiteDescriptionsLabel"
+local SITE_DESCRIPTION_TEXT="{en}Site Descriptions{ru}Описание Мест{zh-tw}地點說明{zh-cn}地点说明{ko}장소 참고 카드{es}Descripción de Lugares{fr}Descriptions du site{pt-br}Descrição de Local{de}Website-Beschreibungen"
+local DISTRIBUTED_TABLE_LABEL_GUIDS={SITE_DESCRIPTION_HOST_GUID,"e0945c"}
 
-function refreshSiteDescriptionLabelOrientation(targetFlip)
-	local card=getObjectFromGUID(SITE_DESCRIPTION_GUID)
-	if card==nil or card.UI.getAttribute(SITE_DESCRIPTION_LABEL_ID,"rotation")==nil then return false end
-	local faceDown
-	if targetFlip~=nil then
-		--TTS reports flip as the target X/Z-style card flip angle in degrees.
-		faceDown=math.abs((tonumber(targetFlip) or 0)-180)<1
-	else
-		faceDown=card.is_face_down==true
-	end
-	card.UI.setAttribute(SITE_DESCRIPTION_LABEL_ID,"rotation",faceDown and "0 180 180" or "0 180 0")
+function siteDescriptionObjectOnLoad()
+	local host=getObjectFromGUID(SITE_DESCRIPTION_HOST_GUID)
+	if host==nil then return false end
+	--bffe58 is a permanent locked strip at {-60,0.98,-30}. Its non-uniform model scale is
+	--compensated here so this reproduces the old F8 label at roughly {-60.075,1.0015,-25.069}.
+	local xml=[=[
+<Defaults>
+    <Text font="Fonts/MKCardTittle" color="#FFFFFF" alignment="MiddleCenter"
+          resizeTextForBestFit="true" resizeTextMinSize="30" raycastTarget="false"/>
+</Defaults>
+<Text id="TableSiteDescriptionsLabel"
+      width="1100" height="200"
+      position="0 197 -1000"
+      rotation="0 0 0"
+      scale="0.0222 0.4"
+      resizeTextMaxSize="100">]=]..SITE_DESCRIPTION_TEXT..[=[</Text>
+]=]
+	host.UI.setXml(xml)
+	return true
+end
+
+function siteDescriptionTranslationRefresh()
+	local host=getObjectFromGUID(SITE_DESCRIPTION_HOST_GUID)
+	if host==nil then return false end
+	host.UI.setAttribute(SITE_DESCRIPTION_LABEL_ID,"text",SITE_DESCRIPTION_TEXT)
 	return true
 end
 
@@ -1993,7 +2008,6 @@ function refreshTableExtensionUI()
 		local obj=getObjectFromGUID(guid)
 		if obj~=nil then reapplyObjectXmlText(obj) end
 	end
-	refreshSiteDescriptionLabelOrientation()
 	--The Spell source owns both the moving deed labels and its offer-size controls.
 	refreshDeedOfferAdjustUI()
 	return true
