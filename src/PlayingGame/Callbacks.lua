@@ -29,13 +29,15 @@ function onLoad(saved_data)
 		validatePublicUICallbacks()
 		local loadedData=nil
 		if type(saved_data)=="string" and saved_data~="" then loadedData=JSON.decode(saved_data) end
+		--These objects already exist when Global loads. Install their XML immediately, then use the
+		--proven load-time setAttribute pass once TTS has had two frames to build/localise the object UI.
+		monsterReplenishObjectOnLoad()
+		artifactOnLoad()
 		rollerOnLoad(rollerSavedState(loadedData))
 		local result=__onLoad_raw(saved_data,loadedData)
-		--Object UIs exist with the table, but their XML is installed after the Global load path settles.
-		--installExistingObjectUI() also reapplies tagged Text/Toggle values through the UI API so localisation resolves.
 		safeWaitFrames("Callbacks",function()
-			monsterReplenishObjectOnLoad()
-			artifactOnLoad()
+			monsterReplenishTranslationRefresh()
+			artifactOfferRewardTextRefresh()
 		end,2)
 		return result
 	end)
