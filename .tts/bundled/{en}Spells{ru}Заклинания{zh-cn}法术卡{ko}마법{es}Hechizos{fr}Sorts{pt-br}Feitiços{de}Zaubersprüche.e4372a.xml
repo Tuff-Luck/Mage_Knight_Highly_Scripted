@@ -6,3 +6,42 @@
 		  resizeTextMinSize="30"
 		  raycastTarget="false"/>
 </Defaults>
+
+<!-- These labels ride with the Spell source, so offer expansion needs no separate XML movement. -->
+<Text id="TableSpellLabel"
+      width="400" height="250"
+      position="208 0 -10"
+      rotation="0 180 -90"
+      scale="0.667 0.667"
+      alignment="UpperCenter"
+      resizeTextMaxSize="100">{en}Spells{ru}Заклинания{zh-tw}法術卡{zh-cn}法术卡{ko}마법{es}Hechizos{fr}Sorts{pt-br}Feitiços{de}Zaubersprüche</Text>
+
+<Text id="TableAdvancedActionLabel"
+      width="400" height="250"
+      position="208 -400 -10"
+      rotation="0 180 -90"
+      scale="0.667 0.667"
+      alignment="UpperCenter"
+      resizeTextMaxSize="100">{en}Advanced Actions{ru}Особые Действия{zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션{es}Acciones Avanzadas{fr}Actions avancées{pt-br}Ações Avançadas{de}Fortgeschrittene Aktionen</Text>
+
+<Text id="TableOfferLabel"
+      width="1000" height="180"
+      position="325 -600 -10"
+      rotation="0 180 -90"
+      scale="0.667 0.667"
+      alignment="MiddleCenter"
+      resizeTextMaxSize="200">{en}Offers{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote</Text>
+
+<Button id="e4372aOfferUp" interactable="true"
+        onClick="global/offerAdjust" onMouseDown="global/buttonClicked" onMouseUp="global/buttonClicked"
+        height="150" width="240" position="60 190 -10" rotation="0 180 180" scale="0.32 0.32">
+    <Image id="e4372aOfferUpImage" image="Sliced Button/Button Object Active" type="Sliced"/>
+    <Text id="e4372aOfferUpText" font="Fonts/MKCardText" fontSize="150" color="#000000">&gt;</Text>
+</Button>
+
+<Button id="e4372aOfferDown" interactable="true"
+        onClick="global/offerAdjust" onMouseDown="global/buttonClicked" onMouseUp="global/buttonClicked"
+        height="150" width="240" position="-60 190 -10" rotation="0 180 180" scale="0.32 0.32">
+    <Image id="e4372aOfferDownImage" image="Sliced Button/Button Object Active" type="Sliced"/>
+    <Text id="e4372aOfferDownText" font="Fonts/MKCardText" fontSize="150" color="#000000">&lt;</Text>
+</Button>

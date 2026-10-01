@@ -21,9 +21,9 @@
     "z": 0
   },
   "ColorDiffuse": {
-    "r": 0.249971718,
-    "g": 0.249971718,
-    "b": 0.249971718
+    "r": 0.249971688,
+    "g": 0.249971688,
+    "b": 0.249971688
   },
   "LayoutGroupSortIndex": 0,
   "Value": 0,
@@ -46,5 +46,5 @@
   },
   "LuaScript": "",
   "LuaScriptState": "",
-  "XmlUI": "<Defaults>\r\n\t<Text font=\"Fonts/MKCardTittle\"\r\n\t\t  color=\"#FFFFFF\"\r\n\t\t  alignment=\"MiddleCenter\"\r\n\t\t  resizeTextForBestFit=\"true\"\r\n\t\t  resizeTextMinSize=\"30\"\r\n\t\t  raycastTarget=\"false\"/>\r\n</Defaults>"
+  "XmlUI": "<Defaults>\r\n\t<Text font=\"Fonts/MKCardTittle\"\r\n\t\t  color=\"#FFFFFF\"\r\n\t\t  alignment=\"MiddleCenter\"\r\n\t\t  resizeTextForBestFit=\"true\"\r\n\t\t  resizeTextMinSize=\"30\"\r\n\t\t  raycastTarget=\"false\"/>\r\n</Defaults>\r\n\r\n<!-- Digital Clock is tilted 45 degrees; the Text counter-rotates back toward the table plane. -->\r\n<Text id=\"TableRuleBooksLabel\"\r\n      width=\"1200\" height=\"220\"\r\n      position=\"1560 -169 -289\"\r\n      rotation=\"-45 0 180\"\r\n      scale=\"0.426 0.426\"\r\n      resizeTextMaxSize=\"100\">{en}Rule Books{ru}Книги правил{zh-tw}規則書（在規則書上右擊，選pop-out），單拉出來看會清晰很多{zh-cn}规则书（在规则书上右击，选pop-out）,单拉出来看会清晰很多{ko}규칙서{es}Libros de Reglas{fr}Livres de règles{pt-br}Livro de Regras{de}Regelbücher</Text>\r\n"
 }
