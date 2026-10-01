@@ -1963,6 +1963,22 @@ function refreshTurnOrderHelpVisibility()
 end
 
 local DISTRIBUTED_TABLE_LABEL_GUIDS={"938554","e0945c"}
+local SITE_DESCRIPTION_GUID="938554"
+local SITE_DESCRIPTION_LABEL_ID="TableSiteDescriptionsLabel"
+
+function refreshSiteDescriptionLabelOrientation(targetFlip)
+	local card=getObjectFromGUID(SITE_DESCRIPTION_GUID)
+	if card==nil or card.UI.getAttribute(SITE_DESCRIPTION_LABEL_ID,"rotation")==nil then return false end
+	local faceDown
+	if targetFlip~=nil then
+		--TTS reports flip as the target X/Z-style card flip angle in degrees.
+		faceDown=math.abs((tonumber(targetFlip) or 0)-180)<1
+	else
+		faceDown=card.is_face_down==true
+	end
+	card.UI.setAttribute(SITE_DESCRIPTION_LABEL_ID,"rotation",faceDown and "0 180 180" or "0 180 0")
+	return true
+end
 
 function refreshTableExtensionUI()
 	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
@@ -1977,6 +1993,7 @@ function refreshTableExtensionUI()
 		local obj=getObjectFromGUID(guid)
 		if obj~=nil then reapplyObjectXmlText(obj) end
 	end
+	refreshSiteDescriptionLabelOrientation()
 	--The Spell source owns both the moving deed labels and its offer-size controls.
 	refreshDeedOfferAdjustUI()
 	return true
