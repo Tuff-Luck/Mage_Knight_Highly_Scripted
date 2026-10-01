@@ -711,8 +711,50 @@ end
 rewardClaimDelayActive=false
 local rewardClaimDelayWait=nil
 --local slightPause=true
+
+local function combatPreEndTurnRecoveryTryFinish(recovery)
+	if recovery==nil or gStates.combatPreEndTurnRecovery~=recovery then return end
+	if recovery.rewardBoundaryDone==true and recovery.avatarDropDone==true and recovery.stateRefreshDone==true and recovery.skillCleanupDone==true and recovery.unitCleanupDone==true then
+		gStates.combatPreEndTurnRecovery=nil
+	end
+end
+
+local function combatScheduleRewardBoundary(cleanupPlayer,coopCombatCleanup,recovery)
+	rewardClaimDelayActive=true
+	if rewardClaimDelayWait~=nil then Wait.stop(rewardClaimDelayWait) rewardClaimDelayWait=nil end
+	rewardClaimDelayWait=safeWaitTime("Combat",function()
+		rewardClaimDelayWait=nil
+		local function finishRewardDelay()
+			rewardClaimDelayActive=false
+			--Co-op combat defers every reward gate until all participants have fought.
+			--Do not start the Rewards Claimed soft lock during the combat-to-combat handoff.
+			if coopCombatCleanup~=true and gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
+				rewardClaimSoftLockStart()
+				if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[cleanupPlayer].seatPos)
+				else setUIButtonEnabled("PreEndTurn",true) end
+			end
+			if recovery~=nil then
+				recovery.rewardBoundaryDone=true
+				combatPreEndTurnRecoveryTryFinish(recovery)
+			end
+			rewindTransactionFinish("Pre-end-turn cleanup")
+		end
+		local dragonCombat=gStates.apocalypseDragonGroundCombat
+		if dragonCombat~=nil and dragonCombat.coop~=true and dragonCombat.playerIndex==cleanupPlayer and dragonCombat.levelsApplied~=true then
+			safeWaitCondition("Combat",finishRewardDelay,function()
+				local current=gStates.apocalypseDragonGroundCombat
+				return current==nil or current.levelsApplied==true
+			end,5,finishRewardDelay)
+		else
+			finishRewardDelay()
+		end
+	end,2.0)
+end
+
 local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	local coopCombatCleanup=gStates.coopAssaultPhase=="combat"
+	local recovery={player=cleanupPlayer,coop=coopCombatCleanup==true,processedObjects={},rewardBoundaryDone=false,avatarDropDone=false,stateRefreshDone=false,skillCleanupDone=false,unitCleanupDone=false}
+	gStates.combatPreEndTurnRecovery=recovery
 	volkarePursuitResolveCombat(cleanupPlayer)
 	puppetMasterCleanupPlayedPuppets(cleanupPlayer)
 	--A Quest marker may still be settling under this Hero. Finish that temporary lift before the older
@@ -726,17 +768,9 @@ local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 		setUIButtonEnabled("EndTurnButton",false)
 		setUIButtonEnabled("EndTurnButtonAlt",false)
 	end
-	--reset variables for next turn
 	gStates.preEndTurn=true
-	--Before combat cleanup moves/discards Quest enemies, remember successful combat-gated Quest
-	--resolutions. This gives Rewards Claimed its soft warning gate while that Quest action is pending.
 	apocalypseQuestCaptureRewardCompletionGate(cleanupPlayer)
-	--Free Wine uses a normal Keep assault rather than a Quest-spawned combat, so capture its outcome
-	--separately now that the rewards boundary has been reached.
 	apocalypseQuestCaptureFreeWineResolutionGate(cleanupPlayer)
-	--Mine of Doom enemies now use the normal end-of-turn combat cleanup with every other enemy.
-	rewardClaimDelayActive=true
-	if rewardClaimDelayWait~=nil then Wait.stop(rewardClaimDelayWait) rewardClaimDelayWait=nil end
 	gStates.monsterOffsetX=0
 	gStates.monsterOffsetZ=0
 	gStates.attackedMonsters={}
@@ -746,32 +780,8 @@ local function combatPreEndTurnOpenRewardBoundary(cleanupPlayer)
 	addAvatarButtons()
 	if coopCombatCleanup~=true then claimButtonRefresh() end
 	setUIButtonEnabled("PreEndTurn",false)
-	rewardClaimDelayWait=safeWaitTime("Combat",function()
-		rewardClaimDelayWait=nil
-		local function finishRewardDelay()
-			rewardClaimDelayActive=false
-			--Co-op combat defers every reward gate until all participants have fought.
-			--Do not start the Rewards Claimed soft lock during the combat-to-combat handoff.
-			if coopCombatCleanup~=true and gStates.preEndTurn==true and turnOrder[cleanupPlayer]~=nil then
-				rewardClaimSoftLockStart()
-				if steadyTempoUpdateRewardGate~=nil then steadyTempoUpdateRewardGate(turnOrder[cleanupPlayer].seatPos)
-				else
-					setUIButtonEnabled("PreEndTurn",true)
-				end
-			end
-			rewindTransactionFinish("Pre-end-turn cleanup")
-		end
-		local dragonCombat=gStates.apocalypseDragonGroundCombat
-		if dragonCombat~=nil and dragonCombat.coop~=true and dragonCombat.playerIndex==cleanupPlayer and dragonCombat.levelsApplied~=true then
-			safeWaitCondition("Combat",finishRewardDelay,function()
-				local current=gStates.apocalypseDragonGroundCombat
-				return current==nil or current.levelsApplied==true
-			end,5,finishRewardDelay)
-		else
-			finishRewardDelay()
-		end
-	end, 2.0)
-	return coopCombatReward
+	combatScheduleRewardBoundary(cleanupPlayer,coopCombatCleanup,recovery)
+	return coopCombatReward,recovery
 end
 
 local function combatPreEndTurnRaiseAvatar(cleanupPlayer)
@@ -804,19 +814,19 @@ local function combatPreEndTurnRaiseAvatar(cleanupPlayer)
 end
 
 local function combatReturnPreEndTurnDie(cleanupPlayer,diceGUID)
-	--make sure coop assault isn't happening before returning dice.
 	gStates.coopAssaultDice[#gStates.coopAssaultDice+1]=diceGUID
-	if getObjectFromGUID(turnOrder[nextTurnMerged("nextMageSkipDummy")].turnOrderTokenGUID).is_face_down==false or #turnOrder<=2 then
-		for _, diceG in pairs(gStates.coopAssaultDice) do
-			local die=getObjectFromGUID(diceG)
-			if die~=nil then
-				die.setPosition({-12.5+(math.random()*7),2.7,-25.0+(math.random()*4.0)})
-				die.randomize()
-				onObjectRandomize({type="Dice"})
-			end
+	--Only a real combined assault holds dice between participants. A face-down turn token can also
+	--mean an unrelated out-of-order turn, so it is not a reliable proxy for this lifecycle.
+	if gStates.coopAssaultPhase=="combat" and coopAssaultPendingCombat()==true then return end
+	for _, diceG in pairs(gStates.coopAssaultDice) do
+		local die=getObjectFromGUID(diceG)
+		if die~=nil then
+			die.setPosition({-12.5+(math.random()*7),2.7,-25.0+(math.random()*4.0)})
+			die.randomize()
+			onObjectRandomize({type="Dice"})
 		end
-		gStates.coopAssaultDice={}
 	end
+	gStates.coopAssaultDice={}
 end
 
 local function combatPreEndTurnPreparePlayArea(cleanupPlayer)
