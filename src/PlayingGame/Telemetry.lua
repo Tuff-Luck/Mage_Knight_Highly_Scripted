@@ -128,3 +128,8 @@ function SendDataRequest(player, mouseButton, id)
 		end
 	end
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	SendDataRequest=SendDataRequest
+})
