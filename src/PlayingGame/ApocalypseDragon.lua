@@ -1,7 +1,7 @@
 -- Apocalypse Dragon-private helpers. Predeclared so forward references keep resolving locally.
 local apocalypseDragonHeadTokenPosition, apocalypseDragonPositionHeadToken, apocalypseDragonCopyAttack, apocalypseDragonRefreshRuntimeData
 local apocalypseDragonDeployHeadToken, apocalypseDragonLevelMarkerPosition, apocalypseDragonLockLevelMarker, apocalypseDragonDefeatedHeadCount, apocalypseDragonSyncControlLevel
-local apocalypseDragonCheckAndResolveDefeat, apocalypseDragonHeadStateChanged, apocalypseDragonGroundReduction, apocalypseDragonGroundMarkedThroughOne, apocalypseDragonGroundControlGUIDs
+local apocalypseDragonCheckAndResolveDefeat, apocalypseDragonHeadStateChanged, apocalypseDragonGroundReduction, apocalypseDragonGroundControlGUIDs
 local apocalypseDragonGroundPrepareColoredHead, apocalypseDragonGroundPrepareControl, apocalypseDragonNewGroundCombat, apocalypseDragonGroundTokenInPlayerArea
 local apocalypseDragonCoopAdjacentPlayers, apocalypseDragonGroundApplyFinalLevels, apocalypseDragonGroundCleanupRuntime
 
@@ -183,12 +183,17 @@ function apocalypseDragonApplyHeadLevel(headName,level)
 		if type(image)=="string" and image~="" then token.setCustomObject({image=image}) end
 		token.setName(level>0 and (headName.." Dragon Head Level "..tostring(level)) or (headName.." Dragon Head Defeated"))
 		token.reload()
+		--Refresh logical data immediately, then repeat the object-dependent refresh after reload()
+		--has produced fresh userdata so Control attack-bonus decals are applied deterministically.
+		apocalypseDragonRefreshRuntimeData()
 		safeWaitFrames("Scenario",function()
 			local current=getObjectFromGUID(headData.tokenGUID)
 			if current~=nil then apocalypseDragonPositionHeadToken(headData) end
+			apocalypseDragonRefreshRuntimeData()
 		end,1)
+	else
+		apocalypseDragonRefreshRuntimeData()
 	end
-	apocalypseDragonRefreshRuntimeData()
 	return true
 end
 
@@ -542,19 +547,6 @@ function apocalypseDragonLockModelWhenSettled()
 	end,5,lockDragon)
 end
 
---Against the Dragon: Core non-City tile 3 reveals the Dragon's three-space lair.
---The Dragon keeps its normal map orientation. Its model origin is the centre of the front hex,
---so it is placed directly on the main/centre hex and the two rear hexes fall behind it.
---Random Tile Orientation rotates the printed hexes underneath this fixed footprint.
-function apocalypseDragonLairContainsPosition(pos)
-	if pos==nil or gStates==nil or gStates.apocalypseDragonLairRevealed~=true or gStates.apocalypseDragonLair==nil then return false end
-	for _,hex in ipairs(gStates.apocalypseDragonLair.hexes or {}) do
-		local p=hex.position
-		if p~=nil and ((pos[1]-p[1])^2)+((pos[3]-p[3])^2)<2.25 then return true end
-	end
-	return false
-end
-
 --The shared Dragon combat helpers need the Dragon's current footprint, not necessarily its original
 --Lair. Fury uses a single marker which alternates between a landed map/City space and off-map flight.
 function apocalypseDragonCombatHexes()
@@ -675,23 +667,6 @@ apocalypseDragonGroundReduction=function(headName)
 	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
 	if combat==nil or combat.reductions==nil then return 1 end
 	return math.max(1,math.floor(tonumber(combat.reductions[headName]) or 1))
-end
-
-apocalypseDragonGroundMarkedThroughOne=function(headName)
-	local combat=gStates~=nil and gStates.apocalypseDragonGroundCombat or nil
-	if combat==nil then return false end
-	if combat.headMarkedToOne~=nil and combat.headMarkedToOne[headName]==true then return true end
-	local level=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headName] or 0) or 0
-	if level<=0 then return true end
-	local headData=apocalypseDragonHeadData(headName)
-	local token=headData~=nil and getObjectFromGUID(headData.tokenGUID) or nil
-	if token==nil or combat.processedTokens~=nil and combat.processedTokens[token.guid]==true then return false end
-	--Future co-op participants cannot suppress the current player's Control attack by pre-adjusting
-	--their head before their own combat. Only resolved earlier heads plus the current participant count.
-	local owner=apocalypseDragonGroundHeadOwner(headName)
-	local activePlayer=combat.activePlayerIndex or gStates.turnNumber
-	if combat.coop==true and owner~=activePlayer then return false end
-	return token.is_face_down==false and apocalypseDragonGroundReduction(headName)>=level
 end
 
 apocalypseDragonGroundControlGUIDs=function()
@@ -855,7 +830,7 @@ apocalypseDragonGroundPrepareControl=function(combat,playerIndex,slot,useOrigina
 end
 
 apocalypseDragonNewGroundCombat=function(coop)
-	return {coop=coop==true,players={},headOwners={},deployed={},reductions={},processedTokens={},headMarkedToOne={},fameByPlayer={},previewFameByPlayer={},finishedPlayers={},controlClones={},fortifiedPlayers={},finished=false,levelsApplied=false}
+	return {coop=coop==true,players={},headOwners={},deployed={},reductions={},processedTokens={},fameByPlayer={},previewFameByPlayer={},finishedPlayers={},controlClones={},fortifiedPlayers={},finished=false,levelsApplied=false}
 end
 
 apocalypseDragonGroundTokenInPlayerArea=function(tokenGUID,playerIndex)
@@ -1022,11 +997,10 @@ function apocalypseDragonBeginCoopGroundCombat()
 	for playerIndex,details in ipairs(turnOrder or {}) do
 		local assigned=details~=nil and gStates.assaultData~=nil and gStates.assaultData[details.mage] or nil
 		if assigned~=nil and assigned.joined==true then
-			local assignedCount=0
 			for _,army in ipairs({"primary","secondary"}) do
 				for _,guid in ipairs(assigned[army] or {}) do
 					local headName=apocalypseDragonGroundHeadNameForGUID(guid)
-					if headName~=nil and headName~="Control" and apocalypseDragonGroundPrepareColoredHead(combat,headName,playerIndex)==true then assignedCount=assignedCount+1 end
+					if headName~=nil and headName~="Control" then apocalypseDragonGroundPrepareColoredHead(combat,headName,playerIndex) end
 				end
 			end
 			apocalypseDragonGroundPrepareControl(combat,playerIndex,1,false)
@@ -1153,7 +1127,6 @@ function apocalypseDragonFinalizeFuryDefense()
 			local token=headData~=nil and getObjectFromGUID(headData.tokenGUID) or nil
 			if token~=nil and combat.processedTokens[token.guid]~=true then
 				combat.reductions[headName]=0
-				combat.headMarkedToOne[headName]=false
 				token.UI.setXmlTable({{}})
 				token.setRotation({0,180,0})
 				local home=apocalypseDragonHeadTokenPosition(headData)
@@ -1225,10 +1198,8 @@ function apocalypseDragonGroundResolveToken(obj)
 		local reduction=math.min(current,apocalypseDragonGroundReduction(headName))
 		combat.reductions=combat.reductions or {}
 		combat.fameByPlayer=combat.fameByPlayer or {}
-		combat.headMarkedToOne=combat.headMarkedToOne or {}
 		combat.reductions[headName]=reduction
 		combat.fameByPlayer[owner]=(combat.fameByPlayer[owner] or 0)+reduction
-		combat.headMarkedToOne[headName]=reduction>=current and current>0
 		local headData=apocalypseDragonHeadData(headName)
 		local disc=headData~=nil and getObjectFromGUID(headData.guid) or nil
 		if disc~=nil then
@@ -1239,9 +1210,7 @@ function apocalypseDragonGroundResolveToken(obj)
 		end
 	else
 		combat.reductions=combat.reductions or {}
-		combat.headMarkedToOne=combat.headMarkedToOne or {}
 		combat.reductions[headName]=0
-		combat.headMarkedToOne[headName]=false
 	end
 	local headData=apocalypseDragonHeadData(headName)
 	local home=headData~=nil and apocalypseDragonHeadTokenPosition(headData) or nil
@@ -1307,13 +1276,29 @@ apocalypseDragonGroundCleanupRuntime=function(combat)
 			token.UI.setXmlTable({{}})
 			token.setLock(false)
 			token.setRotation({0,180,0})
-			if home~=nil then token.setPositionSmooth(home,false,true) end
+			if home~=nil then
+				local tokenGUID=headData.tokenGUID
+				token.setPositionSmooth(home,false,true)
+				safeWaitCondition("Scenario",function()
+					local current=getObjectFromGUID(tokenGUID)
+					if current~=nil then apocalypseDragonPositionHeadToken(headData) end
+				end,function()
+					local current=getObjectFromGUID(tokenGUID)
+					return current==nil or current.isSmoothMoving()==false
+				end,5,function()
+					local current=getObjectFromGUID(tokenGUID)
+					if current~=nil then apocalypseDragonPositionHeadToken(headData) end
+				end)
+			else
+				token.setLock(true)
+			end
 		end
-		local level=tonumber(gStates.apocalypseDragonHeadLevels~=nil and gStates.apocalypseDragonHeadLevels[headData.name] or 0) or 0
-		apocalypseDragonApplyHeadLevel(headData.name,level)
 		gStates.monsterPlayLocation[headData.tokenGUID]=nil
 		if gStates.attackedMonsters~=nil then gStates.attackedMonsters[headData.tokenGUID]=nil end
 	end
+	--Final levels were already applied before cleanup. Rebuild the normal head stats/perks once
+	--without reloading every persistent token a second time.
+	apocalypseDragonRefreshRuntimeData()
 end
 
 function apocalypseDragonFinalizeGroundCombat(playerIndex)
@@ -1350,7 +1335,6 @@ function finalizeCoopDragonCombat()
 			local token=headData~=nil and getObjectFromGUID(headData.tokenGUID) or nil
 			if token~=nil and combat.processedTokens[token.guid]~=true then
 				combat.reductions[headName]=0
-				combat.headMarkedToOne[headName]=false
 				local home=apocalypseDragonHeadTokenPosition(headData)
 				token.UI.setXmlTable({{}})
 				token.setRotation({0,180,0})
@@ -1478,7 +1462,6 @@ function apocalypseDragonMainUIPanelSpec()
 	if gStates==nil or gStates.apocalypseDragonTurnActive~=true then return nil end
 	local pending=gStates.apocalypseDragonPendingAttack
 	local turnNumber=tonumber(gStates.apocalypseDragonTurn) or 1
-	local ordinal=apocalypseDragonTurnOrdinal(turnNumber)
 	local mainText=joinLang({"{en}<size=25>Apocalypse Dragon's Turn</size><size=6>\n\n</size><size=18>Round {ru}<size=25>Ход Дракона Апокалипсиса</size><size=6>\n\n</size><size=18>Раунд {zh-tw}<size=25>末日巨龍回合</size><size=6>\n\n</size><size=18>回合輪 {zh-cn}<size=25>末日巨龙回合</size><size=6>\n\n</size><size=18>回合轮 {ko}<size=25>아포칼립스 드래곤의 턴</size><size=6>\n\n</size><size=18>라운드 {es}<size=25>Turno del Dragón del Apocalipsis</size><size=6>\n\n</size><size=18>Ronda {fr}<size=25>Tour du Dragon de l'Apocalypse</size><size=6>\n\n</size><size=18>Manche {pt-br}<size=25>Turno do Dragão do Apocalipse</size><size=6>\n\n</size><size=18>Rodada {de}<size=25>Zug des Apokalypse-Drachen</size><size=6>\n\n</size><size=18>Runde ",tostring(gStates.currentRound or 1),"{en} - Dragon turn {ru} — ход Дракона {zh-tw}－巨龍回合 {zh-cn}－巨龙回合 {ko} - 드래곤 턴 {es} - turno del Dragón {fr} - tour du Dragon {pt-br} - turno do Dragão {de} - Drachenzug ",tostring(turnNumber),"</size><size=4>\n</size>"})
 	if pending~=nil then
 		if pending.phase=="choose" then
@@ -1493,7 +1476,7 @@ function apocalypseDragonMainUIPanelSpec()
 	elseif state=="ReadyToEnd" then label="{en}Dragon Processed{ru}Дракон обработан{zh-tw}巨龍行動結束{zh-cn}巨龙行动结束{ko}드래곤 처리 완료{es}Dragón Procesado{fr}Dragon traité{pt-br}Dragão Processado{de}Drache verarbeitet" active=true
 	elseif state=="WaitingChoice" then label="{en}Pick Target{ru}Выберите цель{zh-tw}選擇目標{zh-cn}选择目标{ko}대상 선택{es}Elige Objetivo{fr}Choisir la Cible{pt-br}Escolha o Alvo{de}Ziel wählen"
 	elseif state=="WaitingCombat" then label="{en}Combat Resolved{ru}Бой завершён{zh-tw}戰鬥已解決{zh-cn}战斗已解决{ko}전투 해결 완료{es}Combate resuelto{fr}Combat résolu{pt-br}Combate resolvido{de}Kampf beendet" active=true end
-	return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or joinLang({"{en}The Apocalypse Dragon is preparing its {ru}Дракон Апокалипсиса готовится к своему {zh-tw}末日巨龍正在準備第 {zh-cn}末日巨龙正在准备第 {ko}아포칼립스 드래곤이 {es}El Dragón del Apocalipsis prepara su {fr}Le Dragon de l’Apocalypse prépare son {pt-br}O Dragão do Apocalipse está preparando seu {de}Der Apokalypse-Drache bereitet seinen ",ordinal,"{en} turn.{ru} ходу.{zh-tw} 個回合。{zh-cn} 个回合。{ko}번째 턴을 준비하고 있습니다.{es} turno.{fr} tour.{pt-br} turno.{de} Zug vor."}),onClick="apocalypseDragonProcessUI",label=label,interactable=active}
+	return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or joinLang({"{en}The Apocalypse Dragon is preparing for turn {ru}Дракон Апокалипсиса готовится к ходу {zh-tw}末日巨龍正在準備第 {zh-cn}末日巨龙正在准备第 {ko}아포칼립스 드래곤이 {es}El Dragón del Apocalipsis prepara el turno {fr}Le Dragon de l’Apocalypse prépare le tour {pt-br}O Dragão do Apocalipse está preparando o turno {de}Der Apokalypse-Drache bereitet Zug ",tostring(turnNumber),"{en}.{ru}.{zh-tw} 個回合。{zh-cn} 个回合。{ko}번째 턴을 준비하고 있습니다.{es}.{fr}.{pt-br}.{de} vor."}),onClick="apocalypseDragonProcessUI",label=label,interactable=active}
 end
 
 function apocalypseDragonMainUIRefresh()
