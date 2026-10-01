@@ -596,6 +596,10 @@ local function applyDeedOfferAdjustState(spellSource,size)
 	spellSource.UI.setAttribute("e4372aOfferDown","interactable",downEnabled and "true" or "false")
 	spellSource.UI.setAttribute("e4372aOfferUpImage","image",upEnabled and activeImage or inactiveImage)
 	spellSource.UI.setAttribute("e4372aOfferDownImage","image",downEnabled and activeImage or inactiveImage)
+	--Use literal characters through the UI API. XML entity text can be mangled when the authored
+	--Spell UI is captured and later copied from Deck to Card.
+	spellSource.UI.setAttribute("e4372aOfferUpText","text",">")
+	spellSource.UI.setAttribute("e4372aOfferDownText","text","<")
 	return true
 end
 
