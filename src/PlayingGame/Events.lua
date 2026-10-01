@@ -299,6 +299,12 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		refreshAllPlayerFameReputationFromShields()
 		refreshTactic4HandBonus(false)
 		mainUIUpdate("Save Loaded")
+		--Delayed Combat callbacks do not survive a TTS reload. Restore any open wall question and
+		--resume only the unfinished parts of a persisted pre-end-turn cleanup checkpoint.
+		safeWaitFrames("Events",function()
+			restoreWallAssaultChoice()
+			combatRecoverPreEndTurn()
+		end,4)
 		restoreZigguratPyramidUI()
 		addAvatarButtons()
 		addCityButtons()
