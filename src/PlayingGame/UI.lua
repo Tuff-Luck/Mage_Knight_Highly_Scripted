@@ -2982,3 +2982,26 @@ end
 function valueAdjust(player, mouseButton, id)
 	return fameReputationValueAdjust(player, mouseButton, id)
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	autoflip=autoflip,
+	buttonClicked=buttonClicked,
+	cameraControl=cameraControl,
+	cameraControlFollowEnemy=cameraControlFollowEnemy,
+	cameraControlTopDown=cameraControlTopDown,
+	closeSplash=closeSplash,
+	lowerTable=lowerTable,
+	monsterImageSwap=monsterImageSwap,
+	openBugReportPanel=openBugReportPanel,
+	resourceTracker=resourceTracker,
+	setBugReportComment=setBugReportComment,
+	valueAdjust=valueAdjust,
+	ButtonClickDown=ButtonClickDown,
+	ButtonClickDownOverkill=ButtonClickDownOverkill,
+	ButtonClickUp=ButtonClickUp,
+	ButtonClickUpOverkill=ButtonClickUpOverkill,
+	changeMatImage=changeMatImage,
+	changePositionColor=changePositionColor,
+	nightTint=nightTint
+})
