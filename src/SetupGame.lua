@@ -764,8 +764,7 @@ local function finalizeSetup()
 
 	broadcastToAll("-------------------", {1,1,0.5})
 	--Stop player boards and dummy board from alt zooming
-	-- TEMP TABLE XML EDITING: "3d4319" intentionally omitted so Table Extension remains right-click interactable. RESTORE AFTER EDITING.
-	local megaFreeze=  {"519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard}--player mats
+	local megaFreeze=  {"3d4319", "519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard}--player mats
 	for i=1, #megaFreeze, 1 do
 		local obj=getObjectFromGUID(megaFreeze[i])
 		if obj~=nil then obj.interactable=false end --some boards may be missing depending on their states
