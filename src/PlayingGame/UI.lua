@@ -1942,7 +1942,7 @@ local TABLE_LABELS_EXTENSION_UP="0 0 -100"
 local TABLE_LABELS_EXTENSION_DOWN="0 0 -120"
 
 local function setTableLabelHeight(tableObj,position)
-	if tableObj==nil then return end
+	if tableObj==nil or tableObj.UI.getAttribute(TABLE_LABELS_ROOT_ID,"position")==nil then return end
 	--The labels remain at roughly the same world height while the Table Extension itself moves 0.2.
 	tableObj.UI.setAttribute(TABLE_LABELS_ROOT_ID,"position",position)
 end
