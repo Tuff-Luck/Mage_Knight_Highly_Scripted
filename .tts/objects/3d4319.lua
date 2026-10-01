@@ -1,0 +1,3 @@
+-- Table Extension (3d4319)
+-- Behaviour remains in Global modules. This placeholder keeps the object in the TTS editor source set;
+-- its Custom UI is authored in 3d4319.xml.
