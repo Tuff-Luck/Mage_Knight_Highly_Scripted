@@ -248,8 +248,9 @@ local function xmlAttribute(openingTag,name)
 	return value
 end
 
-function reapplyXmlText()
-	local xml=UI.getXml()
+local function reapplyXmlTextToUI(ui)
+	if ui==nil then return 0 end
+	local xml=ui.getXml()
 	if type(xml)~="string" or xml=="" then return 0 end
 	local defaultsEnd=xml:find("</Defaults>",1,true)
 	local scanStart=defaultsEnd~=nil and defaultsEnd+#"</Defaults>" or 1
@@ -281,7 +282,7 @@ function reapplyXmlText()
 					nextPos=closeEnd+1
 				end
 				if id~=nil and type(value)=="string" and value:find("{en}",1,true)~=nil then
-					UI.setAttribute(id,"text",decodeXmlUiText(value))
+					ui.setAttribute(id,"text",decodeXmlUiText(value))
 					reapplied=reapplied+1
 				end
 				pos=nextPos
@@ -292,6 +293,15 @@ function reapplyXmlText()
 	reapplyTag("Text")
 	reapplyTag("Toggle")
 	return reapplied
+end
+
+function reapplyXmlText()
+	return reapplyXmlTextToUI(UI)
+end
+
+function reapplyObjectXmlText(obj)
+	if obj==nil then return 0 end
+	return reapplyXmlTextToUI(obj.UI)
 end
 
 -- Turn / seat helpers
