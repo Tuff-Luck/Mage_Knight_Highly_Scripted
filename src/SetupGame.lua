@@ -712,8 +712,10 @@ local function finalizeSetup()
 	dayNight(gStates.startAtNight~=true)--repeat after map setup for map-dependent reveal/weather work and final terrain tint
 	gStates.firstStarted=true
 	gStates.turnNumber=1
+	gStates.turnOrderHelpDismissed=false
 	refreshAllPlayerFameReputationFromShields()
 	refreshMageSkillLocations()
+	refreshTurnOrderHelpVisibility()
 	tacticToggle()
 	--Map setup is now complete and startingMapSetup has been released. Build the first EXPLORE view
 	--from the final physical terrain positions instead of whichever setup callback happened last.
