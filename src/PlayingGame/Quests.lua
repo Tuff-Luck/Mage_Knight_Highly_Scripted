@@ -6878,3 +6878,9 @@ function apocalypseQuestDeckSetup(questDeck)
 	end
 	takeReserved(1)
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	apocalypseQuestCardAction=apocalypseQuestCardAction,
+	apocalypseQuestEnemyAttack=apocalypseQuestEnemyAttack
+})
