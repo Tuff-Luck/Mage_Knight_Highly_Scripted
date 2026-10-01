@@ -553,10 +553,12 @@ end
 
 local DEED_OFFER_TEXT_MIN_SIZE=3
 local DEED_OFFER_TABLE_GUID="3d4319"
+local DEED_OFFER_LABEL_PANEL_ID="DeedOfferLabels"
+local DEED_OFFER_LABEL_PANEL_BASE_X=42.8
 local deedOfferTextLayout={
-	{guid="8dc73f",uiId="TableSpellLabel",baseX=42.8,uiY=1721}, -- Spells
-	{guid="9f67cd",uiId="TableAdvancedActionLabel",baseX=42.8,uiY=1121}, -- Advanced Actions
-	{guid="55405d",uiId="TableOfferLabel",baseX=45.68,uiY=821}, -- Offers
+	{guid="8dc73f",baseX=42.8}, -- Spells
+	{guid="9f67cd",baseX=42.8}, -- Advanced Actions
+	{guid="55405d",baseX=45.68}, -- Offers
 }
 
 local function moveDeedOfferText(size)
@@ -572,11 +574,12 @@ local function moveDeedOfferText(size)
 			position.x=details.baseX+xOffset
 			textObject.setPositionSmooth(position,false,false)
 		end
-		if tableObj~=nil and tableObj.UI.getAttribute(details.uiId,"position")~=nil then
-			--Table Extension is rotated 180 degrees, so increasing world X is decreasing object-UI X.
-			local uiX=-(details.baseX+xOffset)*100
-			tableObj.UI.setAttribute(details.uiId,"position",string.format("%.0f %.0f 0",uiX,details.uiY))
-		end
+	end
+	if tableObj~=nil and tableObj.UI.getAttribute(DEED_OFFER_LABEL_PANEL_ID,"position")~=nil then
+		--All three XML labels share one parent, so offer resizing only moves this panel.
+		--Table Extension is rotated 180 degrees, so increasing world X is decreasing object-UI X.
+		local uiX=-(DEED_OFFER_LABEL_PANEL_BASE_X+xOffset)*100
+		tableObj.UI.setAttribute(DEED_OFFER_LABEL_PANEL_ID,"position",string.format("%.0f 0 0",uiX))
 	end
 end
 
