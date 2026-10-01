@@ -756,21 +756,6 @@ dieRollEnterPause=nil
 workingOnTerrain={}
 local shieldLocationWait={}--Per-object debounce so simultaneous shield/site moves cannot cancel each other.
 masterOfChaosWait=nil
-randomizePause=nil
-local sourceRandomizeFences={{"7e09c6", 7.40}, {"0a7c95", 3.60}, {"ec49dd", 7.40}, {"c17ca2", 3.60}}
-local function pulseSourceRandomizeFences()
-	for _, fenceDetails in ipairs(sourceRandomizeFences) do
-		local fence=getObjectFromGUID(fenceDetails[1])
-		if fence~=nil then fence.setScale({0.10, 20.00, fenceDetails[2]}) end
-	end
-	if randomizePause~=nil then Wait.stop(randomizePause) end
-	randomizePause=safeWaitTime("Events",function()
-		for _, fenceDetails in ipairs(sourceRandomizeFences) do
-			local fence=getObjectFromGUID(fenceDetails[1])
-			if fence~=nil then fence.setScale({0.10, 0.1, fenceDetails[2]}) end
-		end
-	end, 3)
-end
 
 local function scheduleShieldLocation(obj, zone, status)
 	local guid=obj~=nil and obj.guid or nil
