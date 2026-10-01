@@ -33,11 +33,13 @@ function onLoad(saved_data)
 		--proven load-time setAttribute pass once TTS has had two frames to build/localise the object UI.
 		monsterReplenishObjectOnLoad()
 		artifactOnLoad()
+		siteDescriptionObjectOnLoad()
 		rollerOnLoad(rollerSavedState(loadedData))
 		local result=__onLoad_raw(saved_data,loadedData)
 		safeWaitFrames("Callbacks",function()
 			monsterReplenishTranslationRefresh()
 			artifactOfferRewardTextRefresh()
+			siteDescriptionTranslationRefresh()
 			deedOfferArrowTextRefresh()
 		end,2)
 		return result
