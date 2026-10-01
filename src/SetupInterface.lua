@@ -1483,3 +1483,23 @@ function restoreMageKnightSetupSection()
 	renderDummySetupSection()
 	refreshScenarioEnemyLevelTweaks()
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	BlitzSelection=BlitzSelection,
+	MoreRampageSelection=MoreRampageSelection,
+	PlayerChosen=PlayerChosen,
+	RampageSelection=RampageSelection,
+	SetupMenu=SetupMenu,
+	VolkareLevelSelection=VolkareLevelSelection,
+	VolkareRaceSelection=VolkareRaceSelection,
+	apocalypseDragonLevelSelection=apocalypseDragonLevelSelection,
+	baseValueTweak=baseValueTweak,
+	horsemanLevelSelection=horsemanLevelSelection,
+	optionsUpdate=optionsUpdate,
+	randomSetup=randomSetup,
+	riseOfTheForgemasterOption=riseOfTheForgemasterOption,
+	scenarioSelection=scenarioSelection,
+	switchSetup=switchSetup,
+	toggleDropDown=toggleDropDown
+})
