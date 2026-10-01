@@ -2476,6 +2476,9 @@ local function installExistingObjectUI(guid, xml)
 	local obj=getObjectFromGUID(guid)
 	if obj==nil then return false end
 	obj.UI.setXml(xml)
+	--Object XML does not reliably resolve the mod's {en}/{ru}/... strings when first installed.
+	--Push translated Text/Toggle values back through the UI API, matching the Global/Table Extension repair path.
+	reapplyObjectXmlText(obj)
 	return true
 end
 
