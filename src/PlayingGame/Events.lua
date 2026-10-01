@@ -120,7 +120,7 @@ end
 -- Event Handling functions
 ---------------
 --Save and load settings
-function eventsOnLoadRawBase(saved_data)
+function eventsOnLoadRawBase(saved_data, loaded_data)
 	cacheScenarioTweakDefaults()
 	-- TEMP TABLE XML EDITING: "3d4319" intentionally omitted so Table Extension remains right-click interactable. RESTORE AFTER EDITING.
 	local megaFreeze=  {"519f96",	playerBoard[1], playerBoard[2], playerBoard[3], playerBoard[4], dummyBoard, "a02b0f"}--player mats
@@ -134,7 +134,7 @@ function eventsOnLoadRawBase(saved_data)
 	end
 	--load saved data
 	if saved_data~="" then
-		local loaded_data=JSON.decode(saved_data)
+		loaded_data=loaded_data or JSON.decode(saved_data)
 		turnOrder=loaded_data.turnOrder
 		gStates=loaded_data.gStates
 	end
@@ -1853,6 +1853,6 @@ function __filterObjectEnterContainer_raw(container, enter_object)
 end
 
 -- Final load composition includes Fame/Reputation recovery after the base table/UI restoration.
-function __onLoad_raw(saved_data)
-	return fameReputationOnLoadRaw(saved_data)
+function __onLoad_raw(saved_data, loaded_data)
+	return fameReputationOnLoadRaw(saved_data,loaded_data)
 end
