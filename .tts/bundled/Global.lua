@@ -1633,7 +1633,7 @@ local function handleTurnOrderZoneEnter(ctx)
 						end
 						--update turnorder sequence to match token order
 						if inOrder==true then
-							if getObjectFromGUID("0934f2")~=nil then table.sort(turnOrder, function (k1, k2) return k1.customSort < k2.customSort end) end
+							if gStates.turnOrderHelpDismissed~=true then table.sort(turnOrder, function (k1, k2) return k1.customSort < k2.customSort end) end
 							broadcastToAll("{en}Turn order updated{ru}Порядок хода обновлен{zh-tw}回合顺序更新了{zh-cn}回合顺序更新了{ko}라운드 순서가 업데이트되었습니다{es}Orden de giro actualizado{fr}Ordre de rotation mis à jour{pt-br}Ordem de Turno atualizada{de}Zugreihenfolge aktualisiert", {1,1,0.5})
 							mainUIUpdate("Turn marker entered it's zone")
 						end
@@ -4630,6 +4630,7 @@ end
 local LOWER_TABLE_GUID="3d4319"
 local LOWER_TABLE_SURFACE_GUID="519f96"
 local TABLE_LABELS_ROOT_ID="TableLabelsRoot"
+local TABLE_TURN_ORDER_HELP_ID="TableTurnOrderHelp"
 local TABLE_LABELS_EXTENSION_UP="0 0 -100"
 local TABLE_LABELS_EXTENSION_DOWN="0 0 -120"
 
@@ -4645,12 +4646,21 @@ function tableExtensionUIReady()
 	return tableObj~=nil and tableObj.UI.getAttribute(TABLE_LABELS_ROOT_ID,"position")~=nil
 end
 
+function refreshTurnOrderHelpVisibility()
+	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
+	if tableObj==nil or tableObj.UI.getAttribute(TABLE_TURN_ORDER_HELP_ID,"active")==nil then return false end
+	local visible=gStates==nil or gStates.turnOrderHelpDismissed~=true
+	tableObj.UI.setAttribute(TABLE_TURN_ORDER_HELP_ID,"active",visible and "true" or "false")
+	return true
+end
+
 function refreshTableExtensionUI()
 	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
 	if tableObj==nil or tableExtensionUIReady()~=true then return false end
 	local tableY=tableObj.getPosition()[2]
 	setTableLabelHeight(tableObj,tableY<0 and TABLE_LABELS_EXTENSION_DOWN or TABLE_LABELS_EXTENSION_UP)
 	refreshDeedOfferTableLabelPosition(gStates~=nil and gStates.offerSize or 3)
+	refreshTurnOrderHelpVisibility()
 	--Static object XML does not resolve the mod's {en}/{ru}/... strings by itself. Re-setting those
 	--Text values through the UI API uses the same translation path already used by Global XML.
 	reapplyObjectXmlText(tableObj)
@@ -17656,8 +17666,12 @@ function tacticToggle()
 		safeWaitFrames("Turn",function()
 			dayTactic2ButtonActivate()
 		end, 5)
-		--remove note about re-areanging turn tokens
-		if getObjectFromGUID("0934f2")~=nil then getObjectFromGUID("0934f2").destruct()	end
+		--The initial turn-order helper replaces the old 0934f2 F8 text. Once the first tactic
+		--selection is complete, keep it hidden for the rest of the game (including save/reload).
+		if gStates.turnOrderHelpDismissed~=true then
+			gStates.turnOrderHelpDismissed=true
+			refreshTurnOrderHelpVisibility()
+		end
 	else
 		gStates.tacticSixState="notClaimed"
 		gStates.tacticShown=true
@@ -17680,7 +17694,9 @@ function tacticToggle()
 			end
 		end
 		setUIButtonEnabled("ScoreButtonReal",false)
-		if getObjectFromGUID("0934f2")==nil then turnOrderSort() end
+		--During the very first tactic selection, leave the randomly placed tokens alone so players
+		--can still rearrange them manually. Later rounds can immediately return them to sorted slots.
+		if gStates.turnOrderHelpDismissed==true then turnOrderSort() end
 		mainUIUpdate("Tactic Togle")
 	end
 	claimButtonRefresh()
@@ -25676,8 +25692,8 @@ function refreshDeedOfferTableLabelPosition(size)
 	if tableObj==nil or tableObj.UI.getAttribute(DEED_OFFER_LABEL_SLIDER_ID,"position")==nil then return false end
 	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
 	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
-	--The authored DeedOfferLabels parent is the size-3 home position. Never overwrite it:
-	--only move this zeroed child relative to that parent so manual XML calibration remains authoritative.
+	--The authored DeedOfferLabels parent remains the size-3 home position.
+	--Only move this relative child, so manual XML calibration remains authoritative.
 	--Table Extension is rotated 180 degrees, so increasing world X is decreasing object-UI X.
 	tableObj.UI.setAttribute(DEED_OFFER_LABEL_SLIDER_ID,"position",string.format("%.0f 0 0",-(xOffset*100)))
 	return true
@@ -37764,8 +37780,10 @@ local function finalizeSetup()
 	dayNight(gStates.startAtNight~=true)--repeat after map setup for map-dependent reveal/weather work and final terrain tint
 	gStates.firstStarted=true
 	gStates.turnNumber=1
+	gStates.turnOrderHelpDismissed=false
 	refreshAllPlayerFameReputationFromShields()
 	refreshMageSkillLocations()
+	refreshTurnOrderHelpVisibility()
 	tacticToggle()
 	--Map setup is now complete and startingMapSetup has been released. Build the first EXPLORE view
 	--from the final physical terrain positions instead of whichever setup callback happened last.

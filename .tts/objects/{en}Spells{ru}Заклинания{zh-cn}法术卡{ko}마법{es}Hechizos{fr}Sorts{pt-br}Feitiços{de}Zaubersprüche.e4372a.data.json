@@ -1,0 +1,1495 @@
+{
+  "GUID": "e4372a",
+  "Name": "Deck",
+  "Transform": {
+    "posX": 40.8,
+    "posY": 1.106458,
+    "posZ": -22.2,
+    "rotX": 0.000009588771,
+    "rotY": 180.009766,
+    "rotZ": 180,
+    "scaleX": 1.5,
+    "scaleY": 1,
+    "scaleZ": 1.5
+  },
+  "Nickname": "{en}Spells{ru}Заклинания{zh-cn}法术卡{ko}마법{es}Hechizos{fr}Sorts{pt-br}Feitiços{de}Zaubersprüche",
+  "Description": "",
+  "GMNotes": "",
+  "AltLookAngle": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "ColorDiffuse": {
+    "r": 0.7,
+    "g": 0.7,
+    "b": 0.7
+  },
+  "LayoutGroupSortIndex": 0,
+  "Value": 0,
+  "Locked": false,
+  "Grid": true,
+  "Snap": true,
+  "IgnoreFoW": false,
+  "MeasureMovement": false,
+  "DragSelectable": true,
+  "Autoraise": true,
+  "Sticky": false,
+  "Tooltip": true,
+  "GridProjection": false,
+  "HideWhenFaceDown": false,
+  "Hands": false,
+  "SidewaysCard": false,
+  "DeckIDs": [
+    220807,
+    220817,
+    220819,
+    220805,
+    220810,
+    220816,
+    220822,
+    220802,
+    220809,
+    220815,
+    220823,
+    220803,
+    220808,
+    220813,
+    220820,
+    220804,
+    226612,
+    226606,
+    226618,
+    226600,
+    221521,
+    221514,
+    221501,
+    221511
+  ],
+  "CustomDeck": {
+    "2208": {
+      "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+      "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+      "NumWidth": 6,
+      "NumHeight": 4,
+      "BackIsHidden": true,
+      "UniqueBack": false,
+      "Type": 0
+    },
+    "2215": {
+      "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+      "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+      "NumWidth": 6,
+      "NumHeight": 4,
+      "BackIsHidden": true,
+      "UniqueBack": false,
+      "Type": 0
+    },
+    "2266": {
+      "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+      "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+      "NumWidth": 6,
+      "NumHeight": 4,
+      "BackIsHidden": true,
+      "UniqueBack": false,
+      "Type": 0
+    }
+  },
+  "LuaScript": "",
+  "LuaScriptState": "",
+  "XmlUI": "<Defaults>\r\n\t<Text font=\"Fonts/MKCardTittle\"\r\n\t\t  color=\"#FFFFFF\"\r\n\t\t  alignment=\"MiddleCenter\"\r\n\t\t  resizeTextForBestFit=\"true\"\r\n\t\t  resizeTextMinSize=\"30\"\r\n\t\t  raycastTarget=\"false\"/>\r\n</Defaults>",
+  "ContainedObjects": [
+    {
+      "GUID": "2eb8d4",
+      "Name": "Card",
+      "Transform": {
+        "posX": 40.8,
+        "posY": 1.18429387,
+        "posZ": -22.2,
+        "rotX": -0.0002557711,
+        "rotY": 180,
+        "rotZ": 180.001343,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Demolish{ru}Разрушение{zh-tw}摧毀{zh-cn}摧毁{ko}파괴{es}Demoler{fr}Démolition{pt-br}Demolir{de}Zerstören",
+      "Description": "Red",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220807,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "2208": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8e3",
+      "Name": "Card",
+      "Transform": {
+        "posX": 36,
+        "posY": 1.04859853,
+        "posZ": -22,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Mana Bolt{ru}Снаряд маны{zh-tw}魔力箭{zh-cn}魔力箭{ko}마나 화살{es}Descarga de maná{fr}Trait de mana{pt-br}Raio de Mana{de}Mana-Geschoss",
+      "Description": "Blue",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220817,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8e5",
+      "Name": "Card",
+      "Transform": {
+        "posX": 60.40718,
+        "posY": 2.05859852,
+        "posZ": -20.3784676,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Expose{ru}Раскрытие{zh-tw}暴露{zh-cn}暴露{ko}노출{es}Exponer{fr}Exposer{pt-br}Expor{de}Entblößen",
+      "Description": "White",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220819,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8d3",
+      "Name": "Card",
+      "Transform": {
+        "posX": 40.79806,
+        "posY": 1.09682989,
+        "posZ": -22.2,
+        "rotX": 0.000009822771,
+        "rotY": 180.0373,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Restoration{ru}Восстановление{zh-tw}復原{zh-cn}复原{ko}회복{es}Restauración{fr}Restauration{pt-br}Restauração{de}Wiederherstellung",
+      "Description": "Green",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220805,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8d8",
+      "Name": "Card",
+      "Transform": {
+        "posX": 60.7740555,
+        "posY": 2.05628538,
+        "posZ": -23.9575157,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Flame Wall{ru}Стена пламени{zh-tw}火焰牆{zh-cn}火焰墙{ko}화염 장벽{es}Muro de llamas{fr}Mur de flammes{pt-br}Muralha de Chamas{de}Flammenwand",
+      "Description": "Red",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220810,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8e2",
+      "Name": "Card",
+      "Transform": {
+        "posX": 31.2,
+        "posY": 1.04859853,
+        "posZ": -22,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Space Bending{ru}Искривление пространства{zh-tw}空間扭曲{zh-cn}空间扭曲{ko}공간 왜곡{es}Curvatura espacial{fr}Courbure de l'espace{pt-br}Dobra Espacial{de}Raumkrümmung",
+      "Description": "Blue",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220816,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8e7",
+      "Name": "Card",
+      "Transform": {
+        "posX": 65.2071838,
+        "posY": 2.05859852,
+        "posZ": -26.1784668,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Whirlwind{ru}Вихрь{zh-tw}旋風{zh-cn}旋风{ko}회오리바람{es}Torbellino{fr}Tourbillon{pt-br}Redemoinho{de}Wirbelwind",
+      "Description": "White",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220822,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8d0",
+      "Name": "Card",
+      "Transform": {
+        "posX": 68.49903,
+        "posY": 2.05859923,
+        "posZ": -20.4355335,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Meditation{ru}Медитация{zh-tw}冥想{zh-cn}冥想{ko}명상{es}Meditación{fr}Méditation{pt-br}Meditação{de}Meditation",
+      "Description": "Green",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220802,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8d6",
+      "Name": "Card",
+      "Transform": {
+        "posX": 40.79806,
+        "posY": 1.32367015,
+        "posZ": -22.2,
+        "rotX": 0.000009822771,
+        "rotY": 180.0373,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Fireball{ru}Огненный шар{zh-tw}火球術{zh-cn}火球术{ko}화염구{es}Bola de fuego{fr}Boule de feu{pt-br}Bola de Fogo{de}Feuerball",
+      "Description": "Red",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220809,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8e4",
+      "Name": "Card",
+      "Transform": {
+        "posX": 36,
+        "posY": 1.04859853,
+        "posZ": -16.2,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Snowstorm{ru}Снежная буря{zh-tw}暴風雪{zh-cn}暴风雪{ko}눈보라{es}Tormenta de nieve{fr}Tempête de neige{pt-br}Tempestade de Neve{de}Schneesturm",
+      "Description": "Blue",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220815,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8e9",
+      "Name": "Card",
+      "Transform": {
+        "posX": 40.79806,
+        "posY": 1.32367015,
+        "posZ": -22.2,
+        "rotX": 0.000009822771,
+        "rotY": 180.0373,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Wings of Wind{ru}Крылья ветра{zh-tw}風之翼{zh-cn}风之翼{ko}바람의 날개{es}Alas del viento{fr}Ailes du vent{pt-br}Asas do Vento{de}Flügel des Windes",
+      "Description": "White",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220823,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8d1",
+      "Name": "Card",
+      "Transform": {
+        "posX": 55.4357452,
+        "posY": 2.05860925,
+        "posZ": -26.479353,
+        "rotX": 0,
+        "rotY": 180.0136,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Tremor{ru}Дрожь земли{zh-tw}震動{zh-cn}震动{ko}진동{es}Temblor{fr}Tremblement{pt-br}Tremor{de}Beben",
+      "Description": "Green",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220803,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8d7",
+      "Name": "Card",
+      "Transform": {
+        "posX": 60.7740555,
+        "posY": 2.05628681,
+        "posZ": -18.1575165,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Burning Shield{ru}Горящий щит{zh-tw}燃燒護盾{zh-cn}燃烧护盾{ko}타오르는 방패{es}Escudo ardiente{fr}Bouclier ardent{pt-br}Escudo Ardente{de}Brennender Schild",
+      "Description": "Red",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220808,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8e0",
+      "Name": "Card",
+      "Transform": {
+        "posX": 26.4,
+        "posY": 1.04859853,
+        "posZ": -16.2,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Chill{ru}Мороз{zh-tw}寒意{zh-cn}寒意{ko}냉기{es}Frío{fr}Froid{pt-br}Frio{de}Frost",
+      "Description": "Blue",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220813,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8e8",
+      "Name": "Card",
+      "Transform": {
+        "posX": 60.40718,
+        "posY": 2.05859852,
+        "posZ": -26.1784668,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Call to Arms{ru}Призыв к оружию{zh-tw}武裝號召{zh-cn}武装号召{ko}무장 소집{es}Llamada a las armas{fr}Appel aux armes{pt-br}Chamado às Armas{de}Ruf zu den Waffen",
+      "Description": "White",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220820,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8d2",
+      "Name": "Card",
+      "Transform": {
+        "posX": 59.11248,
+        "posY": 2.058608,
+        "posZ": -26.5488224,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Underground Travel{ru}Подземное путешествие{zh-tw}地下行進{zh-cn}地下行进{ko}지하 이동{es}Viaje subterráneo{fr}Voyage souterrain{pt-br}Viagem Subterrânea{de}Unterirdische Reise",
+      "Description": "Green",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 220804,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8f4",
+      "Name": "Card",
+      "Transform": {
+        "posX": 77.7026749,
+        "posY": 2.05861354,
+        "posZ": -17.7615662,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Mana Claim{ru}Присвоение маны{zh-tw}魔力占取{zh-cn}魔力占取{ko}마나 점유{es}Reclamar maná{fr}Revendiquer le mana{pt-br}Reivindicar Mana{de}Mana beanspruchen",
+      "Description": "Blue",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 226612,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "8907d7",
+      "Name": "Card",
+      "Transform": {
+        "posX": 85.58843,
+        "posY": 2.04275322,
+        "posZ": -13.2929535,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Mana Meltdown{ru}Расплавление маны{zh-tw}魔力熔毀{zh-cn}魔力熔毁{ko}마나 붕괴{es}Fusión de maná{fr}Fusion de mana{pt-br}Colapso de Mana{de}Mana-Kernschmelze",
+      "Description": "Red",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 226606,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8f5",
+      "Name": "Card",
+      "Transform": {
+        "posX": 81.07458,
+        "posY": 2.05860043,
+        "posZ": -17.3804111,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Mind Read{ru}Чтение мыслей{zh-tw}讀心{zh-cn}读心{ko}독심{es}Leer la mente{fr}Lecture des pensées{pt-br}Leitura da Mente{de}Gedankenlesen",
+      "Description": "White",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 226618,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8f3",
+      "Name": "Card",
+      "Transform": {
+        "posX": 84.85432,
+        "posY": 2.04286814,
+        "posZ": -13.2535486,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 0,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Energy Flow{ru}Поток энергии{zh-tw}能量流{zh-cn}能量流{ko}에너지 흐름{es}Flujo de energía{fr}Flux d'énergie{pt-br}Fluxo de Energia{de}Energiefluss",
+      "Description": "Green",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 226600,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8e6",
+      "Name": "Card",
+      "Transform": {
+        "posX": 54.7892723,
+        "posY": 1.21180856,
+        "posZ": -22.6704712,
+        "rotX": 0,
+        "rotY": 180.037643,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Charm{ru}Очарование{zh-tw}魅惑{zh-cn}魅惑{ko}매혹{es}Encanto{fr}Charme{pt-br}Encantar{de}Bezauberung",
+      "Description": "White",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 221521,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8e1",
+      "Name": "Card",
+      "Transform": {
+        "posX": 55.0252342,
+        "posY": 1.22924328,
+        "posZ": -23.0561981,
+        "rotX": 0,
+        "rotY": 180.037643,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Mist Form{ru}Облик тумана{zh-tw}霧化形態{zh-cn}雾化形态{ko}안개 형상{es}Forma de niebla{fr}Forme de brume{pt-br}Forma de Névoa{de}Nebelgestalt",
+      "Description": "Blue",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 221514,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "47e71c",
+      "Name": "Card",
+      "Transform": {
+        "posX": 40.79806,
+        "posY": 1.32367015,
+        "posZ": -22.2,
+        "rotX": 0.000009822771,
+        "rotY": 180.0373,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Cure{ru}Исцеление{zh-tw}治癒{zh-cn}治愈{ko}치유{es}Curar{fr}Guérison{pt-br}Cura{de}Heilung",
+      "Description": "Green",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 221501,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    },
+    {
+      "GUID": "2eb8d9",
+      "Name": "Card",
+      "Transform": {
+        "posX": 40.79806,
+        "posY": 1.09682989,
+        "posZ": -22.2,
+        "rotX": 0.000009822771,
+        "rotY": 180.0373,
+        "rotZ": 180,
+        "scaleX": 1.5,
+        "scaleY": 1,
+        "scaleZ": 1.5
+      },
+      "Nickname": "{en}Offering{ru}Подношение{zh-tw}奉獻{zh-cn}奉献{ko}공물{es}Ofrenda{fr}Offrande{pt-br}Oferenda{de}Opfergabe",
+      "Description": "Red",
+      "GMNotes": "Spell",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 0.7,
+        "g": 0.7,
+        "b": 0.7
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": false,
+      "Tooltip": false,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": true,
+      "CardID": 221511,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1650": {
+          "FaceURL": "{en}https://steamusercontent-a.akamaihd.net/ugc/1692777495337432772/BDCBB8972C8C8C9250B5DF12756A361F981C77F7/{ru}https://steamusercontent-a.akamaihd.net/ugc/23178046632520367/0FE7B037D7CD3FE647AF56F54323E8D3E22E8F2C/{zh-cn}https://steamusercontent-a.akamaihd.net/ugc/1019448743593618433/747F03AA8E24DE42D3FA51025563593C70AFED88/{ko}https://steamusercontent-a.akamaihd.net/ugc/1688269430902166768/FAFBA90879D9211B5D32B7907FD1B55D5B52D234/{es}https://steamusercontent-a.akamaihd.net/ugc/1499089414132876924/CE7EC1A8CC862821EA41377B200A7BCA3FD7F287/{fr}https://steamusercontent-a.akamaihd.net/ugc/1653350643483622417/E985049B7BBB38AE043928D761F8C3F1E7ACC5E5/{pt-br}https://steamusercontent-a.akamaihd.net/ugc/1755820553960531802/F3956037F28F57409B6616C4CF16016ECEDAD653/{de}https://steamusercontent-a.akamaihd.net/ugc/1833529258191526234/4C046540291BC6C10C045A23BB92CB5C4EFD6A30/",
+          "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/1692777521334276168/7B2C5B55DB801B931B483543CF8BD70E9705E306/",
+          "NumWidth": 6,
+          "NumHeight": 4,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    }
+  ]
+}
