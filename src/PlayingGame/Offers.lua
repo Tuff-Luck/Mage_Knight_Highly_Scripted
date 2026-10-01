@@ -573,25 +573,30 @@ local function moveDeedOfferText(size)
 	end
 end
 
-local function deedOfferSourceUiXml(size)
+local deedOfferSourceUiTemplate=nil
+
+local function captureDeedOfferSourceUiTemplate(spellSource)
+	if deedOfferSourceUiTemplate~=nil then return true end
+	if spellSource==nil then return false end
+	local xml=spellSource.UI.getXml()
+	if type(xml)~="string" or xml=="" or xml:find('id="TableSpellLabel"',1,true)==nil then return false end
+	deedOfferSourceUiTemplate=xml
+	return true
+end
+
+local function applyDeedOfferAdjustState(spellSource,size)
+	if spellSource==nil then return false end
 	local upEnabled=size<DEED_OFFER_MAX_SIZE
 	local downEnabled=size>DEED_OFFER_MIN_SIZE
 	local activeImage="Sliced Button/Button Object Active"
 	local inactiveImage="Sliced Button/Button Object Deactive"
-	return {
-		{tag="Text", attributes={id="TableSpellLabel", width=400, height=250, position="-133 0 -10", rotation="0 180 90", scale="0.667 0.667", alignment="UpperCenter", resizeTextForBestFit="true", resizeTextMinSize="30", resizeTextMaxSize="100", font="Fonts/MKCardTittle", color="#FFFFFF", raycastTarget="false",
-			text="{en}Spells{ru}Заклинания{zh-tw}法術卡{zh-cn}法术卡{ko}마법{es}Hechizos{fr}Sorts{pt-br}Feitiços{de}Zaubersprüche"}},
-		{tag="Text", attributes={id="TableAdvancedActionLabel", width=400, height=250, position="-133 -400 -10", rotation="0 180 90", scale="0.667 0.667", alignment="UpperCenter", resizeTextForBestFit="true", resizeTextMinSize="30", resizeTextMaxSize="100", font="Fonts/MKCardTittle", color="#FFFFFF", raycastTarget="false",
-			text="{en}Advanced Actions{ru}Особые Действия{zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션{es}Acciones Avanzadas{fr}Actions avancées{pt-br}Ações Avançadas{de}Fortgeschrittene Aktionen"}},
-		{tag="Text", attributes={id="TableOfferLabel", width=1000, height=180, position="-325 -600 -10", rotation="0 180 90", scale="0.667 0.667", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMinSize="30", resizeTextMaxSize="200", font="Fonts/MKCardTittle", color="#FFFFFF", raycastTarget="false",
-			text="{en}Offers{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote"}},
-		{tag="Button", attributes={id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", interactable=upEnabled and "true" or "false", height=150, width=240, position="60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
-			children={{tag="Image", attributes={id="e4372aOfferUpImage", image=upEnabled and activeImage or inactiveImage, type="Sliced"}},
-					  {tag="Text", attributes={font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text=">"}}}},
-		{tag="Button", attributes={id="e4372aOfferDown", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", interactable=downEnabled and "true" or "false", height=150, width=240, position="-60 190 -10", rotation="0 180 180", scale="0.32 0.32"},
-			children={{tag="Image", attributes={id="e4372aOfferDownImage", image=downEnabled and activeImage or inactiveImage, type="Sliced"}},
-					  {tag="Text", attributes={font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", text="<"}}}}
-	}
+	spellSource.UI.setAttribute("e4372aOfferUp","active","true")
+	spellSource.UI.setAttribute("e4372aOfferDown","active","true")
+	spellSource.UI.setAttribute("e4372aOfferUp","interactable",upEnabled and "true" or "false")
+	spellSource.UI.setAttribute("e4372aOfferDown","interactable",downEnabled and "true" or "false")
+	spellSource.UI.setAttribute("e4372aOfferUpImage","image",upEnabled and activeImage or inactiveImage)
+	spellSource.UI.setAttribute("e4372aOfferDownImage","image",downEnabled and activeImage or inactiveImage)
+	return true
 end
 
 function refreshDeedOfferAdjustUI()
@@ -599,15 +604,28 @@ function refreshDeedOfferAdjustUI()
 	if spellSource==nil then return false end
 	local size=deedOfferBoundedSize(gStates.offerSize)
 	gStates.offerSize=size
-	spellSource.UI.setXmlTable(deedOfferSourceUiXml(size))
-	--The live Spell source can change from Deck to Card during play. Reapply language tags after
-	--the freshly assigned object UI exists so the labels stay translated on either object type.
-	local sourceGUID=spellSource.guid
-	safeWaitFrames("Offers",function()
-		local live=getObjectFromGUID(sourceGUID)
-		if live==nil then live=standardDeckCycleObject("Spell") end
-		if live~=nil then reapplyObjectXmlText(live) end
-	end,1)
+
+	--The authored e4372a.xml is the single source of truth for label/button positions.
+	--Capture it once, then reuse it only when the live Spell source changes from Deck to Card.
+	captureDeedOfferSourceUiTemplate(spellSource)
+	local currentXml=spellSource.UI.getXml()
+	local hasTemplateUi=type(currentXml)=="string" and currentXml:find('id="TableSpellLabel"',1,true)~=nil
+	if hasTemplateUi~=true and deedOfferSourceUiTemplate~=nil then
+		spellSource.UI.setXml(deedOfferSourceUiTemplate)
+		local sourceGUID=spellSource.guid
+		safeWaitFrames("Offers",function()
+			local live=getObjectFromGUID(sourceGUID)
+			if live==nil then live=standardDeckCycleObject("Spell") end
+			if live~=nil then
+				applyDeedOfferAdjustState(live,size)
+				reapplyObjectXmlText(live)
+			end
+		end,1)
+		return true
+	end
+
+	applyDeedOfferAdjustState(spellSource,size)
+	reapplyObjectXmlText(spellSource)
 	return true
 end
 
