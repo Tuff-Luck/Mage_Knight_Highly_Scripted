@@ -1,5 +1,7 @@
 -- Public error-wrapped gameplay and TTS callback boundaries.
 
+local validatePublicUICallbacks
+
 --Object-UI Skill claims are not TTS event callbacks, so give them the same automatic error-report boundary.
 function skillMove(player, mouseButton, id, rewindReady)
 	return safeCallback("skillMove", function() return __skillMove_raw(player, mouseButton, id, rewindReady) end, function() return automaticLuaSkillClaimContext(player,id) end)
@@ -24,15 +26,15 @@ end
 -- Wrap TTS event callbacks so unexpected Lua errors are reported automatically.
 function onLoad(saved_data)
 	return safeCallback("onLoad",function()
-		monsterReplenishObjectOnLoad()
-		artifactOnLoad()
-		rollerOnLoad(rollerSavedState(saved_data))
-		local result=__onLoad_raw(saved_data)
+		validatePublicUICallbacks()
+		local loadedData=nil
+		if type(saved_data)=="string" and saved_data~="" then loadedData=JSON.decode(saved_data) end
+		rollerOnLoad(rollerSavedState(loadedData))
+		local result=__onLoad_raw(saved_data,loadedData)
+		--Object UIs exist with the table, but TTS localisation is not reliably ready at the first onLoad
+		--instruction. Install each XML once after the same short delay that made the Artifact UI reliable.
 		safeWaitFrames("Callbacks",function()
-			local monsterReplenish=getObjectFromGUID(GUID.ui.monsterReplenish)
-			if monsterReplenish~=nil then
-				monsterReplenish.UI.setAttribute("d7a165replenishMonsterPilesText", "text", "{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen")
-			end
+			monsterReplenishObjectOnLoad()
 			artifactOnLoad()
 		end,2)
 		return result
@@ -128,14 +130,9 @@ end
 --Global XML and Object UI callbacks bypass the normal TTS lifecycle wrappers above. Install their
 --error boundaries here, after every gameplay module has loaded, so the owning implementations stay
 --unchanged and UI names continue resolving exactly as before.
-local function protectPublicUICallback(name)
-	local callback=_G[name]
-	if type(callback)=="function" then _G[name]=safePublicCallback(name,callback,automaticLuaUICallbackContext) end
-end
-
-local protectedUICallbacks={
+local expectedProtectedUICallbacks={
 	--Global XML setup/general controls
-	"BlitzSelection","DisplayScore","MoreRampageSelection","PlayerChosen","RampageSelection","SendDataRequest",
+	"BlitzSelection","displayScore","MoreRampageSelection","PlayerChosen","RampageSelection","SendDataRequest",
 	"SetupMenu","VolkareLevelSelection","VolkareRaceSelection","adjustHigherLevelSetupValue",
 	"apocalypseDragonLevelSelection","assaultAdjust","attackCity","autoflip","baseValueTweak","buttonClicked",
 	"cameraControl","cameraControlFollowEnemy","cameraControlTopDown","closePanel","closeSplash","coopAssaultJoin",
@@ -144,7 +141,7 @@ local protectedUICallbacks={
 	"nightTactic2","nightTactic4","nightTactic6","openBugReportPanel","optionsUpdate","plunderVillage",
 	"proxyManaChoiceSelect","pursuingRampagers","randomSetup","resourceTracker","riseOfTheForgemasterOption",
 	"scenarioSelection","setBugReportComment","switchSetup","toggleDropDown","toggleScenarioEndAchieved","valueAdjust",
-	"volkarePartial","volkareRetreat","wallAssaultChoice","zigguratPyramidInteract",
+	"volkarePartial","volkareRetreat","wallAssaultChoice","zigguratPyramidInteract","MKRollDieButton",
 	--Dynamic Object UI / scenario controls
 	"adjustCityLevel","adjustOverkill","againstDragonAttackComplete","againstDragonAttendFull",
 	"againstDragonFinishPartial","againstDragonOffMapChoiceSelect","againstDragonTargetChoiceSelect",
@@ -156,9 +153,29 @@ local protectedUICallbacks={
 	"higherLevelSkill","horsemanAttackAction","layoutClaimedCards","nightTint","offerAdjust","offerArtifacts",
 	"processCardClaim","proxyDestinationChoiceSelect","proxyEnemyChoiceSelect","proxyInteractionChoiceSelect",
 	"proxyTurn","refillMonsterTokenPiles","removeTactic","restoreDestroyedSiteAtCurrentPlayer","shieldDrop",
-	"steadyTempoChoice","summonMonster","togglePlayerDropoutRequest","volkarePursuitAction","volkareTurn"
+	"steadyTempoChoice","summonMonster","togglePlayerDropoutRequest","volkarePursuitAction","volkareTurn",
+	"coopCompSkillWarningClick","nightTactic6StoredCountNoop"
 }
-for _,name in ipairs(protectedUICallbacks) do protectPublicUICallback(name) end
+
+validatePublicUICallbacks=function()
+	local missing={}
+	local unprotected={}
+	for _,name in ipairs(expectedProtectedUICallbacks) do
+		if type(_G[name])~="function" then
+			missing[#missing+1]=name
+		elseif automaticLuaPublicUICallbackProtected(name)~=true then
+			unprotected[#unprotected+1]=name
+		end
+	end
+	if #missing==0 and #unprotected==0 then return true end
+	local details={}
+	if #missing>0 then details[#details+1]="Missing public UI callback(s): "..table.concat(missing,", ") end
+	if #unprotected>0 then details[#details+1]="Unprotected public UI callback(s): "..table.concat(unprotected,", ") end
+	safeCallback("Callbacks UI registration",function()
+		error(table.concat(details,"\n"),2)
+	end)
+	return false
+end
 
 function onChat(message, player)
 	if player~=nil and player.admin==true then
