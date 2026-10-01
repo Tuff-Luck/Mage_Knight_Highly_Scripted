@@ -607,7 +607,7 @@ local function deedOfferSourceUiXml(size)
 		}, children={
 			{tag="Image", attributes={id="e4372aOfferUpImage", image=upEnabled and activeImage or inactiveImage, type="Sliced"}},
 			{tag="Text", attributes={
-				id="e4372aOfferUpText", font="Fonts/MKCardText", fontSize="180", color="#000000",
+				id="e4372aOfferUpText", font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", color="#000000",
 				alignment="MiddleCenter", resizeTextForBestFit="false", text=">"
 			}}
 		}},
@@ -618,7 +618,7 @@ local function deedOfferSourceUiXml(size)
 		}, children={
 			{tag="Image", attributes={id="e4372aOfferDownImage", image=downEnabled and activeImage or inactiveImage, type="Sliced"}},
 			{tag="Text", attributes={
-				id="e4372aOfferDownText", font="Fonts/MKCardText", fontSize="180", color="#000000",
+				id="e4372aOfferDownText", font="Fonts/MKCardText", fontSize="90", fontStyle="Normal", color="#000000",
 				alignment="MiddleCenter", resizeTextForBestFit="false", text="<"
 			}}
 		}}
