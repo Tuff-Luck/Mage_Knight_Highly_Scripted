@@ -2454,12 +2454,17 @@ end
 -- these catches errors from nested cleanup such as monster/Quest disposal that TTS UI callbacks would
 -- otherwise report only locally. Keep the public names unchanged for XML and internal callers.
 
+local function installExistingObjectUI(guid, xml)
+	local obj=getObjectFromGUID(guid)
+	if obj==nil then return false end
+	obj.UI.setXml(xml)
+	return true
+end
+
 --Monster Replenish no longer carries its own Lua/XML. Rebuild its physical Restock button from
 --Global, and keep the old status ids as hidden targets for existing swap/status helpers.
 function monsterReplenishObjectOnLoad()
-	local obj=getObjectFromGUID(GUID.ui.monsterReplenish)
-	if obj==nil then return end
-	obj.UI.setXml([=[
+	return installExistingObjectUI(GUID.ui.monsterReplenish,[=[
 <Button id="d7a165replenishMonsterPiles" interactable="true"
     onClick="global/refillMonsterTokenPiles"
     tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
@@ -2495,19 +2500,14 @@ local ARTIFACT_UI = [=[
 </Button>
 ]=]
 
-local function installArtifactUI(attempt)
-    local artifacts = getObjectFromGUID(ARTIFACT_GUID)
-    if artifacts ~= nil then
-        --Keep the localization tags in the XML itself. TTS resolves those when setXml loads the
-        --object UI; reapplying the same tagged string through setAttribute displays every language.
-        artifacts.UI.setXml(ARTIFACT_UI)
-        return
-    end
-    if attempt < 60 then safeWaitFrames("UI",function() installArtifactUI(attempt + 1) end, 1) end
+local function installArtifactUI()
+    --Keep the localization tags in the XML itself. TTS resolves those when setXml loads the
+    --object UI; both object UIs are installed once from Callbacks after localisation is ready.
+    return installExistingObjectUI(ARTIFACT_GUID,ARTIFACT_UI)
 end
 
 function artifactOnLoad()
-    installArtifactUI(1)
+    return installArtifactUI()
 end
 
 -- Day/night tint control
