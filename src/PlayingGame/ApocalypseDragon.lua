@@ -1277,17 +1277,18 @@ apocalypseDragonGroundCleanupRuntime=function(combat)
 			token.setLock(false)
 			token.setRotation({0,180,0})
 			if home~=nil then
-				local tokenGUID=headData.tokenGUID
+				local settlingHeadData=headData
+				local tokenGUID=settlingHeadData.tokenGUID
 				token.setPositionSmooth(home,false,true)
 				safeWaitCondition("Scenario",function()
 					local current=getObjectFromGUID(tokenGUID)
-					if current~=nil then apocalypseDragonPositionHeadToken(headData) end
+					if current~=nil then apocalypseDragonPositionHeadToken(settlingHeadData) end
 				end,function()
 					local current=getObjectFromGUID(tokenGUID)
 					return current==nil or current.isSmoothMoving()==false
 				end,5,function()
 					local current=getObjectFromGUID(tokenGUID)
-					if current~=nil then apocalypseDragonPositionHeadToken(headData) end
+					if current~=nil then apocalypseDragonPositionHeadToken(settlingHeadData) end
 				end)
 			else
 				token.setLock(true)
