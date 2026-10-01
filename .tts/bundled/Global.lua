@@ -123,8 +123,8 @@ function onLoad(saved_data)
 		if type(saved_data)=="string" and saved_data~="" then loadedData=JSON.decode(saved_data) end
 		rollerOnLoad(rollerSavedState(loadedData))
 		local result=__onLoad_raw(saved_data,loadedData)
-		--Object UIs exist with the table, but TTS localisation is not reliably ready at the first onLoad
-		--instruction. Install each XML once after the same short delay that made the Artifact UI reliable.
+		--Object UIs exist with the table, but their XML is installed after the Global load path settles.
+		--installExistingObjectUI() also reapplies tagged Text/Toggle values through the UI API so localisation resolves.
 		safeWaitFrames("Callbacks",function()
 			monsterReplenishObjectOnLoad()
 			artifactOnLoad()
@@ -841,6 +841,9 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 	--need to serialize and rescan the complete Global UI a second time.
 	local _,translatedText=sanitizeRuntimeGlobalUI()
 	if reapplyCollectedXmlText(translatedText)~=true then reapplyXmlText() end
+	--Object XML is loaded independently of Global XML. Initialize the Table Extension once its UI exists,
+	--so its translated labels render immediately and saved offer/table positions are restored without a toggle.
+	safeWaitCondition("Events",function() refreshTableExtensionUI() end,function() return tableExtensionUIReady()==true end,5)
 	-----------
 	refreshResourceTrackerText()--Refresh the tracker from saved values so TTS resolves its language tags on load.
 	UI.setAttribute("CoopAssaultMainTableText3", "active", "false")
@@ -4629,9 +4632,27 @@ local TABLE_LABELS_EXTENSION_UP="0 0 -100"
 local TABLE_LABELS_EXTENSION_DOWN="0 0 -120"
 
 local function setTableLabelHeight(tableObj,position)
-	if tableObj==nil or tableObj.UI.getAttribute(TABLE_LABELS_ROOT_ID,"position")==nil then return end
+	if tableObj==nil or tableObj.UI.getAttribute(TABLE_LABELS_ROOT_ID,"position")==nil then return false end
 	--The labels remain at roughly the same world height while the Table Extension itself moves 0.2.
 	tableObj.UI.setAttribute(TABLE_LABELS_ROOT_ID,"position",position)
+	return true
+end
+
+function tableExtensionUIReady()
+	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
+	return tableObj~=nil and tableObj.UI.getAttribute(TABLE_LABELS_ROOT_ID,"position")~=nil
+end
+
+function refreshTableExtensionUI()
+	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
+	if tableObj==nil or tableExtensionUIReady()~=true then return false end
+	local tableY=tableObj.getPosition()[2]
+	setTableLabelHeight(tableObj,tableY<0 and TABLE_LABELS_EXTENSION_DOWN or TABLE_LABELS_EXTENSION_UP)
+	refreshDeedOfferTableLabelPosition(gStates~=nil and gStates.offerSize or 3)
+	--Static object XML does not resolve the mod's {en}/{ru}/... strings by itself. Re-setting those
+	--Text values through the UI API uses the same translation path already used by Global XML.
+	reapplyObjectXmlText(tableObj)
+	return true
 end
 
 function lowerTable(player, mouseButton, id)
@@ -5145,6 +5166,9 @@ local function installExistingObjectUI(guid, xml)
 	local obj=getObjectFromGUID(guid)
 	if obj==nil then return false end
 	obj.UI.setXml(xml)
+	--Object XML does not reliably resolve the mod's {en}/{ru}/... strings when first installed.
+	--Push translated Text/Toggle values back through the UI API, matching the Global/Table Extension repair path.
+	reapplyObjectXmlText(obj)
 	return true
 end
 
@@ -25616,7 +25640,7 @@ end
 local DEED_OFFER_TEXT_MIN_SIZE=3
 local DEED_OFFER_TABLE_GUID="3d4319"
 local DEED_OFFER_LABEL_PANEL_ID="DeedOfferLabels"
-local DEED_OFFER_LABEL_PANEL_BASE_X=42.8
+local DEED_OFFER_LABEL_PANEL_BASE_UI_X=-4370
 local deedOfferTextLayout={
 	{guid="8dc73f",baseX=42.8}, -- Spells
 	{guid="9f67cd",baseX=42.8}, -- Advanced Actions
@@ -25637,12 +25661,19 @@ local function moveDeedOfferText(size)
 			textObject.setPositionSmooth(position,false,false)
 		end
 	end
-	if tableObj~=nil and tableObj.UI.getAttribute(DEED_OFFER_LABEL_PANEL_ID,"position")~=nil then
-		--All three XML labels share one parent, so offer resizing only moves this panel.
-		--Table Extension is rotated 180 degrees, so increasing world X is decreasing object-UI X.
-		local uiX=-(DEED_OFFER_LABEL_PANEL_BASE_X+xOffset)*100
-		tableObj.UI.setAttribute(DEED_OFFER_LABEL_PANEL_ID,"position",string.format("%.0f 0 0",uiX))
-	end
+	refreshDeedOfferTableLabelPosition(size)
+end
+
+function refreshDeedOfferTableLabelPosition(size)
+	local tableObj=getObjectFromGUID(DEED_OFFER_TABLE_GUID)
+	if tableObj==nil or tableObj.UI.getAttribute(DEED_OFFER_LABEL_PANEL_ID,"position")==nil then return false end
+	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
+	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
+	--All three XML labels share one parent, so offer resizing only moves this panel.
+	--The calibrated XML home is -4370 at offer size 3; each additional world-space 4.8 is 480 UI units.
+	local uiX=DEED_OFFER_LABEL_PANEL_BASE_UI_X-(xOffset*100)
+	tableObj.UI.setAttribute(DEED_OFFER_LABEL_PANEL_ID,"position",string.format("%.0f 0 0",uiX))
+	return true
 end
 
 local function deedOfferAdjustButtonXml(size)
@@ -44801,8 +44832,9 @@ local function xmlAttribute(openingTag,name)
 	return value
 end
 
-function reapplyXmlText()
-	local xml=UI.getXml()
+local function reapplyXmlTextToUI(ui)
+	if ui==nil then return 0 end
+	local xml=ui.getXml()
 	if type(xml)~="string" or xml=="" then return 0 end
 	local defaultsEnd=xml:find("</Defaults>",1,true)
 	local scanStart=defaultsEnd~=nil and defaultsEnd+#"</Defaults>" or 1
@@ -44834,7 +44866,7 @@ function reapplyXmlText()
 					nextPos=closeEnd+1
 				end
 				if id~=nil and type(value)=="string" and value:find("{en}",1,true)~=nil then
-					UI.setAttribute(id,"text",decodeXmlUiText(value))
+					ui.setAttribute(id,"text",decodeXmlUiText(value))
 					reapplied=reapplied+1
 				end
 				pos=nextPos
@@ -44845,6 +44877,15 @@ function reapplyXmlText()
 	reapplyTag("Text")
 	reapplyTag("Toggle")
 	return reapplied
+end
+
+function reapplyXmlText()
+	return reapplyXmlTextToUI(UI)
+end
+
+function reapplyObjectXmlText(obj)
+	if obj==nil then return 0 end
+	return reapplyXmlTextToUI(obj.UI)
 end
 
 -- Turn / seat helpers

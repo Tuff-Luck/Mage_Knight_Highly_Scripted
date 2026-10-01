@@ -12,25 +12,25 @@
 	The physical 3DText objects remain in place temporarily so position/scale can be compared in TTS.
 	Table Extension GUID: 3d4319
 -->
-<Panel id="TableLabelsRoot" position="0 100 0">
+<Panel id="TableLabelsRoot" position="0 0 -120">
 	<!-- Move this panel as one unit when the deed offer expands or contracts. -->
 	<Panel id="DeedOfferLabels" position="-4370 0 0">
 		<Text id="TableAdvancedActionLabel"
-			  width="400" height="190"
+			  width="400" height="250"
 			  offsetXY="0 1121"
 			  rotation="0 0 -90"
-			  resizeTextMaxSize="260">{en}Advanced Actions{ru}Особые Действия{zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션{es}Acciones Avanzadas{fr}Actions avancées{pt-br}Ações Avançadas{de}Fortgeschrittene Aktionen</Text>
+			  resizeTextMaxSize="100">{en}Advanced Actions{ru}Особые Действия{zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션{es}Acciones Avanzadas{fr}Actions avancées{pt-br}Ações Avançadas{de}Fortgeschrittene Aktionen</Text>
 			 
 		<Text id="TableSpellLabel"
-			  width="400" height="190"
+			  width="400" height="250"
 			  offsetXY="0 1721"
 			  rotation="0 0 -90"
-			  resizeTextMaxSize="260">{en}Spells{ru}Заклинания{zh-tw}法術卡{zh-cn}法术卡{ko}마법{es}Hechizos{fr}Sorts{pt-br}Feitiços{de}Zaubersprüche</Text>
+			  resizeTextMaxSize="100">{en}Spells{ru}Заклинания{zh-tw}法術卡{zh-cn}法术卡{ko}마법{es}Hechizos{fr}Sorts{pt-br}Feitiços{de}Zaubersprüche</Text>
 
 		<Text id="TableOfferLabel"
-			  width="800" height="190"
-			  offsetXY="-288 821"
+			  width="800" height="250"
+			  offsetXY="-255 821"
 			  rotation="0 0 -90"
-			  resizeTextMaxSize="300">{en}Offers{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote</Text>
+			  resizeTextMaxSize="200">{en}Offers{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote</Text>
 	</Panel>
 </Panel>
