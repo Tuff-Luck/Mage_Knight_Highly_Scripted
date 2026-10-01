@@ -1938,6 +1938,7 @@ end
 local LOWER_TABLE_GUID="3d4319"
 local LOWER_TABLE_SURFACE_GUID="519f96"
 local TABLE_LABELS_ROOT_ID="TableLabelsRoot"
+local TABLE_TURN_ORDER_HELP_ID="TableTurnOrderHelp"
 local TABLE_LABELS_EXTENSION_UP="0 0 -100"
 local TABLE_LABELS_EXTENSION_DOWN="0 0 -120"
 
@@ -1953,12 +1954,21 @@ function tableExtensionUIReady()
 	return tableObj~=nil and tableObj.UI.getAttribute(TABLE_LABELS_ROOT_ID,"position")~=nil
 end
 
+function refreshTurnOrderHelpVisibility()
+	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
+	if tableObj==nil or tableObj.UI.getAttribute(TABLE_TURN_ORDER_HELP_ID,"active")==nil then return false end
+	local visible=gStates==nil or gStates.turnOrderHelpDismissed~=true
+	tableObj.UI.setAttribute(TABLE_TURN_ORDER_HELP_ID,"active",visible and "true" or "false")
+	return true
+end
+
 function refreshTableExtensionUI()
 	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
 	if tableObj==nil or tableExtensionUIReady()~=true then return false end
 	local tableY=tableObj.getPosition()[2]
 	setTableLabelHeight(tableObj,tableY<0 and TABLE_LABELS_EXTENSION_DOWN or TABLE_LABELS_EXTENSION_UP)
 	refreshDeedOfferTableLabelPosition(gStates~=nil and gStates.offerSize or 3)
+	refreshTurnOrderHelpVisibility()
 	--Static object XML does not resolve the mod's {en}/{ru}/... strings by itself. Re-setting those
 	--Text values through the UI API uses the same translation path already used by Global XML.
 	reapplyObjectXmlText(tableObj)
