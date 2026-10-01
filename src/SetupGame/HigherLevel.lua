@@ -482,3 +482,10 @@ function startHigherLevel(player, mouseButton, id)
 		end
 	end
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	adjustHigherLevelSetupValue=adjustHigherLevelSetupValue,
+	createHigherLevelCardPool=createHigherLevelCardPool,
+	higherLevelSkill=higherLevelSkill
+})
