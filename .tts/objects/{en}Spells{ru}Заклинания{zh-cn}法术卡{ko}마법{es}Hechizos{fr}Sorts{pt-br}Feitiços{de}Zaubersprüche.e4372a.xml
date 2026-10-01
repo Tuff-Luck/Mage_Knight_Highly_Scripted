@@ -36,12 +36,12 @@
         onClick="global/offerAdjust" onMouseDown="global/buttonClicked" onMouseUp="global/buttonClicked"
         height="150" width="240" position="60 190 -10" rotation="0 180 180" scale="0.32 0.32">
     <Image id="e4372aOfferUpImage" image="Sliced Button/Button Object Active" type="Sliced"/>
-    <Text id="e4372aOfferUpText" font="Fonts/MKCardText" fontSize="90">&gt;</Text>
+    <Text id="e4372aOfferUpText" font="Fonts/MKCardText" fontSize="90" color="#000000">&gt;</Text>
 </Button>
 
 <Button id="e4372aOfferDown" interactable="true"
         onClick="global/offerAdjust" onMouseDown="global/buttonClicked" onMouseUp="global/buttonClicked"
         height="150" width="240" position="-60 190 -10" rotation="0 180 180" scale="0.32 0.32">
     <Image id="e4372aOfferDownImage" image="Sliced Button/Button Object Active" type="Sliced"/>
-    <Text id="e4372aOfferDownText" font="Fonts/MKCardText" fontSize="90">&lt;</Text>
+    <Text id="e4372aOfferDownText" font="Fonts/MKCardText" fontSize="90" color="#000000">&lt;</Text>
 </Button>
