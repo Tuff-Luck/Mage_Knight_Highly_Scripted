@@ -6,11 +6,3 @@
 		  resizeTextMinSize="30"
 		  raycastTarget="false"/>
 </Defaults>
-
-<!-- Local host keeps this label well inside the Object UI canvas. -->
-<Text id="TableSiteDescriptionsLabel"
-      width="1100" height="200"
-      position="0 225 -10"
-      rotation="0 180 180"
-      scale="0.4 0.91"
-      resizeTextMaxSize="100">{en}Site Descriptions{ru}Описание Мест{zh-tw}地點說明{zh-cn}地点说明{ko}장소 참고 카드{es}Descripción de Lugares{fr}Descriptions du site{pt-br}Descrição de Local{de}Website-Beschreibungen</Text>
