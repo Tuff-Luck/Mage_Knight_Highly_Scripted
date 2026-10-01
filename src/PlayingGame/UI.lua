@@ -1942,9 +1942,27 @@ local TABLE_LABELS_EXTENSION_UP="0 0 -100"
 local TABLE_LABELS_EXTENSION_DOWN="0 0 -120"
 
 local function setTableLabelHeight(tableObj,position)
-	if tableObj==nil or tableObj.UI.getAttribute(TABLE_LABELS_ROOT_ID,"position")==nil then return end
+	if tableObj==nil or tableObj.UI.getAttribute(TABLE_LABELS_ROOT_ID,"position")==nil then return false end
 	--The labels remain at roughly the same world height while the Table Extension itself moves 0.2.
 	tableObj.UI.setAttribute(TABLE_LABELS_ROOT_ID,"position",position)
+	return true
+end
+
+function tableExtensionUIReady()
+	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
+	return tableObj~=nil and tableObj.UI.getAttribute(TABLE_LABELS_ROOT_ID,"position")~=nil
+end
+
+function refreshTableExtensionUI()
+	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
+	if tableObj==nil or tableExtensionUIReady()~=true then return false end
+	local tableY=tableObj.getPosition()[2]
+	setTableLabelHeight(tableObj,tableY<0 and TABLE_LABELS_EXTENSION_DOWN or TABLE_LABELS_EXTENSION_UP)
+	refreshDeedOfferTableLabelPosition(gStates~=nil and gStates.offerSize or 3)
+	--Static object XML does not resolve the mod's {en}/{ru}/... strings by itself. Re-setting those
+	--Text values through the UI API uses the same translation path already used by Global XML.
+	reapplyObjectXmlText(tableObj)
+	return true
 end
 
 function lowerTable(player, mouseButton, id)
