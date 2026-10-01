@@ -1585,3 +1585,9 @@ function apocalypseDragonTurnChoiceClearButtons()
 	againstDragonTargetChoiceClearButtons()
 	againstDragonOffMapChoiceClearButtons()
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	apocalypseDragonGroundReductionAdjust=apocalypseDragonGroundReductionAdjust,
+	apocalypseDragonProcessUI=apocalypseDragonProcessUI
+})
