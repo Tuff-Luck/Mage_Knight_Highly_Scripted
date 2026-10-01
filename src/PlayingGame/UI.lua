@@ -1962,16 +1962,23 @@ function refreshTurnOrderHelpVisibility()
 	return true
 end
 
+local DISTRIBUTED_TABLE_LABEL_GUIDS={"938554","e0945c"}
+
 function refreshTableExtensionUI()
 	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
 	if tableObj==nil or tableExtensionUIReady()~=true then return false end
 	local tableY=tableObj.getPosition()[2]
 	setTableLabelHeight(tableObj,tableY<0 and TABLE_LABELS_EXTENSION_DOWN or TABLE_LABELS_EXTENSION_UP)
-	refreshDeedOfferTableLabelPosition(gStates~=nil and gStates.offerSize or 3)
 	refreshTurnOrderHelpVisibility()
 	--Static object XML does not resolve the mod's {en}/{ru}/... strings by itself. Re-setting those
 	--Text values through the UI API uses the same translation path already used by Global XML.
 	reapplyObjectXmlText(tableObj)
+	for _,guid in ipairs(DISTRIBUTED_TABLE_LABEL_GUIDS) do
+		local obj=getObjectFromGUID(guid)
+		if obj~=nil then reapplyObjectXmlText(obj) end
+	end
+	--The Spell source owns both the moving deed labels and its offer-size controls.
+	refreshDeedOfferAdjustUI()
 	return true
 end
 
