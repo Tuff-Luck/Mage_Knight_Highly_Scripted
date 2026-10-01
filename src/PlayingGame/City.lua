@@ -1614,3 +1614,8 @@ end
 
 -- Build static City lookup data after the City module has defined its initializer.
 initializeCityStaticData()
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	adjustCityLevel=adjustCityLevel
+})
