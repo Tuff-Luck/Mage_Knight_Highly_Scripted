@@ -1954,3 +1954,16 @@ end
 function __endTurn_raw(player, mouseButton, id, rewindReady)
 	return fameReputationEndTurnRaw(player, mouseButton, id, rewindReady)
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	extraTurnButton=extraTurnButton,
+	extraTurnChoice=extraTurnChoice,
+	nightTactic2=nightTactic2,
+	nightTactic4=nightTactic4,
+	nightTactic6=nightTactic6,
+	removeTactic=removeTactic,
+	togglePlayerDropoutRequest=togglePlayerDropoutRequest,
+	dayTactic2Discarded=dayTactic2Discarded,
+	nightTactic6StoredCountNoop=nightTactic6StoredCountNoop
+})
