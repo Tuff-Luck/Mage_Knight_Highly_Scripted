@@ -1937,6 +1937,16 @@ end
 
 local LOWER_TABLE_GUID="3d4319"
 local LOWER_TABLE_SURFACE_GUID="519f96"
+local TABLE_LABELS_ROOT_ID="TableLabelsRoot"
+local TABLE_LABELS_EXTENSION_UP="0 0 -100"
+local TABLE_LABELS_EXTENSION_DOWN="0 0 -120"
+
+local function setTableLabelHeight(tableObj,position)
+	if tableObj==nil then return end
+	--The labels remain at roughly the same world height while the Table Extension itself moves 0.2.
+	tableObj.UI.setAttribute(TABLE_LABELS_ROOT_ID,"position",position)
+end
+
 function lowerTable(player, mouseButton, id)
 	if mouseButton~="-1" then return end
 	local tableObj=getObjectFromGUID(LOWER_TABLE_GUID)
@@ -1947,6 +1957,7 @@ function lowerTable(player, mouseButton, id)
 		tableObj.setPosition({0.00, -0.2, -5.00})
 		surfaceObj.setScale({200, 1, 200})
 		surfaceObj.setPosition({0.00, 0.77, -5.00})
+		setTableLabelHeight(tableObj,TABLE_LABELS_EXTENSION_DOWN)
 		skillButtonActivate()
 		return
 	end
@@ -1954,6 +1965,7 @@ function lowerTable(player, mouseButton, id)
 		tableObj.setPosition({0.00, 0.0, -5.00})
 		surfaceObj.setScale({1, 1, 1})
 		surfaceObj.setPosition({0.00, -0.2, -5.00})
+		setTableLabelHeight(tableObj,TABLE_LABELS_EXTENSION_UP)
 		skillButtonActivate()
 	end
 end
