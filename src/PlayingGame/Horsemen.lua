@@ -278,3 +278,8 @@ function horsemanResolveDefeat(token,playerIndex,coopCombatReward)
 	broadcastToAll(joinLang({translateWord[player.mage] or player.mage,"{en} defeated {ru} победил {zh-tw} 擊敗了 {zh-cn} 击败了 {ko}이(가) {es} derrotó a {fr} a vaincu {pt-br} derrotou {de} besiegte ",name,"{en}. The Horseman has been placed in their Inventory.{ru}. Жетон Всадника помещён в его Инвентарь.{zh-tw}。騎士已放入其庫存。{zh-cn}。骑士已放入其库存。{ko}을(를) 쓰러뜨렸습니다. 기사 토큰이 인벤토리에 놓였습니다.{es}. El Jinete se ha colocado en su Inventario.{fr}. Le Cavalier a été placé dans son Inventaire.{pt-br}. O Cavaleiro foi colocado no Inventário.{de}. Der Reiter wurde in das Inventar gelegt."}),positionToColor(playerIndex))
 	return true
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	horsemanAttackAction=horsemanAttackAction
+})
