@@ -253,3 +253,8 @@ function refreshTokenContainerPresentation(bag, obj, state)
 		end, 2)
 	end
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	refillMonsterTokenPiles=refillMonsterTokenPiles
+})
