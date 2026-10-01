@@ -4313,3 +4313,22 @@ cityCardExploreOffsets={{-1.2, 1.09, 6.23},{4.8, 1.09, 4.15},{-6, 1.09, 2.08},{6
 	{2.4, 1.09, -12.46},{-3.6, 1.09, -10.24},{-9.6, 1.09, -8.3},{-10.82, 1.09, -2.12},{-12, 1.09, 4.16},{-7.2, 1.09, 8.33},
 	{-3.6, 1.09, 18.69},{-8.4, 1.09, 14.54},{-13.2, 1.09, 10.39},{-18, 1.09, 6.24},
 	{18, 1.09, -6.24},{13.2, 1.09, -10.39},{8.4, 1.09, -14.54},{3.6, 1.09, -18.69}}
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	mineClaimChoice=mineClaimChoice,
+	toggleScenarioEndAchieved=toggleScenarioEndAchieved,
+	againstDragonAttackComplete=againstDragonAttackComplete,
+	againstDragonAttendFull=againstDragonAttendFull,
+	againstDragonFinishPartial=againstDragonFinishPartial,
+	againstDragonOffMapChoiceSelect=againstDragonOffMapChoiceSelect,
+	againstDragonTargetChoiceSelect=againstDragonTargetChoiceSelect,
+	apocalypseIsHereHorsemanTargetSelect=apocalypseIsHereHorsemanTargetSelect,
+	apocalypseIsHereProcessHorsemenUI=apocalypseIsHereProcessHorsemenUI,
+	druidNightsRitualAction=druidNightsRitualAction,
+	fracturedLandsOrientationDone=fracturedLandsOrientationDone,
+	fracturedLandsRotateLeft=fracturedLandsRotateLeft,
+	fracturedLandsRotateRight=fracturedLandsRotateRight,
+	restoreDestroyedSiteAtCurrentPlayer=restoreDestroyedSiteAtCurrentPlayer,
+	volkarePursuitAction=volkarePursuitAction
+})
