@@ -13,24 +13,44 @@
 	Table Extension GUID: 3d4319
 -->
 <Panel id="TableLabelsRoot" position="0 0 -120">
-	<!-- Move this panel as one unit when the deed offer expands or contracts. -->
+	<!-- These three follow the resizable Advanced Action / Spell offer. -->
 	<Panel id="DeedOfferLabels" position="-4370 0 0">
 		<Text id="TableAdvancedActionLabel"
 			  width="400" height="190"
 			  offsetXY="0 1121"
 			  rotation="0 0 -90"
+			  alignment="UpperCenter"
 			  resizeTextMaxSize="260">{en}Advanced Actions{ru}Особые Действия{zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션{es}Acciones Avanzadas{fr}Actions avancées{pt-br}Ações Avançadas{de}Fortgeschrittene Aktionen</Text>
 			 
 		<Text id="TableSpellLabel"
 			  width="400" height="190"
 			  offsetXY="0 1721"
 			  rotation="0 0 -90"
+			  alignment="UpperCenter"
 			  resizeTextMaxSize="260">{en}Spells{ru}Заклинания{zh-tw}法術卡{zh-cn}法术卡{ko}마법{es}Hechizos{fr}Sorts{pt-br}Feitiços{de}Zaubersprüche</Text>
 
 		<Text id="TableOfferLabel"
 			  width="800" height="190"
 			  offsetXY="-288 821"
 			  rotation="0 0 -90"
+			  alignment="MiddleCenter"
 			  resizeTextMaxSize="300">{en}Offers{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote</Text>
+	</Panel>
+
+	<!-- These rows do not move when the deed offer size changes. -->
+	<Panel id="FixedOfferLabels" position="-4370 0 0">
+		<Text id="TableMonasteryLabel"
+			  width="400" height="190"
+			  offsetXY="0 522"
+			  rotation="0 0 -90"
+			  alignment="UpperCenter"
+			  resizeTextMaxSize="260">{en}Monastery Training{ru}Тайные знания монахов{zh-tw}修道院培訓{zh-cn}修道院培训{ko}수도원 훈련{es}Formación en Monasterios{fr}Formation Monastique{pt-br}Monastério Treinamento{de}Kloster Ausbildung</Text>
+
+		<Text id="TableUnitLabel"
+			  width="400" height="190"
+			  offsetXY="0 -80"
+			  rotation="0 0 -90"
+			  alignment="UpperCenter"
+			  resizeTextMaxSize="260">{en}Regular &amp; Elite Units{ru}Обычные &amp; Элитные Отряды{zh-tw}普通與菁英部隊{zh-cn}常规和精英单位{ko}일반 &amp; 엘리트 유닛{es}Unidades Regulares y de Elite{fr}Unités Régulières et d'Elite{pt-br}Unidades Regulares e de Elite{de}Regelmäßige &amp; Elite Einheiten</Text>
 	</Panel>
 </Panel>
