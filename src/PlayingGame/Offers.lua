@@ -732,3 +732,10 @@ function offerAdjust(player, mouseButton, id)
 end
 
 --Change a hand's color and refresh.
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	artifactAdjust=artifactAdjust,
+	offerAdjust=offerAdjust,
+	offerArtifacts=offerArtifacts
+})
