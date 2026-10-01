@@ -1,10 +1,6 @@
 -- Mana Source-private helpers. Predeclared so forward references keep resolving locally.
 local manaSourceDieGUID, mirrorSourceBusy, manaSourceZoneHasDie, scheduleReturnedSourceMirror, scheduleMirrorSourceUpdate
-local mirrorSourceState, mirrorSourcePlayers, mirrorSourceSyncExisting, mirrorSourceFaceSync
-
--- Mana Source-private helpers. Predeclared so forward references keep resolving locally.
-local manaSourceDieGUID, mirrorSourceBusy, manaSourceZoneHasDie, scheduleReturnedSourceMirror, scheduleMirrorSourceUpdate
-local mirrorSourceState, mirrorSourcePlayers, mirrorSourceSyncExisting, mirrorSourceFaceSync
+local mirrorSourceState, mirrorSourcePlayers, mirrorSourceTarget, mirrorSourceSyncExisting, mirrorSourceFaceSync
 
 -- Mirrored Mana Source runtime.
 
@@ -18,16 +14,34 @@ function takeManaCrystal(bag,params)
 	return bag.takeObject(params)
 end
 
--- Shared Mana Source mirrors
-exitWaitID={}
-mirrorSpawnEnterIgnore={}
-mirrorDestroyIgnore={}
-mirrorSourceClaim={}
-mirrorFaceWaitID={}
-mirrorSourceRefreshWait=nil
-mirrorManualRandomize={}
-mirrorRepositionIgnore={}
-spentMirrorDice={}
+-- Mana Source runtime state. These tables are owned entirely by this module.
+local exitWaitID={}
+local mirrorSpawnEnterIgnore={}
+local mirrorDestroyIgnore={}
+local mirrorSourceClaim={}
+local mirrorFaceWaitID={}
+local mirrorSourceRefreshWait=nil
+local mirrorManualRandomize={}
+local mirrorRepositionIgnore={}
+local spentMirrorDice={}
+
+--Temporarily raise the Source fences while mana dice are being randomized so rolling dice stay contained.
+local sourceRandomizeFences={{"7e09c6",7.40},{"0a7c95",3.60},{"ec49dd",7.40},{"c17ca2",3.60}}
+local sourceRandomizePause=nil
+function pulseSourceRandomizeFences()
+	for _,fenceDetails in ipairs(sourceRandomizeFences) do
+		local fence=getObjectFromGUID(fenceDetails[1])
+		if fence~=nil then fence.setScale({0.10,20.00,fenceDetails[2]}) end
+	end
+	if sourceRandomizePause~=nil then Wait.stop(sourceRandomizePause) end
+	sourceRandomizePause=safeWaitTime("ManaSource",function()
+		sourceRandomizePause=nil
+		for _,fenceDetails in ipairs(sourceRandomizeFences) do
+			local fence=getObjectFromGUID(fenceDetails[1])
+			if fence~=nil then fence.setScale({0.10,0.10,fenceDetails[2]}) end
+		end
+	end,3)
+end
 manaSourceDieGUID=function(guid)
 	if guid==nil or gStates.manaSource==nil then return false end
 	for _, die in pairs(gStates.manaSource) do if die.manaDie==guid then return true end end
@@ -50,18 +64,26 @@ scheduleReturnedSourceMirror=function(sourceDie)
 	local sourceGUID=sourceDie.guid
 	--Do not make mirror restoration depend solely on the generic zone-enter callback. As soon as this exact
 	--returned die is physically inside the real Source, rebuild the missing copies; correct its face again after settling.
-	safeWaitCondition("ManaSource",function()
+	--Both waits are bounded so a displaced/non-resting die cannot leave a permanent per-frame condition running.
+	local function settleTimeout()
+		if getObjectFromGUID(sourceGUID)~=nil then mirrorSourceUpdate("returned die settle timeout") end
+	end
+	local function enteredSource()
 		local die=getObjectFromGUID(sourceGUID)
 		if die==nil then return end
 		mirrorSourceUpdate("returned die entered real Source")
 		safeWaitCondition("ManaSource",function()
 			if getObjectFromGUID(sourceGUID)~=nil then mirrorSourceUpdate("returned die settled in real Source") end
-		end, function()
+		end,function()
 			local current=getObjectFromGUID(sourceGUID)
 			return current==nil or current.resting
-		end)
-	end, function()
+		end,10,settleTimeout)
+	end
+	safeWaitCondition("ManaSource",enteredSource,function()
 		return getObjectFromGUID(sourceGUID)==nil or manaSourceZoneHasDie(sourceGUID)==true
+	end,10,function()
+		--A timeout means the physical die never reached the real Source. Refresh from the actual zone contents and stop polling.
+		mirrorSourceUpdate("returned die source-entry timeout")
 	end)
 end
 scheduleMirrorSourceUpdate=function(from, delay)
@@ -78,37 +100,47 @@ scheduleMirrorSourceUpdate=function(from, delay)
 		end
 	end, delay or 0.1)
 end
-mirrorSourceState=function()
+mirrorSourceState=function(sourceZone)
 	local colorConvert={["Blue Mana"]=1, ["White Mana"]=2, ["Green Mana"]=3, ["Red Mana"]=4, ["Gold Mana"]=5, ["Black Mana"]=6}
 	if gStates.dayRound==false then colorConvert["Gold Mana"]=6 colorConvert["Black Mana"]=5 end
-	local colorRotate={{0, 0, 0}, {0, 0, 270}, {0, 0, 90}, {0, 0, 180}, {90, 0, 0}, {270, 0, 0}}
-	if gStates.dayRound==false then colorRotate[5]={270, 0, 0} colorRotate[6]={90, 0, 0} end
+	local colorRotate={{0,0,0},{0,0,270},{0,0,90},{0,0,180},{90,0,0},{270,0,0}}
+	if gStates.dayRound==false then colorRotate[5]={270,0,0} colorRotate[6]={90,0,0} end
 	local sourceDice={}
-	local seperate=0
-	for _, manaDie in pairs(getObjectFromGUID(GUID.zone.mana).getObjects()) do
+	local separate=0
+	sourceZone=sourceZone or getObjectFromGUID(GUID.zone.mana)
+	if sourceZone==nil then return sourceDice,colorRotate,separate end
+	for _,manaDie in ipairs(sourceZone.getObjects()) do
 		local color=manaDie.type=="Dice" and colorConvert[manaDie.getRotationValue()] or nil
 		if color~=nil then
-			sourceDice[#sourceDice+1]={manaDie=manaDie.guid, color=color}
-			if color==6 then seperate=0.25 end
+			sourceDice[#sourceDice+1]={manaDie=manaDie.guid,color=color}
+			if color==6 then separate=0.25 end
 		end
 	end
-	table.sort(sourceDice, function(k1, k2) return k1.color<k2.color end)
-	return sourceDice, colorRotate, seperate
+	--Keep equal-colour dice deterministic so harmless zone enumeration changes do not reshuffle mirror ownership.
+	table.sort(sourceDice,function(a,b)
+		if a.color==b.color then return tostring(a.manaDie)<tostring(b.manaDie) end
+		return a.color<b.color
+	end)
+	return sourceDice,colorRotate,separate
 end
 
 mirrorSourcePlayers=function()
 	local players={}
-	for playerIndex, playerDetails in ipairs(turnOrder) do
+	for playerIndex,playerDetails in ipairs(turnOrder) do
 		if playerDetails.mage~=gStates.positionMageKnight[5] and playerDropoutInactive(playerIndex)==false then players[#players+1]=playerDetails end
 	end
-	table.sort(players, function(a, b) return (a.seatPos or 99)<(b.seatPos or 99) end)
+	table.sort(players,function(a,b) return (a.seatPos or 99)<(b.seatPos or 99) end)
 	return players
+end
+
+mirrorSourceTarget=function(playerDetails,pos,spacing,separate)
+	return {-105+(40*playerDetails.seatPos)+((1.5*pos)+spacing)+(((8-gStates.diceNeeded)/2)*1.5)-separate,1.57,-28.1}
 end
 
 --Face changes do not need new physical dice. Reuse the existing copies, update their faces and
 --slide them into the same sorted positions a rebuild would have produced. If the Source set changed,
 --return false so mirrorSourceUpdate can fall back to the structural rebuild.
-mirrorSourceSyncExisting=function(sourceDice, colorRotate, seperate)
+mirrorSourceSyncExisting=function(sourceDice,colorRotate,separate)
 	if gStates.manaMirror==nil then return false end
 	local players=mirrorSourcePlayers()
 	local expected=#sourceDice*#players
@@ -130,13 +162,13 @@ mirrorSourceSyncExisting=function(sourceDice, colorRotate, seperate)
 	for _, playerDetails in ipairs(players) do
 		local spacing=0
 		local first=false
-		local localSeperate=seperate
+		local localSeparate=separate
 		for pos, die in ipairs(sourceDice) do
 			if die.color==6 and first==false then
 				spacing=0.5 first=true
-				if pos==1 then localSeperate=0 spacing=0 end
+				if pos==1 then localSeparate=0 spacing=0 end
 			end
-			local target={-105+(40*playerDetails.seatPos)+((1.5*pos)+spacing)+(((8-gStates.diceNeeded)/2)*1.5)-localSeperate, 1.57, -28.1}
+			local target=mirrorSourceTarget(playerDetails,pos,spacing,localSeparate)
 			local best=nil
 			local bestDist=99999
 			for _, mirror in ipairs(mirrorsBySource[die.manaDie]) do
@@ -162,11 +194,13 @@ end
 
 function mirrorSourceUpdate(from)
 	--Never alter mirror dice while a player is physically resolving one.
-	if mirrorSourceBusy()==true then scheduleMirrorSourceUpdate(from, 0.05) return end
-	if getObjectFromGUID(GUID.zone.mana)==nil or getObjectFromGUID(GUID.bag.spareDice)==nil then return end
-	local sourceDice, colorRotate, seperate=mirrorSourceState()
+	if mirrorSourceBusy()==true then scheduleMirrorSourceUpdate(from,0.05) return end
+	local sourceZone=getObjectFromGUID(GUID.zone.mana)
+	local spareDice=getObjectFromGUID(GUID.bag.spareDice)
+	if sourceZone==nil or spareDice==nil then return end
+	local sourceDice,colorRotate,separate=mirrorSourceState(sourceZone)
 	--The normal fast path: same Source GUIDs, so only update/re-sort the existing physical copies.
-	if mirrorSourceSyncExisting(sourceDice, colorRotate, seperate)==true then return end
+	if mirrorSourceSyncExisting(sourceDice,colorRotate,separate)==true then return end
 
 	--Structural change (die spent/returned/added, player set changed, stale save): rebuild the mirror set.
 	if gStates.manaMirror~=nil then
@@ -190,13 +224,13 @@ function mirrorSourceUpdate(from)
 	for _, playerDetails in ipairs(players) do
 		local spacing=0
 		local first=false
-		local localSeperate=seperate
+		local localSeparate=separate
 		for pos, die in ipairs(sourceDice) do
 			if die.color==6 and first==false then
 				spacing=0.5 first=true
-				if pos==1 then localSeperate=0 spacing=0 end
+				if pos==1 then localSeparate=0 spacing=0 end
 			end
-			local mirrorDie=getObjectFromGUID(GUID.bag.spareDice).takeObject({position={-105+(40*playerDetails.seatPos)+((1.5*pos)+spacing)+(((8-gStates.diceNeeded)/2)*1.5)-localSeperate, 1.57, -28.1}, rotation=colorRotate[die.color], smooth=false})
+			local mirrorDie=spareDice.takeObject({position=mirrorSourceTarget(playerDetails,pos,spacing,localSeparate),rotation=colorRotate[die.color],smooth=false})
 			gStates.manaMirror[mirrorDie.guid]=die.manaDie
 			mirrorSpawnEnterIgnore[mirrorDie.guid]=true
 			local mirrorGUID=mirrorDie.guid
@@ -294,7 +328,7 @@ function diceResting(dice, state)
 			local returnedSource=spareDice.takeObject({position={-12.5+(math.random()*7), 1.5 , -24.0+(math.random()*3.5)}, rotation=currentDice.getRotation(), smooth=false})--Mana Dice Container
 			spentMirrorDice[diceGUID]=nil
 			scheduleReturnedSourceMirror(returnedSource)
-			onObjectRandomize({type="Dice"})
+			pulseSourceRandomizeFences()
 			currentDice.destruct()
 		end
 		exitWaitID[diceGUID]=safeWaitCondition("ManaSource",returnDieToSource, function()
