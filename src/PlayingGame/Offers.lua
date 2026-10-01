@@ -554,7 +554,7 @@ end
 local DEED_OFFER_TEXT_MIN_SIZE=3
 local DEED_OFFER_TABLE_GUID="3d4319"
 local DEED_OFFER_LABEL_PANEL_ID="DeedOfferLabels"
-local DEED_OFFER_LABEL_PANEL_BASE_X=42.8
+local DEED_OFFER_LABEL_PANEL_BASE_UI_X=-4370
 local deedOfferTextLayout={
 	{guid="8dc73f",baseX=42.8}, -- Spells
 	{guid="9f67cd",baseX=42.8}, -- Advanced Actions
@@ -575,12 +575,19 @@ local function moveDeedOfferText(size)
 			textObject.setPositionSmooth(position,false,false)
 		end
 	end
-	if tableObj~=nil and tableObj.UI.getAttribute(DEED_OFFER_LABEL_PANEL_ID,"position")~=nil then
-		--All three XML labels share one parent, so offer resizing only moves this panel.
-		--Table Extension is rotated 180 degrees, so increasing world X is decreasing object-UI X.
-		local uiX=-(DEED_OFFER_LABEL_PANEL_BASE_X+xOffset)*100
-		tableObj.UI.setAttribute(DEED_OFFER_LABEL_PANEL_ID,"position",string.format("%.0f 0 0",uiX))
-	end
+	refreshDeedOfferTableLabelPosition(size)
+end
+
+function refreshDeedOfferTableLabelPosition(size)
+	local tableObj=getObjectFromGUID(DEED_OFFER_TABLE_GUID)
+	if tableObj==nil or tableObj.UI.getAttribute(DEED_OFFER_LABEL_PANEL_ID,"position")==nil then return false end
+	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
+	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
+	--All three XML labels share one parent, so offer resizing only moves this panel.
+	--The calibrated XML home is -4370 at offer size 3; each additional world-space 4.8 is 480 UI units.
+	local uiX=DEED_OFFER_LABEL_PANEL_BASE_UI_X-(xOffset*100)
+	tableObj.UI.setAttribute(DEED_OFFER_LABEL_PANEL_ID,"position",string.format("%.0f 0 0",uiX))
+	return true
 end
 
 local function deedOfferAdjustButtonXml(size)
