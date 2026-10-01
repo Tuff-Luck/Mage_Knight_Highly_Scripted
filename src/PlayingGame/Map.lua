@@ -1859,3 +1859,10 @@ end
 function plunderVillage(player, mouseButton, id)
 	return fameReputationPlunderVillage(player, mouseButton, id)
 end
+
+-- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
+publishPublicUICallbacks({
+	plunderVillage=plunderVillage,
+	exploreMap=exploreMap,
+	shieldDrop=shieldDrop
+})
