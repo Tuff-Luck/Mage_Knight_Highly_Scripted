@@ -7,9 +7,11 @@
 		  raycastTarget="false"/>
 </Defaults>
 
-<Panel id="TableLabelsRoot" position="0 0 -120">
+<Panel id="TableLabelsRoot" width="16000" position="0 0 -120">
 	<!-- These three follow the resizable Advanced Action / Spell offer. -->
 	<Panel id="DeedOfferLabels" position="-4400 0 0">
+		<!-- The parent is the authored size-3 home; Lua moves only this relative child. -->
+		<Panel id="DeedOfferLabelsSlide" position="0 0 0">
 			<Text id="TableAdvancedActionLabel"
 				  width="400" height="250"
 				  offsetXY="0 1121"
@@ -30,6 +32,7 @@
 				  rotation="0 0 -90"
 				  alignment="MiddleCenter"
 				  resizeTextMaxSize="200">{en}Offers{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote</Text>
+		</Panel>
 	</Panel>
 
 	<!-- These rows do not move when the deed offer size changes. -->
