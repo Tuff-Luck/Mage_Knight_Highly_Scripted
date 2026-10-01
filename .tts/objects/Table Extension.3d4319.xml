@@ -16,7 +16,7 @@
 	<!-- These three follow the resizable Advanced Action / Spell offer. -->
 	<Panel id="DeedOfferLabels" position="-4400 0 0">
 		<!-- Lua moves only this child. The parent above remains the authored size-3 home position. -->
-		<Panel id="DeedOfferLabelsSlide" offsetXY="0 0">
+		<Panel id="DeedOfferLabelsSlide" position="0 0 0">
 			<Text id="TableAdvancedActionLabel"
 				  width="400" height="250"
 				  offsetXY="0 1121"
