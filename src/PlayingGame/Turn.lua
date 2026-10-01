@@ -50,7 +50,8 @@ function togglePlayerDropoutRequest(player, mouseButton, id)
 	if playerData.dropoutState=="dropped" then return end
 	if playerData.dropoutState=="pending" then
 		playerData.dropoutState=nil
-		setDropoutMatImage(playerData, false)
+		setDropoutMatImage(playerData,false)
+		if gStates.firstStarted==true then mirrorSourceUpdate("player dropout cancelled") end
 		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} cancelled dropping out.{ru} отменил выход из игры.{zh-tw} 取消了退出遊戲。{zh-cn} 取消了退出游戏。{ko} 게임 나가기를 취소했습니다.{es} canceló su abandono de la partida.{fr} a annulé son départ de la partie.{pt-br} cancelou a saída do jogo.{de} hat das Verlassen des Spiels abgebrochen."}), positionToColor(playerIndex))
 	else
 		--Never allow dropouts to reduce the game below two active Mage Knights.
@@ -60,7 +61,8 @@ function togglePlayerDropoutRequest(player, mouseButton, id)
 			return
 		end
 		playerData.dropoutState="pending"
-		setDropoutMatImage(playerData, true)
+		setDropoutMatImage(playerData,true)
+		if gStates.firstStarted==true then mirrorSourceUpdate("player dropout requested") end
 		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} will drop out when turn order next advances. Press Undo Drop Out before then to cancel.{ru} выйдет из игры при следующем переходе хода. До этого можно отменить выход.{zh-tw} 將在下一次推進回合順序時退出遊戲；在此之前可按撤銷退出。{zh-cn} 将在下一次推进回合顺序时退出游戏；在此之前可按撤销退出。{ko} 다음 차례 진행 시 게임에서 나갑니다. 그 전까지 나가기 취소를 누를 수 있습니다.{es} abandonará la partida cuando avance el orden de turno. Puede deshacerlo antes de entonces.{fr} quittera la partie au prochain changement de tour. Vous pouvez annuler avant cela.{pt-br} sairá do jogo quando a ordem de turno avançar. Você pode desfazer antes disso.{de} verlässt das Spiel beim nächsten Zugwechsel. Bis dahin kann der Austritt rückgängig gemacht werden."}), positionToColor(playerIndex))
 	end
 	applyColorBarButtons()
@@ -292,6 +294,7 @@ local function commitPendingDropouts()
 		end
 	end
 	if changed==true then
+		mirrorSourceUpdate("player dropout committed")
 		applyColorBarButtons()
 		volkareQuestCheckSkipTurn()
 	end
