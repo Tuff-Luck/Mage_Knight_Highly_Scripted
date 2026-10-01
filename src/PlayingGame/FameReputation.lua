@@ -381,8 +381,8 @@ function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	return result
 end
 
-function fameReputationOnLoadRaw(saved_data)
-	local result=eventsOnLoadRawBase(saved_data)
+function fameReputationOnLoadRaw(saved_data, loaded_data)
+	local result=eventsOnLoadRawBase(saved_data,loaded_data)
 	--A save can occur after preEndTurn is set but before its delayed Fame/Rep commit callback. The absence
 	--of a persisted commit marker means the physical tracks still need the pending reward exactly once.
 	safeWaitFrames("FameReputation",function()
