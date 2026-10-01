@@ -1,0 +1,50 @@
+{
+  "GUID": "e0945c",
+  "Name": "Digital_Clock",
+  "Transform": {
+    "posX": 26.65,
+    "posY": -1,
+    "posZ": 35,
+    "rotX": 45.0000038,
+    "rotY": 0,
+    "rotZ": 0,
+    "scaleX": 2.349999,
+    "scaleY": 2.349999,
+    "scaleZ": 2.349999
+  },
+  "Nickname": "",
+  "Description": "",
+  "GMNotes": "",
+  "AltLookAngle": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "ColorDiffuse": {
+    "r": 0.249971718,
+    "g": 0.249971718,
+    "b": 0.249971718
+  },
+  "LayoutGroupSortIndex": 0,
+  "Value": 0,
+  "Locked": true,
+  "Grid": true,
+  "Snap": true,
+  "IgnoreFoW": false,
+  "MeasureMovement": false,
+  "DragSelectable": true,
+  "Autoraise": true,
+  "Sticky": true,
+  "Tooltip": true,
+  "GridProjection": false,
+  "HideWhenFaceDown": false,
+  "Hands": false,
+  "Clock": {
+    "Mode": 0,
+    "SecondsPassed": 0,
+    "Paused": false
+  },
+  "LuaScript": "",
+  "LuaScriptState": "",
+  "XmlUI": "<Defaults>\r\n\t<Text font=\"Fonts/MKCardTittle\"\r\n\t\t  color=\"#FFFFFF\"\r\n\t\t  alignment=\"MiddleCenter\"\r\n\t\t  resizeTextForBestFit=\"true\"\r\n\t\t  resizeTextMinSize=\"30\"\r\n\t\t  raycastTarget=\"false\"/>\r\n</Defaults>"
+}
