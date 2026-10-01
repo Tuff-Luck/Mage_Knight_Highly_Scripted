@@ -5166,9 +5166,12 @@ local function installExistingObjectUI(guid, xml)
 	local obj=getObjectFromGUID(guid)
 	if obj==nil then return false end
 	obj.UI.setXml(xml)
-	--Object XML does not reliably resolve the mod's {en}/{ru}/... strings when first installed.
-	--Push translated Text/Toggle values back through the UI API, matching the Global/Table Extension repair path.
-	reapplyObjectXmlText(obj)
+	--setXml() returns before TTS has necessarily finished constructing the object's UI tree.
+	--Reapply translated Text/Toggle values on the following frame, once setAttribute can see the new ids.
+	safeWaitFrames("UI",function()
+		local live=getObjectFromGUID(guid)
+		if live~=nil then reapplyObjectXmlText(live) end
+	end,1)
 	return true
 end
 
