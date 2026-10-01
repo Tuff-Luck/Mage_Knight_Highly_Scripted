@@ -219,9 +219,12 @@ function rollerOnLoad(savedState)
     installRollers(1)
 end
 
-function rollerSavedState(saved_data)
-	if type(saved_data)~="string" or saved_data=="" then return nil end
-	local ok,data=pcall(JSON.decode,saved_data)
-	if ok and type(data)=="table" then return data.rollerDice end
+function rollerSavedState(loaded_data)
+	if type(loaded_data)=="table" then return loaded_data.rollerDice end
 	return nil
 end
+
+-- Public UI callback ownership: classic TTS button entry point.
+publishPublicUICallbacks({
+	MKRollDieButton=MKRollDieButton
+})
