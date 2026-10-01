@@ -7,7 +7,7 @@
 		  raycastTarget="false"/>
 </Defaults>
 
-<Panel id="TableLabelsRoot" width="16000" position="0 0 -120">
+<Panel id="TableLabelsRoot" position="0 0 -120">
 	<!-- These rows do not move when the deed offer size changes. -->
 	<Panel id="FixedOfferLabels" position="-4400 0 0">
 		<Text id="TableMonasteryLabel"
