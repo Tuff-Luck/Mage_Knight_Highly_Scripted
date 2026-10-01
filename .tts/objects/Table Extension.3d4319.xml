@@ -15,26 +15,29 @@
 <Panel id="TableLabelsRoot" position="0 0 -120">
 	<!-- These three follow the resizable Advanced Action / Spell offer. -->
 	<Panel id="DeedOfferLabels" position="-4400 0 0">
-		<Text id="TableAdvancedActionLabel"
-			  width="400" height="250"
-			  offsetXY="0 1121"
-			  rotation="0 0 -90"
-			  alignment="UpperCenter"
-			  resizeTextMaxSize="100">{en}Advanced Actions{ru}Особые Действия{zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션{es}Acciones Avanzadas{fr}Actions avancées{pt-br}Ações Avançadas{de}Fortgeschrittene Aktionen</Text>
+		<!-- Lua moves only this child. The parent above remains the authored size-3 home position. -->
+		<Panel id="DeedOfferLabelsSlide" offsetXY="0 0">
+			<Text id="TableAdvancedActionLabel"
+				  width="400" height="250"
+				  offsetXY="0 1121"
+				  rotation="0 0 -90"
+				  alignment="UpperCenter"
+				  resizeTextMaxSize="100">{en}Advanced Actions{ru}Особые Действия{zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션{es}Acciones Avanzadas{fr}Actions avancées{pt-br}Ações Avançadas{de}Fortgeschrittene Aktionen</Text>
 			 
-		<Text id="TableSpellLabel"
-			  width="400" height="250"
-			  offsetXY="0 1721"
-			  rotation="0 0 -90"
-			  alignment="UpperCenter"
-			  resizeTextMaxSize="100">{en}Spells{ru}Заклинания{zh-tw}法術卡{zh-cn}法术卡{ko}마법{es}Hechizos{fr}Sorts{pt-br}Feitiços{de}Zaubersprüche</Text>
+			<Text id="TableSpellLabel"
+				  width="400" height="250"
+				  offsetXY="0 1721"
+				  rotation="0 0 -90"
+				  alignment="UpperCenter"
+				  resizeTextMaxSize="100">{en}Spells{ru}Заклинания{zh-tw}法術卡{zh-cn}法术卡{ko}마법{es}Hechizos{fr}Sorts{pt-br}Feitiços{de}Zaubersprüche</Text>
 
-		<Text id="TableOfferLabel"
-			  width="800" height="250"
-			  offsetXY="-255 821"
-			  rotation="0 0 -90"
-			  alignment="MiddleCenter"
-			  resizeTextMaxSize="200">{en}Offers{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote</Text>
+			<Text id="TableOfferLabel"
+				  width="800" height="250"
+				  offsetXY="-255 821"
+				  rotation="0 0 -90"
+				  alignment="MiddleCenter"
+				  resizeTextMaxSize="200">{en}Offers{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote</Text>
+		</Panel>
 	</Panel>
 
 	<!-- These rows do not move when the deed offer size changes. -->
@@ -52,5 +55,40 @@
 			  rotation="0 0 -90"
 			  alignment="UpperCenter"
 			  resizeTextMaxSize="100">{en}Regular &amp; Elite Units{ru}Обычные &amp; Элитные Отряды{zh-tw}普通與菁英部隊{zh-cn}常规和精英单位{ko}일반 &amp; 엘리트 유닛{es}Unidades Regulares y de Elite{fr}Unités Régulières et d'Elite{pt-br}Unidades Regulares e de Elite{de}Regelmäßige &amp; Elite Einheiten</Text>
+	</Panel>
+
+
+	<!-- Remaining visible F8 table text. Starting positions are mapped from the existing world-space labels. -->
+	<Panel id="StaticTableLabels" offsetXY="0 0">
+		<!-- Turn-order positions -->
+		<Text id="TableTurnOrder1st" width="240" height="130" offsetXY="-136 1392" resizeTextMaxSize="90">1st</Text>
+		<Text id="TableTurnOrder2nd" width="240" height="130" offsetXY="-159 1532" resizeTextMaxSize="90">2nd</Text>
+		<Text id="TableTurnOrder3rd" width="240" height="130" offsetXY="-159 1672" resizeTextMaxSize="90">3rd</Text>
+		<Text id="TableTurnOrder4th" width="240" height="130" offsetXY="-159 1812" resizeTextMaxSize="90">4th</Text>
+		<Text id="TableTurnOrder5th" width="240" height="130" offsetXY="-159 1952" resizeTextMaxSize="90">5th</Text>
+
+		<Text id="TableCommunalSkillOffer" width="1100" height="220" offsetXY="-1774 2001" resizeTextMaxSize="100">{en}Communal Skill Offer{ru}Зона общих навыков{zh-cn}公用技能供应区{ko}공동 기술 공급처{es}Oferta de Habilidades Común{fr}Offre de compétences communes{pt-br}Oferta de Poderes Compartilhados{de}Kommunales Qualifizierungsangebot</Text>
+
+		<Text id="TableArtifactsLabel" width="500" height="250" offsetXY="-4536 -745" rotation="0 0 -90" resizeTextMaxSize="100">{en}Artifacts{ru}Артефакты{zh-cn}神器卡{ko}유물{es}Artefactos{fr}Artefacts{pt-br}Artefatos{de}Artefakte</Text>
+
+		<Text id="TableFameReputationLabel" width="1200" height="200" offsetXY="-2785 -3232" resizeTextMaxSize="100">{en}Fame &amp; Reputation{ru}Слава и Репутация{zh-cn}名望与声誉{ko}명성 및 평판 보드{es}Fama &amp; Reputación{fr}Gloire &amp; Réputation{pt-br}Fama &amp; Reputação{de}Ruhm und Reputation</Text>
+
+		<Text id="TableSourceLabel" width="700" height="200" offsetXY="826 1386" resizeTextMaxSize="100">{en}The Source{ru}Источник маны{zh-cn}魔力源{ko}소스{es}La Fuente{fr}La source{pt-br}A Fonte{de}Die Quelle</Text>
+
+		<Text id="TableSiteDescriptionsLabel" width="1100" height="200" offsetXY="5888 2007" resizeTextMaxSize="100">{en}Site Descriptions{ru}Описание Мест{zh-cn}地点说明{ko}장소 참고 카드{es}Descripción de Lugares{fr}Descriptions du site{pt-br}Descrição de Local{de}Website-Beschreibungen</Text>
+
+		<Text id="TableReferenceMaterialLabel" width="1200" height="200" offsetXY="1654 -3238" resizeTextMaxSize="100">{en}Reference Material{ru}Справочный материал{zh-cn}参考资料{ko}참고 자료{es}Material de Referencia{fr}Matériel de référence{pt-br}Material de Referência{de}Referenzmaterial</Text>
+
+		<Text id="TableRuleBooksLabel" width="1200" height="220" offsetXY="-6451 -3238" resizeTextMaxSize="100">{en}Rule Books{ru}Книги правил{zh-cn}规则书（在规则书上右击，选pop-out）,单拉出来看会清晰很多{ko}규칙서{es}Libros de Reglas{fr}Livres de règles{pt-br}Livro de Regras{de}Regelbücher</Text>
+
+		<Text id="TableTurnOrderHelp" font="Fonts/MKCardText" width="1700" height="780" offsetXY="-1138 1404" alignment="MiddleLeft" resizeTextMaxSize="75">{en}&lt;--Turn Order Tokens have been placed Randomly. If Desired, rearrange player tokens so player who picked a Mage Knight Last is in first position, etc. The turn order will update.{ru}&lt;--Жетоны Порядка хода размещены случайным образом. Если необходимо, переставьте жетоны игроков так, чтобы игрок, выбравший героя последним, оказался на первой позиции и т.д. Порядок хода обновится.{zh-cn}&lt;--回合顺序标记已随机放置. 如果需要, 请重新排列玩家标记, 以便更新玩家顺位{ko}&lt;--라운드 순서 토큰이 무작위로 배치되었습니다. 원한다면, 마지막으로 영웅을 선택한 플레이어가 첫 번째 위치에 오도록 재배열하세요. 그에 맞게 라운드 순서가 업데이트됩니다.{es}&lt;--Las fichas de orden de turno se han colocado al azar. Si se desea, reordenad las fichas de los jugadores de modo que el último jugador que eligió un Mage Knight se coloque en primera posición, etc. El orden de turno se actualizará.{fr}&lt;--Les jetons d'ordre du tour ont été placés aléatoirement. Si vous le souhaitez, réorganisez les jetons de joueur pour que le joueur qui pas choisi un chevalier mage en dernier soit en première position, etc. L'ordre du tour sera mis à jour.{pt-br}&lt;--Tokens de Ordem de turno foram distribuídos aleatóriamente. Se Desejado, re-organize os tokens de jogador para que cada jogador que pegou um Mage Knight por último esteja na primeira posição, etc. A ordem de turno será atualizada.{de}&lt;--Die Zugreihenfolge-Plättchen wurden zufällig platziert. Falls gewünscht, ordnen Sie die Spielerplättchen neu an, so dass der Spieler, der zuletzt einen Magier-Ritter gewählt hat, an erster Stelle steht usw. Die Zugreihenfolge wird aktualisiert.</Text>
+
+		<Text id="TableRightClickClaimHelp" font="Fonts/MKCardText" width="1700" height="220" offsetXY="-3240 2101" resizeTextMaxSize="70">{en}(Right Click claims to hand){ru}(Щелчок правой кнопкой мыши заберет в руку){zh-cn}（右键卡牌发送到手牌区）{ko}(우클릭 시 손으로 가져옴){es}(Haga clic con el botón derecho para reclamar a mano){fr}(Cliquer sur le bouton droit de la souris pour faire apparaître les revendications dans la main){pt-br}(Clique com o botão direito do mouse para abrir a mão){de}(Rechtsklick Ansprüche zur Hand)</Text>
+
+		<!-- Terrain stack area uses black text on the printed light panels. -->
+		<Text id="TableCityTilesLabel" color="#000000" width="700" height="190" offsetXY="4426 1192" resizeTextMaxSize="75">{en}City Tiles{ru}Земли с городом{zh-cn}城市地块{ko}도시 타일{es}Baldosas de Ciudad{fr}Tuiles de Ville{pt-br}Ladrilhos de Cidade{de}Stadt Kacheln</Text>
+		<Text id="TableCoreTilesLabel" color="#000000" width="700" height="190" offsetXY="4426 1541" resizeTextMaxSize="75">{en}Core Tiles{ru}Развитые земли{zh-cn}核心地块{ko}중심 타일{es}Núcleo{fr}Carreaux de Base{pt-br}Ladrilhos Centrais{de}Kern-Kacheln</Text>
+		<Text id="TableCountryTilesLabel" color="#000000" width="700" height="190" offsetXY="4426 1882" resizeTextMaxSize="75">{en}Country Tiles{ru}Дикие земли{zh-cn}国家地块{ko}교외 타일{es}Baldosas de Campo{fr}Tuiles de Pays{pt-br}Ladrilhos de País{de}Land Kacheln</Text>
+		<Text id="TableTerrainStackLabel" color="#000000" width="900" height="200" offsetXY="3496 1913" resizeTextMaxSize="100">{en}Terrain Stack{ru}Стек Земель{zh-cn}地形堆{ko}지도 타일 더미{es}Pila de Terreno{fr}Pile de Terrain{pt-br}Pilha de Terreno{de}Geländestapel</Text>
 	</Panel>
 </Panel>
