@@ -121,13 +121,15 @@ function onLoad(saved_data)
 		validatePublicUICallbacks()
 		local loadedData=nil
 		if type(saved_data)=="string" and saved_data~="" then loadedData=JSON.decode(saved_data) end
+		--These objects already exist when Global loads. Install their XML immediately, then use the
+		--proven load-time setAttribute pass once TTS has had two frames to build/localise the object UI.
+		monsterReplenishObjectOnLoad()
+		artifactOnLoad()
 		rollerOnLoad(rollerSavedState(loadedData))
 		local result=__onLoad_raw(saved_data,loadedData)
-		--Object UIs exist with the table, but their XML is installed after the Global load path settles.
-		--installExistingObjectUI() also reapplies tagged Text/Toggle values through the UI API so localisation resolves.
 		safeWaitFrames("Callbacks",function()
-			monsterReplenishObjectOnLoad()
-			artifactOnLoad()
+			monsterReplenishTranslationRefresh()
+			artifactOfferRewardTextRefresh()
 		end,2)
 		return result
 	end)
@@ -5166,19 +5168,15 @@ local function installExistingObjectUI(guid, xml)
 	local obj=getObjectFromGUID(guid)
 	if obj==nil then return false end
 	obj.UI.setXml(xml)
-	--setXml() returns before TTS has necessarily finished constructing the object's UI tree.
-	--Reapply translated Text/Toggle values on the following frame, once setAttribute can see the new ids.
-	safeWaitFrames("UI",function()
-		local live=getObjectFromGUID(guid)
-		if live~=nil then reapplyObjectXmlText(live) end
-	end,1)
 	return true
 end
+
+local MONSTER_REPLENISH_TEXT="{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen"
 
 --Monster Replenish no longer carries its own Lua/XML. Rebuild its physical Restock button from
 --Global, and keep the old status ids as hidden targets for existing swap/status helpers.
 function monsterReplenishObjectOnLoad()
-	return installExistingObjectUI(GUID.ui.monsterReplenish,[=[
+	local xml=[=[
 <Button id="d7a165replenishMonsterPiles" interactable="true"
     onClick="global/refillMonsterTokenPiles"
     tooltipPosition="Left" tooltipBackgroundColor="clear" tooltipOffset="20"
@@ -5189,12 +5187,20 @@ function monsterReplenishObjectOnLoad()
     <HorizontalLayout padding="30 30 30 30">
         <Text id="d7a165replenishMonsterPilesText" fontSize="90" font="Fonts/MKCardText" fontStyle="Normal"
             textColor="rgb(0, 0, 0)" offsetXY="0 1" alignment="MiddleCenter"
-            resizeTextForBestFit="true" resizeTextMaxSize="90">{en}Restock Empty Piles{ru}Восполнить пустые стопки{zh-tw}補齊抽空的標記{zh-cn}补齐抽空的标记{ko}빈 토큰더미채우기{es}Reabastecer Vacío Pilas{fr}Réapprovisionner Vider Les piles{pt-br}Reestocar Pilhas Vazias{de}Leere Stapel auffüllen</Text>
+            resizeTextForBestFit="true" resizeTextMaxSize="90">]=]..MONSTER_REPLENISH_TEXT..[=[</Text>
     </HorizontalLayout>
 </Button>
 <Text id="d7a165swapMonsterImageText" active="false"></Text>
 <Text id="d7a165swapTableText" active="false"></Text>
-]=])
+]=]
+	return installExistingObjectUI(GUID.ui.monsterReplenish,xml)
+end
+
+function monsterReplenishTranslationRefresh()
+	local obj=getObjectFromGUID(GUID.ui.monsterReplenish)
+	if obj==nil then return false end
+	obj.UI.setAttribute("d7a165replenishMonsterPilesText","text",MONSTER_REPLENISH_TEXT)
+	return true
 end
 
 local ARTIFACT_GUID = "ac75c4"
@@ -5215,8 +5221,8 @@ local ARTIFACT_UI = [=[
 ]=]
 
 local function installArtifactUI()
-    --Keep the localization tags in the XML itself. TTS resolves those when setXml loads the
-    --object UI; both object UIs are installed once from Callbacks after localisation is ready.
+    --Keep the localization tags in the XML source; Callbacks performs the proven load-time
+    --setAttribute refresh after TTS has built the object UI.
     return installExistingObjectUI(ARTIFACT_GUID,ARTIFACT_UI)
 end
 
@@ -25642,8 +25648,7 @@ end
 
 local DEED_OFFER_TEXT_MIN_SIZE=3
 local DEED_OFFER_TABLE_GUID="3d4319"
-local DEED_OFFER_LABEL_PANEL_ID="DeedOfferLabels"
-local DEED_OFFER_LABEL_PANEL_BASE_UI_X=-4370
+local DEED_OFFER_LABEL_SLIDER_ID="DeedOfferLabelsSlide"
 local deedOfferTextLayout={
 	{guid="8dc73f",baseX=42.8}, -- Spells
 	{guid="9f67cd",baseX=42.8}, -- Advanced Actions
@@ -25653,7 +25658,6 @@ local deedOfferTextLayout={
 local function moveDeedOfferText(size)
 	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
 	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
-	local tableObj=getObjectFromGUID(DEED_OFFER_TABLE_GUID)
 	for _,details in ipairs(deedOfferTextLayout) do
 		--Keep the old F8 text moving during the XML alignment pass. Remove this physical fallback
 		--once the replacement labels have been visually confirmed on both table surfaces.
@@ -25669,13 +25673,12 @@ end
 
 function refreshDeedOfferTableLabelPosition(size)
 	local tableObj=getObjectFromGUID(DEED_OFFER_TABLE_GUID)
-	if tableObj==nil or tableObj.UI.getAttribute(DEED_OFFER_LABEL_PANEL_ID,"position")==nil then return false end
+	if tableObj==nil or tableObj.UI.getAttribute(DEED_OFFER_LABEL_SLIDER_ID,"offsetXY")==nil then return false end
 	local textSize=math.max(DEED_OFFER_TEXT_MIN_SIZE,deedOfferBoundedSize(size))
 	local xOffset=4.8*(textSize-DEED_OFFER_TEXT_MIN_SIZE)
-	--All three XML labels share one parent, so offer resizing only moves this panel.
-	--The calibrated XML home is -4370 at offer size 3; each additional world-space 4.8 is 480 UI units.
-	local uiX=DEED_OFFER_LABEL_PANEL_BASE_UI_X-(xOffset*100)
-	tableObj.UI.setAttribute(DEED_OFFER_LABEL_PANEL_ID,"position",string.format("%.0f 0 0",uiX))
+	--The authored DeedOfferLabels parent is the size-3 home position. Never overwrite it:
+	--only slide this zeroed child so manual XML calibration remains authoritative.
+	tableObj.UI.setAttribute(DEED_OFFER_LABEL_SLIDER_ID,"offsetXY",string.format("%.0f 0",-(xOffset*100)))
 	return true
 end
 
