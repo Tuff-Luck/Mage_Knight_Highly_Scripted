@@ -558,25 +558,36 @@ function renderMoveDisplay(id)
 			if gladePos~=nil then playerPos=gladePos end
 		end
 		local currentTurn=turnOrder[gStates.turnNumber]
-		local turnStartLoc=currentTurn~=nil and currentTurn.turnStartLoc or nil
+		--Dummy and other non-avatar turns intentionally have no avatarLocation. Resource Tracker
+		--controls can still fire on those turns, but there is no player movement map to render.
+		if currentTurn==nil or currentTurn.avatarLocation==nil then
+			clearMoveDisplayVisuals()
+			return
+		end
+		local turnStartLoc=currentTurn.turnStartLoc
 		if gStates.resourceTracker.playerPos==nil and turnStartLoc~=nil and turnStartLoc[1]~=nil and turnStartLoc[1]>-42 then
 			gStates.resourceTracker.playerPos={turnStartLoc[1], turnStartLoc[2], turnStartLoc[3]}--{0, 0, 0}
 		end
 		if id=="MovemAmountUpdate" then
 			for _, details in pairs(mageKnights) do
-				if details.mage==turnOrder[gStates.turnNumber].mage then
+				if details.mage==currentTurn.mage then
 					if getObjectFromGUID(details.model)~=nil then gStates.resourceTracker.playerPos={getObjectFromGUID(details.model).getPosition()[1], getObjectFromGUID(details.model).getPosition()[2], getObjectFromGUID(details.model).getPosition()[3]} end
 					if getObjectFromGUID(details.token)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.token).getPosition() end
 					if getObjectFromGUID(details.standee)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.standee).getPosition() end
 				end
 			end
-			if turnOrder[gStates.turnNumber].avatarLocation:sub(1, 4)=="city" or turnOrder[gStates.turnNumber].avatarLocation=="Volkare's Camp" then
+			local avatarLocation=currentTurn.avatarLocation
+			if avatarLocation:sub(1, 4)=="city" or avatarLocation=="Volkare's Camp" then
 				--figure out which city avatar is in
 				for zone, citySearch in pairs(cityScriptZones) do
-					for obj, detail in pairs(getObjectFromGUID(zone).getObjects()) do
-						if detail.getName()==turnOrder[gStates.turnNumber].mage then
-							gStates.resourceTracker.playerPos=getObjectFromGUID(citySearch.cityGUID).getPosition()
-							break
+					local zoneObj=getObjectFromGUID(zone)
+					if zoneObj~=nil then
+						for _, detail in pairs(zoneObj.getObjects()) do
+							if detail.getName()==currentTurn.mage then
+								local cityObj=getObjectFromGUID(citySearch.cityGUID)
+								if cityObj~=nil then gStates.resourceTracker.playerPos=cityObj.getPosition() end
+								break
+							end
 						end
 					end
 				end
@@ -585,7 +596,7 @@ function renderMoveDisplay(id)
 		if gStates.resourceTracker.playerPos~=nil then playerPos=gStates.resourceTracker.playerPos end
 		--The shared Magical Glade is authoritative while the active Horsemen-scenario avatar is parked
 		--off-map between turns; never let an old Portal/start-tile position override that logical hex.
-		if againstHorsemenPlayerAtCentralGlade(turnOrder[gStates.turnNumber])==true then
+		if againstHorsemenPlayerAtCentralGlade(currentTurn)==true then
 			local gladePos=againstHorsemenCentralGladePosition(0.97)
 			if gladePos~=nil then playerPos=gladePos end
 		end
