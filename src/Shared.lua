@@ -352,6 +352,34 @@ function scenarioUsesHorsemen()
 	return scenario=="Against the Horsemen Blitz" or scenario=="Apocalypse is Here"
 end
 
+function scenarioUsesVolkareArmyLevel(scenario)
+	scenario=scenario or (gStates~=nil and gStates.gameScenario or nil)
+	return scenario=="Volkare's Return" or scenario=="Volkare's Return Blitz" or
+		scenario=="Volkare's Quest" or scenario=="The War of Four"
+end
+
+--Classify each setup level once so Setup UI and in-game Help use the same scenario semantics.
+function scenarioSetupLevelRole(scenario,setup,index,removeShadesOfTezlaMonsters,megapolis)
+	if setup==nil or index==nil then return nil end
+	scenario=scenario or (gStates~=nil and gStates.gameScenario or nil)
+	local cityTiles=tonumber(setup.cityTiles) or 0
+	local levels=setup.cityLevels or {}
+	if index<1 or index>#levels then return nil end
+	if removeShadesOfTezlaMonsters==nil and gStates~=nil then removeShadesOfTezlaMonsters=gStates.removeShadesOfTezlaMonsters end
+	if scenario=="Custom" and cityTiles==0 and removeShadesOfTezlaMonsters~=true and index==1 then return "leader" end
+	if (scenario=="Life and Death" and (index==1 or index==2)) or
+		((scenario=="The Realm of the Dead Blitz" or scenario=="The Hidden Valley Blitz") and index==1) or
+		(scenario=="The War of Four" and (index==1 or index==2)) then return "leader" end
+	if scenarioUsesVolkareArmyLevel(scenario) and index==cityTiles+1 then return "volkare" end
+	if index>cityTiles then return nil end
+	if scenario=="The Lost Relic Blitz" and tonumber(levels[index])==0 then return "destroyed" end
+	if tonumber(levels[index])==0 then return "friendly" end
+	megapolis=tonumber(megapolis) or (gStates~=nil and tonumber(gStates.megapolis) or 0) or 0
+	if megapolis>=2 and cityTiles==2 and index<=2 then return "megapolis" end
+	if megapolis>=1 and index==cityTiles then return "megapolis" end
+	return "city"
+end
+
 --Rewards Claimed soft locks are player reminders, not hard disables. They share one short window
 --from the moment the Rewards Claimed stage begins, then allow the player to continue manually.
 local REWARD_CLAIM_SOFT_LOCK_SECONDS=30

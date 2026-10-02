@@ -1061,11 +1061,6 @@ local function recountSetupMageKnights()
 	return customSelected,jormundSelected
 end
 
-local function scenarioUsesVolkareArmyLevel()
-	return gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or
-		gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four"
-end
-
 local function volkareCampAsCitySelectable()
 	return gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Conquest" or
 		gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="One to Return" or
@@ -1284,36 +1279,33 @@ scenarioInfoUpdate=function()
 			if a<=#setup.cityLevels then
 				UI.setAttribute("CL"..a, "active", "true")
 				layout=layout.." 0"
+				local role=scenarioSetupLevelRole(gStates.gameScenario,setup,a,gStates.removeShadesOfTezlaMonsters,gStates.megapolis)
 				if #setup.cityLevels<=3 then
-					if (gStates.megapolis==1 and a==setup.cityTiles) or (gStates.megapolis==2) and not (a==setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
-						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Megapolis, Lvl {ru}Мегаполис, ур. {zh-tw}大型城市，等級 {zh-cn}大型城市，等级 {ko}거대도시, 레벨 {es}Megapolis, Niv {fr}Megapolis, Niv {pt-br}Megápolis, Nvl {de}Metropoe, Lvl ", setup.cityLevels[a]}))
+					if role=="megapolis" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Megapolis, Lvl {ru}Мегаполис, ур. {zh-tw}大型城市，等級 {zh-cn}大型城市，等级 {ko}거대도시, 레벨 {es}Megapolis, Niv {fr}Megapolis, Niv {pt-br}Megápolis, Nvl {de}Metropoe, Lvl ",setup.cityLevels[a]}))
+					elseif role=="leader" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Leader, Level {ru}Лидер, ур. {zh-tw}領袖，等級 {zh-cn}领袖，等级 {ko}지도자, 레벨 {es}Líder, Nivel {fr}Chef, Niveau {pt-br}Líder, Nível {de}Leiter, Level ",setup.cityLevels[a]}))
+					elseif role=="destroyed" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Destroyed City{ru}Разрушенный город{zh-tw}被摧毀城市{zh-cn}被摧毁城市{ko}파괴된 도시{es}Ciudad Destruida{fr}Ville Détruite{pt-br}Cidade Destruída{de}Zerstörte Stadt")
+					elseif role=="friendly" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Friendly City{ru}Друж. город{zh-tw}友方城市{zh-cn}友方城市{ko}도시(우호적){es}Ciudad Amistosa{fr}Ville Amicale{pt-br}Cidade Amigável{de}Freundliche Stadt")
+					elseif role=="volkare" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Volkare, Level {ru}Волкар, ур. {zh-tw}沃卡里，等級 {zh-cn}沃卡里，等级 {ko}볼케어, 레벨 {es}Volkare, Nivel {fr}Volkare, Niveau {pt-br}Volkare, Nível {de}Volkare, Ebene ",setup.cityLevels[a]}))
 					else
-						if (customLeaderOnly and a==1) or (a==1 and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The War of Four")) or (a==2 and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four")) then
-							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader, Level {ru}Лидер, ур. {zh-tw}領袖，等級 {zh-cn}领袖，等级 {ko}지도자, 레벨 {es}Líder, Nivel {fr}Chef, Niveau {pt-br}Líder, Nível {de}Leiter, Level ", setup.cityLevels[a]}))
-						else
-							if setup.cityLevels[a]==0 then
-								UI.setAttribute("ScenarioCity"..a.."Level", "text", "{en}Friendly City{ru}Друж. город{zh-tw}友方城市{zh-cn}友方城市{ko}도시(우호적){es}Ciudad Amistosa{fr}Ville Amicale{pt-br}Cidade Amigável{de}Freundliche Stadt")
-							else
-								if a==setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-									UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Volkare, Level {ru}Волкар, ур. {zh-tw}沃卡里，等級 {zh-cn}沃卡里，等级 {ko}볼케어, 레벨{es}Volkare, Nivel {fr}Volkare, Niveau {pt-br}Volkare, Nível {de}Volkare, Ebene ", setup.cityLevels[a]}))
-								else
-									UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}City, Level {ru}Город, ур. {zh-tw}城市，等級 {zh-cn}城市，等级 {ko}도시, 레벨 {es}Ciudad, Nivel {fr}Ville, Niveau {pt-br}Cidade, Nível {de}Stadt, Level ", setup.cityLevels[a]}))
-								end
-							end
-						end
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}City, Level {ru}Город, ур. {zh-tw}城市，等級 {zh-cn}城市，等级 {ko}도시, 레벨 {es}Ciudad, Nivel {fr}Ville, Niveau {pt-br}Cidade, Nível {de}Stadt, Level ",setup.cityLevels[a]}))
 					end
-
 				else
-					if (a==1 or a==2) and gStates.gameScenario=="The War of Four" then
-						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader-{ru}Лидер-{zh-tw}領袖{zh-cn}领袖{ko}지도자-{es}Líder-{fr}Chef-{pt-br}Líder-{de}Leiter-", setup.cityLevels[a]}))
+					if role=="leader" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Leader-{ru}Лидер-{zh-tw}領袖{zh-cn}领袖{ko}지도자-{es}Líder-{fr}Chef-{pt-br}Líder-{de}Leiter-",setup.cityLevels[a]}))
+					elseif role=="volkare" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Volkare-{ru}Волкар-{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어-{es}Volkare-{fr}Volkare-{pt-br}Volkare-{de}Volkare-",setup.cityLevels[a]}))
+					elseif role=="destroyed" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Destroyed{ru}Разрушен{zh-tw}被摧毀{zh-cn}被摧毁{ko}파괴됨{es}Destruida{fr}Détruite{pt-br}Destruída{de}Zerstört")
+					elseif role=="friendly" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Friendly{ru}Друж.{zh-tw}友方{zh-cn}友方{ko}우호적{es}Amistosa{fr}Amicale{pt-br}Amigável{de}Freundlich")
 					else
-						if a==setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Volkare-{ru}Волкар-{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어-{es}Volkare-{fr}Volkare-{pt-br}Volkare-{de}Volkare-", setup.cityLevels[a]}))
-						else
-							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}City-{ru}Город-{zh-tw}城市{zh-cn}城市{ko}도시-{es}Ciudad-{fr}Ville-{pt-br}Cidade-{de}Stadt-", setup.cityLevels[a]}))
-						end
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}City-{ru}Город-{zh-tw}城市{zh-cn}城市{ko}도시-{es}Ciudad-{fr}Ville-{pt-br}Cidade-{de}Stadt-",setup.cityLevels[a]}))
 					end
-
 				end
 			else
 				UI.setAttribute("CL"..a, "active", "false")
