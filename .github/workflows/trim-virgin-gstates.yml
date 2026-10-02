@@ -1,0 +1,78 @@
+name: One-off virgin gStates trim
+
+on:
+  push:
+    branches:
+      - chatgpt/trim-virgin-gstates
+
+permissions:
+  contents: write
+
+jobs:
+  trim:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Trim redundant virgin gStates fields
+        shell: python
+        run: |
+          from pathlib import Path
+          import json
+
+          path = Path("JSON/Mage Knight Highly Scripted.json")
+          raw = path.read_bytes().decode("utf-8")
+          outer = json.loads(raw)
+          old_state_text = outer["LuaScriptState"]
+          state = json.loads(old_state_text)
+          gstates = state["gStates"]
+
+          removals = [
+              "allLeaderCheck",
+              "allPlayersFoughtAFactionLeaderCheck",
+              "allPlayersFoughtBothFactionLeaderCheck",
+              "eliteUnitsUsed",
+              "gameOver",
+              "hexOverideSave",
+              "levelingUp",
+              "megapolisPlayed",
+              "pursuitTwoOption",
+              "volkareCityDefeat",
+          ]
+
+          missing = [key for key in removals if key not in gstates]
+          if missing:
+              raise SystemExit("Expected virgin gStates keys already absent: " + ", ".join(missing))
+
+          before = len(gstates)
+          for key in removals:
+              del gstates[key]
+
+          new_state_text = json.dumps(state, ensure_ascii=False, separators=(",", ":"))
+          old_encoded = json.dumps(old_state_text, ensure_ascii=False, separators=(",", ":"))
+          new_encoded = json.dumps(new_state_text, ensure_ascii=False, separators=(",", ":"))
+
+          if raw.count(old_encoded) != 1:
+              raise SystemExit("Serialized LuaScriptState was not found exactly once.")
+
+          patched = raw.replace(old_encoded, new_encoded, 1)
+          check_outer = json.loads(patched)
+          check_state = json.loads(check_outer["LuaScriptState"])
+          if len(check_state["gStates"]) != before - len(removals):
+              raise SystemExit("Unexpected gStates key count after patch.")
+          if any(key in check_state["gStates"] for key in removals):
+              raise SystemExit("One or more redundant gStates keys remain after patch.")
+
+          path.write_bytes(patched.encode("utf-8"))
+          print(f"gStates keys: {before} -> {len(check_state['gStates'])}")
+      - name: Commit JSON-only result
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/trim-virgin-gstates.yml
+          git add "JSON/Mage Knight Highly Scripted.json"
+          git diff --cached --check
+          git commit -m "Trim virgin gStates bootstrap state"
+          git push origin HEAD
