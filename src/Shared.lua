@@ -49,6 +49,18 @@ function safeWaitCondition(scope, callback, condition, timeout, timeoutCallback)
 	return Wait.condition(safeCallbackRun,condition,timeout,safeTimeout)
 end
 
+--Clear transient runtime state when an enemy token returns to a pool/container. This is shared by
+--scripted combat/city returns and manual corrections so a reused GUID cannot inherit old combat/map state.
+function clearReturnedMonsterRuntimeState(monsterGUID)
+	if monsterGUID==nil or gStates==nil then return end
+	if gStates.monsterPerks~=nil then gStates.monsterPerks[monsterGUID]=nil end
+	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[monsterGUID]=nil end
+	if gStates.rampagingMonsters~=nil then gStates.rampagingMonsters[monsterGUID]=nil end
+	for _,monsters in pairs(gStates.pursuingMonsters or {}) do monsters[monsterGUID]=nil end
+	if gStates.ambushingMonsters~=nil then gStates.ambushingMonsters[monsterGUID]=nil end
+	if gStates.ruinMonsters~=nil then gStates.ruinMonsters[monsterGUID]=nil end
+end
+
 local UI_BUTTON_ACTIVE_IMAGE="Sliced Button/Button New Active"
 local UI_BUTTON_DEACTIVE_IMAGE="Sliced Button/Button New Deactive"
 
