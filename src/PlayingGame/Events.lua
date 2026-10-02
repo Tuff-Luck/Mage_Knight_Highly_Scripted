@@ -1,5 +1,5 @@
 -- Events-private helpers. Predeclared so forward references keep resolving locally.
-local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, refreshLiftHeightWarning, __maintenanceTick_raw, startMaintenanceTick
+local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, normalizePlayerLiftHeight, __maintenanceTick_raw, startMaintenanceTick
 -- TTS persistence, raw event handling, maintenance and runtime event dispatch.
 
 function __tryObjectEnterContainer_raw(container, object)
@@ -469,10 +469,14 @@ local function eventsProgressMarkerDropDetails(guid)
 	if guid==nil then return nil end
 	if eventsProgressMarkerDropByGUID==nil then
 		eventsProgressMarkerDropByGUID={}
-		for playerIndex,details in pairs(turnOrder or {}) do
-			if details.fameGUID~=nil then eventsProgressMarkerDropByGUID[details.fameGUID]={playerIndex=playerIndex,kind="fame"} end
-			if details.reputationGUID~=nil then eventsProgressMarkerDropByGUID[details.reputationGUID]={playerIndex=playerIndex,kind="reputation"} end
-			if details.questScoreGUID~=nil then eventsProgressMarkerDropByGUID[details.questScoreGUID]={playerIndex=playerIndex,kind="quest"} end
+		for _,details in pairs(turnOrder or {}) do
+			--Turn order is re-sorted between rounds, so cache the stable seat rather than a mutable array index.
+			local seatPos=details.seatPos
+			if seatPos~=nil then
+				if details.fameGUID~=nil then eventsProgressMarkerDropByGUID[details.fameGUID]={seatPos=seatPos,kind="fame"} end
+				if details.reputationGUID~=nil then eventsProgressMarkerDropByGUID[details.reputationGUID]={seatPos=seatPos,kind="reputation"} end
+				if details.questScoreGUID~=nil then eventsProgressMarkerDropByGUID[details.questScoreGUID]={seatPos=seatPos,kind="quest"} end
+			end
 		end
 	end
 	return eventsProgressMarkerDropByGUID[guid]
@@ -599,19 +603,30 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		--normal player's assault/site/hand-size machinery for the automated Proxy.
 		if player_color~=nil and gStates.firstStarted==true and proxyPlayerIsActive()==true and avatar.mage==gStates.positionMageKnight[5] and avatarPlayerIndex~=nil then
 			local function finishProxyManualDrop()
-				if getObjectFromGUID(droppedGUID)~=nil then
-					refreshAvatarLocationOnly(avatarPlayerIndex,dropped_object)
+				local liveAvatar=getObjectFromGUID(droppedGUID)
+				if liveAvatar~=nil then
+					refreshAvatarLocationOnly(avatarPlayerIndex,liveAvatar)
 					--Do not infer off-map status from avatarLocation: featureless terrain legitimately has no
 					--location label. Record whether the physical figure is actually on a revealed map hex.
 					local proxyHexes,proxyMapObjects=runtimeMapHexesAndObjects()
-					gStates.proxyAvatarOffMap=runtimeMapHexForPosition(proxyHexes,dropped_object.getPosition(),proxyMapObjects)==nil
+					gStates.proxyAvatarOffMap=runtimeMapHexForPosition(proxyHexes,liveAvatar.getPosition(),proxyMapObjects)==nil
 				end
 			end
-			safeWaitCondition("Events.proxyDrop",finishProxyManualDrop,function() return getObjectFromGUID(droppedGUID)==nil or dropped_object.resting end,1.5,finishProxyManualDrop)
+			safeWaitCondition("Events.proxyDrop",finishProxyManualDrop,function()
+				local liveAvatar=getObjectFromGUID(droppedGUID)
+				return liveAvatar==nil or liveAvatar.resting
+			end,1.5,finishProxyManualDrop)
 			return
 		end
 		if player_color~=nil and gStates.firstStarted==true and avatar.mage~="Volkare" and avatarPlayerIndex~=nil and currentMage~=avatar.mage then
-			safeWaitCondition("Events.outOfTurnAvatarDrop",function() if coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end, function() return getObjectFromGUID(droppedGUID)==nil or dropped_object.resting end, 1.5, function() if getObjectFromGUID(droppedGUID)~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end)
+			local function refreshOutOfTurnAvatar()
+				local liveAvatar=getObjectFromGUID(droppedGUID)
+				if liveAvatar~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex,liveAvatar) end
+			end
+			safeWaitCondition("Events.outOfTurnAvatarDrop",refreshOutOfTurnAvatar,function()
+				local liveAvatar=getObjectFromGUID(droppedGUID)
+				return liveAvatar==nil or liveAvatar.resting
+			end,1.5,refreshOutOfTurnAvatar)
 			return
 		end
 		local avatarGUID=droppedGUID
@@ -632,14 +647,21 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		--marker, read the settled marker position back into the same state used by scoring/reporting.
 		local marker=eventsProgressMarkerDropDetails(droppedGUID)
 		if marker~=nil then
-			local playerIndex=marker.playerIndex
+			local markerSeatPos=marker.seatPos
 			local markerKind=marker.kind
+			local markerGUID=droppedGUID
 			safeWaitCondition("Events.progressMarkerDrop",function()
+				if getObjectFromGUID(markerGUID)==nil then return end
+				local playerIndex=turnOrderIndexAtSeat(markerSeatPos)
+				if playerIndex==nil then return end
 				if markerKind=="fame" then refreshPlayerFameFromShield(playerIndex)
 				elseif markerKind=="reputation" then refreshPlayerReputationFromShield(playerIndex)
 				else refreshPlayerQuestScoreFromMarker(playerIndex) end
 				mainUIUpdate(markerKind=="quest" and "Quest Score Marker Dropped" or "Fame and Rep Shield Dropped")
-			end, function() return dropped_object.resting end)
+			end, function()
+				local markerObj=getObjectFromGUID(markerGUID)
+				return markerObj==nil or markerObj.resting
+			end)
 		end
 	end
 
@@ -928,8 +950,11 @@ local function handleTurnOrderZoneEnter(ctx)
 	if zoneGUID==turnOrderArea then
 		for c, d in pairs(turnOrder) do
 			if objGUID==d.turnOrderTokenGUID then
+				local turnOrderTokenGUID=objGUID
 				safeWaitFrames("Events",function() safeWaitCondition("Events.turnOrderEnter",function()
-					local turnOrderTokens=getObjectFromGUID(turnOrderArea).getObjects()
+					local turnOrderZone=getObjectFromGUID(turnOrderArea)
+					if turnOrderZone==nil then return end
+					local turnOrderTokens=turnOrderZone.getObjects()
 					table.sort(turnOrderTokens, function (k1, k2) return k1.getPosition()[3]>k2.getPosition()[3] end)
 					--check if all turn order tokens are present
 					if #turnOrderTokens==gStates.playerCount+gStates.coop then
@@ -953,7 +978,10 @@ local function handleTurnOrderZoneEnter(ctx)
 							mainUIUpdate("Turn marker entered it's zone")
 						end
 					end
-				end, function() return obj.resting end) end, 2)
+				end, function()
+					local turnOrderToken=getObjectFromGUID(turnOrderTokenGUID)
+					return turnOrderToken==nil or turnOrderToken.resting
+				end) end, 2)
 				break
 			end
 		end
@@ -1044,17 +1072,17 @@ function refreshRampagerMapVisual(obj)
 	end
 end
 
+local transientMapDecalNames={WallFortified=true,NoUnits=true,OneUnit=true}
 local function cleanupMapTransientDecals(obj)
 	if obj==nil or obj.guid==gStates.volkareModel then return end
 	local existingDecals=obj.getDecals() or {}
 	local decalTable={}
 	local decalsChanged=false
 	for _, decalDetails in pairs(existingDecals) do
-		if decalDetails.name=="Fortified" or decalDetails.name=="Elemental" or decalDetails.name=="Brutal" or decalDetails.name=="Poison" or decalDetails.name=="Defense" or decalDetails.name:sub(1,4)=="Mine" or decalDetails.name=="NightRules" or decalDetails.name=="Reward" then
-			decalTable[#decalTable+1]=decalDetails
-		else
-			decalsChanged=true
-		end
+		--Remove only decals known to belong to a temporary combat context. Unknown/scenario decals
+		--must survive map-zone churn (for example the persistent "Portal Closed" scenario marker).
+		if transientMapDecalNames[decalDetails.name]==true then decalsChanged=true
+		else decalTable[#decalTable+1]=decalDetails end
 	end
 	if decalsChanged==true then obj.setDecals(decalTable) end
 end
@@ -1492,14 +1520,9 @@ function __onObjectEnterContainer_raw(bag, obj)
 			fracturedRampagePos={p[1],p[2],p[3]}
 		end
 		if fracturedRampagePos~=nil then fracturedLandsTeleportRecordDefeatedRampager(fracturedRampagePos) end
-		gStates.monsterPlayLocation[obj.guid]=nil
-		gStates.rampagingMonsters[obj.guid]=nil
-		for mage, monster in pairs(gStates.pursuingMonsters) do monster[obj.guid]=nil end
-		gStates.ambushingMonsters[obj.guid]=nil
+		clearReturnedMonsterRuntimeState(obj.guid)
 		if fracturedRampagePos~=nil then safeWaitFrames("Events",function() refreshFracturedLandsTeleportHighlights() end, 1) end
 	end
-	--A Ruin monster stops belonging to that Ruin once it is returned to a container.
-	if gStates.ruinMonsters~=nil and gStates.ruinMonsters[obj.guid]~=nil then gStates.ruinMonsters[obj.guid]=nil end
 	if gStates.firstStarted==true then
 		mainUIUpdate("Object entered container or formed Deck")
 	end
@@ -1528,6 +1551,23 @@ local soloDescription={
 							["9d866a"]="{en}Double your Armour when assigning damage. Gain 1 extra Wound per damage source to your hand and 2 to the discard pile. Knock Out requires 1 extra Wound. After combat, throw out Wounds equal to defeated enemies. Place this skill into the Source. A friendly Knight gains 1 Block or Block equal to your unsigned Reputation. Return face down at the start of next turn.{ru}Удвойте свою Броню при распределении урона. За каждый источник урона получите дополнительно 1 Рану в руку и 2 в сброс. Для нокаута требуется на 1 Рану больше. После боя удалите столько Ран, сколько врагов было побеждено. Поместите этот навык в Источник. Дружественный Рыцарь-маг получает 1 Блок или Блок, равный абсолютному значению вашей Репутации. В начале следующего хода верните навык лицом вниз.{zh-tw}分配傷害時，你的護甲加倍。每個傷害來源額外獲得 1 張創傷到手牌、2 張創傷到棄牌堆。被擊倒需要多 1 張創傷。戰鬥後，移除等同於被擊敗敵人數量的創傷。將此技能放入魔力源。友方魔法騎士獲得 1 點格擋，或等同於你聲望絕對值的格擋。下一回合開始時將此技能面朝下歸還。{zh-cn}分配伤害时，你的护甲加倍。每个伤害来源额外获得 1 张创伤到手牌、2 张创伤到弃牌堆。被击倒需要多 1 张创伤。战斗后，移除等同于被击败敌人数量的创伤。将此技能放入魔力源。友方魔法骑士获得 1 点格挡，或等同于你声望绝对值的格挡。下一回合开始时将此技能面朝下归还。{ko}피해를 배정할 때 방어력을 두 배로 계산합니다. 피해 원천마다 손에 부상 1장을 추가로 받고 버린 카드 더미에 2장을 받습니다. 쓰러지려면 부상 1장이 더 필요합니다. 전투 후 처치한 적 수만큼 부상을 제거합니다. 이 스킬을 마나 원천에 놓습니다. 아군 마법기사는 방어 1 또는 당신의 평판 절댓값만큼 방어를 얻습니다. 다음 차례 시작에 뒷면으로 되돌립니다.{es}Duplica tu Armadura al asignar daño. Recibe 1 Herida adicional en tu mano y 2 en el descarte por cada fuente de daño. Quedar Inconsciente requiere 1 Herida adicional. Después del combate, elimina tantas Heridas como enemigos derrotados. Coloca esta habilidad en la Fuente. Un Caballero aliado obtiene 1 Bloqueo o Bloqueo igual al valor absoluto de tu Reputación. Devuélvela boca abajo al comienzo del siguiente turno.{fr}Doublez votre Armure lors de l’attribution des dégâts. Pour chaque source de dégâts, gagnez 1 Blessure supplémentaire en main et 2 dans la défausse. Être Assommé nécessite 1 Blessure supplémentaire. Après le combat, retirez autant de Blessures que d’ennemis vaincus. Placez cette compétence dans la Source. Un Chevalier allié gagne 1 Blocage ou un Blocage égal à la valeur absolue de votre Réputation. Remettez-la face cachée au début du prochain tour.{pt-br}Dobre sua Armadura ao atribuir dano. Para cada fonte de dano, receba 1 Ferimento extra na mão e 2 na pilha de descarte. Ser Nocauteado exige 1 Ferimento extra. Após o combate, remova Ferimentos em quantidade igual aos inimigos derrotados. Coloque esta habilidade na Fonte. Um Cavaleiro aliado ganha 1 Bloqueio ou Bloqueio igual ao valor absoluto da sua Reputação. Devolva-a virada para baixo no início do próximo turno.{de}Verdopple deine Rüstung beim Zuweisen von Schaden. Erhalte pro Schadensquelle 1 zusätzliche Wunde auf die Hand und 2 in den Ablagestapel. Für das K.-o.-Gehen ist 1 zusätzliche Wunde nötig. Entferne nach dem Kampf so viele Wunden, wie Gegner besiegt wurden. Lege diese Fertigkeit in die Quelle. Ein verbündeter Ritter erhält 1 Block oder Block in Höhe des Absolutwerts deines Rufs. Lege sie zu Beginn des nächsten Zuges verdeckt zurück.",
 							["adf8ab"]="{en}Once a turn:\n\nPay a mana of any color and throw away a Wound from your hand. Also draw a card.{ru}Один раз в ход:\n\nПотратьте ману любого цвета и удалите карту раны с руки. Возьмите одну карту.{zh-tw}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{zh-cn}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{ko}차례에 한번:\n\n아무 색상 마나를 지불하고 손에 든 부상 하나를 제거한다. 추가로 카드 1장을 뽑는다.{es}Una vez por Turno:\n\nPaga un maná de cualquier color y tira una herida de tu mano. También roba una carta.{fr}Une fois par Tour:\n\nPayez un mana de n'importe quelle couleur et jetez une Blessure de votre main. Piochez également une carte.{pt-br}Uma vez por Turno:\n\nPague uma mana de qualquer cor e jogue fora um Ferimento da sua mão. Também compre uma carta.{de}Einmal pro Zug:\n\nBezahle ein Mana beliebiger Farbe und wirf eine Wundenkarte aus deiner Hand ab. Ziehe außerdem eine Karte."}
 
+local competitiveSkillStateTargetByGUID={
+	["3fba07"]="d90de4", --Arythea: Ritual of Pain -> Healing Ritual
+	["4ac9f6"]="19daf9", --Braevalar: Nature's Vengeance
+	["3b3273"]="3bd08e", --Goldyx: Source Opening -> Source Freeze
+	["725de9"]="958209", --Krang: Mana Enhancement -> Mana Suppression
+	["55e5e5"]="676856", --Norowas: Calming the Weather -> Prayer of the Weather
+	["818aea"]="c4546c", --Tovak: Mana Overload -> Mana Exploit
+	["564392"]="a92d73", --Wolfhawk: Howl of the Pack -> Wolf's Howl
+	["784a07"]="6f8b36", --Coral
+	["ebbbfc"]="335290", --Ymirgh
+	["a598f6"]="e68fed", --Jormund: Serenity of the Elements -> Fury of the Elements
+	["b13d5f"]="676855", --Mevok: Abysal Mana Growth -> Reverant Protector
+	["b66704"]="6133e1", --Malek: Blood Moon Wane -> Blood Moon Rise
+	["9d866a"]="c82406", --Duscenia: Hidden in Foliage -> Organic Defence
+	["68f864"]="036e6b"  --Zirtae: Athena's Guile -> Hade's Resentment
+}
+
 function __onObjectLeaveContainer_raw(bag, obj)
 	if bag~=nil and obj~=nil and bag.guid==GUID.bag.apocalypseQuestTokens then
 		if gStates.apocalypseQuestTokenGUIDs==nil or gStates.apocalypseQuestTokenInBag==nil then apocalypseQuestTokenBagSetup() end
@@ -1553,31 +1593,42 @@ function __onObjectLeaveContainer_raw(bag, obj)
 			end, 3)
 		end
 	end
-	--swap coop skill state when drawn
-	if (obj.guid=="3fba07" or obj.guid=="4ac9f6" or obj.guid=="3b3273" or obj.guid=="725de9" or obj.guid=="a598f6" or obj.guid=="b66704" or
-		obj.guid=="55e5e5" or obj.guid=="818aea" or obj.guid=="564392" or obj.guid=="784a07" or obj.guid=="ebbbfc" or obj.guid=="b13d5f" or obj.guid=="9d866a") then
-		if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.firstStarted==true then
-			local coopGUID=obj.guid
-			safeWaitFrames("Events",function() safeWaitCondition("Events.coopSkillState",function()
-				local locking=obj.setState(2)
-				if locking~=nil then
-					--setState destroys the old Coop object and creates the competitive-state GUID. Combat cleanup
-					--may already have captured the old GUID, so retain the live replacement for that delayed callback.
-					skillStateReplacement=skillStateReplacement or {}
-					skillStateReplacement[coopGUID]=locking.guid
+	--Swap stateful Co-op skills to their competitive face when drawn in a competitive game.
+	--Keep the expected replacement GUID in one lookup so additions are explicit and state wiring is auditable.
+	local expectedCompetitiveGUID=competitiveSkillStateTargetByGUID[obj.guid]
+	if expectedCompetitiveGUID~=nil and (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.firstStarted==true then
+		local coopGUID=obj.guid
+		--A player may hold the token as long as they like. Wait without a timeout and re-acquire by GUID
+		--so the conversion cannot expire or dereference stale Object userdata.
+		safeWaitFrames("Events",function() safeWaitCondition("Events.coopSkillState",function()
+			local coopSkill=getObjectFromGUID(coopGUID)
+			if coopSkill==nil then return end
+			local locking=coopSkill.setState(2)
+			if locking~=nil then
+				--setState destroys the old Coop object and creates the competitive-state GUID. Combat cleanup
+				--may already have captured the old GUID, so retain the live replacement for that delayed callback.
+				skillStateReplacement=skillStateReplacement or {}
+				skillStateReplacement[coopGUID]=locking.guid
+				if locking.guid~=expectedCompetitiveGUID then
+					log("Competitive Skill state mismatch for "..tostring(coopGUID)..": expected "..tostring(expectedCompetitiveGUID)..", got "..tostring(locking.guid))
 				end
-				if locking~=nil and gStates.mageSkills~=nil and gStates.mageSkills[coopGUID]~=nil then
-					gStates.mageSkills[locking.guid]=gStates.mageSkills[coopGUID]
-					gStates.mageSkills[coopGUID]=nil
-				end
-				safeWaitFrames("Events",function()
-					if locking~=nil then locking.lock() end
-					--setState replaces the object/GUID and clears its object UI. Rebuild reward Claim buttons on the live state.
-					if gStates.skillButtons~=nil and gStates.skillButtons>0 then skillButtonActivate() end
-					if coopCompSkillBoundaryActive()==true then refreshCoopCompSkillWarnings() end
-				end, 2)
-			end, function() return obj.resting end) end, 10)
-		end
+			end
+			if locking~=nil and gStates.mageSkills~=nil and gStates.mageSkills[coopGUID]~=nil then
+				gStates.mageSkills[locking.guid]=gStates.mageSkills[coopGUID]
+				gStates.mageSkills[coopGUID]=nil
+			end
+			local replacementGUID=locking~=nil and locking.guid or nil
+			safeWaitFrames("Events",function()
+				local replacement=replacementGUID~=nil and getObjectFromGUID(replacementGUID) or nil
+				if replacement~=nil then replacement.lock() end
+				--setState replaces the object/GUID and clears its object UI. Rebuild reward Claim buttons on the live state.
+				if gStates.skillButtons~=nil and gStates.skillButtons>0 then skillButtonActivate() end
+				if coopCompSkillBoundaryActive()==true then refreshCoopCompSkillWarnings() end
+			end, 2)
+		end, function()
+			local coopSkill=getObjectFromGUID(coopGUID)
+			return coopSkill==nil or coopSkill.resting
+		end) end, 10)
 	end
 	if gStates.playerCount==1 and soloDescription[obj.guid]~=nil then
 		obj.setDescription(soloDescription[obj.guid])
@@ -1590,6 +1641,8 @@ function __onObjectLeaveContainer_raw(bag, obj)
 
 	--randomizes Pyramid and Ziggurat Trap Tokens
 	if bag.guid==monsterPiles.pyramidTrap or bag.guid==monsterPiles.zigguratTrap then
+		local trapGUID=obj.guid
+		local trapBagGUID=bag.guid
 		local trapImage={[monsterPiles.pyramidTrap]={"https://steamusercontent-a.akamaihd.net/ugc/9508097467808968985/1AD863210453EFF576A15527777E7C5E31F9EC93/",--Gold Trap Pyramid
 									 "https://steamusercontent-a.akamaihd.net/ugc/13810202743907142900/76AF5A7290CA73D540748F724C7BE2B2E5A777C5/",--Black Trap Pyramid
 									 "https://steamusercontent-a.akamaihd.net/ugc/14739918052302431123/46BE9CE8E240D292A486F5A7CCD623D9880626D6/",--Red Trap Pyramid
@@ -1605,20 +1658,24 @@ function __onObjectLeaveContainer_raw(bag, obj)
 		--roll volkares dice and read result
 		local randomTrap=math.random(6)
 		local damageAdjust=0
-		if bag.guid==monsterPiles.pyramidTrap then damageAdjust=1 end
+		if trapBagGUID==monsterPiles.pyramidTrap then damageAdjust=1 end
 		safeWaitFrames("Events",function() safeWaitCondition("Events.trapEnter",function()
-			if obj~=nil then
-				obj.setCustomObject({image=trapImage[bag.guid][randomTrap]})
-				obj.reload()
-				if gStates.monsterPerks[obj.guid]==nil then gStates.monsterPerks[obj.guid]={} end
-				if randomTrap==1 then gStates.monsterPerks[obj.guid].attack={M={4+damageAdjust}} end
-				if randomTrap==2 then gStates.monsterPerks[obj.guid].brutal=true gStates.monsterPerks[obj.guid].cumbersome=true	gStates.monsterPerks[obj.guid].attack={P={4+damageAdjust}} end
-				if randomTrap==3 then gStates.monsterPerks[obj.guid].attack={F={2+damageAdjust}} end
-				if randomTrap==4 then gStates.monsterPerks[obj.guid].poison=true gStates.monsterPerks[obj.guid].attack={P={3+damageAdjust}} end
-				if randomTrap==5 then gStates.monsterPerks[obj.guid].attack={I={2+damageAdjust}} end
-				if randomTrap==6 then gStates.monsterPerks[obj.guid].swiftness=true gStates.monsterPerks[obj.guid].attack={P={3+damageAdjust}} end
+			local trap=getObjectFromGUID(trapGUID)
+			if trap~=nil then
+				trap.setCustomObject({image=trapImage[trapBagGUID][randomTrap]})
+				if gStates.monsterPerks[trapGUID]==nil then gStates.monsterPerks[trapGUID]={} end
+				if randomTrap==1 then gStates.monsterPerks[trapGUID].attack={M={4+damageAdjust}} end
+				if randomTrap==2 then gStates.monsterPerks[trapGUID].brutal=true gStates.monsterPerks[trapGUID].cumbersome=true	gStates.monsterPerks[trapGUID].attack={P={4+damageAdjust}} end
+				if randomTrap==3 then gStates.monsterPerks[trapGUID].attack={F={2+damageAdjust}} end
+				if randomTrap==4 then gStates.monsterPerks[trapGUID].poison=true gStates.monsterPerks[trapGUID].attack={P={3+damageAdjust}} end
+				if randomTrap==5 then gStates.monsterPerks[trapGUID].attack={I={2+damageAdjust}} end
+				if randomTrap==6 then gStates.monsterPerks[trapGUID].swiftness=true gStates.monsterPerks[trapGUID].attack={P={3+damageAdjust}} end
+				trap.reload()
 			end
-		end, function() return obj==nil or obj.resting end) end, 2)
+		end, function()
+			local trap=getObjectFromGUID(trapGUID)
+			return trap==nil or trap.resting
+		end) end, 2)
 	end
 
 	--Give warning when drawing Terain tiles from the reserve.
@@ -1792,10 +1849,6 @@ function __onPlayerChangeColor_raw(color)
 	safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
 end
 
---Picking up or long-clicking Coral's whole Deed Deck is not a draw.
---Manual single-card draws are detected only when an actual Card leaves the Deed Deck container.
-function __onPlayerAction_raw(player, action, targets) return true end
-
 function __onObjectNumberTyped_raw(object, player_color, number, alt)
 	--Number keys directly choose a die face without a collision event.
 	if object~=nil and object.type=="Dice" then
@@ -1819,28 +1872,22 @@ function __onObjectNumberTyped_raw(object, player_color, number, alt)
 end
 
 local maintenanceWait=nil
-local liftHeightLowDetected=false
+local minimumSafeLiftHeight=0.1
 
-refreshLiftHeightWarning=function()
-	local lowDetected=false
+normalizePlayerLiftHeight=function()
+	--Player.lift_height is a writable TTS Player member. Correct only unsafe values so the mod does not
+	--fight a player's preferred setting once it already clears the scripting zones.
 	for _, color in pairs(Player.getAvailableColors()) do
-		if Player[color].lift_height~=-1 and Player[color].lift_height<0.1 then lowDetected=true break end
-	end
-	if lowDetected==true and liftHeightLowDetected~=true then
-		UI.setAttribute("NoticeText", "Text", "{en}'Lift Height' needs to be higher to avoid the scripting zones.          (Top Right Icon of a Man Lifting Weights){ru}Параметр 'Lift Height' нужно увеличить, чтобы не задевать скриптовые зоны.          (значок человека с гирей справа вверху){zh-tw}需要提高「Lift Height」，以避開腳本區域。          （右上角舉重人物圖示）{zh-cn}需要提高“Lift Height”，以避开脚本区域。          （右上角举重人物图标）{ko}스크립팅 영역을 피하려면 'Lift Height'를 더 높여야 합니다.          (오른쪽 위 역기를 드는 사람 아이콘){es}'Lift Height' debe estar más alto para evitar las zonas de script.          (Icono superior derecho de una persona levantando pesas){fr}'Lift Height' doit être plus élevé pour éviter les zones de script.          (Icône en haut à droite d’une personne soulevant des poids){pt-br}'Lift Height' precisa estar mais alto para evitar as zonas de script.          (Ícone no canto superior direito de uma pessoa levantando pesos){de}'Lift Height' muss höher eingestellt sein, damit die Skriptzonen nicht berührt werden.          (Symbol oben rechts mit einer gewichthebenden Person)")
-		setUIVisibility("NoticeBoard")
-		UI.setAttribute("NoticeBoard", "height", "50")
-		UI.show("NoticeBoard")
-		liftHeightLowDetected=true
-	elseif lowDetected~=true and liftHeightLowDetected==true then
-		UI.hide("NoticeBoard")
-		liftHeightLowDetected=false
+		local player=Player[color]
+		if player~=nil and player.lift_height~=-1 and player.lift_height<minimumSafeLiftHeight then
+			player.lift_height=minimumSafeLiftHeight
+		end
 	end
 end
 
 __maintenanceTick_raw=function()
 	refreshCityRevealControls()
-	refreshLiftHeightWarning()
+	normalizePlayerLiftHeight()
 end
 
 function maintenanceTick()
