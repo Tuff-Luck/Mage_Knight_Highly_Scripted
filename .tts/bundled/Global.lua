@@ -220,10 +220,6 @@ function filterObjectEnterContainer(container, enter_object)
 	return safeDirectCallback("filterObjectEnterContainer", __filterObjectEnterContainer_raw, container, enter_object)
 end
 
-function onPlayerAction(player, action, targets)
-	return safeCallback("onPlayerAction", function() return __onPlayerAction_raw(player, action, targets) end)
-end
-
 --Global XML and Object UI callbacks bypass the normal TTS lifecycle wrappers above. Install their
 --error boundaries here, after every gameplay module has loaded, so the owning implementations stay
 --unchanged and UI names continue resolving exactly as before.
@@ -354,46 +350,42 @@ local function fameRepCurrentReputation(playerIndex)
 	error("Fame/Reputation could not resolve the current Reputation for "..tostring(player.mage or playerIndex)..".",2)
 end
 
---Pending Reputation is always an effective-track delta. Clamp after every externally visible
---accounting pass instead of waiting until Rewards Claimed, so reaching +/-7 consumes the excess
---immediately and a later opposite change still moves away from the edge correctly.
-local function normalizePendingReputation(playerIndex, previousSiteLoss)
+--Pending Reputation is always an effective-track delta. Clamp irreversible changes after every
+--externally visible accounting pass so reaching +/-7 consumes excess immediately.
+local function normalizePendingReputation(playerIndex)
 	local player=turnOrder[playerIndex]
 	if player==nil then return end
 	player.repGain=player.repGain or 0
-	local raw=player.repGain
 	local reputation=fameRepCurrentReputation(playerIndex)
-	local minimum=-7-reputation
-	local maximum=7-reputation
-	local clipped=fameRepClamp(raw,minimum,maximum)
-	local lowerOverflow=clipped-raw
-	player.repGain=clipped
-
-	--Combat reset refunds siteRepLoss later. If part of a newly-created assault loss was clipped at
-	--the bottom of the Reputation track, reduce the stored refundable amount by the same quantity.
-	if lowerOverflow>0 and gStates.gainList~=nil then
-		local overflow=lowerOverflow
-		for guid,entry in pairs(gStates.gainList) do
-			if overflow<=0 then break end
-			if type(entry)=="table" and (entry.siteRepLoss or 0)>0 then
-				local before=previousSiteLoss~=nil and (previousSiteLoss[guid] or 0) or 0
-				local added=math.max(0,(entry.siteRepLoss or 0)-before)
-				if added>0 then
-					local remove=math.min(added,overflow)
-					entry.siteRepLoss=entry.siteRepLoss-remove
-					overflow=overflow-remove
-				end
-			end
-		end
-	end
+	player.repGain=fameRepClamp(player.repGain,-7-reputation,7-reputation)
 end
 
-local function fameRepSnapshotSiteLoss()
-	local snapshot={}
-	for guid,entry in pairs(gStates.gainList or {}) do
-		if type(entry)=="table" and (entry.siteRepLoss or 0)>0 then snapshot[guid]=entry.siteRepLoss end
+--Combat Reputation is reversible until its source is committed. Remember the exact amount that
+--actually reached the track so removing/flipping that source later reverses only its own applied value.
+--Keep the nominal value even when capped to zero so later unrelated changes cannot reactivate an
+--already-resolved source just because another UI refresh ran.
+function fameReputationSetReversiblePending(playerIndex,entry,key,nominal)
+	local player=turnOrder[playerIndex]
+	if player==nil or type(entry)~="table" or key==nil then return 0 end
+	player.repGain=player.repGain or 0
+	nominal=tonumber(nominal) or 0
+	entry.repEffects=entry.repEffects or {}
+	local previous=entry.repEffects[key]
+	if previous~=nil and (tonumber(previous.nominal) or 0)==nominal then return tonumber(previous.applied) or 0 end
+
+	if previous~=nil then player.repGain=player.repGain-(tonumber(previous.applied) or 0) end
+	if nominal==0 then
+		entry.repEffects[key]=nil
+		if next(entry.repEffects)==nil then entry.repEffects=nil end
+		return 0
 	end
-	return snapshot
+
+	local reputation=fameRepCurrentReputation(playerIndex)
+	local effective=reputation+player.repGain
+	local applied=fameRepClamp(nominal,-7-effective,7-effective)
+	player.repGain=player.repGain+applied
+	entry.repEffects[key]={nominal=nominal,applied=applied}
+	return applied
 end
 
 local function hiddenValleyNormalizeSiteLoss()
@@ -478,49 +470,22 @@ function fameReputationApplyPlayerFameReputation(playerIndex)
 	gStates.hiddenValleyRepLossActive=nil
 end
 
-local function possessedEnemyCandidates(possessed,zone)
-	if zone~=nil then return zone.getObjects() end
-	local candidates={}
-	local seen={}
-	local function add(list)
-		for _,candidate in pairs(list or {}) do
-			if candidate~=nil and candidate.guid~=nil and seen[candidate.guid]~=true then
-				seen[candidate.guid]=true
-				candidates[#candidates+1]=candidate
-			end
-		end
-	end
-
-	--A dropped Possessed token can be on the map or in a player's combat area. Search those two
-	--bounded domains instead of the historical getAllObjects() fallback across the whole table.
-	local pos=possessed~=nil and possessed.getPosition() or nil
-	if pos~=nil then
-		local spatial=runtimeMapSpatialSnapshot(1)
-		add(runtimeMapSpatialNearbyObjects(spatial,pos,1))
-	end
-	for _,details in pairs(turnOrder or {}) do
-		if details.seatPos~=nil then add(playerCombatObjects(details.seatPos)) end
-	end
-	return candidates
-end
-
-local function nearestPossessedEnemy(possessed,zone)
-	if possessed==nil then return nil end
-	local pos=possessed.getPosition()
-	for _,enemy in pairs(possessedEnemyCandidates(possessed,zone)) do
-		if enemy.guid~=possessed.guid and monsterPugs[enemy.guid]~=nil and monsterPugs[enemy.guid].pugType~="possessed" then
-			local enemyPos=enemy.getPosition()
-			if math.abs(enemyPos[1]-pos[1])<0.5 and math.abs(enemyPos[3]-pos[3])<0.5 then return enemy end
-		end
-	end
-	return nil
-end
-
 local function possessedManualAward(perks)
 	if perks==nil then return 0 end
 	local amount=tonumber(perks.fame) or 0
 	if perks.faction~=nil and factionRewardUsesJustFame(perks.faction)==true then amount=amount+1 end
 	return amount
+end
+
+--Combat owns the physical Possessed attachment search. Record accounting against the exact enemy
+--and player it resolved instead of predicting that asynchronous result here.
+function fameReputationPossessedAttachmentResolved(possessedGUID,enemyGUID,playerIndex)
+	if possessedGUID==nil or enemyGUID==nil or playerIndex==nil or turnOrder[playerIndex]==nil then return end
+	possessedAttachPending[possessedGUID]={
+		playerIndex=playerIndex,
+		registered=gStates.gainList~=nil and gStates.gainList[enemyGUID]~=nil,
+		oldAward=possessedManualAward(gStates.monsterPerks~=nil and gStates.monsterPerks[enemyGUID] or nil)
+	}
 end
 
 local function correctPossessedAttachmentAwards()
@@ -546,20 +511,7 @@ local function correctPossessedAttachmentAwards()
 end
 
 function fameReputationAttachEnemy(player,mouseButton,id,obj,zone)
-	if id=="attach" and obj~=nil then
-		local enemy=nearestPossessedEnemy(obj,zone)
-		if enemy~=nil then
-			local playerIndex=nil
-			if zone~=nil then
-				for index,details in pairs(turnOrder) do
-					if details.seatPos~=nil and playerPlayAreas[details.seatPos]==zone.guid then playerIndex=index break end
-				end
-			end
-			if playerIndex~=nil then
-				possessedAttachPending[obj.guid]={playerIndex=playerIndex,registered=gStates.gainList~=nil and gStates.gainList[enemy.guid]~=nil,oldAward=possessedManualAward(gStates.monsterPerks~=nil and gStates.monsterPerks[enemy.guid] or nil)}
-			end
-		end
-	elseif id~=nil and id:sub(1,6)=="detach" then
+	if id~=nil and id:sub(1,6)=="detach" then
 		local enemy=obj
 		if enemy==nil then enemy=getObjectFromGUID(id:sub(7,13)) end
 		if enemy~=nil then
@@ -586,7 +538,7 @@ local function fameRepFinishMainUIBatch()
 	fameRepMainUIBatch=nil
 	if pending==nil then return end
 	local playerIndex=pending.playerIndex
-	if turnOrder[playerIndex]~=nil then normalizePendingReputation(playerIndex,pending.previousSiteLoss) end
+	if turnOrder[playerIndex]~=nil then normalizePendingReputation(playerIndex) end
 	hiddenValleyNormalizeSiteLoss()
 	correctPossessedAttachmentAwards()
 	if turnOrder[playerIndex]~=nil then syncPostCommitAdjustments(playerIndex) end
@@ -600,7 +552,7 @@ function fameReputationMainUIUpdate(...)
 	if fameRepMainUIBatch~=nil and fameRepMainUIBatch.playerIndex~=playerIndex then fameRepFinishMainUIBatch() end
 	if fameRepMainUIBatch==nil then
 		if turnOrder[playerIndex]~=nil and turnOrder[playerIndex].reputation==nil then fameRepCurrentReputation(playerIndex) end
-		fameRepMainUIBatch={playerIndex=playerIndex,previousSiteLoss=fameRepSnapshotSiteLoss()}
+		fameRepMainUIBatch={playerIndex=playerIndex}
 	end
 	return uiMainUIUpdateBase(select(1,...),fameRepFinishMainUIBatch)
 end
@@ -657,10 +609,11 @@ end
 
 function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	local playerIndex=gStates.turnNumber
-	if gStates.coopAssaultPhase~="rewards" then syncPostCommitAdjustments(playerIndex) end
-	fameRepSyncSuppressed=true
+	local coopRewards=gStates.coopAssaultPhase=="rewards"
+	if coopRewards~=true then syncPostCommitAdjustments(playerIndex) end
+	if coopRewards~=true then fameRepSyncSuppressed=true end
 	local result=turnEndTurnRawBase(player,mouseButton,id,rewindReady)
-	fameRepSyncSuppressed=false
+	if coopRewards~=true then fameRepSyncSuppressed=false end
 	--Only clear the persisted commit marker when the turn actually advanced past Rewards Claimed.
 	if gStates.preEndTurn~=true and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[playerIndex]=nil end
 	return result
@@ -686,7 +639,7 @@ end
 end)
 __bundle_register("PlayingGame.Events", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Events-private helpers. Predeclared so forward references keep resolving locally.
-local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, refreshLiftHeightWarning, __maintenanceTick_raw, startMaintenanceTick
+local saveZigguratPyramidUI, restoreZigguratPyramidUI, refreshCardEffectAfterRotation, normalizePlayerLiftHeight, __maintenanceTick_raw, startMaintenanceTick
 -- TTS persistence, raw event handling, maintenance and runtime event dispatch.
 
 function __tryObjectEnterContainer_raw(container, object)
@@ -1156,10 +1109,14 @@ local function eventsProgressMarkerDropDetails(guid)
 	if guid==nil then return nil end
 	if eventsProgressMarkerDropByGUID==nil then
 		eventsProgressMarkerDropByGUID={}
-		for playerIndex,details in pairs(turnOrder or {}) do
-			if details.fameGUID~=nil then eventsProgressMarkerDropByGUID[details.fameGUID]={playerIndex=playerIndex,kind="fame"} end
-			if details.reputationGUID~=nil then eventsProgressMarkerDropByGUID[details.reputationGUID]={playerIndex=playerIndex,kind="reputation"} end
-			if details.questScoreGUID~=nil then eventsProgressMarkerDropByGUID[details.questScoreGUID]={playerIndex=playerIndex,kind="quest"} end
+		for _,details in pairs(turnOrder or {}) do
+			--Turn order is re-sorted between rounds, so cache the stable seat rather than a mutable array index.
+			local seatPos=details.seatPos
+			if seatPos~=nil then
+				if details.fameGUID~=nil then eventsProgressMarkerDropByGUID[details.fameGUID]={seatPos=seatPos,kind="fame"} end
+				if details.reputationGUID~=nil then eventsProgressMarkerDropByGUID[details.reputationGUID]={seatPos=seatPos,kind="reputation"} end
+				if details.questScoreGUID~=nil then eventsProgressMarkerDropByGUID[details.questScoreGUID]={seatPos=seatPos,kind="quest"} end
+			end
 		end
 	end
 	return eventsProgressMarkerDropByGUID[guid]
@@ -1286,19 +1243,30 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		--normal player's assault/site/hand-size machinery for the automated Proxy.
 		if player_color~=nil and gStates.firstStarted==true and proxyPlayerIsActive()==true and avatar.mage==gStates.positionMageKnight[5] and avatarPlayerIndex~=nil then
 			local function finishProxyManualDrop()
-				if getObjectFromGUID(droppedGUID)~=nil then
-					refreshAvatarLocationOnly(avatarPlayerIndex,dropped_object)
+				local liveAvatar=getObjectFromGUID(droppedGUID)
+				if liveAvatar~=nil then
+					refreshAvatarLocationOnly(avatarPlayerIndex,liveAvatar)
 					--Do not infer off-map status from avatarLocation: featureless terrain legitimately has no
 					--location label. Record whether the physical figure is actually on a revealed map hex.
 					local proxyHexes,proxyMapObjects=runtimeMapHexesAndObjects()
-					gStates.proxyAvatarOffMap=runtimeMapHexForPosition(proxyHexes,dropped_object.getPosition(),proxyMapObjects)==nil
+					gStates.proxyAvatarOffMap=runtimeMapHexForPosition(proxyHexes,liveAvatar.getPosition(),proxyMapObjects)==nil
 				end
 			end
-			safeWaitCondition("Events.proxyDrop",finishProxyManualDrop,function() return getObjectFromGUID(droppedGUID)==nil or dropped_object.resting end,1.5,finishProxyManualDrop)
+			safeWaitCondition("Events.proxyDrop",finishProxyManualDrop,function()
+				local liveAvatar=getObjectFromGUID(droppedGUID)
+				return liveAvatar==nil or liveAvatar.resting
+			end,1.5,finishProxyManualDrop)
 			return
 		end
 		if player_color~=nil and gStates.firstStarted==true and avatar.mage~="Volkare" and avatarPlayerIndex~=nil and currentMage~=avatar.mage then
-			safeWaitCondition("Events.outOfTurnAvatarDrop",function() if coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end, function() return getObjectFromGUID(droppedGUID)==nil or dropped_object.resting end, 1.5, function() if getObjectFromGUID(droppedGUID)~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex, dropped_object) end end)
+			local function refreshOutOfTurnAvatar()
+				local liveAvatar=getObjectFromGUID(droppedGUID)
+				if liveAvatar~=nil and coopAssaultVirtualPlayer(avatarPlayerIndex)==false then refreshAvatarLocationOnly(avatarPlayerIndex,liveAvatar) end
+			end
+			safeWaitCondition("Events.outOfTurnAvatarDrop",refreshOutOfTurnAvatar,function()
+				local liveAvatar=getObjectFromGUID(droppedGUID)
+				return liveAvatar==nil or liveAvatar.resting
+			end,1.5,refreshOutOfTurnAvatar)
 			return
 		end
 		local avatarGUID=droppedGUID
@@ -1319,14 +1287,21 @@ function __onObjectDrop_raw(player_color, dropped_object)
 		--marker, read the settled marker position back into the same state used by scoring/reporting.
 		local marker=eventsProgressMarkerDropDetails(droppedGUID)
 		if marker~=nil then
-			local playerIndex=marker.playerIndex
+			local markerSeatPos=marker.seatPos
 			local markerKind=marker.kind
+			local markerGUID=droppedGUID
 			safeWaitCondition("Events.progressMarkerDrop",function()
+				if getObjectFromGUID(markerGUID)==nil then return end
+				local playerIndex=turnOrderIndexAtSeat(markerSeatPos)
+				if playerIndex==nil then return end
 				if markerKind=="fame" then refreshPlayerFameFromShield(playerIndex)
 				elseif markerKind=="reputation" then refreshPlayerReputationFromShield(playerIndex)
 				else refreshPlayerQuestScoreFromMarker(playerIndex) end
 				mainUIUpdate(markerKind=="quest" and "Quest Score Marker Dropped" or "Fame and Rep Shield Dropped")
-			end, function() return dropped_object.resting end)
+			end, function()
+				local markerObj=getObjectFromGUID(markerGUID)
+				return markerObj==nil or markerObj.resting
+			end)
 		end
 	end
 
@@ -1615,8 +1590,11 @@ local function handleTurnOrderZoneEnter(ctx)
 	if zoneGUID==turnOrderArea then
 		for c, d in pairs(turnOrder) do
 			if objGUID==d.turnOrderTokenGUID then
+				local turnOrderTokenGUID=objGUID
 				safeWaitFrames("Events",function() safeWaitCondition("Events.turnOrderEnter",function()
-					local turnOrderTokens=getObjectFromGUID(turnOrderArea).getObjects()
+					local turnOrderZone=getObjectFromGUID(turnOrderArea)
+					if turnOrderZone==nil then return end
+					local turnOrderTokens=turnOrderZone.getObjects()
 					table.sort(turnOrderTokens, function (k1, k2) return k1.getPosition()[3]>k2.getPosition()[3] end)
 					--check if all turn order tokens are present
 					if #turnOrderTokens==gStates.playerCount+gStates.coop then
@@ -1640,7 +1618,10 @@ local function handleTurnOrderZoneEnter(ctx)
 							mainUIUpdate("Turn marker entered it's zone")
 						end
 					end
-				end, function() return obj.resting end) end, 2)
+				end, function()
+					local turnOrderToken=getObjectFromGUID(turnOrderTokenGUID)
+					return turnOrderToken==nil or turnOrderToken.resting
+				end) end, 2)
 				break
 			end
 		end
@@ -1731,17 +1712,17 @@ function refreshRampagerMapVisual(obj)
 	end
 end
 
+local transientMapDecalNames={WallFortified=true,NoUnits=true,OneUnit=true}
 local function cleanupMapTransientDecals(obj)
 	if obj==nil or obj.guid==gStates.volkareModel then return end
 	local existingDecals=obj.getDecals() or {}
 	local decalTable={}
 	local decalsChanged=false
 	for _, decalDetails in pairs(existingDecals) do
-		if decalDetails.name=="Fortified" or decalDetails.name=="Elemental" or decalDetails.name=="Brutal" or decalDetails.name=="Poison" or decalDetails.name=="Defense" or decalDetails.name:sub(1,4)=="Mine" or decalDetails.name=="NightRules" or decalDetails.name=="Reward" then
-			decalTable[#decalTable+1]=decalDetails
-		else
-			decalsChanged=true
-		end
+		--Remove only decals known to belong to a temporary combat context. Unknown/scenario decals
+		--must survive map-zone churn (for example the persistent "Portal Closed" scenario marker).
+		if transientMapDecalNames[decalDetails.name]==true then decalsChanged=true
+		else decalTable[#decalTable+1]=decalDetails end
 	end
 	if decalsChanged==true then obj.setDecals(decalTable) end
 end
@@ -2179,14 +2160,9 @@ function __onObjectEnterContainer_raw(bag, obj)
 			fracturedRampagePos={p[1],p[2],p[3]}
 		end
 		if fracturedRampagePos~=nil then fracturedLandsTeleportRecordDefeatedRampager(fracturedRampagePos) end
-		gStates.monsterPlayLocation[obj.guid]=nil
-		gStates.rampagingMonsters[obj.guid]=nil
-		for mage, monster in pairs(gStates.pursuingMonsters) do monster[obj.guid]=nil end
-		gStates.ambushingMonsters[obj.guid]=nil
+		clearReturnedMonsterRuntimeState(obj.guid)
 		if fracturedRampagePos~=nil then safeWaitFrames("Events",function() refreshFracturedLandsTeleportHighlights() end, 1) end
 	end
-	--A Ruin monster stops belonging to that Ruin once it is returned to a container.
-	if gStates.ruinMonsters~=nil and gStates.ruinMonsters[obj.guid]~=nil then gStates.ruinMonsters[obj.guid]=nil end
 	if gStates.firstStarted==true then
 		mainUIUpdate("Object entered container or formed Deck")
 	end
@@ -2215,6 +2191,23 @@ local soloDescription={
 							["9d866a"]="{en}Double your Armour when assigning damage. Gain 1 extra Wound per damage source to your hand and 2 to the discard pile. Knock Out requires 1 extra Wound. After combat, throw out Wounds equal to defeated enemies. Place this skill into the Source. A friendly Knight gains 1 Block or Block equal to your unsigned Reputation. Return face down at the start of next turn.{ru}Удвойте свою Броню при распределении урона. За каждый источник урона получите дополнительно 1 Рану в руку и 2 в сброс. Для нокаута требуется на 1 Рану больше. После боя удалите столько Ран, сколько врагов было побеждено. Поместите этот навык в Источник. Дружественный Рыцарь-маг получает 1 Блок или Блок, равный абсолютному значению вашей Репутации. В начале следующего хода верните навык лицом вниз.{zh-tw}分配傷害時，你的護甲加倍。每個傷害來源額外獲得 1 張創傷到手牌、2 張創傷到棄牌堆。被擊倒需要多 1 張創傷。戰鬥後，移除等同於被擊敗敵人數量的創傷。將此技能放入魔力源。友方魔法騎士獲得 1 點格擋，或等同於你聲望絕對值的格擋。下一回合開始時將此技能面朝下歸還。{zh-cn}分配伤害时，你的护甲加倍。每个伤害来源额外获得 1 张创伤到手牌、2 张创伤到弃牌堆。被击倒需要多 1 张创伤。战斗后，移除等同于被击败敌人数量的创伤。将此技能放入魔力源。友方魔法骑士获得 1 点格挡，或等同于你声望绝对值的格挡。下一回合开始时将此技能面朝下归还。{ko}피해를 배정할 때 방어력을 두 배로 계산합니다. 피해 원천마다 손에 부상 1장을 추가로 받고 버린 카드 더미에 2장을 받습니다. 쓰러지려면 부상 1장이 더 필요합니다. 전투 후 처치한 적 수만큼 부상을 제거합니다. 이 스킬을 마나 원천에 놓습니다. 아군 마법기사는 방어 1 또는 당신의 평판 절댓값만큼 방어를 얻습니다. 다음 차례 시작에 뒷면으로 되돌립니다.{es}Duplica tu Armadura al asignar daño. Recibe 1 Herida adicional en tu mano y 2 en el descarte por cada fuente de daño. Quedar Inconsciente requiere 1 Herida adicional. Después del combate, elimina tantas Heridas como enemigos derrotados. Coloca esta habilidad en la Fuente. Un Caballero aliado obtiene 1 Bloqueo o Bloqueo igual al valor absoluto de tu Reputación. Devuélvela boca abajo al comienzo del siguiente turno.{fr}Doublez votre Armure lors de l’attribution des dégâts. Pour chaque source de dégâts, gagnez 1 Blessure supplémentaire en main et 2 dans la défausse. Être Assommé nécessite 1 Blessure supplémentaire. Après le combat, retirez autant de Blessures que d’ennemis vaincus. Placez cette compétence dans la Source. Un Chevalier allié gagne 1 Blocage ou un Blocage égal à la valeur absolue de votre Réputation. Remettez-la face cachée au début du prochain tour.{pt-br}Dobre sua Armadura ao atribuir dano. Para cada fonte de dano, receba 1 Ferimento extra na mão e 2 na pilha de descarte. Ser Nocauteado exige 1 Ferimento extra. Após o combate, remova Ferimentos em quantidade igual aos inimigos derrotados. Coloque esta habilidade na Fonte. Um Cavaleiro aliado ganha 1 Bloqueio ou Bloqueio igual ao valor absoluto da sua Reputação. Devolva-a virada para baixo no início do próximo turno.{de}Verdopple deine Rüstung beim Zuweisen von Schaden. Erhalte pro Schadensquelle 1 zusätzliche Wunde auf die Hand und 2 in den Ablagestapel. Für das K.-o.-Gehen ist 1 zusätzliche Wunde nötig. Entferne nach dem Kampf so viele Wunden, wie Gegner besiegt wurden. Lege diese Fertigkeit in die Quelle. Ein verbündeter Ritter erhält 1 Block oder Block in Höhe des Absolutwerts deines Rufs. Lege sie zu Beginn des nächsten Zuges verdeckt zurück.",
 							["adf8ab"]="{en}Once a turn:\n\nPay a mana of any color and throw away a Wound from your hand. Also draw a card.{ru}Один раз в ход:\n\nПотратьте ману любого цвета и удалите карту раны с руки. Возьмите одну карту.{zh-tw}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{zh-cn}每回合一次：\n\n支付一点任意颜色的魔力，从手牌中去除一张创伤卡，抽一张卡牌。{ko}차례에 한번:\n\n아무 색상 마나를 지불하고 손에 든 부상 하나를 제거한다. 추가로 카드 1장을 뽑는다.{es}Una vez por Turno:\n\nPaga un maná de cualquier color y tira una herida de tu mano. También roba una carta.{fr}Une fois par Tour:\n\nPayez un mana de n'importe quelle couleur et jetez une Blessure de votre main. Piochez également une carte.{pt-br}Uma vez por Turno:\n\nPague uma mana de qualquer cor e jogue fora um Ferimento da sua mão. Também compre uma carta.{de}Einmal pro Zug:\n\nBezahle ein Mana beliebiger Farbe und wirf eine Wundenkarte aus deiner Hand ab. Ziehe außerdem eine Karte."}
 
+local competitiveSkillStateTargetByGUID={
+	["3fba07"]="d90de4", --Arythea: Ritual of Pain -> Healing Ritual
+	["4ac9f6"]="19daf9", --Braevalar: Nature's Vengeance
+	["3b3273"]="3bd08e", --Goldyx: Source Opening -> Source Freeze
+	["725de9"]="958209", --Krang: Mana Enhancement -> Mana Suppression
+	["55e5e5"]="676856", --Norowas: Calming the Weather -> Prayer of the Weather
+	["818aea"]="c4546c", --Tovak: Mana Overload -> Mana Exploit
+	["564392"]="a92d73", --Wolfhawk: Howl of the Pack -> Wolf's Howl
+	["784a07"]="6f8b36", --Coral
+	["ebbbfc"]="335290", --Ymirgh
+	["a598f6"]="e68fed", --Jormund: Serenity of the Elements -> Fury of the Elements
+	["b13d5f"]="676855", --Mevok: Abysal Mana Growth -> Reverant Protector
+	["b66704"]="6133e1", --Malek: Blood Moon Wane -> Blood Moon Rise
+	["9d866a"]="c82406", --Duscenia: Hidden in Foliage -> Organic Defence
+	["68f864"]="036e6b"  --Zirtae: Athena's Guile -> Hade's Resentment
+}
+
 function __onObjectLeaveContainer_raw(bag, obj)
 	if bag~=nil and obj~=nil and bag.guid==GUID.bag.apocalypseQuestTokens then
 		if gStates.apocalypseQuestTokenGUIDs==nil or gStates.apocalypseQuestTokenInBag==nil then apocalypseQuestTokenBagSetup() end
@@ -2240,31 +2233,42 @@ function __onObjectLeaveContainer_raw(bag, obj)
 			end, 3)
 		end
 	end
-	--swap coop skill state when drawn
-	if (obj.guid=="3fba07" or obj.guid=="4ac9f6" or obj.guid=="3b3273" or obj.guid=="725de9" or obj.guid=="a598f6" or obj.guid=="b66704" or
-		obj.guid=="55e5e5" or obj.guid=="818aea" or obj.guid=="564392" or obj.guid=="784a07" or obj.guid=="ebbbfc" or obj.guid=="b13d5f" or obj.guid=="9d866a") then
-		if (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.firstStarted==true then
-			local coopGUID=obj.guid
-			safeWaitFrames("Events",function() safeWaitCondition("Events.coopSkillState",function()
-				local locking=obj.setState(2)
-				if locking~=nil then
-					--setState destroys the old Coop object and creates the competitive-state GUID. Combat cleanup
-					--may already have captured the old GUID, so retain the live replacement for that delayed callback.
-					skillStateReplacement=skillStateReplacement or {}
-					skillStateReplacement[coopGUID]=locking.guid
+	--Swap stateful Co-op skills to their competitive face when drawn in a competitive game.
+	--Keep the expected replacement GUID in one lookup so additions are explicit and state wiring is auditable.
+	local expectedCompetitiveGUID=competitiveSkillStateTargetByGUID[obj.guid]
+	if expectedCompetitiveGUID~=nil and (gStates.coop==0 or gStates.WarOfFourComp==true) and gStates.firstStarted==true then
+		local coopGUID=obj.guid
+		--A player may hold the token as long as they like. Wait without a timeout and re-acquire by GUID
+		--so the conversion cannot expire or dereference stale Object userdata.
+		safeWaitFrames("Events",function() safeWaitCondition("Events.coopSkillState",function()
+			local coopSkill=getObjectFromGUID(coopGUID)
+			if coopSkill==nil then return end
+			local locking=coopSkill.setState(2)
+			if locking~=nil then
+				--setState destroys the old Coop object and creates the competitive-state GUID. Combat cleanup
+				--may already have captured the old GUID, so retain the live replacement for that delayed callback.
+				skillStateReplacement=skillStateReplacement or {}
+				skillStateReplacement[coopGUID]=locking.guid
+				if locking.guid~=expectedCompetitiveGUID then
+					log("Competitive Skill state mismatch for "..tostring(coopGUID)..": expected "..tostring(expectedCompetitiveGUID)..", got "..tostring(locking.guid))
 				end
-				if locking~=nil and gStates.mageSkills~=nil and gStates.mageSkills[coopGUID]~=nil then
-					gStates.mageSkills[locking.guid]=gStates.mageSkills[coopGUID]
-					gStates.mageSkills[coopGUID]=nil
-				end
-				safeWaitFrames("Events",function()
-					if locking~=nil then locking.lock() end
-					--setState replaces the object/GUID and clears its object UI. Rebuild reward Claim buttons on the live state.
-					if gStates.skillButtons~=nil and gStates.skillButtons>0 then skillButtonActivate() end
-					if coopCompSkillBoundaryActive()==true then refreshCoopCompSkillWarnings() end
-				end, 2)
-			end, function() return obj.resting end) end, 10)
-		end
+			end
+			if locking~=nil and gStates.mageSkills~=nil and gStates.mageSkills[coopGUID]~=nil then
+				gStates.mageSkills[locking.guid]=gStates.mageSkills[coopGUID]
+				gStates.mageSkills[coopGUID]=nil
+			end
+			local replacementGUID=locking~=nil and locking.guid or nil
+			safeWaitFrames("Events",function()
+				local replacement=replacementGUID~=nil and getObjectFromGUID(replacementGUID) or nil
+				if replacement~=nil then replacement.lock() end
+				--setState replaces the object/GUID and clears its object UI. Rebuild reward Claim buttons on the live state.
+				if gStates.skillButtons~=nil and gStates.skillButtons>0 then skillButtonActivate() end
+				if coopCompSkillBoundaryActive()==true then refreshCoopCompSkillWarnings() end
+			end, 2)
+		end, function()
+			local coopSkill=getObjectFromGUID(coopGUID)
+			return coopSkill==nil or coopSkill.resting
+		end) end, 10)
 	end
 	if gStates.playerCount==1 and soloDescription[obj.guid]~=nil then
 		obj.setDescription(soloDescription[obj.guid])
@@ -2277,6 +2281,8 @@ function __onObjectLeaveContainer_raw(bag, obj)
 
 	--randomizes Pyramid and Ziggurat Trap Tokens
 	if bag.guid==monsterPiles.pyramidTrap or bag.guid==monsterPiles.zigguratTrap then
+		local trapGUID=obj.guid
+		local trapBagGUID=bag.guid
 		local trapImage={[monsterPiles.pyramidTrap]={"https://steamusercontent-a.akamaihd.net/ugc/9508097467808968985/1AD863210453EFF576A15527777E7C5E31F9EC93/",--Gold Trap Pyramid
 									 "https://steamusercontent-a.akamaihd.net/ugc/13810202743907142900/76AF5A7290CA73D540748F724C7BE2B2E5A777C5/",--Black Trap Pyramid
 									 "https://steamusercontent-a.akamaihd.net/ugc/14739918052302431123/46BE9CE8E240D292A486F5A7CCD623D9880626D6/",--Red Trap Pyramid
@@ -2292,20 +2298,24 @@ function __onObjectLeaveContainer_raw(bag, obj)
 		--roll volkares dice and read result
 		local randomTrap=math.random(6)
 		local damageAdjust=0
-		if bag.guid==monsterPiles.pyramidTrap then damageAdjust=1 end
+		if trapBagGUID==monsterPiles.pyramidTrap then damageAdjust=1 end
 		safeWaitFrames("Events",function() safeWaitCondition("Events.trapEnter",function()
-			if obj~=nil then
-				obj.setCustomObject({image=trapImage[bag.guid][randomTrap]})
-				obj.reload()
-				if gStates.monsterPerks[obj.guid]==nil then gStates.monsterPerks[obj.guid]={} end
-				if randomTrap==1 then gStates.monsterPerks[obj.guid].attack={M={4+damageAdjust}} end
-				if randomTrap==2 then gStates.monsterPerks[obj.guid].brutal=true gStates.monsterPerks[obj.guid].cumbersome=true	gStates.monsterPerks[obj.guid].attack={P={4+damageAdjust}} end
-				if randomTrap==3 then gStates.monsterPerks[obj.guid].attack={F={2+damageAdjust}} end
-				if randomTrap==4 then gStates.monsterPerks[obj.guid].poison=true gStates.monsterPerks[obj.guid].attack={P={3+damageAdjust}} end
-				if randomTrap==5 then gStates.monsterPerks[obj.guid].attack={I={2+damageAdjust}} end
-				if randomTrap==6 then gStates.monsterPerks[obj.guid].swiftness=true gStates.monsterPerks[obj.guid].attack={P={3+damageAdjust}} end
+			local trap=getObjectFromGUID(trapGUID)
+			if trap~=nil then
+				trap.setCustomObject({image=trapImage[trapBagGUID][randomTrap]})
+				if gStates.monsterPerks[trapGUID]==nil then gStates.monsterPerks[trapGUID]={} end
+				if randomTrap==1 then gStates.monsterPerks[trapGUID].attack={M={4+damageAdjust}} end
+				if randomTrap==2 then gStates.monsterPerks[trapGUID].brutal=true gStates.monsterPerks[trapGUID].cumbersome=true	gStates.monsterPerks[trapGUID].attack={P={4+damageAdjust}} end
+				if randomTrap==3 then gStates.monsterPerks[trapGUID].attack={F={2+damageAdjust}} end
+				if randomTrap==4 then gStates.monsterPerks[trapGUID].poison=true gStates.monsterPerks[trapGUID].attack={P={3+damageAdjust}} end
+				if randomTrap==5 then gStates.monsterPerks[trapGUID].attack={I={2+damageAdjust}} end
+				if randomTrap==6 then gStates.monsterPerks[trapGUID].swiftness=true gStates.monsterPerks[trapGUID].attack={P={3+damageAdjust}} end
+				trap.reload()
 			end
-		end, function() return obj==nil or obj.resting end) end, 2)
+		end, function()
+			local trap=getObjectFromGUID(trapGUID)
+			return trap==nil or trap.resting
+		end) end, 2)
 	end
 
 	--Give warning when drawing Terain tiles from the reserve.
@@ -2479,10 +2489,6 @@ function __onPlayerChangeColor_raw(color)
 	safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
 end
 
---Picking up or long-clicking Coral's whole Deed Deck is not a draw.
---Manual single-card draws are detected only when an actual Card leaves the Deed Deck container.
-function __onPlayerAction_raw(player, action, targets) return true end
-
 function __onObjectNumberTyped_raw(object, player_color, number, alt)
 	--Number keys directly choose a die face without a collision event.
 	if object~=nil and object.type=="Dice" then
@@ -2506,28 +2512,22 @@ function __onObjectNumberTyped_raw(object, player_color, number, alt)
 end
 
 local maintenanceWait=nil
-local liftHeightLowDetected=false
+local minimumSafeLiftHeight=0.1
 
-refreshLiftHeightWarning=function()
-	local lowDetected=false
+normalizePlayerLiftHeight=function()
+	--Player.lift_height is a writable TTS Player member. Correct only unsafe values so the mod does not
+	--fight a player's preferred setting once it already clears the scripting zones.
 	for _, color in pairs(Player.getAvailableColors()) do
-		if Player[color].lift_height~=-1 and Player[color].lift_height<0.1 then lowDetected=true break end
-	end
-	if lowDetected==true and liftHeightLowDetected~=true then
-		UI.setAttribute("NoticeText", "Text", "{en}'Lift Height' needs to be higher to avoid the scripting zones.          (Top Right Icon of a Man Lifting Weights){ru}Параметр 'Lift Height' нужно увеличить, чтобы не задевать скриптовые зоны.          (значок человека с гирей справа вверху){zh-tw}需要提高「Lift Height」，以避開腳本區域。          （右上角舉重人物圖示）{zh-cn}需要提高“Lift Height”，以避开脚本区域。          （右上角举重人物图标）{ko}스크립팅 영역을 피하려면 'Lift Height'를 더 높여야 합니다.          (오른쪽 위 역기를 드는 사람 아이콘){es}'Lift Height' debe estar más alto para evitar las zonas de script.          (Icono superior derecho de una persona levantando pesas){fr}'Lift Height' doit être plus élevé pour éviter les zones de script.          (Icône en haut à droite d’une personne soulevant des poids){pt-br}'Lift Height' precisa estar mais alto para evitar as zonas de script.          (Ícone no canto superior direito de uma pessoa levantando pesos){de}'Lift Height' muss höher eingestellt sein, damit die Skriptzonen nicht berührt werden.          (Symbol oben rechts mit einer gewichthebenden Person)")
-		setUIVisibility("NoticeBoard")
-		UI.setAttribute("NoticeBoard", "height", "50")
-		UI.show("NoticeBoard")
-		liftHeightLowDetected=true
-	elseif lowDetected~=true and liftHeightLowDetected==true then
-		UI.hide("NoticeBoard")
-		liftHeightLowDetected=false
+		local player=Player[color]
+		if player~=nil and player.lift_height~=-1 and player.lift_height<minimumSafeLiftHeight then
+			player.lift_height=minimumSafeLiftHeight
+		end
 	end
 end
 
 __maintenanceTick_raw=function()
 	refreshCityRevealControls()
-	refreshLiftHeightWarning()
+	normalizePlayerLiftHeight()
 end
 
 function maintenanceTick()
@@ -3530,8 +3530,8 @@ local function mainUIRefreshPlayerState(context)
 					--city rep loss
 					for cityguid, monsters in pairs(gStates.cityMonsterQty) do
 						if cityguid~=darkCrusader.terrainHex and cityguid~=elementalist.terrainHex and cityguid~=volkare.model and cityguid~=volkare.terrainHex and monsters[obj.guid]=="alive" and gStates.gainList[cityguid]==nil then
-							turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
 							gStates.gainList[cityguid]={exists=true}
+							fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[cityguid],"cityAssault",-1)
 							if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]={exists=true} end
 							break
 						end
@@ -3546,15 +3546,15 @@ local function mainUIRefreshPlayerState(context)
 					   ((monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep") or
 						   (monsterPugs[obj.guid].pugType=="purple" and avatarLocation=="mage tower") or
 					   ((obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2]) and hiddenValleyKeep==false)) then
-						turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
-						gStates.gainList[obj.guid].siteRepLoss=1
+						local siteApplied=fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[obj.guid],"siteAssault",-1)
+						gStates.gainList[obj.guid].siteRepLoss=math.max(0,-siteApplied)
 						if obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2] then hiddenValleyKeep=true end
 					end
 					--monastery rep loss
 					if avatarLocation~=nil then
 						if monsterPugs[obj.guid].pugType=="purple" and gStates.monsterPlayLocation[obj.guid]==nil and avatarLocation=="monastery" then
-							turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-3
-							gStates.gainList[obj.guid].siteRepLoss=3
+							local monasteryApplied=fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[obj.guid],"siteAssault",-3)
+							gStates.gainList[obj.guid].siteRepLoss=math.max(0,-monasteryApplied)
 						end
 					end
 					--Keep defenders use half Fame; remember this so reset does not depend on the avatar still being on the Keep.
@@ -3582,14 +3582,16 @@ local function mainUIRefreshPlayerState(context)
 											gStates.gainList[terrainguid].tokenDirection=-1
 											if gStates.gainList[obj.guid].tokenDirection==1 and (state=="dead" or gStates.gainList[monsterGUID].tokenDirection==1) then
 												gStates.gainList[terrainguid].tokenDirection=1
-												turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(x*gStates.gainList[terrainguid].tokenDirection)
+												local mineRep=gStates.gainList[terrainguid].tokenDirection==1 and x or 0
+												fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[terrainguid],"mineLiberation",mineRep)
 											end
 										else
 											gStates.gainList[terrainguid].exists=true
 											if (gStates.gainList[obj.guid].tokenDirection==1 and (state=="dead" or gStates.gainList[monsterGUID].tokenDirection==1) and gStates.gainList[terrainguid].tokenDirection==-1)
 											or ((gStates.gainList[obj.guid].tokenDirection==-1 or (state=="alive" and gStates.gainList[monsterGUID].tokenDirection==-1)) and gStates.gainList[terrainguid].tokenDirection==1) then
 												gStates.gainList[terrainguid].tokenDirection=gStates.gainList[terrainguid].tokenDirection*-1
-												turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(x*gStates.gainList[terrainguid].tokenDirection)
+												local mineRep=gStates.gainList[terrainguid].tokenDirection==1 and x or 0
+												fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[terrainguid],"mineLiberation",mineRep)
 											end
 										end
 										break
@@ -3633,11 +3635,16 @@ local function mainUIRefreshPlayerState(context)
 					if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[obj.guid]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[obj.guid]==nil) and
 						(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) and
 						obj.guid~=gStates.hiddenValleyKeep[1] and obj.guid~=gStates.hiddenValleyKeep[2] then
-						if monsterPugs[obj.guid].pugType=="green" or monsterPugs[obj.guid].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(1*gStates.gainList[obj.guid].tokenDirection) end --More Rampage! can add tan rampagers.
-						if monsterPugs[obj.guid].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(2*gStates.gainList[obj.guid].tokenDirection) end
+						local rampageRep=0
+						if monsterPugs[obj.guid].pugType=="green" or monsterPugs[obj.guid].pugType=="tan" then rampageRep=1 end --More Rampage! can add tan rampagers.
+						if monsterPugs[obj.guid].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then rampageRep=2 end
+						fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[obj.guid],"rampaging",gStates.gainList[obj.guid].tokenDirection==1 and rampageRep or 0)
 					end
 					--add hero and thug reputation
-					if monsterPugs[obj.guid].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(monsterPugs[obj.guid].reputation*gStates.gainList[obj.guid].tokenDirection) end
+					if monsterPugs[obj.guid].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) then
+						local printedRep=gStates.gainList[obj.guid].tokenDirection==1 and monsterPugs[obj.guid].reputation or 0
+						fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[obj.guid],"printed",printedRep)
+					end
 				end
 				gStates.gainList[obj.guid].exists=true
 			end
@@ -3680,7 +3687,7 @@ local function mainUIRefreshPlayerState(context)
 							if gStates.gainList[terrainguid]~=nil and gStates.gainList[terrainguid].tokenDirection==1 then
 								local x=1
 								if terrainTiles[terrainguid].tileType=="core" then x=2 end
-								turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-x
+								fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[terrainguid],"mineLiberation",0)
 								gStates.gainList[terrainguid]=nil
 							end
 							break
@@ -3690,11 +3697,10 @@ local function mainUIRefreshPlayerState(context)
 					if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[a]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[a]==nil) and
 						(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) and
 						a~=gStates.hiddenValleyKeep[1] and a~=gStates.hiddenValleyKeep[2] then
-						if monsterPugs[a].pugType=="green" or monsterPugs[a].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1 end
-						if monsterPugs[a].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-2 end
+						fameReputationSetReversiblePending(gStates.turnNumber,b,"rampaging",0)
 					end
 					--Hero and thug reputation
-					if monsterPugs[a].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-monsterPugs[a].reputation end
+					if monsterPugs[a].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) then fameReputationSetReversiblePending(gStates.turnNumber,b,"printed",0) end
 				end
 				--City monsters
 				for cityguid, monsters in pairs(gStates.cityMonsterQty) do
@@ -3706,7 +3712,7 @@ local function mainUIRefreshPlayerState(context)
 							end
 						end
 						if found==false then
-							turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+1
+							fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[cityguid],"cityAssault",0)
 							gStates.gainList[cityguid]=nil
 							if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]=nil end
 						end
@@ -6572,25 +6578,36 @@ function renderMoveDisplay(id)
 			if gladePos~=nil then playerPos=gladePos end
 		end
 		local currentTurn=turnOrder[gStates.turnNumber]
-		local turnStartLoc=currentTurn~=nil and currentTurn.turnStartLoc or nil
+		--Dummy and other non-avatar turns intentionally have no avatarLocation. Resource Tracker
+		--controls can still fire on those turns, but there is no player movement map to render.
+		if currentTurn==nil or currentTurn.avatarLocation==nil then
+			clearMoveDisplayVisuals()
+			return
+		end
+		local turnStartLoc=currentTurn.turnStartLoc
 		if gStates.resourceTracker.playerPos==nil and turnStartLoc~=nil and turnStartLoc[1]~=nil and turnStartLoc[1]>-42 then
 			gStates.resourceTracker.playerPos={turnStartLoc[1], turnStartLoc[2], turnStartLoc[3]}--{0, 0, 0}
 		end
 		if id=="MovemAmountUpdate" then
 			for _, details in pairs(mageKnights) do
-				if details.mage==turnOrder[gStates.turnNumber].mage then
+				if details.mage==currentTurn.mage then
 					if getObjectFromGUID(details.model)~=nil then gStates.resourceTracker.playerPos={getObjectFromGUID(details.model).getPosition()[1], getObjectFromGUID(details.model).getPosition()[2], getObjectFromGUID(details.model).getPosition()[3]} end
 					if getObjectFromGUID(details.token)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.token).getPosition() end
 					if getObjectFromGUID(details.standee)~=nil then gStates.resourceTracker.playerPos=getObjectFromGUID(details.standee).getPosition() end
 				end
 			end
-			if turnOrder[gStates.turnNumber].avatarLocation:sub(1, 4)=="city" or turnOrder[gStates.turnNumber].avatarLocation=="Volkare's Camp" then
+			local avatarLocation=currentTurn.avatarLocation
+			if avatarLocation:sub(1, 4)=="city" or avatarLocation=="Volkare's Camp" then
 				--figure out which city avatar is in
 				for zone, citySearch in pairs(cityScriptZones) do
-					for obj, detail in pairs(getObjectFromGUID(zone).getObjects()) do
-						if detail.getName()==turnOrder[gStates.turnNumber].mage then
-							gStates.resourceTracker.playerPos=getObjectFromGUID(citySearch.cityGUID).getPosition()
-							break
+					local zoneObj=getObjectFromGUID(zone)
+					if zoneObj~=nil then
+						for _, detail in pairs(zoneObj.getObjects()) do
+							if detail.getName()==currentTurn.mage then
+								local cityObj=getObjectFromGUID(citySearch.cityGUID)
+								if cityObj~=nil then gStates.resourceTracker.playerPos=cityObj.getPosition() end
+								break
+							end
 						end
 					end
 				end
@@ -6599,7 +6616,7 @@ function renderMoveDisplay(id)
 		if gStates.resourceTracker.playerPos~=nil then playerPos=gStates.resourceTracker.playerPos end
 		--The shared Magical Glade is authoritative while the active Horsemen-scenario avatar is parked
 		--off-map between turns; never let an old Portal/start-tile position override that logical hex.
-		if againstHorsemenPlayerAtCentralGlade(turnOrder[gStates.turnNumber])==true then
+		if againstHorsemenPlayerAtCentralGlade(currentTurn)==true then
 			local gladePos=againstHorsemenCentralGladePosition(0.97)
 			if gladePos~=nil then playerPos=gladePos end
 		end
@@ -20135,7 +20152,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 			end
 		end
 	end
-	if gStates.monsterPerks~=nil then gStates.monsterPerks[monsterGUID]=nil end
+	clearReturnedMonsterRuntimeState(monsterGUID)
 	discardBag.putObject(playAreaObj)
 	return true
 end
@@ -21188,6 +21205,7 @@ function combatAttachEnemyBase(player, mouseButton, id, obj, zone)
 				for _, nearEnemy in pairs(candidates) do
 					if nearEnemy.guid~=possessedGUID and monsterPugs[nearEnemy.guid]~=nil and monsterPugs[nearEnemy.guid].pugType~="possessed" and justDetached[nearEnemy.guid]~=true and
 						nearEnemy.getPosition()[1]-possessed.getPosition()[1]>-0.5 and nearEnemy.getPosition()[1]-possessed.getPosition()[1]<0.5 and nearEnemy.getPosition()[3]-possessed.getPosition()[3]>-0.5 and nearEnemy.getPosition()[3]-possessed.getPosition()[3]<0.5 then
+						if fameReputationPossessedAttachmentResolved~=nil then fameReputationPossessedAttachmentResolved(possessedGUID,nearEnemy.guid,attachPlayer) end
 						--Assign perks to monster token
 						local perkToCheck={"fame", "attack", "reward", "boost", "armour"}
 						for _, perk in pairs(perkToCheck) do
@@ -25537,13 +25555,9 @@ function unitOffer()
 			local deckInfo={}
 			local drawList={}
 			--Prepare a deck's contents the first time we need it
-			local function getDeckInfo(zoneGUID)
+			local function getDeckInfo(zoneGUID,deckName)
 				if deckInfo[zoneGUID]~=nil then return deckInfo[zoneGUID] end
-				local zone=getObjectFromGUID(zoneGUID)
-				local deck=nil
-				for _, obj in ipairs(zone.getObjects()) do
-					if obj.type=="Deck" or obj.type=="Card" then deck=obj break end
-				end
+				local deck=standardDeckCycleObject(deckName)
 				if deck==nil then return nil end
 				local cards={}
 				if deck.type=="Deck" then cards=deck.getObjects() else cards={{guid=deck.guid}}	end
@@ -25553,20 +25567,20 @@ function unitOffer()
 
 			--Find the next unit whose name is not already in the offer
 			local function getNextUniqueUnit(zoneGUID, deckName)
-				local info=getDeckInfo(zoneGUID)
+				local info=getDeckInfo(zoneGUID,deckName)
 				if info==nil then return nil end
 				while info.nextCard<=#info.cards do
 					local card=info.cards[info.nextCard]
 					info.nextCard=info.nextCard+1
-					local unitData=gameCards[card.guid]
-					--Fallback to GUID if this card isn't in gameCards
-					local unitName=card.guid
-					if unitData~=nil and unitData.name~=nil and unitData.name[1]~=nil then unitName=unitData.name[1] end
-					if unitsInOffer[unitName]~=true then
-						if standardDeckCycleShuffleIfReached(deckName, info.deck, card.guid)==true then
-							info.cards=info.deck.type=="Deck" and info.deck.getObjects() or {{guid=info.deck.guid}}
-							info.nextCard=1
-						else
+					if standardDeckCycleShuffleIfReached(deckName, info.deck, card.guid)==true then
+						info.cards=info.deck.type=="Deck" and info.deck.getObjects() or {{guid=info.deck.guid}}
+						info.nextCard=1
+					else
+						local unitData=gameCards[card.guid]
+						--Fallback to GUID if this card isn't in gameCards
+						local unitName=card.guid
+						if unitData~=nil and unitData.name~=nil and unitData.name[1]~=nil then unitName=unitData.name[1] end
+						if unitsInOffer[unitName]~=true then
 							unitsInOffer[unitName]=true
 							return {deck=info.deck, guid=card.guid}
 						end
@@ -29132,8 +29146,7 @@ returnCityGarrisonTokens=function(cityGUID)
 				if pileGUID~=nil and getObjectFromGUID(pileGUID)==nil and CITY_DEFENDER_FALLBACK[pugType]~=nil then pileGUID=CITY_DEFENDER_PILE_BY_NAME[CITY_DEFENDER_FALLBACK[pugType]] end
 				local pile=pileGUID~=nil and getObjectFromGUID(pileGUID) or nil
 				if pile~=nil then
-					gStates.monsterPerks[monsterGUID]=nil
-					gStates.monsterPlayLocation[monsterGUID]=nil
+					clearReturnedMonsterRuntimeState(monsterGUID)
 					monster.setDecals({})
 					pile.putObject(monster)
 				end
@@ -42520,10 +42533,10 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 				end
 				if filled~=true then
 					local deckName=row==1 and "Advanced Action" or "Spell"
-					standardDeckCycleShuffleIfReached(deckName)
 					local source=sourceOverrides~=nil and sourceOverrides[deckName] or nil
 					if source==nil or (source.type~="Deck" and source.type~="Card") then source=standardDeckCycleObject(deckName) end
 					if source~=nil then
+						standardDeckCycleShuffleIfReached(deckName,source)
 						local target={(column*4.8)+21.6,1.5,-((row*6)+10.2)}
 						local newCard=nil
 						if source.type=="Deck" then
@@ -42680,14 +42693,113 @@ __bundle_register("PlayingGame.Help", function(require, _LOADED, __bundle_regist
 -- Cross-module help/reminder UI callback.
 -- DisplayHelp is called by setup, gameplay UI and Global XML, so it must live in a module-global scope.
 
+local function helpUtf8Length(value)
+	local count=0
+	for i=1,#value do
+		local byte=value:byte(i)
+		if byte<128 or byte>=192 then count=count+1 end
+	end
+	return count
+end
+
+local function helpEstimateLines(value,charsPerLine)
+	local totalLines=0
+	local lineStart=1
+	while true do
+		local lineEnd=string.find(value,"\n",lineStart,true)
+		local line=lineEnd~=nil and string.sub(value,lineStart,lineEnd-1) or string.sub(value,lineStart)
+		local length=helpUtf8Length(line)
+		totalLines=totalLines+(length==0 and 1 or math.ceil(length/charsPerLine))
+		if lineEnd==nil then break end
+		lineStart=lineEnd+1
+	end
+	return math.max(totalLines,1)
+end
+
+local function helpMaxTranslatedLines(translatedText,charsPerLine)
+	translatedText=tostring(translatedText or "")
+	local maxLines=1
+	local pos=1
+	local foundTag=false
+	while true do
+		local tagStart,tagEnd=translatedText:find("{([%a%-]+)}",pos)
+		if tagStart==nil then break end
+		foundTag=true
+		local nextTagStart=translatedText:find("{([%a%-]+)}",tagEnd+1)
+		local translation=nextTagStart~=nil and translatedText:sub(tagEnd+1,nextTagStart-1) or translatedText:sub(tagEnd+1)
+		maxLines=math.max(maxLines,helpEstimateLines(translation,charsPerLine))
+		if nextTagStart==nil then break end
+		pos=nextTagStart
+	end
+	if foundTag~=true then return helpEstimateLines(translatedText,charsPerLine) end
+	return maxLines
+end
+
+local function setHelpNotesHeight(height)
+	local helpNotes={"0b2a31","a3d667",
+		playAreaGuideBackground[1],playAreaGuideText[1],
+		playAreaGuideBackground[2],playAreaGuideText[2],
+		playAreaGuideBackground[3],playAreaGuideText[3],
+		playAreaGuideBackground[4],playAreaGuideText[4]}
+	for _,guid in ipairs(helpNotes) do
+		local obj=getObjectFromGUID(guid)
+		if obj~=nil then
+			local position=obj.getPosition()
+			obj.setPosition({position[1],height,position[3]})
+		end
+	end
+end
+
+local function helpDistinctCurrentLevels(source,orderedNames)
+	if type(source)~="table" then return nil end
+	local seen,levels={},{}
+	local function add(level)
+		level=tonumber(level)
+		if level~=nil and level>0 then
+			level=math.floor(level)
+			if seen[level]~=true then seen[level]=true levels[#levels+1]=level end
+		end
+	end
+	if orderedNames~=nil then
+		for _,name in ipairs(orderedNames) do
+			local state=source[name]
+			if state~=nil and state.defeated~=true and state.retired~=true then add(state.level) end
+		end
+	else
+		for _,level in pairs(source) do add(level) end
+	end
+	table.sort(levels)
+	return #levels>0 and levels or nil
+end
+
+local function helpLevelList(levels)
+	local values={}
+	for _,level in ipairs(levels or {}) do values[#values+1]=tostring(level) end
+	return table.concat(values,", ")
+end
+
 function DisplayHelp(player, mouseButton, id)
-	if mouseButton=="-1" then
-		--update Game Reminder text scenarioList[gStates.gameScenario][scenarioEnd]
+	if mouseButton~="-1" then return end
+	if gStates.help==true then
+		UI.hide("PlayerSeating")
+		UI.hide("ObjectRotating")
+		UI.hide("PlayAreaRules")
+		UI.hide("GameReminder")
+		UI.hide("EndReminder")
+		gStates.help=false
+		setHelpNotesHeight(-2)
+		return
+	end
 		local gameReminderText=joinLang({translateWord[gStates.gameScenario], "{en} Scenario{ru} Сценарий{zh-tw}剧本{zh-cn}剧本{ko} 시나리오{es} Guión{fr} Scénario{pt-br} Cenário{de} Szenario"})
 		local gameReminderHeight=48
 		local lineFeed=18
 		if gStates.blitz==1 then gameReminderText=joinLang({gameReminderText, "{en}\nBlitz Rules{ru}\nСокращенный (Блиц){zh-tw}\n快速规则{zh-cn}\n快速规则{ko}\n기습 규칙{es}\nReglas de Blitz{fr}\nRègles du Blitz{pt-br}\nRegras Relâmpago{de}\nBlitz-Regeln"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.removeLostLegionExpansion==false then gameReminderText=joinLang({gameReminderText, "{en}\nLost Legion Monsters and Cards Included{ru}\nПотерянный Легион включен{zh-tw}\n使用失落军团怪物和卡牌{zh-cn}\n使用失落军团怪物和卡牌{ko}\n사라진 군단 확장 포함{es}\nMonstruos y Cartas de Lost Legion Incluidos{fr}\nMonstres et Cartes de la Légion Perdue Incluses{pt-br}\nMonstros e Cartas da Legião Perdida são incluídos{de}\nLost Legion-Monster und -Karten enthalten"}) gameReminderHeight=gameReminderHeight+lineFeed 	end
+		if gStates.removeLostLegionExpansion==false then
+			gameReminderText=joinLang({gameReminderText,"{en}\nLost Legion Monsters and Cards Included{ru}\nПотерянный Легион включен{zh-tw}\n使用失落军团怪物和卡牌{zh-cn}\n使用失落军团怪物和卡牌{ko}\n사라진 군단 확장 포함{es}\nMonstruos y Cartas de Lost Legion Incluidos{fr}\nMonstres et Cartes de la Légion Perdue Incluses{pt-br}\nMonstros e Cartas da Legião Perdida são incluídos{de}\nLost Legion-Monster und -Karten enthalten"})
+		else
+			gameReminderText=joinLang({gameReminderText,"{en}\nLost Legion Expansion Removed{ru}\nПотерянный Легион убран{zh-tw}\n已移除失落軍團擴充{zh-cn}\n已移除失落军团扩展{ko}\n사라진 군단 확장 제거됨{es}\nExpansión La Legión Perdida eliminada{fr}\nExtension Lost Legion supprimée{pt-br}\nExpansão Legião Perdida removida{de}\nLost Legion-Erweiterung entfernt"})
+		end
+		gameReminderHeight=gameReminderHeight+lineFeed
 		if gStates.removeShadesOfTezlaMonsters==true then
 			gameReminderText=joinLang({gameReminderText, "{en}\nShades of Tezla Monsters Removed{ru}\nВраги из «Теней Тезлы» убраны{zh-tw}\n已移除「特茲拉之影」怪物{zh-cn}\n已移除“特兹拉之影”怪物{ko}\n'테즐라의 그림자' 적 토큰 제거{es}\nMonstruos de 'Sombras de Tezla' eliminados{fr}\nMonstres de 'Ombres de Tezla' retirés{pt-br}\nMonstros de 'Sombras de Tezla' removidos{de}\n'Shades of Tezla'-Monster entfernt"})
 		else
@@ -42701,37 +42813,70 @@ function DisplayHelp(player, mouseButton, id)
 		end
 		gameReminderHeight=gameReminderHeight+lineFeed
 		if gStates.removeBonusCards==true then gameReminderText=joinLang({gameReminderText, "{en}\nUltimate Edition Cards Removed{ru}\nПолное издание не включено{zh-tw}\n移除终极版的额外卡牌{zh-cn}\n移除终极版的额外卡牌{ko}\nUE 카드 제외{es}\nTarjetas de Ultimate Edition Eliminadas{fr}\nCartes Ultimate Edition Supprimées{pt-br}\nCartas da Edição Definitiva Removidas{de}\nUltimate Edition Karten entfernt"}) gameReminderHeight=gameReminderHeight+lineFeed else
-			gameReminderText=joinLang({gameReminderText, "{en}\nUltimate Edition Cards Included{ru}\nПолное издание включено{zh-tw}\n使用终极版的额外卡牌{zh-cn}\n使用终极版的额外卡牌{ko}\nUE 카드 포함{es}\nTarjetas de Ultimate Edition Incluidas{fr}Cartes Ultimate Edition incluses{pt-br}\nCartas da Edição Definitiva Incluídas{de}\nUltimate Edition Karten enthalten"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.rampage==1 then gameReminderText=joinLang({gameReminderText, "{en}\nRampage Variant{ru}\nТемные времена!{zh-tw}\n怪物肆虐{zh-cn}\n怪物肆虐{ko}\n광분하라!{es}\nVariante de Rampage{fr}Variante Rampage{pt-br}\nVariante Tempos de Violência{de}\nRampage-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.rampage==2 then gameReminderText=joinLang({gameReminderText, "{en}\nMore Rampage Variant{ru}\nТьма сгущается!{zh-tw}\n怪物横行{zh-cn}\n怪物横行{ko}\n더욱더 광분하라!{es}\nMás Variante de Rampage{fr}Plus de variante Rampage{pt-br}\nVariante Mais Violência{de}\nMehr Rampage-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
+			gameReminderText=joinLang({gameReminderText, "{en}\nUltimate Edition Cards Included{ru}\nПолное издание включено{zh-tw}\n使用终极版的额外卡牌{zh-cn}\n使用终极版的额外卡牌{ko}\nUE 카드 포함{es}\nTarjetas de Ultimate Edition Incluidas{fr}\nCartes Ultimate Edition incluses{pt-br}\nCartas da Edição Definitiva Incluídas{de}\nUltimate Edition Karten enthalten"}) gameReminderHeight=gameReminderHeight+lineFeed end
+		if gStates.rampage==1 then gameReminderText=joinLang({gameReminderText, "{en}\nRampage Variant{ru}\nТемные времена!{zh-tw}\n怪物肆虐{zh-cn}\n怪物肆虐{ko}\n광분하라!{es}\nVariante de Rampage{fr}\nVariante Rampage{pt-br}\nVariante Tempos de Violência{de}\nRampage-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
+		if gStates.rampage==2 then gameReminderText=joinLang({gameReminderText, "{en}\nMore Rampage Variant{ru}\nТьма сгущается!{zh-tw}\n怪物横行{zh-cn}\n怪物横行{ko}\n더욱더 광분하라!{es}\nMás Variante de Rampage{fr}\nPlus de variante Rampage{pt-br}\nVariante Mais Violência{de}\nMehr Rampage-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.rampageAmbush==true then gameReminderText=joinLang({gameReminderText, "{en}\nAmbushing Rampagers Variant{ru}\nВраги в Засаде{zh-tw}\n怪物伏击{zh-cn}\n怪物伏击{ko}\n매복하는 적{es}\nVariante Emboscada de Rampagers{fr}\nVariante de Rampagers Embusqués{pt-br}\nVariante Irascíveis Emboscadores{de}\nAmbushing Rampagers-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.rampagePursuit==true then gameReminderText=joinLang({gameReminderText, "{en}\nPursuing Rampagers Variant{ru}\nПреследующие враги{zh-tw}\n怪物追击{zh-cn}\n怪物追击{ko}\n추적하는 적{es}\nPersiguiendo la Variante de Violentos{fr}\nVariante Poursuite des Rampagers{pt-br}\nVariante Irascíveis Perseguidores{de}\nVerfolgende Rampager-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.randomTileOrientation==true then gameReminderText=joinLang({gameReminderText, "{en}\nRandom Terrain Tile Orientation Variant{ru}\nСлучайная ориентация Земель{zh-tw}\n随机地图方向{zh-cn}\n随机地图方向{ko}\n타일 방향 무작위로 놓기{es}\nVariante de Orientación de Mosaico de Terreno Aleatorio{fr}\nVariante d'Orientation des Tuiles de Terrain Aléatoire{pt-br}\nVariante Orientação aleatória de Terreno{de}\nVariante mit zufälliger Ausrichtung der Geländekacheln"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.removeTerrain==true then gameReminderText=joinLang({gameReminderText, "{en}\nRemoved Easier Terrain Tiles{ru}\nУдалены более простые плитки местности{zh-tw}\n已移除較簡單的地圖板塊{zh-cn}\n已移除较简单的地图板块{ko}\n쉬운 지형 타일 제거됨{es}\nSe retiraron las losetas de terreno más fáciles{fr}\nTuiles de terrain plus faciles retirées{pt-br}\nPeças de terreno mais fáceis removidas{de}\nEinfachere Geländeteile entfernt"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		if gStates.gameScenario~="Life and Death" and gStates.gameScenario~="The Realm of the Dead Blitz" and gStates.gameScenario~="The Hidden Valley Blitz" then
-			if gStates.cityTiles-gStates.megapolis>0 then gameReminderText=joinLang({gameReminderText, "\n"..gStates.cityTiles-gStates.megapolis, "{en} City(s){ru} Город(а){zh-tw} 城市{zh-cn} 城市{ko} 도시{es} Ciudad(s){fr} Ville(s){pt-br} Cidade(s){de} Stadt(en)"}) gameReminderHeight=gameReminderHeight+lineFeed end
-			if gStates.cityTiles-gStates.megapolis==0 and gStates.megapolis>0 then gameReminderText=joinLang({gameReminderText, "\n"}) gameReminderHeight=gameReminderHeight+lineFeed end
-			if gStates.cityTiles-gStates.megapolis>0 and gStates.megapolis>0 then gameReminderText=joinLang({gameReminderText, " & "}) end
-			if gStates.megapolis>0 then gameReminderText=joinLang({gameReminderText, gStates.megapolis, "{en} Megapolis{ru} Мегаполис{zh-tw} 大型城市{zh-cn} 大型城市{ko} 거대도시{es} Megapolis{fr} Megapolis{pt-br} Megalópole{de} Megapolis"}) end
-		else
-			gameReminderText=joinLang({gameReminderText, "{en}\n1 Friendly City(s){ru}\n1 Дружелюбный(х) город(а){zh-tw}\n1 友方势力城市{zh-cn}\n1 友方势力城市{ko}\n1 우호적인 도시{es}\n1 Ciudad(s) Amiga{fr}\n1 Ville(s) Amie{pt-br}\n1 Cidade Amigável{de}\n1 Befreundete Stadt(en)"}) gameReminderHeight=gameReminderHeight+lineFeed
-			gameReminderText=joinLang({gameReminderText, "\n"..(gStates.cityTiles-1), "{en} Leader(s){ru} Лидер(ы){zh-tw} 领袖{zh-cn} 领袖{ko} 지도자{es} Líder(s){fr} Leader(s){pt-br} Líder(es){de} Anführer(n)"}) gameReminderHeight=gameReminderHeight+lineFeed
+		local setupLevels={cityTiles=gStates.cityTiles,cityLevels=gStates.cityLevels}
+		local levelGroups={city={},megapolis={},leader={},friendly={},destroyed={},volkare={}}
+		for index,level in ipairs(gStates.cityLevels or {}) do
+			local role=scenarioSetupLevelRole(gStates.gameScenario,setupLevels,index,gStates.removeShadesOfTezlaMonsters,gStates.megapolis)
+			if role~=nil then levelGroups[role][#levelGroups[role]+1]=level end
 		end
-		if gStates.cityTiles>0 and gStates.cityLevels[1]>0 then
-			gameReminderText=joinLang({gameReminderText, "{en} at Level(s): {ru} с уровнем(ями): {zh-tw}起始等级：{zh-cn}起始等级：{ko} 의 레벨: {es} en el Nivel(s):{fr} aux Niveaux:{pt-br} no Nível: {de} auf Stufe(n):"})
-			for a, b in pairs(gStates.cityLevels) do
-				if a==1 and b~=0 then gameReminderText=joinLang({gameReminderText, tostring(b)}) end
-				if a~=1 and b~=0 then gameReminderText=joinLang({gameReminderText, ", "..b}) end
-			end
+		local function appendLevelGroup(levels,countLabel)
+			if #levels<1 then return end
+			local levelText={}
+			for _,level in ipairs(levels) do levelText[#levelText+1]=tostring(level) end
+			gameReminderText=joinLang({gameReminderText,"\n"..#levels,countLabel,
+				"{en} at Level(s): {ru} с уровнем(ями): {zh-tw}，起始等級：{zh-cn}，起始等级：{ko} 의 레벨: {es} en el Nivel(s): {fr} aux Niveaux : {pt-br} no Nível: {de} auf Stufe(n): ",
+				table.concat(levelText,", ")})
 			gameReminderHeight=gameReminderHeight+lineFeed
 		end
-		if gStates.cityLevels[1]==0 and gStates.gameScenario~="The Lost Relic Blitz" then gameReminderText=joinLang({gameReminderText, "{en} Friendly{ru} Дружелюбный(ых){zh-tw} 友方势力{zh-cn} 友方势力{ko} 우호적{es} Simpático{fr} Amical{pt-br} Amigável{de} Freundlich"}) end
-		if gStates.cityLevels[1]==0 and gStates.gameScenario=="The Lost Relic Blitz" then gameReminderText=joinLang({gameReminderText, "{en} Destroyed{ru} Уничтоженный(ые){zh-tw} 被摧毁{zh-cn} 被摧毁{ko} 파괴됨{es} Destruido{fr} Détruit{pt-br} Destruído{de}Zerstört"}) end
+		appendLevelGroup(levelGroups.city,"{en} City(s){ru} Город(а){zh-tw} 城市{zh-cn} 城市{ko} 도시{es} Ciudad(s){fr} Ville(s){pt-br} Cidade(s){de} Stadt(en)")
+		appendLevelGroup(levelGroups.megapolis,"{en} Megapolis{ru} Мегаполис{zh-tw} 大型城市{zh-cn} 大型城市{ko} 거대도시{es} Megapolis{fr} Megapolis{pt-br} Megalópole{de} Megapolis")
+		appendLevelGroup(levelGroups.leader,"{en} Leader(s){ru} Лидер(ы){zh-tw} 领袖{zh-cn} 领袖{ko} 지도자{es} Líder(s){fr} Leader(s){pt-br} Líder(es){de} Anführer")
+		if #levelGroups.destroyed>0 then
+			gameReminderText=joinLang({gameReminderText,"\n"..#levelGroups.destroyed,"{en} Destroyed City(s){ru} Разрушенный(е) город(а){zh-tw} 被摧毀城市{zh-cn} 被摧毁城市{ko} 파괴된 도시{es} Ciudad(es) Destruida(s){fr} Ville(s) Détruite(s){pt-br} Cidade(s) Destruída(s){de} Zerstörte Stadt/Städte"})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
+		if #levelGroups.friendly>0 then
+			gameReminderText=joinLang({gameReminderText,"\n"..#levelGroups.friendly,"{en} Friendly City(s){ru} Дружелюбный(х) город(а){zh-tw} 友方势力城市{zh-cn} 友方势力城市{ko} 우호적인 도시{es} Ciudad(s) Amiga{fr} Ville(s) Amie{pt-br} Cidade(s) Amigável{de} Befreundete Stadt(en)"})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
+		if #levelGroups.volkare>0 then
+			gameReminderText=joinLang({gameReminderText,"{en}\nVolkare, Level {ru}\nВолкар, ур. {zh-tw}\n沃卡里，等級 {zh-cn}\n沃卡里，等级 {ko}\n볼케어, 레벨 {es}\nVolkare, Nivel {fr}\nVolkare, Niveau {pt-br}\nVolkare, Nível {de}\nVolkare, Ebene ",tostring(levelGroups.volkare[1])})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
+
+		local horsemanLevels=helpDistinctCurrentLevels(gStates.horsemen,{"Famine","Pestilence","Death","War"})
+		if horsemanLevels==nil and scenarioUsesHorsemen()==true and type(horsemanStartingLevel)=="function" then
+			local level=horsemanStartingLevel()
+			if level~=nil then horsemanLevels={level} end
+		end
+		if horsemanLevels~=nil then
+			gameReminderText=joinLang({gameReminderText,"{en}\nHorsemen, Level(s) {ru}\nВсадники, ур. {zh-tw}\n騎士，等級 {zh-cn}\n骑士，等级 {ko}\n기수, 레벨 {es}\nJinetes, Nivel {fr}\nCavaliers, Niveau {pt-br}\nCavaleiros, Nível {de}\nReiter, Level ",helpLevelList(horsemanLevels)})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
+		local dragonLevels=helpDistinctCurrentLevels(gStates.apocalypseDragonHeadLevels)
+		if dragonLevels==nil and scenarioUsesApocalypseDragon()==true and type(apocalypseDragonStartingLevel)=="function" then
+			local level=apocalypseDragonStartingLevel()
+			if level~=nil then dragonLevels={level} end
+		end
+		if dragonLevels~=nil then
+			gameReminderText=joinLang({gameReminderText,"{en}\nDragon, Level(s) {ru}\nДракон, ур. {zh-tw}\n巨龍，等級 {zh-cn}\n巨龙，等级 {ko}\n드래곤, 레벨 {es}\nDragón, Nivel {fr}\nDragon, Niveau {pt-br}\nDragão, Nível {de}\nDrache, Level ",helpLevelList(dragonLevels)})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
 		if gStates.gameScenario=="Ultimate Conquest" and gStates.removeShadesOfTezlaMonsters~=true then gameReminderText=joinLang({gameReminderText, "{en}\n2 Leaders - Level of last City revealed{ru}\n2 Лидеры - Уровень последнего раскрытого города{zh-tw}\n2 领袖 - 最后揭示的城市等级{zh-cn}\n2 领袖 - 最后揭示的城市等级{ko}\n2 지도자 - 마지막 도시 레벨 공개{es}\n2 líderes - Nivel de la última Ciudad Revelada{fr}\n2 Leaders - Niveau de la Dernière Ville Révélé{pt-br}\n2 Líderes - Nível da última cidade revelada{de}\n2 Anführer - Level der letzten aufgedeckten Stadt"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		--need leader and frindly city notes
+		--Volkare race/combat reminders.
 		if gStates.positionMageKnight[5]=="Volkare" then
-			local volkareRaceLevel={"Fair", "Tight", "Thrilling"}
-			gameReminderText=joinLang({gameReminderText, "\n", translateWord[volkareRaceLevel[gStates.volkareRaceLevel]], "{en} Volkare Race Level{ru} Уровень гонки Волкара{zh-tw} - 沃卡里竞速等级{zh-cn} - 沃卡里竞速等级{ko} 볼케어 레이스 레벨{es} Nivel de Carrera Volkare{fr} Niveau de Course Volkare{pt-br} Nível de Corrida de Volkare{de} Volkare Ethnie Stufe"}) gameReminderHeight=gameReminderHeight+lineFeed
+			if gStates.gameScenario~="The War of Four" then
+				local volkareRaceLevel={"Fair","Tight","Thrilling"}
+				gameReminderText=joinLang({gameReminderText,"\n",translateWord[volkareRaceLevel[gStates.volkareRaceLevel]],"{en} Volkare Race Level{ru} Уровень гонки Волкара{zh-tw} - 沃卡里竞速等级{zh-cn} - 沃卡里竞速等级{ko} 볼케어 레이스 레벨{es} Nivel de Carrera Volkare{fr} Niveau de Course Volkare{pt-br} Nível de Corrida de Volkare{de} Volkare Ethnie Stufe"})
+				gameReminderHeight=gameReminderHeight+lineFeed
+			end
 			local volkareCombatLevel={"Daring", "Heroic", "Legendary"}
 			gameReminderText=joinLang({gameReminderText, "\n", translateWord[volkareCombatLevel[gStates.volkareCombatLevel]], "{en} Volkare Combat Level{ru} Уровень битвы Волкара{zh-tw} - 沃卡里战斗等级{zh-cn} - 沃卡里战斗等级{ko} 볼케어 전투 레벨{es} Nivel de Carrera Volkare{fr} Volkare Niveau de Combat{pt-br} Nível de Combate de Volkare{de} Volkare Kampfstufe"}) gameReminderHeight=gameReminderHeight+lineFeed
 		end
@@ -42739,8 +42884,8 @@ function DisplayHelp(player, mouseButton, id)
 		if gStates.randomCities==true then gameReminderText=joinLang({gameReminderText, "{en}\nRandom Cities Variant{ru}\nСлучайные города{zh-tw}\n随机城市{zh-cn}\n随机城市{ko}\n무작위의 도시들{es}\nVariante de ciudades Aleatorias{fr}\nVariante de Villes Aléatoires{pt-br}\nVariante Cidades Aleatórias{de}\nZufallsstädte-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.startAtNight==true then gameReminderText=joinLang({gameReminderText, "{en}\nStart at Night Variant{ru}\nНочное прибытие{zh-tw}\n黑夜降临{zh-cn}\n黑夜降临{ko}\n야간 도착{es}\nComience en la Variante Nocturna{fr}\nVariante de Démarrage de Nuit{pt-br}\nVariante Início a Noite{de}\nStart bei Nacht Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.darknessComing==true then
-			if gStates.dayRound==true then gameReminderText=joinLang({gameReminderText, "{en}\nDarkness is Comming Variant{ru}\nНадвигается тьма{zh-tw}\n黑夜侵袭{zh-cn}\n黑夜侵袭{ko}\n어둠의 도래{es}\nLa oscuridad se Acerca Variante{fr}\nVariante des Ténèbres à Venir{pt-br}\nVariante Trevas estão Vindo{de}\nDunkelheit kommt Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
-			if gStates.dayRound==false then gameReminderText=joinLang({gameReminderText, "{en}\nDaylight is Comming Variant{ru}\nНадвигается рассвет{zh-tw}\n白昼侵袭{zh-cn}\n白昼侵袭{ko}\n빛의 도래{es}\nLa luz del día está llegando Varian{fr}\nLa Lumière du Jour Arrive Varian{pt-br}\nVariante Luz do dia está vindo{de}\nVariante „Tageslicht kommt"}) gameReminderHeight=gameReminderHeight+lineFeed end
+			if gStates.dayRound==true then gameReminderText=joinLang({gameReminderText, "{en}\nDarkness is Coming Variant{ru}\nНадвигается тьма{zh-tw}\n黑夜侵袭{zh-cn}\n黑夜侵袭{ko}\n어둠의 도래{es}\nLa oscuridad se Acerca Variante{fr}\nVariante des Ténèbres à Venir{pt-br}\nVariante Trevas estão Vindo{de}\nDunkelheit kommt Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
+			if gStates.dayRound==false then gameReminderText=joinLang({gameReminderText, "{en}\nDaylight is Coming Variant{ru}\nНадвигается рассвет{zh-tw}\n白昼侵袭{zh-cn}\n白昼侵袭{ko}\n빛의 도래{es}\nLa luz del día está llegando Variante{fr}\nLa Lumière du Jour Arrive Variante{pt-br}\nVariante Luz do dia está vindo{de}\nVariante „Tageslicht kommt"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		end
 		if gStates.questMod==true then gameReminderText=joinLang({gameReminderText, "{en}\nQuest Cards Variant{ru}\nМод Квест карт{zh-tw}\n自制任务卡{zh-cn}\n自制任务卡{ko}\n퀘스트 카드{es}\nVariante de Cartas de Misión{fr}\nVariante de Cartes de Quête{pt-br}\nVariante Cartas de Missões{de}\nQuest-Karten-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.apocalypseQuestCards==true then gameReminderText=joinLang({gameReminderText, "{en}\nApocalypse Dragon Quest Cards{ru}\nApocalypse Dragon Quest Cards{zh-tw}\nApocalypse Dragon Quest Cards{zh-cn}\nApocalypse Dragon Quest Cards{ko}\nApocalypse Dragon Quest Cards{es}\nApocalypse Dragon Quest Cards{fr}\nApocalypse Dragon Quest Cards{pt-br}\nApocalypse Dragon Quest Cards{de}\nApocalypse Dragon Quest Cards"}) gameReminderHeight=gameReminderHeight+lineFeed end
@@ -42751,94 +42896,27 @@ function DisplayHelp(player, mouseButton, id)
 		if gStates.riseOfTheForgemasters==1 then gameReminderText=joinLang({gameReminderText, "{en}\nRise of the Forgemaster - 1 New Beginning{ru}\nВосхождение мастера-кузнеца — 1. Новое начало{zh-tw}\n锻造师崛起 - 新的开始{zh-cn}\n锻造师崛起 - 新的开始{ko}\n대장장이의 부상 - 1 새로운 시작{es}\nEl ascenso del maestro forjador - 1 Un nuevo comienzo{fr}\nRise of the Forgemaster - 1 Un nouveau départ{pt-br}\nA Ascensão do Mestre da Forja - 1 Um Novo Começo{de}\nRise of the Forgemaster – 1 Neuanfang"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.riseOfTheForgemasters==2 then gameReminderText=joinLang({gameReminderText, "{en}\nRise of the Forgemaster - 2 Spoils of War{ru}\nВосхождение мастера-кузнеца — 2. Военные трофеи{zh-tw}\n锻造师崛起 - 战争犒赏{zh-cn}\n锻造师崛起 - 战争犒赏{ko}\n대장장이의 부상 - 2 전리품{es}\nEl ascenso del maestro forjador - 2 El botín de guerra{fr}\nRise of the Forgemaster - 2 Le butin de guerre{pt-br}\nA Ascensão do Mestre da Forja - 2 Despojos de Guerra{de}\nRise of the Forgemaster – 2 Kriegsbeute"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.riseOfTheForgemasters==3 then gameReminderText=joinLang({gameReminderText, "{en}\nRise of the Forgemaster - 3 Elixir of Life{ru}\nВосхождение мастера-кузнеца — 3. Эликсир жизни{zh-tw}\n锻造师崛起 - ⽣命灵药{zh-cn}\n锻造师崛起 - ⽣命灵药{ko}\n대장장이의 부상 - 3 생명의 엘릭서{es}\nEl ascenso del maestro forjador - 3 El elixir de la vida{fr}\nRise of the Forgemaster - 3 L'élixir de vie{pt-br}\nA Ascensão do Mestre da Forja - 3 Elixir da Vida{de}\nRise of the Forgemaster – 3 Elixier des Lebens"}) gameReminderHeight=gameReminderHeight+lineFeed end
-		UI.setAttribute("GameReminderText", "text", gameReminderText)
-		UI.setAttribute("GameReminder", "height", gameReminderHeight)
+		gameReminderHeight=math.max(gameReminderHeight,30+(lineFeed*helpMaxTranslatedLines(gameReminderText,48)))
+		UI.setAttribute("GameReminderText","text",gameReminderText)
+		UI.setAttribute("GameReminder","height",gameReminderHeight)
 		for _, scenarioFull in pairs(scenarioList) do
 			if scenarioFull[1]==gStates.gameScenario then
 				local endReminderText=heroChallengeScenarioEndText(scenarioFull.scenarioDetails.scenarioEnd)
 				UI.setAttribute("EndReminderText", "text", endReminderText)
 
-				-- Estimate the rendered height from the largest translation rather than
-				-- the combined raw translation string. Explicit line feeds are preserved,
-				-- and long lines are estimated to wrap at roughly charsPerLine characters.
-				local function utf8Length(value)
-					local count=0
-					for i=1, #value do
-						local byte=value:byte(i)
-						if byte<128 or byte>=192 then count=count+1 end
-					end
-					return count
-				end
-
-				local function estimateTranslationLines(value, charsPerLine)
-					local totalLines=0
-					local lineStart=1
-					while true do
-						local lineEnd=string.find(value, "\n", lineStart, true)
-						local line
-						if lineEnd~=nil then line=string.sub(value, lineStart, lineEnd-1) else line=string.sub(value, lineStart) end
-						local length=utf8Length(line)
-						if length==0 then totalLines=totalLines+1 else totalLines=totalLines+math.ceil(length/charsPerLine) end
-						if lineEnd==nil then break end
-						lineStart=lineEnd+1
-					end
-					return math.max(totalLines, 1)
-				end
-
-				local charsPerLine=106
-				local maxLines=1
-				local maxLanguage="unknown"
-				local translatedText=endReminderText or ""
-				local pos=1
-				while true do
-					local tagStart, tagEnd, language=translatedText:find("{([%a%-]+)}", pos)
-					if tagStart==nil then break end
-					local nextTagStart=translatedText:find("{([%a%-]+)}", tagEnd+1)
-					local translation
-					if nextTagStart~=nil then translation=translatedText:sub(tagEnd+1, nextTagStart-1) else translation=translatedText:sub(tagEnd+1) end
-					local estimatedLines=estimateTranslationLines(translation, charsPerLine)
-					if estimatedLines>maxLines or maxLanguage=="unknown" then
-						maxLines=estimatedLines
-						maxLanguage=language
-					end
-					if nextTagStart==nil then break end
-					pos=nextTagStart
-				end
-
-				local boxSize=math.max(117, (lineFeed*1.43)*maxLines) --30% more vertical room so translated/Hero Challenge text does not shrink excessively
-				UI.setAttribute("EndReminder", "height", boxSize)
+				local maxLines=helpMaxTranslatedLines(endReminderText,106)
+				local boxSize=math.max(117,(lineFeed*1.43)*maxLines)
+				UI.setAttribute("EndReminder","height",boxSize)
 				break
 			end
 		end
-		local height=0
-		if gStates.help==false then
-			UI.show("PlayerSeating")
-			UI.show("ObjectRotating")
-			UI.show("PlayAreaRules")
-			UI.show("GameReminder")
-			UI.show("EndReminder")
-			height=3
-			gStates.help=true
-		else
-			UI.hide("PlayerSeating")
-			UI.hide("ObjectRotating")
-			UI.hide("PlayAreaRules")
-			UI.hide("GameReminder")
-			UI.hide("EndReminder")
-			height=-2
-			gStates.help=false
-		end
-		local helpNotes={	"0b2a31", "a3d667", --Fame and Reputaion
-							playAreaGuideBackground[1], playAreaGuideText[1], --Player Area 1
-							playAreaGuideBackground[2], playAreaGuideText[2], --Player Area 2
-							playAreaGuideBackground[3], playAreaGuideText[3], --Player Area 3
-							playAreaGuideBackground[4], playAreaGuideText[4]} --Player Area 4
-		for a, b in pairs(helpNotes) do
-			if getObjectFromGUID(b)~=nil then
-				getObjectFromGUID(b).setPosition({getObjectFromGUID(b).getPosition()[1], height, getObjectFromGUID(b).getPosition()[3]})
-			end
-		end
-	end
+		UI.show("PlayerSeating")
+		UI.show("ObjectRotating")
+		UI.show("PlayAreaRules")
+		UI.show("GameReminder")
+		UI.show("EndReminder")
+		gStates.help=true
+		setHelpNotesHeight(3)
 end
 
 end)
@@ -43906,11 +43984,6 @@ local function recountSetupMageKnights()
 	return customSelected,jormundSelected
 end
 
-local function scenarioUsesVolkareArmyLevel()
-	return gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or
-		gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four"
-end
-
 local function volkareCampAsCitySelectable()
 	return gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Conquest" or
 		gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="One to Return" or
@@ -44129,36 +44202,33 @@ scenarioInfoUpdate=function()
 			if a<=#setup.cityLevels then
 				UI.setAttribute("CL"..a, "active", "true")
 				layout=layout.." 0"
+				local role=scenarioSetupLevelRole(gStates.gameScenario,setup,a,gStates.removeShadesOfTezlaMonsters,gStates.megapolis)
 				if #setup.cityLevels<=3 then
-					if (gStates.megapolis==1 and a==setup.cityTiles) or (gStates.megapolis==2) and not (a==setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four")) then
-						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Megapolis, Lvl {ru}Мегаполис, ур. {zh-tw}大型城市，等級 {zh-cn}大型城市，等级 {ko}거대도시, 레벨 {es}Megapolis, Niv {fr}Megapolis, Niv {pt-br}Megápolis, Nvl {de}Metropoe, Lvl ", setup.cityLevels[a]}))
+					if role=="megapolis" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Megapolis, Lvl {ru}Мегаполис, ур. {zh-tw}大型城市，等級 {zh-cn}大型城市，等级 {ko}거대도시, 레벨 {es}Megapolis, Niv {fr}Megapolis, Niv {pt-br}Megápolis, Nvl {de}Metropoe, Lvl ",setup.cityLevels[a]}))
+					elseif role=="leader" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Leader, Level {ru}Лидер, ур. {zh-tw}領袖，等級 {zh-cn}领袖，等级 {ko}지도자, 레벨 {es}Líder, Nivel {fr}Chef, Niveau {pt-br}Líder, Nível {de}Leiter, Level ",setup.cityLevels[a]}))
+					elseif role=="destroyed" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Destroyed City{ru}Разрушенный город{zh-tw}被摧毀城市{zh-cn}被摧毁城市{ko}파괴된 도시{es}Ciudad Destruida{fr}Ville Détruite{pt-br}Cidade Destruída{de}Zerstörte Stadt")
+					elseif role=="friendly" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Friendly City{ru}Друж. город{zh-tw}友方城市{zh-cn}友方城市{ko}도시(우호적){es}Ciudad Amistosa{fr}Ville Amicale{pt-br}Cidade Amigável{de}Freundliche Stadt")
+					elseif role=="volkare" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Volkare, Level {ru}Волкар, ур. {zh-tw}沃卡里，等級 {zh-cn}沃卡里，等级 {ko}볼케어, 레벨 {es}Volkare, Nivel {fr}Volkare, Niveau {pt-br}Volkare, Nível {de}Volkare, Ebene ",setup.cityLevels[a]}))
 					else
-						if (customLeaderOnly and a==1) or (a==1 and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Realm of the Dead Blitz" or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The War of Four")) or (a==2 and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four")) then
-							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader, Level {ru}Лидер, ур. {zh-tw}領袖，等級 {zh-cn}领袖，等级 {ko}지도자, 레벨 {es}Líder, Nivel {fr}Chef, Niveau {pt-br}Líder, Nível {de}Leiter, Level ", setup.cityLevels[a]}))
-						else
-							if setup.cityLevels[a]==0 then
-								UI.setAttribute("ScenarioCity"..a.."Level", "text", "{en}Friendly City{ru}Друж. город{zh-tw}友方城市{zh-cn}友方城市{ko}도시(우호적){es}Ciudad Amistosa{fr}Ville Amicale{pt-br}Cidade Amigável{de}Freundliche Stadt")
-							else
-								if a==setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-									UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Volkare, Level {ru}Волкар, ур. {zh-tw}沃卡里，等級 {zh-cn}沃卡里，等级 {ko}볼케어, 레벨{es}Volkare, Nivel {fr}Volkare, Niveau {pt-br}Volkare, Nível {de}Volkare, Ebene ", setup.cityLevels[a]}))
-								else
-									UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}City, Level {ru}Город, ур. {zh-tw}城市，等級 {zh-cn}城市，等级 {ko}도시, 레벨 {es}Ciudad, Nivel {fr}Ville, Niveau {pt-br}Cidade, Nível {de}Stadt, Level ", setup.cityLevels[a]}))
-								end
-							end
-						end
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}City, Level {ru}Город, ур. {zh-tw}城市，等級 {zh-cn}城市，等级 {ko}도시, 레벨 {es}Ciudad, Nivel {fr}Ville, Niveau {pt-br}Cidade, Nível {de}Stadt, Level ",setup.cityLevels[a]}))
 					end
-
 				else
-					if (a==1 or a==2) and gStates.gameScenario=="The War of Four" then
-						UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Leader-{ru}Лидер-{zh-tw}領袖{zh-cn}领袖{ko}지도자-{es}Líder-{fr}Chef-{pt-br}Líder-{de}Leiter-", setup.cityLevels[a]}))
+					if role=="leader" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Leader-{ru}Лидер-{zh-tw}領袖{zh-cn}领袖{ko}지도자-{es}Líder-{fr}Chef-{pt-br}Líder-{de}Leiter-",setup.cityLevels[a]}))
+					elseif role=="volkare" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Volkare-{ru}Волкар-{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어-{es}Volkare-{fr}Volkare-{pt-br}Volkare-{de}Volkare-",setup.cityLevels[a]}))
+					elseif role=="destroyed" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Destroyed{ru}Разрушен{zh-tw}被摧毀{zh-cn}被摧毁{ko}파괴됨{es}Destruida{fr}Détruite{pt-br}Destruída{de}Zerstört")
+					elseif role=="friendly" then
+						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Friendly{ru}Друж.{zh-tw}友方{zh-cn}友方{ko}우호적{es}Amistosa{fr}Amicale{pt-br}Amigável{de}Freundlich")
 					else
-						if a==setup.cityTiles+1 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
-							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}Volkare-{ru}Волкар-{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어-{es}Volkare-{fr}Volkare-{pt-br}Volkare-{de}Volkare-", setup.cityLevels[a]}))
-						else
-							UI.setAttribute("ScenarioCity"..a.."Level", "text", joinLang({"{en}City-{ru}Город-{zh-tw}城市{zh-cn}城市{ko}도시-{es}Ciudad-{fr}Ville-{pt-br}Cidade-{de}Stadt-", setup.cityLevels[a]}))
-						end
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}City-{ru}Город-{zh-tw}城市{zh-cn}城市{ko}도시-{es}Ciudad-{fr}Ville-{pt-br}Cidade-{de}Stadt-",setup.cityLevels[a]}))
 					end
-
 				end
 			else
 				UI.setAttribute("CL"..a, "active", "false")
@@ -44627,9 +44697,16 @@ function standardDeckCycleObject(deckName)
 	local zoneGUID=standardDeckCycleZone(deckName)
 	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
 	if zone~=nil then
+		local liveDeck=nil
+		local looseCard=nil
 		for _,obj in pairs(zone.getObjects()) do
-			if obj.type=="Deck" or obj.type=="Card" then return obj end
+			if obj.type=="Deck" then
+				if liveDeck==nil or obj.getQuantity()>liveDeck.getQuantity() then liveDeck=obj end
+			elseif obj.type=="Card" and looseCard==nil then
+				looseCard=obj
+			end
 		end
+		return liveDeck or looseCard
 	end
 	return nil
 end
@@ -44732,6 +44809,18 @@ function safeWaitCondition(scope, callback, condition, timeout, timeoutCallback)
 	if timeout==nil then return Wait.condition(safeCallbackRun,condition) end
 	if safeTimeout==nil then return Wait.condition(safeCallbackRun,condition,timeout) end
 	return Wait.condition(safeCallbackRun,condition,timeout,safeTimeout)
+end
+
+--Clear transient runtime state when an enemy token returns to a pool/container. This is shared by
+--scripted combat/city returns and manual corrections so a reused GUID cannot inherit old combat/map state.
+function clearReturnedMonsterRuntimeState(monsterGUID)
+	if monsterGUID==nil or gStates==nil then return end
+	if gStates.monsterPerks~=nil then gStates.monsterPerks[monsterGUID]=nil end
+	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[monsterGUID]=nil end
+	if gStates.rampagingMonsters~=nil then gStates.rampagingMonsters[monsterGUID]=nil end
+	for _,monsters in pairs(gStates.pursuingMonsters or {}) do monsters[monsterGUID]=nil end
+	if gStates.ambushingMonsters~=nil then gStates.ambushingMonsters[monsterGUID]=nil end
+	if gStates.ruinMonsters~=nil then gStates.ruinMonsters[monsterGUID]=nil end
 end
 
 local UI_BUTTON_ACTIVE_IMAGE="Sliced Button/Button New Active"
@@ -45023,6 +45112,34 @@ end
 function scenarioUsesHorsemen()
 	local scenario=gStates~=nil and gStates.gameScenario or nil
 	return scenario=="Against the Horsemen Blitz" or scenario=="Apocalypse is Here"
+end
+
+function scenarioUsesVolkareArmyLevel(scenario)
+	scenario=scenario or (gStates~=nil and gStates.gameScenario or nil)
+	return scenario=="Volkare's Return" or scenario=="Volkare's Return Blitz" or
+		scenario=="Volkare's Quest" or scenario=="The War of Four"
+end
+
+--Classify each setup level once so Setup UI and in-game Help use the same scenario semantics.
+function scenarioSetupLevelRole(scenario,setup,index,removeShadesOfTezlaMonsters,megapolis)
+	if setup==nil or index==nil then return nil end
+	scenario=scenario or (gStates~=nil and gStates.gameScenario or nil)
+	local cityTiles=tonumber(setup.cityTiles) or 0
+	local levels=setup.cityLevels or {}
+	if index<1 or index>#levels then return nil end
+	if removeShadesOfTezlaMonsters==nil and gStates~=nil then removeShadesOfTezlaMonsters=gStates.removeShadesOfTezlaMonsters end
+	if scenario=="Custom" and cityTiles==0 and removeShadesOfTezlaMonsters~=true and index==1 then return "leader" end
+	if (scenario=="Life and Death" and (index==1 or index==2)) or
+		((scenario=="The Realm of the Dead Blitz" or scenario=="The Hidden Valley Blitz") and index==1) or
+		(scenario=="The War of Four" and (index==1 or index==2)) then return "leader" end
+	if scenarioUsesVolkareArmyLevel(scenario) and index==cityTiles+1 then return "volkare" end
+	if index>cityTiles then return nil end
+	if scenario=="The Lost Relic Blitz" and tonumber(levels[index])==0 then return "destroyed" end
+	if tonumber(levels[index])==0 then return "friendly" end
+	megapolis=tonumber(megapolis) or (gStates~=nil and tonumber(gStates.megapolis) or 0) or 0
+	if megapolis>=2 and cityTiles==2 and index<=2 then return "megapolis" end
+	if megapolis>=1 and index==cityTiles then return "megapolis" end
+	return "city"
 end
 
 --Rewards Claimed soft locks are player reminders, not hard disables. They share one short window
@@ -45785,7 +45902,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="440"
+local automaticLuaErrorReporterVersion="441"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
