@@ -500,8 +500,7 @@ returnCityGarrisonTokens=function(cityGUID)
 				if pileGUID~=nil and getObjectFromGUID(pileGUID)==nil and CITY_DEFENDER_FALLBACK[pugType]~=nil then pileGUID=CITY_DEFENDER_PILE_BY_NAME[CITY_DEFENDER_FALLBACK[pugType]] end
 				local pile=pileGUID~=nil and getObjectFromGUID(pileGUID) or nil
 				if pile~=nil then
-					gStates.monsterPerks[monsterGUID]=nil
-					gStates.monsterPlayLocation[monsterGUID]=nil
+					clearReturnedMonsterRuntimeState(monsterGUID)
 					monster.setDecals({})
 					pile.putObject(monster)
 				end
