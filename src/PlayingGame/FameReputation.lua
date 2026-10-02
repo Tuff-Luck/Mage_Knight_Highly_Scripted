@@ -69,46 +69,42 @@ local function fameRepCurrentReputation(playerIndex)
 	error("Fame/Reputation could not resolve the current Reputation for "..tostring(player.mage or playerIndex)..".",2)
 end
 
---Pending Reputation is always an effective-track delta. Clamp after every externally visible
---accounting pass instead of waiting until Rewards Claimed, so reaching +/-7 consumes the excess
---immediately and a later opposite change still moves away from the edge correctly.
-local function normalizePendingReputation(playerIndex, previousSiteLoss)
+--Pending Reputation is always an effective-track delta. Clamp irreversible changes after every
+--externally visible accounting pass so reaching +/-7 consumes excess immediately.
+local function normalizePendingReputation(playerIndex)
 	local player=turnOrder[playerIndex]
 	if player==nil then return end
 	player.repGain=player.repGain or 0
-	local raw=player.repGain
 	local reputation=fameRepCurrentReputation(playerIndex)
-	local minimum=-7-reputation
-	local maximum=7-reputation
-	local clipped=fameRepClamp(raw,minimum,maximum)
-	local lowerOverflow=clipped-raw
-	player.repGain=clipped
-
-	--Combat reset refunds siteRepLoss later. If part of a newly-created assault loss was clipped at
-	--the bottom of the Reputation track, reduce the stored refundable amount by the same quantity.
-	if lowerOverflow>0 and gStates.gainList~=nil then
-		local overflow=lowerOverflow
-		for guid,entry in pairs(gStates.gainList) do
-			if overflow<=0 then break end
-			if type(entry)=="table" and (entry.siteRepLoss or 0)>0 then
-				local before=previousSiteLoss~=nil and (previousSiteLoss[guid] or 0) or 0
-				local added=math.max(0,(entry.siteRepLoss or 0)-before)
-				if added>0 then
-					local remove=math.min(added,overflow)
-					entry.siteRepLoss=entry.siteRepLoss-remove
-					overflow=overflow-remove
-				end
-			end
-		end
-	end
+	player.repGain=fameRepClamp(player.repGain,-7-reputation,7-reputation)
 end
 
-local function fameRepSnapshotSiteLoss()
-	local snapshot={}
-	for guid,entry in pairs(gStates.gainList or {}) do
-		if type(entry)=="table" and (entry.siteRepLoss or 0)>0 then snapshot[guid]=entry.siteRepLoss end
+--Combat Reputation is reversible until its source is committed. Remember the exact amount that
+--actually reached the track so removing/flipping that source later reverses only its own applied value.
+--Keep the nominal value even when capped to zero so later unrelated changes cannot reactivate an
+--already-resolved source just because another UI refresh ran.
+function fameReputationSetReversiblePending(playerIndex,entry,key,nominal)
+	local player=turnOrder[playerIndex]
+	if player==nil or type(entry)~="table" or key==nil then return 0 end
+	player.repGain=player.repGain or 0
+	nominal=tonumber(nominal) or 0
+	entry.repEffects=entry.repEffects or {}
+	local previous=entry.repEffects[key]
+	if previous~=nil and (tonumber(previous.nominal) or 0)==nominal then return tonumber(previous.applied) or 0 end
+
+	if previous~=nil then player.repGain=player.repGain-(tonumber(previous.applied) or 0) end
+	if nominal==0 then
+		entry.repEffects[key]=nil
+		if next(entry.repEffects)==nil then entry.repEffects=nil end
+		return 0
 	end
-	return snapshot
+
+	local reputation=fameRepCurrentReputation(playerIndex)
+	local effective=reputation+player.repGain
+	local applied=fameRepClamp(nominal,-7-effective,7-effective)
+	player.repGain=player.repGain+applied
+	entry.repEffects[key]={nominal=nominal,applied=applied}
+	return applied
 end
 
 local function hiddenValleyNormalizeSiteLoss()
@@ -193,49 +189,22 @@ function fameReputationApplyPlayerFameReputation(playerIndex)
 	gStates.hiddenValleyRepLossActive=nil
 end
 
-local function possessedEnemyCandidates(possessed,zone)
-	if zone~=nil then return zone.getObjects() end
-	local candidates={}
-	local seen={}
-	local function add(list)
-		for _,candidate in pairs(list or {}) do
-			if candidate~=nil and candidate.guid~=nil and seen[candidate.guid]~=true then
-				seen[candidate.guid]=true
-				candidates[#candidates+1]=candidate
-			end
-		end
-	end
-
-	--A dropped Possessed token can be on the map or in a player's combat area. Search those two
-	--bounded domains instead of the historical getAllObjects() fallback across the whole table.
-	local pos=possessed~=nil and possessed.getPosition() or nil
-	if pos~=nil then
-		local spatial=runtimeMapSpatialSnapshot(1)
-		add(runtimeMapSpatialNearbyObjects(spatial,pos,1))
-	end
-	for _,details in pairs(turnOrder or {}) do
-		if details.seatPos~=nil then add(playerCombatObjects(details.seatPos)) end
-	end
-	return candidates
-end
-
-local function nearestPossessedEnemy(possessed,zone)
-	if possessed==nil then return nil end
-	local pos=possessed.getPosition()
-	for _,enemy in pairs(possessedEnemyCandidates(possessed,zone)) do
-		if enemy.guid~=possessed.guid and monsterPugs[enemy.guid]~=nil and monsterPugs[enemy.guid].pugType~="possessed" then
-			local enemyPos=enemy.getPosition()
-			if math.abs(enemyPos[1]-pos[1])<0.5 and math.abs(enemyPos[3]-pos[3])<0.5 then return enemy end
-		end
-	end
-	return nil
-end
-
 local function possessedManualAward(perks)
 	if perks==nil then return 0 end
 	local amount=tonumber(perks.fame) or 0
 	if perks.faction~=nil and factionRewardUsesJustFame(perks.faction)==true then amount=amount+1 end
 	return amount
+end
+
+--Combat owns the physical Possessed attachment search. Record accounting against the exact enemy
+--and player it resolved instead of predicting that asynchronous result here.
+function fameReputationPossessedAttachmentResolved(possessedGUID,enemyGUID,playerIndex)
+	if possessedGUID==nil or enemyGUID==nil or playerIndex==nil or turnOrder[playerIndex]==nil then return end
+	possessedAttachPending[possessedGUID]={
+		playerIndex=playerIndex,
+		registered=gStates.gainList~=nil and gStates.gainList[enemyGUID]~=nil,
+		oldAward=possessedManualAward(gStates.monsterPerks~=nil and gStates.monsterPerks[enemyGUID] or nil)
+	}
 end
 
 local function correctPossessedAttachmentAwards()
@@ -261,20 +230,7 @@ local function correctPossessedAttachmentAwards()
 end
 
 function fameReputationAttachEnemy(player,mouseButton,id,obj,zone)
-	if id=="attach" and obj~=nil then
-		local enemy=nearestPossessedEnemy(obj,zone)
-		if enemy~=nil then
-			local playerIndex=nil
-			if zone~=nil then
-				for index,details in pairs(turnOrder) do
-					if details.seatPos~=nil and playerPlayAreas[details.seatPos]==zone.guid then playerIndex=index break end
-				end
-			end
-			if playerIndex~=nil then
-				possessedAttachPending[obj.guid]={playerIndex=playerIndex,registered=gStates.gainList~=nil and gStates.gainList[enemy.guid]~=nil,oldAward=possessedManualAward(gStates.monsterPerks~=nil and gStates.monsterPerks[enemy.guid] or nil)}
-			end
-		end
-	elseif id~=nil and id:sub(1,6)=="detach" then
+	if id~=nil and id:sub(1,6)=="detach" then
 		local enemy=obj
 		if enemy==nil then enemy=getObjectFromGUID(id:sub(7,13)) end
 		if enemy~=nil then
@@ -301,7 +257,7 @@ local function fameRepFinishMainUIBatch()
 	fameRepMainUIBatch=nil
 	if pending==nil then return end
 	local playerIndex=pending.playerIndex
-	if turnOrder[playerIndex]~=nil then normalizePendingReputation(playerIndex,pending.previousSiteLoss) end
+	if turnOrder[playerIndex]~=nil then normalizePendingReputation(playerIndex) end
 	hiddenValleyNormalizeSiteLoss()
 	correctPossessedAttachmentAwards()
 	if turnOrder[playerIndex]~=nil then syncPostCommitAdjustments(playerIndex) end
@@ -315,7 +271,7 @@ function fameReputationMainUIUpdate(...)
 	if fameRepMainUIBatch~=nil and fameRepMainUIBatch.playerIndex~=playerIndex then fameRepFinishMainUIBatch() end
 	if fameRepMainUIBatch==nil then
 		if turnOrder[playerIndex]~=nil and turnOrder[playerIndex].reputation==nil then fameRepCurrentReputation(playerIndex) end
-		fameRepMainUIBatch={playerIndex=playerIndex,previousSiteLoss=fameRepSnapshotSiteLoss()}
+		fameRepMainUIBatch={playerIndex=playerIndex}
 	end
 	return uiMainUIUpdateBase(select(1,...),fameRepFinishMainUIBatch)
 end
@@ -372,10 +328,11 @@ end
 
 function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	local playerIndex=gStates.turnNumber
-	if gStates.coopAssaultPhase~="rewards" then syncPostCommitAdjustments(playerIndex) end
-	fameRepSyncSuppressed=true
+	local coopRewards=gStates.coopAssaultPhase=="rewards"
+	if coopRewards~=true then syncPostCommitAdjustments(playerIndex) end
+	if coopRewards~=true then fameRepSyncSuppressed=true end
 	local result=turnEndTurnRawBase(player,mouseButton,id,rewindReady)
-	fameRepSyncSuppressed=false
+	if coopRewards~=true then fameRepSyncSuppressed=false end
 	--Only clear the persisted commit marker when the turn actually advanced past Rewards Claimed.
 	if gStates.preEndTurn~=true and gStates.fameRepCommitted~=nil then gStates.fameRepCommitted[playerIndex]=nil end
 	return result

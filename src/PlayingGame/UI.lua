@@ -836,8 +836,8 @@ local function mainUIRefreshPlayerState(context)
 					--city rep loss
 					for cityguid, monsters in pairs(gStates.cityMonsterQty) do
 						if cityguid~=darkCrusader.terrainHex and cityguid~=elementalist.terrainHex and cityguid~=volkare.model and cityguid~=volkare.terrainHex and monsters[obj.guid]=="alive" and gStates.gainList[cityguid]==nil then
-							turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
 							gStates.gainList[cityguid]={exists=true}
+							fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[cityguid],"cityAssault",-1)
 							if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]={exists=true} end
 							break
 						end
@@ -852,15 +852,15 @@ local function mainUIRefreshPlayerState(context)
 					   ((monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep") or
 						   (monsterPugs[obj.guid].pugType=="purple" and avatarLocation=="mage tower") or
 					   ((obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2]) and hiddenValleyKeep==false)) then
-						turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1
-						gStates.gainList[obj.guid].siteRepLoss=1
+						local siteApplied=fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[obj.guid],"siteAssault",-1)
+						gStates.gainList[obj.guid].siteRepLoss=math.max(0,-siteApplied)
 						if obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2] then hiddenValleyKeep=true end
 					end
 					--monastery rep loss
 					if avatarLocation~=nil then
 						if monsterPugs[obj.guid].pugType=="purple" and gStates.monsterPlayLocation[obj.guid]==nil and avatarLocation=="monastery" then
-							turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-3
-							gStates.gainList[obj.guid].siteRepLoss=3
+							local monasteryApplied=fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[obj.guid],"siteAssault",-3)
+							gStates.gainList[obj.guid].siteRepLoss=math.max(0,-monasteryApplied)
 						end
 					end
 					--Keep defenders use half Fame; remember this so reset does not depend on the avatar still being on the Keep.
@@ -888,14 +888,16 @@ local function mainUIRefreshPlayerState(context)
 											gStates.gainList[terrainguid].tokenDirection=-1
 											if gStates.gainList[obj.guid].tokenDirection==1 and (state=="dead" or gStates.gainList[monsterGUID].tokenDirection==1) then
 												gStates.gainList[terrainguid].tokenDirection=1
-												turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(x*gStates.gainList[terrainguid].tokenDirection)
+												local mineRep=gStates.gainList[terrainguid].tokenDirection==1 and x or 0
+												fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[terrainguid],"mineLiberation",mineRep)
 											end
 										else
 											gStates.gainList[terrainguid].exists=true
 											if (gStates.gainList[obj.guid].tokenDirection==1 and (state=="dead" or gStates.gainList[monsterGUID].tokenDirection==1) and gStates.gainList[terrainguid].tokenDirection==-1)
 											or ((gStates.gainList[obj.guid].tokenDirection==-1 or (state=="alive" and gStates.gainList[monsterGUID].tokenDirection==-1)) and gStates.gainList[terrainguid].tokenDirection==1) then
 												gStates.gainList[terrainguid].tokenDirection=gStates.gainList[terrainguid].tokenDirection*-1
-												turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(x*gStates.gainList[terrainguid].tokenDirection)
+												local mineRep=gStates.gainList[terrainguid].tokenDirection==1 and x or 0
+												fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[terrainguid],"mineLiberation",mineRep)
 											end
 										end
 										break
@@ -939,11 +941,16 @@ local function mainUIRefreshPlayerState(context)
 					if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[obj.guid]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[obj.guid]==nil) and
 						(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) and
 						obj.guid~=gStates.hiddenValleyKeep[1] and obj.guid~=gStates.hiddenValleyKeep[2] then
-						if monsterPugs[obj.guid].pugType=="green" or monsterPugs[obj.guid].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(1*gStates.gainList[obj.guid].tokenDirection) end --More Rampage! can add tan rampagers.
-						if monsterPugs[obj.guid].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(2*gStates.gainList[obj.guid].tokenDirection) end
+						local rampageRep=0
+						if monsterPugs[obj.guid].pugType=="green" or monsterPugs[obj.guid].pugType=="tan" then rampageRep=1 end --More Rampage! can add tan rampagers.
+						if monsterPugs[obj.guid].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then rampageRep=2 end
+						fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[obj.guid],"rampaging",gStates.gainList[obj.guid].tokenDirection==1 and rampageRep or 0)
 					end
 					--add hero and thug reputation
-					if monsterPugs[obj.guid].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+(monsterPugs[obj.guid].reputation*gStates.gainList[obj.guid].tokenDirection) end
+					if monsterPugs[obj.guid].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[obj.guid]~=true) then
+						local printedRep=gStates.gainList[obj.guid].tokenDirection==1 and monsterPugs[obj.guid].reputation or 0
+						fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[obj.guid],"printed",printedRep)
+					end
 				end
 				gStates.gainList[obj.guid].exists=true
 			end
@@ -986,7 +993,7 @@ local function mainUIRefreshPlayerState(context)
 							if gStates.gainList[terrainguid]~=nil and gStates.gainList[terrainguid].tokenDirection==1 then
 								local x=1
 								if terrainTiles[terrainguid].tileType=="core" then x=2 end
-								turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-x
+								fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[terrainguid],"mineLiberation",0)
 								gStates.gainList[terrainguid]=nil
 							end
 							break
@@ -996,11 +1003,10 @@ local function mainUIRefreshPlayerState(context)
 					if gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[a]==true and minesLibMonster==false and cityRepLoss==false and (gStates.ruinMonsters==nil or gStates.ruinMonsters[a]==nil) and
 						(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) and
 						a~=gStates.hiddenValleyKeep[1] and a~=gStates.hiddenValleyKeep[2] then
-						if monsterPugs[a].pugType=="green" or monsterPugs[a].pugType=="tan" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-1 end
-						if monsterPugs[a].pugType=="red" and gStates.gameScenario~="The Lost Relic Blitz" then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-2 end
+						fameReputationSetReversiblePending(gStates.turnNumber,b,"rampaging",0)
 					end
 					--Hero and thug reputation
-					if monsterPugs[a].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain-monsterPugs[a].reputation end
+					if monsterPugs[a].reputation~=nil and (gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[a]~=true) then fameReputationSetReversiblePending(gStates.turnNumber,b,"printed",0) end
 				end
 				--City monsters
 				for cityguid, monsters in pairs(gStates.cityMonsterQty) do
@@ -1012,7 +1018,7 @@ local function mainUIRefreshPlayerState(context)
 							end
 						end
 						if found==false then
-							turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+1
+							fameReputationSetReversiblePending(gStates.turnNumber,gStates.gainList[cityguid],"cityAssault",0)
 							gStates.gainList[cityguid]=nil
 							if monsters.extra.megapolisPair~=nil and monsters.extra.megapolisPair~=cityguid then gStates.gainList[monsters.extra.megapolisPair]=nil end
 						end

@@ -1614,6 +1614,7 @@ function combatAttachEnemyBase(player, mouseButton, id, obj, zone)
 				for _, nearEnemy in pairs(candidates) do
 					if nearEnemy.guid~=possessedGUID and monsterPugs[nearEnemy.guid]~=nil and monsterPugs[nearEnemy.guid].pugType~="possessed" and justDetached[nearEnemy.guid]~=true and
 						nearEnemy.getPosition()[1]-possessed.getPosition()[1]>-0.5 and nearEnemy.getPosition()[1]-possessed.getPosition()[1]<0.5 and nearEnemy.getPosition()[3]-possessed.getPosition()[3]>-0.5 and nearEnemy.getPosition()[3]-possessed.getPosition()[3]<0.5 then
+						if fameReputationPossessedAttachmentResolved~=nil then fameReputationPossessedAttachmentResolved(possessedGUID,nearEnemy.guid,attachPlayer) end
 						--Assign perks to monster token
 						local perkToCheck={"fame", "attack", "reward", "boost", "armour"}
 						for _, perk in pairs(perkToCheck) do
