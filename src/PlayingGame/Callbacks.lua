@@ -128,10 +128,6 @@ function filterObjectEnterContainer(container, enter_object)
 	return safeDirectCallback("filterObjectEnterContainer", __filterObjectEnterContainer_raw, container, enter_object)
 end
 
-function onPlayerAction(player, action, targets)
-	return safeCallback("onPlayerAction", function() return __onPlayerAction_raw(player, action, targets) end)
-end
-
 --Global XML and Object UI callbacks bypass the normal TTS lifecycle wrappers above. Install their
 --error boundaries here, after every gameplay module has loaded, so the owning implementations stay
 --unchanged and UI names continue resolving exactly as before.
