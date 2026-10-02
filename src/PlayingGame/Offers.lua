@@ -385,13 +385,9 @@ function unitOffer()
 			local deckInfo={}
 			local drawList={}
 			--Prepare a deck's contents the first time we need it
-			local function getDeckInfo(zoneGUID)
+			local function getDeckInfo(zoneGUID,deckName)
 				if deckInfo[zoneGUID]~=nil then return deckInfo[zoneGUID] end
-				local zone=getObjectFromGUID(zoneGUID)
-				local deck=nil
-				for _, obj in ipairs(zone.getObjects()) do
-					if obj.type=="Deck" or obj.type=="Card" then deck=obj break end
-				end
+				local deck=standardDeckCycleObject(deckName)
 				if deck==nil then return nil end
 				local cards={}
 				if deck.type=="Deck" then cards=deck.getObjects() else cards={{guid=deck.guid}}	end
@@ -401,20 +397,20 @@ function unitOffer()
 
 			--Find the next unit whose name is not already in the offer
 			local function getNextUniqueUnit(zoneGUID, deckName)
-				local info=getDeckInfo(zoneGUID)
+				local info=getDeckInfo(zoneGUID,deckName)
 				if info==nil then return nil end
 				while info.nextCard<=#info.cards do
 					local card=info.cards[info.nextCard]
 					info.nextCard=info.nextCard+1
-					local unitData=gameCards[card.guid]
-					--Fallback to GUID if this card isn't in gameCards
-					local unitName=card.guid
-					if unitData~=nil and unitData.name~=nil and unitData.name[1]~=nil then unitName=unitData.name[1] end
-					if unitsInOffer[unitName]~=true then
-						if standardDeckCycleShuffleIfReached(deckName, info.deck, card.guid)==true then
-							info.cards=info.deck.type=="Deck" and info.deck.getObjects() or {{guid=info.deck.guid}}
-							info.nextCard=1
-						else
+					if standardDeckCycleShuffleIfReached(deckName, info.deck, card.guid)==true then
+						info.cards=info.deck.type=="Deck" and info.deck.getObjects() or {{guid=info.deck.guid}}
+						info.nextCard=1
+					else
+						local unitData=gameCards[card.guid]
+						--Fallback to GUID if this card isn't in gameCards
+						local unitName=card.guid
+						if unitData~=nil and unitData.name~=nil and unitData.name[1]~=nil then unitName=unitData.name[1] end
+						if unitsInOffer[unitName]~=true then
 							unitsInOffer[unitName]=true
 							return {deck=info.deck, guid=card.guid}
 						end

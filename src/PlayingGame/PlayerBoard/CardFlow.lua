@@ -1503,10 +1503,10 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 				end
 				if filled~=true then
 					local deckName=row==1 and "Advanced Action" or "Spell"
-					standardDeckCycleShuffleIfReached(deckName)
 					local source=sourceOverrides~=nil and sourceOverrides[deckName] or nil
 					if source==nil or (source.type~="Deck" and source.type~="Card") then source=standardDeckCycleObject(deckName) end
 					if source~=nil then
+						standardDeckCycleShuffleIfReached(deckName,source)
 						local target={(column*4.8)+21.6,1.5,-((row*6)+10.2)}
 						local newCard=nil
 						if source.type=="Deck" then

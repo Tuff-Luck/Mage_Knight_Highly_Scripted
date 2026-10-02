@@ -15,9 +15,16 @@ function standardDeckCycleObject(deckName)
 	local zoneGUID=standardDeckCycleZone(deckName)
 	local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
 	if zone~=nil then
+		local liveDeck=nil
+		local looseCard=nil
 		for _,obj in pairs(zone.getObjects()) do
-			if obj.type=="Deck" or obj.type=="Card" then return obj end
+			if obj.type=="Deck" then
+				if liveDeck==nil or obj.getQuantity()>liveDeck.getQuantity() then liveDeck=obj end
+			elseif obj.type=="Card" and looseCard==nil then
+				looseCard=obj
+			end
 		end
+		return liveDeck or looseCard
 	end
 	return nil
 end
