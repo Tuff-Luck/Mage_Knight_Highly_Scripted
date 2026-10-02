@@ -561,7 +561,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 			end
 		end
 	end
-	if gStates.monsterPerks~=nil then gStates.monsterPerks[monsterGUID]=nil end
+	clearReturnedMonsterRuntimeState(monsterGUID)
 	discardBag.putObject(playAreaObj)
 	return true
 end
