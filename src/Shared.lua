@@ -1022,10 +1022,14 @@ end
 -- Player permission helpers
 --checks the clicking player matches the current turn
 function legalPlayerCheck(clickingPlayersColor, playerPosExpected, rule)
+	--Grey is TTS spectator, not a Player[] seat. Reject it before touching the Player userdata,
+	--and never allow the dummy-turn exception below to turn a spectator click into a legal action.
+	if clickingPlayersColor=="Grey" then return false end
 	--converts player color in to a posiion value
 	local playerPosition=0
-	local clickingPlayer=type(clickingPlayersColor)=="string" and Player[clickingPlayersColor] or nil
-	if clickingPlayersColor~="Grey" and clickingPlayersColor~="Black" and clickingPlayer~=nil and clickingPlayer.seated==true then
+	local clickingPlayer=nil
+	if type(clickingPlayersColor)=="string" and clickingPlayersColor~="Black" then clickingPlayer=Player[clickingPlayersColor] end
+	if clickingPlayersColor~="Black" and clickingPlayer~=nil and clickingPlayer.seated==true then
 		local handTransform=clickingPlayer.getHandTransform()
 		if handTransform~=nil and handTransform.position~=nil then playerPosition=math.ceil((handTransform.position[1]+97.59)/40) end
 	end
