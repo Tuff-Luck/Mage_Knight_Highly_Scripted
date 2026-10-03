@@ -235,6 +235,11 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		setupMapStarted=false
 		gStates.volkareCampSupportReady=true
 		gStates.apocalypseQuestSetupReady=apocalypseQuestsUsed()~=true
+		--Virgin saves deliberately omit transient live-game state. Recreate the setup-owned defaults
+		--before any parallel player/map setup path can read or write them.
+		gStates.dummyAllSkills=false
+		gStates.startingHigherLevelCrystal={}
+		gStates.hexOverideSave=gStates.hexOverideSave or {}
 
 		--Close the setup menu and update the Help button
 		UI.setAttribute("Setup", "active", "false")
