@@ -814,6 +814,7 @@ local function combatPreEndTurnRaiseAvatar(cleanupPlayer)
 end
 
 local function combatReturnPreEndTurnDie(cleanupPlayer,diceGUID)
+	gStates.coopAssaultDice=gStates.coopAssaultDice or {}
 	gStates.coopAssaultDice[#gStates.coopAssaultDice+1]=diceGUID
 	--Only a real combined assault holds dice between participants. A face-down turn token can also
 	--mean an unrelated out-of-order turn, so it is not a reliable proxy for this lifecycle.
