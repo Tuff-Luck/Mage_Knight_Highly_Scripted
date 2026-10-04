@@ -2355,8 +2355,12 @@ function buttonClicked(player, mouseButton, ButtonPressed)
 	local obj=getObjectFromGUID(ButtonPressed:sub(1,6))
 	local ui=obj and obj.UI or UI
 	local active, deactive
+	local setupScenarioLevelButton=ButtonPressed=="HorsemenLevelUp" or ButtonPressed=="HorsemenLevelDown" or
+		ButtonPressed=="ApocalypseDragonLevelUp" or ButtonPressed=="ApocalypseDragonLevelDown"
 
-	if ButtonPressed:find("LevelUp",1,true)~=nil or ButtonPressed:find("OverkillUp",1,true)~=nil or ButtonPressed:find("ArtifactUp",1,true)~=nil or ButtonPressed:find("changeMatUp",1,true)~=nil then
+	if setupScenarioLevelButton==true then
+		active, deactive="Sliced Button/Button New Active", "Sliced Button/Button New Deactive"
+	elseif ButtonPressed:find("LevelUp",1,true)~=nil or ButtonPressed:find("OverkillUp",1,true)~=nil or ButtonPressed:find("ArtifactUp",1,true)~=nil or ButtonPressed:find("changeMatUp",1,true)~=nil then
 		active, deactive="Overkill Up", "Overkill Up Deactive"
 	elseif ButtonPressed:find("LevelDown",1,true)~=nil or ButtonPressed:find("OverkillDown",1,true)~=nil or ButtonPressed:find("ArtifactDown",1,true)~=nil or ButtonPressed:find("changeMatDown",1,true)~=nil then
 		active, deactive="Overkill Down", "Overkill Down Deactive"
