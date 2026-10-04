@@ -126,6 +126,7 @@ end
 refreshUltimateConquestCityCounts=function()
 	if gStates.gameScenario~="Ultimate Conquest" then return 0 end
 	local cityCount=-(gStates.megapolisPlayed or 0)
+	if gStates.apocalypseDragonCityPlaced==true then cityCount=cityCount+1 end
 	gStates.ultimateLeaders=0
 	for _, playedCityGUID in ipairs(gStates.citiesPlayed or {}) do
 		if playedCityGUID==darkCrusader.terrainHex or playedCityGUID==elementalist.terrainHex then
@@ -880,11 +881,25 @@ end
 
 cityRegisterDeployOrder=function(cityGUID, ultimateCitiesPlayed)
 	if gStates.cityDeployOrder[cityGUID]~=nil then return gStates.cityDeployOrder[cityGUID] end
-	local playedCities=#gStates.citiesPlayed-(gStates.megapolisPlayed or 0)
+	local playedCities=#gStates.citiesPlayed-(gStates.megapolisPlayed or 0)+(gStates.apocalypseDragonCityPlaced==true and 1 or 0)
 	if gStates.gameScenario=="Ultimate Conquest" then playedCities=ultimateCitiesPlayed end
 	if gStates.gameScenario=="The War of Four" then table.insert(gStates.cityLevels, playedCities, gStates.cityLevels[4]) table.remove(gStates.cityLevels, 5) end
 	gStates.cityDeployOrder[cityGUID]=playedCities
 	return playedCities
+end
+
+--Return the city-order slot and level that a newly revealed normal City would receive.
+--The Apocalypse Dragon City variant calls this before marking its replacement as placed, then later
+--City deployments count that reserved slot through cityRegisterDeployOrder()/refreshUltimateConquestCityCounts().
+function cityReplacementLevelForDragon()
+	if gStates==nil or gStates.cityLevels==nil then return nil,nil end
+	local order
+	if gStates.gameScenario=="Ultimate Conquest" then
+		order=refreshUltimateConquestCityCounts()+1
+	else
+		order=#(gStates.citiesPlayed or {})-(gStates.megapolisPlayed or 0)+1
+	end
+	return order,gStates.cityLevels[order]
 end
 
 cityLeaderDeployOrder=function(cityGUID, ultimateCitiesPlayed, leaderLevel)
