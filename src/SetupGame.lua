@@ -13,7 +13,8 @@ function megapolisMaximumForSetup(scenarioRef, playersRef)
 	playersRef=playersRef or gStates.playersRef
 	local scenario=scenarioList~=nil and scenarioList[scenarioRef] or nil
 	local setup=scenario~=nil and scenario[playersRef] or nil
-	if scenario==nil or setup==nil or scenario.scenarioDetails==nil or scenario.scenarioDetails.megapolisPossible~=true or gStates.volkareCampAsCity==true then return 0 end
+	if scenario==nil or setup==nil or scenario.scenarioDetails==nil or scenario.scenarioDetails.megapolisPossible~=true or
+		gStates.volkareCampAsCity==true or (tonumber(gStates.apocalypseDragonCityMode) or 0)>0 then return 0 end
 	local cityTiles=tonumber(setup.cityTiles) or 0
 	if cityTiles<=0 then return 0 end
 	if cityTiles<=2 then return math.min(2,cityTiles) end
