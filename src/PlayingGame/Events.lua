@@ -245,6 +245,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		--Apocalypse is Here derives the destroyed City's Plains terrain from durable scenario state;
 		--do not save a second digital-map copy just to preserve this one logical terrain override.
 		apocalypseIsHereApplyDragonCityTerrainOverride()
+		if apocalypseDragonCityVariantApplyTerrainOverride~=nil then apocalypseDragonCityVariantApplyTerrainOverride() end
 		if getObjectFromGUID(GUID.card.bannerOfCommandToken)~=nil then bannerOfCommandDecal() end
 		--Add decals back to Pursuing and Ambushing tokens
 		if gStates.rampageAmbush==true and gStates.rampagePursuit==false then
