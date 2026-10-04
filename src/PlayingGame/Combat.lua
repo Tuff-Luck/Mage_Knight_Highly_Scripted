@@ -470,6 +470,10 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		if gStates.apocalypsePossessedFactionByToken~=nil then gStates.apocalypsePossessedFactionByToken[monsterGUID]=nil end
 	end
 
+	if giveRewards==true and playAreaObj.is_face_down==false and horsemanHorseOwner~=nil and horsemanHorseOwner(monsterGUID)~=nil then
+		horsemanResolveHorseDefeat(monsterGUID)
+	end
+
 	for cityguid, monsters in pairs(gStates.cityMonsterQty) do
 		if monsters[monsterGUID]~=nil then
 			monsters[monsterGUID]="dead"
@@ -1929,7 +1933,9 @@ function attackLocation(playerDud, mouseButton, id)
 							local monsterPos=mapSpatial.positions[monster.guid] or monster.getPosition()
 							if monsterPugs[monster.guid]~=nil then
 								local horsemanName=horsemanTokenToName~=nil and horsemanTokenToName[monster.guid] or nil
-								local horsemanSelected=horsemanName==nil or (horseSelection~=nil and horseSelection.player==playerIndex and horseSelection.targets~=nil and horseSelection.targets[monster.guid]==true)
+								local horseOwner=horsemanHorseOwner~=nil and horsemanHorseOwner(monster.guid) or nil
+								local linkedHorseman=horsemanName~=nil or horseOwner~=nil
+								local horsemanSelected=linkedHorseman~=true or (horseSelection~=nil and horseSelection.player==playerIndex and horseSelection.targets~=nil and horseSelection.targets[monster.guid]==true)
 								if horsemanSelected==true and math.sqrt(((monsterPos[1]-avPos[1])^2)+((monsterPos[3]-avPos[3])^2))<1 then
 									local originalPos={monsterPos[1],monsterPos[2],monsterPos[3]}
 									gStates.attackedMonsters[monster.guid]={originalPos, monster.getRotation()}
@@ -2383,27 +2389,33 @@ function attackCity(player, mouseButton, id)
 				local dragonCombatSlot=(coopStart==true and gStates.coopAssaultType=="dragon") and 2 or 1
 				for _, army in pairs({"primary", "secondary"}) do
 					for _, monsterGUID in pairs(gStates.assaultData[playerData.mage][army]) do
-						local monsterObj=getObjectFromGUID(monsterGUID)
-						if monsterObj~=nil then
-							gStates.attackedMonsters[monsterGUID]={monsterObj.getPosition(), monsterObj.getRotation()}
-							if wallTargetHasWall==true then setAssaultWallFortified(monsterObj, wallFortified) end
-							monsterObj.unlock()
-							if cameraFollowed==false then combatCameraFocus(playerIndex) cameraFollowed=true end
-							local destination={(playerData.seatPos*40)-96+OffsetX, 2.5, -39-OffsetZ}
-							if coopStart==true and gStates.coopAssaultType=="dragon" and apocalypseDragonGroundTokenPosition~=nil then
-								local dragonPosition=apocalypseDragonGroundTokenPosition(playerIndex,dragonCombatSlot)
-								if dragonPosition~=nil then destination={dragonPosition[1],2.5,dragonPosition[3]} end
-								dragonCombatSlot=dragonCombatSlot+1
+						local combatGUIDs={monsterGUID}
+						local horsemanName=horsemanTokenToName~=nil and horsemanTokenToName[monsterGUID] or nil
+						local horseGUID=horsemanName~=nil and horsemanLinkedHorseGUID~=nil and horsemanLinkedHorseGUID(horsemanName) or nil
+						if horseGUID~=nil then combatGUIDs[#combatGUIDs+1]=horseGUID end
+						for _,combatGUID in ipairs(combatGUIDs) do
+							local monsterObj=getObjectFromGUID(combatGUID)
+							if monsterObj~=nil then
+								gStates.attackedMonsters[combatGUID]={monsterObj.getPosition(), monsterObj.getRotation()}
+								if wallTargetHasWall==true then setAssaultWallFortified(monsterObj, wallFortified) end
+								monsterObj.unlock()
+								if cameraFollowed==false then combatCameraFocus(playerIndex) cameraFollowed=true end
+								local destination={(playerData.seatPos*40)-96+OffsetX, 2.5, -39-OffsetZ}
+								if coopStart==true and gStates.coopAssaultType=="dragon" and apocalypseDragonGroundTokenPosition~=nil then
+									local dragonPosition=apocalypseDragonGroundTokenPosition(playerIndex,dragonCombatSlot)
+									if dragonPosition~=nil then destination={dragonPosition[1],2.5,dragonPosition[3]} end
+									dragonCombatSlot=dragonCombatSlot+1
+								end
+								monsterObj.setPositionSmooth(destination,false,false)
+								if wallTargetHasWall==true then settleAssaultWallFortified(combatGUID,wallFortified) end
+								monsterObj.setRotation({0.00,180.00,0.00})
+								if coopStart~=true or gStates.coopAssaultType~="dragon" then
+									OffsetX=OffsetX+2.5
+									if OffsetX>12 then OffsetX=0 OffsetZ=OffsetZ+2.5 end
+								end
+								played=true
+								inFight=true
 							end
-							monsterObj.setPositionSmooth(destination,false,false)
-							if wallTargetHasWall==true then settleAssaultWallFortified(monsterGUID,wallFortified) end
-							monsterObj.setRotation({0.00,180.00,0.00})
-							if coopStart~=true or gStates.coopAssaultType~="dragon" then
-								OffsetX=OffsetX+2.5
-								if OffsetX>12 then OffsetX=0 OffsetZ=OffsetZ+2.5 end
-							end
-							played=true
-							inFight=true
 						end
 					end
 				end

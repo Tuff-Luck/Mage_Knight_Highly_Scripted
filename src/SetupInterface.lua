@@ -197,6 +197,7 @@ local SETUP_TOGGLE_DEFAULTS={
 	weatherMod={false,true},
 	questMod={false,true},
 	apocalypseQuestCards={false,true},
+	horsemenHorses={false,true},
 	proxyPlayer={false,true},
 	itemShopMod={false,true},
 	removeTerrain={false,true},
@@ -280,6 +281,11 @@ local function refreshScenarioEnemyLevelTweaks()
 	UI.setAttribute("ScenarioEnemyLevelsRow","active",showAny and "true" or "false")
 	UI.setAttribute("ApocalypseDragonLevelCell","active",showDragon and "true" or "false")
 	UI.setAttribute("HorsemenLevelCell","active",showHorsemen and "true" or "false")
+	UI.setAttribute("HorsemenHorsesRow","active",showHorsemen and "true" or "false")
+	if showHorsemen~=true and gStates.horsemenHorses==true then
+		gStates.horsemenHorses=false
+		UI.setAttribute("horsemenHorses","isOn","false")
+	end
 	if showDragon then
 		local level=type(apocalypseDragonStartingLevel)=="function" and apocalypseDragonStartingLevel() or 1
 		UI.setAttribute("ApocalypseDragonLevelSelectionText","text",joinLang({"{en}Dragon, Level {ru}Дракон, ур. {zh-tw}巨龍，等級 {zh-cn}巨龙，等级 {ko}드래곤, 레벨 {es}Dragón, Nivel {fr}Dragon, Niveau {pt-br}Dragão, Nível {de}Drache, Level ",tostring(level or 1)}))
@@ -1390,6 +1396,7 @@ local setupUISaveAttributes={
 	{id="weatherMod",attribute="interactable"},{id="weatherMod",attribute="isOn"},
 	{id="questMod",attribute="interactable"},{id="questMod",attribute="isOn"},
 	{id="apocalypseQuestCards",attribute="interactable"},{id="apocalypseQuestCards",attribute="isOn"},
+	{id="horsemenHorses",attribute="interactable"},{id="horsemenHorses",attribute="isOn"},
 	{id="proxyPlayer",attribute="interactable"},{id="proxyPlayer",attribute="isOn"},
 	{id="itemShopMod",attribute="interactable"},{id="itemShopMod",attribute="isOn"},
 	{id="removeTerrain",attribute="interactable"},{id="removeTerrain",attribute="isOn"},
@@ -1440,7 +1447,7 @@ end
 local function restoreSetupUIFromState()
 	local toggles={"volkareCampAsCity","randomTileOrientation","randomCities","removeShadesOfTezlaMonsters","removeApocalypseTerrain",
 		"removeLostLegionExpansion","startAtNight","darknessComing","rampageAmbush","rampagePursuit","mageKnightLevels",
-		"useCustomMageKnights","heroChallenges","removeBonusCards","weatherMod","questMod","apocalypseQuestCards","proxyPlayer","itemShopMod","removeTerrain","useAlternatePugs"}
+		"useCustomMageKnights","heroChallenges","removeBonusCards","weatherMod","questMod","apocalypseQuestCards","horsemenHorses","proxyPlayer","itemShopMod","removeTerrain","useAlternatePugs"}
 	for _,id in ipairs(toggles) do if gStates[id]~=nil then UI.setAttribute(id,"isOn",gStates[id] and "true" or "false") end end
 	UI.setAttribute("BlitzSelection","isOn",gStates.blitz==1 and "true" or "false")
 	UI.setAttribute("RampageSelection","isOn",gStates.rampage==1 and "true" or "false")

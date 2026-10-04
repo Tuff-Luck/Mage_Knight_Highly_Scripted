@@ -34,6 +34,136 @@ function horsemanDataFor(ref)
 	return nil, nil
 end
 
+--The optional Horsemen's Horses variant links one ordinary brown (tan-pool) enemy to each Horseman.
+--The brown token remains a normal enemy for stats/Fame/discard purposes; only the relationship is special.
+function horsemanHorseOwner(horseGUID)
+	if horseGUID==nil or gStates==nil then return nil end
+	for name,state in pairs(gStates.horsemen or {}) do
+		if state~=nil and state.horseGUID==horseGUID then return name end
+	end
+	return nil
+end
+
+function horsemanLinkedHorseGUID(name)
+	local state=gStates~=nil and gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	if state==nil or state.horseGUID==nil or getObjectFromGUID(state.horseGUID)==nil then return nil end
+	return state.horseGUID
+end
+
+function horsemanRevealLinkedHorse(name)
+	local guid=horsemanLinkedHorseGUID(name)
+	local horse=guid~=nil and getObjectFromGUID(guid) or nil
+	if horse==nil then return false end
+	if horse.is_face_down==true then
+		horse.flip()
+		safeWaitFrames("Horsemen",function()
+			if getObjectFromGUID(guid)~=nil and mapTokenArrangeObject~=nil then mapTokenArrangeObject(guid) end
+		end,1)
+	end
+	return true
+end
+
+function horsemanDeployLinkedHorse(name,target,faceDown)
+	if gStates==nil or gStates.horsemenHorses~=true or target==nil then return false end
+	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	if state==nil then return false end
+	if horsemanLinkedHorseGUID(name)~=nil then return true end
+	local pileGUID=monsterPiles.tan
+	local function deploy()
+		local currentState=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+		if currentState==nil or currentState.defeated==true or currentState.retired==true or currentState.horseGUID~=nil then return end
+		local pile=getObjectFromGUID(pileGUID)
+		if pile==nil or pile.getQuantity()==0 then
+			broadcastToAll("The Horsemen's Horses could not draw a brown enemy token.",{1,0.3,0.2})
+			return
+		end
+		local rotation=faceDown==true and {0,180,180} or {0,180,0}
+		local horse=pile.takeObject({position={target[1],target[2]+0.8,target[3]},rotation=rotation,smooth=false})
+		if horse==nil then return end
+		currentState.horseGUID=horse.guid
+		currentState.horseDefeated=nil
+		if gStates.monsterPlayLocation==nil then gStates.monsterPlayLocation={} end
+		gStates.monsterPlayLocation[horse.guid]={target[1],target[2],target[3]}
+		local started=mapTokenSettleArrival~=nil and mapTokenSettleArrival(horse.guid,target,{force=true,rotation=rotation}) or false
+		if started~=true then
+			horse.setPositionSmooth(target,false,false)
+			mapTokenAfterSettled(horse.guid,function()
+				if getObjectFromGUID(horse.guid)~=nil and mapTokenArrangeObject~=nil then mapTokenArrangeObject(horse.guid) end
+			end)
+		end
+	end
+	if withTokenPoolReady~=nil then withTokenPoolReady(pileGUID,deploy,"Horsemen") else deploy() end
+	return true
+end
+
+--Move the linked brown enemy as part of the same visible action. On ordinary map hexes both pieces
+--use MapTokens.lua, so the normal enemy sorts below the moving-priority Horseman. The optional
+--horseTarget is only for the Round-4 Portal-card garrison, which is deliberately off-map.
+function horsemanMoveWithLinkedHorse(name,target,options,callback)
+	options=options or {}
+	local data=horsemanData~=nil and horsemanData[name] or nil
+	local horseman=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
+	if horseman==nil or target==nil then return false end
+	local moves={}
+	local horseGUID=horsemanLinkedHorseGUID(name)
+	if horseGUID~=nil then moves[#moves+1]={guid=horseGUID,target=options.horseTarget or target,horse=true} end
+	moves[#moves+1]={guid=horseman.guid,target=target,horse=false}
+	local remaining=#moves
+	local anyStarted=false
+	local function settled()
+		remaining=math.max(0,remaining-1)
+		if remaining==0 and callback~=nil then callback() end
+	end
+	for _,move in ipairs(moves) do
+		local moveOptions={}
+		for key,value in pairs(options) do if key~="horseTarget" and not (move.horse==true and key=="rotation") then moveOptions[key]=value end end
+		local started=mapTokenSettleArrival~=nil and mapTokenSettleArrival(move.guid,move.target,moveOptions,function() settled() end) or false
+		if started==true then
+			anyStarted=true
+		else
+			local obj=getObjectFromGUID(move.guid)
+			if obj~=nil then
+				if moveOptions.releaseOrigin==true and mapTokenReleaseObject~=nil then mapTokenReleaseObject(obj) end
+				if moveOptions.rotation~=nil then obj.setRotation(moveOptions.rotation) end
+				obj.setPositionSmooth(move.target,false,false)
+				mapTokenAfterSettled(move.guid,function() settled() end)
+			else
+				settled()
+			end
+		end
+	end
+	return anyStarted or #moves>0
+end
+
+function horsemanResolveHorseDefeat(horseGUID)
+	local name=horsemanHorseOwner(horseGUID)
+	local state=name~=nil and gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	if state==nil then return false end
+	state.horseGUID=nil
+	state.horseDefeated=true
+	return true
+end
+
+function horsemanDiscardLinkedHorse(name)
+	local state=gStates~=nil and gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	local guid=state~=nil and state.horseGUID or nil
+	if state==nil or guid==nil then return false end
+	state.horseGUID=nil
+	state.horseDefeated=nil
+	local horse=getObjectFromGUID(guid)
+	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[guid]=nil end
+	if gStates.monsterPerks~=nil then gStates.monsterPerks[guid]=nil end
+	if gStates.attackedMonsters~=nil then gStates.attackedMonsters[guid]=nil end
+	if gStates.summonStates~=nil then gStates.summonStates[guid]=nil end
+	if horse~=nil then
+		if mapTokenReleaseObject~=nil then mapTokenReleaseObject(horse) end
+		if proxyDiscardMonster~=nil then proxyDiscardMonster(horse)
+		elseif getObjectFromGUID(GUID.bag.discard.dungeon)~=nil then getObjectFromGUID(GUID.bag.discard.dungeon).putObject(horse)
+		else horse.destruct() end
+	end
+	return true
+end
+
 function horsemanMonsterData(ref, level)
 	local data,name=horsemanDataFor(ref)
 	level=math.max(1,math.min(6,tonumber(level) or 1))
@@ -214,7 +344,12 @@ function horsemanAttackOptions(playerIndex,mapPosition)
 	end
 	table.sort(here,function(a,b) if a.slot==b.slot then return a.name<b.name end return a.slot<b.slot end)
 	local options={}
-	for _,entry in ipairs(here) do options[#options+1]={key=entry.guid,name=entry.name,label=entry.name:sub(1,1),targets={[entry.guid]=true}} end
+	for _,entry in ipairs(here) do
+		local targets={[entry.guid]=true}
+		local horseGUID=horsemanLinkedHorseGUID(entry.name)
+		if horseGUID~=nil then targets[horseGUID]=true end
+		options[#options+1]={key=entry.guid,name=entry.name,label=entry.name:sub(1,1),targets=targets}
+	end
 	return options
 end
 
@@ -257,6 +392,16 @@ function horsemanResolveDefeat(token,playerIndex,coopCombatReward)
 	state.defeatedBy=player.mage
 	state.defeatedRound=gStates.currentRound
 	state.atCentralGlade=false
+	--If the Horseman fell while their horse survived, discard that horse without Fame. Delay one
+	--frame so combat cleanup can finish iterating its current play-area snapshot safely.
+	local survivingHorseGUID=state.horseGUID
+	local survivingHorse=survivingHorseGUID~=nil and getObjectFromGUID(survivingHorseGUID) or nil
+	if survivingHorse~=nil and survivingHorse.is_face_down==true then
+		safeWaitFrames("Horsemen",function()
+			local currentState=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+			if currentState~=nil and currentState.horseGUID==survivingHorseGUID then horsemanDiscardLinkedHorse(name) end
+		end,1)
+	end
 	if gStates.horsemenDefeatedBy==nil then gStates.horsemenDefeatedBy={} end
 	gStates.horsemenDefeatedBy[name]=player.mage
 	local rewardBag=getObjectFromGUID(monsterPiles.rewardApoc)

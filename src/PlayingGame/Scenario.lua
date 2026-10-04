@@ -1211,7 +1211,15 @@ function againstHorsemenRestoreScenarioState()
 			local token=getObjectFromGUID(entry.guid)
 			if token~=nil and layout[i]~=nil then
 				token.setRotation({0,180,0})
-				token.setPositionSmooth(layout[i],false,false)
+				local horseGUID=horsemanLinkedHorseGUID(entry.name)
+				if horseGUID~=nil then
+					local component=0.20/math.sqrt(2)
+					local horse=getObjectFromGUID(horseGUID)
+					if horse~=nil then horse.setPositionSmooth({layout[i][1]-component,layout[i][2],layout[i][3]-component},false,false) end
+					token.setPositionSmooth({layout[i][1]+component,layout[i][2],layout[i][3]+component},false,false)
+				else
+					token.setPositionSmooth(layout[i],false,false)
+				end
 			end
 		end
 	end
@@ -1258,6 +1266,7 @@ againstHorsemenPrepareRitual=function()
 			state.revealed=true
 			token.setName(name.." Level "..tostring(state.level or 1))
 			if token.is_face_down==true then token.flip() end
+			horsemanRevealLinkedHorse(name)
 			monsterPugs[data.tokenGUID]=monsterPugs[data.tokenGUID] or horsemanMonsterData(name,state.level)
 			--The Glade now counts as a fortified site; this is site fortification only, with no city bonus.
 			if monsterPugs[data.tokenGUID]~=nil and monsterPugs[data.tokenGUID].unfortified==nil then monsterPugs[data.tokenGUID].fortified=true end
@@ -1324,6 +1333,7 @@ againstHorsemenRefreshHorseman=function(name)
 			state.revealed=true
 			token.setName(name.." Level "..tostring(state.level or 1))
 			if token.is_face_down==true then token.flip() end
+			horsemanRevealLinkedHorse(name)
 			return true
 		end
 		return false
@@ -1336,6 +1346,7 @@ againstHorsemenRefreshHorseman=function(name)
 	state.revealed=true
 	token.setName(name.." Level "..tostring(state.level or 1))
 	if token.is_face_down==true then token.flip() end
+	horsemanRevealLinkedHorse(name)
 	broadcastToAll(joinLang({name,"{en} has been revealed at Level {ru} раскрыт на уровне {zh-tw} 已揭示，等級 {zh-cn} 已揭示，等级 {ko} 공개됨. 레벨 {es} ha sido revelado en Nivel {fr} a été révélé au Niveau {pt-br} foi revelado no Nível {de} wurde auf Stufe ",tostring(state.level or 1),"."}),{1,0.75,0.2})
 	return true
 end
@@ -1425,11 +1436,7 @@ againstHorsemenAnimateMoveWave=function(targets)
 		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 		if token~=nil and target.position~=nil then
 			remaining=remaining+1
-			local started=mapTokenSettleArrival(token.guid,target.position,{releaseOrigin=true},function() oneSettled() end)
-			if started~=true then
-				token.setPositionSmooth(target.position,false)
-				mapTokenAfterSettled(token.guid,function() oneSettled() end)
-			end
+			horsemanMoveWithLinkedHorse(name,target.position,{releaseOrigin=true,horseTarget=target.horsePosition},function() oneSettled() end)
 		end
 	end
 	allStarted=true
@@ -1485,7 +1492,15 @@ againstHorsemenContinueEndRoundMovement=function()
 				--Use the physical position every wave. Manual player corrections therefore become the new path.
 				nextPosition=againstHorsemenDefaultNextPosition(token.getPosition(),center)
 			end
-			if nextPosition~=nil then targets[name]={position=nextPosition} end
+			if nextPosition~=nil then
+				local target={position=nextPosition}
+				if pending.finalGlade==true and horsemanLinkedHorseGUID(name)~=nil then
+					local component=0.20/math.sqrt(2)
+					target.position={nextPosition[1]+component,nextPosition[2],nextPosition[3]+component}
+					target.horsePosition={nextPosition[1]-component,nextPosition[2],nextPosition[3]-component}
+				end
+				targets[name]=target
+			end
 		end
 	end
 	if next(targets)==nil then
@@ -1589,6 +1604,7 @@ function againstHorsemenSetupTokens(coreTileGUIDs, coreTilePositions)
 		state.bearing=horsemanBearing or "center"
 		state.mapSlot=i
 		gStates.againstHorsemenCoreTiles[i]=coreGUID
+		horsemanDeployLinkedHorse(name,{horsemanX,1.18,pos[3]},true)
 	end
 	--Do not allow map setup to complete unless every named Horseman has durable runtime state.
 	for _,name in ipairs({"Famine","Pestilence","Death","War"}) do
@@ -1746,6 +1762,7 @@ apocalypseIsHereDeployReservedHorseman=function(name)
 	state.revealForced=nil
 	state.revealIndex=nil
 	state.revealed=true
+	horsemanDeployLinkedHorse(name,target,false)
 	apocalypseIsHereRecomputeNextHorseman()
 
 	local card=getObjectFromGUID(data.cardGUID)
@@ -2136,7 +2153,7 @@ apocalypseIsHereHorsemanClearTarget=function(targetHex)
 	if targetHex==nil then return false end
 	local _,mapObjects=runtimeMapHexesAndObjects()
 	for _,enemy in ipairs(proxyMonstersOnHex(targetHex,mapObjects)) do
-		if horsemanTokenToName[enemy.guid]==nil then proxyDiscardMonster(enemy) end
+		if horsemanTokenToName[enemy.guid]==nil and horsemanHorseOwner(enemy.guid)==nil then proxyDiscardMonster(enemy) end
 	end
 	return true
 end
@@ -2189,6 +2206,7 @@ apocalypseIsHereHorsemanDestroyTarget=function(name,targetHex,afterArrange)
 		end
 		monsterPugs[data.tokenGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end
+		horsemanDiscardLinkedHorse(name)
 		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, raising the Dragon head to level {ru}, повысив уровень головы Дракона до {zh-tw}，使巨龍頭部等級提升至 {zh-cn}，使巨龙头部等级提升至 {ko}을(를) 파괴하여 드래곤 머리 레벨을 {es}, elevando la cabeza del Dragón al nivel {fr}, faisant passer la tête du Dragon au niveau {pt-br}, elevando a cabeça do Dragão ao nível {de} und erhöhte den Drachenkopf auf Stufe ",newHead,"{en}, then left the map after destroying four sites.{ru}, а затем покинул карту после уничтожения четырёх мест.{zh-tw}，並在摧毀四個地點後離開地圖。{zh-cn}，并在摧毁四个地点后离开地图。{ko}로 올린 뒤, 네 곳을 파괴하고 지도에서 떠났습니다.{es}, y luego abandonó el mapa tras destruir cuatro lugares.{fr}, puis a quitté la carte après avoir détruit quatre sites.{pt-br}, e então deixou o mapa após destruir quatro locais.{de} und verließ danach die Karte, nachdem vier Orte zerstört worden waren."})
 	elseif (tonumber(state.level) or 1)>1 then
 		state.level=state.level-1
@@ -2235,7 +2253,7 @@ apocalypseIsHereResolveHorsemanTarget=function(name,option)
 		reached=reached,
 		stage="moving"
 	}
-	local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
+	local started=horsemanMoveWithLinkedHorse(name,{destination.position[1],1.42,destination.position[3]},
 		{releaseOrigin=true,rotation={0,180,0},deferArrange=reached},function()
 			apocalypseIsHereHorsemanMoveFinished(name,target,reached)
 		end)
@@ -2423,7 +2441,7 @@ function apocalypseIsHereRestoreScenarioState()
 			state.terrainGUID=destination.terrainGUID
 			state.bearing=destination.bearing
 			action.stage="moving"
-			local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
+			local started=horsemanMoveWithLinkedHorse(action.name,{destination.position[1],1.42,destination.position[3]},
 				{force=true,rotation={0,180,0},deferArrange=action.reached==true},function()
 					apocalypseIsHereHorsemanMoveFinished(action.name,target,action.reached==true)
 				end)
@@ -2454,6 +2472,7 @@ function apocalypseIsHereEndHorsemen()
 			local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 			if token~=nil then token.unlock() if bag~=nil then bag.putObject(token) else token.setPosition({0,-20,0}) end end
 			if data~=nil then monsterPugs[data.tokenGUID]=nil if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end end
+			horsemanDiscardLinkedHorse(name)
 		end
 	end
 	broadcastToAll("{en}The Apocalypse Dragon has been attacked. Every Horseman still on the map is removed; this does not count as defeating them.{ru}Дракон Апокалипсиса атакован. Все Всадники, оставшиеся на карте, удаляются; это не считается их победой.{zh-tw}末日巨龍已被攻擊。地圖上所有剩餘騎士都被移除；這不算擊敗他們。{zh-cn}末日巨龙已被攻击。地图上所有剩余骑士都被移除；这不算击败他们。{ko}아포칼립스 드래곤이 공격받았습니다. 맵에 남은 모든 기수를 제거합니다. 이들은 처치한 것으로 계산하지 않습니다.{es}El Dragón del Apocalipsis ha sido atacado. Retira a todos los Jinetes que sigan en el mapa; esto no cuenta como derrotarlos.{fr}Le Dragon de l’Apocalypse a été attaqué. Retirez tous les Cavaliers encore présents sur la carte ; cela ne compte pas comme les avoir vaincus.{pt-br}O Dragão do Apocalipse foi atacado. Remova todos os Cavaleiros que ainda estiverem no mapa; isso não conta como derrotá-los.{de}Der Apokalypse-Drache wurde angegriffen. Alle noch auf der Karte befindlichen Reiter werden entfernt; dies zählt nicht als Besiegen.",{1,0.75,0.2})
