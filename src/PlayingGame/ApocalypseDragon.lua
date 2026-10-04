@@ -295,6 +295,11 @@ apocalypseDragonCheckAndResolveDefeat=function()
 	if scenarioUsesApocalypseDragon()~=true and gStates.apocalypseDragonCityPlaced==true then
 		gStates.apocalypseDragonCityDefeated=true
 		broadcastToAll("{en}The Apocalypse Dragon replacing the City has been defeated.{ru}Дракон Апокалипсиса, заменивший город, побеждён.{zh-tw}取代城市的末日巨龍已被擊敗。{zh-cn}取代城市的末日巨龙已被击败。{ko}도시를 대신한 아포칼립스 드래곤을 쓰러뜨렸습니다.{es}El Dragón del Apocalipsis que sustituyó a la Ciudad ha sido derrotado.{fr}Le Dragon de l’Apocalypse qui remplaçait la Cité a été vaincu.{pt-br}O Dragão do Apocalipse que substituiu a Cidade foi derrotado.{de}Der Apokalypse-Drache, der die Stadt ersetzt hat, wurde besiegt.",{1,1,0.5})
+		local completesScenario=cityConquestScenarioEndAchieved~=nil and cityConquestScenarioEndAchieved()==true
+		if completesScenario==true and gStates.endGameAchieved=="false" then
+			local coopDragon=gStates.coopAssaultPhase=="combat" and coopAssaultTargetType~=nil and coopAssaultTargetType()=="dragon"
+			if coopDragon==true then gStates.coopAssaultScenarioEndPending=true else markScenarioEndAchieved() end
+		end
 		return true
 	end
 
