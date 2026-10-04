@@ -1503,6 +1503,7 @@ function mapHandleTerrainZoneEnter(ctx)
 			if startingMapSetup==true then
 				if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
 			end
+			if newTerrainReveal==true and apocalypseDragonCityVariantTerrainRevealed~=nil then apocalypseDragonCityVariantTerrainRevealed(obj) end
 			if initialSetupTerrain~=true and newTerrainReveal==true then
 				againstDragonRevealLair(obj)
 				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
