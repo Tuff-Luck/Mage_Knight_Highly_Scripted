@@ -215,7 +215,7 @@ end
 --The Dragon data is forward-declared with the map-setup helpers above.
 function coopAssaultTargetType()
 	local target=gStates.coopAssaultCityGUID
-	if target==apocalypseDragon.model and apocalypseDragonCombatEnabled~=nil and apocalypseDragonCombatEnabled()==true then return "dragon" end
+	if target==apocalypseDragon.model and (scenarioUsesApocalypseDragon()==true or gStates.apocalypseDragonCityPlaced==true) then return "dragon" end
 	if gStates.gameScenario=="Against the Horsemen Blitz" and gStates.againstHorsemenRitualStarted==true and target==GUID.tile.country01 then return "horsemen" end
 	if target==volkare.model then return "volkare" end
 	if target==darkCrusader.terrainHex or target==elementalist.terrainHex then return "leader" end
