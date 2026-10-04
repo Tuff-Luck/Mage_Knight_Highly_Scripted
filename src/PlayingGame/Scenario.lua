@@ -564,13 +564,38 @@ function registerVolkareCampAsCityKeep()
 	end
 end
 
+function conqueredCityObjectiveCount()
+	local count=gStates~=nil and gStates.defeatedCities~=nil and (tonumber(gStates.defeatedCities.amount) or 0) or 0
+	if gStates~=nil and gStates.apocalypseDragonCityPlaced==true and gStates.apocalypseDragonDefeated==true then count=count+1 end
+	return count
+end
+
+function cityConquestScenarioEndAchieved()
+	if gStates==nil then return false end
+	local count=conqueredCityObjectiveCount()
+	if gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or
+		gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest" then
+		return count==gStates.cityTiles
+	end
+	if gStates.gameScenario=="Ultimate Conquest" then
+		return count==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)
+	end
+	return false
+end
+
+function apocalypseDragonAssaultScenarioEndAchieved()
+	if scenarioUsesApocalypseDragon()==true then return apocalypseDragonColoredHeadsDefeated()==true end
+	if gStates~=nil and gStates.apocalypseDragonCityPlaced==true then return cityConquestScenarioEndAchieved() end
+	return false
+end
+
 function coopLeaderScenarioEndAchieved()
 	if gStates.endGameAchieved~="false" then return false end
 	refreshCityDefeatState()
 	if gStates.gameScenario=="Life and Death" then return gStates.defeatedFaction==2 end
 	if gStates.gameScenario=="The Hidden Valley Blitz" then return gStates.defeatedFaction==1 end
 	if gStates.gameScenario=="Ultimate Conquest" then
-		return gStates.defeatedCities.amount==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)
+		return conqueredCityObjectiveCount()==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)
 	end
 	if gStates.gameScenario=="The Realm of the Dead Blitz" then
 		local graveYardCount=0
@@ -671,10 +696,10 @@ function scenarioCombatCleanupCheck(cleanupPlayer)
 	local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
 	local terrainEmpty=terrainStack~=nil and terrainStack.getQuantity()==0
 	local complete=
-		((gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest") and gStates.defeatedCities.amount==gStates.cityTiles) or
+		((gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest") and conqueredCityObjectiveCount()==gStates.cityTiles) or
 		((gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and volkareBeaten==true) or
 		(gStates.gameScenario=="First Reconnaissance" and #gStates.citiesPlayed>=1) or
-		(gStates.gameScenario=="Ultimate Conquest" and gStates.defeatedCities.amount==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)) or
+		(gStates.gameScenario=="Ultimate Conquest" and conqueredCityObjectiveCount()==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)) or
 		(gStates.gameScenario=="The Hidden Valley Blitz" and gStates.defeatedFaction==1) or
 		(gStates.gameScenario=="Mines Liberation" and terrainEmpty and mineCount==mineTileCount) or
 		(gStates.gameScenario=="Dungeon Lords" and terrainEmpty and dungeonCount==dungeonHexCount-2) or
