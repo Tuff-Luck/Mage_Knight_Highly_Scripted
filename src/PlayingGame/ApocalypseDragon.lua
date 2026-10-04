@@ -265,7 +265,8 @@ apocalypseDragonSyncControlLevel=function()
 end
 
 apocalypseDragonCheckAndResolveDefeat=function()
-	if gStates==nil or (gStates.gameScenario~="Against the Dragon Blitz" and gStates.gameScenario~="Apocalypse is Here" and gStates.gameScenario~="Fury of the Apocalypse Dragon") or gStates.apocalypseDragonDefeated==true then return false end
+	if gStates==nil or gStates.apocalypseDragonDefeated==true then return false end
+	if scenarioUsesApocalypseDragon()~=true and gStates.apocalypseDragonCityPlaced~=true then return false end
 	if apocalypseDragonColoredHeadsDefeated()~=true then return false end
 
 	gStates.apocalypseDragonDefeated=true
@@ -291,6 +292,12 @@ apocalypseDragonCheckAndResolveDefeat=function()
 		gStates.furyDragonAwaitingCombat=nil
 	end
 
+	if scenarioUsesApocalypseDragon()~=true and gStates.apocalypseDragonCityPlaced==true then
+		gStates.apocalypseDragonCityDefeated=true
+		broadcastToAll("{en}The Apocalypse Dragon replacing the City has been defeated.{ru}Дракон Апокалипсиса, заменивший город, побеждён.{zh-tw}取代城市的末日巨龍已被擊敗。{zh-cn}取代城市的末日巨龙已被击败。{ko}도시를 대신한 아포칼립스 드래곤을 쓰러뜨렸습니다.{es}El Dragón del Apocalipsis que sustituyó a la Ciudad ha sido derrotado.{fr}Le Dragon de l’Apocalypse qui remplaçait la Cité a été vaincu.{pt-br}O Dragão do Apocalipse que substituiu a Cidade foi derrotado.{de}Der Apokalypse-Drache, der die Stadt ersetzt hat, wurde besiegt.",{1,1,0.5})
+		return true
+	end
+
 	local defeatMessage="{en}The Apocalypse Dragon has been defeated! Each Mage Knight has one final turn; the Dummy player does not.{ru}Дракон Апокалипсиса побеждён! У каждого Рыцаря-мага остался один последний ход; у виртуального игрока его нет.{zh-tw}末日巨龍已被擊敗！每位魔法騎士各有最後一個回合；虛擬玩家沒有。{zh-cn}末日巨龙已被击败！每位魔法骑士各有最后一个回合；虚拟玩家没有。{ko}아포칼립스 드래곤을 쓰러뜨렸습니다! 각 마법 기사에게 마지막 한 턴이 남으며, 더미 플레이어에게는 없습니다.{es}¡El Dragón del Apocalipsis ha sido derrotado! Cada Caballero Mago tiene un último turno; el Jugador Virtual no.{fr}Le Dragon de l’Apocalypse a été vaincu ! Chaque Chevalier-Mage a un dernier tour ; le joueur fantôme n’en a pas.{pt-br}O Dragão do Apocalipse foi derrotado! Cada Cavaleiro-Mago tem um último turno; o Jogador Fictício não.{de}Der Apokalypse-Drache wurde besiegt! Jeder Magieritter hat noch einen letzten Zug; der Dummy-Spieler nicht."
 	broadcastToAll(defeatMessage,{1,1,0.5})
 	local coopDragon=gStates.coopAssaultPhase=="combat" and coopAssaultTargetType~=nil and coopAssaultTargetType()=="dragon"
@@ -308,7 +315,7 @@ apocalypseDragonHeadStateChanged=function(headName)
 		gStates.furyDragonEverDefeatedHeads[headName]=true
 	end
 	if headName~="Control" then apocalypseDragonSyncControlLevel() end
-	if gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon") then apocalypseDragonCheckAndResolveDefeat() end
+	if gStates~=nil and (scenarioUsesApocalypseDragon()==true or gStates.apocalypseDragonCityPlaced==true) then apocalypseDragonCheckAndResolveDefeat() end
 end
 
 --Read the physical player Shields on the four large coloured head boards.
@@ -450,12 +457,114 @@ function apocalypseDragonSetHeadLevel(headName,level)
 	return true
 end
 
+local apocalypseDragonVariantManaFaces={
+	[1]={name="Blue",rotation={0,0,0},head="Death"},
+	[2]={name="White",rotation={0,0,270},head="Famine"},
+	[3]={name="Green",rotation={0,0,90},head="Pestilence"},
+	[4]={name="Red",rotation={0,0,180},head="War"},
+	[5]={name="Gold",rotation={90,0,0}},
+	[6]={name="Black",rotation={270,0,0}}
+}
+
+local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xStart)
+	local bag=getObjectFromGUID(GUID.bag.spareDice)
+	if bag==nil then if onComplete~=nil then onComplete() end return false end
+	xStart=xStart or -9
+	local dice={}
+	local maxSteps=1
+	for index,history in ipairs(histories or {}) do
+		maxSteps=math.max(maxSteps,#history)
+		local face=apocalypseDragonVariantManaFaces[history[1] or 1]
+		local die=bag.takeObject({position={xStart+((index-1)*3),2.5,-22.20},rotation=face.rotation,smooth=false})
+		if die~=nil then
+			die.lock()
+			dice[index]=die.guid
+		end
+	end
+	for step=2,maxSteps do
+		local rerollStep=step
+		safeWaitTime("Scenario",function()
+			for index,history in ipairs(histories or {}) do
+				local faceIndex=history[rerollStep]
+				local dieGUID=dice[index]
+				local die=dieGUID~=nil and getObjectFromGUID(dieGUID) or nil
+				local face=faceIndex~=nil and apocalypseDragonVariantManaFaces[faceIndex] or nil
+				if die~=nil and face~=nil then die.setRotationSmooth(face.rotation,false,true) end
+			end
+		end,(step-1)*0.65)
+	end
+	safeWaitTime("Scenario",function()
+		local spare=getObjectFromGUID(GUID.bag.spareDice)
+		for _,dieGUID in pairs(dice) do
+			local die=getObjectFromGUID(dieGUID)
+			if die~=nil then
+				die.unlock()
+				if spare~=nil then spare.putObject(die) else die.destruct() end
+			end
+		end
+		if onComplete~=nil then onComplete() end
+	end,((maxSteps-1)*0.65)+1.25)
+	return true
+end
+
+local function apocalypseDragonRandomizedStartingLevels(baseLevel)
+	baseLevel=math.max(1,math.min(12,math.floor(tonumber(baseLevel) or 1)))
+	local levels={Famine=math.max(0,baseLevel-1),Death=math.max(0,baseLevel-1),Pestilence=math.max(0,baseLevel-1),War=math.max(0,baseLevel-1)}
+	local histories={}
+	for index=1,4 do
+		local history={}
+		local faceIndex
+		repeat
+			faceIndex=math.random(1,6)
+			history[#history+1]=faceIndex
+		until faceIndex<=4
+		histories[index]=history
+		local headName=apocalypseDragonVariantManaFaces[faceIndex].head
+		levels[headName]=math.min(12,(levels[headName] or 0)+1)
+	end
+	levels.Control=math.max(levels.Famine,levels.Death,levels.Pestilence,levels.War)
+	return levels,histories
+end
+
+local function apocalypseDragonApplyStartingLevels(levels,onComplete)
+	gStates.apocalypseDragonDefeated=false
+	gStates.apocalypseDragonHeadLevels={
+		Famine=levels.Famine or 0,
+		Death=levels.Death or 0,
+		Pestilence=levels.Pestilence or 0,
+		War=levels.War or 0,
+		Control=levels.Control or 0
+	}
+	for _,headName in ipairs({"Famine","Death","Pestilence","War","Control"}) do
+		if apocalypseDragonSetHeadLevel(headName,gStates.apocalypseDragonHeadLevels[headName])~=true then
+			error("Could not set the initial level for Apocalypse Dragon head "..tostring(headName)..".",2)
+		end
+	end
+	if onComplete~=nil then onComplete() end
+end
+
+function apocalypseDragonInitializeHeadLevels(baseLevel,onComplete)
+	baseLevel=math.max(1,math.min(12,math.floor(tonumber(baseLevel) or 1)))
+	if gStates.randomizedDragonHeads~=true then
+		local levels={Famine=baseLevel,Death=baseLevel,Pestilence=baseLevel,War=baseLevel,Control=baseLevel}
+		apocalypseDragonApplyStartingLevels(levels,onComplete)
+		return true
+	end
+	local levels,histories=apocalypseDragonRandomizedStartingLevels(baseLevel)
+	apocalypseDragonShowVariantRollHistories(histories,function()
+		apocalypseDragonApplyStartingLevels(levels,onComplete)
+	end)
+	return true
+end
+
 function setupApocalypseDragonHeads()
-	if apocalypseDragonScenario()~=true then return end
-	local startingLevel=apocalypseDragonStartingLevel()
+	if apocalypseDragonComponentsNeeded()~=true then return end
+	local scenarioDragon=apocalypseDragonScenario()==true
+	local startingLevel=scenarioDragon and apocalypseDragonStartingLevel() or nil
 	gStates.apocalypseDragonHeadsSetupReady=false
 	gStates.apocalypseDragonHeadLevels={}
 	gStates.apocalypseDragonLevelMarkers={}
+	gStates.apocalypseDragonDefeated=false
 	gStates.furyDragonEverDefeatedHeads=gStates.gameScenario=="Fury of the Apocalypse Dragon" and {} or nil
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 	if gStates.gameScenario=="Against the Dragon Blitz" then
@@ -492,7 +601,7 @@ function setupApocalypseDragonHeads()
 	end
 
 	local function dragonHeadSetupObjectsReady()
-		if startingLevel>0 and getObjectFromGUID(GUID.bag.neutralShield)==nil then return false end
+		if getObjectFromGUID(GUID.bag.neutralShield)==nil then return false end
 		for _,headData in ipairs(apocalypseDragon.heads) do
 			if getObjectFromGUID(headData.guid)==nil or getObjectFromGUID(headData.tokenGUID)==nil then return false end
 		end
@@ -514,17 +623,23 @@ function setupApocalypseDragonHeads()
 		positionApocalypseDragonHeads()
 		gStates.apocalypseDragonHeadsSetupReady=true
 	end
-	local function finishDragonHeadSetup()
-		for _,headData in ipairs(apocalypseDragon.heads) do
-			if apocalypseDragonSetHeadLevel(headData.name,startingLevel)~=true then
-				error("SetupGame could not set the initial level for Apocalypse Dragon head "..tostring(headData.name)..".",2)
-			end
-		end
-		--Each level change reloads the small head token and repositions it one frame later. Do not let
-		--the setup coordinator continue until those replacement objects are genuinely usable.
+	local function waitForFinalHeadObjects()
 		safeWaitCondition("Scenario",markDragonHeadSetupReady,dragonHeadLevelsSettled,10,function()
 			error("SetupGame timed out waiting for Apocalypse Dragon head reloads to settle.",2)
 		end)
+	end
+	local function finishDragonHeadSetup()
+		if scenarioDragon==true then
+			apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
+		else
+			--The City replacement's level is unknown until the chosen City tile is revealed.
+			--Blank the small tokens now without running defeat logic or creating level markers.
+			for _,headData in ipairs(apocalypseDragon.heads) do
+				gStates.apocalypseDragonHeadLevels[headData.name]=0
+				apocalypseDragonApplyHeadLevel(headData.name,0)
+			end
+			waitForFinalHeadObjects()
+		end
 	end
 	if dragonHeadSetupObjectsReady()==true then
 		finishDragonHeadSetup()
@@ -533,6 +648,113 @@ function setupApocalypseDragonHeads()
 			error("SetupGame timed out waiting for Apocalypse Dragon setup objects.",2)
 		end)
 	end
+end
+
+local apocalypseDragonCityTileGUIDs={
+	[GUID.tile.city05]=true,[GUID.tile.city06]=true,[GUID.tile.city07]=true,[GUID.tile.city08]=true
+}
+
+function apocalypseDragonCityVariantApplyTerrainOverride()
+	if gStates==nil or gStates.apocalypseDragonCityPlaced~=true or gStates.apocalypseDragonLair==nil then return false end
+	local key=gStates.apocalypseDragonLair.cityHexKey
+	local terrainGUID,bearing=nil,nil
+	if key~=nil then terrainGUID,bearing=tostring(key):match("^([^|]+)|(.+)$") end
+	if terrainGUID==nil or bearing==nil then return false end
+	return runtimeMapSetHexType(terrainGUID,bearing,"plains")
+end
+
+function apocalypseDragonFormerCitySpacePlayer(playerIndex)
+	if gStates==nil or gStates.apocalypseDragonLair==nil then return false end
+	local player=turnOrder[playerIndex]
+	if player==nil then return false end
+	local pos=fracturedLandsTeleportSourcePosition~=nil and fracturedLandsTeleportSourcePosition(playerIndex) or nil
+	if pos==nil then local avatar=coopAssaultAvatarObject(playerIndex) if avatar~=nil then pos=avatar.getPosition() end end
+	if pos==nil then return false end
+	for _,hex in ipairs(gStates.apocalypseDragonLair.hexes or {}) do
+		if hex.formerCity==true and hex.position~=nil and ((pos[1]-hex.position[1])^2)+((pos[3]-hex.position[3])^2)<2.25 then return true end
+	end
+	return false
+end
+
+function apocalypseDragonCityVariantTerrainRevealed(tile)
+	if apocalypseDragonCityVariantEnabled()~=true or tile==nil or gStates.apocalypseDragonCityPlaced==true then return false end
+	local tileData=terrainTiles[tile.guid]
+	if tileData==nil then return false end
+	local isCityTile=apocalypseDragonCityTileGUIDs[tile.guid]==true or
+		(tile.guid==GUID.tile.volkareCamp and gStates.volkareCampAsCity==true)
+	if isCityTile~=true then return false end
+	local centerFeature=tostring(tileData.hexFeature~=nil and tileData.hexFeature.center or "")
+	if centerFeature:sub(1,4)~="city" and centerFeature~="Volkare's Camp" then return false end
+
+	gStates.apocalypseDragonCityRevealCount=(tonumber(gStates.apocalypseDragonCityRevealCount) or 0)+1
+	local mode=math.max(0,math.min(2,math.floor(tonumber(gStates.apocalypseDragonCityMode) or 0)))
+	local replaceCity=false
+	if mode==1 then
+		replaceCity=gStates.apocalypseDragonCityRevealCount>=(tonumber(gStates.cityTiles) or 0)
+	elseif mode==2 then
+		local faceIndex=math.random(1,6)
+		local face=apocalypseDragonVariantManaFaces[faceIndex]
+		apocalypseDragonShowVariantRollHistories({{faceIndex}},nil,4)
+		broadcastToAll(joinLang({"{en}Apocalypse Dragon City roll: {ru}Бросок города для Дракона Апокалипсиса: {zh-tw}末日巨龍城市擲骰：{zh-cn}末日巨龙城市掷骰：{ko}아포칼립스 드래곤 도시 주사위: {es}Tirada de Ciudad del Dragón del Apocalipsis: {fr}Jet de Cité du Dragon de l’Apocalypse : {pt-br}Rolagem de Cidade do Dragão do Apocalipse: {de}Stadtwurf des Apokalypse-Drachen: ",face.name}),{1,1,0.5})
+		replaceCity=faceIndex==6
+	end
+	if replaceCity~=true then return false end
+
+	local order,cityLevel=cityReplacementLevelForDragon()
+	if order==nil or tonumber(cityLevel)==nil or tonumber(cityLevel)<=0 then
+		broadcastToAll("{en}The Apocalypse Dragon City variant could not determine the level this City would have had; the normal City is used instead.{ru}Не удалось определить уровень города для варианта с Драконом; используется обычный город.{zh-tw}無法判定此城市原本的等級，因此改用普通城市。{zh-cn}无法判定此城市原本的等级，因此改用普通城市。{ko}이 도시의 원래 레벨을 정할 수 없어 일반 도시를 사용합니다.{es}No se pudo determinar el nivel que habría tenido esta Ciudad; se usa la Ciudad normal.{fr}Impossible de déterminer le niveau qu’aurait eu cette Cité ; la Cité normale est utilisée.{pt-br}Não foi possível determinar o nível que esta Cidade teria; a Cidade normal será usada.{de}Die vorgesehene Stadtstufe konnte nicht ermittelt werden; die normale Stadt wird verwendet.",warningColor)
+		return false
+	end
+
+	gStates.apocalypseDragonCityPlaced=true
+	gStates.apocalypseDragonCityDefeated=false
+	gStates.apocalypseDragonDefeated=false
+	gStates.apocalypseDragonLairAttacked=false
+	gStates.apocalypseDragonLairRevealed=true
+	gStates.apocalypseDragonCity={tileGUID=tile.guid,order=order,baseLevel=cityLevel}
+	local tilePos=tile.getPosition()
+	local tileRotation=tile.getRotation()
+	local tileYaw=tileRotation.y or tileRotation[2] or 180
+	local dragonRotation={0,tileYaw,180}
+	local positions={
+		{tilePos[1],0.97,tilePos[3]},
+		(function() local xy=angleToXY(tile,"240",tilePos,tileRotation) return {xy[1],0.97,xy[2]} end)(),
+		(function() local xy=angleToXY(tile,"300",tilePos,tileRotation) return {xy[1],0.97,xy[2]} end)()
+	}
+	local hexes={}
+	for index,pos in ipairs(positions) do
+		local bearing=terrainHexBearing(tile,pos)
+		hexes[#hexes+1]={bearing=bearing,position=pos,formerCity=index==1}
+		if bearing~=nil then
+			local feature=terrainTiles[tile.guid].hexFeature[bearing] or ""
+			--Sites under the figure are ignored; rampaging/draconum enemies are not sites and remain.
+			if feature~="rampaging" and feature~="draconum" then
+				gStates.hexOverideSave=gStates.hexOverideSave or {}
+				gStates.hexOverideSave[tile.guid]=gStates.hexOverideSave[tile.guid] or {}
+				gStates.hexOverideSave[tile.guid][bearing]=""
+				runtimeMapSetHexFeature(tile.guid,bearing,"")
+			end
+		end
+	end
+	local target={positions[1][1],1.18,positions[1][3]}
+	gStates.apocalypseDragonLair={tileGUID=tile.guid,hexes=hexes,position=target,rotation=dragonRotation,cityHexKey=tile.guid.."|"..tostring(hexes[1].bearing)}
+	apocalypseDragonCityVariantApplyTerrainOverride()
+
+	local dragon=getObjectFromGUID(apocalypseDragon.model)
+	if dragon~=nil then
+		dragon.unlock()
+		dragon.setRotationSmooth(dragonRotation,false,true)
+		dragon.setPositionSmooth(target,false,true)
+		apocalypseDragonLockModelWhenSettled()
+	end
+
+	local dragonLevel=math.max(1,math.min(12,math.floor(tonumber(cityLevel) or 1)))
+	if tonumber(cityLevel)>12 then
+		broadcastToAll("{en}The replaced City is above level 12; Apocalypse Dragon heads are capped at level 12 because the head boards have no higher levels.{ru}Уровень заменённого города выше 12; головы Дракона ограничены уровнем 12.{zh-tw}被取代城市高於 12 級；龍首板最高只有 12 級，因此龍首以 12 級為上限。{zh-cn}被取代城市高于 12 级；龙首板最高只有 12 级，因此龙首以 12 级为上限。{ko}대체된 도시가 12레벨을 넘으므로 드래곤 머리는 보드의 최대치인 12레벨로 제한됩니다.{es}La Ciudad sustituida supera el nivel 12; las cabezas del Dragón se limitan a 12.{fr}La Cité remplacée dépasse le niveau 12 ; les têtes du Dragon sont limitées au niveau 12.{pt-br}A Cidade substituída está acima do nível 12; as cabeças do Dragão ficam limitadas ao nível 12.{de}Die ersetzte Stadt liegt über Stufe 12; die Drachenköpfe werden auf Stufe 12 begrenzt.",warningColor)
+	end
+	apocalypseDragonInitializeHeadLevels(dragonLevel)
+	broadcastToAll(joinLang({"{en}The Apocalypse Dragon replaces this City at level {ru}Дракон Апокалипсиса заменяет этот город на уровне {zh-tw}末日巨龍取代此城市，等級 {zh-cn}末日巨龙取代此城市，等级 {ko}아포칼립스 드래곤이 이 도시를 대체합니다. 레벨 {es}El Dragón del Apocalipsis sustituye esta Ciudad al nivel {fr}Le Dragon de l’Apocalypse remplace cette Cité au niveau {pt-br}O Dragão do Apocalipse substitui esta Cidade no nível {de}Der Apokalypse-Drache ersetzt diese Stadt auf Stufe ",tostring(dragonLevel),"{en}. The former City space is Plains; sites under the Dragon are ignored.{ru}. Бывшее городское поле считается Равниной; места под Драконом игнорируются.{zh-tw}。原城市格視為平原；巨龍下方的地點忽略。{zh-cn}。原城市格视为平原；巨龙下方的地点忽略。{ko}. 기존 도시 칸은 평원이며 드래곤 아래의 장소는 무시합니다.{es}. El antiguo espacio de Ciudad es Llanura; se ignoran los sitios bajo el Dragón.{fr}. L’ancienne case Cité est une Plaine ; les sites sous le Dragon sont ignorés.{pt-br}. O antigo espaço de Cidade é Planície; locais sob o Dragão são ignorados.{de}. Das ehemalige Stadtfeld ist Ebene; Orte unter dem Drachen werden ignoriert."}),{1,0.75,0.2})
+	return true
 end
 
 function apocalypseDragonLockModelWhenSettled()
@@ -868,7 +1090,7 @@ function apocalypseDragonRefreshGroundFameGain(playerIndex)
 end
 
 function apocalypseDragonBeginGroundCombat(playerIndex)
-	if apocalypseDragonScenario()~=true or gStates.apocalypseDragonLairRevealed~=true or gStates.apocalypseDragonDefeated==true then return false end
+	if apocalypseDragonCombatEnabled()~=true then return false end
 	if gStates.apocalypseDragonGroundCombat~=nil then return apocalypseDragonGroundCombatForPlayer(playerIndex) end
 	local details=turnOrder[playerIndex]
 	if details==nil or details.mage==gStates.positionMageKnight[5] then return false end
@@ -930,15 +1152,17 @@ apocalypseDragonCoopAdjacentPlayers=function(playerIndex)
 end
 
 function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
-	if apocalypseDragonScenario()~=true or gStates.apocalypseDragonLairRevealed~=true or gStates.apocalypseDragonDefeated==true then return false end
+	if apocalypseDragonCombatEnabled()~=true then return false end
 	if gStates.coopAssaultPhase~=nil or gStates.apocalypseDragonGroundCombat~=nil then return false end
 	local player=turnOrder[playerIndex]
 	if player==nil or playerIndex~=gStates.turnNumber or playerDropoutInactive(playerIndex)==true then return false end
 	local endHorsemenOnStart=gStates.gameScenario=="Apocalypse is Here" and gStates.apocalypseDragonLairAttacked~=true and apocalypseIsHereEndHorsemen~=nil
 	if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
 		gStates.apocalypseDragonAssaultFortifiedInitiator=apocalypseDragonFuryAttackFortified()
+	elseif gStates.gameScenario=="Apocalypse is Here" or gStates.apocalypseDragonCityPlaced==true then
+		gStates.apocalypseDragonAssaultFortifiedInitiator=apocalypseDragonFormerCitySpacePlayer(playerIndex)
 	else
-		gStates.apocalypseDragonAssaultFortifiedInitiator=gStates.gameScenario=="Apocalypse is Here" and apocalypseIsHereDragonCitySpacePlayer~=nil and apocalypseIsHereDragonCitySpacePlayer(playerIndex)==true
+		gStates.apocalypseDragonAssaultFortifiedInitiator=false
 	end
 	local liveHeads={}
 	for _,headName in ipairs(apocalypseDragonColoredHeads) do
@@ -1387,7 +1611,7 @@ function apocalypseDragonChoiceAuthorized(player,pending)
 end
 
 function positionApocalypseDragonHeads()
-	if apocalypseDragonScenario()~=true then return false end
+	if apocalypseDragonComponentsNeeded()~=true then return false end
 	local moved=false
 	for _,headData in ipairs(apocalypseDragon.heads) do
 		local head=getObjectFromGUID(headData.guid)
