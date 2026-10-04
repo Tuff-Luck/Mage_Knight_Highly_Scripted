@@ -197,6 +197,7 @@ local SETUP_TOGGLE_DEFAULTS={
 	weatherMod={false,true},
 	questMod={false,true},
 	apocalypseQuestCards={false,true},
+	randomizedDragonHeads={false,true},
 	horsemenHorses={false,true},
 	proxyPlayer={false,true},
 	itemShopMod={false,true},
@@ -274,7 +275,66 @@ local function clearCustomMageKnightSelections(preserveRememberedDummy)
 	if preserveRememberedDummy~=true and customMages[gStates.setupDummyMageChoice]~=nil then gStates.setupDummyMageChoice="nobody" end
 end
 
+local APOCALYPSE_DRAGON_CITY_SCENARIOS={
+	["First Conquest"]=true,
+	["Conquest"]=true,
+	["Fast Forwarded Conquest"]=true,
+	["Ultimate Conquest"]=true,
+	["Custom"]=true
+}
+
+local APOCALYPSE_DRAGON_CITY_MODE_TEXT={
+	[0]="{en}Apocalypse Dragon as City - Off{ru}Дракон вместо города — выкл.{zh-tw}末日巨龍取代城市－關閉{zh-cn}末日巨龙取代城市－关闭{ko}도시 대신 아포칼립스 드래곤 - 끔{es}Dragón como Ciudad - Desactivado{fr}Dragon à la place d'une Cité - Non{pt-br}Dragão no lugar de uma Cidade - Desligado{de}Drache statt Stadt - Aus",
+	[1]="{en}Apocalypse Dragon as City - Final City{ru}Дракон вместо города — последний город{zh-tw}末日巨龍取代城市－最後城市{zh-cn}末日巨龙取代城市－最后城市{ko}도시 대신 아포칼립스 드래곤 - 마지막 도시{es}Dragón como Ciudad - Última Ciudad{fr}Dragon à la place d'une Cité - Dernière Cité{pt-br}Dragão no lugar de uma Cidade - Última Cidade{de}Drache statt Stadt - Letzte Stadt",
+	[2]="{en}Apocalypse Dragon as City - Random City{ru}Дракон вместо города — случайный город{zh-tw}末日巨龍取代城市－隨機城市{zh-cn}末日巨龙取代城市－随机城市{ko}도시 대신 아포칼립스 드래곤 - 무작위 도시{es}Dragón como Ciudad - Ciudad Aleatoria{fr}Dragon à la place d'une Cité - Cité aléatoire{pt-br}Dragão no lugar de uma Cidade - Cidade Aleatória{de}Drache statt Stadt - Zufällige Stadt"
+}
+
+local function apocalypseDragonCityVariantScenarioEligible()
+	if gStates==nil or scenarioUsesApocalypseDragon()==true then return false end
+	local scenarioName=tostring(gStates.gameScenario or "")
+	local base=scenarioName:gsub(" Blitz$","")
+	if APOCALYPSE_DRAGON_CITY_SCENARIOS[base]~=true then return false end
+	local scenario=scenarioList~=nil and scenarioList[gStates.scenarioRef] or nil
+	local setup=scenario~=nil and scenario[gStates.playersRef] or nil
+	return setup~=nil and (tonumber(setup.cityTiles) or 0)>0 and tonumber(setup.cityLevels~=nil and setup.cityLevels[1] or 0)>0
+end
+
+local function apocalypseDragonCityVariantSelectable()
+	return apocalypseDragonCityVariantScenarioEligible()==true and (gStates.megapolis or 0)==0
+end
+
+local function refreshApocalypseDragonVariantControls()
+	local eligible=apocalypseDragonCityVariantScenarioEligible()
+	local selectable=apocalypseDragonCityVariantSelectable()
+	local mode=math.max(0,math.min(2,math.floor(tonumber(gStates.apocalypseDragonCityMode) or 0)))
+	if eligible~=true then mode=0 end
+	if selectable~=true and mode>0 then mode=0 end
+	gStates.apocalypseDragonCityMode=mode
+	UI.setAttribute("ApocalypseDragonCityModeRow","active",eligible and "true" or "false")
+	UI.setAttribute("ApocalypseDragonCityMode","interactable",selectable and "True" or "False")
+	UI.setAttribute("ApocalypseDragonCityModeText","text",APOCALYPSE_DRAGON_CITY_MODE_TEXT[mode])
+	UI.setAttribute("ApocalypseDragonCityModeImage","image",selectable and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+
+	local dragonAvailable=scenarioUsesApocalypseDragon()==true or mode>0
+	UI.setAttribute("RandomizedDragonHeadsRow","active",dragonAvailable and "true" or "false")
+	UI.setAttribute("randomizedDragonHeads","interactable",dragonAvailable and "True" or "False")
+	if dragonAvailable~=true then
+		gStates.randomizedDragonHeads=false
+		UI.setAttribute("randomizedDragonHeads","isOn","false")
+	else
+		UI.setAttribute("randomizedDragonHeads","isOn",gStates.randomizedDragonHeads==true and "true" or "false")
+	end
+end
+
+function apocalypseDragonCityModeSelection(player, mouseButton, id)
+	if mouseButton~="-1" or apocalypseDragonCityVariantSelectable()~=true then return end
+	gStates.apocalypseDragonCityMode=((tonumber(gStates.apocalypseDragonCityMode) or 0)+1)%3
+	scenarioInfoUpdate()
+	ToolTipUpdate("ApocalypseDragonCityMode")
+end
+
 local function refreshScenarioEnemyLevelTweaks()
+	refreshApocalypseDragonVariantControls()
 	local showDragon=scenarioUsesApocalypseDragon()
 	local showHorsemen=scenarioUsesHorsemen()
 	local showAny=showDragon or showHorsemen
@@ -456,6 +516,7 @@ function scenarioSelection(player, mouseButton, id)
 		gStates.gameScenario=SCENARIO_SELECTION_BY_ID[id] or id
 		gStates.apocalypseDragonStartingLevelOverride=nil
 		gStates.horsemanStartingLevelOverride=nil
+		gStates.apocalypseDragonCityMode=0
 		UI.setAttribute("ScenarioSelectionText", "text", translateWord[gStates.gameScenario])
 		UI.setAttribute("ScenarioSelectionImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
@@ -897,7 +958,7 @@ function baseValueTweak(player, mouseButton, id)
 	if mouseButton=="-1" then
 		local setup=scenarioList[gStates.scenarioRef][gStates.playersRef]
 		if scenarioMapIsPredefined() and (id=="MapDown" or id=="MapUp" or id=="CountryDown" or id=="CountryUp" or id=="CoreDown" or id=="CoreUp" or id=="CityDown" or id=="CityUp") then return end
-		if gStates.volkareCampAsCity==true and (id=="MegapolisDown" or id=="MegapolisUp") then return end
+		if (gStates.volkareCampAsCity==true or (tonumber(gStates.apocalypseDragonCityMode) or 0)>0) and (id=="MegapolisDown" or id=="MegapolisUp") then return end
 		if gStates.gameScenario~="First Reconnaissance" then
 			if id=="RoundsDown" or id=="RoundsUp" then
 				if id=="RoundsDown" then
@@ -1380,6 +1441,8 @@ local setupUISaveAttributes={
 	{id="RampageSelection",attribute="interactable"},{id="RampageSelection",attribute="isOn"},
 	{id="MoreRampageSelection",attribute="interactable"},{id="MoreRampageSelection",attribute="isOn"},
 	{id="volkareCampAsCity",attribute="interactable"},{id="volkareCampAsCity",attribute="isOn"},
+	{id="ApocalypseDragonCityModeRow",attribute="active"},{id="ApocalypseDragonCityMode",attribute="interactable"},
+	{id="ApocalypseDragonCityModeText",attribute="text"},{id="ApocalypseDragonCityModeImage",attribute="image"},
 	{id="randomTileOrientation",attribute="interactable"},{id="randomTileOrientation",attribute="isOn"},
 	{id="randomCities",attribute="interactable"},{id="randomCities",attribute="isOn"},
 	{id="removeShadesOfTezlaMonsters",attribute="interactable"},{id="removeShadesOfTezlaMonsters",attribute="isOn"},
@@ -1396,6 +1459,7 @@ local setupUISaveAttributes={
 	{id="weatherMod",attribute="interactable"},{id="weatherMod",attribute="isOn"},
 	{id="questMod",attribute="interactable"},{id="questMod",attribute="isOn"},
 	{id="apocalypseQuestCards",attribute="interactable"},{id="apocalypseQuestCards",attribute="isOn"},
+	{id="RandomizedDragonHeadsRow",attribute="active"},{id="randomizedDragonHeads",attribute="interactable"},{id="randomizedDragonHeads",attribute="isOn"},
 	{id="horsemenHorses",attribute="interactable"},{id="horsemenHorses",attribute="isOn"},
 	{id="proxyPlayer",attribute="interactable"},{id="proxyPlayer",attribute="isOn"},
 	{id="itemShopMod",attribute="interactable"},{id="itemShopMod",attribute="isOn"},
@@ -1447,7 +1511,7 @@ end
 local function restoreSetupUIFromState()
 	local toggles={"volkareCampAsCity","randomTileOrientation","randomCities","removeShadesOfTezlaMonsters","removeApocalypseTerrain",
 		"removeLostLegionExpansion","startAtNight","darknessComing","rampageAmbush","rampagePursuit","mageKnightLevels",
-		"useCustomMageKnights","heroChallenges","removeBonusCards","weatherMod","questMod","apocalypseQuestCards","horsemenHorses","proxyPlayer","itemShopMod","removeTerrain","useAlternatePugs"}
+		"useCustomMageKnights","heroChallenges","removeBonusCards","weatherMod","questMod","apocalypseQuestCards","randomizedDragonHeads","horsemenHorses","proxyPlayer","itemShopMod","removeTerrain","useAlternatePugs"}
 	for _,id in ipairs(toggles) do if gStates[id]~=nil then UI.setAttribute(id,"isOn",gStates[id] and "true" or "false") end end
 	UI.setAttribute("BlitzSelection","isOn",gStates.blitz==1 and "true" or "false")
 	UI.setAttribute("RampageSelection","isOn",gStates.rampage==1 and "true" or "false")
@@ -1492,6 +1556,7 @@ publishPublicUICallbacks({
 	SetupMenu=SetupMenu,
 	VolkareLevelSelection=VolkareLevelSelection,
 	VolkareRaceSelection=VolkareRaceSelection,
+	apocalypseDragonCityModeSelection=apocalypseDragonCityModeSelection,
 	apocalypseDragonLevelSelection=apocalypseDragonLevelSelection,
 	baseValueTweak=baseValueTweak,
 	horsemanLevelSelection=horsemanLevelSelection,
