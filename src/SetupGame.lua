@@ -213,7 +213,7 @@ local function setupCoreSystemsReady()
 	if setupPlayersReady~=nil and setupPlayersReady()~=true then return false end
 	if gStates.volkareCampSupportReady~=true then return false end
 	if apocalypseQuestsUsed()==true and gStates.apocalypseQuestSetupReady~=true then return false end
-	if apocalypseDragonScenario()==true and gStates.apocalypseDragonHeadsSetupReady~=true then return false end
+	if apocalypseDragonComponentsNeeded()==true and gStates.apocalypseDragonHeadsSetupReady~=true then return false end
 	return true
 end
 
@@ -240,6 +240,10 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		gStates.dummyAllSkills=false
 		gStates.startingHigherLevelCrystal={}
 		gStates.hexOverideSave=gStates.hexOverideSave or {}
+		gStates.apocalypseDragonCityRevealCount=0
+		gStates.apocalypseDragonCityPlaced=false
+		gStates.apocalypseDragonCityDefeated=false
+		gStates.apocalypseDragonCity=nil
 
 		--Close the setup menu and update the Help button
 		UI.setAttribute("Setup", "active", "false")
@@ -378,7 +382,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		local r={main="b850ab", expansion="700e93", apocalypse="65f2b6"}
 		local scenarioRuleStates=scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates or {}
 		local needExpansionRules=scenarioRuleStates.expansion~=nil or gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false
-		local needApocalypseRules=scenarioRuleStates.apocalypse~=nil or gStates.removeApocalypseTerrain~=true
+		local needApocalypseRules=scenarioRuleStates.apocalypse~=nil or gStates.removeApocalypseTerrain~=true or apocalypseDragonComponentsNeeded()==true
 		if ruleBag~=nil then
 			local mainRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={52.13,0.98,35.00},guid=r.main,smooth=false})
 			setupConfigureRulebook(mainRules,scenarioRuleStates.main)
@@ -524,7 +528,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		--Apocalypse/Council rewards and Possessed tokens are preloaded in their normal table positions.
 		--Keep complete source/discard cycles when any enabled system can use them; otherwise remove them.
 		local apocalypseTokenSupportNeeded=gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or
-			gStates.gameScenario=="Against the Horsemen Blitz" or apocalypseDragonScenario()==true
+			gStates.gameScenario=="Against the Horsemen Blitz" or apocalypseDragonComponentsNeeded()==true
 		for _,guid in ipairs({
 			monsterPiles.rewardApoc,GUID.bag.discard.apocReward,
 			monsterPiles.rewardCouncil,GUID.bag.discard.councilReward,
@@ -545,7 +549,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		end
 
 		--The Apocalypse systems share the same infinite Neutral Shield bag.
-		if (gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or apocalypseDragonScenario()==true) and getObjectFromGUID(GUID.bag.neutralShield)==nil then
+		if (gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or apocalypseDragonComponentsNeeded()==true) and getObjectFromGUID(GUID.bag.neutralShield)==nil then
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.neutralShield,position={8.00,1.03,16.00},rotation={0,180,0},smooth=false})
 		end
 
@@ -569,8 +573,9 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.destroyedSite,position={-43.00,1.02,26.00},rotation={0,180,0},smooth=false}).lock()
 		end
 
-		--Set up the Apocalypse Dragon large head tokens for Dragon scenarios.
-		if apocalypseDragonScenario()==true then setupApocalypseDragonHeads() end
+		--Set up the Apocalypse Dragon boards/tokens for Dragon scenarios and the City-replacement variant.
+		--The City variant keeps them at level 0 until the replacement City is actually revealed.
+		if apocalypseDragonComponentsNeeded()==true then setupApocalypseDragonHeads() end
 		if apocalypseIsHereSetup~=nil then apocalypseIsHereSetup() end
 
 		--include or remove Rise of the Forgemaster
@@ -796,7 +801,7 @@ function startMapSetupStage()
 		if setupMapStarted==true then return end
 		setupMapStarted=true
 		removeUnselectedTerrain()
-		if apocalypseDragonScenario()==true then positionApocalypseDragonHeads() end
+		if apocalypseDragonComponentsNeeded()==true then positionApocalypseDragonHeads() end
 		mapSetup(function(success,reason)
 			if success~=true then
 				setupReleaseRewind()
