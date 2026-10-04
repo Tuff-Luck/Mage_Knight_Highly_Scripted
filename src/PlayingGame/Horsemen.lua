@@ -84,30 +84,12 @@ function horsemanDeployLinkedHorse(name,target,faceDown)
 		currentState.horseDefeated=nil
 		if gStates.monsterPlayLocation==nil then gStates.monsterPlayLocation={} end
 		gStates.monsterPlayLocation[horse.guid]={target[1],target[2],target[3]}
-		local horseGUID=horse.guid
-		local horsemanGUID=horsemanData~=nil and horsemanData[name]~=nil and horsemanData[name].tokenGUID or nil
-		local function arrangeStablePair()
-			if mapTokenArrangeObject==nil then return end
-			safeWaitCondition("Horsemen",function()
-				local currentHorse=getObjectFromGUID(horseGUID)
-				if currentHorse~=nil then mapTokenArrangeObject(horseGUID) end
-			end,function()
-				local currentHorse=getObjectFromGUID(horseGUID)
-				local currentHorseman=horsemanGUID~=nil and getObjectFromGUID(horsemanGUID) or nil
-				return currentHorse==nil or currentHorseman==nil or
-					(currentHorse.isSmoothMoving()==false and currentHorse.resting==true and
-					currentHorseman.isSmoothMoving()==false and currentHorseman.resting==true)
-			end,5,function()
-				local currentHorse=getObjectFromGUID(horseGUID)
-				if currentHorse~=nil then mapTokenArrangeObject(horseGUID) end
-			end)
-		end
-		local started=mapTokenSettleArrival~=nil and mapTokenSettleArrival(horseGUID,target,{force=true,rotation=rotation},function()
-			arrangeStablePair()
-		end) or false
+		local started=mapTokenSettleArrival~=nil and mapTokenSettleArrival(horse.guid,target,{force=true,rotation=rotation}) or false
 		if started~=true then
 			horse.setPositionSmooth(target,false,false)
-			mapTokenAfterSettled(horseGUID,function() arrangeStablePair() end)
+			mapTokenAfterSettled(horse.guid,function()
+				if getObjectFromGUID(horse.guid)~=nil and mapTokenArrangeObject~=nil then mapTokenArrangeObject(horse.guid) end
+			end)
 		end
 	end
 	if withTokenPoolReady~=nil then withTokenPoolReady(pileGUID,deploy,"Horsemen") else deploy() end

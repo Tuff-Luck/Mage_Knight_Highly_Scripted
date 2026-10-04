@@ -335,11 +335,34 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,candidates)
 	return changed
 end
 
+local function mapTokenPhysicalHexForPosition(hexes,position,mapObjects)
+	local hex=runtimeMapHexForPosition(hexes,position,mapObjects)
+	if hex~=nil then return hex end
+	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return nil end
+
+	--Against the Horsemen starts its Horsemen (and optional horses) on unrevealed Core tiles.
+	--Those tiles must remain absent from runtimeMapSnapshot().hexes for gameplay, but the physical
+	--separator still needs the exact hex centre so face-down tokens do not overlap.
+	local snapshot=runtimeMapSnapshot()
+	local terrain,bearing,hexPos,feature,hexType=terrainHexAtPosition(position,
+		snapshot.terrainObjects,snapshot.terrainPositions,snapshot.terrainRotations)
+	if terrain==nil or bearing==nil or hexPos==nil or terrain.is_face_down~=true then return nil end
+	local scenarioCore=false
+	for _,terrainGUID in pairs(gStates.againstHorsemenCoreTiles or {}) do
+		if terrainGUID==terrain.guid then scenarioCore=true break end
+	end
+	if scenarioCore~=true then return nil end
+	return {
+		terrain=terrain,terrainGUID=terrain.guid,bearing=bearing,
+		position={hexPos[1],1.30,hexPos[3]},hexType=hexType,feature=feature or ""
+	}
+end
+
 function mapTokenArrangeObject(guid)
 	local obj=guid~=nil and getObjectFromGUID(guid) or nil
 	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
-	local hex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+	local hex=mapTokenPhysicalHexForPosition(hexes,obj.getPosition(),mapObjects)
 	if hex==nil then return false end
 	return mapTokenArrangeHex(hex,mapObjects,nil,obj)
 end
@@ -352,10 +375,10 @@ local function mapTokenPassiveArrivalReachedPlannedHex(obj)
 	local planned=gStates.monsterPlayLocation[obj.guid]
 	if planned==nil then return true end
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
-	local plannedHex=runtimeMapHexForPosition(hexes,planned,mapObjects)
-	--A recorded destination outside the revealed map means this map-zone entry is only transit.
+	local plannedHex=mapTokenPhysicalHexForPosition(hexes,planned,mapObjects)
+	--A recorded destination outside the physical map means this map-zone entry is only transit.
 	if plannedHex==nil then return false end
-	local currentHex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+	local currentHex=mapTokenPhysicalHexForPosition(hexes,obj.getPosition(),mapObjects)
 	if currentHex==nil then return false end
 	return runtimeMapHexKey(currentHex)==runtimeMapHexKey(plannedHex)
 end
@@ -454,7 +477,7 @@ function mapTokenReleaseObject(obj)
 	mapTokenArrangeGeneration[ignoreGUID]=(mapTokenArrangeGeneration[ignoreGUID] or 0)+1
 	safeWaitFrames("MapTokens",function()
 		local hexes,mapObjects=runtimeMapHexesAndObjects()
-		local hex=runtimeMapHexForPosition(hexes,position,mapObjects)
+		local hex=mapTokenPhysicalHexForPosition(hexes,position,mapObjects)
 		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID,nil) end
 	end,1)
 	return true
@@ -467,7 +490,7 @@ local function mapTokenTerrainReadyForReconcile(terrainGUID)
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	for _,obj in pairs(mapObjects or {}) do
 		if mapTokenNeedsArrangement(obj)==true then
-			local hex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+			local hex=mapTokenPhysicalHexForPosition(hexes,obj.getPosition(),mapObjects)
 			if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
 				if mapTokenArrivalPending[obj.guid]~=nil or obj.isSmoothMoving()==true or obj.resting~=true then return false end
 			end
@@ -481,7 +504,7 @@ local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
 	local groups={}
 	for _,obj in pairs(mapObjects or {}) do
 		if mapTokenNeedsArrangement(obj)==true then
-			local hex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+			local hex=mapTokenPhysicalHexForPosition(hexes,obj.getPosition(),mapObjects)
 			local key=hex~=nil and runtimeMapHexKey(hex) or nil
 			if hex~=nil and key~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
 				local group=groups[key]
