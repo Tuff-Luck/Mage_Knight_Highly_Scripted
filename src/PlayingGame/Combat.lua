@@ -215,7 +215,7 @@ end
 --The Dragon data is forward-declared with the map-setup helpers above.
 function coopAssaultTargetType()
 	local target=gStates.coopAssaultCityGUID
-	if target==apocalypseDragon.model and apocalypseDragonScenario~=nil and apocalypseDragonScenario()==true then return "dragon" end
+	if target==apocalypseDragon.model and apocalypseDragonCombatEnabled~=nil and apocalypseDragonCombatEnabled()==true then return "dragon" end
 	if gStates.gameScenario=="Against the Horsemen Blitz" and gStates.againstHorsemenRitualStarted==true and target==GUID.tile.country01 then return "horsemen" end
 	if target==volkare.model then return "volkare" end
 	if target==darkCrusader.terrainHex or target==elementalist.terrainHex then return "leader" end
@@ -656,7 +656,7 @@ function startCoopRewardPhase()
 	if coopAssaultTargetType()=="dragon" then finalizeCoopDragonCombat() end
 	finalizeCoopLeaderCombat()
 	local assaultType=coopAssaultTargetType()
-	if gStates.endGameAchieved=="false" and ((assaultType=="leader" and coopLeaderScenarioEndAchieved()==true) or (assaultType=="horsemen" and againstHorsemenAllDefeated()==true) or (assaultType=="dragon" and apocalypseDragonColoredHeadsDefeated()==true)) then gStates.coopAssaultScenarioEndPending=true end
+	if gStates.endGameAchieved=="false" and ((assaultType=="leader" and coopLeaderScenarioEndAchieved()==true) or (assaultType=="horsemen" and againstHorsemenAllDefeated()==true) or (assaultType=="dragon" and apocalypseDragonAssaultScenarioEndAchieved()==true)) then gStates.coopAssaultScenarioEndPending=true end
 	resolveCoopAssaultLocations()
 	if gStates.coopRewardQueue==nil or #gStates.coopRewardQueue==0 then
 		local scenarioEndPending=gStates.coopAssaultScenarioEndPending==true
