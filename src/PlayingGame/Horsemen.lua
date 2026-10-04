@@ -115,6 +115,8 @@ function horsemanMoveWithLinkedHorse(name,target,options,callback)
 		if remaining==0 and callback~=nil then callback() end
 	end
 	for _,move in ipairs(moves) do
+		if gStates.monsterPlayLocation==nil then gStates.monsterPlayLocation={} end
+		gStates.monsterPlayLocation[move.guid]={move.target[1],move.target[2],move.target[3]}
 		local moveOptions={}
 		for key,value in pairs(options) do if key~="horseTarget" and not (move.horse==true and key=="rotation") then moveOptions[key]=value end end
 		local started=mapTokenSettleArrival~=nil and mapTokenSettleArrival(move.guid,move.target,moveOptions,function() settled() end) or false

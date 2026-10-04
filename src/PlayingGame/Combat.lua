@@ -1939,7 +1939,7 @@ function attackLocation(playerDud, mouseButton, id)
 								if horsemanSelected==true and math.sqrt(((monsterPos[1]-avPos[1])^2)+((monsterPos[3]-avPos[3])^2))<1 then
 									local originalPos={monsterPos[1],monsterPos[2],monsterPos[3]}
 									gStates.attackedMonsters[monster.guid]={originalPos, monster.getRotation()}
-									if horsemanName~=nil then gStates.monsterPlayLocation[monster.guid]={originalPos[1],originalPos[2],originalPos[3]} end
+									if horsemanName~=nil or horseOwner~=nil then gStates.monsterPlayLocation[monster.guid]={originalPos[1],originalPos[2],originalPos[3]} end
 									if cameraFollowed==false then combatCameraFocus(playerIndex) cameraFollowed=true end
 									monster.setPositionSmooth({(player.seatPos*40)-96+gStates.monsterOffsetX, 2.5, -39-gStates.monsterOffsetZ},false,false)
 									monster.setRotation({0.00, 180.00, 0.00})
