@@ -602,7 +602,7 @@ function setupApocalypseDragonHeads()
 			dragon.setPosition(apocalypseDragon.modelPosition)
 			dragon.setRotation({0,180,180})
 		end
-		if dragon~=nil then dragon.setLock(false) end
+		if dragon~=nil then dragon.setLock(scenarioDragon~=true) end
 	end
 
 	local function dragonHeadSetupObjectsReady()
