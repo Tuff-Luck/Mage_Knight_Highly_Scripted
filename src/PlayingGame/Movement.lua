@@ -418,7 +418,7 @@ function renderMoveDisplay(id)
 	--Dragon combat spaces keep their printed Move cost, but entering one starts the assault.
 	--Against the Dragon uses its three-space Lair; Fury uses the single space where its marker is
 	--currently landed. An in-flight Fury Dragon therefore contributes no combat destination.
-	local dragonCombatScenario=gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon"
+	local dragonCombatScenario=gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" or gStates.apocalypseDragonCityPlaced==true
 	if dragonCombatScenario==true and gStates.apocalypseDragonLairRevealed==true and gStates.apocalypseDragonDefeated~=true and apocalypseDragonCombatHexes~=nil then
 		for _,dragonHex in ipairs(apocalypseDragonCombatHexes()) do
 			local p=dragonHex.position
