@@ -1567,7 +1567,7 @@ end
 
 --Give replacement cards for Day Tactic 2, then shuffle the discarded cards back into the Deed Deck.
 dayTactic2Discarded=function(player, mouseButton, id)
-	if mouseButton~="-1" or player==nil then return end
+	if mouseButton~="-1" or player==nil or player.color=="Grey" then return end
 	local tactic=getObjectFromGUID(tacticCard[2])
 	if tactic==nil then return end
 	if gStates.tacticTwoState=="Used" then dayTactic2ButtonActivate() return end

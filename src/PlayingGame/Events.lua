@@ -1288,7 +1288,8 @@ local function handleManaZoneEnter(ctx)
 				for _, manaDie in pairs(manaZone.getObjects()) do
 					if manaDie.type=="Dice" and (manaDie.getRotationValue()=="Black Mana" or manaDie.getRotationValue()=="Gold Mana") then bad[#bad+1]=manaDie end
 				end
-				if #bad>gStates.diceNeeded/2 or (gStates.startAtNight==true and gStates.currentRound==1) then
+				local diceNeeded=tonumber(gStates.diceNeeded)
+				if (diceNeeded~=nil and #bad>diceNeeded/2) or (gStates.startAtNight==true and gStates.currentRound==1) then
 					for _, badManaDie in pairs(bad) do badManaDie.randomize() end
 					pulseSourceRandomizeFences()
 					if #bad>0 then safe=false end
