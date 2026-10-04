@@ -347,6 +347,22 @@ function scenarioUsesApocalypseDragon()
 	return scenario=="Against the Dragon Blitz" or scenario=="Apocalypse is Here" or scenario=="Fury of the Apocalypse Dragon"
 end
 
+--The City-replacement variant uses the Dragon combat pieces without becoming a Dragon scenario.
+--Keep component/setup and combat-presence predicates separate from scenario identity so the variant
+--never inherits Against/Fury/Apocalypse-is-Here turn or end-game rules.
+function apocalypseDragonCityVariantEnabled()
+	return gStates~=nil and (tonumber(gStates.apocalypseDragonCityMode) or 0)>0
+end
+
+function apocalypseDragonComponentsNeeded()
+	return scenarioUsesApocalypseDragon()==true or apocalypseDragonCityVariantEnabled()==true
+end
+
+function apocalypseDragonCombatEnabled()
+	return gStates~=nil and gStates.apocalypseDragonLairRevealed==true and gStates.apocalypseDragonDefeated~=true and
+		(scenarioUsesApocalypseDragon()==true or gStates.apocalypseDragonCityPlaced==true)
+end
+
 function scenarioUsesHorsemen()
 	local scenario=gStates~=nil and gStates.gameScenario or nil
 	return scenario=="Against the Horsemen Blitz" or scenario=="Apocalypse is Here"
