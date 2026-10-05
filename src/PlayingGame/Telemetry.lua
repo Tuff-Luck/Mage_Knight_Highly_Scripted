@@ -12,6 +12,10 @@ function SendDataRequest(player, mouseButton, id)
 			if id=="SendBugRequestYes" then STAT_URL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec" end
 			if id=="SendScoreRequestYes" then STAT_URL="https://script.google.com/macros/s/AKfycbzLnjL_IH1gOb1hwgfDLrnrsnRkHM9bve20ph4PVqViMe5lhYtBzTOndL4T6DWo4HFXbQ/exec" end
 			log("Writing stats.")
+			local dragonCityMode=math.max(0,math.min(2,math.floor(tonumber(gStates.apocalypseDragonCityMode) or 0)))
+			local dragonAsCity=({[1]="Last",[2]="Random"})[dragonCityMode] or "Off"
+			local horsemenLevel=type(horsemanStartingLevel)=="function" and horsemanStartingLevel() or nil
+			local dragonLevel=type(apocalypseDragonStartingLevel)=="function" and apocalypseDragonStartingLevel() or nil
 			local GameRecord={gameScenario=gStates.gameScenario,
 				blitz=gStates.blitz,
 				rounds=scenarioList[gStates.scenarioRef][gStates.playersRef].rounds,
@@ -52,7 +56,13 @@ function SendDataRequest(player, mouseButton, id)
 				useAlternatePugs=gStates.useAlternatePugs,
 				riseOfTheForgemasters=gStates.riseOfTheForgemasters,
 				autoFlip=gStates.autoFlip,
-				offerSize=gStates.offerSize}
+				offerSize=gStates.offerSize,
+				dragonAsCity=dragonAsCity,
+				randomHeads=gStates.randomizedDragonHeads==true,
+				withHorse=gStates.horsemenHorses==true,
+				removeFactionRewards=gStates.removeFactionRewards==true,
+				horsemenLevel=horsemenLevel or "",
+				dragonLevel=dragonLevel or ""}
 			local telemetryShape={wedgeUnlimited="Wedge",wedge="Wedge",open3="3 Columns",open4="4 Columns",open="Fully Open",predefined="Predefined"}
 			GameRecord.mapShape=telemetryShape[gStates.mapShapeKey] or tostring(gStates.mapShapeKey or "")
 			if gStates.positionMageKnight[5]=="Volkare" then
