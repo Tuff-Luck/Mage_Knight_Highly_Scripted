@@ -471,7 +471,7 @@ local apocalypseDragonVariantManaFaces={
 	[6]={name="Black",rotation={270,0,0}}
 }
 
-local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xStart,positions)
+local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xStart)
 	local bag=getObjectFromGUID(GUID.bag.spareDice)
 	if bag==nil then if onComplete~=nil then onComplete() end return false end
 	xStart=xStart or -9
@@ -480,8 +480,7 @@ local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xSt
 	for index,history in ipairs(histories or {}) do
 		maxSteps=math.max(maxSteps,#history)
 		local face=apocalypseDragonVariantManaFaces[history[1] or 1]
-		local target=positions~=nil and positions[index] or {xStart+((index-1)*3),2.5,-22.20}
-		local die=bag.takeObject({position=target,rotation=face.rotation,smooth=false})
+		local die=bag.takeObject({position={xStart+((index-1)*3),2.5,-22.20},rotation=face.rotation,smooth=false})
 		if die~=nil then
 			die.lock()
 			dice[index]=die.guid
@@ -513,23 +512,84 @@ local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xSt
 	return true
 end
 
-local function apocalypseDragonRandomizedStartingLevels(baseLevel)
-	baseLevel=math.max(1,math.min(12,math.floor(tonumber(baseLevel) or 1)))
+local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete)
 	local levels={Famine=math.max(0,baseLevel-1),Death=math.max(0,baseLevel-1),Pestilence=math.max(0,baseLevel-1),War=math.max(0,baseLevel-1)}
-	local histories={}
-	for index=1,4 do
-		local history={}
-		local faceIndex
-		repeat
-			faceIndex=math.random(1,6)
-			history[#history+1]=faceIndex
-		until faceIndex<=4
-		histories[index]=history
-		local headName=apocalypseDragonVariantManaFaces[faceIndex].head
-		levels[headName]=math.min(12,(levels[headName] or 0)+1)
+	local bag=getObjectFromGUID(GUID.bag.spareDice)
+	if bag==nil then error("Random heads could not find the spare mana-die bag.",2) end
+	local dice,pending={},{}
+	local function cleanupDice()
+		local spare=getObjectFromGUID(GUID.bag.spareDice)
+		for _,guid in ipairs(dice) do
+			local die=getObjectFromGUID(guid)
+			if die~=nil then
+				die.unlock()
+				if spare~=nil then spare.putObject(die) else die.destruct() end
+			end
+		end
 	end
-	levels.Control=math.max(levels.Famine,levels.Death,levels.Pestilence,levels.War)
-	return levels,histories
+	local function failRoll(message)
+		cleanupDice()
+		error("Random heads: "..message,2)
+	end
+	local rollPending
+	local function readSettledResults()
+		local reroll={}
+		for _,index in ipairs(pending) do
+			local die=getObjectFromGUID(dice[index])
+			if die==nil then return failRoll("a mana die disappeared before its result was read.") end
+			local color=string.lower(tostring(die.getRotationValue() or "")):match("^(%a+)")
+			local face=nil
+			for _,candidate in ipairs(apocalypseDragonVariantManaFaces) do
+				if string.lower(candidate.name)==color then face=candidate break end
+			end
+			if face~=nil and face.head~=nil then
+				levels[face.head]=math.min(12,levels[face.head]+1)
+				die.lock()
+			elseif face~=nil then
+				reroll[#reroll+1]=index
+				die.setPositionSmooth(positions[index],false,false)
+			else
+				return failRoll("unrecognized settled mana colour "..tostring(color)..".")
+			end
+		end
+		pending=reroll
+		if #pending>0 then return rollPending() end
+		levels.Control=math.max(levels.Famine,levels.Death,levels.Pestilence,levels.War)
+		--Leave the physical results visible briefly without delaying setup completion.
+		safeWaitTime("Scenario",cleanupDice,1.25)
+		onComplete(levels)
+	end
+	rollPending=function()
+		safeWaitCondition("Scenario",function()
+			for _,index in ipairs(pending) do
+				local die=getObjectFromGUID(dice[index])
+				if die==nil then return failRoll("a mana die disappeared before rolling.") end
+				die.unlock()
+				die.randomize()
+			end
+			safeWaitCondition("Scenario",readSettledResults,function()
+				for _,index in ipairs(pending) do
+					local die=getObjectFromGUID(dice[index])
+					if die~=nil and (die.spawning==true or die.resting~=true) then return false end
+				end
+				return true
+			end,30,function() failRoll("timed out waiting for the rolled dice to settle.") end)
+		end,function()
+			for _,index in ipairs(pending) do
+				local die=getObjectFromGUID(dice[index])
+				if die==nil or die.spawning==true or die.isSmoothMoving()==true or die.resting~=true then return false end
+			end
+			return true
+		end,10,function() failRoll("timed out waiting for the dice to be ready to roll.") end)
+	end
+	for index,pos in ipairs(positions) do
+		local die=safeTakeObject("Scenario",bag,{position=pos,rotation={0,180,0},smooth=false})
+		if die==nil then return failRoll("could not draw all four mana dice.") end
+		die.unlock()
+		dice[index]=die.guid
+		pending[index]=index
+	end
+	rollPending()
 end
 
 local function apocalypseDragonApplyStartingLevels(levels,onComplete)
@@ -556,7 +616,6 @@ function apocalypseDragonInitializeHeadLevels(baseLevel,onComplete)
 		apocalypseDragonApplyStartingLevels(levels,onComplete)
 		return true
 	end
-	local levels,histories=apocalypseDragonRandomizedStartingLevels(baseLevel)
 	--Keep the four dice in the central gap between the coloured head discs.
 	local centerX,centerZ=0,0
 	for _,headName in ipairs(apocalypseDragonColoredHeads) do
@@ -567,11 +626,11 @@ function apocalypseDragonInitializeHeadLevels(baseLevel,onComplete)
 	centerX,centerZ=centerX/#apocalypseDragonColoredHeads,centerZ/#apocalypseDragonColoredHeads
 	local positions={}
 	for index=1,4 do
-		positions[index]={centerX+(((index-1)%2)-0.5)*0.9,2.5,centerZ+(math.floor((index-1)/2)-0.5)*0.9}
+		positions[index]={centerX+(((index-1)%2)-0.5)*1.1,2.5,centerZ+(math.floor((index-1)/2)-0.5)*1.1}
 	end
-	apocalypseDragonShowVariantRollHistories(histories,function()
+	apocalypseDragonRollStartingLevels(baseLevel,positions,function(levels)
 		apocalypseDragonApplyStartingLevels(levels,onComplete)
-	end,nil,positions)
+	end)
 	return true
 end
 
