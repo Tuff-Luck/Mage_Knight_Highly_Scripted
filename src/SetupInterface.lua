@@ -194,6 +194,7 @@ local SETUP_TOGGLE_DEFAULTS={
 	randomTileOrientation={false,true},
 	randomCities={false,true},
 	removeShadesOfTezlaMonsters={false,true},
+	removeFactionRewards={false,true},
 	removeApocalypseTerrain={false,true},
 	startAtNight={false,true},
 	rampageAmbush={false,true},
@@ -214,7 +215,7 @@ local SETUP_TOGGLE_DEFAULTS={
 
 local SCENARIO_OPTION_OVERRIDES={
 	["First Reconnaissance"]={
-		randomTileOrientation={false,false},removeShadesOfTezlaMonsters={true,false},removeApocalypseTerrain={true,false},
+		randomTileOrientation={false,false},removeShadesOfTezlaMonsters={true,false},removeFactionRewards={true,false},removeApocalypseTerrain={true,false},
 		startAtNight={false,false},rampageAmbush={false,false},rampagePursuit={false,false},darknessComing={false,false},
 		mageKnightLevels={false,false},useCustomMageKnights={false,false},removeBonusCards={true,false},weatherMod={false,false},
 		questMod={false,false},apocalypseQuestCards={false,false},proxyPlayer={false,false},itemShopMod={false,false},
@@ -484,7 +485,7 @@ function randomSetup(player, value, id)
 	local value=scenarioList[math.random(2, #scenarioList-1)][1]
 	applyScenarioSetupDefaults(value)
 	--scenarioSelection updates setup state synchronously; randomize immediately instead of sleeping a frame.
-	local randomOptions={"volkareCampAsCity", "randomTileOrientation", "randomCities", "removeShadesOfTezlaMonsters", "removeApocalypseTerrain",	"startAtNight", "darknessComing", "heroChallenges", "useCustomMageKnights", "weatherMod", "questMod", "apocalypseQuestCards", "proxyPlayer", "itemShopMod", "rampageAmbush", "rampagePursuit", "removeTerrain"}
+	local randomOptions={"volkareCampAsCity", "randomTileOrientation", "randomCities", "removeShadesOfTezlaMonsters", "removeFactionRewards", "removeApocalypseTerrain",	"startAtNight", "darknessComing", "heroChallenges", "useCustomMageKnights", "weatherMod", "questMod", "apocalypseQuestCards", "proxyPlayer", "itemShopMod", "rampageAmbush", "rampagePursuit", "removeTerrain"}
 	for a=1, #randomOptions, 1 do
 		if UI.getAttribute(randomOptions[a], "interactable")=="True" then
 			--Random must explicitly roll both ON and OFF. This matters for options such as Hero Challenges
@@ -1461,6 +1462,7 @@ local setupUISaveAttributes={
 	{id="randomTileOrientation",attribute="interactable"},{id="randomTileOrientation",attribute="isOn"},
 	{id="randomCities",attribute="interactable"},{id="randomCities",attribute="isOn"},
 	{id="removeShadesOfTezlaMonsters",attribute="interactable"},{id="removeShadesOfTezlaMonsters",attribute="isOn"},
+	{id="removeFactionRewards",attribute="interactable"},{id="removeFactionRewards",attribute="isOn"},
 	{id="removeApocalypseTerrain",attribute="interactable"},{id="removeApocalypseTerrain",attribute="isOn"},
 	{id="removeLostLegionExpansion",attribute="interactable"},{id="removeLostLegionExpansion",attribute="isOn"},
 	{id="startAtNight",attribute="interactable"},{id="startAtNight",attribute="isOn"},
@@ -1524,7 +1526,7 @@ function restoreSetupScenarioState()
 end
 
 local function restoreSetupUIFromState()
-	local toggles={"volkareCampAsCity","randomTileOrientation","randomCities","removeShadesOfTezlaMonsters","removeApocalypseTerrain",
+	local toggles={"volkareCampAsCity","randomTileOrientation","randomCities","removeShadesOfTezlaMonsters","removeFactionRewards","removeApocalypseTerrain",
 		"removeLostLegionExpansion","startAtNight","darknessComing","rampageAmbush","rampagePursuit","mageKnightLevels",
 		"useCustomMageKnights","heroChallenges","removeBonusCards","weatherMod","questMod","apocalypseQuestCards","randomizedDragonHeads","horsemenHorses","proxyPlayer","itemShopMod","removeTerrain","useAlternatePugs"}
 	for _,id in ipairs(toggles) do if gStates[id]~=nil then UI.setAttribute(id,"isOn",gStates[id] and "true" or "false") end end

@@ -298,6 +298,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 					end
 				end
 				rollOption("removeShadesOfTezlaMonsters",7)
+				rollOption("removeFactionRewards",7)
 				rollOption("removeApocalypseTerrain",7)
 				rollOption("randomTileOrientation",8)
 				rollOption("randomCities",8)
@@ -530,11 +531,17 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		--Keep complete source/discard cycles when any enabled system can use them; otherwise remove them.
 		local apocalypseTokenSupportNeeded=gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or
 			gStates.gameScenario=="Against the Horsemen Blitz" or apocalypseDragonComponentsNeeded()==true
-		for _,guid in ipairs({
-			monsterPiles.rewardApoc,GUID.bag.discard.apocReward,
-			monsterPiles.rewardCouncil,GUID.bag.discard.councilReward,
-			monsterPiles.possessed,GUID.bag.discard.possessed
-		}) do
+		local apocalypseRewardSupportNeeded=apocalypseTokenSupportNeeded==true and gStates.removeFactionRewards~=true
+		for _,guid in ipairs({monsterPiles.rewardApoc,GUID.bag.discard.apocReward,monsterPiles.rewardCouncil,GUID.bag.discard.councilReward}) do
+			local bag=getObjectFromGUID(guid)
+			if apocalypseRewardSupportNeeded==true then
+				if bag==nil then error("SetupGame missing preloaded Apocalypse reward bag "..tostring(guid),2) end
+				bag.lock()
+			elseif bag~=nil then
+				bag.destruct()
+			end
+		end
+		for _,guid in ipairs({monsterPiles.possessed,GUID.bag.discard.possessed}) do
 			local bag=getObjectFromGUID(guid)
 			if apocalypseTokenSupportNeeded==true then
 				if bag==nil then error("SetupGame missing preloaded Apocalypse token bag "..tostring(guid),2) end
@@ -543,7 +550,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				bag.destruct()
 			end
 		end
-		if apocalypseTokenSupportNeeded==true then
+		if apocalypseRewardSupportNeeded==true then
 			local apocalypseBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 			setupDeployLockedReferenceCard(apocalypseBag,"c584ff",{-53.50,0.98,21.50},"Apocalypse Cult Reward Card")
 			setupDeployLockedReferenceCard(apocalypseBag,"071cc6",{-49.50,0.98,21.50},"Council of the Void Reward Card")

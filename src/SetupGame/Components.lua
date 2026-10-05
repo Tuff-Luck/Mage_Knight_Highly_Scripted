@@ -90,7 +90,7 @@ local function deployTezlaComponents(entries,includeScenarioComponents)
 	local tezlaBag=getObjectFromGUID(GUID.bag.tezla)
 	if tezlaBag==nil then error("SetupGame missing Shades of Tezla component bag.",2) end
 	for _,entry in ipairs(entries) do
-		if entry.always==true or includeScenarioComponents==true then
+		if (entry.always==true or includeScenarioComponents==true) and (entry.rewardReference~=true or gStates.removeFactionRewards~=true) then
 			local obj=safeTakeObject("SetupGame",tezlaBag,{
 				guid=entry.guid,
 				position=entry.position,
@@ -118,7 +118,7 @@ function monsterSetup()
 	local elemFactionEnemies=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="The Hidden Valley Blitz"
 	local darkBags={monsterPiles.greenDark,monsterPiles.tanDark,monsterPiles.redDark}
 	local elemBags={monsterPiles.greenElem,monsterPiles.tanElem,monsterPiles.redElem}
-	local tezlaRewardsNeeded=gStates.removeShadesOfTezlaMonsters~=true or gStates.useCustomMageKnights==true
+	local tezlaRewardsNeeded=(gStates.removeShadesOfTezlaMonsters~=true or gStates.useCustomMageKnights==true) and gStates.removeFactionRewards~=true
 	configurePreloadedTokenBags({
 		monsterPiles.rewardDark,GUID.bag.discard.darkReward,
 		monsterPiles.rewardElem,GUID.bag.discard.elementalistReward
@@ -129,14 +129,14 @@ function monsterSetup()
 		{guid=darkCrusader.terrainHex,position={-34.70,0.98,-27.00}},
 		{guid="f8c83e",position={-65.16,0.98,-5.50}},
 		{guid=GUID.bag.cemetery,position={-36.09,0.97,-24.87},flip=180},
-		{guid="2ca34f",position={-53.50,0.98,15.50},always=true}
+		{guid="2ca34f",position={-53.50,0.98,15.50},always=true,rewardReference=true}
 	}
 	local elemComponents={
 		{guid=elementalist.disc,position={-63.50,0.97,6.50}},
 		{guid=elementalist.token,position={-67.00,0.97,10.20}},
 		{guid=elementalist.terrainHex,position={-37.49,0.98,-27.00}},
 		{guid="7121c7",position={-70.16,0.98,-5.50}},
-		{guid="8fe07e",position={-49.50,0.98,15.50},always=true}
+		{guid="8fe07e",position={-49.50,0.98,15.50},always=true,rewardReference=true}
 	}
 
 	if gStates.removeShadesOfTezlaMonsters~=true then

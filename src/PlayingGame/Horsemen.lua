@@ -407,7 +407,11 @@ function horsemanResolveDefeat(token,playerIndex,coopCombatReward)
 	if gStates.horsemenDefeatedBy==nil then gStates.horsemenDefeatedBy={} end
 	gStates.horsemenDefeatedBy[name]=player.mage
 	local rewardBag=getObjectFromGUID(monsterPiles.rewardApoc)
-	if rewardBag~=nil and rewardBag.getQuantity()>0 then
+	if rewardBag==nil then
+		--The Remove Faction Rewards / Just Fame variant replaces this token with +1 Fame.
+		if coopCombatReward~=nil then coopCombatReward.fame=(coopCombatReward.fame or 0)+1
+		else player.fameGain=(player.fameGain or 0)+1 end
+	elseif rewardBag.getQuantity()>0 then
 		if coopCombatReward~=nil then
 			coopCombatReward.factionRewards.apocalypse=(coopCombatReward.factionRewards.apocalypse or 0)+1
 			if coopCombatReward.factionRewardsGiven==true then rewardBag.takeObject({position={(player.seatPos*40)-117.2+(math.random()*6.5),2,-35+(math.random()*3.2)}}) end
