@@ -227,12 +227,13 @@ local expectedProtectedUICallbacks={
 	--Global XML setup/general controls
 	"BlitzSelection","displayScore","MoreRampageSelection","PlayerChosen","RampageSelection","SendDataRequest",
 	"SetupMenu","VolkareLevelSelection","VolkareRaceSelection","adjustHigherLevelSetupValue",
-	"apocalypseDragonLevelSelection","assaultAdjust","attackCity","autoflip","baseValueTweak","buttonClicked",
+	"apocalypseDragonCityModeSelection","apocalypseDragonCityVariantSelection","apocalypseDragonLevelSelection",
+	"assaultAdjust","attackCity","autoflip","baseValueTweak","buttonClicked",
 	"cameraControl","cameraControlFollowEnemy","cameraControlTopDown","closePanel","closeSplash","coopAssaultJoin",
 	"coralDrawChoice","createHigherLevelCardPool","drawUpTo","dummyTurn","extraTurnButton","extraTurnChoice",
-	"horsemanLevelSelection","lowerTable","masterOfChaos","mineClaimChoice","monsterImageSwap","motivation",
+	"horsemanLevelSelection","horsemenHorsesSelection","lowerTable","masterOfChaos","mineClaimChoice","monsterImageSwap","motivation",
 	"nightTactic2","nightTactic4","nightTactic6","openBugReportPanel","optionsUpdate","plunderVillage",
-	"proxyManaChoiceSelect","pursuingRampagers","randomSetup","resourceTracker","riseOfTheForgemasterOption",
+	"proxyManaChoiceSelect","pursuingRampagers","randomizedDragonHeadsSelection","randomSetup","resourceTracker","riseOfTheForgemasterOption",
 	"scenarioSelection","setBugReportComment","switchSetup","toggleDropDown","toggleScenarioEndAchieved","valueAdjust",
 	"volkarePartial","volkareRetreat","wallAssaultChoice","zigguratPyramidInteract","MKRollDieButton",
 	--Dynamic Object UI / scenario controls
@@ -43485,9 +43486,8 @@ local SCENARIO_SELECTION_BY_ID={
 
 local ROTF_SELECTION_LEVEL_BY_ID={ROTF0Selection=0,ROTF1Selection=1,ROTF2Selection=2,ROTF3Selection=3}
 local APOCALYPSE_DRAGON_CITY_MODE_BY_ID={
-	ApocalypseDragonCityOffSelection=0,
-	ApocalypseDragonCityFinalSelection=1,
-	ApocalypseDragonCityRandomSelection=2}
+	ApocalypseDragonCityLastButton=1,
+	ApocalypseDragonCityRandomButton=2}
 
 local SETUP_DROPDOWN_CONTROL_BY_ID={
 	firstMKSelection={1,"MageDropDown",-275},
@@ -43496,7 +43496,6 @@ local SETUP_DROPDOWN_CONTROL_BY_ID={
 	fourthMKSelection={4,"MageDropDown",-275},
 	dummyMKSelection={5,"MageDropDown",-275},
 	ScenarioSelection={0,"ScenarioDropDown",90},
-	ApocalypseDragonCityMode={0,"DragonCityDropDown",245},
 	ROTFSelection={0,"ROTFDropDown",-115},
 	VolkareLevelSelection={0,"VolkareLevelDropDown",-305},
 	VolkareRaceSelection={0,"VolkareRaceDropDown",-335}}
@@ -43554,9 +43553,6 @@ local SETUP_DROPDOWN_ROWS={
 	ForTheCouncilRow={"For the Council","ForTheCouncilSelectionImage","ScenarioDropDown"},
 	TheFracturedLandsRow={"The Fractured Lands Blitz","TheFracturedLandsSelectionImage","ScenarioDropDown"},
 	CustomRow={"Custom","CustomSelectionImage","ScenarioDropDown"},
-	ApocalypseDragonCityOffRow={"Off","ApocalypseDragonCityOffSelectionImage","DragonCityDropDown"},
-	ApocalypseDragonCityFinalRow={"Final City","ApocalypseDragonCityFinalSelectionImage","DragonCityDropDown"},
-	ApocalypseDragonCityRandomRow={"Random City","ApocalypseDragonCityRandomSelectionImage","DragonCityDropDown"},
 	ROTF0Row={"Not Used","ROTF0SelectionImage","ROTFDropDown"},
 	ROTF1Row={"1. New Beginning","ROTF1SelectionImage","ROTFDropDown"},
 	ROTF2Row={"2. Spoils of War","ROTF2SelectionImage","ROTFDropDown"},
@@ -43629,8 +43625,6 @@ local SETUP_TOGGLE_DEFAULTS={
 	weatherMod={false,true},
 	questMod={false,true},
 	apocalypseQuestCards={false,true},
-	randomizedDragonHeads={false,true},
-	horsemenHorses={false,true},
 	proxyPlayer={false,true},
 	itemShopMod={false,true},
 	removeTerrain={false,true},
@@ -43670,6 +43664,9 @@ local SCENARIO_OPTION_OVERRIDES={
 
 local function applyScenarioToggleDefaults()
 	for id,details in pairs(SETUP_TOGGLE_DEFAULTS) do setSetupToggle(id,details[1],details[2]) end
+	--These variants are rendered as persistent rectangular buttons in the scenario tweak rows.
+	gStates.randomizedDragonHeads=false
+	gStates.horsemenHorses=false
 	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
 	if overrides~=nil then
 		for id,details in pairs(overrides) do setSetupToggle(id,details[1],details[2]) end
@@ -43715,12 +43712,6 @@ local APOCALYPSE_DRAGON_CITY_SCENARIOS={
 	["Custom"]=true
 }
 
-local APOCALYPSE_DRAGON_CITY_MODE_TEXT={
-	[0]="{en}Off{ru}Выкл.{zh-tw}關閉{zh-cn}关闭{ko}끔{es}Desactivado{fr}Non{pt-br}Desligado{de}Aus",
-	[1]="{en}Final City{ru}Последний город{zh-tw}最後城市{zh-cn}最后城市{ko}마지막 도시{es}Última Ciudad{fr}Dernière Cité{pt-br}Última Cidade{de}Letzte Stadt",
-	[2]="{en}Random City{ru}Случайный город{zh-tw}隨機城市{zh-cn}随机城市{ko}무작위 도시{es}Ciudad Aleatoria{fr}Cité aléatoire{pt-br}Cidade Aleatória{de}Zufällige Stadt"
-}
-
 local function apocalypseDragonCityVariantScenarioEligible()
 	if gStates==nil or scenarioUsesApocalypseDragon()==true then return false end
 	local scenarioName=tostring(gStates.gameScenario or "")
@@ -43735,6 +43726,30 @@ local function apocalypseDragonCityVariantSelectable()
 	return apocalypseDragonCityVariantScenarioEligible()==true and (gStates.megapolis or 0)==0
 end
 
+local SCENARIO_VARIANT_BUTTON_TEXT={
+	RandomizedDragonHeadsButton={
+		on="{en}Random Heads - On{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
+		off="{en}Random Heads - Off{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"},
+	HorsemenHorsesButton={
+		on="{en}With Horse - On{ru}С лошадью - Вкл.{zh-tw}帶戰馬 - 開{zh-cn}带战马 - 开{ko}말 포함 - 켜짐{es}Con caballo - Sí{fr}Avec cheval - Oui{pt-br}Com cavalo - Ligado{de}Mit Pferd - An",
+		off="{en}With Horse - Off{ru}С лошадью - Выкл.{zh-tw}帶戰馬 - 關{zh-cn}带战马 - 关{ko}말 포함 - 꺼짐{es}Con caballo - No{fr}Avec cheval - Non{pt-br}Com cavalo - Desligado{de}Mit Pferd - Aus"},
+	ApocalypseDragonCityRandomButton={
+		on="{en}Random City - On{ru}Случайный город - Вкл.{zh-tw}隨機城市 - 開{zh-cn}随机城市 - 开{ko}무작위 도시 - 켜짐{es}Ciudad Aleatoria - Sí{fr}Cité aléatoire - Oui{pt-br}Cidade Aleatória - Ligado{de}Zufällige Stadt - An",
+		off="{en}Random City - Off{ru}Случайный город - Выкл.{zh-tw}隨機城市 - 關{zh-cn}随机城市 - 关{ko}무작위 도시 - 꺼짐{es}Ciudad Aleatoria - No{fr}Cité aléatoire - Non{pt-br}Cidade Aleatória - Desligado{de}Zufällige Stadt - Aus"},
+	ApocalypseDragonCityLastButton={
+		on="{en}Last City - On{ru}Последний город - Вкл.{zh-tw}最後城市 - 開{zh-cn}最后城市 - 开{ko}마지막 도시 - 켜짐{es}Última Ciudad - Sí{fr}Dernière Cité - Oui{pt-br}Última Cidade - Ligado{de}Letzte Stadt - An",
+		off="{en}Last City - Off{ru}Последний город - Выкл.{zh-tw}最後城市 - 關{zh-cn}最后城市 - 关{ko}마지막 도시 - 꺼짐{es}Última Ciudad - No{fr}Dernière Cité - Non{pt-br}Última Cidade - Desligado{de}Letzte Stadt - Aus"},
+	ApocalypseDragonCityRandomHeadsButton={
+		on="{en}Random Heads - On{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
+		off="{en}Random Heads - Off{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"}
+}
+
+local function setScenarioVariantButtonState(id,selected)
+	UI.setAttribute(id.."Image","image",selected and "Sliced Button/Button New Deactive" or "Sliced Button/Button New Active")
+	local text=SCENARIO_VARIANT_BUTTON_TEXT[id]
+	if text~=nil then UI.setAttribute(id.."Text","text",selected and text.on or text.off) end
+end
+
 local function refreshApocalypseDragonVariantControls()
 	local eligible=apocalypseDragonCityVariantScenarioEligible()
 	local selectable=apocalypseDragonCityVariantSelectable()
@@ -43742,48 +43757,68 @@ local function refreshApocalypseDragonVariantControls()
 	if eligible~=true then mode=0 end
 	if selectable~=true and mode>0 then mode=0 end
 	gStates.apocalypseDragonCityMode=mode
-	UI.setAttribute("ApocalypseDragonCityModeRow","active",eligible and "true" or "false")
-	UI.setAttribute("ApocalypseDragonCityMode","interactable",selectable and "True" or "False")
-	UI.setAttribute("ApocalypseDragonCityModeText","text",APOCALYPSE_DRAGON_CITY_MODE_TEXT[mode])
-	UI.setAttribute("ApocalypseDragonCityModeImage","image",selectable and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
 
-	local dragonAvailable=scenarioUsesApocalypseDragon()==true or mode>0
-	UI.setAttribute("RandomizedDragonHeadsRow","active",dragonAvailable and "true" or "false")
-	UI.setAttribute("randomizedDragonHeads","interactable",dragonAvailable and "True" or "False")
-	if dragonAvailable~=true then
-		gStates.randomizedDragonHeads=false
-		UI.setAttribute("randomizedDragonHeads","isOn","false")
-	else
-		UI.setAttribute("randomizedDragonHeads","isOn",gStates.randomizedDragonHeads==true and "true" or "false")
-	end
+	UI.setAttribute("ApocalypseDragonCityVariantRow","active",eligible and "true" or "false")
+	UI.setAttribute("apocalypseDragonCityVariant","interactable",selectable and "True" or "False")
+	UI.setAttribute("apocalypseDragonCityVariant","isOn",mode>0 and "true" or "false")
+
+	local scenarioDragon=scenarioUsesApocalypseDragon()==true
+	local cityVariantDragon=mode>0
+	local dragonAvailable=scenarioDragon or cityVariantDragon
+	if dragonAvailable~=true then gStates.randomizedDragonHeads=false end
+
+	setScenarioVariantButtonState("RandomizedDragonHeadsButton",gStates.randomizedDragonHeads==true)
+	setScenarioVariantButtonState("ApocalypseDragonCityRandomHeadsButton",gStates.randomizedDragonHeads==true)
+	setScenarioVariantButtonState("ApocalypseDragonCityRandomButton",mode==2)
+	setScenarioVariantButtonState("ApocalypseDragonCityLastButton",mode==1)
 end
 
-function apocalypseDragonCityModeSelection(player, mouseButton, id)
-	if mouseButton~="-1" or apocalypseDragonCityVariantSelectable()~=true then return end
+function apocalypseDragonCityVariantSelection(player,value,id)
+	if value=="True" then
+		if apocalypseDragonCityVariantSelectable()~=true then
+			UI.setAttribute("apocalypseDragonCityVariant","isOn","false")
+			return
+		end
+		--Last City is the deterministic/default choice when the variant is first enabled.
+		gStates.apocalypseDragonCityMode=1
+	else
+		gStates.apocalypseDragonCityMode=0
+	end
+	scenarioInfoUpdate()
+end
+
+function apocalypseDragonCityModeSelection(player,mouseButton,id)
+	if mouseButton~="-1" or apocalypseDragonCityVariantSelectable()~=true or apocalypseDragonCityVariantEnabled()~=true then return end
 	local mode=APOCALYPSE_DRAGON_CITY_MODE_BY_ID[id]
 	if mode==nil then return end
-	UI.setAttribute(dropDownIdLink.."Text","text",APOCALYPSE_DRAGON_CITY_MODE_TEXT[mode])
-	UI.setAttribute(dropDownIdLink.."Image","image","Sliced Button/Button New Active")
-	UI.setAttribute("DropDown","active","false")
-	dropDownIdLink="none"
 	gStates.apocalypseDragonCityMode=mode
 	scenarioInfoUpdate()
-	ToolTipUpdate("ApocalypseDragonCityMode")
+end
+
+function randomizedDragonHeadsSelection(player,mouseButton,id)
+	if mouseButton~="-1" then return end
+	if scenarioUsesApocalypseDragon()~=true and apocalypseDragonCityVariantEnabled()~=true then return end
+	gStates.randomizedDragonHeads=gStates.randomizedDragonHeads~=true
+	refreshApocalypseDragonVariantControls()
+end
+
+function horsemenHorsesSelection(player,mouseButton,id)
+	if mouseButton~="-1" or scenarioUsesHorsemen()~=true then return end
+	gStates.horsemenHorses=gStates.horsemenHorses~=true
+	setScenarioVariantButtonState("HorsemenHorsesButton",gStates.horsemenHorses==true)
 end
 
 local function refreshScenarioEnemyLevelTweaks()
 	refreshApocalypseDragonVariantControls()
 	local showDragon=scenarioUsesApocalypseDragon()
+	local showDragonCity=apocalypseDragonCityVariantEnabled()==true and showDragon~=true
 	local showHorsemen=scenarioUsesHorsemen()
-	local showAny=showDragon or showHorsemen
-	UI.setAttribute("ScenarioEnemyLevelsRow","active",showAny and "true" or "false")
+	local enemyLevelRows=((showDragon or showDragonCity) and 1 or 0)+(showHorsemen and 1 or 0)
 	UI.setAttribute("ApocalypseDragonLevelCell","active",showDragon and "true" or "false")
+	UI.setAttribute("ApocalypseDragonCityOptionsRow","active",showDragonCity and "true" or "false")
 	UI.setAttribute("HorsemenLevelCell","active",showHorsemen and "true" or "false")
-	UI.setAttribute("HorsemenHorsesRow","active",showHorsemen and "true" or "false")
-	if showHorsemen~=true and gStates.horsemenHorses==true then
-		gStates.horsemenHorses=false
-		UI.setAttribute("horsemenHorses","isOn","false")
-	end
+	if showHorsemen~=true then gStates.horsemenHorses=false end
+	setScenarioVariantButtonState("HorsemenHorsesButton",gStates.horsemenHorses==true)
 	if showDragon then
 		local level=type(apocalypseDragonStartingLevel)=="function" and apocalypseDragonStartingLevel() or 1
 		UI.setAttribute("ApocalypseDragonLevelSelectionText","text",joinLang({"{en}Dragon, Level {ru}Дракон, ур. {zh-tw}巨龍，等級 {zh-cn}巨龙，等级 {ko}드래곤, 레벨 {es}Dragón, Nivel {fr}Dragon, Niveau {pt-br}Dragão, Nível {de}Drache, Level ",tostring(level or 1)}))
@@ -43792,10 +43827,9 @@ local function refreshScenarioEnemyLevelTweaks()
 		local level=type(horsemanStartingLevel)=="function" and horsemanStartingLevel() or 1
 		UI.setAttribute("HorsemenLevelSelectionText","text",joinLang({"{en}Horsemen, Level {ru}Всадники, ур. {zh-tw}騎士，等級 {zh-cn}骑士，等级 {ko}기수, 레벨 {es}Jinetes, Nivel {fr}Cavaliers, Niveau {pt-br}Cavaleiros, Nível {de}Reiter, Level ",tostring(level or 1)}))
 	end
-	UI.setAttribute("ScenarioEnemyLevelsChange","columnWidths",showDragon and showHorsemen and "0 0" or "0")
-	UI.setAttribute("ScenarioSummaryPanel","height",showAny and "448" or "478")
-	UI.setAttribute("ScenarioTweaksPanel","height",showAny and "240" or "210")
-	UI.setAttribute("ScenarioTweaksTable","preferredHeight",showAny and "238" or "208")
+	UI.setAttribute("ScenarioSummaryPanel","height",tostring(478-(enemyLevelRows*30)))
+	UI.setAttribute("ScenarioTweaksPanel","height",tostring(210+(enemyLevelRows*30)))
+	UI.setAttribute("ScenarioTweaksTable","preferredHeight",tostring(208+(enemyLevelRows*30)))
 end
 
 local function renderDummySetupSection()
@@ -44267,7 +44301,7 @@ function toggleDropDown(player, mouseButton, id)
 	--Scenario rows are 30 px high; use an exact whole-row height to avoid pixel gaps.
 	if control[2]=="ScenarioDropDown" then dropDownHeight=count*30 end
 	UI.setAttribute("DropDown", "height", tostring(dropDownHeight))
-	local setupOptionDropDown=control[2]=="ROTFDropDown" or control[2]=="DragonCityDropDown"
+	local setupOptionDropDown=control[2]=="ROTFDropDown"
 	UI.setAttribute("DropDown", "width", control[2]=="ScenarioDropDown" and "220" or setupOptionDropDown and "150" or "120")
 	UI.setAttribute("DropDown", "offsetXY", "-100 "..tostring(control[3]))
 	UI.setAttribute("DropDown", "active", "true")
@@ -44575,6 +44609,17 @@ local function volkareCampAsCitySelectable()
 		gStates.gameScenario=="Against the Horsemen Blitz"
 end
 
+--Rows disappear only when an option fundamentally does not apply to this scenario.
+--Scenario-forced values and cross-option conflicts stay visible and use their normal locked/grey state.
+local function refreshSetupOptionApplicability()
+	local volkareCampApplicable=volkareCampAsCitySelectable()==true
+	local randomCitiesApplicable=scenarioAllowsRandomCities()==true
+	UI.setAttribute("VolkareCampAsCityRow","active",volkareCampApplicable and "true" or "false")
+	UI.setAttribute("RandomCitiesOptionRow","active",randomCitiesApplicable and "true" or "false")
+	--Apocalypse Dragon as a City has a more detailed applicability test (scenario + actual City setup)
+	--and is rendered by refreshApocalypseDragonVariantControls().
+end
+
 local function reconcileScenarioHardLocks()
 	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
 	if overrides==nil then return end
@@ -44841,6 +44886,7 @@ scenarioInfoUpdate=function()
 	end
 	--Volkare's Camp as City state was reconciled before rendering.
 	renderVolkareCampAsCityOption(setup)
+	refreshSetupOptionApplicability()
 	--Display the Scenario End rules
 	UI.setAttribute("ScenarioEnd", "text", details.scenarioEnd)
 	refreshScenarioTerrainTweakLocks()
@@ -44880,8 +44926,13 @@ local setupUISaveAttributes={
 	{id="RampageSelection",attribute="interactable"},{id="RampageSelection",attribute="isOn"},
 	{id="MoreRampageSelection",attribute="interactable"},{id="MoreRampageSelection",attribute="isOn"},
 	{id="volkareCampAsCity",attribute="interactable"},{id="volkareCampAsCity",attribute="isOn"},
-	{id="ApocalypseDragonCityModeRow",attribute="active"},{id="ApocalypseDragonCityMode",attribute="interactable"},
-	{id="ApocalypseDragonCityModeText",attribute="text"},{id="ApocalypseDragonCityModeImage",attribute="image"},
+	{id="ApocalypseDragonCityVariantRow",attribute="active"},{id="apocalypseDragonCityVariant",attribute="interactable"},
+	{id="apocalypseDragonCityVariant",attribute="isOn"},
+	{id="RandomizedDragonHeadsButtonText",attribute="text"},{id="RandomizedDragonHeadsButtonImage",attribute="image"},
+	{id="HorsemenHorsesButtonText",attribute="text"},{id="HorsemenHorsesButtonImage",attribute="image"},
+	{id="ApocalypseDragonCityRandomButtonText",attribute="text"},{id="ApocalypseDragonCityRandomButtonImage",attribute="image"},
+	{id="ApocalypseDragonCityLastButtonText",attribute="text"},{id="ApocalypseDragonCityLastButtonImage",attribute="image"},
+	{id="ApocalypseDragonCityRandomHeadsButtonText",attribute="text"},{id="ApocalypseDragonCityRandomHeadsButtonImage",attribute="image"},
 	{id="randomTileOrientation",attribute="interactable"},{id="randomTileOrientation",attribute="isOn"},
 	{id="randomCities",attribute="interactable"},{id="randomCities",attribute="isOn"},
 	{id="removeShadesOfTezlaMonsters",attribute="interactable"},{id="removeShadesOfTezlaMonsters",attribute="isOn"},
@@ -44899,8 +44950,7 @@ local setupUISaveAttributes={
 	{id="weatherMod",attribute="interactable"},{id="weatherMod",attribute="isOn"},
 	{id="questMod",attribute="interactable"},{id="questMod",attribute="isOn"},
 	{id="apocalypseQuestCards",attribute="interactable"},{id="apocalypseQuestCards",attribute="isOn"},
-	{id="RandomizedDragonHeadsRow",attribute="active"},{id="randomizedDragonHeads",attribute="interactable"},{id="randomizedDragonHeads",attribute="isOn"},
-	{id="horsemenHorses",attribute="interactable"},{id="horsemenHorses",attribute="isOn"},
+
 	{id="proxyPlayer",attribute="interactable"},{id="proxyPlayer",attribute="isOn"},
 	{id="itemShopMod",attribute="interactable"},{id="itemShopMod",attribute="isOn"},
 	{id="removeTerrain",attribute="interactable"},{id="removeTerrain",attribute="isOn"},
@@ -44951,7 +45001,7 @@ end
 local function restoreSetupUIFromState()
 	local toggles={"volkareCampAsCity","randomTileOrientation","randomCities","removeShadesOfTezlaMonsters","removeFactionRewards","removeApocalypseTerrain",
 		"removeLostLegionExpansion","startAtNight","darknessComing","rampageAmbush","rampagePursuit","mageKnightLevels",
-		"useCustomMageKnights","heroChallenges","removeBonusCards","weatherMod","questMod","apocalypseQuestCards","randomizedDragonHeads","horsemenHorses","proxyPlayer","itemShopMod","removeTerrain","useAlternatePugs"}
+		"useCustomMageKnights","heroChallenges","removeBonusCards","weatherMod","questMod","apocalypseQuestCards","proxyPlayer","itemShopMod","removeTerrain","useAlternatePugs"}
 	for _,id in ipairs(toggles) do if gStates[id]~=nil then UI.setAttribute(id,"isOn",gStates[id] and "true" or "false") end end
 	UI.setAttribute("BlitzSelection","isOn",gStates.blitz==1 and "true" or "false")
 	UI.setAttribute("RampageSelection","isOn",gStates.rampage==1 and "true" or "false")
@@ -44966,6 +45016,8 @@ local function restoreSetupUIFromState()
 		SETUP_TEXT.daylightComing or
 		SETUP_TEXT.darknessComing)
 	refreshProxySetupLabel()
+	refreshSetupOptionApplicability()
+	refreshApocalypseDragonVariantControls()
 end
 
 function restoreSetupUI()
@@ -44977,6 +45029,9 @@ function restoreSetupUI()
 	end
 	--Never reopen a dropdown just because it happened to be open when the game was saved.
 	UI.setAttribute("DropDown","active","false")
+	--Applicability is derived from the current scenario/setup, not from stale presentation state.
+	refreshSetupOptionApplicability()
+	refreshApocalypseDragonVariantControls()
 end
 
 --Section 3 has derived layout/content when Volkare occupies the dummy position.
@@ -44997,10 +45052,13 @@ publishPublicUICallbacks({
 	VolkareLevelSelection=VolkareLevelSelection,
 	VolkareRaceSelection=VolkareRaceSelection,
 	apocalypseDragonCityModeSelection=apocalypseDragonCityModeSelection,
+	apocalypseDragonCityVariantSelection=apocalypseDragonCityVariantSelection,
 	apocalypseDragonLevelSelection=apocalypseDragonLevelSelection,
 	baseValueTweak=baseValueTweak,
 	horsemanLevelSelection=horsemanLevelSelection,
+	horsemenHorsesSelection=horsemenHorsesSelection,
 	optionsUpdate=optionsUpdate,
+	randomizedDragonHeadsSelection=randomizedDragonHeadsSelection,
 	randomSetup=randomSetup,
 	riseOfTheForgemasterOption=riseOfTheForgemasterOption,
 	scenarioSelection=scenarioSelection,

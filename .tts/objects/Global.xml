@@ -2182,7 +2182,7 @@ Einheiten</Text></Cell>
 					<VerticalLayout padding="6 6 6 6"><Text id="CityNote" class="Text18" offsetXY="0 1">City Level(s) - No attacking</Text></VerticalLayout>
 				</Row>
 				<Row preferredHeight="30" id="ApocalypseDragonLevelCell" active="false">
-					<TableLayout columnWidths="28 0 135 28" cellBackgroundColor="Clear">
+					<TableLayout columnWidths="28 0 28 145" cellBackgroundColor="Clear">
 						<Image image="Sliced Button/Button New Deactive" type="Sliced" width="594" height="30"/>
 						<Row>
 							<Cell><Button id="ApocalypseDragonLevelDown" class="ScenarioTweak" onClick="apocalypseDragonLevelSelection" width="28" height="30">
@@ -2190,13 +2190,13 @@ Einheiten</Text></Cell>
 								<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 							</Button></Cell>
 							<Cell><VerticalLayout padding="6 6 6 6"><Text id="ApocalypseDragonLevelSelectionText" class="Text18" offsetXY="0 1">Dragon, Level 1</Text></VerticalLayout></Cell>
-							<Cell><Button id="RandomizedDragonHeadsButton" onClick="randomizedDragonHeadsSelection" onMouseDown="" onMouseUp="" width="135" height="30">
-								<Image id="RandomizedDragonHeadsButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
-								<VerticalLayout padding="6 6 6 6"><Text id="RandomizedDragonHeadsButtonText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Random Heads - Off{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus</Text></VerticalLayout>
-							</Button></Cell>
 							<Cell><Button id="ApocalypseDragonLevelUp" class="ScenarioTweak" onClick="apocalypseDragonLevelSelection" width="28" height="30">
 								<Image id="ApocalypseDragonLevelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 								<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+							</Button></Cell>
+							<Cell><Button id="RandomizedDragonHeadsButton" onClick="randomizedDragonHeadsSelection" onMouseDown="" onMouseUp="" width="140" height="30">
+								<Image id="RandomizedDragonHeadsButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<VerticalLayout padding="6 6 6 6"><Text id="RandomizedDragonHeadsButtonText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Random Heads - Off{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus</Text></VerticalLayout>
 							</Button></Cell>
 						</Row>
 					</TableLayout>
@@ -2220,7 +2220,7 @@ Einheiten</Text></Cell>
 					</TableLayout>
 				</Row>
 				<Row preferredHeight="30" id="HorsemenLevelCell" active="false">
-					<TableLayout columnWidths="28 0 135 28" cellBackgroundColor="Clear">
+					<TableLayout columnWidths="28 0 28 145" cellBackgroundColor="Clear">
 						<Image image="Sliced Button/Button New Deactive" type="Sliced" width="594" height="30"/>
 						<Row>
 							<Cell><Button id="HorsemenLevelDown" class="ScenarioTweak" onClick="horsemanLevelSelection" width="28" height="30">
@@ -2228,13 +2228,13 @@ Einheiten</Text></Cell>
 								<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
 							</Button></Cell>
 							<Cell><VerticalLayout padding="6 6 6 6"><Text id="HorsemenLevelSelectionText" class="Text18" offsetXY="0 1">Horsemen, Level 1</Text></VerticalLayout></Cell>
-							<Cell><Button id="HorsemenHorsesButton" onClick="horsemenHorsesSelection" onMouseDown="" onMouseUp="" width="135" height="30">
-								<Image id="HorsemenHorsesButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
-								<VerticalLayout padding="6 6 6 6"><Text id="HorsemenHorsesButtonText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}With Horse - Off{ru}С лошадью - Выкл.{zh-tw}帶戰馬 - 關{zh-cn}带战马 - 关{ko}말 포함 - 꺼짐{es}Con caballo - No{fr}Avec cheval - Non{pt-br}Com cavalo - Desligado{de}Mit Pferd - Aus</Text></VerticalLayout>
-							</Button></Cell>
 							<Cell><Button id="HorsemenLevelUp" class="ScenarioTweak" onClick="horsemanLevelSelection" width="28" height="30">
 								<Image id="HorsemenLevelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
 								<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+							</Button></Cell>
+							<Cell><Button id="HorsemenHorsesButton" onClick="horsemenHorsesSelection" onMouseDown="" onMouseUp="" width="135" height="30">
+								<Image id="HorsemenHorsesButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<VerticalLayout padding="6 6 6 6"><Text id="HorsemenHorsesButtonText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}With Horse - Off{ru}С лошадью - Выкл.{zh-tw}帶戰馬 - 關{zh-cn}带战马 - 关{ko}말 포함 - 꺼짐{es}Con caballo - No{fr}Avec cheval - Non{pt-br}Com cavalo - Desligado{de}Mit Pferd - Aus</Text></VerticalLayout>
 							</Button></Cell>
 						</Row>
 					</TableLayout>
