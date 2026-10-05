@@ -885,6 +885,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		--Apocalypse is Here derives the destroyed City's Plains terrain from durable scenario state;
 		--do not save a second digital-map copy just to preserve this one logical terrain override.
 		apocalypseIsHereApplyDragonCityTerrainOverride()
+		if apocalypseDragonCityVariantApplyTerrainOverride~=nil then apocalypseDragonCityVariantApplyTerrainOverride() end
 		if getObjectFromGUID(GUID.card.bannerOfCommandToken)~=nil then bannerOfCommandDecal() end
 		--Add decals back to Pursuing and Ambushing tokens
 		if gStates.rampageAmbush==true and gStates.rampagePursuit==false then
@@ -913,7 +914,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 								if gStates.ambushingMonsters[monsterGUID]~=nil then existingButtons[#existingButtons+1]={tag="Image", attributes={id="Ambush Circle", height=1100, width=1100, position="0 0 -1", rotation="0 0 0", image="Ambush Circle"}} end
 								existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursue Shield", height=90, width=90, position="0 0 -15", rotation="0 0 180", image="Shield Button "..mage1}}
 								local pursuit=monsters[monsterGUID]
-								if pursuit.stunned==true or pursuit.state=="Stunned" then existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageURL}} end
+								if pursuit.stunned==true or pursuit.state=="Stunned" then existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageAsset}} end
 								setTrackedMapObjectUI(getObjectFromGUID(monsterGUID),existingButtons)
 								break
 							end
@@ -1701,7 +1702,7 @@ function refreshRampagerMapVisual(obj)
 					existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursue Shield", height=90, width=90,
 						position="0 0 -15", rotation="0 0 180", image="Shield Button "..mage1}}
 					local pursuit=monsters[objGUID]
-					if pursuit.stunned==true or pursuit.state=="Stunned" then existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageURL}} end
+					if pursuit.stunned==true or pursuit.state=="Stunned" then existingButtons[#existingButtons+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageAsset}} end
 				end
 			end
 		end
@@ -1927,7 +1928,8 @@ local function handleManaZoneEnter(ctx)
 				for _, manaDie in pairs(manaZone.getObjects()) do
 					if manaDie.type=="Dice" and (manaDie.getRotationValue()=="Black Mana" or manaDie.getRotationValue()=="Gold Mana") then bad[#bad+1]=manaDie end
 				end
-				if #bad>gStates.diceNeeded/2 or (gStates.startAtNight==true and gStates.currentRound==1) then
+				local diceNeeded=tonumber(gStates.diceNeeded)
+				if (diceNeeded~=nil and #bad>diceNeeded/2) or (gStates.startAtNight==true and gStates.currentRound==1) then
 					for _, badManaDie in pairs(bad) do badManaDie.randomize() end
 					pulseSourceRandomizeFences()
 					if #bad>0 then safe=false end
@@ -2704,7 +2706,7 @@ local legacyObjectButtonImage, buildMageKnightFastLookups, mageKnightAvatarObjec
 
 -- Gameplay presentation, cached interface state and camera/object UI helpers.
 
-local volkarePursuitButtonImageURL="https://steamusercontent-a.akamaihd.net/ugc/13293042467654760772/E72DCC400EC451ABB80DC722F3657A631FC30C70/"
+local volkarePursuitButtonImageAsset="Volkare Pursuit Button"
 
 --Repair the saved home locations for live skill tokens. This is skill bookkeeping, not UI bookkeeping,
 --so only run it when skill state is being initialized/refreshed rather than on every main UI update.
@@ -4466,7 +4468,7 @@ function addAvatarButtons()
 							avatarButton[1].children[#avatarButton[1].children+1]={tag="Button",attributes={id="Horse|"..horseOption.key.."|"..details.mage,
 								onClick="global/horsemanAttackAction",height=70/scale,width=70/scale,
 								position="0 "..tostring(specialActionY/scale).." "..tostring(-25/scale),rotation="0 0 180",color="rgba(0,0,0,0.0)"},
-								children={{tag="Image",attributes={image="https://steamusercontent-a.akamaihd.net/ugc/12647478740119221952/A4E3602A20A7A1C0FA03DA5C0FBEDF8910DE1E7D/"}}}}
+								children={{tag="Image",attributes={image="Horseman Attack Button"}}}}
 							combatAttackOptionCounts[order]=combatAttackOptionCounts[order]+1
 							combatAttackHorsemanOptionCounts[order]=combatAttackHorsemanOptionCounts[order]+1
 							specialActionY=specialActionY+70
@@ -4505,7 +4507,7 @@ function addAvatarButtons()
 						else
 							avatarButton[1].children[#avatarButton[1].children+1]={tag="Button",attributes={id="VPursuitOpen|"..details.mage,onClick="global/volkarePursuitAction",
 								height=70/scale,width=70/scale,position="0 "..tostring(specialActionY/scale).." "..tostring(-25/scale),rotation="0 0 180",color="rgba(0,0,0,0.0)"},
-								children={{tag="Image",attributes={image=volkarePursuitButtonImageURL}}}}
+								children={{tag="Image",attributes={image=volkarePursuitButtonImageAsset}}}}
 						end
 						specialActionY=specialActionY+70
 					end
@@ -5049,8 +5051,12 @@ function buttonClicked(player, mouseButton, ButtonPressed)
 	local obj=getObjectFromGUID(ButtonPressed:sub(1,6))
 	local ui=obj and obj.UI or UI
 	local active, deactive
+	local setupScenarioLevelButton=ButtonPressed=="HorsemenLevelUp" or ButtonPressed=="HorsemenLevelDown" or
+		ButtonPressed=="ApocalypseDragonLevelUp" or ButtonPressed=="ApocalypseDragonLevelDown"
 
-	if ButtonPressed:find("LevelUp",1,true)~=nil or ButtonPressed:find("OverkillUp",1,true)~=nil or ButtonPressed:find("ArtifactUp",1,true)~=nil or ButtonPressed:find("changeMatUp",1,true)~=nil then
+	if setupScenarioLevelButton==true then
+		active, deactive="Sliced Button/Button New Active", "Sliced Button/Button New Deactive"
+	elseif ButtonPressed:find("LevelUp",1,true)~=nil or ButtonPressed:find("OverkillUp",1,true)~=nil or ButtonPressed:find("ArtifactUp",1,true)~=nil or ButtonPressed:find("changeMatUp",1,true)~=nil then
 		active, deactive="Overkill Up", "Overkill Up Deactive"
 	elseif ButtonPressed:find("LevelDown",1,true)~=nil or ButtonPressed:find("OverkillDown",1,true)~=nil or ButtonPressed:find("ArtifactDown",1,true)~=nil or ButtonPressed:find("changeMatDown",1,true)~=nil then
 		active, deactive="Overkill Down", "Overkill Down Deactive"
@@ -6438,7 +6444,7 @@ function renderMoveDisplay(id)
 	--Dragon combat spaces keep their printed Move cost, but entering one starts the assault.
 	--Against the Dragon uses its three-space Lair; Fury uses the single space where its marker is
 	--currently landed. An in-flight Fury Dragon therefore contributes no combat destination.
-	local dragonCombatScenario=gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon"
+	local dragonCombatScenario=gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Fury of the Apocalypse Dragon" or gStates.apocalypseDragonCityPlaced==true
 	if dragonCombatScenario==true and gStates.apocalypseDragonLairRevealed==true and gStates.apocalypseDragonDefeated~=true and apocalypseDragonCombatHexes~=nil then
 		for _,dragonHex in ipairs(apocalypseDragonCombatHexes()) do
 			local p=dragonHex.position
@@ -11442,6 +11448,138 @@ function horsemanDataFor(ref)
 	return nil, nil
 end
 
+--The optional Horsemen's Horses variant links one ordinary brown (tan-pool) enemy to each Horseman.
+--The brown token remains a normal enemy for stats/Fame/discard purposes; only the relationship is special.
+function horsemanHorseOwner(horseGUID)
+	if horseGUID==nil or gStates==nil then return nil end
+	for name,state in pairs(gStates.horsemen or {}) do
+		if state~=nil and state.horseGUID==horseGUID then return name end
+	end
+	return nil
+end
+
+function horsemanLinkedHorseGUID(name)
+	local state=gStates~=nil and gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	if state==nil or state.horseGUID==nil or getObjectFromGUID(state.horseGUID)==nil then return nil end
+	return state.horseGUID
+end
+
+function horsemanRevealLinkedHorse(name)
+	local guid=horsemanLinkedHorseGUID(name)
+	local horse=guid~=nil and getObjectFromGUID(guid) or nil
+	if horse==nil then return false end
+	if horse.is_face_down==true then
+		horse.flip()
+		safeWaitFrames("Horsemen",function()
+			if getObjectFromGUID(guid)~=nil and mapTokenArrangeObject~=nil then mapTokenArrangeObject(guid) end
+		end,1)
+	end
+	return true
+end
+
+function horsemanDeployLinkedHorse(name,target,faceDown)
+	if gStates==nil or gStates.horsemenHorses~=true or target==nil then return false end
+	local state=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	if state==nil then return false end
+	if horsemanLinkedHorseGUID(name)~=nil then return true end
+	local pileGUID=monsterPiles.tan
+	local function deploy()
+		local currentState=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+		if currentState==nil or currentState.defeated==true or currentState.retired==true or currentState.horseGUID~=nil then return end
+		local pile=getObjectFromGUID(pileGUID)
+		if pile==nil or pile.getQuantity()==0 then
+			broadcastToAll("The Horsemen's Horses could not draw a brown enemy token.",{1,0.3,0.2})
+			return
+		end
+		local rotation=faceDown==true and {0,180,180} or {0,180,0}
+		local horse=pile.takeObject({position={target[1],target[2]+0.8,target[3]},rotation=rotation,smooth=false})
+		if horse==nil then return end
+		currentState.horseGUID=horse.guid
+		currentState.horseDefeated=nil
+		if gStates.monsterPlayLocation==nil then gStates.monsterPlayLocation={} end
+		gStates.monsterPlayLocation[horse.guid]={target[1],target[2],target[3]}
+		local started=mapTokenSettleArrival~=nil and mapTokenSettleArrival(horse.guid,target,{force=true,rotation=rotation}) or false
+		if started~=true then
+			horse.setPositionSmooth(target,false,false)
+			mapTokenAfterSettled(horse.guid,function()
+				if getObjectFromGUID(horse.guid)~=nil and mapTokenArrangeObject~=nil then mapTokenArrangeObject(horse.guid) end
+			end)
+		end
+	end
+	if withTokenPoolReady~=nil then withTokenPoolReady(pileGUID,deploy,"Horsemen") else deploy() end
+	return true
+end
+
+--Move the linked brown enemy as part of the same visible action. On ordinary map hexes both pieces
+--use MapTokens.lua, so the normal enemy sorts below the moving-priority Horseman. The optional
+--horseTarget is only for the Round-4 Portal-card garrison, which is deliberately off-map.
+function horsemanMoveWithLinkedHorse(name,target,options,callback)
+	options=options or {}
+	local data=horsemanData~=nil and horsemanData[name] or nil
+	local horseman=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
+	if horseman==nil or target==nil then return false end
+	local moves={}
+	local horseGUID=horsemanLinkedHorseGUID(name)
+	if horseGUID~=nil then moves[#moves+1]={guid=horseGUID,target=options.horseTarget or target,horse=true} end
+	moves[#moves+1]={guid=horseman.guid,target=target,horse=false}
+	local remaining=#moves
+	local anyStarted=false
+	local function settled()
+		remaining=math.max(0,remaining-1)
+		if remaining==0 and callback~=nil then callback() end
+	end
+	for _,move in ipairs(moves) do
+		if gStates.monsterPlayLocation==nil then gStates.monsterPlayLocation={} end
+		gStates.monsterPlayLocation[move.guid]={move.target[1],move.target[2],move.target[3]}
+		local moveOptions={}
+		for key,value in pairs(options) do if key~="horseTarget" and not (move.horse==true and key=="rotation") then moveOptions[key]=value end end
+		local started=mapTokenSettleArrival~=nil and mapTokenSettleArrival(move.guid,move.target,moveOptions,function() settled() end) or false
+		if started==true then
+			anyStarted=true
+		else
+			local obj=getObjectFromGUID(move.guid)
+			if obj~=nil then
+				if moveOptions.releaseOrigin==true and mapTokenReleaseObject~=nil then mapTokenReleaseObject(obj) end
+				if moveOptions.rotation~=nil then obj.setRotation(moveOptions.rotation) end
+				obj.setPositionSmooth(move.target,false,false)
+				mapTokenAfterSettled(move.guid,function() settled() end)
+			else
+				settled()
+			end
+		end
+	end
+	return anyStarted or #moves>0
+end
+
+function horsemanResolveHorseDefeat(horseGUID)
+	local name=horsemanHorseOwner(horseGUID)
+	local state=name~=nil and gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	if state==nil then return false end
+	state.horseGUID=nil
+	state.horseDefeated=true
+	return true
+end
+
+function horsemanDiscardLinkedHorse(name)
+	local state=gStates~=nil and gStates.horsemen~=nil and gStates.horsemen[name] or nil
+	local guid=state~=nil and state.horseGUID or nil
+	if state==nil or guid==nil then return false end
+	state.horseGUID=nil
+	state.horseDefeated=nil
+	local horse=getObjectFromGUID(guid)
+	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[guid]=nil end
+	if gStates.monsterPerks~=nil then gStates.monsterPerks[guid]=nil end
+	if gStates.attackedMonsters~=nil then gStates.attackedMonsters[guid]=nil end
+	if gStates.summonStates~=nil then gStates.summonStates[guid]=nil end
+	if horse~=nil then
+		if mapTokenReleaseObject~=nil then mapTokenReleaseObject(horse) end
+		if proxyDiscardMonster~=nil then proxyDiscardMonster(horse)
+		elseif getObjectFromGUID(GUID.bag.discard.dungeon)~=nil then getObjectFromGUID(GUID.bag.discard.dungeon).putObject(horse)
+		else horse.destruct() end
+	end
+	return true
+end
+
 function horsemanMonsterData(ref, level)
 	local data,name=horsemanDataFor(ref)
 	level=math.max(1,math.min(6,tonumber(level) or 1))
@@ -11622,7 +11760,12 @@ function horsemanAttackOptions(playerIndex,mapPosition)
 	end
 	table.sort(here,function(a,b) if a.slot==b.slot then return a.name<b.name end return a.slot<b.slot end)
 	local options={}
-	for _,entry in ipairs(here) do options[#options+1]={key=entry.guid,name=entry.name,label=entry.name:sub(1,1),targets={[entry.guid]=true}} end
+	for _,entry in ipairs(here) do
+		local targets={[entry.guid]=true}
+		local horseGUID=horsemanLinkedHorseGUID(entry.name)
+		if horseGUID~=nil then targets[horseGUID]=true end
+		options[#options+1]={key=entry.guid,name=entry.name,label=entry.name:sub(1,1),targets=targets}
+	end
 	return options
 end
 
@@ -11665,10 +11808,24 @@ function horsemanResolveDefeat(token,playerIndex,coopCombatReward)
 	state.defeatedBy=player.mage
 	state.defeatedRound=gStates.currentRound
 	state.atCentralGlade=false
+	--If the Horseman fell while their horse survived, discard that horse without Fame. Delay one
+	--frame so combat cleanup can finish iterating its current play-area snapshot safely.
+	local survivingHorseGUID=state.horseGUID
+	local survivingHorse=survivingHorseGUID~=nil and getObjectFromGUID(survivingHorseGUID) or nil
+	if survivingHorse~=nil and survivingHorse.is_face_down==true then
+		safeWaitFrames("Horsemen",function()
+			local currentState=gStates.horsemen~=nil and gStates.horsemen[name] or nil
+			if currentState~=nil and currentState.horseGUID==survivingHorseGUID then horsemanDiscardLinkedHorse(name) end
+		end,1)
+	end
 	if gStates.horsemenDefeatedBy==nil then gStates.horsemenDefeatedBy={} end
 	gStates.horsemenDefeatedBy[name]=player.mage
 	local rewardBag=getObjectFromGUID(monsterPiles.rewardApoc)
-	if rewardBag~=nil and rewardBag.getQuantity()>0 then
+	if rewardBag==nil then
+		--The Remove Faction Rewards / Just Fame variant replaces this token with +1 Fame.
+		if coopCombatReward~=nil then coopCombatReward.fame=(coopCombatReward.fame or 0)+1
+		else player.fameGain=(player.fameGain or 0)+1 end
+	elseif rewardBag.getQuantity()>0 then
 		if coopCombatReward~=nil then
 			coopCombatReward.factionRewards.apocalypse=(coopCombatReward.factionRewards.apocalypse or 0)+1
 			if coopCombatReward.factionRewardsGiven==true then rewardBag.takeObject({position={(player.seatPos*40)-117.2+(math.random()*6.5),2,-35+(math.random()*3.2)}}) end
@@ -11961,7 +12118,8 @@ apocalypseDragonSyncControlLevel=function()
 end
 
 apocalypseDragonCheckAndResolveDefeat=function()
-	if gStates==nil or (gStates.gameScenario~="Against the Dragon Blitz" and gStates.gameScenario~="Apocalypse is Here" and gStates.gameScenario~="Fury of the Apocalypse Dragon") or gStates.apocalypseDragonDefeated==true then return false end
+	if gStates==nil or gStates.apocalypseDragonDefeated==true then return false end
+	if scenarioUsesApocalypseDragon()~=true and gStates.apocalypseDragonCityPlaced~=true then return false end
 	if apocalypseDragonColoredHeadsDefeated()~=true then return false end
 
 	gStates.apocalypseDragonDefeated=true
@@ -11987,6 +12145,17 @@ apocalypseDragonCheckAndResolveDefeat=function()
 		gStates.furyDragonAwaitingCombat=nil
 	end
 
+	if scenarioUsesApocalypseDragon()~=true and gStates.apocalypseDragonCityPlaced==true then
+		gStates.apocalypseDragonCityDefeated=true
+		broadcastToAll("{en}The Apocalypse Dragon replacing the City has been defeated.{ru}Дракон Апокалипсиса, заменивший город, побеждён.{zh-tw}取代城市的末日巨龍已被擊敗。{zh-cn}取代城市的末日巨龙已被击败。{ko}도시를 대신한 아포칼립스 드래곤을 쓰러뜨렸습니다.{es}El Dragón del Apocalipsis que sustituyó a la Ciudad ha sido derrotado.{fr}Le Dragon de l’Apocalypse qui remplaçait la Cité a été vaincu.{pt-br}O Dragão do Apocalipse que substituiu a Cidade foi derrotado.{de}Der Apokalypse-Drache, der die Stadt ersetzt hat, wurde besiegt.",{1,1,0.5})
+		local completesScenario=cityConquestScenarioEndAchieved~=nil and cityConquestScenarioEndAchieved()==true
+		if completesScenario==true and gStates.endGameAchieved=="false" then
+			local coopDragon=gStates.coopAssaultPhase=="combat" and coopAssaultTargetType~=nil and coopAssaultTargetType()=="dragon"
+			if coopDragon==true then gStates.coopAssaultScenarioEndPending=true else markScenarioEndAchieved() end
+		end
+		return true
+	end
+
 	local defeatMessage="{en}The Apocalypse Dragon has been defeated! Each Mage Knight has one final turn; the Dummy player does not.{ru}Дракон Апокалипсиса побеждён! У каждого Рыцаря-мага остался один последний ход; у виртуального игрока его нет.{zh-tw}末日巨龍已被擊敗！每位魔法騎士各有最後一個回合；虛擬玩家沒有。{zh-cn}末日巨龙已被击败！每位魔法骑士各有最后一个回合；虚拟玩家没有。{ko}아포칼립스 드래곤을 쓰러뜨렸습니다! 각 마법 기사에게 마지막 한 턴이 남으며, 더미 플레이어에게는 없습니다.{es}¡El Dragón del Apocalipsis ha sido derrotado! Cada Caballero Mago tiene un último turno; el Jugador Virtual no.{fr}Le Dragon de l’Apocalypse a été vaincu ! Chaque Chevalier-Mage a un dernier tour ; le joueur fantôme n’en a pas.{pt-br}O Dragão do Apocalipse foi derrotado! Cada Cavaleiro-Mago tem um último turno; o Jogador Fictício não.{de}Der Apokalypse-Drache wurde besiegt! Jeder Magieritter hat noch einen letzten Zug; der Dummy-Spieler nicht."
 	broadcastToAll(defeatMessage,{1,1,0.5})
 	local coopDragon=gStates.coopAssaultPhase=="combat" and coopAssaultTargetType~=nil and coopAssaultTargetType()=="dragon"
@@ -12004,7 +12173,7 @@ apocalypseDragonHeadStateChanged=function(headName)
 		gStates.furyDragonEverDefeatedHeads[headName]=true
 	end
 	if headName~="Control" then apocalypseDragonSyncControlLevel() end
-	if gStates~=nil and (gStates.gameScenario=="Against the Dragon Blitz" or gStates.gameScenario=="Apocalypse is Here" or gStates.gameScenario=="Fury of the Apocalypse Dragon") then apocalypseDragonCheckAndResolveDefeat() end
+	if gStates~=nil and (scenarioUsesApocalypseDragon()==true or gStates.apocalypseDragonCityPlaced==true) then apocalypseDragonCheckAndResolveDefeat() end
 end
 
 --Read the physical player Shields on the four large coloured head boards.
@@ -12146,12 +12315,114 @@ function apocalypseDragonSetHeadLevel(headName,level)
 	return true
 end
 
+local apocalypseDragonVariantManaFaces={
+	[1]={name="Blue",rotation={0,0,0},head="Death"},
+	[2]={name="White",rotation={0,0,270},head="Famine"},
+	[3]={name="Green",rotation={0,0,90},head="Pestilence"},
+	[4]={name="Red",rotation={0,0,180},head="War"},
+	[5]={name="Gold",rotation={90,0,0}},
+	[6]={name="Black",rotation={270,0,0}}
+}
+
+local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xStart)
+	local bag=getObjectFromGUID(GUID.bag.spareDice)
+	if bag==nil then if onComplete~=nil then onComplete() end return false end
+	xStart=xStart or -9
+	local dice={}
+	local maxSteps=1
+	for index,history in ipairs(histories or {}) do
+		maxSteps=math.max(maxSteps,#history)
+		local face=apocalypseDragonVariantManaFaces[history[1] or 1]
+		local die=bag.takeObject({position={xStart+((index-1)*3),2.5,-22.20},rotation=face.rotation,smooth=false})
+		if die~=nil then
+			die.lock()
+			dice[index]=die.guid
+		end
+	end
+	for step=2,maxSteps do
+		local rerollStep=step
+		safeWaitTime("Scenario",function()
+			for index,history in ipairs(histories or {}) do
+				local faceIndex=history[rerollStep]
+				local dieGUID=dice[index]
+				local die=dieGUID~=nil and getObjectFromGUID(dieGUID) or nil
+				local face=faceIndex~=nil and apocalypseDragonVariantManaFaces[faceIndex] or nil
+				if die~=nil and face~=nil then die.setRotationSmooth(face.rotation,false,true) end
+			end
+		end,(step-1)*0.65)
+	end
+	safeWaitTime("Scenario",function()
+		local spare=getObjectFromGUID(GUID.bag.spareDice)
+		for _,dieGUID in pairs(dice) do
+			local die=getObjectFromGUID(dieGUID)
+			if die~=nil then
+				die.unlock()
+				if spare~=nil then spare.putObject(die) else die.destruct() end
+			end
+		end
+		if onComplete~=nil then onComplete() end
+	end,((maxSteps-1)*0.65)+1.25)
+	return true
+end
+
+local function apocalypseDragonRandomizedStartingLevels(baseLevel)
+	baseLevel=math.max(1,math.min(12,math.floor(tonumber(baseLevel) or 1)))
+	local levels={Famine=math.max(0,baseLevel-1),Death=math.max(0,baseLevel-1),Pestilence=math.max(0,baseLevel-1),War=math.max(0,baseLevel-1)}
+	local histories={}
+	for index=1,4 do
+		local history={}
+		local faceIndex
+		repeat
+			faceIndex=math.random(1,6)
+			history[#history+1]=faceIndex
+		until faceIndex<=4
+		histories[index]=history
+		local headName=apocalypseDragonVariantManaFaces[faceIndex].head
+		levels[headName]=math.min(12,(levels[headName] or 0)+1)
+	end
+	levels.Control=math.max(levels.Famine,levels.Death,levels.Pestilence,levels.War)
+	return levels,histories
+end
+
+local function apocalypseDragonApplyStartingLevels(levels,onComplete)
+	gStates.apocalypseDragonDefeated=false
+	gStates.apocalypseDragonHeadLevels={
+		Famine=levels.Famine or 0,
+		Death=levels.Death or 0,
+		Pestilence=levels.Pestilence or 0,
+		War=levels.War or 0,
+		Control=levels.Control or 0
+	}
+	for _,headName in ipairs({"Famine","Death","Pestilence","War","Control"}) do
+		if apocalypseDragonSetHeadLevel(headName,gStates.apocalypseDragonHeadLevels[headName])~=true then
+			error("Could not set the initial level for Apocalypse Dragon head "..tostring(headName)..".",2)
+		end
+	end
+	if onComplete~=nil then onComplete() end
+end
+
+function apocalypseDragonInitializeHeadLevels(baseLevel,onComplete)
+	baseLevel=math.max(1,math.min(12,math.floor(tonumber(baseLevel) or 1)))
+	if gStates.randomizedDragonHeads~=true then
+		local levels={Famine=baseLevel,Death=baseLevel,Pestilence=baseLevel,War=baseLevel,Control=baseLevel}
+		apocalypseDragonApplyStartingLevels(levels,onComplete)
+		return true
+	end
+	local levels,histories=apocalypseDragonRandomizedStartingLevels(baseLevel)
+	apocalypseDragonShowVariantRollHistories(histories,function()
+		apocalypseDragonApplyStartingLevels(levels,onComplete)
+	end)
+	return true
+end
+
 function setupApocalypseDragonHeads()
-	if apocalypseDragonScenario()~=true then return end
-	local startingLevel=apocalypseDragonStartingLevel()
+	if apocalypseDragonComponentsNeeded()~=true then return end
+	local scenarioDragon=apocalypseDragonScenario()==true
+	local startingLevel=scenarioDragon and apocalypseDragonStartingLevel() or nil
 	gStates.apocalypseDragonHeadsSetupReady=false
 	gStates.apocalypseDragonHeadLevels={}
 	gStates.apocalypseDragonLevelMarkers={}
+	gStates.apocalypseDragonDefeated=false
 	gStates.furyDragonEverDefeatedHeads=gStates.gameScenario=="Fury of the Apocalypse Dragon" and {} or nil
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 	if gStates.gameScenario=="Against the Dragon Blitz" then
@@ -12184,11 +12455,11 @@ function setupApocalypseDragonHeads()
 			dragon.setPosition(apocalypseDragon.modelPosition)
 			dragon.setRotation({0,180,180})
 		end
-		if dragon~=nil then dragon.setLock(false) end
+		if dragon~=nil then dragon.setLock(scenarioDragon~=true) end
 	end
 
 	local function dragonHeadSetupObjectsReady()
-		if startingLevel>0 and getObjectFromGUID(GUID.bag.neutralShield)==nil then return false end
+		if getObjectFromGUID(GUID.bag.neutralShield)==nil then return false end
 		for _,headData in ipairs(apocalypseDragon.heads) do
 			if getObjectFromGUID(headData.guid)==nil or getObjectFromGUID(headData.tokenGUID)==nil then return false end
 		end
@@ -12210,17 +12481,23 @@ function setupApocalypseDragonHeads()
 		positionApocalypseDragonHeads()
 		gStates.apocalypseDragonHeadsSetupReady=true
 	end
-	local function finishDragonHeadSetup()
-		for _,headData in ipairs(apocalypseDragon.heads) do
-			if apocalypseDragonSetHeadLevel(headData.name,startingLevel)~=true then
-				error("SetupGame could not set the initial level for Apocalypse Dragon head "..tostring(headData.name)..".",2)
-			end
-		end
-		--Each level change reloads the small head token and repositions it one frame later. Do not let
-		--the setup coordinator continue until those replacement objects are genuinely usable.
+	local function waitForFinalHeadObjects()
 		safeWaitCondition("Scenario",markDragonHeadSetupReady,dragonHeadLevelsSettled,10,function()
 			error("SetupGame timed out waiting for Apocalypse Dragon head reloads to settle.",2)
 		end)
+	end
+	local function finishDragonHeadSetup()
+		if scenarioDragon==true then
+			apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
+		else
+			--The City replacement's level is unknown until the chosen City tile is revealed.
+			--Blank the small tokens now without running defeat logic or creating level markers.
+			for _,headData in ipairs(apocalypseDragon.heads) do
+				gStates.apocalypseDragonHeadLevels[headData.name]=0
+				apocalypseDragonApplyHeadLevel(headData.name,0)
+			end
+			waitForFinalHeadObjects()
+		end
 	end
 	if dragonHeadSetupObjectsReady()==true then
 		finishDragonHeadSetup()
@@ -12229,6 +12506,113 @@ function setupApocalypseDragonHeads()
 			error("SetupGame timed out waiting for Apocalypse Dragon setup objects.",2)
 		end)
 	end
+end
+
+local apocalypseDragonCityTileGUIDs={
+	[GUID.tile.city05]=true,[GUID.tile.city06]=true,[GUID.tile.city07]=true,[GUID.tile.city08]=true
+}
+
+function apocalypseDragonCityVariantApplyTerrainOverride()
+	if gStates==nil or gStates.apocalypseDragonCityPlaced~=true or gStates.apocalypseDragonLair==nil then return false end
+	local key=gStates.apocalypseDragonLair.cityHexKey
+	local terrainGUID,bearing=nil,nil
+	if key~=nil then terrainGUID,bearing=tostring(key):match("^([^|]+)|(.+)$") end
+	if terrainGUID==nil or bearing==nil then return false end
+	return runtimeMapSetHexType(terrainGUID,bearing,"plains")
+end
+
+function apocalypseDragonFormerCitySpacePlayer(playerIndex)
+	if gStates==nil or gStates.apocalypseDragonLair==nil then return false end
+	local player=turnOrder[playerIndex]
+	if player==nil then return false end
+	local pos=fracturedLandsTeleportSourcePosition~=nil and fracturedLandsTeleportSourcePosition(playerIndex) or nil
+	if pos==nil then local avatar=coopAssaultAvatarObject(playerIndex) if avatar~=nil then pos=avatar.getPosition() end end
+	if pos==nil then return false end
+	for _,hex in ipairs(gStates.apocalypseDragonLair.hexes or {}) do
+		if hex.formerCity==true and hex.position~=nil and ((pos[1]-hex.position[1])^2)+((pos[3]-hex.position[3])^2)<2.25 then return true end
+	end
+	return false
+end
+
+function apocalypseDragonCityVariantTerrainRevealed(tile)
+	if apocalypseDragonCityVariantEnabled()~=true or tile==nil or gStates.apocalypseDragonCityPlaced==true then return false end
+	local tileData=terrainTiles[tile.guid]
+	if tileData==nil then return false end
+	local isCityTile=apocalypseDragonCityTileGUIDs[tile.guid]==true or
+		(tile.guid==GUID.tile.volkareCamp and gStates.volkareCampAsCity==true)
+	if isCityTile~=true then return false end
+	local centerFeature=tostring(tileData.hexFeature~=nil and tileData.hexFeature.center or "")
+	if centerFeature:sub(1,4)~="city" and centerFeature~="Volkare's Camp" then return false end
+
+	gStates.apocalypseDragonCityRevealCount=(tonumber(gStates.apocalypseDragonCityRevealCount) or 0)+1
+	local mode=math.max(0,math.min(2,math.floor(tonumber(gStates.apocalypseDragonCityMode) or 0)))
+	local replaceCity=false
+	if mode==1 then
+		replaceCity=gStates.apocalypseDragonCityRevealCount>=(tonumber(gStates.cityTiles) or 0)
+	elseif mode==2 then
+		local faceIndex=math.random(1,6)
+		local face=apocalypseDragonVariantManaFaces[faceIndex]
+		apocalypseDragonShowVariantRollHistories({{faceIndex}},nil,4)
+		broadcastToAll(joinLang({"{en}Apocalypse Dragon City roll: {ru}Бросок города для Дракона Апокалипсиса: {zh-tw}末日巨龍城市擲骰：{zh-cn}末日巨龙城市掷骰：{ko}아포칼립스 드래곤 도시 주사위: {es}Tirada de Ciudad del Dragón del Apocalipsis: {fr}Jet de Cité du Dragon de l’Apocalypse : {pt-br}Rolagem de Cidade do Dragão do Apocalipse: {de}Stadtwurf des Apokalypse-Drachen: ",face.name}),{1,1,0.5})
+		replaceCity=faceIndex==6
+	end
+	if replaceCity~=true then return false end
+
+	local order,cityLevel=cityReplacementLevelForDragon()
+	if order==nil or tonumber(cityLevel)==nil or tonumber(cityLevel)<=0 then
+		broadcastToAll("{en}The Apocalypse Dragon City variant could not determine the level this City would have had; the normal City is used instead.{ru}Не удалось определить уровень города для варианта с Драконом; используется обычный город.{zh-tw}無法判定此城市原本的等級，因此改用普通城市。{zh-cn}无法判定此城市原本的等级，因此改用普通城市。{ko}이 도시의 원래 레벨을 정할 수 없어 일반 도시를 사용합니다.{es}No se pudo determinar el nivel que habría tenido esta Ciudad; se usa la Ciudad normal.{fr}Impossible de déterminer le niveau qu’aurait eu cette Cité ; la Cité normale est utilisée.{pt-br}Não foi possível determinar o nível que esta Cidade teria; a Cidade normal será usada.{de}Die vorgesehene Stadtstufe konnte nicht ermittelt werden; die normale Stadt wird verwendet.",warningColor)
+		return false
+	end
+
+	gStates.apocalypseDragonCityPlaced=true
+	gStates.apocalypseDragonCityDefeated=false
+	gStates.apocalypseDragonDefeated=false
+	gStates.apocalypseDragonLairAttacked=false
+	gStates.apocalypseDragonLairRevealed=true
+	gStates.apocalypseDragonCity={tileGUID=tile.guid,order=order,baseLevel=cityLevel}
+	local tilePos=tile.getPosition()
+	local tileRotation=tile.getRotation()
+	local tileYaw=tileRotation.y or tileRotation[2] or 180
+	local dragonRotation={0,tileYaw,180}
+	local positions={
+		{tilePos[1],0.97,tilePos[3]},
+		(function() local xy=angleToXY(tile,"240",tilePos,tileRotation) return {xy[1],0.97,xy[2]} end)(),
+		(function() local xy=angleToXY(tile,"300",tilePos,tileRotation) return {xy[1],0.97,xy[2]} end)()
+	}
+	local hexes={}
+	for index,pos in ipairs(positions) do
+		local bearing=terrainHexBearing(tile,pos)
+		hexes[#hexes+1]={bearing=bearing,position=pos,formerCity=index==1}
+		if bearing~=nil then
+			local feature=terrainTiles[tile.guid].hexFeature[bearing] or ""
+			--Sites under the figure are ignored; rampaging/draconum enemies are not sites and remain.
+			if feature~="rampaging" and feature~="draconum" then
+				gStates.hexOverideSave=gStates.hexOverideSave or {}
+				gStates.hexOverideSave[tile.guid]=gStates.hexOverideSave[tile.guid] or {}
+				gStates.hexOverideSave[tile.guid][bearing]=""
+				runtimeMapSetHexFeature(tile.guid,bearing,"")
+			end
+		end
+	end
+	local target={positions[1][1],1.18,positions[1][3]}
+	gStates.apocalypseDragonLair={tileGUID=tile.guid,hexes=hexes,position=target,rotation=dragonRotation,cityHexKey=tile.guid.."|"..tostring(hexes[1].bearing)}
+	apocalypseDragonCityVariantApplyTerrainOverride()
+
+	local dragon=getObjectFromGUID(apocalypseDragon.model)
+	if dragon~=nil then
+		dragon.unlock()
+		dragon.setRotationSmooth(dragonRotation,false,true)
+		dragon.setPositionSmooth(target,false,true)
+		apocalypseDragonLockModelWhenSettled()
+	end
+
+	local dragonLevel=math.max(1,math.min(12,math.floor(tonumber(cityLevel) or 1)))
+	if tonumber(cityLevel)>12 then
+		broadcastToAll("{en}The replaced City is above level 12; Apocalypse Dragon heads are capped at level 12 because the head boards have no higher levels.{ru}Уровень заменённого города выше 12; головы Дракона ограничены уровнем 12.{zh-tw}被取代城市高於 12 級；龍首板最高只有 12 級，因此龍首以 12 級為上限。{zh-cn}被取代城市高于 12 级；龙首板最高只有 12 级，因此龙首以 12 级为上限。{ko}대체된 도시가 12레벨을 넘으므로 드래곤 머리는 보드의 최대치인 12레벨로 제한됩니다.{es}La Ciudad sustituida supera el nivel 12; las cabezas del Dragón se limitan a 12.{fr}La Cité remplacée dépasse le niveau 12 ; les têtes du Dragon sont limitées au niveau 12.{pt-br}A Cidade substituída está acima do nível 12; as cabeças do Dragão ficam limitadas ao nível 12.{de}Die ersetzte Stadt liegt über Stufe 12; die Drachenköpfe werden auf Stufe 12 begrenzt.",warningColor)
+	end
+	apocalypseDragonInitializeHeadLevels(dragonLevel)
+	broadcastToAll(joinLang({"{en}The Apocalypse Dragon replaces this City at level {ru}Дракон Апокалипсиса заменяет этот город на уровне {zh-tw}末日巨龍取代此城市，等級 {zh-cn}末日巨龙取代此城市，等级 {ko}아포칼립스 드래곤이 이 도시를 대체합니다. 레벨 {es}El Dragón del Apocalipsis sustituye esta Ciudad al nivel {fr}Le Dragon de l’Apocalypse remplace cette Cité au niveau {pt-br}O Dragão do Apocalipse substitui esta Cidade no nível {de}Der Apokalypse-Drache ersetzt diese Stadt auf Stufe ",tostring(dragonLevel),"{en}. The former City space is Plains; sites under the Dragon are ignored.{ru}. Бывшее городское поле считается Равниной; места под Драконом игнорируются.{zh-tw}。原城市格視為平原；巨龍下方的地點忽略。{zh-cn}。原城市格视为平原；巨龙下方的地点忽略。{ko}. 기존 도시 칸은 평원이며 드래곤 아래의 장소는 무시합니다.{es}. El antiguo espacio de Ciudad es Llanura; se ignoran los sitios bajo el Dragón.{fr}. L’ancienne case Cité est une Plaine ; les sites sous le Dragon sont ignorés.{pt-br}. O antigo espaço de Cidade é Planície; locais sob o Dragão são ignorados.{de}. Das ehemalige Stadtfeld ist Ebene; Orte unter dem Drachen werden ignoriert."}),{1,0.75,0.2})
+	return true
 end
 
 function apocalypseDragonLockModelWhenSettled()
@@ -12564,7 +12948,7 @@ function apocalypseDragonRefreshGroundFameGain(playerIndex)
 end
 
 function apocalypseDragonBeginGroundCombat(playerIndex)
-	if apocalypseDragonScenario()~=true or gStates.apocalypseDragonLairRevealed~=true or gStates.apocalypseDragonDefeated==true then return false end
+	if apocalypseDragonCombatEnabled()~=true then return false end
 	if gStates.apocalypseDragonGroundCombat~=nil then return apocalypseDragonGroundCombatForPlayer(playerIndex) end
 	local details=turnOrder[playerIndex]
 	if details==nil or details.mage==gStates.positionMageKnight[5] then return false end
@@ -12626,15 +13010,17 @@ apocalypseDragonCoopAdjacentPlayers=function(playerIndex)
 end
 
 function apocalypseDragonBeginLairAssault(playerIndex,approachPosition)
-	if apocalypseDragonScenario()~=true or gStates.apocalypseDragonLairRevealed~=true or gStates.apocalypseDragonDefeated==true then return false end
+	if apocalypseDragonCombatEnabled()~=true then return false end
 	if gStates.coopAssaultPhase~=nil or gStates.apocalypseDragonGroundCombat~=nil then return false end
 	local player=turnOrder[playerIndex]
 	if player==nil or playerIndex~=gStates.turnNumber or playerDropoutInactive(playerIndex)==true then return false end
 	local endHorsemenOnStart=gStates.gameScenario=="Apocalypse is Here" and gStates.apocalypseDragonLairAttacked~=true and apocalypseIsHereEndHorsemen~=nil
 	if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
 		gStates.apocalypseDragonAssaultFortifiedInitiator=apocalypseDragonFuryAttackFortified()
+	elseif gStates.gameScenario=="Apocalypse is Here" or gStates.apocalypseDragonCityPlaced==true then
+		gStates.apocalypseDragonAssaultFortifiedInitiator=apocalypseDragonFormerCitySpacePlayer(playerIndex)
 	else
-		gStates.apocalypseDragonAssaultFortifiedInitiator=gStates.gameScenario=="Apocalypse is Here" and apocalypseIsHereDragonCitySpacePlayer~=nil and apocalypseIsHereDragonCitySpacePlayer(playerIndex)==true
+		gStates.apocalypseDragonAssaultFortifiedInitiator=false
 	end
 	local liveHeads={}
 	for _,headName in ipairs(apocalypseDragonColoredHeads) do
@@ -13083,7 +13469,7 @@ function apocalypseDragonChoiceAuthorized(player,pending)
 end
 
 function positionApocalypseDragonHeads()
-	if apocalypseDragonScenario()~=true then return false end
+	if apocalypseDragonComponentsNeeded()~=true then return false end
 	local moved=false
 	for _,headData in ipairs(apocalypseDragon.heads) do
 		local head=getObjectFromGUID(headData.guid)
@@ -13840,13 +14226,38 @@ function registerVolkareCampAsCityKeep()
 	end
 end
 
+function conqueredCityObjectiveCount()
+	local count=gStates~=nil and gStates.defeatedCities~=nil and (tonumber(gStates.defeatedCities.amount) or 0) or 0
+	if gStates~=nil and gStates.apocalypseDragonCityPlaced==true and gStates.apocalypseDragonDefeated==true then count=count+1 end
+	return count
+end
+
+function cityConquestScenarioEndAchieved()
+	if gStates==nil then return false end
+	local count=conqueredCityObjectiveCount()
+	if gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or
+		gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest" then
+		return count==gStates.cityTiles
+	end
+	if gStates.gameScenario=="Ultimate Conquest" then
+		return count==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)
+	end
+	return false
+end
+
+function apocalypseDragonAssaultScenarioEndAchieved()
+	if scenarioUsesApocalypseDragon()==true then return apocalypseDragonColoredHeadsDefeated()==true end
+	if gStates~=nil and gStates.apocalypseDragonCityPlaced==true then return cityConquestScenarioEndAchieved() end
+	return false
+end
+
 function coopLeaderScenarioEndAchieved()
 	if gStates.endGameAchieved~="false" then return false end
 	refreshCityDefeatState()
 	if gStates.gameScenario=="Life and Death" then return gStates.defeatedFaction==2 end
 	if gStates.gameScenario=="The Hidden Valley Blitz" then return gStates.defeatedFaction==1 end
 	if gStates.gameScenario=="Ultimate Conquest" then
-		return gStates.defeatedCities.amount==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)
+		return conqueredCityObjectiveCount()==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)
 	end
 	if gStates.gameScenario=="The Realm of the Dead Blitz" then
 		local graveYardCount=0
@@ -13947,10 +14358,10 @@ function scenarioCombatCleanupCheck(cleanupPlayer)
 	local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
 	local terrainEmpty=terrainStack~=nil and terrainStack.getQuantity()==0
 	local complete=
-		((gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest") and gStates.defeatedCities.amount==gStates.cityTiles) or
+		((gStates.gameScenario=="Conquest" or gStates.gameScenario=="Conquest Blitz" or gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest") and conqueredCityObjectiveCount()==gStates.cityTiles) or
 		((gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and volkareBeaten==true) or
 		(gStates.gameScenario=="First Reconnaissance" and #gStates.citiesPlayed>=1) or
-		(gStates.gameScenario=="Ultimate Conquest" and gStates.defeatedCities.amount==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)) or
+		(gStates.gameScenario=="Ultimate Conquest" and conqueredCityObjectiveCount()==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)) or
 		(gStates.gameScenario=="The Hidden Valley Blitz" and gStates.defeatedFaction==1) or
 		(gStates.gameScenario=="Mines Liberation" and terrainEmpty and mineCount==mineTileCount) or
 		(gStates.gameScenario=="Dungeon Lords" and terrainEmpty and dungeonCount==dungeonHexCount-2) or
@@ -14487,7 +14898,15 @@ function againstHorsemenRestoreScenarioState()
 			local token=getObjectFromGUID(entry.guid)
 			if token~=nil and layout[i]~=nil then
 				token.setRotation({0,180,0})
-				token.setPositionSmooth(layout[i],false,false)
+				local horseGUID=horsemanLinkedHorseGUID(entry.name)
+				if horseGUID~=nil then
+					local component=0.20/math.sqrt(2)
+					local horse=getObjectFromGUID(horseGUID)
+					if horse~=nil then horse.setPositionSmooth({layout[i][1]-component,layout[i][2],layout[i][3]-component},false,false) end
+					token.setPositionSmooth({layout[i][1]+component,layout[i][2],layout[i][3]+component},false,false)
+				else
+					token.setPositionSmooth(layout[i],false,false)
+				end
 			end
 		end
 	end
@@ -14534,6 +14953,7 @@ againstHorsemenPrepareRitual=function()
 			state.revealed=true
 			token.setName(name.." Level "..tostring(state.level or 1))
 			if token.is_face_down==true then token.flip() end
+			horsemanRevealLinkedHorse(name)
 			monsterPugs[data.tokenGUID]=monsterPugs[data.tokenGUID] or horsemanMonsterData(name,state.level)
 			--The Glade now counts as a fortified site; this is site fortification only, with no city bonus.
 			if monsterPugs[data.tokenGUID]~=nil and monsterPugs[data.tokenGUID].unfortified==nil then monsterPugs[data.tokenGUID].fortified=true end
@@ -14600,6 +15020,7 @@ againstHorsemenRefreshHorseman=function(name)
 			state.revealed=true
 			token.setName(name.." Level "..tostring(state.level or 1))
 			if token.is_face_down==true then token.flip() end
+			horsemanRevealLinkedHorse(name)
 			return true
 		end
 		return false
@@ -14612,6 +15033,7 @@ againstHorsemenRefreshHorseman=function(name)
 	state.revealed=true
 	token.setName(name.." Level "..tostring(state.level or 1))
 	if token.is_face_down==true then token.flip() end
+	horsemanRevealLinkedHorse(name)
 	broadcastToAll(joinLang({name,"{en} has been revealed at Level {ru} раскрыт на уровне {zh-tw} 已揭示，等級 {zh-cn} 已揭示，等级 {ko} 공개됨. 레벨 {es} ha sido revelado en Nivel {fr} a été révélé au Niveau {pt-br} foi revelado no Nível {de} wurde auf Stufe ",tostring(state.level or 1),"."}),{1,0.75,0.2})
 	return true
 end
@@ -14701,11 +15123,7 @@ againstHorsemenAnimateMoveWave=function(targets)
 		local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 		if token~=nil and target.position~=nil then
 			remaining=remaining+1
-			local started=mapTokenSettleArrival(token.guid,target.position,{releaseOrigin=true},function() oneSettled() end)
-			if started~=true then
-				token.setPositionSmooth(target.position,false)
-				mapTokenAfterSettled(token.guid,function() oneSettled() end)
-			end
+			horsemanMoveWithLinkedHorse(name,target.position,{releaseOrigin=true,horseTarget=target.horsePosition},function() oneSettled() end)
 		end
 	end
 	allStarted=true
@@ -14761,7 +15179,15 @@ againstHorsemenContinueEndRoundMovement=function()
 				--Use the physical position every wave. Manual player corrections therefore become the new path.
 				nextPosition=againstHorsemenDefaultNextPosition(token.getPosition(),center)
 			end
-			if nextPosition~=nil then targets[name]={position=nextPosition} end
+			if nextPosition~=nil then
+				local target={position=nextPosition}
+				if pending.finalGlade==true and horsemanLinkedHorseGUID(name)~=nil then
+					local component=0.20/math.sqrt(2)
+					target.position={nextPosition[1]+component,nextPosition[2],nextPosition[3]+component}
+					target.horsePosition={nextPosition[1]-component,nextPosition[2],nextPosition[3]-component}
+				end
+				targets[name]=target
+			end
 		end
 	end
 	if next(targets)==nil then
@@ -14865,6 +15291,7 @@ function againstHorsemenSetupTokens(coreTileGUIDs, coreTilePositions)
 		state.bearing=horsemanBearing or "center"
 		state.mapSlot=i
 		gStates.againstHorsemenCoreTiles[i]=coreGUID
+		horsemanDeployLinkedHorse(name,{horsemanX,1.18,pos[3]},true)
 	end
 	--Do not allow map setup to complete unless every named Horseman has durable runtime state.
 	for _,name in ipairs({"Famine","Pestilence","Death","War"}) do
@@ -15022,6 +15449,7 @@ apocalypseIsHereDeployReservedHorseman=function(name)
 	state.revealForced=nil
 	state.revealIndex=nil
 	state.revealed=true
+	horsemanDeployLinkedHorse(name,target,false)
 	apocalypseIsHereRecomputeNextHorseman()
 
 	local card=getObjectFromGUID(data.cardGUID)
@@ -15412,7 +15840,7 @@ apocalypseIsHereHorsemanClearTarget=function(targetHex)
 	if targetHex==nil then return false end
 	local _,mapObjects=runtimeMapHexesAndObjects()
 	for _,enemy in ipairs(proxyMonstersOnHex(targetHex,mapObjects)) do
-		if horsemanTokenToName[enemy.guid]==nil then proxyDiscardMonster(enemy) end
+		if horsemanTokenToName[enemy.guid]==nil and horsemanHorseOwner(enemy.guid)==nil then proxyDiscardMonster(enemy) end
 	end
 	return true
 end
@@ -15465,6 +15893,7 @@ apocalypseIsHereHorsemanDestroyTarget=function(name,targetHex,afterArrange)
 		end
 		monsterPugs[data.tokenGUID]=nil
 		if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end
+		horsemanDiscardLinkedHorse(name)
 		report=joinLang({name,"{en} destroyed {ru} уничтожил {zh-tw} 摧毀了 {zh-cn} 摧毁了 {ko}이(가) {es} destruyó {fr} a détruit {pt-br} destruiu {de} zerstörte ",destroyedName,"{en}, raising the Dragon head to level {ru}, повысив уровень головы Дракона до {zh-tw}，使巨龍頭部等級提升至 {zh-cn}，使巨龙头部等级提升至 {ko}을(를) 파괴하여 드래곤 머리 레벨을 {es}, elevando la cabeza del Dragón al nivel {fr}, faisant passer la tête du Dragon au niveau {pt-br}, elevando a cabeça do Dragão ao nível {de} und erhöhte den Drachenkopf auf Stufe ",newHead,"{en}, then left the map after destroying four sites.{ru}, а затем покинул карту после уничтожения четырёх мест.{zh-tw}，並在摧毀四個地點後離開地圖。{zh-cn}，并在摧毁四个地点后离开地图。{ko}로 올린 뒤, 네 곳을 파괴하고 지도에서 떠났습니다.{es}, y luego abandonó el mapa tras destruir cuatro lugares.{fr}, puis a quitté la carte après avoir détruit quatre sites.{pt-br}, e então deixou o mapa após destruir quatro locais.{de} und verließ danach die Karte, nachdem vier Orte zerstört worden waren."})
 	elseif (tonumber(state.level) or 1)>1 then
 		state.level=state.level-1
@@ -15511,7 +15940,7 @@ apocalypseIsHereResolveHorsemanTarget=function(name,option)
 		reached=reached,
 		stage="moving"
 	}
-	local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
+	local started=horsemanMoveWithLinkedHorse(name,{destination.position[1],1.42,destination.position[3]},
 		{releaseOrigin=true,rotation={0,180,0},deferArrange=reached},function()
 			apocalypseIsHereHorsemanMoveFinished(name,target,reached)
 		end)
@@ -15699,7 +16128,7 @@ function apocalypseIsHereRestoreScenarioState()
 			state.terrainGUID=destination.terrainGUID
 			state.bearing=destination.bearing
 			action.stage="moving"
-			local started=mapTokenSettleArrival(token.guid,{destination.position[1],1.42,destination.position[3]},
+			local started=horsemanMoveWithLinkedHorse(action.name,{destination.position[1],1.42,destination.position[3]},
 				{force=true,rotation={0,180,0},deferArrange=action.reached==true},function()
 					apocalypseIsHereHorsemanMoveFinished(action.name,target,action.reached==true)
 				end)
@@ -15730,6 +16159,7 @@ function apocalypseIsHereEndHorsemen()
 			local token=data~=nil and getObjectFromGUID(data.tokenGUID) or nil
 			if token~=nil then token.unlock() if bag~=nil then bag.putObject(token) else token.setPosition({0,-20,0}) end end
 			if data~=nil then monsterPugs[data.tokenGUID]=nil if gStates.monsterPerks~=nil then gStates.monsterPerks[data.tokenGUID]=nil end end
+			horsemanDiscardLinkedHorse(name)
 		end
 	end
 	broadcastToAll("{en}The Apocalypse Dragon has been attacked. Every Horseman still on the map is removed; this does not count as defeating them.{ru}Дракон Апокалипсиса атакован. Все Всадники, оставшиеся на карте, удаляются; это не считается их победой.{zh-tw}末日巨龍已被攻擊。地圖上所有剩餘騎士都被移除；這不算擊敗他們。{zh-cn}末日巨龙已被攻击。地图上所有剩余骑士都被移除；这不算击败他们。{ko}아포칼립스 드래곤이 공격받았습니다. 맵에 남은 모든 기수를 제거합니다. 이들은 처치한 것으로 계산하지 않습니다.{es}El Dragón del Apocalipsis ha sido atacado. Retira a todos los Jinetes que sigan en el mapa; esto no cuenta como derrotarlos.{fr}Le Dragon de l’Apocalypse a été attaqué. Retirez tous les Cavaliers encore présents sur la carte ; cela ne compte pas comme les avoir vaincus.{pt-br}O Dragão do Apocalipse foi atacado. Remova todos os Cavaleiros que ainda estiverem no mapa; isso não conta como derrotá-los.{de}Der Apokalypse-Drache wurde angegriffen. Alle noch auf der Karte befindlichen Reiter werden entfernt; dies zählt nicht als Besiegen.",{1,0.75,0.2})
@@ -19180,7 +19610,7 @@ end
 
 --Give replacement cards for Day Tactic 2, then shuffle the discarded cards back into the Deed Deck.
 dayTactic2Discarded=function(player, mouseButton, id)
-	if mouseButton~="-1" or player==nil then return end
+	if mouseButton~="-1" or player==nil or player.color=="Grey" then return end
 	local tactic=getObjectFromGUID(tacticCard[2])
 	if tactic==nil then return end
 	if gStates.tacticTwoState=="Used" then dayTactic2ButtonActivate() return end
@@ -19806,7 +20236,7 @@ end
 --The Dragon data is forward-declared with the map-setup helpers above.
 function coopAssaultTargetType()
 	local target=gStates.coopAssaultCityGUID
-	if target==apocalypseDragon.model and apocalypseDragonScenario~=nil and apocalypseDragonScenario()==true then return "dragon" end
+	if target==apocalypseDragon.model and (scenarioUsesApocalypseDragon()==true or gStates.apocalypseDragonCityPlaced==true) then return "dragon" end
 	if gStates.gameScenario=="Against the Horsemen Blitz" and gStates.againstHorsemenRitualStarted==true and target==GUID.tile.country01 then return "horsemen" end
 	if target==volkare.model then return "volkare" end
 	if target==darkCrusader.terrainHex or target==elementalist.terrainHex then return "leader" end
@@ -20061,6 +20491,10 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 		if gStates.apocalypsePossessedFactionByToken~=nil then gStates.apocalypsePossessedFactionByToken[monsterGUID]=nil end
 	end
 
+	if giveRewards==true and playAreaObj.is_face_down==false and horsemanHorseOwner~=nil and horsemanHorseOwner(monsterGUID)~=nil then
+		horsemanResolveHorseDefeat(monsterGUID)
+	end
+
 	for cityguid, monsters in pairs(gStates.cityMonsterQty) do
 		if monsters[monsterGUID]~=nil then
 			monsters[monsterGUID]="dead"
@@ -20243,7 +20677,7 @@ function startCoopRewardPhase()
 	if coopAssaultTargetType()=="dragon" then finalizeCoopDragonCombat() end
 	finalizeCoopLeaderCombat()
 	local assaultType=coopAssaultTargetType()
-	if gStates.endGameAchieved=="false" and ((assaultType=="leader" and coopLeaderScenarioEndAchieved()==true) or (assaultType=="horsemen" and againstHorsemenAllDefeated()==true) or (assaultType=="dragon" and apocalypseDragonColoredHeadsDefeated()==true)) then gStates.coopAssaultScenarioEndPending=true end
+	if gStates.endGameAchieved=="false" and ((assaultType=="leader" and coopLeaderScenarioEndAchieved()==true) or (assaultType=="horsemen" and againstHorsemenAllDefeated()==true) or (assaultType=="dragon" and apocalypseDragonAssaultScenarioEndAchieved()==true)) then gStates.coopAssaultScenarioEndPending=true end
 	resolveCoopAssaultLocations()
 	if gStates.coopRewardQueue==nil or #gStates.coopRewardQueue==0 then
 		local scenarioEndPending=gStates.coopAssaultScenarioEndPending==true
@@ -20405,6 +20839,7 @@ local function combatPreEndTurnRaiseAvatar(cleanupPlayer)
 end
 
 local function combatReturnPreEndTurnDie(cleanupPlayer,diceGUID)
+	gStates.coopAssaultDice=gStates.coopAssaultDice or {}
 	gStates.coopAssaultDice[#gStates.coopAssaultDice+1]=diceGUID
 	--Only a real combined assault holds dice between participants. A face-down turn token can also
 	--mean an unrelated out-of-order turn, so it is not a reliable proxy for this lifecycle.
@@ -21519,11 +21954,13 @@ function attackLocation(playerDud, mouseButton, id)
 							local monsterPos=mapSpatial.positions[monster.guid] or monster.getPosition()
 							if monsterPugs[monster.guid]~=nil then
 								local horsemanName=horsemanTokenToName~=nil and horsemanTokenToName[monster.guid] or nil
-								local horsemanSelected=horsemanName==nil or (horseSelection~=nil and horseSelection.player==playerIndex and horseSelection.targets~=nil and horseSelection.targets[monster.guid]==true)
+								local horseOwner=horsemanHorseOwner~=nil and horsemanHorseOwner(monster.guid) or nil
+								local linkedHorseman=horsemanName~=nil or horseOwner~=nil
+								local horsemanSelected=linkedHorseman~=true or (horseSelection~=nil and horseSelection.player==playerIndex and horseSelection.targets~=nil and horseSelection.targets[monster.guid]==true)
 								if horsemanSelected==true and math.sqrt(((monsterPos[1]-avPos[1])^2)+((monsterPos[3]-avPos[3])^2))<1 then
 									local originalPos={monsterPos[1],monsterPos[2],monsterPos[3]}
 									gStates.attackedMonsters[monster.guid]={originalPos, monster.getRotation()}
-									if horsemanName~=nil then gStates.monsterPlayLocation[monster.guid]={originalPos[1],originalPos[2],originalPos[3]} end
+									if horsemanName~=nil or horseOwner~=nil then gStates.monsterPlayLocation[monster.guid]={originalPos[1],originalPos[2],originalPos[3]} end
 									if cameraFollowed==false then combatCameraFocus(playerIndex) cameraFollowed=true end
 									monster.setPositionSmooth({(player.seatPos*40)-96+gStates.monsterOffsetX, 2.5, -39-gStates.monsterOffsetZ},false,false)
 									monster.setRotation({0.00, 180.00, 0.00})
@@ -21973,27 +22410,33 @@ function attackCity(player, mouseButton, id)
 				local dragonCombatSlot=(coopStart==true and gStates.coopAssaultType=="dragon") and 2 or 1
 				for _, army in pairs({"primary", "secondary"}) do
 					for _, monsterGUID in pairs(gStates.assaultData[playerData.mage][army]) do
-						local monsterObj=getObjectFromGUID(monsterGUID)
-						if monsterObj~=nil then
-							gStates.attackedMonsters[monsterGUID]={monsterObj.getPosition(), monsterObj.getRotation()}
-							if wallTargetHasWall==true then setAssaultWallFortified(monsterObj, wallFortified) end
-							monsterObj.unlock()
-							if cameraFollowed==false then combatCameraFocus(playerIndex) cameraFollowed=true end
-							local destination={(playerData.seatPos*40)-96+OffsetX, 2.5, -39-OffsetZ}
-							if coopStart==true and gStates.coopAssaultType=="dragon" and apocalypseDragonGroundTokenPosition~=nil then
-								local dragonPosition=apocalypseDragonGroundTokenPosition(playerIndex,dragonCombatSlot)
-								if dragonPosition~=nil then destination={dragonPosition[1],2.5,dragonPosition[3]} end
-								dragonCombatSlot=dragonCombatSlot+1
+						local combatGUIDs={monsterGUID}
+						local horsemanName=horsemanTokenToName~=nil and horsemanTokenToName[monsterGUID] or nil
+						local horseGUID=horsemanName~=nil and horsemanLinkedHorseGUID~=nil and horsemanLinkedHorseGUID(horsemanName) or nil
+						if horseGUID~=nil then combatGUIDs[#combatGUIDs+1]=horseGUID end
+						for _,combatGUID in ipairs(combatGUIDs) do
+							local monsterObj=getObjectFromGUID(combatGUID)
+							if monsterObj~=nil then
+								gStates.attackedMonsters[combatGUID]={monsterObj.getPosition(), monsterObj.getRotation()}
+								if wallTargetHasWall==true then setAssaultWallFortified(monsterObj, wallFortified) end
+								monsterObj.unlock()
+								if cameraFollowed==false then combatCameraFocus(playerIndex) cameraFollowed=true end
+								local destination={(playerData.seatPos*40)-96+OffsetX, 2.5, -39-OffsetZ}
+								if coopStart==true and gStates.coopAssaultType=="dragon" and apocalypseDragonGroundTokenPosition~=nil then
+									local dragonPosition=apocalypseDragonGroundTokenPosition(playerIndex,dragonCombatSlot)
+									if dragonPosition~=nil then destination={dragonPosition[1],2.5,dragonPosition[3]} end
+									dragonCombatSlot=dragonCombatSlot+1
+								end
+								monsterObj.setPositionSmooth(destination,false,false)
+								if wallTargetHasWall==true then settleAssaultWallFortified(combatGUID,wallFortified) end
+								monsterObj.setRotation({0.00,180.00,0.00})
+								if coopStart~=true or gStates.coopAssaultType~="dragon" then
+									OffsetX=OffsetX+2.5
+									if OffsetX>12 then OffsetX=0 OffsetZ=OffsetZ+2.5 end
+								end
+								played=true
+								inFight=true
 							end
-							monsterObj.setPositionSmooth(destination,false,false)
-							if wallTargetHasWall==true then settleAssaultWallFortified(monsterGUID,wallFortified) end
-							monsterObj.setRotation({0.00,180.00,0.00})
-							if coopStart~=true or gStates.coopAssaultType~="dragon" then
-								OffsetX=OffsetX+2.5
-								if OffsetX>12 then OffsetX=0 OffsetZ=OffsetZ+2.5 end
-							end
-							played=true
-							inFight=true
 						end
 					end
 				end
@@ -22380,12 +22823,12 @@ adjustOverkill=function(player, mouseButton, id)
 	end
 end
 
-pursuitStunnedImageURL="https://steamusercontent-a.akamaihd.net/ugc/9820771160644960489/29318B61F2A30E0E941F355C3664303B0C95BC60/"
+pursuitStunnedImageAsset="Pursuit Stunned"
 function setPursuitStunnedImage(monsterObj, stunned)
 	if monsterObj==nil then return end
 	local xml=monsterObj.UI.getXmlTable() or {}
 	for a=#xml, 1, -1 do if xml[a].attributes~=nil and xml[a].attributes.id=="Pursuit Stunned" then table.remove(xml, a) end end
-	if stunned==true then xml[#xml+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageURL}} end
+	if stunned==true then xml[#xml+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageAsset}} end
 	if #xml==0 then xml={{}} end
 	monsterObj.UI.setXmlTable(xml)
 end
@@ -26549,11 +26992,34 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,candidates)
 	return changed
 end
 
+local function mapTokenPhysicalHexForPosition(hexes,position,mapObjects)
+	local hex=runtimeMapHexForPosition(hexes,position,mapObjects)
+	if hex~=nil then return hex end
+	if gStates==nil or gStates.gameScenario~="Against the Horsemen Blitz" then return nil end
+
+	--Against the Horsemen starts its Horsemen (and optional horses) on unrevealed Core tiles.
+	--Those tiles must remain absent from runtimeMapSnapshot().hexes for gameplay, but the physical
+	--separator still needs the exact hex centre so face-down tokens do not overlap.
+	local snapshot=runtimeMapSnapshot()
+	local terrain,bearing,hexPos,feature,hexType=terrainHexAtPosition(position,
+		snapshot.terrainObjects,snapshot.terrainPositions,snapshot.terrainRotations)
+	if terrain==nil or bearing==nil or hexPos==nil or terrain.is_face_down~=true then return nil end
+	local scenarioCore=false
+	for _,terrainGUID in pairs(gStates.againstHorsemenCoreTiles or {}) do
+		if terrainGUID==terrain.guid then scenarioCore=true break end
+	end
+	if scenarioCore~=true then return nil end
+	return {
+		terrain=terrain,terrainGUID=terrain.guid,bearing=bearing,
+		position={hexPos[1],1.30,hexPos[3]},hexType=hexType,feature=feature or ""
+	}
+end
+
 function mapTokenArrangeObject(guid)
 	local obj=guid~=nil and getObjectFromGUID(guid) or nil
 	if obj==nil or mapTokenNeedsArrangement(obj)~=true then return false end
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
-	local hex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+	local hex=mapTokenPhysicalHexForPosition(hexes,obj.getPosition(),mapObjects)
 	if hex==nil then return false end
 	return mapTokenArrangeHex(hex,mapObjects,nil,obj)
 end
@@ -26566,10 +27032,10 @@ local function mapTokenPassiveArrivalReachedPlannedHex(obj)
 	local planned=gStates.monsterPlayLocation[obj.guid]
 	if planned==nil then return true end
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
-	local plannedHex=runtimeMapHexForPosition(hexes,planned,mapObjects)
-	--A recorded destination outside the revealed map means this map-zone entry is only transit.
+	local plannedHex=mapTokenPhysicalHexForPosition(hexes,planned,mapObjects)
+	--A recorded destination outside the physical map means this map-zone entry is only transit.
 	if plannedHex==nil then return false end
-	local currentHex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+	local currentHex=mapTokenPhysicalHexForPosition(hexes,obj.getPosition(),mapObjects)
 	if currentHex==nil then return false end
 	return runtimeMapHexKey(currentHex)==runtimeMapHexKey(plannedHex)
 end
@@ -26668,7 +27134,7 @@ function mapTokenReleaseObject(obj)
 	mapTokenArrangeGeneration[ignoreGUID]=(mapTokenArrangeGeneration[ignoreGUID] or 0)+1
 	safeWaitFrames("MapTokens",function()
 		local hexes,mapObjects=runtimeMapHexesAndObjects()
-		local hex=runtimeMapHexForPosition(hexes,position,mapObjects)
+		local hex=mapTokenPhysicalHexForPosition(hexes,position,mapObjects)
 		if hex~=nil then mapTokenArrangeHex(hex,mapObjects,ignoreGUID,nil) end
 	end,1)
 	return true
@@ -26681,7 +27147,7 @@ local function mapTokenTerrainReadyForReconcile(terrainGUID)
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	for _,obj in pairs(mapObjects or {}) do
 		if mapTokenNeedsArrangement(obj)==true then
-			local hex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+			local hex=mapTokenPhysicalHexForPosition(hexes,obj.getPosition(),mapObjects)
 			if hex~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
 				if mapTokenArrivalPending[obj.guid]~=nil or obj.isSmoothMoving()==true or obj.resting~=true then return false end
 			end
@@ -26695,7 +27161,7 @@ local function mapTokenArrangeAllOccupiedHexesNow(terrainGUID)
 	local groups={}
 	for _,obj in pairs(mapObjects or {}) do
 		if mapTokenNeedsArrangement(obj)==true then
-			local hex=runtimeMapHexForPosition(hexes,obj.getPosition(),mapObjects)
+			local hex=mapTokenPhysicalHexForPosition(hexes,obj.getPosition(),mapObjects)
 			local key=hex~=nil and runtimeMapHexKey(hex) or nil
 			if hex~=nil and key~=nil and (terrainGUID==nil or hex.terrainGUID==terrainGUID) then
 				local group=groups[key]
@@ -28278,6 +28744,7 @@ function mapHandleTerrainZoneEnter(ctx)
 			if startingMapSetup==true then
 				if gStates.startAtNight==true then obj.setColorTint({r=0.6,g=0.6,b=0.6}) else obj.setColorTint({r=1.0,g=1.0,b=1.0}) end
 			end
+			if newTerrainReveal==true and apocalypseDragonCityVariantTerrainRevealed~=nil then apocalypseDragonCityVariantTerrainRevealed(obj) end
 			if initialSetupTerrain~=true and newTerrainReveal==true then
 				againstDragonRevealLair(obj)
 				if apocalypseIsHereTerrainRevealed~=nil then apocalypseIsHereTerrainRevealed(obj) end
@@ -28772,6 +29239,7 @@ end
 refreshUltimateConquestCityCounts=function()
 	if gStates.gameScenario~="Ultimate Conquest" then return 0 end
 	local cityCount=-(gStates.megapolisPlayed or 0)
+	if gStates.apocalypseDragonCityPlaced==true then cityCount=cityCount+1 end
 	gStates.ultimateLeaders=0
 	for _, playedCityGUID in ipairs(gStates.citiesPlayed or {}) do
 		if playedCityGUID==darkCrusader.terrainHex or playedCityGUID==elementalist.terrainHex then
@@ -29526,11 +29994,25 @@ end
 
 cityRegisterDeployOrder=function(cityGUID, ultimateCitiesPlayed)
 	if gStates.cityDeployOrder[cityGUID]~=nil then return gStates.cityDeployOrder[cityGUID] end
-	local playedCities=#gStates.citiesPlayed-(gStates.megapolisPlayed or 0)
+	local playedCities=#gStates.citiesPlayed-(gStates.megapolisPlayed or 0)+(gStates.apocalypseDragonCityPlaced==true and 1 or 0)
 	if gStates.gameScenario=="Ultimate Conquest" then playedCities=ultimateCitiesPlayed end
 	if gStates.gameScenario=="The War of Four" then table.insert(gStates.cityLevels, playedCities, gStates.cityLevels[4]) table.remove(gStates.cityLevels, 5) end
 	gStates.cityDeployOrder[cityGUID]=playedCities
 	return playedCities
+end
+
+--Return the city-order slot and level that a newly revealed normal City would receive.
+--The Apocalypse Dragon City variant calls this before marking its replacement as placed, then later
+--City deployments count that reserved slot through cityRegisterDeployOrder()/refreshUltimateConquestCityCounts().
+function cityReplacementLevelForDragon()
+	if gStates==nil or gStates.cityLevels==nil then return nil,nil end
+	local order
+	if gStates.gameScenario=="Ultimate Conquest" then
+		order=refreshUltimateConquestCityCounts()+1
+	else
+		order=#(gStates.citiesPlayed or {})-(gStates.megapolisPlayed or 0)+1
+	end
+	return order,gStates.cityLevels[order]
 end
 
 cityLeaderDeployOrder=function(cityGUID, ultimateCitiesPlayed, leaderLevel)
@@ -37171,7 +37653,8 @@ function megapolisMaximumForSetup(scenarioRef, playersRef)
 	playersRef=playersRef or gStates.playersRef
 	local scenario=scenarioList~=nil and scenarioList[scenarioRef] or nil
 	local setup=scenario~=nil and scenario[playersRef] or nil
-	if scenario==nil or setup==nil or scenario.scenarioDetails==nil or scenario.scenarioDetails.megapolisPossible~=true or gStates.volkareCampAsCity==true then return 0 end
+	if scenario==nil or setup==nil or scenario.scenarioDetails==nil or scenario.scenarioDetails.megapolisPossible~=true or
+		gStates.volkareCampAsCity==true or (tonumber(gStates.apocalypseDragonCityMode) or 0)>0 then return 0 end
 	local cityTiles=tonumber(setup.cityTiles) or 0
 	if cityTiles<=0 then return 0 end
 	if cityTiles<=2 then return math.min(2,cityTiles) end
@@ -37371,7 +37854,7 @@ local function setupCoreSystemsReady()
 	if setupPlayersReady~=nil and setupPlayersReady()~=true then return false end
 	if gStates.volkareCampSupportReady~=true then return false end
 	if apocalypseQuestsUsed()==true and gStates.apocalypseQuestSetupReady~=true then return false end
-	if apocalypseDragonScenario()==true and gStates.apocalypseDragonHeadsSetupReady~=true then return false end
+	if apocalypseDragonComponentsNeeded()==true and gStates.apocalypseDragonHeadsSetupReady~=true then return false end
 	return true
 end
 
@@ -37393,6 +37876,15 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		setupMapStarted=false
 		gStates.volkareCampSupportReady=true
 		gStates.apocalypseQuestSetupReady=apocalypseQuestsUsed()~=true
+		--Virgin saves deliberately omit transient live-game state. Recreate the setup-owned defaults
+		--before any parallel player/map setup path can read or write them.
+		gStates.dummyAllSkills=false
+		gStates.startingHigherLevelCrystal={}
+		gStates.hexOverideSave=gStates.hexOverideSave or {}
+		gStates.apocalypseDragonCityRevealCount=0
+		gStates.apocalypseDragonCityPlaced=false
+		gStates.apocalypseDragonCityDefeated=false
+		gStates.apocalypseDragonCity=nil
 
 		--Close the setup menu and update the Help button
 		UI.setAttribute("Setup", "active", "false")
@@ -37446,6 +37938,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 					end
 				end
 				rollOption("removeShadesOfTezlaMonsters",7)
+				rollOption("removeFactionRewards",7)
 				rollOption("removeApocalypseTerrain",7)
 				rollOption("randomTileOrientation",8)
 				rollOption("randomCities",8)
@@ -37531,7 +38024,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		local r={main="b850ab", expansion="700e93", apocalypse="65f2b6"}
 		local scenarioRuleStates=scenarioList[gStates.scenarioRef].scenarioDetails.ruleStates or {}
 		local needExpansionRules=scenarioRuleStates.expansion~=nil or gStates.removeShadesOfTezlaMonsters~=true or gStates.removeLostLegionExpansion==false
-		local needApocalypseRules=scenarioRuleStates.apocalypse~=nil or gStates.removeApocalypseTerrain~=true
+		local needApocalypseRules=scenarioRuleStates.apocalypse~=nil or gStates.removeApocalypseTerrain~=true or apocalypseDragonComponentsNeeded()==true
 		if ruleBag~=nil then
 			local mainRules=safeTakeObject("SetupGame",ruleBag,{rotation={0.0,180.0,0.0},position={52.13,0.98,35.00},guid=r.main,smooth=false})
 			setupConfigureRulebook(mainRules,scenarioRuleStates.main)
@@ -37677,12 +38170,18 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		--Apocalypse/Council rewards and Possessed tokens are preloaded in their normal table positions.
 		--Keep complete source/discard cycles when any enabled system can use them; otherwise remove them.
 		local apocalypseTokenSupportNeeded=gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or
-			gStates.gameScenario=="Against the Horsemen Blitz" or apocalypseDragonScenario()==true
-		for _,guid in ipairs({
-			monsterPiles.rewardApoc,GUID.bag.discard.apocReward,
-			monsterPiles.rewardCouncil,GUID.bag.discard.councilReward,
-			monsterPiles.possessed,GUID.bag.discard.possessed
-		}) do
+			gStates.gameScenario=="Against the Horsemen Blitz" or apocalypseDragonComponentsNeeded()==true
+		local apocalypseRewardSupportNeeded=apocalypseTokenSupportNeeded==true and gStates.removeFactionRewards~=true
+		for _,guid in ipairs({monsterPiles.rewardApoc,GUID.bag.discard.apocReward,monsterPiles.rewardCouncil,GUID.bag.discard.councilReward}) do
+			local bag=getObjectFromGUID(guid)
+			if apocalypseRewardSupportNeeded==true then
+				if bag==nil then error("SetupGame missing preloaded Apocalypse reward bag "..tostring(guid),2) end
+				bag.lock()
+			elseif bag~=nil then
+				bag.destruct()
+			end
+		end
+		for _,guid in ipairs({monsterPiles.possessed,GUID.bag.discard.possessed}) do
 			local bag=getObjectFromGUID(guid)
 			if apocalypseTokenSupportNeeded==true then
 				if bag==nil then error("SetupGame missing preloaded Apocalypse token bag "..tostring(guid),2) end
@@ -37691,14 +38190,14 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 				bag.destruct()
 			end
 		end
-		if apocalypseTokenSupportNeeded==true then
+		if apocalypseRewardSupportNeeded==true then
 			local apocalypseBag=getObjectFromGUID(GUID.bag.apocalypseDragon)
 			setupDeployLockedReferenceCard(apocalypseBag,"c584ff",{-53.50,0.98,21.50},"Apocalypse Cult Reward Card")
 			setupDeployLockedReferenceCard(apocalypseBag,"071cc6",{-49.50,0.98,21.50},"Council of the Void Reward Card")
 		end
 
 		--The Apocalypse systems share the same infinite Neutral Shield bag.
-		if (gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or apocalypseDragonScenario()==true) and getObjectFromGUID(GUID.bag.neutralShield)==nil then
+		if (gStates.removeApocalypseTerrain~=true or apocalypseQuestsUsed()==true or apocalypseDragonComponentsNeeded()==true) and getObjectFromGUID(GUID.bag.neutralShield)==nil then
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.neutralShield,position={8.00,1.03,16.00},rotation={0,180,0},smooth=false})
 		end
 
@@ -37722,8 +38221,9 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 			getObjectFromGUID(GUID.bag.apocalypseDragon).takeObject({guid=GUID.bag.destroyedSite,position={-43.00,1.02,26.00},rotation={0,180,0},smooth=false}).lock()
 		end
 
-		--Set up the Apocalypse Dragon large head tokens for Dragon scenarios.
-		if apocalypseDragonScenario()==true then setupApocalypseDragonHeads() end
+		--Set up the Apocalypse Dragon boards/tokens for Dragon scenarios and the City-replacement variant.
+		--The City variant keeps them at level 0 until the replacement City is actually revealed.
+		if apocalypseDragonComponentsNeeded()==true then setupApocalypseDragonHeads() end
 		if apocalypseIsHereSetup~=nil then apocalypseIsHereSetup() end
 
 		--include or remove Rise of the Forgemaster
@@ -37949,7 +38449,7 @@ function startMapSetupStage()
 		if setupMapStarted==true then return end
 		setupMapStarted=true
 		removeUnselectedTerrain()
-		if apocalypseDragonScenario()==true then positionApocalypseDragonHeads() end
+		if apocalypseDragonComponentsNeeded()==true then positionApocalypseDragonHeads() end
 		mapSetup(function(success,reason)
 			if success~=true then
 				setupReleaseRewind()
@@ -40214,7 +40714,7 @@ local function deployTezlaComponents(entries,includeScenarioComponents)
 	local tezlaBag=getObjectFromGUID(GUID.bag.tezla)
 	if tezlaBag==nil then error("SetupGame missing Shades of Tezla component bag.",2) end
 	for _,entry in ipairs(entries) do
-		if entry.always==true or includeScenarioComponents==true then
+		if (entry.always==true or includeScenarioComponents==true) and (entry.rewardReference~=true or gStates.removeFactionRewards~=true) then
 			local obj=safeTakeObject("SetupGame",tezlaBag,{
 				guid=entry.guid,
 				position=entry.position,
@@ -40242,7 +40742,7 @@ function monsterSetup()
 	local elemFactionEnemies=scenario=="Life and Death" or scenario=="The War of Four" or scenario=="The Hidden Valley Blitz"
 	local darkBags={monsterPiles.greenDark,monsterPiles.tanDark,monsterPiles.redDark}
 	local elemBags={monsterPiles.greenElem,monsterPiles.tanElem,monsterPiles.redElem}
-	local tezlaRewardsNeeded=gStates.removeShadesOfTezlaMonsters~=true or gStates.useCustomMageKnights==true
+	local tezlaRewardsNeeded=(gStates.removeShadesOfTezlaMonsters~=true or gStates.useCustomMageKnights==true) and gStates.removeFactionRewards~=true
 	configurePreloadedTokenBags({
 		monsterPiles.rewardDark,GUID.bag.discard.darkReward,
 		monsterPiles.rewardElem,GUID.bag.discard.elementalistReward
@@ -40253,14 +40753,14 @@ function monsterSetup()
 		{guid=darkCrusader.terrainHex,position={-34.70,0.98,-27.00}},
 		{guid="f8c83e",position={-65.16,0.98,-5.50}},
 		{guid=GUID.bag.cemetery,position={-36.09,0.97,-24.87},flip=180},
-		{guid="2ca34f",position={-53.50,0.98,15.50},always=true}
+		{guid="2ca34f",position={-53.50,0.98,15.50},always=true,rewardReference=true}
 	}
 	local elemComponents={
 		{guid=elementalist.disc,position={-63.50,0.97,6.50}},
 		{guid=elementalist.token,position={-67.00,0.97,10.20}},
 		{guid=elementalist.terrainHex,position={-37.49,0.98,-27.00}},
 		{guid="7121c7",position={-70.16,0.98,-5.50}},
-		{guid="8fe07e",position={-49.50,0.98,15.50},always=true}
+		{guid="8fe07e",position={-49.50,0.98,15.50},always=true,rewardReference=true}
 	}
 
 	if gStates.removeShadesOfTezlaMonsters~=true then
@@ -42984,6 +43484,10 @@ local SCENARIO_SELECTION_BY_ID={
 	CustomSelection="Custom"}
 
 local ROTF_SELECTION_LEVEL_BY_ID={ROTF0Selection=0,ROTF1Selection=1,ROTF2Selection=2,ROTF3Selection=3}
+local APOCALYPSE_DRAGON_CITY_MODE_BY_ID={
+	ApocalypseDragonCityOffSelection=0,
+	ApocalypseDragonCityFinalSelection=1,
+	ApocalypseDragonCityRandomSelection=2}
 
 local SETUP_DROPDOWN_CONTROL_BY_ID={
 	firstMKSelection={1,"MageDropDown",-275},
@@ -42992,6 +43496,7 @@ local SETUP_DROPDOWN_CONTROL_BY_ID={
 	fourthMKSelection={4,"MageDropDown",-275},
 	dummyMKSelection={5,"MageDropDown",-275},
 	ScenarioSelection={0,"ScenarioDropDown",90},
+	ApocalypseDragonCityMode={0,"DragonCityDropDown",245},
 	ROTFSelection={0,"ROTFDropDown",-115},
 	VolkareLevelSelection={0,"VolkareLevelDropDown",-305},
 	VolkareRaceSelection={0,"VolkareRaceDropDown",-335}}
@@ -43049,6 +43554,9 @@ local SETUP_DROPDOWN_ROWS={
 	ForTheCouncilRow={"For the Council","ForTheCouncilSelectionImage","ScenarioDropDown"},
 	TheFracturedLandsRow={"The Fractured Lands Blitz","TheFracturedLandsSelectionImage","ScenarioDropDown"},
 	CustomRow={"Custom","CustomSelectionImage","ScenarioDropDown"},
+	ApocalypseDragonCityOffRow={"Off","ApocalypseDragonCityOffSelectionImage","DragonCityDropDown"},
+	ApocalypseDragonCityFinalRow={"Final City","ApocalypseDragonCityFinalSelectionImage","DragonCityDropDown"},
+	ApocalypseDragonCityRandomRow={"Random City","ApocalypseDragonCityRandomSelectionImage","DragonCityDropDown"},
 	ROTF0Row={"Not Used","ROTF0SelectionImage","ROTFDropDown"},
 	ROTF1Row={"1. New Beginning","ROTF1SelectionImage","ROTFDropDown"},
 	ROTF2Row={"2. Spoils of War","ROTF2SelectionImage","ROTFDropDown"},
@@ -43109,6 +43617,7 @@ local SETUP_TOGGLE_DEFAULTS={
 	randomTileOrientation={false,true},
 	randomCities={false,true},
 	removeShadesOfTezlaMonsters={false,true},
+	removeFactionRewards={false,true},
 	removeApocalypseTerrain={false,true},
 	startAtNight={false,true},
 	rampageAmbush={false,true},
@@ -43120,6 +43629,8 @@ local SETUP_TOGGLE_DEFAULTS={
 	weatherMod={false,true},
 	questMod={false,true},
 	apocalypseQuestCards={false,true},
+	randomizedDragonHeads={false,true},
+	horsemenHorses={false,true},
 	proxyPlayer={false,true},
 	itemShopMod={false,true},
 	removeTerrain={false,true},
@@ -43127,7 +43638,7 @@ local SETUP_TOGGLE_DEFAULTS={
 
 local SCENARIO_OPTION_OVERRIDES={
 	["First Reconnaissance"]={
-		randomTileOrientation={false,false},removeShadesOfTezlaMonsters={true,false},removeApocalypseTerrain={true,false},
+		randomTileOrientation={false,false},removeShadesOfTezlaMonsters={true,false},removeFactionRewards={true,false},removeApocalypseTerrain={true,false},
 		startAtNight={false,false},rampageAmbush={false,false},rampagePursuit={false,false},darknessComing={false,false},
 		mageKnightLevels={false,false},useCustomMageKnights={false,false},removeBonusCards={true,false},weatherMod={false,false},
 		questMod={false,false},apocalypseQuestCards={false,false},proxyPlayer={false,false},itemShopMod={false,false},
@@ -43196,13 +43707,83 @@ local function clearCustomMageKnightSelections(preserveRememberedDummy)
 	if preserveRememberedDummy~=true and customMages[gStates.setupDummyMageChoice]~=nil then gStates.setupDummyMageChoice="nobody" end
 end
 
+local APOCALYPSE_DRAGON_CITY_SCENARIOS={
+	["First Conquest"]=true,
+	["Conquest"]=true,
+	["Fast Forwarded Conquest"]=true,
+	["Ultimate Conquest"]=true,
+	["Custom"]=true
+}
+
+local APOCALYPSE_DRAGON_CITY_MODE_TEXT={
+	[0]="{en}Off{ru}Выкл.{zh-tw}關閉{zh-cn}关闭{ko}끔{es}Desactivado{fr}Non{pt-br}Desligado{de}Aus",
+	[1]="{en}Final City{ru}Последний город{zh-tw}最後城市{zh-cn}最后城市{ko}마지막 도시{es}Última Ciudad{fr}Dernière Cité{pt-br}Última Cidade{de}Letzte Stadt",
+	[2]="{en}Random City{ru}Случайный город{zh-tw}隨機城市{zh-cn}随机城市{ko}무작위 도시{es}Ciudad Aleatoria{fr}Cité aléatoire{pt-br}Cidade Aleatória{de}Zufällige Stadt"
+}
+
+local function apocalypseDragonCityVariantScenarioEligible()
+	if gStates==nil or scenarioUsesApocalypseDragon()==true then return false end
+	local scenarioName=tostring(gStates.gameScenario or "")
+	local base=scenarioName:gsub(" Blitz$","")
+	if APOCALYPSE_DRAGON_CITY_SCENARIOS[base]~=true then return false end
+	local scenario=scenarioList~=nil and scenarioList[gStates.scenarioRef] or nil
+	local setup=scenario~=nil and scenario[gStates.playersRef] or nil
+	return setup~=nil and (tonumber(setup.cityTiles) or 0)>0 and tonumber(setup.cityLevels~=nil and setup.cityLevels[1] or 0)>0
+end
+
+local function apocalypseDragonCityVariantSelectable()
+	return apocalypseDragonCityVariantScenarioEligible()==true and (gStates.megapolis or 0)==0
+end
+
+local function refreshApocalypseDragonVariantControls()
+	local eligible=apocalypseDragonCityVariantScenarioEligible()
+	local selectable=apocalypseDragonCityVariantSelectable()
+	local mode=math.max(0,math.min(2,math.floor(tonumber(gStates.apocalypseDragonCityMode) or 0)))
+	if eligible~=true then mode=0 end
+	if selectable~=true and mode>0 then mode=0 end
+	gStates.apocalypseDragonCityMode=mode
+	UI.setAttribute("ApocalypseDragonCityModeRow","active",eligible and "true" or "false")
+	UI.setAttribute("ApocalypseDragonCityMode","interactable",selectable and "True" or "False")
+	UI.setAttribute("ApocalypseDragonCityModeText","text",APOCALYPSE_DRAGON_CITY_MODE_TEXT[mode])
+	UI.setAttribute("ApocalypseDragonCityModeImage","image",selectable and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
+
+	local dragonAvailable=scenarioUsesApocalypseDragon()==true or mode>0
+	UI.setAttribute("RandomizedDragonHeadsRow","active",dragonAvailable and "true" or "false")
+	UI.setAttribute("randomizedDragonHeads","interactable",dragonAvailable and "True" or "False")
+	if dragonAvailable~=true then
+		gStates.randomizedDragonHeads=false
+		UI.setAttribute("randomizedDragonHeads","isOn","false")
+	else
+		UI.setAttribute("randomizedDragonHeads","isOn",gStates.randomizedDragonHeads==true and "true" or "false")
+	end
+end
+
+function apocalypseDragonCityModeSelection(player, mouseButton, id)
+	if mouseButton~="-1" or apocalypseDragonCityVariantSelectable()~=true then return end
+	local mode=APOCALYPSE_DRAGON_CITY_MODE_BY_ID[id]
+	if mode==nil then return end
+	UI.setAttribute(dropDownIdLink.."Text","text",APOCALYPSE_DRAGON_CITY_MODE_TEXT[mode])
+	UI.setAttribute(dropDownIdLink.."Image","image","Sliced Button/Button New Active")
+	UI.setAttribute("DropDown","active","false")
+	dropDownIdLink="none"
+	gStates.apocalypseDragonCityMode=mode
+	scenarioInfoUpdate()
+	ToolTipUpdate("ApocalypseDragonCityMode")
+end
+
 local function refreshScenarioEnemyLevelTweaks()
+	refreshApocalypseDragonVariantControls()
 	local showDragon=scenarioUsesApocalypseDragon()
 	local showHorsemen=scenarioUsesHorsemen()
 	local showAny=showDragon or showHorsemen
 	UI.setAttribute("ScenarioEnemyLevelsRow","active",showAny and "true" or "false")
 	UI.setAttribute("ApocalypseDragonLevelCell","active",showDragon and "true" or "false")
 	UI.setAttribute("HorsemenLevelCell","active",showHorsemen and "true" or "false")
+	UI.setAttribute("HorsemenHorsesRow","active",showHorsemen and "true" or "false")
+	if showHorsemen~=true and gStates.horsemenHorses==true then
+		gStates.horsemenHorses=false
+		UI.setAttribute("horsemenHorses","isOn","false")
+	end
 	if showDragon then
 		local level=type(apocalypseDragonStartingLevel)=="function" and apocalypseDragonStartingLevel() or 1
 		UI.setAttribute("ApocalypseDragonLevelSelectionText","text",joinLang({"{en}Dragon, Level {ru}Дракон, ур. {zh-tw}巨龍，等級 {zh-cn}巨龙，等级 {ko}드래곤, 레벨 {es}Dragón, Nivel {fr}Dragon, Niveau {pt-br}Dragão, Nível {de}Drache, Level ",tostring(level or 1)}))
@@ -43327,7 +43908,7 @@ function randomSetup(player, value, id)
 	local value=scenarioList[math.random(2, #scenarioList-1)][1]
 	applyScenarioSetupDefaults(value)
 	--scenarioSelection updates setup state synchronously; randomize immediately instead of sleeping a frame.
-	local randomOptions={"volkareCampAsCity", "randomTileOrientation", "randomCities", "removeShadesOfTezlaMonsters", "removeApocalypseTerrain",	"startAtNight", "darknessComing", "heroChallenges", "useCustomMageKnights", "weatherMod", "questMod", "apocalypseQuestCards", "proxyPlayer", "itemShopMod", "rampageAmbush", "rampagePursuit", "removeTerrain"}
+	local randomOptions={"volkareCampAsCity", "randomTileOrientation", "randomCities", "removeShadesOfTezlaMonsters", "removeFactionRewards", "removeApocalypseTerrain",	"startAtNight", "darknessComing", "heroChallenges", "useCustomMageKnights", "weatherMod", "questMod", "apocalypseQuestCards", "proxyPlayer", "itemShopMod", "rampageAmbush", "rampagePursuit", "removeTerrain"}
 	for a=1, #randomOptions, 1 do
 		if UI.getAttribute(randomOptions[a], "interactable")=="True" then
 			--Random must explicitly roll both ON and OFF. This matters for options such as Hero Challenges
@@ -43373,6 +43954,7 @@ function scenarioSelection(player, mouseButton, id)
 		gStates.gameScenario=SCENARIO_SELECTION_BY_ID[id] or id
 		gStates.apocalypseDragonStartingLevelOverride=nil
 		gStates.horsemanStartingLevelOverride=nil
+		gStates.apocalypseDragonCityMode=0
 		UI.setAttribute("ScenarioSelectionText", "text", translateWord[gStates.gameScenario])
 		UI.setAttribute("ScenarioSelectionImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("DropDown", "active", "false")
@@ -43685,7 +44267,8 @@ function toggleDropDown(player, mouseButton, id)
 	--Scenario rows are 30 px high; use an exact whole-row height to avoid pixel gaps.
 	if control[2]=="ScenarioDropDown" then dropDownHeight=count*30 end
 	UI.setAttribute("DropDown", "height", tostring(dropDownHeight))
-	UI.setAttribute("DropDown", "width", control[2]=="ScenarioDropDown" and "220" or control[2]=="ROTFDropDown" and "150" or "120")
+	local setupOptionDropDown=control[2]=="ROTFDropDown" or control[2]=="DragonCityDropDown"
+	UI.setAttribute("DropDown", "width", control[2]=="ScenarioDropDown" and "220" or setupOptionDropDown and "150" or "120")
 	UI.setAttribute("DropDown", "offsetXY", "-100 "..tostring(control[3]))
 	UI.setAttribute("DropDown", "active", "true")
 end
@@ -43814,7 +44397,7 @@ function baseValueTweak(player, mouseButton, id)
 	if mouseButton=="-1" then
 		local setup=scenarioList[gStates.scenarioRef][gStates.playersRef]
 		if scenarioMapIsPredefined() and (id=="MapDown" or id=="MapUp" or id=="CountryDown" or id=="CountryUp" or id=="CoreDown" or id=="CoreUp" or id=="CityDown" or id=="CityUp") then return end
-		if gStates.volkareCampAsCity==true and (id=="MegapolisDown" or id=="MegapolisUp") then return end
+		if (gStates.volkareCampAsCity==true or (tonumber(gStates.apocalypseDragonCityMode) or 0)>0) and (id=="MegapolisDown" or id=="MegapolisUp") then return end
 		if gStates.gameScenario~="First Reconnaissance" then
 			if id=="RoundsDown" or id=="RoundsUp" then
 				if id=="RoundsDown" then
@@ -44297,9 +44880,12 @@ local setupUISaveAttributes={
 	{id="RampageSelection",attribute="interactable"},{id="RampageSelection",attribute="isOn"},
 	{id="MoreRampageSelection",attribute="interactable"},{id="MoreRampageSelection",attribute="isOn"},
 	{id="volkareCampAsCity",attribute="interactable"},{id="volkareCampAsCity",attribute="isOn"},
+	{id="ApocalypseDragonCityModeRow",attribute="active"},{id="ApocalypseDragonCityMode",attribute="interactable"},
+	{id="ApocalypseDragonCityModeText",attribute="text"},{id="ApocalypseDragonCityModeImage",attribute="image"},
 	{id="randomTileOrientation",attribute="interactable"},{id="randomTileOrientation",attribute="isOn"},
 	{id="randomCities",attribute="interactable"},{id="randomCities",attribute="isOn"},
 	{id="removeShadesOfTezlaMonsters",attribute="interactable"},{id="removeShadesOfTezlaMonsters",attribute="isOn"},
+	{id="removeFactionRewards",attribute="interactable"},{id="removeFactionRewards",attribute="isOn"},
 	{id="removeApocalypseTerrain",attribute="interactable"},{id="removeApocalypseTerrain",attribute="isOn"},
 	{id="removeLostLegionExpansion",attribute="interactable"},{id="removeLostLegionExpansion",attribute="isOn"},
 	{id="startAtNight",attribute="interactable"},{id="startAtNight",attribute="isOn"},
@@ -44313,6 +44899,8 @@ local setupUISaveAttributes={
 	{id="weatherMod",attribute="interactable"},{id="weatherMod",attribute="isOn"},
 	{id="questMod",attribute="interactable"},{id="questMod",attribute="isOn"},
 	{id="apocalypseQuestCards",attribute="interactable"},{id="apocalypseQuestCards",attribute="isOn"},
+	{id="RandomizedDragonHeadsRow",attribute="active"},{id="randomizedDragonHeads",attribute="interactable"},{id="randomizedDragonHeads",attribute="isOn"},
+	{id="horsemenHorses",attribute="interactable"},{id="horsemenHorses",attribute="isOn"},
 	{id="proxyPlayer",attribute="interactable"},{id="proxyPlayer",attribute="isOn"},
 	{id="itemShopMod",attribute="interactable"},{id="itemShopMod",attribute="isOn"},
 	{id="removeTerrain",attribute="interactable"},{id="removeTerrain",attribute="isOn"},
@@ -44361,9 +44949,9 @@ function restoreSetupScenarioState()
 end
 
 local function restoreSetupUIFromState()
-	local toggles={"volkareCampAsCity","randomTileOrientation","randomCities","removeShadesOfTezlaMonsters","removeApocalypseTerrain",
+	local toggles={"volkareCampAsCity","randomTileOrientation","randomCities","removeShadesOfTezlaMonsters","removeFactionRewards","removeApocalypseTerrain",
 		"removeLostLegionExpansion","startAtNight","darknessComing","rampageAmbush","rampagePursuit","mageKnightLevels",
-		"useCustomMageKnights","heroChallenges","removeBonusCards","weatherMod","questMod","apocalypseQuestCards","proxyPlayer","itemShopMod","removeTerrain","useAlternatePugs"}
+		"useCustomMageKnights","heroChallenges","removeBonusCards","weatherMod","questMod","apocalypseQuestCards","randomizedDragonHeads","horsemenHorses","proxyPlayer","itemShopMod","removeTerrain","useAlternatePugs"}
 	for _,id in ipairs(toggles) do if gStates[id]~=nil then UI.setAttribute(id,"isOn",gStates[id] and "true" or "false") end end
 	UI.setAttribute("BlitzSelection","isOn",gStates.blitz==1 and "true" or "false")
 	UI.setAttribute("RampageSelection","isOn",gStates.rampage==1 and "true" or "false")
@@ -44408,6 +44996,7 @@ publishPublicUICallbacks({
 	SetupMenu=SetupMenu,
 	VolkareLevelSelection=VolkareLevelSelection,
 	VolkareRaceSelection=VolkareRaceSelection,
+	apocalypseDragonCityModeSelection=apocalypseDragonCityModeSelection,
 	apocalypseDragonLevelSelection=apocalypseDragonLevelSelection,
 	baseValueTweak=baseValueTweak,
 	horsemanLevelSelection=horsemanLevelSelection,
@@ -45109,6 +45698,22 @@ function scenarioUsesApocalypseDragon()
 	return scenario=="Against the Dragon Blitz" or scenario=="Apocalypse is Here" or scenario=="Fury of the Apocalypse Dragon"
 end
 
+--The City-replacement variant uses the Dragon combat pieces without becoming a Dragon scenario.
+--Keep component/setup and combat-presence predicates separate from scenario identity so the variant
+--never inherits Against/Fury/Apocalypse-is-Here turn or end-game rules.
+function apocalypseDragonCityVariantEnabled()
+	return gStates~=nil and (tonumber(gStates.apocalypseDragonCityMode) or 0)>0
+end
+
+function apocalypseDragonComponentsNeeded()
+	return scenarioUsesApocalypseDragon()==true or apocalypseDragonCityVariantEnabled()==true
+end
+
+function apocalypseDragonCombatEnabled()
+	return gStates~=nil and gStates.apocalypseDragonLairRevealed==true and gStates.apocalypseDragonDefeated~=true and
+		(scenarioUsesApocalypseDragon()==true or gStates.apocalypseDragonCityPlaced==true)
+end
+
 function scenarioUsesHorsemen()
 	local scenario=gStates~=nil and gStates.gameScenario or nil
 	return scenario=="Against the Horsemen Blitz" or scenario=="Apocalypse is Here"
@@ -45784,10 +46389,14 @@ end
 -- Player permission helpers
 --checks the clicking player matches the current turn
 function legalPlayerCheck(clickingPlayersColor, playerPosExpected, rule)
+	--Grey is TTS spectator, not a Player[] seat. Reject it before touching the Player userdata,
+	--and never allow the dummy-turn exception below to turn a spectator click into a legal action.
+	if clickingPlayersColor=="Grey" then return false end
 	--converts player color in to a posiion value
 	local playerPosition=0
-	local clickingPlayer=type(clickingPlayersColor)=="string" and Player[clickingPlayersColor] or nil
-	if clickingPlayersColor~="Grey" and clickingPlayersColor~="Black" and clickingPlayer~=nil and clickingPlayer.seated==true then
+	local clickingPlayer=nil
+	if type(clickingPlayersColor)=="string" and clickingPlayersColor~="Black" then clickingPlayer=Player[clickingPlayersColor] end
+	if clickingPlayersColor~="Black" and clickingPlayer~=nil and clickingPlayer.seated==true then
 		local handTransform=clickingPlayer.getHandTransform()
 		if handTransform~=nil and handTransform.position~=nil then playerPosition=math.ceil((handTransform.position[1]+97.59)/40) end
 	end
@@ -45902,7 +46511,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="441"
+local automaticLuaErrorReporterVersion="442"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -47055,7 +47664,19 @@ scenarioList={
 }
 	--Major Table {Scenario, 2P Comp, 3P Comp, 4P Comp, Solo, 2P Coop, 3P Coop, 4P coop}
 
-tooltip={	["BlitzSelection"]={
+tooltip={	["ApocalypseDragonCityMode"]={
+				title="{en}The Apocalypse Dragon In Place Of A City{ru}Дракон Апокалипсиса вместо города{zh-tw}末日巨龍取代城市{zh-cn}末日巨龙取代城市{ko}도시 대신 아포칼립스 드래곤{es}El Dragón del Apocalipsis en lugar de una Ciudad{fr}Le Dragon de l’Apocalypse à la place d’une Cité{pt-br}O Dragão do Apocalipse no lugar de uma Cidade{de}Der Apokalypse-Drache statt einer Stadt",
+				height=230,
+				text="{en}Off: use normal Cities.\n\nFinal City: the final City tile revealed is replaced by the Apocalypse Dragon.\n\nRandom City: each City tile reveal rolls a mana die; Black replaces that City with the Dragon and no further rolls are made. The Dragon uses the level that City would have had. Megapolis is incompatible with this variant.{ru}Выкл.: используются обычные города.\n\nПоследний город: последний открытый городской тайл заменяется Драконом Апокалипсиса.\n\nСлучайный город: при открытии каждого городского тайла бросается кубик маны; чёрный результат заменяет этот город Драконом. Мегаполис несовместим с этим вариантом.{zh-tw}關閉：正常使用城市。\n\n最後城市：最後揭示的城市板塊改放末日巨龍。\n\n隨機城市：每次揭示城市板塊時擲一顆魔力骰；黑色結果以巨龍取代該城市，之後不再擲骰。此變體不能與大型城市同時使用。{zh-cn}关闭：正常使用城市。\n\n最后城市：最后揭示的城市板块改放末日巨龙。\n\n随机城市：每次揭示城市板块时掷一颗魔力骰；黑色结果以巨龙取代该城市，之后不再掷骰。此变体不能与大型城市同时使用。{ko}끔: 일반 도시를 사용합니다.\n\n마지막 도시: 마지막으로 공개되는 도시 타일을 아포칼립스 드래곤으로 대체합니다.\n\n무작위 도시: 도시 타일이 공개될 때마다 마나 주사위를 굴려 검정이면 그 도시를 드래곤으로 대체합니다. 메가폴리스와 함께 사용할 수 없습니다.{es}Desactivado: usa las Ciudades normales.\n\nÚltima Ciudad: la última loseta de Ciudad revelada se sustituye por el Dragón.\n\nCiudad Aleatoria: al revelar cada Ciudad se tira un dado de maná; con Negro, esa Ciudad se sustituye por el Dragón. Incompatible con Megapolis.{fr}Non : utilisez les Cités normalement.\n\nDernière Cité : la dernière tuile Cité révélée est remplacée par le Dragon.\n\nCité aléatoire : à chaque révélation d’une Cité, lancez un dé de mana ; sur Noir, cette Cité est remplacée par le Dragon. Incompatible avec Megapolis.{pt-br}Desligado: use as Cidades normalmente.\n\nÚltima Cidade: a última peça de Cidade revelada é substituída pelo Dragão.\n\nCidade Aleatória: a cada Cidade revelada, role um dado de mana; Preto substitui essa Cidade pelo Dragão. Incompatível com Megapolis.{de}Aus: normale Städte.\n\nLetzte Stadt: Das letzte aufgedeckte Stadtplättchen wird durch den Drachen ersetzt.\n\nZufällige Stadt: Bei jeder aufgedeckten Stadt wird ein Manawürfel geworfen; Schwarz ersetzt diese Stadt durch den Drachen. Nicht mit Megapolis kombinierbar."},
+			["randomizedDragonHeads"]={
+				title="{en}Apocalypse Dragon: Randomized Levels of Heads{ru}Дракон Апокалипсиса: случайные уровни голов{zh-tw}末日巨龍：隨機龍首等級{zh-cn}末日巨龙：随机龙首等级{ko}아포칼립스 드래곤: 무작위 머리 레벨{es}Dragón del Apocalipsis: niveles aleatorios de cabezas{fr}Dragon de l’Apocalypse : niveaux de têtes aléatoires{pt-br}Dragão do Apocalipse: níveis aleatórios das cabeças{de}Apokalypse-Drache: Zufällige Kopfstufen",
+				height=210,
+				text="{en}Each coloured head starts one level lower, then four mana dice are rolled. Black and Gold are rerolled. Blue raises Death, White raises Famine, Green raises Pestilence, and Red raises War. Control is set to the highest coloured-head level. The script shows the rolls automatically when the Dragon's starting level is established.{ru}Каждая цветная голова начинает на уровень ниже, затем бросаются четыре кубика маны. Чёрные и золотые результаты перебрасываются. Синий повышает Смерть, белый — Голод, зелёный — Чуму, красный — Войну. Контроль равен наивысшему уровню цветной головы.{zh-tw}每個彩色龍首先降低 1 級，再擲 4 顆魔力骰。黑色與金色重擲。藍色提升死亡、白色提升飢荒、綠色提升瘟疫、紅色提升戰爭；控制龍首等於最高彩色龍首等級。{zh-cn}每个彩色龙首先降低 1 级，再掷 4 颗魔力骰。黑色与金色重掷。蓝色提升死亡、白色提升饥荒、绿色提升瘟疫、红色提升战争；控制龙首等于最高彩色龙首等级。{ko}각 색 머리를 1레벨 낮춘 뒤 마나 주사위 4개를 굴립니다. 검정과 금색은 다시 굴립니다. 파랑=죽음, 흰색=기근, 초록=역병, 빨강=전쟁이며, 컨트롤은 가장 높은 색 머리 레벨과 같습니다.{es}Cada cabeza de color empieza un nivel más bajo y se tiran cuatro dados de maná. Negro y Dorado se repiten. Azul aumenta Muerte, Blanco Hambruna, Verde Pestilencia y Rojo Guerra. Control iguala el nivel más alto.{fr}Chaque tête colorée commence un niveau plus bas, puis quatre dés de mana sont lancés. Noir et Or sont relancés. Bleu augmente Mort, Blanc Famine, Vert Pestilence et Rouge Guerre. Contrôle prend le niveau le plus élevé.{pt-br}Cada cabeça colorida começa um nível abaixo e quatro dados de mana são rolados. Preto e Dourado são rolados novamente. Azul aumenta Morte, Branco Fome, Verde Peste e Vermelho Guerra. Controle fica no maior nível.{de}Jeder farbige Kopf beginnt eine Stufe niedriger, dann werden vier Manawürfel geworfen. Schwarz und Gold werden neu geworfen. Blau erhöht Tod, Weiß Hunger, Grün Pest und Rot Krieg. Kontrolle entspricht der höchsten farbigen Kopfstufe."},
+			["horsemenHorses"]={
+				title="{en}The Horsemen's Horses{ru}Лошади Всадников{zh-tw}騎士的戰馬{zh-cn}骑士的战马{ko}기수들의 말{es}Los Caballos de los Jinetes{fr}Les Chevaux des Cavaliers{pt-br}Os Cavalos dos Cavaleiros{de}Die Pferde der Reiter",
+				height=155,
+				text="{en}Each Horseman is accompanied by a brown enemy. The horse moves and fights with its Horseman. A defeated horse grants its normal Fame; a surviving horse is discarded without Fame when its Horseman is defeated.{ru}Каждого Всадника сопровождает коричневый враг. Лошадь движется и сражается вместе со своим Всадником. Побеждённая лошадь даёт обычную Славу; если Всадник побеждён, выжившая лошадь сбрасывается без Славы.{zh-tw}每名騎士都有一個棕色敵人作為戰馬。戰馬會與其騎士一起移動和戰鬥。擊敗戰馬可獲得其正常名望；若騎士被擊敗而戰馬存活，則棄掉戰馬且不獲得名望。{zh-cn}每名骑士都有一个棕色敌人作为战马。战马会与其骑士一起移动和战斗。击败战马可获得其正常名望；若骑士被击败而战马存活，则弃掉战马且不获得名望。{ko}각 기수는 갈색 적 하나를 말로 동반합니다. 말은 자신의 기수와 함께 이동하고 전투합니다. 말을 쓰러뜨리면 정상적인 명성을 얻습니다. 기수가 쓰러지고 말이 살아남으면 명성 없이 말을 버립니다.{es}Cada Jinete va acompañado de un enemigo marrón. El caballo se mueve y combate junto a su Jinete. Un caballo derrotado otorga su Fama normal; si el Jinete es derrotado y el caballo sobrevive, el caballo se descarta sin otorgar Fama.{fr}Chaque Cavalier est accompagné d’un ennemi marron. Le cheval se déplace et combat avec son Cavalier. Un cheval vaincu rapporte sa Renommée normale ; si le Cavalier est vaincu et que son cheval survit, le cheval est défaussé sans rapporter de Renommée.{pt-br}Cada Cavaleiro é acompanhado por um inimigo marrom. O cavalo se move e luta junto com seu Cavaleiro. Um cavalo derrotado concede sua Fama normal; se o Cavaleiro for derrotado e o cavalo sobreviver, o cavalo é descartado sem conceder Fama.{de}Jeder Reiter wird von einem braunen Feind als Pferd begleitet. Das Pferd bewegt sich und kämpft zusammen mit seinem Reiter. Ein besiegtes Pferd bringt seinen normalen Ruhm; wird der Reiter besiegt und das Pferd überlebt, wird das Pferd ohne Ruhm abgeworfen."},
+			["BlitzSelection"]={
 				title="{en}Blitz{ru}Сокращенный (Блиц){zh-tw}快速規則{zh-cn}快速规则{ko}기습 임무{es}Relámpago{fr}Eclair{pt-br}Relâmpago{de}Blitz",
 				height=315,
 				text="{en}Blitz will make a scenario shorter, but not nescersarily easier.<size=6>\n\n</size>The script changes the setup by:-\n-Adding 1 more Die to the Mana Pool.\n-Adding 1 more Unit to the Offer.\n-Starting players with 1 Fame.\n-Starting players at +1 reputation.\n-Using the blitz fame board.\n-Reducing the Round Count.\n-Changing the Terrain Tile amounts.<size=6>\n\n</size>If this option has turned red it means there was no values known for the amount of terain tiles and rounds needed. You will need to adjust them maually.{ru}Блиц сделает сценарий короче, но не обязательно проще.<size=6>\n\n</size>Скрипт внесет эти изменения:-\n-В источнике маны на один кубик больше.\n-Выложен на 1 доступный отряд больше.\n-Герои начинают игру с 1 очком славы.\n-Герои начинают на репутации +1 .\n-Используется доска славы для Блица.\n-Уменьшается количество раундов.\n-Изменяется количество плиток земель.<size=6>\n\n</size>Если эта опция красная, это означает, что не было известно кол-во плиток Земель и кол-во Раундов. Вам нужно будет настроить их вручную.{zh-tw}快速規則會縮短遊戲時長，\n但未必能降低難度。<size=6>\n\n</size>腳本會改變以下設置：\n•魔力源中額外增加 1 顆魔力骰子。\n•供應區額外增加 1 支部隊。\n•玩家一開始擁有 1 點名望。\n•玩家一開始聲譽在 +1。\n•使用快速規則提升名望。\n•減少輪次數量。\n•變更地圖板塊數量。<size=6>\n\n</size>如果此選項顯示為紅色，\n代表沒有預設的輪次與板塊減少數量。\n你需要自己手動調整。{zh-cn}快速规则会缩短游戏时长，\n但未必能降低难度。<size=6>\n\n</size>脚本会改变以下设置：\n•魔力源中额外增加 1 颗魔力骰子。\n•供应区额外增加 1 个部队。\n•玩家一开始拥有 1 点名望。\n•玩家一开始声誉在 +1。\n•使用快速规则提升名望。\n•减少轮次数量。\n•变更地图板块数量。<size=6>\n\n</size>如果此选项显示为红色，\n代表没有预设的轮次与板块减少数量。\n你需要自己手动调整。{ko}기습 임무는 더 짧은 시간의 시나리오를 제공합니다. <size=6>\n\n</size>다음의 변화가 있습니다:-\n-소스에 마나 주사위 1개 추가.\n-유닛 공급 1개 추가.\n-명성 1부터 시작.\n-평판 +1부터 시작.\n-기습 전용 명성보드.\n-라운드 수 감소.\n-지도 타일 수 감소.<size=6>\n\n</size>이 옵션이 빨간색이라면, 스크립트는 이 시나리오의 기습 모드를 제공하지 않습니다. 직접 세팅하세요.{es}Blitz hará que un escenario sea más corto, pero no necesariamente más fácil.<size=6>\n\n</size>El script cambia la configuración al: -\n-Agregar 1 dado más a la reserva de maná.\n-Agregar 1 unidad más a la oferta.\n-Comenzar jugadores con 1 fama.\n-Jugadores iniciales con +1 reputación.\n-Usando el tablero de fama blitz.\n-Reduciendo el conteo de rondas.\n-Cambiando la cantidad de mosaicos de terreno.<size=6>\n\n</size>Si esta opción se ha vuelto roja, significa que no hubo valores conocidos por la cantidad de baldosas y rondas necesarias. Deberá ajustarlos manualmente.{fr}Eclair rendra un scénario plus court, mais pas nécessairement plus facile.<size=6>\n\n</size>Le script modifie la configuration en:-\n-Ajouter 1 dé de plus à la réserve de mana.\n-Ajout d'une unité supplémentaire à l'offre.\n-Démarrage des joueurs avec 1 renommée.\n-Démarrage des joueurs avec +1 réputation.\n-Utilisation du tableau de renommée Eclair.\n-Réduction du nombre de tours.\n-Modification Montants des tuiles de terrain.<size=6>\n\n</size>Si cette option est devenue rouge, cela signifie qu'il n'y avait aucune valeur connue pour les tuiles de terain et les tours nécessaires. Vous devrez les ajuster manuellement{pt-br}Relâmpago fará o cenário mais curto, mas não necessáriamente mais fácil.<size=6>\n\n</size>O script mudará a preparação da seguinte forma:-\n-Adicionando 1 dado a mais na fonte de mana.\n- Ofertando 1 unidade a mais.\n- Jogadores começam com 1 Fama.\n- Jogadores começam com +1 Reputação.\n- Usando Tabuleiro de Fama Relâmpago.\n-Reduzindo o número de rodadas.\n- Mudando a quantidade de peças de mapa.<size=6>\n\n</size>Se esta opção ficar vermelha significa que não houveram valores conhecidos para a quantidade de peças de mapa e rodadas necessárias. Você terá que ajustar eles manualmente.{de}Blitz macht ein Szenario kürzer, aber nicht unbedingt einfacher.<size=6>\n\n</size>Das Skript ändert das Setup wie folgt:-\n-Hinzufügen von 1 weiteren Würfel zum Manavorrat.\n-Hinzufügen von 1 weiteren Einheit zum Angebot.\n-Starten Spieler mit 1 Ruhm.\n-Starten von Spielern mit +1 Ruf.\n-Verwenden der Blitz-Ruhmestafel.\n-Reduzieren der Rundenzahl.\n-Ändern der Anzahl der Geländeplättchen.<size=6>\n\n</size>Wenn diese Option rot geworden ist, bedeutet dies, dass es keine gab Bekannte Werte für die Anzahl der benötigten Geländeplättchen und Runden. Sie müssen sie manuell anpassen."},
@@ -47079,6 +47700,10 @@ tooltip={	["BlitzSelection"]={
 				title="{en}Remove 'Shades of Tezla' Monsters{ru}Убрать врагов из «Тени Тезлы»{zh-tw}移除「特茲拉之影」怪物{zh-cn}移除“特兹拉之影”怪物{ko}'테즐라의 그림자' 적 토큰 제거{es}Quitar Monstruos de 'Sombras de Tezla'{fr}Retirer les Monstres de 'Ombres de Tezla'{pt-br}Remover Monstros de 'Sombras de Tezla'{de}'Shades of Tezla'-Monster entfernen",
 				height=200,
 				text="{en}Shades of Tezla monsters and Reward Tokens are included by default. Select this option to remove the monsters from the normal enemy pools.<size=6>\n\n</size>If Custom Mage Knights need the Reward Tokens, those support piles are still deployed.<size=6>\n\n</size>Scenarios that require or forbid the monsters lock this option automatically.{ru}Враги и жетоны наград из «Теней Тезлы» включены по умолчанию. Выберите эту опцию, чтобы убрать врагов из обычных стопок.{zh-tw}「特茲拉之影」怪物與獎勵標記預設會加入遊戲。選擇此選項可將怪物從一般敵人池中移除。{zh-cn}“特兹拉之影”怪物与奖励标记默认会加入游戏。选择此选项可将怪物从一般敌人池中移除。{ko}'테즐라의 그림자' 적과 보상 토큰은 기본적으로 포함됩니다. 이 옵션을 선택하면 적 토큰을 일반 적 풀에서 제거합니다.{es}Los monstruos y fichas de recompensa de 'Sombras de Tezla' se incluyen por defecto. Selecciona esta opción para quitar los monstruos de las reservas normales.{fr}Les monstres et jetons de récompense de 'Ombres de Tezla' sont inclus par défaut. Sélectionnez cette option pour retirer les monstres des réserves normales.{pt-br}Os monstros e fichas de recompensa de 'Sombras de Tezla' são incluídos por padrão. Selecione esta opção para remover os monstros das pilhas normais.{de}Die Monster und Belohnungsmarker aus 'Shades of Tezla' sind standardmäßig enthalten. Wähle diese Option, um die Monster aus den normalen Feindstapeln zu entfernen."},
+			["removeFactionRewards"]={
+				title="{en}Remove Faction Rewards{ru}Убрать награды фракций{zh-tw}移除派系獎勵{zh-cn}移除派系奖励{ko}세력 보상 제거{es}Eliminar Recompensas de Facción{fr}Retirer les Récompenses de Faction{pt-br}Remover Recompensas de Facção{de}Fraktionsbelohnungen Entfernen",
+				height=145,
+				text="{en}Removes the Dark Crusader, Elementalist, Apocalypse Cult, and Council of the Void Faction Reward tokens.<size=6>\n\n</size>Whenever an enemy would award a Faction Reward, it awards +1 Fame instead.{ru}Убирает жетоны наград фракций Тёмных крестоносцев, Элементалистов, Культа Апокалипсиса и Совета Пустоты.<size=6>\n\n</size>Если враг должен дать награду фракции, вместо неё он даёт +1 Славу.{zh-tw}移除黑暗十字軍、元素使、末日教團與虛空議會的派系獎勵標記。<size=6>\n\n</size>當敵人原本會給予派系獎勵時，改為獲得 +1 名望。{zh-cn}移除黑暗十字军、元素使、末日教团与虚空议会的派系奖励标记。<size=6>\n\n</size>当敌人原本会给予派系奖励时，改为获得 +1 名望。{ko}다크 크루세이더, 엘리멘탈리스트, 아포칼립스 교단, 공허 의회의 세력 보상 토큰을 제거합니다.<size=6>\n\n</size>적이 세력 보상을 줄 때마다 대신 명성 +1을 얻습니다.{es}Elimina las fichas de Recompensa de Facción de Cruzados Oscuros, Elementalistas, Culto del Apocalipsis y Consejo de la Vacuidad.<size=6>\n\n</size>Cuando un enemigo otorgaría una Recompensa de Facción, otorga +1 Fama en su lugar.{fr}Retire les jetons de Récompense de Faction des Croisés Sombres, des Élémentalistes, du Culte de l’Apocalypse et du Conseil du Vide.<size=6>\n\n</size>Lorsqu’un ennemi devrait accorder une Récompense de Faction, il accorde +1 Renommée à la place.{pt-br}Remove as fichas de Recompensa de Facção dos Cruzados Sombrios, Elementalistas, Culto do Apocalipse e Conselho do Vácuo.<size=6>\n\n</size>Sempre que um inimigo concederia uma Recompensa de Facção, ele concede +1 de Fama em vez disso.{de}Entfernt die Fraktionsbelohnungsmarker der Dunklen Kreuzritter, Elementalisten, des Apokalypse-Kults und des Rats der Leere.<size=6>\n\n</size>Wenn ein Feind eine Fraktionsbelohnung geben würde, gibt er stattdessen +1 Ruhm."},
 			["removeApocalypseTerrain"]={
 				title="{en}Remove 'Apocalypse Dragon' Terrain{ru}Убрать ландшафт «Апокалиптический дракон»{zh-tw}移除「末日巨龍」地形{zh-cn}移除“末日巨龙”地形{ko}'아포칼립스 드래곤' 지형 제거{es}Quitar el terreno 'Dragón del Apocalipsis'{fr}Retirer le terrain 'Apocalypse Dragon'{pt-br}Remover o terreno 'Apocalypse Dragon'{de}'Apocalypse Dragon'-Gelände entfernen",
 				height=170,
