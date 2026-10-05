@@ -559,18 +559,34 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 	local resolveRoll
 	local function rollDice(indices)
 		if completed==true then return end
-		local rollGUIDs={}
-		for _,index in ipairs(indices) do
-			local guid=dice[index]
-			local die=guid~=nil and getObjectFromGUID(guid) or nil
-			if die==nil then return failRoll("a mana die disappeared before rolling.") end
-			die.unlock()
-			rollGUIDs[#rollGUIDs+1]=guid
+		local function diceReadyToThrow()
+			for _,index in ipairs(indices) do
+				local guid=dice[index]
+				local die=guid~=nil and getObjectFromGUID(guid) or nil
+				if die==nil or die.spawning==true or die.isSmoothMoving()==true or die.resting~=true then return false end
+			end
+			return true
 		end
-		rollPhysicalDice("Scenario",rollGUIDs,function()
-			resolveRoll(indices)
-		end,function()
-			failRoll("the physical mana-die roll could not settle.")
+		local function throwReadyDice()
+			if completed==true then return end
+			local rollGUIDs={}
+			for _,index in ipairs(indices) do
+				local guid=dice[index]
+				local die=guid~=nil and getObjectFromGUID(guid) or nil
+				if die==nil then return failRoll("a mana die disappeared before rolling.") end
+				die.unlock()
+				rollGUIDs[#rollGUIDs+1]=guid
+			end
+			rollPhysicalDice("Scenario",rollGUIDs,function()
+				resolveRoll(indices)
+			end,function()
+				failRoll("the physical mana-die roll could not settle.")
+			end)
+		end
+		--TTS can briefly report a fresh clone or a die just sent back to its reroll slot as resting.
+		--Do not let the shared roller see it until creation/smooth movement has genuinely finished.
+		safeWaitCondition("Scenario",throwReadyDice,diceReadyToThrow,10,function()
+			failRoll("timed out waiting for the mana dice to settle before rolling.")
 		end)
 	end
 
@@ -798,9 +814,36 @@ function setupApocalypseDragonHeads()
 			error("SetupGame timed out waiting for Apocalypse Dragon head reloads to settle.",2)
 		end)
 	end
+	local function dragonHeadRollAreaSettled()
+		for _,headData in ipairs(apocalypseDragon.heads) do
+			local head=getObjectFromGUID(headData.guid)
+			local token=getObjectFromGUID(headData.tokenGUID)
+			if head==nil or token==nil or
+				head.spawning==true or token.spawning==true or
+				head.isSmoothMoving()==true or token.isSmoothMoving()==true or
+				head.resting~=true or token.resting~=true then return false end
+		end
+		return true
+	end
+	local function startScenarioDragonLevels()
+		if gStates.randomizedDragonHeads==true then
+			--The head boards are much slower to finish loading than mana dice. Let the rest of setup
+			--continue, wait until this whole physical area is stable, then give TTS another two seconds
+			--before introducing the Random Heads dice into the middle of it.
+			safeWaitCondition("Scenario",function()
+				safeWaitTime("Scenario",function()
+					apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
+				end,2.0)
+			end,dragonHeadRollAreaSettled,10,function()
+				error("SetupGame timed out waiting for the Apocalypse Dragon roll area to settle.",2)
+			end)
+		else
+			apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
+		end
+	end
 	local function finishDragonHeadSetup()
 		if scenarioDragon==true then
-			apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
+			startScenarioDragonLevels()
 		else
 			--The City replacement's level is unknown until the chosen City tile is revealed.
 			--Blank the small tokens now without running defeat logic or creating level markers.
