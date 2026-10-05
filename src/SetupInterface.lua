@@ -288,12 +288,6 @@ local APOCALYPSE_DRAGON_CITY_SCENARIOS={
 	["Custom"]=true
 }
 
-local APOCALYPSE_DRAGON_CITY_MODE_TEXT={
-	[0]="{en}Off{ru}Выкл.{zh-tw}關閉{zh-cn}关闭{ko}끔{es}Desactivado{fr}Non{pt-br}Desligado{de}Aus",
-	[1]="{en}Final City{ru}Последний город{zh-tw}最後城市{zh-cn}最后城市{ko}마지막 도시{es}Última Ciudad{fr}Dernière Cité{pt-br}Última Cidade{de}Letzte Stadt",
-	[2]="{en}Random City{ru}Случайный город{zh-tw}隨機城市{zh-cn}随机城市{ko}무작위 도시{es}Ciudad Aleatoria{fr}Cité aléatoire{pt-br}Cidade Aleatória{de}Zufällige Stadt"
-}
-
 local function apocalypseDragonCityVariantScenarioEligible()
 	if gStates==nil or scenarioUsesApocalypseDragon()==true then return false end
 	local scenarioName=tostring(gStates.gameScenario or "")
