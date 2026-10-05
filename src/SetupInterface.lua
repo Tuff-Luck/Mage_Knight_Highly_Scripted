@@ -1185,6 +1185,17 @@ local function volkareCampAsCitySelectable()
 		gStates.gameScenario=="Against the Horsemen Blitz"
 end
 
+--Rows disappear only when an option fundamentally does not apply to this scenario.
+--Scenario-forced values and cross-option conflicts stay visible and use their normal locked/grey state.
+local function refreshSetupOptionApplicability()
+	local volkareCampApplicable=volkareCampAsCitySelectable()==true
+	local randomCitiesApplicable=scenarioAllowsRandomCities()==true
+	UI.setAttribute("VolkareCampAsCityRow","active",volkareCampApplicable and "true" or "false")
+	UI.setAttribute("RandomCitiesOptionRow","active",randomCitiesApplicable and "true" or "false")
+	--Apocalypse Dragon as a City has a more detailed applicability test (scenario + actual City setup)
+	--and is rendered by refreshApocalypseDragonVariantControls().
+end
+
 local function reconcileScenarioHardLocks()
 	local overrides=SCENARIO_OPTION_OVERRIDES[gStates.gameScenario]
 	if overrides==nil then return end
@@ -1451,6 +1462,7 @@ scenarioInfoUpdate=function()
 	end
 	--Volkare's Camp as City state was reconciled before rendering.
 	renderVolkareCampAsCityOption(setup)
+	refreshSetupOptionApplicability()
 	--Display the Scenario End rules
 	UI.setAttribute("ScenarioEnd", "text", details.scenarioEnd)
 	refreshScenarioTerrainTweakLocks()
@@ -1580,6 +1592,8 @@ local function restoreSetupUIFromState()
 		SETUP_TEXT.daylightComing or
 		SETUP_TEXT.darknessComing)
 	refreshProxySetupLabel()
+	refreshSetupOptionApplicability()
+	refreshApocalypseDragonVariantControls()
 end
 
 function restoreSetupUI()
@@ -1591,6 +1605,9 @@ function restoreSetupUI()
 	end
 	--Never reopen a dropdown just because it happened to be open when the game was saved.
 	UI.setAttribute("DropDown","active","false")
+	--Applicability is derived from the current scenario/setup, not from stale presentation state.
+	refreshSetupOptionApplicability()
+	refreshApocalypseDragonVariantControls()
 end
 
 --Section 3 has derived layout/content when Volkare occupies the dummy position.
