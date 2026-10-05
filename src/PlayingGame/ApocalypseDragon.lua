@@ -517,19 +517,18 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 	local bag=getObjectFromGUID(GUID.bag.spareDice)
 	if bag==nil then error("Random heads could not find the spare mana-die bag.",2) end
 	local dice={}
-	local sourceGUID=nil
 	local stackCounts={Famine=0,Death=0,Pestilence=0,War=0}
 	local completed=false
 
 	local function cleanupDice()
 		local spare=getObjectFromGUID(GUID.bag.spareDice)
-		for index,guid in ipairs(dice) do
+		for _,guid in ipairs(dice) do
 			local die=getObjectFromGUID(guid)
 			if die~=nil then
 				die.unlock()
-				--Only the original die came from the finite spare-dice bag. The other three are temporary
-				--clones, so return the source and destroy the copies after the presentation is finished.
-				if index==1 and guid==sourceGUID and spare~=nil then spare.putObject(die) else die.destruct() end
+				--All four dice are real objects taken from the finite spare-dice bag, so return all four
+				--after the presentation instead of mixing one bag die with three temporary clones.
+				if spare~=nil then spare.putObject(die) else die.destruct() end
 			end
 		end
 	end
@@ -672,29 +671,17 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 		end,10,function() failRoll("timed out moving a rolled die to its Dragon head.") end)
 	end
 
-	--Spawn the group at its true resting table height first. One real die is taken from the spare bag
-	--and three copies are cloned from it; rollPhysicalDice waits for all four to settle before randomize(),
-	--so the visible motion is the throw itself rather than four dice merely falling out of the air.
-	local source=safeTakeObject("Scenario",bag,{position=positions[1],rotation={0,45,0},smooth=false})
-	if source==nil then return failRoll("could not draw the source mana die.") end
-	source.unlock()
-	sourceGUID=source.guid
-	dice[1]=sourceGUID
-
-	safeWaitCondition("Scenario",function()
-		local liveSource=getObjectFromGUID(sourceGUID)
-		if liveSource==nil then return failRoll("the source mana die disappeared before cloning.") end
-		for index=2,4 do
-			local die=liveSource.clone({position=positions[index],rotation={0,45,0}})
-			if die==nil then return failRoll("could not create all four mana dice.") end
-			die.unlock()
-			dice[index]=die.guid
-		end
-		rollDice({1,2,3,4})
-	end,function()
-		local liveSource=getObjectFromGUID(sourceGUID)
-		return liveSource~=nil and liveSource.spawning~=true and liveSource.isSmoothMoving()==false and liveSource.resting==true
-	end,10,function() failRoll("timed out waiting for the source mana die to settle before cloning.") end)
+	--Take all four dice from the same bag in the same frame with identical spawn rules. This avoids
+	--one source die appearing first while three later clones materialise higher and fall onto the table.
+	for index=1,4 do
+		local die=safeTakeObject("Scenario",bag,{position=positions[index],rotation={0,45,0},smooth=false})
+		if die==nil then return failRoll("could not draw all four mana dice.") end
+		die.unlock()
+		dice[index]=die.guid
+	end
+	--rollDice owns the readiness gate: every die must finish spawning/moving and genuinely rest at
+	--y=1.47 before any randomize() impulse is allowed.
+	rollDice({1,2,3,4})
 end
 
 local function apocalypseDragonApplyStartingLevels(levels,onComplete)
@@ -827,10 +814,11 @@ function setupApocalypseDragonHeads()
 	end
 	local function startScenarioDragonLevels()
 		if gStates.randomizedDragonHeads==true then
-			--The head boards are much slower to finish loading than mana dice. Let the rest of setup
-			--continue, wait until this whole physical area is stable, then give TTS another two seconds
-			--before introducing the Random Heads dice into the middle of it.
+			--Map construction only needs the Dragon boards/tokens to physically exist and be stable; the
+			--random starting levels do not affect map generation. Release that setup dependency as soon as
+			--the roll area is settled, then let the dice presentation run asynchronously during later setup.
 			safeWaitCondition("Scenario",function()
+				markDragonHeadSetupReady()
 				safeWaitTime("Scenario",function()
 					apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
 				end,2.0)
