@@ -538,6 +538,13 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 	end
 
 	local readSettledResults
+	local function allDiceResting()
+		for _,guid in ipairs(dice) do
+			local die=getObjectFromGUID(guid)
+			if die==nil or die.spawning==true or die.isSmoothMoving()==true or die.resting~=true then return false end
+		end
+		return true
+	end
 	local function rollDice(indices)
 		local rollGUIDs={}
 		for _,index in ipairs(indices) do
@@ -547,7 +554,13 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 			end
 			rollGUIDs[#rollGUIDs+1]=guid
 		end
-		rollPhysicalDice("Scenario",rollGUIDs,readSettledResults,function()
+		rollPhysicalDice("Scenario",rollGUIDs,function()
+			--A rerolled Black/Gold die is allowed to collide naturally with the other dice. Do not
+			--lock those dice; simply wait for the complete group to stop before reading what is showing.
+			safeWaitCondition("Scenario",readSettledResults,allDiceResting,10,function()
+				failRoll("the full mana-die group could not settle after rolling.")
+			end)
+		end,function()
 			failRoll("the physical mana-die roll could not settle.")
 		end)
 	end
