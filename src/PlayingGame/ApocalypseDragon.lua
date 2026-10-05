@@ -518,6 +518,8 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 	if bag==nil then error("Random heads could not find the spare mana-die bag.",2) end
 	local dice={}
 	local sourceGUID=nil
+	local stackCounts={Famine=0,Death=0,Pestilence=0,War=0}
+	local completed=false
 
 	local function cleanupDice()
 		local spare=getObjectFromGUID(GUID.bag.spareDice)
@@ -525,81 +527,138 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 			local die=getObjectFromGUID(guid)
 			if die~=nil then
 				die.unlock()
-				--Only the original die came out of the spare-dice bag. The other three are temporary
-				--Quest-style clones, so destroy those rather than increasing the bag's contents.
+				--Only the original die came from the finite spare-dice bag. The other three are temporary
+				--clones, so return the source and destroy the copies after the presentation is finished.
 				if index==1 and guid==sourceGUID and spare~=nil then spare.putObject(die) else die.destruct() end
 			end
 		end
 	end
 
 	local function failRoll(message)
+		if completed==true then return end
+		completed=true
 		cleanupDice()
 		error("Random heads: "..message,2)
 	end
 
-	local readSettledResults
-	local function allDiceResting()
-		for _,guid in ipairs(dice) do
-			local die=getObjectFromGUID(guid)
-			if die==nil or die.spawning==true or die.isSmoothMoving()==true or die.resting~=true then return false end
-		end
-		return true
+	local function finishRoll()
+		if completed==true then return end
+		completed=true
+		cleanupDice()
+		if onComplete~=nil then onComplete(levels) end
 	end
+
+	local function headStackPosition(headName,stackIndex)
+		local headData=apocalypseDragonHeadData(headName)
+		if headData==nil or headData.position==nil then return nil end
+		--A mana die resting on the table sits at y=1.47. The head boards are at y=0.97, so the same
+		--0.50 centre-height puts the first die directly on the board; further results stack one die high.
+		return {headData.position[1],headData.position[2]+0.50+((stackIndex-1)*1.00),headData.position[3]}
+	end
+
+	local resolveRoll
 	local function rollDice(indices)
+		if completed==true then return end
 		local rollGUIDs={}
 		for _,index in ipairs(indices) do
 			local guid=dice[index]
-			if guid==nil or getObjectFromGUID(guid)==nil then
-				return failRoll("a mana die disappeared before rolling.")
-			end
+			local die=guid~=nil and getObjectFromGUID(guid) or nil
+			if die==nil then return failRoll("a mana die disappeared before rolling.") end
+			die.unlock()
 			rollGUIDs[#rollGUIDs+1]=guid
 		end
 		rollPhysicalDice("Scenario",rollGUIDs,function()
-			--A rerolled Black/Gold die is allowed to collide naturally with the other dice. Do not
-			--lock those dice; simply wait for the complete group to stop before reading what is showing.
-			safeWaitCondition("Scenario",readSettledResults,allDiceResting,10,function()
-				failRoll("the full mana-die group could not settle after rolling.")
-			end)
+			resolveRoll(indices)
 		end,function()
 			failRoll("the physical mana-die roll could not settle.")
 		end)
 	end
 
-	readSettledResults=function()
-		--Read the complete physical group after every throw. A Black/Gold reroll can bump another
-		--die, so the final levels always come from the faces actually showing on the table.
-		for _,headName in ipairs(apocalypseDragonColoredHeads) do levels[headName]=math.max(0,baseLevel-1) end
+	resolveRoll=function(indices)
+		if completed==true then return end
 		local reroll={}
-		for index,guid in ipairs(dice) do
-			local die=getObjectFromGUID(guid)
+		local newlyParked={}
+		for _,index in ipairs(indices) do
+			local die=getObjectFromGUID(dice[index])
 			if die==nil then return failRoll("a mana die disappeared before its result was read.") end
 			local color=string.lower(tostring(die.getRotationValue() or "")):match("^(%a+)")
 			local face=nil
 			for _,candidate in ipairs(apocalypseDragonVariantManaFaces) do
 				if string.lower(candidate.name)==color then face=candidate break end
 			end
-			if face~=nil and face.head~=nil then
-				levels[face.head]=math.min(12,levels[face.head]+1)
-			elseif face~=nil then
-				reroll[#reroll+1]=index
+			if face==nil then return failRoll("unrecognized settled mana colour "..tostring(color)..".") end
+
+			if face.head~=nil then
+				local headName=face.head
+				stackCounts[headName]=(stackCounts[headName] or 0)+1
+				levels[headName]=math.min(12,(levels[headName] or 0)+1)
+				local target=headStackPosition(headName,stackCounts[headName])
+				if target==nil then return failRoll("could not find the "..tostring(headName).." head position.") end
+				--Keep the rolled face showing while the result travels to its matching Dragon head.
+				die.setPositionSmooth(target,false,false)
+				newlyParked[#newlyParked+1]=index
 			else
-				return failRoll("unrecognized settled mana colour "..tostring(color)..".")
+				--Gold and Black have no head result. Slide them back to their original square slot;
+				--rollPhysicalDice waits for that move to settle before giving them another physical throw.
+				reroll[#reroll+1]=index
+				die.setPositionSmooth(positions[index],false,false)
 			end
 		end
-		if #reroll>0 then return rollDice(reroll) end
 
-		levels.Control=math.max(levels.Famine,levels.Death,levels.Pestilence,levels.War)
-		--Match the Quest crystal-reward presentation: leave the settled faces visible, then clean up
-		--the temporary dice and only then apply the result.
-		safeWaitTime("Scenario",function()
-			cleanupDice()
-			onComplete(levels)
-		end,1.25)
+		local function continueAfterParking()
+			if completed==true then return end
+			--Once a valid result has visibly arrived above its head, lock it there so later rerolls cannot
+			--knock the display stack around. Dice are never locked while they are being rolled.
+			for _,index in ipairs(newlyParked) do
+				local die=getObjectFromGUID(dice[index])
+				if die~=nil then die.lock() end
+			end
+
+			if #reroll>0 then
+				rollDice(reroll)
+				return
+			end
+
+			levels.Control=math.max(levels.Famine,levels.Death,levels.Pestilence,levels.War)
+			--All four results are now displayed over their matching heads. Hold that tableau for two
+			--seconds, then sink every die straight through its head before removing the temporary objects.
+			safeWaitTime("Scenario",function()
+				if completed==true then return end
+				for _,guid in ipairs(dice) do
+					local die=getObjectFromGUID(guid)
+					if die~=nil then
+						local pos=die.getPosition()
+						die.unlock()
+						die.setPositionSmooth({pos[1],-2.0,pos[3]},false,false)
+					end
+				end
+				safeWaitCondition("Scenario",finishRoll,function()
+					for _,guid in ipairs(dice) do
+						local die=getObjectFromGUID(guid)
+						if die~=nil and (die.isSmoothMoving()==true or die.getPosition()[2]>-1.5) then return false end
+					end
+					return true
+				end,5,finishRoll)
+			end,2.0)
+		end
+
+		if #newlyParked==0 then
+			continueAfterParking()
+			return
+		end
+
+		safeWaitCondition("Scenario",continueAfterParking,function()
+			for _,index in ipairs(newlyParked) do
+				local die=getObjectFromGUID(dice[index])
+				if die==nil or die.isSmoothMoving()==true then return false end
+			end
+			return true
+		end,10,function() failRoll("timed out moving a rolled die to its Dragon head.") end)
 	end
 
-	--Mirror the proven Quest crystal-reward setup instead of taking four independently spawning dice:
-	--take one real die, let it settle, clone the remaining three from that stable source, then roll the
-	--whole group together through rollPhysicalDice().
+	--Spawn the group at its true resting table height first. One real die is taken from the spare bag
+	--and three copies are cloned from it; rollPhysicalDice waits for all four to settle before randomize(),
+	--so the visible motion is the throw itself rather than four dice merely falling out of the air.
 	local source=safeTakeObject("Scenario",bag,{position=positions[1],rotation={0,180,0},smooth=false})
 	if source==nil then return failRoll("could not draw the source mana die.") end
 	source.unlock()
@@ -656,7 +715,7 @@ function apocalypseDragonInitializeHeadLevels(baseLevel,onComplete)
 	centerX,centerZ=centerX/#apocalypseDragonColoredHeads,centerZ/#apocalypseDragonColoredHeads
 	local positions={}
 	for index=1,4 do
-		positions[index]={centerX+(((index-1)%2)-0.5)*1.1,2.5,centerZ+(math.floor((index-1)/2)-0.5)*1.1}
+		positions[index]={centerX+(((index-1)%2)-0.5)*1.1,1.47,centerZ+(math.floor((index-1)/2)-0.5)*1.1}
 	end
 	apocalypseDragonRollStartingLevels(baseLevel,positions,function(levels)
 		apocalypseDragonApplyStartingLevels(levels,onComplete)
