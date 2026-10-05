@@ -533,9 +533,11 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 	end
 	local rollPending
 	local function readSettledResults()
+		--Re-read the whole unlocked group: a reroll can knock a previously valid die.
+		for _,headName in ipairs(apocalypseDragonColoredHeads) do levels[headName]=math.max(0,baseLevel-1) end
 		local reroll={}
-		for _,index in ipairs(pending) do
-			local die=getObjectFromGUID(dice[index])
+		for index,guid in ipairs(dice) do
+			local die=getObjectFromGUID(guid)
 			if die==nil then return failRoll("a mana die disappeared before its result was read.") end
 			local color=string.lower(tostring(die.getRotationValue() or "")):match("^(%a+)")
 			local face=nil
@@ -544,7 +546,6 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 			end
 			if face~=nil and face.head~=nil then
 				levels[face.head]=math.min(12,levels[face.head]+1)
-				die.lock()
 			elseif face~=nil then
 				reroll[#reroll+1]=index
 				die.setPositionSmooth(positions[index],false,false)
@@ -563,7 +564,16 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 		safeWaitCondition("Scenario",function()
 			local rollGUIDs={}
 			for _,index in ipairs(pending) do rollGUIDs[#rollGUIDs+1]=dice[index] end
-			rollPhysicalDice("Scenario",rollGUIDs,readSettledResults,function()
+			rollPhysicalDice("Scenario",rollGUIDs,function()
+				--Wait for every die, including valid dice disturbed by the latest throw.
+				safeWaitCondition("Scenario",readSettledResults,function()
+					for _,guid in ipairs(dice) do
+						local die=getObjectFromGUID(guid)
+						if die~=nil and (die.spawning==true or die.isSmoothMoving()==true or die.resting~=true) then return false end
+					end
+					return true
+				end,10,function() failRoll("the full mana-die group could not settle.") end)
+			end,function()
 				failRoll("the physical mana-die roll could not settle.")
 			end)
 		end,function()
