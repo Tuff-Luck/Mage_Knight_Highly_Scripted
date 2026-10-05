@@ -61,6 +61,10 @@ local SCENARIO_SELECTION_BY_ID={
 	CustomSelection="Custom"}
 
 local ROTF_SELECTION_LEVEL_BY_ID={ROTF0Selection=0,ROTF1Selection=1,ROTF2Selection=2,ROTF3Selection=3}
+local APOCALYPSE_DRAGON_CITY_MODE_BY_ID={
+	ApocalypseDragonCityOffSelection=0,
+	ApocalypseDragonCityFinalSelection=1,
+	ApocalypseDragonCityRandomSelection=2}
 
 local SETUP_DROPDOWN_CONTROL_BY_ID={
 	firstMKSelection={1,"MageDropDown",-275},
@@ -69,6 +73,7 @@ local SETUP_DROPDOWN_CONTROL_BY_ID={
 	fourthMKSelection={4,"MageDropDown",-275},
 	dummyMKSelection={5,"MageDropDown",-275},
 	ScenarioSelection={0,"ScenarioDropDown",90},
+	ApocalypseDragonCityMode={0,"DragonCityDropDown",245},
 	ROTFSelection={0,"ROTFDropDown",-115},
 	VolkareLevelSelection={0,"VolkareLevelDropDown",-305},
 	VolkareRaceSelection={0,"VolkareRaceDropDown",-335}}
@@ -126,6 +131,9 @@ local SETUP_DROPDOWN_ROWS={
 	ForTheCouncilRow={"For the Council","ForTheCouncilSelectionImage","ScenarioDropDown"},
 	TheFracturedLandsRow={"The Fractured Lands Blitz","TheFracturedLandsSelectionImage","ScenarioDropDown"},
 	CustomRow={"Custom","CustomSelectionImage","ScenarioDropDown"},
+	ApocalypseDragonCityOffRow={"Off","ApocalypseDragonCityOffSelectionImage","DragonCityDropDown"},
+	ApocalypseDragonCityFinalRow={"Final City","ApocalypseDragonCityFinalSelectionImage","DragonCityDropDown"},
+	ApocalypseDragonCityRandomRow={"Random City","ApocalypseDragonCityRandomSelectionImage","DragonCityDropDown"},
 	ROTF0Row={"Not Used","ROTF0SelectionImage","ROTFDropDown"},
 	ROTF1Row={"1. New Beginning","ROTF1SelectionImage","ROTFDropDown"},
 	ROTF2Row={"2. Spoils of War","ROTF2SelectionImage","ROTFDropDown"},
@@ -284,9 +292,9 @@ local APOCALYPSE_DRAGON_CITY_SCENARIOS={
 }
 
 local APOCALYPSE_DRAGON_CITY_MODE_TEXT={
-	[0]="{en}Apocalypse Dragon as City - Off{ru}Дракон вместо города — выкл.{zh-tw}末日巨龍取代城市－關閉{zh-cn}末日巨龙取代城市－关闭{ko}도시 대신 아포칼립스 드래곤 - 끔{es}Dragón como Ciudad - Desactivado{fr}Dragon à la place d'une Cité - Non{pt-br}Dragão no lugar de uma Cidade - Desligado{de}Drache statt Stadt - Aus",
-	[1]="{en}Apocalypse Dragon as City - Final City{ru}Дракон вместо города — последний город{zh-tw}末日巨龍取代城市－最後城市{zh-cn}末日巨龙取代城市－最后城市{ko}도시 대신 아포칼립스 드래곤 - 마지막 도시{es}Dragón como Ciudad - Última Ciudad{fr}Dragon à la place d'une Cité - Dernière Cité{pt-br}Dragão no lugar de uma Cidade - Última Cidade{de}Drache statt Stadt - Letzte Stadt",
-	[2]="{en}Apocalypse Dragon as City - Random City{ru}Дракон вместо города — случайный город{zh-tw}末日巨龍取代城市－隨機城市{zh-cn}末日巨龙取代城市－随机城市{ko}도시 대신 아포칼립스 드래곤 - 무작위 도시{es}Dragón como Ciudad - Ciudad Aleatoria{fr}Dragon à la place d'une Cité - Cité aléatoire{pt-br}Dragão no lugar de uma Cidade - Cidade Aleatória{de}Drache statt Stadt - Zufällige Stadt"
+	[0]="{en}Off{ru}Выкл.{zh-tw}關閉{zh-cn}关闭{ko}끔{es}Desactivado{fr}Non{pt-br}Desligado{de}Aus",
+	[1]="{en}Final City{ru}Последний город{zh-tw}最後城市{zh-cn}最后城市{ko}마지막 도시{es}Última Ciudad{fr}Dernière Cité{pt-br}Última Cidade{de}Letzte Stadt",
+	[2]="{en}Random City{ru}Случайный город{zh-tw}隨機城市{zh-cn}随机城市{ko}무작위 도시{es}Ciudad Aleatoria{fr}Cité aléatoire{pt-br}Cidade Aleatória{de}Zufällige Stadt"
 }
 
 local function apocalypseDragonCityVariantScenarioEligible()
@@ -328,7 +336,13 @@ end
 
 function apocalypseDragonCityModeSelection(player, mouseButton, id)
 	if mouseButton~="-1" or apocalypseDragonCityVariantSelectable()~=true then return end
-	gStates.apocalypseDragonCityMode=((tonumber(gStates.apocalypseDragonCityMode) or 0)+1)%3
+	local mode=APOCALYPSE_DRAGON_CITY_MODE_BY_ID[id]
+	if mode==nil then return end
+	UI.setAttribute(dropDownIdLink.."Text","text",APOCALYPSE_DRAGON_CITY_MODE_TEXT[mode])
+	UI.setAttribute(dropDownIdLink.."Image","image","Sliced Button/Button New Active")
+	UI.setAttribute("DropDown","active","false")
+	dropDownIdLink="none"
+	gStates.apocalypseDragonCityMode=mode
 	scenarioInfoUpdate()
 	ToolTipUpdate("ApocalypseDragonCityMode")
 end
@@ -829,7 +843,8 @@ function toggleDropDown(player, mouseButton, id)
 	--Scenario rows are 30 px high; use an exact whole-row height to avoid pixel gaps.
 	if control[2]=="ScenarioDropDown" then dropDownHeight=count*30 end
 	UI.setAttribute("DropDown", "height", tostring(dropDownHeight))
-	UI.setAttribute("DropDown", "width", control[2]=="ScenarioDropDown" and "220" or control[2]=="ROTFDropDown" and "150" or "120")
+	local setupOptionDropDown=control[2]=="ROTFDropDown" or control[2]=="DragonCityDropDown"
+	UI.setAttribute("DropDown", "width", control[2]=="ScenarioDropDown" and "220" or setupOptionDropDown and "150" or "120")
 	UI.setAttribute("DropDown", "offsetXY", "-100 "..tostring(control[3]))
 	UI.setAttribute("DropDown", "active", "true")
 end

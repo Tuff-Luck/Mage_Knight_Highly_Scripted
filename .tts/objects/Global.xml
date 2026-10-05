@@ -1671,9 +1671,14 @@ Einheiten</Text></Cell>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="BlitzSelection" class="Toggle18" onValueChanged="BlitzSelection">{en}Blitz{ru}Сокращенный (Блиц) сценарий{zh-tw}快速規則{zh-cn}快速规则{ko}기습{es}Relámpago{fr}Eclair{pt-br}Relâmpago{de}Blitz</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="volkareCampAsCity" class="Toggle18" onValueChanged="optionsUpdate">{en}Volkare's Camp as a Possible City{ru}Лагерь Волкара как возможный город{zh-tw}沃卡里軍營成為可使用城市{zh-cn}沃卡里军营成为可使用城市{ko}볼케어 진영을 도시 중 하나로 추가{es}El Campamento de Volkare Como una Posible Ciudad{fr}Le Camp de Volkare dans une Cité, Possible{pt-br}Campo do Volkare Como uma Possível Cidade{de}Volkares Lager als Mögliche Stadt</Toggle></VerticalLayout></Row>
 					<Row id="ApocalypseDragonCityModeRow" active="false" preferredHeight="30">
-						<Button id="ApocalypseDragonCityMode" onClick="apocalypseDragonCityModeSelection" width="380" height="30" onMouseDown="buttonClicked" onMouseUp="buttonClicked">
+						<cell rectAlignment="MiddleLeft" height="25" width="235" padding="6 6 1 1">
+							<Text id="ApocalypseDragonCityModeLabel" alignment="MiddleLeft" offsetXY="0 0" class="Text18">{en}Apocalypse Dragon as City -{ru}Дракон вместо города —{zh-tw}末日巨龍取代城市－{zh-cn}末日巨龙取代城市－{ko}도시 대신 아포칼립스 드래곤 -{es}Dragón como Ciudad -{fr}Dragon à la place d'une Cité -{pt-br}Dragão no lugar de uma Cidade -{de}Drache statt Stadt -</Text>
+						</cell>
+						<cell rectAlignment="MiddleRight" width="150" padding="6 6 1 1">
+						</cell>
+						<Button id="ApocalypseDragonCityMode" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="150" height="30" onMouseDown="" onMouseUp="">
 							<Image id="ApocalypseDragonCityModeImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text id="ApocalypseDragonCityModeText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Apocalypse Dragon as City - Off{ru}Дракон вместо города — выкл.{zh-tw}末日巨龍取代城市－關閉{zh-cn}末日巨龙取代城市－关闭{ko}도시 대신 아포칼립스 드래곤 - 끔{es}Dragón como Ciudad - Desactivado{fr}Dragon à la place d'une Cité - Non{pt-br}Dragão no lugar de uma Cidade - Desligado{de}Drache statt Stadt - Aus</Text>
+							<Text id="ApocalypseDragonCityModeText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Off{ru}Выкл.{zh-tw}關閉{zh-cn}关闭{ko}끔{es}Desactivado{fr}Non{pt-br}Desligado{de}Aus</Text>
 						</Button>
 					</Row>
 		            <Row><VerticalLayout padding="6 6 1 1"><Toggle id="mageKnightLevels" class="Toggle18" onValueChanged="optionsUpdate">{en}Start at a Higher Level{ru}Старт с высоким уровнем{zh-tw}從較高等級開始遊戲{zh-cn}从较高等级开始游戏{ko}높은 레벨로 시작하기{es}Comenzar en un Nivel Superior{fr}Débuter Avec un Meilleur Niveau{pt-br}Começar em um Nível Mais Alto{de}Auf Höherem Level Starten</Toggle></VerticalLayout></Row>
@@ -2630,6 +2635,24 @@ Einheiten</Text></Cell>
 				<Button id="ROTF3Selection" onClick="riseOfTheForgemasterOption">
 					<Image id="ROTF3SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ROTF3SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier</Text>
+				</Button>
+			</Row>
+			<Row id="ApocalypseDragonCityOffRow">
+				<Button id="ApocalypseDragonCityOffSelection" onClick="apocalypseDragonCityModeSelection">
+					<Image id="ApocalypseDragonCityOffSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ApocalypseDragonCityOffSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Off{ru}Выкл.{zh-tw}關閉{zh-cn}关闭{ko}끔{es}Desactivado{fr}Non{pt-br}Desligado{de}Aus</Text>
+				</Button>
+			</Row>
+			<Row id="ApocalypseDragonCityFinalRow">
+				<Button id="ApocalypseDragonCityFinalSelection" onClick="apocalypseDragonCityModeSelection">
+					<Image id="ApocalypseDragonCityFinalSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ApocalypseDragonCityFinalSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Final City{ru}Последний город{zh-tw}最後城市{zh-cn}最后城市{ko}마지막 도시{es}Última Ciudad{fr}Dernière Cité{pt-br}Última Cidade{de}Letzte Stadt</Text>
+				</Button>
+			</Row>
+			<Row id="ApocalypseDragonCityRandomRow">
+				<Button id="ApocalypseDragonCityRandomSelection" onClick="apocalypseDragonCityModeSelection">
+					<Image id="ApocalypseDragonCityRandomSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="ApocalypseDragonCityRandomSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Random City{ru}Случайный город{zh-tw}隨機城市{zh-cn}随机城市{ko}무작위 도시{es}Ciudad Aleatoria{fr}Cité aléatoire{pt-br}Cidade Aleatória{de}Zufällige Stadt</Text>
 				</Button>
 			</Row>
 		</TableLayout>
