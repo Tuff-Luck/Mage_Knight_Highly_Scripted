@@ -8,7 +8,7 @@ local apocalypseQuestGainReputation, apocalypseQuestBasicCrystalColor, apocalyps
 local apocalypseQuestEndMoveAttachmentCapture, apocalypseQuestPlannedCardPosition, apocalypseQuestPlannedWorldPosition, apocalypseQuestMoveAttachmentTarget, apocalypseQuestMoveAttachmentOwnerGUID
 local apocalypseQuestRegisterMoveAttachment, apocalypseQuestPlaceManaTokenOnCard, apocalypseQuestGiveCrystal, apocalypseQuestPlaceCrystalOnCard, apocalypseQuestFinalizeEnemyFacing
 local apocalypseQuestPlaceNamedEnemy, apocalypseQuestPlaceEnemy, apocalypseQuestPlaceFistfulEnemies, apocalypseQuestCardHasEnemyType, apocalypseQuestGiveTuckedCard
-local apocalypseQuestGiveProveYourselfReward, apocalypseQuestGiveQuestTokenToInventory, apocalypseQuestSetupDie, apocalypseQuestPhysicalDiceRoll, apocalypseQuestRollVisibleManaDie
+local apocalypseQuestGiveProveYourselfReward, apocalypseQuestGiveQuestTokenToInventory, apocalypseQuestSetupDie, apocalypseQuestRollVisibleManaDie
 local apocalypseQuestRollCrystalRewardDice, apocalypseQuestGoblinAttempt, apocalypseQuestGoblinAttemptReady, apocalypseQuestRegisterGoblin, apocalypseQuestStartGoblinWarrens
 local apocalypseQuestResolveRichMerchantRoll, apocalypseQuestResolveHerbalistReward, apocalypseQuestGiveHerbalistReward, apocalypseQuestGiveBardReward, apocalypseQuestFlipSiteToken
 local apocalypseQuestPlaceRandomCrystalOnShield, apocalypseQuestBeginCrystalChoice, apocalypseQuestRollManaDie, apocalypseQuestPlaceCrystalAt, apocalypseQuestCardCrystalColor
@@ -1005,51 +1005,6 @@ function apocalypseQuestManaDieColor(die)
 	return ({["Red Mana"]="Red",["Blue Mana"]="Blue",["Green Mana"]="Green",["White Mana"]="White",["Gold Mana"]="Gold",["Black Mana"]="Black"})[die.getRotationValue()]
 end
 
---Quest dice are cloned close to the card, allowed to physically settle, then randomized. Waiting for
---that first settle makes randomize() behave like a player's R press instead of being swallowed by the
---clone's initial fall. The result callback runs only after the actual throw has finished and all dice rest.
-apocalypseQuestPhysicalDiceRoll=function(dieGUIDs,onSettled,onFailure)
-	local guids=type(dieGUIDs)=="table" and dieGUIDs or {dieGUIDs}
-	local started=false
-	local finished=false
-	local function failRoll()
-		if finished==true then return end
-		finished=true
-		if onFailure~=nil then onFailure() end
-	end
-	local function allResting()
-		for _,guid in ipairs(guids) do
-			local die=getObjectFromGUID(guid)
-			if die==nil then return true end
-			if die.resting~=true then return false end
-		end
-		return true
-	end
-	local function throwDice()
-		if started==true or finished==true then return end
-		started=true
-		for _,guid in ipairs(guids) do
-			local die=getObjectFromGUID(guid)
-			if die==nil then failRoll() return end
-			die.unlock()
-			die.randomize()
-		end
-		--resting can remain true for the first frame of a randomize impulse. Give the R-style throw time
-		--to start before testing for the final resting state.
-		safeWaitFrames("Quests",function()
-			safeWaitCondition("Quests",function()
-				if finished==true then return end
-				finished=true
-				if onSettled~=nil then onSettled() end
-			end,allResting,10,failRoll)
-		end,3)
-	end
-	--A freshly cloned die may still be in its creation/fall physics. Roll from rest when possible; the
-	--timeout still throws it rather than ever leaving a Quest transaction stuck.
-	safeWaitFrames("Quests",function() safeWaitCondition("Quests",throwDice,allResting,1.5,throwDice) end,2)
-	return true
-end
-
 --Roll a real copy of the Quest setup mana die. This is shared by Quest effects that need the player
 --to see the die result rather than silently choosing one with math.random().
 apocalypseQuestRollVisibleManaDie=function(card,playerIndex,reason,callback,spawnPosition)
@@ -1102,7 +1057,7 @@ apocalypseQuestRollVisibleManaDie=function(card,playerIndex,reason,callback,spaw
 		clearRollDie()
 		if callback~=nil then callback(nil,getObjectFromGUID(cardGUID)) end
 	end
-	apocalypseQuestPhysicalDiceRoll(dieGUID,finishRoll,failRoll)
+	rollPhysicalDice("Quests",dieGUID,finishRoll,failRoll)
 	return true
 end
 
@@ -1175,7 +1130,7 @@ local function apocalypseQuestRunManaDiceRoll(dice,cardGUID,callback,onFailure)
 			if callback~=nil then callback(true,getObjectFromGUID(cardGUID),results) end
 		end,0.8)
 	end
-	apocalypseQuestPhysicalDiceRoll(dice,finishRoll,failRoll)
+	rollPhysicalDice("Quests",dice,finishRoll,failRoll)
 	return true
 end
 
@@ -1493,7 +1448,7 @@ apocalypseQuestGiveHerbalistReward=function(card, playerIndex, callback)
 			if callback~=nil then callback(success,liveCard,rolled) end
 		end,0.8)
 	end
-	apocalypseQuestPhysicalDiceRoll(dieGUID,finishRoll,failRoll)
+	rollPhysicalDice("Quests",dieGUID,finishRoll,failRoll)
 	return true
 end
 

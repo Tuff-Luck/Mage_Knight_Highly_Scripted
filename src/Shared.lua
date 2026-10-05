@@ -49,6 +49,50 @@ function safeWaitCondition(scope, callback, condition, timeout, timeoutCallback)
 	return Wait.condition(safeCallbackRun,condition,timeout,safeTimeout)
 end
 
+--Shared physical dice roller, extracted from the working Quest crystal-reward roll.
+--Let creation/fall physics settle before randomize(), then let the throw start before reading resting.
+function rollPhysicalDice(scope,dieGUIDs,onSettled,onFailure)
+	local guids=type(dieGUIDs)=="table" and dieGUIDs or {dieGUIDs}
+	local started=false
+	local finished=false
+	local function failRoll()
+		if finished==true then return end
+		finished=true
+		if onFailure~=nil then onFailure() end
+	end
+	local function allResting()
+		for _,guid in ipairs(guids) do
+			local die=getObjectFromGUID(guid)
+			if die==nil then return true end
+			if die.resting~=true then return false end
+		end
+		return true
+	end
+	local function throwDice()
+		if started==true or finished==true then return end
+		started=true
+		for _,guid in ipairs(guids) do
+			local die=getObjectFromGUID(guid)
+			if die==nil then failRoll() return end
+			die.unlock()
+			die.randomize()
+		end
+		--resting can remain true for the first frame of a randomize impulse. Give the R-style throw time
+		--to start before testing for the final resting state.
+		safeWaitFrames(scope,function()
+			safeWaitCondition(scope,function()
+				if finished==true then return end
+				finished=true
+				if onSettled~=nil then onSettled() end
+			end,allResting,10,failRoll)
+		end,3)
+	end
+	--A freshly cloned die may still be in its creation/fall physics. Roll from rest when possible; the
+	--timeout still throws it rather than ever leaving the roll stuck.
+	safeWaitFrames(scope,function() safeWaitCondition(scope,throwDice,allResting,1.5,throwDice) end,2)
+	return true
+end
+
 --Clear transient runtime state when an enemy token returns to a pool/container. This is shared by
 --scripted combat/city returns and manual corrections so a reused GUID cannot inherit old combat/map state.
 function clearReturnedMonsterRuntimeState(monsterGUID)

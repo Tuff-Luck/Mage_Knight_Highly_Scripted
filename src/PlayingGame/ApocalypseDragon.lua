@@ -561,19 +561,11 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 	end
 	rollPending=function()
 		safeWaitCondition("Scenario",function()
-			for _,index in ipairs(pending) do
-				local die=getObjectFromGUID(dice[index])
-				if die==nil then return failRoll("a mana die disappeared before rolling.") end
-				die.unlock()
-				die.randomize()
-			end
-			safeWaitCondition("Scenario",readSettledResults,function()
-				for _,index in ipairs(pending) do
-					local die=getObjectFromGUID(dice[index])
-					if die~=nil and (die.spawning==true or die.resting~=true) then return false end
-				end
-				return true
-			end,30,function() failRoll("timed out waiting for the rolled dice to settle.") end)
+			local rollGUIDs={}
+			for _,index in ipairs(pending) do rollGUIDs[#rollGUIDs+1]=dice[index] end
+			rollPhysicalDice("Scenario",rollGUIDs,readSettledResults,function()
+				failRoll("the physical mana-die roll could not settle.")
+			end)
 		end,function()
 			for _,index in ipairs(pending) do
 				local die=getObjectFromGUID(dice[index])
