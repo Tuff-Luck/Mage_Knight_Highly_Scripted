@@ -24,9 +24,9 @@ apocalypseDragon={	model="105141",
 					levelMarkerRadius=2.9,
 					heads={	{guid="a977d8",tokenGUID="198da8",name="Famine",position={-69.93,0.97,7.00}},
 							{guid="92fed8",tokenGUID="44f36b",name="Death",position={-69.93,0.97,16.00}},
-							{guid="c7e80f",tokenGUID="726090",name="Control",position={-60.93,0.97,7.00}},
+							{guid="c7e80f",tokenGUID="726090",name="Control",position={-51.93,0.97,7.00}},
 							{guid="819bba",tokenGUID="3c4daf",name="Pestilence",position={-60.93,0.97,16.00}},
-							{guid="51e2b1",tokenGUID="977f51",name="War",position={-51.93,0.97,7.00}}}}
+							{guid="51e2b1",tokenGUID="977f51",name="War",position={-60.93,0.97,7.00}}}}
 apocalypseDragonColoredHeads={"Famine","Death","Pestilence","War"}
 apocalypseDragonAirborneHeads={"War","Death","Famine","Pestilence"}
 

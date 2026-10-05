@@ -471,7 +471,7 @@ local apocalypseDragonVariantManaFaces={
 	[6]={name="Black",rotation={270,0,0}}
 }
 
-local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xStart)
+local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xStart,positions)
 	local bag=getObjectFromGUID(GUID.bag.spareDice)
 	if bag==nil then if onComplete~=nil then onComplete() end return false end
 	xStart=xStart or -9
@@ -480,7 +480,8 @@ local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xSt
 	for index,history in ipairs(histories or {}) do
 		maxSteps=math.max(maxSteps,#history)
 		local face=apocalypseDragonVariantManaFaces[history[1] or 1]
-		local die=bag.takeObject({position={xStart+((index-1)*3),2.5,-22.20},rotation=face.rotation,smooth=false})
+		local target=positions~=nil and positions[index] or {xStart+((index-1)*3),2.5,-22.20}
+		local die=bag.takeObject({position=target,rotation=face.rotation,smooth=false})
 		if die~=nil then
 			die.lock()
 			dice[index]=die.guid
@@ -494,7 +495,7 @@ local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xSt
 				local dieGUID=dice[index]
 				local die=dieGUID~=nil and getObjectFromGUID(dieGUID) or nil
 				local face=faceIndex~=nil and apocalypseDragonVariantManaFaces[faceIndex] or nil
-				if die~=nil and face~=nil then die.setRotationSmooth(face.rotation,false,true) end
+				if die~=nil and face~=nil then die.setRotationSmooth(face.rotation,false,false) end
 			end
 		end,(step-1)*0.65)
 	end
@@ -556,9 +557,21 @@ function apocalypseDragonInitializeHeadLevels(baseLevel,onComplete)
 		return true
 	end
 	local levels,histories=apocalypseDragonRandomizedStartingLevels(baseLevel)
+	--Keep the four dice in the central gap between the coloured head discs.
+	local centerX,centerZ=0,0
+	for _,headName in ipairs(apocalypseDragonColoredHeads) do
+		local headData=apocalypseDragonHeadData(headName)
+		centerX=centerX+headData.position[1]
+		centerZ=centerZ+headData.position[3]
+	end
+	centerX,centerZ=centerX/#apocalypseDragonColoredHeads,centerZ/#apocalypseDragonColoredHeads
+	local positions={}
+	for index=1,4 do
+		positions[index]={centerX+(((index-1)%2)-0.5)*0.9,2.5,centerZ+(math.floor((index-1)/2)-0.5)*0.9}
+	end
 	apocalypseDragonShowVariantRollHistories(histories,function()
 		apocalypseDragonApplyStartingLevels(levels,onComplete)
-	end)
+	end,nil,positions)
 	return true
 end
 
