@@ -1295,6 +1295,7 @@ function apocalypseDragonBeginGroundCombat(playerIndex)
 	if gStates.apocalypseDragonGroundCombat~=nil then return apocalypseDragonGroundCombatForPlayer(playerIndex) end
 	local details=turnOrder[playerIndex]
 	if details==nil or details.mage==gStates.positionMageKnight[5] then return false end
+	combatCameraHoldForRampagers(playerIndex)
 	if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
 		gStates.apocalypseDragonAssaultFortifiedInitiator=apocalypseDragonFuryAttackFortified()
 	else

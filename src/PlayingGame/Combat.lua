@@ -1745,6 +1745,11 @@ combatNearbyRampagerChoice=function(playerIndex)
 	return false
 end
 
+--Automatic Dragon assaults bypass attackLocation, but still allow nearby Rampagers to join.
+function combatCameraHoldForRampagers(playerIndex)
+	combatCameraChoiceSuppressedPlayer=combatNearbyRampagerChoice(playerIndex)==true and playerIndex or nil
+end
+
 --Count the attack choices that are actually being offered right now rather than duplicating all of
 --addAvatarButtons' legality rules. IDs are de-duplicated because an Avatar UI can be mirrored onto its
 --model/token/standee representation.
