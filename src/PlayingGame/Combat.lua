@@ -2802,12 +2802,12 @@ adjustOverkill=function(player, mouseButton, id)
 	end
 end
 
-pursuitStunnedImageURL="https://steamusercontent-a.akamaihd.net/ugc/9820771160644960489/29318B61F2A30E0E941F355C3664303B0C95BC60/"
+pursuitStunnedImageAsset="Pursuit Stunned"
 function setPursuitStunnedImage(monsterObj, stunned)
 	if monsterObj==nil then return end
 	local xml=monsterObj.UI.getXmlTable() or {}
 	for a=#xml, 1, -1 do if xml[a].attributes~=nil and xml[a].attributes.id=="Pursuit Stunned" then table.remove(xml, a) end end
-	if stunned==true then xml[#xml+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageURL}} end
+	if stunned==true then xml[#xml+1]={tag="Image", attributes={id="Pursuit Stunned", height=110, width=110, position="0 0 -15", rotation="0 0 180", image=pursuitStunnedImageAsset}} end
 	if #xml==0 then xml={{}} end
 	monsterObj.UI.setXmlTable(xml)
 end

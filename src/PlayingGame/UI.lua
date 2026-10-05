@@ -10,7 +10,7 @@ local legacyObjectButtonImage, buildMageKnightFastLookups, mageKnightAvatarObjec
 
 -- Gameplay presentation, cached interface state and camera/object UI helpers.
 
-local volkarePursuitButtonImageURL="https://steamusercontent-a.akamaihd.net/ugc/13293042467654760772/E72DCC400EC451ABB80DC722F3657A631FC30C70/"
+local volkarePursuitButtonImageAsset="Volkare Pursuit Button"
 
 --Repair the saved home locations for live skill tokens. This is skill bookkeeping, not UI bookkeeping,
 --so only run it when skill state is being initialized/refreshed rather than on every main UI update.
@@ -1772,7 +1772,7 @@ function addAvatarButtons()
 							avatarButton[1].children[#avatarButton[1].children+1]={tag="Button",attributes={id="Horse|"..horseOption.key.."|"..details.mage,
 								onClick="global/horsemanAttackAction",height=70/scale,width=70/scale,
 								position="0 "..tostring(specialActionY/scale).." "..tostring(-25/scale),rotation="0 0 180",color="rgba(0,0,0,0.0)"},
-								children={{tag="Image",attributes={image="https://steamusercontent-a.akamaihd.net/ugc/12647478740119221952/A4E3602A20A7A1C0FA03DA5C0FBEDF8910DE1E7D/"}}}}
+								children={{tag="Image",attributes={image="Horseman Attack Button"}}}}
 							combatAttackOptionCounts[order]=combatAttackOptionCounts[order]+1
 							combatAttackHorsemanOptionCounts[order]=combatAttackHorsemanOptionCounts[order]+1
 							specialActionY=specialActionY+70
@@ -1811,7 +1811,7 @@ function addAvatarButtons()
 						else
 							avatarButton[1].children[#avatarButton[1].children+1]={tag="Button",attributes={id="VPursuitOpen|"..details.mage,onClick="global/volkarePursuitAction",
 								height=70/scale,width=70/scale,position="0 "..tostring(specialActionY/scale).." "..tostring(-25/scale),rotation="0 0 180",color="rgba(0,0,0,0.0)"},
-								children={{tag="Image",attributes={image=volkarePursuitButtonImageURL}}}}
+								children={{tag="Image",attributes={image=volkarePursuitButtonImageAsset}}}}
 						end
 						specialActionY=specialActionY+70
 					end
