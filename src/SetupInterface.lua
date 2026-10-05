@@ -302,8 +302,28 @@ local function apocalypseDragonCityVariantSelectable()
 	return apocalypseDragonCityVariantScenarioEligible()==true and (gStates.megapolis or 0)==0
 end
 
+local SCENARIO_VARIANT_BUTTON_TEXT={
+	RandomizedDragonHeadsButton={
+		on="{en}Random Heads - On{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
+		off="{en}Random Heads - Off{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"},
+	HorsemenHorsesButton={
+		on="{en}With Horse - On{ru}С лошадью - Вкл.{zh-tw}帶戰馬 - 開{zh-cn}带战马 - 开{ko}말 포함 - 켜짐{es}Con caballo - Sí{fr}Avec cheval - Oui{pt-br}Com cavalo - Ligado{de}Mit Pferd - An",
+		off="{en}With Horse - Off{ru}С лошадью - Выкл.{zh-tw}帶戰馬 - 關{zh-cn}带战马 - 关{ko}말 포함 - 꺼짐{es}Con caballo - No{fr}Avec cheval - Non{pt-br}Com cavalo - Desligado{de}Mit Pferd - Aus"},
+	ApocalypseDragonCityRandomButton={
+		on="{en}Random City - On{ru}Случайный город - Вкл.{zh-tw}隨機城市 - 開{zh-cn}随机城市 - 开{ko}무작위 도시 - 켜짐{es}Ciudad Aleatoria - Sí{fr}Cité aléatoire - Oui{pt-br}Cidade Aleatória - Ligado{de}Zufällige Stadt - An",
+		off="{en}Random City - Off{ru}Случайный город - Выкл.{zh-tw}隨機城市 - 關{zh-cn}随机城市 - 关{ko}무작위 도시 - 꺼짐{es}Ciudad Aleatoria - No{fr}Cité aléatoire - Non{pt-br}Cidade Aleatória - Desligado{de}Zufällige Stadt - Aus"},
+	ApocalypseDragonCityLastButton={
+		on="{en}Last City - On{ru}Последний город - Вкл.{zh-tw}最後城市 - 開{zh-cn}最后城市 - 开{ko}마지막 도시 - 켜짐{es}Última Ciudad - Sí{fr}Dernière Cité - Oui{pt-br}Última Cidade - Ligado{de}Letzte Stadt - An",
+		off="{en}Last City - Off{ru}Последний город - Выкл.{zh-tw}最後城市 - 關{zh-cn}最后城市 - 关{ko}마지막 도시 - 꺼짐{es}Última Ciudad - No{fr}Dernière Cité - Non{pt-br}Última Cidade - Desligado{de}Letzte Stadt - Aus"},
+	ApocalypseDragonCityRandomHeadsButton={
+		on="{en}Random Heads - On{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
+		off="{en}Random Heads - Off{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"}
+}
+
 local function setScenarioVariantButtonState(id,selected)
 	UI.setAttribute(id.."Image","image",selected and "Sliced Button/Button New Deactive" or "Sliced Button/Button New Active")
+	local text=SCENARIO_VARIANT_BUTTON_TEXT[id]
+	if text~=nil then UI.setAttribute(id.."Text","text",selected and text.on or text.off) end
 end
 
 local function refreshApocalypseDragonVariantControls()
@@ -1472,6 +1492,11 @@ local setupUISaveAttributes={
 	{id="volkareCampAsCity",attribute="interactable"},{id="volkareCampAsCity",attribute="isOn"},
 	{id="ApocalypseDragonCityVariantRow",attribute="active"},{id="apocalypseDragonCityVariant",attribute="interactable"},
 	{id="apocalypseDragonCityVariant",attribute="isOn"},
+	{id="RandomizedDragonHeadsButtonText",attribute="text"},{id="RandomizedDragonHeadsButtonImage",attribute="image"},
+	{id="HorsemenHorsesButtonText",attribute="text"},{id="HorsemenHorsesButtonImage",attribute="image"},
+	{id="ApocalypseDragonCityRandomButtonText",attribute="text"},{id="ApocalypseDragonCityRandomButtonImage",attribute="image"},
+	{id="ApocalypseDragonCityLastButtonText",attribute="text"},{id="ApocalypseDragonCityLastButtonImage",attribute="image"},
+	{id="ApocalypseDragonCityRandomHeadsButtonText",attribute="text"},{id="ApocalypseDragonCityRandomHeadsButtonImage",attribute="image"},
 	{id="randomTileOrientation",attribute="interactable"},{id="randomTileOrientation",attribute="isOn"},
 	{id="randomCities",attribute="interactable"},{id="randomCities",attribute="isOn"},
 	{id="removeShadesOfTezlaMonsters",attribute="interactable"},{id="removeShadesOfTezlaMonsters",attribute="isOn"},
