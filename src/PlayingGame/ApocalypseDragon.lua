@@ -553,7 +553,7 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 		if headData==nil or headData.position==nil then return nil end
 		--A mana die resting on the table sits at y=1.47. The head boards are at y=0.97, so the same
 		--0.50 centre-height puts the first die directly on the board; further results stack one die high.
-		return {headData.position[1],headData.position[2]+0.50+((stackIndex-1)*1.00),headData.position[3]}
+		return {headData.position[1],headData.position[2]+0.50+((stackIndex-1)*1.50),headData.position[3]}
 	end
 
 	local resolveRoll
@@ -659,7 +659,7 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 	--Spawn the group at its true resting table height first. One real die is taken from the spare bag
 	--and three copies are cloned from it; rollPhysicalDice waits for all four to settle before randomize(),
 	--so the visible motion is the throw itself rather than four dice merely falling out of the air.
-	local source=safeTakeObject("Scenario",bag,{position=positions[1],rotation={0,180,0},smooth=false})
+	local source=safeTakeObject("Scenario",bag,{position=positions[1],rotation={0,45,0},smooth=false})
 	if source==nil then return failRoll("could not draw the source mana die.") end
 	source.unlock()
 	sourceGUID=source.guid
@@ -669,7 +669,7 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 		local liveSource=getObjectFromGUID(sourceGUID)
 		if liveSource==nil then return failRoll("the source mana die disappeared before cloning.") end
 		for index=2,4 do
-			local die=liveSource.clone({position=positions[index]})
+			local die=liveSource.clone({position=positions[index],rotation={0,45,0}})
 			if die==nil then return failRoll("could not create all four mana dice.") end
 			die.unlock()
 			dice[index]=die.guid
@@ -713,10 +713,14 @@ function apocalypseDragonInitializeHeadLevels(baseLevel,onComplete)
 		centerZ=centerZ+headData.position[3]
 	end
 	centerX,centerZ=centerX/#apocalypseDragonColoredHeads,centerZ/#apocalypseDragonColoredHeads
-	local positions={}
-	for index=1,4 do
-		positions[index]={centerX+(((index-1)%2)-0.5)*1.1,1.47,centerZ+(math.floor((index-1)/2)-0.5)*1.1}
-	end
+	--A true centred diamond around the four coloured head boards. Their average centre is
+	--{-65.43,11.50}; a 1.5-unit radius keeps all four dice evenly spaced around that point.
+	local positions={
+		{centerX+1.50,1.47,centerZ},
+		{centerX,1.47,centerZ+1.50},
+		{centerX,1.47,centerZ-1.50},
+		{centerX-1.50,1.47,centerZ}
+	}
 	apocalypseDragonRollStartingLevels(baseLevel,positions,function(levels)
 		apocalypseDragonApplyStartingLevels(levels,onComplete)
 	end)
