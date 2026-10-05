@@ -137,6 +137,16 @@ function mapTokenIsMovingPriority(obj)
 	return false
 end
 
+--Keep a linked Horse immediately below the Horseman class instead of down with ordinary enemies.
+--This prevents another moving enemy (for example a pursuing Rampager) from separating the pair.
+local function mapTokenEnemySeparationRank(obj)
+	if obj==nil or obj.guid==nil then return 0 end
+	if horsemanTokenToName~=nil and horsemanTokenToName[obj.guid]~=nil then return 3 end
+	if horsemanHorseOwner~=nil and horsemanHorseOwner(obj.guid)~=nil then return 2 end
+	if mapTokenIsMovingPriority(obj)==true then return 1 end
+	return 0
+end
+
 --New arrivals need deterministic ordering when several tokens settle together, but that ordering is
 --derived table state and does not belong in gStates. Existing tokens after a load fall back to their
 --physical diagonal/Y order; a new arrival gets a fresh runtime sequence and is newer than either.
@@ -206,8 +216,8 @@ end
 
 --Arrange one resolved map hex. Graveyard is a centred floor/support token and never consumes a
 --horizontal spread slot. Destroyed, when present, is the first spread token above that support.
---Ordinary enemies follow in arrival order. Horsemen, the single-hex Dragon and pursuing enemies
---form the moving group at the top-right end, also in arrival order.
+--Ordinary enemies follow in arrival order. Other moving enemies come next, linked Horses sit just
+--below the Horseman class, and Horsemen remain at the top-right end.
 function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,candidates)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
@@ -244,11 +254,11 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,candidates)
 	end
 	table.sort(questMarkers,function(a,b) return tostring(a.guid)<tostring(b.guid) end)
 	table.sort(enemies,function(a,b)
-		local aMoving=mapTokenIsMovingPriority(a)
-		local bMoving=mapTokenIsMovingPriority(b)
-		--Ordinary/site enemies always precede the moving group, regardless of which one physically
-		--arrived later. This keeps a pre-deployed Horseman above a site token revealed afterward.
-		if aMoving~=bMoving then return aMoving~=true end
+		local aRank=mapTokenEnemySeparationRank(a)
+		local bRank=mapTokenEnemySeparationRank(b)
+		--Ordinary/site enemies stay lowest, then other moving enemies, linked Horses, and finally
+		--Horsemen. This keeps each Horseman/Horse pair visually together when Rampagers share the hex.
+		if aRank~=bRank then return aRank<bRank end
 
 		local aOrder=mapTokenArrivalOrder(a.guid)
 		local bOrder=mapTokenArrivalOrder(b.guid)
