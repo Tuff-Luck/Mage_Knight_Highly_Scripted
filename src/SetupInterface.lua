@@ -73,7 +73,7 @@ local SETUP_DROPDOWN_CONTROL_BY_ID={
 	fourthMKSelection={4,"MageDropDown",-275},
 	dummyMKSelection={5,"MageDropDown",-275},
 	ScenarioSelection={0,"ScenarioDropDown",90},
-	ApocalypseDragonCityMode={0,"DragonCityDropDown",245},
+	ApocalypseDragonCityMode={0,"DragonCityDropDown",-115},
 	ROTFSelection={0,"ROTFDropDown",-115},
 	VolkareLevelSelection={0,"VolkareLevelDropDown",-305},
 	VolkareRaceSelection={0,"VolkareRaceDropDown",-335}}
@@ -352,8 +352,7 @@ local function refreshScenarioEnemyLevelTweaks()
 	refreshApocalypseDragonVariantControls()
 	local showDragon=scenarioUsesApocalypseDragon()
 	local showHorsemen=scenarioUsesHorsemen()
-	local showAny=showDragon or showHorsemen
-	UI.setAttribute("ScenarioEnemyLevelsRow","active",showAny and "true" or "false")
+	local enemyLevelRows=(showDragon and 1 or 0)+(showHorsemen and 1 or 0)
 	UI.setAttribute("ApocalypseDragonLevelCell","active",showDragon and "true" or "false")
 	UI.setAttribute("HorsemenLevelCell","active",showHorsemen and "true" or "false")
 	UI.setAttribute("HorsemenHorsesRow","active",showHorsemen and "true" or "false")
@@ -369,12 +368,10 @@ local function refreshScenarioEnemyLevelTweaks()
 		local level=type(horsemanStartingLevel)=="function" and horsemanStartingLevel() or 1
 		UI.setAttribute("HorsemenLevelSelectionText","text",joinLang({"{en}Horsemen, Level {ru}Всадники, ур. {zh-tw}騎士，等級 {zh-cn}骑士，等级 {ko}기수, 레벨 {es}Jinetes, Nivel {fr}Cavaliers, Niveau {pt-br}Cavaleiros, Nível {de}Reiter, Level ",tostring(level or 1)}))
 	end
-	UI.setAttribute("ScenarioEnemyLevelsChange","columnWidths",showDragon and showHorsemen and "0 0" or "0")
-	UI.setAttribute("ScenarioSummaryPanel","height",showAny and "448" or "478")
-	UI.setAttribute("ScenarioTweaksPanel","height",showAny and "240" or "210")
-	UI.setAttribute("ScenarioTweaksTable","preferredHeight",showAny and "238" or "208")
+	UI.setAttribute("ScenarioSummaryPanel","height",tostring(478-(enemyLevelRows*30)))
+	UI.setAttribute("ScenarioTweaksPanel","height",tostring(210+(enemyLevelRows*30)))
+	UI.setAttribute("ScenarioTweaksTable","preferredHeight",tostring(208+(enemyLevelRows*30)))
 end
-
 local function renderDummySetupSection()
 	local volkareOn=gStates.positionMageKnight~=nil and gStates.positionMageKnight[5]=="Volkare"
 	UI.setAttribute("VolkareLevelSelectionRow","active",volkareOn and "true" or "false")
