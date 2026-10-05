@@ -1680,17 +1680,7 @@ Einheiten</Text></Cell>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="removeTerrain" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Remove Easier Terrain Tiles 1 and 2{ru}Убрать плитки простых земель 1 и 2{zh-tw}移除簡易地形板塊 1 和 2{zh-cn}移除简易地形块板 1 和 2{ko}쉬운 지형 타일 1, 2 제거{es}Eliminar las Baldosas de Terreno más Fáciles 1 y 2{fr}Supprimer les Tuiles 1 et 2 du Terrain le Plus Facile{pt-br}Remover os Blocos de Terreno Mais Fáceis 1 e 2{de}Einfachere Geländekacheln 1 und 2 Entfernen</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="useAlternatePugs" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Use Alternate Monster Tokens{ru}&lt;size=15&gt;Использовать альтернативные жетоны врагов&lt;/size&gt;{zh-tw}使用另一種怪物標記{zh-cn}使用另一種怪物標記{ko}몬스터 토큰 대체{es}Usar Fichas de Monstruo Alternativas{fr}Utiliser des Jetons de Monstres Alternatifs{pt-br}Use Fichas de Monstro Alternativas{de}Alternative Monstermarken Verwenden</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="volkareCampAsCity" class="Toggle18" onValueChanged="optionsUpdate">{en}Volkare's Camp as a Possible City{ru}Лагерь Волкара как возможный город{zh-tw}沃卡里軍營成為可使用城市{zh-cn}沃卡里军营成为可使用城市{ko}볼케어 진영을 도시 중 하나로 추가{es}El Campamento de Volkare Como una Posible Ciudad{fr}Le Camp de Volkare dans une Cité, Possible{pt-br}Campo do Volkare Como uma Possível Cidade{de}Volkares Lager als Mögliche Stadt</Toggle></VerticalLayout></Row>
-					<Row id="ApocalypseDragonCityModeRow" active="false" preferredHeight="30">
-						<cell rectAlignment="MiddleLeft" height="25" width="235" padding="6 6 1 1">
-							<Text id="ApocalypseDragonCityModeLabel" alignment="MiddleLeft" offsetXY="0 0" class="Text18">{en}Apocalypse Dragon as City -{ru}Дракон вместо города —{zh-tw}末日巨龍取代城市－{zh-cn}末日巨龙取代城市－{ko}도시 대신 아포칼립스 드래곤 -{es}Dragón como Ciudad -{fr}Dragon à la place d'une Cité -{pt-br}Dragão no lugar de uma Cidade -{de}Drache statt Stadt -</Text>
-						</cell>
-						<cell rectAlignment="MiddleRight" width="150" padding="6 6 1 1">
-						</cell>
-						<Button id="ApocalypseDragonCityMode" onClick="toggleDropDown" offsetXY="0 0" rectAlignment="MiddleRight" width="150" height="30" onMouseDown="" onMouseUp="">
-							<Image id="ApocalypseDragonCityModeImage" image="Sliced Button/Button New Active" type="Sliced"/>
-							<Text id="ApocalypseDragonCityModeText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Off{ru}Выкл.{zh-tw}關閉{zh-cn}关闭{ko}끔{es}Desactivado{fr}Non{pt-br}Desligado{de}Aus</Text>
-						</Button>
-					</Row>
+					<Row id="ApocalypseDragonCityVariantRow" active="false"><VerticalLayout padding="6 6 1 1"><Toggle id="apocalypseDragonCityVariant" class="Toggle18" onValueChanged="apocalypseDragonCityVariantSelection">{en}Apocalypse Dragon as a City{ru}Дракон Апокалипсиса вместо города{zh-tw}末日巨龍取代城市{zh-cn}末日巨龙取代城市{ko}도시 대신 아포칼립스 드래곤{es}Dragón del Apocalipsis como Ciudad{fr}Dragon de l’Apocalypse à la place d’une Cité{pt-br}Dragão do Apocalipse no lugar de uma Cidade{de}Apokalypse-Drache statt Stadt</Toggle></VerticalLayout></Row>
 				</VerticalLayout>
 			</Panel>
 		</Panel>
@@ -1738,7 +1728,6 @@ Einheiten</Text></Cell>
 					</Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="darknessComing" class="Toggle18" onValueChanged="optionsUpdate">{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="apocalypseQuestCards" class="Toggle18" onValueChanged="optionsUpdate">{en}Apocalypse Dragon Quest Cards{ru}Карты заданий Дракона Апокалипсиса{zh-tw}末日巨龍任務卡{zh-cn}末日巨龙任务卡{ko}아포칼립스 드래곤 퀘스트 카드{es}Cartas de misión del Dragón del Apocalipsis{fr}Cartes de quête du Dragon de l’Apocalypse{pt-br}Cartas de Missão do Dragão do Apocalipse{de}Questkarten des Apokalypse-Drachen</Toggle></VerticalLayout></Row>
-					<Row id="RandomizedDragonHeadsRow" active="false"><VerticalLayout padding="6 6 1 1"><Toggle id="randomizedDragonHeads" class="Toggle18" onValueChanged="optionsUpdate">{en}Randomized Apocalypse Dragon Heads{ru}Случайные уровни голов Дракона{zh-tw}隨機末日巨龍龍首等級{zh-cn}随机末日巨龙龙首等级{ko}아포칼립스 드래곤 머리 레벨 무작위{es}Niveles aleatorios de cabezas del Dragón{fr}Niveaux aléatoires des têtes du Dragon{pt-br}Níveis aleatórios das cabeças do Dragão{de}Zufällige Stufen der Drachenköpfe</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="heroChallenges" class="Toggle18" onValueChanged="optionsUpdate">{en}Hero Challenges{ru}Испытания героев{zh-tw}英雄挑戰{zh-cn}英雄挑战{ko}영웅 도전{es}Desafíos de Héroes{fr}Défis des Héros{pt-br}Desafios de Heróis{de}Heldenherausforderungen</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="proxyPlayer" class="Toggle18" onValueChanged="optionsUpdate">{en}Proxy Player{ru}Прокси-игрок{zh-tw}代理玩家{zh-cn}代理玩家{ko}프록시 플레이어{es}Jugador Proxy{fr}Joueur Proxy{pt-br}Jogador Proxy{de}Proxy-Spieler</Toggle></VerticalLayout></Row>
 					<Row><VerticalLayout padding="6 6 1 1"><Toggle id="weatherMod" class="Toggle18" onValueChanged="optionsUpdate" textColor="brown">{en}Atlantean Weather Custom Mod{ru}Пользовательский мод Погоды Атлантиды{zh-tw}亞特蘭提斯天氣{zh-cn}亚特兰蒂斯天气{ko}아틀란티안 날씨{es}Tiempo Atlante{fr}Météo Atlante{pt-br}Clima Atlânteano{de}Atlantisches Wetter</Toggle></VerticalLayout></Row>
@@ -2193,30 +2182,62 @@ Einheiten</Text></Cell>
 					<VerticalLayout padding="6 6 6 6"><Text id="CityNote" class="Text18" offsetXY="0 1">City Level(s) - No attacking</Text></VerticalLayout>
 				</Row>
 				<Row preferredHeight="30" id="ApocalypseDragonLevelCell" active="false">
-					<Image image="Sliced Button/Button New Deactive" type="Sliced" width="594" height="30"/>
-					<Button id="ApocalypseDragonLevelDown" class="ScenarioTweak" onClick="apocalypseDragonLevelSelection" rectAlignment="MiddleLeft" width="28" height="30">
-						<Image id="ApocalypseDragonLevelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-					</Button>
-					<VerticalLayout padding="6 6 6 6"><Text id="ApocalypseDragonLevelSelectionText" class="Text18" offsetXY="0 1">Dragon, Level 1</Text></VerticalLayout>
-					<Toggle id="randomizedDragonHeadsScenario" class="Toggle18" onValueChanged="randomizedDragonHeadsSelection" rectAlignment="MiddleRight" offsetXY="-31 0" width="165" height="30">{en}Random Heads{ru}Случ. головы{zh-tw}隨機龍首{zh-cn}随机龙首{ko}머리 무작위{es}Cabezas aleatorias{fr}Têtes aléatoires{pt-br}Cabeças aleatórias{de}Zufällige Köpfe</Toggle>
-					<Button id="ApocalypseDragonLevelUp" class="ScenarioTweak" onClick="apocalypseDragonLevelSelection" rectAlignment="MiddleRight" width="28" height="30">
-						<Image id="ApocalypseDragonLevelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-					</Button>
+					<TableLayout columnWidths="28 0 135 28" cellBackgroundColor="Clear">
+						<Image image="Sliced Button/Button New Deactive" type="Sliced" width="594" height="30"/>
+						<Row>
+							<Cell><Button id="ApocalypseDragonLevelDown" class="ScenarioTweak" onClick="apocalypseDragonLevelSelection" width="28" height="30">
+								<Image id="ApocalypseDragonLevelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+							</Button></Cell>
+							<Cell><VerticalLayout padding="6 6 6 6"><Text id="ApocalypseDragonLevelSelectionText" class="Text18" offsetXY="0 1">Dragon, Level 1</Text></VerticalLayout></Cell>
+							<Cell><Button id="RandomizedDragonHeadsButton" onClick="randomizedDragonHeadsSelection" width="135" height="30">
+								<Image id="RandomizedDragonHeadsButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<Text class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Random Heads{ru}Случ. головы{zh-tw}隨機龍首{zh-cn}随机龙首{ko}머리 무작위{es}Cabezas aleatorias{fr}Têtes aléatoires{pt-br}Cabeças aleatórias{de}Zufällige Köpfe</Text>
+							</Button></Cell>
+							<Cell><Button id="ApocalypseDragonLevelUp" class="ScenarioTweak" onClick="apocalypseDragonLevelSelection" width="28" height="30">
+								<Image id="ApocalypseDragonLevelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+							</Button></Cell>
+						</Row>
+					</TableLayout>
+				</Row>
+				<Row preferredHeight="30" id="ApocalypseDragonCityOptionsRow" active="false">
+					<TableLayout columnWidths="0 0 0" cellBackgroundColor="Clear">
+						<Row>
+							<Cell><Button id="ApocalypseDragonCityRandomButton" onClick="apocalypseDragonCityModeSelection" height="30">
+								<Image id="ApocalypseDragonCityRandomButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<Text class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Random City{ru}Случайный город{zh-tw}隨機城市{zh-cn}随机城市{ko}무작위 도시{es}Ciudad Aleatoria{fr}Cité aléatoire{pt-br}Cidade Aleatória{de}Zufällige Stadt</Text>
+							</Button></Cell>
+							<Cell><Button id="ApocalypseDragonCityLastButton" onClick="apocalypseDragonCityModeSelection" height="30">
+								<Image id="ApocalypseDragonCityLastButtonImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+								<Text class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Last City{ru}Последний город{zh-tw}最後城市{zh-cn}最后城市{ko}마지막 도시{es}Última Ciudad{fr}Dernière Cité{pt-br}Última Cidade{de}Letzte Stadt</Text>
+							</Button></Cell>
+							<Cell><Button id="ApocalypseDragonCityRandomHeadsButton" onClick="randomizedDragonHeadsSelection" height="30">
+								<Image id="ApocalypseDragonCityRandomHeadsButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<Text class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Random Heads{ru}Случ. головы{zh-tw}隨機龍首{zh-cn}随机龙首{ko}머리 무작위{es}Cabezas aleatorias{fr}Têtes aléatoires{pt-br}Cabeças aleatórias{de}Zufällige Köpfe</Text>
+							</Button></Cell>
+						</Row>
+					</TableLayout>
 				</Row>
 				<Row preferredHeight="30" id="HorsemenLevelCell" active="false">
-					<Image image="Sliced Button/Button New Deactive" type="Sliced" width="594" height="30"/>
-					<Button id="HorsemenLevelDown" class="ScenarioTweak" onClick="horsemanLevelSelection" rectAlignment="MiddleLeft" width="28" height="30">
-						<Image id="HorsemenLevelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
-						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
-					</Button>
-					<VerticalLayout padding="6 6 6 6"><Text id="HorsemenLevelSelectionText" class="Text18" offsetXY="0 1">Horsemen, Level 1</Text></VerticalLayout>
-					<Toggle id="horsemenHorses" class="Toggle18" onValueChanged="optionsUpdate" rectAlignment="MiddleRight" offsetXY="-31 0" width="165" height="30">{en}With Horse{ru}С лошадью{zh-tw}帶戰馬{zh-cn}带战马{ko}말 포함{es}Con caballo{fr}Avec cheval{pt-br}Com cavalo{de}Mit Pferd</Toggle>
-					<Button id="HorsemenLevelUp" class="ScenarioTweak" onClick="horsemanLevelSelection" rectAlignment="MiddleRight" width="28" height="30">
-						<Image id="HorsemenLevelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
-						<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
-					</Button>
+					<TableLayout columnWidths="28 0 135 28" cellBackgroundColor="Clear">
+						<Image image="Sliced Button/Button New Deactive" type="Sliced" width="594" height="30"/>
+						<Row>
+							<Cell><Button id="HorsemenLevelDown" class="ScenarioTweak" onClick="horsemanLevelSelection" width="28" height="30">
+								<Image id="HorsemenLevelDownImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">-</Text>
+							</Button></Cell>
+							<Cell><VerticalLayout padding="6 6 6 6"><Text id="HorsemenLevelSelectionText" class="Text18" offsetXY="0 1">Horsemen, Level 1</Text></VerticalLayout></Cell>
+							<Cell><Button id="HorsemenHorsesButton" onClick="horsemenHorsesSelection" width="135" height="30">
+								<Image id="HorsemenHorsesButtonImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<Text class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}With Horse{ru}С лошадью{zh-tw}帶戰馬{zh-cn}带战马{ko}말 포함{es}Con caballo{fr}Avec cheval{pt-br}Com cavalo{de}Mit Pferd</Text>
+							</Button></Cell>
+							<Cell><Button id="HorsemenLevelUp" class="ScenarioTweak" onClick="horsemanLevelSelection" width="28" height="30">
+								<Image id="HorsemenLevelUpImage" image="Sliced Button/Button New Active" type="Sliced"/>
+								<Text class="Text17" alignment="MiddleCenter" offsetXY="0 1">+</Text>
+							</Button></Cell>
+						</Row>
+					</TableLayout>
 				</Row>
 			</TableLayout>
 		</Panel>
@@ -2630,24 +2651,7 @@ Einheiten</Text></Cell>
 					<Text id="ROTF3SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier</Text>
 				</Button>
 			</Row>
-			<Row id="ApocalypseDragonCityOffRow">
-				<Button id="ApocalypseDragonCityOffSelection" onClick="apocalypseDragonCityModeSelection">
-					<Image id="ApocalypseDragonCityOffSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="ApocalypseDragonCityOffSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Off{ru}Выкл.{zh-tw}關閉{zh-cn}关闭{ko}끔{es}Desactivado{fr}Non{pt-br}Desligado{de}Aus</Text>
-				</Button>
-			</Row>
-			<Row id="ApocalypseDragonCityFinalRow">
-				<Button id="ApocalypseDragonCityFinalSelection" onClick="apocalypseDragonCityModeSelection">
-					<Image id="ApocalypseDragonCityFinalSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="ApocalypseDragonCityFinalSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Final City{ru}Последний город{zh-tw}最後城市{zh-cn}最后城市{ko}마지막 도시{es}Última Ciudad{fr}Dernière Cité{pt-br}Última Cidade{de}Letzte Stadt</Text>
-				</Button>
-			</Row>
-			<Row id="ApocalypseDragonCityRandomRow">
-				<Button id="ApocalypseDragonCityRandomSelection" onClick="apocalypseDragonCityModeSelection">
-					<Image id="ApocalypseDragonCityRandomSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="ApocalypseDragonCityRandomSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Random City{ru}Случайный город{zh-tw}隨機城市{zh-cn}随机城市{ko}무작위 도시{es}Ciudad Aleatoria{fr}Cité aléatoire{pt-br}Cidade Aleatória{de}Zufällige Stadt</Text>
-				</Button>
-			</Row>
+
 		</TableLayout>
 	</Panel>
 </Panel>
