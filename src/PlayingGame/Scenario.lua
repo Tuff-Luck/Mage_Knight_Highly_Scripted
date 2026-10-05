@@ -1700,7 +1700,7 @@ function apocalypseIsHereSetup()
 	--Horseman card underneath its matching face-down token.
 	for i,name in ipairs(names) do
 		local data=horsemanData[name]
-		local x=-56.50-((i-1)*3)
+		local x=-61.00-((i-1)*3)
 		gStates.horsemen[name]={level=level,tokenGUID=data.tokenGUID,revealed=false,defeated=false,retired=false,sitesDestroyed=0,mapSlot=i,revealIndex=i}
 		if componentBag~=nil then
 			componentBag.takeObject({guid=data.cardGUID,position={x,0.98,0.40},rotation={0,180,180},smooth=false})
