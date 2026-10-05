@@ -324,15 +324,25 @@ local function refreshApocalypseDragonVariantControls()
 	UI.setAttribute("ApocalypseDragonCityModeText","text",APOCALYPSE_DRAGON_CITY_MODE_TEXT[mode])
 	UI.setAttribute("ApocalypseDragonCityModeImage","image",selectable and "Sliced Button/Button New Active" or "Sliced Button/Button New Deactive")
 
-	local dragonAvailable=scenarioUsesApocalypseDragon()==true or mode>0
-	UI.setAttribute("RandomizedDragonHeadsRow","active",dragonAvailable and "true" or "false")
-	UI.setAttribute("randomizedDragonHeads","interactable",dragonAvailable and "True" or "False")
-	if dragonAvailable~=true then
-		gStates.randomizedDragonHeads=false
-		UI.setAttribute("randomizedDragonHeads","isOn","false")
-	else
-		UI.setAttribute("randomizedDragonHeads","isOn",gStates.randomizedDragonHeads==true and "true" or "false")
-	end
+	local scenarioDragon=scenarioUsesApocalypseDragon()==true
+	local cityVariantDragon=mode>0
+	local dragonAvailable=scenarioDragon or cityVariantDragon
+	--Dragon scenarios use the compact toggle beside the level control. The old Setup Variant row
+	--remains only for the City-replacement variant, whose level is not known until its City is revealed.
+	UI.setAttribute("RandomizedDragonHeadsRow","active",cityVariantDragon and "true" or "false")
+	UI.setAttribute("randomizedDragonHeads","interactable",cityVariantDragon and "True" or "False")
+	UI.setAttribute("randomizedDragonHeadsScenario","interactable",scenarioDragon and "True" or "False")
+	if dragonAvailable~=true then gStates.randomizedDragonHeads=false end
+	local randomized=gStates.randomizedDragonHeads==true
+	UI.setAttribute("randomizedDragonHeads","isOn",randomized and "true" or "false")
+	UI.setAttribute("randomizedDragonHeadsScenario","isOn",randomized and "true" or "false")
+end
+
+function randomizedDragonHeadsSelection(player,value,id)
+	local randomized=value=="True"
+	gStates.randomizedDragonHeads=randomized
+	UI.setAttribute("randomizedDragonHeads","isOn",randomized and "true" or "false")
+	UI.setAttribute("randomizedDragonHeadsScenario","isOn",randomized and "true" or "false")
 end
 
 function apocalypseDragonCityModeSelection(player, mouseButton, id)
@@ -355,11 +365,9 @@ local function refreshScenarioEnemyLevelTweaks()
 	local enemyLevelRows=(showDragon and 1 or 0)+(showHorsemen and 1 or 0)
 	UI.setAttribute("ApocalypseDragonLevelCell","active",showDragon and "true" or "false")
 	UI.setAttribute("HorsemenLevelCell","active",showHorsemen and "true" or "false")
-	UI.setAttribute("HorsemenHorsesRow","active",showHorsemen and "true" or "false")
-	if showHorsemen~=true and gStates.horsemenHorses==true then
-		gStates.horsemenHorses=false
-		UI.setAttribute("horsemenHorses","isOn","false")
-	end
+	UI.setAttribute("horsemenHorses","interactable",showHorsemen and "True" or "False")
+	if showHorsemen~=true then gStates.horsemenHorses=false end
+	UI.setAttribute("horsemenHorses","isOn",gStates.horsemenHorses==true and "true" or "false")
 	if showDragon then
 		local level=type(apocalypseDragonStartingLevel)=="function" and apocalypseDragonStartingLevel() or 1
 		UI.setAttribute("ApocalypseDragonLevelSelectionText","text",joinLang({"{en}Dragon, Level {ru}Дракон, ур. {zh-tw}巨龍，等級 {zh-cn}巨龙，等级 {ko}드래곤, 레벨 {es}Dragón, Nivel {fr}Dragon, Niveau {pt-br}Dragão, Nível {de}Drache, Level ",tostring(level or 1)}))
@@ -1575,6 +1583,7 @@ publishPublicUICallbacks({
 	baseValueTweak=baseValueTweak,
 	horsemanLevelSelection=horsemanLevelSelection,
 	optionsUpdate=optionsUpdate,
+	randomizedDragonHeadsSelection=randomizedDragonHeadsSelection,
 	randomSetup=randomSetup,
 	riseOfTheForgemasterOption=riseOfTheForgemasterOption,
 	scenarioSelection=scenarioSelection,
