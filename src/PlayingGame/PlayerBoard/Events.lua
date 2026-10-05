@@ -276,13 +276,15 @@ function playerBoardZoneLeave(ctx)
 		if obj.guid==GUID.skill.masterOfChaos and masterOfChaosPause==false then
 			if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
 			safeWaitFrames("PlayerBoard.Events",function() masterOfChaosWait=safeWaitCondition("PlayerBoard.Events",function()
+				masterOfChaosWait=nil
+				local skill=getObjectFromGUID(GUID.skill.masterOfChaos)
+				if skill==nil then return end
 				for a=1, #turnOrder, 1 do
 					if turnOrder[a].masterOfChaos~=nil and turnOrder[a].masterOfChaos~="incrementented in turn" then turnOrder[a].masterOfChaos="available" break end
 				end
-				getObjectFromGUID(GUID.skill.masterOfChaos).setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
-				getObjectFromGUID(GUID.skill.masterOfChaos).reload()
-				masterOfChaosWait=nil
-			end, function() return getObjectFromGUID(GUID.skill.masterOfChaos).resting end) end, 5)
+				skill.setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
+				skill.reload()
+			end, function() local skill=getObjectFromGUID(GUID.skill.masterOfChaos) return skill==nil or skill.resting end) end, 5)
 		end
 	end
 	--A Card or whole Deck leaving the deed pile can make End Round available.

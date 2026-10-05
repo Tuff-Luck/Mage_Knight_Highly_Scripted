@@ -1378,12 +1378,14 @@ function masterOfChaosSetup(position)
 	end
 	safeWaitFrames("PlayerBoard.Skills",function() masterOfChaosPause=false end, 80)
 	safeWaitFrames("PlayerBoard.Skills",function() safeWaitCondition("PlayerBoard.Skills",function()
+		local skill=getObjectFromGUID(GUID.skill.masterOfChaos)
+		if skill==nil then masterOfChaosPause=false return end
 		gStates.masterOfChaos=math.random(1,6)
-		getObjectFromGUID(GUID.skill.masterOfChaos).setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
-		getObjectFromGUID(GUID.skill.masterOfChaos).setDescription(masterOfChaosData[gStates.masterOfChaos].description)
-		getObjectFromGUID(GUID.skill.masterOfChaos).reload()
+		skill.setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
+		skill.setDescription(masterOfChaosData[gStates.masterOfChaos].description)
+		skill.reload()
 		broadcastToAll("{en}'Master of Chaos' start Randomly picked.{ru}Старт «Мастер магии Хаоса» выбирается случайным образом.{zh-tw}「混亂大師」的起始位置已隨機選擇。{zh-cn}“混乱大师”开始随机挑选{ko}스킬 '혼돈의 달인'의 첫 칸이 무작위로 결정되었습니다.{es}Inicio de 'Master of Chaos' Elegido al azar.{fr}Début de 'Master of Chaos' Choisi au hasard.{pt-br}Início de 'Mestre do Caos' é aleatóriamente escolhido.{de}Meister des Chaos' startet Zufällig gewählt.", {1,1,0.5})
-	end, function() return getObjectFromGUID(GUID.skill.masterOfChaos).resting end) end, 5)
+	end, function() local skill=getObjectFromGUID(GUID.skill.masterOfChaos) return skill==nil or skill.resting end) end, 5)
 end
 
 --masterOfChaos
