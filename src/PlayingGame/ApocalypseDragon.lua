@@ -516,24 +516,45 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 	local levels={Famine=math.max(0,baseLevel-1),Death=math.max(0,baseLevel-1),Pestilence=math.max(0,baseLevel-1),War=math.max(0,baseLevel-1)}
 	local bag=getObjectFromGUID(GUID.bag.spareDice)
 	if bag==nil then error("Random heads could not find the spare mana-die bag.",2) end
-	local dice,pending={},{}
+	local dice={}
+	local sourceGUID=nil
+
 	local function cleanupDice()
 		local spare=getObjectFromGUID(GUID.bag.spareDice)
-		for _,guid in ipairs(dice) do
+		for index,guid in ipairs(dice) do
 			local die=getObjectFromGUID(guid)
 			if die~=nil then
 				die.unlock()
-				if spare~=nil then spare.putObject(die) else die.destruct() end
+				--Only the original die came out of the spare-dice bag. The other three are temporary
+				--Quest-style clones, so destroy those rather than increasing the bag's contents.
+				if index==1 and guid==sourceGUID and spare~=nil then spare.putObject(die) else die.destruct() end
 			end
 		end
 	end
+
 	local function failRoll(message)
 		cleanupDice()
 		error("Random heads: "..message,2)
 	end
-	local rollPending
-	local function readSettledResults()
-		--Re-read the whole unlocked group: a reroll can knock a previously valid die.
+
+	local readSettledResults
+	local function rollDice(indices)
+		local rollGUIDs={}
+		for _,index in ipairs(indices) do
+			local guid=dice[index]
+			if guid==nil or getObjectFromGUID(guid)==nil then
+				return failRoll("a mana die disappeared before rolling.")
+			end
+			rollGUIDs[#rollGUIDs+1]=guid
+		end
+		rollPhysicalDice("Scenario",rollGUIDs,readSettledResults,function()
+			failRoll("the physical mana-die roll could not settle.")
+		end)
+	end
+
+	readSettledResults=function()
+		--Read the complete physical group after every throw. A Black/Gold reroll can bump another
+		--die, so the final levels always come from the faces actually showing on the table.
 		for _,headName in ipairs(apocalypseDragonColoredHeads) do levels[headName]=math.max(0,baseLevel-1) end
 		local reroll={}
 		for index,guid in ipairs(dice) do
@@ -548,50 +569,44 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 				levels[face.head]=math.min(12,levels[face.head]+1)
 			elseif face~=nil then
 				reroll[#reroll+1]=index
-				die.setPositionSmooth(positions[index],false,false)
 			else
 				return failRoll("unrecognized settled mana colour "..tostring(color)..".")
 			end
 		end
-		pending=reroll
-		if #pending>0 then return rollPending() end
+		if #reroll>0 then return rollDice(reroll) end
+
 		levels.Control=math.max(levels.Famine,levels.Death,levels.Pestilence,levels.War)
-		--Leave the physical results visible briefly without delaying setup completion.
-		safeWaitTime("Scenario",cleanupDice,1.25)
-		onComplete(levels)
+		--Match the Quest crystal-reward presentation: leave the settled faces visible, then clean up
+		--the temporary dice and only then apply the result.
+		safeWaitTime("Scenario",function()
+			cleanupDice()
+			onComplete(levels)
+		end,1.25)
 	end
-	rollPending=function()
-		safeWaitCondition("Scenario",function()
-			local rollGUIDs={}
-			for _,index in ipairs(pending) do rollGUIDs[#rollGUIDs+1]=dice[index] end
-			rollPhysicalDice("Scenario",rollGUIDs,function()
-				--Wait for every die, including valid dice disturbed by the latest throw.
-				safeWaitCondition("Scenario",readSettledResults,function()
-					for _,guid in ipairs(dice) do
-						local die=getObjectFromGUID(guid)
-						if die~=nil and (die.spawning==true or die.isSmoothMoving()==true or die.resting~=true) then return false end
-					end
-					return true
-				end,10,function() failRoll("the full mana-die group could not settle.") end)
-			end,function()
-				failRoll("the physical mana-die roll could not settle.")
-			end)
-		end,function()
-			for _,index in ipairs(pending) do
-				local die=getObjectFromGUID(dice[index])
-				if die==nil or die.spawning==true or die.isSmoothMoving()==true or die.resting~=true then return false end
-			end
-			return true
-		end,10,function() failRoll("timed out waiting for the dice to be ready to roll.") end)
-	end
-	for index,pos in ipairs(positions) do
-		local die=safeTakeObject("Scenario",bag,{position=pos,rotation={0,180,0},smooth=false})
-		if die==nil then return failRoll("could not draw all four mana dice.") end
-		die.unlock()
-		dice[index]=die.guid
-		pending[index]=index
-	end
-	rollPending()
+
+	--Mirror the proven Quest crystal-reward setup instead of taking four independently spawning dice:
+	--take one real die, let it settle, clone the remaining three from that stable source, then roll the
+	--whole group together through rollPhysicalDice().
+	local source=safeTakeObject("Scenario",bag,{position=positions[1],rotation={0,180,0},smooth=false})
+	if source==nil then return failRoll("could not draw the source mana die.") end
+	source.unlock()
+	sourceGUID=source.guid
+	dice[1]=sourceGUID
+
+	safeWaitCondition("Scenario",function()
+		local liveSource=getObjectFromGUID(sourceGUID)
+		if liveSource==nil then return failRoll("the source mana die disappeared before cloning.") end
+		for index=2,4 do
+			local die=liveSource.clone({position=positions[index]})
+			if die==nil then return failRoll("could not create all four mana dice.") end
+			die.unlock()
+			dice[index]=die.guid
+		end
+		rollDice({1,2,3,4})
+	end,function()
+		local liveSource=getObjectFromGUID(sourceGUID)
+		return liveSource~=nil and liveSource.spawning~=true and liveSource.isSmoothMoving()==false and liveSource.resting==true
+	end,10,function() failRoll("timed out waiting for the source mana die to settle before cloning.") end)
 end
 
 local function apocalypseDragonApplyStartingLevels(levels,onComplete)
