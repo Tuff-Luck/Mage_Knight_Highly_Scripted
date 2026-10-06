@@ -1,5 +1,5 @@
 -- Setup-interface private helpers.
-local ToolTipUpdate, scenarioInfoUpdate
+local ToolTipUpdate, scenarioInfoUpdate, recountSetupMageKnights
 
 -- Pre-game setup interface: scenario/variant selection, setup options and setup-menu controls.
 
@@ -744,7 +744,7 @@ function optionsUpdate(player, value, id, deferRefresh)
 	if id=="volkareCampAsCity" and value=="True" and gStates.megapolis>0 then
 		UI.setAttribute("volkareCampAsCity", "isOn", "false")
 		gStates.volkareCampAsCity=false
-		scenarioInfoUpdate()
+		if deferRefresh~=true then scenarioInfoUpdate() end
 		return
 	end
 	if value=="True" then
@@ -767,7 +767,14 @@ function optionsUpdate(player, value, id, deferRefresh)
 		if id=="removeLostLegionExpansion" then --and gStates.removeBonusCards==false) or (id=="removeBonusCards" and gStates.removeLostLegionExpansion==false)
 			setUIButtonEnabled("ROTFSelection",true)
 		end
-		if id=="useCustomMageKnights" then clearCustomMageKnightSelections(false) end
+		if id=="useCustomMageKnights" then
+			clearCustomMageKnightSelections(false)
+			if deferRefresh==true then
+				--Clearing custom selections can change the player-count scenario row used by later Random options.
+				recountSetupMageKnights()
+				gStates.playersRef=setupPlayersRef()
+			end
+		end
 	end
 	if id=="removeApocalypseTerrain" or id=="removeTerrain" or id=="removeLostLegionExpansion" then
 		if id=="removeLostLegionExpansion" and gStates.removeLostLegionExpansion==true then
@@ -1173,7 +1180,7 @@ local function setupScenarioMaxMageKnights()
 	return 4
 end
 
-local function recountSetupMageKnights()
+recountSetupMageKnights=function()
 	gStates.playerCount=0
 	local customSelected=false
 	local jormundSelected=false
