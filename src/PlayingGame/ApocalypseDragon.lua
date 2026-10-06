@@ -740,6 +740,13 @@ function setupApocalypseDragonHeads()
 	gStates.apocalypseDragonDefeated=false
 	gStates.furyDragonEverDefeatedHeads=gStates.gameScenario=="Fury of the Apocalypse Dragon" and {} or nil
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+	local preload=getObjectFromGUID(apocalypseDragon.dragonPreload)
+	local preloadTarget=apocalypseDragon.dragonPreloadPosition
+	if preload==nil and bag~=nil then
+		preload=bag.takeObject({guid=apocalypseDragon.dragonPreload,position=preloadTarget,smooth=false})
+	elseif preload~=nil and preloadTarget~=nil then
+		preload.setPosition(preloadTarget)
+	end
 	if gStates.gameScenario=="Against the Dragon Blitz" then
 		local roundToken=getObjectFromGUID(apocalypseDragon.roundOrder)
 		local roundPos={-1.90,0.97,-22.20}
