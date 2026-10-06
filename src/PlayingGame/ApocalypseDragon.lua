@@ -679,9 +679,12 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 		die.unlock()
 		dice[index]=die.guid
 	end
-	--rollDice owns the readiness gate: every die must finish spawning/moving and genuinely rest at
-	--y=1.47 before any randomize() impulse is allowed.
-	rollDice({1,2,3,4})
+	--A freshly extracted group can report resting for a couple of frames before TTS has fully
+	--materialised its physics state. Give the initial four-die presentation a short frame gate before
+	--the ordinary resting checks/physical roll. Rerolls do not need this extra spawn-only pause.
+	safeWaitFrames("Scenario",function()
+		rollDice({1,2,3,4})
+	end,5)
 end
 
 local function apocalypseDragonApplyStartingLevels(levels,onComplete)
