@@ -621,13 +621,29 @@ local function deedOfferSourceUiXml(size)
 	}
 end
 
-function refreshDeedOfferAdjustUI()
-	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+local function deedOfferSourceHasUi(spellSource)
 	if spellSource==nil then return false end
-	local size=deedOfferBoundedSize(gStates.offerSize)
-	gStates.offerSize=size
-	--The live Spell source may change from Deck to Card, so rebuild the complete local UI on
-	--whichever object currently owns the source. Positions are intentionally defined here.
+	local xml=spellSource.UI.getXml()
+	return type(xml)=="string" and xml:find('id="TableSpellLabel"',1,true)~=nil
+end
+
+local function applyDeedOfferAdjustState(spellSource,size)
+	if spellSource==nil or deedOfferSourceHasUi(spellSource)~=true then return false end
+	local upEnabled=size<DEED_OFFER_MAX_SIZE
+	local downEnabled=size>DEED_OFFER_MIN_SIZE
+	local activeImage="Sliced Button/Button Object Active"
+	local inactiveImage="Sliced Button/Button Object Deactive"
+	spellSource.UI.setAttribute("e4372aOfferUp","active","true")
+	spellSource.UI.setAttribute("e4372aOfferDown","active","true")
+	spellSource.UI.setAttribute("e4372aOfferUp","interactable",upEnabled and "true" or "false")
+	spellSource.UI.setAttribute("e4372aOfferDown","interactable",downEnabled and "true" or "false")
+	spellSource.UI.setAttribute("e4372aOfferUpImage","image",upEnabled and activeImage or inactiveImage)
+	spellSource.UI.setAttribute("e4372aOfferDownImage","image",downEnabled and activeImage or inactiveImage)
+	return true
+end
+
+local function installDeedOfferSourceUi(spellSource,size)
+	if spellSource==nil then return false end
 	spellSource.UI.setXmlTable(deedOfferSourceUiXml(size))
 	local sourceGUID=spellSource.guid
 	safeWaitFrames("Offers",function()
@@ -638,10 +654,30 @@ function refreshDeedOfferAdjustUI()
 	return true
 end
 
+function refreshDeedOfferAdjustUI()
+	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+	if spellSource==nil then return false end
+	local size=deedOfferBoundedSize(gStates.offerSize)
+	gStates.offerSize=size
+
+	--During ordinary offer resizing the labels already live on the moving Spell source. Updating
+	--only the arrow controls leaves that XML tree intact, so Spells/Advanced Actions/Offers ride
+	--smoothly with the source instead of blinking off while TTS rebuilds the object UI.
+	if applyDeedOfferAdjustState(spellSource,size)==true then return true end
+
+	--Deck -> Card replacement can leave a new live Spell source with no local UI. Install the full
+	--tree only in that exceptional case; normal increase/decrease paths never rebuild the labels.
+	return installDeedOfferSourceUi(spellSource,size)
+end
+
 function deedOfferArrowTextRefresh()
-	--Callbacks keeps using this established load-time entry point; rebuilding the whole Spell UI
-	--restores the literal black arrow glyphs and current enabled/disabled state together.
-	return refreshDeedOfferAdjustUI()
+	--Load-time repair deliberately reinstalls the full tree so the literal black arrow glyphs and
+	--localized labels are restored even if TTS did not preserve the object's runtime UI.
+	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+	if spellSource==nil then return false end
+	local size=deedOfferBoundedSize(gStates.offerSize)
+	gStates.offerSize=size
+	return installDeedOfferSourceUi(spellSource,size)
 end
 
 local function hideDeedOfferAdjustUI(spellSource)
