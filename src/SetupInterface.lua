@@ -517,25 +517,28 @@ end
 function randomSetup(player, value, id)
 	local value=scenarioList[math.random(2, #scenarioList-1)][1]
 	applyScenarioSetupDefaults(value)
-	--scenarioSelection updates setup state synchronously; randomize immediately instead of sleeping a frame.
+	--The selected scenario is fully rendered once above so its option lockouts are current.
+	--Batch the randomized changes after that: individual controls still update the small pieces of
+	--state/interactivity needed by later rolls, but the expensive whole setup panel is rendered once.
 	local randomOptions={"volkareCampAsCity", "randomTileOrientation", "randomCities", "removeShadesOfTezlaMonsters", "removeFactionRewards", "removeApocalypseTerrain",	"startAtNight", "darknessComing", "heroChallenges", "useCustomMageKnights", "weatherMod", "questMod", "apocalypseQuestCards", "proxyPlayer", "itemShopMod", "rampageAmbush", "rampagePursuit", "removeTerrain"}
 	for a=1, #randomOptions, 1 do
 		if UI.getAttribute(randomOptions[a], "interactable")=="True" then
 			--Random must explicitly roll both ON and OFF. This matters for options such as Hero Challenges
 			--that intentionally survive scenario browsing instead of being reset by scenarioSelection().
-			optionsUpdate(nil, math.random(1,10)>7 and "True" or "False", randomOptions[a])
+			optionsUpdate(nil, math.random(1,10)>7 and "True" or "False", randomOptions[a], true)
 		end
 	end
-	ToolTipUpdate(id)
-	if math.random(1,10)>7 then MoreRampageSelection(nil, "True", "MoreRampageSelection") end
-	if math.random(1,10)>7 then RampageSelection(nil, "True", "RampageSelection") end
+	if math.random(1,10)>7 then MoreRampageSelection(nil, "True", "MoreRampageSelection", true) end
+	if math.random(1,10)>7 then RampageSelection(nil, "True", "RampageSelection", true) end
 	--Do not let Interface Random bypass option lockouts (notably Hero Challenges vs Forgemasters).
 	if math.random(1,10)>7 and UI.getAttribute("ROTFSelection", "interactable")=="True" then
 		UI.setAttribute("DropDown", "active", "false")
 		dropDownIdLink="ROTFSelection"
 		local choice={"ROTF1Selection", "ROTF2Selection", "ROTF3Selection"}
-		riseOfTheForgemasterOption(nil, "-1", choice[math.random(1,3)])
+		riseOfTheForgemasterOption(nil, "-1", choice[math.random(1,3)], true)
 	end
+	scenarioInfoUpdate()
+	ToolTipUpdate(id)
 end
 
 function switchSetup(player, mouseButton, id)
@@ -730,12 +733,12 @@ local function refreshLostLegionExpansionOption()
 	renderLostLegionExpansionOption()
 end
 
-function optionsUpdate(player, value, id)
+function optionsUpdate(player, value, id, deferRefresh)
 	if id=="heroChallenges" and value=="True" and (gStates.gameScenario=="First Reconnaissance" or gStates.useCustomMageKnights==true or (gStates.riseOfTheForgemasters or 0)>0) then
 		UI.setAttribute("heroChallenges","isOn","false")
 		gStates.heroChallenges=false
 		refreshHeroChallengeOptionLocks()
-		refreshSetupStartButton()
+		if deferRefresh~=true then refreshSetupStartButton() end
 		return
 	end
 	if id=="volkareCampAsCity" and value=="True" and gStates.megapolis>0 then
@@ -788,13 +791,20 @@ function optionsUpdate(player, value, id)
 			scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles=max
 		end
 	end
+	if deferRefresh==true then
+		--Hero Challenges/custom Mage Knights affect whether the other choice and Forgemaster are legal.
+		--Keep just those dependency controls current so later Random rolls see the same lockouts.
+		if id=="heroChallenges" or id=="useCustomMageKnights" then refreshHeroChallengeOptionLocks() end
+		if id=="proxyPlayer" then refreshProxySetupLabel() end
+		return
+	end
 	ToolTipUpdate(id)
 	scenarioInfoUpdate()
 	if id=="proxyPlayer" then refreshProxySetupLabel() end
 	toggleDropDown(nil, "-1", dropDownIdLink)
 end
 
-local function setRampageMode(mode,id,sourceId)
+local function setRampageMode(mode,id,sourceId,deferRefresh)
 	gStates.rampage=mode
 	if mode==1 then
 		UI.setAttribute("MoreRampageSelection","interactable","False")
@@ -813,15 +823,17 @@ local function setRampageMode(mode,id,sourceId)
 		UI.setAttribute("RampageSelection","interactable","True")
 		UI.setAttribute("MoreRampageSelection","isOn","false")
 	end
-	scenarioInfoUpdate()
-	ToolTipUpdate(id)
+	if deferRefresh~=true then
+		scenarioInfoUpdate()
+		ToolTipUpdate(id)
+	end
 end
 
-function RampageSelection(player,value,id)
-	setRampageMode(value=="True" and 1 or 0,id,"RampageSelection")
+function RampageSelection(player,value,id,deferRefresh)
+	setRampageMode(value=="True" and 1 or 0,id,"RampageSelection",deferRefresh)
 end
 
-function riseOfTheForgemasterOption(player, mouseButton, id)
+function riseOfTheForgemasterOption(player, mouseButton, id, deferRefresh)
 	if mouseButton=="-1" then
 		local level=ROTF_SELECTION_LEVEL_BY_ID[id]
 		if level==nil then return end
@@ -832,13 +844,15 @@ function riseOfTheForgemasterOption(player, mouseButton, id)
 		gStates.riseOfTheForgemasters=level
 		if gStates.riseOfTheForgemasters>0 then applyForgemasterExpansionRequirements() end
 		if gStates.riseOfTheForgemasters<3 then clearCustomMageKnightSelections(false) end
-		ToolTipUpdate(id)
-		scenarioInfoUpdate()
+		if deferRefresh~=true then
+			ToolTipUpdate(id)
+			scenarioInfoUpdate()
+		end
 	end
 end
 
-function MoreRampageSelection(player,value,id)
-	setRampageMode(value=="True" and 2 or 0,id,"MoreRampageSelection")
+function MoreRampageSelection(player,value,id,deferRefresh)
+	setRampageMode(value=="True" and 2 or 0,id,"MoreRampageSelection",deferRefresh)
 end
 
 dropDownIdLink="none"
