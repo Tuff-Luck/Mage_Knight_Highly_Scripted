@@ -188,6 +188,11 @@ local function scoringArrangeTtsTeams()
 		if details.mage~=dummyMage then
 			local color=positionToColor(playerIndex)
 			local team=playerTtsTeam(color)
+			--When Black is seated as Game Master and no real player occupies this hand colour,
+			--treat the hand as part of Black's multihand team.
+			local black=Player["Black"]
+			local handPlayer=color~="Black" and Player[color] or nil
+			if team==nil and black~=nil and black.seated==true and (color=="Black" or handPlayer==nil or handPlayer.seated~=true) then team="Black" end
 			local key
 			if team~=nil then
 				key="team:"..tostring(team)
