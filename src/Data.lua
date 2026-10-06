@@ -5,6 +5,8 @@
 -- No gameplay functions belong in this module.
 
 apocalypseDragon={	model="105141",
+					dragonPreload="4aedfc",
+					dragonPreloadPosition={-40.5,1.07,45.5},
 					horsemenPreload="1c2a1d",
 					horsemenPreloadPosition={-46.08,0.97,46.66},
 					furyMarker="42b581",
