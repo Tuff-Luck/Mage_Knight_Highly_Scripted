@@ -705,6 +705,14 @@ local function deedOfferMovedSourcesSettled(sourceGUIDs)
 	return true
 end
 
+local function deedOfferMovedCardsSettled(cardGUIDs)
+	for _,guid in ipairs(cardGUIDs or {}) do
+		local card=getObjectFromGUID(guid)
+		if card~=nil and (card.isSmoothMoving()==true or card.resting~=true) then return false end
+	end
+	return true
+end
+
 local function applyDeedOfferGeometry(size,sourceX)
 	sourceX=sourceX or ((4.8*(size+1))+21.6)
 	local spellZone=getObjectFromGUID(GUID.zone.spellDeck)
@@ -779,11 +787,7 @@ function offerAdjust(player, mouseButton, id)
 	}
 	applyDeedOfferGeometry(newSize,sourceX)
 
-	if delta>0 then
-		--Do this immediately: the decks move outward while the drawn cards travel into the spaces
-		--the decks just vacated. The source override keeps refill attached to the moving Deck/Card objects.
-		compactAndRefillDeedOffer(true,sourceObjects)
-	else
+	if delta<0 then
 		for _,entry in ipairs(returnedCards) do
 			local card=entry.card
 			if card~=nil then
@@ -792,13 +796,34 @@ function offerAdjust(player, mouseButton, id)
 				card.setRotation({0,180,180})
 			end
 		end
+
+		--Shrink never splits the UI-hosting Spell source, so its labels simply ride with the pile.
+		safeWaitCondition("Offers",function()
+			OfferPause=false
+			refreshDeedOfferAdjustUI()
+		end,function()
+			return deedOfferMovedSourcesSettled(sourceGUIDs)==true
+		end)
+		return
 	end
 
-	--The controls remain completely hidden only while the source piles are moving. Once both live
-	--AA/Spell sources are resting, rebuild the controls on the current Spell source.
+	--Grow in two stages. First move both source piles all the way outward so the table labels remain
+	--attached to the Spell source for the whole slide, exactly like the shrink path. Only after both
+	--sources have landed do we split off the new AA/Spell cards into the newly opened column.
 	safeWaitCondition("Offers",function()
-		OfferPause=false
+		local movedCards=compactAndRefillDeedOffer(true)
+		if type(movedCards)~="table" then movedCards={} end
+
+		--takeObject can transfer the Spell source UI to the extracted card. Repair the live source
+		--immediately after the split rather than waiting for the new offer cards to finish travelling.
 		refreshDeedOfferAdjustUI()
+
+		safeWaitCondition("Offers",function()
+			OfferPause=false
+			refreshDeedOfferAdjustUI()
+		end,function()
+			return deedOfferMovedCardsSettled(movedCards)==true
+		end)
 	end,function()
 		return deedOfferMovedSourcesSettled(sourceGUIDs)==true
 	end)
