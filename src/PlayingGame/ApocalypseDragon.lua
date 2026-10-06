@@ -796,6 +796,15 @@ function setupApocalypseDragonHeads()
 			if head==nil or token==nil or target==nil or head.spawning==true or token.spawning==true or head.resting~=true or token.resting~=true then return false end
 			local pos=token.getPosition()
 			if math.abs(pos[1]-target[1])>0.03 or math.abs(pos[2]-target[2])>0.03 or math.abs(pos[3]-target[3])>0.03 then return false end
+			local level=tonumber(gStates.apocalypseDragonHeadLevels[headData.name]) or 0
+			if level>0 then
+				local markerGUID=gStates.apocalypseDragonLevelMarkers[headData.name]
+				local marker=markerGUID~=nil and getObjectFromGUID(markerGUID) or nil
+				local markerTarget=apocalypseDragonLevelMarkerPosition(head,level)
+				if marker==nil or markerTarget==nil or marker.spawning==true or marker.resting~=true then return false end
+				local markerPos=marker.getPosition()
+				if math.abs(markerPos[1]-markerTarget[1])>0.03 or math.abs(markerPos[2]-markerTarget[2])>0.03 or math.abs(markerPos[3]-markerTarget[3])>0.03 then return false end
+			end
 		end
 		return true
 	end
@@ -808,29 +817,19 @@ function setupApocalypseDragonHeads()
 			error("SetupGame timed out waiting for Apocalypse Dragon head reloads to settle.",2)
 		end)
 	end
-	local function dragonHeadRollAreaSettled()
-		for _,headData in ipairs(apocalypseDragon.heads) do
-			local head=getObjectFromGUID(headData.guid)
-			local token=getObjectFromGUID(headData.tokenGUID)
-			if head==nil or token==nil or
-				head.spawning==true or token.spawning==true or
-				head.isSmoothMoving()==true or token.isSmoothMoving()==true or
-				head.resting~=true or token.resting~=true then return false end
-		end
-		return true
-	end
 	local function startScenarioDragonLevels()
 		if gStates.randomizedDragonHeads==true then
-			--Map construction only needs the Dragon boards/tokens to physically exist and be stable; the
-			--random starting levels do not affect map generation. Release that setup dependency as soon as
-			--the roll area is settled, then let the dice presentation run asynchronously during later setup.
-			safeWaitCondition("Scenario",function()
-				markDragonHeadSetupReady()
-				safeWaitTime("Scenario",function()
+			--Show the selected Dragon level normally first. Once the boards, head tokens and all five
+			--level Shields are physically settled, map setup may continue while the random-head dice
+			--presentation runs independently. The completed roll then moves/removes those same Shields.
+			local baseLevels={Famine=startingLevel,Death=startingLevel,Pestilence=startingLevel,War=startingLevel,Control=startingLevel}
+			apocalypseDragonApplyStartingLevels(baseLevels,function()
+				safeWaitCondition("Scenario",function()
+					markDragonHeadSetupReady()
 					apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
-				end,2.0)
-			end,dragonHeadRollAreaSettled,10,function()
-				error("SetupGame timed out waiting for the Apocalypse Dragon roll area to settle.",2)
+				end,dragonHeadLevelsSettled,10,function()
+					error("SetupGame timed out waiting for the Apocalypse Dragon starting level Shields to settle.",2)
+				end)
 			end)
 		else
 			apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
