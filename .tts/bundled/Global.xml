@@ -437,6 +437,12 @@
 		<Row preferredHeight="22" dontUseTableRowBackground="false" color="rgb(0.3,0.3,0.3)">
 			<Text id="ScoreBoardTableTitleText2" Color="White" class="Text14" offsetXY="0 3">{en}Scores are calculated as if the game has been completed{ru}Очки подсчитываются так, как будто игра уже завершена{zh-tw}此分数视为游戏结束而统计{zh-cn}此分数视为游戏结束而统计{ko}점수는 게임이 종료된 것으로 간주하여 계산합니다{es}Las puntuaciones se calculan como si el juego se ubiera completado.{fr}Les scores sont calculés comme si le jeu était terminé{pt-br}Pontuação é calculada como se o jogo tivesse sido completado{de}Der Punktestand wird so berechnet, als ob das Spiel abgeschlossen wäre.</Text>
 		</Row>
+		<Row id="TeamScoreData" preferredHeight="26" active="false">
+			<Cell id="Team1ScoreCell" active="false"><Text id="Team1ScoreText" class="Text14" alignment="MiddleCenter"></Text></Cell>
+			<Cell id="Team2ScoreCell" active="false"><Text id="Team2ScoreText" class="Text14" alignment="MiddleCenter"></Text></Cell>
+			<Cell id="Team3ScoreCell" active="false"><Text id="Team3ScoreText" class="Text14" alignment="MiddleCenter"></Text></Cell>
+			<Cell id="Team4ScoreCell" active="false"><Text id="Team4ScoreText" class="Text14" alignment="MiddleCenter"></Text></Cell>
+		</Row>
 		<Row id="RewardScoreData" preferredHeight="0">
 			<Cell id="Reward1ScoreCell" active="false"><Text id="Reward1ScoreText" class="Text16"></Text></Cell>
 			<Cell id="Reward2ScoreCell" active="false"><Text id="Reward2ScoreText" class="Text16"></Text></Cell>

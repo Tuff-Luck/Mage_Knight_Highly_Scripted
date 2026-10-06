@@ -2571,6 +2571,10 @@ function SendDataRequest(player, mouseButton, id)
 			if id=="SendBugRequestYes" then STAT_URL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec" end
 			if id=="SendScoreRequestYes" then STAT_URL="https://script.google.com/macros/s/AKfycbzLnjL_IH1gOb1hwgfDLrnrsnRkHM9bve20ph4PVqViMe5lhYtBzTOndL4T6DWo4HFXbQ/exec" end
 			log("Writing stats.")
+			local dragonCityMode=math.max(0,math.min(2,math.floor(tonumber(gStates.apocalypseDragonCityMode) or 0)))
+			local dragonAsCity=({[1]="Last",[2]="Random"})[dragonCityMode] or "Off"
+			local horsemenLevel=type(horsemanStartingLevel)=="function" and horsemanStartingLevel() or nil
+			local dragonLevel=type(apocalypseDragonStartingLevel)=="function" and apocalypseDragonStartingLevel() or nil
 			local GameRecord={gameScenario=gStates.gameScenario,
 				blitz=gStates.blitz,
 				rounds=scenarioList[gStates.scenarioRef][gStates.playersRef].rounds,
@@ -2611,7 +2615,13 @@ function SendDataRequest(player, mouseButton, id)
 				useAlternatePugs=gStates.useAlternatePugs,
 				riseOfTheForgemasters=gStates.riseOfTheForgemasters,
 				autoFlip=gStates.autoFlip,
-				offerSize=gStates.offerSize}
+				offerSize=gStates.offerSize,
+				dragonAsCity=dragonAsCity,
+				randomHeads=gStates.randomizedDragonHeads==true,
+				withHorse=gStates.horsemenHorses==true,
+				removeFactionRewards=gStates.removeFactionRewards==true,
+				horsemenLevel=horsemenLevel or "",
+				dragonLevel=dragonLevel or ""}
 			local telemetryShape={wedgeUnlimited="Wedge",wedge="Wedge",open3="3 Columns",open4="4 Columns",open="Fully Open",predefined="Predefined"}
 			GameRecord.mapShape=telemetryShape[gStates.mapShapeKey] or tostring(gStates.mapShapeKey or "")
 			if gStates.positionMageKnight[5]=="Volkare" then
@@ -10269,6 +10279,77 @@ local function heroChallengeEvaluate(playerIndex, objectsInPlay)
 	return {complete=complete,details=details,extraBonus=extraBonus}
 end
 
+local SCORE_TEAM_STYLE={
+	Hearts={label="Hearts",color="rgba(0.80,0.25,0.25,0.30)"},
+	Diamonds={label="Diamonds",color="rgba(0.30,0.65,0.80,0.30)"},
+	Clubs={label="Clubs",color="rgba(0.30,0.55,0.30,0.30)"},
+	Spades={label="Spades",color="rgba(0.35,0.35,0.45,0.30)"},
+	Jokers={label="Jokers",color="rgba(0.75,0.60,0.20,0.30)"},
+	Black={label="Black",color="rgba(0.20,0.20,0.20,0.35)"}
+}
+
+local function scoringArrangeTtsTeams()
+	local groups={}
+	local byKey={}
+	local anyTeam=false
+	local dummyMage=gStates.positionMageKnight[5]
+	for playerIndex,details in ipairs(turnOrder) do
+		if details.mage~=dummyMage then
+			local color=positionToColor(playerIndex)
+			local team=playerTtsTeam(color)
+			--When Black is seated as Game Master and no real player occupies this hand colour,
+			--treat the hand as part of Black's multihand team.
+			local black=Player["Black"]
+			local handPlayer=color~="Black" and Player[color] or nil
+			if team==nil and black~=nil and black.seated==true and (color=="Black" or handPlayer==nil or handPlayer.seated~=true) then team="Black" end
+			local key
+			if team~=nil then
+				key="team:"..tostring(team)
+				anyTeam=true
+			else
+				key="solo:"..tostring(details.seatPos)
+			end
+			local group=byKey[key]
+			if group==nil then
+				group={key=key,team=team,minSeat=details.seatPos,members={}}
+				byKey[key]=group
+				groups[#groups+1]=group
+			end
+			group.minSeat=math.min(group.minSeat,details.seatPos)
+			details._scoreTeamKey=key
+			details._scoreTeamName=team
+		else
+			details._scoreTeamKey=nil
+			details._scoreTeamName=nil
+		end
+	end
+	table.sort(groups,function(a,b) return a.minSeat<b.minSeat end)
+	for groupOrder,group in ipairs(groups) do
+		group.order=groupOrder
+		for _,details in ipairs(turnOrder) do
+			if details._scoreTeamKey==group.key then details._scoreGroupOrder=groupOrder end
+		end
+	end
+	for _,details in ipairs(turnOrder) do if details._scoreGroupOrder==nil then details._scoreGroupOrder=999 end end
+	table.sort(turnOrder,function(a,b)
+		if a._scoreGroupOrder~=b._scoreGroupOrder then return a._scoreGroupOrder<b._scoreGroupOrder end
+		return a.seatPos<b.seatPos
+	end)
+	for _,group in ipairs(groups) do group.members={} end
+	for playerIndex,details in ipairs(turnOrder) do
+		local group=details._scoreTeamKey~=nil and byKey[details._scoreTeamKey] or nil
+		if group~=nil then group.members[#group.members+1]=playerIndex end
+	end
+	return groups,byKey,anyTeam
+end
+
+local function scoringTeamHeaderStyle(team)
+	local style=SCORE_TEAM_STYLE[team]
+	if style~=nil then return style.label,style.color end
+	if team~=nil then return tostring(team),"rgba(0.45,0.45,0.45,0.25)" end
+	return "Solo","rgba(0.45,0.45,0.45,0.15)"
+end
+
 scoreViewing={}
 function closePanel(player, mouseButton, id)
 	if mouseButton=="-1" then
@@ -10493,6 +10574,10 @@ function displayScore(player, mouseButton, id)
 		end
 		--Figure out who leads and assisted in cities
 		refreshCityControlAndScoring()
+		local scoringGroups={}
+		local scoringGroupByKey={}
+		local teamScoring=false
+		if gStates.coop==0 and gStates.gameScenario~="One to Return" then scoringGroups,scoringGroupByKey,teamScoring=scoringArrangeTtsTeams() end
 		local forTheCouncil=gStates.gameScenario=="For the Council"
 		local againstHorsemen=gStates.gameScenario=="Against the Horsemen Blitz"
 		local apocalypseHere=gStates.gameScenario=="Apocalypse is Here"
@@ -10514,7 +10599,7 @@ function displayScore(player, mouseButton, id)
 					elseif fame==bestFame and fame>0 then bestPlayers[#bestPlayers+1]=playerIndex end
 				end
 			end
-			if gStates.coop==0 and bestFame>0 then
+			if gStates.coop==0 and teamScoring~=true and bestFame>0 then
 				local bonus=#bestPlayers==1 and 6 or 3
 				for _,playerIndex in ipairs(bestPlayers) do turnOrder[playerIndex].score.gHorsemanSlayer=bonus end
 			end
@@ -10546,6 +10631,23 @@ function displayScore(player, mouseButton, id)
 		local scoreMax=0
 		local scoreMin=999
 		local key={}
+		local teamScoreByKey={}
+		local teamBaseContributorByKey={}
+		local teamCategoryContributor={}
+		if teamScoring==true then
+			for _,group in ipairs(scoringGroups) do
+				local lowScore=999999
+				local contributor=nil
+				teamCategoryContributor[group.key]={}
+				for _,playerIndex in ipairs(group.members) do
+					local details=turnOrder[playerIndex]
+					local current=forTheCouncil and ((details.questScore or 0)+councilReputationPoints(playerIndex)) or ((details.fame or 0)+(details.score.Reward or 0))
+					if current<lowScore then lowScore=current contributor=playerIndex end
+				end
+				teamScoreByKey[group.key]=lowScore==999999 and 0 or lowScore
+				teamBaseContributorByKey[group.key]=contributor
+			end
+		end
 		--Lowest base score for cooperative/solo scoring.
 		if gStates.coop==1 then
 			for a=1, #turnOrder, 1 do
@@ -10605,19 +10707,53 @@ function displayScore(player, mouseButton, id)
 			if gStates.gameScenario=="The Lost Relic Blitz" and gStates.coop==0 and greatName=="gRelic" then ref=3 end
 			scoreMax=0
 			key={}
-			for playerX=1, #turnOrder, 1 do
-				turnOrder[playerX].score[greatName]=0
-				local currentHighScore=-1
-				if turnOrder[playerX].mage~=gStates.positionMageKnight[5] then currentHighScore=scoreMath[ref](playerX) end
-				if currentHighScore==scoreMax then key[#key+1]=playerX end
-				if currentHighScore>scoreMax then scoreMax=currentHighScore key={playerX} end
+			for playerX=1, #turnOrder, 1 do turnOrder[playerX].score[greatName]=0 end
+			if teamScoring==true then
+				local categoryEnabled=gStates.gameScenario~="Conquer and Hold" and not (greatName=="gCityLead" and (fracturedLandsNoCityScore==true or forTheCouncil==true))
+				local groupHigh={}
+				local winningGroups={}
+				local overallHigh=-1
+				for _,group in ipairs(scoringGroups) do
+					local high=categoryEnabled and -1 or 0
+					local contributor=nil
+					if categoryEnabled==true then
+						for _,playerX in ipairs(group.members) do
+							local currentHighScore=scoreMath[ref](playerX)
+							if currentHighScore>high then high=currentHighScore contributor=playerX end
+						end
+					end
+					groupHigh[group.key]=high
+					teamCategoryContributor[group.key][greatName]=contributor
+					if forTheCouncil~=true and high>=0 then
+						if greatName=="gBeating" then teamScoreByKey[group.key]=teamScoreByKey[group.key]-high
+						else teamScoreByKey[group.key]=teamScoreByKey[group.key]+high end
+					end
+					if high==overallHigh then winningGroups[#winningGroups+1]=group
+					elseif high>overallHigh then overallHigh=high winningGroups={group} end
+				end
+				if overallHigh>0 then
+					local bonus=#winningGroups==1 and greatestBonus[ref][1] or greatestBonus[ref][2]
+					for _,group in ipairs(winningGroups) do
+						local contributor=teamCategoryContributor[group.key][greatName]
+						if contributor~=nil then turnOrder[contributor].score[greatName]=bonus end
+						if greatName=="gBeating" then teamScoreByKey[group.key]=teamScoreByKey[group.key]-bonus
+						else teamScoreByKey[group.key]=teamScoreByKey[group.key]+bonus end
+					end
+				end
+			else
+				for playerX=1, #turnOrder, 1 do
+					local currentHighScore=-1
+					if turnOrder[playerX].mage~=gStates.positionMageKnight[5] then currentHighScore=scoreMath[ref](playerX) end
+					if currentHighScore==scoreMax then key[#key+1]=playerX end
+					if currentHighScore>scoreMax then scoreMax=currentHighScore key={playerX} end
+				end
+				if gStates.gameScenario=="Against the Apocalypse Blitz" and greatName=="gAdventurer" then ref=1 end
+				if #key==1 and scoreMax~=0 and (gStates.coop==0 or gStates.WarOfFourComp==true) then turnOrder[key[1]].score[greatName]=greatestBonus[ref][1] end
+				if #key>1 and scoreMax~=0 and (gStates.coop==0 or gStates.WarOfFourComp==true) then for a=1, #key, 1 do turnOrder[key[a]].score[greatName]=greatestBonus[ref][2] end end
+				if gStates.gameScenario=="Against the Apocalypse Blitz" and greatName=="gAdventurer" then ref=4 end
+				if gStates.coop==1 and forTheCouncil~=true and greatName~="gBeating" and greatName~="gCityLead" then coopScore=coopScore+scoreMath[ref](key[1]) coopKey[greatName]=key[1] end
+				if gStates.coop==1 and forTheCouncil~=true and greatName=="gBeating" and greatName~="gCityLead" then coopScore=coopScore-scoreMath[ref](key[1]) coopKey[greatName]=key[1] end
 			end
-			if gStates.gameScenario=="Against the Apocalypse Blitz" and greatName=="gAdventurer" then ref=1 end
-			if #key==1 and scoreMax~=0 and (gStates.coop==0 or gStates.WarOfFourComp==true) then turnOrder[key[1]].score[greatName]=greatestBonus[ref][1] end
-			if #key>1 and scoreMax~=0 and (gStates.coop==0 or gStates.WarOfFourComp==true) then for a=1, #key, 1 do turnOrder[key[a]].score[greatName]=greatestBonus[ref][2] end end
-			if gStates.gameScenario=="Against the Apocalypse Blitz" and greatName=="gAdventurer" then ref=4 end
-			if gStates.coop==1 and forTheCouncil~=true and greatName~="gBeating" and greatName~="gCityLead" then coopScore=coopScore+scoreMath[ref](key[1]) coopKey[greatName]=key[1] end
-			if gStates.coop==1 and forTheCouncil~=true and greatName=="gBeating" and greatName~="gCityLead" then coopScore=coopScore-scoreMath[ref](key[1]) coopKey[greatName]=key[1] end
 		end
 		--Krang and Braevalar have Hero Challenge bonuses outside the standard Achievement categories.
 		--In cooperative scoring these are added once for each participating Hero; altered category rates above
@@ -10625,6 +10761,131 @@ function displayScore(player, mouseButton, id)
 		if gStates.coop==1 and forTheCouncil~=true and gStates.heroChallenges==true then
 			for playerIndex,details in pairs(turnOrder) do
 				if details.mage~=gStates.positionMageKnight[5] and details.heroChallenge~=nil then coopScore=coopScore+(details.heroChallenge.extraBonus or 0) end
+			end
+		end
+
+		if teamScoring==true and forTheCouncil~=true and gStates.heroChallenges==true then
+			for playerIndex,details in ipairs(turnOrder) do
+				if details._scoreTeamKey~=nil and details.heroChallenge~=nil then
+					teamScoreByKey[details._scoreTeamKey]=teamScoreByKey[details._scoreTeamKey]+(details.heroChallenge.extraBonus or 0)
+				end
+			end
+		end
+
+		--Conquer and Hold does not use normal Fame/Achievement scoring. Treat its Keep/Mage Tower
+		--VP total as one comparable team category and take the strongest member's result.
+		if teamScoring==true and gStates.gameScenario=="Conquer and Hold" then
+			for _,group in ipairs(scoringGroups) do
+				local bestVP=-1
+				local contributor=nil
+				for _,playerIndex in ipairs(group.members) do
+					local details=turnOrder[playerIndex]
+					local keepRate=3
+					if heroChallengeActive(playerIndex)==true and details.mage=="Tovak" then keepRate=4 end
+					local towerRate=heroChallengeActive(playerIndex)==true and details.mage=="Tovak" and 4 or 2
+					local vp=((details.score.Keep or 0)*keepRate)+((details.score.MageTower or 0)*towerRate)
+					if vp>bestVP then bestVP=vp contributor=playerIndex end
+				end
+				teamScoreByKey[group.key]=math.max(0,bestVP)
+				teamCategoryContributor[group.key].gConqueror=contributor
+			end
+		end
+
+		--Competitive Shades of Tezla faction-leader bonuses are one comparable scoring area.
+		--For a team, use the member with the strongest combined faction bonus.
+		local tezlaFactionTeamScenario=gStates.gameScenario=="Life and Death" or
+			gStates.gameScenario=="The Realm of the Dead Blitz" or
+			gStates.gameScenario=="The Hidden Valley Blitz" or
+			gStates.gameScenario=="Ultimate Conquest"
+		if teamScoring==true and tezlaFactionTeamScenario then
+			for _,group in ipairs(scoringGroups) do
+				local bestFactionScore=-1
+				local contributor=nil
+				for _,playerIndex in ipairs(group.members) do
+					local details=turnOrder[playerIndex]
+					local factionScore=0
+					if (details.score.DarkFactionLead or 0)>0 then factionScore=factionScore+5 end
+					if (details.score.ElemFactionLead or 0)>0 then factionScore=factionScore+5 end
+					if factionScore>bestFactionScore then bestFactionScore=factionScore contributor=playerIndex end
+				end
+				if bestFactionScore>0 then teamScoreByKey[group.key]=teamScoreByKey[group.key]+bestFactionScore end
+				teamCategoryContributor[group.key].gTezla=contributor
+			end
+		end
+
+		--Competitive scenario categories follow the same team principle: only the strongest
+		--member contribution in each comparable category is added to the common score.
+		if teamScoring==true and againstHorsemen then
+			local bestTeamFame=-1
+			local winningGroups={}
+			for _,group in ipairs(scoringGroups) do
+				local bestPoints=0
+				local bestFame=-1
+				local titleContributor=nil
+				for _,playerIndex in ipairs(group.members) do
+					local details=turnOrder[playerIndex]
+					bestPoints=math.max(bestPoints,(details.score.HorsemenDefeated or 0)*6)
+					local fame=details.score.HorsemenFame or 0
+					if fame>bestFame then bestFame=fame titleContributor=playerIndex end
+					details.score.gHorsemanSlayer=0
+				end
+				teamScoreByKey[group.key]=teamScoreByKey[group.key]+bestPoints
+				teamCategoryContributor[group.key].gTezla=titleContributor
+				if bestFame==bestTeamFame then winningGroups[#winningGroups+1]=group
+				elseif bestFame>bestTeamFame then bestTeamFame=bestFame winningGroups={group} end
+			end
+			if bestTeamFame>0 then
+				local bonus=#winningGroups==1 and 6 or 3
+				for _,group in ipairs(winningGroups) do
+					local contributor=teamCategoryContributor[group.key].gTezla
+					if contributor~=nil then turnOrder[contributor].score.gHorsemanSlayer=bonus end
+					teamScoreByKey[group.key]=teamScoreByKey[group.key]+bonus
+				end
+			end
+		end
+
+		if teamScoring==true and againstDragon then
+			for _,data in pairs(dragonScoreSummary.byMage or {}) do data.slayerBonus=0 data.slayerHeads={} end
+			for headName,headSummary in pairs(dragonScoreSummary.heads or {}) do
+				local teamHead={}
+				local bestCount=-1
+				local bestHighest=-1
+				local winningGroups={}
+				for _,group in ipairs(scoringGroups) do
+					local groupCount=0
+					local groupHighest=0
+					local contributor=nil
+					for _,playerIndex in ipairs(group.members) do
+						local mage=turnOrder[playerIndex].mage
+						local count=headSummary.countByMage[mage] or 0
+						local highest=headSummary.highestByMage[mage] or 0
+						if count>groupCount or (count==groupCount and highest>groupHighest) then
+							groupCount=count groupHighest=highest contributor=playerIndex
+						end
+					end
+					teamHead[group.key]={count=groupCount,highest=groupHighest,contributor=contributor}
+					teamScoreByKey[group.key]=teamScoreByKey[group.key]+groupCount
+					if groupCount>bestCount or (groupCount==bestCount and groupCount>0 and groupHighest>bestHighest) then
+						bestCount=groupCount bestHighest=groupHighest winningGroups={group}
+					elseif groupCount==bestCount and groupCount>0 and groupHighest==bestHighest then
+						winningGroups[#winningGroups+1]=group
+					end
+				end
+				local bonus=#winningGroups==1 and 5 or (furyDragon and #winningGroups>1 and 3 or 0)
+				if bonus>0 then
+					for _,group in ipairs(winningGroups) do
+						local contributor=teamHead[group.key].contributor
+						if contributor~=nil then
+							local mage=turnOrder[contributor].mage
+							local data=dragonScoreSummary.byMage[mage]
+							if data~=nil then
+								data.slayerBonus=(data.slayerBonus or 0)+bonus
+								data.slayerHeads[#data.slayerHeads+1]=headName
+							end
+						end
+						teamScoreByKey[group.key]=teamScoreByKey[group.key]+bonus
+					end
+				end
 			end
 		end
 
@@ -10649,10 +10910,29 @@ function displayScore(player, mouseButton, id)
 			UI.setAttribute(b, "active", "false")
 		end
 		local pannel=1
-		local totalHeight=54+30+30
+		local totalHeight=54+30+30+(teamScoring and 26 or 0)
 		local assembledText=""
 		local lineFeed=0
 		local heights={Quest=0, Reputation=0, Knowledge=0, Loot=0, Leader=0, Conqueror=0, Adventurer=0, Restorer=0, Liberator=0, Beating=0, Volkare=0, Efficiency=0, City=0, Relic=0, Tezla=0, Reward=0}
+
+		UI.setAttribute("TeamScoreData","active",teamScoring and "true" or "false")
+		for column=1,4 do
+			UI.setAttribute("Team"..column.."ScoreCell","active","false")
+			UI.setAttribute("Team"..column.."ScoreText","text","")
+		end
+		if teamScoring==true then
+			local column=1
+			for _,details in ipairs(turnOrder) do
+				if details._scoreTeamKey~=nil then
+					local group=scoringGroupByKey[details._scoreTeamKey]
+					local label,color=scoringTeamHeaderStyle(group~=nil and group.team or nil)
+					UI.setAttribute("Team"..column.."ScoreCell","active","true")
+					UI.setAttribute("Team"..column.."ScoreCell","color",color)
+					UI.setAttribute("Team"..column.."ScoreText","text",joinLang({label," • ",translateWord[details.mage]}))
+					column=column+1
+				end
+			end
+		end
 
 		local function appendScoreLine(text, lineCount, parts)
 			local line={}
@@ -10669,6 +10949,13 @@ function displayScore(player, mouseButton, id)
 			local pannelText=tostring(pannel)
 			local textCol="rgb(0, 0, 0)"
 			if coopKey["g"..scoreName]~=pannel and coopKey["g"..scoreName]~=nil and gStates.coop==1 and scoreName~="Relic" then textCol="rgb(0.2, 0.2, 0.4)" end
+			if teamScoring==true and scoreName~="Relic" and scoreName~="Volkare" and scoreName~="Efficiency" then
+				local details=turnOrder[pannel]
+				local contributors=details~=nil and details._scoreTeamKey~=nil and teamCategoryContributor[details._scoreTeamKey] or nil
+				local contributorKey=scoreName=="City" and "gCityLead" or ("g"..scoreName)
+				local contributor=contributors~=nil and contributors[contributorKey] or nil
+				if contributor~=nil and contributor~=pannel then textCol="rgb(0.2, 0.2, 0.4)" end
+			end
 			if scoreName=="Volkare" or scoreName=="Efficiency" then pannelText="" end
 			UI.setAttribute(scoreName..pannelText.."ScoreText", "text", "")
 			UI.setAttribute(scoreName..pannelText.."ScoreCell", "active", "true")
@@ -10710,6 +10997,7 @@ function displayScore(player, mouseButton, id)
 						assembledText="" lineFeed=0
 						local textCol="rgb(0, 0, 0)"
 						if coopKey.lFame~=a and gStates.coop==1 then textCol="rgb(0.2, 0.2, 0.4)" end
+						if teamScoring==true and teamBaseContributorByKey[turnOrder[a]._scoreTeamKey]~=a then textCol="rgb(0.2, 0.2, 0.4)" end
 						UI.setAttribute("Reward"..pannel.."ScoreText", "Color", textCol)
 						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{translateWord[turnOrder[a].mage], "{en}'s Base Fame: {ru}имеет Славы: {zh-tw}的基础名望: {zh-cn}的基础名望: {ko} 의 기본 명성: {es} Fama Base: {fr} Gloire Base: {pt-br} Fama Base: {de}Basis-Ruhm: ", turnOrder[a].fame})
 						totalScore=turnOrder[a].fame
@@ -11067,14 +11355,30 @@ function displayScore(player, mouseButton, id)
 				if (gStates.coop==0 or gStates.WarOfFourComp==true) then
 					UI.setAttribute("CompScoreData", "active", "true")
 					UI.setAttribute("Total"..pannel.."ScoreCell", "active", "true")
-					if forTheCouncil then
-						local resultSuffix=councilMissionResult~="" and joinLang({"\n", councilMissionResult}) or ""
-						UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final Score: {ru}'s Final Score: {zh-tw}'s Final Score: {zh-cn}'s Final Score: {ko}'s Final Score: {es}'s Final Score: {fr}'s Final Score: {pt-br}'s Final Score: {de}'s Final Score: ", totalScore, resultSuffix}))
+					if teamScoring==true and turnOrder[a]._scoreTeamKey~=nil then
+						local group=scoringGroupByKey[turnOrder[a]._scoreTeamKey]
+						local teamName=group~=nil and group.team or nil
+						local label=teamName~=nil and (tostring(teamName).." Team") or (translateWord[turnOrder[a].mage])
+						local finalScore=teamScoreByKey[turnOrder[a]._scoreTeamKey] or totalScore
+						if forTheCouncil then
+							local resultSuffix=councilMissionResult~="" and joinLang({"\n", councilMissionResult}) or ""
+							UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({label, "{en} Final Score: {ru} Final Score: {zh-tw} Final Score: {zh-cn} Final Score: {ko} Final Score: {es} Final Score: {fr} Final Score: {pt-br} Final Score: {de} Final Score: ", finalScore, resultSuffix}))
+						elseif gStates.gameScenario=="Conquer and Hold" then
+							UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({label, "{en} Final VP: {ru} Итоговые ПО: {zh-tw} 最终分数: {zh-cn} 最终分数: {ko} 최종 승점: {es} VP Final: {fr} PV finaux : {pt-br} PV Final: {de} End-VP: ", finalScore}))
+						else
+							UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({label, "{en} Final Fame: {ru} Итого Славы: {zh-tw} 最终名望: {zh-cn} 最终名望: {ko} 최종 명성: {es} Fama Final: {fr} Gloire Finale: {pt-br} Fama Final: {de} Endgültiger Ruhm: ", finalScore}))
+						end
+						turnOrder[a].score.finalScore=finalScore
 					else
-						UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final Fame: {ru} имеет итого Славы: {zh-tw}的最终名望： {zh-cn}的最终名望： {ko} 의 최종 명성: {es} Fama Final: {fr} Gloire Finale: {pt-br} Fama Final: {de}End-Ruhm: ", totalScore}))
+						if forTheCouncil then
+							local resultSuffix=councilMissionResult~="" and joinLang({"\n", councilMissionResult}) or ""
+							UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final Score: {ru}'s Final Score: {zh-tw}'s Final Score: {zh-cn}'s Final Score: {ko}'s Final Score: {es}'s Final Score: {fr}'s Final Score: {pt-br}'s Final Score: {de}'s Final Score: ", totalScore, resultSuffix}))
+						else
+							UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final Fame: {ru} имеет итого Славы: {zh-tw}的最终名望： {zh-cn}的最终名望： {ko} 의 최종 명성: {es} Fama Final: {fr} Gloire Finale: {pt-br} Fama Final: {de}End-Ruhm: ", totalScore}))
+						end
+						if gStates.gameScenario=="Conquer and Hold" then UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final VP: {ru} имеет итого ПО: {zh-tw}的最终分数： {zh-cn}的最终分数： {ko} 의 최종 승점: {es} Vicepresidente Final: {fr} Vice-Président Final de: {pt-br} Pontos de Vitória Final: {de}s End-VP: ", totalScore})) end
+						turnOrder[a].score.finalScore=totalScore
 					end
-					if gStates.gameScenario=="Conquer and Hold" then UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final VP: {ru} имеет итого ПО: {zh-tw}的最终分数： {zh-cn}的最终分数： {ko} 의 최종 승점: {es} Vicepresidente Final: {fr} Vice-Président Final de: {pt-br} Pontos de Vitória Final: {de}s End-VP: ", totalScore})) end
-					turnOrder[a].score.finalScore=totalScore
 				end
 				pannel=pannel+1
 			else
@@ -11335,6 +11639,11 @@ function displayScore(player, mouseButton, id)
 			UI.setAttribute("ScoreBoardTable", "columnWidths", "400")
 		end
 		if gameOver==true and gStates.scoreRecorded==false then UI.show("SendScoreRequest") gStates.scoreRecorded=true end
+		for _,details in ipairs(turnOrder) do
+			details._scoreTeamKey=nil
+			details._scoreTeamName=nil
+			details._scoreGroupOrder=nil
+		end
 		table.sort(turnOrder, function (k1, k2) return k1.tactic<k2.tactic end)
 	end
 end
@@ -12348,7 +12657,7 @@ local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xSt
 				local dieGUID=dice[index]
 				local die=dieGUID~=nil and getObjectFromGUID(dieGUID) or nil
 				local face=faceIndex~=nil and apocalypseDragonVariantManaFaces[faceIndex] or nil
-				if die~=nil and face~=nil then die.setRotationSmooth(face.rotation,false,true) end
+				if die~=nil and face~=nil then die.setRotationSmooth(face.rotation,false,false) end
 			end
 		end,(step-1)*0.65)
 	end
@@ -12366,23 +12675,176 @@ local function apocalypseDragonShowVariantRollHistories(histories,onComplete,xSt
 	return true
 end
 
-local function apocalypseDragonRandomizedStartingLevels(baseLevel)
-	baseLevel=math.max(1,math.min(12,math.floor(tonumber(baseLevel) or 1)))
+local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete)
 	local levels={Famine=math.max(0,baseLevel-1),Death=math.max(0,baseLevel-1),Pestilence=math.max(0,baseLevel-1),War=math.max(0,baseLevel-1)}
-	local histories={}
-	for index=1,4 do
-		local history={}
-		local faceIndex
-		repeat
-			faceIndex=math.random(1,6)
-			history[#history+1]=faceIndex
-		until faceIndex<=4
-		histories[index]=history
-		local headName=apocalypseDragonVariantManaFaces[faceIndex].head
-		levels[headName]=math.min(12,(levels[headName] or 0)+1)
+	local bag=getObjectFromGUID(GUID.bag.spareDice)
+	if bag==nil then error("Random heads could not find the spare mana-die bag.",2) end
+	local dice={}
+	local stackCounts={Famine=0,Death=0,Pestilence=0,War=0}
+	local completed=false
+
+	local function cleanupDice()
+		local spare=getObjectFromGUID(GUID.bag.spareDice)
+		for _,guid in ipairs(dice) do
+			local die=getObjectFromGUID(guid)
+			if die~=nil then
+				die.unlock()
+				--All four dice are real objects taken from the finite spare-dice bag, so return all four
+				--after the presentation instead of mixing one bag die with three temporary clones.
+				if spare~=nil then spare.putObject(die) else die.destruct() end
+			end
+		end
 	end
-	levels.Control=math.max(levels.Famine,levels.Death,levels.Pestilence,levels.War)
-	return levels,histories
+
+	local function failRoll(message)
+		if completed==true then return end
+		completed=true
+		cleanupDice()
+		error("Random heads: "..message,2)
+	end
+
+	local function finishRoll()
+		if completed==true then return end
+		completed=true
+		cleanupDice()
+		if onComplete~=nil then onComplete(levels) end
+	end
+
+	local function headStackPosition(headName,stackIndex)
+		local headData=apocalypseDragonHeadData(headName)
+		if headData==nil or headData.position==nil then return nil end
+		--A mana die resting on the table sits at y=1.47. The head boards are at y=0.97, so the same
+		--0.50 centre-height puts the first die directly on the board; further results stack one die high.
+		return {headData.position[1],headData.position[2]+0.50+((stackIndex-1)*1.50),headData.position[3]}
+	end
+
+	local resolveRoll
+	local function rollDice(indices)
+		if completed==true then return end
+		local function diceReadyToThrow()
+			for _,index in ipairs(indices) do
+				local guid=dice[index]
+				local die=guid~=nil and getObjectFromGUID(guid) or nil
+				if die==nil or die.spawning==true or die.isSmoothMoving()==true or die.resting~=true then return false end
+			end
+			return true
+		end
+		local function throwReadyDice()
+			if completed==true then return end
+			local rollGUIDs={}
+			for _,index in ipairs(indices) do
+				local guid=dice[index]
+				local die=guid~=nil and getObjectFromGUID(guid) or nil
+				if die==nil then return failRoll("a mana die disappeared before rolling.") end
+				die.unlock()
+				rollGUIDs[#rollGUIDs+1]=guid
+			end
+			rollPhysicalDice("Scenario",rollGUIDs,function()
+				resolveRoll(indices)
+			end,function()
+				failRoll("the physical mana-die roll could not settle.")
+			end)
+		end
+		--TTS can briefly report a fresh clone or a die just sent back to its reroll slot as resting.
+		--Do not let the shared roller see it until creation/smooth movement has genuinely finished.
+		safeWaitCondition("Scenario",throwReadyDice,diceReadyToThrow,10,function()
+			failRoll("timed out waiting for the mana dice to settle before rolling.")
+		end)
+	end
+
+	resolveRoll=function(indices)
+		if completed==true then return end
+		local reroll={}
+		local newlyParked={}
+		for _,index in ipairs(indices) do
+			local die=getObjectFromGUID(dice[index])
+			if die==nil then return failRoll("a mana die disappeared before its result was read.") end
+			local color=string.lower(tostring(die.getRotationValue() or "")):match("^(%a+)")
+			local face=nil
+			for _,candidate in ipairs(apocalypseDragonVariantManaFaces) do
+				if string.lower(candidate.name)==color then face=candidate break end
+			end
+			if face==nil then return failRoll("unrecognized settled mana colour "..tostring(color)..".") end
+
+			if face.head~=nil then
+				local headName=face.head
+				stackCounts[headName]=(stackCounts[headName] or 0)+1
+				levels[headName]=math.min(12,(levels[headName] or 0)+1)
+				local target=headStackPosition(headName,stackCounts[headName])
+				if target==nil then return failRoll("could not find the "..tostring(headName).." head position.") end
+				--Keep the rolled face showing while the result travels to its matching Dragon head.
+				die.setPositionSmooth(target,false,false)
+				newlyParked[#newlyParked+1]=index
+			else
+				--Gold and Black have no head result. Slide them back to their original square slot;
+				--rollPhysicalDice waits for that move to settle before giving them another physical throw.
+				reroll[#reroll+1]=index
+				die.setPositionSmooth(positions[index],false,false)
+			end
+		end
+
+		local function continueAfterParking()
+			if completed==true then return end
+			--Once a valid result has visibly arrived above its head, lock it there so later rerolls cannot
+			--knock the display stack around. Dice are never locked while they are being rolled.
+			for _,index in ipairs(newlyParked) do
+				local die=getObjectFromGUID(dice[index])
+				if die~=nil then die.lock() end
+			end
+
+			if #reroll>0 then
+				rollDice(reroll)
+				return
+			end
+
+			levels.Control=math.max(levels.Famine,levels.Death,levels.Pestilence,levels.War)
+			--All four results are now displayed over their matching heads. Hold that tableau for two
+			--seconds, then sink every die straight through its head before removing the temporary objects.
+			safeWaitTime("Scenario",function()
+				if completed==true then return end
+				for _,guid in ipairs(dice) do
+					local die=getObjectFromGUID(guid)
+					if die~=nil then
+						local pos=die.getPosition()
+						die.unlock()
+						die.setPositionSmooth({pos[1],-2.0,pos[3]},false,false)
+					end
+				end
+				safeWaitCondition("Scenario",finishRoll,function()
+					for _,guid in ipairs(dice) do
+						local die=getObjectFromGUID(guid)
+						if die~=nil and (die.isSmoothMoving()==true or die.getPosition()[2]>-1.5) then return false end
+					end
+					return true
+				end,5,finishRoll)
+			end,2.0)
+		end
+
+		if #newlyParked==0 then
+			continueAfterParking()
+			return
+		end
+
+		safeWaitCondition("Scenario",continueAfterParking,function()
+			for _,index in ipairs(newlyParked) do
+				local die=getObjectFromGUID(dice[index])
+				if die==nil or die.isSmoothMoving()==true then return false end
+			end
+			return true
+		end,10,function() failRoll("timed out moving a rolled die to its Dragon head.") end)
+	end
+
+	--Take all four dice from the same bag in the same frame with identical spawn rules. This avoids
+	--one source die appearing first while three later clones materialise higher and fall onto the table.
+	for index=1,4 do
+		local die=safeTakeObject("Scenario",bag,{position=positions[index],rotation={0,45,0},smooth=false})
+		if die==nil then return failRoll("could not draw all four mana dice.") end
+		die.unlock()
+		dice[index]=die.guid
+	end
+	--rollDice owns the readiness gate: every die must finish spawning/moving and genuinely rest at
+	--y=1.47 before any randomize() impulse is allowed.
+	rollDice({1,2,3,4})
 end
 
 local function apocalypseDragonApplyStartingLevels(levels,onComplete)
@@ -12409,8 +12871,23 @@ function apocalypseDragonInitializeHeadLevels(baseLevel,onComplete)
 		apocalypseDragonApplyStartingLevels(levels,onComplete)
 		return true
 	end
-	local levels,histories=apocalypseDragonRandomizedStartingLevels(baseLevel)
-	apocalypseDragonShowVariantRollHistories(histories,function()
+	--Keep the four dice in the central gap between the coloured head discs.
+	local centerX,centerZ=0,0
+	for _,headName in ipairs(apocalypseDragonColoredHeads) do
+		local headData=apocalypseDragonHeadData(headName)
+		centerX=centerX+headData.position[1]
+		centerZ=centerZ+headData.position[3]
+	end
+	centerX,centerZ=centerX/#apocalypseDragonColoredHeads,centerZ/#apocalypseDragonColoredHeads
+	--A true centred diamond around the four coloured head boards. Their average centre is
+	--{-65.43,11.50}; a 1.5-unit radius keeps all four dice evenly spaced around that point.
+	local positions={
+		{centerX+1.50,1.47,centerZ},
+		{centerX,1.47,centerZ+1.50},
+		{centerX,1.47,centerZ-1.50},
+		{centerX-1.50,1.47,centerZ}
+	}
+	apocalypseDragonRollStartingLevels(baseLevel,positions,function(levels)
 		apocalypseDragonApplyStartingLevels(levels,onComplete)
 	end)
 	return true
@@ -12426,6 +12903,13 @@ function setupApocalypseDragonHeads()
 	gStates.apocalypseDragonDefeated=false
 	gStates.furyDragonEverDefeatedHeads=gStates.gameScenario=="Fury of the Apocalypse Dragon" and {} or nil
 	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+	local preload=getObjectFromGUID(apocalypseDragon.dragonPreload)
+	local preloadTarget=apocalypseDragon.dragonPreloadPosition
+	if preload==nil and bag~=nil then
+		preload=bag.takeObject({guid=apocalypseDragon.dragonPreload,position=preloadTarget,smooth=false})
+	elseif preload~=nil and preloadTarget~=nil then
+		preload.setPosition(preloadTarget)
+	end
 	if gStates.gameScenario=="Against the Dragon Blitz" then
 		local roundToken=getObjectFromGUID(apocalypseDragon.roundOrder)
 		local roundPos={-1.90,0.97,-22.20}
@@ -12487,9 +12971,37 @@ function setupApocalypseDragonHeads()
 			error("SetupGame timed out waiting for Apocalypse Dragon head reloads to settle.",2)
 		end)
 	end
+	local function dragonHeadRollAreaSettled()
+		for _,headData in ipairs(apocalypseDragon.heads) do
+			local head=getObjectFromGUID(headData.guid)
+			local token=getObjectFromGUID(headData.tokenGUID)
+			if head==nil or token==nil or
+				head.spawning==true or token.spawning==true or
+				head.isSmoothMoving()==true or token.isSmoothMoving()==true or
+				head.resting~=true or token.resting~=true then return false end
+		end
+		return true
+	end
+	local function startScenarioDragonLevels()
+		if gStates.randomizedDragonHeads==true then
+			--Map construction only needs the Dragon boards/tokens to physically exist and be stable; the
+			--random starting levels do not affect map generation. Release that setup dependency as soon as
+			--the roll area is settled, then let the dice presentation run asynchronously during later setup.
+			safeWaitCondition("Scenario",function()
+				markDragonHeadSetupReady()
+				safeWaitTime("Scenario",function()
+					apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
+				end,2.0)
+			end,dragonHeadRollAreaSettled,10,function()
+				error("SetupGame timed out waiting for the Apocalypse Dragon roll area to settle.",2)
+			end)
+		else
+			apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
+		end
+	end
 	local function finishDragonHeadSetup()
 		if scenarioDragon==true then
-			apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
+			startScenarioDragonLevels()
 		else
 			--The City replacement's level is unknown until the chosen City tile is revealed.
 			--Blank the small tokens now without running defeat logic or creating level markers.
@@ -12953,6 +13465,7 @@ function apocalypseDragonBeginGroundCombat(playerIndex)
 	if gStates.apocalypseDragonGroundCombat~=nil then return apocalypseDragonGroundCombatForPlayer(playerIndex) end
 	local details=turnOrder[playerIndex]
 	if details==nil or details.mage==gStates.positionMageKnight[5] then return false end
+	combatCameraHoldForRampagers(playerIndex)
 	if gStates.gameScenario=="Fury of the Apocalypse Dragon" then
 		gStates.apocalypseDragonAssaultFortifiedInitiator=apocalypseDragonFuryAttackFortified()
 	else
@@ -15363,7 +15876,7 @@ function apocalypseIsHereSetup()
 	--Horseman card underneath its matching face-down token.
 	for i,name in ipairs(names) do
 		local data=horsemanData[name]
-		local x=-56.50-((i-1)*3)
+		local x=-61.00-((i-1)*3)
 		gStates.horsemen[name]={level=level,tokenGUID=data.tokenGUID,revealed=false,defeated=false,retired=false,sitesDestroyed=0,mapSlot=i,revealIndex=i}
 		if componentBag~=nil then
 			componentBag.takeObject({guid=data.cardGUID,position={x,0.98,0.40},rotation={0,180,180},smooth=false})
@@ -21767,6 +22280,11 @@ combatNearbyRampagerChoice=function(playerIndex)
 	return false
 end
 
+--Automatic Dragon assaults bypass attackLocation, but still allow nearby Rampagers to join.
+function combatCameraHoldForRampagers(playerIndex)
+	combatCameraChoiceSuppressedPlayer=combatNearbyRampagerChoice(playerIndex)==true and playerIndex or nil
+end
+
 --Count the attack choices that are actually being offered right now rather than duplicating all of
 --addAvatarButtons' legality rules. IDs are de-duplicated because an Avatar UI can be mirrored onto its
 --model/token/standee representation.
@@ -25092,12 +25610,14 @@ function masterOfChaosSetup(position)
 	end
 	safeWaitFrames("PlayerBoard.Skills",function() masterOfChaosPause=false end, 80)
 	safeWaitFrames("PlayerBoard.Skills",function() safeWaitCondition("PlayerBoard.Skills",function()
+		local skill=getObjectFromGUID(GUID.skill.masterOfChaos)
+		if skill==nil then masterOfChaosPause=false return end
 		gStates.masterOfChaos=math.random(1,6)
-		getObjectFromGUID(GUID.skill.masterOfChaos).setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
-		getObjectFromGUID(GUID.skill.masterOfChaos).setDescription(masterOfChaosData[gStates.masterOfChaos].description)
-		getObjectFromGUID(GUID.skill.masterOfChaos).reload()
+		skill.setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
+		skill.setDescription(masterOfChaosData[gStates.masterOfChaos].description)
+		skill.reload()
 		broadcastToAll("{en}'Master of Chaos' start Randomly picked.{ru}Старт «Мастер магии Хаоса» выбирается случайным образом.{zh-tw}「混亂大師」的起始位置已隨機選擇。{zh-cn}“混乱大师”开始随机挑选{ko}스킬 '혼돈의 달인'의 첫 칸이 무작위로 결정되었습니다.{es}Inicio de 'Master of Chaos' Elegido al azar.{fr}Début de 'Master of Chaos' Choisi au hasard.{pt-br}Início de 'Mestre do Caos' é aleatóriamente escolhido.{de}Meister des Chaos' startet Zufällig gewählt.", {1,1,0.5})
-	end, function() return getObjectFromGUID(GUID.skill.masterOfChaos).resting end) end, 5)
+	end, function() local skill=getObjectFromGUID(GUID.skill.masterOfChaos) return skill==nil or skill.resting end) end, 5)
 end
 
 --masterOfChaos
@@ -26795,6 +27315,16 @@ function mapTokenIsMovingPriority(obj)
 	return false
 end
 
+--Keep a linked Horse immediately below the Horseman class instead of down with ordinary enemies.
+--This prevents another moving enemy (for example a pursuing Rampager) from separating the pair.
+local function mapTokenEnemySeparationRank(obj)
+	if obj==nil or obj.guid==nil then return 0 end
+	if horsemanTokenToName~=nil and horsemanTokenToName[obj.guid]~=nil then return 3 end
+	if horsemanHorseOwner~=nil and horsemanHorseOwner(obj.guid)~=nil then return 2 end
+	if mapTokenIsMovingPriority(obj)==true then return 1 end
+	return 0
+end
+
 --New arrivals need deterministic ordering when several tokens settle together, but that ordering is
 --derived table state and does not belong in gStates. Existing tokens after a load fall back to their
 --physical diagonal/Y order; a new arrival gets a fresh runtime sequence and is newer than either.
@@ -26864,8 +27394,8 @@ end
 
 --Arrange one resolved map hex. Graveyard is a centred floor/support token and never consumes a
 --horizontal spread slot. Destroyed, when present, is the first spread token above that support.
---Ordinary enemies follow in arrival order. Horsemen, the single-hex Dragon and pursuing enemies
---form the moving group at the top-right end, also in arrival order.
+--Ordinary enemies follow in arrival order. Other moving enemies come next, linked Horses sit just
+--below the Horseman class, and Horsemen remain at the top-right end.
 function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,candidates)
 	if hex==nil or hex.position==nil then return false end
 	local objects={}
@@ -26902,11 +27432,11 @@ function mapTokenArrangeHex(hex,mapObjects,ignoreGUID,extraObject,candidates)
 	end
 	table.sort(questMarkers,function(a,b) return tostring(a.guid)<tostring(b.guid) end)
 	table.sort(enemies,function(a,b)
-		local aMoving=mapTokenIsMovingPriority(a)
-		local bMoving=mapTokenIsMovingPriority(b)
-		--Ordinary/site enemies always precede the moving group, regardless of which one physically
-		--arrived later. This keeps a pre-deployed Horseman above a site token revealed afterward.
-		if aMoving~=bMoving then return aMoving~=true end
+		local aRank=mapTokenEnemySeparationRank(a)
+		local bRank=mapTokenEnemySeparationRank(b)
+		--Ordinary/site enemies stay lowest, then other moving enemies, linked Horses, and finally
+		--Horsemen. This keeps each Horseman/Horse pair visually together when Rampagers share the hex.
+		if aRank~=bRank then return aRank<bRank end
 
 		local aOrder=mapTokenArrivalOrder(a.guid)
 		local bOrder=mapTokenArrivalOrder(b.guid)
@@ -30760,7 +31290,7 @@ local apocalypseQuestGainReputation, apocalypseQuestBasicCrystalColor, apocalyps
 local apocalypseQuestEndMoveAttachmentCapture, apocalypseQuestPlannedCardPosition, apocalypseQuestPlannedWorldPosition, apocalypseQuestMoveAttachmentTarget, apocalypseQuestMoveAttachmentOwnerGUID
 local apocalypseQuestRegisterMoveAttachment, apocalypseQuestPlaceManaTokenOnCard, apocalypseQuestGiveCrystal, apocalypseQuestPlaceCrystalOnCard, apocalypseQuestFinalizeEnemyFacing
 local apocalypseQuestPlaceNamedEnemy, apocalypseQuestPlaceEnemy, apocalypseQuestPlaceFistfulEnemies, apocalypseQuestCardHasEnemyType, apocalypseQuestGiveTuckedCard
-local apocalypseQuestGiveProveYourselfReward, apocalypseQuestGiveQuestTokenToInventory, apocalypseQuestSetupDie, apocalypseQuestPhysicalDiceRoll, apocalypseQuestRollVisibleManaDie
+local apocalypseQuestGiveProveYourselfReward, apocalypseQuestGiveQuestTokenToInventory, apocalypseQuestSetupDie, apocalypseQuestRollVisibleManaDie
 local apocalypseQuestRollCrystalRewardDice, apocalypseQuestGoblinAttempt, apocalypseQuestGoblinAttemptReady, apocalypseQuestRegisterGoblin, apocalypseQuestStartGoblinWarrens
 local apocalypseQuestResolveRichMerchantRoll, apocalypseQuestResolveHerbalistReward, apocalypseQuestGiveHerbalistReward, apocalypseQuestGiveBardReward, apocalypseQuestFlipSiteToken
 local apocalypseQuestPlaceRandomCrystalOnShield, apocalypseQuestBeginCrystalChoice, apocalypseQuestRollManaDie, apocalypseQuestPlaceCrystalAt, apocalypseQuestCardCrystalColor
@@ -31757,51 +32287,6 @@ function apocalypseQuestManaDieColor(die)
 	return ({["Red Mana"]="Red",["Blue Mana"]="Blue",["Green Mana"]="Green",["White Mana"]="White",["Gold Mana"]="Gold",["Black Mana"]="Black"})[die.getRotationValue()]
 end
 
---Quest dice are cloned close to the card, allowed to physically settle, then randomized. Waiting for
---that first settle makes randomize() behave like a player's R press instead of being swallowed by the
---clone's initial fall. The result callback runs only after the actual throw has finished and all dice rest.
-apocalypseQuestPhysicalDiceRoll=function(dieGUIDs,onSettled,onFailure)
-	local guids=type(dieGUIDs)=="table" and dieGUIDs or {dieGUIDs}
-	local started=false
-	local finished=false
-	local function failRoll()
-		if finished==true then return end
-		finished=true
-		if onFailure~=nil then onFailure() end
-	end
-	local function allResting()
-		for _,guid in ipairs(guids) do
-			local die=getObjectFromGUID(guid)
-			if die==nil then return true end
-			if die.resting~=true then return false end
-		end
-		return true
-	end
-	local function throwDice()
-		if started==true or finished==true then return end
-		started=true
-		for _,guid in ipairs(guids) do
-			local die=getObjectFromGUID(guid)
-			if die==nil then failRoll() return end
-			die.unlock()
-			die.randomize()
-		end
-		--resting can remain true for the first frame of a randomize impulse. Give the R-style throw time
-		--to start before testing for the final resting state.
-		safeWaitFrames("Quests",function()
-			safeWaitCondition("Quests",function()
-				if finished==true then return end
-				finished=true
-				if onSettled~=nil then onSettled() end
-			end,allResting,10,failRoll)
-		end,3)
-	end
-	--A freshly cloned die may still be in its creation/fall physics. Roll from rest when possible; the
-	--timeout still throws it rather than ever leaving a Quest transaction stuck.
-	safeWaitFrames("Quests",function() safeWaitCondition("Quests",throwDice,allResting,1.5,throwDice) end,2)
-	return true
-end
-
 --Roll a real copy of the Quest setup mana die. This is shared by Quest effects that need the player
 --to see the die result rather than silently choosing one with math.random().
 apocalypseQuestRollVisibleManaDie=function(card,playerIndex,reason,callback,spawnPosition)
@@ -31854,7 +32339,7 @@ apocalypseQuestRollVisibleManaDie=function(card,playerIndex,reason,callback,spaw
 		clearRollDie()
 		if callback~=nil then callback(nil,getObjectFromGUID(cardGUID)) end
 	end
-	apocalypseQuestPhysicalDiceRoll(dieGUID,finishRoll,failRoll)
+	rollPhysicalDice("Quests",dieGUID,finishRoll,failRoll)
 	return true
 end
 
@@ -31927,7 +32412,7 @@ local function apocalypseQuestRunManaDiceRoll(dice,cardGUID,callback,onFailure)
 			if callback~=nil then callback(true,getObjectFromGUID(cardGUID),results) end
 		end,0.8)
 	end
-	apocalypseQuestPhysicalDiceRoll(dice,finishRoll,failRoll)
+	rollPhysicalDice("Quests",dice,finishRoll,failRoll)
 	return true
 end
 
@@ -32245,7 +32730,7 @@ apocalypseQuestGiveHerbalistReward=function(card, playerIndex, callback)
 			if callback~=nil then callback(success,liveCard,rolled) end
 		end,0.8)
 	end
-	apocalypseQuestPhysicalDiceRoll(dieGUID,finishRoll,failRoll)
+	rollPhysicalDice("Quests",dieGUID,finishRoll,failRoll)
 	return true
 end
 
@@ -41156,13 +41641,15 @@ function playerBoardZoneLeave(ctx)
 		if obj.guid==GUID.skill.masterOfChaos and masterOfChaosPause==false then
 			if masterOfChaosWait~=nil then Wait.stop(masterOfChaosWait) end
 			safeWaitFrames("PlayerBoard.Events",function() masterOfChaosWait=safeWaitCondition("PlayerBoard.Events",function()
+				masterOfChaosWait=nil
+				local skill=getObjectFromGUID(GUID.skill.masterOfChaos)
+				if skill==nil then return end
 				for a=1, #turnOrder, 1 do
 					if turnOrder[a].masterOfChaos~=nil and turnOrder[a].masterOfChaos~="incrementented in turn" then turnOrder[a].masterOfChaos="available" break end
 				end
-				getObjectFromGUID(GUID.skill.masterOfChaos).setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
-				getObjectFromGUID(GUID.skill.masterOfChaos).reload()
-				masterOfChaosWait=nil
-			end, function() return getObjectFromGUID(GUID.skill.masterOfChaos).resting end) end, 5)
+				skill.setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
+				skill.reload()
+			end, function() local skill=getObjectFromGUID(GUID.skill.masterOfChaos) return skill==nil or skill.resting end) end, 5)
 		end
 	end
 	--A Card or whole Deck leaving the deed pile can make End Round available.
@@ -45458,6 +45945,50 @@ function safeWaitCondition(scope, callback, condition, timeout, timeoutCallback)
 	return Wait.condition(safeCallbackRun,condition,timeout,safeTimeout)
 end
 
+--Shared physical dice roller, extracted from the working Quest crystal-reward roll.
+--Let creation/fall physics settle before randomize(), then let the throw start before reading resting.
+function rollPhysicalDice(scope,dieGUIDs,onSettled,onFailure)
+	local guids=type(dieGUIDs)=="table" and dieGUIDs or {dieGUIDs}
+	local started=false
+	local finished=false
+	local function failRoll()
+		if finished==true then return end
+		finished=true
+		if onFailure~=nil then onFailure() end
+	end
+	local function allResting()
+		for _,guid in ipairs(guids) do
+			local die=getObjectFromGUID(guid)
+			if die==nil then return true end
+			if die.resting~=true then return false end
+		end
+		return true
+	end
+	local function throwDice()
+		if started==true or finished==true then return end
+		started=true
+		for _,guid in ipairs(guids) do
+			local die=getObjectFromGUID(guid)
+			if die==nil then failRoll() return end
+			die.unlock()
+			die.randomize()
+		end
+		--resting can remain true for the first frame of a randomize impulse. Give the R-style throw time
+		--to start before testing for the final resting state.
+		safeWaitFrames(scope,function()
+			safeWaitCondition(scope,function()
+				if finished==true then return end
+				finished=true
+				if onSettled~=nil then onSettled() end
+			end,allResting,10,failRoll)
+		end,3)
+	end
+	--A freshly cloned die may still be in its creation/fall physics. Roll from rest when possible; the
+	--timeout still throws it rather than ever leaving the roll stuck.
+	safeWaitFrames(scope,function() safeWaitCondition(scope,throwDice,allResting,1.5,throwDice) end,2)
+	return true
+end
+
 --Clear transient runtime state when an enemy token returns to a pool/container. This is shared by
 --scripted combat/city returns and manual corrections so a reused GUID cannot inherit old combat/map state.
 function clearReturnedMonsterRuntimeState(monsterGUID)
@@ -45740,6 +46271,26 @@ function positionToColor(turnNumber)
 		end
 	end
 	return color
+end
+
+--TTS team assignments are the source of truth. Do not mirror them into gStates: players may
+--change suit/team at any point and score/rules checks should see the live assignment immediately.
+function playerTtsTeam(color)
+	if color==nil or color=="" or color=="Grey" then return nil end
+	if color=="Black" then
+		local black=Player["Black"]
+		return black~=nil and black.seated==true and "Black" or nil
+	end
+	local player=Player[color]
+	if player==nil or player.seated~=true then return nil end
+	local team=player.team
+	if team==nil or team=="" or team=="None" then return nil end
+	return team
+end
+
+function areTtsTeammates(colorA,colorB)
+	local teamA=playerTtsTeam(colorA)
+	return teamA~=nil and teamA==playerTtsTeam(colorB)
 end
 
 --Shared turn-order/scenario identity. Keep scenario membership in one place so setup and runtime cannot drift.
@@ -46569,7 +47120,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="442"
+local automaticLuaErrorReporterVersion="443"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
@@ -46940,6 +47491,8 @@ __bundle_register("Data", function(require, _LOADED, __bundle_register, __bundle
 -- No gameplay functions belong in this module.
 
 apocalypseDragon={	model="105141",
+					dragonPreload="4aedfc",
+					dragonPreloadPosition={-40.5,1.07,45.5},
 					horsemenPreload="1c2a1d",
 					horsemenPreloadPosition={-46.08,0.97,46.66},
 					furyMarker="42b581",
@@ -46959,9 +47512,9 @@ apocalypseDragon={	model="105141",
 					levelMarkerRadius=2.9,
 					heads={	{guid="a977d8",tokenGUID="198da8",name="Famine",position={-69.93,0.97,7.00}},
 							{guid="92fed8",tokenGUID="44f36b",name="Death",position={-69.93,0.97,16.00}},
-							{guid="c7e80f",tokenGUID="726090",name="Control",position={-60.93,0.97,7.00}},
+							{guid="c7e80f",tokenGUID="726090",name="Control",position={-51.93,0.97,7.00}},
 							{guid="819bba",tokenGUID="3c4daf",name="Pestilence",position={-60.93,0.97,16.00}},
-							{guid="51e2b1",tokenGUID="977f51",name="War",position={-51.93,0.97,7.00}}}}
+							{guid="51e2b1",tokenGUID="977f51",name="War",position={-60.93,0.97,7.00}}}}
 apocalypseDragonColoredHeads={"Famine","Death","Pestilence","War"}
 apocalypseDragonAirborneHeads={"War","Death","Famine","Pestilence"}
 
