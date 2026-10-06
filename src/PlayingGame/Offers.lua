@@ -773,22 +773,17 @@ function offerAdjust(player, mouseButton, id)
 
 	gStates.offerSize=newSize
 	local sourceX=(4.8*(newSize+1))+21.6
-	applyDeedOfferGeometry(newSize,sourceX)
-
-	if delta>0 then
-		--Refill while the source piles are still stationary, exactly like an ordinary offer refill.
-		--Starting takeObject() from an already smooth-moving Spell deck makes TTS rebuild that deck's
-		--object UI. Drawing first and moving the sources immediately afterwards keeps the same visual
-		--card-out/deck-out animation without disturbing the labels hosted on the Spell source.
-		compactAndRefillDeedOffer(true,sourceObjects)
-	end
-
 	local sourceGUIDs={
 		["Spell"]=deedOfferMoveSource(sourceObjects["Spell"],{sourceX,2.5,-22.2}),
 		["Advanced Action"]=deedOfferMoveSource(sourceObjects["Advanced Action"],{sourceX,2.5,-16.2}),
 	}
+	applyDeedOfferGeometry(newSize,sourceX)
 
-	if delta<0 then
+	if delta>0 then
+		--Draw immediately while both source piles move outward. Offer-zone claim cleanup ignores Decks,
+		--so the Spell source keeps its persistent label/control UI while cards travel into the new column.
+		compactAndRefillDeedOffer(true,sourceObjects)
+	else
 		for _,entry in ipairs(returnedCards) do
 			local card=entry.card
 			if card~=nil then
