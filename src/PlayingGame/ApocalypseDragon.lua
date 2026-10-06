@@ -679,12 +679,9 @@ local function apocalypseDragonRollStartingLevels(baseLevel,positions,onComplete
 		die.unlock()
 		dice[index]=die.guid
 	end
-	--A freshly extracted group can report resting for a couple of frames before TTS has fully
-	--materialised its physics state. Give the initial four-die presentation a short frame gate before
-	--the ordinary resting checks/physical roll. Rerolls do not need this extra spawn-only pause.
-	safeWaitFrames("Scenario",function()
-		rollDice({1,2,3,4})
-	end,5)
+	--rollDice owns the readiness gate: every die must finish spawning/moving and genuinely rest at
+	--y=1.47 before any randomize() impulse is allowed.
+	rollDice({1,2,3,4})
 end
 
 local function apocalypseDragonApplyStartingLevels(levels,onComplete)
@@ -829,7 +826,12 @@ function setupApocalypseDragonHeads()
 			apocalypseDragonApplyStartingLevels(baseLevels,function()
 				safeWaitCondition("Scenario",function()
 					markDragonHeadSetupReady()
-					apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
+					--Preserve the original working Random Heads timing: once Dragon setup releases the map,
+					--give later setup/physics two seconds before spawning and rolling the four mana dice.
+					--The starting-level Shields are already visible during this pause.
+					safeWaitTime("Scenario",function()
+						apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
+					end,2.0)
 				end,dragonHeadLevelsSettled,10,function()
 					error("SetupGame timed out waiting for the Apocalypse Dragon starting level Shields to settle.",2)
 				end)
