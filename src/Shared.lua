@@ -69,13 +69,14 @@ function rollPhysicalDice(scope,dieGUIDs,onSettled,onFailure)
 		return true
 	end
 	local function allThrowMotionSeen()
+		local allSeen=true
 		for _,guid in ipairs(guids) do
 			local die=getObjectFromGUID(guid)
 			if die==nil then return false end
 			if die.resting~=true then motionSeen[guid]=true end
-			if motionSeen[guid]~=true then return false end
+			if motionSeen[guid]~=true then allSeen=false end
 		end
-		return true
+		return allSeen
 	end
 	local function waitForFinalRest()
 		safeWaitCondition(scope,function()
