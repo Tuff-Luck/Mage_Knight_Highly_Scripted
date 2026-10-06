@@ -170,6 +170,72 @@ local function heroChallengeEvaluate(playerIndex, objectsInPlay)
 	return {complete=complete,details=details,extraBonus=extraBonus}
 end
 
+local SCORE_TEAM_STYLE={
+	Hearts={label="Hearts",color="rgba(0.80,0.25,0.25,0.30)"},
+	Diamonds={label="Diamonds",color="rgba(0.30,0.65,0.80,0.30)"},
+	Clubs={label="Clubs",color="rgba(0.30,0.55,0.30,0.30)"},
+	Spades={label="Spades",color="rgba(0.35,0.35,0.45,0.30)"},
+	Jokers={label="Jokers",color="rgba(0.75,0.60,0.20,0.30)"},
+	Black={label="Black",color="rgba(0.20,0.20,0.20,0.35)"}
+}
+
+local function scoringArrangeTtsTeams()
+	local groups={}
+	local byKey={}
+	local anyTeam=false
+	local dummyMage=gStates.positionMageKnight[5]
+	for playerIndex,details in ipairs(turnOrder) do
+		if details.mage~=dummyMage then
+			local color=positionToColor(playerIndex)
+			local team=playerTtsTeam(color)
+			local key
+			if team~=nil then
+				key="team:"..tostring(team)
+				anyTeam=true
+			else
+				key="solo:"..tostring(details.seatPos)
+			end
+			local group=byKey[key]
+			if group==nil then
+				group={key=key,team=team,minSeat=details.seatPos,members={}}
+				byKey[key]=group
+				groups[#groups+1]=group
+			end
+			group.minSeat=math.min(group.minSeat,details.seatPos)
+			details._scoreTeamKey=key
+			details._scoreTeamName=team
+		else
+			details._scoreTeamKey=nil
+			details._scoreTeamName=nil
+		end
+	end
+	table.sort(groups,function(a,b) return a.minSeat<b.minSeat end)
+	for groupOrder,group in ipairs(groups) do
+		group.order=groupOrder
+		for _,details in ipairs(turnOrder) do
+			if details._scoreTeamKey==group.key then details._scoreGroupOrder=groupOrder end
+		end
+	end
+	for _,details in ipairs(turnOrder) do if details._scoreGroupOrder==nil then details._scoreGroupOrder=999 end end
+	table.sort(turnOrder,function(a,b)
+		if a._scoreGroupOrder~=b._scoreGroupOrder then return a._scoreGroupOrder<b._scoreGroupOrder end
+		return a.seatPos<b.seatPos
+	end)
+	for _,group in ipairs(groups) do group.members={} end
+	for playerIndex,details in ipairs(turnOrder) do
+		local group=details._scoreTeamKey~=nil and byKey[details._scoreTeamKey] or nil
+		if group~=nil then group.members[#group.members+1]=playerIndex end
+	end
+	return groups,byKey,anyTeam
+end
+
+local function scoringTeamHeaderStyle(team)
+	local style=SCORE_TEAM_STYLE[team]
+	if style~=nil then return style.label,style.color end
+	if team~=nil then return tostring(team),"rgba(0.45,0.45,0.45,0.25)" end
+	return "Solo","rgba(0.45,0.45,0.45,0.15)"
+end
+
 scoreViewing={}
 function closePanel(player, mouseButton, id)
 	if mouseButton=="-1" then
@@ -394,6 +460,10 @@ function displayScore(player, mouseButton, id)
 		end
 		--Figure out who leads and assisted in cities
 		refreshCityControlAndScoring()
+		local scoringGroups={}
+		local scoringGroupByKey={}
+		local teamScoring=false
+		if gStates.coop==0 then scoringGroups,scoringGroupByKey,teamScoring=scoringArrangeTtsTeams() end
 		local forTheCouncil=gStates.gameScenario=="For the Council"
 		local againstHorsemen=gStates.gameScenario=="Against the Horsemen Blitz"
 		local apocalypseHere=gStates.gameScenario=="Apocalypse is Here"
@@ -415,7 +485,7 @@ function displayScore(player, mouseButton, id)
 					elseif fame==bestFame and fame>0 then bestPlayers[#bestPlayers+1]=playerIndex end
 				end
 			end
-			if gStates.coop==0 and bestFame>0 then
+			if gStates.coop==0 and teamScoring~=true and bestFame>0 then
 				local bonus=#bestPlayers==1 and 6 or 3
 				for _,playerIndex in ipairs(bestPlayers) do turnOrder[playerIndex].score.gHorsemanSlayer=bonus end
 			end
@@ -447,6 +517,23 @@ function displayScore(player, mouseButton, id)
 		local scoreMax=0
 		local scoreMin=999
 		local key={}
+		local teamScoreByKey={}
+		local teamBaseContributorByKey={}
+		local teamCategoryContributor={}
+		if teamScoring==true then
+			for _,group in ipairs(scoringGroups) do
+				local lowScore=999999
+				local contributor=nil
+				teamCategoryContributor[group.key]={}
+				for _,playerIndex in ipairs(group.members) do
+					local details=turnOrder[playerIndex]
+					local current=forTheCouncil and ((details.questScore or 0)+councilReputationPoints(playerIndex)) or ((details.fame or 0)+(details.score.Reward or 0))
+					if current<lowScore then lowScore=current contributor=playerIndex end
+				end
+				teamScoreByKey[group.key]=lowScore==999999 and 0 or lowScore
+				teamBaseContributorByKey[group.key]=contributor
+			end
+		end
 		--Lowest base score for cooperative/solo scoring.
 		if gStates.coop==1 then
 			for a=1, #turnOrder, 1 do
@@ -506,19 +593,50 @@ function displayScore(player, mouseButton, id)
 			if gStates.gameScenario=="The Lost Relic Blitz" and gStates.coop==0 and greatName=="gRelic" then ref=3 end
 			scoreMax=0
 			key={}
-			for playerX=1, #turnOrder, 1 do
-				turnOrder[playerX].score[greatName]=0
-				local currentHighScore=-1
-				if turnOrder[playerX].mage~=gStates.positionMageKnight[5] then currentHighScore=scoreMath[ref](playerX) end
-				if currentHighScore==scoreMax then key[#key+1]=playerX end
-				if currentHighScore>scoreMax then scoreMax=currentHighScore key={playerX} end
+			for playerX=1, #turnOrder, 1 do turnOrder[playerX].score[greatName]=0 end
+			if teamScoring==true then
+				local groupHigh={}
+				local winningGroups={}
+				local overallHigh=-1
+				for _,group in ipairs(scoringGroups) do
+					local high=-1
+					local contributor=nil
+					for _,playerX in ipairs(group.members) do
+						local currentHighScore=scoreMath[ref](playerX)
+						if currentHighScore>high then high=currentHighScore contributor=playerX end
+					end
+					groupHigh[group.key]=high
+					teamCategoryContributor[group.key][greatName]=contributor
+					if forTheCouncil~=true and high>=0 then
+						if greatName=="gBeating" then teamScoreByKey[group.key]=teamScoreByKey[group.key]-high
+						else teamScoreByKey[group.key]=teamScoreByKey[group.key]+high end
+					end
+					if high==overallHigh then winningGroups[#winningGroups+1]=group
+					elseif high>overallHigh then overallHigh=high winningGroups={group} end
+				end
+				if overallHigh>0 then
+					local bonus=#winningGroups==1 and greatestBonus[ref][1] or greatestBonus[ref][2]
+					for _,group in ipairs(winningGroups) do
+						local contributor=teamCategoryContributor[group.key][greatName]
+						if contributor~=nil then turnOrder[contributor].score[greatName]=bonus end
+						if greatName=="gBeating" then teamScoreByKey[group.key]=teamScoreByKey[group.key]-bonus
+						else teamScoreByKey[group.key]=teamScoreByKey[group.key]+bonus end
+					end
+				end
+			else
+				for playerX=1, #turnOrder, 1 do
+					local currentHighScore=-1
+					if turnOrder[playerX].mage~=gStates.positionMageKnight[5] then currentHighScore=scoreMath[ref](playerX) end
+					if currentHighScore==scoreMax then key[#key+1]=playerX end
+					if currentHighScore>scoreMax then scoreMax=currentHighScore key={playerX} end
+				end
+				if gStates.gameScenario=="Against the Apocalypse Blitz" and greatName=="gAdventurer" then ref=1 end
+				if #key==1 and scoreMax~=0 and (gStates.coop==0 or gStates.WarOfFourComp==true) then turnOrder[key[1]].score[greatName]=greatestBonus[ref][1] end
+				if #key>1 and scoreMax~=0 and (gStates.coop==0 or gStates.WarOfFourComp==true) then for a=1, #key, 1 do turnOrder[key[a]].score[greatName]=greatestBonus[ref][2] end end
+				if gStates.gameScenario=="Against the Apocalypse Blitz" and greatName=="gAdventurer" then ref=4 end
+				if gStates.coop==1 and forTheCouncil~=true and greatName~="gBeating" and greatName~="gCityLead" then coopScore=coopScore+scoreMath[ref](key[1]) coopKey[greatName]=key[1] end
+				if gStates.coop==1 and forTheCouncil~=true and greatName=="gBeating" and greatName~="gCityLead" then coopScore=coopScore-scoreMath[ref](key[1]) coopKey[greatName]=key[1] end
 			end
-			if gStates.gameScenario=="Against the Apocalypse Blitz" and greatName=="gAdventurer" then ref=1 end
-			if #key==1 and scoreMax~=0 and (gStates.coop==0 or gStates.WarOfFourComp==true) then turnOrder[key[1]].score[greatName]=greatestBonus[ref][1] end
-			if #key>1 and scoreMax~=0 and (gStates.coop==0 or gStates.WarOfFourComp==true) then for a=1, #key, 1 do turnOrder[key[a]].score[greatName]=greatestBonus[ref][2] end end
-			if gStates.gameScenario=="Against the Apocalypse Blitz" and greatName=="gAdventurer" then ref=4 end
-			if gStates.coop==1 and forTheCouncil~=true and greatName~="gBeating" and greatName~="gCityLead" then coopScore=coopScore+scoreMath[ref](key[1]) coopKey[greatName]=key[1] end
-			if gStates.coop==1 and forTheCouncil~=true and greatName=="gBeating" and greatName~="gCityLead" then coopScore=coopScore-scoreMath[ref](key[1]) coopKey[greatName]=key[1] end
 		end
 		--Krang and Braevalar have Hero Challenge bonuses outside the standard Achievement categories.
 		--In cooperative scoring these are added once for each participating Hero; altered category rates above
@@ -526,6 +644,90 @@ function displayScore(player, mouseButton, id)
 		if gStates.coop==1 and forTheCouncil~=true and gStates.heroChallenges==true then
 			for playerIndex,details in pairs(turnOrder) do
 				if details.mage~=gStates.positionMageKnight[5] and details.heroChallenge~=nil then coopScore=coopScore+(details.heroChallenge.extraBonus or 0) end
+			end
+		end
+
+		if teamScoring==true and forTheCouncil~=true and gStates.heroChallenges==true then
+			for playerIndex,details in ipairs(turnOrder) do
+				if details._scoreTeamKey~=nil and details.heroChallenge~=nil then
+					teamScoreByKey[details._scoreTeamKey]=teamScoreByKey[details._scoreTeamKey]+(details.heroChallenge.extraBonus or 0)
+				end
+			end
+		end
+
+		--Competitive scenario categories follow the same team principle: only the strongest
+		--member contribution in each comparable category is added to the common score.
+		if teamScoring==true and againstHorsemen then
+			local bestTeamFame=-1
+			local winningGroups={}
+			for _,group in ipairs(scoringGroups) do
+				local bestPoints=0
+				local bestFame=-1
+				local titleContributor=nil
+				for _,playerIndex in ipairs(group.members) do
+					local details=turnOrder[playerIndex]
+					bestPoints=math.max(bestPoints,(details.score.HorsemenDefeated or 0)*6)
+					local fame=details.score.HorsemenFame or 0
+					if fame>bestFame then bestFame=fame titleContributor=playerIndex end
+					details.score.gHorsemanSlayer=0
+				end
+				teamScoreByKey[group.key]=teamScoreByKey[group.key]+bestPoints
+				teamCategoryContributor[group.key].gTezla=titleContributor
+				if bestFame==bestTeamFame then winningGroups[#winningGroups+1]=group
+				elseif bestFame>bestTeamFame then bestTeamFame=bestFame winningGroups={group} end
+			end
+			if bestTeamFame>0 then
+				local bonus=#winningGroups==1 and 6 or 3
+				for _,group in ipairs(winningGroups) do
+					local contributor=teamCategoryContributor[group.key].gTezla
+					if contributor~=nil then turnOrder[contributor].score.gHorsemanSlayer=bonus end
+					teamScoreByKey[group.key]=teamScoreByKey[group.key]+bonus
+				end
+			end
+		end
+
+		if teamScoring==true and againstDragon then
+			for _,data in pairs(dragonScoreSummary.byMage or {}) do data.slayerBonus=0 data.slayerHeads={} end
+			for headName,headSummary in pairs(dragonScoreSummary.heads or {}) do
+				local teamHead={}
+				local bestCount=-1
+				local bestHighest=-1
+				local winningGroups={}
+				for _,group in ipairs(scoringGroups) do
+					local groupCount=0
+					local groupHighest=0
+					local contributor=nil
+					for _,playerIndex in ipairs(group.members) do
+						local mage=turnOrder[playerIndex].mage
+						local count=headSummary.countByMage[mage] or 0
+						local highest=headSummary.highestByMage[mage] or 0
+						if count>groupCount or (count==groupCount and highest>groupHighest) then
+							groupCount=count groupHighest=highest contributor=playerIndex
+						end
+					end
+					teamHead[group.key]={count=groupCount,highest=groupHighest,contributor=contributor}
+					teamScoreByKey[group.key]=teamScoreByKey[group.key]+groupCount
+					if groupCount>bestCount or (groupCount==bestCount and groupCount>0 and groupHighest>bestHighest) then
+						bestCount=groupCount bestHighest=groupHighest winningGroups={group}
+					elseif groupCount==bestCount and groupCount>0 and groupHighest==bestHighest then
+						winningGroups[#winningGroups+1]=group
+					end
+				end
+				local bonus=#winningGroups==1 and 5 or (furyDragon and #winningGroups>1 and 3 or 0)
+				if bonus>0 then
+					for _,group in ipairs(winningGroups) do
+						local contributor=teamHead[group.key].contributor
+						if contributor~=nil then
+							local mage=turnOrder[contributor].mage
+							local data=dragonScoreSummary.byMage[mage]
+							if data~=nil then
+								data.slayerBonus=(data.slayerBonus or 0)+bonus
+								data.slayerHeads[#data.slayerHeads+1]=headName
+							end
+						end
+						teamScoreByKey[group.key]=teamScoreByKey[group.key]+bonus
+					end
+				end
 			end
 		end
 
@@ -550,10 +752,29 @@ function displayScore(player, mouseButton, id)
 			UI.setAttribute(b, "active", "false")
 		end
 		local pannel=1
-		local totalHeight=54+30+30
+		local totalHeight=54+30+30+(teamScoring and 26 or 0)
 		local assembledText=""
 		local lineFeed=0
 		local heights={Quest=0, Reputation=0, Knowledge=0, Loot=0, Leader=0, Conqueror=0, Adventurer=0, Restorer=0, Liberator=0, Beating=0, Volkare=0, Efficiency=0, City=0, Relic=0, Tezla=0, Reward=0}
+
+		UI.setAttribute("TeamScoreData","active",teamScoring and "true" or "false")
+		for column=1,4 do
+			UI.setAttribute("Team"..column.."ScoreCell","active","false")
+			UI.setAttribute("Team"..column.."ScoreText","text","")
+		end
+		if teamScoring==true then
+			local column=1
+			for _,details in ipairs(turnOrder) do
+				if details._scoreTeamKey~=nil then
+					local group=scoringGroupByKey[details._scoreTeamKey]
+					local label,color=scoringTeamHeaderStyle(group~=nil and group.team or nil)
+					UI.setAttribute("Team"..column.."ScoreCell","active","true")
+					UI.setAttribute("Team"..column.."ScoreCell","color",color)
+					UI.setAttribute("Team"..column.."ScoreText","text",joinLang({label," • ",translateWord[details.mage]}))
+					column=column+1
+				end
+			end
+		end
 
 		local function appendScoreLine(text, lineCount, parts)
 			local line={}
@@ -570,6 +791,12 @@ function displayScore(player, mouseButton, id)
 			local pannelText=tostring(pannel)
 			local textCol="rgb(0, 0, 0)"
 			if coopKey["g"..scoreName]~=pannel and coopKey["g"..scoreName]~=nil and gStates.coop==1 and scoreName~="Relic" then textCol="rgb(0.2, 0.2, 0.4)" end
+			if teamScoring==true and scoreName~="Relic" and scoreName~="Volkare" and scoreName~="Efficiency" then
+				local details=turnOrder[pannel]
+				local contributors=details~=nil and details._scoreTeamKey~=nil and teamCategoryContributor[details._scoreTeamKey] or nil
+				local contributor=contributors~=nil and contributors["g"..scoreName] or nil
+				if contributor~=nil and contributor~=pannel then textCol="rgb(0.2, 0.2, 0.4)" end
+			end
 			if scoreName=="Volkare" or scoreName=="Efficiency" then pannelText="" end
 			UI.setAttribute(scoreName..pannelText.."ScoreText", "text", "")
 			UI.setAttribute(scoreName..pannelText.."ScoreCell", "active", "true")
@@ -611,6 +838,7 @@ function displayScore(player, mouseButton, id)
 						assembledText="" lineFeed=0
 						local textCol="rgb(0, 0, 0)"
 						if coopKey.lFame~=a and gStates.coop==1 then textCol="rgb(0.2, 0.2, 0.4)" end
+						if teamScoring==true and teamBaseContributorByKey[turnOrder[a]._scoreTeamKey]~=a then textCol="rgb(0.2, 0.2, 0.4)" end
 						UI.setAttribute("Reward"..pannel.."ScoreText", "Color", textCol)
 						assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{translateWord[turnOrder[a].mage], "{en}'s Base Fame: {ru}имеет Славы: {zh-tw}的基础名望: {zh-cn}的基础名望: {ko} 의 기본 명성: {es} Fama Base: {fr} Gloire Base: {pt-br} Fama Base: {de}Basis-Ruhm: ", turnOrder[a].fame})
 						totalScore=turnOrder[a].fame
@@ -968,14 +1196,28 @@ function displayScore(player, mouseButton, id)
 				if (gStates.coop==0 or gStates.WarOfFourComp==true) then
 					UI.setAttribute("CompScoreData", "active", "true")
 					UI.setAttribute("Total"..pannel.."ScoreCell", "active", "true")
-					if forTheCouncil then
-						local resultSuffix=councilMissionResult~="" and joinLang({"\n", councilMissionResult}) or ""
-						UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final Score: {ru}'s Final Score: {zh-tw}'s Final Score: {zh-cn}'s Final Score: {ko}'s Final Score: {es}'s Final Score: {fr}'s Final Score: {pt-br}'s Final Score: {de}'s Final Score: ", totalScore, resultSuffix}))
+					if teamScoring==true and turnOrder[a]._scoreTeamKey~=nil then
+						local group=scoringGroupByKey[turnOrder[a]._scoreTeamKey]
+						local teamName=group~=nil and group.team or nil
+						local label=teamName~=nil and (tostring(teamName).." Team") or (translateWord[turnOrder[a].mage])
+						local finalScore=teamScoreByKey[turnOrder[a]._scoreTeamKey] or totalScore
+						if forTheCouncil then
+							local resultSuffix=councilMissionResult~="" and joinLang({"\n", councilMissionResult}) or ""
+							UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({label, "{en} Final Score: {ru} Final Score: {zh-tw} Final Score: {zh-cn} Final Score: {ko} Final Score: {es} Final Score: {fr} Final Score: {pt-br} Final Score: {de} Final Score: ", finalScore, resultSuffix}))
+						else
+							UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({label, "{en} Final Fame: {ru} Итого Славы: {zh-tw} 最终名望: {zh-cn} 最终名望: {ko} 최종 명성: {es} Fama Final: {fr} Gloire Finale: {pt-br} Fama Final: {de} Endgültiger Ruhm: ", finalScore}))
+						end
+						turnOrder[a].score.finalScore=finalScore
 					else
-						UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final Fame: {ru} имеет итого Славы: {zh-tw}的最终名望： {zh-cn}的最终名望： {ko} 의 최종 명성: {es} Fama Final: {fr} Gloire Finale: {pt-br} Fama Final: {de}End-Ruhm: ", totalScore}))
+						if forTheCouncil then
+							local resultSuffix=councilMissionResult~="" and joinLang({"\n", councilMissionResult}) or ""
+							UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final Score: {ru}'s Final Score: {zh-tw}'s Final Score: {zh-cn}'s Final Score: {ko}'s Final Score: {es}'s Final Score: {fr}'s Final Score: {pt-br}'s Final Score: {de}'s Final Score: ", totalScore, resultSuffix}))
+						else
+							UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final Fame: {ru} имеет итого Славы: {zh-tw}的最终名望： {zh-cn}的最终名望： {ko} 의 최종 명성: {es} Fama Final: {fr} Gloire Finale: {pt-br} Fama Final: {de}End-Ruhm: ", totalScore}))
+						end
+						if gStates.gameScenario=="Conquer and Hold" then UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final VP: {ru} имеет итого ПО: {zh-tw}的最终分数： {zh-cn}的最终分数： {ko} 의 최종 승점: {es} Vicepresidente Final: {fr} Vice-Président Final de: {pt-br} Pontos de Vitória Final: {de}s End-VP: ", totalScore})) end
+						turnOrder[a].score.finalScore=totalScore
 					end
-					if gStates.gameScenario=="Conquer and Hold" then UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({translateWord[turnOrder[a].mage], "{en}'s Final VP: {ru} имеет итого ПО: {zh-tw}的最终分数： {zh-cn}的最终分数： {ko} 의 최종 승점: {es} Vicepresidente Final: {fr} Vice-Président Final de: {pt-br} Pontos de Vitória Final: {de}s End-VP: ", totalScore})) end
-					turnOrder[a].score.finalScore=totalScore
 				end
 				pannel=pannel+1
 			else
@@ -1236,6 +1478,11 @@ function displayScore(player, mouseButton, id)
 			UI.setAttribute("ScoreBoardTable", "columnWidths", "400")
 		end
 		if gameOver==true and gStates.scoreRecorded==false then UI.show("SendScoreRequest") gStates.scoreRecorded=true end
+		for _,details in ipairs(turnOrder) do
+			details._scoreTeamKey=nil
+			details._scoreTeamName=nil
+			details._scoreGroupOrder=nil
+		end
 		table.sort(turnOrder, function (k1, k2) return k1.tactic<k2.tactic end)
 	end
 end
