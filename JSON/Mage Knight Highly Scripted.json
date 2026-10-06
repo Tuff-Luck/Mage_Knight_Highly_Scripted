@@ -147100,37 +147100,512 @@
           "AttachedDecals": [
             {
               "Transform": {
-                "posX": -0.37181434,
-                "posY": -0.009999936,
-                "posZ": -0.763977945,
+                "posX": -0.66,
+                "posY": -0.01,
+                "posZ": -0.48,
                 "rotX": 270.0,
-                "rotY": 359.833374,
+                "rotY": 0.0,
                 "rotZ": 0.0,
                 "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Control 6",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/10876957396790803458/F779F92BE46434D612D29A30AD5D2700AA7E7CA6/",
+                "Name": "Famine Blank",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11586827397796321046/F2AE747DA9F99D5726FAE13C4355B0A5F978BB41/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": -0.163777724,
-                "posY": -0.00999996,
-                "posZ": -0.830413,
+                "posX": -0.55,
+                "posY": -0.01,
+                "posZ": -0.48,
                 "rotX": 270.0,
-                "rotY": 359.833374,
+                "rotY": 0.0,
                 "rotZ": 0.0,
                 "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Control blank",
+                "Name": "Famine 01",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16496206774979909820/A18926493AA77D7296FDCF76BC900A3DC6103292/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.44,
+                "posY": -0.01,
+                "posZ": -0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Famine 02",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11670943614663326652/40EC01E4E321CC4B94C1B87DFD78840DDBEB8DB0/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.33,
+                "posY": -0.01,
+                "posZ": -0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Famine 03",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13487727937324571753/DBFB8ABF51DD7EE9819A3B9C60A6D424CFC4A107/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.22,
+                "posY": -0.01,
+                "posZ": -0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Famine 04",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11014068909543513455/173AC6DC146407CC613AA983B5FDFF248900CCC6/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.11,
+                "posY": -0.01,
+                "posZ": -0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Famine 05",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/17512776552952354317/D856D696696605305E6C72D8EAEC194179096E18/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0,
+                "posY": -0.01,
+                "posZ": -0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Famine 06",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/15881964413010567582/A252BCB5764485D5FCFADD97C05CF365532F5330/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.11,
+                "posY": -0.01,
+                "posZ": -0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Famine 07",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/9846996627242733591/F0E98F6CF49CFB99C1F5CFCAF7A2E2D182DBA0FF/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.22,
+                "posY": -0.01,
+                "posZ": -0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Famine 08",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/12880474981530785813/7A88451214B1AFE49262D943609759F3CCD556A5/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.33,
+                "posY": -0.01,
+                "posZ": -0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Famine 09",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11459681381398886047/B35AF8DDD17A2F412B902BF13738A766E11338EF/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.44,
+                "posY": -0.01,
+                "posZ": -0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Famine 10",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16934536059730462150/488A5741330FD6D6473F26E2AAA9F4852DD65348/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.55,
+                "posY": -0.01,
+                "posZ": -0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Famine 11",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16170275319128221888/8A39B2C338D8B6D6AF27DD9B5818F1AF13345ED2/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.66,
+                "posY": -0.01,
+                "posZ": -0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Famine 12",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13182306654732363909/7FF0427D108EAAC7819BA8DCD4735B97385A4E9A/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.66,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death Blank",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13620180674412628835/5DED21C7826F3F3BFCB9B26165EDE1D539603A3E/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.55,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death 01",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16371825968626899550/5FDE7D7470797911406CF1E2D31F282F43B327BB/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.44,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death 02",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/12794700187908319099/AB334AE174E286FF72B1C3DE28FB0FFA0BADF064/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.33,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death 03",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13355821176009852607/1432DFC60727FE07B49850AC9392CF5321073428/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.22,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death 04",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16990913662714181137/A90B4C50AC584DB51608D0ECB2489F3372227EFC/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.11,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death 05",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/10244108383323989330/90F0C4578EEEF14E0A3942FA037FE61907CD05ED/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death 06",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/10335588193940714016/0D4F7B349521E109BE8C30A56584863D431CC16F/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.11,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death 07",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16838672623384320948/310A948F4F31056B672EFFB6D5D38A3E13764FEA/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.22,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death 08",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/17812128521874190397/6446136EF738F7432F41C9A8F36C22E2BFE31C52/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.33,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death 09",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13367785036854986750/7AB9B365BE586A7FE1FD1A7A5B3F45CF6C21441E/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.44,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death 10",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/17071598470675168269/9CCB37E651220D54407E00B8927DDB4168C485FF/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.55,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death 11",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16560349659475194156/E947D92C32EA34AB03913034193FFF87D264C8AD/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.66,
+                "posY": -0.01,
+                "posZ": -0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Death 12",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13970768619764127207/4742E501BA6D84B9D79321FB592EDCC4519F60F3/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.66,
+                "posY": -0.01,
+                "posZ": 0,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Control Blank",
                 "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/10664064157836641750/1685615A6CE3FEC4F26E48D733DB20A6761B5686/",
                 "Size": 0.2
               },
@@ -147138,201 +147613,11 @@
             },
             {
               "Transform": {
-                "posX": 0.044191096,
-                "posY": -0.009999988,
-                "posZ": -0.84994,
+                "posX": -0.55,
+                "posY": -0.01,
+                "posZ": 0,
                 "rotX": 270.0,
-                "rotY": 359.833374,
-                "rotZ": 0.0,
-                "scaleX": 0.222222224,
-                "scaleY": 0.222222239,
-                "scaleZ": 0.2
-              },
-              "CustomDecal": {
-                "Name": "Control 12",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16920145136625670183/4B5F68DE9009E62ACD27FEA6A70B8BE0BD494676/",
-                "Size": 0.2
-              },
-              "OwnerSteamID": 76561197983996307
-            },
-            {
-              "Transform": {
-                "posX": 0.251964957,
-                "posY": -0.01000003,
-                "posZ": -0.7956654,
-                "rotX": 270.0,
-                "rotY": 359.833374,
-                "rotZ": 0.0,
-                "scaleX": 0.222222224,
-                "scaleY": 0.222222239,
-                "scaleZ": 0.2
-              },
-              "CustomDecal": {
-                "Name": "Control 11",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13888718504684627651/DFB1C1E16F304560328F001BB8356E0441572103/",
-                "Size": 0.2
-              },
-              "OwnerSteamID": 76561197983996307
-            },
-            {
-              "Transform": {
-                "posX": 0.446226329,
-                "posY": -0.009999952,
-                "posZ": -0.71462,
-                "rotX": 270.0,
-                "rotY": 359.833374,
-                "rotZ": 0.0,
-                "scaleX": 0.222222224,
-                "scaleY": 0.222222239,
-                "scaleZ": 0.2
-              },
-              "CustomDecal": {
-                "Name": "Control 10",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/14193497067595203819/8CFC5723F71EFE0EF59D4B86CC97A74375FBA15C/",
-                "Size": 0.2
-              },
-              "OwnerSteamID": 76561197983996307
-            },
-            {
-              "Transform": {
-                "posX": 0.5934566,
-                "posY": -0.009999994,
-                "posZ": -0.5867683,
-                "rotX": 270.0,
-                "rotY": 359.833374,
-                "rotZ": 0.0,
-                "scaleX": 0.222222224,
-                "scaleY": 0.222222239,
-                "scaleZ": 0.2
-              },
-              "CustomDecal": {
-                "Name": "Control 09",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/15385413555426953658/AC07C0F9905D4D39F72C34AFD6DEFEF5E5298653/",
-                "Size": 0.2
-              },
-              "OwnerSteamID": 76561197983996307
-            },
-            {
-              "Transform": {
-                "posX": 0.7337698,
-                "posY": -0.0100000435,
-                "posZ": -0.41194284,
-                "rotX": 270.0,
-                "rotY": 359.833374,
-                "rotZ": 0.0,
-                "scaleX": 0.222222224,
-                "scaleY": 0.222222239,
-                "scaleZ": 0.2
-              },
-              "CustomDecal": {
-                "Name": "Control 08",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/14013965194985990712/D2FB6F26B70BBE66999174D02560BC437255E9D0/",
-                "Size": 0.2
-              },
-              "OwnerSteamID": 76561197983996307
-            },
-            {
-              "Transform": {
-                "posX": 0.820371866,
-                "posY": -0.009999968,
-                "posZ": -0.210475981,
-                "rotX": 270.0,
-                "rotY": 359.833374,
-                "rotZ": 0.0,
-                "scaleX": 0.222222224,
-                "scaleY": 0.222222239,
-                "scaleZ": 0.2
-              },
-              "CustomDecal": {
-                "Name": "Control 07",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13840376013370684559/BB4C3CEC5DCDA51BE9573FE716CBD521CE214994/",
-                "Size": 0.2
-              },
-              "OwnerSteamID": 76561197983996307
-            },
-            {
-              "Transform": {
-                "posX": 0.8532461,
-                "posY": -0.0100000082,
-                "posZ": 0.0243589114,
-                "rotX": 270.0,
-                "rotY": 359.833374,
-                "rotZ": 0.0,
-                "scaleX": 0.222222224,
-                "scaleY": 0.222222239,
-                "scaleZ": 0.2
-              },
-              "CustomDecal": {
-                "Name": "Control 05",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/9887165015649854482/92F1CD9E0A1DAB204D719174D9C3E119B82ED25E/",
-                "Size": 0.2
-              },
-              "OwnerSteamID": 76561197983996307
-            },
-            {
-              "Transform": {
-                "posX": 0.798941731,
-                "posY": -0.0100000333,
-                "posZ": 0.2522447,
-                "rotX": 270.0,
-                "rotY": 359.833374,
-                "rotZ": 0.0,
-                "scaleX": 0.222222224,
-                "scaleY": 0.222222239,
-                "scaleZ": 0.2
-              },
-              "CustomDecal": {
-                "Name": "Control 04",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16802781029501442795/085DB9C0E32314E54FE4418FB088551227E8794E/",
-                "Size": 0.2
-              },
-              "OwnerSteamID": 76561197983996307
-            },
-            {
-              "Transform": {
-                "posX": 0.697716653,
-                "posY": -0.00999993,
-                "posZ": 0.4598681,
-                "rotX": 270.0,
-                "rotY": 359.833374,
-                "rotZ": 0.0,
-                "scaleX": 0.222222224,
-                "scaleY": 0.222222239,
-                "scaleZ": 0.2
-              },
-              "CustomDecal": {
-                "Name": "Control 03",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11326586337046286637/C5282272EB83EFD68CF926A764821F13C6F00A25/",
-                "Size": 0.2
-              },
-              "OwnerSteamID": 76561197983996307
-            },
-            {
-              "Transform": {
-                "posX": 0.5497403,
-                "posY": -0.009999929,
-                "posZ": 0.6069989,
-                "rotX": 270.0,
-                "rotY": 359.833374,
-                "rotZ": 0.0,
-                "scaleX": 0.222222224,
-                "scaleY": 0.222222239,
-                "scaleZ": 0.2
-              },
-              "CustomDecal": {
-                "Name": "Control 02",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13629388721316347053/78B9D9FA560ADE58A96E5AE59CD80001E99B2952/",
-                "Size": 0.2
-              },
-              "OwnerSteamID": 76561197983996307
-            },
-            {
-              "Transform": {
-                "posX": 0.381707132,
-                "posY": -0.00999992,
-                "posZ": 0.7205561,
-                "rotX": 270.0,
-                "rotY": 359.833374,
+                "rotY": 0.0,
                 "rotZ": 0.0,
                 "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
@@ -147347,247 +147632,703 @@
             },
             {
               "Transform": {
-                "posX": 0.2155709,
-                "posY": -0.0100000044,
-                "posZ": 0.808184445,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": -0.44,
+                "posY": -0.01,
+                "posZ": 0,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine Blank",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11586827397796321046/F2AE747DA9F99D5726FAE13C4355B0A5F978BB41/",
+                "Name": "Control 02",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13629388721316347053/78B9D9FA560ADE58A96E5AE59CD80001E99B2952/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": 0.0200591441,
-                "posY": -0.009999965,
-                "posZ": 0.827509642,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": -0.33,
+                "posY": -0.01,
+                "posZ": 0,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine 12",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13182306654732363909/7FF0427D108EAAC7819BA8DCD4735B97385A4E9A/",
+                "Name": "Control 03",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11326586337046286637/C5282272EB83EFD68CF926A764821F13C6F00A25/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": -0.187799454,
-                "posY": -0.009999917,
-                "posZ": 0.821079254,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": -0.22,
+                "posY": -0.01,
+                "posZ": 0,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine 11",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16170275319128221888/8A39B2C338D8B6D6AF27DD9B5818F1AF13345ED2/",
+                "Name": "Control 04",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16802781029501442795/085DB9C0E32314E54FE4418FB088551227E8794E/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": -0.402621865,
-                "posY": -0.009999974,
-                "posZ": 0.756621,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": -0.11,
+                "posY": -0.01,
+                "posZ": 0,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine 10",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16934536059730462150/488A5741330FD6D6473F26E2AAA9F4852DD65348/",
+                "Name": "Control 05",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/9887165015649854482/92F1CD9E0A1DAB204D719174D9C3E119B82ED25E/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": -0.5874394,
-                "posY": -0.01000002,
-                "posZ": 0.633427,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": 0,
+                "posY": -0.01,
+                "posZ": 0,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine 09",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11459681381398886047/B35AF8DDD17A2F412B902BF13738A766E11338EF/",
+                "Name": "Control 06",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/10876957396790803458/F779F92BE46434D612D29A30AD5D2700AA7E7CA6/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": -0.7370175,
-                "posY": -0.009999935,
-                "posZ": 0.430251658,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": 0.11,
+                "posY": -0.01,
+                "posZ": 0,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine 08",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/12880474981530785813/7A88451214B1AFE49262D943609759F3CCD556A5/",
+                "Name": "Control 07",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13840376013370684559/BB4C3CEC5DCDA51BE9573FE716CBD521CE214994/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": -0.8112468,
-                "posY": -0.00999998953,
-                "posZ": 0.237747014,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": 0.22,
+                "posY": -0.01,
+                "posZ": 0,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine 07",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/9846996627242733591/F0E98F6CF49CFB99C1F5CFCAF7A2E2D182DBA0FF/",
+                "Name": "Control 08",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/14013965194985990712/D2FB6F26B70BBE66999174D02560BC437255E9D0/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": -0.8536743,
-                "posY": -0.0100000566,
-                "posZ": 0.06310159,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": 0.33,
+                "posY": -0.01,
+                "posZ": 0,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine 06",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/15881964413010567582/A252BCB5764485D5FCFADD97C05CF365532F5330/",
+                "Name": "Control 09",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/15385413555426953658/AC07C0F9905D4D39F72C34AFD6DEFEF5E5298653/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": -0.8396145,
-                "posY": -0.009999996,
-                "posZ": -0.182022363,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": 0.44,
+                "posY": -0.01,
+                "posZ": 0,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine 05",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/17512776552952354317/D856D696696605305E6C72D8EAEC194179096E18/",
+                "Name": "Control 10",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/14193497067595203819/8CFC5723F71EFE0EF59D4B86CC97A74375FBA15C/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": -0.7452639,
-                "posY": -0.009999972,
-                "posZ": -0.361459136,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": 0.55,
+                "posY": -0.01,
+                "posZ": 0,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine 04",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11014068909543513455/173AC6DC146407CC613AA983B5FDFF248900CCC6/",
+                "Name": "Control 11",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13888718504684627651/DFB1C1E16F304560328F001BB8356E0441572103/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": -0.6233245,
-                "posY": -0.009999956,
-                "posZ": -0.5289241,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": 0.66,
+                "posY": -0.01,
+                "posZ": 0,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine 03",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13487727937324571753/DBFB8ABF51DD7EE9819A3B9C60A6D424CFC4A107/",
+                "Name": "Control 12",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16920145136625670183/4B5F68DE9009E62ACD27FEA6A70B8BE0BD494676/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": -0.512982,
-                "posY": -0.009999946,
-                "posZ": -0.6698515,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": -0.66,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine 02",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11670943614663326652/40EC01E4E321CC4B94C1B87DFD78840DDBEB8DB0/",
+                "Name": "Pestilence Blank",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/14727814945327465814/3424ADD9B95027C2E8BABB8061E36EC638CFFE92/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
             },
             {
               "Transform": {
-                "posX": -0.320802,
-                "posY": -0.0100000147,
-                "posZ": -0.571063042,
-                "rotX": 270.019775,
-                "rotY": -6.932721E-05,
+                "posX": -0.55,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
                 "rotZ": 0.0,
-                "scaleX": 0.222222239,
+                "scaleX": 0.222222224,
                 "scaleY": 0.222222239,
                 "scaleZ": 0.2
               },
               "CustomDecal": {
-                "Name": "Famine 01",
-                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16496206774979909820/A18926493AA77D7296FDCF76BC900A3DC6103292/",
+                "Name": "Pestilence 01",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/14438914505540942528/A18B2D4D91648AC09B1852CE63A8EE7A36492E4F/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.44,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Pestilence 02",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/14480038952565875056/3EE8BA9ECCA4D7A6F257B3BB40CB9696C12896AD/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.33,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Pestilence 03",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/9549607623248560731/C8510238409EAF1143A7AF86A9125CF439CEB1D0/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.22,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Pestilence 04",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/18215941399440979922/9353CAC9F4A103F5A80869F94B36A06F527A8319/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.11,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Pestilence 05",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/16646657767924482661/1F5CFD6944DD481DA36EF0B81A5BB3A03986C6FE/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Pestilence 06",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/9607674964792566543/0F1CED6D1351FEA3512E814178BC600511D49192/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.11,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Pestilence 07",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11092051625643558007/61DD5B38C9C273E5436BDEB01137CE48BB662B77/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.22,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Pestilence 08",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/14560476927059235824/A42E3E77F571DB98E842CDA8AA9ED4D13EB71513/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.33,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Pestilence 09",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/14254716660906347842/64F9765B48FF43A23DB122B73510037B22B2E543/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.44,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Pestilence 10",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/17660048871619401552/7A855B5C59F982F444FBB847BD33C5A6F214FF93/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.55,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Pestilence 11",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11124161405360423807/7DDAF235DF71FD6C7CD380D50940BA00A50F7952/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.66,
+                "posY": -0.01,
+                "posZ": 0.24,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "Pestilence 12",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11137736455236449482/933E226E729E8D7322686072C33D9FA6BBF0F74E/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.66,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War Blank",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/18178622478338789318/BE2BA873CC1EE0F906C3575EA19ED036C09421F6/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.55,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War 01",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/12980787932908788480/A5491E65557B9D4D2C563B5454319A7D4E594889/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.44,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War 02",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13421877717087486826/75EE5B8D33F7592E07C543B99DAD43E54B0676F1/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.33,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War 03",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/15009568938916257504/33313119B58D0C0CD74C1F85A4DF2C41F4EFEDE3/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.22,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War 04",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/12777394016899409491/3D07C0202C13785CBD27D59DFE955D99B30C7CA3/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": -0.11,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War 05",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/17560743990248202604/987A1B45469847074A1831495C086FB0A06A9DEF/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War 06",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/10078011127099094002/F0FA4AA5ED1F91ACD941E34DD96F4A8908ECA7BC/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.11,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War 07",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/17587308290023727482/299CCEBD53FDF39515E56F63E6D586E12AFB4F58/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.22,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War 08",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/13358160582438523993/AC9205712DB84AD9A355EEBA310B94F0B2C0C01F/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.33,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War 09",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/15293200159044820492/281DCAF353D919217EC8E557A745AAC270A00AC9/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.44,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War 10",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/11643222044644500946/7937AD260DEDA41A38312E212C6BE1A8A51E008A/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.55,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War 11",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/9424664225451748118/7DE2C9A48905DAE7FAFB157D1F6EC39CBB453E34/",
+                "Size": 0.2
+              },
+              "OwnerSteamID": 76561197983996307
+            },
+            {
+              "Transform": {
+                "posX": 0.66,
+                "posY": -0.01,
+                "posZ": 0.48,
+                "rotX": 270.0,
+                "rotY": 0.0,
+                "rotZ": 0.0,
+                "scaleX": 0.222222224,
+                "scaleY": 0.222222239,
+                "scaleZ": 0.2
+              },
+              "CustomDecal": {
+                "Name": "War 12",
+                "ImageURL": "https://steamusercontent-a.akamaihd.net/ugc/10594655585831813555/43C5B03E4A854CBA67991A8720CDB48B903AC361/",
                 "Size": 0.2
               },
               "OwnerSteamID": 76561197983996307
