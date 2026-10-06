@@ -468,7 +468,7 @@ function displayScore(player, mouseButton, id)
 		local scoringGroups={}
 		local scoringGroupByKey={}
 		local teamScoring=false
-		if gStates.coop==0 then scoringGroups,scoringGroupByKey,teamScoring=scoringArrangeTtsTeams() end
+		if gStates.coop==0 and gStates.gameScenario~="One to Return" then scoringGroups,scoringGroupByKey,teamScoring=scoringArrangeTtsTeams() end
 		local forTheCouncil=gStates.gameScenario=="For the Council"
 		local againstHorsemen=gStates.gameScenario=="Against the Horsemen Blitz"
 		local apocalypseHere=gStates.gameScenario=="Apocalypse is Here"
@@ -600,7 +600,7 @@ function displayScore(player, mouseButton, id)
 			key={}
 			for playerX=1, #turnOrder, 1 do turnOrder[playerX].score[greatName]=0 end
 			if teamScoring==true then
-				local categoryEnabled=not (greatName=="gCityLead" and (fracturedLandsNoCityScore==true or forTheCouncil==true))
+				local categoryEnabled=gStates.gameScenario~="Conquer and Hold" and not (greatName=="gCityLead" and (fracturedLandsNoCityScore==true or forTheCouncil==true))
 				local groupHigh={}
 				local winningGroups={}
 				local overallHigh=-1
@@ -660,6 +660,47 @@ function displayScore(player, mouseButton, id)
 				if details._scoreTeamKey~=nil and details.heroChallenge~=nil then
 					teamScoreByKey[details._scoreTeamKey]=teamScoreByKey[details._scoreTeamKey]+(details.heroChallenge.extraBonus or 0)
 				end
+			end
+		end
+
+		--Conquer and Hold does not use normal Fame/Achievement scoring. Treat its Keep/Mage Tower
+		--VP total as one comparable team category and take the strongest member's result.
+		if teamScoring==true and gStates.gameScenario=="Conquer and Hold" then
+			for _,group in ipairs(scoringGroups) do
+				local bestVP=-1
+				local contributor=nil
+				for _,playerIndex in ipairs(group.members) do
+					local details=turnOrder[playerIndex]
+					local keepRate=3
+					if heroChallengeActive(playerIndex)==true and details.mage=="Tovak" then keepRate=4 end
+					local towerRate=heroChallengeActive(playerIndex)==true and details.mage=="Tovak" and 4 or 2
+					local vp=((details.score.Keep or 0)*keepRate)+((details.score.MageTower or 0)*towerRate)
+					if vp>bestVP then bestVP=vp contributor=playerIndex end
+				end
+				teamScoreByKey[group.key]=math.max(0,bestVP)
+				teamCategoryContributor[group.key].gConqueror=contributor
+			end
+		end
+
+		--Competitive Shades of Tezla faction-leader bonuses are one comparable scoring area.
+		--For a team, use the member with the strongest combined faction bonus.
+		local tezlaFactionTeamScenario=gStates.gameScenario=="Life and Death" or
+			gStates.gameScenario=="The Realm of the Dead Blitz" or
+			gStates.gameScenario=="The Hidden Valley Blitz" or
+			gStates.gameScenario=="Ultimate Conquest"
+		if teamScoring==true and tezlaFactionTeamScenario then
+			for _,group in ipairs(scoringGroups) do
+				local bestFactionScore=-1
+				local contributor=nil
+				for _,playerIndex in ipairs(group.members) do
+					local details=turnOrder[playerIndex]
+					local factionScore=0
+					if (details.score.DarkFactionLead or 0)>0 then factionScore=factionScore+5 end
+					if (details.score.ElemFactionLead or 0)>0 then factionScore=factionScore+5 end
+					if factionScore>bestFactionScore then bestFactionScore=factionScore contributor=playerIndex end
+				end
+				if bestFactionScore>0 then teamScoreByKey[group.key]=teamScoreByKey[group.key]+bestFactionScore end
+				teamCategoryContributor[group.key].gTezla=contributor
 			end
 		end
 
@@ -802,7 +843,8 @@ function displayScore(player, mouseButton, id)
 			if teamScoring==true and scoreName~="Relic" and scoreName~="Volkare" and scoreName~="Efficiency" then
 				local details=turnOrder[pannel]
 				local contributors=details~=nil and details._scoreTeamKey~=nil and teamCategoryContributor[details._scoreTeamKey] or nil
-				local contributor=contributors~=nil and contributors["g"..scoreName] or nil
+				local contributorKey=scoreName=="City" and "gCityLead" or ("g"..scoreName)
+				local contributor=contributors~=nil and contributors[contributorKey] or nil
 				if contributor~=nil and contributor~=pannel then textCol="rgb(0.2, 0.2, 0.4)" end
 			end
 			if scoreName=="Volkare" or scoreName=="Efficiency" then pannelText="" end
@@ -1212,6 +1254,8 @@ function displayScore(player, mouseButton, id)
 						if forTheCouncil then
 							local resultSuffix=councilMissionResult~="" and joinLang({"\n", councilMissionResult}) or ""
 							UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({label, "{en} Final Score: {ru} Final Score: {zh-tw} Final Score: {zh-cn} Final Score: {ko} Final Score: {es} Final Score: {fr} Final Score: {pt-br} Final Score: {de} Final Score: ", finalScore, resultSuffix}))
+						elseif gStates.gameScenario=="Conquer and Hold" then
+							UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({label, "{en} Final VP: {ru} Итоговые ПО: {zh-tw} 最终分数: {zh-cn} 最终分数: {ko} 최종 승점: {es} VP Final: {fr} PV finaux : {pt-br} PV Final: {de} End-VP: ", finalScore}))
 						else
 							UI.setAttribute("Total"..pannel.."ScoreText", "text", joinLang({label, "{en} Final Fame: {ru} Итого Славы: {zh-tw} 最终名望: {zh-cn} 最终名望: {ko} 최종 명성: {es} Fama Final: {fr} Gloire Finale: {pt-br} Fama Final: {de} Endgültiger Ruhm: ", finalScore}))
 						end
