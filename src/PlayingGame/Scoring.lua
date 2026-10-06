@@ -600,15 +600,18 @@ function displayScore(player, mouseButton, id)
 			key={}
 			for playerX=1, #turnOrder, 1 do turnOrder[playerX].score[greatName]=0 end
 			if teamScoring==true then
+				local categoryEnabled=not (greatName=="gCityLead" and (fracturedLandsNoCityScore==true or forTheCouncil==true))
 				local groupHigh={}
 				local winningGroups={}
 				local overallHigh=-1
 				for _,group in ipairs(scoringGroups) do
-					local high=-1
+					local high=categoryEnabled and -1 or 0
 					local contributor=nil
-					for _,playerX in ipairs(group.members) do
-						local currentHighScore=scoreMath[ref](playerX)
-						if currentHighScore>high then high=currentHighScore contributor=playerX end
+					if categoryEnabled==true then
+						for _,playerX in ipairs(group.members) do
+							local currentHighScore=scoreMath[ref](playerX)
+							if currentHighScore>high then high=currentHighScore contributor=playerX end
+						end
 					end
 					groupHigh[group.key]=high
 					teamCategoryContributor[group.key][greatName]=contributor
