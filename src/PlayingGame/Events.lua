@@ -1180,7 +1180,7 @@ local function handleClaimZoneEnter(ctx)
 	local objGUID=ctx.objGUID
 	--Offer cards can enter a broad zone while still moving toward their final row. Wait until the
 	--card is resting before deciding whether it is a Unit, Monastery AA, normal AA, or Spell.
-	if cardClaimingZones[zoneGUID]~=nil then
+	if cardClaimingZones[zoneGUID]~=nil and ctx.objType=="Card" then
 		local offerZoneGUID=zoneGUID
 		local offerCardGUID=objGUID
 		safeWaitCondition("Events.offerEnter",function()
@@ -1351,8 +1351,10 @@ end
 local function handleClaimZoneLeave(ctx)
 	local zone=ctx.zone
 	local obj=ctx.obj
-	--Remove offer claim buttons
-	if offerClaimSource(zone.guid,obj)~=nil then obj.UI.setXmlTable({{}}) end
+	--Remove offer claim buttons from actual offer cards only. The resizable deed-offer zone can
+	--briefly sweep over the AA/Spell source Decks while its boundary moves; clearing a Deck here
+	--would erase the persistent resize controls/table labels hosted on the Spell source.
+	if obj.type=="Card" and offerClaimSource(zone.guid,obj)~=nil then obj.UI.setXmlTable({{}}) end
 
 	--Remove tactic claim buttons
 	if tacticClaimingZones[zone.guid]~=nil then obj.UI.setXmlTable({{}}) end
