@@ -55,7 +55,6 @@ function rollPhysicalDice(scope,dieGUIDs,onSettled,onFailure)
 	local guids=type(dieGUIDs)=="table" and dieGUIDs or {dieGUIDs}
 	local started=false
 	local finished=false
-	local motionSeen={}
 	local function failRoll()
 		if finished==true then return end
 		finished=true
@@ -64,26 +63,10 @@ function rollPhysicalDice(scope,dieGUIDs,onSettled,onFailure)
 	local function allResting()
 		for _,guid in ipairs(guids) do
 			local die=getObjectFromGUID(guid)
-			if die==nil or die.resting~=true then return false end
+			if die==nil then return true end
+			if die.resting~=true then return false end
 		end
 		return true
-	end
-	local function allThrowMotionSeen()
-		local allSeen=true
-		for _,guid in ipairs(guids) do
-			local die=getObjectFromGUID(guid)
-			if die==nil then return false end
-			if die.resting~=true then motionSeen[guid]=true end
-			if motionSeen[guid]~=true then allSeen=false end
-		end
-		return allSeen
-	end
-	local function waitForFinalRest()
-		safeWaitCondition(scope,function()
-			if finished==true then return end
-			finished=true
-			if onSettled~=nil then onSettled() end
-		end,allResting,10,failRoll)
 	end
 	local function throwDice()
 		if started==true or finished==true then return end
@@ -94,12 +77,18 @@ function rollPhysicalDice(scope,dieGUIDs,onSettled,onFailure)
 			die.unlock()
 			die.randomize()
 		end
-		--randomize() can leave resting=true for several frames while TTS queues the physical throw.
-		--Do not accept a final resting state until every die has actually been observed in motion once.
-		safeWaitCondition(scope,waitForFinalRest,allThrowMotionSeen,2,failRoll)
+		--resting can remain true for the first frame of a randomize impulse. Give the R-style throw time
+		--to start before testing for the final resting state.
+		safeWaitFrames(scope,function()
+			safeWaitCondition(scope,function()
+				if finished==true then return end
+				finished=true
+				if onSettled~=nil then onSettled() end
+			end,allResting,10,failRoll)
+		end,3)
 	end
-	--A freshly cloned/extracted die may still be in its creation/fall physics. Roll from rest when possible;
-	--the timeout still throws it rather than ever leaving the roll stuck.
+	--A freshly cloned die may still be in its creation/fall physics. Roll from rest when possible; the
+	--timeout still throws it rather than ever leaving the roll stuck.
 	safeWaitFrames(scope,function() safeWaitCondition(scope,throwDice,allResting,1.5,throwDice) end,2)
 	return true
 end
