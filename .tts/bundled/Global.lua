@@ -1821,7 +1821,7 @@ local function handleClaimZoneEnter(ctx)
 	local objGUID=ctx.objGUID
 	--Offer cards can enter a broad zone while still moving toward their final row. Wait until the
 	--card is resting before deciding whether it is a Unit, Monastery AA, normal AA, or Spell.
-	if cardClaimingZones[zoneGUID]~=nil then
+	if cardClaimingZones[zoneGUID]~=nil and ctx.objType=="Card" then
 		local offerZoneGUID=zoneGUID
 		local offerCardGUID=objGUID
 		safeWaitCondition("Events.offerEnter",function()
@@ -1992,8 +1992,10 @@ end
 local function handleClaimZoneLeave(ctx)
 	local zone=ctx.zone
 	local obj=ctx.obj
-	--Remove offer claim buttons
-	if offerClaimSource(zone.guid,obj)~=nil then obj.UI.setXmlTable({{}}) end
+	--Remove offer claim buttons from actual offer cards only. The resizable deed-offer zone can
+	--briefly sweep over the AA/Spell source Decks while its boundary moves; clearing a Deck here
+	--would erase the persistent resize controls/table labels hosted on the Spell source.
+	if obj.type=="Card" and offerClaimSource(zone.guid,obj)~=nil then obj.UI.setXmlTable({{}}) end
 
 	--Remove tactic claim buttons
 	if tacticClaimingZones[zone.guid]~=nil then obj.UI.setXmlTable({{}}) end
@@ -12959,6 +12961,15 @@ function setupApocalypseDragonHeads()
 			if head==nil or token==nil or target==nil or head.spawning==true or token.spawning==true or head.resting~=true or token.resting~=true then return false end
 			local pos=token.getPosition()
 			if math.abs(pos[1]-target[1])>0.03 or math.abs(pos[2]-target[2])>0.03 or math.abs(pos[3]-target[3])>0.03 then return false end
+			local level=tonumber(gStates.apocalypseDragonHeadLevels[headData.name]) or 0
+			if level>0 then
+				local markerGUID=gStates.apocalypseDragonLevelMarkers[headData.name]
+				local marker=markerGUID~=nil and getObjectFromGUID(markerGUID) or nil
+				local markerTarget=apocalypseDragonLevelMarkerPosition(head,level)
+				if marker==nil or markerTarget==nil or marker.spawning==true or marker.resting~=true then return false end
+				local markerPos=marker.getPosition()
+				if math.abs(markerPos[1]-markerTarget[1])>0.03 or math.abs(markerPos[2]-markerTarget[2])>0.03 or math.abs(markerPos[3]-markerTarget[3])>0.03 then return false end
+			end
 		end
 		return true
 	end
@@ -12971,29 +12982,24 @@ function setupApocalypseDragonHeads()
 			error("SetupGame timed out waiting for Apocalypse Dragon head reloads to settle.",2)
 		end)
 	end
-	local function dragonHeadRollAreaSettled()
-		for _,headData in ipairs(apocalypseDragon.heads) do
-			local head=getObjectFromGUID(headData.guid)
-			local token=getObjectFromGUID(headData.tokenGUID)
-			if head==nil or token==nil or
-				head.spawning==true or token.spawning==true or
-				head.isSmoothMoving()==true or token.isSmoothMoving()==true or
-				head.resting~=true or token.resting~=true then return false end
-		end
-		return true
-	end
 	local function startScenarioDragonLevels()
 		if gStates.randomizedDragonHeads==true then
-			--Map construction only needs the Dragon boards/tokens to physically exist and be stable; the
-			--random starting levels do not affect map generation. Release that setup dependency as soon as
-			--the roll area is settled, then let the dice presentation run asynchronously during later setup.
-			safeWaitCondition("Scenario",function()
-				markDragonHeadSetupReady()
-				safeWaitTime("Scenario",function()
-					apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
-				end,2.0)
-			end,dragonHeadRollAreaSettled,10,function()
-				error("SetupGame timed out waiting for the Apocalypse Dragon roll area to settle.",2)
+			--Show the selected Dragon level normally first. Once the boards, head tokens and all five
+			--level Shields are physically settled, map setup may continue while the random-head dice
+			--presentation runs independently. The completed roll then moves/removes those same Shields.
+			local baseLevels={Famine=startingLevel,Death=startingLevel,Pestilence=startingLevel,War=startingLevel,Control=startingLevel}
+			apocalypseDragonApplyStartingLevels(baseLevels,function()
+				safeWaitCondition("Scenario",function()
+					markDragonHeadSetupReady()
+					--Preserve the original working Random Heads timing: once Dragon setup releases the map,
+					--give later setup/physics two seconds before spawning and rolling the four mana dice.
+					--The starting-level Shields are already visible during this pause.
+					safeWaitTime("Scenario",function()
+						apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
+					end,2.0)
+				end,dragonHeadLevelsSettled,10,function()
+					error("SetupGame timed out waiting for the Apocalypse Dragon starting level Shields to settle.",2)
+				end)
 			end)
 		else
 			apocalypseDragonInitializeHeadLevels(startingLevel,waitForFinalHeadObjects)
@@ -26755,13 +26761,29 @@ local function deedOfferSourceUiXml(size)
 	}
 end
 
-function refreshDeedOfferAdjustUI()
-	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+local function deedOfferSourceHasUi(spellSource)
 	if spellSource==nil then return false end
-	local size=deedOfferBoundedSize(gStates.offerSize)
-	gStates.offerSize=size
-	--The live Spell source may change from Deck to Card, so rebuild the complete local UI on
-	--whichever object currently owns the source. Positions are intentionally defined here.
+	local xml=spellSource.UI.getXml()
+	return type(xml)=="string" and xml:find('id="TableSpellLabel"',1,true)~=nil
+end
+
+local function applyDeedOfferAdjustState(spellSource,size)
+	if spellSource==nil or deedOfferSourceHasUi(spellSource)~=true then return false end
+	local upEnabled=size<DEED_OFFER_MAX_SIZE
+	local downEnabled=size>DEED_OFFER_MIN_SIZE
+	local activeImage="Sliced Button/Button Object Active"
+	local inactiveImage="Sliced Button/Button Object Deactive"
+	spellSource.UI.setAttribute("e4372aOfferUp","active","true")
+	spellSource.UI.setAttribute("e4372aOfferDown","active","true")
+	spellSource.UI.setAttribute("e4372aOfferUp","interactable",upEnabled and "true" or "false")
+	spellSource.UI.setAttribute("e4372aOfferDown","interactable",downEnabled and "true" or "false")
+	spellSource.UI.setAttribute("e4372aOfferUpImage","image",upEnabled and activeImage or inactiveImage)
+	spellSource.UI.setAttribute("e4372aOfferDownImage","image",downEnabled and activeImage or inactiveImage)
+	return true
+end
+
+local function installDeedOfferSourceUi(spellSource,size)
+	if spellSource==nil then return false end
 	spellSource.UI.setXmlTable(deedOfferSourceUiXml(size))
 	local sourceGUID=spellSource.guid
 	safeWaitFrames("Offers",function()
@@ -26772,10 +26794,30 @@ function refreshDeedOfferAdjustUI()
 	return true
 end
 
+function refreshDeedOfferAdjustUI()
+	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+	if spellSource==nil then return false end
+	local size=deedOfferBoundedSize(gStates.offerSize)
+	gStates.offerSize=size
+
+	--During ordinary offer resizing the labels already live on the moving Spell source. Updating
+	--only the arrow controls leaves that XML tree intact, so Spells/Advanced Actions/Offers ride
+	--smoothly with the source instead of blinking off while TTS rebuilds the object UI.
+	if applyDeedOfferAdjustState(spellSource,size)==true then return true end
+
+	--Deck -> Card replacement can leave a new live Spell source with no local UI. Install the full
+	--tree only in that exceptional case; normal increase/decrease paths never rebuild the labels.
+	return installDeedOfferSourceUi(spellSource,size)
+end
+
 function deedOfferArrowTextRefresh()
-	--Callbacks keeps using this established load-time entry point; rebuilding the whole Spell UI
-	--restores the literal black arrow glyphs and current enabled/disabled state together.
-	return refreshDeedOfferAdjustUI()
+	--Load-time repair deliberately reinstalls the full tree so the literal black arrow glyphs and
+	--localized labels are restored even if TTS did not preserve the object's runtime UI.
+	local spellSource=standardDeckCycleObject("Spell") or getObjectFromGUID(GUID.deck.spell)
+	if spellSource==nil then return false end
+	local size=deedOfferBoundedSize(gStates.offerSize)
+	gStates.offerSize=size
+	return installDeedOfferSourceUi(spellSource,size)
 end
 
 local function hideDeedOfferAdjustUI(spellSource)
@@ -26878,8 +26920,8 @@ function offerAdjust(player, mouseButton, id)
 	applyDeedOfferGeometry(newSize,sourceX)
 
 	if delta>0 then
-		--Do this immediately: the decks move outward while the drawn cards travel into the spaces
-		--the decks just vacated. The source override keeps refill attached to the moving Deck/Card objects.
+		--Draw immediately while both source piles move outward. Offer-zone claim cleanup ignores Decks,
+		--so the Spell source keeps its persistent label/control UI while cards travel into the new column.
 		compactAndRefillDeedOffer(true,sourceObjects)
 	else
 		for _,entry in ipairs(returnedCards) do
@@ -26892,8 +26934,8 @@ function offerAdjust(player, mouseButton, id)
 		end
 	end
 
-	--The controls remain completely hidden only while the source piles are moving. Once both live
-	--AA/Spell sources are resting, rebuild the controls on the current Spell source.
+	--Exactly the same finish behaviour for grow and shrink: only the arrow buttons were hidden.
+	--The labels stay on the moving Spell source and are never rebuilt during the resize.
 	safeWaitCondition("Offers",function()
 		OfferPause=false
 		refreshDeedOfferAdjustUI()
@@ -43536,9 +43578,8 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 							newCard.setRotationSmooth({0,180,0},false,false)
 						end
 						if newCard~=nil then
-							--The resize arrows belong only to the live Spell source. TTS can carry object UI onto a
-							--card extracted while a source pile is merging/splitting (notably during round cleanup),
-							--so strip inherited source UI before this card becomes an offer card.
+							--The resize arrows/table labels belong only to the live Spell source. TTS can carry object UI
+							--onto an extracted Spell card, so strip that inherited UI before it becomes an offer card.
 							if deckName=="Spell" then newCard.UI.setXmlTable({{}}) end
 							offerList[row][column]=newCard.guid
 							movedCards[#movedCards+1]=newCard.guid
@@ -43910,7 +43951,7 @@ end
 end)
 __bundle_register("SetupInterface", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Setup-interface private helpers.
-local ToolTipUpdate, scenarioInfoUpdate
+local ToolTipUpdate, scenarioInfoUpdate, recountSetupMageKnights
 
 -- Pre-game setup interface: scenario/variant selection, setup options and setup-menu controls.
 
@@ -44428,25 +44469,28 @@ end
 function randomSetup(player, value, id)
 	local value=scenarioList[math.random(2, #scenarioList-1)][1]
 	applyScenarioSetupDefaults(value)
-	--scenarioSelection updates setup state synchronously; randomize immediately instead of sleeping a frame.
+	--The selected scenario is fully rendered once above so its option lockouts are current.
+	--Batch the randomized changes after that: individual controls still update the small pieces of
+	--state/interactivity needed by later rolls, but the expensive whole setup panel is rendered once.
 	local randomOptions={"volkareCampAsCity", "randomTileOrientation", "randomCities", "removeShadesOfTezlaMonsters", "removeFactionRewards", "removeApocalypseTerrain",	"startAtNight", "darknessComing", "heroChallenges", "useCustomMageKnights", "weatherMod", "questMod", "apocalypseQuestCards", "proxyPlayer", "itemShopMod", "rampageAmbush", "rampagePursuit", "removeTerrain"}
 	for a=1, #randomOptions, 1 do
 		if UI.getAttribute(randomOptions[a], "interactable")=="True" then
 			--Random must explicitly roll both ON and OFF. This matters for options such as Hero Challenges
 			--that intentionally survive scenario browsing instead of being reset by scenarioSelection().
-			optionsUpdate(nil, math.random(1,10)>7 and "True" or "False", randomOptions[a])
+			optionsUpdate(nil, math.random(1,10)>7 and "True" or "False", randomOptions[a], true)
 		end
 	end
-	ToolTipUpdate(id)
-	if math.random(1,10)>7 then MoreRampageSelection(nil, "True", "MoreRampageSelection") end
-	if math.random(1,10)>7 then RampageSelection(nil, "True", "RampageSelection") end
+	if math.random(1,10)>7 then MoreRampageSelection(nil, "True", "MoreRampageSelection", true) end
+	if math.random(1,10)>7 then RampageSelection(nil, "True", "RampageSelection", true) end
 	--Do not let Interface Random bypass option lockouts (notably Hero Challenges vs Forgemasters).
 	if math.random(1,10)>7 and UI.getAttribute("ROTFSelection", "interactable")=="True" then
 		UI.setAttribute("DropDown", "active", "false")
 		dropDownIdLink="ROTFSelection"
 		local choice={"ROTF1Selection", "ROTF2Selection", "ROTF3Selection"}
-		riseOfTheForgemasterOption(nil, "-1", choice[math.random(1,3)])
+		riseOfTheForgemasterOption(nil, "-1", choice[math.random(1,3)], true)
 	end
+	scenarioInfoUpdate()
+	ToolTipUpdate(id)
 end
 
 function switchSetup(player, mouseButton, id)
@@ -44641,18 +44685,18 @@ local function refreshLostLegionExpansionOption()
 	renderLostLegionExpansionOption()
 end
 
-function optionsUpdate(player, value, id)
+function optionsUpdate(player, value, id, deferRefresh)
 	if id=="heroChallenges" and value=="True" and (gStates.gameScenario=="First Reconnaissance" or gStates.useCustomMageKnights==true or (gStates.riseOfTheForgemasters or 0)>0) then
 		UI.setAttribute("heroChallenges","isOn","false")
 		gStates.heroChallenges=false
 		refreshHeroChallengeOptionLocks()
-		refreshSetupStartButton()
+		if deferRefresh~=true then refreshSetupStartButton() end
 		return
 	end
 	if id=="volkareCampAsCity" and value=="True" and gStates.megapolis>0 then
 		UI.setAttribute("volkareCampAsCity", "isOn", "false")
 		gStates.volkareCampAsCity=false
-		scenarioInfoUpdate()
+		if deferRefresh~=true then scenarioInfoUpdate() end
 		return
 	end
 	if value=="True" then
@@ -44675,7 +44719,14 @@ function optionsUpdate(player, value, id)
 		if id=="removeLostLegionExpansion" then --and gStates.removeBonusCards==false) or (id=="removeBonusCards" and gStates.removeLostLegionExpansion==false)
 			setUIButtonEnabled("ROTFSelection",true)
 		end
-		if id=="useCustomMageKnights" then clearCustomMageKnightSelections(false) end
+		if id=="useCustomMageKnights" then
+			clearCustomMageKnightSelections(false)
+			if deferRefresh==true then
+				--Clearing custom selections can change the player-count scenario row used by later Random options.
+				recountSetupMageKnights()
+				gStates.playersRef=setupPlayersRef()
+			end
+		end
 	end
 	if id=="removeApocalypseTerrain" or id=="removeTerrain" or id=="removeLostLegionExpansion" then
 		if id=="removeLostLegionExpansion" and gStates.removeLostLegionExpansion==true then
@@ -44699,13 +44750,20 @@ function optionsUpdate(player, value, id)
 			scenarioList[gStates.scenarioRef][gStates.playersRef].coreTiles=max
 		end
 	end
+	if deferRefresh==true then
+		--Hero Challenges/custom Mage Knights affect whether the other choice and Forgemaster are legal.
+		--Keep just those dependency controls current so later Random rolls see the same lockouts.
+		if id=="heroChallenges" or id=="useCustomMageKnights" then refreshHeroChallengeOptionLocks() end
+		if id=="proxyPlayer" then refreshProxySetupLabel() end
+		return
+	end
 	ToolTipUpdate(id)
 	scenarioInfoUpdate()
 	if id=="proxyPlayer" then refreshProxySetupLabel() end
 	toggleDropDown(nil, "-1", dropDownIdLink)
 end
 
-local function setRampageMode(mode,id,sourceId)
+local function setRampageMode(mode,id,sourceId,deferRefresh)
 	gStates.rampage=mode
 	if mode==1 then
 		UI.setAttribute("MoreRampageSelection","interactable","False")
@@ -44724,15 +44782,17 @@ local function setRampageMode(mode,id,sourceId)
 		UI.setAttribute("RampageSelection","interactable","True")
 		UI.setAttribute("MoreRampageSelection","isOn","false")
 	end
-	scenarioInfoUpdate()
-	ToolTipUpdate(id)
+	if deferRefresh~=true then
+		scenarioInfoUpdate()
+		ToolTipUpdate(id)
+	end
 end
 
-function RampageSelection(player,value,id)
-	setRampageMode(value=="True" and 1 or 0,id,"RampageSelection")
+function RampageSelection(player,value,id,deferRefresh)
+	setRampageMode(value=="True" and 1 or 0,id,"RampageSelection",deferRefresh)
 end
 
-function riseOfTheForgemasterOption(player, mouseButton, id)
+function riseOfTheForgemasterOption(player, mouseButton, id, deferRefresh)
 	if mouseButton=="-1" then
 		local level=ROTF_SELECTION_LEVEL_BY_ID[id]
 		if level==nil then return end
@@ -44743,13 +44803,15 @@ function riseOfTheForgemasterOption(player, mouseButton, id)
 		gStates.riseOfTheForgemasters=level
 		if gStates.riseOfTheForgemasters>0 then applyForgemasterExpansionRequirements() end
 		if gStates.riseOfTheForgemasters<3 then clearCustomMageKnightSelections(false) end
-		ToolTipUpdate(id)
-		scenarioInfoUpdate()
+		if deferRefresh~=true then
+			ToolTipUpdate(id)
+			scenarioInfoUpdate()
+		end
 	end
 end
 
-function MoreRampageSelection(player,value,id)
-	setRampageMode(value=="True" and 2 or 0,id,"MoreRampageSelection")
+function MoreRampageSelection(player,value,id,deferRefresh)
+	setRampageMode(value=="True" and 2 or 0,id,"MoreRampageSelection",deferRefresh)
 end
 
 dropDownIdLink="none"
@@ -45070,7 +45132,7 @@ local function setupScenarioMaxMageKnights()
 	return 4
 end
 
-local function recountSetupMageKnights()
+recountSetupMageKnights=function()
 	gStates.playerCount=0
 	local customSelected=false
 	local jormundSelected=false
