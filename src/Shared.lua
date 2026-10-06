@@ -377,6 +377,26 @@ function positionToColor(turnNumber)
 	return color
 end
 
+--TTS team assignments are the source of truth. Do not mirror them into gStates: players may
+--change suit/team at any point and score/rules checks should see the live assignment immediately.
+function playerTtsTeam(color)
+	if color==nil or color=="" or color=="Grey" then return nil end
+	if color=="Black" then
+		local black=Player["Black"]
+		return black~=nil and black.seated==true and "Black" or nil
+	end
+	local player=Player[color]
+	if player==nil or player.seated~=true then return nil end
+	local team=player.team
+	if team==nil or team=="" or team=="None" then return nil end
+	return team
+end
+
+function areTtsTeammates(colorA,colorB)
+	local teamA=playerTtsTeam(colorA)
+	return teamA~=nil and teamA==playerTtsTeam(colorB)
+end
+
 --Shared turn-order/scenario identity. Keep scenario membership in one place so setup and runtime cannot drift.
 function turnOrderIndexAtSeat(seatPos,predicate)
 	if seatPos==nil then return nil end
