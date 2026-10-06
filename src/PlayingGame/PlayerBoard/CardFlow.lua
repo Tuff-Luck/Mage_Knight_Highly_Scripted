@@ -1518,10 +1518,18 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 							newCard.setRotationSmooth({0,180,0},false,false)
 						end
 						if newCard~=nil then
-							--The resize arrows belong only to the live Spell source. TTS can carry object UI onto a
-							--card extracted while a source pile is merging/splitting (notably during round cleanup),
-							--so strip inherited source UI before this card becomes an offer card.
-							if deckName=="Spell" then newCard.UI.setXmlTable({{}}) end
+							--A Spell drawn from the UI-hosting source can briefly inherit that object UI. Do not clear
+							--it in the same frame as takeObject(): TTS is still resolving the Deck -> Card split and
+							--can momentarily blank the source UI too. One frame later the objects are independent.
+							if deckName=="Spell" and source.type=="Deck" then
+								local drawnGUID=newCard.guid
+								safeWaitFrames("PlayerBoard.CardFlow",function()
+									local drawn=getObjectFromGUID(drawnGUID)
+									if drawn~=nil then drawn.UI.setXmlTable({{}}) end
+								end,1)
+							elseif deckName=="Spell" then
+								newCard.UI.setXmlTable({{}})
+							end
 							offerList[row][column]=newCard.guid
 							movedCards[#movedCards+1]=newCard.guid
 							lockOfferCardWhenResting(newCard.guid)
