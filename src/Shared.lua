@@ -1174,6 +1174,27 @@ function manaTokenColor(obj)
 	return nil
 end
 
+function isQuestCardObject(obj)
+	if obj==nil then return false end
+	if scriptObjectId(obj)=="Quest" then return true end
+	if obj.getDescription~=nil then return joinLangEnglish(tostring(obj.getDescription() or ""))=="Quest" end
+	return false
+end
+
+function gameCardPrimaryColor(obj)
+	if obj==nil then return nil end
+	local details=gameCards~=nil and gameCards[obj.guid] or nil
+	if details~=nil and details.color~=nil then
+		if type(details.color)=="table" then return details.color[1] end
+		return details.color
+	end
+	if obj.getDescription~=nil then
+		local description=joinLangEnglish(tostring(obj.getDescription() or ""))
+		if SCRIPT_MANA_COLORS[description]==true then return description end
+	end
+	return nil
+end
+
 -- Stable card identity helpers
 --Card identity helpers. Object Nicknames are display/search text and may be translated,
 --so script logic must use stable GUID-backed card data instead.
