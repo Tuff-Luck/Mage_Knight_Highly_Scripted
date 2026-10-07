@@ -1565,10 +1565,11 @@ function addAvatarButtons()
 		local mapSnapshot=runtimeMapSnapshot()
 		for _, playObj in pairs(mapSnapshot.objects or {}) do
 			local guid=playObj.guid
-			local name=joinLangEnglish(tostring(playObj.getName() or ""))
-			if name=="Shield" or name:sub(-6)=="Marker" or monsterPugs[guid]~=nil or gStates.rampagingMonsters[guid]==true or (gStates.destroyedSites~=nil and gStates.destroyedSites[guid]~=nil) then
+			local name=scriptObjectId(playObj)
+			local shield=isShieldObject(playObj)
+			if shield or name:sub(-6)=="Marker" or monsterPugs[guid]~=nil or gStates.rampagingMonsters[guid]==true or (gStates.destroyedSites~=nil and gStates.destroyedSites[guid]~=nil) then
 				local position=playObj.getPosition()
-				local details={obj=playObj, guid=guid, name=name, position=position, description=isShieldObject(playObj) and shieldOwner(playObj) or nil}
+				local details={obj=playObj, guid=guid, name=shield and "Shield" or name, position=position, description=shield and shieldOwner(playObj) or nil}
 				local key=avatarButtonBucketKey(position)
 				if mapButtonBuckets[key]==nil then mapButtonBuckets[key]={} end
 				mapButtonBuckets[key][#mapButtonBuckets[key]+1]=details
