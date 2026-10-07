@@ -1531,7 +1531,8 @@ function refreshCityControlAndScoring()
 			end
 			local cityScoring={}
 			for _, shield in ipairs(objectsOnCity) do
-				if isShieldObject(shield) then\n\t\t\t\t\tlocal mage=shieldOwner(shield)
+				if isShieldObject(shield) then
+					local mage=shieldOwner(shield)
 					if cityScoring[mage]~=nil then cityScoring[mage]=cityScoring[mage]+1
 					elseif firstShield==true then cityScoring[mage]=1.5 firstShield=false
 					else cityScoring[mage]=1 end
