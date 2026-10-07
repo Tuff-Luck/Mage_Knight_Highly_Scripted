@@ -151,7 +151,7 @@ function moveDisplayDungeonLordsTunnelNetwork(hexMap,playAreaObjects,startTilePo
 		return hor,vec
 	end
 	for _,obj in pairs(playAreaObjects or {}) do
-		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+		if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 			local hor,vec=gridForPosition(obj.getPosition())
 			local row=hexMap[tostring(hor)]
 			local hex=row~=nil and row[tostring(vec)] or nil
@@ -583,7 +583,7 @@ function renderMoveDisplay(id)
 					local zoneObj=getObjectFromGUID(zone)
 					if zoneObj~=nil then
 						for _, detail in pairs(zoneObj.getObjects()) do
-							if detail.getName()==currentTurn.mage then
+							if joinLangEnglish(tostring(detail.getName() or ""))==currentTurn.mage then
 								local cityObj=getObjectFromGUID(citySearch.cityGUID)
 								if cityObj~=nil then gStates.resourceTracker.playerPos=cityObj.getPosition() end
 								break
