@@ -109,7 +109,7 @@ function dummyCardColors(card)
 		for _, color in ipairs(gameCards[card.guid].color) do if color=="Red" or color=="Green" or color=="Blue" or color=="White" then colors[#colors+1]=color end end
 	end
 	if #colors==0 and card~=nil then
-		for color in tostring(card.getDescription()):gmatch("%a+") do if color=="Red" or color=="Green" or color=="Blue" or color=="White" then colors[#colors+1]=color end end
+		for color in joinLangEnglish(tostring(card.getDescription() or "")):gmatch("%a+") do if color=="Red" or color=="Green" or color=="Blue" or color=="White" then colors[#colors+1]=color end end
 	end
 	return colors
 end
