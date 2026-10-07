@@ -314,7 +314,7 @@ function horsemanAttackOptions(playerIndex,mapPosition)
 			local zoneObj=getObjectFromGUID(zoneGUID)
 			if zoneObj~=nil then
 				local found=false
-				for _,obj in pairs(zoneObj.getObjects()) do if obj.getName()==player.mage then found=true break end end
+				for _,obj in pairs(zoneObj.getObjects()) do if joinLangEnglish(tostring(obj.getName() or ""))==player.mage then found=true break end end
 				if found==true then
 					local cityObj=nil
 					if zoneGUID==volkare.discZone and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then cityObj=getObjectFromGUID(gStates.volkareModel)
