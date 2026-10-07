@@ -150,7 +150,7 @@ function volkareCampContributionShieldCount(playerRef)
 	local zone=getObjectFromGUID(volkare.discZone)
 	if zone==nil then return 0 end
 	local count=0
-	for _,obj in pairs(zone.getObjects()) do if obj.getName()=="Shield" and obj.getDescription()==player.mage then count=count+1 end end
+	for _,obj in pairs(zone.getObjects()) do if isShieldObject(obj) and shieldOwner(obj)==player.mage then count=count+1 end end
 	return count
 end
 
@@ -444,7 +444,7 @@ function scenarioRestLocationIsAvailable()
 		local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
 		table.sort(objectsInPlay, function (k1, k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
 		for _, obj in pairs(objectsInPlay) do
-			if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 				if math.sqrt(((obj.getPosition()[1]-avatarLocation[1])^2)+((obj.getPosition()[3]-avatarLocation[3])^2))<1 then
 					gladeOpen=true
 					break
@@ -602,11 +602,11 @@ function coopLeaderScenarioEndAchieved()
 		local graveYardTileCount=0
 		local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
 		for _, obj in pairs(objectsInPlay) do
-			if obj.getName()=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
-			if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+			if scriptObjectId(obj)=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
+			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 				local shieldPos=obj.getPosition()
 				for _, graveYard in pairs(objectsInPlay) do
-					if graveYard.getName()=="GraveYard" then
+					if scriptObjectId(graveYard)=="GraveYard" then
 						local gravePos=graveYard.getPosition()
 						if math.sqrt(((shieldPos[1]-gravePos[1])^2)+((shieldPos[3]-gravePos[3])^2))<1 then graveYardCount=graveYardCount+1 break end
 					end
@@ -644,7 +644,7 @@ function scenarioCombatCleanupCheck(cleanupPlayer)
 		local objectsInPlay=map~=nil and map.getObjects() or {}
 		table.sort(objectsInPlay,function(k1,k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
 		for _, playAreaObject in pairs(objectsInPlay) do
-			if playAreaObject.getName()=="Shield" and volkarePursuitShieldRegistered(playAreaObject)~=true then
+			if isShieldObject(playAreaObject) and volkarePursuitShieldRegistered(playAreaObject)~=true then
 				local found=false
 				local shieldPos=playAreaObject.getPosition()
 				local locatedTerrain,_,_,locatedFeature=terrainHexAtPosition(shieldPos,objectsInPlay)
@@ -657,14 +657,14 @@ function scenarioCombatCleanupCheck(cleanupPlayer)
 						if locatedFeature=="mine" then mineCount=mineCount+1 end
 						if locatedFeature~=nil and (locatedFeature:sub(1,4)=="city" or locatedFeature=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz" then relicCount=relicCount+1 end
 					end
-					if shieldToTileDist<1 and terTile.getName()=="GraveYard" then graveYardCount=graveYardCount+1 found=true end
+					if shieldToTileDist<1 and scriptObjectId(terTile)=="GraveYard" then graveYardCount=graveYardCount+1 found=true end
 					if found==true then break end
 				end
 			end
 			if terrainTiles[playAreaObject.guid]~=nil and combatCleanupMineTiles[playAreaObject.guid]==true then mineTileCount=mineTileCount+1 end
-			if playAreaObject.getName()=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
+			if scriptObjectId(playAreaObject)=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
 			if terrainTiles[playAreaObject.guid]~=nil and combatCleanupDungeonTombTiles[playAreaObject.guid]==true then dungeonHexCount=dungeonHexCount+1 end
-			if playAreaObject.getName()=="Secret Tomb" or playAreaObject.getName()=="Secret Dungeon" then dungeonHexCount=dungeonHexCount+1 end
+			if scriptObjectId(playAreaObject)=="Secret Tomb" or scriptObjectId(playAreaObject)=="Secret Dungeon" then dungeonHexCount=dungeonHexCount+1 end
 		end
 	end
 
@@ -742,7 +742,7 @@ function mineCrystalCount(playerIndex, color)
 	if zone==nil then return 0 end
 	local count=0
 	for _, obj in pairs(zone.getObjects()) do
-		if obj.getDescription()==color or obj.getName()==color.." Mana" then count=count+1 end
+		if manaTokenColor(obj)==color then count=count+1 end
 	end
 	return count
 end
@@ -752,7 +752,7 @@ mineLiberatedForClaim=function(playerIndex, terrainGUID, hexPos)
 	local map=getObjectFromGUID(mapArea)
 	if map~=nil then
 		for _, obj in pairs(map.getObjects()) do
-			if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 				local p=obj.getPosition()
 				if ((p[1]-hexPos[1])^2)+((p[3]-hexPos[3])^2)<1 then return true end
 			end
@@ -795,7 +795,7 @@ function mineInventoryPosition(playerIndex, color)
 	local objects=zone.getObjects()
 	local matching={}
 	for _, obj in pairs(objects) do
-		if obj.getDescription()==color or obj.getName()==color.." Mana" then matching[#matching+1]=obj.getPosition() end
+		if manaTokenColor(obj)==color then matching[#matching+1]=obj.getPosition() end
 	end
 	local choices={}
 	for _, snap in pairs(board.getSnapPoints() or {}) do
@@ -1067,7 +1067,7 @@ end
 
 function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature)
 	if gStates.gameScenario~="Dungeon Lords" or obj==nil or terrain==nil or bearing==nil then return false end
-	local secretName=obj.getName()
+	local secretName=scriptObjectId(obj)
 	if secretName~="Secret Dungeon" and secretName~="Secret Tomb" then return false end
 	local site=secretName=="Secret Dungeon" and "dungeon" or "tomb"
 	gStates.locationPlace=gStates.locationPlace or {}
@@ -2660,7 +2660,7 @@ againstApocalypseObjectivesComplete=function()
 	local floorCount=0
 	local clearedSites={}
 	for _,obj in pairs(objectsInPlay) do
-		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+		if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 			local terrain,_,_,feature=terrainHexAtPosition(obj.getPosition(),objectsInPlay)
 			if terrain~=nil and (feature=="ziggurat" or feature=="pyramid") then
 				floorCount=floorCount+1
