@@ -285,7 +285,7 @@ local function apocalypseQuestName(card)
 	if card==nil then return "Unknown Quest" end
 	local details=apocalypseQuestData[card.guid]
 	if details~=nil then return details.name end
-	local name=card.getName()
+	local name=joinLangEnglish(tostring(card.getName() or ""))
 	if name~=nil and name~="" then return name end
 	return "Quest "..tostring(card.guid)
 end
@@ -344,7 +344,7 @@ local function apocalypseQuestCardTitle(card)
 		if type(name)=="table" then name=name[1] end
 		if name~=nil and tostring(name)~="" then return tostring(name) end
 	end
-	local name=card.getName()
+	local name=joinLangEnglish(tostring(card.getName() or ""))
 	if name~=nil and name~="" then return name end
 	return "card "..tostring(card.guid)
 end
@@ -353,7 +353,7 @@ local function apocalypseQuestTuckedCardDestination(card)
 	local details=gameCards~=nil and gameCards[card.guid] or nil
 	local cardType=details~=nil and details.cardType or nil
 	local notes=card.getGMNotes()
-	local name=card.getName()
+	local name=joinLangEnglish(tostring(card.getName() or ""))
 	if cardType=="Advanced Action" or notes=="Advanced Action" or name=="Advanced Action" then return GUID.deck.action, "Advanced Action" end
 	if cardType=="Spell" or notes=="Spell" or name=="Spell" then return GUID.deck.spell, "Spell" end
 	if cardType=="Artifact" or notes=="Artifact" or name=="Artifact" then return GUID.deck.artifact, "Artifact" end
@@ -1221,7 +1221,7 @@ apocalypseQuestRegisterGoblin=function(enemy,playerIndex)
 	if enemy==nil or turnOrder[playerIndex]==nil then return false end
 	--The Warrens source is an Infinite Bag, so there is no contained-object GUID to inspect. Give each
 	--fresh clone a small runtime monster record, then put the printed Quest overrides in monsterPerks.
-	monsterPugs[enemy.guid]={name=enemy.getName()~="" and enemy.getName() or "Goblin",pugType="green",fame=1,attack={P={0}},armour=0}
+	monsterPugs[enemy.guid]={name=joinLangEnglish(tostring(enemy.getName() or ""))~="" and joinLangEnglish(tostring(enemy.getName() or "")) or "Goblin",pugType="green",fame=1,attack={P={0}},armour=0}
 	if gStates.monsterPerks==nil then gStates.monsterPerks={} end
 	gStates.monsterPerks[enemy.guid]={attack={P={1}},armour=1,fame=0,questGoblinWarrens=true}
 	if gStates.apocalypseQuestGoblinEnemies==nil then gStates.apocalypseQuestGoblinEnemies={} end
@@ -1235,7 +1235,7 @@ function apocalypseQuestRestoreGoblinEnemies()
 	for guid,record in pairs(gStates.apocalypseQuestGoblinEnemies) do
 		local enemy=getObjectFromGUID(guid)
 		if enemy~=nil then
-			monsterPugs[guid]={name=record.name or (enemy.getName()~="" and enemy.getName() or "Goblin"),pugType="green",fame=1,attack={P={0}},armour=0}
+			monsterPugs[guid]={name=record.name or (joinLangEnglish(tostring(enemy.getName() or ""))~="" and joinLangEnglish(tostring(enemy.getName() or "")) or "Goblin"),pugType="green",fame=1,attack={P={0}},armour=0}
 			if gStates.monsterPerks==nil then gStates.monsterPerks={} end
 			local perks=gStates.monsterPerks[guid] or {}
 			perks.attack={P={1}}
@@ -5773,7 +5773,7 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	--those objects toward the Quest deck before their return completed (Spell Thief / Prove Yourself).
 	local attachmentGUIDs={}
 	for _,obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
-		if obj.getName()~="Shield" then attachmentGUIDs[#attachmentGUIDs+1]=obj.guid end
+		if not isShieldObject(obj) then attachmentGUIDs[#attachmentGUIDs+1]=obj.guid end
 	end
 	apocalypseQuestRemoveShields(card)
 
