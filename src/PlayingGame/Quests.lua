@@ -696,18 +696,13 @@ apocalypseQuestGainReputation=function(playerIndex, questName)
 end
 
 apocalypseQuestBasicCrystalColor=function(obj)
-	if obj==nil then return nil end
-	return ({["Red Mana"]="Red", ["Blue Mana"]="Blue", ["Green Mana"]="Green", ["White Mana"]="White"})[obj.getName()]
+	local color=manaTokenColor(obj)
+	if color=="Red" or color=="Blue" or color=="Green" or color=="White" then return color end
+	return nil
 end
 
 apocalypseQuestManaTokenColor=function(obj)
-	if obj==nil then return nil end
-	local basic=apocalypseQuestBasicCrystalColor(obj)
-	if basic~=nil then return basic end
-	local name=obj.getName()
-	if name=="Gold Mana" then return "Gold" end
-	if name=="Black Mana" then return "Black" end
-	return nil
+	return manaTokenColor(obj)
 end
 
 apocalypseQuestManaBag=function(color)
@@ -1601,8 +1596,8 @@ apocalypseQuestCursedTargetIndex=function(card,playerIndex)
 	if source==nil then return nil end
 	local chosen=nil
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
-		if obj.getName()=="Shield" then
-			local owner=obj.getDescription()
+		if isShieldObject(obj) then
+			local owner=shieldOwner(obj)
 			for index, details in ipairs(turnOrder) do
 				if details.mage==owner and apocalypseQuestCursedTargetEligible(card,playerIndex,index,true,hexes,mapObjects,source)==true then
 					if chosen~=nil and chosen~=index then return nil end
@@ -2444,7 +2439,7 @@ function QuestPrivate.apocalypseQuestUnderSiegeFailure(card,playerIndex)
 	local pos=marker.getPosition()
 	local spatial=runtimeMapSpatialSnapshot()
 	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,pos,1.1)) do
-		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true and turnOrder[playerIndex]~=nil and obj.getDescription()==turnOrder[playerIndex].mage then
+		if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true and turnOrder[playerIndex]~=nil and shieldOwner(obj)==turnOrder[playerIndex].mage then
 			local p=spatial.positions[obj.guid] or obj.getPosition()
 			if ((p[1]-pos[1])^2)+((p[3]-pos[3])^2)<1 then obj.destruct() break end
 		end
@@ -2915,10 +2910,10 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 		local penalized={}
 		broadcastToAll(joinLang({"{en}Quest cleanup: \"{it}Pulizia Missioni: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"\" (",tostring(questDetails.questType or "Unknown"),"{en} is leaving the offer.{it} lascia l'offerta.{ru} покидает предложение.{zh-tw} 正在離開供應。{zh-cn} 正在离开供应。{ko}이(가) 제안에서 제거됩니다.{es} sale de la oferta.{fr} quitte l’offre.{pt-br} está saindo da oferta.{de} verlässt das Angebot."}),{1,1,0.5})
 		for _,obj in ipairs(objects) do
-			if obj.getName()=="Shield" then
+			if isShieldObject(obj) then
 				shieldCount=shieldCount+1
 				if questDetails.questType=="Personal" then
-					local owner=obj.getDescription()
+					local owner=shieldOwner(obj)
 					if owner~=nil and owner~="" and owner~="Neutral" and penalized[owner]~=true then
 						for playerIndex,playerDetails in ipairs(turnOrder) do
 							if playerDetails.mage==owner then apocalypseQuestLoseReputation(playerIndex,questName) penalized[owner]=true break end
@@ -3122,8 +3117,8 @@ function QuestPrivate.apocalypseQuestPersonalShieldOwner(card)
 	local quest=card~=nil and apocalypseQuestData[card.guid] or nil
 	if quest==nil or quest.questType~="Personal" then return nil, nil end
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
-		if obj.getName()=="Shield" then
-			local owner=obj.getDescription()
+		if isShieldObject(obj) then
+			local owner=shieldOwner(obj)
 			if owner~=nil and owner~="" and owner~="Neutral" then
 				for playerIndex, playerDetails in ipairs(turnOrder) do
 					if playerDetails.mage==owner and playerDetails.mage~=gStates.positionMageKnight[5] then return playerIndex, obj end
@@ -3136,7 +3131,7 @@ end
 function QuestPrivate.apocalypseQuestNeutralShield(card)
 	if card==nil then return nil end
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
-		if obj.getName()=="Shield" and obj.getDescription()=="Neutral" then return obj end
+		if isShieldObject(obj) and shieldOwner(obj)=="Neutral" then return obj end
 	end
 	return nil
 end
@@ -3144,7 +3139,7 @@ function QuestPrivate.apocalypseQuestPlayerShield(card, playerIndex)
 	if card==nil or turnOrder[playerIndex]==nil then return nil end
 	local mage=turnOrder[playerIndex].mage
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
-		if obj.getName()=="Shield" and obj.getDescription()==mage then return obj end
+		if isShieldObject(obj) and shieldOwner(obj)==mage then return obj end
 	end
 	return nil
 end
@@ -3175,7 +3170,7 @@ function QuestPrivate.apocalypseQuestPlayerHasOtherPersonalQuest(playerIndex, ex
 			local quest=apocalypseQuestData[questCard.guid]
 			if quest~=nil and quest.questType=="Personal" then
 				for _, obj in ipairs(apocalypseQuestObjectsOnCard(questCard)) do
-					if obj.getName()=="Shield" and obj.getDescription()==mage then return true end
+					if isShieldObject(obj) and shieldOwner(obj)==mage then return true end
 				end
 			end
 		end
@@ -3280,12 +3275,12 @@ function apocalypseQuestHexHasShield(hex, mapObjects, playerIndex, anyPlayer)
 	local mage=turnOrder[playerIndex]~=nil and turnOrder[playerIndex].mage or nil
 	local spatial=QuestPrivate.apocalypseQuestMapSpatial()
 	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,hex.position,1.1)) do
-		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+		if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 			local pos=spatial.positions[obj.guid] or obj.getPosition()
 			local dx=pos[1]-hex.position[1]
 			local dz=pos[3]-hex.position[3]
 			if (dx*dx)+(dz*dz)<1 then
-				local owner=obj.getDescription()
+				local owner=shieldOwner(obj)
 				if anyPlayer==true then
 					if owner~=nil and owner~="" and owner~="Neutral" then return true end
 				elseif mage~=nil and owner==mage then
@@ -4817,8 +4812,7 @@ end
 
 function QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
 	if obj==nil then return nil end
-	local name=obj.getName()
-	if name~="Shield" and name~="Red Mana" and name~="Blue Mana" and name~="Green Mana" and name~="White Mana" and name~="Gold Mana" and name~="Black Mana" then return nil end
+	if isShieldObject(obj)~=true and manaTokenColor(obj)==nil then return nil end
 	local pos=obj.getPosition()
 	local bestGUID=nil
 	local bestDistance=0.31
@@ -4869,7 +4863,7 @@ function QuestPrivate.apocalypseQuestIndependentShieldRowPosition(card,stepKey,m
 	local areaObjects=QuestPrivate.apocalypseQuestAreaObjects()
 	local offerCards=QuestPrivate.apocalypseQuestOfferCards(areaObjects)
 	for _, obj in pairs(areaObjects) do
-		if obj.guid~=movingShieldGUID and obj.getName()=="Shield" and obj.getDescription()~="Neutral" then
+		if obj.guid~=movingShieldGUID and isShieldObject(obj) and shieldOwner(obj)~="Neutral" then
 			local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
 			if rowOwner==nil or rowOwner==card.guid then
 				local nearestSlot,nearestDistance=QuestPrivate.apocalypseQuestNearestRowSlot(obj.getPosition(),targets,maxSlot)
@@ -5553,7 +5547,7 @@ local function apocalypseQuestRemoveShields(card)
 	local areaObjects=QuestPrivate.apocalypseQuestAreaObjects()
 	local offerCards=QuestPrivate.apocalypseQuestOfferCards(areaObjects)
 	for _, obj in pairs(areaObjects) do
-		if obj.guid~=card.guid and obj.getName()=="Shield" then
+		if obj.guid~=card.guid and isShieldObject(obj) then
 			local pos=obj.getPosition()
 			local normalFootprint=math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5 and pos[2]>source[2]-0.25 and pos[2]<source[2]+3.0
 			local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
@@ -6431,7 +6425,7 @@ if action=="Abandon" then
 	apocalypseQuestEndMoveAttachmentCapture(card)
 	local ownerMage=details.mage
 	for _, shield in ipairs(apocalypseQuestObjectsOnCard(card)) do
-		if shield.getName()=="Shield" and shield.getDescription()==ownerMage and getObjectFromGUID(shield.guid)~=nil then shield.destruct() end
+		if isShieldObject(shield) and shieldOwner(shield)==ownerMage and getObjectFromGUID(shield.guid)~=nil then shield.destruct() end
 	end
 	apocalypseQuestLoseReputation(playerIndex, quest.name, "abandon")
 	QuestPrivate.apocalypseQuestOfferMoveToLeft(card)
