@@ -1174,6 +1174,11 @@ function manaTokenColor(obj)
 	return nil
 end
 
+function isBasicManaToken(obj)
+	local color=manaTokenColor(obj)
+	return color=="Red" or color=="Blue" or color=="Green" or color=="White"
+end
+
 function isQuestCardObject(obj)
 	if obj==nil then return false end
 	if scriptObjectId(obj)=="Quest" then return true end
