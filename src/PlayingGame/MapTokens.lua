@@ -115,7 +115,7 @@ function mapTokenNeedsArrangement(obj,metadata)
 		objectName=scriptObjectId(obj)
 		if metadata~=nil then metadata.objName=objectName end
 	end
-	if objectName=="GraveYard" or objectName=="Shield" then return true end
+	if objectName=="GraveYard" or isShieldObject(obj) then return true end
 
 	local objectNotes=metadata~=nil and metadata.objNotes or nil
 	if objectNotes==nil then
