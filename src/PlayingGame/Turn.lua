@@ -227,7 +227,7 @@ function startOfTurn()
 		--figure out which city avatar is in
 		for zone, citySearch in pairs(cityScriptZones) do
 			for obj, detail in pairs(getObjectFromGUID(zone).getObjects()) do
-				if detail.getName()==turnOrder[gStates.turnNumber].mage then
+				if joinLangEnglish(tostring(detail.getName() or ""))==turnOrder[gStates.turnNumber].mage then
 					turnOrder[gStates.turnNumber].turnStartLoc=getObjectFromGUID(citySearch.cityGUID).getPosition()
 					break
 				end
@@ -1061,7 +1061,7 @@ local function turnEndRoundAdvanceWorld()
 		--Reroll all mana dice
 		broadcastToAll("{en}Mana Dice Reset{it}Dadi Mana Ripristinati{ru}Кубики маны переброшены{zh-tw}魔力骰子重置{zh-cn}魔力骰子重置{ko}마나 주사위 리셋{es}Reinicio de Dados de Maná{fr}Réinitialisation des dés de Mana{pt-br}Dado de Mana Reiniciado.{de}Manawürfel zurückgesetzt", {1,1,0.5})
 		for a, die in pairs(getObjectFromGUID(GUID.zone.mana).getObjects()) do
-			if die.getName()=="Mana Dice" then
+			if scriptObjectId(die)=="Mana Dice" then
 				die.randomize()
 			end
 		end
@@ -1110,7 +1110,7 @@ local function turnEndRoundRefreshOffers()
 			--must not leave obj pointing at a mana bag and then try to count the bag as a crystal.
 			local spellColor=""--read information from the card in the first spell position
 			local firstSpell=mainOfferFirstCardByType("Spell")
-			if firstSpell~=nil then spellColor=firstSpell.getDescription() end
+			if firstSpell~=nil then spellColor=gameCardPrimaryColor(firstSpell) or "" end
 			if spellColor=="Red" or spellColor=="Blue" or spellColor=="Green" or spellColor=="White" then
 				broadcastToAll(joinLang({proxyPlayerIsActive()==true and "{en}Proxy added a {it}Il Proxy ha aggiunto un cristallo {ru}Прокси получил {zh-tw}代理玩家添加了一个{zh-cn}代理玩家添加了一个{ko}프록시 저장 칸에 {es}Proxy agregó un cristal de maná {fr}Le Proxy a ajouté un cristal de mana {pt-br}Proxy adicionou um(a) {de}Der Proxy hat einen " or "{en}Dummy added a {it}Il Fittizio ha aggiunto un cristallo {ru}Виртуальный игрок получил {zh-tw}虚拟玩家添加了一个{zh-cn}虚拟玩家添加了一个{ko}가상 플레이어 저장 칸에 {es}Dummy agregó un cristal de maná {fr}Le mannequin a ajouté un cristal de mana {pt-br}Jog. Fictício adicionou um(a) {de}Die Puppe hat einen ", translateWord[spellColor], "{en} mana crystal to its inventory.{it} al proprio inventario.{ru} кристалл маны{zh-tw}魔晶到他的装备区. {zh-cn}魔晶到他的装备区. {ko}수정을 추가했습니다{es} a su inventario.{fr} à son inventaire.{pt-br} Cristal de Mana para seu inventário.{de} manakristall in sein Inventar aufgenommen."}), {1,1,0.5})
 				local params={position={0, 1.65, 0}, rotation={0, 30, 0}, smooth=false}
@@ -1128,7 +1128,7 @@ local function turnEndRoundRefreshOffers()
 					obj.lock()
 					for a=1, #turnOrder, 1 do
 						if turnOrder[a].mage==gStates.positionMageKnight[5] then
-							local b=obj.getDescription()
+							local b=manaTokenColor(obj)
 							if turnOrder[a].dummyCrystals[b]==nil then turnOrder[a].dummyCrystals[b]=0 end
 							turnOrder[a].dummyCrystals[b]=turnOrder[a].dummyCrystals[b]+1
 							break
@@ -1588,7 +1588,7 @@ dayTactic2Discarded=function(player, mouseButton, id)
 		if playAreaObj.tag=="Card" then
 			local found=false
 			for _, bannerGUID in pairs(bannerGUIDs) do if playAreaObj.guid==bannerGUID then found=true break end end
-			if playAreaObj.getDescription()=="Quest" then found=true end
+			if isQuestCardObject(playAreaObj) then found=true end
 			if found==false then
 				waitTime=1
 				if cardDestination==nil then
