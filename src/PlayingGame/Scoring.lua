@@ -23,7 +23,7 @@ local function heroChallengeCrystalColor(obj)
 	if obj==nil then return nil end
 	local note=obj.getGMNotes()
 	if note=="Red" or note=="Blue" or note=="Green" or note=="White" then return note end
-	local name=tostring(obj.getName() or "")
+	local name=joinLangEnglish(tostring(obj.getName() or ""))
 	for _,color in ipairs({"Red","Blue","Green","White"}) do if name:find(color,1,true)~=nil then return color end end
 	return nil
 end
@@ -371,7 +371,7 @@ function displayScore(player, mouseButton, id)
 					--count Faction Rewards
 					if c.type=="Tile" then
 						if c.getPosition()[1]<turnOrder[a].seatPos*40-109.76 and c.getPosition()[3]<-31 then
-							if c.getName()~="Red Potion" and c.getName()~="Blue Potion" and c.getName()~="Green Potion" and c.getName()~="White Potion" then
+							if scriptObjectId(c)~="Red Potion" and scriptObjectId(c)~="Blue Potion" and scriptObjectId(c)~="Green Potion" and scriptObjectId(c)~="White Potion" then
 								if c.getGMNotes()=="Dark Crusader Reward" or c.getGMNotes()=="Elementalist Reward" or c.getGMNotes()=="Apocalypse Cult Reward" or c.getGMNotes()=="Council of the Void Reward" then turnOrder[a].score.Reward=turnOrder[a].score.Reward+1 end
 							else
 								turnOrder[a].score.Potion=turnOrder[a].score.Potion+1
@@ -379,7 +379,7 @@ function displayScore(player, mouseButton, id)
 						end
 					end
 					--Count Shield tokens. Pursuit shields score only as Pursuits, never also as the printed site below.
-					if c.getName()=="Shield" and c.getDescription()==turnOrder[a].mage then
+					if isShieldObject(c) and shieldOwner(c)==turnOrder[a].mage then
 						if volkarePursuitShieldRegistered(c)==true then
 							turnOrder[a].score.VolkareCamp=turnOrder[a].score.VolkareCamp+1
 						else
@@ -442,7 +442,7 @@ function displayScore(player, mouseButton, id)
 									end
 								end
 								--GraveYards
-								if terTile.getName()=="GraveYard" then
+								if scriptObjectId(terTile)=="GraveYard" then
 									turnOrder[a].score.GraveYard=turnOrder[a].score.GraveYard+1
 									coopGraveYard=coopGraveYard+1
 									found=true
