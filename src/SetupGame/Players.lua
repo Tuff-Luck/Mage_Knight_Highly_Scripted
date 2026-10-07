@@ -327,7 +327,12 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 						params.position[1]=params.position[1]-(1.7)
 						local obj=safeTakeObject("SetupGame",playerBag,params)
 						obj.lock()
-						local b=obj.getDescription()
+						--Descriptions are localized display text in the save JSON. Resolve the stable
+						--English color before using it as a dummyCrystals table key.
+						local b=joinLangEnglish(obj.getDescription())
+						if b~="Red" and b~="Blue" and b~="Green" and b~="White" then
+							error("Dummy setup found an unrecognized crystal color on "..tostring(obj.guid)..": "..tostring(b),2)
+						end
 						if scenarioList[gStates.scenarioRef][gStates.playersRef].dummyTacticSelection=="F" then
 							turnOrder[1].dummyCrystals[b]=turnOrder[1].dummyCrystals[b]+1
 						else
