@@ -218,7 +218,7 @@ function playerBoardZoneEnterSettled(ctx)
         end
 
 	--record potion return locationTest
-	if zoneInfo~=nil and zoneInfo.kind=="crystal" and obj.getName():reverse():sub(1, 6)=="noitoP" then
+	if zoneInfo~=nil and zoneInfo.kind=="crystal" and scriptObjectId(obj):sub(-6)=="Potion" then
 		local potionPosition=obj.getPosition()
 		gStates.mageSkills[objGUID]={potionPosition[1], potionPosition[2], potionPosition[3]}
 	end
@@ -266,8 +266,7 @@ function playerBoardZoneLeave(ctx)
 				end
 
 				--if object is a crystal then remove highlight.
-				local crystalGlow={["Red Mana"]={1, 0, 0}, ["Green Mana"]={0, 1, 0}, ["Blue Mana"]={0, 0, 1}, ["White Mana"]={1, 1, 1}, ["Black Mana"]={0.3, 0.0, 0.6}, ["Gold Mana"]={1, 0.9, 0}}
-				if crystalGlow[joinLangEnglish(tostring(obj.getName() or ""))]~=nil then
+				if manaTokenColor(obj)~=nil then
 					obj.AssetBundle.playLoopingEffect(0)
 				end
 			end
