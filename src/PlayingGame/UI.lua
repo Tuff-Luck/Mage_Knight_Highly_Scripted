@@ -449,7 +449,7 @@ local function currentCityShieldInfluence(player)
 				for zoneGUID,details in pairs(cityScriptZones) do
 					if details.cityGUID==targetCity then
 						local zone=getObjectFromGUID(zoneGUID)
-						if zone~=nil then for _,obj in pairs(zone.getObjects()) do if seen[obj.guid]~=true and obj.getName()=="Shield" and obj.getDescription()==player.mage then seen[obj.guid]=true shields=shields+1 end end end
+						if zone~=nil then for _,obj in pairs(zone.getObjects()) do if seen[obj.guid]~=true and isShieldObject(obj) and shieldOwner(obj)==player.mage then seen[obj.guid]=true shields=shields+1 end end end
 						break
 					end
 				end
@@ -1565,10 +1565,10 @@ function addAvatarButtons()
 		local mapSnapshot=runtimeMapSnapshot()
 		for _, playObj in pairs(mapSnapshot.objects or {}) do
 			local guid=playObj.guid
-			local name=playObj.getName()
+			local name=joinLangEnglish(tostring(playObj.getName() or ""))
 			if name=="Shield" or name:sub(-6)=="Marker" or monsterPugs[guid]~=nil or gStates.rampagingMonsters[guid]==true or (gStates.destroyedSites~=nil and gStates.destroyedSites[guid]~=nil) then
 				local position=playObj.getPosition()
-				local details={obj=playObj, guid=guid, name=name, position=position, description=name=="Shield" and playObj.getDescription() or nil}
+				local details={obj=playObj, guid=guid, name=name, position=position, description=isShieldObject(playObj) and shieldOwner(playObj) or nil}
 				local key=avatarButtonBucketKey(position)
 				if mapButtonBuckets[key]==nil then mapButtonBuckets[key]={} end
 				mapButtonBuckets[key][#mapButtonBuckets[key]+1]=details
@@ -1615,7 +1615,7 @@ function addAvatarButtons()
 							if zoneObj~=nil then
 								local mageFound=false
 								for _, detail in pairs(zoneObj.getObjects()) do
-									if detail.getName()==player.mage then mageFound=true break end
+									if joinLangEnglish(tostring(detail.getName() or ""))==player.mage then mageFound=true break end
 								end
 								if mageFound==true then
 									if zoneGUID==volkare.discZone and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
