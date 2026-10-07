@@ -587,7 +587,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 			local dz=candidatePos[3]-params.position[3]
 			if (dx*dx)+(dz*dz)<1 then
 				local rotationValues=candidate.getRotationValues()
-				local name=rotationValues[2]~=nil and rotationValues[2].value or candidate.getName()
+				local name=rotationValues[2]~=nil and rotationValues[2].value or scriptObjectId(candidate)
 				if rampageBlockingNames[name]==true then free=false break end
 			end
 		end
@@ -1080,7 +1080,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 										end
 										if (hexFeature or ""):sub(1,4)=="city" then
 											keepShieldMatch[keepSearch]["city"]=true
-											if keepShieldMatch[keepSearch]["cityShield"]==true then cityFound=terrain.getName() end
+											if keepShieldMatch[keepSearch]["cityShield"]==true then cityFound=scriptObjectId(terrain) end
 										end
 									end
 										if avatarToTileDistSquared<1 then
