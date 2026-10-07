@@ -1,0 +1,24 @@
+name: One-shot GMNotes audit
+on:
+  push:
+    paths:
+      - '.github/workflows/one-shot-gmnotes-audit.yml'
+      - 'tools/one_shot_gmnotes_audit.py'
+permissions:
+  contents: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python tools/one_shot_gmnotes_audit.py
+      - name: Commit audit report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/gmnotes_audit.json
+          git diff --cached --quiet || git commit -m "Audit translated object script identities"
+          git push
