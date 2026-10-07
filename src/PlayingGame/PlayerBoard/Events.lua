@@ -157,7 +157,7 @@ function playerBoardZoneEnterSettled(ctx)
 		end
 
 		--if object is a crystal then alter it's animation.
-		if manaTokenColor(obj)~=nil then
+		if isBasicManaToken(obj) then
 			safeWaitTime("PlayerBoard.Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playTriggerEffect(0) end end, 0.1)
 			safeWaitTime("PlayerBoard.Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playLoopingEffect(1) end end, 1)
 		end
@@ -266,7 +266,7 @@ function playerBoardZoneLeave(ctx)
 				end
 
 				--if object is a crystal then remove highlight.
-				if manaTokenColor(obj)~=nil then
+				if isBasicManaToken(obj) then
 					obj.AssetBundle.playLoopingEffect(0)
 				end
 			end
