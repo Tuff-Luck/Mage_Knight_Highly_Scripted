@@ -3151,7 +3151,7 @@ againstDragonPlayerHex=function(hexes,mapObjects,playerIndex)
 			local z=getObjectFromGUID(zone)
 			if z~=nil then
 				for _,obj in pairs(z.getObjects()) do
-					if obj.getName()==details.mage then
+					if joinLangEnglish(tostring(obj.getName() or ""))==details.mage then
 						local cityObj=getObjectFromGUID(city.cityGUID)
 						if cityObj~=nil then return runtimeMapHexForPosition(hexes,cityObj.getPosition(),mapObjects) end
 					end
