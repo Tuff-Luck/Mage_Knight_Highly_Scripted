@@ -1001,7 +1001,7 @@ local function handleMapLocationZoneEnter(ctx)
 		if zoneObjectCanBeMapMarker(ctx)~=true and mageKnightAvatarGUIDs[objGUID]~=true then return end
 		local objectName=zoneEventObjectName(ctx)
 		local objectNotes=zoneEventObjectNotes(ctx)
-		if (objectName=="Shield" or objectNotes=="Burned Monastery" or objectName=="Secret Dungeon" or objectName=="Secret Tomb") and obj.getLock()==false then
+		if (isShieldObject(obj) or objectNotes=="Burned Monastery" or objectName=="Secret Dungeon" or objectName=="Secret Tomb") and obj.getLock()==false then
 			scheduleShieldLocation(obj, zone, "enter")
 		else
 			if zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity or zoneGUID==volkare.discZone then
@@ -1032,7 +1032,7 @@ local function handleMapLocationZoneEnter(ctx)
 				end
 			end
 		end
-		if objectName=="Shield" then gStates.shieldsDropped[objGUID]=true end
+		if isShieldObject(obj) then gStates.shieldsDropped[objGUID]=true end
 	end
 
 end
@@ -1390,7 +1390,7 @@ local function handleMapZoneLeave(ctx)
 	--Name/GM Notes entirely; only marker-like objects cross those TTS properties.
 	if mapMarkerTrackingZone(zone.guid)==true and zoneObjectCanBeMapMarker(ctx)==true and obj.getLock()==false then
 		local objectName=zoneEventObjectName(ctx)
-		local marker=objectName=="Shield"
+		local marker=isShieldObject(obj)
 		if zone.guid==mapArea then
 			marker=marker or objectName=="Secret Dungeon" or objectName=="Secret Tomb"
 			if marker~=true then marker=zoneEventObjectNotes(ctx)=="Burned Monastery" end
