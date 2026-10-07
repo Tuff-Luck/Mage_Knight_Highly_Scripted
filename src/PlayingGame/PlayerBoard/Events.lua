@@ -3,8 +3,6 @@ local removeCardRemoveDecal
 
 -- Player-board scripting-zone reactions dispatched by PlayingGame.Events.
 
-local crystalManaNames={["Red Mana"]=true,["Green Mana"]=true,["Blue Mana"]=true,["White Mana"]=true,["Black Mana"]=true,["Gold Mana"]=true}
-
 --Face-down cards in a player play area get a physical decal instead of Object UI.
 local cardRemoveDecalURL="https://steamusercontent-a.akamaihd.net/ugc/1661232230977162756/90D8AEB60005119DD4182B5FD24D7BDD8243B5F3/"
 function cardInPlayerPlayArea(cardGUID)
@@ -157,7 +155,7 @@ function playerBoardZoneEnterSettled(ctx)
 		end
 
 		--if object is a crystal then alter it's animation.
-		if isBasicManaToken(obj) then
+		if isManaTokenFigurine(obj) then
 			safeWaitTime("PlayerBoard.Events",function()
 				local live=getObjectFromGUID(objGUID)
 				if live~=nil and live.AssetBundle~=nil then live.AssetBundle.playTriggerEffect(0) end
@@ -277,7 +275,7 @@ function playerBoardZoneLeave(ctx)
 				end
 
 				--if object is a crystal then remove highlight.
-				if isBasicManaToken(live) and live.AssetBundle~=nil then
+				if isManaTokenFigurine(live) and live.AssetBundle~=nil then
 					live.AssetBundle.playLoopingEffect(0)
 				end
 			end
