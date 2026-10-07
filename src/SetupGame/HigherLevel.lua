@@ -87,14 +87,14 @@ function refreshHigherLevelSetupUI()
 									end
 									if c.getGMNotes()=="Spell" then
 										turnOrder[a].levelingStats.Spells=turnOrder[a].levelingStats.Spells+1
-										spellColors[#spellColors+1]=c.getDescription()
+										spellColors[#spellColors+1]=gameCardPrimaryColor(c)
 									end
 									if c.getGMNotes()=="Artifact" then turnOrder[a].levelingStats.Artifacts=turnOrder[a].levelingStats.Artifacts+1 end
 								end
 								if c.type=="Figurine" then
 									if gStates.startingHigherLevelCrystal[c.guid]~=nil then
 										turnOrder[a].levelingStats.SpellCrystals=turnOrder[a].levelingStats.SpellCrystals+1
-										crystalColors[#crystalColors+1]=c.getDescription()
+										crystalColors[#crystalColors+1]=manaTokenColor(c)
 									end
 								end
 							end
