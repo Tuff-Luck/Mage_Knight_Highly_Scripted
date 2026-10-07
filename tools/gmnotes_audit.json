@@ -10,12 +10,10 @@
   },
   "name_literals": [
     "Blue Defender Bonus Reminder",
-    "Blue Mana",
     "Blue Potion",
     "Blue Shard",
     "GraveYard",
     "Green Defender Bonus Reminder",
-    "Green Mana",
     "Green Potion",
     "Green Shard",
     "Hidden Valley",
@@ -23,7 +21,6 @@
     "MapTile",
     "Necropolis",
     "Red Defender Bonus Reminder",
-    "Red Mana",
     "Red Potion",
     "Red Shard",
     "Secret Dungeon",
@@ -32,7 +29,6 @@
     "Volkare",
     "Volkare's Camp",
     "White Defender Bonus Reminder",
-    "White Mana",
     "White Potion",
     "White Shard"
   ],
@@ -40,6 +36,625 @@
     "Neutral",
     "Quest"
   ],
+  "name_groups": {
+    "Black Mana": {
+      "count": 3,
+      "tooltip_false": 2,
+      "translated": 3,
+      "blank_gmnotes": 3,
+      "gmnotes": [],
+      "guids": [
+        "e3e9a0",
+        "74d666",
+        "e3e9a0"
+      ]
+    },
+    "Blue Defender Bonus Reminder": {
+      "count": 2,
+      "tooltip_false": 0,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "ad7b3f",
+        "9bbecc"
+      ]
+    },
+    "Blue Mana": {
+      "count": 12,
+      "tooltip_false": 11,
+      "translated": 12,
+      "blank_gmnotes": 1,
+      "gmnotes": [
+        "Blue"
+      ],
+      "guids": [
+        "c9c268",
+        "53b81d",
+        "8850a7",
+        "3915a2",
+        "c9c268",
+        "c9c268",
+        "c9c268",
+        "8ae7b8",
+        "c9c268",
+        "c9c268",
+        "81bc6b",
+        "c9c268"
+      ]
+    },
+    "Blue Potion": {
+      "count": 2,
+      "tooltip_false": 0,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "4ed650",
+        "89546f"
+      ]
+    },
+    "Blue Shard": {
+      "count": 6,
+      "tooltip_false": 0,
+      "translated": 6,
+      "blank_gmnotes": 6,
+      "gmnotes": [],
+      "guids": [
+        "f9fd8f",
+        "e52439",
+        "890dfd",
+        "890dfd",
+        "890dfd",
+        "890dfd"
+      ]
+    },
+    "Flesh of Mana": {
+      "count": 2,
+      "tooltip_false": 0,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "a883af",
+        "a883af"
+      ]
+    },
+    "Gold Mana": {
+      "count": 3,
+      "tooltip_false": 2,
+      "translated": 3,
+      "blank_gmnotes": 3,
+      "gmnotes": [],
+      "guids": [
+        "921ee6",
+        "4a836f",
+        "921ee6"
+      ]
+    },
+    "GraveYard": {
+      "count": 6,
+      "tooltip_false": 0,
+      "translated": 6,
+      "blank_gmnotes": 6,
+      "gmnotes": [],
+      "guids": [
+        "526aeb",
+        "d8b9a4",
+        "2d1d24",
+        "c4eca4",
+        "d7b812",
+        "885e3b"
+      ]
+    },
+    "Green Defender Bonus Reminder": {
+      "count": 2,
+      "tooltip_false": 0,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "39d3f3",
+        "f13175"
+      ]
+    },
+    "Green Mana": {
+      "count": 10,
+      "tooltip_false": 9,
+      "translated": 10,
+      "blank_gmnotes": 1,
+      "gmnotes": [
+        "Green"
+      ],
+      "guids": [
+        "e4a8e1",
+        "e4a8e1",
+        "e4a8e1",
+        "e4a8e1",
+        "5d4f7c",
+        "e4a8e1",
+        "a30eb7",
+        "e4a8e1",
+        "e4a8e1",
+        "18eec4"
+      ]
+    },
+    "Green Potion": {
+      "count": 2,
+      "tooltip_false": 0,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "588bda",
+        "eb24ba"
+      ]
+    },
+    "Green Shard": {
+      "count": 3,
+      "tooltip_false": 0,
+      "translated": 3,
+      "blank_gmnotes": 3,
+      "gmnotes": [],
+      "guids": [
+        "f005b2",
+        "313cbd",
+        "05e608"
+      ]
+    },
+    "Hidden Valley": {
+      "count": 2,
+      "tooltip_false": 1,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "7121c7",
+        "a4c858"
+      ]
+    },
+    "Ice Shard": {
+      "count": 2,
+      "tooltip_false": 0,
+      "translated": 2,
+      "blank_gmnotes": 0,
+      "gmnotes": [
+        "Elementalist Reward"
+      ],
+      "guids": [
+        "8c8d3b",
+        "72e29e"
+      ]
+    },
+    "Mana Dice": {
+      "count": 8,
+      "tooltip_false": 8,
+      "translated": 8,
+      "blank_gmnotes": 8,
+      "gmnotes": [],
+      "guids": [
+        "9a686a",
+        "9a6862",
+        "9a6863",
+        "d0d1f0",
+        "4c3654",
+        "2b5a39",
+        "620e6a",
+        "7f46fb"
+      ]
+    },
+    "MapTile": {
+      "count": 32,
+      "tooltip_false": 32,
+      "translated": 32,
+      "blank_gmnotes": 32,
+      "gmnotes": [],
+      "guids": [
+        "be86ec",
+        "264fa0",
+        "155a31",
+        "584237",
+        "cff250",
+        "de7fad",
+        "ed651c",
+        "a33586",
+        "ca8ad3",
+        "184fb7",
+        "208d84",
+        "a501d6",
+        "a26c4f",
+        "e2ecf8",
+        "d21095",
+        "05b612",
+        "78fc79",
+        "6510ac",
+        "20607e",
+        "29a93c"
+      ]
+    },
+    "Necropolis": {
+      "count": 1,
+      "tooltip_false": 0,
+      "translated": 1,
+      "blank_gmnotes": 1,
+      "gmnotes": [],
+      "guids": [
+        "ffffff"
+      ]
+    },
+    "Red Defender Bonus Reminder": {
+      "count": 2,
+      "tooltip_false": 0,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "a0ec73",
+        "d02843"
+      ]
+    },
+    "Red Mana": {
+      "count": 15,
+      "tooltip_false": 14,
+      "translated": 15,
+      "blank_gmnotes": 1,
+      "gmnotes": [
+        "Red"
+      ],
+      "guids": [
+        "77f3a1",
+        "937ac0",
+        "937ac0",
+        "5d371c",
+        "b935c8",
+        "937ac0",
+        "937ac0",
+        "819a62",
+        "937ac0",
+        "b935c8",
+        "937ac0",
+        "937ac0",
+        "d161ea",
+        "9214ee",
+        "b935c8"
+      ]
+    },
+    "Red Potion": {
+      "count": 2,
+      "tooltip_false": 0,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "542c17",
+        "561b9b"
+      ]
+    },
+    "Red Shard": {
+      "count": 5,
+      "tooltip_false": 0,
+      "translated": 5,
+      "blank_gmnotes": 5,
+      "gmnotes": [],
+      "guids": [
+        "d08e21",
+        "0b2898",
+        "0b2898",
+        "0b2898",
+        "0b2898"
+      ]
+    },
+    "Secret Dungeon": {
+      "count": 2,
+      "tooltip_false": 0,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "29ea66",
+        "5c30a8"
+      ]
+    },
+    "Secret Tomb": {
+      "count": 2,
+      "tooltip_false": 0,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "663952",
+        "5737b3"
+      ]
+    },
+    "Shield": {
+      "count": 16,
+      "tooltip_false": 16,
+      "translated": 16,
+      "blank_gmnotes": 16,
+      "gmnotes": [],
+      "guids": [
+        "e735d3",
+        "9929a7",
+        "ba5966",
+        "897755",
+        "11fa8e",
+        "1c9929",
+        "be8221",
+        "41efb0",
+        "11fa8e",
+        "ba5966",
+        "ba5966",
+        "9929a7",
+        "e735d3",
+        "e735d3",
+        "e735d3",
+        "12b22f"
+      ]
+    },
+    "Volkare": {
+      "count": 3,
+      "tooltip_false": 0,
+      "translated": 3,
+      "blank_gmnotes": 3,
+      "gmnotes": [],
+      "guids": [
+        "c62a53",
+        "938cd3",
+        "a0d7b3"
+      ]
+    },
+    "Volkare's Camp": {
+      "count": 2,
+      "tooltip_false": 1,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "a7d898",
+        "0bb2dc"
+      ]
+    },
+    "White Defender Bonus Reminder": {
+      "count": 2,
+      "tooltip_false": 0,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "b9bc1c",
+        "a07d99"
+      ]
+    },
+    "White Mana": {
+      "count": 17,
+      "tooltip_false": 16,
+      "translated": 17,
+      "blank_gmnotes": 1,
+      "gmnotes": [
+        "White"
+      ],
+      "guids": [
+        "13469d",
+        "13469d",
+        "13469d",
+        "ee65b7",
+        "13469d",
+        "13469d",
+        "941467",
+        "13469d",
+        "4f6569",
+        "13469d",
+        "69fa62",
+        "27092c",
+        "13469d",
+        "13469d",
+        "e36f21",
+        "13469d",
+        "b442f8"
+      ]
+    },
+    "White Potion": {
+      "count": 2,
+      "tooltip_false": 0,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "605aae",
+        "357af3"
+      ]
+    },
+    "White Shard": {
+      "count": 7,
+      "tooltip_false": 0,
+      "translated": 7,
+      "blank_gmnotes": 7,
+      "gmnotes": [],
+      "guids": [
+        "7dc97c",
+        "b1d43d",
+        "e6fce2",
+        "e6fce2",
+        "e6fce2",
+        "e6fce2",
+        "e6fce2"
+      ]
+    }
+  },
+  "description_groups": {
+    "Blue": {
+      "count": 105,
+      "tooltip_false": 94,
+      "translated": 105,
+      "blank_gmnotes": 64,
+      "gmnotes": [
+        "Advanced Action",
+        "Blue",
+        "Spell"
+      ],
+      "guids": [
+        "2eb8e3",
+        "2eb8e2",
+        "2eb8e4",
+        "2eb8e0",
+        "2eb8f4",
+        "2eb8e1",
+        "878d81",
+        "878d85",
+        "878d87",
+        "878d89",
+        "1f362f",
+        "885b96",
+        "3d832c",
+        "87bc59",
+        "878d93",
+        "878d94",
+        "b9e881",
+        "450554",
+        "046141",
+        "046140"
+      ]
+    },
+    "Green": {
+      "count": 111,
+      "tooltip_false": 101,
+      "translated": 111,
+      "blank_gmnotes": 71,
+      "gmnotes": [
+        "Advanced Action",
+        "Green",
+        "Spell"
+      ],
+      "guids": [
+        "2eb8d3",
+        "2eb8d0",
+        "2eb8d1",
+        "2eb8d2",
+        "2eb8f3",
+        "47e71c",
+        "878d83",
+        "33bc9b",
+        "00c614",
+        "878d91",
+        "20cb85",
+        "6fdeb0",
+        "c3153e",
+        "d3995b",
+        "474418",
+        "54b5c4",
+        "9757b3",
+        "450551",
+        "450552",
+        "9757b4"
+      ]
+    },
+    "Neutral": {
+      "count": 2,
+      "tooltip_false": 2,
+      "translated": 2,
+      "blank_gmnotes": 2,
+      "gmnotes": [],
+      "guids": [
+        "e735d3",
+        "e735d3"
+      ]
+    },
+    "Quest": {
+      "count": 100,
+      "tooltip_false": 0,
+      "translated": 100,
+      "blank_gmnotes": 100,
+      "gmnotes": [],
+      "guids": [
+        "260cff",
+        "713903",
+        "d302ec",
+        "713902",
+        "713904",
+        "713910",
+        "df3aac",
+        "dbe6e1",
+        "713908",
+        "713911",
+        "744def",
+        "080552",
+        "713913",
+        "713906",
+        "713916",
+        "d2304c",
+        "713901",
+        "713915",
+        "2cec15",
+        "a53c2b"
+      ]
+    },
+    "Red": {
+      "count": 108,
+      "tooltip_false": 97,
+      "translated": 108,
+      "blank_gmnotes": 64,
+      "gmnotes": [
+        "Advanced Action",
+        "Red",
+        "Spell"
+      ],
+      "guids": [
+        "2eb8d4",
+        "2eb8d8",
+        "2eb8d6",
+        "2eb8d7",
+        "8907d7",
+        "2eb8d9",
+        "878d80",
+        "878d84",
+        "878d86",
+        "8eccb3",
+        "8fac50",
+        "d74999",
+        "bb05a9",
+        "93b7d4",
+        "05ef61",
+        "65a1d5",
+        "77f3a1",
+        "937ac0",
+        "52efb0",
+        "fb481b"
+      ]
+    },
+    "White": {
+      "count": 109,
+      "tooltip_false": 99,
+      "translated": 109,
+      "blank_gmnotes": 64,
+      "gmnotes": [
+        "Advanced Action",
+        "Spell",
+        "White"
+      ],
+      "guids": [
+        "2eb8e5",
+        "2eb8e7",
+        "2eb8e9",
+        "2eb8e8",
+        "2eb8f5",
+        "2eb8e6",
+        "878d82",
+        "878d92",
+        "878d88",
+        "878d90",
+        "8c3de6",
+        "35aee6",
+        "e2b570",
+        "9de475",
+        "42eb53",
+        "8122c2",
+        "13469d",
+        "2f1c71",
+        "d6ba6f",
+        "450553"
+      ]
+    }
+  },
   "objects": [
     {
       "guid": "3d4319",
@@ -1204,7 +1819,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -1220,7 +1835,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -1236,7 +1851,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -1524,7 +2139,7 @@
       "gmnotes": "Blue",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -1540,7 +2155,7 @@
       "gmnotes": "Green",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -1556,7 +2171,7 @@
       "gmnotes": "Green",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -1844,7 +2459,7 @@
       "gmnotes": "Green",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -1860,7 +2475,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -1876,7 +2491,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -2164,7 +2779,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -2180,7 +2795,7 @@
       "gmnotes": "Blue",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -2196,7 +2811,7 @@
       "gmnotes": "Blue",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -2484,7 +3099,7 @@
       "gmnotes": "Green",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -2500,7 +3115,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -2516,7 +3131,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -2804,7 +3419,7 @@
       "gmnotes": "Green",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -2820,7 +3435,7 @@
       "gmnotes": "Blue",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -2836,7 +3451,7 @@
       "gmnotes": "Blue",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -3124,7 +3739,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -3140,7 +3755,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -3156,7 +3771,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -3460,7 +4075,7 @@
       "gmnotes": "Blue",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -3476,7 +4091,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -3492,7 +4107,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -3828,7 +4443,7 @@
       "gmnotes": "Green",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -3844,7 +4459,7 @@
       "gmnotes": "Blue",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -3860,7 +4475,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -3876,7 +4491,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -4596,7 +5211,7 @@
       "gmnotes": "",
       "translated_nickname": true,
       "translated_description": false,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": false
@@ -4612,7 +5227,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -4644,7 +5259,7 @@
       "gmnotes": "",
       "translated_nickname": true,
       "translated_description": false,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": false
@@ -4660,7 +5275,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -4692,7 +5307,7 @@
       "gmnotes": "",
       "translated_nickname": true,
       "translated_description": false,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": false
@@ -4708,7 +5323,7 @@
       "gmnotes": "Green",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -4740,7 +5355,7 @@
       "gmnotes": "",
       "translated_nickname": true,
       "translated_description": false,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": false
@@ -4756,7 +5371,7 @@
       "gmnotes": "Blue",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -7652,7 +8267,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -7668,7 +8283,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -7684,7 +8299,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -11428,7 +12043,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -11460,7 +12075,7 @@
       "gmnotes": "Blue",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -11492,7 +12107,7 @@
       "gmnotes": "Blue",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -11956,7 +12571,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -11972,7 +12587,7 @@
       "gmnotes": "Green",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -11988,7 +12603,7 @@
       "gmnotes": "Green",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -12452,7 +13067,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -12484,7 +13099,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -12516,7 +13131,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -12868,7 +13483,7 @@
       "gmnotes": "Blue",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -12900,7 +13515,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -12916,7 +13531,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -13284,7 +13899,7 @@
       "gmnotes": "Red",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -13300,7 +13915,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
@@ -13332,7 +13947,7 @@
       "gmnotes": "White",
       "translated_nickname": true,
       "translated_description": true,
-      "name_literal_hit": true,
+      "name_literal_hit": false,
       "description_literal_hit": false,
       "dynamic_name_hit": true,
       "dynamic_description_hit": true
