@@ -68,7 +68,7 @@ function mapTokenIsDestroyedSite(obj)
 end
 
 function mapTokenIsGraveyard(obj)
-	return obj~=nil and obj.getName~=nil and obj.getName()=="GraveYard"
+	return obj~=nil and scriptObjectId(obj)=="GraveYard"
 end
 
 function mapTokenIsQuestMarker(obj)
@@ -76,7 +76,7 @@ function mapTokenIsQuestMarker(obj)
 end
 
 function mapTokenIsShield(obj)
-	return obj~=nil and obj.getName~=nil and obj.getName()=="Shield"
+	return obj~=nil and isShieldObject(obj)
 end
 
 local mapTokenPositionSensitiveShieldFeatures={maze=true,labyrinth=true,pyramid=true,ziggurat=true}
