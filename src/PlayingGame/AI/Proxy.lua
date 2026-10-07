@@ -178,7 +178,7 @@ function proxyDrawObjective(seatPos)
 	if card~=nil then
 		gStates.proxyObjectiveGUID=card.guid
 		gStates.proxyObjectiveShieldGUIDs={}
-		local objectiveName=card.getName()
+		local objectiveName=joinLangEnglish(tostring(card.getName() or ""))
 		if gameCards[card.guid]~=nil and gameCards[card.guid].name~=nil then objectiveName=type(gameCards[card.guid].name)=="table" and gameCards[card.guid].name[1] or gameCards[card.guid].name end
 		broadcastToAll(joinLang({"{en}Proxy objective: {it}Obiettivo Proxy: {ru}Цель прокси: {zh-tw}代理目標：{zh-cn}代理目标：{ko}프록시 목표: {es}Objetivo del Proxy: {fr}Objectif du Proxy : {pt-br}Objetivo do Proxy: {de}Proxy-Ziel: ",objectiveName}),{1,0.75,0.2})
 	end
@@ -508,7 +508,7 @@ function proxyCardDisplayName(card)
 		local name=type(data.name)=="table" and data.name[1] or data.name
 		if name~=nil and name~="" then return tostring(name) end
 	end
-	local name=card.getName()
+	local name=joinLangEnglish(tostring(card.getName() or ""))
 	return name~="" and name or "Objective Card"
 end
 
@@ -1709,7 +1709,7 @@ end
 
 function proxyEnemyChoiceSnapshot(enemy)
 	if enemy==nil then return nil end
-	return {guid=enemy.guid,name=((monsterPugs[enemy.guid] or {}).name or enemy.getName() or "enemy"),ui=enemy.UI.getXmlTable() or {}}
+	return {guid=enemy.guid,name=((monsterPugs[enemy.guid] or {}).name or joinLangEnglish(tostring(enemy.getName() or "")) or "enemy"),ui=enemy.UI.getXmlTable() or {}}
 end
 
 function proxyEnemyChoiceButton(enemy)
@@ -1767,7 +1767,7 @@ function proxyResolveCitySelectedEnemy(hex,mapObjects,proxyIndex,lastSafe,select
 	if chosen~=nil then
 		local enemy=getObjectFromGUID(chosen)
 		if enemy~=nil then
-			defeatedName=((monsterPugs[enemy.guid] or {}).name or enemy.getName() or "enemy")
+			defeatedName=((monsterPugs[enemy.guid] or {}).name or joinLangEnglish(tostring(enemy.getName() or "")) or "enemy")
 			proxyDiscardMonster(enemy)
 		end
 		if gStates.cityMonsterQty[city]~=nil then gStates.cityMonsterQty[city][chosen]="dead" end
@@ -1790,7 +1790,7 @@ function proxyResolveEnemyChoice(pending,selectedGUID)
 	if hex==nil then proxyFinishTurn(hexes,mapObjects,pending.proxyIndex) return end
 	if pending.context.kind=="ruin" then
 		local enemy=getObjectFromGUID(selectedGUID)
-		local enemyName=enemy~=nil and ((monsterPugs[enemy.guid] or {}).name or enemy.getName() or "enemy") or "enemy"
+		local enemyName=enemy~=nil and ((monsterPugs[enemy.guid] or {}).name or joinLangEnglish(tostring(enemy.getName() or "")) or "enemy") or "enemy"
 		local lift=proxyLiftAvatarForSiteObjects(hex)
 		if enemy~=nil then proxyDiscardMonster(enemy) end
 		proxyRestoreAvatarAfterSiteObjects(lift,{})
@@ -1833,7 +1833,7 @@ function proxyResolveRampager(target,mapObjects)
 	local names={}
 	for _,enemy in ipairs(enemies) do
 		if enemy~=nil then
-			names[#names+1]=tostring(((monsterPugs[enemy.guid] or {}).name or enemy.getName() or "enemy"))
+			names[#names+1]=tostring(((monsterPugs[enemy.guid] or {}).name or joinLangEnglish(tostring(enemy.getName() or "")) or "enemy"))
 			proxyDiscardMonster(enemy)
 		end
 	end
