@@ -511,7 +511,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 	if dropped_object~=nil and monsterPugs[dropped_object.guid]~=nil and monsterPugs[dropped_object.guid].pugType=="possessed" then
 		attachEnemy(nil,nil,"attach",dropped_object,nil)
 	end
-	if dropped_object~=nil and dropped_object.getName()=="Shield" and apocalypseQuestsUsed()==true then
+	if dropped_object~=nil and isShieldObject(dropped_object) and apocalypseQuestsUsed()==true then
 		safeWaitFrames("Events",function() apocalypseQuestRefreshOfferButtons() end, 2)
 	end
 	if dropped_object~=nil and gStates.apocalypseQuestTokenGUIDs~=nil and gStates.apocalypseQuestTokenGUIDs[droppedGUID]==true then
@@ -776,7 +776,7 @@ function __onObjectDestroy_raw(destroyedObj)
 	--Check if a shield has been removed
 	local destroyedPursuit=volkarePursuitShieldRegistered(destroyedObj)
 	if destroyedPursuit==true and destroyedGuid~=nil and gStates.volkarePursuitShields~=nil then gStates.volkarePursuitShields[destroyedGuid]=nil end
-	if destroyedObj.getName()~=nil and (destroyedObj.getName()=="Shield" or destroyedObj.getGMNotes()=="Burned Monastery" or destroyedObj.getName()=="Secret Dungeon" or destroyedObj.getName()=="Secret Tomb") then
+	if destroyedObj.getName()~=nil and (isShieldObject(destroyedObj) or destroyedObj.getGMNotes()=="Burned Monastery" or scriptObjectId(destroyedObj)=="Secret Dungeon" or scriptObjectId(destroyedObj)=="Secret Tomb") then
 		shieldLocation(destroyedObj, {guid=mapArea}, "remove")
 	end
 end
@@ -831,7 +831,7 @@ local function zoneEventContext(zone, obj)
 end
 
 local function zoneEventObjectName(ctx)
-	if ctx.objName==nil then ctx.objName=ctx.obj.getName() end
+	if ctx.objName==nil then ctx.objName=scriptObjectId(ctx.obj) end
 	return ctx.objName
 end
 
