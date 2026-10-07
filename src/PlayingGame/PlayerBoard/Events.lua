@@ -157,7 +157,7 @@ function playerBoardZoneEnterSettled(ctx)
 		end
 
 		--if object is a crystal then alter it's animation.
-		if crystalManaNames[obj.getName()]==true then
+		if manaTokenColor(obj)~=nil then
 			safeWaitTime("PlayerBoard.Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playTriggerEffect(0) end end, 0.1)
 			safeWaitTime("PlayerBoard.Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playLoopingEffect(1) end end, 1)
 		end
@@ -267,7 +267,7 @@ function playerBoardZoneLeave(ctx)
 
 				--if object is a crystal then remove highlight.
 				local crystalGlow={["Red Mana"]={1, 0, 0}, ["Green Mana"]={0, 1, 0}, ["Blue Mana"]={0, 0, 1}, ["White Mana"]={1, 1, 1}, ["Black Mana"]={0.3, 0.0, 0.6}, ["Gold Mana"]={1, 0.9, 0}}
-				if crystalGlow[obj.getName()]~=nil then
+				if crystalGlow[joinLangEnglish(tostring(obj.getName() or ""))]~=nil then
 					obj.AssetBundle.playLoopingEffect(0)
 				end
 			end
