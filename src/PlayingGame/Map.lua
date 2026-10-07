@@ -213,9 +213,9 @@ function shieldLocation(obj, zone, status)
 	if volkarePursuitShieldRegistered(obj)==true then return end
 	--These object properties were previously read repeatedly through the large rules branch below.
 	--Cache them once per placement/removal; they are stable for the duration of this callback.
-	local objectName=obj.getName()
+	local objectName=scriptObjectId(obj)
 	local objectNotes=obj.getGMNotes()
-	local objectDescription=obj.getDescription()
+	local objectDescription=isShieldObject(obj) and shieldOwner(obj) or obj.getDescription()
 	if zone.guid==mapArea then
 		local mapSnapshot=runtimeMapSnapshot()
 		local objectsInPlay=mapSnapshot.terrainObjects or {}
@@ -1085,7 +1085,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 									end
 										if avatarToTileDistSquared<1 then
 										--work with Shields
-										if terrain.getName()=="Shield" and volkarePursuitShieldRegistered(terrain)~=true and ((terrain.getDescription()==playerDetails.mage and (gStates.coop==0 or gStates.WarOfFourComp==true)) or (gStates.coop==1 and gStates.WarOfFourComp~=true)) then
+										if isShieldObject(terrain) and volkarePursuitShieldRegistered(terrain)~=true and ((shieldOwner(terrain)==playerDetails.mage and (gStates.coop==0 or gStates.WarOfFourComp==true)) or (gStates.coop==1 and gStates.WarOfFourComp~=true)) then
 											keepShieldMatch[keepSearch]["keepShield"]=true
 											if keepShieldMatch[keepSearch]["keep"]==true then keepFound=true end
 										end
@@ -1116,7 +1116,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 												end
 											end
 											--
-											if terrain.getName()~="Volkare's Camp" then
+											if scriptObjectId(terrain)~="Volkare's Camp" then
 												if playerDetails.defeatedCities[terrain.guid]~=nil then
 													keepShieldMatch[keepSearch]["cityShield"]=true
 													if keepShieldMatch[keepSearch]["city"]==true then cityFound=terrain.getGMNotes() end
@@ -1424,7 +1424,7 @@ local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,northBea
 			local cachedPosition=mapSnapshot~=nil and mapSnapshot.terrainPositions~=nil and mapSnapshot.terrainPositions[mightBeMap.guid] or nil
 			local mapPosition=cachedPosition or mightBeMap.getPosition()
 			local tileBearing=math.deg(math.atan2(mapPosition[3]-startPosition[3],mapPosition[1]-startPosition[1]))
-			if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=tileBearing, objName=mightBeMap.getName(), position={mapPosition[1], 0, mapPosition[3]}},faceUpTerrain,northBearing,{})==false then
+			if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=tileBearing, objName=scriptObjectId(mightBeMap), position={mapPosition[1], 0, mapPosition[3]}},faceUpTerrain,northBearing,{})==false then
 				mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
 			else
 				local useNightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
@@ -1486,7 +1486,7 @@ function mapHandleTerrainZoneEnter(ctx)
 		end
 		local startTilePosition=startTileObject.getPosition()
 		local enteredTilePosition=obj.getPosition()
-		local enteredTileName=obj.getName()
+		local enteredTileName=scriptObjectId(obj)
 		startBearing=math.deg(math.atan2(enteredTilePosition[3]-startTilePosition[3], enteredTilePosition[1]-startTilePosition[1]))
 
 
