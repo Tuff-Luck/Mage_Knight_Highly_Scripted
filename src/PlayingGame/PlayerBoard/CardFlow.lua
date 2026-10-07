@@ -23,28 +23,28 @@ local function refreshDeedPileDescription(seatPos, zoneType)
 			if playerStats.mage~=gStates.positionMageKnight[5] then
 				for color, playerZone in pairs(gStates.handColors) do if playerZone==seatPos then deck.setGMNotes(color) break end end
 			end
-			local deckStats={	["Red"]={0, "{en}Red Card(s){ru}Красная(ых) карточка(и){zh-tw}紅色卡{zh-cn}红色卡{ko}빨간색 카드{es}Tarjeta(s) Roja{fr}Carte(s) Rouge{pt-br}Cartas Vermelhas{de}Rote Karten"},
-								["Green"]={0, "{en}Green Card(s){ru}Зеленая(ых) карточка(и){zh-tw}綠色卡{zh-cn}绿色卡{ko}녹색 카드{es}Tarjeta(s) Verde{fr}Carte(s) Verte{pt-br}Cartas Verdes{de}Grüne Karten"},
-								["Blue"]={0, "{en}Blue Card(s){ru}Синяя(ых) карточка(и){zh-tw}藍色卡{zh-cn}蓝色卡{ko}파란색 카드{es}Tarjeta(s) Azul{fr}Carte(s) Bleue{pt-br}Cartas Azuis{de}Blaue Karten"},
-								["White"]={0, "{en}White Card(s){ru}Белая(ых) карточка(и){zh-tw}白色卡{zh-cn}白色卡{ko}흰색 카드{es}Tarjeta(s) Blanca{fr}Carte(s) Blanche{pt-br}Cartas Brancas{de}Weiße Karten"},
-								["Starting"]={0, "{en}Basic Action(s){ru}Базовое(ых) действие(я){zh-tw}基本行動卡{zh-cn}基本行动卡{ko}기본 액션 카드{es}Acciones Básicas{fr}Action(s) de Base{pt-br}Ações Básicas{de}Basis Aktionen"},
-								["Advanced Action"]={0, "{en}Advanced Action(s){ru}Особое(ые) действие(я){zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션 카드{es}Acciones Avanzadas{fr}Action(s) Avancée{pt-br}Ações Avançadas{de}Erweiterte Aktionen"},
-								["Spell"]={0, "{en}Spell(s){ru}Заклинание(я){zh-tw}法術卡{zh-cn}法术卡{ko}마법 카드{es}Hechizo(s){fr}Sort(s){pt-br}Feitiços{de}Zauber"},
-								["Wound"]={0, "{en}Wound(s){ru}Рана(ы){zh-tw}創傷卡{zh-cn}创伤卡{ko}부상{es}Herida(s){fr}Blessure(s){pt-br}Ferimentos{de}Wunde(n)"},
-								["Artifact"]={0, "{en}Artifact(s){ru}Артефакт(а){zh-tw}神器卡{zh-cn}神器卡{ko}유물{es}Artefacto(s){fr}Artefact(s){pt-br}Artefatos{de}Artefakt(e)"},
-								["Move"]={0, "{en}Card(s) are Move{ru}Карта(ы) - это Движение{zh-tw}移動類卡牌{zh-cn}移动类卡牌{ko}장의 이동 카드{es}Las Cartas se Mueven{fr}Les cartes sont Mouvements{pt-br}Cartas são Movimento{de}Karte(n) sind Bewegung"},
-								["Combat"]={0, "{en}Card(s) are Combat{ru}Карта(ы) - это Боевые{zh-tw}戰鬥類卡牌{zh-cn}战斗类卡牌{ko}장의 전투 카드{es}Las Cartas son de Combate{fr}Les cartes sont Combat{pt-br}Cartas são Combate{de}Karte(n) sind Angriff"},
-								["Influence"]={0, "{en}Card(s) are Influence{ru}Карта(ы) - это Влияние{zh-tw}影響力卡牌{zh-cn}影响力卡牌{ko}장의 영향력 카드{es}Las Cartas tienen Influencia{fr}Les cartes sont Influence{pt-br}Cartas são Influência{de}Karte(n) sind Einfluss"},
-								["Special"]={0, "{en}Card(s) are Special{ru}Карта(ы) - это Особая{zh-tw}特殊類卡牌{zh-cn}特殊类卡牌{ko}장의 특수효과 카드{es}Las Cartas son Especiales{fr}Les cartes sont Spéciales{pt-br}Cartas são Especiais{de}Karte(n) sind Spezial"},
-								["Heal"]={0, "{en}Card(s) are Heal{ru}Карта(ы) - это Лечение{zh-tw}治療類卡牌{zh-cn}治疗类卡牌{ko}장의 치유 카드{es}Las Cartas se Curan{fr}Les cartes sont Guéries{pt-br}Cartas são Cura{de}Karte(n) sind Heilung"},
-								["Action"]={0, "{en}Card(s) are Action{ru}Карта(ы) - это Действие{zh-tw}行動類卡牌{zh-cn}行动类卡牌{ko}장의 행동 카드{es}Las Cartas son Acción{fr}Les cartes sont des Actions{pt-br}Cartas são Ações{de}Karte(n) sind Aktionen"}}
+			local deckStats={	["Red"]={0, "{en}Red Card(s){it}Carte Rosse{ru}Красная(ых) карточка(и){zh-tw}紅色卡{zh-cn}红色卡{ko}빨간색 카드{es}Tarjeta(s) Roja{fr}Carte(s) Rouge{pt-br}Cartas Vermelhas{de}Rote Karten"},
+								["Green"]={0, "{en}Green Card(s){it}Carte Verdi{ru}Зеленая(ых) карточка(и){zh-tw}綠色卡{zh-cn}绿色卡{ko}녹색 카드{es}Tarjeta(s) Verde{fr}Carte(s) Verte{pt-br}Cartas Verdes{de}Grüne Karten"},
+								["Blue"]={0, "{en}Blue Card(s){it}Carte Blu{ru}Синяя(ых) карточка(и){zh-tw}藍色卡{zh-cn}蓝色卡{ko}파란색 카드{es}Tarjeta(s) Azul{fr}Carte(s) Bleue{pt-br}Cartas Azuis{de}Blaue Karten"},
+								["White"]={0, "{en}White Card(s){it}Carte Bianche{ru}Белая(ых) карточка(и){zh-tw}白色卡{zh-cn}白色卡{ko}흰색 카드{es}Tarjeta(s) Blanca{fr}Carte(s) Blanche{pt-br}Cartas Brancas{de}Weiße Karten"},
+								["Starting"]={0, "{en}Basic Action(s){it}Azioni Base{ru}Базовое(ых) действие(я){zh-tw}基本行動卡{zh-cn}基本行动卡{ko}기본 액션 카드{es}Acciones Básicas{fr}Action(s) de Base{pt-br}Ações Básicas{de}Basis Aktionen"},
+								["Advanced Action"]={0, "{en}Advanced Action(s){it}Azioni Avanzate{ru}Особое(ые) действие(я){zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션 카드{es}Acciones Avanzadas{fr}Action(s) Avancée{pt-br}Ações Avançadas{de}Erweiterte Aktionen"},
+								["Spell"]={0, "{en}Spell(s){it}Incantesimi{ru}Заклинание(я){zh-tw}法術卡{zh-cn}法术卡{ko}마법 카드{es}Hechizo(s){fr}Sort(s){pt-br}Feitiços{de}Zauber"},
+								["Wound"]={0, "{en}Wound(s){it}Ferite{ru}Рана(ы){zh-tw}創傷卡{zh-cn}创伤卡{ko}부상{es}Herida(s){fr}Blessure(s){pt-br}Ferimentos{de}Wunde(n)"},
+								["Artifact"]={0, "{en}Artifact(s){it}Artefatti{ru}Артефакт(а){zh-tw}神器卡{zh-cn}神器卡{ko}유물{es}Artefacto(s){fr}Artefact(s){pt-br}Artefatos{de}Artefakt(e)"},
+								["Move"]={0, "{en}Card(s) are Move{it}Carte Movimento{ru}Карта(ы) - это Движение{zh-tw}移動類卡牌{zh-cn}移动类卡牌{ko}장의 이동 카드{es}Las Cartas se Mueven{fr}Les cartes sont Mouvements{pt-br}Cartas são Movimento{de}Karte(n) sind Bewegung"},
+								["Combat"]={0, "{en}Card(s) are Combat{it}Carte Combattimento{ru}Карта(ы) - это Боевые{zh-tw}戰鬥類卡牌{zh-cn}战斗类卡牌{ko}장의 전투 카드{es}Las Cartas son de Combate{fr}Les cartes sont Combat{pt-br}Cartas são Combate{de}Karte(n) sind Angriff"},
+								["Influence"]={0, "{en}Card(s) are Influence{it}Carte Influenza{ru}Карта(ы) - это Влияние{zh-tw}影響力卡牌{zh-cn}影响力卡牌{ko}장의 영향력 카드{es}Las Cartas tienen Influencia{fr}Les cartes sont Influence{pt-br}Cartas são Influência{de}Karte(n) sind Einfluss"},
+								["Special"]={0, "{en}Card(s) are Special{it}Carte Speciali{ru}Карта(ы) - это Особая{zh-tw}特殊類卡牌{zh-cn}特殊类卡牌{ko}장의 특수효과 카드{es}Las Cartas son Especiales{fr}Les cartes sont Spéciales{pt-br}Cartas são Especiais{de}Karte(n) sind Spezial"},
+								["Heal"]={0, "{en}Card(s) are Heal{it}Carte Guarigione{ru}Карта(ы) - это Лечение{zh-tw}治療類卡牌{zh-cn}治疗类卡牌{ko}장의 치유 카드{es}Las Cartas se Curan{fr}Les cartes sont Guéries{pt-br}Cartas são Cura{de}Karte(n) sind Heilung"},
+								["Action"]={0, "{en}Card(s) are Action{it}Carte Azione{ru}Карта(ы) - это Действие{zh-tw}行動類卡牌{zh-cn}行动类卡牌{ko}장의 행동 카드{es}Las Cartas son Acción{fr}Les cartes sont des Actions{pt-br}Cartas são Ações{de}Karte(n) sind Aktionen"}}
 			--count card types colours, and abilities
 			local deedCards=deck.type=="Deck" and deck.getObjects() or {{guid=deck.guid}}
 			local cardSearch={["deed"]=deedCards}
-			deck.setName("{en}Deed Cards{ru}Колода Деяний{zh-tw}功能卡牌{zh-cn}功能卡牌{ko}행동 카드{es}Tarjetas de Escritura{fr}Cartes D'acte{pt-br}Cartas de Façanha{de}Handlungskarten")
+			deck.setName("{en}Deed Cards{it}Carte Gesta{ru}Колода Деяний{zh-tw}功能卡牌{zh-cn}功能卡牌{ko}행동 카드{es}Tarjetas de Escritura{fr}Cartes D'acte{pt-br}Cartas de Façanha{de}Handlungskarten")
 			if zoneType=="deed" and playerStats.tactic==6 and gStates.dayRound==false and #gStates.powerStored>0 then
 				cardSearch={["deed"]=deedCards, ["stored"]=gStates.powerStored}
-				deck.setName(joinLang({"{en}Deed Cards +{ru}Карты Деяний +{zh-tw}功能卡牌 +{zh-cn}功能卡牌 +{ko}행동 카드 +{es}Tarjetas de Escritura +{fr}Cartes D'acte +{pt-br}Cartas de Façanha +{de}Handlungskarten +", #gStates.powerStored, "{en} Stored{ru} Сбережено{zh-tw} 已儲存{zh-cn} 已储存{ko} 장 저장됨{es} Almacenado{fr} Stockée{pt-br} Armazenada{de} Gelagert"}))
+				deck.setName(joinLang({"{en}Deed Cards +{it}Carte Gesta +{ru}Карты Деяний +{zh-tw}功能卡牌 +{zh-cn}功能卡牌 +{ko}행동 카드 +{es}Tarjetas de Escritura +{fr}Cartes D'acte +{pt-br}Cartas de Façanha +{de}Handlungskarten +", #gStates.powerStored, "{en} Stored{it} Conservate{ru} Сбережено{zh-tw} 已儲存{zh-cn} 已储存{ko} 장 저장됨{es} Almacenado{fr} Stockée{pt-br} Armazenada{de} Gelagert"}))
 			end
 			for _, cardpile in pairs(cardSearch) do
 				for _, deedCard in pairs(cardpile) do
@@ -362,9 +362,9 @@ function processCardClaim(player, mouseButton, id, rewindReady)
 						end
 					end
 					if gameCards[claimedCard.guid]~=nil and source~="artifactReward" then
-						broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} gained {ru} получает {zh-tw} 獲得 {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ", gameCards[claimedCard.guid].name[1], "."}), positionToColor(gStates.turnNumber))
+						broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} gained {it} ha ricevuto {ru} получает {zh-tw} 獲得 {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ", gameCards[claimedCard.guid].name[1], "."}), positionToColor(gStates.turnNumber))
 					else
-						broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} gained {ru} получает {zh-tw} 獲得 {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ", getObjectFromGUID(claimedCard.guid).getName(), "."}), positionToColor(gStates.turnNumber))
+						broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} gained {it} ha ricevuto {ru} получает {zh-tw} 獲得 {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ", getObjectFromGUID(claimedCard.guid).getName(), "."}), positionToColor(gStates.turnNumber))
 					end
 				else
 					if fillWait==false then--Move the Unit card to an empty command-source column
@@ -379,16 +379,16 @@ function processCardClaim(player, mouseButton, id, rewindReady)
 							fillWait=true
 							safeWaitFrames("PlayerBoard.CardFlow",function() safeWaitCondition("PlayerBoard.CardFlow",function() fillWait=false scheduleUnitLayoutRefresh(seatPos) end, function() return claimedCard.resting end) end,5)
 							if gameCards[claimedCard.guid]~=nil then
-								broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} gained {ru} получает {zh-tw} 獲得 {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ", gameCards[claimedCard.guid].name[1], "."}), positionToColor(gStates.turnNumber))
+								broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage], "{en} gained {it} ha ricevuto {ru} получает {zh-tw} 獲得 {zh-cn}增加了{ko}의 획득:  {es} ganó {fr} a subi {pt-br} ganhou {de} gewonnen ", gameCards[claimedCard.guid].name[1], "."}), positionToColor(gStates.turnNumber))
 							end
 						end
-						if found==false then broadcastToAll("{en}You have no free command tokens to enlist another unit{ru}У вас нет свободного жетона командования, чтобы нанять еще один отряд{zh-tw}你沒有空閒的指揮標記可招募另一個單位{zh-cn}你没有闲置的位置招募新部队{ko}유닛을 고용할 지휘 토큰이 부족합니다{es}No tienes fichas de mando gratuitas para alistar otra unidad{fr}Vous n'avez pas de jetons de commande gratuits pour enrôler une autre unité{pt-br}Você não tem Fichas de Comando livres para recrutar outra unidade{de}Du hast keine freien Befehlsmarken, um eine andere Einheit anzuwerben.", warningColor) end
+						if found==false then broadcastToAll("{en}You have no free command tokens to enlist another unit{it}Non hai segnalini Comando liberi per reclutare un'altra Unità{ru}У вас нет свободного жетона командования, чтобы нанять еще один отряд{zh-tw}你沒有空閒的指揮標記可招募另一個單位{zh-cn}你没有闲置的位置招募新部队{ko}유닛을 고용할 지휘 토큰이 부족합니다{es}No tienes fichas de mando gratuitas para alistar otra unidad{fr}Vous n'avez pas de jetons de commande gratuits pour enrôler une autre unité{pt-br}Você não tem Fichas de Comando livres para recrutar outra unidade{de}Du hast keine freien Befehlsmarken, um eine andere Einheit anzuwerben.", warningColor) end
 						--Warn only after the normal location rules plus conquered Camp-as-City proximity are checked.
 						if gameCards[claimedCard.guid]~=nil and unitRecruitableAtCurrentLocation(gStates.turnNumber,claimedCard)~=true then
-							broadcastToAll("{en}Claimed Unit normally isn't recruited from the location you're currently at.{ru}Забранный Отряд обычно не нанимается из того места, где вы в данный момент находитесь.{zh-tw}你目前所在的位置通常不能招募這個單位{zh-cn}你所在的位置通常不能招募这个部队{ko}보통은, 그 유닛을 현재 장소에서 고용할 수 없습니다{es}La Unidad reclamada normalmente no se recluta en la ubicación en la que se encuentra actualmente.{fr}L'Unité réclamée n'est normalement pas recrutée à l'endroit où vous vous trouvez actuellement.{pt-br}Unidade Clamada normalmente não é recrutada da localização que você está agora.{de}Die beanspruchte Einheit wird normalerweise nicht von dem Ort rekrutiert, an dem Sie sich gerade befinden.", positionToColor(gStates.turnNumber))
+							broadcastToAll("{en}Claimed Unit normally isn't recruited from the location you're currently at.{it}Questa Unità normalmente non si recluta nel sito in cui ti trovi.{ru}Забранный Отряд обычно не нанимается из того места, где вы в данный момент находитесь.{zh-tw}你目前所在的位置通常不能招募這個單位{zh-cn}你所在的位置通常不能招募这个部队{ko}보통은, 그 유닛을 현재 장소에서 고용할 수 없습니다{es}La Unidad reclamada normalmente no se recluta en la ubicación en la que se encuentra actualmente.{fr}L'Unité réclamée n'est normalement pas recrutée à l'endroit où vous vous trouvez actuellement.{pt-br}Unidade Clamada normalmente não é recrutada da localização que você está agora.{de}Die beanspruchte Einheit wird normalerweise nicht von dem Ort rekrutiert, an dem Sie sich gerade befinden.", positionToColor(gStates.turnNumber))
 						end
 					else
-						broadcastToAll("{en}Let the last card settle before claiming the next unit.{ru}Не спешите. Позвольте предыдущей карте переместиться, прежде чем брать следующую.{zh-tw}請等上一張卡片穩定後再招募下一個單位。{zh-cn}征召下一个部队前, 把上一个结算清{ko}이전 유닛이 완전히 놓일 때 까지 기다려주세요{es}Deje que la última carta se asiente antes de reclamar la siguiente unidad.{fr}Laissez la dernière carte s'installer avant de réclamer l'unité suivante.{pt-br}Deixe a última carta se encaixar antes de clamar a próxima unidade.{de}Lassen Sie die letzte Karte ruhen, bevor Sie die nächste Einheit beanspruchen.", warningColor)
+						broadcastToAll("{en}Let the last card settle before claiming the next unit.{it}Aspetta che l'ultima carta si fermi prima di prendere la prossima Unità.{ru}Не спешите. Позвольте предыдущей карте переместиться, прежде чем брать следующую.{zh-tw}請等上一張卡片穩定後再招募下一個單位。{zh-cn}征召下一个部队前, 把上一个结算清{ko}이전 유닛이 완전히 놓일 때 까지 기다려주세요{es}Deje que la última carta se asiente antes de reclamar la siguiente unidad.{fr}Laissez la dernière carte s'installer avant de réclamer l'unité suivante.{pt-br}Deixe a última carta se encaixar antes de clamar a próxima unidade.{de}Lassen Sie die letzte Karte ruhen, bevor Sie die nächste Einheit beanspruchen.", warningColor)
 					end
 				end
 				--activate some of the tactics effects.
@@ -407,9 +407,9 @@ function processCardClaim(player, mouseButton, id, rewindReady)
 		else
 			if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
 				if turnOrder[gStates.turnNumber].mage=="Volkare" then
-					broadcastToAll("{en}Volkare doesn't claim cards{ru}Волкар не берет карты{zh-tw}沃卡爾不會取得卡牌{zh-cn}傻孩子, 沃里卡不选卡{ko}볼케어는 카드를 획득하지 않습니다{es}Volkare no reclama cartas{fr}Volkare ne réclame pas de cartes{pt-br}Volkare não clama cartas{de}Volkare beansprucht keine Karten", warningColor)
+					broadcastToAll("{en}Volkare doesn't claim cards{it}Volkare non prende carte{ru}Волкар не берет карты{zh-tw}沃卡爾不會取得卡牌{zh-cn}傻孩子, 沃里卡不选卡{ko}볼케어는 카드를 획득하지 않습니다{es}Volkare no reclama cartas{fr}Volkare ne réclame pas de cartes{pt-br}Volkare não clama cartas{de}Volkare beansprucht keine Karten", warningColor)
 				else
-					broadcastToAll("{en}Dummy doesn't claim cards this way{ru}Виртуальный игрок не получает карты таким образом{zh-tw}虛擬玩家不會以這種方式取得卡牌{zh-cn}虚拟玩家不会这样选卡{ko}가상 플레이어는 카드를 이런 방식으로 얻지 않습니다{es}El muñeco no reclama cartas de esta manera{fr}Le mannequin ne réclame pas les cartes de cette façon{pt-br}Jog. Fictício não clama cartas desta forma{de}Dummy beansprucht auf diese Weise keine Karten", warningColor)
+					broadcastToAll("{en}Dummy doesn't claim cards this way{it}Il Fittizio non prende carte in questo modo{ru}Виртуальный игрок не получает карты таким образом{zh-tw}虛擬玩家不會以這種方式取得卡牌{zh-cn}虚拟玩家不会这样选卡{ko}가상 플레이어는 카드를 이런 방식으로 얻지 않습니다{es}El muñeco no reclama cartas de esta manera{fr}Le mannequin ne réclame pas les cartes de cette façon{pt-br}Jog. Fictício não clama cartas desta forma{de}Dummy beansprucht auf diese Weise keine Karten", warningColor)
 				end
 			end
 		end
@@ -460,7 +460,7 @@ function showCoralDrawChoice(playerIndex, drawCount, sourceId)
 	else
 		coralDrawPending={seatPos=seatPos, remaining=drawCount, sourceId=sourceId}
 	end
-	UI.setAttribute("CoralDrawChoiceQuestion", "text", joinLang({drawCount,"{en} card draw(s) remaining. Replace one draw with Quick Witted?{ru} доборов карт осталось. Заменить один добор на Quick Witted?{zh-tw} 次抽牌剩餘。用 Quick Witted 取代其中一次抽牌？{zh-cn} 次抽牌剩余。用 Quick Witted 替代其中一次抽牌？{ko}번의 카드 뽑기가 남았습니다. 한 번을 Quick Witted로 대체하시겠습니까?{es} robos de carta restantes. ¿Reemplazar un robo por Quick Witted?{fr} pioches restantes. Remplacer une pioche par Quick Witted ?{pt-br} compras de carta restantes. Substituir uma compra por Quick Witted?{de} Kartenziehungen verbleiben. Einen Zug durch Quick Witted ersetzen?"}))
+	UI.setAttribute("CoralDrawChoiceQuestion", "text", joinLang({drawCount,"{en} card draw(s) remaining. Replace one draw with Quick Witted?{it} pescate rimanenti. Sostituire una pescata con Prontezza di Spirito?{ru} доборов карт осталось. Заменить один добор на Quick Witted?{zh-tw} 次抽牌剩餘。用 Quick Witted 取代其中一次抽牌？{zh-cn} 次抽牌剩余。用 Quick Witted 替代其中一次抽牌？{ko}번의 카드 뽑기가 남았습니다. 한 번을 Quick Witted로 대체하시겠습니까?{es} robos de carta restantes. ¿Reemplazar un robo por Quick Witted?{fr} pioches restantes. Remplacer une pioche par Quick Witted ?{pt-br} compras de carta restantes. Substituir uma compra por Quick Witted?{de} Kartenziehungen verbleiben. Einen Zug durch Quick Witted ersetzen?"}))
 	UI.setAttribute("CoralDrawFullPanel", "active", drawCount>1 and "true" or "false")
 	setUIVisibility("CoralDrawChoice",{positionToColor(playerIndex),"Black"})
 	UI.show("CoralDrawChoice")
@@ -822,7 +822,7 @@ function drawUpTo(player, mouseButton, id)
 			local deedZone=deedZoneGUID~=nil and getObjectFromGUID(deedZoneGUID) or nil
 			if deedZone==nil then
 				log("drawUpTo missing Deed Deck zone for seat "..tostring(playerPosition))
-				broadcastToColor("Could not find your Deed Deck area. Draw to your hand manually and include the save with any bug report.",player.color,warningColor)
+				broadcastToColor("{en}Could not find your Deed Deck area. Draw to your hand manually and include the save with any bug report.{it}Area del mazzo Gesta non trovata. Pesca manualmente in mano e allega il salvataggio alla segnalazione del problema.{ru}Область колоды деяний не найдена. Возьмите карты в руку вручную и приложите сохранение к отчёту об ошибке.{zh-tw}找不到你的行動牌庫區域。請手動抽牌，回報錯誤時附上存檔。{zh-cn}找不到你的行动牌库区域。请手动抽牌，报告错误时附上存档。{ko}행동 덱 영역을 찾을 수 없습니다. 수동으로 카드를 뽑고 오류 보고 시 저장 파일을 첨부하십시오.{es}No se encontró la zona de tu mazo de Gesta. Roba manualmente e incluye la partida guardada al informar del error.{fr}Zone du deck d'Actions introuvable. Piochez manuellement et joignez la sauvegarde au rapport d'erreur.{pt-br}Área do baralho de Façanhas não encontrada. Compre manualmente e inclua o arquivo salvo no relato do erro.{de}Dein Handlungsdeckbereich wurde nicht gefunden. Ziehe manuell und füge dem Fehlerbericht den Spielstand bei.",player.color,warningColor)
 				return
 			end
 			local deedDeck=nil
@@ -895,7 +895,7 @@ function drawUpTo(player, mouseButton, id)
 										mainUIUpdate("Night Tactic 2 Unused")
 										return
 									end
-									broadcastToAll("{en}Night Tactic Two was used to refill the Deed Deck with up to 3 random discards{ru}Ночная Тактика 2 была использована, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний{zh-tw}夜間戰術 2 已用最多 3 張隨機棄牌補充行動牌庫{zh-cn}夜间战术 2 已用最多 3 张随机弃牌补充行动牌库{ko}밤 전략 2로 버린 카드 중 무작위로 최대 3장을 행동 덱에 되돌렸습니다{es}La Táctica Nocturna 2 se usó para devolver hasta 3 descartes aleatorios al mazo de Proezas{fr}La Tactique de Nuit 2 a remis jusqu'à 3 défausses aléatoires dans le paquet d'Actions{pt-br}A Tática Noturna 2 devolveu até 3 descartes aleatórios ao Baralho de Façanhas{de}Nachttaktik 2 hat bis zu 3 zufällige Ablagekarten in das Handlungskartendeck zurückgelegt", positionToColor(turnAffected))
+									broadcastToAll("{en}Night Tactic Two was used to refill the Deed Deck with up to 3 random discards{it}Tattica Notte Due usata per rifornire il mazzo Gesta con fino a 3 scarti casuali{ru}Ночная Тактика 2 была использована, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний{zh-tw}夜間戰術 2 已用最多 3 張隨機棄牌補充行動牌庫{zh-cn}夜间战术 2 已用最多 3 张随机弃牌补充行动牌库{ko}밤 전략 2로 버린 카드 중 무작위로 최대 3장을 행동 덱에 되돌렸습니다{es}La Táctica Nocturna 2 se usó para devolver hasta 3 descartes aleatorios al mazo de Proezas{fr}La Tactique de Nuit 2 a remis jusqu'à 3 défausses aléatoires dans le paquet d'Actions{pt-br}A Tática Noturna 2 devolveu até 3 descartes aleatórios ao Baralho de Façanhas{de}Nachttaktik 2 hat bis zu 3 zufällige Ablagekarten in das Handlungskartendeck zurückgelegt", positionToColor(turnAffected))
 									mainUIUpdate("Night Tactic 2 Used")
 									--The refill pause has finished; resume the interrupted player's exact remaining draw.
 									drawExactDeedCards(turnAffected, excess, "DrawHand")
@@ -1048,7 +1048,7 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 				if card.guid==timeBendingGUID then
 					gStates.timeBendingRemovedSeat=turnOrder[playerIndex].seatPos
 					if trash~=nil then trash.putObject(card) end
-					broadcastToAll("{en}Time Bend Left Play{ru}«Изгиб времени» покинул игру{zh-tw}「時間彎曲」離開遊戲區{zh-cn}“时间弯曲”离开游戏区{ko}시간 왜곡이 플레이 영역을 떠났습니다{es}Curvatura Temporal salió del juego{fr}Courbure du Temps a quitté le jeu{pt-br}Dobra Temporal saiu de jogo{de}Zeitkrümmung hat das Spiel verlassen", positionToColor(playerIndex))
+					broadcastToAll("{en}Time Bend Left Play{it}Distorsione Temporale ha Lasciato il Gioco{ru}«Изгиб времени» покинул игру{zh-tw}「時間彎曲」離開遊戲區{zh-cn}“时间弯曲”离开游戏区{ko}시간 왜곡이 플레이 영역을 떠났습니다{es}Curvatura Temporal salió del juego{fr}Courbure du Temps a quitté le jeu{pt-br}Dobra Temporal saiu de jogo{de}Zeitkrümmung hat das Spiel verlassen", positionToColor(playerIndex))
 				else
 					card.setRotation({0.0,180.0,0.0})
 					card.setPosition({(turnOrder[playerIndex].seatPos*40)-100,4,-48.40})
@@ -1128,7 +1128,7 @@ local function meditationAcceptTranceCard(cardGUID)
 	if (state.required or 0)<1 then return false end
 	if state.acceptedSet==nil then state.acceptedSet={} end
 	state.mode="trance" state.accepted[#state.accepted+1]=cardGUID state.acceptedSet[cardGUID]=true
-	broadcastToAll(joinLang({"{en}Trance Card Accepted ({ru}Карта Транса принята ({zh-tw}已接受入定卡（{zh-cn}已接受入定卡（{ko}트랜스 카드 승인 ({es}Carta de Trance aceptada ({fr}Carte de Transe acceptée ({pt-br}Carta de Transe aceita ({de}Trance-Karte akzeptiert (",#state.accepted,"/",state.required,")"}), positionToColor(state.player))
+	broadcastToAll(joinLang({"{en}Trance Card Accepted ({it}Carta Trance Accettata ({ru}Карта Транса принята ({zh-tw}已接受入定卡（{zh-cn}已接受入定卡（{ko}트랜스 카드 승인 ({es}Carta de Trance aceptada ({fr}Carte de Transe acceptée ({pt-br}Carta de Transe aceita ({de}Trance-Karte akzeptiert (",#state.accepted,"/",state.required,")"}), positionToColor(state.player))
 	safeWaitFrames("PlayerBoard.CardFlow",function() refreshMeditationTrance() end, 2)
 	return true
 end
@@ -1208,8 +1208,8 @@ end
 local function meditationFinish(playerIndex, destination, moved, expected, name)
 	turnOrder[playerIndex].deedCount=(turnOrder[playerIndex].deedCount or 0)+moved
 	if moved~=expected then
-		local effect=name=="Trance" and "{en}Trance{ru}Транс{zh-tw}入定{zh-cn}入定{ko}트랜스{es}Trance{fr}Transe{pt-br}Transe{de}Trance" or "{en}Meditation{ru}Медитация{zh-tw}冥想{zh-cn}冥想{ko}명상{es}Meditación{fr}Méditation{pt-br}Meditação{de}Meditation"
-		broadcastToAll(joinLang({effect,"{en} could not find all selected discard cards.{ru}: не удалось найти все выбранные карты сброса.{zh-tw}：找不到所有選定的棄牌。{zh-cn}：找不到所有选定的弃牌。{ko}: 선택한 버린 카드를 모두 찾지 못했습니다.{es}: no se pudieron encontrar todas las cartas de descarte seleccionadas.{fr} : impossible de trouver toutes les cartes de défausse sélectionnées.{pt-br}: não foi possível encontrar todas as cartas de descarte selecionadas.{de}: Nicht alle ausgewählten Ablagekarten konnten gefunden werden."}), positionToColor(playerIndex))
+		local effect=name=="Trance" and "{en}Trance{it}Trance{ru}Транс{zh-tw}入定{zh-cn}入定{ko}트랜스{es}Trance{fr}Transe{pt-br}Transe{de}Trance" or "{en}Meditation{it}Meditazione{ru}Медитация{zh-tw}冥想{zh-cn}冥想{ko}명상{es}Meditación{fr}Méditation{pt-br}Meditação{de}Meditation"
+		broadcastToAll(joinLang({effect,"{en} could not find all selected discard cards.{it} non ha trovato tutte le carte scartate selezionate.{ru}: не удалось найти все выбранные карты сброса.{zh-tw}：找不到所有選定的棄牌。{zh-cn}：找不到所有选定的弃牌。{ko}: 선택한 버린 카드를 모두 찾지 못했습니다.{es}: no se pudieron encontrar todas las cartas de descarte seleccionadas.{fr} : impossible de trouver toutes les cartes de défausse sélectionnées.{pt-br}: não foi possível encontrar todas as cartas de descarte selecionadas.{de}: Nicht alle ausgewählten Ablagekarten konnten gefunden werden."}), positionToColor(playerIndex))
 	end
 	if destination=="bottom" and moved>0 and turnOrder[playerIndex].mage=="Coral" then safeWaitFrames("PlayerBoard.CardFlow",function() coralSetAsideQuickWitted() end, 8) end
 end
@@ -1223,7 +1223,7 @@ local function meditationResolve(destination, buttonPlayerColor)
 	if state==nil or state.resolved==true then return end
 	if state.mode=="trance" then
 		local required=state.required or math.min(2,#state.accepted)
-		if #state.accepted<required then broadcastToAll(joinLang({"{en}Trance: add {ru}Транс: сначала добавьте ещё {zh-tw}入定：請先從棄牌堆再加入 {zh-cn}入定：请先从弃牌堆再加入 {ko}트랜스: 먼저 버린 카드 더미에서 {es}Trance: añade primero {fr}Transe : ajoutez d'abord {pt-br}Transe: primeiro adicione {de}Trance: Lege zuerst noch ",required-#state.accepted,"{en} more chosen card(s) from your discard pile to your Deed deck first.{ru} выбранных карт из сброса в Колоду деяний.{zh-tw} 張選定的卡到行動牌庫。{zh-cn} 张选定的卡到行动牌库。{ko}장의 선택한 카드를 행동 덱에 추가하세요.{es} carta(s) elegida(s) de tu descarte a tu mazo de Proezas.{fr} carte(s) choisie(s) de votre défausse dans votre paquet d'Actions.{pt-br} carta(s) escolhida(s) do descarte ao seu Baralho de Façanhas.{de} ausgewählte Karte(n) aus deinem Ablagestapel in dein Handlungskartendeck."}), positionToColor(playerIndex)) return end
+		if #state.accepted<required then broadcastToAll(joinLang({"{en}Trance: add {it}Trance: aggiungi prima altre {ru}Транс: сначала добавьте ещё {zh-tw}入定：請先從棄牌堆再加入 {zh-cn}入定：请先从弃牌堆再加入 {ko}트랜스: 먼저 버린 카드 더미에서 {es}Trance: añade primero {fr}Transe : ajoutez d'abord {pt-br}Transe: primeiro adicione {de}Trance: Lege zuerst noch ",required-#state.accepted,"{en} more chosen card(s) from your discard pile to your Deed deck first.{it} carte scelte dagli scarti al mazzo Gesta.{ru} выбранных карт из сброса в Колоду деяний.{zh-tw} 張選定的卡到行動牌庫。{zh-cn} 张选定的卡到行动牌库。{ko}장의 선택한 카드를 행동 덱에 추가하세요.{es} carta(s) elegida(s) de tu descarte a tu mazo de Proezas.{fr} carte(s) choisie(s) de votre défausse dans votre paquet d'Actions.{pt-br} carta(s) escolhida(s) do descarte ao seu Baralho de Façanhas.{de} ausgewählte Karte(n) aus deinem Ablagestapel in dein Handlungskartendeck."}), positionToColor(playerIndex)) return end
 		state.resolved=true meditationRemoveButtons(card) meditationGrantDrawBonus(playerIndex)
 		local selected={}
 		for a=1, required do selected[#selected+1]=state.accepted[a] end
@@ -1238,14 +1238,14 @@ local function meditationResolve(destination, buttonPlayerColor)
 	for a=1, amount do selected[#selected+1]=table.remove(choices,math.random(#choices)) end
 	state.resolved=true meditationRemoveButtons(card) meditationGrantDrawBonus(playerIndex)
 	if amount==0 then
-		broadcastToAll(joinLang({"{en}Meditation: no discard cards to return. Draw +2 over hand limit still applies.{ru}Медитация: в сбросе нет карт для возврата. Добор +2 сверх лимита руки всё равно действует.{zh-tw}冥想：棄牌堆沒有可返回的卡。仍可比手牌上限多抽 2 張。{zh-cn}冥想：弃牌堆没有可返回的卡。仍可比手牌上限多抽 2 张。{ko}명상: 되돌릴 버린 카드가 없습니다. 손패 제한보다 +2장 더 뽑는 효과는 그대로 적용됩니다.{es}Meditación: no hay cartas de descarte que devolver. Aún puedes robar +2 por encima del límite de mano.{fr}Méditation : aucune carte de défausse à remettre. La pioche de +2 au-dessus de la limite de main s'applique quand même.{pt-br}Meditação: não há cartas de descarte para devolver. Comprar +2 acima do limite de mão ainda se aplica.{de}Meditation: Keine Ablagekarten zum Zurücklegen. +2 Karten über das Handlimit hinaus ziehen gilt trotzdem."}), positionToColor(playerIndex))
+		broadcastToAll(joinLang({"{en}Meditation: no discard cards to return. Draw +2 over hand limit still applies.{it}Meditazione: nessuna carta scartata da recuperare. Puoi comunque pescare fino a 2 carte oltre il limite di mano.{ru}Медитация: в сбросе нет карт для возврата. Добор +2 сверх лимита руки всё равно действует.{zh-tw}冥想：棄牌堆沒有可返回的卡。仍可比手牌上限多抽 2 張。{zh-cn}冥想：弃牌堆没有可返回的卡。仍可比手牌上限多抽 2 张。{ko}명상: 되돌릴 버린 카드가 없습니다. 손패 제한보다 +2장 더 뽑는 효과는 그대로 적용됩니다.{es}Meditación: no hay cartas de descarte que devolver. Aún puedes robar +2 por encima del límite de mano.{fr}Méditation : aucune carte de défausse à remettre. La pioche de +2 au-dessus de la limite de main s'applique quand même.{pt-br}Meditação: não há cartas de descarte para devolver. Comprar +2 acima do limite de mão ainda se aplica.{de}Meditation: Keine Ablagekarten zum Zurücklegen. +2 Karten über das Handlimit hinaus ziehen gilt trotzdem."}), positionToColor(playerIndex))
 		return
 	end
 	meditationMoveCards(playerIndex, "discard", selected, destination, function(moved)
 		meditationFinish(playerIndex, destination, moved, amount, "Meditation")
 		if moved==amount then
-			local destinationText=destination=="top" and "{en}top{ru}верх{zh-tw}頂部{zh-cn}顶部{ko}맨 위{es}parte superior{fr}dessus{pt-br}topo{de}oberste Ende" or "{en}bottom{ru}низ{zh-tw}底部{zh-cn}底部{ko}맨 아래{es}parte inferior{fr}dessous{pt-br}fundo{de}unterste Ende"
-			broadcastToAll(joinLang({"{en}Meditation returned {ru}Медитация вернула {zh-tw}冥想將 {zh-cn}冥想将 {ko}명상으로 무작위 버린 카드 {es}Meditación devolvió {fr}Méditation a remis {pt-br}Meditação devolveu {de}Meditation hat ",amount,"{en} random discard card(s) to the {ru} случайных карт из сброса в {zh-tw} 張隨機棄牌放回行動牌庫的{zh-cn} 张随机弃牌放回行动牌库的{ko}장을 행동 덱의 {es} carta(s) de descarte aleatoria(s) a la {fr} carte(s) de défausse aléatoire(s) sur le {pt-br} carta(s) de descarte aleatória(s) ao {de} zufällige Ablagekarte(n) an das ",destinationText,"{en} of the Deed deck.{ru} Колоды деяний.{zh-tw}。{zh-cn}。{ko}에 되돌렸습니다.{es} del mazo de Proezas.{fr} du paquet d'Actions.{pt-br} do Baralho de Façanhas.{de} des Handlungskartendecks zurückgelegt."}), positionToColor(playerIndex))
+			local destinationText=destination=="top" and "{en}top{it}cima{ru}верх{zh-tw}頂部{zh-cn}顶部{ko}맨 위{es}parte superior{fr}dessus{pt-br}topo{de}oberste Ende" or "{en}bottom{it}fondo{ru}низ{zh-tw}底部{zh-cn}底部{ko}맨 아래{es}parte inferior{fr}dessous{pt-br}fundo{de}unterste Ende"
+			broadcastToAll(joinLang({"{en}Meditation returned {it}Meditazione ha rimesso {ru}Медитация вернула {zh-tw}冥想將 {zh-cn}冥想将 {ko}명상으로 무작위 버린 카드 {es}Meditación devolvió {fr}Méditation a remis {pt-br}Meditação devolveu {de}Meditation hat ",amount,"{en} random discard card(s) to the {it} carte scartate casuali in {ru} случайных карт из сброса в {zh-tw} 張隨機棄牌放回行動牌庫的{zh-cn} 张随机弃牌放回行动牌库的{ko}장을 행동 덱의 {es} carta(s) de descarte aleatoria(s) a la {fr} carte(s) de défausse aléatoire(s) sur le {pt-br} carta(s) de descarte aleatória(s) ao {de} zufällige Ablagekarte(n) an das ",destinationText,"{en} of the Deed deck.{it} al mazzo Gesta.{ru} Колоды деяний.{zh-tw}。{zh-cn}。{ko}에 되돌렸습니다.{es} del mazo de Proezas.{fr} du paquet d'Actions.{pt-br} do Baralho de Façanhas.{de} des Handlungskartendecks zurückgelegt."}), positionToColor(playerIndex))
 		end
 	end)
 end

@@ -132,7 +132,7 @@ function SendDataRequest(player, mouseButton, id)
 			WebRequest.post(STAT_URL, GameRecord, function(w)
 				log(w.text)
 				if id=="SendBugRequestYes" or id=="SendScoreRequestYes" then
-					broadcastToAll("{en}Data Received, Thank You{ru}Данные получены, спасибо!{zh-tw}數據已收到，謝謝{zh-cn}数据已收到，谢谢{ko}데이터 수신 완료. 감사합니다.{es}Datos Recibidos, Gracias{fr}Données Reçues, Merci{pt-br}Dados recebidos, obrigado{de}Daten Erfasst, Danke", {1,1,0.5})
+					broadcastToAll("{en}Data Received, Thank You{it}Dati Ricevuti, Grazie{ru}Данные получены, спасибо!{zh-tw}數據已收到，謝謝{zh-cn}数据已收到，谢谢{ko}데이터 수신 완료. 감사합니다.{es}Datos Recibidos, Gracias{fr}Données Reçues, Merci{pt-br}Dados recebidos, obrigado{de}Daten Erfasst, Danke", {1,1,0.5})
 				end
 			end)
 		end

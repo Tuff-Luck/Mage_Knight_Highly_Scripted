@@ -12,20 +12,20 @@ local scenarioTweakDefaults=nil
 
 
 local SETUP_TEXT={
-	notUsed="{en}Not Used{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet",
-	rotf1="{en}1. New Beginning{ru}1. Новое начало{zh-tw}新的開始{zh-cn}新的开始{ko}1.새로운 시작{es}1. Un nuevo comienzo{fr}1. Nouveau départ{pt-br}1. Novo Começo{de}1. Neubeginn",
-	rotf2="{en}2. Spoils of War{ru}2. Военные трофеи{zh-tw}戰爭犒賞{zh-cn}战争犒赏{ko}2.전쟁의 전리품{es}2. Botín de Guerra{fr}2. Butin de Guerre{pt-br}2. Despojos de Guerra{de}2. Kriegsbeute",
-	rotf3="{en}3. Elixir of Life{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier",
-	darknessComing="{en}Darkness is Coming{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel",
-	daylightComing="{en}Daylight is Coming{ru}Надвигается рассвет{zh-tw}白晝侵襲{zh-cn}白昼侵袭{ko}빛의 도래{es}Se Acerca la luz del Día{fr}Lendemain Arrive{pt-br}A Luz do dia está Chegando{de}Es Wird Hell",
-	startSolo="{en}Start - Solo{ru}Начало - Одиночный{zh-tw}開始 - 單人遊戲{zh-cn}开始 - 单人游戏{ko}시작 - 솔로{es}Comenzar - Solo{fr}Démarrer - Solo{pt-br}Início - Solo{de}Start - Solo",
-	startCompetitive="{en}Start - Competitive{ru}Начало - Соревновательный{zh-tw}開始 - 對抗模式{zh-cn}开始 - 对抗模式{ko}시작 - 경쟁{es}Comenzar - Competitivo{fr}Démarrer - Compétitif{pt-br}Início - Competitivo{de}Start - Wettbewerbsfähig",
-	startCooperative="{en}Start - Cooperative{ru}Начало - Кооперативный{zh-tw}開始 - 合作模式{zh-cn}开始 - 合作模式{ko}시작 - 협력{es}Comenzar - Cooperativo{fr}Démarrer - Coopératif{pt-br}Início - Cooperativo{de}Start - Genossenschaft",
-	volkareSkills="{en}Volkare Skills -{ru}Навыки Волкаре -{zh-tw}沃卡里技能：{zh-cn}沃卡里技能：{ko}볼케어의 스킬 -{es}Habilidades de Volkare -{fr}Compétences de Volkare -{pt-br}Habilidades de Volkare -{de}Volkare-Fähigkeiten -",
-	dummyMageKnight="{en}Dummy Mage Knight -{ru}Виртуальный Рыцарь-маг -{zh-tw}虛擬玩家：{zh-cn}虚拟玩家：{ko}가상 플레이어 -{es}Mage Knight Virtual -{fr}Mage fantôme -{pt-br}Mage Knight Fictício -{de}Dummy-Magier-Ritter -",
-	countryTilesPrefix="{en}Country Tiles - {ru}Дикие земли - {zh-tw}鄉村板塊：{zh-cn}乡村板块：{ko}교외 타일 - {es}Losetas de Campo - {fr}Tuiles Pays - {pt-br}Peças de Campo - {de}Land Teile - ",
-	coreTilesPrefix="{en}Core Tiles - {ru}Развитые земли - {zh-tw}核心板塊：{zh-cn}核心板块：{ko}중심부 타일 - {es}Losetas Centrales - {fr}Tuiles de Base - {pt-br}Peças Centrais - {de}Core Teile - ",
-	cityTilesPrefix="{en}City Tiles - {ru}Земли с городом - {zh-tw}城市板塊：{zh-cn}城市板块：{ko}도시 타일 - {es}Losetas de Ciudad - {fr}Tuiles Ville - {pt-br} Peças Cidade - {de}Stadt Teile - "}
+	notUsed="{en}Not Used{it}Non Usato{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet",
+	rotf1="{en}1. New Beginning{it}1. Nuovo Inizio{ru}1. Новое начало{zh-tw}新的開始{zh-cn}新的开始{ko}1.새로운 시작{es}1. Un nuevo comienzo{fr}1. Nouveau départ{pt-br}1. Novo Começo{de}1. Neubeginn",
+	rotf2="{en}2. Spoils of War{it}2. Bottino di Guerra{ru}2. Военные трофеи{zh-tw}戰爭犒賞{zh-cn}战争犒赏{ko}2.전쟁의 전리품{es}2. Botín de Guerra{fr}2. Butin de Guerre{pt-br}2. Despojos de Guerra{de}2. Kriegsbeute",
+	rotf3="{en}3. Elixir of Life{it}3. Elisir di Vita{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier",
+	darknessComing="{en}Darkness is Coming{it}Arriva l'Oscurità{ru}Надвигается тьма{zh-tw}黑暗侵襲{zh-cn}黑暗侵袭{ko}어둠의 도래{es}La Oscuridad se Acerca{fr}Les Ombres Arrivent{pt-br}Trevas Chegando{de}Es Wird Dunkel",
+	daylightComing="{en}Daylight is Coming{it}Arriva la Luce{ru}Надвигается рассвет{zh-tw}白晝侵襲{zh-cn}白昼侵袭{ko}빛의 도래{es}Se Acerca la luz del Día{fr}Lendemain Arrive{pt-br}A Luz do dia está Chegando{de}Es Wird Hell",
+	startSolo="{en}Start - Solo{it}Inizia - Solitario{ru}Начало - Одиночный{zh-tw}開始 - 單人遊戲{zh-cn}开始 - 单人游戏{ko}시작 - 솔로{es}Comenzar - Solo{fr}Démarrer - Solo{pt-br}Início - Solo{de}Start - Solo",
+	startCompetitive="{en}Start - Competitive{it}Inizia - Competitivo{ru}Начало - Соревновательный{zh-tw}開始 - 對抗模式{zh-cn}开始 - 对抗模式{ko}시작 - 경쟁{es}Comenzar - Competitivo{fr}Démarrer - Compétitif{pt-br}Início - Competitivo{de}Start - Wettbewerbsfähig",
+	startCooperative="{en}Start - Cooperative{it}Inizia - Cooperativo{ru}Начало - Кооперативный{zh-tw}開始 - 合作模式{zh-cn}开始 - 合作模式{ko}시작 - 협력{es}Comenzar - Cooperativo{fr}Démarrer - Coopératif{pt-br}Início - Cooperativo{de}Start - Genossenschaft",
+	volkareSkills="{en}Volkare Skills -{it}Abilità di Volkare -{ru}Навыки Волкаре -{zh-tw}沃卡里技能：{zh-cn}沃卡里技能：{ko}볼케어의 스킬 -{es}Habilidades de Volkare -{fr}Compétences de Volkare -{pt-br}Habilidades de Volkare -{de}Volkare-Fähigkeiten -",
+	dummyMageKnight="{en}Dummy Mage Knight -{it}Mage Knight Fittizio -{ru}Виртуальный Рыцарь-маг -{zh-tw}虛擬玩家：{zh-cn}虚拟玩家：{ko}가상 플레이어 -{es}Mage Knight Virtual -{fr}Mage fantôme -{pt-br}Mage Knight Fictício -{de}Dummy-Magier-Ritter -",
+	countryTilesPrefix="{en}Country Tiles - {it}Tessere Campagna - {ru}Дикие земли - {zh-tw}鄉村板塊：{zh-cn}乡村板块：{ko}교외 타일 - {es}Losetas de Campo - {fr}Tuiles Pays - {pt-br}Peças de Campo - {de}Land Teile - ",
+	coreTilesPrefix="{en}Core Tiles - {it}Tessere Centrali - {ru}Развитые земли - {zh-tw}核心板塊：{zh-cn}核心板块：{ko}중심부 타일 - {es}Losetas Centrales - {fr}Tuiles de Base - {pt-br}Peças Centrais - {de}Core Teile - ",
+	cityTilesPrefix="{en}City Tiles - {it}Tessere Città - {ru}Земли с городом - {zh-tw}城市板塊：{zh-cn}城市板块：{ko}도시 타일 - {es}Losetas de Ciudad - {fr}Tuiles Ville - {pt-br} Peças Cidade - {de}Stadt Teile - "}
 
 local ROTF_TEXT_BY_LEVEL={[0]=SETUP_TEXT.notUsed,[1]=SETUP_TEXT.rotf1,[2]=SETUP_TEXT.rotf2,[3]=SETUP_TEXT.rotf3}
 
@@ -304,20 +304,20 @@ end
 
 local SCENARIO_VARIANT_BUTTON_TEXT={
 	RandomizedDragonHeadsButton={
-		on="{en}Random Heads - On{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
-		off="{en}Random Heads - Off{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"},
+		on="{en}Random Heads - On{it}Teste Casuali - Sì{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
+		off="{en}Random Heads - Off{it}Teste Casuali - No{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"},
 	HorsemenHorsesButton={
-		on="{en}With Horse - On{ru}С лошадью - Вкл.{zh-tw}帶戰馬 - 開{zh-cn}带战马 - 开{ko}말 포함 - 켜짐{es}Con caballo - Sí{fr}Avec cheval - Oui{pt-br}Com cavalo - Ligado{de}Mit Pferd - An",
-		off="{en}With Horse - Off{ru}С лошадью - Выкл.{zh-tw}帶戰馬 - 關{zh-cn}带战马 - 关{ko}말 포함 - 꺼짐{es}Con caballo - No{fr}Avec cheval - Non{pt-br}Com cavalo - Desligado{de}Mit Pferd - Aus"},
+		on="{en}With Horse - On{it}Con Cavalcatura - Sì{ru}С лошадью - Вкл.{zh-tw}帶戰馬 - 開{zh-cn}带战马 - 开{ko}말 포함 - 켜짐{es}Con caballo - Sí{fr}Avec cheval - Oui{pt-br}Com cavalo - Ligado{de}Mit Pferd - An",
+		off="{en}With Horse - Off{it}Con Cavalcatura - No{ru}С лошадью - Выкл.{zh-tw}帶戰馬 - 關{zh-cn}带战马 - 关{ko}말 포함 - 꺼짐{es}Con caballo - No{fr}Avec cheval - Non{pt-br}Com cavalo - Desligado{de}Mit Pferd - Aus"},
 	ApocalypseDragonCityRandomButton={
-		on="{en}Random City - On{ru}Случайный город - Вкл.{zh-tw}隨機城市 - 開{zh-cn}随机城市 - 开{ko}무작위 도시 - 켜짐{es}Ciudad Aleatoria - Sí{fr}Cité aléatoire - Oui{pt-br}Cidade Aleatória - Ligado{de}Zufällige Stadt - An",
-		off="{en}Random City - Off{ru}Случайный город - Выкл.{zh-tw}隨機城市 - 關{zh-cn}随机城市 - 关{ko}무작위 도시 - 꺼짐{es}Ciudad Aleatoria - No{fr}Cité aléatoire - Non{pt-br}Cidade Aleatória - Desligado{de}Zufällige Stadt - Aus"},
+		on="{en}Random City - On{it}Città Casuale - Sì{ru}Случайный город - Вкл.{zh-tw}隨機城市 - 開{zh-cn}随机城市 - 开{ko}무작위 도시 - 켜짐{es}Ciudad Aleatoria - Sí{fr}Cité aléatoire - Oui{pt-br}Cidade Aleatória - Ligado{de}Zufällige Stadt - An",
+		off="{en}Random City - Off{it}Città Casuale - No{ru}Случайный город - Выкл.{zh-tw}隨機城市 - 關{zh-cn}随机城市 - 关{ko}무작위 도시 - 꺼짐{es}Ciudad Aleatoria - No{fr}Cité aléatoire - Non{pt-br}Cidade Aleatória - Desligado{de}Zufällige Stadt - Aus"},
 	ApocalypseDragonCityLastButton={
-		on="{en}Last City - On{ru}Последний город - Вкл.{zh-tw}最後城市 - 開{zh-cn}最后城市 - 开{ko}마지막 도시 - 켜짐{es}Última Ciudad - Sí{fr}Dernière Cité - Oui{pt-br}Última Cidade - Ligado{de}Letzte Stadt - An",
-		off="{en}Last City - Off{ru}Последний город - Выкл.{zh-tw}最後城市 - 關{zh-cn}最后城市 - 关{ko}마지막 도시 - 꺼짐{es}Última Ciudad - No{fr}Dernière Cité - Non{pt-br}Última Cidade - Desligado{de}Letzte Stadt - Aus"},
+		on="{en}Last City - On{it}Ultima Città - Sì{ru}Последний город - Вкл.{zh-tw}最後城市 - 開{zh-cn}最后城市 - 开{ko}마지막 도시 - 켜짐{es}Última Ciudad - Sí{fr}Dernière Cité - Oui{pt-br}Última Cidade - Ligado{de}Letzte Stadt - An",
+		off="{en}Last City - Off{it}Ultima Città - No{ru}Последний город - Выкл.{zh-tw}最後城市 - 關{zh-cn}最后城市 - 关{ko}마지막 도시 - 꺼짐{es}Última Ciudad - No{fr}Dernière Cité - Non{pt-br}Última Cidade - Desligado{de}Letzte Stadt - Aus"},
 	ApocalypseDragonCityRandomHeadsButton={
-		on="{en}Random Heads - On{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
-		off="{en}Random Heads - Off{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"}
+		on="{en}Random Heads - On{it}Teste Casuali - Sì{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
+		off="{en}Random Heads - Off{it}Teste Casuali - No{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"}
 }
 
 local function setScenarioVariantButtonState(id,selected)
@@ -397,11 +397,11 @@ local function refreshScenarioEnemyLevelTweaks()
 	setScenarioVariantButtonState("HorsemenHorsesButton",gStates.horsemenHorses==true)
 	if showDragon then
 		local level=type(apocalypseDragonStartingLevel)=="function" and apocalypseDragonStartingLevel() or 1
-		UI.setAttribute("ApocalypseDragonLevelSelectionText","text",joinLang({"{en}Dragon, Level {ru}Дракон, ур. {zh-tw}巨龍，等級 {zh-cn}巨龙，等级 {ko}드래곤, 레벨 {es}Dragón, Nivel {fr}Dragon, Niveau {pt-br}Dragão, Nível {de}Drache, Level ",tostring(level or 1)}))
+		UI.setAttribute("ApocalypseDragonLevelSelectionText","text",joinLang({"{en}Dragon, Level {it}Drago, Livello {ru}Дракон, ур. {zh-tw}巨龍，等級 {zh-cn}巨龙，等级 {ko}드래곤, 레벨 {es}Dragón, Nivel {fr}Dragon, Niveau {pt-br}Dragão, Nível {de}Drache, Level ",tostring(level or 1)}))
 	end
 	if showHorsemen then
 		local level=type(horsemanStartingLevel)=="function" and horsemanStartingLevel() or 1
-		UI.setAttribute("HorsemenLevelSelectionText","text",joinLang({"{en}Horsemen, Level {ru}Всадники, ур. {zh-tw}騎士，等級 {zh-cn}骑士，等级 {ko}기수, 레벨 {es}Jinetes, Nivel {fr}Cavaliers, Niveau {pt-br}Cavaleiros, Nível {de}Reiter, Level ",tostring(level or 1)}))
+		UI.setAttribute("HorsemenLevelSelectionText","text",joinLang({"{en}Horsemen, Level {it}Cavalieri, Livello {ru}Всадники, ур. {zh-tw}騎士，等級 {zh-cn}骑士，等级 {ko}기수, 레벨 {es}Jinetes, Nivel {fr}Cavaliers, Niveau {pt-br}Cavaleiros, Nível {de}Reiter, Level ",tostring(level or 1)}))
 	end
 	UI.setAttribute("ScenarioSummaryPanel","height",tostring(478-(enemyLevelRows*30)))
 	UI.setAttribute("ScenarioTweaksPanel","height",tostring(210+(enemyLevelRows*30)))
@@ -1335,11 +1335,11 @@ function refreshSetupStartButton()
 	local heroChallengeLegal,heroChallengeReason=heroChallengeSetupIsLegal()
 	if tooMany then
 		setUIButtonEnabled("StartButton",false)
-		UI.setAttribute("StartButtonText", "text", "{en}Too Many Mage Knights{ru}Слишком много Рыцарей-магов{zh-tw}魔法騎士過多{zh-cn}魔法骑士过多{ko}메이지 나이트가 너무 많습니다{es}Demasiados Mage Knights{fr}Trop de Mage Knights{pt-br}Mage Knights demais{de}Zu viele Mage Knights")
+		UI.setAttribute("StartButtonText", "text", "{en}Too Many Mage Knights{it}Troppi Mage Knight{ru}Слишком много Рыцарей-магов{zh-tw}魔法騎士過多{zh-cn}魔法骑士过多{ko}메이지 나이트가 너무 많습니다{es}Demasiados Mage Knights{fr}Trop de Mage Knights{pt-br}Mage Knights demais{de}Zu viele Mage Knights")
 		UI.setAttribute("StartButton", "active", "true")
 	elseif heroChallengeLegal~=true then
 		setUIButtonEnabled("StartButton",false)
-		UI.setAttribute("StartButtonText", "text", heroChallengeReason or "{en}Hero Challenges: Invalid setup{ru}Испытания героев: недопустимая настройка{zh-tw}英雄挑戰：無效設置{zh-cn}英雄挑战：无效设置{ko}영웅 도전: 잘못된 설정{es}Desafíos de Héroes: configuración no válida{fr}Défis des Héros : configuration invalide{pt-br}Desafios de Heróis: configuração inválida{de}Heldenherausforderungen: ungültiger Aufbau")
+		UI.setAttribute("StartButtonText", "text", heroChallengeReason or "{en}Hero Challenges: Invalid setup{it}Sfide degli Eroi: preparazione non valida{ru}Испытания героев: недопустимая настройка{zh-tw}英雄挑戰：無效設置{zh-cn}英雄挑战：无效设置{ko}영웅 도전: 잘못된 설정{es}Desafíos de Héroes: configuración no válida{fr}Défis des Héros : configuration invalide{pt-br}Desafios de Heróis: configuração inválida{de}Heldenherausforderungen: ungültiger Aufbau")
 		UI.setAttribute("StartButton", "active", "true")
 	elseif gStates.playerCount>=2 or (gStates.playerCount>=1 and gStates.positionMageKnight[5]~="nobody") then
 		setUIButtonEnabled("StartButton",true)
@@ -1357,7 +1357,7 @@ function refreshSetupStartButton()
 		UI.setAttribute("StartButton", "active", "true")
 	else
 		setUIButtonEnabled("StartButton",false)
-		UI.setAttribute("StartButtonText", "text", "{en}Start - Select at least two Mage Knights first{ru}Начало - Сначала выберите как минимум двух Рыцарей-магов.{zh-tw}開始 - 首先選擇至少兩位魔法騎士{zh-cn}开始 - 首先选择两位魔法骑士{ko}시작 - 먼저 두 명 이상의 플레이어를 선택하세요{es}Comenzar - Selecciona al menos dos Mage Knight {fr}Démarrer - Sélectionnez d'abord au moins deux Mages{pt-br}Início - Selecione ao menos dois Mage Knights primeiro{de}Start - Wähle vorher mindestens 2 Mage Knights")
+		UI.setAttribute("StartButtonText", "text", "{en}Start - Select at least two Mage Knights first{it}Inizia - Seleziona prima almeno due Mage Knight{ru}Начало - Сначала выберите как минимум двух Рыцарей-магов.{zh-tw}開始 - 首先選擇至少兩位魔法騎士{zh-cn}开始 - 首先选择两位魔法骑士{ko}시작 - 먼저 두 명 이상의 플레이어를 선택하세요{es}Comenzar - Selecciona al menos dos Mage Knight {fr}Démarrer - Sélectionnez d'abord au moins deux Mages{pt-br}Início - Selecione ao menos dois Mage Knights primeiro{de}Start - Wähle vorher mindestens 2 Mage Knights")
 		UI.setAttribute("StartButton", "active", "true")
 	end
 end
@@ -1373,11 +1373,11 @@ scenarioInfoUpdate=function()
 	--Update Scenario Infos
 	UI.setAttribute("ScenarioDetails", "active", "true")
 	UI.setAttribute("IntroBoard", "active", "false")
-	UI.setAttribute("ScenarioName", "text", joinLang({translateWord[gStates.gameScenario], "{en} Purpose{ru} Цель{zh-tw} 目的{zh-cn} 目的{ko} 목적{es} Propósito{fr} Objectif{pt-br} Finalidade{de} Zweck"}))
+	UI.setAttribute("ScenarioName", "text", joinLang({translateWord[gStates.gameScenario], "{en} Purpose{it} Scopo{ru} Цель{zh-tw} 目的{zh-cn} 目的{ko} 목적{es} Propósito{fr} Objectif{pt-br} Finalidade{de} Zweck"}))
 	UI.setAttribute("PlayerCount", "text", details.playerDetails)
-	UI.setAttribute("ScenarioLength", "text", joinLang({"{en}Length - {ru}Продолжительность - {zh-tw}遊戲時長：{zh-cn}游戏时长：{ko}길이 - {es}Duración - {fr}Longueur - {pt-br}Duração - {de}Länge - ", setup.rounds, "{en} Rounds{ru} Раунд(а/ов){zh-tw} 輪次{zh-cn} 轮次{ko}라운드{es} Rondas{fr} Rounds{pt-br} Rodadas{de} Runden"}))
+	UI.setAttribute("ScenarioLength", "text", joinLang({"{en}Length - {it}Durata - {ru}Продолжительность - {zh-tw}遊戲時長：{zh-cn}游戏时长：{ko}길이 - {es}Duración - {fr}Longueur - {pt-br}Duração - {de}Länge - ", setup.rounds, "{en} Rounds{it} Round{ru} Раунд(а/ов){zh-tw} 輪次{zh-cn} 轮次{ko}라운드{es} Rondas{fr} Rounds{pt-br} Rodadas{de} Runden"}))
 	UI.setAttribute("ScenarioPurpose", "text", details.scenarioPurpose)
-	UI.setAttribute("ScenarioShape", "text", joinLang({"{en}Map Shape - {ru}Форма поля - {zh-tw}地圖形狀：{zh-cn}地图形状：{ko}지도 모양 - {es}Forma del Mapa - {fr}Forme de la Carte - {pt-br}Formato de Mapa - {de}Karten Form - ", setup.mapShape}))
+	UI.setAttribute("ScenarioShape", "text", joinLang({"{en}Map Shape - {it}Forma della Mappa - {ru}Форма поля - {zh-tw}地圖形狀：{zh-cn}地图形状：{ko}지도 모양 - {es}Forma del Mapa - {fr}Forme de la Carte - {pt-br}Formato de Mapa - {de}Karten Form - ", setup.mapShape}))
 	--Display the amount of country tiles and any rules
 	if details.countryRules~=nil then
 		if details.countryRules[1]==nil then
@@ -1430,29 +1430,29 @@ scenarioInfoUpdate=function()
 				local role=scenarioSetupLevelRole(gStates.gameScenario,setup,a,gStates.removeShadesOfTezlaMonsters,gStates.megapolis)
 				if #setup.cityLevels<=3 then
 					if role=="megapolis" then
-						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Megapolis, Lvl {ru}Мегаполис, ур. {zh-tw}大型城市，等級 {zh-cn}大型城市，等级 {ko}거대도시, 레벨 {es}Megapolis, Niv {fr}Megapolis, Niv {pt-br}Megápolis, Nvl {de}Metropoe, Lvl ",setup.cityLevels[a]}))
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Megapolis, Lvl {it}Megapoli, Liv. {ru}Мегаполис, ур. {zh-tw}大型城市，等級 {zh-cn}大型城市，等级 {ko}거대도시, 레벨 {es}Megapolis, Niv {fr}Megapolis, Niv {pt-br}Megápolis, Nvl {de}Metropoe, Lvl ",setup.cityLevels[a]}))
 					elseif role=="leader" then
-						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Leader, Level {ru}Лидер, ур. {zh-tw}領袖，等級 {zh-cn}领袖，等级 {ko}지도자, 레벨 {es}Líder, Nivel {fr}Chef, Niveau {pt-br}Líder, Nível {de}Leiter, Level ",setup.cityLevels[a]}))
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Leader, Level {it}Capo, Livello {ru}Лидер, ур. {zh-tw}領袖，等級 {zh-cn}领袖，等级 {ko}지도자, 레벨 {es}Líder, Nivel {fr}Chef, Niveau {pt-br}Líder, Nível {de}Leiter, Level ",setup.cityLevels[a]}))
 					elseif role=="destroyed" then
-						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Destroyed City{ru}Разрушенный город{zh-tw}被摧毀城市{zh-cn}被摧毁城市{ko}파괴된 도시{es}Ciudad Destruida{fr}Ville Détruite{pt-br}Cidade Destruída{de}Zerstörte Stadt")
+						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Destroyed City{it}Città Distrutta{ru}Разрушенный город{zh-tw}被摧毀城市{zh-cn}被摧毁城市{ko}파괴된 도시{es}Ciudad Destruida{fr}Ville Détruite{pt-br}Cidade Destruída{de}Zerstörte Stadt")
 					elseif role=="friendly" then
-						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Friendly City{ru}Друж. город{zh-tw}友方城市{zh-cn}友方城市{ko}도시(우호적){es}Ciudad Amistosa{fr}Ville Amicale{pt-br}Cidade Amigável{de}Freundliche Stadt")
+						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Friendly City{it}Città Amica{ru}Друж. город{zh-tw}友方城市{zh-cn}友方城市{ko}도시(우호적){es}Ciudad Amistosa{fr}Ville Amicale{pt-br}Cidade Amigável{de}Freundliche Stadt")
 					elseif role=="volkare" then
-						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Volkare, Level {ru}Волкар, ур. {zh-tw}沃卡里，等級 {zh-cn}沃卡里，等级 {ko}볼케어, 레벨 {es}Volkare, Nivel {fr}Volkare, Niveau {pt-br}Volkare, Nível {de}Volkare, Ebene ",setup.cityLevels[a]}))
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Volkare, Level {it}Volkare, Livello {ru}Волкар, ур. {zh-tw}沃卡里，等級 {zh-cn}沃卡里，等级 {ko}볼케어, 레벨 {es}Volkare, Nivel {fr}Volkare, Niveau {pt-br}Volkare, Nível {de}Volkare, Ebene ",setup.cityLevels[a]}))
 					else
-						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}City, Level {ru}Город, ур. {zh-tw}城市，等級 {zh-cn}城市，等级 {ko}도시, 레벨 {es}Ciudad, Nivel {fr}Ville, Niveau {pt-br}Cidade, Nível {de}Stadt, Level ",setup.cityLevels[a]}))
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}City, Level {it}Città, Livello {ru}Город, ур. {zh-tw}城市，等級 {zh-cn}城市，等级 {ko}도시, 레벨 {es}Ciudad, Nivel {fr}Ville, Niveau {pt-br}Cidade, Nível {de}Stadt, Level ",setup.cityLevels[a]}))
 					end
 				else
 					if role=="leader" then
-						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Leader-{ru}Лидер-{zh-tw}領袖{zh-cn}领袖{ko}지도자-{es}Líder-{fr}Chef-{pt-br}Líder-{de}Leiter-",setup.cityLevels[a]}))
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Leader-{it}Capo-{ru}Лидер-{zh-tw}領袖{zh-cn}领袖{ko}지도자-{es}Líder-{fr}Chef-{pt-br}Líder-{de}Leiter-",setup.cityLevels[a]}))
 					elseif role=="volkare" then
-						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Volkare-{ru}Волкар-{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어-{es}Volkare-{fr}Volkare-{pt-br}Volkare-{de}Volkare-",setup.cityLevels[a]}))
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}Volkare-{it}Volkare-{ru}Волкар-{zh-tw}沃卡里{zh-cn}沃卡里{ko}볼케어-{es}Volkare-{fr}Volkare-{pt-br}Volkare-{de}Volkare-",setup.cityLevels[a]}))
 					elseif role=="destroyed" then
-						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Destroyed{ru}Разрушен{zh-tw}被摧毀{zh-cn}被摧毁{ko}파괴됨{es}Destruida{fr}Détruite{pt-br}Destruída{de}Zerstört")
+						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Destroyed{it}Distrutta{ru}Разрушен{zh-tw}被摧毀{zh-cn}被摧毁{ko}파괴됨{es}Destruida{fr}Détruite{pt-br}Destruída{de}Zerstört")
 					elseif role=="friendly" then
-						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Friendly{ru}Друж.{zh-tw}友方{zh-cn}友方{ko}우호적{es}Amistosa{fr}Amicale{pt-br}Amigável{de}Freundlich")
+						UI.setAttribute("ScenarioCity"..a.."Level","text","{en}Friendly{it}Amica{ru}Друж.{zh-tw}友方{zh-cn}友方{ko}우호적{es}Amistosa{fr}Amicale{pt-br}Amigável{de}Freundlich")
 					else
-						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}City-{ru}Город-{zh-tw}城市{zh-cn}城市{ko}도시-{es}Ciudad-{fr}Ville-{pt-br}Cidade-{de}Stadt-",setup.cityLevels[a]}))
+						UI.setAttribute("ScenarioCity"..a.."Level","text",joinLang({"{en}City-{it}Città-{ru}Город-{zh-tw}城市{zh-cn}城市{ko}도시-{es}Ciudad-{fr}Ville-{pt-br}Cidade-{de}Stadt-",setup.cityLevels[a]}))
 					end
 				end
 			else
@@ -1473,11 +1473,11 @@ scenarioInfoUpdate=function()
 		UI.setAttribute("CityLevelsRow", "active", "false")
 		UI.setAttribute("CityDescriptionRow", "active", "true")
 		UI.setAttribute("CityNote", "active", "true")
-		local b="{en}Cities are {ru}Города {zh-tw}城市{zh-cn}城市{ko}도시들은 {es}Las Ciudades {fr}Les villes sont {pt-br}Cidades são {de}Städte sind "
-		local c="{en}Friendly, but no one is the leader.{ru}дружественные, но никто не является их владельцем.{zh-tw}是友方勢力，沒有領袖。{zh-cn}是友方势力，没有领袖。{ko}우호적이며 아무도 지도자가 아닙니다.{es}son Amistosas, pero nadie es el líder.{fr}Amical, mais personne n'est le leader.{pt-br}Amistosas, mas ninguém é o líder.{de}Freundlich, aber niemand ist der Anführer."
-		if gStates.gameScenario=="First Reconnaissance" then c="{en}meant to be discovered only.{ru}только должны быть разведаны.{zh-tw}只能被探索發現。{zh-cn}只能被探索发现。{ko}오직 발견될 목적에만 있습니다.{es}deben ser descubiertas.{fr}destiné à être uniquement découvert.{pt-br}Para serem descobertas apenas.{de}soll nur entdeckt werden." end
-		if gStates.gameScenario=="Conquer and Hold" then c="{en}Barred, No players may enter.{ru}закрыты, ни один игрок не может войти.{zh-tw}被封鎖，玩家都不能進入。{zh-cn}被封锁，玩家都不能进入。{ko}닫혀있습니다. 아무도 들어갈 수 없습니다.{es}están bloqueadas. Ningún jugador puede entrar.{fr}Interdit, aucun joueur ne peut entrer.{pt-br}Barradas, nenhum jogador pode entrar.{de}Gesperrt, kein Spieler darf eintreten." end
-		if gStates.gameScenario=="The Lost Relic Blitz" then c="{en}Ruined, find only dragons there.{ru}разрушены, там можно найти только драконов.{zh-tw}已被摧毀，只有巨龍出沒。{zh-cn}已被摧毁，只有巨龙出没。{ko}파괴됐습니다. 오직 용만이 존재할뿐.{es}están en ruinas, solo hay dragones en ellas.{fr}Ruiné, on n'y trouve que des dragons.{pt-br}Arruinadas, encontre apenas Dragões lá.{de}Ruiniert, finde dort nur Drachen." end
+		local b="{en}Cities are {it}Le Città sono {ru}Города {zh-tw}城市{zh-cn}城市{ko}도시들은 {es}Las Ciudades {fr}Les villes sont {pt-br}Cidades são {de}Städte sind "
+		local c="{en}Friendly, but no one is the leader.{it}Amiche, ma senza un capo.{ru}дружественные, но никто не является их владельцем.{zh-tw}是友方勢力，沒有領袖。{zh-cn}是友方势力，没有领袖。{ko}우호적이며 아무도 지도자가 아닙니다.{es}son Amistosas, pero nadie es el líder.{fr}Amical, mais personne n'est le leader.{pt-br}Amistosas, mas ninguém é o líder.{de}Freundlich, aber niemand ist der Anführer."
+		if gStates.gameScenario=="First Reconnaissance" then c="{en}meant to be discovered only.{it}da scoprire soltanto.{ru}только должны быть разведаны.{zh-tw}只能被探索發現。{zh-cn}只能被探索发现。{ko}오직 발견될 목적에만 있습니다.{es}deben ser descubiertas.{fr}destiné à être uniquement découvert.{pt-br}Para serem descobertas apenas.{de}soll nur entdeckt werden." end
+		if gStates.gameScenario=="Conquer and Hold" then c="{en}Barred, No players may enter.{it}Inaccessibili: nessun giocatore può entrare.{ru}закрыты, ни один игрок не может войти.{zh-tw}被封鎖，玩家都不能進入。{zh-cn}被封锁，玩家都不能进入。{ko}닫혀있습니다. 아무도 들어갈 수 없습니다.{es}están bloqueadas. Ningún jugador puede entrar.{fr}Interdit, aucun joueur ne peut entrer.{pt-br}Barradas, nenhum jogador pode entrar.{de}Gesperrt, kein Spieler darf eintreten." end
+		if gStates.gameScenario=="The Lost Relic Blitz" then c="{en}Ruined, find only dragons there.{it}in Rovina: vi troverete solo draghi.{ru}разрушены, там можно найти только драконов.{zh-tw}已被摧毀，只有巨龍出沒。{zh-cn}已被摧毁，只有巨龙出没。{ko}파괴됐습니다. 오직 용만이 존재할뿐.{es}están en ruinas, solo hay dragones en ellas.{fr}Ruiné, on n'y trouve que des dragons.{pt-br}Arruinadas, encontre apenas Dragões lá.{de}Ruiniert, finde dort nur Drachen." end
 		b=joinLang({b, c})
 		UI.setAttribute("CityNote", "text", b)
 	end

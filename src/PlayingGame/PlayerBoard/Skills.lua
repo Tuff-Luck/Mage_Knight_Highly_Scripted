@@ -198,7 +198,7 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 				if claimedColumn~=gStates.skillButtons then
 					claimedSkill.unlock()
 					claimedSkill.setPositionSmooth(claimedHome)
-					broadcastToColor("{en}Hero Challenges: choose one of your two newly flipped Skills.{ru}Испытания героев: выберите один из двух только что открытых навыков.{zh-tw}英雄挑戰：從你剛翻開的兩個技能中選擇一個。{zh-cn}英雄挑战：从你刚翻开的两个技能中选择一个。{ko}영웅 도전: 방금 공개한 두 스킬 중 하나를 선택하세요.{es}Desafíos de Héroe: elige una de tus dos Habilidades recién reveladas.{fr}Défis de Héros : choisissez l'une des deux Compétences que vous venez de révéler.{pt-br}Desafios de Herói: escolha uma das duas Habilidades recém-reveladas.{de}Heldenherausforderungen: Wähle eine deiner beiden gerade aufgedeckten Fertigkeiten.",player.color or "Black",{1,0.6,0.2})
+					broadcastToColor("{en}Hero Challenges: choose one of your two newly flipped Skills.{it}Sfide degli Eroi: scegli una delle tue due Abilità appena rivelate.{ru}Испытания героев: выберите один из двух только что открытых навыков.{zh-tw}英雄挑戰：從你剛翻開的兩個技能中選擇一個。{zh-cn}英雄挑战：从你刚翻开的两个技能中选择一个。{ko}영웅 도전: 방금 공개한 두 스킬 중 하나를 선택하세요.{es}Desafíos de Héroe: elige una de tus dos Habilidades recién reveladas.{fr}Défis de Héros : choisissez l'une des deux Compétences que vous venez de révéler.{pt-br}Desafios de Herói: escolha uma das duas Habilidades recém-reveladas.{de}Heldenherausforderungen: Wähle eine deiner beiden gerade aufgedeckten Fertigkeiten.",player.color or "Black",{1,0.6,0.2})
 					if rewindReady==true then rewindTransactionFinish(skillRewindOwner) end
 					return
 				end
@@ -228,7 +228,7 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 				gStates.mageSkills[claimedGUID]={bondsX,1.1,-31.19}
 				scheduleUnitLayoutRefresh(gStates.skillButtons)
 				addRegularUnitsToOffer(2)
-				broadcastToAll("{en}Two more Regular units added to the Unit Offer for this round.{ru}Два дополнительных обычных отряда доступны в этом раунде{zh-tw}本輪的部隊供應區增加兩個常規部隊。{zh-cn}本轮增加了两个部队供应{ko}일반 유닛 두 개를 공급처에 추가합니다{es}Se agregaron dos unidades regulares más a la oferta de unidades para esta ronda.{fr}Deux autres unités régulières ajoutées à l'offre d'unités pour ce tour.{pt-br}2 unidades Regulares a mais adicionadas a Oferta de Unidades por esta Rodada{de}Zwei weitere reguläre Einheiten wurden dem Einheitenangebot für diese Runde hinzugefügt.", {1,1,0.5})
+				broadcastToAll("{en}Two more Regular units added to the Unit Offer for this round.{it}Aggiunte altre due Unità Regolari all'offerta per questo round.{ru}Два дополнительных обычных отряда доступны в этом раунде{zh-tw}本輪的部隊供應區增加兩個常規部隊。{zh-cn}本轮增加了两个部队供应{ko}일반 유닛 두 개를 공급처에 추가합니다{es}Se agregaron dos unidades regulares más a la oferta de unidades para esta ronda.{fr}Deux autres unités régulières ajoutées à l'offre d'unités pour ce tour.{pt-br}2 unidades Regulares a mais adicionadas a Oferta de Unidades por esta Rodada{de}Zwei weitere reguläre Einheiten wurden dem Einheitenangebot für diese Runde hinzugefügt.", {1,1,0.5})
 			end
 			--Master of Chaos
 			if claimedGUID==GUID.skill.masterOfChaos then masterOfChaosSetup(gStates.skillButtons) end
@@ -312,7 +312,7 @@ function __skillMove_raw(player, mouseButton, id, rewindReady)
 		else
 			if rewindReady==true then rewindTransactionFinish("Skill claim "..tostring(gStates.skillButtons)) end
 			if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
-				broadcastToAll("{en}Dummy doesn't claim skill!{ru}Виртуальный игрок не получает навыков!{zh-tw}虛擬玩家不會獲得技能！{zh-cn}虚拟玩家不会选技能{ko}가상 플레이어는 스킬을 얻지 않습니다!{es}¡Dummy no dice tener habilidad!{fr}Le mannequin ne réclame pas de compétence !{pt-br}Jog. Fictício não clama habilidades{de}Dummy beansprucht keine Fertigkeit!", warningColor)
+				broadcastToAll("{en}Dummy doesn't claim skill!{it}Il Fittizio non prende abilità!{ru}Виртуальный игрок не получает навыков!{zh-tw}虛擬玩家不會獲得技能！{zh-cn}虚拟玩家不会选技能{ko}가상 플레이어는 스킬을 얻지 않습니다!{es}¡Dummy no dice tener habilidad!{fr}Le mannequin ne réclame pas de compétence !{pt-br}Jog. Fictício não clama habilidades{de}Dummy beansprucht keine Fertigkeit!", warningColor)
 			end
 		end
 	end
@@ -437,7 +437,7 @@ local function deactivateCoopCompSkill(skillGUID, showBroadcast)
 	local record=active[skillGUID]
 	if record==nil then return false end
 	active[skillGUID]=nil
-	if showBroadcast~=false then coopCompSkillBroadcast("{en}Skill Deactivated{ru}Навык деактивирован{zh-tw}技能已停用{zh-cn}技能已停用{ko}스킬 비활성화됨{es}Habilidad desactivada{fr}Compétence désactivée{pt-br}Habilidade desativada{de}Fertigkeit deaktiviert", record.player) end
+	if showBroadcast~=false then coopCompSkillBroadcast("{en}Skill Deactivated{it}Abilità Disattivata{ru}Навык деактивирован{zh-tw}技能已停用{zh-cn}技能已停用{ko}스킬 비활성화됨{es}Habilidad desactivada{fr}Compétence désactivée{pt-br}Habilidade desativada{de}Fertigkeit deaktiviert", record.player) end
 	return true
 end
 
@@ -598,9 +598,9 @@ function activateCoopCompSkill(skillGUID, playerIndex)
 		local pending=tomeSkillSwapTable()[playerIndex]
 		if pending~=nil and pending.replacementGUID==skillGUID then record.tomeReplacement=true end
 		active[skillGUID]=record
-		coopCompSkillBroadcast("{en}Skill Activated{ru}Навык активирован{zh-tw}技能已啟動{zh-cn}技能已激活{ko}스킬 활성화됨{es}Habilidad activada{fr}Compétence activée{pt-br}Habilidade ativada{de}Fertigkeit aktiviert", playerIndex)
+		coopCompSkillBroadcast("{en}Skill Activated{it}Abilità Attivata{ru}Навык активирован{zh-tw}技能已啟動{zh-cn}技能已激活{ko}스킬 활성화됨{es}Habilidad activada{fr}Compétence activée{pt-br}Habilidade ativada{de}Fertigkeit aktiviert", playerIndex)
 		if afterBoundary==true then
-			coopCompSkillBroadcast("{en}End of Round / Scenario End has already been called. Interactive Skill timing may be rules-sensitive. The script will continue; players decide whether this use is allowed.{ru}Конец раунда / конец сценария уже объявлен. Время использования интерактивного навыка может зависеть от трактовки правил. Скрипт продолжит обработку; игроки решают, разрешено ли это использование.{zh-tw}已宣布回合結束／劇本結束。互動技能的使用時機可能取決於規則解讀。腳本會繼續處理，由玩家決定此次使用是否允許。{zh-cn}已宣布回合结束／剧本结束。互动技能的使用时机可能取决于规则解读。脚本会继续处理，由玩家决定此次使用是否允许。{ko}라운드 종료 / 시나리오 종료가 이미 선언되었습니다. 상호작용 스킬의 사용 시점은 규칙 해석에 따라 달라질 수 있습니다. 스크립트는 계속 처리하며, 사용 가능 여부는 플레이어가 결정합니다.{es}Ya se ha declarado el Fin de Ronda / Fin del Escenario. El momento de uso de una Habilidad interactiva puede depender de la interpretación de las reglas. El script continuará; los jugadores deciden si este uso está permitido.{fr}La Fin de Manche / Fin du Scénario a déjà été annoncée. Le moment d'utilisation d'une Compétence interactive peut dépendre de l'interprétation des règles. Le script continuera ; les joueurs décident si cette utilisation est autorisée.{pt-br}O Fim da Rodada / Fim do Cenário já foi declarado. O momento de uso de uma Habilidade interativa pode depender da interpretação das regras. O script continuará; os jogadores decidem se este uso é permitido.{de}Rundenende / Szenarioende wurde bereits ausgerufen. Der Zeitpunkt für interaktive Fertigkeiten kann von der Regelauslegung abhängen. Das Skript fährt fort; die Spieler entscheiden, ob diese Nutzung erlaubt ist.", playerIndex)
+			coopCompSkillBroadcast("{en}End of Round / Scenario End has already been called. Interactive Skill timing may be rules-sensitive. The script will continue; players decide whether this use is allowed.{it}Fine Round / Fine Scenario già dichiarata. L'uso delle Abilità Interattive può dipendere dalle regole sui tempi. Lo script continua; decidono i giocatori se l'uso è consentito.{ru}Конец раунда / конец сценария уже объявлен. Время использования интерактивного навыка может зависеть от трактовки правил. Скрипт продолжит обработку; игроки решают, разрешено ли это использование.{zh-tw}已宣布回合結束／劇本結束。互動技能的使用時機可能取決於規則解讀。腳本會繼續處理，由玩家決定此次使用是否允許。{zh-cn}已宣布回合结束／剧本结束。互动技能的使用时机可能取决于规则解读。脚本会继续处理，由玩家决定此次使用是否允许。{ko}라운드 종료 / 시나리오 종료가 이미 선언되었습니다. 상호작용 스킬의 사용 시점은 규칙 해석에 따라 달라질 수 있습니다. 스크립트는 계속 처리하며, 사용 가능 여부는 플레이어가 결정합니다.{es}Ya se ha declarado el Fin de Ronda / Fin del Escenario. El momento de uso de una Habilidad interactiva puede depender de la interpretación de las reglas. El script continuará; los jugadores deciden si este uso está permitido.{fr}La Fin de Manche / Fin du Scénario a déjà été annoncée. Le moment d'utilisation d'une Compétence interactive peut dépendre de l'interprétation des règles. Le script continuera ; les joueurs décident si cette utilisation est autorisée.{pt-br}O Fim da Rodada / Fim do Cenário já foi declarado. O momento de uso de uma Habilidade interativa pode depender da interpretação das regras. O script continuará; os jogadores decidem se este uso é permitido.{de}Rundenende / Szenarioende wurde bereits ausgerufen. Der Zeitpunkt für interaktive Fertigkeiten kann von der Regelauslegung abhängen. Das Skript fährt fort; die Spieler entscheiden, ob diese Nutzung erlaubt ist.", playerIndex)
 		end
 		refreshCoopCompSkillWarnings()
 	else
@@ -625,7 +625,7 @@ function coopCompSkillDropped(skillGUID, position)
 	if coopCompSkillPoolPosition(position)==true then
 		--A tentative Tome replacement being put back is an undo, not a surviving activation.
 		if record.tomeReplacement==true then return end
-		if record.location~="pool" then coopCompSkillBroadcast("{en}Skill Still Activated{ru}Навык всё ещё активен{zh-tw}技能仍然啟動{zh-cn}技能仍然激活{ko}스킬이 아직 활성화되어 있습니다{es}La Habilidad sigue activada{fr}La Compétence est toujours activée{pt-br}A Habilidade continua ativada{de}Fertigkeit ist weiterhin aktiviert", record.player) end
+		if record.location~="pool" then coopCompSkillBroadcast("{en}Skill Still Activated{it}Abilità Ancora Attiva{ru}Навык всё ещё активен{zh-tw}技能仍然啟動{zh-cn}技能仍然激活{ko}스킬이 아직 활성화되어 있습니다{es}La Habilidad sigue activada{fr}La Compétence est toujours activée{pt-br}A Habilidade continua ativada{de}Fertigkeit ist weiterhin aktiviert", record.player) end
 		record.location="pool"
 		record.detached=true
 		record.leftPlayArea=nil
@@ -1216,7 +1216,7 @@ function heroChallengeClaimReservedSkill(playerIndex,higherLevel)
 				unitDeck.takeObject({position={(playerData.seatPos*40)-101,3.0,-48.4},smooth=true,rotation={0,180,0}})
 			end
 			gStates.bondsOfLoyalty[playerIndex]=5
-			UI.setAttribute("Mage"..playerData.seatPos.."influenceTotalText","Text",joinLang({"{en}Influence to Spend : {ru}Доступно влияния: {zh-tw}可花費影響力：{zh-cn}影响力额度：{ko}주어진 영향력: {es}Influencia para Gastar : {fr}Influence à Dépenser : {pt-br}Influência para Gastar : {de}Einfluss zum Ausgeben : ",(playerData.influence*playerData.level)+gStates.bondsOfLoyalty[playerIndex]}))
+			UI.setAttribute("Mage"..playerData.seatPos.."influenceTotalText","Text",joinLang({"{en}Influence to Spend : {it}Influenza da Spendere : {ru}Доступно влияния: {zh-tw}可花費影響力：{zh-cn}影响力额度：{ko}주어진 영향력: {es}Influencia para Gastar : {fr}Influence à Dépenser : {pt-br}Influência para Gastar : {de}Einfluss zum Ausgeben : ",(playerData.influence*playerData.level)+gStates.bondsOfLoyalty[playerIndex]}))
 		else
 			addRegularUnitsToOffer(2)
 		end
@@ -1226,7 +1226,7 @@ function heroChallengeClaimReservedSkill(playerIndex,higherLevel)
 	skill.setPositionSmooth(target)
 	skill.UI.setXmlTable({{}})
 	if gStates.motivationSkill[guid]~=nil then gStates.motivationSkill[guid].state="active" gStates.motivationSkill[guid].pos=playerData.seatPos end
-	broadcastToAll(joinLang({translateWord[playerData.mage] or playerData.mage, "{en} gained {ru} получил навык {zh-tw}獲得了{zh-cn}获得了{ko}이(가) {es} obtuvo {fr} a obtenu {pt-br} obteve {de} erhielt ", translateWord[challenge.skillName] or challenge.skillName, "{en} from Hero Challenges.{ru} благодаря Испытаниям героев.{zh-tw}（英雄挑戰）。{zh-cn}（英雄挑战）。{ko} 스킬을 영웅 도전으로 획득했습니다.{es} de Desafíos de Héroe.{fr} grâce aux Défis de Héros.{pt-br} dos Desafios de Herói.{de} aus den Heldenherausforderungen."}),positionToColor(playerIndex))
+	broadcastToAll(joinLang({translateWord[playerData.mage] or playerData.mage, "{en} gained {it} ha ricevuto {ru} получил навык {zh-tw}獲得了{zh-cn}获得了{ko}이(가) {es} obtuvo {fr} a obtenu {pt-br} obteve {de} erhielt ", translateWord[challenge.skillName] or challenge.skillName, "{en} from Hero Challenges.{it} dalle Sfide degli Eroi.{ru} благодаря Испытаниям героев.{zh-tw}（英雄挑戰）。{zh-cn}（英雄挑战）。{ko} 스킬을 영웅 도전으로 획득했습니다.{es} de Desafíos de Héroe.{fr} grâce aux Défis de Héros.{pt-br} dos Desafios de Herói.{de} aus den Heldenherausforderungen."}),positionToColor(playerIndex))
 	return true
 end
 
@@ -1246,7 +1246,7 @@ function processPlayerLevelUps(playerTurnSequence)
 					if heroChallengeClaimReservedSkill(playerTurnSequence,false)==true then
 						turnOrder[playerTurnSequence].skipHeroChallengeSkillReminder=true
 					end
-					broadcastToAll(joinLang({translateWord[turnOrder[playerTurnSequence].mage] or turnOrder[playerTurnSequence].mage, "{en} may gain any one Advanced Action card.{ru} может получить любую одну карту Особого действия.{zh-tw}可以獲得任意一張高級行動卡。{zh-cn}可以获得任意一张高级行动卡。{ko}은(는) 원하는 고급 액션 카드 한 장을 얻을 수 있습니다.{es} puede obtener cualquier carta de Acción Avanzada.{fr} peut gagner n'importe quelle carte d'Action Avancée.{pt-br} pode ganhar qualquer carta de Ação Avançada.{de} darf eine beliebige Erweiterte Aktionskarte erhalten."}),positionToColor(playerTurnSequence))
+					broadcastToAll(joinLang({translateWord[turnOrder[playerTurnSequence].mage] or turnOrder[playerTurnSequence].mage, "{en} may gain any one Advanced Action card.{it} può ottenere un'Azione Avanzata qualsiasi.{ru} может получить любую одну карту Особого действия.{zh-tw}可以獲得任意一張高級行動卡。{zh-cn}可以获得任意一张高级行动卡。{ko}은(는) 원하는 고급 액션 카드 한 장을 얻을 수 있습니다.{es} puede obtener cualquier carta de Acción Avanzada.{fr} peut gagner n'importe quelle carte d'Action Avancée.{pt-br} pode ganhar qualquer carta de Ação Avançada.{de} darf eine beliebige Erweiterte Aktionskarte erhalten."}),positionToColor(playerTurnSequence))
 				elseif multiSkill==false then
 					--This is a normal Skill choice, so keep the standard reminder even if level 2 was also
 					--crossed earlier in an unusual multi-level jump.
@@ -1285,7 +1285,7 @@ function processPlayerLevelUps(playerTurnSequence)
 					end, 10, function() skillButtonActivate() end)
 					--Highlight reminder starts from the same synchronized skillButtonActivate refresh.
 					--Look at skill Area
-					broadcastToAll(joinLang({translateWord[turnOrder[playerTurnSequence].mage], "{en} needs to gain a new Skill and Advanced Action card.{ru} должен получить новый Навык и карту Особых действий.{zh-tw}需要獲得一個新技能和一張高級行動卡。{zh-cn}需要获得新技能和高级行动卡{ko}: 스킬과 상급 액션을 선택하세요.{es} necesita obtener una nueva tarjeta de Habilidad y Acción Avanzada.{fr} doit gagner une nouvelle carte de compétence et d'action avancée.{pt-br} precisa ganhar uma nova Carta de ação e Habilidade.{de} muss eine neue Fertigkeit und eine erweiterte Aktionskarte erhalten."}), positionToColor(playerTurnSequence))
+					broadcastToAll(joinLang({translateWord[turnOrder[playerTurnSequence].mage], "{en} needs to gain a new Skill and Advanced Action card.{it} deve ottenere una nuova Abilità e un'Azione Avanzata.{ru} должен получить новый Навык и карту Особых действий.{zh-tw}需要獲得一個新技能和一張高級行動卡。{zh-cn}需要获得新技能和高级行动卡{ko}: 스킬과 상급 액션을 선택하세요.{es} necesita obtener una nueva tarjeta de Habilidad y Acción Avanzada.{fr} doit gagner une nouvelle carte de compétence et d'action avancée.{pt-br} precisa ganhar uma nova Carta de ação e Habilidade.{de} muss eine neue Fertigkeit und eine erweiterte Aktionskarte erhalten."}), positionToColor(playerTurnSequence))
 					multiSkill=true
 				else
 					break
@@ -1296,12 +1296,12 @@ function processPlayerLevelUps(playerTurnSequence)
 				local xPlayLocation=unitLayoutNextCommandX(commandSeat)
 				getObjectFromGUID(turnOrder[playerTurnSequence].commandGUID).takeObject({position={xPlayLocation,2.00,-31.2}, rotation={0,180,180}})
 				scheduleUnitLayoutRefresh(commandSeat)
-				broadcastToAll(joinLang({translateWord[turnOrder[playerTurnSequence].mage], "{en} gained a new Command token.{ru} получает новый Жетон командования.{zh-tw}獲得一個新的指揮標記。{zh-cn}增加一个新的部队控制标记{ko}: 새 지휘 토큰 획득{es} ganó una nueva ficha de Comando.{fr} gagné un nouveau jeton Commandement.{pt-br} ganhou uma nova FIcha de Comando.{de} hat ein neues Befehlsplättchen erhalten."}), positionToColor(playerTurnSequence))
+				broadcastToAll(joinLang({translateWord[turnOrder[playerTurnSequence].mage], "{en} gained a new Command token.{it} ha ottenuto un nuovo segnalino Comando.{ru} получает новый Жетон командования.{zh-tw}獲得一個新的指揮標記。{zh-cn}增加一个新的部队控制标记{ko}: 새 지휘 토큰 획득{es} ganó una nueva ficha de Comando.{fr} gagné un nouveau jeton Commandement.{pt-br} ganhou uma nova FIcha de Comando.{de} hat ein neues Befehlsplättchen erhalten."}), positionToColor(playerTurnSequence))
 				--Hand Size Increase
 				if (turnOrder[playerTurnSequence].level)+1==5 or (turnOrder[playerTurnSequence].level)+1==9 then
 					turnOrder[playerTurnSequence].baseHand=turnOrder[playerTurnSequence].baseHand+1
 					turnOrder[playerTurnSequence].hand=turnOrder[playerTurnSequence].hand+1
-					broadcastToAll(joinLang({translateWord[turnOrder[playerTurnSequence].mage], "{en}'s hand size increased by one.{ru} имеет увеличенный предел карт на 1.{zh-tw}的手牌上限增加 1。{zh-cn}的手牌上限增加了1{ko}: 카드 보유 제한 1 증가{es}'s tamaño de la mano aumenta en uno.{fr}'s la taille de la main a augmenté de un.{pt-br}'s tamanho de mão aumentado em 1.{de} die Handgröße des Spielers wurde um eins erhöht."}), positionToColor(playerTurnSequence))
+					broadcastToAll(joinLang({translateWord[turnOrder[playerTurnSequence].mage], "{en}'s hand size increased by one.{it}: limite di mano aumentato di uno.{ru} имеет увеличенный предел карт на 1.{zh-tw}的手牌上限增加 1。{zh-cn}的手牌上限增加了1{ko}: 카드 보유 제한 1 증가{es}'s tamaño de la mano aumenta en uno.{fr}'s la taille de la main a augmenté de un.{pt-br}'s tamanho de mão aumentado em 1.{de} die Handgröße des Spielers wurde um eins erhöht."}), positionToColor(playerTurnSequence))
 				end
 			end
 			turnOrder[playerTurnSequence].level=turnOrder[playerTurnSequence].level+1
@@ -1384,7 +1384,7 @@ function masterOfChaosSetup(position)
 		skill.setCustomObject({image=masterOfChaosData[gStates.masterOfChaos].image})
 		skill.setDescription(masterOfChaosData[gStates.masterOfChaos].description)
 		skill.reload()
-		broadcastToAll("{en}'Master of Chaos' start Randomly picked.{ru}Старт «Мастер магии Хаоса» выбирается случайным образом.{zh-tw}「混亂大師」的起始位置已隨機選擇。{zh-cn}“混乱大师”开始随机挑选{ko}스킬 '혼돈의 달인'의 첫 칸이 무작위로 결정되었습니다.{es}Inicio de 'Master of Chaos' Elegido al azar.{fr}Début de 'Master of Chaos' Choisi au hasard.{pt-br}Início de 'Mestre do Caos' é aleatóriamente escolhido.{de}Meister des Chaos' startet Zufällig gewählt.", {1,1,0.5})
+		broadcastToAll("{en}'Master of Chaos' start Randomly picked.{it}Posizione iniziale del Maestro del Caos scelta casualmente.{ru}Старт «Мастер магии Хаоса» выбирается случайным образом.{zh-tw}「混亂大師」的起始位置已隨機選擇。{zh-cn}“混乱大师”开始随机挑选{ko}스킬 '혼돈의 달인'의 첫 칸이 무작위로 결정되었습니다.{es}Inicio de 'Master of Chaos' Elegido al azar.{fr}Début de 'Master of Chaos' Choisi au hasard.{pt-br}Início de 'Mestre do Caos' é aleatóriamente escolhido.{de}Meister des Chaos' startet Zufällig gewählt.", {1,1,0.5})
 	end, function() local skill=getObjectFromGUID(GUID.skill.masterOfChaos) return skill==nil or skill.resting end) end, 5)
 end
 
@@ -1394,7 +1394,7 @@ function masterOfChaos(player, mouseButton, id)
 		if legalPlayerCheck(player.color, tonumber(id:sub(14, 14)))==true then
 			for a=1, #turnOrder, 1 do
 				if turnOrder[a].seatPos==tonumber(id:sub(14, 14)) then
-					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} incremented 'Master of Chaos' skill.{ru} передвигает навык «Мастер магии Хаоса».{zh-tw}推進了「混亂大師」技能。{zh-cn}增加了混乱大师技能{ko}: '혼돈의 달인' 스킬 칸 이동{es} se incrementó la habilidad de 'Maestro del Caos'.{fr} compétence 'Maître du Chaos' incrémentée.{pt-br} incrementou a Habilidade 'Mestre do Caos'{de} hat die Fertigkeit 'Meister des Chaos' erhöht."}), positionToColor(a))
+					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} incremented 'Master of Chaos' skill.{it} ha fatto avanzare l'abilità Maestro del Caos.{ru} передвигает навык «Мастер магии Хаоса».{zh-tw}推進了「混亂大師」技能。{zh-cn}增加了混乱大师技能{ko}: '혼돈의 달인' 스킬 칸 이동{es} se incrementó la habilidad de 'Maestro del Caos'.{fr} compétence 'Maître du Chaos' incrémentée.{pt-br} incrementou a Habilidade 'Mestre do Caos'{de} hat die Fertigkeit 'Meister des Chaos' erhöht."}), positionToColor(a))
 					--change skill to next image
 					gStates.masterOfChaos=gStates.masterOfChaos+1
 					if gStates.masterOfChaos==7 then gStates.masterOfChaos=1 end
@@ -1449,7 +1449,7 @@ function skillsMotivationBase(player, mouseButton, id)
 		if legalPlayerCheck(player.color, tonumber(id:sub(18, 18)))==true then
 			for a=1, #turnOrder, 1 do
 				if turnOrder[a].seatPos==tonumber(id:sub(18, 18)) then
-					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used a Motivation skill.{ru} использует навык Мотивация.{zh-tw}使用了激励技能{zh-cn}使用了激励技能{ko}: 스킬 '동기 부여' 사용{es} usó una habilidad de Motivación.{fr} utilisé une compétence de Motivation.{pt-br} usou uma Habilidade de Motivação{de} eine Motivationsfertigkeit eingesetzt."}), positionToColor(a))
+					broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used a Motivation skill.{it} ha usato un'abilità Motivazione.{ru} использует навык Мотивация.{zh-tw}使用了激励技能{zh-cn}使用了激励技能{ko}: 스킬 '동기 부여' 사용{es} usó una habilidad de Motivación.{fr} utilisé une compétence de Motivation.{pt-br} usou uma Habilidade de Motivação{de} eine Motivationsfertigkeit eingesetzt."}), positionToColor(a))
 					--One exact two-card request keeps the whole Motivation draw inside one Quick Witted choice flow.
 					drawExactDeedCards(a, 2, "DrawOne")
 					--Gain Fame or mana token
@@ -1464,19 +1464,19 @@ function skillsMotivationBase(player, mouseButton, id)
 						local params={position={(gStates.motivationSkill[id:sub(1, 6)].pos*40)-101, 1.65, -39}, rotation={0, 0, 0}, smooth=false}
 						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 13)=="Red" then
 							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.red),params)
-							broadcastToAll("{en}Also gained a Red Mana Token.{ru}Также получает Красный жетон маны.{zh-tw}同时增加了一个红色魔晶{zh-cn}同时增加了一个红色魔晶{ko}빨간색 마나 추가 획득.{es}También ganó una ficha de Maná Roja.{fr}A également gagné un jeton de Mana Rouge.{pt-br}Também ganhou um Marcador de Mana Vermelha.{de}Außerdem erhielt er ein rotes Mana-Plättchen.", positionToColor(a))
+							broadcastToAll("{en}Also gained a Red Mana Token.{it}Ottenuto anche un Mana Rosso.{ru}Также получает Красный жетон маны.{zh-tw}同时增加了一个红色魔晶{zh-cn}同时增加了一个红色魔晶{ko}빨간색 마나 추가 획득.{es}También ganó una ficha de Maná Roja.{fr}A également gagné un jeton de Mana Rouge.{pt-br}Também ganhou um Marcador de Mana Vermelha.{de}Außerdem erhielt er ein rotes Mana-Plättchen.", positionToColor(a))
 						end
 						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 14)=="Blue" then
 							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.blue),params)
-							broadcastToAll("{en}Also gained a Blue Mana Token.{ru}Также получает Синий жетон маны.{zh-tw}同时增加了一个蓝色魔晶{zh-cn}同时增加了一个蓝色魔晶{ko}파란색 마나 추가 획득.{es}También ganó una ficha de Maná Azul.{fr}A également gagné un jeton de Mana Bleu.{pt-br}Também ganhou um Marcador de Mana Azul.{de}Außerdem ein blaues Mana-Plättchen erhalten.", positionToColor(a))
+							broadcastToAll("{en}Also gained a Blue Mana Token.{it}Ottenuto anche un Mana Blu.{ru}Также получает Синий жетон маны.{zh-tw}同时增加了一个蓝色魔晶{zh-cn}同时增加了一个蓝色魔晶{ko}파란색 마나 추가 획득.{es}También ganó una ficha de Maná Azul.{fr}A également gagné un jeton de Mana Bleu.{pt-br}Também ganhou um Marcador de Mana Azul.{de}Außerdem ein blaues Mana-Plättchen erhalten.", positionToColor(a))
 						end
 						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 15)=="White" then
 							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.white),params)
-							broadcastToAll("{en}Also gained a White Mana Token.{ru}Также получает Белый жетон маны.{zh-tw}同时增加了一个白色魔晶{zh-cn}同时增加了一个白色魔晶{ko}흰색 마나 추가 획득.{es}También ganó una ficha de Maná Blanca.{fr}A également gagné un jeton de Mana Blanc.{pt-br}Também ganhou um Marcador de Mana Branca.{de}Außerdem erhielt er ein weißes Mana-Plättchen.", positionToColor(a))
+							broadcastToAll("{en}Also gained a White Mana Token.{it}Ottenuto anche un Mana Bianco.{ru}Также получает Белый жетон маны.{zh-tw}同时增加了一个白色魔晶{zh-cn}同时增加了一个白色魔晶{ko}흰색 마나 추가 획득.{es}También ganó una ficha de Maná Blanca.{fr}A également gagné un jeton de Mana Blanc.{pt-br}Também ganhou um Marcador de Mana Branca.{de}Außerdem erhielt er ein weißes Mana-Plättchen.", positionToColor(a))
 						end
 						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 15)=="Green" then
 							takeManaCrystal(getObjectFromGUID(GUID.bag.mana.green),params)
-							broadcastToAll("{en}Also gained a Green Mana Token.{ru}Также получает Зеленый жетон маны.{zh-tw}同时增加了一个绿色魔晶{zh-cn}同时增加了一个绿色魔晶{ko}녹색 마나 추가 획득.{es}También ganó una ficha de Maná Verde.{fr}A également gagné un jeton de Mana Vert.{pt-br}Também ganhou um Marcador de Mana Verde.{de}Hat auch ein grünes Mana-Plättchen erhalten.", positionToColor(a))
+							broadcastToAll("{en}Also gained a Green Mana Token.{it}Ottenuto anche un Mana Verde.{ru}Также получает Зеленый жетон маны.{zh-tw}同时增加了一个绿色魔晶{zh-cn}同时增加了一个绿色魔晶{ko}녹색 마나 추가 획득.{es}También ganó una ficha de Maná Verde.{fr}A également gagné un jeton de Mana Vert.{pt-br}Também ganhou um Marcador de Mana Verde.{de}Hat auch ein grünes Mana-Plättchen erhalten.", positionToColor(a))
 						end
 						if gStates.motivationSkill[id:sub(1, 6)].bonus:sub(11, 14)=="Fame" then
 							local startingFameToLevel=math.floor(math.sqrt((turnOrder[a].fame-(gStates.scoreIfLooped*turnOrder[a].scoreLoop))+1))
@@ -1494,7 +1494,7 @@ function skillsMotivationBase(player, mouseButton, id)
 							local verticalValue=(topOfFameBoard-((fameToLevel/gStates.rowsOnBoard)*heightOfFameBoard))+yOffset-0.25
 							getObjectFromGUID(turnOrder[a].fameGUID).setPosition({horizontalValue, 1.5, verticalValue+((turnOrder[a].seatPos-2.5)/5)})
 							recordPlayerFameChange(a, 1)
-							broadcastToAll("{en}and gained a Fame also{ru}и получает Славу{zh-tw}也增加了1名望{zh-cn}也增加了1名望{ko}명성 1 추가 획득.{es}y ganó Fama también{fr}et a également gagné une renommée{pt-br}e também ganhou uma Fama.{de}und auch einen Ruhmespunkt gewonnen", positionToColor(a))
+							broadcastToAll("{en}and gained a Fame also{it}e ottenuto anche 1 Fama{ru}и получает Славу{zh-tw}也增加了1名望{zh-cn}也增加了1名望{ko}명성 1 추가 획득.{es}y ganó Fama también{fr}et a également gagné une renommée{pt-br}e também ganhou uma Fama.{de}und auch einen Ruhmespunkt gewonnen", positionToColor(a))
 						end
 					end
 					--flip skill down.

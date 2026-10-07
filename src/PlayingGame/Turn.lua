@@ -38,12 +38,12 @@ function togglePlayerDropoutRequest(player, mouseButton, id)
 	end
 	if playerData==nil or legalPlayerCheck(player.color, playerData.seatPos, "NoDummyException")~=true then return end
 	if dropoutCoopLocked()==true then
-		broadcastToAll("{en}Players cannot drop out while a cooperative assault or defense is being resolved.{ru}Игроки не могут выйти из игры, пока разрешается совместный штурм или защита.{zh-tw}合作攻城或防禦結算期間，玩家不能退出。{zh-cn}合作攻城或防御结算期间，玩家不能退出。{ko}협동 공격 또는 방어를 해결하는 동안에는 플레이어가 이탈할 수 없습니다.{es}Los jugadores no pueden abandonar mientras se resuelve un asalto o defensa cooperativos.{fr}Les joueurs ne peuvent pas abandonner pendant la résolution d’un assaut ou d’une défense coopératifs.{pt-br}Os jogadores não podem sair enquanto um assalto ou defesa cooperativos estiverem sendo resolvidos.{de}Spieler können während der Abwicklung eines kooperativen Angriffs oder einer kooperativen Verteidigung nicht aussteigen.", positionToColor(playerIndex))
+		broadcastToAll("{en}Players cannot drop out while a cooperative assault or defense is being resolved.{it}Non puoi ritirarti mentre si risolve un assalto o una difesa cooperativa.{ru}Игроки не могут выйти из игры, пока разрешается совместный штурм или защита.{zh-tw}合作攻城或防禦結算期間，玩家不能退出。{zh-cn}合作攻城或防御结算期间，玩家不能退出。{ko}협동 공격 또는 방어를 해결하는 동안에는 플레이어가 이탈할 수 없습니다.{es}Los jugadores no pueden abandonar mientras se resuelve un asalto o defensa cooperativos.{fr}Les joueurs ne peuvent pas abandonner pendant la résolution d’un assaut ou d’une défense coopératifs.{pt-br}Os jogadores não podem sair enquanto um assalto ou defesa cooperativos estiverem sendo resolvidos.{de}Spieler können während der Abwicklung eines kooperativen Angriffs oder einer kooperativen Verteidigung nicht aussteigen.", positionToColor(playerIndex))
 		applyColorBarButtons()
 		return
 	end
 	if gStates.firstStarted==true and playerIndex==gStates.turnNumber then
-		broadcastToAll("{en}You cannot drop out during your own turn.{ru}Нельзя выйти из игры во время собственного хода.{zh-tw}你不能在自己的回合中退出。{zh-cn}你不能在自己的回合中退出。{ko}자신의 턴에는 이탈할 수 없습니다.{es}No puedes abandonar durante tu propio turno.{fr}Vous ne pouvez pas abandonner pendant votre propre tour.{pt-br}Você não pode sair durante o seu próprio turno.{de}Du kannst während deines eigenen Zuges nicht aussteigen.", positionToColor(playerIndex))
+		broadcastToAll("{en}You cannot drop out during your own turn.{it}Non puoi ritirarti durante il tuo turno.{ru}Нельзя выйти из игры во время собственного хода.{zh-tw}你不能在自己的回合中退出。{zh-cn}你不能在自己的回合中退出。{ko}자신의 턴에는 이탈할 수 없습니다.{es}No puedes abandonar durante tu propio turno.{fr}Vous ne pouvez pas abandonner pendant votre propre tour.{pt-br}Você não pode sair durante o seu próprio turno.{de}Du kannst während deines eigenen Zuges nicht aussteigen.", positionToColor(playerIndex))
 		applyColorBarButtons()
 		return
 	end
@@ -52,18 +52,18 @@ function togglePlayerDropoutRequest(player, mouseButton, id)
 		playerData.dropoutState=nil
 		setDropoutMatImage(playerData,false)
 		if gStates.firstStarted==true then mirrorSourceUpdate("player dropout cancelled") end
-		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} cancelled dropping out.{ru} отменил выход из игры.{zh-tw} 取消了退出遊戲。{zh-cn} 取消了退出游戏。{ko} 게임 나가기를 취소했습니다.{es} canceló su abandono de la partida.{fr} a annulé son départ de la partie.{pt-br} cancelou a saída do jogo.{de} hat das Verlassen des Spiels abgebrochen."}), positionToColor(playerIndex))
+		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} cancelled dropping out.{it} ha annullato il ritiro.{ru} отменил выход из игры.{zh-tw} 取消了退出遊戲。{zh-cn} 取消了退出游戏。{ko} 게임 나가기를 취소했습니다.{es} canceló su abandono de la partida.{fr} a annulé son départ de la partie.{pt-br} cancelou a saída do jogo.{de} hat das Verlassen des Spiels abgebrochen."}), positionToColor(playerIndex))
 	else
 		--Never allow dropouts to reduce the game below two active Mage Knights.
 		if activeMageKnightCount()<3 then
-			broadcastToAll("{en}At least two Mage Knights must remain in the game.{ru}В игре должны остаться как минимум два Рыцаря-мага.{zh-tw}遊戲中至少必須保留兩名魔法騎士。{zh-cn}游戏中至少必须保留两名魔法骑士。{ko}게임에는 최소 두 명의 마법 기사가 남아 있어야 합니다.{es}Deben permanecer al menos dos Caballeros Mago en la partida.{fr}Au moins deux Chevaliers-Mages doivent rester dans la partie.{pt-br}Pelo menos dois Cavaleiros-Magos devem permanecer na partida.{de}Mindestens zwei Magieritter müssen im Spiel bleiben.", positionToColor(playerIndex))
+			broadcastToAll("{en}At least two Mage Knights must remain in the game.{it}Devono rimanere almeno due Mage Knight in partita.{ru}В игре должны остаться как минимум два Рыцаря-мага.{zh-tw}遊戲中至少必須保留兩名魔法騎士。{zh-cn}游戏中至少必须保留两名魔法骑士。{ko}게임에는 최소 두 명의 마법 기사가 남아 있어야 합니다.{es}Deben permanecer al menos dos Caballeros Mago en la partida.{fr}Au moins deux Chevaliers-Mages doivent rester dans la partie.{pt-br}Pelo menos dois Cavaleiros-Magos devem permanecer na partida.{de}Mindestens zwei Magieritter müssen im Spiel bleiben.", positionToColor(playerIndex))
 			applyColorBarButtons()
 			return
 		end
 		playerData.dropoutState="pending"
 		setDropoutMatImage(playerData,true)
 		if gStates.firstStarted==true then mirrorSourceUpdate("player dropout requested") end
-		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} will drop out when turn order next advances. Press Undo Drop Out before then to cancel.{ru} выйдет из игры при следующем переходе хода. До этого можно отменить выход.{zh-tw} 將在下一次推進回合順序時退出遊戲；在此之前可按撤銷退出。{zh-cn} 将在下一次推进回合顺序时退出游戏；在此之前可按撤销退出。{ko} 다음 차례 진행 시 게임에서 나갑니다. 그 전까지 나가기 취소를 누를 수 있습니다.{es} abandonará la partida cuando avance el orden de turno. Puede deshacerlo antes de entonces.{fr} quittera la partie au prochain changement de tour. Vous pouvez annuler avant cela.{pt-br} sairá do jogo quando a ordem de turno avançar. Você pode desfazer antes disso.{de} verlässt das Spiel beim nächsten Zugwechsel. Bis dahin kann der Austritt rückgängig gemacht werden."}), positionToColor(playerIndex))
+		broadcastToAll(joinLang({translateWord[playerData.mage], "{en} will drop out when turn order next advances. Press Undo Drop Out before then to cancel.{it} si ritirerà al prossimo avanzamento dell'ordine dei turni. Premi Annulla Ritiro prima di allora per annullare.{ru} выйдет из игры при следующем переходе хода. До этого можно отменить выход.{zh-tw} 將在下一次推進回合順序時退出遊戲；在此之前可按撤銷退出。{zh-cn} 将在下一次推进回合顺序时退出游戏；在此之前可按撤销退出。{ko} 다음 차례 진행 시 게임에서 나갑니다. 그 전까지 나가기 취소를 누를 수 있습니다.{es} abandonará la partida cuando avance el orden de turno. Puede deshacerlo antes de entonces.{fr} quittera la partie au prochain changement de tour. Vous pouvez annuler avant cela.{pt-br} sairá do jogo quando a ordem de turno avançar. Você pode desfazer antes disso.{de} verlässt das Spiel beim nächsten Zugwechsel. Bis dahin kann der Austritt rückgängig gemacht werden."}), positionToColor(playerIndex))
 	end
 	applyColorBarButtons()
 end
@@ -87,7 +87,7 @@ function tacticToggle()
 
 	--Show all tactics available
 	if gStates.tacticShown==true then
-		broadcastToAll("{en}Turn order Re-Organised based on tactic card selection{ru}Порядок хода игроков изменился в соответствии с выбранными Тактиками{zh-tw}玩家行动顺序基于战术卡的选择改变了{zh-cn}玩家行动顺序基于战术卡的选择改变了{ko}라운드 순서가 전략 카드에 따라 배치되었습니다{es}Orden de turnos reorganizado según la selección de la tarjeta de táctica{fr}Ordre de tour réorganisé en fonction de la sélection de la carte tactique{pt-br}Ordem de Turno re-organizada baseada nas seleções de táticas{de}Zugreihenfolge neu organisiert basierend auf der Auswahl der Taktikkarten", {1,1,0.5})
+		broadcastToAll("{en}Turn order Re-Organised based on tactic card selection{it}Ordine dei turni riorganizzato in base alle Tattiche scelte{ru}Порядок хода игроков изменился в соответствии с выбранными Тактиками{zh-tw}玩家行动顺序基于战术卡的选择改变了{zh-cn}玩家行动顺序基于战术卡的选择改变了{ko}라운드 순서가 전략 카드에 따라 배치되었습니다{es}Orden de turnos reorganizado según la selección de la tarjeta de táctica{fr}Ordre de tour réorganisé en fonction de la sélection de la carte tactique{pt-br}Ordem de Turno re-organizada baseada nas seleções de táticas{de}Zugreihenfolge neu organisiert basierend auf der Auswahl der Taktikkarten", {1,1,0.5})
 		turnOrderSort()
 		safeWaitTime("Turn",function()
 			local depth=-8
@@ -121,7 +121,7 @@ function tacticToggle()
 		gStates.tacticSixState="notClaimed"
 		gStates.tacticShown=true
 		refreshTactic4HandBonus(false)
-		broadcastToAll("{en}Start of a Round. Please select a tactic Card for the round.{ru}Начало раунда. Пожалуйста, выберите Тактику на этот раунд из центра.{zh-tw}轮次开始了, 请选择本轮战术卡.{zh-cn}轮次开始了, 请选择本轮战术卡.{ko}라운드가 시작되었습니다. 전략 카드를 고르세요.{es}Inicio de una Ronda. Selecciona una carta de táctica para la Ronda.{fr}Début d'une Manche. Veuillez sélectionner une carte tactique pour le Rounde.{pt-br}Início de Rodada. Por favor selecione uma carta de Tática para a Rodada.{de}Beginn einer Runde. Bitte wählen Sie eine taktische Karte für die Runde", {1,1,0.5})
+		broadcastToAll("{en}Start of a Round. Please select a tactic Card for the round.{it}Inizio di un round. Scegli una carta Tattica per questo round.{ru}Начало раунда. Пожалуйста, выберите Тактику на этот раунд из центра.{zh-tw}轮次开始了, 请选择本轮战术卡.{zh-cn}轮次开始了, 请选择本轮战术卡.{ko}라운드가 시작되었습니다. 전략 카드를 고르세요.{es}Inicio de una Ronda. Selecciona una carta de táctica para la Ronda.{fr}Début d'une Manche. Veuillez sélectionner une carte tactique pour le Rounde.{pt-br}Início de Rodada. Por favor selecione uma carta de Tática para a Rodada.{de}Beginn einer Runde. Bitte wählen Sie eine taktische Karte für die Runde", {1,1,0.5})
 		local hide=0
 		local show=6
 		local depth=-8
@@ -244,14 +244,14 @@ function startOfTurn()
 			local params={position={(turnOrder[gStates.turnNumber].seatPos*40)-103, 1.65, -39}, rotation={0, 0, 0}, smooth=false}
 			if gStates.dayRound==true and turnOrder[gStates.turnNumber].avatarLocation~="graveyard" and turnOrder[gStates.turnNumber].avatarLocation~="necropolis" then
 				getObjectFromGUID("4a836f").takeObject(params)
-				broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} gained a Gold Mana Token from the Magical Glade.{ru} получает Золотой жетон маны от Магической поляны.{zh-tw}从魔法林地中获得一个金色魔晶{zh-cn}从魔法林地中获得一个金色魔晶{ko}: 마법 숲속 빈터에서 금색 마나 획득{es} ganó una ficha de Maná de Oro del Claro Mágico.{fr} gagné un jeton de Mana D'or de la Clairière Magique.{pt-br} marcador de Mana Dourada ganho da Clareira Mágica.{de} erhält ein goldenes Mana-Plättchen von der magischen Lichtung."}), positionToColor(gStates.turnNumber))
+				broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} gained a Gold Mana Token from the Magical Glade.{it} ha ottenuto un segnalino Mana Oro dalla Radura Magica.{ru} получает Золотой жетон маны от Магической поляны.{zh-tw}从魔法林地中获得一个金色魔晶{zh-cn}从魔法林地中获得一个金色魔晶{ko}: 마법 숲속 빈터에서 금색 마나 획득{es} ganó una ficha de Maná de Oro del Claro Mágico.{fr} gagné un jeton de Mana D'or de la Clairière Magique.{pt-br} marcador de Mana Dourada ganho da Clareira Mágica.{de} erhält ein goldenes Mana-Plättchen von der magischen Lichtung."}), positionToColor(gStates.turnNumber))
 			end
 			if gStates.dayRound==false then
 				getObjectFromGUID("74d666").takeObject(params)
 				if turnOrder[gStates.turnNumber].avatarLocation~="graveyard" and turnOrder[gStates.turnNumber].avatarLocation~="necropolis" then
-					broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} gained a Black Mana Token from the Magical Glade.{ru} получает Черный жетон маны от Магической поляны.{zh-tw}从魔法林地中获得一个黑色魔晶{zh-cn}从魔法林地中获得一个黑色魔晶{ko}: 마법 숲속 빈터에서 흑색 마나 획득{es} ganó una ficha de Maná Negra del Claro Mágico.{fr} gagné un jeton de Mana Noir de la Clairière Magique.{pt-br} marcador de Mana Preta ganho da Clareira Mágica.{de} ein schwarzes Mana-Plättchen von der Magischen Lichtung erhalten."}), positionToColor(gStates.turnNumber))
+					broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} gained a Black Mana Token from the Magical Glade.{it} ha ottenuto un segnalino Mana Nero dalla Radura Magica.{ru} получает Черный жетон маны от Магической поляны.{zh-tw}从魔法林地中获得一个黑色魔晶{zh-cn}从魔法林地中获得一个黑色魔晶{ko}: 마법 숲속 빈터에서 흑색 마나 획득{es} ganó una ficha de Maná Negra del Claro Mágico.{fr} gagné un jeton de Mana Noir de la Clairière Magique.{pt-br} marcador de Mana Preta ganho da Clareira Mágica.{de} ein schwarzes Mana-Plättchen von der Magischen Lichtung erhalten."}), positionToColor(gStates.turnNumber))
 				else
-					broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} gained a Black Mana Token from the Graveyard.{ru} получает Черный жетон маны от Кладбища.{zh-tw}从墓地增加一个黑色魔力{zh-cn}从墓地增加一个黑色魔力{ko}: 묘지에서 흑색 마나 획득{es} ganó una ficha de Maná Negra del Cementerio.{fr} gagné un jeton de Mana Noir du Cimetière.{pt-br} marcador de Mana Preta ganho do Cemitério.{de} ein schwarzes Mana-Plättchen vom Friedhof erhalten."}), positionToColor(gStates.turnNumber))
+					broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} gained a Black Mana Token from the Graveyard.{it} ha ottenuto un segnalino Mana Nero dal Cimitero.{ru} получает Черный жетон маны от Кладбища.{zh-tw}从墓地增加一个黑色魔力{zh-cn}从墓地增加一个黑色魔力{ko}: 묘지에서 흑색 마나 획득{es} ganó una ficha de Maná Negra del Cementerio.{fr} gagné un jeton de Mana Noir du Cimetière.{pt-br} marcador de Mana Preta ganho do Cemitério.{de} ein schwarzes Mana-Plättchen vom Friedhof erhalten."}), positionToColor(gStates.turnNumber))
 				end
 			end
 		end
@@ -295,7 +295,7 @@ local function commitPendingDropouts()
 			gStates.skipTurn[a]=nil
 			local token=getObjectFromGUID(playerData.turnOrderTokenGUID)
 			if token~=nil and token.is_face_down==true then token.flip() end
-			broadcastToAll(joinLang({translateWord[playerData.mage], "{en} has dropped out of the game.{ru} вышел из игры.{zh-tw} 已退出遊戲。{zh-cn} 已退出游戏。{ko} 게임에서 나갔습니다.{es} ha abandonado la partida.{fr} a quitté la partie.{pt-br} saiu do jogo.{de} hat das Spiel verlassen."}), positionToColor(a))
+			broadcastToAll(joinLang({translateWord[playerData.mage], "{en} has dropped out of the game.{it} si è ritirato dalla partita.{ru} вышел из игры.{zh-tw} 已退出遊戲。{zh-cn} 已退出游戏。{ko} 게임에서 나갔습니다.{es} ha abandonado la partida.{fr} a quitté la partie.{pt-br} saiu do jogo.{de} hat das Spiel verlassen."}), positionToColor(a))
 			changed=true
 		end
 	end
@@ -454,9 +454,9 @@ local function turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)
 		rewardReminderCameraFocus(player.color,"questView")
 		local questGateMessage
 		if questRewardAction=="Fail" or questRewardAction=="CompleteOrFail" then
-			questGateMessage="{en}Complete or Fail the Quest first.{ru}Сначала завершите или провалите Задание.{zh-tw}請先完成或失敗任務。{zh-cn}请先完成或失败任务。{ko}먼저 퀘스트를 완료하거나 실패 처리하세요.{es}Completa o falla la Misión primero.{fr}Terminez ou échouez d’abord la Quête.{pt-br}Conclua ou falhe a Missão primeiro.{de}Schließe die Quest zuerst ab oder lasse sie scheitern."
+			questGateMessage="{en}Complete or Fail the Quest first.{it}Prima Completa o Fallisci la Missione.{ru}Сначала завершите или провалите Задание.{zh-tw}請先完成或失敗任務。{zh-cn}请先完成或失败任务。{ko}먼저 퀘스트를 완료하거나 실패 처리하세요.{es}Completa o falla la Misión primero.{fr}Terminez ou échouez d’abord la Quête.{pt-br}Conclua ou falhe a Missão primeiro.{de}Schließe die Quest zuerst ab oder lasse sie scheitern."
 		else
-			questGateMessage="{en}Complete or Progress the Quest first.{ru}Сначала завершите или продвиньте Задание.{zh-tw}請先完成或推進任務。{zh-cn}请先完成或推进任务。{ko}먼저 퀘스트를 완료하거나 진행하세요.{es}Completa o progresa la Misión primero.{fr}Terminez ou faites d’abord progresser la Quête.{pt-br}Conclua ou avance a Missão primeiro.{de}Schließe die Quest zuerst ab oder setze sie fort."
+			questGateMessage="{en}Complete or Progress the Quest first.{it}Prima Completa o fai avanzare la Missione.{ru}Сначала завершите или продвиньте Задание.{zh-tw}請先完成或推進任務。{zh-cn}请先完成或推进任务。{ko}먼저 퀘스트를 완료하거나 진행하세요.{es}Completa o progresa la Misión primero.{fr}Terminez ou faites d’abord progresser la Quête.{pt-br}Conclua ou avance a Missão primeiro.{de}Schließe die Quest zuerst ab oder setze sie fort."
 		end
 		broadcastToColor(questGateMessage,player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
@@ -464,25 +464,25 @@ local function turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)
 	end
 	if rewardSoftLock==true and gStates.preEndTurn==true and apocalypseIsHereActive~=nil and apocalypseIsHereActive()==true and gStates.apocalypseHereForcedRevealPending==true then
 		cameraControl(player,"-1","mapView")
-		broadcastToColor("{en}Reveal the overdue Map tile(s) before claiming rewards.{ru}Откройте просроченные тайлы карты перед получением наград.{zh-tw}領取獎勵前，先揭示逾期的地圖板塊。{zh-cn}领取奖励前，先揭示逾期的地图板块。{ko}보상을 받기 전에 지연된 지도 타일을 공개하세요.{es}Revela las losetas de Mapa pendientes antes de reclamar recompensas.{fr}Révélez les tuiles Carte en retard avant de réclamer les récompenses.{pt-br}Revele as peças de Mapa atrasadas antes de receber as recompensas.{de}Decke die überfälligen Kartenteile auf, bevor du Belohnungen beanspruchst.",player.color,warningColor)
+		broadcastToColor("{en}Reveal the overdue Map tile(s) before claiming rewards.{it}Rivela le tessere Mappa in ritardo prima di prendere le ricompense.{ru}Откройте просроченные тайлы карты перед получением наград.{zh-tw}領取獎勵前，先揭示逾期的地圖板塊。{zh-cn}领取奖励前，先揭示逾期的地图板块。{ko}보상을 받기 전에 지연된 지도 타일을 공개하세요.{es}Revela las losetas de Mapa pendientes antes de reclamar recompensas.{fr}Révélez les tuiles Carte en retard avant de réclamer les récompenses.{pt-br}Revele as peças de Mapa atrasadas antes de receber as recompensas.{de}Decke die überfälligen Kartenteile auf, bevor du Belohnungen beanspruchst.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
 	if rewardSoftLock==true and steadyTempoPendingForSeat~=nil and steadyTempoPendingForSeat(rewardSeat)==true then
 		steadyTempoRefreshAll() steadyTempoUpdateRewardGate(rewardSeat)
 		cameraControl(player,"-1","playAreaView")
-		broadcastToAll("{en}Resolve Steady Tempo before claiming rewards.{ru}Разрешите «Steady Tempo» перед получением наград.{zh-tw}領取獎勵前先結算「Steady Tempo」。{zh-cn}领取奖励前先结算“Steady Tempo”。{ko}보상을 받기 전에 Steady Tempo를 해결하십시오.{es}Resuelve Steady Tempo antes de reclamar recompensas.{fr}Résolvez Steady Tempo avant de réclamer les récompenses.{pt-br}Resolva Steady Tempo antes de receber as recompensas.{de}Führe Steady Tempo aus, bevor du Belohnungen beanspruchst.", positionToColor(gStates.turnNumber))
+		broadcastToAll("{en}Resolve Steady Tempo before claiming rewards.{it}Risolvi Ritmo Costante prima di prendere le ricompense.{ru}Разрешите «Steady Tempo» перед получением наград.{zh-tw}領取獎勵前先結算「Steady Tempo」。{zh-cn}领取奖励前先结算“Steady Tempo”。{ko}보상을 받기 전에 Steady Tempo를 해결하십시오.{es}Resuelve Steady Tempo antes de reclamar recompensas.{fr}Résolvez Steady Tempo avant de réclamer les récompenses.{pt-br}Resolva Steady Tempo antes de receber as recompensas.{de}Führe Steady Tempo aus, bevor du Belohnungen beanspruchst.", positionToColor(gStates.turnNumber))
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
 	if rewardSoftLock==true and gStates.mineClaimPending~=nil and (gStates.mineClaimPending.playerIndex==nil or gStates.mineClaimPending.playerIndex==gStates.turnNumber) then
-		broadcastToColor("{en}Resolve the pending crystal choice before proceeding to the next player.{ru}Сначала выберите ожидающий кристалл, прежде чем переходить к следующему игроку.{zh-tw}前往下一位玩家前，先完成尚未處理的水晶選擇。{zh-cn}前往下一位玩家前，先完成尚未处理的水晶选择。{ko}다음 플레이어로 넘어가기 전에 대기 중인 크리스털 선택을 해결하십시오.{es}Resuelve la elección de cristal pendiente antes de pasar al siguiente jugador.{fr}Résolvez le choix de cristal en attente avant de passer au joueur suivant.{pt-br}Resolva a escolha de cristal pendente antes de passar para o próximo jogador.{de}Schließe die ausstehende Kristallauswahl ab, bevor du zum nächsten Spieler wechselst.", player.color, warningColor)
+		broadcastToColor("{en}Resolve the pending crystal choice before proceeding to the next player.{it}Risolvi la scelta del cristallo prima di passare al prossimo giocatore.{ru}Сначала выберите ожидающий кристалл, прежде чем переходить к следующему игроку.{zh-tw}前往下一位玩家前，先完成尚未處理的水晶選擇。{zh-cn}前往下一位玩家前，先完成尚未处理的水晶选择。{ko}다음 플레이어로 넘어가기 전에 대기 중인 크리스털 선택을 해결하십시오.{es}Resuelve la elección de cristal pendiente antes de pasar al siguiente jugador.{fr}Résolvez le choix de cristal en attente avant de passer au joueur suivant.{pt-br}Resolva a escolha de cristal pendente antes de passar para o próximo jogador.{de}Schließe die ausstehende Kristallauswahl ab, bevor du zum nächsten Spieler wechselst.", player.color, warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
 	if rewardSoftLock==true and rewardRetreatRequired~=nil and rewardRetreatRequired(gStates.turnNumber)==true then
 		cameraControl(player,"-1","mapView")
-		broadcastToColor("{en}Retreat to a safe space before claiming rewards.{ru}Отступите на безопасное поле перед получением наград.{zh-tw}領取獎勵前先撤退到安全空間。{zh-cn}领取奖励前先撤退到安全空间。{ko}보상을 받기 전에 안전한 칸으로 후퇴하십시오.{es}Retírate a un espacio seguro antes de reclamar recompensas.{fr}Retirez-vous vers un espace sûr avant de réclamer les récompenses.{pt-br}Recue para um espaço seguro antes de receber as recompensas.{de}Ziehe dich auf ein sicheres Feld zurück, bevor du Belohnungen beanspruchst.",player.color,warningColor)
+		broadcastToColor("{en}Retreat to a safe space before claiming rewards.{it}Ritirati in uno spazio sicuro prima di prendere le ricompense.{ru}Отступите на безопасное поле перед получением наград.{zh-tw}領取獎勵前先撤退到安全空間。{zh-cn}领取奖励前先撤退到安全空间。{ko}보상을 받기 전에 안전한 칸으로 후퇴하십시오.{es}Retírate a un espacio seguro antes de reclamar recompensas.{fr}Retirez-vous vers un espace sûr avant de réclamer les récompenses.{pt-br}Recue para um espaço seguro antes de receber as recompensas.{de}Ziehe dich auf ein sicheres Feld zurück, bevor du Belohnungen beanspruchst.",player.color,warningColor)
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		return true
 	end
@@ -518,7 +518,7 @@ local function turnAdvanceCoopRewards(player,mouseButton,id,rewindReady,rewardSo
 	else
 		if rewindReady==true then rewindTransactionFinish("End turn") end
 		rewardReminderCameraFocus(player.color,"offerView")
-		broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} needs to select a skill before claiming these rewards.{ru} должен выбрать Навык перед получением наград.{zh-tw}需要先选择一项技能再领取奖励.{zh-cn}需要先选择一项技能再领取奖励.{ko}: 보상을 받기 전에 스킬을 선택하세요.{es} necesita seleccionar una habilidad antes de reclamar estas recompensas.{fr} doit sélectionner une compétence avant de réclamer ces récompenses.{pt-br} precisa selecionar uma habilidade antes de pegar estas recompensas.{de} muss eine Fertigkeit auswählen, bevor diese Belohnungen beansprucht werden."}), warningColor)
+		broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} needs to select a skill before claiming these rewards.{it} deve scegliere un'abilità prima di prendere queste ricompense.{ru} должен выбрать Навык перед получением наград.{zh-tw}需要先选择一项技能再领取奖励.{zh-cn}需要先选择一项技能再领取奖励.{ko}: 보상을 받기 전에 스킬을 선택하세요.{es} necesita seleccionar una habilidad antes de reclamar estas recompensas.{fr} doit sélectionner une compétence avant de réclamer ces récompenses.{pt-br} precisa selecionar uma habilidade antes de pegar estas recompensas.{de} muss eine Fertigkeit auswählen, bevor diese Belohnungen beansprucht werden."}), warningColor)
 	end
 end
 
@@ -626,7 +626,7 @@ end
 local function turnSkillRewardBlocked(player,rewindReady)
 	if rewindReady==true then rewindTransactionFinish("End turn") end
 	rewardReminderCameraFocus(player.color,"offerView")
-	broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} needs to select a skill before you can end their Turn.{ru} должен выбрать Навык перед окончанием хода.{zh-tw}需要先选择一项技能, 然后才能结束他们的回合. {zh-cn}需要先选择一项技能, 然后才能结束他们的回合. {ko}: 차례를 넘기기 전에 스킬을 선택하세요.{es} necesita seleccionar una habilidad antes de que pueda finalizar su turno.{fr} doit sélectionner une compétence avant de pouvoir terminer son tour.{pt-br} precisa selecionar uma habilidade antes que você possa encerrar seu turno.{de} muss eine Fertigkeit wählen, bevor du seinen Zug beenden kannst."}), warningColor)
+	broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} needs to select a skill before you can end their Turn.{it} deve scegliere un'abilità prima di poter terminare il turno.{ru} должен выбрать Навык перед окончанием хода.{zh-tw}需要先选择一项技能, 然后才能结束他们的回合. {zh-cn}需要先选择一项技能, 然后才能结束他们的回合. {ko}: 차례를 넘기기 전에 스킬을 선택하세요.{es} necesita seleccionar una habilidad antes de que pueda finalizar su turno.{fr} doit sélectionner une compétence avant de pouvoir terminer son tour.{pt-br} precisa selecionar uma habilidade antes que você possa encerrar seu turno.{de} muss eine Fertigkeit wählen, bevor du seinen Zug beenden kannst."}), warningColor)
 end
 
 function turnEndTurnRawBase(player, mouseButton, id, rewindReady)
@@ -713,7 +713,7 @@ function mergedTurnCommit(nextTurnNumber,newOutOfTurn,sameTurn)
 	if sameTurn==false and gStates.finalTurnReason=="victory" and gStates.finalTurnOwnerGetsTurn==true and
 		finalTurnBoundaryActive()==true and finalTurnOwnerIs(gStates.turnNumber) then gStates.finalTurnOwnerTurnStarted=true end
 	applyColorBarButtons()
-	broadcastToAll(joinLang({"{en}It is now {ru}Ходит {zh-tw}现在是{zh-cn}现在是{ko}{es}Ahora es el turno de {fr}C'est maintenant au tour de {pt-br}é agora turno de {de}Jetzt ist ", translateWord[turnOrder[gStates.turnNumber].mage], "{en}'s turn.{ru} {zh-tw}的回合{zh-cn}的回合{ko}의 차례입니다.{es}.{fr}.{pt-br}.{de} an der Reihe."}), positionToColor(gStates.turnNumber))
+	broadcastToAll(joinLang({"{en}It is now {it}Ora è {ru}Ходит {zh-tw}现在是{zh-cn}现在是{ko}{es}Ahora es el turno de {fr}C'est maintenant au tour de {pt-br}é agora turno de {de}Jetzt ist ", translateWord[turnOrder[gStates.turnNumber].mage], "{en}'s turn.{it}.{ru} {zh-tw}的回合{zh-cn}的回合{ko}의 차례입니다.{es}.{fr}.{pt-br}.{de} an der Reihe."}), positionToColor(gStates.turnNumber))
 	if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType~=nil and coopAssaultTargetType()=="dragon" and apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(gStates.turnNumber)==true then apocalypseDragonRefreshGroundAttackSuppression() end
 	if gStates.tacticShown==false then startOfTurn() else claimButtonRefresh() end
 	scheduleAvatarDropRefresh()
@@ -793,7 +793,7 @@ function nextTurnMerged(type)--"nextMage", "nextMageSkipDummy", "incrementTurn",
 			if candidateEndsFinalCircuit()==true then finalBoundaryReached=true return true end
 			--Otherwise skip dummy during final turns as normal.
 			if (type=="nextMageSkipDummy" or ((gStates.endGameAchieved=="true" or gStates.endRoundCalled==true) and type=="incrementTurn")) and gStates.tacticShown~=true and turnOrder[nextTurnNumber].mage==gStates.positionMageKnight[5] then
-				if type=="incrementTurn" then broadcastToAll(joinLang({translateWord[turnOrder[nextTurnNumber].mage], "{en} isn't included in the final round of turns{ru} не участвует в последнем ходе Раунда.{zh-tw}不包括在最后一轮的回合中{zh-cn}不包括在最后一轮的回合中{ko}: 마지막 턴 중에서 제외됨{es} no está incluido en la ronda final de turnos{fr} n'est pas inclus dans le dernier rounde de tours{pt-br} não está incluído na rodada final de turnos.{de} ist nicht in der letzten Runde dabei"}), {1,1,0.5}) end
+				if type=="incrementTurn" then broadcastToAll(joinLang({translateWord[turnOrder[nextTurnNumber].mage], "{en} isn't included in the final round of turns{it} non partecipa all'ultimo giro di turni{ru} не участвует в последнем ходе Раунда.{zh-tw}不包括在最后一轮的回合中{zh-cn}不包括在最后一轮的回合中{ko}: 마지막 턴 중에서 제외됨{es} no está incluido en la ronda final de turnos{fr} n'est pas inclus dans le dernier rounde de tours{pt-br} não está incluído na rodada final de turnos.{de} ist nicht in der letzten Runde dabei"}), {1,1,0.5}) end
 				advanceTurnNumber()
 				return false
 			end
@@ -813,9 +813,9 @@ function nextTurnMerged(type)--"nextMage", "nextMageSkipDummy", "incrementTurn",
 					if type=="incrementTurn" then
 						gStates.skipTurn[nextTurnNumber]=nil
 						if turnOrder[nextTurnNumber].mage~="Volkare" then
-							broadcastToAll(joinLang({translateWord[turnOrder[nextTurnNumber].mage], "{en} skips their turn. They played out of order. Turn order token flipped back upright.{ru} пропускает ход. Их ход был сыгран не по порядку. Жетон порядка хода переворачивается обратно вверх.{zh-tw}跳过他们的回合. 他们打乱了顺序. 顺位指示标记翻转. {zh-cn}跳过他们的回合. 他们打乱了顺序. 顺位指示标记翻转. {ko}: 차례를 건너뜁니다. 다시 라운드 순서 토큰이 앞면으로 뒤집힙니다.{es} omite su turno. Jugaron fuera de orden. Ficha de orden de giro volteada hacia atrás.{fr} passe leur tour. Ils ont joué dans le désordre. Jeton d'ordre de tour retourné à la verticale.{pt-br} pule seus turnos. Eles jogaram fora de ordem. Marcador de ordem de turno virado de volta para cima.{de} überspringt seinen Zug. Sie haben außer der Reihe gespielt. Das Zugreihenfolgeplättchen wird wieder aufgedreht."}), positionToColor(nextTurnNumber))
+							broadcastToAll(joinLang({translateWord[turnOrder[nextTurnNumber].mage], "{en} skips their turn. They played out of order. Turn order token flipped back upright.{it} salta il turno: ha giocato fuori ordine. Segnalino Ordine di Turno rimesso scoperto.{ru} пропускает ход. Их ход был сыгран не по порядку. Жетон порядка хода переворачивается обратно вверх.{zh-tw}跳过他们的回合. 他们打乱了顺序. 顺位指示标记翻转. {zh-cn}跳过他们的回合. 他们打乱了顺序. 顺位指示标记翻转. {ko}: 차례를 건너뜁니다. 다시 라운드 순서 토큰이 앞면으로 뒤집힙니다.{es} omite su turno. Jugaron fuera de orden. Ficha de orden de giro volteada hacia atrás.{fr} passe leur tour. Ils ont joué dans le désordre. Jeton d'ordre de tour retourné à la verticale.{pt-br} pule seus turnos. Eles jogaram fora de ordem. Marcador de ordem de turno virado de volta para cima.{de} überspringt seinen Zug. Sie haben außer der Reihe gespielt. Das Zugreihenfolgeplättchen wird wieder aufgedreht."}), positionToColor(nextTurnNumber))
 						else
-							broadcastToAll("{en}Volkare skips his turn. He's recovering from the battle.{ru}Волкар пропускает ход. Он восстанавливается после битвы.{zh-tw}沃尔卡雷跳过了他的回合. 他正在从战斗中恢复过来. {zh-cn}沃尔卡雷跳过了他的回合. 他正在从战斗中恢复过来. {ko}볼케어는 전투 후 정비 중입니다. 볼케어의 차례를 건너뜁니다.{es}Volkare se salta su turno. Se está recuperando de la batalla.{fr}Volkare passe son tour. Il se remet de la bataille.{pt-br}Volkare pula sua vez. Ele está se recuperando da batalha.{de}Volkare überspringt seinen Zug. Er erholt sich von dem Kampf.", positionToColor(nextTurnNumber))
+							broadcastToAll("{en}Volkare skips his turn. He's recovering from the battle.{it}Volkare salta il turno per riprendersi dalla battaglia.{ru}Волкар пропускает ход. Он восстанавливается после битвы.{zh-tw}沃尔卡雷跳过了他的回合. 他正在从战斗中恢复过来. {zh-cn}沃尔卡雷跳过了他的回合. 他正在从战斗中恢复过来. {ko}볼케어는 전투 후 정비 중입니다. 볼케어의 차례를 건너뜁니다.{es}Volkare se salta su turno. Se está recuperando de la batalla.{fr}Volkare passe son tour. Il se remet de la bataille.{pt-br}Volkare pula sua vez. Ele está se recuperando da batalha.{de}Volkare überspringt seinen Zug. Er erholt sich von dem Kampf.", positionToColor(nextTurnNumber))
 						end
 						local token=getObjectFromGUID(turnOrder[nextTurnNumber].turnOrderTokenGUID)
 						if token~=nil and token.is_face_down==true then token.flip() end
@@ -848,7 +848,7 @@ function nextTurnMerged(type)--"nextMage", "nextMageSkipDummy", "incrementTurn",
 				if gStates.currentRound>=gStates.rounds and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") and volkareArmyStillAlive()==true then
 					gStates.volkareWon=true
 					gStates.volkareReturnTimeoutLoss=true
-					gStates.blurb="{en}The final Round ended while Volkare still had an army.<size=6>\n\n</size>You have Lost.{ru}Последний раунд закончился, пока у Волкара еще оставалась армия.<size=6>\n\n</size>Вы проиграли.{zh-tw}最後一輪結束時沃卡里仍有軍隊。<size=6>\n\n</size>你輸了。{zh-cn}最后一轮结束时沃卡里仍有军队。<size=6>\n\n</size>你输了。{ko}마지막 라운드가 끝났지만 볼케어의 군대가 남아 있습니다.<size=6>\n\n</size>패배했습니다.{es}La Ronda final terminó mientras Volkare aún tenía un ejército.<size=6>\n\n</size>Has perdido.{fr}La dernière Manche s'est terminée alors que Volkare avait encore une armée.<size=6>\n\n</size>Vous avez perdu.{pt-br}A Rodada final terminou enquanto Volkare ainda tinha um exército.<size=6>\n\n</size>Você perdeu.{de}Die letzte Runde endete, während Volkare noch eine Armee hatte.<size=6>\n\n</size>Ihr habt verloren."
+					gStates.blurb="{en}The final Round ended while Volkare still had an army.<size=6>\n\n</size>You have Lost.{it}L'ultimo round è finito e Volkare ha ancora un esercito.<size=6>\n\n</size>Avete perso.{ru}Последний раунд закончился, пока у Волкара еще оставалась армия.<size=6>\n\n</size>Вы проиграли.{zh-tw}最後一輪結束時沃卡里仍有軍隊。<size=6>\n\n</size>你輸了。{zh-cn}最后一轮结束时沃卡里仍有军队。<size=6>\n\n</size>你输了。{ko}마지막 라운드가 끝났지만 볼케어의 군대가 남아 있습니다.<size=6>\n\n</size>패배했습니다.{es}La Ronda final terminó mientras Volkare aún tenía un ejército.<size=6>\n\n</size>Has perdido.{fr}La dernière Manche s'est terminée alors que Volkare avait encore une armée.<size=6>\n\n</size>Vous avez perdu.{pt-br}A Rodada final terminou enquanto Volkare ainda tinha um exército.<size=6>\n\n</size>Você perdeu.{de}Die letzte Runde endete, während Volkare noch eine Armee hatte.<size=6>\n\n</size>Ihr habt verloren."
 					UI.setAttribute("DummyNotes", "Text", gStates.blurb)
 				end
 				if gStates.currentRound>=gStates.rounds and gStates.gameScenario=="Against the Horsemen Blitz" then againstHorsemenRegisterTimeoutLoss() end
@@ -899,11 +899,11 @@ end
 --record the player who called end of round
 function __PreEndRound_raw(player, mouseButton, id)
 	if gStates.apocalypseHereHorsemenTurnActive==true then
-		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Horsemen turn first.{ru}Сначала завершите ход Всадников.{zh-tw}請先完成騎士的回合。{zh-cn}请先完成骑士的回合。{ko}먼저 기사들의 턴을 끝내십시오.{es}Termina primero el turno de los Jinetes.{fr}Terminez d’abord le tour des Cavaliers.{pt-br}Termine primeiro o turno dos Cavaleiros.{de}Beende zuerst den Zug der Reiter.",player.color,warningColor) end
+		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Horsemen turn first.{it}Termina prima il turno dei Cavalieri.{ru}Сначала завершите ход Всадников.{zh-tw}請先完成騎士的回合。{zh-cn}请先完成骑士的回合。{ko}먼저 기사들의 턴을 끝내십시오.{es}Termina primero el turno de los Jinetes.{fr}Terminez d’abord le tour des Cavaliers.{pt-br}Termine primeiro o turno dos Cavaleiros.{de}Beende zuerst den Zug der Reiter.",player.color,warningColor) end
 		return
 	end
 	if gStates.apocalypseDragonTurnActive==true then
-		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Apocalypse Dragon turn first.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 턴을 끝내십시오.{es}Termina primero el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
+		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Apocalypse Dragon turn first.{it}Termina prima il turno del Drago dell'Apocalisse.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 턴을 끝내십시오.{es}Termina primero el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
 		return
 	end
 	if gStates.endGameAchieved~="false" then return end
@@ -929,7 +929,7 @@ function __PreEndRound_raw(player, mouseButton, id)
 		if spellCards[2]~=nil then spellCards[2].unlock() end
 
 		if activeMageKnightCount()>1 or turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
-			broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} called End of Round. Everyone else has one final turn.{ru} объявил конец Раунда. Остальные делают по одному ходу.{zh-tw}宣布结束轮次, 所有其他玩家还有最后一回合{zh-cn}宣布结束轮次, 所有其他玩家还有最后一回合{ko}: 라운드 종료 선언. 모두 마지막 차례를 한 번씩 더 갖습니다.{es} llamado Fin de Ronda. Todos los demás tienen un turno final.{fr} appelé la Fin de Rounde. Tout le monde a un dernier tour.{pt-br} chamado o fim de Rodada. Todos outros tem um turno final.{de} ende der Runde ausgerufen. Alle anderen haben einen letzten Zug."}), positionToColor(gStates.turnNumber))
+			broadcastToAll(joinLang({translateWord[turnOrder[gStates.turnNumber].mage],"{en} called End of Round. Everyone else has one final turn.{it} ha dichiarato Fine Round. Tutti gli altri hanno un ultimo turno.{ru} объявил конец Раунда. Остальные делают по одному ходу.{zh-tw}宣布结束轮次, 所有其他玩家还有最后一回合{zh-cn}宣布结束轮次, 所有其他玩家还有最后一回合{ko}: 라운드 종료 선언. 모두 마지막 차례를 한 번씩 더 갖습니다.{es} llamado Fin de Ronda. Todos los demás tienen un turno final.{fr} appelé la Fin de Rounde. Tout le monde a un dernier tour.{pt-br} chamado o fim de Rodada. Todos outros tem um turno final.{de} ende der Runde ausgerufen. Alle anderen haben einen letzten Zug."}), positionToColor(gStates.turnNumber))
 			--Delete mana token given by glade
 			for a, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
 				if playAreaObj.type=="Figurine" then playAreaObj.destruct() end
@@ -1035,16 +1035,16 @@ local function turnEndRoundAdvanceWorld()
 	for _, details in pairs(turnOrder) do if details.tactic==6 then scheduleDeedPileDescriptionRefresh(details.seatPos, "deed") end end
 
 	--Switch Day/Night Objects for Darkness is Coming
-	local dieValue={"{en}Red{ru}Красный{zh-tw}红色的{zh-cn}红色的{ko}빨간색{es}Rojo{fr}Rouge{pt-br}Vermelho{de}Rote",
-					"{en}Green{ru}Зеленый{zh-tw}绿色的{zh-cn}绿色的{ko}녹색{es}Verde{fr}Vert{pt-br}Verde{de}Grüne",
-					"{en}Blue{ru}Синий{zh-tw}蓝色的{zh-cn}蓝色的{ko}파란색{es}Azul{fr}Bleu{pt-br}Azul{de}Blaue",
-					"{en}White{ru}Белый{zh-tw}白色的{zh-cn}白色的{ko}흰색{es}Blanco{fr}Blanc{pt-br}Branco{de}Weiße",
-					"{en}Gold{ru}Золотой{zh-tw}金色的{zh-cn}金色的{ko}금색{es}Oro{fr}Or{pt-br}Ouro{de}Gold",
-					"{en}Black{ru}Черный{zh-tw}黑色的{zh-cn}黑色的{ko}흑색{es}Negro{fr}Noir{pt-br}Preto{de}Schwarz"}
+	local dieValue={"{en}Red{it}Rosso{ru}Красный{zh-tw}红色的{zh-cn}红色的{ko}빨간색{es}Rojo{fr}Rouge{pt-br}Vermelho{de}Rote",
+					"{en}Green{it}Verde{ru}Зеленый{zh-tw}绿色的{zh-cn}绿色的{ko}녹색{es}Verde{fr}Vert{pt-br}Verde{de}Grüne",
+					"{en}Blue{it}Blu{ru}Синий{zh-tw}蓝色的{zh-cn}蓝色的{ko}파란색{es}Azul{fr}Bleu{pt-br}Azul{de}Blaue",
+					"{en}White{it}Bianco{ru}Белый{zh-tw}白色的{zh-cn}白色的{ko}흰색{es}Blanco{fr}Blanc{pt-br}Branco{de}Weiße",
+					"{en}Gold{it}Oro{ru}Золотой{zh-tw}金色的{zh-cn}金色的{ko}금색{es}Oro{fr}Or{pt-br}Ouro{de}Gold",
+					"{en}Black{it}Nero{ru}Черный{zh-tw}黑色的{zh-cn}黑色的{ko}흑색{es}Negro{fr}Noir{pt-br}Preto{de}Schwarz"}
 	local virtualDie1=math.random(1,6)
 	local virtualDie2=math.random(1,6)
-	if gStates.darknessComing==true then broadcastToAll(joinLang({"{en}Virtual Dice rolled {ru}Виртуальный бросок кубика выпал на {zh-tw}投掷出{zh-cn}投掷出{ko}다음의 색 주사위 굴려짐: {es}Dados virtuales enrollados en {fr}Dés virtuels lancés {pt-br}Dados Virtuais Rolados {de}Virtuelle Würfel gewürfelt ", dieValue[virtualDie1], "{en} and {ru} и {zh-tw}和{zh-cn}和{ko}그리고{es} y {fr} et {pt-br} e {de} und ", dieValue[virtualDie2]}), {1,1,0.5}) end
-	if gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) then broadcastToAll("{en}Time of day has changed permanently{ru}Время дня изменилось до конца игры{zh-tw}白昼/黑夜停止交替了{zh-cn}白昼/黑夜停止交替了{ko}낮 또는 밤이 영원히 지속됩니다{es}La hora del día ha cambiado permanentemente{fr}L'heure de la journée a changé en permanence{pt-br}Tempo do dia mudado permanentemente.{de}Die Tageszeit hat sich dauerhaft geändert", {1,1,0.5}) end
+	if gStates.darknessComing==true then broadcastToAll(joinLang({"{en}Virtual Dice rolled {it}I dadi virtuali hanno ottenuto {ru}Виртуальный бросок кубика выпал на {zh-tw}投掷出{zh-cn}投掷出{ko}다음의 색 주사위 굴려짐: {es}Dados virtuales enrollados en {fr}Dés virtuels lancés {pt-br}Dados Virtuais Rolados {de}Virtuelle Würfel gewürfelt ", dieValue[virtualDie1], "{en} and {it} e {ru} и {zh-tw}和{zh-cn}和{ko}그리고{es} y {fr} et {pt-br} e {de} und ", dieValue[virtualDie2]}), {1,1,0.5}) end
+	if gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) then broadcastToAll("{en}Time of day has changed permanently{it}Il momento della giornata è cambiato definitivamente{ru}Время дня изменилось до конца игры{zh-tw}白昼/黑夜停止交替了{zh-cn}白昼/黑夜停止交替了{ko}낮 또는 밤이 영원히 지속됩니다{es}La hora del día ha cambiado permanentemente{fr}L'heure de la journée a changé en permanence{pt-br}Tempo do dia mudado permanentemente.{de}Die Tageszeit hat sich dauerhaft geändert", {1,1,0.5}) end
 	if gStates.darknessComing==false or (gStates.darknessComing==true and (virtualDie1==6 or virtualDie2==6) and gStates.timeChanged==false) then
 		gStates.timeChanged=true
 		dayNight()
@@ -1059,7 +1059,7 @@ local function turnEndRoundAdvanceWorld()
 		if getObjectFromGUID("fbd7fd")~=nil then getObjectFromGUID("fbd7fd").unregisterCollisions() end
 
 		--Reroll all mana dice
-		broadcastToAll("{en}Mana Dice Reset{ru}Кубики маны переброшены{zh-tw}魔力骰子重置{zh-cn}魔力骰子重置{ko}마나 주사위 리셋{es}Reinicio de Dados de Maná{fr}Réinitialisation des dés de Mana{pt-br}Dado de Mana Reiniciado.{de}Manawürfel zurückgesetzt", {1,1,0.5})
+		broadcastToAll("{en}Mana Dice Reset{it}Dadi Mana Ripristinati{ru}Кубики маны переброшены{zh-tw}魔力骰子重置{zh-cn}魔力骰子重置{ko}마나 주사위 리셋{es}Reinicio de Dados de Maná{fr}Réinitialisation des dés de Mana{pt-br}Dado de Mana Reiniciado.{de}Manawürfel zurückgesetzt", {1,1,0.5})
 		for a, die in pairs(getObjectFromGUID(GUID.zone.mana).getObjects()) do
 			if die.getName()=="Mana Dice" then
 				die.randomize()
@@ -1072,7 +1072,7 @@ end
 local function turnEndRoundReplenishMap()
 	--Rampage defeated sites
 	if gStates.rampage>=1 then
-		broadcastToAll("{en}Rampaging Tokens have been Replenished{ru}Клетки с яростными врагами получили новые жетоны{zh-tw}肆虐怪物标记已经补充{zh-cn}肆虐怪物标记已经补充{ko}광분하는 적 토큰이 보충되었습니다.{es}Se han reabastecido las fichas violentas.{fr}Les jetons déchaînés ont été réapprovisionnés{pt-br}Fichas Irascíveis foram Reabastecidas{de}Zornige Spielsteine wurden aufgefüllt", {1,1,0.5})
+		broadcastToAll("{en}Rampaging Tokens have been Replenished{it}Segnalini Nemico Errante Riforniti{ru}Клетки с яростными врагами получили новые жетоны{zh-tw}肆虐怪物标记已经补充{zh-cn}肆虐怪物标记已经补充{ko}광분하는 적 토큰이 보충되었습니다.{es}Se han reabastecido las fichas violentas.{fr}Les jetons déchaînés ont été réapprovisionnés{pt-br}Fichas Irascíveis foram Reabastecidas{de}Zornige Spielsteine wurden aufgefüllt", {1,1,0.5})
 		local northBearing=40
 		local startTileGUID=gStates.gameScenario=="Against the Horsemen Blitz" and GUID.tile.country01 or startTerrain.open
 		if getObjectFromGUID(startTileGUID)==nil and gStates.gameScenario~="Against the Horsemen Blitz" then startTileGUID=startTerrain.wedge northBearing=70 end
@@ -1099,7 +1099,7 @@ local function turnEndRoundRefreshOffers()
 	safeWaitTime("Turn",function()
 		if gStates.positionMageKnight[5]~="nobody" and gStates.positionMageKnight[5]~="Volkare" then
 			--Put advanced action in dummy deck
-			broadcastToAll(proxyPlayerIsActive()==true and "{en}Proxy Collected The First Advanced Action Card{ru}Прокси получил первую карту Продвинутого действия{zh-tw}代理玩家拿到了第一张高级行动卡{zh-cn}代理玩家拿到了第一张高级行动卡{ko}프록시가 첫 번째 상급 액션 카드를 가져갔습니다{es}Proxy consiguió la primera carta de Acción Avanzada.{fr}Le Proxy a récupéré la première carte d’Action Avancée{pt-br}Proxy pegou a primeira Carta de Ação Avançada{de}Proxy hat die erste Fortgeschrittene Aktionskarte genommen" or "{en}Dummy Collected The First Advance Action Card{ru}Нижняя карта из доступных Особых действий, добавлена в колоду деяний виртуального игрока{zh-tw}虚拟玩家拿到了第一张行动卡{zh-cn}虚拟玩家拿到了第一张行动卡{ko}마지막 상급 액션이 가상 플레이어 더미에 추가되었습니다{es}El muñeco ha conseguido la Primera carta de Acción Avanzada.{fr}Mannequin a récupéré la Première carte d'Action Avancée{pt-br}Jog. Fictício Clamou a primeira Carta de Ação{de}Dummy hat die erste Vorstoß-Aktionskarte gesammelt", {1,1,0.5})
+			broadcastToAll(proxyPlayerIsActive()==true and "{en}Proxy Collected The First Advanced Action Card{it}Il Proxy ha preso la prima Azione Avanzata{ru}Прокси получил первую карту Продвинутого действия{zh-tw}代理玩家拿到了第一张高级行动卡{zh-cn}代理玩家拿到了第一张高级行动卡{ko}프록시가 첫 번째 상급 액션 카드를 가져갔습니다{es}Proxy consiguió la primera carta de Acción Avanzada.{fr}Le Proxy a récupéré la première carte d’Action Avancée{pt-br}Proxy pegou a primeira Carta de Ação Avançada{de}Proxy hat die erste Fortgeschrittene Aktionskarte genommen" or "{en}Dummy Collected The First Advance Action Card{it}Il Fittizio ha preso la prima Azione Avanzata{ru}Нижняя карта из доступных Особых действий, добавлена в колоду деяний виртуального игрока{zh-tw}虚拟玩家拿到了第一张行动卡{zh-cn}虚拟玩家拿到了第一张行动卡{ko}마지막 상급 액션이 가상 플레이어 더미에 추가되었습니다{es}El muñeco ha conseguido la Primera carta de Acción Avanzada.{fr}Mannequin a récupéré la Première carte d'Action Avancée{pt-br}Jog. Fictício Clamou a primeira Carta de Ação{de}Dummy hat die erste Vorstoß-Aktionskarte gesammelt", {1,1,0.5})
 			local firstAction=mainOfferFirstCardByType("Advanced Action")
 			if firstAction~=nil then
 				firstAction.unlock()
@@ -1112,7 +1112,7 @@ local function turnEndRoundRefreshOffers()
 			local firstSpell=mainOfferFirstCardByType("Spell")
 			if firstSpell~=nil then spellColor=firstSpell.getDescription() end
 			if spellColor=="Red" or spellColor=="Blue" or spellColor=="Green" or spellColor=="White" then
-				broadcastToAll(joinLang({proxyPlayerIsActive()==true and "{en}Proxy added a {ru}Прокси получил {zh-tw}代理玩家添加了一个{zh-cn}代理玩家添加了一个{ko}프록시 저장 칸에 {es}Proxy agregó un cristal de maná {fr}Le Proxy a ajouté un cristal de mana {pt-br}Proxy adicionou um(a) {de}Der Proxy hat einen " or "{en}Dummy added a {ru}Виртуальный игрок получил {zh-tw}虚拟玩家添加了一个{zh-cn}虚拟玩家添加了一个{ko}가상 플레이어 저장 칸에 {es}Dummy agregó un cristal de maná {fr}Le mannequin a ajouté un cristal de mana {pt-br}Jog. Fictício adicionou um(a) {de}Die Puppe hat einen ", translateWord[spellColor], "{en} mana crystal to its inventory.{ru} кристалл маны{zh-tw}魔晶到他的装备区. {zh-cn}魔晶到他的装备区. {ko}수정을 추가했습니다{es} a su inventario.{fr} à son inventaire.{pt-br} Cristal de Mana para seu inventário.{de} manakristall in sein Inventar aufgenommen."}), {1,1,0.5})
+				broadcastToAll(joinLang({proxyPlayerIsActive()==true and "{en}Proxy added a {it}Il Proxy ha aggiunto un cristallo {ru}Прокси получил {zh-tw}代理玩家添加了一个{zh-cn}代理玩家添加了一个{ko}프록시 저장 칸에 {es}Proxy agregó un cristal de maná {fr}Le Proxy a ajouté un cristal de mana {pt-br}Proxy adicionou um(a) {de}Der Proxy hat einen " or "{en}Dummy added a {it}Il Fittizio ha aggiunto un cristallo {ru}Виртуальный игрок получил {zh-tw}虚拟玩家添加了一个{zh-cn}虚拟玩家添加了一个{ko}가상 플레이어 저장 칸에 {es}Dummy agregó un cristal de maná {fr}Le mannequin a ajouté un cristal de mana {pt-br}Jog. Fictício adicionou um(a) {de}Die Puppe hat einen ", translateWord[spellColor], "{en} mana crystal to its inventory.{it} al proprio inventario.{ru} кристалл маны{zh-tw}魔晶到他的装备区. {zh-cn}魔晶到他的装备区. {ko}수정을 추가했습니다{es} a su inventario.{fr} à son inventaire.{pt-br} Cristal de Mana para seu inventário.{de} manakristall in sein Inventar aufgenommen."}), {1,1,0.5})
 				local params={position={0, 1.65, 0}, rotation={0, 30, 0}, smooth=false}
 				local obj=nil
 				local crystalsPerRow=3
@@ -1136,7 +1136,7 @@ local function turnEndRoundRefreshOffers()
 					end
 				end
 			else
-				broadcastToAll("{en}Automated player found no valid Spell card during round preparation; no crystal was added.{ru}Автоматический игрок не нашёл подходящей карты Заклинания при подготовке раунда; кристалл не добавлен.{zh-tw}自動玩家在回合輪準備期間找不到有效的法術牌；未加入水晶。{zh-cn}自动玩家在回合轮准备期间找不到有效的法术牌；未加入水晶。{ko}자동 플레이어가 라운드 준비 중 유효한 주문 카드를 찾지 못해 크리스털을 추가하지 않았습니다.{es}El jugador automático no encontró una carta de Hechizo válida durante la preparación de la Ronda; no se añadió ningún cristal.{fr}Le joueur automatique n’a trouvé aucune carte Sort valide pendant la préparation de la Manche ; aucun cristal n’a été ajouté.{pt-br}O jogador automático não encontrou uma carta de Feitiço válida durante a preparação da Rodada; nenhum cristal foi adicionado.{de}Der automatisierte Spieler fand bei der Rundenvorbereitung keine gültige Zauberkarte; es wurde kein Kristall hinzugefügt.",{1,0.65,0.2})
+				broadcastToAll("{en}Automated player found no valid Spell card during round preparation; no crystal was added.{it}Il giocatore automatico non ha trovato Incantesimi validi durante la preparazione del round; nessun cristallo aggiunto.{ru}Автоматический игрок не нашёл подходящей карты Заклинания при подготовке раунда; кристалл не добавлен.{zh-tw}自動玩家在回合輪準備期間找不到有效的法術牌；未加入水晶。{zh-cn}自动玩家在回合轮准备期间找不到有效的法术牌；未加入水晶。{ko}자동 플레이어가 라운드 준비 중 유효한 주문 카드를 찾지 못해 크리스털을 추가하지 않았습니다.{es}El jugador automático no encontró una carta de Hechizo válida durante la preparación de la Ronda; no se añadió ningún cristal.{fr}Le joueur automatique n’a trouvé aucune carte Sort valide pendant la préparation de la Manche ; aucun cristal n’a été ajouté.{pt-br}O jogador automático não encontrou uma carta de Feitiço válida durante a preparação da Rodada; nenhum cristal foi adicionado.{de}Der automatisierte Spieler fand bei der Rundenvorbereitung keine gültige Zauberkarte; es wurde kein Kristall hinzugefügt.",{1,0.65,0.2})
 			end
 		else
 			--Discards an Advance Action
@@ -1161,13 +1161,13 @@ local function turnEndRoundRefreshOffers()
 		--Turn on advanced units for last half of game in "Conquer and Hold"
 		if gStates.currentRound > gStates.rounds/2 and gStates.gameScenario=="Conquer and Hold" then
 			gStates.eliteUnitsUsed=true
-			broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут добавлены в следующее предложение{zh-tw}下一次供應將加入精英部隊{zh-cn}下一次供应将加入精英部队{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten werden in das nächste Angebot aufgenommen", {1,1,0.5})
+			broadcastToAll("{en}Elite Units are included in the next Offer{it}Le Unità Élite saranno incluse nella prossima Offerta{ru}Элитные отряды будут добавлены в следующее предложение{zh-tw}下一次供應將加入精英部隊{zh-cn}下一次供应将加入精英部队{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten werden in das nächste Angebot aufgenommen", {1,1,0.5})
 		end
 
 		--Cycle all the offers
 		safeWaitTime("Turn",function()
-			broadcastToAll("{en}Unit Offer Refreshed{ru}Доступные отряды обновлены{zh-tw}部队供应区刷新了{zh-cn}部队供应区刷新了{ko}유닛 공급처가 갱신되었습니다{es}Oferta de Unidad Actualizada{fr}Offre Unitaire Rafraîchie{pt-br}Oferta de Unidades Atualizadas{de}Einheitenangebot aufgefrischt", {1,1,0.5})
-			broadcastToAll("{en}Advanced Actions and Spells cycled.{ru}Особые действия и Заклинания обновлены.{zh-tw}高级动作卡和法术卡供应区更新了{zh-cn}高级动作卡和法术卡供应区更新了{ko}상급 액션과 마법 카드 공급처가 갱신되었습니다.{es}Acciones Avanzadas y Hechizos ciclados.{fr}Actions Avancées et Sorts cyclés.{pt-br}Ações Avançadas e Feitiços reciclados.{de}Fortgeschrittene Aktionen und Zaubersprüche gewirkt.", {1,1,0.5})
+			broadcastToAll("{en}Unit Offer Refreshed{it}Offerta Unità Rinnovata{ru}Доступные отряды обновлены{zh-tw}部队供应区刷新了{zh-cn}部队供应区刷新了{ko}유닛 공급처가 갱신되었습니다{es}Oferta de Unidad Actualizada{fr}Offre Unitaire Rafraîchie{pt-br}Oferta de Unidades Atualizadas{de}Einheitenangebot aufgefrischt", {1,1,0.5})
+			broadcastToAll("{en}Advanced Actions and Spells cycled.{it}Azioni Avanzate e Incantesimi ruotati.{ru}Особые действия и Заклинания обновлены.{zh-tw}高级动作卡和法术卡供应区更新了{zh-cn}高级动作卡和法术卡供应区更新了{ko}상급 액션과 마법 카드 공급처가 갱신되었습니다.{es}Acciones Avanzadas y Hechizos ciclados.{fr}Actions Avancées et Sorts cyclés.{pt-br}Ações Avançadas e Feitiços reciclados.{de}Fortgeschrittene Aktionen und Zaubersprüche gewirkt.", {1,1,0.5})
 			broadcastToAll("-------------------", {1,1,0.5})
 			unitOffer()
 			compactAndRefillDeedOffer()
@@ -1177,7 +1177,7 @@ end
 
 local function turnEndRoundRefreshSkillsAndUnits()
 	--Flip all skills
-	broadcastToAll("{en}All Mage Knight Skills Reset{ru}Жетоны навыков снова готовы к использованию{zh-tw}所有魔法骑士的技能重置{zh-cn}所有魔法骑士的技能重置{ko}모든 스킬이 리셋 되었습니다{es}Restablecimiento de Todas las Habilidades de Mage Knight{fr}Réinitialisation de Toutes les Compétences de Mage Knight{pt-br}Todas as Hab. de MK Redefinidas{de}Alle Magier-Ritter-Fähigkeiten zurückgesetzt", {1,1,0.5})
+	broadcastToAll("{en}All Mage Knight Skills Reset{it}Tutte le Abilità dei Mage Knight Ripristinate{ru}Жетоны навыков снова готовы к использованию{zh-tw}所有魔法骑士的技能重置{zh-cn}所有魔法骑士的技能重置{ko}모든 스킬이 리셋 되었습니다{es}Restablecimiento de Todas las Habilidades de Mage Knight{fr}Réinitialisation de Toutes les Compétences de Mage Knight{pt-br}Todas as Hab. de MK Redefinidas{de}Alle Magier-Ritter-Fähigkeiten zurückgesetzt", {1,1,0.5})
 	for skillGUID, skillDetails in pairs(skillTokens) do
 		if getObjectFromGUID(skillGUID)~=nil then getObjectFromGUID(skillGUID).setRotationSmooth({0.0, 180.0, 0.0},false,false) end
 	end
@@ -1194,7 +1194,7 @@ local function turnEndRoundRefreshSkillsAndUnits()
 	gStates.tomeSkillSwapPending={}
 
 	--Ready all units
-	broadcastToAll ("{en}All Units are Ready for combat again{ru}Все отряды готовы к бою{zh-tw}所有部队准备好再次迎战了{zh-cn}所有部队准备好再次迎战了{ko}유닛이 다시 전투할 준비가 되었습니다{es}Todas las unidades están listas para el combate de nuevo.{fr}Toutes les unités sont à nouveau prêtes pour le combat{pt-br}Todas Unidades estão prontas para combater novamente{de}Alle Einheiten sind wieder bereit für den Kampf", {1,1,0.5})
+	broadcastToAll ("{en}All Units are Ready for combat again{it}Tutte le Unità sono di nuovo Pronte al combattimento{ru}Все отряды готовы к бою{zh-tw}所有部队准备好再次迎战了{zh-cn}所有部队准备好再次迎战了{ko}유닛이 다시 전투할 준비가 되었습니다{es}Todas las unidades están listas para el combate de nuevo.{fr}Toutes les unités sont à nouveau prêtes pour le combat{pt-br}Todas Unidades estão prontas para combater novamente{de}Alle Einheiten sind wieder bereit für den Kampf", {1,1,0.5})
 	local commandTokens={"12e399", "87cff0", "7a2083", "4af106", "ab5b0d", "88f6c1",--Braevalar Command
 						"07eec8", "d9f39d", "ea80e4", "dbc3f1", "442ad5", "4aa025",--Krang command
 						"a0f780", "47d922", "a8f242", "d960d3", "493833", "6bfe5b",--Ymirgh command
@@ -1231,7 +1231,7 @@ local function turnEndRoundRefreshSkillsAndUnits()
 		if getObjectFromGUID(magicFamiliarGUID)~=nil and getObjectFromGUID(magicFamiliarGUID).getPosition()[3]<-30 then
 			local pos=getObjectFromGUID(magicFamiliarGUID).getPosition()
 			getObjectFromGUID(magicFamiliarGUID).setPositionSmooth({pos[1], pos[2], pos[3]-3},false,false)
-			if blurbed==false then broadcastToAll("{en}Magic Familiars are looking for more Mana to sustain them.{ru}Магические фамильяры жаждут ману для поддержания своей жизни.{zh-tw}法师们正在寻找更多的法力来供能他们。 {zh-cn}法师们正在寻找更多的法力来供能他们。 {ko}마법 패밀리어가 힘을 유지하기 위한 마나를 요구합니다.{es}Los Familiares Mágicos buscan más Maná para sustentarlos.{fr}Les Familiers Magiques recherchent plus de Mana pour les soutenir.{pt-br}Familiares Mágicos estão procurando por mais Mana para sustentá-los.{de}Magische Vertraute suchen nach mehr Mana, um sie zu unterstützen.", {1,1,0.5}) blurbed=true end
+			if blurbed==false then broadcastToAll("{en}Magic Familiars are looking for more Mana to sustain them.{it}I Famigli Magici cercano altro Mana per sostenersi.{ru}Магические фамильяры жаждут ману для поддержания своей жизни.{zh-tw}法师们正在寻找更多的法力来供能他们。 {zh-cn}法师们正在寻找更多的法力来供能他们。 {ko}마법 패밀리어가 힘을 유지하기 위한 마나를 요구합니다.{es}Los Familiares Mágicos buscan más Maná para sustentarlos.{fr}Les Familiers Magiques recherchent plus de Mana pour les soutenir.{pt-br}Familiares Mágicos estão procurando por mais Mana para sustentá-los.{de}Magische Vertraute suchen nach mehr Mana, um sie zu unterstützen.", {1,1,0.5}) blurbed=true end
 		end
 	end
 end
@@ -1288,7 +1288,7 @@ local function turnEndRoundResetPlayerDecks()
 			end
 		end
 	end
-	broadcastToAll ("{en}Deed Decks reset and shuffled{ru}Колоды деяний собраны и перетасованы{zh-tw}功能牌区重置并洗牌{zh-cn}功能牌区重置并洗牌{ko}카드 더미를 셔플했습니다{es}Deed Decks reiniciados y barajados{fr}Deed Decks réinitialisés et mélangés{pt-br}Baralhos de Façanhas reiniciados e embaralhados{de}Deed Decks werden zurückgesetzt und neu gemischt", {1,1,0.5})
+	broadcastToAll ("{en}Deed Decks reset and shuffled{it}Mazzi Gesta ripristinati e mescolati{ru}Колоды деяний собраны и перетасованы{zh-tw}功能牌区重置并洗牌{zh-cn}功能牌区重置并洗牌{ko}카드 더미를 셔플했습니다{es}Deed Decks reiniciados y barajados{fr}Deed Decks réinitialisés et mélangés{pt-br}Baralhos de Façanhas reiniciados e embaralhados{de}Deed Decks werden zurückgesetzt und neu gemischt", {1,1,0.5})
 
 end
 
@@ -1303,7 +1303,7 @@ local function turnEndRoundPrepareTurnOrder()
 	for a=1, #turnOrder, 1 do if playerDropoutInactive(a)==false then gStates.turnNumber=a break end end
 	gStates.realTurn=gStates.turnNumber
 	applyColorBarButtons()
-	broadcastToAll(joinLang({"{en}It is now {ru}Ходит {zh-tw}现在是{zh-cn}现在是{ko}{es}Ahora es el turno de {fr}C'est maintenant au tour de {pt-br}é agora turno de {de}Jetzt ist ", translateWord[turnOrder[gStates.turnNumber].mage], "{en}'s turn.{ru} {zh-tw}的回合{zh-cn}的回合{ko}의 차례입니다.{es}.{fr}.{pt-br}.{de} an der Reihe."}), positionToColor(gStates.turnNumber))
+	broadcastToAll(joinLang({"{en}It is now {it}Ora è {ru}Ходит {zh-tw}现在是{zh-cn}现在是{ko}{es}Ahora es el turno de {fr}C'est maintenant au tour de {pt-br}é agora turno de {de}Jetzt ist ", translateWord[turnOrder[gStates.turnNumber].mage], "{en}'s turn.{it}.{ru} {zh-tw}的回合{zh-cn}的回合{ko}의 차례입니다.{es}.{fr}.{pt-br}.{de} an der Reihe."}), positionToColor(gStates.turnNumber))
 	gStates.tacticTwoState="notUsed"
 	gStates.tacticFourState="notUsed"
 	gStates.tacticSixState="notClaimed"
@@ -1392,7 +1392,7 @@ local function turnEndRoundFinalizeImmediateState()
 	for a, b in pairs(turnOrder) do	b.discardCount=0 end
 
 	--Stops the button on last round
-	if gStates.currentRound==gStates.rounds then broadcastToAll("{en}Final Round{ru}Последний Раунд{zh-tw}最终回合{zh-cn}最终回合{ko}마지막 라운드{es}Ronda Final{fr}Tour Final{pt-br}Rodada Final{de}Letzte Runde", {1,1,0.5}) end
+	if gStates.currentRound==gStates.rounds then broadcastToAll("{en}Final Round{it}Ultimo Round{ru}Последний Раунд{zh-tw}最终回合{zh-cn}最终回合{ko}마지막 라운드{es}Ronda Final{fr}Tour Final{pt-br}Rodada Final{de}Letzte Runde", {1,1,0.5}) end
 end
 
 function __endRound_raw(rewindReady)
@@ -1420,7 +1420,7 @@ function dayNight(targetDay, setupPreview)
 		tileColor={r=1.0, g=1.0, b=1.0}
 		local nightObject={GUID.ui.nightTint, "0f95b7", "9e7de3", "ee9e66", "717bcc", "39ca3f", GUID.deck.nightWeather}
 					--Day Board, 5 Weather Tokens, weather deck
-		if setupPreview~=true then broadcastToAll("{en}Day has Risen{ru}Наступает день{zh-tw}天亮了{zh-cn}天亮了{ko}아침이 밝았습니다{es}El Día ha Resucitado{fr}Le Jour s'est Levé{pt-br}A Manhã Chegou{de}Der Tag ist auferstanden", {1,1,0.5}) end
+		if setupPreview~=true then broadcastToAll("{en}Day has Risen{it}È Sorto il Giorno{ru}Наступает день{zh-tw}天亮了{zh-cn}天亮了{ko}아침이 밝았습니다{es}El Día ha Resucitado{fr}Le Jour s'est Levé{pt-br}A Manhã Chegou{de}Der Tag ist auferstanden", {1,1,0.5}) end
 		for i=1, #nightObject, 1 do
 			if getObjectFromGUID(nightObject[i])~=nil then getObjectFromGUID(nightObject[i]).setState(1) end
 		end
@@ -1434,7 +1434,7 @@ function dayNight(targetDay, setupPreview)
 				found=true
 			end
 		end
-		if found==true then broadcastToAll("{en}Ruins are revealed{ru}Все руины были раскрыты{zh-tw}废墟被探索了{zh-cn}废墟被探索了{ko}유적 공개됨{es}Las Ruinas se Revelan{fr}Les Ruines sont Révélées{pt-br}Ruinas são Reveladas{de}Ruinen werden aufgedeckt", {1,1,0.5}) end
+		if found==true then broadcastToAll("{en}Ruins are revealed{it}Rovine rivelate{ru}Все руины были раскрыты{zh-tw}废墟被探索了{zh-cn}废墟被探索了{ko}유적 공개됨{es}Las Ruinas se Revelan{fr}Les Ruines sont Révélées{pt-br}Ruinas são Reveladas{de}Ruinen werden aufgedeckt", {1,1,0.5}) end
 		if setupPreview~=true then
 			safeWaitFrames("Turn",function()
 				if getObjectFromGUID(GUID.deck.dayWeather)~=nil then getObjectFromGUID(GUID.deck.dayWeather).shuffle() end
@@ -1445,14 +1445,14 @@ function dayNight(targetDay, setupPreview)
 		gStates.nightTint=false
 		gStates.moveCost["forest"]=3
 		gStates.moveCost["desert"]=5
-		UI.setAttribute("MoveCostDeserText", "text", "{en}Deserts : 5{ru}Пустыни : 5{zh-tw}沙漠：5{zh-cn}沙漠：5{ko}사막 : 5{es}Desiertos : 5{fr}Déserts : 5{pt-br}Desertos : 5{de}Wüsten : 5")
-		UI.setAttribute("MoveCostForesText", "text", "{en}Forests : 3{ru}Леса : 3{zh-tw}森林：3{zh-cn}森林：3{ko}숲 : 3{es}Bosques : 3{fr}Forêts : 3{pt-br}Florestas : 3{de}Wälder : 3")
+		UI.setAttribute("MoveCostDeserText", "text", "{en}Deserts : 5{it}Deserti : 5{ru}Пустыни : 5{zh-tw}沙漠：5{zh-cn}沙漠：5{ko}사막 : 5{es}Desiertos : 5{fr}Déserts : 5{pt-br}Desertos : 5{de}Wüsten : 5")
+		UI.setAttribute("MoveCostForesText", "text", "{en}Forests : 3{it}Foreste : 3{ru}Леса : 3{zh-tw}森林：3{zh-cn}森林：3{ko}숲 : 3{es}Bosques : 3{fr}Forêts : 3{pt-br}Florestas : 3{de}Wälder : 3")
 		if setupPreview~=true then scheduleAvatarDropRefresh() end
 	else
 		tileColor={r=0.6, g=0.6, b=0.6}
 		local dayObject={"a02b0f", GUID.bag.weather.blazingSun, GUID.bag.weather.overcast, GUID.bag.weather.snowfall, GUID.bag.weather.rain, GUID.bag.weather.thunder, GUID.deck.dayWeather}
 					--Day Board, 5 Weather Tokens, weather deck
-		if setupPreview~=true then broadcastToAll("{en}Night has Fallen{ru}Наступает ночь{zh-tw}黑夜降临了{zh-cn}黑夜降临了{ko}밤이 되었습니다{es}La Noche ha Caído{fr}La Nuit est Tombée{pt-br}A Noite Caiu{de}Die Nacht ist hereingebrochen", {1,1,0.5}) end
+		if setupPreview~=true then broadcastToAll("{en}Night has Fallen{it}È Calata la Notte{ru}Наступает ночь{zh-tw}黑夜降临了{zh-cn}黑夜降临了{ko}밤이 되었습니다{es}La Noche ha Caído{fr}La Nuit est Tombée{pt-br}A Noite Caiu{de}Die Nacht ist hereingebrochen", {1,1,0.5}) end
 		for i=1, #dayObject, 1 do
 			if getObjectFromGUID(dayObject[i])~=nil then getObjectFromGUID(dayObject[i]).setState(2) end
 		end
@@ -1461,7 +1461,7 @@ function dayNight(targetDay, setupPreview)
 			if getObjectFromGUID(GUID.ui.nightTint)~=nil then
 				getObjectFromGUID(GUID.ui.nightTint).UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
 					children={	{tag="Image",  attributes={id="43fa2eNightTintImage", image="Sliced Button/Button Object Active", type="Sliced"}},
-							{tag="Text",  attributes={id="43fa2eNightTintText", font="Fonts/MKCardText", fontSize="90", color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}No Tint{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin tinte{fr}Sans teinte{pt-br}Sem tonalidade{de}Keine Tönung"}}}}})
+							{tag="Text",  attributes={id="43fa2eNightTintText", font="Fonts/MKCardText", fontSize="90", color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}No Tint{it}Nessuna Tinta{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin tinte{fr}Sans teinte{pt-br}Sem tonalidade{de}Keine Tönung"}}}}})
 				getObjectFromGUID(GUID.ui.nightTint).interactable=false
 			end
 		end
@@ -1470,8 +1470,8 @@ function dayNight(targetDay, setupPreview)
 		gStates.nightTint=true
 		gStates.moveCost["forest"]=5
 		gStates.moveCost["desert"]=3
-		UI.setAttribute("MoveCostDeserText", "text", "{en}Deserts : 3{ru}Пустыни : 3{zh-tw}沙漠：3{zh-cn}沙漠：3{ko}사막 : 3{es}Desiertos : 3{fr}Déserts : 3{pt-br}Desertos : 3{de}Wüsten : 3")
-		UI.setAttribute("MoveCostForesText", "text", "{en}Forests : 5{ru}Леса : 5{zh-tw}森林：5{zh-cn}森林：5{ko}숲 : 5{es}Bosques : 5{fr}Forêts : 5{pt-br}Florestas : 5{de}Wälder : 5")
+		UI.setAttribute("MoveCostDeserText", "text", "{en}Deserts : 3{it}Deserti : 3{ru}Пустыни : 3{zh-tw}沙漠：3{zh-cn}沙漠：3{ko}사막 : 3{es}Desiertos : 3{fr}Déserts : 3{pt-br}Desertos : 3{de}Wüsten : 3")
+		UI.setAttribute("MoveCostForesText", "text", "{en}Forests : 5{it}Foreste : 5{ru}Леса : 5{zh-tw}森林：5{zh-cn}森林：5{ko}숲 : 5{es}Bosques : 5{fr}Forêts : 5{pt-br}Florestas : 5{de}Wälder : 5")
 	end
 
 	--Make terrain tile light or dark
@@ -1537,7 +1537,7 @@ function dayTactic2ButtonActivate()
 		if card==nil or currentOwner==nil then return end
 		if cardEffectIsVertical(card)==true and gStates.tacticTwoState~="Used" then
 			local scale=0.32*0.6521739130434783
-			local text="{en}Day Tactic 2\nClick after Card(s) have been discarded{ru}Тактика дня 2\nЩелкните после сброса карт{zh-tw}白天战术卡2\n弃牌后单击此处{zh-cn}白天战术卡2\n弃牌后单击此处{ko}낮 전략 2\n버릴 카드를 놓고 클릭하세요.{es}Táctica del día 2\nHaz clic después de descartar carta(s){fr}Tactique de Jour 2\nCliquez après avoir défaussé la/les carte(s){pt-br}Tática do Dia 2\nClique depois de descartar a(s) carta(s){de}Tagestaktik 2\nNach dem Abwerfen der Karte(n) klicken"
+			local text="{en}Day Tactic 2\nClick after Card(s) have been discarded{it}Tattica Giorno 2\nPremi dopo aver scartato le carte{ru}Тактика дня 2\nЩелкните после сброса карт{zh-tw}白天战术卡2\n弃牌后单击此处{zh-cn}白天战术卡2\n弃牌后单击此处{ko}낮 전략 2\n버릴 카드를 놓고 클릭하세요.{es}Táctica del día 2\nHaz clic después de descartar carta(s){fr}Tactique de Jour 2\nCliquez après avoir défaussé la/les carte(s){pt-br}Tática do Dia 2\nClique depois de descartar a(s) carta(s){de}Tagestaktik 2\nNach dem Abwerfen der Karte(n) klicken"
 			card.UI.setXmlTable({{tag="Button", attributes={id="a000a4DayTactic2Discard", onClick="global/dayTactic2Discarded", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height="300", width="650", position="-317 -140 -1", rotation="0 0 180", scale=tostring(scale).." "..tostring(scale)},
 				children={{tag="Image", attributes={id="a000a4DayTactic2DiscardImage", image="Sliced Button/Button Object Active", type="Sliced"}},
 					{tag="HorizontalLayout", attributes={padding="20 20 20 20"}, children={{tag="Text", attributes={id="a000a4DayTactic2DiscardText", font="Fonts/MKCardText", fontSize="65", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="65", text=text}}}}}}})
@@ -1575,7 +1575,7 @@ dayTactic2Discarded=function(player, mouseButton, id)
 	local playerPosition=math.ceil((tactic.getPosition()[1]+78)/40)
 	if Player[playerColor]~=nil and Player[playerColor].seated==true and playerColor~="Black" and Player[playerColor].getHandTransform()~=nil then playerPosition=math.ceil((Player[playerColor].getHandTransform().position[1]+97.59)/40) end
 	local tacticPosition=math.ceil((tactic.getPosition()[1]+78)/40)
-	if playerPosition~=tacticPosition then broadcastToAll("{en}That’s not for you to decide.{ru}Это решаете не вы.{zh-tw}這不是由你決定的。{zh-cn}这不是由你决定的。{ko}당신이 결정할 일이 아닙니다.{es}Eso no te corresponde decidirlo.{fr}Ce n’est pas à vous de décider.{pt-br}Isso não cabe a você decidir.{de}Das entscheidest nicht du.", warningColor) return end
+	if playerPosition~=tacticPosition then broadcastToAll("{en}That’s not for you to decide.{it}Non spetta a te decidere.{ru}Это решаете не вы.{zh-tw}這不是由你決定的。{zh-cn}这不是由你决定的。{ko}당신이 결정할 일이 아닙니다.{es}Eso no te corresponde decidirlo.{fr}Ce n’est pas à vous de décider.{pt-br}Isso não cabe a você decidir.{de}Das entscheidest nicht du.", warningColor) return end
 	local playerIndex=nil
 	local playerMage=nil
 	for a, details in pairs(turnOrder) do if details.seatPos==playerPosition then playerIndex=a playerMage=details.mage break end end
@@ -1610,7 +1610,7 @@ dayTactic2Discarded=function(player, mouseButton, id)
 		end
 		if discards==nil then return end
 		local drawCount=discards.tag=="Deck" and discards.getQuantity() or 1
-		if drawCount>3 then broadcastToAll("{en}You have discarded too many cards.{ru}Вы сбросили слишком много карт.{zh-tw}你棄掉了太多牌。{zh-cn}你弃掉了太多牌。{ko}카드를 너무 많이 버렸습니다.{es}Has descartado demasiadas cartas.{fr}Vous avez défaussé trop de cartes.{pt-br}Você descartou cartas demais.{de}Du hast zu viele Karten abgeworfen.", warningColor) return end
+		if drawCount>3 then broadcastToAll("{en}You have discarded too many cards.{it}Hai scartato troppe carte.{ru}Вы сбросили слишком много карт.{zh-tw}你棄掉了太多牌。{zh-cn}你弃掉了太多牌。{ko}카드를 너무 많이 버렸습니다.{es}Has descartado demasiadas cartas.{fr}Vous avez défaussé trop de cartes.{pt-br}Você descartou cartas demais.{de}Du hast zu viele Karten abgeworfen.", warningColor) return end
 		--The use is committed once a valid discard pile has been found. Remove the button now
 		--rather than leaving a second click available while the replacement draws are resolving.
 		dayTactic2SetUsed()
@@ -1677,7 +1677,7 @@ function nightTactic2(player, mouseButton, id)
 				end
 			end
 			if discards==nil then
-				broadcastToColor("{en}Night Tactic 2: there are no discarded Deed cards to return.{ru}Ночная тактика 2: нет сброшенных карт Действий для возврата.{zh-tw}夜間戰術 2：沒有可放回的已棄行動牌。{zh-cn}夜间战术 2：没有可放回的已弃行动牌。{ko}야간 전술 2: 되돌릴 버린 행동 카드가 없습니다.{es}Táctica Nocturna 2: no hay cartas de Acción descartadas para devolver.{fr}Tactique Nocturne 2 : aucune carte Action défaussée ne peut être remise.{pt-br}Tática Noturna 2: não há cartas de Ação descartadas para devolver.{de}Nachttaktik 2: Es gibt keine abgeworfenen Aktionskarten zum Zurücklegen.",player.color,warningColor)
+				broadcastToColor("{en}Night Tactic 2: there are no discarded Deed cards to return.{it}Tattica Notte 2: nessuna carta Gesta scartata da recuperare.{ru}Ночная тактика 2: нет сброшенных карт Действий для возврата.{zh-tw}夜間戰術 2：沒有可放回的已棄行動牌。{zh-cn}夜间战术 2：没有可放回的已弃行动牌。{ko}야간 전술 2: 되돌릴 버린 행동 카드가 없습니다.{es}Táctica Nocturna 2: no hay cartas de Acción descartadas para devolver.{fr}Tactique Nocturne 2 : aucune carte Action défaussée ne peut être remise.{pt-br}Tática Noturna 2: não há cartas de Ação descartadas para devolver.{de}Nachttaktik 2: Es gibt keine abgeworfenen Aktionskarten zum Zurücklegen.",player.color,warningColor)
 				return
 			end
 
@@ -1691,7 +1691,7 @@ function nightTactic2(player, mouseButton, id)
 					mainUIUpdate("Night Tactic 2 Unused")
 					return
 				end
-				broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic 2 to return up to 3 random discards to their Deed Deck.{ru} использует Тактику 2, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний.{zh-tw}使用戰術 2，將最多 3 張隨機棄牌放回行動牌庫。{zh-cn}使用战术 2，将最多 3 张随机弃牌放回行动牌库。{ko}: 전술 2를 사용해 무작위 버린 카드 최대 3장을 행동 덱으로 되돌립니다.{es} usó la Táctica 2 para devolver hasta 3 descartes aleatorios a su mazo de Acciones.{fr} utilise la Tactique 2 pour remettre jusqu’à 3 cartes défaussées aléatoires dans son paquet Action.{pt-br} usou a Tática 2 para devolver até 3 descartes aleatórios ao Baralho de Ações.{de} verwendet Taktik 2, um bis zu 3 zufällige Abwürfe in das Aktionsdeck zurückzulegen."}), positionToColor(a))
+				broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic 2 to return up to 3 random discards to their Deed Deck.{it} ha usato la Tattica 2 per rimettere fino a 3 scarti casuali nel mazzo Gesta.{ru} использует Тактику 2, чтобы вернуть до 3 случайных карт из сброса в Колоду деяний.{zh-tw}使用戰術 2，將最多 3 張隨機棄牌放回行動牌庫。{zh-cn}使用战术 2，将最多 3 张随机弃牌放回行动牌库。{ko}: 전술 2를 사용해 무작위 버린 카드 최대 3장을 행동 덱으로 되돌립니다.{es} usó la Táctica 2 para devolver hasta 3 descartes aleatorios a su mazo de Acciones.{fr} utilise la Tactique 2 pour remettre jusqu’à 3 cartes défaussées aléatoires dans son paquet Action.{pt-br} usou a Tática 2 para devolver até 3 descartes aleatórios ao Baralho de Ações.{de} verwendet Taktik 2, um bis zu 3 zufällige Abwürfe in das Aktionsdeck zurückzulegen."}), positionToColor(a))
 				mainUIUpdate("Night Tactic 2 Used")
 			end)
 			break
@@ -1725,7 +1725,7 @@ function nightTactic4(player, mouseButton, id)
 							if getObjectFromGUID(tacticCard[10]).is_face_down==false then getObjectFromGUID(tacticCard[10]).flip() end
 							--Update states and buttons
 							gStates.tacticFourState="Used"
-							broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic 4 to redraw hand{ru} использует Тактику 4 для добора{zh-tw}使用战术4重抽手牌{zh-cn}使用战术4重抽手牌{ko}: 전략 카드 4 사용. 카드를 다시 뽑습니다. {es} usé la Táctica 4 para volver a dibujar la mano{fr} utilisé Tactic 4 pour redessiner la main{pt-br} usou a Tática 4 para re-comprar mão.{de} taktik 4 verwendet, um die Hand neu zu ziehen"}), positionToColor(a))
+							broadcastToAll(joinLang({translateWord[turnOrder[a].mage], "{en} used Tactic 4 to redraw hand{it} ha usato la Tattica 4 per ripescare la mano.{ru} использует Тактику 4 для добора{zh-tw}使用战术4重抽手牌{zh-cn}使用战术4重抽手牌{ko}: 전략 카드 4 사용. 카드를 다시 뽑습니다. {es} usé la Táctica 4 para volver a dibujar la mano{fr} utilisé Tactic 4 pour redessiner la main{pt-br} usou a Tática 4 para re-comprar mão.{de} taktik 4 verwendet, um die Hand neu zu ziehen"}), positionToColor(a))
 							mainUIUpdate("night Tactic 4 Used")
 						end, 1)
 					end
@@ -1870,7 +1870,7 @@ function nightTactic6(player, mouseButton, id)
 						end
 					end
 					if drawn==nil then
-						if turnOrder[playerIndex].mage=="Coral" then broadcastToAll("{en}Night Tactic 6: Coral has no normal Deed card available to store.{ru}Ночная тактика 6: у Coral нет обычной карты Действия, которую можно сохранить.{zh-tw}夜間戰術 6：Coral 沒有可儲存的一般行動牌。{zh-cn}夜间战术 6：Coral 没有可储存的一般行动牌。{ko}야간 전술 6: Coral에게 저장할 수 있는 일반 행동 카드가 없습니다.{es}Táctica Nocturna 6: Coral no tiene ninguna carta de Acción normal disponible para guardar.{fr}Tactique Nocturne 6 : Coral n’a aucune carte Action normale à conserver.{pt-br}Tática Noturna 6: Coral não tem nenhuma carta de Ação normal disponível para guardar.{de}Nachttaktik 6: Coral hat keine normale Aktionskarte zum Speichern.", positionToColor(playerIndex)) end
+						if turnOrder[playerIndex].mage=="Coral" then broadcastToAll("{en}Night Tactic 6: Coral has no normal Deed card available to store.{it}Tattica Notte 6: Coral non ha carte Gesta normali da conservare.{ru}Ночная тактика 6: у Coral нет обычной карты Действия, которую можно сохранить.{zh-tw}夜間戰術 6：Coral 沒有可儲存的一般行動牌。{zh-cn}夜间战术 6：Coral 没有可储存的一般行动牌。{ko}야간 전술 6: Coral에게 저장할 수 있는 일반 행동 카드가 없습니다.{es}Táctica Nocturna 6: Coral no tiene ninguna carta de Acción normal disponible para guardar.{fr}Tactique Nocturne 6 : Coral n’a aucune carte Action normale à conserver.{pt-br}Tática Noturna 6: Coral não tem nenhuma carta de Ação normal disponível para guardar.{de}Nachttaktik 6: Coral hat keine normale Aktionskarte zum Speichern.", positionToColor(playerIndex)) end
 						return
 					end
 
@@ -1902,7 +1902,7 @@ function nightTactic6(player, mouseButton, id)
 				claimNightTactic6StoredCards(seatPos, function(failed)
 					if #failed>0 then
 						gStates.tacticSixState="notClaimed"
-						broadcastToAll(joinLang({"{en}Night Tactic 6 could not find {ru}Ночная тактика 6 не смогла найти {zh-tw}夜間戰術 6 找不到 {zh-cn}夜间战术 6 找不到 {ko}야간 전술 6에서 저장한 카드 {es}Táctica Nocturna 6 no pudo encontrar {fr}Tactique Nocturne 6 n’a pas pu retrouver {pt-br}Tática Noturna 6 não conseguiu encontrar {de}Nachttaktik 6 konnte ",tostring(#failed),"{en} stored card(s).{ru} сохранённых карт(ы).{zh-tw} 張已儲存的牌。{zh-cn} 张已储存的牌。{ko}장을 찾지 못했습니다.{es} carta(s) guardada(s).{fr} carte(s) conservée(s).{pt-br} carta(s) guardada(s).{de} gespeicherte Karte(n) nicht finden."}), warningColor)
+						broadcastToAll(joinLang({"{en}Night Tactic 6 could not find {it}La Tattica Notte 6 non ha trovato {ru}Ночная тактика 6 не смогла найти {zh-tw}夜間戰術 6 找不到 {zh-cn}夜间战术 6 找不到 {ko}야간 전술 6에서 저장한 카드 {es}Táctica Nocturna 6 no pudo encontrar {fr}Tactique Nocturne 6 n’a pas pu retrouver {pt-br}Tática Noturna 6 não conseguiu encontrar {de}Nachttaktik 6 konnte ",tostring(#failed),"{en} stored card(s).{it} carte conservate.{ru} сохранённых карт(ы).{zh-tw} 張已儲存的牌。{zh-cn} 张已储存的牌。{ko}장을 찾지 못했습니다.{es} carta(s) guardada(s).{fr} carte(s) conservée(s).{pt-br} carta(s) guardada(s).{de} gespeicherte Karte(n) nicht finden."}), warningColor)
 						outOfTurnUIStateKey=nil
 						mainUIUpdate("Night Tactic 6 Claim Failed")
 						return

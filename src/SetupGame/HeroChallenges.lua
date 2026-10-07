@@ -91,7 +91,7 @@ local function heroChallengeRequirementSets()
 		local mage=gStates.positionMageKnight[seat]
 		if mage~=nil and mage~="nobody" then
 			local data=heroChallengesData[mage]
-			if data==nil then return nil,"Hero Challenges: Unsupported Mage Knight" end
+			if data==nil then return nil,"{en}Hero Challenges: Unsupported Mage Knight{it}Sfide degli Eroi: Mage Knight non supportato{ru}Испытания героев: неподдерживаемый Рыцарь-маг{zh-tw}英雄挑戰：不支援此魔法騎士{zh-cn}英雄挑战：不支持此魔法骑士{ko}영웅 도전: 지원하지 않는 메이지 나이트{es}Desafíos de Héroe: Mage Knight no compatible{fr}Défis des Héros : Mage Knight non pris en charge{pt-br}Desafios dos Heróis: Mage Knight não compatível{de}Heldenherausforderungen: nicht unterstützter Mage Knight" end
 			for _, alternatives in ipairs(data.country or {}) do
 				local expanded={}
 				for _, existing in ipairs(sets) do
@@ -202,55 +202,44 @@ function heroChallengeCountryAssignment(randomize)
 			if placeRequired(1)==true then return result,nil end
 		end
 	end
-	return nil,"Hero Challenges: Required terrain cannot fit this setup"
+	return nil,"{en}Hero Challenges: Required terrain cannot fit this setup{it}Sfide degli Eroi: terreno richiesto incompatibile{ru}Испытания героев: обязательные плитки не подходят к настройке{zh-tw}英雄挑戰：此設置無法容納所需地形{zh-cn}英雄挑战：此设置无法容纳所需地形{ko}영웅 도전: 이 설정에 필수 지형을 배치할 수 없음{es}Desafíos de Héroe: el terreno requerido no cabe en esta configuración{fr}Défis des Héros : terrain requis incompatible avec la configuration{pt-br}Desafios dos Heróis: o terreno necessário não cabe nesta configuração{de}Heldenherausforderungen: benötigtes Gelände passt nicht zum Aufbau"
 end
 
 function heroChallengeSetupIsLegal()
 	if gStates.heroChallenges~=true then return true,nil end
-	if gStates.useCustomMageKnights==true then return false,"Hero Challenges cannot use fan-made Mage Knights" end
-	if (gStates.riseOfTheForgemasters or 0)>0 then return false,"Hero Challenges cannot use Rise of the Forgemasters" end
+	if gStates.useCustomMageKnights==true then return false,"{en}Hero Challenges cannot use fan-made Mage Knights{it}Sfide degli Eroi: esclusi i Mage Knight amatoriali{ru}Испытания героев: фанатские Рыцари-маги недоступны{zh-tw}英雄挑戰不可使用玩家自製魔法騎士{zh-cn}英雄挑战不可使用玩家自制魔法骑士{ko}영웅 도전에서는 팬 제작 메이지 나이트를 사용할 수 없습니다{es}Los Desafíos de Héroe no permiten Mage Knights de aficionados{fr}Les Défis des Héros excluent les Mage Knights amateurs{pt-br}Desafios dos Heróis não permitem Mage Knights de fãs{de}Heldenherausforderungen erlauben keine Fan-Mage-Knights" end
+	if (gStates.riseOfTheForgemasters or 0)>0 then return false,"{en}Hero Challenges cannot use Rise of the Forgemasters{it}Sfide degli Eroi: incompatibili con Rise of the Forgemasters{ru}Испытания героев несовместимы с Rise of the Forgemasters{zh-tw}英雄挑戰不可搭配 Rise of the Forgemasters{zh-cn}英雄挑战不可搭配 Rise of the Forgemasters{ko}영웅 도전에서는 Rise of the Forgemasters를 사용할 수 없습니다{es}Los Desafíos de Héroe no permiten Rise of the Forgemasters{fr}Les Défis des Héros sont incompatibles avec Rise of the Forgemasters{pt-br}Desafios dos Heróis não permitem Rise of the Forgemasters{de}Heldenherausforderungen erlauben kein Rise of the Forgemasters" end
 	local humans=0
 	for seat=1,4 do
 		local mage=gStates.positionMageKnight[seat]
 		if mage~=nil and mage~="nobody" then
 			humans=humans+1
-			if mage=="Random" or mage=="All Skills" then return false,"Hero Challenges: Choose specific Mage Knights" end
-			if heroChallengesData[mage]==nil then return false,"Hero Challenges: Unsupported Mage Knight" end
+			if mage=="Random" or mage=="All Skills" then return false,"{en}Hero Challenges: Choose specific Mage Knights{it}Sfide degli Eroi: scegli Mage Knight specifici{ru}Испытания героев: выберите конкретных Рыцарей-магов{zh-tw}英雄挑戰：請選擇指定的魔法騎士{zh-cn}英雄挑战：请选择指定的魔法骑士{ko}영웅 도전: 특정 메이지 나이트를 선택하십시오{es}Desafíos de Héroe: elige Mage Knights concretos{fr}Défis des Héros : choisissez des Mage Knights précis{pt-br}Desafios dos Heróis: escolha Mage Knights específicos{de}Heldenherausforderungen: bestimmte Mage Knights wählen" end
+			if heroChallengesData[mage]==nil then return false,"{en}Hero Challenges: Unsupported Mage Knight{it}Sfide degli Eroi: Mage Knight non supportato{ru}Испытания героев: неподдерживаемый Рыцарь-маг{zh-tw}英雄挑戰：不支援此魔法騎士{zh-cn}英雄挑战：不支持此魔法骑士{ko}영웅 도전: 지원하지 않는 메이지 나이트{es}Desafíos de Héroe: Mage Knight no compatible{fr}Défis des Héros : Mage Knight non pris en charge{pt-br}Desafios dos Heróis: Mage Knight não compatível{de}Heldenherausforderungen: nicht unterstützter Mage Knight" end
 		end
 	end
-	if humans==0 then return false,"Hero Challenges: Choose a Mage Knight" end
+	if humans==0 then return false,"{en}Hero Challenges: Choose a Mage Knight{it}Sfide degli Eroi: scegli un Mage Knight{ru}Испытания героев: выберите Рыцаря-мага{zh-tw}英雄挑戰：請選擇一名魔法騎士{zh-cn}英雄挑战：请选择一名魔法骑士{ko}영웅 도전: 메이지 나이트를 선택하십시오{es}Desafíos de Héroe: elige un Mage Knight{fr}Défis des Héros : choisissez un Mage Knight{pt-br}Desafios dos Heróis: escolha um Mage Knight{de}Heldenherausforderungen: einen Mage Knight wählen" end
 	local assignment,reason=heroChallengeCountryAssignment(false)
 	if assignment==nil then return false,reason end
 	return true,nil
 end
 
---Append the active Heroes' personal Challenge objectives to the Scenario End help box.
---The printed objectives are currently English; repeat them inside every language branch so the information
---is never hidden merely because the user is viewing another translated Scenario End entry.
+--Append translated personal objectives using the shared language-aware joiner.
 function heroChallengeScenarioEndText(baseText)
 	local text=tostring(baseText or "")
 	if gStates==nil or gStates.heroChallenges~=true then return text end
-	local lines={}
+	local parts={text,"{en}\n\nHero Challenges:\n{it}\n\nSfide degli Eroi:\n{ru}\n\nИспытания героев:\n{zh-tw}\n\n英雄挑戰：\n{zh-cn}\n\n英雄挑战：\n{ko}\n\n영웅 도전:\n{es}\n\nDesafíos de Héroe:\n{fr}\n\nDéfis des Héros :\n{pt-br}\n\nDesafios dos Heróis:\n{de}\n\nHeldenherausforderungen:\n"}
+	local count=0
 	for seat=1,4 do
 		local mage=gStates.positionMageKnight~=nil and gStates.positionMageKnight[seat] or nil
 		local challenge=mage~=nil and heroChallengesData[mage] or nil
-		if challenge~=nil then lines[#lines+1]=tostring(mage)..": "..tostring(challenge.objective or "") end
+		if challenge~=nil then
+			if count>0 then parts[#parts+1]="\n" end
+			parts[#parts+1]=tostring(mage)..": "
+			parts[#parts+1]=challenge.objective or ""
+			count=count+1
+		end
 	end
-	if #lines==0 then return text end
-	local suffix="\n\nHero Challenges:\n"..table.concat(lines,"\n")
-	local firstTagStart=text:find("{[%a%-]+}")
-	if firstTagStart==nil then return text..suffix end
-	local out={}
-	if firstTagStart>1 then out[#out+1]=text:sub(1,firstTagStart-1) end
-	local pos=firstTagStart
-	while pos<=#text do
-		local tagStart,tagEnd=text:find("{[%a%-]+}",pos)
-		if tagStart==nil then break end
-		local nextTagStart=text:find("{[%a%-]+}",tagEnd+1)
-		local body=nextTagStart~=nil and text:sub(tagEnd+1,nextTagStart-1) or text:sub(tagEnd+1)
-		out[#out+1]=text:sub(tagStart,tagEnd)..body..suffix
-		if nextTagStart==nil then break end
-		pos=nextTagStart
-	end
-	return table.concat(out)
+	if count==0 then return text end
+	return joinLang(parts)
 end

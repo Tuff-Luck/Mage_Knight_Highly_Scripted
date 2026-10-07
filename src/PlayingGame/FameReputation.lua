@@ -300,7 +300,7 @@ function fameReputationPlunderVillage(player,mouseButton,id)
 		for a=1,#turnOrder do
 			if turnOrder[a].seatPos==tonumber(id:sub(8,8)) then
 				fameRepCurrentReputation(a)
-				broadcastToAll(joinLang({translateWord[turnOrder[a].mage],"{en} just Plundered their Village.{ru} разграбляет деревню.{zh-tw}刚刚劫掠了他们的村庄{zh-cn}刚刚劫掠了他们的村庄{ko}: 마을을 약탈했습니다.{es} acaba de saquear su aldea.{fr} vient de Piller leur Village.{pt-br} acabou de Saquear a Vila{de} hat gerade ihr Dorf geplündert. "}),positionToColor(a))
+				broadcastToAll(joinLang({translateWord[turnOrder[a].mage],"{en} just Plundered their Village.{it} ha appena Saccheggiato il proprio Villaggio.{ru} разграбляет деревню.{zh-tw}刚刚劫掠了他们的村庄{zh-cn}刚刚劫掠了他们的村庄{ko}: 마을을 약탈했습니다.{es} acaba de saquear su aldea.{fr} vient de Piller leur Village.{pt-br} acabou de Saquear a Vila{de} hat gerade ihr Dorf geplündert. "}),positionToColor(a))
 				drawExactDeedCards(a,2,"DrawOne")
 				if turnOrder[a].reputation>-7 then
 					local newRep=turnOrder[a].reputation-1

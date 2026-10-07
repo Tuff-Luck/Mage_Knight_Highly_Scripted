@@ -242,18 +242,18 @@ function shieldLocation(obj, zone, status)
 					if mageSearch.mage==objectDescription or objectNotes=="Burned Monastery" then
 						if status=="remove" then
 							if hexFeature=="keep" and objectNotes~="Burned Monastery" then
-								broadcastToAll("{en}Keep Released{ru}Крепость освобождена{zh-tw}保持释放{zh-cn}保持释放{ko}성 정복 해제됨{es}Mantener Liberado{fr}Garder Libéré{pt-br}Forte Liberado{de}Behalten freigelassen", positionToColor(b))
+								broadcastToAll("{en}Keep Released{it}Fortezza Liberata{ru}Крепость освобождена{zh-tw}保持释放{zh-cn}保持释放{ko}성 정복 해제됨{es}Mantener Liberado{fr}Garder Libéré{pt-br}Forte Liberado{de}Behalten freigelassen", positionToColor(b))
 								mageSearch.keepsBeat=mageSearch.keepsBeat-1
 								scheduleAvatarDropRefresh(b)
 							end
 							if hexFeature=="monastery" and gStates.monasteryBurned[terTile.guid]==true then
 								if gStates.monasteryBurnedBy~=nil then gStates.monasteryBurnedBy[terTile.guid]=nil end
-								broadcastToAll("{en}Monastery got Repaired, somehow?{ru}Монастырь как-то починился... Магия, не иначе!{zh-tw}修道院被复原了{zh-cn}修道院被复原了{ko}수도원이 복구되었습니다, 띠용?{es}Monasterio quedó Reparado, de alguna manera?{fr}Le Monastère a été réparé, d'une manière ou d'une autre ?{pt-br}Monastério Reparado, de alguma forma?{de}Kloster wurde repariert, irgendwie?", positionToColor(b))
+								broadcastToAll("{en}Monastery got Repaired, somehow?{it}Il Monastero è stato riparato, in qualche modo?{ru}Монастырь как-то починился... Магия, не иначе!{zh-tw}修道院被复原了{zh-cn}修道院被复原了{ko}수도원이 복구되었습니다, 띠용?{es}Monasterio quedó Reparado, de alguna manera?{fr}Le Monastère a été réparé, d'une manière ou d'une autre ?{pt-br}Monastério Reparado, de alguma forma?{de}Kloster wurde repariert, irgendwie?", positionToColor(b))
 								gStates.monasteryCount=gStates.monasteryCount+1
 								gStates.monasteryBurned[terTile.guid]=false
 							end
 							if hexFeature=="glade" and objectNotes~="Burned Monastery" and (gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Life and Death") then
-								broadcastToAll("{en}Glade Deactivated{ru}Магическая поляна деактивирована{zh-tw}林地解除了{zh-cn}林地解除了{ko}숲속 빈터 비활성화{es}Glade Desactivado{fr}Clairière Désactivée{pt-br}Clareira Desativada{de}Lichtung Deaktiviert", positionToColor(b))
+								broadcastToAll("{en}Glade Deactivated{it}Radura Disattivata{ru}Магическая поляна деактивирована{zh-tw}林地解除了{zh-cn}林地解除了{ko}숲속 빈터 비활성화{es}Glade Desactivado{fr}Clairière Désactivée{pt-br}Clareira Desativada{de}Lichtung Deaktiviert", positionToColor(b))
 								if gStates.gameScenario=="Druid Nights" then
 									for index, shields in pairs(mageSearch.gladesMarked) do
 										if shields==obj.guid then table.remove(mageSearch.gladesMarked, index) end
@@ -262,22 +262,22 @@ function shieldLocation(obj, zone, status)
 							end
 							if hexFeature=="graveyard" and objectNotes~="Burned Monastery" then
 								if gStates.gameScenario=="The Realm of the Dead Blitz" then
-									broadcastToAll("{en}Graveyard Unsealed{ru}Кладбище распечатано{zh-tw}墓地解封了{zh-cn}墓地解封了{ko}봉인되지 않은 묘지{es}Cementerio Sin Sellar{fr}Cimetière Non Scellé{pt-br}Cemitério Não Selado{de}Friedhof Unversiegelt", positionToColor(b))
+									broadcastToAll("{en}Graveyard Unsealed{it}Cimitero non più Sigillato{ru}Кладбище распечатано{zh-tw}墓地解封了{zh-cn}墓地解封了{ko}봉인되지 않은 묘지{es}Cementerio Sin Sellar{fr}Cimetière Non Scellé{pt-br}Cemitério Não Selado{de}Friedhof Unversiegelt", positionToColor(b))
 								else
-									broadcastToAll("{en}Graveyard Deactivated{ru}Кладбище деактивировано{zh-tw}墓地停用了{zh-cn}墓地停用了{ko}묘지 비활성화{es}Cementerio Desactivado{fr}Cimetière Désactivé{pt-br}Cemitério Desativado{de}Friedhof Deaktiviert", positionToColor(b))
+									broadcastToAll("{en}Graveyard Deactivated{it}Cimitero Disattivato{ru}Кладбище деактивировано{zh-tw}墓地停用了{zh-cn}墓地停用了{ko}묘지 비활성화{es}Cementerio Desactivado{fr}Cimetière Désactivé{pt-br}Cemitério Desativado{de}Friedhof Deaktiviert", positionToColor(b))
 								end
 							end
 							if hexFeature=="mine" and objectNotes~="Burned Monastery" and gStates.gameScenario=="Mines Liberation" then
-								broadcastToAll("{en}Mine Undone{ru}Шахта больше не побеждена{zh-tw}矿山未解放{zh-cn}矿山未解放{ko}광산 해방 해제됨{es}Mina Deshecha{fr}Mine Défaite{pt-br}Mina Desfeita{de}Mine rückgängig gemacht", positionToColor(b))
+								broadcastToAll("{en}Mine Undone{it}Miniera Ripristinata{ru}Шахта больше не побеждена{zh-tw}矿山未解放{zh-cn}矿山未解放{ko}광산 해방 해제됨{es}Mina Deshecha{fr}Mine Défaite{pt-br}Mina Desfeita{de}Mine rückgängig gemacht", positionToColor(b))
 							end
 							if hexFeature=="mage tower" and objectNotes~="Burned Monastery" then
-								broadcastToAll("{en}Mage Tower Released{ru}Башня магов освобождена{zh-tw}法师塔释放{zh-cn}法师塔释放{ko}마법사의 탑 정복 해제됨{es}Lanzamiento de la Torre de Magos{fr}Sortie de la Tour des Mages{pt-br}Torre do Mago Liberada{de}Magierturm befreit", positionToColor(b))
+								broadcastToAll("{en}Mage Tower Released{it}Torre dei Maghi Liberata{ru}Башня магов освобождена{zh-tw}法师塔释放{zh-cn}法师塔释放{ko}마법사의 탑 정복 해제됨{es}Lanzamiento de la Torre de Magos{fr}Sortie de la Tour des Mages{pt-br}Torre do Mago Liberada{de}Magierturm befreit", positionToColor(b))
 							end
 							if (hexFeature=="monster den" or hexFeature=="spawning grounds" or hexFeature=="maze" or hexFeature=="labyrinth" or hexFeature=="ruin" or hexFeature=="dungeon" or hexFeature=="tomb" or hexFeature=="ziggurat" or hexFeature=="pyramid") and objectNotes~="Burned Monastery" then
-								broadcastToAll("{en}Adventure Site Undone{ru}Место для приключений больше не побеждено{zh-tw}冒险地点未击败{zh-cn}冒险地点未击败{ko}모험 장소 정복 해제됨{es}Sitio de Aventuras Deshecho{fr}Site d'Aventure Annulé{pt-br}Lugar de Aventura Desfeito{de}Abenteuerseite rückgängig gemacht", positionToColor(b))
+								broadcastToAll("{en}Adventure Site Undone{it}Sito d'Avventura Ripristinato{ru}Место для приключений больше не побеждено{zh-tw}冒险地点未击败{zh-cn}冒险地点未击败{ko}모험 장소 정복 해제됨{es}Sitio de Aventuras Deshecho{fr}Site d'Aventure Annulé{pt-br}Lugar de Aventura Desfeito{de}Abenteuerseite rückgängig gemacht", positionToColor(b))
 							end
 							if (hexFeature or ""):sub(1, 4)=="city" and objectNotes~="Burned Monastery" and gStates.gameScenario=="The Lost Relic Blitz" then
-								broadcastToAll("{en}Relic Piece Replaced{ru}Часть древней реликвии была заменена{zh-tw}圣物碎片重置了{zh-cn}圣物碎片重置了{ko}유물 조각 교체됨{es}Pieza de Reliquia Reemplazada{fr}Pièce de Relique Remplacée{pt-br}Pedaço da Relíquia Substituído{de}Reliktteil ausgetauscht", positionToColor(b))
+								broadcastToAll("{en}Relic Piece Replaced{it}Frammento di Reliquia Riposizionato{ru}Часть древней реликвии была заменена{zh-tw}圣物碎片重置了{zh-cn}圣物碎片重置了{ko}유물 조각 교체됨{es}Pieza de Reliquia Reemplazada{fr}Pièce de Relique Remplacée{pt-br}Pedaço da Relíquia Substituído{de}Reliktteil ausgetauscht", positionToColor(b))
 							end
 							break
 						else
@@ -288,44 +288,44 @@ function shieldLocation(obj, zone, status)
 							end
 							if hexFeature=="monastery" and gStates.monasteryBurned[terTile.guid]~=true then
 								if gStates.monasteryBurnedBy~=nil and turnOrder[gStates.turnNumber]~=nil then gStates.monasteryBurnedBy[terTile.guid]=turnOrder[gStates.turnNumber].mage end
-								broadcastToAll("{en}'You maniacs! You Burned it! You burned it all to Hell!'{ru}Маньяки! Вы всё сожгли! Черт, чтоб вы все сгорели в аду!'{zh-tw}“你们这些疯子! 你烧了它! 你把它烧的如同地狱! “{zh-cn}“你们这些疯子! 你烧了它! 你把它烧的如同地狱! “{ko}‘곧, 심판의 날이 오리라.’ – 요엘 3장 14절{es}Monasterio Quemado{fr}Monastère Incendié{pt-br}'Seu maníaco! Você queimou tudo! Você queimou tudo pro inferno!'{de}Ihr Wahnsinnigen! Ihr habt es verbrannt! Ihr habt alles zur Hölle verbrannt!'", positionToColor(b))
+								broadcastToAll("{en}'You maniacs! You Burned it! You burned it all to Hell!'{it}'Pazzi! L'avete bruciato! Avete bruciato tutto!'{ru}Маньяки! Вы всё сожгли! Черт, чтоб вы все сгорели в аду!'{zh-tw}“你们这些疯子! 你烧了它! 你把它烧的如同地狱! “{zh-cn}“你们这些疯子! 你烧了它! 你把它烧的如同地狱! “{ko}‘곧, 심판의 날이 오리라.’ – 요엘 3장 14절{es}Monasterio Quemado{fr}Monastère Incendié{pt-br}'Seu maníaco! Você queimou tudo! Você queimou tudo pro inferno!'{de}Ihr Wahnsinnigen! Ihr habt es verbrannt! Ihr habt alles zur Hölle verbrannt!'", positionToColor(b))
 								gStates.monasteryCount=gStates.monasteryCount-1
 								gStates.monasteryBurned[terTile.guid]=true
 							end
 							if hexFeature=="keep" and objectNotes~="Burned Monastery" then
-								broadcastToAll("{en}'War is too serious a matter to leave to soldiers.'{ru}Война - слишком серьезная вещь, чтобы доверять её военным'{zh-tw}对于小兵来说, 战争太过残酷了{zh-cn}对于小兵来说, 战争太过残酷了{ko}성 정복됨.{es}Mantener Atacado con Exito{fr}Gardez avec Succès Agressé{pt-br}'Guerra é um assunto sério demais para deixar na mão de soldados'{de}Krieg ist eine zu ernste Angelegenheit, um sie Soldaten zu überlassen.'", positionToColor(b))
+								broadcastToAll("{en}'War is too serious a matter to leave to soldiers.'{it}'La guerra è troppo seria per lasciarla ai soldati.'{ru}Война - слишком серьезная вещь, чтобы доверять её военным'{zh-tw}对于小兵来说, 战争太过残酷了{zh-cn}对于小兵来说, 战争太过残酷了{ko}성 정복됨.{es}Mantener Atacado con Exito{fr}Gardez avec Succès Agressé{pt-br}'Guerra é um assunto sério demais para deixar na mão de soldados'{de}Krieg ist eine zu ernste Angelegenheit, um sie Soldaten zu überlassen.'", positionToColor(b))
 								mageSearch.keepsBeat=mageSearch.keepsBeat+1
 								scheduleAvatarDropRefresh(b)
 								break
 							end
 							if hexFeature=="glade" and objectNotes~="Burned Monastery" and gStates.gameScenario=="Druid Nights" then
-								broadcastToAll("{en}Glade Activated{ru}Магическая поляна активирована{zh-tw}林地激活了{zh-cn}林地激活了{ko}숲속 빈터 활성화{es}Glade Activado{fr}Clairière Activée{pt-br}Clareira Ativada{de}Glade Aktiviert", positionToColor(b))
+								broadcastToAll("{en}Glade Activated{it}Radura Attivata{ru}Магическая поляна активирована{zh-tw}林地激活了{zh-cn}林地激活了{ko}숲속 빈터 활성화{es}Glade Activado{fr}Clairière Activée{pt-br}Clareira Ativada{de}Glade Aktiviert", positionToColor(b))
 								mageSearch.gladesMarked[#mageSearch.gladesMarked+1]=obj.guid
 							end
 							if hexFeature=="glade" and objectNotes~="Burned Monastery" and gStates.gameScenario=="Life and Death" then
-								broadcastToAll("{en}Glade Liberated{ru}Магическая поляна освобождена{zh-tw}林地解放了{zh-cn}林地解放了{ko}숲속 빈터 해방됨{es}Glade Liberado{fr}Clairière Libérée{pt-br}Clareira Liberada{de}Lichtung befreit", positionToColor(b))
+								broadcastToAll("{en}Glade Liberated{it}Radura Liberata{ru}Магическая поляна освобождена{zh-tw}林地解放了{zh-cn}林地解放了{ko}숲속 빈터 해방됨{es}Glade Liberado{fr}Clairière Libérée{pt-br}Clareira Liberada{de}Lichtung befreit", positionToColor(b))
 							end
 							if hexFeature=="graveyard" and objectNotes~="Burned Monastery" then
 								if gStates.gameScenario=="The Realm of the Dead Blitz" then
-									broadcastToAll("{en}Graveyard Sealed{ru}Кладбище запечатано{zh-tw}墓地封印了{zh-cn}墓地封印了{ko}봉인된 묘지{es}Cementerio Sellado{fr}Cimetière Scellé{pt-br}Cemitério Selado{de}Friedhof versiegelt", positionToColor(b))
+									broadcastToAll("{en}Graveyard Sealed{it}Cimitero Sigillato{ru}Кладбище запечатано{zh-tw}墓地封印了{zh-cn}墓地封印了{ko}봉인된 묘지{es}Cementerio Sellado{fr}Cimetière Scellé{pt-br}Cemitério Selado{de}Friedhof versiegelt", positionToColor(b))
 								else
-									broadcastToAll("{en}Graveyard Liberated{ru}Кладбище освобождено{zh-tw}墓地解放了{zh-cn}墓地解放了{ko}묘지 해방됨{es}Cementerio Liberado{fr}Cimetière Libéré{pt-br}Cemitério Liberado{de}Friedhof befreit", positionToColor(b))
+									broadcastToAll("{en}Graveyard Liberated{it}Cimitero Liberato{ru}Кладбище освобождено{zh-tw}墓地解放了{zh-cn}墓地解放了{ko}묘지 해방됨{es}Cementerio Liberado{fr}Cimetière Libéré{pt-br}Cemitério Liberado{de}Friedhof befreit", positionToColor(b))
 								end
 							end
 							if hexFeature=="mine" and objectNotes~="Burned Monastery" and gStates.gameScenario=="Mines Liberation" then
-								broadcastToAll("{en}Mine Liberated{ru}Шахта освобождена{zh-tw}矿山解放了{zh-cn}矿山解放了{ko}광산 해방됨{es}Mina Liberada{fr}Mine Libérée{pt-br}Mina Liberada{de}Mine befreit", positionToColor(b))
+								broadcastToAll("{en}Mine Liberated{it}Miniera Liberata{ru}Шахта освобождена{zh-tw}矿山解放了{zh-cn}矿山解放了{ko}광산 해방됨{es}Mina Liberada{fr}Mine Libérée{pt-br}Mina Liberada{de}Mine befreit", positionToColor(b))
 							end
 							if hexFeature=="mage tower" and objectNotes~="Burned Monastery" then
-								broadcastToAll("{en}Mage Tower Conquered{ru}Башня мага захвачена{zh-tw}法師塔已被征服{zh-cn}法师塔被征服{ko}마법사의 탑 정복됨{es}Torre de Magos Conquistada{fr}Tour des Mages Conquise{pt-br}Torre do Mago Conquistada{de}Magierturm erobert", positionToColor(b))
+								broadcastToAll("{en}Mage Tower Conquered{it}Torre dei Maghi Conquistata{ru}Башня мага захвачена{zh-tw}法師塔已被征服{zh-cn}法师塔被征服{ko}마법사의 탑 정복됨{es}Torre de Magos Conquistada{fr}Tour des Mages Conquise{pt-br}Torre do Mago Conquistada{de}Magierturm erobert", positionToColor(b))
 							end
 							if (hexFeature=="monster den" or hexFeature=="spawning grounds") and objectNotes~="Burned Monastery" then
-								broadcastToAll("{en}'They mostly come at night...Mostly.'{ru}«Они в основном приходят ночью... В основном.»{zh-tw}“他们大多是晚上来的……大多是. ”{zh-cn}“他们大多是晚上来的……大多是. ”{ko}‘징한 놈의 이 세상, 한탕 신나게 놀고 가면 그 뿐.’{es}'Vienen sobre todo por la noche ... sobre todo.'{fr}'Ils viennent surtout la nuit… surtout.'{pt-br}'Eles vem a maioria das vezes a noite....a maioria das vezes.'{de}Sie kommen meistens nachts ... meistens.", positionToColor(b))
+								broadcastToAll("{en}'They mostly come at night...Mostly.'{it}'Escono soprattutto di notte... soprattutto.'{ru}«Они в основном приходят ночью... В основном.»{zh-tw}“他们大多是晚上来的……大多是. ”{zh-cn}“他们大多是晚上来的……大多是. ”{ko}‘징한 놈의 이 세상, 한탕 신나게 놀고 가면 그 뿐.’{es}'Vienen sobre todo por la noche ... sobre todo.'{fr}'Ils viennent surtout la nuit… surtout.'{pt-br}'Eles vem a maioria das vezes a noite....a maioria das vezes.'{de}Sie kommen meistens nachts ... meistens.", positionToColor(b))
 							end
 							if (hexFeature=="maze" or hexFeature=="labyrinth" or hexFeature=="ruin" or hexFeature=="dungeon" or hexFeature=="tomb" or hexFeature=="ziggurat" or hexFeature=="pyramid") and objectNotes~="Burned Monastery" then
-								broadcastToAll("{en}Adventure Site Beaten{ru}Место для приключений побеждено{zh-tw}冒险地点被打败{zh-cn}冒险地点被打败{ko}모험 장소 정복됨{es}Sitio de Aventuras Batido{fr}Site d'Aventure Battu{pt-br}Lugar de Aventura Vencido{de}Abenteuerstätte besiegt", positionToColor(b))
+								broadcastToAll("{en}Adventure Site Beaten{it}Sito d'Avventura Superato{ru}Место для приключений побеждено{zh-tw}冒险地点被打败{zh-cn}冒险地点被打败{ko}모험 장소 정복됨{es}Sitio de Aventuras Batido{fr}Site d'Aventure Battu{pt-br}Lugar de Aventura Vencido{de}Abenteuerstätte besiegt", positionToColor(b))
 							end
 							if (hexFeature or ""):sub(1, 4)=="city" and objectNotes~="Burned Monastery" and gStates.gameScenario=="The Lost Relic Blitz" then
-								broadcastToAll("{en}Relic Piece Recovered{ru}Часть древней реликвии была найдена{zh-tw}找到了圣物碎片{zh-cn}找到了圣物碎片{ko}유물 조각 복구{es}Pieza de Reliquia Recuperada{fr}Pièce de Relique Récupérée{pt-br}Pedaço da Relíquia Recuperado{de}Reliktstück wiederhergestellt", positionToColor(b))
+								broadcastToAll("{en}Relic Piece Recovered{it}Frammento di Reliquia Recuperato{ru}Часть древней реликвии была найдена{zh-tw}找到了圣物碎片{zh-cn}找到了圣物碎片{ko}유물 조각 복구{es}Pieza de Reliquia Recuperada{fr}Pièce de Relique Récupérée{pt-br}Pedaço da Relíquia Recuperado{de}Reliktstück wiederhergestellt", positionToColor(b))
 							end
 							break
 						end
@@ -349,27 +349,27 @@ function shieldLocation(obj, zone, status)
 					or gStates.gameScenario=="The Hidden Valley Blitz" or gStates.gameScenario=="The Realm of the Dead Blitz"
 					or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="Dungeon Lords"
 					or gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Mines Liberation") then
-						broadcastToAll(joinLang({"{en}City is Friendly to {ru}Город дружественный для {zh-tw}城市友善的对象: {zh-cn}城市友善的对象: {ko}도시는 우호적입니다: {es}La Ciudad es Amigable con {fr}La Ville est Amicale avec {pt-br}Cidade é Amistosa a {de}Stadt ist befreundet mit ", translateWord[mageSearch.mage]}), positionToColor(b))
+						broadcastToAll(joinLang({"{en}City is Friendly to {it}La Città è Amica di {ru}Город дружественный для {zh-tw}城市友善的对象: {zh-cn}城市友善的对象: {ko}도시는 우호적입니다: {es}La Ciudad es Amigable con {fr}La Ville est Amicale avec {pt-br}Cidade é Amistosa a {de}Stadt ist befreundet mit ", translateWord[mageSearch.mage]}), positionToColor(b))
 					elseif standardCity then
 						if mageSearch.defeatedCities[cityScriptZones[zone.guid].cityGUID]~=nil then
-							broadcastToAll("{en}City has been Conquered{ru}Город был захвачен{zh-tw}城市被征服了{zh-cn}城市被征服了{ko}도시가 정복되었습니다{es}La Ciudad ha sido Conquistada{fr}La Ville a été Conquise{pt-br}Cidade foi Conquistada.{de}Die Stadt wurde erobert", positionToColor(b))
+							broadcastToAll("{en}City has been Conquered{it}La Città è stata Conquistata{ru}Город был захвачен{zh-tw}城市被征服了{zh-cn}城市被征服了{ko}도시가 정복되었습니다{es}La Ciudad ha sido Conquistada{fr}La Ville a été Conquise{pt-br}Cidade foi Conquistada.{de}Die Stadt wurde erobert", positionToColor(b))
 						else
-							broadcastToAll("{en}City Defender Defeated{ru}Защитник города побежден{zh-tw}城防守军被击败了{zh-cn}城防守军被击败了{ko}도시 수비자를 처치했습니다{es}Defensor de la Ciudad Derrotado{fr}Défenseur de la Ville Vaincu{pt-br}Defensor da Cidade Derrotado.{de}Stadtverteidiger besiegt", positionToColor(b))
+							broadcastToAll("{en}City Defender Defeated{it}Difensore della Città Sconfitto{ru}Защитник города побежден{zh-tw}城防守军被击败了{zh-cn}城防守军被击败了{ko}도시 수비자를 처치했습니다{es}Defensor de la Ciudad Derrotado{fr}Défenseur de la Ville Vaincu{pt-br}Defensor da Cidade Derrotado.{de}Stadtverteidiger besiegt", positionToColor(b))
 						end
 					end
 					if factionLeader then
 						if gStates.defeatedFactionTest[cityScriptZones[zone.guid].cityGUID]~=nil then
-							broadcastToAll("{en}Leader has been Defeated{ru}Лидер был побежден{zh-tw}首领被打败了{zh-cn}首领被打败了{ko}지도자를 처치했습니다{es}El Líder ha sido Derrotado{fr}Le Chef a été Vaincu{pt-br}Líder foi Derrotado{de}Anführer wurde besiegt", positionToColor(b))
+							broadcastToAll("{en}Leader has been Defeated{it}Il Capo è stato Sconfitto{ru}Лидер был побежден{zh-tw}首领被打败了{zh-cn}首领被打败了{ko}지도자를 처치했습니다{es}El Líder ha sido Derrotado{fr}Le Chef a été Vaincu{pt-br}Líder foi Derrotado{de}Anführer wurde besiegt", positionToColor(b))
 						else
-							broadcastToAll("{en}Leader Level Reduced{ru}Уровень лидера понижен{zh-tw}首领级别降低{zh-cn}首领级别降低{ko}지도자 레벨 감소됨{es}Nivel de Líder Reducido{fr}Niveau de Leader Réduit{pt-br}Nível do Líder foi Reduzido{de}Anführerlevel reduziert", positionToColor(b))
+							broadcastToAll("{en}Leader Level Reduced{it}Livello del Capo Ridotto{ru}Уровень лидера понижен{zh-tw}首领级别降低{zh-cn}首领级别降低{ko}지도자 레벨 감소됨{es}Nivel de Líder Reducido{fr}Niveau de Leader Réduit{pt-br}Nível do Líder foi Reduzido{de}Anführerlevel reduziert", positionToColor(b))
 						end
 					end
 					if volkareZone then
 						if mageSearch.defeatedCities[cityScriptZones[zone.guid].cityGUID]~=nil then
-							broadcastToAll("{en}Volkare is Defeated{ru}Волкар побежден{zh-tw}沃里卡认怂了{zh-cn}沃里卡认怂了{ko}볼케어 장군을 처치했습니다{es}Volkare es derrotado{fr}Volkare est vaincu{pt-br}Volkare foi Derrotado{de}Volkare ist besiegt", positionToColor(b))
+							broadcastToAll("{en}Volkare is Defeated{it}Volkare è Sconfitto{ru}Волкар побежден{zh-tw}沃里卡认怂了{zh-cn}沃里卡认怂了{ko}볼케어 장군을 처치했습니다{es}Volkare es derrotado{fr}Volkare est vaincu{pt-br}Volkare foi Derrotado{de}Volkare ist besiegt", positionToColor(b))
 							registerVolkareCampAsCityKeep()
 						else
-							broadcastToAll("{en}Volkare's Army Reduced{ru}Армия Волкара уменьшилась{zh-tw}沃里卡军队减少了{zh-cn}沃里卡军队减少了{ko}볼케어의 군대가 줄었습니다{es}Ejército de Volkare reducido{fr}Armée de Volkare réduite{pt-br}Exército de Volkare Reduzido{de}Volkares Armee wurde verkleinert", positionToColor(b))
+							broadcastToAll("{en}Volkare's Army Reduced{it}Esercito di Volkare Ridotto{ru}Армия Волкара уменьшилась{zh-tw}沃里卡军队减少了{zh-cn}沃里卡军队减少了{ko}볼케어의 군대가 줄었습니다{es}Ejército de Volkare reducido{fr}Armée de Volkare réduite{pt-br}Exército de Volkare Reduzido{de}Volkares Armee wurde verkleinert", positionToColor(b))
 						end
 					end
 				end
@@ -697,7 +697,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 							if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={brutal=true} else gStates.monsterPerks[token.guid].brutal=true end
 						end
 					else
-						broadcastToAll("{en}Sorry, there are no Rampage tokens left to deploy{ru}Извините, жетоны яростных врагов закончились.{zh-tw}抱歉，没有紫色标记可供部署{zh-cn}抱歉，没有紫色标记可供部署{ko}여분의 광분하는 적 토큰이 없습니다{es}Lo sentimos, no quedan tokens de Rampage para implementar{fr}Désolé, il n'y a plus de jetons Rampage à déployer{pt-br}Desculpe, Não tem Fichas Irascíveis sobrando para distribuir{de}Leider gibt es keine Rampage-Plättchen mehr zum Einsetzen", warningColor)
+						broadcastToAll("{en}Sorry, there are no Rampage tokens left to deploy{it}Non ci sono più segnalini Nemico Errante da posizionare{ru}Извините, жетоны яростных врагов закончились.{zh-tw}抱歉，没有紫色标记可供部署{zh-cn}抱歉，没有紫色标记可供部署{ko}여분의 광분하는 적 토큰이 없습니다{es}Lo sentimos, no quedan tokens de Rampage para implementar{fr}Désolé, il n'y a plus de jetons Rampage à déployer{pt-br}Desculpe, Não tem Fichas Irascíveis sobrando para distribuir{de}Leider gibt es keine Rampage-Plättchen mehr zum Einsetzen", warningColor)
 					end
 					--play Brown token
 					if dropped==false and gStates.rampage>0 and dice~=nil and dice.getRotationValue()=="Rampage Full" then
@@ -710,7 +710,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 							gStates.monsterPlayLocation[token.guid]=params.position
 							gStates.rampagingMonsters[token.guid]=true
 						else
-							broadcastToAll("{en}Sorry, there are no Brown tokens left to deploy{ru}Извините, коричневые жетоны закончились.{zh-tw}抱歉，没有棕色标记可供部署{zh-cn}抱歉，没有棕色标记可供部署{ko}여분의 갈색 토큰이 없습니다{es}Lo sentimos, no quedan tokens marrones para implementar{fr}Désolé, il n'y a plus de jetons bruns à déployer{pt-br}Desculpe, Não tem Fichas Marrons sobrando para distribuir{de}Tut mir leid, es gibt keine braunen Plättchen mehr zum Auslegen", warningColor)
+							broadcastToAll("{en}Sorry, there are no Brown tokens left to deploy{it}Non ci sono più segnalini Marroni da posizionare{ru}Извините, коричневые жетоны закончились.{zh-tw}抱歉，没有棕色标记可供部署{zh-cn}抱歉，没有棕色标记可供部署{ko}여분의 갈색 토큰이 없습니다{es}Lo sentimos, no quedan tokens marrones para implementar{fr}Désolé, il n'y a plus de jetons bruns à déployer{pt-br}Desculpe, Não tem Fichas Marrons sobrando para distribuir{de}Tut mir leid, es gibt keine braunen Plättchen mehr zum Auslegen", warningColor)
 						end
 					end
 				end
@@ -764,17 +764,17 @@ function shieldDrop(player, mouseButton, id)
 				local sitePlayerIndex=nil
 				for playerIndex,candidate in pairs(turnOrder) do if candidate.mage==details.mage then sitePlayer=candidate sitePlayerIndex=playerIndex break end end
 				if gStates.gameScenario=="The Lost Relic Blitz" and sitePlayer~=nil and (sitePlayer.avatarLocation:sub(1,4)=="city" or sitePlayer.avatarLocation=="Volkare's Camp") then
-					broadcastToAll("{en}Defeat the Draconum to recover this Relic piece.{ru}Победите драконида, чтобы вернуть эту часть Реликвии.{zh-tw}擊敗龍人以取回這塊聖物碎片。{zh-cn}击败龙人以取回这块圣物碎片。{ko}드라코넘을 쓰러뜨려 이 유물 조각을 되찾으십시오.{es}Derrota al Draconum para recuperar esta pieza de la Reliquia.{fr}Vainquez le Draconum pour récupérer ce morceau de Relique.{pt-br}Derrote o Draconum para recuperar esta parte da Relíquia.{de}Besiegt das Draconum, um dieses Reliktstück zurückzuerlangen.", warningColor)
+					broadcastToAll("{en}Defeat the Draconum to recover this Relic piece.{it}Sconfiggi il Draconum per recuperare questo frammento di Reliquia.{ru}Победите драконида, чтобы вернуть эту часть Реликвии.{zh-tw}擊敗龍人以取回這塊聖物碎片。{zh-cn}击败龙人以取回这块圣物碎片。{ko}드라코넘을 쓰러뜨려 이 유물 조각을 되찾으십시오.{es}Derrota al Draconum para recuperar esta pieza de la Reliquia.{fr}Vainquez le Draconum pour récupérer ce morceau de Relique.{pt-br}Derrote o Draconum para recuperar esta parte da Relíquia.{de}Besiegt das Draconum, um dieses Reliktstück zurückzuerlangen.", warningColor)
 					addAvatarButtons()
 					return
 				end
 				if gStates.gameScenario=="The Realm of the Dead Blitz" and sitePlayer~=nil and sitePlayer.avatarLocation=="graveyard" and realmDeadEnemiesAtPosition(tempPos)==true then
-					broadcastToAll("{en}Defeat the Graveyard enemies before sealing it.{ru}Победите врагов на Кладбище, прежде чем запечатать его.{zh-tw}封印墓地前先擊敗其中的敵人。{zh-cn}封印墓地前先击败其中的敌人。{ko}묘지를 봉인하기 전에 그곳의 적을 쓰러뜨리십시오.{es}Derrota a los enemigos del Cementerio antes de sellarlo.{fr}Vainquez les ennemis du Cimetière avant de le sceller.{pt-br}Derrote os inimigos do Cemitério antes de selá-lo.{de}Besiegt die Gegner auf dem Friedhof, bevor ihr ihn versiegelt.", warningColor)
+					broadcastToAll("{en}Defeat the Graveyard enemies before sealing it.{it}Sconfiggi i nemici del Cimitero prima di sigillarlo.{ru}Победите врагов на Кладбище, прежде чем запечатать его.{zh-tw}封印墓地前先擊敗其中的敵人。{zh-cn}封印墓地前先击败其中的敌人。{ko}묘지를 봉인하기 전에 그곳의 적을 쓰러뜨리십시오.{es}Derrota a los enemigos del Cementerio antes de sellarlo.{fr}Vainquez les ennemis du Cimetière avant de le sceller.{pt-br}Derrote os inimigos do Cemitério antes de selá-lo.{de}Besiegt die Gegner auf dem Friedhof, bevor ihr ihn versiegelt.", warningColor)
 					addAvatarButtons()
 					return
 				end
 				if gStates.gameScenario=="Dungeon Lords" and sitePlayer~=nil and (sitePlayer.avatarLocation=="dungeon" or sitePlayer.avatarLocation=="tomb") then
-					broadcastToAll("{en}Dungeon Lords reminder: Dungeons and Tombs are normally marked only after their combat is won.{ru}Владыки Подземелий: обычно Подземелья и Гробницы отмечаются только после победы в их бою.{zh-tw}地下城領主提醒：地下城與墓穴通常只在戰鬥獲勝後才標記。{zh-cn}地下城领主提醒：地下城与墓穴通常只在战斗获胜后才标记。{ko}던전 로드 알림: 던전과 무덤은 보통 전투에서 승리한 뒤에 표시합니다.{es}Recordatorio de Señores de las Mazmorras: normalmente las Mazmorras y Tumbas solo se marcan después de ganar su combate.{fr}Rappel Seigneurs des Donjons : les Donjons et Tombeaux sont normalement marqués après avoir remporté leur combat.{pt-br}Lembrete de Senhores das Masmorras: normalmente Masmorras e Tumbas são marcadas após vencer o combate.{de}Kerkerfürsten-Erinnerung: Kerker und Gräber werden normalerweise erst nach gewonnenem Kampf markiert.",positionToColor(sitePlayerIndex or gStates.turnNumber))
+					broadcastToAll("{en}Dungeon Lords reminder: Dungeons and Tombs are normally marked only after their combat is won.{it}Promemoria Signori dei Sotterranei: Sotterranei e Tombe si contrassegnano normalmente solo dopo aver vinto il combattimento.{ru}Владыки Подземелий: обычно Подземелья и Гробницы отмечаются только после победы в их бою.{zh-tw}地下城領主提醒：地下城與墓穴通常只在戰鬥獲勝後才標記。{zh-cn}地下城领主提醒：地下城与墓穴通常只在战斗获胜后才标记。{ko}던전 로드 알림: 던전과 무덤은 보통 전투에서 승리한 뒤에 표시합니다.{es}Recordatorio de Señores de las Mazmorras: normalmente las Mazmorras y Tumbas solo se marcan después de ganar su combate.{fr}Rappel Seigneurs des Donjons : les Donjons et Tombeaux sont normalement marqués après avoir remporté leur combat.{pt-br}Lembrete de Senhores das Masmorras: normalmente Masmorras e Tumbas são marcadas após vencer o combate.{de}Kerkerfürsten-Erinnerung: Kerker und Gräber werden normalerweise erst nach gewonnenem Kampf markiert.",positionToColor(sitePlayerIndex or gStates.turnNumber))
 				end
 				local shield=getObjectFromGUID(details.shieldContainer).takeObject({position={tempPos[1], 3, tempPos[3]}})
 				if shield~=nil and gStates.gameScenario=="The Realm of the Dead Blitz" and sitePlayer~=nil and sitePlayer.avatarLocation=="graveyard" and sitePlayerIndex~=nil then
@@ -1105,7 +1105,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 												end
 												if broadcast==true then
 													--Volkare's moving army is deliberately excluded from proximity Auto Flip; attackCity() reveals it when combat starts.
-														broadcastToAll("{en}Site Garrison Revealed{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5})
+														broadcastToAll("{en}Site Garrison Revealed{it}Guarnigione del Sito Rivelata{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5})
 												end
 											end
 											--Assult Volkare
@@ -1138,7 +1138,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 										end
 										--flip garrisons during the day
 										if gStates.autoFlip==true and gStates.dayRound==true and turnOrder[gStates.turnNumber].mage==avatar.mage and terrain.getRotationValues()[2]~=nil and (terrain.getRotationValues()[2].value=="Mage Tower Garrison" or terrain.getRotationValues()[2].value=="Keep Garrison" or terrain.getRotationValues()[2].value=="Marauding Elementalist") then--and gStates.preEndTurn==false
-											if terrain.is_face_down==true then terrain.flip() broadcastToAll("{en}Site Garrison Revealed{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5}) end
+											if terrain.is_face_down==true then terrain.flip() broadcastToAll("{en}Site Garrison Revealed{it}Guarnigione del Sito Rivelata{ru}Гарнизон Укрепленного места раскрыт{zh-tw}守军揭示了{zh-cn}守军揭示了{ko}수비자가 공개되었습니다.{es}Guarnición del Sitio Revelada{fr}La Garnison du Site Révélée{pt-br}Lugar de Guarnição Revelada{de}Standort Garnison aufgedeckt", {1,1,0.5}) end
 										end
 										--flip ruins at night and Lost Relic dragons day or night
 										if gStates.autoFlip==true and turnOrder[gStates.turnNumber].mage==avatar.mage and ((playerDetails.avatarLocation=="ruin" and keepSearch==1) or (terrain.getRotationValues()[2]~=nil and terrain.getRotationValues()[2].value:sub(-8)=="Draconum")) then--and gStates.preEndTurn==false
@@ -1146,8 +1146,8 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 											--still in flight. Flipping that transient object can interrupt its move, so only reveal settled pieces.
 											if terrain.is_face_down==true and terrain.isSmoothMoving()==false and terrain.resting==true then
 												terrain.flip()
-												if playerDetails.avatarLocation=="ruin" then broadcastToAll("{en}Ruin Site Revealed{ru}Руины были раскрыты{zh-tw}废墟板块被揭示了{zh-cn}废墟板块被揭示了{ko}유적 장소 공개됨{es}Sitio de Ruinas Revelado{fr}Site de Ruines Révélé{pt-br}Lugar de Ruinas Revelado{de}Ruinenstätte aufgedeckt", {1,1,0.5}) end
-												if playerDetails.avatarLocation~="ruin" then broadcastToAll("{en}Draconum Revealed{ru}Драконид раскрыт{zh-tw}龍人已揭示{zh-cn}龙人已揭示{ko}드라코넘 공개됨{es}Draconum Revelado{fr}Draconum Révélé{pt-br}Draconum Revelado{de}Draconum aufgedeckt", {1,1,0.5}) end
+												if playerDetails.avatarLocation=="ruin" then broadcastToAll("{en}Ruin Site Revealed{it}Sito delle Rovine Rivelato{ru}Руины были раскрыты{zh-tw}废墟板块被揭示了{zh-cn}废墟板块被揭示了{ko}유적 장소 공개됨{es}Sitio de Ruinas Revelado{fr}Site de Ruines Révélé{pt-br}Lugar de Ruinas Revelado{de}Ruinenstätte aufgedeckt", {1,1,0.5}) end
+												if playerDetails.avatarLocation~="ruin" then broadcastToAll("{en}Draconum Revealed{it}Draconum Rivelato{ru}Драконид раскрыт{zh-tw}龍人已揭示{zh-cn}龙人已揭示{ko}드라코넘 공개됨{es}Draconum Revelado{fr}Draconum Révélé{pt-br}Draconum Revelado{de}Draconum aufgedeckt", {1,1,0.5}) end
 											end
 										end
 									end
@@ -1215,8 +1215,8 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						playerDetails.hand=playerDetails.baseHand
 					end
 					if playerDetails.hand~=previousHand then
-						if handBonusSource=="City" then broadcastToAll("{en}Hand size increased from proximity to City{ru}Предел карт в руке увеличен из-за близости города{zh-tw}手牌数量因靠近城市而增加{zh-cn}手牌数量因靠近城市而增加{ko}인접한 도시에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Ciudad.{fr}La taille de la main a augmenté de la proximité à la Ville{pt-br}O tamanho da mão aumentou devido à proximidade da Cidade{de}Handgröße durch Nähe zur Stadt erhöht",positionToColor(playerIndex)) end
-						if handBonusSource=="Keep" then broadcastToAll("{en}Hand size increased from proximity to Keep{ru}Предел карт в руке увеличен из-за близости крепости{zh-tw}手牌数量增加到最大值{zh-cn}手牌数量增加到最大值{ko}인접한 성에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Fortaleza{fr}La taille de la main a augmenté de la proximité à la Keep{pt-br}O tamanho da mão aumentou com a proximidade de Keep{de}Handgröße erhöht sich durch die Nähe zu Keep",positionToColor(playerIndex)) end
+						if handBonusSource=="City" then broadcastToAll("{en}Hand size increased from proximity to City{it}Limite di mano aumentato per la vicinanza alla Città{ru}Предел карт в руке увеличен из-за близости города{zh-tw}手牌数量因靠近城市而增加{zh-cn}手牌数量因靠近城市而增加{ko}인접한 도시에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Ciudad.{fr}La taille de la main a augmenté de la proximité à la Ville{pt-br}O tamanho da mão aumentou devido à proximidade da Cidade{de}Handgröße durch Nähe zur Stadt erhöht",positionToColor(playerIndex)) end
+						if handBonusSource=="Keep" then broadcastToAll("{en}Hand size increased from proximity to Keep{it}Limite di mano aumentato per la vicinanza alla Fortezza{ru}Предел карт в руке увеличен из-за близости крепости{zh-tw}手牌数量增加到最大值{zh-cn}手牌数量增加到最大值{ko}인접한 성에 의해 카드 보유 제한이 증가했습니다{es}El tamaño de la mano aumentó de la proximidad a la Fortaleza{fr}La taille de la main a augmenté de la proximité à la Keep{pt-br}O tamanho da mão aumentou com a proximidade de Keep{de}Handgröße erhöht sich durch die Nähe zu Keep",positionToColor(playerIndex)) end
 					end
 					--Reset attack icon and interaction after leaving a hex, but preserve an interaction if the avatar was only repositioned on the same hex.
 					if turnOrder[gStates.turnNumber].mage==avatar.mage and attackedLocation==nil and horsemenGladeAssault==false and (avatarChangedHex==true or (next(gStates.attackedMonsters)==nil and UI.getAttribute("zigguratPyramidInteract", "active")~="true")) then
@@ -1255,10 +1255,10 @@ local function terrainPositionLegal(obj, faceUpTerrain, northBearing, result)--.
 	end
 
 	--Check if a core tile is on the coast of a wedge map
-	if candidateTileType=="core" and northBearing==70 and (obj.bearing<=41 or obj.bearing>=99) and gStates.gameScenario~="Fast Forwarded Conquest" then result.errorBroadcast="{en}Core Terrain Tiles aren't allowed on the coast{ru}Плитки Развитых земель не могут располагаться на берегу{zh-tw}海岸边不可以部署核心城市板块{zh-cn}海岸边不可以部署核心城市板块{ko}중심부 타일은 해안선에 놓일 수 없습니다{es}Las baldosas de terreno del núcleo no están permitidas en la costa{fr}Les tuiles de terrain de base ne sont pas autorisées sur la côte{pt-br}Peças Mapa Centrais não são permitidas na Costa{de}Kernterrainplättchen sind an der Küste nicht erlaubt" return false end
+	if candidateTileType=="core" and northBearing==70 and (obj.bearing<=41 or obj.bearing>=99) and gStates.gameScenario~="Fast Forwarded Conquest" then result.errorBroadcast="{en}Core Terrain Tiles aren't allowed on the coast{it}Le tessere Terreno Centrali non possono stare sulla costa{ru}Плитки Развитых земель не могут располагаться на берегу{zh-tw}海岸边不可以部署核心城市板块{zh-cn}海岸边不可以部署核心城市板块{ko}중심부 타일은 해안선에 놓일 수 없습니다{es}Las baldosas de terreno del núcleo no están permitidas en la costa{fr}Les tuiles de terrain de base ne sont pas autorisées sur la côte{pt-br}Peças Mapa Centrais não são permitidas na Costa{de}Kernterrainplättchen sind an der Küste nicht erlaubt" return false end
 
 	--Check if a tile is outside of a wedge map
-	if northBearing==70 and (obj.bearing<=35 or obj.bearing>=105) then result.errorBroadcast="{en}Terrain Tile isn't in the Wedge{ru}Плитка земель не находится в форме{zh-tw}地图块不在锥形里 (出界了){zh-cn}地图块不在锥形里 (出界了){ko}지도 타일이 쐐기 안에 있지 않습니다{es}Terrain Tile no está en la cuña{fr}La tuile de terrain n'est pas dans le coin{pt-br}Peça de Terreno não está no Cone{de}Das Geländeplättchen liegt nicht im Keil" return false end
+	if northBearing==70 and (obj.bearing<=35 or obj.bearing>=105) then result.errorBroadcast="{en}Terrain Tile isn't in the Wedge{it}La tessera Terreno è fuori dal Cuneo{ru}Плитка земель не находится в форме{zh-tw}地图块不在锥形里 (出界了){zh-cn}地图块不在锥形里 (出界了){ko}지도 타일이 쐐기 안에 있지 않습니다{es}Terrain Tile no está en la cuña{fr}La tuile de terrain n'est pas dans le coin{pt-br}Peça de Terreno não está no Cone{de}Das Geländeplättchen liegt nicht im Keil" return false end
 
 	--Check if tile is on the 4th or 5th column of a limited open map
 	if gStates.mapShapeKey=="open3" or gStates.mapShapeKey=="open4" or gStates.mapShapeKey=="open" then
@@ -1269,7 +1269,7 @@ local function terrainPositionLegal(obj, faceUpTerrain, northBearing, result)--.
 		for b=1, checkUpTo, 1 do
 			local edge=terrainPlacementEdgeCoordinates[b]
 			if ((pos[1]-edge[1])^2)+((pos[3]-edge[2])^2)<1 then
-				result.errorBroadcast=joinLang({"{en}You are playing a {ru}Форма игрового поля - {zh-tw}正在玩的剧本名: {zh-cn}正在玩的剧本名: {ko}플레이 중인 맵: {es}Estás jugando un {fr}Vous jouez à un {pt-br}Você está jogando um(a) {de}Du spielst gerade ein ", gStates.mapShape, "{en} Game{ru} {zh-tw}. {zh-cn}. {ko}{es} juegos{fr} Game{pt-br} Jogo{de} Spiel"})
+				result.errorBroadcast=joinLang({"{en}You are playing a {it}Stai giocando una partita {ru}Форма игрового поля - {zh-tw}正在玩的剧本名: {zh-cn}正在玩的剧本名: {ko}플레이 중인 맵: {es}Estás jugando un {fr}Vous jouez à un {pt-br}Você está jogando um(a) {de}Du spielst gerade ein ", gStates.mapShape, "{en} Game{it}{ru} {zh-tw}. {zh-cn}. {ko}{es} juegos{fr} Game{pt-br} Jogo{de} Spiel"})
 				return false
 			end
 		end
@@ -1296,8 +1296,8 @@ local function terrainPositionLegal(obj, faceUpTerrain, northBearing, result)--.
 			end
 		end
 		if neighboursFound==0 then return false end
-		if candidateTileType=="core" and neighboursFound<2 then result.errorBroadcast="{en}Core Terrain Tiles need two or more neighbours{ru}Плитки Развитых земель должны находиться по соседству с двумя другими землями{zh-tw}核心城市板块需要紧邻两个以上的其他板块{zh-cn}核心城市板块需要紧邻两个以上的其他板块{ko}중심부 타일은 최소 2개의 타일과 인접해야 합니다{es}Las baldosas de terreno central necesitan dos o más vecinos{fr}Les tuiles de terrain de base ont besoin de deux voisins ou plus{pt-br}Peças Mapa Centrais precisam de 2 ou mais Vizinhos{de}Kernterrainplättchen benötigen zwei oder mehr Nachbarn" return false end
-		if obj.objName=="excess" and neighboursFound<3 then result.errorBroadcast="{en}Excess Terrain Tiles need three or more neighbours, They're meant to fill holes in the map.{ru}Запасные земели должны примыкать хотя бы к трём другим землям (чтобы заполнить дыры).{zh-tw}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{zh-cn}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{ko}추가 지도 타일은 최소 3개의 다른 타일과 인접해야 합니다. 구멍을 메운다는 느낌과 유사합니다.{es}Los mosaicos de terreno en exceso necesitan tres o más vecinos. Están destinados a rellenar huecos en el mapa.{fr}Les tuiles de terrain excédentaire ont besoin de trois voisins ou plus, elles sont destinées à combler les trous sur la carte.{pt-br}Peças de Terreno Excessivas precisam de 3 ou mais vizinhos. Elas são para preencher buracos no mapa{de}Überschüssige Geländeplättchen brauchen drei oder mehr Nachbarn, sie sollen Löcher auf der Karte füllen." return false end
+		if candidateTileType=="core" and neighboursFound<2 then result.errorBroadcast="{en}Core Terrain Tiles need two or more neighbours{it}Le tessere Terreno Centrali richiedono almeno due vicini{ru}Плитки Развитых земель должны находиться по соседству с двумя другими землями{zh-tw}核心城市板块需要紧邻两个以上的其他板块{zh-cn}核心城市板块需要紧邻两个以上的其他板块{ko}중심부 타일은 최소 2개의 타일과 인접해야 합니다{es}Las baldosas de terreno central necesitan dos o más vecinos{fr}Les tuiles de terrain de base ont besoin de deux voisins ou plus{pt-br}Peças Mapa Centrais precisam de 2 ou mais Vizinhos{de}Kernterrainplättchen benötigen zwei oder mehr Nachbarn" return false end
+		if obj.objName=="excess" and neighboursFound<3 then result.errorBroadcast="{en}Excess Terrain Tiles need three or more neighbours, They're meant to fill holes in the map.{it}Le tessere Terreno in eccesso richiedono almeno tre vicini: servono a riempire i vuoti nella mappa.{ru}Запасные земели должны примыкать хотя бы к трём другим землям (чтобы заполнить дыры).{zh-tw}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{zh-cn}多余的地形块需要临近3个或更多板块, 这是为了填补地图上的空位{ko}추가 지도 타일은 최소 3개의 다른 타일과 인접해야 합니다. 구멍을 메운다는 느낌과 유사합니다.{es}Los mosaicos de terreno en exceso necesitan tres o más vecinos. Están destinados a rellenar huecos en el mapa.{fr}Les tuiles de terrain excédentaire ont besoin de trois voisins ou plus, elles sont destinées à combler les trous sur la carte.{pt-br}Peças de Terreno Excessivas precisam de 3 ou mais vizinhos. Elas são para preencher buracos no mapa{de}Überschüssige Geländeplättchen brauchen drei oder mehr Nachbarn, sie sollen Löcher auf der Karte füllen." return false end
 		if candidateTileType~="core" and neighboursFound<=1 then
 			neighboursFound=0
 			if neighbourTile~=nil then
@@ -1315,7 +1315,7 @@ local function terrainPositionLegal(obj, faceUpTerrain, northBearing, result)--.
 						end
 					end
 				end
-				if neighboursFound<2 then result.errorBroadcast="{en}Country Terrain Tiles can't be strung out that far{ru}Плитки Диких земель не могут вытягиваться так далеко{zh-tw}乡村板块不能铺那么远{zh-cn}乡村板块不能铺那么远{ko}교외 타일은 그렇게 놓일 수 없습니다{es}Las baldosas de terreno rural no se pueden colocar tan lejos{fr}Les tuiles de terrain de campagne ne peuvent pas être enfilées aussi loin{pt-br}Peças Mapa de Campo não podem ser colocados tão longe{de}Land-Terrainplättchen können nicht so weit aufgereiht werden" return false end
+				if neighboursFound<2 then result.errorBroadcast="{en}Country Terrain Tiles can't be strung out that far{it}Le tessere Campagna non possono estendersi così lontano{ru}Плитки Диких земель не могут вытягиваться так далеко{zh-tw}乡村板块不能铺那么远{zh-cn}乡村板块不能铺那么远{ko}교외 타일은 그렇게 놓일 수 없습니다{es}Las baldosas de terreno rural no se pueden colocar tan lejos{fr}Les tuiles de terrain de campagne ne peuvent pas être enfilées aussi loin{pt-br}Peças Mapa de Campo não podem ser colocados tão longe{de}Land-Terrainplättchen können nicht so weit aufgereiht werden" return false end
 			end
 		end
 	end
@@ -1323,11 +1323,11 @@ local function terrainPositionLegal(obj, faceUpTerrain, northBearing, result)--.
 	--Check if a City tile is played to wrong side in Life and Death
 	if gStates.gameScenario=="Life and Death" and getObjectFromGUID(GUID.bag.terrain.stack).getQuantity()==1 then
 		if obj.guid==GUID.tile.city08 and obj.bearing<=northBearing-1 then --red city
-			result.errorBroadcast="{en}Red City needs to be placed in the Northern section{ru}Земля с красным городом не может быть размещена на юге{zh-tw}红色城市需要放在靠北边{zh-cn}红色城市需要放在靠北边{ko}빨간색 도시는 북쪽에 놓여야합니다.{es}Red City debe colocarse en la sección Norte{fr}Red City doit être placé dans la section Nord{pt-br}Cidade Vermelha precisa ser colocada na sessão Norte{de}Die rote Stadt muss in den nördlichen Abschnitt gelegt werden"
+			result.errorBroadcast="{en}Red City needs to be placed in the Northern section{it}La Città Rossa deve essere collocata nella sezione Nord{ru}Земля с красным городом не может быть размещена на юге{zh-tw}红色城市需要放在靠北边{zh-cn}红色城市需要放在靠北边{ko}빨간색 도시는 북쪽에 놓여야합니다.{es}Red City debe colocarse en la sección Norte{fr}Red City doit être placé dans la section Nord{pt-br}Cidade Vermelha precisa ser colocada na sessão Norte{de}Die rote Stadt muss in den nördlichen Abschnitt gelegt werden"
 			return false
 		end
 		if obj.guid==GUID.tile.city05 and obj.bearing>=northBearing+1 then --green city
-			result.errorBroadcast="{en}Green City needs to be placed in the Southern section{ru}Земля с зелёным городом не может быть размещена на севере{zh-tw}绿色城市需要放置在南边部分{zh-cn}绿色城市需要放置在南边部分{ko}녹색 도시는 남쪽에 놓여야합니다{es}Green City debe colocarse en la sección Sur{fr}Green City doit être placé dans la section Sud{pt-br}Cidade Verde precisa ser colocada na parte Sul do mapa{de}Grüne Stadt muss in die südliche Sektion gelegt werden"
+			result.errorBroadcast="{en}Green City needs to be placed in the Southern section{it}La Città Verde deve essere collocata nella sezione Sud{ru}Земля с зелёным городом не может быть размещена на севере{zh-tw}绿色城市需要放置在南边部分{zh-cn}绿色城市需要放置在南边部分{ko}녹색 도시는 남쪽에 놓여야합니다{es}Green City debe colocarse en la sección Sur{fr}Green City doit être placé dans la section Sud{pt-br}Cidade Verde precisa ser colocada na parte Sul do mapa{de}Grüne Stadt muss in die südliche Sektion gelegt werden"
 			return false
 		end
 	end
@@ -1400,7 +1400,7 @@ function refreshTerrainExploreOptions(compactCities)
 					terrainExploreButtons[#terrainExploreButtons+1]={tag="Button", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
 							children={	{tag="Image", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
 										{tag="HorizontalLayout", attributes={padding="25 25 25 25"},
-										children={{tag="Text", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
+										children={{tag="Text", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{it}ESPLORA{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
 					--record all the potential future hexes as "explore" so the move can calculate for it.
 				end
 				end
@@ -1512,7 +1512,7 @@ function mapHandleTerrainZoneEnter(ctx)
 			if newTerrainReveal==true and terrainTiles[objGUID].tileType=="core" and (objGUID~=GUID.tile.volkareCamp or (objGUID==GUID.tile.volkareCamp and gStates.volkareCampAsCity==true)) and gStates.gameScenario~="First Reconnaissance" and gStates.gameScenario~="Conquer and Hold" and gStates.gameScenario~="Fury of the Apocalypse Dragon" then
 				gStates.playedCoreTiles=gStates.playedCoreTiles+1
 				gStates.eliteUnitsUsed=true
-				if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
+				if gStates.playedCoreTiles==1 then broadcastToAll("{en}Elite Units are included in the next Offer{it}Le Unità Élite saranno incluse nella prossima Offerta{ru}Элитные отряды будут доступны в следующем Раунде{zh-tw}精英部队包含在下个供应区{zh-cn}精英部队包含在下个供应区{ko}다음 라운드부터 엘리트 유닛이 추가됩니다{es}Las Unidades Elite están incluidas en la próxima Oferta{fr}Les unités Elite sont incluses dans la prochaine Offre{pt-br}Unidades Elite estão incluídas na próxima oferta{de}Eliteeinheiten sind im nächsten Angebot enthalten", {1,1,0.5}) end
 				core=1
 			end
 
@@ -1609,7 +1609,7 @@ function mapHandleTerrainZoneEnter(ctx)
 									token.addDecal({name="NightRules", position={0.85, 0.15, -0.85}, rotation={90, 180, 0}, scale={0.6, 0.6, 1}, url=nightRulesDecal})
 									if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={nightRules=true} else gStates.monsterPerks[token.guid].nightRules=true end
 								else
-									broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
+									broadcastToAll("{en}Sorry, there are no tokens left to deploy{it}Non ci sono più segnalini da posizionare{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
 								end
 								tokenPileGreen=monsterPiles.green
 							end
@@ -1653,7 +1653,7 @@ function mapHandleTerrainZoneEnter(ctx)
 											if gStates.mineMonsterQty[objGUID]==nil then gStates.mineMonsterQty[objGUID]={[token.guid]="alive"} else gStates.mineMonsterQty[objGUID][token.guid]="alive" end
 										end
 									else
-										broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
+										broadcastToAll("{en}Sorry, there are no tokens left to deploy{it}Non ci sono più segnalini da posizionare{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
 									end
 								end
 
@@ -1702,7 +1702,7 @@ function mapHandleTerrainZoneEnter(ctx)
 									gStates.monsterPlayLocation[token.guid]=params.position
 									refreshAutoFlipAfterGarrisonArrival(token)
 								else
-									broadcastToAll("{en}Sorry, there are no Purple tokens left to deploy{ru}Извините, фиолетовые жетоны закончились.{zh-tw}抱歉，沒有紫色標記可供部署{zh-cn}抱歉，没有紫色标记可供部署{ko}여분의 보라색 토큰이 없습니다{es}Lo sentimos, no quedan tokens púrpuras para implementar{fr}Désolé, il n'y a plus de jetons violets à déployer{pt-br}Desculpe, Não tem Fichas Roxas sobrando para distribuir{de}Leider gibt es keine violetten Plättchen mehr zum Einsetzen", warningColor)
+									broadcastToAll("{en}Sorry, there are no Purple tokens left to deploy{it}Non ci sono più segnalini Viola da posizionare{ru}Извините, фиолетовые жетоны закончились.{zh-tw}抱歉，沒有紫色標記可供部署{zh-cn}抱歉，没有紫色标记可供部署{ko}여분의 보라색 토큰이 없습니다{es}Lo sentimos, no quedan tokens púrpuras para implementar{fr}Désolé, il n'y a plus de jetons violets à déployer{pt-br}Desculpe, Não tem Fichas Roxas sobrando para distribuir{de}Leider gibt es keine violetten Plättchen mehr zum Einsetzen", warningColor)
 								end
 							end
 
@@ -1723,7 +1723,7 @@ function mapHandleTerrainZoneEnter(ctx)
 											gStates.hiddenValleyKeep[i]=token.guid
 											gStates.mineMonsterQty[objGUID][token.guid]="alive"
 										else
-											broadcastToAll("{en}Sorry, there are no Green tokens left to deploy{ru}Извините, зеленые жетоны закончились.{zh-tw}抱歉，没有绿色标记可供部署{zh-cn}抱歉，没有绿色标记可供部署{ko}여분의 녹색 토큰이 없습니다{es}Lo sentimos, no quedan tokens verdes para implementar{fr}Désolé, il n'y a plus de jetons verts à déployer{pt-br}Desculpe, Não tem Fichas Verde sobrando para distribuir{de}Tut mir leid, es gibt keine grünen Plättchen mehr zum Einsetzen", warningColor)
+											broadcastToAll("{en}Sorry, there are no Green tokens left to deploy{it}Non ci sono più segnalini Verdi da posizionare{ru}Извините, зеленые жетоны закончились.{zh-tw}抱歉，没有绿色标记可供部署{zh-cn}抱歉，没有绿色标记可供部署{ko}여분의 녹색 토큰이 없습니다{es}Lo sentimos, no quedan tokens verdes para implementar{fr}Désolé, il n'y a plus de jetons verts à déployer{pt-br}Desculpe, Não tem Fichas Verde sobrando para distribuir{de}Tut mir leid, es gibt keine grünen Plättchen mehr zum Einsetzen", warningColor)
 										end
 									end
 								else
@@ -1732,7 +1732,7 @@ function mapHandleTerrainZoneEnter(ctx)
 										gStates.monsterPlayLocation[token.guid]=params.position
 										refreshAutoFlipAfterGarrisonArrival(token)
 									else
-										broadcastToAll("{en}Sorry, there are no Gray tokens left to deploy{ru}Извините, серые жетоны закончились.{zh-tw}抱歉，没有灰色标记可供部署{zh-cn}抱歉，没有灰色标记可供部署{ko}여분의 회색 토큰이 없습니다.{es}Lo sentimos, no quedan tokens grises para desplegar{fr}Désolé, il n'y a plus de jetons gris à déployer{pt-br}Desculpe, Não tem Fichas Cinza sobrando para distribuir{de}Entschuldigung, es gibt keine grauen Plättchen mehr zum Auslegen", warningColor)
+										broadcastToAll("{en}Sorry, there are no Gray tokens left to deploy{it}Non ci sono più segnalini Grigi da posizionare{ru}Извините, серые жетоны закончились.{zh-tw}抱歉，没有灰色标记可供部署{zh-cn}抱歉，没有灰色标记可供部署{ko}여분의 회색 토큰이 없습니다.{es}Lo sentimos, no quedan tokens grises para desplegar{fr}Désolé, il n'y a plus de jetons gris à déployer{pt-br}Desculpe, Não tem Fichas Cinza sobrando para distribuir{de}Entschuldigung, es gibt keine grauen Plättchen mehr zum Auslegen", warningColor)
 									end
 								end
 							end
@@ -1818,7 +1818,7 @@ function mapHandleTerrainZoneEnter(ctx)
 				if gStates.gameScenario=="The Lost Relic Blitz" and (centerFeature:sub(1,4)=="city" or centerFeature=="Volkare's Camp") then
 					turnOrder[gStates.turnNumber].fameGain=turnOrder[gStates.turnNumber].fameGain+1
 				end
-				broadcastToAll("{en}Exploring gives fame gain in this Scenario{ru}Исследование дает Славу в этом сценарии{zh-tw}在这个剧本探索板块会增加名望{zh-cn}在这个剧本探索板块会增加名望{ko}이 시나리오에선 탐험시 명성을 얻습니다{es}Explorar da fama en este Escenario{fr}L'exploration donne un gain de renommée dans ce Scénario{pt-br}Explorar dá Fama neste Cenário{de}Erkunden bringt in diesem Szenario Ruhmgewinn", {1,1,0.5})
+				broadcastToAll("{en}Exploring gives fame gain in this Scenario{it}Esplorare fa guadagnare Fama in questo scenario{ru}Исследование дает Славу в этом сценарии{zh-tw}在这个剧本探索板块会增加名望{zh-cn}在这个剧本探索板块会增加名望{ko}이 시나리오에선 탐험시 명성을 얻습니다{es}Explorar da fama en este Escenario{fr}L'exploration donne un gain de renommée dans ce Scénario{pt-br}Explorar dá Fama neste Cenário{de}Erkunden bringt in diesem Szenario Ruhmgewinn", {1,1,0.5})
 				mainUIUpdate("Fame Gain from exploring")
 			end
 		else

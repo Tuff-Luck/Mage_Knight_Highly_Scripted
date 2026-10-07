@@ -414,7 +414,7 @@ end
 takeCityDefender=function(cityGUID, tokenType, position, rotation)
 	local pile, substituteFaction=cityDefenderPile(cityGUID, tokenType)
 	if pile==nil then
-		broadcastToAll("{en}Sorry, there are no tokens left to deploy{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
+		broadcastToAll("{en}Sorry, there are no tokens left to deploy{it}Non ci sono più segnalini da posizionare{ru}Извините, жетонов для размещения не осталось{zh-tw}抱歉，沒有可供部署的標記{zh-cn}抱歉，没有可供部署的标记{ko}여분의 토큰이 없습니다{es}Lo sentimos, no quedan fichas para desplegar{fr}Désolé, il n’y a plus de jetons à déployer{pt-br}Desculpe, não há mais fichas para distribuir{de}Entschuldigung, es sind keine Marker mehr zum Platzieren übrig", warningColor)
 		return nil
 	end
 	local token=pile.takeObject({position=position, rotation=rotation, smooth=true})
@@ -451,14 +451,14 @@ end
 cityArmyPlace=function(cityGUID, cityLevel, basePosition, rotation, startDelay, stackIndex, ownerGUID)
 	local army, lowerLevel, upperLevel=cityArmyLevelData(cityGUID, cityLevel)
 	if army==nil then
-		broadcastToAll(joinLang({"{en}Unable to deploy City army: no data for GUID {ru}Не удалось разместить армию Города: нет данных для GUID {zh-tw}無法部署城市軍隊：找不到 GUID {zh-cn}无法部署城市军队：找不到 GUID {ko}도시 군대를 배치할 수 없습니다. GUID {es}No se puede desplegar el ejército de la Ciudad: no hay datos para el GUID {fr}Impossible de déployer l’armée de la Cité : aucune donnée pour le GUID {pt-br}Não foi possível posicionar o exército da Cidade: não há dados para o GUID {de}Stadtarmee konnte nicht eingesetzt werden: keine Daten für GUID ",tostring(cityGUID),"{en} at level {ru} на уровне {zh-tw}，等級 {zh-cn}，等级 {ko}, 레벨 {es} en el nivel {fr} au niveau {pt-br} no nível {de} auf Stufe ",tostring(cityLevel),"."}), warningColor)
+		broadcastToAll(joinLang({"{en}Unable to deploy City army: no data for GUID {it}Impossibile schierare la guarnigione: nessun dato per il GUID {ru}Не удалось разместить армию Города: нет данных для GUID {zh-tw}無法部署城市軍隊：找不到 GUID {zh-cn}无法部署城市军队：找不到 GUID {ko}도시 군대를 배치할 수 없습니다. GUID {es}No se puede desplegar el ejército de la Ciudad: no hay datos para el GUID {fr}Impossible de déployer l’armée de la Cité : aucune donnée pour le GUID {pt-br}Não foi possível posicionar o exército da Cidade: não há dados para o GUID {de}Stadtarmee konnte nicht eingesetzt werden: keine Daten für GUID ",tostring(cityGUID),"{en} at level {it} al livello {ru} на уровне {zh-tw}，等級 {zh-cn}，等级 {ko}, 레벨 {es} en el nivel {fr} au niveau {pt-br} no nível {de} auf Stufe ",tostring(cityLevel),"."}), warningColor)
 		return startDelay or 0, stackIndex or 0
 	end
 	ownerGUID=ownerGUID or cityGUID
 	local ownerData=gStates.cityMonsterQty[ownerGUID]
 	if ownerData==nil then return startDelay or 0, stackIndex or 0 end
 	if lowerLevel~=nil and upperLevel~=nil then
-		broadcastToAll(joinLang({"{en}City level {ru}Защитники города уровня {zh-tw}城市等級 {zh-cn}城市等级 {ko}도시 레벨 {es}Defensores de la Ciudad de nivel {fr}Défenseurs de la Cité de niveau {pt-br}Defensores da Cidade de nível {de}Verteidiger der Stadt Stufe ",tostring(cityLevel),"{en} defenders: using levels {ru}: используются уровни {zh-tw} 的守軍：使用等級 {zh-cn} 的守军：使用等级 {ko} 수비대: 레벨 {es}: se usan los niveles {fr} : niveaux utilisés {pt-br}: usando os níveis {de}: verwendet werden Stufen ",tostring(lowerLevel)," + ",tostring(upperLevel),"."}), {1,1,0.5})
+		broadcastToAll(joinLang({"{en}City level {it}Città livello {ru}Защитники города уровня {zh-tw}城市等級 {zh-cn}城市等级 {ko}도시 레벨 {es}Defensores de la Ciudad de nivel {fr}Défenseurs de la Cité de niveau {pt-br}Defensores da Cidade de nível {de}Verteidiger der Stadt Stufe ",tostring(cityLevel),"{en} defenders: using levels {it}, difensori: uso dei livelli {ru}: используются уровни {zh-tw} 的守軍：使用等級 {zh-cn} 的守军：使用等级 {ko} 수비대: 레벨 {es}: se usan los niveles {fr} : niveaux utilisés {pt-br}: usando os níveis {de}: verwendet werden Stufen ",tostring(lowerLevel)," + ",tostring(upperLevel),"."}), {1,1,0.5})
 	end
 	local delay=startDelay or 0
 	local stack=stackIndex or 0

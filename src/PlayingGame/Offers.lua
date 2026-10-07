@@ -30,7 +30,7 @@ end
 function artifactOfferRewardTextRefresh()
 	local deck=artifactOfferDeck()
 	if deck==nil then return false end
-	deck.UI.setAttribute("ac75c4ArtifactOfferText","text",joinLang({"{en}Reward {ru}Награда {zh-tw}獎勵{zh-cn}奖励{ko}보상 {es}Premiar {fr}Reward {pt-br}Premiar {de}Belohnung ",gStates.artifactRewards}))
+	deck.UI.setAttribute("ac75c4ArtifactOfferText","text",joinLang({"{en}Reward {it}Ricompensa {ru}Награда {zh-tw}獎勵{zh-cn}奖励{ko}보상 {es}Premiar {fr}Reward {pt-br}Premiar {de}Belohnung ",gStates.artifactRewards}))
 	return true
 end
 
@@ -75,11 +75,11 @@ function offerArtifacts(player, mouseButton, id)
 				--remove reward and arrow buttons.
 				artifactOfferControlsHide()
 			else
-				broadcastToAll("{en}Choose a tactic first{ru}Сперва выберите Тактику{zh-tw}先选一张战术卡吧{zh-cn}先选一张战术卡吧{ko}먼저 전략 카드를 고르세요{es}Elige una táctica primero{fr}Choisissez d'abord une tactique{pt-br}Escolha uma Tática primeiro{de}Wähle zuerst eine Taktik",warningColor)
+				broadcastToAll("{en}Choose a tactic first{it}Scegli prima una tattica{ru}Сперва выберите Тактику{zh-tw}先选一张战术卡吧{zh-cn}先选一张战术卡吧{ko}먼저 전략 카드를 고르세요{es}Elige una táctica primero{fr}Choisissez d'abord une tactique{pt-br}Escolha uma Tática primeiro{de}Wähle zuerst eine Taktik",warningColor)
 			end
 		else
 			if turnOrder[gStates.turnNumber].mage==gStates.positionMageKnight[5] then
-				broadcastToAll("{en}Dummy doesn't claim artifacts{ru}Виртуальный игрок не получает артефактов{zh-tw}虚拟玩家不选择圣器{zh-cn}虚拟玩家不选择圣器{ko}가상 플레이어는 유물을 얻지 않습니다!{es}Dummy no reclama artefactos{fr}Le mannequin ne revendique pas d'artefacts{pt-br}Jog. Fictício não clama Artefatos{de}Dummy beansprucht keine Artefakte",warningColor)
+				broadcastToAll("{en}Dummy doesn't claim artifacts{it}Il Fittizio non prende artefatti{ru}Виртуальный игрок не получает артефактов{zh-tw}虚拟玩家不选择圣器{zh-cn}虚拟玩家不选择圣器{ko}가상 플레이어는 유물을 얻지 않습니다!{es}Dummy no reclama artefactos{fr}Le mannequin ne revendique pas d'artefacts{pt-br}Jog. Fictício não clama Artefatos{de}Dummy beansprucht keine Artefakte",warningColor)
 			end
 		end
 	end
@@ -370,7 +370,7 @@ function unitOffer()
 				local params={position={pos.x-j*0.85+1, pos.y+0.15, pos.z}}
 				offerCards.takeObject(params)
 			end
-			broadcastToAll("{en}Sorry, I seem to have double dealt. Manual cleaning of Offer required{ru}Извините, что-то пошло не так. Требуется ручное исправление доступных карт{zh-tw}抱歉，我可能做了双重结算，请手动清除部队供应区{zh-cn}抱歉，我可能做了双重结算，请手动清除部队供应区{ko}죄송합니다, 공급처가 이중으로 겹쳐진 모양이네요. 직접 정리 부탁드립니다.{es}Lo siento, parece que he hecho un doblete. Se requiere limpieza manual de la Oferta{fr}Désolé, j'ai l'impression d'avoir joué deux fois. Nettoyage manuel de l'offre requis{pt-br}Desculpe, Parece que ofertei em dobro. Limpeza Manual da Oferta requerida.{de}Entschuldigung, ich habe wohl doppelt gehandelt. Manuelle Bereinigung des Angebots erforderlich", warningColor)
+			broadcastToAll("{en}Sorry, I seem to have double dealt. Manual cleaning of Offer required{it}Sembra che le carte siano state distribuite due volte. Sistema manualmente l'Offerta.{ru}Извините, что-то пошло не так. Требуется ручное исправление доступных карт{zh-tw}抱歉，我可能做了双重结算，请手动清除部队供应区{zh-cn}抱歉，我可能做了双重结算，请手动清除部队供应区{ko}죄송합니다, 공급처가 이중으로 겹쳐진 모양이네요. 직접 정리 부탁드립니다.{es}Lo siento, parece que he hecho un doblete. Se requiere limpieza manual de la Oferta{fr}Désolé, j'ai l'impression d'avoir joué deux fois. Nettoyage manuel de l'offre requis{pt-br}Desculpe, Parece que ofertei em dobro. Limpeza Manual da Oferta requerida.{de}Entschuldigung, ich habe wohl doppelt gehandelt. Manuelle Bereinigung des Angebots erforderlich", warningColor)
 			skip=true
 		end
 	end
@@ -425,7 +425,7 @@ function unitOffer()
 				if gStates.eliteUnitsUsed==true	and (a==1 or a==3 or a==5 or a==7 or a==9) then drawDeckName="Elite Unit" end
 				local drawDeckType=drawDecks[drawDeckName]
 				local chosenUnit=getNextUniqueUnit(drawDeckType, drawDeckName)
-				if chosenUnit~=nil then drawList[a]=chosenUnit else broadcastToAll("{en}Could not find enough unique units for the offer.{ru}Не удалось найти достаточно уникальных отрядов для предложения.{zh-tw}找不到足夠不同的部隊來填滿供應。{zh-cn}找不到足够不同的部队来填满供应。{ko}제안에 필요한 서로 다른 유닛을 충분히 찾지 못했습니다.{es}No se pudieron encontrar suficientes unidades diferentes para la oferta.{fr}Impossible de trouver suffisamment d’unités différentes pour l’offre.{pt-br}Não foi possível encontrar unidades diferentes suficientes para a oferta.{de}Es konnten nicht genügend unterschiedliche Einheiten für das Angebot gefunden werden.",	warningColor) break end
+				if chosenUnit~=nil then drawList[a]=chosenUnit else broadcastToAll("{en}Could not find enough unique units for the offer.{it}Non sono state trovate abbastanza Unità diverse per l'offerta.{ru}Не удалось найти достаточно уникальных отрядов для предложения.{zh-tw}找不到足夠不同的部隊來填滿供應。{zh-cn}找不到足够不同的部队来填满供应。{ko}제안에 필요한 서로 다른 유닛을 충분히 찾지 못했습니다.{es}No se pudieron encontrar suficientes unidades diferentes para la oferta.{fr}Impossible de trouver suffisamment d’unités différentes pour l’offre.{pt-br}Não foi possível encontrar unidades diferentes suficientes para a oferta.{de}Es konnten nicht genügend unterschiedliche Einheiten für das Angebot gefunden werden.",	warningColor) break end
 			end
 			return drawList, deckInfo
 		end
@@ -452,7 +452,7 @@ function unitOffer()
 			standardDeckCycleShuffleIfReached("Advanced Action")
 			local source=standardDeckCycleObject("Advanced Action")
 			if source==nil then
-				broadcastToAll("{en}The Advanced Action deck is empty; the Monastery offer could not be fully refilled.{ru}Колода Продвинутых действий пуста; предложение Монастыря не удалось полностью пополнить.{zh-tw}進階行動牌庫已空；修道院供應無法完全補滿。{zh-cn}高级行动牌库已空；修道院供应无法完全补满。{ko}고급 행동 덱이 비어 수도원 제안을 완전히 채울 수 없습니다.{es}El mazo de Acciones Avanzadas está vacío; la oferta del Monasterio no pudo rellenarse por completo.{fr}Le paquet d’Actions Avancées est vide ; l’offre du Monastère n’a pas pu être entièrement remplie.{pt-br}O baralho de Ações Avançadas está vazio; a oferta do Monastério não pôde ser totalmente reabastecida.{de}Der Stapel der Fortgeschrittenen Aktionen ist leer; das Klosterangebot konnte nicht vollständig aufgefüllt werden.",warningColor)
+				broadcastToAll("{en}The Advanced Action deck is empty; the Monastery offer could not be fully refilled.{it}Il mazzo Azioni Avanzate è vuoto; l'offerta del Monastero non è stata rifornita completamente.{ru}Колода Продвинутых действий пуста; предложение Монастыря не удалось полностью пополнить.{zh-tw}進階行動牌庫已空；修道院供應無法完全補滿。{zh-cn}高级行动牌库已空；修道院供应无法完全补满。{ko}고급 행동 덱이 비어 수도원 제안을 완전히 채울 수 없습니다.{es}El mazo de Acciones Avanzadas está vacío; la oferta del Monasterio no pudo rellenarse por completo.{fr}Le paquet d’Actions Avancées est vide ; l’offre du Monastère n’a pas pu être entièrement remplie.{pt-br}O baralho de Ações Avançadas está vazio; a oferta do Monastério não pôde ser totalmente reabastecida.{de}Der Stapel der Fortgeschrittenen Aktionen ist leer; das Klosterangebot konnte nicht vollständig aufgefüllt werden.",warningColor)
 				break
 			end
 			local drawnCard=offerDrawOrMoveCard(source,params)
@@ -520,7 +520,7 @@ function handleMonasteryRevealed()
 			safeWaitCondition("Offers",function() if drawnCard~=nil then drawnCard.lock() end end,function()
 				return drawnCard==nil or drawnCard.resting==true
 			end,5,function() if drawnCard~=nil then drawnCard.lock() end end)
-			broadcastToAll("{en}Monastery is teaching a new Advanced Action{ru}Монастырь обучает новому Особому действию{zh-tw}修道院现在传授新的高级行动{zh-cn}修道院现在传授新的高级行动{ko}수도원에 새로운 상급 액션이 추가되었습니다{es}El Monasterio está enseñando una nueva Acción Avanzada{fr}Le Monastère enseigne une nouvelle Action Avancée{pt-br}Monastério está encinsando uma nova Ação Avançada{de}Das Kloster lehrt eine neue fortgeschrittene Aktion", {1,1,0.5})
+			broadcastToAll("{en}Monastery is teaching a new Advanced Action{it}Il Monastero insegna una nuova Azione Avanzata{ru}Монастырь обучает новому Особому действию{zh-tw}修道院现在传授新的高级行动{zh-cn}修道院现在传授新的高级行动{ko}수도원에 새로운 상급 액션이 추가되었습니다{es}El Monasterio está enseñando una nueva Acción Avanzada{fr}Le Monastère enseigne une nouvelle Action Avancée{pt-br}Monastério está encinsando uma nova Ação Avançada{de}Das Kloster lehrt eine neue fortgeschrittene Aktion", {1,1,0.5})
 			return true
 		end
 		if drawMonasteryAdvancedAction()~=true then
@@ -580,21 +580,21 @@ local function deedOfferSourceUiXml(size)
 			position="208 0 -10", rotation="0 180 -90", scale="0.667 0.667",
 			alignment="UpperCenter", resizeTextForBestFit="true", resizeTextMinSize="30", resizeTextMaxSize="100",
 			font="Fonts/MKCardTittle", color="#FFFFFF", raycastTarget="false",
-			text="{en}Spells{ru}Заклинания{zh-tw}法術卡{zh-cn}法术卡{ko}마법{es}Hechizos{fr}Sorts{pt-br}Feitiços{de}Zaubersprüche"
+			text="{en}Spells{it}Incantesimi{ru}Заклинания{zh-tw}法術卡{zh-cn}法术卡{ko}마법{es}Hechizos{fr}Sorts{pt-br}Feitiços{de}Zaubersprüche"
 		}},
 		{tag="Text", attributes={
 			id="TableAdvancedActionLabel", width=400, height=250,
 			position="208 -400 -10", rotation="0 180 -90", scale="0.667 0.667",
 			alignment="UpperCenter", resizeTextForBestFit="true", resizeTextMinSize="30", resizeTextMaxSize="100",
 			font="Fonts/MKCardTittle", color="#FFFFFF", raycastTarget="false",
-			text="{en}Advanced Actions{ru}Особые Действия{zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션{es}Acciones Avanzadas{fr}Actions avancées{pt-br}Ações Avançadas{de}Fortgeschrittene Aktionen"
+			text="{en}Advanced Actions{it}Azioni Avanzate{ru}Особые Действия{zh-tw}高級行動卡{zh-cn}高级行动卡{ko}상급 액션{es}Acciones Avanzadas{fr}Actions avancées{pt-br}Ações Avançadas{de}Fortgeschrittene Aktionen"
 		}},
 		{tag="Text", attributes={
 			id="TableOfferLabel", width=1000, height=180,
 			position="325 -600 -10", rotation="0 180 -90", scale="0.667 0.667",
 			alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMinSize="30", resizeTextMaxSize="200",
 			font="Fonts/MKCardTittle", color="#FFFFFF", raycastTarget="false",
-			text="{en}Offers{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote"
+			text="{en}Offers{it}Offerte{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote"
 		}},
 		{tag="Button", attributes={
 			id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",

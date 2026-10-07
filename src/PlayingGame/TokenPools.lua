@@ -54,9 +54,9 @@ function tokenRefill(reportResult)
 	end
 	if reportResult==true and noWait==true then
 		if emptyPile==true then
-			broadcastToAll("{en}Sorry, I have no discard tokens to fill those empty stacks{ru}Извините, у меня нет жетонов в сбросе, чтобы заполнить эти пустые стопки.{zh-tw}抱歉，我没有废弃标记来填充那些空的标记堆{zh-cn}抱歉，我没有废弃标记来填充那些空的标记堆{ko}버린 토큰을 찾을 수 없어 더미를 채우지 못했습니다.{es}Lo siento, no tengo tokens de descarte para llenar esas pilas vacías{fr}Désolé, je n'ai pas de jetons de défausse pour remplir ces piles vides{pt-br}Desculpe, Eu tenho nenhuma ficha de descarte para preencher as estas pilhas vazias{de}Leider habe ich keine Abwurfmarken, um diese leeren Stapel zu füllen.", {0, 0.5, 1})
+			broadcastToAll("{en}Sorry, I have no discard tokens to fill those empty stacks{it}Non ci sono segnalini scartati per riempire le pile vuote{ru}Извините, у меня нет жетонов в сбросе, чтобы заполнить эти пустые стопки.{zh-tw}抱歉，我没有废弃标记来填充那些空的标记堆{zh-cn}抱歉，我没有废弃标记来填充那些空的标记堆{ko}버린 토큰을 찾을 수 없어 더미를 채우지 못했습니다.{es}Lo siento, no tengo tokens de descarte para llenar esas pilas vacías{fr}Désolé, je n'ai pas de jetons de défausse pour remplir ces piles vides{pt-br}Desculpe, Eu tenho nenhuma ficha de descarte para preencher as estas pilhas vazias{de}Leider habe ich keine Abwurfmarken, um diese leeren Stapel zu füllen.", {0, 0.5, 1})
 		else
-			broadcastToAll("{en}All token piles still have tokens to play{ru}Во всех стопках жетонов все еще есть жетоны для игры.{zh-tw}所有标记都还够用呢，先不用返还{zh-cn}所有标记都还够用呢，先不用返还{ko}빈 토큰 더미가 없습니다.{es}Todas las pilas de fichas todavía tienen fichas para jugar.{fr}Toutes les piles de jetons ont encore des jetons à jouer{pt-br}Todas as pilhas de fichas ainda tem fichas para jogar{de}Alle Spielsteinstapel haben noch Spielsteine zum Spielen", {0, 0.5, 1})
+			broadcastToAll("{en}All token piles still have tokens to play{it}Tutte le pile hanno ancora segnalini disponibili{ru}Во всех стопках жетонов все еще есть жетоны для игры.{zh-tw}所有标记都还够用呢，先不用返还{zh-cn}所有标记都还够用呢，先不用返还{ko}빈 토큰 더미가 없습니다.{es}Todas las pilas de fichas todavía tienen fichas para jugar.{fr}Toutes les piles de jetons ont encore des jetons à jouer{pt-br}Todas as pilhas de fichas ainda tem fichas para jogar{de}Alle Spielsteinstapel haben noch Spielsteine zum Spielen", {0, 0.5, 1})
 		end
 	end
 	return noWait

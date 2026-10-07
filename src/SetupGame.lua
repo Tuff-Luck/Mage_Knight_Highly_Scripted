@@ -248,7 +248,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 
 		--Close the setup menu and update the Help button
 		UI.setAttribute("Setup", "active", "false")
-		UI.setAttribute("helpButtonRealText", "Text", "{en}Help{ru}Помощь{zh-tw}帮  助{zh-cn}帮  助{ko}도움말{es}Ayudar{fr}Aider{pt-br}Ajuda{de}Hilfe")
+		UI.setAttribute("helpButtonRealText", "Text", "{en}Help{it}Aiuto{ru}Помощь{zh-tw}帮  助{zh-cn}帮  助{ko}도움말{es}Ayudar{fr}Aider{pt-br}Ajuda{de}Hilfe")
 		UI.setAttribute("helpButtonReal", "onClick", "DisplayHelp")
 		UI.setAttribute("helpButtonRealImage", "image", "Sliced Button/Button New Active")
 		UI.setAttribute("helpButtonReal", "interactable", "true")
@@ -338,7 +338,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		if gStates.playerCount==1 then
 			for posPriority=1, 4, 1 do
 				if gStates.positionMageKnight[posPriority]~="nobody" and posPriority~=2 then
-					broadcastToAll("{en}Changed setup Positions to be more central.{ru}Позиции игроков были передвинуты ближе к центру.{zh-tw}更改摆件位置，使其更加集中。{zh-cn}更改摆件位置，使其更加集中。{ko}설정의 위치를 좀더 중앙에 맞게 하였습니다.{es}Se cambiaron las posiciones de configuración para que sean más centrales.{fr}Positions de configuration modifiées pour être plus centrales.{pt-br}Mudou a Configuração das posições para ser mais central.{de}Die Aufstellungspositionen wurden geändert, um zentraler zu sein.", {1, 1, 1})
+					broadcastToAll("{en}Changed setup Positions to be more central.{it}Posti della preparazione spostati verso il centro.{ru}Позиции игроков были передвинуты ближе к центру.{zh-tw}更改摆件位置，使其更加集中。{zh-cn}更改摆件位置，使其更加集中。{ko}설정의 위치를 좀더 중앙에 맞게 하였습니다.{es}Se cambiaron las posiciones de configuración para que sean más centrales.{fr}Positions de configuration modifiées pour être plus centrales.{pt-br}Mudou a Configuração das posições para ser mais central.{de}Die Aufstellungspositionen wurden geändert, um zentraler zu sein.", {1, 1, 1})
 					gStates.positionMageKnight[2]=gStates.positionMageKnight[posPriority]
 					gStates.positionMageKnight[posPriority]="nobody"
 					break

@@ -74,7 +74,7 @@ function horsemanDeployLinkedHorse(name,target,faceDown)
 		if currentState==nil or currentState.defeated==true or currentState.retired==true or currentState.horseGUID~=nil then return end
 		local pile=getObjectFromGUID(pileGUID)
 		if pile==nil or pile.getQuantity()==0 then
-			broadcastToAll("The Horsemen's Horses could not draw a brown enemy token.",{1,0.3,0.2})
+			broadcastToAll("{en}The Horsemen's Horses could not draw a brown enemy token.{it}Le Cavalcature dei Cavalieri non hanno potuto pescare un nemico marrone.{ru}Не удалось взять коричневый жетон врага для коня Всадника.{zh-tw}無法為騎士的坐騎抽取棕色敵人標記。{zh-cn}无法为骑士的坐骑抽取棕色敌人标记。{ko}기수의 말에 사용할 갈색 적 토큰을 뽑지 못했습니다.{es}No se pudo robar un enemigo marrón para las monturas de los Jinetes.{fr}Impossible de piocher un ennemi marron pour les montures des Cavaliers.{pt-br}Não foi possível comprar um inimigo marrom para as montarias dos Cavaleiros.{de}Für die Pferde der Reiter konnte kein braunes Gegnerplättchen gezogen werden.",{1,0.3,0.2})
 			return
 		end
 		local rotation=faceDown==true and {0,180,180} or {0,180,0}
@@ -419,14 +419,14 @@ function horsemanResolveDefeat(token,playerIndex,coopCombatReward)
 			rewardBag.takeObject({position={(player.seatPos*40)-117.2+(math.random()*6.5),2,-35+(math.random()*3.2)}})
 		end
 	else
-		broadcastToAll("{en}Sorry, there are no more Apocalypse Faction Reward Tokens. Use a reminder and collect one when a token becomes available.{ru}Жетоны наград фракции Апокалипсиса закончились. Используйте напоминание и возьмите жетон, когда он станет доступен.{zh-tw}末日陣營獎勵標記已用完。請放置提醒，待標記可用時再領取。{zh-cn}末日阵营奖励标记已用完。请放置提醒，待标记可用时再领取。{ko}아포칼립스 진영 보상 토큰이 더 이상 없습니다. 알림을 사용하고 토큰이 생기면 수령하십시오.{es}No quedan fichas de Recompensa de Facción del Apocalipsis. Usa un recordatorio y recoge una cuando haya una disponible.{fr}Il ne reste plus de jetons de Récompense de Faction de l’Apocalypse. Utilisez un rappel et prenez-en un lorsqu’un jeton sera disponible.{pt-br}Não há mais fichas de Recompensa de Facção do Apocalipse. Use um lembrete e pegue uma quando houver ficha disponível.{de}Es sind keine Apokalypse-Fraktionsbelohnungsmarker mehr verfügbar. Verwende eine Erinnerung und nimm einen Marker, sobald wieder einer verfügbar ist.",positionToColor(playerIndex))
+		broadcastToAll("{en}Sorry, there are no more Apocalypse Faction Reward Tokens. Use a reminder and collect one when a token becomes available.{it}Non ci sono più segnalini Ricompensa di Fazione Apocalisse. Usa un promemoria e prendine uno quando sarà disponibile.{ru}Жетоны наград фракции Апокалипсиса закончились. Используйте напоминание и возьмите жетон, когда он станет доступен.{zh-tw}末日陣營獎勵標記已用完。請放置提醒，待標記可用時再領取。{zh-cn}末日阵营奖励标记已用完。请放置提醒，待标记可用时再领取。{ko}아포칼립스 진영 보상 토큰이 더 이상 없습니다. 알림을 사용하고 토큰이 생기면 수령하십시오.{es}No quedan fichas de Recompensa de Facción del Apocalipsis. Usa un recordatorio y recoge una cuando haya una disponible.{fr}Il ne reste plus de jetons de Récompense de Faction de l’Apocalypse. Utilisez un rappel et prenez-en un lorsqu’un jeton sera disponible.{pt-br}Não há mais fichas de Recompensa de Facção do Apocalipse. Use um lembrete e pegue uma quando houver ficha disponível.{de}Es sind keine Apokalypse-Fraktionsbelohnungsmarker mehr verfügbar. Verwende eine Erinnerung und nimm einen Marker, sobald wieder einer verfügbar ist.",positionToColor(playerIndex))
 	end
 	if gStates.monsterPlayLocation~=nil then gStates.monsterPlayLocation[token.guid]=nil end
 	if gStates.monsterPerks~=nil then gStates.monsterPerks[token.guid]=nil end
 	if gStates.attackedMonsters~=nil then gStates.attackedMonsters[token.guid]=nil end
 	monsterPugs[token.guid]=nil
 	horsemanMarkDefeatedToken(token,name,playerIndex,true)
-	broadcastToAll(joinLang({translateWord[player.mage] or player.mage,"{en} defeated {ru} победил {zh-tw} 擊敗了 {zh-cn} 击败了 {ko}이(가) {es} derrotó a {fr} a vaincu {pt-br} derrotou {de} besiegte ",name,"{en}. The Horseman has been placed in their Inventory.{ru}. Жетон Всадника помещён в его Инвентарь.{zh-tw}。騎士已放入其庫存。{zh-cn}。骑士已放入其库存。{ko}을(를) 쓰러뜨렸습니다. 기사 토큰이 인벤토리에 놓였습니다.{es}. El Jinete se ha colocado en su Inventario.{fr}. Le Cavalier a été placé dans son Inventaire.{pt-br}. O Cavaleiro foi colocado no Inventário.{de}. Der Reiter wurde in das Inventar gelegt."}),positionToColor(playerIndex))
+	broadcastToAll(joinLang({translateWord[player.mage] or player.mage,"{en} defeated {it} ha sconfitto {ru} победил {zh-tw} 擊敗了 {zh-cn} 击败了 {ko}이(가) {es} derrotó a {fr} a vaincu {pt-br} derrotou {de} besiegte ",name,"{en}. The Horseman has been placed in their Inventory.{it}. Il Cavaliere è stato messo nel suo Inventario.{ru}. Жетон Всадника помещён в его Инвентарь.{zh-tw}。騎士已放入其庫存。{zh-cn}。骑士已放入其库存。{ko}을(를) 쓰러뜨렸습니다. 기사 토큰이 인벤토리에 놓였습니다.{es}. El Jinete se ha colocado en su Inventario.{fr}. Le Cavalier a été placé dans son Inventaire.{pt-br}. O Cavaleiro foi colocado no Inventário.{de}. Der Reiter wurde in das Inventar gelegt."}),positionToColor(playerIndex))
 	return true
 end
 

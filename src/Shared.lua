@@ -208,8 +208,8 @@ function reassertGlobalUIVisibility()
 end
 
 --Used to join a table of strings with translation brackets
-local JOIN_LANG_ORDER={"en", "ru", "zh-tw", "zh-cn", "ko", "es", "fr", "pt-br", "de"}
-local JOIN_LANG_TAGS={"{en}", "{ru}", "{zh-tw}", "{zh-cn}", "{ko}", "{es}", "{fr}", "{pt-br}", "{de}"}
+local JOIN_LANG_ORDER={"en", "ru", "zh-tw", "zh-cn", "ko", "es", "fr", "pt-br", "de", "it"}
+local JOIN_LANG_TAGS={"{en}", "{ru}", "{zh-tw}", "{zh-cn}", "{ko}", "{es}", "{fr}", "{pt-br}", "{de}", "{it}"}
 local joinLangParseCache={}
 local joinLangCacheCount=0
 local JOIN_LANG_CACHE_LIMIT=2048
@@ -532,7 +532,7 @@ function rewindTransactionStart(andThen,owner,onFailure)
 		rewindTransactionStorePending=false
 		if success~=true then
 			for _,entry in ipairs(pending) do if type(entry.fail)=="function" then entry.fail() end end
-			broadcastToAll("{en}Could not store a safe rewind point. The scripted action was not started.{ru}Не удалось сохранить безопасную точку перемотки. Скриптовое действие не было запущено.{zh-tw}無法儲存安全的回溯點。腳本動作未開始。{zh-cn}无法储存安全的回溯点。脚本动作未开始。{ko}안전한 되돌리기 지점을 저장하지 못했습니다. 스크립트 동작이 시작되지 않았습니다.{es}No se pudo guardar un punto de rebobinado seguro. La acción del script no se inició.{fr}Impossible d’enregistrer un point de retour sûr. L’action scriptée n’a pas été lancée.{pt-br}Não foi possível salvar um ponto de retorno seguro. A ação do script não foi iniciada.{de}Es konnte kein sicherer Rückspulpunkt gespeichert werden. Die Skriptaktion wurde nicht gestartet.",{1,0.25,0.25})
+			broadcastToAll("{en}Could not store a safe rewind point. The scripted action was not started.{it}Impossibile salvare un punto di riavvolgimento sicuro. L'azione automatica non è stata avviata.{ru}Не удалось сохранить безопасную точку перемотки. Скриптовое действие не было запущено.{zh-tw}無法儲存安全的回溯點。腳本動作未開始。{zh-cn}无法储存安全的回溯点。脚本动作未开始。{ko}안전한 되돌리기 지점을 저장하지 못했습니다. 스크립트 동작이 시작되지 않았습니다.{es}No se pudo guardar un punto de rebobinado seguro. La acción del script no se inició.{fr}Impossible d’enregistrer un point de retour sûr. L’action scriptée n’a pas été lancée.{pt-br}Não foi possível salvar um ponto de retorno seguro. A ação do script não foi iniciada.{de}Es konnte kein sicherer Rückspulpunkt gespeichert werden. Die Skriptaktion wurde nicht gestartet.",{1,0.25,0.25})
 			return
 		end
 		rewindTransactionBlocked=true
@@ -1122,7 +1122,7 @@ function legalPlayerCheck(clickingPlayersColor, playerPosExpected, rule)
 		for a=1, #turnOrder, 1 do
 			local details=turnOrder[a]
 			if details~=nil and details.seatPos==playerPosExpected then
-				broadcastToAll(joinLang({"{en}Only player sitting at {ru}Только игрок, сидящий на месте {zh-tw}只有{zh-cn}只有{ko}오직 플레이어 {es}Solo el jugador sentado en {fr}Seul le joueur assis à {pt-br}Único jogador sentando em {de}Nur Spieler, die auf ", translateWord[details.mage], "{en} or Game Master(Black) may press this.\n(Change seats by left clicking your Name found in the upper right corner){ru} или на месте Game Master (Черный) может нажать сюда.\n(Чтобы сменить место, щелкните ЛКМ по своему имени, указанному в правом верхнем углу){zh-tw}和黑色玩家可以操作(你可以单击右上角你的名字更改颜色){zh-cn}和黑色玩家可以操作(你可以单击右上角你的名字更改颜色){ko}본인이나 게임 마스터(검정)만이 클릭할 수 있습니다.\n(자리를 바꾸려면 우상단의 버튼에서 닉네임을 클릭하세요){es} o Game Master (Negro) puede presionar esto.\n(Cambie de asiento haciendo clic izquierdo en su nombre que se encuentra en la esquina superior derecha){fr} ou au Game Master (Black) peut appuyer dessus.\n(Changez de siège en cliquant avec le bouton gauche sur votre nom trouvé dans le coin supérieur droit){pt-br} Jogador Mestre (Preto) pode pressionar isto.\nMude assentos apertando no seu nome no canto superior direito{de} oder Game Master(Black) kann dies drücken.\n(Wechseln Sie den Sitzplatz, indem Sie mit der linken Maustaste auf Ihren Namen in der oberen rechten Ecke klicken)"}), warningColor)
+				broadcastToAll(joinLang({"{en}Only player sitting at {it}Solo il giocatore seduto al posto di {ru}Только игрок, сидящий на месте {zh-tw}只有{zh-cn}只有{ko}오직 플레이어 {es}Solo el jugador sentado en {fr}Seul le joueur assis à {pt-br}Único jogador sentando em {de}Nur Spieler, die auf ", translateWord[details.mage], "{en} or Game Master(Black) may press this.\n(Change seats by left clicking your Name found in the upper right corner){it} o il Game Master (Nero) può premere questo pulsante.\n(Per cambiare posto, fai clic con il tasto sinistro sul tuo nome in alto a destra){ru} или на месте Game Master (Черный) может нажать сюда.\n(Чтобы сменить место, щелкните ЛКМ по своему имени, указанному в правом верхнем углу){zh-tw}和黑色玩家可以操作(你可以单击右上角你的名字更改颜色){zh-cn}和黑色玩家可以操作(你可以单击右上角你的名字更改颜色){ko}본인이나 게임 마스터(검정)만이 클릭할 수 있습니다.\n(자리를 바꾸려면 우상단의 버튼에서 닉네임을 클릭하세요){es} o Game Master (Negro) puede presionar esto.\n(Cambie de asiento haciendo clic izquierdo en su nombre que se encuentra en la esquina superior derecha){fr} ou au Game Master (Black) peut appuyer dessus.\n(Changez de siège en cliquant avec le bouton gauche sur votre nom trouvé dans le coin supérieur droit){pt-br} Jogador Mestre (Preto) pode pressionar isto.\nMude assentos apertando no seu nome no canto superior direito{de} oder Game Master(Black) kann dies drücken.\n(Wechseln Sie den Sitzplatz, indem Sie mit der linken Maustaste auf Ihren Namen in der oberen rechten Ecke klicken)"}), warningColor)
 				break
 			end
 		end
