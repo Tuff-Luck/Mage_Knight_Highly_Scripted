@@ -1175,8 +1175,9 @@ function manaTokenColor(obj)
 end
 
 function isBasicManaToken(obj)
-	local color=manaTokenColor(obj)
-	return color=="Red" or color=="Blue" or color=="Green" or color=="White"
+	if obj==nil or obj.getName==nil then return false end
+	local name=joinLangEnglish(tostring(obj.getName() or ""))
+	return name=="Red Mana" or name=="Blue Mana" or name=="Green Mana" or name=="White Mana"
 end
 
 function isQuestCardObject(obj)
