@@ -339,6 +339,18 @@ end
 --Keeping the local binding in scope here prevents Lua from resolving the later definition as a nil global.
 local offerDrawOrMoveCard
 
+local function monasteryAdvancedActionSource()
+	local source=standardDeckCycleObject("Advanced Action")
+	if source~=nil then return source end
+	local original=getObjectFromGUID(GUID.deck.action)
+	if original~=nil and (original.type=="Deck" or original.type=="Card") then return original end
+	return nil
+end
+
+local function monasteryAdvancedActionDeckEmptyWarning()
+	broadcastToAll("{en}The Advanced Action deck is empty; the Monastery offer could not be fully refilled.{it}Il mazzo Azioni Avanzate è vuoto; l'offerta del Monastero non è stata rifornita completamente.{ru}Колода Продвинутых действий пуста; предложение Монастыря не удалось полностью пополнить.{zh-tw}進階行動牌庫已空；修道院供應無法完全補滿。{zh-cn}高级行动牌库已空；修道院供应无法完全补满。{ko}고급 행동 덱이 비어 수도원 제안을 완전히 채울 수 없습니다.{es}El mazo de Acciones Avanzadas está vacío; la oferta del Monasterio no pudo rellenarse por completo.{fr}Le paquet d’Actions Avancées est vide ; l’offre du Monastère n’a pas pu être entièrement remplie.{pt-br}O baralho de Ações Avançadas está vazio; a oferta do Monastério não pôde ser totalmente reabastecida.{de}Der Stapel der Fortgeschrittenen Aktionen ist leer; das Klosterangebot konnte nicht vollständig aufgefüllt werden.",warningColor)
+end
+
 function unitOffer()
 	refreshUnitOfferSnapPoints(gStates.totalUnitCount)
 	local monasteryPlace=	{{36.0, 0.98, -10.2}, {31.2, 0.98, -10.2}, {26.4, 0.98, -10.2}, {21.6, 0.98, -10.2}, {16.8, 0.98, -10.2}, {12.0, 0.98, -10.2}}
@@ -452,7 +464,7 @@ function unitOffer()
 			standardDeckCycleShuffleIfReached("Advanced Action")
 			local source=standardDeckCycleObject("Advanced Action")
 			if source==nil then
-				broadcastToAll("{en}The Advanced Action deck is empty; the Monastery offer could not be fully refilled.{it}Il mazzo Azioni Avanzate è vuoto; l'offerta del Monastero non è stata rifornita completamente.{ru}Колода Продвинутых действий пуста; предложение Монастыря не удалось полностью пополнить.{zh-tw}進階行動牌庫已空；修道院供應無法完全補滿。{zh-cn}高级行动牌库已空；修道院供应无法完全补满。{ko}고급 행동 덱이 비어 수도원 제안을 완전히 채울 수 없습니다.{es}El mazo de Acciones Avanzadas está vacío; la oferta del Monasterio no pudo rellenarse por completo.{fr}Le paquet d’Actions Avancées est vide ; l’offre du Monastère n’a pas pu être entièrement remplie.{pt-br}O baralho de Ações Avançadas está vazio; a oferta do Monastério não pôde ser totalmente reabastecida.{de}Der Stapel der Fortgeschrittenen Aktionen ist leer; das Klosterangebot konnte nicht vollständig aufgefüllt werden.",warningColor)
+				monasteryAdvancedActionDeckEmptyWarning()
 				break
 			end
 			local drawnCard=offerDrawOrMoveCard(source,params)
@@ -513,7 +525,7 @@ function handleMonasteryRevealed()
 		--a Card/Deck, so wait on the real source instead of spinning a Lua while loop around a callback.
 		standardDeckCycleShuffleIfReached("Advanced Action")
 		local function drawMonasteryAdvancedAction()
-			local source=standardDeckCycleObject("Advanced Action")
+			local source=monasteryAdvancedActionSource()
 			if source==nil then return false end
 			local drawnCard=offerDrawOrMoveCard(source,params)
 			if drawnCard==nil then return false end
@@ -525,11 +537,11 @@ function handleMonasteryRevealed()
 		end
 		if drawMonasteryAdvancedAction()~=true then
 			safeWaitCondition("Offers",function()
-				if drawMonasteryAdvancedAction()~=true then error("Monastery Advanced Action source disappeared before it could be drawn.",2) end
+				if drawMonasteryAdvancedAction()~=true then monasteryAdvancedActionDeckEmptyWarning() end
 			end,function()
-				return standardDeckCycleObject("Advanced Action")~=nil
+				return monasteryAdvancedActionSource()~=nil
 			end,5,function()
-				error("Timed out waiting for the Monastery Advanced Action draw source.",2)
+				monasteryAdvancedActionDeckEmptyWarning()
 			end)
 		end
 	end

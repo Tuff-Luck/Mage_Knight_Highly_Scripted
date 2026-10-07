@@ -158,8 +158,14 @@ function playerBoardZoneEnterSettled(ctx)
 
 		--if object is a crystal then alter it's animation.
 		if isBasicManaToken(obj) then
-			safeWaitTime("PlayerBoard.Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playTriggerEffect(0) end end, 0.1)
-			safeWaitTime("PlayerBoard.Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playLoopingEffect(1) end end, 1)
+			safeWaitTime("PlayerBoard.Events",function()
+				local live=getObjectFromGUID(objGUID)
+				if live~=nil and live.AssetBundle~=nil then live.AssetBundle.playTriggerEffect(0) end
+			end, 0.1)
+			safeWaitTime("PlayerBoard.Events",function()
+				local live=getObjectFromGUID(objGUID)
+				if live~=nil and live.AssetBundle~=nil then live.AssetBundle.playLoopingEffect(1) end
+			end, 1)
 		end
 	end
 
@@ -258,16 +264,21 @@ function playerBoardZoneLeave(ctx)
 			and not (unitLayoutIsUnit(obj) and unitLayoutObjectInAnyUnitArea(obj.guid)) then obj.setScale({1.5,1,1.5}) end
 
 		safeWaitTime("PlayerBoard.Events",function()
-			--Toggle half cards when picked up.
-			if getObjectFromGUID(obj.guid)~=nil then
-				if gameCards[obj.guid]~=nil and gameCards[obj.guid].full~=nil and obj.getPosition()[2]>2 then
-					obj.setState(1)
-					safeWaitFrames("PlayerBoard.Events",function() if getObjectFromGUID(gameCards[obj.guid].full)~=nil then getObjectFromGUID(gameCards[obj.guid].full).setScale({1.5, 1, 1.5}) end end, 1)
+			local live=getObjectFromGUID(objGUID)
+			if live~=nil then
+				--Toggle half cards when picked up.
+				if gameCards[objGUID]~=nil and gameCards[objGUID].full~=nil and live.getPosition()[2]>2 then
+					local fullGUID=gameCards[objGUID].full
+					live.setState(1)
+					safeWaitFrames("PlayerBoard.Events",function()
+						local fullCard=getObjectFromGUID(fullGUID)
+						if fullCard~=nil then fullCard.setScale({1.5, 1, 1.5}) end
+					end, 1)
 				end
 
 				--if object is a crystal then remove highlight.
-				if isBasicManaToken(obj) then
-					obj.AssetBundle.playLoopingEffect(0)
+				if isBasicManaToken(live) and live.AssetBundle~=nil then
+					live.AssetBundle.playLoopingEffect(0)
 				end
 			end
 		end, 0.22)
