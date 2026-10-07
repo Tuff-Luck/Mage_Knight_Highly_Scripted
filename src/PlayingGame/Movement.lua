@@ -438,8 +438,7 @@ function renderMoveDisplay(id)
 		local monsterDetails=monsterPugs[guid]
 		local rampager=monsterDetails~=nil and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[guid]==true
 		local shield=false
-		if cityObject==false and rampager==false and mightBeMap.getName()=="Shield" and volkarePursuitShieldRegistered(mightBeMap)~=true then
-			shield=(gStates.coop==1 or mightBeMap.getDescription()==turnOrder[gStates.turnNumber].mage)
+		if cityObject==false and rampager==false and isShieldObject(mightBeMap) and volkarePursuitShieldRegistered(mightBeMap)~=true then\n\t\t\tshield=(gStates.coop==1 or shieldOwner(mightBeMap)==turnOrder[gStates.turnNumber].mage)
 		end
 		if cityObject==true or shield==true or rampager==true then
 			local objectPosition=mightBeMap.getPosition()
