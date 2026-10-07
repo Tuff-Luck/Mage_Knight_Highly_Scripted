@@ -215,7 +215,7 @@ function shieldLocation(obj, zone, status)
 	--Cache them once per placement/removal; they are stable for the duration of this callback.
 	local objectName=scriptObjectId(obj)
 	local objectNotes=obj.getGMNotes()
-	local objectDescription=isShieldObject(obj) and shieldOwner(obj) or obj.getDescription()
+	local objectDescription=isShieldObject(obj) and shieldOwner(obj) or joinLangEnglish(tostring(obj.getDescription() or ""))
 	if zone.guid==mapArea then
 		local mapSnapshot=runtimeMapSnapshot()
 		local objectsInPlay=mapSnapshot.terrainObjects or {}
