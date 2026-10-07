@@ -2571,7 +2571,15 @@ function monsterReplenishTranslationRefresh()
 end
 
 local ARTIFACT_GUID = "ac75c4"
-local ARTIFACT_UI = [=[{en}Reward 1{it}Ricompensa 1{ru}Награда 1{zh-tw}獎勵1{zh-cn}奖励1{ko}보상 1{es}Recompensa 1{fr}Récompense 1{pt-br}Recompensa 1{de}Belohnung 1</Text>
+local ARTIFACT_UI = [=[
+<Button id="ac75c4ArtifactDown" active="false" onMouseDown="global/ButtonClickDownOverkill" onMouseUp="global/ButtonClickUpOverkill" onClick="global/artifactAdjust"
+    height="150" width="150" color="rgba(0,0,0,0.0)" position="-120 190 5" rotation="0 180 180" scale="0.32 0.32">
+    <Image id="ac75c4ArtifactDownImage" image="Overkill Down"></Image>
+</Button>
+<Button id="ac75c4ArtifactOffer" active="false" onMouseDown="global/ButtonClickDown" onMouseUp="global/ButtonClickUp" onClick="global/offerArtifacts"
+    height="150" width="540" color="rgba(0,0,0,0.0)" position="0 190 5" rotation="0 180 180" scale="0.32 0.32">
+    <Image id="ac75c4ArtifactOfferImage" image="Sliced Button/Button Object Active" type="Sliced"></Image>
+    <Text id="ac75c4ArtifactOfferText" font="Fonts/MKCardText" fontSize="90" color="black" fontStyle="Normal" alignment="MiddleCenter">{en}Reward 1{it}Ricompensa 1{ru}Награда 1{zh-tw}獎勵1{zh-cn}奖励1{ko}보상 1{es}Recompensa 1{fr}Récompense 1{pt-br}Recompensa 1{de}Belohnung 1</Text>
 </Button>
 <Button id="ac75c4ArtifactUp" active="false" onMouseDown="global/ButtonClickDownOverkill" onMouseUp="global/ButtonClickUpOverkill" onClick="global/artifactAdjust"
     height="150" width="150" color="rgba(0,0,0,0.0)" position="120 190 5" rotation="0 180 180" scale="0.32 0.32">
