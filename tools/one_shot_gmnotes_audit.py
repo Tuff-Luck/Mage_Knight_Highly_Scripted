@@ -77,6 +77,30 @@ summary={
     "candidate_with_blank_gmnotes":sum(1 for o in objects if (o["name_literal_hit"] or o["dynamic_name_hit"] or o["description_literal_hit"] or o["dynamic_description_hit"]) and not o["gmnotes"]),
 }
 
-out={"summary":summary,"name_literals":name_literals,"description_literals":desc_literals,"objects":objects}
+
+from collections import defaultdict
+name_groups=defaultdict(lambda: {"count":0,"tooltip_false":0,"translated":0,"blank_gmnotes":0,"gmnotes":set(),"guids":[]})
+desc_groups=defaultdict(lambda: {"count":0,"tooltip_false":0,"translated":0,"blank_gmnotes":0,"gmnotes":set(),"guids":[]})
+for o in objects:
+    if o["name_literal_hit"] or o["dynamic_name_hit"]:
+        g=name_groups[o["english_nickname"]]
+        g["count"]+=1
+        g["tooltip_false"]+=1 if o["tooltip"] is False else 0
+        g["translated"]+=1 if o["translated_nickname"] else 0
+        g["blank_gmnotes"]+=1 if not o["gmnotes"] else 0
+        if o["gmnotes"]: g["gmnotes"].add(o["gmnotes"])
+        if len(g["guids"])<20: g["guids"].append(o["guid"])
+    if o["description_literal_hit"] or o["dynamic_description_hit"]:
+        g=desc_groups[o["english_description"]]
+        g["count"]+=1
+        g["tooltip_false"]+=1 if o["tooltip"] is False else 0
+        g["translated"]+=1 if o["translated_description"] else 0
+        g["blank_gmnotes"]+=1 if not o["gmnotes"] else 0
+        if o["gmnotes"]: g["gmnotes"].add(o["gmnotes"])
+        if len(g["guids"])<20: g["guids"].append(o["guid"])
+def clean_groups(groups):
+    return {k:{**v,"gmnotes":sorted(v["gmnotes"])} for k,v in sorted(groups.items())}
+
+out={"summary":summary,"name_literals":name_literals,"description_literals":desc_literals,"name_groups":clean_groups(name_groups),"description_groups":clean_groups(desc_groups),"objects":objects}
 out_path.write_text(json.dumps(out,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
 print(json.dumps(summary,indent=2))
