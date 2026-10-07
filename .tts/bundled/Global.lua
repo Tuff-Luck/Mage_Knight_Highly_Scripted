@@ -1152,7 +1152,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
 	if dropped_object~=nil and monsterPugs[dropped_object.guid]~=nil and monsterPugs[dropped_object.guid].pugType=="possessed" then
 		attachEnemy(nil,nil,"attach",dropped_object,nil)
 	end
-	if dropped_object~=nil and dropped_object.getName()=="Shield" and apocalypseQuestsUsed()==true then
+	if dropped_object~=nil and isShieldObject(dropped_object) and apocalypseQuestsUsed()==true then
 		safeWaitFrames("Events",function() apocalypseQuestRefreshOfferButtons() end, 2)
 	end
 	if dropped_object~=nil and gStates.apocalypseQuestTokenGUIDs~=nil and gStates.apocalypseQuestTokenGUIDs[droppedGUID]==true then
@@ -1417,7 +1417,7 @@ function __onObjectDestroy_raw(destroyedObj)
 	--Check if a shield has been removed
 	local destroyedPursuit=volkarePursuitShieldRegistered(destroyedObj)
 	if destroyedPursuit==true and destroyedGuid~=nil and gStates.volkarePursuitShields~=nil then gStates.volkarePursuitShields[destroyedGuid]=nil end
-	if destroyedObj.getName()~=nil and (destroyedObj.getName()=="Shield" or destroyedObj.getGMNotes()=="Burned Monastery" or destroyedObj.getName()=="Secret Dungeon" or destroyedObj.getName()=="Secret Tomb") then
+	if destroyedObj.getName()~=nil and (isShieldObject(destroyedObj) or destroyedObj.getGMNotes()=="Burned Monastery" or scriptObjectId(destroyedObj)=="Secret Dungeon" or scriptObjectId(destroyedObj)=="Secret Tomb") then
 		shieldLocation(destroyedObj, {guid=mapArea}, "remove")
 	end
 end
@@ -1472,7 +1472,7 @@ local function zoneEventContext(zone, obj)
 end
 
 local function zoneEventObjectName(ctx)
-	if ctx.objName==nil then ctx.objName=ctx.obj.getName() end
+	if ctx.objName==nil then ctx.objName=scriptObjectId(ctx.obj) end
 	return ctx.objName
 end
 
@@ -1642,7 +1642,7 @@ local function handleMapLocationZoneEnter(ctx)
 		if zoneObjectCanBeMapMarker(ctx)~=true and mageKnightAvatarGUIDs[objGUID]~=true then return end
 		local objectName=zoneEventObjectName(ctx)
 		local objectNotes=zoneEventObjectNotes(ctx)
-		if (objectName=="Shield" or objectNotes=="Burned Monastery" or objectName=="Secret Dungeon" or objectName=="Secret Tomb") and obj.getLock()==false then
+		if (isShieldObject(obj) or objectNotes=="Burned Monastery" or objectName=="Secret Dungeon" or objectName=="Secret Tomb") and obj.getLock()==false then
 			scheduleShieldLocation(obj, zone, "enter")
 		else
 			if zoneGUID==GUID.zone.blueCity or zoneGUID==GUID.zone.redCity or zoneGUID==GUID.zone.greenCity or zoneGUID==GUID.zone.whiteCity or zoneGUID==volkare.discZone then
@@ -1673,7 +1673,7 @@ local function handleMapLocationZoneEnter(ctx)
 				end
 			end
 		end
-		if objectName=="Shield" then gStates.shieldsDropped[objGUID]=true end
+		if isShieldObject(obj) then gStates.shieldsDropped[objGUID]=true end
 	end
 
 end
@@ -2031,7 +2031,7 @@ local function handleMapZoneLeave(ctx)
 	--Name/GM Notes entirely; only marker-like objects cross those TTS properties.
 	if mapMarkerTrackingZone(zone.guid)==true and zoneObjectCanBeMapMarker(ctx)==true and obj.getLock()==false then
 		local objectName=zoneEventObjectName(ctx)
-		local marker=objectName=="Shield"
+		local marker=isShieldObject(obj)
 		if zone.guid==mapArea then
 			marker=marker or objectName=="Secret Dungeon" or objectName=="Secret Tomb"
 			if marker~=true then marker=zoneEventObjectNotes(ctx)=="Burned Monastery" end
@@ -3158,7 +3158,7 @@ local function currentCityShieldInfluence(player)
 				for zoneGUID,details in pairs(cityScriptZones) do
 					if details.cityGUID==targetCity then
 						local zone=getObjectFromGUID(zoneGUID)
-						if zone~=nil then for _,obj in pairs(zone.getObjects()) do if seen[obj.guid]~=true and obj.getName()=="Shield" and obj.getDescription()==player.mage then seen[obj.guid]=true shields=shields+1 end end end
+						if zone~=nil then for _,obj in pairs(zone.getObjects()) do if seen[obj.guid]~=true and isShieldObject(obj) and shieldOwner(obj)==player.mage then seen[obj.guid]=true shields=shields+1 end end end
 						break
 					end
 				end
@@ -4274,10 +4274,11 @@ function addAvatarButtons()
 		local mapSnapshot=runtimeMapSnapshot()
 		for _, playObj in pairs(mapSnapshot.objects or {}) do
 			local guid=playObj.guid
-			local name=playObj.getName()
-			if name=="Shield" or name:sub(-6)=="Marker" or monsterPugs[guid]~=nil or gStates.rampagingMonsters[guid]==true or (gStates.destroyedSites~=nil and gStates.destroyedSites[guid]~=nil) then
+			local name=scriptObjectId(playObj)
+			local shield=isShieldObject(playObj)
+			if shield or name:sub(-6)=="Marker" or monsterPugs[guid]~=nil or gStates.rampagingMonsters[guid]==true or (gStates.destroyedSites~=nil and gStates.destroyedSites[guid]~=nil) then
 				local position=playObj.getPosition()
-				local details={obj=playObj, guid=guid, name=name, position=position, description=name=="Shield" and playObj.getDescription() or nil}
+				local details={obj=playObj, guid=guid, name=shield and "Shield" or name, position=position, description=shield and shieldOwner(playObj) or nil}
 				local key=avatarButtonBucketKey(position)
 				if mapButtonBuckets[key]==nil then mapButtonBuckets[key]={} end
 				mapButtonBuckets[key][#mapButtonBuckets[key]+1]=details
@@ -4324,7 +4325,7 @@ function addAvatarButtons()
 							if zoneObj~=nil then
 								local mageFound=false
 								for _, detail in pairs(zoneObj.getObjects()) do
-									if detail.getName()==player.mage then mageFound=true break end
+									if joinLangEnglish(tostring(detail.getName() or ""))==player.mage then mageFound=true break end
 								end
 								if mageFound==true then
 									if zoneGUID==volkare.discZone and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then
@@ -6190,7 +6191,7 @@ function moveDisplayDungeonLordsTunnelNetwork(hexMap,playAreaObjects,startTilePo
 		return hor,vec
 	end
 	for _,obj in pairs(playAreaObjects or {}) do
-		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+		if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 			local hor,vec=gridForPosition(obj.getPosition())
 			local row=hexMap[tostring(hor)]
 			local hex=row~=nil and row[tostring(vec)] or nil
@@ -6477,8 +6478,8 @@ function renderMoveDisplay(id)
 		local monsterDetails=monsterPugs[guid]
 		local rampager=monsterDetails~=nil and gStates.rampagingMonsters~=nil and gStates.rampagingMonsters[guid]==true
 		local shield=false
-		if cityObject==false and rampager==false and mightBeMap.getName()=="Shield" and volkarePursuitShieldRegistered(mightBeMap)~=true then
-			shield=(gStates.coop==1 or mightBeMap.getDescription()==turnOrder[gStates.turnNumber].mage)
+		if cityObject==false and rampager==false and isShieldObject(mightBeMap) and volkarePursuitShieldRegistered(mightBeMap)~=true then
+			shield=(gStates.coop==1 or shieldOwner(mightBeMap)==turnOrder[gStates.turnNumber].mage)
 		end
 		if cityObject==true or shield==true or rampager==true then
 			local objectPosition=mightBeMap.getPosition()
@@ -6622,7 +6623,7 @@ function renderMoveDisplay(id)
 					local zoneObj=getObjectFromGUID(zone)
 					if zoneObj~=nil then
 						for _, detail in pairs(zoneObj.getObjects()) do
-							if detail.getName()==currentTurn.mage then
+							if joinLangEnglish(tostring(detail.getName() or ""))==currentTurn.mage then
 								local cityObj=getObjectFromGUID(citySearch.cityGUID)
 								if cityObj~=nil then gStates.resourceTracker.playerPos=cityObj.getPosition() end
 								break
@@ -6978,7 +6979,7 @@ function volkareTurn(player, mouseButton, id)
 					local unitCard=crystalData~=nil and unitOfferCardAtSlot(crystalData.slot) or nil
 					if unitCard~=nil then
 						local unitData=gameCards[unitCard.guid]
-						local unitName=unitData~=nil and unitData.name~=nil and unitData.name[1] or unitCard.getName()
+						local unitName=unitData~=nil and unitData.name~=nil and unitData.name[1] or joinLangEnglish(tostring(unitCard.getName() or ""))
 						unitCard.destruct()
 						--add a gray unit to Volkare's Army
 						if gStates.gameScenario~="Volkare's Quest" then
@@ -7601,10 +7602,8 @@ function dummyProcessTurn(dummyIndex,dummySeat)
 	--Snapshot the physical crystals now so delayed bonus flips never depend on whichever player is current later.
 	local crystalSnapshot={Red=0,White=0,Green=0,Blue=0}
 	for _, obj in pairs(getObjectFromGUID(playerCrystalAreas[dummySeat]).getObjects()) do
-		if obj.getName()=="Red Mana" or obj.getName()=="Blue Mana" or obj.getName()=="Green Mana" or obj.getName()=="White Mana" then
-			local color=obj.getDescription()
-			if crystalSnapshot[color]~=nil then crystalSnapshot[color]=crystalSnapshot[color]+1 end
-		end
+		local color=manaTokenColor(obj)
+		if crystalSnapshot[color]~=nil then crystalSnapshot[color]=crystalSnapshot[color]+1 end
 	end
 	dummyStats.dummyCrystals["Red"]=crystalSnapshot.Red
 	dummyStats.dummyCrystals["White"]=crystalSnapshot.White
@@ -7833,7 +7832,7 @@ function proxyDrawObjective(seatPos)
 	if card~=nil then
 		gStates.proxyObjectiveGUID=card.guid
 		gStates.proxyObjectiveShieldGUIDs={}
-		local objectiveName=card.getName()
+		local objectiveName=joinLangEnglish(tostring(card.getName() or ""))
 		if gameCards[card.guid]~=nil and gameCards[card.guid].name~=nil then objectiveName=type(gameCards[card.guid].name)=="table" and gameCards[card.guid].name[1] or gameCards[card.guid].name end
 		broadcastToAll(joinLang({"{en}Proxy objective: {it}Obiettivo Proxy: {ru}Цель прокси: {zh-tw}代理目標：{zh-cn}代理目标：{ko}프록시 목표: {es}Objetivo del Proxy: {fr}Objectif du Proxy : {pt-br}Objetivo do Proxy: {de}Proxy-Ziel: ",objectiveName}),{1,0.75,0.2})
 	end
@@ -7880,10 +7879,8 @@ function proxySnapshotCrystals(stats)
 	local zone=getObjectFromGUID(playerCrystalAreas[stats.seatPos])
 	if zone~=nil then
 		for _,obj in pairs(zone.getObjects()) do
-			if obj.getName()=="Red Mana" or obj.getName()=="Blue Mana" or obj.getName()=="Green Mana" or obj.getName()=="White Mana" then
-				local color=obj.getDescription()
-				if result[color]~=nil then result[color]=result[color]+1 end
-			end
+			local color=manaTokenColor(obj)
+			if result[color]~=nil then result[color]=result[color]+1 end
 		end
 	end
 	stats.dummyCrystals={Red=result.Red,White=result.White,Green=result.Green,Blue=result.Blue}
@@ -7912,7 +7909,7 @@ function proxySourceManaOptions(colors)
 	local exactByColor={}
 	local gold=nil
 	for _,die in pairs(zone.getObjects()) do
-		if die.getName()=="Mana Dice" then
+		if scriptObjectId(die)=="Mana Dice" then
 			local color=apocalypseQuestManaDieColor(die)
 			if color~=nil and wanted[color]==true and exactByColor[color]==nil then exactByColor[color]=die.guid end
 			if color=="Gold" and gStates.dayRound==true and gold==nil then gold=die.guid end
@@ -7929,7 +7926,7 @@ function proxyRerollSourceManaGUID(guid,color)
 		local zone=getObjectFromGUID(GUID.zone.mana)
 		if zone~=nil then
 			for _,candidate in pairs(zone.getObjects()) do
-				if candidate.getName()=="Mana Dice" and apocalypseQuestManaDieColor(candidate)==color then die=candidate break end
+				if scriptObjectId(candidate)=="Mana Dice" and apocalypseQuestManaDieColor(candidate)==color then die=candidate break end
 			end
 		end
 	end
@@ -8165,7 +8162,7 @@ function proxyCardDisplayName(card)
 		local name=type(data.name)=="table" and data.name[1] or data.name
 		if name~=nil and name~="" then return tostring(name) end
 	end
-	local name=card.getName()
+	local name=joinLangEnglish(tostring(card.getName() or ""))
 	return name~="" and name or "Objective Card"
 end
 
@@ -8427,13 +8424,13 @@ function proxyAdventureSiteAvailable(hex,mapObjects,proxyIndex)
 	local proxyShield=false
 	local radiusSquared=(feature=="ziggurat" or feature=="pyramid") and 2.25 or 1.44
 	for _,obj in pairs(mapObjects or {}) do
-		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+		if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 			local pos=obj.getPosition()
 			local dx=pos[1]-hex.position[1]
 			local dz=pos[3]-hex.position[3]
 			if (dx*dx)+(dz*dz)<radiusSquared then
 				shieldCount=shieldCount+1
-				if mage~=nil and obj.getDescription()==mage then proxyShield=true end
+				if mage~=nil and shieldOwner(obj)==mage then proxyShield=true end
 			end
 		end
 	end
@@ -9254,7 +9251,7 @@ function proxyMultiFloorNext(hex,mapObjects)
 	local occupied={}
 	local objects=mapObjects or runtimeMapSnapshot().objects or {}
 	for _,obj in pairs(objects) do
-		if obj~=nil and obj.getName~=nil and obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+		if obj~=nil and isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 			local pos=obj.getPosition()
 			local dx=pos[1]-hex.position[1]
 			local dz=pos[3]-hex.position[3]
@@ -9343,7 +9340,7 @@ end
 function proxyRemoveOtherKeepShield(hex,mapObjects,proxyIndex)
 	local mage=turnOrder[proxyIndex].mage
 	for _,obj in pairs(mapObjects or {}) do
-		if obj.getName()=="Shield" and obj.getDescription()~=mage and obj.getDescription()~="Neutral" then
+		if isShieldObject(obj) and shieldOwner(obj)~=mage and shieldOwner(obj)~="Neutral" then
 			local pos=obj.getPosition() local dx=pos[1]-hex.position[1] local dz=pos[3]-hex.position[3]
 			if (dx*dx)+(dz*dz)<1 then obj.destruct() return end
 		end
@@ -9366,7 +9363,7 @@ end
 
 function proxyEnemyChoiceSnapshot(enemy)
 	if enemy==nil then return nil end
-	return {guid=enemy.guid,name=((monsterPugs[enemy.guid] or {}).name or enemy.getName() or "enemy"),ui=enemy.UI.getXmlTable() or {}}
+	return {guid=enemy.guid,name=((monsterPugs[enemy.guid] or {}).name or joinLangEnglish(tostring(enemy.getName() or "")) or "enemy"),ui=enemy.UI.getXmlTable() or {}}
 end
 
 function proxyEnemyChoiceButton(enemy)
@@ -9424,7 +9421,7 @@ function proxyResolveCitySelectedEnemy(hex,mapObjects,proxyIndex,lastSafe,select
 	if chosen~=nil then
 		local enemy=getObjectFromGUID(chosen)
 		if enemy~=nil then
-			defeatedName=((monsterPugs[enemy.guid] or {}).name or enemy.getName() or "enemy")
+			defeatedName=((monsterPugs[enemy.guid] or {}).name or joinLangEnglish(tostring(enemy.getName() or "")) or "enemy")
 			proxyDiscardMonster(enemy)
 		end
 		if gStates.cityMonsterQty[city]~=nil then gStates.cityMonsterQty[city][chosen]="dead" end
@@ -9447,7 +9444,7 @@ function proxyResolveEnemyChoice(pending,selectedGUID)
 	if hex==nil then proxyFinishTurn(hexes,mapObjects,pending.proxyIndex) return end
 	if pending.context.kind=="ruin" then
 		local enemy=getObjectFromGUID(selectedGUID)
-		local enemyName=enemy~=nil and ((monsterPugs[enemy.guid] or {}).name or enemy.getName() or "enemy") or "enemy"
+		local enemyName=enemy~=nil and ((monsterPugs[enemy.guid] or {}).name or joinLangEnglish(tostring(enemy.getName() or "")) or "enemy") or "enemy"
 		local lift=proxyLiftAvatarForSiteObjects(hex)
 		if enemy~=nil then proxyDiscardMonster(enemy) end
 		proxyRestoreAvatarAfterSiteObjects(lift,{})
@@ -9490,7 +9487,7 @@ function proxyResolveRampager(target,mapObjects)
 	local names={}
 	for _,enemy in ipairs(enemies) do
 		if enemy~=nil then
-			names[#names+1]=tostring(((monsterPugs[enemy.guid] or {}).name or enemy.getName() or "enemy"))
+			names[#names+1]=tostring(((monsterPugs[enemy.guid] or {}).name or joinLangEnglish(tostring(enemy.getName() or "")) or "enemy"))
 			proxyDiscardMonster(enemy)
 		end
 	end
@@ -10102,7 +10099,7 @@ function dummyCardColors(card)
 		for _, color in ipairs(gameCards[card.guid].color) do if color=="Red" or color=="Green" or color=="Blue" or color=="White" then colors[#colors+1]=color end end
 	end
 	if #colors==0 and card~=nil then
-		for color in tostring(card.getDescription()):gmatch("%a+") do if color=="Red" or color=="Green" or color=="Blue" or color=="White" then colors[#colors+1]=color end end
+		for color in joinLangEnglish(tostring(card.getDescription() or "")):gmatch("%a+") do if color=="Red" or color=="Green" or color=="Blue" or color=="White" then colors[#colors+1]=color end end
 	end
 	return colors
 end
@@ -10134,7 +10131,7 @@ local function heroChallengeCrystalColor(obj)
 	if obj==nil then return nil end
 	local note=obj.getGMNotes()
 	if note=="Red" or note=="Blue" or note=="Green" or note=="White" then return note end
-	local name=tostring(obj.getName() or "")
+	local name=joinLangEnglish(tostring(obj.getName() or ""))
 	for _,color in ipairs({"Red","Blue","Green","White"}) do if name:find(color,1,true)~=nil then return color end end
 	return nil
 end
@@ -10482,7 +10479,7 @@ function displayScore(player, mouseButton, id)
 					--count Faction Rewards
 					if c.type=="Tile" then
 						if c.getPosition()[1]<turnOrder[a].seatPos*40-109.76 and c.getPosition()[3]<-31 then
-							if c.getName()~="Red Potion" and c.getName()~="Blue Potion" and c.getName()~="Green Potion" and c.getName()~="White Potion" then
+							if scriptObjectId(c)~="Red Potion" and scriptObjectId(c)~="Blue Potion" and scriptObjectId(c)~="Green Potion" and scriptObjectId(c)~="White Potion" then
 								if c.getGMNotes()=="Dark Crusader Reward" or c.getGMNotes()=="Elementalist Reward" or c.getGMNotes()=="Apocalypse Cult Reward" or c.getGMNotes()=="Council of the Void Reward" then turnOrder[a].score.Reward=turnOrder[a].score.Reward+1 end
 							else
 								turnOrder[a].score.Potion=turnOrder[a].score.Potion+1
@@ -10490,7 +10487,7 @@ function displayScore(player, mouseButton, id)
 						end
 					end
 					--Count Shield tokens. Pursuit shields score only as Pursuits, never also as the printed site below.
-					if c.getName()=="Shield" and c.getDescription()==turnOrder[a].mage then
+					if isShieldObject(c) and shieldOwner(c)==turnOrder[a].mage then
 						if volkarePursuitShieldRegistered(c)==true then
 							turnOrder[a].score.VolkareCamp=turnOrder[a].score.VolkareCamp+1
 						else
@@ -10553,7 +10550,7 @@ function displayScore(player, mouseButton, id)
 									end
 								end
 								--GraveYards
-								if terTile.getName()=="GraveYard" then
+								if scriptObjectId(terTile)=="GraveYard" then
 									turnOrder[a].score.GraveYard=turnOrder[a].score.GraveYard+1
 									coopGraveYard=coopGraveYard+1
 									found=true
@@ -12040,7 +12037,7 @@ function horsemanAttackOptions(playerIndex,mapPosition)
 			local zoneObj=getObjectFromGUID(zoneGUID)
 			if zoneObj~=nil then
 				local found=false
-				for _,obj in pairs(zoneObj.getObjects()) do if obj.getName()==player.mage then found=true break end end
+				for _,obj in pairs(zoneObj.getObjects()) do if joinLangEnglish(tostring(obj.getName() or ""))==player.mage then found=true break end end
 				if found==true then
 					local cityObj=nil
 					if zoneGUID==volkare.discZone and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then cityObj=getObjectFromGUID(gStates.volkareModel)
@@ -12523,8 +12520,8 @@ function apocalypseDragonCompetitiveScoreSummary()
 	end
 
 	for _,obj in ipairs(getAllObjects()) do
-		if obj.getName()=="Shield" then
-			local mage=obj.getDescription()
+		if isShieldObject(obj) then
+			local mage=shieldOwner(obj)
 			if mageToPlayer[mage]~=nil then
 				local pos=obj.getPosition()
 				local nearest=nil
@@ -14332,7 +14329,7 @@ function volkareCampContributionShieldCount(playerRef)
 	local zone=getObjectFromGUID(volkare.discZone)
 	if zone==nil then return 0 end
 	local count=0
-	for _,obj in pairs(zone.getObjects()) do if obj.getName()=="Shield" and obj.getDescription()==player.mage then count=count+1 end end
+	for _,obj in pairs(zone.getObjects()) do if isShieldObject(obj) and shieldOwner(obj)==player.mage then count=count+1 end end
 	return count
 end
 
@@ -14626,7 +14623,7 @@ function scenarioRestLocationIsAvailable()
 		local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
 		table.sort(objectsInPlay, function (k1, k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
 		for _, obj in pairs(objectsInPlay) do
-			if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 				if math.sqrt(((obj.getPosition()[1]-avatarLocation[1])^2)+((obj.getPosition()[3]-avatarLocation[3])^2))<1 then
 					gladeOpen=true
 					break
@@ -14784,11 +14781,11 @@ function coopLeaderScenarioEndAchieved()
 		local graveYardTileCount=0
 		local objectsInPlay=getObjectFromGUID(mapArea).getObjects()
 		for _, obj in pairs(objectsInPlay) do
-			if obj.getName()=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
-			if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+			if scriptObjectId(obj)=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
+			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 				local shieldPos=obj.getPosition()
 				for _, graveYard in pairs(objectsInPlay) do
-					if graveYard.getName()=="GraveYard" then
+					if scriptObjectId(graveYard)=="GraveYard" then
 						local gravePos=graveYard.getPosition()
 						if math.sqrt(((shieldPos[1]-gravePos[1])^2)+((shieldPos[3]-gravePos[3])^2))<1 then graveYardCount=graveYardCount+1 break end
 					end
@@ -14826,7 +14823,7 @@ function scenarioCombatCleanupCheck(cleanupPlayer)
 		local objectsInPlay=map~=nil and map.getObjects() or {}
 		table.sort(objectsInPlay,function(k1,k2) return k1.getPosition()[2]>k2.getPosition()[2] end)
 		for _, playAreaObject in pairs(objectsInPlay) do
-			if playAreaObject.getName()=="Shield" and volkarePursuitShieldRegistered(playAreaObject)~=true then
+			if isShieldObject(playAreaObject) and volkarePursuitShieldRegistered(playAreaObject)~=true then
 				local found=false
 				local shieldPos=playAreaObject.getPosition()
 				local locatedTerrain,_,_,locatedFeature=terrainHexAtPosition(shieldPos,objectsInPlay)
@@ -14839,14 +14836,14 @@ function scenarioCombatCleanupCheck(cleanupPlayer)
 						if locatedFeature=="mine" then mineCount=mineCount+1 end
 						if locatedFeature~=nil and (locatedFeature:sub(1,4)=="city" or locatedFeature=="Volkare's Camp") and gStates.gameScenario=="The Lost Relic Blitz" then relicCount=relicCount+1 end
 					end
-					if shieldToTileDist<1 and terTile.getName()=="GraveYard" then graveYardCount=graveYardCount+1 found=true end
+					if shieldToTileDist<1 and scriptObjectId(terTile)=="GraveYard" then graveYardCount=graveYardCount+1 found=true end
 					if found==true then break end
 				end
 			end
 			if terrainTiles[playAreaObject.guid]~=nil and combatCleanupMineTiles[playAreaObject.guid]==true then mineTileCount=mineTileCount+1 end
-			if playAreaObject.getName()=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
+			if scriptObjectId(playAreaObject)=="GraveYard" then graveYardTileCount=graveYardTileCount+1 end
 			if terrainTiles[playAreaObject.guid]~=nil and combatCleanupDungeonTombTiles[playAreaObject.guid]==true then dungeonHexCount=dungeonHexCount+1 end
-			if playAreaObject.getName()=="Secret Tomb" or playAreaObject.getName()=="Secret Dungeon" then dungeonHexCount=dungeonHexCount+1 end
+			if scriptObjectId(playAreaObject)=="Secret Tomb" or scriptObjectId(playAreaObject)=="Secret Dungeon" then dungeonHexCount=dungeonHexCount+1 end
 		end
 	end
 
@@ -14924,7 +14921,7 @@ function mineCrystalCount(playerIndex, color)
 	if zone==nil then return 0 end
 	local count=0
 	for _, obj in pairs(zone.getObjects()) do
-		if obj.getDescription()==color or obj.getName()==color.." Mana" then count=count+1 end
+		if manaTokenColor(obj)==color then count=count+1 end
 	end
 	return count
 end
@@ -14934,7 +14931,7 @@ mineLiberatedForClaim=function(playerIndex, terrainGUID, hexPos)
 	local map=getObjectFromGUID(mapArea)
 	if map~=nil then
 		for _, obj in pairs(map.getObjects()) do
-			if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+			if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 				local p=obj.getPosition()
 				if ((p[1]-hexPos[1])^2)+((p[3]-hexPos[3])^2)<1 then return true end
 			end
@@ -14977,7 +14974,7 @@ function mineInventoryPosition(playerIndex, color)
 	local objects=zone.getObjects()
 	local matching={}
 	for _, obj in pairs(objects) do
-		if obj.getDescription()==color or obj.getName()==color.." Mana" then matching[#matching+1]=obj.getPosition() end
+		if manaTokenColor(obj)==color then matching[#matching+1]=obj.getPosition() end
 	end
 	local choices={}
 	for _, snap in pairs(board.getSnapPoints() or {}) do
@@ -15249,7 +15246,7 @@ end
 
 function dungeonLordsHandleSecretSiteToken(obj,status,terrain,bearing,hexFeature)
 	if gStates.gameScenario~="Dungeon Lords" or obj==nil or terrain==nil or bearing==nil then return false end
-	local secretName=obj.getName()
+	local secretName=scriptObjectId(obj)
 	if secretName~="Secret Dungeon" and secretName~="Secret Tomb" then return false end
 	local site=secretName=="Secret Dungeon" and "dungeon" or "tomb"
 	gStates.locationPlace=gStates.locationPlace or {}
@@ -16842,7 +16839,7 @@ againstApocalypseObjectivesComplete=function()
 	local floorCount=0
 	local clearedSites={}
 	for _,obj in pairs(objectsInPlay) do
-		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+		if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 			local terrain,_,_,feature=terrainHexAtPosition(obj.getPosition(),objectsInPlay)
 			if terrain~=nil and (feature=="ziggurat" or feature=="pyramid") then
 				floorCount=floorCount+1
@@ -17333,7 +17330,7 @@ againstDragonPlayerHex=function(hexes,mapObjects,playerIndex)
 			local z=getObjectFromGUID(zone)
 			if z~=nil then
 				for _,obj in pairs(z.getObjects()) do
-					if obj.getName()==details.mage then
+					if joinLangEnglish(tostring(obj.getName() or ""))==details.mage then
 						local cityObj=getObjectFromGUID(city.cityGUID)
 						if cityObj~=nil then return runtimeMapHexForPosition(hexes,cityObj.getPosition(),mapObjects) end
 					end
@@ -18790,7 +18787,7 @@ function startOfTurn()
 		--figure out which city avatar is in
 		for zone, citySearch in pairs(cityScriptZones) do
 			for obj, detail in pairs(getObjectFromGUID(zone).getObjects()) do
-				if detail.getName()==turnOrder[gStates.turnNumber].mage then
+				if joinLangEnglish(tostring(detail.getName() or ""))==turnOrder[gStates.turnNumber].mage then
 					turnOrder[gStates.turnNumber].turnStartLoc=getObjectFromGUID(citySearch.cityGUID).getPosition()
 					break
 				end
@@ -19624,7 +19621,7 @@ local function turnEndRoundAdvanceWorld()
 		--Reroll all mana dice
 		broadcastToAll("{en}Mana Dice Reset{it}Dadi Mana Ripristinati{ru}Кубики маны переброшены{zh-tw}魔力骰子重置{zh-cn}魔力骰子重置{ko}마나 주사위 리셋{es}Reinicio de Dados de Maná{fr}Réinitialisation des dés de Mana{pt-br}Dado de Mana Reiniciado.{de}Manawürfel zurückgesetzt", {1,1,0.5})
 		for a, die in pairs(getObjectFromGUID(GUID.zone.mana).getObjects()) do
-			if die.getName()=="Mana Dice" then
+			if scriptObjectId(die)=="Mana Dice" then
 				die.randomize()
 			end
 		end
@@ -19673,7 +19670,7 @@ local function turnEndRoundRefreshOffers()
 			--must not leave obj pointing at a mana bag and then try to count the bag as a crystal.
 			local spellColor=""--read information from the card in the first spell position
 			local firstSpell=mainOfferFirstCardByType("Spell")
-			if firstSpell~=nil then spellColor=firstSpell.getDescription() end
+			if firstSpell~=nil then spellColor=gameCardPrimaryColor(firstSpell) or "" end
 			if spellColor=="Red" or spellColor=="Blue" or spellColor=="Green" or spellColor=="White" then
 				broadcastToAll(joinLang({proxyPlayerIsActive()==true and "{en}Proxy added a {it}Il Proxy ha aggiunto un cristallo {ru}Прокси получил {zh-tw}代理玩家添加了一个{zh-cn}代理玩家添加了一个{ko}프록시 저장 칸에 {es}Proxy agregó un cristal de maná {fr}Le Proxy a ajouté un cristal de mana {pt-br}Proxy adicionou um(a) {de}Der Proxy hat einen " or "{en}Dummy added a {it}Il Fittizio ha aggiunto un cristallo {ru}Виртуальный игрок получил {zh-tw}虚拟玩家添加了一个{zh-cn}虚拟玩家添加了一个{ko}가상 플레이어 저장 칸에 {es}Dummy agregó un cristal de maná {fr}Le mannequin a ajouté un cristal de mana {pt-br}Jog. Fictício adicionou um(a) {de}Die Puppe hat einen ", translateWord[spellColor], "{en} mana crystal to its inventory.{it} al proprio inventario.{ru} кристалл маны{zh-tw}魔晶到他的装备区. {zh-cn}魔晶到他的装备区. {ko}수정을 추가했습니다{es} a su inventario.{fr} à son inventaire.{pt-br} Cristal de Mana para seu inventário.{de} manakristall in sein Inventar aufgenommen."}), {1,1,0.5})
 				local params={position={0, 1.65, 0}, rotation={0, 30, 0}, smooth=false}
@@ -19691,7 +19688,7 @@ local function turnEndRoundRefreshOffers()
 					obj.lock()
 					for a=1, #turnOrder, 1 do
 						if turnOrder[a].mage==gStates.positionMageKnight[5] then
-							local b=obj.getDescription()
+							local b=manaTokenColor(obj)
 							if turnOrder[a].dummyCrystals[b]==nil then turnOrder[a].dummyCrystals[b]=0 end
 							turnOrder[a].dummyCrystals[b]=turnOrder[a].dummyCrystals[b]+1
 							break
@@ -20151,7 +20148,7 @@ dayTactic2Discarded=function(player, mouseButton, id)
 		if playAreaObj.tag=="Card" then
 			local found=false
 			for _, bannerGUID in pairs(bannerGUIDs) do if playAreaObj.guid==bannerGUID then found=true break end end
-			if playAreaObj.getDescription()=="Quest" then found=true end
+			if isQuestCardObject(playAreaObj) then found=true end
 			if found==false then
 				waitTime=1
 				if cardDestination==nil then
@@ -21062,9 +21059,9 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 				local mapSpatial=context.mapSpatial or runtimeMapSpatialSnapshot()
 				for _, shield in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avatarPos,1)) do
 					local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
-					if shield.getName()=="Shield" and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shieldPos[1]-avatarPos[1])^2)+((shieldPos[3]-avatarPos[3])^2))<1 then
+					if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shieldPos[1]-avatarPos[1])^2)+((shieldPos[3]-avatarPos[3])^2))<1 then
 						shieldExists=true
-						if cleanupLocation=="keep" and shield.getDescription()~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
+						if cleanupLocation=="keep" and shieldOwner(shield)~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
 						if cleanupLocation=="dungeon" or cleanupLocation=="tomb" then gStates.shieldsDropped[shield.guid]=true end
 						break
 					end
@@ -21532,8 +21529,8 @@ local function combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait,reco
 		local trash=getObjectFromGUID(trashCan)
 		for _, playAreaObj in pairs(playArea~=nil and playArea.getObjects() or {}) do
 			if (playAreaObj.type=="Figurine" and keepSafe[playAreaObj.guid]~=true)
-			or playAreaObj.getName()=="Blue Defender Bonus Reminder" or playAreaObj.getName()=="Green Defender Bonus Reminder"
-			or playAreaObj.getName()=="White Defender Bonus Reminder" or playAreaObj.getName()=="Red Defender Bonus Reminder" then
+			or scriptObjectId(playAreaObj)=="Blue Defender Bonus Reminder" or scriptObjectId(playAreaObj)=="Green Defender Bonus Reminder"
+			or scriptObjectId(playAreaObj)=="White Defender Bonus Reminder" or scriptObjectId(playAreaObj)=="Red Defender Bonus Reminder" then
 				if trash~=nil then trash.putObject(playAreaObj) end
 			end
 		end
@@ -21621,14 +21618,14 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 
 				--Delete wound tokens, shards and face up potions.
 				if playAreaObj.getGMNotes()=="Unit Wound" or playAreaObj.getGMNotes()=="Volkare Reminder Token" or playAreaObj.getGMNotes()=="Trap Reminder Token" or playAreaObj.getGMNotes()=="Oasis Reminder Token" or
-					playAreaObj.getName()=="Green Shard" or playAreaObj.getName()=="Red Shard" or playAreaObj.getName()=="Blue Shard" or playAreaObj.getName()=="White Shard" or
-					((playAreaObj.getName()=="Green Potion" or playAreaObj.getName()=="Red Potion" or playAreaObj.getName()=="Blue Potion" or playAreaObj.getName()=="White Potion") and playAreaObj.is_face_down==false) or
+					scriptObjectId(playAreaObj)=="Green Shard" or scriptObjectId(playAreaObj)=="Red Shard" or scriptObjectId(playAreaObj)=="Blue Shard" or scriptObjectId(playAreaObj)=="White Shard" or
+					((scriptObjectId(playAreaObj)=="Green Potion" or scriptObjectId(playAreaObj)=="Red Potion" or scriptObjectId(playAreaObj)=="Blue Potion" or scriptObjectId(playAreaObj)=="White Potion") and playAreaObj.is_face_down==false) or
 					(playAreaObj.getName()=="" and playAreaObj.type=="Tile" and monsterPugs[playAreaObj.guid]==nil) then
 					getObjectFromGUID(trashCan).putObject(playAreaObj)
 				end
 
 				--Return face down Potion
-				if ((playAreaObj.getName()=="Green Potion" or playAreaObj.getName()=="Red Potion" or playAreaObj.getName()=="Blue Potion" or playAreaObj.getName()=="White Potion") and playAreaObj.is_face_down==true) then
+				if ((scriptObjectId(playAreaObj)=="Green Potion" or scriptObjectId(playAreaObj)=="Red Potion" or scriptObjectId(playAreaObj)=="Blue Potion" or scriptObjectId(playAreaObj)=="White Potion") and playAreaObj.is_face_down==true) then
 					if gStates.mageSkills[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.mageSkills[playAreaObj.guid],false,false) end
 				end
 
@@ -22336,8 +22333,8 @@ function rewardNearbyOwnShield(playerIndex,avatarLocation)
 	end
 	local mapSpatial=runtimeMapSpatialSnapshot()
 	for _,shieldCheck in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1)) do
-		if ((shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and shieldCheck.getDescription()==details.mage) or
-			shieldCheck.getName()=="Hidden Valley" or shieldCheck.getName()=="Necropolis" or shieldCheck.getName()=="Volkare's Camp" or shieldCheck.getName()=="Volkare" or
+		if ((isShieldObject(shieldCheck) and volkarePursuitShieldRegistered(shieldCheck)~=true and shieldOwner(shieldCheck)==details.mage) or
+			scriptObjectId(shieldCheck)=="Hidden Valley" or scriptObjectId(shieldCheck)=="Necropolis" or scriptObjectId(shieldCheck)=="Volkare's Camp" or scriptObjectId(shieldCheck)=="Volkare" or
 			shieldCheck.getGMNotes()=="White City" or shieldCheck.getGMNotes()=="Red City" or shieldCheck.getGMNotes()=="Green City" or shieldCheck.getGMNotes()=="Blue City") then
 			local shieldPos=mapSpatial.positions[shieldCheck.guid] or shieldCheck.getPosition()
 			if math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then return shieldCheck.guid end
@@ -22532,7 +22529,7 @@ function attackLocation(playerDud, mouseButton, id)
 							for zone, citySearch in pairs(cityScriptZones) do
 								local zoneObj=getObjectFromGUID(zone)
 								for _, detail in pairs(zoneObj~=nil and zoneObj.getObjects() or {}) do
-									if detail.getName()==player.mage then
+									if joinLangEnglish(tostring(detail.getName() or ""))==player.mage then
 										cityGUID=citySearch.cityGUID
 										break
 									end
@@ -22648,7 +22645,7 @@ function attackLocation(playerDud, mouseButton, id)
 									local mapSpatial=attackMapSpatialView()
 									for _, shield in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1)) do
 										local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
-										if shield.getName()=="Shield" and volkarePursuitShieldRegistered(shield)~=true and (shield.getDescription()==player.mage or gStates.coop==1) and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then found=true break end
+										if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and (shieldOwner(shield)==player.mage or gStates.coop==1) and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then found=true break end
 									end
 									if found==false then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{it}Difensore della Fortezza portato sulla Plancia Giocatore{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
 								end
@@ -22686,7 +22683,7 @@ function attackLocation(playerDud, mouseButton, id)
 									local mapSpatial=attackMapSpatialView()
 									for _, shieldCheck in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1.5)) do
 										local shieldPos=mapSpatial.positions[shieldCheck.guid] or shieldCheck.getPosition()
-										if shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1.5 then
+										if isShieldObject(shieldCheck) and volkarePursuitShieldRegistered(shieldCheck)~=true and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1.5 then
 											local floor=zigguratPyramidFloorFromPosition(terrain,avPos,shieldPos)
 											if floor==1 then
 												UI.setAttribute("zigguratPyramidInteractFight1Image", "color", "Red")
@@ -23392,7 +23389,7 @@ function pursuingRampagers(player, mouseButton, id)
 						for zone, citySearch in pairs(cityScriptZones) do
 							local zoneObj=getObjectFromGUID(zone)
 							for _, detail in pairs(zoneObj~=nil and zoneObj.getObjects() or {}) do
-								if detail.getName()==turnOrder[gStates.turnNumber].mage then
+								if joinLangEnglish(tostring(detail.getName() or ""))==turnOrder[gStates.turnNumber].mage then
 									local cityObj=getObjectFromGUID(citySearch.cityGUID)
 									if cityObj~=nil then playerPos=cityObj.getPosition() end
 									break
@@ -23436,7 +23433,7 @@ function pursuingRampagers(player, mouseButton, id)
 											local found=false
 											local cityZoneObj=getObjectFromGUID(combatCityZones[obj.guid])
 											for _, obj2 in pairs(cityZoneObj~=nil and cityZoneObj.getObjects() or {}) do
-												if obj2.getName()==turnOrder[gStates.turnNumber].mage then
+												if joinLangEnglish(tostring(obj2.getName() or ""))==turnOrder[gStates.turnNumber].mage then
 													local objPos=mapSpatial.positions[obj.guid] or obj.getPosition()
 													if math.sqrt(((rampageNewPos[1]-objPos[1])^2)+((rampageNewPos[3]-objPos[3])^2))<1 then
 														protection="City"
@@ -23457,7 +23454,7 @@ function pursuingRampagers(player, mouseButton, id)
 							--make sure there isnt an other player
 							local magefound=false
 							for _, obj in ipairs(nearby) do
-								if obj.getName()~=turnOrder[gStates.turnNumber].mage and combatPursuitMageNames[obj.getName()]==true then
+								if joinLangEnglish(tostring(obj.getName() or ""))~=turnOrder[gStates.turnNumber].mage and combatPursuitMageNames[joinLangEnglish(tostring(obj.getName() or ""))]==true then
 									local objPos=mapSpatial.positions[obj.guid] or obj.getPosition()
 									if math.sqrt(((rampageNewPos[1]-objPos[1])^2)+((rampageNewPos[3]-objPos[3])^2))<1 then
 										magefound=true
@@ -23475,7 +23472,7 @@ function pursuingRampagers(player, mouseButton, id)
 							--need to check if the site has a shield or not to determine if he attacks or stays
 							local shieldfound=false
 							for _, obj in ipairs(nearby) do
-								if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true and obj.getDescription()==turnOrder[gStates.turnNumber].mage then
+								if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true and shieldOwner(obj)==turnOrder[gStates.turnNumber].mage then
 									local objPos=mapSpatial.positions[obj.guid] or obj.getPosition()
 									if math.sqrt(((rampageNewPos[1]-objPos[1])^2)+((rampageNewPos[3]-objPos[3])^2))<1 then
 										shieldfound=true
@@ -25015,7 +25012,7 @@ local function manaSuppressionTokensAtReminder(record, seatPos)
 	if reminder==nil or playArea==nil then return tokens, reminder end
 	local reminderPos=reminder.getPosition()
 	for _, token in pairs(playArea.getObjects()) do
-		if basicManaToken[token.getName()]==true then
+		if isBasicManaToken(token) then
 			local tokenPos=token.getPosition()
 			if math.abs(tokenPos[1]-reminderPos[1])<=1 and math.abs(tokenPos[3]-reminderPos[3])<=0.65 then tokens[#tokens+1]=token end
 		end
@@ -27181,7 +27178,7 @@ function refreshTokenContainerPresentation(bag, obj, state)
 							["d6e01e"]={empty="https://steamusercontent-a.akamaihd.net/ugc/14479946909127380756/3B50E70C9A791C876BE2A3BF5DA8D0E01F7743D8/", last=""},--Malek Command
 							[GUID.bag.terrain.stack]={empty="https://steamusercontent-a.akamaihd.net/ugc/1688270643043527253/68E270678D47C66202EAF01B86981ADF5509CE89/", last=""}}--Terrain Stack
 	if faceUpdateBags[bag.guid]~=nil then
-		if state~="shuffle" and obj.getGMNotes()~="Command Token" and obj.getName()~="MapTile" then bag.setColorTint({r=0.5, g=0.5, b=0.5}) end
+		if state~="shuffle" and obj.getGMNotes()~="Command Token" and scriptObjectId(obj)~="MapTile" then bag.setColorTint({r=0.5, g=0.5, b=0.5}) end
 		if state=="enter" then
 			discardFace[bag.guid]=obj.getCustomObject().image
 			if obj.type=="Generic" then discardFace[bag.guid]=obj.getCustomObject().diffuse end
@@ -27288,7 +27285,7 @@ function mapTokenIsDestroyedSite(obj)
 end
 
 function mapTokenIsGraveyard(obj)
-	return obj~=nil and obj.getName~=nil and obj.getName()=="GraveYard"
+	return obj~=nil and scriptObjectId(obj)=="GraveYard"
 end
 
 function mapTokenIsQuestMarker(obj)
@@ -27296,7 +27293,7 @@ function mapTokenIsQuestMarker(obj)
 end
 
 function mapTokenIsShield(obj)
-	return obj~=nil and obj.getName~=nil and obj.getName()=="Shield"
+	return obj~=nil and isShieldObject(obj)
 end
 
 local mapTokenPositionSensitiveShieldFeatures={maze=true,labyrinth=true,pyramid=true,ziggurat=true}
@@ -27332,10 +27329,10 @@ function mapTokenNeedsArrangement(obj,metadata)
 
 	local objectName=metadata~=nil and metadata.objName or nil
 	if objectName==nil then
-		objectName=obj.getName()
+		objectName=scriptObjectId(obj)
 		if metadata~=nil then metadata.objName=objectName end
 	end
-	if objectName=="GraveYard" or objectName=="Shield" then return true end
+	if objectName=="GraveYard" or isShieldObject(obj) then return true end
 
 	local objectNotes=metadata~=nil and metadata.objNotes or nil
 	if objectNotes==nil then
@@ -28027,9 +28024,9 @@ function shieldLocation(obj, zone, status)
 	if volkarePursuitShieldRegistered(obj)==true then return end
 	--These object properties were previously read repeatedly through the large rules branch below.
 	--Cache them once per placement/removal; they are stable for the duration of this callback.
-	local objectName=obj.getName()
+	local objectName=scriptObjectId(obj)
 	local objectNotes=obj.getGMNotes()
-	local objectDescription=obj.getDescription()
+	local objectDescription=isShieldObject(obj) and shieldOwner(obj) or joinLangEnglish(tostring(obj.getDescription() or ""))
 	if zone.guid==mapArea then
 		local mapSnapshot=runtimeMapSnapshot()
 		local objectsInPlay=mapSnapshot.terrainObjects or {}
@@ -28401,7 +28398,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 			local dz=candidatePos[3]-params.position[3]
 			if (dx*dx)+(dz*dz)<1 then
 				local rotationValues=candidate.getRotationValues()
-				local name=rotationValues[2]~=nil and rotationValues[2].value or candidate.getName()
+				local name=rotationValues[2]~=nil and rotationValues[2].value or scriptObjectId(candidate)
 				if rampageBlockingNames[name]==true then free=false break end
 			end
 		end
@@ -28894,12 +28891,12 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 										end
 										if (hexFeature or ""):sub(1,4)=="city" then
 											keepShieldMatch[keepSearch]["city"]=true
-											if keepShieldMatch[keepSearch]["cityShield"]==true then cityFound=terrain.getName() end
+											if keepShieldMatch[keepSearch]["cityShield"]==true then cityFound=scriptObjectId(terrain) end
 										end
 									end
 										if avatarToTileDistSquared<1 then
 										--work with Shields
-										if terrain.getName()=="Shield" and volkarePursuitShieldRegistered(terrain)~=true and ((terrain.getDescription()==playerDetails.mage and (gStates.coop==0 or gStates.WarOfFourComp==true)) or (gStates.coop==1 and gStates.WarOfFourComp~=true)) then
+										if isShieldObject(terrain) and volkarePursuitShieldRegistered(terrain)~=true and ((shieldOwner(terrain)==playerDetails.mage and (gStates.coop==0 or gStates.WarOfFourComp==true)) or (gStates.coop==1 and gStates.WarOfFourComp~=true)) then
 											keepShieldMatch[keepSearch]["keepShield"]=true
 											if keepShieldMatch[keepSearch]["keep"]==true then keepFound=true end
 										end
@@ -28930,7 +28927,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 												end
 											end
 											--
-											if terrain.getName()~="Volkare's Camp" then
+											if scriptObjectId(terrain)~="Volkare's Camp" then
 												if playerDetails.defeatedCities[terrain.guid]~=nil then
 													keepShieldMatch[keepSearch]["cityShield"]=true
 													if keepShieldMatch[keepSearch]["city"]==true then cityFound=terrain.getGMNotes() end
@@ -29238,7 +29235,7 @@ local function applyPredefinedTerrainTint(playAreaObjects,faceUpTerrain,northBea
 			local cachedPosition=mapSnapshot~=nil and mapSnapshot.terrainPositions~=nil and mapSnapshot.terrainPositions[mightBeMap.guid] or nil
 			local mapPosition=cachedPosition or mightBeMap.getPosition()
 			local tileBearing=math.deg(math.atan2(mapPosition[3]-startPosition[3],mapPosition[1]-startPosition[1]))
-			if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=tileBearing, objName=mightBeMap.getName(), position={mapPosition[1], 0, mapPosition[3]}},faceUpTerrain,northBearing,{})==false then
+			if terrainPositionLegal({guid=mightBeMap.guid, faceDown=false, bearing=tileBearing, objName=scriptObjectId(mightBeMap), position={mapPosition[1], 0, mapPosition[3]}},faceUpTerrain,northBearing,{})==false then
 				mightBeMap.setColorTint({r=1.0, g=0.7, b=0.7})--colour tint red
 			else
 				local useNightTint=(startingMapSetup==true and gStates.startAtNight==true) or (startingMapSetup~=true and gStates.nightTint==true)
@@ -29300,7 +29297,7 @@ function mapHandleTerrainZoneEnter(ctx)
 		end
 		local startTilePosition=startTileObject.getPosition()
 		local enteredTilePosition=obj.getPosition()
-		local enteredTileName=obj.getName()
+		local enteredTileName=scriptObjectId(obj)
 		startBearing=math.deg(math.atan2(enteredTilePosition[3]-startTilePosition[3], enteredTilePosition[1]-startTilePosition[1]))
 
 
@@ -31217,8 +31214,8 @@ function refreshCityControlAndScoring()
 			end
 			local cityScoring={}
 			for _, shield in ipairs(objectsOnCity) do
-				if shield.getName()=="Shield" then
-					local mage=shield.getDescription()
+				if isShieldObject(shield) then
+					local mage=shieldOwner(shield)
 					if cityScoring[mage]~=nil then cityScoring[mage]=cityScoring[mage]+1
 					elseif firstShield==true then cityScoring[mage]=1.5 firstShield=false
 					else cityScoring[mage]=1 end
@@ -31609,7 +31606,7 @@ local function apocalypseQuestName(card)
 	if card==nil then return "Unknown Quest" end
 	local details=apocalypseQuestData[card.guid]
 	if details~=nil then return details.name end
-	local name=card.getName()
+	local name=joinLangEnglish(tostring(card.getName() or ""))
 	if name~=nil and name~="" then return name end
 	return "Quest "..tostring(card.guid)
 end
@@ -31668,7 +31665,7 @@ local function apocalypseQuestCardTitle(card)
 		if type(name)=="table" then name=name[1] end
 		if name~=nil and tostring(name)~="" then return tostring(name) end
 	end
-	local name=card.getName()
+	local name=joinLangEnglish(tostring(card.getName() or ""))
 	if name~=nil and name~="" then return name end
 	return "card "..tostring(card.guid)
 end
@@ -31677,7 +31674,7 @@ local function apocalypseQuestTuckedCardDestination(card)
 	local details=gameCards~=nil and gameCards[card.guid] or nil
 	local cardType=details~=nil and details.cardType or nil
 	local notes=card.getGMNotes()
-	local name=card.getName()
+	local name=joinLangEnglish(tostring(card.getName() or ""))
 	if cardType=="Advanced Action" or notes=="Advanced Action" or name=="Advanced Action" then return GUID.deck.action, "Advanced Action" end
 	if cardType=="Spell" or notes=="Spell" or name=="Spell" then return GUID.deck.spell, "Spell" end
 	if cardType=="Artifact" or notes=="Artifact" or name=="Artifact" then return GUID.deck.artifact, "Artifact" end
@@ -32020,18 +32017,13 @@ apocalypseQuestGainReputation=function(playerIndex, questName)
 end
 
 apocalypseQuestBasicCrystalColor=function(obj)
-	if obj==nil then return nil end
-	return ({["Red Mana"]="Red", ["Blue Mana"]="Blue", ["Green Mana"]="Green", ["White Mana"]="White"})[obj.getName()]
+	local color=manaTokenColor(obj)
+	if color=="Red" or color=="Blue" or color=="Green" or color=="White" then return color end
+	return nil
 end
 
 apocalypseQuestManaTokenColor=function(obj)
-	if obj==nil then return nil end
-	local basic=apocalypseQuestBasicCrystalColor(obj)
-	if basic~=nil then return basic end
-	local name=obj.getName()
-	if name=="Gold Mana" then return "Gold" end
-	if name=="Black Mana" then return "Black" end
-	return nil
+	return manaTokenColor(obj)
 end
 
 apocalypseQuestManaBag=function(color)
@@ -32550,7 +32542,7 @@ apocalypseQuestRegisterGoblin=function(enemy,playerIndex)
 	if enemy==nil or turnOrder[playerIndex]==nil then return false end
 	--The Warrens source is an Infinite Bag, so there is no contained-object GUID to inspect. Give each
 	--fresh clone a small runtime monster record, then put the printed Quest overrides in monsterPerks.
-	monsterPugs[enemy.guid]={name=enemy.getName()~="" and enemy.getName() or "Goblin",pugType="green",fame=1,attack={P={0}},armour=0}
+	monsterPugs[enemy.guid]={name=joinLangEnglish(tostring(enemy.getName() or ""))~="" and joinLangEnglish(tostring(enemy.getName() or "")) or "Goblin",pugType="green",fame=1,attack={P={0}},armour=0}
 	if gStates.monsterPerks==nil then gStates.monsterPerks={} end
 	gStates.monsterPerks[enemy.guid]={attack={P={1}},armour=1,fame=0,questGoblinWarrens=true}
 	if gStates.apocalypseQuestGoblinEnemies==nil then gStates.apocalypseQuestGoblinEnemies={} end
@@ -32564,7 +32556,7 @@ function apocalypseQuestRestoreGoblinEnemies()
 	for guid,record in pairs(gStates.apocalypseQuestGoblinEnemies) do
 		local enemy=getObjectFromGUID(guid)
 		if enemy~=nil then
-			monsterPugs[guid]={name=record.name or (enemy.getName()~="" and enemy.getName() or "Goblin"),pugType="green",fame=1,attack={P={0}},armour=0}
+			monsterPugs[guid]={name=record.name or (joinLangEnglish(tostring(enemy.getName() or ""))~="" and joinLangEnglish(tostring(enemy.getName() or "")) or "Goblin"),pugType="green",fame=1,attack={P={0}},armour=0}
 			if gStates.monsterPerks==nil then gStates.monsterPerks={} end
 			local perks=gStates.monsterPerks[guid] or {}
 			perks.attack={P={1}}
@@ -32925,8 +32917,8 @@ apocalypseQuestCursedTargetIndex=function(card,playerIndex)
 	if source==nil then return nil end
 	local chosen=nil
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
-		if obj.getName()=="Shield" then
-			local owner=obj.getDescription()
+		if isShieldObject(obj) then
+			local owner=shieldOwner(obj)
 			for index, details in ipairs(turnOrder) do
 				if details.mage==owner and apocalypseQuestCursedTargetEligible(card,playerIndex,index,true,hexes,mapObjects,source)==true then
 					if chosen~=nil and chosen~=index then return nil end
@@ -33768,7 +33760,7 @@ function QuestPrivate.apocalypseQuestUnderSiegeFailure(card,playerIndex)
 	local pos=marker.getPosition()
 	local spatial=runtimeMapSpatialSnapshot()
 	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,pos,1.1)) do
-		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true and turnOrder[playerIndex]~=nil and obj.getDescription()==turnOrder[playerIndex].mage then
+		if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true and turnOrder[playerIndex]~=nil and shieldOwner(obj)==turnOrder[playerIndex].mage then
 			local p=spatial.positions[obj.guid] or obj.getPosition()
 			if ((p[1]-pos[1])^2)+((p[3]-pos[3])^2)<1 then obj.destruct() break end
 		end
@@ -34239,10 +34231,10 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 		local penalized={}
 		broadcastToAll(joinLang({"{en}Quest cleanup: \"{it}Pulizia Missioni: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"\" (",tostring(questDetails.questType or "Unknown"),"{en} is leaving the offer.{it} lascia l'offerta.{ru} покидает предложение.{zh-tw} 正在離開供應。{zh-cn} 正在离开供应。{ko}이(가) 제안에서 제거됩니다.{es} sale de la oferta.{fr} quitte l’offre.{pt-br} está saindo da oferta.{de} verlässt das Angebot."}),{1,1,0.5})
 		for _,obj in ipairs(objects) do
-			if obj.getName()=="Shield" then
+			if isShieldObject(obj) then
 				shieldCount=shieldCount+1
 				if questDetails.questType=="Personal" then
-					local owner=obj.getDescription()
+					local owner=shieldOwner(obj)
 					if owner~=nil and owner~="" and owner~="Neutral" and penalized[owner]~=true then
 						for playerIndex,playerDetails in ipairs(turnOrder) do
 							if playerDetails.mage==owner then apocalypseQuestLoseReputation(playerIndex,questName) penalized[owner]=true break end
@@ -34446,8 +34438,8 @@ function QuestPrivate.apocalypseQuestPersonalShieldOwner(card)
 	local quest=card~=nil and apocalypseQuestData[card.guid] or nil
 	if quest==nil or quest.questType~="Personal" then return nil, nil end
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
-		if obj.getName()=="Shield" then
-			local owner=obj.getDescription()
+		if isShieldObject(obj) then
+			local owner=shieldOwner(obj)
 			if owner~=nil and owner~="" and owner~="Neutral" then
 				for playerIndex, playerDetails in ipairs(turnOrder) do
 					if playerDetails.mage==owner and playerDetails.mage~=gStates.positionMageKnight[5] then return playerIndex, obj end
@@ -34460,7 +34452,7 @@ end
 function QuestPrivate.apocalypseQuestNeutralShield(card)
 	if card==nil then return nil end
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
-		if obj.getName()=="Shield" and obj.getDescription()=="Neutral" then return obj end
+		if isShieldObject(obj) and shieldOwner(obj)=="Neutral" then return obj end
 	end
 	return nil
 end
@@ -34468,7 +34460,7 @@ function QuestPrivate.apocalypseQuestPlayerShield(card, playerIndex)
 	if card==nil or turnOrder[playerIndex]==nil then return nil end
 	local mage=turnOrder[playerIndex].mage
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
-		if obj.getName()=="Shield" and obj.getDescription()==mage then return obj end
+		if isShieldObject(obj) and shieldOwner(obj)==mage then return obj end
 	end
 	return nil
 end
@@ -34499,7 +34491,7 @@ function QuestPrivate.apocalypseQuestPlayerHasOtherPersonalQuest(playerIndex, ex
 			local quest=apocalypseQuestData[questCard.guid]
 			if quest~=nil and quest.questType=="Personal" then
 				for _, obj in ipairs(apocalypseQuestObjectsOnCard(questCard)) do
-					if obj.getName()=="Shield" and obj.getDescription()==mage then return true end
+					if isShieldObject(obj) and shieldOwner(obj)==mage then return true end
 				end
 			end
 		end
@@ -34604,12 +34596,12 @@ function apocalypseQuestHexHasShield(hex, mapObjects, playerIndex, anyPlayer)
 	local mage=turnOrder[playerIndex]~=nil and turnOrder[playerIndex].mage or nil
 	local spatial=QuestPrivate.apocalypseQuestMapSpatial()
 	for _, obj in ipairs(runtimeMapSpatialNearbyObjects(spatial,hex.position,1.1)) do
-		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+		if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 			local pos=spatial.positions[obj.guid] or obj.getPosition()
 			local dx=pos[1]-hex.position[1]
 			local dz=pos[3]-hex.position[3]
 			if (dx*dx)+(dz*dz)<1 then
-				local owner=obj.getDescription()
+				local owner=shieldOwner(obj)
 				if anyPlayer==true then
 					if owner~=nil and owner~="" and owner~="Neutral" then return true end
 				elseif mage~=nil and owner==mage then
@@ -36141,8 +36133,7 @@ end
 
 function QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
 	if obj==nil then return nil end
-	local name=obj.getName()
-	if name~="Shield" and name~="Red Mana" and name~="Blue Mana" and name~="Green Mana" and name~="White Mana" and name~="Gold Mana" and name~="Black Mana" then return nil end
+	if isShieldObject(obj)~=true and manaTokenColor(obj)==nil then return nil end
 	local pos=obj.getPosition()
 	local bestGUID=nil
 	local bestDistance=0.31
@@ -36193,7 +36184,7 @@ function QuestPrivate.apocalypseQuestIndependentShieldRowPosition(card,stepKey,m
 	local areaObjects=QuestPrivate.apocalypseQuestAreaObjects()
 	local offerCards=QuestPrivate.apocalypseQuestOfferCards(areaObjects)
 	for _, obj in pairs(areaObjects) do
-		if obj.guid~=movingShieldGUID and obj.getName()=="Shield" and obj.getDescription()~="Neutral" then
+		if obj.guid~=movingShieldGUID and isShieldObject(obj) and shieldOwner(obj)~="Neutral" then
 			local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
 			if rowOwner==nil or rowOwner==card.guid then
 				local nearestSlot,nearestDistance=QuestPrivate.apocalypseQuestNearestRowSlot(obj.getPosition(),targets,maxSlot)
@@ -36877,7 +36868,7 @@ local function apocalypseQuestRemoveShields(card)
 	local areaObjects=QuestPrivate.apocalypseQuestAreaObjects()
 	local offerCards=QuestPrivate.apocalypseQuestOfferCards(areaObjects)
 	for _, obj in pairs(areaObjects) do
-		if obj.guid~=card.guid and obj.getName()=="Shield" then
+		if obj.guid~=card.guid and isShieldObject(obj) then
 			local pos=obj.getPosition()
 			local normalFootprint=math.abs(pos[1]-source[1])<1.7 and math.abs(pos[3]-source[3])<2.5 and pos[2]>source[2]-0.25 and pos[2]<source[2]+3.0
 			local rowOwner=QuestPrivate.apocalypseQuestIndependentShieldRowOwnerGUID(obj,offerCards)
@@ -37103,7 +37094,7 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	--those objects toward the Quest deck before their return completed (Spell Thief / Prove Yourself).
 	local attachmentGUIDs={}
 	for _,obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
-		if obj.getName()~="Shield" then attachmentGUIDs[#attachmentGUIDs+1]=obj.guid end
+		if not isShieldObject(obj) then attachmentGUIDs[#attachmentGUIDs+1]=obj.guid end
 	end
 	apocalypseQuestRemoveShields(card)
 
@@ -37755,7 +37746,7 @@ if action=="Abandon" then
 	apocalypseQuestEndMoveAttachmentCapture(card)
 	local ownerMage=details.mage
 	for _, shield in ipairs(apocalypseQuestObjectsOnCard(card)) do
-		if shield.getName()=="Shield" and shield.getDescription()==ownerMage and getObjectFromGUID(shield.guid)~=nil then shield.destruct() end
+		if isShieldObject(shield) and shieldOwner(shield)==ownerMage and getObjectFromGUID(shield.guid)~=nil then shield.destruct() end
 	end
 	apocalypseQuestLoseReputation(playerIndex, quest.name, "abandon")
 	QuestPrivate.apocalypseQuestOfferMoveToLeft(card)
@@ -39863,14 +39854,14 @@ function refreshHigherLevelSetupUI()
 									end
 									if c.getGMNotes()=="Spell" then
 										turnOrder[a].levelingStats.Spells=turnOrder[a].levelingStats.Spells+1
-										spellColors[#spellColors+1]=c.getDescription()
+										spellColors[#spellColors+1]=gameCardPrimaryColor(c)
 									end
 									if c.getGMNotes()=="Artifact" then turnOrder[a].levelingStats.Artifacts=turnOrder[a].levelingStats.Artifacts+1 end
 								end
 								if c.type=="Figurine" then
 									if gStates.startingHigherLevelCrystal[c.guid]~=nil then
 										turnOrder[a].levelingStats.SpellCrystals=turnOrder[a].levelingStats.SpellCrystals+1
-										crystalColors[#crystalColors+1]=c.getDescription()
+										crystalColors[#crystalColors+1]=manaTokenColor(c)
 									end
 								end
 							end
@@ -40832,7 +40823,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 						local obj=safeTakeObject("SetupGame",playerBag,params)
 						obj.lock()
 						--GM Notes are intentionally stable English-only script metadata.
-						local b=obj.getGMNotes()
+						local b=manaTokenColor(obj)
 						if b~="Red" and b~="Blue" and b~="Green" and b~="White" then
 							error("Dummy setup found an unrecognized crystal color on "..tostring(obj.guid)..": "..tostring(b),2)
 						end
@@ -41080,7 +41071,9 @@ function volkareSetup()
 			obj2.lock()
 			obj2.setPosition({36.0-(4.8*(i-1)), 1.29, -1.15})
 			obj2.setRotation({0, 30, 0})
-			gStates.volkareUnitCrystals[obj2.getName()]={slot=i,crystalGUID=obj2.guid}
+			local color=manaTokenColor(obj2)
+			if color==nil then error("Volkare setup found an unrecognized unit crystal "..tostring(obj2.guid),2) end
+			gStates.volkareUnitCrystals[color]={slot=i,crystalGUID=obj2.guid}
 		end
 		PlayerBag.destruct()
 		obj.destruct()
@@ -41568,7 +41561,7 @@ function playerBoardZoneEnterSettled(ctx)
 		end
 
 		--if object is a crystal then alter it's animation.
-		if crystalManaNames[obj.getName()]==true then
+		if isBasicManaToken(obj) then
 			safeWaitTime("PlayerBoard.Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playTriggerEffect(0) end end, 0.1)
 			safeWaitTime("PlayerBoard.Events",function() if getObjectFromGUID(objGUID)~=nil then obj.AssetBundle.playLoopingEffect(1) end end, 1)
 		end
@@ -41629,7 +41622,7 @@ function playerBoardZoneEnterSettled(ctx)
         end
 
 	--record potion return locationTest
-	if zoneInfo~=nil and zoneInfo.kind=="crystal" and obj.getName():reverse():sub(1, 6)=="noitoP" then
+	if zoneInfo~=nil and zoneInfo.kind=="crystal" and scriptObjectId(obj):sub(-6)=="Potion" then
 		local potionPosition=obj.getPosition()
 		gStates.mageSkills[objGUID]={potionPosition[1], potionPosition[2], potionPosition[3]}
 	end
@@ -41677,8 +41670,7 @@ function playerBoardZoneLeave(ctx)
 				end
 
 				--if object is a crystal then remove highlight.
-				local crystalGlow={["Red Mana"]={1, 0, 0}, ["Green Mana"]={0, 1, 0}, ["Blue Mana"]={0, 0, 1}, ["White Mana"]={1, 1, 1}, ["Black Mana"]={0.3, 0.0, 0.6}, ["Gold Mana"]={1, 0.9, 0}}
-				if crystalGlow[obj.getName()]~=nil then
+				if isBasicManaToken(obj) then
 					obj.AssetBundle.playLoopingEffect(0)
 				end
 			end
@@ -43096,7 +43088,7 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 		and card.is_face_down==false and cardEffectIsVertical(card)==true
 	if manualEndTurnCard then keepInPlay=true gStates.turnForfeited=false end
 
-	if card.getDescription()=="Quest" then keepInPlay=true gStates.turnForfeited=false end
+	if isQuestCardObject(card) then keepInPlay=true gStates.turnForfeited=false end
 	if keepInPlay==true then return cardDestination end
 
 	gStates.turnForfeited=false
@@ -47081,6 +47073,76 @@ function legalPlayerCheck(clickingPlayersColor, playerPosExpected, rule)
 	end
 end
 
+-- Stable physical-object identity helpers. Nicknames/Descriptions are display text and may be translated;
+--GM Notes stay English-only and are the preferred script-facing identity when GUID/data lookup is not practical.
+local SCRIPT_MANA_COLORS={Red=true,Blue=true,Green=true,White=true,Gold=true,Black=true}
+
+function scriptObjectId(obj)
+	if obj==nil then return "" end
+	local notes=obj.getGMNotes~=nil and tostring(obj.getGMNotes() or "") or ""
+	if notes~="" then return notes end
+	if obj.getName~=nil then return joinLangEnglish(tostring(obj.getName() or "")) end
+	return ""
+end
+
+function isShieldObject(obj)
+	local id=scriptObjectId(obj)
+	return id=="Shield" or id:sub(1,7)=="Shield|"
+end
+
+function shieldOwner(obj)
+	local id=scriptObjectId(obj)
+	local owner=id:match("^Shield|(.+)$")
+	if owner~=nil and owner~="" then return owner end
+	if id=="Shield" and obj~=nil and obj.getDescription~=nil then
+		local description=joinLangEnglish(tostring(obj.getDescription() or ""))
+		if description~="" then return description end
+	end
+	return nil
+end
+
+function manaTokenColor(obj)
+	if obj==nil then return nil end
+	local notes=obj.getGMNotes~=nil and tostring(obj.getGMNotes() or "") or ""
+	if SCRIPT_MANA_COLORS[notes]==true then return notes end
+	if obj.getDescription~=nil then
+		local description=joinLangEnglish(tostring(obj.getDescription() or ""))
+		if SCRIPT_MANA_COLORS[description]==true then return description end
+	end
+	if obj.getName~=nil then
+		local name=joinLangEnglish(tostring(obj.getName() or ""))
+		local color=name:match("^([%a]+) Mana$")
+		if SCRIPT_MANA_COLORS[color]==true then return color end
+	end
+	return nil
+end
+
+function isBasicManaToken(obj)
+	local color=manaTokenColor(obj)
+	return color=="Red" or color=="Blue" or color=="Green" or color=="White"
+end
+
+function isQuestCardObject(obj)
+	if obj==nil then return false end
+	if scriptObjectId(obj)=="Quest" then return true end
+	if obj.getDescription~=nil then return joinLangEnglish(tostring(obj.getDescription() or ""))=="Quest" end
+	return false
+end
+
+function gameCardPrimaryColor(obj)
+	if obj==nil then return nil end
+	local details=gameCards~=nil and gameCards[obj.guid] or nil
+	if details~=nil and details.color~=nil then
+		if type(details.color)=="table" then return details.color[1] end
+		return details.color
+	end
+	if obj.getDescription~=nil then
+		local description=joinLangEnglish(tostring(obj.getDescription() or ""))
+		if SCRIPT_MANA_COLORS[description]==true then return description end
+	end
+	return nil
+end
+
 -- Stable card identity helpers
 --Card identity helpers. Object Nicknames are display/search text and may be translated,
 --so script logic must use stable GUID-backed card data instead.
@@ -47175,7 +47237,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="443"
+local automaticLuaErrorReporterVersion="444"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
