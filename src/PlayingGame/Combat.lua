@@ -521,9 +521,9 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 				local mapSpatial=context.mapSpatial or runtimeMapSpatialSnapshot()
 				for _, shield in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avatarPos,1)) do
 					local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
-					if shield.getName()=="Shield" and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shieldPos[1]-avatarPos[1])^2)+((shieldPos[3]-avatarPos[3])^2))<1 then
+					if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shieldPos[1]-avatarPos[1])^2)+((shieldPos[3]-avatarPos[3])^2))<1 then
 						shieldExists=true
-						if cleanupLocation=="keep" and shield.getDescription()~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
+						if cleanupLocation=="keep" and shieldOwner(shield)~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
 						if cleanupLocation=="dungeon" or cleanupLocation=="tomb" then gStates.shieldsDropped[shield.guid]=true end
 						break
 					end
@@ -991,8 +991,8 @@ local function combatSchedulePreEndTurnSkillCleanup(cleanupPlayer,tokenWait,reco
 		local trash=getObjectFromGUID(trashCan)
 		for _, playAreaObj in pairs(playArea~=nil and playArea.getObjects() or {}) do
 			if (playAreaObj.type=="Figurine" and keepSafe[playAreaObj.guid]~=true)
-			or playAreaObj.getName()=="Blue Defender Bonus Reminder" or playAreaObj.getName()=="Green Defender Bonus Reminder"
-			or playAreaObj.getName()=="White Defender Bonus Reminder" or playAreaObj.getName()=="Red Defender Bonus Reminder" then
+			or scriptObjectId(playAreaObj)=="Blue Defender Bonus Reminder" or scriptObjectId(playAreaObj)=="Green Defender Bonus Reminder"
+			or scriptObjectId(playAreaObj)=="White Defender Bonus Reminder" or scriptObjectId(playAreaObj)=="Red Defender Bonus Reminder" then
 				if trash~=nil then trash.putObject(playAreaObj) end
 			end
 		end
@@ -1080,14 +1080,14 @@ local function combatSchedulePreEndTurnCleanup(player,cleanupPlayer,coopCombatRe
 
 				--Delete wound tokens, shards and face up potions.
 				if playAreaObj.getGMNotes()=="Unit Wound" or playAreaObj.getGMNotes()=="Volkare Reminder Token" or playAreaObj.getGMNotes()=="Trap Reminder Token" or playAreaObj.getGMNotes()=="Oasis Reminder Token" or
-					playAreaObj.getName()=="Green Shard" or playAreaObj.getName()=="Red Shard" or playAreaObj.getName()=="Blue Shard" or playAreaObj.getName()=="White Shard" or
-					((playAreaObj.getName()=="Green Potion" or playAreaObj.getName()=="Red Potion" or playAreaObj.getName()=="Blue Potion" or playAreaObj.getName()=="White Potion") and playAreaObj.is_face_down==false) or
+					scriptObjectId(playAreaObj)=="Green Shard" or scriptObjectId(playAreaObj)=="Red Shard" or scriptObjectId(playAreaObj)=="Blue Shard" or scriptObjectId(playAreaObj)=="White Shard" or
+					((scriptObjectId(playAreaObj)=="Green Potion" or scriptObjectId(playAreaObj)=="Red Potion" or scriptObjectId(playAreaObj)=="Blue Potion" or scriptObjectId(playAreaObj)=="White Potion") and playAreaObj.is_face_down==false) or
 					(playAreaObj.getName()=="" and playAreaObj.type=="Tile" and monsterPugs[playAreaObj.guid]==nil) then
 					getObjectFromGUID(trashCan).putObject(playAreaObj)
 				end
 
 				--Return face down Potion
-				if ((playAreaObj.getName()=="Green Potion" or playAreaObj.getName()=="Red Potion" or playAreaObj.getName()=="Blue Potion" or playAreaObj.getName()=="White Potion") and playAreaObj.is_face_down==true) then
+				if ((scriptObjectId(playAreaObj)=="Green Potion" or scriptObjectId(playAreaObj)=="Red Potion" or scriptObjectId(playAreaObj)=="Blue Potion" or scriptObjectId(playAreaObj)=="White Potion") and playAreaObj.is_face_down==true) then
 					if gStates.mageSkills[playAreaObj.guid]~=nil then playAreaObj.setPositionSmooth(gStates.mageSkills[playAreaObj.guid],false,false) end
 				end
 
@@ -1795,8 +1795,8 @@ function rewardNearbyOwnShield(playerIndex,avatarLocation)
 	end
 	local mapSpatial=runtimeMapSpatialSnapshot()
 	for _,shieldCheck in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1)) do
-		if ((shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and shieldCheck.getDescription()==details.mage) or
-			shieldCheck.getName()=="Hidden Valley" or shieldCheck.getName()=="Necropolis" or shieldCheck.getName()=="Volkare's Camp" or shieldCheck.getName()=="Volkare" or
+		if ((isShieldObject(shieldCheck) and volkarePursuitShieldRegistered(shieldCheck)~=true and shieldOwner(shieldCheck)==details.mage) or
+			scriptObjectId(shieldCheck)=="Hidden Valley" or scriptObjectId(shieldCheck)=="Necropolis" or scriptObjectId(shieldCheck)=="Volkare's Camp" or scriptObjectId(shieldCheck)=="Volkare" or
 			shieldCheck.getGMNotes()=="White City" or shieldCheck.getGMNotes()=="Red City" or shieldCheck.getGMNotes()=="Green City" or shieldCheck.getGMNotes()=="Blue City") then
 			local shieldPos=mapSpatial.positions[shieldCheck.guid] or shieldCheck.getPosition()
 			if math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then return shieldCheck.guid end
@@ -1991,7 +1991,7 @@ function attackLocation(playerDud, mouseButton, id)
 							for zone, citySearch in pairs(cityScriptZones) do
 								local zoneObj=getObjectFromGUID(zone)
 								for _, detail in pairs(zoneObj~=nil and zoneObj.getObjects() or {}) do
-									if detail.getName()==player.mage then
+									if joinLangEnglish(tostring(detail.getName() or ""))==player.mage then
 										cityGUID=citySearch.cityGUID
 										break
 									end
@@ -2107,7 +2107,7 @@ function attackLocation(playerDud, mouseButton, id)
 									local mapSpatial=attackMapSpatialView()
 									for _, shield in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1)) do
 										local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
-										if shield.getName()=="Shield" and volkarePursuitShieldRegistered(shield)~=true and (shield.getDescription()==player.mage or gStates.coop==1) and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then found=true break end
+										if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and (shieldOwner(shield)==player.mage or gStates.coop==1) and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then found=true break end
 									end
 									if found==false then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{it}Difensore della Fortezza portato sulla Plancia Giocatore{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
 								end
@@ -2145,7 +2145,7 @@ function attackLocation(playerDud, mouseButton, id)
 									local mapSpatial=attackMapSpatialView()
 									for _, shieldCheck in ipairs(runtimeMapSpatialNearbyObjects(mapSpatial,avPos,1.5)) do
 										local shieldPos=mapSpatial.positions[shieldCheck.guid] or shieldCheck.getPosition()
-										if shieldCheck.getName()=="Shield" and volkarePursuitShieldRegistered(shieldCheck)~=true and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1.5 then
+										if isShieldObject(shieldCheck) and volkarePursuitShieldRegistered(shieldCheck)~=true and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1.5 then
 											local floor=zigguratPyramidFloorFromPosition(terrain,avPos,shieldPos)
 											if floor==1 then
 												UI.setAttribute("zigguratPyramidInteractFight1Image", "color", "Red")
@@ -2851,7 +2851,7 @@ function pursuingRampagers(player, mouseButton, id)
 						for zone, citySearch in pairs(cityScriptZones) do
 							local zoneObj=getObjectFromGUID(zone)
 							for _, detail in pairs(zoneObj~=nil and zoneObj.getObjects() or {}) do
-								if detail.getName()==turnOrder[gStates.turnNumber].mage then
+								if joinLangEnglish(tostring(detail.getName() or ""))==turnOrder[gStates.turnNumber].mage then
 									local cityObj=getObjectFromGUID(citySearch.cityGUID)
 									if cityObj~=nil then playerPos=cityObj.getPosition() end
 									break
@@ -2895,7 +2895,7 @@ function pursuingRampagers(player, mouseButton, id)
 											local found=false
 											local cityZoneObj=getObjectFromGUID(combatCityZones[obj.guid])
 											for _, obj2 in pairs(cityZoneObj~=nil and cityZoneObj.getObjects() or {}) do
-												if obj2.getName()==turnOrder[gStates.turnNumber].mage then
+												if joinLangEnglish(tostring(obj2.getName() or ""))==turnOrder[gStates.turnNumber].mage then
 													local objPos=mapSpatial.positions[obj.guid] or obj.getPosition()
 													if math.sqrt(((rampageNewPos[1]-objPos[1])^2)+((rampageNewPos[3]-objPos[3])^2))<1 then
 														protection="City"
@@ -2916,7 +2916,7 @@ function pursuingRampagers(player, mouseButton, id)
 							--make sure there isnt an other player
 							local magefound=false
 							for _, obj in ipairs(nearby) do
-								if obj.getName()~=turnOrder[gStates.turnNumber].mage and combatPursuitMageNames[obj.getName()]==true then
+								if joinLangEnglish(tostring(obj.getName() or ""))~=turnOrder[gStates.turnNumber].mage and combatPursuitMageNames[joinLangEnglish(tostring(obj.getName() or ""))]==true then
 									local objPos=mapSpatial.positions[obj.guid] or obj.getPosition()
 									if math.sqrt(((rampageNewPos[1]-objPos[1])^2)+((rampageNewPos[3]-objPos[3])^2))<1 then
 										magefound=true
@@ -2934,7 +2934,7 @@ function pursuingRampagers(player, mouseButton, id)
 							--need to check if the site has a shield or not to determine if he attacks or stays
 							local shieldfound=false
 							for _, obj in ipairs(nearby) do
-								if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true and obj.getDescription()==turnOrder[gStates.turnNumber].mage then
+								if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true and shieldOwner(obj)==turnOrder[gStates.turnNumber].mage then
 									local objPos=mapSpatial.positions[obj.guid] or obj.getPosition()
 									if math.sqrt(((rampageNewPos[1]-objPos[1])^2)+((rampageNewPos[3]-objPos[3])^2))<1 then
 										shieldfound=true
