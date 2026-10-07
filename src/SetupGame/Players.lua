@@ -328,7 +328,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 						local obj=safeTakeObject("SetupGame",playerBag,params)
 						obj.lock()
 						--GM Notes are intentionally stable English-only script metadata.
-						local b=obj.getGMNotes()
+						local b=manaTokenColor(obj)
 						if b~="Red" and b~="Blue" and b~="Green" and b~="White" then
 							error("Dummy setup found an unrecognized crystal color on "..tostring(obj.guid)..": "..tostring(b),2)
 						end
@@ -576,7 +576,9 @@ function volkareSetup()
 			obj2.lock()
 			obj2.setPosition({36.0-(4.8*(i-1)), 1.29, -1.15})
 			obj2.setRotation({0, 30, 0})
-			gStates.volkareUnitCrystals[obj2.getName()]={slot=i,crystalGUID=obj2.guid}
+			local color=manaTokenColor(obj2)
+			if color==nil then error("Volkare setup found an unrecognized unit crystal "..tostring(obj2.guid),2) end
+			gStates.volkareUnitCrystals[color]={slot=i,crystalGUID=obj2.guid}
 		end
 		PlayerBag.destruct()
 		obj.destruct()

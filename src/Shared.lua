@@ -1130,6 +1130,50 @@ function legalPlayerCheck(clickingPlayersColor, playerPosExpected, rule)
 	end
 end
 
+-- Stable physical-object identity helpers. Nicknames/Descriptions are display text and may be translated;
+--GM Notes stay English-only and are the preferred script-facing identity when GUID/data lookup is not practical.
+local SCRIPT_MANA_COLORS={Red=true,Blue=true,Green=true,White=true,Gold=true,Black=true}
+
+function scriptObjectId(obj)
+	if obj==nil then return "" end
+	local notes=obj.getGMNotes~=nil and tostring(obj.getGMNotes() or "") or ""
+	if notes~="" then return notes end
+	if obj.getName~=nil then return joinLangEnglish(tostring(obj.getName() or "")) end
+	return ""
+end
+
+function isShieldObject(obj)
+	local id=scriptObjectId(obj)
+	return id=="Shield" or id:sub(1,7)=="Shield|"
+end
+
+function shieldOwner(obj)
+	local id=scriptObjectId(obj)
+	local owner=id:match("^Shield|(.+)$")
+	if owner~=nil and owner~="" then return owner end
+	if id=="Shield" and obj~=nil and obj.getDescription~=nil then
+		local description=joinLangEnglish(tostring(obj.getDescription() or ""))
+		if description~="" then return description end
+	end
+	return nil
+end
+
+function manaTokenColor(obj)
+	if obj==nil then return nil end
+	local notes=obj.getGMNotes~=nil and tostring(obj.getGMNotes() or "") or ""
+	if SCRIPT_MANA_COLORS[notes]==true then return notes end
+	if obj.getDescription~=nil then
+		local description=joinLangEnglish(tostring(obj.getDescription() or ""))
+		if SCRIPT_MANA_COLORS[description]==true then return description end
+	end
+	if obj.getName~=nil then
+		local name=joinLangEnglish(tostring(obj.getName() or ""))
+		local color=name:match("^([%a]+) Mana$")
+		if SCRIPT_MANA_COLORS[color]==true then return color end
+	end
+	return nil
+end
+
 -- Stable card identity helpers
 --Card identity helpers. Object Nicknames are display/search text and may be translated,
 --so script logic must use stable GUID-backed card data instead.

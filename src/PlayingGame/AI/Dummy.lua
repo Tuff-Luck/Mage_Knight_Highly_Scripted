@@ -11,10 +11,8 @@ function dummyProcessTurn(dummyIndex,dummySeat)
 	--Snapshot the physical crystals now so delayed bonus flips never depend on whichever player is current later.
 	local crystalSnapshot={Red=0,White=0,Green=0,Blue=0}
 	for _, obj in pairs(getObjectFromGUID(playerCrystalAreas[dummySeat]).getObjects()) do
-		if obj.getName()=="Red Mana" or obj.getName()=="Blue Mana" or obj.getName()=="Green Mana" or obj.getName()=="White Mana" then
-			local color=obj.getDescription()
-			if crystalSnapshot[color]~=nil then crystalSnapshot[color]=crystalSnapshot[color]+1 end
-		end
+		local color=manaTokenColor(obj)
+		if crystalSnapshot[color]~=nil then crystalSnapshot[color]=crystalSnapshot[color]+1 end
 	end
 	dummyStats.dummyCrystals["Red"]=crystalSnapshot.Red
 	dummyStats.dummyCrystals["White"]=crystalSnapshot.White

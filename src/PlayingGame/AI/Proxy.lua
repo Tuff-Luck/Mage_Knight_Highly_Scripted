@@ -225,10 +225,8 @@ function proxySnapshotCrystals(stats)
 	local zone=getObjectFromGUID(playerCrystalAreas[stats.seatPos])
 	if zone~=nil then
 		for _,obj in pairs(zone.getObjects()) do
-			if obj.getName()=="Red Mana" or obj.getName()=="Blue Mana" or obj.getName()=="Green Mana" or obj.getName()=="White Mana" then
-				local color=obj.getDescription()
-				if result[color]~=nil then result[color]=result[color]+1 end
-			end
+			local color=manaTokenColor(obj)
+			if result[color]~=nil then result[color]=result[color]+1 end
 		end
 	end
 	stats.dummyCrystals={Red=result.Red,White=result.White,Green=result.Green,Blue=result.Blue}
@@ -257,7 +255,7 @@ function proxySourceManaOptions(colors)
 	local exactByColor={}
 	local gold=nil
 	for _,die in pairs(zone.getObjects()) do
-		if die.getName()=="Mana Dice" then
+		if scriptObjectId(die)=="Mana Dice" then
 			local color=apocalypseQuestManaDieColor(die)
 			if color~=nil and wanted[color]==true and exactByColor[color]==nil then exactByColor[color]=die.guid end
 			if color=="Gold" and gStates.dayRound==true and gold==nil then gold=die.guid end
@@ -274,7 +272,7 @@ function proxyRerollSourceManaGUID(guid,color)
 		local zone=getObjectFromGUID(GUID.zone.mana)
 		if zone~=nil then
 			for _,candidate in pairs(zone.getObjects()) do
-				if candidate.getName()=="Mana Dice" and apocalypseQuestManaDieColor(candidate)==color then die=candidate break end
+				if scriptObjectId(candidate)=="Mana Dice" and apocalypseQuestManaDieColor(candidate)==color then die=candidate break end
 			end
 		end
 	end
@@ -772,13 +770,13 @@ function proxyAdventureSiteAvailable(hex,mapObjects,proxyIndex)
 	local proxyShield=false
 	local radiusSquared=(feature=="ziggurat" or feature=="pyramid") and 2.25 or 1.44
 	for _,obj in pairs(mapObjects or {}) do
-		if obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+		if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 			local pos=obj.getPosition()
 			local dx=pos[1]-hex.position[1]
 			local dz=pos[3]-hex.position[3]
 			if (dx*dx)+(dz*dz)<radiusSquared then
 				shieldCount=shieldCount+1
-				if mage~=nil and obj.getDescription()==mage then proxyShield=true end
+				if mage~=nil and shieldOwner(obj)==mage then proxyShield=true end
 			end
 		end
 	end
@@ -1599,7 +1597,7 @@ function proxyMultiFloorNext(hex,mapObjects)
 	local occupied={}
 	local objects=mapObjects or runtimeMapSnapshot().objects or {}
 	for _,obj in pairs(objects) do
-		if obj~=nil and obj.getName~=nil and obj.getName()=="Shield" and volkarePursuitShieldRegistered(obj)~=true then
+		if obj~=nil and isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
 			local pos=obj.getPosition()
 			local dx=pos[1]-hex.position[1]
 			local dz=pos[3]-hex.position[3]
@@ -1688,7 +1686,7 @@ end
 function proxyRemoveOtherKeepShield(hex,mapObjects,proxyIndex)
 	local mage=turnOrder[proxyIndex].mage
 	for _,obj in pairs(mapObjects or {}) do
-		if obj.getName()=="Shield" and obj.getDescription()~=mage and obj.getDescription()~="Neutral" then
+		if isShieldObject(obj) and shieldOwner(obj)~=mage and shieldOwner(obj)~="Neutral" then
 			local pos=obj.getPosition() local dx=pos[1]-hex.position[1] local dz=pos[3]-hex.position[3]
 			if (dx*dx)+(dz*dz)<1 then obj.destruct() return end
 		end
