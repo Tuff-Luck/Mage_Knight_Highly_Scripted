@@ -127,7 +127,7 @@ function volkareTurn(player, mouseButton, id)
 					local unitCard=crystalData~=nil and unitOfferCardAtSlot(crystalData.slot) or nil
 					if unitCard~=nil then
 						local unitData=gameCards[unitCard.guid]
-						local unitName=unitData~=nil and unitData.name~=nil and unitData.name[1] or unitCard.getName()
+						local unitName=unitData~=nil and unitData.name~=nil and unitData.name[1] or joinLangEnglish(tostring(unitCard.getName() or ""))
 						unitCard.destruct()
 						--add a gray unit to Volkare's Army
 						if gStates.gameScenario~="Volkare's Quest" then
