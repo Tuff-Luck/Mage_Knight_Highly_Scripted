@@ -107,6 +107,8 @@ Do not use translated display strings as program identity or parse them to infer
 
 ## UI localization
 
+GM Notes are internal script metadata and must remain **English only**. Do not add translation tags to object `GMNotes` fields when localizing the save JSON or object text. Display-facing fields such as Nickname and Description may be localized; script logic should prefer stable GUID/data fields or existing English-only GM Notes rather than translated display text.
+
 In the current Tabletop Simulator version targeted by this project, XML/UI `tooltip` attributes do **not** process the `{en}`, `{ru}`, `{zh-tw}`, etc. translation-tag format. Tagged tooltip strings are shown literally. Keep tooltips as plain English unless Tabletop Simulator adds working tooltip localization in a later version and it is explicitly re-tested.
 
 This limitation applies both to tooltips declared in `Global.xml` and tooltips assigned at runtime with `UI.setAttribute(..., "tooltip", ...)`. Do not add translation tags to either form.
