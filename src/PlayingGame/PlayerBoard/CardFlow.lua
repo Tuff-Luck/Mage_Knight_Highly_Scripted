@@ -1032,7 +1032,7 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 		and card.is_face_down==false and cardEffectIsVertical(card)==true
 	if manualEndTurnCard then keepInPlay=true gStates.turnForfeited=false end
 
-	if card.getDescription()=="Quest" then keepInPlay=true gStates.turnForfeited=false end
+	if isQuestCardObject(card) then keepInPlay=true gStates.turnForfeited=false end
 	if keepInPlay==true then return cardDestination end
 
 	gStates.turnForfeited=false
