@@ -224,7 +224,7 @@ function refreshTokenContainerPresentation(bag, obj, state)
 							["d6e01e"]={empty="https://steamusercontent-a.akamaihd.net/ugc/14479946909127380756/3B50E70C9A791C876BE2A3BF5DA8D0E01F7743D8/", last=""},--Malek Command
 							[GUID.bag.terrain.stack]={empty="https://steamusercontent-a.akamaihd.net/ugc/1688270643043527253/68E270678D47C66202EAF01B86981ADF5509CE89/", last=""}}--Terrain Stack
 	if faceUpdateBags[bag.guid]~=nil then
-		if state~="shuffle" and obj.getGMNotes()~="Command Token" and obj.getName()~="MapTile" then bag.setColorTint({r=0.5, g=0.5, b=0.5}) end
+		if state~="shuffle" and obj.getGMNotes()~="Command Token" and scriptObjectId(obj)~="MapTile" then bag.setColorTint({r=0.5, g=0.5, b=0.5}) end
 		if state=="enter" then
 			discardFace[bag.guid]=obj.getCustomObject().image
 			if obj.type=="Generic" then discardFace[bag.guid]=obj.getCustomObject().diffuse end
