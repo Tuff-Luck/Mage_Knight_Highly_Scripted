@@ -528,6 +528,17 @@ function randomSetup(player, value, id)
 			optionsUpdate(nil, math.random(1,10)>7 and "True" or "False", randomOptions[a], true)
 		end
 	end
+	--Scenario-specific variants are rolled after the ordinary options and their lockouts.
+	--Keep the last full-panel render below so the City/Heads/Horse buttons update together.
+	if apocalypseDragonCityVariantSelectable()==true then
+		--Off / Last City / Random City are equally likely for eligible City scenarios.
+		gStates.apocalypseDragonCityMode=math.random(0,2)
+	else
+		gStates.apocalypseDragonCityMode=0
+	end
+	local dragonAvailable=scenarioUsesApocalypseDragon()==true or gStates.apocalypseDragonCityMode>0
+	gStates.randomizedDragonHeads=dragonAvailable and math.random(1,10)>7 or false
+	gStates.horsemenHorses=scenarioUsesHorsemen()==true and math.random(1,10)>7 or false
 	if math.random(1,10)>7 then MoreRampageSelection(nil, "True", "MoreRampageSelection", true) end
 	if math.random(1,10)>7 then RampageSelection(nil, "True", "RampageSelection", true) end
 	--Do not let Interface Random bypass option lockouts (notably Hero Challenges vs Forgemasters).
