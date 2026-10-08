@@ -90,3 +90,38 @@ function mageKnightAlliedKeepOccupied(seatPos,position)
     end
     return false
 end
+
+-- Conquer and Hold treats owned Mage Towers like owned Keeps.
+function mageKnightAlliedOwnedSiteAt(seatPos,position)
+    if gStates==nil or gStates.gameScenario~="Conquer and Hold" or position==nil then return false end
+    if mageKnightAlliedKeepOccupied(seatPos,position) then return true end
+    local _,_,_,feature=terrainHexAtPosition(position)
+    if feature~="mage tower" or mageKnightSeatTeam(seatPos)==0 then return false end
+    local snapshot=runtimeMapSpatialSnapshot()
+    for _,obj in ipairs(runtimeMapSpatialNearbyObjects(snapshot,position,1.5)) do
+        if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            if (p[1]-position[1])^2+(p[3]-position[3])^2<1.44 and mageKnightShieldOwnerAllied(seatPos,shieldOwner(obj)) then return true end
+        end
+    end
+    return false
+end
+
+function conquerHoldPersonalMageTowers(playerIndex)
+    local details=turnOrder[playerIndex]
+    if details==nil or gStates.gameScenario~="Conquer and Hold" then return 0,false end
+    local snapshot=runtimeMapSpatialSnapshot()
+    local magePosition=mageKnightAvatarPosition(playerIndex)
+    local count,nearOwn=0,false
+    for _,obj in ipairs(getObjectFromGUID(mapArea).getObjects()) do
+        if isShieldObject(obj) and shieldOwner(obj)==details.mage and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            local _,_,_,feature=terrainHexAtPosition(p)
+            if feature=="mage tower" then
+                count=count+1
+                if magePosition~=nil and (p[1]-magePosition[1])^2+(p[3]-magePosition[3])^2<8.5 then nearOwn=true end
+            end
+        end
+    end
+    return count,nearOwn
+end
