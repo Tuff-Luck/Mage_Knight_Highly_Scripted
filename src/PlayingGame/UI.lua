@@ -1934,7 +1934,9 @@ function applyColorBarButtons()
 
             if barSkip==false then
                 local team=mageKnightSeatTeam(position)
+                local shareHands=gStates.coop==1
                 local teamLabel=team==0 and "{en}NO TEAM{it}NESSUNA SQUADRA{ru}БЕЗ КОМАНДЫ{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}SIN EQUIPO{fr}SANS ÉQUIPE{pt-br}SEM EQUIPE{de}KEIN TEAM" or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
+                if shareHands then teamLabel=(gStates.coopShareHands or {})[position]==true and "{en}HIDE HAND{it}NASCONDI MANO{ru}СКРЫТЬ РУКУ{zh-tw}隱藏手牌{zh-cn}隐藏手牌{ko}손패 숨기기{es}OCULTAR MANO{fr}MASQUER MAIN{pt-br}OCULTAR MÃO{de}HAND VERBERGEN" or "{en}SHARE HAND{it}CONDIVIDI MANO{ru}ПОКАЗАТЬ РУКУ{zh-tw}分享手牌{zh-cn}共享手牌{ko}손패 공유{es}COMPARTIR MANO{fr}PARTAGER MAIN{pt-br}PARTILHAR MÃO{de}HAND TEILEN" end
                 buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."TeamCycle",onClick="global/cycleMageKnightSeatTeam",
                     height=200,width=800,position="35 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
                     children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},
