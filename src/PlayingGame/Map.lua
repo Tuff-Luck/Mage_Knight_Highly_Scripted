@@ -1085,7 +1085,10 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 									end
 										if avatarToTileDistSquared<1 then
 										--work with Shields
-										if isShieldObject(terrain) and volkarePursuitShieldRegistered(terrain)~=true and ((shieldOwner(terrain)==playerDetails.mage and (gStates.coop==0 or gStates.WarOfFourComp==true)) or (gStates.coop==1 and gStates.WarOfFourComp~=true)) then
+										if isShieldObject(terrain) and volkarePursuitShieldRegistered(terrain)~=true and
+											((gStates.coop==1 and gStates.WarOfFourComp~=true)
+											or (shieldOwner(terrain)==playerDetails.mage and (gStates.coop==0 or gStates.WarOfFourComp==true))
+											or (gStates.coop==0 and mageKnightShieldOwnerAllied(playerDetails.seatPos,shieldOwner(terrain)))) then
 											keepShieldMatch[keepSearch]["keepShield"]=true
 											if keepShieldMatch[keepSearch]["keep"]==true then keepFound=true end
 										end

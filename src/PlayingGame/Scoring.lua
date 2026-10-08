@@ -813,7 +813,12 @@ function displayScore(player, mouseButton, id)
 			UI.setAttribute(b, "active", "false")
 		end
 		local pannel=1
-		local totalHeight=54+30+30+(teamScoring and 26 or 0)
+		--Restore normal column spans when a previously viewed team score is followed by solo scoring.
+		for column=1,4 do
+			UI.setAttribute("Total"..column.."ScoreCell","columnSpan","1")
+			UI.setAttribute("Total"..column.."ScoreCell","active","false")
+		end
+		local totalHeight=54+30+30
 		local assembledText=""
 		local lineFeed=0
 		local heights={Quest=0, Reputation=0, Knowledge=0, Loot=0, Leader=0, Conqueror=0, Adventurer=0, Restorer=0, Liberator=0, Beating=0, Volkare=0, Efficiency=0, City=0, Relic=0, Tezla=0, Reward=0}
@@ -1257,7 +1262,14 @@ function displayScore(player, mouseButton, id)
 				--Total Score
 				if (gStates.coop==0 or gStates.WarOfFourComp==true) then
 					UI.setAttribute("CompScoreData", "active", "true")
-					UI.setAttribute("Total"..pannel.."ScoreCell", "active", "true")
+					local scoreGroup=teamScoring and scoringGroupByKey[turnOrder[a]._scoreTeamKey] or nil
+					local firstMember=scoreGroup==nil or scoreGroup.members[1]==a
+					if firstMember then
+						UI.setAttribute("Total"..pannel.."ScoreCell", "active", "true")
+						if scoreGroup~=nil then
+							UI.setAttribute("Total"..pannel.."ScoreCell", "columnSpan", tostring(#scoreGroup.members))
+						end
+					end
 					if teamScoring==true and turnOrder[a]._scoreTeamKey~=nil then
 						local group=scoringGroupByKey[turnOrder[a]._scoreTeamKey]
 						local teamName=group~=nil and group.team or nil
