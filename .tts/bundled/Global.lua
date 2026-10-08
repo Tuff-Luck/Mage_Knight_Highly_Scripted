@@ -208,6 +208,11 @@ function onPlayerChangeColor(color)
 		function() return automaticLuaPlayerContext(color,"Player changed color") end)
 end
 
+function onPlayerChangeTeam(color, team)
+    return safeCallback("onPlayerChangeTeam",function() mageKnightTeamChanged(color) end,
+        function() return automaticLuaPlayerContext(color,"Player changed TTS team") end)
+end
+
 function onObjectNumberTyped(object, player_color, number, alt)
 	return safeCallback("onObjectNumberTyped", function() return __onObjectNumberTyped_raw(object, player_color, number, alt) end)
 end
@@ -778,6 +783,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		turnOrder=loaded_data.turnOrder
 		gStates=loaded_data.gStates
 	end
+	gStates.seatTeams=gStates.seatTeams or {0,0,0,0}
 	resetGlobalUIVisibility()
 	--Refresh saved Puppets so presentation changes (decal/hover data) also apply to existing accepted Puppets.
 	safeWaitFrames("Events",function() for guid,record in pairs(gStates.puppetMasterPuppets or {}) do puppetMasterRefreshPresentation(getObjectFromGUID(guid),record) end end,2)
@@ -953,6 +959,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		addAvatarButtons()
 		addCityButtons()
 		applyColorBarButtons()
+		syncMageKnightSeatTeams()
 		refreshPlayerSeatColors()
 		for _, mirrorGUID in pairs(gStates.mirrorSource or {}) do
 			local mirrorObj=getObjectFromGUID(mirrorGUID)
@@ -2480,11 +2487,13 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 end
 
 function __onPlayerConnect_raw(player)
+	syncMageKnightSeatTeams()
 	--Late joiners/color changes can lose Global UI visibility. Reassert the current runtime filters only.
 	safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
 end
 
 function __onPlayerChangeColor_raw(color)
+	syncMageKnightSeatTeams()
 	if gStates.firstStarted==true then
 		refreshPlayerSeatColors()
 		outOfTurnUIStateKey=nil
@@ -2707,6 +2716,9 @@ publishPublicUICallbacks({
 
 end)
 __bundle_register("PlayingGame.UI", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- UI directly depends on the authoritative seat-team helpers; keep the dependency in the module so incremental bundles cannot omit it.
+require("PlayingGame.Teams")
+
 -- Module-private helpers. Predeclared so forward references keep resolving locally.
 local refreshPlayAreaCardScale, automatedAttackResponseButton, automatedPanelHasDeedCards, automatedPanelEndRoundText, automatedDummyPanelSpec
 local automatedVolkarePanelSpec, automatedCurrentPlayerPanelSpec, avatarButtonBucketKey, avatarButtonNearbyObjects, avatarButtonXmlSignature
@@ -4457,7 +4469,7 @@ function addAvatarButtons()
 						or (((player.avatarLocation=="dungeon" or player.avatarLocation=="tomb") and dungeonLordsConqueredSite~=true)
 							or player.avatarLocation=="hidden valley"
 							or player.avatarLocation=="necropolis"
-							or (player.avatarLocation=="keep"
+							or (player.avatarLocation=="keep" and mageKnightAlliedKeepOccupied(player.seatPos,avPos)==false
 								and (((mageShield==nil or mageShield[details.mage]==nil)
 								and (gStates.coop==0 or gStates.WarOfFourComp==true))
 									or (mageShield==nil and gStates.coop==1 and gStates.WarOfFourComp~=true)))
@@ -4637,7 +4649,17 @@ function applyColorBarButtons()
 							{tag="Text", attributes={id=barGUID.."DropOutText", font="Fonts/MKCardText", fontSize=90, fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize=90, text=dropText}}}}
 				end
 			end
-			if barSkip==false then getObjectFromGUID(barGUID).UI.setXmlTable(buttons) end
+
+            if barSkip==false then
+                local team=mageKnightSeatTeam(position)
+                local teamLabel=team==0 and "{en}NO TEAM{it}NESSUNA SQUADRA{ru}БЕЗ КОМАНДЫ{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}SIN EQUIPO{fr}SANS ÉQUIPE{pt-br}SEM EQUIPE{de}KEIN TEAM" or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
+                buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."TeamCycle",onClick="global/cycleMageKnightSeatTeam",
+                    height=200,width=800,position="50 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
+                    children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},
+                        {tag="Text",attributes={font="Fonts/MKCardText",fontSize=90,fontStyle="Normal",alignment="MiddleCenter",
+                            resizeTextForBestFit="true",resizeTextMaxSize=90,text=teamLabel}}}}
+                getObjectFromGUID(barGUID).UI.setXmlTable(buttons)
+            end
 		end
 	end
 end
@@ -5450,6 +5472,7 @@ function changePositionColor(player, mouseButton, id)
 		gStates.handColors[currentColor]=nil
 		Hands.getHands()[barConversion[barGUID]].setValue(newColor)
 		Player[currentColor].changeColor(newColor)
+		syncMageKnightSeatTeams()
 		applyColorBarButtons()
 		refreshPlayerSeatColors()
 		outOfTurnUIStateKey=nil
@@ -5802,6 +5825,94 @@ publishPublicUICallbacks({
 	changePositionColor=changePositionColor,
 	nightTint=nightTint
 })
+
+end)
+__bundle_register("PlayingGame.Teams", function(require, _LOADED, __bundle_register, __bundle_modules)
+-- Team membership belongs to Mage Knight seats, not to the occupant's Steam identity.
+-- Zero means No Team. TTS suits are a presentation mirror, never the source of truth.
+local TEAM_SUITS={"None","Hearts","Diamonds","Clubs","Spades"}
+
+local function notifyBlackMageKnightTeamChange(seatPos,team)
+    local black=Player["Black"]
+    if black==nil or black.seated~=true then return end
+    local teamText=team==0
+        and "{en}No Team{it}Nessuna Squadra{ru}Без команды{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}Sin equipo{fr}Sans équipe{pt-br}Sem equipe{de}Kein Team"
+        or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
+    broadcastToColor(joinLang({"{en}Seat {it}Postazione {ru}Место {zh-tw}座位 {zh-cn}座位 {ko}좌석 {es}Asiento {fr}Place {pt-br}Assento {de}Sitz ",seatPos,": ",teamText}),"Black",{1,1,0.5})
+end
+
+function mageKnightSeatTeam(seatPos)
+    local teams=gStates and gStates.seatTeams
+    local team=teams and teams[seatPos] or 0
+    return type(team)=="number" and team>=1 and team<=4 and team or 0
+end
+
+function mageKnightPlayersAllied(firstSeat,secondSeat)
+    local team=mageKnightSeatTeam(firstSeat)
+    return team~=0 and team==mageKnightSeatTeam(secondSeat)
+end
+
+function syncMageKnightSeatTeams()
+    if gStates==nil or gStates.handColors==nil then return end
+    for color,seatPos in pairs(gStates.handColors) do
+        if color~="Black" and color~="Grey" and Player[color]~=nil and Player[color].seated then
+            local wanted=TEAM_SUITS[mageKnightSeatTeam(seatPos)+1]
+            if Player[color].team~=wanted then Player[color].team=wanted end
+        end
+    end
+end
+
+function cycleMageKnightSeatTeam(player,mouseButton,id)
+    if mouseButton~="-1" or gStates==nil or gStates.handColors==nil then return end
+    local guid=id:sub(1,6)
+    local seatPos=nil
+    for pos,barGUID in pairs(colorBand) do if guid==barGUID then seatPos=pos break end end
+    if seatPos==nil then return end
+    local authorized=player.color=="Black" or player.host or player.admin
+    if not authorized then authorized=gStates.handColors[player.color]==seatPos end
+    if not authorized then return end
+    gStates.seatTeams=gStates.seatTeams or {}
+    local team=(mageKnightSeatTeam(seatPos)+1)%5
+    gStates.seatTeams[seatPos]=team
+    syncMageKnightSeatTeams()
+    applyColorBarButtons()
+    notifyBlackMageKnightTeamChange(seatPos,team)
+    -- An alliance change can immediately add or remove a Keep assault action.
+    if gStates.firstStarted==true then addAvatarButtons() end
+end
+
+-- TTS permits manual suit changes; retain the authoritative Mage Knight seat assignment.
+function mageKnightTeamChanged(color)
+    if color=="Black" or color=="Grey" then return end
+    syncMageKnightSeatTeams()
+end
+
+-- Resolve a shield owner to their Mage Knight seat, independently of TTS colours.
+function mageKnightShieldOwnerAllied(seatPos,ownerMage)
+    if ownerMage==nil then return false end
+    for _,details in ipairs(turnOrder or {}) do
+        if details.mage==ownerMage and details.seatPos~=seatPos then
+            return mageKnightPlayersAllied(seatPos,details.seatPos)
+        end
+    end
+    return false
+end
+
+-- Allied Keep shields permit entering/recruiting, but never grant the owner's hand bonus.
+function mageKnightAlliedKeepOccupied(seatPos,position)
+    if mageKnightSeatTeam(seatPos)==0 or position==nil then return false end
+    local _,_,_,feature=terrainHexAtPosition(position)
+    if feature~="keep" then return false end
+    local snapshot=runtimeMapSpatialSnapshot()
+    for _,obj in ipairs(runtimeMapSpatialNearbyObjects(snapshot,position,1.5)) do
+        if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            if (p[1]-position[1])^2+(p[3]-position[3])^2<1.44
+                and mageKnightShieldOwnerAllied(seatPos,shieldOwner(obj)) then return true end
+        end
+    end
+    return false
+end
 
 end)
 __bundle_register("PlayingGame.Rollers", function(require, _LOADED, __bundle_register, __bundle_modules)
@@ -10294,13 +10405,10 @@ local function scoringArrangeTtsTeams()
 	local dummyMage=gStates.positionMageKnight[5]
 	for playerIndex,details in ipairs(turnOrder) do
 		if details.mage~=dummyMage then
-			local color=positionToColor(playerIndex)
-			local team=playerTtsTeam(color)
-			--When Black is seated as Game Master and no real player occupies this hand colour,
-			--treat the hand as part of Black's multihand team.
-			local black=Player["Black"]
-			local handPlayer=color~="Black" and Player[color] or nil
-			if team==nil and black~=nil and black.seated==true and (color=="Black" or handPlayer==nil or handPlayer.seated~=true) then team="Black" end
+			--Use the saved Mage Knight seat assignment. TTS teams are only a mirror,
+			--and Black may control several seats belonging to different teams.
+			local teamNumber=mageKnightSeatTeam(details.seatPos)
+			local team=teamNumber>0 and teamNumber or nil
 			local key
 			if team~=nil then
 				key="team:"..tostring(team)
@@ -10322,7 +10430,17 @@ local function scoringArrangeTtsTeams()
 			details._scoreTeamName=nil
 		end
 	end
-	table.sort(groups,function(a,b) return a.minSeat<b.minSeat end)
+	table.sort(groups,function(a,b)
+		--Numbered teams own the scoreboard order; keep members of each team in seat order.
+		if a.team~=nil and b.team~=nil then
+			if a.team~=b.team then return a.team<b.team end
+		elseif a.team~=nil then
+			return true
+		elseif b.team~=nil then
+			return false
+		end
+		return a.minSeat<b.minSeat
+	end)
 	for groupOrder,group in ipairs(groups) do
 		group.order=groupOrder
 		for _,details in ipairs(turnOrder) do
@@ -10344,6 +10462,11 @@ end
 
 local function scoringTeamHeaderStyle(team)
 	local style=SCORE_TEAM_STYLE[team]
+	if type(team)=="number" then
+		local suits={"Hearts","Diamonds","Clubs","Spades"}
+		local suitStyle=SCORE_TEAM_STYLE[suits[team]]
+		return "Team "..team,suitStyle and suitStyle.color or "rgba(0.45,0.45,0.45,0.25)"
+	end
 	if style~=nil then return style.label,style.color end
 	if team~=nil then return tostring(team),"rgba(0.45,0.45,0.45,0.25)" end
 	return "Solo","rgba(0.45,0.45,0.45,0.15)"
@@ -10909,7 +11032,12 @@ function displayScore(player, mouseButton, id)
 			UI.setAttribute(b, "active", "false")
 		end
 		local pannel=1
-		local totalHeight=54+30+30+(teamScoring and 26 or 0)
+		--Restore normal column spans when a previously viewed team score is followed by solo scoring.
+		for column=1,4 do
+			UI.setAttribute("Total"..column.."ScoreCell","columnSpan","1")
+			UI.setAttribute("Total"..column.."ScoreCell","active","false")
+		end
+		local totalHeight=54+30+30
 		local assembledText=""
 		local lineFeed=0
 		local heights={Quest=0, Reputation=0, Knowledge=0, Loot=0, Leader=0, Conqueror=0, Adventurer=0, Restorer=0, Liberator=0, Beating=0, Volkare=0, Efficiency=0, City=0, Relic=0, Tezla=0, Reward=0}
@@ -11353,11 +11481,18 @@ function displayScore(player, mouseButton, id)
 				--Total Score
 				if (gStates.coop==0 or gStates.WarOfFourComp==true) then
 					UI.setAttribute("CompScoreData", "active", "true")
-					UI.setAttribute("Total"..pannel.."ScoreCell", "active", "true")
+					local scoreGroup=teamScoring and scoringGroupByKey[turnOrder[a]._scoreTeamKey] or nil
+					local firstMember=scoreGroup==nil or scoreGroup.members[1]==a
+					if firstMember then
+						UI.setAttribute("Total"..pannel.."ScoreCell", "active", "true")
+						if scoreGroup~=nil then
+							UI.setAttribute("Total"..pannel.."ScoreCell", "columnSpan", tostring(#scoreGroup.members))
+						end
+					end
 					if teamScoring==true and turnOrder[a]._scoreTeamKey~=nil then
 						local group=scoringGroupByKey[turnOrder[a]._scoreTeamKey]
 						local teamName=group~=nil and group.team or nil
-						local label=teamName~=nil and (tostring(teamName).." Team") or (translateWord[turnOrder[a].mage])
+						local label=teamName~=nil and ("Team "..tostring(teamName)) or (translateWord[turnOrder[a].mage])
 						local finalScore=teamScoreByKey[turnOrder[a]._scoreTeamKey] or totalScore
 						if forTheCouncil then
 							local resultSuffix=councilMissionResult~="" and joinLang({"\n", councilMissionResult}) or ""
@@ -14042,7 +14177,7 @@ function apocalypseDragonCompleteInterstitialTurn(text,source,clearPending)
 	if text~=nil then
 		gStates.apocalypseDragonTurnReport=text
 	elseif gStates.apocalypseDragonTurnReport==nil or gStates.apocalypseDragonTurnReport=="" then
-		gStates.apocalypseDragonTurnReport="The Apocalypse Dragon finished its turn."
+		gStates.apocalypseDragonTurnReport="{en}The Apocalypse Dragon finished its turn.{it}Il Drago dell'Apocalisse ha terminato il suo turno.{ru}Дракон Апокалипсиса завершил свой ход.{zh-tw}末日巨龍結束了回合。{zh-cn}末日巨龙结束了回合。{ko}아포칼립스 드래곤이 턴을 마쳤습니다.{es}El Dragón del Apocalipsis terminó su turno.{fr}Le Dragon de l’Apocalypse a terminé son tour.{pt-br}O Dragão do Apocalipse terminou seu turno.{de}Der Apokalypse-Drache hat seinen Zug beendet."
 	end
 	apocalypseDragonMainUIRefresh()
 	mainUIUpdate(source)
@@ -14065,7 +14200,7 @@ function apocalypseDragonMainUIPanelSpec()
 	local mainText=joinLang({"{en}<size=25>Apocalypse Dragon's Turn</size><size=6>\n\n</size><size=18>Round {it}<size=25>Turno del Drago dell'Apocalisse</size><size=6>\n\n</size><size=18>Round {ru}<size=25>Ход Дракона Апокалипсиса</size><size=6>\n\n</size><size=18>Раунд {zh-tw}<size=25>末日巨龍回合</size><size=6>\n\n</size><size=18>回合輪 {zh-cn}<size=25>末日巨龙回合</size><size=6>\n\n</size><size=18>回合轮 {ko}<size=25>아포칼립스 드래곤의 턴</size><size=6>\n\n</size><size=18>라운드 {es}<size=25>Turno del Dragón del Apocalipsis</size><size=6>\n\n</size><size=18>Ronda {fr}<size=25>Tour du Dragon de l'Apocalypse</size><size=6>\n\n</size><size=18>Manche {pt-br}<size=25>Turno do Dragão do Apocalipse</size><size=6>\n\n</size><size=18>Rodada {de}<size=25>Zug des Apokalypse-Drachen</size><size=6>\n\n</size><size=18>Runde ",tostring(gStates.currentRound or 1),"{en} - Dragon turn {it} - Turno Drago {ru} — ход Дракона {zh-tw}－巨龍回合 {zh-cn}－巨龙回合 {ko} - 드래곤 턴 {es} - turno del Dragón {fr} - tour du Dragon {pt-br} - turno do Dragão {de} - Drachenzug ",tostring(turnNumber),"</size><size=4>\n</size>"})
 	if pending~=nil then
 		if pending.phase=="choose" then
-			return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or "Resolve the Apocalypse Dragon attack.",onClick="apocalypseDragonProcessUI",label="{en}Resolve Dragon Attack{it}Risolvi Attacco del Drago{ru}Разрешите атаку Дракона{zh-tw}處理巨龍攻擊{zh-cn}处理巨龙攻击{ko}드래곤 공격 해결{es}Resolver Ataque del Dragón{fr}Résoudre l'Attaque du Dragon{pt-br}Resolver Ataque do Dragão{de}Drachenangriff abhandeln",interactable=false,responseSpec=againstDragonAttendanceResponseSpec()}
+			return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or "{en}Resolve the Apocalypse Dragon attack.{it}Risolvi l'attacco del Drago dell'Apocalisse.{ru}Разрешите атаку Дракона Апокалипсиса.{zh-tw}處理末日巨龍的攻擊。{zh-cn}处理末日巨龙的攻击。{ko}아포칼립스 드래곤의 공격을 해결하십시오.{es}Resuelve el ataque del Dragón del Apocalipsis.{fr}Résolvez l’attaque du Dragon de l’Apocalypse.{pt-br}Resolva o ataque do Dragão do Apocalipse.{de}Wickle den Angriff des Apokalypse-Drachen ab.",onClick="apocalypseDragonProcessUI",label="{en}Resolve Dragon Attack{it}Risolvi Attacco del Drago{ru}Разрешите атаку Дракона{zh-tw}處理巨龍攻擊{zh-cn}处理巨龙攻击{ko}드래곤 공격 해결{es}Resolver Ataque del Dragón{fr}Résoudre l'Attaque du Dragon{pt-br}Resolver Ataque do Dragão{de}Drachenangriff abhandeln",interactable=false,responseSpec=againstDragonAttendanceResponseSpec()}
 		end
 		return {actor="dragon",panelActive=false}
 	end
@@ -14100,14 +14235,13 @@ function apocalypseDragonProcessUI(player,mouseButton,id)
 	local action=gStates.apocalypseDragonTurnAction
 	gStates.apocalypseDragonTurnReportPrefix=nil
 	if action=="attack" then
-		againstDragonSetTurnReport("The Apocalypse Dragon is determining which player to attack.","Processing")
+		againstDragonSetTurnReport("{en}The Apocalypse Dragon is determining which player to attack.{it}Il Drago dell'Apocalisse sta determinando quale giocatore attaccare.{ru}Дракон Апокалипсиса определяет, какого игрока атаковать.{zh-tw}末日巨龍正在決定要攻擊哪位玩家。{zh-cn}末日巨龙正在决定要攻击哪位玩家。{ko}아포칼립스 드래곤이 공격할 플레이어를 결정하고 있습니다.{es}El Dragón del Apocalipsis está determinando a qué jugador atacar.{fr}Le Dragon de l’Apocalypse détermine quel joueur attaquer.{pt-br}O Dragão do Apocalipse está determinando qual jogador atacar.{de}Der Apokalypse-Drache bestimmt, welchen Spieler er angreift.","Processing")
 		againstDragonBeginAttack()
 	elseif action=="destroy" then
-		againstDragonSetTurnReport("The Apocalypse Dragon is determining what it will destroy.","Processing")
+		againstDragonSetTurnReport("{en}The Apocalypse Dragon is determining what it will destroy.{it}Il Drago dell'Apocalisse sta determinando cosa distruggere.{ru}Дракон Апокалипсиса определяет, что уничтожить.{zh-tw}末日巨龍正在決定要摧毀什麼。{zh-cn}末日巨龙正在决定要摧毁什么。{ko}아포칼립스 드래곤이 파괴할 대상을 결정하고 있습니다.{es}El Dragón del Apocalipsis está determinando qué destruir.{fr}Le Dragon de l’Apocalypse détermine ce qu’il va détruire.{pt-br}O Dragão do Apocalipse está determinando o que destruir.{de}Der Apokalypse-Drache bestimmt, was er zerstört.","Processing")
 		againstDragonBeginDestroy()
 	else
-		local ordinal=apocalypseDragonTurnOrdinal(gStates.apocalypseDragonTurn)
-		againstDragonSetTurnReport("The Apocalypse Dragon took no action on its "..ordinal.." turn.","Processing")
+		againstDragonSetTurnReport(joinLang({"{en}The Apocalypse Dragon took no action on Dragon turn {it}Il Drago dell'Apocalisse non ha eseguito alcuna azione nel turno del Drago {ru}Дракон Апокалипсиса не совершил действий в ход Дракона {zh-tw}末日巨龍在巨龍回合 {zh-cn}末日巨龙在巨龙回合 {ko}아포칼립스 드래곤은 드래곤 턴 {es}El Dragón del Apocalipsis no realizó ninguna acción en el turno del Dragón {fr}Le Dragon de l’Apocalypse n’a effectué aucune action pendant le tour du Dragon {pt-br}O Dragão do Apocalipse não realizou nenhuma ação no turno do Dragão {de}Der Apokalypse-Drache hat im Drachenzug ",tostring(gStates.apocalypseDragonTurn),"{en}.{it}.{ru}.{zh-tw} 沒有執行任何行動。{zh-cn} 没有执行任何行动。{ko}에 아무 행동도 하지 않았습니다.{es}.{fr}.{pt-br}.{de} keine Aktion ausgeführt."}),"Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 	end
 end
@@ -17236,7 +17370,7 @@ againstDragonTargetChoiceButton=function(option,index,xml,splitIndex,splitCount)
 	if option.kind=="attack" then label=joinLang({"{en}Attack\n{it}Attacco\n{ru}Атака\n{zh-tw}攻擊\n{zh-cn}攻击\n{ko}공격\n{es}Atacar\n{fr}Attaquer\n{pt-br}Atacar\n{de}Angriff\n",tostring(option.mage or joinLang({"{en}Player{it}Giocatore{ru}Игрок{zh-tw}玩家{zh-cn}玩家{ko}플레이어{es}Jugador{fr}Joueur{pt-br}Jogador{de}Spieler"}))}) end
 	return appendTerrainHexChoiceButton(option.key,index,xml,splitIndex,splitCount,{
 		idPrefix="DragonTargetChoice",onClick="global/againstDragonTargetChoiceSelect",
-		buttonScale=0.38,referenceScale=0.38,splitFontSize=60,fontSize=72,text=label
+		buttonScale=0.16,referenceScale=0.38,splitFontSize=60,fontSize=72,text=label
 	})
 end
 
@@ -17368,14 +17502,14 @@ againstDragonDestroyCandidates=function(hexes,mapObjects)
 end
 
 againstDragonActionLabel=function(action)
-	if action=="attack" then return "attack a player" end
-	if action=="destroy" then return "destroy a site or Rampaging Enemy" end
-	return "take no action"
+	if action=="attack" then return "{en}attack a player{it}attaccare un giocatore{ru}атаковать игрока{zh-tw}攻擊一名玩家{zh-cn}攻击一名玩家{ko}플레이어 한 명 공격{es}atacar a un jugador{fr}attaquer un joueur{pt-br}atacar um jogador{de}einen Spieler angreifen" end
+	if action=="destroy" then return "{en}destroy a site or Rampaging Enemy{it}distruggere un sito o un Nemico Errante{ru}уничтожить место или Бродячего врага{zh-tw}摧毀一個地點或遊蕩敵人{zh-cn}摧毁一个地点或游荡敌人{ko}장소 또는 방랑 적 파괴{es}destruir un lugar o un Enemigo Arrasador{fr}détruire un site ou un Ennemi Ravageur{pt-br}destruir um local ou um Inimigo Errante{de}einen Ort oder streunenden Gegner zerstören" end
+	return "{en}take no action{it}non eseguire alcuna azione{ru}не совершать действий{zh-tw}不執行任何行動{zh-cn}不执行任何行动{ko}아무 행동도 하지 않기{es}no realizar ninguna acción{fr}ne rien faire{pt-br}não realizar nenhuma ação{de}keine Aktion ausführen"
 end
 
 againstDragonFinalReport=function(text)
 	local prefix=gStates~=nil and gStates.apocalypseDragonTurnReportPrefix or nil
-	if prefix~=nil and prefix~="" then return prefix.."\n"..tostring(text or "") end
+	if prefix~=nil and prefix~="" then return joinLang({prefix,"\n",tostring(text or "")}) end
 	return tostring(text or "")
 end
 
@@ -17394,8 +17528,8 @@ function againstDragonAttendanceResponseSpec()
 	if pending==nil or pending.playerIndex==nil or pending.phase~="choose" then return nil end
 	local fullAllowed=againstDragonFullAttendAllowed(pending.playerIndex)
 	return {visible=true,
-		full={active=true,interactable=fullAllowed,onClick="againstDragonAttendFull",text="{en}Fully Defend{it}Difesa Completa{ru}Fully Defend{zh-tw}Fully Defend{zh-cn}Fully Defend{ko}Fully Defend{es}Fully Defend{fr}Fully Defend{pt-br}Fully Defend{de}Fully Defend",tooltip="Take your full turn in advance while resolving the Dragon attack."},
-		partial={active=true,interactable=true,onClick="againstDragonFinishPartial",text="{en}Partial Complete{it}Completa Parziale{ru}Partial Complete{zh-tw}Partial Complete{zh-cn}Partial Complete{ko}Partial Complete{es}Partial Complete{fr}Partial Complete{pt-br}Partial Complete{de}Partial Complete",tooltip="Finish the Dragon attack without taking your full turn."},
+		full={active=true,interactable=fullAllowed,onClick="againstDragonAttendFull",text="{en}Fully Defend{it}Difesa Completa{ru}Полная защита{zh-tw}完全防禦{zh-cn}完全防御{ko}완전 방어{es}Defensa Completa{fr}Défense Complète{pt-br}Defesa Completa{de}Vollständig Verteidigen",tooltip="Take your full turn in advance while resolving the Dragon attack."},
+		partial={active=true,interactable=true,onClick="againstDragonFinishPartial",text="{en}Partial Complete{it}Completa Parziale{ru}Частично завершить{zh-tw}部分完成{zh-cn}部分完成{ko}부분 완료{es}Completar Parcialmente{fr}Terminer Partiellement{pt-br}Concluir Parcialmente{de}Teilweise Abschließen",tooltip="Finish the Dragon attack without taking your full turn."},
 		retreat={active=false}
 	}
 end
@@ -17405,7 +17539,7 @@ againstDragonResolveDestroyOption=function(option)
 	local hex=option~=nil and runtimeMapHexByKey(hexes,option.key) or nil
 	if hex==nil then
 		broadcastToAll("{en}The Apocalypse Dragon's selected destruction target could no longer be found.{it}Il bersaglio scelto per la distruzione del Drago non è più reperibile.{ru}Выбранная цель уничтожения Дракона Апокалипсиса больше не найдена.{zh-tw}找不到末日巨龍先前選定的摧毀目標。{zh-cn}找不到末日巨龙先前选定的摧毁目标。{ko}아포칼립스 드래곤이 선택한 파괴 대상을 더 이상 찾을 수 없습니다.{es}Ya no se pudo encontrar el objetivo de destrucción elegido por el Dragón del Apocalipsis.{fr}La cible de destruction choisie par le Dragon de l’Apocalypse est introuvable.{pt-br}O alvo de destruição escolhido pelo Dragão do Apocalipse não pôde mais ser encontrado.{de}Das ausgewählte Zerstörungsziel des Apokalypse-Drachen konnte nicht mehr gefunden werden.",warningColor)
-		againstDragonSetTurnReport(againstDragonFinalReport("The selected destruction target could no longer be found."),"Processing")
+		againstDragonSetTurnReport(againstDragonFinalReport("{en}The selected destruction target could no longer be found.{it}Il bersaglio scelto per la distruzione non è più reperibile.{ru}Выбранная цель уничтожения больше не найдена.{zh-tw}找不到先前選定的摧毀目標。{zh-cn}找不到先前选定的摧毁目标。{ko}선택한 파괴 대상을 더 이상 찾을 수 없습니다.{es}Ya no se pudo encontrar el objetivo de destrucción seleccionado.{fr}La cible de destruction sélectionnée est introuvable.{pt-br}O alvo de destruição selecionado não pôde mais ser encontrado.{de}Das ausgewählte Zerstörungsziel konnte nicht mehr gefunden werden."),"Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return false
 	end
@@ -17418,10 +17552,10 @@ againstDragonResolveDestroyOption=function(option)
 		if target~=nil then
 			local name=(monsterPugs[target.guid] or {}).name or "Rampaging Enemy"
 			proxyDiscardMonster(target)
-			againstDragonSetTurnReport(againstDragonFinalReport("The Dragon destroyed "..tostring(name).."."),"Processing")
+			againstDragonSetTurnReport(againstDragonFinalReport(joinLang({"{en}The Dragon destroyed {it}Il Drago ha distrutto {ru}Дракон уничтожил {zh-tw}巨龍摧毀了 {zh-cn}巨龙摧毁了 {ko}드래곤이 파괴했습니다: {es}El Dragón destruyó {fr}Le Dragon a détruit {pt-br}O Dragão destruiu {de}Der Drache zerstörte ",proxyLocalizedTerm~=nil and proxyLocalizedTerm(name) or tostring(name),"{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}{es}.{fr}.{pt-br}.{de}."})),"Processing")
 		else
 			broadcastToAll("{en}The Apocalypse Dragon's Rampaging Enemy target was no longer present.{it}Il Nemico Errante bersaglio del Drago non è più presente.{ru}Цель Дракона Апокалипсиса — Бродячий враг — больше отсутствует.{zh-tw}末日巨龍的遊蕩敵人目標已不存在。{zh-cn}末日巨龙的游荡敌人目标已不存在。{ko}아포칼립스 드래곤의 방랑 적 대상이 더 이상 존재하지 않습니다.{es}El objetivo de Enemigo Arrasador del Dragón del Apocalipsis ya no estaba presente.{fr}La cible Ennemi Ravageur du Dragon de l’Apocalypse n’était plus présente.{pt-br}O alvo de Inimigo Errante do Dragão do Apocalipse não estava mais presente.{de}Das Ziel „Streunender Gegner“ des Apokalypse-Drachen war nicht mehr vorhanden.",warningColor)
-			againstDragonSetTurnReport(againstDragonFinalReport("The selected Rampaging Enemy was no longer present."),"Processing")
+			againstDragonSetTurnReport(againstDragonFinalReport("{en}The selected Rampaging Enemy was no longer present.{it}Il Nemico Errante selezionato non era più presente.{ru}Выбранного Бродячего врага больше нет.{zh-tw}選定的遊蕩敵人已不存在。{zh-cn}选定的游荡敌人已不存在。{ko}선택한 방랑 적이 더 이상 없습니다.{es}El Enemigo Arrasador seleccionado ya no estaba presente.{fr}L’Ennemi Ravageur sélectionné n’était plus présent.{pt-br}O Inimigo Errante selecionado não estava mais presente.{de}Der ausgewählte streunende Gegner war nicht mehr vorhanden."),"Processing")
 		end
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,3)
 		return true
@@ -17430,7 +17564,7 @@ againstDragonResolveDestroyOption=function(option)
 	local bag=getObjectFromGUID(GUID.bag.destroyedSite)
 	if bag==nil then
 		broadcastToAll("{en}The Destroyed Site token bag could not be found. The Apocalypse Dragon cannot destroy this site.{it}Sacchetto Siti Distrutti non trovato. Il Drago non può distruggere questo sito.{ru}Мешок жетонов разрушенных мест не найден. Дракон Апокалипсиса не может уничтожить это место.{zh-tw}找不到「被摧毀地點」標記袋。末日巨龍無法摧毀此地點。{zh-cn}找不到“被摧毁地点”标记袋。末日巨龙无法摧毁此地点。{ko}파괴된 장소 토큰 주머니를 찾을 수 없습니다. 아포칼립스 드래곤이 이 장소를 파괴할 수 없습니다.{es}No se encontró la bolsa de fichas de Sitio Destruido. El Dragón del Apocalipsis no puede destruir este lugar.{fr}Le sac de jetons Site Détruit est introuvable. Le Dragon de l’Apocalypse ne peut pas détruire ce lieu.{pt-br}A bolsa de fichas de Local Destruído não foi encontrada. O Dragão do Apocalipse não pode destruir este local.{de}Der Beutel mit Markern für zerstörte Orte wurde nicht gefunden. Der Apokalypse-Drache kann diesen Ort nicht zerstören.",warningColor)
-		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon could not destroy the selected site because the Destroyed Site token bag was unavailable."),"Processing")
+		againstDragonSetTurnReport(againstDragonFinalReport("{en}The Dragon could not destroy the selected site because the Destroyed Site token bag was unavailable.{it}Il Drago non ha potuto distruggere il sito selezionato perché il sacchetto dei Siti Distrutti non era disponibile.{ru}Дракон не смог уничтожить выбранное место, потому что мешок жетонов разрушенных мест недоступен.{zh-tw}巨龍無法摧毀選定地點，因為「被摧毀地點」標記袋不可用。{zh-cn}巨龙无法摧毁选定地点，因为“被摧毁地点”标记袋不可用。{ko}파괴된 장소 토큰 주머니를 사용할 수 없어 드래곤이 선택한 장소를 파괴하지 못했습니다.{es}El Dragón no pudo destruir el lugar seleccionado porque la bolsa de Sitios Destruidos no estaba disponible.{fr}Le Dragon n’a pas pu détruire le site sélectionné car le sac de Sites Détruits était indisponible.{pt-br}O Dragão não pôde destruir o local selecionado porque a bolsa de Locais Destruídos não estava disponível.{de}Der Drache konnte den ausgewählten Ort nicht zerstören, weil der Beutel für zerstörte Orte nicht verfügbar war."),"Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return false
 	end
@@ -17443,9 +17577,9 @@ againstDragonResolveDestroyOption=function(option)
 	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(hex.feature) or tostring(hex.feature)
 	if token~=nil then
 		destroySite(token,hex.terrain,hex.bearing)
-		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon destroyed the "..tostring(label).."."),"Processing")
+		againstDragonSetTurnReport(againstDragonFinalReport(joinLang({"{en}The Dragon destroyed the {it}Il Drago ha distrutto {ru}Дракон уничтожил {zh-tw}巨龍摧毀了 {zh-cn}巨龙摧毁了 {ko}드래곤이 파괴했습니다: {es}El Dragón destruyó {fr}Le Dragon a détruit {pt-br}O Dragão destruiu {de}Der Drache zerstörte ",proxyLocalizedTerm~=nil and proxyLocalizedTerm(label) or tostring(label),"{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}{es}.{fr}.{pt-br}.{de}."})),"Processing")
 	else
-		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon could not draw a Destroyed Site token for the "..tostring(label).."."),"Processing")
+		againstDragonSetTurnReport(againstDragonFinalReport(joinLang({"{en}The Dragon could not draw a Destroyed Site token for the {it}Il Drago non ha potuto pescare un segnalino Sito Distrutto per {ru}Дракон не смог взять жетон разрушенного места для {zh-tw}巨龍無法為 {zh-cn}巨龙无法为 {ko}드래곤이 파괴된 장소 토큰을 뽑지 못했습니다: {es}El Dragón no pudo sacar una ficha de Sitio Destruido para {fr}Le Dragon n’a pas pu piocher un jeton Site Détruit pour {pt-br}O Dragão não conseguiu comprar uma ficha de Local Destruído para {de}Der Drache konnte keinen Marker für zerstörte Orte ziehen für ",proxyLocalizedTerm~=nil and proxyLocalizedTerm(label) or tostring(label),"{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}{es}.{fr}.{pt-br}.{de}."})),"Processing")
 	end
 	safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,4)
 	return true
@@ -17458,10 +17592,10 @@ function againstDragonBeginDestroy()
 	if #candidates<1 then
 		local result
 		if siteTokensAvailable~=true then
-			result="The Destroyed Site token bag was unavailable and there were no Rampaging Enemies to destroy."
+			result="{en}The Destroyed Site token bag was unavailable and there were no Rampaging Enemies to destroy.{it}Il sacchetto dei Siti Distrutti non era disponibile e non c'erano Nemici Erranti da distruggere.{ru}Мешок жетонов разрушенных мест был недоступен, и не было Бродячих врагов для уничтожения.{zh-tw}「被摧毀地點」標記袋不可用，也沒有遊蕩敵人可摧毀。{zh-cn}“被摧毁地点”标记袋不可用，也没有游荡敌人可摧毁。{ko}파괴된 장소 토큰 주머니를 사용할 수 없고 파괴할 방랑 적도 없습니다.{es}La bolsa de Sitios Destruidos no estaba disponible y no había Enemigos Arrasadores que destruir.{fr}Le sac de Sites Détruits était indisponible et il n'y avait aucun Ennemi Ravageur à détruire.{pt-br}A bolsa de Locais Destruídos não estava disponível e não havia Inimigos Errantes para destruir.{de}Der Beutel für zerstörte Orte war nicht verfügbar und es gab keine streunenden Gegner zum Zerstören."
 			broadcastToAll("{en}The Destroyed Site token bag could not be found and there are no Rampaging Enemies on the map. The Apocalypse Dragon destroys nothing.{it}Sacchetto Siti Distrutti non trovato e nessun Nemico Errante sulla mappa. Il Drago non distrugge nulla.{ru}Мешок жетонов разрушенных мест не найден, и на карте нет Бродячих врагов. Дракон Апокалипсиса ничего не уничтожает.{zh-tw}找不到「被摧毀地點」標記袋，且地圖上沒有遊蕩敵人。末日巨龍不會摧毀任何東西。{zh-cn}找不到“被摧毁地点”标记袋，且地图上没有游荡敌人。末日巨龙不会摧毁任何东西。{ko}파괴된 장소 토큰 주머니를 찾지 못했고 맵에 방랑 적도 없습니다. 아포칼립스 드래곤은 아무것도 파괴하지 않습니다.{es}No se encontró la bolsa de fichas de Sitio Destruido y no hay Enemigos Arrasadores en el mapa. El Dragón del Apocalipsis no destruye nada.{fr}Le sac de jetons Site Détruit est introuvable et aucun Ennemi Ravageur n’est présent sur la carte. Le Dragon de l’Apocalypse ne détruit rien.{pt-br}A bolsa de fichas de Local Destruído não foi encontrada e não há Inimigos Errantes no mapa. O Dragão do Apocalipse não destrói nada.{de}Der Beutel mit Markern für zerstörte Orte wurde nicht gefunden und es gibt keine streunenden Gegner auf der Karte. Der Apokalypse-Drache zerstört nichts.",warningColor)
 		else
-			result="The Dragon had no legal site or Rampaging Enemy to destroy."
+			result="{en}The Dragon had no legal site or Rampaging Enemy to destroy.{it}Il Drago non aveva alcun sito o Nemico Errante valido da distruggere.{ru}У Дракона не было допустимого места или Бродячего врага для уничтожения.{zh-tw}巨龍沒有可合法摧毀的地點或遊蕩敵人。{zh-cn}巨龙没有可合法摧毁的地点或游荡敌人。{ko}드래곤이 합법적으로 파괴할 장소나 방랑 적이 없습니다.{es}El Dragón no tenía ningún lugar ni Enemigo Arrasador válido que destruir.{fr}Le Dragon n’avait aucun site ni Ennemi Ravageur valide à détruire.{pt-br}O Dragão não tinha nenhum local ou Inimigo Errante válido para destruir.{de}Der Drache hatte keinen zulässigen Ort oder streunenden Gegner zum Zerstören."
 		end
 		againstDragonSetTurnReport(againstDragonFinalReport(result),"Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
@@ -17470,7 +17604,7 @@ function againstDragonBeginDestroy()
 	local tied,distance=againstDragonDistanceChoices(candidates,hexes,mapObjects)
 	if #tied<1 then
 		broadcastToAll("{en}The Apocalypse Dragon could not measure a revealed-space route to a destruction target.{it}Il Drago non ha potuto misurare un percorso di spazi rivelati verso un bersaglio da distruggere.{ru}Дракон Апокалипсиса не смог определить путь по открытым клеткам до цели уничтожения.{zh-tw}末日巨龍無法計算沿已揭示空間前往摧毀目標的路線。{zh-cn}末日巨龙无法计算沿已揭示空间前往摧毁目标的路线。{ko}아포칼립스 드래곤이 공개된 칸을 따라 파괴 대상까지의 경로를 계산하지 못했습니다.{es}El Dragón del Apocalipsis no pudo calcular una ruta por espacios revelados hasta un objetivo de destrucción.{fr}Le Dragon de l’Apocalypse n’a pas pu calculer un trajet par les cases révélées jusqu’à une cible de destruction.{pt-br}O Dragão do Apocalipse não conseguiu calcular uma rota por espaços revelados até um alvo de destruição.{de}Der Apokalypse-Drache konnte keinen Weg über aufgedeckte Felder zu einem Zerstörungsziel bestimmen.",warningColor)
-		againstDragonSetTurnReport(againstDragonFinalReport("The Dragon could not measure a route to a legal destruction target."),"Processing")
+		againstDragonSetTurnReport(againstDragonFinalReport("{en}The Dragon could not measure a route to a legal destruction target.{it}Il Drago non ha potuto calcolare un percorso verso un bersaglio di distruzione valido.{ru}Дракон не смог определить путь к допустимой цели уничтожения.{zh-tw}巨龍無法計算前往合法摧毀目標的路線。{zh-cn}巨龙无法计算前往合法摧毁目标的路线。{ko}드래곤이 합법적인 파괴 대상까지의 경로를 계산하지 못했습니다.{es}El Dragón no pudo calcular una ruta hasta un objetivo de destrucción válido.{fr}Le Dragon n’a pas pu calculer un trajet vers une cible de destruction valide.{pt-br}O Dragão não conseguiu calcular uma rota até um alvo de destruição válido.{de}Der Drache konnte keinen Weg zu einem zulässigen Zerstörungsziel bestimmen."),"Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return true
 	end
@@ -17480,9 +17614,9 @@ function againstDragonBeginDestroy()
 	local pending={type="destroy",playerIndex=chooser,options=tied,distance=distance}
 	gStates.apocalypseDragonPendingChoice=pending
 	againstDragonShowMapChoice(pending)
-	local direction=gStates.apocalypseDragonLairRevealed==true and "closest to the Lair" or "furthest from the Portal"
+	local direction=gStates.apocalypseDragonLairRevealed==true and "{en}closest to the Lair{it}più vicini alla Tana{ru}ближе всего к Логову{zh-tw}最接近巢穴{zh-cn}最接近巢穴{ko}소굴에 가장 가까운{es}más cercanos a la Guarida{fr}les plus proches de l’Antre{pt-br}mais próximos do Covil{de}dem Hort am nächsten" or "{en}furthest from the Portal{it}più lontani dal Portale{ru}дальше всего от Портала{zh-tw}離傳送門最遠{zh-cn}离传送门最远{ko}포털에서 가장 먼{es}más alejados del Portal{fr}les plus éloignés du Portail{pt-br}mais distantes do Portal{de}am weitesten vom Portal entfernt"
 	local chooserText=apocalypseDragonChoicePlayerLabel(chooser)
-	againstDragonSetTurnReport(againstDragonFinalReport("The Dragon has "..tostring(#tied).." tied destruction targets "..direction..".\n"..chooserText.." must pick one of the highlighted targets."),"WaitingChoice")
+	againstDragonSetTurnReport(againstDragonFinalReport(joinLang({"{en}The Dragon has {it}Il Drago ha {ru}У Дракона {zh-tw}巨龍有 {zh-cn}巨龙有 {ko}드래곤에게 {es}El Dragón tiene {fr}Le Dragon a {pt-br}O Dragão tem {de}Der Drache hat ",tostring(#tied),"{en} tied destruction targets, {it} bersagli di distruzione a pari merito, {ru} равных целей уничтожения, {zh-tw} 個並列的摧毀目標，{zh-cn} 个并列的摧毁目标，{ko}개의 동률 파괴 대상이 있습니다. {es} objetivos de destrucción empatados, {fr} cibles de destruction à égalité, {pt-br} alvos de destruição empatados, {de} gleichwertige Zerstörungsziele, ",direction,"{en}.\n{it}.\n{ru}.\n{zh-tw}。\n{zh-cn}。\n{ko}\n{es}.\n{fr}.\n{pt-br}.\n{de}.\n",chooserText,"{en} must pick one of the highlighted targets.{it} deve scegliere uno dei bersagli evidenziati.{ru} должен выбрать одну из выделенных целей.{zh-tw} 必須選擇其中一個醒目標示的目標。{zh-cn} 必须选择其中一个高亮目标。{ko}이(가) 강조 표시된 대상 중 하나를 선택해야 합니다.{es} debe elegir uno de los objetivos resaltados.{fr} doit choisir l’une des cibles mises en évidence.{pt-br} deve escolher um dos alvos destacados.{de} muss eines der hervorgehobenen Ziele auswählen."})),"WaitingChoice")
 	return true
 end
 
@@ -17604,25 +17738,26 @@ againstDragonAirborneProtectionLocation=function(playerIndex)
 end
 
 againstDragonAirborneProtectionReminder=function(location)
-	if location==nil then return "No Dragon-head protection from this space." end
+	if location==nil then return "{en}No Dragon-head protection from this space.{it}Questo spazio non offre protezione dalle teste del Drago.{ru}Это поле не даёт защиты от голов Дракона.{zh-tw}此空間不提供龍首防護。{zh-cn}此空间不提供龙首防护。{ko}이 칸에서는 드래곤 머리에 대한 보호를 받을 수 없습니다.{es}Este espacio no ofrece protección contra las cabezas del Dragón.{fr}Cette case n’offre aucune protection contre les têtes du Dragon.{pt-br}Este espaço não oferece proteção contra as cabeças do Dragão.{de}Dieses Feld bietet keinen Schutz vor Drachenköpfen." end
 	local feature=string.lower(tostring(location.feature or ""))
 	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(location.feature) or tostring(location.feature or "space")
+	local localizedLabel=proxyLocalizedTerm~=nil and proxyLocalizedTerm(label) or tostring(label)
 	if feature:sub(1,4)=="city" then
-		return "Fortified City: protect against 2 heads. Flip those heads face down. The City is not destroyed."
+		return "{en}Fortified City: protect against 2 heads. Flip those heads face down. The City is not destroyed.{it}Città Fortificata: proteggi da 2 teste. Copri quelle teste. La Città non viene distrutta.{ru}Укреплённый город: защита от 2 голов. Переверните эти головы лицом вниз. Город не уничтожается.{zh-tw}要塞化城市：可防護 2 個龍首。將那些龍首翻至背面。城市不會被摧毀。{zh-cn}要塞化城市：可防护 2 个龙首。将那些龙首翻至背面。城市不会被摧毁。{ko}요새화된 도시: 머리 2개를 막습니다. 해당 머리를 뒷면으로 뒤집으십시오. 도시는 파괴되지 않습니다.{es}Ciudad Fortificada: protege contra 2 cabezas. Pon esas cabezas boca abajo. La Ciudad no es destruida.{fr}Cité Fortifiée : protège contre 2 têtes. Retournez ces têtes face cachée. La Cité n’est pas détruite.{pt-br}Cidade Fortificada: protege contra 2 cabeças. Vire essas cabeças para baixo. A Cidade não é destruída.{de}Befestigte Stadt: Schutz vor 2 Köpfen. Drehe diese Köpfe verdeckt. Die Stadt wird nicht zerstört."
 	end
 	if feature=="keep" or feature=="mage tower" then
-		return "Fortified "..tostring(label)..": protect against 2 heads. Flip those heads face down; the site is destroyed after combat."
+		return joinLang({"{en}Fortified {it}Sito Fortificato - {ru}Укреплённый объект — {zh-tw}要塞化地點－{zh-cn}要塞化地点－{ko}요새화된 장소 - {es}Lugar Fortificado - {fr}Site Fortifié — {pt-br}Local Fortificado - {de}Befestigter Ort – ",localizedLabel,"{en}: protect against 2 heads. Flip those heads face down; the site is destroyed after combat.{it}: proteggi da 2 teste. Copri quelle teste; il sito viene distrutto dopo il combattimento.{ru}: защита от 2 голов. Переверните эти головы лицом вниз; после боя объект уничтожается.{zh-tw}：可防護 2 個龍首。將那些龍首翻至背面；戰鬥後此地點被摧毀。{zh-cn}：可防护 2 个龙首。将那些龙首翻至背面；战斗后此地点被摧毁。{ko}: 머리 2개를 막습니다. 해당 머리를 뒷면으로 뒤집으십시오. 전투 후 장소가 파괴됩니다.{es}: protege contra 2 cabezas. Pon esas cabezas boca abajo; el lugar es destruido después del combate.{fr} : protège contre 2 têtes. Retournez ces têtes face cachée ; le site est détruit après le combat.{pt-br}: protege contra 2 cabeças. Vire essas cabeças para baixo; o local é destruído após o combate.{de}: Schutz vor 2 Köpfen. Drehe diese Köpfe verdeckt; der Ort wird nach dem Kampf zerstört."})
 	end
 	if feature=="mine" then
-		return "Crystal Mine: protect against 2 heads. Flip those heads face down; the Mine is destroyed after combat."
+		return "{en}Crystal Mine: protect against 2 heads. Flip those heads face down; the Mine is destroyed after combat.{it}Miniera di Cristalli: proteggi da 2 teste. Copri quelle teste; la Miniera viene distrutta dopo il combattimento.{ru}Кристальная шахта: защита от 2 голов. Переверните эти головы лицом вниз; после боя шахта уничтожается.{zh-tw}水晶礦：可防護 2 個龍首。將那些龍首翻至背面；戰鬥後礦場被摧毀。{zh-cn}水晶矿：可防护 2 个龙首。将那些龙首翻至背面；战斗后矿场被摧毁。{ko}수정 광산: 머리 2개를 막습니다. 해당 머리를 뒷면으로 뒤집으십시오. 전투 후 광산이 파괴됩니다.{es}Mina de Cristal: protege contra 2 cabezas. Pon esas cabezas boca abajo; la Mina es destruida después del combate.{fr}Mine de Cristal : protège contre 2 têtes. Retournez ces têtes face cachée ; la Mine est détruite après le combat.{pt-br}Mina de Cristal: protege contra 2 cabeças. Vire essas cabeças para baixo; a Mina é destruída após o combate.{de}Kristallmine: Schutz vor 2 Köpfen. Drehe diese Köpfe verdeckt; die Mine wird nach dem Kampf zerstört."
 	end
 	if feature=="village" or feature=="monastery" or feature=="oasis" or feature=="camp" or feature=="refugee camp" then
-		return tostring(label)..": protect against 1 head. Flip that head face down; the site is destroyed after combat."
+		return joinLang({localizedLabel,"{en}: protect against 1 head. Flip that head face down; the site is destroyed after combat.{it}: proteggi da 1 testa. Copri quella testa; il sito viene distrutto dopo il combattimento.{ru}: защита от 1 головы. Переверните эту голову лицом вниз; после боя объект уничтожается.{zh-tw}：可防護 1 個龍首。將該龍首翻至背面；戰鬥後此地點被摧毀。{zh-cn}：可防护 1 个龙首。将该龙首翻至背面；战斗后此地点被摧毁。{ko}: 머리 1개를 막습니다. 해당 머리를 뒷면으로 뒤집으십시오. 전투 후 장소가 파괴됩니다.{es}: protege contra 1 cabeza. Pon esa cabeza boca abajo; el lugar es destruido después del combate.{fr} : protège contre 1 tête. Retournez cette tête face cachée ; le site est détruit après le combat.{pt-br}: protege contra 1 cabeça. Vire essa cabeça para baixo; o local é destruído após o combate.{de}: Schutz vor 1 Kopf. Drehe diesen Kopf verdeckt; der Ort wird nach dem Kampf zerstört."})
 	end
 	if feature=="glade" or feature=="magical glade" then
-		return "Glade: spend matching-colour mana to protect against a head, then flip it face down. The Glade is destroyed after combat."
+		return "{en}Glade: spend matching-colour mana to protect against a head, then flip it face down. The Glade is destroyed after combat.{it}Radura: spendi mana del colore corrispondente per proteggerti da una testa, poi coprila. La Radura viene distrutta dopo il combattimento.{ru}Поляна: потратьте ману подходящего цвета, чтобы защититься от головы, затем переверните её лицом вниз. После боя Поляна уничтожается.{zh-tw}林地：花費對應顏色的魔力來防護一個龍首，然後將其翻至背面。戰鬥後林地被摧毀。{zh-cn}林地：花费对应颜色的魔力来防护一个龙首，然后将其翻至背面。战斗后林地被摧毁。{ko}숲: 일치하는 색의 마나를 사용해 머리 하나를 막은 뒤 뒷면으로 뒤집으십시오. 전투 후 숲이 파괴됩니다.{es}Claro: gasta maná del color correspondiente para protegerte de una cabeza y ponla boca abajo. El Claro es destruido después del combate.{fr}Clairière : dépensez du mana de la couleur correspondante pour vous protéger d’une tête, puis retournez-la face cachée. La Clairière est détruite après le combat.{pt-br}Clareira: gaste mana da cor correspondente para se proteger de uma cabeça e vire-a para baixo. A Clareira é destruída após o combate.{de}Lichtung: Gib Mana der passenden Farbe aus, um dich vor einem Kopf zu schützen, und drehe ihn dann verdeckt. Die Lichtung wird nach dem Kampf zerstört."
 	end
-	return "No Dragon-head protection from this "..tostring(label).."."
+	return joinLang({"{en}No Dragon-head protection from this {it}Nessuna protezione dalle teste del Drago da {ru}Нет защиты от голов Дракона от {zh-tw}此地點不提供龍首防護：{zh-cn}此地点不提供龙首防护：{ko}이 장소에서는 드래곤 머리에 대한 보호를 받을 수 없습니다: {es}No hay protección contra las cabezas del Dragón desde {fr}Aucune protection contre les têtes du Dragon depuis {pt-br}Não há proteção contra as cabeças do Dragão neste local: {de}Kein Schutz vor Drachenköpfen durch ",localizedLabel,"{en}.{it}.{ru}.{zh-tw}{zh-cn}{ko}.{es}.{fr}.{pt-br}{de}."})
 end
 
 function againstDragonAirborneProtectionDestroysSite(feature)
@@ -17695,7 +17830,7 @@ function againstDragonFinishAttackForPlayer(playerIndex,finishDragonImmediately)
 	local details=turnOrder[playerIndex]
 	if pending==nil or details==nil or pending.playerIndex~=playerIndex then return false end
 	if pending.furyGround==true then return furyDragonFinishDefenseParticipant(playerIndex,pending.phase=="full") end
-	local attendance=pending.phase=="full" and "fully attended" or pending.phase=="partial" and "partially attended" or "resolved"
+	local attendance=pending.phase=="full" and "{en} fully attended the attack{it} ha partecipato completamente all'attacco{ru} полностью участвовал в атаке{zh-tw} 完全參與了這次攻擊{zh-cn} 完全参与了这次攻击{ko}이(가) 공격에 완전히 참가했습니다{es} participó por completo en el ataque{fr} a pleinement participé à l’attaque{pt-br} participou completamente do ataque{de} nahm vollständig am Angriff teil" or pending.phase=="partial" and "{en} partially attended the attack{it} ha partecipato parzialmente all'attacco{ru} частично участвовал в атаке{zh-tw} 部分參與了這次攻擊{zh-cn} 部分参与了这次攻击{ko}이(가) 공격에 부분적으로 참가했습니다{es} participó parcialmente en el ataque{fr} a participé partiellement à l’attaque{pt-br} participou parcialmente do ataque{de} nahm teilweise am Angriff teil" or "{en} resolved the attack{it} ha risolto l'attacco{ru} разрешил атаку{zh-tw} 解決了這次攻擊{zh-cn} 解决了这次攻击{ko}이(가) 공격을 해결했습니다{es} resolvió el ataque{fr} a résolu l’attaque{pt-br} resolveu o ataque{de} handelte den Angriff ab"
 	againstDragonReturnAirborneHeads()
 	againstDragonResolveAirborneProtection(pending)
 	UI.setAttribute("VolkareAttacked","active","false")
@@ -17720,7 +17855,8 @@ function againstDragonFinishAttackForPlayer(playerIndex,finishDragonImmediately)
 		end
 	end
 	againstDragonMarkPlayer(playerIndex)
-	local report="The Dragon attacked "..tostring(details.mage).." at level "..tostring(fame)..".\n"..tostring(details.mage).." "..attendance.." the attack, gained "..tostring(fame).." Fame, and received a Black mana marker."
+	local mageText=translateWord[details.mage] or tostring(details.mage)
+	local report=joinLang({"{en}The Dragon attacked {it}Il Drago ha attaccato {ru}Дракон атаковал {zh-tw}巨龍攻擊了 {zh-cn}巨龙攻击了 {ko}드래곤이 공격했습니다: {es}El Dragón atacó a {fr}Le Dragon a attaqué {pt-br}O Dragão atacou {de}Der Drache griff ",mageText,"{en} at level {it} al livello {ru} на уровне {zh-tw}，等級 {zh-cn}，等级 {ko}, 레벨 {es} al nivel {fr} au niveau {pt-br} no nível {de} auf Stufe ",tostring(fame),"{en}.\n{it}.\n{ru}.\n{zh-tw}。\n{zh-cn}。\n{ko}.\n{es}.\n{fr}.\n{pt-br}.\n{de}.\n",mageText,attendance,"{en}, gained {it}, ha ottenuto {ru}, получил {zh-tw}，獲得 {zh-cn}，获得 {ko}, 명성 {es}, ganó {fr}, a gagné {pt-br}, ganhou {de}, erhielt ",tostring(fame),"{en} Fame, and received a Black mana marker.{it} Fama e ha ricevuto un segnalino mana Nero.{ru} Славы и получил маркер чёрной маны.{zh-tw} 聲望值並獲得一個黑色魔力標記。{zh-cn} 声望值并获得一个黑色魔力标记。{ko}을(를) 얻고 검은색 마나 마커를 받았습니다.{es} de Fama y recibió un marcador de maná Negro.{fr} de Renommée et a reçu un marqueur de mana Noir.{pt-br} de Fama e recebeu um marcador de mana Preto.{de} Ruhm und erhielt einen schwarzen Mana-Marker."})
 	gStates.apocalypseDragonTurnReport=report
 	if finishDragonImmediately==true then
 		--Partial Complete is equivalent to acknowledging Dragon Processed. A fully-attending player
@@ -17767,9 +17903,9 @@ function againstDragonAttendFull(player,mouseButton,id)
 	end
 	gStates.apocalypseDragonUIState="FullAttend"
 	if pending.furyGround==true then
-		gStates.apocalypseDragonTurnReport="The Apocalypse Dragon attacked "..tostring(details.mage)..".\n"..tostring(details.mage).." is fully defending and taking their turn in advance; movement, exploration and other actions remain unavailable during this combat."
+		gStates.apocalypseDragonTurnReport=joinLang({"{en}The Apocalypse Dragon attacked {it}Il Drago dell'Apocalisse ha attaccato {ru}Дракон Апокалипсиса атаковал {zh-tw}末日巨龍攻擊了 {zh-cn}末日巨龙攻击了 {ko}아포칼립스 드래곤이 공격했습니다: {es}El Dragón del Apocalipsis atacó a {fr}Le Dragon de l’Apocalypse a attaqué {pt-br}O Dragão do Apocalipse atacou {de}Der Apokalypse-Drache griff ",translateWord[details.mage] or tostring(details.mage),"{en}.\nThey are fully defending and taking their turn in advance; movement, exploration and other actions remain unavailable during this combat.{it}.\nSta difendendo completamente e svolge il proprio turno in anticipo; movimento, esplorazione e altre azioni restano non disponibili durante questo combattimento.{ru}.\nИгрок полностью защищается и проводит свой ход заранее; перемещение, исследование и другие действия во время этого боя недоступны.{zh-tw}。\n該玩家完全防禦並提前進行自己的回合；此戰鬥期間仍不能移動、探索或執行其他行動。{zh-cn}。\n该玩家完全防御并提前进行自己的回合；此战斗期间仍不能移动、探索或执行其他行动。{ko}.\n해당 플레이어는 완전 방어하며 자신의 턴을 미리 진행합니다. 이 전투 동안 이동, 탐험 및 다른 행동은 계속 사용할 수 없습니다.{es}.\nSe defiende por completo y juega su turno por adelantado; el movimiento, la exploración y otras acciones siguen sin estar disponibles durante este combate.{fr}.\nCe joueur se défend pleinement et joue son tour à l’avance ; le déplacement, l’exploration et les autres actions restent indisponibles pendant ce combat.{pt-br}.\nDefende-se completamente e joga seu turno adiantado; movimento, exploração e outras ações continuam indisponíveis durante este combate.{de}.\nDer Spieler verteidigt sich vollständig und führt seinen Zug vorgezogen aus; Bewegung, Erkundung und andere Aktionen bleiben während dieses Kampfes nicht verfügbar."})
 	else
-		gStates.apocalypseDragonTurnReport="The Dragon attacked "..tostring(details.mage).." at level "..tostring(pending.round or gStates.currentRound)..".\n"..tostring(details.mage).." is fully attacking and taking their turn in advance."
+		gStates.apocalypseDragonTurnReport=joinLang({"{en}The Dragon attacked {it}Il Drago ha attaccato {ru}Дракон атаковал {zh-tw}巨龍攻擊了 {zh-cn}巨龙攻击了 {ko}드래곤이 공격했습니다: {es}El Dragón atacó a {fr}Le Dragon a attaqué {pt-br}O Dragão atacou {de}Der Drache griff ",translateWord[details.mage] or tostring(details.mage),"{en} at level {it} al livello {ru} на уровне {zh-tw}，等級 {zh-cn}，等级 {ko}, 레벨 {es} al nivel {fr} au niveau {pt-br} no nível {de} auf Stufe ",tostring(pending.round or gStates.currentRound),"{en}.\nThey are fully attending and taking their turn in advance.{it}.\nSta partecipando completamente e svolge il proprio turno in anticipo.{ru}.\nИгрок полностью участвует и проводит свой ход заранее.{zh-tw}。\n該玩家完全參與並提前進行自己的回合。{zh-cn}。\n该玩家完全参与并提前进行自己的回合。{ko}.\n해당 플레이어는 완전히 참가하며 자신의 턴을 미리 진행합니다.{es}.\nParticipa por completo y juega su turno por adelantado.{fr}.\nCe joueur participe pleinement et joue son tour à l’avance.{pt-br}.\nParticipa completamente e joga seu turno adiantado.{de}.\nDer Spieler nimmt vollständig teil und führt seinen Zug vorgezogen aus."})
 	end
 	--The Dragon interface is finished now. The heads remain on this player's board while they take
 	--a normal out-of-turn turn; their end-turn cleanup resolves the Dragon reward and resumes play
@@ -17789,7 +17925,7 @@ end
 againstDragonBeginManualAttack=function(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil then
-		againstDragonSetTurnReport("The Dragon's selected player could no longer be found.","Processing")
+		againstDragonSetTurnReport("{en}The Dragon's selected player could no longer be found.{it}Il giocatore selezionato dal Drago non è più reperibile.{ru}Выбранный Драконом игрок больше не найден.{zh-tw}找不到巨龍先前選定的玩家。{zh-cn}找不到巨龙先前选定的玩家。{ko}드래곤이 선택한 플레이어를 더 이상 찾을 수 없습니다.{es}Ya no se pudo encontrar al jugador seleccionado por el Dragón.{fr}Le joueur sélectionné par le Dragon est introuvable.{pt-br}O jogador selecionado pelo Dragão não pôde mais ser encontrado.{de}Der vom Drachen ausgewählte Spieler konnte nicht mehr gefunden werden.","Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return false
 	end
@@ -17799,9 +17935,9 @@ againstDragonBeginManualAttack=function(playerIndex)
 	gStates.apocalypseDragonPendingAttack.protectionLocation=againstDragonAirborneProtectionLocation(playerIndex)
 	againstDragonAttackControlUI(false)
 	againstDragonDeployAirborneHeads(playerIndex)
-	local fullText=againstDragonFullAttendAllowed(playerIndex) and "Choose Fully Defend or resolve the restricted combat and click Partial Complete." or "Their Round Order token is already face down, so resolve the restricted combat and click Partial Complete."
+	local fullText=againstDragonFullAttendAllowed(playerIndex) and "{en}Choose Fully Defend or resolve the restricted combat and click Partial Complete.{it}Scegli Difesa Completa oppure risolvi il combattimento limitato e fai clic su Completa Parziale.{ru}Выберите «Полная защита» или разрешите ограниченный бой и нажмите «Частично завершить».{zh-tw}選擇「完全防禦」，或解決受限制的戰鬥後按「部分完成」。{zh-cn}选择“完全防御”，或解决受限制的战斗后按“部分完成”。{ko}완전 방어를 선택하거나 제한 전투를 해결한 뒤 부분 완료를 클릭하십시오.{es}Elige Defensa Completa o resuelve el combate restringido y haz clic en Completar Parcialmente.{fr}Choisissez Défense Complète ou résolvez le combat restreint puis cliquez sur Terminer Partiellement.{pt-br}Escolha Defesa Completa ou resolva o combate restrito e clique em Concluir Parcialmente.{de}Wähle Vollständig Verteidigen oder handle den eingeschränkten Kampf ab und klicke auf Teilweise Abschließen." or "{en}Their Round Order token is already face down, so resolve the restricted combat and click Partial Complete.{it}Il suo segnalino Ordine di Turno è già coperto: risolvi il combattimento limitato e fai clic su Completa Parziale.{ru}Жетон порядка хода уже лежит лицом вниз, поэтому разрешите ограниченный бой и нажмите «Частично завершить».{zh-tw}其回合順位標記已翻面，因此請解決受限制的戰鬥並按「部分完成」。{zh-cn}其回合顺序标记已翻面，因此请解决受限制的战斗并按“部分完成”。{ko}라운드 순서 토큰이 이미 뒷면이므로 제한 전투를 해결한 뒤 부분 완료를 클릭하십시오.{es}Su ficha de Orden de Ronda ya está boca abajo, así que resuelve el combate restringido y haz clic en Completar Parcialmente.{fr}Son jeton d’Ordre de Manche est déjà face cachée ; résolvez donc le combat restreint puis cliquez sur Terminer Partiellement.{pt-br}Sua ficha de Ordem da Rodada já está virada para baixo; resolva o combate restrito e clique em Concluir Parcialmente.{de}Der Rundenreihenfolgemarker liegt bereits verdeckt; handle daher den eingeschränkten Kampf ab und klicke auf Teilweise Abschließen."
 	local protectionText=againstDragonAirborneProtectionReminder(gStates.apocalypseDragonPendingAttack.protectionLocation)
-	againstDragonSetTurnReport("The Dragon is attacking "..tostring(details.mage).." at level "..tostring(gStates.currentRound)..".\n"..fullText.."\n"..protectionText,"WaitingAttendance")
+	againstDragonSetTurnReport(joinLang({"{en}The Dragon is attacking {it}Il Drago sta attaccando {ru}Дракон атакует {zh-tw}巨龍正在攻擊 {zh-cn}巨龙正在攻击 {ko}드래곤이 공격하고 있습니다: {es}El Dragón está atacando a {fr}Le Dragon attaque {pt-br}O Dragão está atacando {de}Der Drache greift ",translateWord[details.mage] or tostring(details.mage),"{en} at level {it} al livello {ru} на уровне {zh-tw}，等級 {zh-cn}，等级 {ko}, 레벨 {es} al nivel {fr} au niveau {pt-br} no nível {de} auf Stufe ",tostring(gStates.currentRound),"{en}.\n{it}.\n{ru}.\n{zh-tw}。\n{zh-cn}。\n{ko}.\n{es}.\n{fr}.\n{pt-br}.\n{de}.\n",fullText,"\n",protectionText}),"WaitingAttendance")
 	againstDragonAttendanceUIRefresh()
 	combatCameraFocus(playerIndex)
 	return true
@@ -17810,12 +17946,12 @@ end
 againstDragonResolveOffMapPlayer=function(playerIndex)
 	local details=turnOrder[playerIndex]
 	if details==nil then
-		againstDragonSetTurnReport("The Dragon's selected Portal player could no longer be found.","Processing")
+		againstDragonSetTurnReport("{en}The Dragon's selected Portal player could no longer be found.{it}Il giocatore selezionato sul Portale non è più reperibile.{ru}Выбранный игрок на Портале больше не найден.{zh-tw}找不到先前選定的傳送門玩家。{zh-cn}找不到先前选定的传送门玩家。{ko}선택한 포털 플레이어를 더 이상 찾을 수 없습니다.{es}Ya no se pudo encontrar al jugador seleccionado en el Portal.{fr}Le joueur sélectionné sur le Portail est introuvable.{pt-br}O jogador selecionado no Portal não pôde mais ser encontrado.{de}Der ausgewählte Spieler am Portal konnte nicht mehr gefunden werden.","Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return false
 	end
 	againstDragonMarkPlayer(playerIndex)
-	gStates.apocalypseDragonTurnReportPrefix=tostring(details.mage).." was on the Portal, so the Dragon could not attack them. A Black mana marker was placed; the Dragon destroys a target instead."
+	gStates.apocalypseDragonTurnReportPrefix=joinLang({translateWord[details.mage] or tostring(details.mage),"{en} was on the Portal, so the Dragon could not attack them. A Black mana marker was placed; the Dragon destroys a target instead.{it} era sul Portale, quindi il Drago non poteva attaccarlo. È stato piazzato un segnalino mana Nero; il Drago distrugge invece un bersaglio.{ru} находился на Портале, поэтому Дракон не мог его атаковать. Был размещён маркер чёрной маны; вместо этого Дракон уничтожает цель.{zh-tw} 位於傳送門，因此巨龍無法攻擊。已放置一個黑色魔力標記；巨龍改為摧毀一個目標。{zh-cn} 位于传送门，因此巨龙无法攻击。已放置一个黑色魔力标记；巨龙改为摧毁一个目标。{ko}이(가) 포털에 있어 드래곤이 공격할 수 없었습니다. 검은색 마나 마커를 놓고, 대신 드래곤이 대상을 파괴합니다.{es} estaba en el Portal, así que el Dragón no podía atacarlo. Se colocó un marcador de maná Negro; en su lugar, el Dragón destruye un objetivo.{fr} se trouvait sur le Portail ; le Dragon ne pouvait donc pas l’attaquer. Un marqueur de mana Noir a été placé ; le Dragon détruit une cible à la place.{pt-br} estava no Portal, então o Dragão não podia atacá-lo. Um marcador de mana Preto foi colocado; em vez disso, o Dragão destrói um alvo.{de} befand sich am Portal, daher konnte der Drache nicht angreifen. Ein schwarzer Mana-Marker wurde platziert; stattdessen zerstört der Drache ein Ziel."})
 	againstDragonSetTurnReport(gStates.apocalypseDragonTurnReportPrefix,"Processing")
 	return againstDragonBeginDestroy()
 end
@@ -17849,10 +17985,10 @@ function againstDragonBeginAttack()
 			gStates.apocalypseDragonPendingChoice=pending
 			againstDragonShowOffMapChoice(pending)
 			local chooserText=apocalypseDragonChoicePlayerLabel(chooser)
-			againstDragonSetTurnReport("More than one eligible player is on the Portal.\n"..chooserText.." must choose who receives the Black mana marker; the Dragon will then destroy a target instead.","WaitingChoice")
+			againstDragonSetTurnReport(joinLang({"{en}More than one eligible player is on the Portal.\n{it}Più di un giocatore idoneo si trova sul Portale.\n{ru}На Портале находится несколько подходящих игроков.\n{zh-tw}傳送門上有多名合資格玩家。\n{zh-cn}传送门上有多名合资格玩家。\n{ko}포털에 공격 가능한 플레이어가 둘 이상 있습니다.\n{es}Hay más de un jugador válido en el Portal.\n{fr}Plus d’un joueur éligible se trouve sur le Portail.\n{pt-br}Há mais de um jogador elegível no Portal.\n{de}Am Portal befindet sich mehr als ein berechtigter Spieler.\n",chooserText,"{en} must choose who receives the Black mana marker; the Dragon will then destroy a target instead.{it} deve scegliere chi riceve il segnalino mana Nero; poi il Drago distruggerà invece un bersaglio.{ru} должен выбрать, кто получит маркер чёрной маны; затем Дракон вместо атаки уничтожит цель.{zh-tw} 必須選擇誰獲得黑色魔力標記；之後巨龍改為摧毀一個目標。{zh-cn} 必须选择谁获得黑色魔力标记；之后巨龙改为摧毁一个目标。{ko}이(가) 검은색 마나 마커를 받을 플레이어를 선택해야 합니다. 그 후 드래곤은 대신 대상을 파괴합니다.{es} debe elegir quién recibe el marcador de maná Negro; después el Dragón destruirá un objetivo en su lugar.{fr} doit choisir qui reçoit le marqueur de mana Noir ; le Dragon détruira ensuite une cible à la place.{pt-br} deve escolher quem recebe o marcador de mana Preto; depois o Dragão destruirá um alvo em vez disso.{de} muss wählen, wer den schwarzen Mana-Marker erhält; anschließend zerstört der Drache stattdessen ein Ziel."}),"WaitingChoice")
 			return true
 		end
-		againstDragonSetTurnReport("The Dragon had no eligible player left to attack this Round.","Processing")
+		againstDragonSetTurnReport("{en}The Dragon had no eligible player left to attack this Round.{it}Al Drago non restava alcun giocatore idoneo da attaccare in questo Round.{ru}В этом раунде у Дракона не осталось подходящих игроков для атаки.{zh-tw}本回合輪已沒有可供巨龍攻擊的合資格玩家。{zh-cn}本回合轮已没有可供巨龙攻击的合资格玩家。{ko}이번 라운드에 드래곤이 공격할 수 있는 플레이어가 남아 있지 않습니다.{es}Al Dragón no le quedaba ningún jugador válido para atacar esta Ronda.{fr}Le Dragon n’avait plus aucun joueur éligible à attaquer pendant cette Manche.{pt-br}O Dragão não tinha mais nenhum jogador elegível para atacar nesta Rodada.{de}Der Drache hatte in dieser Runde keinen berechtigten Spieler mehr zum Angreifen.","Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return true
 	end
@@ -17860,7 +17996,7 @@ function againstDragonBeginAttack()
 	local tied,distance=againstDragonDistanceChoices(attackable,hexes,mapObjects)
 	if #tied<1 then
 		broadcastToAll("{en}The Apocalypse Dragon could not measure a revealed-space route to an eligible player.{it}Il Drago non ha potuto misurare un percorso di spazi rivelati verso un giocatore idoneo.{ru}Дракон Апокалипсиса не смог определить путь по открытым клеткам до подходящего игрока.{zh-tw}末日巨龍無法計算沿已揭示空間前往合資格玩家的路線。{zh-cn}末日巨龙无法计算沿已揭示空间前往合资格玩家的路线。{ko}아포칼립스 드래곤이 공개된 칸을 따라 공격 가능한 플레이어까지의 경로를 계산하지 못했습니다.{es}El Dragón del Apocalipsis no pudo calcular una ruta por espacios revelados hasta un jugador válido.{fr}Le Dragon de l’Apocalypse n’a pas pu calculer un trajet par les cases révélées jusqu’à un joueur éligible.{pt-br}O Dragão do Apocalipse não conseguiu calcular uma rota por espaços revelados até um jogador elegível.{de}Der Apokalypse-Drache konnte keinen Weg über aufgedeckte Felder zu einem berechtigten Spieler bestimmen.",warningColor)
-		againstDragonSetTurnReport("The Dragon could not measure a route to an eligible player.","Processing")
+		againstDragonSetTurnReport("{en}The Dragon could not measure a route to an eligible player.{it}Il Drago non ha potuto calcolare un percorso verso un giocatore idoneo.{ru}Дракон не смог определить путь к подходящему игроку.{zh-tw}巨龍無法計算前往合資格玩家的路線。{zh-cn}巨龙无法计算前往合资格玩家的路线。{ko}드래곤이 공격 가능한 플레이어까지의 경로를 계산하지 못했습니다.{es}El Dragón no pudo calcular una ruta hasta un jugador válido.{fr}Le Dragon n’a pas pu calculer un trajet vers un joueur éligible.{pt-br}O Dragão não conseguiu calcular uma rota até um jogador elegível.{de}Der Drache konnte keinen Weg zu einem berechtigten Spieler bestimmen.","Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 		return true
 	end
@@ -17870,9 +18006,9 @@ function againstDragonBeginAttack()
 	local pending={type="attack",playerIndex=chooser,options=tied,distance=distance}
 	gStates.apocalypseDragonPendingChoice=pending
 	againstDragonShowMapChoice(pending)
-	local direction=gStates.apocalypseDragonLairRevealed==true and "closest to the Lair" or "furthest from the Portal"
+	local direction=gStates.apocalypseDragonLairRevealed==true and "{en}closest to the Lair{it}più vicini alla Tana{ru}ближе всего к Логову{zh-tw}最接近巢穴{zh-cn}最接近巢穴{ko}소굴에 가장 가까운{es}más cercanos a la Guarida{fr}les plus proches de l’Antre{pt-br}mais próximos do Covil{de}dem Hort am nächsten" or "{en}furthest from the Portal{it}più lontani dal Portale{ru}дальше всего от Портала{zh-tw}離傳送門最遠{zh-cn}离传送门最远{ko}포털에서 가장 먼{es}más alejados del Portal{fr}les plus éloignés du Portail{pt-br}mais distantes do Portal{de}am weitesten vom Portal entfernt"
 	local chooserText=apocalypseDragonChoicePlayerLabel(chooser)
-	againstDragonSetTurnReport("The Dragon has "..tostring(#tied).." tied players "..direction..".\n"..chooserText.." must pick the attacked player using the highlighted buttons.","WaitingChoice")
+	againstDragonSetTurnReport(joinLang({"{en}The Dragon has {it}Il Drago ha {ru}У Дракона {zh-tw}巨龍有 {zh-cn}巨龙有 {ko}드래곤에게 {es}El Dragón tiene {fr}Le Dragon a {pt-br}O Dragão tem {de}Der Drache hat ",tostring(#tied),"{en} tied players, {it} giocatori a pari merito, {ru} равных игроков, {zh-tw} 名並列玩家，{zh-cn} 名并列玩家，{ko}명의 동률 플레이어가 있습니다. {es} jugadores empatados, {fr} joueurs à égalité, {pt-br} jogadores empatados, {de} gleichwertige Spieler, ",direction,"{en}.\n{it}.\n{ru}.\n{zh-tw}。\n{zh-cn}。\n{ko}\n{es}.\n{fr}.\n{pt-br}.\n{de}.\n",chooserText,"{en} must pick the attacked player using the highlighted buttons.{it} deve scegliere il giocatore attaccato usando i pulsanti evidenziati.{ru} должен выбрать атакуемого игрока с помощью выделенных кнопок.{zh-tw} 必須使用醒目標示的按鈕選擇被攻擊的玩家。{zh-cn} 必须使用高亮按钮选择被攻击的玩家。{ko}이(가) 강조 표시된 버튼으로 공격받을 플레이어를 선택해야 합니다.{es} debe elegir al jugador atacado usando los botones resaltados.{fr} doit choisir le joueur attaqué à l’aide des boutons mis en évidence.{pt-br} deve escolher o jogador atacado usando os botões destacados.{de} muss den angegriffenen Spieler über die hervorgehobenen Schaltflächen auswählen."}),"WaitingChoice")
 	return true
 end
 
@@ -17965,7 +18101,7 @@ function againstDragonBeginTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	return apocalypseDragonBeginInterstitialTurn(nextTurnNumber,newOutOfTurn,sameTurn,function(dragonTurn)
 		return againstDragonTurnAction(dragonTurn) or "none"
 	end,function(dragonTurn,action)
-		return "The Apocalypse Dragon's "..apocalypseDragonTurnOrdinal(dragonTurn).." turn will "..againstDragonActionLabel(action)..".\nClick Process Dragon to continue."
+		return joinLang({"{en}Dragon turn {it}Turno del Drago {ru}Ход Дракона {zh-tw}巨龍回合 {zh-cn}巨龙回合 {ko}드래곤 턴 {es}Turno del Dragón {fr}Tour du Dragon {pt-br}Turno do Dragão {de}Drachenzug ",tostring(dragonTurn),"{en}: {it}: {ru}: {zh-tw}：{zh-cn}：{ko}: {es}: {fr} : {pt-br}: {de}: ",againstDragonActionLabel(action),"{en}.\nClick Process Dragon to continue.{it}.\nFai clic su Esegui Drago per continuare.{ru}.\nНажмите «Ход Дракона», чтобы продолжить.{zh-tw}。\n按「執行巨龍行動」繼續。{zh-cn}。\n按“执行巨龙行动”继续。{ko}.\n드래곤 진행을 클릭하여 계속하십시오.{es}.\nHaz clic en Procesar Dragón para continuar.{fr}.\nCliquez sur Traiter le Dragon pour continuer.{pt-br}.\nClique em Processar Dragão para continuar.{de}.\nKlicke auf Drache aktivieren, um fortzufahren."})
 	end,"Dragon Turn Ready")
 end
 
@@ -18027,14 +18163,14 @@ function furyDragonBeginTurn(nextTurnNumber,newOutOfTurn,sameTurn)
 	if gStates.endRoundCalled==true or gStates.gameOver==true or gStates.apocalypseDragonDefeated==true then return false end
 	if gStates.apocalypseDragonTurnActive==true then return true end
 	return apocalypseDragonBeginInterstitialTurn(nextTurnNumber,newOutOfTurn,sameTurn,"fury",function(dragonTurn)
-		local state=gStates.furyDragonFlightTarget~=nil and "in flight" or "landed"
-		return "The Apocalypse Dragon is "..state.." for its "..apocalypseDragonTurnOrdinal(dragonTurn).." turn.\nClick Process Dragon to continue."
+		local state=gStates.furyDragonFlightTarget~=nil and "{en}in flight{it}in volo{ru}в полёте{zh-tw}飛行中{zh-cn}飞行中{ko}비행 중{es}en vuelo{fr}en vol{pt-br}em voo{de}im Flug" or "{en}landed{it}a terra{ru}на земле{zh-tw}已著陸{zh-cn}已着陆{ko}착륙 상태{es}en tierra{fr}au sol{pt-br}em terra{de}gelandet"
+		return joinLang({"{en}The Apocalypse Dragon is {it}Il Drago dell'Apocalisse è {ru}Дракон Апокалипсиса сейчас {zh-tw}末日巨龍目前{zh-cn}末日巨龙目前{ko}아포칼립스 드래곤은 현재 {es}El Dragón del Apocalipsis está {fr}Le Dragon de l’Apocalypse est {pt-br}O Dragão do Apocalipse está {de}Der Apokalypse-Drache ist ",state,"{en} for Dragon turn {it} per il turno del Drago {ru} в ход Дракона {zh-tw}，巨龍回合 {zh-cn}，巨龙回合 {ko}, 드래곤 턴 {es} para el turno del Dragón {fr} pour le tour du Dragon {pt-br} no turno do Dragão {de} für Drachenzug ",tostring(dragonTurn),"{en}.\nClick Process Dragon to continue.{it}.\nFai clic su Esegui Drago per continuare.{ru}.\nНажмите «Ход Дракона», чтобы продолжить.{zh-tw}。\n按「執行巨龍行動」繼續。{zh-cn}。\n按“执行巨龙行动”继续。{ko}.\n드래곤 진행을 클릭하여 계속하십시오.{es}.\nHaz clic en Procesar Dragón para continuar.{fr}.\nCliquez sur Traiter le Dragon pour continuer.{pt-br}.\nClique em Processar Dragão para continuar.{de}.\nKlicke auf Drache aktivieren, um fortzufahren."})
 	end,"Fury Dragon Turn Ready")
 end
 
 furyDragonCompleteTurn=function(text)
 	if furyDragonIsActive()~=true then return false end
-	return apocalypseDragonCompleteInterstitialTurn(text or "The Apocalypse Dragon finished its turn.","Dragon Processed",false)
+	return apocalypseDragonCompleteInterstitialTurn(text or "{en}The Apocalypse Dragon finished its turn.{it}Il Drago dell'Apocalisse ha terminato il suo turno.{ru}Дракон Апокалипсиса завершил свой ход.{zh-tw}末日巨龍結束了回合。{zh-cn}末日巨龙结束了回合。{ko}아포칼립스 드래곤이 턴을 마쳤습니다.{es}El Dragón del Apocalipsis terminó su turno.{fr}Le Dragon de l’Apocalypse a terminé son tour.{pt-br}O Dragão do Apocalipse terminou seu turno.{de}Der Apokalypse-Drache hat seinen Zug beendet.","Dragon Processed",false)
 end
 
 furyDragonFeatureMatches=function(feature,wanted)
@@ -18194,11 +18330,61 @@ furyDragonManaColor=function(die)
 	return value:match("^(%a+)")
 end
 
+local function furyDragonFeatureLabel(feature)
+	local normalized=string.lower(tostring(feature or ""))
+	if normalized:sub(1,4)=="city" then return "{en}City{it}Città{ru}Город{zh-tw}城市{zh-cn}城市{ko}도시{es}Ciudad{fr}Cité{pt-br}Cidade{de}Stadt" end
+	local names={
+		["keep"]="{en}Keep{it}Fortezza{ru}Крепость{zh-tw}要塞{zh-cn}要塞{ko}성채{es}Fortaleza{fr}Forteresse{pt-br}Fortaleza{de}Burg",
+		["mage tower"]="{en}Mage Tower{it}Torre dei Maghi{ru}Башня мага{zh-tw}法師塔{zh-cn}法师塔{ko}마법사 탑{es}Torre de Mago{fr}Tour de Mage{pt-br}Torre de Mago{de}Magierturm",
+		["monster den"]="{en}Monster Den{it}Tana di Mostri{ru}Логово монстров{zh-tw}怪物巢穴{zh-cn}怪物巢穴{ko}괴물 소굴{es}Guarida de Monstruos{fr}Repaire de Monstres{pt-br}Covil de Monstros{de}Monsterhöhle",
+		["dungeon"]="{en}Dungeon{it}Sotterraneo{ru}Подземелье{zh-tw}地下城{zh-cn}地下城{ko}던전{es}Mazmorra{fr}Donjon{pt-br}Masmorra{de}Kerker",
+		["maze"]="{en}Maze{it}Labirinto{ru}Лабиринт{zh-tw}迷宮{zh-cn}迷宫{ko}미로{es}Laberinto{fr}Labyrinthe{pt-br}Labirinto{de}Labyrinth",
+		["ziggurat"]="{en}Ziggurat{it}Ziggurat{ru}Зиккурат{zh-tw}階梯神廟{zh-cn}阶梯神庙{ko}지구라트{es}Zigurat{fr}Ziggourat{pt-br}Zigurate{de}Zikkurat",
+		["spawning grounds"]="{en}Spawning Grounds{it}Terreni di Riproduzione{ru}Место появления{zh-tw}繁殖地{zh-cn}繁殖地{ko}산란지{es}Campo de Aparición{fr}Terrain de Reproduction{pt-br}Terreno de Criação{de}Brutstätte",
+		["tomb"]="{en}Tomb{it}Tomba{ru}Гробница{zh-tw}墓穴{zh-cn}墓穴{ko}무덤{es}Tumba{fr}Tombeau{pt-br}Tumba{de}Grabmal",
+		["labyrinth"]="{en}Labyrinth{it}Labirinto{ru}Лабиринт{zh-tw}迷宮{zh-cn}迷宫{ko}미궁{es}Laberinto{fr}Labyrinthe{pt-br}Labirinto{de}Labyrinth",
+		["pyramid"]="{en}Pyramid{it}Piramide{ru}Пирамида{zh-tw}金字塔{zh-cn}金字塔{ko}피라미드{es}Pirámide{fr}Pyramide{pt-br}Pirâmide{de}Pyramide",
+		["ruin"]="{en}Ruins{it}Rovine{ru}Руины{zh-tw}遺跡{zh-cn}遗迹{ko}유적{es}Ruinas{fr}Ruines{pt-br}Ruínas{de}Ruinen",
+		["rampaging"]="{en}Rampaging Enemy{it}Nemico Errante{ru}Бродячий враг{zh-tw}遊蕩敵人{zh-cn}游荡敌人{ko}방랑 적{es}Enemigo Arrasador{fr}Ennemi Ravageur{pt-br}Inimigo Errante{de}Streunender Gegner",
+		["draconum"]="{en}Draconum{it}Draconum{ru}Драконид{zh-tw}龍人{zh-cn}龙人{ko}드라코넘{es}Draconum{fr}Draconum{pt-br}Draconum{de}Draconum",
+		["village"]="{en}Village{it}Villaggio{ru}Деревня{zh-tw}村莊{zh-cn}村庄{ko}마을{es}Aldea{fr}Village{pt-br}Vila{de}Dorf",
+		["camp"]="{en}Refugee Camp{it}Campo Profughi{ru}Лагерь беженцев{zh-tw}難民營{zh-cn}难民营{ko}난민 캠프{es}Campamento de Refugiados{fr}Camp de Réfugiés{pt-br}Acampamento de Refugiados{de}Flüchtlingslager",
+		["oasis"]="{en}Oasis{it}Oasi{ru}Оазис{zh-tw}綠洲{zh-cn}绿洲{ko}오아시스{es}Oasis{fr}Oasis{pt-br}Oásis{de}Oase",
+		["monastery"]="{en}Monastery{it}Monastero{ru}Монастырь{zh-tw}修道院{zh-cn}修道院{ko}수도원{es}Monasterio{fr}Monastère{pt-br}Mosteiro{de}Kloster",
+		["mine"]="{en}Crystal Mine{it}Miniera di Cristalli{ru}Кристальная шахта{zh-tw}水晶礦{zh-cn}水晶矿{ko}수정 광산{es}Mina de Cristal{fr}Mine de Cristal{pt-br}Mina de Cristal{de}Kristallmine",
+		["glade"]="{en}Magical Glade{it}Radura Magica{ru}Магическая поляна{zh-tw}魔法林地{zh-cn}魔法林地{ko}마법의 숲{es}Claro Mágico{fr}Clairière Magique{pt-br}Clareira Mágica{de}Magische Lichtung"
+	}
+	if names[normalized]~=nil then return names[normalized] end
+	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(feature) or tostring(feature or "space")
+	return proxyLocalizedTerm~=nil and proxyLocalizedTerm(label) or tostring(label)
+end
+
+local function furyDragonManaColorLabel(color)
+	local colors={
+		blue="{en}Blue{it}Blu{ru}Синий{zh-tw}藍色{zh-cn}蓝色{ko}파랑{es}Azul{fr}Bleu{pt-br}Azul{de}Blau",
+		green="{en}Green{it}Verde{ru}Зелёный{zh-tw}綠色{zh-cn}绿色{ko}초록{es}Verde{fr}Vert{pt-br}Verde{de}Grün",
+		red="{en}Red{it}Rosso{ru}Красный{zh-tw}紅色{zh-cn}红色{ko}빨강{es}Rojo{fr}Rouge{pt-br}Vermelho{de}Rot",
+		white="{en}White{it}Bianco{ru}Белый{zh-tw}白色{zh-cn}白色{ko}흰색{es}Blanco{fr}Blanc{pt-br}Branco{de}Weiß",
+		gold="{en}Gold{it}Oro{ru}Золотой{zh-tw}金色{zh-cn}金色{ko}금색{es}Dorado{fr}Or{pt-br}Dourado{de}Gold",
+		black="{en}Black{it}Nero{ru}Чёрный{zh-tw}黑色{zh-cn}黑色{ko}검정{es}Negro{fr}Noir{pt-br}Preto{de}Schwarz"
+	}
+	return colors[string.lower(tostring(color or ""))] or "{en}Unknown{it}Sconosciuto{ru}Неизвестный{zh-tw}未知{zh-cn}未知{ko}알 수 없음{es}Desconocido{fr}Inconnu{pt-br}Desconhecido{de}Unbekannt"
+end
+
+local function furyDragonHeadLabel(head)
+	local heads={
+		Famine="{en}Famine{it}Carestia{ru}Голод{zh-tw}饑荒{zh-cn}饥荒{ko}기근{es}Hambre{fr}Famine{pt-br}Fome{de}Hungersnot",
+		Death="{en}Death{it}Morte{ru}Смерть{zh-tw}死亡{zh-cn}死亡{ko}죽음{es}Muerte{fr}Mort{pt-br}Morte{de}Tod",
+		Pestilence="{en}Pestilence{it}Pestilenza{ru}Мор{zh-tw}瘟疫{zh-cn}瘟疫{ko}역병{es}Pestilencia{fr}Pestilence{pt-br}Pestilência{de}Pestilenz",
+		War="{en}War{it}Guerra{ru}Война{zh-tw}戰爭{zh-cn}战争{ko}전쟁{es}Guerra{fr}Guerre{pt-br}Guerra{de}Krieg",
+		Control="{en}Control{it}Controllo{ru}Контроль{zh-tw}控制{zh-cn}控制{ko}제어{es}Control{fr}Contrôle{pt-br}Controle{de}Kontrolle"
+	}
+	return heads[tostring(head or "")] or tostring(head or "")
+end
+
 furyDragonTargetLabel=function(target)
-	if target==nil then return "the Lair" end
-	if target.isLair==true then return "the Lair" end
-	local label=proxyFeatureDisplayName~=nil and proxyFeatureDisplayName(target.feature) or tostring(target.feature or "space")
-	return tostring(label)
+	if target==nil or target.isLair==true then return "{en}the Lair{it}la Tana{ru}Логово{zh-tw}巢穴{zh-cn}巢穴{ko}소굴{es}la Guarida{fr}l’Antre{pt-br}o Covil{de}den Hort" end
+	return furyDragonFeatureLabel(target.feature)
 end
 
 furyDragonMoveMarkerOffMap=function()
@@ -18219,12 +18405,12 @@ end
 furyDragonBeginLandedTurn=function()
 	if furyDragonIsActive()~=true then return false end
 	gStates.apocalypseDragonUIState="Processing"
-	gStates.apocalypseDragonTurnReport="The landed Apocalypse Dragon is rolling its mana die."
+	gStates.apocalypseDragonTurnReport="{en}The landed Apocalypse Dragon is rolling its mana die.{it}Il Drago dell'Apocalisse a terra sta lanciando il suo dado mana.{ru}Приземлившийся Дракон Апокалипсиса бросает свой кубик маны.{zh-tw}已著陸的末日巨龍正在擲魔力骰。{zh-cn}已着陆的末日巨龙正在掷魔力骰。{ko}착륙한 아포칼립스 드래곤이 마나 주사위를 굴리고 있습니다.{es}El Dragón del Apocalipsis en tierra está lanzando su dado de maná.{fr}Le Dragon de l’Apocalypse au sol lance son dé de mana.{pt-br}O Dragão do Apocalipse em terra está rolando seu dado de mana.{de}Der gelandete Apokalypse-Drache würfelt seinen Manawürfel."
 	apocalypseDragonMainUIRefresh()
 	local bag=getObjectFromGUID(GUID.bag.spareDice)
-	if bag==nil then return furyDragonCompleteTurn("The spare mana-die bag is missing; the Apocalypse Dragon could not choose a flight target.") end
+	if bag==nil then return furyDragonCompleteTurn("{en}The spare mana-die bag is missing; the Apocalypse Dragon could not choose a flight target.{it}Manca il sacchetto dei dadi mana di riserva; il Drago dell'Apocalisse non ha potuto scegliere una destinazione di volo.{ru}Мешок запасных кубиков маны отсутствует; Дракон Апокалипсиса не смог выбрать цель полёта.{zh-tw}缺少備用魔力骰袋；末日巨龍無法選擇飛行目標。{zh-cn}缺少备用魔力骰袋；末日巨龙无法选择飞行目标。{ko}예비 마나 주사위 주머니가 없어 아포칼립스 드래곤이 비행 목표를 선택하지 못했습니다.{es}Falta la bolsa de dados de maná de reserva; el Dragón del Apocalipsis no pudo elegir un destino de vuelo.{fr}Le sac de dés de mana de réserve est manquant ; le Dragon de l’Apocalypse n’a pas pu choisir une destination de vol.{pt-br}A bolsa de dados de mana reserva está ausente; o Dragão do Apocalipse não pôde escolher um destino de voo.{de}Der Beutel mit Ersatz-Manawürfeln fehlt; der Apokalypse-Drache konnte kein Flugziel wählen.") end
 	local die=bag.takeObject({position=apocalypseDragon.furyDieRollPosition,rotation={0,180,0},smooth=false})
-	if die==nil then return furyDragonCompleteTurn("The Apocalypse Dragon could not draw its mana die.") end
+	if die==nil then return furyDragonCompleteTurn("{en}The Apocalypse Dragon could not draw its mana die.{it}Il Drago dell'Apocalisse non ha potuto pescare il suo dado mana.{ru}Дракон Апокалипсиса не смог взять свой кубик маны.{zh-tw}末日巨龍無法抽取魔力骰。{zh-cn}末日巨龙无法抽取魔力骰。{ko}아포칼립스 드래곤이 마나 주사위를 가져오지 못했습니다.{es}El Dragón del Apocalipsis no pudo sacar su dado de maná.{fr}Le Dragon de l’Apocalypse n’a pas pu prendre son dé de mana.{pt-br}O Dragão do Apocalipse não conseguiu pegar seu dado de mana.{de}Der Apokalypse-Drache konnte seinen Manawürfel nicht ziehen.") end
 	gStates.furyDragonManaDieGUID=die.guid
 	die.unlock()
 	die.randomize()
@@ -18234,7 +18420,7 @@ furyDragonBeginLandedTurn=function()
 			local currentDie=getObjectFromGUID(dieGUID)
 			if currentDie==nil then
 				gStates.furyDragonManaDieGUID=nil
-				furyDragonCompleteTurn("The Apocalypse Dragon's mana die disappeared before a target could be chosen.")
+				furyDragonCompleteTurn("{en}The Apocalypse Dragon's mana die disappeared before a target could be chosen.{it}Il dado mana del Drago dell'Apocalisse è scomparso prima che si potesse scegliere un bersaglio.{ru}Кубик маны Дракона Апокалипсиса исчез до выбора цели.{zh-tw}末日巨龍的魔力骰在選擇目標前消失了。{zh-cn}末日巨龙的魔力骰在选择目标前消失了。{ko}목표를 선택하기 전에 아포칼립스 드래곤의 마나 주사위가 사라졌습니다.{es}El dado de maná del Dragón del Apocalipsis desapareció antes de poder elegir un objetivo.{fr}Le dé de mana du Dragon de l’Apocalypse a disparu avant qu’une cible puisse être choisie.{pt-br}O dado de mana do Dragão do Apocalipse desapareceu antes que um alvo pudesse ser escolhido.{de}Der Manawürfel des Apokalypse-Drachen verschwand, bevor ein Ziel gewählt werden konnte.")
 				return
 			end
 			local color=furyDragonManaColor(currentDie)
@@ -18244,7 +18430,7 @@ furyDragonBeginLandedTurn=function()
 				local spare=getObjectFromGUID(GUID.bag.spareDice)
 				if spare~=nil then currentDie.unlock() spare.putObject(currentDie) end
 				gStates.furyDragonManaDieGUID=nil
-				furyDragonCompleteTurn("The Apocalypse Dragon could not resolve its Lair or a legal flight target.")
+				furyDragonCompleteTurn("{en}The Apocalypse Dragon could not resolve its Lair or a legal flight target.{it}Il Drago dell'Apocalisse non ha potuto determinare la Tana o una destinazione di volo valida.{ru}Дракон Апокалипсиса не смог определить Логово или допустимую цель полёта.{zh-tw}末日巨龍無法確定巢穴或合法的飛行目標。{zh-cn}末日巨龙无法确定巢穴或合法的飞行目标。{ko}아포칼립스 드래곤이 소굴 또는 합법적인 비행 목표를 결정하지 못했습니다.{es}El Dragón del Apocalipsis no pudo determinar su Guarida ni un destino de vuelo válido.{fr}Le Dragon de l’Apocalypse n’a pas pu déterminer son Antre ni une destination de vol valide.{pt-br}O Dragão do Apocalipse não conseguiu determinar seu Covil nem um destino de voo válido.{de}Der Apokalypse-Drache konnte weder seinen Hort noch ein zulässiges Flugziel bestimmen.")
 				return
 			end
 			local destination=furyDragonTargetPosition(target,hexes,false)
@@ -18252,7 +18438,7 @@ furyDragonBeginLandedTurn=function()
 				local spare=getObjectFromGUID(GUID.bag.spareDice)
 				if spare~=nil then currentDie.unlock() spare.putObject(currentDie) end
 				gStates.furyDragonManaDieGUID=nil
-				furyDragonCompleteTurn("The Apocalypse Dragon's chosen flight target could not be located.")
+				furyDragonCompleteTurn("{en}The Apocalypse Dragon's chosen flight target could not be located.{it}La destinazione di volo scelta dal Drago dell'Apocalisse non è stata trovata.{ru}Выбранную Драконом Апокалипсиса цель полёта найти не удалось.{zh-tw}找不到末日巨龍選定的飛行目標。{zh-cn}找不到末日巨龙选定的飞行目标。{ko}아포칼립스 드래곤이 선택한 비행 목표를 찾을 수 없습니다.{es}No se pudo localizar el destino de vuelo elegido por el Dragón del Apocalipsis.{fr}La destination de vol choisie par le Dragon de l’Apocalypse est introuvable.{pt-br}O destino de voo escolhido pelo Dragão do Apocalipse não pôde ser localizado.{de}Das gewählte Flugziel des Apokalypse-Drachen konnte nicht gefunden werden.")
 				return
 			end
 			gStates.furyDragonFlightTarget=target
@@ -18263,17 +18449,17 @@ furyDragonBeginLandedTurn=function()
 				if spare~=nil then currentDie.unlock() spare.putObject(currentDie) end
 				gStates.furyDragonManaDieGUID=nil
 				gStates.furyDragonFlightTarget=nil
-				furyDragonCompleteTurn("The Fury Apocalypse Dragon marker is missing; the flight target was cancelled.")
+				furyDragonCompleteTurn("{en}The Fury Apocalypse Dragon marker is missing; the flight target was cancelled.{it}Manca il segnalino del Drago dell'Apocalisse di Furia; la destinazione di volo è stata annullata.{ru}Маркер Дракона Апокалипсиса для «Ярости» отсутствует; цель полёта отменена.{zh-tw}「巨龍之怒」的末日巨龍標記遺失；飛行目標已取消。{zh-cn}“巨龙之怒”的末日巨龙标记丢失；飞行目标已取消。{ko}분노의 아포칼립스 드래곤 마커가 없어 비행 목표가 취소되었습니다.{es}Falta el marcador del Dragón del Apocalipsis de Furia; se canceló el destino de vuelo.{fr}Le marqueur du Dragon de l’Apocalypse de Fureur est manquant ; la destination de vol a été annulée.{pt-br}O marcador do Dragão do Apocalipse de Fúria está ausente; o destino de voo foi cancelado.{de}Der Marker des Zorn-Apokalypse-Drachen fehlt; das Flugziel wurde abgebrochen.")
 				return
 			end
 			local targetText=furyDragonTargetLabel(target)
-			local colorText=color~=nil and color:gsub("^%l",string.upper) or "Unknown"
+			local colorText=furyDragonManaColorLabel(color)
 			safeWaitCondition("Scenario",function()
 				local settled=getObjectFromGUID(dieGUID)
 				if settled~=nil then settled.lock() end
 				local dragon=getObjectFromGUID(apocalypseDragon.furyMarker)
 				if dragon~=nil then dragon.lock() end
-				furyDragonCompleteTurn("The Apocalypse Dragon rolled "..colorText.." and is now in flight toward "..targetText..".")
+				furyDragonCompleteTurn(joinLang({"{en}The Apocalypse Dragon rolled {it}Il Drago dell'Apocalisse ha ottenuto {ru}Дракон Апокалипсиса выбросил {zh-tw}末日巨龍擲出了{zh-cn}末日巨龙掷出了{ko}아포칼립스 드래곤이 굴린 색: {es}El Dragón del Apocalipsis obtuvo {fr}Le Dragon de l’Apocalypse a obtenu {pt-br}O Dragão do Apocalipse rolou {de}Der Apokalypse-Drache würfelte ",colorText,"{en} and is now in flight toward {it} ed è ora in volo verso {ru} и теперь летит к {zh-tw}，現在正飛向{zh-cn}，现在正飞向{ko}. 현재 비행 목표: {es} y ahora vuela hacia {fr} et vole maintenant vers {pt-br} e agora está voando em direção a {de} und fliegt nun in Richtung ",targetText,"{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}.{es}.{fr}.{pt-br}.{de}."}))
 			end,function()
 				local settling=getObjectFromGUID(dieGUID)
 				local dragon=getObjectFromGUID(apocalypseDragon.furyMarker)
@@ -18317,7 +18503,7 @@ furyDragonStartDefenseParticipant=function()
 	if playerIndex==nil then
 		apocalypseDragonFinalizeFuryDefense()
 		gStates.furyDragonAwaitingCombat=nil
-		if gStates.apocalypseDragonDefeated==true then return furyDragonCompleteTurn("The Apocalypse Dragon was defeated while attacking the Heroes.") end
+		if gStates.apocalypseDragonDefeated==true then return furyDragonCompleteTurn("{en}The Apocalypse Dragon was defeated while attacking the Heroes.{it}Il Drago dell'Apocalisse è stato sconfitto mentre attaccava gli Eroi.{ru}Дракон Апокалипсиса был побеждён во время атаки на Героев.{zh-tw}末日巨龍在攻擊英雄時被擊敗。{zh-cn}末日巨龙在攻击英雄时被击败。{ko}아포칼립스 드래곤이 영웅들을 공격하던 중 쓰러졌습니다.{es}El Dragón del Apocalipsis fue derrotado mientras atacaba a los Héroes.{fr}Le Dragon de l’Apocalypse a été vaincu en attaquant les Héros.{pt-br}O Dragão do Apocalipse foi derrotado enquanto atacava os Heróis.{de}Der Apokalypse-Drache wurde beim Angriff auf die Helden besiegt.") end
 		return furyDragonBeginLandedTurn()
 	end
 	if apocalypseDragonFuryDefenseSetActivePlayer(playerIndex)~=true then return false end
@@ -18325,9 +18511,9 @@ furyDragonStartDefenseParticipant=function()
 	gStates.apocalypseDragonPendingAttack={playerIndex=playerIndex,mage=details.mage,phase="choose",furyGround=true}
 	gStates.apocalypseDragonUIState="WaitingAttendance"
 	local count=#state.players
-	local sequence=count>1 and (" Participant "..tostring(state.index).." of "..tostring(count)..".") or ""
-	local fullText=againstDragonFullAttendAllowed(playerIndex) and " Choose Fully Defend, or resolve the restricted combat and click Partial Complete." or " Their Round Order token is already face down, so resolve the restricted combat and click Partial Complete."
-	gStates.apocalypseDragonTurnReport="The Apocalypse Dragon attacks "..tostring(details.mage).."."..sequence..fullText.." The site in this space is ignored for this combat."
+	local sequence=count>1 and joinLang({"{en} Participant {it} Partecipante {ru} Участник {zh-tw} 參戰者 {zh-cn} 参战者 {ko} 참가자 {es} Participante {fr} Participant {pt-br} Participante {de} Teilnehmer ",tostring(state.index),"{en} of {it} di {ru} из {zh-tw}/ {zh-cn}/ {ko}/ {es} de {fr} sur {pt-br} de {de} von ",tostring(count),"{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}.{es}.{fr}.{pt-br}.{de}."}) or ""
+	local fullText=againstDragonFullAttendAllowed(playerIndex) and "{en} Choose Fully Defend, or resolve the restricted combat and click Partial Complete.{it} Scegli Difesa Completa oppure risolvi il combattimento limitato e fai clic su Completa Parziale.{ru} Выберите «Полная защита» или разрешите ограниченный бой и нажмите «Частично завершить».{zh-tw} 選擇「完全防禦」，或解決受限制的戰鬥後按「部分完成」。{zh-cn} 选择“完全防御”，或解决受限制的战斗后按“部分完成”。{ko} 완전 방어를 선택하거나 제한 전투를 해결한 뒤 부분 완료를 클릭하십시오.{es} Elige Defensa Completa o resuelve el combate restringido y haz clic en Completar Parcialmente.{fr} Choisissez Défense Complète ou résolvez le combat restreint puis cliquez sur Terminer Partiellement.{pt-br} Escolha Defesa Completa ou resolva o combate restrito e clique em Concluir Parcialmente.{de} Wähle Vollständig Verteidigen oder handle den eingeschränkten Kampf ab und klicke auf Teilweise Abschließen." or "{en} Their Round Order token is already face down, so resolve the restricted combat and click Partial Complete.{it} Il suo segnalino Ordine di Turno è già coperto: risolvi il combattimento limitato e fai clic su Completa Parziale.{ru} Жетон порядка хода уже лежит лицом вниз, поэтому разрешите ограниченный бой и нажмите «Частично завершить».{zh-tw} 其回合順位標記已翻面，因此請解決受限制的戰鬥並按「部分完成」。{zh-cn} 其回合顺序标记已翻面，因此请解决受限制的战斗并按“部分完成”。{ko} 라운드 순서 토큰이 이미 뒷면이므로 제한 전투를 해결한 뒤 부분 완료를 클릭하십시오.{es} Su ficha de Orden de Ronda ya está boca abajo, así que resuelve el combate restringido y haz clic en Completar Parcialmente.{fr} Son jeton d’Ordre de Manche est déjà face cachée ; résolvez donc le combat restreint puis cliquez sur Terminer Partiellement.{pt-br} Sua ficha de Ordem da Rodada já está virada para baixo; resolva o combate restrito e clique em Concluir Parcialmente.{de} Der Rundenreihenfolgemarker liegt bereits verdeckt; handle daher den eingeschränkten Kampf ab und klicke auf Teilweise Abschließen."
+	gStates.apocalypseDragonTurnReport=joinLang({"{en}The Apocalypse Dragon attacks {it}Il Drago dell'Apocalisse attacca {ru}Дракон Апокалипсиса атакует {zh-tw}末日巨龍攻擊 {zh-cn}末日巨龙攻击 {ko}아포칼립스 드래곤이 공격합니다: {es}El Dragón del Apocalipsis ataca a {fr}Le Dragon de l’Apocalypse attaque {pt-br}O Dragão do Apocalipse ataca {de}Der Apokalypse-Drache greift ",translateWord[details.mage] or tostring(details.mage),"{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}.{es}.{fr}.{pt-br}.{de}.",sequence,fullText,"{en} The site in this space is ignored for this combat.{it} Il sito in questo spazio viene ignorato per questo combattimento.{ru} Объект на этом поле игнорируется в этом бою.{zh-tw} 此空間的地點在這場戰鬥中忽略。{zh-cn} 此空间的地点在这场战斗中忽略。{ko} 이 칸의 장소는 이번 전투에서 무시합니다.{es} El lugar de este espacio se ignora durante este combate.{fr} Le site de cette case est ignoré pendant ce combat.{pt-br} O local neste espaço é ignorado durante este combate.{de} Der Ort auf diesem Feld wird für diesen Kampf ignoriert."})
 	apocalypseDragonMainUIRefresh()
 	againstDragonAttendanceUIRefresh()
 	combatCameraFocus(playerIndex)
@@ -18354,7 +18540,7 @@ furyDragonFinishDefenseParticipant=function(playerIndex,fullAttend)
 	state.index=(state.index or 1)+1
 	if state.index<=#state.players then
 		gStates.apocalypseDragonUIState="Processing"
-		gStates.apocalypseDragonTurnReport="The Apocalypse Dragon's attack is moving to the next Hero."
+		gStates.apocalypseDragonTurnReport="{en}The Apocalypse Dragon's attack is moving to the next Hero.{it}L'attacco del Drago dell'Apocalisse passa all'Eroe successivo.{ru}Атака Дракона Апокалипсиса переходит к следующему Герою.{zh-tw}末日巨龍的攻擊轉向下一位英雄。{zh-cn}末日巨龙的攻击转向下一位英雄。{ko}아포칼립스 드래곤의 공격이 다음 영웅으로 넘어갑니다.{es}El ataque del Dragón del Apocalipsis pasa al siguiente Héroe.{fr}L’attaque du Dragon de l’Apocalypse passe au Héros suivant.{pt-br}O ataque do Dragão do Apocalipse passa para o próximo Herói.{de}Der Angriff des Apokalypse-Drachen geht zum nächsten Helden über."
 		apocalypseDragonMainUIRefresh()
 		safeWaitFrames("Scenario",function() furyDragonStartDefenseParticipant() end,1)
 		return true
@@ -18363,7 +18549,7 @@ furyDragonFinishDefenseParticipant=function(playerIndex,fullAttend)
 	gStates.furyDragonAwaitingCombat=nil
 	gStates.apocalypseDragonPendingAttack=nil
 	if gStates.apocalypseDragonDefeated==true then
-		return furyDragonCompleteTurn("The Apocalypse Dragon was defeated while attacking the Heroes.")
+		return furyDragonCompleteTurn("{en}The Apocalypse Dragon was defeated while attacking the Heroes.{it}Il Drago dell'Apocalisse è stato sconfitto mentre attaccava gli Eroi.{ru}Дракон Апокалипсиса был побеждён во время атаки на Героев.{zh-tw}末日巨龍在攻擊英雄時被擊敗。{zh-cn}末日巨龙在攻击英雄时被击败。{ko}아포칼립스 드래곤이 영웅들을 공격하던 중 쓰러졌습니다.{es}El Dragón del Apocalipsis fue derrotado mientras atacaba a los Héroes.{fr}Le Dragon de l’Apocalypse a été vaincu en attaquant les Héros.{pt-br}O Dragão do Apocalipse foi derrotado enquanto atacava os Heróis.{de}Der Apokalypse-Drache wurde beim Angriff auf die Helden besiegt.")
 	end
 	--Being attacked never leaves the Dragon sitting on the site after combat: it immediately takes
 	--the required landed turn, rolling and placing its next mana die before this Dragon turn can end.
@@ -18420,30 +18606,41 @@ furyDragonIncreaseHead=function(headName)
 	return apocalypseDragonSetHeadLevel(headName,current+1)
 end
 
+local function furyDragonHeadRaisedText(head)
+	return joinLang({furyDragonHeadLabel(head),"{en} increased by 1 level.{it} aumenta di 1 livello.{ru} повышается на 1 уровень.{zh-tw} 提升 1 級。{zh-cn} 提升 1 级。{ko}의 레벨이 1 증가합니다.{es} aumenta 1 nivel.{fr} augmente de 1 niveau.{pt-br} aumenta 1 nível.{de} steigt um 1 Stufe."})
+end
+
+local function furyDragonDestroyedTargetText(label)
+	return joinLang({"{en}The Dragon destroyed {it}Il Drago ha distrutto {ru}Дракон уничтожил {zh-tw}巨龍摧毀了 {zh-cn}巨龙摧毁了 {ko}드래곤이 파괴했습니다: {es}El Dragón destruyó {fr}Le Dragon a détruit {pt-br}O Dragão destruiu {de}Der Drache zerstörte ",label,"{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}{es}.{fr}.{pt-br}.{de}."})
+end
+
 furyDragonResolveArrivalEffect=function(target,hex,mapObjects)
-	if target==nil or hex==nil then return "The Dragon landed, but its target could not be resolved." end
+	if target==nil or hex==nil then return "{en}The Dragon landed, but its target could not be resolved.{it}Il Drago è atterrato, ma non è stato possibile determinare il bersaglio.{ru}Дракон приземлился, но его цель определить не удалось.{zh-tw}巨龍已著陸，但無法確定其目標。{zh-cn}巨龙已着陆，但无法确定其目标。{ko}드래곤이 착륙했지만 목표를 확인할 수 없습니다.{es}El Dragón aterrizó, pero no se pudo determinar su objetivo.{fr}Le Dragon a atterri, mais sa cible n’a pas pu être déterminée.{pt-br}O Dragão pousou, mas seu alvo não pôde ser determinado.{de}Der Drache ist gelandet, aber sein Ziel konnte nicht bestimmt werden." end
 	if target.isLair==true or target.category=="lair" then
 		local head=furyDragonLowestHead()
 		local raised=furyDragonIncreaseHead(head)
-		return "The Apocalypse Dragon returned to its Lair."..(raised==true and " "..tostring(head).." increased by 1 level." or "")
+		local result="{en}The Apocalypse Dragon returned to its Lair.{it}Il Drago dell'Apocalisse è tornato alla sua Tana.{ru}Дракон Апокалипсиса вернулся в своё Логово.{zh-tw}末日巨龍返回了巢穴。{zh-cn}末日巨龙返回了巢穴。{ko}아포칼립스 드래곤이 소굴로 돌아갔습니다.{es}El Dragón del Apocalipsis regresó a su Guarida.{fr}Le Dragon de l’Apocalypse est retourné dans son Antre.{pt-br}O Dragão do Apocalipse retornou ao seu Covil.{de}Der Apokalypse-Drache kehrte in seinen Hort zurück."
+		return raised==true and joinLang({result," ",furyDragonHeadRaisedText(head)}) or result
 	end
 	local head=furyDragonTargetHead(target)
 	local action=""
 	if target.category=="fortified" then
 		if furyDragonCityModelGUID(target.feature)~=nil then
 			local removed,name=furyDragonRemoveCityDefender(target.feature)
-			if removed==true then action="The Dragon destroyed "..tostring(name).." in the City."
+			if removed==true then
+				local defender=name=="City defender" and "{en}City defender{it}difensore della Città{ru}защитник города{zh-tw}城市守軍{zh-cn}城市守军{ko}도시 수비대{es}defensor de la Ciudad{fr}défenseur de la Cité{pt-br}defensor da Cidade{de}Stadtverteidiger" or tostring(name)
+				action=joinLang({"{en}The Dragon destroyed {it}Il Drago ha distrutto {ru}Дракон уничтожил {zh-tw}巨龍摧毀了 {zh-cn}巨龙摧毁了 {ko}드래곤이 파괴했습니다: {es}El Dragón destruyó {fr}Le Dragon a détruit {pt-br}O Dragão destruiu {de}Der Drache zerstörte ",defender,"{en} in the City.{it} nella Città.{ru} в городе.{zh-tw}（城市內）。{zh-cn}（城市内）。{ko} (도시).{es} en la Ciudad.{fr} dans la Cité.{pt-br} na Cidade.{de} in der Stadt."})
 			else
 				furyDragonDestroyHex(hex,mapObjects,false)
-				action="The undefended City space was destroyed."
+				action="{en}The undefended City space was destroyed.{it}Lo spazio Città senza difese è stato distrutto.{ru}Незащищённое поле города было уничтожено.{zh-tw}無人防守的城市空間被摧毀。{zh-cn}无人防守的城市空间被摧毁。{ko}방어되지 않은 도시 칸이 파괴되었습니다.{es}El espacio de Ciudad sin defensores fue destruido.{fr}La case Cité sans défense a été détruite.{pt-br}O espaço de Cidade sem defesa foi destruído.{de}Das unverteidigte Stadtfeld wurde zerstört."
 			end
 		else
 			furyDragonDestroyHex(hex,mapObjects,true)
-			action="The "..furyDragonTargetLabel(target).." was destroyed."
+			action=furyDragonDestroyedTargetText(furyDragonTargetLabel(target))
 		end
 	elseif target.category=="adventure" then
 		furyDragonDestroyHex(hex,mapObjects,true)
-		action="The "..furyDragonTargetLabel(target).." was destroyed."
+		action=furyDragonDestroyedTargetText(furyDragonTargetLabel(target))
 	elseif target.category=="rampager" then
 		local victim=nil
 		for _,enemy in ipairs(proxyMonstersOnHex(hex,mapObjects)) do
@@ -18452,17 +18649,18 @@ furyDragonResolveArrivalEffect=function(target,hex,mapObjects)
 		if victim~=nil then
 			local name=(monsterPugs[victim.guid] or {}).name or "Rampaging Enemy"
 			proxyDiscardMonster(victim)
-			action="The Dragon destroyed "..tostring(name).."."
+			local label=name=="Rampaging Enemy" and furyDragonFeatureLabel("rampaging") or tostring(name)
+			action=furyDragonDestroyedTargetText(label)
 		else
 			head=nil
-			action="The Dragon landed where its Rampaging Enemy target had been, but that enemy was no longer present."
+			action="{en}The Dragon landed where its Rampaging Enemy target had been, but that enemy was no longer present.{it}Il Drago è atterrato dove si trovava il Nemico Errante bersaglio, ma quel nemico non era più presente.{ru}Дракон приземлился там, где была цель — Бродячий враг, но этого врага там уже не было.{zh-tw}巨龍降落在遊蕩敵人目標原本所在的位置，但該敵人已不存在。{zh-cn}巨龙降落在游荡敌人目标原本所在的位置，但该敌人已不存在。{ko}드래곤이 방랑 적 목표가 있던 곳에 착륙했지만 그 적은 더 이상 없었습니다.{es}El Dragón aterrizó donde estaba su objetivo Enemigo Arrasador, pero ese enemigo ya no estaba presente.{fr}Le Dragon a atterri là où se trouvait sa cible Ennemi Ravageur, mais cet ennemi n’était plus présent.{pt-br}O Dragão pousou onde estava seu alvo Inimigo Errante, mas esse inimigo já não estava presente.{de}Der Drache landete dort, wo sein Ziel, der streunende Gegner, gewesen war, aber dieser Gegner war nicht mehr vorhanden."
 		end
 	elseif target.category=="inhabited" or target.category=="mana" then
 		furyDragonDestroyHex(hex,mapObjects,false)
-		action="The "..furyDragonTargetLabel(target).." was destroyed."
+		action=furyDragonDestroyedTargetText(furyDragonTargetLabel(target))
 	end
 	local raised=head~=nil and furyDragonIncreaseHead(head) or false
-	if raised==true then action=action.." "..tostring(head).." increased by 1 level." end
+	if raised==true then action=joinLang({action," ",furyDragonHeadRaisedText(head)}) end
 	return action
 end
 
@@ -18471,14 +18669,14 @@ furyDragonBeginInFlightTurn=function()
 	local target=gStates.furyDragonFlightTarget
 	if target==nil then return furyDragonBeginLandedTurn() end
 	gStates.apocalypseDragonUIState="Processing"
-	gStates.apocalypseDragonTurnReport="The Apocalypse Dragon is flying to "..furyDragonTargetLabel(target).."."
+	gStates.apocalypseDragonTurnReport=joinLang({"{en}The Apocalypse Dragon is flying to {it}Il Drago dell'Apocalisse sta volando verso {ru}Дракон Апокалипсиса летит к {zh-tw}末日巨龍正飛向{zh-cn}末日巨龙正飞向{ko}아포칼립스 드래곤의 비행 목표: {es}El Dragón del Apocalipsis vuela hacia {fr}Le Dragon de l’Apocalypse vole vers {pt-br}O Dragão do Apocalipse está voando em direção a {de}Der Apokalypse-Drache fliegt in Richtung ",furyDragonTargetLabel(target),"{en}.{it}.{ru}.{zh-tw}。{zh-cn}。{ko}.{es}.{fr}.{pt-br}.{de}."})
 	apocalypseDragonMainUIRefresh()
 	local hexes,mapObjects=runtimeMapHexesAndObjects()
 	local hex=runtimeMapHexByKey(hexes,target.key)
 	local destination=furyDragonTargetPosition(target,hexes,true)
 	local marker=getObjectFromGUID(apocalypseDragon.furyMarker)
 	if hex==nil or destination==nil or marker==nil then
-		return furyDragonCompleteTurn("The Apocalypse Dragon could not locate its marked flight destination.")
+		return furyDragonCompleteTurn("{en}The Apocalypse Dragon could not locate its marked flight destination.{it}Il Drago dell'Apocalisse non ha potuto trovare la destinazione di volo contrassegnata.{ru}Дракон Апокалипсиса не смог найти отмеченную цель полёта.{zh-tw}末日巨龍找不到標記的飛行目的地。{zh-cn}末日巨龙找不到标记的飞行目的地。{ko}아포칼립스 드래곤이 표시된 비행 목적지를 찾지 못했습니다.{es}El Dragón del Apocalipsis no pudo localizar su destino de vuelo marcado.{fr}Le Dragon de l’Apocalypse n’a pas pu localiser sa destination de vol marquée.{pt-br}O Dragão do Apocalipse não conseguiu localizar seu destino de voo marcado.{de}Der Apokalypse-Drache konnte sein markiertes Flugziel nicht finden.")
 	end
 
 	local die=gStates.furyDragonManaDieGUID~=nil and getObjectFromGUID(gStates.furyDragonManaDieGUID) or nil
@@ -18490,7 +18688,7 @@ furyDragonBeginInFlightTurn=function()
 	marker.lock()
 	local started=mapTokenSettleArrival(markerGUID,destination,{force=true,rotation={0,180,0}},function(landed)
 		if landed==nil then
-			furyDragonCompleteTurn("The Apocalypse Dragon marker disappeared while landing.")
+			furyDragonCompleteTurn("{en}The Apocalypse Dragon marker disappeared while landing.{it}Il segnalino del Drago dell'Apocalisse è scomparso durante l'atterraggio.{ru}Маркер Дракона Апокалипсиса исчез во время приземления.{zh-tw}末日巨龍標記在著陸時消失了。{zh-cn}末日巨龙标记在着陆时消失了。{ko}아포칼립스 드래곤 마커가 착륙 중 사라졌습니다.{es}El marcador del Dragón del Apocalipsis desapareció durante el aterrizaje.{fr}Le marqueur du Dragon de l’Apocalypse a disparu pendant l’atterrissage.{pt-br}O marcador do Dragão do Apocalipse desapareceu durante o pouso.{de}Der Marker des Apokalypse-Drachen verschwand während der Landung.")
 			return
 		end
 		gStates.furyDragonCurrentHexKey=target.key
@@ -18498,7 +18696,7 @@ furyDragonBeginInFlightTurn=function()
 		local currentHexes,currentMapObjects=runtimeMapHexesAndObjects()
 		local currentHex=runtimeMapHexByKey(currentHexes,target.key)
 		if currentHex==nil then
-			furyDragonCompleteTurn("The Apocalypse Dragon landed, but the destination space could no longer be resolved.")
+			furyDragonCompleteTurn("{en}The Apocalypse Dragon landed, but the destination space could no longer be resolved.{it}Il Drago dell'Apocalisse è atterrato, ma non è stato possibile determinare lo spazio di destinazione.{ru}Дракон Апокалипсиса приземлился, но поле назначения больше невозможно определить.{zh-tw}末日巨龍已著陸，但無法再確定目的地空間。{zh-cn}末日巨龙已着陆，但无法再确定目的地空间。{ko}아포칼립스 드래곤이 착륙했지만 목적지 칸을 더 이상 확인할 수 없습니다.{es}El Dragón del Apocalipsis aterrizó, pero ya no se pudo determinar el espacio de destino.{fr}Le Dragon de l’Apocalypse a atterri, mais la case de destination ne peut plus être déterminée.{pt-br}O Dragão do Apocalipse pousou, mas o espaço de destino não pôde mais ser determinado.{de}Der Apokalypse-Drache ist gelandet, aber das Zielfeld konnte nicht mehr bestimmt werden.")
 			return
 		end
 		local players=furyDragonPlayersOnTarget(target,currentHexes,currentMapObjects)
@@ -18508,7 +18706,7 @@ furyDragonBeginInFlightTurn=function()
 			for _,playerIndex in ipairs(players) do names[#names+1]=tostring(turnOrder[playerIndex].mage) end
 			gStates.furyDragonAwaitingCombat={players=players,target=target}
 			gStates.apocalypseDragonUIState="WaitingCombat"
-			gStates.apocalypseDragonTurnReport="The Apocalypse Dragon attacks "..table.concat(names,", ")..", but the automated defensive combat could not start. Resolve it manually, then click Combat Resolved."
+			gStates.apocalypseDragonTurnReport=joinLang({"{en}The Apocalypse Dragon attacks {it}Il Drago dell'Apocalisse attacca {ru}Дракон Апокалипсиса атакует {zh-tw}末日巨龍攻擊 {zh-cn}末日巨龙攻击 {ko}아포칼립스 드래곤이 공격합니다: {es}El Dragón del Apocalipsis ataca a {fr}Le Dragon de l’Apocalypse attaque {pt-br}O Dragão do Apocalipse ataca {de}Der Apokalypse-Drache greift ",table.concat(names,", "),"{en}, but the automated defensive combat could not start. Resolve it manually, then click Combat Resolved.{it}, ma il combattimento difensivo automatico non è iniziato. Risolvilo manualmente, poi fai clic su Combattimento Risolto.{ru}, но автоматический защитный бой не удалось начать. Разрешите его вручную, затем нажмите «Бой завершён».{zh-tw}，但自動防禦戰鬥無法開始。請手動解決，然後按「戰鬥已解決」。{zh-cn}，但自动防御战斗无法开始。请手动解决，然后按“战斗已解决”。{ko}. 자동 방어 전투를 시작할 수 없습니다. 수동으로 해결한 뒤 전투 해결 완료를 클릭하십시오.{es}, pero no pudo iniciarse el combate defensivo automático. Resuélvelo manualmente y haz clic en Combate resuelto.{fr}, mais le combat défensif automatique n’a pas pu commencer. Résolvez-le manuellement, puis cliquez sur Combat résolu.{pt-br}, mas o combate defensivo automático não pôde começar. Resolva-o manualmente e clique em Combate resolvido.{de}, aber der automatische Verteidigungskampf konnte nicht gestartet werden. Handle ihn manuell ab und klicke anschließend auf Kampf beendet."})
 			apocalypseDragonMainUIRefresh()
 			mainUIUpdate("Fury Dragon Combat Fallback")
 			return
@@ -18516,7 +18714,7 @@ furyDragonBeginInFlightTurn=function()
 		local result=furyDragonResolveArrivalEffect(target,currentHex,currentMapObjects)
 		furyDragonCompleteTurn(result)
 	end)
-	if started~=true then return furyDragonCompleteTurn("The Apocalypse Dragon could not begin its landing move.") end
+	if started~=true then return furyDragonCompleteTurn("{en}The Apocalypse Dragon could not begin its landing move.{it}Il Drago dell'Apocalisse non ha potuto iniziare il movimento di atterraggio.{ru}Дракон Апокалипсиса не смог начать движение для приземления.{zh-tw}末日巨龍無法開始著陸移動。{zh-cn}末日巨龙无法开始着陆移动。{ko}아포칼립스 드래곤이 착륙 이동을 시작하지 못했습니다.{es}El Dragón del Apocalipsis no pudo iniciar su movimiento de aterrizaje.{fr}Le Dragon de l’Apocalypse n’a pas pu commencer son mouvement d’atterrissage.{pt-br}O Dragão do Apocalipse não conseguiu iniciar seu movimento de pouso.{de}Der Apokalypse-Drache konnte seine Landebewegung nicht beginnen.") end
 	return true
 end
 
@@ -22429,6 +22627,12 @@ function attackLocation(playerDud, mouseButton, id)
 					--player decides which fight they actually want. Adventure Site combat cannot pull in
 					--neighbouring enemies, so once that fight starts always follow its enemies to the board.
 					local sameHexAttack=id:sub(1,6)=="Attack"
+					--A previously displayed attack button may still be clicked after a team change.
+					--An allied conquered Keep is usable, but cannot be assaulted.
+					if sameHexAttack and player.avatarLocation=="keep" then
+						local keepPosition=mageKnightAvatarPositionByName(player.mage)
+						if mageKnightAlliedKeepOccupied(player.seatPos,keepPosition) then return end
+					end
 					local adventureSiteAttack=sameHexAttack and ({["monster den"]=true,["spawning grounds"]=true,maze=true,labyrinth=true,ruin=true,dungeon=true,tomb=true,ziggurat=true,pyramid=true,monastery=true})[player.avatarLocation]==true
 					local nearbyRampagerChoice=sameHexAttack and adventureSiteAttack~=true and combatNearbyRampagerChoice(playerIndex)
 					combatCameraChoiceSuppressedPlayer=adventureSiteAttack~=true and (combatAttackOptionCount(playerIndex)>1 or nearbyRampagerChoice==true) and playerIndex or nil
@@ -25784,7 +25988,7 @@ local mirrorFaceWaitID={}
 local mirrorSourceRefreshWait=nil
 local mirrorManualRandomize={}
 local mirrorRepositionIgnore={}
-local spentMirrorDice={}
+local spentSourceDice={}
 
 --Temporarily raise the Source fences while mana dice are being randomized so rolling dice stay contained.
 local sourceRandomizeFences={{"7e09c6",7.40},{"0a7c95",3.60},{"ec49dd",7.40},{"c17ca2",3.60}}
@@ -25960,6 +26164,22 @@ function mirrorSourceUpdate(from)
 	local spareDice=getObjectFromGUID(GUID.bag.spareDice)
 	if sourceZone==nil or spareDice==nil then return end
 	local sourceDice,colorRotate,separate=mirrorSourceState(sourceZone)
+	--A die physically taken from the real Source remains a valid shared-Source die if the player
+	--changes their mind and returns it through a mirror. Track real-Source removals here as well as
+	--mirror removals, and clear the marker whenever that exact physical die is back in the real Source.
+	local currentSourceGUIDs={}
+	for _, die in ipairs(sourceDice) do
+		currentSourceGUIDs[die.manaDie]=true
+		spentSourceDice[die.manaDie]=nil
+	end
+	if gStates.manaSource~=nil then
+		for _, previousDie in pairs(gStates.manaSource) do
+			local previousGUID=previousDie.manaDie
+			if previousGUID~=nil and currentSourceGUIDs[previousGUID]~=true and getObjectFromGUID(previousGUID)~=nil then
+				spentSourceDice[previousGUID]=true
+			end
+		end
+	end
 	--The normal fast path: same Source GUIDs, so only update/re-sort the existing physical copies.
 	if mirrorSourceSyncExisting(sourceDice,colorRotate,separate)==true then return end
 
@@ -26076,10 +26296,12 @@ function diceResting(dice, state)
 	if state=="enter" and mirrorSpawnEnterIgnore[dice.guid]==true then return end
 	if exitWaitID[dice.guid]~=nil then Wait.stop(exitWaitID[dice.guid]) exitWaitID[dice.guid]=nil end
 	local sourceGUID=gStates.manaMirror~=nil and gStates.manaMirror[dice.guid] or nil
-	--Only a die that actually spent a mirrored Source entry may be returned here. Other dice can
-	--touch the collision surface without being destroyed or creating a new real Source die.
+	--Only a die that was actually taken from either physical view of the shared Source may be
+	--returned here. A freshly removed real-Source die can still be present in gStates.manaSource
+	--until the structural refresh runs, so accept either that identity or the runtime spent marker.
 	if sourceGUID==nil then
-		if state~="enter" or spentMirrorDice[dice.guid]~=true then return end
+		local returningSourceDie=spentSourceDice[dice.guid]==true or manaSourceDieGUID(dice.guid)==true
+		if state~="enter" or returningSourceDie~=true then return end
 		local diceGUID=dice.guid
 		local function returnDieToSource()
 			exitWaitID[diceGUID]=nil
@@ -26087,7 +26309,7 @@ function diceResting(dice, state)
 			local spareDice=getObjectFromGUID(GUID.bag.spareDice)
 			if currentDice==nil or spareDice==nil then return end
 			local returnedSource=spareDice.takeObject({position={-12.5+(math.random()*7), 1.5 , -24.0+(math.random()*3.5)}, rotation=currentDice.getRotation(), smooth=false})--Mana Dice Container
-			spentMirrorDice[diceGUID]=nil
+			spentSourceDice[diceGUID]=nil
 			scheduleReturnedSourceMirror(returnedSource)
 			pulseSourceRandomizeFences()
 			currentDice.destruct()
@@ -26116,7 +26338,7 @@ function diceResting(dice, state)
 		if state=="exit" then
 			local source=getObjectFromGUID(sourceGUID)
 			if source~=nil then source.destruct() end
-			spentMirrorDice[diceGUID]=true
+			spentSourceDice[diceGUID]=true
 			gStates.manaMirror[diceGUID]=nil
 			mirrorSourceClaim[sourceGUID]=nil
 		else--Returned/changed a die while still on a mirrored Source.
@@ -28908,7 +29130,10 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 									end
 										if avatarToTileDistSquared<1 then
 										--work with Shields
-										if isShieldObject(terrain) and volkarePursuitShieldRegistered(terrain)~=true and ((shieldOwner(terrain)==playerDetails.mage and (gStates.coop==0 or gStates.WarOfFourComp==true)) or (gStates.coop==1 and gStates.WarOfFourComp~=true)) then
+										if isShieldObject(terrain) and volkarePursuitShieldRegistered(terrain)~=true and
+											((gStates.coop==1 and gStates.WarOfFourComp~=true)
+											or (shieldOwner(terrain)==playerDetails.mage and (gStates.coop==0 or gStates.WarOfFourComp==true))
+											or (gStates.coop==0 and mageKnightShieldOwnerAllied(playerDetails.seatPos,shieldOwner(terrain)))) then
 											keepShieldMatch[keepSearch]["keepShield"]=true
 											if keepShieldMatch[keepSearch]["keep"]==true then keepFound=true end
 										end
@@ -29007,7 +29232,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						local target=dropped_object.getPosition()
 						assaultTargetPosition={target[1],target[2],target[3]}
 						againstHorsemenBeginGladeAssault(gStates.turnNumber,assaultApproachOrigin)
-					elseif attackedLocation~=nil then
+					elseif attackedLocation~=nil and not (playerDetails.avatarLocation=="keep" and mageKnightAlliedKeepOccupied(playerDetails.seatPos,dropped_object.getPosition())) then
 						--Keep the actual hex this assault location was entered from. Long moves are deliberately
 						--left ambiguous so the wall interface can ask which side was used.
 						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then assaultApproachOrigin={playerPickedUpPos[1], playerPickedUpPos[2], playerPickedUpPos[3]} end
@@ -38498,6 +38723,9 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 					gStates.megapolis=math.random(0,megapolisMaximum)
 					ensureSetupMegapolisMinimumLevels()
 				end
+				--Roll scenario variants last so Megapolis correctly excludes Dragon as a City.
+				--The setup menu Random button uses this same helper and eligibility rules.
+				randomizeScenarioVariants()
 			end
 		end
 
@@ -38960,6 +39188,7 @@ local function finalizeSetup()
 	end
 	addAvatarButtons()
 	applyColorBarButtons()
+	syncMageKnightSeatTeams()
 	refreshPlayerSeatColors()
 	refreshDeedOfferAdjustUI()
 	--record data
@@ -43928,6 +44157,27 @@ function DisplayHelp(player, mouseButton, id)
 		end
 		if gStates.volkareCampAsCity==true then gameReminderText=joinLang({gameReminderText, "{en}\nVolkare's Camp as a City Variant{it}\nVariante Accampamento di Volkare come Città{ru}\nЛагерь Волкара как возможный город{zh-tw}\n沃卡里军营作为城市{zh-cn}\n沃卡里军营作为城市{ko}\n볼케어 진형을 도시 중 하나로 추가{es}\nEl Campamento de Volkare como Variante de la Ciudad{fr}\nLe camp de Volkare Comme Variante de la Ville{pt-br}\nVariante Acampamento de Volkare como uma Cidade{de}\nVolkare's Camp als Stadtvariante"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.randomCities==true then gameReminderText=joinLang({gameReminderText, "{en}\nRandom Cities Variant{it}\nVariante Città Casuali{ru}\nСлучайные города{zh-tw}\n随机城市{zh-cn}\n随机城市{ko}\n무작위의 도시들{es}\nVariante de ciudades Aleatorias{fr}\nVariante de Villes Aléatoires{pt-br}\nVariante Cidades Aleatórias{de}\nZufallsstädte-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
+		--Only list scenario variants that are active, matching the other in-game reminders.
+		local dragonCityMode=math.floor(tonumber(gStates.apocalypseDragonCityMode) or 0)
+		if dragonCityMode==1 then
+			gameReminderText=joinLang({gameReminderText,"{en}\nApocalypse Dragon as a City - Last City{it}\nDrago dell'Apocalisse come Città - Ultima Città{ru}\nДракон Апокалипсиса вместо города — Последний город{zh-tw}\n末日巨龍取代城市 - 最後城市{zh-cn}\n末日巨龙取代城市 - 最后城市{ko}\n아포칼립스 드래곤이 도시 대체 - 마지막 도시{es}\nDragón del Apocalipsis como Ciudad - Última Ciudad{fr}\nDragon de l'Apocalypse comme Cité - Dernière Cité{pt-br}\nDragão do Apocalipse como Cidade - Última Cidade{de}\nApokalypse-Drache als Stadt - Letzte Stadt"})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		elseif dragonCityMode==2 then
+			gameReminderText=joinLang({gameReminderText,"{en}\nApocalypse Dragon as a City - Random City{it}\nDrago dell'Apocalisse come Città - Città Casuale{ru}\nДракон Апокалипсиса вместо города — Случайный город{zh-tw}\n末日巨龍取代城市 - 隨機城市{zh-cn}\n末日巨龙取代城市 - 随机城市{ko}\n아포칼립스 드래곤이 도시 대체 - 무작위 도시{es}\nDragón del Apocalipsis como Ciudad - Ciudad Aleatoria{fr}\nDragon de l'Apocalypse comme Cité - Cité aléatoire{pt-br}\nDragão do Apocalipse como Cidade - Cidade Aleatória{de}\nApokalypse-Drache als Stadt - Zufällige Stadt"})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
+		if gStates.randomizedDragonHeads==true then
+			gameReminderText=joinLang({gameReminderText,"{en}\nRandom Dragon Heads Variant{it}\nVariante Teste Casuali del Drago{ru}\nВариант случайных голов Дракона{zh-tw}\n隨機龍首變體{zh-cn}\n随机龙首变体{ko}\n드래곤 머리 무작위 변형{es}\nVariante de Cabezas Aleatorias del Dragón{fr}\nVariante des têtes aléatoires du Dragon{pt-br}\nVariante Cabeças Aleatórias do Dragão{de}\nDrachenköpfe-Zufallsvariante"})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
+		if gStates.horsemenHorses==true then
+			gameReminderText=joinLang({gameReminderText,"{en}\nHorsemen's Horses Variant{it}\nVariante Cavalcature dei Cavalieri{ru}\nВариант с лошадьми Всадников{zh-tw}\n騎士戰馬變體{zh-cn}\n骑士战马变体{ko}\n기수들의 말 변형{es}\nVariante de Caballos de los Jinetes{fr}\nVariante des chevaux des Cavaliers{pt-br}\nVariante dos Cavalos dos Cavaleiros{de}\nReiterpferde-Variante"})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
+		if gStates.removeFactionRewards==true then
+			gameReminderText=joinLang({gameReminderText,"{en}\nFaction Rewards Removed{it}\nRicompense di Fazione Rimosse{ru}\nНаграды фракций убраны{zh-tw}\n已移除派系獎勵{zh-cn}\n已移除派系奖励{ko}\n세력 보상 제거됨{es}\nRecompensas de Facción Eliminadas{fr}\nRécompenses de faction retirées{pt-br}\nRecompensas de Facção Removidas{de}\nFraktionsbelohnungen entfernt"})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
 		if gStates.startAtNight==true then gameReminderText=joinLang({gameReminderText, "{en}\nStart at Night Variant{it}\nVariante Inizia di Notte{ru}\nНочное прибытие{zh-tw}\n黑夜降临{zh-cn}\n黑夜降临{ko}\n야간 도착{es}\nComience en la Variante Nocturna{fr}\nVariante de Démarrage de Nuit{pt-br}\nVariante Início a Noite{de}\nStart bei Nacht Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.darknessComing==true then
 			if gStates.dayRound==true then gameReminderText=joinLang({gameReminderText, "{en}\nDarkness is Coming Variant{it}\nVariante Arriva l'Oscurità{ru}\nНадвигается тьма{zh-tw}\n黑夜侵袭{zh-cn}\n黑夜侵袭{ko}\n어둠의 도래{es}\nLa oscuridad se Acerca Variante{fr}\nVariante des Ténèbres à Venir{pt-br}\nVariante Trevas estão Vindo{de}\nDunkelheit kommt Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
@@ -44483,6 +44733,22 @@ function applyScenarioSetupDefaults(scenarioName)
 	return gStates.gameScenario==requested
 end
 
+--Shared by the setup menu Random button and Mystery Solo; roll after other
+--options (especially Megapolis) so unavailable variants remain off.
+function randomizeScenarioVariants()
+	if apocalypseDragonCityVariantSelectable()==true then
+		--Off / Last City / Random City are equally likely for eligible City scenarios.
+		gStates.apocalypseDragonCityMode=math.random(0,2)
+	else
+		gStates.apocalypseDragonCityMode=0
+	end
+	local dragonAvailable=scenarioUsesApocalypseDragon()==true or gStates.apocalypseDragonCityMode>0
+	gStates.randomizedDragonHeads=dragonAvailable and math.random(1,10)>7 or false
+	gStates.horsemenHorses=scenarioUsesHorsemen()==true and math.random(1,10)>7 or false
+	--This also refreshes the small variant buttons without rebuilding the whole setup panel.
+	refreshScenarioEnemyLevelTweaks()
+end
+
 function randomSetup(player, value, id)
 	local value=scenarioList[math.random(2, #scenarioList-1)][1]
 	applyScenarioSetupDefaults(value)
@@ -44497,6 +44763,8 @@ function randomSetup(player, value, id)
 			optionsUpdate(nil, math.random(1,10)>7 and "True" or "False", randomOptions[a], true)
 		end
 	end
+	--Use the same scenario-only rolls as Mystery Solo, then render the final panel.
+	randomizeScenarioVariants()
 	if math.random(1,10)>7 then MoreRampageSelection(nil, "True", "MoreRampageSelection", true) end
 	if math.random(1,10)>7 then RampageSelection(nil, "True", "RampageSelection", true) end
 	--Do not let Interface Random bypass option lockouts (notably Hero Challenges vs Forgemasters).
