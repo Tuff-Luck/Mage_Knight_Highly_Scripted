@@ -190,6 +190,27 @@ function DisplayHelp(player, mouseButton, id)
 		end
 		if gStates.volkareCampAsCity==true then gameReminderText=joinLang({gameReminderText, "{en}\nVolkare's Camp as a City Variant{it}\nVariante Accampamento di Volkare come Città{ru}\nЛагерь Волкара как возможный город{zh-tw}\n沃卡里军营作为城市{zh-cn}\n沃卡里军营作为城市{ko}\n볼케어 진형을 도시 중 하나로 추가{es}\nEl Campamento de Volkare como Variante de la Ciudad{fr}\nLe camp de Volkare Comme Variante de la Ville{pt-br}\nVariante Acampamento de Volkare como uma Cidade{de}\nVolkare's Camp als Stadtvariante"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.randomCities==true then gameReminderText=joinLang({gameReminderText, "{en}\nRandom Cities Variant{it}\nVariante Città Casuali{ru}\nСлучайные города{zh-tw}\n随机城市{zh-cn}\n随机城市{ko}\n무작위의 도시들{es}\nVariante de ciudades Aleatorias{fr}\nVariante de Villes Aléatoires{pt-br}\nVariante Cidades Aleatórias{de}\nZufallsstädte-Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
+		--Only list scenario variants that are active, matching the other in-game reminders.
+		local dragonCityMode=math.floor(tonumber(gStates.apocalypseDragonCityMode) or 0)
+		if dragonCityMode==1 then
+			gameReminderText=joinLang({gameReminderText,"{en}\nApocalypse Dragon as a City - Last City{it}\nDrago dell'Apocalisse come Città - Ultima Città{ru}\nДракон Апокалипсиса вместо города — Последний город{zh-tw}\n末日巨龍取代城市 - 最後城市{zh-cn}\n末日巨龙取代城市 - 最后城市{ko}\n아포칼립스 드래곤이 도시 대체 - 마지막 도시{es}\nDragón del Apocalipsis como Ciudad - Última Ciudad{fr}\nDragon de l'Apocalypse comme Cité - Dernière Cité{pt-br}\nDragão do Apocalipse como Cidade - Última Cidade{de}\nApokalypse-Drache als Stadt - Letzte Stadt"})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		elseif dragonCityMode==2 then
+			gameReminderText=joinLang({gameReminderText,"{en}\nApocalypse Dragon as a City - Random City{it}\nDrago dell'Apocalisse come Città - Città Casuale{ru}\nДракон Апокалипсиса вместо города — Случайный город{zh-tw}\n末日巨龍取代城市 - 隨機城市{zh-cn}\n末日巨龙取代城市 - 随机城市{ko}\n아포칼립스 드래곤이 도시 대체 - 무작위 도시{es}\nDragón del Apocalipsis como Ciudad - Ciudad Aleatoria{fr}\nDragon de l'Apocalypse comme Cité - Cité aléatoire{pt-br}\nDragão do Apocalipse como Cidade - Cidade Aleatória{de}\nApokalypse-Drache als Stadt - Zufällige Stadt"})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
+		if gStates.randomizedDragonHeads==true then
+			gameReminderText=joinLang({gameReminderText,"{en}\nRandom Dragon Heads Variant{it}\nVariante Teste Casuali del Drago{ru}\nВариант случайных голов Дракона{zh-tw}\n隨機龍首變體{zh-cn}\n随机龙首变体{ko}\n드래곤 머리 무작위 변형{es}\nVariante de Cabezas Aleatorias del Dragón{fr}\nVariante des têtes aléatoires du Dragon{pt-br}\nVariante Cabeças Aleatórias do Dragão{de}\nDrachenköpfe-Zufallsvariante"})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
+		if gStates.horsemenHorses==true then
+			gameReminderText=joinLang({gameReminderText,"{en}\nHorsemen's Horses Variant{it}\nVariante Cavalcature dei Cavalieri{ru}\nВариант с лошадьми Всадников{zh-tw}\n騎士戰馬變體{zh-cn}\n骑士战马变体{ko}\n기수들의 말 변형{es}\nVariante de Caballos de los Jinetes{fr}\nVariante des chevaux des Cavaliers{pt-br}\nVariante dos Cavalos dos Cavaleiros{de}\nReiterpferde-Variante"})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
+		if gStates.removeFactionRewards==true then
+			gameReminderText=joinLang({gameReminderText,"{en}\nFaction Rewards Removed{it}\nRicompense di Fazione Rimosse{ru}\nНаграды фракций убраны{zh-tw}\n已移除派系獎勵{zh-cn}\n已移除派系奖励{ko}\n세력 보상 제거됨{es}\nRecompensas de Facción Eliminadas{fr}\nRécompenses de faction retirées{pt-br}\nRecompensas de Facção Removidas{de}\nFraktionsbelohnungen entfernt"})
+			gameReminderHeight=gameReminderHeight+lineFeed
+		end
 		if gStates.startAtNight==true then gameReminderText=joinLang({gameReminderText, "{en}\nStart at Night Variant{it}\nVariante Inizia di Notte{ru}\nНочное прибытие{zh-tw}\n黑夜降临{zh-cn}\n黑夜降临{ko}\n야간 도착{es}\nComience en la Variante Nocturna{fr}\nVariante de Démarrage de Nuit{pt-br}\nVariante Início a Noite{de}\nStart bei Nacht Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
 		if gStates.darknessComing==true then
 			if gStates.dayRound==true then gameReminderText=joinLang({gameReminderText, "{en}\nDarkness is Coming Variant{it}\nVariante Arriva l'Oscurità{ru}\nНадвигается тьма{zh-tw}\n黑夜侵袭{zh-cn}\n黑夜侵袭{ko}\n어둠의 도래{es}\nLa oscuridad se Acerca Variante{fr}\nVariante des Ténèbres à Venir{pt-br}\nVariante Trevas estão Vindo{de}\nDunkelheit kommt Variante"}) gameReminderHeight=gameReminderHeight+lineFeed end
