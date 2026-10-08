@@ -1748,7 +1748,7 @@ function addAvatarButtons()
 						or (((player.avatarLocation=="dungeon" or player.avatarLocation=="tomb") and dungeonLordsConqueredSite~=true)
 							or player.avatarLocation=="hidden valley"
 							or player.avatarLocation=="necropolis"
-							or (player.avatarLocation=="keep"
+							or (player.avatarLocation=="keep" and mageKnightAlliedKeepOccupied(player.seatPos,avPos)==false
 								and (((mageShield==nil or mageShield[details.mage]==nil)
 								and (gStates.coop==0 or gStates.WarOfFourComp==true))
 									or (mageShield==nil and gStates.coop==1 and gStates.WarOfFourComp~=true)))
