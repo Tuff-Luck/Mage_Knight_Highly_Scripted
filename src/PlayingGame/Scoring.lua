@@ -276,6 +276,9 @@ end
 
 function displayScore(player, mouseButton, id)
 	if mouseButton=="-1" then
+		-- Scoring may temporarily arrange presentation columns, but never change turn order.
+		local originalTurnOrder={}
+		for index,details in ipairs(turnOrder) do originalTurnOrder[index]=details end
 		--Count all objects required for scoring
 		local seatRecord=5
 		for a=1, #turnOrder, 1 do
@@ -1554,7 +1557,7 @@ function displayScore(player, mouseButton, id)
 			details._scoreTeamName=nil
 			details._scoreGroupOrder=nil
 		end
-		table.sort(turnOrder, function (k1, k2) return k1.tactic<k2.tactic end)
+		for index,details in ipairs(originalTurnOrder) do turnOrder[index]=details end
 	end
 end
 
