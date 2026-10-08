@@ -23,7 +23,7 @@ local mirrorFaceWaitID={}
 local mirrorSourceRefreshWait=nil
 local mirrorManualRandomize={}
 local mirrorRepositionIgnore={}
-local spentMirrorDice={}
+local spentSourceDice={}
 
 --Temporarily raise the Source fences while mana dice are being randomized so rolling dice stay contained.
 local sourceRandomizeFences={{"7e09c6",7.40},{"0a7c95",3.60},{"ec49dd",7.40},{"c17ca2",3.60}}
@@ -199,6 +199,22 @@ function mirrorSourceUpdate(from)
 	local spareDice=getObjectFromGUID(GUID.bag.spareDice)
 	if sourceZone==nil or spareDice==nil then return end
 	local sourceDice,colorRotate,separate=mirrorSourceState(sourceZone)
+	--A die physically taken from the real Source remains a valid shared-Source die if the player
+	--changes their mind and returns it through a mirror. Track real-Source removals here as well as
+	--mirror removals, and clear the marker whenever that exact physical die is back in the real Source.
+	local currentSourceGUIDs={}
+	for _, die in ipairs(sourceDice) do
+		currentSourceGUIDs[die.manaDie]=true
+		spentSourceDice[die.manaDie]=nil
+	end
+	if gStates.manaSource~=nil then
+		for _, previousDie in pairs(gStates.manaSource) do
+			local previousGUID=previousDie.manaDie
+			if previousGUID~=nil and currentSourceGUIDs[previousGUID]~=true and getObjectFromGUID(previousGUID)~=nil then
+				spentSourceDice[previousGUID]=true
+			end
+		end
+	end
 	--The normal fast path: same Source GUIDs, so only update/re-sort the existing physical copies.
 	if mirrorSourceSyncExisting(sourceDice,colorRotate,separate)==true then return end
 
@@ -315,10 +331,12 @@ function diceResting(dice, state)
 	if state=="enter" and mirrorSpawnEnterIgnore[dice.guid]==true then return end
 	if exitWaitID[dice.guid]~=nil then Wait.stop(exitWaitID[dice.guid]) exitWaitID[dice.guid]=nil end
 	local sourceGUID=gStates.manaMirror~=nil and gStates.manaMirror[dice.guid] or nil
-	--Only a die that actually spent a mirrored Source entry may be returned here. Other dice can
-	--touch the collision surface without being destroyed or creating a new real Source die.
+	--Only a die that was actually taken from either physical view of the shared Source may be
+	--returned here. A freshly removed real-Source die can still be present in gStates.manaSource
+	--until the structural refresh runs, so accept either that identity or the runtime spent marker.
 	if sourceGUID==nil then
-		if state~="enter" or spentMirrorDice[dice.guid]~=true then return end
+		local returningSourceDie=spentSourceDice[dice.guid]==true or manaSourceDieGUID(dice.guid)==true
+		if state~="enter" or returningSourceDie~=true then return end
 		local diceGUID=dice.guid
 		local function returnDieToSource()
 			exitWaitID[diceGUID]=nil
@@ -326,7 +344,7 @@ function diceResting(dice, state)
 			local spareDice=getObjectFromGUID(GUID.bag.spareDice)
 			if currentDice==nil or spareDice==nil then return end
 			local returnedSource=spareDice.takeObject({position={-12.5+(math.random()*7), 1.5 , -24.0+(math.random()*3.5)}, rotation=currentDice.getRotation(), smooth=false})--Mana Dice Container
-			spentMirrorDice[diceGUID]=nil
+			spentSourceDice[diceGUID]=nil
 			scheduleReturnedSourceMirror(returnedSource)
 			pulseSourceRandomizeFences()
 			currentDice.destruct()
@@ -355,7 +373,7 @@ function diceResting(dice, state)
 		if state=="exit" then
 			local source=getObjectFromGUID(sourceGUID)
 			if source~=nil then source.destruct() end
-			spentMirrorDice[diceGUID]=true
+			spentSourceDice[diceGUID]=true
 			gStates.manaMirror[diceGUID]=nil
 			mirrorSourceClaim[sourceGUID]=nil
 		else--Returned/changed a die while still on a mirrored Source.
