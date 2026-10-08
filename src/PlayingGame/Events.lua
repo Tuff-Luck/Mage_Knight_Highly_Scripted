@@ -312,6 +312,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		addAvatarButtons()
 		addCityButtons()
 		applyColorBarButtons()
+		syncMageKnightSeatTeams()
 		refreshPlayerSeatColors()
 		for _, mirrorGUID in pairs(gStates.mirrorSource or {}) do
 			local mirrorObj=getObjectFromGUID(mirrorGUID)
@@ -1839,11 +1840,13 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
 end
 
 function __onPlayerConnect_raw(player)
+	syncMageKnightSeatTeams()
 	--Late joiners/color changes can lose Global UI visibility. Reassert the current runtime filters only.
 	safeWaitFrames("Events",function() reassertGlobalUIVisibility() end,2)
 end
 
 function __onPlayerChangeColor_raw(color)
+	syncMageKnightSeatTeams()
 	if gStates.firstStarted==true then
 		refreshPlayerSeatColors()
 		outOfTurnUIStateKey=nil
