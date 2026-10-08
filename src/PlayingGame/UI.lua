@@ -1,3 +1,6 @@
+-- UI directly depends on the authoritative seat-team helpers; keep the dependency in the module so incremental bundles cannot omit it.
+require("PlayingGame.Teams")
+
 -- Module-private helpers. Predeclared so forward references keep resolving locally.
 local refreshPlayAreaCardScale, automatedAttackResponseButton, automatedPanelHasDeedCards, automatedPanelEndRoundText, automatedDummyPanelSpec
 local automatedVolkarePanelSpec, automatedCurrentPlayerPanelSpec, avatarButtonBucketKey, avatarButtonNearbyObjects, avatarButtonXmlSignature
