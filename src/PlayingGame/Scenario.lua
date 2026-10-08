@@ -367,8 +367,12 @@ function oneToReturnLockFinalWinner()
 	local team=mageKnightSeatTeam(winner.seatPos)
 	gStates.oneToReturnWinner=(not teamVariant or gStates.oneToReturnChosenMages[team]==winner.mage) and winner.mage or nil
 	gStates.oneToReturnWinnerLocked=true
-	broadcastToAll(joinLang({translateWord[winner.mage], "{en} occupies the Portal as End of Night is announced and is the One to Return. Player vs. Player combat may not be initiated after End of Night is called.{it} occupa il Portale all'annuncio della fine della Notte ed è l'Unico a Tornare. Dopo l'annuncio non si possono iniziare combattimenti tra giocatori.{ru} занимает Портал в момент объявления конца Ночи и становится Единственным, кто вернется. После объявления конца Ночи нельзя начинать бой между игроками.{zh-tw} 在宣告黑夜輪結束時佔據傳送門，成為唯一能返回的英雄。宣告黑夜輪結束後不能再發起玩家對玩家戰鬥。{zh-cn} 在宣布黑夜轮结束时占据传送门，成为唯一能返回的英雄。宣布黑夜轮结束后不能再发起玩家对玩家战斗。{ko} 밤 종료가 선언될 때 포탈을 차지하고 있어 돌아갈 단 한 명의 영웅이 됩니다. 밤 종료 선언 후에는 PvP 전투를 시작할 수 없습니다.{es} ocupa el Portal cuando se anuncia el Fin de la Noche y es el Único que Regresa. No se puede iniciar combate entre jugadores después de anunciar el Fin de la Noche.{fr} occupe le Portail lorsque la Fin de la Nuit est annoncée et devient l'Unique à Revenir. Aucun combat entre joueurs ne peut être initié après l'annonce de la Fin de la Nuit.{pt-br} ocupa o Portal quando o Fim da Noite é anunciado e é o Único a Retornar. Combate entre jogadores não pode ser iniciado depois que o Fim da Noite é anunciado.{de} besetzt das Portal, als das Ende der Nacht ausgerufen wird, und ist der Eine, der zurückkehrt. Nach dem Ausrufen des Nachtendes darf kein PvP-Kampf mehr begonnen werden."}), {1,1,0.5})
-	return true
+	if gStates.oneToReturnWinner==nil then
+		broadcastToAll("{en}A Hero occupies the Portal, but they are not the chosen member of their team. No team wins.{it}Un eroe occupa il Portale, ma non è il prescelto della sua squadra. Nessuna squadra vince.{ru}Герой занял Портал, но он не избранный участник команды. Победителей нет.{zh-tw}傳送門有人佔據，但不是該隊選定的英雄。無隊伍獲勝。{zh-cn}传送门有人占据，但不是该队选定的英雄。无队伍获胜。{ko}포털에 영웅이 있지만 팀의 선택된 영웅이 아닙니다. 승자는 없습니다.{es}Un héroe ocupa el Portal, pero no es el elegido de su equipo. Ningún equipo gana.{fr}Un héros occupe le Portail, mais ce n'est pas l'élu de son équipe. Aucune équipe ne gagne.{pt-br}Um herói ocupa o Portal, mas não é o escolhido de sua equipe. Nenhuma equipe vence.{de}Ein Held besetzt das Portal, aber nicht der Auserwählte seines Teams. Kein Team gewinnt.",{1,1,0.5})
+	else
+		broadcastToAll(joinLang({translateWord[winner.mage], "{en} occupies the Portal as End of Night is announced and is the One to Return. Player vs. Player combat may not be initiated after End of Night is called.{it} occupa il Portale all'annuncio della fine della Notte ed è l'Unico a Tornare. Dopo l'annuncio non si possono iniziare combattimenti tra giocatori.{ru} занимает Портал в момент объявления конца Ночи и становится Единственным, кто вернется. После объявления конца Ночи нельзя начинать бой между игроками.{zh-tw} 在宣告黑夜輪結束時佔據傳送門，成為唯一能返回的英雄。宣告黑夜輪結束後不能再發起玩家對玩家戰鬥。{zh-cn} 在宣布黑夜轮结束时占据传送门，成为唯一能返回的英雄。宣布黑夜轮结束后不能再发起玩家对玩家战斗。{ko} 밤 종료가 선언될 때 포탈을 차지하고 있어 돌아갈 단 한 명의 영웅이 됩니다. 밤 종료 선언 후에는 PvP 전투를 시작할 수 없습니다.{es} ocupa el Portal cuando se anuncia el Fin de la Noche y es el Único que Regresa. No se puede iniciar combate entre jugadores después de anunciar el Fin de la Noche.{fr} occupe le Portail lorsque la Fin de la Nuit est annoncée et devient l'Unique à Revenir. Aucun combat entre joueurs ne peut être initié après l'annonce de la Fin de la Nuit.{pt-br} ocupa o Portal quando o Fim da Noite é anunciado e é o Único a Retornar. Combate entre jogadores não pode ser iniciado depois que o Fim da Noite é anunciado.{de} besetzt das Portal, als das Ende der Nacht ausgerufen wird, und ist der Eine, der zurückkehrt. Nach dem Ausrufen des Nachtendes darf kein PvP-Kampf mehr begonnen werden."}), {1,1,0.5})
+	end
+	return gStates.oneToReturnWinner~=nil
 end
 
 function oneToReturnResolveWinner()
@@ -377,7 +381,11 @@ function oneToReturnResolveWinner()
 	local winnerMage=gStates.oneToReturnWinnerLocked==true and gStates.oneToReturnWinner or nil
 	if winnerMage==nil and gStates.oneToReturnWinnerLocked~=true then
 		local _,winner=oneToReturnPortalOccupant()
-		if winner~=nil then winnerMage=winner.mage end
+		if winner~=nil then
+			local chosen=gStates.oneToReturnChosenMages
+			local team=mageKnightSeatTeam(winner.seatPos)
+			if chosen==nil or chosen[team]==winner.mage then winnerMage=winner.mage end
+		end
 	end
 	gStates.oneToReturnWinner=winnerMage
 	if winnerMage~=nil then
