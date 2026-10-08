@@ -327,6 +327,9 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 					gStates.megapolis=math.random(0,megapolisMaximum)
 					ensureSetupMegapolisMinimumLevels()
 				end
+				--Roll scenario variants last so Megapolis correctly excludes Dragon as a City.
+				--The setup menu Random button uses this same helper and eligibility rules.
+				randomizeScenarioVariants()
 			end
 		end
 
