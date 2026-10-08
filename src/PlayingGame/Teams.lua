@@ -2,6 +2,15 @@
 -- Zero means No Team. TTS suits are a presentation mirror, never the source of truth.
 local TEAM_SUITS={"None","Hearts","Diamonds","Clubs","Spades"}
 
+local function notifyBlackMageKnightTeamChange(seatPos,team)
+    local black=Player["Black"]
+    if black==nil or black.seated~=true then return end
+    local teamText=team==0
+        and "{en}No Team{it}Nessuna Squadra{ru}Без команды{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}Sin equipo{fr}Sans équipe{pt-br}Sem equipe{de}Kein Team"
+        or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
+    broadcastToColor(joinLang({"{en}Seat {it}Postazione {ru}Место {zh-tw}座位 {zh-cn}座位 {ko}좌석 {es}Asiento {fr}Place {pt-br}Assento {de}Sitz ",seatPos,": ",teamText}),"Black",{1,1,0.5})
+end
+
 function mageKnightSeatTeam(seatPos)
     local teams=gStates and gStates.seatTeams
     local team=teams and teams[seatPos] or 0
@@ -33,9 +42,11 @@ function cycleMageKnightSeatTeam(player,mouseButton,id)
     if not authorized then authorized=gStates.handColors[player.color]==seatPos end
     if not authorized then return end
     gStates.seatTeams=gStates.seatTeams or {}
-    gStates.seatTeams[seatPos]=(mageKnightSeatTeam(seatPos)+1)%5
+    local team=(mageKnightSeatTeam(seatPos)+1)%5
+    gStates.seatTeams[seatPos]=team
     syncMageKnightSeatTeams()
     applyColorBarButtons()
+    notifyBlackMageKnightTeamChange(seatPos,team)
     -- An alliance change can immediately add or remove a Keep assault action.
     if gStates.firstStarted==true then addAvatarButtons() end
 end

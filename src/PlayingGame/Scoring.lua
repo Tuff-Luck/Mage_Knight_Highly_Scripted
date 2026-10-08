@@ -211,7 +211,17 @@ local function scoringArrangeTtsTeams()
 			details._scoreTeamName=nil
 		end
 	end
-	table.sort(groups,function(a,b) return a.minSeat<b.minSeat end)
+	table.sort(groups,function(a,b)
+		--Numbered teams own the scoreboard order; keep members of each team in seat order.
+		if a.team~=nil and b.team~=nil then
+			if a.team~=b.team then return a.team<b.team end
+		elseif a.team~=nil then
+			return true
+		elseif b.team~=nil then
+			return false
+		end
+		return a.minSeat<b.minSeat
+	end)
 	for groupOrder,group in ipairs(groups) do
 		group.order=groupOrder
 		for _,details in ipairs(turnOrder) do
