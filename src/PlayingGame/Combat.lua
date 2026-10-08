@@ -524,7 +524,15 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	if monsterData.pugType=="yellow" and monsterData.fame>0 then gStates.crytalRuin=true end
 	local cleanupLocation=turnOrder[cleanupPlayer].avatarLocation or ""
 	local avatarPos=context.avatarPos or {}
-	if playAreaObj.is_face_down==false and gStates.druidNightsSummon==nil and
+	local suppressConquerHoldSiteShield=false
+	local holdAssault=gStates.conquerHoldAssault
+	if holdAssault~=nil and holdAssault.mage==turnOrder[cleanupPlayer].mage and holdAssault.site==cleanupLocation and holdAssault.monsters[monsterGUID]==true then
+		if playAreaObj.is_face_down==false then holdAssault.defeated[monsterGUID]=true end
+		local conquered=0
+		for _,yes in pairs(holdAssault.defeated) do if yes then conquered=conquered+1 end end
+		suppressConquerHoldSiteShield=conquered<holdAssault.expected
+	end
+	if playAreaObj.is_face_down==false and not suppressConquerHoldSiteShield and gStates.druidNightsSummon==nil and
 		(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[monsterGUID]~=true) and (
 		(monsterData.pugType=="gray" and cleanupLocation=="keep") or
 		(monsterData.pugType=="yellow" and cleanupLocation=="ruin") or
@@ -543,7 +551,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 					local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
 					if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shieldPos[1]-avatarPos[1])^2)+((shieldPos[3]-avatarPos[3])^2))<1 then
 						shieldExists=true
-						if cleanupLocation=="keep" and shieldOwner(shield)~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
+						if (cleanupLocation=="keep" or (cleanupLocation=="mage tower" and gStates.gameScenario=="Conquer and Hold")) and shieldOwner(shield)~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
 						if cleanupLocation=="dungeon" or cleanupLocation=="tomb" then gStates.shieldsDropped[shield.guid]=true end
 						break
 					end
@@ -2133,7 +2141,8 @@ function attackLocation(playerDud, mouseButton, id)
 									and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos) then
 									local pile=player.avatarLocation=="keep" and monsterPiles.gray or monsterPiles.purple
 									local number=gStates.currentRound>=3 and gStates.playerCount==2 and 3 or (gStates.currentRound>=2 and 2 or 1)
-									for counter=1,number do drawMonster(pile,player,id) end
+									gStates.conquerHoldAssault={mage=player.mage,site=player.avatarLocation,expected=number,monsters={},defeated={}}
+									for counter=1,number do drawMonster(pile,player,"ConquerHoldOwned") end
 								end
 								if player.avatarLocation=="keep" and id:sub(1, 6)=="Attack" then
 									local found=false
@@ -2258,6 +2267,9 @@ function drawMonster(color, player, id, possessedFaction)
 		end
 		local monsterDrawn=pile.takeObject({position={(player.seatPos*40)-96+gStates.monsterOffsetX,2.5,-39-gStates.monsterOffsetZ},rotation={0.00,180.00,0.00}})
 		if monsterDrawn==nil then return end
+		if drawID=="ConquerHoldOwned" and gStates.conquerHoldAssault~=nil then
+			gStates.conquerHoldAssault.monsters[monsterDrawn.guid]=true
+		end
 		if color==monsterPiles.possessed and possessedFaction~=nil then
 			if gStates.apocalypsePossessedFactionByToken==nil then gStates.apocalypsePossessedFactionByToken={} end
 			gStates.apocalypsePossessedFactionByToken[monsterDrawn.guid]=possessedFaction
