@@ -1742,7 +1742,7 @@ function addAvatarButtons()
 					local specialActionY=100
 					--monster can be fought at avatar location
 					if gStates.preEndTurn==false and player.avatarLocation~=nil and order==gStates.turnNumber and player.combatIconHide=="None" and turnTokenFaceUp==true
-						and ((mageShield==nil and (player.avatarLocation=="mage tower"
+						and (((mageShield==nil or (gStates.gameScenario=="Conquer and Hold" and player.avatarLocation=="mage tower" and mageShield[details.mage]==nil and not mageKnightAlliedOwnedSiteAt(player.seatPos,avPos))) and (player.avatarLocation=="mage tower"
 							or player.avatarLocation=="monster den" or player.avatarLocation=="spawning grounds"
 							or (player.avatarLocation=="glade" and gStates.gameScenario=="Life and Death") or player.avatarLocation=="graveyard"
 							or (player.avatarLocation=="mine" and gStates.gameScenario=="Mines Liberation")
