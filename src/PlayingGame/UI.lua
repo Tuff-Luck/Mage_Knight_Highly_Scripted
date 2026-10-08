@@ -851,7 +851,7 @@ local function mainUIRefreshPlayerState(context)
 						if c==gStates.hiddenValleyKeep[1] or c==gStates.hiddenValleyKeep[2] then count=count+1 end
 					end
 					if count==2 then hiddenValleyKeep=true end
-					if cityRepLoss==false and
+					if cityRepLoss==false and gStates.gameScenario~="Conquer and Hold" and
 					   ((monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep") or
 						   (monsterPugs[obj.guid].pugType=="purple" and avatarLocation=="mage tower") or
 					   ((obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2]) and hiddenValleyKeep==false)) then
