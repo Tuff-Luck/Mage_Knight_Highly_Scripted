@@ -1720,7 +1720,7 @@ function addAvatarButtons()
 							children={{tag="Image", attributes={image="Marker Button "..details.mage}}}}
 					end
 					--Shield can be dropped
-					if player.avatarLocation~=nil and ((mageShield==nil and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower"
+					if player.avatarLocation~=nil and ((mageShield==nil and not (gStates.gameScenario=="Conquer and Hold" and mageKnightAlliedOwnedSiteAt(player.seatPos,avPos)) and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower"
 							or player.avatarLocation=="monastery" or player.avatarLocation=="ruin"
 							or ((player.avatarLocation=="dungeon" or player.avatarLocation=="tomb") and gStates.gameScenario~="Dungeon Lords")
 							or player.avatarLocation=="monster den" or player.avatarLocation=="spawning grounds"
