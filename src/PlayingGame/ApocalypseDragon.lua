@@ -1880,7 +1880,7 @@ function apocalypseDragonCompleteInterstitialTurn(text,source,clearPending)
 	if text~=nil then
 		gStates.apocalypseDragonTurnReport=text
 	elseif gStates.apocalypseDragonTurnReport==nil or gStates.apocalypseDragonTurnReport=="" then
-		gStates.apocalypseDragonTurnReport="The Apocalypse Dragon finished its turn."
+		gStates.apocalypseDragonTurnReport="{en}The Apocalypse Dragon finished its turn.{it}Il Drago dell'Apocalisse ha terminato il suo turno.{ru}Дракон Апокалипсиса завершил свой ход.{zh-tw}末日巨龍結束了回合。{zh-cn}末日巨龙结束了回合。{ko}아포칼립스 드래곤이 턴을 마쳤습니다.{es}El Dragón del Apocalipsis terminó su turno.{fr}Le Dragon de l’Apocalypse a terminé son tour.{pt-br}O Dragão do Apocalipse terminou seu turno.{de}Der Apokalypse-Drache hat seinen Zug beendet."
 	end
 	apocalypseDragonMainUIRefresh()
 	mainUIUpdate(source)
@@ -1903,7 +1903,7 @@ function apocalypseDragonMainUIPanelSpec()
 	local mainText=joinLang({"{en}<size=25>Apocalypse Dragon's Turn</size><size=6>\n\n</size><size=18>Round {it}<size=25>Turno del Drago dell'Apocalisse</size><size=6>\n\n</size><size=18>Round {ru}<size=25>Ход Дракона Апокалипсиса</size><size=6>\n\n</size><size=18>Раунд {zh-tw}<size=25>末日巨龍回合</size><size=6>\n\n</size><size=18>回合輪 {zh-cn}<size=25>末日巨龙回合</size><size=6>\n\n</size><size=18>回合轮 {ko}<size=25>아포칼립스 드래곤의 턴</size><size=6>\n\n</size><size=18>라운드 {es}<size=25>Turno del Dragón del Apocalipsis</size><size=6>\n\n</size><size=18>Ronda {fr}<size=25>Tour du Dragon de l'Apocalypse</size><size=6>\n\n</size><size=18>Manche {pt-br}<size=25>Turno do Dragão do Apocalipse</size><size=6>\n\n</size><size=18>Rodada {de}<size=25>Zug des Apokalypse-Drachen</size><size=6>\n\n</size><size=18>Runde ",tostring(gStates.currentRound or 1),"{en} - Dragon turn {it} - Turno Drago {ru} — ход Дракона {zh-tw}－巨龍回合 {zh-cn}－巨龙回合 {ko} - 드래곤 턴 {es} - turno del Dragón {fr} - tour du Dragon {pt-br} - turno do Dragão {de} - Drachenzug ",tostring(turnNumber),"</size><size=4>\n</size>"})
 	if pending~=nil then
 		if pending.phase=="choose" then
-			return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or "Resolve the Apocalypse Dragon attack.",onClick="apocalypseDragonProcessUI",label="{en}Resolve Dragon Attack{it}Risolvi Attacco del Drago{ru}Разрешите атаку Дракона{zh-tw}處理巨龍攻擊{zh-cn}处理巨龙攻击{ko}드래곤 공격 해결{es}Resolver Ataque del Dragón{fr}Résoudre l'Attaque du Dragon{pt-br}Resolver Ataque do Dragão{de}Drachenangriff abhandeln",interactable=false,responseSpec=againstDragonAttendanceResponseSpec()}
+			return {actor="dragon",mainText=mainText,notes=gStates.apocalypseDragonTurnReport or "{en}Resolve the Apocalypse Dragon attack.{it}Risolvi l'attacco del Drago dell'Apocalisse.{ru}Разрешите атаку Дракона Апокалипсиса.{zh-tw}處理末日巨龍的攻擊。{zh-cn}处理末日巨龙的攻击。{ko}아포칼립스 드래곤의 공격을 해결하십시오.{es}Resuelve el ataque del Dragón del Apocalipsis.{fr}Résolvez l’attaque du Dragon de l’Apocalypse.{pt-br}Resolva o ataque do Dragão do Apocalipse.{de}Wickle den Angriff des Apokalypse-Drachen ab.",onClick="apocalypseDragonProcessUI",label="{en}Resolve Dragon Attack{it}Risolvi Attacco del Drago{ru}Разрешите атаку Дракона{zh-tw}處理巨龍攻擊{zh-cn}处理巨龙攻击{ko}드래곤 공격 해결{es}Resolver Ataque del Dragón{fr}Résoudre l'Attaque du Dragon{pt-br}Resolver Ataque do Dragão{de}Drachenangriff abhandeln",interactable=false,responseSpec=againstDragonAttendanceResponseSpec()}
 		end
 		return {actor="dragon",panelActive=false}
 	end
@@ -1938,14 +1938,13 @@ function apocalypseDragonProcessUI(player,mouseButton,id)
 	local action=gStates.apocalypseDragonTurnAction
 	gStates.apocalypseDragonTurnReportPrefix=nil
 	if action=="attack" then
-		againstDragonSetTurnReport("The Apocalypse Dragon is determining which player to attack.","Processing")
+		againstDragonSetTurnReport("{en}The Apocalypse Dragon is determining which player to attack.{it}Il Drago dell'Apocalisse sta determinando quale giocatore attaccare.{ru}Дракон Апокалипсиса определяет, какого игрока атаковать.{zh-tw}末日巨龍正在決定要攻擊哪位玩家。{zh-cn}末日巨龙正在决定要攻击哪位玩家。{ko}아포칼립스 드래곤이 공격할 플레이어를 결정하고 있습니다.{es}El Dragón del Apocalipsis está determinando a qué jugador atacar.{fr}Le Dragon de l’Apocalypse détermine quel joueur attaquer.{pt-br}O Dragão do Apocalipse está determinando qual jogador atacar.{de}Der Apokalypse-Drache bestimmt, welchen Spieler er angreift.","Processing")
 		againstDragonBeginAttack()
 	elseif action=="destroy" then
-		againstDragonSetTurnReport("The Apocalypse Dragon is determining what it will destroy.","Processing")
+		againstDragonSetTurnReport("{en}The Apocalypse Dragon is determining what it will destroy.{it}Il Drago dell'Apocalisse sta determinando cosa distruggere.{ru}Дракон Апокалипсиса определяет, что уничтожить.{zh-tw}末日巨龍正在決定要摧毀什麼。{zh-cn}末日巨龙正在决定要摧毁什么。{ko}아포칼립스 드래곤이 파괴할 대상을 결정하고 있습니다.{es}El Dragón del Apocalipsis está determinando qué destruir.{fr}Le Dragon de l’Apocalypse détermine ce qu’il va détruire.{pt-br}O Dragão do Apocalipse está determinando o que destruir.{de}Der Apokalypse-Drache bestimmt, was er zerstört.","Processing")
 		againstDragonBeginDestroy()
 	else
-		local ordinal=apocalypseDragonTurnOrdinal(gStates.apocalypseDragonTurn)
-		againstDragonSetTurnReport("The Apocalypse Dragon took no action on its "..ordinal.." turn.","Processing")
+		againstDragonSetTurnReport(joinLang({"{en}The Apocalypse Dragon took no action on Dragon turn {it}Il Drago dell'Apocalisse non ha eseguito alcuna azione nel turno del Drago {ru}Дракон Апокалипсиса не совершил действий в ход Дракона {zh-tw}末日巨龍在巨龍回合 {zh-cn}末日巨龙在巨龙回合 {ko}아포칼립스 드래곤은 드래곤 턴 {es}El Dragón del Apocalipsis no realizó ninguna acción en el turno del Dragón {fr}Le Dragon de l’Apocalypse n’a effectué aucune action pendant le tour du Dragon {pt-br}O Dragão do Apocalipse não realizou nenhuma ação no turno do Dragão {de}Der Apokalypse-Drache hat im Drachenzug ",tostring(gStates.apocalypseDragonTurn),"{en}.{it}.{ru}.{zh-tw} 沒有執行任何行動。{zh-cn} 没有执行任何行动。{ko}에 아무 행동도 하지 않았습니다.{es}.{fr}.{pt-br}.{de} keine Aktion ausgeführt."}),"Processing")
 		safeWaitFrames("Scenario",function() againstDragonCompleteTurn() end,1)
 	end
 end
