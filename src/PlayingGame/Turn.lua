@@ -270,6 +270,8 @@ function startOfTurn()
 		end
 	end
 
+	if oneToReturnEnsureChosenMages~=nil then oneToReturnEnsureChosenMages() end
+
 	--Gain Reminder token from oasis
 	if virtualCoopCombat==false and turnOrder[gStates.turnNumber].avatarLocation=="oasis" then
 		getObjectFromGUID(GUID.token.oasisReminder).clone({position={(turnOrder[gStates.turnNumber].seatPos*40)-103, 1.65, -39}, rotation={0.00, 180.00, 0.00}, smooth=false}).unlock()
