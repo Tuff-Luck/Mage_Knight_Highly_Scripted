@@ -1928,7 +1928,17 @@ function applyColorBarButtons()
 							{tag="Text", attributes={id=barGUID.."DropOutText", font="Fonts/MKCardText", fontSize=90, fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize=90, text=dropText}}}}
 				end
 			end
-			if barSkip==false then getObjectFromGUID(barGUID).UI.setXmlTable(buttons) end
+
+            if barSkip==false then
+                local team=mageKnightSeatTeam(position)
+                local teamLabel=team==0 and "{en}NO TEAM{it}NESSUNA SQUADRA{ru}БЕЗ КОМАНДЫ{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}SIN EQUIPO{fr}SANS ÉQUIPE{pt-br}SEM EQUIPE{de}KEIN TEAM" or ("Team "..team)
+                buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."TeamCycle",onClick="global/cycleMageKnightSeatTeam",
+                    height=200,width=800,position="-35 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
+                    children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},
+                        {tag="Text",attributes={font="Fonts/MKCardText",fontSize=90,fontStyle="Normal",alignment="MiddleCenter",
+                            resizeTextForBestFit="true",resizeTextMaxSize=90,text=teamLabel}}}}
+                getObjectFromGUID(barGUID).UI.setXmlTable(buttons)
+            end
 		end
 	end
 end
