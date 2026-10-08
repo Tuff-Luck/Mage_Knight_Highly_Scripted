@@ -3196,7 +3196,7 @@ end
 
 againstDragonFinalReport=function(text)
 	local prefix=gStates~=nil and gStates.apocalypseDragonTurnReportPrefix or nil
-	if prefix~=nil and prefix~="" then return prefix.."\n"..tostring(text or "") end
+	if prefix~=nil and prefix~="" then return joinLang({prefix,"\n",tostring(text or "")}) end
 	return tostring(text or "")
 end
 
