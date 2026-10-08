@@ -1834,7 +1834,7 @@ function rewardRetreatRequired(playerIndex,avatarLocation,nearbyOwnShield)
 		dragonRetreatRequired=apocalypseDragonCombatContainsPlayer(playerIndex)==true
 	end
 	return dragonRetreatRequired==true or
-		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false") or
+		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false" and not (gStates.gameScenario=="Conquer and Hold" and mageKnightAlliedOwnedSiteAt~=nil and mageKnightAlliedOwnedSiteAt(details.seatPos,mageKnightAvatarPosition(playerIndex)))) or
 		((avatarLocation:sub(1,4)=="city" or avatarLocation=="Volkare's Camp") and gStates.friendlyCity[nearbyOwnShield]~=true and
 			((gStates.gameScenario~="The Lost Relic Blitz" and gStates.defeatedCities[nearbyOwnShield]~=true) or (gStates.gameScenario=="The Lost Relic Blitz" and nearbyOwnShield=="false"))) or
 		((avatarLocation=="necropolis" or avatarLocation=="hidden valley") and coopLeaderCombat==false and leaderDefeatedPendingCleanup==false and factionLeaderDefeated==false) or
