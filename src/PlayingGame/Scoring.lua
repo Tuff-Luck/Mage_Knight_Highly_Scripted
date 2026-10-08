@@ -675,22 +675,17 @@ function displayScore(player, mouseButton, id)
 			end
 		end
 
-		--Conquer and Hold does not use normal Fame/Achievement scoring. Treat its Keep/Mage Tower
-		--VP total as one comparable team category and take the strongest member's result.
+		-- Conquer and Hold VP belongs to the entire team: sum personally owned sites.
 		if teamScoring==true and gStates.gameScenario=="Conquer and Hold" then
 			for _,group in ipairs(scoringGroups) do
-				local bestVP=-1
-				local contributor=nil
+				local teamVP=0
 				for _,playerIndex in ipairs(group.members) do
 					local details=turnOrder[playerIndex]
-					local keepRate=3
-					if heroChallengeActive(playerIndex)==true and details.mage=="Tovak" then keepRate=4 end
-					local towerRate=heroChallengeActive(playerIndex)==true and details.mage=="Tovak" and 4 or 2
-					local vp=((details.score.Keep or 0)*keepRate)+((details.score.MageTower or 0)*towerRate)
-					if vp>bestVP then bestVP=vp contributor=playerIndex end
+					local tovakBonus=heroChallengeActive(playerIndex)==true and details.mage=="Tovak"
+					teamVP=teamVP+((details.score.Keep or 0)*(tovakBonus and 4 or 3))
+						+((details.score.MageTower or 0)*(tovakBonus and 4 or 2))
 				end
-				teamScoreByKey[group.key]=math.max(0,bestVP)
-				teamCategoryContributor[group.key].gConqueror=contributor
+				teamScoreByKey[group.key]=teamVP
 			end
 		end
 
