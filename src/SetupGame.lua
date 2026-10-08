@@ -789,6 +789,7 @@ local function finalizeSetup()
 	end
 	addAvatarButtons()
 	applyColorBarButtons()
+	syncMageKnightSeatTeams()
 	refreshPlayerSeatColors()
 	refreshDeedOfferAdjustUI()
 	--record data
