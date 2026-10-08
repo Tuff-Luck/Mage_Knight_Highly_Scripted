@@ -1184,7 +1184,7 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						local target=dropped_object.getPosition()
 						assaultTargetPosition={target[1],target[2],target[3]}
 						againstHorsemenBeginGladeAssault(gStates.turnNumber,assaultApproachOrigin)
-					elseif attackedLocation~=nil then
+					elseif attackedLocation~=nil and not (playerDetails.avatarLocation=="keep" and mageKnightAlliedKeepOccupied(playerDetails.seatPos,dropped_object.getPosition())) then
 						--Keep the actual hex this assault location was entered from. Long moves are deliberately
 						--left ambiguous so the wall interface can ask which side was used.
 						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then assaultApproachOrigin={playerPickedUpPos[1], playerPickedUpPos[2], playerPickedUpPos[3]} end
