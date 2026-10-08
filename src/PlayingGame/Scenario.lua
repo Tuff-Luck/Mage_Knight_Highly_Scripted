@@ -3057,7 +3057,7 @@ againstDragonTargetChoiceButton=function(option,index,xml,splitIndex,splitCount)
 	if option.kind=="attack" then label=joinLang({"{en}Attack\n{it}Attacco\n{ru}Атака\n{zh-tw}攻擊\n{zh-cn}攻击\n{ko}공격\n{es}Atacar\n{fr}Attaquer\n{pt-br}Atacar\n{de}Angriff\n",tostring(option.mage or joinLang({"{en}Player{it}Giocatore{ru}Игрок{zh-tw}玩家{zh-cn}玩家{ko}플레이어{es}Jugador{fr}Joueur{pt-br}Jogador{de}Spieler"}))}) end
 	return appendTerrainHexChoiceButton(option.key,index,xml,splitIndex,splitCount,{
 		idPrefix="DragonTargetChoice",onClick="global/againstDragonTargetChoiceSelect",
-		buttonScale=0.38,referenceScale=0.38,splitFontSize=60,fontSize=72,text=label
+		buttonScale=0.16,referenceScale=0.38,splitFontSize=60,fontSize=72,text=label
 	})
 end
 
