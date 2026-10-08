@@ -3569,7 +3569,7 @@ local function mainUIRefreshPlayerState(context)
 						if c==gStates.hiddenValleyKeep[1] or c==gStates.hiddenValleyKeep[2] then count=count+1 end
 					end
 					if count==2 then hiddenValleyKeep=true end
-					if cityRepLoss==false and
+					if cityRepLoss==false and gStates.gameScenario~="Conquer and Hold" and
 					   ((monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep") or
 						   (monsterPugs[obj.guid].pugType=="purple" and avatarLocation=="mage tower") or
 					   ((obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2]) and hiddenValleyKeep==false)) then
@@ -4438,7 +4438,7 @@ function addAvatarButtons()
 							children={{tag="Image", attributes={image="Marker Button "..details.mage}}}}
 					end
 					--Shield can be dropped
-					if player.avatarLocation~=nil and ((mageShield==nil and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower"
+					if player.avatarLocation~=nil and ((mageShield==nil and not (gStates.gameScenario=="Conquer and Hold" and mageKnightAlliedOwnedSiteAt(player.seatPos,avPos)) and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower"
 							or player.avatarLocation=="monastery" or player.avatarLocation=="ruin"
 							or ((player.avatarLocation=="dungeon" or player.avatarLocation=="tomb") and gStates.gameScenario~="Dungeon Lords")
 							or player.avatarLocation=="monster den" or player.avatarLocation=="spawning grounds"
@@ -4460,7 +4460,7 @@ function addAvatarButtons()
 					local specialActionY=100
 					--monster can be fought at avatar location
 					if gStates.preEndTurn==false and player.avatarLocation~=nil and order==gStates.turnNumber and player.combatIconHide=="None" and turnTokenFaceUp==true
-						and ((mageShield==nil and (player.avatarLocation=="mage tower"
+						and (((mageShield==nil or (gStates.gameScenario=="Conquer and Hold" and player.avatarLocation=="mage tower" and mageShield[details.mage]==nil and not mageKnightAlliedOwnedSiteAt(player.seatPos,avPos))) and (player.avatarLocation=="mage tower"
 							or player.avatarLocation=="monster den" or player.avatarLocation=="spawning grounds"
 							or (player.avatarLocation=="glade" and gStates.gameScenario=="Life and Death") or player.avatarLocation=="graveyard"
 							or (player.avatarLocation=="mine" and gStates.gameScenario=="Mines Liberation")
@@ -4652,7 +4652,9 @@ function applyColorBarButtons()
 
             if barSkip==false then
                 local team=mageKnightSeatTeam(position)
+                local shareHands=gStates.coop==1
                 local teamLabel=team==0 and "{en}NO TEAM{it}NESSUNA SQUADRA{ru}БЕЗ КОМАНДЫ{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}SIN EQUIPO{fr}SANS ÉQUIPE{pt-br}SEM EQUIPE{de}KEIN TEAM" or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
+                if shareHands then teamLabel=(gStates.coopShareHands or {})[position]==true and "{en}HIDE HAND{it}NASCONDI MANO{ru}СКРЫТЬ РУКУ{zh-tw}隱藏手牌{zh-cn}隐藏手牌{ko}손패 숨기기{es}OCULTAR MANO{fr}MASQUER MAIN{pt-br}OCULTAR MÃO{de}HAND VERBERGEN" or "{en}SHARE HAND{it}CONDIVIDI MANO{ru}ПОКАЗАТЬ РУКУ{zh-tw}分享手牌{zh-cn}共享手牌{ko}손패 공유{es}COMPARTIR MANO{fr}PARTAGER MAIN{pt-br}PARTILHAR MÃO{de}HAND TEILEN" end
                 buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."TeamCycle",onClick="global/cycleMageKnightSeatTeam",
                     height=200,width=800,position="50 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
                     children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},
@@ -5856,7 +5858,7 @@ function syncMageKnightSeatTeams()
     if gStates==nil or gStates.handColors==nil then return end
     for color,seatPos in pairs(gStates.handColors) do
         if color~="Black" and color~="Grey" and Player[color]~=nil and Player[color].seated then
-            local wanted=TEAM_SUITS[mageKnightSeatTeam(seatPos)+1]
+            local wanted=gStates.coop==1 and ((gStates.coopShareHands or {})[seatPos]==true and "Hearts" or "None") or TEAM_SUITS[mageKnightSeatTeam(seatPos)+1]
             if Player[color].team~=wanted then Player[color].team=wanted end
         end
     end
@@ -5871,6 +5873,13 @@ function cycleMageKnightSeatTeam(player,mouseButton,id)
     local authorized=player.color=="Black" or player.host or player.admin
     if not authorized then authorized=gStates.handColors[player.color]==seatPos end
     if not authorized then return end
+    if gStates.coop==1 then
+        gStates.coopShareHands=gStates.coopShareHands or {}
+        gStates.coopShareHands[seatPos]=not (gStates.coopShareHands[seatPos]==true)
+        syncMageKnightSeatTeams()
+        applyColorBarButtons()
+        return
+    end
     gStates.seatTeams=gStates.seatTeams or {}
     local team=(mageKnightSeatTeam(seatPos)+1)%5
     gStates.seatTeams[seatPos]=team
@@ -5909,6 +5918,103 @@ function mageKnightAlliedKeepOccupied(seatPos,position)
             local p=obj.getPosition()
             if (p[1]-position[1])^2+(p[3]-position[3])^2<1.44
                 and mageKnightShieldOwnerAllied(seatPos,shieldOwner(obj)) then return true end
+        end
+    end
+    return false
+end
+
+-- Conquer and Hold treats owned Mage Towers like owned Keeps.
+function mageKnightAlliedOwnedSiteAt(seatPos,position)
+    if gStates==nil or gStates.gameScenario~="Conquer and Hold" or position==nil then return false end
+    if mageKnightAlliedKeepOccupied(seatPos,position) then return true end
+    local _,_,_,feature=terrainHexAtPosition(position)
+    if feature~="mage tower" or mageKnightSeatTeam(seatPos)==0 then return false end
+    local snapshot=runtimeMapSpatialSnapshot()
+    for _,obj in ipairs(runtimeMapSpatialNearbyObjects(snapshot,position,1.5)) do
+        if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            if (p[1]-position[1])^2+(p[3]-position[3])^2<1.44 and mageKnightShieldOwnerAllied(seatPos,shieldOwner(obj)) then return true end
+        end
+    end
+    return false
+end
+
+function conquerHoldPersonalMageTowers(playerIndex)
+    local details=turnOrder[playerIndex]
+    if details==nil or gStates.gameScenario~="Conquer and Hold" then return 0,false end
+    local snapshot=runtimeMapSpatialSnapshot()
+    local magePosition=mageKnightAvatarPosition(playerIndex)
+    local count,nearOwn=0,false
+    for _,obj in ipairs(getObjectFromGUID(mapArea).getObjects()) do
+        if isShieldObject(obj) and shieldOwner(obj)==details.mage and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            local _,_,_,feature=terrainHexAtPosition(p)
+            if feature=="mage tower" then
+                count=count+1
+                if magePosition~=nil and (p[1]-magePosition[1])^2+(p[3]-magePosition[3])^2<8.5 then nearOwn=true end
+            end
+        end
+    end
+    return count,nearOwn
+end
+
+-- One to Return (four-player team variant): randomly pick and privately announce
+-- one designated returning hero per two-player team.
+function oneToReturnEnsureChosenMages()
+    if gStates==nil or gStates.gameScenario~="One to Return" or gStates.coop~=0 or gStates.firstStarted~=true then return false end
+    if gStates.oneToReturnChosenMages~=nil then return true end
+    local members={}
+    local realCount=0
+    for _,details in ipairs(turnOrder or {}) do
+        if details.mage~=gStates.positionMageKnight[5] and details.seatPos~=nil and details.seatPos<=4 then
+            realCount=realCount+1
+            local team=mageKnightSeatTeam(details.seatPos)
+            if team==0 then return false end
+            members[team]=members[team] or {}
+            members[team][#members[team]+1]=details
+        end
+    end
+    if realCount~=4 then return false end
+    local teams={}
+    for team,players in pairs(members) do
+        if #players~=2 then return false end
+        teams[#teams+1]=team
+    end
+    if #teams~=2 then return false end
+    local chosen={}
+    for _,team in ipairs(teams) do
+        local member=members[team][math.random(1,2)]
+        chosen[team]=member.mage
+    end
+    gStates.oneToReturnChosenMages=chosen
+    for _,team in ipairs(teams) do
+        local message=joinLang({"{en}One to Return — your team's secretly chosen hero: {it}Unico a Tornare — eroe scelto in segreto: {ru}Единственный вернётся — тайный герой вашей команды: {zh-tw}唯一歸來者——隊伍秘密選定英雄：{zh-cn}唯一归来者——队伍秘密选定英雄：{ko}유일한 귀환자 — 팀의 비밀 영웅: {es}Único en Regresar — héroe secreto del equipo: {fr}Seul à Revenir — héros secret de l'équipe : {pt-br}Único a Retornar — herói secreto da equipe: {de}Einziger Rückkehrer — geheimer Held des Teams: ", translateWord[chosen[team]]})
+        for _,member in ipairs(members[team]) do
+            for color,seat in pairs(gStates.handColors or {}) do
+                if seat==member.seatPos and Player[color]~=nil and Player[color].seated==true then
+                    broadcastToColor(message,color,{1,1,0.5})
+                end
+            end
+        end
+    end
+    return true
+end
+
+-- Distinguish an opponent-held site from one held by a teammate or self.
+function conquerHoldEnemyOwnedSiteAt(seatPos,position)
+    if gStates==nil or gStates.gameScenario~="Conquer and Hold" or position==nil then return false end
+    local _,_,_,feature=terrainHexAtPosition(position)
+    if feature~="keep" and feature~="mage tower" then return false end
+    local snapshot=runtimeMapSpatialSnapshot()
+    for _,obj in ipairs(runtimeMapSpatialNearbyObjects(snapshot,position,1.5)) do
+        if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            if (p[1]-position[1])^2+(p[3]-position[3])^2<1.44 then
+                local owner=shieldOwner(obj)
+                for _,details in ipairs(turnOrder or {}) do
+                    if details.mage==owner and details.seatPos~=seatPos and not mageKnightPlayersAllied(seatPos,details.seatPos) then return true end
+                end
+            end
         end
     end
     return false
@@ -10495,6 +10601,9 @@ end
 
 function displayScore(player, mouseButton, id)
 	if mouseButton=="-1" then
+		-- Scoring may temporarily arrange presentation columns, but never change turn order.
+		local originalTurnOrder={}
+		for index,details in ipairs(turnOrder) do originalTurnOrder[index]=details end
 		--Count all objects required for scoring
 		local seatRecord=5
 		for a=1, #turnOrder, 1 do
@@ -10894,22 +11003,17 @@ function displayScore(player, mouseButton, id)
 			end
 		end
 
-		--Conquer and Hold does not use normal Fame/Achievement scoring. Treat its Keep/Mage Tower
-		--VP total as one comparable team category and take the strongest member's result.
+		-- Conquer and Hold VP belongs to the entire team: sum personally owned sites.
 		if teamScoring==true and gStates.gameScenario=="Conquer and Hold" then
 			for _,group in ipairs(scoringGroups) do
-				local bestVP=-1
-				local contributor=nil
+				local teamVP=0
 				for _,playerIndex in ipairs(group.members) do
 					local details=turnOrder[playerIndex]
-					local keepRate=3
-					if heroChallengeActive(playerIndex)==true and details.mage=="Tovak" then keepRate=4 end
-					local towerRate=heroChallengeActive(playerIndex)==true and details.mage=="Tovak" and 4 or 2
-					local vp=((details.score.Keep or 0)*keepRate)+((details.score.MageTower or 0)*towerRate)
-					if vp>bestVP then bestVP=vp contributor=playerIndex end
+					local tovakBonus=heroChallengeActive(playerIndex)==true and details.mage=="Tovak"
+					teamVP=teamVP+((details.score.Keep or 0)*(tovakBonus and 4 or 3))
+						+((details.score.MageTower or 0)*(tovakBonus and 4 or 2))
 				end
-				teamScoreByKey[group.key]=math.max(0,bestVP)
-				teamCategoryContributor[group.key].gConqueror=contributor
+				teamScoreByKey[group.key]=teamVP
 			end
 		end
 
@@ -11778,7 +11882,7 @@ function displayScore(player, mouseButton, id)
 			details._scoreTeamName=nil
 			details._scoreGroupOrder=nil
 		end
-		table.sort(turnOrder, function (k1, k2) return k1.tactic<k2.tactic end)
+		for index,details in ipairs(originalTurnOrder) do turnOrder[index]=details end
 	end
 end
 
@@ -14675,19 +14779,30 @@ function oneToReturnLockFinalWinner()
 		gStates.oneToReturnWinnerLocked=false
 		return false
 	end
-	gStates.oneToReturnWinner=winner.mage
+	if oneToReturnEnsureChosenMages~=nil then oneToReturnEnsureChosenMages() end
+	local teamVariant=gStates.oneToReturnChosenMages~=nil
+	local team=mageKnightSeatTeam(winner.seatPos)
+	gStates.oneToReturnWinner=(not teamVariant or gStates.oneToReturnChosenMages[team]==winner.mage) and winner.mage or nil
 	gStates.oneToReturnWinnerLocked=true
-	broadcastToAll(joinLang({translateWord[winner.mage], "{en} occupies the Portal as End of Night is announced and is the One to Return. Player vs. Player combat may not be initiated after End of Night is called.{it} occupa il Portale all'annuncio della fine della Notte ed è l'Unico a Tornare. Dopo l'annuncio non si possono iniziare combattimenti tra giocatori.{ru} занимает Портал в момент объявления конца Ночи и становится Единственным, кто вернется. После объявления конца Ночи нельзя начинать бой между игроками.{zh-tw} 在宣告黑夜輪結束時佔據傳送門，成為唯一能返回的英雄。宣告黑夜輪結束後不能再發起玩家對玩家戰鬥。{zh-cn} 在宣布黑夜轮结束时占据传送门，成为唯一能返回的英雄。宣布黑夜轮结束后不能再发起玩家对玩家战斗。{ko} 밤 종료가 선언될 때 포탈을 차지하고 있어 돌아갈 단 한 명의 영웅이 됩니다. 밤 종료 선언 후에는 PvP 전투를 시작할 수 없습니다.{es} ocupa el Portal cuando se anuncia el Fin de la Noche y es el Único que Regresa. No se puede iniciar combate entre jugadores después de anunciar el Fin de la Noche.{fr} occupe le Portail lorsque la Fin de la Nuit est annoncée et devient l'Unique à Revenir. Aucun combat entre joueurs ne peut être initié après l'annonce de la Fin de la Nuit.{pt-br} ocupa o Portal quando o Fim da Noite é anunciado e é o Único a Retornar. Combate entre jogadores não pode ser iniciado depois que o Fim da Noite é anunciado.{de} besetzt das Portal, als das Ende der Nacht ausgerufen wird, und ist der Eine, der zurückkehrt. Nach dem Ausrufen des Nachtendes darf kein PvP-Kampf mehr begonnen werden."}), {1,1,0.5})
-	return true
+	if gStates.oneToReturnWinner==nil then
+		broadcastToAll("{en}A Hero occupies the Portal, but they are not the chosen member of their team. No team wins.{it}Un eroe occupa il Portale, ma non è il prescelto della sua squadra. Nessuna squadra vince.{ru}Герой занял Портал, но он не избранный участник команды. Победителей нет.{zh-tw}傳送門有人佔據，但不是該隊選定的英雄。無隊伍獲勝。{zh-cn}传送门有人占据，但不是该队选定的英雄。无队伍获胜。{ko}포털에 영웅이 있지만 팀의 선택된 영웅이 아닙니다. 승자는 없습니다.{es}Un héroe ocupa el Portal, pero no es el elegido de su equipo. Ningún equipo gana.{fr}Un héros occupe le Portail, mais ce n'est pas l'élu de son équipe. Aucune équipe ne gagne.{pt-br}Um herói ocupa o Portal, mas não é o escolhido de sua equipe. Nenhuma equipe vence.{de}Ein Held besetzt das Portal, aber nicht der Auserwählte seines Teams. Kein Team gewinnt.",{1,1,0.5})
+	else
+		broadcastToAll(joinLang({translateWord[winner.mage], "{en} occupies the Portal as End of Night is announced and is the One to Return. Player vs. Player combat may not be initiated after End of Night is called.{it} occupa il Portale all'annuncio della fine della Notte ed è l'Unico a Tornare. Dopo l'annuncio non si possono iniziare combattimenti tra giocatori.{ru} занимает Портал в момент объявления конца Ночи и становится Единственным, кто вернется. После объявления конца Ночи нельзя начинать бой между игроками.{zh-tw} 在宣告黑夜輪結束時佔據傳送門，成為唯一能返回的英雄。宣告黑夜輪結束後不能再發起玩家對玩家戰鬥。{zh-cn} 在宣布黑夜轮结束时占据传送门，成为唯一能返回的英雄。宣布黑夜轮结束后不能再发起玩家对玩家战斗。{ko} 밤 종료가 선언될 때 포탈을 차지하고 있어 돌아갈 단 한 명의 영웅이 됩니다. 밤 종료 선언 후에는 PvP 전투를 시작할 수 없습니다.{es} ocupa el Portal cuando se anuncia el Fin de la Noche y es el Único que Regresa. No se puede iniciar combate entre jugadores después de anunciar el Fin de la Noche.{fr} occupe le Portail lorsque la Fin de la Nuit est annoncée et devient l'Unique à Revenir. Aucun combat entre joueurs ne peut être initié après l'annonce de la Fin de la Nuit.{pt-br} ocupa o Portal quando o Fim da Noite é anunciado e é o Único a Retornar. Combate entre jogadores não pode ser iniciado depois que o Fim da Noite é anunciado.{de} besetzt das Portal, als das Ende der Nacht ausgerufen wird, und ist der Eine, der zurückkehrt. Nach dem Ausrufen des Nachtendes darf kein PvP-Kampf mehr begonnen werden."}), {1,1,0.5})
+	end
+	return gStates.oneToReturnWinner~=nil
 end
 
 function oneToReturnResolveWinner()
 	if gStates.gameScenario~="One to Return" then return false end
 	oneToReturnSetPortalClosedDecal(false)
 	local winnerMage=gStates.oneToReturnWinnerLocked==true and gStates.oneToReturnWinner or nil
-	if winnerMage==nil then
+	if winnerMage==nil and gStates.oneToReturnWinnerLocked~=true then
 		local _,winner=oneToReturnPortalOccupant()
-		if winner~=nil then winnerMage=winner.mage end
+		if winner~=nil then
+			local chosen=gStates.oneToReturnChosenMages
+			local team=mageKnightSeatTeam(winner.seatPos)
+			if chosen==nil or chosen[team]==winner.mage then winnerMage=winner.mage end
+		end
 	end
 	gStates.oneToReturnWinner=winnerMage
 	if winnerMage~=nil then
@@ -19015,6 +19130,21 @@ function startOfTurn()
 		end
 	end
 
+	-- Conquer and Hold: owned towers grant gold/black mana at turn start.
+	if virtualCoopCombat==false and gStates.gameScenario=="Conquer and Hold" then
+		local towerCount,nearOwnTower=conquerHoldPersonalMageTowers(gStates.turnNumber)
+		if nearOwnTower and towerCount>0 then
+			local bag=getObjectFromGUID(gStates.dayRound==true and "4a836f" or "74d666")
+			if bag~=nil then
+				for manaIndex=1,towerCount do
+					bag.takeObject({position={(turnOrder[gStates.turnNumber].seatPos*40)-103+((manaIndex-1)*0.35),1.65,-39},rotation={0,0,0},smooth=false})
+				end
+			end
+		end
+	end
+
+	if oneToReturnEnsureChosenMages~=nil then oneToReturnEnsureChosenMages() end
+
 	--Gain Reminder token from oasis
 	if virtualCoopCombat==false and turnOrder[gStates.turnNumber].avatarLocation=="oasis" then
 		getObjectFromGUID(GUID.token.oasisReminder).clone({position={(turnOrder[gStates.turnNumber].seatPos*40)-103, 1.65, -39}, rotation={0.00, 180.00, 0.00}, smooth=false}).unlock()
@@ -20837,6 +20967,26 @@ function objectInPlayerCombatArea(objectGUID)
 	return false
 end
 
+-- Official combined City assaults require a face-up Round Order token
+-- and at least one non-Wound card in the invited Hero's hand.
+local function officialCityAssaultAssistantEligible(playerIndex)
+	local details=turnOrder[playerIndex]
+	if details==nil or playerDropoutInactive(playerIndex)==true then return false end
+	local token=getObjectFromGUID(details.turnOrderTokenGUID)
+	if token==nil or token.is_face_down==true then return false end
+	local handZone=getObjectFromGUID(handZones[details.seatPos])
+	if handZone==nil then return false end
+	for _,card in ipairs(handZone.getObjects()) do
+		if card.type=="Card" and card.getGMNotes()~="Wound" then return true end
+		if card.type=="Deck" then
+			for _,held in ipairs(card.getObjects()) do
+				if held.gm_notes~="Wound" then return true end
+			end
+		end
+	end
+	return false
+end
+
 --Co-op assault combat is resolved first; rewards are then claimed by each participant in fight order.
 function coopAssaultPendingCombat()
 	if gStates.coopAssaultPhase~="combat" or gStates.coopAssaultParticipants==nil then return false end
@@ -21240,7 +21390,15 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	if monsterData.pugType=="yellow" and monsterData.fame>0 then gStates.crytalRuin=true end
 	local cleanupLocation=turnOrder[cleanupPlayer].avatarLocation or ""
 	local avatarPos=context.avatarPos or {}
-	if playAreaObj.is_face_down==false and gStates.druidNightsSummon==nil and
+	local suppressConquerHoldSiteShield=false
+	local holdAssault=gStates.conquerHoldAssault
+	if holdAssault~=nil and holdAssault.mage==turnOrder[cleanupPlayer].mage and holdAssault.site==cleanupLocation and holdAssault.monsters[monsterGUID]==true then
+		if playAreaObj.is_face_down==false then holdAssault.defeated[monsterGUID]=true end
+		local conquered=0
+		for _,yes in pairs(holdAssault.defeated) do if yes then conquered=conquered+1 end end
+		suppressConquerHoldSiteShield=conquered<holdAssault.expected
+	end
+	if playAreaObj.is_face_down==false and not suppressConquerHoldSiteShield and gStates.druidNightsSummon==nil and
 		(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[monsterGUID]~=true) and (
 		(monsterData.pugType=="gray" and cleanupLocation=="keep") or
 		(monsterData.pugType=="yellow" and cleanupLocation=="ruin") or
@@ -21259,7 +21417,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 					local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
 					if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shieldPos[1]-avatarPos[1])^2)+((shieldPos[3]-avatarPos[3])^2))<1 then
 						shieldExists=true
-						if cleanupLocation=="keep" and shieldOwner(shield)~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
+						if (cleanupLocation=="keep" or (cleanupLocation=="mage tower" and gStates.gameScenario=="Conquer and Hold")) and shieldOwner(shield)~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
 						if cleanupLocation=="dungeon" or cleanupLocation=="tomb" then gStates.shieldsDropped[shield.guid]=true end
 						break
 					end
@@ -22570,7 +22728,7 @@ function rewardRetreatRequired(playerIndex,avatarLocation,nearbyOwnShield)
 		dragonRetreatRequired=apocalypseDragonCombatContainsPlayer(playerIndex)==true
 	end
 	return dragonRetreatRequired==true or
-		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false") or
+		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false" and not (gStates.gameScenario=="Conquer and Hold" and mageKnightAlliedOwnedSiteAt~=nil and mageKnightAlliedOwnedSiteAt(details.seatPos,mageKnightAvatarPosition(playerIndex)))) or
 		((avatarLocation:sub(1,4)=="city" or avatarLocation=="Volkare's Camp") and gStates.friendlyCity[nearbyOwnShield]~=true and
 			((gStates.gameScenario~="The Lost Relic Blitz" and gStates.defeatedCities[nearbyOwnShield]~=true) or (gStates.gameScenario=="The Lost Relic Blitz" and nearbyOwnShield=="false"))) or
 		((avatarLocation=="necropolis" or avatarLocation=="hidden valley") and coopLeaderCombat==false and leaderDefeatedPendingCleanup==false and factionLeaderDefeated==false) or
@@ -22802,7 +22960,7 @@ function attackLocation(playerDud, mouseButton, id)
 							end
 							local cityDefense=gStates.coopAssaultMode=="defense"
 							for _, mageName in pairs(magesInRange) do
-								if mageName.mage~=player.mage and gStates.volkareState~="Attacking Player" then count=count+1 gStates.assaultData[mageName.mage]={primary={}, secondary={}, UIPos={count}, joined=cityDefense} end
+								if mageName.mage~=player.mage and gStates.volkareState~="Attacking Player" and (cityDefense or isStandardCityGUID(cityGUID)~=true or officialCityAssaultAssistantEligible(mageName.turn)) then count=count+1 gStates.assaultData[mageName.mage]={primary={}, secondary={}, UIPos={count}, joined=cityDefense} end
 							end
 							--Volkare's shared fight can be combined even with only one army enemy; that enemy starts unassigned.
 							if count>=2 and (mcount>=2 or (volkareAssignment and mcount>=1)) then
@@ -22844,6 +23002,14 @@ function attackLocation(playerDud, mouseButton, id)
 								end
 								if player.avatarLocation=="monastery" and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.purple, player, id) broadcastToAll("{en}Monastery Defender Drawn to Player Board{it}Difensore del Monastero portato sulla Plancia Giocatore{ru}Жетон защитника Монастыря был помещен на стол игрока{zh-tw}修道院守軍已移到玩家面板{zh-cn}修道院驻军移到玩家面板上{ko}수도원의 수비자와 전투합니다{es}Defensor del Monasterio dibujado en el tablero del jugador{fr}Défenseur du Monastère dessiné sur le plateau du joueur{pt-br}Defensor do Monastério puxado para o tabuleiro do jogador{de}Verteidiger des Klosters auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
 								if (player.avatarLocation=="tomb" or player.avatarLocation=="labyrinth") and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.red, player, id) broadcastToAll("{en}Dragon Drawn to Player Board{it}Drago portato sulla Plancia Giocatore{ru}Жетон Драконума был помещен на стол игрока{zh-tw}巨龍已移到玩家面板{zh-cn}将龙放到玩家面板{ko}드래곤과 전투하세요{es}Dragón dibujado al tablero del jugador{fr}Dragon dessiné sur le plateau du joueur{pt-br}Dragão Puxado para o tabuleiro do jogador{de}Drache auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
+								if gStates.gameScenario=="Conquer and Hold" and id:sub(1,6)=="Attack"
+									and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower")
+									and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos) then
+									local pile=player.avatarLocation=="keep" and monsterPiles.gray or monsterPiles.purple
+									local number=gStates.currentRound>=3 and gStates.playerCount==2 and 3 or (gStates.currentRound>=2 and 2 or 1)
+									gStates.conquerHoldAssault={mage=player.mage,site=player.avatarLocation,expected=number,monsters={},defeated={}}
+									for counter=1,number do drawMonster(pile,player,"ConquerHoldOwned") end
+								end
 								if player.avatarLocation=="keep" and id:sub(1, 6)=="Attack" then
 									local found=false
 									local mapSpatial=attackMapSpatialView()
@@ -22851,7 +23017,7 @@ function attackLocation(playerDud, mouseButton, id)
 										local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
 										if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and (shieldOwner(shield)==player.mage or gStates.coop==1) and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then found=true break end
 									end
-									if found==false then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{it}Difensore della Fortezza portato sulla Plancia Giocatore{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
+									if found==false and not (gStates.gameScenario=="Conquer and Hold" and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos)) then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{it}Difensore della Fortezza portato sulla Plancia Giocatore{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
 								end
 								if (player.avatarLocation=="ziggurat" or player.avatarLocation=="pyramid") then
 									--update Interface to be fresh and match the location.
@@ -22967,6 +23133,9 @@ function drawMonster(color, player, id, possessedFaction)
 		end
 		local monsterDrawn=pile.takeObject({position={(player.seatPos*40)-96+gStates.monsterOffsetX,2.5,-39-gStates.monsterOffsetZ},rotation={0.00,180.00,0.00}})
 		if monsterDrawn==nil then return end
+		if drawID=="ConquerHoldOwned" and gStates.conquerHoldAssault~=nil then
+			gStates.conquerHoldAssault.monsters[monsterDrawn.guid]=true
+		end
 		if color==monsterPiles.possessed and possessedFaction~=nil then
 			if gStates.apocalypsePossessedFactionByToken==nil then gStates.apocalypsePossessedFactionByToken={} end
 			gStates.apocalypsePossessedFactionByToken[monsterDrawn.guid]=possessedFaction
@@ -25355,7 +25524,7 @@ function createCompetitiveSkillReminders(skillGUID, owner)
 	end
 	local targetSeats={}
 	for playerIndex, details in pairs(turnOrder) do
-		if details.seatPos~=nil and details.seatPos<5 and details.mage~=gStates.positionMageKnight[5] and playerIndex~=owner and playerDropoutInactive(playerIndex)==false then targetSeats[details.seatPos]=true end
+		if details.seatPos~=nil and details.seatPos<5 and details.mage~=gStates.positionMageKnight[5] and playerIndex~=owner and playerDropoutInactive(playerIndex)==false and not mageKnightPlayersAllied(turnOrder[owner].seatPos,details.seatPos) then targetSeats[details.seatPos]=true end
 	end
 	for reminderGUID, seatPos in pairs(record.reminders) do
 		if targetSeats[seatPos]~=true or getObjectFromGUID(reminderGUID)==nil then clearCompetitiveSkillSeat(skillGUID, seatPos) end
@@ -47525,7 +47694,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="444"
+local automaticLuaErrorReporterVersion="445"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
