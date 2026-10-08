@@ -186,13 +186,10 @@ local function scoringArrangeTtsTeams()
 	local dummyMage=gStates.positionMageKnight[5]
 	for playerIndex,details in ipairs(turnOrder) do
 		if details.mage~=dummyMage then
-			local color=positionToColor(playerIndex)
-			local team=playerTtsTeam(color)
-			--When Black is seated as Game Master and no real player occupies this hand colour,
-			--treat the hand as part of Black's multihand team.
-			local black=Player["Black"]
-			local handPlayer=color~="Black" and Player[color] or nil
-			if team==nil and black~=nil and black.seated==true and (color=="Black" or handPlayer==nil or handPlayer.seated~=true) then team="Black" end
+			--Use the saved Mage Knight seat assignment. TTS teams are only a mirror,
+			--and Black may control several seats belonging to different teams.
+			local teamNumber=mageKnightSeatTeam(details.seatPos)
+			local team=teamNumber>0 and teamNumber or nil
 			local key
 			if team~=nil then
 				key="team:"..tostring(team)
@@ -236,6 +233,11 @@ end
 
 local function scoringTeamHeaderStyle(team)
 	local style=SCORE_TEAM_STYLE[team]
+	if type(team)=="number" then
+		local suits={"Hearts","Diamonds","Clubs","Spades"}
+		local suitStyle=SCORE_TEAM_STYLE[suits[team]]
+		return "Team "..team,suitStyle and suitStyle.color or "rgba(0.45,0.45,0.45,0.25)"
+	end
 	if style~=nil then return style.label,style.color end
 	if team~=nil then return tostring(team),"rgba(0.45,0.45,0.45,0.25)" end
 	return "Solo","rgba(0.45,0.45,0.45,0.15)"
@@ -1249,7 +1251,7 @@ function displayScore(player, mouseButton, id)
 					if teamScoring==true and turnOrder[a]._scoreTeamKey~=nil then
 						local group=scoringGroupByKey[turnOrder[a]._scoreTeamKey]
 						local teamName=group~=nil and group.team or nil
-						local label=teamName~=nil and (tostring(teamName).." Team") or (translateWord[turnOrder[a].mage])
+						local label=teamName~=nil and ("Team "..tostring(teamName)) or (translateWord[turnOrder[a].mage])
 						local finalScore=teamScoreByKey[turnOrder[a]._scoreTeamKey] or totalScore
 						if forTheCouncil then
 							local resultSuffix=councilMissionResult~="" and joinLang({"\n", councilMissionResult}) or ""
