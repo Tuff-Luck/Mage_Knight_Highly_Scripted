@@ -2108,6 +2108,13 @@ function attackLocation(playerDud, mouseButton, id)
 								end
 								if player.avatarLocation=="monastery" and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.purple, player, id) broadcastToAll("{en}Monastery Defender Drawn to Player Board{it}Difensore del Monastero portato sulla Plancia Giocatore{ru}Жетон защитника Монастыря был помещен на стол игрока{zh-tw}修道院守軍已移到玩家面板{zh-cn}修道院驻军移到玩家面板上{ko}수도원의 수비자와 전투합니다{es}Defensor del Monasterio dibujado en el tablero del jugador{fr}Défenseur du Monastère dessiné sur le plateau du joueur{pt-br}Defensor do Monastério puxado para o tabuleiro do jogador{de}Verteidiger des Klosters auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
 								if (player.avatarLocation=="tomb" or player.avatarLocation=="labyrinth") and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.red, player, id) broadcastToAll("{en}Dragon Drawn to Player Board{it}Drago portato sulla Plancia Giocatore{ru}Жетон Драконума был помещен на стол игрока{zh-tw}巨龍已移到玩家面板{zh-cn}将龙放到玩家面板{ko}드래곤과 전투하세요{es}Dragón dibujado al tablero del jugador{fr}Dragon dessiné sur le plateau du joueur{pt-br}Dragão Puxado para o tabuleiro do jogador{de}Drache auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
+								if gStates.gameScenario=="Conquer and Hold" and id:sub(1,6)=="Attack"
+									and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower")
+									and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos) then
+									local pile=player.avatarLocation=="keep" and monsterPiles.gray or monsterPiles.purple
+									local number=gStates.currentRound>=3 and gStates.playerCount==2 and 3 or (gStates.currentRound>=2 and 2 or 1)
+									for counter=1,number do drawMonster(pile,player,id) end
+								end
 								if player.avatarLocation=="keep" and id:sub(1, 6)=="Attack" then
 									local found=false
 									local mapSpatial=attackMapSpatialView()
@@ -2115,7 +2122,7 @@ function attackLocation(playerDud, mouseButton, id)
 										local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
 										if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and (shieldOwner(shield)==player.mage or gStates.coop==1) and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then found=true break end
 									end
-									if found==false then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{it}Difensore della Fortezza portato sulla Plancia Giocatore{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
+									if found==false and not (gStates.gameScenario=="Conquer and Hold" and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos)) then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{it}Difensore della Fortezza portato sulla Plancia Giocatore{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
 								end
 								if (player.avatarLocation=="ziggurat" or player.avatarLocation=="pyramid") then
 									--update Interface to be fresh and match the location.
