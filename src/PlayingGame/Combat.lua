@@ -101,6 +101,26 @@ function objectInPlayerCombatArea(objectGUID)
 	return false
 end
 
+-- Official combined City assaults require a face-up Round Order token
+-- and at least one non-Wound card in the invited Hero's hand.
+local function officialCityAssaultAssistantEligible(playerIndex)
+	local details=turnOrder[playerIndex]
+	if details==nil or playerDropoutInactive(playerIndex)==true then return false end
+	local token=getObjectFromGUID(details.turnOrderTokenGUID)
+	if token==nil or token.is_face_down==true then return false end
+	local handZone=getObjectFromGUID(handZones[details.seatPos])
+	if handZone==nil then return false end
+	for _,card in ipairs(handZone.getObjects()) do
+		if card.type=="Card" and card.getGMNotes()~="Wound" then return true end
+		if card.type=="Deck" then
+			for _,held in ipairs(card.getObjects()) do
+				if held.gm_notes~="Wound" then return true end
+			end
+		end
+	end
+	return false
+end
+
 --Co-op assault combat is resolved first; rewards are then claimed by each participant in fight order.
 function coopAssaultPendingCombat()
 	if gStates.coopAssaultPhase~="combat" or gStates.coopAssaultParticipants==nil then return false end
@@ -504,7 +524,15 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 	if monsterData.pugType=="yellow" and monsterData.fame>0 then gStates.crytalRuin=true end
 	local cleanupLocation=turnOrder[cleanupPlayer].avatarLocation or ""
 	local avatarPos=context.avatarPos or {}
-	if playAreaObj.is_face_down==false and gStates.druidNightsSummon==nil and
+	local suppressConquerHoldSiteShield=false
+	local holdAssault=gStates.conquerHoldAssault
+	if holdAssault~=nil and holdAssault.mage==turnOrder[cleanupPlayer].mage and holdAssault.site==cleanupLocation and holdAssault.monsters[monsterGUID]==true then
+		if playAreaObj.is_face_down==false then holdAssault.defeated[monsterGUID]=true end
+		local conquered=0
+		for _,yes in pairs(holdAssault.defeated) do if yes then conquered=conquered+1 end end
+		suppressConquerHoldSiteShield=conquered<holdAssault.expected
+	end
+	if playAreaObj.is_face_down==false and not suppressConquerHoldSiteShield and gStates.druidNightsSummon==nil and
 		(gStates.volkarePursuitEnemies==nil or gStates.volkarePursuitEnemies[monsterGUID]~=true) and (
 		(monsterData.pugType=="gray" and cleanupLocation=="keep") or
 		(monsterData.pugType=="yellow" and cleanupLocation=="ruin") or
@@ -523,7 +551,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 					local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
 					if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shieldPos[1]-avatarPos[1])^2)+((shieldPos[3]-avatarPos[3])^2))<1 then
 						shieldExists=true
-						if cleanupLocation=="keep" and shieldOwner(shield)~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
+						if (cleanupLocation=="keep" or (cleanupLocation=="mage tower" and gStates.gameScenario=="Conquer and Hold")) and shieldOwner(shield)~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
 						if cleanupLocation=="dungeon" or cleanupLocation=="tomb" then gStates.shieldsDropped[shield.guid]=true end
 						break
 					end
@@ -1834,7 +1862,7 @@ function rewardRetreatRequired(playerIndex,avatarLocation,nearbyOwnShield)
 		dragonRetreatRequired=apocalypseDragonCombatContainsPlayer(playerIndex)==true
 	end
 	return dragonRetreatRequired==true or
-		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false") or
+		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false" and not (gStates.gameScenario=="Conquer and Hold" and mageKnightAlliedOwnedSiteAt~=nil and mageKnightAlliedOwnedSiteAt(details.seatPos,mageKnightAvatarPosition(playerIndex)))) or
 		((avatarLocation:sub(1,4)=="city" or avatarLocation=="Volkare's Camp") and gStates.friendlyCity[nearbyOwnShield]~=true and
 			((gStates.gameScenario~="The Lost Relic Blitz" and gStates.defeatedCities[nearbyOwnShield]~=true) or (gStates.gameScenario=="The Lost Relic Blitz" and nearbyOwnShield=="false"))) or
 		((avatarLocation=="necropolis" or avatarLocation=="hidden valley") and coopLeaderCombat==false and leaderDefeatedPendingCleanup==false and factionLeaderDefeated==false) or
@@ -2066,7 +2094,7 @@ function attackLocation(playerDud, mouseButton, id)
 							end
 							local cityDefense=gStates.coopAssaultMode=="defense"
 							for _, mageName in pairs(magesInRange) do
-								if mageName.mage~=player.mage and gStates.volkareState~="Attacking Player" then count=count+1 gStates.assaultData[mageName.mage]={primary={}, secondary={}, UIPos={count}, joined=cityDefense} end
+								if mageName.mage~=player.mage and gStates.volkareState~="Attacking Player" and (cityDefense or isStandardCityGUID(cityGUID)~=true or officialCityAssaultAssistantEligible(mageName.turn)) then count=count+1 gStates.assaultData[mageName.mage]={primary={}, secondary={}, UIPos={count}, joined=cityDefense} end
 							end
 							--Volkare's shared fight can be combined even with only one army enemy; that enemy starts unassigned.
 							if count>=2 and (mcount>=2 or (volkareAssignment and mcount>=1)) then
@@ -2108,6 +2136,14 @@ function attackLocation(playerDud, mouseButton, id)
 								end
 								if player.avatarLocation=="monastery" and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.purple, player, id) broadcastToAll("{en}Monastery Defender Drawn to Player Board{it}Difensore del Monastero portato sulla Plancia Giocatore{ru}Жетон защитника Монастыря был помещен на стол игрока{zh-tw}修道院守軍已移到玩家面板{zh-cn}修道院驻军移到玩家面板上{ko}수도원의 수비자와 전투합니다{es}Defensor del Monasterio dibujado en el tablero del jugador{fr}Défenseur du Monastère dessiné sur le plateau du joueur{pt-br}Defensor do Monastério puxado para o tabuleiro do jogador{de}Verteidiger des Klosters auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
 								if (player.avatarLocation=="tomb" or player.avatarLocation=="labyrinth") and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.red, player, id) broadcastToAll("{en}Dragon Drawn to Player Board{it}Drago portato sulla Plancia Giocatore{ru}Жетон Драконума был помещен на стол игрока{zh-tw}巨龍已移到玩家面板{zh-cn}将龙放到玩家面板{ko}드래곤과 전투하세요{es}Dragón dibujado al tablero del jugador{fr}Dragon dessiné sur le plateau du joueur{pt-br}Dragão Puxado para o tabuleiro do jogador{de}Drache auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
+								if gStates.gameScenario=="Conquer and Hold" and id:sub(1,6)=="Attack"
+									and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower")
+									and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos) then
+									local pile=player.avatarLocation=="keep" and monsterPiles.gray or monsterPiles.purple
+									local number=gStates.currentRound>=3 and gStates.playerCount==2 and 3 or (gStates.currentRound>=2 and 2 or 1)
+									gStates.conquerHoldAssault={mage=player.mage,site=player.avatarLocation,expected=number,monsters={},defeated={}}
+									for counter=1,number do drawMonster(pile,player,"ConquerHoldOwned") end
+								end
 								if player.avatarLocation=="keep" and id:sub(1, 6)=="Attack" then
 									local found=false
 									local mapSpatial=attackMapSpatialView()
@@ -2115,7 +2151,7 @@ function attackLocation(playerDud, mouseButton, id)
 										local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
 										if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and (shieldOwner(shield)==player.mage or gStates.coop==1) and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then found=true break end
 									end
-									if found==false then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{it}Difensore della Fortezza portato sulla Plancia Giocatore{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
+									if found==false and not (gStates.gameScenario=="Conquer and Hold" and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos)) then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{it}Difensore della Fortezza portato sulla Plancia Giocatore{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
 								end
 								if (player.avatarLocation=="ziggurat" or player.avatarLocation=="pyramid") then
 									--update Interface to be fresh and match the location.
@@ -2231,6 +2267,9 @@ function drawMonster(color, player, id, possessedFaction)
 		end
 		local monsterDrawn=pile.takeObject({position={(player.seatPos*40)-96+gStates.monsterOffsetX,2.5,-39-gStates.monsterOffsetZ},rotation={0.00,180.00,0.00}})
 		if monsterDrawn==nil then return end
+		if drawID=="ConquerHoldOwned" and gStates.conquerHoldAssault~=nil then
+			gStates.conquerHoldAssault.monsters[monsterDrawn.guid]=true
+		end
 		if color==monsterPiles.possessed and possessedFaction~=nil then
 			if gStates.apocalypsePossessedFactionByToken==nil then gStates.apocalypsePossessedFactionByToken={} end
 			gStates.apocalypsePossessedFactionByToken[monsterDrawn.guid]=possessedFaction

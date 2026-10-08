@@ -851,7 +851,7 @@ local function mainUIRefreshPlayerState(context)
 						if c==gStates.hiddenValleyKeep[1] or c==gStates.hiddenValleyKeep[2] then count=count+1 end
 					end
 					if count==2 then hiddenValleyKeep=true end
-					if cityRepLoss==false and
+					if cityRepLoss==false and gStates.gameScenario~="Conquer and Hold" and
 					   ((monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep") or
 						   (monsterPugs[obj.guid].pugType=="purple" and avatarLocation=="mage tower") or
 					   ((obj.guid==gStates.hiddenValleyKeep[1] or obj.guid==gStates.hiddenValleyKeep[2]) and hiddenValleyKeep==false)) then
@@ -1720,7 +1720,7 @@ function addAvatarButtons()
 							children={{tag="Image", attributes={image="Marker Button "..details.mage}}}}
 					end
 					--Shield can be dropped
-					if player.avatarLocation~=nil and ((mageShield==nil and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower"
+					if player.avatarLocation~=nil and ((mageShield==nil and not (gStates.gameScenario=="Conquer and Hold" and mageKnightAlliedOwnedSiteAt(player.seatPos,avPos)) and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower"
 							or player.avatarLocation=="monastery" or player.avatarLocation=="ruin"
 							or ((player.avatarLocation=="dungeon" or player.avatarLocation=="tomb") and gStates.gameScenario~="Dungeon Lords")
 							or player.avatarLocation=="monster den" or player.avatarLocation=="spawning grounds"
@@ -1742,7 +1742,7 @@ function addAvatarButtons()
 					local specialActionY=100
 					--monster can be fought at avatar location
 					if gStates.preEndTurn==false and player.avatarLocation~=nil and order==gStates.turnNumber and player.combatIconHide=="None" and turnTokenFaceUp==true
-						and ((mageShield==nil and (player.avatarLocation=="mage tower"
+						and (((mageShield==nil or (gStates.gameScenario=="Conquer and Hold" and player.avatarLocation=="mage tower" and mageShield[details.mage]==nil and not mageKnightAlliedOwnedSiteAt(player.seatPos,avPos))) and (player.avatarLocation=="mage tower"
 							or player.avatarLocation=="monster den" or player.avatarLocation=="spawning grounds"
 							or (player.avatarLocation=="glade" and gStates.gameScenario=="Life and Death") or player.avatarLocation=="graveyard"
 							or (player.avatarLocation=="mine" and gStates.gameScenario=="Mines Liberation")
@@ -1934,7 +1934,9 @@ function applyColorBarButtons()
 
             if barSkip==false then
                 local team=mageKnightSeatTeam(position)
+                local shareHands=gStates.coop==1
                 local teamLabel=team==0 and "{en}NO TEAM{it}NESSUNA SQUADRA{ru}БЕЗ КОМАНДЫ{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}SIN EQUIPO{fr}SANS ÉQUIPE{pt-br}SEM EQUIPE{de}KEIN TEAM" or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
+                if shareHands then teamLabel=(gStates.coopShareHands or {})[position]==true and "{en}HIDE HAND{it}NASCONDI MANO{ru}СКРЫТЬ РУКУ{zh-tw}隱藏手牌{zh-cn}隐藏手牌{ko}손패 숨기기{es}OCULTAR MANO{fr}MASQUER MAIN{pt-br}OCULTAR MÃO{de}HAND VERBERGEN" or "{en}SHARE HAND{it}CONDIVIDI MANO{ru}ПОКАЗАТЬ РУКУ{zh-tw}分享手牌{zh-cn}共享手牌{ko}손패 공유{es}COMPARTIR MANO{fr}PARTAGER MAIN{pt-br}PARTILHAR MÃO{de}HAND TEILEN" end
                 buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."TeamCycle",onClick="global/cycleMageKnightSeatTeam",
                     height=200,width=800,position="50 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
                     children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},

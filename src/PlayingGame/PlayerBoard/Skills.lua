@@ -916,7 +916,7 @@ function createCompetitiveSkillReminders(skillGUID, owner)
 	end
 	local targetSeats={}
 	for playerIndex, details in pairs(turnOrder) do
-		if details.seatPos~=nil and details.seatPos<5 and details.mage~=gStates.positionMageKnight[5] and playerIndex~=owner and playerDropoutInactive(playerIndex)==false then targetSeats[details.seatPos]=true end
+		if details.seatPos~=nil and details.seatPos<5 and details.mage~=gStates.positionMageKnight[5] and playerIndex~=owner and playerDropoutInactive(playerIndex)==false and not mageKnightPlayersAllied(turnOrder[owner].seatPos,details.seatPos) then targetSeats[details.seatPos]=true end
 	end
 	for reminderGUID, seatPos in pairs(record.reminders) do
 		if targetSeats[seatPos]~=true or getObjectFromGUID(reminderGUID)==nil then clearCompetitiveSkillSeat(skillGUID, seatPos) end

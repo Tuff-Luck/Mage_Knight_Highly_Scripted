@@ -26,7 +26,7 @@ function syncMageKnightSeatTeams()
     if gStates==nil or gStates.handColors==nil then return end
     for color,seatPos in pairs(gStates.handColors) do
         if color~="Black" and color~="Grey" and Player[color]~=nil and Player[color].seated then
-            local wanted=TEAM_SUITS[mageKnightSeatTeam(seatPos)+1]
+            local wanted=gStates.coop==1 and ((gStates.coopShareHands or {})[seatPos]==true and "Hearts" or "None") or TEAM_SUITS[mageKnightSeatTeam(seatPos)+1]
             if Player[color].team~=wanted then Player[color].team=wanted end
         end
     end
@@ -41,6 +41,13 @@ function cycleMageKnightSeatTeam(player,mouseButton,id)
     local authorized=player.color=="Black" or player.host or player.admin
     if not authorized then authorized=gStates.handColors[player.color]==seatPos end
     if not authorized then return end
+    if gStates.coop==1 then
+        gStates.coopShareHands=gStates.coopShareHands or {}
+        gStates.coopShareHands[seatPos]=not (gStates.coopShareHands[seatPos]==true)
+        syncMageKnightSeatTeams()
+        applyColorBarButtons()
+        return
+    end
     gStates.seatTeams=gStates.seatTeams or {}
     local team=(mageKnightSeatTeam(seatPos)+1)%5
     gStates.seatTeams[seatPos]=team
@@ -79,6 +86,103 @@ function mageKnightAlliedKeepOccupied(seatPos,position)
             local p=obj.getPosition()
             if (p[1]-position[1])^2+(p[3]-position[3])^2<1.44
                 and mageKnightShieldOwnerAllied(seatPos,shieldOwner(obj)) then return true end
+        end
+    end
+    return false
+end
+
+-- Conquer and Hold treats owned Mage Towers like owned Keeps.
+function mageKnightAlliedOwnedSiteAt(seatPos,position)
+    if gStates==nil or gStates.gameScenario~="Conquer and Hold" or position==nil then return false end
+    if mageKnightAlliedKeepOccupied(seatPos,position) then return true end
+    local _,_,_,feature=terrainHexAtPosition(position)
+    if feature~="mage tower" or mageKnightSeatTeam(seatPos)==0 then return false end
+    local snapshot=runtimeMapSpatialSnapshot()
+    for _,obj in ipairs(runtimeMapSpatialNearbyObjects(snapshot,position,1.5)) do
+        if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            if (p[1]-position[1])^2+(p[3]-position[3])^2<1.44 and mageKnightShieldOwnerAllied(seatPos,shieldOwner(obj)) then return true end
+        end
+    end
+    return false
+end
+
+function conquerHoldPersonalMageTowers(playerIndex)
+    local details=turnOrder[playerIndex]
+    if details==nil or gStates.gameScenario~="Conquer and Hold" then return 0,false end
+    local snapshot=runtimeMapSpatialSnapshot()
+    local magePosition=mageKnightAvatarPosition(playerIndex)
+    local count,nearOwn=0,false
+    for _,obj in ipairs(getObjectFromGUID(mapArea).getObjects()) do
+        if isShieldObject(obj) and shieldOwner(obj)==details.mage and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            local _,_,_,feature=terrainHexAtPosition(p)
+            if feature=="mage tower" then
+                count=count+1
+                if magePosition~=nil and (p[1]-magePosition[1])^2+(p[3]-magePosition[3])^2<8.5 then nearOwn=true end
+            end
+        end
+    end
+    return count,nearOwn
+end
+
+-- One to Return (four-player team variant): randomly pick and privately announce
+-- one designated returning hero per two-player team.
+function oneToReturnEnsureChosenMages()
+    if gStates==nil or gStates.gameScenario~="One to Return" or gStates.coop~=0 or gStates.firstStarted~=true then return false end
+    if gStates.oneToReturnChosenMages~=nil then return true end
+    local members={}
+    local realCount=0
+    for _,details in ipairs(turnOrder or {}) do
+        if details.mage~=gStates.positionMageKnight[5] and details.seatPos~=nil and details.seatPos<=4 then
+            realCount=realCount+1
+            local team=mageKnightSeatTeam(details.seatPos)
+            if team==0 then return false end
+            members[team]=members[team] or {}
+            members[team][#members[team]+1]=details
+        end
+    end
+    if realCount~=4 then return false end
+    local teams={}
+    for team,players in pairs(members) do
+        if #players~=2 then return false end
+        teams[#teams+1]=team
+    end
+    if #teams~=2 then return false end
+    local chosen={}
+    for _,team in ipairs(teams) do
+        local member=members[team][math.random(1,2)]
+        chosen[team]=member.mage
+    end
+    gStates.oneToReturnChosenMages=chosen
+    for _,team in ipairs(teams) do
+        local message=joinLang({"{en}One to Return — your team's secretly chosen hero: {it}Unico a Tornare — eroe scelto in segreto: {ru}Единственный вернётся — тайный герой вашей команды: {zh-tw}唯一歸來者——隊伍秘密選定英雄：{zh-cn}唯一归来者——队伍秘密选定英雄：{ko}유일한 귀환자 — 팀의 비밀 영웅: {es}Único en Regresar — héroe secreto del equipo: {fr}Seul à Revenir — héros secret de l'équipe : {pt-br}Único a Retornar — herói secreto da equipe: {de}Einziger Rückkehrer — geheimer Held des Teams: ", translateWord[chosen[team]]})
+        for _,member in ipairs(members[team]) do
+            for color,seat in pairs(gStates.handColors or {}) do
+                if seat==member.seatPos and Player[color]~=nil and Player[color].seated==true then
+                    broadcastToColor(message,color,{1,1,0.5})
+                end
+            end
+        end
+    end
+    return true
+end
+
+-- Distinguish an opponent-held site from one held by a teammate or self.
+function conquerHoldEnemyOwnedSiteAt(seatPos,position)
+    if gStates==nil or gStates.gameScenario~="Conquer and Hold" or position==nil then return false end
+    local _,_,_,feature=terrainHexAtPosition(position)
+    if feature~="keep" and feature~="mage tower" then return false end
+    local snapshot=runtimeMapSpatialSnapshot()
+    for _,obj in ipairs(runtimeMapSpatialNearbyObjects(snapshot,position,1.5)) do
+        if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            if (p[1]-position[1])^2+(p[3]-position[3])^2<1.44 then
+                local owner=shieldOwner(obj)
+                for _,details in ipairs(turnOrder or {}) do
+                    if details.mage==owner and details.seatPos~=seatPos and not mageKnightPlayersAllied(seatPos,details.seatPos) then return true end
+                end
+            end
         end
     end
     return false
