@@ -116,6 +116,11 @@ function onPlayerChangeColor(color)
 		function() return automaticLuaPlayerContext(color,"Player changed color") end)
 end
 
+function onPlayerChangeTeam(color, team)
+    return safeCallback("onPlayerChangeTeam",function() mageKnightTeamChanged(color) end,
+        function() return automaticLuaPlayerContext(color,"Player changed TTS team") end)
+end
+
 function onObjectNumberTyped(object, player_color, number, alt)
 	return safeCallback("onObjectNumberTyped", function() return __onObjectNumberTyped_raw(object, player_color, number, alt) end)
 end
