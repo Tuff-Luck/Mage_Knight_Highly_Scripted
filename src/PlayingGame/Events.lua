@@ -137,6 +137,7 @@ function eventsOnLoadRawBase(saved_data, loaded_data)
 		turnOrder=loaded_data.turnOrder
 		gStates=loaded_data.gStates
 	end
+	gStates.seatTeams=gStates.seatTeams or {0,0,0,0}
 	resetGlobalUIVisibility()
 	--Refresh saved Puppets so presentation changes (decal/hover data) also apply to existing accepted Puppets.
 	safeWaitFrames("Events",function() for guid,record in pairs(gStates.puppetMasterPuppets or {}) do puppetMasterRefreshPresentation(getObjectFromGUID(guid),record) end end,2)
