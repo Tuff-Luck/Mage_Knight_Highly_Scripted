@@ -43,3 +43,30 @@ function mageKnightTeamChanged(color)
     if color=="Black" or color=="Grey" then return end
     syncMageKnightSeatTeams()
 end
+
+-- Resolve a shield owner to their Mage Knight seat, independently of TTS colours.
+function mageKnightShieldOwnerAllied(seatPos,ownerMage)
+    if ownerMage==nil then return false end
+    for _,details in ipairs(turnOrder or {}) do
+        if details.mage==ownerMage and details.seatPos~=seatPos then
+            return mageKnightPlayersAllied(seatPos,details.seatPos)
+        end
+    end
+    return false
+end
+
+-- Allied Keep shields permit entering/recruiting, but never grant the owner's hand bonus.
+function mageKnightAlliedKeepOccupied(seatPos,position)
+    if mageKnightSeatTeam(seatPos)==0 or position==nil then return false end
+    local _,_,_,feature=terrainHexAtPosition(position)
+    if feature~="keep" then return false end
+    local snapshot=runtimeMapSpatialSnapshot()
+    for _,obj in ipairs(runtimeMapSpatialNearbyObjects(snapshot,position,1.5)) do
+        if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            if (p[1]-position[1])^2+(p[3]-position[3])^2<1.44
+                and mageKnightShieldOwnerAllied(seatPos,shieldOwner(obj)) then return true end
+        end
+    end
+    return false
+end
