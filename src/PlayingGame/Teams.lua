@@ -167,3 +167,23 @@ function oneToReturnEnsureChosenMages()
     end
     return true
 end
+
+-- Distinguish an opponent-held site from one held by a teammate or self.
+function conquerHoldEnemyOwnedSiteAt(seatPos,position)
+    if gStates==nil or gStates.gameScenario~="Conquer and Hold" or position==nil then return false end
+    local _,_,_,feature=terrainHexAtPosition(position)
+    if feature~="keep" and feature~="mage tower" then return false end
+    local snapshot=runtimeMapSpatialSnapshot()
+    for _,obj in ipairs(runtimeMapSpatialNearbyObjects(snapshot,position,1.5)) do
+        if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            if (p[1]-position[1])^2+(p[3]-position[3])^2<1.44 then
+                local owner=shieldOwner(obj)
+                for _,details in ipairs(turnOrder or {}) do
+                    if details.mage==owner and details.seatPos~=seatPos and not mageKnightPlayersAllied(seatPos,details.seatPos) then return true end
+                end
+            end
+        end
+    end
+    return false
+end
