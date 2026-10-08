@@ -125,3 +125,45 @@ function conquerHoldPersonalMageTowers(playerIndex)
     end
     return count,nearOwn
 end
+
+-- One to Return (four-player team variant): randomly pick and privately announce
+-- one designated returning hero per two-player team.
+function oneToReturnEnsureChosenMages()
+    if gStates==nil or gStates.gameScenario~="One to Return" or gStates.coop~=0 or gStates.firstStarted~=true then return false end
+    if gStates.oneToReturnChosenMages~=nil then return true end
+    local members={}
+    local realCount=0
+    for _,details in ipairs(turnOrder or {}) do
+        if details.mage~=gStates.positionMageKnight[5] and details.seatPos~=nil and details.seatPos<=4 then
+            realCount=realCount+1
+            local team=mageKnightSeatTeam(details.seatPos)
+            if team==0 then return false end
+            members[team]=members[team] or {}
+            members[team][#members[team]+1]=details
+        end
+    end
+    if realCount~=4 then return false end
+    local teams={}
+    for team,players in pairs(members) do
+        if #players~=2 then return false end
+        teams[#teams+1]=team
+    end
+    if #teams~=2 then return false end
+    local chosen={}
+    for _,team in ipairs(teams) do
+        local member=members[team][math.random(1,2)]
+        chosen[team]=member.mage
+    end
+    gStates.oneToReturnChosenMages=chosen
+    for _,team in ipairs(teams) do
+        local message=joinLang({"{en}One to Return — your team's secretly chosen hero: {it}Unico a Tornare — eroe scelto in segreto: {ru}Единственный вернётся — тайный герой вашей команды: {zh-tw}唯一歸來者——隊伍秘密選定英雄：{zh-cn}唯一归来者——队伍秘密选定英雄：{ko}유일한 귀환자 — 팀의 비밀 영웅: {es}Único en Regresar — héroe secreto del equipo: {fr}Seul à Revenir — héros secret de l'équipe : {pt-br}Único a Retornar — herói secreto da equipe: {de}Einziger Rückkehrer — geheimer Held des Teams: ", translateWord[chosen[team]]})
+        for _,member in ipairs(members[team]) do
+            for color,seat in pairs(gStates.handColors or {}) do
+                if seat==member.seatPos and Player[color]~=nil and Player[color].seated==true then
+                    broadcastToColor(message,color,{1,1,0.5})
+                end
+            end
+        end
+    end
+    return true
+end
