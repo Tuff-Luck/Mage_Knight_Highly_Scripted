@@ -26,7 +26,7 @@ function syncMageKnightSeatTeams()
     if gStates==nil or gStates.handColors==nil then return end
     for color,seatPos in pairs(gStates.handColors) do
         if color~="Black" and color~="Grey" and Player[color]~=nil and Player[color].seated then
-            local wanted=TEAM_SUITS[mageKnightSeatTeam(seatPos)+1]
+            local wanted=gStates.coop==1 and ((gStates.coopShareHands or {})[seatPos]==true and "Hearts" or "None") or TEAM_SUITS[mageKnightSeatTeam(seatPos)+1]
             if Player[color].team~=wanted then Player[color].team=wanted end
         end
     end
@@ -41,6 +41,13 @@ function cycleMageKnightSeatTeam(player,mouseButton,id)
     local authorized=player.color=="Black" or player.host or player.admin
     if not authorized then authorized=gStates.handColors[player.color]==seatPos end
     if not authorized then return end
+    if gStates.coop==1 then
+        gStates.coopShareHands=gStates.coopShareHands or {}
+        gStates.coopShareHands[seatPos]=not (gStates.coopShareHands[seatPos]==true)
+        syncMageKnightSeatTeams()
+        applyColorBarButtons()
+        return
+    end
     gStates.seatTeams=gStates.seatTeams or {}
     local team=(mageKnightSeatTeam(seatPos)+1)%5
     gStates.seatTeams[seatPos]=team
