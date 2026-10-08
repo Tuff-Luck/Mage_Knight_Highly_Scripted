@@ -257,6 +257,19 @@ function startOfTurn()
 		end
 	end
 
+	-- Conquer and Hold: owned towers grant gold/black mana at turn start.
+	if virtualCoopCombat==false and gStates.gameScenario=="Conquer and Hold" then
+		local towerCount,nearOwnTower=conquerHoldPersonalMageTowers(gStates.turnNumber)
+		if nearOwnTower and towerCount>0 then
+			local bag=getObjectFromGUID(gStates.dayRound==true and "4a836f" or "74d666")
+			if bag~=nil then
+				for manaIndex=1,towerCount do
+					bag.takeObject({position={(turnOrder[gStates.turnNumber].seatPos*40)-103+((manaIndex-1)*0.35),1.65,-39},rotation={0,0,0},smooth=false})
+				end
+			end
+		end
+	end
+
 	--Gain Reminder token from oasis
 	if virtualCoopCombat==false and turnOrder[gStates.turnNumber].avatarLocation=="oasis" then
 		getObjectFromGUID(GUID.token.oasisReminder).clone({position={(turnOrder[gStates.turnNumber].seatPos*40)-103, 1.65, -39}, rotation={0.00, 180.00, 0.00}, smooth=false}).unlock()
