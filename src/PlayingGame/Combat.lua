@@ -101,6 +101,26 @@ function objectInPlayerCombatArea(objectGUID)
 	return false
 end
 
+-- Official combined City assaults require a face-up Round Order token
+-- and at least one non-Wound card in the invited Hero's hand.
+local function officialCityAssaultAssistantEligible(playerIndex)
+	local details=turnOrder[playerIndex]
+	if details==nil or playerDropoutInactive(playerIndex)==true then return false end
+	local token=getObjectFromGUID(details.turnOrderTokenGUID)
+	if token==nil or token.is_face_down==true then return false end
+	local handZone=getObjectFromGUID(handZones[details.seatPos])
+	if handZone==nil then return false end
+	for _,card in ipairs(handZone.getObjects()) do
+		if card.type=="Card" and card.getGMNotes()~="Wound" then return true end
+		if card.type=="Deck" then
+			for _,held in ipairs(card.getObjects()) do
+				if held.gm_notes~="Wound" then return true end
+			end
+		end
+	end
+	return false
+end
+
 --Co-op assault combat is resolved first; rewards are then claimed by each participant in fight order.
 function coopAssaultPendingCombat()
 	if gStates.coopAssaultPhase~="combat" or gStates.coopAssaultParticipants==nil then return false end
@@ -2066,7 +2086,7 @@ function attackLocation(playerDud, mouseButton, id)
 							end
 							local cityDefense=gStates.coopAssaultMode=="defense"
 							for _, mageName in pairs(magesInRange) do
-								if mageName.mage~=player.mage and gStates.volkareState~="Attacking Player" then count=count+1 gStates.assaultData[mageName.mage]={primary={}, secondary={}, UIPos={count}, joined=cityDefense} end
+								if mageName.mage~=player.mage and gStates.volkareState~="Attacking Player" and (cityDefense or isStandardCityGUID(cityGUID)~=true or officialCityAssaultAssistantEligible(mageName.turn)) then count=count+1 gStates.assaultData[mageName.mage]={primary={}, secondary={}, UIPos={count}, joined=cityDefense} end
 							end
 							--Volkare's shared fight can be combined even with only one army enemy; that enemy starts unassigned.
 							if count>=2 and (mcount>=2 or (volkareAssignment and mcount>=1)) then
