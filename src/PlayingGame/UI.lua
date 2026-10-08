@@ -1931,7 +1931,7 @@ function applyColorBarButtons()
 
             if barSkip==false then
                 local team=mageKnightSeatTeam(position)
-                local teamLabel=team==0 and "{en}NO TEAM{it}NESSUNA SQUADRA{ru}БЕЗ КОМАНДЫ{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}SIN EQUIPO{fr}SANS ÉQUIPE{pt-br}SEM EQUIPE{de}KEIN TEAM" or ("Team "..team)
+                local teamLabel=team==0 and "{en}NO TEAM{it}NESSUNA SQUADRA{ru}БЕЗ КОМАНДЫ{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}SIN EQUIPO{fr}SANS ÉQUIPE{pt-br}SEM EQUIPE{de}KEIN TEAM" or ("{en}Team {it}Squadra {ru}Команда {zh-tw}隊伍 {zh-cn}队伍 {ko}팀 {es}Equipo {fr}Équipe {pt-br}Equipe {de}Team "..team)
                 buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."TeamCycle",onClick="global/cycleMageKnightSeatTeam",
                     height=200,width=800,position="-35 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
                     children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},
@@ -2751,6 +2751,7 @@ function changePositionColor(player, mouseButton, id)
 		gStates.handColors[currentColor]=nil
 		Hands.getHands()[barConversion[barGUID]].setValue(newColor)
 		Player[currentColor].changeColor(newColor)
+		syncMageKnightSeatTeams()
 		applyColorBarButtons()
 		refreshPlayerSeatColors()
 		outOfTurnUIStateKey=nil
