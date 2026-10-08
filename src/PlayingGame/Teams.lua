@@ -36,6 +36,8 @@ function cycleMageKnightSeatTeam(player,mouseButton,id)
     gStates.seatTeams[seatPos]=(mageKnightSeatTeam(seatPos)+1)%5
     syncMageKnightSeatTeams()
     applyColorBarButtons()
+    -- An alliance change can immediately add or remove a Keep assault action.
+    if gStates.firstStarted==true then addAvatarButtons() end
 end
 
 -- TTS permits manual suit changes; retain the authoritative Mage Knight seat assignment.
