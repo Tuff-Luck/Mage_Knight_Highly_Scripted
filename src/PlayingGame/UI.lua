@@ -1032,9 +1032,14 @@ local function mainUIRefreshPlayerState(context)
 						break
 					end
 				end
-				--Refund the exact temporary Keep/Mage Tower/Hidden Valley/Monastery assault loss applied when this token entered combat.
-				--The avatar may already have been moved away to cancel/reset the combat, so do not re-check avatarLocation here.
-				if (b.siteRepLoss or 0)>0 then turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+b.siteRepLoss end
+				--Refund a cancelled site's temporary penalty only while combat accounting is still pending.
+				--After pre-end-turn begins (or Fame/Reputation has committed), removing defeated
+				--enemies is cleanup, not a cancellation; refunding would undo an earned loss.
+				--The avatar may already have moved when a pending assault is cancelled.
+				local sitePenaltyCommitted=gStates.fameRepCommitted~=nil and gStates.fameRepCommitted[gStates.turnNumber]~=nil
+				if (b.siteRepLoss or 0)>0 and gStates.preEndTurn~=true and sitePenaltyCommitted~=true then
+					turnOrder[gStates.turnNumber].repGain=turnOrder[gStates.turnNumber].repGain+b.siteRepLoss
+				end
 				gStates.gainList[a]=nil
 			end
 		end
