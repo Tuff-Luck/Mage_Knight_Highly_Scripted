@@ -214,7 +214,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 					if context.startPos[turnRef]==1 then duplicate=true else context.startPos[turnRef]=1 end
 				end
 				params.position={-1.9, 0.96, -19.4-((turnRef-1)*1.4)}
-				turnOrder[turnRef]={seatPos=position,mage=gStates.positionMageKnight[position], fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, level=1, levelUp=0, influence=6, hand=5, baseHand=5, handBonus=0, tactic=turnRef, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, combatIconHide="None", defeatedCities={}, levelUpComplete=false, avatarLocation="portal", deadDeckInventory={}, levelingStats={}, score={Glade=0, GraveYard=0}}
+				turnOrder[turnRef]={seatPos=position,mage=gStates.positionMageKnight[position], questScore=0, fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, level=1, levelUp=0, influence=6, hand=5, baseHand=5, handBonus=0, tactic=turnRef, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, combatIconHide="None", defeatedCities={}, levelUpComplete=false, avatarLocation="portal", deadDeckInventory={}, levelingStats={}, score={Glade=0, GraveYard=0}}
 			end
 		end
 

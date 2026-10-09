@@ -587,7 +587,7 @@ function displayScore(player, mouseButton, id)
 			for a=1, #turnOrder, 1 do
 				local currentLowScore=999
 				if turnOrder[a].mage~=gStates.positionMageKnight[5] then
-					if forTheCouncil then currentLowScore=turnOrder[a].questScore+councilReputationPoints(a)
+					if forTheCouncil then currentLowScore=(turnOrder[a].questScore or 0)+councilReputationPoints(a)
 					else currentLowScore=turnOrder[a].fame+turnOrder[a].score.Reward end
 				end
 				if currentLowScore==scoreMin then key[#key+1]=a end
@@ -620,7 +620,7 @@ function displayScore(player, mouseButton, id)
 							 gRelic=		{function(z) return turnOrder[z].score.Relic*5 end, nil ,
 						 					 function(z) return turnOrder[z].score.Relic*4 end}}--The Lost Relic Blitz
 		if apocalypseQuestScoringActive()==true and (forTheCouncil~=true or gStates.coop==0) then
-			greatestTable.gQuest={function(z) return turnOrder[z].questScore end}
+			greatestTable.gQuest={function(z) return turnOrder[z].questScore or 0 end}
 		end
 		if forTheCouncil and gStates.coop==0 then
 			--Offsets preserve ordering while ensuring the title is still awarded if all
@@ -945,7 +945,7 @@ function displayScore(player, mouseButton, id)
 					--Quest scoring is optional when the selected scenario does not require it.
 					if apocalypseQuestScoringActive()==true then
 						assembledText="" lineFeed=0
-						if turnOrder[a].questScore>0 then
+						if (turnOrder[a].questScore or 0)>0 then
 							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].questScore, "{en} Quest Point(s): +{it} Punti Missione: +{ru} Quest Point(s): +{zh-tw} Quest Point(s): +{zh-cn} Quest Point(s): +{ko} Quest Point(s): +{es} Quest Point(s): +{fr} Quest Point(s): +{pt-br} Quest Point(s): +{de} Quest Point(s): +", turnOrder[a].questScore})
 							totalScore=totalScore+turnOrder[a].questScore
 						end
