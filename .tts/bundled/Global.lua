@@ -3585,7 +3585,11 @@ local function mainUIRefreshPlayerState(context)
 						end
 					end
 					--Keep defenders use half Fame; remember this so reset does not depend on the avatar still being on the Keep.
-					gStates.gainList[obj.guid].keepHalfFame=gStates.monsterPlayLocation[obj.guid]==nil and monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep"
+					gStates.gainList[obj.guid].keepHalfFame=
+                        (gStates.monsterPlayLocation[obj.guid]==nil and monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep")
+                        or (gStates.gameScenario=="The Council versus the Apocalypse" and avatarLocation=="mage tower"
+                            and monsterPugs[obj.guid].pugType=="purple"
+                            and councilApocalypseSiteOwnerAt(mageKnightAvatarPosition(gStates.turnNumber))~=nil)
 				end
 				--existing token found, but it has been flipped
 				if (obj.is_face_down==false and gStates.gainList[obj.guid].tokenDirection==-1)
@@ -4460,7 +4464,9 @@ function addAvatarButtons()
 					local specialActionY=100
 					--monster can be fought at avatar location
 					if gStates.preEndTurn==false and player.avatarLocation~=nil and order==gStates.turnNumber and player.combatIconHide=="None" and turnTokenFaceUp==true
-						and (((mageShield==nil or (gStates.gameScenario=="Conquer and Hold" and player.avatarLocation=="mage tower" and mageShield[details.mage]==nil and not mageKnightAlliedOwnedSiteAt(player.seatPos,avPos))) and (player.avatarLocation=="mage tower"
+						and (((mageShield==nil or ((gStates.gameScenario=="Conquer and Hold" and player.avatarLocation=="mage tower" and mageShield[details.mage]==nil and not mageKnightAlliedOwnedSiteAt(player.seatPos,avPos))
+                            or (gStates.gameScenario=="The Council versus the Apocalypse" and player.avatarLocation=="mage tower"
+                                and mageShield[details.mage]==nil and councilApocalypseSiteOwnerAt(avPos)~=nil))) and (player.avatarLocation=="mage tower"
 							or player.avatarLocation=="monster den" or player.avatarLocation=="spawning grounds"
 							or (player.avatarLocation=="glade" and gStates.gameScenario=="Life and Death") or player.avatarLocation=="graveyard"
 							or (player.avatarLocation=="mine" and gStates.gameScenario=="Mines Liberation")
@@ -4651,15 +4657,29 @@ function applyColorBarButtons()
 			end
 
             if barSkip==false then
-                local team=mageKnightSeatTeam(position)
-                local shareHands=gStates.coop==1
-                local teamLabel=team==0 and "{en}NO TEAM{it}NESSUNA SQUADRA{ru}БЕЗ КОМАНДЫ{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}SIN EQUIPO{fr}SANS ÉQUIPE{pt-br}SEM EQUIPE{de}KEIN TEAM" or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
-                if shareHands then teamLabel=(gStates.coopShareHands or {})[position]==true and "{en}HIDE HAND{it}NASCONDI MANO{ru}СКРЫТЬ РУКУ{zh-tw}隱藏手牌{zh-cn}隐藏手牌{ko}손패 숨기기{es}OCULTAR MANO{fr}MASQUER MAIN{pt-br}OCULTAR MÃO{de}HAND VERBERGEN" or "{en}SHARE HAND{it}CONDIVIDI MANO{ru}ПОКАЗАТЬ РУКУ{zh-tw}分享手牌{zh-cn}共享手牌{ko}손패 공유{es}COMPARTIR MANO{fr}PARTAGER MAIN{pt-br}PARTILHAR MÃO{de}HAND TEILEN" end
-                buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."TeamCycle",onClick="global/cycleMageKnightSeatTeam",
-                    height=200,width=800,position="50 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
-                    children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},
-                        {tag="Text",attributes={font="Fonts/MKCardText",fontSize=90,fontStyle="Normal",alignment="MiddleCenter",
-                            resizeTextForBestFit="true",resizeTextMaxSize=90,text=teamLabel}}}}
+                if barPlayerData~=nil and gStates.gameScenario=="The Council versus the Apocalypse" then
+                    local side=councilApocalypseFactionAtSeat(position)
+                    local factionLabel=side=="Council" and "{en}COUNCIL{it}CONSIGLIO{ru}СОВЕТ{zh-tw}議會{zh-cn}议会{ko}평의회{es}CONSEJO{fr}CONSEIL{pt-br}CONSELHO{de}RAT"
+                        or (side=="Apocalypse" and "{en}APOCALYPSE{it}APOCALISSE{ru}АПОКАЛИПСИС{zh-tw}末日{zh-cn}末日{ko}아포칼립스{es}APOCALIPSIS{fr}APOCALYPSE{pt-br}APOCALIPSE{de}APOKALYPSE"
+                        or (side=="Independent" and "{en}INDEPENDENT{it}INDIPENDENTE{ru}НЕЗАВИСИМЫЙ{zh-tw}獨立{zh-cn}独立{ko}독립{es}INDEPENDIENTE{fr}INDÉPENDANT{pt-br}INDEPENDENTE{de}UNABHÄNGIG"
+                        or "{en}CHOOSE SIDE{it}SCEGLI FAZIONE{ru}ВЫБЕРИТЕ СТОРОНУ{zh-tw}選擇陣營{zh-cn}选择阵营{ko}세력 선택{es}ELIGE BANDO{fr}CHOISIR CAMP{pt-br}ESCOLHA UM LADO{de}SEITE WÄHLEN"))
+                    buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."FactionCycle",onClick="global/cycleCouncilApocalypseFaction",
+                        height=200,width=800,position="50 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
+                        children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},
+                            {tag="Text",attributes={font="Fonts/MKCardText",fontSize=90,fontStyle="Normal",alignment="MiddleCenter",
+                                resizeTextForBestFit="true",resizeTextMaxSize=90,text=factionLabel}}}}
+                elseif barPlayerData~=nil and ((gStates.coop==1 and (gStates.playerCount or 0)>=2)
+                    or (gStates.coop==0 and (gStates.playerCount or 0)>=3)) then
+                    local team=mageKnightSeatTeam(position)
+                    local shareHands=gStates.coop==1
+                    local teamLabel=team==0 and "{en}NO TEAM{it}NESSUNA SQUADRA{ru}БЕЗ КОМАНДЫ{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}SIN EQUIPO{fr}SANS ÉQUIPE{pt-br}SEM EQUIPE{de}KEIN TEAM" or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
+                    if shareHands then teamLabel=(gStates.coopShareHands or {})[position]==true and "{en}HIDE HAND{it}NASCONDI MANO{ru}СКРЫТЬ РУКУ{zh-tw}隱藏手牌{zh-cn}隐藏手牌{ko}손패 숨기기{es}OCULTAR MANO{fr}MASQUER MAIN{pt-br}OCULTAR MÃO{de}HAND VERBERGEN" or "{en}SHARE HAND{it}CONDIVIDI MANO{ru}ПОКАЗАТЬ РУКУ{zh-tw}分享手牌{zh-cn}共享手牌{ko}손패 공유{es}COMPARTIR MANO{fr}PARTAGER MAIN{pt-br}PARTILHAR MÃO{de}HAND TEILEN" end
+                    buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."TeamCycle",onClick="global/cycleMageKnightSeatTeam",
+                        height=200,width=800,position="50 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
+                        children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},
+                            {tag="Text",attributes={font="Fonts/MKCardText",fontSize=90,fontStyle="Normal",alignment="MiddleCenter",
+                                resizeTextForBestFit="true",resizeTextMaxSize=90,text=teamLabel}}}}
+                end
                 getObjectFromGUID(barGUID).UI.setXmlTable(buttons)
             end
 		end
@@ -5832,7 +5852,7 @@ end)
 __bundle_register("PlayingGame.Teams", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- Team membership belongs to Mage Knight seats, not to the occupant's Steam identity.
 -- Zero means No Team. TTS suits are a presentation mirror, never the source of truth.
-local TEAM_SUITS={"None","Hearts","Diamonds","Clubs","Spades"}
+local TEAM_SUITS={"None","Hearts","Diamonds"}
 
 local function notifyBlackMageKnightTeamChange(seatPos,team)
     local black=Player["Black"]
@@ -5846,7 +5866,7 @@ end
 function mageKnightSeatTeam(seatPos)
     local teams=gStates and gStates.seatTeams
     local team=teams and teams[seatPos] or 0
-    return type(team)=="number" and team>=1 and team<=4 and team or 0
+    return type(team)=="number" and team>=1 and team<#TEAM_SUITS and team or 0
 end
 
 function mageKnightPlayersAllied(firstSeat,secondSeat)
@@ -5858,7 +5878,7 @@ function syncMageKnightSeatTeams()
     if gStates==nil or gStates.handColors==nil then return end
     for color,seatPos in pairs(gStates.handColors) do
         if color~="Black" and color~="Grey" and Player[color]~=nil and Player[color].seated then
-            local wanted=gStates.coop==1 and ((gStates.coopShareHands or {})[seatPos]==true and "Hearts" or "None") or TEAM_SUITS[mageKnightSeatTeam(seatPos)+1]
+            local wanted=gStates.gameScenario=="The Council versus the Apocalypse" and "None" or (gStates.coop==1 and ((gStates.coopShareHands or {})[seatPos]==true and "Hearts" or "None") or TEAM_SUITS[mageKnightSeatTeam(seatPos)+1])
             if Player[color].team~=wanted then Player[color].team=wanted end
         end
     end
@@ -5881,7 +5901,7 @@ function cycleMageKnightSeatTeam(player,mouseButton,id)
         return
     end
     gStates.seatTeams=gStates.seatTeams or {}
-    local team=(mageKnightSeatTeam(seatPos)+1)%5
+    local team=(mageKnightSeatTeam(seatPos)+1)%#TEAM_SUITS
     gStates.seatTeams[seatPos]=team
     syncMageKnightSeatTeams()
     applyColorBarButtons()
@@ -5956,6 +5976,122 @@ function conquerHoldPersonalMageTowers(playerIndex)
         end
     end
     return count,nearOwn
+end
+
+
+-- The Council versus the Apocalypse uses FACTION allegiance, not TTS teams.
+-- Two Mage Knights serving the same faction remain competing players.
+function councilApocalypseFactionAtSeat(seatPos)
+    local sides=gStates and gStates.councilApocalypseFactions
+    return sides and sides[seatPos] or nil
+end
+
+function councilApocalypseFactionForMage(mage)
+    if gStates==nil or mage==nil then return nil end
+    for seatPos=1,4 do
+        if gStates.positionMageKnight[seatPos]==mage then return councilApocalypseFactionAtSeat(seatPos) end
+    end
+    return nil
+end
+
+function councilApocalypseSideControlsSite(seatPos, ownerMage)
+    if gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" or ownerMage==nil then return false end
+    if gStates.positionMageKnight[seatPos]==ownerMage then return true end
+    local myFaction=councilApocalypseFactionAtSeat(seatPos)
+    return myFaction~=nil and myFaction~="Independent" and myFaction==councilApocalypseFactionForMage(ownerMage)
+end
+
+-- Same-side, unconquered Blue/Red Cities are friendly until this player attacks a defender.
+function councilApocalypseFriendlyCity(seatPos,avatarLocation)
+    if gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" then return false end
+    local cityGUID,side
+    if avatarLocation=="city blue" then cityGUID=cityModel.blue side="Council"
+    elseif avatarLocation=="city red" then cityGUID=cityModel.red side="Apocalypse"
+    else return false end
+    if councilApocalypseFactionAtSeat(seatPos)~=side then return false end
+    if gStates.defeatedCities~=nil and gStates.defeatedCities[cityGUID]==true then return false end
+    local zoneGUID=avatarLocation=="city blue" and GUID.zone.blueCity or GUID.zone.redCity
+    local zone=getObjectFromGUID(zoneGUID)
+    if zone~=nil then
+        for _,obj in ipairs(zone.getObjects()) do
+            if isShieldObject(obj) and shieldOwner(obj)==gStates.positionMageKnight[seatPos] then return false end
+        end
+    end
+    return true
+end
+
+function councilApocalypseSiteOwnerAt(position)
+    if gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" or position==nil then return nil end
+    local _,_,_,feature=terrainHexAtPosition(position)
+    if feature~="keep" and feature~="mage tower" then return nil end
+    local snapshot=runtimeMapSpatialSnapshot()
+    for _,obj in ipairs(runtimeMapSpatialNearbyObjects(snapshot,position,1.5)) do
+        if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            if (p[1]-position[1])^2+(p[3]-position[3])^2<1.44 then return shieldOwner(obj) end
+        end
+    end
+    return nil
+end
+
+-- Only use substitute enemy tokens when the Shield owner is not physically
+-- defending the site. An occupied enemy site is handled by normal PvP rules.
+function councilApocalypseSiteOwnerPresent(position)
+    local owner=councilApocalypseSiteOwnerAt(position)
+    if owner==nil then return false end
+    local ownerPosition=mageKnightAvatarPositionByName(owner)
+    if ownerPosition==nil then return false end
+    return (ownerPosition[1]-position[1])^2+(ownerPosition[3]-position[3])^2<1.44
+end
+
+function councilApocalypseSiteFriendly(seatPos,position)
+    local owner=councilApocalypseSiteOwnerAt(position)
+    return owner~=nil and councilApocalypseSideControlsSite(seatPos,owner)
+end
+
+function councilApocalypseSiteEnemy(seatPos,position)
+    local owner=councilApocalypseSiteOwnerAt(position)
+    return owner~=nil and not councilApocalypseSideControlsSite(seatPos,owner)
+end
+
+function councilApocalypseFactionKeepCount(seatPos)
+    if gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" then return 0 end
+    local side=councilApocalypseFactionAtSeat(seatPos)
+    if side==nil or side=="Independent" then return nil end
+    local map=getObjectFromGUID(mapArea)
+    local found={}
+    if map==nil then return 0 end
+    for _,obj in ipairs(map.getObjects()) do
+        if isShieldObject(obj) and councilApocalypseFactionForMage(shieldOwner(obj))==side then
+            local pos=obj.getPosition()
+            local tile,hex,sitePos,feature=terrainHexAtPosition(pos)
+            if feature=="keep" and tile~=nil then found[tile.guid..":"..tostring(hex)]=true end
+        end
+    end
+    local count=0
+    for _ in pairs(found) do count=count+1 end
+    return count
+end
+
+function cycleCouncilApocalypseFaction(player,mouseButton,id)
+    if mouseButton~="-1" or gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" then return end
+    if gStates.currentRound~=nil and gStates.currentRound>1 then return end
+    local guid=id:sub(1,6)
+    local seatPos=nil
+    for pos,barGUID in pairs(colorBand) do if guid==barGUID then seatPos=pos break end end
+    if seatPos==nil then return end
+    if player.color~="Black" and not player.host and not player.admin and (gStates.handColors or {})[player.color]~=seatPos then return end
+    gStates.councilApocalypseFactions=gStates.councilApocalypseFactions or {}
+    local sequence={"Council","Apocalypse","Independent"}
+    local current=councilApocalypseFactionAtSeat(seatPos)
+    local index=0
+    for i,side in ipairs(sequence) do if current==side then index=i break end end
+    local chosen=sequence[(index%#sequence)+1]
+    gStates.councilApocalypseFactions[seatPos]=chosen
+    applyColorBarButtons()
+    if gStates.firstStarted==true then addAvatarButtons() end
+    broadcastToAll(joinLang({translateWord[gStates.positionMageKnight[seatPos]] or tostring(seatPos),
+        "{en} chose {it} sceglie {ru} выбирает {zh-tw} 選擇 {zh-cn} 选择 {ko} 선택: {es} elige {fr} choisit {pt-br} escolhe {de} wählt ",chosen}),{1,1,0.5})
 end
 
 -- One to Return (four-player team variant): randomly pick and privately announce
@@ -10325,6 +10461,34 @@ end)
 __bundle_register("PlayingGame.Scoring", function(require, _LOADED, __bundle_register, __bundle_modules)
 -- End-game scoring and Hero Challenge scoring runtime.
 
+-- Faction Fame is individual competitive scoring, never TTS team scoring.
+local function councilApocalypseScoreBonus(playerIndex)
+    if gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" then return 0 end
+    local details=turnOrder[playerIndex]
+    if details==nil then return 0 end
+    local faction=councilApocalypseFactionAtSeat(details.seatPos)
+    -- No allegiance selected is not equivalent to choosing independence.
+    if faction==nil then return 0 end
+    local counts={Council=0,Apocalypse=0}
+    for _,player in ipairs(turnOrder) do
+        local side=councilApocalypseFactionAtSeat(player.seatPos)
+        if counts[side]~=nil then counts[side]=counts[side]+1 end
+    end
+    local bonus=0
+    local blueFallen=gStates.defeatedCities~=nil and gStates.defeatedCities[cityModel.blue]==true
+    local redFallen=gStates.defeatedCities~=nil and gStates.defeatedCities[cityModel.red]==true
+    if blueFallen then
+        if faction=="Apocalypse" and counts.Apocalypse>0 then bonus=bonus+24/counts.Apocalypse end
+        if faction=="Independent" then bonus=bonus+12 end
+    end
+    if redFallen then
+        if faction=="Council" and counts.Council>0 then bonus=bonus+24/counts.Council end
+        if faction=="Independent" then bonus=bonus+12 end
+    end
+    return bonus
+end
+
+
 --Hero Challenges are an optional Apocalypse-rulebook overlay. Keep all scoring/objective
 --math here so the underlying scenario can retain its normal victory and end conditions.
 local function heroChallengeActive(playerIndex)
@@ -10808,7 +10972,7 @@ function displayScore(player, mouseButton, id)
 		local scoringGroups={}
 		local scoringGroupByKey={}
 		local teamScoring=false
-		if gStates.coop==0 and gStates.gameScenario~="One to Return" then scoringGroups,scoringGroupByKey,teamScoring=scoringArrangeTtsTeams() end
+		if gStates.coop==0 and gStates.gameScenario~="One to Return" and gStates.gameScenario~="The Council versus the Apocalypse" then scoringGroups,scoringGroupByKey,teamScoring=scoringArrangeTtsTeams() end
 		local forTheCouncil=gStates.gameScenario=="For the Council"
 		local againstHorsemen=gStates.gameScenario=="Against the Horsemen Blitz"
 		local apocalypseHere=gStates.gameScenario=="Apocalypse is Here"
@@ -10884,7 +11048,7 @@ function displayScore(player, mouseButton, id)
 			for a=1, #turnOrder, 1 do
 				local currentLowScore=999
 				if turnOrder[a].mage~=gStates.positionMageKnight[5] then
-					if forTheCouncil then currentLowScore=turnOrder[a].questScore+councilReputationPoints(a)
+					if forTheCouncil then currentLowScore=(turnOrder[a].questScore or 0)+councilReputationPoints(a)
 					else currentLowScore=turnOrder[a].fame+turnOrder[a].score.Reward end
 				end
 				if currentLowScore==scoreMin then key[#key+1]=a end
@@ -10917,7 +11081,7 @@ function displayScore(player, mouseButton, id)
 							 gRelic=		{function(z) return turnOrder[z].score.Relic*5 end, nil ,
 						 					 function(z) return turnOrder[z].score.Relic*4 end}}--The Lost Relic Blitz
 		if apocalypseQuestScoringActive()==true and (forTheCouncil~=true or gStates.coop==0) then
-			greatestTable.gQuest={function(z) return turnOrder[z].questScore end}
+			greatestTable.gQuest={function(z) return turnOrder[z].questScore or 0 end}
 		end
 		if forTheCouncil and gStates.coop==0 then
 			--Offsets preserve ordering while ensuring the title is still awarded if all
@@ -11242,7 +11406,7 @@ function displayScore(player, mouseButton, id)
 					--Quest scoring is optional when the selected scenario does not require it.
 					if apocalypseQuestScoringActive()==true then
 						assembledText="" lineFeed=0
-						if turnOrder[a].questScore>0 then
+						if (turnOrder[a].questScore or 0)>0 then
 							assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].questScore, "{en} Quest Point(s): +{it} Punti Missione: +{ru} Quest Point(s): +{zh-tw} Quest Point(s): +{zh-cn} Quest Point(s): +{ko} Quest Point(s): +{es} Quest Point(s): +{fr} Quest Point(s): +{pt-br} Quest Point(s): +{de} Quest Point(s): +", turnOrder[a].questScore})
 							totalScore=totalScore+turnOrder[a].questScore
 						end
@@ -11482,7 +11646,14 @@ function displayScore(player, mouseButton, id)
 						--Cities Competative. Fractured Lands explicitly does not use City scoring.
 						if fracturedLandsNoCityScore~=true then
 							assembledText="" lineFeed=0
-							if turnOrder[a].score.CityLead>0 and gStates.defeatedCities.amount>0 then
+							if gStates.gameScenario=="The Council versus the Apocalypse" then
+                                local bonus=councilApocalypseScoreBonus(a)
+                                if bonus>0 then
+                                    assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Faction City Bonus: +{it}Bonus Città di Fazione: +{ru}Бонус города фракции: +{zh-tw}陣營城市獎勵：+{zh-cn}阵营城市奖励：+{ko}세력 도시 보너스: +{es}Bono por ciudad de facción: +{fr}Bonus de cité de faction : +{pt-br}Bônus de Cidade da Facção: +{de}Fraktions-Stadtbonus: +",bonus})
+                                    totalScore=totalScore+bonus
+                                end
+                            end
+                            if turnOrder[a].score.CityLead>0 and gStates.defeatedCities.amount>0 then
 								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CityLead, "{en} Conquered City(s): +{it} Città Conquistate: +{ru} Захваченный Город: +{zh-tw}个城市已征服: +{zh-cn}个城市已征服: +{ko} 정복한 도시: +{es} Ciudades Conquistadas: +{fr} Villes Conquises: +{pt-br} Cidades Conquistadas: +{de} Eroberte Stadt(en): +", (turnOrder[a].score.CityLead*7)})
 								totalScore=totalScore+(turnOrder[a].score.CityLead*7)
 							end
@@ -15005,6 +15176,7 @@ function cityConquestScenarioEndAchieved()
 		gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest" then
 		return count==gStates.cityTiles
 	end
+	if gStates.gameScenario=="The Council versus the Apocalypse" then return count>=2 end
 	if gStates.gameScenario=="Ultimate Conquest" then
 		return count==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)
 	end
@@ -15128,6 +15300,7 @@ function scenarioCombatCleanupCheck(cleanupPlayer)
 		((gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and volkareBeaten==true) or
 		(gStates.gameScenario=="First Reconnaissance" and #gStates.citiesPlayed>=1) or
 		(gStates.gameScenario=="Ultimate Conquest" and conqueredCityObjectiveCount()==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)) or
+		(gStates.gameScenario=="The Council versus the Apocalypse" and conqueredCityObjectiveCount()>=2) or
 		(gStates.gameScenario=="The Hidden Valley Blitz" and gStates.defeatedFaction==1) or
 		(gStates.gameScenario=="Mines Liberation" and terrainEmpty and mineCount==mineTileCount) or
 		(gStates.gameScenario=="Dungeon Lords" and terrainEmpty and dungeonCount==dungeonHexCount-2) or
@@ -18960,6 +19133,14 @@ function tacticToggle()
 
 	--Show all tactics available
 	if gStates.tacticShown==true then
+        if gStates.gameScenario=="The Council versus the Apocalypse" and gStates.currentRound==1 then
+            for seatPos=1,4 do
+                if gStates.positionMageKnight[seatPos]~="nobody" and councilApocalypseFactionAtSeat(seatPos)==nil then
+                    broadcastToAll("{en}Before Round 1 Tactics, each Mage Knight must choose a faction using the button on their color bar.{it}Prima delle Tattiche, scegli una fazione dalla barra colore.{ru}До выбора тактик выберите фракцию на цветной панели.{zh-tw}第一輪戰術前，請用顏色欄選擇陣營。{zh-cn}第一轮战术前，请用颜色栏选择阵营。{ko}첫 라운드 전 색상 바에서 세력을 선택하세요.{es}Antes de elegir tácticas, selecciona una facción en tu barra de color.{fr}Avant les tactiques, choisissez votre camp sur votre barre de couleur.{pt-br}Antes das Táticas, escolha uma facção na barra de cores.{de}Vor den Taktikkarten die Fraktion auf der Farbleiste wählen.",warningColor)
+                    break
+                end
+            end
+        end
 		broadcastToAll("{en}Turn order Re-Organised based on tactic card selection{it}Ordine dei turni riorganizzato in base alle Tattiche scelte{ru}Порядок хода игроков изменился в соответствии с выбранными Тактиками{zh-tw}玩家行动顺序基于战术卡的选择改变了{zh-cn}玩家行动顺序基于战术卡的选择改变了{ko}라운드 순서가 전략 카드에 따라 배치되었습니다{es}Orden de turnos reorganizado según la selección de la tarjeta de táctica{fr}Ordre de tour réorganisé en fonction de la sélection de la carte tactique{pt-br}Ordem de Turno re-organizada baseada nas seleções de táticas{de}Zugreihenfolge neu organisiert basierend auf der Auswahl der Taktikkarten", {1,1,0.5})
 		turnOrderSort()
 		safeWaitTime("Turn",function()
@@ -19794,7 +19975,17 @@ function __PreEndRound_raw(player, mouseButton, id)
 		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Apocalypse Dragon turn first.{it}Termina prima il turno del Drago dell'Apocalisse.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 턴을 끝내십시오.{es}Termina primero el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
 		return
 	end
-	if gStates.endGameAchieved~="false" then return end
+	if gStates.endGameAchieved~="false" then
+        -- This scenario's final circuit ends immediately if the Round is called first.
+        if gStates.gameScenario=="The Council versus the Apocalypse" and gStates.gameOver~=true
+            and mouseButton=="-1" and player~=nil and legalPlayerCheck(player.color,turnOrder[gStates.turnNumber].seatPos)==true then
+            gStates.endGameAchieved="true"
+            gStates.gameOver=true
+            broadcastToAll("{en}Round ended during the final circuit. The scenario ends now.{it}Il round termina durante gli ultimi turni: fine scenario.{ru}Раунд завершён во время последних ходов: конец сценария.{zh-tw}最後回合期間本輪結束，劇本立即終止。{zh-cn}最后回合期间本轮结束，剧本立即终止。{ko}마지막 턴 중 라운드 종료, 시나리오 종료.{es}La ronda termina durante los últimos turnos: fin del escenario.{fr}La manche se termine pendant les derniers tours : fin du scénario.{pt-br}A rodada terminou durante os últimos turnos: fim do cenário.{de}Die Runde endet während der letzten Züge: Szenarioende.",{1,1,0.5})
+            mainUIUpdate("Game Over")
+        end
+        return
+    end
 	if mouseButton=="-1" and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
 		turnOrder[gStates.turnNumber].endCalled=true
 		gStates.endRoundCalled=true
@@ -21417,7 +21608,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 					local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
 					if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shieldPos[1]-avatarPos[1])^2)+((shieldPos[3]-avatarPos[3])^2))<1 then
 						shieldExists=true
-						if (cleanupLocation=="keep" or (cleanupLocation=="mage tower" and gStates.gameScenario=="Conquer and Hold")) and shieldOwner(shield)~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
+						if (cleanupLocation=="keep" or (cleanupLocation=="mage tower" and (gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="The Council versus the Apocalypse"))) and shieldOwner(shield)~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
 						if cleanupLocation=="dungeon" or cleanupLocation=="tomb" then gStates.shieldsDropped[shield.guid]=true end
 						break
 					end
@@ -22728,9 +22919,9 @@ function rewardRetreatRequired(playerIndex,avatarLocation,nearbyOwnShield)
 		dragonRetreatRequired=apocalypseDragonCombatContainsPlayer(playerIndex)==true
 	end
 	return dragonRetreatRequired==true or
-		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false" and not (gStates.gameScenario=="Conquer and Hold" and mageKnightAlliedOwnedSiteAt~=nil and mageKnightAlliedOwnedSiteAt(details.seatPos,mageKnightAvatarPosition(playerIndex)))) or
+		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false" and not (gStates.gameScenario=="Conquer and Hold" and mageKnightAlliedOwnedSiteAt~=nil and mageKnightAlliedOwnedSiteAt(details.seatPos,mageKnightAvatarPosition(playerIndex))) and not councilApocalypseSiteFriendly(details.seatPos,mageKnightAvatarPosition(playerIndex))) or
 		((avatarLocation:sub(1,4)=="city" or avatarLocation=="Volkare's Camp") and gStates.friendlyCity[nearbyOwnShield]~=true and
-			((gStates.gameScenario~="The Lost Relic Blitz" and gStates.defeatedCities[nearbyOwnShield]~=true) or (gStates.gameScenario=="The Lost Relic Blitz" and nearbyOwnShield=="false"))) or
+			((gStates.gameScenario~="The Lost Relic Blitz" and gStates.defeatedCities[nearbyOwnShield]~=true) or (gStates.gameScenario=="The Lost Relic Blitz" and nearbyOwnShield=="false")) and not councilApocalypseFriendlyCity(details.seatPos,avatarLocation)) or
 		((avatarLocation=="necropolis" or avatarLocation=="hidden valley") and coopLeaderCombat==false and leaderDefeatedPendingCleanup==false and factionLeaderDefeated==false) or
 		(nearbyOwnShield==volkare.model)
 end
@@ -23002,7 +23193,21 @@ function attackLocation(playerDud, mouseButton, id)
 								end
 								if player.avatarLocation=="monastery" and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.purple, player, id) broadcastToAll("{en}Monastery Defender Drawn to Player Board{it}Difensore del Monastero portato sulla Plancia Giocatore{ru}Жетон защитника Монастыря был помещен на стол игрока{zh-tw}修道院守軍已移到玩家面板{zh-cn}修道院驻军移到玩家面板上{ko}수도원의 수비자와 전투합니다{es}Defensor del Monasterio dibujado en el tablero del jugador{fr}Défenseur du Monastère dessiné sur le plateau du joueur{pt-br}Defensor do Monastério puxado para o tabuleiro do jogador{de}Verteidiger des Klosters auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
 								if (player.avatarLocation=="tomb" or player.avatarLocation=="labyrinth") and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.red, player, id) broadcastToAll("{en}Dragon Drawn to Player Board{it}Drago portato sulla Plancia Giocatore{ru}Жетон Драконума был помещен на стол игрока{zh-tw}巨龍已移到玩家面板{zh-cn}将龙放到玩家面板{ko}드래곤과 전투하세요{es}Dragón dibujado al tablero del jugador{fr}Dragon dessiné sur le plateau du joueur{pt-br}Dragão Puxado para o tabuleiro do jogador{de}Drache auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
-								if gStates.gameScenario=="Conquer and Hold" and id:sub(1,6)=="Attack"
+								-- Faction-held sites are shared for access but may still be attacked.
+                                -- A previous owner's garrison is one gray (Keep) or violet (Tower),
+                                -- possessed by the owner's faction if not Independent.
+                                if gStates.gameScenario=="The Council versus the Apocalypse" and id:sub(1,6)=="Attack"
+                                    and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower") then
+                                    local owner=councilApocalypseSiteOwnerAt(avPos)
+                                    if owner~=nil and owner~=player.mage and councilApocalypseSiteOwnerPresent(avPos)==false then
+                                        local ownerFaction=councilApocalypseFactionForMage(owner)
+                                        if ownerFaction=="Council" or ownerFaction=="Apocalypse" then
+                                            drawMonster(monsterPiles.possessed,player,"CouncilApocalypsePossessed",ownerFaction=="Council" and "Council" or "Apoc")
+                                        end
+                                        if player.avatarLocation=="mage tower" then drawMonster(monsterPiles.purple,player,"CouncilApocalypseTower") end
+                                    end
+                                end
+                                if gStates.gameScenario=="Conquer and Hold" and id:sub(1,6)=="Attack"
 									and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower")
 									and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos) then
 									local pile=player.avatarLocation=="keep" and monsterPiles.gray or monsterPiles.purple
@@ -23017,7 +23222,7 @@ function attackLocation(playerDud, mouseButton, id)
 										local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
 										if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and (shieldOwner(shield)==player.mage or gStates.coop==1) and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then found=true break end
 									end
-									if found==false and not (gStates.gameScenario=="Conquer and Hold" and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos)) then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{it}Difensore della Fortezza portato sulla Plancia Giocatore{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
+									if found==false and not (gStates.gameScenario=="Conquer and Hold" and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos)) and not (gStates.gameScenario=="The Council versus the Apocalypse" and councilApocalypseSiteOwnerPresent(avPos)) then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{it}Difensore della Fortezza portato sulla Plancia Giocatore{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
 								end
 								if (player.avatarLocation=="ziggurat" or player.avatarLocation=="pyramid") then
 									--update Interface to be fresh and match the location.
@@ -29401,7 +29606,10 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						local target=dropped_object.getPosition()
 						assaultTargetPosition={target[1],target[2],target[3]}
 						againstHorsemenBeginGladeAssault(gStates.turnNumber,assaultApproachOrigin)
-					elseif attackedLocation~=nil and not (playerDetails.avatarLocation=="keep" and mageKnightAlliedKeepOccupied(playerDetails.seatPos,dropped_object.getPosition())) then
+					elseif attackedLocation~=nil
+                        and not (playerDetails.avatarLocation=="keep" and mageKnightAlliedKeepOccupied(playerDetails.seatPos,dropped_object.getPosition()))
+                        and not councilApocalypseSiteFriendly(playerDetails.seatPos,dropped_object.getPosition())
+                        and not councilApocalypseFriendlyCity(playerDetails.seatPos,playerDetails.avatarLocation) then
 						--Keep the actual hex this assault location was entered from. Long moves are deliberately
 						--left ambiguous so the wall interface can ask which side was used.
 						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then assaultApproachOrigin={playerPickedUpPos[1], playerPickedUpPos[2], playerPickedUpPos[3]} end
@@ -29425,8 +29633,11 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						end
 						if (playerDetails.nearKeep==true and nearCityForHand==false) or
 							(playerDetails.nearKeep==true and nearCityForHand==true and playerDetails.keepsBeat>1) then
-							playerDetails.hand=playerDetails.baseHand+playerDetails.keepsBeat
-							if playerDetails.keepsBeat>0 then handBonusSource="Keep" end
+							local factionKeeps=councilApocalypseSiteFriendly(playerDetails.seatPos,dropped_object.getPosition())
+                                and councilApocalypseFactionKeepCount(playerDetails.seatPos) or nil
+                            local keepCount=factionKeeps~=nil and factionKeeps or playerDetails.keepsBeat
+                            playerDetails.hand=playerDetails.baseHand+keepCount
+                            if keepCount>0 then handBonusSource="Keep" end
 						end
 					else
 						playerDetails.hand=playerDetails.baseHand
@@ -31622,9 +31833,15 @@ function refreshCityControlAndScoring()
 			for _, shield in ipairs(objectsOnCity) do
 				if isShieldObject(shield) then
 					local mage=shieldOwner(shield)
+                    -- For Council vs Apocalypse, the home faction's shields do not
+                    -- contribute to City scoring once its City is conquered.
+                    local homeFaction=gStates.gameScenario=="The Council versus the Apocalypse" and gStates.gameOver==true
+                        and ((cityGUID==cityModel.blue and "Council") or (cityGUID==cityModel.red and "Apocalypse")) or nil
+                    if homeFaction==nil or councilApocalypseFactionForMage(mage)~=homeFaction then
 					if cityScoring[mage]~=nil then cityScoring[mage]=cityScoring[mage]+1
 					elseif firstShield==true then cityScoring[mage]=1.5 firstShield=false
 					else cityScoring[mage]=1 end
+                    end
 				end
 			end
 			--Faction areas also count the scenario-specific Graveyard/Glade contributions.
@@ -34690,16 +34907,18 @@ function apocalypseQuestScoreMarkerSetup(apocalypseBag)
 	gStates.apocalypseQuestScoreMarkers={}
 	gStates.apocalypseQuestScores={}
 	local contents=apocalypseBag.getObjects() or {}
-	local function normalized(text) return string.lower(tostring(text or '')):gsub('[^%w]', '') end
 	for seatPos=1, 4, 1 do
 		local mage=gStates.positionMageKnight[seatPos]
 		if mage~=nil and mage~='nobody' and mage~='Volkare' then
-			local mageKey=normalized(mage)
+			-- Score registration must not depend on a takeObject callback completing.
+			gStates.apocalypseQuestScores[mage]=0
+			for _,player in ipairs(turnOrder or {}) do
+				if player.mage==mage then player.questScore=0 break end
+			end
+			local markerGUID=apocalypseQuestScoreMarkerGUIDs[mage]
 			local marker=nil
-			for _, data in pairs(contents) do
-				local name=normalized(data.name)
-				local description=normalized(data.description)
-				if name==mageKey and description=='questscore' then marker=data break end
+			for _, data in ipairs(contents) do
+				if data.guid==markerGUID then marker=data break end
 			end
 			if marker~=nil then
 				local mageName=mage
@@ -38923,7 +39142,11 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		end
 
 		--Record scenario setting to gStates to be saved
-		gStates.rounds=scenarioList[gStates.scenarioRef][gStates.playersRef].rounds
+		if gStates.gameScenario=="The Council versus the Apocalypse" then
+        -- Allegiance is a per-game choice made before the first Tactics, not a seat Team.
+        gStates.councilApocalypseFactions={}
+    end
+	gStates.rounds=scenarioList[gStates.scenarioRef][gStates.playersRef].rounds
 		gStates.mapShape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape
 		gStates.mapShapeKey=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey
 		gStates.cityTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles
@@ -39791,6 +40014,7 @@ function mapSetup(onComplete)
 		local noShuffle=0
 		local params={rotation={0, 180, 180}, smooth=false}
 		if gStates.randomTileOrientation==true then params.rotation={0, math.random(1,6)*60, 180} end
+		if gStates.gameScenario=="The Council versus the Apocalypse" then params.guid=({GUID.tile.city06,GUID.tile.city07,GUID.tile.city08})[i] end--Blue, White, Red
 		if i==1 and (gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="Raiders of the Crusader Temple") then params.guid=GUID.tile.city08 end--Use Red City
 		if i==1 and (gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="The Realm of the Dead Blitz") then params.guid=GUID.tile.city06 end--Use Blue City
 		if i==1 and (gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="The Hidden Valley Blitz") then params.guid=GUID.tile.city07 end--Use White City
@@ -39966,6 +40190,18 @@ function mapSetup(onComplete)
 	local CountryMonasteryMageTiles=	{GUID.tile.country04, GUID.tile.country05, GUID.tile.country07, GUID.tile.country09, GUID.tile.country11, GUID.tile.country12, GUID.tile.country13, GUID.tile.country15} CountryMonasteryMageTiles=listShuffle(CountryMonasteryMageTiles)
 	local CountryNotMonasteryMageTiles=	{GUID.tile.country01, GUID.tile.country02, GUID.tile.country03, GUID.tile.country06, GUID.tile.country08, GUID.tile.country10, GUID.tile.country14, GUID.tile.country16, GUID.tile.country17}	CountryNotMonasteryMageTiles=listShuffle(CountryNotMonasteryMageTiles)
 	local CountryKeepMageTiles=			{GUID.tile.country03, GUID.tile.country04, GUID.tile.country09, GUID.tile.country10, GUID.tile.country11, GUID.tile.country13, GUID.tile.country14, GUID.tile.country15, GUID.tile.country17} CountryKeepMageTiles=listShuffle(CountryKeepMageTiles)
+	local councilKeepMageTiles,councilOtherTiles={},{}
+	if gStates.gameScenario=="The Council versus the Apocalypse" then
+		for _,guid in ipairs(CountryKeepMageTiles) do if guid~=GUID.tile.country09 then councilKeepMageTiles[#councilKeepMageTiles+1]=guid end end
+		councilKeepMageTiles=availableTerrainCandidates(CountryTileStack,councilKeepMageTiles)
+		councilOtherTiles=availableTerrainCandidates(CountryTileStack,listShuffle({GUID.tile.country01,GUID.tile.country02,GUID.tile.country05,GUID.tile.country06,GUID.tile.country07,GUID.tile.country08,GUID.tile.country12,GUID.tile.country16}))
+		local countWith,countWithout=gStates.playerCount+2,({[2]=2,[3]=3,[4]=5})[gStates.playerCount] or 2
+		local available=availableTerrainCandidates(CountryTileStack,{GUID.tile.country09})
+		if #available~=1 or #councilKeepMageTiles<countWith or #councilOtherTiles<countWithout then
+			finishMapSetup(false,"COUNCIL APOCALYPSE SETUP ERROR: required countryside tile selection is unavailable")
+			return
+		end
+	end
 	local CountryGladeTiles=			{GUID.tile.country01, GUID.tile.country02, GUID.tile.country05, GUID.tile.country07, GUID.tile.country08, GUID.tile.country13, GUID.tile.country16} CountryGladeTiles=listShuffle(CountryGladeTiles)
 	local CountryMineTiles=				{GUID.tile.country02, GUID.tile.country03, GUID.tile.country05, GUID.tile.country06, GUID.tile.country13, GUID.tile.country14, GUID.tile.country15, GUID.tile.country17} CountryMineTiles=listShuffle(CountryMineTiles)
 	local CountryMonasteryTiles=		{GUID.tile.country05, GUID.tile.country07, GUID.tile.country12} CountryMonasteryTiles=listShuffle(CountryMonasteryTiles)
@@ -39997,6 +40233,12 @@ function mapSetup(onComplete)
 		if gStates.gameScenario=="Mines Liberation" and i<=4 then params.guid=CountryMineTiles[i] end
 		if gStates.gameScenario=="Mines Liberation" and i>=5 then params.guid=CountryNonMineTiles[i-4] end
 		if gStates.gameScenario=="Conquer and Hold" then params.guid=CountryKeepMageTiles[i] end
+		if gStates.gameScenario=="The Council versus the Apocalypse" then
+			local withSites=gStates.playerCount+2
+			if i==1 then params.guid=GUID.tile.country09
+			elseif i<=withSites+1 then params.guid=councilKeepMageTiles[i-1]
+			else params.guid=councilOtherTiles[i-withSites-1] end
+		end
 		if gStates.gameScenario=="The Gauntlet" then params.guid=CountryGauntletTiles[i] end
 		if gStates.gameScenario=="Druid Nights" and i<=druidGladeSlots then params.guid=CountryGladeTiles[i] end
 		if gStates.gameScenario=="Druid Nights" and i>druidGladeSlots then params.guid=CountryNotGladeTiles[i-druidGladeSlots] end
@@ -41119,7 +41361,7 @@ local function playerSetupDeployUniqueComponents(orderIndex,position,offsetPosit
 					if context.startPos[turnRef]==1 then duplicate=true else context.startPos[turnRef]=1 end
 				end
 				params.position={-1.9, 0.96, -19.4-((turnRef-1)*1.4)}
-				turnOrder[turnRef]={seatPos=position,mage=gStates.positionMageKnight[position], fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, level=1, levelUp=0, influence=6, hand=5, baseHand=5, handBonus=0, tactic=turnRef, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, combatIconHide="None", defeatedCities={}, levelUpComplete=false, avatarLocation="portal", deadDeckInventory={}, levelingStats={}, score={Glade=0, GraveYard=0}}
+				turnOrder[turnRef]={seatPos=position,mage=gStates.positionMageKnight[position], questScore=0, fame=0, fameGain=0, reputation=0, repGain=0, scoreLoop=0, level=1, levelUp=0, influence=6, hand=5, baseHand=5, handBonus=0, tactic=turnRef, keepsBeat=0, gladesMarked={}, deedCount=11, discardCount=0, combatIconHide="None", defeatedCities={}, levelUpComplete=false, avatarLocation="portal", deadDeckInventory={}, levelingStats={}, score={Glade=0, GraveYard=0}}
 			end
 		end
 
@@ -44445,6 +44687,7 @@ local SCENARIO_SELECTION_BY_ID={
 	TheWarOfFourSelection="The War of Four",
 	RaidersOfTheCrusaderTempleSelection="Raiders of the Crusader Temple",
 	ForTheCouncilSelection="For the Council",
+	TheCouncilVersusTheApocalypseSelection="The Council versus the Apocalypse",
 	TheFracturedLandsSelection="The Fractured Lands",
 	CustomSelection="Custom"}
 
@@ -44459,7 +44702,7 @@ local SETUP_DROPDOWN_CONTROL_BY_ID={
 	thirdMKSelection={3,"MageDropDown",-275},
 	fourthMKSelection={4,"MageDropDown",-275},
 	dummyMKSelection={5,"MageDropDown",-275},
-	ScenarioSelection={0,"ScenarioDropDown",90},
+	ScenarioSelection={0,"ScenarioDropDown",60},
 	ROTFSelection={0,"ROTFDropDown",-115},
 	VolkareLevelSelection={0,"VolkareLevelDropDown",-305},
 	VolkareRaceSelection={0,"VolkareRaceDropDown",-335}}
@@ -44515,6 +44758,7 @@ local SETUP_DROPDOWN_ROWS={
 	TheWarOfFourRow={"The War of Four","TheWarOfFourSelectionImage","ScenarioDropDown"},
 	RaidersOfTheCrusaderTempleRow={"Raiders of the Crusader Temple","RaidersOfTheCrusaderTempleSelectionImage","ScenarioDropDown"},
 	ForTheCouncilRow={"For the Council","ForTheCouncilSelectionImage","ScenarioDropDown"},
+	TheCouncilVersusTheApocalypseRow={"The Council versus the Apocalypse","TheCouncilVersusTheApocalypseSelectionImage","ScenarioDropDown"},
 	TheFracturedLandsRow={"The Fractured Lands Blitz","TheFracturedLandsSelectionImage","ScenarioDropDown"},
 	CustomRow={"Custom","CustomSelectionImage","ScenarioDropDown"},
 	ROTF0Row={"Not Used","ROTF0SelectionImage","ROTFDropDown"},
@@ -44620,6 +44864,7 @@ local SCENARIO_OPTION_OVERRIDES={
 	["The Hidden Valley Blitz"]={removeShadesOfTezlaMonsters={false,false},rampageAmbush={true,false}},
 	["Against the Apocalypse Blitz"]={removeApocalypseTerrain={false,false}},
 	["For the Council"]={questMod={false,false},apocalypseQuestCards={true,false}},
+	["The Council versus the Apocalypse"]={proxyPlayer={false,false},randomCities={false,false},removeTerrain={false,false},removeLostLegionExpansion={false,false},removeApocalypseTerrain={false,false},questMod={false,false},apocalypseQuestCards={false,false}},
 	["Conquer and Hold"]={proxyPlayer={false,false}},
 	["Volkare's Return"]={proxyPlayer={false,false}},
 	["Volkare's Return Blitz"]={proxyPlayer={false,false}},
@@ -44995,7 +45240,7 @@ function scenarioSelection(player, mouseButton, id)
 		gStates.megapolis=0
 		gStates.coop=gStates.positionMageKnight[5]~="nobody" and 1 or 0
 		--Scenario-specific dummy state; layout is rendered by the shared helper.
-		if gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" then
+		if gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" or gStates.gameScenario=="The Council versus the Apocalypse" then
 			gStates.positionMageKnight[5]="nobody"
 			gStates.coop=0
 		elseif gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
@@ -45011,7 +45256,7 @@ function scenarioSelection(player, mouseButton, id)
 		gStates.blitz=blitzOn and 1 or 0
 		UI.setAttribute("BlitzSelection","isOn",blitzOn and "true" or "false")
 		setScenarioBlitzIdentity(blitzOn)
-		UI.setAttribute("BlitzSelection","interactable",selectedScenario=="First Reconnaissance" and "False" or "True")
+		UI.setAttribute("BlitzSelection","interactable",(selectedScenario=="First Reconnaissance" or selectedScenario=="The Council versus the Apocalypse") and "False" or "True")
 
 		--Reset ordinary setup toggles from one policy table, then apply scenario-specific overrides.
 		--Hero Challenges intentionally survives scenario browsing and is therefore not part of this reset.
@@ -45677,6 +45922,11 @@ end
 
 local function reconcileSetupState()
 	if gStates==nil then return end
+	if gStates.gameScenario=="The Council versus the Apocalypse" then
+		gStates.positionMageKnight[5]="nobody"
+		gStates.coop=0
+		gStates.blitz=0
+	end
 
 	local customLocked,customValue=scenarioOptionHardLock("useCustomMageKnights")
 	if customLocked and customValue==false then clearCustomMageKnightSelections(true) end
@@ -45708,7 +45958,7 @@ local function renderMageKnightSetupAvailability()
 		setUIButtonEnabled(id,available)
 	end
 
-	local dummyLocked=gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return"
+	local dummyLocked=gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" or gStates.gameScenario=="The Council versus the Apocalypse"
 	local dummyPlayerLimited=gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Quest for the Golden Grail" or
 		gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or
 		gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="Mines Liberation"
@@ -48372,7 +48622,8 @@ translateWord={	["Red"]="{en}Red{it}Rosso{ru}Красный{zh-tw}红色的{zh-c
 				["First Conquest"]="{en}First Conquest{it}Prima Conquista{ru}Первое Завоевание{zh-tw}首次征服{zh-cn}首次征服{ko}첫 번째 정복{es}Primera Conquista{fr}Première Conquête{pt-br}Primeira Conquista{de}Erste Eroberung",
 				["First Reconnaissance"]="{en}First Reconnaissance{it}Prima Ricognizione{ru}Первая Вылазка{zh-tw}首次勘察{zh-cn}首次勘察{ko}첫 번째 정찰{es}Primer reconocimiento{fr}Première Reconnaissance{pt-br}Primeiro Reconhecimento{de}Blitz-Eroberung",
 				["Raiders of the Crusader Temple"]="{en}Raiders of the Crusader Temple{it}Predoni del Tempio dei Crociati{ru}Рейдеры храма крестоносцев{zh-tw}聖教軍奇兵{zh-cn}圣教军奇兵{ko}십자군 성전의 침입자{es}Asaltantes del Templo de los Cruzados{fr}Les aventuriers du temple des croisés{pt-br}Salteadores do Templo dos Cruzados{de}Räuber des Kreuzrittertempels",
-				["For the Council"]="{en}For the Council{it}Per il Consiglio{ru}За Совет{zh-tw}為了議會{zh-cn}为了议会{ko}평의회를 위하여{es}Por el Consejo{fr}Pour le Conseil{pt-br}Pelo Conselho{de}Für den Rat",
+				["The Council versus the Apocalypse"]="{en}The Council Vs the Apocalypse{it}Il Consiglio contro l'Apocalisse{ru}Совет против Апокалипсиса{zh-tw}議會對抗末日{zh-cn}议会对抗末日{ko}평의회 대 아포칼립스{es}El Consejo contra el Apocalipsis{fr}Le Conseil contre l'Apocalypse{pt-br}O Conselho contra o Apocalipse{de}Der Rat gegen die Apokalypse",
+		["For the Council"]="{en}For the Council{it}Per il Consiglio{ru}За Совет{zh-tw}為了議會{zh-cn}为了议会{ko}평의회를 위하여{es}Por el Consejo{fr}Pour le Conseil{pt-br}Pelo Conselho{de}Für den Rat",
 				["The Fractured Lands"]="{en}The Fractured Lands{it}Le Terre Frantumate{ru}Расколотые земли{zh-tw}破碎之地{zh-cn}破碎之地{ko}분열된 대지{es}Las Tierras Fracturadas{fr}Les Terres Fracturées{pt-br}As Terras Fraturadas{de}Die Zersplitterten Lande",
 				["The Fractured Lands Blitz"]="{en}The Fractured Lands{it}Le Terre Frantumate{ru}Расколотые земли{zh-tw}破碎之地{zh-cn}破碎之地{ko}분열된 대지{es}Las Tierras Fracturadas{fr}Les Terres Fracturées{pt-br}As Terras Fraturadas{de}Die Zersplitterten Lande",
 
@@ -48639,8 +48890,7 @@ scenarioList={
 			megapolisPossible=false, blitzPossible="On Only", ruleStates={expansion=28},
 			playerDetails="{en}1 to 4 - Cooperative, Competitive and Solo{it}Da 1 a 4 - Cooperativo, Competitivo e Solitario{ru}От 1 до 4 - Кооперативный, Соревновательный и Одиночный{zh-tw}1 到 4 人－合作，對抗或單人模式{zh-cn}1 到 4 人－合作，对抗或单人模式{ko}1 ~ 4 - 협력, 경쟁 또는 솔로{es}1 a 4 - Cooperativo, Competitivo y Solitario{fr}1 à 4 - Coopératif, Compétitif et Solo{pt-br}1 a 4 - Cooperativo, Competitivo e Solo{de}1 bis 4 – Kooperativ, Kompetitiv und Solo",
 			scenarioPurpose="{en}Find all the pieces of an ancient relic in the ruins of old cities. This scenario requires you to build a level 3 character (see Expansion Variants).<size=6>\n\n</size><color=#8c5e35><i>In years past, for reasons unknown, an ancient relic was broken into pieces and distributed between the cities.<size=6>\n\n</size>The council wants the pieces recovered to learn the secrets they hold. However, your task will not be easy as it seems that draconum may also be drawn to the power.</i></color><size=6>\n\n</size> * The script removes all City Only Elite units{it}Trovate tutti i frammenti di un'antica reliquia nelle rovine delle vecchie città. Questo scenario richiede un personaggio di livello 3 (vedi Varianti delle Espansioni).<size=6>\n\n</size><color=#8c5e35><i>In passato, per ragioni ignote, un'antica reliquia fu spezzata e i frammenti distribuiti tra le città.<size=6>\n\n</size>Il Consiglio vuole recuperarli per scoprirne i segreti. Ma non sarà facile: anche i draconum sembrano attratti dal suo potere.</i></color><size=6>\n\n</size> * Lo script rimuove tutte le Unità élite reclutabili solo nelle Città{ru}Герои должны найти все части древней реликвии в руинах старых городов. Каждый герой начинает игру с 3-м уровнем (см. Параметры сценария).<size=6>\n\n</size><color=#8c5e35><i>Годы назад, по неизвестной причине, древняя реликвия была разделена на части, которые отвезли в разные города.<size=6>\n\n</size>Совет хочет найти фрагменты реликвии и узнать секреты, которые они хранят. Ваша задача — не из легких. Похоже, драконумов тоже притягивает сила реликвии.</i></color><size=6>\n\n</size> * Скрипт удаляет из игры все элитные отряды, которые могут быть завербованы только в городах.{zh-tw}在古老城市的遺蹟中找到的所有的遠古聖器碎片。\n此劇本要求您建立一個 3 級角色（詳見擴充的變體規則）。<size=6>\n\n</size><color=#8c5e35><i>在過去的歲月中，由於某些未知的原因，\n一個遠古聖器被分解成多個碎片，並分放在不同的城市中。\n虛空議會想取回這些碎片並復原聖器以掌握它的秘密。\n然而，你的任務並不容易，因為龍族也已被這個聖器的力量所吸引。</i></color><size=6>\n\n</size>腳本會將只能在城市招募的精銳部隊移除{zh-cn}在古老城市的遗迹中找到的所有的远古圣器碎片。\n此剧本要求您建立一个 3 级角色（详见扩展的变体规则）。<size=6>\n\n</size><color=#8c5e35><i>在过去的岁月中，由于某些未知的原因，\n一个远古圣器被分解成多个碎片，并分放在不同的城市中。\n虚空议会想取回这些碎片并复原圣器以掌握它的秘密。\n然而，你的任务并不容易，因为龙族也已被这个圣器的力量所吸引。</i></color><size=6>\n\n</size>脚本会将只能在城市招募的精锐部队移除{ko}오래된 도시의 폐허에서 고대 유물의 모든 조각을 찾으세요. 이 시나리오를 플레이하려면 레벨 3 캐릭터를 생성해야 합니다(확장팩 변형 참조).<size=6>\n\n</size><color=#8c5e35><i>수년 전, 알 수 없는 이유로 고대 유물이 여러 조각으로 나뉘어 도시로 흩어졌습니다.<size=6>\n\n</size>의회는 유물 조각을 회수하여 유물에 담긴 비밀을 알아내길 원합니다. 하지만 드라코룸도 그 힘에 이끌린 것 같아 임무는 쉽지 않을 것입니다.</i></color><size=6>\n\n</size> * 이 스크립트는 모든 도시 전용 엘리트 유닛을 제거합니다.{es}Encuentra todas las piezas de una antigua reliquia en las ruinas de viejas ciudades. Este escenario requiere que construyas un personaje de nivel 3 (ver Variantes de Expansión).<size=6>\n\n</size><color=#8c5e35><i>En años pasados, por razones desconocidas, una antigua reliquia se rompió en pedazos y se distribuyó entre las ciudades.<size=6>\n\n</size>El consejo quiere recuperar las piezas para conocer los secretos que guardan. Sin embargo, su tarea no será fácil, ya que parece que los draconum también pueden sentirse atraídos por el poder.</i></color><size=6>\n\n</size> * El script elimina todas las unidades de élite sólo de ciudad.{fr}Trouvez tous les morceaux d'une ancienne relique dans les ruines des vieilles villes. Ce scénario vous oblige à construire un personnage de niveau 3 (voir Variantes d'extension).<size=6>\n\n</size><color=#8c5e35><i>Au cours des années passées, pour des raisons inconnues, une ancienne relique a été brisée en morceaux et distribuée entre les villes .<size=6>\n\n</size>Le conseil veut les pièces récupérées pour apprendre les secrets qu'elles détiennent. Cependant, votre tâche ne sera pas facile car il semble que draconum puisse également être marqué par le pouvoir.</i></color><size=6>\n\n</size> * Le script supprime toutes les unités City Only Elite{pt-br}Encontre todas as peças de uma relíquia antiga nas ruínas de cidades antigas. Esse cenário exige que você crie um personagem de nível 3 (consulte Variantes de expansão).<size=6>\n\n</size><color=#8c5e35><i>Em anos passados, por razões desconhecidas, uma relíquia antiga foi quebrada em pedaços e distribuída entre as cidades.<size=6>\n\n</size>O conselho quer recuperar as peças para descobrir os segredos que elas guardam. No entanto, sua tarefa não será fácil, pois parece que o draconum também pode ser atraído pelo poder.</i></color><size=6>\n\n</size> * O script remove todas as unidades City Only Elite{de}Finde alle Teile eines antiken Relikts in den Ruinen alter Städte. Dieses Szenario erfordert, dass Sie einen Charakter der Stufe 3 bauen (siehe Erweiterungsvarianten).<size=6>\n\n</size><color=#8c5e35><i>In der Vergangenheit wurde aus unbekannten Gründen ein uraltes Relikt in Stücke gebrochen und zwischen den Städten verteilt.<size=6>\n\n</size>Der Rat will Die Stücke wurden geborgen, um die Geheimnisse zu erfahren, die sie enthalten. Ihre Aufgabe wird jedoch nicht einfach sein, da es scheint, dass Draconum auch von der Macht angezogen werden könnte.</i></color><size=6>\n\n</size> * Das Skript entfernt alle City Only Elite-Einheiten",
-			scenarioEnd="{en}When all parts of the relic have been collected, all players except the Dummy player have one more turn. If the Round ends during this, the game ends immediately.{it}Quando tutti i frammenti della reliquia sono stati raccolti, tutti i giocatori tranne quello fittizio hanno un altro turno. Se il round termina nel frattempo, la partita finisce immediatamente.{ru}Когда все части реликвии собраны, все игроки (включая того, кто нашел последнюю часть) делают по одному последнему ходу (в случае одиночного или кооперативного сценария, все игроки кроме виртуального). Если раунд заканчивается раньше, игра завершается вместе с ним.{zh-tw}當聖物的所有碎片都被集齊後，所有玩家（除了虛擬玩家）還有最後一回合。\n如果在此期間該輪結束，遊戲立即結束。{zh-cn}当圣物的所有碎片都被集齐后，所有玩家（除了虚拟玩家）还有最后一回合。\n如果在此期间该轮结束，游戏立即结束。{ko}유물의 모든 부품을 수집하면 더미 플레이어를 제외한 모든 플레이어는 한 번의 턴을 더 가질 수 있습니다. 이 시간 동안 라운드가 종료되면 게임은 즉시 종료됩니다.{es}Cuando todos los fragmentos de la reliquia han sido reunidos, todos los jugadores excepto el Jugador Virtual tienen un turno más. Si mientras sucede esto la Ronda termina, la partida finaliza inmediatamente.{fr}Lorsque toutes les parties de la relique ont été récupérées, tous les joueurs sauf le joueur factice ont un tour de plus. Si la manche se termine pendant cette période, la partie se termine immédiatement.{pt-br}Quando todas as partes da relíquia forem coletadas, todos os jogadores (exceto o Jogador fictício) tem um último turno. Se a Rodada acabar durante isto, o jogo acaba imediatamente.{de}Wenn alle Teile der Reliquie eingesammelt wurden, sind alle Spieler außer dem Dummy-Spieler noch einmal an der Reihe. Endet die Runde währenddessen, endet das Spiel sofort."}},
-	{"For the Council",
+			scenarioEnd="{en}When all parts of the relic have been collected, all players except the Dummy player have one more turn. If the Round ends during this, the game ends immediately.{it}Quando tutti i frammenti della reliquia sono stati raccolti, tutti i giocatori tranne quello fittizio hanno un altro turno. Se il round termina nel frattempo, la partita finisce immediatamente.{ru}Когда все части реликвии собраны, все игроки (включая того, кто нашел последнюю часть) делают по одному последнему ходу (в случае одиночного или кооперативного сценария, все игроки кроме виртуального). Если раунд заканчивается раньше, игра завершается вместе с ним.{zh-tw}當聖物的所有碎片都被集齊後，所有玩家（除了虛擬玩家）還有最後一回合。\n如果在此期間該輪結束，遊戲立即結束。{zh-cn}当圣物的所有碎片都被集齐后，所有玩家（除了虚拟玩家）还有最后一回合。\n如果在此期间该轮结束，游戏立即结束。{ko}유물의 모든 부품을 수집하면 더미 플레이어를 제외한 모든 플레이어는 한 번의 턴을 더 가질 수 있습니다. 이 시간 동안 라운드가 종료되면 게임은 즉시 종료됩니다.{es}Cuando todos los fragmentos de la reliquia han sido reunidos, todos los jugadores excepto el Jugador Virtual tienen un turno más. Si mientras sucede esto la Ronda termina, la partida finaliza inmediatamente.{fr}Lorsque toutes les parties de la relique ont été récupérées, tous les joueurs sauf le joueur factice ont un tour de plus. Si la manche se termine pendant cette période, la partie se termine immédiatement.{pt-br}Quando todas as partes da relíquia forem coletadas, todos os jogadores (exceto o Jogador fictício) tem um último turno. Se a Rodada acabar durante isto, o jogo acaba imediatamente.{de}Wenn alle Teile der Reliquie eingesammelt wurden, sind alle Spieler außer dem Dummy-Spieler noch einmal an der Reihe. Endet die Runde währenddessen, endet das Spiel sofort."}},{"For the Council",
 		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=6,cityTiles=1,coreTiles=2,rounds=3,discardTactics=0,dTW=0,cityLevels={0}},
 		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=1,coreTiles=3,rounds=3,discardTactics=0,dTW=0,cityLevels={0}},
 		{mapShape=mapShapeText.open4,mapShapeKey="open4",countryTiles=9,cityTiles=1,coreTiles=4,rounds=3,discardTactics=0,dTW=0,cityLevels={0}},
@@ -48718,6 +48968,25 @@ scenarioList={
 			cityRules="{en}(first City is friendly; second City is destroyed by the Dragon){it}(La prima Città è amica; la seconda viene distrutta dal Drago){ru}(первый Город дружественный; второй Город уничтожается Драконом){zh-tw}（第一座城市為友方；第二座城市會被巨龍摧毀）{zh-cn}（第一座城市为友方；第二座城市会被巨龙摧毁）{ko}(첫 번째 도시는 우호적이며, 두 번째 도시는 드래곤에게 파괴됨){es}(la primera Ciudad es amistosa; la segunda Ciudad es destruida por el Dragón){fr}(la première Cité est amie ; la seconde est détruite par le Dragon){pt-br}(a primeira Cidade é amigável; a segunda é destruída pelo Dragão){de}(die erste Stadt ist freundlich; die zweite wird vom Drachen zerstört)",
 			scenarioPurpose="{en}Stop the Four Horsemen and defeat the Apocalypse Dragon.<size=6>\n\n</size><color=#8c5e35><i>The Four Horsemen of the Apocalypse are on the move, spreading death and destruction, and in doing so, empowering the newly reborn Apocalypse Dragon. You must stop the Horsemen and then defeat the Dragon before it is too late.</i></color>{it}Fermate i Quattro Cavalieri e sconfiggete il Drago dell'Apocalisse.<size=6>\n\n</size><color=#8c5e35><i>I Quattro Cavalieri dell'Apocalisse avanzano seminando morte e distruzione, rafforzando così il Drago dell'Apocalisse appena rinato. Fermate i Cavalieri e poi sconfiggete il Drago prima che sia troppo tardi.</i></color>{ru}Остановите четырёх Всадников и победите Дракона Апокалипсиса.<size=6>\n\n</size><color=#8c5e35><i>Четыре Всадника Апокалипсиса несут смерть и разрушение, тем самым усиливая недавно возрождённого Дракона Апокалипсиса. Вы должны остановить Всадников, а затем победить Дракона, пока не стало слишком поздно.</i></color>{zh-tw}阻止四騎士並擊敗末日巨龍。<size=6>\n\n</size><color=#8c5e35><i>末日四騎士正在四處散播死亡與毀滅，並藉此強化剛重生的末日巨龍。你必須先阻止騎士，再趁一切尚未太遲前擊敗巨龍。</i></color>{zh-cn}阻止四骑士并击败末日巨龙。<size=6>\n\n</size><color=#8c5e35><i>末日四骑士正在四处散播死亡与毁灭，并借此强化刚重生的末日巨龙。你必须先阻止骑士，再趁一切尚未太迟前击败巨龙。</i></color>{ko}네 기수를 막고 아포칼립스 드래곤을 쓰러뜨리십시오.<size=6>\n\n</size><color=#8c5e35><i>묵시록의 네 기수가 죽음과 파괴를 퍼뜨리며 갓 부활한 아포칼립스 드래곤을 강화하고 있습니다. 너무 늦기 전에 기수들을 막고 드래곤을 쓰러뜨려야 합니다.</i></color>{es}Detén a los Cuatro Jinetes y derrota al Dragón del Apocalipsis.<size=6>\n\n</size><color=#8c5e35><i>Los Cuatro Jinetes del Apocalipsis avanzan sembrando muerte y destrucción y, al hacerlo, fortalecen al recién renacido Dragón del Apocalipsis. Debes detener a los Jinetes y luego derrotar al Dragón antes de que sea demasiado tarde.</i></color>{fr}Arrêtez les Quatre Cavaliers et vainquez le Dragon de l'Apocalypse.<size=6>\n\n</size><color=#8c5e35><i>Les Quatre Cavaliers de l'Apocalypse répandent la mort et la destruction, renforçant ainsi le Dragon de l'Apocalypse récemment ressuscité. Vous devez arrêter les Cavaliers puis vaincre le Dragon avant qu'il ne soit trop tard.</i></color>{pt-br}Detenha os Quatro Cavaleiros e derrote o Dragão do Apocalipse.<size=6>\n\n</size><color=#8c5e35><i>Os Quatro Cavaleiros do Apocalipse avançam espalhando morte e destruição e, com isso, fortalecem o recém-renascido Dragão do Apocalipse. Você deve deter os Cavaleiros e depois derrotar o Dragão antes que seja tarde demais.</i></color>{de}Stoppt die Vier Reiter und besiegt den Apokalypse-Drachen.<size=6>\n\n</size><color=#8c5e35><i>Die Vier Reiter der Apokalypse ziehen umher, verbreiten Tod und Zerstörung und stärken damit den neu wiedergeborenen Apokalypse-Drachen. Ihr müsst die Reiter aufhalten und anschließend den Drachen besiegen, bevor es zu spät ist.</i></color>",
 			scenarioEnd="{en}When the Apocalypse Dragon is defeated, all players (except the Dummy player) have one last turn. If the Round ends during this, the game ends immediately.{it}Quando il Drago dell'Apocalisse è sconfitto, tutti i giocatori (tranne quello fittizio) hanno un ultimo turno. Se il round termina nel frattempo, la partita finisce immediatamente.{ru}Когда Дракон Апокалипсиса побеждён, все игроки (кроме игрока-Автомы) получают по одному последнему ходу. Если в это время заканчивается раунд, игра немедленно завершается.{zh-tw}當末日巨龍被擊敗後，所有玩家（自動玩家除外）各有最後一個回合。若在此期間回合輪結束，遊戲立即結束。{zh-cn}当末日巨龙被击败后，所有玩家（自动玩家除外）各有最后一个回合。若在此期间回合轮结束，游戏立即结束。{ko}아포칼립스 드래곤을 쓰러뜨리면 더미 플레이어를 제외한 모든 플레이어가 마지막으로 한 턴씩 진행합니다. 그중 라운드가 끝나면 게임은 즉시 종료됩니다.{es}Cuando el Dragón del Apocalipsis sea derrotado, todos los jugadores (excepto el jugador Automa) tienen un último turno. Si la Ronda termina durante esos turnos, la partida termina inmediatamente.{fr}Lorsque le Dragon de l'Apocalypse est vaincu, tous les joueurs (sauf le joueur Automate) effectuent un dernier tour. Si la Manche se termine pendant ces tours, la partie se termine immédiatement.{pt-br}Quando o Dragão do Apocalipse for derrotado, todos os jogadores (exceto o jogador Automa) terão um último turno. Se a Rodada terminar durante esses turnos, a partida termina imediatamente.{de}Wenn der Apokalypse-Drache besiegt ist, hat jeder Spieler (außer dem Automa-Spieler) noch einen letzten Zug. Endet währenddessen die Runde, endet das Spiel sofort."}},
+	{"The Council versus the Apocalypse",
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=7,cityTiles=3,coreTiles=1,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4,4}},
+		{mapShape=mapShapeText.wedge,mapShapeKey="wedge",countryTiles=9,cityTiles=3,coreTiles=2,rounds=6,discardTactics=0,dTW=0,cityLevels={5,5,5}},
+		{mapShape=mapShapeText.open,mapShapeKey="open",countryTiles=12,cityTiles=3,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={6,6,6}},
+		{},{},{},{},
+		scenarioDetails={
+			megapolisPossible=false,blitzPossible="Off Only",ruleStates={apocalypse=38},
+			playerDetails="{en}2 to 4 - Competitive Only{it}Da 2 a 4 - Solo Competitivo{ru}2–4 — только соревновательная игра{zh-tw}2 至 4 人－僅限競爭模式{zh-cn}2 至 4 人－仅限竞争模式{ko}2~4인 - 경쟁 전용{es}2 a 4 - Solo competitivo{fr}2 à 4 - Compétitif uniquement{pt-br}2 a 4 - Apenas competitivo{de}2 bis 4 – Nur gegeneinander",
+			countryRules={	"",
+							"{en}(Tile 9 plus 4 with Keep or Mage Tower and 2 without){it}(Tessera 9, poi 4/5/6 con Fortezza o Torre e 2/3/5 senza){ru}(Плитка 9; затем 4/5/6 с крепостью/башней и 2/3/5 без них){zh-tw}（9 號板塊；另有 4/5/6 塊含堡壘或法師塔，2/3/5 塊不含）{zh-cn}（9号板块；另有4/5/6块含要塞或法师塔，2/3/5块不含）{ko}(9번 타일, 요새/마법사 탑 타일 4/5/6개, 나머지 2/3/5개){es}(Loseta 9, más 4/5/6 con fortaleza o torre y 2/3/5 sin ellas){fr}(Tuile 9, puis 4/5/6 avec fort ou tour et 2/3/5 sans){pt-br}(Peça 9, mais 4/5/6 com Forte ou Torre e 2/3/5 sem){de}(Plättchen 9, dazu 4/5/6 mit Burg/Magierturm und 2/3/5 ohne)",
+							"{en}(Tile 9 plus 5 with Keep or Mage Tower and 3 without){it}(Tessera 9, poi 4/5/6 con Fortezza o Torre e 2/3/5 senza){ru}(Плитка 9; затем 4/5/6 с крепостью/башней и 2/3/5 без них){zh-tw}（9 號板塊；另有 4/5/6 塊含堡壘或法師塔，2/3/5 塊不含）{zh-cn}（9号板块；另有4/5/6块含要塞或法师塔，2/3/5块不含）{ko}(9번 타일, 요새/마법사 탑 타일 4/5/6개, 나머지 2/3/5개){es}(Loseta 9, más 4/5/6 con fortaleza o torre y 2/3/5 sin ellas){fr}(Tuile 9, puis 4/5/6 avec fort ou tour et 2/3/5 sans){pt-br}(Peça 9, mais 4/5/6 com Forte ou Torre e 2/3/5 sem){de}(Plättchen 9, dazu 4/5/6 mit Burg/Magierturm und 2/3/5 ohne)",
+							"{en}(Tile 9 plus 6 with Keep or Mage Tower and 5 without){it}(Tessera 9, poi 4/5/6 con Fortezza o Torre e 2/3/5 senza){ru}(Плитка 9; затем 4/5/6 с крепостью/башней и 2/3/5 без них){zh-tw}（9 號板塊；另有 4/5/6 塊含堡壘或法師塔，2/3/5 塊不含）{zh-cn}（9号板块；另有4/5/6块含要塞或法师塔，2/3/5块不含）{ko}(9번 타일, 요새/마법사 탑 타일 4/5/6개, 나머지 2/3/5개){es}(Loseta 9, más 4/5/6 con fortaleza o torre y 2/3/5 sin ellas){fr}(Tuile 9, puis 4/5/6 avec fort ou tour et 2/3/5 sans){pt-br}(Peça 9, mais 4/5/6 com Forte ou Torre e 2/3/5 sem){de}(Plättchen 9, dazu 4/5/6 mit Burg/Magierturm und 2/3/5 ohne)",
+							"",
+							"",
+							"",
+							""},
+			cityRules="{en}(Blue, White and Red Cities){it}(Città Blu, Bianca e Rossa){ru}(Синий, белый и красный города){zh-tw}（藍、白、紅城）{zh-cn}（蓝、白、红城）{ko}(파랑·하양·빨강 도시, 레벨 = 플레이어 수 + 2){es}(Ciudades azul, blanca y roja){fr}(Cités bleue, blanche et rouge){pt-br}(Cidades azul, branca e vermelha){de}(Blaue, weiße und rote Stadt)",
+			scenarioPurpose="{en}Choose the Council of the Void, the Apocalypse, or independence. Rival factions contest their Keeps, Mage Towers, and Cities. Players on the same side remain competitors.{it}Scegli il Consiglio del Vuoto, l'Apocalisse o l'indipendenza. Le fazioni si contendono fortezze, torri e città; anche gli alleati restano rivali.{ru}Выберите Совет Пустоты, Апокалипсис или независимость. Фракции соперничают за крепости, башни и города; союзники всё равно конкуренты.{zh-tw}選擇虛空議會、末日勢力或獨立。各陣營爭奪要塞、法師塔與城市；同陣營玩家仍互相競爭。{zh-cn}选择虚空议会、末日势力或独立。各阵营争夺要塞、法师塔与城市；同阵营玩家仍互相竞争。{ko}공허의 평의회, 아포칼립스 또는 독립을 선택하세요. 요새·탑·도시를 다투며 같은 세력도 경쟁합니다.{es}Elige el Consejo del Vacío, el Apocalipsis o la independencia. Las facciones disputan fuertes, torres y ciudades; incluso quienes comparten bando compiten.{fr}Choisissez le Conseil du Vide, l'Apocalypse ou l'indépendance. Les factions se disputent forts, tours et cités, même entre joueurs du même camp.{pt-br}Escolha o Conselho do Vazio, o Apocalipse ou a independência. Dispute Fortes, Torres e Cidades; jogadores da mesma facção continuam rivais.{de}Wähle Rat der Leere, Apokalypse oder Unabhängigkeit. Die Fraktionen kämpfen um Burgen, Türme und Städte; selbst Verbündete bleiben Rivalen.",
+			scenarioEnd="{en}When two of the three Cities are conquered, everyone (including the conqueror) gets one final turn. The game ends sooner if the current Round ends. At scoring, opposing factions earn 24 shared Fame when their enemy City falls; each Independent earns 12.{it}Quando due città sono conquistate, tutti giocano un ultimo turno, salvo fine anticipata del round. La fazione opposta divide 24 punti Fama per una città nemica caduta; ogni indipendente ne riceve 12.{ru}После завоевания двух городов все получают последний ход, если раньше не закончится раунд. Противники павшего города делят 24 славы; каждый независимый получает 12.{zh-tw}兩座城市被征服後，每人再進行最後一回合，若該輪先結束則立即終局。敵對城陷落時，對立陣營平分 24 名望，各獨立玩家得 12。{zh-cn}两座城市被征服后，每人再进行最后一回合，若该轮先结束则立即终局。敌对城陷落时，对立阵营平分24名望，各独立玩家得12。{ko}도시 두 곳 정복 시 모든 플레이어가 마지막 한 턴을 가지되 라운드가 끝나면 즉시 종료합니다. 적 도시 정복 시 상대 세력이 명성 24를 나누고 독립 플레이어마다 12를 얻습니다.{es}Tras conquistar dos ciudades, todos tienen un último turno, salvo que termine antes la ronda. La facción contraria se reparte 24 de Fama por su ciudad enemiga caída; cada independiente obtiene 12.{fr}Après deux cités conquises, chacun joue un dernier tour, sauf si la manche se termine d'abord. Le camp opposé partage 24 Renommée par cité ennemie conquise ; chaque indépendant gagne 12.{pt-br}Após conquistar duas Cidades, todos têm mais um turno, salvo se a rodada terminar. A facção oposta divide 24 de Fama pela Cidade inimiga caída; cada independente ganha 12.{de}Nach der Eroberung von zwei Städten hat jeder einen letzten Zug, sofern die Runde nicht vorher endet. Die Gegenfraktion teilt 24 Ruhm für die gefallene gegnerische Stadt; jeder Unabhängige erhält 12."}},
 	{"Fury of the Apocalypse Dragon",
 		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=7,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4}},
 		{mapShape=mapShapeText.predefined,mapShapeKey="predefined",countryTiles=10,cityTiles=2,coreTiles=3,rounds=6,discardTactics=0,dTW=0,cityLevels={4,4}},
@@ -50135,6 +50404,26 @@ mageKnights={{mage="Arythea",  bag=GUID.bag.component.arythea, 	model="6d9676", 
 			{mage="Volkare",   bag=GUID.bag.volkare, 	model=volkare.model, token="938cd3", standee="a0d7b3"},
 			{mage="Random",	   bag="",			model="", 						standee=""},
 			{mage="nobody",	   bag="", 			model="", 						standee=""}}
+-- Fixed Quest Score markers stored in the Apocalypse Dragon bag.
+-- Use object GUIDs here rather than translated names/descriptions: these are source components,
+-- not the ordinary Quest Shield supplies created during play.
+apocalypseQuestScoreMarkerGUIDs={
+	Arythea="7201f9",
+	Goldyx="bdd088",
+	Norowas="31afab",
+	Tovak="6516df",
+	Braevalar="016043",
+	Krang="41c9c9",
+	Wolfhawk="ed3b11",
+	Coral="82d0cf",
+	Ymirgh="721bb0",
+	Mevok="e6141f",
+	Duscenia="ee0aca",
+	Jormund="620eb3",
+	Malek="799f6a",
+	Zirtae="a6155c",
+}
+
 customMages={Ymirgh=true, Mevok=true, Duscenia=true, Jormund=true, Malek=true, Zirtae=true}
 
 -- ALT zoom orientation test values. Keep these together so they are easy to tune after visual testing.
