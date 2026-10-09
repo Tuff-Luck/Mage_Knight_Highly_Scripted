@@ -867,7 +867,11 @@ local function mainUIRefreshPlayerState(context)
 						end
 					end
 					--Keep defenders use half Fame; remember this so reset does not depend on the avatar still being on the Keep.
-					gStates.gainList[obj.guid].keepHalfFame=gStates.monsterPlayLocation[obj.guid]==nil and monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep"
+					gStates.gainList[obj.guid].keepHalfFame=
+                        (gStates.monsterPlayLocation[obj.guid]==nil and monsterPugs[obj.guid].pugType=="gray" and avatarLocation=="keep")
+                        or (gStates.gameScenario=="The Council versus the Apocalypse" and avatarLocation=="mage tower"
+                            and monsterPugs[obj.guid].pugType=="purple"
+                            and councilApocalypseSiteOwnerAt(mageKnightAvatarPosition(gStates.turnNumber))~=nil)
 				end
 				--existing token found, but it has been flipped
 				if (obj.is_face_down==false and gStates.gainList[obj.guid].tokenDirection==-1)
@@ -1742,7 +1746,9 @@ function addAvatarButtons()
 					local specialActionY=100
 					--monster can be fought at avatar location
 					if gStates.preEndTurn==false and player.avatarLocation~=nil and order==gStates.turnNumber and player.combatIconHide=="None" and turnTokenFaceUp==true
-						and (((mageShield==nil or (gStates.gameScenario=="Conquer and Hold" and player.avatarLocation=="mage tower" and mageShield[details.mage]==nil and not mageKnightAlliedOwnedSiteAt(player.seatPos,avPos))) and (player.avatarLocation=="mage tower"
+						and (((mageShield==nil or ((gStates.gameScenario=="Conquer and Hold" and player.avatarLocation=="mage tower" and mageShield[details.mage]==nil and not mageKnightAlliedOwnedSiteAt(player.seatPos,avPos))
+                            or (gStates.gameScenario=="The Council versus the Apocalypse" and player.avatarLocation=="mage tower"
+                                and mageShield[details.mage]==nil and councilApocalypseSiteOwnerAt(avPos)~=nil))) and (player.avatarLocation=="mage tower"
 							or player.avatarLocation=="monster den" or player.avatarLocation=="spawning grounds"
 							or (player.avatarLocation=="glade" and gStates.gameScenario=="Life and Death") or player.avatarLocation=="graveyard"
 							or (player.avatarLocation=="mine" and gStates.gameScenario=="Mines Liberation")
