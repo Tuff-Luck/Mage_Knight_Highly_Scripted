@@ -105,6 +105,12 @@ When adding a new scenario, choose its Blitz model deliberately: off-only, on-on
 
 Do not use translated display strings as program identity or parse them to infer rules. Store a stable canonical key beside translated presentation text and branch on the key. Map shape logic specifically uses `mapShapeKey`; `mapShape` is display text only.
 
+Avoid using an object's **Name/Nickname or Description** for scripted identification or rule checks. These fields are display-facing, may be translated, and may be edited by players. Prefer:
+- **GUID lookup**, preferably registered in `src/Data.lua`, for fixed known objects and components.
+- **English-only GM Notes** (or another stable, explicit metadata key) for identifying object types or dynamically created objects where a fixed GUID is inappropriate.
+
+Do not parse English out of translation-tagged Name/Description strings as an identification workaround. Use displayed text only when the feature genuinely concerns what is shown to players, or when no stable identity is available and the exception is clearly justified.
+
 ## UI localization
 
 GM Notes are internal script metadata and must remain **English only**. Do not add translation tags to object `GMNotes` fields when localizing the save JSON or object text. Display-facing fields such as Nickname and Description may be localized; script logic should prefer stable GUID/data fields or existing English-only GM Notes rather than translated display text.
