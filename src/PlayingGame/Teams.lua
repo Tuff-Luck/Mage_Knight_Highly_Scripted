@@ -1,6 +1,6 @@
 -- Team membership belongs to Mage Knight seats, not to the occupant's Steam identity.
 -- Zero means No Team. TTS suits are a presentation mirror, never the source of truth.
-local TEAM_SUITS={"None","Hearts","Diamonds","Clubs","Spades"}
+local TEAM_SUITS={"None","Hearts","Diamonds"}
 
 local function notifyBlackMageKnightTeamChange(seatPos,team)
     local black=Player["Black"]
@@ -14,7 +14,7 @@ end
 function mageKnightSeatTeam(seatPos)
     local teams=gStates and gStates.seatTeams
     local team=teams and teams[seatPos] or 0
-    return type(team)=="number" and team>=1 and team<=4 and team or 0
+    return type(team)=="number" and team>=1 and team<#TEAM_SUITS and team or 0
 end
 
 function mageKnightPlayersAllied(firstSeat,secondSeat)
@@ -49,7 +49,7 @@ function cycleMageKnightSeatTeam(player,mouseButton,id)
         return
     end
     gStates.seatTeams=gStates.seatTeams or {}
-    local team=(mageKnightSeatTeam(seatPos)+1)%5
+    local team=(mageKnightSeatTeam(seatPos)+1)%#TEAM_SUITS
     gStates.seatTeams[seatPos]=team
     syncMageKnightSeatTeams()
     applyColorBarButtons()
