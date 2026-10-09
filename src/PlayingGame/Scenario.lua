@@ -588,6 +588,7 @@ function cityConquestScenarioEndAchieved()
 		gStates.gameScenario=="First Conquest" or gStates.gameScenario=="Fast Forwarded Conquest" then
 		return count==gStates.cityTiles
 	end
+	if gStates.gameScenario=="The Council versus the Apocalypse" then return count>=2 end
 	if gStates.gameScenario=="Ultimate Conquest" then
 		return count==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)
 	end
@@ -711,6 +712,7 @@ function scenarioCombatCleanupCheck(cleanupPlayer)
 		((gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and volkareBeaten==true) or
 		(gStates.gameScenario=="First Reconnaissance" and #gStates.citiesPlayed>=1) or
 		(gStates.gameScenario=="Ultimate Conquest" and conqueredCityObjectiveCount()==gStates.cityTiles and (gStates.removeShadesOfTezlaMonsters==true or gStates.defeatedFaction==2)) or
+		(gStates.gameScenario=="The Council versus the Apocalypse" and conqueredCityObjectiveCount()>=2) or
 		(gStates.gameScenario=="The Hidden Valley Blitz" and gStates.defeatedFaction==1) or
 		(gStates.gameScenario=="Mines Liberation" and terrainEmpty and mineCount==mineTileCount) or
 		(gStates.gameScenario=="Dungeon Lords" and terrainEmpty and dungeonCount==dungeonHexCount-2) or
