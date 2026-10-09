@@ -2142,7 +2142,7 @@ function attackLocation(playerDud, mouseButton, id)
                                 if gStates.gameScenario=="The Council versus the Apocalypse" and id:sub(1,6)=="Attack"
                                     and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower") then
                                     local owner=councilApocalypseSiteOwnerAt(avPos)
-                                    if owner~=nil and owner~=player.mage then
+                                    if owner~=nil and owner~=player.mage and councilApocalypseSiteOwnerPresent(avPos)==false then
                                         local ownerFaction=councilApocalypseFactionForMage(owner)
                                         if ownerFaction=="Council" or ownerFaction=="Apocalypse" then
                                             drawMonster(monsterPiles.possessed,player,"CouncilApocalypsePossessed",ownerFaction=="Council" and "Council" or "Apoc")
@@ -2165,7 +2165,7 @@ function attackLocation(playerDud, mouseButton, id)
 										local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
 										if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and (shieldOwner(shield)==player.mage or gStates.coop==1) and math.sqrt(((shieldPos[1]-avPos[1])^2)+((shieldPos[3]-avPos[3])^2))<1 then found=true break end
 									end
-									if found==false and not (gStates.gameScenario=="Conquer and Hold" and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos)) then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{it}Difensore della Fortezza portato sulla Plancia Giocatore{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
+									if found==false and not (gStates.gameScenario=="Conquer and Hold" and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos)) and not (gStates.gameScenario=="The Council versus the Apocalypse" and councilApocalypseSiteOwnerPresent(avPos)) then drawMonster(monsterPiles.gray, player, id) broadcastToAll("{en}Keep Defender Drawn to Player Board{it}Difensore della Fortezza portato sulla Plancia Giocatore{ru}Защитник крепости был помещен на стол игрока{zh-tw}堡壘守軍已移到玩家面板{zh-cn}保持防御者在玩家板上{ko}성의 수비자와 전투합니다{es}Mantenga al Defensor atraído al tablero del jugador{fr}Gardez le Défenseur dessiné sur le plateau du joueur{pt-br}Defensor do Forte puxado para o tabuleiro do jogador{de}Verteidiger auf Spielerbrett gezogen halten", positionToColor(gStates.turnNumber)) end
 								end
 								if (player.avatarLocation=="ziggurat" or player.avatarLocation=="pyramid") then
 									--update Interface to be fresh and match the location.
