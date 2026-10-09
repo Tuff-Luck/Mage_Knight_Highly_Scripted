@@ -126,6 +126,93 @@ function conquerHoldPersonalMageTowers(playerIndex)
     return count,nearOwn
 end
 
+
+-- The Council versus the Apocalypse uses FACTION allegiance, not TTS teams.
+-- Two Mage Knights serving the same faction remain competing players.
+function councilApocalypseFactionAtSeat(seatPos)
+    local sides=gStates and gStates.councilApocalypseFactions
+    return sides and sides[seatPos] or nil
+end
+
+function councilApocalypseFactionForMage(mage)
+    if gStates==nil or mage==nil then return nil end
+    for seatPos=1,4 do
+        if gStates.positionMageKnight[seatPos]==mage then return councilApocalypseFactionAtSeat(seatPos) end
+    end
+    return nil
+end
+
+function councilApocalypseSideControlsSite(seatPos, ownerMage)
+    if gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" or ownerMage==nil then return false end
+    if gStates.positionMageKnight[seatPos]==ownerMage then return true end
+    local myFaction=councilApocalypseFactionAtSeat(seatPos)
+    return myFaction~=nil and myFaction~="Independent" and myFaction==councilApocalypseFactionForMage(ownerMage)
+end
+
+function councilApocalypseSiteOwnerAt(position)
+    if gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" or position==nil then return nil end
+    local _,_,_,feature=terrainHexAtPosition(position)
+    if feature~="keep" and feature~="mage tower" then return nil end
+    local snapshot=runtimeMapSpatialSnapshot()
+    for _,obj in ipairs(runtimeMapSpatialNearbyObjects(snapshot,position,1.5)) do
+        if isShieldObject(obj) and volkarePursuitShieldRegistered(obj)~=true then
+            local p=obj.getPosition()
+            if (p[1]-position[1])^2+(p[3]-position[3])^2<1.44 then return shieldOwner(obj) end
+        end
+    end
+    return nil
+end
+
+function councilApocalypseSiteFriendly(seatPos,position)
+    local owner=councilApocalypseSiteOwnerAt(position)
+    return owner~=nil and councilApocalypseSideControlsSite(seatPos,owner)
+end
+
+function councilApocalypseSiteEnemy(seatPos,position)
+    local owner=councilApocalypseSiteOwnerAt(position)
+    return owner~=nil and not councilApocalypseSideControlsSite(seatPos,owner)
+end
+
+function councilApocalypseFactionKeepCount(seatPos)
+    if gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" then return 0 end
+    local side=councilApocalypseFactionAtSeat(seatPos)
+    if side==nil or side=="Independent" then return nil end
+    local map=getObjectFromGUID(mapArea)
+    local found={}
+    if map==nil then return 0 end
+    for _,obj in ipairs(map.getObjects()) do
+        if isShieldObject(obj) and councilApocalypseFactionForMage(shieldOwner(obj))==side then
+            local pos=obj.getPosition()
+            local tile,hex,sitePos,feature=terrainHexAtPosition(pos)
+            if feature=="keep" and tile~=nil then found[tile.guid..":"..tostring(hex)]=true end
+        end
+    end
+    local count=0
+    for _ in pairs(found) do count=count+1 end
+    return count
+end
+
+function cycleCouncilApocalypseFaction(player,mouseButton,id)
+    if mouseButton~="-1" or gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" then return end
+    if gStates.currentRound~=nil and gStates.currentRound>1 then return end
+    local guid=id:sub(1,6)
+    local seatPos=nil
+    for pos,barGUID in pairs(colorBand) do if guid==barGUID then seatPos=pos break end end
+    if seatPos==nil then return end
+    if player.color~="Black" and not player.host and not player.admin and (gStates.handColors or {})[player.color]~=seatPos then return end
+    gStates.councilApocalypseFactions=gStates.councilApocalypseFactions or {}
+    local sequence={"Council","Apocalypse","Independent"}
+    local current=councilApocalypseFactionAtSeat(seatPos)
+    local index=0
+    for i,side in ipairs(sequence) do if current==side then index=i break end end
+    local chosen=sequence[(index%#sequence)+1]
+    gStates.councilApocalypseFactions[seatPos]=chosen
+    applyColorBarButtons()
+    if gStates.firstStarted==true then addAvatarButtons() end
+    broadcastToAll(joinLang({translateWord[gStates.positionMageKnight[seatPos]] or tostring(seatPos),
+        "{en} chose {it} sceglie {ru} выбирает {zh-tw} 選擇 {zh-cn} 选择 {ko} 선택: {es} elige {fr} choisit {pt-br} escolhe {de} wählt ",chosen}),{1,1,0.5})
+end
+
 -- One to Return (four-player team variant): randomly pick and privately announce
 -- one designated returning hero per two-player team.
 function oneToReturnEnsureChosenMages()
