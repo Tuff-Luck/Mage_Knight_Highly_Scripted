@@ -2963,12 +2963,6 @@ function apocalypseQuestScoreMarkerSetup(apocalypseBag)
 	gStates.apocalypseQuestScoreMarkers={}
 	gStates.apocalypseQuestScores={}
 	local contents=apocalypseBag.getObjects() or {}
-	local function normalized(value)
-		local text=tostring(value or '')
-		-- Bag metadata may contain all language tags; match its English identity only.
-		text=text:match('%{en%}(.-)%{[%w%-]+%}') or text:match('%{en%}(.*)') or text
-		return string.lower(text):gsub('[^%w]', '')
-	end
 	for seatPos=1, 4, 1 do
 		local mage=gStates.positionMageKnight[seatPos]
 		if mage~=nil and mage~='nobody' and mage~='Volkare' then
@@ -2977,12 +2971,10 @@ function apocalypseQuestScoreMarkerSetup(apocalypseBag)
 			for _,player in ipairs(turnOrder or {}) do
 				if player.mage==mage then player.questScore=0 break end
 			end
-			local mageKey=normalized(mage)
+			local markerGUID=apocalypseQuestScoreMarkerGUIDs[mage]
 			local marker=nil
-			for _, data in pairs(contents) do
-				local name=normalized(data.name)
-				local description=normalized(data.description)
-				if name==mageKey and description=='questscore' then marker=data break end
+			for _, data in ipairs(contents) do
+				if data.guid==markerGUID then marker=data break end
 			end
 			if marker~=nil then
 				local mageName=mage

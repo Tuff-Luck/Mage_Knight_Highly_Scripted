@@ -2088,6 +2088,26 @@ mageKnights={{mage="Arythea",  bag=GUID.bag.component.arythea, 	model="6d9676", 
 			{mage="Volkare",   bag=GUID.bag.volkare, 	model=volkare.model, token="938cd3", standee="a0d7b3"},
 			{mage="Random",	   bag="",			model="", 						standee=""},
 			{mage="nobody",	   bag="", 			model="", 						standee=""}}
+-- Fixed Quest Score markers stored in the Apocalypse Dragon bag.
+-- Use object GUIDs here rather than translated names/descriptions: these are source components,
+-- not the ordinary Quest Shield supplies created during play.
+apocalypseQuestScoreMarkerGUIDs={
+	Arythea="7201f9",
+	Goldyx="bdd088",
+	Norowas="31afab",
+	Tovak="6516df",
+	Braevalar="016043",
+	Krang="41c9c9",
+	Wolfhawk="ed3b11",
+	Coral="82d0cf",
+	Ymirgh="721bb0",
+	Mevok="e6141f",
+	Duscenia="ee0aca",
+	Jormund="620eb3",
+	Malek="799f6a",
+	Zirtae="a6155c",
+}
+
 customMages={Ymirgh=true, Mevok=true, Duscenia=true, Jormund=true, Malek=true, Zirtae=true}
 
 -- ALT zoom orientation test values. Keep these together so they are easy to tune after visual testing.
