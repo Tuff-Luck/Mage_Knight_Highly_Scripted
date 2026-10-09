@@ -5,7 +5,9 @@ local function councilApocalypseScoreBonus(playerIndex)
     if gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" then return 0 end
     local details=turnOrder[playerIndex]
     if details==nil then return 0 end
-    local faction=councilApocalypseFactionAtSeat(details.seatPos) or "Independent"
+    local faction=councilApocalypseFactionAtSeat(details.seatPos)
+    -- No allegiance selected is not equivalent to choosing independence.
+    if faction==nil then return 0 end
     local counts={Council=0,Apocalypse=0}
     for _,player in ipairs(turnOrder) do
         local side=councilApocalypseFactionAtSeat(player.seatPos)
