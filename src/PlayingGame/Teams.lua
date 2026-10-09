@@ -182,6 +182,16 @@ function councilApocalypseSiteOwnerAt(position)
     return nil
 end
 
+-- Only use substitute enemy tokens when the Shield owner is not physically
+-- defending the site. An occupied enemy site is handled by normal PvP rules.
+function councilApocalypseSiteOwnerPresent(position)
+    local owner=councilApocalypseSiteOwnerAt(position)
+    if owner==nil then return false end
+    local ownerPosition=mageKnightAvatarPositionByName(owner)
+    if ownerPosition==nil then return false end
+    return (ownerPosition[1]-position[1])^2+(ownerPosition[3]-position[3])^2<1.44
+end
+
 function councilApocalypseSiteFriendly(seatPos,position)
     local owner=councilApocalypseSiteOwnerAt(position)
     return owner~=nil and councilApocalypseSideControlsSite(seatPos,owner)
