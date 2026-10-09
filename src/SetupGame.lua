@@ -358,7 +358,11 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		end
 
 		--Record scenario setting to gStates to be saved
-		gStates.rounds=scenarioList[gStates.scenarioRef][gStates.playersRef].rounds
+		if gStates.gameScenario=="The Council versus the Apocalypse" then
+        -- Allegiance is a per-game choice made before the first Tactics, not a seat Team.
+        gStates.councilApocalypseFactions={}
+    end
+	gStates.rounds=scenarioList[gStates.scenarioRef][gStates.playersRef].rounds
 		gStates.mapShape=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShape
 		gStates.mapShapeKey=scenarioList[gStates.scenarioRef][gStates.playersRef].mapShapeKey
 		gStates.cityTiles=scenarioList[gStates.scenarioRef][gStates.playersRef].cityTiles
