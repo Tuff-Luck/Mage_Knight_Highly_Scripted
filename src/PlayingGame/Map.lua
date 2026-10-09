@@ -1187,7 +1187,10 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						local target=dropped_object.getPosition()
 						assaultTargetPosition={target[1],target[2],target[3]}
 						againstHorsemenBeginGladeAssault(gStates.turnNumber,assaultApproachOrigin)
-					elseif attackedLocation~=nil and not (playerDetails.avatarLocation=="keep" and mageKnightAlliedKeepOccupied(playerDetails.seatPos,dropped_object.getPosition())) then
+					elseif attackedLocation~=nil
+                        and not (playerDetails.avatarLocation=="keep" and mageKnightAlliedKeepOccupied(playerDetails.seatPos,dropped_object.getPosition()))
+                        and not councilApocalypseSiteFriendly(playerDetails.seatPos,dropped_object.getPosition())
+                        and not councilApocalypseFriendlyCity(playerDetails.seatPos,playerDetails.avatarLocation) then
 						--Keep the actual hex this assault location was entered from. Long moves are deliberately
 						--left ambiguous so the wall interface can ask which side was used.
 						if avatarChangedHex==true and playerPickedUpPos[1]~=nil then assaultApproachOrigin={playerPickedUpPos[1], playerPickedUpPos[2], playerPickedUpPos[3]} end
@@ -1211,8 +1214,11 @@ function mapAvatarLocationDetails(player_color, avatar, dropped_object)
 						end
 						if (playerDetails.nearKeep==true and nearCityForHand==false) or
 							(playerDetails.nearKeep==true and nearCityForHand==true and playerDetails.keepsBeat>1) then
-							playerDetails.hand=playerDetails.baseHand+playerDetails.keepsBeat
-							if playerDetails.keepsBeat>0 then handBonusSource="Keep" end
+							local factionKeeps=councilApocalypseSiteFriendly(playerDetails.seatPos,dropped_object.getPosition())
+                                and councilApocalypseFactionKeepCount(playerDetails.seatPos) or nil
+                            local keepCount=factionKeeps~=nil and factionKeeps or playerDetails.keepsBeat
+                            playerDetails.hand=playerDetails.baseHand+keepCount
+                            if keepCount>0 then handBonusSource="Keep" end
 						end
 					else
 						playerDetails.hand=playerDetails.baseHand
