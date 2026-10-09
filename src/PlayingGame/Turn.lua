@@ -87,6 +87,14 @@ function tacticToggle()
 
 	--Show all tactics available
 	if gStates.tacticShown==true then
+        if gStates.gameScenario=="The Council versus the Apocalypse" and gStates.currentRound==1 then
+            for seatPos=1,4 do
+                if gStates.positionMageKnight[seatPos]~="nobody" and councilApocalypseFactionAtSeat(seatPos)==nil then
+                    broadcastToAll("{en}Before Round 1 Tactics, each Mage Knight must choose a faction using the button on their color bar.{it}Prima delle Tattiche, scegli una fazione dalla barra colore.{ru}До выбора тактик выберите фракцию на цветной панели.{zh-tw}第一輪戰術前，請用顏色欄選擇陣營。{zh-cn}第一轮战术前，请用颜色栏选择阵营。{ko}첫 라운드 전 색상 바에서 세력을 선택하세요.{es}Antes de elegir tácticas, selecciona una facción en tu barra de color.{fr}Avant les tactiques, choisissez votre camp sur votre barre de couleur.{pt-br}Antes das Táticas, escolha uma facção na barra de cores.{de}Vor den Taktikkarten die Fraktion auf der Farbleiste wählen.",warningColor)
+                    break
+                end
+            end
+        end
 		broadcastToAll("{en}Turn order Re-Organised based on tactic card selection{it}Ordine dei turni riorganizzato in base alle Tattiche scelte{ru}Порядок хода игроков изменился в соответствии с выбранными Тактиками{zh-tw}玩家行动顺序基于战术卡的选择改变了{zh-cn}玩家行动顺序基于战术卡的选择改变了{ko}라운드 순서가 전략 카드에 따라 배치되었습니다{es}Orden de turnos reorganizado según la selección de la tarjeta de táctica{fr}Ordre de tour réorganisé en fonction de la sélection de la carte tactique{pt-br}Ordem de Turno re-organizada baseada nas seleções de táticas{de}Zugreihenfolge neu organisiert basierend auf der Auswahl der Taktikkarten", {1,1,0.5})
 		turnOrderSort()
 		safeWaitTime("Turn",function()
@@ -921,7 +929,17 @@ function __PreEndRound_raw(player, mouseButton, id)
 		if player~=nil and player.color~=nil then broadcastToColor("{en}Finish the Apocalypse Dragon turn first.{it}Termina prima il turno del Drago dell'Apocalisse.{ru}Сначала завершите ход Дракона Апокалипсиса.{zh-tw}請先完成末日巨龍的回合。{zh-cn}请先完成末日巨龙的回合。{ko}먼저 아포칼립스 드래곤의 턴을 끝내십시오.{es}Termina primero el turno del Dragón del Apocalipsis.{fr}Terminez d’abord le tour du Dragon de l’Apocalypse.{pt-br}Termine primeiro o turno do Dragão do Apocalipse.{de}Beende zuerst den Zug des Apokalypse-Drachen.",player.color,warningColor) end
 		return
 	end
-	if gStates.endGameAchieved~="false" then return end
+	if gStates.endGameAchieved~="false" then
+        -- This scenario's final circuit ends immediately if the Round is called first.
+        if gStates.gameScenario=="The Council versus the Apocalypse" and gStates.gameOver~=true
+            and mouseButton=="-1" and player~=nil and legalPlayerCheck(player.color,turnOrder[gStates.turnNumber].seatPos)==true then
+            gStates.endGameAchieved="true"
+            gStates.gameOver=true
+            broadcastToAll("{en}Round ended during the final circuit. The scenario ends now.{it}Il round termina durante gli ultimi turni: fine scenario.{ru}Раунд завершён во время последних ходов: конец сценария.{zh-tw}最後回合期間本輪結束，劇本立即終止。{zh-cn}最后回合期间本轮结束，剧本立即终止。{ko}마지막 턴 중 라운드 종료, 시나리오 종료.{es}La ronda termina durante los últimos turnos: fin del escenario.{fr}La manche se termine pendant les derniers tours : fin du scénario.{pt-br}A rodada terminou durante os últimos turnos: fim do cenário.{de}Die Runde endet während der letzten Züge: Szenarioende.",{1,1,0.5})
+            mainUIUpdate("Game Over")
+        end
+        return
+    end
 	if mouseButton=="-1" and legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)==true then
 		turnOrder[gStates.turnNumber].endCalled=true
 		gStates.endRoundCalled=true
