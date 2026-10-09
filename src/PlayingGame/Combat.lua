@@ -551,7 +551,7 @@ local function combatDiscardMonster(playAreaObj, giveRewards, context)
 					local shieldPos=mapSpatial.positions[shield.guid] or shield.getPosition()
 					if isShieldObject(shield) and volkarePursuitShieldRegistered(shield)~=true and math.sqrt(((shieldPos[1]-avatarPos[1])^2)+((shieldPos[3]-avatarPos[3])^2))<1 then
 						shieldExists=true
-						if (cleanupLocation=="keep" or (cleanupLocation=="mage tower" and gStates.gameScenario=="Conquer and Hold")) and shieldOwner(shield)~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
+						if (cleanupLocation=="keep" or (cleanupLocation=="mage tower" and (gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="The Council versus the Apocalypse"))) and shieldOwner(shield)~=turnOrder[cleanupPlayer].mage then shield.destruct() shieldExists=false end
 						if cleanupLocation=="dungeon" or cleanupLocation=="tomb" then gStates.shieldsDropped[shield.guid]=true end
 						break
 					end
@@ -1862,9 +1862,9 @@ function rewardRetreatRequired(playerIndex,avatarLocation,nearbyOwnShield)
 		dragonRetreatRequired=apocalypseDragonCombatContainsPlayer(playerIndex)==true
 	end
 	return dragonRetreatRequired==true or
-		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false" and not (gStates.gameScenario=="Conquer and Hold" and mageKnightAlliedOwnedSiteAt~=nil and mageKnightAlliedOwnedSiteAt(details.seatPos,mageKnightAvatarPosition(playerIndex)))) or
+		((avatarLocation=="keep" or avatarLocation=="mage tower") and nearbyOwnShield=="false" and not (gStates.gameScenario=="Conquer and Hold" and mageKnightAlliedOwnedSiteAt~=nil and mageKnightAlliedOwnedSiteAt(details.seatPos,mageKnightAvatarPosition(playerIndex))) and not councilApocalypseSiteFriendly(details.seatPos,mageKnightAvatarPosition(playerIndex))) or
 		((avatarLocation:sub(1,4)=="city" or avatarLocation=="Volkare's Camp") and gStates.friendlyCity[nearbyOwnShield]~=true and
-			((gStates.gameScenario~="The Lost Relic Blitz" and gStates.defeatedCities[nearbyOwnShield]~=true) or (gStates.gameScenario=="The Lost Relic Blitz" and nearbyOwnShield=="false"))) or
+			((gStates.gameScenario~="The Lost Relic Blitz" and gStates.defeatedCities[nearbyOwnShield]~=true) or (gStates.gameScenario=="The Lost Relic Blitz" and nearbyOwnShield=="false")) and not councilApocalypseFriendlyCity(details.seatPos,avatarLocation)) or
 		((avatarLocation=="necropolis" or avatarLocation=="hidden valley") and coopLeaderCombat==false and leaderDefeatedPendingCleanup==false and factionLeaderDefeated==false) or
 		(nearbyOwnShield==volkare.model)
 end
@@ -2136,7 +2136,21 @@ function attackLocation(playerDud, mouseButton, id)
 								end
 								if player.avatarLocation=="monastery" and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.purple, player, id) broadcastToAll("{en}Monastery Defender Drawn to Player Board{it}Difensore del Monastero portato sulla Plancia Giocatore{ru}Жетон защитника Монастыря был помещен на стол игрока{zh-tw}修道院守軍已移到玩家面板{zh-cn}修道院驻军移到玩家面板上{ko}수도원의 수비자와 전투합니다{es}Defensor del Monasterio dibujado en el tablero del jugador{fr}Défenseur du Monastère dessiné sur le plateau du joueur{pt-br}Defensor do Monastério puxado para o tabuleiro do jogador{de}Verteidiger des Klosters auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
 								if (player.avatarLocation=="tomb" or player.avatarLocation=="labyrinth") and id:sub(1, 6)=="Attack" then drawMonster(monsterPiles.red, player, id) broadcastToAll("{en}Dragon Drawn to Player Board{it}Drago portato sulla Plancia Giocatore{ru}Жетон Драконума был помещен на стол игрока{zh-tw}巨龍已移到玩家面板{zh-cn}将龙放到玩家面板{ko}드래곤과 전투하세요{es}Dragón dibujado al tablero del jugador{fr}Dragon dessiné sur le plateau du joueur{pt-br}Dragão Puxado para o tabuleiro do jogador{de}Drache auf Spielertafel gezogen", positionToColor(gStates.turnNumber)) end
-								if gStates.gameScenario=="Conquer and Hold" and id:sub(1,6)=="Attack"
+								-- Faction-held sites are shared for access but may still be attacked.
+                                -- A previous owner's garrison is one gray (Keep) or violet (Tower),
+                                -- possessed by the owner's faction if not Independent.
+                                if gStates.gameScenario=="The Council versus the Apocalypse" and id:sub(1,6)=="Attack"
+                                    and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower") then
+                                    local owner=councilApocalypseSiteOwnerAt(avPos)
+                                    if owner~=nil and owner~=player.mage then
+                                        local ownerFaction=councilApocalypseFactionForMage(owner)
+                                        if ownerFaction=="Council" or ownerFaction=="Apocalypse" then
+                                            drawMonster(monsterPiles.possessed,player,"CouncilApocalypsePossessed",ownerFaction=="Council" and "Council" or "Apoc")
+                                        end
+                                        if player.avatarLocation=="mage tower" then drawMonster(monsterPiles.purple,player,"CouncilApocalypseTower") end
+                                    end
+                                end
+                                if gStates.gameScenario=="Conquer and Hold" and id:sub(1,6)=="Attack"
 									and (player.avatarLocation=="keep" or player.avatarLocation=="mage tower")
 									and conquerHoldEnemyOwnedSiteAt(player.seatPos,avPos) then
 									local pile=player.avatarLocation=="keep" and monsterPiles.gray or monsterPiles.purple
