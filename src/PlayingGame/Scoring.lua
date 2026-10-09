@@ -1,5 +1,31 @@
 -- End-game scoring and Hero Challenge scoring runtime.
 
+-- Faction Fame is individual competitive scoring, never TTS team scoring.
+local function councilApocalypseScoreBonus(playerIndex)
+    if gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" then return 0 end
+    local details=turnOrder[playerIndex]
+    if details==nil then return 0 end
+    local faction=councilApocalypseFactionAtSeat(details.seatPos) or "Independent"
+    local counts={Council=0,Apocalypse=0}
+    for _,player in ipairs(turnOrder) do
+        local side=councilApocalypseFactionAtSeat(player.seatPos)
+        if counts[side]~=nil then counts[side]=counts[side]+1 end
+    end
+    local bonus=0
+    local blueFallen=gStates.defeatedCities~=nil and gStates.defeatedCities[cityModel.blue]==true
+    local redFallen=gStates.defeatedCities~=nil and gStates.defeatedCities[cityModel.red]==true
+    if blueFallen then
+        if faction=="Apocalypse" and counts.Apocalypse>0 then bonus=bonus+24/counts.Apocalypse end
+        if faction=="Independent" then bonus=bonus+12 end
+    end
+    if redFallen then
+        if faction=="Council" and counts.Council>0 then bonus=bonus+24/counts.Council end
+        if faction=="Independent" then bonus=bonus+12 end
+    end
+    return bonus
+end
+
+
 --Hero Challenges are an optional Apocalypse-rulebook overlay. Keep all scoring/objective
 --math here so the underlying scenario can retain its normal victory and end conditions.
 local function heroChallengeActive(playerIndex)
@@ -483,7 +509,7 @@ function displayScore(player, mouseButton, id)
 		local scoringGroups={}
 		local scoringGroupByKey={}
 		local teamScoring=false
-		if gStates.coop==0 and gStates.gameScenario~="One to Return" then scoringGroups,scoringGroupByKey,teamScoring=scoringArrangeTtsTeams() end
+		if gStates.coop==0 and gStates.gameScenario~="One to Return" and gStates.gameScenario~="The Council versus the Apocalypse" then scoringGroups,scoringGroupByKey,teamScoring=scoringArrangeTtsTeams() end
 		local forTheCouncil=gStates.gameScenario=="For the Council"
 		local againstHorsemen=gStates.gameScenario=="Against the Horsemen Blitz"
 		local apocalypseHere=gStates.gameScenario=="Apocalypse is Here"
@@ -1157,7 +1183,14 @@ function displayScore(player, mouseButton, id)
 						--Cities Competative. Fractured Lands explicitly does not use City scoring.
 						if fracturedLandsNoCityScore~=true then
 							assembledText="" lineFeed=0
-							if turnOrder[a].score.CityLead>0 and gStates.defeatedCities.amount>0 then
+							if gStates.gameScenario=="The Council versus the Apocalypse" then
+                                local bonus=councilApocalypseScoreBonus(a)
+                                if bonus>0 then
+                                    assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{"{en}Faction City Bonus: +{it}Bonus Città di Fazione: +{ru}Бонус города фракции: +{zh-tw}陣營城市獎勵：+{zh-cn}阵营城市奖励：+{ko}세력 도시 보너스: +{es}Bono por ciudad de facción: +{fr}Bonus de cité de faction : +{pt-br}Bônus de Cidade da Facção: +{de}Fraktions-Stadtbonus: +",bonus})
+                                    totalScore=totalScore+bonus
+                                end
+                            end
+                            if turnOrder[a].score.CityLead>0 and gStates.defeatedCities.amount>0 then
 								assembledText,lineFeed=appendScoreLine(assembledText,lineFeed,{turnOrder[a].score.CityLead, "{en} Conquered City(s): +{it} Città Conquistate: +{ru} Захваченный Город: +{zh-tw}个城市已征服: +{zh-cn}个城市已征服: +{ko} 정복한 도시: +{es} Ciudades Conquistadas: +{fr} Villes Conquises: +{pt-br} Cidades Conquistadas: +{de} Eroberte Stadt(en): +", (turnOrder[a].score.CityLead*7)})
 								totalScore=totalScore+(turnOrder[a].score.CityLead*7)
 							end
