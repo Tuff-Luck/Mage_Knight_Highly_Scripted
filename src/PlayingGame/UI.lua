@@ -1933,7 +1933,18 @@ function applyColorBarButtons()
 			end
 
             if barSkip==false then
-                if barPlayerData~=nil and ((gStates.coop==1 and (gStates.playerCount or 0)>=2)
+                if barPlayerData~=nil and gStates.gameScenario=="The Council versus the Apocalypse" then
+                    local side=councilApocalypseFactionAtSeat(position)
+                    local factionLabel=side=="Council" and "{en}COUNCIL{it}CONSIGLIO{ru}СОВЕТ{zh-tw}議會{zh-cn}议会{ko}평의회{es}CONSEJO{fr}CONSEIL{pt-br}CONSELHO{de}RAT"
+                        or (side=="Apocalypse" and "{en}APOCALYPSE{it}APOCALISSE{ru}АПОКАЛИПСИС{zh-tw}末日{zh-cn}末日{ko}아포칼립스{es}APOCALIPSIS{fr}APOCALYPSE{pt-br}APOCALIPSE{de}APOKALYPSE"
+                        or (side=="Independent" and "{en}INDEPENDENT{it}INDIPENDENTE{ru}НЕЗАВИСИМЫЙ{zh-tw}獨立{zh-cn}独立{ko}독립{es}INDEPENDIENTE{fr}INDÉPENDANT{pt-br}INDEPENDENTE{de}UNABHÄNGIG"
+                        or "{en}CHOOSE SIDE{it}SCEGLI FAZIONE{ru}ВЫБЕРИТЕ СТОРОНУ{zh-tw}選擇陣營{zh-cn}选择阵营{ko}세력 선택{es}ELIGE BANDO{fr}CHOISIR CAMP{pt-br}ESCOLHA UM LADO{de}SEITE WÄHLEN"))
+                    buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."FactionCycle",onClick="global/cycleCouncilApocalypseFaction",
+                        height=200,width=800,position="50 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
+                        children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},
+                            {tag="Text",attributes={font="Fonts/MKCardText",fontSize=90,fontStyle="Normal",alignment="MiddleCenter",
+                                resizeTextForBestFit="true",resizeTextMaxSize=90,text=factionLabel}}}}
+                elseif barPlayerData~=nil and ((gStates.coop==1 and (gStates.playerCount or 0)>=2)
                     or (gStates.coop==0 and (gStates.playerCount or 0)>=3)) then
                     local team=mageKnightSeatTeam(position)
                     local shareHands=gStates.coop==1
