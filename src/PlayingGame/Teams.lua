@@ -26,7 +26,7 @@ function syncMageKnightSeatTeams()
     if gStates==nil or gStates.handColors==nil then return end
     for color,seatPos in pairs(gStates.handColors) do
         if color~="Black" and color~="Grey" and Player[color]~=nil and Player[color].seated then
-            local wanted=gStates.coop==1 and ((gStates.coopShareHands or {})[seatPos]==true and "Hearts" or "None") or TEAM_SUITS[mageKnightSeatTeam(seatPos)+1]
+            local wanted=gStates.gameScenario=="The Council versus the Apocalypse" and "None" or (gStates.coop==1 and ((gStates.coopShareHands or {})[seatPos]==true and "Hearts" or "None") or TEAM_SUITS[mageKnightSeatTeam(seatPos)+1])
             if Player[color].team~=wanted then Player[color].team=wanted end
         end
     end
@@ -147,6 +147,25 @@ function councilApocalypseSideControlsSite(seatPos, ownerMage)
     if gStates.positionMageKnight[seatPos]==ownerMage then return true end
     local myFaction=councilApocalypseFactionAtSeat(seatPos)
     return myFaction~=nil and myFaction~="Independent" and myFaction==councilApocalypseFactionForMage(ownerMage)
+end
+
+-- Same-side, unconquered Blue/Red Cities are friendly until this player attacks a defender.
+function councilApocalypseFriendlyCity(seatPos,avatarLocation)
+    if gStates==nil or gStates.gameScenario~="The Council versus the Apocalypse" then return false end
+    local cityGUID,side
+    if avatarLocation=="city blue" then cityGUID=cityModel.blue side="Council"
+    elseif avatarLocation=="city red" then cityGUID=cityModel.red side="Apocalypse"
+    else return false end
+    if councilApocalypseFactionAtSeat(seatPos)~=side then return false end
+    if gStates.defeatedCities~=nil and gStates.defeatedCities[cityGUID]==true then return false end
+    local zoneGUID=avatarLocation=="city blue" and GUID.zone.blueCity or GUID.zone.redCity
+    local zone=getObjectFromGUID(zoneGUID)
+    if zone~=nil then
+        for _,obj in ipairs(zone.getObjects()) do
+            if isShieldObject(obj) and shieldOwner(obj)==gStates.positionMageKnight[seatPos] then return false end
+        end
+    end
+    return true
 end
 
 function councilApocalypseSiteOwnerAt(position)
