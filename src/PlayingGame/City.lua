@@ -1535,7 +1535,7 @@ function refreshCityControlAndScoring()
 					local mage=shieldOwner(shield)
                     -- For Council vs Apocalypse, the home faction's shields do not
                     -- contribute to City scoring once its City is conquered.
-                    local homeFaction=gStates.gameScenario=="The Council versus the Apocalypse"
+                    local homeFaction=gStates.gameScenario=="The Council versus the Apocalypse" and gStates.gameOver==true
                         and ((cityGUID==cityModel.blue and "Council") or (cityGUID==cityModel.red and "Apocalypse")) or nil
                     if homeFaction==nil or councilApocalypseFactionForMage(mage)~=homeFaction then
 					if cityScoring[mage]~=nil then cityScoring[mage]=cityScoring[mage]+1
