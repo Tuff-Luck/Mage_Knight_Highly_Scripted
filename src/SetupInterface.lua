@@ -57,6 +57,7 @@ local SCENARIO_SELECTION_BY_ID={
 	TheWarOfFourSelection="The War of Four",
 	RaidersOfTheCrusaderTempleSelection="Raiders of the Crusader Temple",
 	ForTheCouncilSelection="For the Council",
+	TheCouncilVersusTheApocalypseSelection="The Council versus the Apocalypse",
 	TheFracturedLandsSelection="The Fractured Lands",
 	CustomSelection="Custom"}
 
@@ -127,6 +128,7 @@ local SETUP_DROPDOWN_ROWS={
 	TheWarOfFourRow={"The War of Four","TheWarOfFourSelectionImage","ScenarioDropDown"},
 	RaidersOfTheCrusaderTempleRow={"Raiders of the Crusader Temple","RaidersOfTheCrusaderTempleSelectionImage","ScenarioDropDown"},
 	ForTheCouncilRow={"For the Council","ForTheCouncilSelectionImage","ScenarioDropDown"},
+	TheCouncilVersusTheApocalypseRow={"The Council versus the Apocalypse","TheCouncilVersusTheApocalypseSelectionImage","ScenarioDropDown"},
 	TheFracturedLandsRow={"The Fractured Lands Blitz","TheFracturedLandsSelectionImage","ScenarioDropDown"},
 	CustomRow={"Custom","CustomSelectionImage","ScenarioDropDown"},
 	ROTF0Row={"Not Used","ROTF0SelectionImage","ROTFDropDown"},
@@ -232,6 +234,7 @@ local SCENARIO_OPTION_OVERRIDES={
 	["The Hidden Valley Blitz"]={removeShadesOfTezlaMonsters={false,false},rampageAmbush={true,false}},
 	["Against the Apocalypse Blitz"]={removeApocalypseTerrain={false,false}},
 	["For the Council"]={questMod={false,false},apocalypseQuestCards={true,false}},
+	["The Council versus the Apocalypse"]={proxyPlayer={false,false},randomCities={false,false},removeTerrain={false,false},removeLostLegionExpansion={false,false},removeApocalypseTerrain={false,false},questMod={false,false},apocalypseQuestCards={false,false}},
 	["Conquer and Hold"]={proxyPlayer={false,false}},
 	["Volkare's Return"]={proxyPlayer={false,false}},
 	["Volkare's Return Blitz"]={proxyPlayer={false,false}},
@@ -607,7 +610,7 @@ function scenarioSelection(player, mouseButton, id)
 		gStates.megapolis=0
 		gStates.coop=gStates.positionMageKnight[5]~="nobody" and 1 or 0
 		--Scenario-specific dummy state; layout is rendered by the shared helper.
-		if gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" then
+		if gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" or gStates.gameScenario=="The Council versus the Apocalypse" then
 			gStates.positionMageKnight[5]="nobody"
 			gStates.coop=0
 		elseif gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four" then
@@ -623,7 +626,7 @@ function scenarioSelection(player, mouseButton, id)
 		gStates.blitz=blitzOn and 1 or 0
 		UI.setAttribute("BlitzSelection","isOn",blitzOn and "true" or "false")
 		setScenarioBlitzIdentity(blitzOn)
-		UI.setAttribute("BlitzSelection","interactable",selectedScenario=="First Reconnaissance" and "False" or "True")
+		UI.setAttribute("BlitzSelection","interactable",(selectedScenario=="First Reconnaissance" or selectedScenario=="The Council versus the Apocalypse") and "False" or "True")
 
 		--Reset ordinary setup toggles from one policy table, then apply scenario-specific overrides.
 		--Hero Challenges intentionally survives scenario browsing and is therefore not part of this reset.
@@ -1289,6 +1292,11 @@ end
 
 local function reconcileSetupState()
 	if gStates==nil then return end
+	if gStates.gameScenario=="The Council versus the Apocalypse" then
+		gStates.positionMageKnight[5]="nobody"
+		gStates.coop=0
+		gStates.blitz=0
+	end
 
 	local customLocked,customValue=scenarioOptionHardLock("useCustomMageKnights")
 	if customLocked and customValue==false then clearCustomMageKnightSelections(true) end
@@ -1320,7 +1328,7 @@ local function renderMageKnightSetupAvailability()
 		setUIButtonEnabled(id,available)
 	end
 
-	local dummyLocked=gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return"
+	local dummyLocked=gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="One to Return" or gStates.gameScenario=="The Council versus the Apocalypse"
 	local dummyPlayerLimited=gStates.gameScenario=="First Reconnaissance" or gStates.gameScenario=="Quest for the Golden Grail" or
 		gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="The Gauntlet" or gStates.gameScenario=="Druid Nights" or
 		gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="Mines Liberation"
