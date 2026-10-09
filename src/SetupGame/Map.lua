@@ -361,6 +361,7 @@ function mapSetup(onComplete)
 		local noShuffle=0
 		local params={rotation={0, 180, 180}, smooth=false}
 		if gStates.randomTileOrientation==true then params.rotation={0, math.random(1,6)*60, 180} end
+		if gStates.gameScenario=="The Council versus the Apocalypse" then params.guid=({GUID.tile.city06,GUID.tile.city07,GUID.tile.city08})[i] end--Blue, White, Red
 		if i==1 and (gStates.gameScenario=="Mines Liberation" or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The Chaos Rift" or gStates.gameScenario=="Raiders of the Crusader Temple") then params.guid=GUID.tile.city08 end--Use Red City
 		if i==1 and (gStates.gameScenario=="Dungeon Lords" or gStates.gameScenario=="The Realm of the Dead Blitz") then params.guid=GUID.tile.city06 end--Use Blue City
 		if i==1 and (gStates.gameScenario=="Conquer and Hold" or gStates.gameScenario=="The Hidden Valley Blitz") then params.guid=GUID.tile.city07 end--Use White City
@@ -536,6 +537,18 @@ function mapSetup(onComplete)
 	local CountryMonasteryMageTiles=	{GUID.tile.country04, GUID.tile.country05, GUID.tile.country07, GUID.tile.country09, GUID.tile.country11, GUID.tile.country12, GUID.tile.country13, GUID.tile.country15} CountryMonasteryMageTiles=listShuffle(CountryMonasteryMageTiles)
 	local CountryNotMonasteryMageTiles=	{GUID.tile.country01, GUID.tile.country02, GUID.tile.country03, GUID.tile.country06, GUID.tile.country08, GUID.tile.country10, GUID.tile.country14, GUID.tile.country16, GUID.tile.country17}	CountryNotMonasteryMageTiles=listShuffle(CountryNotMonasteryMageTiles)
 	local CountryKeepMageTiles=			{GUID.tile.country03, GUID.tile.country04, GUID.tile.country09, GUID.tile.country10, GUID.tile.country11, GUID.tile.country13, GUID.tile.country14, GUID.tile.country15, GUID.tile.country17} CountryKeepMageTiles=listShuffle(CountryKeepMageTiles)
+	local councilKeepMageTiles,councilOtherTiles={},{}
+	if gStates.gameScenario=="The Council versus the Apocalypse" then
+		for _,guid in ipairs(CountryKeepMageTiles) do if guid~=GUID.tile.country09 then councilKeepMageTiles[#councilKeepMageTiles+1]=guid end end
+		councilKeepMageTiles=availableTerrainCandidates(CountryTileStack,councilKeepMageTiles)
+		councilOtherTiles=availableTerrainCandidates(CountryTileStack,listShuffle({GUID.tile.country01,GUID.tile.country02,GUID.tile.country05,GUID.tile.country06,GUID.tile.country07,GUID.tile.country08,GUID.tile.country12,GUID.tile.country16}))
+		local countWith,countWithout=gStates.playerCount+2,({[2]=2,[3]=3,[4]=5})[gStates.playerCount] or 2
+		local available=availableTerrainCandidates(CountryTileStack,{GUID.tile.country09})
+		if #available~=1 or #councilKeepMageTiles<countWith or #councilOtherTiles<countWithout then
+			finishMapSetup(false,"COUNCIL APOCALYPSE SETUP ERROR: required countryside tile selection is unavailable")
+			return
+		end
+	end
 	local CountryGladeTiles=			{GUID.tile.country01, GUID.tile.country02, GUID.tile.country05, GUID.tile.country07, GUID.tile.country08, GUID.tile.country13, GUID.tile.country16} CountryGladeTiles=listShuffle(CountryGladeTiles)
 	local CountryMineTiles=				{GUID.tile.country02, GUID.tile.country03, GUID.tile.country05, GUID.tile.country06, GUID.tile.country13, GUID.tile.country14, GUID.tile.country15, GUID.tile.country17} CountryMineTiles=listShuffle(CountryMineTiles)
 	local CountryMonasteryTiles=		{GUID.tile.country05, GUID.tile.country07, GUID.tile.country12} CountryMonasteryTiles=listShuffle(CountryMonasteryTiles)
@@ -567,6 +580,12 @@ function mapSetup(onComplete)
 		if gStates.gameScenario=="Mines Liberation" and i<=4 then params.guid=CountryMineTiles[i] end
 		if gStates.gameScenario=="Mines Liberation" and i>=5 then params.guid=CountryNonMineTiles[i-4] end
 		if gStates.gameScenario=="Conquer and Hold" then params.guid=CountryKeepMageTiles[i] end
+		if gStates.gameScenario=="The Council versus the Apocalypse" then
+			local withSites=gStates.playerCount+2
+			if i==1 then params.guid=GUID.tile.country09
+			elseif i<=withSites+1 then params.guid=councilKeepMageTiles[i-1]
+			else params.guid=councilOtherTiles[i-withSites-1] end
+		end
 		if gStates.gameScenario=="The Gauntlet" then params.guid=CountryGauntletTiles[i] end
 		if gStates.gameScenario=="Druid Nights" and i<=druidGladeSlots then params.guid=CountryGladeTiles[i] end
 		if gStates.gameScenario=="Druid Nights" and i>druidGladeSlots then params.guid=CountryNotGladeTiles[i-druidGladeSlots] end
