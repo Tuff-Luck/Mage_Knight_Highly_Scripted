@@ -257,7 +257,11 @@ local function fameRepFinishMainUIBatch()
 	fameRepMainUIBatch=nil
 	if pending==nil then return end
 	local playerIndex=pending.playerIndex
-	if turnOrder[playerIndex]~=nil then normalizePendingReputation(playerIndex) end
+	if turnOrder[playerIndex]~=nil and (gStates.fameRepCommitted==nil or gStates.fameRepCommitted[playerIndex]==nil) then
+		--Committed gains are cumulative display totals, not pending deltas. Re-clamping
+		--them against the updated track would turn a move to -7 into a false +1 refund.
+		normalizePendingReputation(playerIndex)
+	end
 	hiddenValleyNormalizeSiteLoss()
 	correctPossessedAttachmentAwards()
 	if turnOrder[playerIndex]~=nil then syncPostCommitAdjustments(playerIndex) end
