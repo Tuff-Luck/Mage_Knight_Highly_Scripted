@@ -2569,12 +2569,6 @@ Einheiten</Text></Cell>
 					<Text id="TheLostRelicSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Lost Relic{it}La Reliquia Perduta{ru}Потерянная Реликвия{zh-tw}失落聖器{zh-cn}失落圣器{ko}사라진 유물{es}La Reliquia Perdida{fr}La Relique Perdue{pt-br}A Relíquia Perdida{de}Die verlorene Reliquie</Text>
 				</Button>
 			</Row>
-			<Row id="TheCouncilVersusTheApocalypseRow">
-				<Button id="TheCouncilVersusTheApocalypseSelection" onClick="scenarioSelection">
-					<Image id="TheCouncilVersusTheApocalypseSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
-					<Text id="TheCouncilVersusTheApocalypseSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Council versus the Apocalypse{it}Il Consiglio contro l'Apocalisse{ru}Совет против Апокалипсиса{zh-tw}議會對抗末日{zh-cn}议会对抗末日{ko}평의회 대 아포칼립스{es}El Consejo contra el Apocalipsis{fr}Le Conseil contre l'Apocalypse{pt-br}O Conselho contra o Apocalipse{de}Der Rat gegen die Apokalypse</Text>
-				</Button>
-			</Row>
 			<Row id="ForTheCouncilRow">
 				<Button id="ForTheCouncilSelection" onClick="scenarioSelection">
 					<Image id="ForTheCouncilSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
@@ -2603,6 +2597,12 @@ Einheiten</Text></Cell>
 				<Button id="ApocalypseIsHereSelection" onClick="scenarioSelection">
 					<Image id="ApocalypseIsHereSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ApocalypseIsHereSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Apocalypse is Here{it}L'Apocalisse è Qui{ru}Апокалипсис наступил{zh-tw}末日降臨{zh-cn}末日降临{ko}아포칼립스가 왔다{es}El Apocalipsis Está Aquí{fr}L'Apocalypse est Là{pt-br}O Apocalipse Chegou{de}Die Apokalypse ist da</Text>
+				</Button>
+			</Row>
+			<Row id="TheCouncilVersusTheApocalypseRow">
+				<Button id="TheCouncilVersusTheApocalypseSelection" onClick="scenarioSelection">
+					<Image id="TheCouncilVersusTheApocalypseSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
+					<Text id="TheCouncilVersusTheApocalypseSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Council Vs the Apocalypse{it}Il Consiglio contro l'Apocalisse{ru}Совет против Апокалипсиса{zh-tw}議會對抗末日{zh-cn}议会对抗末日{ko}평의회 대 아포칼립스{es}El Consejo contra el Apocalipsis{fr}Le Conseil contre l'Apocalypse{pt-br}O Conselho contra o Apocalipse{de}Der Rat gegen die Apokalypse</Text>
 				</Button>
 			</Row>
 			<Row id="FuryOfTheApocalypseDragonRow">
