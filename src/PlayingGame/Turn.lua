@@ -658,6 +658,9 @@ end
 
 function turnEndTurnRawBase(player, mouseButton, id, rewindReady)
 	if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)~=true then return end
+	--A clicked/stale Rewards Claimed callback must not advance into a sorted new round
+	--while Combat still owns asynchronous cleanup for this turn.
+	if gStates.preEndTurn==true and gStates.combatPreEndTurnRecovery~=nil then return end
 	local rewardSeat=turnOrder[gStates.turnNumber].seatPos
 	local rewardSoftLock=rewardClaimSoftLockActive()
 	if turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)==true then return end
