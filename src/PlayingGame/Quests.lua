@@ -5918,11 +5918,13 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete,stageOnly)
 	-- that TTS has moved slightly below or outside the Quest's footprint.
 	local tucked=tuckedGUID~=nil and getObjectFromGUID(tuckedGUID) or nil
 	if tucked~=nil and tucked.type=="Card" then
-		local onQuest=false
-		for _,attached in ipairs(apocalypseQuestObjectsOnCard(card)) do
-			if attached.guid==tuckedGUID then onQuest=true break end
-		end
-		if onQuest then apocalypseQuestReturnTuckedCard(tucked,apocalypseQuestName(card)) end
+		local source=card.getPosition()
+		local pos=tucked.getPosition()
+		-- Slightly wider than the generic attachment footprint: the tucked card sits
+		-- underneath the Quest and physics can shift it without moving it to Inventory.
+		local stillTucked=math.abs(pos[1]-source[1])<2.4 and math.abs(pos[3]-source[3])<3.2
+			and math.abs(pos[2]-source[2])<3.0
+		if stillTucked then apocalypseQuestReturnTuckedCard(tucked,apocalypseQuestName(card)) end
 	end
 	--Basic crystals used as Quest markers return to the supply when the Quest leaves play.
 	--Rewards moved into a player's Inventory are outside the card footprint and are deliberately untouched.
