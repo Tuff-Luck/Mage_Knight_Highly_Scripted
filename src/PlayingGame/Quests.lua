@@ -5882,6 +5882,7 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete,stageOnly)
 		if onComplete~=nil then onComplete(parked==true) end
 		return parked
 	end
+	local tuckedGUID=gStates.apocalypseQuestTuckedCards~=nil and gStates.apocalypseQuestTuckedCards[cardGUID] or nil
 	apocalypseQuestClearCardRuntime(card.guid)
 	QuestPrivate.apocalypseQuestInterfaceRemove(card)
 	local deck=QuestPrivate.apocalypseQuestLiveDeck()
@@ -5915,7 +5916,6 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete,stageOnly)
 
 	-- The tuck GUID survives reveal setup. The area scan alone can miss a Spell
 	-- that TTS has moved slightly below or outside the Quest's footprint.
-	local tuckedGUID=gStates.apocalypseQuestTuckedCards~=nil and gStates.apocalypseQuestTuckedCards[cardGUID] or nil
 	local tucked=tuckedGUID~=nil and getObjectFromGUID(tuckedGUID) or nil
 	if tucked~=nil and tucked.type=="Card" then
 		local onQuest=false
