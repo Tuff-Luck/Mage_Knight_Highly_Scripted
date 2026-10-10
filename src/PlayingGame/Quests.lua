@@ -402,9 +402,12 @@ local function apocalypseQuestReturnTuckedCard(card, questName)
 	local queue=QuestPrivate.apocalypseQuestTuckedQueues[destinationName] or {}
 	QuestPrivate.apocalypseQuestTuckedQueues[destinationName]=queue
 	local function processNext()
+		if #queue==0 then
+			QuestPrivate.apocalypseQuestTuckedActive[destinationName]=nil
+			return
+		end
 		local nextTask=table.remove(queue,1)
-		if nextTask~=nil then nextTask()
-		else QuestPrivate.apocalypseQuestTuckedActive[destinationName]=nil end
+		nextTask()
 	end
 	local function performReturn()
 		local function finish(ok)
