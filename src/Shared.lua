@@ -469,8 +469,11 @@ function rewardClaimSoftLockStart()
 	gStates.rewardClaimSoftLockStartedAt=os.time()
 	gStates.rewardClaimSoftLockGeneration=(gStates.rewardClaimSoftLockGeneration or 0)+1
 	local generation=gStates.rewardClaimSoftLockGeneration
-	--Refresh once when the soft lock starts so any outstanding requirement can tint Rewards Claimed,
-	--and once at expiry so the tint clears even if the player is still reading the reward checklist.
+	--Apply the soft-lock tint immediately at the reward boundary. Combat removes its short hard
+	--lock in this same callback, so a genuinely soft-locked button never renders one white frame first.
+	if rewardClaimSoftLockTintRefresh~=nil and gStates.turnNumber~=nil then rewardClaimSoftLockTintRefresh(gStates.turnNumber) end
+	--Refresh once on the next frame for the full checklist/state presentation, and once at expiry so
+	--the tint clears even if the player is still reading the reward checklist.
 	if mainUIUpdate~=nil then safeWaitFrames("Shared",function() mainUIUpdate("Rewards Claimed soft lock started") end,1) end
 	safeWaitTime("Shared",function()
 		if gStates~=nil and gStates.rewardClaimSoftLockGeneration==generation and gStates.preEndTurn==true and mainUIUpdate~=nil then

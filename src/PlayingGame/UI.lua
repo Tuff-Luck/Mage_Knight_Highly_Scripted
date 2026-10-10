@@ -1088,6 +1088,12 @@ local function defeatedElementalistRampagerThisTurn()
 	return false
 end
 
+function rewardClaimSoftLockTintRefresh(playerIndex)
+	local rewardSoftLockTint=rewardClaimSoftLockPending~=nil and rewardClaimSoftLockPending(playerIndex)
+	UI.setAttribute("PreEndTurnImage","color",rewardSoftLockTint and "rgb(1,0.86,0.68)" or "white")
+	return rewardSoftLockTint
+end
+
 local function mainUIRefreshRewardChecklist(context,playerState)
 	if playerState.automated==true then return end
 	local currentPlayer=playerState.currentPlayer
@@ -1365,8 +1371,7 @@ local function mainUIRefreshStatusPanel(context,playerState)
 	--Rewards Claimed remains clickable during a soft lock; a faint orange tint shows that clicking it
 	--will currently produce a reminder instead of advancing. The tint clears when the requirement is
 	--resolved or when the shared soft-lock window expires.
-	local rewardSoftLockTint=rewardClaimSoftLockPending~=nil and rewardClaimSoftLockPending(gStates.turnNumber)
-	UI.setAttribute("PreEndTurnImage","color",rewardSoftLockTint and "rgb(1,0.86,0.68)" or "white")
+	rewardClaimSoftLockTintRefresh(gStates.turnNumber)
 	if UIColor=="Black" then UIColor="rgb(0,0,0)" end
 	UI.setAttribute("MainGameNotes", "color", UIColor)
 	UI.setAttribute("RewardNotes", "color", UIColor)
