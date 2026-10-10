@@ -373,6 +373,7 @@ end
 
 QuestPrivate.apocalypseQuestPendingTuckedReturns=QuestPrivate.apocalypseQuestPendingTuckedReturns or 0
 QuestPrivate.apocalypseQuestTuckedQueues=QuestPrivate.apocalypseQuestTuckedQueues or {}
+QuestPrivate.apocalypseQuestTuckedActive=QuestPrivate.apocalypseQuestTuckedActive or {}
 local function apocalypseQuestReturnTuckedCard(card, questName)
 	local destinationGUID, destinationName=apocalypseQuestTuckedCardDestination(card)
 	if destinationGUID==nil then
@@ -399,7 +400,8 @@ local function apocalypseQuestReturnTuckedCard(card, questName)
 	QuestPrivate.apocalypseQuestTuckedQueues[destinationName]=queue
 	local function processNext()
 		local nextTask=table.remove(queue,1)
-		if nextTask~=nil then nextTask() end
+		if nextTask~=nil then nextTask()
+		else QuestPrivate.apocalypseQuestTuckedActive[destinationName]=nil end
 	end
 	local function performReturn()
 		local function finish(ok)
@@ -429,8 +431,8 @@ local function apocalypseQuestReturnTuckedCard(card, questName)
 			end)
 		end,2)
 	end
-	if #queue==0 and QuestPrivate.apocalypseQuestTuckedActive==nil then
-		QuestPrivate.apocalypseQuestTuckedActive=destinationName
+	if QuestPrivate.apocalypseQuestTuckedActive[destinationName]~=true then
+		QuestPrivate.apocalypseQuestTuckedActive[destinationName]=true
 		performReturn()
 	else
 		queue[#queue+1]=performReturn
@@ -3012,7 +3014,19 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 		if allGood then
 			broadcastToAll("{en}Quest cleanup complete. The Quest offer will refill normally as player turns begin.{it}Pulizia Missioni completata. L'offerta verrà rifornita normalmente all'inizio dei turni dei giocatori.{ru}Очистка заданий завершена. Предложение заданий будет пополняться обычным образом с началом ходов игроков.{zh-tw}任務清理完成。玩家回合開始後，任務供應將正常補充。{zh-cn}任务清理完成。玩家回合开始后，任务供应将正常补充。{ko}퀘스트 정리가 완료되었습니다. 플레이어 턴이 시작되면 퀘스트 제안이 정상적으로 보충됩니다.{es}Limpieza de Misiones completada. La oferta de Misiones se rellenará normalmente al comenzar los turnos de los jugadores.{fr}Nettoyage des Quêtes terminé. L’offre de Quêtes se remplira normalement au début des tours des joueurs.{pt-br}Limpeza das Missões concluída. A oferta de Missões será reabastecida normalmente quando os turnos dos jogadores começarem.{de}Quest-Bereinigung abgeschlossen. Das Quest-Angebot wird zu Beginn der Spielerzüge normal aufgefüllt.",{1,1,0.5})
 		else broadcastToAll("Quest cleanup: at least one Quest did not return successfully; check the Quest deck.",{1,0.2,0.2}) end
-		if onComplete~=nil then onComplete(allGood) end
+		-- The Quest stack can settle before the Spell/Unit bottom returns finish.
+		local function finishRound()
+			if onComplete~=nil then onComplete(allGood) end
+		end
+		if (QuestPrivate.apocalypseQuestPendingTuckedReturns or 0)==0 then finishRound()
+		else
+			safeWaitCondition("Quests",finishRound,function()
+				return (QuestPrivate.apocalypseQuestPendingTuckedReturns or 0)==0
+			end,7,function()
+				broadcastToAll("Quest cleanup: tucked card returns are still incomplete.",{1,0.2,0.2})
+				finishRound()
+			end)
+		end
 	end
 	local function process(index)
 		local card=queue[index]
