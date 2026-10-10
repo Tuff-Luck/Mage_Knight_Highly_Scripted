@@ -426,7 +426,7 @@ local function apocalypseQuestReturnTuckedCard(card, questName)
 						if entry.guid==cardGUID then found=true break end
 					end
 				end
-				if found then standardDeckCycleMarkReturned(destinationName,card) end
+				if found then standardDeckCycleMarkReturned(destinationName,{guid=cardGUID}) end
 				finish(found)
 			end)
 		end,2)
@@ -2964,7 +2964,7 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 				local success=result~=nil and result.type=="Deck" and result.getQuantity()>=targetCount and contains(result,guids)
 				if success then
 					GUID.deck.apocalypseQuest=result.guid
-					apocalypseQuestMarkReturned(cards[1])
+					apocalypseQuestMarkReturned({guid=guids[1]})
 				end
 				refreshOutOfTurnActions(nil,nil,true)
 				QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
@@ -2995,7 +2995,7 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 				local ok=result~=nil and result.type=="Deck" and result.getQuantity()>=expected and contains(result,{guid})
 				if ok then
 					GUID.deck.apocalypseQuest=result.guid
-					apocalypseQuestMarkReturned(card)
+					apocalypseQuestMarkReturned({guid=guid})
 				end
 				refreshOutOfTurnActions(nil,nil,true)
 				QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
