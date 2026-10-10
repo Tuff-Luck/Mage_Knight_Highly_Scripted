@@ -3810,6 +3810,12 @@ local function defeatedElementalistRampagerThisTurn()
 	return false
 end
 
+function rewardClaimSoftLockTintRefresh(playerIndex)
+	local rewardSoftLockTint=rewardClaimSoftLockPending~=nil and rewardClaimSoftLockPending(playerIndex)
+	UI.setAttribute("PreEndTurnImage","color",rewardSoftLockTint and "rgb(1,0.86,0.68)" or "white")
+	return rewardSoftLockTint
+end
+
 local function mainUIRefreshRewardChecklist(context,playerState)
 	if playerState.automated==true then return end
 	local currentPlayer=playerState.currentPlayer
@@ -4087,8 +4093,7 @@ local function mainUIRefreshStatusPanel(context,playerState)
 	--Rewards Claimed remains clickable during a soft lock; a faint orange tint shows that clicking it
 	--will currently produce a reminder instead of advancing. The tint clears when the requirement is
 	--resolved or when the shared soft-lock window expires.
-	local rewardSoftLockTint=rewardClaimSoftLockPending~=nil and rewardClaimSoftLockPending(gStates.turnNumber)
-	UI.setAttribute("PreEndTurnImage","color",rewardSoftLockTint and "rgb(1,0.86,0.68)" or "white")
+	rewardClaimSoftLockTintRefresh(gStates.turnNumber)
 	if UIColor=="Black" then UIColor="rgb(0,0,0)" end
 	UI.setAttribute("MainGameNotes", "color", UIColor)
 	UI.setAttribute("RewardNotes", "color", UIColor)
@@ -19713,6 +19718,9 @@ end
 
 function turnEndTurnRawBase(player, mouseButton, id, rewindReady)
 	if legalPlayerCheck(player.color, turnOrder[gStates.turnNumber].seatPos)~=true then return end
+	--A clicked/stale Rewards Claimed callback must not advance into a sorted new round
+	--while Combat still owns asynchronous cleanup for this turn.
+	if gStates.preEndTurn==true and gStates.combatPreEndTurnRecovery~=nil then return end
 	local rewardSeat=turnOrder[gStates.turnNumber].seatPos
 	local rewardSoftLock=rewardClaimSoftLockActive()
 	if turnRewardClaimGate(player,rewindReady,rewardSoftLock,rewardSeat)==true then return end
@@ -21841,14 +21849,24 @@ local function combatScheduleRewardBoundary(cleanupPlayer,coopCombatCleanup,reco
 			end
 			rewindTransactionFinish("Pre-end-turn cleanup")
 		end
+		--The reward/turn boundary must never overtake delayed Combat cleanup. Otherwise
+		--endRound may sort turnOrder while those callbacks still use cleanupPlayer's index.
+		local function waitForCleanup()
+			safeWaitCondition("Combat",finishRewardDelay,function()
+				return recovery~=nil and gStates.combatPreEndTurnRecovery==recovery and
+					recovery.avatarDropDone==true and recovery.stateRefreshDone==true and
+					recovery.skillCleanupDone==true and recovery.unitCleanupDone==true
+			end)
+		end
+		--Preserve the existing five-second Dragon level timeout independently of cleanup.
 		local dragonCombat=gStates.apocalypseDragonGroundCombat
 		if dragonCombat~=nil and dragonCombat.coop~=true and dragonCombat.playerIndex==cleanupPlayer and dragonCombat.levelsApplied~=true then
-			safeWaitCondition("Combat",finishRewardDelay,function()
+			safeWaitCondition("Combat",waitForCleanup,function()
 				local current=gStates.apocalypseDragonGroundCombat
 				return current==nil or current.levelsApplied==true
-			end,5,finishRewardDelay)
+			end,5,waitForCleanup)
 		else
-			finishRewardDelay()
+			waitForCleanup()
 		end
 	end,2.0)
 end
@@ -32328,6 +32346,9 @@ apocalypseQuestStageIntoContainer=function(obj,container)
 	return true
 end
 
+QuestPrivate.apocalypseQuestPendingTuckedReturns=QuestPrivate.apocalypseQuestPendingTuckedReturns or 0
+QuestPrivate.apocalypseQuestTuckedQueues=QuestPrivate.apocalypseQuestTuckedQueues or {}
+QuestPrivate.apocalypseQuestTuckedActive=QuestPrivate.apocalypseQuestTuckedActive or {}
 local function apocalypseQuestReturnTuckedCard(card, questName)
 	local destinationGUID, destinationName=apocalypseQuestTuckedCardDestination(card)
 	if destinationGUID==nil then
@@ -32346,21 +32367,57 @@ local function apocalypseQuestReturnTuckedCard(card, questName)
 	local destinationRotation=destination.getRotation()
 	local target=destination.getPosition()
 	card.unlock()
-	standardDeckCycleMarkReturned(destinationName, card)
 	--First detach the tucked card from the Quest physically; only then merge it with its real deck.
 	card.setRotation(destinationRotation)
-	card.setPosition({target[1],target[2]+2.2,target[3]})
-	safeWaitFrames("Quests",function()
-		local liveCard=getObjectFromGUID(cardGUID)
-		local liveDestination=standardDeckCycleObject(destinationName) or getObjectFromGUID(destinationGUID)
-		if liveCard==nil then return end
-		if liveDestination==nil or liveDestination.guid==liveCard.guid or (liveDestination.type~="Deck" and liveDestination.type~="Card") then
-			broadcastToAll(joinLang({"{en}Quest cleanup: The {it}Pulizia Missioni: il mazzo {ru}Очистка задания: колода {zh-tw}任務清理：{zh-cn}任务清理：{ko}퀘스트 정리: {es}Limpieza de Misión: el mazo de {fr}Nettoyage de Quête : le paquet {pt-br}Limpeza da Missão: o baralho {de}Quest-Bereinigung: Der Stapel ",destinationName,"{en} deck disappeared before \"{it} è scomparso prima che \"{ru} исчезла до того, как удалось вернуть \"{zh-tw} 牌庫在 \"{zh-cn} 牌库在 \"{ko} 덱이 \"{es} desapareció antes de que \"{fr} a disparu avant que \"{pt-br} desapareceu antes que \"{de} verschwand, bevor \"",cardTitle,"{en}\" could be returned.{it}\" potesse essere restituito.{ru}\".{zh-tw}\" 歸還前消失了。{zh-cn}\" 归还前消失了。{ko}\" 카드를 돌려놓기 전에 사라졌습니다.{es}\" pudiera devolverse.{fr}\" puisse être rendue.{pt-br}\" pudesse ser devolvida.{de}\" zurückgelegt werden konnte."}), {1,0.55,0.2})
+	-- Keep the card beside the supply deck, not directly over it, until the controlled bottom drop.
+	-- Offset simultaneous returns so they cannot accidentally merge into a stray stack.
+	local staging=(QuestPrivate.apocalypseQuestPendingTuckedReturns or 0)
+	card.setPosition({target[1]+3.0+(staging%4)*2.0,target[2]+0.3,target[3]+3.0})
+	QuestPrivate.apocalypseQuestPendingTuckedReturns=QuestPrivate.apocalypseQuestPendingTuckedReturns+1
+	local queue=QuestPrivate.apocalypseQuestTuckedQueues[destinationName] or {}
+	QuestPrivate.apocalypseQuestTuckedQueues[destinationName]=queue
+	local function processNext()
+		if #queue==0 then
+			QuestPrivate.apocalypseQuestTuckedActive[destinationName]=nil
 			return
 		end
-		putCardAtBottom(liveDestination,liveCard)
-		broadcastToAll(joinLang({"{en}Quest cleanup: \"{it}Pulizia Missioni: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",cardTitle,"{en}\" returned to the bottom of the {it}\" restituito in fondo al mazzo {ru}\" возвращена на дно колоды {zh-tw}\" 已歸還到 {zh-cn}\" 已归还到 {ko}\" 카드를 {es}\" volvió al fondo del mazo de {fr}\" a été remise sous le paquet {pt-br}\" voltou para o fundo do baralho {de}\" wurde unter den Stapel ",destinationName,"{en} deck.{it}.{ru}.{zh-tw} 牌庫底部。{zh-cn} 牌库底部。{ko} 덱 맨 아래로 돌려놓았습니다.{es}.{fr}.{pt-br}.{de} gelegt."}), {1,1,0.5})
-	end,2)
+		local nextTask=table.remove(queue,1)
+		nextTask()
+	end
+	local function performReturn()
+		local function finish(ok)
+			QuestPrivate.apocalypseQuestPendingTuckedReturns=math.max(0,QuestPrivate.apocalypseQuestPendingTuckedReturns-1)
+			if ok then
+				broadcastToAll(joinLang({"{en}Quest cleanup: \"{it}Pulizia Missioni: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",cardTitle,"{en}\" returned to the bottom of the {it}\" restituito in fondo al mazzo {ru}\" возвращена на дно колоды {zh-tw}\" 已歸還到 {zh-cn}\" 已归还到 {ko}\" 카드를 {es}\" volvió al fondo del mazo de {fr}\" a été remise sous le paquet {pt-br}\" voltou para o fundo do baralho {de}\" wurde unter den Stapel ",destinationName,"{en} deck.{it}.{ru}.{zh-tw} 牌庫底部。{zh-cn} 牌库底部。{ko} 덱 맨 아래로 돌려놓았습니다.{es}.{fr}.{pt-br}.{de} gelegt."}),{1,1,0.5})
+			else
+				broadcastToAll("Quest cleanup: could not confirm the return of "..cardTitle.." to the "..destinationName.." deck.",{1,0.2,0.2})
+			end
+			processNext()
+		end
+		safeWaitFrames("Quests",function()
+			local liveCard=getObjectFromGUID(cardGUID)
+			local liveDestination=standardDeckCycleObject(destinationName) or getObjectFromGUID(destinationGUID)
+			if liveCard==nil or liveDestination==nil or liveDestination.guid==cardGUID then finish(false) return end
+			local expected=(liveDestination.type=="Deck" and liveDestination.getQuantity() or 1)+1
+			putCardAtBottom(liveDestination,liveCard,function(merged)
+				local result=merged or standardDeckCycleObject(destinationName)
+				local found=false
+				if result~=nil and result.type=="Deck" and result.getQuantity()>=expected then
+					for _,entry in ipairs(result.getObjects()) do
+						if entry.guid==cardGUID then found=true break end
+					end
+				end
+				if found then standardDeckCycleMarkReturned(destinationName,{guid=cardGUID}) end
+				finish(found)
+			end)
+		end,2)
+	end
+	if QuestPrivate.apocalypseQuestTuckedActive[destinationName]~=true then
+		QuestPrivate.apocalypseQuestTuckedActive[destinationName]=true
+		performReturn()
+	else
+		queue[#queue+1]=performReturn
+	end
 	return true
 end
 function apocalypseQuestTokenBagSetup()
@@ -32449,6 +32506,7 @@ apocalypseQuestRevealSetup=function(card)
 	if quest==nil then return false end
 	if gStates.apocalypseQuestRevealDone==nil then gStates.apocalypseQuestRevealDone={} end
 	if gStates.apocalypseQuestRevealPending==nil then gStates.apocalypseQuestRevealPending={} end
+	if gStates.apocalypseQuestTuckedCards==nil then gStates.apocalypseQuestTuckedCards={} end
 	apocalypseQuestRevealWaitScheduled=apocalypseQuestRevealWaitScheduled or {}
 	local cardGUID=card.guid
 	if gStates.apocalypseQuestRevealDone[cardGUID]==true then return true end
@@ -32497,7 +32555,12 @@ apocalypseQuestRevealSetup=function(card)
 	local pending={guids={},checks=0}
 	gStates.apocalypseQuestRevealPending[cardGUID]=pending
 	local function track(obj)
-		if obj~=nil and obj.guid~=nil then pending.guids[#pending.guids+1]=obj.guid end
+		if obj~=nil and obj.guid~=nil then
+			pending.guids[#pending.guids+1]=obj.guid
+			if quest.revealSetup=="spell" or quest.revealSetup=="regularUnitII" then
+				gStates.apocalypseQuestTuckedCards[cardGUID]=obj.guid
+			end
+		end
 		return obj
 	end
 	local cardPos=card.getPosition()
@@ -34852,14 +34915,112 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 	for i=firstRemoved,#cards do if cards[i]~=nil then queue[#queue+1]=cards[i] end end
 	broadcastToAll(joinLang({"{en}Quest cleanup started: removing the {it}Pulizia Missioni avviata: rimozione di {ru}Очистка заданий началась: удаляется {zh-tw}任務清理開始：從供應中移除最右側 {zh-cn}任务清理开始：从供应中移除最右侧 {ko}퀘스트 정리 시작: 제안 오른쪽 끝에서 퀘스트 {es}Limpieza de Misiones iniciada: se retiran las {fr}Nettoyage des Quêtes commencé : retrait des {pt-br}Limpeza das Missões iniciada: removendo as {de}Quest-Bereinigung gestartet: Entferne die ",tostring(#queue),#queue==1 and "{en} rightmost Quest from the offer.{it} Missione all'estrema destra dell'offerta.{ru} крайнее справа задание из предложения.{zh-tw} 張任務。{zh-cn} 张任务。{ko}개를 제거합니다.{es} Misión más a la derecha de la oferta.{fr} Quête la plus à droite de l’offre.{pt-br} Missão mais à direita da oferta.{de} am weitesten rechts liegende Quest aus dem Angebot." or "{en} rightmost Quests from the offer.{it} Missioni all'estrema destra dell'offerta.{ru} крайних справа заданий из предложения.{zh-tw} 張任務。{zh-cn} 张任务。{ko}개를 제거합니다.{es} Misiones más a la derecha de la oferta.{fr} Quêtes les plus à droite de l’offre.{pt-br} Missões mais à direita da oferta.{de} am weitesten rechts liegenden Quests aus dem Angebot."}),{1,1,0.5})
 
-	local function cleanNext(index)
-		if index>#queue then
-			broadcastToAll("{en}Quest cleanup complete. The Quest offer will refill normally as player turns begin.{it}Pulizia Missioni completata. L'offerta verrà rifornita normalmente all'inizio dei turni dei giocatori.{ru}Очистка заданий завершена. Предложение заданий будет пополняться обычным образом с началом ходов игроков.{zh-tw}任務清理完成。玩家回合開始後，任務供應將正常補充。{zh-cn}任务清理完成。玩家回合开始后，任务供应将正常补充。{ko}퀘스트 정리가 완료되었습니다. 플레이어 턴이 시작되면 퀘스트 제안이 정상적으로 보충됩니다.{es}Limpieza de Misiones completada. La oferta de Misiones se rellenará normalmente al comenzar los turnos de los jugadores.{fr}Nettoyage des Quêtes terminé. L’offre de Quêtes se remplira normalement au début des tours des joueurs.{pt-br}Limpeza das Missões concluída. A oferta de Missões será reabastecida normalmente quando os turnos dos jogadores começarem.{de}Quest-Bereinigung abgeschlossen. Das Quest-Angebot wird zu Beginn der Spielerzüge normal aufgefüllt.",{1,1,0.5})
-			if onComplete~=nil then onComplete(true) end
-			return
+
+	local function contains(deck,guids)
+		if deck==nil then return false end
+		local found={}
+		if deck.type=="Deck" then
+			for _,entry in ipairs(deck.getObjects()) do found[entry.guid]=true end
+		elseif deck.type=="Card" then found[deck.guid]=true end
+		for _,guid in ipairs(guids) do if not found[guid] then return false end end
+		return true
+	end
+	local function combinedDeck(guids)
+		for _,obj in ipairs(QuestPrivate.apocalypseQuestAreaObjects()) do
+			if obj.type=="Deck" and obj.getQuantity()==2 and contains(obj,guids) then return obj end
 		end
+		return nil
+	end
+	local function returnTogether(cards,callback)
+		local guids={cards[1].guid,cards[2].guid}
+		local lower=getObjectFromGUID(guids[1])
+		local upper=getObjectFromGUID(guids[2])
+		if lower==nil or upper==nil then callback(false) return end
+		local source=lower.getPosition()
+		upper.unlock()
+		lower.unlock()
+		upper.setRotation(lower.getRotation())
+		upper.setPosition({source[1],source[2]+0.4,source[3]})
+		local function submit()
+			local stack=combinedDeck(guids)
+			local deck=QuestPrivate.apocalypseQuestLiveDeck()
+			if stack==nil or deck==nil or stack.guid==deck.guid then callback(false) return end
+			local targetCount=deck.getQuantity()+2
+			-- The top of the retiring stack is the first card seen on the next cycle.
+			local contents=stack.getObjects()
+			local firstReturned=contents[1]~=nil and contents[1].guid or guids[2]
+			putCardAtBottom(deck,stack,function(merged)
+				local result=merged or QuestPrivate.apocalypseQuestLiveDeck()
+				local success=result~=nil and result.type=="Deck" and result.getQuantity()>=targetCount and contains(result,guids)
+				if success then
+					GUID.deck.apocalypseQuest=result.guid
+					if gStates.apocalypseQuestFirstReturnedGUID==nil then gStates.apocalypseQuestFirstReturnedGUID=firstReturned end
+				end
+				refreshOutOfTurnActions(nil,nil,true)
+				QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
+				callback(success)
+			end)
+		end
+		safeWaitCondition("Quests",submit,function() return combinedDeck(guids)~=nil end,2.0,function() callback(false) end)
+	end
+	local ready={}
+	local preparedCount=0
+	local settledCount=0
+	local reported={}
+	local function returnPrepared(entry,callback)
+		local card=entry.card
+		local deck=QuestPrivate.apocalypseQuestLiveDeck()
+		if card==nil or deck==nil then callback(false) return end
+		local guid=card.guid
+		local expected=deck.getQuantity()+1
+		local pos=deck.getPosition()
+		card.setRotation(deck.getRotation())
+		card.setPosition({pos[1]+3,pos[2]-0.6,pos[3]})
+		safeWaitFrames("Quests",function()
+			local live=getObjectFromGUID(guid)
+			local destination=QuestPrivate.apocalypseQuestLiveDeck()
+			if live==nil or destination==nil then callback(false) return end
+			putCardAtBottom(destination,live,function(merged)
+				local result=merged or QuestPrivate.apocalypseQuestLiveDeck()
+				local ok=result~=nil and result.type=="Deck" and result.getQuantity()>=expected and contains(result,{guid})
+				if ok then
+					GUID.deck.apocalypseQuest=result.guid
+					if gStates.apocalypseQuestFirstReturnedGUID==nil then gStates.apocalypseQuestFirstReturnedGUID=guid end
+				end
+				refreshOutOfTurnActions(nil,nil,true)
+				QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
+				callback(ok)
+			end)
+		end,2)
+	end
+	local finished=0
+	local allGood=true
+	local function finishOne(index,success)
+		finished=finished+1
+		if success~=true then allGood=false end
 		local card=queue[index]
-		if card==nil then cleanNext(index+1) return end
+		if card~=nil then QuestPrivate.apocalypseQuestRetiringCards[card.guid]=nil end
+		if finished<#queue then return end
+		if allGood then
+			broadcastToAll("{en}Quest cleanup complete. The Quest offer will refill normally as player turns begin.{it}Pulizia Missioni completata. L'offerta verrà rifornita normalmente all'inizio dei turni dei giocatori.{ru}Очистка заданий завершена. Предложение заданий будет пополняться обычным образом с началом ходов игроков.{zh-tw}任務清理完成。玩家回合開始後，任務供應將正常補充。{zh-cn}任务清理完成。玩家回合开始后，任务供应将正常补充。{ko}퀘스트 정리가 완료되었습니다. 플레이어 턴이 시작되면 퀘스트 제안이 정상적으로 보충됩니다.{es}Limpieza de Misiones completada. La oferta de Misiones se rellenará normalmente al comenzar los turnos de los jugadores.{fr}Nettoyage des Quêtes terminé. L’offre de Quêtes se remplira normalement au début des tours des joueurs.{pt-br}Limpeza das Missões concluída. A oferta de Missões será reabastecida normalmente quando os turnos dos jogadores começarem.{de}Quest-Bereinigung abgeschlossen. Das Quest-Angebot wird zu Beginn der Spielerzüge normal aufgefüllt.",{1,1,0.5})
+		else broadcastToAll("Quest cleanup: at least one Quest did not return successfully; check the Quest deck.",{1,0.2,0.2}) end
+		-- The Quest stack can settle before the Spell/Unit bottom returns finish.
+		local function finishRound()
+			if onComplete~=nil then onComplete(allGood) end
+		end
+		if (QuestPrivate.apocalypseQuestPendingTuckedReturns or 0)==0 then finishRound()
+		else
+			safeWaitCondition("Quests",finishRound,function()
+				return (QuestPrivate.apocalypseQuestPendingTuckedReturns or 0)==0
+			end,7,function()
+				broadcastToAll("Quest cleanup: tucked card returns are still incomplete.",{1,0.2,0.2})
+				finishRound()
+			end)
+		end
+	end
+	local function process(index)
+		local card=queue[index]
+		if card==nil then finishOne(index,false) return end
 		local questName=apocalypseQuestName(card)
 		local questDetails=apocalypseQuestData[card.guid] or {}
 		local objects=apocalypseQuestObjectsOnCard(card)
@@ -34879,7 +35040,7 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 				end
 			end
 		end
-		QuestPrivate.apocalypseQuestBottomDeck(card,function(success)
+		local function reportResult(success)
 			if shieldCount>0 then broadcastToAll(joinLang({"{en}Quest cleanup: removed {it}Pulizia Missioni: rimossi {ru}Очистка задания: удалено {zh-tw}任務清理：從 \"{zh-cn}任务清理：从 \"{ko}퀘스트 정리: \"{es}Limpieza de Misión: se retiraron {fr}Nettoyage de Quête : retrait de {pt-br}Limpeza da Missão: foram removidos {de}Quest-Bereinigung: ",tostring(shieldCount),shieldCount==1 and "{en} Shield from \"{it} Scudo da \"{ru} Щит из \"{zh-tw}\" 移除 1 個盾牌。{zh-cn}\" 移除 1 个盾牌。{ko}\"에서 방패 1개를 제거했습니다.{es} Escudo de \"{fr} Bouclier de \"{pt-br} Escudo de \"{de} Schild aus \"" or "{en} Shields from \"{it} Scudi da \"{ru} Щитов из \"{zh-tw}\" 移除盾牌。{zh-cn}\" 移除盾牌。{ko}\"에서 방패를 제거했습니다.{es} Escudos de \"{fr} Boucliers de \"{pt-br} Escudos de \"{de} Schilde aus \"",questName,"\"."}),{1,1,0.5}) end
 			if gStates.apocalypseQuestReminderCards~=nil and gStates.apocalypseQuestReminderCards[card.guid]~=nil then
 				broadcastToAll(joinLang({"{en}Quest cleanup: \"{it}Pulizia Missioni: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" remains beside the Quest Shield bags as a reminder.{it}\" resta accanto ai sacchetti Scudo Missione come promemoria.{ru}\" остаётся рядом с мешками Щитов задания как напоминание.{zh-tw}\" 留在任務盾牌袋旁作為提醒。{zh-cn}\" 留在任务盾牌袋旁作为提醒。{ko}\"이(가) 알림으로 퀘스트 방패 주머니 옆에 남습니다.{es}\" permanece junto a las bolsas de Escudos de Misión como recordatorio.{fr}\" reste à côté des sacs de Boucliers de Quête comme rappel.{pt-br}\" permanece ao lado das bolsas de Escudos da Missão como lembrete.{de}\" bleibt als Erinnerung neben den Quest-Schild-Beuteln."}),{1,1,0.5})
@@ -34888,12 +35049,37 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 			else
 				broadcastToAll(joinLang({"{en}Quest cleanup: \"{it}Pulizia Missioni: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" could not be returned to the Quest deck.{it}\" non è stata restituita al mazzo Missioni.{ru}\" не удалось вернуть в колоду заданий.{zh-tw}\" 無法歸還到任務牌庫。{zh-cn}\" 无法归还到任务牌库。{ko}\"을(를) 퀘스트 덱으로 돌려놓지 못했습니다.{es}\" no pudo devolverse al mazo de Misiones.{fr}\" n’a pas pu être remise dans le paquet de Quêtes.{pt-br}\" não pôde ser devolvida ao baralho de Missões.{de}\" konnte nicht in den Queststapel zurückgelegt werden."}),{1,0.2,0.2})
 			end
-			--Only now may the next retiring Quest begin its deck return. This prevents the two loose
-			--cards from combining with each other and becoming a stray two-card deck beside the real deck.
-			safeWaitFrames("Quests",function() cleanNext(index+1) end,1)
-		end)
+		end
+		if #queue==1 then
+			QuestPrivate.apocalypseQuestBottomDeck(card,function(ok)
+				reportResult(ok)
+				finishOne(index,ok)
+			end)
+			return
+		end
+		QuestPrivate.apocalypseQuestBottomDeck(card,function(success,preparedCard)
+			settledCount=settledCount+1
+			if success==true and preparedCard~=nil then
+				ready[index]={card=preparedCard,report=reportResult}
+				preparedCount=preparedCount+1
+			else
+				reportResult(success)
+				finishOne(index,success)
+			end
+			if settledCount~=#queue or preparedCount==0 then return end
+			if preparedCount==2 then
+				returnTogether({ready[1].card,ready[2].card},function(ok)
+					for i=1,#queue do ready[i].report(ok) finishOne(i,ok) end
+				end)
+			else
+				for i,entry in pairs(ready) do
+					returnPrepared(entry,function(ok) entry.report(ok) finishOne(i,ok) end)
+				end
+			end
+		end,true)
 	end
-	cleanNext(1)
+	for i=1,#queue do process(i) end
+
 	return true
 end
 function QuestPrivate.apocalypseQuestOfferTarget()
@@ -37638,7 +37824,8 @@ local apocalypseQuestCardRuntimeStores={
 	"apocalypseQuestRichMerchantHidden",
 	"apocalypseQuestVeryPersonalSuccess",
 	"apocalypseQuestRevealDone",
-	"apocalypseQuestRevealPending"
+	"apocalypseQuestRevealPending",
+	"apocalypseQuestTuckedCards"
 }
 
 local function apocalypseQuestClearCardRuntime(cardGUID)
@@ -37656,7 +37843,7 @@ local function apocalypseQuestClearCardRuntime(cardGUID)
 	if apocalypseQuestRevealWaitScheduled~=nil then apocalypseQuestRevealWaitScheduled[cardGUID]=nil end
 end
 
-function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
+function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete,stageOnly)
 	if card==nil then if onComplete~=nil then onComplete(false) end return false end
 	local cardGUID=card.guid
 	if cardGUID==nil then if onComplete~=nil then onComplete(false) end return false end
@@ -37673,6 +37860,7 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 		if onComplete~=nil then onComplete(parked==true) end
 		return parked
 	end
+	local tuckedGUID=gStates.apocalypseQuestTuckedCards~=nil and gStates.apocalypseQuestTuckedCards[cardGUID] or nil
 	apocalypseQuestClearCardRuntime(card.guid)
 	QuestPrivate.apocalypseQuestInterfaceRemove(card)
 	local deck=QuestPrivate.apocalypseQuestLiveDeck()
@@ -37704,20 +37892,33 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 		end
 	end
 
+	-- The tuck GUID survives reveal setup. The area scan alone can miss a Spell
+	-- that TTS has moved slightly below or outside the Quest's footprint.
+	local tucked=tuckedGUID~=nil and getObjectFromGUID(tuckedGUID) or nil
+	if tucked~=nil and tucked.type=="Card" then
+		local source=card.getPosition()
+		local pos=tucked.getPosition()
+		-- Slightly wider than the generic attachment footprint: the tucked card sits
+		-- underneath the Quest and physics can shift it without moving it to Inventory.
+		local stillTucked=math.abs(pos[1]-source[1])<2.4 and math.abs(pos[3]-source[3])<3.2
+			and math.abs(pos[2]-source[2])<3.0
+		if stillTucked then apocalypseQuestReturnTuckedCard(tucked,apocalypseQuestName(card)) end
+	end
 	--Basic crystals used as Quest markers return to the supply when the Quest leaves play.
 	--Rewards moved into a player's Inventory are outside the card footprint and are deliberately untouched.
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
 		local color=apocalypseQuestManaTokenColor(obj)
 		local bag=color~=nil and apocalypseQuestManaBag(color) or nil
-		if bag~=nil then
-			apocalypseQuestStageIntoContainer(obj,bag)
+		if color~=nil then
+			-- Infinite-bag crystals and mana are disposable; never queue a container return.
+			obj.destruct()
 		elseif monsterPugs[obj.guid]~=nil then
 			--Quest enemies always leave through their discard piles, defeated or not. Their original source
 			--pile is not restored when the Quest leaves play.
 			apocalypseQuestDetachPossessedForDiscard(obj)
 			local destination=apocalypseQuestEnemyDiscardDestination(obj)
 			if destination~=nil then apocalypseQuestStageIntoContainer(obj,destination) end
-		elseif obj.type=="Card" then
+		elseif obj.type=="Card" and obj.guid~=tuckedGUID then
 			--BottomDeck owns tucked-card detachment for completion, failure and end-of-round expiry alike.
 			--The attachment-clear gate below keeps the Quest card still until this fast return has finished.
 			apocalypseQuestReturnTuckedCard(obj,apocalypseQuestName(card))
@@ -37760,6 +37961,11 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 		if liveDeck==nil or liveDeck.guid==liveCard.guid then
 			QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
 			if onComplete~=nil then onComplete(false) end
+			return
+		end
+		if stageOnly==true then
+			liveCard.unlock()
+			if onComplete~=nil then onComplete(true,liveCard) end
 			return
 		end
 		apocalypseQuestMarkReturned(liveCard)
@@ -38724,25 +38930,75 @@ function apocalypseQuestDeckSetup(questDeck)
 
 	local offerReady=0
 	local function dealQuestOffer()
-		local deck=currentQuestDeck()
-		if deck==nil then error("Quest setup lost the Apocalypse Quest deck before dealing the offer.",2) end
-		for offer=1,2 do
-			local slot=offer
-			local drawn=safeTakeObject("Quests",deck,{position=QuestPrivate.apocalypseQuestOfferPosition(offer),rotation={0,180,0},smooth=false,callback_function=function(card)
-				if card==nil then error("Quest setup could not draw offer slot "..tostring(slot)..".",2) end
+		local function dealNextQuest(drawNumber)
+			local deck=currentQuestDeck()
+			if deck==nil then error("Quest setup lost the Apocalypse Quest deck before dealing the offer.",2) end
+
+			--Use the same physical offer motion as a normal start-of-turn refill: every existing Quest
+			--slides one slot to the right while the new Quest smooth-moves into slot 1.
+			local areaObjects=QuestPrivate.apocalypseQuestAreaObjects()
+			local cards=QuestPrivate.apocalypseQuestOfferCards(areaObjects)
+			local movedGUIDs={}
+			gStates.apocalypseQuestOfferMoving=true
+			for i=#cards,1,-1 do
+				for _,guid in ipairs(QuestPrivate.apocalypseQuestMoveCard(cards[i],QuestPrivate.apocalypseQuestOfferPosition(i+1),areaObjects,cards)) do
+					movedGUIDs[guid]=true
+				end
+			end
+
+			local drawn=safeTakeObject("Quests",deck,{position=QuestPrivate.apocalypseQuestOfferPosition(1),rotation={0,180,0},smooth=true})
+			if drawn==nil then
+				gStates.apocalypseQuestOfferMoving=false
+				error("Quest setup could not extract offer draw "..tostring(drawNumber)..".",2)
+			end
+			drawn.lock()
+			local drawnGUID=drawn.guid
+			movedGUIDs[drawnGUID]=true
+			local settleChecks=0
+			local function offerSettled()
+				settleChecks=settleChecks+1
+				for guid,_ in pairs(movedGUIDs) do
+					local obj=getObjectFromGUID(guid)
+					if obj==nil then
+						if settleChecks<12 then return false end
+					elseif obj.spawning==true or obj.isSmoothMoving()==true then
+						return false
+					end
+				end
+				return true
+			end
+			local function finishDraw()
+				gStates.apocalypseQuestOfferMoving=false
+				local card=getObjectFromGUID(drawnGUID)
+				if card==nil then error("Quest setup lost offer draw "..tostring(drawNumber).." while it was moving.",2) end
 				card.lock()
-				print("QUEST SETUP DRAW: slot "..tostring(slot).." <- "..tostring(apocalypseQuestName(card)).." ["..tostring(card.guid).."].")
-				safeWaitCondition("Quests",function()
-					QuestPrivate.apocalypseQuestInterfaceAdd(card)
-					offerReady=offerReady+1
-					if offerReady>=2 then gStates.apocalypseQuestSetupReady=true end
-				end,function()
-					local live=getObjectFromGUID(card.guid)
-					return live~=nil and live.resting==true
-				end,10,function() error("Quest setup timed out waiting for offer slot "..tostring(slot).." to settle.",2) end)
-			end})
-			if drawn==nil then error("Quest setup could not extract offer slot "..tostring(slot)..".",2) end
+				print("QUEST SETUP DRAW: draw "..tostring(drawNumber).." <- "..tostring(apocalypseQuestName(card)).." ["..tostring(card.guid).."].")
+				QuestPrivate.apocalypseQuestInterfaceAdd(card)
+				offerReady=offerReady+1
+				if offerReady>=2 then
+					gStates.apocalypseQuestSetupReady=true
+					return
+				end
+
+				--Let the first Quest finish any reveal attachments before it is shifted to slot 2, then
+				--leave a deliberate one-second visual beat before the second smooth refill.
+				local function queueNextDraw()
+					safeWaitTime("Quests",function() dealNextQuest(drawNumber+1) end,1)
+				end
+				if gStates.apocalypseQuestRevealDone~=nil and gStates.apocalypseQuestRevealDone[drawnGUID]==true then
+					queueNextDraw()
+				else
+					safeWaitCondition("Quests",queueNextDraw,function()
+						return gStates.apocalypseQuestRevealDone~=nil and gStates.apocalypseQuestRevealDone[drawnGUID]==true
+					end,6,queueNextDraw)
+				end
+			end
+			safeWaitCondition("Quests",finishDraw,offerSettled,10,function()
+				gStates.apocalypseQuestOfferMoving=false
+				error("Quest setup timed out waiting for offer draw "..tostring(drawNumber).." to settle.",2)
+			end)
 		end
+		dealNextQuest(1)
 	end
 
 	local returnReserved
@@ -47133,8 +47389,11 @@ function rewardClaimSoftLockStart()
 	gStates.rewardClaimSoftLockStartedAt=os.time()
 	gStates.rewardClaimSoftLockGeneration=(gStates.rewardClaimSoftLockGeneration or 0)+1
 	local generation=gStates.rewardClaimSoftLockGeneration
-	--Refresh once when the soft lock starts so any outstanding requirement can tint Rewards Claimed,
-	--and once at expiry so the tint clears even if the player is still reading the reward checklist.
+	--Apply the soft-lock tint immediately at the reward boundary. Combat removes its short hard
+	--lock in this same callback, so a genuinely soft-locked button never renders one white frame first.
+	if rewardClaimSoftLockTintRefresh~=nil and gStates.turnNumber~=nil then rewardClaimSoftLockTintRefresh(gStates.turnNumber) end
+	--Refresh once on the next frame for the full checklist/state presentation, and once at expiry so
+	--the tint clears even if the player is still reading the reward checklist.
 	if mainUIUpdate~=nil then safeWaitFrames("Shared",function() mainUIUpdate("Rewards Claimed soft lock started") end,1) end
 	safeWaitTime("Shared",function()
 		if gStates~=nil and gStates.rewardClaimSoftLockGeneration==generation and gStates.preEndTurn==true and mainUIUpdate~=nil then
@@ -47248,7 +47507,8 @@ function putCardAtBottom(container,card,onComplete)
 	end
 
 	local deckGUID=container.guid
-	local expectedQuantity=container.getQuantity()+1
+	-- A precombined Quest stack contributes all its cards, not just one.
+	local expectedQuantity=container.getQuantity()+(card.type=="Deck" and card.getQuantity() or 1)
 	container.setPositionSmooth({pos[1],pos[2]+2.0,pos[3]},false,false)
 	card.setPositionSmooth({pos[1],pos[2],pos[3]},false,false)
 	if onComplete~=nil then
@@ -47957,7 +48217,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="446"
+local automaticLuaErrorReporterVersion="447"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
