@@ -528,6 +528,7 @@ apocalypseQuestRevealSetup=function(card)
 	if quest==nil then return false end
 	if gStates.apocalypseQuestRevealDone==nil then gStates.apocalypseQuestRevealDone={} end
 	if gStates.apocalypseQuestRevealPending==nil then gStates.apocalypseQuestRevealPending={} end
+	if gStates.apocalypseQuestTuckedCards==nil then gStates.apocalypseQuestTuckedCards={} end
 	apocalypseQuestRevealWaitScheduled=apocalypseQuestRevealWaitScheduled or {}
 	local cardGUID=card.guid
 	if gStates.apocalypseQuestRevealDone[cardGUID]==true then return true end
@@ -576,7 +577,12 @@ apocalypseQuestRevealSetup=function(card)
 	local pending={guids={},checks=0}
 	gStates.apocalypseQuestRevealPending[cardGUID]=pending
 	local function track(obj)
-		if obj~=nil and obj.guid~=nil then pending.guids[#pending.guids+1]=obj.guid end
+		if obj~=nil and obj.guid~=nil then
+			pending.guids[#pending.guids+1]=obj.guid
+			if quest.revealSetup=="spell" or quest.revealSetup=="regularUnitII" then
+				gStates.apocalypseQuestTuckedCards[cardGUID]=obj.guid
+			end
+		end
 		return obj
 	end
 	local cardPos=card.getPosition()
@@ -5840,7 +5846,8 @@ local apocalypseQuestCardRuntimeStores={
 	"apocalypseQuestRichMerchantHidden",
 	"apocalypseQuestVeryPersonalSuccess",
 	"apocalypseQuestRevealDone",
-	"apocalypseQuestRevealPending"
+	"apocalypseQuestRevealPending",
+	"apocalypseQuestTuckedCards"
 }
 
 local function apocalypseQuestClearCardRuntime(cardGUID)
@@ -5906,6 +5913,17 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete,stageOnly)
 		end
 	end
 
+	-- The tuck GUID survives reveal setup. The area scan alone can miss a Spell
+	-- that TTS has moved slightly below or outside the Quest's footprint.
+	local tuckedGUID=gStates.apocalypseQuestTuckedCards~=nil and gStates.apocalypseQuestTuckedCards[cardGUID] or nil
+	local tucked=tuckedGUID~=nil and getObjectFromGUID(tuckedGUID) or nil
+	if tucked~=nil and tucked.type=="Card" then
+		local onQuest=false
+		for _,attached in ipairs(apocalypseQuestObjectsOnCard(card)) do
+			if attached.guid==tuckedGUID then onQuest=true break end
+		end
+		if onQuest then apocalypseQuestReturnTuckedCard(tucked,apocalypseQuestName(card)) end
+	end
 	--Basic crystals used as Quest markers return to the supply when the Quest leaves play.
 	--Rewards moved into a player's Inventory are outside the card footprint and are deliberately untouched.
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
@@ -5920,7 +5938,7 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete,stageOnly)
 			apocalypseQuestDetachPossessedForDiscard(obj)
 			local destination=apocalypseQuestEnemyDiscardDestination(obj)
 			if destination~=nil then apocalypseQuestStageIntoContainer(obj,destination) end
-		elseif obj.type=="Card" then
+		elseif obj.type=="Card" and obj.guid~=tuckedGUID then
 			--BottomDeck owns tucked-card detachment for completion, failure and end-of-round expiry alike.
 			--The attachment-clear gate below keeps the Quest card still until this fast return has finished.
 			apocalypseQuestReturnTuckedCard(obj,apocalypseQuestName(card))
