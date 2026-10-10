@@ -2962,12 +2962,15 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 			local deck=QuestPrivate.apocalypseQuestLiveDeck()
 			if stack==nil or deck==nil or stack.guid==deck.guid then callback(false) return end
 			local targetCount=deck.getQuantity()+2
+			-- The top of the retiring stack is the first card seen on the next cycle.
+			local contents=stack.getObjects()
+			local firstReturned=contents[1]~=nil and contents[1].guid or guids[2]
 			putCardAtBottom(deck,stack,function(merged)
 				local result=merged or QuestPrivate.apocalypseQuestLiveDeck()
 				local success=result~=nil and result.type=="Deck" and result.getQuantity()>=targetCount and contains(result,guids)
 				if success then
 					GUID.deck.apocalypseQuest=result.guid
-					if gStates.apocalypseQuestFirstReturnedGUID==nil then gStates.apocalypseQuestFirstReturnedGUID=guids[1] end
+					if gStates.apocalypseQuestFirstReturnedGUID==nil then gStates.apocalypseQuestFirstReturnedGUID=firstReturned end
 				end
 				refreshOutOfTurnActions(nil,nil,true)
 				QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
