@@ -6952,25 +6952,75 @@ function apocalypseQuestDeckSetup(questDeck)
 
 	local offerReady=0
 	local function dealQuestOffer()
-		local deck=currentQuestDeck()
-		if deck==nil then error("Quest setup lost the Apocalypse Quest deck before dealing the offer.",2) end
-		for offer=1,2 do
-			local slot=offer
-			local drawn=safeTakeObject("Quests",deck,{position=QuestPrivate.apocalypseQuestOfferPosition(offer),rotation={0,180,0},smooth=false,callback_function=function(card)
-				if card==nil then error("Quest setup could not draw offer slot "..tostring(slot)..".",2) end
+		local function dealNextQuest(drawNumber)
+			local deck=currentQuestDeck()
+			if deck==nil then error("Quest setup lost the Apocalypse Quest deck before dealing the offer.",2) end
+
+			--Use the same physical offer motion as a normal start-of-turn refill: every existing Quest
+			--slides one slot to the right while the new Quest smooth-moves into slot 1.
+			local areaObjects=QuestPrivate.apocalypseQuestAreaObjects()
+			local cards=QuestPrivate.apocalypseQuestOfferCards(areaObjects)
+			local movedGUIDs={}
+			gStates.apocalypseQuestOfferMoving=true
+			for i=#cards,1,-1 do
+				for _,guid in ipairs(QuestPrivate.apocalypseQuestMoveCard(cards[i],QuestPrivate.apocalypseQuestOfferPosition(i+1),areaObjects,cards)) do
+					movedGUIDs[guid]=true
+				end
+			end
+
+			local drawn=safeTakeObject("Quests",deck,{position=QuestPrivate.apocalypseQuestOfferPosition(1),rotation={0,180,0},smooth=true})
+			if drawn==nil then
+				gStates.apocalypseQuestOfferMoving=false
+				error("Quest setup could not extract offer draw "..tostring(drawNumber)..".",2)
+			end
+			drawn.lock()
+			local drawnGUID=drawn.guid
+			movedGUIDs[drawnGUID]=true
+			local settleChecks=0
+			local function offerSettled()
+				settleChecks=settleChecks+1
+				for guid,_ in pairs(movedGUIDs) do
+					local obj=getObjectFromGUID(guid)
+					if obj==nil then
+						if settleChecks<12 then return false end
+					elseif obj.spawning==true or obj.isSmoothMoving()==true then
+						return false
+					end
+				end
+				return true
+			end
+			local function finishDraw()
+				gStates.apocalypseQuestOfferMoving=false
+				local card=getObjectFromGUID(drawnGUID)
+				if card==nil then error("Quest setup lost offer draw "..tostring(drawNumber).." while it was moving.",2) end
 				card.lock()
-				print("QUEST SETUP DRAW: slot "..tostring(slot).." <- "..tostring(apocalypseQuestName(card)).." ["..tostring(card.guid).."].")
-				safeWaitCondition("Quests",function()
-					QuestPrivate.apocalypseQuestInterfaceAdd(card)
-					offerReady=offerReady+1
-					if offerReady>=2 then gStates.apocalypseQuestSetupReady=true end
-				end,function()
-					local live=getObjectFromGUID(card.guid)
-					return live~=nil and live.resting==true
-				end,10,function() error("Quest setup timed out waiting for offer slot "..tostring(slot).." to settle.",2) end)
-			end})
-			if drawn==nil then error("Quest setup could not extract offer slot "..tostring(slot)..".",2) end
+				print("QUEST SETUP DRAW: draw "..tostring(drawNumber).." <- "..tostring(apocalypseQuestName(card)).." ["..tostring(card.guid).."].")
+				QuestPrivate.apocalypseQuestInterfaceAdd(card)
+				offerReady=offerReady+1
+				if offerReady>=2 then
+					gStates.apocalypseQuestSetupReady=true
+					return
+				end
+
+				--Let the first Quest finish any reveal attachments before it is shifted to slot 2, then
+				--leave a deliberate one-second visual beat before the second smooth refill.
+				local function queueNextDraw()
+					safeWaitTime("Quests",function() dealNextQuest(drawNumber+1) end,1)
+				end
+				if gStates.apocalypseQuestRevealDone~=nil and gStates.apocalypseQuestRevealDone[drawnGUID]==true then
+					queueNextDraw()
+				else
+					safeWaitCondition("Quests",queueNextDraw,function()
+						return gStates.apocalypseQuestRevealDone~=nil and gStates.apocalypseQuestRevealDone[drawnGUID]==true
+					end,6,queueNextDraw)
+				end
+			end
+			safeWaitCondition("Quests",finishDraw,offerSettled,10,function()
+				gStates.apocalypseQuestOfferMoving=false
+				error("Quest setup timed out waiting for offer draw "..tostring(drawNumber).." to settle.",2)
+			end)
 		end
+		dealNextQuest(1)
 	end
 
 	local returnReserved
