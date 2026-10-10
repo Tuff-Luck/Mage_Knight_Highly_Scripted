@@ -394,7 +394,10 @@ local function apocalypseQuestReturnTuckedCard(card, questName)
 	card.unlock()
 	--First detach the tucked card from the Quest physically; only then merge it with its real deck.
 	card.setRotation(destinationRotation)
-	card.setPosition({target[1],target[2]+2.2,target[3]})
+	-- Keep the card beside the supply deck, not directly over it, until the controlled bottom drop.
+	-- Offset simultaneous returns so they cannot accidentally merge into a stray stack.
+	local staging=(QuestPrivate.apocalypseQuestPendingTuckedReturns or 0)
+	card.setPosition({target[1]+3.0+(staging%4)*2.0,target[2]+0.3,target[3]+3.0})
 	QuestPrivate.apocalypseQuestPendingTuckedReturns=QuestPrivate.apocalypseQuestPendingTuckedReturns+1
 	local queue=QuestPrivate.apocalypseQuestTuckedQueues[destinationName] or {}
 	QuestPrivate.apocalypseQuestTuckedQueues[destinationName]=queue
@@ -417,7 +420,7 @@ local function apocalypseQuestReturnTuckedCard(card, questName)
 			local liveCard=getObjectFromGUID(cardGUID)
 			local liveDestination=standardDeckCycleObject(destinationName) or getObjectFromGUID(destinationGUID)
 			if liveCard==nil or liveDestination==nil or liveDestination.guid==cardGUID then finish(false) return end
-			local expected=liveDestination.getQuantity()+1
+			local expected=(liveDestination.type=="Deck" and liveDestination.getQuantity() or 1)+1
 			putCardAtBottom(liveDestination,liveCard,function(merged)
 				local result=merged or standardDeckCycleObject(destinationName)
 				local found=false
