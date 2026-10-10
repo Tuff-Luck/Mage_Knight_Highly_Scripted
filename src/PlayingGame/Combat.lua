@@ -773,16 +773,23 @@ local function combatScheduleRewardBoundary(cleanupPlayer,coopCombatCleanup,reco
 		end
 		--The reward/turn boundary must never overtake delayed Combat cleanup. Otherwise
 		--endRound may sort turnOrder while those callbacks still use cleanupPlayer's index.
-		--Keep the existing Dragon level gate, but require both it and all cleanup stages.
-		local function cleanupReady()
-			if recovery==nil or gStates.combatPreEndTurnRecovery~=recovery then return false end
-			if recovery.avatarDropDone~=true or recovery.stateRefreshDone~=true or
-				recovery.skillCleanupDone~=true or recovery.unitCleanupDone~=true then return false end
-			local dragonCombat=gStates.apocalypseDragonGroundCombat
-			return dragonCombat==nil or dragonCombat.coop==true or
-				dragonCombat.playerIndex~=cleanupPlayer or dragonCombat.levelsApplied==true
+		local function waitForCleanup()
+			safeWaitCondition("Combat",finishRewardDelay,function()
+				return recovery~=nil and gStates.combatPreEndTurnRecovery==recovery and
+					recovery.avatarDropDone==true and recovery.stateRefreshDone==true and
+					recovery.skillCleanupDone==true and recovery.unitCleanupDone==true
+			end)
 		end
-		safeWaitCondition("Combat",finishRewardDelay,cleanupReady)
+		--Preserve the existing five-second Dragon level timeout independently of cleanup.
+		local dragonCombat=gStates.apocalypseDragonGroundCombat
+		if dragonCombat~=nil and dragonCombat.coop~=true and dragonCombat.playerIndex==cleanupPlayer and dragonCombat.levelsApplied~=true then
+			safeWaitCondition("Combat",waitForCleanup,function()
+				local current=gStates.apocalypseDragonGroundCombat
+				return current==nil or current.levelsApplied==true
+			end,5,waitForCleanup)
+		else
+			waitForCleanup()
+		end
 	end,2.0)
 end
 
