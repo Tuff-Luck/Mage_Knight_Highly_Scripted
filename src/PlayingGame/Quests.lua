@@ -2895,12 +2895,66 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 	for i=firstRemoved,#cards do if cards[i]~=nil then queue[#queue+1]=cards[i] end end
 	broadcastToAll(joinLang({"{en}Quest cleanup started: removing the {it}Pulizia Missioni avviata: rimozione di {ru}Очистка заданий началась: удаляется {zh-tw}任務清理開始：從供應中移除最右側 {zh-cn}任务清理开始：从供应中移除最右侧 {ko}퀘스트 정리 시작: 제안 오른쪽 끝에서 퀘스트 {es}Limpieza de Misiones iniciada: se retiran las {fr}Nettoyage des Quêtes commencé : retrait des {pt-br}Limpeza das Missões iniciada: removendo as {de}Quest-Bereinigung gestartet: Entferne die ",tostring(#queue),#queue==1 and "{en} rightmost Quest from the offer.{it} Missione all'estrema destra dell'offerta.{ru} крайнее справа задание из предложения.{zh-tw} 張任務。{zh-cn} 张任务。{ko}개를 제거합니다.{es} Misión más a la derecha de la oferta.{fr} Quête la plus à droite de l’offre.{pt-br} Missão mais à direita da oferta.{de} am weitesten rechts liegende Quest aus dem Angebot." or "{en} rightmost Quests from the offer.{it} Missioni all'estrema destra dell'offerta.{ru} крайних справа заданий из предложения.{zh-tw} 張任務。{zh-cn} 张任务。{ko}개를 제거합니다.{es} Misiones más a la derecha de la oferta.{fr} Quêtes les plus à droite de l’offre.{pt-br} Missões mais à direita da oferta.{de} am weitesten rechts liegenden Quests aus dem Angebot."}),{1,1,0.5})
 
-	local function cleanNext(index)
-		if index>#queue then
-			broadcastToAll("{en}Quest cleanup complete. The Quest offer will refill normally as player turns begin.{it}Pulizia Missioni completata. L'offerta verrà rifornita normalmente all'inizio dei turni dei giocatori.{ru}Очистка заданий завершена. Предложение заданий будет пополняться обычным образом с началом ходов игроков.{zh-tw}任務清理完成。玩家回合開始後，任務供應將正常補充。{zh-cn}任务清理完成。玩家回合开始后，任务供应将正常补充。{ko}퀘스트 정리가 완료되었습니다. 플레이어 턴이 시작되면 퀘스트 제안이 정상적으로 보충됩니다.{es}Limpieza de Misiones completada. La oferta de Misiones se rellenará normalmente al comenzar los turnos de los jugadores.{fr}Nettoyage des Quêtes terminé. L’offre de Quêtes se remplira normalement au début des tours des joueurs.{pt-br}Limpeza das Missões concluída. A oferta de Missões será reabastecida normalmente quando os turnos dos jogadores começarem.{de}Quest-Bereinigung abgeschlossen. Das Quest-Angebot wird zu Beginn der Spielerzüge normal aufgefüllt.",{1,1,0.5})
-			if onComplete~=nil then onComplete(true) end
-			return
+
+	local function contains(deck,guids)
+		if deck==nil then return false end
+		local found={}
+		if deck.type=="Deck" then
+			for _,entry in ipairs(deck.getObjects()) do found[entry.guid]=true end
+		elseif deck.type=="Card" then found[deck.guid]=true end
+		for _,guid in ipairs(guids) do if not found[guid] then return false end end
+		return true
+	end
+	local function combinedDeck(guids)
+		for _,obj in ipairs(QuestPrivate.apocalypseQuestAreaObjects()) do
+			if obj.type=="Deck" and obj.getQuantity()==2 and contains(obj,guids) then return obj end
 		end
+		return nil
+	end
+	local function returnTogether(cards,callback)
+		local guids={cards[1].guid,cards[2].guid}
+		local lower=getObjectFromGUID(guids[1])
+		local upper=getObjectFromGUID(guids[2])
+		if lower==nil or upper==nil then callback(false) return end
+		local source=lower.getPosition()
+		upper.unlock()
+		lower.unlock()
+		upper.setRotation(lower.getRotation())
+		upper.setPosition({source[1],source[2]+0.4,source[3]})
+		local function submit()
+			local stack=combinedDeck(guids)
+			local deck=QuestPrivate.apocalypseQuestLiveDeck()
+			if stack==nil or deck==nil or stack.guid==deck.guid then callback(false) return end
+			local targetCount=deck.getQuantity()+2
+			putCardAtBottom(deck,stack,function(merged)
+				local result=merged or QuestPrivate.apocalypseQuestLiveDeck()
+				local success=result~=nil and result.type=="Deck" and result.getQuantity()>=targetCount and contains(result,guids)
+				if success then
+					GUID.deck.apocalypseQuest=result.guid
+					apocalypseQuestMarkReturned(cards[1])
+				end
+				refreshOutOfTurnActions(nil,nil,true)
+				QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
+				callback(success)
+			end)
+		end
+		safeWaitCondition("Quests",submit,function() return combinedDeck(guids)~=nil end,2.0,function() callback(false) end)
+	end
+	local ready={}
+	local finished=0
+	local allGood=true
+	local function finishOne(index,success)
+		finished=finished+1
+		if success~=true then allGood=false end
+		local card=queue[index]
+		if card~=nil then QuestPrivate.apocalypseQuestRetiringCards[card.guid]=nil end
+		if finished<#queue then return end
+		if allGood then
+			broadcastToAll("{en}Quest cleanup complete. The Quest offer will refill normally as player turns begin.{it}Pulizia Missioni completata. L'offerta verrà rifornita normalmente all'inizio dei turni dei giocatori.{ru}Очистка заданий завершена. Предложение заданий будет пополняться обычным образом с началом ходов игроков.{zh-tw}任務清理完成。玩家回合開始後，任務供應將正常補充。{zh-cn}任务清理完成。玩家回合开始后，任务供应将正常补充。{ko}퀘스트 정리가 완료되었습니다. 플레이어 턴이 시작되면 퀘스트 제안이 정상적으로 보충됩니다.{es}Limpieza de Misiones completada. La oferta de Misiones se rellenará normalmente al comenzar los turnos de los jugadores.{fr}Nettoyage des Quêtes terminé. L’offre de Quêtes se remplira normalement au début des tours des joueurs.{pt-br}Limpeza das Missões concluída. A oferta de Missões será reabastecida normalmente quando os turnos dos jogadores começarem.{de}Quest-Bereinigung abgeschlossen. Das Quest-Angebot wird zu Beginn der Spielerzüge normal aufgefüllt.",{1,1,0.5})
+		else broadcastToAll("Quest cleanup: at least one Quest did not return successfully; check the Quest deck.",{1,0.2,0.2}) end
+		if onComplete~=nil then onComplete(allGood) end
+	end
+	local function process(index)
 		local card=queue[index]
 		if card==nil then cleanNext(index+1) return end
 		local questName=apocalypseQuestName(card)
@@ -2922,7 +2976,7 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 				end
 			end
 		end
-		QuestPrivate.apocalypseQuestBottomDeck(card,function(success)
+		local function reportResult(success)
 			if shieldCount>0 then broadcastToAll(joinLang({"{en}Quest cleanup: removed {it}Pulizia Missioni: rimossi {ru}Очистка задания: удалено {zh-tw}任務清理：從 \"{zh-cn}任务清理：从 \"{ko}퀘스트 정리: \"{es}Limpieza de Misión: se retiraron {fr}Nettoyage de Quête : retrait de {pt-br}Limpeza da Missão: foram removidos {de}Quest-Bereinigung: ",tostring(shieldCount),shieldCount==1 and "{en} Shield from \"{it} Scudo da \"{ru} Щит из \"{zh-tw}\" 移除 1 個盾牌。{zh-cn}\" 移除 1 个盾牌。{ko}\"에서 방패 1개를 제거했습니다.{es} Escudo de \"{fr} Bouclier de \"{pt-br} Escudo de \"{de} Schild aus \"" or "{en} Shields from \"{it} Scudi da \"{ru} Щитов из \"{zh-tw}\" 移除盾牌。{zh-cn}\" 移除盾牌。{ko}\"에서 방패를 제거했습니다.{es} Escudos de \"{fr} Boucliers de \"{pt-br} Escudos de \"{de} Schilde aus \"",questName,"\"."}),{1,1,0.5}) end
 			if gStates.apocalypseQuestReminderCards~=nil and gStates.apocalypseQuestReminderCards[card.guid]~=nil then
 				broadcastToAll(joinLang({"{en}Quest cleanup: \"{it}Pulizia Missioni: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" remains beside the Quest Shield bags as a reminder.{it}\" resta accanto ai sacchetti Scudo Missione come promemoria.{ru}\" остаётся рядом с мешками Щитов задания как напоминание.{zh-tw}\" 留在任務盾牌袋旁作為提醒。{zh-cn}\" 留在任务盾牌袋旁作为提醒。{ko}\"이(가) 알림으로 퀘스트 방패 주머니 옆에 남습니다.{es}\" permanece junto a las bolsas de Escudos de Misión como recordatorio.{fr}\" reste à côté des sacs de Boucliers de Quête comme rappel.{pt-br}\" permanece ao lado das bolsas de Escudos da Missão como lembrete.{de}\" bleibt als Erinnerung neben den Quest-Schild-Beuteln."}),{1,1,0.5})
@@ -2931,12 +2985,34 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 			else
 				broadcastToAll(joinLang({"{en}Quest cleanup: \"{it}Pulizia Missioni: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" could not be returned to the Quest deck.{it}\" non è stata restituita al mazzo Missioni.{ru}\" не удалось вернуть в колоду заданий.{zh-tw}\" 無法歸還到任務牌庫。{zh-cn}\" 无法归还到任务牌库。{ko}\"을(를) 퀘스트 덱으로 돌려놓지 못했습니다.{es}\" no pudo devolverse al mazo de Misiones.{fr}\" n’a pas pu être remise dans le paquet de Quêtes.{pt-br}\" não pôde ser devolvida ao baralho de Missões.{de}\" konnte nicht in den Queststapel zurückgelegt werden."}),{1,0.2,0.2})
 			end
-			--Only now may the next retiring Quest begin its deck return. This prevents the two loose
-			--cards from combining with each other and becoming a stray two-card deck beside the real deck.
-			safeWaitFrames("Quests",function() cleanNext(index+1) end,1)
-		end)
+		QuestPrivate.apocalypseQuestBottomDeck(card,function(success,preparedCard)
+			if success~=true or preparedCard==nil then
+				reportResult(success)
+				finishOne(index,success)
+				return
+			end
+			ready[index]=preparedCard
+			local readyCount=0
+			for _ in pairs(ready) do readyCount=readyCount+1 end
+			if readyCount~=#queue then return end
+			if #queue==1 then
+				-- Single-card return retains the original proven bottom-deck procedure.
+				QuestPrivate.apocalypseQuestBottomDeck(ready[1],function(ok)
+					reportResult(ok)
+					finishOne(1,ok)
+				end)
+			else
+				returnTogether(ready,function(ok)
+					for i=1,#queue do
+						reportResult(ok)
+						finishOne(i,ok)
+					end
+				end)
+			end
+		end,true)
 	end
-	cleanNext(1)
+	for i=1,#queue do process(i) end
+
 	return true
 end
 function QuestPrivate.apocalypseQuestOfferTarget()
@@ -5699,7 +5775,7 @@ local function apocalypseQuestClearCardRuntime(cardGUID)
 	if apocalypseQuestRevealWaitScheduled~=nil then apocalypseQuestRevealWaitScheduled[cardGUID]=nil end
 end
 
-function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
+function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete,stageOnly)
 	if card==nil then if onComplete~=nil then onComplete(false) end return false end
 	local cardGUID=card.guid
 	if cardGUID==nil then if onComplete~=nil then onComplete(false) end return false end
@@ -5752,8 +5828,9 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 	for _, obj in ipairs(apocalypseQuestObjectsOnCard(card)) do
 		local color=apocalypseQuestManaTokenColor(obj)
 		local bag=color~=nil and apocalypseQuestManaBag(color) or nil
-		if bag~=nil then
-			apocalypseQuestStageIntoContainer(obj,bag)
+		if color~=nil then
+			-- Infinite-bag crystals and mana are disposable; never queue a container return.
+			obj.destruct()
 		elseif monsterPugs[obj.guid]~=nil then
 			--Quest enemies always leave through their discard piles, defeated or not. Their original source
 			--pile is not restored when the Quest leaves play.
@@ -5803,6 +5880,11 @@ function QuestPrivate.apocalypseQuestBottomDeck(card,onComplete)
 		if liveDeck==nil or liveDeck.guid==liveCard.guid then
 			QuestPrivate.apocalypseQuestRetiringCards[cardGUID]=nil
 			if onComplete~=nil then onComplete(false) end
+			return
+		end
+		if stageOnly==true then
+			liveCard.unlock()
+			if onComplete~=nil then onComplete(true,liveCard) end
 			return
 		end
 		apocalypseQuestMarkReturned(liveCard)
