@@ -2941,6 +2941,35 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 		safeWaitCondition("Quests",submit,function() return combinedDeck(guids)~=nil end,2.0,function() callback(false) end)
 	end
 	local ready={}
+	local preparedCount=0
+	local settledCount=0
+	local reported={}
+	local function returnPrepared(entry,callback)
+		local card=entry.card
+		local deck=QuestPrivate.apocalypseQuestLiveDeck()
+		if card==nil or deck==nil then callback(false) return end
+		local guid=card.guid
+		local expected=deck.getQuantity()+1
+		local pos=deck.getPosition()
+		card.setRotation(deck.getRotation())
+		card.setPosition({pos[1]+3,pos[2]-0.6,pos[3]})
+		safeWaitFrames("Quests",function()
+			local live=getObjectFromGUID(guid)
+			local destination=QuestPrivate.apocalypseQuestLiveDeck()
+			if live==nil or destination==nil then callback(false) return end
+			putCardAtBottom(destination,live,function(merged)
+				local result=merged or QuestPrivate.apocalypseQuestLiveDeck()
+				local ok=result~=nil and result.type=="Deck" and result.getQuantity()>=expected and contains(result,{guid})
+				if ok then
+					GUID.deck.apocalypseQuest=result.guid
+					apocalypseQuestMarkReturned(card)
+				end
+				refreshOutOfTurnActions(nil,nil,true)
+				QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
+				callback(ok)
+			end)
+		end,2)
+	end
 	local finished=0
 	local allGood=true
 	local function finishOne(index,success)
@@ -2956,7 +2985,7 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 	end
 	local function process(index)
 		local card=queue[index]
-		if card==nil then cleanNext(index+1) return end
+		if card==nil then finishOne(index,false) return end
 		local questName=apocalypseQuestName(card)
 		local questDetails=apocalypseQuestData[card.guid] or {}
 		local objects=apocalypseQuestObjectsOnCard(card)
@@ -2994,21 +3023,24 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 			return
 		end
 		QuestPrivate.apocalypseQuestBottomDeck(card,function(success,preparedCard)
-			if success~=true or preparedCard==nil then
+			settledCount=settledCount+1
+			if success==true and preparedCard~=nil then
+				ready[index]={card=preparedCard,report=reportResult}
+				preparedCount=preparedCount+1
+			else
 				reportResult(success)
 				finishOne(index,success)
-				return
 			end
-			ready[index]={card=preparedCard,report=reportResult}
-			local readyCount=0
-			for _ in pairs(ready) do readyCount=readyCount+1 end
-			if readyCount~=#queue then return end
-			returnTogether({ready[1].card,ready[2].card},function(ok)
-				for i=1,#queue do
-					ready[i].report(ok)
-					finishOne(i,ok)
+			if settledCount~=#queue or preparedCount==0 then return end
+			if preparedCount==2 then
+				returnTogether({ready[1].card,ready[2].card},function(ok)
+					for i=1,#queue do ready[i].report(ok) finishOne(i,ok) end
+				end)
+			else
+				for i,entry in pairs(ready) do
+					returnPrepared(entry,function(ok) entry.report(ok) finishOne(i,ok) end)
 				end
-			end)
+			end
 		end,true)
 	end
 	for i=1,#queue do process(i) end
