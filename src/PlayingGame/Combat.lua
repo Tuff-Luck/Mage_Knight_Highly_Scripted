@@ -771,15 +771,18 @@ local function combatScheduleRewardBoundary(cleanupPlayer,coopCombatCleanup,reco
 			end
 			rewindTransactionFinish("Pre-end-turn cleanup")
 		end
-		local dragonCombat=gStates.apocalypseDragonGroundCombat
-		if dragonCombat~=nil and dragonCombat.coop~=true and dragonCombat.playerIndex==cleanupPlayer and dragonCombat.levelsApplied~=true then
-			safeWaitCondition("Combat",finishRewardDelay,function()
-				local current=gStates.apocalypseDragonGroundCombat
-				return current==nil or current.levelsApplied==true
-			end,5,finishRewardDelay)
-		else
-			finishRewardDelay()
+		--The reward/turn boundary must never overtake delayed Combat cleanup. Otherwise
+		--endRound may sort turnOrder while those callbacks still use cleanupPlayer's index.
+		--Keep the existing Dragon level gate, but require both it and all cleanup stages.
+		local function cleanupReady()
+			if recovery==nil or gStates.combatPreEndTurnRecovery~=recovery then return false end
+			if recovery.avatarDropDone~=true or recovery.stateRefreshDone~=true or
+				recovery.skillCleanupDone~=true or recovery.unitCleanupDone~=true then return false end
+			local dragonCombat=gStates.apocalypseDragonGroundCombat
+			return dragonCombat==nil or dragonCombat.coop==true or
+				dragonCombat.playerIndex~=cleanupPlayer or dragonCombat.levelsApplied==true
 		end
+		safeWaitCondition("Combat",finishRewardDelay,cleanupReady)
 	end,2.0)
 end
 
