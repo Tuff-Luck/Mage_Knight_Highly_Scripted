@@ -2967,7 +2967,7 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 				local success=result~=nil and result.type=="Deck" and result.getQuantity()>=targetCount and contains(result,guids)
 				if success then
 					GUID.deck.apocalypseQuest=result.guid
-					apocalypseQuestMarkReturned({guid=guids[1]})
+					if gStates.apocalypseQuestFirstReturnedGUID==nil then gStates.apocalypseQuestFirstReturnedGUID=guids[1] end
 				end
 				refreshOutOfTurnActions(nil,nil,true)
 				QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
@@ -2998,7 +2998,7 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 				local ok=result~=nil and result.type=="Deck" and result.getQuantity()>=expected and contains(result,{guid})
 				if ok then
 					GUID.deck.apocalypseQuest=result.guid
-					apocalypseQuestMarkReturned({guid=guid})
+					if gStates.apocalypseQuestFirstReturnedGUID==nil then gStates.apocalypseQuestFirstReturnedGUID=guid end
 				end
 				refreshOutOfTurnActions(nil,nil,true)
 				QuestPrivate.apocalypseQuestRefreshAfterMarkerChange()
