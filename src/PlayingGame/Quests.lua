@@ -371,6 +371,8 @@ apocalypseQuestStageIntoContainer=function(obj,container)
 	return true
 end
 
+QuestPrivate.apocalypseQuestPendingTuckedReturns=QuestPrivate.apocalypseQuestPendingTuckedReturns or 0
+QuestPrivate.apocalypseQuestTuckedQueues=QuestPrivate.apocalypseQuestTuckedQueues or {}
 local function apocalypseQuestReturnTuckedCard(card, questName)
 	local destinationGUID, destinationName=apocalypseQuestTuckedCardDestination(card)
 	if destinationGUID==nil then
@@ -389,21 +391,50 @@ local function apocalypseQuestReturnTuckedCard(card, questName)
 	local destinationRotation=destination.getRotation()
 	local target=destination.getPosition()
 	card.unlock()
-	standardDeckCycleMarkReturned(destinationName, card)
 	--First detach the tucked card from the Quest physically; only then merge it with its real deck.
 	card.setRotation(destinationRotation)
 	card.setPosition({target[1],target[2]+2.2,target[3]})
-	safeWaitFrames("Quests",function()
-		local liveCard=getObjectFromGUID(cardGUID)
-		local liveDestination=standardDeckCycleObject(destinationName) or getObjectFromGUID(destinationGUID)
-		if liveCard==nil then return end
-		if liveDestination==nil or liveDestination.guid==liveCard.guid or (liveDestination.type~="Deck" and liveDestination.type~="Card") then
-			broadcastToAll(joinLang({"{en}Quest cleanup: The {it}Pulizia Missioni: il mazzo {ru}Очистка задания: колода {zh-tw}任務清理：{zh-cn}任务清理：{ko}퀘스트 정리: {es}Limpieza de Misión: el mazo de {fr}Nettoyage de Quête : le paquet {pt-br}Limpeza da Missão: o baralho {de}Quest-Bereinigung: Der Stapel ",destinationName,"{en} deck disappeared before \"{it} è scomparso prima che \"{ru} исчезла до того, как удалось вернуть \"{zh-tw} 牌庫在 \"{zh-cn} 牌库在 \"{ko} 덱이 \"{es} desapareció antes de que \"{fr} a disparu avant que \"{pt-br} desapareceu antes que \"{de} verschwand, bevor \"",cardTitle,"{en}\" could be returned.{it}\" potesse essere restituito.{ru}\".{zh-tw}\" 歸還前消失了。{zh-cn}\" 归还前消失了。{ko}\" 카드를 돌려놓기 전에 사라졌습니다.{es}\" pudiera devolverse.{fr}\" puisse être rendue.{pt-br}\" pudesse ser devolvida.{de}\" zurückgelegt werden konnte."}), {1,0.55,0.2})
-			return
+	QuestPrivate.apocalypseQuestPendingTuckedReturns=QuestPrivate.apocalypseQuestPendingTuckedReturns+1
+	local queue=QuestPrivate.apocalypseQuestTuckedQueues[destinationName] or {}
+	QuestPrivate.apocalypseQuestTuckedQueues[destinationName]=queue
+	local function processNext()
+		local nextTask=table.remove(queue,1)
+		if nextTask~=nil then nextTask() end
+	end
+	local function performReturn()
+		local function finish(ok)
+			QuestPrivate.apocalypseQuestPendingTuckedReturns=math.max(0,QuestPrivate.apocalypseQuestPendingTuckedReturns-1)
+			if ok then
+				broadcastToAll(joinLang({"{en}Quest cleanup: \"{it}Pulizia Missioni: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",cardTitle,"{en}\" returned to the bottom of the {it}\" restituito in fondo al mazzo {ru}\" возвращена на дно колоды {zh-tw}\" 已歸還到 {zh-cn}\" 已归还到 {ko}\" 카드를 {es}\" volvió al fondo del mazo de {fr}\" a été remise sous le paquet {pt-br}\" voltou para o fundo do baralho {de}\" wurde unter den Stapel ",destinationName,"{en} deck.{it}.{ru}.{zh-tw} 牌庫底部。{zh-cn} 牌库底部。{ko} 덱 맨 아래로 돌려놓았습니다.{es}.{fr}.{pt-br}.{de} gelegt."}),{1,1,0.5})
+			else
+				broadcastToAll("Quest cleanup: could not confirm the return of "..cardTitle.." to the "..destinationName.." deck.",{1,0.2,0.2})
+			end
+			processNext()
 		end
-		putCardAtBottom(liveDestination,liveCard)
-		broadcastToAll(joinLang({"{en}Quest cleanup: \"{it}Pulizia Missioni: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",cardTitle,"{en}\" returned to the bottom of the {it}\" restituito in fondo al mazzo {ru}\" возвращена на дно колоды {zh-tw}\" 已歸還到 {zh-cn}\" 已归还到 {ko}\" 카드를 {es}\" volvió al fondo del mazo de {fr}\" a été remise sous le paquet {pt-br}\" voltou para o fundo do baralho {de}\" wurde unter den Stapel ",destinationName,"{en} deck.{it}.{ru}.{zh-tw} 牌庫底部。{zh-cn} 牌库底部。{ko} 덱 맨 아래로 돌려놓았습니다.{es}.{fr}.{pt-br}.{de} gelegt."}), {1,1,0.5})
-	end,2)
+		safeWaitFrames("Quests",function()
+			local liveCard=getObjectFromGUID(cardGUID)
+			local liveDestination=standardDeckCycleObject(destinationName) or getObjectFromGUID(destinationGUID)
+			if liveCard==nil or liveDestination==nil or liveDestination.guid==cardGUID then finish(false) return end
+			local expected=liveDestination.getQuantity()+1
+			putCardAtBottom(liveDestination,liveCard,function(merged)
+				local result=merged or standardDeckCycleObject(destinationName)
+				local found=false
+				if result~=nil and result.type=="Deck" and result.getQuantity()>=expected then
+					for _,entry in ipairs(result.getObjects()) do
+						if entry.guid==cardGUID then found=true break end
+					end
+				end
+				if found then standardDeckCycleMarkReturned(destinationName,card) end
+				finish(found)
+			end)
+		end,2)
+	end
+	if #queue==0 and QuestPrivate.apocalypseQuestTuckedActive==nil then
+		QuestPrivate.apocalypseQuestTuckedActive=destinationName
+		performReturn()
+	else
+		queue[#queue+1]=performReturn
+	end
 	return true
 end
 function apocalypseQuestTokenBagSetup()
