@@ -587,7 +587,8 @@ function putCardAtBottom(container,card,onComplete)
 	end
 
 	local deckGUID=container.guid
-	local expectedQuantity=container.getQuantity()+1
+	-- A precombined Quest stack contributes all its cards, not just one.
+	local expectedQuantity=container.getQuantity()+(card.type=="Deck" and card.getQuantity() or 1)
 	container.setPositionSmooth({pos[1],pos[2]+2.0,pos[3]},false,false)
 	card.setPositionSmooth({pos[1],pos[2],pos[3]},false,false)
 	if onComplete~=nil then
