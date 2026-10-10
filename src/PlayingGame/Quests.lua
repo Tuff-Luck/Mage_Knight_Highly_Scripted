@@ -2985,30 +2985,30 @@ function apocalypseQuestEndRoundCleanup(onComplete)
 			else
 				broadcastToAll(joinLang({"{en}Quest cleanup: \"{it}Pulizia Missioni: \"{ru}Очистка задания: \"{zh-tw}任務清理：\"{zh-cn}任务清理：\"{ko}퀘스트 정리: \"{es}Limpieza de Misión: \"{fr}Nettoyage de Quête : \"{pt-br}Limpeza da Missão: \"{de}Quest-Bereinigung: \"",questName,"{en}\" could not be returned to the Quest deck.{it}\" non è stata restituita al mazzo Missioni.{ru}\" не удалось вернуть в колоду заданий.{zh-tw}\" 無法歸還到任務牌庫。{zh-cn}\" 无法归还到任务牌库。{ko}\"을(를) 퀘스트 덱으로 돌려놓지 못했습니다.{es}\" no pudo devolverse al mazo de Misiones.{fr}\" n’a pas pu être remise dans le paquet de Quêtes.{pt-br}\" não pôde ser devolvida ao baralho de Missões.{de}\" konnte nicht in den Queststapel zurückgelegt werden."}),{1,0.2,0.2})
 			end
+		end
+		if #queue==1 then
+			QuestPrivate.apocalypseQuestBottomDeck(card,function(ok)
+				reportResult(ok)
+				finishOne(index,ok)
+			end)
+			return
+		end
 		QuestPrivate.apocalypseQuestBottomDeck(card,function(success,preparedCard)
 			if success~=true or preparedCard==nil then
 				reportResult(success)
 				finishOne(index,success)
 				return
 			end
-			ready[index]=preparedCard
+			ready[index]={card=preparedCard,report=reportResult}
 			local readyCount=0
 			for _ in pairs(ready) do readyCount=readyCount+1 end
 			if readyCount~=#queue then return end
-			if #queue==1 then
-				-- Single-card return retains the original proven bottom-deck procedure.
-				QuestPrivate.apocalypseQuestBottomDeck(ready[1],function(ok)
-					reportResult(ok)
-					finishOne(1,ok)
-				end)
-			else
-				returnTogether(ready,function(ok)
-					for i=1,#queue do
-						reportResult(ok)
-						finishOne(i,ok)
-					end
-				end)
-			end
+			returnTogether({ready[1].card,ready[2].card},function(ok)
+				for i=1,#queue do
+					ready[i].report(ok)
+					finishOne(i,ok)
+				end
+			end)
 		end,true)
 	end
 	for i=1,#queue do process(i) end
