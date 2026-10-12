@@ -4,6 +4,10 @@
 firstTile=nil
 startingMapSetup=false
 startingMapTiles={}
+-- Only tiles deliberately queued by the initial reveal coordinator may bypass placement validation.
+-- These are transient setup controls, never saved map state.
+startingMapRevealTiles={}
+startingMapPopulationIssues={}
 
 local function setupMapObjectSettled(guid)
 	local obj=guid~=nil and getObjectFromGUID(guid) or nil
@@ -32,6 +36,12 @@ local function revealSetupTerrainBatches(batches,onComplete)
 		end
 		local batch=batches[index]
 		index=index+1
+		-- Register before flipping: a zone-enter event during the flip must not populate
+		-- this tile early, while an unrelated tile entering the zone gets no exemption.
+		for _,entry in ipairs(batch) do
+			startingMapRevealTiles[entry.guid]=true
+			startingMapPopulationIssues[entry.guid]="waiting for face-up, settled reveal"
+		end
 		local function batchPopulationFinished()
 			for _,entry in ipairs(batch) do if gStates.playedAllready[entry.guid]~=true then return false end end
 			return true
@@ -39,7 +49,7 @@ local function revealSetupTerrainBatches(batches,onComplete)
 		local function batchFaceUpAndSettled()
 			for _,entry in ipairs(batch) do
 				local tile=getObjectFromGUID(entry.guid)
-				if tile==nil or tile.is_face_down==true or tile.resting~=true then return false end
+				if tile==nil or tile.is_face_down==true or tile.resting~=true or tile.isSmoothMoving()==true then return false end
 			end
 			return true
 		end
@@ -66,9 +76,12 @@ local function revealSetupTerrainBatches(batches,onComplete)
 						local tile=getObjectFromGUID(entry.guid)
 						local faceDown=tile~=nil and tostring(tile.is_face_down) or "missing"
 						local resting=tile~=nil and tostring(tile.resting) or "missing"
+						local moving=tile~=nil and tostring(tile.isSmoothMoving()) or "missing"
 						unresolved[#unresolved+1]=tostring(entry.guid)..
 							"(working="..tostring(workingOnTerrain[entry.guid])..
-							", faceDown="..faceDown..", resting="..resting..")"
+							", faceDown="..faceDown..", resting="..resting..
+							", moving="..moving..", scheduled="..tostring(startingMapRevealTiles[entry.guid]==true)..
+							", stage="..tostring(startingMapPopulationIssues[entry.guid])..")"
 					end
 				end
 				error("SetupGame timed out waiting for terrain population during initial map reveal: "..table.concat(unresolved,", "),2)
@@ -86,7 +99,7 @@ local function revealSetupTerrainBatches(batches,onComplete)
 		end,function()
 			for _,entry in ipairs(batch) do
 				local tile=getObjectFromGUID(entry.guid)
-				if tile==nil or tile.resting~=true or workingOnTerrain[entry.guid]==true then return false end
+				if tile==nil or tile.resting~=true or tile.isSmoothMoving()==true or workingOnTerrain[entry.guid]==true then return false end
 			end
 			return true
 		end,10,function()
@@ -142,6 +155,8 @@ end
 function mapSetup(onComplete)
 	startingMapSetup=true
 	startingMapTiles={}
+	startingMapRevealTiles={}
+	startingMapPopulationIssues={}
 	--EXPLORE is a derived view of the finished physical map. Do not show transient legal spots while
 	--setup tiles and the terrain stack are still being assembled.
 	clearTerrainExploreOptions()
@@ -150,6 +165,8 @@ function mapSetup(onComplete)
 		if mapSetupFinished==true then return end
 		mapSetupFinished=true
 		startingMapSetup=false
+		startingMapRevealTiles={}
+		startingMapPopulationIssues={}
 		if onComplete~=nil then onComplete(success,reason) end
 	end
 	local TileShuffler=		getObjectFromGUID(GUID.bag.terrain.shuffler)

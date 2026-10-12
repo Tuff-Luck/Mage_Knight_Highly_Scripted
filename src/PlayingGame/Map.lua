@@ -1466,10 +1466,15 @@ function mapHandleTerrainZoneEnter(ctx)
 	local objGUID=ctx.objGUID
 	--Check if a terrain tile has entered the play area
 	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
+		local scheduledSetupReveal=startingMapSetup==true and startingMapRevealTiles~=nil and startingMapRevealTiles[objGUID]==true
+		-- The setup coordinator will explicitly dispatch this tile once its flip/physical movement ends.
+		-- Never let an intermediate zone-entry event start population before it is ready.
+		if scheduledSetupReveal and (obj.is_face_down==true or obj.resting~=true or obj.isSmoothMoving()==true) then return true end
 		if startingMapSetup==true then startingMapTiles[objGUID]=true end
 		local initialSetupTerrain=startingMapTiles~=nil and startingMapTiles[objGUID]==true
 		local newTerrainReveal=gStates.playedAllready[objGUID]~=true
 		workingOnTerrain[objGUID]=true
+		if scheduledSetupReveal then startingMapPopulationIssues[objGUID]="terrain entry handler started" end
 		--Setup terrain still needs normal site/enemy population, but player-exploration UI/effects wait for actual play.
 		if initialSetupTerrain~=true then safeWaitTime("Map",function() addAvatarButtons() end, 1.5) end
 		--onObjectEnterZone already invalidated the runtime terrain cache for this tile. Build that view
@@ -1490,6 +1495,7 @@ function mapHandleTerrainZoneEnter(ctx)
 		end
 		local startTileObject=getObjectFromGUID(startTileGUID)
 		if startTileObject==nil then
+			if scheduledSetupReveal then startingMapPopulationIssues[objGUID]="missing start terrain reference "..tostring(startTileGUID) end
 			workingOnTerrain[objGUID]=nil
 			return true
 		end
@@ -1504,9 +1510,10 @@ function mapHandleTerrainZoneEnter(ctx)
 
 
 
-		--deploy monster token if terrain tile is deployed correctly
+		-- Only explicitly scheduled, face-up, settled starting tiles bypass gameplay placement rules.
+		-- Population below (including Core tile / Elite Unit bookkeeping) always executes normally.
 		local placementResult={}
-		if terrainPositionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}},faceUpTerrain,northBearing,placementResult)==true then
+		if scheduledSetupReveal or terrainPositionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}},faceUpTerrain,northBearing,placementResult)==true then
 			--Before the first round, dayRound is intentionally still false so dayNight() can perform
 			--the first transition. Do not let that sentinel make setup terrain look like night.
 			if startingMapSetup==true then
@@ -1785,6 +1792,7 @@ function mapHandleTerrainZoneEnter(ctx)
 			--lock terrain tile if succesfuly deployed all tokens
 			safeWaitCondition("Map",function() obj.lock() end, function() return obj.resting end)
 			local function finishTerrainPopulation()
+				if scheduledSetupReveal then startingMapPopulationIssues[objGUID]=nil end
 				gStates.playedAllready[objGUID]=true
 				workingOnTerrain[objGUID]=false
 				--A City reveal already refreshed immediately before its initial card placement.
@@ -1809,6 +1817,7 @@ function mapHandleTerrainZoneEnter(ctx)
 				apocalypseQuestRefreshOfferButtons()
 			end
 			if startingMapSetup==true then
+				if scheduledSetupReveal then startingMapPopulationIssues[objGUID]="awaiting "..tostring(setupPopulationPending).." terrain deployment callbacks" end
 				safeWaitCondition("Map",finishTerrainPopulation,function()
 					return setupPopulationPending==0 and obj.resting==true
 				end,10,function()
