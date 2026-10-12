@@ -28,7 +28,7 @@ end
 
 --Plan each first-phase Volkare step from the card's original direction.
 --If that step needs an illegal tile, try the closest neighbouring direction and test the movement again.
-local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, mapSnapshot)
+local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, mapSnapshot, allowExplore)
 	local bearings={}
 	local plannedTile=nil
 	local simPos={volkarePos[1], volkarePos[2], volkarePos[3]}
@@ -46,7 +46,7 @@ local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, ma
 				chosenPos=testPos
 				break
 			end
-			if plannedTile==nil then
+			if plannedTile==nil and allowExplore==true then
 				local legalSpot=volkareLegalExploreSpot(testPos)
 				if legalSpot~=nil then
 					plannedTile=legalSpot
@@ -99,6 +99,7 @@ function volkareTurn(player, mouseButton, id)
 	end
 	if gStates.positionMageKnight[5]=="Volkare" and gStates.endRoundCalled==false and gStates.volkareState=="Start" then
 		gStates.volkareRazeCityKey=nil
+		gStates.volkareCityDefenseMove=nil -- old attack approach cannot carry into a fresh turn
 		gStates.volkareMovementPaused=false
 		gStates.volkareMovementStepPending=false
 		gStates.volkarePendingCombatMage=nil
@@ -223,29 +224,45 @@ function volkareTurn(player, mouseButton, id)
 
 					local terrainPlayed=false
 					local volkareExploreBearings={}
+					local movementSteps=volkareDrew.spell
 					--Before the city is found, each step tries the card's indicated direction first.
 					--If that step requires an illegal new tile, retry in the closest legal direction.
 					if cityDistance.key==0 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") then
 						local mapSnapshot=runtimeMapSnapshot()
 						local originalBearing=volkareVector[gStates.gameScenario][volkareDrew.color]
 						local terrainSpot=nil
-						volkareExploreBearings, terrainSpot=planVolkareExploreMove(volkarePOS, originalBearing, volkareDrew.spell, mapSnapshot)
+						local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
+						local canExplore=terrainStack~=nil and terrainStack.getQuantity()>0
+						volkareExploreBearings, terrainSpot=planVolkareExploreMove(volkarePOS, originalBearing, volkareDrew.spell, mapSnapshot, canExplore)
 						if terrainSpot~=nil then
-							local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
-							if terrainStack~=nil and terrainStack.getQuantity()>0 then
-								local newtile=terrainStack.takeObject({position=terrainSpot, smooth=true})
+							local newtile=terrainStack.takeObject({position=terrainSpot, smooth=true})
+							if newtile~=nil then
 								terrainPlayed=true
 								gStates.blurb=joinLang({gStates.blurb, "{en} New Terrain explored.{it} Nuovo Terreno esplorato.{ru} Исследована новая территория.{zh-tw}\n新地形被探索了。{zh-cn}\n新地形被探索了。{ko} 새 지도 타일 공개{es} Nuevo Terreno explorado.{fr} Nouveau Terrain exploré.{pt-br} Novo Terreno explorado.{de} Neues Terrain erkundet."})
 								safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",function() if newtile~=nil then newtile.flip() end end, function() return newtile==nil or newtile.resting end,8,function() if newtile~=nil then newtile.flip() end end) end, 5)
+							else
+								-- A failed draw cannot authorize travel through the planned tile.
+								volkareExploreBearings=planVolkareExploreMove(volkarePOS,originalBearing,volkareDrew.spell,mapSnapshot,false)
 							end
 						end
+						movementSteps=#volkareExploreBearings
+					end
+
+					if movementSteps==0 then
+						gStates.blurb="{en}Volkare found no legal movement route.{it}Volkare non ha trovato un percorso valido.{ru}Волкар не нашёл допустимого пути.{zh-tw}沃卡里找不到合法移動路線。{zh-cn}沃卡里找不到合法移动路线。{ko}볼케어가 이동할 수 있는 경로를 찾지 못했습니다.{es}Volkare no encontró una ruta válida.{fr}Volkare n'a trouvé aucun trajet légal.{pt-br}Volkare não encontrou um caminho válido.{de}Volkare fand keinen zulässigen Weg."
+						gStates.volkareState="ReadyToEnd"
+						gStates.volkareArmyDefeated=0
+						UI.setAttribute("DummyNotes","Text",gStates.blurb)
+						volkareReleaseRewindWhenStable()
+						mainUIUpdate("Volkare no legal movement route")
+						return
 					end
 
 					local wait=0
 					if terrainPlayed==true then wait=5 end
 					local pass=0
 					local doubleAttack=false
-					for z=1, volkareDrew.spell, 1 do
+					for z=1, movementSteps, 1 do
 						local stepNumber=z
 						safeWaitTime("AI.Volkare",function() safeWaitCondition("AI.Volkare",function()
 							if movementSequence~=gStates.volkareMovementSequence or gStates.volkareWon==true then return end
@@ -306,21 +323,27 @@ function volkareTurn(player, mouseButton, id)
 												end
 											end
 											if #gStates.volkareAttacked>=1 then
+												-- First-step city defense must finish before the second movement.
+												if stepNumber<movementSteps then
+													gStates.volkareMovementPaused=true
+													gStates.volkareMovementStepPending=true
+													gStates.volkarePendingCombatMage=gStates.volkareAttacked[1].mage
+												end
 												--Remember the attack approach so a successful Volkare's Return defense can move him physically.
 												--If this attack is the first half of a Spell/Frenzy double move, the remaining step brings him forward again after the retreat.
 												if (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") and gStates.volkareCityDefenseMove==nil then
 													local targetPos=attackingPrimary==false and pairPos or cityPos
-													gStates.volkareCityDefenseMove={attackPos={volkarePOS[1], volkarePOS[2], volkarePOS[3]}, cityPos={targetPos[1], targetPos[2], targetPos[3]}, secondMove=(volkareDrew.spell==2 and pass==1), resolving=false}
+													gStates.volkareCityDefenseMove={attackPos={volkarePOS[1], volkarePOS[2], volkarePOS[3]}, cityPos={targetPos[1], targetPos[2], targetPos[3]}, secondMove=(movementSteps==2 and pass==1), resolving=false}
 												end
-												if (volkareDrew.spell==2 and pass==2) or volkareDrew.spell==1 then
+												if (movementSteps==2 and pass==2) or movementSteps==1 then
 													local EndText="{en}otherwise Volkare enters the city and you have Lost.{it}altrimenti Volkare entra nella città e avete perso.{ru}в противном случае Волкар войдет в город, и вы Проиграете.{zh-tw}\n否則沃卡里進入城市，你輸了。{zh-cn}\n否则沃卡里进入城市，你输了。{ko}이외에 볼케어가 도시에 입장했다면, 게임 패배.{es}de lo contrario, Volkare entra en la ciudad y has perdido.{fr}sinon Volkare entre dans la ville et vous avez perdu.{pt-br}do contrário Volkare entra na cidade e você perdeu.{de}andernfalls dringt Volkare in die Stadt ein und du hast verloren."
 													local MidText="{en}<size=6>\n\n</size>If you Defend and kill at least {it}<size=6>\n\n</size>Se Difendete e sconfiggete almeno {ru}<size=6>\n\n</size>Если вы защититесь и убьете хотя бы {zh-tw}<size=6>\n\n</size>若你防守並擊敗至少 {zh-cn}<size=6>\n\n</size>若你防守并击败至少 {ko}<size=6>\n\n</size>볼케어 군대의 적을 최소 {es}<size=6>\n\n</size>Si defiendes y matas al menos {fr}<size=6>\n\n</size>Si vous défendez et tuez au moins {pt-br}<size=6>\n\n</size>Se você defender e matar pelo menos {de}<size=6>\n\n</size>Wenn Sie verteidigen und mindestens einen "
 													if gStates.volkareRaisedCity==true then MidText="{en}<size=6>\n\n</size>If you kill at least {it}<size=6>\n\n</size>Se sconfiggete almeno {ru}<size=6>\n\n</size>Если вы убьете хотя бы {zh-tw}<size=6>\n\n</size>若你擊敗至少 {zh-cn}<size=6>\n\n</size>若你击败至少 {ko}<size=6>\n\n</size>볼케어 군대의 적을 최소 {es}<size=6>\n\n</size>Si matas al menos {fr}<size=6>\n\n</size>Si tu tues au moins {pt-br}<size=6>\n\n</size>Se você matar pelo menos {de}<size=6>\n\n</size>Wenn du mindestens " end
 													if gStates.gameScenario=="The War of Four" then EndText="{en}otherwise you retreat and Volkare moves onto the city, destroying it.{it}altrimenti vi ritirate e Volkare entra nella città, distruggendola.{ru}в противном случае вы отступаете, и Волкар движется в город, разрушая его.{zh-tw}\n否則你會撤退並且讓沃卡里進入\n城市，將其摧毀。{zh-cn}\n否则你会撤退并且让沃卡里进入\n城市，将其摧毁。{ko}이외에 플레이어는 후퇴하고, 볼케어가 이동하여 도시를 파괴합니다.{es}de lo contrario, te retiras y Volkare se mueve hacia la ciudad, destruyéndola.{fr}Sinon, vous battez en retraite et Volkare se déplace sur la ville, la détruisant.{pt-br}do contrário você recua e Volkare move para a cidade, destruindo-a.{de}andernfalls ziehst du dich zurück und Volkare rückt auf die Stadt vor und zerstört sie." end
-													if volkareDrew.spell==1 or (volkareDrew.spell==2 and doubleAttack==false) then
+													if movementSteps==1 or (movementSteps==2 and doubleAttack==false) then
 														gStates.blurb=joinLang({"{en}Volkare Attacks the City{it}Volkare Attacca la Città{ru}Волкар атакует город{zh-tw}\n沃卡里攻擊這個城市{zh-cn}\n沃卡里攻击这个城市{ko}볼케어 도시 공격{es}Volkare ataca la ciudad{fr}Volkare attaque la ville{pt-br}Volkare ataca a Cidade{de}Volkare greift die Stadt an", gStates.blurb, MidText, gStates.playerCount, "{en} of Volkare's army, move Volkare back one space, {it} dell'esercito di Volkare, arretratelo di uno spazio; {ru} отряда из армии Волкара, переместите Волкара на одну клетку назад, {zh-tw} 名\n沃卡里的手下，\n沃卡里會向後退一格，{zh-cn} 名\n沃卡里的手下，\n沃卡里会向后退一格，{ko} 개 처치했다면, 볼케어는 한 칸 후퇴합니다, {es} del ejército de Volkare, mueve Volkare hacia atrás un espacio, {fr} de l'armée de Volkare, reculez Volkare d'une case, {pt-br} do Exército de Volkare, mova Volkare de volta 1 espaço, {de} von Volkares Armee tötest, ziehst du Volkare ein Feld zurück, ", EndText})
 													end
-													if volkareDrew.spell==2 and doubleAttack==true then
+													if movementSteps==2 and doubleAttack==true then
 														gStates.blurb=joinLang({"{en}Volkare Attacks the City{it}Volkare Attacca la Città{ru}Волкар атакует город{zh-tw}沃里卡攻击这个城市{zh-cn}沃里卡攻击这个城市{ko}볼케어 도시 공격{es}Volkare ataca la ciudad{fr}Volkare attaque la ville{pt-br}Volkare ataca a Cidade{de}Volkare greift die Stadt an", gStates.blurb, MidText, gStates.playerCount, "{en} of Volkare's army, Volkare stays where he is, {it} dell'esercito di Volkare, resta dov'è; {ru} отряда из армии Волкара, Волкар останется на своем месте, {zh-tw} 名\n沃卡里的手下，\n沃卡里會留在原位置，{zh-cn} 名\n沃卡里的手下，\n沃卡里会留在原位置，{ko} 개 처치했다면, 볼케어는 지금 자리에 머뭅니다, {es} del ejército de Volkare, Volkare permanece donde está, {fr} de l'armée de Volkare, Volkare reste où il est, {pt-br} do Exército de Volkare, Volkare fica aonde ele está, {de} von Volkare's Armee, bleibt Volkare wo er ist, ", EndText})
 													end
 													if gStates.volkareRaisedCity==false then gStates.blurb=joinLang({gStates.blurb, "{en}<size=6>\n\n</size>Not defending means Volkare will destroy the city walls.{it}<size=6>\n\n</size>Se non difendete, Volkare distruggerà le mura.{ru}<size=6>\n\n</size>Отказ от защиты означает, что Волкар разрушит городские стены.{zh-tw}<size=6>\n\n</size>不防守代表沃卡里會摧毀城牆。{zh-cn}<size=6>\n\n</size>不防守代表沃卡里会摧毁城墙。{ko}<size=6>\n\n</size>방어하지 않으면 볼케어가 성벽을 파괴합니다.{es}<size=6>\n\n</size>No defender significa que Volkare destruirá las murallas de la ciudad.{fr}<size=6>\n\n</size>Ne pas se défendre signifie que Volkare détruira les murs de la ville.{pt-br}<size=6>\n\n</size>Não defender significa que o Volkare destruirá as muralhas da cidade.{de}<size=6>\n\n</size>Wenn Sie sich nicht verteidigen, wird Volkare die Stadtmauern zerstören."}) end
@@ -349,7 +372,7 @@ function volkareTurn(player, mouseButton, id)
 														getObjectFromGUID(trashCan).putObject(getObjectFromGUID(gStates.volkareModel))
 														gStates.volkareWon=true; volkareReleaseRewindWhenStable()
 													else
-														if (volkareDrew.spell==2 and pass==2) or volkareDrew.spell==1 then gStates.blurb=joinLang({"{en}Volkare has raised the city\n(it provides no Interaction or Hand Size bonus from now on){it}Volkare ha raso al suolo la città\n(non fornisce più Interazione né bonus al limite di mano){ru}Волкар поднял город\n(с этого момента он не дает бонусов за взаимодействие или для предела руки){zh-tw}\n沃卡里劫掠了城市四周\n（從現在起此城市不能交涉，\n並且不會增加手牌上限）{zh-cn}\n沃卡里劫掠了城市四周\n（从现在起此城市不能交涉，\n并且不会增加手牌上限）{ko}볼케어가 도시를 파괴했습니다.\n(이제 도시에서 교류를 할 수 없고 카드 보유 제한 혜택이 사라집니다.){es}Volkare ha elevado la ciudad\n(a partir de ahora no proporciona ninguna bonificación por interacción o tamaño de la mano){fr}Volkare a élevé la ville\n(il ne fournit plus de bonus d'interaction ou de taille de main à partir de maintenant){pt-br}Volkare ergueu a Cidade\n(Ela não fornece Interação ou Bonus de Tamanho de mão por hora){de}Volkare hat die Stadt erhöht\n(sie bietet von nun an keinen Interaktions- oder Handgrößenbonus mehr)", gStates.blurb}) end
+														if (movementSteps==2 and pass==2) or movementSteps==1 then gStates.blurb=joinLang({"{en}Volkare has raised the city\n(it provides no Interaction or Hand Size bonus from now on){it}Volkare ha raso al suolo la città\n(non fornisce più Interazione né bonus al limite di mano){ru}Волкар поднял город\n(с этого момента он не дает бонусов за взаимодействие или для предела руки){zh-tw}\n沃卡里劫掠了城市四周\n（從現在起此城市不能交涉，\n並且不會增加手牌上限）{zh-cn}\n沃卡里劫掠了城市四周\n（从现在起此城市不能交涉，\n并且不会增加手牌上限）{ko}볼케어가 도시를 파괴했습니다.\n(이제 도시에서 교류를 할 수 없고 카드 보유 제한 혜택이 사라집니다.){es}Volkare ha elevado la ciudad\n(a partir de ahora no proporciona ninguna bonificación por interacción o tamaño de la mano){fr}Volkare a élevé la ville\n(il ne fournit plus de bonus d'interaction ou de taille de main à partir de maintenant){pt-br}Volkare ergueu a Cidade\n(Ela não fornece Interação ou Bonus de Tamanho de mão por hora){de}Volkare hat die Stadt erhöht\n(sie bietet von nun an keinen Interaktions- oder Handgrößenbonus mehr)", gStates.blurb}) end
 														volkareRazesCity(cityDistance.key)
 													end
 												else
@@ -360,7 +383,7 @@ function volkareTurn(player, mouseButton, id)
 												end
 											end
 										end
-										if (volkareDrew.spell==2 and (pass==2 or gStates.volkareWon==true)) or volkareDrew.spell==1 then
+										if (movementSteps==2 and (pass==2 or gStates.volkareWon==true)) or movementSteps==1 then
 											if #gStates.volkareAttacked==0 and gStates.volkareWon~=true then gStates.volkareState="ReadyToEnd"; volkareReleaseRewindWhenStable() end
 											UI.setAttribute("DummyNotes", "Text", gStates.blurb)
 											mainUIUpdate("Volkare Beat City")
@@ -417,7 +440,7 @@ function volkareTurn(player, mouseButton, id)
 								local magesInRange=findNearbyMages(volkareNewPos, 1.5)
 								if #magesInRange>0 then
 									gStates.volkareState="Attacking Player"
-									if stepNumber<volkareDrew.spell then
+									if stepNumber<movementSteps then
 										gStates.volkareMovementPaused=true
 										gStates.volkareMovementStepPending=true
 										gStates.volkarePendingCombatMage=magesInRange[1].mage
@@ -447,11 +470,11 @@ function volkareTurn(player, mouseButton, id)
 								if (gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and math.sqrt(((volkareNewPos[1]-portalPos[1])^2)+((volkareNewPos[3]-portalPos[3])^2))<2.5 then
 									getObjectFromGUID(gStates.volkareModel).setDecals({})
 								end
-								if (volkareDrew.spell==2 and pass==2) or volkareDrew.spell==1 then UI.setAttribute("DummyNotes", "Text", gStates.blurb) end
+								if (movementSteps==2 and pass==2) or movementSteps==1 then UI.setAttribute("DummyNotes", "Text", gStates.blurb) end
 								safeWaitCondition("AI.Volkare",function()
 									if movementSequence~=gStates.volkareMovementSequence then return end
 									volkareQuestPortalStatus()
-									if #magesInRange==0 and stepNumber==volkareDrew.spell and gStates.volkareWon~=true then
+									if #magesInRange==0 and stepNumber==movementSteps and gStates.volkareWon~=true then
 										gStates.volkareState="ReadyToEnd"; volkareReleaseRewindWhenStable()
 										if gStates.volkareAdvanceAfterMovement==true then
 											gStates.volkareAdvanceAfterMovement=false
@@ -463,7 +486,7 @@ function volkareTurn(player, mouseButton, id)
 								local v=getObjectFromGUID(gStates.volkareModel)
 								if v~=nil then v.setVelocity({0,0,0}) v.setAngularVelocity({0,0,0}) if gStates.volkareLock~=false then v.lock() end end
 								volkareQuestPortalStatus()
-								if #magesInRange==0 and stepNumber==volkareDrew.spell and gStates.volkareWon~=true then
+								if #magesInRange==0 and stepNumber==movementSteps and gStates.volkareWon~=true then
 									gStates.volkareState="ReadyToEnd"; volkareReleaseRewindWhenStable()
 									if gStates.volkareAdvanceAfterMovement==true then gStates.volkareAdvanceAfterMovement=false nextTurnMerged("incrementTurn") else mainUIUpdate("Volkare movement timeout") end
 								end
@@ -472,7 +495,7 @@ function volkareTurn(player, mouseButton, id)
 						end, function()
 							if movementSequence~=gStates.volkareMovementSequence then return true end
 							local v=getObjectFromGUID(gStates.volkareModel)
-							return v==nil or (v.resting and (stepNumber==1 or gStates.volkareMovementPaused~=true))
+							return v==nil or (v.resting and (stepNumber==1 or (gStates.volkareMovementPaused~=true and (gStates.volkareCityDefenseMove==nil or gStates.volkareCityDefenseMove.resolving~=true))))
 						end)	end, wait+(2*(z-1)))
 					end
 				end
@@ -656,8 +679,9 @@ function volkareRetreat(player, mouseButton, id)
 					if gStates.volkareAttacked[1].distance<1.5 and gStates.volkareMovementStepPending~=true then broadcastToAll(joinLang({translateWord[mageDetails.mage], "{en} needs to withdraw to a neighboring Safe space.{it} deve ritirarsi in uno spazio Sicuro adiacente.{ru} должен перейти на соседнее безопасное место.{zh-tw}需要强制撤退到附近的安全地带{zh-cn}需要强制撤退到附近的安全地带{ko}: 인접한 안전한 칸으로 강제후퇴해야 합니다.{es} necesita retirarse a un espacio seguro vecino.{fr} doit se retirer dans un espace sûr voisin.{pt-br} precisa se retirar para um espaço seguro vizinho.{de} sich auf ein benachbartes sicheres Feld zurückziehen muss."}), positionToColor(x)) end
 				else
 					local returnScenario=gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz"
+					-- Declined city defense ends this approach, whether walls were already raised or not.
+					gStates.volkareCityDefenseMove=nil
 					if returnScenario and gStates.volkareRaisedCity==true then
-						gStates.volkareCityDefenseMove=nil
 						gStates.blurb="{en}Volkare has conquered the city.<size=6>\n\n</size>You have Lost.{it}Volkare ha conquistato la città.<size=6>\n\n</size>Avete perso.{ru}Волкар захватил город.<size=6>\n\n</size>Вы проиграли.{zh-tw}\n沃卡里已經征服了這座城市。<size=6>\n\n</size>你輸了。{zh-cn}\n沃卡里已经征服了这座城市。<size=6>\n\n</size>你输了。{ko}볼케어가 도시를 정복했습니다.<size=6>\n\n</size>게임 패배{es}Volkare ha conquistado la ciudad.<size=6>\n\n</size>Has perdido.{fr}Volkare a conquis la ville.<size=6>\n\n</size>Vous avez perdu.{pt-br}Volkare conquistou a Cidade<size=6>\n\n</size>Você Perdeu.{de}Volkare hat die Stadt erobert.<size=6>\n\n</size>Du hast verloren."
 						local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
 						if volkareObj~=nil then getObjectFromGUID(trashCan).putObject(volkareObj) end
@@ -731,6 +755,7 @@ end
 -- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
 publishPublicUICallbacks({
 	volkarePartial=volkarePartial,
+	volkareCoopDefense=volkareCoopDefense,
 	volkareRetreat=volkareRetreat,
 	volkareTurn=volkareTurn
 })
