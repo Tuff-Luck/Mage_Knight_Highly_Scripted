@@ -697,6 +697,8 @@ function startCoopRewardPhase()
 			if gStates.gameOver==true then return end
 			if gStates.endGameAchieved=="started" then gStates.endGameAchieved="true" end
 		end
+		-- A suspended first-step Volkare city defense resumes only after all co-op combat is done.
+		if volkareResumeCoopDefenseMovement~=nil and volkareResumeCoopDefenseMovement()==true then return end
 		nextTurnMerged("incrementTurn")
 		return
 	end
@@ -729,6 +731,13 @@ function combatAdvanceCoopRewardPhaseBase()
 			markScenarioEndAchieved(false)
 			if gStates.gameOver==true then return end
 			if gStates.endGameAchieved=="started" then gStates.endGameAchieved="true" end
+		end
+		if volkareResumeCoopDefenseMovement~=nil and volkareResumeCoopDefenseMovement()==true then
+			resetResourceTrackerState()
+			refreshResourceTracker()
+			claimButtonRefresh()
+			addAvatarButtons()
+			return
 		end
 		nextTurnMerged("incrementTurn")
 		resetResourceTrackerState()
