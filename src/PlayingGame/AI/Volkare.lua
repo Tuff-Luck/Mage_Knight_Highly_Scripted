@@ -532,26 +532,20 @@ function volkareTurn(player, mouseButton, id)
 									getObjectFromGUID(gStates.volkareModel).setDecals({})
 								end
 								if (movementSteps==2 and pass==2) or movementSteps==1 then UI.setAttribute("DummyNotes", "Text", gStates.blurb) end
-								safeWaitCondition("AI.Volkare",function()
+								local function finishMovementStep(timedOut)
 									if movementSequence~=gStates.volkareMovementSequence then return end
+									if timedOut then volkareStopMovement() end
 									volkareQuestPortalStatus()
 									if #magesInRange==0 and stepNumber==movementSteps and gStates.volkareWon~=true then
-										gStates.volkareState="ReadyToEnd"; volkareReleaseRewindWhenStable()
+										gStates.volkareState="ReadyToEnd"
+										volkareReleaseRewindWhenStable()
 										if gStates.volkareAdvanceAfterMovement==true then
 											gStates.volkareAdvanceAfterMovement=false
 											nextTurnMerged("incrementTurn")
-										else mainUIUpdate("Volkare movement complete") end
+										else mainUIUpdate(timedOut and "Volkare movement timeout" or "Volkare movement complete") end
 									end
-								end, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.isSmoothMoving()==false and v.getPosition()[2]<1.5) end,8,function()
-								if movementSequence~=gStates.volkareMovementSequence then return end
-								local v=getObjectFromGUID(gStates.volkareModel)
-								if v~=nil then v.setVelocity({0,0,0}) v.setAngularVelocity({0,0,0}) if gStates.volkareLock~=false then v.lock() end end
-								volkareQuestPortalStatus()
-								if #magesInRange==0 and stepNumber==movementSteps and gStates.volkareWon~=true then
-									gStates.volkareState="ReadyToEnd"; volkareReleaseRewindWhenStable()
-									if gStates.volkareAdvanceAfterMovement==true then gStates.volkareAdvanceAfterMovement=false nextTurnMerged("incrementTurn") else mainUIUpdate("Volkare movement timeout") end
 								end
-							end)
+								safeWaitCondition("AI.Volkare",function() finishMovementStep(false) end,volkareModelResting,8,function() finishMovementStep(true) end)
 							end
 						end, function()
 							if movementSequence~=gStates.volkareMovementSequence then return true end
@@ -602,15 +596,13 @@ function volkareTurn(player, mouseButton, id)
 		broadcastToAll("{en}Fully Attend is unavailable: the attacked Mage Knight's Round Order token is already face down, or they have no non-Wound cards in hand.{it}Partecipazione Completa non disponibile: il segnalino Ordine di Turno del Mage Knight attaccato è già coperto o non ha carte non Ferita in mano.{ru}Полное участие недоступно: жетон порядка хода атакованного Рыцаря-мага уже лежит лицом вниз или у него в руке нет карт, кроме Ран.{zh-tw}無法完全參戰：遭攻擊魔法騎士的回合順位標記已翻面，或手牌中沒有非創傷牌。{zh-cn}无法完全参战：遭攻击魔法骑士的回合顺序标记已翻面，或手牌中没有非创伤牌。{ko}완전 참전할 수 없습니다. 공격받은 마법 기사의 라운드 순서 토큰이 이미 뒷면이거나 손에 부상 이외의 카드가 없습니다.{es}No se puede Asistir por Completo: la ficha de Orden de Ronda del Caballero Mago atacado ya está boca abajo o no tiene cartas que no sean Heridas en la mano.{fr}Participation complète indisponible : le jeton d’Ordre de Manche du Chevalier-Mage attaqué est déjà face cachée, ou sa main ne contient aucune carte autre que des Blessures.{pt-br}Não é possível Participar por Completo: a ficha de Ordem da Rodada do Cavaleiro-Mago atacado já está virada para baixo, ou ele não tem cartas que não sejam Ferimentos na mão.{de}Vollständige Teilnahme ist nicht möglich: Der Rundenreihenfolgemarker des angegriffenen Magieritters liegt bereits verdeckt oder er hat nur Wunden auf der Hand.", warningColor)
 		return
 	end
-	setUIButtonEnabled("VolkareAttackedFull",false)
-	setUIButtonEnabled("VolkareAttackedPartial",false)
+	volkareDisableButtons("VolkareAttackedFull","VolkareAttackedPartial")
 	UI.setAttribute("VolkareAttackedPartialText", "text", "{en}Partially Attend the Battle{it}Partecipa Parzialmente{ru}Быстрая подготовка к битве{zh-tw}部分參戰{zh-cn}部分参战{ko}전투 부분 참여{es}Asiste Parcialmente a la Batalla{fr}Participez Partiellement à la Bataille{pt-br}Participe Parcialmente da Batalha{de}Teilweise an der Schlacht teilnehmen")
 	UI.setAttribute("VolkareRetreat", "active", "true")
-	setUIButtonEnabled("VolkareRetreat",false)
+	volkareDisableButtons("VolkareRetreat")
 	if id=="VolkareAttackedFull" or id=="VolkareRetreat" or id=="VolkareAttackedPartial" then
-		--find mage knight affected
-		for x, mageDetails in pairs(turnOrder) do
-			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
+		local _,mageDetails=volkareAttackedMage()
+		if mageDetails~=nil then
 				if id=="VolkareAttackedFull" then
 					--Flip turn order token
 					if getObjectFromGUID(mageDetails.turnOrderTokenGUID).is_face_down==false then getObjectFromGUID(mageDetails.turnOrderTokenGUID).flip() end
@@ -623,9 +615,6 @@ function volkareTurn(player, mouseButton, id)
 						attackLocation("", "-1", "Volkar"..mageDetails.mage)
 					end) end, 5)
 					return
-				end
-				if id=="VolkareRetreat" then
-
 				end
 				if id=="VolkareAttackedPartial" then
 					for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[mageDetails.seatPos]).getObjects()) do
@@ -646,7 +635,6 @@ function volkareTurn(player, mouseButton, id)
 					end
 					volkareQuestCombatWithdrawalReminder(mageDetails.mage)
 				end
-			end
 		end
 	end
 	if (id=="VolkareRetreat" or id=="VolkareAttackedPartial") and gStates.volkareMovementStepPending==true then
@@ -671,16 +659,9 @@ function volkarePartial(player, mouseButton, id)
 		if dropoutCoopDefensePrompt==true then dropoutCoopDefensePrompt=false applyColorBarButtons() end
 		UI.setAttribute("VolkareAttackedPartial", "onClick", "volkareTurn")
 		UI.setAttribute("VolkareAttackedPartialText", "text", "{en}Finished Partially Attending{it}Partecipazione Parziale Conclusa{ru}Завершено Частичное участие{zh-tw}部分參戰結束{zh-cn}部分参战结束{ko}전투 부분 참여 완료{es}Finalizada la Participación Parcial{fr}Fini Partiellement Participant{pt-br}Participar Parcialmente do Combate{de}Teilweise Teilnahme an der Schlacht beendet")
-		setUIButtonEnabled("VolkareAttackedFull",false)
-		setUIButtonEnabled("VolkareRetreat",false)
-		--find mage knight affected
-		for _, mageDetails in pairs(turnOrder) do
-			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
-				--place Volkare's Army
-				attackLocation("", "-1", "Volkar"..mageDetails.mage)
-				break
-			end
-		end
+		volkareDisableButtons("VolkareAttackedFull","VolkareRetreat")
+		local _,mageDetails=volkareAttackedMage()
+		if mageDetails~=nil then attackLocation("", "-1", "Volkar"..mageDetails.mage) end
 	end
 end
 
@@ -726,11 +707,9 @@ function volkareRetreat(player, mouseButton, id)
 		local playerRetreat=retreatText:sub(1, 11)=="{en}Retreat"
 		UI.setAttribute("VolkareRetreat", "onClick", "volkareTurn")
 		UI.setAttribute("VolkareRetreatText", "text", "{en}Finished Retreating{it}Ritirata Conclusa{ru}Завершено отступление{zh-tw}完成撤退{zh-cn}完成撤退{ko}후퇴 완료{es}Terminar de Retirarse{fr}Retraite Terminée{pt-br}Retiro Acabado{de}Beendeter Rückzug")
-		setUIButtonEnabled("VolkareAttackedFull",false)
-		setUIButtonEnabled("VolkareAttackedPartial",false)
-		--find mage knight affected
-		for x, mageDetails in pairs(turnOrder) do
-			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
+		volkareDisableButtons("VolkareAttackedFull","VolkareAttackedPartial")
+		local x,mageDetails=volkareAttackedMage()
+		if mageDetails~=nil then
 				if playerRetreat==true then
 					--give woundCards
 					for a=1, (math.ceil(gStates.currentRound/2)+1), 1 do
@@ -757,23 +736,15 @@ function volkareRetreat(player, mouseButton, id)
 						UI.setAttribute("VolkareRetreatText", "text", "{en}Volkare Processed{it}Volkare Completato{ru}Волкар сходил{zh-tw}沃卡里行動結束{zh-cn}沃卡里行动结束{ko}진행 완료{es}Volkare Procesado{fr}Volkare Traité{pt-br}Volkare Processado{de}Volkare Verarbeitet")
 					end
 				end
-				break
 			end
-		end
 	end
 end
 
 function volkareCoopDefense(player, mouseButton, id)
 	if mouseButton=="-1" then
-		setUIButtonEnabled("VolkareAttackedFull",false)
-		setUIButtonEnabled("VolkareRetreat",false)
-		--load the coop Interface
-		for _, mageDetails in pairs(turnOrder) do
-			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
-				attackLocation("", "-1", "Volkar"..mageDetails.mage)
-				break
-			end
-		end
+		volkareDisableButtons("VolkareAttackedFull","VolkareRetreat")
+		local _,mageDetails=volkareAttackedMage()
+		if mageDetails~=nil then attackLocation("", "-1", "Volkar"..mageDetails.mage) end
 		dropoutCoopDefensePrompt=false
 		applyColorBarButtons()
 	end
