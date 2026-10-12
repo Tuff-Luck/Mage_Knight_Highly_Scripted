@@ -1826,7 +1826,7 @@ Einheiten</Text></Cell>
 		<Image image="Sliced Button/Button New Active" type="Sliced"/>
 		<TableLayout>
 			<Row dontUseTableRowBackground="true">
-				<VerticalLayout spacing="0" padding="8 8 0 0" childForceExpandHeight="true">
+				<VerticalLayout spacing="0" padding="8 8 12 8" childForceExpandHeight="true">
 					<Text id="IntroBoard1" class="Text26">{en}Welcome to my Mage Knight Highly Scripted Table.{it}Benvenuti al mio tavolo Mage Knight Highly Scripted.{ru}Добро пожаловать в мой мод с высоким уровнем заскриптованности сценариев для настольной игры Mage Knight.{zh-tw}歡迎遊玩我製作的高度腳本化魔法騎士。{zh-cn}欢迎游玩我制作的智能脚本版魔法骑士。{ko}메이지 나이트(하이 스크립트)에 오신 것을 환영합니다.{es}Bienvenido a mi mesa altamente escrita de Mage Knight.{fr}Bienvenue sur ma table hautement scriptée Mage Knight.{pt-br}Bem-vindo à minha mesa de Mage Knight Altamente Scriptada.{de}Willkommen zu Mage Knight fully scripted</Text>
 					<Text id="IntroBoard2" class="Text18" alignment="MiddleLeft">{en}Use this menu to configure your game, and have it setup for you. Mage Knight has lots of Variants and Adjustments experienced players can apply to increase the challenge if they wish. Despite this, the default settings are recommended for most games.&lt;size=6&gt;
 

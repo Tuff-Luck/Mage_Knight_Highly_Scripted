@@ -4689,8 +4689,9 @@ function applyColorBarButtons()
                     local teamLabel=team==0 and "{en}NO TEAM{it}NESSUNA SQUADRA{ru}БЕЗ КОМАНДЫ{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}SIN EQUIPO{fr}SANS ÉQUIPE{pt-br}SEM EQUIPE{de}KEIN TEAM" or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
                     if shareHands then teamLabel=(gStates.coopShareHands or {})[position]==true and "{en}HIDE HAND{it}NASCONDI MANO{ru}СКРЫТЬ РУКУ{zh-tw}隱藏手牌{zh-cn}隐藏手牌{ko}손패 숨기기{es}OCULTAR MANO{fr}MASQUER MAIN{pt-br}OCULTAR MÃO{de}HAND VERBERGEN" or "{en}SHARE HAND{it}CONDIVIDI MANO{ru}ПОКАЗАТЬ РУКУ{zh-tw}分享手牌{zh-cn}共享手牌{ko}손패 공유{es}COMPARTIR MANO{fr}PARTAGER MAIN{pt-br}PARTILHAR MÃO{de}HAND TEILEN" end
                     buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."TeamCycle",onClick="global/cycleMageKnightSeatTeam",
+                        onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
                         height=200,width=800,position="50 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
-                        children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},
+                        children={{tag="Image",attributes={id=barGUID.."TeamCycleImage",image="Sliced Button/Button Object Active",type="Sliced"}},
                             {tag="Text",attributes={font="Fonts/MKCardText",fontSize=90,fontStyle="Normal",alignment="MiddleCenter",
                                 resizeTextForBestFit="true",resizeTextMaxSize=90,text=teamLabel}}}}
                 end
@@ -7247,7 +7248,7 @@ end
 
 --Plan each first-phase Volkare step from the card's original direction.
 --If that step needs an illegal tile, try the closest neighbouring direction and test the movement again.
-local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, mapSnapshot)
+local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, mapSnapshot, allowExplore)
 	local bearings={}
 	local plannedTile=nil
 	local simPos={volkarePos[1], volkarePos[2], volkarePos[3]}
@@ -7265,7 +7266,7 @@ local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, ma
 				chosenPos=testPos
 				break
 			end
-			if plannedTile==nil then
+			if plannedTile==nil and allowExplore==true then
 				local legalSpot=volkareLegalExploreSpot(testPos)
 				if legalSpot~=nil then
 					plannedTile=legalSpot
@@ -7282,6 +7283,134 @@ local function planVolkareExploreMove(volkarePos, originalBearing, moveCount, ma
 	return bearings, plannedTile
 end
 
+
+-- Shared, read-only City targeting helpers (War of Four rules are unchanged).
+local function volkareDistance(a,b)
+	local dx,dz=a[1]-b[1],a[3]-b[3]
+	return math.sqrt(dx*dx+dz*dz)
+end
+
+local function volkareCityPositions(cityGUID)
+	local primary=getObjectFromGUID(cityGUID)
+	local pairGUID=cityMegapolisPair(cityGUID)
+	local pair=pairGUID~=nil and pairGUID~=cityGUID and getObjectFromGUID(pairGUID) or nil
+	return primary~=nil and primary.getPosition() or nil,pair~=nil and pair.getPosition() or nil
+end
+
+local function volkareClosestCity(origin)
+	local result={dist=500,key=0}
+	if gStates.gameScenario=="The War of Four" then
+		for key,city in ipairs(gStates.cityRevealed) do
+			if city.state~="defeated" then
+				local primary,paired=volkareCityPositions(city.model)
+				local dist=volkareDistance(origin,primary or {500,0,500})
+				if paired~=nil then dist=math.min(dist,volkareDistance(origin,paired)) end
+				return {dist=dist,key=key}
+			end
+		end
+		return result
+	end
+	for key,city in pairs(gStates.cityRevealed) do
+		if city.state~="defeated" then
+			local primary,paired=volkareCityPositions(city.model)
+			local dist=volkareDistance(origin,primary or {500,0,500})
+			if paired~=nil then dist=math.min(dist,volkareDistance(origin,paired)) end
+			if dist<result.dist then result.dist=dist result.key=key end
+		end
+	end
+	return result
+end
+
+local function volkareNearestCityPosition(cityGUID,origin)
+	local primary,paired=volkareCityPositions(cityGUID)
+	if paired~=nil and (primary==nil or volkareDistance(origin,paired)<volkareDistance(origin,primary)) then return paired end
+	return primary
+end
+
+local function volkareBearingTowards(origin,target)
+	return normalizeVolkareBearing(math.floor((math.deg(math.atan2(origin[3]-target[3],origin[1]-target[1]))/60)+0.5)*60)
+end
+
+-- Uniform selection among shortest steps on the hex grid.
+local function warOfFourShortestBearing(origin,target)
+	if target==nil then return nil end
+	local function distance(a,b)
+		local dx=(b[1]-a[1])/2.39
+		local dz=(b[3]-a[3])/2.39
+		local q=-(dx+dz/math.sqrt(3))
+		local r=2*dz/math.sqrt(3)
+		return math.max(math.abs(q),math.abs(r),math.abs(q+r))
+	end
+	local candidates,best={},math.huge
+	for _,bearing in ipairs({0,60,120,180,240,300}) do
+		local p={origin[1]-2.39*math.cos(math.rad(bearing)),origin[2],origin[3]-2.39*math.sin(math.rad(bearing))}
+		local d=distance(p,target)
+		if d<best-0.01 then candidates={bearing} best=d
+		elseif math.abs(d-best)<=0.01 then candidates[#candidates+1]=bearing end
+	end
+	return candidates[math.random(#candidates)]
+end
+
+local function warOfFourPortalLoss()
+	if gStates.gameScenario~="The War of Four" or gStates.volkareWon==true then return false end
+	local portal=volkareQuestPortalTile()
+	local model=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+	if portal==nil or model==nil then return false end
+	local pPos=portal.getPosition()
+	if volkareDistance(model.getPosition(),pPos)>0.6 or #findNearbyMages(pPos,0.9)>0 then return false end
+	gStates.volkareWon=true
+	volkareReleaseRewindWhenStable()
+	gStates.blurb="{en}Volkare reached the undefended Portal. All players lose.{it}Volkare ha raggiunto il Portale indifeso. Tutti perdono.{ru}Волкар достиг незащищённого Портала. Все проиграли.{zh-tw}沃卡里抵達無人防守的傳送門。所有玩家落敗。{zh-cn}沃卡里抵达无人防守的传送门。所有玩家失败。{ko}볼카레가 무방비 상태의 차원문에 도착했습니다. 모두 패배합니다.{es}Volkare llegó al Portal indefenso. Todos pierden.{fr}Volkare a atteint le Portail sans défense. Tous perdent.{pt-br}Volkare alcançou o Portal sem defesa. Todos perdem.{de}Volkare erreichte das unverteidigte Portal. Alle verlieren."
+	UI.setAttribute("DummyNotes","Text",gStates.blurb)
+	mainUIUpdate("War of Four Portal lost")
+	return true
+end
+
+local function volkareAttackedMage()
+	local attacked=gStates.volkareAttacked~=nil and gStates.volkareAttacked[1] or nil
+	if attacked==nil then return nil,nil end
+	for index,details in pairs(turnOrder) do
+		if details.mage==attacked.mage then return index,details end
+	end
+	return nil,nil
+end
+
+local function volkareDisableButtons(...)
+	for i=1,select("#",...) do setUIButtonEnabled(select(i,...),false) end
+end
+
+local function volkareModelResting()
+	local obj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+	return obj==nil or (obj.resting and obj.isSmoothMoving()==false and obj.getPosition()[2]<1.5)
+end
+
+local function volkareStopMovement()
+	local obj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
+	if obj~=nil then
+		obj.setVelocity({0,0,0})
+		obj.setAngularVelocity({0,0,0})
+		if gStates.volkareLock~=false then obj.lock() end
+	end
+end
+
+local function volkareWaitForRest(callback,timeout,onTimeout,frames)
+	local function wait() safeWaitCondition("AI.Volkare",callback,volkareModelResting,timeout,onTimeout) end
+	if frames~=nil then safeWaitFrames("AI.Volkare",wait,frames) else wait() end
+end
+
+-- Used only after cooperative city-defense combat and any rewards have finished.
+function volkareResumeCoopDefenseMovement()
+	if gStates.volkareMovementStepPending~=true or gStates.volkareMovementPaused~=true then return false end
+	if gStates.volkareWon==true then
+		gStates.volkareMovementPaused=false
+		gStates.volkareMovementStepPending=false
+		return false
+	end
+	gStates.volkareMovementPaused=false
+	gStates.volkarePendingCombatMage=nil
+	gStates.volkareAdvanceAfterMovement=true
+	return true
+end
 
 --Volkare only. Keep his existing slower state/prompt sequence independent from the fast standard Dummy.
 function volkareTurn(player, mouseButton, id)
@@ -7303,11 +7432,13 @@ function volkareTurn(player, mouseButton, id)
 		return
 	end
 	local volkareDrew={color="Blue", spell=2}--this will give Volkare a Frenzy result.
+	local warOfFourDeckExhausted=false
 	gStates.volkareFrenzied=true
 	local function volkareDrawCard()
 		local stats=turnOrder[gStates.turnNumber]
 		if stats==nil then return nil end
 		local lastCard=automatedDeedDraw(stats.seatPos,1,1)
+		if lastCard==nil and gStates.gameScenario=="The War of Four" then warOfFourDeckExhausted=true end
 		if lastCard~=nil then
 			gStates.volkareFrenzied=false
 			local colors=dummyCardColors(lastCard)
@@ -7318,6 +7449,7 @@ function volkareTurn(player, mouseButton, id)
 	end
 	if gStates.positionMageKnight[5]=="Volkare" and gStates.endRoundCalled==false and gStates.volkareState=="Start" then
 		gStates.volkareRazeCityKey=nil
+		gStates.volkareCityDefenseMove=nil -- old attack approach cannot carry into a fresh turn
 		gStates.volkareMovementPaused=false
 		gStates.volkareMovementStepPending=false
 		gStates.volkarePendingCombatMage=nil
@@ -7416,18 +7548,7 @@ function volkareTurn(player, mouseButton, id)
 
 					--Find closest city
 					local volkarePOS=getObjectFromGUID(gStates.volkareModel).getPosition()
-					local cityDistance={dist=500, key=0}
-					for key, city in pairs(gStates.cityRevealed) do
-						if city.state~="defeated" then
-							local cityObj=getObjectFromGUID(city.model)
-							local cityPos=cityObj~=nil and cityObj.getPosition() or {500,0,500}
-							local temp=math.sqrt(((volkarePOS[1]-cityPos[1])^2)+((volkarePOS[3]-cityPos[3])^2))
-							local pair=cityMegapolisPair(city.model)
-							local pairObj=pair~=nil and pair~=city.model and getObjectFromGUID(pair) or nil
-							if pairObj~=nil then local pairPos=pairObj.getPosition() local pairDist=math.sqrt(((volkarePOS[1]-pairPos[1])^2)+((volkarePOS[3]-pairPos[3])^2)) if pairDist<temp then temp=pairDist end end
-							if temp<cityDistance.dist then cityDistance.dist=temp cityDistance.key=key end
-						end
-					end
+					local cityDistance=volkareClosestCity(volkarePOS)
 					if cityDistance.key~=0 then gStates.volkareRazeCityKey=cityDistance.key end
 
 					--Blurb Update
@@ -7442,29 +7563,45 @@ function volkareTurn(player, mouseButton, id)
 
 					local terrainPlayed=false
 					local volkareExploreBearings={}
+					local movementSteps=volkareDrew.spell
 					--Before the city is found, each step tries the card's indicated direction first.
 					--If that step requires an illegal new tile, retry in the closest legal direction.
 					if cityDistance.key==0 and (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") then
 						local mapSnapshot=runtimeMapSnapshot()
 						local originalBearing=volkareVector[gStates.gameScenario][volkareDrew.color]
 						local terrainSpot=nil
-						volkareExploreBearings, terrainSpot=planVolkareExploreMove(volkarePOS, originalBearing, volkareDrew.spell, mapSnapshot)
+						local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
+						local canExplore=terrainStack~=nil and terrainStack.getQuantity()>0
+						volkareExploreBearings, terrainSpot=planVolkareExploreMove(volkarePOS, originalBearing, volkareDrew.spell, mapSnapshot, canExplore)
 						if terrainSpot~=nil then
-							local terrainStack=getObjectFromGUID(GUID.bag.terrain.stack)
-							if terrainStack~=nil and terrainStack.getQuantity()>0 then
-								local newtile=terrainStack.takeObject({position=terrainSpot, smooth=true})
+							local newtile=terrainStack.takeObject({position=terrainSpot, smooth=true})
+							if newtile~=nil then
 								terrainPlayed=true
 								gStates.blurb=joinLang({gStates.blurb, "{en} New Terrain explored.{it} Nuovo Terreno esplorato.{ru} Исследована новая территория.{zh-tw}\n新地形被探索了。{zh-cn}\n新地形被探索了。{ko} 새 지도 타일 공개{es} Nuevo Terreno explorado.{fr} Nouveau Terrain exploré.{pt-br} Novo Terreno explorado.{de} Neues Terrain erkundet."})
 								safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",function() if newtile~=nil then newtile.flip() end end, function() return newtile==nil or newtile.resting end,8,function() if newtile~=nil then newtile.flip() end end) end, 5)
+							else
+								-- A failed draw cannot authorize travel through the planned tile.
+								volkareExploreBearings=planVolkareExploreMove(volkarePOS,originalBearing,volkareDrew.spell,mapSnapshot,false)
 							end
 						end
+						movementSteps=#volkareExploreBearings
+					end
+
+					if movementSteps==0 then
+						gStates.blurb="{en}Volkare found no legal movement route.{it}Volkare non ha trovato un percorso valido.{ru}Волкар не нашёл допустимого пути.{zh-tw}沃卡里找不到合法移動路線。{zh-cn}沃卡里找不到合法移动路线。{ko}볼케어가 이동할 수 있는 경로를 찾지 못했습니다.{es}Volkare no encontró una ruta válida.{fr}Volkare n'a trouvé aucun trajet légal.{pt-br}Volkare não encontrou um caminho válido.{de}Volkare fand keinen zulässigen Weg."
+						gStates.volkareState="ReadyToEnd"
+						gStates.volkareArmyDefeated=0
+						UI.setAttribute("DummyNotes","Text",gStates.blurb)
+						volkareReleaseRewindWhenStable()
+						mainUIUpdate("Volkare no legal movement route")
+						return
 					end
 
 					local wait=0
 					if terrainPlayed==true then wait=5 end
 					local pass=0
 					local doubleAttack=false
-					for z=1, volkareDrew.spell, 1 do
+					for z=1, movementSteps, 1 do
 						local stepNumber=z
 						safeWaitTime("AI.Volkare",function() safeWaitCondition("AI.Volkare",function()
 							if movementSequence~=gStates.volkareMovementSequence or gStates.volkareWon==true then return end
@@ -7489,14 +7626,11 @@ function volkareTurn(player, mouseButton, id)
 
 								--change vector to move closer to the city
 								if cityDistance.key>0 and gStates.gameScenario~="Volkare's Quest" then
-									local cityPos=getObjectFromGUID(gStates.cityRevealed[cityDistance.key].model).getPosition()
+									local cityPos,pairPos=volkareCityPositions(gStates.cityRevealed[cityDistance.key].model)
 									getObjectFromGUID(gStates.volkareModel).setDecals({})
 									--stops automation next to city
 									local primaryDistance=math.sqrt(((volkarePOS[1]-cityPos[1])^2)+((volkarePOS[3]-cityPos[3])^2))
-									local pair=cityMegapolisPair(gStates.cityRevealed[cityDistance.key].model)
-									local pairObj=pair~=nil and pair~=gStates.cityRevealed[cityDistance.key].model and getObjectFromGUID(pair) or nil
-									local pairPos=pairObj~=nil and pairObj.getPosition() or nil
-									local pairDistance=pairPos~=nil and math.sqrt(((volkarePOS[1]-pairPos[1])^2)+((volkarePOS[3]-pairPos[3])^2)) or 500
+									local pairDistance=pairPos~=nil and volkareDistance(volkarePOS,pairPos) or 500
 									local attackingPrimary=primaryDistance<=pairDistance
 									if primaryDistance<2.5 or pairDistance<2.5 then
 										--check if city is beat by player or end game
@@ -7525,21 +7659,27 @@ function volkareTurn(player, mouseButton, id)
 												end
 											end
 											if #gStates.volkareAttacked>=1 then
+												-- First-step city defense must finish before the second movement.
+												if stepNumber<movementSteps then
+													gStates.volkareMovementPaused=true
+													gStates.volkareMovementStepPending=true
+													gStates.volkarePendingCombatMage=gStates.volkareAttacked[1].mage
+												end
 												--Remember the attack approach so a successful Volkare's Return defense can move him physically.
 												--If this attack is the first half of a Spell/Frenzy double move, the remaining step brings him forward again after the retreat.
 												if (gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz") and gStates.volkareCityDefenseMove==nil then
 													local targetPos=attackingPrimary==false and pairPos or cityPos
-													gStates.volkareCityDefenseMove={attackPos={volkarePOS[1], volkarePOS[2], volkarePOS[3]}, cityPos={targetPos[1], targetPos[2], targetPos[3]}, secondMove=(volkareDrew.spell==2 and pass==1), resolving=false}
+													gStates.volkareCityDefenseMove={attackPos={volkarePOS[1], volkarePOS[2], volkarePOS[3]}, cityPos={targetPos[1], targetPos[2], targetPos[3]}, secondMove=(movementSteps==2 and pass==1), resolving=false}
 												end
-												if (volkareDrew.spell==2 and pass==2) or volkareDrew.spell==1 then
+												if (movementSteps==2 and pass==2) or movementSteps==1 then
 													local EndText="{en}otherwise Volkare enters the city and you have Lost.{it}altrimenti Volkare entra nella città e avete perso.{ru}в противном случае Волкар войдет в город, и вы Проиграете.{zh-tw}\n否則沃卡里進入城市，你輸了。{zh-cn}\n否则沃卡里进入城市，你输了。{ko}이외에 볼케어가 도시에 입장했다면, 게임 패배.{es}de lo contrario, Volkare entra en la ciudad y has perdido.{fr}sinon Volkare entre dans la ville et vous avez perdu.{pt-br}do contrário Volkare entra na cidade e você perdeu.{de}andernfalls dringt Volkare in die Stadt ein und du hast verloren."
 													local MidText="{en}<size=6>\n\n</size>If you Defend and kill at least {it}<size=6>\n\n</size>Se Difendete e sconfiggete almeno {ru}<size=6>\n\n</size>Если вы защититесь и убьете хотя бы {zh-tw}<size=6>\n\n</size>若你防守並擊敗至少 {zh-cn}<size=6>\n\n</size>若你防守并击败至少 {ko}<size=6>\n\n</size>볼케어 군대의 적을 최소 {es}<size=6>\n\n</size>Si defiendes y matas al menos {fr}<size=6>\n\n</size>Si vous défendez et tuez au moins {pt-br}<size=6>\n\n</size>Se você defender e matar pelo menos {de}<size=6>\n\n</size>Wenn Sie verteidigen und mindestens einen "
 													if gStates.volkareRaisedCity==true then MidText="{en}<size=6>\n\n</size>If you kill at least {it}<size=6>\n\n</size>Se sconfiggete almeno {ru}<size=6>\n\n</size>Если вы убьете хотя бы {zh-tw}<size=6>\n\n</size>若你擊敗至少 {zh-cn}<size=6>\n\n</size>若你击败至少 {ko}<size=6>\n\n</size>볼케어 군대의 적을 최소 {es}<size=6>\n\n</size>Si matas al menos {fr}<size=6>\n\n</size>Si tu tues au moins {pt-br}<size=6>\n\n</size>Se você matar pelo menos {de}<size=6>\n\n</size>Wenn du mindestens " end
 													if gStates.gameScenario=="The War of Four" then EndText="{en}otherwise you retreat and Volkare moves onto the city, destroying it.{it}altrimenti vi ritirate e Volkare entra nella città, distruggendola.{ru}в противном случае вы отступаете, и Волкар движется в город, разрушая его.{zh-tw}\n否則你會撤退並且讓沃卡里進入\n城市，將其摧毀。{zh-cn}\n否则你会撤退并且让沃卡里进入\n城市，将其摧毁。{ko}이외에 플레이어는 후퇴하고, 볼케어가 이동하여 도시를 파괴합니다.{es}de lo contrario, te retiras y Volkare se mueve hacia la ciudad, destruyéndola.{fr}Sinon, vous battez en retraite et Volkare se déplace sur la ville, la détruisant.{pt-br}do contrário você recua e Volkare move para a cidade, destruindo-a.{de}andernfalls ziehst du dich zurück und Volkare rückt auf die Stadt vor und zerstört sie." end
-													if volkareDrew.spell==1 or (volkareDrew.spell==2 and doubleAttack==false) then
+													if movementSteps==1 or (movementSteps==2 and doubleAttack==false) then
 														gStates.blurb=joinLang({"{en}Volkare Attacks the City{it}Volkare Attacca la Città{ru}Волкар атакует город{zh-tw}\n沃卡里攻擊這個城市{zh-cn}\n沃卡里攻击这个城市{ko}볼케어 도시 공격{es}Volkare ataca la ciudad{fr}Volkare attaque la ville{pt-br}Volkare ataca a Cidade{de}Volkare greift die Stadt an", gStates.blurb, MidText, gStates.playerCount, "{en} of Volkare's army, move Volkare back one space, {it} dell'esercito di Volkare, arretratelo di uno spazio; {ru} отряда из армии Волкара, переместите Волкара на одну клетку назад, {zh-tw} 名\n沃卡里的手下，\n沃卡里會向後退一格，{zh-cn} 名\n沃卡里的手下，\n沃卡里会向后退一格，{ko} 개 처치했다면, 볼케어는 한 칸 후퇴합니다, {es} del ejército de Volkare, mueve Volkare hacia atrás un espacio, {fr} de l'armée de Volkare, reculez Volkare d'une case, {pt-br} do Exército de Volkare, mova Volkare de volta 1 espaço, {de} von Volkares Armee tötest, ziehst du Volkare ein Feld zurück, ", EndText})
 													end
-													if volkareDrew.spell==2 and doubleAttack==true then
+													if movementSteps==2 and doubleAttack==true then
 														gStates.blurb=joinLang({"{en}Volkare Attacks the City{it}Volkare Attacca la Città{ru}Волкар атакует город{zh-tw}沃里卡攻击这个城市{zh-cn}沃里卡攻击这个城市{ko}볼케어 도시 공격{es}Volkare ataca la ciudad{fr}Volkare attaque la ville{pt-br}Volkare ataca a Cidade{de}Volkare greift die Stadt an", gStates.blurb, MidText, gStates.playerCount, "{en} of Volkare's army, Volkare stays where he is, {it} dell'esercito di Volkare, resta dov'è; {ru} отряда из армии Волкара, Волкар останется на своем месте, {zh-tw} 名\n沃卡里的手下，\n沃卡里會留在原位置，{zh-cn} 名\n沃卡里的手下，\n沃卡里会留在原位置，{ko} 개 처치했다면, 볼케어는 지금 자리에 머뭅니다, {es} del ejército de Volkare, Volkare permanece donde está, {fr} de l'armée de Volkare, Volkare reste où il est, {pt-br} do Exército de Volkare, Volkare fica aonde ele está, {de} von Volkare's Armee, bleibt Volkare wo er ist, ", EndText})
 													end
 													if gStates.volkareRaisedCity==false then gStates.blurb=joinLang({gStates.blurb, "{en}<size=6>\n\n</size>Not defending means Volkare will destroy the city walls.{it}<size=6>\n\n</size>Se non difendete, Volkare distruggerà le mura.{ru}<size=6>\n\n</size>Отказ от защиты означает, что Волкар разрушит городские стены.{zh-tw}<size=6>\n\n</size>不防守代表沃卡里會摧毀城牆。{zh-cn}<size=6>\n\n</size>不防守代表沃卡里会摧毁城墙。{ko}<size=6>\n\n</size>방어하지 않으면 볼케어가 성벽을 파괴합니다.{es}<size=6>\n\n</size>No defender significa que Volkare destruirá las murallas de la ciudad.{fr}<size=6>\n\n</size>Ne pas se défendre signifie que Volkare détruira les murs de la ville.{pt-br}<size=6>\n\n</size>Não defender significa que o Volkare destruirá as muralhas da cidade.{de}<size=6>\n\n</size>Wenn Sie sich nicht verteidigen, wird Volkare die Stadtmauern zerstören."}) end
@@ -7568,7 +7708,7 @@ function volkareTurn(player, mouseButton, id)
 														getObjectFromGUID(trashCan).putObject(getObjectFromGUID(gStates.volkareModel))
 														gStates.volkareWon=true; volkareReleaseRewindWhenStable()
 													else
-														if (volkareDrew.spell==2 and pass==2) or volkareDrew.spell==1 then gStates.blurb=joinLang({"{en}Volkare has raised the city\n(it provides no Interaction or Hand Size bonus from now on){it}Volkare ha raso al suolo la città\n(non fornisce più Interazione né bonus al limite di mano){ru}Волкар поднял город\n(с этого момента он не дает бонусов за взаимодействие или для предела руки){zh-tw}\n沃卡里劫掠了城市四周\n（從現在起此城市不能交涉，\n並且不會增加手牌上限）{zh-cn}\n沃卡里劫掠了城市四周\n（从现在起此城市不能交涉，\n并且不会增加手牌上限）{ko}볼케어가 도시를 파괴했습니다.\n(이제 도시에서 교류를 할 수 없고 카드 보유 제한 혜택이 사라집니다.){es}Volkare ha elevado la ciudad\n(a partir de ahora no proporciona ninguna bonificación por interacción o tamaño de la mano){fr}Volkare a élevé la ville\n(il ne fournit plus de bonus d'interaction ou de taille de main à partir de maintenant){pt-br}Volkare ergueu a Cidade\n(Ela não fornece Interação ou Bonus de Tamanho de mão por hora){de}Volkare hat die Stadt erhöht\n(sie bietet von nun an keinen Interaktions- oder Handgrößenbonus mehr)", gStates.blurb}) end
+														if (movementSteps==2 and pass==2) or movementSteps==1 then gStates.blurb=joinLang({"{en}Volkare has raised the city\n(it provides no Interaction or Hand Size bonus from now on){it}Volkare ha raso al suolo la città\n(non fornisce più Interazione né bonus al limite di mano){ru}Волкар поднял город\n(с этого момента он не дает бонусов за взаимодействие или для предела руки){zh-tw}\n沃卡里劫掠了城市四周\n（從現在起此城市不能交涉，\n並且不會增加手牌上限）{zh-cn}\n沃卡里劫掠了城市四周\n（从现在起此城市不能交涉，\n并且不会增加手牌上限）{ko}볼케어가 도시를 파괴했습니다.\n(이제 도시에서 교류를 할 수 없고 카드 보유 제한 혜택이 사라집니다.){es}Volkare ha elevado la ciudad\n(a partir de ahora no proporciona ninguna bonificación por interacción o tamaño de la mano){fr}Volkare a élevé la ville\n(il ne fournit plus de bonus d'interaction ou de taille de main à partir de maintenant){pt-br}Volkare ergueu a Cidade\n(Ela não fornece Interação ou Bonus de Tamanho de mão por hora){de}Volkare hat die Stadt erhöht\n(sie bietet von nun an keinen Interaktions- oder Handgrößenbonus mehr)", gStates.blurb}) end
 														volkareRazesCity(cityDistance.key)
 													end
 												else
@@ -7579,7 +7719,7 @@ function volkareTurn(player, mouseButton, id)
 												end
 											end
 										end
-										if (volkareDrew.spell==2 and (pass==2 or gStates.volkareWon==true)) or volkareDrew.spell==1 then
+										if (movementSteps==2 and (pass==2 or gStates.volkareWon==true)) or movementSteps==1 then
 											if #gStates.volkareAttacked==0 and gStates.volkareWon~=true then gStates.volkareState="ReadyToEnd"; volkareReleaseRewindWhenStable() end
 											UI.setAttribute("DummyNotes", "Text", gStates.blurb)
 											mainUIUpdate("Volkare Beat City")
@@ -7587,13 +7727,8 @@ function volkareTurn(player, mouseButton, id)
 										if gStates.gameScenario~="The War of Four" or #gStates.volkareAttacked>=1 then return end
 									end
 									--chooses a proper bearing
-									local targetCityPos=cityPos
-									local pair=cityMegapolisPair(gStates.cityRevealed[cityDistance.key].model)
-									local pairObj=pair~=nil and pair~=gStates.cityRevealed[cityDistance.key].model and getObjectFromGUID(pair) or nil
-									if pairObj~=nil then local pairPos=pairObj.getPosition() if math.sqrt(((volkarePOS[1]-pairPos[1])^2)+((volkarePOS[3]-pairPos[3])^2))<math.sqrt(((volkarePOS[1]-cityPos[1])^2)+((volkarePOS[3]-cityPos[3])^2)) then targetCityPos=pairPos end end
-									local cityBearing=math.floor((math.deg(math.atan2(volkarePOS[3]-targetCityPos[3], volkarePOS[1]-targetCityPos[1]))/60)+0.5)*60
-									if cityBearing>=360 then cityBearing=cityBearing-360 end
-									if cityBearing<0 then cityBearing=cityBearing+360 end
+									local targetCityPos=volkareNearestCityPosition(gStates.cityRevealed[cityDistance.key].model,volkarePOS)
+									local cityBearing=volkareBearingTowards(volkarePOS,targetCityPos)
 									volkareVector[gStates.gameScenario][volkareDrew.color]=cityBearing
 									arrowColor="Orange"
 								end
@@ -7605,7 +7740,7 @@ function volkareTurn(player, mouseButton, id)
 								local portalSpecial=(gStates.gameScenario=="The War of Four") or gStates.gameScenario=="Volkare's Quest"
 								if portalSpecial and volkareToPortalDist<2.5 then
 									--stops automation when on portal need to inititiate a game over.
-									if volkareToPortalDist<0.5 then
+									if volkareToPortalDist<0.5 and gStates.gameScenario~="The War of Four" then
 										gStates.volkareWon=true; volkareReleaseRewindWhenStable()
 										gStates.blurb="{en}Volkare passed through the Portal. His unknowable intentions achieved.<size=6>\n\n</size>You have Lost.{it}Volkare ha attraversato il Portale, realizzando i suoi oscuri intenti.<size=6>\n\n</size>Avete perso.{ru}Волкар прошел через Портал. Его непостижимые намерения достигнуты.<size=6>\n\n</size>Вы проиграли.{zh-tw}沃卡里穿越了傳送門。\n他無人知曉的密謀達成了。<size=6>\n\n</size>你輸了。{zh-cn}沃卡里穿越了传送门。\n他无人知晓的密谋达成了。<size=6>\n\n</size>你输了。{ko}볼케어가 포탈에 도착했고 그의 알수 없는 목적을 달성했습니다.<size=6>\n\n</size>게임 패배.{es}Volkare pasó por el Portal. Sus incognoscibles intenciones logradas.<size=6>\n\n</size>Has perdido.{fr}Volkare passa par le Portail. Ses intentions inconnaissables se sont réalisées.<size=6>\n\n</size>Vous avez perdu.{pt-br}Volkare passou pelo portal. Suas intenções misteriosas conquistadas.<size=6>\n\n</size>Você perdeu.{de}Volkare ging durch das Portal. Seine unbekannten Absichten wurden erfüllt.<size=6>\n\n</size>Du hast verloren."
 										UI.setAttribute("DummyNotes", "Text", gStates.blurb)
@@ -7613,18 +7748,22 @@ function volkareTurn(player, mouseButton, id)
 										return
 									end
 									--find the portal bearing
-									local portalBearing=math.floor((math.deg(math.atan2(volkarePOS[3]-portalPos[3], volkarePOS[1]-portalPos[1]))/60)+0.5)*60
-									if portalBearing>=360 then portalBearing=portalBearing-360 end
-									if portalBearing<0 then portalBearing=portalBearing+360 end
+									local portalBearing=volkareBearingTowards(volkarePOS,portalPos)
 									volkareVector[gStates.gameScenario][volkareDrew.color]=portalBearing
 									arrowColor="Orange"
+								end
+
+								if warOfFourDeckExhausted then
+									local target=cityDistance.key>0 and volkareNearestCityPosition(gStates.cityRevealed[cityDistance.key].model,volkarePOS) or portalPos
+									local bearing=warOfFourShortestBearing(volkarePOS,target)
+									if bearing~=nil then volkareVector[gStates.gameScenario][volkareDrew.color]=bearing end
 								end
 
 								--white green and blue card will move volkare (Red also when city revealed)
 								local volkareNewPos={volkarePOS[1]-(2.39*math.cos(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color]))), 3.5, volkarePOS[3]-(2.39*math.sin(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color])))}
 								getObjectFromGUID(gStates.volkareModel).unlock()
 								getObjectFromGUID(gStates.volkareModel).setPositionSmooth(volkareNewPos)
-								safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",function() local v=getObjectFromGUID(gStates.volkareModel) if v~=nil and gStates.volkareLock~=false then v.lock() end end, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.isSmoothMoving()==false and v.getPosition()[2]<1.5) end,8,function() local v=getObjectFromGUID(gStates.volkareModel) if v~=nil then v.setVelocity({0,0,0}) v.setAngularVelocity({0,0,0}) if gStates.volkareLock~=false then v.lock() end end end) end, 5)
+								volkareWaitForRest(function() local obj=getObjectFromGUID(gStates.volkareModel) if obj~=nil and gStates.volkareLock~=false then obj.lock() end end,8,volkareStopMovement,5)
 								local arrow=getObjectFromGUID("6647eb").clone({position={volkarePOS[1]-(1.1*math.cos(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color]))), 1.11, volkarePOS[3]-(1.1*math.sin(math.rad(volkareVector[gStates.gameScenario][volkareDrew.color])))}})
 								local convert={[0]=270, [60]=210, [120]=150, [180]=90, [240]=30, [300]=330}
 								arrow.setRotation({90.00, convert[volkareVector[gStates.gameScenario][volkareDrew.color]], 0.00})
@@ -7636,7 +7775,7 @@ function volkareTurn(player, mouseButton, id)
 								local magesInRange=findNearbyMages(volkareNewPos, 1.5)
 								if #magesInRange>0 then
 									gStates.volkareState="Attacking Player"
-									if stepNumber<volkareDrew.spell then
+									if stepNumber<movementSteps then
 										gStates.volkareMovementPaused=true
 										gStates.volkareMovementStepPending=true
 										gStates.volkarePendingCombatMage=magesInRange[1].mage
@@ -7650,8 +7789,8 @@ function volkareTurn(player, mouseButton, id)
 									end
 									if #gStates.volkareAttacked<2 then
 										gStates.blurb=joinLang({gStates.blurb, "{en}Volkare attacked {it}Volkare ha attaccato {ru}Волкар атаковал {zh-tw}\n沃卡里攻擊了{zh-cn}\n沃卡里攻击了{ko}볼케어의 공격: {es}Volkare atacó {fr}Volkare a attaqué {pt-br}Volkare atacou {de}Volkare angegriffen ", translateWord[magesInRange[1].mage], "{en}. ", translateWord[magesInRange[1].mage], "{en} can take {it} può subire {ru} может взять {zh-tw}可拿取 {zh-cn}可拿取 {ko} 플레이어는 {es} puede tomar {fr} peut prendre {pt-br} pode receber {de} können sich ", (math.ceil(gStates.currentRound/2)+1), "{en} wounds to retreat.{it} Ferite per ritirarsi.{ru} раны и отступить.{zh-tw} 張創傷卡來躲避。\n{zh-cn} 张创伤卡来躲避。\n{ko} 장의 부상을 받고 후퇴할 수 있습니다.{es} heridas para retirarse.{fr} blessures à reculer.{pt-br} Ferimentos para recuar.{de} Wunden zum Rückzug."})
-										local questSkipTarget=gStates.gameScenario=="Volkare's Quest" and volkareQuestSkipThreshold() or (gStates.playerCount*2)
-										if (gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") then gStates.blurb=joinLang({gStates.blurb, "{en} Defeating at least {it} Sconfiggere almeno {ru} Победив по крайней мере {zh-tw}\n在沃卡里的下個回合之前，\n擊敗至少 {zh-cn}\n在沃卡里的下个回合之前，\n击败至少 {ko} 볼케어 군대의 최소 {es} Derrotando al menos {fr} Vaincre au moins {pt-br} Derrotar ao menos {de} Das Besiegen von mindestens ", tostring(questSkipTarget), "{en} of Volkare's army before his next turn will force him to skip that turn.{it} dell'esercito di Volkare prima del suo prossimo turno lo costringerà a saltarlo.{ru} отряда из армии Волкара до его следующего хода, вы заставите его пропустить этот ход.{zh-tw} 名沃卡里的手下，\n會讓沃卡里強制跳過他的回合。\n{zh-cn} 名沃卡里的手下，\n会让沃卡里强制跳过他的回合。\n{ko} 개의 적을 처치했다면 볼케어는 다음 차례를 쉽니다.{es} del ejército de Volkare antes de su próximo turno lo obligará a saltarse ese turno.{fr} de l'armée de Volkare avant son prochain tour le forcera à sauter ce tour.{pt-br} do Exército de Volkare antes do seu próximo turno o forçará a pular aquele turno.{de} der Armee von Volkare vor seinem nächsten Zug zu besiegen, zwingt ihn, diesen Zug auszulassen."}) end
+										local questSkipTarget=volkareQuestSkipThreshold()
+										if gStates.gameScenario=="Volkare's Quest" then gStates.blurb=joinLang({gStates.blurb, "{en} Defeating at least {it} Sconfiggere almeno {ru} Победив по крайней мере {zh-tw}\n在沃卡里的下個回合之前，\n擊敗至少 {zh-cn}\n在沃卡里的下个回合之前，\n击败至少 {ko} 볼케어 군대의 최소 {es} Derrotando al menos {fr} Vaincre au moins {pt-br} Derrotar ao menos {de} Das Besiegen von mindestens ", tostring(questSkipTarget), "{en} of Volkare's army before his next turn will force him to skip that turn.{it} dell'esercito di Volkare prima del suo prossimo turno lo costringerà a saltarlo.{ru} отряда из армии Волкара до его следующего хода, вы заставите его пропустить этот ход.{zh-tw} 名沃卡里的手下，\n會讓沃卡里強制跳過他的回合。\n{zh-cn} 名沃卡里的手下，\n会让沃卡里强制跳过他的回合。\n{ko} 개의 적을 처치했다면 볼케어는 다음 차례를 쉽니다.{es} del ejército de Volkare antes de su próximo turno lo obligará a saltarse ese turno.{fr} de l'armée de Volkare avant son prochain tour le forcera à sauter ce tour.{pt-br} do Exército de Volkare antes do seu próximo turno o forçará a pular aquele turno.{de} der Armee von Volkare vor seinem nächsten Zug zu besiegen, zwingt ihn, diesen Zug auszulassen."}) end
 										UI.setAttribute("VolkareAttacked", "active", "true")
 										volkareQuestRefreshFullAttend(magesInRange[1].mage)
 									else
@@ -7666,32 +7805,27 @@ function volkareTurn(player, mouseButton, id)
 								if (gStates.gameScenario=="Volkare's Quest" or gStates.gameScenario=="The War of Four") and math.sqrt(((volkareNewPos[1]-portalPos[1])^2)+((volkareNewPos[3]-portalPos[3])^2))<2.5 then
 									getObjectFromGUID(gStates.volkareModel).setDecals({})
 								end
-								if (volkareDrew.spell==2 and pass==2) or volkareDrew.spell==1 then UI.setAttribute("DummyNotes", "Text", gStates.blurb) end
-								safeWaitCondition("AI.Volkare",function()
+								if (movementSteps==2 and pass==2) or movementSteps==1 then UI.setAttribute("DummyNotes", "Text", gStates.blurb) end
+								local function finishMovementStep(timedOut)
 									if movementSequence~=gStates.volkareMovementSequence then return end
+									if timedOut then volkareStopMovement() end
 									volkareQuestPortalStatus()
-									if #magesInRange==0 and stepNumber==volkareDrew.spell and gStates.volkareWon~=true then
-										gStates.volkareState="ReadyToEnd"; volkareReleaseRewindWhenStable()
+									if stepNumber==movementSteps and warOfFourPortalLoss() then return end
+									if #magesInRange==0 and stepNumber==movementSteps and gStates.volkareWon~=true then
+										gStates.volkareState="ReadyToEnd"
+										volkareReleaseRewindWhenStable()
 										if gStates.volkareAdvanceAfterMovement==true then
 											gStates.volkareAdvanceAfterMovement=false
 											nextTurnMerged("incrementTurn")
-										else mainUIUpdate("Volkare movement complete") end
+										else mainUIUpdate(timedOut and "Volkare movement timeout" or "Volkare movement complete") end
 									end
-								end, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.isSmoothMoving()==false and v.getPosition()[2]<1.5) end,8,function()
-								if movementSequence~=gStates.volkareMovementSequence then return end
-								local v=getObjectFromGUID(gStates.volkareModel)
-								if v~=nil then v.setVelocity({0,0,0}) v.setAngularVelocity({0,0,0}) if gStates.volkareLock~=false then v.lock() end end
-								volkareQuestPortalStatus()
-								if #magesInRange==0 and stepNumber==volkareDrew.spell and gStates.volkareWon~=true then
-									gStates.volkareState="ReadyToEnd"; volkareReleaseRewindWhenStable()
-									if gStates.volkareAdvanceAfterMovement==true then gStates.volkareAdvanceAfterMovement=false nextTurnMerged("incrementTurn") else mainUIUpdate("Volkare movement timeout") end
 								end
-							end)
+								safeWaitCondition("AI.Volkare",function() finishMovementStep(false) end,volkareModelResting,8,function() finishMovementStep(true) end)
 							end
 						end, function()
 							if movementSequence~=gStates.volkareMovementSequence then return true end
 							local v=getObjectFromGUID(gStates.volkareModel)
-							return v==nil or (v.resting and (stepNumber==1 or gStates.volkareMovementPaused~=true))
+							return v==nil or (v.resting and (stepNumber==1 or (gStates.volkareMovementPaused~=true and (gStates.volkareCityDefenseMove==nil or gStates.volkareCityDefenseMove.resolving~=true))))
 						end)	end, wait+(2*(z-1)))
 					end
 				end
@@ -7737,15 +7871,13 @@ function volkareTurn(player, mouseButton, id)
 		broadcastToAll("{en}Fully Attend is unavailable: the attacked Mage Knight's Round Order token is already face down, or they have no non-Wound cards in hand.{it}Partecipazione Completa non disponibile: il segnalino Ordine di Turno del Mage Knight attaccato è già coperto o non ha carte non Ferita in mano.{ru}Полное участие недоступно: жетон порядка хода атакованного Рыцаря-мага уже лежит лицом вниз или у него в руке нет карт, кроме Ран.{zh-tw}無法完全參戰：遭攻擊魔法騎士的回合順位標記已翻面，或手牌中沒有非創傷牌。{zh-cn}无法完全参战：遭攻击魔法骑士的回合顺序标记已翻面，或手牌中没有非创伤牌。{ko}완전 참전할 수 없습니다. 공격받은 마법 기사의 라운드 순서 토큰이 이미 뒷면이거나 손에 부상 이외의 카드가 없습니다.{es}No se puede Asistir por Completo: la ficha de Orden de Ronda del Caballero Mago atacado ya está boca abajo o no tiene cartas que no sean Heridas en la mano.{fr}Participation complète indisponible : le jeton d’Ordre de Manche du Chevalier-Mage attaqué est déjà face cachée, ou sa main ne contient aucune carte autre que des Blessures.{pt-br}Não é possível Participar por Completo: a ficha de Ordem da Rodada do Cavaleiro-Mago atacado já está virada para baixo, ou ele não tem cartas que não sejam Ferimentos na mão.{de}Vollständige Teilnahme ist nicht möglich: Der Rundenreihenfolgemarker des angegriffenen Magieritters liegt bereits verdeckt oder er hat nur Wunden auf der Hand.", warningColor)
 		return
 	end
-	setUIButtonEnabled("VolkareAttackedFull",false)
-	setUIButtonEnabled("VolkareAttackedPartial",false)
+	volkareDisableButtons("VolkareAttackedFull","VolkareAttackedPartial")
 	UI.setAttribute("VolkareAttackedPartialText", "text", "{en}Partially Attend the Battle{it}Partecipa Parzialmente{ru}Быстрая подготовка к битве{zh-tw}部分參戰{zh-cn}部分参战{ko}전투 부분 참여{es}Asiste Parcialmente a la Batalla{fr}Participez Partiellement à la Bataille{pt-br}Participe Parcialmente da Batalha{de}Teilweise an der Schlacht teilnehmen")
 	UI.setAttribute("VolkareRetreat", "active", "true")
-	setUIButtonEnabled("VolkareRetreat",false)
+	volkareDisableButtons("VolkareRetreat")
 	if id=="VolkareAttackedFull" or id=="VolkareRetreat" or id=="VolkareAttackedPartial" then
-		--find mage knight affected
-		for x, mageDetails in pairs(turnOrder) do
-			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
+		local _,mageDetails=volkareAttackedMage()
+		if mageDetails~=nil then
 				if id=="VolkareAttackedFull" then
 					--Flip turn order token
 					if getObjectFromGUID(mageDetails.turnOrderTokenGUID).is_face_down==false then getObjectFromGUID(mageDetails.turnOrderTokenGUID).flip() end
@@ -7758,9 +7890,6 @@ function volkareTurn(player, mouseButton, id)
 						attackLocation("", "-1", "Volkar"..mageDetails.mage)
 					end) end, 5)
 					return
-				end
-				if id=="VolkareRetreat" then
-
 				end
 				if id=="VolkareAttackedPartial" then
 					for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[mageDetails.seatPos]).getObjects()) do
@@ -7781,7 +7910,6 @@ function volkareTurn(player, mouseButton, id)
 					end
 					volkareQuestCombatWithdrawalReminder(mageDetails.mage)
 				end
-			end
 		end
 	end
 	if (id=="VolkareRetreat" or id=="VolkareAttackedPartial") and gStates.volkareMovementStepPending==true then
@@ -7806,16 +7934,9 @@ function volkarePartial(player, mouseButton, id)
 		if dropoutCoopDefensePrompt==true then dropoutCoopDefensePrompt=false applyColorBarButtons() end
 		UI.setAttribute("VolkareAttackedPartial", "onClick", "volkareTurn")
 		UI.setAttribute("VolkareAttackedPartialText", "text", "{en}Finished Partially Attending{it}Partecipazione Parziale Conclusa{ru}Завершено Частичное участие{zh-tw}部分參戰結束{zh-cn}部分参战结束{ko}전투 부분 참여 완료{es}Finalizada la Participación Parcial{fr}Fini Partiellement Participant{pt-br}Participar Parcialmente do Combate{de}Teilweise Teilnahme an der Schlacht beendet")
-		setUIButtonEnabled("VolkareAttackedFull",false)
-		setUIButtonEnabled("VolkareRetreat",false)
-		--find mage knight affected
-		for _, mageDetails in pairs(turnOrder) do
-			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
-				--place Volkare's Army
-				attackLocation("", "-1", "Volkar"..mageDetails.mage)
-				break
-			end
-		end
+		volkareDisableButtons("VolkareAttackedFull","VolkareRetreat")
+		local _,mageDetails=volkareAttackedMage()
+		if mageDetails~=nil then attackLocation("", "-1", "Volkar"..mageDetails.mage) end
 	end
 end
 
@@ -7845,12 +7966,12 @@ function volkareReturnCityDefenseMove()
 		if obj==nil then gStates.volkareCityDefenseMove=nil return end
 		if move.secondMove==true then
 			obj.setPositionSmooth({move.attackPos[1], 3.5, move.attackPos[3]})
-			safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",lockAndFinish, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.getPosition()[2]<1.5) end, 3, lockAndFinish) end, 3)
+			volkareWaitForRest(lockAndFinish,3,lockAndFinish,3)
 		else lockAndFinish() end
 	end
 	volkareObj.unlock()
 	volkareObj.setPositionSmooth(retreatPos)
-	safeWaitFrames("AI.Volkare",function() safeWaitCondition("AI.Volkare",finishRetreat, function() local v=getObjectFromGUID(gStates.volkareModel) return v==nil or (v.resting and v.getPosition()[2]<1.5) end, 3, finishRetreat) end, 3)
+	volkareWaitForRest(finishRetreat,3,finishRetreat,3)
 	return true
 end
 
@@ -7861,11 +7982,9 @@ function volkareRetreat(player, mouseButton, id)
 		local playerRetreat=retreatText:sub(1, 11)=="{en}Retreat"
 		UI.setAttribute("VolkareRetreat", "onClick", "volkareTurn")
 		UI.setAttribute("VolkareRetreatText", "text", "{en}Finished Retreating{it}Ritirata Conclusa{ru}Завершено отступление{zh-tw}完成撤退{zh-cn}完成撤退{ko}후퇴 완료{es}Terminar de Retirarse{fr}Retraite Terminée{pt-br}Retiro Acabado{de}Beendeter Rückzug")
-		setUIButtonEnabled("VolkareAttackedFull",false)
-		setUIButtonEnabled("VolkareAttackedPartial",false)
-		--find mage knight affected
-		for x, mageDetails in pairs(turnOrder) do
-			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
+		volkareDisableButtons("VolkareAttackedFull","VolkareAttackedPartial")
+		local x,mageDetails=volkareAttackedMage()
+		if mageDetails~=nil then
 				if playerRetreat==true then
 					--give woundCards
 					for a=1, (math.ceil(gStates.currentRound/2)+1), 1 do
@@ -7875,8 +7994,9 @@ function volkareRetreat(player, mouseButton, id)
 					if gStates.volkareAttacked[1].distance<1.5 and gStates.volkareMovementStepPending~=true then broadcastToAll(joinLang({translateWord[mageDetails.mage], "{en} needs to withdraw to a neighboring Safe space.{it} deve ritirarsi in uno spazio Sicuro adiacente.{ru} должен перейти на соседнее безопасное место.{zh-tw}需要强制撤退到附近的安全地带{zh-cn}需要强制撤退到附近的安全地带{ko}: 인접한 안전한 칸으로 강제후퇴해야 합니다.{es} necesita retirarse a un espacio seguro vecino.{fr} doit se retirer dans un espace sûr voisin.{pt-br} precisa se retirar para um espaço seguro vizinho.{de} sich auf ein benachbartes sicheres Feld zurückziehen muss."}), positionToColor(x)) end
 				else
 					local returnScenario=gStates.gameScenario=="Volkare's Return" or gStates.gameScenario=="Volkare's Return Blitz"
+					-- Declined city defense ends this approach, whether walls were already raised or not.
+					gStates.volkareCityDefenseMove=nil
 					if returnScenario and gStates.volkareRaisedCity==true then
-						gStates.volkareCityDefenseMove=nil
 						gStates.blurb="{en}Volkare has conquered the city.<size=6>\n\n</size>You have Lost.{it}Volkare ha conquistato la città.<size=6>\n\n</size>Avete perso.{ru}Волкар захватил город.<size=6>\n\n</size>Вы проиграли.{zh-tw}\n沃卡里已經征服了這座城市。<size=6>\n\n</size>你輸了。{zh-cn}\n沃卡里已经征服了这座城市。<size=6>\n\n</size>你输了。{ko}볼케어가 도시를 정복했습니다.<size=6>\n\n</size>게임 패배{es}Volkare ha conquistado la ciudad.<size=6>\n\n</size>Has perdido.{fr}Volkare a conquis la ville.<size=6>\n\n</size>Vous avez perdu.{pt-br}Volkare conquistou a Cidade<size=6>\n\n</size>Você Perdeu.{de}Volkare hat die Stadt erobert.<size=6>\n\n</size>Du hast verloren."
 						local volkareObj=gStates.volkareModel~=nil and getObjectFromGUID(gStates.volkareModel) or nil
 						if volkareObj~=nil then getObjectFromGUID(trashCan).putObject(volkareObj) end
@@ -7891,65 +8011,90 @@ function volkareRetreat(player, mouseButton, id)
 						UI.setAttribute("VolkareRetreatText", "text", "{en}Volkare Processed{it}Volkare Completato{ru}Волкар сходил{zh-tw}沃卡里行動結束{zh-cn}沃卡里行动结束{ko}진행 완료{es}Volkare Procesado{fr}Volkare Traité{pt-br}Volkare Processado{de}Volkare Verarbeitet")
 					end
 				end
-				break
 			end
-		end
 	end
 end
 
 function volkareCoopDefense(player, mouseButton, id)
 	if mouseButton=="-1" then
-		setUIButtonEnabled("VolkareAttackedFull",false)
-		setUIButtonEnabled("VolkareRetreat",false)
-		--load the coop Interface
-		for _, mageDetails in pairs(turnOrder) do
-			if gStates.volkareAttacked[1]~=nil and mageDetails.mage==gStates.volkareAttacked[1].mage then
-				attackLocation("", "-1", "Volkar"..mageDetails.mage)
-				break
-			end
-		end
+		volkareDisableButtons("VolkareAttackedFull","VolkareRetreat")
+		local _,mageDetails=volkareAttackedMage()
+		if mageDetails~=nil then attackLocation("", "-1", "Volkar"..mageDetails.mage) end
 		dropoutCoopDefensePrompt=false
 		applyColorBarButtons()
 	end
 end
 
--- Volkare reminder token randomization
-local volkareDiceRolled=false
-function volkareTokenRandomize(token)--9a686a
-	local VolkareReminder={	["Black Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414015137/203E9CF64831CC5BBB43AAEC5CCBC9B450B2304E/",
-							["Blue Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203413988434/BF2446CF89EF2F4398C38B32F5CAB104FCCE94AC/",
-							["White Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414024554/8541C7CC8BC88442619F8921DAA50CAE0BCD88E9/",
-							["Green Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414009198/C52B548C26AC08BCE1237A114A47DC973D0CE7D9/",
-							["Red Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414000318/7F26EE486FD34E0FD08E0653EF4DACCB69F38A87/",
-							["Gold Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203413995197/64E0C4E59A98DAFB09633F31CA9D1279F0593CFD/",}
-	--roll volkares dice and read result
-	local volkareDice=getObjectFromGUID(GUID.object.volkareDie)
-	if volkareDiceRolled==false then volkareDice.randomize() volkareDiceRolled=true end
-	safeWaitFrames("Volkare",function() safeWaitCondition("Volkare",function()
-		if token~=nil then
-			token.setCustomObject({image=VolkareReminder[volkareDice.getRotationValue()]})
-			token.reload()
-			if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={} end
-			gStates.monsterPerks[token.guid].arcaneImmunity=true
-			gStates.monsterPerks[token.guid].brutal=true
-			gStates.monsterPerks[token.guid].assassination=true
-			if volkareDice.getRotationValue()=="Red Mana" then gStates.monsterPerks[token.guid].attack={F={3}} end
-			if volkareDice.getRotationValue()=="Blue Mana" then gStates.monsterPerks[token.guid].attack={I={3}} end
-			if volkareDice.getRotationValue()=="Green Mana" then gStates.monsterPerks[token.guid].poison=true gStates.monsterPerks[token.guid].attack={P={4}} end
-			if volkareDice.getRotationValue()=="White Mana" then gStates.monsterPerks[token.guid].swiftness=true gStates.monsterPerks[token.guid].attack={P={3}} end
-			if volkareDice.getRotationValue()=="Black Mana" then gStates.monsterPerks[token.guid].paralyse=true	gStates.monsterPerks[token.guid].attack={P={3}} end
-			if volkareDice.getRotationValue()=="Gold Mana" then gStates.monsterPerks[token.guid].attack={IF={3}} end
-			if volkareDiceRolled==true then
-				broadcastToAll("{en}Volkare's Attack randomly picked{it}Attacco di Volkare scelto CASUALMENTE{ru}Атака Волкара была определена{zh-tw}沃里卡随机挑选攻击对象{zh-cn}沃里卡随机挑选攻击对象{ko}볼케어의 공격이 결정되었습니다{es}Ataque de Volkare elegido al azar{fr}Attaque de Volkare choisie au hasard{pt-br}Ataque de Volkare aleatóriamente escolhido{de}Volkare's Angriff zufällig ausgewählt", {1,1,0.5})
-				volkareDiceRolled=false
-			end
+-- Volkare reminder tokens share one settled die result when drawn together.
+local volkareReminderImages={
+	["Black Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414015137/203E9CF64831CC5BBB43AAEC5CCBC9B450B2304E/",
+	["Blue Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203413988434/BF2446CF89EF2F4398C38B32F5CAB104FCCE94AC/",
+	["White Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414024554/8541C7CC8BC88442619F8921DAA50CAE0BCD88E9/",
+	["Green Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414009198/C52B548C26AC08BCE1237A114A47DC973D0CE7D9/",
+	["Red Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414000318/7F26EE486FD34E0FD08E0653EF4DACCB69F38A87/",
+	["Gold Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203413995197/64E0C4E59A98DAFB09633F31CA9D1279F0593CFD/"
+}
+local volkareReminderEffects={
+	["Red Mana"]={attack={F={3}}},
+	["Blue Mana"]={attack={I={3}}},
+	["Green Mana"]={poison=true,attack={P={4}}},
+	["White Mana"]={swiftness=true,attack={P={3}}},
+	["Black Mana"]={paralyse=true,attack={P={3}}},
+	["Gold Mana"]={attack={IF={3}}}
+}
+local volkareReminderRoll=nil
+
+local function volkareApplyReminder(guid,result)
+	local token=getObjectFromGUID(guid)
+	local image=volkareReminderImages[result]
+	local effect=volkareReminderEffects[result]
+	if token==nil or image==nil or effect==nil then return end
+	token.setCustomObject({image=image})
+	token.reload()
+	local perks={arcaneImmunity=true,brutal=true,assassination=true}
+	for key,value in pairs(effect) do perks[key]=value end
+	gStates.monsterPerks[guid]=perks
+end
+
+function volkareTokenRandomize(token)
+	if token==nil then return end
+	if volkareReminderRoll~=nil then
+		volkareReminderRoll.tokens[#volkareReminderRoll.tokens+1]=token.guid
+		return
+	end
+	local die=getObjectFromGUID(GUID.object.volkareDie)
+	if die==nil then
+		broadcastToAll("{en}Volkare's attack die is missing. Resolve his reminder manually.{it}Manca il dado di Volkare. Risolvi manualmente.{ru}Кубик Волкара отсутствует. Выполните эффект вручную.{zh-tw}沃卡里攻擊骰遺失，請手動處理。{zh-cn}沃卡里攻击骰缺失，请手动处理。{ko}볼케어 공격 주사위가 없습니다. 수동으로 처리하세요.{es}Falta el dado de Volkare. Resuélvelo manualmente.{fr}Le dé de Volkare manque. Résolvez l'effet manuellement.{pt-br}O dado de Volkare está ausente. Resolva manualmente.{de}Volkares Angriffswürfel fehlt. Klärt den Effekt manuell.",warningColor)
+		return
+	end
+	local roll={tokens={token.guid}}
+	volkareReminderRoll=roll
+	die.randomize()
+	local function complete(timedOut)
+		if volkareReminderRoll~=roll then return end
+		volkareReminderRoll=nil
+		local result=not timedOut and die.getRotationValue() or nil
+		if result==nil or volkareReminderImages[result]==nil then
+			broadcastToAll("{en}Volkare's attack die did not settle. Resolve his reminder manually.{it}Il dado di Volkare non si è fermato. Risolvi manualmente.{ru}Кубик Волкара не остановился. Выполните эффект вручную.{zh-tw}沃卡里攻擊骰未停止，請手動處理。{zh-cn}沃卡里攻击骰未停止，请手动处理。{ko}볼케어 주사위가 멈추지 않았습니다. 수동으로 처리하세요.{es}El dado de Volkare no se detuvo. Resuélvelo manualmente.{fr}Le dé de Volkare ne s'est pas arrêté. Résolvez manuellement.{pt-br}O dado de Volkare não parou. Resolva manualmente.{de}Volkares Würfel kam nicht zur Ruhe. Klärt den Effekt manuell.",warningColor)
+			return
 		end
-	end, function() return token==nil or (token.resting and volkareDice.resting) end) end, 2)
+		for _,guid in ipairs(roll.tokens) do
+			-- Wait for the token itself before reloading its image.
+			safeWaitCondition("AI.Volkare",function() volkareApplyReminder(guid,result) end,
+				function() local obj=getObjectFromGUID(guid) return obj==nil or obj.resting end,
+				8,function() volkareApplyReminder(guid,result) end)
+		end
+		broadcastToAll("{en}Volkare's Attack randomly picked{it}Attacco di Volkare scelto CASUALMENTE{ru}Атака Волкара была определена{zh-tw}沃里卡随机挑选攻击对象{zh-cn}沃里卡随机挑选攻击对象{ko}볼케어의 공격이 결정되었습니다{es}Ataque de Volkare elegido al azar{fr}Attaque de Volkare choisie au hasard{pt-br}Ataque de Volkare aleatóriamente escolhido{de}Volkare's Angriff zufällig ausgewählt",{1,1,0.5})
+	end
+	safeWaitFrames("AI.Volkare",function()
+		safeWaitCondition("AI.Volkare",function() complete(false) end,function() return die.resting end,8,function() complete(true) end)
+	end,2)
 end
 
 -- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
 publishPublicUICallbacks({
 	volkarePartial=volkarePartial,
+	volkareCoopDefense=volkareCoopDefense,
 	volkareRetreat=volkareRetreat,
 	volkareTurn=volkareTurn
 })
@@ -9232,8 +9377,7 @@ end
 function proxyChoicePlayerIndex()
 	local chosen=nil
 	for index,stats in ipairs(turnOrder or {}) do
-		local human=stats~=nil and (stats.seatPos or 99)<=4 and stats.mage~=gStates.positionMageKnight[5]
-		if human==true and (playerDropoutInactive==nil or playerDropoutInactive(index)==false) then
+		if automatedChoicePlayerEligible(index,stats) then
 			if chosen==nil or (stats.fame or 0)<(turnOrder[chosen].fame or 0) or ((stats.fame or 0)==(turnOrder[chosen].fame or 0) and index>chosen) then chosen=index end
 		end
 	end
@@ -9246,24 +9390,12 @@ function proxyChoicePlayerColor(index)
 end
 
 function proxyChoicePlayerLabel(index)
-	if index==nil or turnOrder[index]==nil then return "the lowest-Fame player" end
-	local color=proxyChoicePlayerColor(index)
-	local mage=tostring(turnOrder[index].mage or "player")
-	if color~=nil and color~="Black" then return color.." ("..mage..")" end
-	return mage
+	return automatedChoicePlayerLabel(index,"the lowest-Fame player")
 end
 
 function proxyChoiceAuthorized(player,pending)
-	if pending==nil then return false end
-	local color=type(player)=="string" and player or (player~=nil and player.color or nil)
-	local allowed=proxyChoicePlayerColor(pending.playerIndex)
-	--Black is the table/controller seat and may make Proxy choices as well as the designated
-	--lowest-Fame player's normal seat colour. Everyone else is rejected with a table-wide reminder.
-	if color==allowed or color=="Black" then return true end
-	if color~=nil then
-		broadcastToAll(joinLang({proxyChoicePlayerLabel(pending.playerIndex),"{en} has the lowest Fame and must make this Proxy choice. A player seated Black may also choose.{it} ha meno Fama e deve scegliere per il Proxy. Può scegliere anche un giocatore seduto al Nero.{ru} имеет наименьшую Славу и должен сделать этот выбор за Прокси. Игрок на чёрном месте также может выбрать.{zh-tw} 的聲望值最低，必須替代理玩家做出此選擇。坐在黑色席位的玩家也可以選擇。{zh-cn} 的声望值最低，必须替代理玩家做出此选择。坐在黑色席位的玩家也可以选择。{ko}의 명성이 가장 낮아 이 프록시 선택을 해야 합니다. 검은색 자리에 앉은 플레이어도 선택할 수 있습니다.{es} tiene la Fama más baja y debe tomar esta decisión del Proxy. Un jugador sentado en Negro también puede elegir.{fr} possède la Renommée la plus faible et doit faire ce choix pour le Proxy. Un joueur assis en Noir peut également choisir.{pt-br} tem a menor Fama e deve fazer esta escolha do Proxy. Um jogador sentado no Preto também pode escolher.{de} hat den niedrigsten Ruhm und muss diese Proxy-Auswahl treffen. Ein Spieler auf Schwarz darf ebenfalls wählen."}),{1,0.65,0.2})
-	end
-	return false
+	return automatedChoiceAuthorized(player,pending,proxyChoicePlayerLabel(pending~=nil and pending.playerIndex or nil),
+		"{en} has the lowest Fame and must make this Proxy choice. A player seated Black may also choose.{it} ha meno Fama e deve scegliere per il Proxy. Può scegliere anche un giocatore seduto al Nero.{ru} имеет наименьшую Славу и должен сделать этот выбор за Прокси. Игрок на чёрном месте также может выбрать.{zh-tw} 的聲望值最低，必須替代理玩家做出此選擇。坐在黑色席位的玩家也可以選擇。{zh-cn} 的声望值最低，必须替代理玩家做出此选择。坐在黑色席位的玩家也可以选择。{ko}의 명성이 가장 낮아 이 프록시 선택을 해야 합니다. 검은색 자리에 앉은 플레이어도 선택할 수 있습니다.{es} tiene la Fama más baja y debe tomar esta decisión del Proxy. Un jugador sentado en Negro también puede elegir.{fr} possède la Renommée la plus faible et doit faire ce choix pour le Proxy. Un joueur assis en Noir peut également choisir.{pt-br} tem a menor Fama e deve fazer esta escolha do Proxy. Um jogador sentado no Preto também pode escolher.{de} hat den niedrigsten Ruhm und muss diese Proxy-Auswahl treffen. Ein Spieler auf Schwarz darf ebenfalls wählen.",{1,0.65,0.2})
 end
 
 function proxyTargetSave(target)
@@ -9335,8 +9467,7 @@ function proxyDestinationChoiceButton(saved,index,xml,splitIndex,splitCount)
 end
 
 function proxyChoiceMapRefresh(pending)
-	--Keep the ordinary Explore controls on the map UI; Proxy destination/route choices live on the
-	--actual terrain tiles so each square button floats over the exact chosen hex.
+	-- Preserve the normal Explore controls; Proxy choices are attached to the terrain tiles.
 	local mapUI=getObjectFromGUID(GUID.ui.mapExplore)
 	if mapUI~=nil then
 		local xml={}
@@ -9345,22 +9476,7 @@ function proxyChoiceMapRefresh(pending)
 	end
 	proxyDestinationChoiceClearButtons()
 	if pending~=nil and (pending.type=="destination" or pending.type=="route") then
-		local byTerrain={}
-		local sameHexCounts={}
-		local sameHexSeen={}
-		for _,saved in ipairs(pending.options or {}) do if saved~=nil and saved.key~=nil then sameHexCounts[saved.key]=(sameHexCounts[saved.key] or 0)+1 end end
-		for index,saved in ipairs(pending.options or {}) do
-			local terrainGUID=saved~=nil and saved.key~=nil and tostring(saved.key):match("^([^|]+)|") or nil
-			local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
-			if terrain~=nil then
-				local group=byTerrain[terrainGUID]
-				if group==nil then group={terrain=terrain,xml=terrain.UI.getXmlTable() or {}} byTerrain[terrainGUID]=group end
-				sameHexSeen[saved.key]=(sameHexSeen[saved.key] or 0)+1
-				local _,xml=proxyDestinationChoiceButton(saved,index,group.xml,sameHexSeen[saved.key],sameHexCounts[saved.key])
-				group.xml=xml or group.xml
-			end
-		end
-		for _,group in pairs(byTerrain) do group.terrain.UI.setXmlTable(group.xml) end
+		applyTerrainHexChoiceButtons(pending.options,proxyDestinationChoiceButton)
 	end
 end
 
@@ -10395,6 +10511,30 @@ function volkareReleaseRewindWhenStable()
 		end
 		automatedTurnRewindRelease()
 	end)
+end
+
+-- Common controller checks for automated choices. Selection criteria remain scenario-specific.
+function automatedChoicePlayerEligible(index,details)
+	return details~=nil and (details.seatPos or 99)<=4 and details.mage~=gStates.positionMageKnight[5] and
+		(playerDropoutInactive==nil or playerDropoutInactive(index)==false)
+end
+
+function automatedChoicePlayerLabel(index,missingLabel)
+	if index==nil or turnOrder[index]==nil then return missingLabel end
+	local color=positionToColor(index)
+	local mage=tostring(turnOrder[index].mage or "player")
+	if color~=nil and color~="Black" then return color.." ("..mage..")" end
+	return mage
+end
+
+function automatedChoiceAuthorized(player,pending,playerLabel,warningText,warningTint)
+	if pending==nil then return false end
+	local color=type(player)=="string" and player or (player~=nil and player.color or nil)
+	local allowed=pending.playerIndex~=nil and positionToColor(pending.playerIndex) or nil
+	-- Black is the table/controller seat; other players must use the selected player's seat.
+	if color==allowed or color=="Black" then return true end
+	if color~=nil then broadcastToAll(joinLang({playerLabel,warningText}),warningTint) end
+	return false
 end
 
 --Dummy and Volkare both use the center random-Tactic button, but their actual turns are processed separately.
@@ -12634,6 +12774,32 @@ function apocalypseDragonScenario()
 	return scenarioUsesApocalypseDragon()
 end
 
+-- The Dragon scenarios share physical round-order token movement but choose their own targets
+-- and whether the token is taken from its bag or relocked after resting.
+function apocalypseDragonPositionRoundOrderToken(target,options)
+	if target==nil then return false end
+	options=options or {}
+	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
+	if token==nil and options.takeFromBag==true then
+		local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
+		if bag~=nil then token=bag.takeObject({guid=apocalypseDragon.roundOrder,position=target,rotation={0,180,0},smooth=false}) end
+	end
+	if token==nil then return false end
+	token.unlock()
+	token.setRotation({0,180,0})
+	token.setPositionSmooth(target,false,options.fastMove==true)
+	safeWaitCondition("Scenario",function()
+		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
+		if current~=nil then current.lock() end
+	end,function()
+		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
+		if current==nil then return true end
+		if options.waitForRest==true then return current.resting==true end
+		return current.isSmoothMoving()==false
+	end)
+	return true
+end
+
 function apocalypseDragonStartingLevel()
 	if apocalypseDragonScenario()~=true then return nil end
 	local override=tonumber(gStates.apocalypseDragonStartingLevelOverride)
@@ -14382,8 +14548,7 @@ end
 function apocalypseDragonChoicePlayerIndex()
 	local chosen=nil
 	for index,details in ipairs(turnOrder or {}) do
-		local human=details~=nil and (details.seatPos or 99)<=4 and details.mage~=gStates.positionMageKnight[5]
-		if human==true and playerDropoutInactive(index)==false then
+		if automatedChoicePlayerEligible(index,details) then
 			if chosen==nil or (details.tactic or 99)<(turnOrder[chosen].tactic or 99) then chosen=index end
 		end
 	end
@@ -14391,22 +14556,12 @@ function apocalypseDragonChoicePlayerIndex()
 end
 
 function apocalypseDragonChoicePlayerLabel(index)
-	if index==nil or turnOrder[index]==nil then return "the player with the lowest-numbered Tactic" end
-	local color=positionToColor(index)
-	local mage=tostring(turnOrder[index].mage or "player")
-	if color~=nil and color~="Black" then return color.." ("..mage..")" end
-	return mage
+	return automatedChoicePlayerLabel(index,"the player with the lowest-numbered Tactic")
 end
 
 function apocalypseDragonChoiceAuthorized(player,pending)
-	if pending==nil then return false end
-	local color=type(player)=="string" and player or (player~=nil and player.color or nil)
-	local allowed=pending.playerIndex~=nil and positionToColor(pending.playerIndex) or nil
-	if color=="Black" or color==allowed then return true end
-	if color~=nil then
-		broadcastToAll(joinLang({apocalypseDragonChoicePlayerLabel(pending.playerIndex),"{en} has the lowest-numbered Tactic and must make this Dragon choice. A player seated Black may also choose.{it} ha la Tattica col numero più basso e deve effettuare questa scelta del Drago. Può scegliere anche un giocatore seduto al Nero.{ru} имеет Тактику с наименьшим номером и должен сделать этот выбор Дракона. Игрок на чёрном месте также может выбрать.{zh-tw} 擁有編號最低的戰術，必須做出此巨龍選擇。坐在黑色席位的玩家也可以選擇。{zh-cn} 拥有编号最低的战术，必须做出此巨龙选择。坐在黑色席位的玩家也可以选择。{ko}이(가) 가장 낮은 번호의 전술을 가지고 있어 이 드래곤 선택을 해야 합니다. 검은색 자리에 앉은 플레이어도 선택할 수 있습니다.{es} tiene la Táctica con el número más bajo y debe realizar esta elección del Dragón. Un jugador sentado en Negro también puede elegir.{fr} possède la Tactique au numéro le plus bas et doit effectuer ce choix du Dragon. Un joueur assis en Noir peut également choisir.{pt-br} tem a Tática de menor número e deve fazer esta escolha do Dragão. Um jogador sentado no Preto também pode escolher.{de} hat die Taktik mit der niedrigsten Nummer und muss diese Drachenwahl treffen. Ein Spieler auf Schwarz darf ebenfalls wählen."}),warningColor)
-	end
-	return false
+	return automatedChoiceAuthorized(player,pending,apocalypseDragonChoicePlayerLabel(pending~=nil and pending.playerIndex or nil),
+		"{en} has the lowest-numbered Tactic and must make this Dragon choice. A player seated Black may also choose.{it} ha la Tattica col numero più basso e deve effettuare questa scelta del Drago. Può scegliere anche un giocatore seduto al Nero.{ru} имеет Тактику с наименьшим номером и должен сделать этот выбор Дракона. Игрок на чёрном месте также может выбрать.{zh-tw} 擁有編號最低的戰術，必須做出此巨龍選擇。坐在黑色席位的玩家也可以選擇。{zh-cn} 拥有编号最低的战术，必须做出此巨龙选择。坐在黑色席位的玩家也可以选择。{ko}이(가) 가장 낮은 번호의 전술을 가지고 있어 이 드래곤 선택을 해야 합니다. 검은색 자리에 앉은 플레이어도 선택할 수 있습니다.{es} tiene la Táctica con el número más bajo y debe realizar esta elección del Dragón. Un jugador sentado en Negro también puede elegir.{fr} possède la Tactique au numéro le plus bas et doit effectuer ce choix du Dragon. Un joueur assis en Noir peut également choisir.{pt-br} tem a Tática de menor número e deve fazer esta escolha do Dragão. Um jogador sentado no Preto também pode escolher.{de} hat die Taktik mit der niedrigsten Nummer und muss diese Drachenwahl treffen. Ein Spieler auf Schwarz darf ebenfalls wählen.",warningColor)
 end
 
 function positionApocalypseDragonHeads()
@@ -15050,7 +15205,7 @@ function scenarioRestLocationIsAvailable()
 		return true
 	end
 	local gladeOpen=true
-	if gStates.gameScenario=="Life and Death" and (location=="glade" or location=="graveyard") then
+	if (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four") and (location=="glade" or location=="graveyard") then
 		gladeOpen=false
 		local avatarLocation=currentMageAvatarPosition(gStates.turnNumber)
 		if avatarLocation==nil then return false end
@@ -16269,17 +16424,7 @@ end
 
 function apocalypseIsHerePositionRoundOrderToken()
 	if apocalypseIsHereActive()~=true then return false end
-	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
-	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	local target={-1.90,0.97,-22.20}
-	if token==nil and bag~=nil then token=bag.takeObject({guid=apocalypseDragon.roundOrder,position=target,rotation={0,180,0},smooth=false}) end
-	if token==nil then return false end
-	token.unlock()
-	token.setRotation({0,180,0})
-	token.setPositionSmooth(target,false,true)
-	safeWaitCondition("Scenario",function() local current=getObjectFromGUID(apocalypseDragon.roundOrder) if current~=nil then current.lock() end end,
-		function() local current=getObjectFromGUID(apocalypseDragon.roundOrder) return current==nil or current.isSmoothMoving()==false end)
-	return true
+	return apocalypseDragonPositionRoundOrderToken({-1.90,0.97,-22.20},{takeFromBag=true,fastMove=true})
 end
 
 function apocalypseIsHereSetup()
@@ -16717,27 +16862,13 @@ apocalypseIsHereShowTargetChoice=function(name,options,previousReport,choicePlay
 		previousReport=previousReport~=nil and previousReport or (gStates.apocalypseHereHorsemenTurnReport or "")
 	}
 	gStates.apocalypseHereHorsemanPendingChoice=pending
-	local grouped={}
-	for index,option in ipairs(options or {}) do
-		local hex=option.hex
-		local terrain=hex~=nil and hex.terrain or nil
-		if terrain~=nil then
-			local group=grouped[terrain.guid] or {terrain=terrain,xml=terrain.UI.getXmlTable() or {}}
-			grouped[terrain.guid]=group
-			local localPos=terrain.positionToLocal({hex.position[1],terrain.getPosition()[2],hex.position[3]})
-			local tileScale=terrain.getScale()
-			local scaleX=tileScale.x or tileScale[1] or 2.25
-			local scaleZ=tileScale.z or tileScale[3] or 2.25
-			local uiFactor=0.16/0.38
-			local uiX=(localPos.x or localPos[1])*scaleX*110*uiFactor
-			local uiY=(localPos.z or localPos[3])*scaleZ*110*uiFactor
-			local uiDepth=-40*uiFactor
-			local buttonScale=0.16
-			local id=terrain.guid.."ApocalypseHorsemanTarget"..tostring(index)
-			group.xml[#group.xml+1]={tag="Button",attributes={id=id,onClick="global/apocalypseIsHereHorsemanTargetSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",height=300,width=320,color="rgba(0,0,0,0.0)",position=uiX.." "..uiY.." "..uiDepth,rotation="0 0 "..tostring(terrain.getRotation()[2] or 180),scale=buttonScale.." "..buttonScale},children={{tag="Image",attributes={image="Sliced Button/Button Object Active",type="Sliced"}},{tag="Text",attributes={font="Fonts/MKCardText",fontSize="65",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="65",text=joinLang({name,"\n","{en}Target{it}Bersaglio{ru}Цель{zh-tw}目標{zh-cn}目标{ko}목표{es}Objetivo{fr}Cible{pt-br}Alvo{de}Ziel"})}}}}
-		end
-	end
-	for _,group in pairs(grouped) do group.terrain.UI.setXmlTable(group.xml) end
+	applyTerrainHexChoiceButtons(options,function(option,index,xml,splitIndex,splitCount)
+		return appendTerrainHexChoiceButton(option.key,index,xml,splitIndex,splitCount,{
+			idPrefix="ApocalypseHorsemanTarget",onClick="global/apocalypseIsHereHorsemanTargetSelect",
+			buttonScale=0.16,referenceScale=0.38,width=320,height=300,fontSize=65,splitFontSize=65,
+			text=joinLang({name,"\n","{en}Target{it}Bersaglio{ru}Цель{zh-tw}目標{zh-cn}目标{ko}목표{es}Objetivo{fr}Cible{pt-br}Alvo{de}Ziel"})
+		})
+	end)
 	gStates.apocalypseHereHorsemenUIState="WaitingChoice"
 	local choiceText=joinLang({name,"{en} has tied preferred targets. {it} ha più bersagli preferiti a pari merito. {ru} имеет несколько равноценных предпочтительных целей. {zh-tw} 有多個同等優先的目標。{zh-cn} 有多个同等优先的目标。{ko}에게 동률인 우선 목표가 있습니다. {es} tiene varios objetivos preferidos empatados. {fr} a plusieurs cibles prioritaires à égalité. {pt-br} tem vários alvos preferidos empatados. {de} hat mehrere gleichrangige bevorzugte Ziele. ",apocalypseDragonChoicePlayerLabel(pending.playerIndex),"{en} must choose which site it moves toward.{it} deve scegliere il sito verso cui si muove.{ru} должен выбрать, к какому месту он двинется.{zh-tw} 必須選擇它要朝哪個地點移動。{zh-cn} 必须选择它要朝哪个地点移动。{ko}이(가) 어느 장소로 이동할지 선택해야 합니다.{es} debe elegir hacia qué lugar se moverá.{fr} doit choisir vers quel site il se déplacera.{pt-br} deve escolher em direção a qual local ele se moverá.{de} muss wählen, auf welchen Ort er sich zubewegt."})
 	gStates.apocalypseHereHorsemenTurnReport=apocalypseIsHereJoinHorsemenTurnReport(pending.previousReport,choiceText)
@@ -17574,20 +17705,7 @@ end
 
 function againstDragonPositionRoundOrderToken()
 	if againstDragonActive()~=true then return false end
-	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
-	if token==nil then return false end
-	local target={-1.90,0.97,-22.20}
-	token.unlock()
-	token.setRotation({0,180,0})
-	token.setPositionSmooth(target)
-	safeWaitCondition("Scenario",function()
-		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
-		if current~=nil then current.lock() end
-	end,function()
-		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
-		return current==nil or current.isSmoothMoving()==false
-	end)
-	return true
+	return apocalypseDragonPositionRoundOrderToken({-1.90,0.97,-22.20})
 end
 
 againstDragonPlayerIndexForMage=function(mage)
@@ -17679,23 +17797,7 @@ end
 againstDragonShowMapChoice=function(pending)
 	apocalypseDragonTurnChoiceClearButtons()
 	if pending==nil or pending.options==nil then return false end
-	local byTerrain={}
-	local sameHexCounts={}
-	local sameHexSeen={}
-	for _,option in ipairs(pending.options) do if option.key~=nil then sameHexCounts[option.key]=(sameHexCounts[option.key] or 0)+1 end end
-	for index,option in ipairs(pending.options) do
-		local terrainGUID=option.key~=nil and tostring(option.key):match("^([^|]+)|") or nil
-		local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
-		if terrain~=nil then
-			local group=byTerrain[terrainGUID]
-			if group==nil then group={terrain=terrain,xml=terrain.UI.getXmlTable() or {}} byTerrain[terrainGUID]=group end
-			sameHexSeen[option.key]=(sameHexSeen[option.key] or 0)+1
-			local _,xml=againstDragonTargetChoiceButton(option,index,group.xml,sameHexSeen[option.key],sameHexCounts[option.key])
-			group.xml=xml or group.xml
-		end
-	end
-	for _,group in pairs(byTerrain) do group.terrain.UI.setXmlTable(group.xml) end
-	return true
+	return applyTerrainHexChoiceButtons(pending.options,againstDragonTargetChoiceButton)
 end
 
 againstDragonShowOffMapChoice=function(pending)
@@ -18426,22 +18528,7 @@ end
 
 function furyDragonPositionRoundOrderToken()
 	if furyDragonIsActive()~=true then return false end
-	local token=getObjectFromGUID(apocalypseDragon.roundOrder)
-	local bag=getObjectFromGUID(GUID.bag.apocalypseDragon)
-	local target={-1.90,0.97,-18.00-(1.4*((#turnOrder or 0)+1))}
-	if token==nil and bag~=nil then token=bag.takeObject({guid=apocalypseDragon.roundOrder,position=target,rotation={0,180,0},smooth=false}) end
-	if token==nil then return false end
-	token.unlock()
-	token.setRotation({0,180,0})
-	token.setPositionSmooth(target,false)
-	safeWaitCondition("Scenario",function()
-		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
-		if current~=nil then current.lock() end
-	end,function()
-		local current=getObjectFromGUID(apocalypseDragon.roundOrder)
-		return current==nil or current.resting==true
-	end)
-	return true
+	return apocalypseDragonPositionRoundOrderToken({-1.90,0.97,-18.00-(1.4*((#turnOrder or 0)+1))},{takeFromBag=true,waitForRest=true})
 end
 
 function furyDragonRoundStart()
@@ -21775,6 +21862,8 @@ function startCoopRewardPhase()
 			if gStates.gameOver==true then return end
 			if gStates.endGameAchieved=="started" then gStates.endGameAchieved="true" end
 		end
+		-- A suspended first-step Volkare city defense resumes only after all co-op combat is done.
+		if assaultType=="volkare" and volkareResumeCoopDefenseMovement~=nil and volkareResumeCoopDefenseMovement()==true then return end
 		nextTurnMerged("incrementTurn")
 		return
 	end
@@ -21795,6 +21884,7 @@ function combatAdvanceCoopRewardPhaseBase()
 		showCoopReward()
 	else
 		local scenarioEndPending=gStates.coopAssaultScenarioEndPending==true
+		local completedAssaultType=coopAssaultTargetType()
 		gStates.coopRewardQueue={}
 		gStates.coopRewardIndex=1
 		clearCoopAssaultRuntime()
@@ -21807,6 +21897,13 @@ function combatAdvanceCoopRewardPhaseBase()
 			markScenarioEndAchieved(false)
 			if gStates.gameOver==true then return end
 			if gStates.endGameAchieved=="started" then gStates.endGameAchieved="true" end
+		end
+		if completedAssaultType=="volkare" and volkareResumeCoopDefenseMovement~=nil and volkareResumeCoopDefenseMovement()==true then
+			resetResourceTrackerState()
+			refreshResourceTracker()
+			claimButtonRefresh()
+			addAvatarButtons()
+			return
 		end
 		nextTurnMerged("incrementTurn")
 		resetResourceTrackerState()
@@ -28702,7 +28799,7 @@ function shieldLocation(obj, zone, status)
 								gStates.monasteryCount=gStates.monasteryCount+1
 								gStates.monasteryBurned[terTile.guid]=false
 							end
-							if hexFeature=="glade" and objectNotes~="Burned Monastery" and (gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Life and Death") then
+							if hexFeature=="glade" and objectNotes~="Burned Monastery" and (gStates.gameScenario=="Druid Nights" or gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four") then
 								broadcastToAll("{en}Glade Deactivated{it}Radura Disattivata{ru}Магическая поляна деактивирована{zh-tw}林地解除了{zh-cn}林地解除了{ko}숲속 빈터 비활성화{es}Glade Desactivado{fr}Clairière Désactivée{pt-br}Clareira Desativada{de}Lichtung Deaktiviert", positionToColor(b))
 								if gStates.gameScenario=="Druid Nights" then
 									for index, shields in pairs(mageSearch.gladesMarked) do
@@ -28752,7 +28849,7 @@ function shieldLocation(obj, zone, status)
 								broadcastToAll("{en}Glade Activated{it}Radura Attivata{ru}Магическая поляна активирована{zh-tw}林地激活了{zh-cn}林地激活了{ko}숲속 빈터 활성화{es}Glade Activado{fr}Clairière Activée{pt-br}Clareira Ativada{de}Glade Aktiviert", positionToColor(b))
 								mageSearch.gladesMarked[#mageSearch.gladesMarked+1]=obj.guid
 							end
-							if hexFeature=="glade" and objectNotes~="Burned Monastery" and gStates.gameScenario=="Life and Death" then
+							if hexFeature=="glade" and objectNotes~="Burned Monastery" and (gStates.gameScenario=="Life and Death" or gStates.gameScenario=="The War of Four") then
 								broadcastToAll("{en}Glade Liberated{it}Radura Liberata{ru}Магическая поляна освобождена{zh-tw}林地解放了{zh-cn}林地解放了{ko}숲속 빈터 해방됨{es}Glade Liberado{fr}Clairière Libérée{pt-br}Clareira Liberada{de}Lichtung befreit", positionToColor(b))
 							end
 							if hexFeature=="graveyard" and objectNotes~="Burned Monastery" then
@@ -29080,7 +29177,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 						if 	(gStates.gameScenario=="Life and Death" and ((startBearing<northBearing-1) or
 								(startBearing<=northBearing+1 and startBearing>=northBearing-1 and gStates.coop==1 and factionPlayed==1) or
 								(gStates.coop==0 and factionPlayed==1 and obj.getPosition()[3]<-7 and obj.getPosition()[3]>-8 and obj.getPosition()[1]<-31 and obj.getPosition()[1]>-32))) or
-							(gStates.gameScenario=="The War of Four" and ((warOfFourLoc=="South" and math.random(1,2)==1) or (warOfFourLoc=="FarSouth" and math.random(1,3)==1))) then
+							(gStates.gameScenario=="The War of Four" and ((warOfFourLoc=="South" and math.random(1,3)==1) or (warOfFourLoc=="FarSouth" and math.random(1,3)<=2))) then
 								tokenFaction="Elem"
 							if getObjectFromGUID(monsterPiles.greenElem).getQuantity()>0 then tokenPileGreen=monsterPiles.greenElem end
 							if getObjectFromGUID(monsterPiles.tanElem).getQuantity()>0 then tokenPileBrown=monsterPiles.tanElem end
@@ -29089,7 +29186,7 @@ function playRampagingTokens(obj, startBearing, northBearing, hexLocation, hexFe
 						if 	(gStates.gameScenario=="Life and Death" and ((startBearing>northBearing+1) or
 								(startBearing<=northBearing+1 and startBearing>=northBearing-1 and gStates.coop==1 and factionPlayed==2) or
 								(gStates.coop==0 and factionPlayed==2 and obj.getPosition()[3]<-7 and obj.getPosition()[3]>-8 and obj.getPosition()[1]<-31 and obj.getPosition()[1]>-32))) or
-							(gStates.gameScenario=="The War of Four" and ((warOfFourLoc=="North" and math.random(1,2)==1) or (warOfFourLoc=="FarNorth" and math.random(1,3)==1))) then
+							(gStates.gameScenario=="The War of Four" and ((warOfFourLoc=="North" and math.random(1,3)==1) or (warOfFourLoc=="FarNorth" and math.random(1,3)<=2))) then
 								tokenFaction="Dark"
 							if getObjectFromGUID(monsterPiles.greenDark).getQuantity()>0 then tokenPileGreen=monsterPiles.greenDark end
 							if getObjectFromGUID(monsterPiles.tanDark).getQuantity()>0 then tokenPileBrown=monsterPiles.tanDark end
@@ -29916,10 +30013,15 @@ function mapHandleTerrainZoneEnter(ctx)
 	local objGUID=ctx.objGUID
 	--Check if a terrain tile has entered the play area
 	if zoneGUID==mapArea and terrainTiles[objGUID]~=nil and workingOnTerrain[objGUID]~=true then
+		local scheduledSetupReveal=startingMapSetup==true and startingMapRevealTiles~=nil and startingMapRevealTiles[objGUID]==true
+		-- The setup coordinator will explicitly dispatch this tile once its flip/physical movement ends.
+		-- Never let an intermediate zone-entry event start population before it is ready.
+		if scheduledSetupReveal and (obj.is_face_down==true or obj.resting~=true or obj.isSmoothMoving()==true) then return true end
 		if startingMapSetup==true then startingMapTiles[objGUID]=true end
 		local initialSetupTerrain=startingMapTiles~=nil and startingMapTiles[objGUID]==true
 		local newTerrainReveal=gStates.playedAllready[objGUID]~=true
 		workingOnTerrain[objGUID]=true
+		if scheduledSetupReveal then startingMapPopulationIssues[objGUID]="terrain entry handler started" end
 		--Setup terrain still needs normal site/enemy population, but player-exploration UI/effects wait for actual play.
 		if initialSetupTerrain~=true then safeWaitTime("Map",function() addAvatarButtons() end, 1.5) end
 		--onObjectEnterZone already invalidated the runtime terrain cache for this tile. Build that view
@@ -29940,6 +30042,7 @@ function mapHandleTerrainZoneEnter(ctx)
 		end
 		local startTileObject=getObjectFromGUID(startTileGUID)
 		if startTileObject==nil then
+			if scheduledSetupReveal then startingMapPopulationIssues[objGUID]="missing start terrain reference "..tostring(startTileGUID) end
 			workingOnTerrain[objGUID]=nil
 			return true
 		end
@@ -29954,9 +30057,10 @@ function mapHandleTerrainZoneEnter(ctx)
 
 
 
-		--deploy monster token if terrain tile is deployed correctly
+		-- Only explicitly scheduled, face-up, settled starting tiles bypass gameplay placement rules.
+		-- Population below (including Core tile / Elite Unit bookkeeping) always executes normally.
 		local placementResult={}
-		if terrainPositionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}},faceUpTerrain,northBearing,placementResult)==true then
+		if scheduledSetupReveal or terrainPositionLegal({guid=objGUID, faceDown=obj.is_face_down, bearing=startBearing, objName=enteredTileName, position={enteredTilePosition[1], 0, enteredTilePosition[3]}},faceUpTerrain,northBearing,placementResult)==true then
 			--Before the first round, dayRound is intentionally still false so dayNight() can perform
 			--the first transition. Do not let that sentinel make setup terrain look like night.
 			if startingMapSetup==true then
@@ -30077,13 +30181,14 @@ function mapHandleTerrainZoneEnter(ctx)
 							if hexFeature=="glade" then --and objGUID~=GUID.tile.city05 then--stopped it happening on the green city tile but can't figure out why...
 								local pos=enteredTilePosition
 								local warOfFourDeploy=false
-								for _, coords in pairs(warOfFourGladeEdgeCoordinates) do
-									if math.sqrt(((pos[1]-coords[1])^2)+((pos[3]-coords[2])^2))<1 then warOfFourDeploy=true break end
+								local warOfFourSouth=false
+								for edgeIndex, coords in ipairs(warOfFourGladeEdgeCoordinates) do
+									if math.sqrt(((pos[1]-coords[1])^2)+((pos[3]-coords[2])^2))<1 then warOfFourDeploy=true warOfFourSouth=edgeIndex>10 break end
 								end
 								if (gStates.gameScenario=="Life and Death" or (gStates.gameScenario=="The War of Four" and warOfFourDeploy==true)) then -- and core==0
 									local tokenFaction=nil
-									if startBearing<=northBearing or
-										(((startBearing<=northBearing+1 and gStates.coop==1) or (gStates.coop==0 and enteredTilePosition[3]<-7 and enteredTilePosition[3]>-8 and enteredTilePosition[1]<-31 and enteredTilePosition[1]>-32)) and math.random(1,2)==1) then
+									if (gStates.gameScenario=="The War of Four" and warOfFourSouth) or (gStates.gameScenario~="The War of Four" and (startBearing<=northBearing or
+										(((startBearing<=northBearing+1 and gStates.coop==1) or (gStates.coop==0 and enteredTilePosition[3]<-7 and enteredTilePosition[3]>-8 and enteredTilePosition[1]<-31 and enteredTilePosition[1]>-32)) and math.random(1,2)==1))) then
 											tokenFaction="Elem"
 										if getObjectFromGUID(monsterPiles.greenElem).getQuantity()>0 then tokenPileGreen=monsterPiles.greenElem end
 										if getObjectFromGUID(monsterPiles.tanElem).getQuantity()>0 then tokenPileBrown=monsterPiles.tanElem end--elementalist Tokens
@@ -30098,7 +30203,11 @@ function mapHandleTerrainZoneEnter(ctx)
 										if gStates.hexOverideSave[objGUID]==nil then gStates.hexOverideSave[objGUID]={} end
 										gStates.hexOverideSave[objGUID][hexLocation]="graveyard"
 									end
-									if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
+									if gStates.gameScenario=="The War of Four" and terrainTiles[objGUID].tileType~="country" then
+											if tokenFaction=="Elem" and getObjectFromGUID(monsterPiles.redElem).getQuantity()>0 then tokenPileGreen=monsterPiles.redElem end
+											if tokenFaction=="Dark" and getObjectFromGUID(monsterPiles.redDark).getQuantity()>0 then tokenPileGreen=monsterPiles.redDark end
+										end
+										if getObjectFromGUID(tokenPileBrown).getQuantity()>0 and getObjectFromGUID(tokenPileGreen).getQuantity()>0 then
 										local pos={angleToXY(obj,hexLocation)[1]-0.1, y, angleToXY(obj,hexLocation)[2]-0.1}
 										for i=1, 2, 1 do
 											local monsterPile={tokenPileBrown, tokenPileGreen}
@@ -30235,6 +30344,7 @@ function mapHandleTerrainZoneEnter(ctx)
 			--lock terrain tile if succesfuly deployed all tokens
 			safeWaitCondition("Map",function() obj.lock() end, function() return obj.resting end)
 			local function finishTerrainPopulation()
+				if scheduledSetupReveal then startingMapPopulationIssues[objGUID]=nil end
 				gStates.playedAllready[objGUID]=true
 				workingOnTerrain[objGUID]=false
 				--A City reveal already refreshed immediately before its initial card placement.
@@ -30259,6 +30369,7 @@ function mapHandleTerrainZoneEnter(ctx)
 				apocalypseQuestRefreshOfferButtons()
 			end
 			if startingMapSetup==true then
+				if scheduledSetupReveal then startingMapPopulationIssues[objGUID]="awaiting "..tostring(setupPopulationPending).." terrain deployment callbacks" end
 				safeWaitCondition("Map",finishTerrainPopulation,function()
 					return setupPopulationPending==0 and obj.resting==true
 				end,10,function()
@@ -39406,7 +39517,7 @@ local function setupGameRaw(player, mouseButton, id, rewindReady)
 		gStates.WarOfFourComp=false
 		if id=="WarOfFourStartButton" then
 			gStates.WarOfFourComp=true
-			local levels={{2, 2, 4, 4}, {3, 3, 6, 6}, {4, 4, 8, 8}}
+			local levels={{2, 2, 4, 4, 8}, {3, 3, 6, 6, 12}, {4, 4, 8, 8, 16}}
 			scenarioList[gStates.scenarioRef][gStates.playersRef].cityLevels=levels[gStates.volkareCombatLevel]
 		end
 
@@ -39926,6 +40037,10 @@ __bundle_register("SetupGame.Map", function(require, _LOADED, __bundle_register,
 firstTile=nil
 startingMapSetup=false
 startingMapTiles={}
+-- Only tiles deliberately queued by the initial reveal coordinator may bypass placement validation.
+-- These are transient setup controls, never saved map state.
+startingMapRevealTiles={}
+startingMapPopulationIssues={}
 
 local function setupMapObjectSettled(guid)
 	local obj=guid~=nil and getObjectFromGUID(guid) or nil
@@ -39954,6 +40069,12 @@ local function revealSetupTerrainBatches(batches,onComplete)
 		end
 		local batch=batches[index]
 		index=index+1
+		-- Register before flipping: a zone-enter event during the flip must not populate
+		-- this tile early, while an unrelated tile entering the zone gets no exemption.
+		for _,entry in ipairs(batch) do
+			startingMapRevealTiles[entry.guid]=true
+			startingMapPopulationIssues[entry.guid]="waiting for face-up, settled reveal"
+		end
 		local function batchPopulationFinished()
 			for _,entry in ipairs(batch) do if gStates.playedAllready[entry.guid]~=true then return false end end
 			return true
@@ -39961,7 +40082,7 @@ local function revealSetupTerrainBatches(batches,onComplete)
 		local function batchFaceUpAndSettled()
 			for _,entry in ipairs(batch) do
 				local tile=getObjectFromGUID(entry.guid)
-				if tile==nil or tile.is_face_down==true or tile.resting~=true then return false end
+				if tile==nil or tile.is_face_down==true or tile.resting~=true or tile.isSmoothMoving()==true then return false end
 			end
 			return true
 		end
@@ -39988,9 +40109,12 @@ local function revealSetupTerrainBatches(batches,onComplete)
 						local tile=getObjectFromGUID(entry.guid)
 						local faceDown=tile~=nil and tostring(tile.is_face_down) or "missing"
 						local resting=tile~=nil and tostring(tile.resting) or "missing"
+						local moving=tile~=nil and tostring(tile.isSmoothMoving()) or "missing"
 						unresolved[#unresolved+1]=tostring(entry.guid)..
 							"(working="..tostring(workingOnTerrain[entry.guid])..
-							", faceDown="..faceDown..", resting="..resting..")"
+							", faceDown="..faceDown..", resting="..resting..
+							", moving="..moving..", scheduled="..tostring(startingMapRevealTiles[entry.guid]==true)..
+							", stage="..tostring(startingMapPopulationIssues[entry.guid])..")"
 					end
 				end
 				error("SetupGame timed out waiting for terrain population during initial map reveal: "..table.concat(unresolved,", "),2)
@@ -40008,7 +40132,7 @@ local function revealSetupTerrainBatches(batches,onComplete)
 		end,function()
 			for _,entry in ipairs(batch) do
 				local tile=getObjectFromGUID(entry.guid)
-				if tile==nil or tile.resting~=true or workingOnTerrain[entry.guid]==true then return false end
+				if tile==nil or tile.resting~=true or tile.isSmoothMoving()==true or workingOnTerrain[entry.guid]==true then return false end
 			end
 			return true
 		end,10,function()
@@ -40064,6 +40188,8 @@ end
 function mapSetup(onComplete)
 	startingMapSetup=true
 	startingMapTiles={}
+	startingMapRevealTiles={}
+	startingMapPopulationIssues={}
 	--EXPLORE is a derived view of the finished physical map. Do not show transient legal spots while
 	--setup tiles and the terrain stack are still being assembled.
 	clearTerrainExploreOptions()
@@ -40072,6 +40198,8 @@ function mapSetup(onComplete)
 		if mapSetupFinished==true then return end
 		mapSetupFinished=true
 		startingMapSetup=false
+		startingMapRevealTiles={}
+		startingMapPopulationIssues={}
 		if onComplete~=nil then onComplete(success,reason) end
 	end
 	local TileShuffler=		getObjectFromGUID(GUID.bag.terrain.shuffler)
@@ -45204,10 +45332,13 @@ local function apocalypseDragonCityVariantSelectable()
 	return apocalypseDragonCityVariantScenarioEligible()==true and (gStates.megapolis or 0)==0
 end
 
+local RANDOM_HEADS_BUTTON_TEXT={
+	on="{en}Random Heads - On{it}Teste Casuali - Sì{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
+	off="{en}Random Heads - Off{it}Teste Casuali - No{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"
+}
+
 local SCENARIO_VARIANT_BUTTON_TEXT={
-	RandomizedDragonHeadsButton={
-		on="{en}Random Heads - On{it}Teste Casuali - Sì{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
-		off="{en}Random Heads - Off{it}Teste Casuali - No{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"},
+	RandomizedDragonHeadsButton=RANDOM_HEADS_BUTTON_TEXT,
 	HorsemenHorsesButton={
 		on="{en}With Horse - On{it}Con Cavalcatura - Sì{ru}С лошадью - Вкл.{zh-tw}帶戰馬 - 開{zh-cn}带战马 - 开{ko}말 포함 - 켜짐{es}Con caballo - Sí{fr}Avec cheval - Oui{pt-br}Com cavalo - Ligado{de}Mit Pferd - An",
 		off="{en}With Horse - Off{it}Con Cavalcatura - No{ru}С лошадью - Выкл.{zh-tw}帶戰馬 - 關{zh-cn}带战马 - 关{ko}말 포함 - 꺼짐{es}Con caballo - No{fr}Avec cheval - Non{pt-br}Com cavalo - Desligado{de}Mit Pferd - Aus"},
@@ -45217,9 +45348,7 @@ local SCENARIO_VARIANT_BUTTON_TEXT={
 	ApocalypseDragonCityLastButton={
 		on="{en}Last City - On{it}Ultima Città - Sì{ru}Последний город - Вкл.{zh-tw}最後城市 - 開{zh-cn}最后城市 - 开{ko}마지막 도시 - 켜짐{es}Última Ciudad - Sí{fr}Dernière Cité - Oui{pt-br}Última Cidade - Ligado{de}Letzte Stadt - An",
 		off="{en}Last City - Off{it}Ultima Città - No{ru}Последний город - Выкл.{zh-tw}最後城市 - 關{zh-cn}最后城市 - 关{ko}마지막 도시 - 꺼짐{es}Última Ciudad - No{fr}Dernière Cité - Non{pt-br}Última Cidade - Desligado{de}Letzte Stadt - Aus"},
-	ApocalypseDragonCityRandomHeadsButton={
-		on="{en}Random Heads - On{it}Teste Casuali - Sì{ru}Случ. головы - Вкл.{zh-tw}隨機龍首 - 開{zh-cn}随机龙首 - 开{ko}머리 무작위 - 켜짐{es}Cabezas aleatorias - Sí{fr}Têtes aléatoires - Oui{pt-br}Cabeças aleatórias - Ligado{de}Zufällige Köpfe - An",
-		off="{en}Random Heads - Off{it}Teste Casuali - No{ru}Случ. головы - Выкл.{zh-tw}隨機龍首 - 關{zh-cn}随机龙首 - 关{ko}머리 무작위 - 꺼짐{es}Cabezas aleatorias - No{fr}Têtes aléatoires - Non{pt-br}Cabeças aleatórias - Desligado{de}Zufällige Köpfe - Aus"}
+	ApocalypseDragonCityRandomHeadsButton=RANDOM_HEADS_BUTTON_TEXT
 }
 
 local function setScenarioVariantButtonState(id,selected)
@@ -47739,10 +47868,35 @@ function appendTerrainHexChoiceButton(key,index,xml,splitIndex,splitCount,spec)
 	local fontSize=tostring(split and (spec.splitFontSize or 60) or (spec.fontSize or 72))
 	xml=xml or terrain.UI.getXmlTable() or {}
 	xml[#xml+1]={tag="Button",attributes={id=id,onClick=spec.onClick,onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-		height=placement.height,width=spec.width or 320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
+		height=(split and placement.height or spec.height or placement.height),width=spec.width or 320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
 		children={{tag="Image",attributes={id=id.."Image",image=spec.image or "Sliced Button/Button Object Active",type="Sliced"}},
 			{tag="HorizontalLayout",attributes={padding=spec.padding or "20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font=spec.font or "Fonts/MKCardText",offsetXY=spec.offsetXY or "0 1",fontSize=fontSize,fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=fontSize,text=spec.text or ""}}}}}}
 	return terrain,xml
+end
+
+--Build and apply a full set of hex-choice buttons, including multiple options on one hex.
+-- Callers retain their own labels/onClick handlers; grouping and XML writes happen once per tile.
+function applyTerrainHexChoiceButtons(options,buttonBuilder)
+	if type(buttonBuilder)~="function" then return false end
+	local byTerrain,sameHexCounts,sameHexSeen={},{},{}
+	for _,option in ipairs(options or {}) do
+		local key=option~=nil and option.key or nil
+		if key~=nil then sameHexCounts[key]=(sameHexCounts[key] or 0)+1 end
+	end
+	for index,option in ipairs(options or {}) do
+		local key=option~=nil and option.key or nil
+		local terrainGUID=key~=nil and tostring(key):match("^([^|]+)|") or nil
+		local terrain=terrainGUID~=nil and getObjectFromGUID(terrainGUID) or nil
+		if terrain~=nil then
+			local group=byTerrain[terrainGUID]
+			if group==nil then group={terrain=terrain,xml=terrain.UI.getXmlTable() or {}} byTerrain[terrainGUID]=group end
+			sameHexSeen[key]=(sameHexSeen[key] or 0)+1
+			local _,xml=buttonBuilder(option,index,group.xml,sameHexSeen[key],sameHexCounts[key])
+			group.xml=xml or group.xml
+		end
+	end
+	for _,group in pairs(byTerrain) do group.terrain.UI.setXmlTable(group.xml) end
+	return true
 end
 
 --Remove one subsystem's terrain-attached choice controls without disturbing other terrain UI.
@@ -48217,7 +48371,7 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="447"
+local automaticLuaErrorReporterVersion="448"
 
 local function automaticLuaErrorValue(callback, fallback)
 	local ok, value=pcall(callback)
