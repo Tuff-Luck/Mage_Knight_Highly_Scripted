@@ -750,38 +750,70 @@ function volkareCoopDefense(player, mouseButton, id)
 	end
 end
 
--- Volkare reminder token randomization
-local volkareDiceRolled=false
-function volkareTokenRandomize(token)--9a686a
-	local VolkareReminder={	["Black Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414015137/203E9CF64831CC5BBB43AAEC5CCBC9B450B2304E/",
-							["Blue Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203413988434/BF2446CF89EF2F4398C38B32F5CAB104FCCE94AC/",
-							["White Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414024554/8541C7CC8BC88442619F8921DAA50CAE0BCD88E9/",
-							["Green Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414009198/C52B548C26AC08BCE1237A114A47DC973D0CE7D9/",
-							["Red Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414000318/7F26EE486FD34E0FD08E0653EF4DACCB69F38A87/",
-							["Gold Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203413995197/64E0C4E59A98DAFB09633F31CA9D1279F0593CFD/",}
-	--roll volkares dice and read result
-	local volkareDice=getObjectFromGUID(GUID.object.volkareDie)
-	if volkareDiceRolled==false then volkareDice.randomize() volkareDiceRolled=true end
-	safeWaitFrames("Volkare",function() safeWaitCondition("Volkare",function()
-		if token~=nil then
-			token.setCustomObject({image=VolkareReminder[volkareDice.getRotationValue()]})
-			token.reload()
-			if gStates.monsterPerks[token.guid]==nil then gStates.monsterPerks[token.guid]={} end
-			gStates.monsterPerks[token.guid].arcaneImmunity=true
-			gStates.monsterPerks[token.guid].brutal=true
-			gStates.monsterPerks[token.guid].assassination=true
-			if volkareDice.getRotationValue()=="Red Mana" then gStates.monsterPerks[token.guid].attack={F={3}} end
-			if volkareDice.getRotationValue()=="Blue Mana" then gStates.monsterPerks[token.guid].attack={I={3}} end
-			if volkareDice.getRotationValue()=="Green Mana" then gStates.monsterPerks[token.guid].poison=true gStates.monsterPerks[token.guid].attack={P={4}} end
-			if volkareDice.getRotationValue()=="White Mana" then gStates.monsterPerks[token.guid].swiftness=true gStates.monsterPerks[token.guid].attack={P={3}} end
-			if volkareDice.getRotationValue()=="Black Mana" then gStates.monsterPerks[token.guid].paralyse=true	gStates.monsterPerks[token.guid].attack={P={3}} end
-			if volkareDice.getRotationValue()=="Gold Mana" then gStates.monsterPerks[token.guid].attack={IF={3}} end
-			if volkareDiceRolled==true then
-				broadcastToAll("{en}Volkare's Attack randomly picked{it}Attacco di Volkare scelto CASUALMENTE{ru}Атака Волкара была определена{zh-tw}沃里卡随机挑选攻击对象{zh-cn}沃里卡随机挑选攻击对象{ko}볼케어의 공격이 결정되었습니다{es}Ataque de Volkare elegido al azar{fr}Attaque de Volkare choisie au hasard{pt-br}Ataque de Volkare aleatóriamente escolhido{de}Volkare's Angriff zufällig ausgewählt", {1,1,0.5})
-				volkareDiceRolled=false
-			end
+-- Volkare reminder tokens share one settled die result when drawn together.
+local volkareReminderImages={
+	["Black Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414015137/203E9CF64831CC5BBB43AAEC5CCBC9B450B2304E/",
+	["Blue Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203413988434/BF2446CF89EF2F4398C38B32F5CAB104FCCE94AC/",
+	["White Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414024554/8541C7CC8BC88442619F8921DAA50CAE0BCD88E9/",
+	["Green Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414009198/C52B548C26AC08BCE1237A114A47DC973D0CE7D9/",
+	["Red Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203414000318/7F26EE486FD34E0FD08E0653EF4DACCB69F38A87/",
+	["Gold Mana"]="https://steamusercontent-a.akamaihd.net/ugc/1617311203413995197/64E0C4E59A98DAFB09633F31CA9D1279F0593CFD/"
+}
+local volkareReminderEffects={
+	["Red Mana"]={attack={F={3}}},
+	["Blue Mana"]={attack={I={3}}},
+	["Green Mana"]={poison=true,attack={P={4}}},
+	["White Mana"]={swiftness=true,attack={P={3}}},
+	["Black Mana"]={paralyse=true,attack={P={3}}},
+	["Gold Mana"]={attack={IF={3}}}
+}
+local volkareReminderRoll=nil
+
+local function volkareApplyReminder(guid,result)
+	local token=getObjectFromGUID(guid)
+	local image=volkareReminderImages[result]
+	local effect=volkareReminderEffects[result]
+	if token==nil or image==nil or effect==nil then return end
+	token.setCustomObject({image=image})
+	token.reload()
+	local perks={arcaneImmunity=true,brutal=true,assassination=true}
+	for key,value in pairs(effect) do perks[key]=value end
+	gStates.monsterPerks[guid]=perks
+end
+
+function volkareTokenRandomize(token)
+	if token==nil then return end
+	if volkareReminderRoll~=nil then
+		volkareReminderRoll.tokens[#volkareReminderRoll.tokens+1]=token.guid
+		return
+	end
+	local die=getObjectFromGUID(GUID.object.volkareDie)
+	if die==nil then
+		broadcastToAll("{en}Volkare's attack die is missing. Resolve his reminder manually.{it}Manca il dado di Volkare. Risolvi manualmente.{ru}Кубик Волкара отсутствует. Выполните эффект вручную.{zh-tw}沃卡里攻擊骰遺失，請手動處理。{zh-cn}沃卡里攻击骰缺失，请手动处理。{ko}볼케어 공격 주사위가 없습니다. 수동으로 처리하세요.{es}Falta el dado de Volkare. Resuélvelo manualmente.{fr}Le dé de Volkare manque. Résolvez l'effet manuellement.{pt-br}O dado de Volkare está ausente. Resolva manualmente.{de}Volkares Angriffswürfel fehlt. Klärt den Effekt manuell.",warningColor)
+		return
+	end
+	local roll={tokens={token.guid}}
+	volkareReminderRoll=roll
+	die.randomize()
+	local function complete(timedOut)
+		if volkareReminderRoll~=roll then return end
+		volkareReminderRoll=nil
+		local result=not timedOut and die.getRotationValue() or nil
+		if result==nil or volkareReminderImages[result]==nil then
+			broadcastToAll("{en}Volkare's attack die did not settle. Resolve his reminder manually.{it}Il dado di Volkare non si è fermato. Risolvi manualmente.{ru}Кубик Волкара не остановился. Выполните эффект вручную.{zh-tw}沃卡里攻擊骰未停止，請手動處理。{zh-cn}沃卡里攻击骰未停止，请手动处理。{ko}볼케어 주사위가 멈추지 않았습니다. 수동으로 처리하세요.{es}El dado de Volkare no se detuvo. Resuélvelo manualmente.{fr}Le dé de Volkare ne s'est pas arrêté. Résolvez manuellement.{pt-br}O dado de Volkare não parou. Resolva manualmente.{de}Volkares Würfel kam nicht zur Ruhe. Klärt den Effekt manuell.",warningColor)
+			return
 		end
-	end, function() return token==nil or (token.resting and volkareDice.resting) end) end, 2)
+		for _,guid in ipairs(roll.tokens) do
+			-- Wait for the token itself before reloading its image.
+			safeWaitCondition("AI.Volkare",function() volkareApplyReminder(guid,result) end,
+				function() local obj=getObjectFromGUID(guid) return obj==nil or obj.resting end,
+				8,function() volkareApplyReminder(guid,result) end)
+		end
+		broadcastToAll("{en}Volkare's Attack randomly picked{it}Attacco di Volkare scelto CASUALMENTE{ru}Атака Волкара была определена{zh-tw}沃里卡随机挑选攻击对象{zh-cn}沃里卡随机挑选攻击对象{ko}볼케어의 공격이 결정되었습니다{es}Ataque de Volkare elegido al azar{fr}Attaque de Volkare choisie au hasard{pt-br}Ataque de Volkare aleatóriamente escolhido{de}Volkare's Angriff zufällig ausgewählt",{1,1,0.5})
+	end
+	safeWaitFrames("AI.Volkare",function()
+		safeWaitCondition("AI.Volkare",function() complete(false) end,function() return die.resting end,8,function() complete(true) end)
+	end,2)
 end
 
 -- Public UI callback ownership: publish protected TTS/XML entry points from the module that implements them.
